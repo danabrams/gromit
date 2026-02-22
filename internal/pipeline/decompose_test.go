@@ -1214,6 +1214,113 @@ func (m *decomposeAcceptanceBeadClient) Close(id string) error {
 	return nil
 }
 
+// TestDecomposeWorkflow_UsesExpectedOutputsWhenNonEmpty verifies that when expected_outputs is non-empty,
+// it is passed to CreateWithDepsAndDescription instead of acceptance_criteria.
+func TestDecomposeWorkflow_UsesExpectedOutputsWhenNonEmpty(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plansDir, "test-plan.md"), []byte("# Test Plan"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	mockClaude := &decomposeAcceptanceClaudeClient{
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output: `[{
+					"title": "Task with outputs",
+					"description": "Has expected outputs",
+					"priority": "P1",
+					"acceptance_criteria": ["Criterion A"],
+					"expected_outputs": ["Output X", "Output Y"],
+					"depends_on_index": []
+				}]`,
+			}, nil
+		},
+	}
+
+	var capturedCriteria []string
+	mockBead := &decomposeAcceptanceBeadClient{
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+			capturedCriteria = criteria
+			return &BeadInfo{ID: "bead-1"}, nil
+		},
+	}
+
+	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	_, err := p.Decompose(context.Background(), DecomposeInput{PlanName: "test-plan"})
+	if err != nil {
+		t.Fatalf("Decompose() failed: %v", err)
+	}
+
+	if len(capturedCriteria) != 2 {
+		t.Fatalf("criteria passed to CreateWithDepsAndDescription length = %d, want 2 (from expected_outputs)", len(capturedCriteria))
+	}
+	if capturedCriteria[0] != "Output X" {
+		t.Errorf("criteria[0] = %q, want %q", capturedCriteria[0], "Output X")
+	}
+	if capturedCriteria[1] != "Output Y" {
+		t.Errorf("criteria[1] = %q, want %q", capturedCriteria[1], "Output Y")
+	}
+}
+
+// TestDecomposeWorkflow_FallsBackToAcceptanceCriteriaWhenNoExpectedOutputs verifies that when
+// expected_outputs is empty, acceptance_criteria is used.
+func TestDecomposeWorkflow_FallsBackToAcceptanceCriteriaWhenNoExpectedOutputs(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plansDir, "test-plan.md"), []byte("# Test Plan"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	mockClaude := &decomposeAcceptanceClaudeClient{
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output: `[{
+					"title": "Task without outputs",
+					"description": "Has no expected outputs",
+					"priority": "P1",
+					"acceptance_criteria": ["Criterion A", "Criterion B"],
+					"depends_on_index": []
+				}]`,
+			}, nil
+		},
+	}
+
+	var capturedCriteria []string
+	mockBead := &decomposeAcceptanceBeadClient{
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+			capturedCriteria = criteria
+			return &BeadInfo{ID: "bead-1"}, nil
+		},
+	}
+
+	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	_, err := p.Decompose(context.Background(), DecomposeInput{PlanName: "test-plan"})
+	if err != nil {
+		t.Fatalf("Decompose() failed: %v", err)
+	}
+
+	if len(capturedCriteria) != 2 {
+		t.Fatalf("criteria passed to CreateWithDepsAndDescription length = %d, want 2 (from acceptance_criteria)", len(capturedCriteria))
+	}
+	if capturedCriteria[0] != "Criterion A" {
+		t.Errorf("criteria[0] = %q, want %q", capturedCriteria[0], "Criterion A")
+	}
+	if capturedCriteria[1] != "Criterion B" {
+		t.Errorf("criteria[1] = %q, want %q", capturedCriteria[1], "Criterion B")
+	}
+}
+
 // TestBeadDef_ExpectedOutputsDeserializesFromJSON verifies expected_outputs JSON field is parsed correctly.
 func TestBeadDef_ExpectedOutputsDeserializesFromJSON(t *testing.T) {
 	jsonInput := `{
