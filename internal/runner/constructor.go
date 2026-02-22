@@ -253,6 +253,7 @@ func (a *iterationLogWriterAdapter) Write(log *logger.IterationLog) error {
 type failureLearnerAdapter struct {
 	renderer *prompt.Renderer
 	router   *provider.Router
+	analyzer FailureAnalyzer
 	logFn    func(string, ...interface{})
 }
 
