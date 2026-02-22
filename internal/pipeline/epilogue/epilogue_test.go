@@ -618,6 +618,31 @@ func TestEpilogue_SkipsIterationLog_WhenNoResult(t *testing.T) {
 	}
 }
 
+// TestEpilogue_StatusWrite_PassesModelFromResult verifies that when Input.Result
+// is non-nil, the StatusWriter receives Result.Model instead of an empty string.
+func TestEpilogue_StatusWrite_PassesModelFromResult(t *testing.T) {
+	status := &fakeStatusWriter{}
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, status, io.Discard)
+
+	in := makeInput("bead-1", "Implement feature", true)
+	in.Result = &logger.IterationLog{
+		BeadID: "bead-1",
+		Model:  "sonnet",
+	}
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if !status.called {
+		t.Fatal("StatusWriter.Write() was not called")
+	}
+	if status.lastModel != "sonnet" {
+		t.Errorf("StatusWriter.Write() model = %q, want %q", status.lastModel, "sonnet")
+	}
+}
+
 // TestEpilogue_SkipsIterationLog_WhenNoWriter verifies that when no log writer is
 // configured, epilogue does not panic when Result is present.
 func TestEpilogue_SkipsIterationLog_WhenNoWriter(t *testing.T) {
