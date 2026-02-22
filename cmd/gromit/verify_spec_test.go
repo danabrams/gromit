@@ -287,6 +287,23 @@ func TestVerifySpecCmd_CreateBeadsPrintsIDs(t *testing.T) {
 	}
 }
 
+func TestBuildVerifySpecRouter_UsesProviderBuildRouterFromConfig(t *testing.T) {
+	verifySource, err := os.ReadFile("verify_spec.go")
+	if err != nil {
+		t.Fatalf("Reading verify_spec.go: %v", err)
+	}
+
+	sourceStr := string(verifySource)
+	buildRouterFn, ok := extractFunction(sourceStr, "buildVerifySpecRouter")
+	if !ok {
+		t.Fatal("Cannot find buildVerifySpecRouter function")
+	}
+
+	if !strings.Contains(buildRouterFn, "provider.BuildRouterFromConfig(cfg)") {
+		t.Error("buildVerifySpecRouter missing provider.BuildRouterFromConfig(cfg) call")
+	}
+}
+
 func setupVerifySpecTest(t *testing.T, specName string, specContent string) {
 	t.Helper()
 
