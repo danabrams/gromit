@@ -33,7 +33,7 @@ func TestBuildContext_UsesSiblingTouchedPackagesResolver(t *testing.T) {
 		Title:           "test",
 		Labels:          []string{},
 		ExpectedOutputs: []string{},
-	}, nil, 1, "sonnet", "")
+	}, nil, 1, "sonnet", promptPhaseBuild)
 	if err != nil {
 		t.Fatalf("BuildContext() error = %v", err)
 	}
@@ -68,7 +68,7 @@ func TestBuildContext_SiblingResolverErrorDoesNotFail(t *testing.T) {
 		Title:           "test",
 		Labels:          []string{},
 		ExpectedOutputs: []string{},
-	}, nil, 1, "sonnet", "")
+	}, nil, 1, "sonnet", promptPhaseBuild)
 	if err != nil {
 		t.Fatalf("BuildContext() should degrade on resolver error, got %v", err)
 	}

@@ -131,7 +131,7 @@ func TestBuildContext_LearningsCapApplied(t *testing.T) {
 			r := setupRendererWithLearnings(t, tt.numLearnings, tt.charPerLearning)
 			r.SetMaxLearningChars(tt.maxLearningChars)
 
-			ctx, err := r.BuildContext(testBead, nil, 1, "sonnet", "")
+			ctx, err := r.BuildContext(testBead, nil, 1, "sonnet", promptPhaseBuild)
 			if err != nil {
 				t.Fatalf("BuildContext() error = %v", err)
 			}
@@ -153,7 +153,7 @@ func TestBuildContext_LearningsCapPrefersMostRecent(t *testing.T) {
 
 	testBead := newBuildContextTestBead()
 
-	ctx, err := r.BuildContext(testBead, nil, 1, "sonnet", "")
+	ctx, err := r.BuildContext(testBead, nil, 1, "sonnet", promptPhaseBuild)
 	if err != nil {
 		t.Fatalf("BuildContext() error = %v", err)
 	}
@@ -180,7 +180,7 @@ func TestBuildContext_ZeroBudgetBackwardCompatible(t *testing.T) {
 
 	testBead := newBuildContextTestBead()
 
-	ctx, err := r.BuildContext(testBead, nil, 1, "sonnet", "")
+	ctx, err := r.BuildContext(testBead, nil, 1, "sonnet", promptPhaseBuild)
 	if err != nil {
 		t.Fatalf("BuildContext() error = %v", err)
 	}

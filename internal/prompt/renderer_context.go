@@ -17,6 +17,9 @@ func (r *Renderer) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, 
 	if b == nil {
 		return nil, fmt.Errorf("bead is nil")
 	}
+	if phase == "" {
+		return nil, fmt.Errorf("phase is required")
+	}
 	ctx := &Context{
 		Bead:       b,
 		ParentBead: parent,
