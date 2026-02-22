@@ -19,26 +19,26 @@ Status struct fields require backward-compatible changes (omitempty for new opti
 
 Methodologies use label-based activation ("methodology:true"/"false") with global config fallback via bead.IsMethodologyActive(). When active, replace the build prompt with a specialized RenderXXXBuild method. Check parent labels before adding globally-active methodology labels to sub-beads to avoid duplicates. Order methodology checks carefully for precedence when multiple methodologies are active.
 
-### 2026-02-11 | Prompt Template Structure | conventions
-*Related to: gromit-rpne*
+### 2026-02-22 | Prompt Assembly Integrity | conventions
+*Related to: gromit-rpne, review-1771763626626526682*
 
-Prompt templates in .gromit/templates/ use explicit section headers (##) and preserve exact whitespace/structure when updating. Template files follow a consistent structure: context section at top, then Guidelines, then preserved sections like 'Avoiding Sibling Overlap' and ATDD blocks. When modifying sections, maintain blank lines between sections and ensure downstream blocks remain unchanged. Acceptance tests for template changes must match the exact content being added, including specific phrases and subsection structure.
+Prompt assembly integrity requires both strict template structure fidelity and explicit error handling in rule/template loaders. Preserve section/whitespace contracts in template files and never discard loader errors; return or warn with phase context so degraded prompts are observable.
 
 ### 2026-02-16 | Provider Contract Fixtures | patterns
 *Related to: gromit-d7j9*
 
 Contract tests consume canonical provider fixtures under test/fixtures/ using scenario-driven naming: `{provider}[_stream]_{outcome}.{format}`. Fixtures (codex_success.txt, codex_failure.txt, codex_stream_success.jsonl, codex_stream_failure.jsonl, claude_stream_success.jsonl) must include brief provenance comments describing the source and refresh workflow. Payloads should be minimal but realistic—Codex plain-text fixtures show output structure (touched/tests lines), JSONL fixtures emit `{"type":"assistant",...}` and `{"type":"result",...}` events. Fixture environment variables (CODEX_FIXTURE, CLAUDE_FIXTURE) point fake CLIs to fixture paths. Test assertions verify output matches canonical payloads, enabling both roundtrip validation and contract evolution tracking. Provenance comments facilitate fixture refresh workflow without manual intervention.
 
+### 2026-02-22 | Stage Contract & Soft-Failure Orchestration | patterns
+*Related to: 9980dae8, gromit-22nrv, 8d85f5d7*
+
+Stage-based orchestration should keep business logic in stages with typed I/O, dependency injection via builder methods, and explicit inter-stage state flow. Optional dependencies may soft-fail with warnings only when explicitly optional; critical contracts (validation output, touched package carryover, iteration numbering) require deterministic tests.
+
 ---
 
 ## Provisional
 
 *Seen once - may be specific to one task.*
-
-### 2026-02-21 | Pipeline Stage Dependency Injection and Soft Failure Patterns | patterns
-*Related to: 9980dae8, gromit-22nrv*
-
-Pipeline stages use local dependency interfaces injected via builder pattern methods (WithAutoFixer, WithPrechecker, WithStuckDetector), allowing optional composition. Nil checks in Run() enable graceful degradation when a dependency isn't configured—errors from optional dependencies are logged as warnings, not pipeline blockers. Compile-time checks (`var _ pipeline.Stage = (*Impl)(nil)`) enforce architectural contracts. The Validate stage uses a soft-failure pattern: unresolved validation failures populate ValidationFailures for the next Build input rather than blocking the pipeline. Auto-fix (gofmt/goimports) runs first, re-validates, and returns Proceed regardless. Periodic full validation is gated via modulo arithmetic. Mandatory command prefix enforcement happens upfront via checkMandatoryPrefixes(). Decision ordering matters in Gate: precheck (Skip) runs before stuck detection (Block) to ensure already-completed work is closed promptly.
 
 ### 2026-02-20 | Cost/Token Accounting Needs Consistent Delta Semantics | gotchas
 *Related to: code-review*
@@ -50,36 +50,15 @@ Cost/token tracking uses inconsistent accumulation patterns: (1) PhaseMetric rec
 
 Use package-level `var _ Interface = (*Impl)(nil)` declarations in non-test `.go` files to enforce architectural invariants at compile time. A check inside a test function body gates test compilation only — it does not gate production builds. Avoid tests that use `os.ReadFile`+`strings.Contains` on `.go` source files — they break silently on renames/moves. Distinguish from forced-import keep-alive patterns (`var _ = Type{}`): these exist solely to prevent the compiler from removing an unused import, indicate incomplete refactoring, and should be removed. When removing package usage, search for these keep-alive patterns in the same file and related consumers.
 
-### 2026-02-21 | Multi-Stage Pipeline Orchestrator Pattern | patterns
-*Related to: 8d85f5d7*
+### 2026-02-22 | Orchestrator Migration Safety & Parity | conventions
+*Related to: code-review, review-1771733992016921570*
 
-Replace God Object pattern with pure orchestration: hold only stage references and config, no business logic. The Orchestrator struct contains just a config field; all per-stage logic lives in internal/pipeline/<stage>/. Enforce import discipline at the orchestrator level—import only internal/pipeline and internal/logger. Wire stages at construction time via OrchestratorConfig, making dependency graph explicit and mockable. Assign iteration numbers monotonically regardless of outcome (including beads blocked at Gate), preserving failure chains. Flow inter-stage outputs into subsequent iterations: ValidationFailures from Validate→Build Input, TouchedPackages from Epilogue→next iteration Input. Keep failed stages in Epilogue for logging/cleanup rather than early-exit—this ensures consistent logging and status updates. Handle optional stages (Review) via nil checks at runtime, not construction time. Merge global stats atomically at completion, preserving prior entries—use read-modify-write with idempotency checks. Benefit: stages become independently testable, sequencing is explicit and debuggable, and stage coupling is minimal.
-
+Orchestrator migration must preserve behavior parity with legacy Runner while dual paths coexist. Enforce migration safety checks: complete call-site migration before deletion, verify exported symbol reachability, compile acceptance-tagged tests (go test -tags acceptance -run '^$' ./...), remove keep-alive forced imports, and add parity tests for cost tracking/state saving across both paths until legacy removal.
 
 ## Emerging
 
 *Newly observed — needs validation across more tasks.*
 
-### 2026-02-22 | Orchestrator Migration Adapter Patterns | patterns
-*Related to: code-review, review-1771733992016921570*
-
-The Orchestrator migration introduces adapter proliferation (12+ types in constructor.go) bridging stage interfaces to infrastructure — future stage interfaces should minimize this surface. Key patterns: (1) Consolidation — one exported function in the parent package (e.g., BuildFromReviewLabels), child packages import it; remove deprecated wrappers once callers migrate. (2) File extraction — enforced by file_size_test.go with a 550-line limit. (3) Dual-path risk — Orchestrator and legacy Runner have separate code for the same operations (cost tracking, state saving); features wired in one path may be silently missing in the other. (4) Asymmetric state — validationFailures clear on success while touchedPackages accumulate across the run (intentional but non-obvious). (5) Copy-paste bugs — adapters with similar methods (RenderBuild/RenderRefactor) need independent delegation target verification. (6) FnField mocks — nil-safe with explicit nil check, injected via deps struct. Always sort map keys in logging functions for deterministic output.
-
-### 2026-02-22 | Silent Error Swallowing in Render Builder Functions | gotchas
-*Related to: review-1771763626626526682*
-
-The TDD render builder functions (buildRenderRedFn, buildRenderGreenFn) discard errors from `renderer.LoadRulesForPhase("build")` via `rules, _ :=`. This is graceful degradation — prompts render without rules — but silently hides configuration problems. When building closure-based dependency injectors, surface or log errors from fallible setup calls rather than discarding them; silent degradation in prompt assembly can produce subtly wrong LLM outputs that are hard to trace.
-
-### 2026-02-22 | Architectural Migration Safety Checklist | conventions
-*Related to: code-review*
-
-When removing public APIs or deleting large files during migration: (1) Systematically find all call sites and complete migrations before deletion — interdependencies between orchestration components require careful refactoring order. (2) Verify all exported symbols are either migrated or unreferenced. (3) Run `go test -tags acceptance -run '^$'` to verify compilation of build-tag-gated tests — these are invisible to normal `go test ./...` and symbols can be silently lost (e.g., PrintStatus was lost when lifecycle.go was deleted). (4) Search for forced-import keep-alive patterns (`var _ = Type{}`) left behind by incomplete refactoring and remove them.
-
-
-### 2026-02-22 | Builder Pattern Pointer Receiver Mutation | gotchas
-*Related to: review-1771784092725425988*
-
-Builder-pattern methods that mutate the pointer receiver (like Gate.WithDecomposer setting g.decomposer = d) work correctly even when the return value is discarded. The return is for optional method chaining; the mutation happens on the receiver regardless. When reviewing builder calls like `obj.WithX(val)` without assignment, check whether the method mutates the receiver — if it does, the call is correct despite looking like a no-op.
 
 ### 2026-02-22 | SPC Display Formatting Two-Tier Pattern | patterns
 *Related to: review-1771784092725425988*
