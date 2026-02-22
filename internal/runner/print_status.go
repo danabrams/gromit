@@ -3,6 +3,7 @@ package runner
 import (
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -33,6 +34,21 @@ func PrintStatus(gromitDir string, cfg *config.Config, w io.Writer, processCheck
 
 	// Detect stale PID: status says running but process is dead.
 	if status.Running && !processChecker(status.PID) {
+		if _, err := fmt.Fprintf(w, "Warning: stale run detected (PID %d is no longer alive)\n", status.PID); err != nil {
+			return fmt.Errorf("writing stale warning: %w", err)
+		}
+		if _, err := fmt.Fprintf(w, "  Bead: %s — %s\n", status.BeadID, status.BeadTitle); err != nil {
+			return fmt.Errorf("writing stale bead info: %w", err)
+		}
+		if _, err := fmt.Fprintln(w, "Removing stale status file"); err != nil {
+			return fmt.Errorf("writing removal message: %w", err)
+		}
+
+		statusPath := filepath.Join(gromitDir, "status.json")
+		if err := os.Remove(statusPath); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("removing stale status file: %w", err)
+		}
+
 		status.Running = false
 	}
 
