@@ -99,3 +99,80 @@ func TestRetroRouterAdapterRun_RetriesOnUsageLimitResultWithoutError(t *testing.
 		t.Fatalf("marked unavailable provider = %q, want %q", markedUnavailable, "first")
 	}
 }
+
+func TestRetroRouterAdapterRun_ReturnsProviderExhaustedErrorAfterUsageLimit(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	wantPrompt := "retro prompt"
+	wantTier := provider.TierLow
+	wantPhase := "retro"
+	usageErr := context.DeadlineExceeded
+
+	runCalls := 0
+	selectCalls := 0
+	markedUnavailable := ""
+
+	firstProvider := &reviewProviderStub{
+		NameFn: func() string { return "first" },
+		RunFn: func(runCtx context.Context, prompt string, tier string) (*provider.Result, error) {
+			runCalls++
+			if runCtx != ctx {
+				t.Fatalf("ctx mismatch")
+			}
+			if prompt != wantPrompt {
+				t.Fatalf("prompt = %q, want %q", prompt, wantPrompt)
+			}
+			if tier != wantTier {
+				t.Fatalf("tier = %q, want %q", tier, wantTier)
+			}
+			return nil, usageErr
+		},
+		IsUsageLimitErrorFn: func(result *provider.Result, err error) bool {
+			return result == nil && err == usageErr
+		},
+	}
+
+	mockRouter := &reviewRouterStub{
+		SelectFn: func(phase string, tier string) (provider.Provider, string) {
+			if phase != wantPhase {
+				t.Fatalf("phase = %q, want %q", phase, wantPhase)
+			}
+			if tier != wantTier {
+				t.Fatalf("tier = %q, want %q", tier, wantTier)
+			}
+			selectCalls++
+			if selectCalls == 1 {
+				return firstProvider, "selected-first-model"
+			}
+			return nil, ""
+		},
+		MarkUnavailableFn: func(name string) {
+			markedUnavailable = name
+		},
+	}
+	adapter := &retroRouterAdapter{
+		Router: mockRouter,
+		Phase:  wantPhase,
+	}
+
+	got, err := adapter.Run(ctx, wantPrompt, wantTier)
+	if err == nil {
+		t.Fatal("Run() error = nil, want provider exhausted error")
+	}
+	if got != nil {
+		t.Fatalf("Run() result = %#v, want nil when providers are exhausted", got)
+	}
+	if err.Error() != `no providers available for phase "retro" and tier "low"` {
+		t.Fatalf("Run() error = %q, want %q", err.Error(), `no providers available for phase "retro" and tier "low"`)
+	}
+	if runCalls != 1 {
+		t.Fatalf("first provider Run calls = %d, want 1", runCalls)
+	}
+	if selectCalls != 2 {
+		t.Fatalf("router Select calls = %d, want 2", selectCalls)
+	}
+	if markedUnavailable != "first" {
+		t.Fatalf("marked unavailable provider = %q, want %q", markedUnavailable, "first")
+	}
+}
