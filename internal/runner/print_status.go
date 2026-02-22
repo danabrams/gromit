@@ -32,24 +32,8 @@ func PrintStatus(gromitDir string, cfg *config.Config, w io.Writer, processCheck
 		processChecker = IsProcessAlive
 	}
 
-	// Detect stale PID: status says running but process is dead.
-	if status.Running && !processChecker(status.PID) {
-		if _, err := fmt.Fprintf(w, "Warning: stale run detected (PID %d is no longer alive)\n", status.PID); err != nil {
-			return fmt.Errorf("writing stale warning: %w", err)
-		}
-		if _, err := fmt.Fprintf(w, "  Bead: %s — %s\n", status.BeadID, status.BeadTitle); err != nil {
-			return fmt.Errorf("writing stale bead info: %w", err)
-		}
-		if _, err := fmt.Fprintln(w, "Removing stale status file"); err != nil {
-			return fmt.Errorf("writing removal message: %w", err)
-		}
-
-		statusPath := filepath.Join(gromitDir, "status.json")
-		if err := os.Remove(statusPath); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("removing stale status file: %w", err)
-		}
-
-		status.Running = false
+	if err := handleStalePID(status, gromitDir, w, processChecker); err != nil {
+		return err
 	}
 
 	if _, err := fmt.Fprintln(w, formatRun(status)); err != nil {
@@ -98,5 +82,32 @@ func PrintStatus(gromitDir string, cfg *config.Config, w io.Writer, processCheck
 		return fmt.Errorf("writing SPC status: %w", err)
 	}
 
+	return nil
+}
+
+// handleStalePID checks whether status indicates a stale run (Running=true but
+// process is dead). If stale, it warns the user, removes the status file, and
+// sets Running=false so subsequent formatting shows "not running".
+func handleStalePID(status *Status, gromitDir string, w io.Writer, processChecker func(int) bool) error {
+	if !status.Running || processChecker(status.PID) {
+		return nil
+	}
+
+	if _, err := fmt.Fprintf(w, "Warning: stale run detected (PID %d is no longer alive)\n", status.PID); err != nil {
+		return fmt.Errorf("writing stale warning: %w", err)
+	}
+	if _, err := fmt.Fprintf(w, "  Bead: %s — %s\n", status.BeadID, status.BeadTitle); err != nil {
+		return fmt.Errorf("writing stale bead info: %w", err)
+	}
+	if _, err := fmt.Fprintln(w, "Removing stale status file"); err != nil {
+		return fmt.Errorf("writing removal message: %w", err)
+	}
+
+	statusPath := filepath.Join(gromitDir, "status.json")
+	if err := os.Remove(statusPath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("removing stale status file: %w", err)
+	}
+
+	status.Running = false
 	return nil
 }
