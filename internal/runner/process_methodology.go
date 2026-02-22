@@ -12,6 +12,7 @@ import (
 	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/failurephase"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/methodology"
 	"github.com/danabrams/gromit/internal/runner/policy"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
@@ -296,6 +297,10 @@ func extractRequirementsFromDescription(description string) []string {
 		}
 	}
 	return results
+}
+
+func extractRequirementsViaLLM(ctx context.Context, title, description string, invoke func(ctx context.Context, prompt, tier string) (*provider.Result, error)) []string {
+	return nil
 }
 
 func tddExpectedOutputsOrTitle(b *bead.Bead) []string {

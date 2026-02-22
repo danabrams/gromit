@@ -1,10 +1,28 @@
 package runner
 
 import (
+	"context"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/provider"
 )
+
+func TestExtractRequirementsViaLLM_ReturnsParsedItems(t *testing.T) {
+	invoke := func(_ context.Context, _ string, _ string) (*provider.Result, error) {
+		return &provider.Result{Success: true, Output: "item one\nitem two\nitem three"}, nil
+	}
+	got := extractRequirementsViaLLM(context.Background(), "My Title", "some description", invoke)
+	want := []string{"item one", "item two", "item three"}
+	if len(got) != len(want) {
+		t.Fatalf("got %d items, want %d: %v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("item %d: got %q, want %q", i, got[i], want[i])
+		}
+	}
+}
 
 func TestExtractRequirementsFromDescription_BulletedList(t *testing.T) {
 	cases := []struct {
