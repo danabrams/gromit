@@ -8,6 +8,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
 func TestExtractRequirementsViaLLM_ReturnsParsedItems(t *testing.T) {
@@ -307,5 +308,33 @@ func TestTddExpectedOutputsOrTitle_TitleFallbackWhenDescriptionUnparseable(t *te
 	}
 	if got[0] != want[0] {
 		t.Errorf("got %q, want %q", got[0], want[0])
+	}
+}
+
+// TestAggregateTDDPhaseMetricsToResult_SumsCostAndTokens verifies that
+// aggregateTDDPhaseMetricsToResult sums CostUSD, InputTokens, and OutputTokens
+// from all PhaseMetrics into bc.Result, so the iteration log reflects totals
+// across all TDD fresh-context cycle invocations rather than the last one only.
+func TestAggregateTDDPhaseMetricsToResult_SumsCostAndTokens(t *testing.T) {
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{
+			PhaseMetrics: []runtypes.PhaseMetric{
+				{CostUSD: 0.01, InputTokens: 100, OutputTokens: 50, Tier: "medium", Model: "sonnet"},
+				{CostUSD: 0.02, InputTokens: 200, OutputTokens: 75, Tier: "medium", Model: "sonnet"},
+			},
+		},
+	}
+
+	aggregateTDDPhaseMetricsToResult(bc)
+
+	wantCost := 0.01 + 0.02
+	if bc.Result.CostUSD != wantCost {
+		t.Errorf("CostUSD = %f, want %f", bc.Result.CostUSD, wantCost)
+	}
+	if bc.Result.InputTokens != 300 {
+		t.Errorf("InputTokens = %d, want 300", bc.Result.InputTokens)
+	}
+	if bc.Result.OutputTokens != 125 {
+		t.Errorf("OutputTokens = %d, want 125", bc.Result.OutputTokens)
 	}
 }

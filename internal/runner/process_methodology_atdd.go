@@ -388,3 +388,9 @@ func shouldSkipRevalidationForBudget(bc *runtypes.BeadContext, minBudget time.Du
 	}
 	return deadlineGuard{}
 }
+
+// aggregateTDDPhaseMetricsToResult sums cost and token totals from all
+// PhaseMetrics into bc.Result and sets Model to the highest-tier model used.
+func aggregateTDDPhaseMetricsToResult(bc *runtypes.BeadContext) {
+	_ = bc
+}
