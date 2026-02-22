@@ -240,14 +240,7 @@ func buildProvidersFromConfig(cfg *config.Config) (map[string]provider.Provider,
 }
 
 func parseFallbackCooldown(cfg *config.Config) time.Duration {
-	if !cfg.Routing.Fallback.EnabledOrDefault(len(cfg.Providers) > 1) || cfg.Routing.Fallback.Cooldown == "" {
-		return 0
-	}
-	cooldown, err := time.ParseDuration(cfg.Routing.Fallback.Cooldown)
-	if err != nil {
-		return 30 * time.Minute
-	}
-	return cooldown
+	return provider.ParseFallbackCooldown(cfg)
 }
 
 func selectLearningsProvider(providers map[string]provider.Provider) provider.Provider {
