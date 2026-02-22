@@ -180,7 +180,7 @@ func extractAPISurface(implFiles map[string]string) string {
 	var lines []string
 	for _, content := range implFiles {
 		for _, line := range strings.Split(content, "\n") {
-			if strings.HasPrefix(line, "func ") {
+			if strings.HasPrefix(line, "func ") || strings.HasPrefix(line, "type ") {
 				if idx := strings.Index(line, "{"); idx >= 0 {
 					line = strings.TrimSpace(line[:idx])
 				}
