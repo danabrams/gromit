@@ -375,7 +375,9 @@ func (r *Reviewer) RunThorough(ctx context.Context, sa StateAccess, iteration in
 		Diff:  diff,
 		Model: r.cfg.Review.Thorough.Model,
 	}
-	reviewCtx.Rules, _ = r.renderer.LoadRulesForPhase(reviewPhase)
+	reviewCtx.ClaudeMD, _ = r.renderer.LoadClaudeMD()
+	reviewCtx.Rules, _ = r.renderer.LoadRulesForPhase(thoroughReviewPhase)
+	prompt.ApplyReviewPhaseProfile(reviewCtx, thoroughReviewPhase)
 	reviewPrompt, err := r.renderer.RenderThoroughReview(reviewCtx)
 	if err != nil {
 		r.log("Warning: could not render thorough review prompt: %v", err)

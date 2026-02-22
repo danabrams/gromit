@@ -25,17 +25,20 @@ func ApplyPhaseProfile(ctx *Context, phase string) {
 	}
 }
 
-// ApplyReviewPhaseProfile prunes review context fields not needed for the given phase.
-func ApplyReviewPhaseProfile(ctx *ReviewContext, phase string) {
-	if ctx == nil {
-		return
+// ApplyReviewPhaseProfile prunes review-context fields not needed for the given phase.
+func ApplyReviewPhaseProfile(ctx any, phase string) {
+	switch v := ctx.(type) {
+	case *ReviewContext:
+		if v == nil || phase != "review" {
+			return
+		}
+		v.Spec = ""
+		v.ClaudeMD = ""
+		v.ValidationCommands = []string{}
+	case *ThoroughReviewContext:
+		if v == nil || phase != "thorough_review" {
+			return
+		}
+		v.ClaudeMD = ""
 	}
-
-	if phase != "review" {
-		return
-	}
-
-	ctx.Spec = ""
-	ctx.ClaudeMD = ""
-	ctx.ValidationCommands = []string{}
 }
