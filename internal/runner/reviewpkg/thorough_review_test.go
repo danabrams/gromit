@@ -76,11 +76,11 @@ func TestRunThorough_ReturnsResultFromProvider(t *testing.T) {
 
 	router := &mockRouter{
 		selectFn: func(phase, tier string) (provider.Provider, string) {
-			if phase != "review" {
-				t.Errorf("RunThorough should use phase 'review', got %q", phase)
+			if phase != "thorough_review" {
+				t.Errorf("RunThorough should use phase 'thorough_review', got %q", phase)
 			}
-			if tier != provider.TierHigh {
-				t.Errorf("RunThorough should use tier 'high', got %q", tier)
+			if tier != cfg.Review.Thorough.Tier {
+				t.Errorf("RunThorough should use configured tier %q, got %q", cfg.Review.Thorough.Tier, tier)
 			}
 			return prov, "thorough-provider"
 		},
