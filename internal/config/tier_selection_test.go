@@ -2,8 +2,6 @@ package config
 
 import (
 	"testing"
-
-	"github.com/danabrams/gromit/internal/provider"
 )
 
 // TestSelectTierBasics verifies that SelectTier() method exists on Config
@@ -22,51 +20,51 @@ func TestSelectTierBasics(t *testing.T) {
 			cfg:      nil,
 			priority: 1,
 			labels:   nil,
-			want:     provider.TierMedium,
+			want:     "medium",
 		},
 		{
 			name: "P0ReturnsTierHigh",
 			cfg: &Config{Models: ModelsConfig{
-				P0: provider.TierHigh,
-				P1: provider.TierMedium,
-				P2: provider.TierLow,
+				P0: "high",
+				P1: "medium",
+				P2: "low",
 			}},
 			priority: 0,
 			labels:   nil,
-			want:     provider.TierHigh,
+			want:     "high",
 		},
 		{
 			name: "P1ReturnsTierMedium",
 			cfg: &Config{Models: ModelsConfig{
-				P0: provider.TierHigh,
-				P1: provider.TierMedium,
-				P2: provider.TierLow,
+				P0: "high",
+				P1: "medium",
+				P2: "low",
 			}},
 			priority: 1,
 			labels:   nil,
-			want:     provider.TierMedium,
+			want:     "medium",
 		},
 		{
 			name: "P2ReturnsTierLow",
 			cfg: &Config{Models: ModelsConfig{
-				P0: provider.TierHigh,
-				P1: provider.TierMedium,
-				P2: provider.TierLow,
+				P0: "high",
+				P1: "medium",
+				P2: "low",
 			}},
 			priority: 2,
 			labels:   nil,
-			want:     provider.TierLow,
+			want:     "low",
 		},
 		{
 			name: "UnknownPriorityDefaultsToMedium",
 			cfg: &Config{Models: ModelsConfig{
-				P0: provider.TierHigh,
-				P1: provider.TierMedium,
-				P2: provider.TierLow,
+				P0: "high",
+				P1: "medium",
+				P2: "low",
 			}},
 			priority: 99,
 			labels:   nil,
-			want:     provider.TierMedium,
+			want:     "medium",
 		},
 	}
 
@@ -98,59 +96,59 @@ func TestSelectTierLabelOverrides(t *testing.T) {
 		{
 			name: "ComplexityHighLabelOverridesP1",
 			cfg: &Config{Models: ModelsConfig{
-				P0: provider.TierHigh,
-				P1: provider.TierMedium,
-				P2: provider.TierLow,
+				P0: "high",
+				P1: "medium",
+				P2: "low",
 				Labels: map[string]string{
-					"complexity:high": provider.TierHigh,
+					"complexity:high": "high",
 				},
 			}},
 			priority: 1, // Would normally return medium
 			labels:   []string{"complexity:high"},
-			want:     provider.TierHigh,
+			want:     "high",
 		},
 		{
 			name: "ComplexityLowLabelOverridesP0",
 			cfg: &Config{Models: ModelsConfig{
-				P0: provider.TierHigh,
-				P1: provider.TierMedium,
-				P2: provider.TierLow,
+				P0: "high",
+				P1: "medium",
+				P2: "low",
 				Labels: map[string]string{
-					"complexity:low": provider.TierLow,
+					"complexity:low": "low",
 				},
 			}},
 			priority: 0, // Would normally return high
 			labels:   []string{"complexity:low"},
-			want:     provider.TierLow,
+			want:     "low",
 		},
 		{
 			name: "FirstMatchingLabelWins",
 			cfg: &Config{Models: ModelsConfig{
-				P0: provider.TierHigh,
-				P1: provider.TierMedium,
-				P2: provider.TierLow,
+				P0: "high",
+				P1: "medium",
+				P2: "low",
 				Labels: map[string]string{
-					"complexity:high": provider.TierHigh,
-					"complexity:low":  provider.TierLow,
+					"complexity:high": "high",
+					"complexity:low":  "low",
 				},
 			}},
 			priority: 1,
 			labels:   []string{"complexity:high", "complexity:low"},
-			want:     provider.TierHigh, // First label in slice wins
+			want:     "high", // First label in slice wins
 		},
 		{
 			name: "UnmatchedLabelsFallbackToPriority",
 			cfg: &Config{Models: ModelsConfig{
-				P0: provider.TierHigh,
-				P1: provider.TierMedium,
-				P2: provider.TierLow,
+				P0: "high",
+				P1: "medium",
+				P2: "low",
 				Labels: map[string]string{
-					"complexity:high": provider.TierHigh,
+					"complexity:high": "high",
 				},
 			}},
 			priority: 2,
 			labels:   []string{"spec:example"}, // Not in Labels map
-			want:     provider.TierLow,         // Falls back to P2
+			want:     "low",                    // Falls back to P2
 		},
 	}
 
@@ -185,7 +183,7 @@ func TestSelectTierBackwardCompatibility(t *testing.T) {
 			}},
 			priority: 0,
 			labels:   nil,
-			want:     provider.TierHigh,
+			want:     "high",
 		},
 		{
 			name: "P1SonnetAutoMapsToTierMedium",
@@ -196,7 +194,7 @@ func TestSelectTierBackwardCompatibility(t *testing.T) {
 			}},
 			priority: 1,
 			labels:   nil,
-			want:     provider.TierMedium,
+			want:     "medium",
 		},
 		{
 			name: "P2HaikuAutoMapsToTierLow",
@@ -207,35 +205,35 @@ func TestSelectTierBackwardCompatibility(t *testing.T) {
 			}},
 			priority: 2,
 			labels:   nil,
-			want:     provider.TierLow,
+			want:     "low",
 		},
 		{
 			name: "LabelOverrideOpusAutoMapsToTierHigh",
 			cfg: &Config{Models: ModelsConfig{
-				P0: provider.TierHigh,
-				P1: provider.TierMedium,
-				P2: provider.TierLow,
+				P0: "high",
+				P1: "medium",
+				P2: "low",
 				Labels: map[string]string{
 					"complexity:high": "opus", // Legacy model name
 				},
 			}},
 			priority: 1,
 			labels:   []string{"complexity:high"},
-			want:     provider.TierHigh,
+			want:     "high",
 		},
 		{
 			name: "LabelOverrideHaikuAutoMapsToTierLow",
 			cfg: &Config{Models: ModelsConfig{
-				P0: provider.TierHigh,
-				P1: provider.TierMedium,
-				P2: provider.TierLow,
+				P0: "high",
+				P1: "medium",
+				P2: "low",
 				Labels: map[string]string{
 					"complexity:low": "haiku", // Legacy model name
 				},
 			}},
 			priority: 0,
 			labels:   []string{"complexity:low"},
-			want:     provider.TierLow,
+			want:     "low",
 		},
 		{
 			name: "OpenAIGPT4oAutoMapsToTierMedium",
@@ -246,18 +244,18 @@ func TestSelectTierBackwardCompatibility(t *testing.T) {
 			}},
 			priority: 1,
 			labels:   nil,
-			want:     provider.TierMedium,
+			want:     "medium",
 		},
 		{
 			name: "MixedTierAndLegacyConfig",
 			cfg: &Config{Models: ModelsConfig{
-				P0: "opus",              // Legacy
-				P1: provider.TierMedium, // Tier
-				P2: "haiku",             // Legacy
+				P0: "opus",   // Legacy
+				P1: "medium", // Tier
+				P2: "haiku",  // Legacy
 			}},
 			priority: 0,
 			labels:   nil,
-			want:     provider.TierHigh,
+			want:     "high",
 		},
 	}
 
@@ -282,17 +280,17 @@ func TestIsTierNameBasics(t *testing.T) {
 	}{
 		{
 			name:  "HighIsTier",
-			input: provider.TierHigh,
+			input: "high",
 			want:  true,
 		},
 		{
 			name:  "MediumIsTier",
-			input: provider.TierMedium,
+			input: "medium",
 			want:  true,
 		},
 		{
 			name:  "LowIsTier",
-			input: provider.TierLow,
+			input: "low",
 			want:  true,
 		},
 		{
@@ -393,9 +391,9 @@ func TestIsTierNameCaseInsensitive(t *testing.T) {
 // Expected failure: IsTierName() method does not exist on Config yet
 func TestIsTierNameNilReceiver(t *testing.T) {
 	var cfg *Config
-	result := cfg.IsTierName(provider.TierHigh)
+	result := cfg.IsTierName("high")
 	if !result {
-		t.Errorf("IsTierName(%q) on nil receiver = %v, want true", provider.TierHigh, result)
+		t.Errorf("IsTierName(%q) on nil receiver = %v, want true", "high", result)
 	}
 }
 
@@ -412,50 +410,50 @@ func TestNextEscalationTierBasics(t *testing.T) {
 		{
 			name:        "NilReceiver",
 			cfg:         nil,
-			currentTier: provider.TierLow,
+			currentTier: "low",
 			want:        "",
 		},
 		{
 			name: "EscalationDisabled",
 			cfg: &Config{Escalation: EscalationConfig{
 				Enabled: false,
-				Chain:   []string{provider.TierLow, provider.TierMedium, provider.TierHigh},
+				Chain:   []string{"low", "medium", "high"},
 			}},
-			currentTier: provider.TierLow,
+			currentTier: "low",
 			want:        "",
 		},
 		{
 			name: "LowToMedium",
 			cfg: &Config{Escalation: EscalationConfig{
 				Enabled: true,
-				Chain:   []string{provider.TierLow, provider.TierMedium, provider.TierHigh},
+				Chain:   []string{"low", "medium", "high"},
 			}},
-			currentTier: provider.TierLow,
-			want:        provider.TierMedium,
+			currentTier: "low",
+			want:        "medium",
 		},
 		{
 			name: "MediumToHigh",
 			cfg: &Config{Escalation: EscalationConfig{
 				Enabled: true,
-				Chain:   []string{provider.TierLow, provider.TierMedium, provider.TierHigh},
+				Chain:   []string{"low", "medium", "high"},
 			}},
-			currentTier: provider.TierMedium,
-			want:        provider.TierHigh,
+			currentTier: "medium",
+			want:        "high",
 		},
 		{
 			name: "HighIsEndOfChain",
 			cfg: &Config{Escalation: EscalationConfig{
 				Enabled: true,
-				Chain:   []string{provider.TierLow, provider.TierMedium, provider.TierHigh},
+				Chain:   []string{"low", "medium", "high"},
 			}},
-			currentTier: provider.TierHigh,
+			currentTier: "high",
 			want:        "",
 		},
 		{
 			name: "NotInChainReturnsEmpty",
 			cfg: &Config{Escalation: EscalationConfig{
 				Enabled: true,
-				Chain:   []string{provider.TierLow, provider.TierMedium, provider.TierHigh},
+				Chain:   []string{"low", "medium", "high"},
 			}},
 			currentTier: "unknown-tier",
 			want:        "",
@@ -492,8 +490,8 @@ func TestNextEscalationTierBackwardCompatibility(t *testing.T) {
 				Enabled: true,
 				Chain:   []string{"haiku", "sonnet", "opus"}, // Legacy names
 			}},
-			currentTier: provider.TierLow, // Tier-based input
-			want:        provider.TierMedium,
+			currentTier: "low", // Tier-based input
+			want:        "medium",
 		},
 		{
 			name: "LegacySonnetToOpusInChain",
@@ -501,8 +499,8 @@ func TestNextEscalationTierBackwardCompatibility(t *testing.T) {
 				Enabled: true,
 				Chain:   []string{"haiku", "sonnet", "opus"}, // Legacy names
 			}},
-			currentTier: provider.TierMedium, // Tier-based input
-			want:        provider.TierHigh,
+			currentTier: "medium", // Tier-based input
+			want:        "high",
 		},
 		{
 			name: "LegacyOpusIsEndOfChain",
@@ -510,26 +508,26 @@ func TestNextEscalationTierBackwardCompatibility(t *testing.T) {
 				Enabled: true,
 				Chain:   []string{"haiku", "sonnet", "opus"}, // Legacy names
 			}},
-			currentTier: provider.TierHigh, // Tier-based input
+			currentTier: "high", // Tier-based input
 			want:        "",
 		},
 		{
 			name: "LegacyInputHaikuToSonnet",
 			cfg: &Config{Escalation: EscalationConfig{
 				Enabled: true,
-				Chain:   []string{provider.TierLow, provider.TierMedium, provider.TierHigh}, // Tier names
+				Chain:   []string{"low", "medium", "high"}, // Tier names
 			}},
 			currentTier: "haiku", // Legacy input
-			want:        provider.TierMedium,
+			want:        "medium",
 		},
 		{
 			name: "MixedChainLegacyAndTiers",
 			cfg: &Config{Escalation: EscalationConfig{
 				Enabled: true,
-				Chain:   []string{"haiku", provider.TierMedium, "opus"}, // Mixed
+				Chain:   []string{"haiku", "medium", "opus"}, // Mixed
 			}},
-			currentTier: provider.TierLow,
-			want:        provider.TierMedium,
+			currentTier: "low",
+			want:        "medium",
 		},
 	}
 
@@ -553,9 +551,9 @@ func TestNextEscalationTierEmptyChain(t *testing.T) {
 		Chain:   []string{},
 	}}
 
-	result := cfg.NextEscalationTier(provider.TierLow)
+	result := cfg.NextEscalationTier("low")
 	if result != "" {
-		t.Errorf("NextEscalationTier(%q) with empty chain = %q, want empty", provider.TierLow, result)
+		t.Errorf("NextEscalationTier(%q) with empty chain = %q, want empty", "low", result)
 	}
 }
 
@@ -565,32 +563,32 @@ func TestNextEscalationTierEmptyChain(t *testing.T) {
 func TestSelectTierAndNextEscalationTierIntegration(t *testing.T) {
 	cfg := &Config{
 		Models: ModelsConfig{
-			P0: provider.TierHigh,
-			P1: provider.TierMedium,
-			P2: provider.TierLow,
+			P0: "high",
+			P1: "medium",
+			P2: "low",
 		},
 		Escalation: EscalationConfig{
 			Enabled: true,
-			Chain:   []string{provider.TierLow, provider.TierMedium, provider.TierHigh},
+			Chain:   []string{"low", "medium", "high"},
 		},
 	}
 
 	// Start with P2 bead
 	initialTier := cfg.SelectTier(2, nil)
-	if initialTier != provider.TierLow {
-		t.Errorf("SelectTier(2, nil) = %q, want %q", initialTier, provider.TierLow)
+	if initialTier != "low" {
+		t.Errorf("SelectTier(2, nil) = %q, want %q", initialTier, "low")
 	}
 
 	// First escalation
 	nextTier := cfg.NextEscalationTier(initialTier)
-	if nextTier != provider.TierMedium {
-		t.Errorf("NextEscalationTier(%q) = %q, want %q", initialTier, nextTier, provider.TierMedium)
+	if nextTier != "medium" {
+		t.Errorf("NextEscalationTier(%q) = %q, want %q", initialTier, nextTier, "medium")
 	}
 
 	// Second escalation
 	finalTier := cfg.NextEscalationTier(nextTier)
-	if finalTier != provider.TierHigh {
-		t.Errorf("NextEscalationTier(%q) = %q, want %q", nextTier, finalTier, provider.TierHigh)
+	if finalTier != "high" {
+		t.Errorf("NextEscalationTier(%q) = %q, want %q", nextTier, finalTier, "high")
 	}
 
 	// End of chain
@@ -610,17 +608,17 @@ func TestSelectTierWithDefaultsApplied(t *testing.T) {
 	// After SetDefaults(), Models.P0 should be "opus" (legacy model)
 	// SelectTier should auto-map it to TierHigh
 	result := cfg.SelectTier(0, nil)
-	if result != provider.TierHigh {
-		t.Errorf("SelectTier(0, nil) after SetDefaults() = %q, want %q", result, provider.TierHigh)
+	if result != "high" {
+		t.Errorf("SelectTier(0, nil) after SetDefaults() = %q, want %q", result, "high")
 	}
 
 	result = cfg.SelectTier(1, nil)
-	if result != provider.TierMedium {
-		t.Errorf("SelectTier(1, nil) after SetDefaults() = %q, want %q", result, provider.TierMedium)
+	if result != "medium" {
+		t.Errorf("SelectTier(1, nil) after SetDefaults() = %q, want %q", result, "medium")
 	}
 
 	result = cfg.SelectTier(2, nil)
-	if result != provider.TierLow {
-		t.Errorf("SelectTier(2, nil) after SetDefaults() = %q, want %q", result, provider.TierLow)
+	if result != "low" {
+		t.Errorf("SelectTier(2, nil) after SetDefaults() = %q, want %q", result, "low")
 	}
 }
