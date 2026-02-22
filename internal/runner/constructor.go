@@ -85,7 +85,7 @@ func (a *invokerAdapter) StreamRun(ctx context.Context, prompt, tier string, w i
 	if p == nil {
 		return nil, fmt.Errorf("no provider available for tier %s", tier)
 	}
-	return p.Run(ctx, prompt, tier)
+	return p.StreamRun(ctx, prompt, tier, w, handler, onToolCall)
 }
 
 // renderAdapter wraps prompt.Renderer to satisfy execute.PromptRenderer.
