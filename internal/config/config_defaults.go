@@ -1,6 +1,9 @@
 package config
 
-const defaultPhaseAgent = "claude"
+const (
+	defaultPhaseAgent             = "claude"
+	defaultMethodologyBuildStrategy = "single_pass"
+)
 
 func boolPtr(value bool) *bool {
 	return &value
@@ -188,7 +191,7 @@ func (c *Config) SetDefaults() {
 		c.Methodology.Granularity = MethodologyGranularityBead
 	}
 	if c.Methodology.BuildStrategy == "" {
-		c.Methodology.BuildStrategy = "single_pass"
+		c.Methodology.BuildStrategy = defaultMethodologyBuildStrategy
 	}
 	if c.Methodology.PhaseModels.Decompose == "" {
 		c.Methodology.PhaseModels.Decompose = "medium"
