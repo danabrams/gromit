@@ -1,6 +1,9 @@
 package tdd
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 // ReadFileFn reads a file and returns its content.
 type ReadFileFn func(path string) (string, error)
@@ -46,10 +49,35 @@ func AssembleRedHandoff(state CycleState, readFile ReadFileFn, getDiff GetDiffFn
 	}
 
 	return &RedHandoff{
-		SpecExcerpt: specExcerpt,
-		TestFiles:   testFiles,
-		ImplFiles:   implFiles,
+		SpecExcerpt:  specExcerpt,
+		TestFiles:    testFiles,
+		ImplFiles:    implFiles,
+		CycleSummary: buildCycleSummary(state),
 	}, nil
+}
+
+func buildCycleSummary(state CycleState) string {
+	if len(state.CoveredSoFar) == 0 && len(state.Remaining) == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	if len(state.CoveredSoFar) > 0 {
+		sb.WriteString("Completed:\n")
+		for i, req := range state.CoveredSoFar {
+			sb.WriteString(fmt.Sprintf("%d. %s\n", i+1, req))
+		}
+	}
+	if len(state.Remaining) > 0 {
+		if sb.Len() > 0 {
+			sb.WriteString("\n")
+		}
+		sb.WriteString("Remaining:\n")
+		for i, req := range state.Remaining {
+			sb.WriteString(fmt.Sprintf("%d. %s\n", len(state.CoveredSoFar)+i+1, req))
+		}
+	}
+	return sb.String()
 }
 
 // AssembleGreenHandoff builds context for the green (implementation) phase.
