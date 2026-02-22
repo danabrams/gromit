@@ -179,7 +179,11 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		Output:          syncOut,
 		StatusWriter: func(iteration int, beadID, beadTitle string, dl time.Time) {
 			if statusWriter != nil {
-				_ = statusWriter.Write(iteration, beadID, beadTitle, "", true, cfg.Loop.MaxIterations, 0)
+				timeBudgetMinutes := 0
+				if !dl.IsZero() {
+					timeBudgetMinutes = int(time.Until(dl).Minutes())
+				}
+				_ = statusWriter.Write(iteration, beadID, beadTitle, "", true, cfg.Loop.MaxIterations, timeBudgetMinutes)
 			}
 		},
 		StateSaver:       sf,
