@@ -115,3 +115,18 @@ The decomposerAdapter implementation creates a single child bead with title "(de
 *Related to: review-1771788120407657627*
 
 gate_test.go accumulated 6+ near-identical mock decomposer/bead-client types across iterative TDD work. When adding test doubles incrementally, check if existing mocks can be parameterized rather than creating new types. Per project rule: "2+ tests sharing 10+ lines of setup: extract a setup helper."
+
+### 2026-02-22 | SCOPE_GATE_DECOMPOSITION_NEEDS_STATE_SAFETY | ARCHITECTURE
+*Related to: review-1771797265171555605*
+
+Scope-gate decomposition is resilient to provider failures (falls back to Block), but sequential child creation without idempotency safeguards can leave partial state and duplicate work on retries. Decomposition paths should enforce either rollback or deduped re-entry semantics before parent close.
+
+### 2026-02-22 | BEHAVIOR_FIRST_TESTS_OVER_SOURCE_READING | TEST_QUALITY
+*Related to: review-1771797265171555605*
+
+Source-reading tests (e.g., checking function text with os.ReadFile + strings.Contains) are brittle and violate project testing guidance. Prefer behavioral assertions on public interfaces/contracts and compile-time guarantees, then use shared helpers when setup repeats.
+
+### 2026-02-22 | DECOMPOSITION_OUTPUT_CONTRACTS_MUST_BE_STRICT | CONVENTIONS
+*Related to: review-1771797265171555605*
+
+JSON parsing alone is not enough for LLM decomposition output. Gate paths should validate concrete quality constraints (sub-task count bounds, non-empty titles, bounded expected outputs, no degenerate parent echo) and define deterministic fallback behavior when outputs violate the contract.
