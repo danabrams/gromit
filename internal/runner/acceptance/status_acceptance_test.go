@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/runner"
 )
@@ -253,14 +252,15 @@ func TestOrchestratorHelper_StatusDeadPID(t *testing.T) {
 	}
 }
 
-func TestRunner_Status_Integration_ActiveRun(t *testing.T) {
+// TestOrchestratorHelper_StatusIntegrationActiveRun tests full status output
+// with an active run, backlog, state, and interactive-state files.
+func TestOrchestratorHelper_StatusIntegrationActiveRun(t *testing.T) {
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0755); err != nil {
 		t.Fatalf("Failed to create gromit dir: %v", err)
 	}
 
-	var buf strings.Builder
 	cfg := &config.Config{
 		Paths: config.PathsConfig{
 			Specs: filepath.Join(gromitDir, "specs"),
@@ -268,111 +268,69 @@ func TestRunner_Status_Integration_ActiveRun(t *testing.T) {
 		},
 	}
 
-	mockBeads := &mockBeadClient{
-		ReadyFn: func() (*bead.Bead, error) {
-			return &bead.Bead{
-				ID:       "next-bead-123",
-				Title:    "Next Available Bead",
-				Priority: 1,
-				Labels:   []string{},
-			}, nil
-		},
-	}
-
-	r, err := runner.NewRunnerWithDeps(cfg, &buf, gromitDir, runner.Deps{
-		Beads:    mockBeads,
-		Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
-		Analyzer: &mockFailureAnalyzer{},
-		Renderer: &mockPromptRenderer{},
-		Logger:   &mockIterationLogger{},
-	})
-	if err != nil {
-		t.Fatalf("NewRunnerWithDeps failed: %v", err)
-	}
-
 	// Create backlog.jsonl with some items
-	backlogPath := filepath.Join(gromitDir, "backlog.jsonl")
 	backlogContent := `{"id":"idea-1","text":"Add rate limiting"}
 {"id":"idea-2","text":"Support webhooks"}`
-	err = os.WriteFile(backlogPath, []byte(backlogContent), 0644)
-	if err != nil {
+	if err := os.WriteFile(filepath.Join(gromitDir, "backlog.jsonl"), []byte(backlogContent), 0644); err != nil {
 		t.Fatalf("Failed to write backlog: %v", err)
 	}
 
 	// Create a running status file with limits
 	sw, _ := runner.NewStatusWriter(gromitDir)
-	err = sw.Write(12, "active-bead-456", "Build user profiles", "sonnet", true, 50, 30)
-	if err != nil {
+	if err := sw.Write(12, "active-bead-456", "Build user profiles", "sonnet", true, 50, 30); err != nil {
 		t.Fatalf("Failed to write status: %v", err)
 	}
 
 	// Create state.json with review data
-	stateContent := `{
-		"iterations_since_review": 5
-	}`
-	err = os.WriteFile(filepath.Join(gromitDir, "state.json"), []byte(stateContent), 0644)
-	if err != nil {
+	if err := os.WriteFile(filepath.Join(gromitDir, "state.json"), []byte(`{"iterations_since_review": 5}`), 0644); err != nil {
 		t.Fatalf("Failed to write state.json: %v", err)
 	}
 	// Create interactive-state.json with last retro data
-	interactiveContent := fmt.Sprintf(`{
-		"last_retro": "%s"
-	}`, time.Now().Add(-2*time.Hour).Format(time.RFC3339))
-	err = os.WriteFile(filepath.Join(gromitDir, "interactive-state.json"), []byte(interactiveContent), 0644)
-	if err != nil {
+	interactiveContent := fmt.Sprintf(`{"last_retro": "%s"}`, time.Now().Add(-2*time.Hour).Format(time.RFC3339))
+	if err := os.WriteFile(filepath.Join(gromitDir, "interactive-state.json"), []byte(interactiveContent), 0644); err != nil {
 		t.Fatalf("Failed to write interactive-state.json: %v", err)
 	}
 
-	// Execute
-	err = r.Status()
-	if err != nil {
-		t.Fatalf("Status() failed: %v", err)
+	var buf strings.Builder
+	if err := runner.PrintStatus(gromitDir, cfg, &buf, nil); err != nil {
+		t.Fatalf("PrintStatus() failed: %v", err)
 	}
 
 	output := buf.String()
 
-	// Verify Pipeline section
 	if !strings.Contains(output, "Pipeline:") {
 		t.Errorf("Expected Pipeline section, got: %s", output)
 	}
 	if !strings.Contains(output, "2 unrefined idea") {
-		t.Errorf("Expected backlog count in output, got: %s", output)
+		t.Errorf("Expected backlog count, got: %s", output)
 	}
-
-	// Verify Run section shows active run with limits
 	if !strings.Contains(output, "Run: iteration 12/50") {
 		t.Errorf("Expected 'Run: iteration 12/50', got: %s", output)
 	}
 	if !strings.Contains(output, "of 30m elapsed") {
-		t.Errorf("Expected time budget in output, got: %s", output)
+		t.Errorf("Expected time budget, got: %s", output)
 	}
 	if !strings.Contains(output, "active-bead-456") {
-		t.Errorf("Expected current bead ID in output, got: %s", output)
+		t.Errorf("Expected bead ID, got: %s", output)
 	}
 	if !strings.Contains(output, "Build user profiles") {
-		t.Errorf("Expected current bead title in output, got: %s", output)
+		t.Errorf("Expected bead title, got: %s", output)
 	}
 	if !strings.Contains(output, "Model:    sonnet") {
-		t.Errorf("Expected model in output, got: %s", output)
+		t.Errorf("Expected model, got: %s", output)
 	}
-
-	// Verify SPC section exists
 	if !strings.Contains(output, "SPC: (no data)") {
 		t.Errorf("Expected SPC section, got: %s", output)
 	}
-
-	// Verify Health section
 	if !strings.Contains(output, "Health:") {
 		t.Errorf("Expected Health section, got: %s", output)
 	}
 	if !strings.Contains(output, "Last retro:") {
-		t.Errorf("Expected last retro in output, got: %s", output)
+		t.Errorf("Expected last retro, got: %s", output)
 	}
 	if !strings.Contains(output, "Last review: 5 iterations ago") {
-		t.Errorf("Expected last review in output, got: %s", output)
+		t.Errorf("Expected last review, got: %s", output)
 	}
-
-	// Verify recommendation section exists
 	if !strings.Contains(output, "Next action:") {
 		t.Errorf("Expected recommendation section, got: %s", output)
 	}
