@@ -32,6 +32,10 @@ func ParseFallbackCooldown(cfg *config.Config) time.Duration {
 }
 
 func BuildProvidersFromConfig(cfg *config.Config) (map[string]Provider, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config is nil")
+	}
+
 	providers := make(map[string]Provider)
 	for name, def := range cfg.Providers {
 		switch {
