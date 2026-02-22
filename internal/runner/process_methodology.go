@@ -7,10 +7,30 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
+
+func resolveBuildStrategy(cfg *config.Config, b *bead.Bead) string {
+	strategy := "single_pass"
+	if cfg != nil && cfg.Methodology.BuildStrategy != "" {
+		strategy = cfg.Methodology.BuildStrategy
+	}
+	if b == nil {
+		return strategy
+	}
+	for _, label := range b.Labels {
+		switch label {
+		case "build_strategy:tdd":
+			return "tdd"
+		case "build_strategy:single_pass":
+			return "single_pass"
+		}
+	}
+	return strategy
+}
 
 func extractRequirementsViaLLM(ctx context.Context, title, description string, invoke func(ctx context.Context, prompt, tier string) (*provider.Result, error)) []string {
 	const maxDescLen = 2000
