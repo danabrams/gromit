@@ -139,3 +139,43 @@ func TestBuildRouterFromConfig_NoProvidersReturnsSingleClaudeRouter(t *testing.T
 		t.Fatalf("router.Select() model = %q, want %q", model, "sonnet")
 	}
 }
+
+func TestBuildRouterFromConfig_ClaudeOnlyConfigReturnsClaudeRouter(t *testing.T) {
+	cfg := &config.Config{
+		Claude: config.ClaudeConfig{
+			Timeout: 10,
+		},
+		Providers: map[string]config.ProviderDef{
+			"claude": {
+				Binary: "claude",
+				Models: map[string]string{
+					provider.TierMedium: "custom-sonnet",
+				},
+			},
+		},
+		Routing: config.RoutingConfig{
+			PhasePreferences: map[string]string{
+				"build": "claude",
+			},
+			Ratio: map[string]int{
+				"claude": 100,
+			},
+		},
+	}
+
+	router, err := provider.BuildRouterFromConfig(cfg)
+	if err != nil {
+		t.Fatalf("BuildRouterFromConfig() error = %v", err)
+	}
+
+	selected, model := router.Select("build", provider.TierMedium)
+	if selected == nil {
+		t.Fatal("router.Select() provider = nil, want non-nil")
+	}
+	if got := selected.Name(); got != "claude" {
+		t.Fatalf("router.Select() provider name = %q, want %q", got, "claude")
+	}
+	if model != "custom-sonnet" {
+		t.Fatalf("router.Select() model = %q, want %q", model, "custom-sonnet")
+	}
+}
