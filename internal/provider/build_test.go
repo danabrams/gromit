@@ -179,3 +179,47 @@ func TestBuildRouterFromConfig_ClaudeOnlyConfigReturnsClaudeRouter(t *testing.T)
 		t.Fatalf("router.Select() model = %q, want %q", model, "custom-sonnet")
 	}
 }
+
+func TestBuildRouterFromConfig_MultiProviderAppliesFallbackDefaults(t *testing.T) {
+	cfg := &config.Config{
+		Claude: config.ClaudeConfig{
+			Timeout: 10,
+		},
+		Providers: map[string]config.ProviderDef{
+			"claude": {
+				Binary: "claude",
+			},
+			"codex": {
+				Binary: "codex",
+			},
+		},
+		Routing: config.RoutingConfig{
+			PhasePreferences: map[string]string{
+				"build": "claude",
+			},
+		},
+	}
+
+	router, err := provider.BuildRouterFromConfig(cfg)
+	if err != nil {
+		t.Fatalf("BuildRouterFromConfig() error = %v", err)
+	}
+
+	first, _ := router.Select("build", provider.TierMedium)
+	if first == nil {
+		t.Fatal("first router.Select() provider = nil, want non-nil")
+	}
+	if got := first.Name(); got != "claude" {
+		t.Fatalf("first router.Select() provider name = %q, want %q", got, "claude")
+	}
+
+	router.MarkUnavailable("claude")
+
+	second, _ := router.Select("build", provider.TierMedium)
+	if second == nil {
+		t.Fatal("second router.Select() provider = nil, want non-nil")
+	}
+	if got := second.Name(); got != "codex" {
+		t.Fatalf("second router.Select() provider name = %q, want %q", got, "codex")
+	}
+}
