@@ -25,6 +25,22 @@ func TestExtractRequirementsViaLLM_ReturnsParsedItems(t *testing.T) {
 	}
 }
 
+func TestExtractRequirementsViaLLM_SkipsBlankLines(t *testing.T) {
+	invoke := func(_ context.Context, _ string, _ string) (*provider.Result, error) {
+		return &provider.Result{Success: true, Output: "item one\n\n\nitem two\n\nitem three\n"}, nil
+	}
+	got := extractRequirementsViaLLM(context.Background(), "Title", "desc", invoke)
+	want := []string{"item one", "item two", "item three"}
+	if len(got) != len(want) {
+		t.Fatalf("got %d items, want %d: %v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("item %d: got %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
 func TestExtractRequirementsViaLLM_ReturnsNilForFewerThanTwoItems(t *testing.T) {
 	invoke := func(_ context.Context, _ string, _ string) (*provider.Result, error) {
 		return &provider.Result{Success: true, Output: "only one item"}, nil
