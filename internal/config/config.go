@@ -22,7 +22,8 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("parsing config file: %w", err)
 	}
 
-	cfg.applyPostLoadNormalization()
+	matchBuildModelConfigured := cfg.Review.MatchBuildModel != nil
+	cfg.applyPostLoadNormalization(matchBuildModelConfigured)
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
 	if err := cfg.Validate(); err != nil {
@@ -31,7 +32,7 @@ func Load(path string) (*Config, error) {
 	return &cfg, nil
 }
 
-func (c *Config) applyPostLoadNormalization() {
+func (c *Config) applyPostLoadNormalization(matchBuildModelConfigured bool) {
 	if c.Review.Tier == "" {
 		if normalizedTier := normalizedLegacyModelTier(c.Review.Model); normalizedTier != "" {
 			c.Review.Tier = normalizedTier
@@ -41,6 +42,9 @@ func (c *Config) applyPostLoadNormalization() {
 		if normalizedTier := normalizedLegacyModelTier(c.Review.Thorough.Model); normalizedTier != "" {
 			c.Review.Thorough.Tier = normalizedTier
 		}
+	}
+	if matchBuildModelConfigured {
+		warnConfigDeprecation("review.match_build_model is deprecated and will be removed in a future release")
 	}
 }
 
@@ -53,6 +57,10 @@ func normalizedLegacyModelTier(model string) string {
 		return ""
 	}
 	return tier
+}
+
+func warnConfigDeprecation(message string) {
+	_, _ = fmt.Fprintf(configWarningWriter, "Warning: %s\n", message)
 }
 
 // Validate ensures config values are within supported ranges.
