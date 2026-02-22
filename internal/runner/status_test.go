@@ -263,6 +263,44 @@ func TestPrintStatus_ReadsStateFilesForHealthSection(t *testing.T) {
 	}
 }
 
+// TestPrintStatus_NoStatusFile_ShowsStructuredOutput verifies that when no
+// status.json exists, PrintStatus still shows all structured sections (Run,
+// Pipeline, Health) instead of the old "No status file found" early return.
+func TestPrintStatus_NoStatusFile_ShowsStructuredOutput(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	// No status.json created — gromitDir exists but is empty.
+
+	cfg := &config.Config{}
+	cfg.Paths.Specs = filepath.Join(tmpDir, "specs")
+	cfg.Paths.Plans = filepath.Join(tmpDir, "plans")
+
+	var buf strings.Builder
+	if err := PrintStatus(gromitDir, cfg, &buf, nil); err != nil {
+		t.Fatalf("PrintStatus: %v", err)
+	}
+
+	output := buf.String()
+
+	// Must show structured sections, not the old early-return message.
+	if strings.Contains(output, "No status file found") {
+		t.Errorf("output should not contain old 'No status file found' message; got:\n%s", output)
+	}
+	if !strings.Contains(output, "Run: not running") {
+		t.Errorf("expected 'Run: not running'; got:\n%s", output)
+	}
+	if !strings.Contains(output, "Pipeline:") {
+		t.Errorf("expected Pipeline section; got:\n%s", output)
+	}
+	if !strings.Contains(output, "Health:") {
+		t.Errorf("expected Health section; got:\n%s", output)
+	}
+}
+
 // TestPrintStatus_IncludesModelPerformanceSection verifies that PrintStatus
 // reads model stats from iteration logs and includes a "Model Performance:"
 // section in the output. The current implementation only outputs Run, Pipeline,
