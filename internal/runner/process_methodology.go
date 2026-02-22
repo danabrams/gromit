@@ -300,7 +300,32 @@ func extractRequirementsFromDescription(description string) []string {
 }
 
 func extractRequirementsViaLLM(ctx context.Context, title, description string, invoke func(ctx context.Context, prompt, tier string) (*provider.Result, error)) []string {
-	return nil
+	const maxDescLen = 2000
+	desc := description
+	if len(desc) > maxDescLen {
+		desc = desc[:maxDescLen]
+	}
+	promptText := fmt.Sprintf("Extract the requirements from the following task.\nTitle: %s\nDescription: %s\n\nReturn each requirement on its own line.", title, desc)
+
+	invokeCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	result, err := invoke(invokeCtx, promptText, provider.TierLow)
+	if err != nil {
+		return nil
+	}
+
+	var items []string
+	for _, line := range strings.Split(result.Output, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			items = append(items, line)
+		}
+	}
+	if len(items) < 2 {
+		return nil
+	}
+	return items
 }
 
 func tddExpectedOutputsOrTitle(b *bead.Bead) []string {
