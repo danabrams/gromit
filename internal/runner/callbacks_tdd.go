@@ -31,8 +31,11 @@ func buildTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *
 // optionalTDDCycleRunner returns a TDDCycleRunner when FreshContextPerCycle is
 // enabled, or nil otherwise. The caller should inject the result into the Build
 // stage via WithTDDCycleRunner.
-func optionalTDDCycleRunner(_ *config.Config, _ *prompt.Renderer, _ *provider.Router, _ io.Writer) execute.TDDCycleRunner {
-	return nil
+func optionalTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *provider.Router, output io.Writer) execute.TDDCycleRunner {
+	if !cfg.Methodology.FreshContextPerCycle {
+		return nil
+	}
+	return buildTDDCycleRunner(cfg, renderer, router, output)
 }
 
 func snapshotIterationUsage(result *runtypes.IterationResult) (costUSD float64, inputTokens int, outputTokens int) {
