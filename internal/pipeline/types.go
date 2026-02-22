@@ -71,6 +71,7 @@ func NewPlanResult() PlanResult {
 // DecomposeInput contains parameters for the Decompose workflow.
 type DecomposeInput struct {
 	PlanName             string // Name of plan to decompose
+	Tier                 string // Tier to use for decomposition provider call
 	Force                bool   // Re-decompose even if already done
 	Review               bool   // Return proposed beads for review before creating
 	SkipValidation       bool   // Skip validation checks on decomposed bead candidates
