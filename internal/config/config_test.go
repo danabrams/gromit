@@ -262,6 +262,28 @@ func TestMethodologyConfigSupportsPhaseModelsField(t *testing.T) {
 	}
 }
 
+func TestSetDefaultsMethodologyPhaseModels_SetsDefaultTiers(t *testing.T) {
+	cfg := &Config{}
+
+	cfg.SetDefaults()
+
+	if cfg.Methodology.PhaseModels.Decompose != "medium" {
+		t.Fatalf("Methodology.PhaseModels.Decompose = %q, want %q", cfg.Methodology.PhaseModels.Decompose, "medium")
+	}
+	if cfg.Methodology.PhaseModels.Build != "medium" {
+		t.Fatalf("Methodology.PhaseModels.Build = %q, want %q", cfg.Methodology.PhaseModels.Build, "medium")
+	}
+	if cfg.Methodology.PhaseModels.Red != "low" {
+		t.Fatalf("Methodology.PhaseModels.Red = %q, want %q", cfg.Methodology.PhaseModels.Red, "low")
+	}
+	if cfg.Methodology.PhaseModels.Green != "medium" {
+		t.Fatalf("Methodology.PhaseModels.Green = %q, want %q", cfg.Methodology.PhaseModels.Green, "medium")
+	}
+	if cfg.Methodology.PhaseModels.Refactor != "low" {
+		t.Fatalf("Methodology.PhaseModels.Refactor = %q, want %q", cfg.Methodology.PhaseModels.Refactor, "low")
+	}
+}
+
 func TestSetDefaultsInitializesPhasesToClaude(t *testing.T) {
 	cfg := &Config{}
 	cfg.SetDefaults()
