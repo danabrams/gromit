@@ -45,7 +45,7 @@ type FailureAnalyzer interface {
 
 // PromptRenderer abstracts the prompt rendering operations used by the runner.
 type PromptRenderer interface {
-	BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error)
+	BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, model string, phase string) (*prompt.Context, error)
 	RenderBuild(ctx *prompt.Context) (string, error)
 	RenderAnalyze(ctx *prompt.AnalyzeContext) (string, error)
 	RenderLearn(ctx *prompt.LearnContext) (string, error)

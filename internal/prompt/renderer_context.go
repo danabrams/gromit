@@ -10,7 +10,7 @@ import (
 )
 
 // BuildContext builds a complete prompt context for a bead.
-func (r *Renderer) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*Context, error) {
+func (r *Renderer) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, model string, phase string) (*Context, error) {
 	if r == nil {
 		return nil, fmt.Errorf("renderer is nil")
 	}
@@ -30,7 +30,7 @@ func (r *Renderer) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, 
 	}
 	ctx.ClaudeMD = claudeMD
 
-	rules, err := r.LoadRules()
+	rules, err := r.LoadRulesForPhase(phase)
 	if err != nil {
 		return nil, err
 	}

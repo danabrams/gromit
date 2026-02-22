@@ -134,7 +134,7 @@ func TestGetLearningsFileNilReceiver(t *testing.T) {
 
 func TestBuildContextNilRenderer(t *testing.T) {
 	var r *Renderer
-	_, err := r.BuildContext(nil, nil, 1, "sonnet")
+	_, err := r.BuildContext(nil, nil, 1, "sonnet", "")
 	if err == nil {
 		t.Error("expected error for nil renderer")
 	}
@@ -142,7 +142,7 @@ func TestBuildContextNilRenderer(t *testing.T) {
 
 func TestBuildContextNilBead(t *testing.T) {
 	r := &Renderer{}
-	_, err := r.BuildContext(nil, nil, 1, "sonnet")
+	_, err := r.BuildContext(nil, nil, 1, "sonnet", "")
 	if err == nil {
 		t.Error("expected error for nil bead")
 	}
@@ -290,7 +290,7 @@ func TestBuildContext_ScopedArchitectureAcceptanceMatrix(t *testing.T) {
 				Description:     tt.beadDescription,
 				Labels:          labels,
 				ExpectedOutputs: []string{},
-			}, nil, 1, "sonnet")
+			}, nil, 1, "sonnet", "")
 			if err != nil {
 				t.Fatalf("BuildContext() error = %v", err)
 			}
@@ -345,11 +345,11 @@ func TestBuildContext_ScopedArchitectureIsDeterministicAndSmallerForTwoPackages(
 		Labels:          []string{"spec:dynamic-map"},
 		ExpectedOutputs: []string{},
 	}
-	ctx1, err := r.BuildContext(testBead, nil, 1, "sonnet")
+	ctx1, err := r.BuildContext(testBead, nil, 1, "sonnet", "")
 	if err != nil {
 		t.Fatalf("BuildContext() first call error = %v", err)
 	}
-	ctx2, err := r.BuildContext(testBead, nil, 2, "sonnet")
+	ctx2, err := r.BuildContext(testBead, nil, 2, "sonnet", "")
 	if err != nil {
 		t.Fatalf("BuildContext() second call error = %v", err)
 	}

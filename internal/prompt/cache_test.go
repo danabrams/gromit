@@ -213,7 +213,7 @@ func TestBuildContext_UsesCachedFiles(t *testing.T) {
 	}
 
 	// Build context first time
-	ctx1, err := r.BuildContext(testBead, nil, 1, "sonnet")
+	ctx1, err := r.BuildContext(testBead, nil, 1, "sonnet", "")
 	if err != nil {
 		t.Fatalf("BuildContext() first call error = %v", err)
 	}
@@ -236,7 +236,7 @@ func TestBuildContext_UsesCachedFiles(t *testing.T) {
 	}
 
 	// Build context second time - should use cached content
-	ctx2, err := r.BuildContext(testBead, nil, 2, "sonnet")
+	ctx2, err := r.BuildContext(testBead, nil, 2, "sonnet", "")
 	if err != nil {
 		t.Fatalf("BuildContext() second call error = %v", err)
 	}
