@@ -106,7 +106,15 @@ func (a *retroRouterAdapter) Run(ctx context.Context, prompt string, tier string
 		return nil, fmt.Errorf("no providers available for phase %q and tier %q", phase, tier)
 	}
 
-	return selectedProvider.Run(ctx, prompt, tier)
+	result, err := selectedProvider.Run(ctx, prompt, tier)
+	if err != nil && selectedProvider.IsUsageLimitError(result, err) {
+		a.Router.MarkUnavailable(selectedProvider.Name())
+		selectedProvider, _ = a.Router.Select(phase, tier)
+		if selectedProvider != nil {
+			result, err = selectedProvider.Run(ctx, prompt, tier)
+		}
+	}
+	return result, err
 }
 
 func (a *retroRouterAdapter) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
