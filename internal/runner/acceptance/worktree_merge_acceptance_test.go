@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
-	"github.com/danabrams/gromit/internal/config"
 	pipelineepilog "github.com/danabrams/gromit/internal/pipeline/epilogue"
 	"github.com/danabrams/gromit/internal/runner"
 )

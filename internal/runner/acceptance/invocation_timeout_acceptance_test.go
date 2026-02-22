@@ -31,7 +31,7 @@ func TestRunnerSmoke_ValidationFailureEscalatesTier(t *testing.T) {
 	}
 
 	cfg := &config.Config{
-		Models: config.ModelConfig{
+		Models: config.ModelsConfig{
 			P1: "sonnet",
 		},
 		Escalation: config.EscalationConfig{
