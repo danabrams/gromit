@@ -244,8 +244,9 @@ func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 		return fmt.Errorf("decomposerAdapter: LLM returned no sub-beads")
 	}
 
+	labels := a.resolveBuildStrategyLabels(b)
 	for _, sb := range subBeads {
-		if _, err := a.beads.CreateWithParent(sb.Title, b.Priority, b.Labels, sb.ExpectedOutputs, b.ID); err != nil {
+		if _, err := a.beads.CreateWithParent(sb.Title, b.Priority, labels, sb.ExpectedOutputs, b.ID); err != nil {
 			return fmt.Errorf("decomposerAdapter: creating child bead %q: %w", sb.Title, err)
 		}
 	}
@@ -254,6 +255,35 @@ func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 		return fmt.Errorf("decomposerAdapter: closing parent bead: %w", err)
 	}
 	return nil
+}
+
+func (a *decomposerAdapter) resolveBuildStrategyLabels(parent *bead.Bead) []string {
+	const buildStrategyPrefix = "build_strategy:"
+
+	if label := findLabelWithPrefix(parent.Labels, buildStrategyPrefix); label != "" {
+		return []string{label}
+	}
+
+	if a.beads == nil || parent.ID == "" {
+		return nil
+	}
+	fullParent, err := a.beads.Show(parent.ID)
+	if err != nil || fullParent == nil {
+		return nil
+	}
+	if label := findLabelWithPrefix(fullParent.Labels, buildStrategyPrefix); label != "" {
+		return []string{label}
+	}
+	return nil
+}
+
+func findLabelWithPrefix(labels []string, prefix string) string {
+	for _, label := range labels {
+		if strings.HasPrefix(label, prefix) {
+			return label
+		}
+	}
+	return ""
 }
 
 // buildScopeGateDecomposePrompt builds the LLM prompt for scope gate decomposition.
