@@ -133,9 +133,10 @@ func (a *retroRouterAdapter) StreamRun(ctx context.Context, prompt string, tier 
 	if selectedProvider.IsUsageLimitError(result, err) {
 		a.Router.MarkUnavailable(selectedProvider.Name())
 		selectedProvider, _ = a.Router.Select(phase, tier)
-		if selectedProvider != nil {
-			result, err = selectedProvider.StreamRun(ctx, prompt, tier, output, handler, onToolCall)
+		if selectedProvider == nil {
+			return nil, fmt.Errorf("no providers available for phase %q and tier %q", phase, tier)
 		}
+		result, err = selectedProvider.StreamRun(ctx, prompt, tier, output, handler, onToolCall)
 	}
 	return result, err
 }
