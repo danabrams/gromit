@@ -67,6 +67,16 @@ func TestFormatRunningLine(t *testing.T) {
 			},
 			want: "Run: iteration 1, 45s elapsed",
 		},
+		{
+			name: "time budget over 60 minutes shown as raw minutes",
+			status: &Status{
+				Running:           true,
+				Iteration:         3,
+				TimeBudgetMinutes: 90,
+				ElapsedS:          600,
+			},
+			want: "Run: iteration 3, 10m of 90m elapsed",
+		},
 	}
 
 	for _, tt := range tests {
