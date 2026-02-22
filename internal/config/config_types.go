@@ -240,6 +240,7 @@ type PathsConfig struct {
 type ReviewConfig struct {
 	Enabled         bool                 `yaml:"enabled"`
 	Model           string               `yaml:"model"`
+	Tier            string               `yaml:"tier"`
 	MatchBuildModel *bool                `yaml:"match_build_model"`
 	Timeout         int                  `yaml:"timeout"`
 	Thorough        ThoroughReviewConfig `yaml:"thorough"`

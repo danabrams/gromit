@@ -160,6 +160,9 @@ func (c *Config) SetDefaults() {
 	if c.Review.Model == "" {
 		c.Review.Model = ModelSonnet
 	}
+	if c.Review.Tier == "" {
+		c.Review.Tier = "medium"
+	}
 	if c.Review.MatchBuildModel == nil {
 		c.Review.MatchBuildModel = boolPtr(true)
 	}
