@@ -17,6 +17,33 @@ import (
 	"github.com/danabrams/gromit/internal/pipeline/prepare"
 )
 
+// TestDecomposerAdapter_DecomposeSucceeds verifies that decomposerAdapter.Decompose
+// returns nil when asked to decompose an oversized bead, indicating the decomposition
+// workflow ran (creating child beads) rather than erroring with "not yet implemented".
+func TestDecomposerAdapter_DecomposeSucceeds(t *testing.T) {
+	client, err := bead.NewClient()
+	if err != nil {
+		t.Fatalf("bead.NewClient: %v", err)
+	}
+	client.RunFn = func(args ...string) (string, error) {
+		if len(args) > 0 && args[0] == "create" {
+			return `{"id":"child-1","title":"part 1","status":"open"}`, nil
+		}
+		return "", nil
+	}
+
+	adapter := &decomposerAdapter{beads: client}
+	b := &bead.Bead{
+		ID:              "over-1",
+		Title:           "oversized bead",
+		ExpectedOutputs: []string{"f1", "f2", "f3", "f4", "f5", "f6"},
+	}
+
+	if err := adapter.Decompose(context.Background(), b); err != nil {
+		t.Fatalf("Decompose returned error: %v; want nil for a decomposable oversized bead", err)
+	}
+}
+
 // stubFailureAnalyzer is a test double for FailureAnalyzer.
 type stubFailureAnalyzer struct {
 	fn func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error)
