@@ -218,6 +218,34 @@ func TestFormatRun(t *testing.T) {
 			},
 		},
 		{
+			name: "running with escalation recurrence and reliability",
+			status: &Status{
+				Running:              true,
+				Iteration:            5,
+				BeadID:               "beads-qrs",
+				BeadTitle:            "Improve display",
+				Model:                "sonnet",
+				ElapsedS:             600,
+				AutonomyRate:         0.85,
+				FirstPassSuccessRate: 0.70,
+				MTTRProxyMs:          30000,
+				EscalationRatesByClass: map[string]float64{
+					"lint":    0.125,
+					"timeout": 0.50,
+				},
+				RecurrenceCounters: map[string]int{
+					"lint":  1,
+					"scope": 3,
+				},
+			},
+			want: []string{
+				"Run: iteration 5",
+				"Reliability: autonomy 85% | first-pass 70% | MTTR 30s",
+				"Escalation: lint 13% | timeout 50%",
+				"Recurrence: lint x1 | scope x3",
+			},
+		},
+		{
 			name: "not running with last run info",
 			status: &Status{
 				Running:   false,
