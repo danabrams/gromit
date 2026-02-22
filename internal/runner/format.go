@@ -117,7 +117,29 @@ func formatRun(s *Status) string {
 		lines = append(lines, fmt.Sprintf("  Model:    %s", s.Model))
 	}
 
+	if rel := formatReliabilityLine(s); rel != "" {
+		lines = append(lines, fmt.Sprintf("  %s", rel))
+	}
+	if esc := formatEscalationBreakdown(s.EscalationRatesByClass); esc != "" {
+		lines = append(lines, fmt.Sprintf("  Escalation: %s", esc))
+	}
+	if rec := formatRecurrenceBreakdown(s.RecurrenceCounters); rec != "" {
+		lines = append(lines, fmt.Sprintf("  Recurrence: %s", rec))
+	}
+
 	return strings.Join(lines, "\n")
+}
+
+// formatReliabilityLine formats the reliability summary line.
+// Returns empty string if no reliability data is present.
+func formatReliabilityLine(s *Status) string {
+	if s.AutonomyRate == 0 && s.FirstPassSuccessRate == 0 && s.MTTRProxyMs == 0 {
+		return ""
+	}
+	autonomy := int(math.Round(s.AutonomyRate * 100))
+	firstPass := int(math.Round(s.FirstPassSuccessRate * 100))
+	mttr := time.Duration(s.MTTRProxyMs) * time.Millisecond
+	return fmt.Sprintf("Reliability: autonomy %d%% | first-pass %d%% | MTTR %s", autonomy, firstPass, formatDuration(mttr))
 }
 
 // formatEscalationBreakdown formats escalation rates as "class N% | class N%" sorted alphabetically.
