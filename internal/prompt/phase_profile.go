@@ -16,6 +16,8 @@ func ApplyPhaseProfile(ctx *Context, phase string) {
 			ctx.RecentValidationFailures = []string{}
 			ctx.PrevFailure = ""
 			ctx.SiblingTouchedPackages = []string{}
+		} else if phase == "build" {
+			ctx.RecentLearnings = []learnings.Learning{}
 		}
 		return
 	}
