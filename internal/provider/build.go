@@ -70,6 +70,9 @@ func BuildRouterFromConfig(cfg *config.Config) (*Router, error) {
 	}
 
 	if len(cfg.Providers) > 0 {
+		cfg.SetDefaults()
+		cfg.NormalizeNilFields()
+
 		providers, err := BuildProvidersFromConfig(cfg)
 		if err != nil {
 			return nil, err
