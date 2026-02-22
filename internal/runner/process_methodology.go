@@ -223,6 +223,10 @@ func hasCoverageGaps(tracker *coverage.CoverageTracker) bool {
 	return len(tracker.UncoveredCriteria()) > 0 || len(tracker.UntestableCriteria()) > 0
 }
 
+func extractRequirementsFromDescription(description string) []string {
+	return nil
+}
+
 func tddExpectedOutputsOrTitle(b *bead.Bead) []string {
 	if b == nil {
 		return []string{}
