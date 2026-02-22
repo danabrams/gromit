@@ -332,4 +332,7 @@ func (c *Config) SetDefaults() {
 	if c.SpecGate.AutoTrigger == nil {
 		c.SpecGate.AutoTrigger = boolPtr(true)
 	}
+	if c.Decompose.Tier == "" {
+		c.Decompose.Tier = "medium"
+	}
 }
