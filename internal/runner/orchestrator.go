@@ -57,6 +57,10 @@ type OrchestratorConfig struct {
 	// StateSaver persists provider routing state after the loop completes.
 	// Optional: nil means skip. Typically backed by state.File.
 	StateSaver StateSaver
+
+	// ProviderCostDefs maps runtime provider names to their configuration,
+	// enabling cost estimation from token counts when providers don't report cost.
+	ProviderCostDefs map[string]config.ProviderDef
 }
 
 // StateSaver persists provider routing state (provider counts, availability) to disk.

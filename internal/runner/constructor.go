@@ -321,7 +321,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 
 	syncOut := newSyncWriter(output)
 
-	router, learningsProvider, sf, _, err := buildRouterAndLearningsProvider(cfg, gromitDir, output)
+	router, learningsProvider, sf, costDefs, err := buildRouterAndLearningsProvider(cfg, gromitDir, output)
 	if err != nil {
 		return nil, err
 	}
@@ -420,7 +420,8 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 				_ = statusWriter.Write(iteration, beadID, beadTitle, "", true, cfg.Loop.MaxIterations, 0)
 			}
 		},
-		StateSaver: sf,
+		StateSaver:       sf,
+		ProviderCostDefs: costDefs,
 	}
 
 	return NewOrchestrator(orchCfg), nil
