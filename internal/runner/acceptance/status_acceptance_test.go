@@ -25,6 +25,104 @@ func writeStatusFile(gromitDir string, status runner.Status) error {
 	return os.WriteFile(filepath.Join(gromitDir, "status.json"), data, 0644)
 }
 
+// TestOrchestratorHelper_StatusWithLiveRun tests status output using the standalone
+// runner.PrintStatus function instead of requiring a full Runner via NewRunnerWithDeps.
+func TestOrchestratorHelper_StatusWithLiveRun(t *testing.T) {
+	tests := []struct {
+		name              string
+		setupStatus       func(gromitDir string) error
+		processChecker    func(pid int) bool
+		expectedOutput    []string
+		notExpected       []string
+		expectFileDeleted bool
+	}{
+		{
+			name:           "No status file - shows pipeline status",
+			setupStatus:    func(gromitDir string) error { return nil },
+			expectedOutput: []string{"Pipeline:", "Run: not running", "Health:", "Next action:"},
+			notExpected:    []string{"Warning: stale run"},
+		},
+		{
+			name:           "Live run - shows run in progress",
+			processChecker: func(pid int) bool { return true },
+			setupStatus: func(gromitDir string) error {
+				status := runner.Status{
+					Running:   true,
+					Iteration: 1,
+					BeadID:    "bead-123",
+					BeadTitle: "Building feature X",
+					Model:     "sonnet",
+					StartedAt: time.Now().Add(-2 * time.Minute),
+					ElapsedS:  120,
+					PID:       424242,
+				}
+				return writeStatusFile(gromitDir, status)
+			},
+			expectedOutput: []string{"Pipeline:", "Run: iteration 1", "bead-123", "Building feature X", "Model:    sonnet", "Health:"},
+			notExpected:    []string{"Warning: stale run"},
+		},
+		{
+			name:           "Stale status file - warns and cleans up",
+			processChecker: func(pid int) bool { return false },
+			setupStatus: func(gromitDir string) error {
+				status := runner.Status{
+					Running:   true,
+					Iteration: 2,
+					BeadID:    "bead-456",
+					BeadTitle: "Old bead",
+					Model:     "haiku",
+					StartedAt: time.Now().Add(-1 * time.Hour),
+					ElapsedS:  3600,
+					PID:       999999,
+				}
+				return writeStatusFile(gromitDir, status)
+			},
+			expectedOutput:    []string{"Warning: stale run detected", "Bead: bead-456 - Old bead", "Removing stale status file", "Pipeline:", "Run: not running"},
+			notExpected:       []string{"Run: iteration"},
+			expectFileDeleted: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			gromitDir := filepath.Join(tmpDir, ".gromit")
+			if err := os.MkdirAll(gromitDir, 0755); err != nil {
+				t.Fatalf("Failed to create gromit dir: %v", err)
+			}
+			if err := tt.setupStatus(gromitDir); err != nil {
+				t.Fatalf("Failed to setup status: %v", err)
+			}
+
+			cfg := &config.Config{}
+			cfg.Paths.Specs = filepath.Join(gromitDir, "specs")
+			cfg.Paths.Plans = filepath.Join(gromitDir, "plans")
+			var buf strings.Builder
+			if err := runner.PrintStatus(gromitDir, cfg, &buf, tt.processChecker); err != nil {
+				t.Fatalf("PrintStatus() failed: %v", err)
+			}
+
+			output := buf.String()
+			for _, expected := range tt.expectedOutput {
+				if !strings.Contains(output, expected) {
+					t.Errorf("Expected output to contain %q\nGot:\n%s", expected, output)
+				}
+			}
+			for _, notExpected := range tt.notExpected {
+				if strings.Contains(output, notExpected) {
+					t.Errorf("Expected output NOT to contain %q\nGot:\n%s", notExpected, output)
+				}
+			}
+			if tt.expectFileDeleted {
+				statusPath := filepath.Join(gromitDir, "status.json")
+				if _, err := os.Stat(statusPath); !os.IsNotExist(err) {
+					t.Errorf("Expected status.json to be deleted, but it still exists")
+				}
+			}
+		})
+	}
+}
+
 func TestRunnerStatusWithLiveRun(t *testing.T) {
 	tests := []struct {
 		name              string
