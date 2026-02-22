@@ -291,7 +291,7 @@ func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) 
 	// Create beads from findings with from-review label
 	beadsCreated := 0
 	for _, bp := range reviewResult.BeadsToCreate {
-		labels := buildReviewBeadLabels(bp.Labels)
+		labels := BuildFromReviewLabels(bp.Labels)
 		_, err := p.deps.BeadClient.Create(bp.Title, bp.Priority, labels, expectedOutputsOrTitle(bp.ExpectedOutputs, bp.Title))
 		if err != nil {
 			return nil, fmt.Errorf("creating review bead: %w", err)
