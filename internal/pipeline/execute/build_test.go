@@ -414,6 +414,23 @@ func TestTDDCycleRunner_InterfaceSatisfied(t *testing.T) {
 	var _ execute.TDDCycleRunner = (*fakeTDDCycleRunner)(nil)
 }
 
+// TestTDDCycleResult_HoldsPhaseMetrics verifies that TDDCycleResult can carry
+// per-phase metrics from multiple TDD cycle invocations.
+func TestTDDCycleResult_HoldsPhaseMetrics(t *testing.T) {
+	result := execute.TDDCycleResult{
+		PhaseMetrics: []pipeline.PhaseMetrics{
+			{Phase: "red"},
+			{Phase: "green"},
+		},
+	}
+	if len(result.PhaseMetrics) != 2 {
+		t.Errorf("TDDCycleResult.PhaseMetrics: want 2, got %d", len(result.PhaseMetrics))
+	}
+	if result.PhaseMetrics[1].Phase != "green" {
+		t.Errorf("TDDCycleResult.PhaseMetrics[1].Phase: want %q, got %q", "green", result.PhaseMetrics[1].Phase)
+	}
+}
+
 // TestBuildStage_EscalationEnabled_FailsWhenAllTiersExhausted verifies that when
 // EscalationEnabled is true but all tiers in the chain fail, the stage returns an error.
 func TestBuildStage_EscalationEnabled_FailsWhenAllTiersExhausted(t *testing.T) {
