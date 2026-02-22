@@ -294,7 +294,7 @@ func formatSPCSummary(trend *logger.ProcessTrend) string {
 	} else {
 		lines = append(lines, fmt.Sprintf("  Anomaly:  %d", len(trend.Anomalies)))
 		for _, a := range trend.Anomalies {
-			lines = append(lines, fmt.Sprintf("    %s (%s)", a.Metric, a.Severity))
+			lines = append(lines, fmt.Sprintf("    %s (%s)", simplifySPCMetric(a.Metric), a.Severity))
 		}
 	}
 
@@ -308,8 +308,8 @@ func formatSPCLine(label string, cl logger.TrendControlLimit, isDuration bool) s
 		return fmt.Sprintf("  %-10s %s, limits %s..%s",
 			label, formatSPCValue(cl.Latest, false), formatSPCValue(cl.LCL, false), formatSPCValue(cl.UCL, false))
 	}
-	return fmt.Sprintf("  %-10s %d%%, limits %d%%..%d%%",
-		label, int(math.Round(cl.Latest*100)), int(math.Round(cl.LCL*100)), int(math.Round(cl.UCL*100)))
+	return fmt.Sprintf("  %-10s %s, limits %s..%s",
+		label, formatSPCValue(cl.Latest, true), formatSPCValue(cl.LCL, true), formatSPCValue(cl.UCL, true))
 }
 
 // formatSPCValue formats a single SPC metric value for display.
