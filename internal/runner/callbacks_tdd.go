@@ -3,11 +3,22 @@ package runner
 import (
 	"context"
 	"fmt"
+	"io"
 	"time"
 
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/coverage"
+	"github.com/danabrams/gromit/internal/pipeline/execute"
+	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
+
+// buildTDDCycleRunner creates a TDDCycleRunner adapter backed by a Runner with a
+// configured tddOrchestrator. Inject the result into execute.Build via WithTDDCycleRunner.
+func buildTDDCycleRunner(_ *config.Config, _ *prompt.Renderer, _ *provider.Router, _ io.Writer) execute.TDDCycleRunner {
+	return nil
+}
 
 func snapshotIterationUsage(result *runtypes.IterationResult) (costUSD float64, inputTokens int, outputTokens int) {
 	if result == nil {

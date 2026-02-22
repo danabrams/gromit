@@ -2,10 +2,12 @@ package runner
 
 import (
 	"context"
+	"io"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/analyzer"
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/config"
 )
 
 // stubFailureAnalyzer is a test double for FailureAnalyzer.
@@ -40,6 +42,20 @@ func TestFailureLearnerAdapter_CallsAnalyzer(t *testing.T) {
 	}
 	if !called {
 		t.Error("analyzer.Analyze was not called; want failure learning extraction to invoke the analyzer")
+	}
+}
+
+// TestBuildTDDCycleRunner_ReturnsTDDPipelineAdapter verifies that buildTDDCycleRunner
+// returns a non-nil *TDDPipelineAdapter so that the Build stage can delegate TDD
+// cycles to the runner-backed orchestrator.
+func TestBuildTDDCycleRunner_ReturnsTDDPipelineAdapter(t *testing.T) {
+	cfg := &config.Config{}
+	result := buildTDDCycleRunner(cfg, nil, nil, io.Discard)
+	if result == nil {
+		t.Fatal("buildTDDCycleRunner returned nil TDDCycleRunner")
+	}
+	if _, ok := result.(*TDDPipelineAdapter); !ok {
+		t.Fatalf("buildTDDCycleRunner returned %T, want *TDDPipelineAdapter", result)
 	}
 }
 
