@@ -103,6 +103,49 @@ func TestPrintStatus_ShowsModelAndTimeBudget(t *testing.T) {
 	}
 }
 
+// TestPrintStatus_IncludesSPCSection verifies that PrintStatus reads process
+// trend data from the logs directory and includes an SPC section in the output.
+// Even with no log data, the output should contain "SPC:" with a "(no data)"
+// indicator. The current implementation only outputs Run, Pipeline, and Health
+// sections — this test drives adding logger.ReadProcessTrend integration.
+func TestPrintStatus_IncludesSPCSection(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	// Write a status.json so PrintStatus takes the active-run path.
+	sw, err := NewStatusWriter(gromitDir)
+	if err != nil {
+		t.Fatalf("NewStatusWriter: %v", err)
+	}
+	if err := sw.Write(3, "bead-spc", "SPC test", "sonnet", true, 0, 0); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	// Create an empty logs directory — no iteration logs means SPC has no data.
+	logsDir := filepath.Join(gromitDir, "logs")
+	if err := os.MkdirAll(logsDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll logs: %v", err)
+	}
+
+	cfg := &config.Config{}
+	cfg.Paths.Specs = filepath.Join(tmpDir, "specs")
+	cfg.Paths.Plans = filepath.Join(tmpDir, "plans")
+	cfg.Paths.Logs = logsDir
+
+	var buf strings.Builder
+	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }); err != nil {
+		t.Fatalf("PrintStatus: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "SPC:") {
+		t.Errorf("PrintStatus output missing SPC section; got:\n%s", output)
+	}
+}
+
 // TestPrintStatus_ReadsStateFilesForHealthSection verifies that PrintStatus
 // reads state.json (for IterationsSinceReview) and interactive-state.json
 // (for LastRetro) and includes a Health section in the output. The current
