@@ -63,15 +63,12 @@ func TestBuildRun_SinglePassConfig_SkipsRefactorMethodology(t *testing.T) {
 			P1: "medium",
 			P2: "low",
 		},
-		Methodology: config.MethodologyConfig{
-			BuildStrategy: "single_pass",
-		},
 	}
 	b := &bead.Bead{
 		ID:       "bead-1",
 		Title:    "Implement behavior",
 		Priority: 1,
-		Labels:   []string{"refactor:true"},
+		Labels:   []string{"build_strategy:single_pass", "refactor:true"},
 	}
 
 	renderer := &methodologyTestRenderer{}
