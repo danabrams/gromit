@@ -32,7 +32,8 @@ Respond with a JSON array containing your proposed sub-tasks. Each sub-task shou
 - `title`: Brief title (max 60 chars)
 - `description`: What needs to be done
 - `depends_on`: Index of previous task if dependent (null if independent)
-- `acceptance_criteria`: 2-3 bullet points
+- `acceptance_criteria`: 2-3 bullet points defining the overall definition of done
+- `expected_outputs`: 2-5 discrete, independently testable behavioral requirements (incremental TDD steps)
 
 Example format:
 ```json
