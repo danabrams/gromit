@@ -3,9 +3,11 @@ package runner
 import (
 	"fmt"
 	"io"
+	"path/filepath"
 	"time"
 
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/state"
 )
@@ -69,6 +71,15 @@ func PrintStatus(gromitDir string, cfg *config.Config, w io.Writer, processCheck
 
 	if _, err := fmt.Fprint(w, formatHealth(lastRetro, iterationsSinceReview)); err != nil {
 		return fmt.Errorf("writing health status: %w", err)
+	}
+
+	// SPC section: read process trend from logs directory
+	var trend *logger.ProcessTrend
+	if cfg.Paths.Logs != "" {
+		trend, _ = logger.ReadProcessTrend(filepath.Join(cfg.Paths.Logs, "process_trend.json"))
+	}
+	if _, err := fmt.Fprintln(w, formatSPCSummary(trend)); err != nil {
+		return fmt.Errorf("writing SPC status: %w", err)
 	}
 
 	return nil
