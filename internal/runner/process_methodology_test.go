@@ -92,6 +92,25 @@ func TestExtractRequirementsViaLLM_ReturnsNilOnError(t *testing.T) {
 	}
 }
 
+func TestApplyLayer3Requirements_TriggersAndReplacesOutputsWhenOnlyOneItem(t *testing.T) {
+	invoke := func(_ context.Context, _ string, _ string) (*provider.Result, error) {
+		return &provider.Result{Success: true, Output: "llm req one\nllm req two"}, nil
+	}
+	got, activated := applyLayer3Requirements(context.Background(), []string{"My Title"}, "My Title", "no parseable list", invoke)
+	if !activated {
+		t.Fatal("expected layer3 to be activated")
+	}
+	want := []string{"llm req one", "llm req two"}
+	if len(got) != len(want) {
+		t.Fatalf("got %d items, want %d: %v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("item %d: got %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
 func TestExtractRequirementsFromDescription_BulletedList(t *testing.T) {
 	cases := []struct {
 		name  string

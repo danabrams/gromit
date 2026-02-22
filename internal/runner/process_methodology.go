@@ -328,6 +328,10 @@ func extractRequirementsViaLLM(ctx context.Context, title, description string, i
 	return items
 }
 
+func applyLayer3Requirements(ctx context.Context, outputs []string, title, description string, invoke func(ctx context.Context, prompt, tier string) (*provider.Result, error)) ([]string, bool) {
+	return outputs, false
+}
+
 func tddExpectedOutputsOrTitle(b *bead.Bead) []string {
 	if b == nil {
 		return []string{}
