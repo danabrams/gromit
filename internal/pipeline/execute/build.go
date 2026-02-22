@@ -54,9 +54,10 @@ type PromptRenderer interface {
 // It selects the methodology (TDD, refactor, standard), renders the appropriate
 // prompt, and invokes the provider via StreamRun only.
 type Build struct {
-	invoker  Invoker
-	renderer PromptRenderer
-	output   io.Writer
+	invoker        Invoker
+	renderer       PromptRenderer
+	output         io.Writer
+	tddCycleRunner TDDCycleRunner
 }
 
 // Compile-time check: *Build must implement pipeline.Stage.
@@ -70,6 +71,13 @@ func New(invoker Invoker, renderer PromptRenderer, output io.Writer) *Build {
 		renderer: renderer,
 		output:   output,
 	}
+}
+
+// WithTDDCycleRunner injects a TDDCycleRunner for fresh-context TDD execution.
+// Returns the receiver for fluent chaining.
+func (b *Build) WithTDDCycleRunner(runner TDDCycleRunner) *Build {
+	b.tddCycleRunner = runner
+	return b
 }
 
 // SelectMethodology determines the methodology for a bead based on its labels and config.
@@ -97,6 +105,17 @@ func (b *Build) ShouldRunPostSuccess(bead *bead.Bead, cfg *config.Config) bool {
 // so the orchestrator can inspect Output and decide whether to proceed to Validate.
 func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
 	methodology := SelectMethodology(in.Bead, in.Config)
+
+	if methodology == MethodologyTDD && in.Config.Methodology.FreshContextPerCycle && b.tddCycleRunner != nil {
+		result, err := b.tddCycleRunner.RunCycles(ctx, in.Bead, in.Config)
+		if err != nil {
+			return pipeline.Output{}, fmt.Errorf("build: TDD cycle runner: %w", err)
+		}
+		return pipeline.Output{
+			Decision:     pipeline.Proceed,
+			PhaseMetrics: result.PhaseMetrics,
+		}, nil
+	}
 
 	var (
 		prompt string
