@@ -203,6 +203,16 @@ func (a *iterationLogWriterAdapter) Write(log *logger.IterationLog) error {
 	return a.logger.LogIteration(log)
 }
 
+// decomposerAdapter wraps bead.Client to satisfy prepare.Decomposer for auto-decomposition of oversized beads.
+type decomposerAdapter struct {
+	beads *bead.Client
+}
+
+func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
+	// Placeholder implementation: decomposer will be fully implemented when the decomposition workflow is integrated.
+	return fmt.Errorf("decomposition not yet implemented")
+}
+
 // failureLearnerAdapter wraps analyzer and related dependencies to satisfy epilogue.FailureLearner.
 type failureLearnerAdapter struct {
 	renderer *prompt.Renderer

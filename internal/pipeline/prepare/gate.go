@@ -75,6 +75,11 @@ func (g *Gate) WithDecomposer(d Decomposer) *Gate {
 	return g
 }
 
+// HasDecomposer returns true if a Decomposer is wired in, false otherwise.
+func (g *Gate) HasDecomposer() bool {
+	return g.decomposer != nil
+}
+
 // Run executes the gate stage.
 // It runs precheck (Skip if work already done), stuck detection (Block if threshold exceeded),
 // scope gate (Block if file count too large), proactive decomposition (Skip if keyword candidate),

@@ -95,6 +95,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 
 	// Stage 1: Gate (prepare.New with optional Prechecker, StuckDetector, Decomposer)
 	gateStage := prepare.New(syncOut)
+	gateStage.WithDecomposer(&decomposerAdapter{beads: beadsClient})
 
 	// Stage 2: Build (execute.New with Invoker and PromptRenderer)
 	buildStage := execute.New(&invokerAdapter{router: router, output: syncOut}, &renderAdapter{r: renderer}, syncOut)
