@@ -96,7 +96,17 @@ type retroRouterAdapter struct {
 var _ retro.ProviderRunner = (*retroRouterAdapter)(nil)
 
 func (a *retroRouterAdapter) Run(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
-	return nil, fmt.Errorf("retro router adapter run not implemented")
+	if a == nil || a.Router == nil {
+		return nil, fmt.Errorf("provider router adapter is nil")
+	}
+
+	phase := resolveProviderReviewPhase(a.Phase)
+	selectedProvider, _ := a.Router.Select(phase, tier)
+	if selectedProvider == nil {
+		return nil, fmt.Errorf("no providers available for phase %q and tier %q", phase, tier)
+	}
+
+	return selectedProvider.Run(ctx, prompt, tier)
 }
 
 func (a *retroRouterAdapter) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
