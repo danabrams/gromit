@@ -41,13 +41,15 @@ Example format:
     "title": "Set up database migrations",
     "description": "Create the initial migration files and schema...",
     "depends_on": null,
-    "acceptance_criteria": ["Migration files created", "Schema matches spec"]
+    "acceptance_criteria": ["Migration files created", "Schema matches spec"],
+    "expected_outputs": ["Running `go test ./internal/db/...` exits 0", "Migration file exists at migrations/001_init.sql"]
   },
   {
     "title": "Implement user model",
     "description": "Add User model with validation...",
     "depends_on": 0,
-    "acceptance_criteria": ["Model created", "Tests pass", "Validation works"]
+    "acceptance_criteria": ["Model created", "Tests pass", "Validation works"],
+    "expected_outputs": ["User struct compiles with required fields", "Validation rejects empty email", "Validation rejects email without @"]
   }
 ]
 ```
