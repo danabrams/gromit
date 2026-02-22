@@ -107,7 +107,7 @@ func (a *retroRouterAdapter) Run(ctx context.Context, prompt string, tier string
 	}
 
 	result, err := selectedProvider.Run(ctx, prompt, tier)
-	if err != nil && selectedProvider.IsUsageLimitError(result, err) {
+	if selectedProvider.IsUsageLimitError(result, err) {
 		a.Router.MarkUnavailable(selectedProvider.Name())
 		selectedProvider, _ = a.Router.Select(phase, tier)
 		if selectedProvider != nil {
