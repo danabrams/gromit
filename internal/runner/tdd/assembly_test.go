@@ -2,6 +2,7 @@ package tdd
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -226,5 +227,30 @@ func TestAssembleCycleStateSetsDoneWhenLastRemainingConsumed(t *testing.T) {
 	}
 	if !next.Done {
 		t.Fatalf("expected Done=true when all requirements covered")
+	}
+}
+
+func TestAssembleRedHandoffPopulatesCycleSummaryWithCompletedRequirements(t *testing.T) {
+	state := CycleState{
+		CycleNumber:  2,
+		MaxCycles:    5,
+		CoveredSoFar: []string{"users can log in with valid credentials"},
+		Remaining:    []string{"users can reset password"},
+		TouchedFiles: []string{},
+	}
+
+	readFile := fakeReadFile(map[string]string{})
+	getDiff := fakeGetDiff()
+
+	handoff, err := AssembleRedHandoff(state, readFile, getDiff)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if handoff.CycleSummary == "" {
+		t.Fatalf("expected CycleSummary to be populated when CoveredSoFar is non-empty")
+	}
+	if !strings.Contains(handoff.CycleSummary, "users can log in with valid credentials") {
+		t.Fatalf("expected CycleSummary to contain completed requirement, got %q", handoff.CycleSummary)
 	}
 }
