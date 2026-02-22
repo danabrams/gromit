@@ -11,6 +11,12 @@ import (
 	"github.com/danabrams/gromit/internal/pipeline"
 )
 
+// Test constants to avoid repetition
+var (
+	blockTrue  = true
+	blockFalse = false
+)
+
 type fakePrechecker struct {
 	done bool
 	err  error
@@ -132,9 +138,6 @@ func TestGateRunNilBead(t *testing.T) {
 }
 
 func TestGateRunScopeGate(t *testing.T) {
-	blockTrue := true
-	blockFalse := false
-
 	tests := []struct {
 		name            string
 		expectedOutputs []string
@@ -260,8 +263,6 @@ func TestGateRunProactiveDecomposition(t *testing.T) {
 }
 
 func TestGateRunScopeGateAttemptsDecomposition(t *testing.T) {
-	blockTrue := true
-
 	tests := []struct {
 		name                string
 		expectedOutputs     []string
@@ -394,13 +395,11 @@ func TestGateRunScopeGateAttemptsDecomposition(t *testing.T) {
 // This integration test exercises the end-to-end decomposition pipeline when an oversized root bead
 // is decomposed into sub-beads via the real pipeline.
 func TestGateRunScopeGateDecompositionEndToEnd(t *testing.T) {
-	blockTrue := true
-
 	// Mock bead client that tracks CreateWithParent calls
-	mockBeadClient := &mockBeadClientForIntegration{}
+	mockBeadClient := &mockBeadClient{}
 
 	// Create decomposerAdapter that wraps the mock bead client
-	decomposer := &decomposerAdapterForIntegration{
+	decomposer := &decomposerAdapter{
 		beads: mockBeadClient,
 	}
 
@@ -456,8 +455,8 @@ func TestGateRunScopeGateDecompositionEndToEnd(t *testing.T) {
 	}
 }
 
-// mockBeadClientForIntegration is a mock bead.Client for integration testing
-type mockBeadClientForIntegration struct {
+// mockBeadClient is a mock bead.Client for integration testing
+type mockBeadClient struct {
 	createWithParentCalled  bool
 	capturedTitle           string
 	capturedPriority        int
@@ -466,7 +465,7 @@ type mockBeadClientForIntegration struct {
 	capturedParentID        string
 }
 
-func (m *mockBeadClientForIntegration) CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error) {
+func (m *mockBeadClient) CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error) {
 	m.createWithParentCalled = true
 	m.capturedTitle = title
 	m.capturedPriority = priority
@@ -476,16 +475,17 @@ func (m *mockBeadClientForIntegration) CreateWithParent(title string, priority i
 	return &bead.Bead{ID: "bead-decomposed-1", Title: title, Priority: priority}, nil
 }
 
-// decomposerAdapterForIntegration mimics the real decomposerAdapter behavior
-type decomposerAdapterForIntegration struct {
-	beads mockBeadClientInterface
-}
-
+// mockBeadClientInterface defines the interface needed by decomposerAdapter
 type mockBeadClientInterface interface {
 	CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error)
 }
 
-func (a *decomposerAdapterForIntegration) Decompose(ctx context.Context, b *bead.Bead) error {
+// decomposerAdapter mimics the real decomposerAdapter behavior for integration testing
+type decomposerAdapter struct {
+	beads mockBeadClientInterface
+}
+
+func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 	_, err := a.beads.CreateWithParent(b.Title+" (decomposed)", b.Priority, b.Labels, b.ExpectedOutputs, b.ID)
 	return err
 }
