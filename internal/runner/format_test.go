@@ -500,6 +500,31 @@ func TestFormatSPCValue(t *testing.T) {
 	}
 }
 
+func TestSimplifySPCMetric(t *testing.T) {
+	tests := []struct {
+		name   string
+		metric string
+		want   string
+	}{
+		{"success rate", spcMetricRollingSuccessRate, "success"},
+		{"first pass success", spcMetricFirstPassSuccessRate, "first-pass"},
+		{"escalation rate", spcMetricRollingEscalateRate, "escalation"},
+		{"quality score", spcMetricRollingQualityScore, "quality"},
+		{"avg duration", spcMetricRollingAvgDurationMs, "duration"},
+		{"avg cost", spcMetricRollingAvgCostUSD, "cost"},
+		{"unknown metric returns as-is", "some_custom_metric", "some_custom_metric"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := simplifySPCMetric(tt.metric)
+			if got != tt.want {
+				t.Errorf("simplifySPCMetric(%q) = %q, want %q", tt.metric, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestFormatRun(t *testing.T) {
 	tests := []struct {
 		name   string
