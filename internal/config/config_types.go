@@ -259,12 +259,21 @@ type MethodologyConfig struct {
 	ATDD                 bool                    `yaml:"atdd"`
 	TDD                  bool                    `yaml:"tdd"`
 	BuildStrategy        string                  `yaml:"build_strategy"`
+	PhaseModels          PhaseModelsConfig       `yaml:"phase_models"`
 	MaxTDDCycles         int                     `yaml:"max_tdd_cycles"`
 	SpecGateMaxRetries   int                     `yaml:"spec_gate_max_retries"`
 	ATDDPrompt           ATDDPromptConfig        `yaml:"atdd_prompt"`
 	FreshContextPerCycle bool                    `yaml:"fresh_context_per_cycle"`
 	Granularity          string                  `yaml:"granularity"`
 	PhaseTimeouts        MethodologyPhaseTimeout `yaml:"phase_timeouts"`
+}
+
+type PhaseModelsConfig struct {
+	Decompose string `yaml:"decompose"`
+	Build     string `yaml:"build"`
+	Red       string `yaml:"red"`
+	Green     string `yaml:"green"`
+	Refactor  string `yaml:"refactor"`
 }
 
 type ATDDPromptConfig struct {
