@@ -10,10 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"text/tabwriter"
-	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
-	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/frontmatter"
 	"github.com/danabrams/gromit/internal/prompt"
@@ -320,62 +318,6 @@ func buildVerifySpecRouter(cfg *config.Config) (*provider.Router, error) {
 		return nil, fmt.Errorf("config is nil")
 	}
 	return provider.BuildRouterFromConfig(cfg)
-}
-
-func buildVerifySpecProviders(cfg *config.Config) (map[string]provider.Provider, error) {
-	providers := make(map[string]provider.Provider)
-	for name, def := range cfg.Providers {
-		switch {
-		case name == "claude" || def.Binary == "claude":
-			tierMap := def.Models
-			if len(tierMap) == 0 {
-				tierMap = defaultVerifySpecTierToModelMap()
-			}
-			client, err := claude.NewClient(def.Binary, def.Flags, cfg.Claude.Timeout)
-			if err != nil {
-				return nil, err
-			}
-			providers[name] = provider.NewClaudeProvider(client, tierMap)
-		case name == "codex" || name == "openai" || def.Binary == "codex":
-			tierMap := def.Models
-			if len(tierMap) == 0 {
-				tierMap = defaultVerifySpecCodexTierToModelMap()
-			}
-			codexProvider := provider.NewCodexProvider(def.Binary, def.Flags, tierMap)
-			codexProvider.SetReasoningEffort(def.ReasoningEffort)
-			providers[name] = codexProvider
-		default:
-			return nil, fmt.Errorf("unrecognized provider %q: supported providers are \"claude\" and \"codex\"", name)
-		}
-	}
-	return providers, nil
-}
-
-func defaultVerifySpecTierToModelMap() map[string]string {
-	return map[string]string{
-		provider.TierHigh:   "opus",
-		provider.TierMedium: "sonnet",
-		provider.TierLow:    "haiku",
-	}
-}
-
-func defaultVerifySpecCodexTierToModelMap() map[string]string {
-	return map[string]string{
-		provider.TierHigh:   "gpt-5.3-codex",
-		provider.TierMedium: "gpt-5.3-codex",
-		provider.TierLow:    "gpt-5.3-codex",
-	}
-}
-
-func parseVerifySpecFallbackCooldown(cfg *config.Config) time.Duration {
-	if cfg == nil || !cfg.Routing.Fallback.EnabledOrDefault(len(cfg.Providers) > 1) || cfg.Routing.Fallback.Cooldown == "" {
-		return 0
-	}
-	cooldown, err := time.ParseDuration(cfg.Routing.Fallback.Cooldown)
-	if err != nil {
-		return 30 * time.Minute
-	}
-	return cooldown
 }
 
 func createSpecGateFixBeads(ctx context.Context, specName string, verdict *specgate.GateVerdict) ([]string, error) {
