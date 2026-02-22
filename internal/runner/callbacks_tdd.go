@@ -37,6 +37,16 @@ func buildTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *
 		},
 	})
 
+	// layer3Invoke wraps the router to provide the invoke signature that
+	// extractRequirementsViaLLM / applyLayer3Requirements expect.
+	layer3Invoke := func(invokeCtx context.Context, prompt, tier string) (*provider.Result, error) {
+		p, _ := router.Select("build", tier)
+		if p == nil {
+			return nil, fmt.Errorf("no provider available for tier %s", tier)
+		}
+		return p.Run(invokeCtx, prompt, tier)
+	}
+
 	r := &Runner{
 		cfg: cfg,
 		tddOrchestrator: &tddOrchestrator{
@@ -50,6 +60,13 @@ func buildTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *
 				remaining := bc.Bead.ExpectedOutputs
 				if len(remaining) == 0 {
 					remaining = tddExpectedOutputsOrTitle(bc.Bead)
+				}
+				// Layer 3: LLM-based requirement extraction when we only have
+				// a single broad requirement (title fallback).
+				if len(remaining) <= 1 {
+					if extracted, _ := applyLayer3Requirements(ctx, remaining, bc.Bead.Title, bc.Bead.Description, layer3Invoke); len(extracted) > len(remaining) {
+						remaining = extracted
+					}
 				}
 				state := tdd.CycleState{
 					MaxCycles: cfg.Methodology.MaxTDDCycles,
