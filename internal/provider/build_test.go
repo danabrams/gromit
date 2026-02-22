@@ -68,3 +68,36 @@ func TestBuildProvidersFromConfig_CodexDefaults(t *testing.T) {
 		t.Fatalf("ModelForTier(%q) = %q, want %q", provider.TierLow, got, "gpt-5-mini")
 	}
 }
+
+func TestBuildProvidersFromConfig_ClaudeDefaults(t *testing.T) {
+	cfg := &config.Config{
+		Claude: config.ClaudeConfig{
+			Timeout: 10,
+		},
+		Providers: map[string]config.ProviderDef{
+			"claude": {
+				Binary: "claude",
+			},
+		},
+	}
+
+	providers, err := provider.BuildProvidersFromConfig(cfg)
+	if err != nil {
+		t.Fatalf("BuildProvidersFromConfig() error = %v", err)
+	}
+
+	claudeProvider, ok := providers["claude"]
+	if !ok {
+		t.Fatalf("providers missing %q entry", "claude")
+	}
+
+	if got := claudeProvider.ModelForTier(provider.TierHigh); got != "opus" {
+		t.Fatalf("ModelForTier(%q) = %q, want %q", provider.TierHigh, got, "opus")
+	}
+	if got := claudeProvider.ModelForTier(provider.TierMedium); got != "sonnet" {
+		t.Fatalf("ModelForTier(%q) = %q, want %q", provider.TierMedium, got, "sonnet")
+	}
+	if got := claudeProvider.ModelForTier(provider.TierLow); got != "haiku" {
+		t.Fatalf("ModelForTier(%q) = %q, want %q", provider.TierLow, got, "haiku")
+	}
+}
