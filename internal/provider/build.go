@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/danabrams/gromit/internal/claude"
@@ -38,8 +39,9 @@ func BuildProvidersFromConfig(cfg *config.Config) (map[string]Provider, error) {
 
 	providers := make(map[string]Provider)
 	for name, def := range cfg.Providers {
+		binaryName := filepath.Base(def.Binary)
 		switch {
-		case name == "claude" || def.Binary == "claude":
+		case name == "claude" || def.Binary == "claude" || binaryName == "claude":
 			tierMap := def.Models
 			if len(tierMap) == 0 {
 				tierMap = DefaultTierToModelMap
