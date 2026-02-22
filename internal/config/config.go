@@ -47,7 +47,7 @@ func (c *Config) applyPostLoadNormalization(matchBuildModelConfigured bool) {
 		}
 	}
 	if matchBuildModelConfigured {
-		warnConfigDeprecation("review.match_build_model is deprecated and will be removed in a future release")
+		warnConfigDeprecation("review.match_build_model is deprecated, ignored, and will be removed in a future release")
 	}
 }
 
