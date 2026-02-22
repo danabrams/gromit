@@ -6,29 +6,11 @@ import (
 	"io"
 
 	"github.com/danabrams/gromit/internal/bead"
-	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
-	"github.com/danabrams/gromit/internal/runner/policy"
 	"github.com/danabrams/gromit/internal/worktree"
 )
-
-type runnerPolicies struct {
-	escalation  policy.EscalationPolicy
-	methodology policy.MethodologyPolicy
-	validation  policy.ValidationPolicy
-	stuck       policy.StuckPolicy
-}
-
-func newRunnerPolicies(cfg *config.Config) runnerPolicies {
-	return runnerPolicies{
-		escalation:  policy.NewConfigEscalationPolicy(cfg),
-		methodology: policy.NewConfigMethodologyPolicy(cfg),
-		validation:  policy.NewConfigValidationPolicy(cfg),
-		stuck:       policy.NewConfigStuckPolicy(cfg),
-	}
-}
 
 // Adapter types for bridging existing infrastructure to pipeline stage interfaces.
 

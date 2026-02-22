@@ -5,14 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/danabrams/gromit/internal/analyzer"
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
@@ -31,7 +27,6 @@ import (
 	"github.com/danabrams/gromit/internal/specgate"
 	"github.com/danabrams/gromit/internal/state"
 	"github.com/danabrams/gromit/internal/tmux"
-	"github.com/danabrams/gromit/internal/worktree"
 )
 
 // errValidationFailed aliases validation.ErrValidationFailed so runner internals
@@ -119,120 +114,6 @@ func NewRunner(cfg *config.Config, output io.Writer, labels ...string) (*Orchest
 // acceptance tests that verify wiring via AST inspection.
 func NewRunnerWithDeps(cfg *config.Config, output io.Writer, gromitDir string, deps Deps) (*Runner, error) {
 	return newRunnerWithDepsImpl(cfg, output, gromitDir, deps)
-}
-
-// NewRunnerLegacy creates a Runner using the old constructor for backward compatibility
-// with internal tests. This function is not part of the public API and will be removed
-// when all internal tests are converted to acceptance tests.
-// TODO: Remove after all internal tests are converted to acceptance tests.
-func NewRunnerLegacy(cfg *config.Config, output io.Writer) (*Runner, error) {
-	if cfg == nil {
-		return nil, fmt.Errorf("config is nil")
-	}
-	if output == nil {
-		output = os.Stdout
-	}
-
-	log, err := logger.NewLogger(cfg.Paths.Logs)
-	if err != nil {
-		_, _ = fmt.Fprintf(output, "Warning: could not create logger: %v\n", err)
-	}
-
-	gromitDir := filepath.Dir(cfg.Paths.Templates)
-	mainDir := filepath.Dir(gromitDir)
-
-	renderer, err := prompt.NewRenderer(
-		cfg.Paths.Templates,
-		cfg.Paths.Specs,
-		cfg.Paths.ProjectClaudeMD,
-		gromitDir,
-	)
-	if err != nil {
-		return nil, err
-	}
-	renderer.SetMaxLearningChars(cfg.Learnings.MaxLearningChars)
-	renderer.SetSkipBuildLearnings(cfg.Learnings.SkipBuildLearnings)
-	renderer.SetBudgetConfig(cfg.Prompt.Budget.MaxChars, cfg.Prompt.Budget.LearningCapChars)
-
-	beadsClient, err := bead.NewClient()
-	if err != nil {
-		return nil, err
-	}
-
-	syncOut := newSyncWriter(output)
-
-	router, learningsProvider, sf, costDefs, err := buildRouterAndLearningsProvider(cfg, gromitDir, output)
-	if err != nil {
-		return nil, err
-	}
-
-	wireLearningsFilter(renderer, learningsProvider)
-	wireSiblingEnrichmentResolver(renderer, cfg.Paths.Logs)
-
-	analyzerObj, err := analyzer.NewAnalyzer(learningsProvider, cfg.Models.Validation, renderer)
-	if err != nil {
-		return nil, err
-	}
-
-	stallTimeoutFn := makeStallTimeoutFn(cfg)
-	inv := buildInvoker(router, syncOut, stallTimeoutFn, cfg)
-	policies := newRunnerPolicies(cfg)
-
-	r := &Runner{
-		cfg:               cfg,
-		providerCostDefs:  costDefs,
-		beads:             beadsClient,
-		router:            router,
-		invoker:           inv,
-		analyzer:          analyzerObj,
-		renderer:          renderer,
-		logger:            log,
-		escalationPolicy:  policies.escalation,
-		methodologyPolicy: policies.methodology,
-		validationPolicy:  policies.validation,
-		stuckPolicy:       policies.stuck,
-		output:            syncOut,
-		syncOut:           syncOut,
-		gromitDir:         gromitDir,
-		stateFile:         sf,
-		gitDiffFn:         getGitDiff,
-		gitHeadFn:         getGitHead,
-		cmdRunnerFn:       defaultCmdRunner,
-		argvRunnerFn:      defaultArgvRunner,
-		processChecker:    IsProcessAlive,
-		lookupHostFn: func(ctx context.Context, host string) ([]string, error) {
-			return net.DefaultResolver.LookupHost(ctx, host)
-		},
-		lookPathFn:    exec.LookPath,
-		stdinStatFn:   os.Stdin.Stat,
-		promptYesNoFn: func(question string) (bool, error) { return promptYesNo(os.Stdin, syncOut, question) },
-	}
-	if cfg.Worktree.IsEnabled() {
-		manager, mgrErr := worktree.NewManager(mainDir)
-		if mgrErr != nil {
-			return nil, mgrErr
-		}
-		r.worktreeManager = manager
-	}
-
-	// Note: The legacy runner constructor still initializes all the old fields.
-	// These should be replaced with proper pipeline stages eventually.
-	// For now, we provide minimal initialization.
-	r.escalationHandler = escalation.NewHandler(cfg, analyzerObj, beadsClient, r.DecomposeTask, r.CreateSubBeads, r.log, r.showPartialProgress)
-	r.validationRunner = validation.NewRunner(cfg, defaultCmdRunner, r.autoFixFn, r.makeValidationExecuteFn())
-	r.methodologyExec = r.makeMethodologyExec()
-	r.tddOrchestrator = r.makeTDDOrchestrator()
-	r.cycleOrchestrator = &cycleOrchestrator{runner: r}
-	if err := initializeSpecOrchestration(cfg, r); err != nil {
-		return nil, err
-	}
-
-	reviewer := reviewpkg.NewReviewer(cfg, router, beadsClient, renderer, r.gitDiffFn, log)
-	reviewer.SetLogFn(r.log)
-	reviewer.SetValidateFn(r.makeReviewValidateFn())
-	r.reviewer = reviewer
-
-	return r, nil
 }
 
 // Run executes the Gromit loop.
