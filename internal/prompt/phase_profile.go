@@ -18,6 +18,15 @@ func ApplyPhaseProfile(ctx *Context, phase string) {
 			ctx.SiblingTouchedPackages = []string{}
 		} else if phase == "build" || phase == "green" {
 			ctx.RecentLearnings = []learnings.Learning{}
+		} else if phase == "refactor" {
+			ctx.Spec = ""
+			ctx.ClaudeMD = ""
+			ctx.ConfirmedLearnings = []learnings.Learning{}
+			ctx.RecentLearnings = []learnings.Learning{}
+			ctx.CoverageState = ""
+			ctx.TargetCriterion = ""
+			ctx.PrevFailure = ""
+			ctx.SiblingTouchedPackages = []string{}
 		}
 		return
 	}
