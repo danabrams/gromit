@@ -70,6 +70,37 @@ func (f *fakeStateSaver) Save() error {
 	return nil
 }
 
+// TestOrchestrator_ProviderCostDefs_Accessible verifies that provider cost
+// definitions passed via OrchestratorConfig are stored and accessible, so the
+// Orchestrator path can estimate costs like the legacy Runner path.
+func TestOrchestrator_ProviderCostDefs_Accessible(t *testing.T) {
+	defs := map[string]config.ProviderDef{
+		"claude": {Binary: "claude"},
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:             &fakeStage{},
+		Build:            &fakeStage{},
+		Validate:         &fakeStage{},
+		Epilogue:         &fakeStage{},
+		GetBead:          func(_ context.Context) (*bead.Bead, error) { return nil, nil },
+		Config:           &config.Config{},
+		Output:           io.Discard,
+		ProviderCostDefs: defs,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if orch.cfg.ProviderCostDefs == nil {
+		t.Fatal("ProviderCostDefs is nil; want cost definitions stored on Orchestrator")
+	}
+	if len(orch.cfg.ProviderCostDefs) != 1 {
+		t.Errorf("ProviderCostDefs has %d entries, want 1", len(orch.cfg.ProviderCostDefs))
+	}
+	if _, ok := orch.cfg.ProviderCostDefs["claude"]; !ok {
+		t.Error("ProviderCostDefs missing 'claude' entry")
+	}
+}
+
 // TestOrchestrator_ValidationFailure_SetsFailureOutput verifies that when the
 // validate stage returns Block with ValidationFailures, the orchestrator sets
 // FailureOutput on the epilogue Input so the failure learner receives it.
