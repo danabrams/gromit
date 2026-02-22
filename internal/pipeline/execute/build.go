@@ -121,7 +121,7 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 		w = io.Discard
 	}
 
-	_, err = b.invoker.StreamRun(ctx, prompt, tier, w, nil, nil)
+	result, err := b.invoker.StreamRun(ctx, prompt, tier, w, nil, nil)
 	if err != nil && in.EscalationEnabled {
 		for {
 			nextTier := in.Config.NextEscalationTier(tier)
@@ -129,7 +129,7 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 				break
 			}
 			tier = nextTier
-			_, err = b.invoker.StreamRun(ctx, prompt, tier, w, nil, nil)
+			result, err = b.invoker.StreamRun(ctx, prompt, tier, w, nil, nil)
 			if err == nil {
 				break
 			}
@@ -139,5 +139,13 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 		return pipeline.Output{}, fmt.Errorf("build: LLM invocation: %w", err)
 	}
 
-	return pipeline.Output{Decision: pipeline.Proceed}, nil
+	out := pipeline.Output{Decision: pipeline.Proceed}
+	if result != nil {
+		out.Model = result.Model
+		out.DurationMs = result.Duration.Milliseconds()
+		out.CostUSD = result.CostUSD
+		out.InputTokens = result.InputTokens
+		out.OutputTokens = result.OutputTokens
+	}
+	return out, nil
 }
