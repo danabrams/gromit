@@ -208,11 +208,11 @@ type statusWriterAdapter struct {
 	sw *StatusWriter
 }
 
-func (a *statusWriterAdapter) Write(iteration int, beadID, beadTitle string) error {
+func (a *statusWriterAdapter) Write(iteration int, beadID, beadTitle, model string, maxIterations, timeBudgetMinutes int) error {
 	if a.sw == nil {
 		return nil
 	}
-	return a.sw.Write(iteration, beadID, beadTitle, "", true, 0, 0)
+	return a.sw.Write(iteration, beadID, beadTitle, model, true, maxIterations, timeBudgetMinutes)
 }
 
 // worktreeMergerAdapter wraps worktree.Manager to satisfy epilogue.WorktreeMerger.
@@ -237,6 +237,18 @@ func (a *epilogueCommandRunnerAdapter) Run(ctx context.Context, command string) 
 	return a.runner(ctx, command, "")
 }
 
+// iterationLogWriterAdapter wraps *logger.Logger to satisfy epilogue.IterationLogWriter.
+type iterationLogWriterAdapter struct {
+	logger *logger.Logger
+}
+
+func (a *iterationLogWriterAdapter) Write(log *logger.IterationLog) error {
+	if a.logger == nil {
+		return nil
+	}
+	return a.logger.LogIteration(log)
+}
+
 // failureLearnerAdapter wraps analyzer and related dependencies to satisfy epilogue.FailureLearner.
 type failureLearnerAdapter struct {
 	renderer *prompt.Renderer
@@ -258,7 +270,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		output = os.Stdout
 	}
 
-	_, err := logger.NewLogger(cfg.Paths.Logs)
+	iterationLogger, err := logger.NewLogger(cfg.Paths.Logs)
 	if err != nil {
 		_, _ = fmt.Fprintf(output, "Warning: could not create logger: %v\n", err)
 	}
@@ -349,12 +361,18 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		logFn:    func(msg string, args ...interface{}) { _, _ = fmt.Fprintf(syncOut, msg+"\n", args...) },
 	})
 
+	if iterationLogger != nil {
+		epilogueStage.WithIterationLogWriter(&iterationLogWriterAdapter{logger: iterationLogger})
+	}
+
 	// Create OrchestratorConfig
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
 
 	getRunIDFn := func() string {
-		// Return empty string for now - run ID tracking is optional for the orchestrator
+		if iterationLogger != nil {
+			return iterationLogger.RunID()
+		}
 		return ""
 	}
 
@@ -377,6 +395,11 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		GetRunID:        getRunIDFn,
 		LogsDir:         cfg.Paths.Logs,
 		Output:          syncOut,
+		StatusWriter: func(iteration int, beadID, beadTitle string) {
+			if statusWriter != nil {
+				_ = statusWriter.Write(iteration, beadID, beadTitle, "", true, cfg.Loop.MaxIterations, 0)
+			}
+		},
 	}
 
 	return NewOrchestrator(orchCfg), nil

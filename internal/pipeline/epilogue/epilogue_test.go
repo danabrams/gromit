@@ -44,20 +44,26 @@ func (f *fakeBeadLifecycle) Sync() error {
 
 // fakeStatusWriter is a test double for epilogue.StatusWriter.
 type fakeStatusWriter struct {
-	writeFn       func(iteration int, beadID, beadTitle string) error
-	called        bool
-	lastIteration int
-	lastBeadID    string
-	lastBeadTitle string
+	writeFn               func(iteration int, beadID, beadTitle, model string, maxIterations, timeBudgetMinutes int) error
+	called                bool
+	lastIteration         int
+	lastBeadID            string
+	lastBeadTitle         string
+	lastModel             string
+	lastMaxIterations     int
+	lastTimeBudgetMinutes int
 }
 
-func (f *fakeStatusWriter) Write(iteration int, beadID, beadTitle string) error {
+func (f *fakeStatusWriter) Write(iteration int, beadID, beadTitle, model string, maxIterations, timeBudgetMinutes int) error {
 	f.called = true
 	f.lastIteration = iteration
 	f.lastBeadID = beadID
 	f.lastBeadTitle = beadTitle
+	f.lastModel = model
+	f.lastMaxIterations = maxIterations
+	f.lastTimeBudgetMinutes = timeBudgetMinutes
 	if f.writeFn != nil {
-		return f.writeFn(iteration, beadID, beadTitle)
+		return f.writeFn(iteration, beadID, beadTitle, model, maxIterations, timeBudgetMinutes)
 	}
 	return nil
 }

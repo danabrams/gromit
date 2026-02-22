@@ -48,6 +48,10 @@ type OrchestratorConfig struct {
 
 	// Output receives diagnostic log messages. Nil defaults to os.Stderr.
 	Output io.Writer
+
+	// StatusWriter is called at the start of each iteration to update status.json.
+	// Optional: nil means skip.
+	StatusWriter func(iteration int, beadID, beadTitle string)
 }
 
 // Orchestrator sequences the 5-stage pipeline (Gate → Build → Validate → Review →
@@ -113,6 +117,10 @@ runLoop:
 		iteration++
 		o.logf("Iteration %d: processing bead %s (%s)", iteration, b.ID, b.Title)
 
+		if o.cfg.StatusWriter != nil {
+			o.cfg.StatusWriter(iteration, b.ID, b.Title)
+		}
+
 		baseIn := o.buildInput(b, iteration, deadline, validationFailures, touchedPackages)
 
 		// Stage 1: Gate — precheck, stuck detection, scope gate, proactive decomposition.
@@ -123,6 +131,13 @@ runLoop:
 		if gateOut.Decision != pipeline.Proceed {
 			// Bead is skipped or blocked; run Epilogue in the failure path for
 			// cleanup and logging (e.g. status write, iteration log).
+			baseIn.Result = &logger.IterationLog{
+				Timestamp: time.Now(),
+				Iteration: iteration,
+				BeadID:    b.ID,
+				BeadTitle: b.Title,
+				Success:   false,
+			}
 			o.runEpilogue(ctx, baseIn, false)
 			continue
 		}
@@ -131,6 +146,13 @@ runLoop:
 		_, buildErr := o.cfg.Build.Run(ctx, baseIn)
 		if buildErr != nil {
 			o.logf("Warning: build failed for bead %s (iteration %d): %v", b.ID, iteration, buildErr)
+			baseIn.Result = &logger.IterationLog{
+				Timestamp: time.Now(),
+				Iteration: iteration,
+				BeadID:    b.ID,
+				BeadTitle: b.Title,
+				Success:   false,
+			}
 			o.runEpilogue(ctx, baseIn, false)
 			continue
 		}
@@ -140,6 +162,13 @@ runLoop:
 		if validateErr != nil || validateOut.Decision != pipeline.Proceed {
 			// Accumulate failure summaries for the next Build invocation.
 			validationFailures = validateOut.ValidationFailures
+			baseIn.Result = &logger.IterationLog{
+				Timestamp: time.Now(),
+				Iteration: iteration,
+				BeadID:    b.ID,
+				BeadTitle: b.Title,
+				Success:   false,
+			}
 			o.runEpilogue(ctx, baseIn, false)
 			continue
 		}
@@ -154,6 +183,13 @@ runLoop:
 
 		// Stage 5: Epilogue — close bead, sync, write status, write iteration log,
 		// run between-iterations command, trigger thorough review when due.
+		baseIn.Result = &logger.IterationLog{
+			Timestamp: time.Now(),
+			Iteration: iteration,
+			BeadID:    b.ID,
+			BeadTitle: b.Title,
+			Success:   true,
+		}
 		epilogueOut := o.runEpilogue(ctx, baseIn, true)
 		o.logf("Iteration %d: bead %s completed successfully", iteration, b.ID)
 		if len(epilogueOut.TouchedPackages) > 0 {

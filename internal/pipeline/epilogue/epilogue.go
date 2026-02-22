@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
@@ -19,7 +20,7 @@ type BeadLifecycle interface {
 
 // StatusWriter writes execution status after each iteration.
 type StatusWriter interface {
-	Write(iteration int, beadID, beadTitle string) error
+	Write(iteration int, beadID, beadTitle, model string, maxIterations, timeBudgetMinutes int) error
 }
 
 // WorktreeMerger merges pending interactive worktree branches back into the main working tree.
@@ -186,7 +187,12 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 
 	// 4. Status: always write after each iteration.
 	if e.status != nil {
-		if err := e.status.Write(in.Iteration, in.Bead.ID, in.Bead.Title); err != nil {
+		maxIter := 0
+		if in.Config != nil {
+			maxIter = in.Config.Loop.MaxIterations
+		}
+		tbm := computeTimeBudgetMinutes(in.Deadline)
+		if err := e.status.Write(in.Iteration, in.Bead.ID, in.Bead.Title, "", maxIter, tbm); err != nil {
 			fmt.Fprintf(w, "Warning: failed to write status: %v\n", err)
 		}
 	}
@@ -241,4 +247,15 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 		Decision:        pipeline.Proceed,
 		TouchedPackages: in.TouchedPackages,
 	}, nil
+}
+
+func computeTimeBudgetMinutes(deadline time.Time) int {
+	if deadline.IsZero() {
+		return 0
+	}
+	m := int(time.Until(deadline).Minutes())
+	if m < 0 {
+		return 0
+	}
+	return m
 }
