@@ -39,6 +39,14 @@ var (
 var retroResolveAgentFn = agent.Resolve
 var retroSessionLauncherFn = runWithSessionWorktreeWithConflictSettings
 var retroRecordStateFn = recordRetroState
+var retroClaudeFallbackRunnerFn = func(cfg *config.Config) (retro.ProviderRunner, error) {
+	opusTimeout, _, _, _ := cfg.Claude.TimeoutsForModel("opus")
+	claudeClient, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, opusTimeout)
+	if err != nil {
+		return nil, err
+	}
+	return provider.NewClaudeProvider(claudeClient, provider.DefaultTierToModelMap), nil
+}
 
 const retroSessionCommand = "retro"
 
@@ -395,13 +403,7 @@ func buildRetroProviderRunner(cfg *config.Config) (retro.ProviderRunner, error) 
 		return &retroRouterAdapter{Router: router, Phase: retroSessionCommand}, nil
 	}
 
-	opusTimeout, _, _, _ := cfg.Claude.TimeoutsForModel("opus")
-	claudeClient, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, opusTimeout)
-	if err != nil {
-		return nil, err
-	}
-
-	return provider.NewClaudeProvider(claudeClient, provider.DefaultTierToModelMap), nil
+	return retroClaudeFallbackRunnerFn(cfg)
 }
 
 func launchRetroInteractiveSession(cfg *config.Config, cmd *cobra.Command, gromitDir, promptPath string) error {

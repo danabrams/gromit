@@ -5,6 +5,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/retro"
 )
 
 func TestBuildRetroProviderRunner_ProvidersPathUsesRouterAdapter(t *testing.T) {
