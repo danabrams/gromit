@@ -12,6 +12,10 @@ func ApplyPhaseProfile(ctx *Context, phase string) {
 		if phase == "red" {
 			ctx.ClaudeMD = ""
 			ctx.ConfirmedLearnings = []learnings.Learning{}
+			ctx.RecentLearnings = []learnings.Learning{}
+			ctx.RecentValidationFailures = []string{}
+			ctx.PrevFailure = ""
+			ctx.SiblingTouchedPackages = []string{}
 		}
 		return
 	}
