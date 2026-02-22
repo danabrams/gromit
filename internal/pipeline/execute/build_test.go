@@ -545,6 +545,28 @@ func TestBuildRun_TDD_FreshContext_ReturnsPhaseMetricsInOutput(t *testing.T) {
 	}
 }
 
+// TestBuildRun_TDD_FreshContext_NilRunner_FallsBackToStreamRun verifies that when
+// methodology=TDD and FreshContextPerCycle=true but no TDDCycleRunner is injected,
+// Build.Run() falls back to the existing single-invocation StreamRun path.
+func TestBuildRun_TDD_FreshContext_NilRunner_FallsBackToStreamRun(t *testing.T) {
+	invoker := &fakeInvoker{}
+	stage := execute.New(invoker, &fakePromptRenderer{}, io.Discard) // no WithTDDCycleRunner
+
+	cfg := defaultConfig()
+	cfg.Methodology.TDD = true
+	cfg.Methodology.FreshContextPerCycle = true
+	in := makeInput(makeBead("bead-1", "Implement TDD feature"), cfg)
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if len(invoker.streamCalls) != 1 {
+		t.Errorf("StreamRun called %d times, want 1 (nil TDDCycleRunner should fall back to StreamRun)", len(invoker.streamCalls))
+	}
+}
+
 // TestBuildStage_Run_PopulatesOutputMetadataFromProviderResult verifies that the
 // Build stage copies Model, DurationMs, CostUSD, InputTokens, and OutputTokens
 // from the successful StreamRun provider result into the returned Output.
