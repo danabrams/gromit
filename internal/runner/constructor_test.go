@@ -511,6 +511,60 @@ func TestNewRunnerImpl_StatusWriterComputesTimeBudgetFromDeadline(t *testing.T) 
 	}
 }
 
+func TestResolveSingleSpecProgressLabel(t *testing.T) {
+	tests := []struct {
+		name   string
+		labels []string
+		want   string
+	}{
+		{
+			name:   "single spec label",
+			labels: []string{"spec:auth"},
+			want:   "spec:auth",
+		},
+		{
+			name:   "single non-spec label",
+			labels: []string{"priority:p0"},
+			want:   "",
+		},
+		{
+			name:   "multiple labels",
+			labels: []string{"spec:auth", "complexity:high"},
+			want:   "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := resolveSingleSpecProgressLabel(tt.labels)
+			if got != tt.want {
+				t.Fatalf("resolveSingleSpecProgressLabel(%v) = %q, want %q", tt.labels, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestEstimateScopedIterationTotal(t *testing.T) {
+	client := &bead.Client{
+		RunFn: func(args ...string) (string, error) {
+			return `[
+				{"id":"task-1","title":"A","issue_type":"task","status":"open"},
+				{"id":"task-2","title":"B","issue_type":"task","status":"open"},
+				{"id":"task-3","title":"C","issue_type":"task","status":"closed"},
+				{"id":"epic-1","title":"E","issue_type":"epic","status":"open"}
+			]`, nil
+		},
+	}
+
+	total, err := estimateScopedIterationTotal(client, "spec:auth", 3)
+	if err != nil {
+		t.Fatalf("estimateScopedIterationTotal() error = %v", err)
+	}
+	if total != 4 {
+		t.Fatalf("estimateScopedIterationTotal() = %d, want 4", total)
+	}
+}
+
 // TestNewRunnerImpl_GateStageHasDecomposerConfigured verifies that newRunnerImpl
 // wires a Decomposer implementation into the Gate stage so that oversized beads
 // can be auto-decomposed instead of blocked.

@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/danabrams/gromit/internal/analyzer"
@@ -159,6 +160,8 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		return beadsClient.Ready()
 	}
 
+	specProgressLabel := resolveSingleSpecProgressLabel(labels)
+
 	orchCfg := OrchestratorConfig{
 		Gate:            gateStage,
 		Build:           buildStage,
@@ -173,6 +176,17 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		Output:          syncOut,
 		StatusWriter: func(iteration int, beadID, beadTitle string, dl time.Time) {
 			if statusWriter != nil {
+				if specProgressLabel != "" {
+					total, err := estimateScopedIterationTotal(beadsClient, specProgressLabel, iteration)
+					if err == nil {
+						statusWriter.SetIterationTotal(total)
+					} else {
+						statusWriter.SetIterationTotal(0)
+					}
+				} else {
+					statusWriter.SetIterationTotal(cfg.Loop.MaxIterations)
+				}
+
 				timeBudgetMinutes := 0
 				if !dl.IsZero() {
 					timeBudgetMinutes = int(time.Until(dl).Minutes())
@@ -185,6 +199,50 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 	}
 
 	return NewOrchestrator(orchCfg), nil
+}
+
+func resolveSingleSpecProgressLabel(labels []string) string {
+	if len(labels) != 1 {
+		return ""
+	}
+	const specPrefix = "spec:"
+	if labels[0] == "" || len(labels[0]) <= len(specPrefix) || labels[0][:len(specPrefix)] != specPrefix {
+		return ""
+	}
+	return labels[0]
+}
+
+func estimateScopedIterationTotal(client *bead.Client, label string, iteration int) (int, error) {
+	if client == nil || label == "" || iteration <= 0 {
+		return 0, nil
+	}
+
+	beads, err := client.ListWithLabel(label)
+	if err != nil {
+		return 0, err
+	}
+
+	openNonEpicCount := 0
+	for _, b := range beads {
+		if b == nil {
+			continue
+		}
+		if strings.EqualFold(b.Status, "closed") {
+			continue
+		}
+		if strings.EqualFold(b.Type, "epic") {
+			continue
+		}
+		openNonEpicCount++
+	}
+
+	// iteration is 1-based and points to the currently active bead.
+	// completed before this bead = iteration - 1.
+	total := (iteration - 1) + openNonEpicCount
+	if total < iteration {
+		total = iteration
+	}
+	return total, nil
 }
 
 func buildRouterAndLearningsProvider(cfg *config.Config, gromitDir string, output io.Writer) (*provider.Router, provider.Provider, *state.File, map[string]config.ProviderDef, error) {

@@ -304,8 +304,8 @@ func TestOrchestratorHelper_StatusIntegrationActiveRun(t *testing.T) {
 	if !strings.Contains(output, "2 unrefined idea") {
 		t.Errorf("Expected backlog count, got: %s", output)
 	}
-	if !strings.Contains(output, "Run: iteration 12/50") {
-		t.Errorf("Expected 'Run: iteration 12/50', got: %s", output)
+	if !strings.Contains(output, "Run: iteration 12 of 50") {
+		t.Errorf("Expected 'Run: iteration 12 of 50', got: %s", output)
 	}
 	if !strings.Contains(output, "of 30m elapsed") {
 		t.Errorf("Expected time budget, got: %s", output)

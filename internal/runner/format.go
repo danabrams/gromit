@@ -79,11 +79,15 @@ func formatPipeline(ps *pipeline.PipelineStatus) string {
 	return strings.Join(lines, "\n")
 }
 
-// formatIterationPrefix returns "Run: iteration N" or "Run: iteration N/M".
+// formatIterationPrefix returns "Run: iteration N" or "Run: iteration N of M".
 func formatIterationPrefix(s *Status) string {
 	prefix := fmt.Sprintf("Run: iteration %d", s.Iteration)
-	if s.MaxIterations > 0 {
-		prefix += fmt.Sprintf("/%d", s.MaxIterations)
+	total := s.IterationTotal
+	if total <= 0 && s.MaxIterations > 0 {
+		total = s.MaxIterations
+	}
+	if total > 0 {
+		prefix += fmt.Sprintf(" of %d", total)
 	}
 	return prefix
 }

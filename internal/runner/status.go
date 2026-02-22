@@ -14,6 +14,7 @@ import (
 type Status struct {
 	Running           bool      `json:"running"`
 	Iteration         int       `json:"iteration"`
+	IterationTotal    int       `json:"iteration_total,omitempty"`
 	BeadID            string    `json:"bead_id"`
 	BeadTitle         string    `json:"bead_title"`
 	Model             string    `json:"model"`
@@ -37,6 +38,9 @@ type Status struct {
 type StatusWriter struct {
 	path      string
 	startTime time.Time
+	// iterationTotal, when >0, is used by status formatting as the denominator
+	// for "iteration X of Y" progress displays.
+	iterationTotal int
 	mu        sync.Mutex
 }
 
@@ -55,6 +59,14 @@ func (sw *StatusWriter) SetStartTime(t time.Time) {
 	sw.startTime = t
 }
 
+// SetIterationTotal sets the denominator used by status displays such as
+// "Run: iteration X of Y". Passing 0 clears the configured total.
+func (sw *StatusWriter) SetIterationTotal(total int) {
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
+	sw.iterationTotal = total
+}
+
 // Write writes the current status to status.json
 func (sw *StatusWriter) Write(iteration int, beadID, beadTitle, model string, running bool, maxIterations, timeBudgetMinutes int) error {
 	if sw == nil {
@@ -66,6 +78,7 @@ func (sw *StatusWriter) Write(iteration int, beadID, beadTitle, model string, ru
 	status := Status{
 		Running:           running,
 		Iteration:         iteration,
+		IterationTotal:    sw.iterationTotal,
 		BeadID:            beadID,
 		BeadTitle:         beadTitle,
 		Model:             model,

@@ -58,7 +58,17 @@ func TestFormatRunningLine(t *testing.T) {
 				TimeBudgetMinutes: 30,
 				ElapsedS:          300,
 			},
-			want: "Run: iteration 2/10, 5m of 30m elapsed",
+			want: "Run: iteration 2 of 10, 5m of 30m elapsed",
+		},
+		{
+			name: "with explicit iteration total",
+			status: &Status{
+				Running:        true,
+				Iteration:      3,
+				IterationTotal: 16,
+				ElapsedS:       180,
+			},
+			want: "Run: iteration 3 of 16, 3m elapsed",
 		},
 		{
 			name: "iteration 1 no limits short elapsed",
@@ -608,7 +618,7 @@ func TestFormatRun(t *testing.T) {
 				ElapsedS:          300,
 			},
 			want: []string{
-				"Run: iteration 2/10",
+				"Run: iteration 2 of 10",
 				"5m of 30m elapsed",
 				"beads-xyz",
 				"Fix bug Y",
