@@ -348,3 +348,40 @@ func TestPrintStatus_IncludesModelPerformanceSection(t *testing.T) {
 		t.Errorf("PrintStatus output missing Model Performance section; got:\n%s", output)
 	}
 }
+
+// TestPrintStatus_IncludesNextActionSection verifies that PrintStatus includes
+// the "Next action:" recommendation section derived from pipeline.ReadStatus().
+// The current implementation reads the pipeline status but never calls
+// formatRecommendation — this test drives adding that call so the output
+// includes the recommendation with a command hint.
+func TestPrintStatus_IncludesNextActionSection(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	// No status.json — idle state. Pipeline should recommend based on backlog.
+	// Write a backlog item so the pipeline produces a non-empty recommendation.
+	if err := os.WriteFile(
+		filepath.Join(gromitDir, "backlog.jsonl"),
+		[]byte(`{"id":"idea-1","text":"Add rate limiting"}`+"\n"),
+		0644,
+	); err != nil {
+		t.Fatalf("WriteFile backlog: %v", err)
+	}
+
+	cfg := &config.Config{}
+	cfg.Paths.Specs = filepath.Join(tmpDir, "specs")
+	cfg.Paths.Plans = filepath.Join(tmpDir, "plans")
+
+	var buf strings.Builder
+	if err := PrintStatus(gromitDir, cfg, &buf, nil); err != nil {
+		t.Fatalf("PrintStatus: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Next action:") {
+		t.Errorf("PrintStatus output missing Next action section; got:\n%s", output)
+	}
+}
