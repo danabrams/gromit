@@ -698,3 +698,37 @@ func TestBuildStage_Run_UsesBuildPhaseTierOverride(t *testing.T) {
 		t.Errorf("StreamRun tier = %q, want %q", invoker.streamCalls[0].tier, "low")
 	}
 }
+
+// TestBuildRun_BuildStrategySinglePassLabel_SkipsTDDCycleRunner verifies that
+// build_strategy:single_pass overrides global TDD mode and keeps build on the
+// single invocation path.
+func TestBuildRun_BuildStrategySinglePassLabel_SkipsTDDCycleRunner(t *testing.T) {
+	runCyclesCalled := false
+	runner := &trackingTDDCycleRunner{
+		runCyclesFn: func(_ context.Context, _ *bead.Bead, _ *config.Config) (execute.TDDCycleResult, error) {
+			runCyclesCalled = true
+			return execute.TDDCycleResult{}, nil
+		},
+	}
+
+	invoker := &fakeInvoker{}
+	stage := execute.New(invoker, &fakePromptRenderer{}, io.Discard).WithTDDCycleRunner(runner)
+
+	cfg := defaultConfig()
+	cfg.Methodology.TDD = true
+	cfg.Methodology.BuildStrategy = "tdd"
+	cfg.Methodology.FreshContextPerCycle = true
+	in := makeInput(makeBeadWithLabels("bead-1", "Implement feature", []string{"build_strategy:single_pass"}), cfg)
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if runCyclesCalled {
+		t.Error("TDDCycleRunner.RunCycles was called, want build_strategy:single_pass to use single invocation path")
+	}
+	if len(invoker.streamCalls) != 1 {
+		t.Errorf("StreamRun called %d times, want 1 on single-pass path", len(invoker.streamCalls))
+	}
+}
