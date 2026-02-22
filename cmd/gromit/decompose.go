@@ -272,7 +272,11 @@ func buildDecomposeClient(cfg *config.Config) (pipeline.ClaudeClient, error) {
 	}
 
 	if cfg.HasProviders() {
-		timeout := time.Duration(cfg.Claude.PipelineTimeout) * time.Second
+		timeoutSecs := cfg.Claude.PipelineTimeout
+		if timeoutSecs == 0 {
+			timeoutSecs = config.DefaultPipelineTimeoutSeconds
+		}
+		timeout := time.Duration(timeoutSecs) * time.Second
 		router, err := provider.BuildRouterFromConfig(cfg)
 		if err != nil {
 			return nil, err
