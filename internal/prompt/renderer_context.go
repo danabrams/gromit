@@ -17,9 +17,6 @@ func (r *Renderer) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, 
 	if b == nil {
 		return nil, fmt.Errorf("bead is nil")
 	}
-	if phase == "" {
-		return nil, fmt.Errorf("phase is required")
-	}
 	ctx := &Context{
 		Bead:       b,
 		ParentBead: parent,
@@ -33,7 +30,12 @@ func (r *Renderer) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, 
 	}
 	ctx.ClaudeMD = claudeMD
 
-	rules, err := r.LoadRulesForPhase(phase)
+	var rules string
+	if phase == "" {
+		rules, err = r.LoadRules()
+	} else {
+		rules, err = r.LoadRulesForPhase(phase)
+	}
 	if err != nil {
 		return nil, err
 	}
