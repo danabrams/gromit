@@ -673,3 +673,28 @@ func TestBuildStage_Run_PopulatesOutputMetadataFromProviderResult(t *testing.T) 
 		t.Errorf("Output.OutputTokens = %d, want 800", out.OutputTokens)
 	}
 }
+
+// TestBuildStage_Run_UsesBuildPhaseTierOverride verifies that build invocations
+// route through PhaseModelTier("build", beadTier) before StreamRun.
+func TestBuildStage_Run_UsesBuildPhaseTierOverride(t *testing.T) {
+	invoker := &fakeInvoker{}
+	stage := execute.New(invoker, &fakePromptRenderer{}, io.Discard)
+
+	cfg := defaultConfig()
+	cfg.Models.P1 = "medium"
+	cfg.Methodology.PhaseModels.Build = "low"
+	b := &bead.Bead{ID: "bead-1", Title: "feature", Priority: 1, Labels: []string{}}
+	in := makeInput(b, cfg)
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if len(invoker.streamCalls) != 1 {
+		t.Fatalf("StreamRun called %d times, want 1", len(invoker.streamCalls))
+	}
+	if invoker.streamCalls[0].tier != "low" {
+		t.Errorf("StreamRun tier = %q, want %q", invoker.streamCalls[0].tier, "low")
+	}
+}
