@@ -567,6 +567,39 @@ func TestBuildRun_TDD_FreshContext_NilRunner_FallsBackToStreamRun(t *testing.T) 
 	}
 }
 
+// TestBuildRun_TDD_FreshContextFalse_UsesSingleInvocationPath verifies that when
+// methodology=TDD but FreshContextPerCycle=false, Build.Run() uses StreamRun
+// even when a TDDCycleRunner is injected.
+func TestBuildRun_TDD_FreshContextFalse_UsesSingleInvocationPath(t *testing.T) {
+	runCyclesCalled := false
+	runner := &trackingTDDCycleRunner{
+		runCyclesFn: func(_ context.Context, _ *bead.Bead, _ *config.Config) (execute.TDDCycleResult, error) {
+			runCyclesCalled = true
+			return execute.TDDCycleResult{}, nil
+		},
+	}
+
+	invoker := &fakeInvoker{}
+	stage := execute.New(invoker, &fakePromptRenderer{}, io.Discard).WithTDDCycleRunner(runner)
+
+	cfg := defaultConfig()
+	cfg.Methodology.TDD = true
+	cfg.Methodology.FreshContextPerCycle = false
+	in := makeInput(makeBead("bead-1", "Implement TDD feature"), cfg)
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if runCyclesCalled {
+		t.Error("TDDCycleRunner.RunCycles was called, but should not be when FreshContextPerCycle=false")
+	}
+	if len(invoker.streamCalls) != 1 {
+		t.Errorf("StreamRun called %d times, want 1 (FreshContextPerCycle=false should use single-invocation path)", len(invoker.streamCalls))
+	}
+}
+
 // TestBuildStage_Run_PopulatesOutputMetadataFromProviderResult verifies that the
 // Build stage copies Model, DurationMs, CostUSD, InputTokens, and OutputTokens
 // from the successful StreamRun provider result into the returned Output.
