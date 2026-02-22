@@ -161,6 +161,9 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 	}
 
 	specProgressLabel := resolveSingleSpecProgressLabel(labels)
+	if statusWriter != nil {
+		statusWriter.SetScopeLabel(specProgressLabel)
+	}
 
 	orchCfg := OrchestratorConfig{
 		Gate:            gateStage,

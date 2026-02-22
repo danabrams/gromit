@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 )
 
@@ -42,6 +43,79 @@ func TestPrintStatus_IncludesPipelineSection(t *testing.T) {
 	output := buf.String()
 	if !strings.Contains(output, "Pipeline:") {
 		t.Errorf("PrintStatus output missing Pipeline section; got:\n%s", output)
+	}
+}
+
+func TestStatusWriter_ScopeLabelRoundTrip(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	sw, err := NewStatusWriter(gromitDir)
+	if err != nil {
+		t.Fatalf("NewStatusWriter: %v", err)
+	}
+	sw.SetScopeLabel("spec:auth")
+	if err := sw.Write(2, "bead-123", "Scoped bead", "sonnet", true, 0, 0); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	status, err := ReadStatus(gromitDir)
+	if err != nil {
+		t.Fatalf("ReadStatus: %v", err)
+	}
+	if status.ScopeLabel != "spec:auth" {
+		t.Fatalf("ScopeLabel = %q, want %q", status.ScopeLabel, "spec:auth")
+	}
+}
+
+func TestPrintStatus_RecomputesScopedIterationTotalOnEachCall(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	sw, err := NewStatusWriter(gromitDir)
+	if err != nil {
+		t.Fatalf("NewStatusWriter: %v", err)
+	}
+	sw.SetScopeLabel("spec:auth")
+	sw.SetIterationTotal(1) // intentionally stale to verify live recomputation
+	if err := sw.Write(1, "bead-scoped", "Scoped run", "haiku", true, 0, 0); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	origFactory := newBeadClientForStatus
+	t.Cleanup(func() { newBeadClientForStatus = origFactory })
+	newBeadClientForStatus = func() (*bead.Client, error) {
+		return &bead.Client{
+			RunFn: func(args ...string) (string, error) {
+				return `[
+					{"id":"task-1","title":"A","issue_type":"task","status":"open"},
+					{"id":"task-2","title":"B","issue_type":"task","status":"open"},
+					{"id":"task-3","title":"C","issue_type":"task","status":"open"},
+					{"id":"task-4","title":"D","issue_type":"task","status":"closed"},
+					{"id":"epic-1","title":"E","issue_type":"epic","status":"open"}
+				]`, nil
+			},
+		}, nil
+	}
+
+	cfg := &config.Config{}
+	cfg.Paths.Specs = filepath.Join(tmpDir, "specs")
+	cfg.Paths.Plans = filepath.Join(tmpDir, "plans")
+
+	var buf strings.Builder
+	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }); err != nil {
+		t.Fatalf("PrintStatus: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Run: iteration 1 of 3") {
+		t.Fatalf("expected recomputed scoped total in run line, got:\n%s", output)
 	}
 }
 

@@ -15,6 +15,7 @@ type Status struct {
 	Running           bool      `json:"running"`
 	Iteration         int       `json:"iteration"`
 	IterationTotal    int       `json:"iteration_total,omitempty"`
+	ScopeLabel        string    `json:"scope_label,omitempty"`
 	BeadID            string    `json:"bead_id"`
 	BeadTitle         string    `json:"bead_title"`
 	Model             string    `json:"model"`
@@ -41,6 +42,7 @@ type StatusWriter struct {
 	// iterationTotal, when >0, is used by status formatting as the denominator
 	// for "iteration X of Y" progress displays.
 	iterationTotal int
+	scopeLabel     string
 	mu        sync.Mutex
 }
 
@@ -67,6 +69,14 @@ func (sw *StatusWriter) SetIterationTotal(total int) {
 	sw.iterationTotal = total
 }
 
+// SetScopeLabel sets the optional run scope label (for example "spec:auth").
+// Passing an empty string clears the configured scope.
+func (sw *StatusWriter) SetScopeLabel(label string) {
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
+	sw.scopeLabel = label
+}
+
 // Write writes the current status to status.json
 func (sw *StatusWriter) Write(iteration int, beadID, beadTitle, model string, running bool, maxIterations, timeBudgetMinutes int) error {
 	if sw == nil {
@@ -79,6 +89,7 @@ func (sw *StatusWriter) Write(iteration int, beadID, beadTitle, model string, ru
 		Running:           running,
 		Iteration:         iteration,
 		IterationTotal:    sw.iterationTotal,
+		ScopeLabel:        sw.scopeLabel,
 		BeadID:            beadID,
 		BeadTitle:         beadTitle,
 		Model:             model,

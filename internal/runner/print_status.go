@@ -5,13 +5,17 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/state"
 )
+
+var newBeadClientForStatus = bead.NewClient
 
 // PrintStatus reads status.json and writes a formatted status display to w.
 // processChecker, when non-nil, is used to verify whether the PID in status.json
@@ -31,6 +35,8 @@ func PrintStatus(gromitDir string, cfg *config.Config, w io.Writer, processCheck
 			return err
 		}
 	}
+
+	refreshScopedIterationTotal(status, gromitDir)
 
 	if _, err := fmt.Fprintln(w, formatRun(status)); err != nil {
 		return fmt.Errorf("writing status: %w", err)
@@ -95,6 +101,27 @@ func PrintStatus(gromitDir string, cfg *config.Config, w io.Writer, processCheck
 	}
 
 	return nil
+}
+
+func refreshScopedIterationTotal(status *Status, gromitDir string) {
+	if status == nil || !status.Running || status.Iteration <= 0 {
+		return
+	}
+	if !strings.HasPrefix(status.ScopeLabel, "spec:") {
+		return
+	}
+
+	client, err := newBeadClientForStatus()
+	if err != nil || client == nil {
+		return
+	}
+	client.Dir = filepath.Dir(gromitDir)
+
+	total, err := estimateScopedIterationTotal(client, status.ScopeLabel, status.Iteration)
+	if err != nil || total <= 0 {
+		return
+	}
+	status.IterationTotal = total
 }
 
 // handleStalePID checks whether status indicates a stale run (Running=true but
