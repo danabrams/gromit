@@ -77,6 +77,16 @@ func buildCycleSummary(state CycleState) string {
 			sb.WriteString(fmt.Sprintf("%d. %s\n", len(state.CoveredSoFar)+i+1, req))
 		}
 	}
+	testFiles, implFiles := ClassifyTouchedFiles(state.TouchedFiles)
+	if len(testFiles) > 0 || len(implFiles) > 0 {
+		sb.WriteString("\nTouched files:\n")
+		for _, f := range testFiles {
+			sb.WriteString(fmt.Sprintf("  [test] %s\n", f))
+		}
+		for _, f := range implFiles {
+			sb.WriteString(fmt.Sprintf("  [impl] %s\n", f))
+		}
+	}
 	return sb.String()
 }
 
