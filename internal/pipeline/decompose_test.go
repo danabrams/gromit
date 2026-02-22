@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -1211,6 +1212,33 @@ func (m *decomposeAcceptanceBeadClient) CreateWithDepsAndDescription(title strin
 
 func (m *decomposeAcceptanceBeadClient) Close(id string) error {
 	return nil
+}
+
+// TestBeadDef_ExpectedOutputsDeserializesFromJSON verifies expected_outputs JSON field is parsed correctly.
+func TestBeadDef_ExpectedOutputsDeserializesFromJSON(t *testing.T) {
+	jsonInput := `{
+		"title": "Test task",
+		"description": "A task",
+		"priority": "P1",
+		"acceptance_criteria": ["Criterion A"],
+		"expected_outputs": ["Output X", "Output Y"],
+		"depends_on_index": []
+	}`
+
+	var def beadDef
+	if err := json.Unmarshal([]byte(jsonInput), &def); err != nil {
+		t.Fatalf("json.Unmarshal() failed: %v", err)
+	}
+
+	if len(def.ExpectedOutputs) != 2 {
+		t.Fatalf("ExpectedOutputs length = %d, want 2", len(def.ExpectedOutputs))
+	}
+	if def.ExpectedOutputs[0] != "Output X" {
+		t.Errorf("ExpectedOutputs[0] = %q, want %q", def.ExpectedOutputs[0], "Output X")
+	}
+	if def.ExpectedOutputs[1] != "Output Y" {
+		t.Errorf("ExpectedOutputs[1] = %q, want %q", def.ExpectedOutputs[1], "Output Y")
+	}
 }
 
 func containsString(items []string, want string) bool {
