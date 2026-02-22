@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/worktree"
@@ -424,5 +425,42 @@ func TestDecomposeSinglePlan_ReviewConflictHandoffPropagates(t *testing.T) {
 	}
 	if currentDirCalled {
 		t.Fatal("decompose execution should not continue when launcher returns conflict handoff")
+	}
+}
+
+func TestBuildDecomposeClient_CodexProviderPath(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.ProviderDef{
+			"openai": {
+				Binary: "codex",
+				Models: map[string]string{
+					"high":   "gpt-5.3-codex",
+					"medium": "gpt-5.3-codex",
+					"low":    "gpt-5-mini",
+				},
+			},
+		},
+		Claude: config.ClaudeConfig{
+			PipelineTimeout: 789,
+		},
+	}
+
+	client, err := buildDecomposeClient(cfg)
+	if err != nil {
+		t.Fatalf("buildDecomposeClient() error = %v", err)
+	}
+
+	typedClient, ok := client.(*providerRouterClientAdapter)
+	if !ok {
+		t.Fatalf("client type = %T, want *providerRouterClientAdapter", client)
+	}
+	if typedClient.Timeout != 789*time.Second {
+		t.Fatalf("timeout = %v, want %v", typedClient.Timeout, 789*time.Second)
+	}
+	if typedClient.Phase != decomposeSessionCommand {
+		t.Fatalf("phase = %q, want %q", typedClient.Phase, decomposeSessionCommand)
+	}
+	if typedClient.Router == nil {
+		t.Fatal("router = nil, want non-nil")
 	}
 }
