@@ -258,8 +258,26 @@ type failureLearnerAdapter struct {
 }
 
 func (a *failureLearnerAdapter) ExtractFailureLearning(ctx context.Context, beadID, beadTitle string) error {
-	// Placeholder for failure learning extraction
-	// In a full implementation, this would use the analyzer to extract learnings
+	if a.analyzer == nil {
+		return nil
+	}
+	b := &bead.Bead{ID: beadID, Title: beadTitle}
+	analysis, err := a.analyzer.Analyze(ctx, b, "")
+	if err != nil {
+		if a.logFn != nil {
+			a.logFn("Warning: failure analysis error: %v", err)
+		}
+		return nil
+	}
+	if analysis == nil || analysis.Learning == nil {
+		return nil
+	}
+	if a.renderer != nil {
+		lf := a.renderer.GetLearningsFile()
+		if lf != nil {
+			_, _ = lf.Add(beadID, *analysis.Learning, analysis.LearningCategory())
+		}
+	}
 	return nil
 }
 
