@@ -112,11 +112,24 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 
 	// Scope gate: block beads whose expected output count exceeds the file threshold.
 	// Only runs when scope check is enabled and block_oversized is true (default).
+	// If a decomposer is available and the bead is a root bead, attempt decomposition instead of blocking.
 	if in.Config != nil && in.Config.ScopeCheck.Enabled {
 		blockOversized := in.Config.ScopeCheck.BlockOversized == nil || *in.Config.ScopeCheck.BlockOversized
 		if blockOversized && bead.EstimatedFileCount(in.Bead) > maxScopeFiles {
-			fmt.Fprintf(w, "Scope gate: bead %s has %d expected outputs (max %d), blocking\n",
+			fmt.Fprintf(w, "Scope gate: bead %s has %d expected outputs (max %d)",
 				in.Bead.ID, bead.EstimatedFileCount(in.Bead), maxScopeFiles)
+
+			// Attempt decomposition if available and bead is a root bead
+			if g.decomposer != nil && in.Bead.Parent == "" {
+				fmt.Fprintf(w, ", attempting decomposition\n")
+				if err := g.decomposer.Decompose(ctx, in.Bead); err != nil {
+					fmt.Fprintf(w, "Warning: scope decomposition failed for bead %s: %v\n", in.Bead.ID, err)
+					return pipeline.Output{Decision: pipeline.Block}, nil
+				}
+				return pipeline.Output{Decision: pipeline.Skip}, nil
+			}
+
+			fmt.Fprintf(w, ", blocking\n")
 			return pipeline.Output{Decision: pipeline.Block}, nil
 		}
 	}
