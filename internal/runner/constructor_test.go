@@ -58,6 +58,26 @@ func TestParseFallbackCooldown_NilConfigReturnsZero(t *testing.T) {
 	}
 }
 
+func TestConstructorGo_UsesSharedProviderHelpers(t *testing.T) {
+	src, err := os.ReadFile("constructor.go")
+	if err != nil {
+		t.Fatalf("os.ReadFile(constructor.go): %v", err)
+	}
+	text := string(src)
+	if strings.Contains(text, "func buildProvidersFromConfig(") {
+		t.Fatal("constructor.go defines buildProvidersFromConfig; want local provider helper removed")
+	}
+	if strings.Contains(text, "func parseFallbackCooldown(") {
+		t.Fatal("constructor.go defines parseFallbackCooldown; want local provider helper removed")
+	}
+	if strings.Contains(text, "buildProvidersFromConfig(cfg)") {
+		t.Fatal("constructor.go calls buildProvidersFromConfig; want provider.BuildProvidersFromConfig")
+	}
+	if strings.Contains(text, "parseFallbackCooldown(cfg)") {
+		t.Fatal("constructor.go calls parseFallbackCooldown; want provider.ParseFallbackCooldown")
+	}
+}
+
 // TestDecomposerAdapter_Decompose_CreatesChildBeads verifies that decomposerAdapter.Decompose
 // actually calls bead.Client to create child beads when decomposing an oversized bead,
 // rather than returning nil without performing any work.
