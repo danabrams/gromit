@@ -319,29 +319,7 @@ func buildVerifySpecRouter(cfg *config.Config) (*provider.Router, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config is nil")
 	}
-
-	if cfg.HasProviders() {
-		providers, err := buildVerifySpecProviders(cfg)
-		if err != nil {
-			return nil, err
-		}
-
-		return provider.NewRouter(
-			providers,
-			cfg.Routing.PhasePreferences,
-			cfg.Routing.Ratio,
-			parseVerifySpecFallbackCooldown(cfg),
-			nil,
-			nil,
-		), nil
-	}
-
-	client, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout)
-	if err != nil {
-		return nil, err
-	}
-	claudeProvider := provider.NewClaudeProvider(client, defaultVerifySpecTierToModelMap())
-	return provider.NewSingleProviderRouter(claudeProvider), nil
+	return provider.BuildRouterFromConfig(cfg)
 }
 
 func buildVerifySpecProviders(cfg *config.Config) (map[string]provider.Provider, error) {
