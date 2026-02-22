@@ -13,7 +13,6 @@ import (
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/review"
-	"github.com/danabrams/gromit/internal/runner/escalation"
 )
 
 // --- Mock types for narrow interfaces ---
@@ -373,18 +372,17 @@ func TestSelectReviewTier_OpusBuildReturnsHigh(t *testing.T) {
 }
 
 func TestSelectReviewTier_NonOpusDelegatesToEscalation(t *testing.T) {
-	// When buildModel is not "opus", SelectReviewTier should delegate to
-	// escalation.SelectTier based on the bead's priority and labels.
+	// When buildModel is not "opus", SelectReviewTier should return the tier
+	// derived from the bead's priority via config. For a P1 bead with
+	// cfg.Models.P1 = "medium", the expected tier is "medium".
 	cfg := newTestConfig()
 	cfg.Models.P1 = provider.TierMedium
 
 	b := &bead.Bead{ID: "test-tier-002", Priority: 1}
 
 	tier := SelectReviewTier(cfg, b, "sonnet")
-	// escalation.SelectTier for P1 with cfg.Models.P1 = "medium" should return "medium"
-	expected := escalation.SelectTier(cfg, b)
-	if tier != expected {
-		t.Errorf("SelectReviewTier(sonnet) = %q, want %q (from escalation.SelectTier)", tier, expected)
+	if tier != provider.TierMedium {
+		t.Errorf("SelectReviewTier(sonnet) = %q, want %q", tier, provider.TierMedium)
 	}
 }
 
