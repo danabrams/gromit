@@ -209,6 +209,59 @@ func TestScopedRun_FullLoopWithLabelFilters(t *testing.T) {
 	}
 }
 
+// TestOrchestrator_UsesLabelFiltersInLoop tests that OrchestratorTestHelper calls
+// ReadyWithLabel for each label and not Ready when label filters are set.
+func TestOrchestrator_UsesLabelFiltersInLoop(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	var queriedLabels []string
+	callCount := 0
+	mock := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			t.Error("Ready() should not be called when label filters are set")
+			return nil, nil
+		},
+		ReadyWithLabelFn: func(label string) (*bead.Bead, error) {
+			queriedLabels = append(queriedLabels, label)
+			callCount++
+			if callCount == 1 && label == "spec:auth" {
+				return &bead.Bead{
+					ID:              "auth-1",
+					Title:           "Auth task",
+					Priority:        1,
+					Labels:          []string{"spec:auth"},
+					ExpectedOutputs: []string{},
+				}, nil
+			}
+			return nil, nil
+		},
+	}
+
+	h := NewOrchestratorTestHelperWithDeps(t, cfg, io.Discard, mock, newMockRouter())
+	h.SetLabelFilters([]string{"spec:auth", "spec:payments"})
+
+	err := h.Run(context.Background(), 0, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	if len(queriedLabels) < 2 {
+		t.Fatalf("Expected at least 2 ReadyWithLabel calls, got %d: %v", len(queriedLabels), queriedLabels)
+	}
+	if !slices.Contains(queriedLabels, "spec:auth") {
+		t.Error("Expected 'spec:auth' to be queried")
+	}
+	if !slices.Contains(queriedLabels, "spec:payments") {
+		t.Error("Expected 'spec:payments' to be queried")
+	}
+	// Verify the auth bead was processed and closed
+	if len(mock.ClosedIDs) != 1 || mock.ClosedIDs[0] != "auth-1" {
+		t.Errorf("Expected bead 'auth-1' to be closed, got: %v", mock.ClosedIDs)
+	}
+}
+
 // selectNextBeadWithLabel returns the highest-priority unclosed bead matching the given label.
 func selectNextBeadWithLabel(allBeads []*bead.Bead, closedBeads map[string]bool, label string) *bead.Bead {
 	var bestBead *bead.Bead
