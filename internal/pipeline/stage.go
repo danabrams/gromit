@@ -60,6 +60,9 @@ type Input struct {
 	FailureOutput string
 }
 
+// PhaseMetric holds LLM invocation metrics for a single TDD phase (e.g. red, green, refactor).
+type PhaseMetric = PhaseMetrics
+
 // PhaseMetrics holds LLM invocation metrics for a single TDD phase (e.g. red, green, refactor).
 type PhaseMetrics struct {
 	Phase        string
