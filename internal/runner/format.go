@@ -2,10 +2,27 @@ package runner
 
 import (
 	"fmt"
+	"math"
 	"strings"
+	"time"
 
 	"github.com/danabrams/gromit/internal/pipeline"
 )
+
+// formatDuration formats a duration as a human-readable string.
+func formatDuration(d time.Duration) string {
+	secs := int(math.Round(d.Seconds()))
+	if secs < 60 {
+		return fmt.Sprintf("%ds", secs)
+	}
+	minutes := secs / 60
+	if minutes < 60 {
+		return fmt.Sprintf("%dm", minutes)
+	}
+	hours := minutes / 60
+	mins := minutes % 60
+	return fmt.Sprintf("%dh %dm", hours, mins)
+}
 
 // FormatPipeline formats pipeline status for display.
 // Exported for acceptance tests in internal/runner/acceptance/.
