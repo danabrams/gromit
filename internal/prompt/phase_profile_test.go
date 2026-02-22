@@ -60,3 +60,31 @@ func TestApplyPhaseProfile_DecomposePrunesExcludedContext(t *testing.T) {
 		t.Fatalf("ExpectedOutputs should be pruned for decompose")
 	}
 }
+
+func TestApplyReviewPhaseProfile_ReviewPrunesProjectContext(t *testing.T) {
+	ctx := &ReviewContext{
+		Spec:               "spec",
+		Diff:               "diff",
+		ClaudeMD:           "claude",
+		Rules:              "rules",
+		ValidationCommands: []string{"go test ./..."},
+	}
+
+	ApplyReviewPhaseProfile(ctx, "review")
+
+	if ctx.Diff == "" {
+		t.Fatalf("Diff should be preserved for review")
+	}
+	if ctx.Rules == "" {
+		t.Fatalf("Rules should be preserved for review")
+	}
+	if ctx.Spec != "" {
+		t.Fatalf("Spec should be pruned for review")
+	}
+	if ctx.ClaudeMD != "" {
+		t.Fatalf("ClaudeMD should be pruned for review")
+	}
+	if len(ctx.ValidationCommands) != 0 {
+		t.Fatalf("ValidationCommands should be pruned for review")
+	}
+}
