@@ -177,7 +177,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		GetRunID:        getRunIDFn,
 		LogsDir:         cfg.Paths.Logs,
 		Output:          syncOut,
-		StatusWriter: func(iteration int, beadID, beadTitle string) {
+		StatusWriter: func(iteration int, beadID, beadTitle string, dl time.Time) {
 			if statusWriter != nil {
 				_ = statusWriter.Write(iteration, beadID, beadTitle, "", true, cfg.Loop.MaxIterations, 0)
 			}

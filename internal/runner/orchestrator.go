@@ -52,7 +52,7 @@ type OrchestratorConfig struct {
 
 	// StatusWriter is called at the start of each iteration to update status.json.
 	// Optional: nil means skip.
-	StatusWriter func(iteration int, beadID, beadTitle string)
+	StatusWriter func(iteration int, beadID, beadTitle string, dl time.Time)
 
 	// StateSaver persists provider routing state after the loop completes.
 	// Optional: nil means skip. Typically backed by state.File.
@@ -132,7 +132,7 @@ runLoop:
 		o.logf("Iteration %d: processing bead %s (%s)", iteration, b.ID, b.Title)
 
 		if o.cfg.StatusWriter != nil {
-			o.cfg.StatusWriter(iteration, b.ID, b.Title)
+			o.cfg.StatusWriter(iteration, b.ID, b.Title, deadline)
 		}
 
 		baseIn := o.buildInput(b, iteration, deadline, validationFailures, touchedPackages)
