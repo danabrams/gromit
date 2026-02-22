@@ -525,6 +525,47 @@ func TestSimplifySPCMetric(t *testing.T) {
 	}
 }
 
+func TestFormatSPCLine(t *testing.T) {
+	tests := []struct {
+		name       string
+		label      string
+		cl         logger.TrendControlLimit
+		isDuration bool
+		want       string
+	}{
+		{
+			name:       "percentage metric shows percent values and limits",
+			label:      "Success:",
+			cl:         logger.TrendControlLimit{Latest: 0.85, LCL: 0.65, UCL: 0.95},
+			isDuration: false,
+			want:       "  Success:   85%, limits 65%..95%",
+		},
+		{
+			name:       "duration metric uses human-friendly format",
+			label:      "Duration:",
+			cl:         logger.TrendControlLimit{Latest: 45000, LCL: 30000, UCL: 55000},
+			isDuration: true,
+			want:       "  Duration:  45s, limits 30s..55s",
+		},
+		{
+			name:       "duration metric with minute-scale values",
+			label:      "Duration:",
+			cl:         logger.TrendControlLimit{Latest: 120000, LCL: 60000, UCL: 180000},
+			isDuration: true,
+			want:       "  Duration:  2m, limits 1m..3m",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatSPCLine(tt.label, tt.cl, tt.isDuration)
+			if got != tt.want {
+				t.Errorf("formatSPCLine(%q, cl, %v) = %q, want %q", tt.label, tt.isDuration, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestFormatRun(t *testing.T) {
 	tests := []struct {
 		name   string
