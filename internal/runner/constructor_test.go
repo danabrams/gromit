@@ -59,6 +59,24 @@ func TestBuildTDDCycleRunner_ReturnsTDDPipelineAdapter(t *testing.T) {
 	}
 }
 
+// TestBuildTDDCycleRunner_RunnerHasConfiguredOrchestrator verifies that the adapter
+// returned by buildTDDCycleRunner has a non-nil tddOrchestrator with a configured
+// runCyclesFn, so TDD cycle invocations will execute rather than error with "not configured".
+func TestBuildTDDCycleRunner_RunnerHasConfiguredOrchestrator(t *testing.T) {
+	cfg := &config.Config{}
+	result := buildTDDCycleRunner(cfg, nil, nil, io.Discard)
+	adapter, ok := result.(*TDDPipelineAdapter)
+	if !ok {
+		t.Fatalf("expected *TDDPipelineAdapter, got %T", result)
+	}
+	if adapter.runner.tddOrchestrator == nil {
+		t.Fatal("runner.tddOrchestrator is nil; want configured orchestrator")
+	}
+	if adapter.runner.tddOrchestrator.runCyclesFn == nil {
+		t.Fatal("runner.tddOrchestrator.runCyclesFn is nil; want configured run cycles function")
+	}
+}
+
 // TestFailureLearnerAdapter_ForwardsFailureOutput verifies that the failureOutput
 // string passed to ExtractFailureLearning reaches the analyzer.Analyze call.
 func TestFailureLearnerAdapter_ForwardsFailureOutput(t *testing.T) {
