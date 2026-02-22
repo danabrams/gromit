@@ -224,45 +224,7 @@ func showStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	gromitDir := resolveGromitDir(cfg)
-	status, err := runner.ReadStatus(gromitDir)
-	if err != nil {
-		return fmt.Errorf("reading status: %w", err)
-	}
-	if status == nil {
-		fmt.Println("No status file found. Gromit may not have run yet.")
-		return nil
-	}
-
-	// Check if the process is still alive
-	alive := runner.IsProcessAlive(status.PID)
-
-	// Display status
-	if alive && status.Running {
-		fmt.Printf("Status: running (PID %d)\n", status.PID)
-	} else if status.Running {
-		fmt.Printf("Status: stale (PID %d no longer running)\n", status.PID)
-	} else {
-		fmt.Println("Status: stopped")
-	}
-
-	fmt.Printf("Iteration: %d\n", status.Iteration)
-	if status.BeadID != "" {
-		fmt.Printf("Bead: %s (%s)\n", status.BeadID, status.BeadTitle)
-	}
-	if status.Model != "" {
-		fmt.Printf("Model: %s\n", status.Model)
-	}
-	fmt.Printf("Started: %s\n", status.StartedAt.Format("2006-01-02 15:04:05"))
-	fmt.Printf("Elapsed: %ds\n", status.ElapsedS)
-
-	if status.MaxIterations > 0 {
-		fmt.Printf("Max iterations: %d\n", status.MaxIterations)
-	}
-	if status.TimeBudgetMinutes > 0 {
-		fmt.Printf("Time budget: %dm\n", status.TimeBudgetMinutes)
-	}
-
-	return nil
+	return runner.PrintStatus(gromitDir, cfg, os.Stdout, nil)
 }
 
 func runRetro(cmd *cobra.Command, args []string) error {
