@@ -284,6 +284,34 @@ func TestSetDefaultsMethodologyPhaseModels_SetsDefaultTiers(t *testing.T) {
 	}
 }
 
+func TestNormalizeNilFieldsMethodologyAndRefactor_SetsSafeDefaults(t *testing.T) {
+	cfg := &Config{}
+
+	cfg.NormalizeNilFields()
+
+	if cfg.Methodology.BuildStrategy != "single_pass" {
+		t.Fatalf("Methodology.BuildStrategy = %q, want %q", cfg.Methodology.BuildStrategy, "single_pass")
+	}
+	if cfg.Methodology.PhaseModels.Decompose != "medium" {
+		t.Fatalf("Methodology.PhaseModels.Decompose = %q, want %q", cfg.Methodology.PhaseModels.Decompose, "medium")
+	}
+	if cfg.Methodology.PhaseModels.Build != "medium" {
+		t.Fatalf("Methodology.PhaseModels.Build = %q, want %q", cfg.Methodology.PhaseModels.Build, "medium")
+	}
+	if cfg.Methodology.PhaseModels.Red != "low" {
+		t.Fatalf("Methodology.PhaseModels.Red = %q, want %q", cfg.Methodology.PhaseModels.Red, "low")
+	}
+	if cfg.Methodology.PhaseModels.Green != "medium" {
+		t.Fatalf("Methodology.PhaseModels.Green = %q, want %q", cfg.Methodology.PhaseModels.Green, "medium")
+	}
+	if cfg.Methodology.PhaseModels.Refactor != "low" {
+		t.Fatalf("Methodology.PhaseModels.Refactor = %q, want %q", cfg.Methodology.PhaseModels.Refactor, "low")
+	}
+	if cfg.Refactor.MinFilesChanged != 3 {
+		t.Fatalf("Refactor.MinFilesChanged = %d, want %d", cfg.Refactor.MinFilesChanged, 3)
+	}
+}
+
 func TestSetDefaultsInitializesPhasesToClaude(t *testing.T) {
 	cfg := &Config{}
 	cfg.SetDefaults()
