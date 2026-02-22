@@ -223,3 +223,29 @@ func TestBuildRouterFromConfig_MultiProviderAppliesFallbackDefaults(t *testing.T
 		t.Fatalf("second router.Select() provider name = %q, want %q", got, "codex")
 	}
 }
+
+func TestBuildRouterFromConfig_CodexOnlyConfigReturnsCodexRouter(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.ProviderDef{
+			"codex": {
+				Binary: "codex",
+			},
+		},
+	}
+
+	router, err := provider.BuildRouterFromConfig(cfg)
+	if err != nil {
+		t.Fatalf("BuildRouterFromConfig() error = %v", err)
+	}
+
+	selected, model := router.Select("build", provider.TierMedium)
+	if selected == nil {
+		t.Fatal("router.Select() provider = nil, want non-nil")
+	}
+	if got := selected.Name(); got != "codex" {
+		t.Fatalf("router.Select() provider name = %q, want %q", got, "codex")
+	}
+	if model != "gpt-5.3-codex" {
+		t.Fatalf("router.Select() model = %q, want %q", model, "gpt-5.3-codex")
+	}
+}
