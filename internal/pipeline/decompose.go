@@ -10,6 +10,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/frontmatter"
 	"github.com/danabrams/gromit/internal/jsonutil"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/validate"
 	"github.com/danabrams/gromit/skills"
@@ -64,6 +65,7 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 
 	maxRetries := normalizeMaxValidationRetries(input.MaxValidationRetries)
 	currentPrompt := promptText
+	model := decomposeModelForTier(input.Tier)
 
 	var beadDefs []beadDef
 	stats := &ValidationStats{}
@@ -71,7 +73,7 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 	for attempt := 0; ; attempt++ {
 		stats.Attempts++
 		// Run provider non-interactively
-		claudeResult, err := p.deps.ClaudeClient.Run(currentPrompt, decomposeModel)
+		claudeResult, err := p.deps.ClaudeClient.Run(currentPrompt, model)
 		if err != nil {
 			return nil, fmt.Errorf("invoking provider: %w", err)
 		}
@@ -205,6 +207,14 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 
 	result.PlanUpdated = true
 	return &result, nil
+}
+
+func decomposeModelForTier(inputTier string) string {
+	normalized := strings.TrimSpace(inputTier)
+	if normalized == "" {
+		return decomposeModel
+	}
+	return provider.TierToLegacyModel(normalized)
 }
 
 const decomposePromptTemplate = `# Decompose Plan: %s
