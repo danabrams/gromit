@@ -479,6 +479,71 @@ func TestRunThorough_LogsReviewAsThoroughType(t *testing.T) {
 	}
 }
 
+func TestRunThorough_AppliesThoroughReviewPhaseProfile(t *testing.T) {
+	cfg := newThoroughTestConfig()
+
+	var rulesPhase string
+	loadedClaudeMD := false
+	var capturedCtx *prompt.ThoroughReviewContext
+
+	renderer := &mockPromptRenderer{
+		loadClaudeMDFn: func() (string, error) {
+			loadedClaudeMD = true
+			return "# CLAUDE project context", nil
+		},
+		loadRulesFn: func(phase string) (string, error) {
+			rulesPhase = phase
+			return "# Rules", nil
+		},
+		renderThoroughReviewFn: func(ctx *prompt.ThoroughReviewContext) (string, error) {
+			capturedCtx = ctx
+			return "thorough review prompt", nil
+		},
+	}
+
+	prov := &mockProvider{
+		name: "test",
+		runFn: func(ctx context.Context, p string, tier string) (*provider.Result, error) {
+			return &provider.Result{
+				Success: true,
+				Output:  `{"passed":true,"summary":"Good","fixes_applied":[],"beads_to_create":[],"backlog_items":[]}`,
+				Model:   "opus",
+			}, nil
+		},
+	}
+
+	router := &mockRouter{
+		selectFn: func(phase, tier string) (provider.Provider, string) {
+			return prov, "test"
+		},
+	}
+
+	stateAccess := &mockStateAccess{
+		lastReviewCommitFn: func() string { return "prev-commit" },
+	}
+
+	rev := NewReviewer(cfg, router, nil, renderer, func(string) (string, error) {
+		return "diff content", nil
+	}, &mockIterationLogger{})
+
+	rev.RunThorough(context.Background(), stateAccess, 7, time.Time{}, func() (string, error) {
+		return "head-commit", nil
+	})
+
+	if !loadedClaudeMD {
+		t.Fatal("LoadClaudeMD should be called for thorough review context before phase profiling")
+	}
+	if rulesPhase != "thorough_review" {
+		t.Fatalf("LoadRulesForPhase called with %q, want %q", rulesPhase, "thorough_review")
+	}
+	if capturedCtx == nil {
+		t.Fatal("RenderThoroughReview context was not captured")
+	}
+	if capturedCtx.ClaudeMD != "" {
+		t.Fatalf("ClaudeMD = %q, want empty after thorough_review phase profile", capturedCtx.ClaudeMD)
+	}
+}
+
 // --- RunThorough: Verify state recording ---
 
 func TestRunThorough_RecordsReviewInState(t *testing.T) {
