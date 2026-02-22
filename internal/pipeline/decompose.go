@@ -32,6 +32,7 @@ type beadDef struct {
 	Priority           string   `json:"priority"`
 	EstimatedFiles     int      `json:"estimated_files,omitempty"`
 	AcceptanceCriteria []string `json:"acceptance_criteria"`
+	ExpectedOutputs    []string `json:"expected_outputs,omitempty"`
 	DependsOnIndex     []int    `json:"depends_on_index"`
 }
 
