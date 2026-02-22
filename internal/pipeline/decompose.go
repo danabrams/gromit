@@ -167,12 +167,18 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 			dependencies = append(dependencies, createdIDs[depIdx])
 		}
 
+		// Use ExpectedOutputs when non-empty, falling back to AcceptanceCriteria
+		criteria := def.AcceptanceCriteria
+		if len(def.ExpectedOutputs) > 0 {
+			criteria = def.ExpectedOutputs
+		}
+
 		// Create bead via BeadClient
 		beadResult, err := p.deps.BeadClient.CreateWithDepsAndDescription(
 			def.Title,
 			priority,
 			labels,
-			def.AcceptanceCriteria,
+			criteria,
 			dependencies,
 			def.Description,
 		)
