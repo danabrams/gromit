@@ -89,3 +89,14 @@ func TestConstructors_InitializeSlices(t *testing.T) {
 		}
 	})
 }
+
+func TestDecomposeInput_HasTierField(t *testing.T) {
+	input := DecomposeInput{
+		PlanName: "test-plan",
+		Tier:     "high",
+	}
+
+	if input.Tier != "high" {
+		t.Errorf("Tier = %q, want %q", input.Tier, "high")
+	}
+}
