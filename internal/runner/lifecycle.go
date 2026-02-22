@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/analyzer"
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
@@ -209,6 +211,104 @@ func (r *Runner) Status() error {
 	r.log("%s", formatModelPerformance(modelStats))
 	r.log("")
 	r.log("%s", formatRecommendation(pipelineStatus.Recommendation))
+
+	return nil
+}
+
+// PrintStatus prints the current pipeline and run status without requiring a
+// full Runner instance. processChecker may be nil, in which case IsProcessAlive
+// is used.
+func PrintStatus(gromitDir string, cfg *config.Config, output io.Writer, processChecker func(int) bool) error {
+	logf := func(format string, args ...any) {
+		msg := fmt.Sprintf(format, args...)
+		if !strings.HasSuffix(msg, "\n") {
+			msg += "\n"
+		}
+		_, _ = fmt.Fprint(output, msg)
+	}
+
+	// Read status.json
+	status, err := ReadStatus(gromitDir)
+	if err != nil {
+		return fmt.Errorf("reading status: %w", err)
+	}
+
+	// Check if status is stale (process not alive)
+	checker := processChecker
+	if checker == nil {
+		checker = IsProcessAlive
+	}
+	if status != nil && status.Running && !checker(status.PID) {
+		elapsed := time.Since(status.StartedAt)
+		logf("Warning: stale run detected from %s (%s ago)",
+			status.StartedAt.Format(time.RFC3339),
+			elapsed.Round(time.Second))
+		logf("  Bead: %s - %s", status.BeadID, status.BeadTitle)
+		logf("  Removing stale status file")
+
+		sw, swErr := NewStatusWriter(gromitDir)
+		if swErr == nil {
+			_ = sw.Delete()
+		}
+		logf("")
+		status = nil
+	}
+
+	// Read pipeline status
+	var startedAt *time.Time
+	if status != nil && !status.StartedAt.IsZero() {
+		startedAt = &status.StartedAt
+	}
+	pipelineStatus, err := readPipelineStatus(gromitDir, cfg.Paths.Specs, cfg.Paths.Plans, startedAt)
+	if err != nil {
+		return fmt.Errorf("reading pipeline status: %w", err)
+	}
+
+	// Load state file for health data
+	stateFile, err := state.NewFile(gromitDir)
+	if err != nil {
+		return fmt.Errorf("creating state file: %w", err)
+	}
+	if err := stateFile.Load(); err != nil {
+		return fmt.Errorf("loading state file: %w", err)
+	}
+
+	// Load interactive state file for last retro data
+	interactiveFile, err := state.NewInteractiveFile(gromitDir)
+	if err != nil {
+		return fmt.Errorf("creating interactive state file: %w", err)
+	}
+	if err := interactiveFile.Load(); err != nil {
+		return fmt.Errorf("loading interactive state file: %w", err)
+	}
+
+	// Read model performance stats
+	modelStats, err := readModelStats(cfg.Paths.Logs)
+	if err != nil {
+		logf("Warning: could not read model stats: %v", err)
+		modelStats = make(map[string]logger.ModelStats)
+	}
+
+	// Read process trend/SPC summary
+	trendPath := filepath.Join(gromitDir, "metrics", "process_trend.json")
+	trend, err := logger.ReadProcessTrend(trendPath)
+	if err != nil {
+		logf("Warning: could not read process trend: %v", err)
+		trend = nil
+	}
+
+	// Format and print all sections
+	logf("%s", formatPipeline(pipelineStatus))
+	logf("")
+	logf("%s", formatRun(status))
+	logf("")
+	logf("%s", formatSPCSummary(trend))
+	logf("")
+	logf("%s", formatHealth(interactiveFile.LastRetro(), stateFile.IterationsSinceReview()))
+	logf("")
+	logf("%s", formatModelPerformance(modelStats))
+	logf("")
+	logf("%s", formatRecommendation(pipelineStatus.Recommendation))
 
 	return nil
 }
