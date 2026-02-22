@@ -232,3 +232,40 @@ func TestApplyPhaseProfile_GreenMatchesBuildImplementationContext(t *testing.T) 
 		t.Fatalf("SiblingTouchedPackages should be preserved for green")
 	}
 }
+
+func TestApplyPhaseProfile_RefactorKeepsRulesAndValidationFailures(t *testing.T) {
+	ctx := &Context{
+		Spec:                     "spec",
+		ClaudeMD:                 "claude",
+		Rules:                    "rules",
+		ConfirmedLearnings:       []learnings.Learning{{Category: "c", Content: "confirmed"}},
+		RecentValidationFailures: []string{"failure"},
+		CoverageState:            "coverage",
+		TargetCriterion:          "criterion",
+		PrevFailure:              "prev",
+	}
+
+	ApplyPhaseProfile(ctx, "refactor")
+
+	if ctx.Rules == "" {
+		t.Fatalf("Rules should be preserved for refactor")
+	}
+	if len(ctx.RecentValidationFailures) == 0 {
+		t.Fatalf("RecentValidationFailures should be preserved for refactor")
+	}
+	if ctx.Spec != "" {
+		t.Fatalf("Spec should be pruned for refactor")
+	}
+	if ctx.ClaudeMD != "" {
+		t.Fatalf("ClaudeMD should be pruned for refactor")
+	}
+	if len(ctx.ConfirmedLearnings) != 0 {
+		t.Fatalf("ConfirmedLearnings should be pruned for refactor")
+	}
+	if ctx.CoverageState != "" {
+		t.Fatalf("CoverageState should be pruned for refactor")
+	}
+	if ctx.TargetCriterion != "" {
+		t.Fatalf("TargetCriterion should be pruned for refactor")
+	}
+}
