@@ -138,6 +138,23 @@ func formatEscalationBreakdown(rates map[string]float64) string {
 	return strings.Join(parts, " | ")
 }
 
+// formatRecurrenceBreakdown formats recurrence counters as "class xN | class xN" sorted alphabetically.
+func formatRecurrenceBreakdown(counters map[string]int) string {
+	if len(counters) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(counters))
+	for k := range counters {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%s x%d", k, counters[k]))
+	}
+	return strings.Join(parts, " | ")
+}
+
 // formatItems formats a list of items, showing up to maxShow items and an overflow message
 func formatItems(items []string, maxShow int) []string {
 	if len(items) == 0 {
