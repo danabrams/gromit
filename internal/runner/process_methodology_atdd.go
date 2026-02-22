@@ -392,5 +392,17 @@ func shouldSkipRevalidationForBudget(bc *runtypes.BeadContext, minBudget time.Du
 // aggregateTDDPhaseMetricsToResult sums cost and token totals from all
 // PhaseMetrics into bc.Result and sets Model to the highest-tier model used.
 func aggregateTDDPhaseMetricsToResult(bc *runtypes.BeadContext) {
-	_ = bc
+	if bc == nil || bc.Result == nil {
+		return
+	}
+	var totalCost float64
+	var totalInput, totalOutput int
+	for _, pm := range bc.Result.PhaseMetrics {
+		totalCost += pm.CostUSD
+		totalInput += pm.InputTokens
+		totalOutput += pm.OutputTokens
+	}
+	bc.Result.CostUSD = totalCost
+	bc.Result.InputTokens = totalInput
+	bc.Result.OutputTokens = totalOutput
 }
