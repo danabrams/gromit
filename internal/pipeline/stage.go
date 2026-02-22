@@ -60,6 +60,16 @@ type Input struct {
 	FailureOutput string
 }
 
+// PhaseMetrics holds LLM invocation metrics for a single TDD phase (e.g. red, green, refactor).
+type PhaseMetrics struct {
+	Phase        string
+	DurationMs   int64
+	CostUSD      float64
+	InputTokens  int
+	OutputTokens int
+	Model        string
+}
+
 // Output is the result returned by every stage after its execution.
 type Output struct {
 	// Decision tells the orchestrator how to proceed.
@@ -84,6 +94,9 @@ type Output struct {
 	InputTokens int
 	// OutputTokens is the number of output tokens produced by the Build stage invocation.
 	OutputTokens int
+	// PhaseMetrics holds per-phase invocation metrics for TDD builds.
+	// Each entry corresponds to one TDD phase (red, green, refactor, etc.).
+	PhaseMetrics []PhaseMetrics
 }
 
 // Stage is the interface that each pipeline stage implements.
