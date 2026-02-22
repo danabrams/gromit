@@ -3,6 +3,7 @@ package runner
 import (
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -117,6 +118,24 @@ func formatRun(s *Status) string {
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+// formatEscalationBreakdown formats escalation rates as "class N% | class N%" sorted alphabetically.
+func formatEscalationBreakdown(rates map[string]float64) string {
+	if len(rates) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(rates))
+	for k := range rates {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		pct := int(math.Round(rates[k] * 100))
+		parts = append(parts, fmt.Sprintf("%s %d%%", k, pct))
+	}
+	return strings.Join(parts, " | ")
 }
 
 // formatItems formats a list of items, showing up to maxShow items and an overflow message
