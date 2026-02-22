@@ -518,3 +518,35 @@ func TestBuildDecomposeClient_ProviderRouterPath_DefaultPipelineTimeout(t *testi
 		t.Fatalf("phase = %q, want %q", typedClient.Phase, decomposeSessionCommand)
 	}
 }
+
+func TestBuildDecomposeInput_UsesConfiguredTier(t *testing.T) {
+	origForce := decomposeForce
+	origReview := decomposeReview
+	origSkipValidation := decomposeSkipValidation
+	origMaxRetries := decomposeMaxRetries
+	t.Cleanup(func() {
+		decomposeForce = origForce
+		decomposeReview = origReview
+		decomposeSkipValidation = origSkipValidation
+		decomposeMaxRetries = origMaxRetries
+	})
+
+	decomposeForce = true
+	decomposeReview = false
+	decomposeSkipValidation = true
+	decomposeMaxRetries = -1
+
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			MaxValidationRetries: 7,
+		},
+		Decompose: config.DecomposeConfig{
+			Tier: "high",
+		},
+	}
+
+	input := buildDecomposeInput("tier-plan", cfg)
+	if input.Tier != "high" {
+		t.Fatalf("Tier = %q, want %q", input.Tier, "high")
+	}
+}
