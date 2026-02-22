@@ -76,6 +76,11 @@ The migration from a monolithic Pipeline struct to a stage-based Orchestrator in
 
 The `var _ = Type{}` pattern in files like callbacks_validation.go is used as a forced-import keep-alive — it exists solely to prevent the Go compiler from removing an otherwise-unused import. This pattern indicates incomplete refactoring: the real usage was deleted but the artificial reference was left behind. When removing usage of a package, search for these keep-alive patterns (`var _ =`, `var _ Type`) in the same file and in files that previously consumed the package. Unlike compile-time interface checks (`var _ Interface = (*Impl)(nil)`), which enforce architectural invariants and should be preserved, bare forced-import patterns are dead code and should be removed.
 
+### 2026-02-22 | ORCHESTRATOR_DUAL_PATH_AND_CONSOLIDATION_PATTERNS | ARCHITECTURE
+*Related to: review-1771733992016921570*
+
+The BuildFromReviewLabels consolidation across pipeline, pipeline/review, and runner/reviewpkg is a clean pattern — one exported function in the parent package, callers in child packages import it. Deprecated wrappers should be removed once all callers migrate. File extraction pattern (callbacks.go → callbacks_methodology_exec.go, constructor.go → constructor_adapters.go, process_methodology.go → process_methodology_atdd.go) is enforced by file_size_test.go with a 550-line limit; size enforcement tests are a good guardrail against file bloat. The Orchestrator path and legacy Runner path have separate code for the same operations (cost tracking, state saving, failure learning) — features wired in one path may be silently missing in the other (e.g., Build stage Output fields not populated). TDD LogPhaseFn follows the FnField mock pattern correctly — nil-safe with explicit nil check before call, injected via deps struct. Non-deterministic map iteration in logging functions is easy to miss in Go; always sort keys when producing human-readable or machine-parseable output from maps.
+
 ---
 
 ## Archived

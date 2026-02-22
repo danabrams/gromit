@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -382,9 +383,14 @@ func summarizePhaseMetrics(metrics []runtypes.PhaseMetric) string {
 			counts[m.Phase+":fail"]++
 		}
 	}
-	parts := make([]string, 0, len(counts))
-	for k, v := range counts {
-		parts = append(parts, fmt.Sprintf("%s=%d", k, v))
+	keys := make([]string, 0, len(counts))
+	for k := range counts {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%s=%d", k, counts[k]))
 	}
 	return strings.Join(parts, ", ")
 }
