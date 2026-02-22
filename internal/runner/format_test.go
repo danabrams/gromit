@@ -239,6 +239,54 @@ func TestFormatHealth(t *testing.T) {
 	}
 }
 
+func TestFormatRecommendation(t *testing.T) {
+	tests := []struct {
+		name string
+		rec  string
+		want string
+	}{
+		{
+			name: "empty recommendation",
+			rec:  "",
+			want: "",
+		},
+		{
+			name: "refine recommendation",
+			rec:  "Refine backlog ideas",
+			want: "Next action: Refine backlog ideas (gromit refine)",
+		},
+		{
+			name: "plan recommendation",
+			rec:  "Plan spec \"user-profiles\"",
+			want: "Next action: Plan spec \"user-profiles\" (gromit plan)",
+		},
+		{
+			name: "decompose recommendation",
+			rec:  "Decompose plan \"status-json-staleness\"",
+			want: "Next action: Decompose plan \"status-json-staleness\" (gromit decompose)",
+		},
+		{
+			name: "run recommendation",
+			rec:  "Run 4 ready bead(s)",
+			want: "Next action: Run 4 ready bead(s) (gromit run)",
+		},
+		{
+			name: "no matching command hint",
+			rec:  "No work in pipeline",
+			want: "Next action: No work in pipeline",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatRecommendation(tt.rec)
+			if got != tt.want {
+				t.Errorf("formatRecommendation(%q) = %q, want %q", tt.rec, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestFormatRun(t *testing.T) {
 	tests := []struct {
 		name   string
