@@ -213,6 +213,9 @@ func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 	if err != nil {
 		return fmt.Errorf("decomposerAdapter.CreateWithParent: %w", err)
 	}
+	if err := a.beads.Close(b.ID); err != nil {
+		return fmt.Errorf("decomposerAdapter.Close: %w", err)
+	}
 	return nil
 }
 

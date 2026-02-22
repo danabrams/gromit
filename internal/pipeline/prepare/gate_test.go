@@ -714,9 +714,13 @@ type decomposerAdapterForTest struct {
 
 func (a *decomposerAdapterForTest) Decompose(ctx context.Context, b *bead.Bead) error {
 	_, err := a.beads.CreateWithParent(b.Title+" (decomposed)", b.Priority, b.Labels, b.ExpectedOutputs, b.ID)
-	return err
-	// NOTE: Current implementation does NOT close the parent bead
-	// The test verifies that a future implementation SHOULD close the parent
+	if err != nil {
+		return err
+	}
+	if err := a.beads.Close(b.ID); err != nil {
+		return err
+	}
+	return nil
 }
 
 // MockBeadClientForDecomposition is an interface for testing decomposition with Close tracking
