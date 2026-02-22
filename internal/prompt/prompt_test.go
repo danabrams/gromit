@@ -151,8 +151,8 @@ func TestBuildContextNilBead(t *testing.T) {
 func TestBuildContextEmptyPhase(t *testing.T) {
 	r := &Renderer{}
 	_, err := r.BuildContext(&bead.Bead{ID: "b1", Title: "t"}, nil, 1, "sonnet", "")
-	if err == nil {
-		t.Error("expected error for empty phase")
+	if err != nil {
+		t.Errorf("expected empty phase to be backward compatible, got error: %v", err)
 	}
 }
 
