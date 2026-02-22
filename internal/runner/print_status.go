@@ -21,19 +21,15 @@ func PrintStatus(gromitDir string, cfg *config.Config, w io.Writer, processCheck
 	if err != nil {
 		return err
 	}
-	if status == nil {
-		if _, err := fmt.Fprintln(w, "No status file found. Gromit may not have run yet."); err != nil {
-			return fmt.Errorf("writing status: %w", err)
+
+	if status != nil {
+		if processChecker == nil {
+			processChecker = IsProcessAlive
 		}
-		return nil
-	}
 
-	if processChecker == nil {
-		processChecker = IsProcessAlive
-	}
-
-	if err := handleStalePID(status, gromitDir, w, processChecker); err != nil {
-		return err
+		if err := handleStalePID(status, gromitDir, w, processChecker); err != nil {
+			return err
+		}
 	}
 
 	if _, err := fmt.Fprintln(w, formatRun(status)); err != nil {
@@ -42,7 +38,7 @@ func PrintStatus(gromitDir string, cfg *config.Config, w io.Writer, processCheck
 
 	// Pipeline section
 	var startedAt *time.Time
-	if !status.StartedAt.IsZero() {
+	if status != nil && !status.StartedAt.IsZero() {
 		startedAt = &status.StartedAt
 	}
 	ps, err := pipeline.ReadStatus(gromitDir, cfg.Paths.Specs, cfg.Paths.Plans, startedAt)
