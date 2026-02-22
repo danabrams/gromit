@@ -138,7 +138,12 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 		return pipeline.Output{}, fmt.Errorf("build: rendering prompt: %w", err)
 	}
 
-	tier := in.Config.SelectTier(in.Bead.Priority, in.Bead.Labels)
+	beadTier := in.Config.SelectTier(in.Bead.Priority, in.Bead.Labels)
+	phase := "build"
+	if methodology == MethodologyRefactor {
+		phase = "refactor"
+	}
+	tier := in.Config.PhaseModelTier(phase, beadTier)
 
 	w := b.output
 	if w == nil {
