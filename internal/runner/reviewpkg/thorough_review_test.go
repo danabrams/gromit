@@ -383,11 +383,13 @@ func TestRunThorough_BuildsThoroughReviewContext(t *testing.T) {
 	}
 }
 
-func TestRunThorough_AlwaysSelectsHighTier(t *testing.T) {
-	// RunThorough should always use tier "high" for provider selection,
-	// regardless of bead priority or config.
+func TestRunThorough_UsesConfiguredThoroughTierAndPhase(t *testing.T) {
+	// RunThorough should use the configured thorough-review tier and
+	// select using the thorough_review phase key.
 	cfg := newThoroughTestConfig()
+	cfg.Review.Thorough.Tier = provider.TierLow
 
+	var selectedPhase string
 	var selectedTier string
 	prov := &mockProvider{
 		name: "test",
@@ -401,6 +403,7 @@ func TestRunThorough_AlwaysSelectsHighTier(t *testing.T) {
 
 	router := &mockRouter{
 		selectFn: func(phase, tier string) (provider.Provider, string) {
+			selectedPhase = phase
 			selectedTier = tier
 			return prov, "test"
 		},
@@ -418,8 +421,11 @@ func TestRunThorough_AlwaysSelectsHighTier(t *testing.T) {
 		return "head", nil
 	})
 
-	if selectedTier != provider.TierHigh {
-		t.Errorf("RunThorough selected tier = %q, want %q", selectedTier, provider.TierHigh)
+	if selectedPhase != "thorough_review" {
+		t.Errorf("RunThorough selected phase = %q, want %q", selectedPhase, "thorough_review")
+	}
+	if selectedTier != provider.TierLow {
+		t.Errorf("RunThorough selected tier = %q, want %q", selectedTier, provider.TierLow)
 	}
 }
 
