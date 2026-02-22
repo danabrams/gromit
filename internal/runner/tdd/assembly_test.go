@@ -362,3 +362,18 @@ func TestExtractAPISurfaceIncludesConstVarDeclarations(t *testing.T) {
 		t.Fatalf("expected APISurface to contain var declaration, got %q", surface)
 	}
 }
+
+func TestExtractAPISurfaceIncludesMethodReceivers(t *testing.T) {
+	implFiles := map[string]string{
+		"user.go": "package auth\n\ntype User struct {\n\tID string\n}\n\nfunc (u *User) GetID() string {\n\treturn u.ID\n}\n\nfunc (u *User) SetID(id string) {\n\tu.ID = id\n}\n",
+	}
+
+	surface := extractAPISurface(implFiles)
+
+	if !strings.Contains(surface, "func (u *User) GetID()") {
+		t.Fatalf("expected APISurface to contain method GetID with receiver, got %q", surface)
+	}
+	if !strings.Contains(surface, "func (u *User) SetID(id string)") {
+		t.Fatalf("expected APISurface to contain method SetID with receiver, got %q", surface)
+	}
+}
