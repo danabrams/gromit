@@ -234,7 +234,7 @@ methodology:
   #   include_claude_md: true  # Include CLAUDE.md in ATDD build prompts
   #   max_chars: 20000  # Character budget for ATDD prompts (0 = unlimited)
   #   max_confirmed_learning_chars: 2000  # Max chars from confirmed learnings in ATDD prompts
-  fresh_context_per_cycle: true  # Use a fresh invocation context for each TDD cycle instead of single-invocation flow
+  fresh_context_per_cycle: false  # Use a fresh invocation context for each TDD cycle instead of single-invocation flow
   # granularity: "bead"  # "bead" or "spec" (default: "bead")
   # Optional phase-specific time budgets (seconds). Any zero/omitted value falls back to claude.bead_timeout.
   # phase_timeouts:
