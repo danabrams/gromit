@@ -2,6 +2,8 @@ package runner
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -20,7 +22,7 @@ func TestTDDPipelineAdapter_ImplementsInterface(t *testing.T) {
 	}
 }
 
-// TestTDDPipelineAdapter_RunCycles_ConvertsPhaseMet ricsToResult verifies that when
+// TestTDDPipelineAdapter_RunCycles_ConvertsPhaseMetricsToResult verifies that when
 // the underlying tdd orchestrator appends PhaseMetrics to the BeadContext,
 // RunCycles returns them converted to pipeline.PhaseMetrics in TDDCycleResult.
 func TestTDDPipelineAdapter_RunCycles_ConvertsPhaseMetricsToResult(t *testing.T) {
@@ -55,5 +57,29 @@ func TestTDDPipelineAdapter_RunCycles_ConvertsPhaseMetricsToResult(t *testing.T)
 	}
 	if result.PhaseMetrics[0].CostUSD != 0.01 {
 		t.Errorf("PhaseMetrics[0].CostUSD = %f, want 0.01", result.PhaseMetrics[0].CostUSD)
+	}
+}
+
+// TestTDDPipelineAdapter_RunCycles_PropagatesOrchestratorError verifies that when
+// the tdd orchestrator returns an error, RunCycles propagates it.
+func TestTDDPipelineAdapter_RunCycles_PropagatesOrchestratorError(t *testing.T) {
+	r := &Runner{
+		cfg: &config.Config{},
+		tddOrchestrator: &tddOrchestrator{
+			runCyclesFn: func(_ context.Context, _ *runtypes.BeadContext, _ *coverage.CoverageTracker, _ []coverage.Criterion) error {
+				return fmt.Errorf("orchestrator failed: red phase timed out")
+			},
+		},
+	}
+	b := &bead.Bead{ID: "b1", Title: "Test feature", ExpectedOutputs: []string{"implement X"}}
+	cfg := &config.Config{}
+
+	adapter := &TDDPipelineAdapter{runner: r}
+	_, err := adapter.RunCycles(context.Background(), b, cfg)
+	if err == nil {
+		t.Fatal("want error from failing orchestrator, got nil")
+	}
+	if !strings.Contains(err.Error(), "orchestrator failed") {
+		t.Errorf("error %q does not contain expected message %q", err.Error(), "orchestrator failed")
 	}
 }
