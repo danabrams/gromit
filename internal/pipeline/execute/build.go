@@ -23,6 +23,15 @@ const (
 	MethodologyStandard Methodology = "standard"
 )
 
+// TDDCycleResult holds the aggregated output from a TDDCycleRunner.
+type TDDCycleResult struct{}
+
+// TDDCycleRunner runs multiple TDD cycles (red-green-refactor) for a bead,
+// making a fresh LLM invocation for each phase.
+type TDDCycleRunner interface {
+	RunCycles(ctx context.Context, b *bead.Bead, cfg *config.Config) (TDDCycleResult, error)
+}
+
 // Invoker executes LLM invocations.
 // Implementations must use StreamRun for live output visibility.
 // Run is part of the interface to allow fakes to panic on it and prove
