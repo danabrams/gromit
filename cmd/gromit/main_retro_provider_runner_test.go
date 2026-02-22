@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -69,5 +71,24 @@ func TestBuildRetroProviderRunner_ProvidersPathDoesNotUseClaudeFallbackFactory(t
 	}
 	if _, ok := runner.(*retroRouterAdapter); !ok {
 		t.Fatalf("runner type = %T, want *retroRouterAdapter", runner)
+	}
+}
+
+func TestBuildRetroProviderRunner_ClaudeFallbackErrorIsWrapped(t *testing.T) {
+	cfg := &config.Config{}
+
+	orig := retroClaudeFallbackRunnerFn
+	t.Cleanup(func() { retroClaudeFallbackRunnerFn = orig })
+
+	retroClaudeFallbackRunnerFn = func(*config.Config) (retro.ProviderRunner, error) {
+		return nil, fmt.Errorf("boom")
+	}
+
+	_, err := buildRetroProviderRunner(cfg)
+	if err == nil {
+		t.Fatal("buildRetroProviderRunner() error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "creating retro claude fallback runner") {
+		t.Fatalf("error = %q, want message to contain %q", err.Error(), "creating retro claude fallback runner")
 	}
 }
