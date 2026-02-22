@@ -4,6 +4,28 @@ package config
 // instances. This prevents issues with downstream code that marshals to JSON
 // (nil -> "null" vs [] -> "[]") and ensures consistent behavior.
 func (c *Config) NormalizeNilFields() {
+	if c.Methodology.BuildStrategy == "" {
+		c.Methodology.BuildStrategy = defaultMethodologyBuildStrategy
+	}
+	if c.Methodology.PhaseModels.Decompose == "" {
+		c.Methodology.PhaseModels.Decompose = "medium"
+	}
+	if c.Methodology.PhaseModels.Build == "" {
+		c.Methodology.PhaseModels.Build = "medium"
+	}
+	if c.Methodology.PhaseModels.Red == "" {
+		c.Methodology.PhaseModels.Red = "low"
+	}
+	if c.Methodology.PhaseModels.Green == "" {
+		c.Methodology.PhaseModels.Green = "medium"
+	}
+	if c.Methodology.PhaseModels.Refactor == "" {
+		c.Methodology.PhaseModels.Refactor = "low"
+	}
+	if c.Refactor.MinFilesChanged == 0 {
+		c.Refactor.MinFilesChanged = 3
+	}
+
 	if c.Escalation.Chain == nil {
 		c.Escalation.Chain = []string{}
 	}
