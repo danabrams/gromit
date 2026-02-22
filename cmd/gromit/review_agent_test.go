@@ -289,6 +289,27 @@ func TestReviewBuildReviewArgsHelperRemoved(t *testing.T) {
 	}
 }
 
+func TestBuildReviewNonInteractiveClient_UsesProviderBuildRouterFromConfig(t *testing.T) {
+	reviewSource, err := os.ReadFile("review.go")
+	if err != nil {
+		t.Fatalf("Reading review.go: %v", err)
+	}
+
+	sourceStr := string(reviewSource)
+	buildClientFn, ok := extractFunction(sourceStr, "buildReviewNonInteractiveClient")
+	if !ok {
+		t.Fatal("Cannot find buildReviewNonInteractiveClient function")
+	}
+
+	if !strings.Contains(buildClientFn, "provider.BuildRouterFromConfig(cfg)") {
+		t.Error("buildReviewNonInteractiveClient missing provider.BuildRouterFromConfig(cfg) call")
+	}
+
+	if strings.Contains(buildClientFn, "buildReviewRouter(cfg)") {
+		t.Error("buildReviewNonInteractiveClient still uses buildReviewRouter(cfg)")
+	}
+}
+
 // TestReviewAgentSelectionIntegration is a comprehensive integration test
 func TestReviewAgentSelectionIntegration(t *testing.T) {
 	// This test verifies the complete integration flow:
