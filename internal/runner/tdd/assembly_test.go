@@ -363,6 +363,21 @@ func TestExtractAPISurfaceIncludesConstVarDeclarations(t *testing.T) {
 	}
 }
 
+func TestExtractAPISurfaceIncludesConstantsInBlockDeclarations(t *testing.T) {
+	implFiles := map[string]string{
+		"config.go": "package config\n\nconst (\n\tDefaultTimeout = 30\n\tMaxRetries     = 3\n)\n",
+	}
+
+	surface := extractAPISurface(implFiles)
+
+	if !strings.Contains(surface, "DefaultTimeout") {
+		t.Fatalf("expected APISurface to include block const DefaultTimeout, got %q", surface)
+	}
+	if !strings.Contains(surface, "MaxRetries") {
+		t.Fatalf("expected APISurface to include block const MaxRetries, got %q", surface)
+	}
+}
+
 func TestExtractAPISurfaceIncludesMethodReceivers(t *testing.T) {
 	implFiles := map[string]string{
 		"user.go": "package auth\n\ntype User struct {\n\tID string\n}\n\nfunc (u *User) GetID() string {\n\treturn u.ID\n}\n\nfunc (u *User) SetID(id string) {\n\tu.ID = id\n}\n",
