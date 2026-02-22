@@ -461,3 +461,43 @@ func TestBuildStage_EscalationEnabled_FailsWhenAllTiersExhausted(t *testing.T) {
 		t.Errorf("StreamRun called %d times, want 2 (low + medium)", callCount)
 	}
 }
+
+// TestBuildStage_Run_PopulatesOutputMetadataFromProviderResult verifies that the
+// Build stage copies Model, DurationMs, CostUSD, InputTokens, and OutputTokens
+// from the successful StreamRun provider result into the returned Output.
+func TestBuildStage_Run_PopulatesOutputMetadataFromProviderResult(t *testing.T) {
+	invoker := &fakeInvoker{
+		streamRunFn: func(_ context.Context, _, _ string, _ io.Writer, _ provider.EventHandler, _ provider.ToolCallHandler) (*provider.Result, error) {
+			return &provider.Result{
+				Success:      true,
+				Model:        "claude-opus-4-5",
+				Duration:     2500 * time.Millisecond,
+				CostUSD:      0.042,
+				InputTokens:  1200,
+				OutputTokens: 800,
+			}, nil
+		},
+	}
+	stage := execute.New(invoker, &fakePromptRenderer{}, io.Discard)
+
+	out, err := stage.Run(context.Background(), makeInput(makeBead("bead-1", "Add feature"), defaultConfig()))
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if out.Model != "claude-opus-4-5" {
+		t.Errorf("Output.Model = %q, want %q", out.Model, "claude-opus-4-5")
+	}
+	if out.DurationMs != 2500 {
+		t.Errorf("Output.DurationMs = %d, want 2500", out.DurationMs)
+	}
+	if out.CostUSD != 0.042 {
+		t.Errorf("Output.CostUSD = %f, want 0.042", out.CostUSD)
+	}
+	if out.InputTokens != 1200 {
+		t.Errorf("Output.InputTokens = %d, want 1200", out.InputTokens)
+	}
+	if out.OutputTokens != 800 {
+		t.Errorf("Output.OutputTokens = %d, want 800", out.OutputTokens)
+	}
+}
