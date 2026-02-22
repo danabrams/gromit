@@ -397,10 +397,10 @@ func TestGateRunScopeGateAttemptsDecomposition(t *testing.T) {
 // is decomposed into sub-beads via the real pipeline.
 func TestGateRunScopeGateDecompositionEndToEnd(t *testing.T) {
 	// Mock bead client that tracks CreateWithParent calls
-	mockBeadClient := &mockBeadClient{}
+	mockBeadClient := &endToEndMockBeadClient{}
 
 	// Create decomposerAdapter that wraps the mock bead client
-	decomposer := &decomposerAdapter{
+	decomposer := &endToEndDecomposerAdapter{
 		beads: mockBeadClient,
 	}
 
@@ -456,8 +456,8 @@ func TestGateRunScopeGateDecompositionEndToEnd(t *testing.T) {
 	}
 }
 
-// mockBeadClient is a mock bead.Client for integration testing
-type mockBeadClient struct {
+// endToEndMockBeadClient is a mock bead.Client for integration testing
+type endToEndMockBeadClient struct {
 	createWithParentCalled  bool
 	capturedTitle           string
 	capturedPriority        int
@@ -466,7 +466,7 @@ type mockBeadClient struct {
 	capturedParentID        string
 }
 
-func (m *mockBeadClient) CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error) {
+func (m *endToEndMockBeadClient) CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error) {
 	m.createWithParentCalled = true
 	m.capturedTitle = title
 	m.capturedPriority = priority
@@ -476,17 +476,14 @@ func (m *mockBeadClient) CreateWithParent(title string, priority int, labels []s
 	return &bead.Bead{ID: "bead-decomposed-1", Title: title, Priority: priority}, nil
 }
 
-// mockBeadClientInterface defines the interface needed by decomposerAdapter
-type mockBeadClientInterface interface {
-	CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error)
+// endToEndDecomposerAdapter mimics the real decomposerAdapter behavior for integration testing
+type endToEndDecomposerAdapter struct {
+	beads interface {
+		CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error)
+	}
 }
 
-// decomposerAdapter mimics the real decomposerAdapter behavior for integration testing
-type decomposerAdapter struct {
-	beads mockBeadClientInterface
-}
-
-func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
+func (a *endToEndDecomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 	_, err := a.beads.CreateWithParent(b.Title+" (decomposed)", b.Priority, b.Labels, b.ExpectedOutputs, b.ID)
 	return err
 }
@@ -499,12 +496,12 @@ func TestGateRunScopeGateDecompositionRecordsOutput(t *testing.T) {
 	// Create a capturing output writer to verify decomposition is logged
 	output := &recordingWriter{}
 
-	// Create a spy bead.Client
-	spyBeadClient := &spyBeadClient{}
+	// Create a recording bead.Client
+	recordingClient := &recordingBeadClient{}
 
-	// Create the decomposerAdapter implementation with the spy client
-	decomposer := &testDecomposerAdapter{
-		beads: spyBeadClient,
+	// Create the decomposer implementation with the recording client
+	decomposer := &recordingDecomposerAdapter{
+		beads: recordingClient,
 	}
 
 	// Create an oversized root bead that exceeds scope threshold (6 expected outputs > maxScopeFiles of 5)
@@ -542,29 +539,29 @@ func TestGateRunScopeGateDecompositionRecordsOutput(t *testing.T) {
 	}
 
 	// Verify bead.Client.CreateWithParent was called exactly once
-	if spyBeadClient.callCount != 1 {
-		t.Errorf("CreateWithParent call count = %d, want 1", spyBeadClient.callCount)
+	if recordingClient.callCount != 1 {
+		t.Errorf("CreateWithParent call count = %d, want 1", recordingClient.callCount)
 	}
 
 	// Verify the parameters passed to CreateWithParent
-	if spyBeadClient.lastTitle != oversizedBead.Title+" (decomposed)" {
-		t.Errorf("CreateWithParent title = %q, want %q", spyBeadClient.lastTitle, oversizedBead.Title+" (decomposed)")
+	if recordingClient.lastTitle != oversizedBead.Title+" (decomposed)" {
+		t.Errorf("CreateWithParent title = %q, want %q", recordingClient.lastTitle, oversizedBead.Title+" (decomposed)")
 	}
 
-	if spyBeadClient.lastPriority != oversizedBead.Priority {
-		t.Errorf("CreateWithParent priority = %d, want %d", spyBeadClient.lastPriority, oversizedBead.Priority)
+	if recordingClient.lastPriority != oversizedBead.Priority {
+		t.Errorf("CreateWithParent priority = %d, want %d", recordingClient.lastPriority, oversizedBead.Priority)
 	}
 
-	if !slicesEqual(spyBeadClient.lastLabels, oversizedBead.Labels) {
-		t.Errorf("CreateWithParent labels = %v, want %v", spyBeadClient.lastLabels, oversizedBead.Labels)
+	if !slicesEqual(recordingClient.lastLabels, oversizedBead.Labels) {
+		t.Errorf("CreateWithParent labels = %v, want %v", recordingClient.lastLabels, oversizedBead.Labels)
 	}
 
-	if !slicesEqual(spyBeadClient.lastExpectedOutputs, oversizedBead.ExpectedOutputs) {
-		t.Errorf("CreateWithParent expectedOutputs = %v, want %v", spyBeadClient.lastExpectedOutputs, oversizedBead.ExpectedOutputs)
+	if !slicesEqual(recordingClient.lastExpectedOutputs, oversizedBead.ExpectedOutputs) {
+		t.Errorf("CreateWithParent expectedOutputs = %v, want %v", recordingClient.lastExpectedOutputs, oversizedBead.ExpectedOutputs)
 	}
 
-	if spyBeadClient.lastParentID != oversizedBead.ID {
-		t.Errorf("CreateWithParent parentID = %q, want %q", spyBeadClient.lastParentID, oversizedBead.ID)
+	if recordingClient.lastParentID != oversizedBead.ID {
+		t.Errorf("CreateWithParent parentID = %q, want %q", recordingClient.lastParentID, oversizedBead.ID)
 	}
 
 	// Verify that decomposition was recorded in output (indicates successful decomposition logging)
@@ -584,11 +581,10 @@ func TestGateRunScopeGateDecompositionRecordsOutput(t *testing.T) {
 func TestGateRunScopeGateDecompositionClosesParentBead(t *testing.T) {
 	// Create a mock that tracks both CreateWithParent and Close calls
 	// This will verify that the decomposition process closes the parent bead
-	mockClient := &mockBeadClientWithClose{}
+	mockClient := &closingMockBeadClient{}
 
-	// Create the decomposerAdapter implementation
-	// Currently this should FAIL the test because it doesn't close the parent
-	decomposer := &decomposerAdapterForTest{
+	// Create the decomposer implementation
+	decomposer := &closingDecomposerAdapter{
 		beads: mockClient,
 	}
 
@@ -657,24 +653,21 @@ func (r *recordingWriter) Contains(s string) bool {
 	return strings.Contains(r.content, s)
 }
 
-// BeadClientForTest defines the interface for bead creation in tests
-type BeadClientForTest interface {
-	CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error)
+// recordingDecomposerAdapter implements the Decomposer interface for testing.
+// It mimics the real decomposerAdapter behavior from runner package.
+type recordingDecomposerAdapter struct {
+	beads interface {
+		CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error)
+	}
 }
 
-// testDecomposerAdapter implements the Decomposer interface for testing
-// It mimics the real decomposerAdapter behavior from runner package
-type testDecomposerAdapter struct {
-	beads BeadClientForTest
-}
-
-func (a *testDecomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
+func (a *recordingDecomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 	_, err := a.beads.CreateWithParent(b.Title+" (decomposed)", b.Priority, b.Labels, b.ExpectedOutputs, b.ID)
 	return err
 }
 
-// spyBeadClient tracks all calls to CreateWithParent
-type spyBeadClient struct {
+// recordingBeadClient tracks all calls to CreateWithParent for test verification.
+type recordingBeadClient struct {
 	callCount           int
 	lastTitle           string
 	lastPriority        int
@@ -683,13 +676,13 @@ type spyBeadClient struct {
 	lastParentID        string
 }
 
-func (s *spyBeadClient) CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error) {
-	s.callCount++
-	s.lastTitle = title
-	s.lastPriority = priority
-	s.lastLabels = labels
-	s.lastExpectedOutputs = expectedOutputs
-	s.lastParentID = parentID
+func (r *recordingBeadClient) CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error) {
+	r.callCount++
+	r.lastTitle = title
+	r.lastPriority = priority
+	r.lastLabels = labels
+	r.lastExpectedOutputs = expectedOutputs
+	r.lastParentID = parentID
 	return &bead.Bead{ID: "child-bead-1", Title: title, Priority: priority}, nil
 }
 
@@ -706,13 +699,16 @@ func slicesEqual(a, b []string) bool {
 	return true
 }
 
-// decomposerAdapterForTest is a simple adapter for testing scope gate decomposition
-// This mimics the current decomposerAdapter behavior but uses a test interface
-type decomposerAdapterForTest struct {
-	beads MockBeadClientForDecomposition
+// closingDecomposerAdapter is an adapter for testing scope gate decomposition.
+// It mimics the real decomposerAdapter behavior by creating a child bead and closing the parent.
+type closingDecomposerAdapter struct {
+	beads interface {
+		CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error)
+		Close(id string) error
+	}
 }
 
-func (a *decomposerAdapterForTest) Decompose(ctx context.Context, b *bead.Bead) error {
+func (a *closingDecomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 	_, err := a.beads.CreateWithParent(b.Title+" (decomposed)", b.Priority, b.Labels, b.ExpectedOutputs, b.ID)
 	if err != nil {
 		return err
@@ -723,25 +719,19 @@ func (a *decomposerAdapterForTest) Decompose(ctx context.Context, b *bead.Bead) 
 	return nil
 }
 
-// MockBeadClientForDecomposition is an interface for testing decomposition with Close tracking
-type MockBeadClientForDecomposition interface {
-	CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error)
-	Close(id string) error
-}
-
-// mockBeadClientWithClose tracks both CreateWithParent and Close calls
-type mockBeadClientWithClose struct {
+// closingMockBeadClient tracks both CreateWithParent and Close calls for verification.
+type closingMockBeadClient struct {
 	createWithParentCalls int
 	closeCalls            int
 	lastClosedID          string
 }
 
-func (m *mockBeadClientWithClose) CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error) {
+func (m *closingMockBeadClient) CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error) {
 	m.createWithParentCalls++
 	return &bead.Bead{ID: "child-bead-1", Title: title, Priority: priority}, nil
 }
 
-func (m *mockBeadClientWithClose) Close(id string) error {
+func (m *closingMockBeadClient) Close(id string) error {
 	m.closeCalls++
 	m.lastClosedID = id
 	return nil
