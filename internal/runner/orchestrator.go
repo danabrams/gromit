@@ -157,7 +157,7 @@ runLoop:
 		}
 
 		// Stage 2: Build — selects methodology, renders prompt, invokes LLM via StreamRun.
-		_, buildErr := o.cfg.Build.Run(ctx, baseIn)
+		buildOut, buildErr := o.cfg.Build.Run(ctx, baseIn)
 		if buildErr != nil {
 			o.logf("Warning: build failed for bead %s (iteration %d): %v", b.ID, iteration, buildErr)
 			baseIn.Result = &logger.IterationLog{
@@ -199,11 +199,16 @@ runLoop:
 		// Stage 5: Epilogue — close bead, sync, write status, write iteration log,
 		// run between-iterations command, trigger thorough review when due.
 		baseIn.Result = &logger.IterationLog{
-			Timestamp: time.Now(),
-			Iteration: iteration,
-			BeadID:    b.ID,
-			BeadTitle: b.Title,
-			Success:   true,
+			Timestamp:    time.Now(),
+			Iteration:    iteration,
+			BeadID:       b.ID,
+			BeadTitle:    b.Title,
+			Success:      true,
+			Model:        buildOut.Model,
+			DurationMs:   buildOut.DurationMs,
+			CostUSD:      buildOut.CostUSD,
+			InputTokens:  buildOut.InputTokens,
+			OutputTokens: buildOut.OutputTokens,
 		}
 		epilogueOut := o.runEpilogue(ctx, baseIn, true)
 		o.logf("Iteration %d: bead %s completed successfully", iteration, b.ID)
