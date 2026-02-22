@@ -9,13 +9,11 @@ import (
 	"context"
 	"io"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/danabrams/gromit/internal/analyzer"
 	"github.com/danabrams/gromit/internal/bead"
-	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/logger"
@@ -153,153 +151,6 @@ func (m *mockBeadClient) HasOpenChildren(parentID string) (bool, error) {
 		return m.HasOpenChildrenFn(parentID)
 	}
 	return false, nil
-}
-
-// --- mockClaudeClient ---
-
-type mockClaudeClient struct {
-	RunFn           func(ctx context.Context, prompt string, model string) (*claude.Result, error)
-	StreamRunFn     func(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error)
-	RunValidationFn func(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error)
-
-	mu              sync.Mutex
-	RunCalls        []mockClaudeCall
-	StreamRunCalls  []mockClaudeCall
-	ValidationCalls int
-}
-
-type mockClaudeCall struct {
-	Prompt string
-	Model  string
-}
-
-func (m *mockClaudeClient) Run(ctx context.Context, prompt string, model string) (*claude.Result, error) {
-	m.mu.Lock()
-	m.RunCalls = append(m.RunCalls, mockClaudeCall{Prompt: prompt, Model: model})
-	m.mu.Unlock()
-	if m.RunFn != nil {
-		return m.RunFn(ctx, prompt, model)
-	}
-	return &claude.Result{Success: true, Output: "ok"}, nil
-}
-
-func (m *mockClaudeClient) StreamRun(ctx context.Context, prompt string, model string, output io.Writer, handler claude.EventHandler, onToolCall claude.ToolCallHandler) (*claude.Result, error) {
-	m.mu.Lock()
-	m.StreamRunCalls = append(m.StreamRunCalls, mockClaudeCall{Prompt: prompt, Model: model})
-	m.mu.Unlock()
-	if m.StreamRunFn != nil {
-		return m.StreamRunFn(ctx, prompt, model, output, handler, onToolCall)
-	}
-	return &claude.Result{Success: true, Output: "ok"}, nil
-}
-
-func (m *mockClaudeClient) RunValidation(ctx context.Context, commands []string, model string, workDir string) (*claude.Result, error) {
-	m.mu.Lock()
-	m.ValidationCalls++
-	m.mu.Unlock()
-	if m.RunValidationFn != nil {
-		return m.RunValidationFn(ctx, commands, model, workDir)
-	}
-	return &claude.Result{Success: true, Output: "VALIDATION_PASSED"}, nil
-}
-
-// --- mockClaudeProviderAdapter wraps mockClaudeClient to implement provider.Provider ---
-
-type mockClaudeProviderAdapter struct {
-	client *mockClaudeClient
-}
-
-func (m *mockClaudeProviderAdapter) Name() string {
-	return "mock-claude"
-}
-
-func (m *mockClaudeProviderAdapter) ModelForTier(tier string) string {
-	switch tier {
-	case provider.TierHigh:
-		return "opus"
-	case provider.TierMedium:
-		return "sonnet"
-	case provider.TierLow:
-		return "haiku"
-	default:
-		return "haiku"
-	}
-}
-
-func (m *mockClaudeProviderAdapter) Run(ctx context.Context, p, tier string) (*provider.Result, error) {
-	model := m.ModelForTier(tier)
-	result, err := m.client.Run(ctx, p, model)
-	if err != nil {
-		return nil, err
-	}
-	return &provider.Result{
-		Success:  result.Success,
-		Output:   result.Output,
-		ExitCode: result.ExitCode,
-		Duration: result.Duration,
-		Model:    result.Model,
-	}, nil
-}
-
-func (m *mockClaudeProviderAdapter) StreamRun(ctx context.Context, p, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
-	model := m.ModelForTier(tier)
-	var claudeHandler claude.EventHandler
-	if handler != nil {
-		claudeHandler = func(line []byte) {
-			handler(line)
-		}
-	}
-	var claudeToolHandler claude.ToolCallHandler
-	if onToolCall != nil {
-		claudeToolHandler = func(event claude.ToolEvent) {
-			onToolCall(provider.ToolEvent{
-				ToolName:  event.ToolName,
-				FilePath:  event.FilePath,
-				Timestamp: event.Timestamp,
-			})
-		}
-	}
-	result, err := m.client.StreamRun(ctx, p, model, output, claudeHandler, claudeToolHandler)
-	if err != nil {
-		return nil, err
-	}
-	return &provider.Result{
-		Success:  result.Success,
-		Output:   result.Output,
-		ExitCode: result.ExitCode,
-		Duration: result.Duration,
-		Model:    result.Model,
-	}, nil
-}
-
-func (m *mockClaudeProviderAdapter) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*provider.Result, error) {
-	model := m.ModelForTier(tier)
-	result, err := m.client.RunValidation(ctx, commands, model, workDir)
-	if err != nil {
-		return nil, err
-	}
-	if result == nil {
-		return nil, nil
-	}
-	return &provider.Result{
-		Success:  result.Success,
-		Output:   result.Output,
-		ExitCode: result.ExitCode,
-		Duration: result.Duration,
-		Model:    result.Model,
-	}, nil
-}
-
-func (m *mockClaudeProviderAdapter) IsUsageLimitError(result *provider.Result, err error) bool {
-	return false
-}
-
-func (m *mockClaudeProviderAdapter) IsValidationPassed(result *provider.Result) bool {
-	return result.Success
-}
-
-func (m *mockClaudeProviderAdapter) IsScopeTooLarge(result *provider.Result) (bool, string) {
-	return false, ""
 }
 
 // --- mockProviderWithRouterTracking ---
@@ -702,12 +553,6 @@ func newMockRouter() *provider.Router {
 	return provider.NewSingleProviderRouter(p)
 }
 
-// newMockRouterFromClaudeClient creates a router wrapping a mockClaudeClient.
-func newMockRouterFromClaudeClient(client *mockClaudeClient) *provider.Router {
-	adapter := &mockClaudeProviderAdapter{client: client}
-	return provider.NewSingleProviderRouter(adapter)
-}
-
 // --- worktree merge test helpers ---
 
 // baseWorktreeMergeConfig creates a base config for worktree merge tests.
@@ -812,18 +657,6 @@ func setupInvocationTimeoutRunner(t *testing.T, cfg *config.Config, p provider.P
 		t.Fatalf("NewRunnerWithDeps failed: %v", err)
 	}
 	return r, mockLog
-}
-
-// testPromptContext builds a minimal prompt.Context for testing prompt selection.
-func testPromptContext(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error) {
-	return &prompt.Context{
-		Bead:               b,
-		ParentBead:         parent,
-		Iteration:          iteration,
-		Model:              model,
-		ConfirmedLearnings: []learnings.Learning{},
-		RecentLearnings:    []learnings.Learning{},
-	}, nil
 }
 
 // Ensure unused import is used (time is used in structs above).
