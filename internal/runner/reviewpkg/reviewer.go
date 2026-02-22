@@ -18,6 +18,7 @@ import (
 
 const (
 	reviewPhase        = "review"
+	thoroughReviewPhase = "thorough_review"
 	reviewTypeLight    = "light"
 	reviewTypeThorough = "thorough"
 	backlogPriority    = 2
@@ -381,8 +382,8 @@ func (r *Reviewer) RunThorough(ctx context.Context, sa StateAccess, iteration in
 		return
 	}
 
-	// Select provider (always high tier for thorough review)
-	p, _ := r.router.Select(reviewPhase, provider.TierHigh)
+	thoroughTier := r.cfg.Review.Thorough.Tier
+	p, _ := r.router.Select(thoroughReviewPhase, thoroughTier)
 	if p == nil {
 		r.log("Warning: no provider available for thorough review")
 		return
@@ -392,8 +393,8 @@ func (r *Reviewer) RunThorough(ctx context.Context, sa StateAccess, iteration in
 	reviewCtxTimeout, cancel := context.WithTimeout(ctx, thoroughTimeout)
 	defer cancel()
 
-	r.log("Running thorough review with tier: high")
-	providerResult, err := p.Run(reviewCtxTimeout, reviewPrompt, provider.TierHigh)
+	r.log("Running thorough review with tier: %s", thoroughTier)
+	providerResult, err := p.Run(reviewCtxTimeout, reviewPrompt, thoroughTier)
 	if err != nil {
 		r.log("Warning: thorough review failed: %v", err)
 		return
