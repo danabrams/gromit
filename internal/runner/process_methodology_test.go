@@ -25,6 +25,16 @@ func TestExtractRequirementsViaLLM_ReturnsParsedItems(t *testing.T) {
 	}
 }
 
+func TestExtractRequirementsViaLLM_ReturnsNilForFewerThanTwoItems(t *testing.T) {
+	invoke := func(_ context.Context, _ string, _ string) (*provider.Result, error) {
+		return &provider.Result{Success: true, Output: "only one item"}, nil
+	}
+	got := extractRequirementsViaLLM(context.Background(), "Title", "desc", invoke)
+	if got != nil {
+		t.Fatalf("expected nil for single item, got %v", got)
+	}
+}
+
 func TestExtractRequirementsViaLLM_ReturnsNilOnError(t *testing.T) {
 	invoke := func(_ context.Context, _ string, _ string) (*provider.Result, error) {
 		return nil, fmt.Errorf("provider unavailable")
