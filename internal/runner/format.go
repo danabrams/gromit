@@ -179,7 +179,26 @@ func formatRecurrenceBreakdown(counters map[string]int) string {
 
 // formatHealth formats health status for display
 func formatHealth(lastRetro time.Time, iterationsSinceReview int) string {
-	panic("not implemented")
+	var lines []string
+	lines = append(lines, "Health:")
+
+	retroStr := "never"
+	if !lastRetro.IsZero() {
+		retroStr = formatDuration(time.Since(lastRetro)) + " ago"
+	}
+	lines = append(lines, fmt.Sprintf("  Last retro:  %s", retroStr))
+
+	reviewStr := "never"
+	if iterationsSinceReview > 0 {
+		unit := "iterations"
+		if iterationsSinceReview == 1 {
+			unit = "iteration"
+		}
+		reviewStr = fmt.Sprintf("%d %s ago", iterationsSinceReview, unit)
+	}
+	lines = append(lines, fmt.Sprintf("  Last review: %s", reviewStr))
+
+	return strings.Join(lines, "\n") + "\n"
 }
 
 // formatItems formats a list of items, showing up to maxShow items and an overflow message
