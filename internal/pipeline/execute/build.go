@@ -109,6 +109,8 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 
 	if strategy == "tdd" && in.Config != nil {
 		methodology = MethodologyTDD
+	} else if strategy == "single_pass" && methodology == MethodologyTDD {
+		methodology = MethodologyStandard
 	}
 
 	if methodology == MethodologyTDD && in.Config != nil && in.Config.Methodology.FreshContextPerCycle && b.tddCycleRunner != nil {
