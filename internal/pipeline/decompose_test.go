@@ -1359,6 +1359,54 @@ func TestDecomposePrompt_MentionsExpectedOutputs(t *testing.T) {
 	}
 }
 
+func TestDecomposeWorkflow_UsesInputTierForProviderCall(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plansDir, "tier-plan.md"), []byte("# Tier Plan"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	gotModel := ""
+	mockClaude := &decomposeAcceptanceClaudeClient{
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+			gotModel = model
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output: `[{
+					"title": "Task",
+					"description": "Desc",
+					"priority": "P1",
+					"acceptance_criteria": ["Done"],
+					"depends_on_index": []
+				}]`,
+			}, nil
+		},
+	}
+
+	mockBead := &decomposeAcceptanceBeadClient{
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+			return &BeadInfo{ID: "bead-1"}, nil
+		},
+	}
+
+	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	_, err := p.Decompose(context.Background(), DecomposeInput{
+		PlanName: "tier-plan",
+		Tier:     "high",
+	})
+	if err != nil {
+		t.Fatalf("Decompose() failed: %v", err)
+	}
+
+	if gotModel != "opus" {
+		t.Errorf("provider model = %q, want %q for input tier high", gotModel, "opus")
+	}
+}
+
 func containsString(items []string, want string) bool {
 	for _, item := range items {
 		if item == want {
