@@ -14,11 +14,12 @@ These are non-negotiable constraints for this project.
 - Agent execution must use `agent.Resolve()` + `agent.Launch()`; never construct `exec.Command` directly
 - Spec order: `scope.ValidateSpec(specsDir, specName)` before `scope.ResolveSpec(specName)`
 - Interface files must include `var _ InterfaceName = (*Impl)(nil)`. Interface changes must include implementation + mock updates in the same bead
-- Prompt templates: `PROMPT_<name>.md` files registered in `runInit()` via `defaultXxxTemplate` constants; renderers take context structs returning `(string, error)`. Share common sections; vary only Instructions/Completion per context type
+- Prompt templates: `PROMPT_<name>.md` files registered in `runInit()` via `defaultXxxTemplate` constants; renderers take context structs returning `(string, error)`. Share common sections; vary only Instructions/Completion per context type. Never ignore loader errors (`LoadRulesForPhase`, template reads); propagate or emit structured warnings
 - Router: choose tier (`low|medium|high`), resolve model (`haiku|sonnet|opus`). Store model names (not tier labels) in fields like `EscalatedTo`. Lives in `internal/runner/escalation/`
 - Mocks use FnField pattern: optional function-pointer fields with nil-safe defaults. Tests set only the callbacks needed for the code path under test; don't require full mock setup for a single method
 - Per-run accumulator fields (slices, maps) in Runner must be reset at the top of Run(), not in individual phases
 - Renderer owns context/state setup. Configure it in NewRunner() via setters; BuildContext() reads those values. Never bypass Renderer state
+- Do not discard errors from renderer/template/rules loaders (no `_, _ :=` for fallible setup). Propagate the error or log a structured warning with phase and file context
 
 ## Safety <!-- phases: build, review -->
 
@@ -46,6 +47,7 @@ These are non-negotiable constraints for this project.
 
 - `internal/runner/*/` sub-packages must not import siblings **in production or test files**; cross-cutting types live in `runtypes/`. Parent `runner` package uses type aliases for backward compatibility. Production files: <550 lines; facade files: <1000 lines
 - Interactive commands use the session worktree lifecycle: package-level launcher fn var, session command const, `cfg.Worktree.IsEnabled()` opt-out, `sessionConflictSettingsFromConfig`, `runWithSessionWorktreeWithConflictSettings`. Lifecycle: create worktree → callback → record pending branch → merge attempt → cleanup or conflict handoff
+- During orchestrator migrations, cross-cutting concerns (state persistence, cost/token metrics, status updates) must be implemented in one shared path, with parity tests if legacy and new paths coexist
 
 ## Build Process <!-- phases: build -->
 
@@ -53,12 +55,14 @@ These are non-negotiable constraints for this project.
 - Config fields: defaults in `SetDefaults()` (use `*int`/`-1` when zero is valid), test omitted-YAML defaults. Mirror new `IterationResult` fields into `IterationLog` in `writeIterationLog()`
 - Shared-package refactors (e.g., learnings/config): rerun all affected dependent test suites after each commit; verify each diff still matches intent
 - Test-only bead detection: use `bead.IsTestOnlyBead()` (e.g., "Add tests for") alongside `IsMethodologyActive()`
-- On bead failure: add to `skippedBeads`, not inline. After 3+ cross-run consecutive failures (JSONL-tracked via `MaxCrossRunFailures`), skip and surface for review/decomposition
-- `Run()` order: validate → execute → persist state → between-iteration hooks → continue. No reordering; log timeout warnings (not early return); nil-safe receiver/config checks at method entry
+- On bead failure: add to `skippedBeads`, not inline. After 2 consecutive cross-run failures, automatically create/link decomposition sub-beads and block further retries of the parent until at least one sub-bead lands. Keep 3+ threshold for final skip escalation
+- `Run()` order: validate → execute → persist state → between-iteration hooks → continue. No reordering; log timeout warnings (not early return); nil-safe receiver/config checks at method entry. Iteration metrics (duration/cost/tokens) must be persisted before any timeout/failure return path and verified by completeness tests
 - New config types/fields: update `gromit.yaml` to match — project-config tests validate the live file against the schema
 - Validation recovery: auto-fix (`gofmt`/`goimports`) first, re-validate, then Claude escalation only if still failing (`MaxValidationRetries`, default 1)
 - `test/contracts/` contract tests verify git call order (rev-parse before `git diff --stat`); keep harness init and sequencing intact
-- Validation commands in gromit.yaml must match the build system (check go.mod/package.json). For this project: `go test`, `go vet`, `go build` only — never pnpm/npm
+- Validation commands in gromit.yaml must match the build system (check go.mod/package.json). For this project: `go test`, `go vet`, `go build` only — never pnpm/npm. For API deletions/migrations touching exported symbols or lifecycle/orchestrator files, add compile gate: `go test -tags acceptance -run '^$' ./...`
+- Usage accounting must use explicit before/after snapshots for every phase (red/green/refactor/validate) and a single merge strategy for provider stream events. Mixing raw totals and deltas in one run is forbidden
+- When deleting exported APIs or large orchestration files, run `go test -tags acceptance -run '^$' ./...` as a compile gate before merge; blocked build-tagged references must be resolved in the same bead
 - Build phases: run test/vet on touched packages only. Full validation: `go test ./...`, `go vet ./...`, `go build ./...`
 - `test_touched.sh` tests all branch-modified packages. Pre-existing failures in touched packages block new beads — verify target packages pass before starting dependent work
 
