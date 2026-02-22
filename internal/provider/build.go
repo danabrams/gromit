@@ -70,7 +70,18 @@ func BuildRouterFromConfig(cfg *config.Config) (*Router, error) {
 	}
 
 	if len(cfg.Providers) > 0 {
-		return nil, fmt.Errorf("provider routing not implemented")
+		providers, err := BuildProvidersFromConfig(cfg)
+		if err != nil {
+			return nil, err
+		}
+		return NewRouter(
+			providers,
+			cfg.Routing.PhasePreferences,
+			cfg.Routing.Ratio,
+			ParseFallbackCooldown(cfg),
+			nil,
+			nil,
+		), nil
 	}
 
 	client, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, cfg.Claude.Timeout)
