@@ -17,6 +17,38 @@ import (
 	"github.com/danabrams/gromit/internal/pipeline/prepare"
 )
 
+// TestDecomposerAdapter_Decompose_CreatesChildBeads verifies that decomposerAdapter.Decompose
+// actually calls bead.Client to create child beads when decomposing an oversized bead,
+// rather than returning nil without performing any work.
+func TestDecomposerAdapter_Decompose_CreatesChildBeads(t *testing.T) {
+	client, err := bead.NewClient()
+	if err != nil {
+		t.Fatalf("bead.NewClient: %v", err)
+	}
+	var createCalled bool
+	client.RunFn = func(args ...string) (string, error) {
+		if len(args) > 0 && args[0] == "create" {
+			createCalled = true
+			return `{"id":"child-1","title":"part 1","status":"open"}`, nil
+		}
+		return "", nil
+	}
+
+	adapter := &decomposerAdapter{beads: client}
+	b := &bead.Bead{
+		ID:              "over-1",
+		Title:           "oversized bead",
+		ExpectedOutputs: []string{"f1", "f2", "f3", "f4", "f5", "f6"},
+	}
+
+	if err := adapter.Decompose(context.Background(), b); err != nil {
+		t.Fatalf("Decompose returned error: %v", err)
+	}
+	if !createCalled {
+		t.Error("Decompose did not call bead.Client to create child beads; want child bead creation for oversized beads")
+	}
+}
+
 // TestDecomposerAdapter_DecomposeSucceeds verifies that decomposerAdapter.Decompose
 // returns nil when asked to decompose an oversized bead, indicating the decomposition
 // workflow ran (creating child beads) rather than erroring with "not yet implemented".
