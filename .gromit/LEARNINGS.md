@@ -80,7 +80,7 @@ The `var _ = Type{}` pattern in files like callbacks_validation.go is used as a 
 
 The BuildFromReviewLabels consolidation across pipeline, pipeline/review, and runner/reviewpkg is a clean pattern — one exported function in the parent package, callers in child packages import it. Deprecated wrappers should be removed once all callers migrate. File extraction pattern (callbacks.go → callbacks_methodology_exec.go, constructor.go → constructor_adapters.go, process_methodology.go → process_methodology_atdd.go) is enforced by file_size_test.go with a 550-line limit; size enforcement tests are a good guardrail against file bloat. The Orchestrator path and legacy Runner path have separate code for the same operations (cost tracking, state saving, failure learning) — features wired in one path may be silently missing in the other (e.g., Build stage Output fields not populated). TDD LogPhaseFn follows the FnField mock pattern correctly — nil-safe with explicit nil check before call, injected via deps struct. Non-deterministic map iteration in logging functions is easy to miss in Go; always sort keys when producing human-readable or machine-parseable output from maps.
 
-### 2026-02-22 | gromit-tt5qn | conventions
+### 2026-02-22 | PUBLIC_API_REMOVAL_REQUIRES_SYSTEMATIC_MIGRATION | conventions
 When removing public APIs from core packages like runner/, must systematically find all call sites, complete migrations before deletion, and verify test coverage for new API patterns—interdependencies between orchestration components require careful refactoring order.
 
 ### 2026-02-22 | BUILD_TAG_GATED_TESTS_INVISIBLE_DURING_MIGRATION | conventions
