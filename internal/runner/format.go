@@ -379,14 +379,18 @@ func formatModelPerformance(stats map[string]logger.ModelStats) string {
 
 	for _, m := range models {
 		s := stats[m]
+		displayModel := m
+		if strings.TrimSpace(displayModel) == "" {
+			displayModel = "(unknown model)"
+		}
 		if s.Iterations == 0 {
-			lines = append(lines, fmt.Sprintf("  %s: no iterations", m))
+			lines = append(lines, fmt.Sprintf("  %s: no iterations", displayModel))
 			continue
 		}
 		pct := int(math.Round(s.SuccessRate() * 100))
 		costPerIter := s.TotalCostUSD / float64(s.Iterations)
 		lines = append(lines, fmt.Sprintf("  %s: %d%% (%d/%d) $%.2f/iter",
-			m, pct, s.Successes, s.Iterations, costPerIter))
+			displayModel, pct, s.Successes, s.Iterations, costPerIter))
 	}
 
 	return strings.Join(lines, "\n")

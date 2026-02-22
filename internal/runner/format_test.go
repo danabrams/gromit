@@ -365,6 +365,13 @@ func TestFormatModelPerformance(t *testing.T) {
 			},
 			wantSubstrings: []string{"$0.33/iter"},
 		},
+		{
+			name: "blank model name uses fallback label",
+			stats: map[string]logger.ModelStats{
+				"": {Model: "", Iterations: 2, Successes: 1, Failures: 1, TotalCostUSD: 0.0},
+			},
+			wantSubstrings: []string{"(unknown model)", "50%", "(1/2)", "$0.00/iter"},
+		},
 	}
 
 	for _, tt := range tests {
