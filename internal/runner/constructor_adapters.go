@@ -209,7 +209,8 @@ type decomposerAdapter struct {
 }
 
 func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
-	return nil
+	_, err := a.beads.CreateWithParent(b.Title+" (decomposed)", b.Priority, b.Labels, b.ExpectedOutputs, b.ID)
+	return err
 }
 
 // failureLearnerAdapter wraps analyzer and related dependencies to satisfy epilogue.FailureLearner.
