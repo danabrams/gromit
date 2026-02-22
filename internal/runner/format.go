@@ -305,8 +305,8 @@ func formatSPCSummary(trend *logger.ProcessTrend) string {
 // When isDuration is true, values are shown as milliseconds; otherwise as percentages.
 func formatSPCLine(label string, cl logger.TrendControlLimit, isDuration bool) string {
 	if isDuration {
-		return fmt.Sprintf("  %-10s %dms, limits %dms..%dms",
-			label, int(math.Round(cl.Latest)), int(math.Round(cl.LCL)), int(math.Round(cl.UCL)))
+		return fmt.Sprintf("  %-10s %s, limits %s..%s",
+			label, formatSPCValue(cl.Latest, false), formatSPCValue(cl.LCL, false), formatSPCValue(cl.UCL, false))
 	}
 	return fmt.Sprintf("  %-10s %d%%, limits %d%%..%d%%",
 		label, int(math.Round(cl.Latest*100)), int(math.Round(cl.LCL*100)), int(math.Round(cl.UCL*100)))
