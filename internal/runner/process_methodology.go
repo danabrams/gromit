@@ -244,6 +244,14 @@ func extractRequirementsFromDescription(description string) []string {
 				}
 			}
 		}
+		// Bulleted list: "- item", "* item", "+ item"
+		if len(line) >= 2 && (line[0] == '-' || line[0] == '*' || line[0] == '+') && line[1] == ' ' {
+			item := strings.TrimSpace(line[1:])
+			if item != "" {
+				results = append(results, item)
+				continue
+			}
+		}
 	}
 	return results
 }
