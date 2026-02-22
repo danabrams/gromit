@@ -67,25 +67,4 @@ func (c *Config) NormalizeNilFields() {
 	if c.Routing.Ratio == nil {
 		c.Routing.Ratio = make(map[string]int)
 	}
-	if c.Methodology.BuildStrategy == "" {
-		c.Methodology.BuildStrategy = "single_pass"
-	}
-	if c.Methodology.PhaseModels.Decompose == "" {
-		c.Methodology.PhaseModels.Decompose = "medium"
-	}
-	if c.Methodology.PhaseModels.Build == "" {
-		c.Methodology.PhaseModels.Build = "medium"
-	}
-	if c.Methodology.PhaseModels.Red == "" {
-		c.Methodology.PhaseModels.Red = "low"
-	}
-	if c.Methodology.PhaseModels.Green == "" {
-		c.Methodology.PhaseModels.Green = "medium"
-	}
-	if c.Methodology.PhaseModels.Refactor == "" {
-		c.Methodology.PhaseModels.Refactor = "low"
-	}
-	if c.Refactor.MinFilesChanged == 0 {
-		c.Refactor.MinFilesChanged = 3
-	}
 }
