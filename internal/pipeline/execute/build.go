@@ -109,7 +109,7 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 
 	if strategy == "tdd" && in.Config != nil {
 		methodology = MethodologyTDD
-	} else if strategy == "single_pass" && hasBuildStrategyLabel(in.Bead, "build_strategy:single_pass") && methodology == MethodologyTDD {
+	} else if strategy == "single_pass" {
 		methodology = MethodologyStandard
 	}
 
