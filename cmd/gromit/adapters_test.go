@@ -271,3 +271,80 @@ func TestRetroRouterAdapterStreamRun_RetriesOnUsageLimitResultWithoutError(t *te
 		t.Fatalf("marked unavailable provider = %q, want %q", markedUnavailable, "first")
 	}
 }
+
+func TestRetroRouterAdapterStreamRun_ReturnsProviderExhaustedErrorAfterUsageLimit(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	wantPrompt := "retro stream prompt"
+	wantTier := provider.TierLow
+	wantPhase := "retro"
+	usageErr := context.DeadlineExceeded
+
+	streamRunCalls := 0
+	selectCalls := 0
+	markedUnavailable := ""
+
+	firstProvider := &reviewProviderStub{
+		NameFn: func() string { return "first" },
+		StreamRunFn: func(runCtx context.Context, prompt string, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			streamRunCalls++
+			if runCtx != ctx {
+				t.Fatalf("ctx mismatch")
+			}
+			if prompt != wantPrompt {
+				t.Fatalf("prompt = %q, want %q", prompt, wantPrompt)
+			}
+			if tier != wantTier {
+				t.Fatalf("tier = %q, want %q", tier, wantTier)
+			}
+			return nil, usageErr
+		},
+		IsUsageLimitErrorFn: func(result *provider.Result, err error) bool {
+			return result == nil && err == usageErr
+		},
+	}
+
+	mockRouter := &reviewRouterStub{
+		SelectFn: func(phase string, tier string) (provider.Provider, string) {
+			if phase != wantPhase {
+				t.Fatalf("phase = %q, want %q", phase, wantPhase)
+			}
+			if tier != wantTier {
+				t.Fatalf("tier = %q, want %q", tier, wantTier)
+			}
+			selectCalls++
+			if selectCalls == 1 {
+				return firstProvider, "selected-first-model"
+			}
+			return nil, ""
+		},
+		MarkUnavailableFn: func(name string) {
+			markedUnavailable = name
+		},
+	}
+	adapter := &retroRouterAdapter{
+		Router: mockRouter,
+		Phase:  wantPhase,
+	}
+
+	got, err := adapter.StreamRun(ctx, wantPrompt, wantTier, io.Discard, nil, nil)
+	if err == nil {
+		t.Fatal("StreamRun() error = nil, want provider exhausted error")
+	}
+	if got != nil {
+		t.Fatalf("StreamRun() result = %#v, want nil when providers are exhausted", got)
+	}
+	if err.Error() != `no providers available for phase "retro" and tier "low"` {
+		t.Fatalf("StreamRun() error = %q, want %q", err.Error(), `no providers available for phase "retro" and tier "low"`)
+	}
+	if streamRunCalls != 1 {
+		t.Fatalf("first provider StreamRun calls = %d, want 1", streamRunCalls)
+	}
+	if selectCalls != 2 {
+		t.Fatalf("router Select calls = %d, want 2", selectCalls)
+	}
+	if markedUnavailable != "first" {
+		t.Fatalf("marked unavailable provider = %q, want %q", markedUnavailable, "first")
+	}
+}
