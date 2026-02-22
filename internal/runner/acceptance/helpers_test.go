@@ -8,6 +8,7 @@ package acceptance_test
 import (
 	"context"
 	"io"
+	"testing"
 	"time"
 
 	"github.com/danabrams/gromit/internal/analyzer"
@@ -585,3 +586,21 @@ func configureWorktreeMerge(cfg *config.Config, enabled bool, mode string) {
 
 // Ensure unused import is used (time is used in structs above).
 var _ = time.Now
+
+func TestMockPromptRendererBuildContextPassesPhase(t *testing.T) {
+	var capturedPhase string
+	m := &mockPromptRenderer{
+		BuildContextFn: func(b *bead.Bead, parent *bead.Bead, iteration int, model string, phase string) (*prompt.Context, error) {
+			capturedPhase = phase
+			return &prompt.Context{}, nil
+		},
+	}
+
+	_, err := m.BuildContext(&bead.Bead{ID: "b1"}, nil, 1, "test-model", "tdd_red")
+	if err != nil {
+		t.Fatalf("BuildContext returned error: %v", err)
+	}
+	if capturedPhase != "tdd_red" {
+		t.Fatalf("captured phase = %q, want %q", capturedPhase, "tdd_red")
+	}
+}
