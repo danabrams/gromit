@@ -123,6 +123,60 @@ func TestOrchestratorHelper_StatusWithLiveRun(t *testing.T) {
 	}
 }
 
+// TestOrchestratorHelper_StatusLivePID tests that PrintStatus shows run-in-progress
+// info when the status file references a live PID (current process).
+func TestOrchestratorHelper_StatusLivePID(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("Failed to create gromit dir: %v", err)
+	}
+
+	cfg := &config.Config{}
+	cfg.Paths.Specs = filepath.Join(gromitDir, "specs")
+	cfg.Paths.Plans = filepath.Join(gromitDir, "plans")
+
+	// Write a status file with live PID (current process)
+	sw, _ := runner.NewStatusWriter(gromitDir)
+	if err := sw.Write(3, "running-bead-789", "Running Bead Title", "opus", true, 0, 0); err != nil {
+		t.Fatalf("Failed to write status file: %v", err)
+	}
+
+	var buf strings.Builder
+	if err := runner.PrintStatus(gromitDir, cfg, &buf, nil); err != nil {
+		t.Fatalf("PrintStatus() failed: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Run: iteration 3") {
+		t.Errorf("Expected 'Run: iteration 3' for live PID, got: %s", output)
+	}
+	if !strings.Contains(output, "running-bead-789") {
+		t.Errorf("Expected bead ID in output, got: %s", output)
+	}
+	if !strings.Contains(output, "Running Bead Title") {
+		t.Errorf("Expected bead title in output, got: %s", output)
+	}
+	if !strings.Contains(output, "Model:    opus") {
+		t.Errorf("Expected model in output, got: %s", output)
+	}
+	if strings.Contains(output, "stale run") {
+		t.Errorf("Should not show stale run for live PID, got: %s", output)
+	}
+	if !strings.Contains(output, "Pipeline:") {
+		t.Errorf("Expected Pipeline section, got: %s", output)
+	}
+	if !strings.Contains(output, "Health:") {
+		t.Errorf("Expected Health section, got: %s", output)
+	}
+
+	// Status file should still exist (not deleted for live run)
+	statusPath := filepath.Join(gromitDir, "status.json")
+	if _, err := os.Stat(statusPath); err != nil {
+		t.Errorf("Status file should still exist for live run: %v", err)
+	}
+}
+
 // getDeadPID finds a PID that is not currently alive.
 func getDeadPID(t *testing.T) int {
 	t.Helper()
@@ -135,87 +189,6 @@ func getDeadPID(t *testing.T) int {
 	}
 	t.Fatal("failed to find a dead PID in probe range")
 	return 0
-}
-
-func TestRunner_Status_LivePID(t *testing.T) {
-	// Setup
-	tmpDir := t.TempDir()
-	gromitDir := filepath.Join(tmpDir, ".gromit")
-	if err := os.MkdirAll(gromitDir, 0755); err != nil {
-		t.Fatalf("Failed to create gromit dir: %v", err)
-	}
-
-	var buf strings.Builder
-	cfg := &config.Config{}
-	cfg.Paths.Specs = filepath.Join(gromitDir, "specs")
-	cfg.Paths.Plans = filepath.Join(gromitDir, "plans")
-
-	mockBeads := &mockBeadClient{
-		ReadyFn: func() (*bead.Bead, error) {
-			return &bead.Bead{
-				ID:       "test-456",
-				Title:    "Next Bead",
-				Priority: 1,
-				Labels:   []string{},
-			}, nil
-		},
-	}
-
-	r, err := runner.NewRunnerWithDeps(cfg, &buf, gromitDir, runner.Deps{
-		Beads:    mockBeads,
-		Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
-		Analyzer: &mockFailureAnalyzer{},
-		Renderer: &mockPromptRenderer{},
-		Logger:   &mockIterationLogger{},
-	})
-	if err != nil {
-		t.Fatalf("NewRunnerWithDeps failed: %v", err)
-	}
-
-	// Write a status file with live PID (current process)
-	sw, _ := runner.NewStatusWriter(gromitDir)
-	err = sw.Write(3, "running-bead-789", "Running Bead Title", "opus", true, 0, 0)
-	if err != nil {
-		t.Fatalf("Failed to write status file: %v", err)
-	}
-
-	// Execute
-	err = r.Status()
-	if err != nil {
-		t.Fatalf("Status() failed: %v", err)
-	}
-
-	// Verify - should show run-in-progress info in new format
-	output := buf.String()
-	if !strings.Contains(output, "Run: iteration 3") {
-		t.Errorf("Expected 'Run: iteration 3' message for live PID, got: %s", output)
-	}
-	if !strings.Contains(output, "running-bead-789") {
-		t.Errorf("Expected bead ID in output, got: %s", output)
-	}
-	if !strings.Contains(output, "Running Bead Title") {
-		t.Errorf("Expected bead title in output, got: %s", output)
-	}
-	if !strings.Contains(output, "Model:    opus") {
-		t.Errorf("Expected model in output, got: %s", output)
-	}
-	if strings.Contains(output, "stale run") {
-		t.Errorf("Should not show stale run message for live PID, got: %s", output)
-	}
-
-	// Should show pipeline and health sections
-	if !strings.Contains(output, "Pipeline:") {
-		t.Errorf("Expected Pipeline section in output, got: %s", output)
-	}
-	if !strings.Contains(output, "Health:") {
-		t.Errorf("Expected Health section in output, got: %s", output)
-	}
-
-	// Verify status file still exists (not deleted for live run)
-	statusPath := filepath.Join(gromitDir, "status.json")
-	if _, err := os.Stat(statusPath); err != nil {
-		t.Errorf("Status file should still exist for live run: %v", err)
-	}
 }
 
 func TestRunner_Status_DeadPID(t *testing.T) {
