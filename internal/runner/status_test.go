@@ -119,6 +119,55 @@ func TestPrintStatus_RecomputesScopedIterationTotalOnEachCall(t *testing.T) {
 	}
 }
 
+func TestPrintStatus_RecomputesScopedIterationTotal_WhenScopeLabelMissing(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	sw, err := NewStatusWriter(gromitDir)
+	if err != nil {
+		t.Fatalf("NewStatusWriter: %v", err)
+	}
+	// Intentionally do NOT set scope label to simulate an older running process.
+	sw.SetIterationTotal(1) // stale
+	if err := sw.Write(1, "bead-scoped", "Scoped run", "haiku", true, 0, 0); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	origFactory := newBeadClientForStatus
+	t.Cleanup(func() { newBeadClientForStatus = origFactory })
+	newBeadClientForStatus = func() (*bead.Client, error) {
+		return &bead.Client{
+			RunFn: func(args ...string) (string, error) {
+				if len(args) > 0 && args[0] == "show" {
+					return `[{"id":"bead-scoped","title":"Scoped run","issue_type":"task","status":"in_progress","labels":["spec:auth"]}]`, nil
+				}
+				return `[
+					{"id":"task-1","title":"A","issue_type":"task","status":"open"},
+					{"id":"task-2","title":"B","issue_type":"task","status":"open"},
+					{"id":"task-3","title":"C","issue_type":"task","status":"closed"}
+				]`, nil
+			},
+		}, nil
+	}
+
+	cfg := &config.Config{}
+	cfg.Paths.Specs = filepath.Join(tmpDir, "specs")
+	cfg.Paths.Plans = filepath.Join(tmpDir, "plans")
+
+	var buf strings.Builder
+	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }); err != nil {
+		t.Fatalf("PrintStatus: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Run: iteration 1 of 2") {
+		t.Fatalf("expected inferred scoped total in run line, got:\n%s", output)
+	}
+}
+
 // TestPrintStatus_ShowsModelAndTimeBudget verifies that PrintStatus reads
 // status.json and includes both model and time budget in the display output.
 // The round-trip through the file is verified first, then the test fails

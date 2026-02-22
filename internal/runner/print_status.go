@@ -107,9 +107,6 @@ func refreshScopedIterationTotal(status *Status, gromitDir string) {
 	if status == nil || !status.Running || status.Iteration <= 0 {
 		return
 	}
-	if !strings.HasPrefix(status.ScopeLabel, "spec:") {
-		return
-	}
 
 	client, err := newBeadClientForStatus()
 	if err != nil || client == nil {
@@ -117,11 +114,38 @@ func refreshScopedIterationTotal(status *Status, gromitDir string) {
 	}
 	client.Dir = filepath.Dir(gromitDir)
 
-	total, err := estimateScopedIterationTotal(client, status.ScopeLabel, status.Iteration)
+	scopeLabel := resolveScopedProgressLabel(status, client)
+	if !strings.HasPrefix(scopeLabel, "spec:") {
+		return
+	}
+
+	total, err := estimateScopedIterationTotal(client, scopeLabel, status.Iteration)
 	if err != nil || total <= 0 {
 		return
 	}
 	status.IterationTotal = total
+}
+
+func resolveScopedProgressLabel(status *Status, client *bead.Client) string {
+	if status == nil || client == nil {
+		return ""
+	}
+	if strings.HasPrefix(status.ScopeLabel, "spec:") {
+		return status.ScopeLabel
+	}
+	if status.BeadID == "" {
+		return ""
+	}
+	b, err := client.Show(status.BeadID)
+	if err != nil || b == nil {
+		return ""
+	}
+	for _, label := range b.Labels {
+		if strings.HasPrefix(label, "spec:") {
+			return label
+		}
+	}
+	return ""
 }
 
 // handleStalePID checks whether status indicates a stale run (Running=true but
