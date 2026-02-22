@@ -33,6 +33,9 @@ func Load(path string) (*Config, error) {
 }
 
 func (c *Config) applyPostLoadNormalization(matchBuildModelConfigured bool) {
+	c.Review.Tier = normalizeConfiguredTier(c.Review.Tier)
+	c.Review.Thorough.Tier = normalizeConfiguredTier(c.Review.Thorough.Tier)
+
 	if c.Review.Tier == "" {
 		if normalizedTier := normalizedLegacyModelTier(c.Review.Model); normalizedTier != "" {
 			c.Review.Tier = normalizedTier
@@ -57,6 +60,10 @@ func normalizedLegacyModelTier(model string) string {
 		return ""
 	}
 	return tier
+}
+
+func normalizeConfiguredTier(tier string) string {
+	return strings.ToLower(strings.TrimSpace(tier))
 }
 
 func warnConfigDeprecation(message string) {
