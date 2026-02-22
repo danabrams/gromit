@@ -14,6 +14,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/pipeline/prepare"
 )
 
 // stubFailureAnalyzer is a test double for FailureAnalyzer.
@@ -222,5 +223,38 @@ func TestNewRunnerImpl_StatusWriterComputesTimeBudgetFromDeadline(t *testing.T) 
 	if status.TimeBudgetMinutes < 29 || status.TimeBudgetMinutes > 31 {
 		t.Errorf("status.TimeBudgetMinutes = %d; want approximately 30 (computed from deadline)",
 			status.TimeBudgetMinutes)
+	}
+}
+
+// TestNewRunnerImpl_GateStageHasDecomposerConfigured verifies that newRunnerImpl
+// wires a Decomposer implementation into the Gate stage so that oversized beads
+// can be auto-decomposed instead of blocked.
+func TestNewRunnerImpl_GateStageHasDecomposerConfigured(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	_ = os.MkdirAll(filepath.Join(gromitDir, "templates"), 0o755)
+	_ = os.MkdirAll(filepath.Join(gromitDir, "specs"), 0o755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "logs"), 0o755)
+
+	cfg := &config.Config{}
+	cfg.Paths.Templates = filepath.Join(gromitDir, "templates")
+	cfg.Paths.Specs = filepath.Join(gromitDir, "specs")
+	cfg.Paths.Logs = filepath.Join(tmpDir, "logs")
+
+	orch, err := newRunnerImpl(cfg, io.Discard, nil)
+	if err != nil {
+		t.Fatalf("newRunnerImpl: %v", err)
+	}
+
+	// Type-assert the Gate to *prepare.Gate to verify it's configured with a Decomposer.
+	gateStage, ok := orch.cfg.Gate.(*prepare.Gate)
+	if !ok {
+		t.Fatalf("Gate stage is %T, want *prepare.Gate", orch.cfg.Gate)
+	}
+
+	// The Gate should have a Decomposer configured so it can auto-decompose
+	// oversized beads instead of blocking them.
+	if !gateStage.HasDecomposer() {
+		t.Fatal("Gate.HasDecomposer() returned false; want Decomposer wired in constructor for scope-triggered auto-decomposition")
 	}
 }
