@@ -329,6 +329,13 @@ func extractRequirementsViaLLM(ctx context.Context, title, description string, i
 }
 
 func applyLayer3Requirements(ctx context.Context, outputs []string, title, description string, invoke func(ctx context.Context, prompt, tier string) (*provider.Result, error)) ([]string, bool) {
+	if len(outputs) > 1 {
+		return outputs, false
+	}
+	llmOutputs := extractRequirementsViaLLM(ctx, title, description, invoke)
+	if llmOutputs != nil {
+		return llmOutputs, true
+	}
 	return outputs, false
 }
 
