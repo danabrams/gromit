@@ -230,6 +230,34 @@ func TestAssembleCycleStateSetsDoneWhenLastRemainingConsumed(t *testing.T) {
 	}
 }
 
+func TestAssembleRedHandoffCycleSummaryIncludesTouchedFiles(t *testing.T) {
+	state := CycleState{
+		CycleNumber:  2,
+		MaxCycles:    3,
+		CoveredSoFar: []string{"users can log in"},
+		Remaining:    []string{"users can log out"},
+		TouchedFiles: []string{"internal/auth/login_test.go", "internal/auth/login.go"},
+	}
+
+	readFile := fakeReadFile(map[string]string{
+		"internal/auth/login_test.go": "package auth",
+		"internal/auth/login.go":      "package auth",
+	})
+	getDiff := fakeGetDiff()
+
+	handoff, err := AssembleRedHandoff(state, readFile, getDiff)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(handoff.CycleSummary, "login_test.go") {
+		t.Fatalf("expected CycleSummary to contain test file name, got %q", handoff.CycleSummary)
+	}
+	if !strings.Contains(handoff.CycleSummary, "login.go") {
+		t.Fatalf("expected CycleSummary to contain impl file name, got %q", handoff.CycleSummary)
+	}
+}
+
 func TestAssembleRedHandoffPopulatesCycleSummaryWithCompletedRequirements(t *testing.T) {
 	state := CycleState{
 		CycleNumber:  2,
