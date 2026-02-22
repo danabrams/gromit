@@ -11,6 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
 	reviewstage "github.com/danabrams/gromit/internal/pipeline/review"
+	"github.com/danabrams/gromit/internal/prompt"
 )
 
 // fakeInvoker is a test double for reviewstage.Invoker.
@@ -57,6 +58,25 @@ func (f *fakePromptRenderer) RenderReview(beadTitle, diff string) (string, error
 		return f.renderFn(beadTitle, diff)
 	}
 	return "# Review Prompt", nil
+}
+
+type phaseAwarePromptRenderer struct {
+	renderFn    func(ctx *prompt.ReviewContext) (string, error)
+	loadRulesFn func(phase string) (string, error)
+}
+
+func (f *phaseAwarePromptRenderer) RenderReview(ctx *prompt.ReviewContext) (string, error) {
+	if f.renderFn != nil {
+		return f.renderFn(ctx)
+	}
+	return "# Review Prompt", nil
+}
+
+func (f *phaseAwarePromptRenderer) LoadRulesForPhase(phase string) (string, error) {
+	if f.loadRulesFn != nil {
+		return f.loadRulesFn(phase)
+	}
+	return "# Rules", nil
 }
 
 func makeBead(id, title string) *bead.Bead {
@@ -203,6 +223,51 @@ func TestReviewStage_UsesReviewTierForInvocation(t *testing.T) {
 
 	if invokedTier != "low" {
 		t.Fatalf("StreamRun tier = %q, want %q", invokedTier, "low")
+	}
+}
+
+func TestReviewStage_AppliesReviewPhaseProfile(t *testing.T) {
+	invoker := &fakeInvoker{
+		streamRunFn: func(_ context.Context, _, _ string, _ io.Writer) (string, error) {
+			return `{"passed": true, "fixes_applied": [], "beads_to_create": [], "backlog_items": [], "summary": "ok"}`, nil
+		},
+	}
+	beads := &fakeBeadCreator{}
+	var capturedCtx *prompt.ReviewContext
+	renderer := &phaseAwarePromptRenderer{
+		renderFn: func(ctx *prompt.ReviewContext) (string, error) {
+			capturedCtx = ctx
+			return "# Review Prompt", nil
+		},
+		loadRulesFn: func(phase string) (string, error) {
+			if phase != "review" {
+				t.Fatalf("LoadRulesForPhase phase = %q, want %q", phase, "review")
+			}
+			return "# review rules", nil
+		},
+	}
+	gitDiff := func() (string, error) { return "diff --git a/foo.go", nil }
+
+	stage := reviewstage.New(invoker, beads, renderer, gitDiff, io.Discard)
+	in := makeInput(makeBead("bead-1", "Profiled review"), makeConfig(true))
+	if _, err := stage.Run(context.Background(), in); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if capturedCtx == nil {
+		t.Fatal("RenderReview context was not captured")
+	}
+	if capturedCtx.Rules != "# review rules" {
+		t.Fatalf("Rules = %q, want %q", capturedCtx.Rules, "# review rules")
+	}
+	if capturedCtx.Spec != "" {
+		t.Fatalf("Spec = %q, want empty after review phase profile", capturedCtx.Spec)
+	}
+	if capturedCtx.ClaudeMD != "" {
+		t.Fatalf("ClaudeMD = %q, want empty after review phase profile", capturedCtx.ClaudeMD)
+	}
+	if len(capturedCtx.ValidationCommands) != 0 {
+		t.Fatalf("ValidationCommands = %v, want empty after review phase profile", capturedCtx.ValidationCommands)
 	}
 }
 
