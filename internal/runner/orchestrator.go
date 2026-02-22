@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -162,6 +163,7 @@ runLoop:
 		if validateErr != nil || validateOut.Decision != pipeline.Proceed {
 			// Accumulate failure summaries for the next Build invocation.
 			validationFailures = validateOut.ValidationFailures
+			baseIn.FailureOutput = strings.Join(validateOut.ValidationFailures, "\n")
 			baseIn.Result = &logger.IterationLog{
 				Timestamp: time.Now(),
 				Iteration: iteration,
