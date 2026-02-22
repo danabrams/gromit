@@ -11,6 +11,16 @@ import (
 	"github.com/danabrams/gromit/internal/pipeline"
 )
 
+// SPC metric name constants used for ProcessTrend control limits.
+const (
+	spcMetricRollingSuccessRate   = "rolling_success_rate"
+	spcMetricRollingEscalateRate  = "rolling_escalation_rate"
+	spcMetricRollingQualityScore  = "rolling_quality_score"
+	spcMetricRollingAvgDurationMs = "rolling_avg_duration_ms"
+	spcMetricFirstPassSuccessRate = "rolling_first_pass_success_rate"
+	spcMetricRollingAvgCostUSD    = "rolling_avg_cost_usd"
+)
+
 // formatDuration formats a duration as a human-readable string.
 func formatDuration(d time.Duration) string {
 	secs := int(math.Round(d.Seconds()))
