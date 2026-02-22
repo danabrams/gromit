@@ -62,6 +62,14 @@ func TestAnalyzerWithProvider(t *testing.T) {
 	}
 }
 
+func TestMockRendererBuildContextAcceptsPhase(t *testing.T) {
+	m := &mockRenderer{}
+	_, err := m.BuildContext(&bead.Bead{ID: "test-123"}, nil, 1, "haiku", "build")
+	if err != nil {
+		t.Fatalf("BuildContext should succeed, got error: %v", err)
+	}
+}
+
 // mockProvider implements a mock Provider for testing
 type mockProvider struct {
 	FnRun           func(ctx context.Context, prompt string, tier string) (*provider.Result, error)
