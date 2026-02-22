@@ -38,6 +38,21 @@ func TestBuildFromReviewLabels_DeduplicatesExistingLabel(t *testing.T) {
 	}
 }
 
+// TestBuildFromReviewLabels_PreservesOriginalLabelsOrder verifies that original labels
+// appear after from-review in the same order.
+func TestBuildFromReviewLabels_PreservesOriginalLabelsOrder(t *testing.T) {
+	labels := BuildFromReviewLabels([]string{"bug", "enhancement", "docs"})
+	if len(labels) != 4 {
+		t.Errorf("got %d labels, want 4", len(labels))
+	}
+	expected := []string{"from-review", "bug", "enhancement", "docs"}
+	for i, label := range expected {
+		if labels[i] != label {
+			t.Errorf("labels[%d] = %q, want %q", i, labels[i], label)
+		}
+	}
+}
+
 // TestReviewInteractiveWorkflow_BuildsContextAndReturnsSession verifies ReviewInteractive validates dependencies,
 // builds ThoroughReviewContext, renders prompt, writes temp file, resolves agent, and returns ReviewSession.
 // Expected failure: Pipeline.ReviewInteractive method does not exist yet
