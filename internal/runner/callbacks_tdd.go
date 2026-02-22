@@ -17,7 +17,14 @@ import (
 // buildTDDCycleRunner creates a TDDCycleRunner adapter backed by a Runner with a
 // configured tddOrchestrator. Inject the result into execute.Build via WithTDDCycleRunner.
 func buildTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *provider.Router, output io.Writer) execute.TDDCycleRunner {
-	r := &Runner{cfg: cfg}
+	r := &Runner{
+		cfg: cfg,
+		tddOrchestrator: &tddOrchestrator{
+			runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, criteria []coverage.Criterion) error {
+				return fmt.Errorf("TDD cycle execution not yet implemented")
+			},
+		},
+	}
 	return &TDDPipelineAdapter{runner: r}
 }
 
