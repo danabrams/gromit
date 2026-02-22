@@ -2,6 +2,8 @@ package runner
 
 import (
 	"testing"
+
+	"github.com/danabrams/gromit/internal/bead"
 )
 
 func TestExtractRequirementsFromDescription_BulletedList(t *testing.T) {
@@ -101,6 +103,27 @@ func TestExtractRequirementsFromDescription_NumberedList(t *testing.T) {
 	input := "Some preamble\n1. do this\n2. do that\n3. do the other thing"
 	got := extractRequirementsFromDescription(input)
 	want := []string{"do this", "do that", "do the other thing"}
+	if len(got) != len(want) {
+		t.Fatalf("got %d items, want %d: %v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("item %d: got %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+// TestTddExpectedOutputsOrTitle_Layer2UsedWhenExpectedOutputsEmpty verifies
+// that when ExpectedOutputs is empty and the description contains parseable
+// requirements, those parsed requirements are returned instead of the title.
+func TestTddExpectedOutputsOrTitle_Layer2UsedWhenExpectedOutputsEmpty(t *testing.T) {
+	b := &bead.Bead{
+		ID:          "test-bead",
+		Title:       "Bead Title",
+		Description: "- req one\n- req two",
+	}
+	got := tddExpectedOutputsOrTitle(b)
+	want := []string{"req one", "req two"}
 	if len(got) != len(want) {
 		t.Fatalf("got %d items, want %d: %v", len(got), len(want), got)
 	}
