@@ -1,7 +1,6 @@
 package runner
 
 import (
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -54,11 +53,7 @@ func TestPrintStatus_ShowsModelAndTimeBudget(t *testing.T) {
 	// PrintStatus must exist as the exported entry point for "gromit status" display.
 	// This call site will be filled in during the GREEN phase.
 	cfg := &config.Config{}
-	var printStatus func(string, *config.Config, io.Writer, func(int) bool) error
-	if printStatus == nil {
-		t.Fatal("PrintStatus not yet implemented; need exported function " +
-			"PrintStatus(gromitDir string, cfg *config.Config, w io.Writer, processChecker func(int) bool) error")
-	}
+	printStatus := PrintStatus
 	var buf strings.Builder
 	if err := printStatus(gromitDir, cfg, &buf, func(int) bool { return true }); err != nil {
 		t.Fatalf("PrintStatus: %v", err)
