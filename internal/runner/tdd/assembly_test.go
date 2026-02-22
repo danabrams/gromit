@@ -347,3 +347,18 @@ func TestExtractAPISurfaceIncludesInterfaceMethodSignatures(t *testing.T) {
 		t.Fatalf("expected APISurface to contain interface method Close, got %q", surface)
 	}
 }
+
+func TestExtractAPISurfaceIncludesConstVarDeclarations(t *testing.T) {
+	implFiles := map[string]string{
+		"config.go": "package config\n\nconst DefaultTimeout = 30\nvar GlobalConfig Config\n",
+	}
+
+	surface := extractAPISurface(implFiles)
+
+	if !strings.Contains(surface, "const DefaultTimeout = 30") {
+		t.Fatalf("expected APISurface to contain const declaration, got %q", surface)
+	}
+	if !strings.Contains(surface, "var GlobalConfig Config") {
+		t.Fatalf("expected APISurface to contain var declaration, got %q", surface)
+	}
+}
