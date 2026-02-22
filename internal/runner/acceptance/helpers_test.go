@@ -239,7 +239,7 @@ func (m *mockFailureAnalyzer) Analyze(ctx context.Context, b *bead.Bead, failure
 // --- mockPromptRenderer ---
 
 type mockPromptRenderer struct {
-	BuildContextFn          func(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error)
+	BuildContextFn          func(b *bead.Bead, parent *bead.Bead, iteration int, model string, phase string) (*prompt.Context, error)
 	RenderBuildFn           func(ctx *prompt.Context) (string, error)
 	RenderAnalyzeFn         func(ctx *prompt.AnalyzeContext) (string, error)
 	RenderLearnFn           func(ctx *prompt.LearnContext) (string, error)
@@ -268,9 +268,9 @@ type mockPromptRenderer struct {
 	LearningsFile           *learnings.File
 }
 
-func (m *mockPromptRenderer) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, model string) (*prompt.Context, error) {
+func (m *mockPromptRenderer) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, model string, phase string) (*prompt.Context, error) {
 	if m.BuildContextFn != nil {
-		return m.BuildContextFn(b, parent, iteration, model)
+		return m.BuildContextFn(b, parent, iteration, model, phase)
 	}
 	return &prompt.Context{
 		Bead:               b,
