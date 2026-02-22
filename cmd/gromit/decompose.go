@@ -208,17 +208,7 @@ func decomposeSinglePlanInCurrentDir(planName string, cfg *config.Config) error 
 	// Execute decompose workflow
 	fmt.Printf("Decomposing plan '%s' into beads...\n", planName)
 	ctx := context.Background()
-	maxRetries := cfg.Validation.MaxValidationRetries
-	if decomposeMaxRetries >= 0 {
-		maxRetries = decomposeMaxRetries
-	}
-	input := pipeline.DecomposeInput{
-		PlanName:             planName,
-		Force:                decomposeForce,
-		Review:               decomposeReview,
-		SkipValidation:       decomposeSkipValidation,
-		MaxValidationRetries: maxRetries,
-	}
+	input := buildDecomposeInput(planName, cfg)
 
 	result, err := p.Decompose(ctx, input)
 	if err != nil {
@@ -264,6 +254,22 @@ func decomposeSinglePlanInCurrentDir(planName string, cfg *config.Config) error 
 	}
 
 	return nil
+}
+
+func buildDecomposeInput(planName string, cfg *config.Config) pipeline.DecomposeInput {
+	maxRetries := cfg.Validation.MaxValidationRetries
+	if decomposeMaxRetries >= 0 {
+		maxRetries = decomposeMaxRetries
+	}
+
+	return pipeline.DecomposeInput{
+		PlanName:             planName,
+		Force:                decomposeForce,
+		Review:               decomposeReview,
+		SkipValidation:       decomposeSkipValidation,
+		MaxValidationRetries: maxRetries,
+		Tier:                 cfg.Decompose.Tier,
+	}
 }
 
 func buildDecomposeClient(cfg *config.Config) (pipeline.ClaudeClient, error) {
