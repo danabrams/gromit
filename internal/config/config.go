@@ -52,11 +52,12 @@ func (c *Config) applyPostLoadNormalization(matchBuildModelConfigured bool) {
 }
 
 func normalizedLegacyModelTier(model string) string {
-	if model == "" {
+	normalizedModel := strings.TrimSpace(model)
+	if normalizedModel == "" {
 		return ""
 	}
-	tier := tierFromLegacyModel(model)
-	if tier == model {
+	tier := tierFromLegacyModel(normalizedModel)
+	if tier == normalizedModel {
 		return ""
 	}
 	return tier
