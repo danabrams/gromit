@@ -7,6 +7,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/state"
 )
 
 // PrintStatus reads status.json and writes a formatted status display to w.
@@ -49,5 +50,28 @@ func PrintStatus(gromitDir string, cfg *config.Config, w io.Writer, processCheck
 	if _, err := fmt.Fprintln(w, formatPipeline(ps)); err != nil {
 		return fmt.Errorf("writing pipeline status: %w", err)
 	}
+
+	// Health section: read state.json and interactive-state.json
+	var iterationsSinceReview int
+	var lastRetro time.Time
+
+	sf, err := state.NewFile(gromitDir)
+	if err == nil {
+		if err := sf.Load(); err == nil {
+			iterationsSinceReview = sf.IterationsSinceReview()
+		}
+	}
+
+	isf, err := state.NewInteractiveFile(gromitDir)
+	if err == nil {
+		if err := isf.Load(); err == nil {
+			lastRetro = isf.LastRetro()
+		}
+	}
+
+	if _, err := fmt.Fprint(w, formatHealth(lastRetro, iterationsSinceReview)); err != nil {
+		return fmt.Errorf("writing health status: %w", err)
+	}
+
 	return nil
 }
