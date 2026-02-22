@@ -102,6 +102,33 @@ func TestBuildProvidersFromConfig_ClaudeDefaults(t *testing.T) {
 	}
 }
 
+func TestBuildProvidersFromConfig_ClaudeBinaryPathEntry(t *testing.T) {
+	cfg := &config.Config{
+		Claude: config.ClaudeConfig{
+			Timeout: 10,
+		},
+		Providers: map[string]config.ProviderDef{
+			"primary": {
+				Binary: "/usr/local/bin/claude",
+			},
+		},
+	}
+
+	providers, err := provider.BuildProvidersFromConfig(cfg)
+	if err != nil {
+		t.Fatalf("BuildProvidersFromConfig() error = %v", err)
+	}
+
+	claudeProvider, ok := providers["primary"]
+	if !ok {
+		t.Fatalf("providers missing %q entry", "primary")
+	}
+
+	if got := claudeProvider.Name(); got != "claude" {
+		t.Fatalf("provider name = %q, want %q", got, "claude")
+	}
+}
+
 func TestBuildProvidersFromConfig_NilConfig(t *testing.T) {
 	providers, err := provider.BuildProvidersFromConfig(nil)
 	if err == nil {
