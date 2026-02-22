@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 )
 
@@ -243,4 +244,35 @@ func formatItems(items []string, maxShow int) []string {
 	}
 
 	return lines
+}
+
+// formatModelPerformance formats per-model performance statistics for display.
+func formatModelPerformance(stats map[string]logger.ModelStats) string {
+	var lines []string
+	lines = append(lines, "Model Performance:")
+
+	if len(stats) == 0 {
+		return strings.Join(lines, "\n")
+	}
+
+	// Sort model names for deterministic output
+	models := make([]string, 0, len(stats))
+	for m := range stats {
+		models = append(models, m)
+	}
+	sort.Strings(models)
+
+	for _, m := range models {
+		s := stats[m]
+		if s.Iterations == 0 {
+			lines = append(lines, fmt.Sprintf("  %s: no iterations", m))
+			continue
+		}
+		pct := int(math.Round(s.SuccessRate() * 100))
+		costPerIter := s.TotalCostUSD / float64(s.Iterations)
+		lines = append(lines, fmt.Sprintf("  %s: %d%% (%d/%d) $%.2f/iter",
+			m, pct, s.Successes, s.Iterations, costPerIter))
+	}
+
+	return strings.Join(lines, "\n")
 }
