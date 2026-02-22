@@ -72,6 +72,7 @@ type Config struct {
 	Session     SessionConfig          `yaml:"session"`
 	Runbook     RunbookConfig          `yaml:"runbook"`
 	SpecGate    SpecGateConfig         `yaml:"spec_gate"`
+	Decompose   DecomposeConfig        `yaml:"decompose"`
 }
 
 type ModelsConfig struct {
@@ -459,6 +460,10 @@ type SpecGateConfig struct {
 	MaxCycles   int    `yaml:"max_cycles"`
 	Model       string `yaml:"model"`
 	AutoTrigger *bool  `yaml:"auto_trigger"`
+}
+
+type DecomposeConfig struct {
+	Tier string `yaml:"tier"`
 }
 
 // ResolvePhaseTimeoutSeconds returns the configured timeout for a methodology
