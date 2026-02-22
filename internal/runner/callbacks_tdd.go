@@ -51,6 +51,11 @@ func (r *Runner) makeTDDOrchestrator() *tddOrchestrator {
 			criteriaByNumber := criteriaIndexByNumber(criteria)
 
 			orch := tdd.NewCycleOrchestrator(r.cfg, r.output, tdd.CycleOrchestratorDeps{
+				LogPhaseFn: func(cycle int, phase string, detail string) {
+					msg := fmt.Sprintf("TDD fresh-context cycle=%d phase=%s %s", cycle, phase, detail)
+					r.log("%s", msg)
+					r.streamLogger.LogEvent("TDD %s cycle=%d %s", phase, cycle, detail)
+				},
 				RenderRedFn: func(handoff *tdd.RedHandoff, bc *runtypes.BeadContext) (string, error) {
 					if r.renderer == nil {
 						return "", fmt.Errorf("renderer not configured")

@@ -1348,3 +1348,234 @@ func TestRunCycles_RedPass_RespectsMaxCycles(t *testing.T) {
 		t.Fatalf("expected 2 red invocations (max cycles), got %d", redInvocations)
 	}
 }
+
+type phaseLogEntry struct {
+	Cycle  int
+	Phase  string
+	Detail string
+}
+
+func TestLogPhaseFn_FullCycle_LogsExpectedPhases(t *testing.T) {
+	orch := newTestOrchestrator()
+
+	var logged []phaseLogEntry
+	orch.logPhaseFn = func(cycle int, phase string, detail string) {
+		logged = append(logged, phaseLogEntry{Cycle: cycle, Phase: phase, Detail: detail})
+	}
+
+	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "red", nil
+	}
+	orch.renderGreenFn = func(handoff *GreenHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "green", nil
+	}
+	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
+		return nil
+	}
+	validateCall := 0
+	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
+		validateCall++
+		switch validateCall {
+		case 1:
+			return "FAIL", false, nil // Red: tests fail
+		default:
+			return "PASS", true, nil // Green/refactor/final: tests pass
+		}
+	}
+	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
+		return nil
+	}
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{},
+		Tier:   "medium",
+	}
+	state := singleRequirementState()
+
+	err := orch.RunCycles(context.Background(), bc, state)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Expect: red, green, green-pass, refactor
+	expectedPhases := []string{"red", "green", "green-pass", "refactor"}
+	if len(logged) != len(expectedPhases) {
+		t.Fatalf("expected %d phase log entries, got %d: %v", len(expectedPhases), len(logged), logged)
+	}
+	for i, want := range expectedPhases {
+		if logged[i].Phase != want {
+			t.Fatalf("logged[%d].Phase = %q, want %q (all: %v)", i, logged[i].Phase, want, logged)
+		}
+		if logged[i].Cycle != 1 {
+			t.Fatalf("logged[%d].Cycle = %d, want 1", i, logged[i].Cycle)
+		}
+	}
+}
+
+func TestLogPhaseFn_RedSkip_LogsRedAndRedSkip(t *testing.T) {
+	orch := newTestOrchestrator()
+
+	var logged []phaseLogEntry
+	orch.logPhaseFn = func(cycle int, phase string, detail string) {
+		logged = append(logged, phaseLogEntry{Cycle: cycle, Phase: phase, Detail: detail})
+	}
+
+	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "red", nil
+	}
+	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
+		return nil
+	}
+	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
+		return "PASS", true, nil // Red validation passes — criterion already implemented
+	}
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{},
+		Tier:   "medium",
+	}
+	state := singleRequirementState()
+
+	err := orch.RunCycles(context.Background(), bc, state)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	expectedPhases := []string{"red", "red-skip"}
+	if len(logged) != len(expectedPhases) {
+		t.Fatalf("expected %d phase log entries, got %d: %v", len(expectedPhases), len(logged), logged)
+	}
+	for i, want := range expectedPhases {
+		if logged[i].Phase != want {
+			t.Fatalf("logged[%d].Phase = %q, want %q", i, logged[i].Phase, want)
+		}
+	}
+}
+
+func TestLogPhaseFn_NilDoesNotPanic(t *testing.T) {
+	orch := newTestOrchestrator()
+	// logPhaseFn is nil by default in newTestOrchestrator
+
+	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "red", nil
+	}
+	orch.renderGreenFn = func(handoff *GreenHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "green", nil
+	}
+	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
+		return nil
+	}
+	validateCall := 0
+	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
+		validateCall++
+		switch validateCall {
+		case 1:
+			return "FAIL", false, nil
+		default:
+			return "PASS", true, nil
+		}
+	}
+	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
+		return nil
+	}
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{},
+		Tier:   "medium",
+	}
+	state := singleRequirementState()
+
+	// Should not panic with nil logPhaseFn
+	err := orch.RunCycles(context.Background(), bc, state)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLogPhaseFn_RetryAndEscalation_LogsRetryAndEscalate(t *testing.T) {
+	orch := newTestOrchestrator()
+
+	var logged []phaseLogEntry
+	orch.logPhaseFn = func(cycle int, phase string, detail string) {
+		logged = append(logged, phaseLogEntry{Cycle: cycle, Phase: phase, Detail: detail})
+	}
+
+	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "red", nil
+	}
+	orch.renderGreenFn = func(handoff *GreenHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "green", nil
+	}
+
+	invokeAttempts := 0
+	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
+		invokeAttempts++
+		// First two red attempts fail, third (escalated) succeeds
+		if prompt == "red" && invokeAttempts <= 2 {
+			return fmt.Errorf("red invocation failed")
+		}
+		return nil
+	}
+	orch.escalateTierFn = func(currentTier string) string {
+		return "high"
+	}
+
+	validateCall := 0
+	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
+		validateCall++
+		switch validateCall {
+		case 1:
+			return "FAIL", false, nil // Red: tests fail
+		default:
+			return "PASS", true, nil
+		}
+	}
+	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
+		return nil
+	}
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{},
+		Tier:   "medium",
+	}
+	state := singleRequirementState()
+
+	err := orch.RunCycles(context.Background(), bc, state)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Extract just the retry/escalate phases
+	var retryEscalatePhases []string
+	for _, entry := range logged {
+		if entry.Phase == "retry" || entry.Phase == "escalate" {
+			retryEscalatePhases = append(retryEscalatePhases, entry.Phase)
+		}
+	}
+
+	expectedRetryEscalate := []string{"retry", "escalate"}
+	if len(retryEscalatePhases) != len(expectedRetryEscalate) {
+		t.Fatalf("expected retry/escalate phases %v, got %v (all logged: %v)", expectedRetryEscalate, retryEscalatePhases, logged)
+	}
+	for i, want := range expectedRetryEscalate {
+		if retryEscalatePhases[i] != want {
+			t.Fatalf("retryEscalatePhases[%d] = %q, want %q", i, retryEscalatePhases[i], want)
+		}
+	}
+
+	// Verify retry and escalate entries have cycle=0 (as specified)
+	for _, entry := range logged {
+		if (entry.Phase == "retry" || entry.Phase == "escalate") && entry.Cycle != 0 {
+			t.Fatalf("expected cycle=0 for %q phase, got %d", entry.Phase, entry.Cycle)
+		}
+	}
+
+	// Verify escalate detail mentions the target tier
+	for _, entry := range logged {
+		if entry.Phase == "escalate" {
+			if !strings.Contains(entry.Detail, "high") {
+				t.Fatalf("expected escalate detail to mention target tier 'high', got %q", entry.Detail)
+			}
+		}
+	}
+}
