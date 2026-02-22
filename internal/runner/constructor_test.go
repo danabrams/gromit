@@ -42,6 +42,16 @@ func (s *stubRunProvider) IsUsageLimitError(result *provider.Result, err error) 
 func (s *stubRunProvider) IsValidationPassed(result *provider.Result) bool           { return true }
 func (s *stubRunProvider) IsScopeTooLarge(result *provider.Result) (bool, string)    { return false, "" }
 
+func TestBuildProvidersFromConfig_NilConfigReturnsError(t *testing.T) {
+	_, _, err := buildProvidersFromConfig(nil)
+	if err == nil {
+		t.Fatal("buildProvidersFromConfig(nil) error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "config is nil") {
+		t.Fatalf("buildProvidersFromConfig(nil) error = %q, want substring %q", err.Error(), "config is nil")
+	}
+}
+
 // TestDecomposerAdapter_Decompose_CreatesChildBeads verifies that decomposerAdapter.Decompose
 // actually calls bead.Client to create child beads when decomposing an oversized bead,
 // rather than returning nil without performing any work.
