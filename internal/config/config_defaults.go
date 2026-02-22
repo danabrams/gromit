@@ -172,6 +172,9 @@ func (c *Config) SetDefaults() {
 	if c.Review.Thorough.Model == "" {
 		c.Review.Thorough.Model = ModelOpus
 	}
+	if c.Review.Thorough.Tier == "" {
+		c.Review.Thorough.Tier = "high"
+	}
 	if c.Review.Thorough.EveryNIterations == 0 {
 		c.Review.Thorough.EveryNIterations = 5
 	}

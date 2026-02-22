@@ -251,6 +251,7 @@ type ThoroughReviewConfig struct {
 	EveryNIterations int    `yaml:"every_n_iterations"`
 	OnEpicComplete   *bool  `yaml:"on_epic_complete"`
 	Model            string `yaml:"model"`
+	Tier             string `yaml:"tier"`
 	Timeout          int    `yaml:"timeout"`
 }
 
