@@ -92,7 +92,7 @@ func (r *Review) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, e
 
 	beadIDs := []string{}
 	for _, bp := range result.BeadsToCreate {
-		labels := buildFromReviewLabels(bp.Labels)
+		labels := pipeline.BuildFromReviewLabels(bp.Labels)
 		id, err := r.beads.Create(bp.Title, bp.Priority, labels, bp.ExpectedOutputs)
 		if err != nil {
 			return pipeline.Output{}, fmt.Errorf("review: creating bead %q: %w", bp.Title, err)
@@ -104,16 +104,4 @@ func (r *Review) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, e
 		Decision:      pipeline.Proceed,
 		ReviewBeadIDs: beadIDs,
 	}, nil
-}
-
-// buildFromReviewLabels prepends "from-review" to any existing labels,
-// deduplicating if "from-review" is already present.
-func buildFromReviewLabels(proposalLabels []string) []string {
-	labels := []string{"from-review"}
-	for _, l := range proposalLabels {
-		if l != "from-review" {
-			labels = append(labels, l)
-		}
-	}
-	return labels
 }
