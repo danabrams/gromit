@@ -403,7 +403,11 @@ func buildRetroProviderRunner(cfg *config.Config) (retro.ProviderRunner, error) 
 		return &retroRouterAdapter{Router: router, Phase: retroSessionCommand}, nil
 	}
 
-	return retroClaudeFallbackRunnerFn(cfg)
+	runner, err := retroClaudeFallbackRunnerFn(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("creating retro claude fallback runner: %w", err)
+	}
+	return runner, nil
 }
 
 func launchRetroInteractiveSession(cfg *config.Config, cmd *cobra.Command, gromitDir, promptPath string) error {
