@@ -9,6 +9,41 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 )
 
+// TestPrintStatus_IncludesPipelineSection verifies that PrintStatus outputs
+// the Pipeline section alongside the Run section. The current implementation
+// only formats the Run section; this test drives adding pipeline.ReadStatus
+// integration so the output includes "Pipeline:" with bead/spec/plan counts.
+func TestPrintStatus_IncludesPipelineSection(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	// Write a status.json so PrintStatus doesn't take the "no status file" path.
+	sw, err := NewStatusWriter(gromitDir)
+	if err != nil {
+		t.Fatalf("NewStatusWriter: %v", err)
+	}
+	if err := sw.Write(1, "bead-pipe", "Pipeline test", "haiku", true, 0, 0); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	cfg := &config.Config{}
+	cfg.Paths.Specs = filepath.Join(tmpDir, "specs")
+	cfg.Paths.Plans = filepath.Join(tmpDir, "plans")
+
+	var buf strings.Builder
+	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }); err != nil {
+		t.Fatalf("PrintStatus: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Pipeline:") {
+		t.Errorf("PrintStatus output missing Pipeline section; got:\n%s", output)
+	}
+}
+
 // TestPrintStatus_ShowsModelAndTimeBudget verifies that PrintStatus reads
 // status.json and includes both model and time budget in the display output.
 // The round-trip through the file is verified first, then the test fails
