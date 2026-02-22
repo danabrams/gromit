@@ -33,13 +33,6 @@ var defaultTierToModelMap = map[string]string{
 	"low":    "haiku",
 }
 
-// defaultCodexTierToModelMap defines the default Codex model tier mapping.
-var defaultCodexTierToModelMap = map[string]string{
-	"high":   "gpt-5.3-codex",
-	"medium": "gpt-5.3-codex",
-	"low":    "gpt-5-mini",
-}
-
 func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orchestrator, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config is nil")
@@ -234,31 +227,13 @@ func buildRouterAndLearningsProvider(cfg *config.Config, gromitDir string, outpu
 }
 
 func buildProvidersFromConfig(cfg *config.Config) (map[string]provider.Provider, map[string]config.ProviderDef, error) {
-	providers := make(map[string]provider.Provider)
+	providers, err := provider.BuildProvidersFromConfig(cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	costDefs := make(map[string]config.ProviderDef)
 	for name, def := range cfg.Providers {
-		switch {
-		case name == "claude" || def.Binary == "claude":
-			tierMap := def.Models
-			if len(tierMap) == 0 {
-				tierMap = defaultTierToModelMap
-			}
-			client, err := claude.NewClient(def.Binary, def.Flags, cfg.Claude.Timeout)
-			if err != nil {
-				return nil, nil, err
-			}
-			providers[name] = provider.NewClaudeProvider(client, tierMap)
-		case name == "codex" || name == "openai" || def.Binary == "codex":
-			tierMap := def.Models
-			if len(tierMap) == 0 {
-				tierMap = defaultCodexTierToModelMap
-			}
-			codexProvider := provider.NewCodexProvider(def.Binary, def.Flags, tierMap)
-			codexProvider.SetReasoningEffort(def.ReasoningEffort)
-			providers[name] = codexProvider
-		default:
-			return nil, nil, fmt.Errorf("unrecognized provider %q: supported providers are \"claude\" and \"codex\"", name)
-		}
 		costDefs[providers[name].Name()] = def
 	}
 	return providers, costDefs, nil
