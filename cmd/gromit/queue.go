@@ -109,9 +109,14 @@ func getActiveBeads(bc *bead.Client) ([]*bead.Bead, error) {
 }
 
 func printQueueByStatus(cfg queueModelSelector, readyBeads, blockedBeads, stuckBeads, allBeads []*bead.Bead, bySpec bool, useColor bool) {
+	if bySpec {
+		printQueueBySpec(cfg, readyBeads, blockedBeads, stuckBeads, allBeads, useColor)
+		return
+	}
+
 	if len(readyBeads) > 0 {
 		fmt.Println("Queue (" + fmt.Sprintf("%d", len(readyBeads)) + " beads ready):")
-		printBeadsBySpec(readyBeads, bySpec, func(queueIndex int, b *bead.Bead) {
+		printBeadsBySpec(readyBeads, false, func(queueIndex int, b *bead.Bead) {
 			model := cfg.SelectModel(b.Priority, b.Labels)
 			line := fmt.Sprintf("  %d. [P%d] %s  %s  → %s",
 				queueIndex+1,
@@ -128,7 +133,7 @@ func printQueueByStatus(cfg queueModelSelector, readyBeads, blockedBeads, stuckB
 	if len(blockedBeads) > 0 {
 		fmt.Println()
 		fmt.Println("Blocked (" + fmt.Sprintf("%d", len(blockedBeads)) + "):")
-		printBeadsBySpec(blockedBeads, bySpec, func(_ int, b *bead.Bead) {
+		printBeadsBySpec(blockedBeads, false, func(_ int, b *bead.Bead) {
 			reasonStr := getReason(b, allBeads)
 			line := fmt.Sprintf("  [P%d] %s  %s  (%s)",
 				b.Priority,
@@ -142,13 +147,77 @@ func printQueueByStatus(cfg queueModelSelector, readyBeads, blockedBeads, stuckB
 	if len(stuckBeads) > 0 {
 		fmt.Println()
 		fmt.Println("Stuck (" + fmt.Sprintf("%d", len(stuckBeads)) + "):")
-		printBeadsBySpec(stuckBeads, bySpec, func(_ int, b *bead.Bead) {
+		printBeadsBySpec(stuckBeads, false, func(_ int, b *bead.Bead) {
 			line := fmt.Sprintf("  [P%d] %s  %s  (exceeded failure threshold)",
 				b.Priority,
 				b.ID,
 				truncateTitle(b.Title, 30))
 			fmt.Println(colorizeLine(line, ansiRed, useColor))
 		})
+	}
+}
+
+func printQueueBySpec(cfg queueModelSelector, readyBeads, blockedBeads, stuckBeads, allBeads []*bead.Bead, useColor bool) {
+	if len(readyBeads) > 0 {
+		fmt.Println("Queue (" + fmt.Sprintf("%d", len(readyBeads)) + " beads ready):")
+	} else {
+		fmt.Println("Queue: empty (no beads ready)")
+	}
+
+	readyBySpec := groupBeadsBySpec(readyBeads)
+	blockedBySpec := groupBeadsBySpec(blockedBeads)
+	stuckBySpec := groupBeadsBySpec(stuckBeads)
+	specKeys := combinedSpecKeys(readyBySpec, blockedBySpec, stuckBySpec)
+	if len(specKeys) == 0 {
+		return
+	}
+
+	fmt.Println("Queue by spec:")
+	readyIndex := 0
+	for i, spec := range specKeys {
+		if i > 0 {
+			fmt.Println()
+		}
+		fmt.Printf("  Spec: %s\n", formatSpecGroupName(spec))
+
+		if specReady := readyBySpec[spec]; len(specReady) > 0 {
+			fmt.Printf("    Ready (%d):\n", len(specReady))
+			for _, b := range specReady {
+				model := cfg.SelectModel(b.Priority, b.Labels)
+				line := fmt.Sprintf("      %d. [P%d] %s  %s  → %s",
+					readyIndex+1,
+					b.Priority,
+					b.ID,
+					truncateTitle(b.Title, 30),
+					model)
+				fmt.Println(colorizeLine(line, ansiBold+ansiGreen, useColor))
+				readyIndex++
+			}
+		}
+
+		if specBlocked := blockedBySpec[spec]; len(specBlocked) > 0 {
+			fmt.Printf("    Blocked (%d):\n", len(specBlocked))
+			for _, b := range specBlocked {
+				reasonStr := getReason(b, allBeads)
+				line := fmt.Sprintf("      [P%d] %s  %s  (%s)",
+					b.Priority,
+					b.ID,
+					truncateTitle(b.Title, 30),
+					reasonStr)
+				fmt.Println(colorizeLine(line, ansiWhite, useColor))
+			}
+		}
+
+		if specStuck := stuckBySpec[spec]; len(specStuck) > 0 {
+			fmt.Printf("    Stuck (%d):\n", len(specStuck))
+			for _, b := range specStuck {
+				line := fmt.Sprintf("      [P%d] %s  %s  (exceeded failure threshold)",
+					b.Priority,
+					b.ID,
+					truncateTitle(b.Title, 30))
+				fmt.Println(colorizeLine(line, ansiRed, useColor))
+			}
+		}
 	}
 }
 
@@ -374,6 +443,16 @@ func orderedSpecKeys(grouped map[string][]*bead.Bead) []string {
 		return keys[i] < keys[j]
 	})
 	return keys
+}
+
+func combinedSpecKeys(groups ...map[string][]*bead.Bead) []string {
+	combined := make(map[string][]*bead.Bead)
+	for _, group := range groups {
+		for key := range group {
+			combined[key] = nil
+		}
+	}
+	return orderedSpecKeys(combined)
 }
 
 func formatSpecGroupName(spec string) string {

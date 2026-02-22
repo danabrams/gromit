@@ -1,11 +1,18 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/logger"
 )
+
+type testQueueModelSelector struct{}
+
+func (testQueueModelSelector) SelectModel(priority int, labels []string) string {
+	return "sonnet"
+}
 
 func TestGroupBeadsBySpec(t *testing.T) {
 	beads := []*bead.Bead{
@@ -174,5 +181,94 @@ func TestEnrichReadyBeads_MergesLabelsFromOpenList(t *testing.T) {
 	}
 	if bead.FindSpecLabel(enriched[1].Labels) != "beta" {
 		t.Fatalf("r2 spec = %q, want beta (labels=%v)", bead.FindSpecLabel(enriched[1].Labels), enriched[1].Labels)
+	}
+}
+
+func TestPrintQueueByStatus_BySpecGroupsStatusesWithinEachSpec(t *testing.T) {
+	cfg := testQueueModelSelector{}
+	ready := []*bead.Bead{
+		{ID: "gromit-1", Priority: 0, Title: "Ready auth", Labels: []string{"spec:auth"}},
+		{ID: "gromit-2", Priority: 1, Title: "Ready api", Labels: []string{"spec:api"}},
+	}
+	blocked := []*bead.Bead{
+		{ID: "gromit-3", Priority: 1, Title: "Blocked auth", Labels: []string{"spec:auth"}, Dependencies: []bead.Dependency{{ID: "gromit-parent"}}},
+	}
+	stuck := []*bead.Bead{
+		{ID: "gromit-4", Priority: 2, Title: "Stuck auth", Labels: []string{"spec:auth"}},
+		{ID: "gromit-5", Priority: 2, Title: "Stuck api", Labels: []string{"spec:api"}},
+	}
+	all := append(append(append([]*bead.Bead{}, ready...), blocked...), stuck...)
+
+	output := captureStdout(t, func() {
+		printQueueByStatus(cfg, ready, blocked, stuck, all, true, false)
+	})
+
+	authIdx := strings.Index(output, "Spec: auth")
+	apiIdx := strings.Index(output, "Spec: api")
+	if authIdx == -1 || apiIdx == -1 {
+		t.Fatalf("expected auth/api spec headers, got:\n%s", output)
+	}
+
+	specStart := apiIdx
+	nextSpecStart := authIdx
+	if authIdx < apiIdx {
+		specStart = authIdx
+		nextSpecStart = apiIdx
+	}
+	firstSection := output[specStart:nextSpecStart]
+	authSection := output[authIdx:]
+	if authIdx < apiIdx {
+		authSection = output[authIdx:apiIdx]
+	}
+
+	readyPosFirst := strings.Index(firstSection, "Ready (1):")
+	blockedPosFirst := strings.Index(firstSection, "Blocked (1):")
+	stuckPosFirst := strings.Index(firstSection, "Stuck (1):")
+	if readyPosFirst == -1 || stuckPosFirst == -1 {
+		t.Fatalf("expected ready/stuck subsections in first spec section:\n%s", firstSection)
+	}
+	if blockedPosFirst != -1 && !(readyPosFirst < blockedPosFirst && blockedPosFirst < stuckPosFirst) {
+		t.Fatalf("expected Ready->Blocked->Stuck order in first spec section, got:\n%s", firstSection)
+	}
+
+	if !strings.Contains(authSection, "Ready (1):") {
+		t.Fatalf("auth section missing ready subsection:\n%s", authSection)
+	}
+	if !strings.Contains(authSection, "Blocked (1):") {
+		t.Fatalf("auth section missing blocked subsection:\n%s", authSection)
+	}
+	if !strings.Contains(authSection, "Stuck (1):") {
+		t.Fatalf("auth section missing stuck subsection:\n%s", authSection)
+	}
+
+	readyPos := strings.Index(authSection, "Ready (1):")
+	blockedPos := strings.Index(authSection, "Blocked (1):")
+	stuckPos := strings.Index(authSection, "Stuck (1):")
+	if !(readyPos < blockedPos && blockedPos < stuckPos) {
+		t.Fatalf("expected Ready->Blocked->Stuck order, got:\n%s", authSection)
+	}
+}
+
+func TestPrintQueueByStatus_BySpecIncludesSpecsWithoutReadyBeads(t *testing.T) {
+	cfg := testQueueModelSelector{}
+	ready := []*bead.Bead{
+		{ID: "gromit-1", Priority: 0, Title: "Ready auth", Labels: []string{"spec:auth"}},
+	}
+	blocked := []*bead.Bead{
+		{ID: "gromit-2", Priority: 1, Title: "Blocked billing", Labels: []string{"spec:billing"}, Dependencies: []bead.Dependency{{ID: "gromit-parent"}}},
+	}
+
+	output := captureStdout(t, func() {
+		printQueueByStatus(cfg, ready, blocked, nil, blocked, true, false)
+	})
+
+	if !strings.Contains(output, "Spec: auth") {
+		t.Fatalf("expected auth section, got:\n%s", output)
+	}
+	if !strings.Contains(output, "Spec: billing") {
+		t.Fatalf("expected billing section, got:\n%s", output)
+	}
+	if !strings.Contains(output, "Blocked (1):") {
+		t.Fatalf("expected blocked subsection, got:\n%s", output)
 	}
 }
