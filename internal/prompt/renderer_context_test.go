@@ -68,3 +68,31 @@ func TestBuildContext_RedPhasePrunesProjectContext(t *testing.T) {
 		t.Fatal("BuildContext(red) should retain spec context")
 	}
 }
+
+func TestBuildContext_EmptyPhasePreservesFullContext(t *testing.T) {
+	r := newRendererForContextTests(t,
+		"## Build <!-- phases: build -->\nbuild-rules\n",
+		"# Claude\nfull project context",
+		"phase-cost-optimization",
+		"# Spec\ncriterion",
+	)
+
+	ctx, err := r.BuildContext(&bead.Bead{
+		ID:     "b1",
+		Title:  "t",
+		Labels: []string{"spec:phase-cost-optimization"},
+	}, nil, 1, "sonnet", "")
+	if err != nil {
+		t.Fatalf("BuildContext() error = %v", err)
+	}
+
+	if ctx.ClaudeMD == "" {
+		t.Fatal("BuildContext(empty phase) should preserve ClaudeMD")
+	}
+	if !strings.Contains(ctx.Rules, "build-rules") {
+		t.Fatalf("BuildContext(empty phase) should preserve rules, got %q", ctx.Rules)
+	}
+	if ctx.Spec == "" {
+		t.Fatal("BuildContext(empty phase) should preserve spec context")
+	}
+}
