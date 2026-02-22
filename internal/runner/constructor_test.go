@@ -162,6 +162,50 @@ func TestDecomposerAdapter_InvokesProviderViaRouter(t *testing.T) {
 	}
 }
 
+// TestDecomposerAdapter_ClosesParentBeadAfterLLMDecomposition verifies that after LLM decomposition
+// creates child beads, the adapter closes the parent bead to prevent it from being re-queued.
+func TestDecomposerAdapter_ClosesParentBeadAfterLLMDecomposition(t *testing.T) {
+	stub := &stubRunProvider{
+		name: "test-provider",
+		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
+			return &provider.Result{
+				Success: true,
+				Output:  `[{"title":"Sub-task A","expected_outputs":["f1","f2","f3"]},{"title":"Sub-task B","expected_outputs":["f4","f5","f6"]}]`,
+			}, nil
+		},
+	}
+	router := provider.NewSingleProviderRouter(stub)
+
+	client, err := bead.NewClient()
+	if err != nil {
+		t.Fatalf("bead.NewClient: %v", err)
+	}
+	closedID := ""
+	client.RunFn = func(args ...string) (string, error) {
+		if len(args) > 0 && args[0] == "create" {
+			return `{"id":"child-1","title":"sub-task","status":"open"}`, nil
+		}
+		if len(args) > 0 && args[0] == "close" && len(args) > 1 {
+			closedID = args[1]
+		}
+		return "", nil
+	}
+
+	adapter := &decomposerAdapter{beads: client, router: router}
+	b := &bead.Bead{
+		ID:              "parent-to-close",
+		Title:           "Oversized Feature",
+		ExpectedOutputs: []string{"f1", "f2", "f3", "f4", "f5", "f6"},
+	}
+
+	if err := adapter.Decompose(context.Background(), b); err != nil {
+		t.Fatalf("Decompose returned error: %v", err)
+	}
+	if closedID != b.ID {
+		t.Errorf("closed bead ID = %q, want %q (parent must be closed after LLM decomposition)", closedID, b.ID)
+	}
+}
+
 // stubFailureAnalyzer is a test double for FailureAnalyzer.
 type stubFailureAnalyzer struct {
 	fn func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error)
