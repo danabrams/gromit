@@ -96,3 +96,27 @@ func TestBuildContext_EmptyPhasePreservesFullContext(t *testing.T) {
 		t.Fatal("BuildContext(empty phase) should preserve spec context")
 	}
 }
+
+func TestBuildContext_RedPhaseScopesBeforeBudgetShaping(t *testing.T) {
+	r := setupRendererWithLearnings(t, 3, 120)
+	r.SetBudgetConfig(40, 40)
+
+	ctx, err := r.BuildContext(newBuildContextTestBead(), nil, 1, "sonnet", "red")
+	if err != nil {
+		t.Fatalf("BuildContext() error = %v", err)
+	}
+	if len(ctx.ConfirmedLearnings) != 0 {
+		t.Fatalf("BuildContext(red) should remove ConfirmedLearnings before budget shaping, got %d", len(ctx.ConfirmedLearnings))
+	}
+
+	_, report := r.shapeBuildContext(ctx, "red")
+	if report == nil {
+		t.Fatal("expected shape report")
+	}
+	if hasTrimAction(report.TrimActions, trimCapConfirmedLearnings) {
+		t.Fatalf("budget shaping should not cap red-phase ConfirmedLearnings once phase scoping is applied, got %v", report.TrimActions)
+	}
+	if hasTrimAction(report.TrimActions, trimDropConfirmedLearnings) {
+		t.Fatalf("budget shaping should not drop red-phase ConfirmedLearnings once phase scoping is applied, got %v", report.TrimActions)
+	}
+}
