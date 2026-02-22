@@ -128,7 +128,7 @@ You MUST follow red-green-refactor strictly. Each cycle is small and committed s
 - MINIMUM code per green step. No "while I'm here" additions.
 - SEPARATE commits for red and green. Each commit message starts with `red:` or `green:`.
 - Do NOT batch multiple requirements into one cycle.
-- Before completing, run `go test` and `go vet` scoped to touched packages{{if .ScopedTestCommand}} using: `{{.ScopedTestCommand}}`{{else}} (e.g., `go test ./internal/foo/...`), not `./...`{{end}}.
+- Before completing, run `go test` and `go vet` scoped to touched packages{{if .ScopedTestCommand}} using: `{{.ScopedTestCommand}}`{{else}} (e.g., `go test ./internal/foo/...`), not `./...`{{end}}. Fix any failures before committing.
 - After all requirements are covered, stop — refactoring happens in a separate phase.
 
 ## Completion
