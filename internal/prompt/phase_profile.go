@@ -24,3 +24,18 @@ func ApplyPhaseProfile(ctx *Context, phase string) {
 		ctx.Bead.ExpectedOutputs = []string{}
 	}
 }
+
+// ApplyReviewPhaseProfile prunes review context fields not needed for the given phase.
+func ApplyReviewPhaseProfile(ctx *ReviewContext, phase string) {
+	if ctx == nil {
+		return
+	}
+
+	if phase != "review" {
+		return
+	}
+
+	ctx.Spec = ""
+	ctx.ClaudeMD = ""
+	ctx.ValidationCommands = []string{}
+}
