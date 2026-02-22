@@ -400,6 +400,20 @@ func TestBuildStage_EscalationEnabled_RetriesWithNextTierOnFailure(t *testing.T)
 	}
 }
 
+// fakeTDDCycleRunner is a minimal implementation of TDDCycleRunner used to verify
+// that the interface can be satisfied by a concrete type.
+type fakeTDDCycleRunner struct{}
+
+func (f *fakeTDDCycleRunner) RunCycles(_ context.Context, _ *bead.Bead, _ *config.Config) (execute.TDDCycleResult, error) {
+	return execute.TDDCycleResult{}, nil
+}
+
+// TestTDDCycleRunner_InterfaceSatisfied verifies that TDDCycleRunner is a valid
+// interface with a RunCycles method that concrete types can implement.
+func TestTDDCycleRunner_InterfaceSatisfied(t *testing.T) {
+	var _ execute.TDDCycleRunner = (*fakeTDDCycleRunner)(nil)
+}
+
 // TestBuildStage_EscalationEnabled_FailsWhenAllTiersExhausted verifies that when
 // EscalationEnabled is true but all tiers in the chain fail, the stage returns an error.
 func TestBuildStage_EscalationEnabled_FailsWhenAllTiersExhausted(t *testing.T) {
