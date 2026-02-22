@@ -133,6 +133,7 @@ func (r *Runner) runTDDFreshContextCycles(ctx context.Context, bc *runtypes.Bead
 			bc.Result.Error = err
 			return true
 		}
+		aggregateTDDPhaseMetricsToResult(bc)
 		updateIterationCoverageMetrics(bc.Result, coverageTracker)
 		if coverageTracker == nil || coverageTracker.IsComplete() {
 			break

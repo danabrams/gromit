@@ -389,6 +389,18 @@ func shouldSkipRevalidationForBudget(bc *runtypes.BeadContext, minBudget time.Du
 	return deadlineGuard{}
 }
 
+// tierRank returns a numeric rank for a tier string (higher = more capable).
+func tierRank(tier string) int {
+	switch tier {
+	case "high":
+		return 2
+	case "medium":
+		return 1
+	default:
+		return 0
+	}
+}
+
 // aggregateTDDPhaseMetricsToResult sums cost and token totals from all
 // PhaseMetrics into bc.Result and sets Model to the highest-tier model used.
 func aggregateTDDPhaseMetricsToResult(bc *runtypes.BeadContext) {
@@ -397,12 +409,21 @@ func aggregateTDDPhaseMetricsToResult(bc *runtypes.BeadContext) {
 	}
 	var totalCost float64
 	var totalInput, totalOutput int
+	bestTierRank := -1
+	bestModel := ""
 	for _, pm := range bc.Result.PhaseMetrics {
 		totalCost += pm.CostUSD
 		totalInput += pm.InputTokens
 		totalOutput += pm.OutputTokens
+		if r := tierRank(pm.Tier); r > bestTierRank {
+			bestTierRank = r
+			bestModel = pm.Model
+		}
 	}
 	bc.Result.CostUSD = totalCost
 	bc.Result.InputTokens = totalInput
 	bc.Result.OutputTokens = totalOutput
+	if bestModel != "" {
+		bc.Result.Model = bestModel
+	}
 }
