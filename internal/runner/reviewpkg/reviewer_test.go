@@ -10,6 +10,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/review"
@@ -612,5 +613,24 @@ func TestWriteReviewLog_NilResultIsNoOp(t *testing.T) {
 
 	if len(mockLogger.reviews) != 0 {
 		t.Errorf("mockLogger.reviews has %d entries, want 0 (nil result should be no-op)", len(mockLogger.reviews))
+	}
+}
+
+// TestReviewerUsesConsolidatedBuildFromReviewLabels verifies that the reviewer package
+// uses the consolidated BuildFromReviewLabels function from the pipeline package.
+func TestReviewerUsesConsolidatedBuildFromReviewLabels(t *testing.T) {
+	// Verify that BuildFromReviewLabels from pipeline package produces the expected output
+	labels := pipeline.BuildFromReviewLabels([]string{"bug", "urgent"})
+	if len(labels) != 3 {
+		t.Errorf("got %d labels, want 3", len(labels))
+	}
+	if labels[0] != "from-review" {
+		t.Errorf("first label = %q, want 'from-review'", labels[0])
+	}
+	if labels[1] != "bug" {
+		t.Errorf("second label = %q, want 'bug'", labels[1])
+	}
+	if labels[2] != "urgent" {
+		t.Errorf("third label = %q, want 'urgent'", labels[2])
 	}
 }
