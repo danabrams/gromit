@@ -394,6 +394,80 @@ func TestSPCMetricConstants(t *testing.T) {
 	}
 }
 
+func TestFormatSPCSummary(t *testing.T) {
+	tests := []struct {
+		name           string
+		trend          *logger.ProcessTrend
+		wantSubstrings []string
+	}{
+		{
+			name:           "nil trend returns no-data",
+			trend:          nil,
+			wantSubstrings: []string{"SPC: (no data)"},
+		},
+		{
+			name:           "zero iterations returns no-data",
+			trend:          &logger.ProcessTrend{TotalIterations: 0},
+			wantSubstrings: []string{"SPC: (no data)"},
+		},
+		{
+			name: "basic trend with control limits and no anomalies",
+			trend: &logger.ProcessTrend{
+				TotalIterations: 50,
+				WindowSize:      30,
+				ControlLimits: []logger.TrendControlLimit{
+					{Metric: spcMetricRollingSuccessRate, Latest: 0.85, Mean: 0.80, StdDev: 0.05, UCL: 0.95, LCL: 0.65},
+					{Metric: spcMetricRollingEscalateRate, Latest: 0.10, Mean: 0.15, StdDev: 0.03, UCL: 0.24, LCL: 0.06},
+					{Metric: spcMetricRollingQualityScore, Latest: 0.90, Mean: 0.85, StdDev: 0.04, UCL: 0.97, LCL: 0.73},
+					{Metric: spcMetricRollingAvgDurationMs, Latest: 45000, Mean: 50000, StdDev: 5000, UCL: 65000, LCL: 35000},
+				},
+				Anomalies: []logger.TrendAnomaly{},
+			},
+			wantSubstrings: []string{
+				"SPC:",
+				"Window:   30 iterations (50 total)",
+				"Success:", "85%", "limits 65%..95%",
+				"Escalate:", "10%", "limits 6%..24%",
+				"Quality:", "90%", "limits 73%..97%",
+				"Duration:", "limits",
+				"Anomaly:  none",
+			},
+		},
+		{
+			name: "trend with anomalies shows count and first anomaly details",
+			trend: &logger.ProcessTrend{
+				TotalIterations: 40,
+				WindowSize:      30,
+				ControlLimits: []logger.TrendControlLimit{
+					{Metric: spcMetricRollingSuccessRate, Latest: 0.50, Mean: 0.80, StdDev: 0.05, UCL: 0.95, LCL: 0.65},
+				},
+				Anomalies: []logger.TrendAnomaly{
+					{Metric: spcMetricRollingSuccessRate, Latest: 0.50, UCL: 0.95, LCL: 0.65, Severity: "high"},
+					{Metric: spcMetricRollingEscalateRate, Latest: 0.40, UCL: 0.24, LCL: 0.06, Severity: "moderate"},
+				},
+			},
+			wantSubstrings: []string{
+				"SPC:",
+				"Window:   30 iterations (40 total)",
+				"Anomaly:  2",
+				"success",
+				"high",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatSPCSummary(tt.trend)
+			for _, substr := range tt.wantSubstrings {
+				if !strings.Contains(got, substr) {
+					t.Errorf("formatSPCSummary() = %q, want substring %q", got, substr)
+				}
+			}
+		})
+	}
+}
+
 func TestFormatRun(t *testing.T) {
 	tests := []struct {
 		name   string
