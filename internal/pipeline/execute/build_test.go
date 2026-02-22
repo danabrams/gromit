@@ -508,6 +508,43 @@ func TestBuildRun_TDD_FreshContext_DelegatesToTDDCycleRunner(t *testing.T) {
 	}
 }
 
+// TestBuildRun_TDD_FreshContext_ReturnsPhaseMetricsInOutput verifies that when
+// Build.Run() delegates to TDDCycleRunner, the returned Output.PhaseMetrics
+// contains the aggregated phase metrics from the TDDCycleResult.
+func TestBuildRun_TDD_FreshContext_ReturnsPhaseMetricsInOutput(t *testing.T) {
+	phases := []pipeline.PhaseMetrics{
+		{Phase: "red", DurationMs: 100, Model: "haiku"},
+		{Phase: "green", DurationMs: 200, Model: "haiku"},
+	}
+	runner := &trackingTDDCycleRunner{
+		runCyclesFn: func(_ context.Context, _ *bead.Bead, _ *config.Config) (execute.TDDCycleResult, error) {
+			return execute.TDDCycleResult{PhaseMetrics: phases}, nil
+		},
+	}
+
+	stage := execute.New(&fakeInvoker{}, &fakePromptRenderer{}, io.Discard).WithTDDCycleRunner(runner)
+
+	cfg := defaultConfig()
+	cfg.Methodology.TDD = true
+	cfg.Methodology.FreshContextPerCycle = true
+	in := makeInput(makeBead("bead-1", "Implement TDD feature"), cfg)
+
+	out, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if len(out.PhaseMetrics) != 2 {
+		t.Fatalf("Output.PhaseMetrics: want 2, got %d", len(out.PhaseMetrics))
+	}
+	if out.PhaseMetrics[0].Phase != "red" {
+		t.Errorf("Output.PhaseMetrics[0].Phase = %q, want %q", out.PhaseMetrics[0].Phase, "red")
+	}
+	if out.PhaseMetrics[1].Phase != "green" {
+		t.Errorf("Output.PhaseMetrics[1].Phase = %q, want %q", out.PhaseMetrics[1].Phase, "green")
+	}
+}
+
 // TestBuildStage_Run_PopulatesOutputMetadataFromProviderResult verifies that the
 // Build stage copies Model, DurationMs, CostUSD, InputTokens, and OutputTokens
 // from the successful StreamRun provider result into the returned Output.
