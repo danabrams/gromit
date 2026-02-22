@@ -65,6 +65,11 @@ Replace God Object pattern with pure orchestration: hold only stage references a
 
 The Orchestrator migration introduces adapter proliferation (12+ types in constructor.go) bridging stage interfaces to infrastructure — future stage interfaces should minimize this surface. Key patterns: (1) Consolidation — one exported function in the parent package (e.g., BuildFromReviewLabels), child packages import it; remove deprecated wrappers once callers migrate. (2) File extraction — enforced by file_size_test.go with a 550-line limit. (3) Dual-path risk — Orchestrator and legacy Runner have separate code for the same operations (cost tracking, state saving); features wired in one path may be silently missing in the other. (4) Asymmetric state — validationFailures clear on success while touchedPackages accumulate across the run (intentional but non-obvious). (5) Copy-paste bugs — adapters with similar methods (RenderBuild/RenderRefactor) need independent delegation target verification. (6) FnField mocks — nil-safe with explicit nil check, injected via deps struct. Always sort map keys in logging functions for deterministic output.
 
+### 2026-02-22 | Silent Error Swallowing in Render Builder Functions | gotchas
+*Related to: review-1771763626626526682*
+
+The TDD render builder functions (buildRenderRedFn, buildRenderGreenFn) discard errors from `renderer.LoadRulesForPhase("build")` via `rules, _ :=`. This is graceful degradation — prompts render without rules — but silently hides configuration problems. When building closure-based dependency injectors, surface or log errors from fallible setup calls rather than discarding them; silent degradation in prompt assembly can produce subtly wrong LLM outputs that are hard to trace.
+
 ### 2026-02-22 | Architectural Migration Safety Checklist | conventions
 *Related to: code-review*
 
