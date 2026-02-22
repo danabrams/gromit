@@ -259,7 +259,7 @@ func TestGateRunProactiveDecomposition(t *testing.T) {
 	}
 }
 
-func TestGateRunScopeGateAttempsDecomposition(t *testing.T) {
+func TestGateRunScopeGateAttemptsDecomposition(t *testing.T) {
 	blockTrue := true
 
 	tests := []struct {
