@@ -9,6 +9,9 @@ func ApplyPhaseProfile(ctx *Context, phase string) {
 	}
 
 	if phase != "decompose" {
+		if phase == "red" {
+			ctx.ClaudeMD = ""
+		}
 		return
 	}
 

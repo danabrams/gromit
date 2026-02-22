@@ -60,6 +60,7 @@ func (r *Renderer) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, 
 
 	r.enrichSiblingTouchedPackages(ctx, b, parent)
 	r.applyScopedClaudeContext(ctx)
+	ApplyPhaseProfile(ctx, phase)
 
 	ctx.normalizeNilFields()
 	return ctx, nil
