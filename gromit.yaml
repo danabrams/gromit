@@ -36,20 +36,19 @@ providers:
     models:
       high: gpt-5.3-codex
       medium: gpt-5.3-codex
-      low: gpt-5.3-codex
+      low: gpt-5-mini
     reasoning_effort:
       high: high
       medium: medium
-      low: low
     cost_per_1k_input: 0.00175    # medium-tier baseline
     cost_per_1k_output: 0.014
     model_costs:
       gpt-5.3-codex:                # high tier
         cost_per_1k_input: 0.00175
         cost_per_1k_output: 0.014
-      gpt-5.3-codex-spark:          # low tier (~0.27x medium, haiku/sonnet ratio)
-        cost_per_1k_input: 0.00047
-        cost_per_1k_output: 0.00374
+      gpt-5-mini:                    # low tier
+        cost_per_1k_input: 0.00025
+        cost_per_1k_output: 0.002
 
 # Routing - multi-provider routing configuration
 routing:

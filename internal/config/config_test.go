@@ -4288,9 +4288,9 @@ providers:
       gpt-5.3-codex:
         cost_per_1k_input: 0.00875
         cost_per_1k_output: 0.070
-      gpt-5.3-codex-spark:
-        cost_per_1k_input: 0.00047
-        cost_per_1k_output: 0.00374
+      gpt-5-mini:
+        cost_per_1k_input: 0.00025
+        cost_per_1k_output: 0.002
 `
 	tmpDir := t.TempDir()
 	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
@@ -4319,12 +4319,12 @@ providers:
 		t.Errorf("gpt-5.3-codex CostPer1kOutput = %v, want 0.070", high.CostPer1kOutput)
 	}
 
-	low := openai.ModelCosts["gpt-5.3-codex-spark"]
+	low := openai.ModelCosts["gpt-5-mini"]
 	if low == nil {
-		t.Fatal("model_costs missing gpt-5.3-codex-spark entry")
+		t.Fatal("model_costs missing gpt-5-mini entry")
 	}
-	if low.CostPer1kInput != 0.00047 {
-		t.Errorf("gpt-5.3-codex-spark CostPer1kInput = %v, want 0.00047", low.CostPer1kInput)
+	if low.CostPer1kInput != 0.00025 {
+		t.Errorf("gpt-5-mini CostPer1kInput = %v, want 0.00025", low.CostPer1kInput)
 	}
 }
 
@@ -4451,9 +4451,9 @@ func TestProviderDefEstimateCostForModel(t *testing.T) {
 				CostPer1kInput:  0.00875,
 				CostPer1kOutput: 0.070,
 			},
-			"gpt-5.3-codex-spark": {
-				CostPer1kInput:  0.00047,
-				CostPer1kOutput: 0.00374,
+			"gpt-5-mini": {
+				CostPer1kInput:  0.00025,
+				CostPer1kOutput: 0.002,
 			},
 		},
 	}
@@ -4474,10 +4474,10 @@ func TestProviderDefEstimateCostForModel(t *testing.T) {
 		},
 		{
 			name:         "model-specific low tier",
-			model:        "gpt-5.3-codex-spark",
+			model:        "gpt-5-mini",
 			inputTokens:  1000,
 			outputTokens: 1000,
-			want:         0.00047 + 0.00374,
+			want:         0.00025 + 0.002,
 		},
 		{
 			name:         "unknown model falls back to provider rate",

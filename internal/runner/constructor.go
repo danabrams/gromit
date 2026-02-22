@@ -38,7 +38,7 @@ var defaultTierToModelMap = map[string]string{
 var defaultCodexTierToModelMap = map[string]string{
 	"high":   "gpt-5.3-codex",
 	"medium": "gpt-5.3-codex",
-	"low":    "gpt-5.3-codex-spark",
+	"low":    "gpt-5-mini",
 }
 
 func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orchestrator, error) {
