@@ -468,6 +468,38 @@ func TestFormatSPCSummary(t *testing.T) {
 	}
 }
 
+func TestFormatSPCValue(t *testing.T) {
+	tests := []struct {
+		name      string
+		v         float64
+		asPercent bool
+		want      string
+	}{
+		// Percentage formatting
+		{"percent 85%", 0.85, true, "85%"},
+		{"percent 0%", 0.0, true, "0%"},
+		{"percent 100%", 1.0, true, "100%"},
+		{"percent rounds up at midpoint", 0.855, true, "86%"},
+		{"percent clamps negative to 0", -0.1, true, "0%"},
+		{"percent clamps above 1 to 100", 1.5, true, "100%"},
+
+		// Duration formatting (milliseconds)
+		{"duration 45s", 45000, false, "45s"},
+		{"duration 0s", 0, false, "0s"},
+		{"duration negative returns 0s", -1000, false, "0s"},
+		{"duration 2m", 120000, false, "2m"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatSPCValue(tt.v, tt.asPercent)
+			if got != tt.want {
+				t.Errorf("formatSPCValue(%v, %v) = %q, want %q", tt.v, tt.asPercent, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestFormatRun(t *testing.T) {
 	tests := []struct {
 		name   string
