@@ -265,6 +265,7 @@ func TestGateRunScopeGateAttemptsDecomposition(t *testing.T) {
 	tests := []struct {
 		name                string
 		expectedOutputs     []string
+		decomposer          Decomposer
 		decomposerErr       error
 		wantDecision        pipeline.Decision
 		wantDecomposeCalled bool
@@ -272,6 +273,7 @@ func TestGateRunScopeGateAttemptsDecomposition(t *testing.T) {
 		{
 			name:                "skip when scope decomposition succeeds",
 			expectedOutputs:     []string{"f1", "f2", "f3", "f4", "f5", "f6"},
+			decomposer:          &fakeDecomposer{err: nil},
 			decomposerErr:       nil,
 			wantDecision:        pipeline.Skip,
 			wantDecomposeCalled: true,
@@ -279,9 +281,34 @@ func TestGateRunScopeGateAttemptsDecomposition(t *testing.T) {
 		{
 			name:                "block when scope decomposition fails",
 			expectedOutputs:     []string{"f1", "f2", "f3", "f4", "f5", "f6"},
+			decomposer:          &fakeDecomposer{err: errors.New("decomposition failed")},
 			decomposerErr:       errors.New("decomposition failed"),
 			wantDecision:        pipeline.Block,
 			wantDecomposeCalled: true,
+		},
+		{
+			name:                "block when decomposer is nil",
+			expectedOutputs:     []string{"f1", "f2", "f3", "f4", "f5", "f6"},
+			decomposer:          nil,
+			decomposerErr:       nil,
+			wantDecision:        pipeline.Block,
+			wantDecomposeCalled: false,
+		},
+	}
+
+	childBeadTests := []struct {
+		name                string
+		expectedOutputs     []string
+		decomposer          Decomposer
+		wantDecision        pipeline.Decision
+		wantDecomposeCalled bool
+	}{
+		{
+			name:                "block child bead without attempting decomposition",
+			expectedOutputs:     []string{"f1", "f2", "f3", "f4", "f5", "f6"},
+			decomposer:          &fakeDecomposer{err: nil},
+			wantDecision:        pipeline.Block,
+			wantDecomposeCalled: false,
 		},
 	}
 
@@ -293,14 +320,16 @@ func TestGateRunScopeGateAttemptsDecomposition(t *testing.T) {
 				ExpectedOutputs: tt.expectedOutputs,
 				Parent:          "", // Root bead
 			}
-			d := &fakeDecomposer{err: tt.decomposerErr}
 			cfg := &config.Config{
 				ScopeCheck: config.ScopeCheckConfig{
 					Enabled:        true,
 					BlockOversized: &blockTrue,
 				},
 			}
-			gate := New(io.Discard).WithDecomposer(d)
+			gate := New(io.Discard)
+			if tt.decomposer != nil {
+				gate = gate.WithDecomposer(tt.decomposer)
+			}
 			in := pipeline.Input{Bead: b, Config: cfg}
 			out, err := gate.Run(context.Background(), in)
 			if err != nil {
@@ -309,8 +338,44 @@ func TestGateRunScopeGateAttemptsDecomposition(t *testing.T) {
 			if out.Decision != tt.wantDecision {
 				t.Errorf("decision = %v, want %v", out.Decision, tt.wantDecision)
 			}
-			if d.called != tt.wantDecomposeCalled {
-				t.Errorf("decomposer called = %v, want %v", d.called, tt.wantDecomposeCalled)
+			if tt.decomposer != nil {
+				if d, ok := tt.decomposer.(*fakeDecomposer); ok {
+					if d.called != tt.wantDecomposeCalled {
+						t.Errorf("decomposer called = %v, want %v", d.called, tt.wantDecomposeCalled)
+					}
+				}
+			}
+		})
+	}
+
+	// Test child beads (with parent): should block without attempting decomposition
+	for _, tt := range childBeadTests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := &bead.Bead{
+				ID:              "test-oversized-child",
+				Title:           "test child bead",
+				ExpectedOutputs: tt.expectedOutputs,
+				Parent:          "parent-1", // Child bead
+			}
+			cfg := &config.Config{
+				ScopeCheck: config.ScopeCheckConfig{
+					Enabled:        true,
+					BlockOversized: &blockTrue,
+				},
+			}
+			gate := New(io.Discard).WithDecomposer(tt.decomposer)
+			in := pipeline.Input{Bead: b, Config: cfg}
+			out, err := gate.Run(context.Background(), in)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if out.Decision != tt.wantDecision {
+				t.Errorf("decision = %v, want %v", out.Decision, tt.wantDecision)
+			}
+			if d, ok := tt.decomposer.(*fakeDecomposer); ok {
+				if d.called != tt.wantDecomposeCalled {
+					t.Errorf("decomposer called = %v, want %v", d.called, tt.wantDecomposeCalled)
+				}
 			}
 		})
 	}
