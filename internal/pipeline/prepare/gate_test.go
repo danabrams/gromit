@@ -856,6 +856,31 @@ func (c *fullIntegrationBeadClient) Close(id string) error {
 	return nil
 }
 
+// TestGateScopeDecompositionErrorFallsBackToBlock verifies that when the LLM-powered
+// decomposer returns an error, the scope gate falls back to blocking the bead
+// rather than propagating the error up to the caller.
+func TestGateScopeDecompositionErrorFallsBackToBlock(t *testing.T) {
+	b := &bead.Bead{
+		ID:              "test-oversized",
+		ExpectedOutputs: []string{"f1", "f2", "f3", "f4", "f5", "f6"},
+	}
+	d := &fakeDecomposer{err: errors.New("llm decomposition failed")}
+	cfg := &config.Config{
+		ScopeCheck: config.ScopeCheckConfig{
+			Enabled:        true,
+			BlockOversized: &blockTrue,
+		},
+	}
+	gate := New(io.Discard).WithDecomposer(d)
+	out, err := gate.Run(context.Background(), pipeline.Input{Bead: b, Config: cfg})
+	if err != nil {
+		t.Fatalf("unexpected error %v; want nil (decomposition failure should fall back to Block, not propagate error)", err)
+	}
+	if out.Decision != pipeline.Block {
+		t.Errorf("decision = %v, want Block when LLM decomposition fails", out.Decision)
+	}
+}
+
 // fullIntegrationDecomposerAdapter implements Decomposer for full integration testing
 // It mirrors the real decomposerAdapter.Decompose() behavior
 type fullIntegrationDecomposerAdapter struct {
