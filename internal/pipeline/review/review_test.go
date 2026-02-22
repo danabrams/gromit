@@ -179,6 +179,33 @@ func TestReviewStage_Enabled_WithFindings_CreatesBeadsAndReturnsProceed(t *testi
 	}
 }
 
+func TestReviewStage_UsesReviewTierForInvocation(t *testing.T) {
+	invokedTier := ""
+	invoker := &fakeInvoker{
+		streamRunFn: func(_ context.Context, _, model string, _ io.Writer) (string, error) {
+			invokedTier = model
+			return `{"passed": true, "fixes_applied": [], "beads_to_create": [], "backlog_items": [], "summary": "ok"}`, nil
+		},
+	}
+	beads := &fakeBeadCreator{}
+	renderer := &fakePromptRenderer{}
+	gitDiff := func() (string, error) { return "diff --git a/foo.go", nil }
+
+	stage := reviewstage.New(invoker, beads, renderer, gitDiff, io.Discard)
+	cfg := makeConfig(true)
+	cfg.Review.Model = "opus"
+	cfg.Review.Tier = "low"
+	in := makeInput(makeBead("bead-1", "Tiered review"), cfg)
+
+	if _, err := stage.Run(context.Background(), in); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if invokedTier != "low" {
+		t.Fatalf("StreamRun tier = %q, want %q", invokedTier, "low")
+	}
+}
+
 // TestReviewStage_Enabled_NoFindings_ReturnsProceedWithEmptyIDs verifies that when review
 // is enabled but the LLM returns no bead proposals, no beads are created and
 // Output.ReviewBeadIDs is an empty (non-nil) slice.
