@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -22,6 +23,24 @@ func TestExtractRequirementsViaLLM_ReturnsParsedItems(t *testing.T) {
 		if got[i] != want[i] {
 			t.Errorf("item %d: got %q, want %q", i, got[i], want[i])
 		}
+	}
+}
+
+func TestExtractRequirementsViaLLM_TruncatesDescriptionTo2000Chars(t *testing.T) {
+	longDesc := strings.Repeat("x", 3000)
+	var capturedPrompt string
+	invoke := func(_ context.Context, prompt string, _ string) (*provider.Result, error) {
+		capturedPrompt = prompt
+		return &provider.Result{Success: true, Output: "req one\nreq two"}, nil
+	}
+	extractRequirementsViaLLM(context.Background(), "Title", longDesc, invoke)
+	truncated := strings.Repeat("x", 2000)
+	if !strings.Contains(capturedPrompt, truncated) {
+		t.Errorf("expected prompt to contain 2000-char description")
+	}
+	extra := strings.Repeat("x", 2001)
+	if strings.Contains(capturedPrompt, extra) {
+		t.Errorf("expected prompt to NOT contain more than 2000 chars of description")
 	}
 }
 
