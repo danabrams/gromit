@@ -140,3 +140,10 @@ func TestOutputPhaseMetricsField(t *testing.T) {
 		t.Errorf("Output.PhaseMetrics[0].Phase: want %q, got %q", "red", out.PhaseMetrics[0].Phase)
 	}
 }
+
+func TestPhaseMetricSingularType(t *testing.T) {
+	m := pipeline.PhaseMetric{Phase: "refactor"}
+	if m.Phase != "refactor" {
+		t.Errorf("PhaseMetric.Phase: want %q, got %q", "refactor", m.Phase)
+	}
+}
