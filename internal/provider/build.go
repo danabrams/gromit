@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
 )
 
@@ -34,6 +35,16 @@ func BuildProvidersFromConfig(cfg *config.Config) (map[string]Provider, error) {
 	providers := make(map[string]Provider)
 	for name, def := range cfg.Providers {
 		switch {
+		case name == "claude" || def.Binary == "claude":
+			tierMap := def.Models
+			if len(tierMap) == 0 {
+				tierMap = DefaultTierToModelMap
+			}
+			client, err := claude.NewClient(def.Binary, def.Flags, cfg.Claude.Timeout)
+			if err != nil {
+				return nil, err
+			}
+			providers[name] = NewClaudeProvider(client, tierMap)
 		case name == "codex" || name == "openai" || def.Binary == "codex":
 			tierMap := def.Models
 			if len(tierMap) == 0 {
