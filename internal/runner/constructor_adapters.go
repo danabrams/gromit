@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/jsonutil"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
@@ -203,20 +205,81 @@ func (a *iterationLogWriterAdapter) Write(log *logger.IterationLog) error {
 	return a.logger.LogIteration(log)
 }
 
-// decomposerAdapter wraps bead.Client to satisfy prepare.Decomposer for auto-decomposition of oversized beads.
+// scopeGateSubBead represents a single sub-bead from the LLM decomposition response.
+type scopeGateSubBead struct {
+	Title           string   `json:"title"`
+	ExpectedOutputs []string `json:"expected_outputs"`
+}
+
+// decomposerAdapter uses provider routing to invoke LLM-powered decomposition of oversized beads.
 type decomposerAdapter struct {
-	beads *bead.Client
+	beads  *bead.Client
+	router *provider.Router
 }
 
 func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
-	_, err := a.beads.CreateWithParent(b.Title+" (decomposed)", b.Priority, b.Labels, b.ExpectedOutputs, b.ID)
-	if err != nil {
-		return fmt.Errorf("decomposerAdapter.CreateWithParent: %w", err)
+	if a.router == nil {
+		return fmt.Errorf("decomposerAdapter: no router configured for LLM decomposition")
 	}
+
+	p, _ := a.router.Select("decompose", provider.TierMedium)
+	if p == nil {
+		return fmt.Errorf("decomposerAdapter: no provider available for decomposition")
+	}
+
+	promptText := buildScopeGateDecomposePrompt(b)
+	result, err := p.Run(ctx, promptText, provider.TierMedium)
+	if err != nil {
+		return fmt.Errorf("decomposerAdapter: LLM invocation failed: %w", err)
+	}
+	if !result.Success {
+		return fmt.Errorf("decomposerAdapter: LLM returned failure (exit %d)", result.ExitCode)
+	}
+
+	var subBeads []scopeGateSubBead
+	if err := jsonutil.ExtractJSON(strings.TrimSpace(result.Output), &subBeads); err != nil {
+		return fmt.Errorf("decomposerAdapter: parsing LLM output: %w", err)
+	}
+	if len(subBeads) == 0 {
+		return fmt.Errorf("decomposerAdapter: LLM returned no sub-beads")
+	}
+
+	for _, sb := range subBeads {
+		if _, err := a.beads.CreateWithParent(sb.Title, b.Priority, b.Labels, sb.ExpectedOutputs, b.ID); err != nil {
+			return fmt.Errorf("decomposerAdapter: creating child bead %q: %w", sb.Title, err)
+		}
+	}
+
 	if err := a.beads.Close(b.ID); err != nil {
-		return fmt.Errorf("decomposerAdapter.Close: %w", err)
+		return fmt.Errorf("decomposerAdapter: closing parent bead: %w", err)
 	}
 	return nil
+}
+
+// buildScopeGateDecomposePrompt builds the LLM prompt for scope gate decomposition.
+func buildScopeGateDecomposePrompt(b *bead.Bead) string {
+	outputs := strings.Join(b.ExpectedOutputs, "\n- ")
+	if outputs != "" {
+		outputs = "- " + outputs
+	}
+	return fmt.Sprintf(`You are decomposing an oversized task into smaller sub-tasks that each touch 5 or fewer files.
+
+## Oversized Task
+Title: %s
+Description: %s
+Expected outputs (too many):
+%s
+
+## Instructions
+Split this task into 2-5 sub-tasks. Each sub-task must:
+- Have a clear, specific title
+- Touch 5 or fewer files (expected_outputs list)
+- Together cover all the work of the original task
+
+## Output
+Output ONLY a JSON array. No markdown, no explanation.
+Each element: {"title": "...", "expected_outputs": ["file1", "file2", ...]}
+`, b.Title, b.Description, outputs)
 }
 
 // failureLearnerAdapter wraps analyzer and related dependencies to satisfy epilogue.FailureLearner.

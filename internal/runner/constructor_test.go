@@ -50,6 +50,15 @@ func TestDecomposerAdapter_Decompose_CreatesChildBeads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bead.NewClient: %v", err)
 	}
+	stubRouter := provider.NewSingleProviderRouter(&stubRunProvider{
+		name: "test",
+		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
+			return &provider.Result{
+				Success: true,
+				Output:  `[{"title":"Part 1","expected_outputs":["f1","f2","f3"]},{"title":"Part 2","expected_outputs":["f4","f5","f6"]}]`,
+			}, nil
+		},
+	})
 	var createCalled bool
 	client.RunFn = func(args ...string) (string, error) {
 		if len(args) > 0 && args[0] == "create" {
@@ -59,7 +68,7 @@ func TestDecomposerAdapter_Decompose_CreatesChildBeads(t *testing.T) {
 		return "", nil
 	}
 
-	adapter := &decomposerAdapter{beads: client}
+	adapter := &decomposerAdapter{beads: client, router: stubRouter}
 	b := &bead.Bead{
 		ID:              "over-1",
 		Title:           "oversized bead",
@@ -82,6 +91,15 @@ func TestDecomposerAdapter_DecomposeSucceeds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bead.NewClient: %v", err)
 	}
+	stubRouter := provider.NewSingleProviderRouter(&stubRunProvider{
+		name: "test",
+		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
+			return &provider.Result{
+				Success: true,
+				Output:  `[{"title":"Part 1","expected_outputs":["f1","f2","f3"]}]`,
+			}, nil
+		},
+	})
 	client.RunFn = func(args ...string) (string, error) {
 		if len(args) > 0 && args[0] == "create" {
 			return `{"id":"child-1","title":"part 1","status":"open"}`, nil
@@ -89,7 +107,7 @@ func TestDecomposerAdapter_DecomposeSucceeds(t *testing.T) {
 		return "", nil
 	}
 
-	adapter := &decomposerAdapter{beads: client}
+	adapter := &decomposerAdapter{beads: client, router: stubRouter}
 	b := &bead.Bead{
 		ID:              "over-1",
 		Title:           "oversized bead",
@@ -129,8 +147,7 @@ func TestDecomposerAdapter_InvokesProviderViaRouter(t *testing.T) {
 		return "", nil
 	}
 
-	adapter := &decomposerAdapter{beads: client}
-	_ = router // router will be used after router field is added to decomposerAdapter
+	adapter := &decomposerAdapter{beads: client, router: router}
 	b := &bead.Bead{
 		ID:              "parent-1",
 		Title:           "Oversized Feature",
@@ -433,17 +450,11 @@ func TestNewRunnerImpl_GateIntegrationWithRealDecomposer(t *testing.T) {
 	in := pipeline.Input{Bead: oversizedBead, Config: cfg}
 	out, err := gateStage.Run(context.Background(), in)
 	if err != nil {
-		// Expect an error because the real bead.Client will attempt to run bd CLI
-		// which is not available in test environment, but this verifies the real
-		// decomposerAdapter was invoked
-		if !strings.Contains(err.Error(), "CreateWithParent") && !strings.Contains(err.Error(), "running") {
-			t.Fatalf("gate.Run() returned unexpected error: %v (expected decomposer invocation error)", err)
-		}
-		return
+		t.Fatalf("gate.Run() returned unexpected error: %v; LLM decomposition failures should fall back to Block, not propagate error", err)
 	}
 
-	// If no error, decision should be Skip (decomposition succeeded)
-	if out.Decision != pipeline.Skip {
-		t.Errorf("gate.Run() decision = %v, want Skip when decomposition succeeds", out.Decision)
+	// Skip means LLM decomposition succeeded; Block means LLM was unavailable (valid in test env)
+	if out.Decision != pipeline.Skip && out.Decision != pipeline.Block {
+		t.Errorf("gate.Run() decision = %v, want Skip (decomposition ok) or Block (LLM unavailable)", out.Decision)
 	}
 }
