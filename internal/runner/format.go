@@ -67,6 +67,59 @@ func formatPipeline(ps *pipeline.PipelineStatus) string {
 	return strings.Join(lines, "\n")
 }
 
+// formatRun formats run status for display
+func formatRun(s *Status) string {
+	if s == nil || !s.Running {
+		return formatRunStopped(s)
+	}
+
+	var lines []string
+
+	// Iteration line
+	iterStr := fmt.Sprintf("Run: iteration %d", s.Iteration)
+	if s.MaxIterations > 0 {
+		iterStr += fmt.Sprintf("/%d", s.MaxIterations)
+	}
+	lines = append(lines, iterStr)
+
+	// Elapsed line
+	elapsed := formatDuration(time.Duration(s.ElapsedS) * time.Second)
+	if s.TimeBudgetMinutes > 0 {
+		budget := formatDuration(time.Duration(s.TimeBudgetMinutes) * time.Minute)
+		lines = append(lines, fmt.Sprintf("  %s of %s elapsed", elapsed, budget))
+	} else {
+		lines = append(lines, fmt.Sprintf("  %s elapsed", elapsed))
+	}
+
+	// Bead info
+	if s.BeadID != "" {
+		lines = append(lines, fmt.Sprintf("  Bead:     %s — %s", s.BeadID, s.BeadTitle))
+	}
+
+	// Model
+	if s.Model != "" {
+		lines = append(lines, fmt.Sprintf("  Model:    %s", s.Model))
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+// formatRunStopped formats display when not running
+func formatRunStopped(s *Status) string {
+	if s == nil {
+		return "Run: not running"
+	}
+
+	var lines []string
+	lines = append(lines, "Run: not running")
+
+	if s.Iteration > 0 {
+		lines = append(lines, fmt.Sprintf("  Last run: %d iterations completed", s.Iteration))
+	}
+
+	return strings.Join(lines, "\n")
+}
+
 // formatItems formats a list of items, showing up to maxShow items and an overflow message
 func formatItems(items []string, maxShow int) []string {
 	if len(items) == 0 {
