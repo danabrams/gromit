@@ -89,9 +89,9 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 		return pipeline.Output{Decision: pipeline.Proceed}, nil
 	}
 
-	w := g.output
-	if w == nil {
-		w = io.Discard
+	out := g.output
+	if out == nil {
+		out = io.Discard
 	}
 
 	// Precheck: skip beads whose acceptance criteria are already satisfied.
@@ -99,7 +99,7 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 	if g.precheck != nil {
 		done, err := g.precheck.Check(ctx, in.Bead)
 		if err != nil {
-			fmt.Fprintf(w, "Warning: precheck failed for bead %s: %v\n", in.Bead.ID, err)
+			fmt.Fprintf(out, "Warning: precheck failed for bead %s: %v\n", in.Bead.ID, err)
 		} else if done {
 			return pipeline.Output{Decision: pipeline.Skip}, nil
 		}
@@ -109,48 +109,72 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 	if g.stuck != nil {
 		stuck, err := g.stuck.IsStuck(ctx, in.Bead)
 		if err != nil {
-			fmt.Fprintf(w, "Warning: stuck detection failed for bead %s: %v\n", in.Bead.ID, err)
+			fmt.Fprintf(out, "Warning: stuck detection failed for bead %s: %v\n", in.Bead.ID, err)
 		} else if stuck {
 			return pipeline.Output{Decision: pipeline.Block}, nil
 		}
 	}
 
-	// Scope gate: block beads whose expected output count exceeds the file threshold.
-	// Only runs when scope check is enabled and block_oversized is true (default).
-	// If a decomposer is available and the bead is a root bead, attempt decomposition instead of blocking.
-	if in.Config != nil && in.Config.ScopeCheck.Enabled {
-		blockOversized := in.Config.ScopeCheck.BlockOversized == nil || *in.Config.ScopeCheck.BlockOversized
-		if blockOversized && bead.EstimatedFileCount(in.Bead) > maxScopeFiles {
-			beadSize := bead.EstimatedFileCount(in.Bead)
-
-			// Attempt decomposition if available and bead is a root bead
-			if g.decomposer != nil && in.Bead.Parent == "" {
-				fmt.Fprintf(w, "Scope gate: bead %s has %d expected outputs (max %d), attempting decomposition\n",
-					in.Bead.ID, beadSize, maxScopeFiles)
-				if err := g.decomposer.Decompose(ctx, in.Bead); err != nil {
-					fmt.Fprintf(w, "Warning: scope decomposition failed for bead %s: %v\n", in.Bead.ID, err)
-					return pipeline.Output{Decision: pipeline.Block}, nil
-				}
-				return pipeline.Output{Decision: pipeline.Skip}, nil
-			}
-
-			fmt.Fprintf(w, "Scope gate: bead %s has %d expected outputs (max %d), blocking\n",
-				in.Bead.ID, beadSize, maxScopeFiles)
-			return pipeline.Output{Decision: pipeline.Block}, nil
-		}
+	// Scope gate: try to handle oversized beads via decomposition, fallback to block.
+	if scopeGateDecision := g.runScopeGate(ctx, in, out); scopeGateDecision != nil {
+		return *scopeGateDecision, nil
 	}
 
 	// Proactive decomposition: skip beads whose title contains broad-scope keywords.
 	// Only applies to root beads (no parent) to prevent decompose loops.
-	if g.decomposer != nil && in.Bead.Parent == "" {
-		if bead.IsProactiveDecompositionCandidateWithDesc(in.Bead.Title, in.Bead.Description) {
-			if err := g.decomposer.Decompose(ctx, in.Bead); err != nil {
-				fmt.Fprintf(w, "Warning: proactive decomposition failed for bead %s: %v\n", in.Bead.ID, err)
-			} else {
-				return pipeline.Output{Decision: pipeline.Skip}, nil
-			}
-		}
+	if g.runProactiveDecomposition(ctx, in.Bead, out) {
+		return pipeline.Output{Decision: pipeline.Skip}, nil
 	}
 
 	return pipeline.Output{Decision: pipeline.Proceed}, nil
+}
+
+// runScopeGate evaluates scope gate rules and attempts decomposition if needed.
+// Returns a non-nil decision if scope gate blocks/skips; nil means scope gate allows progression.
+func (g *Gate) runScopeGate(ctx context.Context, in pipeline.Input, out io.Writer) *pipeline.Output {
+	if in.Config == nil || !in.Config.ScopeCheck.Enabled {
+		return nil
+	}
+
+	blockOversized := in.Config.ScopeCheck.BlockOversized == nil || *in.Config.ScopeCheck.BlockOversized
+	fileCount := bead.EstimatedFileCount(in.Bead)
+
+	if !blockOversized || fileCount <= maxScopeFiles {
+		return nil
+	}
+
+	// Bead exceeds scope limit. Try decomposition if available and bead is root.
+	if g.decomposer != nil && in.Bead.Parent == "" {
+		fmt.Fprintf(out, "Scope gate: bead %s has %d expected outputs (max %d), attempting decomposition\n",
+			in.Bead.ID, fileCount, maxScopeFiles)
+		if err := g.decomposer.Decompose(ctx, in.Bead); err != nil {
+			fmt.Fprintf(out, "Warning: scope decomposition failed for bead %s: %v\n", in.Bead.ID, err)
+			return &pipeline.Output{Decision: pipeline.Block}
+		}
+		return &pipeline.Output{Decision: pipeline.Skip}
+	}
+
+	// Decomposition not available or bead is child: block.
+	fmt.Fprintf(out, "Scope gate: bead %s has %d expected outputs (max %d), blocking\n",
+		in.Bead.ID, fileCount, maxScopeFiles)
+	return &pipeline.Output{Decision: pipeline.Block}
+}
+
+// runProactiveDecomposition attempts keyword-based decomposition on root beads.
+// Returns true if decomposition succeeded; false otherwise.
+func (g *Gate) runProactiveDecomposition(ctx context.Context, b *bead.Bead, out io.Writer) bool {
+	if g.decomposer == nil || b.Parent != "" {
+		return false
+	}
+
+	if !bead.IsProactiveDecompositionCandidateWithDesc(b.Title, b.Description) {
+		return false
+	}
+
+	if err := g.decomposer.Decompose(ctx, b); err != nil {
+		fmt.Fprintf(out, "Warning: proactive decomposition failed for bead %s: %v\n", b.ID, err)
+		return false
+	}
+
+	return true
 }
