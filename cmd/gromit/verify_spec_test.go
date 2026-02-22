@@ -304,6 +304,30 @@ func TestBuildVerifySpecRouter_UsesProviderBuildRouterFromConfig(t *testing.T) {
 	}
 }
 
+func TestVerifySpec_LocalProviderConfigHelpersRemoved(t *testing.T) {
+	verifySource, err := os.ReadFile("verify_spec.go")
+	if err != nil {
+		t.Fatalf("Reading verify_spec.go: %v", err)
+	}
+
+	sourceStr := string(verifySource)
+	forbidden := []string{
+		"func buildVerifySpecProviders(",
+		"func defaultVerifySpecTierToModelMap(",
+		"func defaultVerifySpecCodexTierToModelMap(",
+		"func parseVerifySpecFallbackCooldown(",
+		"buildVerifySpecProviders(cfg)",
+		"defaultVerifySpecTierToModelMap()",
+		"defaultVerifySpecCodexTierToModelMap()",
+		"parseVerifySpecFallbackCooldown(cfg)",
+	}
+	for _, snippet := range forbidden {
+		if strings.Contains(sourceStr, snippet) {
+			t.Fatalf("verify_spec.go contains obsolete local config/provider helper usage: %q", snippet)
+		}
+	}
+}
+
 func setupVerifySpecTest(t *testing.T, specName string, specContent string) {
 	t.Helper()
 
