@@ -285,13 +285,7 @@ func formatSPCSummary(trend *logger.ProcessTrend) string {
 		if !ok {
 			continue
 		}
-		if dm.metric == spcMetricRollingAvgDurationMs {
-			lines = append(lines, fmt.Sprintf("  %-10s %dms, limits %dms..%dms",
-				dm.label, int(math.Round(cl.Latest)), int(math.Round(cl.LCL)), int(math.Round(cl.UCL))))
-		} else {
-			lines = append(lines, fmt.Sprintf("  %-10s %d%%, limits %d%%..%d%%",
-				dm.label, int(math.Round(cl.Latest*100)), int(math.Round(cl.LCL*100)), int(math.Round(cl.UCL*100))))
-		}
+		lines = append(lines, formatSPCLine(dm.label, cl, dm.metric == spcMetricRollingAvgDurationMs))
 	}
 
 	// Anomaly summary.
@@ -305,6 +299,17 @@ func formatSPCSummary(trend *logger.ProcessTrend) string {
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+// formatSPCLine formats a single SPC control-limit line for display.
+// When isDuration is true, values are shown as milliseconds; otherwise as percentages.
+func formatSPCLine(label string, cl logger.TrendControlLimit, isDuration bool) string {
+	if isDuration {
+		return fmt.Sprintf("  %-10s %dms, limits %dms..%dms",
+			label, int(math.Round(cl.Latest)), int(math.Round(cl.LCL)), int(math.Round(cl.UCL)))
+	}
+	return fmt.Sprintf("  %-10s %d%%, limits %d%%..%d%%",
+		label, int(math.Round(cl.Latest*100)), int(math.Round(cl.LCL*100)), int(math.Round(cl.UCL*100)))
 }
 
 // formatSPCValue formats a single SPC metric value for display.
