@@ -80,7 +80,7 @@ func (r *Review) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, e
 	}
 
 	var sb strings.Builder
-	llmOutput, err := r.invoker.StreamRun(ctx, prompt, in.Config.Review.Model, io.MultiWriter(w, &sb))
+	llmOutput, err := r.invoker.StreamRun(ctx, prompt, in.Config.Review.Tier, io.MultiWriter(w, &sb))
 	if err != nil {
 		return pipeline.Output{}, fmt.Errorf("review: LLM invocation: %w", err)
 	}
