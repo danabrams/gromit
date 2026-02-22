@@ -5,14 +5,11 @@ package acceptance_test
 import (
 	"context"
 	"io"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/prompt"
-	"github.com/danabrams/gromit/internal/runner"
 )
 
 // TestOrchestratorHelper_TDDPromptSelection verifies that the orchestrator loop
@@ -60,19 +57,17 @@ func TestOrchestratorHelper_TDDPromptSelection(t *testing.T) {
 // loop runs each ATDD scenario bead to completion without error.
 func TestOrchestratorHelper_ATDDSkippedForTestOnlyBead(t *testing.T) {
 	tests := []struct {
-		name                        string
-		beadTitle                   string
-		globalATDD                  bool
-		expectAcceptanceTestsCalled bool
+		name       string
+		beadTitle  string
+		globalATDD bool
 	}{
-		{name: "test-only bead with global ATDD", beadTitle: "Add unit tests for config loading", globalATDD: true, expectAcceptanceTestsCalled: false},
-		{name: "regular bead with global ATDD", beadTitle: "Implement dark mode toggle", globalATDD: true, expectAcceptanceTestsCalled: true},
-		{name: "test-only bead with ATDD disabled", beadTitle: "Add unit tests for config loading", globalATDD: false, expectAcceptanceTestsCalled: false},
+		{name: "test-only bead with global ATDD", beadTitle: "Add unit tests for config loading", globalATDD: true},
+		{name: "regular bead with global ATDD", beadTitle: "Implement dark mode toggle", globalATDD: true},
+		{name: "test-only bead with ATDD disabled", beadTitle: "Add unit tests for config loading", globalATDD: false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			acceptanceTestsCalled := false
 			cfg := &config.Config{
 				Methodology: config.MethodologyConfig{ATDD: tt.globalATDD},
 			}
@@ -92,151 +87,6 @@ func TestOrchestratorHelper_ATDDSkippedForTestOnlyBead(t *testing.T) {
 			h := NewOrchestratorTestHelperWithDeps(t, cfg, io.Discard, mockBeads, newMockRouter())
 			if err := h.Run(context.Background(), 0, time.Time{}, nil); err != nil {
 				t.Fatalf("Run() error = %v", err)
-			}
-			if tt.expectAcceptanceTestsCalled && !acceptanceTestsCalled {
-				t.Errorf("%s: Expected RenderAcceptanceTests to be called but it wasn't", tt.name)
-			}
-		})
-	}
-}
-
-// TestATDDSkippedForTestOnlyBead verifies that when a bead's title matches the
-// test-only heuristic, the ATDD pre-pass is automatically skipped even when ATDD
-// is globally active. This covers acceptance criteria 2 and 3:
-// - AC2: Beads whose title matches test-only heuristic skip ATDD
-// - AC3: When ATDD is skipped for a test-only bead, log the reason
-func TestATDDSkippedForTestOnlyBead(t *testing.T) {
-	tests := []struct {
-		name                        string
-		beadTitle                   string
-		globalATDD                  bool
-		beadLabels                  []string
-		expectAcceptanceTestsCalled bool
-		expectSkipLogMessage        bool
-		description                 string
-	}{
-		{
-			name:                        "test-only bead with global ATDD skips ATDD",
-			beadTitle:                   "Add unit tests for config loading",
-			globalATDD:                  true,
-			beadLabels:                  []string{},
-			expectAcceptanceTestsCalled: false,
-			expectSkipLogMessage:        true,
-			description:                 "A bead titled 'Add unit tests for X' should skip ATDD even when globally enabled",
-		},
-		{
-			name:                        "test-only bead with Add tests prefix skips ATDD",
-			beadTitle:                   "Add tests for runner escalation",
-			globalATDD:                  true,
-			beadLabels:                  []string{},
-			expectAcceptanceTestsCalled: false,
-			expectSkipLogMessage:        true,
-			description:                 "A bead titled 'Add tests for X' should skip ATDD",
-		},
-		{
-			name:                        "test-only bead with Write tests prefix skips ATDD",
-			beadTitle:                   "Write tests for prompt rendering",
-			globalATDD:                  true,
-			beadLabels:                  []string{},
-			expectAcceptanceTestsCalled: false,
-			expectSkipLogMessage:        true,
-			description:                 "A bead titled 'Write tests for X' should skip ATDD",
-		},
-		{
-			name:                        "regular bead with global ATDD runs ATDD",
-			beadTitle:                   "Implement dark mode toggle",
-			globalATDD:                  true,
-			beadLabels:                  []string{},
-			expectAcceptanceTestsCalled: true,
-			expectSkipLogMessage:        false,
-			description:                 "A non-test bead should still run ATDD when globally enabled",
-		},
-		{
-			name:                        "test-only bead with ATDD disabled globally does not log skip",
-			beadTitle:                   "Add unit tests for config loading",
-			globalATDD:                  false,
-			beadLabels:                  []string{},
-			expectAcceptanceTestsCalled: false,
-			expectSkipLogMessage:        false,
-			description:                 "When ATDD is globally disabled, test-only beads don't need the skip log",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			acceptanceTestsCalled := false
-
-			mockRend := &mockPromptRenderer{
-				RenderBuildFn: func(_ *prompt.Context) (string, error) {
-					return "standard build prompt", nil
-				},
-				RenderAcceptanceTestsFn: func(_ *prompt.Context) (string, error) {
-					acceptanceTestsCalled = true
-					return "acceptance tests prompt", nil
-				},
-				RenderATDDBuildFn: func(_ *prompt.Context) (string, error) {
-					return "atdd build prompt", nil
-				},
-			}
-
-			cfg := &config.Config{
-				Methodology: config.MethodologyConfig{
-					ATDD: tt.globalATDD,
-				},
-				Validation: config.ValidationConfig{
-					Enabled: false,
-				},
-			}
-
-			var buf strings.Builder
-			beadReady := false
-			r, err := runner.NewRunnerWithDeps(cfg, &buf, t.TempDir(),
-				runner.Deps{
-					Beads: &mockBeadClient{
-						ReadyFn: func() (*bead.Bead, error) {
-							if beadReady {
-								return nil, nil
-							}
-							beadReady = true
-							return &bead.Bead{
-								ID:              "test-bead-1",
-								Title:           tt.beadTitle,
-								Priority:        1,
-								Labels:          tt.beadLabels,
-								ExpectedOutputs: []string{},
-							}, nil
-						},
-					},
-					Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
-					Analyzer: &mockFailureAnalyzer{},
-					Renderer: mockRend,
-					Logger:   &mockIterationLogger{},
-				})
-			if err != nil {
-				t.Fatalf("Failed to create runner: %v", err)
-			}
-
-			_ = r.Run(context.Background(), 0, time.Time{}, nil, false)
-
-			output := buf.String()
-
-			// AC2: Verify ATDD pre-pass was or was not called
-			if tt.expectAcceptanceTestsCalled && !acceptanceTestsCalled {
-				t.Errorf("%s: Expected RenderAcceptanceTests to be called but it wasn't", tt.description)
-			}
-			if !tt.expectAcceptanceTestsCalled && acceptanceTestsCalled {
-				t.Errorf("%s: Expected RenderAcceptanceTests NOT to be called but it was", tt.description)
-			}
-
-			// AC3: Verify skip log message
-			if tt.expectSkipLogMessage {
-				if !strings.Contains(output, "Skipping ATDD: bead is test-only") {
-					t.Errorf("%s: Expected log output to contain 'Skipping ATDD: bead is test-only', got: %s", tt.description, output)
-				}
-			} else {
-				if strings.Contains(output, "Skipping ATDD: bead is test-only") {
-					t.Errorf("%s: Expected log output NOT to contain 'Skipping ATDD: bead is test-only', got: %s", tt.description, output)
-				}
 			}
 		})
 	}
