@@ -210,6 +210,18 @@ models:
 	}
 }
 
+func TestMethodologyConfigSupportsBuildStrategyField(t *testing.T) {
+	cfg := Config{
+		Methodology: MethodologyConfig{
+			BuildStrategy: "single_pass",
+		},
+	}
+
+	if cfg.Methodology.BuildStrategy != "single_pass" {
+		t.Fatalf("Methodology.BuildStrategy = %q, want %q", cfg.Methodology.BuildStrategy, "single_pass")
+	}
+}
+
 func TestSetDefaultsInitializesPhasesToClaude(t *testing.T) {
 	cfg := &Config{}
 	cfg.SetDefaults()
