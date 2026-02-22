@@ -116,7 +116,11 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 	}
 
 	// Scope gate: try to handle oversized beads via decomposition, fallback to block.
-	if scopeGateDecision := g.runScopeGate(ctx, in, out); scopeGateDecision != nil {
+	scopeGateDecision, scopeGateErr := g.runScopeGate(ctx, in, out)
+	if scopeGateErr != nil {
+		return pipeline.Output{}, scopeGateErr
+	}
+	if scopeGateDecision != nil {
 		return *scopeGateDecision, nil
 	}
 
@@ -131,16 +135,17 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 
 // runScopeGate evaluates scope gate rules and attempts decomposition if needed.
 // Returns a non-nil decision if scope gate blocks/skips; nil means scope gate allows progression.
-func (g *Gate) runScopeGate(ctx context.Context, in pipeline.Input, out io.Writer) *pipeline.Output {
+// Returns an error if decomposition fails.
+func (g *Gate) runScopeGate(ctx context.Context, in pipeline.Input, out io.Writer) (*pipeline.Output, error) {
 	if in.Config == nil || !in.Config.ScopeCheck.Enabled {
-		return nil
+		return nil, nil
 	}
 
 	blockOversized := in.Config.ScopeCheck.BlockOversized == nil || *in.Config.ScopeCheck.BlockOversized
 	fileCount := bead.EstimatedFileCount(in.Bead)
 
 	if !blockOversized || fileCount <= maxScopeFiles {
-		return nil
+		return nil, nil
 	}
 
 	// Bead exceeds scope limit. Try decomposition if available and bead is root.
@@ -148,16 +153,15 @@ func (g *Gate) runScopeGate(ctx context.Context, in pipeline.Input, out io.Write
 		fmt.Fprintf(out, "Scope gate: bead %s has %d expected outputs (max %d), attempting decomposition\n",
 			in.Bead.ID, fileCount, maxScopeFiles)
 		if err := g.decomposer.Decompose(ctx, in.Bead); err != nil {
-			fmt.Fprintf(out, "Warning: scope decomposition failed for bead %s: %v\n", in.Bead.ID, err)
-			return &pipeline.Output{Decision: pipeline.Block}
+			return nil, err
 		}
-		return &pipeline.Output{Decision: pipeline.Skip}
+		return &pipeline.Output{Decision: pipeline.Skip}, nil
 	}
 
 	// Decomposition not available or bead is child: block.
 	fmt.Fprintf(out, "Scope gate: bead %s has %d expected outputs (max %d), blocking\n",
 		in.Bead.ID, fileCount, maxScopeFiles)
-	return &pipeline.Output{Decision: pipeline.Block}
+	return &pipeline.Output{Decision: pipeline.Block}, nil
 }
 
 // runProactiveDecomposition attempts keyword-based decomposition on root beads.

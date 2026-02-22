@@ -332,6 +332,14 @@ func TestGateRunScopeGateAttemptsDecomposition(t *testing.T) {
 			}
 			in := pipeline.Input{Bead: b, Config: cfg}
 			out, err := gate.Run(context.Background(), in)
+			// If decomposition was attempted and failed, error is propagated
+			if tt.decomposerErr != nil {
+				if err == nil {
+					t.Fatalf("expected error from decomposition failure, got nil")
+				}
+				// Error is expected and has been propagated
+				return
+			}
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
