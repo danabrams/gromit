@@ -312,6 +312,38 @@ func TestNormalizeNilFieldsMethodologyAndRefactor_SetsSafeDefaults(t *testing.T)
 	}
 }
 
+func TestMethodologyBuildStrategyAndPhaseModels_ParseFromFullYAML(t *testing.T) {
+	yamlContent := `methodology:
+  build_strategy: "  single_pass  "
+  phase_models:
+    decompose: " HIGH "
+    build: " MEDIUM "
+    red: " LOW "
+    green: " MEDIUM "
+    refactor: " LOW "
+`
+	cfg := loadConfigFromYAML(t, yamlContent)
+
+	if cfg.Methodology.BuildStrategy != "single_pass" {
+		t.Fatalf("Methodology.BuildStrategy = %q, want %q", cfg.Methodology.BuildStrategy, "single_pass")
+	}
+	if cfg.Methodology.PhaseModels.Decompose != "high" {
+		t.Fatalf("Methodology.PhaseModels.Decompose = %q, want %q", cfg.Methodology.PhaseModels.Decompose, "high")
+	}
+	if cfg.Methodology.PhaseModels.Build != "medium" {
+		t.Fatalf("Methodology.PhaseModels.Build = %q, want %q", cfg.Methodology.PhaseModels.Build, "medium")
+	}
+	if cfg.Methodology.PhaseModels.Red != "low" {
+		t.Fatalf("Methodology.PhaseModels.Red = %q, want %q", cfg.Methodology.PhaseModels.Red, "low")
+	}
+	if cfg.Methodology.PhaseModels.Green != "medium" {
+		t.Fatalf("Methodology.PhaseModels.Green = %q, want %q", cfg.Methodology.PhaseModels.Green, "medium")
+	}
+	if cfg.Methodology.PhaseModels.Refactor != "low" {
+		t.Fatalf("Methodology.PhaseModels.Refactor = %q, want %q", cfg.Methodology.PhaseModels.Refactor, "low")
+	}
+}
+
 func TestSetDefaultsInitializesPhasesToClaude(t *testing.T) {
 	cfg := &Config{}
 	cfg.SetDefaults()
