@@ -197,6 +197,9 @@ func extractAPISurface(implFiles map[string]string) string {
 					line = strings.TrimSpace(line[:idx])
 				}
 				lines = append(lines, line)
+			} else if strings.HasPrefix(line, "const ") || strings.HasPrefix(line, "var ") {
+				// Capture const/var declarations
+				lines = append(lines, trimmed)
 			} else if inInterface && isMethodSignature(trimmed) {
 				// Capture interface method signatures
 				lines = append(lines, trimmed)
