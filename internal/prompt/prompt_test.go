@@ -148,6 +148,41 @@ func TestBuildContextNilBead(t *testing.T) {
 	}
 }
 
+func TestBuildContext_UsesPhaseScopedRules(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	specsDir := filepath.Join(gromitDir, "specs")
+	if err := os.MkdirAll(specsDir, 0755); err != nil {
+		t.Fatalf("MkdirAll(specs) error = %v", err)
+	}
+
+	rules := "## Build <!-- phases: build -->\nonly-build\n\n## Review <!-- phases: review -->\nonly-review\n"
+	if err := os.WriteFile(filepath.Join(gromitDir, "RULES.md"), []byte(rules), 0644); err != nil {
+		t.Fatalf("WriteFile(RULES.md) error = %v", err)
+	}
+
+	claudePath := filepath.Join(tmpDir, "CLAUDE.md")
+	if err := os.WriteFile(claudePath, []byte("# Claude"), 0644); err != nil {
+		t.Fatalf("WriteFile(CLAUDE.md) error = %v", err)
+	}
+
+	r, err := NewRenderer("", specsDir, claudePath, gromitDir)
+	if err != nil {
+		t.Fatalf("NewRenderer() error = %v", err)
+	}
+
+	ctx, err := r.BuildContext(&bead.Bead{ID: "b1", Title: "t"}, nil, 1, "sonnet", "review")
+	if err != nil {
+		t.Fatalf("BuildContext() error = %v", err)
+	}
+	if strings.Contains(ctx.Rules, "only-build") {
+		t.Fatalf("BuildContext() Rules should exclude build-only section in review phase, got %q", ctx.Rules)
+	}
+	if !strings.Contains(ctx.Rules, "only-review") {
+		t.Fatalf("BuildContext() Rules should include review section in review phase, got %q", ctx.Rules)
+	}
+}
+
 func setupBuildContextScopedRenderer(t *testing.T, claudeMD string, specContent string) *Renderer {
 	t.Helper()
 
