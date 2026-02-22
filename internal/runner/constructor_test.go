@@ -3,11 +3,15 @@ package runner
 import (
 	"context"
 	"io"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/analyzer"
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/pipeline"
 )
 
 // stubFailureAnalyzer is a test double for FailureAnalyzer.
@@ -120,5 +124,52 @@ func TestFailureLearnerAdapter_ForwardsFailureOutput(t *testing.T) {
 	}
 	if receivedOutput != "FAIL: TestFoo\nexpected 1 got 2" {
 		t.Errorf("analyzer received output %q, want %q", receivedOutput, "FAIL: TestFoo\nexpected 1 got 2")
+	}
+}
+
+// TestNewRunnerImpl_BuildStageUsesTDDCycleRunner_WhenFreshContextPerCycle verifies
+// that newRunnerImpl wires the TDDCycleRunner into the Build stage when
+// FreshContextPerCycle is true. The test exercises the Build stage with a TDD bead
+// and checks that it delegates to the TDDCycleRunner (identified by the distinctive
+// error from the placeholder runCyclesFn) instead of falling back to StreamRun.
+func TestNewRunnerImpl_BuildStageUsesTDDCycleRunner_WhenFreshContextPerCycle(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	_ = os.MkdirAll(filepath.Join(gromitDir, "templates"), 0o755)
+	_ = os.MkdirAll(filepath.Join(gromitDir, "specs"), 0o755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "logs"), 0o755)
+
+	cfg := &config.Config{}
+	cfg.Paths.Templates = filepath.Join(gromitDir, "templates")
+	cfg.Paths.Specs = filepath.Join(gromitDir, "specs")
+	cfg.Paths.Logs = filepath.Join(tmpDir, "logs")
+	cfg.Methodology.TDD = true
+	cfg.Methodology.FreshContextPerCycle = true
+
+	orch, err := newRunnerImpl(cfg, io.Discard, nil)
+	if err != nil {
+		t.Fatalf("newRunnerImpl: %v", err)
+	}
+
+	// Extract the Build stage and run it with a TDD bead.
+	buildStage := orch.cfg.Build
+	tddBead := &bead.Bead{
+		ID:     "test-bead-1",
+		Title:  "Test feature",
+		Labels: []string{"tdd:true"},
+	}
+	in := pipeline.Input{
+		Bead:   tddBead,
+		Config: cfg,
+	}
+	_, err = buildStage.Run(context.Background(), in)
+	if err == nil {
+		t.Fatal("Build.Run() returned nil error; want TDD cycle runner error proving delegation")
+	}
+	// The placeholder runCyclesFn returns "TDD cycle execution not yet implemented".
+	// If wiring is missing, we'd get a different error (StreamRun failure or "not configured").
+	if !strings.Contains(err.Error(), "TDD cycle execution not yet implemented") {
+		t.Errorf("Build.Run() error = %q; want error containing %q (proves TDDCycleRunner was wired)",
+			err.Error(), "TDD cycle execution not yet implemented")
 	}
 }
