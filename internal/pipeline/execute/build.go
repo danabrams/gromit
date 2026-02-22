@@ -104,9 +104,14 @@ func (b *Build) ShouldRunPostSuccess(bead *bead.Bead, cfg *config.Config) bool {
 // invokes the provider via StreamRun. Returns Proceed on both success and failure
 // so the orchestrator can inspect Output and decide whether to proceed to Validate.
 func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+	strategy := resolveBuildStrategy(in.Config, in.Bead)
 	methodology := SelectMethodology(in.Bead, in.Config)
 
-	if methodology == MethodologyTDD && in.Config.Methodology.FreshContextPerCycle && b.tddCycleRunner != nil {
+	if strategy == "tdd" && in.Config != nil {
+		methodology = MethodologyTDD
+	}
+
+	if methodology == MethodologyTDD && in.Config != nil && in.Config.Methodology.FreshContextPerCycle && b.tddCycleRunner != nil {
 		result, err := b.tddCycleRunner.RunCycles(ctx, in.Bead, in.Config)
 		if err != nil {
 			return pipeline.Output{}, fmt.Errorf("build: TDD cycle runner: %w", err)
@@ -167,4 +172,23 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 		out.OutputTokens = result.OutputTokens
 	}
 	return out, nil
+}
+
+func resolveBuildStrategy(cfg *config.Config, b *bead.Bead) string {
+	strategy := "single_pass"
+	if cfg != nil && cfg.Methodology.BuildStrategy != "" {
+		strategy = cfg.Methodology.BuildStrategy
+	}
+	if b == nil {
+		return strategy
+	}
+	for _, label := range b.Labels {
+		switch label {
+		case "build_strategy:tdd":
+			return "tdd"
+		case "build_strategy:single_pass":
+			return "single_pass"
+		}
+	}
+	return strategy
 }
