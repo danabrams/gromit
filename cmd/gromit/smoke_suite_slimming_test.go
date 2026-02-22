@@ -91,9 +91,10 @@ func TestCmdAcceptanceSmokeSuite_IsSlimAndFocused(t *testing.T) {
 	}
 
 	allowedFiles := map[string]bool{
-		"cmd/gromit/debug_agent_acceptance_test.go":              true,
-		"cmd/gromit/explore_codex_help_acceptance_test.go":       true,
-		"cmd/gromit/review_spec_validation_acceptance_test.go":   true,
+		"cmd/gromit/debug_agent_acceptance_test.go":            true,
+		"cmd/gromit/explore_codex_help_acceptance_test.go":     true,
+		"cmd/gromit/install_skill_acceptance_test.go":          true,
+		"cmd/gromit/review_spec_validation_acceptance_test.go": true,
 	}
 
 	for _, abs := range matches {
