@@ -42,19 +42,19 @@ func (s *stubRunProvider) IsUsageLimitError(result *provider.Result, err error) 
 func (s *stubRunProvider) IsValidationPassed(result *provider.Result) bool           { return true }
 func (s *stubRunProvider) IsScopeTooLarge(result *provider.Result) (bool, string)    { return false, "" }
 
-func TestBuildProvidersFromConfig_NilConfigReturnsError(t *testing.T) {
-	_, _, err := buildProvidersFromConfig(nil)
+func TestProviderBuildProvidersFromConfig_NilConfigReturnsError(t *testing.T) {
+	_, err := provider.BuildProvidersFromConfig(nil)
 	if err == nil {
-		t.Fatal("buildProvidersFromConfig(nil) error = nil, want non-nil")
+		t.Fatal("provider.BuildProvidersFromConfig(nil) error = nil, want non-nil")
 	}
 	if !strings.Contains(err.Error(), "config is nil") {
-		t.Fatalf("buildProvidersFromConfig(nil) error = %q, want substring %q", err.Error(), "config is nil")
+		t.Fatalf("provider.BuildProvidersFromConfig(nil) error = %q, want substring %q", err.Error(), "config is nil")
 	}
 }
 
-func TestParseFallbackCooldown_NilConfigReturnsZero(t *testing.T) {
-	if got := parseFallbackCooldown(nil); got != 0 {
-		t.Fatalf("parseFallbackCooldown(nil) = %v, want 0", got)
+func TestProviderParseFallbackCooldown_NilConfigReturnsZero(t *testing.T) {
+	if got := provider.ParseFallbackCooldown(nil); got != 0 {
+		t.Fatalf("provider.ParseFallbackCooldown(nil) = %v, want 0", got)
 	}
 }
 

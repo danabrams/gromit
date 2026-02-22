@@ -192,9 +192,13 @@ func buildRouterAndLearningsProvider(cfg *config.Config, gromitDir string, outpu
 		cfg.SetDefaults()
 		cfg.NormalizeNilFields()
 
-		providers, costDefs, err := buildProvidersFromConfig(cfg)
+		providers, err := provider.BuildProvidersFromConfig(cfg)
 		if err != nil {
 			return nil, nil, nil, nil, err
+		}
+		costDefs := make(map[string]config.ProviderDef)
+		for name, def := range cfg.Providers {
+			costDefs[providers[name].Name()] = def
 		}
 
 		var sf *state.File
@@ -209,7 +213,7 @@ func buildRouterAndLearningsProvider(cfg *config.Config, gromitDir string, outpu
 			providers,
 			cfg.Routing.PhasePreferences,
 			cfg.Routing.Ratio,
-			parseFallbackCooldown(cfg),
+			provider.ParseFallbackCooldown(cfg),
 			sf,
 			nil,
 		)
@@ -224,23 +228,6 @@ func buildRouterAndLearningsProvider(cfg *config.Config, gromitDir string, outpu
 	}
 	claudeProvider := provider.NewClaudeProvider(claudeClient, defaultTierToModelMap)
 	return provider.NewSingleProviderRouter(claudeProvider), claudeProvider, nil, nil, nil
-}
-
-func buildProvidersFromConfig(cfg *config.Config) (map[string]provider.Provider, map[string]config.ProviderDef, error) {
-	providers, err := provider.BuildProvidersFromConfig(cfg)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	costDefs := make(map[string]config.ProviderDef)
-	for name, def := range cfg.Providers {
-		costDefs[providers[name].Name()] = def
-	}
-	return providers, costDefs, nil
-}
-
-func parseFallbackCooldown(cfg *config.Config) time.Duration {
-	return provider.ParseFallbackCooldown(cfg)
 }
 
 func selectLearningsProvider(providers map[string]provider.Provider) provider.Provider {
