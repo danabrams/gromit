@@ -5,15 +5,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/reviewpkg"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/runner/validation"
 )
-
-var _ = claude.Result{}
 
 // makeValidationExecuteFn creates a validation.ExecuteFn callback that wraps
 // the escalation handler's ExecuteWithRetry for Claude-based validation fix attempts.

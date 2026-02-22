@@ -29,6 +29,9 @@ type ValidationResponse struct {
 }
 
 func (s *SelfReport) normalizeNilFields() {
+	if s == nil {
+		return
+	}
 	if s.Remaining == nil {
 		s.Remaining = []int{}
 	}

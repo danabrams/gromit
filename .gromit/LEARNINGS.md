@@ -62,6 +62,22 @@ Replace God Object pattern with pure orchestration: hold only stage references a
 
 ---
 
+## Emerging
+
+*Newly observed — needs validation across more tasks.*
+
+### 2026-02-22 | Pipeline-to-Orchestrator Adapter Proliferation and Dual-Level Architecture | patterns
+*Related to: code-review*
+
+The migration from a monolithic Pipeline struct to a stage-based Orchestrator introduces structural friction that manifests in three ways: (1) Adapter proliferation — 12+ adapter types in constructor.go (invokerAdapter, renderAdapter, cmdRunnerAdapter, etc.) bridge pipeline stage interfaces to existing infrastructure interfaces, signaling that stage interfaces have diverged from the pre-existing contracts. Future stage interfaces should be designed to minimize adapter surface area. (2) Asymmetric inter-stage state — the Orchestrator correctly clears validationFailures on success but accumulates touchedPackages indefinitely across the run. This is intentional (packages stay touched for the full run) but the asymmetry is non-obvious; document it to prevent accidental "fix" attempts that reset touchedPackages. (3) Semantic duplicate helpers — pipeline review stage's buildFromReviewLabels and the parent pipeline's buildReviewBeadLabels perform overlapping label construction, arising from the dual-level architecture (stage sub-packages vs workflow methods on Pipeline struct). This dual-purpose design is reasonable during migration but needs inline documentation to prevent confusion about which function to call.
+
+### 2026-02-22 | Dead Code via Forced Import Keep-Alive Patterns | gotchas
+*Related to: code-review*
+
+The `var _ = Type{}` pattern in files like callbacks_validation.go is used as a forced-import keep-alive — it exists solely to prevent the Go compiler from removing an otherwise-unused import. This pattern indicates incomplete refactoring: the real usage was deleted but the artificial reference was left behind. When removing usage of a package, search for these keep-alive patterns (`var _ =`, `var _ Type`) in the same file and in files that previously consumed the package. Unlike compile-time interface checks (`var _ Interface = (*Impl)(nil)`), which enforce architectural invariants and should be preserved, bare forced-import patterns are dead code and should be removed.
+
+---
+
 ## Archived
 
 *Moved to LEARNINGS_ARCHIVE.md to reduce prompt context overhead.*

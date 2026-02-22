@@ -81,17 +81,6 @@ func convertResult(claudeResult *claude.Result) *Result {
 	}
 }
 
-// convertToClaudeResult converts a provider.Result to a claude.Result
-func convertToClaudeResult(result *Result) *claude.Result {
-	return &claude.Result{
-		Success:  result.Success,
-		Output:   result.Output,
-		ExitCode: result.ExitCode,
-		Duration: result.Duration,
-		Model:    result.Model,
-	}
-}
-
 // Run executes an LLM invocation with the given prompt and tier.
 // It resolves the tier to a model name and delegates to claude.Client.Run().
 func (cp *ClaudeProvider) Run(ctx context.Context, prompt string, tier string) (*Result, error) {
