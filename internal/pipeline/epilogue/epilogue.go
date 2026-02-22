@@ -193,7 +193,11 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 			maxIter = in.Config.Loop.MaxIterations
 		}
 		tbm := computeTimeBudgetMinutes(in.Deadline)
-		if err := e.status.Write(in.Iteration, in.Bead.ID, in.Bead.Title, "", maxIter, tbm); err != nil {
+		model := ""
+		if in.Result != nil {
+			model = in.Result.Model
+		}
+		if err := e.status.Write(in.Iteration, in.Bead.ID, in.Bead.Title, model, maxIter, tbm); err != nil {
 			fmt.Fprintf(w, "Warning: failed to write status: %v\n", err)
 		}
 	}
