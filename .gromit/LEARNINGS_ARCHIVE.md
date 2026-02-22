@@ -1607,3 +1607,10 @@ OriginalTier is set once in setupBeadContext from the initial SelectTier call; A
 Runbook capture uses best-effort semantics: getHead and runbook.Append failures are logged as warnings, not propagated as errors. This prevents auxiliary diagnostics from interrupting the main iteration loop.
 
 *Archived 2026-02-20: Documents existing best-effort semantics for runbook capture. Describes how code works, not a constraint to follow.*
+### 2026-02-21 | Compile-Time Invariant Enforcement vs Dead Code Patterns | conventions
+*Related to: f668688fead2f958, 5912b9aee59cce5e, code-review*
+
+Use package-level `var _ Interface = (*Impl)(nil)` declarations in non-test `.go` files to enforce architectural invariants at compile time. A check inside a test function body gates test compilation only — it does not gate production builds. Avoid tests that use `os.ReadFile`+`strings.Contains` on `.go` source files — they break silently on renames/moves. Distinguish from forced-import keep-alive patterns (`var _ = Type{}`): these exist solely to prevent the compiler from removing an unused import, indicate incomplete refactoring, and should be removed. When removing package usage, search for these keep-alive patterns in the same file and related consumers.
+
+*Archived from provisional: filtered: generic engineering advice*
+

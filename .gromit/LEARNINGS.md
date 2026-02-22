@@ -45,11 +45,6 @@ Stage-based orchestration should keep business logic in stages with typed I/O, d
 
 Cost/token tracking uses inconsistent accumulation patterns: (1) PhaseMetric recording — the green phase uses before/after usage snapshots via snapshotIterationUsage() but red and refactor phases use recordPhaseMetric() without snapshots, mixing per-phase deltas with raw values. (2) Codex stream events — turn.completed overwrites usage while response.completed and result events merge via mergeCodexUsage(). Both patterns should use explicit before/after snapshots for phases and consistent merge semantics for stream events to make cost attribution reliable for retrospective analysis.
 
-### 2026-02-21 | Compile-Time Invariant Enforcement vs Dead Code Patterns | conventions
-*Related to: f668688fead2f958, 5912b9aee59cce5e, code-review*
-
-Use package-level `var _ Interface = (*Impl)(nil)` declarations in non-test `.go` files to enforce architectural invariants at compile time. A check inside a test function body gates test compilation only — it does not gate production builds. Avoid tests that use `os.ReadFile`+`strings.Contains` on `.go` source files — they break silently on renames/moves. Distinguish from forced-import keep-alive patterns (`var _ = Type{}`): these exist solely to prevent the compiler from removing an unused import, indicate incomplete refactoring, and should be removed. When removing package usage, search for these keep-alive patterns in the same file and related consumers.
-
 ### 2026-02-22 | Orchestrator Migration Safety & Parity | conventions
 *Related to: code-review, review-1771733992016921570*
 
@@ -109,3 +104,17 @@ Source-reading tests (e.g., checking function text with os.ReadFile + strings.Co
 *Related to: review-1771797265171555605*
 
 JSON parsing alone is not enough for LLM decomposition output. Gate paths should validate concrete quality constraints (sub-task count bounds, non-empty titles, bounded expected outputs, no degenerate parent echo) and define deterministic fallback behavior when outputs violate the contract.
+
+---
+
+## Archived
+
+*Previously archived learnings.*
+
+### 2026-02-21 | Compile-Time Invariant Enforcement vs Dead Code Patterns | conventions
+*Related to: f668688fead2f958, 5912b9aee59cce5e, code-review*
+
+Use package-level `var _ Interface = (*Impl)(nil)` declarations in non-test `.go` files to enforce architectural invariants at compile time. A check inside a test function body gates test compilation only — it does not gate production builds. Avoid tests that use `os.ReadFile`+`strings.Contains` on `.go` source files — they break silently on renames/moves. Distinguish from forced-import keep-alive patterns (`var _ = Type{}`): these exist solely to prevent the compiler from removing an unused import, indicate incomplete refactoring, and should be removed. When removing package usage, search for these keep-alive patterns in the same file and related consumers.
+
+*Archived from provisional: filtered: generic engineering advice*
+
