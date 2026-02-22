@@ -81,7 +81,7 @@ func formatIterationPrefix(s *Status) string {
 func formatElapsedSuffix(s *Status) string {
 	elapsed := formatDuration(time.Duration(s.ElapsedS) * time.Second)
 	if s.TimeBudgetMinutes > 0 {
-		budget := formatDuration(time.Duration(s.TimeBudgetMinutes) * time.Minute)
+		budget := fmt.Sprintf("%dm", s.TimeBudgetMinutes)
 		return fmt.Sprintf("%s of %s elapsed", elapsed, budget)
 	}
 	return fmt.Sprintf("%s elapsed", elapsed)
