@@ -283,6 +283,31 @@ func TestAssembleRedHandoffPopulatesAPISurfaceWithFunctionSignatures(t *testing.
 	}
 }
 
+func TestAssembleRedHandoffAPISurfaceIncludesTypeDeclarations(t *testing.T) {
+	state := CycleState{
+		CycleNumber: 2,
+		MaxCycles:   10,
+		Remaining:   []string{"users can reset password"},
+		TouchedFiles: []string{
+			"internal/auth/types.go",
+		},
+	}
+
+	readFile := fakeReadFile(map[string]string{
+		"internal/auth/types.go": "package auth\n\ntype User struct {\n\tID string\n}\n",
+	})
+	getDiff := fakeGetDiff()
+
+	handoff, err := AssembleRedHandoff(state, readFile, getDiff)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(handoff.APISurface, "type User struct") {
+		t.Fatalf("expected APISurface to contain type declaration, got %q", handoff.APISurface)
+	}
+}
+
 func TestAssembleRedHandoffPopulatesCycleSummaryWithCompletedRequirements(t *testing.T) {
 	state := CycleState{
 		CycleNumber:  2,
