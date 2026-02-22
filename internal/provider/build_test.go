@@ -101,3 +101,13 @@ func TestBuildProvidersFromConfig_ClaudeDefaults(t *testing.T) {
 		t.Fatalf("ModelForTier(%q) = %q, want %q", provider.TierLow, got, "haiku")
 	}
 }
+
+func TestBuildProvidersFromConfig_NilConfig(t *testing.T) {
+	providers, err := provider.BuildProvidersFromConfig(nil)
+	if err == nil {
+		t.Fatal("BuildProvidersFromConfig() error = nil, want non-nil")
+	}
+	if providers != nil {
+		t.Fatalf("BuildProvidersFromConfig() providers = %#v, want nil", providers)
+	}
+}
