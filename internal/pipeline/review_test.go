@@ -23,6 +23,21 @@ func TestBuildFromReviewLabels_PrependsSingleLabel(t *testing.T) {
 	}
 }
 
+// TestBuildFromReviewLabels_DeduplicatesExistingLabel verifies that if "from-review"
+// is already in the labels, it is not duplicated.
+func TestBuildFromReviewLabels_DeduplicatesExistingLabel(t *testing.T) {
+	labels := BuildFromReviewLabels([]string{"from-review", "bug"})
+	if len(labels) != 2 {
+		t.Errorf("got %d labels, want 2 (deduplicated)", len(labels))
+	}
+	if labels[0] != "from-review" {
+		t.Errorf("first label = %q, want 'from-review'", labels[0])
+	}
+	if labels[1] != "bug" {
+		t.Errorf("second label = %q, want 'bug'", labels[1])
+	}
+}
+
 // TestReviewInteractiveWorkflow_BuildsContextAndReturnsSession verifies ReviewInteractive validates dependencies,
 // builds ThoroughReviewContext, renders prompt, writes temp file, resolves agent, and returns ReviewSession.
 // Expected failure: Pipeline.ReviewInteractive method does not exist yet
