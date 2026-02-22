@@ -51,7 +51,7 @@ func BuildProvidersFromConfig(cfg *config.Config) (map[string]Provider, error) {
 				return nil, err
 			}
 			providers[name] = NewClaudeProvider(client, tierMap)
-		case name == "codex" || name == "openai" || def.Binary == "codex":
+		case name == "codex" || name == "openai" || def.Binary == "codex" || binaryName == "codex":
 			tierMap := def.Models
 			if len(tierMap) == 0 {
 				tierMap = defaultCodexTierToModelMap
