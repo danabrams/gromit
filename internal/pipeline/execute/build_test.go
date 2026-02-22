@@ -600,6 +600,40 @@ func TestBuildRun_TDD_FreshContextFalse_UsesSingleInvocationPath(t *testing.T) {
 	}
 }
 
+// TestBuildRun_BuildStrategyTDDLabel_DelegatesToTDDCycleRunner verifies that
+// a bead-level build_strategy:tdd label overrides global methodology defaults
+// and forces the TDD cycle runner path.
+func TestBuildRun_BuildStrategyTDDLabel_DelegatesToTDDCycleRunner(t *testing.T) {
+	runCyclesCalled := false
+	runner := &trackingTDDCycleRunner{
+		runCyclesFn: func(_ context.Context, _ *bead.Bead, _ *config.Config) (execute.TDDCycleResult, error) {
+			runCyclesCalled = true
+			return execute.TDDCycleResult{}, nil
+		},
+	}
+
+	invoker := &fakeInvoker{}
+	stage := execute.New(invoker, &fakePromptRenderer{}, io.Discard).WithTDDCycleRunner(runner)
+
+	cfg := defaultConfig()
+	cfg.Methodology.TDD = false
+	cfg.Methodology.BuildStrategy = "single_pass"
+	cfg.Methodology.FreshContextPerCycle = true
+	in := makeInput(makeBeadWithLabels("bead-1", "Implement feature", []string{"build_strategy:tdd"}), cfg)
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if !runCyclesCalled {
+		t.Error("TDDCycleRunner.RunCycles was not called, want build_strategy:tdd to force TDD path")
+	}
+	if len(invoker.streamCalls) != 0 {
+		t.Errorf("StreamRun called %d times, want 0 when TDD cycle runner is used", len(invoker.streamCalls))
+	}
+}
+
 // TestBuildStage_Run_PopulatesOutputMetadataFromProviderResult verifies that the
 // Build stage copies Model, DurationMs, CostUSD, InputTokens, and OutputTokens
 // from the successful StreamRun provider result into the returned Output.
