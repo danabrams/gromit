@@ -217,6 +217,35 @@ func (l LoopConfig) ShouldLearnFromSuccess() bool {
 	return *l.LearnFromSuccess
 }
 
+// PhaseModelTier returns a phase-specific tier override when configured.
+// Unknown phases and empty overrides fall back to beadTier.
+func (c *Config) PhaseModelTier(phase, beadTier string) string {
+	if c == nil {
+		return beadTier
+	}
+
+	var override string
+	switch strings.ToLower(phase) {
+	case "decompose":
+		override = c.Methodology.PhaseModels.Decompose
+	case "build":
+		override = c.Methodology.PhaseModels.Build
+	case "red":
+		override = c.Methodology.PhaseModels.Red
+	case "green":
+		override = c.Methodology.PhaseModels.Green
+	case "refactor":
+		override = c.Methodology.PhaseModels.Refactor
+	default:
+		return beadTier
+	}
+
+	if override != "" {
+		return override
+	}
+	return beadTier
+}
+
 // IsVerificationEnabled returns whether precheck verification should run (defaults to true).
 func (v PrecheckVerificationConfig) IsVerificationEnabled() bool {
 	if v.Enabled == nil {
