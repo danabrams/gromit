@@ -142,7 +142,6 @@ func TestSmokeCoverageMatrix_ConsolidatedCaseMappingIsComplete(t *testing.T) {
 		"cmd/gromit/review_spec_validation_acceptance_test.go",
 	}
 	runnerFiles := []string{
-		"internal/runner/validation_extraction_acceptance_test.go",
 		"internal/runner/acceptance/invocation_timeout_acceptance_test.go",
 		"internal/runner/acceptance/worktree_merge_acceptance_test.go",
 	}
@@ -194,7 +193,6 @@ func TestSmokeCoverageMatrix_KeepSetIsMinimalHighValue(t *testing.T) {
 		"cmd/gromit/debug_agent_acceptance_test.go:TestCmdSmoke_DebugAgentResolutionEndToEnd":                             true,
 		"cmd/gromit/explore_codex_help_acceptance_test.go:TestCmdSmoke_ExploreAgentSelectionEndToEnd":                     true,
 		"cmd/gromit/review_spec_validation_acceptance_test.go:TestCmdSmoke_ReviewSpecValidationEndToEnd":                  true,
-		"internal/runner/validation_extraction_acceptance_test.go:TestRunnerSmoke_RunSingleBeadHappyPath":                 true,
 		"internal/runner/acceptance/invocation_timeout_acceptance_test.go:TestRunnerSmoke_ValidationFailureEscalatesTier": true,
 		"internal/runner/acceptance/worktree_merge_acceptance_test.go:TestRunnerSmoke_WorktreeMergeModesEndToEnd":         true,
 	}

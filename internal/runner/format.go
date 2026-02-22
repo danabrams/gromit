@@ -207,12 +207,6 @@ func formatDuration(d time.Duration) string {
 	return fmt.Sprintf("%dm", minutes)
 }
 
-// formatTimeAgo formats a timestamp as a human-readable relative time
-func formatTimeAgo(t time.Time) string {
-	elapsed := time.Since(t)
-	return formatDuration(elapsed) + " ago"
-}
-
 // formatHealth formats health status for display
 func formatHealth(lastRetro time.Time, iterationsSinceReview int) string {
 	var lines []string

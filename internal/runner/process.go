@@ -450,40 +450,6 @@ func (r *Runner) handleValidationResult(ctx context.Context, bc *runtypes.BeadCo
 	return nil
 }
 
-// runValidation runs the validation step (tests/lint) after a successful build.
-// Delegates core command execution and failure accumulation to the validation.Runner,
-// then handles facade concerns: preflight, logging, failure analysis, and post-success stages.
-func (r *Runner) runValidation(ctx context.Context, bc *runtypes.BeadContext) error {
-	proceed, err := r.validationPreflight(bc)
-	if !proceed || err != nil {
-		return err
-	}
-
-	r.log("Running validation commands directly (fast gate)...")
-	commands := r.cfg.Validation.FastCommandsOrDefault()
-	commands = config.ScopeGoTestCommands(commands, bc.TouchedPackages)
-
-	// Capture output before validation to extract failure output afterward
-	outputBefore := bc.Result.Output
-
-	// Delegate core validation (command execution + failure accumulation) to validation.Runner
-	valErr := r.runValidationCommandsWithElapsed(ctx, bc, commands, "fast")
-
-	// Extract the failure output appended by the validation runner
-	failureOutput := strings.TrimPrefix(bc.Result.Output, outputBefore)
-	failureOutput = strings.TrimPrefix(failureOutput, runtypes.ValidationOutputHeader)
-
-	return r.handleValidationResult(ctx, bc, valErr, failureOutput, true)
-}
-
-// runValidationWithRecovery delegates validation and recovery entirely to the
-// validation.Runner's RunWithRecovery method. The facade handles only
-// orchestration concerns: preflight checking, logging, failure analysis,
-// learning extraction, and post-success stages (review).
-func (r *Runner) runValidationWithRecovery(ctx context.Context, bc *runtypes.BeadContext) error {
-	return r.runValidationWithRecoveryForStage(ctx, bc, true)
-}
-
 // runValidationWithRecoveryForStage runs validation and controls whether
 // post-success stages (success learning + light review) should execute.
 func (r *Runner) runValidationWithRecoveryForStage(ctx context.Context, bc *runtypes.BeadContext, runPostSuccess bool) error {

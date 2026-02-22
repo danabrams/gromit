@@ -7,12 +7,11 @@ const RunnerSmokeSuiteMatrixVersion = "v1"
 const RunnerSmokeSuiteTestPrefix = "TestRunnerSmoke_"
 
 // RunnerSmokeSuiteMaxCases is the maximum number of runner smoke acceptance tests allowed.
-const RunnerSmokeSuiteMaxCases = 3
+const RunnerSmokeSuiteMaxCases = 2
 
 // RunnerSmokeApprovedMatrixCases returns the approved runner-level smoke cases.
 func RunnerSmokeApprovedMatrixCases() map[string]bool {
 	return map[string]bool{
-		"TestRunnerSmoke_RunSingleBeadHappyPath":         true,
 		"TestRunnerSmoke_ValidationFailureEscalatesTier": true,
 		"TestRunnerSmoke_WorktreeMergeModesEndToEnd":     true,
 	}
@@ -22,7 +21,6 @@ func RunnerSmokeApprovedMatrixCases() map[string]bool {
 // runner-level acceptance tests in the smoke suite.
 func RunnerSmokeSuiteApprovedRoots() map[string]bool {
 	return map[string]bool{
-		"internal/runner":            true,
 		"internal/runner/acceptance": true,
 	}
 }

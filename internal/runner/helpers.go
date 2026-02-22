@@ -78,20 +78,6 @@ func (r *Runner) resetHard(commit string) error {
 	return nil
 }
 
-// hasNewPackages returns true if any package in the list is not in the runner's
-// touched packages map. Returns true if the map is nil or empty.
-func (r *Runner) hasNewPackages(packages []string) bool {
-	if len(r.touchedPackages) == 0 {
-		return len(packages) > 0
-	}
-	for _, pkg := range packages {
-		if !r.touchedPackages[pkg] {
-			return true
-		}
-	}
-	return false
-}
-
 // updateTouchedPackages adds the given packages to the runner's touched packages map.
 func (r *Runner) updateTouchedPackages(packages []string) {
 	if r.touchedPackages == nil {

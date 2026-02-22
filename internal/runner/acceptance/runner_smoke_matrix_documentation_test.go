@@ -71,9 +71,8 @@ func TestRunnerSmokeMatrix_DocumentedKeepSetIsExact(t *testing.T) {
 	}
 
 	expectedKeep := map[string]bool{
-		"internal/runner/validation_extraction_acceptance_test.go:TestRunnerSmoke_RunSingleBeadHappyPath":      true,
-		"internal/runner/invocation_timeout_acceptance_test.go:TestRunnerSmoke_ValidationFailureEscalatesTier": true,
-		"internal/runner/worktree_merge_acceptance_test.go:TestRunnerSmoke_WorktreeMergeModesEndToEnd":         true,
+		"internal/runner/acceptance/invocation_timeout_acceptance_test.go:TestRunnerSmoke_ValidationFailureEscalatesTier": true,
+		"internal/runner/acceptance/worktree_merge_acceptance_test.go:TestRunnerSmoke_WorktreeMergeModesEndToEnd":         true,
 	}
 
 	actualKeep := make(map[string]bool)

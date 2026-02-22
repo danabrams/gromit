@@ -366,13 +366,6 @@ func (r *Runner) restoreTmuxTitle(restoreFn func() error) {
 	}
 }
 
-// processBead preserves the legacy call shape for tests and callers that
-// only need IterationResult while delegating execution to processBeadWithContext.
-func (r *Runner) processBead(ctx context.Context, b *bead.Bead, iteration int, deadline time.Time, scopeEstimate *prompt.ScopeEstimate) *IterationResult {
-	_, result := r.processBeadWithContext(ctx, b, iteration, deadline, scopeEstimate)
-	return result
-}
-
 func (r *Runner) processBeadWithContext(ctx context.Context, b *bead.Bead, iteration int, deadline time.Time, scopeEstimate *prompt.ScopeEstimate) (*runtypes.BeadContext, *IterationResult) {
 	start := time.Now()
 
@@ -517,20 +510,6 @@ func recordValidationTimeout(result *IterationResult, err error) {
 	if errors.Is(err, errValidationFailed) && strings.Contains(strings.ToLower(result.Output), validationTimedOutMarker) {
 		result.ValidationTimeouts++
 	}
-}
-
-// wrapPhaseError wraps an error with phase attribution for timeout and cancellation errors.
-func wrapPhaseError(phase string, err error) error {
-	if err == nil {
-		return nil
-	}
-	if errors.Is(err, context.DeadlineExceeded) {
-		return fmt.Errorf("%s phase aborted due to timeout: %w", phase, err)
-	}
-	if errors.Is(err, context.Canceled) {
-		return fmt.Errorf("%s phase canceled: %w", phase, err)
-	}
-	return fmt.Errorf("%s phase failed: %w", phase, err)
 }
 
 func (r *Runner) shouldExitRunLoopOnStopLine(result *IterationResult) bool {

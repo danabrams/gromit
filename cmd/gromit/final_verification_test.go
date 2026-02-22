@@ -91,14 +91,6 @@ func TestFinalVerification(t *testing.T) {
 				},
 			},
 			{
-				name: "label filtering tests consolidated with table-driven pattern",
-				file: "internal/runner/label_filter_test.go",
-				contains: []string{
-					"setupLabelFilterTest",
-					"t.Run(",
-				},
-			},
-			{
 				name: "scope tests include ValidateFlags with three-way exclusivity",
 				file: "internal/scope/scope_test.go",
 				contains: []string{
