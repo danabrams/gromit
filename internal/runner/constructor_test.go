@@ -15,7 +15,32 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/pipeline/prepare"
+	"github.com/danabrams/gromit/internal/provider"
 )
+
+// stubRunProvider is a minimal provider.Provider for testing decomposerAdapter.
+type stubRunProvider struct {
+	name  string
+	runFn func(ctx context.Context, prompt, tier string) (*provider.Result, error)
+}
+
+func (s *stubRunProvider) Name() string                    { return s.name }
+func (s *stubRunProvider) ModelForTier(tier string) string { return tier }
+func (s *stubRunProvider) Run(ctx context.Context, prompt, tier string) (*provider.Result, error) {
+	if s.runFn != nil {
+		return s.runFn(ctx, prompt, tier)
+	}
+	return &provider.Result{Success: true, Output: "[]"}, nil
+}
+func (s *stubRunProvider) StreamRun(ctx context.Context, prompt, tier string, w io.Writer, h provider.EventHandler, tc provider.ToolCallHandler) (*provider.Result, error) {
+	return nil, nil
+}
+func (s *stubRunProvider) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*provider.Result, error) {
+	return nil, nil
+}
+func (s *stubRunProvider) IsUsageLimitError(result *provider.Result, err error) bool { return false }
+func (s *stubRunProvider) IsValidationPassed(result *provider.Result) bool           { return true }
+func (s *stubRunProvider) IsScopeTooLarge(result *provider.Result) (bool, string)    { return false, "" }
 
 // TestDecomposerAdapter_Decompose_CreatesChildBeads verifies that decomposerAdapter.Decompose
 // actually calls bead.Client to create child beads when decomposing an oversized bead,
@@ -73,6 +98,50 @@ func TestDecomposerAdapter_DecomposeSucceeds(t *testing.T) {
 
 	if err := adapter.Decompose(context.Background(), b); err != nil {
 		t.Fatalf("Decompose returned error: %v; want nil for a decomposable oversized bead", err)
+	}
+}
+
+// TestDecomposerAdapter_InvokesProviderViaRouter verifies that decomposerAdapter.Decompose
+// calls the provider (via router) for LLM-powered decomposition instead of creating
+// a dumb carbon-copy child bead.
+func TestDecomposerAdapter_InvokesProviderViaRouter(t *testing.T) {
+	providerCalled := false
+	stub := &stubRunProvider{
+		name: "test-provider",
+		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
+			providerCalled = true
+			return &provider.Result{
+				Success: true,
+				Output:  `[{"title":"Sub-task 1","expected_outputs":["f1","f2"]},{"title":"Sub-task 2","expected_outputs":["f3","f4"]}]`,
+			}, nil
+		},
+	}
+	router := provider.NewSingleProviderRouter(stub)
+
+	client, err := bead.NewClient()
+	if err != nil {
+		t.Fatalf("bead.NewClient: %v", err)
+	}
+	client.RunFn = func(args ...string) (string, error) {
+		if len(args) > 0 && args[0] == "create" {
+			return `{"id":"child-1","title":"sub-task","status":"open"}`, nil
+		}
+		return "", nil
+	}
+
+	adapter := &decomposerAdapter{beads: client}
+	_ = router // router will be used after router field is added to decomposerAdapter
+	b := &bead.Bead{
+		ID:              "parent-1",
+		Title:           "Oversized Feature",
+		ExpectedOutputs: []string{"f1", "f2", "f3", "f4", "f5", "f6"},
+	}
+
+	if err := adapter.Decompose(context.Background(), b); err != nil {
+		t.Fatalf("Decompose returned error: %v", err)
+	}
+	if !providerCalled {
+		t.Error("Decompose did not invoke the provider via router; want LLM-powered decomposition to call provider.Run")
 	}
 }
 
