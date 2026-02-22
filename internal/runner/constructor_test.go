@@ -52,6 +52,12 @@ func TestBuildProvidersFromConfig_NilConfigReturnsError(t *testing.T) {
 	}
 }
 
+func TestParseFallbackCooldown_NilConfigReturnsZero(t *testing.T) {
+	if got := parseFallbackCooldown(nil); got != 0 {
+		t.Fatalf("parseFallbackCooldown(nil) = %v, want 0", got)
+	}
+}
+
 // TestDecomposerAdapter_Decompose_CreatesChildBeads verifies that decomposerAdapter.Decompose
 // actually calls bead.Client to create child beads when decomposing an oversized bead,
 // rather than returning nil without performing any work.
