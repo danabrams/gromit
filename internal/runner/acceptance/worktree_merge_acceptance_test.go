@@ -5,18 +5,26 @@ package acceptance_test
 import (
 	"context"
 	"errors"
+	"io"
 	"testing"
 	"time"
+
+	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/config"
+	pipelineepilog "github.com/danabrams/gromit/internal/pipeline/epilogue"
+	"github.com/danabrams/gromit/internal/runner"
 )
 
 // smoke-matrix: keep | rationale: Covers critical end-to-end merge-failure warning path to ensure run loop continues under configured warn mode. | destination: internal/runner/acceptance/worktree_merge_acceptance_test.go:TestRunnerSmoke_WorktreeMergeModesEndToEnd
 func TestRunnerSmoke_WorktreeMergeModesEndToEnd(t *testing.T) {
 	cfg := baseWorktreeMergeConfig()
 	configureWorktreeMerge(cfg, true, "warn")
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
 
 	branches := []string{"gromit/review-123", "gromit/retro-456"}
 	mergeCalls := []string{}
-	mockWorktrees := &mockWorktreeManager{
+	mockWorktree := &mockWorktreeManager{
 		PendingBranchesFn: func() ([]string, error) {
 			return branches, nil
 		},
@@ -26,9 +34,37 @@ func TestRunnerSmoke_WorktreeMergeModesEndToEnd(t *testing.T) {
 		},
 	}
 
-	r := setupRunnerForWorktreeMerge(t, cfg, mockWorktrees)
+	beadReady := false
+	mockBeads := &mockBeadClient{
+		ReadyFn: func() (*bead.Bead, error) {
+			if beadReady {
+				return nil, nil
+			}
+			beadReady = true
+			return &bead.Bead{
+				ID:       "worktree-test-1",
+				Title:    "Worktree test bead",
+				Priority: 1,
+			}, nil
+		},
+	}
 
-	err := r.Run(context.Background(), 1, time.Now().Add(time.Minute), nil, false)
+	epilogueStage := pipelineepilog.New(mockBeads, &mockEpilogueStatusWriter{}, io.Discard).
+		WithWorktree(mockWorktree)
+
+	orch := runner.NewOrchestrator(runner.OrchestratorConfig{
+		Gate:     &noopStage{},
+		Build:    &noopStage{},
+		Validate: &noopStage{},
+		Epilogue: epilogueStage,
+		GetBead: func(ctx context.Context) (*bead.Bead, error) {
+			return mockBeads.Ready()
+		},
+		Config: cfg,
+		Output: io.Discard,
+	})
+
+	err := orch.Run(context.Background(), 1, time.Now().Add(time.Minute), nil)
 	if err != nil {
 		t.Fatalf("expected merge failure to warn and continue, got error: %v", err)
 	}
@@ -41,4 +77,11 @@ func TestRunnerSmoke_WorktreeMergeModesEndToEnd(t *testing.T) {
 			t.Errorf("MergeBack call %d = %q, want %q", i, mergeCalls[i], branch)
 		}
 	}
+}
+
+// mockEpilogueStatusWriter is a minimal epilogue.StatusWriter for testing.
+type mockEpilogueStatusWriter struct{}
+
+func (m *mockEpilogueStatusWriter) Write(iteration int, beadID, beadTitle, model string, maxIterations, timeBudgetMinutes int) error {
+	return nil
 }

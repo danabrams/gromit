@@ -8,8 +8,6 @@ package acceptance_test
 import (
 	"context"
 	"io"
-	"strings"
-	"testing"
 	"time"
 
 	"github.com/danabrams/gromit/internal/analyzer"
@@ -19,7 +17,6 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
-	"github.com/danabrams/gromit/internal/runner"
 )
 
 // --- mockBeadClient ---
@@ -584,40 +581,6 @@ func configureWorktreeMerge(cfg *config.Config, enabled bool, mode string) {
 	cfg.Worktree.Enabled = &enabled
 	cfg.Worktree.AutoMerge = &autoMerge
 	cfg.Worktree.MergeFailure = mode
-}
-
-// setupRunnerForWorktreeMerge creates a Runner wired for worktree merge tests.
-func setupRunnerForWorktreeMerge(t *testing.T, cfg *config.Config, wm runner.WorktreeManager) *runner.Runner {
-	t.Helper()
-	var buf strings.Builder
-	beadReady := false
-	beads := &mockBeadClient{
-		ReadyFn: func() (*bead.Bead, error) {
-			if beadReady {
-				return nil, nil
-			}
-			beadReady = true
-			return &bead.Bead{
-				ID:              "worktree-test-1",
-				Title:           "Worktree test bead",
-				Priority:        1,
-				Labels:          []string{},
-				ExpectedOutputs: []string{},
-			}, nil
-		},
-	}
-	r, err := runner.NewRunnerWithDeps(cfg, &buf, t.TempDir(), runner.Deps{
-		Beads:           beads,
-		Router:          newMockRouter(),
-		Analyzer:        &mockFailureAnalyzer{},
-		Renderer:        &mockPromptRenderer{},
-		Logger:          &mockIterationLogger{},
-		WorktreeManager: wm,
-	})
-	if err != nil {
-		t.Fatalf("NewRunnerWithDeps failed: %v", err)
-	}
-	return r
 }
 
 // Ensure unused import is used (time is used in structs above).
