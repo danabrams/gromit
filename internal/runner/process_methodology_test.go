@@ -3,14 +3,47 @@ package runner
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/pipeline/execute"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
+
+type methodologyTestInvoker struct{}
+
+func (m *methodologyTestInvoker) Run(_ context.Context, _, _ string) (*provider.Result, error) {
+	return nil, fmt.Errorf("unexpected Run call")
+}
+
+func (m *methodologyTestInvoker) StreamRun(_ context.Context, _ string, _ string, _ io.Writer, _ provider.EventHandler, _ provider.ToolCallHandler) (*provider.Result, error) {
+	return &provider.Result{Success: true}, nil
+}
+
+type methodologyTestRenderer struct {
+	lastMethod string
+}
+
+func (m *methodologyTestRenderer) RenderBuild(_, _ string, _ []string) (string, error) {
+	m.lastMethod = "build"
+	return "build prompt", nil
+}
+
+func (m *methodologyTestRenderer) RenderTDDBuild(_, _ string, _ []string) (string, error) {
+	m.lastMethod = "tdd"
+	return "tdd prompt", nil
+}
+
+func (m *methodologyTestRenderer) RenderRefactorBuild(_, _ string, _ []string) (string, error) {
+	m.lastMethod = "refactor"
+	return "refactor prompt", nil
+}
 
 func TestResolveBuildStrategy_BeadLabelOverridesConfig(t *testing.T) {
 	cfg := &config.Config{}
@@ -20,6 +53,40 @@ func TestResolveBuildStrategy_BeadLabelOverridesConfig(t *testing.T) {
 
 	if got := resolveBuildStrategy(cfg, b); got != "tdd" {
 		t.Fatalf("resolveBuildStrategy() = %q, want %q", got, "tdd")
+	}
+}
+
+func TestBuildRun_SinglePassConfig_SkipsRefactorMethodology(t *testing.T) {
+	cfg := &config.Config{
+		Models: config.ModelsConfig{
+			P0: "high",
+			P1: "medium",
+			P2: "low",
+		},
+		Methodology: config.MethodologyConfig{
+			BuildStrategy: "single_pass",
+		},
+	}
+	b := &bead.Bead{
+		ID:       "bead-1",
+		Title:    "Implement behavior",
+		Priority: 1,
+		Labels:   []string{"refactor:true"},
+	}
+
+	renderer := &methodologyTestRenderer{}
+	stage := execute.New(&methodologyTestInvoker{}, renderer, io.Discard)
+	_, err := stage.Run(context.Background(), pipeline.Input{
+		Bead:      b,
+		Config:    cfg,
+		Iteration: 1,
+		Deadline:  time.Now().Add(time.Minute),
+	})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if renderer.lastMethod != "build" {
+		t.Fatalf("renderer method = %q, want %q for single_pass strategy", renderer.lastMethod, "build")
 	}
 }
 
