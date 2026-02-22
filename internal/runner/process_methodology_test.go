@@ -133,3 +133,41 @@ func TestTddExpectedOutputsOrTitle_Layer2UsedWhenExpectedOutputsEmpty(t *testing
 		}
 	}
 }
+
+// TestTddExpectedOutputsOrTitle_Layer1TakesPriorityOverDescription verifies
+// that ExpectedOutputs (Layer 1) takes priority over description parsing (Layer 2).
+func TestTddExpectedOutputsOrTitle_Layer1TakesPriorityOverDescription(t *testing.T) {
+	b := &bead.Bead{
+		ID:              "test-bead",
+		Title:           "Bead Title",
+		Description:     "- desc req one\n- desc req two",
+		ExpectedOutputs: []string{"explicit output"},
+	}
+	got := tddExpectedOutputsOrTitle(b)
+	want := []string{"explicit output"}
+	if len(got) != len(want) {
+		t.Fatalf("got %d items, want %d: %v", len(got), len(want), got)
+	}
+	if got[0] != want[0] {
+		t.Errorf("got %q, want %q", got[0], want[0])
+	}
+}
+
+// TestTddExpectedOutputsOrTitle_TitleFallbackWhenDescriptionUnparseable verifies
+// that the bead title is used when both ExpectedOutputs is empty and the
+// description contains no parseable requirements.
+func TestTddExpectedOutputsOrTitle_TitleFallbackWhenDescriptionUnparseable(t *testing.T) {
+	b := &bead.Bead{
+		ID:          "test-bead",
+		Title:       "My Bead Title",
+		Description: "some prose that contains no parseable list items",
+	}
+	got := tddExpectedOutputsOrTitle(b)
+	want := []string{"My Bead Title"}
+	if len(got) != len(want) {
+		t.Fatalf("got %d items, want %d: %v", len(got), len(want), got)
+	}
+	if got[0] != want[0] {
+		t.Errorf("got %q, want %q", got[0], want[0])
+	}
+}

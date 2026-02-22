@@ -77,13 +77,20 @@ func (r *Runner) runTDDFreshContextCycles(ctx context.Context, bc *runtypes.Bead
 		bc.Result.Error = fmt.Errorf("TDD fresh-context orchestration enabled but tddOrchestrator not wired")
 		return true
 	}
+	layer1Active := len(bc.Bead.ExpectedOutputs) > 0
 	effectiveOutputs := tddExpectedOutputsOrTitle(bc.Bead)
 	if len(effectiveOutputs) == 0 {
 		bc.Result.Error = fmt.Errorf("TDD fresh-context requires ExpectedOutputs or a non-empty bead title (bead=%s)", bc.Bead.ID)
 		return true
 	}
-	if len(bc.Bead.ExpectedOutputs) == 0 {
-		r.log("TDD fresh-context using title fallback for bead %s because ExpectedOutputs are empty", bc.Bead.ID)
+	if layer1Active {
+		r.log("TDD fresh-context: bead %s using layer1 (ExpectedOutputs, %d outputs)", bc.Bead.ID, len(effectiveOutputs))
+	} else {
+		if len(extractRequirementsFromDescription(bc.Bead.Description)) > 0 {
+			r.log("TDD fresh-context: bead %s using layer2 (description parsing, %d outputs)", bc.Bead.ID, len(effectiveOutputs))
+		} else {
+			r.log("TDD fresh-context: bead %s using title fallback", bc.Bead.ID)
+		}
 		bc.Bead.ExpectedOutputs = append([]string(nil), effectiveOutputs...)
 	}
 
