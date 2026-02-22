@@ -9,19 +9,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/runner"
 )
 
-func TestRunner_Status_Integration_IdleWithHistory(t *testing.T) {
+// TestOrchestratorHelper_StatusIntegrationIdleWithHistory tests full status output
+// when idle with a completed run history, backlog, and state files.
+func TestOrchestratorHelper_StatusIntegrationIdleWithHistory(t *testing.T) {
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0755); err != nil {
 		t.Fatalf("Failed to create gromit dir: %v", err)
 	}
 
-	var buf strings.Builder
 	cfg := &config.Config{
 		Paths: config.PathsConfig{
 			Specs: filepath.Join(gromitDir, "specs"),
@@ -29,66 +29,33 @@ func TestRunner_Status_Integration_IdleWithHistory(t *testing.T) {
 		},
 	}
 
-	mockBeads := &mockBeadClient{
-		ReadyFn: func() (*bead.Bead, error) {
-			return &bead.Bead{
-				ID:       "next-bead-789",
-				Title:    "Next Work Item",
-				Priority: 2,
-				Labels:   []string{},
-			}, nil
-		},
-	}
-
-	r, err := runner.NewRunnerWithDeps(cfg, &buf, gromitDir, runner.Deps{
-		Beads:    mockBeads,
-		Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
-		Analyzer: &mockFailureAnalyzer{},
-		Renderer: &mockPromptRenderer{},
-		Logger:   &mockIterationLogger{},
-	})
-	if err != nil {
-		t.Fatalf("NewRunnerWithDeps failed: %v", err)
-	}
-
 	// Create backlog.jsonl
-	backlogPath := filepath.Join(gromitDir, "backlog.jsonl")
-	err = os.WriteFile(backlogPath, []byte(`{"id":"idea-1","text":"Idea one"}`), 0644)
-	if err != nil {
+	if err := os.WriteFile(filepath.Join(gromitDir, "backlog.jsonl"), []byte(`{"id":"idea-1","text":"Idea one"}`), 0644); err != nil {
 		t.Fatalf("Failed to write backlog: %v", err)
 	}
 
 	// Create a completed status file (running: false) from 3 hours ago
 	sw, _ := runner.NewStatusWriter(gromitDir)
 	sw.SetStartTime(time.Now().Add(-3 * time.Hour))
-	err = sw.WriteFinal(25)
-	if err != nil {
+	if err := sw.WriteFinal(25); err != nil {
 		t.Fatalf("Failed to write final status: %v", err)
 	}
 
 	// Create state.json with never-run retro
-	stateContent := `{
-		"iterations_since_review": 10
-	}`
-	err = os.WriteFile(filepath.Join(gromitDir, "state.json"), []byte(stateContent), 0644)
-	if err != nil {
+	if err := os.WriteFile(filepath.Join(gromitDir, "state.json"), []byte(`{"iterations_since_review": 10}`), 0644); err != nil {
 		t.Fatalf("Failed to write state.json: %v", err)
 	}
 
-	// Execute
-	err = r.Status()
-	if err != nil {
-		t.Fatalf("Status() failed: %v", err)
+	var buf strings.Builder
+	if err := runner.PrintStatus(gromitDir, cfg, &buf, nil); err != nil {
+		t.Fatalf("PrintStatus() failed: %v", err)
 	}
 
 	output := buf.String()
 
-	// Verify Pipeline section
 	if !strings.Contains(output, "Pipeline:") {
 		t.Errorf("Expected Pipeline section, got: %s", output)
 	}
-
-	// Verify Run section shows idle with last run info
 	if !strings.Contains(output, "Run: not running") {
 		t.Errorf("Expected 'Run: not running', got: %s", output)
 	}
@@ -96,13 +63,11 @@ func TestRunner_Status_Integration_IdleWithHistory(t *testing.T) {
 		t.Errorf("Expected 'Last run:' info, got: %s", output)
 	}
 	if !strings.Contains(output, "25 iterations completed") {
-		t.Errorf("Expected iteration count in last run info, got: %s", output)
+		t.Errorf("Expected iteration count, got: %s", output)
 	}
 	if !strings.Contains(output, "ago") {
-		t.Errorf("Expected relative time in last run info, got: %s", output)
+		t.Errorf("Expected relative time, got: %s", output)
 	}
-
-	// Verify Health section
 	if !strings.Contains(output, "Health:") {
 		t.Errorf("Expected Health section, got: %s", output)
 	}
@@ -112,8 +77,6 @@ func TestRunner_Status_Integration_IdleWithHistory(t *testing.T) {
 	if !strings.Contains(output, "Last review: 10 iterations ago") {
 		t.Errorf("Expected last review count, got: %s", output)
 	}
-
-	// Verify recommendation section exists
 	if !strings.Contains(output, "Next action:") {
 		t.Errorf("Expected recommendation section, got: %s", output)
 	}
