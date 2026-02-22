@@ -73,6 +73,17 @@ type Output struct {
 	// TouchedPackages is the updated set of Go package paths touched across iterations,
 	// returned by the Epilogue for the orchestrator to accumulate.
 	TouchedPackages []string
+	// Model is the model identifier used by the Build stage invocation.
+	// Populated by the Build stage; copied to IterationLog on the success path.
+	Model string
+	// DurationMs is the wall-clock duration of the Build stage invocation in milliseconds.
+	DurationMs int64
+	// CostUSD is the estimated USD cost of the Build stage invocation.
+	CostUSD float64
+	// InputTokens is the number of input tokens consumed by the Build stage invocation.
+	InputTokens int
+	// OutputTokens is the number of output tokens produced by the Build stage invocation.
+	OutputTokens int
 }
 
 // Stage is the interface that each pipeline stage implements.

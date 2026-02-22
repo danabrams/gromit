@@ -9,6 +9,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 )
 
@@ -98,6 +99,54 @@ func TestOrchestrator_ProviderCostDefs_Accessible(t *testing.T) {
 	}
 	if _, ok := orch.cfg.ProviderCostDefs["claude"]; !ok {
 		t.Error("ProviderCostDefs missing 'claude' entry")
+	}
+}
+
+// TestOrchestrator_SuccessPath_CarriesBuildModelToIterationLog verifies that when
+// the Build stage returns a model name in its Output, the orchestrator copies it
+// into the IterationLog on the success path so audit logs show which model was used.
+func TestOrchestrator_SuccessPath_CarriesBuildModelToIterationLog(t *testing.T) {
+	var capturedResult *logger.IterationLog
+
+	build := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{Decision: pipeline.Proceed, Model: "claude-opus-4-6"}, nil
+	}}
+	epilogueStage := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		if in.Result != nil {
+			capturedResult = in.Result
+		}
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-1", Title: "Test bead"}, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     &fakeStage{},
+		Build:    build,
+		Validate: &fakeStage{},
+		Epilogue: epilogueStage,
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if capturedResult == nil {
+		t.Fatal("Epilogue Result is nil; want IterationLog populated on success path")
+	}
+	if capturedResult.Model != "claude-opus-4-6" {
+		t.Errorf("IterationLog.Model = %q, want %q", capturedResult.Model, "claude-opus-4-6")
 	}
 }
 
