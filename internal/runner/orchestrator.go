@@ -213,6 +213,13 @@ runLoop:
 	// Merge per-run model stats into the global stats file without overwriting
 	// pre-existing entries from prior runs.
 	o.mergeGlobalStats()
+
+	// Persist provider routing state so availability counts survive across runs.
+	if o.cfg.StateSaver != nil {
+		if err := o.cfg.StateSaver.Save(); err != nil {
+			o.logf("Warning: could not save provider state: %v", err)
+		}
+	}
 	return nil
 }
 
