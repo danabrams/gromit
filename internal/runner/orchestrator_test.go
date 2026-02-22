@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"io"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -210,6 +211,27 @@ func TestOrchestrator_SuccessPath_CarriesBuildCostAndTokensToIterationLog(t *tes
 	}
 	if capturedResult.OutputTokens != 500 {
 		t.Errorf("IterationLog.OutputTokens = %d, want 500", capturedResult.OutputTokens)
+	}
+}
+
+// TestRunner_RunMethod_Removed verifies that the legacy Runner.Run method has been
+// removed as part of the architecture migration to Orchestrator. All loop execution
+// now flows through Orchestrator.Run. This test prevents accidental reintroduction.
+func TestRunner_RunMethod_Removed(t *testing.T) {
+	rt := reflect.TypeOf(&Runner{})
+	if _, found := rt.MethodByName("Run"); found {
+		t.Error("Runner still has a Run method; the legacy run loop should be removed in favour of Orchestrator.Run")
+	}
+}
+
+// TestNewRunnerWithDeps_Removed verifies that the legacy NewRunnerWithDeps constructor
+// and its Deps type have been removed. All test construction now uses OrchestratorTestHelper.
+func TestNewRunnerWithDeps_Removed(t *testing.T) {
+	// Deps was the type used by NewRunnerWithDeps. If it still exists as an exported
+	// type, this indicates the legacy constructor hasn't been fully cleaned up.
+	depsType := reflect.TypeOf((*Deps)(nil))
+	if depsType != nil {
+		t.Error("Deps type still exists; the legacy NewRunnerWithDeps constructor infrastructure should be removed")
 	}
 }
 
