@@ -126,3 +126,17 @@ func TestOutputTouchedPackagesField(t *testing.T) {
 		t.Error("Output.TouchedPackages zero value: want nil, got non-nil")
 	}
 }
+
+func TestOutputPhaseMetricsField(t *testing.T) {
+	out := pipeline.Output{}
+	out.PhaseMetrics = []pipeline.PhaseMetrics{
+		{Phase: "red"},
+		{Phase: "green"},
+	}
+	if len(out.PhaseMetrics) != 2 {
+		t.Errorf("Output.PhaseMetrics: want 2 items, got %d", len(out.PhaseMetrics))
+	}
+	if out.PhaseMetrics[0].Phase != "red" {
+		t.Errorf("Output.PhaseMetrics[0].Phase: want %q, got %q", "red", out.PhaseMetrics[0].Phase)
+	}
+}
