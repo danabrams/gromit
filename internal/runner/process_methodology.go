@@ -224,7 +224,28 @@ func hasCoverageGaps(tracker *coverage.CoverageTracker) bool {
 }
 
 func extractRequirementsFromDescription(description string) []string {
-	return nil
+	var results []string
+	for _, line := range strings.Split(description, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		// Numbered list: "1. item"
+		if len(line) >= 3 {
+			i := 0
+			for i < len(line) && line[i] >= '0' && line[i] <= '9' {
+				i++
+			}
+			if i > 0 && i < len(line) && line[i] == '.' {
+				item := strings.TrimSpace(line[i+1:])
+				if item != "" {
+					results = append(results, item)
+					continue
+				}
+			}
+		}
+	}
+	return results
 }
 
 func tddExpectedOutputsOrTitle(b *bead.Bead) []string {
