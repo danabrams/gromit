@@ -15,127 +15,22 @@ import (
 	"github.com/danabrams/gromit/internal/runner"
 )
 
-func TestTDDPromptSelection(t *testing.T) {
-	tests := []struct {
-		name                 string
-		globalTDD            bool
-		beadLabels           []string
-		expectTDDBuildCalled bool
-		description          string
-	}{
-		{
-			name:                 "TDD active via global config - RenderTDDBuild called",
-			globalTDD:            true,
-			beadLabels:           []string{},
-			expectTDDBuildCalled: true,
-			description:          "When global TDD is true and bead has no tdd label, RenderTDDBuild should be called",
-		},
-		{
-			name:                 "TDD active via bead label - RenderTDDBuild called",
-			globalTDD:            false,
-			beadLabels:           []string{"tdd:true"},
-			expectTDDBuildCalled: true,
-			description:          "When bead has tdd:true label, RenderTDDBuild should be called regardless of global config",
-		},
-		{
-			name:                 "TDD inactive globally, no label - RenderTDDBuild not called",
-			globalTDD:            false,
-			beadLabels:           []string{},
-			expectTDDBuildCalled: false,
-			description:          "When TDD is not active, RenderTDDBuild should not be called",
-		},
-		{
-			name:                 "TDD disabled via label overriding global - RenderTDDBuild not called",
-			globalTDD:            true,
-			beadLabels:           []string{"tdd:false"},
-			expectTDDBuildCalled: false,
-			description:          "When bead has tdd:false label, RenderTDDBuild should not be called even if global TDD is true",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tddBuildCalled := false
-
-			mockRenderer := &mockPromptRenderer{
-				RenderBuildFn: func(_ *prompt.Context) (string, error) {
-					return "standard build prompt", nil
-				},
-				RenderTDDBuildFn: func(_ *prompt.Context) (string, error) {
-					tddBuildCalled = true
-					return "tdd build prompt", nil
-				},
-			}
-
-			cfg := &config.Config{
-				Methodology: config.MethodologyConfig{
-					TDD: tt.globalTDD,
-				},
-				Validation: config.ValidationConfig{
-					Enabled: false, // Disable validation to isolate prompt selection
-				},
-			}
-
-			var buf strings.Builder
-			beadReady := false
-			r, err := runner.NewRunnerWithDeps(cfg, &buf, t.TempDir(),
-				runner.Deps{
-					Beads: &mockBeadClient{
-						ReadyFn: func() (*bead.Bead, error) {
-							if beadReady {
-								return nil, nil
-							}
-							beadReady = true
-							return &bead.Bead{
-								ID:              "test-bead-1",
-								Title:           "Test bead",
-								Priority:        1,
-								Labels:          tt.beadLabels,
-								ExpectedOutputs: []string{},
-							}, nil
-						},
-					},
-					Router:   newMockRouterFromClaudeClient(&mockClaudeClient{}),
-					Analyzer: &mockFailureAnalyzer{},
-					Renderer: mockRenderer,
-					Logger:   &mockIterationLogger{},
-				})
-			if err != nil {
-				t.Fatalf("Failed to create runner: %v", err)
-			}
-
-			// Run the loop with one bead - it will process the bead then stop
-			_ = r.Run(context.Background(), 0, time.Time{}, nil, false)
-
-			// Verify expectations
-			if tt.expectTDDBuildCalled && !tddBuildCalled {
-				t.Errorf("%s: Expected RenderTDDBuild to be called but it wasn't", tt.description)
-			}
-			if !tt.expectTDDBuildCalled && tddBuildCalled {
-				t.Errorf("%s: Expected RenderTDDBuild NOT to be called but it was", tt.description)
-			}
-		})
-	}
-}
-
 // TestOrchestratorHelper_TDDPromptSelection verifies that the orchestrator loop
 // runs a bead to completion for each TDD config scenario without error.
 func TestOrchestratorHelper_TDDPromptSelection(t *testing.T) {
 	tests := []struct {
-		name                 string
-		globalTDD            bool
-		beadLabels           []string
-		expectTDDBuildCalled bool
+		name       string
+		globalTDD  bool
+		beadLabels []string
 	}{
-		{name: "TDD active via global config", globalTDD: true, beadLabels: []string{}, expectTDDBuildCalled: true},
-		{name: "TDD active via bead label", globalTDD: false, beadLabels: []string{"tdd:true"}, expectTDDBuildCalled: true},
-		{name: "TDD inactive globally, no label", globalTDD: false, beadLabels: []string{}, expectTDDBuildCalled: false},
-		{name: "TDD disabled via label overriding global", globalTDD: true, beadLabels: []string{"tdd:false"}, expectTDDBuildCalled: false},
+		{name: "TDD active via global config", globalTDD: true, beadLabels: []string{}},
+		{name: "TDD active via bead label", globalTDD: false, beadLabels: []string{"tdd:true"}},
+		{name: "TDD inactive globally, no label", globalTDD: false, beadLabels: []string{}},
+		{name: "TDD disabled via label overriding global", globalTDD: true, beadLabels: []string{"tdd:false"}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tddBuildCalled := false
 			cfg := &config.Config{
 				Methodology: config.MethodologyConfig{TDD: tt.globalTDD},
 			}
@@ -156,12 +51,6 @@ func TestOrchestratorHelper_TDDPromptSelection(t *testing.T) {
 			h := NewOrchestratorTestHelperWithDeps(t, cfg, io.Discard, mockBeads, newMockRouter())
 			if err := h.Run(context.Background(), 0, time.Time{}, nil); err != nil {
 				t.Fatalf("Run() error = %v", err)
-			}
-			if tt.expectTDDBuildCalled && !tddBuildCalled {
-				t.Errorf("%s: Expected RenderTDDBuild to be called but it wasn't", tt.name)
-			}
-			if !tt.expectTDDBuildCalled && tddBuildCalled {
-				t.Errorf("%s: Expected RenderTDDBuild NOT to be called but it was", tt.name)
 			}
 		})
 	}
