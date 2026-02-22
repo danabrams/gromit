@@ -90,6 +90,40 @@ func TestBuildRun_SinglePassConfig_SkipsRefactorMethodology(t *testing.T) {
 	}
 }
 
+func TestBuildRun_BuildStrategyLabels_LastTDDWins(t *testing.T) {
+	cfg := &config.Config{
+		Models: config.ModelsConfig{
+			P0: "high",
+			P1: "medium",
+			P2: "low",
+		},
+		Methodology: config.MethodologyConfig{
+			BuildStrategy: "single_pass",
+		},
+	}
+	b := &bead.Bead{
+		ID:       "bead-2",
+		Title:    "Implement behavior",
+		Priority: 1,
+		Labels:   []string{"build_strategy:single_pass", "build_strategy:tdd"},
+	}
+
+	renderer := &methodologyTestRenderer{}
+	stage := execute.New(&methodologyTestInvoker{}, renderer, io.Discard)
+	_, err := stage.Run(context.Background(), pipeline.Input{
+		Bead:      b,
+		Config:    cfg,
+		Iteration: 1,
+		Deadline:  time.Now().Add(time.Minute),
+	})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if renderer.lastMethod != "tdd" {
+		t.Fatalf("renderer method = %q, want %q when build_strategy:tdd is the last override", renderer.lastMethod, "tdd")
+	}
+}
+
 func TestExtractRequirementsViaLLM_ReturnsParsedItems(t *testing.T) {
 	invoke := func(_ context.Context, _ string, _ string) (*provider.Result, error) {
 		return &provider.Result{Success: true, Output: "item one\nitem two\nitem three"}, nil
