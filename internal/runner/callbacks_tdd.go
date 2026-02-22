@@ -27,13 +27,31 @@ func appendTDDPhaseMetric(
 	beforeOutputTokens int,
 	start time.Time,
 ) {
-	_ = bc
-	_ = phase
-	_ = cycleNumber
-	_ = beforeCostUSD
-	_ = beforeInputTokens
-	_ = beforeOutputTokens
-	_ = start
+	if bc == nil || bc.Result == nil || bc.Bead == nil {
+		return
+	}
+	costUSD, inputTokens, outputTokens := phaseUsageDelta(bc.Result, beforeCostUSD, beforeInputTokens, beforeOutputTokens)
+	durationMs := int64(0)
+	if !start.IsZero() {
+		if d := time.Since(start).Milliseconds(); d > 0 {
+			durationMs = d
+		}
+	}
+	if cycleNumber < 1 {
+		cycleNumber = 1
+	}
+	bc.Result.PhaseMetrics = append(bc.Result.PhaseMetrics, runtypes.PhaseMetric{
+		Phase:        phase,
+		CycleNumber:  cycleNumber,
+		BeadID:       bc.Bead.ID,
+		Model:        bc.Model,
+		Tier:         bc.Tier,
+		CostUSD:      costUSD,
+		InputTokens:  inputTokens,
+		OutputTokens: outputTokens,
+		DurationMs:   durationMs,
+		Success:      true,
+	})
 }
 
 const (
@@ -66,6 +84,7 @@ func (r *Runner) makeTDDOrchestrator() *tddOrchestrator {
 			var activeBC *runtypes.BeadContext
 			var currentCoverageState string
 			var lastRenderedPhase string
+			var lastCycleNumber int
 			var pendingCoverageCriterion *coverage.Criterion
 			var lastSelfReport *coverage.SelfReport
 			var lastFailingTestCode string
@@ -74,6 +93,9 @@ func (r *Runner) makeTDDOrchestrator() *tddOrchestrator {
 
 			orch := tdd.NewCycleOrchestrator(r.cfg, r.output, tdd.CycleOrchestratorDeps{
 				LogPhaseFn: func(cycle int, phase string, detail string) {
+					if cycle > 0 {
+						lastCycleNumber = cycle
+					}
 					msg := fmt.Sprintf("TDD fresh-context cycle=%d phase=%s %s", cycle, phase, detail)
 					r.log("%s", msg)
 					r.streamLogger.LogEvent("TDD %s cycle=%d %s", phase, cycle, detail)
@@ -131,6 +153,8 @@ func (r *Runner) makeTDDOrchestrator() *tddOrchestrator {
 						return fmt.Errorf("escalation handler not configured")
 					}
 					activeBC.Tier = tier
+					invokeStart := time.Now()
+					beforeCostUSD, beforeInputTokens, beforeOutputTokens := snapshotIterationUsage(activeBC.Result)
 					invResult, err := invokeFn(ctx, activeBC, promptText)
 					if err != nil {
 						return err
@@ -141,6 +165,7 @@ func (r *Runner) makeTDDOrchestrator() *tddOrchestrator {
 					if !invResult.Result.Success {
 						return fmt.Errorf("invocation failed: %s", runtypes.TruncateOutput(invResult.Result.Output))
 					}
+					appendTDDPhaseMetric(activeBC, lastRenderedPhase, lastCycleNumber, beforeCostUSD, beforeInputTokens, beforeOutputTokens, invokeStart)
 					selfReport, reportErr := coverage.ParseSelfReport(invResult.Result.Output)
 					if reportErr == nil {
 						lastSelfReport = selfReport

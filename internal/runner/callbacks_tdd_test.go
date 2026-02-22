@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -46,9 +47,10 @@ func TestAppendTDDPhaseMetric_AppendsPhaseMetricToBcResult(t *testing.T) {
 	if pm.BeadID != "bead-1" {
 		t.Errorf("BeadID = %q, want %q", pm.BeadID, "bead-1")
 	}
-	wantCostUSD := 0.05 - 0.02
-	if pm.CostUSD != wantCostUSD {
-		t.Errorf("CostUSD = %f, want %f", pm.CostUSD, wantCostUSD)
+	// Use tolerance for float64 comparison to avoid constant-vs-runtime precision mismatch.
+	wantCostUSD := float64(0.05) - float64(0.02)
+	if math.Abs(pm.CostUSD-wantCostUSD) > 1e-10 {
+		t.Errorf("CostUSD = %.20f, want %.20f", pm.CostUSD, wantCostUSD)
 	}
 	wantInputTokens := 500 - 200
 	if pm.InputTokens != wantInputTokens {
