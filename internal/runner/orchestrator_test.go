@@ -24,6 +24,52 @@ func (f *fakeStage) Run(ctx context.Context, in pipeline.Input) (pipeline.Output
 	return pipeline.Output{Decision: pipeline.Proceed}, nil
 }
 
+// TestOrchestrator_CallsStateSaverAfterRun verifies that when StateSaver is set
+// in the config, it is called once after the orchestrator loop completes,
+// so provider routing state is persisted across runs.
+func TestOrchestrator_CallsStateSaverAfterRun(t *testing.T) {
+	saveCalled := false
+	saver := &fakeStateSaver{saveFn: func() error {
+		saveCalled = true
+		return nil
+	}}
+
+	getBead := func(_ context.Context) (*bead.Bead, error) { return nil, nil }
+
+	cfg := OrchestratorConfig{
+		Gate:       &fakeStage{},
+		Build:      &fakeStage{},
+		Validate:   &fakeStage{},
+		Epilogue:   &fakeStage{},
+		GetBead:    getBead,
+		Config:     &config.Config{},
+		Output:     io.Discard,
+		StateSaver: saver,
+	}
+
+	orch := NewOrchestrator(cfg)
+	err := orch.Run(context.Background(), 10, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if !saveCalled {
+		t.Error("StateSaver.Save() was not called; want provider state persisted after loop completes")
+	}
+}
+
+// fakeStateSaver is a test double for StateSaver.
+type fakeStateSaver struct {
+	saveFn func() error
+}
+
+func (f *fakeStateSaver) Save() error {
+	if f.saveFn != nil {
+		return f.saveFn()
+	}
+	return nil
+}
+
 // TestOrchestrator_ValidationFailure_SetsFailureOutput verifies that when the
 // validate stage returns Block with ValidationFailures, the orchestrator sets
 // FailureOutput on the epilogue Input so the failure learner receives it.

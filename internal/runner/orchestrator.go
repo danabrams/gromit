@@ -53,6 +53,15 @@ type OrchestratorConfig struct {
 	// StatusWriter is called at the start of each iteration to update status.json.
 	// Optional: nil means skip.
 	StatusWriter func(iteration int, beadID, beadTitle string)
+
+	// StateSaver persists provider routing state after the loop completes.
+	// Optional: nil means skip. Typically backed by state.File.
+	StateSaver StateSaver
+}
+
+// StateSaver persists provider routing state (provider counts, availability) to disk.
+type StateSaver interface {
+	Save() error
 }
 
 // Orchestrator sequences the 5-stage pipeline (Gate → Build → Validate → Review →
