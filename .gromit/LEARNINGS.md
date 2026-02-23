@@ -152,6 +152,7 @@ If reprompt instructions require preserving fields such as `depends_on_index` an
 *Related to: review-1771839601749019692*
 
 Decomposition/validation contract fields should move together across pipeline mapping and reprompt rendering. Propagating `depends_on_index` into `validate.BeadCandidate` and showing both `depends_on_index` plus `expected_outputs` in reprompt candidate context keeps model repair loops aligned with validator expectations and reduces avoidable retries.
+
 ---
 
 ## Archived
