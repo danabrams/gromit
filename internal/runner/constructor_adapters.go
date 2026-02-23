@@ -296,15 +296,6 @@ func scopeGateSubBeadsToCandidates(subBeads []scopeGateSubBead) []validate.BeadC
 }
 
 func validateRuntimeScopeGateDecomposeOutput(subBeads []scopeGateSubBead, parentTitle string) error {
-	for i, sb := range subBeads {
-		if strings.TrimSpace(sb.Title) == "" {
-			return fmt.Errorf("decomposerAdapter: decomposition contract violation [title_empty]: sub-bead %d has empty title", i)
-		}
-		if len(sb.ExpectedOutputs) == 0 {
-			return fmt.Errorf("decomposerAdapter: decomposition contract violation [output_missing]: sub-bead %d has no expected outputs", i)
-		}
-	}
-
 	validation := validate.ValidateDecomposeOutput(
 		scopeGateSubBeadsToCandidates(subBeads),
 		validate.DecomposeValidationModeRuntime,

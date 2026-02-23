@@ -158,6 +158,22 @@ func CheckBeads(beads []BeadCandidate) []Violation {
 	var violations []Violation
 
 	for i, bead := range beads {
+		if strings.TrimSpace(bead.Title) == "" {
+			violations = append(violations, Violation{
+				BeadIndex: i,
+				Rule:      "title_empty",
+				Message:   "Bead title is empty",
+			})
+		}
+
+		if len(bead.ExpectedOutputs) == 0 {
+			violations = append(violations, Violation{
+				BeadIndex: i,
+				Rule:      "output_missing",
+				Message:   "Bead has no expected outputs",
+			})
+		}
+
 		// Check expected outputs count
 		if len(bead.ExpectedOutputs) > maxExpectedOutputs {
 			violations = append(violations, Violation{
