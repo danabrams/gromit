@@ -159,6 +159,32 @@ func TestRunModesInIsolatedWorktrees_UsesOneResolvedBaseCommitAndSameSelectedBea
 	}
 }
 
+func TestRunModesInIsolatedWorktrees_CleansUpEveryModeAfterSuccessfulRun(t *testing.T) {
+	resolver := &stubBaseCommitResolver{resolved: "abc123"}
+	runner := &cleanupRecordingModeRunner{}
+
+	_, _, err := RunModesInIsolatedWorktrees(context.Background(), RunModesInput{
+		Manifest: HarnessManifest{
+			Provider:        "openai",
+			ModelFamily:     "gpt-5",
+			LowTierModel:    "gpt-5-mini",
+			MediumTierModel: "gpt-5.3-codex",
+			HighTierModel:   "gpt-5.3-codex",
+		},
+		SelectedBeads:  []string{"gromit-1", "gromit-2", "gromit-3"},
+		BaseCommitHint: "HEAD",
+		Resolver:       resolver,
+		Runner:         runner,
+	})
+	if err != nil {
+		t.Fatalf("RunModesInIsolatedWorktrees() error = %v", err)
+	}
+
+	if len(runner.cleanupModes) != 3 {
+		t.Fatalf("cleanup calls = %d, want 3", len(runner.cleanupModes))
+	}
+}
+
 type stubBaseCommitResolver struct {
 	resolved string
 	err      error
@@ -187,3 +213,17 @@ func (r *recordingModeRunner) RunMode(_ context.Context, req ModeWorktreeRequest
 
 var _ BaseCommitResolver = (*stubBaseCommitResolver)(nil)
 var _ ModeWorktreeRunner = (*recordingModeRunner)(nil)
+
+type cleanupRecordingModeRunner struct {
+	cleanupModes []string
+}
+
+func (r *cleanupRecordingModeRunner) RunMode(_ context.Context, req ModeWorktreeRequest) (ModeWorktreeRun, error) {
+	return ModeWorktreeRun{
+		Mode: req.Mode,
+		Cleanup: func() error {
+			r.cleanupModes = append(r.cleanupModes, req.Mode)
+			return nil
+		},
+	}, nil
+}
