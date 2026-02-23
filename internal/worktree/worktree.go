@@ -308,7 +308,7 @@ func isMergeConflictError(output string, err error) bool {
 			strings.HasPrefix(normalized, "conflict:") {
 			return true
 		}
-		if strings.Contains(normalized, "automatic merge failed;") {
+		if strings.Contains(normalized, "automatic merge failed") {
 			return true
 		}
 	}
