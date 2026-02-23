@@ -339,6 +339,26 @@ func TestCountLowComplexitySignals_NilBead(t *testing.T) {
 	}
 }
 
+func TestCountLowComplexitySignals_FileCountAboveMax(t *testing.T) {
+	// A bead with 4 files (> max of 3) should not contribute a file-count signal.
+	// With no other signals present, total count must be 0.
+	one := 1
+	b := &bead.Bead{
+		Title: "Update auth logic",
+		ExpectedOutputs: []string{
+			"internal/a.go",
+			"internal/b.go",
+			"internal/c.go",
+			"internal/d.go",
+		},
+		DependentCount: &one, // not leaf
+	}
+	got := countLowComplexitySignals(&config.Config{}, b)
+	if got != 0 {
+		t.Errorf("countLowComplexitySignals() = %d, want 0 for 4-file non-leaf no-pattern bead", got)
+	}
+}
+
 func TestIsLowComplexity_Threshold(t *testing.T) {
 	one := 1
 
