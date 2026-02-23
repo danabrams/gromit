@@ -469,3 +469,54 @@ func TestGateScopeDecompositionErrorFallsBackToBlock(t *testing.T) {
 		t.Errorf("decision = %v, want Block when LLM decomposition fails", out.Decision)
 	}
 }
+
+func TestGateRunComplexityRouting(t *testing.T) {
+	tests := []struct {
+		name         string
+		in           pipeline.Input
+		wantDecision pipeline.Decision
+		wantComplex  string
+		wantSource   string
+		wantReason   string
+	}{
+		{
+			name: "scope estimate complexity wins over complexity label and is normalized",
+			in: pipeline.Input{
+				Bead: &bead.Bead{
+					ID:     "bead-1",
+					Title:  "test",
+					Labels: []string{"complexity:low"},
+				},
+				ComplexityRouting: pipeline.ComplexityRouting{
+					Complexity: " HIGH ",
+				},
+			},
+			wantDecision: pipeline.Proceed,
+			wantComplex:  "high",
+			wantSource:   "scope_estimate",
+			wantReason:   "none",
+		},
+	}
+
+	gate := New(io.Discard)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, err := gate.Run(context.Background(), tt.in)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if out.Decision != tt.wantDecision {
+				t.Fatalf("decision = %v, want %v", out.Decision, tt.wantDecision)
+			}
+			if out.Complexity != tt.wantComplex {
+				t.Errorf("complexity = %q, want %q", out.Complexity, tt.wantComplex)
+			}
+			if out.ComplexitySource != tt.wantSource {
+				t.Errorf("complexity source = %q, want %q", out.ComplexitySource, tt.wantSource)
+			}
+			if out.ComplexityFallbackReason != tt.wantReason {
+				t.Errorf("complexity fallback reason = %q, want %q", out.ComplexityFallbackReason, tt.wantReason)
+			}
+		})
+	}
+}
