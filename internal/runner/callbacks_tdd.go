@@ -84,7 +84,7 @@ func buildRenderRedFn(cfg *config.Config, renderer *prompt.Renderer) tdd.RenderR
 		if bc != nil {
 			bc.Tier = cfg.PhaseModelTier("red", bc.Tier)
 		}
-		rules, _ := renderer.LoadRulesForPhase("build")
+		rules, _ := renderer.LoadRulesForPhase("red")
 		ctx := &prompt.TDDRedContext{
 			BeadID:           bc.Bead.ID,
 			BeadTitle:        bc.Bead.Title,
