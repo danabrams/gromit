@@ -59,3 +59,26 @@ func TestScoreCandidate_NoSignalsReturnsLowClassificationWithReason(t *testing.T
 		t.Fatalf("Reasons[0] = %q, want %q", result.Reasons[0], "no high-complexity signals detected")
 	}
 }
+
+func TestScoreCandidate_CriteriaBreadthSignalsHighComplexity(t *testing.T) {
+	result := ScoreCandidate(BeadCandidate{
+		Title:       "Add focused endpoint improvements",
+		Description: "Narrow patch",
+		AcceptanceCriteria: []string{
+			"Criterion 1",
+			"Criterion 2",
+			"Criterion 3",
+		},
+	})
+
+	if result.Classification != "high" {
+		t.Fatalf("Classification = %q, want %q", result.Classification, "high")
+	}
+	if len(result.Reasons) != 1 {
+		t.Fatalf("Reasons len = %d, want 1", len(result.Reasons))
+	}
+	want := "acceptance_criteria=3 indicates broad implementation surface"
+	if result.Reasons[0] != want {
+		t.Fatalf("Reasons[0] = %q, want %q", result.Reasons[0], want)
+	}
+}
