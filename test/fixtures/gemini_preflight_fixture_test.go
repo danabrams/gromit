@@ -1,0 +1,31 @@
+package fixtures_test
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestGeminiPreflightFixture_IncludesChecklistAndObservedResults(t *testing.T) {
+	fixturePath := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "preflight.md")
+
+	content, err := os.ReadFile(fixturePath)
+	if err != nil {
+		t.Fatalf("failed to read preflight fixture: %v", err)
+	}
+
+	body := string(content)
+	required := []string{
+		"# Gemini Preflight",
+		"## Checklist",
+		"## Observed Results",
+		"gemini --version",
+	}
+
+	for _, token := range required {
+		if !strings.Contains(body, token) {
+			t.Fatalf("preflight fixture must contain %q", token)
+		}
+	}
+}
