@@ -583,6 +583,39 @@ func TestBuildRun_TDD_FreshContext_ReturnsPhaseMetricsInOutput(t *testing.T) {
 	}
 }
 
+// TestBuildRun_TDD_FreshContext_ReturnsTierProvenanceInOutput verifies that
+// fresh-context TDD returns top-level tier provenance in Build output so
+// iteration logs can preserve OriginalTier/ActualTier parity with single-pass flows.
+func TestBuildRun_TDD_FreshContext_ReturnsTierProvenanceInOutput(t *testing.T) {
+	runner := &trackingTDDCycleRunner{
+		runCyclesFn: func(_ context.Context, _ *bead.Bead, _ *config.Config) (execute.TDDCycleResult, error) {
+			return execute.TDDCycleResult{
+				OriginalTier: "low",
+				ActualTier:   "medium",
+			}, nil
+		},
+	}
+
+	stage := execute.New(&fakeInvoker{}, &fakePromptRenderer{}, io.Discard).WithTDDCycleRunner(runner)
+
+	cfg := defaultConfig()
+	cfg.Methodology.TDD = true
+	cfg.Methodology.FreshContextPerCycle = true
+	in := makeInput(makeBead("bead-1", "Implement TDD feature"), cfg)
+
+	out, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if out.OriginalTier != "low" {
+		t.Errorf("Output.OriginalTier = %q, want %q", out.OriginalTier, "low")
+	}
+	if out.ActualTier != "medium" {
+		t.Errorf("Output.ActualTier = %q, want %q", out.ActualTier, "medium")
+	}
+}
+
 // TestBuildRun_TDD_FreshContext_NilRunner_FallsBackToStreamRun verifies that when
 // methodology=TDD and FreshContextPerCycle=true but no TDDCycleRunner is injected,
 // Build.Run() falls back to the existing single-invocation StreamRun path.
