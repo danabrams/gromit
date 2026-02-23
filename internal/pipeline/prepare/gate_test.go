@@ -496,6 +496,20 @@ func TestGateRunComplexityRouting(t *testing.T) {
 			wantSource:   "scope_estimate",
 			wantReason:   "none",
 		},
+		{
+			name: "complexity label is used when scope estimate complexity is unavailable",
+			in: pipeline.Input{
+				Bead: &bead.Bead{
+					ID:     "bead-2",
+					Title:  "test",
+					Labels: []string{"complexity: HIGH "},
+				},
+			},
+			wantDecision: pipeline.Proceed,
+			wantComplex:  "high",
+			wantSource:   "label",
+			wantReason:   "scope_unavailable",
+		},
 	}
 
 	gate := New(io.Discard)
