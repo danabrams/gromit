@@ -1269,6 +1269,70 @@ func TestCreateSessionWorktree_RetriesWhenLockRefAmbiguousAndBranchExists(t *tes
 	}
 }
 
+func TestCreateSessionWorktree_RetriesWhenLockRefAmbiguousAndWorktreeAlreadyRegistered(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "repo")
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	origNowFn := sessionTimestampFn
+	sessionTimestampFn = func() int64 { return 100 }
+	t.Cleanup(func() { sessionTimestampFn = origNowFn })
+
+	attempts := 0
+	branchProbeCalls := 0
+	worktreeProbeCalls := 0
+	targetWorktree := sessionWorktreeDir(mainDir, "review", 100)
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		if len(args) >= 2 && args[0] == "worktree" && args[1] == "add" {
+			attempts++
+			if attempts == 1 {
+				return "", errors.New("fatal: cannot lock ref 'refs/heads/gromit/review-100': File exists")
+			}
+			return "", nil
+		}
+		if len(args) == 5 &&
+			args[0] == "show-ref" &&
+			args[1] == "--verify" &&
+			args[2] == "--quiet" &&
+			args[3] == "refs/heads/gromit/review-100" {
+			branchProbeCalls++
+			return "", errors.New("exit status 1")
+		}
+		if len(args) == 3 &&
+			args[0] == "worktree" &&
+			args[1] == "list" &&
+			args[2] == "--porcelain" {
+			worktreeProbeCalls++
+			return "worktree " + targetWorktree + "\nHEAD abc\nbranch refs/heads/main\n", nil
+		}
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	got, err := m.CreateSessionWorktree("review")
+	if err != nil {
+		t.Fatalf("CreateSessionWorktree() error = %v, want nil after retry", err)
+	}
+	if got == nil {
+		t.Fatal("CreateSessionWorktree() returned nil session")
+	}
+	if attempts != 2 {
+		t.Fatalf("expected retry after confirmed worktree contention, got %d worktree add attempts", attempts)
+	}
+	if branchProbeCalls != 1 {
+		t.Fatalf("expected one branch-exists probe, got %d", branchProbeCalls)
+	}
+	if worktreeProbeCalls != 1 {
+		t.Fatalf("expected one worktree-list probe, got %d", worktreeProbeCalls)
+	}
+}
+
 func TestCreateSessionWorktree_FailsImmediatelyOnNonContentionAlreadyExists(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "repo")
