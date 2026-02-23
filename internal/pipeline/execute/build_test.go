@@ -502,6 +502,47 @@ func TestBuildStage_ConfigEscalationDisabled_PreventsEscalation(t *testing.T) {
 	}
 }
 
+// TestBuildStage_LegacyModelChain_EscalatesToAbstractTier verifies that the unified
+// escalation path (Config.NextEscalationTier) correctly handles chains containing
+// legacy model names (haiku/sonnet/opus). The escalated tier must be the abstract
+// tier name ("medium"), not the raw legacy model name ("sonnet").
+func TestBuildStage_LegacyModelChain_EscalatesToAbstractTier(t *testing.T) {
+	var calledTiers []string
+	invoker := &fakeInvoker{
+		streamRunFn: func(_ context.Context, _, tier string, _ io.Writer, _ provider.EventHandler, _ provider.ToolCallHandler) (*provider.Result, error) {
+			calledTiers = append(calledTiers, tier)
+			if tier == "low" {
+				return nil, fmt.Errorf("low tier failed")
+			}
+			return &provider.Result{Success: true}, nil
+		},
+	}
+	stage := execute.New(invoker, &fakePromptRenderer{}, io.Discard)
+
+	cfg := defaultConfig()
+	cfg.Escalation.Enabled = true
+	cfg.Escalation.Chain = []string{"haiku", "sonnet", "opus"} // legacy model names
+	cfg.Models.P2 = "low"
+
+	b := &bead.Bead{ID: "bead-1", Title: "Fix bug", Priority: 2, Labels: []string{}}
+	in := makeInput(b, cfg)
+	in.EscalationEnabled = true
+
+	out, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil (should succeed after escalating past legacy chain)", err)
+	}
+	if len(calledTiers) != 2 {
+		t.Fatalf("StreamRun calls = %v, want [low medium]", calledTiers)
+	}
+	if calledTiers[1] != "medium" {
+		t.Errorf("escalated tier = %q, want %q (legacy chain must yield abstract tier name)", calledTiers[1], "medium")
+	}
+	if out.ActualTier != "medium" {
+		t.Errorf("Output.ActualTier = %q, want %q", out.ActualTier, "medium")
+	}
+}
+
 // TestBuildStage_EscalationEnabled_FailsWhenAllTiersExhausted verifies that when
 // EscalationEnabled is true but all tiers in the chain fail, the stage returns an error.
 func TestBuildStage_EscalationEnabled_FailsWhenAllTiersExhausted(t *testing.T) {
