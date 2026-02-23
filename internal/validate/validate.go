@@ -20,6 +20,9 @@ const (
 
 	// MaxSubBeads is the maximum number of sub-beads allowed from a decomposition.
 	MaxSubBeads = 5
+
+	// highComplexityFileThreshold marks candidates above this estimate as high complexity.
+	highComplexityFileThreshold = 5
 )
 
 // scopeSignals contains keywords that may indicate over-scoping
@@ -34,6 +37,7 @@ var scopeSignals = []string{
 type BeadCandidate struct {
 	Title              string
 	Description        string
+	EstimatedFiles     int
 	AcceptanceCriteria []string
 	ExpectedOutputs    []string
 }
@@ -43,6 +47,26 @@ type Violation struct {
 	BeadIndex int
 	Rule      string
 	Message   string
+}
+
+// ComplexityResult describes the complexity classification for one candidate.
+type ComplexityResult struct {
+	Title          string
+	Classification string
+	Reasons        []string
+}
+
+// ComplexityOutcome summarizes high-complexity candidates across a batch.
+type ComplexityOutcome struct {
+	HighCount      int
+	HighComplexity []CandidateComplexityResult
+}
+
+// ValidationResult aggregates validation and complexity outputs for decompose candidates.
+type ValidationResult struct {
+	Violations        []Violation
+	ComplexityResults []ComplexityResult
+	ComplexityOutcome ComplexityOutcome
 }
 
 // CheckBatchContract validates batch-level constraints on the full set of decomposed beads.
@@ -67,6 +91,35 @@ func CheckBatchContract(beads []BeadCandidate) []Violation {
 	}
 
 	return violations
+}
+
+// ValidateDecomposeCandidates validates decompose candidates and returns complexity metadata.
+func ValidateDecomposeCandidates(beads []BeadCandidate) ValidationResult {
+	result := ValidationResult{
+		ComplexityResults: make([]ComplexityResult, 0, len(beads)),
+	}
+
+	for _, bead := range beads {
+		classification := "low"
+		reasons := []string{}
+		if bead.EstimatedFiles > highComplexityFileThreshold {
+			classification = "high"
+			reasons = append(reasons, fmt.Sprintf("estimated_files=%d crosses the high-complexity threshold", bead.EstimatedFiles))
+			result.ComplexityOutcome.HighComplexity = append(result.ComplexityOutcome.HighComplexity, CandidateComplexityResult{
+				Title:   bead.Title,
+				Reasons: append([]string(nil), reasons...),
+			})
+		}
+
+		result.ComplexityResults = append(result.ComplexityResults, ComplexityResult{
+			Title:          bead.Title,
+			Classification: classification,
+			Reasons:        reasons,
+		})
+	}
+
+	result.ComplexityOutcome.HighCount = len(result.ComplexityOutcome.HighComplexity)
+	return result
 }
 
 // CheckBeads validates a list of bead candidates and returns any violations
