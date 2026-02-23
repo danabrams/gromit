@@ -469,6 +469,38 @@ func TestTDDCycleResult_HoldsPhaseMetrics(t *testing.T) {
 	}
 }
 
+// TestBuildStage_ConfigEscalationDisabled_PreventsEscalation verifies that when
+// cfg.Escalation.Enabled is false, the build stage does NOT escalate to the next
+// tier even when in.EscalationEnabled is true and the chain has entries.
+// The config-level Enabled flag must be the single gate for chain traversal.
+func TestBuildStage_ConfigEscalationDisabled_PreventsEscalation(t *testing.T) {
+	callCount := 0
+	invoker := &fakeInvoker{
+		streamRunFn: func(_ context.Context, _, _ string, _ io.Writer, _ provider.EventHandler, _ provider.ToolCallHandler) (*provider.Result, error) {
+			callCount++
+			return nil, fmt.Errorf("invocation failed")
+		},
+	}
+	stage := execute.New(invoker, &fakePromptRenderer{}, io.Discard)
+
+	cfg := defaultConfig()
+	cfg.Escalation.Enabled = false // config says no escalation
+	cfg.Escalation.Chain = []string{"low", "medium", "high"}
+	cfg.Models.P2 = "low"
+
+	b := &bead.Bead{ID: "bead-1", Title: "Fix bug", Priority: 2, Labels: []string{}}
+	in := makeInput(b, cfg)
+	in.EscalationEnabled = true // pipeline allows escalation, but config disables it
+
+	_, err := stage.Run(context.Background(), in)
+	if err == nil {
+		t.Fatal("Run() error = nil, want error when config escalation is disabled and invocation fails")
+	}
+	if callCount != 1 {
+		t.Errorf("StreamRun called %d times, want 1 (config Escalation.Enabled=false must block chain traversal)", callCount)
+	}
+}
+
 // TestBuildStage_EscalationEnabled_FailsWhenAllTiersExhausted verifies that when
 // EscalationEnabled is true but all tiers in the chain fail, the stage returns an error.
 func TestBuildStage_EscalationEnabled_FailsWhenAllTiersExhausted(t *testing.T) {
