@@ -153,6 +153,30 @@ func CheckBeads(beads []BeadCandidate) []Violation {
 	return violations
 }
 
+// CheckBeadsWithParentTitle validates bead candidates with parent context.
+// It applies CheckBeads rules and also flags expected outputs that echo the parent title.
+func CheckBeadsWithParentTitle(beads []BeadCandidate, parentTitle string) []Violation {
+	violations := CheckBeads(beads)
+	if strings.TrimSpace(parentTitle) == "" {
+		return violations
+	}
+
+	for i, bead := range beads {
+		for _, output := range bead.ExpectedOutputs {
+			if output == parentTitle {
+				violations = append(violations, Violation{
+					BeadIndex: i,
+					Rule:      "parent_echo",
+					Message:   "Bead has an expected output that exactly echoes the parent title",
+				})
+				break
+			}
+		}
+	}
+
+	return violations
+}
+
 // containsScopeSignal checks if text contains scope signal keywords
 func containsScopeSignal(text string) bool {
 	lower := strings.ToLower(text)
