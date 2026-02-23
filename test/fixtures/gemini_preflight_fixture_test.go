@@ -338,3 +338,28 @@ func TestGeminiJSONSuccessFixture_ExistsWithUsageAndCostFields(t *testing.T) {
 		}
 	}
 }
+
+func TestGeminiSchemaNotesFixture_DocumentsPromptModesAndSchemaExtraction(t *testing.T) {
+	path := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "schema-notes.md")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read schema notes fixture: %v", err)
+	}
+
+	body := strings.ToLower(string(content))
+	required := []string{
+		"prompt mode comparison",
+		"inline -p",
+		"stdin pipe",
+		"@file",
+		"stream-json schema",
+		"json schema",
+		"message_start",
+		"usage.input_tokens",
+	}
+	for _, token := range required {
+		if !strings.Contains(body, token) {
+			t.Fatalf("schema notes must contain %q", token)
+		}
+	}
+}
