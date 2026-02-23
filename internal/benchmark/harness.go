@@ -21,6 +21,8 @@ type ModeOverlay struct {
 	Provider    string
 	ModelFamily string
 	TierModels  OverlayTierModels
+	BuildTierDefault      string
+	ValidationTierDefault string
 }
 
 func BuildModeOverlay(manifest HarnessManifest, mode string) (ModeOverlay, error) {
@@ -35,6 +37,8 @@ func BuildModeOverlay(manifest HarnessManifest, mode string) (ModeOverlay, error
 				Medium: manifest.MediumTierModel,
 				High:   manifest.HighTierModel,
 			},
+			BuildTierDefault:      "low",
+			ValidationTierDefault: "low",
 		}, nil
 	default:
 		return ModeOverlay{}, fmt.Errorf("unsupported benchmark mode %q", mode)
