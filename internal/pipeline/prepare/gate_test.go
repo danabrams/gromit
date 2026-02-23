@@ -551,3 +551,40 @@ func TestGateRunComplexityRouting(t *testing.T) {
 		})
 	}
 }
+
+func TestGateRunComplexityRouting_OnSkipAndBlockPaths(t *testing.T) {
+	b := &bead.Bead{
+		ID:     "bead-1",
+		Title:  "test",
+		Labels: []string{"complexity:high"},
+	}
+	in := pipeline.Input{Bead: b}
+
+	t.Run("precheck skip includes complexity routing", func(t *testing.T) {
+		gate := New(io.Discard).WithPrechecker(&fakePrechecker{done: true})
+		out, err := gate.Run(context.Background(), in)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if out.Decision != pipeline.Skip {
+			t.Fatalf("decision = %v, want %v", out.Decision, pipeline.Skip)
+		}
+		if out.Complexity != "high" || out.ComplexitySource != "label" || out.ComplexityFallbackReason != "scope_unavailable" {
+			t.Fatalf("unexpected complexity routing: %+v", out.ComplexityRouting)
+		}
+	})
+
+	t.Run("stuck block includes complexity routing", func(t *testing.T) {
+		gate := New(io.Discard).WithStuckDetector(&fakeStuckDetector{stuck: true})
+		out, err := gate.Run(context.Background(), in)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if out.Decision != pipeline.Block {
+			t.Fatalf("decision = %v, want %v", out.Decision, pipeline.Block)
+		}
+		if out.Complexity != "high" || out.ComplexitySource != "label" || out.ComplexityFallbackReason != "scope_unavailable" {
+			t.Fatalf("unexpected complexity routing: %+v", out.ComplexityRouting)
+		}
+	})
+}

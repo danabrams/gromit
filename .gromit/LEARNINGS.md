@@ -172,6 +172,21 @@ Session worktree flow must preserve the documented order (create -> callback -> 
 *Related to: gromit-9949*
 
 Cleanup responsibilities should have one clear owner. Splitting deletion between launcher orchestration and manager merge routines introduces duplicated side effects, hidden failure modes, and harder-to-reason recovery behavior.
+
+### 2026-02-23 | PREEXISTING_MERGE_STATE_MUST_NOT_BE_ABORTED_BY_MERGEBACK | ARCHITECTURE
+*Related to: review-1771880675971102580*
+
+`MergeBack` conflict handling should distinguish merge state created by the current merge attempt from pre-existing `MERGE_HEAD` state. Aborting blindly on any active merge state can destroy unrelated in-progress merge work in the main worktree.
+
+### 2026-02-23 | PIPELINE_STAGE_CONFIG_ACCESS_REQUIRES_EXPLICIT_NIL_GUARDS | CONVENTIONS
+*Related to: review-1771880675971102580*
+
+Stage code that accepts injected config pointers should fail fast with a typed error before dereferencing config helpers. Mixed nil-tolerant and non-nil-safe calls in the same method create panic paths that tests may miss.
+
+### 2026-02-23 | GATE_DECISION_PATHS_SHOULD_PRESERVE_ROUTING_METADATA | PATTERNS
+*Related to: review-1771880675971102580*
+
+When Gate computes complexity routing metadata, all decision outcomes (Proceed/Skip/Block) should propagate that metadata. Returning it only on Proceed creates observability drift and inconsistent iteration logs.
 ---
 
 ## Archived

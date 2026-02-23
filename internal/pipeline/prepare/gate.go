@@ -104,7 +104,10 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 		if err != nil {
 			fmt.Fprintf(out, "Warning: precheck failed for bead %s: %v\n", in.Bead.ID, err)
 		} else if done {
-			return pipeline.Output{Decision: pipeline.Skip}, nil
+			return pipeline.Output{
+				Decision:          pipeline.Skip,
+				ComplexityRouting: complexityRouting,
+			}, nil
 		}
 	}
 
@@ -114,7 +117,10 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 		if err != nil {
 			fmt.Fprintf(out, "Warning: stuck detection failed for bead %s: %v\n", in.Bead.ID, err)
 		} else if stuck {
-			return pipeline.Output{Decision: pipeline.Block}, nil
+			return pipeline.Output{
+				Decision:          pipeline.Block,
+				ComplexityRouting: complexityRouting,
+			}, nil
 		}
 	}
 
@@ -124,13 +130,17 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 		return pipeline.Output{}, scopeGateErr
 	}
 	if scopeGateDecision != nil {
+		scopeGateDecision.ComplexityRouting = complexityRouting
 		return *scopeGateDecision, nil
 	}
 
 	// Proactive decomposition: skip beads whose title contains broad-scope keywords.
 	// Only applies to root beads (no parent) to prevent decompose loops.
 	if g.runProactiveDecomposition(ctx, in.Bead, out) {
-		return pipeline.Output{Decision: pipeline.Skip}, nil
+		return pipeline.Output{
+			Decision:          pipeline.Skip,
+			ComplexityRouting: complexityRouting,
+		}, nil
 	}
 
 	return pipeline.Output{

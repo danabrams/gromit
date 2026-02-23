@@ -1161,6 +1161,7 @@ func TestMergeBack_MergeStatePresentClassifiesAsConflict(t *testing.T) {
 	}
 
 	gitCalls := []string{}
+	mergeProbeCalls := 0
 	mockGitRun := func(dir string, args ...string) (string, error) {
 		gitCalls = append(gitCalls, strings.Join(args, " "))
 		if args[0] == "merge" && contains(args, "--ff-only") {
@@ -1170,6 +1171,10 @@ func TestMergeBack_MergeStatePresentClassifiesAsConflict(t *testing.T) {
 			return "", errors.New("merge: gromit/review-1234567890 - not something we can merge")
 		}
 		if args[0] == "rev-parse" && args[1] == "--verify" && args[2] == "MERGE_HEAD" {
+			mergeProbeCalls++
+			if mergeProbeCalls == 1 {
+				return "", errors.New("exit status 1")
+			}
 			return "deadbeef", nil
 		}
 		if args[0] == "merge" && args[1] == "--abort" {
@@ -1202,6 +1207,52 @@ func TestMergeBack_MergeStatePresentClassifiesAsConflict(t *testing.T) {
 	}
 	if !foundAbort {
 		t.Fatalf("expected 'git merge --abort' when merge state is present, got calls: %v", gitCalls)
+	}
+}
+
+func TestMergeBack_PreExistingMergeStateIsNotAbortedOnNonConflictFailure(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "myproject")
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	gitCalls := []string{}
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		gitCalls = append(gitCalls, strings.Join(args, " "))
+		if args[0] == "merge" && contains(args, "--ff-only") {
+			return "", errors.New("fatal: Not possible to fast-forward")
+		}
+		if args[0] == "merge" && !contains(args, "--ff-only") && args[1] != "--abort" {
+			return "", errors.New("merge: gromit/review-1234567890 - not something we can merge")
+		}
+		if args[0] == "rev-parse" && args[1] == "--verify" && args[2] == "MERGE_HEAD" {
+			// Simulate merge state already present before and after MergeBack attempt.
+			return "deadbeef", nil
+		}
+		if args[0] == "merge" && args[1] == "--abort" {
+			return "", nil
+		}
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	err = m.MergeBack("gromit/review-1234567890")
+	if err == nil {
+		t.Fatal("MergeBack() should return error on merge failure, got nil")
+	}
+	if strings.Contains(strings.ToLower(err.Error()), "merge conflict") {
+		t.Fatalf("MergeBack() should not classify pre-existing MERGE_HEAD as conflict, got: %v", err)
+	}
+
+	for _, call := range gitCalls {
+		if strings.Contains(call, "merge --abort") {
+			t.Fatalf("should NOT run 'git merge --abort' when MERGE_HEAD pre-exists, got calls: %v", gitCalls)
+		}
 	}
 }
 

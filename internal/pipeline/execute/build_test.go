@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -271,6 +272,21 @@ func TestBuildStage_Run_PassesValidationFailuresToRenderer(t *testing.T) {
 
 	if len(gotFailures) != 2 {
 		t.Errorf("renderer got %d failures, want 2", len(gotFailures))
+	}
+}
+
+func TestBuildStage_Run_NilConfigReturnsError(t *testing.T) {
+	invoker := &fakeInvoker{}
+	renderer := &fakePromptRenderer{}
+	stage := execute.New(invoker, renderer, io.Discard)
+
+	in := makeInput(makeBead("bead-1", "Fix bug"), nil)
+	_, err := stage.Run(context.Background(), in)
+	if err == nil {
+		t.Fatal("Run() error = nil, want nil-config error")
+	}
+	if !strings.Contains(err.Error(), "nil config") {
+		t.Fatalf("Run() error = %v, want nil config error", err)
 	}
 }
 

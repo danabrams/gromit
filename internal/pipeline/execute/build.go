@@ -145,6 +145,9 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 	if err != nil {
 		return pipeline.Output{}, fmt.Errorf("build: rendering prompt: %w", err)
 	}
+	if in.Config == nil {
+		return pipeline.Output{}, fmt.Errorf("build: nil config")
+	}
 
 	beadTier := in.Config.SelectInitialTierForComplexity(in.Complexity)
 	phase := "build"

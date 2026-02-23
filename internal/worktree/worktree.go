@@ -264,13 +264,14 @@ func (m *Manager) MergeBack(branch string) error {
 	}
 
 	// Fast-forward failed, try regular merge
+	mergeInProgressBefore := m.mergeInProgress()
 	output, err := m.runGit(m.MainDir, "merge", branch)
 	if err != nil {
-		mergeInProgress := m.mergeInProgress()
+		mergeInProgressAfter := m.mergeInProgress()
 		decision := classifyMergeFailure(mergeFailureInput{
 			Output:          output,
 			Err:             err,
-			MergeInProgress: mergeInProgress,
+			MergeInProgress: mergeInProgressAfter && !mergeInProgressBefore,
 		})
 		if decision.Class == mergeFailureConflict {
 			// Merge failed with conflict, abort merge state.
