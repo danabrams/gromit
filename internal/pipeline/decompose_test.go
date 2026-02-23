@@ -1517,9 +1517,7 @@ func TestDecomposeWorkflow_UsesInputTierForProviderCall(t *testing.T) {
 	}
 }
 
-// TestDecompose_SixBeads_TruncatesToFive verifies that when the model returns 6 sub-beads,
-// the batch_size_max fallback truncates the result to 5 beads before creation.
-func TestDecompose_SixBeads_TruncatesToFive(t *testing.T) {
+func TestDecomposeWorkflow_SixBeadBatchViolationRepromptsThenErrorsAtRetryCap(t *testing.T) {
 	tmpDir := t.TempDir()
 	plansDir := filepath.Join(tmpDir, "plans")
 	if err := os.MkdirAll(plansDir, 0755); err != nil {
@@ -1529,8 +1527,18 @@ func TestDecompose_SixBeads_TruncatesToFive(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	runCount := 0
 	mockClaude := &decomposeAcceptanceClaudeClient{
 		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+			runCount++
+			if runCount == 2 {
+				if !strings.Contains(prompt, "Violations By Flagged Bead") {
+					t.Fatalf("second prompt should be validation reprompt, got: %q", prompt)
+				}
+				if !strings.Contains(prompt, "batch_size_max") {
+					t.Fatalf("second prompt should include batch_size_max violation, got: %q", prompt)
+				}
+			}
 			return &ClaudeRunResult{
 				Success:  true,
 				ExitCode: 0,
@@ -1555,18 +1563,24 @@ func TestDecompose_SixBeads_TruncatesToFive(t *testing.T) {
 	}
 
 	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
-	result, err := p.Decompose(context.Background(), DecomposeInput{
+	_, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "big-plan",
-		MaxValidationRetries: 0,
+		MaxValidationRetries: 1,
 	})
-	if err != nil {
-		t.Fatalf("Decompose() failed: %v", err)
+	if err == nil {
+		t.Fatal("Decompose() returned nil error, want retry-cap validation error")
 	}
-	if len(result.CreatedBeads) != 5 {
-		t.Errorf("CreatedBeads count = %d, want 5 (truncated from 6 by batch_size_max fallback)", len(result.CreatedBeads))
+	if !strings.Contains(err.Error(), "batch_size_max") {
+		t.Fatalf("error = %v, want batch_size_max violation", err)
 	}
-	if createdCount != 5 {
-		t.Errorf("bead create calls = %d, want 5 (only 5 beads should be created)", createdCount)
+	if !strings.Contains(err.Error(), "maximum is 5") {
+		t.Fatalf("error = %v, want batch-size max details", err)
+	}
+	if runCount != 2 {
+		t.Fatalf("Run() call count = %d, want 2 (initial attempt + 1 reprompt)", runCount)
+	}
+	if createdCount != 0 {
+		t.Errorf("bead create calls = %d, want 0 (must not truncate and create)", createdCount)
 	}
 }
 
