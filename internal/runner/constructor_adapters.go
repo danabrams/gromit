@@ -175,10 +175,16 @@ type worktreeMergerAdapter struct {
 }
 
 func (a *worktreeMergerAdapter) PendingBranches() ([]string, error) {
+	if a == nil || a.mgr == nil {
+		return nil, fmt.Errorf("worktree manager is nil")
+	}
 	return a.mgr.PendingBranches()
 }
 
 func (a *worktreeMergerAdapter) MergeBack(branch string) error {
+	if a == nil || a.mgr == nil {
+		return fmt.Errorf("worktree manager is nil")
+	}
 	return a.mgr.MergeBack(branch)
 }
 
