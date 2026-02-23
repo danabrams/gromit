@@ -275,5 +275,17 @@ func isSessionContentionErr(err error) bool {
 		return false
 	}
 	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "already exists") || strings.Contains(msg, "already checked out")
+	if strings.Contains(msg, "a branch named") && strings.Contains(msg, "already exists") {
+		return true
+	}
+	if strings.Contains(msg, "reference already exists") {
+		return true
+	}
+	if strings.Contains(msg, "already checked out") {
+		return true
+	}
+	if strings.Contains(msg, "already used by worktree") {
+		return true
+	}
+	return false
 }
