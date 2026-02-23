@@ -660,11 +660,17 @@ func TestMergeConflictHandoffError_ManualIncludesActionableGitInstructions(t *te
 	}, errors.New("merge conflict"))
 
 	msg := err.Error()
-	if !strings.Contains(msg, "git -C /tmp/repo-gromit-review-444 status") {
+	if !strings.Contains(msg, `checkout branch "gromit/review-444"`) {
+		t.Fatalf("manual handoff should include branch checkout guidance, got: %s", msg)
+	}
+	if !strings.Contains(msg, "git status") {
 		t.Fatalf("manual handoff should include status command, got: %s", msg)
 	}
 	if !strings.Contains(msg, "git merge --abort") {
 		t.Fatalf("manual handoff should include merge abort guidance, got: %s", msg)
+	}
+	if strings.Contains(msg, "git -C /tmp/repo-gromit-review-444") {
+		t.Fatalf("manual handoff should avoid session-dir command prefixes, got: %s", msg)
 	}
 	if !strings.Contains(msg, "gromit/review-444") {
 		t.Fatalf("manual handoff should include branch name, got: %s", msg)
