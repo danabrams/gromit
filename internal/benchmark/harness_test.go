@@ -1,0 +1,35 @@
+package benchmark
+
+import "testing"
+
+func TestBuildModeOverlay_PinsProviderAndModelFamilyAcrossModes(t *testing.T) {
+	manifest := HarnessManifest{
+		Provider:        "openai",
+		ModelFamily:     "gpt-5",
+		LowTierModel:    "gpt-5-mini",
+		MediumTierModel: "gpt-5.3-codex",
+		HighTierModel:   "gpt-5.3-codex",
+	}
+
+	for _, mode := range []string{"single_pass", "tdd_shared_context", "tdd_fresh_context"} {
+		overlay, err := BuildModeOverlay(manifest, mode)
+		if err != nil {
+			t.Fatalf("BuildModeOverlay(%q) error = %v", mode, err)
+		}
+		if overlay.Provider != manifest.Provider {
+			t.Fatalf("mode %q provider = %q, want %q", mode, overlay.Provider, manifest.Provider)
+		}
+		if overlay.ModelFamily != manifest.ModelFamily {
+			t.Fatalf("mode %q model_family = %q, want %q", mode, overlay.ModelFamily, manifest.ModelFamily)
+		}
+		if overlay.TierModels.Low != manifest.LowTierModel {
+			t.Fatalf("mode %q low tier model = %q, want %q", mode, overlay.TierModels.Low, manifest.LowTierModel)
+		}
+		if overlay.TierModels.Medium != manifest.MediumTierModel {
+			t.Fatalf("mode %q medium tier model = %q, want %q", mode, overlay.TierModels.Medium, manifest.MediumTierModel)
+		}
+		if overlay.TierModels.High != manifest.HighTierModel {
+			t.Fatalf("mode %q high tier model = %q, want %q", mode, overlay.TierModels.High, manifest.HighTierModel)
+		}
+	}
+}
