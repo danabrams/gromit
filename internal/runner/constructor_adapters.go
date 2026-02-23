@@ -2,9 +2,12 @@ package runner
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/jsonutil"
@@ -219,6 +222,9 @@ type scopeGateSubBead struct {
 type decomposerAdapter struct {
 	beads  *bead.Client
 	router *provider.Router
+
+	mu               sync.Mutex
+	createdChildKeys map[string]map[string]struct{}
 }
 
 func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
@@ -277,15 +283,79 @@ func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 
 	labels := a.resolveBuildStrategyLabels(b)
 	for _, sb := range subBeads {
-		if _, err := a.beads.CreateWithParent(sb.Title, b.Priority, labels, sb.ExpectedOutputs, b.ID); err != nil {
+		dedupeLabel := scopeGateChildDedupeLabel(b.ID, sb)
+		if a.hasCreatedChildKey(b.ID, dedupeLabel) {
+			continue
+		}
+		exists, err := a.childWithDedupeLabelExists(b.ID, dedupeLabel)
+		if err != nil {
+			return fmt.Errorf("decomposerAdapter: checking existing child bead %q: %w", sb.Title, err)
+		}
+		if exists {
+			a.rememberCreatedChildKey(b.ID, dedupeLabel)
+			continue
+		}
+
+		childLabels := append(append([]string(nil), labels...), dedupeLabel)
+		if _, err := a.beads.CreateWithParent(sb.Title, b.Priority, childLabels, sb.ExpectedOutputs, b.ID); err != nil {
 			return fmt.Errorf("decomposerAdapter: creating child bead %q: %w", sb.Title, err)
 		}
+		a.rememberCreatedChildKey(b.ID, dedupeLabel)
 	}
 
 	if err := a.beads.Close(b.ID); err != nil {
 		return fmt.Errorf("decomposerAdapter: closing parent bead: %w", err)
 	}
 	return nil
+}
+
+func scopeGateChildDedupeLabel(parentID string, sb scopeGateSubBead) string {
+	const prefix = "scope_decomp:"
+
+	sum := sha1.Sum([]byte(parentID + "\x00" + strings.TrimSpace(sb.Title) + "\x00" + strings.Join(sb.ExpectedOutputs, "\x00")))
+	return prefix + hex.EncodeToString(sum[:8])
+}
+
+func (a *decomposerAdapter) hasCreatedChildKey(parentID, key string) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	perParent := a.createdChildKeys[parentID]
+	if perParent == nil {
+		return false
+	}
+	_, ok := perParent[key]
+	return ok
+}
+
+func (a *decomposerAdapter) rememberCreatedChildKey(parentID, key string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if a.createdChildKeys == nil {
+		a.createdChildKeys = make(map[string]map[string]struct{})
+	}
+	if a.createdChildKeys[parentID] == nil {
+		a.createdChildKeys[parentID] = make(map[string]struct{})
+	}
+	a.createdChildKeys[parentID][key] = struct{}{}
+}
+
+func (a *decomposerAdapter) childWithDedupeLabelExists(parentID, dedupeLabel string) (bool, error) {
+	if a.beads == nil {
+		return false, fmt.Errorf("bead client is nil")
+	}
+
+	matches, err := a.beads.ListWithLabel(dedupeLabel)
+	if err != nil {
+		return false, err
+	}
+	for _, existing := range matches {
+		if existing != nil && existing.Parent == parentID {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (a *decomposerAdapter) resolveBuildStrategyLabels(parent *bead.Bead) []string {
