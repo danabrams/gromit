@@ -1333,6 +1333,46 @@ func TestCreateSessionWorktree_RetriesWhenLockRefAmbiguousAndWorktreeAlreadyRegi
 	}
 }
 
+func TestCreateSessionWorktree_RetriesWhenKnownContentionOnlyInGitOutput(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "repo")
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	origNowFn := sessionTimestampFn
+	sessionTimestampFn = func() int64 { return 100 }
+	t.Cleanup(func() { sessionTimestampFn = origNowFn })
+
+	attempts := 0
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		if len(args) >= 2 && args[0] == "worktree" && args[1] == "add" {
+			attempts++
+			if attempts == 1 {
+				return "fatal: a branch named 'gromit/review-100' already exists", errors.New("exit status 128")
+			}
+			return "", nil
+		}
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	got, err := m.CreateSessionWorktree("review")
+	if err != nil {
+		t.Fatalf("CreateSessionWorktree() error = %v, want nil after retry", err)
+	}
+	if got == nil {
+		t.Fatal("CreateSessionWorktree() returned nil session")
+	}
+	if attempts != 2 {
+		t.Fatalf("expected retry based on git output contention signature, got %d attempts", attempts)
+	}
+}
+
 func TestCreateSessionWorktree_FailsImmediatelyOnNonContentionAlreadyExists(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "repo")
