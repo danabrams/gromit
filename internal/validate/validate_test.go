@@ -846,3 +846,44 @@ func TestValidateDecomposeCandidates_MixedComplexityProducesHighListWithReasons(
 		t.Fatalf("ComplexityOutcome.AggregateReasons[0] = %q, want %q", result.ComplexityOutcome.AggregateReasons[0], wantReason)
 	}
 }
+
+func TestValidateDecomposeCandidates_PreservesFormatScopeOverlapViolations(t *testing.T) {
+	candidates := []BeadCandidate{
+		{
+			Title:          "Refactor entire auth flow",
+			Description:    "Broad and risky",
+			EstimatedFiles: 8,
+			AcceptanceCriteria: []string{
+				"Implement user authentication and session token refresh behavior",
+				"Criterion 2",
+				"Criterion 3",
+				"Criterion 4",
+			},
+		},
+		{
+			Title:          "Tighten auth checks",
+			Description:    "Sibling with overlap",
+			EstimatedFiles: 2,
+			AcceptanceCriteria: []string{
+				"Implement user authentication and session token refresh behavior for API handlers",
+			},
+		},
+	}
+
+	result := ValidateDecomposeCandidates(candidates)
+
+	rules := map[string]bool{}
+	for _, v := range result.Violations {
+		rules[v.Rule] = true
+	}
+
+	if !rules["criteria_count"] {
+		t.Fatal("expected criteria_count violation to remain present")
+	}
+	if !rules["scope_signals"] {
+		t.Fatal("expected scope_signals violation to remain present")
+	}
+	if !rules["sibling_overlap"] {
+		t.Fatal("expected sibling_overlap violation to remain present")
+	}
+}
