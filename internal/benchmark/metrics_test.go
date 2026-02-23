@@ -92,3 +92,35 @@ func TestAggregateModeMetrics_UsesRunStartFinishForElapsedAndStableOrdering(t *t
 		t.Fatalf("z_mode elapsed = %d, want 185", summaries[1].ElapsedSeconds)
 	}
 }
+
+func TestAggregateModeMetrics_AggregatesQualityAndFirstPassWithMissingOptionalFields(t *testing.T) {
+	tmpDir := t.TempDir()
+	logPath := filepath.Join(tmpDir, "quality.jsonl")
+	content := "" +
+		"{\"iteration\":1,\"quality_score\":0.9,\"first_pass_success\":true}\n" +
+		"{\"iteration\":2}\n"
+	if err := os.WriteFile(logPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write fixture log: %v", err)
+	}
+
+	summaries, err := AggregateModeMetrics([]ModeLogInput{{
+		Mode:          "single_pass",
+		RunStartedAt:  time.Date(2026, 2, 23, 12, 0, 0, 0, time.UTC),
+		RunFinishedAt: time.Date(2026, 2, 23, 12, 0, 2, 0, time.UTC),
+		LogPath:       logPath,
+	}})
+	if err != nil {
+		t.Fatalf("AggregateModeMetrics() error = %v", err)
+	}
+	if len(summaries) != 1 {
+		t.Fatalf("len(summaries) = %d, want 1", len(summaries))
+	}
+	got := summaries[0]
+
+	if got.Quality.AverageScore != 0.45 {
+		t.Fatalf("average quality = %v, want 0.45", got.Quality.AverageScore)
+	}
+	if got.Quality.FirstPassRate != 0.5 {
+		t.Fatalf("first pass rate = %v, want 0.5", got.Quality.FirstPassRate)
+	}
+}
