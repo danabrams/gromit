@@ -71,6 +71,7 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 	stats := &ValidationStats{}
 	firstViolationCount := 0
 	firstHighComplexityCount := 0
+	bestHighComplexityCount := -1
 	for attempt := 0; ; attempt++ {
 		stats.Attempts++
 		// Run provider non-interactively
@@ -97,8 +98,12 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 		}
 
 		highComplexityCount, _ := countComplexityByEstimate(beadDefs)
+		priorBestHighComplexityCount := bestHighComplexityCount
 		if attempt == 0 {
 			firstHighComplexityCount = highComplexityCount
+		}
+		if bestHighComplexityCount == -1 || highComplexityCount < bestHighComplexityCount {
+			bestHighComplexityCount = highComplexityCount
 		}
 		fmt.Print(formatComplexitySummaryLine(attempt+1, beadDefs))
 
@@ -122,9 +127,29 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 				break
 			}
 
+			if attempt > 0 && priorBestHighComplexityCount >= 0 && highComplexityCount >= priorBestHighComplexityCount {
+				if bestHighComplexityCount < firstHighComplexityCount {
+					stats.Improved = true
+				}
+				stats.ProceededWithHighComplexityWarning = true
+				details := make([]string, 0, len(beadDefs))
+				for _, def := range beadDefs {
+					if def.EstimatedFiles > highComplexityFileThreshold {
+						details = append(details, fmt.Sprintf("%s (estimated_files=%d)", def.Title, def.EstimatedFiles))
+					}
+				}
+				fmt.Printf(
+					"Warning: high-complexity trajectory stalled at attempt %d; proceeding with current output. remaining=%d details=%s\n",
+					attempt+1,
+					highComplexityCount,
+					strings.Join(details, ", "),
+				)
+				break
+			}
+
 			if attempt >= maxRetries {
 				stats.RetryCapReached = true
-				if highComplexityCount < firstHighComplexityCount {
+				if bestHighComplexityCount < firstHighComplexityCount {
 					stats.Improved = true
 				}
 				if !stats.Improved {
