@@ -175,6 +175,24 @@ func TestInputComplexityRoutingMetadataFields(t *testing.T) {
 	}
 }
 
+func TestComplexityRoutingTypeFlowsBetweenOutputAndInput(t *testing.T) {
+	routing := pipeline.ComplexityRouting{
+		Complexity:               "high",
+		ComplexitySource:         "scope_estimate",
+		ComplexityFallbackReason: "",
+	}
+
+	out := pipeline.Output{ComplexityRouting: routing}
+	in := pipeline.Input{ComplexityRouting: out.ComplexityRouting}
+
+	if in.Complexity != "high" {
+		t.Errorf("Input.Complexity: want %q, got %q", "high", in.Complexity)
+	}
+	if in.ComplexitySource != "scope_estimate" {
+		t.Errorf("Input.ComplexitySource: want %q, got %q", "scope_estimate", in.ComplexitySource)
+	}
+}
+
 func TestPhaseMetricSingularType(t *testing.T) {
 	m := pipeline.PhaseMetric{Phase: "refactor"}
 	if m.Phase != "refactor" {
