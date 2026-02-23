@@ -55,6 +55,21 @@ Replace God Object pattern with pure orchestration: hold only stage references a
 
 *Newly observed — needs validation across more tasks.*
 
+### 2026-02-23 | Skip-Validation Must Not Bypass Decomposition Batch Contracts | conventions
+*Related to: gromit-xjeu3, review-1771835747422178794*
+
+Even when `SkipValidation` is true, decomposition output must still fail fast on `batch_size_min`/`batch_size_max` violations. Post-loop truncation fallbacks create hidden behavior drift and can silently drop planned work.
+
+### 2026-02-23 | Shared Validator Coverage Must Include Required-Field Contracts | architecture
+*Related to: gromit-btk9n, review-1771835747422178794*
+
+Using one runtime/pipeline decompose validator only prevents drift if required-field rules (for example empty title or missing expected outputs) are also centralized there. Keeping those checks in call sites preserves divergence.
+
+### 2026-02-23 | Estimate-Only Complexity Scoring Is Fragile | gotchas
+*Related to: gromit-fu70d, review-1771835747422178794*
+
+Complexity classification based only on `estimated_files` is easy for model output to underreport or omit. Retain non-estimate signals or enforce strict estimated-files contracts so high-scope decompositions cannot slip through as low risk.
+
 ### 2026-02-23 | Decomposition Batch-Size Policy Must Be Retry-Enforced, Not Truncated | conventions
 *Related to: gromit-9946, review-1771832540735638835*
 
