@@ -610,8 +610,9 @@ func TestCheckBeads_NoDuplicateExpectedOutputs_NoOutputDuplicateViolation(t *tes
 	}
 }
 
-// TestCheckBeads_OutputEchoesBeadTitle_ViolatesParentEcho tests that an expected output matching the bead title is flagged
-func TestCheckBeads_OutputEchoesBeadTitle_ViolatesParentEcho(t *testing.T) {
+// TestCheckBeads_OutputEchoesBeadTitle_NoParentEchoWithoutParentContext tests that
+// expected outputs matching child title are not flagged when no parent title is provided.
+func TestCheckBeads_OutputEchoesBeadTitle_NoParentEchoWithoutParentContext(t *testing.T) {
 	beads := []BeadCandidate{
 		{
 			Title:           "Implement user authentication",
@@ -622,17 +623,10 @@ func TestCheckBeads_OutputEchoesBeadTitle_ViolatesParentEcho(t *testing.T) {
 
 	violations := CheckBeads(beads)
 
-	found := false
 	for _, v := range violations {
 		if v.Rule == "parent_echo" {
-			found = true
-			if v.BeadIndex != 0 {
-				t.Errorf("BeadIndex = %d, want 0", v.BeadIndex)
-			}
+			t.Errorf("unexpected parent_echo violation for child-title echo without parent context")
 		}
-	}
-	if !found {
-		t.Error("expected parent_echo violation for expected output that exactly matches bead title")
 	}
 }
 
