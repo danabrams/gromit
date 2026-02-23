@@ -253,3 +253,26 @@ func TestGeminiCommandsLogFixture_IncludesModelTokenCostAndExitErrorEntries(t *t
 		}
 	}
 }
+
+func TestGeminiSchemaNotesFixture_ReferencesModelArtifactsAndTokenCostEvidence(t *testing.T) {
+	path := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "schema-notes.md")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read schema notes fixture: %v", err)
+	}
+
+	body := strings.ToLower(string(content))
+	required := []string{
+		"models/valid-model.stderr.txt",
+		"models/invalid-model.stderr.txt",
+		"commands.log",
+		"input_tokens",
+		"output_tokens",
+		"cost",
+	}
+	for _, token := range required {
+		if !strings.Contains(body, token) {
+			t.Fatalf("schema notes must reference %q", token)
+		}
+	}
+}
