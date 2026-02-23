@@ -60,6 +60,7 @@ type ComplexityResult struct {
 type ComplexityOutcome struct {
 	HighCount      int
 	HighComplexity []CandidateComplexityResult
+	AggregateReasons []string
 }
 
 // ValidationResult aggregates validation and complexity outputs for decompose candidates.
@@ -109,6 +110,7 @@ func ValidateDecomposeCandidates(beads []BeadCandidate) ValidationResult {
 				Title:   bead.Title,
 				Reasons: append([]string(nil), reasons...),
 			})
+			result.ComplexityOutcome.AggregateReasons = append(result.ComplexityOutcome.AggregateReasons, reasons...)
 		}
 
 		result.ComplexityResults = append(result.ComplexityResults, ComplexityResult{
