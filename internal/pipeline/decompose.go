@@ -449,11 +449,15 @@ func buildDecomposeLabels(planName string, estimatedFiles int) []string {
 func toBeadCandidates(defs []beadDef) []validate.BeadCandidate {
 	candidates := make([]validate.BeadCandidate, len(defs))
 	for i, def := range defs {
+		expectedOutputs := def.ExpectedOutputs
+		if len(expectedOutputs) == 0 {
+			expectedOutputs = def.AcceptanceCriteria
+		}
 		candidates[i] = validate.BeadCandidate{
 			Title:              def.Title,
 			Description:        def.Description,
 			AcceptanceCriteria: def.AcceptanceCriteria,
-			ExpectedOutputs:    def.ExpectedOutputs,
+			ExpectedOutputs:    expectedOutputs,
 		}
 	}
 	return candidates
