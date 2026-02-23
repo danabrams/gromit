@@ -804,6 +804,25 @@ func TestValidateRuntimeScopeGateDecomposeOutput_ReturnsRuleCodeFromSharedValida
 	}
 }
 
+func TestValidateRuntimeScopeGateDecomposeOutput_UsesSharedRequiredFieldViolationMessage(t *testing.T) {
+	err := validateRuntimeScopeGateDecomposeOutput(
+		[]scopeGateSubBead{
+			{Title: "", ExpectedOutputs: []string{"f1"}},
+			{Title: "Part 2", ExpectedOutputs: []string{"f2"}},
+		},
+		"Oversized Feature",
+	)
+	if err == nil {
+		t.Fatal("validateRuntimeScopeGateDecomposeOutput() error = nil, want title_empty violation")
+	}
+	if !strings.Contains(err.Error(), "[title_empty]") {
+		t.Fatalf("validateRuntimeScopeGateDecomposeOutput() error = %q, want title_empty rule code", err.Error())
+	}
+	if !strings.Contains(err.Error(), "bead 0: Bead title is empty") {
+		t.Fatalf("validateRuntimeScopeGateDecomposeOutput() error = %q, want shared validation message", err.Error())
+	}
+}
+
 func TestDecomposerAdapter_Decompose_RejectsChildWithMoreThanFiveExpectedOutputs(t *testing.T) {
 	stub := &stubRunProvider{
 		name: "test-provider",
