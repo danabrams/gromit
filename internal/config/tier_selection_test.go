@@ -631,3 +631,12 @@ func TestSelectInitialTierForComplexityLow(t *testing.T) {
 		t.Errorf("SelectInitialTierForComplexity(low) = %q, want %q", result, "low")
 	}
 }
+
+func TestSelectInitialTierForComplexityHigh(t *testing.T) {
+	cfg := &Config{}
+
+	result := cfg.SelectInitialTierForComplexity("high")
+	if result != "high" {
+		t.Errorf("SelectInitialTierForComplexity(high) = %q, want %q", result, "high")
+	}
+}
