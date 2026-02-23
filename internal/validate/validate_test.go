@@ -935,3 +935,26 @@ func TestValidateDecomposeCandidates_PopulatesLegacyComplexityFields(t *testing.
 		t.Fatalf("ComplexityReasons len = %d, want %d", len(result.ComplexityReasons), len(result.ComplexityOutcome.AggregateReasons))
 	}
 }
+
+func TestValidateRuntimeDecomposeCandidates_IgnoresComplexityEvaluationSignals(t *testing.T) {
+	candidates := []BeadCandidate{
+		{
+			Title:              "Refactor entire auth orchestration",
+			Description:        "Touches handlers, migrations, and CLI formatting",
+			EstimatedFiles:     8,
+			AcceptanceCriteria: []string{"Auth flow remains correct"},
+			ExpectedOutputs:    []string{"Auth workflows still pass"},
+		},
+		{
+			Title:           "Add focused login test",
+			Description:     "Single test file",
+			EstimatedFiles:  1,
+			ExpectedOutputs: []string{"Login test passes"},
+		},
+	}
+
+	violations := ValidateRuntimeDecomposeCandidates(candidates, "")
+	if len(violations) != 0 {
+		t.Fatalf("ValidateRuntimeDecomposeCandidates() violations len = %d, want 0", len(violations))
+	}
+}
