@@ -106,3 +106,21 @@ func TestScoreCandidate_ExpectedOutputBreadthSignalsHighComplexity(t *testing.T)
 		t.Fatalf("Reasons[0] = %q, want %q", result.Reasons[0], want)
 	}
 }
+
+func TestScoreCandidate_DependencyLanguageSignalsHighComplexity(t *testing.T) {
+	result := ScoreCandidate(BeadCandidate{
+		Title:       "Adjust auth retry policy",
+		Description: "This change depends on queue schema migration landing first",
+	})
+
+	if result.Classification != "high" {
+		t.Fatalf("Classification = %q, want %q", result.Classification, "high")
+	}
+	if len(result.Reasons) != 1 {
+		t.Fatalf("Reasons len = %d, want 1", len(result.Reasons))
+	}
+	want := "contains explicit dependency sequencing language"
+	if result.Reasons[0] != want {
+		t.Fatalf("Reasons[0] = %q, want %q", result.Reasons[0], want)
+	}
+}
