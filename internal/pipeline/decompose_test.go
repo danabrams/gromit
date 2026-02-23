@@ -1900,6 +1900,17 @@ func TestDecomposeWorkflow_ComplexitySummaryIncludesHighTitles(t *testing.T) {
 	}
 }
 
+func TestFormatComplexitySummaryLine_UsesAttemptNumberAndCounts(t *testing.T) {
+	line := formatComplexitySummaryLine(2, []beadDef{
+		{Title: "Big task", EstimatedFiles: 7},
+		{Title: "Small task", EstimatedFiles: 1},
+	})
+
+	if line != "Complexity summary (attempt 2): high=1 low=1 high_titles=[Big task]\n" {
+		t.Fatalf("summary line = %q", line)
+	}
+}
+
 func TestDecomposeWorkflow_CleanExitAfterComplexityRetryHasNoWarning(t *testing.T) {
 	tmpDir := t.TempDir()
 	plansDir := filepath.Join(tmpDir, "plans")
