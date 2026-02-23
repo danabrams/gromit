@@ -1283,6 +1283,46 @@ func TestCreateSessionWorktree_RetryExhaustionOnWorktreeCollision(t *testing.T) 
 	}
 }
 
+func TestCreateSessionWorktree_MixedRetryableThenNonRetryableStopsImmediately(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "repo")
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	attempts := 0
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		if len(args) >= 2 && args[0] == "worktree" && args[1] == "add" {
+			attempts++
+			switch attempts {
+			case 1:
+				return "", errors.New("fatal: a branch named 'gromit/review-100' already exists")
+			case 2:
+				return "", errors.New("fatal: reference already exists in packed-refs")
+			default:
+				return "", nil
+			}
+		}
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	_, err = m.CreateSessionWorktree("review")
+	if err == nil {
+		t.Fatal("CreateSessionWorktree() error = nil, want non-nil")
+	}
+	if attempts != 2 {
+		t.Fatalf("expected to stop after non-retryable second failure, got %d attempts", attempts)
+	}
+	if !strings.Contains(err.Error(), "reference already exists in packed-refs") {
+		t.Fatalf("expected error to preserve non-retryable root cause, got: %v", err)
+	}
+}
+
 // contains checks if a string slice contains a specific string.
 func contains(slice []string, target string) bool {
 	for _, s := range slice {
