@@ -757,3 +757,28 @@ func TestCheckBeads_SiblingOverlap_NonOverlappingSubstrings(t *testing.T) {
 		}
 	}
 }
+
+func TestCheckBeadsWithParentTitle_OutputEchoesParentTitle_ViolatesParentEcho(t *testing.T) {
+	beads := []BeadCandidate{
+		{
+			Title:           "Implement login endpoint",
+			Description:     "Child bead",
+			ExpectedOutputs: []string{"Authentication Plan"},
+		},
+	}
+
+	violations := CheckBeadsWithParentTitle(beads, "Authentication Plan")
+
+	found := false
+	for _, v := range violations {
+		if v.Rule == "parent_echo" {
+			found = true
+			if v.BeadIndex != 0 {
+				t.Errorf("BeadIndex = %d, want 0", v.BeadIndex)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("expected parent_echo violation when expected output echoes parent title")
+	}
+}
