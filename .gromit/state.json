@@ -1,28 +1,9 @@
 {
-  "last_retro": "2026-02-22T22:23:25.424999534Z",
+  "last_retro": "2026-02-23T12:59:30.424737045Z",
   "clean_exit": false,
-  "updated_at": "2026-02-23T00:51:34.069796317Z",
-  "filtered_learning_hashes": [
-    "109b54da73b0ee8e",
-    "ccf7812cadb063c8",
-    "c0c91070ecb179cb",
-    "2914f3b990b757a8",
-    "38bc17d578b9776f",
-    "e0a77391f851c45a",
-    "069806edfd2e68f2",
-    "8a4ea1bbdf88003f",
-    "c212d62c1f6b825e",
-    "ec79ddd2ee603496",
-    "9575bf4959986ca7",
-    "47bb730a8150570b",
-    "12527b9785537cc5",
-    "0933da45340977fe",
-    "33a04faa3fcb1876",
-    "b8892b350dd28310",
-    "596f98015deb5560"
-  ],
+  "updated_at": "2026-02-23T14:54:24.039985169Z",
   "provider_counts": {
     "claude": 1,
-    "openai": 35
+    "openai": 6
   }
 }
