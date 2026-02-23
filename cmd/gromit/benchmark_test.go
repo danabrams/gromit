@@ -188,3 +188,37 @@ func TestRunBenchmarkPipeline_WritesDeterministicArtifacts(t *testing.T) {
 		}
 	}
 }
+
+func TestBenchmarkRunCommand_BeadOverridesDriveSelection(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+
+	manifestPath := filepath.Join("/home/dabrams/gromit", "cmd", "gromit", "testdata", "fixtures", "benchmark", "basic.yaml")
+	_, stderr, exitCode := runGromitCobra(t,
+		"benchmark", "run",
+		"--manifest", manifestPath,
+		"--beads", "gromit-9,gromit-8,gromit-7",
+		"--bead-count", "2",
+		"--output-ts", "20260223T130000Z",
+	)
+	if exitCode != 0 {
+		t.Fatalf("benchmark run exitCode = %d, stderr = %q", exitCode, stderr)
+	}
+
+	jsonPath := filepath.Join(".gromit", "benchmarks", "results", "tdd-vs-single-pass", "20260223T130000Z.json")
+	reportBytes, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("read report json: %v", err)
+	}
+
+	var payload struct {
+		SelectedBeads []string `json:"selected_beads"`
+	}
+	if err := json.Unmarshal(reportBytes, &payload); err != nil {
+		t.Fatalf("unmarshal report json: %v", err)
+	}
+
+	if strings.Join(payload.SelectedBeads, ",") != "gromit-9,gromit-8" {
+		t.Fatalf("selected_beads = %v, want [%s]", payload.SelectedBeads, "gromit-9 gromit-8")
+	}
+}
