@@ -316,3 +316,25 @@ func TestGeminiStreamJSONSuccessFixture_ExistsWithJSONLRecords(t *testing.T) {
 		}
 	}
 }
+
+func TestGeminiJSONSuccessFixture_ExistsWithUsageAndCostFields(t *testing.T) {
+	path := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "json-success.json")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read json-success fixture: %v", err)
+	}
+
+	body := strings.ToLower(string(content))
+	required := []string{
+		"\"output\"",
+		"\"usage\"",
+		"\"input_tokens\"",
+		"\"output_tokens\"",
+		"\"cost\"",
+	}
+	for _, token := range required {
+		if !strings.Contains(body, token) {
+			t.Fatalf("json-success fixture must contain %q", token)
+		}
+	}
+}
