@@ -208,3 +208,28 @@ func TestGeminiModelFixtures_CaptureValidAndInvalidModelRawArtifacts(t *testing.
 		}
 	}
 }
+
+func TestGeminiExitCodeNotesFixture_DocumentsConcreteTriggerAttempts(t *testing.T) {
+	path := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "errors", "exit-codes-notes.md")
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read exit code notes fixture: %v", err)
+	}
+
+	body := strings.ToLower(string(content))
+	required := []string{
+		"# gemini exit code notes",
+		"trigger attempts",
+		"exit code 0",
+		"exit code 1",
+		"exit code 42",
+		"exit code 53",
+		"command=",
+	}
+	for _, token := range required {
+		if !strings.Contains(body, token) {
+			t.Fatalf("exit code notes must contain %q", token)
+		}
+	}
+}
