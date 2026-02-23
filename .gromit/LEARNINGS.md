@@ -56,12 +56,12 @@ Replace God Object pattern with pure orchestration: hold only stage references a
 *Newly observed — needs validation across more tasks.*
 
 ### 2026-02-23 | Escalation Policy Must Have a Single Tier-Advance Source | architecture
-*Related to: review-1771854448297640630, gromit-fjxy1*
+*Related to: review-1771855648673321351, review-1771854448297640630, gromit-fjxy1*
 
 Escalation progression must be implemented in one shared path. Duplicating next-tier logic between execution code and config accessors creates drift risk (especially for legacy model-name mapping and disabled-escalation semantics) and weakens policy consistency.
 
 ### 2026-02-23 | Tier Provenance Metrics Need Methodology-Parity Coverage | test_quality
-*Related to: review-1771854448297640630, gromit-8w81a*
+*Related to: review-1771855648673321351, review-1771854448297640630, gromit-8w81a*
 
 When build telemetry adds `original_tier` and `actual_tier`, tests must cover all methodology paths (single-pass and fresh-context TDD) so iteration logs preserve consistent provenance semantics across strategies.
 
