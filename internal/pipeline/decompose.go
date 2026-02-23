@@ -96,7 +96,13 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 		}
 
 		highComplexityCount, lowComplexityCount := countComplexityByEstimate(beadDefs)
-		fmt.Printf("Complexity summary (attempt %d): high=%d low=%d\n", attempt+1, highComplexityCount, lowComplexityCount)
+		fmt.Printf(
+			"Complexity summary (attempt %d): high=%d low=%d high_titles=[%s]\n",
+			attempt+1,
+			highComplexityCount,
+			lowComplexityCount,
+			strings.Join(highComplexityTitles(beadDefs), ", "),
+		)
 
 		if input.SkipValidation {
 			break
@@ -273,6 +279,16 @@ func buildComplexityRepromptFeedback(defs []beadDef) string {
 	return "Complexity feedback:\n" +
 		"The following beads are still high complexity. Reduce scope or split them into smaller beads.\n" +
 		strings.Join(highTitles, "\n")
+}
+
+func highComplexityTitles(defs []beadDef) []string {
+	titles := make([]string, 0, len(defs))
+	for _, def := range defs {
+		if def.EstimatedFiles > highComplexityFileThreshold {
+			titles = append(titles, def.Title)
+		}
+	}
+	return titles
 }
 
 func decomposeModelForTier(inputTier string) string {
