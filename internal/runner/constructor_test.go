@@ -299,6 +299,16 @@ func hasCreateLabelArg(args []string, want string) bool {
 	return false
 }
 
+func newCodexProvidersConfig() *config.Config {
+	return &config.Config{
+		Providers: map[string]config.ProviderDef{
+			"codex": {
+				Binary: "codex",
+			},
+		},
+	}
+}
+
 // stubFailureAnalyzer is a test double for FailureAnalyzer.
 type stubFailureAnalyzer struct {
 	fn func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error)
