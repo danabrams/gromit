@@ -113,6 +113,7 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 
 		candidates := toBeadCandidates(beadDefs)
 		violations := validate.CheckBeadsWithParentTitle(candidates, "")
+		violations = append(violations, validate.CheckBatchContract(candidates)...)
 		stats.ViolationCount += len(violations)
 		if attempt == 0 {
 			firstViolationCount = len(violations)
@@ -183,6 +184,9 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 		logValidationViolations(violations)
 
 		if attempt >= maxRetries {
+			if hasBatchContractViolation(violations) {
+				return nil, fmt.Errorf("decomposition contract violation at retry cap: %s", formatViolationRules(violations))
+			}
 			stats.RetryCapReached = true
 			if len(violations) < firstViolationCount {
 				stats.Improved = true
@@ -493,4 +497,21 @@ func pluralizeRetry(count int) string {
 		return "y"
 	}
 	return "ies"
+}
+
+func hasBatchContractViolation(violations []validate.Violation) bool {
+	for _, v := range violations {
+		if v.Rule == "batch_size_min" || v.Rule == "batch_size_max" {
+			return true
+		}
+	}
+	return false
+}
+
+func formatViolationRules(violations []validate.Violation) string {
+	rules := make([]string, 0, len(violations))
+	for _, v := range violations {
+		rules = append(rules, v.Rule)
+	}
+	return strings.Join(rules, ", ")
 }
