@@ -33,6 +33,13 @@ var scopeSignals = []string{
 	"and also",
 }
 
+var dependencySignals = []string{
+	"depends on",
+	"blocked by",
+	"after ",
+	"before ",
+}
+
 // BeadCandidate represents a bead definition to be validated
 type BeadCandidate struct {
 	Title              string
@@ -141,6 +148,9 @@ func ScoreCandidate(bead BeadCandidate) ComplexityResult {
 	}
 	if len(bead.ExpectedOutputs) >= 4 {
 		result.Reasons = append(result.Reasons, fmt.Sprintf("expected_outputs=%d indicates multiple coupled deliverables", len(bead.ExpectedOutputs)))
+	}
+	if containsDependencySignal(bead.Title) || containsDependencySignal(bead.Description) {
+		result.Reasons = append(result.Reasons, "contains explicit dependency sequencing language")
 	}
 	titleHasScopeSignal := containsScopeSignal(bead.Title)
 	descriptionHasScopeSignal := containsScopeSignal(bead.Description)
@@ -259,6 +269,16 @@ func CheckBeadsWithParentTitle(beads []BeadCandidate, parentTitle string) []Viol
 func containsScopeSignal(text string) bool {
 	lower := strings.ToLower(text)
 	for _, signal := range scopeSignals {
+		if strings.Contains(lower, signal) {
+			return true
+		}
+	}
+	return false
+}
+
+func containsDependencySignal(text string) bool {
+	lower := strings.ToLower(text)
+	for _, signal := range dependencySignals {
 		if strings.Contains(lower, signal) {
 			return true
 		}
