@@ -103,7 +103,7 @@ func buildRenderGreenFn(cfg *config.Config, renderer *prompt.Renderer) tdd.Rende
 		if bc != nil {
 			bc.Tier = cfg.PhaseModelTier("green", bc.Tier)
 		}
-		rules, _ := renderer.LoadRulesForPhase("build")
+		rules, _ := renderer.LoadRulesForPhase("green")
 		ctx := &prompt.TDDGreenContext{
 			BeadID:            bc.Bead.ID,
 			BeadTitle:         bc.Bead.Title,
