@@ -941,6 +941,50 @@ func TestMergeBack_ConflictReturnsError(t *testing.T) {
 	}
 }
 
+// TestMergeBack_NonConflictMergeFailureReturnsError verifies that MergeBack
+// reports non-conflict merge failures without attempting merge --abort.
+func TestMergeBack_NonConflictMergeFailureReturnsError(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "myproject")
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	gitCalls := []string{}
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		gitCalls = append(gitCalls, strings.Join(args, " "))
+		if args[0] == "merge" && contains(args, "--ff-only") {
+			return "", errors.New("fatal: Not possible to fast-forward")
+		}
+		if args[0] == "merge" && !contains(args, "--ff-only") {
+			return "", errors.New("merge: gromit/review-1234567890 - not something we can merge")
+		}
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	err = m.MergeBack("gromit/review-1234567890")
+	if err == nil {
+		t.Fatal("MergeBack() should return error on non-conflict merge failure, got nil")
+	}
+	if strings.Contains(strings.ToLower(err.Error()), "conflict") {
+		t.Errorf("MergeBack() error should not be labeled as conflict, got: %v", err)
+	}
+
+	for _, call := range gitCalls {
+		if strings.Contains(call, "merge --abort") {
+			t.Errorf("should NOT run 'git merge --abort' for non-conflict merge failure, got calls: %v", gitCalls)
+		}
+		if strings.Contains(call, "branch -d") {
+			t.Errorf("should NOT delete branch after merge failure, got calls: %v", gitCalls)
+		}
+	}
+}
+
 // TestMergeBack_InvalidBranchName verifies that MergeBack returns an error
 // for invalid branch names (empty string).
 func TestMergeBack_InvalidBranchName(t *testing.T) {
