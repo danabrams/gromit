@@ -31,6 +31,9 @@ func classifySessionCreateFailure(output string, err error) sessionCreateFailure
 	if strings.Contains(msg, "cannot lock ref") && strings.Contains(msg, "refs/heads/") {
 		return sessionCreateFailureAmbiguousProbe
 	}
+	if strings.Contains(msg, "unable to create") && strings.Contains(msg, "refs/heads/") && strings.Contains(msg, ".lock") {
+		return sessionCreateFailureAmbiguousProbe
+	}
 
 	return sessionCreateFailureTerminal
 }
