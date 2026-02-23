@@ -203,6 +203,51 @@ func TestBuildRenderRedFn_LoadsRulesForRedPhase(t *testing.T) {
 	}
 }
 
+func TestBuildRenderRedFn_ReturnsErrorWhenRedRulesLoadFails(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	specsDir := filepath.Join(tmpDir, "specs")
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(templatesDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(templates): %v", err)
+	}
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(specs): %v", err)
+	}
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(.gromit): %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(templatesDir, "PROMPT_tdd_red.md"), []byte("{{.Rules}}"), 0o644); err != nil {
+		t.Fatalf("WriteFile(PROMPT_tdd_red.md): %v", err)
+	}
+	// Force ReadFile(RULES.md) to fail with a non-ENOENT error.
+	if err := os.Mkdir(filepath.Join(gromitDir, "RULES.md"), 0o755); err != nil {
+		t.Fatalf("Mkdir(RULES.md): %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "CLAUDE.md"), []byte(""), 0o644); err != nil {
+		t.Fatalf("WriteFile(CLAUDE.md): %v", err)
+	}
+
+	renderer, err := prompt.NewRenderer(templatesDir, specsDir, filepath.Join(tmpDir, "CLAUDE.md"), gromitDir)
+	if err != nil {
+		t.Fatalf("prompt.NewRenderer: %v", err)
+	}
+
+	cfg := &config.Config{}
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{ID: "b1", Title: "title"},
+		Tier: "medium",
+	}
+	handoff := &tdd.RedHandoff{}
+
+	fn := buildRenderRedFn(cfg, renderer)
+	_, err = fn(handoff, bc)
+	if err == nil {
+		t.Fatal("expected error when loading red phase rules fails")
+	}
+}
+
 func TestBuildRenderGreenFn_UsesGreenPhaseTierOverride(t *testing.T) {
 	tmpDir := t.TempDir()
 	templatesDir := filepath.Join(tmpDir, "templates")
