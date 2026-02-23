@@ -184,6 +184,11 @@ func TestEstimatedFileCount(t *testing.T) {
 			bead: &Bead{ExpectedOutputs: []string{"a.go", "b.go", "c_test.go"}},
 			want: 3,
 		},
+		{
+			name: "ignores empty and duplicate expected outputs",
+			bead: &Bead{ExpectedOutputs: []string{"a.go", " ", "a.go", "b.go", ""}},
+			want: 2,
+		},
 	}
 
 	for _, tt := range tests {
