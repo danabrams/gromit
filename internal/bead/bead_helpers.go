@@ -119,7 +119,7 @@ func IsProactiveDecompositionCandidateWithDesc(title, description string) bool {
 // IsLowComplexityTitle returns true if the title matches one of the
 // low-complexity mechanical-work patterns.
 func IsLowComplexityTitle(title string) bool {
-	t := strings.TrimSpace(title)
+	t := strings.Join(strings.Fields(title), " ")
 	if t == "" {
 		return false
 	}
