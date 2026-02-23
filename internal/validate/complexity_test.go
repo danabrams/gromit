@@ -1,6 +1,30 @@
 package validate
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestComplexityGo_DefinesResultModelsAndScoreEntrypoint(t *testing.T) {
+	content, err := os.ReadFile(filepath.Join("complexity.go"))
+	if err != nil {
+		t.Fatalf("ReadFile(complexity.go) error: %v", err)
+	}
+
+	text := string(content)
+	requiredSnippets := []string{
+		"type ComplexityResult struct",
+		"type ComplexityOutcome struct",
+		"func ScoreCandidate(bead BeadCandidate) ComplexityResult",
+	}
+	for _, snippet := range requiredSnippets {
+		if !strings.Contains(text, snippet) {
+			t.Fatalf("complexity.go missing snippet %q", snippet)
+		}
+	}
+}
 
 func TestScoreCandidate_TitleScopeSignalAddsTitleReasonAndHighClassification(t *testing.T) {
 	result := ScoreCandidate(BeadCandidate{
