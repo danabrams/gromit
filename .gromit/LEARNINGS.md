@@ -55,45 +55,28 @@ Replace God Object pattern with pure orchestration: hold only stage references a
 
 *Newly observed — needs validation across more tasks.*
 
-### 2026-02-23 | Skip-Validation Must Not Bypass Decomposition Batch Contracts | conventions
-*Related to: gromit-xjeu3, review-1771835747422178794*
+### 2026-02-23 | Decomposition Batch-Contract Enforcement Must Use Retry Loop | conventions
+*Related to: gromit-xjeu3, review-1771835747422178794, gromit-9946, review-1771832540735638835*
+*Promoted to RULES.md (Decomposition section)*
 
-Even when `SkipValidation` is true, decomposition output must still fail fast on `batch_size_min`/`batch_size_max` violations. Post-loop truncation fallbacks create hidden behavior drift and can silently drop planned work.
+Decomposition batch-size contracts must be enforced in the retry validation loop for all modes (including SkipValidation); violations must reprompt or return a clear contract error at retry cap, never silently truncate output.
 
-### 2026-02-23 | Shared Validator Coverage Must Include Required-Field Contracts | architecture
-*Related to: gromit-btk9n, review-1771835747422178794*
+### 2026-02-23 | Single Shared Decompose Validator With Full Required-Field Coverage | architecture
+*Related to: gromit-btk9n, review-1771835747422178794, gromit-9947, review-1771832540735638835*
+*Promoted to RULES.md (Architecture section)*
 
-Using one runtime/pipeline decompose validator only prevents drift if required-field rules (for example empty title or missing expected outputs) are also centralized there. Keeping those checks in call sites preserves divergence.
+Use one shared decompose validator for runtime and pipeline paths, and centralize required-field checks (title, expected_outputs, dependency fields) there with mode flags for context-specific rules.
 
 ### 2026-02-23 | Estimate-Only Complexity Scoring Is Fragile | gotchas
 *Related to: gromit-fu70d, review-1771835747422178794*
+*Promoted to RULES.md (Decomposition section)*
 
 Complexity classification based only on `estimated_files` is easy for model output to underreport or omit. Retain non-estimate signals or enforce strict estimated-files contracts so high-scope decompositions cannot slip through as low risk.
 
-### 2026-02-23 | Decomposition Batch-Size Policy Must Be Retry-Enforced, Not Truncated | conventions
-*Related to: gromit-9946, review-1771832540735638835*
-
-When decompose output violates batch bounds, enforce `batch_size_min`/`batch_size_max` in the retry validation loop so the model is reprompted with contract feedback. Do not silently truncate oversized output; at retry cap, return a clear contract error instead of proceeding with dropped work.
-
-### 2026-02-23 | Shared Decompose Validator Prevents Rule Drift Across Entry Points | architecture
-*Related to: gromit-9947, review-1771832540735638835*
-
-Pipeline decompose and runtime scope-gate decomposition must use one shared validation entry point with explicit mode flags for context-specific rules. Duplicated call-site checks drift over time and create parity bugs between plan-time and runtime behavior.
-
-### 2026-02-22 | Orchestrator Migration Adapter Patterns | patterns
+### 2026-02-23 | Orchestrator Migration Parity and Adapter Surface Minimization | patterns
 *Related to: code-review, review-1771733992016921570*
 
-The Orchestrator migration introduces adapter proliferation (12+ types in constructor.go) bridging stage interfaces to infrastructure — future stage interfaces should minimize this surface. Key patterns: (1) Consolidation — one exported function in the parent package (e.g., BuildFromReviewLabels), child packages import it; remove deprecated wrappers once callers migrate. (2) File extraction — enforced by file_size_test.go with a 550-line limit. (3) Dual-path risk — Orchestrator and legacy Runner have separate code for the same operations (cost tracking, state saving); features wired in one path may be silently missing in the other. (4) Asymmetric state — validationFailures clear on success while touchedPackages accumulate across the run (intentional but non-obvious). (5) Copy-paste bugs — adapters with similar methods (RenderBuild/RenderRefactor) need independent delegation target verification. (6) FnField mocks — nil-safe with explicit nil check, injected via deps struct. Always sort map keys in logging functions for deterministic output.
-
-### 2026-02-22 | Silent Error Swallowing in Render Builder Functions | gotchas
-*Related to: review-1771763626626526682*
-
-The TDD render builder functions (buildRenderRedFn, buildRenderGreenFn) discard errors from `renderer.LoadRulesForPhase("build")` via `rules, _ :=`. This is graceful degradation — prompts render without rules — but silently hides configuration problems. When building closure-based dependency injectors, surface or log errors from fallible setup calls rather than discarding them; silent degradation in prompt assembly can produce subtly wrong LLM outputs that are hard to trace.
-
-### 2026-02-22 | Architectural Migration Safety Checklist | conventions
-*Related to: code-review*
-
-When removing public APIs or deleting large files during migration: (1) Systematically find all call sites and complete migrations before deletion — interdependencies between orchestration components require careful refactoring order. (2) Verify all exported symbols are either migrated or unreferenced. (3) Run `go test -tags acceptance -run '^$'` to verify compilation of build-tag-gated tests — these are invisible to normal `go test ./...` and symbols can be silently lost (e.g., PrintStatus was lost when lifecycle.go was deleted). (4) Search for forced-import keep-alive patterns (`var _ = Type{}`) left behind by incomplete refactoring and remove them.
+Orchestrator migration must keep cross-cutting concerns on one shared execution path, minimize adapter surface, and enforce parity tests until legacy path removal.
 
 ### 2026-02-22 | Builder Pattern Pointer Receiver Mutation | gotchas
 *Related to: review-1771784092725425988*
@@ -175,6 +158,13 @@ Decomposition/validation contract fields should move together across pipeline ma
 ## Archived
 
 *Previously archived learnings.*
+
+### 2026-02-22 | Silent Error Swallowing in Render Builder Functions | gotchas
+*Related to: review-1771763626626526682*
+
+The TDD render builder functions (buildRenderRedFn, buildRenderGreenFn) discard errors from `renderer.LoadRulesForPhase("build")` via `rules, _ :=`. This is graceful degradation — prompts render without rules — but silently hides configuration problems.
+
+*Archived 2026-02-23: Already codified by existing rule ('Do not discard errors from renderer/template/rules loaders'); keep RULES.md as source of truth.*
 
 ### 2026-02-21 | Compile-Time Invariant Enforcement vs Dead Code Patterns | conventions
 *Related to: f668688fead2f958, 5912b9aee59cce5e, code-review*
