@@ -4,6 +4,25 @@ import (
 	"testing"
 )
 
+type rulesPhaseBudget struct {
+	phase    string
+	maxChars int
+}
+
+func rulesPhaseBudgetMatrix() []rulesPhaseBudget {
+	return []rulesPhaseBudget{
+		{phase: "red", maxChars: 5000},
+		{phase: "build", maxChars: 8000},
+		{phase: "green", maxChars: 5000},
+		{phase: "refactor", maxChars: 5000},
+		{phase: "review", maxChars: 6000},
+		{phase: "plan", maxChars: 2000},
+		{phase: "refine", maxChars: 2000},
+		{phase: "retro", maxChars: 2000},
+		{phase: "validate", maxChars: 2000},
+	}
+}
+
 func TestRulesPhaseCharBudgets_CoversMethodologyPhases(t *testing.T) {
 	budgets := rulesPhaseBudgetMatrix()
 	seen := make(map[string]bool, len(budgets))
@@ -24,27 +43,15 @@ func TestRulesPhaseCharBudgets(t *testing.T) {
 		gromitDir: "../../.gromit",
 	}
 
-	tests := []struct {
-		phase    string
-		maxChars int
-	}{
-		{phase: "build", maxChars: 8000},
-		{phase: "review", maxChars: 6000},
-		{phase: "plan", maxChars: 2000},
-		{phase: "refine", maxChars: 2000},
-		{phase: "retro", maxChars: 2000},
-		{phase: "validate", maxChars: 2000},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.phase, func(t *testing.T) {
-			result, err := r.LoadRulesForPhase(tt.phase)
+	for _, budget := range rulesPhaseBudgetMatrix() {
+		budget := budget
+		t.Run(budget.phase, func(t *testing.T) {
+			result, err := r.LoadRulesForPhase(budget.phase)
 			if err != nil {
-				t.Fatalf("LoadRulesForPhase(%q): %v", tt.phase, err)
+				t.Fatalf("LoadRulesForPhase(%q): %v", budget.phase, err)
 			}
-			if len(result) > tt.maxChars {
-				t.Errorf("phase %q: %d chars exceeds budget of %d", tt.phase, len(result), tt.maxChars)
+			if len(result) > budget.maxChars {
+				t.Errorf("phase %q: %d chars exceeds budget of %d", budget.phase, len(result), budget.maxChars)
 			}
 		})
 	}
