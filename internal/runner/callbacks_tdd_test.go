@@ -448,3 +448,63 @@ func TestBuildRunRefactorFn_LoadsRulesForRefactorPhase(t *testing.T) {
 		t.Fatalf("rendered prompt should exclude build-only rules: %q", renderedPrompt)
 	}
 }
+
+func TestBuildRunRefactorFn_UsesRefactorPhaseTierOverride(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	specsDir := filepath.Join(tmpDir, "specs")
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(templatesDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(templates): %v", err)
+	}
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(specs): %v", err)
+	}
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(.gromit): %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(templatesDir, "PROMPT_refactor.md"), []byte("refactor"), 0o644); err != nil {
+		t.Fatalf("WriteFile(PROMPT_refactor.md): %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gromitDir, "RULES.md"), []byte("# Rules\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(RULES.md): %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "CLAUDE.md"), []byte(""), 0o644); err != nil {
+		t.Fatalf("WriteFile(CLAUDE.md): %v", err)
+	}
+
+	renderer, err := prompt.NewRenderer(templatesDir, specsDir, filepath.Join(tmpDir, "CLAUDE.md"), gromitDir)
+	if err != nil {
+		t.Fatalf("prompt.NewRenderer: %v", err)
+	}
+
+	cfg := &config.Config{}
+	cfg.Methodology.PhaseModels.Refactor = "low"
+
+	var invokedTier string
+	router := provider.NewSingleProviderRouter(&callbacksTDDProviderStub{
+		name: "refactor-provider",
+		streamRunFn: func(ctx context.Context, prompt, tier string, w io.Writer, h provider.EventHandler, tc provider.ToolCallHandler) (*provider.Result, error) {
+			invokedTier = tier
+			return &provider.Result{Success: true}, nil
+		},
+	})
+
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{ID: "b1", Title: "title"},
+		Tier: "high",
+	}
+
+	fn := buildRunRefactorFn(renderer, router, io.Discard)
+	if err := fn(context.Background(), bc); err != nil {
+		t.Fatalf("buildRunRefactorFn() error = %v", err)
+	}
+	wantTier := cfg.PhaseModelTier("refactor", "high")
+	if invokedTier != wantTier {
+		t.Fatalf("invoked tier = %q, want %q", invokedTier, wantTier)
+	}
+	if bc.Tier != wantTier {
+		t.Fatalf("bc.Tier = %q, want %q", bc.Tier, wantTier)
+	}
+}
