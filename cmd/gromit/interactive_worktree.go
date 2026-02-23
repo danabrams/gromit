@@ -154,7 +154,7 @@ func runWithSessionWorktreeWithConflictSettings(
 		return nil, fmt.Errorf("recording pending worktree branch %q: %w", session.BranchName, err)
 	}
 	if err := interactiveWorktreeCleanupSessionFn(mainDir, session.WorktreeDir); err != nil {
-		return session, err
+		return session, fmt.Errorf("pre-removing session worktree for pending branch %q: %w", session.BranchName, err)
 	}
 
 	if err := attemptMergeWithConflictPolicy(manager, stateFile, mainDir, session, conflictSettings); err != nil {
