@@ -24,3 +24,22 @@ func TestDecideSessionCreateRetry_AmbiguousBranchProbePositive(t *testing.T) {
 		t.Fatal("expected worktree probe to be skipped when branch probe is positive")
 	}
 }
+
+func TestDecideSessionCreateRetry_AmbiguousProbesInconclusive(t *testing.T) {
+	decision := decideSessionCreateRetry(sessionCreateRetryInput{
+		FailureClass: sessionCreateFailureAmbiguousProbe,
+		ProbeBranchExists: func() bool {
+			return false
+		},
+		ProbeWorktreeRegistered: func() bool {
+			return false
+		},
+	})
+
+	if decision.Retry {
+		t.Fatal("decideSessionCreateRetry() retry = true, want false for inconclusive probes")
+	}
+	if decision.TerminalReason != "ambiguous_probe_inconclusive" {
+		t.Fatalf("decideSessionCreateRetry() terminal reason = %q, want %q", decision.TerminalReason, "ambiguous_probe_inconclusive")
+	}
+}
