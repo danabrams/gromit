@@ -61,7 +61,7 @@ func IsTestOnlyBead(title string) bool {
 // A nil DependentCount is treated as 0 (leaf) when dependency metadata
 // is not present in the bead payload.
 func IsLeafBead(b *Bead) bool {
-	return b != nil && (b.DependentCount == nil || *b.DependentCount <= 0)
+	return b != nil && (b.DependentCount == nil || *b.DependentCount == 0)
 }
 
 // EstimatedFileCount returns the estimated number of files touched by the bead.
