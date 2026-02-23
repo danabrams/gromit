@@ -14,6 +14,12 @@ const (
 
 	// maxExpectedOutputs is the maximum number of expected outputs allowed per bead.
 	maxExpectedOutputs = 5
+
+	// minSubBeads is the minimum number of sub-beads required from a decomposition.
+	minSubBeads = 2
+
+	// maxSubBeads is the maximum number of sub-beads allowed from a decomposition.
+	maxSubBeads = 5
 )
 
 // scopeSignals contains keywords that may indicate over-scoping
@@ -37,6 +43,30 @@ type Violation struct {
 	BeadIndex int
 	Rule      string
 	Message   string
+}
+
+// CheckBatchContract validates batch-level constraints on the full set of decomposed beads.
+// These are hard structural rules checked after the reprompt loop.
+func CheckBatchContract(beads []BeadCandidate) []Violation {
+	var violations []Violation
+
+	if len(beads) < minSubBeads {
+		violations = append(violations, Violation{
+			BeadIndex: -1,
+			Rule:      "batch_size_min",
+			Message:   fmt.Sprintf("Decomposition produced %d sub-bead(s); minimum is %d", len(beads), minSubBeads),
+		})
+	}
+
+	if len(beads) > maxSubBeads {
+		violations = append(violations, Violation{
+			BeadIndex: -1,
+			Rule:      "batch_size_max",
+			Message:   fmt.Sprintf("Decomposition produced %d sub-beads; maximum is %d", len(beads), maxSubBeads),
+		})
+	}
+
+	return violations
 }
 
 // CheckBeads validates a list of bead candidates and returns any violations
