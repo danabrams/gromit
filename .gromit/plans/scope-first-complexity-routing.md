@@ -1,8 +1,9 @@
 ---
+created: 2026-02-23T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-23T20:40:46Z"
 id: scope-first-complexity-routing
 source_spec: scope-first-complexity-routing
-created: 2026-02-23
-decomposed: false
 ---
 
 # Scope-First Complexity Routing Implementation Plan

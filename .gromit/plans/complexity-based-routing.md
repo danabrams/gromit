@@ -1,8 +1,9 @@
 ---
+created: 2026-02-20T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-23T20:01:05Z"
 id: complexity-based-routing
 source_spec: complexity-based-routing
-created: 2026-02-20
-decomposed: false
 ---
 
 # Complexity-Based Routing Implementation Plan

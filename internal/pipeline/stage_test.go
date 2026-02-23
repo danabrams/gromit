@@ -141,6 +141,23 @@ func TestOutputPhaseMetricsField(t *testing.T) {
 	}
 }
 
+func TestOutputComplexityRoutingMetadataFields(t *testing.T) {
+	out := pipeline.Output{
+		Complexity:               "low",
+		ComplexitySource:         "scope_estimate",
+		ComplexityFallbackReason: "none",
+	}
+	if out.Complexity != "low" {
+		t.Errorf("Output.Complexity: want %q, got %q", "low", out.Complexity)
+	}
+	if out.ComplexitySource != "scope_estimate" {
+		t.Errorf("Output.ComplexitySource: want %q, got %q", "scope_estimate", out.ComplexitySource)
+	}
+	if out.ComplexityFallbackReason != "none" {
+		t.Errorf("Output.ComplexityFallbackReason: want %q, got %q", "none", out.ComplexityFallbackReason)
+	}
+}
+
 func TestPhaseMetricSingularType(t *testing.T) {
 	m := pipeline.PhaseMetric{Phase: "refactor"}
 	if m.Phase != "refactor" {
