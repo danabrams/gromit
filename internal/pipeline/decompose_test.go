@@ -1599,6 +1599,31 @@ func TestToBeadCandidates_FallsBackExpectedOutputsToAcceptanceCriteria(t *testin
 	}
 }
 
+func TestToBeadCandidates_MapsDependsOnIndex(t *testing.T) {
+	defs := []beadDef{
+		{
+			Title:              "Child bead",
+			Description:        "depends on prior work",
+			DependsOnIndex:     []int{0, 2},
+			AcceptanceCriteria: []string{"criterion"},
+			ExpectedOutputs:    []string{"output"},
+		},
+	}
+
+	candidates := toBeadCandidates(defs)
+	if len(candidates) != 1 {
+		t.Fatalf("len(candidates) = %d, want 1", len(candidates))
+	}
+
+	got := candidates[0].DependsOnIndex
+	if len(got) != 2 {
+		t.Fatalf("DependsOnIndex len = %d, want 2", len(got))
+	}
+	if got[0] != 0 || got[1] != 2 {
+		t.Fatalf("DependsOnIndex = %v, want [0 2]", got)
+	}
+}
+
 // TestDecomposePrompt_MentionsExpectedOutputs verifies the decompose prompt instructs
 // the LLM to populate expected_outputs with fine-grained deliverables for TDD cycles.
 func TestDecomposePrompt_MentionsExpectedOutputs(t *testing.T) {
