@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/validate"
 )
 
 // TestDecomposeWorkflow_E2E verifies the complete Decompose workflow through Pipeline.Decompose()
@@ -2009,10 +2010,10 @@ func TestDecomposeWorkflow_UsesScoreBasedComplexitySummaryAndReasons(t *testing.
 }
 
 func TestFormatComplexitySummaryLine_UsesAttemptNumberAndCounts(t *testing.T) {
-	line := formatComplexitySummaryLine(2, []beadDef{
+	line := formatComplexitySummaryLine(2, validate.ValidateDecomposeCandidates([]validate.BeadCandidate{
 		{Title: "Big task", EstimatedFiles: 7},
 		{Title: "Small task", EstimatedFiles: 1},
-	})
+	}))
 
 	if line != "Complexity summary (attempt 2): high=1 low=1 high_titles=[Big task]\n" {
 		t.Fatalf("summary line = %q", line)

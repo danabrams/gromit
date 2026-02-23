@@ -33,6 +33,7 @@ func BuildComplexityRepromptFeedback(highComplexity []CandidateComplexityResult)
 
 	var sb strings.Builder
 	sb.WriteString("## Complexity Feedback\n\n")
+	sb.WriteString("Complexity feedback:\n")
 	sb.WriteString("### Split-Concerns Guidance\n")
 	sb.WriteString("- Split mixed concerns into independently testable beads.\n\n")
 	sb.WriteString("### Reduce-Breadth Guidance\n")
