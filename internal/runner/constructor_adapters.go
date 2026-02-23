@@ -15,6 +15,7 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/validate"
 	"github.com/danabrams/gromit/internal/worktree"
 )
 
@@ -251,11 +252,9 @@ func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 	if err := jsonutil.ExtractJSON(strings.TrimSpace(result.Output), &subBeads); err != nil {
 		return fmt.Errorf("decomposerAdapter: parsing LLM output: %w", err)
 	}
-	if len(subBeads) < 2 {
-		return fmt.Errorf("decomposerAdapter: decomposition contract violation: expected 2-5 sub-beads, got %d", len(subBeads))
-	}
-	if len(subBeads) > 5 {
-		return fmt.Errorf("decomposerAdapter: decomposition contract violation: expected 2-5 sub-beads, got %d", len(subBeads))
+	candidates := scopeGateSubBeadsToCandidates(subBeads)
+	if violations := validate.CheckBatchContract(candidates); len(violations) > 0 {
+		return fmt.Errorf("decomposerAdapter: decomposition contract violation [%s]: %s", violations[0].Rule, violations[0].Message)
 	}
 	for i, sb := range subBeads {
 		if strings.TrimSpace(sb.Title) == "" {
@@ -264,22 +263,10 @@ func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 		if len(sb.ExpectedOutputs) == 0 {
 			return fmt.Errorf("decomposerAdapter: decomposition contract violation: sub-bead %d has no expected outputs", i)
 		}
-		if len(sb.ExpectedOutputs) > 5 {
-			return fmt.Errorf("decomposerAdapter: decomposition contract violation: sub-bead %d has %d expected outputs (max 5)", i, len(sb.ExpectedOutputs))
-		}
-		seenOutputs := make(map[string]struct{}, len(sb.ExpectedOutputs))
-		for j, output := range sb.ExpectedOutputs {
-			if strings.TrimSpace(output) == "" {
-				return fmt.Errorf("decomposerAdapter: decomposition contract violation: sub-bead %d has empty expected output at index %d", i, j)
-			}
-			if output == b.Title {
-				return fmt.Errorf("decomposerAdapter: decomposition contract violation: sub-bead %d has expected output that echoes parent title", i)
-			}
-			if _, exists := seenOutputs[output]; exists {
-				return fmt.Errorf("decomposerAdapter: decomposition contract violation: sub-bead %d has duplicate expected outputs", i)
-			}
-			seenOutputs[output] = struct{}{}
-		}
+	}
+	if violations := validate.CheckBeadsWithParentTitle(candidates, b.Title); len(violations) > 0 {
+		v := violations[0]
+		return fmt.Errorf("decomposerAdapter: decomposition contract violation [%s]: bead %d: %s", v.Rule, v.BeadIndex, v.Message)
 	}
 
 	labels := a.resolveBuildStrategyLabels(b)
@@ -308,6 +295,17 @@ func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 		return fmt.Errorf("decomposerAdapter: closing parent bead: %w", err)
 	}
 	return nil
+}
+
+func scopeGateSubBeadsToCandidates(subBeads []scopeGateSubBead) []validate.BeadCandidate {
+	candidates := make([]validate.BeadCandidate, 0, len(subBeads))
+	for _, sb := range subBeads {
+		candidates = append(candidates, validate.BeadCandidate{
+			Title:           sb.Title,
+			ExpectedOutputs: sb.ExpectedOutputs,
+		})
+	}
+	return candidates
 }
 
 func scopeGateChildDedupeLabel(parentID string, sb scopeGateSubBead) string {

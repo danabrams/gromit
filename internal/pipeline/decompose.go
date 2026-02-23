@@ -100,7 +100,7 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 		}
 
 		candidates := toBeadCandidates(beadDefs)
-		violations := validate.CheckBeads(candidates)
+		violations := validate.CheckBeadsWithParentTitle(candidates, "")
 		stats.ViolationCount += len(violations)
 		if attempt == 0 {
 			firstViolationCount = len(violations)
