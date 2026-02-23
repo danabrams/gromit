@@ -334,6 +334,44 @@ func TestBuildStage_Run_StreamRunReceivesTier(t *testing.T) {
 	}
 }
 
+// TestBuildStage_Run_ReturnsOriginalAndActualTier verifies that Build output
+// carries both the configured tier and the tier that actually succeeded after
+// escalation.
+func TestBuildStage_Run_ReturnsOriginalAndActualTier(t *testing.T) {
+	var calledTiers []string
+	invoker := &fakeInvoker{
+		streamRunFn: func(_ context.Context, _, tier string, _ io.Writer, _ provider.EventHandler, _ provider.ToolCallHandler) (*provider.Result, error) {
+			calledTiers = append(calledTiers, tier)
+			if tier == "low" {
+				return nil, fmt.Errorf("low tier failed")
+			}
+			return &provider.Result{Success: true}, nil
+		},
+	}
+	stage := execute.New(invoker, &fakePromptRenderer{}, io.Discard)
+
+	cfg := defaultConfig()
+	cfg.Escalation.Chain = []string{"low", "medium", "high"}
+	cfg.Models.P2 = "low"
+
+	in := makeInput(&bead.Bead{ID: "bead-1", Title: "Fix bug", Priority: 2}, cfg)
+	in.EscalationEnabled = true
+
+	out, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if len(calledTiers) != 2 {
+		t.Fatalf("StreamRun calls = %v, want [low medium]", calledTiers)
+	}
+	if out.OriginalTier != "low" {
+		t.Errorf("Output.OriginalTier = %q, want %q", out.OriginalTier, "low")
+	}
+	if out.ActualTier != "medium" {
+		t.Errorf("Output.ActualTier = %q, want %q", out.ActualTier, "medium")
+	}
+}
+
 // TestBuildStage_EscalationDisabled_DoesNotRetryOnFailure verifies that when
 // EscalationEnabled is false, a failed invocation is not retried on a higher tier.
 func TestBuildStage_EscalationDisabled_DoesNotRetryOnFailure(t *testing.T) {
