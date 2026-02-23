@@ -160,7 +160,7 @@ func buildRunRefactorFn(renderer *prompt.Renderer, router *provider.Router, outp
 		if err != nil {
 			return err
 		}
-		p, _ := router.Select("build", bc.Tier)
+		p, _ := router.Select("refactor", bc.Tier)
 		if p == nil {
 			return fmt.Errorf("no provider available for tier %s", bc.Tier)
 		}
