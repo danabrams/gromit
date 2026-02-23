@@ -125,6 +125,7 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 				if highComplexityCount < firstHighComplexityCount {
 					stats.Improved = true
 				}
+				stats.ProceededWithHighComplexityWarning = true
 				details := make([]string, 0, len(beadDefs))
 				for _, def := range beadDefs {
 					if def.EstimatedFiles > highComplexityFileThreshold {
@@ -157,6 +158,7 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 			}
 			fmt.Printf("Warning: validation still failing after %d retr%s; proceeding with current output.\n", maxRetries, pluralizeRetry(maxRetries))
 			if highComplexityCount > 0 {
+				stats.ProceededWithHighComplexityWarning = true
 				details := make([]string, 0, len(beadDefs))
 				for _, def := range beadDefs {
 					if def.EstimatedFiles > highComplexityFileThreshold {
