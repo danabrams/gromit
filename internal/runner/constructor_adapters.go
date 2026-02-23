@@ -254,6 +254,9 @@ func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 		if strings.TrimSpace(sb.Title) == "" {
 			return fmt.Errorf("decomposerAdapter: decomposition contract violation: sub-bead %d has empty title", i)
 		}
+		if len(sb.ExpectedOutputs) == 0 {
+			return fmt.Errorf("decomposerAdapter: decomposition contract violation: sub-bead %d has no expected outputs", i)
+		}
 		if len(sb.ExpectedOutputs) > 5 {
 			return fmt.Errorf("decomposerAdapter: decomposition contract violation: sub-bead %d has %d expected outputs (max 5)", i, len(sb.ExpectedOutputs))
 		}
