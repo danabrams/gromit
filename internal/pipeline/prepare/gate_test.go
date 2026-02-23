@@ -1,11 +1,11 @@
 package prepare
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -22,6 +22,7 @@ var (
 type scopeGateCase struct {
 	expectedOutputs []string
 	decomposer      Decomposer
+	parentID        string
 }
 
 func runScopeGateCase(t *testing.T, tc scopeGateCase) pipeline.Output {
@@ -31,6 +32,7 @@ func runScopeGateCase(t *testing.T, tc scopeGateCase) pipeline.Output {
 		ID:              "test-oversized",
 		Title:           "test bead",
 		ExpectedOutputs: tc.expectedOutputs,
+		Parent:          tc.parentID,
 	}
 	cfg := &config.Config{
 		ScopeCheck: config.ScopeCheckConfig{
@@ -345,27 +347,10 @@ func TestGateRunScopeGateAttemptsDecomposition(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			b := &bead.Bead{
-				ID:              "test-oversized",
-				Title:           "test bead",
-				ExpectedOutputs: tt.expectedOutputs,
-				Parent:          "", // Root bead
-			}
-			cfg := &config.Config{
-				ScopeCheck: config.ScopeCheckConfig{
-					Enabled:        true,
-					BlockOversized: &blockTrue,
-				},
-			}
-			gate := New(io.Discard)
-			if tt.decomposer != nil {
-				gate = gate.WithDecomposer(tt.decomposer)
-			}
-			in := pipeline.Input{Bead: b, Config: cfg}
-			out, err := gate.Run(context.Background(), in)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+			out := runScopeGateCase(t, scopeGateCase{
+				expectedOutputs: tt.expectedOutputs,
+				decomposer:      tt.decomposer,
+			})
 			if out.Decision != tt.wantDecision {
 				t.Errorf("decision = %v, want %v", out.Decision, tt.wantDecision)
 			}
@@ -382,24 +367,11 @@ func TestGateRunScopeGateAttemptsDecomposition(t *testing.T) {
 	// Test child beads (with parent): oversized children get decomposed too
 	for _, tt := range childBeadTests {
 		t.Run(tt.name, func(t *testing.T) {
-			b := &bead.Bead{
-				ID:              "test-oversized-child",
-				Title:           "test child bead",
-				ExpectedOutputs: tt.expectedOutputs,
-				Parent:          "parent-1", // Child bead
-			}
-			cfg := &config.Config{
-				ScopeCheck: config.ScopeCheckConfig{
-					Enabled:        true,
-					BlockOversized: &blockTrue,
-				},
-			}
-			gate := New(io.Discard).WithDecomposer(tt.decomposer)
-			in := pipeline.Input{Bead: b, Config: cfg}
-			out, err := gate.Run(context.Background(), in)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+			out := runScopeGateCase(t, scopeGateCase{
+				expectedOutputs: tt.expectedOutputs,
+				decomposer:      tt.decomposer,
+				parentID:        "parent-1",
+			})
 			if out.Decision != tt.wantDecision {
 				t.Errorf("decision = %v, want %v", out.Decision, tt.wantDecision)
 			}
@@ -443,29 +415,14 @@ func TestGateRunScopeGateBehavior_WithSharedCaseHelperOnChildBead(t *testing.T) 
 	}
 }
 
-// TestGateRunScopeGateDecompositionEndToEnd verifies the full path:
-// gate.Run() → scope gate triggers → decomposerAdapter.Decompose() → bead.Client.CreateWithParent()
-// This integration test exercises the end-to-end decomposition pipeline when an oversized root bead
-// is decomposed into sub-beads via the real pipeline.
-func TestGateRunScopeGateDecompositionEndToEnd(t *testing.T) {
-	// Mock bead client that tracks CreateWithParent calls
-	mockBeadClient := &endToEndMockBeadClient{}
-
-	// Create decomposerAdapter that wraps the mock bead client
-	decomposer := &endToEndDecomposerAdapter{
-		beads: mockBeadClient,
-	}
-
-	// Create an oversized root bead that exceeds scope threshold (6 expected outputs > maxScopeFiles of 5)
-	oversizedBead := &bead.Bead{
-		ID:              "test-oversized-root",
-		Title:           "Implement large feature",
-		Priority:        1,
-		Labels:          []string{"feature"},
+func TestGateRunScopeGateLogsWhenAttemptingDecomposition(t *testing.T) {
+	var output bytes.Buffer
+	d := &fakeDecomposer{}
+	gate := New(&output).WithDecomposer(d)
+	b := &bead.Bead{
+		ID:              "bead-1",
 		ExpectedOutputs: []string{"f1", "f2", "f3", "f4", "f5", "f6"},
-		Parent:          "", // Root bead, not a child
 	}
-
 	cfg := &config.Config{
 		ScopeCheck: config.ScopeCheckConfig{
 			Enabled:        true,
@@ -473,438 +430,16 @@ func TestGateRunScopeGateDecompositionEndToEnd(t *testing.T) {
 		},
 	}
 
-	// Configure gate with decomposer adapter
-	gate := New(io.Discard).WithDecomposer(decomposer)
-
-	// Run the gate
-	in := pipeline.Input{Bead: oversizedBead, Config: cfg}
-	out, err := gate.Run(context.Background(), in)
-
-	// Verify no error occurred
+	out, err := gate.Run(context.Background(), pipeline.Input{Bead: b, Config: cfg})
 	if err != nil {
-		t.Fatalf("gate.Run() error = %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
-
-	// Verify decision is Skip (decomposition succeeded, so skip the original bead)
 	if out.Decision != pipeline.Skip {
-		t.Errorf("decision = %v, want Skip (decomposition should succeed)", out.Decision)
+		t.Fatalf("decision = %v, want %v", out.Decision, pipeline.Skip)
 	}
-
-	// Verify CreateWithParent was called with correct parameters
-	if !mockBeadClient.createWithParentCalled {
-		t.Error("CreateWithParent was not called, but gate should have triggered decomposition")
+	if !strings.Contains(output.String(), "attempting decomposition") {
+		t.Fatalf("output %q does not include decomposition attempt log", output.String())
 	}
-
-	if mockBeadClient.capturedTitle != oversizedBead.Title+" (decomposed)" {
-		t.Errorf("CreateWithParent title = %q, want %q", mockBeadClient.capturedTitle, oversizedBead.Title+" (decomposed)")
-	}
-
-	if mockBeadClient.capturedPriority != oversizedBead.Priority {
-		t.Errorf("CreateWithParent priority = %d, want %d", mockBeadClient.capturedPriority, oversizedBead.Priority)
-	}
-
-	if mockBeadClient.capturedParentID != oversizedBead.ID {
-		t.Errorf("CreateWithParent parentID = %q, want %q", mockBeadClient.capturedParentID, oversizedBead.ID)
-	}
-}
-
-// endToEndMockBeadClient is a mock bead.Client for integration testing
-type endToEndMockBeadClient struct {
-	createWithParentCalled  bool
-	capturedTitle           string
-	capturedPriority        int
-	capturedLabels          []string
-	capturedExpectedOutputs []string
-	capturedParentID        string
-}
-
-func (m *endToEndMockBeadClient) CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error) {
-	m.createWithParentCalled = true
-	m.capturedTitle = title
-	m.capturedPriority = priority
-	m.capturedLabels = labels
-	m.capturedExpectedOutputs = expectedOutputs
-	m.capturedParentID = parentID
-	return &bead.Bead{ID: "bead-decomposed-1", Title: title, Priority: priority}, nil
-}
-
-// endToEndDecomposerAdapter mimics the real decomposerAdapter behavior for integration testing
-type endToEndDecomposerAdapter struct {
-	beads interface {
-		CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error)
-	}
-}
-
-func (a *endToEndDecomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
-	_, err := a.beads.CreateWithParent(b.Title+" (decomposed)", b.Priority, b.Labels, b.ExpectedOutputs, b.ID)
-	return err
-}
-
-// TestGateRunScopeGateDecompositionRecordsOutput verifies that the gate records
-// decomposition output when an oversized root bead is decomposed successfully.
-// This test ensures the gate logs information about the decomposition action
-// through the output writer for visibility into the decomposition process.
-func TestGateRunScopeGateDecompositionRecordsOutput(t *testing.T) {
-	// Create a capturing output writer to verify decomposition is logged
-	output := &recordingWriter{}
-
-	// Create a recording bead.Client
-	recordingClient := &recordingBeadClient{}
-
-	// Create the decomposer implementation with the recording client
-	decomposer := &recordingDecomposerAdapter{
-		beads: recordingClient,
-	}
-
-	// Create an oversized root bead that exceeds scope threshold (6 expected outputs > maxScopeFiles of 5)
-	oversizedBead := &bead.Bead{
-		ID:              "test-oversized-root",
-		Title:           "Implement comprehensive feature",
-		Priority:        2,
-		Labels:          []string{"feature", "epic"},
-		ExpectedOutputs: []string{"file1.go", "file2.go", "file3.go", "file4.go", "file5.go", "file6.go"},
-		Parent:          "", // Root bead, not a child
-	}
-
-	cfg := &config.Config{
-		ScopeCheck: config.ScopeCheckConfig{
-			Enabled:        true,
-			BlockOversized: &blockTrue,
-		},
-	}
-
-	// Configure gate with the decomposer and recording output
-	gate := New(output).WithDecomposer(decomposer)
-
-	// Run the gate
-	in := pipeline.Input{Bead: oversizedBead, Config: cfg}
-	out, err := gate.Run(context.Background(), in)
-
-	// Verify no error occurred
-	if err != nil {
-		t.Fatalf("gate.Run() error = %v, want nil", err)
-	}
-
-	// Verify decision is Skip (decomposition succeeded, so skip the original bead)
-	if out.Decision != pipeline.Skip {
-		t.Errorf("gate.Run() decision = %v, want Skip", out.Decision)
-	}
-
-	// Verify bead.Client.CreateWithParent was called exactly once
-	if recordingClient.callCount != 1 {
-		t.Errorf("CreateWithParent call count = %d, want 1", recordingClient.callCount)
-	}
-
-	// Verify the parameters passed to CreateWithParent
-	if recordingClient.lastTitle != oversizedBead.Title+" (decomposed)" {
-		t.Errorf("CreateWithParent title = %q, want %q", recordingClient.lastTitle, oversizedBead.Title+" (decomposed)")
-	}
-
-	if recordingClient.lastPriority != oversizedBead.Priority {
-		t.Errorf("CreateWithParent priority = %d, want %d", recordingClient.lastPriority, oversizedBead.Priority)
-	}
-
-	if !slicesEqual(recordingClient.lastLabels, oversizedBead.Labels) {
-		t.Errorf("CreateWithParent labels = %v, want %v", recordingClient.lastLabels, oversizedBead.Labels)
-	}
-
-	if !slicesEqual(recordingClient.lastExpectedOutputs, oversizedBead.ExpectedOutputs) {
-		t.Errorf("CreateWithParent expectedOutputs = %v, want %v", recordingClient.lastExpectedOutputs, oversizedBead.ExpectedOutputs)
-	}
-
-	if recordingClient.lastParentID != oversizedBead.ID {
-		t.Errorf("CreateWithParent parentID = %q, want %q", recordingClient.lastParentID, oversizedBead.ID)
-	}
-
-	// Verify that decomposition was recorded in output (indicates successful decomposition logging)
-	if !output.Contains("decomposition") {
-		t.Error("gate output does not mention decomposition, want notification that decomposition occurred")
-	}
-
-	// Verify that the bead ID is recorded
-	if !output.Contains(oversizedBead.ID) {
-		t.Errorf("gate output does not mention bead ID %q", oversizedBead.ID)
-	}
-}
-
-// TestGateRunScopeGateDecompositionClosesParentBead verifies that after successful decomposition,
-// the parent bead is properly closed to prevent further processing of the oversized parent.
-// This ensures the decomposed parent doesn't get submitted for work while sub-beads are processed.
-func TestGateRunScopeGateDecompositionClosesParentBead(t *testing.T) {
-	// Create a mock that tracks both CreateWithParent and Close calls
-	// This will verify that the decomposition process closes the parent bead
-	mockClient := &closingMockBeadClient{}
-
-	// Create the decomposer implementation
-	decomposer := &closingDecomposerAdapter{
-		beads: mockClient,
-	}
-
-	// Create an oversized root bead that exceeds scope threshold (6 expected outputs > maxScopeFiles of 5)
-	oversizedBead := &bead.Bead{
-		ID:              "test-oversized-root",
-		Title:           "Implement complex feature",
-		Priority:        1,
-		Labels:          []string{"feature"},
-		ExpectedOutputs: []string{"f1", "f2", "f3", "f4", "f5", "f6"},
-		Parent:          "", // Root bead, not a child
-	}
-
-	cfg := &config.Config{
-		ScopeCheck: config.ScopeCheckConfig{
-			Enabled:        true,
-			BlockOversized: &blockTrue,
-		},
-	}
-
-	// Configure gate with the decomposer
-	gate := New(io.Discard).WithDecomposer(decomposer)
-
-	// Run the gate
-	in := pipeline.Input{Bead: oversizedBead, Config: cfg}
-	out, err := gate.Run(context.Background(), in)
-
-	// Verify no error occurred
-	if err != nil {
-		t.Fatalf("gate.Run() error = %v, want nil", err)
-	}
-
-	// Verify decision is Skip
-	if out.Decision != pipeline.Skip {
-		t.Errorf("gate.Run() decision = %v, want Skip", out.Decision)
-	}
-
-	// Verify that CreateWithParent was called to create sub-beads
-	if mockClient.createWithParentCalls != 1 {
-		t.Errorf("CreateWithParent calls = %d, want 1", mockClient.createWithParentCalls)
-	}
-
-	// Verify that the parent bead is closed after decomposition
-	// This should FAIL with current implementation since decomposerAdapter doesn't close parent
-	if mockClient.closeCalls != 1 {
-		t.Errorf("Close() calls = %d, want 1 (parent bead should be closed after decomposition)", mockClient.closeCalls)
-	}
-
-	// Verify that Close was called with the parent bead ID
-	if mockClient.lastClosedID != oversizedBead.ID {
-		t.Errorf("Close() called with ID %q, want %q (parent bead ID)", mockClient.lastClosedID, oversizedBead.ID)
-	}
-}
-
-// recordingWriter captures all output written to it for verification in tests
-type recordingWriter struct {
-	content string
-}
-
-func (r *recordingWriter) Write(p []byte) (n int, err error) {
-	r.content += string(p)
-	return len(p), nil
-}
-
-func (r *recordingWriter) Contains(s string) bool {
-	return strings.Contains(r.content, s)
-}
-
-// recordingDecomposerAdapter implements the Decomposer interface for testing.
-// It mimics the real decomposerAdapter behavior from runner package.
-type recordingDecomposerAdapter struct {
-	beads interface {
-		CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error)
-	}
-}
-
-func (a *recordingDecomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
-	_, err := a.beads.CreateWithParent(b.Title+" (decomposed)", b.Priority, b.Labels, b.ExpectedOutputs, b.ID)
-	return err
-}
-
-// recordingBeadClient tracks all calls to CreateWithParent for test verification.
-type recordingBeadClient struct {
-	callCount           int
-	lastTitle           string
-	lastPriority        int
-	lastLabels          []string
-	lastExpectedOutputs []string
-	lastParentID        string
-}
-
-func (r *recordingBeadClient) CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error) {
-	r.callCount++
-	r.lastTitle = title
-	r.lastPriority = priority
-	r.lastLabels = labels
-	r.lastExpectedOutputs = expectedOutputs
-	r.lastParentID = parentID
-	return &bead.Bead{ID: "child-bead-1", Title: title, Priority: priority}, nil
-}
-
-// slicesEqual is a helper to compare two string slices for equality
-func slicesEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
-// closingDecomposerAdapter is an adapter for testing scope gate decomposition.
-// It mimics the real decomposerAdapter behavior by creating a child bead and closing the parent.
-type closingDecomposerAdapter struct {
-	beads interface {
-		CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error)
-		Close(id string) error
-	}
-}
-
-func (a *closingDecomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
-	_, err := a.beads.CreateWithParent(b.Title+" (decomposed)", b.Priority, b.Labels, b.ExpectedOutputs, b.ID)
-	if err != nil {
-		return err
-	}
-	if err := a.beads.Close(b.ID); err != nil {
-		return err
-	}
-	return nil
-}
-
-// closingMockBeadClient tracks both CreateWithParent and Close calls for verification.
-type closingMockBeadClient struct {
-	createWithParentCalls int
-	closeCalls            int
-	lastClosedID          string
-}
-
-func (m *closingMockBeadClient) CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error) {
-	m.createWithParentCalls++
-	return &bead.Bead{ID: "child-bead-1", Title: title, Priority: priority}, nil
-}
-
-func (m *closingMockBeadClient) Close(id string) error {
-	m.closeCalls++
-	m.lastClosedID = id
-	return nil
-}
-
-// TestGateRunScopeGateDecompositionFullIntegration verifies the complete end-to-end path:
-// NewRunner constructor → Gate stage with real decomposerAdapter → oversized root bead
-// → decomposerAdapter.Decompose() → bead.Client.CreateWithParent() + Close()
-// This integration test ensures the full decomposition pipeline works correctly
-// when an oversized root bead is processed through the real gate stage.
-func TestGateRunScopeGateDecompositionFullIntegration(t *testing.T) {
-	// Create a test bead client that tracks all operations in order
-	operations := []string{}
-	operationsMu := &sync.Mutex{}
-
-	testClient := &fullIntegrationBeadClient{
-		operations:   &operations,
-		operationsMu: operationsMu,
-	}
-
-	// Create a decomposer adapter that uses the test client
-	decomposer := &fullIntegrationDecomposerAdapter{
-		beads: testClient,
-	}
-
-	// Create an oversized root bead that exceeds scope threshold
-	oversizedBead := &bead.Bead{
-		ID:              "root-bead-oversized",
-		Title:           "Implement comprehensive system redesign",
-		Priority:        0,
-		Labels:          []string{"feature", "epic"},
-		ExpectedOutputs: []string{"f1.go", "f2.go", "f3.go", "f4.go", "f5.go", "f6.go", "f7.go"},
-		Parent:          "", // Root bead
-		Description:     "A large task that needs to be decomposed",
-	}
-
-	cfg := &config.Config{
-		ScopeCheck: config.ScopeCheckConfig{
-			Enabled:        true,
-			BlockOversized: &blockTrue,
-		},
-	}
-
-	// Configure gate with the decomposer adapter
-	gate := New(io.Discard).WithDecomposer(decomposer)
-
-	// Run the gate
-	in := pipeline.Input{Bead: oversizedBead, Config: cfg}
-	out, err := gate.Run(context.Background(), in)
-
-	// Verify no error occurred
-	if err != nil {
-		t.Fatalf("gate.Run() error = %v, want nil", err)
-	}
-
-	// Verify decision is Skip (decomposition succeeded, so skip the original bead)
-	if out.Decision != pipeline.Skip {
-		t.Errorf("gate.Run() decision = %v, want Skip", out.Decision)
-	}
-
-	// Verify both CreateWithParent and Close were called in the correct order
-	operationsMu.Lock()
-	defer operationsMu.Unlock()
-
-	if len(operations) != 2 {
-		t.Errorf("operations count = %d, want 2 (CreateWithParent + Close)", len(operations))
-	}
-
-	if len(operations) >= 1 && operations[0] != "CreateWithParent" {
-		t.Errorf("operations[0] = %q, want 'CreateWithParent' (parent decomposition happens first)", operations[0])
-	}
-
-	if len(operations) >= 2 && operations[1] != "Close" {
-		t.Errorf("operations[1] = %q, want 'Close' (parent is closed after decomposition)", operations[1])
-	}
-
-	// Verify CreateWithParent was called with correct parameters
-	if testClient.lastCreateTitle != oversizedBead.Title+" (decomposed)" {
-		t.Errorf("CreateWithParent title = %q, want %q", testClient.lastCreateTitle, oversizedBead.Title+" (decomposed)")
-	}
-
-	if testClient.lastCreatePriority != oversizedBead.Priority {
-		t.Errorf("CreateWithParent priority = %d, want %d", testClient.lastCreatePriority, oversizedBead.Priority)
-	}
-
-	if testClient.lastCreateParentID != oversizedBead.ID {
-		t.Errorf("CreateWithParent parentID = %q, want %q", testClient.lastCreateParentID, oversizedBead.ID)
-	}
-
-	// Verify Close was called with the parent bead ID
-	if testClient.lastCloseID != oversizedBead.ID {
-		t.Errorf("Close() called with ID = %q, want %q (parent bead ID)", testClient.lastCloseID, oversizedBead.ID)
-	}
-}
-
-// fullIntegrationBeadClient is a test double that tracks all operations for full integration testing
-type fullIntegrationBeadClient struct {
-	operations         *[]string
-	operationsMu       *sync.Mutex
-	lastCreateTitle    string
-	lastCreatePriority int
-	lastCreateParentID string
-	lastCloseID        string
-}
-
-func (c *fullIntegrationBeadClient) CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error) {
-	c.operationsMu.Lock()
-	defer c.operationsMu.Unlock()
-	*c.operations = append(*c.operations, "CreateWithParent")
-	c.lastCreateTitle = title
-	c.lastCreatePriority = priority
-	c.lastCreateParentID = parentID
-	return &bead.Bead{ID: "child-bead-integrated", Title: title, Priority: priority}, nil
-}
-
-func (c *fullIntegrationBeadClient) Close(id string) error {
-	c.operationsMu.Lock()
-	defer c.operationsMu.Unlock()
-	*c.operations = append(*c.operations, "Close")
-	c.lastCloseID = id
-	return nil
 }
 
 // TestGateScopeDecompositionErrorFallsBackToBlock verifies that when the LLM-powered
@@ -930,24 +465,4 @@ func TestGateScopeDecompositionErrorFallsBackToBlock(t *testing.T) {
 	if out.Decision != pipeline.Block {
 		t.Errorf("decision = %v, want Block when LLM decomposition fails", out.Decision)
 	}
-}
-
-// fullIntegrationDecomposerAdapter implements Decomposer for full integration testing
-// It mirrors the real decomposerAdapter.Decompose() behavior
-type fullIntegrationDecomposerAdapter struct {
-	beads interface {
-		CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error)
-		Close(id string) error
-	}
-}
-
-func (a *fullIntegrationDecomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
-	_, err := a.beads.CreateWithParent(b.Title+" (decomposed)", b.Priority, b.Labels, b.ExpectedOutputs, b.ID)
-	if err != nil {
-		return err
-	}
-	if err := a.beads.Close(b.ID); err != nil {
-		return err
-	}
-	return nil
 }
