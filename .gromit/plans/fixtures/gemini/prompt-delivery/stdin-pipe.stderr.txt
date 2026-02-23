@@ -1,0 +1,1 @@
+zsh:18: command not found: gemini
