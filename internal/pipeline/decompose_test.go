@@ -2368,6 +2368,70 @@ func TestDecomposeWorkflow_RetryLoopSuccessPathSetsValidationFlag(t *testing.T) 
 	}
 }
 
+func TestDecomposeWorkflow_ValidationFixCountsAsSuccessEvenWithHighComplexityWarning(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plansDir, "validation-fix-with-high-complexity.md"), []byte("# Validation Fix High Complexity"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	runCount := 0
+	mockClaude := &decomposeAcceptanceClaudeClient{
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+			runCount++
+			if runCount == 1 {
+				return &ClaudeRunResult{
+					Success:  true,
+					ExitCode: 0,
+					Output: `[
+						{"title":"Needs fix","description":"d","priority":"P1","acceptance_criteria":["a","b","c","d"],"depends_on_index":[]},
+						{"title":"Small valid task","description":"d","priority":"P1","acceptance_criteria":["x"],"depends_on_index":[]}
+					]`,
+				}, nil
+			}
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output: `[
+						{"title":"Fixed but still broad","description":"d","priority":"P1","acceptance_criteria":["a","b","c"],"depends_on_index":[]},
+						{"title":"Small valid task","description":"d","priority":"P1","acceptance_criteria":["x"],"depends_on_index":[]}
+					]`,
+			}, nil
+		},
+	}
+
+	mockBead := &decomposeAcceptanceBeadClient{
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+			return &BeadInfo{ID: "bead-1"}, nil
+		},
+	}
+
+	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	result, err := p.Decompose(context.Background(), DecomposeInput{
+		PlanName:             "validation-fix-with-high-complexity",
+		MaxValidationRetries: 2,
+	})
+	if err != nil {
+		t.Fatalf("Decompose() failed: %v", err)
+	}
+
+	if result.ValidationStats == nil {
+		t.Fatal("ValidationStats = nil, want populated")
+	}
+	if !result.ValidationStats.Improved {
+		t.Fatal("ValidationStats.Improved = false, want true when validation violations are resolved")
+	}
+	if !result.ValidationStats.SucceededAfterRetry {
+		t.Fatal("ValidationStats.SucceededAfterRetry = false, want true when retry resolves validation violations")
+	}
+	if !result.ValidationStats.ProceededWithHighComplexityWarning {
+		t.Fatal("ValidationStats.ProceededWithHighComplexityWarning = false, want true when high-complexity warning path is used")
+	}
+}
+
 func TestDecomposeWorkflow_RetryLoopNonImprovingPathSetsValidationFlag(t *testing.T) {
 	tmpDir := t.TempDir()
 	plansDir := filepath.Join(tmpDir, "plans")
