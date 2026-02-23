@@ -741,6 +741,23 @@ func TestInteractiveFilePendingWorktreeBranchesFileLockingConcurrentAdds(t *test
 	}
 }
 
+func TestInteractiveFilePendingWorktreeBranchesRejectsBlank(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewInteractiveFile(dir)
+
+	if err := f.AddPendingWorktreeBranch("   "); err == nil {
+		t.Fatal("expected error for blank branch name")
+	}
+
+	branches, err := f.ListPendingWorktreeBranches()
+	if err != nil {
+		t.Fatalf("ListPendingWorktreeBranches: %v", err)
+	}
+	if len(branches) != 0 {
+		t.Fatalf("pending branches = %v, want empty", branches)
+	}
+}
+
 func pendingBranchSet(branches []string) map[string]bool {
 	set := make(map[string]bool, len(branches))
 	for _, branch := range branches {
