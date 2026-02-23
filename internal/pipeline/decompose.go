@@ -122,6 +122,11 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 			firstViolationCount = len(violations)
 		}
 		if len(violations) == 0 {
+			if attempt > 0 && firstViolationCount > 0 {
+				stats.Improved = true
+				stats.SucceededAfterRetry = true
+			}
+
 			if highComplexityCount == 0 {
 				if attempt > 0 {
 					stats.Improved = true
