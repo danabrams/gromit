@@ -958,3 +958,20 @@ func TestValidateRuntimeDecomposeCandidates_IgnoresComplexityEvaluationSignals(t
 		t.Fatalf("ValidateRuntimeDecomposeCandidates() violations len = %d, want 0", len(violations))
 	}
 }
+
+func TestValidateRuntimeDecomposeCandidates_ExcludesDecomposeOnlyFeedbackAndStopSignals(t *testing.T) {
+	candidates := []BeadCandidate{
+		{
+			Title:           "Implement login endpoint",
+			ExpectedOutputs: []string{"Authentication Plan"},
+		},
+	}
+
+	violations := ValidateRuntimeDecomposeCandidates(candidates, "Authentication Plan")
+	if len(violations) == 0 {
+		t.Fatal("expected runtime validation violations for one-bead parent-echo candidate")
+	}
+	if hasDecomposeLoopOnlySignal(violations) {
+		t.Fatalf("runtime validation violations should not include decompose-only feedback/stop signals: %+v", violations)
+	}
+}
