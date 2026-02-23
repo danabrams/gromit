@@ -13,9 +13,9 @@ const (
 	repromptCandidatesHeader     = "## Candidate Beads\n\n"
 	repromptViolationsHeader     = "## Violations By Flagged Bead\n\n"
 	repromptInstructionsHeader   = "## Instructions\n\n"
-	repromptInstructionsBody     = "- Keep every unflagged bead unchanged (title, description, depends_on, and acceptance_criteria).\n" +
+	repromptInstructionsBody     = "- Keep every unflagged bead unchanged (title, description, depends_on_index, acceptance_criteria, and expected_outputs).\n" +
 		"- Modify only flagged beads, and only as needed to fix the listed validation violations.\n" +
-		"- Return the same JSON format as before: a JSON array of bead objects with title, description, depends_on, and acceptance_criteria.\n" +
+		"- Return the same JSON format as before: a JSON array of bead objects with title, description, depends_on_index, acceptance_criteria, and expected_outputs.\n" +
 		"- Respond with ONLY the JSON array (no markdown, no explanation).\n"
 )
 
