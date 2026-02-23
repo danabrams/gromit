@@ -1,12 +1,16 @@
 package pipeline
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/danabrams/gromit/internal/frontmatter"
 	"github.com/danabrams/gromit/internal/jsonutil"
@@ -24,6 +28,14 @@ const (
 	estimatedFilesLabelFormat   = "estimated-files:%d"
 	highComplexityFileThreshold = 5
 	providerOutputPreviewLimit  = 500
+)
+
+var (
+	taskHeadingPattern = regexp.MustCompile(`^###\s+Task\s+\d+:\s*(.+?)\s*$`)
+	stopwordTokens     = []string{
+		"a", "an", "and", "for", "from", "in", "into", "of", "on", "or", "the", "to", "with",
+		"task", "add", "create", "implement", "build", "wire", "update",
+	}
 )
 
 // beadDef represents a bead definition from the provider's JSON output.
@@ -210,6 +222,9 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 	}
 
 	if err := enforceBatchContract(beadDefs); err != nil {
+		return nil, err
+	}
+	if err := validateDecompositionCoverage(planBody, beadDefs); err != nil {
 		return nil, err
 	}
 
@@ -504,4 +519,100 @@ func formatViolations(violations []validate.Violation) string {
 		rules = append(rules, fmt.Sprintf("[%s] %s", v.Rule, v.Message))
 	}
 	return strings.Join(rules, ", ")
+}
+
+func validateDecompositionCoverage(planBody string, defs []beadDef) error {
+	taskTitles := extractPlanTaskTitles(planBody)
+	if len(taskTitles) == 0 {
+		return nil
+	}
+
+	beadCorpus := make([]string, 0, len(defs))
+	for _, def := range defs {
+		parts := []string{def.Title, def.Description}
+		parts = append(parts, def.AcceptanceCriteria...)
+		parts = append(parts, def.ExpectedOutputs...)
+		beadCorpus = append(beadCorpus, strings.Join(parts, " "))
+	}
+
+	missingTasks := make([]string, 0)
+	for _, taskTitle := range taskTitles {
+		if !hasTaskCoverage(taskTitle, beadCorpus) {
+			missingTasks = append(missingTasks, taskTitle)
+		}
+	}
+	if len(missingTasks) == 0 {
+		return nil
+	}
+
+	return fmt.Errorf(
+		"incomplete decomposition coverage: %d/%d plan task(s) missing bead coverage: %s",
+		len(missingTasks),
+		len(taskTitles),
+		strings.Join(missingTasks, "; "),
+	)
+}
+
+func extractPlanTaskTitles(planBody string) []string {
+	scanner := bufio.NewScanner(strings.NewReader(planBody))
+	titles := make([]string, 0)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		matches := taskHeadingPattern.FindStringSubmatch(line)
+		if len(matches) != 2 {
+			continue
+		}
+		title := strings.TrimSpace(matches[1])
+		if title != "" {
+			titles = append(titles, title)
+		}
+	}
+	return titles
+}
+
+func hasTaskCoverage(taskTitle string, beadCorpus []string) bool {
+	taskTokens := tokenizeForCoverage(taskTitle)
+	if len(taskTokens) == 0 {
+		return false
+	}
+	requiredOverlap := 2
+	if len(taskTokens) == 1 {
+		requiredOverlap = 1
+	}
+
+	for _, corpus := range beadCorpus {
+		beadTokens := tokenizeForCoverage(corpus)
+		overlap := 0
+		for _, token := range taskTokens {
+			if slices.Contains(beadTokens, token) {
+				overlap++
+			}
+		}
+		if overlap >= requiredOverlap {
+			return true
+		}
+	}
+	return false
+}
+
+func tokenizeForCoverage(input string) []string {
+	normalized := strings.Map(func(r rune) rune {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return unicode.ToLower(r)
+		}
+		return ' '
+	}, input)
+
+	rawTokens := strings.Fields(normalized)
+	tokens := make([]string, 0, len(rawTokens))
+	for _, token := range rawTokens {
+		if len(token) < 3 {
+			continue
+		}
+		if slices.Contains(stopwordTokens, token) {
+			continue
+		}
+		tokens = append(tokens, token)
+	}
+	return tokens
 }
