@@ -104,3 +104,16 @@ func TestBuildComplexityRepromptFeedback_UsesStructuredRepromptCompositionPatter
 		}
 	}
 }
+
+func TestBuildComplexityRepromptFeedback_CitesCandidateOnEachReasonLine(t *testing.T) {
+	feedback := BuildComplexityRepromptFeedback([]CandidateComplexityResult{
+		{
+			Title:   "Split auth orchestration",
+			Reasons: []string{"estimated_files=8 crosses the high-complexity threshold"},
+		},
+	})
+
+	if !strings.Contains(feedback, "reason [candidate: Split auth orchestration]: estimated_files=8 crosses the high-complexity threshold") {
+		t.Fatalf("feedback missing candidate citation on reason line, got:\n%s", feedback)
+	}
+}
