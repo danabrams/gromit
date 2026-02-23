@@ -169,7 +169,7 @@ func attemptMergeWithConflictPolicy(
 ) error {
 	mergeErr := manager.MergeBack(session.BranchName)
 	if mergeErr == nil {
-		return clearMergedState(mainDir, session, stateFile)
+		return clearMergedState(session, stateFile)
 	}
 
 	policy, normalizeErr := normalizeConflictPolicy(conflictSettings.Policy)
@@ -200,7 +200,7 @@ func attemptMergeWithConflictPolicy(
 			continue
 		}
 
-		return clearMergedState(mainDir, session, stateFile)
+		return clearMergedState(session, stateFile)
 	}
 
 	return newAgentConflictHandoffError(session, retryCap, lastMergeErr, lastResolverErr)
@@ -231,7 +231,7 @@ func newAgentConflictHandoffError(
 	}
 }
 
-func clearMergedState(mainDir string, session *worktree.SessionWorktree, stateFile pendingBranchRecorder) error {
+func clearMergedState(session *worktree.SessionWorktree, stateFile pendingBranchRecorder) error {
 	if err := stateFile.RemovePendingWorktreeBranch(session.BranchName); err != nil {
 		return fmt.Errorf("clearing merged pending worktree branch %q: %w", session.BranchName, err)
 	}
