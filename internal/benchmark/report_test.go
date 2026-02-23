@@ -195,3 +195,52 @@ func TestWriteReport_MarkdownRendersStableOrderedTables(t *testing.T) {
 		t.Fatalf("mode ordering not stable: single_pass appears after tdd_shared_context\n%s", content)
 	}
 }
+
+func TestWriteReport_WinnerHintsUseStableTieBreakAndLowerCostQualityRatio(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+
+	_, err := WriteReport(ReportInput{
+		Timestamp: "20260223T120000Z",
+		Manifest:  ManifestMetadata{ID: "tdd-vs-single-pass", BaseCommit: "abc123"},
+		Modes: []ModeSummary{
+			{
+				Mode:            "z_mode",
+				ElapsedSeconds:  100,
+				TotalCostUSD:    1.0,
+				Quality:         QualityMetrics{AverageScore: 0.9},
+				CostQualityRatio: 1.3,
+			},
+			{
+				Mode:            "a_mode",
+				ElapsedSeconds:  100,
+				TotalCostUSD:    1.0,
+				Quality:         QualityMetrics{AverageScore: 0.9},
+				CostQualityRatio: 0.9,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("WriteReport() error = %v", err)
+	}
+
+	jsonPath := filepath.Join(".gromit", "benchmarks", "results", "tdd-vs-single-pass", "20260223T120000Z.json")
+	reportBytes, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("read json artifact: %v", err)
+	}
+
+	var payload struct {
+		WinnerHints WinnerHints `json:"winner_hints"`
+	}
+	if err := json.Unmarshal(reportBytes, &payload); err != nil {
+		t.Fatalf("unmarshal json artifact: %v", err)
+	}
+
+	if payload.WinnerHints.Fastest != "a_mode" || payload.WinnerHints.Cheapest != "a_mode" || payload.WinnerHints.BestQuality != "a_mode" {
+		t.Fatalf("tie-break winner hints mismatch: %+v", payload.WinnerHints)
+	}
+	if payload.WinnerHints.BestCostQuality != "a_mode" {
+		t.Fatalf("best_cost_quality = %q, want %q", payload.WinnerHints.BestCostQuality, "a_mode")
+	}
+}
