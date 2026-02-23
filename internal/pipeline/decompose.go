@@ -95,6 +95,9 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 			return nil, fmt.Errorf("parsing bead definitions: %w\n\nProvider output:\n%s", err, preview)
 		}
 
+		highComplexityCount, lowComplexityCount := countComplexityByEstimate(beadDefs)
+		fmt.Printf("Complexity summary (attempt %d): high=%d low=%d\n", attempt+1, highComplexityCount, lowComplexityCount)
+
 		if input.SkipValidation {
 			break
 		}
@@ -214,6 +217,17 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 
 	result.PlanUpdated = true
 	return &result, nil
+}
+
+func countComplexityByEstimate(defs []beadDef) (high int, low int) {
+	for _, def := range defs {
+		if def.EstimatedFiles > highComplexityFileThreshold {
+			high++
+			continue
+		}
+		low++
+	}
+	return high, low
 }
 
 func decomposeModelForTier(inputTier string) string {
