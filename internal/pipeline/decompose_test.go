@@ -1407,6 +1407,59 @@ func TestDecomposeWorkflow_UsesInputTierForProviderCall(t *testing.T) {
 	}
 }
 
+// TestDecompose_SixBeads_TruncatesToFive verifies that when the model returns 6 sub-beads,
+// the batch_size_max fallback truncates the result to 5 beads before creation.
+func TestDecompose_SixBeads_TruncatesToFive(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plansDir, "big-plan.md"), []byte("# Big Plan"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	mockClaude := &decomposeAcceptanceClaudeClient{
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output: `[
+					{"title":"Task 1","description":"d","priority":"P1","acceptance_criteria":["a"],"depends_on_index":[]},
+					{"title":"Task 2","description":"d","priority":"P1","acceptance_criteria":["a"],"depends_on_index":[]},
+					{"title":"Task 3","description":"d","priority":"P1","acceptance_criteria":["a"],"depends_on_index":[]},
+					{"title":"Task 4","description":"d","priority":"P1","acceptance_criteria":["a"],"depends_on_index":[]},
+					{"title":"Task 5","description":"d","priority":"P1","acceptance_criteria":["a"],"depends_on_index":[]},
+					{"title":"Task 6","description":"d","priority":"P1","acceptance_criteria":["a"],"depends_on_index":[]}
+				]`,
+			}, nil
+		},
+	}
+
+	var createdCount int
+	mockBead := &decomposeAcceptanceBeadClient{
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+			createdCount++
+			return &BeadInfo{ID: fmt.Sprintf("bead-%d", createdCount)}, nil
+		},
+	}
+
+	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	result, err := p.Decompose(context.Background(), DecomposeInput{
+		PlanName:             "big-plan",
+		MaxValidationRetries: 0,
+	})
+	if err != nil {
+		t.Fatalf("Decompose() failed: %v", err)
+	}
+	if len(result.CreatedBeads) != 5 {
+		t.Errorf("CreatedBeads count = %d, want 5 (truncated from 6 by batch_size_max fallback)", len(result.CreatedBeads))
+	}
+	if createdCount != 5 {
+		t.Errorf("bead create calls = %d, want 5 (only 5 beads should be created)", createdCount)
+	}
+}
+
 func containsString(items []string, want string) bool {
 	for _, item := range items {
 		if item == want {
