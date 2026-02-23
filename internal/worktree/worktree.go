@@ -157,8 +157,10 @@ func (m *Manager) CreateSessionWorktree(command string) (*SessionWorktree, error
 			}, nil
 		}
 		lastErr = err
-		if isAmbiguousSessionContentionErr(output, err) && m.sessionBranchExists(branchName) {
-			continue
+		if isAmbiguousSessionContentionErr(output, err) {
+			if m.sessionBranchExists(branchName) || m.sessionWorktreeRegistered(worktreeDir) {
+				continue
+			}
 		}
 		if !isSessionContentionErr(err) {
 			return nil, fmt.Errorf("failed to create session worktree: %w", err)
@@ -316,4 +318,13 @@ func (m *Manager) sessionBranchExists(branchName string) bool {
 	ref := "refs/heads/" + branchName
 	_, err := m.runGit(m.MainDir, "show-ref", "--verify", "--quiet", ref, "--")
 	return err == nil
+}
+
+func (m *Manager) sessionWorktreeRegistered(worktreeDir string) bool {
+	output, err := m.runGit(m.MainDir, "worktree", "list", "--porcelain")
+	if err != nil {
+		return false
+	}
+	return strings.Contains(output, "\nworktree "+worktreeDir+"\n") ||
+		strings.HasPrefix(output, "worktree "+worktreeDir+"\n")
 }
