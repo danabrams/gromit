@@ -47,3 +47,37 @@ func TestBuildReprompt_RequestsSameJSONFormat(t *testing.T) {
 		t.Fatalf("expected JSON-only response instruction, got:\n%s", prompt)
 	}
 }
+
+func TestBuildComplexityRepromptFeedback_IncludesAllCandidateReasons(t *testing.T) {
+	feedback := BuildComplexityRepromptFeedback([]CandidateComplexityResult{
+		{
+			Title: "Split auth orchestration",
+			Reasons: []string{
+				"estimated_files=8 crosses the high-complexity threshold",
+				"acceptance criteria mixes API wiring and data migration",
+			},
+		},
+		{
+			Title: "Refine CLI output",
+			Reasons: []string{
+				"touches multiple unrelated packages",
+			},
+		},
+	})
+
+	if !strings.Contains(feedback, "Split auth orchestration") {
+		t.Fatalf("feedback missing first candidate title, got:\n%s", feedback)
+	}
+	if !strings.Contains(feedback, "estimated_files=8 crosses the high-complexity threshold") {
+		t.Fatalf("feedback missing first candidate reason, got:\n%s", feedback)
+	}
+	if !strings.Contains(feedback, "acceptance criteria mixes API wiring and data migration") {
+		t.Fatalf("feedback missing second reason for first candidate, got:\n%s", feedback)
+	}
+	if !strings.Contains(feedback, "Refine CLI output") {
+		t.Fatalf("feedback missing second candidate title, got:\n%s", feedback)
+	}
+	if !strings.Contains(feedback, "touches multiple unrelated packages") {
+		t.Fatalf("feedback missing second candidate reason, got:\n%s", feedback)
+	}
+}
