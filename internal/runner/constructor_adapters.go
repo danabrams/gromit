@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"sync"
 
@@ -312,7 +313,9 @@ func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 func scopeGateChildDedupeLabel(parentID string, sb scopeGateSubBead) string {
 	const prefix = "scope_decomp:"
 
-	sum := sha1.Sum([]byte(parentID + "\x00" + strings.TrimSpace(sb.Title) + "\x00" + strings.Join(sb.ExpectedOutputs, "\x00")))
+	outputs := append([]string(nil), sb.ExpectedOutputs...)
+	sort.Strings(outputs)
+	sum := sha1.Sum([]byte(parentID + "\x00" + strings.TrimSpace(sb.Title) + "\x00" + strings.Join(outputs, "\x00")))
 	return prefix + hex.EncodeToString(sum[:8])
 }
 
