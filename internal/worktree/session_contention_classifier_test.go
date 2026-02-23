@@ -28,6 +28,11 @@ func TestClassifySessionCreateFailure(t *testing.T) {
 			want: sessionCreateFailureAmbiguousProbe,
 		},
 		{
+			name: "ambiguous lock file failure requires probes",
+			err:  errors.New("fatal: unable to create '.git/refs/heads/gromit/review-100.lock': File exists."),
+			want: sessionCreateFailureAmbiguousProbe,
+		},
+		{
 			name: "terminal non contention",
 			err:  errors.New("fatal: remote 'origin' already exists"),
 			want: sessionCreateFailureTerminal,
