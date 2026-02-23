@@ -153,8 +153,10 @@ func buildValidateFn(cfg *config.Config) tdd.ValidateFn {
 
 func buildRunRefactorFn(renderer *prompt.Renderer, router *provider.Router, output io.Writer) tdd.RunRefactorFn {
 	return func(ctx context.Context, bc *runtypes.BeadContext) error {
+		rules, _ := renderer.LoadRulesForPhase("refactor")
 		refactorCtx := &prompt.Context{
 			Bead: bc.Bead,
+			Rules: rules,
 		}
 		promptText, err := renderer.RenderRefactor(refactorCtx)
 		if err != nil {
