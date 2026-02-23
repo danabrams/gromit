@@ -168,6 +168,17 @@ func ValidateRuntimeDecomposeCandidates(beads []BeadCandidate, parentTitle strin
 	return violations
 }
 
+func hasDecomposeLoopOnlySignal(violations []Violation) bool {
+	for _, v := range violations {
+		combined := strings.ToLower(v.Rule + " " + v.Message)
+		if strings.Contains(combined, "complexity") || strings.Contains(combined, "reprompt") || strings.Contains(combined, "stall") {
+			return true
+		}
+	}
+
+	return false
+}
+
 // CheckBeads validates a list of bead candidates and returns any violations
 func CheckBeads(beads []BeadCandidate) []Violation {
 	var violations []Violation
