@@ -185,9 +185,9 @@ func TestEstimatedFileCount(t *testing.T) {
 			want: 3,
 		},
 		{
-			name: "ignores empty and duplicate expected outputs",
+			name: "counts all expected outputs including empty and duplicate entries",
 			bead: &Bead{ExpectedOutputs: []string{"a.go", " ", "a.go", "b.go", ""}},
-			want: 2,
+			want: 5,
 		},
 	}
 
