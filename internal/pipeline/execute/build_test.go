@@ -2,9 +2,9 @@ package execute_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
-	"strings"
 	"testing"
 	"time"
 
@@ -285,8 +285,8 @@ func TestBuildStage_Run_NilConfigReturnsError(t *testing.T) {
 	if err == nil {
 		t.Fatal("Run() error = nil, want nil-config error")
 	}
-	if !strings.Contains(err.Error(), "nil config") {
-		t.Fatalf("Run() error = %v, want nil config error", err)
+	if !errors.Is(err, execute.ErrNilConfig) {
+		t.Fatalf("Run() error = %v, want wrapped execute.ErrNilConfig", err)
 	}
 }
 

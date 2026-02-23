@@ -2,6 +2,7 @@ package execute
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -10,6 +11,9 @@ import (
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/provider"
 )
+
+// ErrNilConfig indicates the Build stage was invoked without configuration.
+var ErrNilConfig = errors.New("nil config")
 
 // Methodology represents the build methodology selected for a bead.
 type Methodology string
@@ -146,7 +150,7 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 		return pipeline.Output{}, fmt.Errorf("build: rendering prompt: %w", err)
 	}
 	if in.Config == nil {
-		return pipeline.Output{}, fmt.Errorf("build: nil config")
+		return pipeline.Output{}, fmt.Errorf("build: %w", ErrNilConfig)
 	}
 
 	beadTier := in.Config.SelectInitialTierForComplexity(in.Complexity)
