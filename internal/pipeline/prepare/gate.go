@@ -158,6 +158,7 @@ func (g *Gate) runScopeGate(ctx context.Context, in pipeline.Input, out io.Write
 			fmt.Fprintf(out, "Warning: decomposition failed for bead %s: %v, falling back to block\n", in.Bead.ID, err)
 			return &pipeline.Output{Decision: pipeline.Block}, nil
 		}
+		fmt.Fprintf(out, "Scope gate: decomposition succeeded for bead %s, skipping parent bead\n", in.Bead.ID)
 		return &pipeline.Output{Decision: pipeline.Skip}, nil
 	}
 

@@ -239,7 +239,7 @@ func TestDecomposerAdapter_ClosesParentBeadAfterLLMDecomposition(t *testing.T) {
 	}
 }
 
-func TestDecomposerAdapter_Decompose_InheritsBuildStrategyLabelFromParent(t *testing.T) {
+func TestDecomposerAdapter_Decompose_InheritsParentBuildStrategyAndSpecLabels(t *testing.T) {
 	stubRouter := provider.NewSingleProviderRouter(&stubRunProvider{
 		name: "test",
 		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
@@ -262,10 +262,10 @@ func TestDecomposerAdapter_Decompose_InheritsBuildStrategyLabelFromParent(t *tes
 		}
 		switch args[0] {
 		case "show":
-			return `[{"id":"parent-1","title":"Oversized Feature","priority":1,"labels":["build_strategy:parallel"],"issue_type":"task","status":"open"}]`, nil
+			return `[{"id":"parent-1","title":"Oversized Feature","priority":1,"labels":["build_strategy:parallel","spec:decompose-low-complexity-bias"],"issue_type":"task","status":"open"}]`, nil
 		case "create":
 			createArgs = append([]string(nil), args...)
-			return `{"id":"child-1","title":"Part 1","priority":1,"labels":["build_strategy:parallel"],"issue_type":"task","status":"open"}`, nil
+			return `{"id":"child-1","title":"Part 1","priority":1,"labels":["build_strategy:parallel","spec:decompose-low-complexity-bias"],"issue_type":"task","status":"open"}`, nil
 		default:
 			return "", nil
 		}
@@ -287,6 +287,9 @@ func TestDecomposerAdapter_Decompose_InheritsBuildStrategyLabelFromParent(t *tes
 	}
 	if !hasCreateLabelArg(createArgs, "build_strategy:parallel") {
 		t.Fatalf("create args missing inherited build strategy label: %v", createArgs)
+	}
+	if !hasCreateLabelArg(createArgs, "spec:decompose-low-complexity-bias") {
+		t.Fatalf("create args missing inherited spec label: %v", createArgs)
 	}
 }
 

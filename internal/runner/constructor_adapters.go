@@ -269,7 +269,7 @@ func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 		return fmt.Errorf("decomposerAdapter: decomposition contract violation [%s]: bead %d: %s", v.Rule, v.BeadIndex, v.Message)
 	}
 
-	labels := a.resolveBuildStrategyLabels(b)
+	labels := a.resolveInheritedLabels(b)
 	for _, sb := range subBeads {
 		dedupeLabel := scopeGateChildDedupeLabel(b.ID, sb)
 		if a.hasCreatedChildKey(b.ID, dedupeLabel) {
@@ -366,24 +366,41 @@ func (a *decomposerAdapter) childWithDedupeLabelExists(parentID, dedupeLabel str
 	return false, nil
 }
 
-func (a *decomposerAdapter) resolveBuildStrategyLabels(parent *bead.Bead) []string {
+func (a *decomposerAdapter) resolveInheritedLabels(parent *bead.Bead) []string {
 	const buildStrategyPrefix = "build_strategy:"
+	const specPrefix = "spec:"
 
-	if label := findLabelWithPrefix(parent.Labels, buildStrategyPrefix); label != "" {
-		return []string{label}
+	labels := make([]string, 0, 4)
+	appendUnique := func(label string) {
+		if label == "" {
+			return
+		}
+		for _, existing := range labels {
+			if existing == label {
+				return
+			}
+		}
+		labels = append(labels, label)
 	}
 
+	for _, label := range labelsWithPrefix(parent.Labels, specPrefix) {
+		appendUnique(label)
+	}
+	appendUnique(findLabelWithPrefix(parent.Labels, buildStrategyPrefix))
+
 	if a.beads == nil || parent.ID == "" {
-		return nil
+		return labels
 	}
 	fullParent, err := a.beads.Show(parent.ID)
 	if err != nil || fullParent == nil {
-		return nil
+		return labels
 	}
-	if label := findLabelWithPrefix(fullParent.Labels, buildStrategyPrefix); label != "" {
-		return []string{label}
+	for _, label := range labelsWithPrefix(fullParent.Labels, specPrefix) {
+		appendUnique(label)
 	}
-	return nil
+	appendUnique(findLabelWithPrefix(fullParent.Labels, buildStrategyPrefix))
+
+	return labels
 }
 
 func findLabelWithPrefix(labels []string, prefix string) string {
@@ -393,6 +410,16 @@ func findLabelWithPrefix(labels []string, prefix string) string {
 		}
 	}
 	return ""
+}
+
+func labelsWithPrefix(labels []string, prefix string) []string {
+	matches := make([]string, 0, len(labels))
+	for _, label := range labels {
+		if strings.HasPrefix(label, prefix) {
+			matches = append(matches, label)
+		}
+	}
+	return matches
 }
 
 // buildScopeGateDecomposePrompt builds the LLM prompt for scope gate decomposition.

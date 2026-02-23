@@ -440,6 +440,9 @@ func TestGateRunScopeGateLogsWhenAttemptingDecomposition(t *testing.T) {
 	if !strings.Contains(output.String(), "attempting decomposition") {
 		t.Fatalf("output %q does not include decomposition attempt log", output.String())
 	}
+	if !strings.Contains(output.String(), "decomposition succeeded") {
+		t.Fatalf("output %q does not include decomposition success log", output.String())
+	}
 }
 
 // TestGateScopeDecompositionErrorFallsBackToBlock verifies that when the LLM-powered
