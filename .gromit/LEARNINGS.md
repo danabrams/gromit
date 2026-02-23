@@ -160,6 +160,11 @@ When decompose validation rules change (for example, expected_outputs requiremen
 
 Session worktree retry behavior should be driven by an explicit retryable/non-retryable error contract, not ad-hoc message matching alone. Defining the contract first avoids locale/version-sensitive drift in contention detection and keeps retries deterministic.
 
+### 2026-02-23 | REPROMPT_CONTRACT_FIELDS_MUST_BE_VISIBLE_TO_MODEL | ARCHITECTURE
+*Related to: gromit-h1s0f*
+
+If reprompt instructions require preserving fields such as `depends_on_index` and `expected_outputs`, those fields must be rendered in the candidate context shown to the model. Telling the model to keep fields unchanged without displaying them creates avoidable contract drift and retry churn.
+
 ---
 
 ## Archived

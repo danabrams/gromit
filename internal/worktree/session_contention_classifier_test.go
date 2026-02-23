@@ -38,6 +38,12 @@ func TestClassifySessionCreateFailure(t *testing.T) {
 			err:    errors.New("exit status 128"),
 			want:   sessionCreateFailureRetryable,
 		},
+		{
+			name:   "uses wrapped error text when output omits contention signature",
+			output: "hint: retry with --verbose for more details",
+			err:    errors.New("fatal: a branch named 'gromit/review-100' already exists"),
+			want:   sessionCreateFailureRetryable,
+		},
 	}
 
 	for _, tt := range tests {

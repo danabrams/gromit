@@ -36,9 +36,14 @@ func classifySessionCreateFailure(output string, err error) sessionCreateFailure
 }
 
 func sessionCreateErrorMessage(output string, err error) string {
-	msg := strings.ToLower(strings.TrimSpace(output))
-	if msg == "" {
-		msg = strings.ToLower(err.Error())
+	parts := make([]string, 0, 2)
+	if out := strings.ToLower(strings.TrimSpace(output)); out != "" {
+		parts = append(parts, out)
 	}
-	return msg
+	if err != nil {
+		if msg := strings.ToLower(strings.TrimSpace(err.Error())); msg != "" {
+			parts = append(parts, msg)
+		}
+	}
+	return strings.Join(parts, "\n")
 }
