@@ -24,6 +24,8 @@ type iterationMetricRecord struct {
 	InputTokens  int     `json:"input_tokens"`
 	OutputTokens int     `json:"output_tokens"`
 	CostUSD      float64 `json:"cost_usd"`
+	QualityScore float64 `json:"quality_score"`
+	FirstPass    bool    `json:"first_pass_success"`
 }
 
 func AggregateModeMetrics(inputs []ModeLogInput) ([]ModeSummary, error) {
@@ -53,6 +55,18 @@ func AggregateModeMetrics(inputs []ModeLogInput) ([]ModeSummary, error) {
 				summary.TierTotals.Medium.OutputTokens += rec.OutputTokens
 				summary.TierTotals.Medium.CostUSD = roundUSD(summary.TierTotals.Medium.CostUSD + rec.CostUSD)
 			}
+		}
+		if len(recs) > 0 {
+			qualityTotal := 0.0
+			firstPassCount := 0
+			for _, rec := range recs {
+				qualityTotal += rec.QualityScore
+				if rec.FirstPass {
+					firstPassCount++
+				}
+			}
+			summary.Quality.AverageScore = roundUSD(qualityTotal / float64(len(recs)))
+			summary.Quality.FirstPassRate = roundUSD(float64(firstPassCount) / float64(len(recs)))
 		}
 		if !input.RunStartedAt.IsZero() && !input.RunFinishedAt.IsZero() && input.RunFinishedAt.After(input.RunStartedAt) {
 			summary.ElapsedSeconds = int(input.RunFinishedAt.Sub(input.RunStartedAt).Seconds())
