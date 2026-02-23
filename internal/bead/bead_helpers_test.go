@@ -61,6 +61,11 @@ func TestIsLowComplexityTitle(t *testing.T) {
 			want:  true,
 		},
 		{
+			name:  "migrate pattern matches across newlines",
+			title: "Migrate parser state\nto new config format",
+			want:  true,
+		},
+		{
 			name:  "non matching title",
 			title: "Refactor tier selection for dynamic routing",
 			want:  false,
