@@ -58,23 +58,20 @@ func TestProviderParseFallbackCooldown_NilConfigReturnsZero(t *testing.T) {
 	}
 }
 
-func TestConstructorGo_UsesSharedProviderHelpers(t *testing.T) {
-	src, err := os.ReadFile("constructor.go")
+func TestBuildRouterAndLearningsProvider_UsesConfiguredProviders(t *testing.T) {
+	cfg := newCodexProvidersConfig()
+	router, lp, _, _, err := buildRouterAndLearningsProvider(cfg, t.TempDir(), io.Discard)
 	if err != nil {
-		t.Fatalf("os.ReadFile(constructor.go): %v", err)
+		t.Fatalf("buildRouterAndLearningsProvider() error = %v", err)
 	}
-	text := string(src)
-	if strings.Contains(text, "func buildProvidersFromConfig(") {
-		t.Fatal("constructor.go defines buildProvidersFromConfig; want local provider helper removed")
+	if router == nil {
+		t.Fatal("buildRouterAndLearningsProvider() router = nil, want non-nil")
 	}
-	if strings.Contains(text, "func parseFallbackCooldown(") {
-		t.Fatal("constructor.go defines parseFallbackCooldown; want local provider helper removed")
+	if lp == nil {
+		t.Fatal("buildRouterAndLearningsProvider() learnings provider = nil, want non-nil")
 	}
-	if strings.Contains(text, "buildProvidersFromConfig(cfg)") {
-		t.Fatal("constructor.go calls buildProvidersFromConfig; want provider.BuildProvidersFromConfig")
-	}
-	if strings.Contains(text, "parseFallbackCooldown(cfg)") {
-		t.Fatal("constructor.go calls parseFallbackCooldown; want provider.ParseFallbackCooldown")
+	if got := lp.Name(); got != "codex" {
+		t.Fatalf("learnings provider name = %q, want %q", got, "codex")
 	}
 }
 
