@@ -258,11 +258,11 @@ func TestRunWithSessionWorktreeImmediateMergeSuccessRunsCleanupAndClearsPendingB
 		if !addCalled {
 			t.Fatal("cleanup happened before pending branch was recorded")
 		}
-		if mergeCalled {
-			t.Fatal("cleanup should happen before merge is attempted")
+		if !mergeCalled {
+			t.Fatal("cleanup should happen after merge is attempted")
 		}
-		if removeCalled {
-			t.Fatal("cleanup should happen before pending branch removal")
+		if !removeCalled {
+			t.Fatal("cleanup should happen after pending branch removal")
 		}
 		cleanupMain = gotMainDir
 		cleanupDir = sessionDir
@@ -342,13 +342,13 @@ func TestRunWithSessionWorktreeImmediateMergeSuccessPreRemovesBeforeMerge(t *tes
 		t.Fatalf("runWithSessionWorktree() error = %v", err)
 	}
 
-	want := []string{"add", "cleanup", "merge", "remove"}
+	want := []string{"add", "merge", "remove", "cleanup"}
 	if !reflect.DeepEqual(events, want) {
 		t.Fatalf("events = %v, want %v", events, want)
 	}
 }
 
-func TestRunWithSessionWorktreePreRemoveFailureKeepsPendingBranchAndSkipsMerge(t *testing.T) {
+func TestRunWithSessionWorktreeCleanupFailureReturnsErrorAfterMerge(t *testing.T) {
 	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "repair")
 	session.BranchName = "gromit/repair-111"
 
@@ -407,17 +407,17 @@ func TestRunWithSessionWorktreePreRemoveFailureKeepsPendingBranchAndSkipsMerge(t
 		t.Fatalf("result.BranchName = %q, want %q", result.BranchName, session.BranchName)
 	}
 	if !addCalled {
-		t.Fatal("expected pending branch to be recorded before pre-remove")
+		t.Fatal("expected pending branch to be recorded before cleanup")
 	}
-	if mergeCalled {
-		t.Fatal("merge should not run when pre-remove fails")
+	if !mergeCalled {
+		t.Fatal("merge should run before cleanup")
 	}
-	if removeCalled {
-		t.Fatal("pending branch should remain when pre-remove fails")
+	if !removeCalled {
+		t.Fatal("pending branch should be removed before cleanup")
 	}
 }
 
-func TestRunWithSessionWorktreePreRemoveFailureWrapsBranchContext(t *testing.T) {
+func TestRunWithSessionWorktreeCleanupFailureWrapsBranchContext(t *testing.T) {
 	_, gromitDir, session := setupRunWithSessionWorktreeTest(t, "context")
 	session.BranchName = "gromit/context-222"
 
@@ -494,9 +494,9 @@ func TestRunWithSessionWorktreeConflictManualPolicyKeepsPendingBranch(t *testing
 	if removeCalled {
 		t.Fatal("pending branch should remain on manual conflict handoff")
 	}
-	if !cleanupCalled {
-		t.Fatal("session worktree should be pre-removed before manual conflict handoff")
-	}
+		if cleanupCalled {
+			t.Fatal("session worktree should not be removed before manual conflict handoff")
+		}
 	if !strings.Contains(err.Error(), "manual handoff") {
 		t.Fatalf("error should contain manual handoff guidance, got: %v", err)
 	}
@@ -593,6 +593,7 @@ func TestRunWithSessionWorktreeConflictAgentPolicyRetriesBeforeCleanup(t *testin
 	var (
 		events      []string
 		cleanupDone bool
+		mergeCalls  int
 	)
 
 	withInteractiveWorktreeFactories(t, func(string) (sessionWorktreeCreator, error) {
@@ -601,6 +602,7 @@ func TestRunWithSessionWorktreeConflictAgentPolicyRetriesBeforeCleanup(t *testin
 				return session, nil
 			},
 			MergeBackFn: func(branch string) error {
+				mergeCalls++
 				if branch != session.BranchName {
 					t.Fatalf("merge branch = %q, want %q", branch, session.BranchName)
 				}
@@ -608,7 +610,7 @@ func TestRunWithSessionWorktreeConflictAgentPolicyRetriesBeforeCleanup(t *testin
 					t.Fatal("merge attempted after cleanup")
 				}
 				events = append(events, "merge")
-				if len(events) == 2 {
+				if mergeCalls == 2 {
 					return nil
 				}
 				return errors.New("merge conflict")
@@ -667,7 +669,7 @@ func TestRunWithSessionWorktreeConflictAgentPolicyRetriesBeforeCleanup(t *testin
 		t.Fatalf("runWithSessionWorktreeWithConflictSettings() error = %v", err)
 	}
 
-	want := []string{"add", "merge", "resolve", "merge", "cleanup", "remove"}
+	want := []string{"add", "merge", "resolve", "merge", "remove", "cleanup"}
 	if !reflect.DeepEqual(events, want) {
 		t.Fatalf("events = %v, want %v", events, want)
 	}
@@ -735,8 +737,8 @@ func TestRunWithSessionWorktreeConflictAgentPolicyFallsBackToManual(t *testing.T
 	if removeCalled {
 		t.Fatal("pending branch should be retained after fallback to manual handoff")
 	}
-	if !cleanupCalled {
-		t.Fatal("session worktree should be pre-removed before fallback to manual handoff")
+	if cleanupCalled {
+		t.Fatal("session worktree should not be removed before fallback to manual handoff")
 	}
 }
 
