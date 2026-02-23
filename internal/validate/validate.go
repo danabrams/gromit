@@ -136,6 +136,9 @@ func ScoreCandidate(bead BeadCandidate) ComplexityResult {
 	if bead.EstimatedFiles > highComplexityFileThreshold {
 		result.Reasons = append(result.Reasons, fmt.Sprintf("estimated_files=%d crosses the high-complexity threshold", bead.EstimatedFiles))
 	}
+	if len(bead.AcceptanceCriteria) >= 3 {
+		result.Reasons = append(result.Reasons, fmt.Sprintf("acceptance_criteria=%d indicates broad implementation surface", len(bead.AcceptanceCriteria)))
+	}
 	titleHasScopeSignal := containsScopeSignal(bead.Title)
 	descriptionHasScopeSignal := containsScopeSignal(bead.Description)
 	if titleHasScopeSignal {
