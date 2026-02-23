@@ -81,9 +81,5 @@ func countLowComplexitySignals(_ *config.Config, b *bead.Bead) int {
 }
 
 func isLowComplexity(cfg *config.Config, b *bead.Bead) bool {
-	// Test-only beads always qualify for low-complexity routing
-	if b != nil && bead.IsTestOnlyBead(b.Title) {
-		return true
-	}
 	return countLowComplexitySignals(cfg, b) >= lowComplexitySignalThreshold
 }
