@@ -117,3 +117,9 @@ func TestBuildComplexityRepromptFeedback_CitesCandidateOnEachReasonLine(t *testi
 		t.Fatalf("feedback missing candidate citation on reason line, got:\n%s", feedback)
 	}
 }
+
+func TestBuildComplexityReprompt_EmptyInputReturnsEmptyOutput(t *testing.T) {
+	if got := BuildComplexityReprompt(nil); got != "" {
+		t.Fatalf("BuildComplexityReprompt(nil) = %q, want empty string", got)
+	}
+}
