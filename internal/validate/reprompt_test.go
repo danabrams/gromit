@@ -59,6 +59,30 @@ func TestBuildReprompt_RequestsExpectedOutputsContractFields(t *testing.T) {
 	}
 }
 
+func TestBuildReprompt_RendersCandidateDependencyAndExpectedOutputsContext(t *testing.T) {
+	candidates := []BeadCandidate{
+		{
+			Title:              "Implement auth API",
+			Description:        "Add auth endpoint wiring",
+			DependsOnIndex:     []int{0, 2},
+			AcceptanceCriteria: []string{"Auth endpoint responds with 200"},
+			ExpectedOutputs:    []string{"Auth handler created", "Route registered"},
+		},
+	}
+
+	prompt := BuildReprompt("original prompt", candidates, []Violation{{BeadIndex: 0, Rule: "x", Message: "y"}})
+
+	if !strings.Contains(prompt, "Depends On Index: [0, 2]") {
+		t.Fatalf("expected candidate context to include depends_on_index data, got:\n%s", prompt)
+	}
+	if !strings.Contains(prompt, "Expected Outputs:") {
+		t.Fatalf("expected candidate context to include expected_outputs section, got:\n%s", prompt)
+	}
+	if !strings.Contains(prompt, "Auth handler created") {
+		t.Fatalf("expected candidate context to include expected_outputs values, got:\n%s", prompt)
+	}
+}
+
 func TestBuildComplexityRepromptFeedback_IncludesAllCandidateReasons(t *testing.T) {
 	feedback := BuildComplexityRepromptFeedback([]CandidateComplexityResult{
 		{
