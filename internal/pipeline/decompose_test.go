@@ -1741,6 +1741,61 @@ func TestDecomposeWorkflow_RetriesWhenHighComplexityRemains(t *testing.T) {
 	}
 }
 
+func TestDecomposeWorkflow_HighComplexityWarningIncludesDetails(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plansDir, "complexity-warning.md"), []byte("# Complexity Warning"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	mockClaude := &decomposeAcceptanceClaudeClient{
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output: `[
+					{"title":"Overly broad API task","description":"d","priority":"P1","estimated_files":8,"acceptance_criteria":["a"],"depends_on_index":[]},
+					{"title":"Small task","description":"d","priority":"P1","estimated_files":1,"acceptance_criteria":["b"],"depends_on_index":[]}
+				]`,
+			}, nil
+		},
+	}
+
+	mockBead := &decomposeAcceptanceBeadClient{
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+			return &BeadInfo{ID: "bead-1"}, nil
+		},
+	}
+
+	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+
+	output := captureStdout(t, func() {
+		_, err := p.Decompose(context.Background(), DecomposeInput{
+			PlanName:             "complexity-warning",
+			MaxValidationRetries: 0,
+		})
+		if err != nil {
+			t.Fatalf("Decompose() failed: %v", err)
+		}
+	})
+
+	if !strings.Contains(output, "Warning: high-complexity beads remain") {
+		t.Fatalf("stdout missing high-complexity warning, got:\n%s", output)
+	}
+	if !strings.Contains(output, "remaining=1") {
+		t.Fatalf("stdout missing remaining high-complexity count detail, got:\n%s", output)
+	}
+	if !strings.Contains(output, "Overly broad API task") {
+		t.Fatalf("stdout missing high-complexity title detail, got:\n%s", output)
+	}
+	if !strings.Contains(output, "estimated_files=8") {
+		t.Fatalf("stdout missing high-complexity reason snippet, got:\n%s", output)
+	}
+}
+
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
 	original := os.Stdout
