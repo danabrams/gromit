@@ -913,3 +913,25 @@ func TestValidateDecomposeCandidates_UsesScoreCandidateForComplexitySummaryAndRe
 		t.Fatalf("ComplexityOutcome.AggregateReasons len = 0, want > 0")
 	}
 }
+
+func TestValidateDecomposeCandidates_PopulatesLegacyComplexityFields(t *testing.T) {
+	candidates := []BeadCandidate{
+		{
+			Title:          "Split auth orchestration",
+			Description:    "Touches handlers and migrations",
+			EstimatedFiles: 8,
+		},
+	}
+
+	result := ValidateDecomposeCandidates(candidates)
+
+	if result.HighComplexityCount != result.ComplexityOutcome.HighCount {
+		t.Fatalf("HighComplexityCount = %d, want %d", result.HighComplexityCount, result.ComplexityOutcome.HighCount)
+	}
+	if len(result.HighComplexity) != len(result.ComplexityOutcome.HighComplexity) {
+		t.Fatalf("HighComplexity len = %d, want %d", len(result.HighComplexity), len(result.ComplexityOutcome.HighComplexity))
+	}
+	if len(result.ComplexityReasons) != len(result.ComplexityOutcome.AggregateReasons) {
+		t.Fatalf("ComplexityReasons len = %d, want %d", len(result.ComplexityReasons), len(result.ComplexityOutcome.AggregateReasons))
+	}
+}
