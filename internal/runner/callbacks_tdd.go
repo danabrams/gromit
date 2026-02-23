@@ -162,7 +162,10 @@ func buildRunRefactorFn(cfg *config.Config, renderer *prompt.Renderer, router *p
 		if bc != nil {
 			bc.Tier = cfg.PhaseModelTier("refactor", bc.Tier)
 		}
-		rules, _ := renderer.LoadRulesForPhase("refactor")
+		rules, err := renderer.LoadRulesForPhase("refactor")
+		if err != nil {
+			return err
+		}
 		refactorCtx := &prompt.Context{
 			Bead: bc.Bead,
 			Rules: rules,
