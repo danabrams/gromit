@@ -441,6 +441,7 @@ func toBeadCandidates(defs []beadDef) []validate.BeadCandidate {
 		candidates[i] = validate.BeadCandidate{
 			Title:              def.Title,
 			Description:        def.Description,
+			DependsOnIndex:     def.DependsOnIndex,
 			EstimatedFiles:     def.EstimatedFiles,
 			AcceptanceCriteria: def.AcceptanceCriteria,
 			ExpectedOutputs:    expectedOutputs,
