@@ -135,6 +135,9 @@ Source-reading tests (e.g., checking function text with os.ReadFile + strings.Co
 
 JSON parsing alone is not enough for LLM decomposition output. Gate paths should validate concrete quality constraints (sub-task count bounds, non-empty titles, bounded expected outputs, no degenerate parent echo) and define deterministic fallback behavior when outputs violate the contract.
 
+### 2026-02-23 | gromit-9946 | gotchas
+When adding new function calls in Go, ensure the function definition is present and correctly exported before committing. The decompose.go file pattern uses local helper functions to wrap validation calls - pair new call sites with their implementations synchronously. Run `go build ./internal/pipeline` to catch undefined references before commit.
+
 ---
 
 ## Archived
@@ -147,3 +150,4 @@ JSON parsing alone is not enough for LLM decomposition output. Gate paths should
 Use package-level `var _ Interface = (*Impl)(nil)` declarations in non-test `.go` files to enforce architectural invariants at compile time. A check inside a test function body gates test compilation only — it does not gate production builds. Avoid tests that use `os.ReadFile`+`strings.Contains` on `.go` source files — they break silently on renames/moves. Distinguish from forced-import keep-alive patterns (`var _ = Type{}`): these exist solely to prevent the compiler from removing an unused import, indicate incomplete refactoring, and should be removed. When removing package usage, search for these keep-alive patterns in the same file and related consumers.
 
 *Archived from provisional: filtered: generic engineering advice*
+

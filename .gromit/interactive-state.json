@@ -1,10 +1,10 @@
 {
   "last_retro": "0001-01-01T00:00:00Z",
-  "last_review_commit": "7587a02f7c286e98a64fae38d60eded05725f442",
+  "last_review_commit": "9aee75d2abb2897be2d103842c579b6c8b097d61",
   "pending_worktree_branches": [
     "gromit/debug-1771679122562604907",
     "gromit/plan-1771793350432726693",
     "gromit/review-1771806956027549683"
   ],
-  "updated_at": "2026-02-23T00:40:46.28690471Z"
+  "updated_at": "2026-02-23T07:55:07.538513192Z"
 }
