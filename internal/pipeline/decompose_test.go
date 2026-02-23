@@ -214,6 +214,93 @@ func TestDecomposeWorkflow_ProviderReturnsEmptyOutput(t *testing.T) {
 	}
 }
 
+func TestDecomposeWorkflow_DoesNotMarkPlanDecomposedWhenTaskCoverageIsIncomplete(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	planPath := filepath.Join(plansDir, "coverage-gap.md")
+	planContent := `---
+id: coverage-gap
+---
+
+# Coverage Gap Plan
+
+### Task 1: Add benchmark CLI surface and flags
+### Task 2: Implement manifest model and parser
+### Task 3: Build deterministic per-mode execution in isolated worktrees
+`
+	if err := os.WriteFile(planPath, []byte(planContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	mockClaude := &decomposeAcceptanceClaudeClient{
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output: `[
+					{
+						"title": "Add benchmark CLI command and flag parsing",
+						"description": "Create benchmark command and run subcommand",
+						"priority": "P1",
+						"acceptance_criteria": ["CLI accepts benchmark flags"],
+						"depends_on_index": []
+					},
+					{
+						"title": "Implement benchmark manifest parsing and validation",
+						"description": "Parse benchmark YAML with validation",
+						"priority": "P1",
+						"acceptance_criteria": ["Manifest parsing works"],
+						"depends_on_index": [0]
+					}
+				]`,
+			}, nil
+		},
+	}
+
+	createCalls := 0
+	mockBead := &decomposeAcceptanceBeadClient{
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+			createCalls++
+			return &BeadInfo{ID: "bead-1", Title: title, Priority: priority, Labels: labels}, nil
+		},
+	}
+
+	p := New(&Deps{
+		ClaudeClient: mockClaude,
+		BeadClient:   mockBead,
+	}, &Paths{
+		GromitDir: tmpDir,
+		PlansDir:  plansDir,
+	})
+
+	_, err := p.Decompose(context.Background(), DecomposeInput{PlanName: "coverage-gap"})
+	if err == nil {
+		t.Fatal("Decompose() returned nil error, want coverage error")
+	}
+	if !strings.Contains(err.Error(), "incomplete decomposition coverage") {
+		t.Fatalf("Decompose() error = %v, want incomplete decomposition coverage error", err)
+	}
+	if createCalls != 0 {
+		t.Fatalf("create calls = %d, want 0 when task coverage validation fails", createCalls)
+	}
+
+	planData, err := os.ReadFile(planPath)
+	if err != nil {
+		t.Fatalf("reading plan file: %v", err)
+	}
+	planStr := string(planData)
+	if strings.Contains(planStr, "decomposed: true") {
+		t.Fatal("plan frontmatter unexpectedly marked decomposed on coverage failure")
+	}
+	if strings.Contains(planStr, "decomposed_at:") {
+		t.Fatal("plan frontmatter unexpectedly includes decomposed_at on coverage failure")
+	}
+}
+
 func TestDecomposeWorkflow_RetriesOnValidationViolation(t *testing.T) {
 	tmpDir := t.TempDir()
 	plansDir := filepath.Join(tmpDir, "plans")
