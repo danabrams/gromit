@@ -1576,6 +1576,29 @@ func TestBeadDef_ExpectedOutputsDeserializesFromJSON(t *testing.T) {
 	}
 }
 
+func TestToBeadCandidates_FallsBackExpectedOutputsToAcceptanceCriteria(t *testing.T) {
+	defs := []beadDef{
+		{
+			Title:              "Legacy bead",
+			Description:        "missing expected_outputs",
+			AcceptanceCriteria: []string{"criterion 1", "criterion 2"},
+		},
+	}
+
+	candidates := toBeadCandidates(defs)
+	if len(candidates) != 1 {
+		t.Fatalf("len(candidates) = %d, want 1", len(candidates))
+	}
+
+	got := candidates[0].ExpectedOutputs
+	if len(got) != 2 {
+		t.Fatalf("ExpectedOutputs len = %d, want 2", len(got))
+	}
+	if got[0] != "criterion 1" || got[1] != "criterion 2" {
+		t.Fatalf("ExpectedOutputs = %v, want [criterion 1 criterion 2]", got)
+	}
+}
+
 // TestDecomposePrompt_MentionsExpectedOutputs verifies the decompose prompt instructs
 // the LLM to populate expected_outputs with fine-grained deliverables for TDD cycles.
 func TestDecomposePrompt_MentionsExpectedOutputs(t *testing.T) {
