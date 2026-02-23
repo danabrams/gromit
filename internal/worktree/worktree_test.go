@@ -1488,3 +1488,25 @@ func contains(slice []string, target string) bool {
 	}
 	return false
 }
+
+func TestSessionWorktreeContentionContractDocumented(t *testing.T) {
+	decisionPath := filepath.Join("..", "..", "docs", "plans", "2026-02-23-session-worktree-contention-contract.md")
+	content, err := os.ReadFile(decisionPath)
+	if err != nil {
+		t.Fatalf("read decision record %q: %v", decisionPath, err)
+	}
+
+	doc := string(content)
+	requiredSnippets := []string{
+		"Retryable contention classes",
+		"Terminal (non-retryable) classes",
+		"Ambiguous failure handling",
+		"Cross-version and environment behavior",
+		"gromit-1fjzj",
+	}
+	for _, snippet := range requiredSnippets {
+		if !strings.Contains(doc, snippet) {
+			t.Fatalf("decision record missing required section/snippet %q", snippet)
+		}
+	}
+}
