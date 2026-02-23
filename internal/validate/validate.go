@@ -68,6 +68,11 @@ type ValidationResult struct {
 	Violations        []Violation
 	ComplexityResults []ComplexityResult
 	ComplexityOutcome ComplexityOutcome
+
+	// Legacy fields kept for backward compatibility with older call sites.
+	HighComplexityCount int
+	HighComplexity      []CandidateComplexityResult
+	ComplexityReasons   []string
 }
 
 // CheckBatchContract validates batch-level constraints on the full set of decomposed beads.
@@ -115,6 +120,9 @@ func ValidateDecomposeCandidates(beads []BeadCandidate) ValidationResult {
 	}
 
 	result.ComplexityOutcome.HighCount = len(result.ComplexityOutcome.HighComplexity)
+	result.HighComplexityCount = result.ComplexityOutcome.HighCount
+	result.HighComplexity = result.ComplexityOutcome.HighComplexity
+	result.ComplexityReasons = result.ComplexityOutcome.AggregateReasons
 	return result
 }
 
