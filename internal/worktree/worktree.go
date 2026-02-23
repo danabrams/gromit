@@ -287,5 +287,8 @@ func isSessionContentionErr(err error) bool {
 	if strings.Contains(msg, "already used by worktree") {
 		return true
 	}
+	if strings.Contains(msg, "already registered as a worktree") {
+		return true
+	}
 	return false
 }
