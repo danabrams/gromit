@@ -146,7 +146,7 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 		return pipeline.Output{}, fmt.Errorf("build: rendering prompt: %w", err)
 	}
 
-	beadTier := in.Config.SelectTier(in.Bead.Priority, in.Bead.Labels)
+	beadTier := in.Config.SelectInitialTierForComplexity(in.Complexity)
 	phase := "build"
 	if methodology == MethodologyRefactor {
 		phase = "refactor"

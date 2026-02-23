@@ -393,6 +393,7 @@ func TestBuildStage_Run_ReturnsOriginalAndActualTier(t *testing.T) {
 
 	in := makeInput(&bead.Bead{ID: "bead-1", Title: "Fix bug", Priority: 2}, cfg)
 	in.EscalationEnabled = true
+	in.Complexity = "low"
 
 	out, err := stage.Run(context.Background(), in)
 	if err != nil {
@@ -459,6 +460,7 @@ func TestBuildStage_EscalationEnabled_RetriesWithNextTierOnFailure(t *testing.T)
 	b := &bead.Bead{ID: "bead-1", Title: "Fix bug", Priority: 2, Labels: []string{}}
 	in := makeInput(b, cfg)
 	in.EscalationEnabled = true
+	in.Complexity = "low"
 
 	out, err := stage.Run(context.Background(), in)
 	if err != nil {
@@ -563,6 +565,7 @@ func TestBuildStage_LegacyModelChain_EscalatesToAbstractTier(t *testing.T) {
 	b := &bead.Bead{ID: "bead-1", Title: "Fix bug", Priority: 2, Labels: []string{}}
 	in := makeInput(b, cfg)
 	in.EscalationEnabled = true
+	in.Complexity = "low"
 
 	out, err := stage.Run(context.Background(), in)
 	if err != nil {
@@ -600,6 +603,7 @@ func TestBuildStage_EscalationEnabled_FailsWhenAllTiersExhausted(t *testing.T) {
 	b := &bead.Bead{ID: "bead-1", Title: "Fix bug", Priority: 2, Labels: []string{}}
 	in := makeInput(b, cfg)
 	in.EscalationEnabled = true
+	in.Complexity = "low"
 
 	_, err := stage.Run(context.Background(), in)
 	if err == nil {
