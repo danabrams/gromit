@@ -205,6 +205,8 @@ runLoop:
 			BeadTitle:    b.Title,
 			Success:      true,
 			Model:        buildOut.Model,
+			OriginalTier: buildOut.OriginalTier,
+			ActualTier:   buildOut.ActualTier,
 			DurationMs:   buildOut.DurationMs,
 			CostUSD:      buildOut.CostUSD,
 			InputTokens:  buildOut.InputTokens,
