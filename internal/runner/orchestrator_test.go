@@ -214,6 +214,60 @@ func TestOrchestrator_SuccessPath_CarriesBuildCostAndTokensToIterationLog(t *tes
 	}
 }
 
+// TestOrchestrator_SuccessPath_CarriesBuildTiersToIterationLog verifies that
+// OriginalTier and ActualTier from Build stage output are propagated into
+// IterationLog on the success path.
+func TestOrchestrator_SuccessPath_CarriesBuildTiersToIterationLog(t *testing.T) {
+	var capturedResult *logger.IterationLog
+
+	build := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{
+			Decision:     pipeline.Proceed,
+			OriginalTier: "low",
+			ActualTier:   "medium",
+		}, nil
+	}}
+	epilogueStage := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		if in.Result != nil {
+			capturedResult = in.Result
+		}
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-3", Title: "Tier test bead"}, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     &fakeStage{},
+		Build:    build,
+		Validate: &fakeStage{},
+		Epilogue: epilogueStage,
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if capturedResult == nil {
+		t.Fatal("Epilogue Result is nil; want IterationLog populated on success path")
+	}
+	if capturedResult.OriginalTier != "low" {
+		t.Errorf("IterationLog.OriginalTier = %q, want %q", capturedResult.OriginalTier, "low")
+	}
+	if capturedResult.ActualTier != "medium" {
+		t.Errorf("IterationLog.ActualTier = %q, want %q", capturedResult.ActualTier, "medium")
+	}
+}
+
 // TestRunner_RunMethod_Removed verifies that the legacy Runner.Run method has been
 // removed as part of the architecture migration to Orchestrator. All loop execution
 // now flows through Orchestrator.Run. This test prevents accidental reintroduction.
