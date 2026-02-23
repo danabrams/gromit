@@ -140,7 +140,8 @@ func ScoreCandidate(bead BeadCandidate) ComplexityResult {
 	descriptionHasScopeSignal := containsScopeSignal(bead.Description)
 	if titleHasScopeSignal {
 		result.Reasons = append(result.Reasons, "contains broad-scope language in title")
-	} else if descriptionHasScopeSignal {
+	}
+	if descriptionHasScopeSignal {
 		result.Reasons = append(result.Reasons, "contains broad-scope language in description")
 	}
 	if len(result.Reasons) > 0 {
