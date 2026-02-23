@@ -926,3 +926,54 @@ func TestDecomposerAdapter_Decompose_RejectsDuplicateExpectedOutputs(t *testing.
 		t.Fatalf("close calls = %d, want 0 when contract is violated", closeCalls)
 	}
 }
+
+func TestDecomposerAdapter_Decompose_RejectsExpectedOutputThatEchoesParentTitle(t *testing.T) {
+	stub := &stubRunProvider{
+		name: "test-provider",
+		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
+			return &provider.Result{
+				Success: true,
+				Output: `[
+					{"title":"Part 1","expected_outputs":["Oversized Feature"]},
+					{"title":"Part 2","expected_outputs":["f2"]}
+				]`,
+			}, nil
+		},
+	}
+	router := provider.NewSingleProviderRouter(stub)
+	client, err := bead.NewClient()
+	if err != nil {
+		t.Fatalf("bead.NewClient: %v", err)
+	}
+	createCalls := 0
+	closeCalls := 0
+	client.RunFn = func(args ...string) (string, error) {
+		if len(args) == 0 {
+			return "", nil
+		}
+		switch args[0] {
+		case "create":
+			createCalls++
+			return `{"id":"child-1","title":"part","status":"open"}`, nil
+		case "close":
+			closeCalls++
+		}
+		return "", nil
+	}
+
+	adapter := &decomposerAdapter{beads: client, router: router}
+	err = adapter.Decompose(context.Background(), &bead.Bead{
+		ID:       "parent-1",
+		Title:    "Oversized Feature",
+		Priority: 1,
+	})
+	if err == nil {
+		t.Fatal("Decompose() error = nil, want contract violation for parent-title echo in expected output")
+	}
+	if createCalls != 0 {
+		t.Fatalf("create calls = %d, want 0 when contract is violated", createCalls)
+	}
+	if closeCalls != 0 {
+		t.Fatalf("close calls = %d, want 0 when contract is violated", closeCalls)
+	}
+}
