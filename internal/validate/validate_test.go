@@ -564,6 +564,51 @@ func TestCheckBeads_NoEmptyExpectedOutputs_NoOutputEmptyViolation(t *testing.T) 
 	}
 }
 
+// TestCheckBeads_DuplicateExpectedOutputs_ViolatesOutputDuplicate tests that duplicate expected outputs within a bead are flagged
+func TestCheckBeads_DuplicateExpectedOutputs_ViolatesOutputDuplicate(t *testing.T) {
+	beads := []BeadCandidate{
+		{
+			Title:           "Bead with duplicates",
+			Description:     "Same output appears twice",
+			ExpectedOutputs: []string{"output A", "output B", "output A"},
+		},
+	}
+
+	violations := CheckBeads(beads)
+
+	found := false
+	for _, v := range violations {
+		if v.Rule == "output_duplicate" {
+			found = true
+			if v.BeadIndex != 0 {
+				t.Errorf("BeadIndex = %d, want 0", v.BeadIndex)
+			}
+		}
+	}
+	if !found {
+		t.Error("expected output_duplicate violation for bead with duplicate expected outputs")
+	}
+}
+
+// TestCheckBeads_NoDuplicateExpectedOutputs_NoOutputDuplicateViolation tests that unique outputs are not flagged
+func TestCheckBeads_NoDuplicateExpectedOutputs_NoOutputDuplicateViolation(t *testing.T) {
+	beads := []BeadCandidate{
+		{
+			Title:           "Clean bead",
+			Description:     "All unique outputs",
+			ExpectedOutputs: []string{"output A", "output B", "output C"},
+		},
+	}
+
+	violations := CheckBeads(beads)
+
+	for _, v := range violations {
+		if v.Rule == "output_duplicate" {
+			t.Errorf("unexpected output_duplicate violation for bead with unique outputs")
+		}
+	}
+}
+
 // TestCheckBeads_SiblingOverlap_NonOverlappingSubstrings tests that partial word matches don't trigger false positives
 func TestCheckBeads_SiblingOverlap_NonOverlappingSubstrings(t *testing.T) {
 	beads := []BeadCandidate{
