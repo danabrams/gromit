@@ -178,7 +178,12 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 		if err != nil {
 			fmt.Fprintf(w, "Warning: failed to list pending branches: %v\n", err)
 		} else {
+			seen := make(map[string]struct{}, len(branches))
 			for _, branch := range branches {
+				if _, ok := seen[branch]; ok {
+					continue
+				}
+				seen[branch] = struct{}{}
 				if err := e.worktree.MergeBack(branch); err != nil {
 					fmt.Fprintf(w, "Warning: failed to merge branch %s: %v\n", branch, err)
 				}
