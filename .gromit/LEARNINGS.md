@@ -162,6 +162,16 @@ If reprompt instructions require preserving fields such as `depends_on_index` an
 *Related to: review-1771839601749019692*
 
 Decomposition/validation contract fields should move together across pipeline mapping and reprompt rendering. Propagating `depends_on_index` into `validate.BeadCandidate` and showing both `depends_on_index` plus `expected_outputs` in reprompt candidate context keeps model repair loops aligned with validator expectations and reduces avoidable retries.
+
+### 2026-02-23 | SESSION_WORKTREE_LIFECYCLE_ORDER_MUST_MATCH_HANDBACK_CONTRACT | ARCHITECTURE
+*Related to: gromit-9948*
+
+Session worktree flow must preserve the documented order (create -> callback -> record pending -> merge attempt -> cleanup or conflict handoff). Pre-removing the session directory before merge/resolve can invalidate retry assumptions and break conflict-resolution tooling that expects a live session context.
+
+### 2026-02-23 | WORKTREE_CLEANUP_NEEDS_SINGLE_OWNERSHIP | ARCHITECTURE
+*Related to: gromit-9949*
+
+Cleanup responsibilities should have one clear owner. Splitting deletion between launcher orchestration and manager merge routines introduces duplicated side effects, hidden failure modes, and harder-to-reason recovery behavior.
 ---
 
 ## Archived
