@@ -147,11 +147,14 @@ runLoop:
 			// Bead is skipped or blocked; run Epilogue in the failure path for
 			// cleanup and logging (e.g. status write, iteration log).
 			baseIn.Result = &logger.IterationLog{
-				Timestamp: time.Now(),
-				Iteration: iteration,
-				BeadID:    b.ID,
-				BeadTitle: b.Title,
-				Success:   false,
+				Timestamp:                time.Now(),
+				Iteration:                iteration,
+				BeadID:                   b.ID,
+				BeadTitle:                b.Title,
+				Success:                  false,
+				Complexity:               baseIn.Complexity,
+				ComplexitySource:         baseIn.ComplexitySource,
+				ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 			}
 			o.runEpilogue(ctx, baseIn, false)
 			continue
@@ -162,11 +165,14 @@ runLoop:
 		if buildErr != nil {
 			o.logf("Warning: build failed for bead %s (iteration %d): %v", b.ID, iteration, buildErr)
 			baseIn.Result = &logger.IterationLog{
-				Timestamp: time.Now(),
-				Iteration: iteration,
-				BeadID:    b.ID,
-				BeadTitle: b.Title,
-				Success:   false,
+				Timestamp:                time.Now(),
+				Iteration:                iteration,
+				BeadID:                   b.ID,
+				BeadTitle:                b.Title,
+				Success:                  false,
+				Complexity:               baseIn.Complexity,
+				ComplexitySource:         baseIn.ComplexitySource,
+				ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 			}
 			o.runEpilogue(ctx, baseIn, false)
 			continue
@@ -179,11 +185,14 @@ runLoop:
 			validationFailures = validateOut.ValidationFailures
 			baseIn.FailureOutput = strings.Join(validateOut.ValidationFailures, "\n")
 			baseIn.Result = &logger.IterationLog{
-				Timestamp: time.Now(),
-				Iteration: iteration,
-				BeadID:    b.ID,
-				BeadTitle: b.Title,
-				Success:   false,
+				Timestamp:                time.Now(),
+				Iteration:                iteration,
+				BeadID:                   b.ID,
+				BeadTitle:                b.Title,
+				Success:                  false,
+				Complexity:               baseIn.Complexity,
+				ComplexitySource:         baseIn.ComplexitySource,
+				ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 			}
 			o.runEpilogue(ctx, baseIn, false)
 			continue
