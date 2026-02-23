@@ -87,7 +87,7 @@ func parsePhaseAnnotation(headerLine string) []string {
 	parts := strings.Split(phaseStr, ",")
 	var phases []string
 	for _, p := range parts {
-		p = strings.TrimSpace(p)
+		p = strings.ToLower(strings.TrimSpace(p))
 		if p != "" {
 			phases = append(phases, p)
 		}
@@ -101,6 +101,7 @@ func sectionMatchesPhase(phases []string, phase string) bool {
 	if phases == nil {
 		return true
 	}
+	phase = strings.ToLower(phase)
 	for _, p := range phases {
 		if p == phase {
 			return true
