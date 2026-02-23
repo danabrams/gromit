@@ -48,6 +48,17 @@ func TestBuildReprompt_RequestsSameJSONFormat(t *testing.T) {
 	}
 }
 
+func TestBuildReprompt_RequestsExpectedOutputsContractFields(t *testing.T) {
+	prompt := BuildReprompt("original prompt", nil, []Violation{{BeadIndex: 0, Rule: "x", Message: "y"}})
+
+	if !strings.Contains(prompt, "expected_outputs") {
+		t.Fatalf("expected reprompt to require expected_outputs field, got:\n%s", prompt)
+	}
+	if !strings.Contains(prompt, "depends_on_index") {
+		t.Fatalf("expected reprompt to require depends_on_index field, got:\n%s", prompt)
+	}
+}
+
 func TestBuildComplexityRepromptFeedback_IncludesAllCandidateReasons(t *testing.T) {
 	feedback := BuildComplexityRepromptFeedback([]CandidateComplexityResult{
 		{
