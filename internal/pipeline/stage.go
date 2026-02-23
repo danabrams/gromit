@@ -58,6 +58,12 @@ type Input struct {
 	// set by the orchestrator before calling Epilogue on the failure path.
 	// Used by FailureLearner to call the analyzer with meaningful failure context.
 	FailureOutput string
+	// Complexity is the normalized complexity selected by Gate for Build routing.
+	Complexity string
+	// ComplexitySource identifies where Complexity came from (e.g. scope_estimate, label, fallback).
+	ComplexitySource string
+	// ComplexityFallbackReason explains why fallback complexity was used when applicable.
+	ComplexityFallbackReason string
 }
 
 // PhaseMetric holds LLM invocation metrics for a single TDD phase (e.g. red, green, refactor).
