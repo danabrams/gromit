@@ -313,10 +313,17 @@ func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 func scopeGateChildDedupeLabel(parentID string, sb scopeGateSubBead) string {
 	const prefix = "scope_decomp:"
 
-	outputs := append([]string(nil), sb.ExpectedOutputs...)
+	outputs := make([]string, 0, len(sb.ExpectedOutputs))
+	for _, output := range sb.ExpectedOutputs {
+		outputs = append(outputs, normalizeScopeGateDedupeText(output))
+	}
 	sort.Strings(outputs)
-	sum := sha1.Sum([]byte(parentID + "\x00" + strings.TrimSpace(sb.Title) + "\x00" + strings.Join(outputs, "\x00")))
+	sum := sha1.Sum([]byte(parentID + "\x00" + normalizeScopeGateDedupeText(sb.Title) + "\x00" + strings.Join(outputs, "\x00")))
 	return prefix + hex.EncodeToString(sum[:8])
+}
+
+func normalizeScopeGateDedupeText(input string) string {
+	return strings.Join(strings.Fields(input), " ")
 }
 
 func (a *decomposerAdapter) hasCreatedChildKey(parentID, key string) bool {
