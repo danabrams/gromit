@@ -52,6 +52,11 @@ func BuildComplexityRepromptFeedback(highComplexity []CandidateComplexityResult)
 	return sb.String()
 }
 
+// BuildComplexityReprompt is the entry point for generating complexity-only reprompt guidance.
+func BuildComplexityReprompt(highComplexity []CandidateComplexityResult) string {
+	return BuildComplexityRepromptFeedback(highComplexity)
+}
+
 // BuildReprompt builds a focused re-decompose prompt after validation failures.
 func BuildReprompt(originalPrompt string, candidates []BeadCandidate, violations []Violation) string {
 	var sb strings.Builder
