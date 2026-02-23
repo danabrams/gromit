@@ -276,3 +276,24 @@ func TestGeminiSchemaNotesFixture_ReferencesModelArtifactsAndTokenCostEvidence(t
 		}
 	}
 }
+
+func TestGeminiPromptDeliveryFixtures_CaptureRawArtifactsPerPromptMode(t *testing.T) {
+	dir := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "prompt-delivery")
+	required := []string{
+		"inline-small.stdout.txt",
+		"inline-small.stderr.txt",
+		"inline-large.stdout.txt",
+		"inline-large.stderr.txt",
+		"stdin-pipe.stdout.txt",
+		"stdin-pipe.stderr.txt",
+		"prompt-file-ref.stdout.txt",
+		"prompt-file-ref.stderr.txt",
+	}
+
+	for _, name := range required {
+		path := filepath.Join(dir, name)
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("expected prompt-delivery artifact %q: %v", name, err)
+		}
+	}
+}
