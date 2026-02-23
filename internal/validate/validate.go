@@ -102,26 +102,39 @@ func ValidateDecomposeCandidates(beads []BeadCandidate) ValidationResult {
 	}
 
 	for _, bead := range beads {
-		classification := "low"
-		reasons := []string{}
-		if bead.EstimatedFiles > highComplexityFileThreshold {
-			classification = "high"
-			reasons = append(reasons, fmt.Sprintf("estimated_files=%d crosses the high-complexity threshold", bead.EstimatedFiles))
+		score := ScoreCandidate(bead)
+		if score.Classification == "high" {
 			result.ComplexityOutcome.HighComplexity = append(result.ComplexityOutcome.HighComplexity, CandidateComplexityResult{
-				Title:   bead.Title,
-				Reasons: append([]string(nil), reasons...),
+				Title:   score.Title,
+				Reasons: append([]string(nil), score.Reasons...),
 			})
-			result.ComplexityOutcome.AggregateReasons = append(result.ComplexityOutcome.AggregateReasons, reasons...)
+			result.ComplexityOutcome.AggregateReasons = append(result.ComplexityOutcome.AggregateReasons, score.Reasons...)
 		}
 
-		result.ComplexityResults = append(result.ComplexityResults, ComplexityResult{
-			Title:          bead.Title,
-			Classification: classification,
-			Reasons:        reasons,
-		})
+		result.ComplexityResults = append(result.ComplexityResults, score)
 	}
 
 	result.ComplexityOutcome.HighCount = len(result.ComplexityOutcome.HighComplexity)
+	return result
+}
+
+// ScoreCandidate classifies one candidate's complexity and records scoring reasons.
+func ScoreCandidate(bead BeadCandidate) ComplexityResult {
+	result := ComplexityResult{
+		Title:          bead.Title,
+		Classification: "low",
+	}
+
+	if bead.EstimatedFiles > highComplexityFileThreshold {
+		result.Reasons = append(result.Reasons, fmt.Sprintf("estimated_files=%d crosses the high-complexity threshold", bead.EstimatedFiles))
+	}
+	if containsScopeSignal(bead.Title) || containsScopeSignal(bead.Description) {
+		result.Reasons = append(result.Reasons, "contains broad-scope language in title or description")
+	}
+	if len(result.Reasons) > 0 {
+		result.Classification = "high"
+	}
+
 	return result
 }
 
