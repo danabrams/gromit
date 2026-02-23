@@ -1250,6 +1250,39 @@ func TestCreateSessionWorktree_FailsImmediatelyOnNonContentionAlreadyExists(t *t
 	}
 }
 
+func TestCreateSessionWorktree_RetryExhaustionOnWorktreeCollision(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "repo")
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	attempts := 0
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		if len(args) >= 2 && args[0] == "worktree" && args[1] == "add" {
+			attempts++
+			return "", errors.New("fatal: '/tmp/repo-gromit-review-100' is already registered as a worktree")
+		}
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	_, err = m.CreateSessionWorktree("review")
+	if err == nil {
+		t.Fatal("CreateSessionWorktree() error = nil, want non-nil")
+	}
+	if attempts != maxSessionCreateRetries {
+		t.Fatalf("expected %d retries for worktree collision, got %d", maxSessionCreateRetries, attempts)
+	}
+	if !strings.Contains(err.Error(), "already registered as a worktree") {
+		t.Fatalf("expected error to preserve root cause, got: %v", err)
+	}
+}
+
 // contains checks if a string slice contains a specific string.
 func contains(slice []string, target string) bool {
 	for _, s := range slice {
