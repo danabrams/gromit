@@ -893,6 +893,34 @@ func TestValidateDecomposeCandidates_PreservesFormatScopeOverlapViolations(t *te
 	}
 }
 
+func TestValidateDecomposeCandidates_BroadScopeLanguageFlagsHighComplexityWithoutLargeEstimate(t *testing.T) {
+	candidates := []BeadCandidate{
+		{
+			Title:              "Refactor entire authentication system",
+			Description:        "Sweep across all packages for consistency",
+			EstimatedFiles:     1,
+			AcceptanceCriteria: []string{"Existing auth flows still pass"},
+		},
+	}
+
+	result := ValidateDecomposeCandidates(candidates)
+
+	if result.ComplexityOutcome.HighCount != 1 {
+		t.Fatalf("ComplexityOutcome.HighCount = %d, want 1", result.ComplexityOutcome.HighCount)
+	}
+	if len(result.ComplexityOutcome.HighComplexity) != 1 {
+		t.Fatalf("ComplexityOutcome.HighComplexity len = %d, want 1", len(result.ComplexityOutcome.HighComplexity))
+	}
+
+	high := result.ComplexityOutcome.HighComplexity[0]
+	if len(high.Reasons) == 0 {
+		t.Fatal("expected high complexity reasons to include broad-scope language signal")
+	}
+	if high.Reasons[0] != "broad-scope language indicates oversized task" {
+		t.Fatalf("high.Reasons[0] = %q, want %q", high.Reasons[0], "broad-scope language indicates oversized task")
+	}
+}
+
 func TestValidateDecomposeOutput_RuntimeModeIncludesBatchAndParentEcho(t *testing.T) {
 	candidates := []BeadCandidate{
 		{
