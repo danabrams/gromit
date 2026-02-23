@@ -132,7 +132,7 @@ func TestDecomposerAdapter_DecomposeSucceeds(t *testing.T) {
 		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
 			return &provider.Result{
 				Success: true,
-				Output:  `[{"title":"Part 1","expected_outputs":["f1","f2","f3"]}]`,
+				Output:  `[{"title":"Part 1","expected_outputs":["f1","f2","f3"]},{"title":"Part 2","expected_outputs":["f4","f5"]}]`,
 			}, nil
 		},
 	})
@@ -248,7 +248,7 @@ func TestDecomposerAdapter_Decompose_InheritsBuildStrategyLabelFromParent(t *tes
 		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
 			return &provider.Result{
 				Success: true,
-				Output:  `[{"title":"Part 1","expected_outputs":["f1","f2"]}]`,
+				Output:  `[{"title":"Part 1","expected_outputs":["f1","f2"]},{"title":"Part 2","expected_outputs":["f3","f4"]}]`,
 			}, nil
 		},
 	})
