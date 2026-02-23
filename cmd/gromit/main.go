@@ -123,7 +123,7 @@ within that scope. Without either flag, all beads are included (default behavior
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", "gromit.yaml", "Path to config file")
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
-		if cmd.Name() == initCmd.Name() || isBenchmarkCommand(cmd) {
+		if !commandRequiresRepoRoot(cmd) {
 			return nil
 		}
 		return ensureRepoRoot()
@@ -145,6 +145,16 @@ func init() {
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(statusCmd)
 	rootCmd.AddCommand(retroCmd)
+}
+
+func commandRequiresRepoRoot(cmd *cobra.Command) bool {
+	if cmd == initCmd {
+		return false
+	}
+	if isBenchmarkCommand(cmd) {
+		return false
+	}
+	return true
 }
 
 func isBenchmarkCommand(cmd *cobra.Command) bool {

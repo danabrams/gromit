@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/spf13/cobra"
+)
 
 func TestCommandRequiresRepoRoot_Regression(t *testing.T) {
 	tests := []struct {
