@@ -485,3 +485,21 @@ func TestRunWithSessionWorktreeConflictAgentPolicyFallsBackToManual(t *testing.T
 		t.Fatal("session worktree should be preserved after fallback to manual handoff")
 	}
 }
+
+func TestMergeConflictHandoffError_ManualIncludesActionableGitInstructions(t *testing.T) {
+	err := newManualConflictHandoffError(&worktree.SessionWorktree{
+		BranchName:  "gromit/review-444",
+		WorktreeDir: "/tmp/repo-gromit-review-444",
+	}, errors.New("merge conflict"))
+
+	msg := err.Error()
+	if !strings.Contains(msg, "git -C /tmp/repo-gromit-review-444 status") {
+		t.Fatalf("manual handoff should include status command, got: %s", msg)
+	}
+	if !strings.Contains(msg, "git merge --abort") {
+		t.Fatalf("manual handoff should include merge abort guidance, got: %s", msg)
+	}
+	if !strings.Contains(msg, "gromit/review-444") {
+		t.Fatalf("manual handoff should include branch name, got: %s", msg)
+	}
+}

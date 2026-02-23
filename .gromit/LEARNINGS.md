@@ -34,36 +34,27 @@ Contract tests consume canonical provider fixtures under test/fixtures/ using sc
 
 Stage-based orchestration should keep business logic in stages with typed I/O, dependency injection via builder methods, and explicit inter-stage state flow. Optional dependencies may soft-fail with warnings only when explicitly optional; critical contracts (validation output, touched package carryover, iteration numbering) require deterministic tests.
 
+### 2026-02-23 | Decomposition Contract & State Safety | architecture
+*Related to: review-1771788120407657627, review-1771797265171555605*
+
+Scope-gate decomposition must enforce strict output contracts (bounded sub-task count, non-empty titles/expected outputs, no parent-echo), and execution must be state-safe/idempotent (deduped re-entry or rollback on partial child creation). Decomposition failures should have deterministic fallback semantics and explicit error handling paths. Error propagation in gate.go uses errors (not fall-through to Block) for transient failures. Minimal decomposerAdapter creates single-child beads; real decomposition intelligence comes from the pipeline.Decompose() path.
+
 ---
 
 ## Provisional
 
 *Seen once - may be specific to one task.*
 
-### 2026-02-20 | Cost/Token Accounting Needs Consistent Delta Semantics | gotchas
-*Related to: code-review*
-
-Cost/token tracking uses inconsistent accumulation patterns: (1) PhaseMetric recording — the green phase uses before/after usage snapshots via snapshotIterationUsage() but red and refactor phases use recordPhaseMetric() without snapshots, mixing per-phase deltas with raw values. (2) Codex stream events — turn.completed overwrites usage while response.completed and result events merge via mergeCodexUsage(). Both patterns should use explicit before/after snapshots for phases and consistent merge semantics for stream events to make cost attribution reliable for retrospective analysis.
-
-### 2026-02-22 | Orchestrator Migration Safety & Parity | conventions
-*Related to: code-review, review-1771733992016921570*
-
-Orchestrator migration must preserve behavior parity with legacy Runner while dual paths coexist. Enforce migration safety checks: complete call-site migration before deletion, verify exported symbol reachability, compile acceptance-tagged tests (go test -tags acceptance -run '^$' ./...), remove keep-alive forced imports, and add parity tests for cost tracking/state saving across both paths until legacy removal.
+*(empty — all provisional entries consolidated or archived)*
 
 ## Emerging
 
 *Newly observed — needs validation across more tasks.*
 
-
 ### 2026-02-22 | SPC Display Formatting Two-Tier Pattern | patterns
 *Related to: review-1771784092725425988*
 
 SPC (Statistical Process Control) formatting follows a two-tier pattern: formatSPCSummary orchestrates sections (window, control limits, anomalies), while formatSPCLine/formatSPCValue handle individual metric values. simplifySPCMetric provides human-friendly labels for anomaly display (e.g., "rolling_success_rate" → "success"). Keep metric name constants in sync between the logger package (which produces them) and the runner/format package (which displays them) — string-based coupling requires test coverage since there's no compile-time check.
-
-### 2026-02-22 | Interface Evolution Through Signature Changes | patterns
-*Related to: review-1771784092725425988*
-
-When evolving function signatures (e.g., StatusWriter adding a deadline parameter), propagate changes through: (1) the type definition (OrchestratorConfig), (2) all call sites (orchestrator.go), (3) all implementations (constructor.go closure), and (4) all test doubles (orchestrator_test.go fakes). The StatusWriter deadline addition was a clean example — the new parameter flowed naturally through all four layers without breaking existing behavior for callers that pass zero-value deadlines.
 
 ### 2026-02-22 | Three-Layer Requirement Extraction Fallback | patterns
 *Related to: review-1771784092725425988*
@@ -75,50 +66,16 @@ Requirement extraction uses a 3-layer fallback: Layer 1 (ExpectedOutputs field f
 
 Including expected_outputs in the decompose prompt template is high-leverage: decomposition quality determines downstream TDD cycle granularity (one red-green cycle per expected output). When the LLM doesn't produce expected_outputs, the system falls back to acceptance_criteria parsing, which may be coarser-grained. Explicitly instructing "list each individual deliverable as a separate entry — these drive TDD RED-GREEN cycles" produces fine-grained outputs that match the system's mechanical needs.
 
-### 2026-02-22 | SCOPE_GATE_ERROR_PROPAGATION_CHANGE | ARCHITECTURE
-*Related to: review-1771788120407657627*
+### 2026-02-22 | gromit-urweh.3 | conventions
+Queue output has strict section ordering conventions (auth before api) that must be preserved when modifying queue.go - test expectations document the required ordering
 
-runScopeGate in gate.go now propagates decomposition failures as errors instead of falling through to Block decision. This is a deliberate semantic shift — transient decomposition failures (network, bd CLI) will error the gate rather than blocking the bead for retry. Callers should handle gate errors accordingly.
+### 2026-02-22 | gromit-3poct | gotchas
+When a task is closed with reason 'Closed' and subtasks are created, it indicates planned decomposition rather than failure. Check subtask status for actual work state.
 
-### 2026-02-22 | DECOMPOSER_ADAPTER_MINIMAL_DECOMPOSITION | ARCHITECTURE
-*Related to: review-1771788120407657627*
+### 2026-02-23 | Failure Log Capture Completeness | gotchas
+*Related to: gromit-p0iei, gromit-n2xw8, gromit-jp44h*
 
-The decomposerAdapter implementation creates a single child bead with title "(decomposed)" suffix and closes the parent. This is a minimal decomposition — it doesn't split work into multiple sub-beads based on expected outputs. Real decomposition intelligence comes from the pipeline.Decompose() path (provider-parity-decompose-retro spec).
-
-### 2026-02-22 | TEST_HELPER_DUPLICATION_IN_GATE_TESTS | TEST_QUALITY
-*Related to: review-1771788120407657627*
-
-gate_test.go accumulated 6+ near-identical mock decomposer/bead-client types across iterative TDD work. When adding test doubles incrementally, check if existing mocks can be parameterized rather than creating new types. Per project rule: "2+ tests sharing 10+ lines of setup: extract a setup helper."
-
-### 2026-02-22 | SCOPE_GATE_DECOMPOSITION_NEEDS_STATE_SAFETY | ARCHITECTURE
-*Related to: review-1771797265171555605*
-
-Scope-gate decomposition is resilient to provider failures (falls back to Block), but sequential child creation without idempotency safeguards can leave partial state and duplicate work on retries. Decomposition paths should enforce either rollback or deduped re-entry semantics before parent close.
-
-### 2026-02-22 | BEHAVIOR_FIRST_TESTS_OVER_SOURCE_READING | TEST_QUALITY
-*Related to: review-1771797265171555605*
-
-Source-reading tests (e.g., checking function text with os.ReadFile + strings.Contains) are brittle and violate project testing guidance. Prefer behavioral assertions on public interfaces/contracts and compile-time guarantees, then use shared helpers when setup repeats.
-
-### 2026-02-22 | DECOMPOSITION_OUTPUT_CONTRACTS_MUST_BE_STRICT | CONVENTIONS
-*Related to: review-1771797265171555605*
-
-JSON parsing alone is not enough for LLM decomposition output. Gate paths should validate concrete quality constraints (sub-task count bounds, non-empty titles, bounded expected outputs, no degenerate parent echo) and define deterministic fallback behavior when outputs violate the contract.
-
-### 2026-02-23 | THOROUGH_REVIEW_PHASE_PROFILE_CONTRACTS_MUST_STAY_ALIGNED | CONVENTIONS
-*Related to: review-1771806956027549683*
-
-When introducing or evolving a review phase key (for example, `thorough_review`), keep tests aligned with the actual phase-profile contract. In this case, the profile intentionally preserves `ClaudeMD` for thorough review context, so tests should validate preservation rather than clearing.
-
-### 2026-02-23 | REVIEW_LOADER_ERRORS_SHOULD_NEVER_BE_SILENT | ARCHITECTURE
-*Related to: review-1771806956027549683*
-
-Prompt-setup loaders (`LoadRulesForPhase`, `LoadSpec`, `LoadClaudeMD`) are critical review-orchestration dependencies. Ignoring their errors leads to inconsistent prompt context and difficult diagnosis. Either propagate as hard errors (light review path) or emit structured warnings where best-effort behavior is intended (thorough review path).
-
-### 2026-02-23 | REVIEW_ROUTING_KEYS_AND_TIERS_ARE_API_CONTRACTS | PATTERNS
-*Related to: review-1771806956027549683*
-
-Routing phase keys and tier values must stay consistent across prompt loading, router selection, and tests. Treat `review` and `thorough_review` as explicit contract keys, and validate configured tier flow end-to-end to avoid subtle provider-selection drift.
+When tasks fail in gromit, ensure error_output and failure_category are populated in iteration logs. Blank failure_category indicates a logging/capture issue, not task success. Check .gromit/logs/ JSONL files and git status for implementation state when failure details are missing from the prompt.
 
 ---
 
@@ -132,3 +89,34 @@ Routing phase keys and tier values must stay consistent across prompt loading, r
 Use package-level `var _ Interface = (*Impl)(nil)` declarations in non-test `.go` files to enforce architectural invariants at compile time. A check inside a test function body gates test compilation only — it does not gate production builds. Avoid tests that use `os.ReadFile`+`strings.Contains` on `.go` source files — they break silently on renames/moves. Distinguish from forced-import keep-alive patterns (`var _ = Type{}`): these exist solely to prevent the compiler from removing an unused import, indicate incomplete refactoring, and should be removed. When removing package usage, search for these keep-alive patterns in the same file and related consumers.
 
 *Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-22 | gromit-urweh | conventions
+When analyzing task failures, always provide the actual error output or test failure logs - task status alone doesn't indicate whether implementation was successful.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-23 | gromit-xnp4e | conventions
+When requesting failure analysis, include the error message, assertion output, or failure log. Task closure status alone is insufficient to diagnose root cause.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-23 | Usage Accounting & Migration Parity (consolidated) | conventions
+*Related to: code-review, review-1771733992016921570*
+
+Usage accounting and orchestrator migration require one shared semantics path: explicit before/after phase snapshots, single stream-event merge strategy, and parity tests while legacy/new paths coexist.
+
+*Archived from provisional: codified in Build Process rules (snapshot semantics, merge strategy, telemetry completeness gate)*
+
+### 2026-02-23 | Test Helper & Behavioral Assertion Hygiene (consolidated) | test_quality
+*Related to: review-1771788120407657627, review-1771797265171555605*
+
+Test suites should prefer behavioral assertions and shared helpers over brittle source-reading checks and duplicated mock/setup scaffolding.
+
+*Archived from emerging: redundant with Test Quality rules (setup-helper extraction, source-reading ban)*
+
+### 2026-02-23 | Interface Evolution Through Signature Changes | patterns
+*Related to: review-1771784092725425988*
+
+When evolving function signatures (e.g., StatusWriter adding a deadline parameter), propagate changes through: (1) the type definition (OrchestratorConfig), (2) all call sites (orchestrator.go), (3) all implementations (constructor.go closure), and (4) all test doubles (orchestrator_test.go fakes).
+
+*Archived from emerging: generic interface-evolution advice with low project-specific leverage*
