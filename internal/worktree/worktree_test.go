@@ -1543,6 +1543,44 @@ func TestCreateSessionWorktree_RetriesWhenLockRefAmbiguousExistsCannotCreateAndB
 	}
 }
 
+func TestCreateSessionWorktree_AmbiguousProbeInconclusiveIncludesDecisionReason(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "repo")
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	origNowFn := sessionTimestampFn
+	sessionTimestampFn = func() int64 { return 100 }
+	t.Cleanup(func() { sessionTimestampFn = origNowFn })
+
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		if len(args) >= 2 && args[0] == "worktree" && args[1] == "add" {
+			return "", errors.New("fatal: cannot lock ref 'refs/heads/gromit/review-100': File exists")
+		}
+		if len(args) >= 4 && args[0] == "show-ref" && args[1] == "--verify" {
+			return "", errors.New("exit status 1")
+		}
+		if len(args) == 3 && args[0] == "worktree" && args[1] == "list" && args[2] == "--porcelain" {
+			return "worktree " + mainDir + "\nHEAD abc\nbranch refs/heads/main\n", nil
+		}
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	_, err = m.CreateSessionWorktree("review")
+	if err == nil {
+		t.Fatal("CreateSessionWorktree() error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "ambiguous_probe_inconclusive") {
+		t.Fatalf("expected error to include structured decision reason, got: %v", err)
+	}
+}
+
 func TestCreateSessionWorktree_RetriesWhenKnownContentionOnlyInGitOutput(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "repo")
