@@ -929,6 +929,31 @@ func TestValidateDecomposeOutput_RuntimeModeIncludesBatchAndParentEcho(t *testin
 	}
 }
 
+func TestValidateDecomposeOutput_RequiredFieldsParityAcrossPipelineAndRuntime(t *testing.T) {
+	candidates := []BeadCandidate{
+		{
+			Title:           "   ",
+			ExpectedOutputs: []string{"ok"},
+		},
+		{
+			Title:           "Child B",
+			ExpectedOutputs: nil,
+		},
+	}
+
+	pipeline := ValidateDecomposeOutput(candidates, DecomposeValidationModePipeline, "")
+	runtime := ValidateDecomposeOutput(candidates, DecomposeValidationModeRuntime, "Parent Feature")
+
+	for _, result := range []DecomposeOutputValidation{pipeline, runtime} {
+		if !hasViolationRule(result.Violations, "title_empty") {
+			t.Fatalf("Violations missing title_empty: %+v", result.Violations)
+		}
+		if !hasViolationRule(result.Violations, "output_missing") {
+			t.Fatalf("Violations missing output_missing: %+v", result.Violations)
+		}
+	}
+}
+
 func hasViolationRule(violations []Violation, rule string) bool {
 	for _, violation := range violations {
 		if violation.Rule == rule {
