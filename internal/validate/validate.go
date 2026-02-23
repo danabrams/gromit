@@ -104,18 +104,6 @@ func CheckBeads(beads []BeadCandidate) []Violation {
 			})
 		}
 
-		// Check for parent echo: expected output exactly matches bead title
-		for _, output := range bead.ExpectedOutputs {
-			if output == bead.Title {
-				violations = append(violations, Violation{
-					BeadIndex: i,
-					Rule:      "parent_echo",
-					Message:   "Bead has an expected output that exactly echoes the bead title",
-				})
-				break
-			}
-		}
-
 		// Check criteria count
 		if len(bead.AcceptanceCriteria) > 3 {
 			violations = append(violations, Violation{
