@@ -186,6 +186,8 @@ func (m *Manager) PendingBranches() ([]string, error) {
 		return nil, errors.New("nil Manager receiver")
 	}
 
+	checkedOut := m.checkedOutBranchesByWorktree()
+
 	// List all branches matching gromit/* pattern
 	output, err := m.runGit(m.MainDir, "for-each-ref", "--format=%(refname)", "refs/heads/gromit/")
 	if err != nil {
@@ -207,12 +209,36 @@ func (m *Manager) PendingBranches() ([]string, error) {
 				if branchName == interactiveBranchName {
 					continue
 				}
+				if _, isCheckedOut := checkedOut[branchName]; isCheckedOut {
+					continue
+				}
 				branches = append(branches, branchName)
 			}
 		}
 	}
 
 	return branches, nil
+}
+
+func (m *Manager) checkedOutBranchesByWorktree() map[string]struct{} {
+	output, err := m.runGit(m.MainDir, "worktree", "list", "--porcelain")
+	if err != nil || strings.TrimSpace(output) == "" {
+		return map[string]struct{}{}
+	}
+
+	checkedOut := make(map[string]struct{})
+	for _, line := range strings.Split(output, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, "branch refs/heads/") {
+			continue
+		}
+		branch := strings.TrimPrefix(trimmed, "branch refs/heads/")
+		if branch == "" {
+			continue
+		}
+		checkedOut[branch] = struct{}{}
+	}
+	return checkedOut
 }
 
 // MergeBack merges a completed interactive branch into the current

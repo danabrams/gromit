@@ -748,6 +748,74 @@ func TestPendingBranches_ExcludesInteractiveControlBranch(t *testing.T) {
 	}
 }
 
+func TestPendingBranches_ExcludesBranchesCheckedOutInWorktrees(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "myproject")
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		if args[0] == "worktree" && len(args) >= 3 && args[1] == "list" && args[2] == "--porcelain" {
+			return "worktree /repo\nHEAD abc\nbranch refs/heads/main\n\nworktree /repo-gromit-review\nHEAD def\nbranch refs/heads/gromit/review-123\n", nil
+		}
+		if args[0] == "for-each-ref" {
+			return "refs/heads/gromit/review-123\nrefs/heads/gromit/debug-456\n", nil
+		}
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	branches, err := m.PendingBranches()
+	if err != nil {
+		t.Fatalf("PendingBranches() error = %v", err)
+	}
+	if len(branches) != 1 {
+		t.Fatalf("PendingBranches() returned %d branches, want 1: %v", len(branches), branches)
+	}
+	if branches[0] != "gromit/debug-456" {
+		t.Fatalf("PendingBranches()[0] = %q, want %q", branches[0], "gromit/debug-456")
+	}
+}
+
+func TestPendingBranches_WorktreeProbeFailureFallsBackToBranchList(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "myproject")
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		if args[0] == "worktree" && len(args) >= 3 && args[1] == "list" && args[2] == "--porcelain" {
+			return "", errors.New("worktree listing failed")
+		}
+		if args[0] == "for-each-ref" {
+			return "refs/heads/gromit/review-123\n", nil
+		}
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	branches, err := m.PendingBranches()
+	if err != nil {
+		t.Fatalf("PendingBranches() error = %v", err)
+	}
+	if len(branches) != 1 {
+		t.Fatalf("PendingBranches() returned %d branches, want 1: %v", len(branches), branches)
+	}
+	if branches[0] != "gromit/review-123" {
+		t.Fatalf("PendingBranches()[0] = %q, want %q", branches[0], "gromit/review-123")
+	}
+}
+
 // TestMergeBack_FastForwardSuccess verifies that MergeBack performs a
 // fast-forward merge when possible and deletes the branch on success.
 func TestMergeBack_FastForwardSuccess(t *testing.T) {
