@@ -887,3 +887,53 @@ func TestValidateDecomposeCandidates_PreservesFormatScopeOverlapViolations(t *te
 		t.Fatal("expected sibling_overlap violation to remain present")
 	}
 }
+
+func TestValidateDecomposeOutput_RuntimeModeIncludesBatchAndParentEcho(t *testing.T) {
+	candidates := []BeadCandidate{
+		{
+			Title:           "Child A",
+			ExpectedOutputs: []string{"Parent Feature", "Parent Feature"},
+		},
+		{
+			Title:           "Child B",
+			ExpectedOutputs: []string{"ok"},
+		},
+		{
+			Title:           "Child C",
+			ExpectedOutputs: []string{"ok"},
+		},
+		{
+			Title:           "Child D",
+			ExpectedOutputs: []string{"ok"},
+		},
+		{
+			Title:           "Child E",
+			ExpectedOutputs: []string{"ok"},
+		},
+		{
+			Title:           "Child F",
+			ExpectedOutputs: []string{"ok"},
+		},
+	}
+
+	result := ValidateDecomposeOutput(candidates, DecomposeValidationModeRuntime, "Parent Feature")
+
+	if !hasViolationRule(result.Violations, "output_duplicate") {
+		t.Fatalf("Violations missing output_duplicate: %+v", result.Violations)
+	}
+	if !hasViolationRule(result.Violations, "parent_echo") {
+		t.Fatalf("Violations missing parent_echo: %+v", result.Violations)
+	}
+	if !hasViolationRule(result.BatchViolations, "batch_size_max") {
+		t.Fatalf("BatchViolations missing batch_size_max: %+v", result.BatchViolations)
+	}
+}
+
+func hasViolationRule(violations []Violation, rule string) bool {
+	for _, violation := range violations {
+		if violation.Rule == rule {
+			return true
+		}
+	}
+	return false
+}
