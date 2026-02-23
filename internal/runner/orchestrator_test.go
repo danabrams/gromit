@@ -268,6 +268,61 @@ func TestOrchestrator_SuccessPath_CarriesBuildTiersToIterationLog(t *testing.T) 
 	}
 }
 
+// TestOrchestrator_PropagatesGateComplexityRoutingToBuildInput verifies that
+// complexity metadata produced by Gate is copied into the Build stage input.
+func TestOrchestrator_PropagatesGateComplexityRoutingToBuildInput(t *testing.T) {
+	var buildInput pipeline.Input
+
+	gate := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{
+			Decision: pipeline.Proceed,
+			ComplexityRouting: pipeline.ComplexityRouting{
+				Complexity:               "high",
+				ComplexitySource:         "scope_estimate",
+				ComplexityFallbackReason: "none",
+			},
+		}, nil
+	}}
+	build := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		buildInput = in
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-complexity-input", Title: "Complexity input test bead"}, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     gate,
+		Build:    build,
+		Validate: &fakeStage{},
+		Epilogue: &fakeStage{},
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if buildInput.Complexity != "high" {
+		t.Errorf("Build input Complexity = %q, want %q", buildInput.Complexity, "high")
+	}
+	if buildInput.ComplexitySource != "scope_estimate" {
+		t.Errorf("Build input ComplexitySource = %q, want %q", buildInput.ComplexitySource, "scope_estimate")
+	}
+	if buildInput.ComplexityFallbackReason != "none" {
+		t.Errorf("Build input ComplexityFallbackReason = %q, want %q", buildInput.ComplexityFallbackReason, "none")
+	}
+}
+
 // TestRunner_RunMethod_Removed verifies that the legacy Runner.Run method has been
 // removed as part of the architecture migration to Orchestrator. All loop execution
 // now flows through Orchestrator.Run. This test prevents accidental reintroduction.
