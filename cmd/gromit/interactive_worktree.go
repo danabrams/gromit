@@ -151,11 +151,14 @@ func runWithSessionWorktreeWithConflictSettings(
 		return nil, fmt.Errorf("recording pending worktree branch %q: %w", session.BranchName, err)
 	}
 
-	if err := attemptMergeWithConflictPolicy(manager, stateFile, mainDir, session, conflictSettings); err != nil {
+	cleanedDuringMerge, err := attemptMergeWithConflictPolicy(manager, stateFile, mainDir, session, conflictSettings)
+	if err != nil {
 		return session, err
 	}
-	if err := interactiveWorktreeCleanupSessionFn(mainDir, session.WorktreeDir); err != nil {
-		return session, fmt.Errorf("removing session worktree for merged branch %q: %w", session.BranchName, err)
+	if !cleanedDuringMerge {
+		if err := interactiveWorktreeCleanupSessionFn(mainDir, session.WorktreeDir); err != nil {
+			return session, fmt.Errorf("removing session worktree for merged branch %q: %w", session.BranchName, err)
+		}
 	}
 
 	return session, nil
@@ -167,18 +170,18 @@ func attemptMergeWithConflictPolicy(
 	mainDir string,
 	session *worktree.SessionWorktree,
 	conflictSettings sessionConflictSettings,
-) error {
-	mergeErr := manager.MergeBack(session.BranchName)
+) (bool, error) {
+	mergeErr, cleanedDuringMerge := mergeBackWithCheckedOutBranchRecovery(manager, mainDir, session)
 	if mergeErr == nil {
-		return clearMergedState(session, stateFile)
+		return cleanedDuringMerge, clearMergedState(session, stateFile)
 	}
 
 	policy, normalizeErr := normalizeConflictPolicy(conflictSettings.Policy)
 	if normalizeErr != nil {
-		return normalizeErr
+		return cleanedDuringMerge, normalizeErr
 	}
 	if policy != conflictPolicyAgent {
-		return newManualConflictHandoffError(session, mergeErr)
+		return cleanedDuringMerge, newManualConflictHandoffError(session, mergeErr)
 	}
 
 	retryCap := normalizeRetryCap(conflictSettings.RetryCap)
@@ -195,16 +198,46 @@ func attemptMergeWithConflictPolicy(
 		}
 
 		lastResolverErr = nil
-		mergeErr = manager.MergeBack(session.BranchName)
-		if mergeErr != nil {
-			lastMergeErr = mergeErr
+		retryErr, retryCleaned := mergeBackWithCheckedOutBranchRecovery(manager, mainDir, session)
+		cleanedDuringMerge = cleanedDuringMerge || retryCleaned
+		if retryErr != nil {
+			lastMergeErr = retryErr
 			continue
 		}
 
-		return clearMergedState(session, stateFile)
+		return cleanedDuringMerge, clearMergedState(session, stateFile)
 	}
 
-	return newAgentConflictHandoffError(session, retryCap, lastMergeErr, lastResolverErr)
+	return cleanedDuringMerge, newAgentConflictHandoffError(session, retryCap, lastMergeErr, lastResolverErr)
+}
+
+func mergeBackWithCheckedOutBranchRecovery(
+	manager sessionWorktreeCreator,
+	mainDir string,
+	session *worktree.SessionWorktree,
+) (error, bool) {
+	mergeErr := manager.MergeBack(session.BranchName)
+	if mergeErr == nil {
+		return nil, false
+	}
+
+	if !isCheckedOutBranchDeleteError(mergeErr) {
+		return mergeErr, false
+	}
+
+	if err := interactiveWorktreeCleanupSessionFn(mainDir, session.WorktreeDir); err != nil {
+		return fmt.Errorf("removing session worktree for merged branch %q before merge retry: %w", session.BranchName, err), false
+	}
+
+	return manager.MergeBack(session.BranchName), true
+}
+
+func isCheckedOutBranchDeleteError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "cannot delete branch") && strings.Contains(msg, "checked out at")
 }
 
 func newManualConflictHandoffError(session *worktree.SessionWorktree, mergeErr error) *mergeConflictHandoffError {

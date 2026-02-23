@@ -348,6 +348,74 @@ func TestRunWithSessionWorktreeImmediateMergeSuccessPreRemovesBeforeMerge(t *tes
 	}
 }
 
+func TestRunWithSessionWorktreeMergeRecoversFromCheckedOutBranchDeleteError(t *testing.T) {
+	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "debug")
+	session.BranchName = "gromit/debug-123"
+
+	var (
+		mergeCalls   int
+		cleanupCalls int
+		events       []string
+	)
+
+	withInteractiveWorktreeFactories(t, func(string) (sessionWorktreeCreator, error) {
+		return &mockSessionWorktreeCreator{
+			CreateSessionWorktreeFn: func(string) (*worktree.SessionWorktree, error) {
+				return session, nil
+			},
+			MergeBackFn: func(branch string) error {
+				if branch != session.BranchName {
+					t.Fatalf("merge branch = %q, want %q", branch, session.BranchName)
+				}
+				mergeCalls++
+				events = append(events, "merge")
+				if mergeCalls == 1 {
+					return errors.New("delete merged branch gromit/debug-123: error: Cannot delete branch 'gromit/debug-123' checked out at '/tmp/wt'")
+				}
+				return nil
+			},
+		}, nil
+	}, func(string) (pendingBranchRecorder, error) {
+		return &mockPendingBranchRecorder{
+			AddPendingWorktreeBranchFn: func(string) error {
+				events = append(events, "add")
+				return nil
+			},
+			RemovePendingWorktreeBranchFn: func(string) error {
+				events = append(events, "remove")
+				return nil
+			},
+		}, nil
+	}, func(gotMainDir, gotSessionDir string) error {
+		if gotMainDir != mainDir {
+			t.Fatalf("cleanup mainDir = %q, want %q", gotMainDir, mainDir)
+		}
+		if gotSessionDir != session.WorktreeDir {
+			t.Fatalf("cleanup sessionDir = %q, want %q", gotSessionDir, session.WorktreeDir)
+		}
+		cleanupCalls++
+		events = append(events, "cleanup")
+		return nil
+	})
+
+	_, err := runWithSessionWorktree(gromitDir, "debug", func(string) error { return nil })
+	if err != nil {
+		t.Fatalf("runWithSessionWorktree() error = %v", err)
+	}
+
+	if mergeCalls != 2 {
+		t.Fatalf("merge calls = %d, want 2 (retry after cleanup)", mergeCalls)
+	}
+	if cleanupCalls != 1 {
+		t.Fatalf("cleanup calls = %d, want 1", cleanupCalls)
+	}
+
+	want := []string{"add", "merge", "cleanup", "merge", "remove"}
+	if !reflect.DeepEqual(events, want) {
+		t.Fatalf("events = %v, want %v", events, want)
+	}
+}
+
 func TestRunWithSessionWorktreeCleanupFailureReturnsErrorAfterMerge(t *testing.T) {
 	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "repair")
 	session.BranchName = "gromit/repair-111"
@@ -494,9 +562,9 @@ func TestRunWithSessionWorktreeConflictManualPolicyKeepsPendingBranch(t *testing
 	if removeCalled {
 		t.Fatal("pending branch should remain on manual conflict handoff")
 	}
-		if cleanupCalled {
-			t.Fatal("session worktree should not be removed before manual conflict handoff")
-		}
+	if cleanupCalled {
+		t.Fatal("session worktree should not be removed before manual conflict handoff")
+	}
 	if !strings.Contains(err.Error(), "manual handoff") {
 		t.Fatalf("error should contain manual handoff guidance, got: %v", err)
 	}
