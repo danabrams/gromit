@@ -1971,6 +1971,72 @@ func TestDecomposeWorkflow_CleanExitAfterComplexityRetryHasNoWarning(t *testing.
 	}
 }
 
+func TestDecomposeWorkflow_ComplexityRetryCapWithPartialImprovementMarksImproved(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plansDir, "complexity-partial-improvement.md"), []byte("# Complexity Partial Improvement"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	runCount := 0
+	mockClaude := &decomposeAcceptanceClaudeClient{
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+			runCount++
+			if runCount == 1 {
+				return &ClaudeRunResult{
+					Success:  true,
+					ExitCode: 0,
+					Output: `[
+						{"title":"Very broad task A","description":"d","priority":"P1","estimated_files":9,"acceptance_criteria":["a"],"depends_on_index":[]},
+						{"title":"Very broad task B","description":"d","priority":"P1","estimated_files":8,"acceptance_criteria":["b"],"depends_on_index":[]},
+						{"title":"Small task","description":"d","priority":"P1","estimated_files":1,"acceptance_criteria":["c"],"depends_on_index":[]}
+					]`,
+				}, nil
+			}
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output: `[
+					{"title":"Split task A","description":"d","priority":"P1","estimated_files":3,"acceptance_criteria":["a"],"depends_on_index":[]},
+					{"title":"Still broad task B","description":"d","priority":"P1","estimated_files":8,"acceptance_criteria":["b"],"depends_on_index":[]},
+					{"title":"Small task","description":"d","priority":"P1","estimated_files":1,"acceptance_criteria":["c"],"depends_on_index":[]}
+				]`,
+			}, nil
+		},
+	}
+
+	mockBead := &decomposeAcceptanceBeadClient{
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+			return &BeadInfo{ID: "bead-1"}, nil
+		},
+	}
+
+	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	result, err := p.Decompose(context.Background(), DecomposeInput{
+		PlanName:             "complexity-partial-improvement",
+		MaxValidationRetries: 1,
+	})
+	if err != nil {
+		t.Fatalf("Decompose() failed: %v", err)
+	}
+
+	if runCount != 2 {
+		t.Fatalf("Run() call count = %d, want 2", runCount)
+	}
+	if result.ValidationStats == nil {
+		t.Fatal("ValidationStats = nil, want populated")
+	}
+	if result.ValidationStats.Attempts != 2 {
+		t.Fatalf("ValidationStats.Attempts = %d, want 2", result.ValidationStats.Attempts)
+	}
+	if !result.ValidationStats.Improved {
+		t.Fatal("ValidationStats.Improved = false, want true when high-complexity count decreases before retry cap")
+	}
+}
+
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
 	original := os.Stdout
