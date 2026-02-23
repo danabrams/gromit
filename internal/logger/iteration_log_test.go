@@ -258,6 +258,48 @@ func TestIterationLog_TierFieldsJSONTags(t *testing.T) {
 	}
 }
 
+func TestIterationLog_ComplexityRoutingJSONTags(t *testing.T) {
+	log := &IterationLog{
+		BeadID:                   "test-1",
+		Model:                    "sonnet",
+		OriginalTier:             "low",
+		ActualTier:               "medium",
+		Complexity:               "low",
+		ComplexitySource:         "scope_estimate",
+		ComplexityFallbackReason: "none",
+	}
+
+	data, err := json.Marshal(log)
+	if err != nil {
+		t.Fatalf("marshal log: %v", err)
+	}
+	s := string(data)
+	if !strings.Contains(s, "\"complexity\":\"low\"") {
+		t.Fatalf("expected complexity in JSON, got %s", s)
+	}
+	if !strings.Contains(s, "\"complexity_source\":\"scope_estimate\"") {
+		t.Fatalf("expected complexity_source in JSON, got %s", s)
+	}
+	if !strings.Contains(s, "\"complexity_fallback_reason\":\"none\"") {
+		t.Fatalf("expected complexity_fallback_reason in JSON, got %s", s)
+	}
+
+	emptyData, err := json.Marshal(IterationLog{})
+	if err != nil {
+		t.Fatalf("marshal empty log: %v", err)
+	}
+	empty := string(emptyData)
+	if strings.Contains(empty, "complexity") {
+		t.Fatalf("expected complexity fields to be omitted, got %s", empty)
+	}
+	if strings.Contains(empty, "complexity_source") {
+		t.Fatalf("expected complexity_source to be omitted, got %s", empty)
+	}
+	if strings.Contains(empty, "complexity_fallback_reason") {
+		t.Fatalf("expected complexity_fallback_reason to be omitted, got %s", empty)
+	}
+}
+
 func TestIterationLog_TouchedPackagesJSONTag(t *testing.T) {
 	log := &IterationLog{
 		BeadID:          "test-1",
