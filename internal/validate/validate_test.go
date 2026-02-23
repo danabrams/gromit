@@ -802,3 +802,47 @@ func TestValidateDecomposeCandidates_AllLowComplexityProducesEmptyHighList(t *te
 		t.Fatalf("ComplexityOutcome.HighComplexity len = %d, want 0", len(result.ComplexityOutcome.HighComplexity))
 	}
 }
+
+func TestValidateDecomposeCandidates_MixedComplexityProducesHighListWithReasons(t *testing.T) {
+	candidates := []BeadCandidate{
+		{
+			Title:              "Small CLI cleanup",
+			Description:        "Single-file help text update",
+			EstimatedFiles:     1,
+			AcceptanceCriteria: []string{"Help text updated"},
+		},
+		{
+			Title:              "Split auth orchestration",
+			Description:        "Touches handlers and migrations",
+			EstimatedFiles:     8,
+			AcceptanceCriteria: []string{"Auth flow remains correct"},
+		},
+	}
+
+	result := ValidateDecomposeCandidates(candidates)
+
+	if result.ComplexityOutcome.HighCount != 1 {
+		t.Fatalf("ComplexityOutcome.HighCount = %d, want 1", result.ComplexityOutcome.HighCount)
+	}
+	if len(result.ComplexityOutcome.HighComplexity) != 1 {
+		t.Fatalf("ComplexityOutcome.HighComplexity len = %d, want 1", len(result.ComplexityOutcome.HighComplexity))
+	}
+
+	high := result.ComplexityOutcome.HighComplexity[0]
+	if high.Title != "Split auth orchestration" {
+		t.Fatalf("high complexity title = %q, want %q", high.Title, "Split auth orchestration")
+	}
+	if len(high.Reasons) != 1 {
+		t.Fatalf("high complexity reasons len = %d, want 1", len(high.Reasons))
+	}
+	wantReason := "estimated_files=8 crosses the high-complexity threshold"
+	if high.Reasons[0] != wantReason {
+		t.Fatalf("high complexity reason = %q, want %q", high.Reasons[0], wantReason)
+	}
+	if len(result.ComplexityOutcome.AggregateReasons) != 1 {
+		t.Fatalf("ComplexityOutcome.AggregateReasons len = %d, want 1", len(result.ComplexityOutcome.AggregateReasons))
+	}
+	if result.ComplexityOutcome.AggregateReasons[0] != wantReason {
+		t.Fatalf("ComplexityOutcome.AggregateReasons[0] = %q, want %q", result.ComplexityOutcome.AggregateReasons[0], wantReason)
+	}
+}
