@@ -921,6 +921,36 @@ func TestValidateDecomposeCandidates_BroadScopeLanguageFlagsHighComplexityWithou
 	}
 }
 
+func TestValidateDecomposeCandidates_DependencySequencingLanguageFlagsHighComplexityWithoutLargeEstimate(t *testing.T) {
+	candidates := []BeadCandidate{
+		{
+			Title:          "Reshape auth onboarding flow",
+			Description:    "First add new schema fields, then update handlers, finally backfill existing rows",
+			EstimatedFiles: 1,
+			AcceptanceCriteria: []string{
+				"New onboarding path works for existing and new users",
+			},
+		},
+	}
+
+	result := ValidateDecomposeCandidates(candidates)
+
+	if result.ComplexityOutcome.HighCount != 1 {
+		t.Fatalf("ComplexityOutcome.HighCount = %d, want 1", result.ComplexityOutcome.HighCount)
+	}
+	if len(result.ComplexityOutcome.HighComplexity) != 1 {
+		t.Fatalf("ComplexityOutcome.HighComplexity len = %d, want 1", len(result.ComplexityOutcome.HighComplexity))
+	}
+
+	high := result.ComplexityOutcome.HighComplexity[0]
+	if len(high.Reasons) == 0 {
+		t.Fatal("expected high complexity reasons to include dependency-sequencing language signal")
+	}
+	if high.Reasons[0] != "dependency-sequencing language indicates multi-phase task" {
+		t.Fatalf("high.Reasons[0] = %q, want %q", high.Reasons[0], "dependency-sequencing language indicates multi-phase task")
+	}
+}
+
 func TestValidateDecomposeOutput_RuntimeModeIncludesBatchAndParentEcho(t *testing.T) {
 	candidates := []BeadCandidate{
 		{
