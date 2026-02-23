@@ -373,7 +373,8 @@ func TestBuildRunRefactorFn_SelectsProviderForRefactorPhase(t *testing.T) {
 		Tier: "medium",
 	}
 
-	fn := buildRunRefactorFn(renderer, router, io.Discard)
+	cfg := &config.Config{}
+	fn := buildRunRefactorFn(cfg, renderer, router, io.Discard)
 	if err := fn(context.Background(), bc); err != nil {
 		t.Fatalf("buildRunRefactorFn() error = %v", err)
 	}
@@ -437,7 +438,8 @@ func TestBuildRunRefactorFn_LoadsRulesForRefactorPhase(t *testing.T) {
 		Tier: "medium",
 	}
 
-	fn := buildRunRefactorFn(renderer, router, io.Discard)
+	cfg := &config.Config{}
+	fn := buildRunRefactorFn(cfg, renderer, router, io.Discard)
 	if err := fn(context.Background(), bc); err != nil {
 		t.Fatalf("buildRunRefactorFn() error = %v", err)
 	}
@@ -496,7 +498,7 @@ func TestBuildRunRefactorFn_UsesRefactorPhaseTierOverride(t *testing.T) {
 		Tier: "high",
 	}
 
-	fn := buildRunRefactorFn(renderer, router, io.Discard)
+	fn := buildRunRefactorFn(cfg, renderer, router, io.Discard)
 	if err := fn(context.Background(), bc); err != nil {
 		t.Fatalf("buildRunRefactorFn() error = %v", err)
 	}

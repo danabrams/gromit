@@ -26,7 +26,7 @@ func buildTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *
 		RenderGreenFn:  buildRenderGreenFn(cfg, renderer),
 		InvokeFn:       buildInvokeFn(router, output),
 		ValidateFn:     buildValidateFn(cfg),
-		RunRefactorFn:  buildRunRefactorFn(renderer, router, output),
+		RunRefactorFn:  buildRunRefactorFn(cfg, renderer, router, output),
 		EscalateTierFn: func(currentTier string) string { return cfg.NextEscalationTier(currentTier) },
 		GetDiffFn:      func() (string, error) { return getGitDiff("HEAD") },
 		ReadFileFn:     readFileAsString,
@@ -151,8 +151,11 @@ func buildValidateFn(cfg *config.Config) tdd.ValidateFn {
 	}
 }
 
-func buildRunRefactorFn(renderer *prompt.Renderer, router *provider.Router, output io.Writer) tdd.RunRefactorFn {
+func buildRunRefactorFn(cfg *config.Config, renderer *prompt.Renderer, router *provider.Router, output io.Writer) tdd.RunRefactorFn {
 	return func(ctx context.Context, bc *runtypes.BeadContext) error {
+		if bc != nil {
+			bc.Tier = cfg.PhaseModelTier("refactor", bc.Tier)
+		}
 		rules, _ := renderer.LoadRulesForPhase("refactor")
 		refactorCtx := &prompt.Context{
 			Bead: bc.Bead,
