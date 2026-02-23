@@ -153,6 +153,9 @@ func runWithSessionWorktreeWithConflictSettings(
 	if err := stateFile.AddPendingWorktreeBranch(session.BranchName); err != nil {
 		return nil, fmt.Errorf("recording pending worktree branch %q: %w", session.BranchName, err)
 	}
+	if err := interactiveWorktreeCleanupSessionFn(mainDir, session.WorktreeDir); err != nil {
+		return session, err
+	}
 
 	if err := attemptMergeWithConflictPolicy(manager, stateFile, mainDir, session, conflictSettings); err != nil {
 		return session, err
@@ -235,9 +238,6 @@ func newAgentConflictHandoffError(
 func clearMergedState(mainDir string, session *worktree.SessionWorktree, stateFile pendingBranchRecorder) error {
 	if err := stateFile.RemovePendingWorktreeBranch(session.BranchName); err != nil {
 		return fmt.Errorf("clearing merged pending worktree branch %q: %w", session.BranchName, err)
-	}
-	if err := interactiveWorktreeCleanupSessionFn(mainDir, session.WorktreeDir); err != nil {
-		return err
 	}
 	return nil
 }
