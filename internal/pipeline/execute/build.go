@@ -164,9 +164,6 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 		for {
 			nextTier := in.Config.NextEscalationTier(tier)
 			if nextTier == "" {
-				nextTier = nextTierFromChain(in.Config.Escalation.Chain, tier)
-			}
-			if nextTier == "" {
 				break
 			}
 			tier = nextTier
@@ -193,15 +190,6 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 		out.OutputTokens = result.OutputTokens
 	}
 	return out, nil
-}
-
-func nextTierFromChain(chain []string, currentTier string) string {
-	for i, entry := range chain {
-		if entry == currentTier && i+1 < len(chain) {
-			return chain[i+1]
-		}
-	}
-	return ""
 }
 
 func resolveBuildStrategy(cfg *config.Config, b *bead.Bead) string {

@@ -351,6 +351,7 @@ func TestBuildStage_Run_ReturnsOriginalAndActualTier(t *testing.T) {
 	stage := execute.New(invoker, &fakePromptRenderer{}, io.Discard)
 
 	cfg := defaultConfig()
+	cfg.Escalation.Enabled = true
 	cfg.Escalation.Chain = []string{"low", "medium", "high"}
 	cfg.Models.P2 = "low"
 
