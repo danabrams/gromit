@@ -609,6 +609,51 @@ func TestCheckBeads_NoDuplicateExpectedOutputs_NoOutputDuplicateViolation(t *tes
 	}
 }
 
+// TestCheckBeads_OutputEchoesBeadTitle_ViolatesParentEcho tests that an expected output matching the bead title is flagged
+func TestCheckBeads_OutputEchoesBeadTitle_ViolatesParentEcho(t *testing.T) {
+	beads := []BeadCandidate{
+		{
+			Title:           "Implement user authentication",
+			Description:     "Auth task",
+			ExpectedOutputs: []string{"Implement user authentication", "Add login form"},
+		},
+	}
+
+	violations := CheckBeads(beads)
+
+	found := false
+	for _, v := range violations {
+		if v.Rule == "parent_echo" {
+			found = true
+			if v.BeadIndex != 0 {
+				t.Errorf("BeadIndex = %d, want 0", v.BeadIndex)
+			}
+		}
+	}
+	if !found {
+		t.Error("expected parent_echo violation for expected output that exactly matches bead title")
+	}
+}
+
+// TestCheckBeads_OutputDoesNotEchoTitle_NoParentEchoViolation tests that outputs not matching title are not flagged
+func TestCheckBeads_OutputDoesNotEchoTitle_NoParentEchoViolation(t *testing.T) {
+	beads := []BeadCandidate{
+		{
+			Title:           "Implement user authentication",
+			Description:     "Auth task",
+			ExpectedOutputs: []string{"Add login form", "Add password validation"},
+		},
+	}
+
+	violations := CheckBeads(beads)
+
+	for _, v := range violations {
+		if v.Rule == "parent_echo" {
+			t.Errorf("unexpected parent_echo violation for outputs not matching title")
+		}
+	}
+}
+
 // TestCheckBeads_SiblingOverlap_NonOverlappingSubstrings tests that partial word matches don't trigger false positives
 func TestCheckBeads_SiblingOverlap_NonOverlappingSubstrings(t *testing.T) {
 	beads := []BeadCandidate{
