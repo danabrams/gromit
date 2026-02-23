@@ -308,3 +308,29 @@ func TestLoadRulesForPhasePreservesAnnotationFreeOutput(t *testing.T) {
 		t.Error("LoadRulesForPhase output should not contain phase annotation comments")
 	}
 }
+
+func TestLoadRulesForPhase_MixedCaseAnnotationsMatchBuildAndGreen(t *testing.T) {
+	rules := `# Rules
+
+## Shared Implementation <!-- phases: Build, GREEN -->
+
+- applies to both build and green
+`
+	r := setupRendererWithRules(t, rules)
+
+	buildResult, err := r.LoadRulesForPhase("build")
+	if err != nil {
+		t.Fatalf("LoadRulesForPhase(build) error = %v", err)
+	}
+	if !strings.Contains(buildResult, "## Shared Implementation") {
+		t.Fatalf("LoadRulesForPhase(build) missing %q", "## Shared Implementation")
+	}
+
+	greenResult, err := r.LoadRulesForPhase("green")
+	if err != nil {
+		t.Fatalf("LoadRulesForPhase(green) error = %v", err)
+	}
+	if !strings.Contains(greenResult, "## Shared Implementation") {
+		t.Fatalf("LoadRulesForPhase(green) missing %q", "## Shared Implementation")
+	}
+}
