@@ -162,7 +162,7 @@ func (m *Manager) CreateSessionWorktree(command string) (*SessionWorktree, error
 				continue
 			}
 		}
-		if !isSessionContentionErr(err) {
+		if !isSessionContentionErr(output, err) {
 			return nil, fmt.Errorf("failed to create session worktree: %w", err)
 		}
 	}
@@ -275,11 +275,11 @@ func sessionWorktreeDir(mainDir, command string, timestamp int64) string {
 	return fmt.Sprintf("%s-gromit-%s-%d", mainDir, command, timestamp)
 }
 
-func isSessionContentionErr(err error) bool {
+func isSessionContentionErr(output string, err error) bool {
 	if err == nil {
 		return false
 	}
-	msg := strings.ToLower(err.Error())
+	msg := sessionCreateErrorMessage(output, err)
 	if strings.Contains(msg, "a branch named") && strings.Contains(msg, "already exists") {
 		return true
 	}
@@ -304,14 +304,19 @@ func isAmbiguousSessionContentionErr(output string, err error) bool {
 	if err == nil {
 		return false
 	}
-	msg := strings.ToLower(strings.TrimSpace(output))
-	if msg == "" {
-		msg = strings.ToLower(err.Error())
-	}
+	msg := sessionCreateErrorMessage(output, err)
 	if !strings.Contains(msg, "cannot lock ref") || !strings.Contains(msg, "refs/heads/") {
 		return false
 	}
 	return strings.Contains(msg, "file exists") || strings.Contains(msg, "already exists")
+}
+
+func sessionCreateErrorMessage(output string, err error) string {
+	msg := strings.ToLower(strings.TrimSpace(output))
+	if msg == "" {
+		msg = strings.ToLower(err.Error())
+	}
+	return msg
 }
 
 func (m *Manager) sessionBranchExists(branchName string) bool {
