@@ -252,21 +252,8 @@ func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 	if err := jsonutil.ExtractJSON(strings.TrimSpace(result.Output), &subBeads); err != nil {
 		return fmt.Errorf("decomposerAdapter: parsing LLM output: %w", err)
 	}
-	candidates := scopeGateSubBeadsToCandidates(subBeads)
-	if violations := validate.CheckBatchContract(candidates); len(violations) > 0 {
-		return fmt.Errorf("decomposerAdapter: decomposition contract violation [%s]: %s", violations[0].Rule, violations[0].Message)
-	}
-	for i, sb := range subBeads {
-		if strings.TrimSpace(sb.Title) == "" {
-			return fmt.Errorf("decomposerAdapter: decomposition contract violation: sub-bead %d has empty title", i)
-		}
-		if len(sb.ExpectedOutputs) == 0 {
-			return fmt.Errorf("decomposerAdapter: decomposition contract violation: sub-bead %d has no expected outputs", i)
-		}
-	}
-	if violations := validate.CheckBeadsWithParentTitle(candidates, b.Title); len(violations) > 0 {
-		v := violations[0]
-		return fmt.Errorf("decomposerAdapter: decomposition contract violation [%s]: bead %d: %s", v.Rule, v.BeadIndex, v.Message)
+	if err := validateRuntimeScopeGateDecomposeOutput(subBeads, b.Title); err != nil {
+		return err
 	}
 
 	labels := a.resolveInheritedLabels(b)
@@ -306,6 +293,33 @@ func scopeGateSubBeadsToCandidates(subBeads []scopeGateSubBead) []validate.BeadC
 		})
 	}
 	return candidates
+}
+
+func validateRuntimeScopeGateDecomposeOutput(subBeads []scopeGateSubBead, parentTitle string) error {
+	for i, sb := range subBeads {
+		if strings.TrimSpace(sb.Title) == "" {
+			return fmt.Errorf("decomposerAdapter: decomposition contract violation [title_empty]: sub-bead %d has empty title", i)
+		}
+		if len(sb.ExpectedOutputs) == 0 {
+			return fmt.Errorf("decomposerAdapter: decomposition contract violation [output_missing]: sub-bead %d has no expected outputs", i)
+		}
+	}
+
+	validation := validate.ValidateDecomposeOutput(
+		scopeGateSubBeadsToCandidates(subBeads),
+		validate.DecomposeValidationModeRuntime,
+		parentTitle,
+	)
+	if len(validation.BatchViolations) > 0 {
+		v := validation.BatchViolations[0]
+		return fmt.Errorf("decomposerAdapter: decomposition contract violation [%s]: %s", v.Rule, v.Message)
+	}
+	if len(validation.Violations) > 0 {
+		v := validation.Violations[0]
+		return fmt.Errorf("decomposerAdapter: decomposition contract violation [%s]: bead %d: %s", v.Rule, v.BeadIndex, v.Message)
+	}
+
+	return nil
 }
 
 func scopeGateChildDedupeLabel(parentID string, sb scopeGateSubBead) string {
