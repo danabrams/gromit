@@ -654,6 +654,41 @@ func TestCheckBeads_OutputDoesNotEchoTitle_NoParentEchoViolation(t *testing.T) {
 	}
 }
 
+// TestCheckBatchContract_OneBead_ViolatesBatchSizeMin tests that fewer than 2 beads is a contract violation
+func TestCheckBatchContract_OneBead_ViolatesBatchSizeMin(t *testing.T) {
+	beads := []BeadCandidate{
+		{Title: "Only bead", Description: "Single sub-bead", AcceptanceCriteria: []string{"Done"}},
+	}
+
+	violations := CheckBatchContract(beads)
+
+	found := false
+	for _, v := range violations {
+		if v.Rule == "batch_size_min" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected batch_size_min violation for decomposition with only 1 sub-bead")
+	}
+}
+
+// TestCheckBatchContract_TwoBeads_NoMinViolation tests that 2 beads satisfies the minimum
+func TestCheckBatchContract_TwoBeads_NoMinViolation(t *testing.T) {
+	beads := []BeadCandidate{
+		{Title: "Bead A"},
+		{Title: "Bead B"},
+	}
+
+	violations := CheckBatchContract(beads)
+
+	for _, v := range violations {
+		if v.Rule == "batch_size_min" {
+			t.Error("unexpected batch_size_min violation for decomposition with 2 sub-beads")
+		}
+	}
+}
+
 // TestCheckBeads_SiblingOverlap_NonOverlappingSubstrings tests that partial word matches don't trigger false positives
 func TestCheckBeads_SiblingOverlap_NonOverlappingSubstrings(t *testing.T) {
 	beads := []BeadCandidate{
