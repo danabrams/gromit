@@ -339,6 +339,38 @@ func TestCountLowComplexitySignals_NilBead(t *testing.T) {
 	}
 }
 
+func TestSelectTier_ZeroSignalsUsePriorityTier(t *testing.T) {
+	// A bead with zero low-complexity signals must fall through to priority-based
+	// routing. Five files (above max), a non-leaf with dependents, and a title
+	// that matches no mechanical-work pattern produce 0 signals.
+	five := 5
+	cfg := &config.Config{
+		Models: config.ModelsConfig{
+			P0: provider.TierHigh,
+			P1: provider.TierMedium,
+			P2: provider.TierLow,
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	b := &bead.Bead{
+		ID:       "complex-001",
+		Title:    "Overhaul the auth middleware",
+		Priority: 1,
+		Labels:   []string{},
+		ExpectedOutputs: []string{
+			"a.go", "b.go", "c.go", "d.go", "e.go",
+		},
+		DependentCount: &five,
+	}
+
+	result := SelectTier(cfg, b)
+	if result != provider.TierMedium {
+		t.Errorf("SelectTier() = %q, want %q for P1 zero-signal bead", result, provider.TierMedium)
+	}
+}
+
 func TestSelectTier_LowComplexitySignalsOverrideHighPriority(t *testing.T) {
 	// A P0 bead with >= 2 low-complexity signals should route to TierLow even
 	// though P0 normally maps to TierHigh. The heuristic overrides priority.
