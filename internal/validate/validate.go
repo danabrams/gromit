@@ -135,6 +135,12 @@ func ValidateDecomposeCandidates(beads []BeadCandidate) ValidationResult {
 		if bead.EstimatedFiles > highComplexityFileThreshold {
 			classification = "high"
 			reasons = append(reasons, fmt.Sprintf("estimated_files=%d crosses the high-complexity threshold", bead.EstimatedFiles))
+		}
+		if containsScopeSignal(bead.Title) || containsScopeSignal(bead.Description) {
+			classification = "high"
+			reasons = append(reasons, "broad-scope language indicates oversized task")
+		}
+		if classification == "high" {
 			result.ComplexityOutcome.HighComplexity = append(result.ComplexityOutcome.HighComplexity, CandidateComplexityResult{
 				Title:   bead.Title,
 				Reasons: append([]string(nil), reasons...),
