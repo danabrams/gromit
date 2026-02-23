@@ -29,6 +29,10 @@ These are non-negotiable constraints for this project.
 - Acceptance tests must test behavior through the public API
 - Do not test Go standard library behavior
 
+## Green Focus <!-- phases: green -->
+
+- Keep implementation changes minimal and targeted
+
 ## Build Process <!-- phases: build -->
 
 - Always run tests before committing
