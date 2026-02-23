@@ -339,6 +339,33 @@ func TestCountLowComplexitySignals_NilBead(t *testing.T) {
 	}
 }
 
+func TestSelectTier_LowComplexitySignalsOverrideHighPriority(t *testing.T) {
+	// A P0 bead with >= 2 low-complexity signals should route to TierLow even
+	// though P0 normally maps to TierHigh. The heuristic overrides priority.
+	cfg := &config.Config{
+		Models: config.ModelsConfig{
+			P0: provider.TierHigh,
+			P1: provider.TierMedium,
+			P2: provider.TierLow,
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	// rename title (1 signal) + nil DependentCount/leaf (1 signal) = 2 signals
+	b := &bead.Bead{
+		ID:       "high-priority-low-complexity",
+		Title:    "Rename FooBar to BazQux",
+		Priority: 0,
+		Labels:   []string{},
+	}
+
+	result := SelectTier(cfg, b)
+	if result != provider.TierLow {
+		t.Errorf("SelectTier() = %q, want %q for P0 bead with 2 low-complexity signals", result, provider.TierLow)
+	}
+}
+
 func TestCountLowComplexitySignals_FileCountAboveMax(t *testing.T) {
 	// A bead with 4 files (> max of 3) should not contribute a file-count signal.
 	// With no other signals present, total count must be 0.
