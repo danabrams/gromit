@@ -65,20 +65,12 @@ func IsLeafBead(b *Bead) bool {
 }
 
 // EstimatedFileCount returns the estimated number of files touched by the bead.
-// If expected outputs are absent, it returns 0 to indicate unknown.
+// If expected outputs are absent, it returns 0.
 func EstimatedFileCount(b *Bead) int {
 	if b == nil {
 		return 0
 	}
-	unique := make(map[string]struct{}, len(b.ExpectedOutputs))
-	for _, output := range b.ExpectedOutputs {
-		trimmed := strings.TrimSpace(output)
-		if trimmed == "" {
-			continue
-		}
-		unique[trimmed] = struct{}{}
-	}
-	return len(unique)
+	return len(b.ExpectedOutputs)
 }
 
 // proactiveDecomposeKeywords matches broad-scope keywords as whole words only.
