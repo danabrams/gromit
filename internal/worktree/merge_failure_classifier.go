@@ -1,6 +1,9 @@
 package worktree
 
-import "strings"
+import (
+	"errors"
+	"strings"
+)
 
 type mergeFailureClass int
 
@@ -31,7 +34,8 @@ func classifyMergeFailure(input mergeFailureInput) mergeFailureDecision {
 		return decision
 	}
 
-	if coded, ok := input.Err.(exitCoder); ok {
+	var coded exitCoder
+	if errors.As(input.Err, &coded) {
 		decision.ExitCodeKnown = true
 		decision.ExitCode = coded.ExitCode()
 	}
