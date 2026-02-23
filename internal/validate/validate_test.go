@@ -471,6 +471,54 @@ func TestCheckBeads_SiblingOverlap_ShortMatchBelowThreshold(t *testing.T) {
 	}
 }
 
+// TestCheckBeads_SixExpectedOutputs_ViolatesOutputCount tests that beads with more than 5 expected outputs are flagged
+func TestCheckBeads_SixExpectedOutputs_ViolatesOutputCount(t *testing.T) {
+	beads := []BeadCandidate{
+		{
+			Title:           "Oversized bead",
+			Description:     "Too many expected outputs",
+			ExpectedOutputs: []string{"o1", "o2", "o3", "o4", "o5", "o6"},
+		},
+	}
+
+	violations := CheckBeads(beads)
+
+	found := false
+	for _, v := range violations {
+		if v.Rule == "output_count" {
+			found = true
+			if v.BeadIndex != 0 {
+				t.Errorf("BeadIndex = %d, want 0", v.BeadIndex)
+			}
+			if !strings.Contains(v.Message, "5") {
+				t.Errorf("expected message to mention limit of 5, got %q", v.Message)
+			}
+		}
+	}
+	if !found {
+		t.Error("expected output_count violation for bead with 6 expected outputs")
+	}
+}
+
+// TestCheckBeads_FiveExpectedOutputs_NoOutputCountViolation tests that exactly 5 expected outputs is valid
+func TestCheckBeads_FiveExpectedOutputs_NoOutputCountViolation(t *testing.T) {
+	beads := []BeadCandidate{
+		{
+			Title:           "Valid bead",
+			Description:     "Exactly 5 outputs",
+			ExpectedOutputs: []string{"o1", "o2", "o3", "o4", "o5"},
+		},
+	}
+
+	violations := CheckBeads(beads)
+
+	for _, v := range violations {
+		if v.Rule == "output_count" {
+			t.Errorf("unexpected output_count violation for bead with exactly 5 expected outputs")
+		}
+	}
+}
+
 // TestCheckBeads_SiblingOverlap_NonOverlappingSubstrings tests that partial word matches don't trigger false positives
 func TestCheckBeads_SiblingOverlap_NonOverlappingSubstrings(t *testing.T) {
 	beads := []BeadCandidate{
