@@ -4,6 +4,20 @@ import (
 	"testing"
 )
 
+func TestRulesPhaseCharBudgets_CoversMethodologyPhases(t *testing.T) {
+	budgets := rulesPhaseBudgetMatrix()
+	seen := make(map[string]bool, len(budgets))
+	for _, budget := range budgets {
+		seen[budget.phase] = true
+	}
+
+	for _, phase := range []string{"red", "green", "refactor"} {
+		if !seen[phase] {
+			t.Fatalf("rules phase budget table missing %q phase", phase)
+		}
+	}
+}
+
 func TestRulesPhaseCharBudgets(t *testing.T) {
 	r := &Renderer{
 		rulesPath: "../../.gromit/RULES.md",
