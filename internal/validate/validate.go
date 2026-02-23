@@ -140,6 +140,10 @@ func ValidateDecomposeCandidates(beads []BeadCandidate) ValidationResult {
 			classification = "high"
 			reasons = append(reasons, "broad-scope language indicates oversized task")
 		}
+		if containsDependencySequencingSignal(bead.Title + " " + bead.Description) {
+			classification = "high"
+			reasons = append(reasons, "dependency-sequencing language indicates multi-phase task")
+		}
 		if classification == "high" {
 			result.ComplexityOutcome.HighComplexity = append(result.ComplexityOutcome.HighComplexity, CandidateComplexityResult{
 				Title:   bead.Title,
@@ -280,6 +284,15 @@ func containsScopeSignal(text string) bool {
 		}
 	}
 	return false
+}
+
+func containsDependencySequencingSignal(text string) bool {
+	lower := strings.ToLower(text)
+	hasFirst := strings.Contains(lower, "first")
+	hasThen := strings.Contains(lower, "then")
+	hasFinally := strings.Contains(lower, "finally")
+
+	return (hasFirst && hasThen) || (hasThen && hasFinally) || (hasFirst && hasFinally)
 }
 
 // hasOverlap checks if two beads have overlapping acceptance criteria
