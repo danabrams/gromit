@@ -166,7 +166,11 @@ func (r *Reviewer) RunLight(ctx context.Context, b *bead.Bead, parent *bead.Bead
 	}
 
 	// Load review rules
-	reviewCtx.Rules, _ = r.renderer.LoadRulesForPhase(reviewPhase)
+	reviewRules, rulesErr := r.renderer.LoadRulesForPhase(reviewPhase)
+	if rulesErr != nil {
+		return nil, fmt.Errorf("loading review rules for phase %q: %w", reviewPhase, rulesErr)
+	}
+	reviewCtx.Rules = reviewRules
 
 	// Load spec if present
 	specName := bead.FindSpecLabel(b.Labels)
@@ -174,7 +178,11 @@ func (r *Reviewer) RunLight(ctx context.Context, b *bead.Bead, parent *bead.Bead
 		specName = bead.FindSpecLabel(parent.Labels)
 	}
 	if specName != "" {
-		reviewCtx.Spec, _ = r.renderer.LoadSpec(specName)
+		spec, specErr := r.renderer.LoadSpec(specName)
+		if specErr != nil {
+			return nil, fmt.Errorf("loading spec %q for review: %w", specName, specErr)
+		}
+		reviewCtx.Spec = spec
 	}
 
 	// Add validation commands to context
@@ -375,8 +383,16 @@ func (r *Reviewer) RunThorough(ctx context.Context, sa StateAccess, iteration in
 		Diff:  diff,
 		Model: r.cfg.Review.Thorough.Model,
 	}
-	reviewCtx.ClaudeMD, _ = r.renderer.LoadClaudeMD()
-	reviewCtx.Rules, _ = r.renderer.LoadRulesForPhase(thoroughReviewPhase)
+	claudeMD, claudeErr := r.renderer.LoadClaudeMD()
+	if claudeErr != nil {
+		r.log("Warning: could not load CLAUDE.md for thorough review: %v", claudeErr)
+	}
+	reviewCtx.ClaudeMD = claudeMD
+	rules, rulesErr := r.renderer.LoadRulesForPhase(thoroughReviewPhase)
+	if rulesErr != nil {
+		r.log("Warning: could not load rules for phase %q: %v", thoroughReviewPhase, rulesErr)
+	}
+	reviewCtx.Rules = rules
 	prompt.ApplyReviewPhaseProfile(reviewCtx, thoroughReviewPhase)
 	reviewPrompt, err := r.renderer.RenderThoroughReview(reviewCtx)
 	if err != nil {

@@ -105,6 +105,21 @@ Source-reading tests (e.g., checking function text with os.ReadFile + strings.Co
 
 JSON parsing alone is not enough for LLM decomposition output. Gate paths should validate concrete quality constraints (sub-task count bounds, non-empty titles, bounded expected outputs, no degenerate parent echo) and define deterministic fallback behavior when outputs violate the contract.
 
+### 2026-02-23 | THOROUGH_REVIEW_PHASE_PROFILE_CONTRACTS_MUST_STAY_ALIGNED | CONVENTIONS
+*Related to: review-1771806956027549683*
+
+When introducing or evolving a review phase key (for example, `thorough_review`), keep tests aligned with the actual phase-profile contract. In this case, the profile intentionally preserves `ClaudeMD` for thorough review context, so tests should validate preservation rather than clearing.
+
+### 2026-02-23 | REVIEW_LOADER_ERRORS_SHOULD_NEVER_BE_SILENT | ARCHITECTURE
+*Related to: review-1771806956027549683*
+
+Prompt-setup loaders (`LoadRulesForPhase`, `LoadSpec`, `LoadClaudeMD`) are critical review-orchestration dependencies. Ignoring their errors leads to inconsistent prompt context and difficult diagnosis. Either propagate as hard errors (light review path) or emit structured warnings where best-effort behavior is intended (thorough review path).
+
+### 2026-02-23 | REVIEW_ROUTING_KEYS_AND_TIERS_ARE_API_CONTRACTS | PATTERNS
+*Related to: review-1771806956027549683*
+
+Routing phase keys and tier values must stay consistent across prompt loading, router selection, and tests. Treat `review` and `thorough_review` as explicit contract keys, and validate configured tier flow end-to-end to avoid subtle provider-selection drift.
+
 ---
 
 ## Archived
@@ -117,4 +132,3 @@ JSON parsing alone is not enough for LLM decomposition output. Gate paths should
 Use package-level `var _ Interface = (*Impl)(nil)` declarations in non-test `.go` files to enforce architectural invariants at compile time. A check inside a test function body gates test compilation only — it does not gate production builds. Avoid tests that use `os.ReadFile`+`strings.Contains` on `.go` source files — they break silently on renames/moves. Distinguish from forced-import keep-alive patterns (`var _ = Type{}`): these exist solely to prevent the compiler from removing an unused import, indicate incomplete refactoring, and should be removed. When removing package usage, search for these keep-alive patterns in the same file and related consumers.
 
 *Archived from provisional: filtered: generic engineering advice*
-

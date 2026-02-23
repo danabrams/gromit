@@ -539,8 +539,8 @@ func TestRunThorough_AppliesThoroughReviewPhaseProfile(t *testing.T) {
 	if capturedCtx == nil {
 		t.Fatal("RenderThoroughReview context was not captured")
 	}
-	if capturedCtx.ClaudeMD != "" {
-		t.Fatalf("ClaudeMD = %q, want empty after thorough_review phase profile", capturedCtx.ClaudeMD)
+	if capturedCtx.ClaudeMD != "# CLAUDE project context" {
+		t.Fatalf("ClaudeMD = %q, want %q (thorough_review profile preserves CLAUDE.md)", capturedCtx.ClaudeMD, "# CLAUDE project context")
 	}
 }
 
