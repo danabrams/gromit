@@ -81,3 +81,26 @@ func TestBuildComplexityRepromptFeedback_IncludesAllCandidateReasons(t *testing.
 		t.Fatalf("feedback missing second candidate reason, got:\n%s", feedback)
 	}
 }
+
+func TestBuildComplexityRepromptFeedback_UsesStructuredRepromptCompositionPattern(t *testing.T) {
+	feedback := BuildComplexityRepromptFeedback([]CandidateComplexityResult{
+		{
+			Title:   "Split auth orchestration",
+			Reasons: []string{"estimated_files=8 crosses the high-complexity threshold"},
+		},
+	})
+
+	requiredSections := []string{
+		"## Complexity Feedback",
+		"### Split-Concerns Guidance",
+		"### Reduce-Breadth Guidance",
+		"### Preserve-Semantics Guidance",
+		"### Avoid-Overlap Guidance",
+	}
+
+	for _, section := range requiredSections {
+		if !strings.Contains(feedback, section) {
+			t.Fatalf("feedback missing section %q, got:\n%s", section, feedback)
+		}
+	}
+}
