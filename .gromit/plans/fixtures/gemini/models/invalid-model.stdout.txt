@@ -1,0 +1,6 @@
+
+> @google/gemini-cli@0.30.0-nightly.20260210.a2174751d start
+> cross-env NODE_ENV=development node scripts/start.js --approval-mode yolo --model invalid-model-does-not-exist -p ping --output-format json
+
+Checking build status...
+Build is up-to-date.

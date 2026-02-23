@@ -60,7 +60,7 @@ All modes connect stdin/stdout/stderr to the terminal. `*exec.ExitError` is trea
 **`presets.go`** — Built-in agent presets:
 - `claude`: binary from `cfg.Claude.Binary`, flags from `cfg.Claude.Flags`, delivery `file_ref`
 - `codex`: binary `"codex"`, delivery `prompt_file_arg`, prompt flag `"--prompt"`
-- `gemini`: binary `"gemini"`, delivery `prompt_file_arg`, prompt flag `"--prompt"`
+- `gemini`: binary `"gemini"`, delivery `stdin` by default (findings-backed), with config override support for prompt-flag variants when needed
 
 Presets are functions that return a `Definition` (the config struct), not an `Agent`. User config overrides merge on top of presets: user-specified fields win, missing fields fall back to preset defaults.
 
@@ -229,7 +229,7 @@ Define the `Agent` interface (`Name() string`, `Launch(promptPath string) error`
 - Create: `internal/agent/resolve.go`
 
 **What to Do:**
-Implement built-in preset definitions for `claude`, `codex`, and `gemini`. The `claude` preset reads binary/flags from `cfg.Claude.Binary`/`cfg.Claude.Flags` and uses `file_ref` delivery. Implement `Resolve(cfg *config.Config, phase string, flagOverride string, chooseAgent bool, r io.Reader, w io.Writer) (Agent, error)` that follows the resolution priority: flag override → picker (if chooseAgent or agents.prompt) → phase config → "claude" default. Merge user-defined agent definitions with preset defaults (user fields win, missing fields fall back to preset). Return error for unknown agent names.
+Implement built-in preset definitions for `claude`, `codex`, and `gemini`. The `claude` preset reads binary/flags from `cfg.Claude.Binary`/`cfg.Claude.Flags` and uses `file_ref` delivery. The `gemini` preset defaults to `stdin` delivery based on `.gromit/plans/gemini-cli-spike-findings.md` (2026-02-23), while still allowing user overrides (for example prompt-flag delivery). Implement `Resolve(cfg *config.Config, phase string, flagOverride string, chooseAgent bool, r io.Reader, w io.Writer) (Agent, error)` that follows the resolution priority: flag override → picker (if chooseAgent or agents.prompt) → phase config → "claude" default. Merge user-defined agent definitions with preset defaults (user fields win, missing fields fall back to preset). Return error for unknown agent names.
 
 **Acceptance Criteria:**
 - Claude preset uses `cfg.Claude.Binary` and `cfg.Claude.Flags` for backward compatibility
@@ -336,5 +336,5 @@ Same treatment for the **interactive review path only** (`runReviewInteractive`)
 
 - The `debug.go` command also follows the interactive Claude launch pattern and could benefit from agent support, but it's not in the spec's scope. It can be added later with the same pattern.
 - The `retro.go` LaunchClaudeCode function has a different invocation pattern (no temp file, hardcoded `"claude"` binary). It's an automated phase and out of scope.
-- The `codex` and `gemini` preset details (exact flags, prompt delivery) are best-guess defaults. Users can override via config if the defaults don't match their installed version.
+- The `codex` preset details remain implementation-specific. The `gemini` preset default (`stdin`) is findings-backed and now includes live verification in `.gromit/plans/gemini-cli-spike-findings.md` (json, stream-json, valid/invalid model paths). Users should still override config when local CLI behavior differs, especially for auth/rate-limit/transport failure handling that remains partially unverified.
 - The `explore` phase doesn't exist yet. The config supports `agents.phases.explore` for future use, but no command wiring is needed now.

@@ -8,20 +8,22 @@ created: 2026-02-23
 
 Date: 2026-02-23  
 Environment: `/home/dabrams/gromit` (headless shell)  
-Primary caveat: `gemini` binary was not available for live provider-path execution in this environment (`command not found`).
+Live invocation path used: `npm start --prefix /home/dabrams/gemini-cli -- --approval-mode yolo ...`
 
 ## Executive Summary
 
-- The evidence package is complete for command ledgering, fixture schema shape, permission/CWD shell behavior, and exit-code handling patterns.
-- Live Gemini runtime behavior (auth failures, rate limits, transport disconnects, real stream/json payloads from the binary) remains partially unverified in this environment.
-- Recommended prompt delivery mode for future `GeminiProvider`: stdin piping as default operational path, with `-p` retained as fallback for short prompts.
+- Live Gemini non-interactive invocations were successfully executed and captured on 2026-02-23.
+- `stdin` and inline `-p` prompt delivery both worked reliably for one-shot output.
+- `stream-json` and `json` outputs were captured from real runs and now back fixture candidates.
+- Invalid model handling is now observed: non-zero exit with `ModelNotFoundError` and `404` in stderr.
+- Remaining gap: auth/rate-limit/transport-disconnect signatures are still not captured from live failures.
 
 ## Evidence Index
 
 - Command ledger: `.gromit/plans/fixtures/gemini/commands.log`
 - Prompt delivery artifacts: `.gromit/plans/fixtures/gemini/prompt-delivery/*`
-- Stream fixture candidate: `.gromit/plans/fixtures/gemini/stream-json-success.jsonl`
-- JSON fixture candidate: `.gromit/plans/fixtures/gemini/json-success.json`
+- Stream fixture candidate (live): `.gromit/plans/fixtures/gemini/stream-json-success.jsonl`
+- JSON fixture candidate (live): `.gromit/plans/fixtures/gemini/json-success.json`
 - Model artifacts: `.gromit/plans/fixtures/gemini/models/*`
 - Error artifacts: `.gromit/plans/fixtures/gemini/errors/*`
 - Permissions notes: `.gromit/plans/fixtures/gemini/permissions/permissions-notes.md`
@@ -31,195 +33,183 @@ Primary caveat: `gemini` binary was not available for live provider-path executi
 
 ### Commands Run
 
-- `gemini -p "Respond with the single word: ready"`
-- `gemini -p "<large prompt omitted>"`
-- `printf 'Return the token PIPE_OK.\n' | gemini`
-- `gemini -p "@.gromit/plans/fixtures/gemini/prompt-delivery/prompt-file-input.txt"`
+- Inline: `... -p "Respond with exactly: READY" --output-format json`
+- Stdin: `printf 'Return exactly PIPE_OK\n' | ... --output-format json`
+- Prompt-file ref: `... -p "@.gromit/plans/fixtures/gemini/prompt-delivery/prompt-file-input.txt" --output-format json`
 
 ### Observed Output
 
-- All four commands are logged in `commands.log` under `# prompt-delivery` and exited with code `127` in this environment.
-- Corresponding stderr captures (`inline-small.stderr.txt`, `inline-large.stderr.txt`, `stdin-pipe.stderr.txt`, `prompt-file-ref.stderr.txt`) show `command not found: gemini`.
-- Functional behavior differences between modes cannot be directly observed without a live binary.
+- Inline and stdin succeeded (exit `0`) and returned expected responses (`READY`, `PIPE_OK`).
+- `@file` mode exited `0` but showed unstable behavior in this setup (large multi-turn/tool-heavy run and empty response in captured output).
 
 ### Implementation Implications
 
-- **Recommended prompt delivery mode:** stdin piping for `GeminiProvider` primary path, because it avoids shell argument-size risks for large prompts and aligns with cross-provider robustness patterns.
-- Keep `-p` compatibility for short prompts and diagnostics.
-- Treat `@file` as explicitly unverified until live CLI rerun confirms expansion semantics.
+- **Recommended prompt delivery mode:** stdin for provider default path.
+- Keep inline `-p` as a fallback for short diagnostic calls.
+- Treat `-p @file` as non-default/provisional due observed instability and cost risk in this run.
 
 ## 2. Streaming JSON (`--output-format stream-json`)
 
 ### Commands Run
 
-- Fixture generation command logged: `cat > .gromit/plans/fixtures/gemini/stream-json-success.jsonl`.
+- `... -p "Return exactly STREAM_OK" --output-format stream-json`
 
 ### Observed Output
 
-- Fixture candidate `.gromit/plans/fixtures/gemini/stream-json-success.jsonl` contains JSONL events:
-  - `message_start`
-  - `content_delta`
-  - `message_end`
-- Usage/cost keys present in terminal event: `usage.input_tokens`, `usage.output_tokens`, `cost.total`.
+Live JSONL events captured with this shape:
+- `{"type":"init", ...}`
+- `{"type":"message", "role":"user", ...}`
+- `{"type":"message", "role":"assistant", "content":"STREAM_OK", "delta":true}`
+- `{"type":"result", "status":"success", "stats":{...}}`
 
 ### Implementation Implications
 
-- `GeminiProvider.StreamRun` should parse per-line JSON and accumulate assistant text from `content_delta.delta.text`.
-- Finalization logic should read usage/cost from terminating event when present.
-- Because fixture is synthesized rather than captured from a live binary session, parser must remain tolerant to event-name variance.
+- Parse line-by-line JSONL using `type` as primary discriminator.
+- Assistant text can be read from `message` events where `role=assistant`.
+- Final usage/timing is available in `result.stats` (`input_tokens`, `output_tokens`, `total_tokens`, `duration_ms`).
 
 ## 3. JSON Output (`--output-format json`)
 
 ### Commands Run
 
-- Fixture generation command logged: `cat > .gromit/plans/fixtures/gemini/json-success.json`.
+- `... -p "Respond with exactly: READY" --output-format json`
 
 ### Observed Output
 
-- Fixture candidate `.gromit/plans/fixtures/gemini/json-success.json` contains:
-  - `output`
-  - `usage.input_tokens`
-  - `usage.output_tokens`
-  - `cost.total`
-  - `model`
-  - `finish_reason`
+Live object shape captured:
+- `session_id`
+- `response`
+- `stats.models.<model>.api.{totalRequests,totalErrors,totalLatencyMs}`
+- `stats.models.<model>.tokens.{input,prompt,candidates,total,cached,thoughts,tool}`
+- `stats.tools.*`
+- `stats.files.*`
 
 ### Implementation Implications
 
-- `GeminiProvider.Run` should parse output text, usage tokens, and optional cost from JSON payload.
-- Non-fatal parsing strategy should treat missing `cost` as allowed and continue with token-only accounting.
+- Parse output text from `response`.
+- Parse token metrics from nested `stats.models.*.tokens`.
+- No direct `cost` field observed in this output mode.
 
 ## 4. Token and Cost Handling
 
 ### Commands Run
 
-- `gemini --output-format json --model gemini-2.0-flash -p token-check` (logged under `# token-cost`, exit `127`).
+- JSON and stream-json successful runs above.
 
 ### Observed Output
 
-- Live Gemini token/cost reporting was not observable due to missing binary.
-- Schema fixtures and `schema-notes.md` encode expected keys (`input_tokens`, `output_tokens`, `cost`).
+- Token counts are present in both modes.
+- Direct monetary cost field was **not** observed in captured live outputs.
 
 ### Implementation Implications
 
-- Token handling guidance:
-  - Prefer provider-reported `input_tokens`, `output_tokens`, and `cached_input_tokens` when available.
-  - If absent, leave counts at zero rather than inferring from text length.
-- Cost handling guidance:
-  - Prefer provider-reported total cost if present.
-  - Otherwise compute from configured price table and parsed token counts.
-  - If both unavailable, return `CostUSD=0` with no hard failure.
+- Prefer provider token fields.
+- Compute cost from configured pricing when needed.
+- If pricing config is absent, keep `CostUSD=0` without hard-failing.
 
 ## 5. Model Selection
 
 ### Commands Run
 
-- `gemini --model gemini-2.0-flash -p ping`
-- `gemini --model invalid-model-does-not-exist -p ping`
+- Valid: `... --model gemini-2.5-flash -p "Respond with exactly VALID_MODEL_OK" --output-format json`
+- Invalid: `... --model invalid-model-does-not-exist -p "ping" --output-format json`
 
 ### Observed Output
 
-- Both attempts exited `127` with `command not found: gemini` (`models/valid-model.stderr.txt`, `models/invalid-model.stderr.txt`).
-- Invalid-model-specific runtime signature remains unobserved.
+- Valid model succeeded (exit `0`) and returned `VALID_MODEL_OK`.
+- Invalid model failed (exit `1`) with stderr including `ModelNotFoundError` and `code: 404` / `NOT_FOUND` details.
 
 ### Implementation Implications
 
-- Keep model mapping fully config-driven for `GeminiProvider`.
-- Classifier should reserve a model-invalid category, but it cannot yet rely on stable Gemini-native stderr text from this spike.
+- Model mapping should stay config-driven.
+- Add explicit model-invalid classification path keyed on `ModelNotFoundError` / `NOT_FOUND` signatures.
 
 ## 6. Exit Codes
 
 ### Commands Run
 
-- Shell trigger attempts from `exit-codes-notes.md`:
-  - `sh -c 'echo ok'` -> `0`
-  - `sh -c 'echo intentional trigger for exit code 1 >&2; exit 1'` -> `1`
-  - `sh -c 'echo intentional trigger for exit code 42 >&2; exit 42'` -> `42`
-  - `sh -c 'echo intentional trigger for exit code 53 >&2; exit 53'` -> `53`
+- Real Gemini runs (success + invalid model)
+- Prior shell trigger captures for generic `1`, `42`, `53`
 
 ### Observed Output
 
-- Exit stderr fixtures exist and are non-empty for `1`, `42`, and `53` in `.gromit/plans/fixtures/gemini/errors/`.
-- These observations validate handling paths for process exit status plumbing, not Gemini-specific semantic meanings.
+- Success path: `0`
+- Invalid model path: `1`
+- Gemini-native semantics for `42` and `53` still not directly observed in live Gemini failures.
 
 ### Implementation Implications
 
-- `GeminiProvider` should preserve exact process exit codes in result metadata/logging.
-- Avoid hardcoding Gemini semantic mapping for `42`/`53` until live Gemini triggers are collected.
+- Preserve exact process exit code in result metadata/logging.
+- Do not hardcode Gemini-specific meaning for `42`/`53` yet.
 
 ## 7. Error Classification Patterns
 
 ### Commands Run
 
-- Captured error fixture: `.gromit/plans/fixtures/gemini/errors/command-missing.stderr.txt`
-- Shell-triggered stderr fixtures for generic failure categories: `exit-1.stderr.txt`, `exit-42.stderr.txt`, `exit-53.stderr.txt`
+- Invalid-model run (live)
+- Historical missing-binary runs
 
 ### Observed Output
 
-- Reliable observed pattern in this environment: `command not found: gemini`.
-- Auth, rate-limit, and transport-disconnect Gemini-native patterns are non-triggerable in this run.
+- Setup failure pattern remains valid in some environments: `command not found: gemini`.
+- Live invalid-model pattern captured: `ModelNotFoundError` + `404`/`NOT_FOUND` details.
 
 ### Implementation Implications
 
-- Initial classifier guidance:
-  - `command not found: gemini` -> treat as environment/setup failure.
-  - Retain placeholder matching buckets for `auth`, `rate_limited`, and `transport_disconnect` with conservative fallback to `other`.
-- Version/auth caveats: classifier strings for live Gemini errors must be finalized only after rerun with installed/authenticated CLI.
+- Immediate categories to support:
+  - setup/binary-missing (`command not found: gemini`)
+  - model-invalid (`ModelNotFoundError`, `NOT_FOUND`)
+  - fallback `other`
+- Auth/rate-limit/transport categories remain conservative placeholders until captured.
 
 ## 8. Permission Model
 
 ### Commands Run
 
-- `touch /root/gromit-permissions-check`
-- `d=$(mktemp -d); chmod 000 "$d"; ls "$d"`
+- Prior shell permission checks (`/root` write, no-exec dir)
 
 ### Observed Output
 
-- Permission-denied errors captured in:
-  - `.gromit/plans/fixtures/gemini/permissions/root-write.stderr.txt`
-  - `.gromit/plans/fixtures/gemini/permissions/no-exec-dir.stderr.txt`
-- No Gemini-specific interactive approval prompt behavior was observable in headless shell execution.
+- OS-level permission denials are captured as expected in stderr fixtures.
+- Gemini-specific approval-flag behavior remains lightly sampled.
 
 ### Implementation Implications
 
-- Permission model conclusion: non-interactive provider runs must assume OS/container policy enforcement first; Gemini approval UX flags remain to be validated live.
-- `GeminiProvider` should surface permission-denied stderr verbatim and categorize as non-retryable unless clear transient signal exists.
+- Surface permission-denied stderr verbatim and treat as non-retryable by default.
 
 ## 9. Working Directory (CWD)
 
 ### Commands Run
 
-- `pwd`
-- `cd /tmp && pwd && ls /home/dabrams/gromit/.gromit/plans/fixtures/gemini/preflight.md`
-- `d=$(mktemp -d); cd "$d" && pwd && ls preflight.md`
+- Prior `pwd`/`cd /tmp`/relative path checks
 
 ### Observed Output
 
-- Initial CWD: `/home/dabrams/gromit`.
-- After `cd /tmp`, absolute project path remained readable.
-- Relative lookup failed from unrelated directory (`No such file or directory`).
+- Relative paths are CWD-dependent; absolute paths stay reliable.
 
 ### Implementation Implications
 
-- CWD guidance for `GeminiProvider`:
-  - Set command working directory explicitly to the target workspace/worktree.
-  - Use absolute paths when referencing generated prompt files or artifacts outside current CWD.
-  - Do not assume relative path stability across subprocess launches.
+- Set working directory explicitly for provider runs.
+- Use absolute paths for prompt/artifact files when crossing directories.
 
 ## Provider-Oriented Conclusions
 
-- `GeminiProvider` should launch with explicit working directory, stdin-first prompt delivery, and tolerant schema parsing.
-- Token/cost extraction should prefer provider fields and gracefully degrade to config-based or zero-cost fallback.
-- Error classification must ship with setup-failure detection now, and keep auth/rate-limit/transport buckets behind conservative matching until live capture updates.
-- Fixture references above are sufficient to begin parser scaffolding and tests, but a live binary rerun is required before declaring production-grade parity.
+- `GeminiProvider` is implementable now with stdin-first delivery, live-backed json/stream parsers, and config-driven model mapping.
+- Token extraction can be implemented now from observed `stats` fields.
+- Cost should be config-derived unless future Gemini outputs expose a stable direct cost field.
+- Classifier can ship now with setup + model-invalid + fallback buckets; auth/rate/transport should remain conservative until captured.
 
 ## Limitations and Follow-up
 
-- Non-triggerable conditions in this spike: Gemini-native auth failures, rate limits, transport disconnects, invalid-model runtime payloads, and actual permission flags/approval behavior.
-- Version/auth caveats:
-  - Findings are bound to this run date and environment where `gemini` command execution was unavailable.
-  - Re-run against installed Gemini CLI and authenticated session is required to lock final schemas and classifiers.
-- Existing follow-up bead already captures this gap: `gromit-sb4mt`.
+- Still missing live captures for: auth failures, quota/rate-limit failures, transport disconnects, and Gemini-native 42/53 semantics.
+- `-p @file` behavior in this run was unstable and should not be the default provider path.
+- Existing follow-up bead for gap closure remains relevant: `gromit-sb4mt`.
+
+## Version/Auth Caveats
+
+- Findings are tied to the 2026-02-23 execution context and Gemini CLI build used via local source invocation.
+- Non-triggerable cases in this run: auth-denied, quota/rate-limit, and transport-disconnect failures.
+- Re-run against the exact production-installed Gemini binary and auth mode is still recommended before declaring full parity.
 
 ## Scope Confirmation
 

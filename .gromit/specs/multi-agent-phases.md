@@ -38,7 +38,9 @@ Each agent preset encapsulates:
   - `stdin`: Pipe the prompt to stdin
 - **prompt_flag**: The flag name used when `prompt_delivery` is `prompt_file_arg`
 
-Built-in presets define correct defaults for each known agent so users just write `codex: {}` without needing to know invocation details.
+Built-in presets define practical defaults for each known agent so users can start with `codex: {}` / `gemini: {}` and override when their installed CLI differs.
+
+Gemini-specific note from spike findings (`.gromit/plans/gemini-cli-spike-findings.md`, 2026-02-23): use `stdin` as the preferred prompt delivery default, with prompt-flag invocation retained as a fallback option. Live non-interactive Gemini behavior is now observed for `json`, `stream-json`, and model-valid/invalid paths; keep config overrides for environment-specific differences and still-unverified auth/rate-limit/transport signatures.
 
 ### Per-Phase Agent Assignment
 
@@ -144,7 +146,7 @@ The `ClaudeConfig` struct (config.go:78-86) holds: binary, timeout, stall_timeou
 
 - **Claude Code** (`claude`): Accepts initial prompt as positional arg, reads files when instructed
 - **OpenAI Codex** (`codex`): CLI tool for code generation and review
-- **Google Gemini CLI** (`gemini`): Google's CLI agent
+- **Google Gemini CLI** (`gemini`): Google's CLI agent. Prompt delivery should default to `stdin` per spike findings; keep config overrides available for local CLI differences.
 - **Aider** (`aider`): Open-source AI pair programming tool
 - **Cursor CLI**: Editor-based AI agent
 

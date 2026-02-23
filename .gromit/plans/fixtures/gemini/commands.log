@@ -21,3 +21,10 @@ timestamp=2026-02-23T22:31:02Z command="printf 'Return the token PIPE_OK.\n' | g
 timestamp=2026-02-23T22:31:03Z command="gemini -p \"@.gromit/plans/fixtures/gemini/prompt-delivery/prompt-file-input.txt\"" exit_code=127 # prompt-delivery
 timestamp=2026-02-23T22:31:04Z command="cat > .gromit/plans/fixtures/gemini/stream-json-success.jsonl" exit_code=0 # fixture-generation
 timestamp=2026-02-23T22:31:05Z command="cat > .gromit/plans/fixtures/gemini/json-success.json" exit_code=0 # fixture-generation
+timestamp=2026-02-23T23:41:29Z command="npm ... -p READY --output-format json" exit_code=0
+timestamp=2026-02-23T23:41:29Z command="printf PIPE_OK | npm ... --output-format json" exit_code=0
+timestamp=2026-02-23T23:41:29Z command="npm ... -p @prompt-file-input.txt --output-format json" exit_code=0
+timestamp=2026-02-23T23:41:29Z command="npm ... -p STREAM_OK --output-format stream-json" exit_code=0
+timestamp=2026-02-23T23:41:29Z command="npm ... --model gemini-2.5-flash -p VALID_MODEL_OK --output-format json" exit_code=0
+timestamp=2026-02-23T23:41:29Z command="npm ... --model invalid-model-does-not-exist -p ping --output-format json" exit_code=1
+timestamp=2026-02-23T23:42:44Z command="npm ... -p @prompt-file-input.txt --output-format json (minimal rerun)" exit_code=143

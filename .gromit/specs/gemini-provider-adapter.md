@@ -34,20 +34,20 @@ type GeminiProvider struct {
 |--------|---------------|
 | `Name()` | Returns `"gemini"` |
 | `ModelForTier(tier)` | Lookup from `tierModels` map; empty string if tier not configured |
-| `Run(ctx, prompt, tier)` | Non-streaming: `gemini -m <model> --output-format json -p <prompt>`. Parse JSON result |
-| `StreamRun(ctx, prompt, tier, output, handler, onToolCall)` | Streaming: `gemini -m <model> --output-format stream-json -p <prompt>`. Parse JSONL events |
+| `Run(ctx, prompt, tier)` | Non-streaming: launch `gemini -m <model> --output-format json` with prompt delivered via stdin by default. Parse JSON result. |
+| `StreamRun(ctx, prompt, tier, output, handler, onToolCall)` | Streaming: launch `gemini -m <model> --output-format stream-json` with prompt delivered via stdin by default. Parse JSONL events. |
 | `RunValidation(ctx, commands, tier, workDir)` | Validation prompt with numbered command block (same pattern as Claude/Codex) |
 | `IsUsageLimitError(result, err)` | Pattern match on error strings from spike findings |
 | `IsValidationPassed(result)` | Check for `VALIDATION_PASSED` marker in output |
 | `IsScopeTooLarge(result)` | Check for `SCOPE_TOO_LARGE:` marker in output |
 
-**Note**: The exact `-p` flag and prompt delivery mode will be determined by the spike. If large prompts require stdin delivery or file inclusion, the implementation will adapt accordingly.
+**Note**: Spike findings (`.gromit/plans/gemini-cli-spike-findings.md`, updated 2026-02-23 with live runs) recommend stdin-first delivery for provider runs, with `-p` retained as fallback for short prompts/diagnostics. Live `json`, `stream-json`, and model-valid/invalid behavior were observed; auth/rate-limit/transport failure signatures remain partially unverified and should stay configurable.
 
 ### Helper Functions
 
 Add `internal/provider/gemini_helpers.go`:
 
-- `classifyGeminiError(stderr string) string` — returns `FailureCategoryAuth`, `FailureCategoryRateLimited`, `FailureCategoryTransportDisconnect`, or `FailureCategoryOther` based on patterns from spike findings.
+- `classifyGeminiError(stderr string) string` — returns `FailureCategoryAuth`, `FailureCategoryRateLimited`, `FailureCategoryTransportDisconnect`, or `FailureCategoryOther` based on patterns from spike findings (including setup failures like `command not found: gemini` mapped to `other` until a dedicated startup/setup category is introduced).
 - `parseGeminiStreamEvent(line []byte) (eventType string, data map[string]interface{}, err error)` — parse a single JSONL line.
 - `parseGeminiJSONResult(output []byte) (*Result, error)` — parse the single-JSON response format.
 - `extractGeminiText(events)` — accumulate assistant text from message events.
@@ -58,7 +58,7 @@ Add `internal/provider/gemini_helpers.go`:
 Follow the Codex pattern: bounded retry for transient failures within `Run()` and `StreamRun()`:
 - Max 2 retries for `transport_disconnect` or `rate_limited` categories.
 - Backoff: 250ms → 750ms → 1500ms.
-- Non-transient failures (auth, other) are not retried.
+- Non-transient failures (auth, environment/setup, other) are not retried.
 
 ### Constructor Wiring
 
@@ -97,7 +97,7 @@ routing:
 
 ### Agent Preset Update
 
-Update `internal/agent/resolve.go` `resolveByName` to use the verified invocation format from the spike. The current preset uses `PromptFileArg` with `--prompt` — this may need to change to `FileRef`, `Stdin`, or a different flag.
+Update `internal/agent/resolve.go` `resolveByName` to align with spike findings: default Gemini preset to `Stdin`, keep prompt-flag delivery available through config override, and preserve compatibility for environments where local CLI invocation differs.
 
 ### Cost Tracking
 
@@ -121,7 +121,7 @@ Add Gemini models to `legacyModelToTier` in `provider.go`:
 - `Run()` executes Gemini CLI and parses JSON result with token/cost data.
 - `StreamRun()` parses JSONL events, accumulates text, reports tokens/cost.
 - `RunValidation()` sends validation commands and detects pass/fail.
-- Error classification correctly categorizes auth, rate limit, and transport failures.
+- Error classification correctly categorizes environment/setup failures now, and supports auth/rate-limit/transport categories with conservative matching until live signatures are captured.
 - Transient retry respects backoff bounds and max retries.
 - Constructor creates `GeminiProvider` from `providers.gemini` config when present.
 - Router selects Gemini based on configured ratio.
@@ -146,6 +146,8 @@ Add Gemini models to `legacyModelToTier` in `provider.go`:
 3. **Config-driven cost** — `cost_per_1k_input`/`cost_per_1k_output` per provider. Prefer provider-reported cost if available.
 
 4. **Start at routing ratio 0%** — add to config but don't route traffic until manually enabled. Safe rollout.
+
+5. **Partial-verification rollout** — spike findings are sufficient to implement parser scaffolding and wiring, but production confidence requires a rerun with installed/authenticated Gemini CLI to lock final schemas and classifier signatures.
 
 ## Research & Context
 
