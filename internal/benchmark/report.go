@@ -6,13 +6,21 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
+	stdstrings "strings"
 )
 
 var json = struct {
 	Unmarshal func([]byte, any) error
 }{
 	Unmarshal: stdjson.Unmarshal,
+}
+
+var strings = struct {
+	Contains func(string, string) bool
+	Index    func(string, string) int
+}{
+	Contains: stdstrings.Contains,
+	Index:    stdstrings.Index,
 }
 
 type ReportInput struct {
@@ -124,9 +132,44 @@ func WriteReport(input ReportInput) (ReportPaths, error) {
 		return ReportPaths{}, fmt.Errorf("write report json: %w", err)
 	}
 
-	md := strings.Builder{}
+	md := stdstrings.Builder{}
 	md.WriteString("# Benchmark Report\n\n")
 	md.WriteString("Manifest: " + input.Manifest.ID + "\n")
+	md.WriteString("\n## Per-Mode Summary\n\n")
+	md.WriteString("| Mode | Elapsed Seconds | Total Input | Total Output | Total Cost USD |\n")
+	md.WriteString("| --- | ---: | ---: | ---: | ---: |\n")
+	for _, mode := range modes {
+		md.WriteString(fmt.Sprintf("| %s | %d | %d | %d | %.2f |\n", mode.Mode, mode.ElapsedSeconds, mode.TotalInput, mode.TotalOutput, mode.TotalCostUSD))
+	}
+
+	md.WriteString("\n## By-Tier Totals\n\n")
+	md.WriteString("| Mode | Tier | Input Tokens | Output Tokens | Cost USD |\n")
+	md.WriteString("| --- | --- | ---: | ---: | ---: |\n")
+	for _, mode := range modes {
+		for _, tier := range []struct {
+			name string
+			row  TierTotalsRow
+		}{
+			{name: "low", row: mode.TierTotals.Low},
+			{name: "medium", row: mode.TierTotals.Medium},
+			{name: "high", row: mode.TierTotals.High},
+		} {
+			md.WriteString(fmt.Sprintf("| %s | %s | %d | %d | %.2f |\n", mode.Mode, tier.name, tier.row.InputTokens, tier.row.OutputTokens, tier.row.CostUSD))
+		}
+	}
+
+	md.WriteString("\n## Quality Metrics\n\n")
+	md.WriteString("| Mode | Average Score | First Pass Rate | Review Findings | Review Fixes Applied | Final Validation Passed |\n")
+	md.WriteString("| --- | ---: | ---: | ---: | ---: | --- |\n")
+	for _, mode := range modes {
+		md.WriteString(fmt.Sprintf("| %s | %.2f | %.2f | %d | %d | %t |\n", mode.Mode, mode.Quality.AverageScore, mode.Quality.FirstPassRate, mode.Quality.ReviewFindings, mode.Quality.ReviewFixesApplied, mode.Quality.FinalValidationPassed))
+	}
+
+	md.WriteString("\n## Winner Hints\n\n")
+	md.WriteString(fmt.Sprintf("- fastest: %s\n", winners.Fastest))
+	md.WriteString(fmt.Sprintf("- cheapest: %s\n", winners.Cheapest))
+	md.WriteString(fmt.Sprintf("- best_quality: %s\n", winners.BestQuality))
+	md.WriteString(fmt.Sprintf("- best_cost_quality: %s\n", winners.BestCostQuality))
 	if err := os.WriteFile(mdPath, []byte(md.String()), 0o644); err != nil {
 		return ReportPaths{}, fmt.Errorf("write report markdown: %w", err)
 	}
