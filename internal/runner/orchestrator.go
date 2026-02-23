@@ -200,18 +200,21 @@ runLoop:
 		// Stage 5: Epilogue — close bead, sync, write status, write iteration log,
 		// run between-iterations command, trigger thorough review when due.
 		baseIn.Result = &logger.IterationLog{
-			Timestamp:    time.Now(),
-			Iteration:    iteration,
-			BeadID:       b.ID,
-			BeadTitle:    b.Title,
-			Success:      true,
-			Model:        buildOut.Model,
-			OriginalTier: buildOut.OriginalTier,
-			ActualTier:   buildOut.ActualTier,
-			DurationMs:   buildOut.DurationMs,
-			CostUSD:      buildOut.CostUSD,
-			InputTokens:  buildOut.InputTokens,
-			OutputTokens: buildOut.OutputTokens,
+			Timestamp:                time.Now(),
+			Iteration:                iteration,
+			BeadID:                   b.ID,
+			BeadTitle:                b.Title,
+			Success:                  true,
+			Model:                    buildOut.Model,
+			OriginalTier:             buildOut.OriginalTier,
+			ActualTier:               buildOut.ActualTier,
+			Complexity:               baseIn.Complexity,
+			ComplexitySource:         baseIn.ComplexitySource,
+			ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
+			DurationMs:               buildOut.DurationMs,
+			CostUSD:                  buildOut.CostUSD,
+			InputTokens:              buildOut.InputTokens,
+			OutputTokens:             buildOut.OutputTokens,
 		}
 		epilogueOut := o.runEpilogue(ctx, baseIn, true)
 		o.logf("Iteration %d: bead %s completed successfully", iteration, b.ID)
