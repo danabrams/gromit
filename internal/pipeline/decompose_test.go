@@ -2192,6 +2192,58 @@ func TestDecomposeWorkflow_FinalHighComplexityWarningAtLoopExitAfterValidationFa
 	}
 }
 
+func TestDecomposeWorkflow_HighComplexityWarningIncludesBroadScopeReasonWithoutLargeEstimate(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plansDir, "complexity-broad-scope-warning.md"), []byte("# Complexity Broad Scope Warning"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	mockClaude := &decomposeAcceptanceClaudeClient{
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output: `[
+					{"title":"Refactor entire authentication system","description":"across all packages","priority":"P1","estimated_files":1,"acceptance_criteria":["a"],"depends_on_index":[]},
+					{"title":"Small task","description":"d","priority":"P1","estimated_files":1,"acceptance_criteria":["b"],"depends_on_index":[]}
+				]`,
+			}, nil
+		},
+	}
+
+	mockBead := &decomposeAcceptanceBeadClient{
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+			return &BeadInfo{ID: "bead-1"}, nil
+		},
+	}
+
+	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+
+	output := captureStdout(t, func() {
+		_, err := p.Decompose(context.Background(), DecomposeInput{
+			PlanName:             "complexity-broad-scope-warning",
+			MaxValidationRetries: 0,
+		})
+		if err != nil {
+			t.Fatalf("Decompose() failed: %v", err)
+		}
+	})
+
+	if !strings.Contains(output, "Warning: high-complexity beads remain") {
+		t.Fatalf("stdout missing high-complexity warning, got:\n%s", output)
+	}
+	if !strings.Contains(output, "Refactor entire authentication system") {
+		t.Fatalf("stdout missing high-complexity title detail, got:\n%s", output)
+	}
+	if !strings.Contains(output, "broad-scope language indicates oversized task") {
+		t.Fatalf("stdout missing broad-scope high-complexity reason, got:\n%s", output)
+	}
+}
+
 func TestDecomposeWorkflow_ComplexitySummaryIncludesHighTitles(t *testing.T) {
 	tmpDir := t.TempDir()
 	plansDir := filepath.Join(tmpDir, "plans")
