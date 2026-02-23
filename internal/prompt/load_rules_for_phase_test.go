@@ -201,7 +201,7 @@ func TestLoadRulesForPhaseRedAndRefactorExcludeBuildProcess(t *testing.T) {
 	}
 }
 
-func TestLoadRulesForPhaseBuildAndGreenFilterDistinctSections(t *testing.T) {
+func TestLoadRulesForPhaseBuildAndGreenShareBuildRules(t *testing.T) {
 	r := setupRendererWithRules(t, rulesWithAnnotations())
 
 	buildResult, err := r.LoadRulesForPhase("build")
@@ -219,8 +219,8 @@ func TestLoadRulesForPhaseBuildAndGreenFilterDistinctSections(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadRulesForPhase(green) error = %v", err)
 	}
-	if strings.Contains(greenResult, "## Build Process") {
-		t.Fatalf("LoadRulesForPhase(green) should exclude %q", "## Build Process")
+	if !strings.Contains(greenResult, "## Build Process") {
+		t.Fatalf("LoadRulesForPhase(green) should include %q", "## Build Process")
 	}
 	if !strings.Contains(greenResult, "## Green Focus") {
 		t.Fatalf("LoadRulesForPhase(green) missing %q", "## Green Focus")
