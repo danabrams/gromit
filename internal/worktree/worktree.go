@@ -157,12 +157,16 @@ func (m *Manager) CreateSessionWorktree(command string) (*SessionWorktree, error
 			}, nil
 		}
 		lastErr = err
-		if isAmbiguousSessionContentionErr(output, err) {
+
+		switch classifySessionCreateFailure(output, err) {
+		case sessionCreateFailureRetryable:
+			continue
+		case sessionCreateFailureAmbiguousProbe:
 			if m.sessionBranchExists(branchName) || m.sessionWorktreeRegistered(worktreeDir) {
 				continue
 			}
-		}
-		if !isSessionContentionErr(output, err) {
+			return nil, fmt.Errorf("failed to create session worktree: %w", err)
+		default:
 			return nil, fmt.Errorf("failed to create session worktree: %w", err)
 		}
 	}
@@ -273,47 +277,6 @@ func sessionBranchName(command string, timestamp int64) string {
 
 func sessionWorktreeDir(mainDir, command string, timestamp int64) string {
 	return fmt.Sprintf("%s-gromit-%s-%d", mainDir, command, timestamp)
-}
-
-func isSessionContentionErr(output string, err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := sessionCreateErrorMessage(output, err)
-	if strings.Contains(msg, "a branch named") && strings.Contains(msg, "already exists") {
-		return true
-	}
-	if strings.Contains(msg, "cannot lock ref") &&
-		strings.Contains(msg, "refs/heads/") &&
-		strings.Contains(msg, "reference already exists") {
-		return true
-	}
-	if strings.Contains(msg, "already checked out") {
-		return true
-	}
-	if strings.Contains(msg, "already used by worktree") {
-		return true
-	}
-	if strings.Contains(msg, "already registered as a worktree") {
-		return true
-	}
-	return false
-}
-
-func isAmbiguousSessionContentionErr(output string, err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := sessionCreateErrorMessage(output, err)
-	return strings.Contains(msg, "cannot lock ref") && strings.Contains(msg, "refs/heads/")
-}
-
-func sessionCreateErrorMessage(output string, err error) string {
-	msg := strings.ToLower(strings.TrimSpace(output))
-	if msg == "" {
-		msg = strings.ToLower(err.Error())
-	}
-	return msg
 }
 
 func (m *Manager) sessionBranchExists(branchName string) bool {
