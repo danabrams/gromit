@@ -8,3 +8,10 @@ timestamp=2026-02-23T22:23:17Z command="d=$(mktemp -d); chmod 000 "$d"; ls "$d" 
 timestamp=2026-02-23T22:23:49Z command="pwd # workdir" exit_code=0
 timestamp=2026-02-23T22:23:49Z command="cd /tmp && pwd && ls /home/dabrams/gromit/.gromit/plans/fixtures/gemini/preflight.md # workdir" exit_code=0
 timestamp=2026-02-23T22:23:49Z command="d=$(mktemp -d); cd "$d" && pwd && ls preflight.md # workdir" exit_code=2
+timestamp=2026-02-23T22:27:17Z command="gemini --model gemini-2.0-flash -p ping" exit_code=127 # model
+timestamp=2026-02-23T22:27:17Z command="gemini --model invalid-model-does-not-exist -p ping" exit_code=127 # model
+timestamp=2026-02-23T22:27:17Z command="gemini --output-format json --model gemini-2.0-flash -p token-check" exit_code=127 # token-cost
+timestamp=2026-02-23T22:27:17Z command="sh -c echo ok" exit_code=0 # exit-error
+timestamp=2026-02-23T22:27:17Z command="sh -c echo intentional trigger for exit code 1 >&2; exit 1" exit_code=1 # exit-error
+timestamp=2026-02-23T22:27:17Z command="sh -c echo intentional trigger for exit code 42 >&2; exit 42" exit_code=42 # exit-error
+timestamp=2026-02-23T22:27:17Z command="sh -c echo intentional trigger for exit code 53 >&2; exit 53" exit_code=53 # exit-error
