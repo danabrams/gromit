@@ -185,3 +185,26 @@ func TestGeminiErrorsFixtures_CaptureCategorizedStderrSamples(t *testing.T) {
 		}
 	}
 }
+
+func TestGeminiModelFixtures_CaptureValidAndInvalidModelRawArtifacts(t *testing.T) {
+	dir := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "models")
+	required := []string{
+		"valid-model.stdout.txt",
+		"valid-model.stderr.txt",
+		"invalid-model.stdout.txt",
+		"invalid-model.stderr.txt",
+	}
+
+	for _, name := range required {
+		path := filepath.Join(dir, name)
+		content, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("failed to read model artifact %q: %v", name, err)
+		}
+		if name == "valid-model.stderr.txt" || name == "invalid-model.stderr.txt" {
+			if strings.TrimSpace(string(content)) == "" {
+				t.Fatalf("stderr model artifact %q must be non-empty", name)
+			}
+		}
+	}
+}
