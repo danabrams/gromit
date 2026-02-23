@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/pipeline"
@@ -89,6 +90,8 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 		return pipeline.Output{Decision: pipeline.Proceed}, nil
 	}
 
+	complexityRouting := resolveComplexityRouting(in)
+
 	out := g.output
 	if out == nil {
 		out = io.Discard
@@ -130,7 +133,30 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 		return pipeline.Output{Decision: pipeline.Skip}, nil
 	}
 
-	return pipeline.Output{Decision: pipeline.Proceed}, nil
+	return pipeline.Output{
+		Decision:          pipeline.Proceed,
+		ComplexityRouting: complexityRouting,
+	}, nil
+}
+
+func resolveComplexityRouting(in pipeline.Input) pipeline.ComplexityRouting {
+	if normalized, ok := normalizeComplexity(in.Complexity); ok {
+		return pipeline.ComplexityRouting{
+			Complexity:               normalized,
+			ComplexitySource:         "scope_estimate",
+			ComplexityFallbackReason: "none",
+		}
+	}
+	return pipeline.ComplexityRouting{}
+}
+
+func normalizeComplexity(complexity string) (string, bool) {
+	normalized := strings.ToLower(strings.TrimSpace(complexity))
+	switch normalized {
+	case "low", "medium", "high":
+		return normalized, true
+	}
+	return "", false
 }
 
 // runScopeGate evaluates scope gate rules and attempts decomposition if needed.
