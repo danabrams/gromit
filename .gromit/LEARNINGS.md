@@ -51,6 +51,16 @@ Scope-gate decomposition must enforce strict output contracts (bounded sub-task 
 
 *Newly observed — needs validation across more tasks.*
 
+### 2026-02-23 | Scoped Status Progress Recomputed at Read-Time | PATTERNS
+*Related to: gromit-tlhuh*
+
+Status progress denominator should be recomputed at display/read time for scoped runs instead of trusting persisted totals. Persisted `iteration_total` can become stale across process lifetimes, so status rendering should infer scope from `scope_label` (or active bead labels as fallback) and recalculate totals from current open non-epic work.
+
+### 2026-02-23 | Retry Classification Must Not Depend on Broad Error Substrings | RELIABILITY
+*Related to: gromit-tlhuh*
+
+Session worktree retries should only trigger on explicit contention signals (branch/worktree collision). Broad substring matching like `already exists` can mask non-contention failures and reduce debuggability; retry paths need precise classification and tests for exhaustion and mixed failure sequences.
+
 ### 2026-02-22 | SPC Display Formatting Two-Tier Pattern | patterns
 *Related to: review-1771784092725425988*
 
