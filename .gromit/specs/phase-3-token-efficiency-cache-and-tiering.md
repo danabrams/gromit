@@ -1,5 +1,5 @@
 ---
-id: token-efficiency-cache-and-tiering
+id: phase-3-token-efficiency-cache-and-tiering
 source_ideas: []
 created: 2026-02-23
 ---
@@ -17,7 +17,7 @@ This spec converts high-level token-saving guidance into controlled, measurable 
 
 ## Preconditions
 
-1. `token-efficiency-foundation` metrics are available in run telemetry
+1. `phase-1-2-token-efficiency-foundation` metrics are available in run telemetry
 2. Baseline cache hit rate is measurable (or explicitly zero before rollout)
 3. Feature flags exist for staged enablement
 
@@ -112,5 +112,5 @@ Report before/after for fixed workloads:
 
 ## Related Specs
 
-1. `token-efficiency-foundation`
-2. `token-efficiency-rag-evaluation`
+1. `phase-1-2-token-efficiency-foundation`
+2. `phase-4-token-efficiency-rag-evaluation`

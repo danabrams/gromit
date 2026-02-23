@@ -1,5 +1,5 @@
 ---
-id: token-efficiency-rag-evaluation
+id: phase-4-token-efficiency-rag-evaluation
 source_ideas: []
 created: 2026-02-23
 ---
@@ -100,11 +100,11 @@ If any gate fails, retain baseline workflow and close experiment with findings.
 
 ## Dependencies
 
-1. Metrics from `token-efficiency-foundation`
-2. Routing/caching controls from `token-efficiency-cache-and-tiering` where relevant
+1. Metrics from `phase-1-2-token-efficiency-foundation`
+2. Routing/caching controls from `phase-3-token-efficiency-cache-and-tiering` where relevant
 3. Existing file-read/open tooling for attribution verification
 
 ## Related Specs
 
-1. `token-efficiency-foundation`
-2. `token-efficiency-cache-and-tiering`
+1. `phase-1-2-token-efficiency-foundation`
+2. `phase-3-token-efficiency-cache-and-tiering`

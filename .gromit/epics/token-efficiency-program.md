@@ -64,9 +64,9 @@ Run a bounded experiment for semantic retrieval:
 
 ## Planned Specs
 
-1. `token-efficiency-foundation` (Phase 1-2)
-2. `token-efficiency-cache-and-tiering` (Phase 3)
-3. `token-efficiency-rag-evaluation` (Phase 4)
+1. `phase-1-2-token-efficiency-foundation` (Phase 1-2)
+2. `phase-3-token-efficiency-cache-and-tiering` (Phase 3)
+3. `phase-4-token-efficiency-rag-evaluation` (Phase 4)
 
 ## Success Criteria
 

@@ -1,5 +1,5 @@
 ---
-id: token-efficiency-foundation
+id: phase-1-2-token-efficiency-foundation
 source_ideas: []
 created: 2026-02-23
 ---
@@ -124,5 +124,5 @@ Minimum evaluation protocol:
 
 ## Related Specs
 
-1. `token-efficiency-cache-and-tiering`
-2. `token-efficiency-rag-evaluation`
+1. `phase-3-token-efficiency-cache-and-tiering`
+2. `phase-4-token-efficiency-rag-evaluation`
