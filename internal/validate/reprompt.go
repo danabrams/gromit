@@ -45,7 +45,7 @@ func BuildComplexityRepromptFeedback(highComplexity []CandidateComplexityResult)
 	for _, candidate := range highComplexity {
 		sb.WriteString(fmt.Sprintf("- %s\n", candidate.Title))
 		for _, reason := range candidate.Reasons {
-			sb.WriteString(fmt.Sprintf("  - reason: %s\n", reason))
+			sb.WriteString(fmt.Sprintf("  - reason [candidate: %s]: %s\n", candidate.Title, reason))
 		}
 	}
 
