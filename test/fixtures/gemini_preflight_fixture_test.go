@@ -163,3 +163,25 @@ func TestGeminiSchemaNotesFixture_DocumentsTokenCostAndModelObservations(t *test
 		}
 	}
 }
+
+func TestGeminiErrorsFixtures_CaptureCategorizedStderrSamples(t *testing.T) {
+	dir := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "errors")
+
+	required := []string{
+		"command-missing.stderr.txt",
+		"exit-1.stderr.txt",
+		"exit-42.stderr.txt",
+		"exit-53.stderr.txt",
+	}
+
+	for _, name := range required {
+		path := filepath.Join(dir, name)
+		content, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("failed to read categorized stderr fixture %q: %v", name, err)
+		}
+		if strings.TrimSpace(string(content)) == "" {
+			t.Fatalf("categorized stderr fixture %q must be non-empty", name)
+		}
+	}
+}
