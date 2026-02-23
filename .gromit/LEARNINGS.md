@@ -55,6 +55,16 @@ Replace God Object pattern with pure orchestration: hold only stage references a
 
 *Newly observed — needs validation across more tasks.*
 
+### 2026-02-23 | Decomposition Batch-Size Policy Must Be Retry-Enforced, Not Truncated | conventions
+*Related to: gromit-9946, review-1771832540735638835*
+
+When decompose output violates batch bounds, enforce `batch_size_min`/`batch_size_max` in the retry validation loop so the model is reprompted with contract feedback. Do not silently truncate oversized output; at retry cap, return a clear contract error instead of proceeding with dropped work.
+
+### 2026-02-23 | Shared Decompose Validator Prevents Rule Drift Across Entry Points | architecture
+*Related to: gromit-9947, review-1771832540735638835*
+
+Pipeline decompose and runtime scope-gate decomposition must use one shared validation entry point with explicit mode flags for context-specific rules. Duplicated call-site checks drift over time and create parity bugs between plan-time and runtime behavior.
+
 ### 2026-02-22 | Orchestrator Migration Adapter Patterns | patterns
 *Related to: code-review, review-1771733992016921570*
 
@@ -137,4 +147,3 @@ JSON parsing alone is not enough for LLM decomposition output. Gate paths should
 Use package-level `var _ Interface = (*Impl)(nil)` declarations in non-test `.go` files to enforce architectural invariants at compile time. A check inside a test function body gates test compilation only — it does not gate production builds. Avoid tests that use `os.ReadFile`+`strings.Contains` on `.go` source files — they break silently on renames/moves. Distinguish from forced-import keep-alive patterns (`var _ = Type{}`): these exist solely to prevent the compiler from removing an unused import, indicate incomplete refactoring, and should be removed. When removing package usage, search for these keep-alive patterns in the same file and related consumers.
 
 *Archived from provisional: filtered: generic engineering advice*
-
