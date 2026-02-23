@@ -1197,24 +1197,19 @@ func TestMergeBack_FallbackToMergeCommit_DoesNotRemoveDerivedSessionWorktree(t *
 	}
 }
 
-func TestMergeBack_CleanupErrorDoesNotChangeSuccessfulResult(t *testing.T) {
+func TestMergeBack_BranchDeleteErrorReturnsFailure(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "myproject")
 	if err := os.MkdirAll(mainDir, 0755); err != nil {
 		t.Fatalf("failed to create main dir: %v", err)
 	}
 
-	removed := false
 	mockGitRun := func(dir string, args ...string) (string, error) {
 		if args[0] == "merge" && contains(args, "--ff-only") {
 			return "Fast-forward", nil
 		}
 		if args[0] == "branch" && args[1] == "-d" {
-			return "", nil
-		}
-		if args[0] == "worktree" && args[1] == "remove" {
-			removed = true
-			return "", errors.New("remove failed")
+			return "", errors.New("delete failed")
 		}
 		return "", nil
 	}
@@ -1226,11 +1221,12 @@ func TestMergeBack_CleanupErrorDoesNotChangeSuccessfulResult(t *testing.T) {
 
 	err = m.MergeBack("gromit/review-123")
 	if err != nil {
-		t.Fatalf("MergeBack() error = %v, want nil when cleanup fails", err)
+		if !strings.Contains(err.Error(), "delete failed") {
+			t.Fatalf("MergeBack() error = %v, want delete failure context", err)
+		}
+		return
 	}
-	if !removed {
-		t.Fatalf("expected derived cleanup attempt")
-	}
+	t.Fatal("MergeBack() error = nil, want branch delete failure")
 }
 
 func TestCreateSessionWorktree_UniqueNames(t *testing.T) {
