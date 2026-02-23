@@ -60,6 +60,40 @@ func TestTDDPipelineAdapter_RunCycles_ConvertsPhaseMetricsToResult(t *testing.T)
 	}
 }
 
+// TestTDDPipelineAdapter_RunCycles_InfersTierProvenanceFromPhaseMetrics verifies
+// that TDD cycle output carries top-level tier provenance for iteration logs:
+// OriginalTier is the first phase tier and ActualTier is the highest tier used.
+func TestTDDPipelineAdapter_RunCycles_InfersTierProvenanceFromPhaseMetrics(t *testing.T) {
+	r := &Runner{
+		cfg: &config.Config{},
+		tddOrchestrator: &tddOrchestrator{
+			runCyclesFn: func(_ context.Context, bc *runtypes.BeadContext, _ *coverage.CoverageTracker, _ []coverage.Criterion) error {
+				bc.Result.PhaseMetrics = []runtypes.PhaseMetric{
+					{Phase: "red", Tier: "low", Model: "claude-haiku-4-5"},
+					{Phase: "green", Tier: "medium", Model: "claude-sonnet-4-6"},
+					{Phase: "refactor", Tier: "low", Model: "claude-haiku-4-5"},
+				}
+				return nil
+			},
+		},
+	}
+
+	b := &bead.Bead{ID: "b1", Title: "Test feature", ExpectedOutputs: []string{"implement X"}}
+	adapter := &TDDPipelineAdapter{runner: r}
+
+	result, err := adapter.RunCycles(context.Background(), b, &config.Config{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.OriginalTier != "low" {
+		t.Errorf("OriginalTier = %q, want %q", result.OriginalTier, "low")
+	}
+	if result.ActualTier != "medium" {
+		t.Errorf("ActualTier = %q, want %q", result.ActualTier, "medium")
+	}
+}
+
 // TestTDDPipelineAdapter_RunCycles_PropagatesOrchestratorError verifies that when
 // the tdd orchestrator returns an error, RunCycles propagates it.
 func TestTDDPipelineAdapter_RunCycles_PropagatesOrchestratorError(t *testing.T) {
