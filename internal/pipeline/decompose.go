@@ -332,20 +332,8 @@ func formatComplexitySummaryLine(attempt int, defs []beadDef) string {
 }
 
 func buildComplexityRepromptFeedback(defs []beadDef) string {
-	highTitles := make([]string, 0, len(defs))
-	for _, def := range defs {
-		if def.EstimatedFiles > highComplexityFileThreshold {
-			highTitles = append(highTitles, fmt.Sprintf("- %s (estimated_files=%d)", def.Title, def.EstimatedFiles))
-		}
-	}
-	if len(highTitles) == 0 {
-		return ""
-	}
-
-	return "## Complexity Feedback\n\n" +
-		"Complexity feedback:\n" +
-		"The following beads are still high complexity. Reduce scope or split them into smaller beads.\n" +
-		strings.Join(highTitles, "\n")
+	classification := validate.ValidateDecomposeCandidates(toBeadCandidates(defs))
+	return validate.BuildComplexityRepromptFeedback(classification.ComplexityOutcome.HighComplexity)
 }
 
 func highComplexityTitles(defs []beadDef) []string {
@@ -456,6 +444,7 @@ func toBeadCandidates(defs []beadDef) []validate.BeadCandidate {
 		candidates[i] = validate.BeadCandidate{
 			Title:              def.Title,
 			Description:        def.Description,
+			EstimatedFiles:     def.EstimatedFiles,
 			AcceptanceCriteria: def.AcceptanceCriteria,
 			ExpectedOutputs:    expectedOutputs,
 		}
