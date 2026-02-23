@@ -101,6 +101,12 @@ type Output struct {
 	// PhaseMetrics holds per-phase invocation metrics for TDD builds.
 	// Each entry corresponds to one TDD phase (red, green, refactor, etc.).
 	PhaseMetrics []PhaseMetric
+	// Complexity is the normalized complexity selected by Gate for Build routing.
+	Complexity string
+	// ComplexitySource identifies where Complexity came from (e.g. scope_estimate, label, fallback).
+	ComplexitySource string
+	// ComplexityFallbackReason explains why fallback complexity was used when applicable.
+	ComplexityFallbackReason string
 }
 
 // Stage is the interface that each pipeline stage implements.
