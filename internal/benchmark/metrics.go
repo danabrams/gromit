@@ -82,6 +82,11 @@ func AggregateModeMetrics(inputs []ModeLogInput) ([]ModeSummary, error) {
 			summary.Quality.FirstPassRate = roundUSD(float64(firstPassCount) / float64(len(recs.Iterations)))
 			summary.Quality.FinalValidationPassed = recs.Iterations[len(recs.Iterations)-1].Validated
 		}
+		if summary.Quality.AverageScore > 0 {
+			summary.CostQualityRatio = roundUSD(summary.TotalCostUSD / summary.Quality.AverageScore)
+		} else {
+			summary.CostQualityRatio = summary.TotalCostUSD
+		}
 		for _, rec := range recs.Reviews {
 			summary.Quality.ReviewFixesApplied += rec.FixesApplied
 			summary.Quality.ReviewFindings += rec.BeadsCreated + rec.BacklogCreated
