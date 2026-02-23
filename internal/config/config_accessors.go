@@ -124,6 +124,14 @@ func (c *Config) SelectTier(priority int, labels []string) string {
 	return tierFromLegacyModel(value)
 }
 
+// SelectInitialTierForComplexity maps effective complexity to an initial tier.
+func (c *Config) SelectInitialTierForComplexity(complexity string) string {
+	if strings.EqualFold(complexity, tierLow) {
+		return tierLow
+	}
+	return tierMedium
+}
+
 // SelectModel determines the appropriate model for a bead based on priority and labels.
 func (c *Config) SelectModel(priority int, labels []string) string {
 	if c == nil {
