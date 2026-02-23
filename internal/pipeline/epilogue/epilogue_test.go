@@ -305,6 +305,27 @@ func TestEpilogue_SkipsMergeWhenAutoMergeDisabled(t *testing.T) {
 	}
 }
 
+func TestEpilogue_DeduplicatesPendingBranchesBeforeMerge(t *testing.T) {
+	merger := &fakeWorktreeMerger{
+		branches: []string{"gromit/review-1", "gromit/review-1", "gromit/review-2"},
+	}
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
+		WithWorktree(merger)
+
+	in := makeInput("bead-1", "Test", true)
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if len(merger.mergedBranches) != 2 {
+		t.Fatalf("merged branches = %v, want 2 unique merges", merger.mergedBranches)
+	}
+	if merger.mergedBranches[0] != "gromit/review-1" || merger.mergedBranches[1] != "gromit/review-2" {
+		t.Fatalf("merged branches order = %v, want [gromit/review-1 gromit/review-2]", merger.mergedBranches)
+	}
+}
+
 // TestEpilogue_RunsBetweenIterationsCommand verifies the between-iterations command is executed.
 func TestEpilogue_RunsBetweenIterationsCommand(t *testing.T) {
 	runner := &fakeCommandRunner{}
