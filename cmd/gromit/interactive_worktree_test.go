@@ -254,8 +254,14 @@ func TestRunWithSessionWorktreeImmediateMergeSuccessRunsCleanupAndClearsPendingB
 			},
 		}, nil
 	}, func(gotMainDir, sessionDir string) error {
-		if !removeCalled {
-			t.Fatal("cleanup happened before pending branch was removed")
+		if !addCalled {
+			t.Fatal("cleanup happened before pending branch was recorded")
+		}
+		if mergeCalled {
+			t.Fatal("cleanup should happen before merge is attempted")
+		}
+		if removeCalled {
+			t.Fatal("cleanup should happen before pending branch removal")
 		}
 		cleanupMain = gotMainDir
 		cleanupDir = sessionDir
@@ -341,6 +347,104 @@ func TestRunWithSessionWorktreeImmediateMergeSuccessPreRemovesBeforeMerge(t *tes
 	}
 }
 
+func TestRunWithSessionWorktreePreRemoveFailureKeepsPendingBranchAndSkipsMerge(t *testing.T) {
+	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "repair")
+	session.BranchName = "gromit/repair-111"
+
+	preRemoveErr := errors.New("cannot remove worktree: uncommitted changes")
+	var (
+		addCalled    bool
+		mergeCalled  bool
+		removeCalled bool
+	)
+
+	withInteractiveWorktreeFactories(t, func(string) (sessionWorktreeCreator, error) {
+		return &mockSessionWorktreeCreator{
+			CreateSessionWorktreeFn: func(string) (*worktree.SessionWorktree, error) {
+				return session, nil
+			},
+			MergeBackFn: func(string) error {
+				mergeCalled = true
+				return nil
+			},
+		}, nil
+	}, func(string) (pendingBranchRecorder, error) {
+		return &mockPendingBranchRecorder{
+			AddPendingWorktreeBranchFn: func(branch string) error {
+				if branch != session.BranchName {
+					t.Fatalf("add branch = %q, want %q", branch, session.BranchName)
+				}
+				addCalled = true
+				return nil
+			},
+			RemovePendingWorktreeBranchFn: func(string) error {
+				removeCalled = true
+				return nil
+			},
+		}, nil
+	}, func(gotMainDir, gotSessionDir string) error {
+		if gotMainDir != mainDir {
+			t.Fatalf("cleanup mainDir = %q, want %q", gotMainDir, mainDir)
+		}
+		if gotSessionDir != session.WorktreeDir {
+			t.Fatalf("cleanup sessionDir = %q, want %q", gotSessionDir, session.WorktreeDir)
+		}
+		return preRemoveErr
+	})
+
+	result, err := runWithSessionWorktree(gromitDir, "repair", func(string) error { return nil })
+	if err == nil {
+		t.Fatal("expected pre-remove error, got nil")
+	}
+	if !errors.Is(err, preRemoveErr) {
+		t.Fatalf("error = %v, want wrapped %v", err, preRemoveErr)
+	}
+	if result == nil {
+		t.Fatal("expected session result to be returned on pre-remove failure")
+	}
+	if result.BranchName != session.BranchName {
+		t.Fatalf("result.BranchName = %q, want %q", result.BranchName, session.BranchName)
+	}
+	if !addCalled {
+		t.Fatal("expected pending branch to be recorded before pre-remove")
+	}
+	if mergeCalled {
+		t.Fatal("merge should not run when pre-remove fails")
+	}
+	if removeCalled {
+		t.Fatal("pending branch should remain when pre-remove fails")
+	}
+}
+
+func TestRunWithSessionWorktreePreRemoveFailureWrapsBranchContext(t *testing.T) {
+	_, gromitDir, session := setupRunWithSessionWorktreeTest(t, "context")
+	session.BranchName = "gromit/context-222"
+
+	preRemoveErr := errors.New("cannot remove worktree")
+	withInteractiveWorktreeFactories(t, func(string) (sessionWorktreeCreator, error) {
+		return &mockSessionWorktreeCreator{
+			CreateSessionWorktreeFn: func(string) (*worktree.SessionWorktree, error) {
+				return session, nil
+			},
+		}, nil
+	}, func(string) (pendingBranchRecorder, error) {
+		return &mockPendingBranchRecorder{}, nil
+	}, func(string, string) error {
+		return preRemoveErr
+	})
+
+	_, err := runWithSessionWorktree(gromitDir, "context", func(string) error { return nil })
+	if err == nil {
+		t.Fatal("expected pre-remove error, got nil")
+	}
+	if !errors.Is(err, preRemoveErr) {
+		t.Fatalf("error = %v, want wrapped %v", err, preRemoveErr)
+	}
+	if !strings.Contains(err.Error(), session.BranchName) {
+		t.Fatalf("error should include branch context %q, got: %v", session.BranchName, err)
+	}
+}
+
 func TestRunWithSessionWorktreeConflictManualPolicyKeepsPendingBranch(t *testing.T) {
 	_, gromitDir, session := setupRunWithSessionWorktreeTest(t, "review")
 	session.BranchName = "gromit/review-111"
@@ -389,8 +493,8 @@ func TestRunWithSessionWorktreeConflictManualPolicyKeepsPendingBranch(t *testing
 	if removeCalled {
 		t.Fatal("pending branch should remain on manual conflict handoff")
 	}
-	if cleanupCalled {
-		t.Fatal("session worktree should be preserved on manual conflict handoff")
+	if !cleanupCalled {
+		t.Fatal("session worktree should be pre-removed before manual conflict handoff")
 	}
 	if !strings.Contains(err.Error(), "manual handoff") {
 		t.Fatalf("error should contain manual handoff guidance, got: %v", err)
@@ -543,8 +647,8 @@ func TestRunWithSessionWorktreeConflictAgentPolicyFallsBackToManual(t *testing.T
 	if removeCalled {
 		t.Fatal("pending branch should be retained after fallback to manual handoff")
 	}
-	if cleanupCalled {
-		t.Fatal("session worktree should be preserved after fallback to manual handoff")
+	if !cleanupCalled {
+		t.Fatal("session worktree should be pre-removed before fallback to manual handoff")
 	}
 }
 
