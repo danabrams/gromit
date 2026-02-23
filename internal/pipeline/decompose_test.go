@@ -1959,6 +1959,55 @@ func TestDecomposeWorkflow_ComplexitySummaryIncludesHighTitles(t *testing.T) {
 	}
 }
 
+func TestDecomposeWorkflow_UsesScoreBasedComplexitySummaryAndReasons(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plansDir, "score-based-complexity.md"), []byte("# Score Based Complexity"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	mockClaude := &decomposeAcceptanceClaudeClient{
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output: `[
+					{"title":"Refactor entire auth workflow","description":"touches multiple areas","priority":"P1","estimated_files":1,"acceptance_criteria":["a"],"depends_on_index":[]},
+					{"title":"Small task","description":"d","priority":"P1","estimated_files":1,"acceptance_criteria":["b"],"depends_on_index":[]}
+				]`,
+			}, nil
+		},
+	}
+
+	mockBead := &decomposeAcceptanceBeadClient{
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+			return &BeadInfo{ID: "bead-1"}, nil
+		},
+	}
+
+	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+
+	output := captureStdout(t, func() {
+		_, err := p.Decompose(context.Background(), DecomposeInput{
+			PlanName:             "score-based-complexity",
+			MaxValidationRetries: 0,
+		})
+		if err != nil {
+			t.Fatalf("Decompose() failed: %v", err)
+		}
+	})
+
+	if !strings.Contains(output, "Complexity summary (attempt 1): high=1 low=1") {
+		t.Fatalf("stdout missing score-based complexity summary counts, got:\n%s", output)
+	}
+	if !strings.Contains(output, "contains broad-scope language in title or description") {
+		t.Fatalf("stdout missing score-based complexity reason in summary, got:\n%s", output)
+	}
+}
+
 func TestFormatComplexitySummaryLine_UsesAttemptNumberAndCounts(t *testing.T) {
 	line := formatComplexitySummaryLine(2, []beadDef{
 		{Title: "Big task", EstimatedFiles: 7},
