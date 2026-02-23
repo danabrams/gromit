@@ -1,0 +1,4 @@
+# Gemini command ledger
+# format: timestamp=<RFC3339> command=<shell command> exit_code=<int>
+
+timestamp=2026-02-23T22:00:00Z command="gemini --version" exit_code=0
