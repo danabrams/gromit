@@ -97,7 +97,8 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 			return nil, fmt.Errorf("parsing bead definitions: %w\n\nProvider output:\n%s", err, preview)
 		}
 
-		highComplexityCount, _ := countComplexityByEstimate(beadDefs)
+		complexity := complexityOutcomeForDefs(beadDefs)
+		highComplexityCount := complexity.HighCount
 		priorBestHighComplexityCount := bestHighComplexityCount
 		if attempt == 0 {
 			firstHighComplexityCount = highComplexityCount
@@ -134,17 +135,11 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 					stats.Improved = true
 				}
 				stats.ProceededWithHighComplexityWarning = true
-				details := make([]string, 0, len(beadDefs))
-				for _, def := range beadDefs {
-					if def.EstimatedFiles > highComplexityFileThreshold {
-						details = append(details, fmt.Sprintf("%s (estimated_files=%d)", def.Title, def.EstimatedFiles))
-					}
-				}
 				fmt.Printf(
 					"Warning: high-complexity trajectory stalled at attempt %d; proceeding with current output. remaining=%d details=%s\n",
 					attempt+1,
 					highComplexityCount,
-					strings.Join(details, ", "),
+					formatHighComplexityDetails(complexity.HighComplexity),
 				)
 				break
 			}
@@ -158,18 +153,12 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 					stats.NonImprovingAtRetryCap = true
 				}
 				stats.ProceededWithHighComplexityWarning = true
-				details := make([]string, 0, len(beadDefs))
-				for _, def := range beadDefs {
-					if def.EstimatedFiles > highComplexityFileThreshold {
-						details = append(details, fmt.Sprintf("%s (estimated_files=%d)", def.Title, def.EstimatedFiles))
-					}
-				}
 				fmt.Printf(
 					"Warning: high-complexity beads remain after %d retr%s; proceeding with current output. remaining=%d details=%s\n",
 					maxRetries,
 					pluralizeRetry(maxRetries),
 					highComplexityCount,
-					strings.Join(details, ", "),
+					formatHighComplexityDetails(complexity.HighComplexity),
 				)
 				break
 			}
@@ -198,18 +187,12 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 			fmt.Printf("Warning: validation still failing after %d retr%s; proceeding with current output.\n", maxRetries, pluralizeRetry(maxRetries))
 			if highComplexityCount > 0 {
 				stats.ProceededWithHighComplexityWarning = true
-				details := make([]string, 0, len(beadDefs))
-				for _, def := range beadDefs {
-					if def.EstimatedFiles > highComplexityFileThreshold {
-						details = append(details, fmt.Sprintf("%s (estimated_files=%d)", def.Title, def.EstimatedFiles))
-					}
-				}
 				fmt.Printf(
 					"Warning: high-complexity beads remain after %d retr%s; proceeding with current output. remaining=%d details=%s\n",
 					maxRetries,
 					pluralizeRetry(maxRetries),
 					highComplexityCount,
-					strings.Join(details, ", "),
+					formatHighComplexityDetails(complexity.HighComplexity),
 				)
 			}
 			break
@@ -310,14 +293,8 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 }
 
 func countComplexityByEstimate(defs []beadDef) (high int, low int) {
-	for _, def := range defs {
-		if def.EstimatedFiles > highComplexityFileThreshold {
-			high++
-			continue
-		}
-		low++
-	}
-	return high, low
+	complexity := complexityOutcomeForDefs(defs)
+	return complexity.HighCount, len(defs) - complexity.HighCount
 }
 
 func formatComplexitySummaryLine(attempt int, defs []beadDef) string {
@@ -333,17 +310,37 @@ func formatComplexitySummaryLine(attempt int, defs []beadDef) string {
 
 func buildComplexityRepromptFeedback(defs []beadDef) string {
 	classification := validate.ValidateDecomposeCandidates(toBeadCandidates(defs))
-	return validate.BuildComplexityRepromptFeedback(classification.ComplexityOutcome.HighComplexity)
+	feedback := validate.BuildComplexityRepromptFeedback(classification.ComplexityOutcome.HighComplexity)
+	if feedback == "" {
+		return ""
+	}
+	return "Complexity feedback:\n" + feedback
 }
 
 func highComplexityTitles(defs []beadDef) []string {
-	titles := make([]string, 0, len(defs))
-	for _, def := range defs {
-		if def.EstimatedFiles > highComplexityFileThreshold {
-			titles = append(titles, def.Title)
-		}
+	complexity := complexityOutcomeForDefs(defs)
+	titles := make([]string, 0, len(complexity.HighComplexity))
+	for _, candidate := range complexity.HighComplexity {
+		titles = append(titles, candidate.Title)
 	}
 	return titles
+}
+
+func complexityOutcomeForDefs(defs []beadDef) validate.ComplexityOutcome {
+	return validate.ValidateDecomposeCandidates(toBeadCandidates(defs)).ComplexityOutcome
+}
+
+func formatHighComplexityDetails(high []validate.CandidateComplexityResult) string {
+	details := make([]string, 0, len(high))
+	for _, candidate := range high {
+		reasons := strings.Join(candidate.Reasons, "; ")
+		if reasons == "" {
+			details = append(details, candidate.Title)
+			continue
+		}
+		details = append(details, fmt.Sprintf("%s (%s)", candidate.Title, reasons))
+	}
+	return strings.Join(details, ", ")
 }
 
 func decomposeModelForTier(inputTier string) string {
