@@ -142,6 +142,7 @@ runLoop:
 		if gateErr != nil {
 			o.logf("Warning: gate error for bead %s (iteration %d): %v", b.ID, iteration, gateErr)
 		}
+		baseIn.ComplexityRouting = gateOut.ComplexityRouting
 		if gateOut.Decision != pipeline.Proceed {
 			// Bead is skipped or blocked; run Epilogue in the failure path for
 			// cleanup and logging (e.g. status write, iteration log).
