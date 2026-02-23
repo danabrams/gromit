@@ -12,6 +12,7 @@ type sessionCreateRetryDecision struct {
 	BranchExists     bool
 	WorktreeProbeRan bool
 	WorktreeExists   bool
+	TerminalReason   string
 }
 
 func decideSessionCreateRetry(input sessionCreateRetryInput) sessionCreateRetryDecision {
@@ -33,8 +34,11 @@ func decideSessionCreateRetry(input sessionCreateRetryInput) sessionCreateRetryD
 			decision.WorktreeExists = input.ProbeWorktreeRegistered()
 		}
 		decision.Retry = decision.WorktreeExists
+		if !decision.Retry {
+			decision.TerminalReason = "ambiguous_probe_inconclusive"
+		}
 		return decision
 	default:
-		return sessionCreateRetryDecision{}
+		return sessionCreateRetryDecision{TerminalReason: "non_retryable_failure"}
 	}
 }
