@@ -1,16 +1,10 @@
 {
-  "last_retro": "2026-02-21T02:58:04.428810661Z",
-  "iterations_since_review": 10,
+  "last_retro": "2026-02-22T22:23:25.424999534Z",
   "clean_exit": false,
-  "updated_at": "2026-02-22T22:06:58.054133947Z",
+  "updated_at": "2026-02-23T00:51:34.069796317Z",
   "filtered_learning_hashes": [
     "109b54da73b0ee8e",
-    "d785262a83fce590",
-    "a716b85d881774fe",
-    "df46f2b6834f89f2",
-    "aaeecc9fe0304941",
-    "c57ae1186a1da10d",
-    "387c1483298ff0ac",
+    "ccf7812cadb063c8",
     "c0c91070ecb179cb",
     "2914f3b990b757a8",
     "38bc17d578b9776f",
@@ -20,14 +14,15 @@
     "c212d62c1f6b825e",
     "ec79ddd2ee603496",
     "9575bf4959986ca7",
-    "47bb730a8150570b"
-  ],
-  "archived_learning_hashes": [
-    "eb2ead8b3e8e812c",
-    "15dd4b4e80dd8648"
+    "47bb730a8150570b",
+    "12527b9785537cc5",
+    "0933da45340977fe",
+    "33a04faa3fcb1876",
+    "b8892b350dd28310",
+    "596f98015deb5560"
   ],
   "provider_counts": {
-    "claude": 179,
-    "openai": 259
+    "claude": 1,
+    "openai": 35
   }
 }

@@ -7,9 +7,9 @@
   "primary_concern": "any",
   "started_at": "2026-02-20T18:00:00Z",
   "status": "study",
-  "study_summary": "Extension 1 (2026-02-20): Routing bug fixed (process.go now uses escalation.SelectModel). Extension 2 (2026-02-21): 35 low-tier data points collected. Haiku: 20/20 actual builds succeeded (100% first-pass, exceeds >=90% threshold). 8 zero-duration haiku 'failures' are scope gate rejections, not model failures — the gate is working correctly. Codex-spark: 5/6 successes (83%), one failure retried successfully. Cost data for haiku was $0 due to a MergeCostData bug (fixed in c15ba8c3, Feb 15); a regression test added. Going forward, haiku cost will be tracked correctly. Cost reduction vs baseline not yet measurable for haiku (historical $0 entries are artifacts). Codex-spark avg ~$1.57/success vs $1.72 baseline (~9% savings, below 50% target but small sample). Continuing to accumulate clean cost data.",
+  "study_summary": "Extension 1 (2026-02-20): Routing bug fixed (process.go now uses escalation.SelectModel). Extension 2 (2026-02-21): 35 low-tier data points collected. Haiku: 20/20 actual builds succeeded (100% first-pass, exceeds >=90% threshold). 8 zero-duration haiku 'failures' are scope gate rejections, not model failures — the gate is working correctly. Codex-spark: 5/6 successes (83%), one failure retried successfully. Cost data for haiku was $0 due to a MergeCostData bug (fixed in c15ba8c3, Feb 15); a regression test added. Going forward, haiku cost will be tracked correctly. Cost reduction vs baseline not yet measurable for haiku (historical $0 entries are artifacts). Codex-spark avg ~$1.57/success vs $1.72 baseline (~9% savings, below 50% target but small sample). Extension 3 (2026-02-23): Retro confirmed haiku success rate exceeds threshold. Extending to accumulate clean cost data post-MergeCostData fix. Decomposition and telemetry issues addressed via rule changes rather than new experiments.",
   "act_decision": "extend",
-  "act_date": "2026-02-21",
+  "act_date": "2026-02-23",
   "baseline_metrics": {
     "avg_cost_per_bead": 1.71752058,
     "avg_duration_ms": 340425.63,

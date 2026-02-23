@@ -1,28 +1,28 @@
 {
   "version": 1,
-  "updated": "2026-02-22T22:02:37Z",
+  "updated": "2026-02-23T00:51:34Z",
   "models": {
     "": {
-      "iterations": 56,
+      "iterations": 65,
       "successes": 39,
-      "failures": 17,
+      "failures": 26,
       "total_cost_usd": 0,
       "escalations_from": 0,
       "escalations_to": 0
     },
     "gpt-5.3-codex": {
-      "iterations": 27,
-      "successes": 27,
+      "iterations": 53,
+      "successes": 53,
       "failures": 0,
       "total_cost_usd": 0,
       "escalations_from": 0,
       "escalations_to": 0
     },
     "sonnet": {
-      "iterations": 2,
-      "successes": 2,
+      "iterations": 3,
+      "successes": 3,
       "failures": 0,
-      "total_cost_usd": 5.9457522,
+      "total_cost_usd": 7.14991385,
       "escalations_from": 0,
       "escalations_to": 0
     }

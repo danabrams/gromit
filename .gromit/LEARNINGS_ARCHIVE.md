@@ -1614,3 +1614,13 @@ Use package-level `var _ Interface = (*Impl)(nil)` declarations in non-test `.go
 
 *Archived from provisional: filtered: generic engineering advice*
 
+### 2026-02-22 | gromit-urweh | conventions
+When analyzing task failures, always provide the actual error output or test failure logs - task status alone doesn't indicate whether implementation was successful.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-23 | gromit-xnp4e | conventions
+When requesting failure analysis, include the error message, assertion output, or failure log. Task closure status alone is insufficient to diagnose root cause.
+
+*Archived from new: filtered: generic engineering advice*
+
