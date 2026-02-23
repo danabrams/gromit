@@ -77,10 +77,10 @@ func (e *mergeConflictHandoffError) Error() string {
 	policy := strings.ToLower(strings.TrimSpace(e.Policy))
 	if policy == conflictPolicyAgent {
 		base := fmt.Sprintf(
-			"merge conflict persists for branch %q after %d agent attempt(s); resolve manually in %q and keep pending branch for follow-up",
+			"merge conflict persists for branch %q after %d agent attempt(s); checkout branch %q, resolve manually, and keep pending branch for follow-up",
 			e.Branch,
 			e.RetryCap,
-			e.SessionDir,
+			e.Branch,
 		)
 		if e.ResolverErr != nil {
 			return fmt.Sprintf("%s (last resolver error: %v)", base, e.ResolverErr)
