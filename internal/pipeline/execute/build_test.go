@@ -334,6 +334,42 @@ func TestBuildStage_Run_StreamRunReceivesTier(t *testing.T) {
 	}
 }
 
+// TestBuildStage_Run_UsesComplexitySelectedInitialTier verifies that Build routes
+// initial tier from pipeline effective complexity metadata, independent of priority.
+func TestBuildStage_Run_UsesComplexitySelectedInitialTier(t *testing.T) {
+	tests := []struct {
+		name     string
+		priority int
+	}{
+		{name: "P0", priority: 0},
+		{name: "P2", priority: 2},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			invoker := &fakeInvoker{}
+			stage := execute.New(invoker, &fakePromptRenderer{}, io.Discard)
+
+			cfg := defaultConfig()
+			b := &bead.Bead{ID: "bead-1", Title: "feature", Priority: tt.priority}
+			in := makeInput(b, cfg)
+			in.Complexity = "low"
+
+			_, err := stage.Run(context.Background(), in)
+			if err != nil {
+				t.Fatalf("Run() error = %v, want nil", err)
+			}
+
+			if len(invoker.streamCalls) != 1 {
+				t.Fatalf("StreamRun called %d times, want 1", len(invoker.streamCalls))
+			}
+			if invoker.streamCalls[0].tier != "low" {
+				t.Errorf("StreamRun tier = %q, want %q", invoker.streamCalls[0].tier, "low")
+			}
+		})
+	}
+}
+
 // TestBuildStage_Run_ReturnsOriginalAndActualTier verifies that Build output
 // carries both the configured tier and the tier that actually succeeded after
 // escalation.
