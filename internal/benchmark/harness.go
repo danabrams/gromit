@@ -82,6 +82,11 @@ func RunModesInIsolatedWorktrees(ctx context.Context, input RunModesInput) ([]Mo
 		if err != nil {
 			return nil, "", err
 		}
+		if run.Cleanup != nil {
+			if err := run.Cleanup(); err != nil {
+				return nil, "", err
+			}
+		}
 		runs = append(runs, run)
 	}
 	return runs, baseCommit, nil
