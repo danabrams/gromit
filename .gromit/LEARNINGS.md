@@ -150,6 +150,16 @@ Source-reading tests (e.g., checking function text with os.ReadFile + strings.Co
 
 JSON parsing alone is not enough for LLM decomposition output. Gate paths should validate concrete quality constraints (sub-task count bounds, non-empty titles, bounded expected outputs, no degenerate parent echo) and define deterministic fallback behavior when outputs violate the contract.
 
+### 2026-02-23 | DECOMPOSE_VALIDATION_RULE_CHANGES_REQUIRE_CONTRACT_PARITY | ARCHITECTURE
+*Related to: gromit-jysme, gromit-o9i5v*
+
+When decompose validation rules change (for example, expected_outputs requirements or complexity signal expansion), the prompt contract, fixture payloads, retry-loop behavior, and telemetry expectations must be updated together. Partial adoption creates persistent retry churn, misleading ValidationStats, and test brittleness.
+
+### 2026-02-23 | SESSION_WORKTREE_CONTENTION_HANDLING_NEEDS_EXPLICIT_CONTRACT | ARCHITECTURE
+*Related to: gromit-r7lcc, gromit-1fjzj*
+
+Session worktree retry behavior should be driven by an explicit retryable/non-retryable error contract, not ad-hoc message matching alone. Defining the contract first avoids locale/version-sensitive drift in contention detection and keeps retries deterministic.
+
 ---
 
 ## Archived
