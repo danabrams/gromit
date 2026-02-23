@@ -887,3 +887,29 @@ func TestValidateDecomposeCandidates_PreservesFormatScopeOverlapViolations(t *te
 		t.Fatal("expected sibling_overlap violation to remain present")
 	}
 }
+
+func TestValidateDecomposeCandidates_UsesScoreCandidateForComplexitySummaryAndReasons(t *testing.T) {
+	candidates := []BeadCandidate{
+		{
+			Title:              "Refactor entire auth workflow",
+			Description:        "Touches multiple flows in one bead",
+			EstimatedFiles:     1,
+			AcceptanceCriteria: []string{"Auth flow remains correct"},
+		},
+	}
+
+	result := ValidateDecomposeCandidates(candidates)
+
+	if result.ComplexityOutcome.HighCount != 1 {
+		t.Fatalf("ComplexityOutcome.HighCount = %d, want 1", result.ComplexityOutcome.HighCount)
+	}
+	if len(result.ComplexityOutcome.HighComplexity) != 1 {
+		t.Fatalf("ComplexityOutcome.HighComplexity len = %d, want 1", len(result.ComplexityOutcome.HighComplexity))
+	}
+	if len(result.ComplexityOutcome.HighComplexity[0].Reasons) == 0 {
+		t.Fatalf("ComplexityOutcome.HighComplexity[0].Reasons len = 0, want > 0")
+	}
+	if len(result.ComplexityOutcome.AggregateReasons) == 0 {
+		t.Fatalf("ComplexityOutcome.AggregateReasons len = 0, want > 0")
+	}
+}
