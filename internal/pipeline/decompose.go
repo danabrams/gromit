@@ -122,6 +122,7 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 			}
 
 			if attempt >= maxRetries {
+				stats.RetryCapReached = true
 				if highComplexityCount < firstHighComplexityCount {
 					stats.Improved = true
 				}
@@ -153,6 +154,7 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 		logValidationViolations(violations)
 
 		if attempt >= maxRetries {
+			stats.RetryCapReached = true
 			if len(violations) < firstViolationCount {
 				stats.Improved = true
 			}

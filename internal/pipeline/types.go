@@ -99,6 +99,7 @@ type ValidationStats struct {
 	Attempts                            int  `json:"attempts"`                               // Total provider invocations (1 = no retries)
 	ViolationCount                      int  `json:"violation_count"`                        // Total violations found across all attempts
 	Improved                            bool `json:"improved"`                               // True if retry reduced violations vs first attempt
+	RetryCapReached                     bool `json:"retry_cap_reached"`                      // True when loop exits after exhausting configured retries
 	ProceededWithHighComplexityWarning  bool `json:"proceeded_with_high_complexity_warning"` // True when loop exits with remaining high-complexity beads
 }
 
