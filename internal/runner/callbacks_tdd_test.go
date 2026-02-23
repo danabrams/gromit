@@ -1,6 +1,8 @@
 package runner
 
 import (
+	"context"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -11,9 +13,33 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/runner/tdd"
 )
+
+type callbacksTDDProviderStub struct {
+	name        string
+	streamRunFn func(ctx context.Context, prompt, tier string, w io.Writer, h provider.EventHandler, tc provider.ToolCallHandler) (*provider.Result, error)
+}
+
+func (s *callbacksTDDProviderStub) Name() string                    { return s.name }
+func (s *callbacksTDDProviderStub) ModelForTier(tier string) string { return tier }
+func (s *callbacksTDDProviderStub) Run(ctx context.Context, prompt, tier string) (*provider.Result, error) {
+	return &provider.Result{Success: true}, nil
+}
+func (s *callbacksTDDProviderStub) StreamRun(ctx context.Context, prompt, tier string, w io.Writer, h provider.EventHandler, tc provider.ToolCallHandler) (*provider.Result, error) {
+	if s.streamRunFn != nil {
+		return s.streamRunFn(ctx, prompt, tier, w, h, tc)
+	}
+	return &provider.Result{Success: true}, nil
+}
+func (s *callbacksTDDProviderStub) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*provider.Result, error) {
+	return &provider.Result{Success: true}, nil
+}
+func (s *callbacksTDDProviderStub) IsUsageLimitError(result *provider.Result, err error) bool { return false }
+func (s *callbacksTDDProviderStub) IsValidationPassed(result *provider.Result) bool           { return true }
+func (s *callbacksTDDProviderStub) IsScopeTooLarge(result *provider.Result) (bool, string)    { return false, "" }
 
 // TestAppendTDDPhaseMetric_AppendsPhaseMetricToBcResult verifies that
 // appendTDDPhaseMetric appends one PhaseMetric entry to bc.Result.PhaseMetrics
@@ -277,5 +303,84 @@ func TestBuildRenderGreenFn_LoadsRulesForGreenPhase(t *testing.T) {
 	}
 	if strings.Contains(out, "only-build") {
 		t.Fatalf("rendered rules should exclude build-only content: %q", out)
+	}
+}
+
+func TestBuildRunRefactorFn_SelectsProviderForRefactorPhase(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	specsDir := filepath.Join(tmpDir, "specs")
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(templatesDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(templates): %v", err)
+	}
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(specs): %v", err)
+	}
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(.gromit): %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(templatesDir, "PROMPT_refactor.md"), []byte("refactor"), 0o644); err != nil {
+		t.Fatalf("WriteFile(PROMPT_refactor.md): %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gromitDir, "RULES.md"), []byte("# Rules\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(RULES.md): %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "CLAUDE.md"), []byte(""), 0o644); err != nil {
+		t.Fatalf("WriteFile(CLAUDE.md): %v", err)
+	}
+
+	renderer, err := prompt.NewRenderer(templatesDir, specsDir, filepath.Join(tmpDir, "CLAUDE.md"), gromitDir)
+	if err != nil {
+		t.Fatalf("prompt.NewRenderer: %v", err)
+	}
+
+	buildCalled := false
+	refactorCalled := false
+	router := provider.NewRouter(
+		map[string]provider.Provider{
+			"build-provider": &callbacksTDDProviderStub{
+				name: "build-provider",
+				streamRunFn: func(ctx context.Context, prompt, tier string, w io.Writer, h provider.EventHandler, tc provider.ToolCallHandler) (*provider.Result, error) {
+					buildCalled = true
+					return &provider.Result{Success: true}, nil
+				},
+			},
+			"refactor-provider": &callbacksTDDProviderStub{
+				name: "refactor-provider",
+				streamRunFn: func(ctx context.Context, prompt, tier string, w io.Writer, h provider.EventHandler, tc provider.ToolCallHandler) (*provider.Result, error) {
+					refactorCalled = true
+					return &provider.Result{Success: true}, nil
+				},
+			},
+		},
+		map[string]string{
+			"build":    "build-provider",
+			"refactor": "refactor-provider",
+		},
+		map[string]int{
+			"build-provider":    50,
+			"refactor-provider": 50,
+		},
+		0,
+		nil,
+		nil,
+	)
+
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{ID: "b1", Title: "title"},
+		Tier: "medium",
+	}
+
+	fn := buildRunRefactorFn(renderer, router, io.Discard)
+	if err := fn(context.Background(), bc); err != nil {
+		t.Fatalf("buildRunRefactorFn() error = %v", err)
+	}
+	if !refactorCalled {
+		t.Fatal("expected refactor-provider to be selected for refactor phase")
+	}
+	if buildCalled {
+		t.Fatal("build-provider should not be selected for refactor phase")
 	}
 }
