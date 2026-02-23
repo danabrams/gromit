@@ -100,6 +100,7 @@ type ValidationStats struct {
 	ViolationCount                      int  `json:"violation_count"`                        // Total violations found across all attempts
 	Improved                            bool `json:"improved"`                               // True if retry reduced violations vs first attempt
 	RetryCapReached                     bool `json:"retry_cap_reached"`                      // True when loop exits after exhausting configured retries
+	SucceededAfterRetry                 bool `json:"succeeded_after_retry"`                  // True when a retry attempt converges before hitting retry cap
 	ProceededWithHighComplexityWarning  bool `json:"proceeded_with_high_complexity_warning"` // True when loop exits with remaining high-complexity beads
 }
 

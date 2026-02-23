@@ -116,6 +116,7 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 			if highComplexityCount == 0 {
 				if attempt > 0 {
 					stats.Improved = true
+					stats.SucceededAfterRetry = true
 					fmt.Printf("Complexity clean exit after attempt %d: no high-complexity warning emitted.\n", attempt+1)
 				}
 				break
