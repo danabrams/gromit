@@ -133,9 +133,9 @@ func TestIsLeafBead(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "negative dependent count is treated as leaf boundary",
+			name: "negative dependent count is not leaf",
 			bead: &Bead{DependentCount: intPtr(-1)},
-			want: true,
+			want: false,
 		},
 	}
 
