@@ -934,6 +934,11 @@ func TestMergeBack_ConflictReturnsError(t *testing.T) {
 			t.Errorf("should NOT delete branch after merge conflict, got calls: %v", gitCalls)
 		}
 	}
+	for _, call := range gitCalls {
+		if strings.Contains(call, "worktree remove") {
+			t.Errorf("should NOT remove derived worktree after merge conflict, got calls: %v", gitCalls)
+		}
+	}
 }
 
 // TestMergeBack_InvalidBranchName verifies that MergeBack returns an error
@@ -1191,6 +1196,42 @@ func TestMergeBack_FallbackToMergeCommit_RemovesDerivedSessionWorktree(t *testin
 	expected := mainDir + "-gromit-review-123"
 	if removedWorktree != expected {
 		t.Fatalf("MergeBack() removed worktree %q, want %q", removedWorktree, expected)
+	}
+}
+
+func TestMergeBack_CleanupErrorDoesNotChangeSuccessfulResult(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "myproject")
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	removed := false
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		if args[0] == "merge" && contains(args, "--ff-only") {
+			return "Fast-forward", nil
+		}
+		if args[0] == "branch" && args[1] == "-d" {
+			return "", nil
+		}
+		if args[0] == "worktree" && args[1] == "remove" {
+			removed = true
+			return "", errors.New("remove failed")
+		}
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	err = m.MergeBack("gromit/review-123")
+	if err != nil {
+		t.Fatalf("MergeBack() error = %v, want nil when cleanup fails", err)
+	}
+	if !removed {
+		t.Fatalf("expected derived cleanup attempt")
 	}
 }
 
