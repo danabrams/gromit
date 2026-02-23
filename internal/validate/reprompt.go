@@ -33,7 +33,15 @@ func BuildComplexityRepromptFeedback(highComplexity []CandidateComplexityResult)
 
 	var sb strings.Builder
 	sb.WriteString("## Complexity Feedback\n\n")
-	sb.WriteString("The following candidates are still high complexity. Split or narrow them while preserving intent.\n")
+	sb.WriteString("### Split-Concerns Guidance\n")
+	sb.WriteString("- Split mixed concerns into independently testable beads.\n\n")
+	sb.WriteString("### Reduce-Breadth Guidance\n")
+	sb.WriteString("- Narrow each bead to a single deliverable behavior and trim unrelated file/package scope.\n\n")
+	sb.WriteString("### Preserve-Semantics Guidance\n")
+	sb.WriteString("- Keep the original intent and externally observable behavior unchanged.\n\n")
+	sb.WriteString("### Avoid-Overlap Guidance\n")
+	sb.WriteString("- Ensure sibling beads do not duplicate acceptance criteria or expected outputs.\n\n")
+	sb.WriteString("Flagged high-complexity candidates and reasons:\n")
 	for _, candidate := range highComplexity {
 		sb.WriteString(fmt.Sprintf("- %s\n", candidate.Title))
 		for _, reason := range candidate.Reasons {
