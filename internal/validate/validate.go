@@ -119,6 +119,55 @@ func ValidateDecomposeCandidates(beads []BeadCandidate) ValidationResult {
 	return result
 }
 
+// ValidateRuntimeDecomposeCandidates applies runtime/non-plan decomposition
+// validations only. It intentionally omits complexity scoring and reprompt metadata.
+func ValidateRuntimeDecomposeCandidates(beads []BeadCandidate, parentTitle string) []Violation {
+	violations := CheckBatchContract(beads)
+	for i, bead := range beads {
+		if len(bead.ExpectedOutputs) > maxExpectedOutputs {
+			violations = append(violations, Violation{
+				BeadIndex: i,
+				Rule:      "output_count",
+				Message:   fmt.Sprintf("Bead has more than %d expected outputs", maxExpectedOutputs),
+			})
+		}
+
+		for _, output := range bead.ExpectedOutputs {
+			if strings.TrimSpace(output) == "" {
+				violations = append(violations, Violation{
+					BeadIndex: i,
+					Rule:      "output_empty",
+					Message:   "Bead has an empty expected output entry",
+				})
+				break
+			}
+		}
+
+		if hasDuplicateOutputs(bead.ExpectedOutputs) {
+			violations = append(violations, Violation{
+				BeadIndex: i,
+				Rule:      "output_duplicate",
+				Message:   "Bead has duplicate expected output entries",
+			})
+		}
+
+		if strings.TrimSpace(parentTitle) != "" {
+			for _, output := range bead.ExpectedOutputs {
+				if output == parentTitle {
+					violations = append(violations, Violation{
+						BeadIndex: i,
+						Rule:      "parent_echo",
+						Message:   "Bead has an expected output that exactly echoes the parent title",
+					})
+					break
+				}
+			}
+		}
+	}
+
+	return violations
+}
+
 // CheckBeads validates a list of bead candidates and returns any violations
 func CheckBeads(beads []BeadCandidate) []Violation {
 	var violations []Violation
