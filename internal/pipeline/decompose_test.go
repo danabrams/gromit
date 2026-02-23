@@ -2020,6 +2020,18 @@ func TestFormatComplexitySummaryLine_UsesAttemptNumberAndCounts(t *testing.T) {
 	}
 }
 
+func TestFormatComplexityReasonsLine_CombinesScopeSignals(t *testing.T) {
+	line := formatComplexityReasonsLine(1, []string{
+		"contains broad-scope language in title",
+		"contains broad-scope language in description",
+	})
+
+	want := "Complexity reasons (attempt 1): [contains broad-scope language in title or description]\n"
+	if line != want {
+		t.Fatalf("line = %q, want %q", line, want)
+	}
+}
+
 func TestDecomposeWorkflow_CleanExitAfterComplexityRetryHasNoWarning(t *testing.T) {
 	tmpDir := t.TempDir()
 	plansDir := filepath.Join(tmpDir, "plans")
