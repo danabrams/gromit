@@ -112,7 +112,7 @@ func TestBuildRenderRedFn_UsesRedPhaseTierOverride(t *testing.T) {
 	}
 	handoff := &tdd.RedHandoff{SpecExcerpt: "spec"}
 
-	fn := buildRenderRedFn(renderer)
+	fn := buildRenderRedFn(cfg, renderer)
 	if _, err := fn(handoff, bc); err != nil {
 		t.Fatalf("buildRenderRedFn() error = %v", err)
 	}
