@@ -26,6 +26,8 @@ const (
 // TDDCycleResult holds the aggregated output from a TDDCycleRunner.
 type TDDCycleResult struct {
 	PhaseMetrics []pipeline.PhaseMetric
+	OriginalTier string
+	ActualTier   string
 }
 
 // TDDCycleRunner runs multiple TDD cycles (red-green-refactor) for a bead,
@@ -123,6 +125,8 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 		return pipeline.Output{
 			Decision:     pipeline.Proceed,
 			PhaseMetrics: result.PhaseMetrics,
+			OriginalTier: result.OriginalTier,
+			ActualTier:   result.ActualTier,
 		}, nil
 	}
 
