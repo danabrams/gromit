@@ -1150,3 +1150,75 @@ func TestDecomposerAdapter_Decompose_RetryDoesNotDuplicatePreviouslyCreatedChild
 		t.Fatalf("close calls after successful retry = %d, want 1", closeCalls)
 	}
 }
+
+func TestDecomposerAdapter_Decompose_RetryDoesNotDuplicateWhenExpectedOutputsAreReordered(t *testing.T) {
+	providerCalls := 0
+	stub := &stubRunProvider{
+		name: "test-provider",
+		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
+			providerCalls++
+			if providerCalls == 1 {
+				return &provider.Result{
+					Success: true,
+					Output:  `[{"title":"Part 1","expected_outputs":["b.go","a.go"]},{"title":"Part 2","expected_outputs":["f2"]}]`,
+				}, nil
+			}
+			return &provider.Result{
+				Success: true,
+				Output:  `[{"title":"Part 1","expected_outputs":["a.go","b.go"]},{"title":"Part 2","expected_outputs":["f2"]}]`,
+			}, nil
+		},
+	}
+	router := provider.NewSingleProviderRouter(stub)
+	client, err := bead.NewClient()
+	if err != nil {
+		t.Fatalf("bead.NewClient: %v", err)
+	}
+
+	createCallsByTitle := map[string]int{}
+	closeCalls := 0
+	client.RunFn = func(args ...string) (string, error) {
+		if len(args) == 0 {
+			return "", nil
+		}
+		switch args[0] {
+		case "create":
+			if len(args) < 2 {
+				t.Fatalf("create args missing title: %v", args)
+			}
+			title := args[1]
+			createCallsByTitle[title]++
+			if title == "Part 2" && createCallsByTitle[title] == 1 {
+				return "", os.ErrPermission
+			}
+			return `{"id":"child-1","title":"part","status":"open"}`, nil
+		case "close":
+			closeCalls++
+		}
+		return "", nil
+	}
+
+	adapter := &decomposerAdapter{beads: client, router: router}
+	parent := &bead.Bead{
+		ID:       "parent-1",
+		Title:    "Oversized Feature",
+		Priority: 1,
+	}
+
+	if err := adapter.Decompose(context.Background(), parent); err == nil {
+		t.Fatal("first Decompose() error = nil, want create failure")
+	}
+	if closeCalls != 0 {
+		t.Fatalf("close calls after first attempt = %d, want 0", closeCalls)
+	}
+
+	if err := adapter.Decompose(context.Background(), parent); err != nil {
+		t.Fatalf("second Decompose() error = %v, want nil", err)
+	}
+	if createCallsByTitle["Part 1"] != 1 {
+		t.Fatalf("Part 1 create calls = %d, want 1 (no duplicate on retry)", createCallsByTitle["Part 1"])
+	}
+	if closeCalls != 1 {
+		t.Fatalf("close calls after successful retry = %d, want 1", closeCalls)
+	}
+}
