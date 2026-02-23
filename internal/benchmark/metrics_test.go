@@ -124,3 +124,39 @@ func TestAggregateModeMetrics_AggregatesQualityAndFirstPassWithMissingOptionalFi
 		t.Fatalf("first pass rate = %v, want 0.5", got.Quality.FirstPassRate)
 	}
 }
+
+func TestAggregateModeMetrics_AggregatesReviewMetricsAndFinalValidationOutcome(t *testing.T) {
+	tmpDir := t.TempDir()
+	logPath := filepath.Join(tmpDir, "review.jsonl")
+	content := "" +
+		"{\"iteration\":1,\"validated\":true}\n" +
+		"{\"type\":\"review\",\"review_type\":\"light\",\"iteration\":1,\"passed\":true,\"fixes_applied\":4,\"beads_created\":2,\"backlog_created\":1}\n" +
+		"{\"iteration\":2,\"validated\":false}\n"
+	if err := os.WriteFile(logPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write fixture log: %v", err)
+	}
+
+	summaries, err := AggregateModeMetrics([]ModeLogInput{{
+		Mode:          "single_pass",
+		RunStartedAt:  time.Date(2026, 2, 23, 12, 0, 0, 0, time.UTC),
+		RunFinishedAt: time.Date(2026, 2, 23, 12, 0, 3, 0, time.UTC),
+		LogPath:       logPath,
+	}})
+	if err != nil {
+		t.Fatalf("AggregateModeMetrics() error = %v", err)
+	}
+	if len(summaries) != 1 {
+		t.Fatalf("len(summaries) = %d, want 1", len(summaries))
+	}
+	got := summaries[0]
+
+	if got.Quality.ReviewFixesApplied != 4 {
+		t.Fatalf("review fixes applied = %d, want 4", got.Quality.ReviewFixesApplied)
+	}
+	if got.Quality.ReviewFindings != 3 {
+		t.Fatalf("review findings = %d, want 3", got.Quality.ReviewFindings)
+	}
+	if got.Quality.FinalValidationPassed {
+		t.Fatal("final validation passed = true, want false")
+	}
+}
