@@ -155,6 +155,21 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 				stats.Improved = true
 			}
 			fmt.Printf("Warning: validation still failing after %d retr%s; proceeding with current output.\n", maxRetries, pluralizeRetry(maxRetries))
+			if highComplexityCount > 0 {
+				details := make([]string, 0, len(beadDefs))
+				for _, def := range beadDefs {
+					if def.EstimatedFiles > highComplexityFileThreshold {
+						details = append(details, fmt.Sprintf("%s (estimated_files=%d)", def.Title, def.EstimatedFiles))
+					}
+				}
+				fmt.Printf(
+					"Warning: high-complexity beads remain after %d retr%s; proceeding with current output. remaining=%d details=%s\n",
+					maxRetries,
+					pluralizeRetry(maxRetries),
+					highComplexityCount,
+					strings.Join(details, ", "),
+				)
+			}
 			break
 		}
 
