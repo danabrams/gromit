@@ -2096,6 +2096,75 @@ func TestDecomposeWorkflow_ComplexityRetryCapWithPartialImprovementMarksImproved
 	}
 }
 
+func TestDecomposeWorkflow_StopsRetryingWhenComplexityTrajectoryStalls(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plansDir, "complexity-stall-stop.md"), []byte("# Complexity Stall Stop"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	runCount := 0
+	mockClaude := &decomposeAcceptanceClaudeClient{
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+			runCount++
+			switch runCount {
+			case 1:
+				return &ClaudeRunResult{
+					Success:  true,
+					ExitCode: 0,
+					Output: `[
+						{"title":"Very broad task A","description":"d","priority":"P1","estimated_files":9,"acceptance_criteria":["a"],"depends_on_index":[]},
+						{"title":"Very broad task B","description":"d","priority":"P1","estimated_files":8,"acceptance_criteria":["b"],"depends_on_index":[]},
+						{"title":"Small task","description":"d","priority":"P1","estimated_files":1,"acceptance_criteria":["c"],"depends_on_index":[]}
+					]`,
+				}, nil
+			case 2:
+				return &ClaudeRunResult{
+					Success:  true,
+					ExitCode: 0,
+					Output: `[
+						{"title":"Split task A","description":"d","priority":"P1","estimated_files":3,"acceptance_criteria":["a"],"depends_on_index":[]},
+						{"title":"Still broad task B","description":"d","priority":"P1","estimated_files":8,"acceptance_criteria":["b"],"depends_on_index":[]},
+						{"title":"Small task","description":"d","priority":"P1","estimated_files":1,"acceptance_criteria":["c"],"depends_on_index":[]}
+					]`,
+				}, nil
+			default:
+				return &ClaudeRunResult{
+					Success:  true,
+					ExitCode: 0,
+					Output: `[
+						{"title":"Split task A","description":"d","priority":"P1","estimated_files":3,"acceptance_criteria":["a"],"depends_on_index":[]},
+						{"title":"Still broad task B","description":"d","priority":"P1","estimated_files":8,"acceptance_criteria":["b"],"depends_on_index":[]},
+						{"title":"Small task","description":"d","priority":"P1","estimated_files":1,"acceptance_criteria":["c"],"depends_on_index":[]}
+					]`,
+				}, nil
+			}
+		},
+	}
+
+	mockBead := &decomposeAcceptanceBeadClient{
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+			return &BeadInfo{ID: "bead-1"}, nil
+		},
+	}
+
+	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	_, err := p.Decompose(context.Background(), DecomposeInput{
+		PlanName:             "complexity-stall-stop",
+		MaxValidationRetries: 4,
+	})
+	if err != nil {
+		t.Fatalf("Decompose() failed: %v", err)
+	}
+
+	if runCount != 3 {
+		t.Fatalf("Run() call count = %d, want 3 (stop once high-complexity count stops improving)", runCount)
+	}
+}
+
 func TestDecomposeWorkflow_HighComplexityWarningProceedSetsValidationFlag(t *testing.T) {
 	tmpDir := t.TempDir()
 	plansDir := filepath.Join(tmpDir, "plans")
