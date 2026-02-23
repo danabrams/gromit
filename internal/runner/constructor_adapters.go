@@ -254,10 +254,15 @@ func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 		if len(sb.ExpectedOutputs) > 5 {
 			return fmt.Errorf("decomposerAdapter: decomposition contract violation: sub-bead %d has %d expected outputs (max 5)", i, len(sb.ExpectedOutputs))
 		}
+		seenOutputs := make(map[string]struct{}, len(sb.ExpectedOutputs))
 		for j, output := range sb.ExpectedOutputs {
 			if strings.TrimSpace(output) == "" {
 				return fmt.Errorf("decomposerAdapter: decomposition contract violation: sub-bead %d has empty expected output at index %d", i, j)
 			}
+			if _, exists := seenOutputs[output]; exists {
+				return fmt.Errorf("decomposerAdapter: decomposition contract violation: sub-bead %d has duplicate expected outputs", i)
+			}
+			seenOutputs[output] = struct{}{}
 		}
 	}
 
