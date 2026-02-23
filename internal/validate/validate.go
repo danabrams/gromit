@@ -70,6 +70,34 @@ type ValidationResult struct {
 	ComplexityOutcome ComplexityOutcome
 }
 
+// DecomposeValidationMode selects mode-specific decompose validation behavior.
+type DecomposeValidationMode string
+
+const (
+	DecomposeValidationModePipeline DecomposeValidationMode = "pipeline"
+	DecomposeValidationModeRuntime  DecomposeValidationMode = "runtime"
+)
+
+// DecomposeOutputValidation returns per-bead and batch-level contract violations.
+type DecomposeOutputValidation struct {
+	Violations      []Violation
+	BatchViolations []Violation
+}
+
+// ValidateDecomposeOutput is the shared decompose validation entry point used by
+// decomposition workflows in pipeline and runtime/scope-gate modes.
+func ValidateDecomposeOutput(beads []BeadCandidate, mode DecomposeValidationMode, parentTitle string) DecomposeOutputValidation {
+	violations := CheckBeads(beads)
+	if mode == DecomposeValidationModeRuntime && strings.TrimSpace(parentTitle) != "" {
+		violations = CheckBeadsWithParentTitle(beads, parentTitle)
+	}
+
+	return DecomposeOutputValidation{
+		Violations:      violations,
+		BatchViolations: CheckBatchContract(beads),
+	}
+}
+
 // CheckBatchContract validates batch-level constraints on the full set of decomposed beads.
 // These are hard structural rules checked after the reprompt loop.
 func CheckBatchContract(beads []BeadCandidate) []Violation {
