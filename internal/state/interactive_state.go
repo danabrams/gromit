@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -161,6 +162,10 @@ func (f *InteractiveFile) AddFilteredHashes(hashes []string) {
 func (f *InteractiveFile) AddPendingWorktreeBranch(branch string) error {
 	if err := f.ensureReceiver(); err != nil {
 		return err
+	}
+	branch = strings.TrimSpace(branch)
+	if branch == "" {
+		return fmt.Errorf("pending worktree branch cannot be empty")
 	}
 	return f.mutateAndSaveLocked(func(s *InteractiveState) {
 		s.PendingWorktreeBranches = mergeHashes(s.PendingWorktreeBranches, []string{branch})
