@@ -1083,6 +1083,60 @@ func TestMergeBack_NonConflictMergeFailureReturnsError(t *testing.T) {
 	}
 }
 
+// TestMergeBack_NonConflictMergeFailureWithMergeStateAborts verifies that
+// MergeBack defensively aborts when a non-conflict failure leaves merge state.
+func TestMergeBack_NonConflictMergeFailureWithMergeStateAborts(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "myproject")
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	gitCalls := []string{}
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		gitCalls = append(gitCalls, strings.Join(args, " "))
+		if args[0] == "merge" && contains(args, "--ff-only") {
+			return "", errors.New("fatal: Not possible to fast-forward")
+		}
+		if args[0] == "merge" && !contains(args, "--ff-only") && args[1] != "--abort" {
+			return "", errors.New("merge: gromit/review-1234567890 - not something we can merge")
+		}
+		if args[0] == "rev-parse" && args[1] == "--verify" && args[2] == "MERGE_HEAD" {
+			return "deadbeef", nil
+		}
+		if args[0] == "merge" && args[1] == "--abort" {
+			return "", nil
+		}
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	err = m.MergeBack("gromit/review-1234567890")
+	if err == nil {
+		t.Fatal("MergeBack() should return error on non-conflict merge failure, got nil")
+	}
+	if strings.Contains(strings.ToLower(err.Error()), "merge conflict") {
+		t.Fatalf("MergeBack() should not label non-conflict merge failure as conflict, got: %v", err)
+	}
+
+	foundAbort := false
+	for _, call := range gitCalls {
+		if strings.Contains(call, "merge --abort") {
+			foundAbort = true
+		}
+		if strings.Contains(call, "branch -d") {
+			t.Errorf("should NOT delete branch after merge failure, got calls: %v", gitCalls)
+		}
+	}
+	if !foundAbort {
+		t.Fatalf("expected 'git merge --abort' when merge state is present, got calls: %v", gitCalls)
+	}
+}
+
 // TestMergeBack_NonConflictErrorContainingConflictInBranchName verifies that
 // non-conflict errors are not misclassified when branch names include "conflict".
 func TestMergeBack_NonConflictErrorContainingConflictInBranchName(t *testing.T) {

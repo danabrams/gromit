@@ -7,6 +7,11 @@
 
 Session worktree lifecycle should use one explicit owner for merge-attempt and cleanup sequencing. Conflict classification must combine git output signals and exit codes so true merge conflicts route to conflict handoff while non-conflict git failures follow cleanup + explicit error handling. Prefer explicit conflict probes over message-fragment matching for contention retry.
 
+### 2026-02-23 | mergeback_requires_typed_failure_decision_and_defensive_abort | RELIABILITY
+*Related to: gromit/review-1771878486437709843*
+
+`MergeBack` should classify failures through a typed decision (including exit-code capture when available), then apply one cleanup owner path. For non-conflict failures, probe merge state and defensively abort only when `MERGE_HEAD` exists so stale merge state does not leak while non-merge failures are not mislabeled.
+
 ## Provisional Learnings
 
 ## Archived Learnings

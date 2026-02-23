@@ -240,10 +240,17 @@ func (m *Manager) MergeBack(branch string) error {
 	// Fast-forward failed, try regular merge
 	output, err := m.runGit(m.MainDir, "merge", branch)
 	if err != nil {
-		if isMergeConflictError(output, err) {
+		decision := classifyMergeFailure(mergeFailureInput{Output: output, Err: err})
+		if decision.Class == mergeFailureConflict {
 			// Merge failed with conflict, abort merge state.
 			_, _ = m.runGit(m.MainDir, "merge", "--abort")
 			return fmt.Errorf("merge conflict for branch %s: %w", branch, err)
+		}
+		if m.mergeInProgress() {
+			_, _ = m.runGit(m.MainDir, "merge", "--abort")
+		}
+		if decision.ExitCodeKnown {
+			return fmt.Errorf("merge failed for branch %s (exit %d): %w", branch, decision.ExitCode, err)
 		}
 		return fmt.Errorf("merge failed for branch %s: %w", branch, err)
 	}
@@ -287,35 +294,6 @@ func sessionBranchName(command string, timestamp int64) string {
 	return fmt.Sprintf("%s%s-%d", branchPrefix, command, timestamp)
 }
 
-func isMergeConflictError(output string, err error) bool {
-	if err == nil {
-		return false
-	}
-
-	msg := strings.TrimSpace(output)
-	errMsg := strings.TrimSpace(err.Error())
-	if errMsg != "" {
-		if msg != "" {
-			msg += "\n"
-		}
-		msg += errMsg
-	}
-
-	for _, line := range strings.Split(msg, "\n") {
-		normalized := strings.ToLower(strings.TrimSpace(line))
-		if strings.HasPrefix(normalized, "conflict ") ||
-			strings.HasPrefix(normalized, "conflict(") ||
-			strings.HasPrefix(normalized, "conflict:") {
-			return true
-		}
-		if strings.Contains(normalized, "automatic merge failed") {
-			return true
-		}
-	}
-
-	return false
-}
-
 func sessionWorktreeDir(mainDir, command string, timestamp int64) string {
 	return fmt.Sprintf("%s-gromit-%s-%d", mainDir, command, timestamp)
 }
@@ -333,4 +311,12 @@ func (m *Manager) sessionWorktreeRegistered(worktreeDir string) bool {
 	}
 	return strings.Contains(output, "\nworktree "+worktreeDir+"\n") ||
 		strings.HasPrefix(output, "worktree "+worktreeDir+"\n")
+}
+
+func (m *Manager) mergeInProgress() bool {
+	output, err := m.runGit(m.MainDir, "rev-parse", "--verify", "MERGE_HEAD")
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(output) != ""
 }
