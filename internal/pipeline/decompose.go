@@ -317,7 +317,43 @@ func formatComplexityReasonsLine(attempt int, reasons []string) string {
 	if len(reasons) == 0 {
 		return ""
 	}
+	reasons = normalizeComplexityReasons(reasons)
 	return fmt.Sprintf("Complexity reasons (attempt %d): [%s]\n", attempt, strings.Join(reasons, "; "))
+}
+
+func normalizeComplexityReasons(reasons []string) []string {
+	const (
+		titleReason       = "contains broad-scope language in title"
+		descriptionReason = "contains broad-scope language in description"
+		combinedReason    = "contains broad-scope language in title or description"
+	)
+
+	normalized := make([]string, 0, len(reasons))
+	scopeSlot := -1
+
+	for _, reason := range reasons {
+		switch reason {
+		case titleReason:
+			if scopeSlot == -1 {
+				scopeSlot = len(normalized)
+				normalized = append(normalized, "")
+			}
+		case descriptionReason:
+			if scopeSlot == -1 {
+				scopeSlot = len(normalized)
+				normalized = append(normalized, "")
+			}
+		default:
+			normalized = append(normalized, reason)
+		}
+	}
+
+	if scopeSlot == -1 {
+		return reasons
+	}
+	normalized[scopeSlot] = combinedReason
+
+	return normalized
 }
 
 func highComplexityTitles(highComplexity []validate.CandidateComplexityResult) []string {
