@@ -1,0 +1,1 @@
+ls: cannot open directory '/tmp/tmp.vIc7qgbxAi': Permission denied

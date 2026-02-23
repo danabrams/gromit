@@ -1,0 +1,1 @@
+touch: cannot touch '/root/gromit-permissions-check': Permission denied
