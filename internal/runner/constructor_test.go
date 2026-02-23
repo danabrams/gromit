@@ -1079,6 +1079,9 @@ func TestDecomposerAdapter_Decompose_RejectsExpectedOutputThatEchoesParentTitle(
 	if err == nil {
 		t.Fatal("Decompose() error = nil, want contract violation for parent-title echo in expected output")
 	}
+	if !strings.Contains(err.Error(), "parent_echo") {
+		t.Fatalf("Decompose() error = %q, want rule code parent_echo for shared contract validation", err.Error())
+	}
 	if createCalls != 0 {
 		t.Fatalf("create calls = %d, want 0 when contract is violated", createCalls)
 	}
