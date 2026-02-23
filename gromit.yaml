@@ -60,6 +60,7 @@ routing:
     scope_check: any
     precheck: any
     decompose: openai    # force decompose to Codex/OpenAI provider
+    retro: openai        # force retro to Codex/OpenAI provider
   ratio:
     claude: 0
     openai: 100
