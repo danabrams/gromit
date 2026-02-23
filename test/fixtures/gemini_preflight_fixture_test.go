@@ -74,3 +74,36 @@ func TestGeminiPreflightFixture_DocumentsAppendHarnessPattern(t *testing.T) {
 		}
 	}
 }
+
+func TestGeminiPermissionsNotesFixture_DocumentsPermissionChecksAndLedgerEvidence(t *testing.T) {
+	fixturePath := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "permissions", "permissions-notes.md")
+
+	content, err := os.ReadFile(fixturePath)
+	if err != nil {
+		t.Fatalf("failed to read permissions notes fixture: %v", err)
+	}
+
+	body := string(content)
+	required := []string{
+		"# Gemini Permissions Notes",
+		"## Commands",
+		"## Observations",
+		"permission",
+	}
+
+	for _, token := range required {
+		if !strings.Contains(strings.ToLower(body), strings.ToLower(token)) {
+			t.Fatalf("permissions notes must contain %q", token)
+		}
+	}
+
+	logPath := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "commands.log")
+	logContent, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("failed to read commands log fixture: %v", err)
+	}
+
+	if !strings.Contains(string(logContent), "permissions") {
+		t.Fatalf("commands log must include permissions-related command entries")
+	}
+}
