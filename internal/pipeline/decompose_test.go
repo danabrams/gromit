@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/validate"
 )
 
 // TestDecomposeWorkflow_E2E verifies the complete Decompose workflow through Pipeline.Decompose()
@@ -381,6 +382,35 @@ func TestDecomposeWorkflow_ValidationRetriesExhaustedContinues(t *testing.T) {
 	if result.ValidationStats.Improved {
 		t.Error("ValidationStats.Improved = true, want false (violations unchanged)")
 	}
+}
+
+func TestValidatePipelineDecomposeCandidates_ReturnsBeadAndBatchViolations(t *testing.T) {
+	defs := []beadDef{
+		{Title: "A", ExpectedOutputs: []string{"dup", "dup"}},
+		{Title: "B", ExpectedOutputs: []string{"ok"}},
+		{Title: "C", ExpectedOutputs: []string{"ok"}},
+		{Title: "D", ExpectedOutputs: []string{"ok"}},
+		{Title: "E", ExpectedOutputs: []string{"ok"}},
+		{Title: "F", ExpectedOutputs: []string{"ok"}},
+	}
+
+	result := validatePipelineDecomposeCandidates(defs)
+
+	if !containsViolationRule(result.Violations, "output_duplicate") {
+		t.Fatalf("Violations missing output_duplicate: %+v", result.Violations)
+	}
+	if !containsViolationRule(result.BatchViolations, "batch_size_max") {
+		t.Fatalf("BatchViolations missing batch_size_max: %+v", result.BatchViolations)
+	}
+}
+
+func containsViolationRule(violations []validate.Violation, rule string) bool {
+	for _, violation := range violations {
+		if violation.Rule == rule {
+			return true
+		}
+	}
+	return false
 }
 
 func TestDecomposeWorkflow_SkipValidationDisablesRetryLoop(t *testing.T) {
