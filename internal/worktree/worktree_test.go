@@ -1120,14 +1120,14 @@ func TestMergeBack_DeletesBranchOnlyAfterSuccessfulMerge(t *testing.T) {
 	}
 }
 
-func TestMergeBack_FastForwardSuccess_RemovesDerivedSessionWorktree(t *testing.T) {
+func TestMergeBack_FastForwardSuccess_DoesNotRemoveDerivedSessionWorktree(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "myproject")
 	if err := os.MkdirAll(mainDir, 0755); err != nil {
 		t.Fatalf("failed to create main dir: %v", err)
 	}
 
-	var removedWorktree string
+	removedWorktree := false
 	mockGitRun := func(dir string, args ...string) (string, error) {
 		if args[0] == "merge" && contains(args, "--ff-only") {
 			return "Fast-forward merge successful", nil
@@ -1136,7 +1136,7 @@ func TestMergeBack_FastForwardSuccess_RemovesDerivedSessionWorktree(t *testing.T
 			return "Deleted branch", nil
 		}
 		if args[0] == "worktree" && args[1] == "remove" {
-			removedWorktree = args[2]
+			removedWorktree = true
 			return "", nil
 		}
 		return "", nil
@@ -1152,9 +1152,8 @@ func TestMergeBack_FastForwardSuccess_RemovesDerivedSessionWorktree(t *testing.T
 		t.Fatalf("MergeBack() error = %v, want nil", err)
 	}
 
-	expected := mainDir + "-gromit-review-123"
-	if removedWorktree != expected {
-		t.Fatalf("MergeBack() removed worktree %q, want %q", removedWorktree, expected)
+	if removedWorktree {
+		t.Fatal("MergeBack() should not remove derived worktree")
 	}
 }
 
