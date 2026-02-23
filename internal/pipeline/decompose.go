@@ -471,7 +471,7 @@ func enforceBatchContract(defs []beadDef) error {
 	violations := validatePipelineDecomposeCandidates(defs).BatchViolations
 	for _, v := range violations {
 		if v.Rule == "batch_size_max" || v.Rule == "batch_size_min" {
-			return fmt.Errorf("decomposition contract violation [%s]: %s", v.Rule, v.Message)
+			return fmt.Errorf("decomposition contract violation: %s: %s", v.Rule, v.Message)
 		}
 	}
 	return nil
