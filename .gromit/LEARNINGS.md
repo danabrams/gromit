@@ -87,6 +87,11 @@ When a task is closed with reason 'Closed' and subtasks are created, it indicate
 
 When tasks fail in gromit, ensure error_output and failure_category are populated in iteration logs. Blank failure_category indicates a logging/capture issue, not task success. Check .gromit/logs/ JSONL files and git status for implementation state when failure details are missing from the prompt.
 
+### 2026-02-23 | Session Worktree Retry Classification Precision | RELIABILITY
+*Related to: review-1771808689178051987*
+
+Session worktree retry logic should match explicit contention signatures (branch/worktree collisions) rather than broad substrings like "already exists". Precision avoids masking unrelated git failures and preserves actionable root-cause errors while still allowing bounded retry/exhaustion handling.
+
 ---
 
 ## Archived
