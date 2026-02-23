@@ -776,3 +776,29 @@ func TestCheckBeadsWithParentTitle_OutputEchoesParentTitle_ViolatesParentEcho(t 
 		t.Fatal("expected parent_echo violation when expected output echoes parent title")
 	}
 }
+
+func TestValidateDecomposeCandidates_AllLowComplexityProducesEmptyHighList(t *testing.T) {
+	candidates := []BeadCandidate{
+		{
+			Title:              "Add login endpoint tests",
+			Description:        "Add focused test coverage",
+			EstimatedFiles:     2,
+			AcceptanceCriteria: []string{"Endpoint tests pass"},
+		},
+		{
+			Title:              "Fix typo in CLI help output",
+			Description:        "Update a single message",
+			EstimatedFiles:     1,
+			AcceptanceCriteria: []string{"Help text matches expected output"},
+		},
+	}
+
+	result := ValidateDecomposeCandidates(candidates)
+
+	if result.ComplexityOutcome.HighCount != 0 {
+		t.Fatalf("ComplexityOutcome.HighCount = %d, want 0", result.ComplexityOutcome.HighCount)
+	}
+	if len(result.ComplexityOutcome.HighComplexity) != 0 {
+		t.Fatalf("ComplexityOutcome.HighComplexity len = %d, want 0", len(result.ComplexityOutcome.HighComplexity))
+	}
+}
