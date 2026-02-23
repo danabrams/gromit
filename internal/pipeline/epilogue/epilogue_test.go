@@ -318,6 +318,9 @@ func TestEpilogue_DeduplicatesPendingBranchesBeforeMerge(t *testing.T) {
 		t.Fatalf("Run() error = %v, want nil", err)
 	}
 
+	if merger.pendingCallCount != 1 {
+		t.Fatalf("PendingBranches() calls = %d, want 1", merger.pendingCallCount)
+	}
 	if len(merger.mergedBranches) != 2 {
 		t.Fatalf("merged branches = %v, want 2 unique merges", merger.mergedBranches)
 	}
