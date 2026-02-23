@@ -384,3 +384,67 @@ func TestBuildRunRefactorFn_SelectsProviderForRefactorPhase(t *testing.T) {
 		t.Fatal("build-provider should not be selected for refactor phase")
 	}
 }
+
+func TestBuildRunRefactorFn_LoadsRulesForRefactorPhase(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	specsDir := filepath.Join(tmpDir, "specs")
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(templatesDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(templates): %v", err)
+	}
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(specs): %v", err)
+	}
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(.gromit): %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(templatesDir, "PROMPT_refactor.md"), []byte("{{.Rules}}"), 0o644); err != nil {
+		t.Fatalf("WriteFile(PROMPT_refactor.md): %v", err)
+	}
+	rules := `# Rules
+
+## BuildOnly <!-- phases: build -->
+- only-build
+
+## RefactorOnly <!-- phases: refactor -->
+- only-refactor
+`
+	if err := os.WriteFile(filepath.Join(gromitDir, "RULES.md"), []byte(rules), 0o644); err != nil {
+		t.Fatalf("WriteFile(RULES.md): %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "CLAUDE.md"), []byte(""), 0o644); err != nil {
+		t.Fatalf("WriteFile(CLAUDE.md): %v", err)
+	}
+
+	renderer, err := prompt.NewRenderer(templatesDir, specsDir, filepath.Join(tmpDir, "CLAUDE.md"), gromitDir)
+	if err != nil {
+		t.Fatalf("prompt.NewRenderer: %v", err)
+	}
+
+	var renderedPrompt string
+	router := provider.NewSingleProviderRouter(&callbacksTDDProviderStub{
+		name: "refactor-provider",
+		streamRunFn: func(ctx context.Context, prompt, tier string, w io.Writer, h provider.EventHandler, tc provider.ToolCallHandler) (*provider.Result, error) {
+			renderedPrompt = prompt
+			return &provider.Result{Success: true}, nil
+		},
+	})
+
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{ID: "b1", Title: "title"},
+		Tier: "medium",
+	}
+
+	fn := buildRunRefactorFn(renderer, router, io.Discard)
+	if err := fn(context.Background(), bc); err != nil {
+		t.Fatalf("buildRunRefactorFn() error = %v", err)
+	}
+	if !strings.Contains(renderedPrompt, "only-refactor") {
+		t.Fatalf("rendered prompt missing refactor-only rules: %q", renderedPrompt)
+	}
+	if strings.Contains(renderedPrompt, "only-build") {
+		t.Fatalf("rendered prompt should exclude build-only rules: %q", renderedPrompt)
+	}
+}
