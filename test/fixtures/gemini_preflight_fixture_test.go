@@ -1,11 +1,66 @@
 package fixtures_test
 
 import (
+	"bufio"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
+
+var geminiCommandLogLine = regexp.MustCompile(`^timestamp=([^ ]+) command="(.*)" exit_code=(-?[0-9]+)(?: # ([a-z0-9-]+))?$`)
+
+type geminiCommandLogEntry struct {
+	Timestamp time.Time
+	Command   string
+	ExitCode  int
+	Category  string
+}
+
+func parseGeminiCommandLog(t *testing.T, content []byte) []geminiCommandLogEntry {
+	t.Helper()
+
+	var entries []geminiCommandLogEntry
+	scanner := bufio.NewScanner(strings.NewReader(string(content)))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		matches := geminiCommandLogLine.FindStringSubmatch(line)
+		if matches == nil {
+			t.Fatalf("commands log line does not match expected ledger format: %q", line)
+		}
+
+		ts, err := time.Parse(time.RFC3339, matches[1])
+		if err != nil {
+			t.Fatalf("commands log timestamp %q is not RFC3339: %v", matches[1], err)
+		}
+		exitCode, err := strconv.Atoi(matches[3])
+		if err != nil {
+			t.Fatalf("commands log exit code %q is not an int: %v", matches[3], err)
+		}
+
+		entries = append(entries, geminiCommandLogEntry{
+			Timestamp: ts,
+			Command:   matches[2],
+			ExitCode:  exitCode,
+			Category:  matches[4],
+		})
+	}
+	if err := scanner.Err(); err != nil {
+		t.Fatalf("failed to scan commands log: %v", err)
+	}
+	if len(entries) == 0 {
+		t.Fatal("commands log must include at least one ledger entry")
+	}
+	return entries
+}
 
 func TestGeminiPreflightFixture_IncludesChecklistAndObservedResults(t *testing.T) {
 	fixturePath := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "preflight.md")
@@ -38,17 +93,17 @@ func TestGeminiCommandsLogFixture_InitializedWithTimestampedLedgerEntries(t *tes
 		t.Fatalf("failed to read commands log fixture: %v", err)
 	}
 
-	body := string(content)
-	required := []string{
-		"timestamp=",
-		"command=",
-		"exit_code=",
-	}
-
-	for _, token := range required {
-		if !strings.Contains(body, token) {
-			t.Fatalf("commands log must contain %q", token)
+	entries := parseGeminiCommandLog(t, content)
+	for _, entry := range entries {
+		if entry.Command == "" {
+			t.Fatal("commands log entry must include command text")
 		}
+		if entry.Timestamp.IsZero() {
+			t.Fatal("commands log entry must include a non-zero timestamp")
+		}
+	}
+	if entries[0].Command != "gemini --version" {
+		t.Fatalf("first commands log entry should capture preflight version check; got %q", entries[0].Command)
 	}
 }
 
@@ -241,15 +296,16 @@ func TestGeminiCommandsLogFixture_IncludesModelTokenCostAndExitErrorEntries(t *t
 		t.Fatalf("failed to read commands log fixture: %v", err)
 	}
 
-	body := strings.ToLower(string(content))
-	required := []string{
-		"# model",
-		"# token-cost",
-		"# exit-error",
+	entries := parseGeminiCommandLog(t, content)
+	categories := map[string]int{}
+	for _, entry := range entries {
+		if entry.Category != "" {
+			categories[entry.Category]++
+		}
 	}
-	for _, token := range required {
-		if !strings.Contains(body, token) {
-			t.Fatalf("commands log must include categorized entry %q", token)
+	for _, category := range []string{"model", "token-cost", "exit-error"} {
+		if categories[category] == 0 {
+			t.Fatalf("commands log must include categorized entries for %q", category)
 		}
 	}
 }
@@ -309,11 +365,39 @@ func TestGeminiStreamJSONSuccessFixture_ExistsWithJSONLRecords(t *testing.T) {
 	if len(lines) < 2 {
 		t.Fatalf("stream-json fixture must contain at least 2 jsonl records")
 	}
+	seenTypes := map[string]bool{}
+	var finalRecord map[string]any
 	for i, line := range lines {
-		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, "{") || !strings.HasSuffix(line, "}") {
-			t.Fatalf("line %d must be a JSON object record", i+1)
+		var record map[string]any
+		if err := json.Unmarshal([]byte(strings.TrimSpace(line)), &record); err != nil {
+			t.Fatalf("line %d must be valid JSON: %v", i+1, err)
 		}
+		typeValue, ok := record["type"].(string)
+		if !ok || typeValue == "" {
+			t.Fatalf("line %d must include non-empty string field %q", i+1, "type")
+		}
+		seenTypes[typeValue] = true
+		finalRecord = record
+	}
+	if !seenTypes["message_start"] || !seenTypes["message_end"] {
+		t.Fatal("stream-json fixture must include both message_start and message_end records")
+	}
+	usage, ok := finalRecord["usage"].(map[string]any)
+	if !ok {
+		t.Fatal("final stream-json record must include usage object")
+	}
+	if _, ok := usage["input_tokens"].(float64); !ok {
+		t.Fatal("final stream-json usage must include numeric input_tokens")
+	}
+	if _, ok := usage["output_tokens"].(float64); !ok {
+		t.Fatal("final stream-json usage must include numeric output_tokens")
+	}
+	cost, ok := finalRecord["cost"].(map[string]any)
+	if !ok {
+		t.Fatal("final stream-json record must include cost object")
+	}
+	if _, ok := cost["total"].(float64); !ok {
+		t.Fatal("final stream-json cost must include numeric total")
 	}
 }
 
@@ -324,18 +408,37 @@ func TestGeminiJSONSuccessFixture_ExistsWithUsageAndCostFields(t *testing.T) {
 		t.Fatalf("failed to read json-success fixture: %v", err)
 	}
 
-	body := strings.ToLower(string(content))
-	required := []string{
-		"\"output\"",
-		"\"usage\"",
-		"\"input_tokens\"",
-		"\"output_tokens\"",
-		"\"cost\"",
+	type usageBlock struct {
+		InputTokens  int `json:"input_tokens"`
+		OutputTokens int `json:"output_tokens"`
 	}
-	for _, token := range required {
-		if !strings.Contains(body, token) {
-			t.Fatalf("json-success fixture must contain %q", token)
-		}
+	type costBlock struct {
+		Currency string  `json:"currency"`
+		Total    float64 `json:"total"`
+	}
+	type geminiJSONFixture struct {
+		Output       string     `json:"output"`
+		Usage        usageBlock `json:"usage"`
+		Cost         costBlock  `json:"cost"`
+		Model        string     `json:"model"`
+		FinishReason string     `json:"finish_reason"`
+	}
+
+	var fixture geminiJSONFixture
+	if err := json.Unmarshal(content, &fixture); err != nil {
+		t.Fatalf("json-success fixture must be valid JSON object: %v", err)
+	}
+	if fixture.Output == "" {
+		t.Fatal("json-success fixture must include non-empty output")
+	}
+	if fixture.Usage.InputTokens <= 0 || fixture.Usage.OutputTokens <= 0 {
+		t.Fatalf("json-success fixture must include positive token counts, got input=%d output=%d", fixture.Usage.InputTokens, fixture.Usage.OutputTokens)
+	}
+	if fixture.Cost.Currency == "" || fixture.Cost.Total <= 0 {
+		t.Fatalf("json-success fixture must include positive cost and currency, got currency=%q total=%f", fixture.Cost.Currency, fixture.Cost.Total)
+	}
+	if fixture.Model == "" || fixture.FinishReason == "" {
+		t.Fatal("json-success fixture must include model and finish_reason")
 	}
 }
 
@@ -371,17 +474,31 @@ func TestGeminiCommandsLogFixture_IncludesPromptDeliveryAndFixtureGenerationEntr
 		t.Fatalf("failed to read commands log fixture: %v", err)
 	}
 
-	body := strings.ToLower(string(content))
-	required := []string{
-		"# prompt-delivery",
-		"gemini -p",
-		"@.gromit/plans/fixtures/gemini/prompt-delivery/prompt-file-input.txt",
-		"stream-json-success.jsonl",
-		"json-success.json",
+	entries := parseGeminiCommandLog(t, content)
+	promptDeliveryCount := 0
+	seenFixtureWrite := map[string]bool{
+		"stream-json-success.jsonl": false,
+		"json-success.json":         false,
 	}
-	for _, token := range required {
-		if !strings.Contains(body, token) {
-			t.Fatalf("commands log must include %q", token)
+
+	for _, entry := range entries {
+		switch entry.Category {
+		case "prompt-delivery":
+			promptDeliveryCount++
+		case "fixture-generation":
+			for name := range seenFixtureWrite {
+				if strings.Contains(entry.Command, name) {
+					seenFixtureWrite[name] = true
+				}
+			}
+		}
+	}
+	if promptDeliveryCount < 4 {
+		t.Fatalf("commands log should include all prompt-delivery capture commands, got %d", promptDeliveryCount)
+	}
+	for name, seen := range seenFixtureWrite {
+		if !seen {
+			t.Fatalf("commands log must include fixture-generation command for %q", name)
 		}
 	}
 }

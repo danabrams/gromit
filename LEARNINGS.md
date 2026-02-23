@@ -12,6 +12,11 @@ Session worktree lifecycle should use one explicit owner for merge-attempt and c
 
 `MergeBack` should classify failures through a typed decision (including exit-code capture when available), then apply one cleanup owner path. For non-conflict failures, probe merge state and defensively abort only when `MERGE_HEAD` exists so stale merge state does not leak while non-merge failures are not mislabeled.
 
+### 2026-02-23 | fixture_tests_should_assert_schema_and_records_not_prose_tokens | TEST_QUALITY
+*Related to: gromit/review-1771886115282672489*
+
+Use structured fixture assertions (parse JSON/JSONL and ledger rows) instead of broad markdown/log token matching.
+
 ## Provisional Learnings
 
 ## Archived Learnings
