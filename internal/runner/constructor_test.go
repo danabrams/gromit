@@ -652,3 +652,68 @@ func TestNewRunnerImpl_GateIntegrationWithRealDecomposer(t *testing.T) {
 		t.Errorf("gate.Run() decision = %v, want Skip (decomposition ok) or Block (LLM unavailable)", out.Decision)
 	}
 }
+
+func TestGateRunScopeGate_ContractViolationFallsBackToBlock(t *testing.T) {
+	stub := &stubRunProvider{
+		name: "test-provider",
+		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
+			return &provider.Result{
+				Success: true,
+				Output:  `[{"title":"Only part","expected_outputs":["f1","f2"]}]`,
+			}, nil
+		},
+	}
+	router := provider.NewSingleProviderRouter(stub)
+
+	client, err := bead.NewClient()
+	if err != nil {
+		t.Fatalf("bead.NewClient: %v", err)
+	}
+	createCalls := 0
+	closeCalls := 0
+	client.RunFn = func(args ...string) (string, error) {
+		if len(args) == 0 {
+			return "", nil
+		}
+		switch args[0] {
+		case "create":
+			createCalls++
+			return `{"id":"child-1","title":"Only part","status":"open"}`, nil
+		case "close":
+			closeCalls++
+		}
+		return "", nil
+	}
+
+	gate := prepare.New(io.Discard).WithDecomposer(&decomposerAdapter{beads: client, router: router})
+	blockTrue := true
+	cfg := &config.Config{
+		ScopeCheck: config.ScopeCheckConfig{
+			Enabled:       true,
+			BlockOversized: &blockTrue,
+		},
+	}
+	in := pipeline.Input{
+		Bead: &bead.Bead{
+			ID:              "parent-1",
+			Title:           "Oversized Feature",
+			Priority:        1,
+			ExpectedOutputs: []string{"f1", "f2", "f3", "f4", "f5", "f6"},
+		},
+		Config: cfg,
+	}
+
+	out, err := gate.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("gate.Run() error = %v, want nil (fallback should block, not propagate)", err)
+	}
+	if out.Decision != pipeline.Block {
+		t.Fatalf("decision = %v, want %v when decomposition output violates contract", out.Decision, pipeline.Block)
+	}
+	if createCalls != 0 {
+		t.Fatalf("create calls = %d, want 0 on contract violation", createCalls)
+	}
+	if closeCalls != 0 {
+		t.Fatalf("close calls = %d, want 0 on contract violation", closeCalls)
+	}
+}
