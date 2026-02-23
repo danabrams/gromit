@@ -87,6 +87,42 @@ func TestBuildModeOverlay_ConfiguresFinalHighTierReviewWithApplyFixes(t *testing
 	}
 }
 
+func TestBuildModeOverlay_ModeDifferencesAreMethodologyOnly(t *testing.T) {
+	manifest := HarnessManifest{
+		Provider:        "openai",
+		ModelFamily:     "gpt-5",
+		LowTierModel:    "gpt-5-mini",
+		MediumTierModel: "gpt-5.3-codex",
+		HighTierModel:   "gpt-5.3-codex",
+	}
+
+	single, err := BuildModeOverlay(manifest, "single_pass")
+	if err != nil {
+		t.Fatalf("single_pass overlay error = %v", err)
+	}
+	shared, err := BuildModeOverlay(manifest, "tdd_shared_context")
+	if err != nil {
+		t.Fatalf("tdd_shared_context overlay error = %v", err)
+	}
+	fresh, err := BuildModeOverlay(manifest, "tdd_fresh_context")
+	if err != nil {
+		t.Fatalf("tdd_fresh_context overlay error = %v", err)
+	}
+
+	if single.BuildStrategy != "single_pass" {
+		t.Fatalf("single_pass build strategy = %q, want %q", single.BuildStrategy, "single_pass")
+	}
+	if shared.BuildStrategy != "tdd" || fresh.BuildStrategy != "tdd" {
+		t.Fatalf("tdd build strategy mismatch: shared=%q fresh=%q", shared.BuildStrategy, fresh.BuildStrategy)
+	}
+	if shared.FreshContextPerCycle {
+		t.Fatal("tdd_shared_context fresh_context_per_cycle = true, want false")
+	}
+	if !fresh.FreshContextPerCycle {
+		t.Fatal("tdd_fresh_context fresh_context_per_cycle = false, want true")
+	}
+}
+
 func TestFinalizeModeRunResult_RecordsFinalValidationAfterReview(t *testing.T) {
 	manifest := HarnessManifest{
 		Provider:        "openai",
