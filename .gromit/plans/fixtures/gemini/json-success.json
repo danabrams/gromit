@@ -1,0 +1,13 @@
+{
+  "output": "Fixture non-stream response: ready.",
+  "usage": {
+    "input_tokens": 39,
+    "output_tokens": 6
+  },
+  "cost": {
+    "currency": "USD",
+    "total": 0.000024
+  },
+  "model": "gemini-3-flash",
+  "finish_reason": "stop"
+}
