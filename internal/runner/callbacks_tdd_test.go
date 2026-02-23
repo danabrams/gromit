@@ -176,3 +176,51 @@ func TestBuildRenderRedFn_LoadsRulesForRedPhase(t *testing.T) {
 		t.Fatalf("rendered rules should exclude build-only content: %q", out)
 	}
 }
+
+func TestBuildRenderGreenFn_UsesGreenPhaseTierOverride(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	specsDir := filepath.Join(tmpDir, "specs")
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(templatesDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(templates): %v", err)
+	}
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(specs): %v", err)
+	}
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(.gromit): %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(templatesDir, "PROMPT_tdd_green.md"), []byte("{{.FailingTest}}"), 0o644); err != nil {
+		t.Fatalf("WriteFile(PROMPT_tdd_green.md): %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gromitDir, "RULES.md"), []byte("# Rules\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(RULES.md): %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "CLAUDE.md"), []byte(""), 0o644); err != nil {
+		t.Fatalf("WriteFile(CLAUDE.md): %v", err)
+	}
+
+	renderer, err := prompt.NewRenderer(templatesDir, specsDir, filepath.Join(tmpDir, "CLAUDE.md"), gromitDir)
+	if err != nil {
+		t.Fatalf("prompt.NewRenderer: %v", err)
+	}
+
+	cfg := &config.Config{}
+	cfg.Methodology.PhaseModels.Green = "low"
+
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{ID: "b1", Title: "title"},
+		Tier: "high",
+	}
+	handoff := &tdd.GreenHandoff{FailingTest: "test fails"}
+
+	fn := buildRenderGreenFn(renderer)
+	if _, err := fn(handoff, bc); err != nil {
+		t.Fatalf("buildRenderGreenFn() error = %v", err)
+	}
+	if bc.Tier != "low" {
+		t.Fatalf("bc.Tier = %q, want %q", bc.Tier, "low")
+	}
+}
