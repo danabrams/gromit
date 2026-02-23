@@ -136,8 +136,12 @@ func ScoreCandidate(bead BeadCandidate) ComplexityResult {
 	if bead.EstimatedFiles > highComplexityFileThreshold {
 		result.Reasons = append(result.Reasons, fmt.Sprintf("estimated_files=%d crosses the high-complexity threshold", bead.EstimatedFiles))
 	}
-	if containsScopeSignal(bead.Title) || containsScopeSignal(bead.Description) {
-		result.Reasons = append(result.Reasons, "contains broad-scope language in title or description")
+	titleHasScopeSignal := containsScopeSignal(bead.Title)
+	descriptionHasScopeSignal := containsScopeSignal(bead.Description)
+	if titleHasScopeSignal {
+		result.Reasons = append(result.Reasons, "contains broad-scope language in title")
+	} else if descriptionHasScopeSignal {
+		result.Reasons = append(result.Reasons, "contains broad-scope language in description")
 	}
 	if len(result.Reasons) > 0 {
 		result.Classification = "high"
