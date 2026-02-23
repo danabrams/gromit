@@ -510,6 +510,23 @@ func TestGateRunComplexityRouting(t *testing.T) {
 			wantSource:   "label",
 			wantReason:   "scope_unavailable",
 		},
+		{
+			name: "falls back to medium with explicit reason when scope and label are unavailable",
+			in: pipeline.Input{
+				Bead: &bead.Bead{
+					ID:     "bead-3",
+					Title:  "test",
+					Labels: []string{"priority:p1"},
+				},
+				ComplexityRouting: pipeline.ComplexityRouting{
+					Complexity: "   ",
+				},
+			},
+			wantDecision: pipeline.Proceed,
+			wantComplex:  "medium",
+			wantSource:   "default",
+			wantReason:   "scope_and_label_unavailable",
+		},
 	}
 
 	gate := New(io.Discard)
