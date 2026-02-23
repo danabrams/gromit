@@ -56,3 +56,30 @@ func TestBuildModeOverlay_UsesLowTierDefaultsForBuildAndValidation(t *testing.T)
 		}
 	}
 }
+
+func TestBuildModeOverlay_ConfiguresFinalHighTierReviewWithApplyFixes(t *testing.T) {
+	manifest := HarnessManifest{
+		Provider:        "openai",
+		ModelFamily:     "gpt-5",
+		LowTierModel:    "gpt-5-mini",
+		MediumTierModel: "gpt-5.3-codex",
+		HighTierModel:   "gpt-5.3-codex",
+	}
+
+	overlay, err := BuildModeOverlay(manifest, "single_pass")
+	if err != nil {
+		t.Fatalf("BuildModeOverlay() error = %v", err)
+	}
+	if !overlay.FinalReview.Enabled {
+		t.Fatal("final review enabled = false, want true")
+	}
+	if !overlay.FinalReview.NonInteractive {
+		t.Fatal("final review non_interactive = false, want true")
+	}
+	if overlay.FinalReview.Tier != "high" {
+		t.Fatalf("final review tier = %q, want %q", overlay.FinalReview.Tier, "high")
+	}
+	if !overlay.FinalReview.ApplyFixes {
+		t.Fatal("final review apply_fixes = false, want true")
+	}
+}
