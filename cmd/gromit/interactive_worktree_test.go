@@ -669,3 +669,18 @@ func TestMergeConflictHandoffError_ManualIncludesActionableGitInstructions(t *te
 		t.Fatalf("manual handoff should include branch name, got: %s", msg)
 	}
 }
+
+func TestMergeConflictHandoffError_ManualCentersBranchBasedRecovery(t *testing.T) {
+	err := newManualConflictHandoffError(&worktree.SessionWorktree{
+		BranchName:  "gromit/review-555",
+		WorktreeDir: "/tmp/repo-gromit-review-555",
+	}, errors.New("merge conflict"))
+
+	msg := err.Error()
+	if !strings.Contains(msg, `git checkout gromit/review-555`) {
+		t.Fatalf("manual handoff should direct checkout by branch, got: %s", msg)
+	}
+	if strings.Contains(msg, "git -C /tmp/repo-gromit-review-555") {
+		t.Fatalf("manual handoff should avoid session-dir commands, got: %s", msg)
+	}
+}
