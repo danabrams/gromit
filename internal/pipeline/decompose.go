@@ -109,10 +109,24 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 			firstViolationCount = len(violations)
 		}
 		if len(violations) == 0 {
-			if attempt > 0 {
-				stats.Improved = true
+			if highComplexityCount == 0 {
+				if attempt > 0 {
+					stats.Improved = true
+				}
+				break
 			}
-			break
+
+			if attempt >= maxRetries {
+				fmt.Printf("Warning: high-complexity beads remain after %d retr%s; proceeding with current output.\n", maxRetries, pluralizeRetry(maxRetries))
+				break
+			}
+
+			fmt.Printf("Retrying decomposition with complexity feedback (%d/%d)...\n", attempt+1, maxRetries)
+			currentPrompt = promptText
+			if complexityFeedback := buildComplexityRepromptFeedback(beadDefs); complexityFeedback != "" {
+				currentPrompt += "\n\n" + complexityFeedback
+			}
+			continue
 		}
 
 		logValidationViolations(violations)
