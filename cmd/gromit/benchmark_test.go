@@ -1,8 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -112,5 +115,76 @@ func TestRunBenchmarkPipeline_ExecutesStagesInOrder(t *testing.T) {
 	want := "manifest->selection->validation->harness->metrics->report"
 	if got != want {
 		t.Fatalf("pipeline order = %q, want %q", got, want)
+	}
+}
+
+func TestRunBenchmarkPipeline_WritesDeterministicArtifacts(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+
+	opts := benchmarkRunOptions{
+		ManifestPath:    filepath.Join("/home/dabrams/gromit", "cmd", "gromit", "testdata", "fixtures", "benchmark", "basic.yaml"),
+		OutputTimestamp: "20260223T120000Z",
+	}
+
+	if err := runBenchmarkPipeline(opts); err != nil {
+		t.Fatalf("first runBenchmarkPipeline() error = %v", err)
+	}
+
+	jsonPath := filepath.Join(".gromit", "benchmarks", "results", "tdd-vs-single-pass", "20260223T120000Z.json")
+	mdPath := filepath.Join(".gromit", "benchmarks", "results", "tdd-vs-single-pass", "20260223T120000Z.md")
+	jsonFirst, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("read first json artifact: %v", err)
+	}
+	mdFirst, err := os.ReadFile(mdPath)
+	if err != nil {
+		t.Fatalf("read first markdown artifact: %v", err)
+	}
+
+	if err := runBenchmarkPipeline(opts); err != nil {
+		t.Fatalf("second runBenchmarkPipeline() error = %v", err)
+	}
+	jsonSecond, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("read second json artifact: %v", err)
+	}
+	mdSecond, err := os.ReadFile(mdPath)
+	if err != nil {
+		t.Fatalf("read second markdown artifact: %v", err)
+	}
+
+	if string(jsonFirst) != string(jsonSecond) {
+		t.Fatalf("json artifact changed across repeated runs\nfirst:\n%s\nsecond:\n%s", string(jsonFirst), string(jsonSecond))
+	}
+	if string(mdFirst) != string(mdSecond) {
+		t.Fatalf("markdown artifact changed across repeated runs\nfirst:\n%s\nsecond:\n%s", string(mdFirst), string(mdSecond))
+	}
+
+	var payload struct {
+		SelectedBeads []string `json:"selected_beads"`
+		Modes         []struct {
+			Mode          string   `json:"mode"`
+			BaseCommit    string   `json:"base_commit"`
+			SelectedBeads []string `json:"selected_beads"`
+		} `json:"modes"`
+	}
+	if err := json.Unmarshal(jsonFirst, &payload); err != nil {
+		t.Fatalf("unmarshal json artifact: %v", err)
+	}
+
+	if strings.Join(payload.SelectedBeads, ",") != "gromit-1,gromit-2,gromit-3" {
+		t.Fatalf("selected_beads = %v", payload.SelectedBeads)
+	}
+	if len(payload.Modes) != 3 {
+		t.Fatalf("mode count = %d, want 3", len(payload.Modes))
+	}
+	for _, mode := range payload.Modes {
+		if mode.BaseCommit != "abc123" {
+			t.Fatalf("mode %s base_commit = %q, want %q", mode.Mode, mode.BaseCommit, "abc123")
+		}
+		if strings.Join(mode.SelectedBeads, ",") != "gromit-1,gromit-2,gromit-3" {
+			t.Fatalf("mode %s selected_beads = %v", mode.Mode, mode.SelectedBeads)
+		}
 	}
 }
