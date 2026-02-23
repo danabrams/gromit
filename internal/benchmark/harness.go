@@ -82,6 +82,11 @@ func RunModesInIsolatedWorktrees(ctx context.Context, input RunModesInput) ([]Mo
 		}
 		run, err := input.Runner.RunMode(ctx, req)
 		if err != nil {
+			if run.Cleanup != nil {
+				if cleanupErr := run.Cleanup(); cleanupErr != nil {
+					return nil, "", fmt.Errorf("cleanup failed after mode error: %w", cleanupErr)
+				}
+			}
 			return nil, "", err
 		}
 		if run.Cleanup != nil {
