@@ -363,3 +363,25 @@ func TestGeminiSchemaNotesFixture_DocumentsPromptModesAndSchemaExtraction(t *tes
 		}
 	}
 }
+
+func TestGeminiCommandsLogFixture_IncludesPromptDeliveryAndFixtureGenerationEntries(t *testing.T) {
+	logPath := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "commands.log")
+	content, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("failed to read commands log fixture: %v", err)
+	}
+
+	body := strings.ToLower(string(content))
+	required := []string{
+		"# prompt-delivery",
+		"gemini -p",
+		"@.gromit/plans/fixtures/gemini/prompt-delivery/prompt-file-input.txt",
+		"stream-json-success.jsonl",
+		"json-success.json",
+	}
+	for _, token := range required {
+		if !strings.Contains(body, token) {
+			t.Fatalf("commands log must include %q", token)
+		}
+	}
+}
