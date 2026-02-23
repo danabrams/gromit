@@ -65,6 +65,15 @@ func CheckBeads(beads []BeadCandidate) []Violation {
 			}
 		}
 
+		// Check for duplicate expected outputs
+		if hasDuplicateOutputs(bead.ExpectedOutputs) {
+			violations = append(violations, Violation{
+				BeadIndex: i,
+				Rule:      "output_duplicate",
+				Message:   "Bead has duplicate expected output entries",
+			})
+		}
+
 		// Check criteria count
 		if len(bead.AcceptanceCriteria) > 3 {
 			violations = append(violations, Violation{
@@ -121,6 +130,18 @@ func hasOverlap(a, b BeadCandidate) bool {
 				return true
 			}
 		}
+	}
+	return false
+}
+
+// hasDuplicateOutputs checks if a list of expected outputs contains duplicates (case-sensitive)
+func hasDuplicateOutputs(outputs []string) bool {
+	seen := make(map[string]bool, len(outputs))
+	for _, output := range outputs {
+		if seen[output] {
+			return true
+		}
+		seen[output] = true
 	}
 	return false
 }
