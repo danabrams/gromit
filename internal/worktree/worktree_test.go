@@ -1178,8 +1178,8 @@ func TestCreateSessionWorktree_RetriesOnBranchContention(t *testing.T) {
 	mockGitRun := func(dir string, args ...string) (string, error) {
 		copied := append([]string{}, args...)
 		calls = append(calls, copied)
-		if len(args) >= 6 && args[0] == "worktree" && args[1] == "add" {
-			branch := args[5]
+		if len(args) >= 5 && args[0] == "worktree" && args[1] == "add" {
+			branch := args[4]
 			if strings.HasSuffix(branch, "-100") {
 				return "", errors.New("fatal: a branch named 'gromit/review-100' already exists")
 			}

@@ -12,7 +12,12 @@ const (
 	interactiveBranchName   = "gromit/interactive"
 	interactiveWorktreeSufx = "-gromit-interactive"
 	branchPrefix            = "gromit/"
+	maxSessionCreateRetries = 5
 )
+
+var sessionTimestampFn = func() int64 {
+	return time.Now().UnixNano()
+}
 
 // GitRunFn is a function type for executing git commands.
 // dir is the working directory, args are the git command arguments.
@@ -137,21 +142,27 @@ func (m *Manager) CreateSessionWorktree(command string) (*SessionWorktree, error
 		return nil, errors.New("command cannot be empty")
 	}
 
-	// Generate unique session identifier with nanosecond precision for uniqueness
-	timestamp := time.Now().UnixNano()
-	branchName := sessionBranchName(command, timestamp)
-	worktreeDir := sessionWorktreeDir(m.MainDir, command, timestamp)
+	baseTimestamp := sessionTimestampFn()
+	var lastErr error
+	for attempt := int64(0); attempt < maxSessionCreateRetries; attempt++ {
+		timestamp := baseTimestamp + attempt
+		branchName := sessionBranchName(command, timestamp)
+		worktreeDir := sessionWorktreeDir(m.MainDir, command, timestamp)
 
-	// Create the worktree with the new branch
-	_, err := m.runGit(m.MainDir, "worktree", "add", worktreeDir, "-b", branchName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create session worktree: %w", err)
+		_, err := m.runGit(m.MainDir, "worktree", "add", worktreeDir, "-b", branchName)
+		if err == nil {
+			return &SessionWorktree{
+				BranchName:  branchName,
+				WorktreeDir: worktreeDir,
+			}, nil
+		}
+		lastErr = err
+		if !isSessionContentionErr(err) {
+			return nil, fmt.Errorf("failed to create session worktree: %w", err)
+		}
 	}
 
-	return &SessionWorktree{
-		BranchName:  branchName,
-		WorktreeDir: worktreeDir,
-	}, nil
+	return nil, fmt.Errorf("failed to create session worktree after retries: %w", lastErr)
 }
 
 // PendingBranches returns branches created by interactive sessions
@@ -257,4 +268,12 @@ func sessionBranchName(command string, timestamp int64) string {
 
 func sessionWorktreeDir(mainDir, command string, timestamp int64) string {
 	return fmt.Sprintf("%s-gromit-%s-%d", mainDir, command, timestamp)
+}
+
+func isSessionContentionErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "already exists") || strings.Contains(msg, "already checked out")
 }
