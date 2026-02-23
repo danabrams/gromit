@@ -259,6 +259,9 @@ func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 			if strings.TrimSpace(output) == "" {
 				return fmt.Errorf("decomposerAdapter: decomposition contract violation: sub-bead %d has empty expected output at index %d", i, j)
 			}
+			if output == b.Title {
+				return fmt.Errorf("decomposerAdapter: decomposition contract violation: sub-bead %d has expected output that echoes parent title", i)
+			}
 			if _, exists := seenOutputs[output]; exists {
 				return fmt.Errorf("decomposerAdapter: decomposition contract violation: sub-bead %d has duplicate expected outputs", i)
 			}
