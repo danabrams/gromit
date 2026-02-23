@@ -622,3 +622,12 @@ func TestSelectTierWithDefaultsApplied(t *testing.T) {
 		t.Errorf("SelectTier(2, nil) after SetDefaults() = %q, want %q", result, "low")
 	}
 }
+
+func TestSelectInitialTierForComplexityLow(t *testing.T) {
+	cfg := &Config{}
+
+	result := cfg.SelectInitialTierForComplexity("low")
+	if result != "low" {
+		t.Errorf("SelectInitialTierForComplexity(low) = %q, want %q", result, "low")
+	}
+}
