@@ -2037,6 +2037,52 @@ func TestDecomposeWorkflow_ComplexityRetryCapWithPartialImprovementMarksImproved
 	}
 }
 
+func TestDecomposeWorkflow_HighComplexityWarningProceedSetsValidationFlag(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plansDir, "complexity-warning-flag.md"), []byte("# Complexity Warning Flag"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	mockClaude := &decomposeAcceptanceClaudeClient{
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output: `[
+					{"title":"Still too broad","description":"d","priority":"P1","estimated_files":8,"acceptance_criteria":["a"],"depends_on_index":[]},
+					{"title":"Small task","description":"d","priority":"P1","estimated_files":1,"acceptance_criteria":["b"],"depends_on_index":[]}
+				]`,
+			}, nil
+		},
+	}
+
+	mockBead := &decomposeAcceptanceBeadClient{
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+			return &BeadInfo{ID: "bead-1"}, nil
+		},
+	}
+
+	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	result, err := p.Decompose(context.Background(), DecomposeInput{
+		PlanName:             "complexity-warning-flag",
+		MaxValidationRetries: 0,
+	})
+	if err != nil {
+		t.Fatalf("Decompose() failed: %v", err)
+	}
+
+	if result.ValidationStats == nil {
+		t.Fatal("ValidationStats = nil, want populated")
+	}
+	if !result.ValidationStats.ProceededWithHighComplexityWarning {
+		t.Fatal("ValidationStats.ProceededWithHighComplexityWarning = false, want true on warning proceed path")
+	}
+}
+
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
 	original := os.Stdout
