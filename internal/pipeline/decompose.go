@@ -70,6 +70,7 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 	var beadDefs []beadDef
 	stats := &ValidationStats{}
 	firstViolationCount := 0
+	firstHighComplexityCount := 0
 	for attempt := 0; ; attempt++ {
 		stats.Attempts++
 		// Run provider non-interactively
@@ -96,6 +97,9 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 		}
 
 		highComplexityCount, _ := countComplexityByEstimate(beadDefs)
+		if attempt == 0 {
+			firstHighComplexityCount = highComplexityCount
+		}
 		fmt.Print(formatComplexitySummaryLine(attempt+1, beadDefs))
 
 		if input.SkipValidation {
@@ -118,6 +122,9 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 			}
 
 			if attempt >= maxRetries {
+				if highComplexityCount < firstHighComplexityCount {
+					stats.Improved = true
+				}
 				details := make([]string, 0, len(beadDefs))
 				for _, def := range beadDefs {
 					if def.EstimatedFiles > highComplexityFileThreshold {
