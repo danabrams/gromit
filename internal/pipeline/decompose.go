@@ -127,6 +127,9 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 				if highComplexityCount < firstHighComplexityCount {
 					stats.Improved = true
 				}
+				if !stats.Improved {
+					stats.NonImprovingAtRetryCap = true
+				}
 				stats.ProceededWithHighComplexityWarning = true
 				details := make([]string, 0, len(beadDefs))
 				for _, def := range beadDefs {
@@ -158,6 +161,9 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 			stats.RetryCapReached = true
 			if len(violations) < firstViolationCount {
 				stats.Improved = true
+			}
+			if !stats.Improved {
+				stats.NonImprovingAtRetryCap = true
 			}
 			fmt.Printf("Warning: validation still failing after %d retr%s; proceeding with current output.\n", maxRetries, pluralizeRetry(maxRetries))
 			if highComplexityCount > 0 {
