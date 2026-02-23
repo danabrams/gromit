@@ -132,6 +132,11 @@ func TestIsLeafBead(t *testing.T) {
 			bead: &Bead{DependentCount: intPtr(2)},
 			want: false,
 		},
+		{
+			name: "negative dependent count is treated as leaf boundary",
+			bead: &Bead{DependentCount: intPtr(-1)},
+			want: true,
+		},
 	}
 
 	for _, tt := range tests {
