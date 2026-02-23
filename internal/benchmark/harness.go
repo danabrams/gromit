@@ -16,6 +16,13 @@ type OverlayTierModels struct {
 	High   string
 }
 
+type FinalReviewPolicy struct {
+	Enabled        bool
+	NonInteractive bool
+	Tier           string
+	ApplyFixes     bool
+}
+
 type ModeOverlay struct {
 	Mode        string
 	Provider    string
@@ -23,6 +30,7 @@ type ModeOverlay struct {
 	TierModels  OverlayTierModels
 	BuildTierDefault      string
 	ValidationTierDefault string
+	FinalReview           FinalReviewPolicy
 }
 
 func BuildModeOverlay(manifest HarnessManifest, mode string) (ModeOverlay, error) {
@@ -39,6 +47,12 @@ func BuildModeOverlay(manifest HarnessManifest, mode string) (ModeOverlay, error
 			},
 			BuildTierDefault:      "low",
 			ValidationTierDefault: "low",
+			FinalReview: FinalReviewPolicy{
+				Enabled:        true,
+				NonInteractive: true,
+				Tier:           "high",
+				ApplyFixes:     true,
+			},
 		}, nil
 	default:
 		return ModeOverlay{}, fmt.Errorf("unsupported benchmark mode %q", mode)
