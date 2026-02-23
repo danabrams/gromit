@@ -1,1 +1,1 @@
-Summarize why fixture captures should include both stdout and stderr.
+Respond with exactly FILE_OK

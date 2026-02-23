@@ -1,0 +1,6 @@
+
+> @google/gemini-cli@0.30.0-nightly.20260210.a2174751d start
+> cross-env NODE_ENV=development node scripts/start.js --approval-mode yolo -p @.gromit/plans/fixtures/gemini/prompt-delivery/prompt-file-input.txt --output-format json
+
+Checking build status...
+Build is up-to-date.

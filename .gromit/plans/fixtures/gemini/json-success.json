@@ -1,13 +1,15 @@
 {
-  "output": "Fixture non-stream response: ready.",
+  "output": "READY",
   "usage": {
-    "input_tokens": 39,
-    "output_tokens": 6
+    "input_tokens": 13284,
+    "output_tokens": 33,
+    "cached_input_tokens": 0
   },
   "cost": {
-    "currency": "USD",
-    "total": 0.000024
+    "total": 0
   },
-  "model": "gemini-3-flash",
-  "finish_reason": "stop"
+  "model": "gemini-3-flash-preview",
+  "finish_reason": "stop",
+  "session_id": "fb5c131e-afa6-47dd-8c5d-53b4ec953375",
+  "response": "READY"
 }

@@ -1,0 +1,95 @@
+
+> @google/gemini-cli@0.30.0-nightly.20260210.a2174751d start
+> cross-env NODE_ENV=development node scripts/start.js --approval-mode yolo -p Respond with exactly: READY --output-format json
+
+Checking build status...
+Build is up-to-date.
+{
+  "session_id": "fb5c131e-afa6-47dd-8c5d-53b4ec953375",
+  "response": "READY",
+  "stats": {
+    "models": {
+      "gemini-2.5-flash-lite": {
+        "api": {
+          "totalRequests": 1,
+          "totalErrors": 0,
+          "totalLatencyMs": 1192
+        },
+        "tokens": {
+          "input": 2923,
+          "prompt": 2923,
+          "candidates": 32,
+          "total": 3098,
+          "cached": 0,
+          "thoughts": 143,
+          "tool": 0
+        },
+        "roles": {
+          "utility_router": {
+            "totalRequests": 1,
+            "totalErrors": 0,
+            "totalLatencyMs": 1192,
+            "tokens": {
+              "input": 2923,
+              "prompt": 2923,
+              "candidates": 32,
+              "total": 3098,
+              "cached": 0,
+              "thoughts": 143,
+              "tool": 0
+            }
+          }
+        }
+      },
+      "gemini-3-flash-preview": {
+        "api": {
+          "totalRequests": 1,
+          "totalErrors": 0,
+          "totalLatencyMs": 2777
+        },
+        "tokens": {
+          "input": 10353,
+          "prompt": 10353,
+          "candidates": 1,
+          "total": 10445,
+          "cached": 0,
+          "thoughts": 91,
+          "tool": 0
+        },
+        "roles": {
+          "main": {
+            "totalRequests": 1,
+            "totalErrors": 0,
+            "totalLatencyMs": 2777,
+            "tokens": {
+              "input": 10353,
+              "prompt": 10353,
+              "candidates": 1,
+              "total": 10445,
+              "cached": 0,
+              "thoughts": 91,
+              "tool": 0
+            }
+          }
+        }
+      }
+    },
+    "tools": {
+      "totalCalls": 0,
+      "totalSuccess": 0,
+      "totalFail": 0,
+      "totalDurationMs": 0,
+      "totalDecisions": {
+        "accept": 0,
+        "reject": 0,
+        "modify": 0,
+        "auto_accept": 0
+      },
+      "byName": {}
+    },
+    "files": {
+      "totalLinesAdded": 0,
+      "totalLinesRemoved": 0
+    }
+  }
+}

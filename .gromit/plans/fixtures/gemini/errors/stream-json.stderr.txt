@@ -1,4 +1,4 @@
-(node:140838) Warning: `--localstorage-file` was provided without a valid path
+(node:142063) Warning: `--localstorage-file` was provided without a valid path
 (Use `node --trace-warnings ...` to show where the warning was created)
 YOLO mode is enabled. All tool calls will be automatically approved.
 Loaded cached credentials.
