@@ -206,11 +206,13 @@ type fakeWorktreeMerger struct {
 	pendingErr     error
 	mergeErr       error
 	pendingCalled  bool
+	pendingCallCount int
 	mergedBranches []string
 }
 
 func (f *fakeWorktreeMerger) PendingBranches() ([]string, error) {
 	f.pendingCalled = true
+	f.pendingCallCount++
 	return f.branches, f.pendingErr
 }
 
