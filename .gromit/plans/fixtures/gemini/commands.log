@@ -15,3 +15,9 @@ timestamp=2026-02-23T22:27:17Z command="sh -c echo ok" exit_code=0 # exit-error
 timestamp=2026-02-23T22:27:17Z command="sh -c echo intentional trigger for exit code 1 >&2; exit 1" exit_code=1 # exit-error
 timestamp=2026-02-23T22:27:17Z command="sh -c echo intentional trigger for exit code 42 >&2; exit 42" exit_code=42 # exit-error
 timestamp=2026-02-23T22:27:17Z command="sh -c echo intentional trigger for exit code 53 >&2; exit 53" exit_code=53 # exit-error
+timestamp=2026-02-23T22:31:00Z command="gemini -p \"Respond with the single word: ready\"" exit_code=127 # prompt-delivery
+timestamp=2026-02-23T22:31:01Z command="gemini -p \"<large prompt omitted>\"" exit_code=127 # prompt-delivery
+timestamp=2026-02-23T22:31:02Z command="printf 'Return the token PIPE_OK.\n' | gemini" exit_code=127 # prompt-delivery
+timestamp=2026-02-23T22:31:03Z command="gemini -p \"@.gromit/plans/fixtures/gemini/prompt-delivery/prompt-file-input.txt\"" exit_code=127 # prompt-delivery
+timestamp=2026-02-23T22:31:04Z command="cat > .gromit/plans/fixtures/gemini/stream-json-success.jsonl" exit_code=0 # fixture-generation
+timestamp=2026-02-23T22:31:05Z command="cat > .gromit/plans/fixtures/gemini/json-success.json" exit_code=0 # fixture-generation
