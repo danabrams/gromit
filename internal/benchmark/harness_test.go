@@ -2,6 +2,7 @@ package benchmark
 
 import (
 	"context"
+	"errors"
 	"testing"
 )
 
@@ -221,6 +222,31 @@ func TestRunModesInIsolatedWorktrees_CleansUpEveryModeAfterSuccessfulRun(t *test
 	}
 }
 
+func TestRunModesInIsolatedWorktrees_CleansUpFailedModeBeforeReturningError(t *testing.T) {
+	resolver := &stubBaseCommitResolver{resolved: "abc123"}
+	runner := &cleanupOnFailureModeRunner{}
+
+	_, _, err := RunModesInIsolatedWorktrees(context.Background(), RunModesInput{
+		Manifest: HarnessManifest{
+			Provider:        "openai",
+			ModelFamily:     "gpt-5",
+			LowTierModel:    "gpt-5-mini",
+			MediumTierModel: "gpt-5.3-codex",
+			HighTierModel:   "gpt-5.3-codex",
+		},
+		SelectedBeads:  []string{"gromit-1", "gromit-2", "gromit-3"},
+		BaseCommitHint: "HEAD",
+		Resolver:       resolver,
+		Runner:         runner,
+	})
+	if err == nil {
+		t.Fatal("RunModesInIsolatedWorktrees() error = nil, want failure")
+	}
+	if runner.failedModeCleanupCalls != 1 {
+		t.Fatalf("failed mode cleanup calls = %d, want 1", runner.failedModeCleanupCalls)
+	}
+}
+
 type stubBaseCommitResolver struct {
 	resolved string
 	err      error
@@ -259,6 +285,30 @@ func (r *cleanupRecordingModeRunner) RunMode(_ context.Context, req ModeWorktree
 		Mode: req.Mode,
 		Cleanup: func() error {
 			r.cleanupModes = append(r.cleanupModes, req.Mode)
+			return nil
+		},
+	}, nil
+}
+
+type cleanupOnFailureModeRunner struct {
+	callIndex               int
+	failedModeCleanupCalls  int
+}
+
+func (r *cleanupOnFailureModeRunner) RunMode(_ context.Context, req ModeWorktreeRequest) (ModeWorktreeRun, error) {
+	r.callIndex++
+	if r.callIndex == 2 {
+		return ModeWorktreeRun{
+			Mode: req.Mode,
+			Cleanup: func() error {
+				r.failedModeCleanupCalls++
+				return nil
+			},
+		}, errors.New("mode execution failed")
+	}
+	return ModeWorktreeRun{
+		Mode: req.Mode,
+		Cleanup: func() error {
 			return nil
 		},
 	}, nil
