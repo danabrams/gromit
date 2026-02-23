@@ -84,6 +84,23 @@ func TestRULESMD_ProcessSection(t *testing.T) {
 	}
 }
 
+func TestRULESMD_CoreSectionsAnnotatedForExecutionPhases(t *testing.T) {
+	text := mustReadText(t, "../../.gromit/RULES.md")
+
+	expectedHeaders := []string{
+		"## Code Style <!-- phases: red, build, green, refactor, review -->",
+		"## Safety <!-- phases: red, build, green, refactor, review -->",
+		"## Test Quality <!-- phases: red, build, green, refactor, review -->",
+		"## Architecture <!-- phases: red, build, green, refactor, review -->",
+	}
+
+	for _, header := range expectedHeaders {
+		if !strings.Contains(text, header) {
+			t.Errorf("RULES.md missing expected phase annotation: %q", header)
+		}
+	}
+}
+
 // TestSKILLMD_SizingRulesUpdated verifies that the decompose skill's sizing rules
 // are updated to reflect the behavior-based philosophy instead of file-count rules.
 func TestSKILLMD_SizingRulesUpdated(t *testing.T) {
