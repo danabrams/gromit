@@ -522,6 +522,52 @@ func TestDecomposeWorkflow_SkipValidationOversizedBatchErrorsWithoutCreatingBead
 	}
 }
 
+func TestDecomposeWorkflow_SkipValidationUndersizedBatchErrorsWithoutCreatingBeads(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plansDir, "skip-validation-undersized.md"), []byte("# Skip Validation Undersized"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	mockClaude := &decomposeAcceptanceClaudeClient{
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output: `[
+					{"title":"Only Task","description":"d","priority":"P1","acceptance_criteria":["a"],"depends_on_index":[]}
+				]`,
+			}, nil
+		},
+	}
+
+	createCalls := 0
+	mockBead := &decomposeAcceptanceBeadClient{
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+			createCalls++
+			return &BeadInfo{ID: fmt.Sprintf("bead-%d", createCalls)}, nil
+		},
+	}
+
+	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	_, err := p.Decompose(context.Background(), DecomposeInput{
+		PlanName:       "skip-validation-undersized",
+		SkipValidation: true,
+	})
+	if err == nil {
+		t.Fatal("Decompose() returned nil error, want batch_size_min contract violation")
+	}
+	if !strings.Contains(err.Error(), "decomposition contract violation: batch_size_min") {
+		t.Fatalf("error = %v, want explicit batch_size_min contract violation format", err)
+	}
+	if createCalls != 0 {
+		t.Fatalf("bead create calls = %d, want 0", createCalls)
+	}
+}
+
 // TestDecomposeWorkflow_CreatesBeadsWithCorrectLabels verifies beads get spec:<name> label
 // Expected failure: Pipeline.Decompose() does not add spec label to created beads
 func TestDecomposeWorkflow_CreatesBeadsWithCorrectLabels(t *testing.T) {
