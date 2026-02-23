@@ -233,3 +233,23 @@ func TestGeminiExitCodeNotesFixture_DocumentsConcreteTriggerAttempts(t *testing.
 		}
 	}
 }
+
+func TestGeminiCommandsLogFixture_IncludesModelTokenCostAndExitErrorEntries(t *testing.T) {
+	logPath := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "commands.log")
+	content, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("failed to read commands log fixture: %v", err)
+	}
+
+	body := strings.ToLower(string(content))
+	required := []string{
+		"# model",
+		"# token-cost",
+		"# exit-error",
+	}
+	for _, token := range required {
+		if !strings.Contains(body, token) {
+			t.Fatalf("commands log must include categorized entry %q", token)
+		}
+	}
+}
