@@ -177,6 +177,26 @@ func TestLoadRulesForPhaseReviewIsSmallerThanBuild(t *testing.T) {
 	}
 }
 
+func TestLoadRulesForPhaseRedAndRefactorExcludeBuildProcess(t *testing.T) {
+	r := setupRendererWithRules(t, rulesWithAnnotations())
+
+	for _, phase := range []string{"red", "refactor"} {
+		phase := phase
+		t.Run(phase, func(t *testing.T) {
+			result, err := r.LoadRulesForPhase(phase)
+			if err != nil {
+				t.Fatalf("LoadRulesForPhase(%q) error = %v", phase, err)
+			}
+			if !strings.Contains(result, "## Code Style") {
+				t.Fatalf("LoadRulesForPhase(%q) missing shared section %q", phase, "## Code Style")
+			}
+			if strings.Contains(result, "## Build Process") {
+				t.Fatalf("LoadRulesForPhase(%q) should exclude build-only section %q", phase, "## Build Process")
+			}
+		})
+	}
+}
+
 func TestLoadRulesForPhaseUnannotatedSectionsIncludedInAllPhases(t *testing.T) {
 	// Sections without phase annotations should be included for all phases.
 	rules := `# Rules
