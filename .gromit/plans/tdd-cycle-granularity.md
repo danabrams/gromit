@@ -2,7 +2,8 @@
 id: tdd-cycle-granularity
 source_spec: tdd-cycle-granularity
 created: 2026-02-22
-decomposed: false
+decomposed: true
+decomposed_at: "2026-02-23T01:37:33Z"
 ---
 
 # TDD Cycle Granularity Implementation Plan

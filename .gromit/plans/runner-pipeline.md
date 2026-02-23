@@ -2,7 +2,8 @@
 id: runner-pipeline
 source_spec: runner-pipeline
 created: 2026-02-21
-decomposed: false
+decomposed: true
+decomposed_at: "2026-02-23T01:34:11Z"
 ---
 
 # Runner Pipeline Refactor Implementation Plan
