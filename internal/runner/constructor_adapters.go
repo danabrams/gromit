@@ -250,6 +250,11 @@ func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 	if len(subBeads) > 5 {
 		return fmt.Errorf("decomposerAdapter: decomposition contract violation: expected 2-5 sub-beads, got %d", len(subBeads))
 	}
+	for i, sb := range subBeads {
+		if len(sb.ExpectedOutputs) > 5 {
+			return fmt.Errorf("decomposerAdapter: decomposition contract violation: sub-bead %d has %d expected outputs (max 5)", i, len(sb.ExpectedOutputs))
+		}
+	}
 
 	labels := a.resolveBuildStrategyLabels(b)
 	for _, sb := range subBeads {
