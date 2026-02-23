@@ -19,6 +19,31 @@ const (
 		"- Respond with ONLY the JSON array (no markdown, no explanation).\n"
 )
 
+// CandidateComplexityResult describes a high-complexity candidate and why it was flagged.
+type CandidateComplexityResult struct {
+	Title   string
+	Reasons []string
+}
+
+// BuildComplexityRepromptFeedback builds complexity-only guidance appended to reprompts.
+func BuildComplexityRepromptFeedback(highComplexity []CandidateComplexityResult) string {
+	if len(highComplexity) == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString("## Complexity Feedback\n\n")
+	sb.WriteString("The following candidates are still high complexity. Split or narrow them while preserving intent.\n")
+	for _, candidate := range highComplexity {
+		sb.WriteString(fmt.Sprintf("- %s\n", candidate.Title))
+		for _, reason := range candidate.Reasons {
+			sb.WriteString(fmt.Sprintf("  - reason: %s\n", reason))
+		}
+	}
+
+	return sb.String()
+}
+
 // BuildReprompt builds a focused re-decompose prompt after validation failures.
 func BuildReprompt(originalPrompt string, candidates []BeadCandidate, violations []Violation) string {
 	var sb strings.Builder
