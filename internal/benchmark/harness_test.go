@@ -83,3 +83,31 @@ func TestBuildModeOverlay_ConfiguresFinalHighTierReviewWithApplyFixes(t *testing
 		t.Fatal("final review apply_fixes = false, want true")
 	}
 }
+
+func TestFinalizeModeRunResult_RecordsFinalValidationAfterReview(t *testing.T) {
+	manifest := HarnessManifest{
+		Provider:        "openai",
+		ModelFamily:     "gpt-5",
+		LowTierModel:    "gpt-5-mini",
+		MediumTierModel: "gpt-5.3-codex",
+		HighTierModel:   "gpt-5.3-codex",
+	}
+	overlay, err := BuildModeOverlay(manifest, "single_pass")
+	if err != nil {
+		t.Fatalf("BuildModeOverlay() error = %v", err)
+	}
+
+	result := FinalizeModeRunResult(overlay, false)
+	if !result.FinalReviewRan {
+		t.Fatal("final review ran = false, want true")
+	}
+	if !result.FinalValidationRan {
+		t.Fatal("final validation ran = false, want true")
+	}
+	if !result.FinalValidationAfterReview {
+		t.Fatal("final validation after review = false, want true")
+	}
+	if result.FinalValidationPassed {
+		t.Fatal("final validation passed = true, want false")
+	}
+}
