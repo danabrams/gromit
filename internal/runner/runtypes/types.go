@@ -72,8 +72,8 @@ type IterationResult struct {
 	Escalated               bool
 	EscalatedTo             string
 	EstimatedFiles          int
-	OriginalTier            string
-	ActualTier              string
+	OriginalTier            string `json:"original_tier,omitempty"`
+	ActualTier              string `json:"actual_tier,omitempty"`
 	Decomposed              bool
 	Output                  string
 	CostUSD                 float64
