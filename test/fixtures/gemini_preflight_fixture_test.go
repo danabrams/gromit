@@ -297,3 +297,22 @@ func TestGeminiPromptDeliveryFixtures_CaptureRawArtifactsPerPromptMode(t *testin
 		}
 	}
 }
+
+func TestGeminiStreamJSONSuccessFixture_ExistsWithJSONLRecords(t *testing.T) {
+	path := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "stream-json-success.jsonl")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read stream-json fixture: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	if len(lines) < 2 {
+		t.Fatalf("stream-json fixture must contain at least 2 jsonl records")
+	}
+	for i, line := range lines {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "{") || !strings.HasSuffix(line, "}") {
+			t.Fatalf("line %d must be a JSON object record", i+1)
+		}
+	}
+}
