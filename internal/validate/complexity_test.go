@@ -82,3 +82,27 @@ func TestScoreCandidate_CriteriaBreadthSignalsHighComplexity(t *testing.T) {
 		t.Fatalf("Reasons[0] = %q, want %q", result.Reasons[0], want)
 	}
 }
+
+func TestScoreCandidate_ExpectedOutputBreadthSignalsHighComplexity(t *testing.T) {
+	result := ScoreCandidate(BeadCandidate{
+		Title:       "Polish auth service",
+		Description: "Single theme",
+		ExpectedOutputs: []string{
+			"Design note",
+			"Implementation",
+			"Migration script",
+			"Runbook update",
+		},
+	})
+
+	if result.Classification != "high" {
+		t.Fatalf("Classification = %q, want %q", result.Classification, "high")
+	}
+	if len(result.Reasons) != 1 {
+		t.Fatalf("Reasons len = %d, want 1", len(result.Reasons))
+	}
+	want := "expected_outputs=4 indicates multiple coupled deliverables"
+	if result.Reasons[0] != want {
+		t.Fatalf("Reasons[0] = %q, want %q", result.Reasons[0], want)
+	}
+}
