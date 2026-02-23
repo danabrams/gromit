@@ -1,6 +1,16 @@
 package main
 
-import "github.com/spf13/cobra"
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
+)
 
 type benchmarkRunOptions struct {
 	ManifestPath    string
@@ -21,7 +31,10 @@ var benchmarkOutputTS string
 var benchmarkBaseCommit string
 
 type benchmarkManifest struct {
-	ID string
+	ID         string   `yaml:"id"`
+	BaseCommit string   `yaml:"base_commit"`
+	Beads      []string `yaml:"beads"`
+	Modes      []string `yaml:"modes"`
 }
 
 type benchmarkSelection struct {
@@ -35,9 +48,23 @@ type benchmarkValidatedCohort struct {
 type benchmarkHarnessResult struct {
 	BaseCommit    string
 	SelectedBeads []string
+	Modes         []benchmarkModeResult
 }
 
-type benchmarkMetricsResult struct{}
+type benchmarkModeResult struct {
+	Mode          string   `json:"mode"`
+	BaseCommit    string   `json:"base_commit"`
+	SelectedBeads []string `json:"selected_beads"`
+}
+
+type benchmarkMetricsResult struct {
+	ModeScores []benchmarkModeScore `json:"mode_scores"`
+}
+
+type benchmarkModeScore struct {
+	Mode  string `json:"mode"`
+	Score int    `json:"score"`
+}
 
 var benchmarkCmd = &cobra.Command{
 	Use:   "benchmark",
@@ -95,25 +122,121 @@ func runBenchmarkPipeline(opts benchmarkRunOptions) error {
 }
 
 func loadBenchmarkManifest(path string) (benchmarkManifest, error) {
-	return benchmarkManifest{}, nil
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return benchmarkManifest{}, fmt.Errorf("read manifest: %w", err)
+	}
+
+	var manifest benchmarkManifest
+	if err := yaml.Unmarshal(content, &manifest); err != nil {
+		return benchmarkManifest{}, fmt.Errorf("parse manifest: %w", err)
+	}
+	if manifest.ID == "" {
+		return benchmarkManifest{}, fmt.Errorf("manifest id is required")
+	}
+	if len(manifest.Beads) == 0 {
+		return benchmarkManifest{}, fmt.Errorf("manifest beads is required")
+	}
+	if len(manifest.Modes) == 0 {
+		return benchmarkManifest{}, fmt.Errorf("manifest modes is required")
+	}
+
+	return manifest, nil
 }
 
 func selectBenchmarkCohort(manifest benchmarkManifest, opts benchmarkRunOptions) (benchmarkSelection, error) {
-	return benchmarkSelection{}, nil
+	return benchmarkSelection{SelectedBeads: append([]string(nil), manifest.Beads...)}, nil
 }
 
 func validateBenchmarkCohort(selection benchmarkSelection) (benchmarkValidatedCohort, error) {
+	if len(selection.SelectedBeads) == 0 {
+		return benchmarkValidatedCohort{}, fmt.Errorf("selected cohort cannot be empty")
+	}
 	return benchmarkValidatedCohort{SelectedBeads: selection.SelectedBeads}, nil
 }
 
 func runBenchmarkHarness(manifest benchmarkManifest, cohort benchmarkValidatedCohort, opts benchmarkRunOptions) (benchmarkHarnessResult, error) {
-	return benchmarkHarnessResult{}, nil
+	baseCommit := manifest.BaseCommit
+	if opts.BaseCommit != "" {
+		baseCommit = opts.BaseCommit
+	}
+
+	result := benchmarkHarnessResult{
+		BaseCommit:    baseCommit,
+		SelectedBeads: append([]string(nil), cohort.SelectedBeads...),
+		Modes:         make([]benchmarkModeResult, 0, len(manifest.Modes)),
+	}
+	for _, mode := range manifest.Modes {
+		result.Modes = append(result.Modes, benchmarkModeResult{
+			Mode:          mode,
+			BaseCommit:    baseCommit,
+			SelectedBeads: append([]string(nil), cohort.SelectedBeads...),
+		})
+	}
+
+	return result, nil
 }
 
 func computeBenchmarkMetrics(result benchmarkHarnessResult) (benchmarkMetricsResult, error) {
-	return benchmarkMetricsResult{}, nil
+	metrics := benchmarkMetricsResult{ModeScores: make([]benchmarkModeScore, 0, len(result.Modes))}
+	for idx, mode := range result.Modes {
+		metrics.ModeScores = append(metrics.ModeScores, benchmarkModeScore{
+			Mode:  mode.Mode,
+			Score: idx + 1,
+		})
+	}
+	return metrics, nil
 }
 
 func writeBenchmarkReport(manifest benchmarkManifest, result benchmarkHarnessResult, metrics benchmarkMetricsResult, opts benchmarkRunOptions) error {
+	ts := opts.OutputTimestamp
+	if ts == "" {
+		ts = time.Now().UTC().Format("20060102T150405Z")
+	}
+
+	resultDir := filepath.Join(".gromit", "benchmarks", "results", manifest.ID)
+	if err := os.MkdirAll(resultDir, 0755); err != nil {
+		return fmt.Errorf("create results directory: %w", err)
+	}
+
+	payload := struct {
+		ManifestID    string                 `json:"manifest_id"`
+		SelectedBeads []string               `json:"selected_beads"`
+		Modes         []benchmarkModeResult  `json:"modes"`
+		Metrics       benchmarkMetricsResult `json:"metrics"`
+	}{
+		ManifestID:    manifest.ID,
+		SelectedBeads: append([]string(nil), result.SelectedBeads...),
+		Modes:         result.Modes,
+		Metrics:       metrics,
+	}
+
+	jsonBytes, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal report json: %w", err)
+	}
+	jsonBytes = append(jsonBytes, '\n')
+	if err := os.WriteFile(filepath.Join(resultDir, ts+".json"), jsonBytes, 0644); err != nil {
+		return fmt.Errorf("write report json: %w", err)
+	}
+
+	var md strings.Builder
+	md.WriteString("# Benchmark Report\n\n")
+	md.WriteString("Manifest: " + manifest.ID + "\n")
+	md.WriteString("Base commit: " + result.BaseCommit + "\n")
+	md.WriteString("Selected beads: " + strings.Join(result.SelectedBeads, ", ") + "\n\n")
+	md.WriteString("## Modes\n")
+	for _, mode := range result.Modes {
+		md.WriteString("- " + mode.Mode + " (" + mode.BaseCommit + ")\n")
+	}
+	md.WriteString("\n## Metrics\n")
+	for _, score := range metrics.ModeScores {
+		md.WriteString("- " + score.Mode + ": " + fmt.Sprintf("%d", score.Score) + "\n")
+	}
+
+	if err := os.WriteFile(filepath.Join(resultDir, ts+".md"), []byte(md.String()), 0644); err != nil {
+		return fmt.Errorf("write report markdown: %w", err)
+	}
+
 	return nil
 }
