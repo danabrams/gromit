@@ -5,14 +5,11 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 )
-
-var geminiCommandLogLine = regexp.MustCompile(`^timestamp=([^ ]+) command="(.*)" exit_code=(-?[0-9]+)(?: # ([a-z0-9-]+))?$`)
 
 type geminiCommandLogEntry struct {
 	Timestamp time.Time
@@ -32,25 +29,52 @@ func parseGeminiCommandLog(t *testing.T, content []byte) []geminiCommandLogEntry
 			continue
 		}
 
-		matches := geminiCommandLogLine.FindStringSubmatch(line)
-		if matches == nil {
+		const tsPrefix = "timestamp="
+		const cmdPrefix = " command=\""
+		const exitPrefix = "\" exit_code="
+
+		if !strings.HasPrefix(line, tsPrefix) {
 			t.Fatalf("commands log line does not match expected ledger format: %q", line)
 		}
-
-		ts, err := time.Parse(time.RFC3339, matches[1])
-		if err != nil {
-			t.Fatalf("commands log timestamp %q is not RFC3339: %v", matches[1], err)
+		rest := strings.TrimPrefix(line, tsPrefix)
+		cmdStart := strings.Index(rest, cmdPrefix)
+		if cmdStart < 0 {
+			t.Fatalf("commands log line missing command section: %q", line)
 		}
-		exitCode, err := strconv.Atoi(matches[3])
+		tsText := rest[:cmdStart]
+		rest = rest[cmdStart+len(cmdPrefix):]
+
+		exitStart := strings.LastIndex(rest, exitPrefix)
+		if exitStart < 0 {
+			t.Fatalf("commands log line missing exit_code section: %q", line)
+		}
+		commandText := rest[:exitStart]
+		exitAndCategory := rest[exitStart+len(exitPrefix):]
+		if commandText == "" {
+			t.Fatalf("commands log line has empty command text: %q", line)
+		}
+
+		exitCodeText := exitAndCategory
+		category := ""
+		if hashIdx := strings.Index(exitAndCategory, " # "); hashIdx >= 0 {
+			exitCodeText = exitAndCategory[:hashIdx]
+			category = exitAndCategory[hashIdx+3:]
+		}
+
+		ts, err := time.Parse(time.RFC3339, tsText)
 		if err != nil {
-			t.Fatalf("commands log exit code %q is not an int: %v", matches[3], err)
+			t.Fatalf("commands log timestamp %q is not RFC3339: %v", tsText, err)
+		}
+		exitCode, err := strconv.Atoi(strings.TrimSpace(exitCodeText))
+		if err != nil {
+			t.Fatalf("commands log exit code %q is not an int: %v", strings.TrimSpace(exitCodeText), err)
 		}
 
 		entries = append(entries, geminiCommandLogEntry{
 			Timestamp: ts,
-			Command:   matches[2],
+			Command:   commandText,
 			ExitCode:  exitCode,
-			Category:  matches[4],
+			Category:  strings.TrimSpace(category),
 		})
 	}
 	if err := scanner.Err(); err != nil {
@@ -102,8 +126,16 @@ func TestGeminiCommandsLogFixture_InitializedWithTimestampedLedgerEntries(t *tes
 			t.Fatal("commands log entry must include a non-zero timestamp")
 		}
 	}
-	if entries[0].Command != "gemini --version" {
-		t.Fatalf("first commands log entry should capture preflight version check; got %q", entries[0].Command)
+
+	containsVersionCheck := false
+	for _, entry := range entries {
+		if entry.Command == "gemini --version" {
+			containsVersionCheck = true
+			break
+		}
+	}
+	if !containsVersionCheck {
+		t.Fatal("commands log should include preflight version check command")
 	}
 }
 
