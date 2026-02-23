@@ -26,18 +26,31 @@ type iterationMetricRecord struct {
 	CostUSD      float64 `json:"cost_usd"`
 	QualityScore float64 `json:"quality_score"`
 	FirstPass    bool    `json:"first_pass_success"`
+	Validated    bool    `json:"validated"`
+}
+
+type reviewMetricRecord struct {
+	Type           string `json:"type"`
+	FixesApplied   int    `json:"fixes_applied"`
+	BeadsCreated   int    `json:"beads_created"`
+	BacklogCreated int    `json:"backlog_created"`
+}
+
+type modeMetricRecords struct {
+	Iterations []iterationMetricRecord
+	Reviews    []reviewMetricRecord
 }
 
 func AggregateModeMetrics(inputs []ModeLogInput) ([]ModeSummary, error) {
 	summaries := make([]ModeSummary, 0, len(inputs))
 	for _, input := range inputs {
-		recs, err := readIterationRecords(input.LogPath)
+		recs, err := readModeMetricRecords(input.LogPath)
 		if err != nil {
 			return nil, err
 		}
 
 		summary := ModeSummary{Mode: input.Mode}
-		for _, rec := range recs {
+		for _, rec := range recs.Iterations {
 			summary.TotalInput += rec.InputTokens
 			summary.TotalOutput += rec.OutputTokens
 			summary.TotalCostUSD = roundUSD(summary.TotalCostUSD + rec.CostUSD)
@@ -56,17 +69,22 @@ func AggregateModeMetrics(inputs []ModeLogInput) ([]ModeSummary, error) {
 				summary.TierTotals.Medium.CostUSD = roundUSD(summary.TierTotals.Medium.CostUSD + rec.CostUSD)
 			}
 		}
-		if len(recs) > 0 {
+		if len(recs.Iterations) > 0 {
 			qualityTotal := 0.0
 			firstPassCount := 0
-			for _, rec := range recs {
+			for _, rec := range recs.Iterations {
 				qualityTotal += rec.QualityScore
 				if rec.FirstPass {
 					firstPassCount++
 				}
 			}
-			summary.Quality.AverageScore = roundUSD(qualityTotal / float64(len(recs)))
-			summary.Quality.FirstPassRate = roundUSD(float64(firstPassCount) / float64(len(recs)))
+			summary.Quality.AverageScore = roundUSD(qualityTotal / float64(len(recs.Iterations)))
+			summary.Quality.FirstPassRate = roundUSD(float64(firstPassCount) / float64(len(recs.Iterations)))
+			summary.Quality.FinalValidationPassed = recs.Iterations[len(recs.Iterations)-1].Validated
+		}
+		for _, rec := range recs.Reviews {
+			summary.Quality.ReviewFixesApplied += rec.FixesApplied
+			summary.Quality.ReviewFindings += rec.BeadsCreated + rec.BacklogCreated
 		}
 		if !input.RunStartedAt.IsZero() && !input.RunFinishedAt.IsZero() && input.RunFinishedAt.After(input.RunStartedAt) {
 			summary.ElapsedSeconds = int(input.RunFinishedAt.Sub(input.RunStartedAt).Seconds())
@@ -84,27 +102,41 @@ func roundUSD(v float64) float64 {
 	return math.Round(v*1_000_000) / 1_000_000
 }
 
-func readIterationRecords(path string) ([]iterationMetricRecord, error) {
+func readModeMetricRecords(path string) (modeMetricRecords, error) {
 	file, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("read benchmark log %q: %w", path, err)
+		return modeMetricRecords{}, fmt.Errorf("read benchmark log %q: %w", path, err)
 	}
 
-	recs := []iterationMetricRecord{}
+	recs := modeMetricRecords{Iterations: []iterationMetricRecord{}, Reviews: []reviewMetricRecord{}}
 	scanner := bufio.NewScanner(bytes.NewReader(file))
 	for scanner.Scan() {
 		line := stdstrings.TrimSpace(scanner.Text())
 		if line == "" {
 			continue
 		}
+		var typed struct {
+			Type string `json:"type"`
+		}
+		if err := stdjson.Unmarshal([]byte(line), &typed); err != nil {
+			return modeMetricRecords{}, fmt.Errorf("decode benchmark log line: %w", err)
+		}
+		if typed.Type == "review" {
+			var rec reviewMetricRecord
+			if err := stdjson.Unmarshal([]byte(line), &rec); err != nil {
+				return modeMetricRecords{}, fmt.Errorf("decode benchmark review line: %w", err)
+			}
+			recs.Reviews = append(recs.Reviews, rec)
+			continue
+		}
 		var rec iterationMetricRecord
 		if err := stdjson.Unmarshal([]byte(line), &rec); err != nil {
-			return nil, fmt.Errorf("decode benchmark log line: %w", err)
+			return modeMetricRecords{}, fmt.Errorf("decode benchmark iteration line: %w", err)
 		}
-		recs = append(recs, rec)
+		recs.Iterations = append(recs.Iterations, rec)
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("scan benchmark log: %w", err)
+		return modeMetricRecords{}, fmt.Errorf("scan benchmark log: %w", err)
 	}
 	return recs, nil
 }
