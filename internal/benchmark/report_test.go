@@ -124,3 +124,74 @@ func TestWriteReport_JSONIncludesMetadataModeTierQualityAndWinners(t *testing.T)
 		t.Fatalf("winner hints mismatch: %+v", payload.WinnerHints)
 	}
 }
+
+func TestWriteReport_MarkdownRendersStableOrderedTables(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+
+	input := ReportInput{
+		Timestamp: "20260223T120000Z",
+		Manifest: ManifestMetadata{ID: "tdd-vs-single-pass", BaseCommit: "abc123"},
+		Modes: []ModeSummary{
+			{
+				Mode:            "tdd_shared_context",
+				ElapsedSeconds:  140,
+				TotalInput:      1200,
+				TotalOutput:     600,
+				TotalCostUSD:    1.5,
+				TierTotals:      TierTotals{Low: TierTotalsRow{InputTokens: 700, CostUSD: 0.6}},
+				Quality:         QualityMetrics{AverageScore: 0.85, FirstPassRate: 0.5, ReviewFindings: 2, ReviewFixesApplied: 2, FinalValidationPassed: true},
+				CostQualityRatio: 1.1,
+			},
+			{
+				Mode:            "single_pass",
+				ElapsedSeconds:  110,
+				TotalInput:      900,
+				TotalOutput:     450,
+				TotalCostUSD:    1.2,
+				TierTotals:      TierTotals{Low: TierTotalsRow{InputTokens: 600, CostUSD: 0.5}},
+				Quality:         QualityMetrics{AverageScore: 0.8, FirstPassRate: 0.33, ReviewFindings: 3, ReviewFixesApplied: 1, FinalValidationPassed: false},
+				CostQualityRatio: 1.0,
+			},
+		},
+	}
+
+	_, err := WriteReport(input)
+	if err != nil {
+		t.Fatalf("first WriteReport() error = %v", err)
+	}
+
+	mdPath := filepath.Join(".gromit", "benchmarks", "results", "tdd-vs-single-pass", "20260223T120000Z.md")
+	first, err := os.ReadFile(mdPath)
+	if err != nil {
+		t.Fatalf("read first markdown artifact: %v", err)
+	}
+
+	_, err = WriteReport(input)
+	if err != nil {
+		t.Fatalf("second WriteReport() error = %v", err)
+	}
+	second, err := os.ReadFile(mdPath)
+	if err != nil {
+		t.Fatalf("read second markdown artifact: %v", err)
+	}
+
+	if string(first) != string(second) {
+		t.Fatalf("markdown artifact changed across repeated runs\nfirst:\n%s\nsecond:\n%s", string(first), string(second))
+	}
+
+	content := string(first)
+	for _, section := range []string{"## Per-Mode Summary", "## By-Tier Totals", "## Quality Metrics", "## Winner Hints"} {
+		if !strings.Contains(content, section) {
+			t.Fatalf("markdown missing section %q\n%s", section, content)
+		}
+	}
+	idxSingle := strings.Index(content, "| single_pass |")
+	idxShared := strings.Index(content, "| tdd_shared_context |")
+	if idxSingle == -1 || idxShared == -1 {
+		t.Fatalf("mode rows missing from markdown\n%s", content)
+	}
+	if idxSingle > idxShared {
+		t.Fatalf("mode ordering not stable: single_pass appears after tdd_shared_context\n%s", content)
+	}
+}
