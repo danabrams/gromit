@@ -1,6 +1,9 @@
 package validate
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 const (
 	// minOverlapLength is the minimum number of characters required for a
@@ -8,6 +11,9 @@ const (
 	// Set to 25 to reduce false positives from short common phrases while still
 	// catching genuine duplication between sibling beads.
 	minOverlapLength = 25
+
+	// maxExpectedOutputs is the maximum number of expected outputs allowed per bead.
+	maxExpectedOutputs = 5
 )
 
 // scopeSignals contains keywords that may indicate over-scoping
@@ -23,6 +29,7 @@ type BeadCandidate struct {
 	Title              string
 	Description        string
 	AcceptanceCriteria []string
+	ExpectedOutputs    []string
 }
 
 // Violation represents a validation rule violation
@@ -37,6 +44,15 @@ func CheckBeads(beads []BeadCandidate) []Violation {
 	var violations []Violation
 
 	for i, bead := range beads {
+		// Check expected outputs count
+		if len(bead.ExpectedOutputs) > maxExpectedOutputs {
+			violations = append(violations, Violation{
+				BeadIndex: i,
+				Rule:      "output_count",
+				Message:   fmt.Sprintf("Bead has more than %d expected outputs", maxExpectedOutputs),
+			})
+		}
+
 		// Check criteria count
 		if len(bead.AcceptanceCriteria) > 3 {
 			violations = append(violations, Violation{

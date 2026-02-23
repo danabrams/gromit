@@ -10,8 +10,8 @@ import (
 
 	"github.com/danabrams/gromit/internal/frontmatter"
 	"github.com/danabrams/gromit/internal/jsonutil"
-	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/validate"
 	"github.com/danabrams/gromit/skills"
 )
@@ -304,6 +304,7 @@ func toBeadCandidates(defs []beadDef) []validate.BeadCandidate {
 			Title:              def.Title,
 			Description:        def.Description,
 			AcceptanceCriteria: def.AcceptanceCriteria,
+			ExpectedOutputs:    def.ExpectedOutputs,
 		}
 	}
 	return candidates
