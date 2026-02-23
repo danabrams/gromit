@@ -1333,6 +1333,58 @@ func TestCreateSessionWorktree_RetriesWhenLockRefAmbiguousAndWorktreeAlreadyRegi
 	}
 }
 
+func TestCreateSessionWorktree_RetriesWhenLockRefAmbiguousExistsCannotCreateAndBranchExists(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "repo")
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	origNowFn := sessionTimestampFn
+	sessionTimestampFn = func() int64 { return 100 }
+	t.Cleanup(func() { sessionTimestampFn = origNowFn })
+
+	attempts := 0
+	branchProbeCalls := 0
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		if len(args) >= 2 && args[0] == "worktree" && args[1] == "add" {
+			attempts++
+			if attempts == 1 {
+				return "", errors.New("fatal: cannot lock ref 'refs/heads/gromit/review-100': 'refs/heads/gromit/review-100' exists; cannot create 'refs/heads/gromit/review-100'")
+			}
+			return "", nil
+		}
+		if len(args) == 5 &&
+			args[0] == "show-ref" &&
+			args[1] == "--verify" &&
+			args[2] == "--quiet" &&
+			args[3] == "refs/heads/gromit/review-100" {
+			branchProbeCalls++
+			return "", nil
+		}
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	got, err := m.CreateSessionWorktree("review")
+	if err != nil {
+		t.Fatalf("CreateSessionWorktree() error = %v, want nil after retry", err)
+	}
+	if got == nil {
+		t.Fatal("CreateSessionWorktree() returned nil session")
+	}
+	if attempts != 2 {
+		t.Fatalf("expected retry after confirmed branch contention, got %d worktree add attempts", attempts)
+	}
+	if branchProbeCalls != 1 {
+		t.Fatalf("expected one branch-exists probe, got %d", branchProbeCalls)
+	}
+}
+
 func TestCreateSessionWorktree_RetriesWhenKnownContentionOnlyInGitOutput(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "repo")
