@@ -1167,6 +1167,56 @@ func TestCreateSessionWorktree_UniqueNames(t *testing.T) {
 	}
 }
 
+func TestCreateSessionWorktree_RetriesOnBranchContention(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "repo")
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	var calls [][]string
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		copied := append([]string{}, args...)
+		calls = append(calls, copied)
+		if len(args) >= 6 && args[0] == "worktree" && args[1] == "add" {
+			branch := args[5]
+			if strings.HasSuffix(branch, "-100") {
+				return "", errors.New("fatal: a branch named 'gromit/review-100' already exists")
+			}
+			return "", nil
+		}
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	origNowFn := sessionTimestampFn
+	sessionTimestampFn = func() int64 { return 100 }
+	t.Cleanup(func() { sessionTimestampFn = origNowFn })
+
+	got, err := m.CreateSessionWorktree("review")
+	if err != nil {
+		t.Fatalf("CreateSessionWorktree() error = %v, want nil after retry", err)
+	}
+
+	if strings.HasSuffix(got.BranchName, "-100") {
+		t.Fatalf("expected retry to produce a different branch name, got %q", got.BranchName)
+	}
+
+	addCalls := 0
+	for _, call := range calls {
+		if len(call) >= 2 && call[0] == "worktree" && call[1] == "add" {
+			addCalls++
+		}
+	}
+	if addCalls < 2 {
+		t.Fatalf("expected at least 2 worktree add attempts, got %d", addCalls)
+	}
+}
+
 // contains checks if a string slice contains a specific string.
 func contains(slice []string, target string) bool {
 	for _, s := range slice {
