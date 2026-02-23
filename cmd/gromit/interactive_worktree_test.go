@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -697,5 +698,31 @@ func TestMergeConflictHandoffError_AgentCentersBranchBasedRecovery(t *testing.T)
 	}
 	if strings.Contains(msg, "/tmp/repo-gromit-refine-777") {
 		t.Fatalf("agent handoff should avoid session-dir references, got: %s", msg)
+	}
+}
+
+func TestClearMergedState_StateOnlyLeavesSessionDirIntact(t *testing.T) {
+	sessionDir := t.TempDir()
+	session := &worktree.SessionWorktree{
+		BranchName:  "gromit/cleanup-888",
+		WorktreeDir: sessionDir,
+	}
+
+	var removedBranch string
+	stateFile := &mockPendingBranchRecorder{
+		RemovePendingWorktreeBranchFn: func(branch string) error {
+			removedBranch = branch
+			return nil
+		},
+	}
+
+	if err := clearMergedState(session, stateFile); err != nil {
+		t.Fatalf("clearMergedState() error = %v", err)
+	}
+	if removedBranch != session.BranchName {
+		t.Fatalf("removed branch = %q, want %q", removedBranch, session.BranchName)
+	}
+	if _, err := os.Stat(sessionDir); err != nil {
+		t.Fatalf("session dir should remain after state cleanup: %v", err)
 	}
 }
