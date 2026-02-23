@@ -140,3 +140,26 @@ func TestGeminiWorkdirNotesFixture_DocumentsCwdChecksAndLedgerEvidence(t *testin
 		t.Fatalf("commands log must include workdir-related command entries")
 	}
 }
+
+func TestGeminiSchemaNotesFixture_DocumentsTokenCostAndModelObservations(t *testing.T) {
+	fixturePath := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "schema-notes.md")
+
+	content, err := os.ReadFile(fixturePath)
+	if err != nil {
+		t.Fatalf("failed to read schema notes fixture: %v", err)
+	}
+
+	body := string(content)
+	required := []string{
+		"# Gemini Schema Notes",
+		"## Token and Cost Observations",
+		"## Model Observations",
+		"valid-model",
+		"invalid-model",
+	}
+	for _, token := range required {
+		if !strings.Contains(strings.ToLower(body), strings.ToLower(token)) {
+			t.Fatalf("schema notes must contain %q", token)
+		}
+	}
+}
