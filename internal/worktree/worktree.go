@@ -291,14 +291,29 @@ func isMergeConflictError(output string, err error) bool {
 	if err == nil {
 		return false
 	}
-	msg := strings.ToLower(strings.TrimSpace(output))
-	if err != nil {
+
+	msg := strings.TrimSpace(output)
+	errMsg := strings.TrimSpace(err.Error())
+	if errMsg != "" {
 		if msg != "" {
 			msg += "\n"
 		}
-		msg += strings.ToLower(strings.TrimSpace(err.Error()))
+		msg += errMsg
 	}
-	return strings.Contains(msg, "conflict") || strings.Contains(msg, "automatic merge failed")
+
+	for _, line := range strings.Split(msg, "\n") {
+		normalized := strings.ToLower(strings.TrimSpace(line))
+		if strings.HasPrefix(normalized, "conflict ") ||
+			strings.HasPrefix(normalized, "conflict(") ||
+			strings.HasPrefix(normalized, "conflict:") {
+			return true
+		}
+		if strings.Contains(normalized, "automatic merge failed;") {
+			return true
+		}
+	}
+
+	return false
 }
 
 func sessionWorktreeDir(mainDir, command string, timestamp int64) string {
