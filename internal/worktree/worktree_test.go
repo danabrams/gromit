@@ -1115,6 +1115,44 @@ func TestMergeBack_DeletesBranchOnlyAfterSuccessfulMerge(t *testing.T) {
 	}
 }
 
+func TestMergeBack_FastForwardSuccess_RemovesDerivedSessionWorktree(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "myproject")
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	var removedWorktree string
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		if args[0] == "merge" && contains(args, "--ff-only") {
+			return "Fast-forward merge successful", nil
+		}
+		if args[0] == "branch" && args[1] == "-d" {
+			return "Deleted branch", nil
+		}
+		if args[0] == "worktree" && args[1] == "remove" {
+			removedWorktree = args[2]
+			return "", nil
+		}
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	err = m.MergeBack("gromit/review-123")
+	if err != nil {
+		t.Fatalf("MergeBack() error = %v, want nil", err)
+	}
+
+	expected := mainDir + "-gromit-review-123"
+	if removedWorktree != expected {
+		t.Fatalf("MergeBack() removed worktree %q, want %q", removedWorktree, expected)
+	}
+}
+
 func TestCreateSessionWorktree_UniqueNames(t *testing.T) {
 	// Expected failure: CreateSessionWorktree does not exist yet and session-specific
 	// worktree/branch naming is not implemented.
