@@ -2190,6 +2190,55 @@ func TestDecomposeWorkflow_RetryLoopSuccessPathSetsValidationFlag(t *testing.T) 
 	}
 }
 
+func TestDecomposeWorkflow_RetryLoopNonImprovingPathSetsValidationFlag(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plansDir, "retry-non-improving-flag.md"), []byte("# Retry Non Improving Flag"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	mockClaude := &decomposeAcceptanceClaudeClient{
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output: `[
+					{"title":"Still invalid task","description":"d","priority":"P1","acceptance_criteria":["a","b","c","d"],"depends_on_index":[]},
+					{"title":"Another invalid task","description":"d","priority":"P1","acceptance_criteria":["w","x","y","z"],"depends_on_index":[]}
+				]`,
+			}, nil
+		},
+	}
+
+	mockBead := &decomposeAcceptanceBeadClient{
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+			return &BeadInfo{ID: "bead-1"}, nil
+		},
+	}
+
+	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	result, err := p.Decompose(context.Background(), DecomposeInput{
+		PlanName:             "retry-non-improving-flag",
+		MaxValidationRetries: 1,
+	})
+	if err != nil {
+		t.Fatalf("Decompose() failed: %v", err)
+	}
+
+	if result.ValidationStats == nil {
+		t.Fatal("ValidationStats = nil, want populated")
+	}
+	if !result.ValidationStats.NonImprovingAtRetryCap {
+		t.Fatal("ValidationStats.NonImprovingAtRetryCap = false, want true for non-improving retry-cap path")
+	}
+	if result.ValidationStats.Improved {
+		t.Fatal("ValidationStats.Improved = true, want false for non-improving retry-cap path")
+	}
+}
+
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
 	original := os.Stdout
