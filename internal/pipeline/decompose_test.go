@@ -2129,6 +2129,67 @@ func TestDecomposeWorkflow_RetryCapPathSetsValidationFlag(t *testing.T) {
 	}
 }
 
+func TestDecomposeWorkflow_RetryLoopSuccessPathSetsValidationFlag(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plansDir, "retry-success-flag.md"), []byte("# Retry Success Flag"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	runCount := 0
+	mockClaude := &decomposeAcceptanceClaudeClient{
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+			runCount++
+			if runCount == 1 {
+				return &ClaudeRunResult{
+					Success:  true,
+					ExitCode: 0,
+					Output: `[
+						{"title":"Needs fix","description":"d","priority":"P1","acceptance_criteria":["a","b","c","d"],"depends_on_index":[]},
+						{"title":"Good task","description":"d","priority":"P1","acceptance_criteria":["x","y"],"depends_on_index":[]}
+					]`,
+				}, nil
+			}
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output: `[
+					{"title":"Fixed","description":"d","priority":"P1","acceptance_criteria":["a","b","c"],"depends_on_index":[]},
+					{"title":"Good task","description":"d","priority":"P1","acceptance_criteria":["x","y"],"depends_on_index":[]}
+				]`,
+			}, nil
+		},
+	}
+
+	mockBead := &decomposeAcceptanceBeadClient{
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+			return &BeadInfo{ID: "bead-1"}, nil
+		},
+	}
+
+	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	result, err := p.Decompose(context.Background(), DecomposeInput{
+		PlanName:             "retry-success-flag",
+		MaxValidationRetries: 2,
+	})
+	if err != nil {
+		t.Fatalf("Decompose() failed: %v", err)
+	}
+
+	if result.ValidationStats == nil {
+		t.Fatal("ValidationStats = nil, want populated")
+	}
+	if !result.ValidationStats.SucceededAfterRetry {
+		t.Fatal("ValidationStats.SucceededAfterRetry = false, want true for retry-loop success path")
+	}
+	if result.ValidationStats.RetryCapReached {
+		t.Fatal("ValidationStats.RetryCapReached = true, want false for retry-loop success path")
+	}
+}
+
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
 	original := os.Stdout
