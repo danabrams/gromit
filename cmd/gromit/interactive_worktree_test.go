@@ -684,3 +684,18 @@ func TestMergeConflictHandoffError_ManualCentersBranchBasedRecovery(t *testing.T
 		t.Fatalf("manual handoff should avoid session-dir commands, got: %s", msg)
 	}
 }
+
+func TestMergeConflictHandoffError_AgentCentersBranchBasedRecovery(t *testing.T) {
+	err := newAgentConflictHandoffError(&worktree.SessionWorktree{
+		BranchName:  "gromit/refine-777",
+		WorktreeDir: "/tmp/repo-gromit-refine-777",
+	}, 2, errors.New("merge conflict"), nil)
+
+	msg := err.Error()
+	if !strings.Contains(msg, `checkout branch "gromit/refine-777"`) {
+		t.Fatalf("agent handoff should direct branch-based recovery, got: %s", msg)
+	}
+	if strings.Contains(msg, "/tmp/repo-gromit-refine-777") {
+		t.Fatalf("agent handoff should avoid session-dir references, got: %s", msg)
+	}
+}
