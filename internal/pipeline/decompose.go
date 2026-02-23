@@ -185,7 +185,7 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 
 		if attempt >= maxRetries {
 			if hasBatchContractViolation(violations) {
-				return nil, fmt.Errorf("decomposition contract violation at retry cap: %s", formatViolationRules(violations))
+				return nil, fmt.Errorf("decomposition contract violation at retry cap: %s", formatViolations(violations))
 			}
 			stats.RetryCapReached = true
 			if len(violations) < firstViolationCount {
@@ -508,10 +508,10 @@ func hasBatchContractViolation(violations []validate.Violation) bool {
 	return false
 }
 
-func formatViolationRules(violations []validate.Violation) string {
+func formatViolations(violations []validate.Violation) string {
 	rules := make([]string, 0, len(violations))
 	for _, v := range violations {
-		rules = append(rules, v.Rule)
+		rules = append(rules, fmt.Sprintf("[%s] %s", v.Rule, v.Message))
 	}
 	return strings.Join(rules, ", ")
 }
