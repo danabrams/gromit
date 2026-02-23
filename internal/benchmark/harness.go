@@ -31,6 +31,8 @@ type ModeOverlay struct {
 	Provider    string
 	ModelFamily string
 	TierModels  OverlayTierModels
+	BuildStrategy         string
+	FreshContextPerCycle  bool
 	BuildTierDefault      string
 	ValidationTierDefault string
 	FinalReview           FinalReviewPolicy
@@ -94,7 +96,7 @@ func RunModesInIsolatedWorktrees(ctx context.Context, input RunModesInput) ([]Mo
 
 func BuildModeOverlay(manifest HarnessManifest, mode string) (ModeOverlay, error) {
 	switch mode {
-	case "single_pass", "tdd_shared_context", "tdd_fresh_context":
+	case "single_pass":
 		return ModeOverlay{
 			Mode:        mode,
 			Provider:    manifest.Provider,
@@ -104,6 +106,50 @@ func BuildModeOverlay(manifest HarnessManifest, mode string) (ModeOverlay, error
 				Medium: manifest.MediumTierModel,
 				High:   manifest.HighTierModel,
 			},
+			BuildStrategy:         "single_pass",
+			FreshContextPerCycle:  false,
+			BuildTierDefault:      "low",
+			ValidationTierDefault: "low",
+			FinalReview: FinalReviewPolicy{
+				Enabled:        true,
+				NonInteractive: true,
+				Tier:           "high",
+				ApplyFixes:     true,
+			},
+		}, nil
+	case "tdd_shared_context":
+		return ModeOverlay{
+			Mode:        mode,
+			Provider:    manifest.Provider,
+			ModelFamily: manifest.ModelFamily,
+			TierModels: OverlayTierModels{
+				Low:    manifest.LowTierModel,
+				Medium: manifest.MediumTierModel,
+				High:   manifest.HighTierModel,
+			},
+			BuildStrategy:         "tdd",
+			FreshContextPerCycle:  false,
+			BuildTierDefault:      "low",
+			ValidationTierDefault: "low",
+			FinalReview: FinalReviewPolicy{
+				Enabled:        true,
+				NonInteractive: true,
+				Tier:           "high",
+				ApplyFixes:     true,
+			},
+		}, nil
+	case "tdd_fresh_context":
+		return ModeOverlay{
+			Mode:        mode,
+			Provider:    manifest.Provider,
+			ModelFamily: manifest.ModelFamily,
+			TierModels: OverlayTierModels{
+				Low:    manifest.LowTierModel,
+				Medium: manifest.MediumTierModel,
+				High:   manifest.HighTierModel,
+			},
+			BuildStrategy:         "tdd",
+			FreshContextPerCycle:  true,
 			BuildTierDefault:      "low",
 			ValidationTierDefault: "low",
 			FinalReview: FinalReviewPolicy{
