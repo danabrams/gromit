@@ -41,3 +41,21 @@ func TestScoreCandidate_TitleAndDescriptionScopeSignalsIncludeBothReasons(t *tes
 		t.Fatalf("Reasons[1] = %q, want %q", result.Reasons[1], "contains broad-scope language in description")
 	}
 }
+
+func TestScoreCandidate_NoSignalsReturnsLowClassificationWithReason(t *testing.T) {
+	result := ScoreCandidate(BeadCandidate{
+		Title:          "Add targeted validation test",
+		Description:    "Small focused change",
+		EstimatedFiles: 2,
+	})
+
+	if result.Classification != "low" {
+		t.Fatalf("Classification = %q, want %q", result.Classification, "low")
+	}
+	if len(result.Reasons) != 1 {
+		t.Fatalf("Reasons len = %d, want 1", len(result.Reasons))
+	}
+	if result.Reasons[0] != "no high-complexity signals detected" {
+		t.Fatalf("Reasons[0] = %q, want %q", result.Reasons[0], "no high-complexity signals detected")
+	}
+}
