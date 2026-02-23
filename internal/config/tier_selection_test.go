@@ -640,3 +640,38 @@ func TestSelectInitialTierForComplexityHigh(t *testing.T) {
 		t.Errorf("SelectInitialTierForComplexity(high) = %q, want %q", result, "high")
 	}
 }
+
+func TestSelectInitialTierForComplexityMediumUnknownAndLegacy(t *testing.T) {
+	cfg := &Config{}
+
+	tests := []struct {
+		name       string
+		complexity string
+		want       string
+	}{
+		{
+			name:       "Medium",
+			complexity: "medium",
+			want:       "medium",
+		},
+		{
+			name:       "UnknownFallsBackToMedium",
+			complexity: "not-a-tier",
+			want:       "medium",
+		},
+		{
+			name:       "LegacyModelOpusMapsToHigh",
+			complexity: "opus",
+			want:       "high",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := cfg.SelectInitialTierForComplexity(tt.complexity)
+			if result != tt.want {
+				t.Errorf("SelectInitialTierForComplexity(%q) = %q, want %q", tt.complexity, result, tt.want)
+			}
+		})
+	}
+}
