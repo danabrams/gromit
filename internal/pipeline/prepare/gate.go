@@ -154,7 +154,11 @@ func resolveComplexityRouting(in pipeline.Input) pipeline.ComplexityRouting {
 			ComplexityFallbackReason: "scope_unavailable",
 		}
 	}
-	return pipeline.ComplexityRouting{}
+	return pipeline.ComplexityRouting{
+		Complexity:               "medium",
+		ComplexitySource:         "default",
+		ComplexityFallbackReason: "scope_and_label_unavailable",
+	}
 }
 
 func normalizeComplexity(complexity string) (string, bool) {
