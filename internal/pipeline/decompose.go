@@ -95,14 +95,8 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 			return nil, fmt.Errorf("parsing bead definitions: %w\n\nProvider output:\n%s", err, preview)
 		}
 
-		highComplexityCount, lowComplexityCount := countComplexityByEstimate(beadDefs)
-		fmt.Printf(
-			"Complexity summary (attempt %d): high=%d low=%d high_titles=[%s]\n",
-			attempt+1,
-			highComplexityCount,
-			lowComplexityCount,
-			strings.Join(highComplexityTitles(beadDefs), ", "),
-		)
+		highComplexityCount, _ := countComplexityByEstimate(beadDefs)
+		fmt.Print(formatComplexitySummaryLine(attempt+1, beadDefs))
 
 		if input.SkipValidation {
 			break
@@ -279,6 +273,17 @@ func countComplexityByEstimate(defs []beadDef) (high int, low int) {
 		low++
 	}
 	return high, low
+}
+
+func formatComplexitySummaryLine(attempt int, defs []beadDef) string {
+	highComplexityCount, lowComplexityCount := countComplexityByEstimate(defs)
+	return fmt.Sprintf(
+		"Complexity summary (attempt %d): high=%d low=%d high_titles=[%s]\n",
+		attempt,
+		highComplexityCount,
+		lowComplexityCount,
+		strings.Join(highComplexityTitles(defs), ", "),
+	)
 }
 
 func buildComplexityRepromptFeedback(defs []beadDef) string {
