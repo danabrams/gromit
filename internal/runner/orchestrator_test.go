@@ -393,6 +393,74 @@ func TestOrchestrator_SuccessPath_CarriesComplexityRoutingToIterationLog(t *test
 	}
 }
 
+// TestOrchestrator_ValidationFailure_CarriesComplexityRoutingToIterationLog verifies
+// that failure-path iteration log payloads still include Gate-derived complexity metadata.
+func TestOrchestrator_ValidationFailure_CarriesComplexityRoutingToIterationLog(t *testing.T) {
+	var capturedResult *logger.IterationLog
+
+	gate := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{
+			Decision: pipeline.Proceed,
+			ComplexityRouting: pipeline.ComplexityRouting{
+				Complexity:               "medium",
+				ComplexitySource:         "default",
+				ComplexityFallbackReason: "scope_and_label_unavailable",
+			},
+		}, nil
+	}}
+	validate := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{
+			Decision:           pipeline.Block,
+			ValidationFailures: []string{"validation failed"},
+		}, nil
+	}}
+	epilogueStage := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		capturedResult = in.Result
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-complexity-failure-log", Title: "Complexity failure log test bead"}, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     gate,
+		Build:    &fakeStage{},
+		Validate: validate,
+		Epilogue: epilogueStage,
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if capturedResult == nil {
+		t.Fatal("Epilogue Result is nil; want IterationLog populated on failure path")
+	}
+	if capturedResult.Complexity != "medium" {
+		t.Errorf("IterationLog.Complexity = %q, want %q", capturedResult.Complexity, "medium")
+	}
+	if capturedResult.ComplexitySource != "default" {
+		t.Errorf("IterationLog.ComplexitySource = %q, want %q", capturedResult.ComplexitySource, "default")
+	}
+	if capturedResult.ComplexityFallbackReason != "scope_and_label_unavailable" {
+		t.Errorf(
+			"IterationLog.ComplexityFallbackReason = %q, want %q",
+			capturedResult.ComplexityFallbackReason,
+			"scope_and_label_unavailable",
+		)
+	}
+}
+
 // TestRunner_RunMethod_Removed verifies that the legacy Runner.Run method has been
 // removed as part of the architecture migration to Orchestrator. All loop execution
 // now flows through Orchestrator.Run. This test prevents accidental reintroduction.
