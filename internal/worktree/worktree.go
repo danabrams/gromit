@@ -158,17 +158,22 @@ func (m *Manager) CreateSessionWorktree(command string) (*SessionWorktree, error
 		}
 		lastErr = err
 
-		switch classifySessionCreateFailure(output, err) {
-		case sessionCreateFailureRetryable:
+		decision := decideSessionCreateRetry(sessionCreateRetryInput{
+			FailureClass: classifySessionCreateFailure(output, err),
+			ProbeBranchExists: func() bool {
+				return m.sessionBranchExists(branchName)
+			},
+			ProbeWorktreeRegistered: func() bool {
+				return m.sessionWorktreeRegistered(worktreeDir)
+			},
+		})
+		if decision.Retry {
 			continue
-		case sessionCreateFailureAmbiguousProbe:
-			if m.sessionBranchExists(branchName) || m.sessionWorktreeRegistered(worktreeDir) {
-				continue
-			}
-			return nil, fmt.Errorf("failed to create session worktree: %w", err)
-		default:
-			return nil, fmt.Errorf("failed to create session worktree: %w", err)
 		}
+		if decision.TerminalReason != "" {
+			return nil, fmt.Errorf("failed to create session worktree (%s): %w", decision.TerminalReason, err)
+		}
+		return nil, fmt.Errorf("failed to create session worktree: %w", err)
 	}
 
 	return nil, fmt.Errorf("failed to create session worktree after retries: %w", lastErr)
