@@ -1570,6 +1570,61 @@ func TestDecompose_SixBeads_TruncatesToFive(t *testing.T) {
 	}
 }
 
+func TestDecomposeWorkflow_OneBeadBatchViolationRepromptsThenErrorsAtRetryCap(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plansDir, "one-bead-batch.md"), []byte("# One Bead Batch"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	runCount := 0
+	mockClaude := &decomposeAcceptanceClaudeClient{
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+			runCount++
+			if runCount == 2 {
+				if !strings.Contains(prompt, "Violations By Flagged Bead") {
+					t.Fatalf("second prompt should be validation reprompt, got: %q", prompt)
+				}
+				if !strings.Contains(prompt, "batch_size_min") {
+					t.Fatalf("second prompt should include batch_size_min violation, got: %q", prompt)
+				}
+			}
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output: `[
+					{"title":"Only Task","description":"d","priority":"P1","acceptance_criteria":["a"],"depends_on_index":[]}
+				]`,
+			}, nil
+		},
+	}
+
+	mockBead := &decomposeAcceptanceBeadClient{
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+			t.Fatal("CreateWithDepsAndDescription should not be called when batch contract fails")
+			return nil, nil
+		},
+	}
+
+	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	_, err := p.Decompose(context.Background(), DecomposeInput{
+		PlanName:             "one-bead-batch",
+		MaxValidationRetries: 1,
+	})
+	if err == nil {
+		t.Fatal("Decompose() returned nil error, want retry-cap validation error")
+	}
+	if !strings.Contains(err.Error(), "batch_size_min") {
+		t.Fatalf("error = %v, want batch_size_min violation", err)
+	}
+	if runCount != 2 {
+		t.Fatalf("Run() call count = %d, want 2 (initial attempt + 1 reprompt)", runCount)
+	}
+}
+
 func TestDecomposeWorkflow_LogsComplexitySummaryPerAttempt(t *testing.T) {
 	tmpDir := t.TempDir()
 	plansDir := filepath.Join(tmpDir, "plans")
