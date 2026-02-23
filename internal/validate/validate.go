@@ -97,6 +97,7 @@ func CheckBatchContract(beads []BeadCandidate) []Violation {
 // ValidateDecomposeCandidates validates decompose candidates and returns complexity metadata.
 func ValidateDecomposeCandidates(beads []BeadCandidate) ValidationResult {
 	result := ValidationResult{
+		Violations:        CheckBeads(beads),
 		ComplexityResults: make([]ComplexityResult, 0, len(beads)),
 	}
 
