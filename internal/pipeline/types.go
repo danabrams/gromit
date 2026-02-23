@@ -18,6 +18,14 @@ type Event struct {
 	Content string
 }
 
+// ComplexityRouting carries normalized complexity metadata between pipeline stages.
+// Zero values are valid and indicate unset/unknown metadata.
+type ComplexityRouting struct {
+	Complexity               string
+	ComplexitySource         string
+	ComplexityFallbackReason string
+}
+
 // Session represents an interactive workflow session.
 type Session interface {
 	Events() <-chan Event

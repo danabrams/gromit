@@ -143,9 +143,11 @@ func TestOutputPhaseMetricsField(t *testing.T) {
 
 func TestOutputComplexityRoutingMetadataFields(t *testing.T) {
 	out := pipeline.Output{
-		Complexity:               "low",
-		ComplexitySource:         "scope_estimate",
-		ComplexityFallbackReason: "none",
+		ComplexityRouting: pipeline.ComplexityRouting{
+			Complexity:               "low",
+			ComplexitySource:         "scope_estimate",
+			ComplexityFallbackReason: "none",
+		},
 	}
 	if out.Complexity != "low" {
 		t.Errorf("Output.Complexity: want %q, got %q", "low", out.Complexity)
@@ -160,9 +162,11 @@ func TestOutputComplexityRoutingMetadataFields(t *testing.T) {
 
 func TestInputComplexityRoutingMetadataFields(t *testing.T) {
 	in := pipeline.Input{
-		Complexity:               "medium",
-		ComplexitySource:         "label",
-		ComplexityFallbackReason: "scope_unavailable",
+		ComplexityRouting: pipeline.ComplexityRouting{
+			Complexity:               "medium",
+			ComplexitySource:         "label",
+			ComplexityFallbackReason: "scope_unavailable",
+		},
 	}
 	if in.Complexity != "medium" {
 		t.Errorf("Input.Complexity: want %q, got %q", "medium", in.Complexity)

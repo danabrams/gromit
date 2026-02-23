@@ -58,12 +58,8 @@ type Input struct {
 	// set by the orchestrator before calling Epilogue on the failure path.
 	// Used by FailureLearner to call the analyzer with meaningful failure context.
 	FailureOutput string
-	// Complexity is the normalized complexity selected by Gate for Build routing.
-	Complexity string
-	// ComplexitySource identifies where Complexity came from (e.g. scope_estimate, label, fallback).
-	ComplexitySource string
-	// ComplexityFallbackReason explains why fallback complexity was used when applicable.
-	ComplexityFallbackReason string
+	// ComplexityRouting carries Gate-selected complexity metadata for Build routing.
+	ComplexityRouting
 }
 
 // PhaseMetric holds LLM invocation metrics for a single TDD phase (e.g. red, green, refactor).
@@ -107,12 +103,8 @@ type Output struct {
 	// PhaseMetrics holds per-phase invocation metrics for TDD builds.
 	// Each entry corresponds to one TDD phase (red, green, refactor, etc.).
 	PhaseMetrics []PhaseMetric
-	// Complexity is the normalized complexity selected by Gate for Build routing.
-	Complexity string
-	// ComplexitySource identifies where Complexity came from (e.g. scope_estimate, label, fallback).
-	ComplexitySource string
-	// ComplexityFallbackReason explains why fallback complexity was used when applicable.
-	ComplexityFallbackReason string
+	// ComplexityRouting carries Gate-selected complexity metadata for downstream stages.
+	ComplexityRouting
 }
 
 // Stage is the interface that each pipeline stage implements.
