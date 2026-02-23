@@ -3,6 +3,7 @@ package validate
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -76,9 +77,14 @@ func BuildReprompt(originalPrompt string, candidates []BeadCandidate, violations
 	for i, c := range candidates {
 		sb.WriteString(fmt.Sprintf("%d. %s\n", i, c.Title))
 		sb.WriteString(fmt.Sprintf("   Description: %s\n", c.Description))
+		sb.WriteString(fmt.Sprintf("   Depends On Index: %s\n", formatDependsOnIndex(c.DependsOnIndex)))
 		sb.WriteString("   Acceptance Criteria:\n")
 		for _, criterion := range c.AcceptanceCriteria {
 			sb.WriteString(fmt.Sprintf("   - %s\n", criterion))
+		}
+		sb.WriteString("   Expected Outputs:\n")
+		for _, output := range c.ExpectedOutputs {
+			sb.WriteString(fmt.Sprintf("   - %s\n", output))
 		}
 		sb.WriteString("\n")
 	}
@@ -97,6 +103,17 @@ func BuildReprompt(originalPrompt string, candidates []BeadCandidate, violations
 	sb.WriteString(repromptInstructionsBody)
 
 	return sb.String()
+}
+
+func formatDependsOnIndex(indexes []int) string {
+	if len(indexes) == 0 {
+		return "[]"
+	}
+	parts := make([]string, len(indexes))
+	for i, idx := range indexes {
+		parts[i] = strconv.Itoa(idx)
+	}
+	return "[" + strings.Join(parts, ", ") + "]"
 }
 
 func groupViolationsByBeadIndex(violations []Violation) (map[int][]Violation, []int) {

@@ -37,6 +37,7 @@ var scopeSignals = []string{
 type BeadCandidate struct {
 	Title              string
 	Description        string
+	DependsOnIndex     []int
 	EstimatedFiles     int
 	AcceptanceCriteria []string
 	ExpectedOutputs    []string
