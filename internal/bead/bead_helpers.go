@@ -70,7 +70,15 @@ func EstimatedFileCount(b *Bead) int {
 	if b == nil {
 		return 0
 	}
-	return len(b.ExpectedOutputs)
+	unique := make(map[string]struct{}, len(b.ExpectedOutputs))
+	for _, output := range b.ExpectedOutputs {
+		trimmed := strings.TrimSpace(output)
+		if trimmed == "" {
+			continue
+		}
+		unique[trimmed] = struct{}{}
+	}
+	return len(unique)
 }
 
 // proactiveDecomposeKeywords matches broad-scope keywords as whole words only.
