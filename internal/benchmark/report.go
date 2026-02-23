@@ -201,7 +201,7 @@ func computeWinnerHints(modes []ModeSummary) WinnerHints {
 			bestQuality = m.Quality.AverageScore
 			winners.BestQuality = m.Mode
 		}
-		if m.CostQualityRatio > bestCostQuality {
+		if m.CostQualityRatio < bestCostQuality {
 			bestCostQuality = m.CostQualityRatio
 			winners.BestCostQuality = m.Mode
 		}
