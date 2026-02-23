@@ -49,3 +49,46 @@ func TestAggregateModeMetrics_ComputesTierAndOverallTotals(t *testing.T) {
 		t.Fatalf("high tier totals = %+v", got.TierTotals.High)
 	}
 }
+
+func TestAggregateModeMetrics_UsesRunStartFinishForElapsedAndStableOrdering(t *testing.T) {
+	tmpDir := t.TempDir()
+	pathA := filepath.Join(tmpDir, "a.jsonl")
+	pathZ := filepath.Join(tmpDir, "z.jsonl")
+	if err := os.WriteFile(pathA, []byte("{\"iteration\":1}\n"), 0o644); err != nil {
+		t.Fatalf("write a fixture: %v", err)
+	}
+	if err := os.WriteFile(pathZ, []byte("{\"iteration\":1}\n"), 0o644); err != nil {
+		t.Fatalf("write z fixture: %v", err)
+	}
+
+	summaries, err := AggregateModeMetrics([]ModeLogInput{
+		{
+			Mode:          "z_mode",
+			RunStartedAt:  time.Date(2026, 2, 23, 12, 0, 0, 0, time.UTC),
+			RunFinishedAt: time.Date(2026, 2, 23, 12, 3, 5, 0, time.UTC),
+			LogPath:       pathZ,
+		},
+		{
+			Mode:          "a_mode",
+			RunStartedAt:  time.Date(2026, 2, 23, 12, 0, 0, 0, time.UTC),
+			RunFinishedAt: time.Date(2026, 2, 23, 12, 1, 30, 0, time.UTC),
+			LogPath:       pathA,
+		},
+	})
+	if err != nil {
+		t.Fatalf("AggregateModeMetrics() error = %v", err)
+	}
+	if len(summaries) != 2 {
+		t.Fatalf("len(summaries) = %d, want 2", len(summaries))
+	}
+
+	if summaries[0].Mode != "a_mode" || summaries[1].Mode != "z_mode" {
+		t.Fatalf("mode ordering = [%s, %s], want [a_mode, z_mode]", summaries[0].Mode, summaries[1].Mode)
+	}
+	if summaries[0].ElapsedSeconds != 90 {
+		t.Fatalf("a_mode elapsed = %d, want 90", summaries[0].ElapsedSeconds)
+	}
+	if summaries[1].ElapsedSeconds != 185 {
+		t.Fatalf("z_mode elapsed = %d, want 185", summaries[1].ElapsedSeconds)
+	}
+}
