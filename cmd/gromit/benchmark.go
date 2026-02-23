@@ -16,6 +16,8 @@ type benchmarkRunOptions struct {
 	ManifestPath    string
 	OutputTimestamp string
 	BaseCommit      string
+	Beads           []string
+	BeadCount       int
 }
 
 var benchmarkRunPipelineFn = runBenchmarkPipeline
@@ -29,6 +31,8 @@ var benchmarkWriteReportFn = writeBenchmarkReport
 var benchmarkManifestPath string
 var benchmarkOutputTS string
 var benchmarkBaseCommit string
+var benchmarkBeads string
+var benchmarkBeadCount int
 
 type benchmarkManifest struct {
 	ID         string   `yaml:"id"`
@@ -76,10 +80,13 @@ var benchmarkRunCmd = &cobra.Command{
 	Short:        "Run benchmark pipeline",
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		beads := parseCSV(benchmarkBeads)
 		return benchmarkRunPipelineFn(benchmarkRunOptions{
 			ManifestPath:    benchmarkManifestPath,
 			OutputTimestamp: benchmarkOutputTS,
 			BaseCommit:      benchmarkBaseCommit,
+			Beads:           beads,
+			BeadCount:       benchmarkBeadCount,
 		})
 	},
 }
@@ -88,6 +95,8 @@ func init() {
 	benchmarkRunCmd.Flags().StringVar(&benchmarkManifestPath, "manifest", "", "Path to benchmark manifest")
 	benchmarkRunCmd.Flags().StringVar(&benchmarkOutputTS, "output-ts", "", "Timestamp override for deterministic artifact names")
 	benchmarkRunCmd.Flags().StringVar(&benchmarkBaseCommit, "base-commit", "", "Base commit override for benchmark runs")
+	benchmarkRunCmd.Flags().StringVar(&benchmarkBeads, "beads", "", "Comma-separated ordered bead IDs to benchmark")
+	benchmarkRunCmd.Flags().IntVar(&benchmarkBeadCount, "bead-count", 0, "Optional deterministic truncation count for selected beads")
 	_ = benchmarkRunCmd.MarkFlagRequired("manifest")
 
 	benchmarkCmd.AddCommand(benchmarkRunCmd)
@@ -145,7 +154,18 @@ func loadBenchmarkManifest(path string) (benchmarkManifest, error) {
 }
 
 func selectBenchmarkCohort(manifest benchmarkManifest, opts benchmarkRunOptions) (benchmarkSelection, error) {
-	return benchmarkSelection{SelectedBeads: append([]string(nil), manifest.Beads...)}, nil
+	selected := manifest.Beads
+	if len(opts.Beads) > 0 {
+		selected = opts.Beads
+	}
+	if opts.BeadCount > 0 {
+		if opts.BeadCount > len(selected) {
+			return benchmarkSelection{}, fmt.Errorf("--bead-count %d exceeds selected cohort size %d", opts.BeadCount, len(selected))
+		}
+		selected = selected[:opts.BeadCount]
+	}
+
+	return benchmarkSelection{SelectedBeads: append([]string(nil), selected...)}, nil
 }
 
 func validateBenchmarkCohort(selection benchmarkSelection) (benchmarkValidatedCohort, error) {
@@ -239,4 +259,21 @@ func writeBenchmarkReport(manifest benchmarkManifest, result benchmarkHarnessRes
 	}
 
 	return nil
+}
+
+func parseCSV(value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+
+	raw := strings.Split(value, ",")
+	out := make([]string, 0, len(raw))
+	for _, token := range raw {
+		trimmed := strings.TrimSpace(token)
+		if trimmed == "" {
+			continue
+		}
+		out = append(out, trimmed)
+	}
+	return out
 }
