@@ -2,7 +2,7 @@
 
 These are non-negotiable constraints for this project.
 
-## Code Style <!-- phases: build, review -->
+## Code Style <!-- phases: red, build, green, refactor, review -->
 
 - Use `go fmt` standard formatting
 - Use `error` returns, not panics, for recoverable failures. Exception: test helpers and init()
@@ -21,7 +21,7 @@ These are non-negotiable constraints for this project.
 - Renderer owns context/state setup. Configure it in NewRunner() via setters; BuildContext() reads those values. Never bypass Renderer state
 - Do not discard errors from renderer/template/rules loaders (no `_, _ :=` for fallible setup). Propagate the error or log a structured warning with phase and file context
 
-## Safety <!-- phases: build, review -->
+## Safety <!-- phases: red, build, green, refactor, review -->
 
 - Never commit secrets, API keys, or credentials
 - Never delete data without explicit confirmation in the spec
@@ -29,7 +29,7 @@ These are non-negotiable constraints for this project.
 - Shell scripts with user content: use quoted <<'EOF' heredocs; pass dynamic values as arguments, not string interpolation
 - Go subprocesses with user-influenced args (bead IDs, refs, branch names) must use `runArgv`, not `runCmd`, to prevent shell/flag injection
 
-## Test Quality <!-- phases: build, review -->
+## Test Quality <!-- phases: red, build, green, refactor, review -->
 
 - Acceptance tests must verify behavior through public API/CLI surfaces, not private helpers
 - Do not test Go stdlib behavior (`os.MkdirAll`, `os.WriteFile`, `json.Marshal`). Trust stdlib; test your code
@@ -43,7 +43,7 @@ These are non-negotiable constraints for this project.
 
 - "Backlog" always means the ideas backlog (`gromit add` / `.gromit/backlog.jsonl`), not beads. Beads are work items; backlog items are raw ideas awaiting refinement
 
-## Architecture <!-- phases: build, review -->
+## Architecture <!-- phases: red, build, green, refactor, review -->
 
 - `internal/runner/*/` sub-packages must not import siblings **in production or test files**; cross-cutting types live in `runtypes/`. Parent `runner` package uses type aliases for backward compatibility. Production files: <550 lines; facade files: <1000 lines
 - Interactive commands use the session worktree lifecycle: package-level launcher fn var, session command const, `cfg.Worktree.IsEnabled()` opt-out, `sessionConflictSettingsFromConfig`, `runWithSessionWorktreeWithConflictSettings`. Lifecycle: create worktree → callback → record pending branch → merge attempt → cleanup or conflict handoff
