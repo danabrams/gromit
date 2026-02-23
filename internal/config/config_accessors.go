@@ -126,11 +126,15 @@ func (c *Config) SelectTier(priority int, labels []string) string {
 
 // SelectInitialTierForComplexity maps effective complexity to an initial tier.
 func (c *Config) SelectInitialTierForComplexity(complexity string) string {
-	switch strings.ToLower(strings.TrimSpace(complexity)) {
+	normalized := strings.ToLower(strings.TrimSpace(complexity))
+	switch normalized {
 	case tierLow:
 		return tierLow
 	case tierHigh:
 		return tierHigh
+	}
+	if mapped := tierFromLegacyModel(normalized); c.IsTierName(mapped) {
+		return mapped
 	}
 	return tierMedium
 }
