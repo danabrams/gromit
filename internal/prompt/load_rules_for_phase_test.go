@@ -197,6 +197,32 @@ func TestLoadRulesForPhaseRedAndRefactorExcludeBuildProcess(t *testing.T) {
 	}
 }
 
+func TestLoadRulesForPhaseBuildAndGreenFilterDistinctSections(t *testing.T) {
+	r := setupRendererWithRules(t, rulesWithAnnotations())
+
+	buildResult, err := r.LoadRulesForPhase("build")
+	if err != nil {
+		t.Fatalf("LoadRulesForPhase(build) error = %v", err)
+	}
+	if !strings.Contains(buildResult, "## Build Process") {
+		t.Fatalf("LoadRulesForPhase(build) missing %q", "## Build Process")
+	}
+	if strings.Contains(buildResult, "## Green Focus") {
+		t.Fatalf("LoadRulesForPhase(build) should exclude %q", "## Green Focus")
+	}
+
+	greenResult, err := r.LoadRulesForPhase("green")
+	if err != nil {
+		t.Fatalf("LoadRulesForPhase(green) error = %v", err)
+	}
+	if strings.Contains(greenResult, "## Build Process") {
+		t.Fatalf("LoadRulesForPhase(green) should exclude %q", "## Build Process")
+	}
+	if !strings.Contains(greenResult, "## Green Focus") {
+		t.Fatalf("LoadRulesForPhase(green) missing %q", "## Green Focus")
+	}
+}
+
 func TestLoadRulesForPhaseUnannotatedSectionsIncludedInAllPhases(t *testing.T) {
 	// Sections without phase annotations should be included for all phases.
 	rules := `# Rules
