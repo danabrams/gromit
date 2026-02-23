@@ -14,22 +14,22 @@ func rulesWithAnnotations() string {
 
 These are non-negotiable constraints for this project.
 
-## Code Style <!-- phases: build, review -->
+## Code Style <!-- phases: red, build, green, refactor, review -->
 
 - Use ` + "`go fmt`" + ` standard formatting
 - Use error return values, not panics
 
-## Safety <!-- phases: build, review -->
+## Safety <!-- phases: red, build, green, refactor, review -->
 
 - Never commit secrets
 - Never delete data without confirmation
 
-## Test Quality <!-- phases: build, review -->
+## Test Quality <!-- phases: red, build, green, refactor, review -->
 
 - Acceptance tests must test behavior through the public API
 - Do not test Go standard library behavior
 
-## Process <!-- phases: build -->
+## Build Process <!-- phases: build -->
 
 - Always run tests before committing
 - Follow existing patterns in the codebase
@@ -67,12 +67,12 @@ func TestLoadRulesForPhase(t *testing.T) {
 				"## Code Style",
 				"## Safety",
 				"## Test Quality",
-				"## Process",
+				"## Build Process",
 			},
 			notWantSections: nil,
 		},
 		{
-			name:  "review phase excludes process section",
+			name:  "review phase excludes build process section",
 			phase: "review",
 			wantSections: []string{
 				"## Code Style",
@@ -80,7 +80,7 @@ func TestLoadRulesForPhase(t *testing.T) {
 				"## Test Quality",
 			},
 			notWantSections: []string{
-				"## Process",
+				"## Build Process",
 			},
 		},
 	}
@@ -150,7 +150,7 @@ func TestLoadRulesForPhaseBuildReturnsSameAsFullRules(t *testing.T) {
 	}
 
 	// All four section headers must be present
-	expectedHeaders := []string{"## Code Style", "## Safety", "## Test Quality", "## Process"}
+	expectedHeaders := []string{"## Code Style", "## Safety", "## Test Quality", "## Build Process"}
 	for _, header := range expectedHeaders {
 		if !strings.Contains(buildResult, header) {
 			t.Errorf("LoadRulesForPhase(build) missing section header %q", header)
