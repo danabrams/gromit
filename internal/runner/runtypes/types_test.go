@@ -2,6 +2,8 @@ package runtypes
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -197,6 +199,39 @@ func TestIterationResult_InRuntypes(t *testing.T) {
 	}
 	if result.PromptDiagnostics != promptDiagnostics {
 		t.Error("PromptDiagnostics should match assigned diagnostics pointer")
+	}
+}
+
+// TestIterationResult_TierFieldsJSONTags verifies that IterationResult marshals
+// tier provenance fields using snake_case JSON keys and omitempty behavior.
+func TestIterationResult_TierFieldsJSONTags(t *testing.T) {
+	result := IterationResult{
+		OriginalTier: "low",
+		ActualTier:   "medium",
+	}
+
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal iteration result: %v", err)
+	}
+	s := string(data)
+	if !strings.Contains(s, "\"original_tier\":\"low\"") {
+		t.Fatalf("expected original_tier in JSON, got %s", s)
+	}
+	if !strings.Contains(s, "\"actual_tier\":\"medium\"") {
+		t.Fatalf("expected actual_tier in JSON, got %s", s)
+	}
+
+	emptyData, err := json.Marshal(IterationResult{})
+	if err != nil {
+		t.Fatalf("marshal empty iteration result: %v", err)
+	}
+	empty := string(emptyData)
+	if strings.Contains(empty, "original_tier") {
+		t.Fatalf("expected original_tier omitted from empty result, got %s", empty)
+	}
+	if strings.Contains(empty, "actual_tier") {
+		t.Fatalf("expected actual_tier omitted from empty result, got %s", empty)
 	}
 }
 
