@@ -519,6 +519,51 @@ func TestCheckBeads_FiveExpectedOutputs_NoOutputCountViolation(t *testing.T) {
 	}
 }
 
+// TestCheckBeads_EmptyExpectedOutput_ViolatesOutputEmpty tests that beads with empty expected output strings are flagged
+func TestCheckBeads_EmptyExpectedOutput_ViolatesOutputEmpty(t *testing.T) {
+	beads := []BeadCandidate{
+		{
+			Title:           "Bead with empty output",
+			Description:     "Has an empty string in outputs",
+			ExpectedOutputs: []string{"valid output", "", "another valid output"},
+		},
+	}
+
+	violations := CheckBeads(beads)
+
+	found := false
+	for _, v := range violations {
+		if v.Rule == "output_empty" {
+			found = true
+			if v.BeadIndex != 0 {
+				t.Errorf("BeadIndex = %d, want 0", v.BeadIndex)
+			}
+		}
+	}
+	if !found {
+		t.Error("expected output_empty violation for bead with empty expected output")
+	}
+}
+
+// TestCheckBeads_NoEmptyExpectedOutputs_NoOutputEmptyViolation tests that non-empty outputs are not flagged
+func TestCheckBeads_NoEmptyExpectedOutputs_NoOutputEmptyViolation(t *testing.T) {
+	beads := []BeadCandidate{
+		{
+			Title:           "Clean bead",
+			Description:     "No empty outputs",
+			ExpectedOutputs: []string{"output A", "output B"},
+		},
+	}
+
+	violations := CheckBeads(beads)
+
+	for _, v := range violations {
+		if v.Rule == "output_empty" {
+			t.Errorf("unexpected output_empty violation for bead with no empty outputs")
+		}
+	}
+}
+
 // TestCheckBeads_SiblingOverlap_NonOverlappingSubstrings tests that partial word matches don't trigger false positives
 func TestCheckBeads_SiblingOverlap_NonOverlappingSubstrings(t *testing.T) {
 	beads := []BeadCandidate{
