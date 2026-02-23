@@ -1,6 +1,9 @@
 package benchmark
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
 func TestBuildModeOverlay_PinsProviderAndModelFamilyAcrossModes(t *testing.T) {
 	manifest := HarnessManifest{
@@ -111,3 +114,76 @@ func TestFinalizeModeRunResult_RecordsFinalValidationAfterReview(t *testing.T) {
 		t.Fatal("final validation passed = true, want false")
 	}
 }
+
+func TestRunModesInIsolatedWorktrees_UsesOneResolvedBaseCommitAndSameSelectedBeads(t *testing.T) {
+	resolver := &stubBaseCommitResolver{resolved: "abc123"}
+	runner := &recordingModeRunner{}
+	manifest := HarnessManifest{
+		Provider:        "openai",
+		ModelFamily:     "gpt-5",
+		LowTierModel:    "gpt-5-mini",
+		MediumTierModel: "gpt-5.3-codex",
+		HighTierModel:   "gpt-5.3-codex",
+	}
+	selected := []string{"gromit-1", "gromit-2", "gromit-3"}
+
+	_, baseCommit, err := RunModesInIsolatedWorktrees(context.Background(), RunModesInput{
+		Manifest:       manifest,
+		SelectedBeads:  selected,
+		BaseCommitHint: "HEAD",
+		Resolver:       resolver,
+		Runner:         runner,
+	})
+	if err != nil {
+		t.Fatalf("RunModesInIsolatedWorktrees() error = %v", err)
+	}
+	if baseCommit != "abc123" {
+		t.Fatalf("base commit = %q, want %q", baseCommit, "abc123")
+	}
+
+	if len(runner.requests) != 3 {
+		t.Fatalf("mode run requests = %d, want 3", len(runner.requests))
+	}
+	for _, req := range runner.requests {
+		if req.BaseCommit != "abc123" {
+			t.Fatalf("mode %q base commit = %q, want %q", req.Mode, req.BaseCommit, "abc123")
+		}
+		if len(req.SelectedBeads) != len(selected) {
+			t.Fatalf("mode %q selected bead count = %d, want %d", req.Mode, len(req.SelectedBeads), len(selected))
+		}
+		for i := range selected {
+			if req.SelectedBeads[i] != selected[i] {
+				t.Fatalf("mode %q selected beads[%d] = %q, want %q", req.Mode, i, req.SelectedBeads[i], selected[i])
+			}
+		}
+	}
+}
+
+type stubBaseCommitResolver struct {
+	resolved string
+	err      error
+}
+
+func (s *stubBaseCommitResolver) ResolveBaseCommit(_ context.Context, _ string) (string, error) {
+	if s.err != nil {
+		return "", s.err
+	}
+	return s.resolved, nil
+}
+
+type recordingModeRunner struct {
+	requests []ModeWorktreeRequest
+}
+
+func (r *recordingModeRunner) RunMode(_ context.Context, req ModeWorktreeRequest) (ModeWorktreeRun, error) {
+	r.requests = append(r.requests, req)
+	return ModeWorktreeRun{
+		Mode: req.Mode,
+		Cleanup: func() error {
+			return nil
+		},
+	}, nil
+}
+
+var _ BaseCommitResolver = (*stubBaseCommitResolver)(nil)
+var _ ModeWorktreeRunner = (*recordingModeRunner)(nil)
