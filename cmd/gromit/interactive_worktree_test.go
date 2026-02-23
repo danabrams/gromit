@@ -586,6 +586,93 @@ func TestRunWithSessionWorktreeConflictAgentPolicyRetriesAndMerges(t *testing.T)
 	}
 }
 
+func TestRunWithSessionWorktreeConflictAgentPolicyRetriesBeforeCleanup(t *testing.T) {
+	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "review")
+	session.BranchName = "gromit/review-234"
+
+	var (
+		events      []string
+		cleanupDone bool
+	)
+
+	withInteractiveWorktreeFactories(t, func(string) (sessionWorktreeCreator, error) {
+		return &mockSessionWorktreeCreator{
+			CreateSessionWorktreeFn: func(string) (*worktree.SessionWorktree, error) {
+				return session, nil
+			},
+			MergeBackFn: func(branch string) error {
+				if branch != session.BranchName {
+					t.Fatalf("merge branch = %q, want %q", branch, session.BranchName)
+				}
+				if cleanupDone {
+					t.Fatal("merge attempted after cleanup")
+				}
+				events = append(events, "merge")
+				if len(events) == 2 {
+					return nil
+				}
+				return errors.New("merge conflict")
+			},
+		}, nil
+	}, func(string) (pendingBranchRecorder, error) {
+		return &mockPendingBranchRecorder{
+			AddPendingWorktreeBranchFn: func(branch string) error {
+				if branch != session.BranchName {
+					t.Fatalf("add branch = %q, want %q", branch, session.BranchName)
+				}
+				events = append(events, "add")
+				return nil
+			},
+			RemovePendingWorktreeBranchFn: func(branch string) error {
+				if branch != session.BranchName {
+					t.Fatalf("remove branch = %q, want %q", branch, session.BranchName)
+				}
+				events = append(events, "remove")
+				return nil
+			},
+		}, nil
+	}, func(gotMainDir, gotSessionDir string) error {
+		if gotMainDir != mainDir {
+			t.Fatalf("cleanup mainDir = %q, want %q", gotMainDir, mainDir)
+		}
+		if gotSessionDir != session.WorktreeDir {
+			t.Fatalf("cleanup sessionDir = %q, want %q", gotSessionDir, session.WorktreeDir)
+		}
+		cleanupDone = true
+		events = append(events, "cleanup")
+		return nil
+	})
+
+	_, err := runWithSessionWorktreeWithConflictSettings(gromitDir, "review", sessionConflictSettings{
+		Policy:   "agent",
+		RetryCap: 1,
+		AgentConflictResolver: func(sessionDir, branch string, attempt int) error {
+			if sessionDir != session.WorktreeDir {
+				t.Fatalf("resolver sessionDir = %q, want %q", sessionDir, session.WorktreeDir)
+			}
+			if branch != session.BranchName {
+				t.Fatalf("resolver branch = %q, want %q", branch, session.BranchName)
+			}
+			if attempt != 1 {
+				t.Fatalf("resolver attempt = %d, want 1", attempt)
+			}
+			if cleanupDone {
+				t.Fatal("resolver called after cleanup")
+			}
+			events = append(events, "resolve")
+			return nil
+		},
+	}, func(string) error { return nil })
+	if err != nil {
+		t.Fatalf("runWithSessionWorktreeWithConflictSettings() error = %v", err)
+	}
+
+	want := []string{"add", "merge", "resolve", "merge", "cleanup", "remove"}
+	if !reflect.DeepEqual(events, want) {
+		t.Fatalf("events = %v, want %v", events, want)
+	}
+}
+
 func TestRunWithSessionWorktreeConflictAgentPolicyFallsBackToManual(t *testing.T) {
 	_, gromitDir, session := setupRunWithSessionWorktreeTest(t, "debug")
 	session.BranchName = "gromit/debug-333"
