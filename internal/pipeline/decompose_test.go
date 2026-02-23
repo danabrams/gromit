@@ -1678,6 +1678,65 @@ func TestDecomposeWorkflow_IncludesComplexityFeedbackInReprompt(t *testing.T) {
 	}
 }
 
+func TestDecomposeWorkflow_IncludesStructuredComplexityFeedbackAndStillCreatesBeadsAfterLoopExit(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plansDir, "reprompt-structured-complexity.md"), []byte("# Reprompt Structured Complexity"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	runCount := 0
+	prompts := []string{}
+	createCalls := 0
+	mockClaude := &decomposeAcceptanceClaudeClient{
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+			runCount++
+			prompts = append(prompts, prompt)
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output: `[
+					{"title":"Overly broad task","description":"d","priority":"P1","estimated_files":9,"acceptance_criteria":["a","b","c"],"depends_on_index":[]},
+					{"title":"Supporting task","description":"d","priority":"P1","estimated_files":1,"acceptance_criteria":["x"],"depends_on_index":[]}
+				]`,
+			}, nil
+		},
+	}
+
+	mockBead := &decomposeAcceptanceBeadClient{
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+			createCalls++
+			return &BeadInfo{ID: fmt.Sprintf("bead-%d", createCalls)}, nil
+		},
+	}
+
+	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	_, err := p.Decompose(context.Background(), DecomposeInput{
+		PlanName:             "reprompt-structured-complexity",
+		MaxValidationRetries: 1,
+	})
+	if err != nil {
+		t.Fatalf("Decompose() failed: %v", err)
+	}
+	if runCount != 2 {
+		t.Fatalf("Run() call count = %d, want 2", runCount)
+	}
+
+	secondPrompt := prompts[1]
+	if !strings.Contains(secondPrompt, "## Complexity Feedback") {
+		t.Fatalf("second prompt missing structured complexity feedback section, got:\n%s", secondPrompt)
+	}
+	if !strings.Contains(secondPrompt, "Overly broad task") {
+		t.Fatalf("second prompt missing high-complexity bead title, got:\n%s", secondPrompt)
+	}
+	if createCalls != 2 {
+		t.Fatalf("CreateWithDepsAndDescription call count = %d, want 2 (bead creation should proceed after loop exit)", createCalls)
+	}
+}
+
 func TestDecomposeWorkflow_RetriesWhenHighComplexityRemains(t *testing.T) {
 	tmpDir := t.TempDir()
 	plansDir := filepath.Join(tmpDir, "plans")
