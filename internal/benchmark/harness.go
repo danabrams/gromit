@@ -33,6 +33,14 @@ type ModeOverlay struct {
 	FinalReview           FinalReviewPolicy
 }
 
+type ModeRunResult struct {
+	Mode                       string
+	FinalReviewRan             bool
+	FinalValidationRan         bool
+	FinalValidationAfterReview bool
+	FinalValidationPassed      bool
+}
+
 func BuildModeOverlay(manifest HarnessManifest, mode string) (ModeOverlay, error) {
 	switch mode {
 	case "single_pass", "tdd_shared_context", "tdd_fresh_context":
@@ -56,5 +64,15 @@ func BuildModeOverlay(manifest HarnessManifest, mode string) (ModeOverlay, error
 		}, nil
 	default:
 		return ModeOverlay{}, fmt.Errorf("unsupported benchmark mode %q", mode)
+	}
+}
+
+func FinalizeModeRunResult(overlay ModeOverlay, finalValidationPassed bool) ModeRunResult {
+	return ModeRunResult{
+		Mode:                       overlay.Mode,
+		FinalReviewRan:             overlay.FinalReview.Enabled,
+		FinalValidationRan:         true,
+		FinalValidationAfterReview: overlay.FinalReview.Enabled,
+		FinalValidationPassed:      finalValidationPassed,
 	}
 }
