@@ -160,3 +160,31 @@ func TestAggregateModeMetrics_AggregatesReviewMetricsAndFinalValidationOutcome(t
 		t.Fatal("final validation passed = true, want false")
 	}
 }
+
+func TestAggregateModeMetrics_ComputesCostQualityRatioFromTotalsAndAverageQuality(t *testing.T) {
+	tmpDir := t.TempDir()
+	logPath := filepath.Join(tmpDir, "ratio.jsonl")
+	content := "" +
+		"{\"iteration\":1,\"cost_usd\":0.40,\"quality_score\":0.5}\n" +
+		"{\"iteration\":2,\"cost_usd\":0.20,\"quality_score\":1.0}\n"
+	if err := os.WriteFile(logPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write fixture log: %v", err)
+	}
+
+	summaries, err := AggregateModeMetrics([]ModeLogInput{{
+		Mode:          "single_pass",
+		RunStartedAt:  time.Date(2026, 2, 23, 12, 0, 0, 0, time.UTC),
+		RunFinishedAt: time.Date(2026, 2, 23, 12, 0, 2, 0, time.UTC),
+		LogPath:       logPath,
+	}})
+	if err != nil {
+		t.Fatalf("AggregateModeMetrics() error = %v", err)
+	}
+	if len(summaries) != 1 {
+		t.Fatalf("len(summaries) = %d, want 1", len(summaries))
+	}
+
+	if summaries[0].CostQualityRatio != 0.8 {
+		t.Fatalf("cost_quality_ratio = %v, want 0.8", summaries[0].CostQualityRatio)
+	}
+}
