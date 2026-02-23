@@ -46,10 +46,27 @@ func (a *TDDPipelineAdapter) RunCycles(ctx context.Context, b *bead.Bead, cfg *c
 	}
 
 	aggregateTDDPhaseMetricsToResult(bc)
+	originalTier, actualTier := tddTierProvenance(bc.Result.PhaseMetrics)
 
 	return execute.TDDCycleResult{
 		PhaseMetrics: convertPhaseMetrics(bc.Result.PhaseMetrics),
+		OriginalTier: originalTier,
+		ActualTier:   actualTier,
 	}, nil
+}
+
+func tddTierProvenance(metrics []runtypes.PhaseMetric) (originalTier, actualTier string) {
+	bestRank := -1
+	for _, m := range metrics {
+		if originalTier == "" && m.Tier != "" {
+			originalTier = m.Tier
+		}
+		if r := tierRank(m.Tier); m.Tier != "" && r > bestRank {
+			bestRank = r
+			actualTier = m.Tier
+		}
+	}
+	return originalTier, actualTier
 }
 
 // convertPhaseMetrics maps runtypes.PhaseMetric entries to pipeline.PhaseMetric.
