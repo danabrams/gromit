@@ -1217,6 +1217,39 @@ func TestCreateSessionWorktree_RetriesOnBranchContention(t *testing.T) {
 	}
 }
 
+func TestCreateSessionWorktree_FailsImmediatelyOnNonContentionAlreadyExists(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "repo")
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	attempts := 0
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		if len(args) >= 2 && args[0] == "worktree" && args[1] == "add" {
+			attempts++
+			return "", errors.New("fatal: remote 'origin' already exists")
+		}
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	_, err = m.CreateSessionWorktree("review")
+	if err == nil {
+		t.Fatal("CreateSessionWorktree() error = nil, want non-nil")
+	}
+	if attempts != 1 {
+		t.Fatalf("expected exactly 1 worktree add attempt, got %d", attempts)
+	}
+	if !strings.Contains(err.Error(), "remote 'origin' already exists") {
+		t.Fatalf("expected error to preserve root cause, got: %v", err)
+	}
+}
+
 // contains checks if a string slice contains a specific string.
 func contains(slice []string, target string) bool {
 	for _, s := range slice {
