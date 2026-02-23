@@ -315,7 +315,8 @@ func buildComplexityRepromptFeedback(defs []beadDef) string {
 		return ""
 	}
 
-	return "Complexity feedback:\n" +
+	return "## Complexity Feedback\n\n" +
+		"Complexity feedback:\n" +
 		"The following beads are still high complexity. Reduce scope or split them into smaller beads.\n" +
 		strings.Join(highTitles, "\n")
 }
