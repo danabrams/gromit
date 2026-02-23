@@ -53,6 +53,18 @@ func CheckBeads(beads []BeadCandidate) []Violation {
 			})
 		}
 
+		// Check for empty expected outputs
+		for _, output := range bead.ExpectedOutputs {
+			if strings.TrimSpace(output) == "" {
+				violations = append(violations, Violation{
+					BeadIndex: i,
+					Rule:      "output_empty",
+					Message:   "Bead has an empty expected output entry",
+				})
+				break
+			}
+		}
+
 		// Check criteria count
 		if len(bead.AcceptanceCriteria) > 3 {
 			violations = append(violations, Violation{
