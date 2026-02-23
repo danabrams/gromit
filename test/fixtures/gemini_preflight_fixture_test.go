@@ -51,3 +51,26 @@ func TestGeminiCommandsLogFixture_InitializedWithTimestampedLedgerEntries(t *tes
 		}
 	}
 }
+
+func TestGeminiPreflightFixture_DocumentsAppendHarnessPattern(t *testing.T) {
+	fixturePath := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "preflight.md")
+
+	content, err := os.ReadFile(fixturePath)
+	if err != nil {
+		t.Fatalf("failed to read preflight fixture: %v", err)
+	}
+
+	body := string(content)
+	required := []string{
+		"## Capture Harness",
+		"exit_code=$?",
+		".gromit/plans/fixtures/gemini/commands.log",
+		"command=\"",
+	}
+
+	for _, token := range required {
+		if !strings.Contains(body, token) {
+			t.Fatalf("preflight fixture must document harness token %q", token)
+		}
+	}
+}
