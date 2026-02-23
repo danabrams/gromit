@@ -148,6 +148,7 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 		phase = "refactor"
 	}
 	tier := in.Config.PhaseModelTier(phase, beadTier)
+	originalTier := tier
 
 	w := b.output
 	if w == nil {
@@ -158,6 +159,9 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 	if err != nil && in.EscalationEnabled {
 		for {
 			nextTier := in.Config.NextEscalationTier(tier)
+			if nextTier == "" {
+				nextTier = nextTierFromChain(in.Config.Escalation.Chain, tier)
+			}
 			if nextTier == "" {
 				break
 			}
@@ -172,7 +176,11 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 		return pipeline.Output{}, fmt.Errorf("build: LLM invocation: %w", err)
 	}
 
-	out := pipeline.Output{Decision: pipeline.Proceed}
+	out := pipeline.Output{
+		Decision:     pipeline.Proceed,
+		OriginalTier: originalTier,
+		ActualTier:   tier,
+	}
 	if result != nil {
 		out.Model = result.Model
 		out.DurationMs = result.Duration.Milliseconds()
@@ -181,6 +189,15 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 		out.OutputTokens = result.OutputTokens
 	}
 	return out, nil
+}
+
+func nextTierFromChain(chain []string, currentTier string) string {
+	for i, entry := range chain {
+		if entry == currentTier && i+1 < len(chain) {
+			return chain[i+1]
+		}
+	}
+	return ""
 }
 
 func resolveBuildStrategy(cfg *config.Config, b *bead.Bead) string {

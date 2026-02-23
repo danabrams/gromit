@@ -94,6 +94,10 @@ type Output struct {
 	InputTokens int
 	// OutputTokens is the number of output tokens produced by the Build stage invocation.
 	OutputTokens int
+	// OriginalTier is the initially selected abstract tier for the Build stage invocation.
+	OriginalTier string
+	// ActualTier is the final abstract tier used by the successful Build stage invocation.
+	ActualTier string
 	// PhaseMetrics holds per-phase invocation metrics for TDD builds.
 	// Each entry corresponds to one TDD phase (red, green, refactor, etc.).
 	PhaseMetrics []PhaseMetric
