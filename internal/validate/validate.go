@@ -18,8 +18,8 @@ const (
 	// minSubBeads is the minimum number of sub-beads required from a decomposition.
 	minSubBeads = 2
 
-	// maxSubBeads is the maximum number of sub-beads allowed from a decomposition.
-	maxSubBeads = 5
+	// MaxSubBeads is the maximum number of sub-beads allowed from a decomposition.
+	MaxSubBeads = 5
 )
 
 // scopeSignals contains keywords that may indicate over-scoping
@@ -58,11 +58,11 @@ func CheckBatchContract(beads []BeadCandidate) []Violation {
 		})
 	}
 
-	if len(beads) > maxSubBeads {
+	if len(beads) > MaxSubBeads {
 		violations = append(violations, Violation{
 			BeadIndex: -1,
 			Rule:      "batch_size_max",
-			Message:   fmt.Sprintf("Decomposition produced %d sub-beads; maximum is %d", len(beads), maxSubBeads),
+			Message:   fmt.Sprintf("Decomposition produced %d sub-beads; maximum is %d", len(beads), MaxSubBeads),
 		})
 	}
 

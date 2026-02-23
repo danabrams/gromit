@@ -130,6 +130,13 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 		return nil, fmt.Errorf("no beads extracted from plan")
 	}
 
+	// Apply batch contract fallbacks: truncate if over max, error if under min
+	var contractErr error
+	beadDefs, contractErr = applyBatchContractFallbacks(beadDefs)
+	if contractErr != nil {
+		return nil, contractErr
+	}
+
 	// Review mode: return proposed beads without creating them
 	if input.Review {
 		result := NewDecomposeResult()
@@ -308,6 +315,23 @@ func toBeadCandidates(defs []beadDef) []validate.BeadCandidate {
 		}
 	}
 	return candidates
+}
+
+// applyBatchContractFallbacks enforces batch-level structural constraints on decompose output.
+// If the batch exceeds maxSubBeads, it is truncated to maxSubBeads (with a warning).
+// If the batch is below minSubBeads, an error is returned (cannot create missing beads mechanically).
+func applyBatchContractFallbacks(defs []beadDef) ([]beadDef, error) {
+	violations := validate.CheckBatchContract(toBeadCandidates(defs))
+	for _, v := range violations {
+		switch v.Rule {
+		case "batch_size_max":
+			fmt.Printf("Warning: %s; truncating to %d beads.\n", v.Message, validate.MaxSubBeads)
+			defs = defs[:validate.MaxSubBeads]
+		case "batch_size_min":
+			return nil, fmt.Errorf("decomposition contract violation: %s", v.Message)
+		}
+	}
+	return defs, nil
 }
 
 func normalizeMaxValidationRetries(maxRetries int) int {

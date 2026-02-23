@@ -278,22 +278,27 @@ func TestDecompose_NoTypeAssertions(t *testing.T) {
 	}
 
 	var beadCreationCalled bool
+	var lastCreatedID string
 	mockClaude := &typedInterfacesClaudeClient{
 		runFn: func(prompt string, model string) (*ClaudeRunResult, error) {
 			return &ClaudeRunResult{
 				Success:  true,
 				ExitCode: 0,
-				Output:   `[{"title": "Test", "description": "Desc", "priority": "P1", "acceptance_criteria": ["AC1"], "depends_on_index": []}]`,
+				Output:   `[{"title": "Test", "description": "Desc", "priority": "P1", "acceptance_criteria": ["AC1"], "depends_on_index": []}, {"title": "Support", "description": "Desc", "priority": "P1", "acceptance_criteria": ["AC2"], "depends_on_index": []}]`,
 			}, nil
 		},
 	}
 
+	beadSeq := 0
 	mockBead := &typedInterfacesBeadClient{
 		createWithDepsFn: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			beadCreationCalled = true
+			beadSeq++
+			id := fmt.Sprintf("bead-typed-%d", beadSeq)
+			lastCreatedID = id
 			// Return typed struct directly, no map wrapping needed
 			return &BeadInfo{
-				ID:       "bead-typed",
+				ID:       id,
 				Title:    title,
 				Priority: priority,
 				Labels:   labels,
@@ -321,13 +326,13 @@ func TestDecompose_NoTypeAssertions(t *testing.T) {
 		t.Error("BeadClient.CreateWithDepsAndDescription was not called")
 	}
 
-	if len(result.CreatedBeads) != 1 {
-		t.Errorf("CreatedBeads count = %d, want 1", len(result.CreatedBeads))
+	if len(result.CreatedBeads) != 2 {
+		t.Errorf("CreatedBeads count = %d, want 2", len(result.CreatedBeads))
 	}
 
-	// Verify bead ID was extracted without type assertions
-	if result.CreatedBeads[0].ID != "bead-typed" {
-		t.Errorf("CreatedBeads[0].ID = %q, want %q", result.CreatedBeads[0].ID, "bead-typed")
+	// Verify bead IDs were extracted without type assertions
+	if result.CreatedBeads[1].ID != lastCreatedID {
+		t.Errorf("CreatedBeads[1].ID = %q, want %q", result.CreatedBeads[1].ID, lastCreatedID)
 	}
 }
 

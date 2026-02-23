@@ -234,26 +234,44 @@ func TestDecomposeWorkflow_RetriesOnValidationViolation(t *testing.T) {
 				return &ClaudeRunResult{
 					Success:  true,
 					ExitCode: 0,
-					Output: `[{
-						"title": "Bad task",
-						"description": "Too many criteria",
-						"priority": "P1",
-						"acceptance_criteria": ["a", "b", "c", "d"],
-						"depends_on_index": []
-					}]`,
+					Output: `[
+						{
+							"title": "Bad task",
+							"description": "Too many criteria",
+							"priority": "P1",
+							"acceptance_criteria": ["a", "b", "c", "d"],
+							"depends_on_index": []
+						},
+						{
+							"title": "Good task",
+							"description": "Valid from start",
+							"priority": "P1",
+							"acceptance_criteria": ["x", "y"],
+							"depends_on_index": []
+						}
+					]`,
 				}, nil
 			}
 
 			return &ClaudeRunResult{
 				Success:  true,
 				ExitCode: 0,
-				Output: `[{
-					"title": "Fixed task",
-					"description": "Valid",
-					"priority": "P1",
-					"acceptance_criteria": ["a", "b", "c"],
-					"depends_on_index": []
-				}]`,
+				Output: `[
+					{
+						"title": "Fixed task",
+						"description": "Valid",
+						"priority": "P1",
+						"acceptance_criteria": ["a", "b", "c"],
+						"depends_on_index": []
+					},
+					{
+						"title": "Good task",
+						"description": "Valid from start",
+						"priority": "P1",
+						"acceptance_criteria": ["x", "y"],
+						"depends_on_index": []
+					}
+				]`,
 			}, nil
 		},
 	}
@@ -309,13 +327,22 @@ func TestDecomposeWorkflow_ValidationRetriesExhaustedContinues(t *testing.T) {
 			return &ClaudeRunResult{
 				Success:  true,
 				ExitCode: 0,
-				Output: `[{
-					"title": "Still bad task",
-					"description": "Too many criteria",
-					"priority": "P1",
-					"acceptance_criteria": ["a", "b", "c", "d"],
-					"depends_on_index": []
-				}]`,
+				Output: `[
+					{
+						"title": "Still bad task",
+						"description": "Too many criteria",
+						"priority": "P1",
+						"acceptance_criteria": ["a", "b", "c", "d"],
+						"depends_on_index": []
+					},
+					{
+						"title": "Another task",
+						"description": "Also bad",
+						"priority": "P1",
+						"acceptance_criteria": ["w", "x", "y", "z"],
+						"depends_on_index": []
+					}
+				]`,
 			}, nil
 		},
 	}
@@ -345,9 +372,9 @@ func TestDecomposeWorkflow_ValidationRetriesExhaustedContinues(t *testing.T) {
 	if result.ValidationStats.Attempts != 2 {
 		t.Errorf("ValidationStats.Attempts = %d, want 2", result.ValidationStats.Attempts)
 	}
-	// 1 violation per attempt = 2 total
-	if result.ValidationStats.ViolationCount != 2 {
-		t.Errorf("ValidationStats.ViolationCount = %d, want 2", result.ValidationStats.ViolationCount)
+	// 2 violations per attempt (2 bad beads × 1 criteria_count each) × 2 attempts = 4 total
+	if result.ValidationStats.ViolationCount != 4 {
+		t.Errorf("ValidationStats.ViolationCount = %d, want 4", result.ValidationStats.ViolationCount)
 	}
 	if result.ValidationStats.Improved {
 		t.Error("ValidationStats.Improved = true, want false (violations unchanged)")
@@ -372,13 +399,22 @@ func TestDecomposeWorkflow_SkipValidationDisablesRetryLoop(t *testing.T) {
 			return &ClaudeRunResult{
 				Success:  true,
 				ExitCode: 0,
-				Output: `[{
-					"title": "Bad task",
-					"description": "Too many criteria",
-					"priority": "P1",
-					"acceptance_criteria": ["a", "b", "c", "d"],
-					"depends_on_index": []
-				}]`,
+				Output: `[
+					{
+						"title": "Bad task",
+						"description": "Too many criteria",
+						"priority": "P1",
+						"acceptance_criteria": ["a", "b", "c", "d"],
+						"depends_on_index": []
+					},
+					{
+						"title": "Another task",
+						"description": "Also bad",
+						"priority": "P1",
+						"acceptance_criteria": ["w", "x", "y", "z"],
+						"depends_on_index": []
+					}
+				]`,
 			}, nil
 		},
 	}
@@ -423,14 +459,23 @@ func TestDecomposeWorkflow_CreatesBeadsWithCorrectLabels(t *testing.T) {
 			return &ClaudeRunResult{
 				Success:  true,
 				ExitCode: 0,
-				Output: `[{
-					"title": "Add cache interface",
-					"description": "Define cache interface",
-					"priority": "P1",
-					"estimated_files": 6,
-					"acceptance_criteria": ["Interface defined"],
-					"depends_on_index": []
-				}]`,
+				Output: `[
+					{
+						"title": "Simple task",
+						"description": "A simple supporting task",
+						"priority": "P1",
+						"acceptance_criteria": ["Done"],
+						"depends_on_index": []
+					},
+					{
+						"title": "Add cache interface",
+						"description": "Define cache interface",
+						"priority": "P1",
+						"estimated_files": 6,
+						"acceptance_criteria": ["Interface defined"],
+						"depends_on_index": []
+					}
+				]`,
 			}, nil
 		},
 	}
@@ -600,17 +645,26 @@ func TestDecomposeWorkflow_SkipsSelfDependencies(t *testing.T) {
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
 		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
-			// Return bead with self-dependency (index 0 depends on index 0)
+			// Return 2 beads: second has self-dependency (index 1 depends on index 1)
 			return &ClaudeRunResult{
 				Success:  true,
 				ExitCode: 0,
-				Output: `[{
-					"title": "Task with self-dep",
-					"description": "Bad dependency",
-					"priority": "P1",
-					"acceptance_criteria": ["Done"],
-					"depends_on_index": [0]
-				}]`,
+				Output: `[
+					{
+						"title": "Normal task",
+						"description": "No dependency",
+						"priority": "P1",
+						"acceptance_criteria": ["Done"],
+						"depends_on_index": []
+					},
+					{
+						"title": "Task with self-dep",
+						"description": "Bad dependency",
+						"priority": "P1",
+						"acceptance_criteria": ["Done"],
+						"depends_on_index": [1]
+					}
+				]`,
 			}, nil
 		},
 	}
@@ -751,14 +805,23 @@ func TestDecomposeWorkflow_ReviewModeReturnsProposedBeads(t *testing.T) {
 			return &ClaudeRunResult{
 				Success:  true,
 				ExitCode: 0,
-				Output: `[{
-					"title": "Test task",
-					"description": "Test",
-					"priority": "P1",
-					"estimated_files": 2,
-					"acceptance_criteria": ["Done"],
-					"depends_on_index": []
-				}]`,
+				Output: `[
+					{
+						"title": "Test task",
+						"description": "Test",
+						"priority": "P1",
+						"estimated_files": 2,
+						"acceptance_criteria": ["Done"],
+						"depends_on_index": []
+					},
+					{
+						"title": "Another task",
+						"description": "Supporting work",
+						"priority": "P1",
+						"acceptance_criteria": ["Done"],
+						"depends_on_index": []
+					}
+				]`,
 			}, nil
 		},
 	}
@@ -793,8 +856,8 @@ func TestDecomposeWorkflow_ReviewModeReturnsProposedBeads(t *testing.T) {
 	}
 
 	// Verify beads are returned but not created
-	if len(result.CreatedBeads) != 1 {
-		t.Errorf("CreatedBeads count = %d, want 1 (proposed beads)", len(result.CreatedBeads))
+	if len(result.CreatedBeads) != 2 {
+		t.Errorf("CreatedBeads count = %d, want 2 (proposed beads)", len(result.CreatedBeads))
 	}
 	if !containsString(result.CreatedBeads[0].Labels, "estimated-files:2") {
 		t.Errorf("Review labels = %v, want to include 'estimated-files:2'", result.CreatedBeads[0].Labels)
@@ -841,13 +904,22 @@ Already decomposed
 			return &ClaudeRunResult{
 				Success:  true,
 				ExitCode: 0,
-				Output: `[{
-					"title": "New task",
-					"description": "From redecompose",
-					"priority": "P1",
-					"acceptance_criteria": ["Done"],
-					"depends_on_index": []
-				}]`,
+				Output: `[
+					{
+						"title": "New task",
+						"description": "From redecompose",
+						"priority": "P1",
+						"acceptance_criteria": ["Done"],
+						"depends_on_index": []
+					},
+					{
+						"title": "Supporting task",
+						"description": "From redecompose",
+						"priority": "P1",
+						"acceptance_criteria": ["Done"],
+						"depends_on_index": []
+					}
+				]`,
 			}, nil
 		},
 	}
@@ -895,8 +967,8 @@ Already decomposed
 		t.Fatalf("Decompose() with force=true failed: %v (should allow re-decomposition)", err)
 	}
 
-	if len(result.CreatedBeads) != 1 {
-		t.Errorf("Force re-decompose created %d beads, want 1", len(result.CreatedBeads))
+	if len(result.CreatedBeads) != 2 {
+		t.Errorf("Force re-decompose created %d beads, want 2", len(result.CreatedBeads))
 	}
 }
 
@@ -956,13 +1028,22 @@ func TestDecomposeWorkflow_UpdatesPlanFrontmatterTimestamp(t *testing.T) {
 			return &ClaudeRunResult{
 				Success:  true,
 				ExitCode: 0,
-				Output: `[{
-					"title": "Task",
-					"description": "Test",
-					"priority": "P1",
-					"acceptance_criteria": ["Done"],
-					"depends_on_index": []
-				}]`,
+				Output: `[
+					{
+						"title": "Task",
+						"description": "Test",
+						"priority": "P1",
+						"acceptance_criteria": ["Done"],
+						"depends_on_index": []
+					},
+					{
+						"title": "Supporting task",
+						"description": "Test",
+						"priority": "P1",
+						"acceptance_criteria": ["Done"],
+						"depends_on_index": []
+					}
+				]`,
 			}, nil
 		},
 	}
@@ -1231,14 +1312,23 @@ func TestDecomposeWorkflow_UsesExpectedOutputsWhenNonEmpty(t *testing.T) {
 			return &ClaudeRunResult{
 				Success:  true,
 				ExitCode: 0,
-				Output: `[{
-					"title": "Task with outputs",
-					"description": "Has expected outputs",
-					"priority": "P1",
-					"acceptance_criteria": ["Criterion A"],
-					"expected_outputs": ["Output X", "Output Y"],
-					"depends_on_index": []
-				}]`,
+				Output: `[
+					{
+						"title": "Simple prerequisite",
+						"description": "No expected outputs",
+						"priority": "P1",
+						"acceptance_criteria": ["Setup done"],
+						"depends_on_index": []
+					},
+					{
+						"title": "Task with outputs",
+						"description": "Has expected outputs",
+						"priority": "P1",
+						"acceptance_criteria": ["Criterion A"],
+						"expected_outputs": ["Output X", "Output Y"],
+						"depends_on_index": []
+					}
+				]`,
 			}, nil
 		},
 	}
@@ -1285,13 +1375,22 @@ func TestDecomposeWorkflow_FallsBackToAcceptanceCriteriaWhenNoExpectedOutputs(t 
 			return &ClaudeRunResult{
 				Success:  true,
 				ExitCode: 0,
-				Output: `[{
-					"title": "Task without outputs",
-					"description": "Has no expected outputs",
-					"priority": "P1",
-					"acceptance_criteria": ["Criterion A", "Criterion B"],
-					"depends_on_index": []
-				}]`,
+				Output: `[
+					{
+						"title": "Simple prereq",
+						"description": "No expected outputs",
+						"priority": "P1",
+						"acceptance_criteria": ["Done"],
+						"depends_on_index": []
+					},
+					{
+						"title": "Task without outputs",
+						"description": "Has no expected outputs",
+						"priority": "P1",
+						"acceptance_criteria": ["Criterion A", "Criterion B"],
+						"depends_on_index": []
+					}
+				]`,
 			}, nil
 		},
 	}
@@ -1376,13 +1475,22 @@ func TestDecomposeWorkflow_UsesInputTierForProviderCall(t *testing.T) {
 			return &ClaudeRunResult{
 				Success:  true,
 				ExitCode: 0,
-				Output: `[{
-					"title": "Task",
-					"description": "Desc",
-					"priority": "P1",
-					"acceptance_criteria": ["Done"],
-					"depends_on_index": []
-				}]`,
+				Output: `[
+					{
+						"title": "Task",
+						"description": "Desc",
+						"priority": "P1",
+						"acceptance_criteria": ["Done"],
+						"depends_on_index": []
+					},
+					{
+						"title": "Supporting task",
+						"description": "Desc",
+						"priority": "P1",
+						"acceptance_criteria": ["Done"],
+						"depends_on_index": []
+					}
+				]`,
 			}, nil
 		},
 	}
