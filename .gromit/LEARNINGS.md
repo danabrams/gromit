@@ -19,25 +19,15 @@ Status struct fields require backward-compatible changes (omitempty for new opti
 
 Methodologies use label-based activation ("methodology:true"/"false") with global config fallback via bead.IsMethodologyActive(). When active, replace the build prompt with a specialized RenderXXXBuild method. Check parent labels before adding globally-active methodology labels to sub-beads to avoid duplicates. Order methodology checks carefully for precedence when multiple methodologies are active.
 
-### 2026-02-22 | Prompt Assembly Integrity | conventions
-*Related to: gromit-rpne, review-1771763626626526682*
+### 2026-02-11 | Prompt Template Structure | conventions
+*Related to: gromit-rpne*
 
-Prompt assembly integrity requires both strict template structure fidelity and explicit error handling in rule/template loaders. Preserve section/whitespace contracts in template files and never discard loader errors; return or warn with phase context so degraded prompts are observable.
+Prompt templates in .gromit/templates/ use explicit section headers (##) and preserve exact whitespace/structure when updating. Template files follow a consistent structure: context section at top, then Guidelines, then preserved sections like 'Avoiding Sibling Overlap' and ATDD blocks. When modifying sections, maintain blank lines between sections and ensure downstream blocks remain unchanged. Acceptance tests for template changes must match the exact content being added, including specific phrases and subsection structure.
 
 ### 2026-02-16 | Provider Contract Fixtures | patterns
 *Related to: gromit-d7j9*
 
 Contract tests consume canonical provider fixtures under test/fixtures/ using scenario-driven naming: `{provider}[_stream]_{outcome}.{format}`. Fixtures (codex_success.txt, codex_failure.txt, codex_stream_success.jsonl, codex_stream_failure.jsonl, claude_stream_success.jsonl) must include brief provenance comments describing the source and refresh workflow. Payloads should be minimal but realistic—Codex plain-text fixtures show output structure (touched/tests lines), JSONL fixtures emit `{"type":"assistant",...}` and `{"type":"result",...}` events. Fixture environment variables (CODEX_FIXTURE, CLAUDE_FIXTURE) point fake CLIs to fixture paths. Test assertions verify output matches canonical payloads, enabling both roundtrip validation and contract evolution tracking. Provenance comments facilitate fixture refresh workflow without manual intervention.
-
-### 2026-02-22 | Stage Contract & Soft-Failure Orchestration | patterns
-*Related to: 9980dae8, gromit-22nrv, 8d85f5d7*
-
-Stage-based orchestration should keep business logic in stages with typed I/O, dependency injection via builder methods, and explicit inter-stage state flow. Optional dependencies may soft-fail with warnings only when explicitly optional; critical contracts (validation output, touched package carryover, iteration numbering) require deterministic tests.
-
-### 2026-02-23 | Decomposition Contract & State Safety | architecture
-*Related to: review-1771788120407657627, review-1771797265171555605*
-
-Scope-gate decomposition must enforce strict output contracts (bounded sub-task count, non-empty titles/expected outputs, no parent-echo), and execution must be state-safe/idempotent (deduped re-entry or rollback on partial child creation). Decomposition failures should have deterministic fallback semantics and explicit error handling paths. Error propagation in gate.go uses errors (not fall-through to Block) for transient failures. Minimal decomposerAdapter creates single-child beads; real decomposition intelligence comes from the pipeline.Decompose() path.
 
 ---
 
@@ -45,31 +35,55 @@ Scope-gate decomposition must enforce strict output contracts (bounded sub-task 
 
 *Seen once - may be specific to one task.*
 
-*(empty — all provisional entries consolidated or archived)*
+### 2026-02-21 | Pipeline Stage Dependency Injection and Soft Failure Patterns | patterns
+*Related to: 9980dae8, gromit-22nrv*
+
+Pipeline stages use local dependency interfaces injected via builder pattern methods (WithAutoFixer, WithPrechecker, WithStuckDetector), allowing optional composition. Nil checks in Run() enable graceful degradation when a dependency isn't configured—errors from optional dependencies are logged as warnings, not pipeline blockers. Compile-time checks (`var _ pipeline.Stage = (*Impl)(nil)`) enforce architectural contracts. The Validate stage uses a soft-failure pattern: unresolved validation failures populate ValidationFailures for the next Build input rather than blocking the pipeline. Auto-fix (gofmt/goimports) runs first, re-validates, and returns Proceed regardless. Periodic full validation is gated via modulo arithmetic. Mandatory command prefix enforcement happens upfront via checkMandatoryPrefixes(). Decision ordering matters in Gate: precheck (Skip) runs before stuck detection (Block) to ensure already-completed work is closed promptly.
+
+### 2026-02-20 | Cost/Token Accounting Needs Consistent Delta Semantics | gotchas
+*Related to: code-review*
+
+Cost/token tracking uses inconsistent accumulation patterns: (1) PhaseMetric recording — the green phase uses before/after usage snapshots via snapshotIterationUsage() but red and refactor phases use recordPhaseMetric() without snapshots, mixing per-phase deltas with raw values. (2) Codex stream events — turn.completed overwrites usage while response.completed and result events merge via mergeCodexUsage(). Both patterns should use explicit before/after snapshots for phases and consistent merge semantics for stream events to make cost attribution reliable for retrospective analysis.
+
+### 2026-02-21 | Multi-Stage Pipeline Orchestrator Pattern | patterns
+*Related to: 8d85f5d7*
+
+Replace God Object pattern with pure orchestration: hold only stage references and config, no business logic. The Orchestrator struct contains just a config field; all per-stage logic lives in internal/pipeline/<stage>/. Enforce import discipline at the orchestrator level—import only internal/pipeline and internal/logger. Wire stages at construction time via OrchestratorConfig, making dependency graph explicit and mockable. Assign iteration numbers monotonically regardless of outcome (including beads blocked at Gate), preserving failure chains. Flow inter-stage outputs into subsequent iterations: ValidationFailures from Validate→Build Input, TouchedPackages from Epilogue→next iteration Input. Keep failed stages in Epilogue for logging/cleanup rather than early-exit—this ensures consistent logging and status updates. Handle optional stages (Review) via nil checks at runtime, not construction time. Merge global stats atomically at completion, preserving prior entries—use read-modify-write with idempotency checks. Benefit: stages become independently testable, sequencing is explicit and debuggable, and stage coupling is minimal.
+
 
 ## Emerging
 
 *Newly observed — needs validation across more tasks.*
 
-### 2026-02-23 | Decomposition Contract Parity Across Entry Points | ARCHITECTURE
-*Related to: gromit-ph4bi, gromit-31jrn*
+### 2026-02-22 | Orchestrator Migration Adapter Patterns | patterns
+*Related to: code-review, review-1771733992016921570*
 
-Decomposition contract checks must be implemented in one shared path and reused by both pipeline decompose and scope-gate decomposition adapters. Divergent validation semantics (for example parent-echo interpretation) and non-canonical dedupe keys can produce cross-path behavior drift and retry idempotency gaps.
+The Orchestrator migration introduces adapter proliferation (12+ types in constructor.go) bridging stage interfaces to infrastructure — future stage interfaces should minimize this surface. Key patterns: (1) Consolidation — one exported function in the parent package (e.g., BuildFromReviewLabels), child packages import it; remove deprecated wrappers once callers migrate. (2) File extraction — enforced by file_size_test.go with a 550-line limit. (3) Dual-path risk — Orchestrator and legacy Runner have separate code for the same operations (cost tracking, state saving); features wired in one path may be silently missing in the other. (4) Asymmetric state — validationFailures clear on success while touchedPackages accumulate across the run (intentional but non-obvious). (5) Copy-paste bugs — adapters with similar methods (RenderBuild/RenderRefactor) need independent delegation target verification. (6) FnField mocks — nil-safe with explicit nil check, injected via deps struct. Always sort map keys in logging functions for deterministic output.
 
-### 2026-02-23 | Scoped Status Progress Recomputed at Read-Time | PATTERNS
-*Related to: gromit-tlhuh*
+### 2026-02-22 | Silent Error Swallowing in Render Builder Functions | gotchas
+*Related to: review-1771763626626526682*
 
-Status progress denominator should be recomputed at display/read time for scoped runs instead of trusting persisted totals. Persisted `iteration_total` can become stale across process lifetimes, so status rendering should infer scope from `scope_label` (or active bead labels as fallback) and recalculate totals from current open non-epic work.
+The TDD render builder functions (buildRenderRedFn, buildRenderGreenFn) discard errors from `renderer.LoadRulesForPhase("build")` via `rules, _ :=`. This is graceful degradation — prompts render without rules — but silently hides configuration problems. When building closure-based dependency injectors, surface or log errors from fallible setup calls rather than discarding them; silent degradation in prompt assembly can produce subtly wrong LLM outputs that are hard to trace.
 
-### 2026-02-23 | Retry Classification Must Not Depend on Broad Error Substrings | RELIABILITY
-*Related to: gromit-tlhuh*
+### 2026-02-22 | Architectural Migration Safety Checklist | conventions
+*Related to: code-review*
 
-Session worktree retries should only trigger on explicit contention signals (branch/worktree collision). Broad substring matching like `already exists` can mask non-contention failures and reduce debuggability; retry paths need precise classification and tests for exhaustion and mixed failure sequences.
+When removing public APIs or deleting large files during migration: (1) Systematically find all call sites and complete migrations before deletion — interdependencies between orchestration components require careful refactoring order. (2) Verify all exported symbols are either migrated or unreferenced. (3) Run `go test -tags acceptance -run '^$'` to verify compilation of build-tag-gated tests — these are invisible to normal `go test ./...` and symbols can be silently lost (e.g., PrintStatus was lost when lifecycle.go was deleted). (4) Search for forced-import keep-alive patterns (`var _ = Type{}`) left behind by incomplete refactoring and remove them.
+
+### 2026-02-22 | Builder Pattern Pointer Receiver Mutation | gotchas
+*Related to: review-1771784092725425988*
+
+Builder-pattern methods that mutate the pointer receiver (like Gate.WithDecomposer setting g.decomposer = d) work correctly even when the return value is discarded. The return is for optional method chaining; the mutation happens on the receiver regardless. When reviewing builder calls like `obj.WithX(val)` without assignment, check whether the method mutates the receiver — if it does, the call is correct despite looking like a no-op.
 
 ### 2026-02-22 | SPC Display Formatting Two-Tier Pattern | patterns
 *Related to: review-1771784092725425988*
 
 SPC (Statistical Process Control) formatting follows a two-tier pattern: formatSPCSummary orchestrates sections (window, control limits, anomalies), while formatSPCLine/formatSPCValue handle individual metric values. simplifySPCMetric provides human-friendly labels for anomaly display (e.g., "rolling_success_rate" → "success"). Keep metric name constants in sync between the logger package (which produces them) and the runner/format package (which displays them) — string-based coupling requires test coverage since there's no compile-time check.
+
+### 2026-02-22 | Interface Evolution Through Signature Changes | patterns
+*Related to: review-1771784092725425988*
+
+When evolving function signatures (e.g., StatusWriter adding a deadline parameter), propagate changes through: (1) the type definition (OrchestratorConfig), (2) all call sites (orchestrator.go), (3) all implementations (constructor.go closure), and (4) all test doubles (orchestrator_test.go fakes). The StatusWriter deadline addition was a clean example — the new parameter flowed naturally through all four layers without breaking existing behavior for callers that pass zero-value deadlines.
 
 ### 2026-02-22 | Three-Layer Requirement Extraction Fallback | patterns
 *Related to: review-1771784092725425988*
@@ -81,21 +95,35 @@ Requirement extraction uses a 3-layer fallback: Layer 1 (ExpectedOutputs field f
 
 Including expected_outputs in the decompose prompt template is high-leverage: decomposition quality determines downstream TDD cycle granularity (one red-green cycle per expected output). When the LLM doesn't produce expected_outputs, the system falls back to acceptance_criteria parsing, which may be coarser-grained. Explicitly instructing "list each individual deliverable as a separate entry — these drive TDD RED-GREEN cycles" produces fine-grained outputs that match the system's mechanical needs.
 
-### 2026-02-22 | gromit-urweh.3 | conventions
-Queue output has strict section ordering conventions (auth before api) that must be preserved when modifying queue.go - test expectations document the required ordering
+### 2026-02-22 | SCOPE_GATE_ERROR_PROPAGATION_CHANGE | ARCHITECTURE
+*Related to: review-1771788120407657627*
 
-### 2026-02-22 | gromit-3poct | gotchas
-When a task is closed with reason 'Closed' and subtasks are created, it indicates planned decomposition rather than failure. Check subtask status for actual work state.
+runScopeGate in gate.go now propagates decomposition failures as errors instead of falling through to Block decision. This is a deliberate semantic shift — transient decomposition failures (network, bd CLI) will error the gate rather than blocking the bead for retry. Callers should handle gate errors accordingly.
 
-### 2026-02-23 | Failure Log Capture Completeness | gotchas
-*Related to: gromit-p0iei, gromit-n2xw8, gromit-jp44h*
+### 2026-02-22 | DECOMPOSER_ADAPTER_MINIMAL_DECOMPOSITION | ARCHITECTURE
+*Related to: review-1771788120407657627*
 
-When tasks fail in gromit, ensure error_output and failure_category are populated in iteration logs. Blank failure_category indicates a logging/capture issue, not task success. Check .gromit/logs/ JSONL files and git status for implementation state when failure details are missing from the prompt.
+The decomposerAdapter implementation creates a single child bead with title "(decomposed)" suffix and closes the parent. This is a minimal decomposition — it doesn't split work into multiple sub-beads based on expected outputs. Real decomposition intelligence comes from the pipeline.Decompose() path (provider-parity-decompose-retro spec).
 
-### 2026-02-23 | Session Worktree Retry Classification Precision | RELIABILITY
-*Related to: review-1771808689178051987*
+### 2026-02-22 | TEST_HELPER_DUPLICATION_IN_GATE_TESTS | TEST_QUALITY
+*Related to: review-1771788120407657627*
 
-Session worktree retry logic should match explicit contention signatures (branch/worktree collisions) rather than broad substrings like "already exists". Precision avoids masking unrelated git failures and preserves actionable root-cause errors while still allowing bounded retry/exhaustion handling.
+gate_test.go accumulated 6+ near-identical mock decomposer/bead-client types across iterative TDD work. When adding test doubles incrementally, check if existing mocks can be parameterized rather than creating new types. Per project rule: "2+ tests sharing 10+ lines of setup: extract a setup helper."
+
+### 2026-02-22 | SCOPE_GATE_DECOMPOSITION_NEEDS_STATE_SAFETY | ARCHITECTURE
+*Related to: review-1771797265171555605*
+
+Scope-gate decomposition is resilient to provider failures (falls back to Block), but sequential child creation without idempotency safeguards can leave partial state and duplicate work on retries. Decomposition paths should enforce either rollback or deduped re-entry semantics before parent close.
+
+### 2026-02-22 | BEHAVIOR_FIRST_TESTS_OVER_SOURCE_READING | TEST_QUALITY
+*Related to: review-1771797265171555605*
+
+Source-reading tests (e.g., checking function text with os.ReadFile + strings.Contains) are brittle and violate project testing guidance. Prefer behavioral assertions on public interfaces/contracts and compile-time guarantees, then use shared helpers when setup repeats.
+
+### 2026-02-22 | DECOMPOSITION_OUTPUT_CONTRACTS_MUST_BE_STRICT | CONVENTIONS
+*Related to: review-1771797265171555605*
+
+JSON parsing alone is not enough for LLM decomposition output. Gate paths should validate concrete quality constraints (sub-task count bounds, non-empty titles, bounded expected outputs, no degenerate parent echo) and define deterministic fallback behavior when outputs violate the contract.
 
 ---
 
@@ -110,33 +138,3 @@ Use package-level `var _ Interface = (*Impl)(nil)` declarations in non-test `.go
 
 *Archived from provisional: filtered: generic engineering advice*
 
-### 2026-02-22 | gromit-urweh | conventions
-When analyzing task failures, always provide the actual error output or test failure logs - task status alone doesn't indicate whether implementation was successful.
-
-*Archived from new: filtered: generic engineering advice*
-
-### 2026-02-23 | gromit-xnp4e | conventions
-When requesting failure analysis, include the error message, assertion output, or failure log. Task closure status alone is insufficient to diagnose root cause.
-
-*Archived from new: filtered: generic engineering advice*
-
-### 2026-02-23 | Usage Accounting & Migration Parity (consolidated) | conventions
-*Related to: code-review, review-1771733992016921570*
-
-Usage accounting and orchestrator migration require one shared semantics path: explicit before/after phase snapshots, single stream-event merge strategy, and parity tests while legacy/new paths coexist.
-
-*Archived from provisional: codified in Build Process rules (snapshot semantics, merge strategy, telemetry completeness gate)*
-
-### 2026-02-23 | Test Helper & Behavioral Assertion Hygiene (consolidated) | test_quality
-*Related to: review-1771788120407657627, review-1771797265171555605*
-
-Test suites should prefer behavioral assertions and shared helpers over brittle source-reading checks and duplicated mock/setup scaffolding.
-
-*Archived from emerging: redundant with Test Quality rules (setup-helper extraction, source-reading ban)*
-
-### 2026-02-23 | Interface Evolution Through Signature Changes | patterns
-*Related to: review-1771784092725425988*
-
-When evolving function signatures (e.g., StatusWriter adding a deadline parameter), propagate changes through: (1) the type definition (OrchestratorConfig), (2) all call sites (orchestrator.go), (3) all implementations (constructor.go closure), and (4) all test doubles (orchestrator_test.go fakes).
-
-*Archived from emerging: generic interface-evolution advice with low project-specific leverage*
