@@ -13,6 +13,7 @@ func TestCheckBeads_NoCriteria(t *testing.T) {
 			Title:              "Test bead",
 			Description:        "Test description",
 			AcceptanceCriteria: []string{},
+			ExpectedOutputs:    []string{"artifact"},
 		},
 	}
 
@@ -34,6 +35,7 @@ func TestCheckBeads_ThreeCriteria(t *testing.T) {
 				"Criterion 2",
 				"Criterion 3",
 			},
+			ExpectedOutputs: []string{"artifact"},
 		},
 	}
 
@@ -56,6 +58,7 @@ func TestCheckBeads_FourCriteria(t *testing.T) {
 				"Criterion 3",
 				"Criterion 4",
 			},
+			ExpectedOutputs: []string{"artifact"},
 		},
 	}
 
@@ -319,6 +322,7 @@ func TestCheckBeads_MultipleBeads(t *testing.T) {
 				"Criterion 1",
 				"Criterion 2",
 			},
+			ExpectedOutputs: []string{"artifact"},
 		},
 		{
 			Title:       "Bad bead",
@@ -329,6 +333,7 @@ func TestCheckBeads_MultipleBeads(t *testing.T) {
 				"Criterion 3",
 				"Criterion 4",
 			},
+			ExpectedOutputs: []string{"artifact"},
 		},
 	}
 
