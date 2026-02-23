@@ -139,6 +139,9 @@ func ScoreCandidate(bead BeadCandidate) ComplexityResult {
 	if len(bead.AcceptanceCriteria) >= 3 {
 		result.Reasons = append(result.Reasons, fmt.Sprintf("acceptance_criteria=%d indicates broad implementation surface", len(bead.AcceptanceCriteria)))
 	}
+	if len(bead.ExpectedOutputs) >= 4 {
+		result.Reasons = append(result.Reasons, fmt.Sprintf("expected_outputs=%d indicates multiple coupled deliverables", len(bead.ExpectedOutputs)))
+	}
 	titleHasScopeSignal := containsScopeSignal(bead.Title)
 	descriptionHasScopeSignal := containsScopeSignal(bead.Description)
 	if titleHasScopeSignal {
