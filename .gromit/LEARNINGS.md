@@ -51,6 +51,11 @@ Scope-gate decomposition must enforce strict output contracts (bounded sub-task 
 
 *Newly observed — needs validation across more tasks.*
 
+### 2026-02-23 | Decomposition Contract Parity Across Entry Points | ARCHITECTURE
+*Related to: gromit-ph4bi, gromit-31jrn*
+
+Decomposition contract checks must be implemented in one shared path and reused by both pipeline decompose and scope-gate decomposition adapters. Divergent validation semantics (for example parent-echo interpretation) and non-canonical dedupe keys can produce cross-path behavior drift and retry idempotency gaps.
+
 ### 2026-02-23 | Scoped Status Progress Recomputed at Read-Time | PATTERNS
 *Related to: gromit-tlhuh*
 
