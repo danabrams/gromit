@@ -146,6 +146,8 @@ func ScoreCandidate(bead BeadCandidate) ComplexityResult {
 	}
 	if len(result.Reasons) > 0 {
 		result.Classification = "high"
+	} else {
+		result.Reasons = append(result.Reasons, "no high-complexity signals detected")
 	}
 
 	return result
