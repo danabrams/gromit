@@ -1678,6 +1678,69 @@ func TestDecomposeWorkflow_IncludesComplexityFeedbackInReprompt(t *testing.T) {
 	}
 }
 
+func TestDecomposeWorkflow_RetriesWhenHighComplexityRemains(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plansDir, "complexity-retry.md"), []byte("# Complexity Retry"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	runCount := 0
+	var secondPrompt string
+	mockClaude := &decomposeAcceptanceClaudeClient{
+		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+			runCount++
+			if runCount == 2 {
+				secondPrompt = prompt
+			}
+			if runCount == 1 {
+				return &ClaudeRunResult{
+					Success:  true,
+					ExitCode: 0,
+					Output: `[
+						{"title":"High task","description":"d","priority":"P1","estimated_files":8,"acceptance_criteria":["a"],"depends_on_index":[]},
+						{"title":"Low task","description":"d","priority":"P1","estimated_files":1,"acceptance_criteria":["b"],"depends_on_index":[]}
+					]`,
+				}, nil
+			}
+
+			return &ClaudeRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output: `[
+					{"title":"Reduced task","description":"d","priority":"P1","estimated_files":3,"acceptance_criteria":["a"],"depends_on_index":[]},
+					{"title":"Low task","description":"d","priority":"P1","estimated_files":1,"acceptance_criteria":["b"],"depends_on_index":[]}
+				]`,
+			}, nil
+		},
+	}
+
+	mockBead := &decomposeAcceptanceBeadClient{
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+			return &BeadInfo{ID: "bead-1"}, nil
+		},
+	}
+
+	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	_, err := p.Decompose(context.Background(), DecomposeInput{
+		PlanName:             "complexity-retry",
+		MaxValidationRetries: 2,
+	})
+	if err != nil {
+		t.Fatalf("Decompose() failed: %v", err)
+	}
+
+	if runCount != 2 {
+		t.Fatalf("Run() call count = %d, want 2", runCount)
+	}
+	if !strings.Contains(secondPrompt, "Complexity feedback:") {
+		t.Fatalf("second prompt missing complexity feedback, got:\n%s", secondPrompt)
+	}
+}
+
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
 	original := os.Stdout
