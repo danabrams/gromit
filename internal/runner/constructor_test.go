@@ -784,6 +784,26 @@ func TestDecomposerAdapter_Decompose_RejectsMoreThanFiveSubBeads(t *testing.T) {
 	}
 }
 
+func TestValidateRuntimeScopeGateDecomposeOutput_ReturnsRuleCodeFromSharedValidator(t *testing.T) {
+	err := validateRuntimeScopeGateDecomposeOutput(
+		[]scopeGateSubBead{
+			{Title: "Part 1", ExpectedOutputs: []string{"f1"}},
+			{Title: "Part 2", ExpectedOutputs: []string{"f2"}},
+			{Title: "Part 3", ExpectedOutputs: []string{"f3"}},
+			{Title: "Part 4", ExpectedOutputs: []string{"f4"}},
+			{Title: "Part 5", ExpectedOutputs: []string{"f5"}},
+			{Title: "Part 6", ExpectedOutputs: []string{"f6"}},
+		},
+		"Oversized Feature",
+	)
+	if err == nil {
+		t.Fatal("validateRuntimeScopeGateDecomposeOutput() error = nil, want batch_size_max violation")
+	}
+	if !strings.Contains(err.Error(), "batch_size_max") {
+		t.Fatalf("validateRuntimeScopeGateDecomposeOutput() error = %q, want rule code batch_size_max", err.Error())
+	}
+}
+
 func TestDecomposerAdapter_Decompose_RejectsChildWithMoreThanFiveExpectedOutputs(t *testing.T) {
 	stub := &stubRunProvider{
 		name: "test-provider",
