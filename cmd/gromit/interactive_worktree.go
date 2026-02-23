@@ -90,8 +90,9 @@ func (e *mergeConflictHandoffError) Error() string {
 
 	return fmt.Sprintf(
 		"merge conflict for branch %q; manual handoff required and pending branch retained. "+
-			"Run `git checkout %s`, `git status`, resolve files, then `git add -A` and `git commit`. "+
+			"checkout branch %q with `git checkout %s`, run `git status`, resolve files, then `git add -A` and `git commit`. "+
 			"If merge metadata exists, run `git merge --abort` before retrying.",
+		e.Branch,
 		e.Branch,
 		e.Branch,
 	)
