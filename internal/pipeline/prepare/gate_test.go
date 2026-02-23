@@ -19,6 +19,38 @@ var (
 	blockFalse = false
 )
 
+type scopeGateCase struct {
+	expectedOutputs []string
+	decomposer      Decomposer
+}
+
+func runScopeGateCase(t *testing.T, tc scopeGateCase) pipeline.Output {
+	t.Helper()
+
+	b := &bead.Bead{
+		ID:              "test-oversized",
+		Title:           "test bead",
+		ExpectedOutputs: tc.expectedOutputs,
+	}
+	cfg := &config.Config{
+		ScopeCheck: config.ScopeCheckConfig{
+			Enabled:        true,
+			BlockOversized: &blockTrue,
+		},
+	}
+
+	gate := New(io.Discard)
+	if tc.decomposer != nil {
+		gate = gate.WithDecomposer(tc.decomposer)
+	}
+
+	out, err := gate.Run(context.Background(), pipeline.Input{Bead: b, Config: cfg})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	return out
+}
+
 type fakePrechecker struct {
 	done bool
 	err  error
