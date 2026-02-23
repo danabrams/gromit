@@ -226,7 +226,9 @@ func (m *Manager) MergeBack(branch string) error {
 	_, err := m.runGit(m.MainDir, "merge", "--ff-only", branch)
 	if err == nil {
 		// Fast-forward successful, delete the branch
-		_, _ = m.runGit(m.MainDir, "branch", "-d", branch)
+		if _, deleteErr := m.runGit(m.MainDir, "branch", "-d", branch); deleteErr != nil {
+			return fmt.Errorf("delete merged branch %s: %w", branch, deleteErr)
+		}
 		return nil
 	}
 
@@ -239,7 +241,9 @@ func (m *Manager) MergeBack(branch string) error {
 	}
 
 	// Regular merge successful, delete the branch
-	_, _ = m.runGit(m.MainDir, "branch", "-d", branch)
+	if _, deleteErr := m.runGit(m.MainDir, "branch", "-d", branch); deleteErr != nil {
+		return fmt.Errorf("delete merged branch %s: %w", branch, deleteErr)
+	}
 	return nil
 }
 
