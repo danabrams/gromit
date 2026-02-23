@@ -42,6 +42,11 @@ func TestClassifyMergeFailure(t *testing.T) {
 			wantClass: mergeFailureNonConflict,
 		},
 		{
+			name:      "merge in progress classifies as conflict",
+			input:     mergeFailureInput{Err: errors.New("exit status 1"), MergeInProgress: true},
+			wantClass: mergeFailureConflict,
+		},
+		{
 			name:          "captures exit code when available",
 			input:         mergeFailureInput{Err: fakeExitCodeError{msg: "exit status 1", exitCode: 1}},
 			wantClass:     mergeFailureNonConflict,

@@ -10,8 +10,9 @@ const (
 )
 
 type mergeFailureInput struct {
-	Output string
-	Err    error
+	Output          string
+	Err             error
+	MergeInProgress bool
 }
 
 type mergeFailureDecision struct {
@@ -56,6 +57,10 @@ func classifyMergeFailure(input mergeFailureInput) mergeFailureDecision {
 			decision.Class = mergeFailureConflict
 			return decision
 		}
+	}
+
+	if input.MergeInProgress {
+		decision.Class = mergeFailureConflict
 	}
 
 	return decision

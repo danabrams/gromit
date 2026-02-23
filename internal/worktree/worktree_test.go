@@ -1083,9 +1083,9 @@ func TestMergeBack_NonConflictMergeFailureReturnsError(t *testing.T) {
 	}
 }
 
-// TestMergeBack_NonConflictMergeFailureWithMergeStateAborts verifies that
-// MergeBack defensively aborts when a non-conflict failure leaves merge state.
-func TestMergeBack_NonConflictMergeFailureWithMergeStateAborts(t *testing.T) {
+// TestMergeBack_MergeStatePresentClassifiesAsConflict verifies that
+// MergeBack classifies failures with active merge state as conflict.
+func TestMergeBack_MergeStatePresentClassifiesAsConflict(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainDir := filepath.Join(tmpDir, "myproject")
 	if err := os.MkdirAll(mainDir, 0755); err != nil {
@@ -1117,10 +1117,10 @@ func TestMergeBack_NonConflictMergeFailureWithMergeStateAborts(t *testing.T) {
 
 	err = m.MergeBack("gromit/review-1234567890")
 	if err == nil {
-		t.Fatal("MergeBack() should return error on non-conflict merge failure, got nil")
+		t.Fatal("MergeBack() should return error on merge failure, got nil")
 	}
-	if strings.Contains(strings.ToLower(err.Error()), "merge conflict") {
-		t.Fatalf("MergeBack() should not label non-conflict merge failure as conflict, got: %v", err)
+	if !strings.Contains(strings.ToLower(err.Error()), "merge conflict") {
+		t.Fatalf("MergeBack() should classify active merge state as conflict, got: %v", err)
 	}
 
 	foundAbort := false

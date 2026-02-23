@@ -240,14 +240,16 @@ func (m *Manager) MergeBack(branch string) error {
 	// Fast-forward failed, try regular merge
 	output, err := m.runGit(m.MainDir, "merge", branch)
 	if err != nil {
-		decision := classifyMergeFailure(mergeFailureInput{Output: output, Err: err})
+		mergeInProgress := m.mergeInProgress()
+		decision := classifyMergeFailure(mergeFailureInput{
+			Output:          output,
+			Err:             err,
+			MergeInProgress: mergeInProgress,
+		})
 		if decision.Class == mergeFailureConflict {
 			// Merge failed with conflict, abort merge state.
 			_, _ = m.runGit(m.MainDir, "merge", "--abort")
 			return fmt.Errorf("merge conflict for branch %s: %w", branch, err)
-		}
-		if m.mergeInProgress() {
-			_, _ = m.runGit(m.MainDir, "merge", "--abort")
 		}
 		if decision.ExitCodeKnown {
 			return fmt.Errorf("merge failed for branch %s (exit %d): %w", branch, decision.ExitCode, err)
