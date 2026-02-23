@@ -305,10 +305,7 @@ func isAmbiguousSessionContentionErr(output string, err error) bool {
 		return false
 	}
 	msg := sessionCreateErrorMessage(output, err)
-	if !strings.Contains(msg, "cannot lock ref") || !strings.Contains(msg, "refs/heads/") {
-		return false
-	}
-	return strings.Contains(msg, "file exists") || strings.Contains(msg, "already exists")
+	return strings.Contains(msg, "cannot lock ref") && strings.Contains(msg, "refs/heads/")
 }
 
 func sessionCreateErrorMessage(output string, err error) string {
