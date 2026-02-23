@@ -147,6 +147,13 @@ func resolveComplexityRouting(in pipeline.Input) pipeline.ComplexityRouting {
 			ComplexityFallbackReason: "none",
 		}
 	}
+	if normalized, ok := complexityFromLabels(in.Bead); ok {
+		return pipeline.ComplexityRouting{
+			Complexity:               normalized,
+			ComplexitySource:         "label",
+			ComplexityFallbackReason: "scope_unavailable",
+		}
+	}
 	return pipeline.ComplexityRouting{}
 }
 
@@ -155,6 +162,23 @@ func normalizeComplexity(complexity string) (string, bool) {
 	switch normalized {
 	case "low", "medium", "high":
 		return normalized, true
+	}
+	return "", false
+}
+
+func complexityFromLabels(b *bead.Bead) (string, bool) {
+	if b == nil {
+		return "", false
+	}
+	for _, label := range b.Labels {
+		normalizedLabel := strings.ToLower(strings.TrimSpace(label))
+		if !strings.HasPrefix(normalizedLabel, "complexity:") {
+			continue
+		}
+		value := strings.TrimSpace(strings.TrimPrefix(normalizedLabel, "complexity:"))
+		if normalized, ok := normalizeComplexity(value); ok {
+			return normalized, true
+		}
 	}
 	return "", false
 }
