@@ -941,6 +941,55 @@ func TestMergeBack_ConflictReturnsError(t *testing.T) {
 	}
 }
 
+func TestMergeBack_ConflictDetectedFromOutputWithGenericError(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "myproject")
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	gitCalls := []string{}
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		gitCalls = append(gitCalls, strings.Join(args, " "))
+		if args[0] == "merge" && contains(args, "--ff-only") {
+			return "", errors.New("fatal: Not possible to fast-forward")
+		}
+		if args[0] == "merge" && !contains(args, "--ff-only") {
+			return "Auto-merging file.txt\nCONFLICT (content): Merge conflict in file.txt\nAutomatic merge failed; fix conflicts and then commit the result.\n", errors.New("exit status 1")
+		}
+		if args[0] == "merge" && args[1] == "--abort" {
+			return "", nil
+		}
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	err = m.MergeBack("gromit/review-1234567890")
+	if err == nil {
+		t.Fatal("MergeBack() should return error on merge conflict, got nil")
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "conflict") {
+		t.Fatalf("MergeBack() error should indicate conflict, got: %v", err)
+	}
+
+	foundAbort := false
+	for _, call := range gitCalls {
+		if strings.Contains(call, "merge --abort") {
+			foundAbort = true
+		}
+		if strings.Contains(call, "branch -d") {
+			t.Errorf("should NOT delete branch after merge conflict, got calls: %v", gitCalls)
+		}
+	}
+	if !foundAbort {
+		t.Fatalf("expected 'git merge --abort' after conflict, got calls: %v", gitCalls)
+	}
+}
+
 // TestMergeBack_NonConflictMergeFailureReturnsError verifies that MergeBack
 // reports non-conflict merge failures without attempting merge --abort.
 func TestMergeBack_NonConflictMergeFailureReturnsError(t *testing.T) {

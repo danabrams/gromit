@@ -238,9 +238,9 @@ func (m *Manager) MergeBack(branch string) error {
 	}
 
 	// Fast-forward failed, try regular merge
-	_, err = m.runGit(m.MainDir, "merge", branch)
+	output, err := m.runGit(m.MainDir, "merge", branch)
 	if err != nil {
-		if isMergeConflictError(err) {
+		if isMergeConflictError(output, err) {
 			// Merge failed with conflict, abort merge state.
 			_, _ = m.runGit(m.MainDir, "merge", "--abort")
 			return fmt.Errorf("merge conflict for branch %s: %w", branch, err)
@@ -287,12 +287,18 @@ func sessionBranchName(command string, timestamp int64) string {
 	return fmt.Sprintf("%s%s-%d", branchPrefix, command, timestamp)
 }
 
-func isMergeConflictError(err error) bool {
+func isMergeConflictError(output string, err error) bool {
 	if err == nil {
 		return false
 	}
-	msg := err.Error()
-	return strings.Contains(msg, "CONFLICT") || strings.Contains(msg, "Automatic merge failed")
+	msg := strings.ToLower(strings.TrimSpace(output))
+	if err != nil {
+		if msg != "" {
+			msg += "\n"
+		}
+		msg += strings.ToLower(strings.TrimSpace(err.Error()))
+	}
+	return strings.Contains(msg, "conflict") || strings.Contains(msg, "automatic merge failed")
 }
 
 func sessionWorktreeDir(mainDir, command string, timestamp int64) string {
