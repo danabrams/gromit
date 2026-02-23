@@ -1,6 +1,7 @@
 package validate
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -685,6 +686,42 @@ func TestCheckBatchContract_TwoBeads_NoMinViolation(t *testing.T) {
 	for _, v := range violations {
 		if v.Rule == "batch_size_min" {
 			t.Error("unexpected batch_size_min violation for decomposition with 2 sub-beads")
+		}
+	}
+}
+
+// TestCheckBatchContract_SixBeads_ViolatesBatchSizeMax tests that more than 5 beads is a contract violation
+func TestCheckBatchContract_SixBeads_ViolatesBatchSizeMax(t *testing.T) {
+	beads := make([]BeadCandidate, 6)
+	for i := range beads {
+		beads[i] = BeadCandidate{Title: fmt.Sprintf("Bead %d", i)}
+	}
+
+	violations := CheckBatchContract(beads)
+
+	found := false
+	for _, v := range violations {
+		if v.Rule == "batch_size_max" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected batch_size_max violation for decomposition with 6 sub-beads")
+	}
+}
+
+// TestCheckBatchContract_FiveBeads_NoMaxViolation tests that exactly 5 beads satisfies the maximum
+func TestCheckBatchContract_FiveBeads_NoMaxViolation(t *testing.T) {
+	beads := make([]BeadCandidate, 5)
+	for i := range beads {
+		beads[i] = BeadCandidate{Title: fmt.Sprintf("Bead %d", i)}
+	}
+
+	violations := CheckBatchContract(beads)
+
+	for _, v := range violations {
+		if v.Rule == "batch_size_max" {
+			t.Error("unexpected batch_size_max violation for decomposition with exactly 5 sub-beads")
 		}
 	}
 }
