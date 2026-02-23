@@ -240,10 +240,6 @@ func (m *Manager) MergeBack(branch string) error {
 
 	// Regular merge successful, delete the branch
 	_, _ = m.runGit(m.MainDir, "branch", "-d", branch)
-	if strings.HasPrefix(branch, branchPrefix) {
-		suffix := strings.TrimPrefix(branch, branchPrefix)
-		_, _ = m.runGit(m.MainDir, "worktree", "remove", m.MainDir+"-gromit-"+suffix)
-	}
 	return nil
 }
 
