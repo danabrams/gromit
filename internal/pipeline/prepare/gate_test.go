@@ -427,6 +427,22 @@ func TestGateRunScopeGateBehavior_WithSharedCaseHelper(t *testing.T) {
 	}
 }
 
+func TestGateRunScopeGateBehavior_WithSharedCaseHelperOnChildBead(t *testing.T) {
+	d := &fakeDecomposer{}
+	out := runScopeGateCase(t, scopeGateCase{
+		expectedOutputs: []string{"f1", "f2", "f3", "f4", "f5", "f6"},
+		decomposer:      d,
+		parentID:        "parent-1",
+	})
+
+	if out.Decision != pipeline.Skip {
+		t.Fatalf("decision = %v, want %v", out.Decision, pipeline.Skip)
+	}
+	if !d.called {
+		t.Fatal("decomposer called = false, want true")
+	}
+}
+
 // TestGateRunScopeGateDecompositionEndToEnd verifies the full path:
 // gate.Run() → scope gate triggers → decomposerAdapter.Decompose() → bead.Client.CreateWithParent()
 // This integration test exercises the end-to-end decomposition pipeline when an oversized root bead
