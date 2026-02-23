@@ -278,7 +278,9 @@ func isSessionContentionErr(err error) bool {
 	if strings.Contains(msg, "a branch named") && strings.Contains(msg, "already exists") {
 		return true
 	}
-	if strings.Contains(msg, "reference already exists") {
+	if strings.Contains(msg, "cannot lock ref") &&
+		strings.Contains(msg, "refs/heads/") &&
+		strings.Contains(msg, "reference already exists") {
 		return true
 	}
 	if strings.Contains(msg, "already checked out") {
