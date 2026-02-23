@@ -54,6 +54,9 @@ func AggregateModeMetrics(inputs []ModeLogInput) ([]ModeSummary, error) {
 				summary.TierTotals.Medium.CostUSD = roundUSD(summary.TierTotals.Medium.CostUSD + rec.CostUSD)
 			}
 		}
+		if !input.RunStartedAt.IsZero() && !input.RunFinishedAt.IsZero() && input.RunFinishedAt.After(input.RunStartedAt) {
+			summary.ElapsedSeconds = int(input.RunFinishedAt.Sub(input.RunStartedAt).Seconds())
+		}
 		summaries = append(summaries, summary)
 	}
 
