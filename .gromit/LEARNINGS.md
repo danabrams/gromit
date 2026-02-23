@@ -165,6 +165,11 @@ Session worktree retry behavior should be driven by an explicit retryable/non-re
 
 If reprompt instructions require preserving fields such as `depends_on_index` and `expected_outputs`, those fields must be rendered in the candidate context shown to the model. Telling the model to keep fields unchanged without displaying them creates avoidable contract drift and retry churn.
 
+### 2026-02-23 | REVIEW_LEARNINGS_DEPENDENCY_CONTEXT_PARITY | ARCHITECTURE
+*Related to: review-1771839601749019692*
+
+Decomposition/validation contract fields should move together across pipeline mapping and reprompt rendering. Propagating `depends_on_index` into `validate.BeadCandidate` and showing both `depends_on_index` plus `expected_outputs` in reprompt candidate context keeps model repair loops aligned with validator expectations and reduces avoidable retries.
+
 ---
 
 ## Archived
