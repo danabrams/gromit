@@ -23,7 +23,7 @@ import (
 func buildTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *provider.Router, output io.Writer) execute.TDDCycleRunner {
 	orch := tdd.NewCycleOrchestrator(cfg, output, tdd.CycleOrchestratorDeps{
 		RenderRedFn:    buildRenderRedFn(cfg, renderer),
-		RenderGreenFn:  buildRenderGreenFn(renderer),
+		RenderGreenFn:  buildRenderGreenFn(cfg, renderer),
 		InvokeFn:       buildInvokeFn(router, output),
 		ValidateFn:     buildValidateFn(cfg),
 		RunRefactorFn:  buildRunRefactorFn(renderer, router, output),
@@ -98,8 +98,11 @@ func buildRenderRedFn(cfg *config.Config, renderer *prompt.Renderer) tdd.RenderR
 	}
 }
 
-func buildRenderGreenFn(renderer *prompt.Renderer) tdd.RenderGreenFn {
+func buildRenderGreenFn(cfg *config.Config, renderer *prompt.Renderer) tdd.RenderGreenFn {
 	return func(handoff *tdd.GreenHandoff, bc *runtypes.BeadContext) (string, error) {
+		if bc != nil {
+			bc.Tier = cfg.PhaseModelTier("green", bc.Tier)
+		}
 		rules, _ := renderer.LoadRulesForPhase("build")
 		ctx := &prompt.TDDGreenContext{
 			BeadID:            bc.Bead.ID,

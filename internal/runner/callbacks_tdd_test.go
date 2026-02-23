@@ -216,7 +216,7 @@ func TestBuildRenderGreenFn_UsesGreenPhaseTierOverride(t *testing.T) {
 	}
 	handoff := &tdd.GreenHandoff{FailingTest: "test fails"}
 
-	fn := buildRenderGreenFn(renderer)
+	fn := buildRenderGreenFn(cfg, renderer)
 	if _, err := fn(handoff, bc); err != nil {
 		t.Fatalf("buildRenderGreenFn() error = %v", err)
 	}
