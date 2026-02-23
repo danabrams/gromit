@@ -469,3 +469,15 @@ func TestIsLowComplexity_Threshold(t *testing.T) {
 		})
 	}
 }
+
+func TestIsLowComplexity_TestOnlyTitleStillRequiresThreshold(t *testing.T) {
+	one := 1
+	b := &bead.Bead{
+		Title:          "Add tests for tier selection",
+		DependentCount: &one,
+	}
+
+	if got := isLowComplexity(&config.Config{}, b); got {
+		t.Fatalf("isLowComplexity() = true, want false for single-signal test-only bead")
+	}
+}
