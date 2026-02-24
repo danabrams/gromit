@@ -29,6 +29,13 @@ func TestResolveSelectedBeads_ReturnsErrorForEmptySelection(t *testing.T) {
 	}
 }
 
+func TestResolveSelectedBeads_ReturnsErrorWhenSelectionIsNotExactlyFive(t *testing.T) {
+	_, err := ResolveSelectedBeads([]string{"gromit-1", "gromit-2", "gromit-3", "gromit-4"}, nil, 0)
+	if err == nil {
+		t.Fatal("ResolveSelectedBeads() error = nil, want fixed-size cohort error")
+	}
+}
+
 func TestResolveSelectedBeads_TruncatesDeterministicallyWithBeadCount(t *testing.T) {
 	resolved, err := ResolveSelectedBeads([]string{"gromit-1", "gromit-2", "gromit-3"}, nil, 2)
 	if err != nil {
