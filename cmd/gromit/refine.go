@@ -251,6 +251,7 @@ func toPipelineIdea(idea *backlog.Idea) *pipeline.Idea {
 		Text:     idea.Text,
 		Type:     idea.Type,
 		Context:  idea.Context,
+		CreatedAt: idea.CreatedAt,
 		Status:   idea.Status,
 		SpecName: idea.SpecName,
 	}
