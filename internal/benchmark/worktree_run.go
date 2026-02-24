@@ -99,6 +99,7 @@ type SessionModeWorktreeRunner struct {
 
 var sessionCleanupRemoveFn = removeSessionWorktree
 var sessionCleanupNormalizePermissionsFn = ensureRemovablePermissions
+var sessionCleanupRemoveAllFn = os.RemoveAll
 
 func NewSessionModeWorktreeRunner(opts SessionModeWorktreeRunnerOptions) *SessionModeWorktreeRunner {
 	r := &SessionModeWorktreeRunner{
@@ -228,6 +229,17 @@ func defaultSessionCleanup(mainDir, sessionDir string) error {
 		)
 	}
 	if retryErr := sessionCleanupRemoveFn(mainDir, sessionDir); retryErr != nil {
+		if isNotWorkingTreeError(retryErr) {
+			removeErr := sessionCleanupRemoveAllFn(sessionDir)
+			if removeErr == nil || os.IsNotExist(removeErr) {
+				return nil
+			}
+			return fmt.Errorf(
+				"remove orphaned session worktree directory %q after git metadata drop: %w",
+				sessionDir,
+				errors.Join(err, retryErr, removeErr),
+			)
+		}
 		return fmt.Errorf(
 			"remove session worktree %q after permission normalization: %w",
 			sessionDir,
@@ -311,6 +323,13 @@ func isPermissionDeniedError(err error) bool {
 		return false
 	}
 	return stdstrings.Contains(stdstrings.ToLower(err.Error()), "permission denied")
+}
+
+func isNotWorkingTreeError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return stdstrings.Contains(stdstrings.ToLower(err.Error()), "is not a working tree")
 }
 
 func applyBenchmarkOverlayToConfig(cfg *config.Config, overlay ModeOverlay) (*config.Config, error) {

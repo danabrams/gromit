@@ -258,6 +258,78 @@ func TestDefaultSessionCleanup_ReturnsCombinedErrorWhenNormalizationFails(t *tes
 	}
 }
 
+func TestDefaultSessionCleanup_RemovesOrphanedDirectoryWhenWorktreeMetadataDropped(t *testing.T) {
+	origRemove := sessionCleanupRemoveFn
+	origNormalize := sessionCleanupNormalizePermissionsFn
+	origRemoveAll := sessionCleanupRemoveAllFn
+	t.Cleanup(func() {
+		sessionCleanupRemoveFn = origRemove
+		sessionCleanupNormalizePermissionsFn = origNormalize
+		sessionCleanupRemoveAllFn = origRemoveAll
+	})
+
+	removeCalls := 0
+	removeAllCalls := 0
+	sessionCleanupRemoveFn = func(_, _ string) error {
+		removeCalls++
+		if removeCalls == 1 {
+			return fmt.Errorf("remove session worktree %q: %w: %s", "/tmp/wt", errors.New("exit status 255"), "failed to delete '/tmp/wt': Permission denied")
+		}
+		return fmt.Errorf("remove session worktree %q: %w: %s", "/tmp/wt", errors.New("exit status 128"), "fatal: '/tmp/wt' is not a working tree")
+	}
+	sessionCleanupNormalizePermissionsFn = func(string) error { return nil }
+	sessionCleanupRemoveAllFn = func(path string) error {
+		removeAllCalls++
+		if path != "/tmp/wt" {
+			t.Fatalf("removeAll path = %q, want %q", path, "/tmp/wt")
+		}
+		return nil
+	}
+
+	if err := defaultSessionCleanup("/tmp/repo", "/tmp/wt"); err != nil {
+		t.Fatalf("defaultSessionCleanup() error = %v", err)
+	}
+	if removeCalls != 2 {
+		t.Fatalf("remove calls = %d, want 2", removeCalls)
+	}
+	if removeAllCalls != 1 {
+		t.Fatalf("removeAll calls = %d, want 1", removeAllCalls)
+	}
+}
+
+func TestDefaultSessionCleanup_ReturnsErrorWhenOrphanedDirectoryRemovalFails(t *testing.T) {
+	origRemove := sessionCleanupRemoveFn
+	origNormalize := sessionCleanupNormalizePermissionsFn
+	origRemoveAll := sessionCleanupRemoveAllFn
+	t.Cleanup(func() {
+		sessionCleanupRemoveFn = origRemove
+		sessionCleanupNormalizePermissionsFn = origNormalize
+		sessionCleanupRemoveAllFn = origRemoveAll
+	})
+
+	removeCalls := 0
+	sessionCleanupRemoveFn = func(_, _ string) error {
+		removeCalls++
+		if removeCalls == 1 {
+			return fmt.Errorf("remove session worktree %q: %w: %s", "/tmp/wt", errors.New("exit status 255"), "failed to delete '/tmp/wt': Permission denied")
+		}
+		return fmt.Errorf("remove session worktree %q: %w: %s", "/tmp/wt", errors.New("exit status 128"), "fatal: '/tmp/wt' is not a working tree")
+	}
+	sessionCleanupNormalizePermissionsFn = func(string) error { return nil }
+	sessionCleanupRemoveAllFn = func(string) error { return errors.New("removeall failed") }
+
+	err := defaultSessionCleanup("/tmp/repo", "/tmp/wt")
+	if err == nil {
+		t.Fatal("defaultSessionCleanup() error = nil, want non-nil")
+	}
+	if !stdstrings.Contains(err.Error(), "remove orphaned session worktree directory") {
+		t.Fatalf("error = %q, want orphaned-directory context", err)
+	}
+	if !stdstrings.Contains(err.Error(), "removeall failed") {
+		t.Fatalf("error = %q, want removeall failure context", err)
+	}
+}
+
 func TestEnsureRemovablePermissions_GrantsOwnerPermissionsRecursively(t *testing.T) {
 	t.Parallel()
 
