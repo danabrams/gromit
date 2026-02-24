@@ -1,4 +1,4 @@
-.PHONY: build install install-skill lint install-hooks repo-hygiene-guard staged-artifact-guard shared-state-guard beads-normalize test-parallel-safe-top5 test-touched test-timing test-acceptance-timing test-profile test-unit test-acceptance test-contract test-e2e test-tagged-harness test-e2e-live test-ci
+.PHONY: build install install-skill lint install-hooks repo-hygiene-guard staged-artifact-guard beads-issues-policy-guard shared-state-guard beads-normalize test-parallel-safe-top5 test-touched test-timing test-acceptance-timing test-profile test-unit test-acceptance test-contract test-e2e test-tagged-harness test-e2e-live test-ci
 
 GOLANGCI_LINT_VERSION := $(shell cat .golangci-version)
 
@@ -27,13 +27,16 @@ repo-hygiene-guard:
 staged-artifact-guard:
 	./scripts/check_staged_artifact_policy.sh
 
+beads-issues-policy-guard:
+	./scripts/check_beads_issues_policy.sh
+
 shared-state-guard:
 	./scripts/check_shared_state_test_calls.sh
 
 beads-normalize:
 	./scripts/normalize_beads_issues.sh
 
-test-parallel-safe-top5: repo-hygiene-guard shared-state-guard
+test-parallel-safe-top5: repo-hygiene-guard staged-artifact-guard beads-issues-policy-guard shared-state-guard
 	./scripts/verify_top5_parallel_execution.sh
 
 test-touched:
