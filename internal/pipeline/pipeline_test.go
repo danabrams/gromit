@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-var _ LLMClient = (*testClaudeClient)(nil)
+var _ LLMClient = (*testLLMClient)(nil)
 
 func TestNew_ReturnsNonNil(t *testing.T) {
 	deps := &Deps{}
@@ -46,7 +46,7 @@ func TestPaths_FieldAccess(t *testing.T) {
 func TestDeps_FieldAccess(t *testing.T) {
 	deps := Deps{
 		AgentResolver:     &testAgentResolver{},
-		LLMClient:         &testClaudeClient{},
+		LLMClient:         &testLLMClient{},
 		BeadClient:        &testBeadClient{},
 		BacklogClient:     &testBacklogClient{},
 		RefineRenderer:    &testRefineRenderer{},
@@ -99,7 +99,7 @@ func TestDeps_FieldAccess(t *testing.T) {
 
 func TestDeps_UsesLLMClientField(t *testing.T) {
 	deps := Deps{
-		LLMClient: &testClaudeClient{},
+		LLMClient: &testLLMClient{},
 	}
 
 	if deps.LLMClient == nil {
@@ -113,7 +113,7 @@ func TestPipelineTest_HasLLMClientCompileTimeAssertion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read pipeline_test.go: %v", err)
 	}
-	pattern := regexp.MustCompile(`(?m)^var _ LLMClient = \(\*testClaudeClient\)\(nil\)$`)
+	pattern := regexp.MustCompile(`(?m)^var _ LLMClient = \(\*testLLMClient\)\(nil\)$`)
 	if !pattern.Match(content) {
 		t.Fatal("pipeline_test.go should include compile-time assertion for LLMClient")
 	}

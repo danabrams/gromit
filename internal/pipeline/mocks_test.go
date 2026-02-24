@@ -2,7 +2,7 @@ package pipeline
 
 // These should compile if the interfaces are properly defined
 var _ AgentResolver = (*testAgentResolver)(nil)
-var _ LLMClient = (*testClaudeClient)(nil)
+var _ LLMClient = (*testLLMClient)(nil)
 var _ BeadClient = (*testBeadClient)(nil)
 var _ BacklogClient = (*testBacklogClient)(nil)
 var _ RefineRenderer = (*testRefineRenderer)(nil)
@@ -21,10 +21,10 @@ func (m *testAgentResolver) Resolve(phase string, flagOverride string, choosePic
 	return nil, nil
 }
 
-// testClaudeClient is a mock for unit tests
-type testClaudeClient struct{}
+// testLLMClient is a mock for unit tests
+type testLLMClient struct{}
 
-func (m *testClaudeClient) Run(prompt string, model string) (*LLMRunResult, error) {
+func (m *testLLMClient) Run(prompt string, model string) (*LLMRunResult, error) {
 	return nil, nil
 }
 
