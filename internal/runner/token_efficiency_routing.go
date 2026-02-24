@@ -25,7 +25,7 @@ func resolveUtilityTaskTier(cfg *config.Config, taskCategory, fallbackTier strin
 
 func isUtilityTaskCategory(taskCategory string) bool {
 	switch taskCategory {
-	case "summarization", "masking_transform":
+	case "summarization", "masking_transform", "discovery_indexing":
 		return true
 	default:
 		return false
