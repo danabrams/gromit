@@ -92,6 +92,16 @@ func TestDeps_FieldAccess(t *testing.T) {
 	}
 }
 
+func TestDeps_UsesLLMClientField(t *testing.T) {
+	deps := Deps{
+		LLMClient: &testClaudeClient{},
+	}
+
+	if deps.LLMClient == nil {
+		t.Error("LLMClient field should be set")
+	}
+}
+
 func TestPipeline_RefineMethod(t *testing.T) {
 	deps := &Deps{}
 	paths := &Paths{}
