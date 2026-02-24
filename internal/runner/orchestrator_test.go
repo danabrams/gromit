@@ -622,3 +622,44 @@ func TestOrchestrator_RunSequence_UsesCallerProvidedOrder(t *testing.T) {
 		t.Errorf("build order = %v, want %v", buildOrder, []string{"b-2", "b-1", "b-3"})
 	}
 }
+
+// TestOrchestrator_RunSequence_RespectsMaxIterationsWithoutExtraResolution verifies
+// that RunSequence does not resolve bead IDs beyond maxIterations, preserving the
+// same iteration cap semantics as queue-based Run.
+func TestOrchestrator_RunSequence_RespectsMaxIterationsWithoutExtraResolution(t *testing.T) {
+	var getByIDCalls []string
+	var buildOrder []string
+
+	build := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		buildOrder = append(buildOrder, in.Bead.ID)
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	cfg := OrchestratorConfig{
+		Gate:     &fakeStage{},
+		Build:    build,
+		Validate: &fakeStage{},
+		Epilogue: &fakeStage{},
+		GetBead: func(_ context.Context) (*bead.Bead, error) {
+			return nil, nil
+		},
+		GetBeadByID: func(_ context.Context, id string) (*bead.Bead, error) {
+			getByIDCalls = append(getByIDCalls, id)
+			return &bead.Bead{ID: id, Title: "Sequence " + id}, nil
+		},
+		Config: &config.Config{},
+		Output: io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.RunSequence(context.Background(), []string{"b-1", "b-2", "b-3"}, 2, time.Time{}, nil); err != nil {
+		t.Fatalf("RunSequence() error = %v, want nil", err)
+	}
+
+	if !reflect.DeepEqual(getByIDCalls, []string{"b-1", "b-2"}) {
+		t.Errorf("GetBeadByID calls = %v, want %v", getByIDCalls, []string{"b-1", "b-2"})
+	}
+	if !reflect.DeepEqual(buildOrder, []string{"b-1", "b-2"}) {
+		t.Errorf("build order = %v, want %v", buildOrder, []string{"b-1", "b-2"})
+	}
+}
