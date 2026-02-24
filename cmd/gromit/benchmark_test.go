@@ -156,7 +156,11 @@ func TestRunBenchmarkPipeline_WritesDeterministicArtifacts(t *testing.T) {
 		}, nil
 	}
 	benchmarkComputeMetricsFn = func(result benchmarkHarnessResult) (benchmarkMetricsResult, error) {
-		return benchmarkMetricsResult{}, nil
+		summaries := make([]benchpkg.ModeSummary, 0, len(result.Modes))
+		for _, mode := range result.Modes {
+			summaries = append(summaries, benchpkg.ModeSummary{Mode: mode.Mode})
+		}
+		return benchmarkMetricsResult{ModeSummaries: summaries}, nil
 	}
 
 	opts := benchmarkRunOptions{
@@ -199,30 +203,22 @@ func TestRunBenchmarkPipeline_WritesDeterministicArtifacts(t *testing.T) {
 	}
 
 	var payload struct {
-		SelectedBeads []string `json:"selected_beads"`
-		Modes         []struct {
-			Mode          string   `json:"mode"`
-			BaseCommit    string   `json:"base_commit"`
-			SelectedBeads []string `json:"selected_beads"`
+		Manifest struct {
+			Beads []string `json:"beads"`
+		} `json:"manifest"`
+		Modes []struct {
+			Mode string `json:"mode"`
 		} `json:"modes"`
 	}
 	if err := json.Unmarshal(jsonFirst, &payload); err != nil {
 		t.Fatalf("unmarshal json artifact: %v", err)
 	}
 
-	if strings.Join(payload.SelectedBeads, ",") != "gromit-1,gromit-2,gromit-3,gromit-4,gromit-5" {
-		t.Fatalf("selected_beads = %v", payload.SelectedBeads)
+	if strings.Join(payload.Manifest.Beads, ",") != "gromit-1,gromit-2,gromit-3,gromit-4,gromit-5" {
+		t.Fatalf("manifest.beads = %v", payload.Manifest.Beads)
 	}
 	if len(payload.Modes) != 3 {
 		t.Fatalf("mode count = %d, want 3", len(payload.Modes))
-	}
-	for _, mode := range payload.Modes {
-		if mode.BaseCommit != "abc123" {
-			t.Fatalf("mode %s base_commit = %q, want %q", mode.Mode, mode.BaseCommit, "abc123")
-		}
-		if strings.Join(mode.SelectedBeads, ",") != "gromit-1,gromit-2,gromit-3,gromit-4,gromit-5" {
-			t.Fatalf("mode %s selected_beads = %v", mode.Mode, mode.SelectedBeads)
-		}
 	}
 }
 
@@ -448,6 +444,9 @@ func TestRunBenchmarkPipeline_UsesInternalBenchmarkStagesInOrder(t *testing.T) {
 	}
 	benchmarkInternalRunModesInIsolatedWorktreesFn = func(ctx context.Context, input benchpkg.RunModesInput) ([]benchpkg.ModeWorktreeRun, string, error) {
 		order = append(order, "run_modes")
+		if strings.Join(input.Modes, ",") != "single_pass" {
+			t.Fatalf("run modes input = %v, want [single_pass]", input.Modes)
+		}
 		return []benchpkg.ModeWorktreeRun{{Mode: "single_pass"}}, "abc123", nil
 	}
 	benchmarkInternalAggregateModeMetricsFn = func(inputs []benchpkg.ModeLogInput) ([]benchpkg.ModeSummary, error) {
@@ -524,14 +523,16 @@ func TestBenchmarkRunCommand_BeadOverridesDriveSelection(t *testing.T) {
 	}
 
 	var payload struct {
-		SelectedBeads []string `json:"selected_beads"`
+		Manifest struct {
+			Beads []string `json:"beads"`
+		} `json:"manifest"`
 	}
 	if err := json.Unmarshal(reportBytes, &payload); err != nil {
 		t.Fatalf("unmarshal report json: %v", err)
 	}
 
-	if strings.Join(payload.SelectedBeads, ",") != "gromit-9,gromit-8,gromit-7,gromit-6,gromit-10" {
-		t.Fatalf("selected_beads = %v, want [%s]", payload.SelectedBeads, "gromit-9 gromit-8 gromit-7 gromit-6 gromit-10")
+	if strings.Join(payload.Manifest.Beads, ",") != "gromit-9,gromit-8,gromit-7,gromit-6,gromit-10" {
+		t.Fatalf("manifest.beads = %v, want [%s]", payload.Manifest.Beads, "gromit-9 gromit-8 gromit-7 gromit-6 gromit-10")
 	}
 }
 

@@ -29,5 +29,20 @@ Prefer routing benchmark CLI through the internal benchmark pipeline to prevent 
 
 Harness abstractions alone are insufficient; acceptance requires real worktree execution plus log wiring so metrics/reporting reflect actual runs.
 
+### 2026-02-24 | benchmark_harness_should_execute_manifest_modes_not_hardcoded_modes | CORRECTNESS
+*Related to: gromit/review-1771897964548429202*
+
+Benchmark execution should treat `manifest.modes` as the source of truth. Hardcoding mode lists in runtime paths creates spec drift and invalidates manifest-driven experiments.
+
+### 2026-02-24 | benchmark_report_schema_must_have_single_writer_owner | ARCHITECTURE
+*Related to: gromit/review-1771897964548429202*
+
+Report generation should have one schema owner/writer path. Dual writers targeting the same artifact path cause silent overwrite risk and unstable downstream contracts.
+
+### 2026-02-24 | real_probe_fixtures_are_canonical_and_tests_should_follow_them | TEST_QUALITY
+*Related to: gromit/review-1771897964548429202*
+
+When fixture artifacts come from a fresh real-provider probe, treat them as canonical evidence. Tests and parsing contracts should evolve to the observed schema rather than forcing fixtures back to stale assumptions.
+
 ## Archived Learnings
 *Moved to LEARNINGS_ARCHIVE.md to reduce prompt context overhead.*

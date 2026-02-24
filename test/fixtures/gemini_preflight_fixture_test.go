@@ -411,25 +411,30 @@ func TestGeminiStreamJSONSuccessFixture_ExistsWithJSONLRecords(t *testing.T) {
 		seenTypes[typeValue] = true
 		finalRecord = record
 	}
-	if !seenTypes["message_start"] || !seenTypes["message_end"] {
-		t.Fatal("stream-json fixture must include both message_start and message_end records")
+	if !seenTypes["init"] || !seenTypes["result"] {
+		t.Fatal("stream-json fixture must include both init and result records")
 	}
-	usage, ok := finalRecord["usage"].(map[string]any)
-	if !ok {
-		t.Fatal("final stream-json record must include usage object")
+	if usage, ok := finalRecord["usage"].(map[string]any); ok {
+		if _, ok := usage["input_tokens"].(float64); !ok {
+			t.Fatal("final stream-json usage must include numeric input_tokens")
+		}
+		if _, ok := usage["output_tokens"].(float64); !ok {
+			t.Fatal("final stream-json usage must include numeric output_tokens")
+		}
+	} else if stats, ok := finalRecord["stats"].(map[string]any); ok {
+		if _, ok := stats["input_tokens"].(float64); !ok {
+			t.Fatal("final stream-json stats must include numeric input_tokens")
+		}
+		if _, ok := stats["output_tokens"].(float64); !ok {
+			t.Fatal("final stream-json stats must include numeric output_tokens")
+		}
+	} else {
+		t.Fatal("final stream-json record must include usage or stats object")
 	}
-	if _, ok := usage["input_tokens"].(float64); !ok {
-		t.Fatal("final stream-json usage must include numeric input_tokens")
-	}
-	if _, ok := usage["output_tokens"].(float64); !ok {
-		t.Fatal("final stream-json usage must include numeric output_tokens")
-	}
-	cost, ok := finalRecord["cost"].(map[string]any)
-	if !ok {
-		t.Fatal("final stream-json record must include cost object")
-	}
-	if _, ok := cost["total"].(float64); !ok {
-		t.Fatal("final stream-json cost must include numeric total")
+	if cost, ok := finalRecord["cost"].(map[string]any); ok {
+		if _, ok := cost["total"].(float64); !ok {
+			t.Fatal("final stream-json cost must include numeric total")
+		}
 	}
 }
 
@@ -466,8 +471,8 @@ func TestGeminiJSONSuccessFixture_ExistsWithUsageAndCostFields(t *testing.T) {
 	if fixture.Usage.InputTokens <= 0 || fixture.Usage.OutputTokens <= 0 {
 		t.Fatalf("json-success fixture must include positive token counts, got input=%d output=%d", fixture.Usage.InputTokens, fixture.Usage.OutputTokens)
 	}
-	if fixture.Cost.Currency == "" || fixture.Cost.Total <= 0 {
-		t.Fatalf("json-success fixture must include positive cost and currency, got currency=%q total=%f", fixture.Cost.Currency, fixture.Cost.Total)
+	if fixture.Cost.Total < 0 {
+		t.Fatalf("json-success fixture must include non-negative total cost, got total=%f", fixture.Cost.Total)
 	}
 	if fixture.Model == "" || fixture.FinishReason == "" {
 		t.Fatal("json-success fixture must include model and finish_reason")

@@ -2,15 +2,13 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
-	benchpkg "github.com/danabrams/gromit/internal/benchmark"
 	"github.com/danabrams/gromit/internal/bead"
+	benchpkg "github.com/danabrams/gromit/internal/benchmark"
 	"github.com/spf13/cobra"
 )
 
@@ -54,15 +52,15 @@ var benchmarkBeads string
 var benchmarkBeadCount int
 
 type benchmarkManifest struct {
-	ID         string   `yaml:"id"`
-	BaseCommit string   `yaml:"base_commit"`
-	Beads      []string `yaml:"beads"`
-	Modes      []string `yaml:"modes"`
-	Provider        string `yaml:"provider"`
-	ModelFamily     string `yaml:"model_family"`
-	LowTierModel    string `yaml:"low_tier_model"`
-	MediumTierModel string `yaml:"medium_tier_model"`
-	HighTierModel   string `yaml:"high_tier_model"`
+	ID              string   `yaml:"id"`
+	BaseCommit      string   `yaml:"base_commit"`
+	Beads           []string `yaml:"beads"`
+	Modes           []string `yaml:"modes"`
+	Provider        string   `yaml:"provider"`
+	ModelFamily     string   `yaml:"model_family"`
+	LowTierModel    string   `yaml:"low_tier_model"`
+	MediumTierModel string   `yaml:"medium_tier_model"`
+	HighTierModel   string   `yaml:"high_tier_model"`
 }
 
 type benchmarkSelection struct {
@@ -226,6 +224,7 @@ func runBenchmarkHarness(manifest benchmarkManifest, cohort benchmarkValidatedCo
 			MediumTierModel: manifest.MediumTierModel,
 			HighTierModel:   manifest.HighTierModel,
 		},
+		Modes:          append([]string(nil), manifest.Modes...),
 		SelectedBeads:  append([]string(nil), cohort.SelectedBeads...),
 		BaseCommitHint: firstNonEmpty(opts.BaseCommit, manifest.BaseCommit),
 		Resolver:       benchmarkNewBaseCommitResolverFn(),
@@ -304,50 +303,6 @@ func writeBenchmarkReport(manifest benchmarkManifest, result benchmarkHarnessRes
 	if err != nil {
 		return err
 	}
-
-	payload := struct {
-		Manifest struct {
-			ID              string   `json:"id"`
-			BaseCommit      string   `json:"base_commit"`
-			Beads           []string `json:"beads"`
-			Provider        string   `json:"provider,omitempty"`
-			ModelFamily     string   `json:"model_family,omitempty"`
-			LowTierModel    string   `json:"low_tier_model,omitempty"`
-			MediumTierModel string   `json:"medium_tier_model,omitempty"`
-			HighTierModel   string   `json:"high_tier_model,omitempty"`
-		} `json:"manifest"`
-		ManifestID    string                 `json:"manifest_id"`
-		SelectedBeads []string               `json:"selected_beads"`
-		Modes         []benchmarkModeResult  `json:"modes"`
-		Metrics       benchmarkMetricsResult `json:"metrics"`
-	}{
-		ManifestID:    manifest.ID,
-		SelectedBeads: append([]string(nil), result.SelectedBeads...),
-		Modes:         result.Modes,
-		Metrics:       metrics,
-	}
-	resultDir := filepath.Join(".gromit", "benchmarks", "results", manifest.ID)
-	if err := os.MkdirAll(resultDir, 0o755); err != nil {
-		return fmt.Errorf("create results directory: %w", err)
-	}
-	payload.Manifest.ID = manifest.ID
-	payload.Manifest.BaseCommit = result.BaseCommit
-	payload.Manifest.Beads = append([]string(nil), result.SelectedBeads...)
-	payload.Manifest.Provider = manifest.Provider
-	payload.Manifest.ModelFamily = manifest.ModelFamily
-	payload.Manifest.LowTierModel = manifest.LowTierModel
-	payload.Manifest.MediumTierModel = manifest.MediumTierModel
-	payload.Manifest.HighTierModel = manifest.HighTierModel
-
-	jsonBytes, err := json.MarshalIndent(payload, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal report json: %w", err)
-	}
-	jsonBytes = append(jsonBytes, '\n')
-	if err := os.WriteFile(filepath.Join(resultDir, ts+".json"), jsonBytes, 0644); err != nil {
-		return fmt.Errorf("write report json: %w", err)
-	}
-
 	return nil
 }
 

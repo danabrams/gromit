@@ -168,6 +168,7 @@ func TestRunModesInIsolatedWorktrees_UsesOneResolvedBaseCommitAndSameSelectedBea
 
 	_, baseCommit, err := RunModesInIsolatedWorktrees(context.Background(), RunModesInput{
 		Manifest:       manifest,
+		Modes:          []string{"single_pass", "tdd_shared_context", "tdd_fresh_context"},
 		SelectedBeads:  selected,
 		BaseCommitHint: "HEAD",
 		Resolver:       resolver,
@@ -210,6 +211,7 @@ func TestRunModesInIsolatedWorktrees_CleansUpEveryModeAfterSuccessfulRun(t *test
 			MediumTierModel: "gpt-5.3-codex",
 			HighTierModel:   "gpt-5.3-codex",
 		},
+		Modes:          []string{"single_pass", "tdd_shared_context", "tdd_fresh_context"},
 		SelectedBeads:  []string{"gromit-1", "gromit-2", "gromit-3"},
 		BaseCommitHint: "HEAD",
 		Resolver:       resolver,
@@ -236,6 +238,7 @@ func TestRunModesInIsolatedWorktrees_CleansUpFailedModeBeforeReturningError(t *t
 			MediumTierModel: "gpt-5.3-codex",
 			HighTierModel:   "gpt-5.3-codex",
 		},
+		Modes:          []string{"single_pass", "tdd_shared_context", "tdd_fresh_context"},
 		SelectedBeads:  []string{"gromit-1", "gromit-2", "gromit-3"},
 		BaseCommitHint: "HEAD",
 		Resolver:       resolver,
@@ -271,6 +274,7 @@ func TestRunModesInIsolatedWorktrees_PersistsModeLogsToDeterministicPathBeforeCl
 			MediumTierModel: "gpt-5.3-codex",
 			HighTierModel:   "gpt-5.3-codex",
 		},
+		Modes:          []string{"single_pass", "tdd_shared_context", "tdd_fresh_context"},
 		SelectedBeads:  []string{"gromit-1", "gromit-2", "gromit-3"},
 		BaseCommitHint: "HEAD",
 		Resolver:       resolver,
@@ -296,6 +300,58 @@ func TestRunModesInIsolatedWorktrees_PersistsModeLogsToDeterministicPathBeforeCl
 		if string(content) != logContent {
 			t.Fatalf("mode %q persisted log content mismatch\nwant:\n%s\ngot:\n%s", run.Mode, logContent, string(content))
 		}
+	}
+}
+
+func TestRunModesInIsolatedWorktrees_ExecutesOnlyRequestedManifestModes(t *testing.T) {
+	resolver := &stubBaseCommitResolver{resolved: "abc123"}
+	runner := &recordingModeRunner{}
+
+	_, _, err := RunModesInIsolatedWorktrees(context.Background(), RunModesInput{
+		Manifest: HarnessManifest{
+			Provider:        "openai",
+			ModelFamily:     "gpt-5",
+			LowTierModel:    "gpt-5-mini",
+			MediumTierModel: "gpt-5.3-codex",
+			HighTierModel:   "gpt-5.3-codex",
+		},
+		Modes:          []string{"single_pass"},
+		SelectedBeads:  []string{"gromit-1", "gromit-2", "gromit-3"},
+		BaseCommitHint: "HEAD",
+		Resolver:       resolver,
+		Runner:         runner,
+	})
+	if err != nil {
+		t.Fatalf("RunModesInIsolatedWorktrees() error = %v", err)
+	}
+	if len(runner.requests) != 1 {
+		t.Fatalf("mode run requests = %d, want 1", len(runner.requests))
+	}
+	if runner.requests[0].Mode != "single_pass" {
+		t.Fatalf("executed mode = %q, want %q", runner.requests[0].Mode, "single_pass")
+	}
+}
+
+func TestRunModesInIsolatedWorktrees_RejectsEmptyModes(t *testing.T) {
+	resolver := &stubBaseCommitResolver{resolved: "abc123"}
+	runner := &recordingModeRunner{}
+
+	_, _, err := RunModesInIsolatedWorktrees(context.Background(), RunModesInput{
+		Manifest: HarnessManifest{
+			Provider:        "openai",
+			ModelFamily:     "gpt-5",
+			LowTierModel:    "gpt-5-mini",
+			MediumTierModel: "gpt-5.3-codex",
+			HighTierModel:   "gpt-5.3-codex",
+		},
+		Modes:          nil,
+		SelectedBeads:  []string{"gromit-1", "gromit-2", "gromit-3"},
+		BaseCommitHint: "HEAD",
+		Resolver:       resolver,
+		Runner:         runner,
+	})
+	if err == nil {
+		t.Fatal("RunModesInIsolatedWorktrees() error = nil, want non-nil")
 	}
 }
 
@@ -343,8 +399,8 @@ func (r *cleanupRecordingModeRunner) RunMode(_ context.Context, req ModeWorktree
 }
 
 type cleanupOnFailureModeRunner struct {
-	callIndex               int
-	failedModeCleanupCalls  int
+	callIndex              int
+	failedModeCleanupCalls int
 }
 
 type persistingLogModeRunner struct {

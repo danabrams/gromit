@@ -29,10 +29,10 @@ type FinalReviewPolicy struct {
 }
 
 type ModeOverlay struct {
-	Mode        string
-	Provider    string
-	ModelFamily string
-	TierModels  OverlayTierModels
+	Mode                  string
+	Provider              string
+	ModelFamily           string
+	TierModels            OverlayTierModels
 	BuildStrategy         string
 	FreshContextPerCycle  bool
 	BuildTierDefault      string
@@ -50,6 +50,7 @@ type ModeRunResult struct {
 
 type RunModesInput struct {
 	Manifest       HarnessManifest
+	Modes          []string
 	SelectedBeads  []string
 	BaseCommitHint string
 	Resolver       BaseCommitResolver
@@ -69,7 +70,10 @@ func RunModesInIsolatedWorktrees(ctx context.Context, input RunModesInput) ([]Mo
 		return nil, "", err
 	}
 
-	modes := []string{"single_pass", "tdd_shared_context", "tdd_fresh_context"}
+	modes := append([]string(nil), input.Modes...)
+	if len(modes) == 0 {
+		return nil, "", fmt.Errorf("at least one benchmark mode is required")
+	}
 	runs := make([]ModeWorktreeRun, 0, len(modes))
 	for _, mode := range modes {
 		overlay, err := BuildModeOverlay(input.Manifest, mode)
