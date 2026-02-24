@@ -533,6 +533,22 @@ func TestNewRunnerImpl_StatusWriterComputesTimeBudgetFromDeadline(t *testing.T) 
 	}
 }
 
+func TestResolveTrackerBackend_DefaultAndExplicitBD(t *testing.T) {
+	var legacyCfg config.Config
+	if got := resolveTrackerBackend(&legacyCfg); got != "bd" {
+		t.Fatalf("resolveTrackerBackend(legacy) = %q, want %q", got, "bd")
+	}
+
+	explicitCfg := &config.Config{
+		Tracker: config.TrackerConfig{
+			Backend: "bd",
+		},
+	}
+	if got := resolveTrackerBackend(explicitCfg); got != "bd" {
+		t.Fatalf("resolveTrackerBackend(explicit) = %q, want %q", got, "bd")
+	}
+}
+
 func TestResolveSingleSpecProgressLabel(t *testing.T) {
 	tests := []struct {
 		name   string
