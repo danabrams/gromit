@@ -22,6 +22,18 @@ func TestPhase3Coverage_HasCacheDeterminismIntegrationCase(t *testing.T) {
 	}
 }
 
+func TestPhase3Coverage_HasCacheFailureFallbackIntegrationCase(t *testing.T) {
+	tests, err := listPackageTests(repoRoot(t), "./internal/runner/execution")
+	if err != nil {
+		t.Fatalf("list execution tests: %v", err)
+	}
+
+	const expected = "TestInvokerExecute_Integration_CacheLookupFailureFallsBackWithoutAbort"
+	if !tests[expected] {
+		t.Fatalf("missing phase-3 cache fallback integration test %q", expected)
+	}
+}
+
 func listPackageTests(root, pkg string) (map[string]bool, error) {
 	cmd := exec.Command("go", "test", "-list", "^Test", pkg)
 	cmd.Dir = root
