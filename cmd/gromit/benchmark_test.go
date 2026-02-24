@@ -627,3 +627,25 @@ func TestBenchmarkRunCommand_RejectsBaseCommitWithWhitespace(t *testing.T) {
 		t.Fatalf("stderr = %q, want base-commit whitespace validation error", stderr)
 	}
 }
+
+func TestValidateBenchmarkCohort_UsesRequiredSizeFive(t *testing.T) {
+	origNewLookup := benchmarkNewBeadLookupFn
+	origValidate := benchmarkInternalValidateSelectedCohortFn
+	t.Cleanup(func() {
+		benchmarkNewBeadLookupFn = origNewLookup
+		benchmarkInternalValidateSelectedCohortFn = origValidate
+	})
+
+	benchmarkNewBeadLookupFn = func() (benchpkg.BeadLookup, error) { return nil, nil }
+	benchmarkInternalValidateSelectedCohortFn = func(lookup benchpkg.BeadLookup, selected []string, minSize int) ([]string, error) {
+		if minSize != 5 {
+			t.Fatalf("minSize = %d, want 5", minSize)
+		}
+		return append([]string(nil), selected...), nil
+	}
+
+	_, err := validateBenchmarkCohort(benchmarkSelection{SelectedBeads: []string{"gromit-1", "gromit-2", "gromit-3", "gromit-4", "gromit-5"}})
+	if err != nil {
+		t.Fatalf("validateBenchmarkCohort() error = %v", err)
+	}
+}
