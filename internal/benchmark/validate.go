@@ -15,6 +15,9 @@ func ValidateSelectedCohort(lookup BeadLookup, selected []string, minSize int) (
 	if len(selected) < minSize {
 		return nil, fmt.Errorf("selected cohort size %d is below minimum %d", len(selected), minSize)
 	}
+	if len(selected) > minSize {
+		return nil, fmt.Errorf("selected cohort size %d exceeds required %d", len(selected), minSize)
+	}
 
 	covered := map[string]bool{
 		"low":    false,
