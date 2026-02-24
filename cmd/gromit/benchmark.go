@@ -210,7 +210,7 @@ func validateBenchmarkCohort(selection benchmarkSelection) (benchmarkValidatedCo
 	if err != nil {
 		return benchmarkValidatedCohort{}, fmt.Errorf("create bead lookup: %w", err)
 	}
-	selected, err := benchmarkInternalValidateSelectedCohortFn(lookup, selection.SelectedBeads, 3)
+	selected, err := benchmarkInternalValidateSelectedCohortFn(lookup, selection.SelectedBeads, 5)
 	if err != nil {
 		return benchmarkValidatedCohort{}, err
 	}
