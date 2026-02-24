@@ -109,6 +109,8 @@ type IterationResult struct {
 	CacheKey            string `json:"cache_key,omitempty"`
 	CacheInvalidationReason string `json:"cache_invalidation_reason,omitempty"`
 	CacheVersionMarker  string `json:"cache_version_marker,omitempty"`
+	UtilityRoutingCategory string `json:"utility_routing_category,omitempty"`
+	UtilityRoutingTier string `json:"utility_routing_tier,omitempty"`
 	FallbackAttempts    int    // number of fallback attempts triggered this iteration
 	FallbackSuccesses   int    // successful fallback outcomes this iteration
 	FallbackFailures    int    // failed fallback outcomes this iteration
