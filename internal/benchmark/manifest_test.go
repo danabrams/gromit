@@ -217,3 +217,8 @@ func TestValidateManifest_AcceptsValidManifest(t *testing.T) {
 		t.Fatalf("ValidateManifest() error = %v", err)
 	}
 }
+
+func TestManifest_TypedModeAndModelPinningModelsExist(t *testing.T) {
+	var _ ModeConfig
+	var _ ModelPinning
+}
