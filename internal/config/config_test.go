@@ -5147,3 +5147,22 @@ func TestLoadLegacyCompatibilityConfig_EmitsMigrationWarningByDefault(t *testing
 		t.Fatalf("warning = %q, want cutoff date %q", warningText, CompatibilityStrictDefaultCutoverDate)
 	}
 }
+
+func TestLoadLegacyCompatibilityConfig_StrictModeRejectsLegacyFallback(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	yaml := `compatibility:
+  strict_legacy_fallback: true
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	_, err := Load(cfgPath)
+	if err == nil {
+		t.Fatal("Load() error = nil, want strict legacy fallback failure")
+	}
+	if !strings.Contains(err.Error(), "compatibility.strict_legacy_fallback") {
+		t.Fatalf("Load() error = %q, want mention of compatibility.strict_legacy_fallback", err.Error())
+	}
+}
