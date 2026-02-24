@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/internal/review"
@@ -297,8 +298,9 @@ func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) 
 	backlogCreated := 0
 	for _, bi := range reviewResult.BacklogItems {
 		idea := &Idea{
-			Text: bi.Title,
-			Type: backlogTypeReviewFinding,
+			Text:      bi.Title,
+			Type:      backlogTypeReviewFinding,
+			CreatedAt: time.Now(),
 		}
 		if err := p.deps.BacklogClient.Add(idea); err != nil {
 			return nil, fmt.Errorf("creating backlog item: %w", err)
