@@ -363,6 +363,7 @@ func (c *exploreBacklogClient) List() ([]*pipeline.Idea, error) {
 			Text:     item.Text,
 			Type:     item.Type,
 			Context:  item.Context,
+			CreatedAt: item.CreatedAt,
 			Status:   item.Status,
 			SpecName: item.SpecName,
 		})
