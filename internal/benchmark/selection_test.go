@@ -14,3 +14,10 @@ func TestResolveSelectedBeads_CLIOverrideTakesPrecedenceOverManifest(t *testing.
 		t.Fatalf("resolved = %v, want [gromit-9 gromit-8]", resolved)
 	}
 }
+
+func TestResolveSelectedBeads_ReturnsErrorForDuplicates(t *testing.T) {
+	_, err := ResolveSelectedBeads([]string{"gromit-1", "gromit-1"}, nil, 0)
+	if err == nil {
+		t.Fatal("ResolveSelectedBeads() error = nil, want duplicate error")
+	}
+}
