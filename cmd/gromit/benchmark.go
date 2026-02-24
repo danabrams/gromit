@@ -348,24 +348,6 @@ func writeBenchmarkReport(manifest benchmarkManifest, result benchmarkHarnessRes
 		return fmt.Errorf("write report json: %w", err)
 	}
 
-	var md strings.Builder
-	md.WriteString("# Benchmark Report\n\n")
-	md.WriteString("Manifest: " + manifest.ID + "\n")
-	md.WriteString("Base commit: " + result.BaseCommit + "\n")
-	md.WriteString("Selected beads: " + strings.Join(result.SelectedBeads, ", ") + "\n\n")
-	md.WriteString("## Modes\n")
-	for _, mode := range result.Modes {
-		md.WriteString("- " + mode.Mode + " (" + mode.BaseCommit + ")\n")
-	}
-	md.WriteString("\n## Metrics\n")
-	for _, score := range metrics.ModeScores {
-		md.WriteString("- " + score.Mode + ": " + fmt.Sprintf("%d", score.Score) + "\n")
-	}
-
-	if err := os.WriteFile(filepath.Join(resultDir, ts+".md"), []byte(md.String()), 0644); err != nil {
-		return fmt.Errorf("write report markdown: %w", err)
-	}
-
 	return nil
 }
 
