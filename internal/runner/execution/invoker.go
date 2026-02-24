@@ -110,6 +110,7 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 
 	stallFired := false
 	invocationPrompt := bc.BuildPrompt
+	cacheLookupFailed := false
 
 	cacheClass, cacheKey, cacheable := cacheMetadataFromBeadContext(bc)
 	if cacheable {
@@ -132,6 +133,9 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 			CacheClass: cacheClass,
 			CacheKey:   cacheKey,
 		})
+		if cacheErr != nil {
+			cacheLookupFailed = true
+		}
 		if cacheErr == nil && hit && entry != nil && entry.Content != "" {
 			invocationPrompt = entry.Content
 		}
@@ -201,7 +205,7 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 		}
 	}
 
-	if cacheable {
+	if cacheable && !cacheLookupFailed {
 		cacheWriteErr := resolveCacheAdapter(p).Write(ctx, provider.CacheWriteRequest{
 			CacheClass: cacheClass,
 			CacheKey:   cacheKey,
