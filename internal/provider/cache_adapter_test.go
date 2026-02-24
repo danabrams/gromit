@@ -104,3 +104,30 @@ func TestResolveCacheAdapterFallsBackToNoopWhenProviderLacksCapability(t *testin
 		t.Fatalf("Lookup() entry = %#v, want nil", entry)
 	}
 }
+
+func TestClaudeAndCodexProvidersExposeCacheAdapterCapability(t *testing.T) {
+	providers := []Provider{
+		NewClaudeProvider(nil, map[string]string{TierMedium: "sonnet"}),
+		NewCodexProvider("codex", nil, map[string]string{TierMedium: "gpt-5.3-codex"}),
+	}
+
+	for _, p := range providers {
+		if !SupportsProviderCache(p) {
+			t.Fatalf("SupportsProviderCache(%T) = false, want true", p)
+		}
+
+		adapter := ResolveCacheAdapter(p)
+		if adapter == nil {
+			t.Fatalf("ResolveCacheAdapter(%T) = nil, want adapter", p)
+		}
+
+		if err := adapter.Write(context.Background(), CacheWriteRequest{
+			CacheClass: "build",
+			CacheKey:   "k1",
+			Content:    "cached",
+			Config:     config.TokenEfficiencyCacheConfig{Enabled: true, TTL: "30m", Capacity: 256},
+		}); err != nil {
+			t.Fatalf("Write(%T) error = %v, want nil", p, err)
+		}
+	}
+}
