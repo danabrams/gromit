@@ -741,6 +741,40 @@ func TestExecuteWithRetryWithEscalation_DisabledSkipsTierEscalation(t *testing.T
 	}
 }
 
+func TestExecuteWithRetry_UsesProviderResultWhenClaudeResultMissing(t *testing.T) {
+	cfg := newTestConfig()
+	capturedFailureOutput := ""
+	h := NewHandler(cfg, &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, failureOutput string) (*analyzer.Analysis, error) {
+			capturedFailureOutput = failureOutput
+			return &analyzer.Analysis{
+				Category:    analyzer.CategoryLogic,
+				Recoverable: false,
+				RootCause:   "non-recoverable",
+			}, nil
+		},
+	}, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := newTestBeadContext()
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		return &runtypes.InvocationResult{
+			ProviderResult: &provider.Result{
+				Success: false,
+				Output:  "provider failure output",
+				Model:   "sonnet",
+			},
+		}, nil
+	}
+
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+	if success {
+		t.Fatal("expected ExecuteWithRetry to return false for non-recoverable failure")
+	}
+	if capturedFailureOutput != "provider failure output" {
+		t.Fatalf("analyzer failure output = %q, want %q", capturedFailureOutput, "provider failure output")
+	}
+}
+
 func TestExecuteWithRetry_StallFiresRetryAndEscalate(t *testing.T) {
 	// When the invocation returns a stall, ExecuteWithRetry should handle it
 	// via HandleStallTimeout (retry same model or escalate).
