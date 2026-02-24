@@ -155,6 +155,14 @@ func TestProviderGenericAdapter_UsesLLMRouterNaming(t *testing.T) {
 	}
 }
 
+func TestAdapterTests_UseLLMTypeNaming(t *testing.T) {
+	contentStr := adapterTestReadFile(t, "decompose_adapters_test.go")
+	legacyType := "pipeline." + "ClaudeRunResult"
+	if adapterTestContainsString(contentStr, legacyType) {
+		t.Fatal("decompose_adapters_test.go should not reference legacy pipeline Claude run-result type name")
+	}
+}
+
 // Helper functions for string analysis
 
 func adapterTestContainsString(content, substr string) bool {
