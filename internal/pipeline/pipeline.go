@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/danabrams/gromit/internal/review"
 )
@@ -149,12 +150,13 @@ type BacklogClient interface {
 
 // Idea represents a backlog idea (matches backlog.Idea).
 type Idea struct {
-	ID       string `json:"id"`
-	Text     string `json:"text"`
-	Type     string `json:"type"`
-	Context  string `json:"context"`
-	Status   string `json:"status"`
-	SpecName string `json:"spec_name"`
+	ID        string    `json:"id"`
+	Text      string    `json:"text"`
+	Type      string    `json:"type"`
+	Context   string    `json:"context"`
+	CreatedAt time.Time `json:"created_at"`
+	Status    string    `json:"status"`
+	SpecName  string    `json:"spec_name"`
 }
 
 // IdeaJSONKeys defines the expected snake_case JSON keys for Idea.
