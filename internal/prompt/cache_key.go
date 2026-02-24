@@ -9,8 +9,16 @@ import (
 
 // StaticPreambleCacheKey builds a deterministic cache key from static preamble sections.
 func StaticPreambleCacheKey(cacheClass string, sections map[string]string) string {
+	return StaticPreambleCacheKeyWithExclusions(cacheClass, sections, nil)
+}
+
+// StaticPreambleCacheKeyWithExclusions builds a deterministic cache key and omits excluded section names.
+func StaticPreambleCacheKeyWithExclusions(cacheClass string, sections map[string]string, exclusions map[string]struct{}) string {
 	keys := make([]string, 0, len(sections))
 	for key := range sections {
+		if _, excluded := exclusions[key]; excluded {
+			continue
+		}
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
