@@ -207,7 +207,10 @@ func gitResetHard(commit string) error {
 // enabled, or nil otherwise. The caller should inject the result into the Build
 // stage via WithTDDCycleRunner.
 func optionalTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *provider.Router, output io.Writer) execute.TDDCycleRunner {
-	if !cfg.Methodology.FreshContextPerCycle {
+	if cfg == nil || !cfg.Methodology.FreshContextPerCycle {
+		return nil
+	}
+	if cfg.ResolvedMethodologyAdapter().Value != "go" {
 		return nil
 	}
 	return buildTDDCycleRunner(cfg, renderer, router, output)
