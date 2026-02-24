@@ -75,6 +75,30 @@ func TestNewDiagnosticsNilSectionTokens(t *testing.T) {
 	}
 }
 
+func TestNewDiagnosticsComputesSourceBucketTokens(t *testing.T) {
+	sectionTokens := map[string]int{
+		SectionTemplateStatic:     11,
+		SectionRules:              13,
+		SectionConfirmedLearnings: 17,
+		SectionRecentLearnings:    19,
+		SectionFailureContext:     23,
+		SectionSpec:               29,
+	}
+
+	diagnostics := NewDiagnostics("build", sectionTokens)
+
+	want := map[string]int{
+		SourceBucketTemplate:       11,
+		SourceBucketRules:          13,
+		SourceBucketLearnings:      36,
+		SourceBucketToolOutput:     23,
+		SourceBucketContextPayload: 29,
+	}
+	if !reflect.DeepEqual(diagnostics.SourceBucketTokens, want) {
+		t.Fatalf("SourceBucketTokens = %#v, want %#v", diagnostics.SourceBucketTokens, want)
+	}
+}
+
 func TestPromptDiagnosticsJSONRoundTrip(t *testing.T) {
 	original := &PromptDiagnostics{
 		PromptType:      "build",
