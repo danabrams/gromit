@@ -14,6 +14,20 @@ func StaticPreambleCacheKey(cacheClass string, sections map[string]string) strin
 
 // StaticPreambleCacheKeyWithExclusions builds a deterministic cache key and omits excluded section names.
 func StaticPreambleCacheKeyWithExclusions(cacheClass string, sections map[string]string, exclusions map[string]struct{}) string {
+	var b strings.Builder
+	b.WriteString(cacheClass)
+	canonical := CanonicalizeStaticPreamble(sections, exclusions)
+	if canonical != "" {
+		b.WriteString("\n")
+		b.WriteString(canonical)
+	}
+
+	sum := sha256.Sum256([]byte(b.String()))
+	return hex.EncodeToString(sum[:])
+}
+
+// CanonicalizeStaticPreamble returns a stable section serialization in sorted key order.
+func CanonicalizeStaticPreamble(sections map[string]string, exclusions map[string]struct{}) string {
 	keys := make([]string, 0, len(sections))
 	for key := range sections {
 		if _, excluded := exclusions[key]; excluded {
@@ -24,14 +38,13 @@ func StaticPreambleCacheKeyWithExclusions(cacheClass string, sections map[string
 	sort.Strings(keys)
 
 	var b strings.Builder
-	b.WriteString(cacheClass)
-	for _, key := range keys {
-		b.WriteString("\n")
+	for i, key := range keys {
+		if i > 0 {
+			b.WriteString("\n")
+		}
 		b.WriteString(key)
 		b.WriteString("=")
 		b.WriteString(sections[key])
 	}
-
-	sum := sha256.Sum256([]byte(b.String()))
-	return hex.EncodeToString(sum[:])
+	return b.String()
 }
