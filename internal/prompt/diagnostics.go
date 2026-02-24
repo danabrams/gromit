@@ -14,6 +14,12 @@ const (
 	SectionPlanBody           = "plan_body"
 	SectionRunStats           = "run_stats"
 	SectionBeadStats          = "bead_stats"
+
+	SourceBucketTemplate       = "template"
+	SourceBucketRules          = "rules"
+	SourceBucketLearnings      = "learnings"
+	SourceBucketToolOutput     = "tool_output"
+	SourceBucketContextPayload = "context_payload"
 )
 
 // PromptDiagnostics captures estimated token attribution and reconciliation.
@@ -21,6 +27,7 @@ type PromptDiagnostics struct {
 	PromptType      string         `json:"prompt_type"`
 	EstimatedTokens int            `json:"estimated_tokens"`
 	SectionTokens   map[string]int `json:"section_tokens"`
+	SourceBucketTokens map[string]int `json:"source_bucket_tokens,omitempty"`
 	BudgetMaxChars  int            `json:"budget_max_chars,omitempty"`
 	ShapeActions    []string       `json:"shape_actions,omitempty"`
 	PreShapeTokens  int            `json:"pre_shape_tokens,omitempty"`
@@ -43,7 +50,28 @@ func NewDiagnostics(promptType string, sectionTokens map[string]int) *PromptDiag
 		PromptType:      promptType,
 		EstimatedTokens: estimated,
 		SectionTokens:   tokens,
+		SourceBucketTokens: estimateSourceBucketTokens(tokens),
 	}
+}
+
+func estimateSourceBucketTokens(sectionTokens map[string]int) map[string]int {
+	buckets := make(map[string]int)
+	for section, tokens := range sectionTokens {
+		bucket := SourceBucketContextPayload
+		switch section {
+		case SectionTemplateStatic:
+			bucket = SourceBucketTemplate
+		case SectionRules, SectionClaudeMD, SectionSkillInstructions:
+			bucket = SourceBucketRules
+		case SectionConfirmedLearnings, SectionRecentLearnings:
+			bucket = SourceBucketLearnings
+		case SectionDiff, SectionFailureContext, SectionRunStats, SectionBeadStats:
+			bucket = SourceBucketToolOutput
+		}
+
+		buckets[bucket] += tokens
+	}
+	return buckets
 }
 
 // Reconcile updates reconciliation fields from provider-reported input tokens.
