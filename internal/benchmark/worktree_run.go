@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	stdstrings "strings"
 
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/worktree"
 )
 
@@ -165,4 +166,58 @@ func defaultSessionCleanup(mainDir, sessionDir string) error {
 		return fmt.Errorf("remove session worktree %q: %w: %s", sessionDir, err, msg)
 	}
 	return nil
+}
+
+func applyBenchmarkOverlayToConfig(cfg *config.Config, overlay ModeOverlay) (*config.Config, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config is nil")
+	}
+
+	cloned := *cfg
+	cloned.Methodology.BuildStrategy = overlay.BuildStrategy
+	cloned.Methodology.FreshContextPerCycle = overlay.FreshContextPerCycle
+	cloned.Methodology.PhaseModels.Build = overlay.BuildTierDefault
+	cloned.Methodology.PhaseModels.Red = overlay.BuildTierDefault
+	cloned.Methodology.PhaseModels.Green = overlay.BuildTierDefault
+	cloned.Methodology.PhaseModels.Refactor = overlay.BuildTierDefault
+
+	cloned.Review.Enabled = overlay.FinalReview.Enabled
+	cloned.Review.Tier = overlay.FinalReview.Tier
+	cloned.Review.Thorough.Enabled = overlay.FinalReview.Enabled
+	cloned.Review.Thorough.Tier = overlay.FinalReview.Tier
+
+	validationNonInteractive := true
+	cloned.Validation.NonInteractive = &validationNonInteractive
+	runFinalFullGate := true
+	cloned.Validation.RunFinalFullGate = &runFinalFullGate
+
+	// Pin to one provider and manifest tier models.
+	pinned := config.ProviderDef{
+		Models: map[string]string{
+			"low":    overlay.TierModels.Low,
+			"medium": overlay.TierModels.Medium,
+			"high":   overlay.TierModels.High,
+		},
+	}
+	if existing, ok := cfg.Providers[overlay.Provider]; ok {
+		pinned = existing
+		if pinned.Models == nil {
+			pinned.Models = map[string]string{}
+		}
+		pinned.Models["low"] = overlay.TierModels.Low
+		pinned.Models["medium"] = overlay.TierModels.Medium
+		pinned.Models["high"] = overlay.TierModels.High
+	}
+	cloned.Providers = map[string]config.ProviderDef{
+		overlay.Provider: pinned,
+	}
+	if cloned.Routing.PhasePreferences == nil {
+		cloned.Routing.PhasePreferences = map[string]string{}
+	}
+	for _, phase := range []string{"build", "review", "thorough_review", "decompose"} {
+		cloned.Routing.PhasePreferences[phase] = overlay.Provider
+	}
+	cloned.Routing.Ratio = map[string]int{overlay.Provider: 100}
+
+	return &cloned, nil
 }
