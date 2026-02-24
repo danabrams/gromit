@@ -594,6 +594,32 @@ func TestNewRunnerImpl_LegacyCompatibilityEmitsStartupDeprecationWarning(t *test
 	}
 }
 
+func TestNewRunnerImpl_LegacyCompatibilityWarningUsesConfigMarkerContract(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	_ = os.MkdirAll(filepath.Join(gromitDir, "templates"), 0o755)
+	_ = os.MkdirAll(filepath.Join(gromitDir, "specs"), 0o755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "logs"), 0o755)
+
+	cfg := &config.Config{}
+	cfg.Paths.Templates = filepath.Join(gromitDir, "templates")
+	cfg.Paths.Specs = filepath.Join(gromitDir, "specs")
+	cfg.Paths.Logs = filepath.Join(tmpDir, "logs")
+
+	var output strings.Builder
+	if _, err := newRunnerImpl(cfg, &output, nil); err != nil {
+		t.Fatalf("newRunnerImpl: %v", err)
+	}
+
+	warnings := output.String()
+	if !strings.Contains(warnings, config.CompatibilityDeprecationMarkerLegacyTrackerBackendFallback) {
+		t.Fatalf("startup warnings missing %q, got:\n%s", config.CompatibilityDeprecationMarkerLegacyTrackerBackendFallback, warnings)
+	}
+	if strings.Contains(warnings, RunnerDeprecationMarkerLegacyTrackerBackendFallback) {
+		t.Fatalf("startup warnings unexpectedly included runner marker %q, got:\n%s", RunnerDeprecationMarkerLegacyTrackerBackendFallback, warnings)
+	}
+}
+
 func TestResolveSingleSpecProgressLabel(t *testing.T) {
 	tests := []struct {
 		name   string
