@@ -62,11 +62,11 @@ func TestAllMocks_SatisfyInterfacesWithTypedSignatures(t *testing.T) {
 // TestDecomposeAcceptanceMocks_UseTypedReturns verifies decompose test mocks use typed returns
 func TestDecomposeAcceptanceMocks_UseTypedReturns(t *testing.T) {
 	// Compile-time checks
-	var _ LLMClient = (*decomposeAcceptanceClaudeClient)(nil)
+	var _ LLMClient = (*decomposeAcceptanceLLMClient)(nil)
 	var _ BeadClient = (*decomposeAcceptanceBeadClient)(nil)
 
-	t.Run("decomposeAcceptanceClaudeClient returns LLMRunResult", func(t *testing.T) {
-		mock := &decomposeAcceptanceClaudeClient{
+	t.Run("decomposeAcceptanceLLMClient returns LLMRunResult", func(t *testing.T) {
+		mock := &decomposeAcceptanceLLMClient{
 			runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 				return &LLMRunResult{
 					Success:  true,
