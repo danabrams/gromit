@@ -22,6 +22,7 @@ import (
 	"github.com/danabrams/gromit/internal/pipeline/validate"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/execution"
 	"github.com/danabrams/gromit/internal/state"
 	"github.com/danabrams/gromit/internal/worktree"
 )
@@ -36,7 +37,7 @@ var defaultTierToModelMap = map[string]string{
 }
 
 const (
-	RunnerDeprecationMarkerLegacyClaudeTierModelMap    = "runner-deprecated-legacy-claude-tier-model-map"
+	RunnerDeprecationMarkerLegacyClaudeTierModelMap     = "runner-deprecated-legacy-claude-tier-model-map"
 	RunnerDeprecationMarkerLegacyTrackerBackendFallback = "runner-deprecated-legacy-tracker-backend-fallback"
 )
 
@@ -93,6 +94,11 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 	if err != nil {
 		return nil, err
 	}
+	streamLogger, err := logger.NewStreamLogger(cfg.Paths.Logs)
+	if err != nil {
+		_, _ = fmt.Fprintf(output, "Warning: could not create stream logger: %v\n", err)
+	}
+	buildPromptRegistry := newBuildPromptRegistry()
 
 	// Stage 1: Gate (prepare.New with optional Prechecker, StuckDetector, Decomposer)
 	gateStage := prepare.New(syncOut)
@@ -103,7 +109,18 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 	})
 
 	// Stage 2: Build (execute.New with Invoker and PromptRenderer)
-	buildStage := execute.New(&invokerAdapter{router: router, output: syncOut}, &renderAdapter{r: renderer}, syncOut)
+	buildExecInvoker := execution.NewInvoker(&executionRouterAdapter{router: router}, syncOut, streamLogger)
+	buildStage := execute.New(
+		&invokerAdapter{
+			execInvoker:    buildExecInvoker,
+			promptRegistry: buildPromptRegistry,
+		},
+		&renderAdapter{
+			r:              renderer,
+			promptRegistry: buildPromptRegistry,
+		},
+		syncOut,
+	)
 	if runner := optionalTDDCycleRunner(cfg, renderer, router, syncOut); runner != nil {
 		buildStage.WithTDDCycleRunner(runner)
 	}
@@ -177,12 +194,12 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 	}
 
 	orchCfg := OrchestratorConfig{
-		Gate:            gateStage,
-		Build:           buildStage,
-		Validate:        validateStage,
-		Review:          reviewStage,
-		Epilogue:        epilogueStage,
-		GetBead:         getBeadFn,
+		Gate:     gateStage,
+		Build:    buildStage,
+		Validate: validateStage,
+		Review:   reviewStage,
+		Epilogue: epilogueStage,
+		GetBead:  getBeadFn,
 		GetBeadByID: func(ctx context.Context, beadID string) (*bead.Bead, error) {
 			return beadsClient.Show(beadID)
 		},

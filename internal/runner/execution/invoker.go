@@ -39,9 +39,9 @@ type Invoker struct {
 // NewInvoker creates an Invoker with the given narrow dependencies.
 func NewInvoker(router Router, output io.Writer, streamLogger *logger.StreamLogger) *Invoker {
 	return &Invoker{
-		router:       router,
-		output:       output,
-		streamLogger: streamLogger,
+		router:              router,
+		output:              output,
+		streamLogger:        streamLogger,
 		cacheVersionByClass: make(map[string]string),
 	}
 }
@@ -111,14 +111,23 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 	stallFired := false
 	invocationPrompt := bc.BuildPrompt
 	cacheLookupFailed := false
+	cacheHit := false
+	cacheMiss := false
+	cacheWrite := false
+	cacheInvalidationReason := ""
+	cacheVersionMarker := ""
 
 	cacheClass, cacheKey, cacheable := cacheMetadataFromBeadContext(bc)
 	if cacheable {
+		bc.Result.CacheClass = cacheClass
+		bc.Result.CacheKey = cacheKey
 		cacheAdapter := resolveCacheAdapter(p)
 		cacheVersionKey := strings.TrimSpace(inv.cacheVersionKey)
+		cacheVersionMarker = cacheVersionKey
 		if cacheVersionKey != "" {
 			prevVersion := inv.cacheVersionByClass[cacheClass]
 			if prevVersion != "" && prevVersion != cacheVersionKey {
+				cacheInvalidationReason = "version_change"
 				invalidateErr := cacheAdapter.Invalidate(ctx, provider.CacheInvalidateRequest{
 					CacheClass: cacheClass,
 					CacheKey:   cacheKey,
@@ -135,6 +144,13 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 		})
 		if cacheErr != nil {
 			cacheLookupFailed = true
+		}
+		if cacheErr == nil {
+			if hit {
+				cacheHit = true
+			} else {
+				cacheMiss = true
+			}
 		}
 		if cacheErr == nil && hit && entry != nil && entry.Content != "" {
 			invocationPrompt = entry.Content
@@ -213,6 +229,8 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 		})
 		if cacheWriteErr != nil {
 			// Cache writes are optimization-only and must never fail invocation flow.
+		} else {
+			cacheWrite = true
 		}
 	}
 
@@ -255,6 +273,11 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 	bc.Result.ToolCallCount = toolCalls
 	bc.Result.RateLimitHits = rateLimitHits
 	bc.Result.RateLimitRecoveryMs = rateLimitRecoveryMs
+	bc.Result.CacheHit = cacheHit
+	bc.Result.CacheMiss = cacheMiss
+	bc.Result.CacheWrite = cacheWrite
+	bc.Result.CacheInvalidationReason = cacheInvalidationReason
+	bc.Result.CacheVersionMarker = cacheVersionMarker
 
 	return &runtypes.InvocationResult{
 		Result:         claudeResult,
@@ -309,21 +332,21 @@ func shouldPreserveProviderTerminalStream(defaultValue bool) bool {
 }
 
 func (inv *Invoker) logLifecycleStart(tier string) {
-	if inv == nil {
+	if inv == nil || inv.streamLogger == nil {
 		return
 	}
 	inv.streamLogger.LogEvent("%s tier=%s", InvocationLifecycleMarkerStart, tier)
 }
 
 func (inv *Invoker) logLifecycleSelection(providerName, modelName, tier string) {
-	if inv == nil {
+	if inv == nil || inv.streamLogger == nil {
 		return
 	}
 	inv.streamLogger.LogEvent("%s provider=%s model=%s tier=%s", InvocationLifecycleMarkerSelection, providerName, modelName, tier)
 }
 
 func (inv *Invoker) logLifecycleCompletion(p Provider, modelName, tier string, result *provider.Result, err error) {
-	if inv == nil {
+	if inv == nil || inv.streamLogger == nil {
 		return
 	}
 	if err != nil {

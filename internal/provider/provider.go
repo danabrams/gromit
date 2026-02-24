@@ -45,19 +45,26 @@ var tierToLegacyModel = map[string]string{
 
 // Result represents the outcome of a provider invocation
 type Result struct {
-	Success           bool          `json:"success"`
-	Output            string        `json:"output"`
-	Stderr            string        `json:"stderr"`
-	Diagnostics       string        `json:"diagnostics"`
-	FailureCategory   string        `json:"failure_category"`
-	ExitCode          int           `json:"exit_code"`
-	Duration          time.Duration `json:"duration"`
-	Model             string        `json:"model"`
-	ReasoningEffort   string        `json:"reasoning_effort,omitempty"`
-	CostUSD           float64       `json:"cost_usd"`
-	InputTokens       int           `json:"input_tokens"`
-	CachedInputTokens int           `json:"cached_input_tokens"`
-	OutputTokens      int           `json:"output_tokens"`
+	Success                 bool          `json:"success"`
+	Output                  string        `json:"output"`
+	Stderr                  string        `json:"stderr"`
+	Diagnostics             string        `json:"diagnostics"`
+	FailureCategory         string        `json:"failure_category"`
+	ExitCode                int           `json:"exit_code"`
+	Duration                time.Duration `json:"duration"`
+	Model                   string        `json:"model"`
+	ReasoningEffort         string        `json:"reasoning_effort,omitempty"`
+	CostUSD                 float64       `json:"cost_usd"`
+	InputTokens             int           `json:"input_tokens"`
+	CachedInputTokens       int           `json:"cached_input_tokens"`
+	OutputTokens            int           `json:"output_tokens"`
+	CacheHit                bool          `json:"cache_hit,omitempty"`
+	CacheMiss               bool          `json:"cache_miss,omitempty"`
+	CacheWrite              bool          `json:"cache_write,omitempty"`
+	CacheClass              string        `json:"cache_class,omitempty"`
+	CacheKey                string        `json:"cache_key,omitempty"`
+	CacheInvalidationReason string        `json:"cache_invalidation_reason,omitempty"`
+	CacheVersionMarker      string        `json:"cache_version_marker,omitempty"`
 }
 
 // ToolEvent represents a tool call event from the provider

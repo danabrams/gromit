@@ -15,6 +15,8 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/execution"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/validate"
 	"github.com/danabrams/gromit/internal/worktree"
 )
@@ -23,35 +25,60 @@ import (
 
 // invokerAdapter wraps *provider.Router to satisfy execute.Invoker.
 type invokerAdapter struct {
-	router *provider.Router
-	output io.Writer
+	execInvoker     *execution.Invoker
+	promptRegistry  *buildPromptRegistry
+	cacheVersionKey string
 }
 
-func (a *invokerAdapter) Run(ctx context.Context, prompt, tier string) (*provider.Result, error) {
-	if a.router == nil {
-		return nil, fmt.Errorf("router is nil")
-	}
-	p, _ := a.router.Select("build", tier)
-	if p == nil {
-		return nil, fmt.Errorf("no provider available for tier %s", tier)
-	}
-	return p.Run(ctx, prompt, tier)
+func (a *invokerAdapter) Run(ctx context.Context, promptText, tier string) (*provider.Result, error) {
+	return a.StreamRun(ctx, promptText, tier, io.Discard, nil, nil)
 }
 
-func (a *invokerAdapter) StreamRun(ctx context.Context, prompt, tier string, w io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
-	if a.router == nil {
-		return nil, fmt.Errorf("router is nil")
+func (a *invokerAdapter) StreamRun(ctx context.Context, promptText, tier string, w io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+	if a == nil || a.execInvoker == nil {
+		return nil, fmt.Errorf("build invoker is not configured")
 	}
-	p, _ := a.router.Select("build", tier)
-	if p == nil {
-		return nil, fmt.Errorf("no provider available for tier %s", tier)
+
+	promptCtx := &prompt.Context{}
+	if a.promptRegistry != nil {
+		if cacheClass, cacheKey, ok := a.promptRegistry.lookup(promptText); ok {
+			promptCtx.StaticPreambleCacheClass = cacheClass
+			promptCtx.StaticPreambleCacheKey = cacheKey
+		}
 	}
-	return p.StreamRun(ctx, prompt, tier, w, handler, onToolCall)
+
+	bc := &runtypes.BeadContext{
+		Tier:        tier,
+		BuildPrompt: promptText,
+		PromptCtx:   promptCtx,
+		Result:      &runtypes.IterationResult{},
+	}
+	inv := a.execInvoker
+	if a.cacheVersionKey != "" {
+		inv = inv.WithCacheVersionKey(a.cacheVersionKey)
+	}
+	result, err := inv.Execute(ctx, bc, promptText)
+	if err != nil {
+		return nil, err
+	}
+	if result == nil || result.ProviderResult == nil {
+		return nil, fmt.Errorf("build invocation returned nil provider result")
+	}
+	providerResult := result.ProviderResult
+	providerResult.CacheHit = bc.Result.CacheHit
+	providerResult.CacheMiss = bc.Result.CacheMiss
+	providerResult.CacheWrite = bc.Result.CacheWrite
+	providerResult.CacheClass = bc.Result.CacheClass
+	providerResult.CacheKey = bc.Result.CacheKey
+	providerResult.CacheInvalidationReason = bc.Result.CacheInvalidationReason
+	providerResult.CacheVersionMarker = bc.Result.CacheVersionMarker
+	return providerResult, nil
 }
 
 // renderAdapter wraps prompt.Renderer to satisfy execute.PromptRenderer.
 type renderAdapter struct {
-	r *prompt.Renderer
+	r              *prompt.Renderer
+	promptRegistry *buildPromptRegistry
 }
 
 func (a *renderAdapter) RenderBuild(title, description string, validationFailures []string) (string, error) {
@@ -62,7 +89,14 @@ func (a *renderAdapter) RenderBuild(title, description string, validationFailure
 		},
 		RecentValidationFailures: validationFailures,
 	}
-	return a.r.RenderBuild(ctx)
+	rendered, err := a.r.RenderBuild(ctx)
+	if err != nil {
+		return "", err
+	}
+	if a.promptRegistry != nil {
+		a.promptRegistry.remember(rendered, ctx.StaticPreambleCacheClass, ctx.StaticPreambleCacheKey)
+	}
+	return rendered, nil
 }
 
 func (a *renderAdapter) RenderTDDBuild(title, description string, validationFailures []string) (string, error) {
@@ -73,7 +107,14 @@ func (a *renderAdapter) RenderTDDBuild(title, description string, validationFail
 		},
 		RecentValidationFailures: validationFailures,
 	}
-	return a.r.RenderTDDBuild(ctx)
+	rendered, err := a.r.RenderTDDBuild(ctx)
+	if err != nil {
+		return "", err
+	}
+	if a.promptRegistry != nil {
+		a.promptRegistry.remember(rendered, ctx.StaticPreambleCacheClass, ctx.StaticPreambleCacheKey)
+	}
+	return rendered, nil
 }
 
 func (a *renderAdapter) RenderRefactorBuild(title, description string, validationFailures []string) (string, error) {
@@ -84,7 +125,88 @@ func (a *renderAdapter) RenderRefactorBuild(title, description string, validatio
 		},
 		RecentValidationFailures: validationFailures,
 	}
-	return a.r.RenderRefactor(ctx)
+	rendered, err := a.r.RenderRefactor(ctx)
+	if err != nil {
+		return "", err
+	}
+	if a.promptRegistry != nil {
+		a.promptRegistry.remember(rendered, ctx.StaticPreambleCacheClass, ctx.StaticPreambleCacheKey)
+	}
+	return rendered, nil
+}
+
+type buildPromptRegistry struct {
+	mu      sync.Mutex
+	entries map[string]buildPromptMetadata
+}
+
+type buildPromptMetadata struct {
+	cacheClass string
+	cacheKey   string
+}
+
+func newBuildPromptRegistry() *buildPromptRegistry {
+	return &buildPromptRegistry{
+		entries: make(map[string]buildPromptMetadata),
+	}
+}
+
+func (r *buildPromptRegistry) remember(promptText, cacheClass, cacheKey string) {
+	if r == nil || promptText == "" {
+		return
+	}
+	key := promptDigest(promptText)
+	r.mu.Lock()
+	r.entries[key] = buildPromptMetadata{
+		cacheClass: strings.TrimSpace(cacheClass),
+		cacheKey:   strings.TrimSpace(cacheKey),
+	}
+	r.mu.Unlock()
+}
+
+func (r *buildPromptRegistry) lookup(promptText string) (cacheClass, cacheKey string, ok bool) {
+	if r == nil || promptText == "" {
+		return "", "", false
+	}
+	key := promptDigest(promptText)
+	r.mu.Lock()
+	meta, exists := r.entries[key]
+	r.mu.Unlock()
+	if !exists || meta.cacheClass == "" || meta.cacheKey == "" {
+		return "", "", false
+	}
+	return meta.cacheClass, meta.cacheKey, true
+}
+
+func promptDigest(promptText string) string {
+	sum := sha1.Sum([]byte(promptText))
+	return hex.EncodeToString(sum[:])
+}
+
+type executionRouterAdapter struct {
+	router *provider.Router
+}
+
+func (a *executionRouterAdapter) Select(phase, tier string) (execution.Provider, string) {
+	if a == nil || a.router == nil {
+		return nil, ""
+	}
+	p, model := a.router.Select(phase, tier)
+	return p, model
+}
+
+func (a *executionRouterAdapter) MarkUnavailable(name string) {
+	if a == nil || a.router == nil {
+		return
+	}
+	a.router.MarkUnavailable(name)
+}
+
+func (a *executionRouterAdapter) RecordOutcome(providerName, failureCategory string) {
+	if a == nil || a.router == nil {
+		return
+	}
+	a.router.RecordOutcome(providerName, failureCategory)
 }
 
 // cmdRunnerAdapter wraps a command runner function to satisfy validate.CommandRunner.

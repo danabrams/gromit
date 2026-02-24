@@ -396,6 +396,12 @@ func TestInvokerExecute_CacheLookupHitUsesCachedPromptBeforeInvocation(t *testin
 	if len(callOrder) != 2 || callOrder[0] != "lookup" || callOrder[1] != "stream" {
 		t.Fatalf("call order = %v, want [lookup stream]", callOrder)
 	}
+	if !bc.Result.CacheHit || bc.Result.CacheMiss {
+		t.Fatalf("cache hit/miss telemetry = hit:%t miss:%t, want hit=true miss=false", bc.Result.CacheHit, bc.Result.CacheMiss)
+	}
+	if bc.Result.CacheClass != "render_static_build" || bc.Result.CacheKey != "cache-key-1" {
+		t.Fatalf("cache metadata = (%q,%q), want (%q,%q)", bc.Result.CacheClass, bc.Result.CacheKey, "render_static_build", "cache-key-1")
+	}
 }
 
 func TestInvokerExecute_Integration_CacheKeyStableAcrossBuildContextIterations(t *testing.T) {
@@ -544,6 +550,9 @@ func TestInvokerExecute_CacheMissWritesPromptAfterInvocation(t *testing.T) {
 	if len(callOrder) != 3 || callOrder[0] != "lookup" || callOrder[1] != "stream" || callOrder[2] != "write" {
 		t.Fatalf("call order = %v, want [lookup stream write]", callOrder)
 	}
+	if !bc.Result.CacheMiss || bc.Result.CacheHit || !bc.Result.CacheWrite {
+		t.Fatalf("cache telemetry = hit:%t miss:%t write:%t, want hit=false miss=true write=true", bc.Result.CacheHit, bc.Result.CacheMiss, bc.Result.CacheWrite)
+	}
 }
 
 func TestInvokerExecute_VersionKeyChangeInvalidatesBeforeNextLookup(t *testing.T) {
@@ -597,6 +606,12 @@ func TestInvokerExecute_VersionKeyChangeInvalidatesBeforeNextLookup(t *testing.T
 	if got != want {
 		t.Fatalf("call order = %q, want %q", got, want)
 	}
+	if bc.Result.CacheInvalidationReason != "version_change" {
+		t.Fatalf("CacheInvalidationReason = %q, want %q", bc.Result.CacheInvalidationReason, "version_change")
+	}
+	if bc.Result.CacheVersionMarker != "rules:v2" {
+		t.Fatalf("CacheVersionMarker = %q, want %q", bc.Result.CacheVersionMarker, "rules:v2")
+	}
 }
 
 func TestInvokerExecute_CacheLookupErrorContinuesUncachedWithoutWrite(t *testing.T) {
@@ -649,6 +664,9 @@ func TestInvokerExecute_CacheLookupErrorContinuesUncachedWithoutWrite(t *testing
 	want := "lookup,stream"
 	if got != want {
 		t.Fatalf("call order = %q, want %q", got, want)
+	}
+	if bc.Result.CacheHit || bc.Result.CacheMiss || bc.Result.CacheWrite {
+		t.Fatalf("cache telemetry = hit:%t miss:%t write:%t, want all false after lookup error", bc.Result.CacheHit, bc.Result.CacheMiss, bc.Result.CacheWrite)
 	}
 }
 

@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -166,4 +167,105 @@ models:
 	if len(cfg.TokenEfficiency.Routing.TaskOverrides) != 0 {
 		t.Errorf("len(TokenEfficiency.Routing.TaskOverrides) = %d, want 0", len(cfg.TokenEfficiency.Routing.TaskOverrides))
 	}
+}
+
+func TestTokenEfficiencyRoutingValidation_RejectsInvalidUtilityTier(t *testing.T) {
+	yamlContent := `
+token_efficiency:
+  routing:
+    enabled: true
+    utility_tier: turbo
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(cfgPath)
+	if err == nil {
+		t.Fatal("Load() error = nil, want validation error for invalid utility_tier")
+	}
+	if got := err.Error(); !containsAll(got, "token_efficiency.routing.utility_tier", "low medium high") {
+		t.Fatalf("Load() error = %q, want utility_tier validation details", got)
+	}
+}
+
+func TestTokenEfficiencyRoutingValidation_RejectsInvalidTaskOverrideCategory(t *testing.T) {
+	yamlContent := `
+token_efficiency:
+  routing:
+    task_overrides:
+      build: low
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(cfgPath)
+	if err == nil {
+		t.Fatal("Load() error = nil, want validation error for invalid task_overrides category")
+	}
+	if got := err.Error(); !containsAll(got, "task_overrides", "build", "unsupported category") {
+		t.Fatalf("Load() error = %q, want task_overrides category validation details", got)
+	}
+}
+
+func TestTokenEfficiencyRoutingValidation_RejectsInvalidTaskOverrideTier(t *testing.T) {
+	yamlContent := `
+token_efficiency:
+  routing:
+    task_overrides:
+      summarization: turbo
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(cfgPath)
+	if err == nil {
+		t.Fatal("Load() error = nil, want validation error for invalid task_overrides tier")
+	}
+	if got := err.Error(); !containsAll(got, "task_overrides", "summarization", "low medium high") {
+		t.Fatalf("Load() error = %q, want task_overrides tier validation details", got)
+	}
+}
+
+func TestTokenEfficiencyRoutingValidation_NormalizesTaskOverrideKeysAndValues(t *testing.T) {
+	yamlContent := `
+token_efficiency:
+  routing:
+    utility_tier: MEDIUM
+    task_overrides:
+      Summarization: HIGH
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.TokenEfficiency.Routing.UtilityTier != "medium" {
+		t.Fatalf("UtilityTier = %q, want %q", cfg.TokenEfficiency.Routing.UtilityTier, "medium")
+	}
+	if cfg.TokenEfficiency.Routing.TaskOverrides["summarization"] != "high" {
+		t.Fatalf("TaskOverrides[summarization] = %q, want %q", cfg.TokenEfficiency.Routing.TaskOverrides["summarization"], "high")
+	}
+}
+
+func containsAll(s string, parts ...string) bool {
+	for _, p := range parts {
+		if !strings.Contains(s, p) {
+			return false
+		}
+	}
+	return true
 }

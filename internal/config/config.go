@@ -39,12 +39,21 @@ func (c *Config) applyPostLoadNormalization(matchBuildModelConfigured bool) {
 	c.Methodology.Adapter = strings.ToLower(strings.TrimSpace(c.Methodology.Adapter))
 	c.Review.Tier = normalizeConfiguredTier(c.Review.Tier)
 	c.Review.Thorough.Tier = normalizeConfiguredTier(c.Review.Thorough.Tier)
+	c.TokenEfficiency.Routing.UtilityTier = normalizeConfiguredTier(c.TokenEfficiency.Routing.UtilityTier)
 	c.Methodology.BuildStrategy = strings.ToLower(strings.TrimSpace(c.Methodology.BuildStrategy))
 	c.Methodology.PhaseModels.Decompose = normalizeConfiguredTier(c.Methodology.PhaseModels.Decompose)
 	c.Methodology.PhaseModels.Build = normalizeConfiguredTier(c.Methodology.PhaseModels.Build)
 	c.Methodology.PhaseModels.Red = normalizeConfiguredTier(c.Methodology.PhaseModels.Red)
 	c.Methodology.PhaseModels.Green = normalizeConfiguredTier(c.Methodology.PhaseModels.Green)
 	c.Methodology.PhaseModels.Refactor = normalizeConfiguredTier(c.Methodology.PhaseModels.Refactor)
+	if len(c.TokenEfficiency.Routing.TaskOverrides) > 0 {
+		normalizedOverrides := make(map[string]string, len(c.TokenEfficiency.Routing.TaskOverrides))
+		for category, tier := range c.TokenEfficiency.Routing.TaskOverrides {
+			normalizedCategory := strings.ToLower(strings.TrimSpace(category))
+			normalizedOverrides[normalizedCategory] = normalizeConfiguredTier(tier)
+		}
+		c.TokenEfficiency.Routing.TaskOverrides = normalizedOverrides
+	}
 
 	if c.Review.Tier == "" {
 		if normalizedTier := normalizedLegacyModelTier(c.Review.Model); normalizedTier != "" {
@@ -115,6 +124,51 @@ func (c *Config) Validate() error {
 	}
 	if err := c.Routing.CircuitBreaker.Validate(); err != nil {
 		return err
+	}
+	if err := c.validateTokenEfficiencyRouting(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Config) validateTokenEfficiencyRouting() error {
+	validTiers := map[string]struct{}{
+		"low":    {},
+		"medium": {},
+		"high":   {},
+	}
+	validUtilityCategories := map[string]struct{}{
+		"summarization":      {},
+		"masking_transform":  {},
+		"discovery_indexing": {},
+	}
+
+	utilityTier := strings.TrimSpace(c.TokenEfficiency.Routing.UtilityTier)
+	if utilityTier != "" {
+		if _, ok := validTiers[utilityTier]; !ok {
+			return fmt.Errorf(
+				"token_efficiency.routing.utility_tier must be one of [low medium high] (got %q)",
+				c.TokenEfficiency.Routing.UtilityTier,
+			)
+		}
+	}
+
+	for category, tier := range c.TokenEfficiency.Routing.TaskOverrides {
+		normalizedCategory := strings.ToLower(strings.TrimSpace(category))
+		if _, ok := validUtilityCategories[normalizedCategory]; !ok {
+			return fmt.Errorf(
+				"token_efficiency.routing.task_overrides contains unsupported category %q (allowed: summarization, masking_transform, discovery_indexing)",
+				category,
+			)
+		}
+		normalizedTier := strings.ToLower(strings.TrimSpace(tier))
+		if _, ok := validTiers[normalizedTier]; !ok {
+			return fmt.Errorf(
+				"token_efficiency.routing.task_overrides[%q] must be one of [low medium high] (got %q)",
+				category,
+				tier,
+			)
+		}
 	}
 	return nil
 }

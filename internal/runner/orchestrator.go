@@ -226,6 +226,13 @@ runLoop:
 			CostUSD:                  buildOut.CostUSD,
 			InputTokens:              buildOut.InputTokens,
 			OutputTokens:             buildOut.OutputTokens,
+			CacheHit:                 buildOut.CacheHit,
+			CacheMiss:                buildOut.CacheMiss,
+			CacheWrite:               buildOut.CacheWrite,
+			CacheClass:               buildOut.CacheClass,
+			CacheKey:                 buildOut.CacheKey,
+			CacheInvalidationReason:  buildOut.CacheInvalidationReason,
+			CacheVersionMarker:       buildOut.CacheVersionMarker,
 		}
 		epilogueOut := o.runEpilogue(ctx, baseIn, true)
 		o.logf("Iteration %d: bead %s completed successfully", iteration, b.ID)

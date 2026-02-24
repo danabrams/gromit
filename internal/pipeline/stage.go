@@ -103,6 +103,14 @@ type Output struct {
 	// PhaseMetrics holds per-phase invocation metrics for TDD builds.
 	// Each entry corresponds to one TDD phase (red, green, refactor, etc.).
 	PhaseMetrics []PhaseMetric
+	// Cache telemetry from build invocation paths when available.
+	CacheHit                bool
+	CacheMiss               bool
+	CacheWrite              bool
+	CacheClass              string
+	CacheKey                string
+	CacheInvalidationReason string
+	CacheVersionMarker      string
 	// ComplexityRouting carries Gate-selected complexity metadata for downstream stages.
 	ComplexityRouting
 }

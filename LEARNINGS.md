@@ -37,6 +37,16 @@ Gemini fixture tests require provenance/refresh headers plus specific prompt-del
 *Related to: gromit/review-1771929160626448252*
 
 Schema notes fixtures are validated for explicit references to model/token-cost evidence files and concrete prompt-mode comparisons, making those references part of the fixture contract.
+
+### 2026-02-24 | token_efficiency_telemetry_requires_single_runtime_wiring_path | ARCHITECTURE
+*Related to: gromit/review-1771929519774405451*
+
+Adding telemetry fields to runtypes/logger schemas is not sufficient by itself; production invocation/stage outputs must carry those values through to orchestrator iteration-log writes or observability will silently drift.
+
+### 2026-02-24 | token_efficiency_routing_needs_strict_category_and_tier_validation | RELIABILITY
+*Related to: gromit/review-1771929519774405451*
+
+`token_efficiency.routing` config must validate both override categories and tier values (`low|medium|high`) after normalization, otherwise invalid entries can silently bypass intended utility-routing guardrails.
 ## Provisional Learnings
 
 ### 2026-02-24 | benchmark_execution_and_reporting_require_single_source_truth_and_owner | ARCHITECTURE

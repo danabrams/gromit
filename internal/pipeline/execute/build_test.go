@@ -875,6 +875,66 @@ func TestBuildStage_Run_PopulatesOutputMetadataFromProviderResult(t *testing.T) 
 	}
 }
 
+func TestBuildStage_Run_SetsCacheHitTelemetryFromProviderResult(t *testing.T) {
+	invoker := &fakeInvoker{
+		streamRunFn: func(_ context.Context, _, _ string, _ io.Writer, _ provider.EventHandler, _ provider.ToolCallHandler) (*provider.Result, error) {
+			return &provider.Result{
+				Success:           true,
+				Model:             "claude-opus-4-5",
+				CachedInputTokens: 128,
+			}, nil
+		},
+	}
+	stage := execute.New(invoker, &fakePromptRenderer{}, io.Discard)
+
+	out, err := stage.Run(context.Background(), makeInput(makeBead("bead-1", "Add feature"), defaultConfig()))
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if !out.CacheHit {
+		t.Fatal("Output.CacheHit = false, want true when provider reports CachedInputTokens > 0")
+	}
+}
+
+func TestBuildStage_Run_PropagatesCacheTelemetryFromProviderResult(t *testing.T) {
+	invoker := &fakeInvoker{
+		streamRunFn: func(_ context.Context, _, _ string, _ io.Writer, _ provider.EventHandler, _ provider.ToolCallHandler) (*provider.Result, error) {
+			return &provider.Result{
+				Success:                 true,
+				Model:                   "claude-opus-4-5",
+				CacheHit:                true,
+				CacheMiss:               true,
+				CacheWrite:              true,
+				CacheClass:              "render_static_build",
+				CacheKey:                "cache-key-1",
+				CacheInvalidationReason: "version_change",
+				CacheVersionMarker:      "rules-v2",
+			}, nil
+		},
+	}
+	stage := execute.New(invoker, &fakePromptRenderer{}, io.Discard)
+
+	out, err := stage.Run(context.Background(), makeInput(makeBead("bead-1", "Add feature"), defaultConfig()))
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if !out.CacheHit || !out.CacheMiss || !out.CacheWrite {
+		t.Fatalf("cache flags = hit:%t miss:%t write:%t, want all true", out.CacheHit, out.CacheMiss, out.CacheWrite)
+	}
+	if out.CacheClass != "render_static_build" {
+		t.Fatalf("CacheClass = %q, want %q", out.CacheClass, "render_static_build")
+	}
+	if out.CacheKey != "cache-key-1" {
+		t.Fatalf("CacheKey = %q, want %q", out.CacheKey, "cache-key-1")
+	}
+	if out.CacheInvalidationReason != "version_change" {
+		t.Fatalf("CacheInvalidationReason = %q, want %q", out.CacheInvalidationReason, "version_change")
+	}
+	if out.CacheVersionMarker != "rules-v2" {
+		t.Fatalf("CacheVersionMarker = %q, want %q", out.CacheVersionMarker, "rules-v2")
+	}
+}
+
 // TestBuildStage_Run_UsesBuildPhaseTierOverride verifies that build invocations
 // route through PhaseModelTier("build", beadTier) before StreamRun.
 func TestBuildStage_Run_UsesBuildPhaseTierOverride(t *testing.T) {

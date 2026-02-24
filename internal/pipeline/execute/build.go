@@ -195,6 +195,13 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 		out.CostUSD = result.CostUSD
 		out.InputTokens = result.InputTokens
 		out.OutputTokens = result.OutputTokens
+		out.CacheHit = result.CacheHit || result.CachedInputTokens > 0
+		out.CacheMiss = result.CacheMiss
+		out.CacheWrite = result.CacheWrite
+		out.CacheClass = result.CacheClass
+		out.CacheKey = result.CacheKey
+		out.CacheInvalidationReason = result.CacheInvalidationReason
+		out.CacheVersionMarker = result.CacheVersionMarker
 	}
 	return out, nil
 }

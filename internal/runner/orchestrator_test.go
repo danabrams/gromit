@@ -268,6 +268,71 @@ func TestOrchestrator_SuccessPath_CarriesBuildTiersToIterationLog(t *testing.T) 
 	}
 }
 
+func TestOrchestrator_SuccessPath_CarriesBuildTelemetryToIterationLog(t *testing.T) {
+	var capturedResult *logger.IterationLog
+
+	build := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{
+			Decision:                pipeline.Proceed,
+			CacheHit:                true,
+			CacheMiss:               true,
+			CacheWrite:              true,
+			CacheClass:              "render_static_build",
+			CacheKey:                "cache-key-1",
+			CacheInvalidationReason: "version_change",
+			CacheVersionMarker:      "rules-v2",
+		}, nil
+	}}
+	epilogueStage := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		if in.Result != nil {
+			capturedResult = in.Result
+		}
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-4", Title: "Telemetry test bead"}, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     &fakeStage{},
+		Build:    build,
+		Validate: &fakeStage{},
+		Epilogue: epilogueStage,
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if capturedResult == nil {
+		t.Fatal("Epilogue Result is nil; want IterationLog populated on success path")
+	}
+	if !capturedResult.CacheHit || !capturedResult.CacheMiss || !capturedResult.CacheWrite {
+		t.Fatalf("cache booleans = hit:%t miss:%t write:%t, want all true", capturedResult.CacheHit, capturedResult.CacheMiss, capturedResult.CacheWrite)
+	}
+	if capturedResult.CacheClass != "render_static_build" {
+		t.Fatalf("CacheClass = %q, want %q", capturedResult.CacheClass, "render_static_build")
+	}
+	if capturedResult.CacheKey != "cache-key-1" {
+		t.Fatalf("CacheKey = %q, want %q", capturedResult.CacheKey, "cache-key-1")
+	}
+	if capturedResult.CacheInvalidationReason != "version_change" {
+		t.Fatalf("CacheInvalidationReason = %q, want %q", capturedResult.CacheInvalidationReason, "version_change")
+	}
+	if capturedResult.CacheVersionMarker != "rules-v2" {
+		t.Fatalf("CacheVersionMarker = %q, want %q", capturedResult.CacheVersionMarker, "rules-v2")
+	}
+}
+
 // TestOrchestrator_PropagatesGateComplexityRoutingToBuildInput verifies that
 // complexity metadata produced by Gate is copied into the Build stage input.
 func TestOrchestrator_PropagatesGateComplexityRoutingToBuildInput(t *testing.T) {
