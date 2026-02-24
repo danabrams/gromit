@@ -121,25 +121,18 @@ func (h *Handler) HandleStallTimeout(ctx context.Context, bc *runtypes.BeadConte
 	return h.handleTimeoutEscalationOrFail(bc, "stall timeout")
 }
 
-// HandleInvocationTimeout escalates once on invocation timeout and, when already
-// at the highest tier, attempts decomposition as the terminal recovery option.
+// HandleInvocationTimeout applies timeout-first decomposition.
 func (h *Handler) HandleInvocationTimeout(ctx context.Context, bc *runtypes.BeadContext) (continueLoop bool) {
-	if h.handleTimeoutEscalationOrFail(bc, "invocation timeout") {
-		return true
-	}
-	if bc == nil || bc.Result == nil || bc.Result.Error == nil {
-		return false
-	}
-	if bc.Result.Error.Error() != "invocation timeout: no higher tier available" {
+	if bc == nil || bc.Result == nil {
 		return false
 	}
 
 	decomposeCtx := firstNonNilContext(bc.ParentCtx, ctx)
 	if decomposeCtx.Err() != nil {
-		bc.Result.Error = fmt.Errorf("invocation timeout: no higher tier available (decomposition skipped: parent context canceled: %w)", decomposeCtx.Err())
+		bc.Result.Error = fmt.Errorf("invocation timeout (decomposition skipped: parent context canceled: %w)", decomposeCtx.Err())
 		return false
 	}
-	return h.AttemptDecomposition(decomposeCtx, bc, "invocation timeout and no higher tier available")
+	return h.AttemptDecomposition(decomposeCtx, bc, "invocation timeout")
 }
 
 func (h *Handler) resolveL1RetryCap(bc *runtypes.BeadContext) int {
