@@ -5,8 +5,11 @@
   "change": "When current-run rows are empty, output `insufficient_current_run_data`, render deltas as `N/A`, and skip comparative efficiency narrative.",
   "measurement": "Count of retro reports with empty current rows that still show numeric deltas (target: 0).",
   "risk": "More retros may surface as 'insufficient data' until upstream logging gaps are fixed.",
-  "status": "act",
+  "status": "study",
   "started_at": "2026-02-24T00:00:00Z",
+  "act_decision": "extend",
+  "act_date": "2026-02-24T00:00:00Z",
+  "study_summary": "Fail-closed behavior is present as intended (`insufficient_current_run_data`, no misleading comparative deltas), but effectiveness is only partial: current-run rows remain empty, so no measurable efficiency improvement is attributable. Process trend remains stressed (rolling_timeout_failure_rate 0.2667 above UCL 0.1387; rolling_quality_score 0.6119 below LCL 0.6129).",
   "baseline_metrics": {
     "avg_cost_per_bead": 0.0,
     "avg_duration_ms": 0,
