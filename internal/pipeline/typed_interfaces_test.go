@@ -40,12 +40,12 @@ func TestPipelineCoreSurface_UsesLLMNames(t *testing.T) {
 	}
 }
 
-// TestClaudeClientRun_ReturnsTypedResult verifies ClaudeClient.Run returns *ClaudeRunResult instead of interface{}
-// Expected failure: ClaudeClient.Run() currently returns (interface{}, error) and ClaudeRunResult type does not exist
+// TestClaudeClientRun_ReturnsTypedResult verifies LLMClient.Run returns *LLMRunResult instead of interface{}
+// Expected failure: LLMClient.Run() currently returns (interface{}, error) and LLMRunResult type does not exist
 func TestClaudeClientRun_ReturnsTypedResult(t *testing.T) {
 	mockClaude := &typedInterfacesClaudeClient{
-		runFn: func(prompt string, model string) (*ClaudeRunResult, error) {
-			return &ClaudeRunResult{
+		runFn: func(prompt string, model string) (*LLMRunResult, error) {
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output:   "test output",
@@ -76,12 +76,12 @@ func TestClaudeClientRun_ReturnsTypedResult(t *testing.T) {
 	}
 }
 
-// TestClaudeClientRun_FailureResult verifies ClaudeRunResult handles failure cases with typed fields
-// Expected failure: ClaudeRunResult type does not exist and ClaudeClient.Run() returns interface{}
+// TestClaudeClientRun_FailureResult verifies LLMRunResult handles failure cases with typed fields
+// Expected failure: LLMRunResult type does not exist and LLMClient.Run() returns interface{}
 func TestClaudeClientRun_FailureResult(t *testing.T) {
 	mockClaude := &typedInterfacesClaudeClient{
-		runFn: func(prompt string, model string) (*ClaudeRunResult, error) {
-			return &ClaudeRunResult{
+		runFn: func(prompt string, model string) (*LLMRunResult, error) {
+			return &LLMRunResult{
 				Success:  false,
 				ExitCode: 1,
 				Output:   "build failed",
@@ -311,8 +311,8 @@ func TestDecompose_NoTypeAssertions(t *testing.T) {
 	var beadCreationCalled bool
 	var lastCreatedID string
 	mockClaude := &typedInterfacesClaudeClient{
-		runFn: func(prompt string, model string) (*ClaudeRunResult, error) {
-			return &ClaudeRunResult{
+		runFn: func(prompt string, model string) (*LLMRunResult, error) {
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output:   `[{"title": "Test", "description": "Desc", "priority": "P1", "acceptance_criteria": ["AC1"], "depends_on_index": []}, {"title": "Support", "description": "Desc", "priority": "P1", "acceptance_criteria": ["AC2"], "depends_on_index": []}]`,
@@ -338,8 +338,8 @@ func TestDecompose_NoTypeAssertions(t *testing.T) {
 	}
 
 	deps := &Deps{
-		ClaudeClient: mockClaude,
-		BeadClient:   mockBead,
+		LLMClient:  mockClaude,
+		BeadClient: mockBead,
 	}
 	paths := &Paths{
 		GromitDir: tmpDir,
@@ -430,14 +430,14 @@ func TestLogWriter_UsesTypedEntry(t *testing.T) {
 	}
 }
 
-// TestReviewNonInteractive_UsesTypedClaudeResult verifies ReviewNonInteractive works with typed ClaudeRunResult
+// TestReviewNonInteractive_UsesTypedClaudeResult verifies ReviewNonInteractive works with typed LLMRunResult
 // Expected failure: ReviewNonInteractive currently uses type assertions on interface{} result
 func TestReviewNonInteractive_UsesTypedClaudeResult(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	mockClaude := &typedInterfacesClaudeClient{
-		runFn: func(prompt string, model string) (*ClaudeRunResult, error) {
-			return &ClaudeRunResult{
+		runFn: func(prompt string, model string) (*LLMRunResult, error) {
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output:   `{"passed": true, "summary": "All good", "fixes_applied": [], "beads_to_create": [], "backlog_items": [], "learnings": []}`,
@@ -498,10 +498,10 @@ func TestReviewNonInteractive_UsesTypedClaudeResult(t *testing.T) {
 // Helper types for testing typed interfaces
 
 type typedInterfacesClaudeClient struct {
-	runFn func(prompt string, model string) (*ClaudeRunResult, error)
+	runFn func(prompt string, model string) (*LLMRunResult, error)
 }
 
-func (m *typedInterfacesClaudeClient) Run(prompt string, model string) (*ClaudeRunResult, error) {
+func (m *typedInterfacesClaudeClient) Run(prompt string, model string) (*LLMRunResult, error) {
 	if m.runFn != nil {
 		return m.runFn(prompt, model)
 	}
@@ -625,7 +625,7 @@ func hasFunction(content, funcName string) bool {
 }
 
 // Ensure mocks compile against the new interface signatures
-var _ ClaudeClient = (*typedInterfacesClaudeClient)(nil)
+var _ LLMClient = (*typedInterfacesClaudeClient)(nil)
 var _ BeadClient = (*typedInterfacesBeadClient)(nil)
 var _ ReviewRenderer = (*typedInterfacesReviewRenderer)(nil)
 var _ LogWriter = (*typedInterfacesLogWriter)(nil)

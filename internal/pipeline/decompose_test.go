@@ -48,7 +48,7 @@ created: 2026-02-11
 
 	// Mock Claude client that returns bead definitions
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			// Verify prompt contains plan body (not frontmatter)
 			if !strings.Contains(prompt, "Database Schema") {
 				return nil, fmt.Errorf("prompt missing plan body content")
@@ -81,7 +81,7 @@ created: 2026-02-11
 					"depends_on_index": [0]
 				}
 			]`
-			return &ClaudeRunResult{
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output:   jsonOutput,
@@ -104,8 +104,8 @@ created: 2026-02-11
 	}
 
 	deps := &Deps{
-		ClaudeClient: mockClaude,
-		BeadClient:   mockBead,
+		LLMClient:  mockClaude,
+		BeadClient: mockBead,
 	}
 	paths := &Paths{
 		GromitDir: tmpDir,
@@ -189,8 +189,8 @@ func TestDecomposeWorkflow_ProviderReturnsEmptyOutput(t *testing.T) {
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
-			return &ClaudeRunResult{
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output:   "   \n\t",
@@ -199,7 +199,7 @@ func TestDecomposeWorkflow_ProviderReturnsEmptyOutput(t *testing.T) {
 	}
 
 	p := New(&Deps{
-		ClaudeClient: mockClaude,
+		LLMClient: mockClaude,
 	}, &Paths{
 		GromitDir: tmpDir,
 		PlansDir:  plansDir,
@@ -237,8 +237,8 @@ id: coverage-gap
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
-			return &ClaudeRunResult{
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -270,8 +270,8 @@ id: coverage-gap
 	}
 
 	p := New(&Deps{
-		ClaudeClient: mockClaude,
-		BeadClient:   mockBead,
+		LLMClient:  mockClaude,
+		BeadClient: mockBead,
 	}, &Paths{
 		GromitDir: tmpDir,
 		PlansDir:  plansDir,
@@ -314,14 +314,14 @@ func TestDecomposeWorkflow_RetriesOnValidationViolation(t *testing.T) {
 
 	runCount := 0
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			runCount++
 			if runCount == 2 && !strings.Contains(prompt, "Violations By Flagged Bead") {
 				t.Fatalf("second prompt should be validation reprompt, got: %q", prompt)
 			}
 
 			if runCount == 1 {
-				return &ClaudeRunResult{
+				return &LLMRunResult{
 					Success:  true,
 					ExitCode: 0,
 					Output: `[
@@ -343,7 +343,7 @@ func TestDecomposeWorkflow_RetriesOnValidationViolation(t *testing.T) {
 				}, nil
 			}
 
-			return &ClaudeRunResult{
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -372,7 +372,7 @@ func TestDecomposeWorkflow_RetriesOnValidationViolation(t *testing.T) {
 		},
 	}
 
-	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
 	result, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "retry-plan",
 		MaxValidationRetries: 2,
@@ -412,9 +412,9 @@ func TestDecomposeWorkflow_ValidationRetriesExhaustedContinues(t *testing.T) {
 
 	runCount := 0
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			runCount++
-			return &ClaudeRunResult{
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -443,7 +443,7 @@ func TestDecomposeWorkflow_ValidationRetriesExhaustedContinues(t *testing.T) {
 		},
 	}
 
-	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
 	result, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "retry-exhausted",
 		MaxValidationRetries: 1,
@@ -513,9 +513,9 @@ func TestDecomposeWorkflow_SkipValidationDisablesRetryLoop(t *testing.T) {
 
 	runCount := 0
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			runCount++
-			return &ClaudeRunResult{
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -544,7 +544,7 @@ func TestDecomposeWorkflow_SkipValidationDisablesRetryLoop(t *testing.T) {
 		},
 	}
 
-	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
 	_, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "skip-validation",
 		SkipValidation:       true,
@@ -569,8 +569,8 @@ func TestDecomposeWorkflow_SkipValidationOversizedBatchErrorsWithoutCreatingBead
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
-			return &ClaudeRunResult{
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -593,7 +593,7 @@ func TestDecomposeWorkflow_SkipValidationOversizedBatchErrorsWithoutCreatingBead
 		},
 	}
 
-	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
 	_, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:       "skip-validation-oversized",
 		SkipValidation: true,
@@ -621,8 +621,8 @@ func TestDecomposeWorkflow_SkipValidationUnlimitedMaxAllowsLargeBatch(t *testing
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
-			return &ClaudeRunResult{
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -645,7 +645,7 @@ func TestDecomposeWorkflow_SkipValidationUnlimitedMaxAllowsLargeBatch(t *testing
 		},
 	}
 
-	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
 	_, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:       "skip-validation-unlimited",
 		SkipValidation: true,
@@ -670,8 +670,8 @@ func TestDecomposeWorkflow_SkipValidationUndersizedBatchErrorsWithoutCreatingBea
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
-			return &ClaudeRunResult{
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -689,7 +689,7 @@ func TestDecomposeWorkflow_SkipValidationUndersizedBatchErrorsWithoutCreatingBea
 		},
 	}
 
-	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
 	_, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:       "skip-validation-undersized",
 		SkipValidation: true,
@@ -721,8 +721,8 @@ func TestDecomposeWorkflow_CreatesBeadsWithCorrectLabels(t *testing.T) {
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
-			return &ClaudeRunResult{
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -755,8 +755,8 @@ func TestDecomposeWorkflow_CreatesBeadsWithCorrectLabels(t *testing.T) {
 	}
 
 	deps := &Deps{
-		ClaudeClient: mockClaude,
-		BeadClient:   mockBead,
+		LLMClient:  mockClaude,
+		BeadClient: mockBead,
 	}
 	paths := &Paths{
 		PlansDir: plansDir,
@@ -801,9 +801,9 @@ func TestDecomposeWorkflow_HandlesDependencyMapping(t *testing.T) {
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			// Return 3 beads with dependency chain: bead2 depends on bead0, bead1 has no deps
-			return &ClaudeRunResult{
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -851,8 +851,8 @@ func TestDecomposeWorkflow_HandlesDependencyMapping(t *testing.T) {
 	}
 
 	deps := &Deps{
-		ClaudeClient: mockClaude,
-		BeadClient:   mockBead,
+		LLMClient:  mockClaude,
+		BeadClient: mockBead,
 	}
 	paths := &Paths{
 		PlansDir: plansDir,
@@ -910,9 +910,9 @@ func TestDecomposeWorkflow_SkipsSelfDependencies(t *testing.T) {
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			// Return 2 beads: second has self-dependency (index 1 depends on index 1)
-			return &ClaudeRunResult{
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -944,8 +944,8 @@ func TestDecomposeWorkflow_SkipsSelfDependencies(t *testing.T) {
 	}
 
 	deps := &Deps{
-		ClaudeClient: mockClaude,
-		BeadClient:   mockBead,
+		LLMClient:  mockClaude,
+		BeadClient: mockBead,
 	}
 	paths := &Paths{
 		PlansDir: plansDir,
@@ -985,9 +985,9 @@ func TestDecomposeWorkflow_SkipsOutOfRangeDependencies(t *testing.T) {
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			// Return 2 beads, second depends on index 5 (out of range)
-			return &ClaudeRunResult{
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -1023,8 +1023,8 @@ func TestDecomposeWorkflow_SkipsOutOfRangeDependencies(t *testing.T) {
 	}
 
 	deps := &Deps{
-		ClaudeClient: mockClaude,
-		BeadClient:   mockBead,
+		LLMClient:  mockClaude,
+		BeadClient: mockBead,
 	}
 	paths := &Paths{
 		PlansDir: plansDir,
@@ -1067,8 +1067,8 @@ func TestDecomposeWorkflow_ReviewModeReturnsProposedBeads(t *testing.T) {
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
-			return &ClaudeRunResult{
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -1101,8 +1101,8 @@ func TestDecomposeWorkflow_ReviewModeReturnsProposedBeads(t *testing.T) {
 	}
 
 	deps := &Deps{
-		ClaudeClient: mockClaude,
-		BeadClient:   mockBead,
+		LLMClient:  mockClaude,
+		BeadClient: mockBead,
 	}
 	paths := &Paths{
 		PlansDir: plansDir,
@@ -1166,8 +1166,8 @@ Already decomposed
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
-			return &ClaudeRunResult{
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -1197,8 +1197,8 @@ Already decomposed
 	}
 
 	deps := &Deps{
-		ClaudeClient: mockClaude,
-		BeadClient:   mockBead,
+		LLMClient:  mockClaude,
+		BeadClient: mockBead,
 	}
 	paths := &Paths{
 		PlansDir: plansDir,
@@ -1250,8 +1250,8 @@ func TestDecomposeWorkflow_PlanNotFoundError(t *testing.T) {
 	}
 
 	deps := &Deps{
-		ClaudeClient: &decomposeAcceptanceClaudeClient{},
-		BeadClient:   &decomposeAcceptanceBeadClient{},
+		LLMClient:  &decomposeAcceptanceClaudeClient{},
+		BeadClient: &decomposeAcceptanceBeadClient{},
 	}
 	paths := &Paths{
 		PlansDir: plansDir,
@@ -1290,8 +1290,8 @@ func TestDecomposeWorkflow_UpdatesPlanFrontmatterTimestamp(t *testing.T) {
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
-			return &ClaudeRunResult{
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -1321,8 +1321,8 @@ func TestDecomposeWorkflow_UpdatesPlanFrontmatterTimestamp(t *testing.T) {
 	}
 
 	deps := &Deps{
-		ClaudeClient: mockClaude,
-		BeadClient:   mockBead,
+		LLMClient:  mockClaude,
+		BeadClient: mockBead,
 	}
 	paths := &Paths{
 		PlansDir: plansDir,
@@ -1382,8 +1382,8 @@ func TestDecomposeWorkflow_ParsesPriorityCorrectly(t *testing.T) {
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
-			return &ClaudeRunResult{
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -1426,8 +1426,8 @@ func TestDecomposeWorkflow_ParsesPriorityCorrectly(t *testing.T) {
 	}
 
 	deps := &Deps{
-		ClaudeClient: mockClaude,
-		BeadClient:   mockBead,
+		LLMClient:  mockClaude,
+		BeadClient: mockBead,
 	}
 	paths := &Paths{
 		PlansDir: plansDir,
@@ -1522,10 +1522,10 @@ func TestBuildDecomposePrompt_ConstructsPromptDiagnostics(t *testing.T) {
 // Mock types for acceptance tests
 
 type decomposeAcceptanceClaudeClient struct {
-	runFunc func(prompt string, model string) (*ClaudeRunResult, error)
+	runFunc func(prompt string, model string) (*LLMRunResult, error)
 }
 
-func (m *decomposeAcceptanceClaudeClient) Run(prompt string, model string) (*ClaudeRunResult, error) {
+func (m *decomposeAcceptanceClaudeClient) Run(prompt string, model string) (*LLMRunResult, error) {
 	if m.runFunc != nil {
 		return m.runFunc(prompt, model)
 	}
@@ -1574,8 +1574,8 @@ func TestDecomposeWorkflow_UsesExpectedOutputsWhenNonEmpty(t *testing.T) {
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
-			return &ClaudeRunResult{
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -1607,7 +1607,7 @@ func TestDecomposeWorkflow_UsesExpectedOutputsWhenNonEmpty(t *testing.T) {
 		},
 	}
 
-	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
 	_, err := p.Decompose(context.Background(), DecomposeInput{PlanName: "test-plan"})
 	if err != nil {
 		t.Fatalf("Decompose() failed: %v", err)
@@ -1637,8 +1637,8 @@ func TestDecomposeWorkflow_FallsBackToAcceptanceCriteriaWhenNoExpectedOutputs(t 
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
-			return &ClaudeRunResult{
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -1669,7 +1669,7 @@ func TestDecomposeWorkflow_FallsBackToAcceptanceCriteriaWhenNoExpectedOutputs(t 
 		},
 	}
 
-	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
 	_, err := p.Decompose(context.Background(), DecomposeInput{PlanName: "test-plan"})
 	if err != nil {
 		t.Fatalf("Decompose() failed: %v", err)
@@ -1784,9 +1784,9 @@ func TestDecomposeWorkflow_UsesInputTierForProviderCall(t *testing.T) {
 
 	gotModel := ""
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			gotModel = model
-			return &ClaudeRunResult{
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -1815,7 +1815,7 @@ func TestDecomposeWorkflow_UsesInputTierForProviderCall(t *testing.T) {
 		},
 	}
 
-	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
 	_, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName: "tier-plan",
 		Tier:     "high",
@@ -1841,7 +1841,7 @@ func TestDecomposeWorkflow_SixBeadBatchViolationRepromptsThenErrorsAtRetryCap(t 
 
 	runCount := 0
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			runCount++
 			if runCount == 2 {
 				if !strings.Contains(prompt, "Violations By Flagged Bead") {
@@ -1851,7 +1851,7 @@ func TestDecomposeWorkflow_SixBeadBatchViolationRepromptsThenErrorsAtRetryCap(t 
 					t.Fatalf("second prompt should include batch_size_max violation, got: %q", prompt)
 				}
 			}
-			return &ClaudeRunResult{
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -1874,7 +1874,7 @@ func TestDecomposeWorkflow_SixBeadBatchViolationRepromptsThenErrorsAtRetryCap(t 
 		},
 	}
 
-	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
 	_, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "big-plan",
 		MaxValidationRetries: 1,
@@ -1909,7 +1909,7 @@ func TestDecomposeWorkflow_OneBeadBatchViolationRepromptsThenErrorsAtRetryCap(t 
 
 	runCount := 0
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			runCount++
 			if runCount == 2 {
 				if !strings.Contains(prompt, "Violations By Flagged Bead") {
@@ -1919,7 +1919,7 @@ func TestDecomposeWorkflow_OneBeadBatchViolationRepromptsThenErrorsAtRetryCap(t 
 					t.Fatalf("second prompt should include batch_size_min violation, got: %q", prompt)
 				}
 			}
-			return &ClaudeRunResult{
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -1936,7 +1936,7 @@ func TestDecomposeWorkflow_OneBeadBatchViolationRepromptsThenErrorsAtRetryCap(t 
 		},
 	}
 
-	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
 	_, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "one-bead-batch",
 		MaxValidationRetries: 1,
@@ -1963,8 +1963,8 @@ func TestDecomposeWorkflow_LogsComplexitySummaryPerAttempt(t *testing.T) {
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
-			return &ClaudeRunResult{
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -1981,7 +1981,7 @@ func TestDecomposeWorkflow_LogsComplexitySummaryPerAttempt(t *testing.T) {
 		},
 	}
 
-	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
 
 	output := captureStdout(t, func() {
 		_, err := p.Decompose(context.Background(), DecomposeInput{PlanName: "complexity-plan"})
@@ -2008,11 +2008,11 @@ func TestDecomposeWorkflow_IncludesComplexityFeedbackInReprompt(t *testing.T) {
 	runCount := 0
 	prompts := []string{}
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			runCount++
 			prompts = append(prompts, prompt)
 			if runCount == 1 {
-				return &ClaudeRunResult{
+				return &LLMRunResult{
 					Success:  true,
 					ExitCode: 0,
 					Output: `[
@@ -2022,7 +2022,7 @@ func TestDecomposeWorkflow_IncludesComplexityFeedbackInReprompt(t *testing.T) {
 				}, nil
 			}
 
-			return &ClaudeRunResult{
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -2039,7 +2039,7 @@ func TestDecomposeWorkflow_IncludesComplexityFeedbackInReprompt(t *testing.T) {
 		},
 	}
 
-	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
 	_, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "reprompt-complexity",
 		MaxValidationRetries: 2,
@@ -2074,10 +2074,10 @@ func TestDecomposeWorkflow_IncludesStructuredComplexityFeedbackAndStillCreatesBe
 	prompts := []string{}
 	createCalls := 0
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			runCount++
 			prompts = append(prompts, prompt)
-			return &ClaudeRunResult{
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -2095,7 +2095,7 @@ func TestDecomposeWorkflow_IncludesStructuredComplexityFeedbackAndStillCreatesBe
 		},
 	}
 
-	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
 	_, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "reprompt-structured-complexity",
 		MaxValidationRetries: 1,
@@ -2132,13 +2132,13 @@ func TestDecomposeWorkflow_RetriesWhenHighComplexityRemains(t *testing.T) {
 	runCount := 0
 	var secondPrompt string
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			runCount++
 			if runCount == 2 {
 				secondPrompt = prompt
 			}
 			if runCount == 1 {
-				return &ClaudeRunResult{
+				return &LLMRunResult{
 					Success:  true,
 					ExitCode: 0,
 					Output: `[
@@ -2148,7 +2148,7 @@ func TestDecomposeWorkflow_RetriesWhenHighComplexityRemains(t *testing.T) {
 				}, nil
 			}
 
-			return &ClaudeRunResult{
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -2165,7 +2165,7 @@ func TestDecomposeWorkflow_RetriesWhenHighComplexityRemains(t *testing.T) {
 		},
 	}
 
-	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
 	_, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "complexity-retry",
 		MaxValidationRetries: 2,
@@ -2195,13 +2195,13 @@ func TestDecomposeWorkflow_RetriesWhenBroadScopeSignalFlagsHighComplexity(t *tes
 	runCount := 0
 	var secondPrompt string
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			runCount++
 			if runCount == 2 {
 				secondPrompt = prompt
 			}
 			if runCount == 1 {
-				return &ClaudeRunResult{
+				return &LLMRunResult{
 					Success:  true,
 					ExitCode: 0,
 					Output: `[
@@ -2211,7 +2211,7 @@ func TestDecomposeWorkflow_RetriesWhenBroadScopeSignalFlagsHighComplexity(t *tes
 				}, nil
 			}
 
-			return &ClaudeRunResult{
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -2228,7 +2228,7 @@ func TestDecomposeWorkflow_RetriesWhenBroadScopeSignalFlagsHighComplexity(t *tes
 		},
 	}
 
-	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
 	_, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "complexity-broad-scope-retry",
 		MaxValidationRetries: 2,
@@ -2256,8 +2256,8 @@ func TestDecomposeWorkflow_HighComplexityWarningIncludesDetails(t *testing.T) {
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
-			return &ClaudeRunResult{
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -2274,7 +2274,7 @@ func TestDecomposeWorkflow_HighComplexityWarningIncludesDetails(t *testing.T) {
 		},
 	}
 
-	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
 
 	output := captureStdout(t, func() {
 		_, err := p.Decompose(context.Background(), DecomposeInput{
@@ -2311,8 +2311,8 @@ func TestDecomposeWorkflow_FinalHighComplexityWarningAtLoopExitAfterValidationFa
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
-			return &ClaudeRunResult{
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -2329,7 +2329,7 @@ func TestDecomposeWorkflow_FinalHighComplexityWarningAtLoopExitAfterValidationFa
 		},
 	}
 
-	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
 
 	output := captureStdout(t, func() {
 		_, err := p.Decompose(context.Background(), DecomposeInput{
@@ -2366,8 +2366,8 @@ func TestDecomposeWorkflow_HighComplexityWarningIncludesBroadScopeReasonWithoutL
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
-			return &ClaudeRunResult{
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -2384,7 +2384,7 @@ func TestDecomposeWorkflow_HighComplexityWarningIncludesBroadScopeReasonWithoutL
 		},
 	}
 
-	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
 
 	output := captureStdout(t, func() {
 		_, err := p.Decompose(context.Background(), DecomposeInput{
@@ -2418,8 +2418,8 @@ func TestDecomposeWorkflow_ComplexitySummaryIncludesHighTitles(t *testing.T) {
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
-			return &ClaudeRunResult{
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -2436,7 +2436,7 @@ func TestDecomposeWorkflow_ComplexitySummaryIncludesHighTitles(t *testing.T) {
 		},
 	}
 
-	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
 
 	output := captureStdout(t, func() {
 		_, err := p.Decompose(context.Background(), DecomposeInput{
@@ -2479,10 +2479,10 @@ func TestDecomposeWorkflow_CleanExitAfterComplexityRetryHasNoWarning(t *testing.
 
 	runCount := 0
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			runCount++
 			if runCount == 1 {
-				return &ClaudeRunResult{
+				return &LLMRunResult{
 					Success:  true,
 					ExitCode: 0,
 					Output: `[
@@ -2491,7 +2491,7 @@ func TestDecomposeWorkflow_CleanExitAfterComplexityRetryHasNoWarning(t *testing.
 					]`,
 				}, nil
 			}
-			return &ClaudeRunResult{
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -2508,7 +2508,7 @@ func TestDecomposeWorkflow_CleanExitAfterComplexityRetryHasNoWarning(t *testing.
 		},
 	}
 
-	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
 	output := captureStdout(t, func() {
 		_, err := p.Decompose(context.Background(), DecomposeInput{
 			PlanName:             "complexity-clean-exit",
@@ -2539,10 +2539,10 @@ func TestDecomposeWorkflow_ComplexityRetryCapWithPartialImprovementMarksImproved
 
 	runCount := 0
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			runCount++
 			if runCount == 1 {
-				return &ClaudeRunResult{
+				return &LLMRunResult{
 					Success:  true,
 					ExitCode: 0,
 					Output: `[
@@ -2552,7 +2552,7 @@ func TestDecomposeWorkflow_ComplexityRetryCapWithPartialImprovementMarksImproved
 					]`,
 				}, nil
 			}
-			return &ClaudeRunResult{
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -2570,7 +2570,7 @@ func TestDecomposeWorkflow_ComplexityRetryCapWithPartialImprovementMarksImproved
 		},
 	}
 
-	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
 	result, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "complexity-partial-improvement",
 		MaxValidationRetries: 1,
@@ -2605,11 +2605,11 @@ func TestDecomposeWorkflow_StopsRetryingWhenComplexityTrajectoryStalls(t *testin
 
 	runCount := 0
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			runCount++
 			switch runCount {
 			case 1:
-				return &ClaudeRunResult{
+				return &LLMRunResult{
 					Success:  true,
 					ExitCode: 0,
 					Output: `[
@@ -2619,7 +2619,7 @@ func TestDecomposeWorkflow_StopsRetryingWhenComplexityTrajectoryStalls(t *testin
 					]`,
 				}, nil
 			case 2:
-				return &ClaudeRunResult{
+				return &LLMRunResult{
 					Success:  true,
 					ExitCode: 0,
 					Output: `[
@@ -2629,7 +2629,7 @@ func TestDecomposeWorkflow_StopsRetryingWhenComplexityTrajectoryStalls(t *testin
 					]`,
 				}, nil
 			default:
-				return &ClaudeRunResult{
+				return &LLMRunResult{
 					Success:  true,
 					ExitCode: 0,
 					Output: `[
@@ -2648,7 +2648,7 @@ func TestDecomposeWorkflow_StopsRetryingWhenComplexityTrajectoryStalls(t *testin
 		},
 	}
 
-	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
 	_, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "complexity-stall-stop",
 		MaxValidationRetries: 4,
@@ -2673,8 +2673,8 @@ func TestDecomposeWorkflow_HighComplexityWarningProceedSetsValidationFlag(t *tes
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
-			return &ClaudeRunResult{
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -2691,7 +2691,7 @@ func TestDecomposeWorkflow_HighComplexityWarningProceedSetsValidationFlag(t *tes
 		},
 	}
 
-	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
 	result, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "complexity-warning-flag",
 		MaxValidationRetries: 0,
@@ -2719,8 +2719,8 @@ func TestDecomposeWorkflow_RetryCapPathSetsValidationFlag(t *testing.T) {
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
-			return &ClaudeRunResult{
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -2737,7 +2737,7 @@ func TestDecomposeWorkflow_RetryCapPathSetsValidationFlag(t *testing.T) {
 		},
 	}
 
-	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
 	result, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "retry-cap-flag",
 		MaxValidationRetries: 1,
@@ -2766,10 +2766,10 @@ func TestDecomposeWorkflow_RetryLoopSuccessPathSetsValidationFlag(t *testing.T) 
 
 	runCount := 0
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			runCount++
 			if runCount == 1 {
-				return &ClaudeRunResult{
+				return &LLMRunResult{
 					Success:  true,
 					ExitCode: 0,
 					Output: `[
@@ -2778,7 +2778,7 @@ func TestDecomposeWorkflow_RetryLoopSuccessPathSetsValidationFlag(t *testing.T) 
 					]`,
 				}, nil
 			}
-			return &ClaudeRunResult{
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -2795,7 +2795,7 @@ func TestDecomposeWorkflow_RetryLoopSuccessPathSetsValidationFlag(t *testing.T) 
 		},
 	}
 
-	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
 	result, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "retry-success-flag",
 		MaxValidationRetries: 2,
@@ -2826,8 +2826,8 @@ func TestDecomposeWorkflow_RetryLoopNonImprovingPathSetsValidationFlag(t *testin
 	}
 
 	mockClaude := &decomposeAcceptanceClaudeClient{
-		runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
-			return &ClaudeRunResult{
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output: `[
@@ -2844,7 +2844,7 @@ func TestDecomposeWorkflow_RetryLoopNonImprovingPathSetsValidationFlag(t *testin
 		},
 	}
 
-	p := New(&Deps{ClaudeClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
 	result, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "retry-non-improving-flag",
 		MaxValidationRetries: 1,

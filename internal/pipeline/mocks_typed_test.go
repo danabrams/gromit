@@ -9,18 +9,18 @@ import (
 // use typed struct returns instead of interface{} or map[string]interface{}
 func TestAllMocks_SatisfyInterfacesWithTypedSignatures(t *testing.T) {
 	// Compile-time checks - these will fail if mocks don't match interfaces
-	var _ ClaudeClient = (*testClaudeClient)(nil)
+	var _ LLMClient = (*testClaudeClient)(nil)
 	var _ BeadClient = (*testBeadClient)(nil)
 	var _ ReviewRenderer = (*testReviewRenderer)(nil)
 
-	// Verify ClaudeClient mock returns typed ClaudeRunResult
-	t.Run("ClaudeClient returns typed ClaudeRunResult", func(t *testing.T) {
+	// Verify LLMClient mock returns typed LLMRunResult
+	t.Run("LLMClient returns typed LLMRunResult", func(t *testing.T) {
 		mock := &testClaudeClient{}
 		result, err := mock.Run("test prompt", "opus")
 		if err != nil {
 			// Expected - mock returns nil
 		}
-		// The fact that this compiles with result being treated as *ClaudeRunResult
+		// The fact that this compiles with result being treated as *LLMRunResult
 		// proves the typed return signature
 		_ = result
 	})
@@ -62,13 +62,13 @@ func TestAllMocks_SatisfyInterfacesWithTypedSignatures(t *testing.T) {
 // TestDecomposeAcceptanceMocks_UseTypedReturns verifies decompose test mocks use typed returns
 func TestDecomposeAcceptanceMocks_UseTypedReturns(t *testing.T) {
 	// Compile-time checks
-	var _ ClaudeClient = (*decomposeAcceptanceClaudeClient)(nil)
+	var _ LLMClient = (*decomposeAcceptanceClaudeClient)(nil)
 	var _ BeadClient = (*decomposeAcceptanceBeadClient)(nil)
 
-	t.Run("decomposeAcceptanceClaudeClient returns ClaudeRunResult", func(t *testing.T) {
+	t.Run("decomposeAcceptanceClaudeClient returns LLMRunResult", func(t *testing.T) {
 		mock := &decomposeAcceptanceClaudeClient{
-			runFunc: func(prompt string, model string) (*ClaudeRunResult, error) {
-				return &ClaudeRunResult{
+			runFunc: func(prompt string, model string) (*LLMRunResult, error) {
+				return &LLMRunResult{
 					Success:  true,
 					ExitCode: 0,
 					Output:   "test output",
@@ -126,10 +126,10 @@ func TestReviewAcceptanceMocks_UseTypedReturns(t *testing.T) {
 	var _ ReviewInvoker = (*reviewAcceptanceMockReviewInvoker)(nil)
 	var _ BeadClient = (*reviewAcceptanceMockBeadClient)(nil)
 
-	t.Run("reviewAcceptanceMockReviewInvoker returns ClaudeRunResult", func(t *testing.T) {
+	t.Run("reviewAcceptanceMockReviewInvoker returns LLMRunResult", func(t *testing.T) {
 		mock := &reviewAcceptanceMockReviewInvoker{
-			runFunc: func(prompt string, model string, timeout time.Duration) (*ClaudeRunResult, error) {
-				return &ClaudeRunResult{
+			runFunc: func(prompt string, model string, timeout time.Duration) (*LLMRunResult, error) {
+				return &LLMRunResult{
 					Success:  true,
 					ExitCode: 0,
 					Output:   "review output",

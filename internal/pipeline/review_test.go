@@ -147,7 +147,7 @@ func TestReviewNonInteractiveWorkflow_E2E(t *testing.T) {
 	}
 
 	mockReviewInvoker := &reviewAcceptanceMockReviewInvoker{
-		runFunc: func(prompt string, model string, timeout time.Duration) (*ClaudeRunResult, error) {
+		runFunc: func(prompt string, model string, timeout time.Duration) (*LLMRunResult, error) {
 			// Return Claude output with JSON review result
 			jsonOutput := `{
 				"passed": false,
@@ -170,7 +170,7 @@ func TestReviewNonInteractiveWorkflow_E2E(t *testing.T) {
 				"summary": "Found 1 critical bug and 1 optimization opportunity",
 				"learnings": ["Always validate config before use"]
 			}`
-			return &ClaudeRunResult{
+			return &LLMRunResult{
 				Success:  true,
 				Output:   jsonOutput,
 				ExitCode: 0,
@@ -329,7 +329,7 @@ func TestReviewNonInteractiveWorkflow_CreatesBeadsWithFromReviewLabel(t *testing
 	}
 
 	mockReviewInvoker := &reviewAcceptanceMockReviewInvoker{
-		runFunc: func(prompt string, model string, timeout time.Duration) (*ClaudeRunResult, error) {
+		runFunc: func(prompt string, model string, timeout time.Duration) (*LLMRunResult, error) {
 			jsonOutput := `{
 				"passed": true,
 				"fixes_applied": [],
@@ -344,7 +344,7 @@ func TestReviewNonInteractiveWorkflow_CreatesBeadsWithFromReviewLabel(t *testing
 				"backlog_items": [],
 				"summary": "Minor fixes needed"
 			}`
-			return &ClaudeRunResult{
+			return &LLMRunResult{
 				Success: true,
 				Output:  jsonOutput,
 			}, nil
@@ -417,7 +417,7 @@ func TestReviewNonInteractiveWorkflow_CreatesBacklogWithLabels(t *testing.T) {
 	}
 
 	mockReviewInvoker := &reviewAcceptanceMockReviewInvoker{
-		runFunc: func(prompt string, model string, timeout time.Duration) (*ClaudeRunResult, error) {
+		runFunc: func(prompt string, model string, timeout time.Duration) (*LLMRunResult, error) {
 			jsonOutput := `{
 				"passed": true,
 				"fixes_applied": [],
@@ -431,7 +431,7 @@ func TestReviewNonInteractiveWorkflow_CreatesBacklogWithLabels(t *testing.T) {
 				],
 				"summary": "Looks good"
 			}`
-			return &ClaudeRunResult{
+			return &LLMRunResult{
 				Success: true,
 				Output:  jsonOutput,
 			}, nil
@@ -497,9 +497,9 @@ func TestReviewNonInteractiveWorkflow_RespectsTimeout(t *testing.T) {
 	}
 
 	mockReviewInvoker := &reviewAcceptanceMockReviewInvoker{
-		runFunc: func(prompt string, model string, timeout time.Duration) (*ClaudeRunResult, error) {
+		runFunc: func(prompt string, model string, timeout time.Duration) (*LLMRunResult, error) {
 			jsonOutput := `{"passed": true, "summary": "OK", "fixes_applied": [], "beads_to_create": [], "backlog_items": []}`
-			return &ClaudeRunResult{
+			return &LLMRunResult{
 				Success: true,
 				Output:  jsonOutput,
 			}, nil
@@ -710,10 +710,10 @@ func (m *reviewAcceptanceMockReviewRenderer) RenderThoroughReview(input *Thoroug
 }
 
 type reviewAcceptanceMockReviewInvoker struct {
-	runFunc func(prompt string, model string, timeout time.Duration) (*ClaudeRunResult, error)
+	runFunc func(prompt string, model string, timeout time.Duration) (*LLMRunResult, error)
 }
 
-func (m *reviewAcceptanceMockReviewInvoker) Run(prompt string, model string) (*ClaudeRunResult, error) {
+func (m *reviewAcceptanceMockReviewInvoker) Run(prompt string, model string) (*LLMRunResult, error) {
 	// Call runFunc with a zero timeout since the ReviewInvoker interface doesn't expose timeout
 	// The timeout should be handled via context at a higher level
 	if m.runFunc != nil {

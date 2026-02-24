@@ -9,14 +9,14 @@ import (
 	"testing"
 )
 
-// TestClaudeClient_ReturnsTypedResult verifies ClaudeClient.Run returns typed ClaudeRunResult
+// TestClaudeClient_ReturnsTypedResult verifies LLMClient.Run returns typed LLMRunResult
 func TestClaudeClient_ReturnsTypedResult(t *testing.T) {
-	// Expected failure: This test will pass when ClaudeClient returns typed result
+	// Expected failure: This test will pass when LLMClient returns typed result
 	// Currently it should pass since adapters were already updated
 
 	mock := &mockClaudeClientTyped{
-		runFn: func(prompt, model string) (*ClaudeRunResult, error) {
-			return &ClaudeRunResult{
+		runFn: func(prompt, model string) (*LLMRunResult, error) {
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output:   "test output",
@@ -202,14 +202,14 @@ func TestDecomposeWorkflow_UsesTypedStructsDirectly(t *testing.T) {
 // Mock implementations for testing typed interfaces
 
 type mockClaudeClientTyped struct {
-	runFn func(prompt, model string) (*ClaudeRunResult, error)
+	runFn func(prompt, model string) (*LLMRunResult, error)
 }
 
-func (m *mockClaudeClientTyped) Run(prompt, model string) (*ClaudeRunResult, error) {
+func (m *mockClaudeClientTyped) Run(prompt, model string) (*LLMRunResult, error) {
 	if m.runFn != nil {
 		return m.runFn(prompt, model)
 	}
-	return &ClaudeRunResult{Success: true}, nil
+	return &LLMRunResult{Success: true}, nil
 }
 
 type mockBeadClientTyped struct {
@@ -309,8 +309,8 @@ func TestPipeline_WorksWithTypedDependencies(t *testing.T) {
 	// Expected failure: This demonstrates the full workflow with typed interfaces
 
 	mockClaude := &mockClaudeClientTyped{
-		runFn: func(prompt, model string) (*ClaudeRunResult, error) {
-			return &ClaudeRunResult{
+		runFn: func(prompt, model string) (*LLMRunResult, error) {
+			return &LLMRunResult{
 				Success:  true,
 				ExitCode: 0,
 				Output:   `[{"title":"Task 1","description":"Do thing","priority":"P1","acceptance_criteria":["Done"],"depends_on_index":[]}]`,
@@ -330,8 +330,8 @@ func TestPipeline_WorksWithTypedDependencies(t *testing.T) {
 	}
 
 	deps := &Deps{
-		ClaudeClient: mockClaude,
-		BeadClient:   mockBead,
+		LLMClient:  mockClaude,
+		BeadClient: mockBead,
 	}
 
 	paths := &Paths{

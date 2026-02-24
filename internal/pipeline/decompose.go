@@ -51,7 +51,7 @@ type beadDef struct {
 
 // Decompose executes the decompose workflow.
 func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*DecomposeResult, error) {
-	if p.deps == nil || p.deps.ClaudeClient == nil {
+	if p.deps == nil || p.deps.LLMClient == nil {
 		return nil, fmt.Errorf("pipeline: nil dependencies")
 	}
 
@@ -87,7 +87,7 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 	for attempt := 0; ; attempt++ {
 		stats.Attempts++
 		// Run provider non-interactively
-		claudeResult, err := p.deps.ClaudeClient.Run(currentPrompt, model)
+		claudeResult, err := p.deps.LLMClient.Run(currentPrompt, model)
 		if err != nil {
 			return nil, fmt.Errorf("invoking provider: %w", err)
 		}

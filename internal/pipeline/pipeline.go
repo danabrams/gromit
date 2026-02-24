@@ -30,9 +30,6 @@ type LLMRunResult struct {
 	Output   string
 }
 
-// ClaudeRunResult is kept as an alias for compatibility.
-type ClaudeRunResult = LLMRunResult
-
 // BeadInfo holds the fields the pipeline needs from a bead operation.
 type BeadInfo struct {
 	ID       string
@@ -83,7 +80,6 @@ type LogEntry struct {
 type Deps struct {
 	AgentResolver     AgentResolver
 	LLMClient         LLMClient
-	ClaudeClient      ClaudeClient
 	ReviewInvoker     ReviewInvoker
 	BeadClient        BeadClient
 	BacklogClient     BacklogClient
@@ -126,17 +122,12 @@ type Agent interface {
 
 // LLMClient abstracts LLM CLI operations for non-interactive workflows.
 type LLMClient interface {
-	Run(prompt string, model string) (*ClaudeRunResult, error)
-}
-
-// ClaudeClient abstracts Claude CLI operations for non-interactive workflows.
-type ClaudeClient interface {
-	Run(prompt string, model string) (*ClaudeRunResult, error)
+	Run(prompt string, model string) (*LLMRunResult, error)
 }
 
 // ReviewInvoker abstracts non-interactive review invocation.
 type ReviewInvoker interface {
-	Run(prompt string, model string) (*ClaudeRunResult, error)
+	Run(prompt string, model string) (*LLMRunResult, error)
 }
 
 // BeadClient abstracts bead (bd) CLI operations.
