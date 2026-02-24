@@ -141,54 +141,16 @@ func TestRunRefineReturnsErrorWhenPipelineCreationFails(t *testing.T) {
 	}
 }
 
-func TestBacklogAdapterAddPreservesCreatedAt(t *testing.T) {
+<<<<<<< HEAD
+func TestToPipelineIdea_PreservesCreatedAt(t *testing.T) {
 	t.Parallel()
 
-	gromitDir := t.TempDir()
-	bf, err := backlog.NewFile(gromitDir)
-	if err != nil {
-		t.Fatalf("NewFile() error = %v", err)
-	}
-	adapter := &backlogAdapter{file: bf}
-
-	createdAt := time.Date(2026, 2, 24, 12, 0, 0, 0, time.UTC)
-	err = adapter.Add(&pipeline.Idea{
-		ID:        "idea-created-at",
-		Text:      "keep timestamp",
-		Type:      "feature",
-		Context:   "ctx",
-		CreatedAt: createdAt,
-	})
-	if err != nil {
-		t.Fatalf("Add() error = %v", err)
-	}
-
-	ideas, err := bf.List()
-	if err != nil {
-		t.Fatalf("List() error = %v", err)
-	}
-	if len(ideas) != 1 {
-		t.Fatalf("List() len = %d, want 1", len(ideas))
-	}
-	if !ideas[0].CreatedAt.Equal(createdAt) {
-		t.Fatalf("created_at = %v, want %v", ideas[0].CreatedAt, createdAt)
-	}
-}
-
-func TestToPipelineIdeaPreservesCreatedAt(t *testing.T) {
-	t.Parallel()
-
-	createdAt := time.Date(2026, 2, 24, 13, 0, 0, 0, time.UTC)
+	createdAt := time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC)
 	got := toPipelineIdea(&backlog.Idea{
 		ID:        "idea-1",
-		Text:      "test",
-		Type:      "feature",
-		Context:   "ctx",
+		Text:      "Keep created timestamp",
 		CreatedAt: createdAt,
 	})
-	if got == nil {
-		t.Fatal("toPipelineIdea() = nil, want non-nil")
-	}
 	if !got.CreatedAt.Equal(createdAt) {
 		t.Fatalf("CreatedAt = %v, want %v", got.CreatedAt, createdAt)
 	}
