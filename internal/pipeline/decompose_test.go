@@ -47,7 +47,7 @@ created: 2026-02-11
 	}
 
 	// Mock Claude client that returns bead definitions
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			// Verify prompt contains plan body (not frontmatter)
 			if !strings.Contains(prompt, "Database Schema") {
@@ -188,7 +188,7 @@ func TestDecomposeWorkflow_ProviderReturnsEmptyOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			return &LLMRunResult{
 				Success:  true,
@@ -236,7 +236,7 @@ id: coverage-gap
 		t.Fatal(err)
 	}
 
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			return &LLMRunResult{
 				Success:  true,
@@ -313,7 +313,7 @@ func TestDecomposeWorkflow_RetriesOnValidationViolation(t *testing.T) {
 	}
 
 	runCount := 0
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			runCount++
 			if runCount == 2 && !strings.Contains(prompt, "Violations By Flagged Bead") {
@@ -411,7 +411,7 @@ func TestDecomposeWorkflow_ValidationRetriesExhaustedContinues(t *testing.T) {
 	}
 
 	runCount := 0
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			runCount++
 			return &LLMRunResult{
@@ -512,7 +512,7 @@ func TestDecomposeWorkflow_SkipValidationDisablesRetryLoop(t *testing.T) {
 	}
 
 	runCount := 0
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			runCount++
 			return &LLMRunResult{
@@ -568,7 +568,7 @@ func TestDecomposeWorkflow_SkipValidationOversizedBatchErrorsWithoutCreatingBead
 		t.Fatal(err)
 	}
 
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			return &LLMRunResult{
 				Success:  true,
@@ -620,7 +620,7 @@ func TestDecomposeWorkflow_SkipValidationUnlimitedMaxAllowsLargeBatch(t *testing
 		t.Fatal(err)
 	}
 
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			return &LLMRunResult{
 				Success:  true,
@@ -669,7 +669,7 @@ func TestDecomposeWorkflow_SkipValidationUndersizedBatchErrorsWithoutCreatingBea
 		t.Fatal(err)
 	}
 
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			return &LLMRunResult{
 				Success:  true,
@@ -720,7 +720,7 @@ func TestDecomposeWorkflow_CreatesBeadsWithCorrectLabels(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			return &LLMRunResult{
 				Success:  true,
@@ -800,7 +800,7 @@ func TestDecomposeWorkflow_HandlesDependencyMapping(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			// Return 3 beads with dependency chain: bead2 depends on bead0, bead1 has no deps
 			return &LLMRunResult{
@@ -909,7 +909,7 @@ func TestDecomposeWorkflow_SkipsSelfDependencies(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			// Return 2 beads: second has self-dependency (index 1 depends on index 1)
 			return &LLMRunResult{
@@ -984,7 +984,7 @@ func TestDecomposeWorkflow_SkipsOutOfRangeDependencies(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			// Return 2 beads, second depends on index 5 (out of range)
 			return &LLMRunResult{
@@ -1066,7 +1066,7 @@ func TestDecomposeWorkflow_ReviewModeReturnsProposedBeads(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			return &LLMRunResult{
 				Success:  true,
@@ -1165,7 +1165,7 @@ Already decomposed
 		t.Fatal(err)
 	}
 
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			return &LLMRunResult{
 				Success:  true,
@@ -1250,7 +1250,7 @@ func TestDecomposeWorkflow_PlanNotFoundError(t *testing.T) {
 	}
 
 	deps := &Deps{
-		LLMClient:  &decomposeAcceptanceClaudeClient{},
+		LLMClient:  &decomposeAcceptanceLLMClient{},
 		BeadClient: &decomposeAcceptanceBeadClient{},
 	}
 	paths := &Paths{
@@ -1289,7 +1289,7 @@ func TestDecomposeWorkflow_UpdatesPlanFrontmatterTimestamp(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			return &LLMRunResult{
 				Success:  true,
@@ -1381,7 +1381,7 @@ func TestDecomposeWorkflow_ParsesPriorityCorrectly(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			return &LLMRunResult{
 				Success:  true,
@@ -1521,11 +1521,11 @@ func TestBuildDecomposePrompt_ConstructsPromptDiagnostics(t *testing.T) {
 
 // Mock types for acceptance tests
 
-type decomposeAcceptanceClaudeClient struct {
+type decomposeAcceptanceLLMClient struct {
 	runFunc func(prompt string, model string) (*LLMRunResult, error)
 }
 
-func (m *decomposeAcceptanceClaudeClient) Run(prompt string, model string) (*LLMRunResult, error) {
+func (m *decomposeAcceptanceLLMClient) Run(prompt string, model string) (*LLMRunResult, error) {
 	if m.runFunc != nil {
 		return m.runFunc(prompt, model)
 	}
@@ -1573,7 +1573,7 @@ func TestDecomposeWorkflow_UsesExpectedOutputsWhenNonEmpty(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			return &LLMRunResult{
 				Success:  true,
@@ -1636,7 +1636,7 @@ func TestDecomposeWorkflow_FallsBackToAcceptanceCriteriaWhenNoExpectedOutputs(t 
 		t.Fatal(err)
 	}
 
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			return &LLMRunResult{
 				Success:  true,
@@ -1783,7 +1783,7 @@ func TestDecomposeWorkflow_UsesInputTierForProviderCall(t *testing.T) {
 	}
 
 	gotModel := ""
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			gotModel = model
 			return &LLMRunResult{
@@ -1840,7 +1840,7 @@ func TestDecomposeWorkflow_SixBeadBatchViolationRepromptsThenErrorsAtRetryCap(t 
 	}
 
 	runCount := 0
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			runCount++
 			if runCount == 2 {
@@ -1908,7 +1908,7 @@ func TestDecomposeWorkflow_OneBeadBatchViolationRepromptsThenErrorsAtRetryCap(t 
 	}
 
 	runCount := 0
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			runCount++
 			if runCount == 2 {
@@ -1962,7 +1962,7 @@ func TestDecomposeWorkflow_LogsComplexitySummaryPerAttempt(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			return &LLMRunResult{
 				Success:  true,
@@ -2007,7 +2007,7 @@ func TestDecomposeWorkflow_IncludesComplexityFeedbackInReprompt(t *testing.T) {
 
 	runCount := 0
 	prompts := []string{}
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			runCount++
 			prompts = append(prompts, prompt)
@@ -2073,7 +2073,7 @@ func TestDecomposeWorkflow_IncludesStructuredComplexityFeedbackAndStillCreatesBe
 	runCount := 0
 	prompts := []string{}
 	createCalls := 0
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			runCount++
 			prompts = append(prompts, prompt)
@@ -2131,7 +2131,7 @@ func TestDecomposeWorkflow_RetriesWhenHighComplexityRemains(t *testing.T) {
 
 	runCount := 0
 	var secondPrompt string
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			runCount++
 			if runCount == 2 {
@@ -2194,7 +2194,7 @@ func TestDecomposeWorkflow_RetriesWhenBroadScopeSignalFlagsHighComplexity(t *tes
 
 	runCount := 0
 	var secondPrompt string
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			runCount++
 			if runCount == 2 {
@@ -2255,7 +2255,7 @@ func TestDecomposeWorkflow_HighComplexityWarningIncludesDetails(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			return &LLMRunResult{
 				Success:  true,
@@ -2310,7 +2310,7 @@ func TestDecomposeWorkflow_FinalHighComplexityWarningAtLoopExitAfterValidationFa
 		t.Fatal(err)
 	}
 
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			return &LLMRunResult{
 				Success:  true,
@@ -2365,7 +2365,7 @@ func TestDecomposeWorkflow_HighComplexityWarningIncludesBroadScopeReasonWithoutL
 		t.Fatal(err)
 	}
 
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			return &LLMRunResult{
 				Success:  true,
@@ -2417,7 +2417,7 @@ func TestDecomposeWorkflow_ComplexitySummaryIncludesHighTitles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			return &LLMRunResult{
 				Success:  true,
@@ -2478,7 +2478,7 @@ func TestDecomposeWorkflow_CleanExitAfterComplexityRetryHasNoWarning(t *testing.
 	}
 
 	runCount := 0
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			runCount++
 			if runCount == 1 {
@@ -2538,7 +2538,7 @@ func TestDecomposeWorkflow_ComplexityRetryCapWithPartialImprovementMarksImproved
 	}
 
 	runCount := 0
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			runCount++
 			if runCount == 1 {
@@ -2604,7 +2604,7 @@ func TestDecomposeWorkflow_StopsRetryingWhenComplexityTrajectoryStalls(t *testin
 	}
 
 	runCount := 0
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			runCount++
 			switch runCount {
@@ -2672,7 +2672,7 @@ func TestDecomposeWorkflow_HighComplexityWarningProceedSetsValidationFlag(t *tes
 		t.Fatal(err)
 	}
 
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			return &LLMRunResult{
 				Success:  true,
@@ -2718,7 +2718,7 @@ func TestDecomposeWorkflow_RetryCapPathSetsValidationFlag(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			return &LLMRunResult{
 				Success:  true,
@@ -2765,7 +2765,7 @@ func TestDecomposeWorkflow_RetryLoopSuccessPathSetsValidationFlag(t *testing.T) 
 	}
 
 	runCount := 0
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			runCount++
 			if runCount == 1 {
@@ -2825,7 +2825,7 @@ func TestDecomposeWorkflow_RetryLoopNonImprovingPathSetsValidationFlag(t *testin
 		t.Fatal(err)
 	}
 
-	mockClaude := &decomposeAcceptanceClaudeClient{
+	mockClaude := &decomposeAcceptanceLLMClient{
 		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
 			return &LLMRunResult{
 				Success:  true,
