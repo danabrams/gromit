@@ -335,6 +335,7 @@ func buildDebugPrompt(cfg *config.Config, gromitDir string, args []string, entry
 
 	// Determine reports directory
 	reportsDir := filepath.Join(gromitDir, "reports")
+	compatibilityDiagnostics := formatDebugCompatibilityDiagnostics(cfg)
 
 	// Build the system prompt
 	var sb strings.Builder
@@ -364,6 +365,7 @@ func buildDebugPrompt(cfg *config.Config, gromitDir string, args []string, entry
 
 Working directory: %s
 Reports directory: %s
+%s
 
 ### Validation Commands
 
@@ -371,7 +373,7 @@ When applying direct fixes (outcome 1), run these commands:
 
 %s
 
-`, workDir, reportsDir, validationCommands))
+	`, workDir, reportsDir, compatibilityDiagnostics, validationCommands))
 
 	// Project context
 	if claudeMD != "" {
@@ -409,6 +411,19 @@ When applying direct fixes (outcome 1), run these commands:
 %s`, skills.DebugSkill))
 
 	return sb.String(), nil
+}
+
+func formatDebugCompatibilityDiagnostics(cfg *config.Config) string {
+	resolved := config.Config{}.ResolveCompatibilityContext()
+	if cfg != nil {
+		resolved = cfg.ResolveCompatibilityContext()
+	}
+
+	return fmt.Sprintf("Compatibility:\n  Profile:  %s (source: %s)\n  Backend:  %s (source: %s)\n  Adapter:  %s (source: %s)",
+		resolved.Profile.Value, resolved.Profile.Source,
+		resolved.TrackerBackend.Value, resolved.TrackerBackend.Source,
+		resolved.MethodologyAdapter.Value, resolved.MethodologyAdapter.Source,
+	)
 }
 
 // getMDFiles returns a list of .md files in the given directory
