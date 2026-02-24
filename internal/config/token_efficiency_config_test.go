@@ -132,3 +132,38 @@ token_efficiency:
 		t.Errorf("TokenEfficiency.Routing.TaskOverrides[discovery_indexing] = %q, want %q", cfg.TokenEfficiency.Routing.TaskOverrides["discovery_indexing"], "medium")
 	}
 }
+
+func TestTokenEfficiencyLegacyConfigBackwardCompatibility(t *testing.T) {
+	yamlContent := `
+models:
+  p0: opus
+  p1: sonnet
+  p2: haiku
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.TokenEfficiency.Cache.IsEnabled() {
+		t.Errorf("TokenEfficiency.Cache.IsEnabled() = true, want false for legacy config")
+	}
+	if cfg.TokenEfficiency.Routing.IsEnabled() {
+		t.Errorf("TokenEfficiency.Routing.IsEnabled() = true, want false for legacy config")
+	}
+	if cfg.TokenEfficiency.Routing.UtilityTier != "low" {
+		t.Errorf("TokenEfficiency.Routing.UtilityTier = %q, want %q default", cfg.TokenEfficiency.Routing.UtilityTier, "low")
+	}
+	if cfg.TokenEfficiency.Routing.TaskOverrides == nil {
+		t.Fatal("TokenEfficiency.Routing.TaskOverrides is nil, want empty map")
+	}
+	if len(cfg.TokenEfficiency.Routing.TaskOverrides) != 0 {
+		t.Errorf("len(TokenEfficiency.Routing.TaskOverrides) = %d, want 0", len(cfg.TokenEfficiency.Routing.TaskOverrides))
+	}
+}
