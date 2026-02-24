@@ -29,6 +29,7 @@ Live invocation path used: `npm start --prefix /home/dabrams/gemini-cli -- --app
 - Concrete error evidence: `.gromit/plans/fixtures/gemini/errors/command-missing.stderr.txt`
 - Permissions notes: `.gromit/plans/fixtures/gemini/permissions/permissions-notes.md`
 - Workdir notes: `.gromit/plans/fixtures/gemini/workdir/workdir-notes.md`
+- Temporary fixture policy: `.gromit/plans/fixtures/gemini/FIXTURE_POLICY.md`
 
 ## 1. Prompt Delivery Modes
 

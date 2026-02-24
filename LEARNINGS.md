@@ -23,6 +23,11 @@ Ephemeral `.-gromit-*` worktree paths must stay untracked. Add repository-level 
 
 Repository hygiene checks are most effective when enforced in both local pre-commit hooks and CI entry targets so regressions are blocked regardless of contributor workflow.
 
+### 2026-02-24 | provider_fixture_contracts_should_be_curated_with_provenance_and_deterministic_metadata | TEST_QUALITY
+*Related to: gromit/review-1771908518510170783*
+
+Provider fixture suites should commit deterministic, curated artifacts with explicit provenance/refresh metadata and structured schema assertions; avoid brittle prose-token checks and normalize generated ledgers before commit to reduce merge churn.
+
 ## Provisional Learnings
 
 ### 2026-02-24 | benchmark_execution_and_reporting_require_single_source_truth_and_owner | ARCHITECTURE

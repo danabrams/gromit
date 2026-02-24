@@ -1,3 +1,5 @@
+# provenance: deterministic Gemini preflight template derived from the provider spike harness contract.
+# refresh: rerun preflight checklist capture and keep only sanitized, contract-relevant updates.
 # Gemini Preflight
 
 ## Checklist

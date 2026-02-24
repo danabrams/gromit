@@ -99,7 +99,7 @@ func TestGeminiPreflightFixture_IncludesChecklistAndObservedResults(t *testing.T
 		"# Gemini Preflight",
 		"## Checklist",
 		"## Observed Results",
-		"gemini --version",
+		"## Capture Harness",
 	}
 
 	for _, token := range required {
@@ -149,10 +149,10 @@ func TestGeminiPreflightFixture_DocumentsAppendHarnessPattern(t *testing.T) {
 
 	body := string(content)
 	required := []string{
+		"# provenance:",
+		"# refresh:",
 		"## Capture Harness",
-		"exit_code=$?",
-		".gromit/plans/fixtures/gemini/commands.log",
-		"command=\"",
+		"printf 'timestamp=%s command=\"%s\" exit_code=%s\\n'",
 	}
 
 	for _, token := range required {
@@ -172,10 +172,12 @@ func TestGeminiPermissionsNotesFixture_DocumentsPermissionChecksAndLedgerEvidenc
 
 	body := string(content)
 	required := []string{
+		"# provenance:",
+		"# refresh:",
 		"# Gemini Permissions Notes",
 		"## Commands",
+		"## Raw Evidence",
 		"## Observations",
-		"permission",
 	}
 
 	for _, token := range required {
@@ -190,7 +192,19 @@ func TestGeminiPermissionsNotesFixture_DocumentsPermissionChecksAndLedgerEvidenc
 		t.Fatalf("failed to read commands log fixture: %v", err)
 	}
 
-	if !strings.Contains(string(logContent), "permissions") {
+	entries := parseGeminiCommandLog(t, logContent)
+	found := false
+	for _, entry := range entries {
+		if strings.Contains(strings.ToLower(entry.Category), "permission") {
+			found = true
+			break
+		}
+		if strings.Contains(strings.ToLower(entry.Command), "permission") {
+			found = true
+			break
+		}
+	}
+	if !found {
 		t.Fatalf("commands log must include permissions-related command entries")
 	}
 }
@@ -205,10 +219,12 @@ func TestGeminiWorkdirNotesFixture_DocumentsCwdChecksAndLedgerEvidence(t *testin
 
 	body := string(content)
 	required := []string{
+		"# provenance:",
+		"# refresh:",
 		"# Gemini Workdir Notes",
 		"## Commands",
+		"## Raw Evidence",
 		"## Observations",
-		"working directory",
 	}
 
 	for _, token := range required {
@@ -223,7 +239,19 @@ func TestGeminiWorkdirNotesFixture_DocumentsCwdChecksAndLedgerEvidence(t *testin
 		t.Fatalf("failed to read commands log fixture: %v", err)
 	}
 
-	if !strings.Contains(string(logContent), "workdir") {
+	entries := parseGeminiCommandLog(t, logContent)
+	found := false
+	for _, entry := range entries {
+		if strings.Contains(strings.ToLower(entry.Category), "workdir") {
+			found = true
+			break
+		}
+		if strings.Contains(strings.ToLower(entry.Command), "workdir") {
+			found = true
+			break
+		}
+	}
+	if !found {
 		t.Fatalf("commands log must include workdir-related command entries")
 	}
 }
@@ -238,11 +266,14 @@ func TestGeminiSchemaNotesFixture_DocumentsTokenCostAndModelObservations(t *test
 
 	body := string(content)
 	required := []string{
+		"# provenance:",
+		"# refresh:",
 		"# Gemini Schema Notes",
 		"## Token and Cost Observations",
 		"## Model Observations",
-		"valid-model",
-		"invalid-model",
+		"## Prompt Mode Comparison",
+		"## Stream-JSON Schema",
+		"## JSON Schema",
 	}
 	for _, token := range required {
 		if !strings.Contains(strings.ToLower(body), strings.ToLower(token)) {
@@ -306,6 +337,8 @@ func TestGeminiExitCodeNotesFixture_DocumentsConcreteTriggerAttempts(t *testing.
 
 	body := strings.ToLower(string(content))
 	required := []string{
+		"# provenance:",
+		"# refresh:",
 		"# gemini exit code notes",
 		"trigger attempts",
 		"exit code 0",
@@ -386,6 +419,25 @@ func TestGeminiPromptDeliveryFixtures_CaptureRawArtifactsPerPromptMode(t *testin
 	}
 }
 
+func TestGeminiCommandsLogFixture_HasProvenanceAndRefreshHeaders(t *testing.T) {
+	logPath := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "commands.log")
+	content, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("failed to read commands log fixture: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	if len(lines) < 2 {
+		t.Fatal("commands log fixture must include at least two header lines")
+	}
+	if !strings.HasPrefix(strings.TrimSpace(lines[0]), "# provenance:") {
+		t.Fatalf("first commands log line = %q, want # provenance header", strings.TrimSpace(lines[0]))
+	}
+	if !strings.HasPrefix(strings.TrimSpace(lines[1]), "# refresh:") {
+		t.Fatalf("second commands log line = %q, want # refresh header", strings.TrimSpace(lines[1]))
+	}
+}
+
 func TestGeminiStreamJSONSuccessFixture_ExistsWithJSONLRecords(t *testing.T) {
 	path := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "stream-json-success.jsonl")
 	content, err := os.ReadFile(path)
@@ -393,17 +445,13 @@ func TestGeminiStreamJSONSuccessFixture_ExistsWithJSONLRecords(t *testing.T) {
 		t.Fatalf("failed to read stream-json fixture: %v", err)
 	}
 
-	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-	if len(lines) < 2 {
+	events := parseJSONLEvents(t, string(content))
+	if len(events) < 2 {
 		t.Fatalf("stream-json fixture must contain at least 2 jsonl records")
 	}
 	seenTypes := map[string]bool{}
 	var finalRecord map[string]any
-	for i, line := range lines {
-		var record map[string]any
-		if err := json.Unmarshal([]byte(strings.TrimSpace(line)), &record); err != nil {
-			t.Fatalf("line %d must be valid JSON: %v", i+1, err)
-		}
+	for i, record := range events {
 		typeValue, ok := record["type"].(string)
 		if !ok || typeValue == "" {
 			t.Fatalf("line %d must include non-empty string field %q", i+1, "type")
@@ -435,6 +483,17 @@ func TestGeminiStreamJSONSuccessFixture_ExistsWithJSONLRecords(t *testing.T) {
 		if _, ok := cost["total"].(float64); !ok {
 			t.Fatal("final stream-json cost must include numeric total")
 		}
+	}
+
+	commentLines := extractCommentLines(string(content))
+	if len(commentLines) < 2 {
+		t.Fatalf("stream-json fixture has %d comment lines, want at least 2", len(commentLines))
+	}
+	if !strings.HasPrefix(commentLines[0], "# provenance:") {
+		t.Fatalf("first comment line = %q, want # provenance header", commentLines[0])
+	}
+	if !strings.HasPrefix(commentLines[1], "# refresh:") {
+		t.Fatalf("second comment line = %q, want # refresh header", commentLines[1])
 	}
 }
 

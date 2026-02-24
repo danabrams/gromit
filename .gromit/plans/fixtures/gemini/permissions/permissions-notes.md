@@ -1,3 +1,5 @@
+# provenance: deterministic permissions behavior notes from Gemini spike shell captures.
+# refresh: rerun permission probes and replace evidence pointers with sanitized, stable paths/messages.
 # Gemini Permissions Notes
 
 ## Scope

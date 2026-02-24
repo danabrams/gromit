@@ -1,3 +1,5 @@
+# provenance: representative Gemini stream-json fixture captured from the 2026-02-23 spike and normalized for deterministic contract tests.
+# refresh: rerun stream-json capture, preserve start/assistant/result lifecycle ordering, and keep sanitized payloads only.
 {"type":"init","timestamp":"2026-02-23T23:22:33.421Z","session_id":"0fc744b2-d900-4dce-880f-c78c1d34fc80","model":"auto-gemini-3"}
 {"type":"message","timestamp":"2026-02-23T23:22:33.424Z","role":"user","content":"Return exactly STREAM_OK"}
 {"type":"message","timestamp":"2026-02-23T23:22:36.416Z","role":"assistant","content":"STREAM_OK","delta":true}

@@ -1,3 +1,5 @@
+# provenance: deterministic working-directory behavior notes from Gemini spike shell captures.
+# refresh: rerun cwd probes and keep only sanitized absolute/relative resolution evidence needed by tests.
 # Gemini Workdir Notes
 
 ## Scope

@@ -1,3 +1,5 @@
+# provenance: deterministic shell-triggered exit-code evidence used while direct Gemini-specific non-zero semantics were unavailable.
+# refresh: replace trigger attempts with live Gemini error captures when they become available; preserve section contract.
 # Gemini Exit Code Notes
 
 ## Trigger Attempts

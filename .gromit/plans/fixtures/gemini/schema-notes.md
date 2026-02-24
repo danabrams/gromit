@@ -1,3 +1,5 @@
+# provenance: deterministic schema notes distilled from Gemini spike artifacts under this fixture directory.
+# refresh: update only when fixture schemas change; keep section headings stable for contract tests.
 # Gemini Schema Notes
 
 ## Token and Cost Observations

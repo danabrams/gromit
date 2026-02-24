@@ -28,6 +28,9 @@ bd update <issue-id> --status done
 
 # Sync with git remote
 bd sync
+
+# (Temporary) normalize ledger ordering before commit
+make beads-normalize
 ```
 
 ### Working with Issues
@@ -54,6 +57,10 @@ Issues in Beads are:
 - Automatic sync with git commits
 - Branch-aware issue tracking
 - Intelligent JSONL merge resolution
+
+## Temporary Repo Note
+
+To reduce large `issues.jsonl` diff churn during the current migration period, this repo provides `make beads-normalize`, which rewrites `.beads/issues.jsonl` into deterministic `id` order with canonical JSON encoding. This is a local hygiene step for cleaner diffs and easier merges.
 
 ## Get Started with Beads
 

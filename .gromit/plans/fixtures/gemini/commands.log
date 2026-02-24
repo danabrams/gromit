@@ -1,4 +1,5 @@
-# Gemini command ledger
+# provenance: representative Gemini command ledger captured during 2026-02-23 spike runs; command text is normalized for deterministic tests.
+# refresh: rerun fixture capture workflow and replace with sanitized command records while keeping timestamp/command/exit_code ledger format.
 # format: timestamp=<RFC3339> command=<shell command> exit_code=<int>
 
 timestamp=2026-02-23T22:00:00Z command="gemini --version" exit_code=0
