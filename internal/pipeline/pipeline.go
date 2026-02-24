@@ -148,7 +148,7 @@ type BacklogClient interface {
 	Update(id string, fn func(*Idea)) error
 }
 
-// Idea represents a backlog idea.
+// Idea is the canonical backlog idea schema used throughout pipeline workflows.
 type Idea = backlog.Idea
 
 // IdeaJSONKeys defines the expected snake_case JSON keys for Idea.
