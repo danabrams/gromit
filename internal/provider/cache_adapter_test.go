@@ -83,6 +83,14 @@ func (testProviderWithoutCache) IsScopeTooLarge(*Result) (bool, string) {
 	return false, ""
 }
 
+type testProviderWithNilCacheAdapter struct {
+	testProviderWithoutCache
+}
+
+func (testProviderWithNilCacheAdapter) CacheAdapter() CacheAdapter {
+	return nil
+}
+
 func TestResolveCacheAdapterFallsBackToNoopWhenProviderLacksCapability(t *testing.T) {
 	adapter := ResolveCacheAdapter(testProviderWithoutCache{})
 
@@ -99,6 +107,27 @@ func TestResolveCacheAdapterFallsBackToNoopWhenProviderLacksCapability(t *testin
 	}
 	if hit {
 		t.Fatalf("Lookup() hit = true, want false")
+	}
+	if entry != nil {
+		t.Fatalf("Lookup() entry = %#v, want nil", entry)
+	}
+}
+
+func TestResolveCacheAdapter_Integration_NilCapableAdapterFallsBackToNoop(t *testing.T) {
+	adapter := ResolveCacheAdapter(testProviderWithNilCacheAdapter{})
+	if adapter == nil {
+		t.Fatal("ResolveCacheAdapter() = nil, want noop adapter")
+	}
+
+	entry, hit, err := adapter.Lookup(context.Background(), CacheLookupRequest{
+		CacheClass: "build",
+		CacheKey:   "k-nil-cache",
+	})
+	if err != nil {
+		t.Fatalf("Lookup() error = %v, want nil", err)
+	}
+	if hit {
+		t.Fatal("Lookup() hit = true, want false")
 	}
 	if entry != nil {
 		t.Fatalf("Lookup() entry = %#v, want nil", entry)
