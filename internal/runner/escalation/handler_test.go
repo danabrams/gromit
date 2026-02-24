@@ -939,6 +939,48 @@ func TestExecuteWithRetry_BeadTimeoutEscalatesBeforeDecomposing(t *testing.T) {
 	}
 }
 
+func TestExecuteWithRetry_BeadTimeoutFirstTimeoutDecomposesWithoutEscalation(t *testing.T) {
+	cfg := newTestConfig()
+	cfg.Escalation.Chain = []string{"haiku", "sonnet", "opus"}
+
+	decomposeCalled := false
+	invocationTiers := []string{}
+
+	h := NewHandler(
+		cfg,
+		&mockFailureAnalyzer{},
+		&mockBeadClient{},
+		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+			decomposeCalled = true
+			return []runtypes.SubTask{{Title: "subtask 1"}}, nil
+		},
+		func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error { return nil },
+		nil,
+		nil,
+	)
+
+	bc := newTestBeadContext()
+	bc.Tier = provider.TierMedium
+	bc.ParentCtx = context.Background()
+
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		invocationTiers = append(invocationTiers, bc.Tier)
+		return &runtypes.InvocationResult{TimeoutType: "bead"}, fmt.Errorf("bead timeout")
+	}
+
+	h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+
+	if len(invocationTiers) != 1 {
+		t.Fatalf("expected exactly 1 invocation before decomposition, got %d (%v)", len(invocationTiers), invocationTiers)
+	}
+	if !decomposeCalled {
+		t.Fatal("expected first bead timeout to trigger decomposition")
+	}
+	if bc.Result.Escalated {
+		t.Fatal("did not expect escalation before decomposition on bead timeout")
+	}
+}
+
 func TestExecuteWithRetry_BeadTimeoutEscalationLogsReason(t *testing.T) {
 	// When bead timeout triggers escalation, the log message should mention
 	// "bead timeout" so operators can distinguish it from stall/invocation escalations.
