@@ -36,3 +36,14 @@ coverage.out
 
 # Ephemeral gromit worktree artifacts
 /.-gromit-*
+
+# Runtime/local data stores (must never be committed)
+/.dolt/
+/.doltcfg/
+/beads_gromit/
+
+# Runtime lock/state artifacts
+cmd/gromit/.gromit/interactive-state.json.lock
+
+# Benchmark run outputs are ephemeral; curated fixtures belong under test/fixtures
+cmd/gromit/.gromit/benchmarks/results/

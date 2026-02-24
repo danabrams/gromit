@@ -28,6 +28,7 @@ These are non-negotiable constraints for this project.
 - Pass large strings to Claude CLI via temp files, not CLI arguments (avoids ARG_MAX)
 - Shell scripts with user content: use quoted <<'EOF' heredocs; pass dynamic values as arguments, not string interpolation
 - Go subprocesses with user-influenced args (bead IDs, refs, branch names) must use `runArgv`, not `runCmd`, to prevent shell/flag injection
+- Runtime/local state artifacts (`.dolt/`, `.doltcfg/`, `beads_gromit/`, lock files, timestamped benchmark outputs) must not be committed; only deterministic fixtures in approved fixture paths may be versioned
 
 ## Test Quality <!-- phases: red, build, green, refactor, review -->
 
@@ -67,6 +68,7 @@ These are non-negotiable constraints for this project.
 - When deleting exported APIs or large orchestration files, run `go test -tags acceptance -run '^$' ./...` as a compile gate before merge; blocked build-tagged references must be resolved in the same bead
 - Build phases: run test/vet on touched packages only. Full validation: `go test ./...`, `go vet ./...`, `go build ./...`
 - `test_touched.sh` tests all branch-modified packages. Pre-existing failures in touched packages block new beads — verify target packages pass before starting dependent work
+- Benchmark run outputs are ephemeral and must write to ignored artifact paths; committed benchmark/test artifacts must be deterministic curated fixtures (for this repo, under `test/fixtures/`)
 
 ## Decomposition <!-- phases: plan -->
 

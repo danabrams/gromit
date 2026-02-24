@@ -48,6 +48,11 @@ Repository hygiene checks (gitlink guards, worktree exclusions) are most effecti
 
 **Enforcement:** Hook audit on every CI run; contributor workflow documentation.
 
+### Runtime artifacts must stay out of git; only deterministic fixtures are versioned
+Machine-local runtime state (`.dolt/`, `.doltcfg/`, `beads_gromit/`, lock files, timestamped benchmark run outputs) must be ignored and untracked. Versioned artifacts must be deterministic fixtures under designated fixture paths.
+
+**Enforcement:** Repo ignore coverage, staged-file guards in pre-commit/CI, and review rejection for timestamped runtime output commits.
+
 ## Test Quality
 
 ### Fixture tests should assert schema and records, not prose tokens

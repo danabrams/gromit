@@ -47,6 +47,11 @@ Adding telemetry fields to runtypes/logger schemas is not sufficient by itself; 
 *Related to: gromit/review-1771929519774405451*
 
 `token_efficiency.routing` config must validate both override categories and tier values (`low|medium|high`) after normalization, otherwise invalid entries can silently bypass intended utility-routing guardrails.
+
+### 2026-02-24 | runtime_artifacts_and_fixture_validation_need_explicit_repo_boundaries | ARCHITECTURE
+*Related to: gromit/review-1771933220448456983*
+
+Typed interface migrations are strongest when accompanied by strict repository boundaries: runtime Dolt/lock state must never be tracked, generated benchmark runs must stay outside committed source paths, and provider-fixture tests should validate structured schema/contracts rather than brittle prose token presence.
 ## Provisional Learnings
 
 ### 2026-02-24 | benchmark_execution_and_reporting_require_single_source_truth_and_owner | ARCHITECTURE

@@ -13,4 +13,16 @@ if [[ -n "${gitlinks}" ]]; then
   exit 1
 fi
 
+# Runtime artifacts and benchmark run outputs must never be tracked.
+# Keep only deterministic fixtures under approved fixture paths.
+blocked_regex='^(\.dolt/|\.doltcfg/|beads_gromit/|cmd/gromit/\.gromit/interactive-state\.json\.lock$|cmd/gromit/\.gromit/benchmarks/results/)'
+blocked="$(git ls-files | grep -E "${blocked_regex}" || true)"
+if [[ -n "${blocked}" ]]; then
+  echo "[repo-hygiene] unexpected tracked runtime artifacts detected:" >&2
+  echo "${blocked}" >&2
+  echo "Remove these from git index (for example: git rm --cached <path>)." >&2
+  exit 1
+fi
+
 echo "[repo-hygiene] no gitlink entries found"
+echo "[repo-hygiene] no tracked runtime artifact paths found"
