@@ -3,6 +3,7 @@ package benchmark
 import (
 	"os"
 	"path/filepath"
+	stdstrings "strings"
 	"testing"
 )
 
@@ -38,5 +39,27 @@ high_tier_model: gpt-5.3-codex
 	}
 	if len(manifest.Modes) != 1 || manifest.Modes[0] != "single_pass" {
 		t.Fatalf("manifest modes = %v, want [single_pass]", manifest.Modes)
+	}
+}
+
+func TestLoadManifest_RequiresID(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "manifest.yaml")
+	content := `base_commit: abc123
+beads:
+  - gromit-1
+modes:
+  - single_pass
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	_, err := LoadManifest(path)
+	if err == nil {
+		t.Fatal("LoadManifest() error = nil, want error")
+	}
+	if !stdstrings.Contains(err.Error(), "id is required") {
+		t.Fatalf("LoadManifest() error = %q, want contains %q", err.Error(), "id is required")
 	}
 }
