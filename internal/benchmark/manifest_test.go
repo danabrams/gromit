@@ -63,3 +63,26 @@ modes:
 		t.Fatalf("LoadManifest() error = %q, want contains %q", err.Error(), "id is required")
 	}
 }
+
+func TestLoadManifest_RejectsUnsupportedMode(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "manifest.yaml")
+	content := `id: tdd-vs-single-pass
+base_commit: abc123
+beads:
+  - gromit-1
+modes:
+  - unsupported_mode
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	_, err := LoadManifest(path)
+	if err == nil {
+		t.Fatal("LoadManifest() error = nil, want error")
+	}
+	if !stdstrings.Contains(err.Error(), "unsupported mode") {
+		t.Fatalf("LoadManifest() error = %q, want contains %q", err.Error(), "unsupported mode")
+	}
+}
