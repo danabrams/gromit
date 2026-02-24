@@ -67,12 +67,17 @@ modes:
 func TestLoadManifest_RejectsUnsupportedMode(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "manifest.yaml")
-	content := `id: tdd-vs-single-pass
+content := `id: tdd-vs-single-pass
 base_commit: abc123
 beads:
   - gromit-1
 modes:
   - unsupported_mode
+provider: openai
+model_family: gpt-5
+low_tier_model: gpt-5-mini
+medium_tier_model: gpt-5.3-codex
+high_tier_model: gpt-5.3-codex
 `
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
