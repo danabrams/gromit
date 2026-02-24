@@ -222,3 +222,20 @@ func TestBenchmarkRunCommand_BeadOverridesDriveSelection(t *testing.T) {
 		t.Fatalf("selected_beads = %v, want [%s]", payload.SelectedBeads, "gromit-9 gromit-8")
 	}
 }
+
+func TestBenchmarkRunCommand_RejectsInvalidOutputTimestamp(t *testing.T) {
+	manifestPath := filepath.Join("/home/dabrams/gromit", "cmd", "gromit", "testdata", "fixtures", "benchmark", "basic.yaml")
+
+	_, stderr, exitCode := runGromitCobra(t,
+		"benchmark", "run",
+		"--manifest", manifestPath,
+		"--output-ts", "not-a-ts",
+	)
+
+	if exitCode == 0 {
+		t.Fatalf("exitCode = %d, want non-zero", exitCode)
+	}
+	if !strings.Contains(stderr, "--output-ts must be in UTC format YYYYMMDDTHHMMSSZ") {
+		t.Fatalf("stderr = %q, want output-ts validation error", stderr)
+	}
+}
