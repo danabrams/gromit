@@ -10,7 +10,7 @@ import (
 func TestLoadManifest_ParsesValidYAML(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "manifest.yaml")
-content := `id: tdd-vs-single-pass
+	content := `id: tdd-vs-single-pass
 base_commit: abc123
 beads:
   - gromit-1
@@ -71,7 +71,7 @@ modes:
 func TestLoadManifest_RejectsUnsupportedMode(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "manifest.yaml")
-content := `id: tdd-vs-single-pass
+	content := `id: tdd-vs-single-pass
 base_commit: abc123
 beads:
   - gromit-1
@@ -124,7 +124,7 @@ modes:
 func TestLoadManifest_RequiresModes(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "manifest.yaml")
-content := `id: tdd-vs-single-pass
+	content := `id: tdd-vs-single-pass
 base_commit: abc123
 beads:
   - gromit-1
@@ -149,7 +149,7 @@ beads:
 func TestLoadManifest_RequiresProvider(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "manifest.yaml")
-content := `id: tdd-vs-single-pass
+	content := `id: tdd-vs-single-pass
 base_commit: abc123
 beads:
   - gromit-1
@@ -180,7 +180,7 @@ high_tier_model: gpt-5.3-codex
 func TestLoadManifest_RequiresHighTierModel(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "manifest.yaml")
-content := `id: tdd-vs-single-pass
+	content := `id: tdd-vs-single-pass
 base_commit: abc123
 beads:
   - gromit-1
@@ -261,6 +261,32 @@ func TestValidateManifest_RequiresExactlyFiveBeads(t *testing.T) {
 
 	if err := ValidateManifest(manifest); err == nil {
 		t.Fatal("ValidateManifest() error = nil, want exact-size bead cohort error")
+	}
+}
+
+func TestValidateManifest_RejectsDuplicateModes(t *testing.T) {
+	manifest := Manifest{
+		ID:         "tdd-vs-single-pass",
+		BaseCommit: "abc123",
+		Beads:      []string{"gromit-1", "gromit-2", "gromit-3", "gromit-4", "gromit-5"},
+		ModeConfig: ModeConfig{
+			Modes: []string{"single_pass", "single_pass"},
+		},
+		ModelPinning: ModelPinning{
+			Provider:        "openai",
+			ModelFamily:     "gpt-5",
+			LowTierModel:    "gpt-5-mini",
+			MediumTierModel: "gpt-5.3-codex",
+			HighTierModel:   "gpt-5.3-codex",
+		},
+	}
+
+	err := ValidateManifest(manifest)
+	if err == nil {
+		t.Fatal("ValidateManifest() error = nil, want duplicate mode error")
+	}
+	if !stdstrings.Contains(err.Error(), "duplicate mode") {
+		t.Fatalf("ValidateManifest() error = %q, want contains %q", err.Error(), "duplicate mode")
 	}
 }
 

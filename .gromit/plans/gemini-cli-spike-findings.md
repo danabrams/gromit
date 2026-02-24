@@ -26,6 +26,7 @@ Live invocation path used: `npm start --prefix /home/dabrams/gemini-cli -- --app
 - JSON fixture candidate (live): `.gromit/plans/fixtures/gemini/json-success.json`
 - Model artifacts: `.gromit/plans/fixtures/gemini/models/*`
 - Error artifacts: `.gromit/plans/fixtures/gemini/errors/*`
+- Concrete error evidence: `.gromit/plans/fixtures/gemini/errors/command-missing.stderr.txt`
 - Permissions notes: `.gromit/plans/fixtures/gemini/permissions/permissions-notes.md`
 - Workdir notes: `.gromit/plans/fixtures/gemini/workdir/workdir-notes.md`
 

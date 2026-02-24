@@ -14,10 +14,10 @@ var allowedBenchmarkModes = map[string]struct{}{
 }
 
 type Manifest struct {
-	ID         string   `yaml:"id"`
-	BaseCommit string   `yaml:"base_commit"`
-	Beads      []string `yaml:"beads"`
-	ModeConfig `yaml:",inline"`
+	ID           string   `yaml:"id"`
+	BaseCommit   string   `yaml:"base_commit"`
+	Beads        []string `yaml:"beads"`
+	ModeConfig   `yaml:",inline"`
 	ModelPinning `yaml:",inline"`
 }
 
@@ -82,6 +82,13 @@ func ValidateManifest(manifest Manifest) error {
 		if _, ok := allowedBenchmarkModes[mode]; !ok {
 			return fmt.Errorf("unsupported mode %q", mode)
 		}
+	}
+	seenModes := make(map[string]struct{}, len(manifest.Modes))
+	for _, mode := range manifest.Modes {
+		if _, exists := seenModes[mode]; exists {
+			return fmt.Errorf("duplicate mode %q", mode)
+		}
+		seenModes[mode] = struct{}{}
 	}
 
 	return nil
