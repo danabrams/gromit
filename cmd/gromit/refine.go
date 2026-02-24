@@ -258,6 +258,7 @@ func toPipelineIdea(idea *backlog.Idea) *pipeline.Idea {
 }
 
 func applyPipelineIdeaFields(dst *backlog.Idea, src *pipeline.Idea) {
+	dst.CreatedAt = src.CreatedAt
 	dst.Status = src.Status
 	dst.SpecName = src.SpecName
 }
