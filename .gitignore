@@ -30,6 +30,11 @@ coverage.out
 **/.gromit/logs/
 .gromit/tmp/
 .gromit/status.json
+.gromit/state.json
+.gromit/stats.json
+.gromit/interactive-state.json
+.gromit/metrics/iteration_metrics.jsonl
+.gromit/metrics/process_trend.json
 
 # Codex runtime artifacts
 .codex-home/
@@ -49,3 +54,6 @@ cmd/gromit/.gromit/interactive-state.json.lock
 # Benchmark run outputs are ephemeral; curated fixtures belong under test/fixtures
 cmd/gromit/.gromit/benchmarks/results/
 .gromit/benchmarks/results/
+
+# Raw run outputs are ephemeral; keep curated summaries in .gromit/reports/curated/
+.gromit/reports/runs/
