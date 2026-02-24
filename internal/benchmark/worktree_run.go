@@ -3,11 +3,16 @@ package benchmark
 import (
 	"context"
 	"fmt"
+	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"sort"
 	stdstrings "strings"
 	"time"
 
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/runner"
 	"github.com/danabrams/gromit/internal/worktree"
 )
 
@@ -104,7 +109,7 @@ func NewSessionModeWorktreeRunner(opts SessionModeWorktreeRunnerOptions) *Sessio
 		}
 	}
 	if r.runModeInWorktree == nil {
-		r.runModeInWorktree = func(_ context.Context, _ string, _ ModeWorktreeRequest) error { return nil }
+		r.runModeInWorktree = r.defaultRunModeInWorktree
 	}
 	if r.checkoutBaseCommitInWorktree == nil {
 		r.checkoutBaseCommitInWorktree = defaultCheckoutBaseCommitInWorktree
@@ -116,6 +121,7 @@ func NewSessionModeWorktreeRunner(opts SessionModeWorktreeRunnerOptions) *Sessio
 }
 
 func (r *SessionModeWorktreeRunner) RunMode(ctx context.Context, req ModeWorktreeRequest) (ModeWorktreeRun, error) {
+	startedAt := time.Now().UTC()
 	session, err := r.createSessionWorktree("benchmark-" + req.Mode)
 	if err != nil {
 		return ModeWorktreeRun{}, fmt.Errorf("create session worktree for mode %q: %w", req.Mode, err)
@@ -131,19 +137,57 @@ func (r *SessionModeWorktreeRunner) RunMode(ctx context.Context, req ModeWorktre
 
 	if err := r.runModeInWorktree(ctx, session.WorktreeDir, req); err != nil {
 		return ModeWorktreeRun{
-			Mode: req.Mode,
+			Mode:         req.Mode,
+			RunStartedAt: startedAt,
+			RunFinishedAt: time.Now().UTC(),
 			Cleanup: func() error {
 				return r.cleanupSession(r.mainDir, session.WorktreeDir)
 			},
 		}, fmt.Errorf("run mode %q in worktree: %w", req.Mode, err)
 	}
+	finishedAt := time.Now().UTC()
+	logPath := detectLatestModeLogPath(session.WorktreeDir)
 
 	return ModeWorktreeRun{
-		Mode: req.Mode,
+		Mode:          req.Mode,
+		RunStartedAt:  startedAt,
+		RunFinishedAt: finishedAt,
+		LogPath:       logPath,
 		Cleanup: func() error {
 			return r.cleanupSession(r.mainDir, session.WorktreeDir)
 		},
 	}, nil
+}
+
+func (r *SessionModeWorktreeRunner) defaultRunModeInWorktree(ctx context.Context, worktreeDir string, req ModeWorktreeRequest) error {
+	cfgPath := filepath.Join(r.mainDir, "gromit.yaml")
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		return fmt.Errorf("load config %q: %w", cfgPath, err)
+	}
+	cfg, err = applyBenchmarkOverlayToConfig(cfg, req.Overlay)
+	if err != nil {
+		return fmt.Errorf("apply benchmark overlay: %w", err)
+	}
+	originalDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("get cwd: %w", err)
+	}
+	if err := os.Chdir(worktreeDir); err != nil {
+		return fmt.Errorf("chdir to worktree %q: %w", worktreeDir, err)
+	}
+	defer func() {
+		_ = os.Chdir(originalDir)
+	}()
+
+	orch, err := runner.NewRunner(cfg, io.Discard)
+	if err != nil {
+		return fmt.Errorf("create runner: %w", err)
+	}
+	if err := orch.RunSequence(ctx, req.SelectedBeads, len(req.SelectedBeads), time.Time{}, nil); err != nil {
+		return fmt.Errorf("run sequence for mode %q: %w", req.Mode, err)
+	}
+	return nil
 }
 
 func defaultCheckoutBaseCommitInWorktree(ctx context.Context, worktreeDir, baseCommit string) error {
@@ -224,4 +268,24 @@ func applyBenchmarkOverlayToConfig(cfg *config.Config, overlay ModeOverlay) (*co
 	cloned.Routing.Ratio = map[string]int{overlay.Provider: 100}
 
 	return &cloned, nil
+}
+
+func detectLatestModeLogPath(worktreeDir string) string {
+	pattern := filepath.Join(worktreeDir, ".gromit", "logs", "*.jsonl")
+	paths, err := filepath.Glob(pattern)
+	if err != nil || len(paths) == 0 {
+		return ""
+	}
+	sort.Slice(paths, func(i, j int) bool {
+		iInfo, iErr := os.Stat(paths[i])
+		jInfo, jErr := os.Stat(paths[j])
+		if iErr != nil || jErr != nil {
+			return paths[i] < paths[j]
+		}
+		if iInfo.ModTime().Equal(jInfo.ModTime()) {
+			return paths[i] < paths[j]
+		}
+		return iInfo.ModTime().After(jInfo.ModTime())
+	})
+	return paths[0]
 }

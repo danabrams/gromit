@@ -125,6 +125,39 @@ func TestRunBenchmarkPipeline_ExecutesStagesInOrder(t *testing.T) {
 func TestRunBenchmarkPipeline_WritesDeterministicArtifacts(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
+	origValidate := benchmarkValidateCohortFn
+	origHarness := benchmarkRunHarnessFn
+	origMetrics := benchmarkComputeMetricsFn
+	t.Cleanup(func() {
+		benchmarkValidateCohortFn = origValidate
+		benchmarkRunHarnessFn = origHarness
+		benchmarkComputeMetricsFn = origMetrics
+	})
+	benchmarkValidateCohortFn = func(selection benchmarkSelection) (benchmarkValidatedCohort, error) {
+		return benchmarkValidatedCohort{SelectedBeads: selection.SelectedBeads}, nil
+	}
+	benchmarkRunHarnessFn = func(manifest benchmarkManifest, cohort benchmarkValidatedCohort, opts benchmarkRunOptions) (benchmarkHarnessResult, error) {
+		baseCommit := manifest.BaseCommit
+		if opts.BaseCommit != "" {
+			baseCommit = opts.BaseCommit
+		}
+		modes := make([]benchmarkModeResult, 0, len(manifest.Modes))
+		for _, mode := range manifest.Modes {
+			modes = append(modes, benchmarkModeResult{
+				Mode:          mode,
+				BaseCommit:    baseCommit,
+				SelectedBeads: append([]string(nil), cohort.SelectedBeads...),
+			})
+		}
+		return benchmarkHarnessResult{
+			BaseCommit:    baseCommit,
+			SelectedBeads: append([]string(nil), cohort.SelectedBeads...),
+			Modes:         modes,
+		}, nil
+	}
+	benchmarkComputeMetricsFn = func(result benchmarkHarnessResult) (benchmarkMetricsResult, error) {
+		return benchmarkMetricsResult{}, nil
+	}
 
 	opts := benchmarkRunOptions{
 		ManifestPath:    filepath.Join("/home/dabrams/gromit", "cmd", "gromit", "testdata", "fixtures", "benchmark", "basic.yaml"),
@@ -384,13 +417,40 @@ func TestRunBenchmarkPipeline_UsesInternalBenchmarkStagesInOrder(t *testing.T) {
 func TestBenchmarkRunCommand_BeadOverridesDriveSelection(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
+	origValidate := benchmarkValidateCohortFn
+	origHarness := benchmarkRunHarnessFn
+	origMetrics := benchmarkComputeMetricsFn
+	t.Cleanup(func() {
+		benchmarkValidateCohortFn = origValidate
+		benchmarkRunHarnessFn = origHarness
+		benchmarkComputeMetricsFn = origMetrics
+	})
+	benchmarkValidateCohortFn = func(selection benchmarkSelection) (benchmarkValidatedCohort, error) {
+		return benchmarkValidatedCohort{SelectedBeads: selection.SelectedBeads}, nil
+	}
+	benchmarkRunHarnessFn = func(manifest benchmarkManifest, cohort benchmarkValidatedCohort, opts benchmarkRunOptions) (benchmarkHarnessResult, error) {
+		baseCommit := manifest.BaseCommit
+		if opts.BaseCommit != "" {
+			baseCommit = opts.BaseCommit
+		}
+		return benchmarkHarnessResult{
+			BaseCommit:    baseCommit,
+			SelectedBeads: append([]string(nil), cohort.SelectedBeads...),
+			Modes: []benchmarkModeResult{
+				{Mode: "single_pass", BaseCommit: baseCommit, SelectedBeads: append([]string(nil), cohort.SelectedBeads...)},
+			},
+		}, nil
+	}
+	benchmarkComputeMetricsFn = func(result benchmarkHarnessResult) (benchmarkMetricsResult, error) {
+		return benchmarkMetricsResult{}, nil
+	}
 
 	manifestPath := filepath.Join("/home/dabrams/gromit", "cmd", "gromit", "testdata", "fixtures", "benchmark", "basic.yaml")
 	_, stderr, exitCode := runGromitCobra(t,
 		"benchmark", "run",
 		"--manifest", manifestPath,
 		"--beads", "gromit-9,gromit-8,gromit-7",
-		"--bead-count", "2",
+		"--bead-count", "3",
 		"--output-ts", "20260223T130000Z",
 	)
 	if exitCode != 0 {
@@ -410,8 +470,8 @@ func TestBenchmarkRunCommand_BeadOverridesDriveSelection(t *testing.T) {
 		t.Fatalf("unmarshal report json: %v", err)
 	}
 
-	if strings.Join(payload.SelectedBeads, ",") != "gromit-9,gromit-8" {
-		t.Fatalf("selected_beads = %v, want [%s]", payload.SelectedBeads, "gromit-9 gromit-8")
+	if strings.Join(payload.SelectedBeads, ",") != "gromit-9,gromit-8,gromit-7" {
+		t.Fatalf("selected_beads = %v, want [%s]", payload.SelectedBeads, "gromit-9 gromit-8 gromit-7")
 	}
 }
 
