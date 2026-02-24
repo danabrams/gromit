@@ -19,8 +19,8 @@ func TestIdeaJSONTags(t *testing.T) {
 		{name: "Text", tag: "text"},
 		{name: "Type", tag: "type"},
 		{name: "Context", tag: "context"},
-		{name: "Status", tag: "status"},
-		{name: "SpecName", tag: "spec_name"},
+		{name: "Status", tag: "status,omitempty"},
+		{name: "SpecName", tag: "spec_name,omitempty"},
 	}
 
 	ideaType := reflect.TypeOf(Idea{})
