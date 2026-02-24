@@ -443,6 +443,13 @@ func TestResolveReviewNonInteractiveTimeout_Defaults(t *testing.T) {
 	}
 }
 
+func TestBuildReviewNonInteractiveClient_ReturnsPipelineLLMClient(t *testing.T) {
+	var builder func(*config.Config) (pipeline.LLMClient, error) = buildReviewNonInteractiveClient
+	if builder == nil {
+		t.Fatal("builder is nil")
+	}
+}
+
 func TestBuildReviewNonInteractiveClient_ClaudeFallbackPath(t *testing.T) {
 	cfg := &config.Config{
 		Claude: config.ClaudeConfig{
