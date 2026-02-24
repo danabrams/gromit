@@ -502,6 +502,59 @@ func TestInvokerExecute_VersionKeyChangeInvalidatesBeforeNextLookup(t *testing.T
 	}
 }
 
+func TestInvokerExecute_CacheLookupErrorContinuesUncachedWithoutWrite(t *testing.T) {
+	callOrder := []string{}
+	var promptUsed string
+	writeCalls := 0
+	cache := &mockCacheAdapter{
+		lookupFn: func(ctx context.Context, req provider.CacheLookupRequest) (*provider.CacheEntry, bool, error) {
+			callOrder = append(callOrder, "lookup")
+			return nil, false, fmt.Errorf("cache backend unavailable")
+		},
+		writeFn: func(ctx context.Context, req provider.CacheWriteRequest) error {
+			writeCalls++
+			callOrder = append(callOrder, "write")
+			return nil
+		},
+	}
+	mp := &mockProvider{
+		name:         "provider-cache",
+		cacheAdapter: cache,
+		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			callOrder = append(callOrder, "stream")
+			promptUsed = prompt
+			return &provider.Result{Success: true, Model: "model-cache"}, nil
+		},
+	}
+	mr := &mockRouter{
+		selectFn: func(phase, tier string) (Provider, string) {
+			return mp, "model-cache"
+		},
+	}
+
+	invoker := NewInvoker(mr, &bytes.Buffer{}, nil)
+	bc := newTestBeadContext()
+	bc.PromptCtx = &prompt.Context{
+		StaticPreambleCacheClass: "render_static_build",
+		StaticPreambleCacheKey:   "cache-key-4",
+	}
+
+	if _, err := invoker.Execute(context.Background(), bc, "original prompt"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if promptUsed != "test prompt" {
+		t.Fatalf("provider prompt = %q, want %q", promptUsed, "test prompt")
+	}
+	if writeCalls != 0 {
+		t.Fatalf("write calls = %d, want 0 when lookup fails", writeCalls)
+	}
+	got := strings.Join(callOrder, ",")
+	want := "lookup,stream"
+	if got != want {
+		t.Fatalf("call order = %q, want %q", got, want)
+	}
+}
+
 func TestInvokerExecute_EscalatedInvocationUpdatesEscalatedTo(t *testing.T) {
 	// When bc.Result.Escalated is true and EscalatedTo is set, Execute
 	// should update EscalatedTo with the concrete model name from the router.
