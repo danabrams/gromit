@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
@@ -60,6 +61,7 @@ type mockProvider struct {
 	name           string
 	streamRunFn    func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error)
 	isUsageLimitFn func(result *provider.Result, err error) bool
+	cacheAdapter   provider.CacheAdapter
 }
 
 func (m *mockProvider) Name() string {
@@ -101,6 +103,40 @@ func (m *mockProvider) IsValidationPassed(result *provider.Result) bool {
 
 func (m *mockProvider) IsScopeTooLarge(result *provider.Result) (bool, string) {
 	return false, ""
+}
+
+func (m *mockProvider) CacheAdapter() provider.CacheAdapter {
+	if m.cacheAdapter == nil {
+		return provider.NewNoopCacheAdapter()
+	}
+	return m.cacheAdapter
+}
+
+type mockCacheAdapter struct {
+	lookupFn     func(ctx context.Context, req provider.CacheLookupRequest) (*provider.CacheEntry, bool, error)
+	writeFn      func(ctx context.Context, req provider.CacheWriteRequest) error
+	invalidateFn func(ctx context.Context, req provider.CacheInvalidateRequest) error
+}
+
+func (m *mockCacheAdapter) Lookup(ctx context.Context, req provider.CacheLookupRequest) (*provider.CacheEntry, bool, error) {
+	if m.lookupFn != nil {
+		return m.lookupFn(ctx, req)
+	}
+	return nil, false, nil
+}
+
+func (m *mockCacheAdapter) Write(ctx context.Context, req provider.CacheWriteRequest) error {
+	if m.writeFn != nil {
+		return m.writeFn(ctx, req)
+	}
+	return nil
+}
+
+func (m *mockCacheAdapter) Invalidate(ctx context.Context, req provider.CacheInvalidateRequest) error {
+	if m.invalidateFn != nil {
+		return m.invalidateFn(ctx, req)
+	}
+	return nil
 }
 
 // --- Helper ---
@@ -314,6 +350,49 @@ func TestInvokerExecute_UsageLimitTriggersProviderFallback(t *testing.T) {
 	}
 	if mr.recordCalls[0].failureCategory != "" {
 		t.Fatalf("RecordOutcome failure category = %q, want empty", mr.recordCalls[0].failureCategory)
+	}
+}
+
+func TestInvokerExecute_CacheLookupHitUsesCachedPromptBeforeInvocation(t *testing.T) {
+	callOrder := []string{}
+	var promptUsed string
+	cache := &mockCacheAdapter{
+		lookupFn: func(ctx context.Context, req provider.CacheLookupRequest) (*provider.CacheEntry, bool, error) {
+			callOrder = append(callOrder, "lookup")
+			return &provider.CacheEntry{Content: "cached prompt"}, true, nil
+		},
+	}
+	mp := &mockProvider{
+		name:         "provider-cache",
+		cacheAdapter: cache,
+		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			callOrder = append(callOrder, "stream")
+			promptUsed = prompt
+			return &provider.Result{Success: true, Model: "model-cache"}, nil
+		},
+	}
+	mr := &mockRouter{
+		selectFn: func(phase, tier string) (Provider, string) {
+			return mp, "model-cache"
+		},
+	}
+
+	invoker := NewInvoker(mr, &bytes.Buffer{}, nil)
+	bc := newTestBeadContext()
+	bc.PromptCtx = &prompt.Context{
+		StaticPreambleCacheClass: "render_static_build",
+		StaticPreambleCacheKey:   "cache-key-1",
+	}
+
+	_, err := invoker.Execute(context.Background(), bc, "original prompt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if promptUsed != "cached prompt" {
+		t.Fatalf("provider prompt = %q, want %q", promptUsed, "cached prompt")
+	}
+	if len(callOrder) != 2 || callOrder[0] != "lookup" || callOrder[1] != "stream" {
+		t.Fatalf("call order = %v, want [lookup stream]", callOrder)
 	}
 }
 
