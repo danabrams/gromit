@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	benchpkg "github.com/danabrams/gromit/internal/benchmark"
 )
 
 func TestBenchmarkRunCommand_DispatchesPipeline(t *testing.T) {
@@ -295,6 +297,85 @@ modes:
 	}
 	if !strings.Contains(err.Error(), "provider is required") {
 		t.Fatalf("runBenchmarkPipeline() error = %q, want contains %q", err.Error(), "provider is required")
+	}
+}
+
+func TestRunBenchmarkPipeline_UsesInternalBenchmarkStagesInOrder(t *testing.T) {
+	origLoad := benchmarkInternalLoadManifestFn
+	origResolve := benchmarkInternalResolveSelectedBeadsFn
+	origValidate := benchmarkInternalValidateSelectedCohortFn
+	origRunModes := benchmarkInternalRunModesInIsolatedWorktreesFn
+	origAggregate := benchmarkInternalAggregateModeMetricsFn
+	origWrite := benchmarkInternalWriteReportFn
+	origNewLookup := benchmarkNewBeadLookupFn
+	origNewResolver := benchmarkNewBaseCommitResolverFn
+	origNewRunner := benchmarkNewModeWorktreeRunnerFn
+	origNow := benchmarkNowFn
+	t.Cleanup(func() {
+		benchmarkInternalLoadManifestFn = origLoad
+		benchmarkInternalResolveSelectedBeadsFn = origResolve
+		benchmarkInternalValidateSelectedCohortFn = origValidate
+		benchmarkInternalRunModesInIsolatedWorktreesFn = origRunModes
+		benchmarkInternalAggregateModeMetricsFn = origAggregate
+		benchmarkInternalWriteReportFn = origWrite
+		benchmarkNewBeadLookupFn = origNewLookup
+		benchmarkNewBaseCommitResolverFn = origNewResolver
+		benchmarkNewModeWorktreeRunnerFn = origNewRunner
+		benchmarkNowFn = origNow
+	})
+
+	order := make([]string, 0, 6)
+	manifest := benchpkg.Manifest{
+		ID:         "bench-1",
+		BaseCommit: "abc123",
+		Beads:      []string{"gromit-1", "gromit-2", "gromit-3"},
+		ModeConfig: benchpkg.ModeConfig{Modes: []string{"single_pass"}},
+		ModelPinning: benchpkg.ModelPinning{
+			Provider:        "openai",
+			ModelFamily:     "gpt-5",
+			LowTierModel:    "gpt-5-mini",
+			MediumTierModel: "gpt-5.3-codex",
+			HighTierModel:   "gpt-5.3-codex",
+		},
+	}
+
+	benchmarkInternalLoadManifestFn = func(path string) (benchpkg.Manifest, error) {
+		order = append(order, "load")
+		return manifest, nil
+	}
+	benchmarkInternalResolveSelectedBeadsFn = func(manifestBeads, cliBeads []string, beadCount int) ([]string, error) {
+		order = append(order, "resolve")
+		return append([]string(nil), manifestBeads...), nil
+	}
+	benchmarkInternalValidateSelectedCohortFn = func(lookup benchpkg.BeadLookup, selected []string, minSize int) ([]string, error) {
+		order = append(order, "validate")
+		return append([]string(nil), selected...), nil
+	}
+	benchmarkInternalRunModesInIsolatedWorktreesFn = func(ctx context.Context, input benchpkg.RunModesInput) ([]benchpkg.ModeWorktreeRun, string, error) {
+		order = append(order, "run_modes")
+		return []benchpkg.ModeWorktreeRun{{Mode: "single_pass"}}, "abc123", nil
+	}
+	benchmarkInternalAggregateModeMetricsFn = func(inputs []benchpkg.ModeLogInput) ([]benchpkg.ModeSummary, error) {
+		order = append(order, "aggregate")
+		return []benchpkg.ModeSummary{{Mode: "single_pass"}}, nil
+	}
+	benchmarkInternalWriteReportFn = func(input benchpkg.ReportInput) (benchpkg.ReportPaths, error) {
+		order = append(order, "write")
+		return benchpkg.ReportPaths{}, nil
+	}
+	benchmarkNewBeadLookupFn = func() (benchpkg.BeadLookup, error) { return nil, nil }
+	benchmarkNewBaseCommitResolverFn = func() benchpkg.BaseCommitResolver { return nil }
+	benchmarkNewModeWorktreeRunnerFn = func() benchpkg.ModeWorktreeRunner { return nil }
+	benchmarkNowFn = func() time.Time { return time.Date(2026, 2, 23, 15, 0, 0, 0, time.UTC) }
+
+	if err := runBenchmarkPipeline(benchmarkRunOptions{ManifestPath: "manifest.yaml"}); err != nil {
+		t.Fatalf("runBenchmarkPipeline() error = %v", err)
+	}
+
+	got := strings.Join(order, "->")
+	want := "load->resolve->validate->run_modes->aggregate->write"
+	if got != want {
+		t.Fatalf("stage order = %q, want %q", got, want)
 	}
 }
 
