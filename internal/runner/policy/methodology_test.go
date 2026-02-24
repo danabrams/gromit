@@ -158,3 +158,14 @@ func TestIsActive_TDDNotSuppressedBySpecGranularity(t *testing.T) {
 		t.Error("expected IsActive to return true for tdd even when granularity=spec with spec label")
 	}
 }
+
+func TestIsActive_ReturnsFalseForNonGoMethodologyAdapter(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Methodology.TDD = true
+	cfg.Methodology.Adapter = "python"
+	p := policy.NewConfigMethodologyPolicy(cfg)
+
+	if p.IsActive(nil, "tdd") {
+		t.Fatal("expected IsActive to return false when methodology adapter is non-go")
+	}
+}
