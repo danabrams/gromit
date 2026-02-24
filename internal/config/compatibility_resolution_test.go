@@ -155,3 +155,19 @@ func TestResolvedMethodologyAdapterAccessorUsesLegacyFallback(t *testing.T) {
 		t.Fatalf("ResolvedMethodologyAdapter().Source = %q, want %q", resolved.Source, CompatibilitySourceLegacyFallback)
 	}
 }
+
+func TestResolvedTrackerBackendAccessorUsesProfileDefaultSource(t *testing.T) {
+	cfg := Config{
+		Project: ProjectConfig{
+			Profile: "go",
+		},
+	}
+
+	resolved := cfg.ResolvedTrackerBackend()
+	if resolved.Value != "bd" {
+		t.Fatalf("ResolvedTrackerBackend().Value = %q, want %q", resolved.Value, "bd")
+	}
+	if resolved.Source != CompatibilitySourceProfileDefault {
+		t.Fatalf("ResolvedTrackerBackend().Source = %q, want %q", resolved.Source, CompatibilitySourceProfileDefault)
+	}
+}
