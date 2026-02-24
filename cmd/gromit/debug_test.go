@@ -759,6 +759,36 @@ func TestBuildDebugPromptWithRunbookEntry(t *testing.T) {
 	}
 }
 
+func TestBuildDebugPrompt_IncludesCompatibilityDiagnostics(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("failed to create gromit dir: %v", err)
+	}
+
+	cfg := &config.Config{}
+	cfg.Project.Profile = "go"
+	cfg.Tracker.Backend = "linear"
+	cfg.Methodology.Adapter = "python"
+
+	result, err := buildDebugPrompt(cfg, gromitDir, []string{}, nil)
+	if err != nil {
+		t.Fatalf("buildDebugPrompt failed: %v", err)
+	}
+
+	wantSubstrings := []string{
+		"Compatibility:",
+		"Profile:  go (source: explicit)",
+		"Backend:  linear (source: explicit)",
+		"Adapter:  python (source: explicit)",
+	}
+	for _, want := range wantSubstrings {
+		if !strings.Contains(result, want) {
+			t.Fatalf("expected compatibility diagnostic %q in prompt, got:\n%s", want, result)
+		}
+	}
+}
+
 // TestBuildDebugPromptWithRunbookEntryDetailsSection verifies the Failure Context section
 // contains commit diff instructions, validation commands, failure output, and build prompt.
 func TestBuildDebugPromptWithRunbookEntryDetailsSection(t *testing.T) {
