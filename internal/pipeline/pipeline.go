@@ -152,7 +152,7 @@ type BacklogClient interface {
 type Idea = backlog.Idea
 
 // IdeaJSONKeys defines the expected snake_case JSON keys for Idea.
-var IdeaJSONKeys = []string{"id", "text", "type", "context", "status", "spec_name"}
+var IdeaJSONKeys = []string{"id", "text", "type", "context", "created_at", "status", "spec_name"}
 
 // RefineRenderer abstracts refine prompt rendering operations.
 type RefineRenderer interface {
