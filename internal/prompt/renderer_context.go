@@ -9,6 +9,8 @@ import (
 	"github.com/danabrams/gromit/internal/learnings"
 )
 
+const buildContextStaticPreambleCacheClass = "build_context_static"
+
 // BuildContext builds a complete prompt context for a bead.
 func (r *Renderer) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, model string, phase string) (*Context, error) {
 	if r == nil {
@@ -63,6 +65,7 @@ func (r *Renderer) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, 
 	r.enrichSiblingTouchedPackages(ctx, b, parent)
 	r.applyScopedClaudeContext(ctx)
 	ApplyPhaseProfile(ctx, phase)
+	populateBuildContextStaticPreambleCacheMetadata(ctx)
 
 	ctx.normalizeNilFields()
 	return ctx, nil
@@ -158,4 +161,16 @@ func beadDescription(b *bead.Bead) string {
 		return ""
 	}
 	return b.Description
+}
+
+func populateBuildContextStaticPreambleCacheMetadata(ctx *Context) {
+	if ctx == nil {
+		return
+	}
+	ctx.StaticPreambleCacheClass = buildContextStaticPreambleCacheClass
+	ctx.StaticPreambleCacheKey = StaticPreambleCacheKey(ctx.StaticPreambleCacheClass, map[string]string{
+		"claude_md": ctx.ClaudeMD,
+		"rules":     ctx.Rules,
+		"spec":      ctx.Spec,
+	})
 }

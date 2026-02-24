@@ -18,6 +18,10 @@ type Context struct {
 	Rules    string // Content of RULES.md
 	WorkDir  string // Working directory
 
+	// Static preamble cache metadata for downstream invocation wiring.
+	StaticPreambleCacheClass string
+	StaticPreambleCacheKey   string
+
 	// Learnings
 	ConfirmedLearnings []learnings.Learning
 	RecentLearnings    []learnings.Learning
