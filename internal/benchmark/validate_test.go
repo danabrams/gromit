@@ -70,3 +70,26 @@ func TestComplexityTier_DefaultsToMediumWhenUnlabeled(t *testing.T) {
 		t.Fatalf("complexityTier() = %q, want %q", got, "medium")
 	}
 }
+
+func TestValidateSelectedCohort_ReturnsErrorWhenTierCoverageMissing(t *testing.T) {
+	lookup := fakeBeadLookup{
+		showFn: func(id string) (*bead.Bead, error) {
+			switch id {
+			case "gromit-1":
+				return &bead.Bead{ID: id, Status: "open", Labels: []string{"complexity:low"}}, nil
+			case "gromit-2", "gromit-3":
+				return &bead.Bead{ID: id, Status: "open", Labels: []string{"complexity:high"}}, nil
+			default:
+				return nil, errors.New("unexpected id")
+			}
+		},
+	}
+
+	_, err := ValidateSelectedCohort(lookup, []string{"gromit-1", "gromit-2", "gromit-3"}, 3)
+	if err == nil {
+		t.Fatal("ValidateSelectedCohort() error = nil, want missing-tier error")
+	}
+	if !stdstrings.Contains(err.Error(), "missing complexity tiers: medium") {
+		t.Fatalf("ValidateSelectedCohort() error = %q, want missing medium tier message", err.Error())
+	}
+}
