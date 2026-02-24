@@ -2,6 +2,9 @@ package pipeline
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"regexp"
 	"testing"
 )
 
@@ -99,6 +102,18 @@ func TestDeps_UsesLLMClientField(t *testing.T) {
 
 	if deps.LLMClient == nil {
 		t.Error("LLMClient field should be set")
+	}
+}
+
+func TestPipelineTest_HasLLMClientCompileTimeAssertion(t *testing.T) {
+	p := filepath.Join("..", "..", "internal", "pipeline", "pipeline_test.go")
+	content, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatalf("read pipeline_test.go: %v", err)
+	}
+	pattern := regexp.MustCompile(`(?m)^var _ LLMClient = \(\*testClaudeClient\)\(nil\)$`)
+	if !pattern.Match(content) {
+		t.Fatal("pipeline_test.go should include compile-time assertion for LLMClient")
 	}
 }
 
