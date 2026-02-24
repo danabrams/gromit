@@ -853,6 +853,45 @@ func TestHandleInvocationTimeout_NoHigherTierAttemptsDecomposition(t *testing.T)
 	}
 }
 
+func TestHandleInvocationTimeout_FirstTimeoutDecomposesWithoutEscalation(t *testing.T) {
+	cfg := newTestConfig()
+	decomposeCalled := false
+	h := NewHandler(
+		cfg,
+		&mockFailureAnalyzer{},
+		&mockBeadClient{},
+		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+			decomposeCalled = true
+			return []runtypes.SubTask{{Title: "subtask 1"}}, nil
+		},
+		func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error { return nil },
+		nil,
+		nil,
+	)
+
+	bc := newTestBeadContext()
+	bc.Tier = provider.TierLow
+	bc.Model = "haiku"
+	bc.ParentCtx = context.Background()
+
+	continueLoop := h.HandleInvocationTimeout(context.Background(), bc)
+	if continueLoop {
+		t.Fatal("expected no retry loop continuation after timeout-first decomposition")
+	}
+	if !decomposeCalled {
+		t.Fatal("expected first invocation timeout to trigger decomposition")
+	}
+	if bc.Result.Escalated {
+		t.Fatal("did not expect escalation before decomposition on first timeout")
+	}
+	if bc.Tier != provider.TierLow {
+		t.Fatalf("tier changed from %s to %s", provider.TierLow, bc.Tier)
+	}
+	if !bc.Result.Decomposed {
+		t.Fatal("expected decomposition success to be recorded")
+	}
+}
+
 func TestExecuteWithRetry_BeadTimeoutEscalatesBeforeDecomposing(t *testing.T) {
 	// When a bead timeout occurs and a higher tier is available, escalate once
 	// before falling through to decomposition.
