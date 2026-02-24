@@ -576,3 +576,49 @@ func TestOrchestrator_ValidationFailure_SetsFailureOutput(t *testing.T) {
 		t.Errorf("FailureOutput = %q, want it to contain validation failure text", capturedInput.FailureOutput)
 	}
 }
+
+// TestOrchestrator_RunSequence_UsesCallerProvidedOrder verifies that RunSequence
+// resolves bead IDs via GetBeadByID and executes them in the exact caller-provided
+// order, independent of queue ordering.
+func TestOrchestrator_RunSequence_UsesCallerProvidedOrder(t *testing.T) {
+	var buildOrder []string
+	var getByIDCalls []string
+	queueCalls := 0
+
+	build := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		buildOrder = append(buildOrder, in.Bead.ID)
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	cfg := OrchestratorConfig{
+		Gate:     &fakeStage{},
+		Build:    build,
+		Validate: &fakeStage{},
+		Epilogue: &fakeStage{},
+		GetBead: func(_ context.Context) (*bead.Bead, error) {
+			queueCalls++
+			return nil, nil
+		},
+		GetBeadByID: func(_ context.Context, id string) (*bead.Bead, error) {
+			getByIDCalls = append(getByIDCalls, id)
+			return &bead.Bead{ID: id, Title: "Sequence " + id}, nil
+		},
+		Config: &config.Config{},
+		Output: io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.RunSequence(context.Background(), []string{"b-2", "b-1", "b-3"}, 0, time.Time{}, nil); err != nil {
+		t.Fatalf("RunSequence() error = %v, want nil", err)
+	}
+
+	if queueCalls != 0 {
+		t.Errorf("GetBead queue path called %d times, want 0 during RunSequence", queueCalls)
+	}
+	if !reflect.DeepEqual(getByIDCalls, []string{"b-2", "b-1", "b-3"}) {
+		t.Errorf("GetBeadByID calls = %v, want %v", getByIDCalls, []string{"b-2", "b-1", "b-3"})
+	}
+	if !reflect.DeepEqual(buildOrder, []string{"b-2", "b-1", "b-3"}) {
+		t.Errorf("build order = %v, want %v", buildOrder, []string{"b-2", "b-1", "b-3"})
+	}
+}
