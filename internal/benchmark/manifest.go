@@ -14,15 +14,23 @@ var allowedBenchmarkModes = map[string]struct{}{
 }
 
 type Manifest struct {
-	ID              string   `yaml:"id"`
-	BaseCommit      string   `yaml:"base_commit"`
-	Beads           []string `yaml:"beads"`
-	Modes           []string `yaml:"modes"`
-	Provider        string   `yaml:"provider"`
-	ModelFamily     string   `yaml:"model_family"`
-	LowTierModel    string   `yaml:"low_tier_model"`
-	MediumTierModel string   `yaml:"medium_tier_model"`
-	HighTierModel   string   `yaml:"high_tier_model"`
+	ID         string   `yaml:"id"`
+	BaseCommit string   `yaml:"base_commit"`
+	Beads      []string `yaml:"beads"`
+	ModeConfig `yaml:",inline"`
+	ModelPinning `yaml:",inline"`
+}
+
+type ModeConfig struct {
+	Modes []string `yaml:"modes"`
+}
+
+type ModelPinning struct {
+	Provider        string `yaml:"provider"`
+	ModelFamily     string `yaml:"model_family"`
+	LowTierModel    string `yaml:"low_tier_model"`
+	MediumTierModel string `yaml:"medium_tier_model"`
+	HighTierModel   string `yaml:"high_tier_model"`
 }
 
 func LoadManifest(path string) (Manifest, error) {

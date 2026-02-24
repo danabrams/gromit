@@ -202,15 +202,19 @@ func TestLoadManifest_LoadsSampleManifestFile(t *testing.T) {
 
 func TestValidateManifest_AcceptsValidManifest(t *testing.T) {
 	manifest := Manifest{
-		ID:              "tdd-vs-single-pass",
-		BaseCommit:      "abc123",
-		Beads:           []string{"gromit-1"},
-		Modes:           []string{"single_pass"},
-		Provider:        "openai",
-		ModelFamily:     "gpt-5",
-		LowTierModel:    "gpt-5-mini",
-		MediumTierModel: "gpt-5.3-codex",
-		HighTierModel:   "gpt-5.3-codex",
+		ID:         "tdd-vs-single-pass",
+		BaseCommit: "abc123",
+		Beads:      []string{"gromit-1"},
+		ModeConfig: ModeConfig{
+			Modes: []string{"single_pass"},
+		},
+		ModelPinning: ModelPinning{
+			Provider:        "openai",
+			ModelFamily:     "gpt-5",
+			LowTierModel:    "gpt-5-mini",
+			MediumTierModel: "gpt-5.3-codex",
+			HighTierModel:   "gpt-5.3-codex",
+		},
 	}
 
 	if err := ValidateManifest(manifest); err != nil {
