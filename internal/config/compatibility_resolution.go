@@ -43,6 +43,18 @@ func (c Config) ResolveCompatibilityContext() CompatibilityContext {
 		backend.Source = CompatibilitySourceProfileDefault
 		adapter.Source = CompatibilitySourceProfileDefault
 	}
+	if c.Tracker.Backend != "" {
+		backend = CompatibilityResolvedValue{
+			Value:  c.Tracker.Backend,
+			Source: CompatibilitySourceExplicit,
+		}
+	}
+	if c.Methodology.Adapter != "" {
+		adapter = CompatibilityResolvedValue{
+			Value:  c.Methodology.Adapter,
+			Source: CompatibilitySourceExplicit,
+		}
+	}
 
 	return CompatibilityContext{
 		Profile:            profile,
