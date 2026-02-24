@@ -463,7 +463,7 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 			return false
 		}
 
-		if invResult == nil || invResult.Result == nil {
+		if invResult == nil {
 			bc.Result.Error = fmt.Errorf("claude returned nil result")
 			h.setBuildFailurePhase(bc)
 			return false
@@ -471,10 +471,26 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 
 		h.addInvocationTokensToCumulative(bc)
 
-		claudeResult := invResult.Result
-		bc.Result.Output = claudeResult.Output
+		providerResult := invResult.ProviderResult
+		if providerResult == nil && invResult.Result != nil {
+			claudeResult := invResult.Result
+			providerResult = &provider.Result{
+				Success:      claudeResult.Success,
+				Output:       claudeResult.Output,
+				Model:        claudeResult.Model,
+				CostUSD:      claudeResult.CostUSD,
+				InputTokens:  claudeResult.InputTokens,
+				OutputTokens: claudeResult.OutputTokens,
+			}
+		}
+		if providerResult == nil {
+			bc.Result.Error = fmt.Errorf("claude returned nil result")
+			h.setBuildFailurePhase(bc)
+			return false
+		}
+		bc.Result.Output = providerResult.Output
 
-		if claudeResult.Success {
+		if providerResult.Success {
 			return true
 		}
 
@@ -504,18 +520,6 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 				continue
 			}
 			return false
-		}
-
-		providerResult := invResult.ProviderResult
-		if providerResult == nil {
-			providerResult = &provider.Result{
-				Success:      claudeResult.Success,
-				Output:       claudeResult.Output,
-				Model:        claudeResult.Model,
-				CostUSD:      claudeResult.CostUSD,
-				InputTokens:  claudeResult.InputTokens,
-				OutputTokens: claudeResult.OutputTokens,
-			}
 		}
 
 		// Analyze failure and decide: retry, escalate, or stop
