@@ -21,3 +21,10 @@ func TestResolveSelectedBeads_ReturnsErrorForDuplicates(t *testing.T) {
 		t.Fatal("ResolveSelectedBeads() error = nil, want duplicate error")
 	}
 }
+
+func TestResolveSelectedBeads_ReturnsErrorForEmptySelection(t *testing.T) {
+	_, err := ResolveSelectedBeads(nil, nil, 0)
+	if err == nil {
+		t.Fatal("ResolveSelectedBeads() error = nil, want empty selection error")
+	}
+}
