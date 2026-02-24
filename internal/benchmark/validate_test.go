@@ -47,3 +47,19 @@ func TestValidateSelectedCohort_ReturnsErrorWhenBeadDoesNotExist(t *testing.T) {
 		t.Fatalf("ValidateSelectedCohort() error = %q, want missing bead id", err.Error())
 	}
 }
+
+func TestValidateSelectedCohort_ReturnsErrorWhenBeadIsClosed(t *testing.T) {
+	lookup := fakeBeadLookup{
+		showFn: func(id string) (*bead.Bead, error) {
+			return &bead.Bead{ID: id, Status: "closed"}, nil
+		},
+	}
+
+	_, err := ValidateSelectedCohort(lookup, []string{"gromit-1"}, 1)
+	if err == nil {
+		t.Fatal("ValidateSelectedCohort() error = nil, want closed bead error")
+	}
+	if !stdstrings.Contains(err.Error(), "must be open") {
+		t.Fatalf("ValidateSelectedCohort() error = %q, want open-state error", err.Error())
+	}
+}
