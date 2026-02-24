@@ -297,6 +297,10 @@ func scopeGateSubBeadsToCandidates(subBeads []scopeGateSubBead) []validate.BeadC
 }
 
 func validateRuntimeScopeGateDecomposeOutput(subBeads []scopeGateSubBead, parentTitle string, maxSubBeads int) error {
+	if maxSubBeads <= 0 {
+		maxSubBeads = validate.MaxSubBeads
+	}
+
 	validation := validate.ValidateDecomposeOutputWithMax(
 		scopeGateSubBeadsToCandidates(subBeads),
 		validate.DecomposeValidationModeRuntime,
