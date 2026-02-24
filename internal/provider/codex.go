@@ -24,6 +24,7 @@ type CodexProvider struct {
 	tierToModel     map[string]string
 	tierToReasoning map[string]string
 	sleepFn         func(context.Context, time.Duration) error
+	cacheAdapter    CacheAdapter
 }
 
 const (
@@ -70,6 +71,7 @@ func NewCodexProvider(binaryPath string, flags []string, tierToModel map[string]
 		tierToModel:     tierToModel,
 		tierToReasoning: map[string]string{},
 		sleepFn:         sleepWithContext,
+		cacheAdapter:    NewNoopCacheAdapter(),
 	}
 }
 
@@ -102,6 +104,14 @@ func (cp *CodexProvider) ModelForTier(tier string) string {
 		return modelName
 	}
 	return tier
+}
+
+// CacheAdapter returns the cache adapter configured for this provider.
+func (cp *CodexProvider) CacheAdapter() CacheAdapter {
+	if cp == nil || cp.cacheAdapter == nil {
+		return NewNoopCacheAdapter()
+	}
+	return cp.cacheAdapter
 }
 
 // Run executes an LLM invocation with the given prompt and tier.

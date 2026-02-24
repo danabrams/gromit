@@ -25,6 +25,7 @@ type claudeClient interface {
 type ClaudeProvider struct {
 	client      claudeClient
 	tierToModel map[string]string
+	cacheAdapter CacheAdapter
 }
 
 // Compile-time check to verify ClaudeProvider implements Provider interface
@@ -35,6 +36,7 @@ func NewClaudeProvider(client claudeClient, tierToModel map[string]string) *Clau
 	return &ClaudeProvider{
 		client:      client,
 		tierToModel: tierToModel,
+		cacheAdapter: NewNoopCacheAdapter(),
 	}
 }
 
@@ -65,6 +67,14 @@ func (cp *ClaudeProvider) resolveTier(tier string) string {
 // ModelForTier returns the model name for a given tier without invoking the LLM.
 func (cp *ClaudeProvider) ModelForTier(tier string) string {
 	return cp.resolveTier(tier)
+}
+
+// CacheAdapter returns the cache adapter configured for this provider.
+func (cp *ClaudeProvider) CacheAdapter() CacheAdapter {
+	if cp == nil || cp.cacheAdapter == nil {
+		return NewNoopCacheAdapter()
+	}
+	return cp.cacheAdapter
 }
 
 // convertResult converts a claude.Result to a provider.Result

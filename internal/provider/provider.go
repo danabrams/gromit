@@ -86,6 +86,12 @@ type Provider interface {
 	IsScopeTooLarge(result *Result) (bool, string)
 }
 
+// ProviderCacheHooks is an optional extension that exposes provider-level cache
+// adapter capability without forcing every Provider implementation to support it.
+type ProviderCacheHooks interface {
+	CacheAdapter() CacheAdapter
+}
+
 // TierFromLegacyModel maps known model names to abstract tier constants.
 // Known mappings:
 //   - opus → high
