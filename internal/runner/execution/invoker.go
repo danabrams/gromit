@@ -96,6 +96,19 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 	defer invocationCancel()
 
 	stallFired := false
+	invocationPrompt := bc.BuildPrompt
+
+	cacheClass, cacheKey, cacheable := cacheMetadataFromBeadContext(bc)
+	if cacheable {
+		cacheAdapter := resolveCacheAdapter(p)
+		entry, hit, cacheErr := cacheAdapter.Lookup(ctx, provider.CacheLookupRequest{
+			CacheClass: cacheClass,
+			CacheKey:   cacheKey,
+		})
+		if cacheErr == nil && hit && entry != nil && entry.Content != "" {
+			invocationPrompt = entry.Content
+		}
+	}
 
 	preserveProviderTerminalStream := shouldPreserveProviderTerminalStream(inv.preserveNativeStream)
 
@@ -142,7 +155,7 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 		}
 	}
 
-	providerResult, err := p.StreamRun(invocationCtx, bc.BuildPrompt, tier, inv.output, providerHandler, providerToolHandler)
+	providerResult, err := p.StreamRun(invocationCtx, invocationPrompt, tier, inv.output, providerHandler, providerToolHandler)
 
 	if err != nil && p.IsUsageLimitError(providerResult, err) {
 		inv.router.MarkUnavailable(p.Name())
@@ -156,7 +169,7 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 			bc.Result.Provider = p2.Name()
 			modelName = modelName2
 
-			providerResult, err = p2.StreamRun(invocationCtx, bc.BuildPrompt, tier, inv.output, providerHandler, providerToolHandler)
+			providerResult, err = p2.StreamRun(invocationCtx, invocationPrompt, tier, inv.output, providerHandler, providerToolHandler)
 			p = p2
 		}
 	}
@@ -209,6 +222,32 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 		ProviderName:   p.Name(),
 		ProviderResult: providerResult,
 	}, err
+}
+
+func cacheMetadataFromBeadContext(bc *runtypes.BeadContext) (cacheClass, cacheKey string, ok bool) {
+	if bc == nil || bc.PromptCtx == nil {
+		return "", "", false
+	}
+	cacheClass = strings.TrimSpace(bc.PromptCtx.StaticPreambleCacheClass)
+	cacheKey = strings.TrimSpace(bc.PromptCtx.StaticPreambleCacheKey)
+	if cacheClass == "" || cacheKey == "" {
+		return "", "", false
+	}
+	return cacheClass, cacheKey, true
+}
+
+func resolveCacheAdapter(p Provider) provider.CacheAdapter {
+	cacheCapable, ok := p.(interface {
+		CacheAdapter() provider.CacheAdapter
+	})
+	if !ok {
+		return provider.NewNoopCacheAdapter()
+	}
+	adapter := cacheCapable.CacheAdapter()
+	if adapter == nil {
+		return provider.NewNoopCacheAdapter()
+	}
+	return adapter
 }
 
 func shouldPreserveProviderTerminalStream(defaultValue bool) bool {
