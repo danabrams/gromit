@@ -291,6 +291,54 @@ exit 0
 	}
 }
 
+func TestPrepareCodexEnv_RemovesCODEXCI(t *testing.T) {
+	t.Setenv("CODEX_CI", "1")
+	t.Setenv("CODEX_HOME", "")
+
+	env, _, err := prepareCodexEnv()
+	if err != nil {
+		t.Fatalf("prepareCodexEnv() error = %v", err)
+	}
+
+	for _, kv := range env {
+		if strings.HasPrefix(kv, "CODEX_CI=") {
+			t.Fatalf("prepareCodexEnv() should remove CODEX_CI, found %q", kv)
+		}
+	}
+}
+
+func TestRemoveEnvKey_DropsOnlyMatchingKey(t *testing.T) {
+	env := []string{
+		"PATH=/usr/bin",
+		"CODEX_CI=1",
+		"CODEX_HOME=/tmp/home",
+		"OTHER=ok",
+	}
+
+	got := removeEnvKey(env, "CODEX_CI")
+
+	if len(got) != 3 {
+		t.Fatalf("removeEnvKey() len = %d, want 3", len(got))
+	}
+	for _, kv := range got {
+		if strings.HasPrefix(kv, "CODEX_CI=") {
+			t.Fatalf("removeEnvKey() retained CODEX_CI entry: %q", kv)
+		}
+	}
+	if !containsEnvKV(got, "CODEX_HOME=/tmp/home") {
+		t.Fatal("removeEnvKey() unexpectedly removed CODEX_HOME")
+	}
+}
+
+func containsEnvKV(env []string, target string) bool {
+	for _, kv := range env {
+		if kv == target {
+			return true
+		}
+	}
+	return false
+}
+
 func TestCodexProviderRun_RetriesTransientFailureOnce(t *testing.T) {
 	tempDir := t.TempDir()
 	counterFile := filepath.Join(tempDir, "attempt-counter")

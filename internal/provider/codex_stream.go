@@ -176,6 +176,8 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 		switch event.Type {
 		case "thread.started":
 			emitStreamEvent(handler, map[string]interface{}{"type": "system"})
+		case "message.created":
+			emitStreamEvent(handler, map[string]interface{}{"type": "system"})
 
 		case "item.started":
 			if event.Item != nil && toolHandler != nil {

@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	stdstrings "strings"
 )
 
 type HarnessManifest struct {
@@ -57,6 +59,8 @@ type RunModesInput struct {
 	Runner         ModeWorktreeRunner
 }
 
+var ensureBenchmarkBeadsOpenFn = ensureSelectedBeadsOpen
+
 func RunModesInIsolatedWorktrees(ctx context.Context, input RunModesInput) ([]ModeWorktreeRun, string, error) {
 	if input.Resolver == nil {
 		return nil, "", fmt.Errorf("base commit resolver is required")
@@ -76,6 +80,9 @@ func RunModesInIsolatedWorktrees(ctx context.Context, input RunModesInput) ([]Mo
 	}
 	runs := make([]ModeWorktreeRun, 0, len(modes))
 	for _, mode := range modes {
+		if err := ensureBenchmarkBeadsOpenFn(ctx, input.SelectedBeads); err != nil {
+			return nil, "", err
+		}
 		overlay, err := BuildModeOverlay(input.Manifest, mode)
 		if err != nil {
 			return nil, "", err
@@ -108,6 +115,24 @@ func RunModesInIsolatedWorktrees(ctx context.Context, input RunModesInput) ([]Mo
 		runs = append(runs, run)
 	}
 	return runs, baseCommit, nil
+}
+
+func ensureSelectedBeadsOpen(ctx context.Context, beadIDs []string) error {
+	for _, rawID := range beadIDs {
+		id := stdstrings.TrimSpace(rawID)
+		if id == "" {
+			continue
+		}
+		cmd := exec.CommandContext(ctx, "bd", "update", id, "--status", "open", "--json")
+		if output, err := cmd.CombinedOutput(); err != nil {
+			msg := stdstrings.TrimSpace(string(output))
+			if msg == "" {
+				return fmt.Errorf("reopen selected bead %q before benchmark mode: %w", id, err)
+			}
+			return fmt.Errorf("reopen selected bead %q before benchmark mode: %w: %s", id, err, msg)
+		}
+	}
+	return nil
 }
 
 func persistModeLog(mode, sourcePath string) (string, error) {

@@ -13,6 +13,9 @@ import (
 
 func prepareCodexEnv() ([]string, string, error) {
 	env := os.Environ()
+	// Don't leak harness CI mode into codex subprocesses. CI mode can suppress
+	// runtime usage telemetry, which breaks benchmark measurements.
+	env = removeEnvKey(env, "CODEX_CI")
 	configuredCodexHome, ok := os.LookupEnv("CODEX_HOME")
 	if !ok {
 		return env, "", nil
@@ -69,6 +72,21 @@ func upsertEnv(env []string, key, value string) []string {
 		}
 	}
 	return append(env, prefix+value)
+}
+
+func removeEnvKey(env []string, key string) []string {
+	if len(env) == 0 {
+		return env
+	}
+	prefix := key + "="
+	filtered := make([]string, 0, len(env))
+	for _, kv := range env {
+		if strings.HasPrefix(kv, prefix) {
+			continue
+		}
+		filtered = append(filtered, kv)
+	}
+	return filtered
 }
 
 func classifyCodexFailure(exitCode int, stdout, stderr string) string {

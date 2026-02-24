@@ -8,6 +8,14 @@ import (
 	"testing"
 )
 
+func TestMain(m *testing.M) {
+	origEnsureOpen := ensureBenchmarkBeadsOpenFn
+	ensureBenchmarkBeadsOpenFn = func(context.Context, []string) error { return nil }
+	code := m.Run()
+	ensureBenchmarkBeadsOpenFn = origEnsureOpen
+	os.Exit(code)
+}
+
 func TestBuildModeOverlay_PinsProviderAndModelFamilyAcrossModes(t *testing.T) {
 	manifest := HarnessManifest{
 		Provider:        "openai",
@@ -329,6 +337,73 @@ func TestRunModesInIsolatedWorktrees_ExecutesOnlyRequestedManifestModes(t *testi
 	}
 	if runner.requests[0].Mode != "single_pass" {
 		t.Fatalf("executed mode = %q, want %q", runner.requests[0].Mode, "single_pass")
+	}
+}
+
+func TestRunModesInIsolatedWorktrees_ReopensSelectedBeadsBeforeEachMode(t *testing.T) {
+	origEnsureOpen := ensureBenchmarkBeadsOpenFn
+	t.Cleanup(func() { ensureBenchmarkBeadsOpenFn = origEnsureOpen })
+
+	resolver := &stubBaseCommitResolver{resolved: "abc123"}
+	runner := &recordingModeRunner{}
+	calls := 0
+	ensureBenchmarkBeadsOpenFn = func(_ context.Context, ids []string) error {
+		calls++
+		if len(ids) != 2 || ids[0] != "gromit-1" || ids[1] != "gromit-2" {
+			t.Fatalf("ensure open bead IDs = %v, want [gromit-1 gromit-2]", ids)
+		}
+		return nil
+	}
+
+	_, _, err := RunModesInIsolatedWorktrees(context.Background(), RunModesInput{
+		Manifest: HarnessManifest{
+			Provider:        "openai",
+			ModelFamily:     "gpt-5",
+			LowTierModel:    "gpt-5-mini",
+			MediumTierModel: "gpt-5.3-codex",
+			HighTierModel:   "gpt-5.3-codex",
+		},
+		Modes:         []string{"single_pass", "tdd_shared_context", "tdd_fresh_context"},
+		SelectedBeads: []string{"gromit-1", "gromit-2"},
+		Resolver:      resolver,
+		Runner:        runner,
+	})
+	if err != nil {
+		t.Fatalf("RunModesInIsolatedWorktrees() error = %v", err)
+	}
+	if calls != 3 {
+		t.Fatalf("ensure open calls = %d, want 3 (once per mode)", calls)
+	}
+}
+
+func TestRunModesInIsolatedWorktrees_ReturnsOpenBeadErrorBeforeModeRun(t *testing.T) {
+	origEnsureOpen := ensureBenchmarkBeadsOpenFn
+	t.Cleanup(func() { ensureBenchmarkBeadsOpenFn = origEnsureOpen })
+
+	resolver := &stubBaseCommitResolver{resolved: "abc123"}
+	runner := &recordingModeRunner{}
+	ensureBenchmarkBeadsOpenFn = func(_ context.Context, _ []string) error {
+		return errors.New("bd update failed")
+	}
+
+	_, _, err := RunModesInIsolatedWorktrees(context.Background(), RunModesInput{
+		Manifest: HarnessManifest{
+			Provider:        "openai",
+			ModelFamily:     "gpt-5",
+			LowTierModel:    "gpt-5-mini",
+			MediumTierModel: "gpt-5.3-codex",
+			HighTierModel:   "gpt-5.3-codex",
+		},
+		Modes:         []string{"single_pass"},
+		SelectedBeads: []string{"gromit-1"},
+		Resolver:      resolver,
+		Runner:        runner,
+	})
+	if err == nil {
+		t.Fatal("RunModesInIsolatedWorktrees() error = nil, want non-nil")
+	}
+	if len(runner.requests) != 0 {
+		t.Fatalf("runner requests = %d, want 0 when reopening beads fails", len(runner.requests))
 	}
 }
 
