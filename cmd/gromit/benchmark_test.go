@@ -267,6 +267,7 @@ func TestWriteBenchmarkReport_PreservesInternalReportMarkdownSections(t *testing
 	for _, section := range []string{
 		"## Per-Mode Summary",
 		"## By-Tier Totals",
+		"## By-Model Totals",
 		"## Quality Metrics",
 		"## Winner Hints",
 	} {

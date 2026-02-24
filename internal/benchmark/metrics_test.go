@@ -188,3 +188,39 @@ func TestAggregateModeMetrics_ComputesCostQualityRatioFromTotalsAndAverageQualit
 		t.Fatalf("cost_quality_ratio = %v, want 0.8", summaries[0].CostQualityRatio)
 	}
 }
+
+func TestAggregateModeMetrics_AggregatesModelTotals(t *testing.T) {
+	tmpDir := t.TempDir()
+	logPath := filepath.Join(tmpDir, "models.jsonl")
+	content := "" +
+		"{\"iteration\":1,\"model\":\"gpt-5-mini\",\"input_tokens\":100,\"output_tokens\":20,\"cost_usd\":0.10}\n" +
+		"{\"iteration\":2,\"model\":\"gpt-5.3-codex\",\"input_tokens\":200,\"output_tokens\":40,\"cost_usd\":0.20}\n" +
+		"{\"iteration\":3,\"model\":\"gpt-5-mini\",\"input_tokens\":300,\"output_tokens\":60,\"cost_usd\":0.30}\n"
+	if err := os.WriteFile(logPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write fixture log: %v", err)
+	}
+
+	summaries, err := AggregateModeMetrics([]ModeLogInput{{
+		Mode:          "single_pass",
+		RunStartedAt:  time.Date(2026, 2, 23, 12, 0, 0, 0, time.UTC),
+		RunFinishedAt: time.Date(2026, 2, 23, 12, 0, 2, 0, time.UTC),
+		LogPath:       logPath,
+	}})
+	if err != nil {
+		t.Fatalf("AggregateModeMetrics() error = %v", err)
+	}
+	if len(summaries) != 1 {
+		t.Fatalf("len(summaries) = %d, want 1", len(summaries))
+	}
+
+	got := summaries[0].ModelTotals
+	if len(got) != 2 {
+		t.Fatalf("model total count = %d, want 2", len(got))
+	}
+	if got[0].Model != "gpt-5-mini" || got[0].InputTokens != 400 || got[0].OutputTokens != 80 || got[0].CostUSD != 0.4 {
+		t.Fatalf("first model totals = %+v", got[0])
+	}
+	if got[1].Model != "gpt-5.3-codex" || got[1].InputTokens != 200 || got[1].OutputTokens != 40 || got[1].CostUSD != 0.2 {
+		t.Fatalf("second model totals = %+v", got[1])
+	}
+}

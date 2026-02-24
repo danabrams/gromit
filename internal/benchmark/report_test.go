@@ -57,6 +57,7 @@ func TestWriteReport_JSONIncludesMetadataModeTierQualityAndWinners(t *testing.T)
 				TotalOutput:      500,
 				TotalCostUSD:     1.25,
 				TierTotals:       TierTotals{Low: TierTotalsRow{InputTokens: 600, OutputTokens: 300, CostUSD: 0.5}},
+				ModelTotals:      []ModelTotalsRow{{Model: "gpt-5-mini", InputTokens: 600, OutputTokens: 300, CostUSD: 0.5}},
 				Quality:          QualityMetrics{AverageScore: 0.88, FirstPassRate: 0.67, ReviewFindings: 3, ReviewFixesApplied: 2, FinalValidationPassed: true},
 				CostQualityRatio: 1.42,
 			},
@@ -87,6 +88,10 @@ func TestWriteReport_JSONIncludesMetadataModeTierQualityAndWinners(t *testing.T)
 					Input int `json:"input_tokens"`
 				} `json:"low"`
 			} `json:"tier_totals"`
+			ModelTotals []struct {
+				Model string `json:"model"`
+				Input int    `json:"input_tokens"`
+			} `json:"model_totals"`
 			Quality struct {
 				Average float64 `json:"average_score"`
 			} `json:"quality"`
@@ -117,6 +122,9 @@ func TestWriteReport_JSONIncludesMetadataModeTierQualityAndWinners(t *testing.T)
 	if payload.Modes[0].TierTotals.Low.Input != 600 {
 		t.Fatalf("tier low input = %d, want 600", payload.Modes[0].TierTotals.Low.Input)
 	}
+	if len(payload.Modes[0].ModelTotals) != 1 || payload.Modes[0].ModelTotals[0].Model != "gpt-5-mini" || payload.Modes[0].ModelTotals[0].Input != 600 {
+		t.Fatalf("model totals mismatch: %+v", payload.Modes[0].ModelTotals)
+	}
 	if payload.Modes[0].Quality.Average != 0.88 {
 		t.Fatalf("quality average = %v, want 0.88", payload.Modes[0].Quality.Average)
 	}
@@ -140,6 +148,7 @@ func TestWriteReport_MarkdownRendersStableOrderedTables(t *testing.T) {
 				TotalOutput:      600,
 				TotalCostUSD:     1.5,
 				TierTotals:       TierTotals{Low: TierTotalsRow{InputTokens: 700, CostUSD: 0.6}},
+				ModelTotals:      []ModelTotalsRow{{Model: "gpt-5-mini", InputTokens: 700, OutputTokens: 350, CostUSD: 0.6}},
 				Quality:          QualityMetrics{AverageScore: 0.85, FirstPassRate: 0.5, ReviewFindings: 2, ReviewFixesApplied: 2, FinalValidationPassed: true},
 				CostQualityRatio: 1.1,
 			},
@@ -150,6 +159,7 @@ func TestWriteReport_MarkdownRendersStableOrderedTables(t *testing.T) {
 				TotalOutput:      450,
 				TotalCostUSD:     1.2,
 				TierTotals:       TierTotals{Low: TierTotalsRow{InputTokens: 600, CostUSD: 0.5}},
+				ModelTotals:      []ModelTotalsRow{{Model: "gpt-5-mini", InputTokens: 600, OutputTokens: 300, CostUSD: 0.5}},
 				Quality:          QualityMetrics{AverageScore: 0.8, FirstPassRate: 0.33, ReviewFindings: 3, ReviewFixesApplied: 1, FinalValidationPassed: false},
 				CostQualityRatio: 1.0,
 			},
@@ -181,7 +191,7 @@ func TestWriteReport_MarkdownRendersStableOrderedTables(t *testing.T) {
 	}
 
 	content := string(first)
-	for _, section := range []string{"## Per-Mode Summary", "## By-Tier Totals", "## Quality Metrics", "## Winner Hints"} {
+	for _, section := range []string{"## Per-Mode Summary", "## By-Tier Totals", "## By-Model Totals", "## Quality Metrics", "## Winner Hints"} {
 		if !strings.Contains(content, section) {
 			t.Fatalf("markdown missing section %q\n%s", section, content)
 		}
