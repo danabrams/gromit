@@ -32,6 +32,21 @@ func (r *refineLaunchInDirTestResolver) Resolve(phase string, flagOverride strin
 	return r.agent, nil
 }
 
+type refineCreatedAtBacklogMock struct {
+	added *Idea
+}
+
+func (m *refineCreatedAtBacklogMock) List() ([]*Idea, error) { return []*Idea{}, nil }
+
+func (m *refineCreatedAtBacklogMock) Get(id string) (*Idea, error) { return nil, nil }
+
+func (m *refineCreatedAtBacklogMock) Add(item *Idea) error {
+	m.added = item
+	return nil
+}
+
+func (m *refineCreatedAtBacklogMock) Update(id string, fn func(*Idea)) error { return nil }
+
 func TestPipeline_RefineLaunchesAgentWithLaunchInDir(t *testing.T) {
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
@@ -65,5 +80,40 @@ func TestPipeline_RefineLaunchesAgentWithLaunchInDir(t *testing.T) {
 	}
 	if launchDir != "" {
 		t.Fatalf("launch dir = %q, want empty string", launchDir)
+	}
+}
+
+func TestPipeline_RefineBlankSessionBacklogIdeaHasCreatedAt(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	specsDir := filepath.Join(gromitDir, "specs")
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("failed to create specs dir: %v", err)
+	}
+
+	agent := &refineLaunchInDirTestAgent{
+		launchInDirFn: func(promptPath, dir string) error {
+			specPath := filepath.Join(specsDir, "new-spec.md")
+			return os.WriteFile(specPath, []byte("# New Spec\n"), 0o644)
+		},
+	}
+	backlogMock := &refineCreatedAtBacklogMock{}
+
+	p := New(&Deps{
+		AgentResolver: &refineLaunchInDirTestResolver{agent: agent},
+		BacklogClient: backlogMock,
+	}, &Paths{
+		GromitDir: gromitDir,
+		SpecsDir:  specsDir,
+	})
+
+	if _, err := p.Refine(context.Background(), RefineInput{}); err != nil {
+		t.Fatalf("Refine() failed: %v", err)
+	}
+	if backlogMock.added == nil {
+		t.Fatal("expected backlog Add to be called")
+	}
+	if backlogMock.added.CreatedAt.IsZero() {
+		t.Fatal("CreatedAt is zero, want timestamp set")
 	}
 }
