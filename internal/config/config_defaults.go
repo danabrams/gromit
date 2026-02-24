@@ -319,6 +319,9 @@ func (c *Config) SetDefaults() {
 	if c.TokenEfficiency.Routing.UtilityTier == "" {
 		c.TokenEfficiency.Routing.UtilityTier = tierLow
 	}
+	if c.TokenEfficiency.Routing.TaskOverrides == nil {
+		c.TokenEfficiency.Routing.TaskOverrides = make(map[string]string)
+	}
 
 	if c.Routing.CircuitBreaker.Enabled {
 		if c.Routing.CircuitBreaker.WindowSize == 0 {
