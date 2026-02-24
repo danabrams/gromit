@@ -48,3 +48,10 @@ func TestResolveSelectedBeads_ReturnsErrorWhenBeadCountExceedsSelection(t *testi
 		t.Fatal("ResolveSelectedBeads() error = nil, want out-of-range bead-count error")
 	}
 }
+
+func TestResolveSelectedBeads_ReturnsErrorWhenBeadCountIsNegative(t *testing.T) {
+	_, err := ResolveSelectedBeads([]string{"gromit-1", "gromit-2"}, nil, -1)
+	if err == nil {
+		t.Fatal("ResolveSelectedBeads() error = nil, want negative bead-count error")
+	}
+}
