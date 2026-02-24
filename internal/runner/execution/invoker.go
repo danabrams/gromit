@@ -174,6 +174,17 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 		}
 	}
 
+	if cacheable {
+		cacheWriteErr := resolveCacheAdapter(p).Write(ctx, provider.CacheWriteRequest{
+			CacheClass: cacheClass,
+			CacheKey:   cacheKey,
+			Content:    invocationPrompt,
+		})
+		if cacheWriteErr != nil {
+			// Cache writes are optimization-only and must never fail invocation flow.
+		}
+	}
+
 	failureCategory := ""
 	if providerResult != nil {
 		failureCategory = providerResult.FailureCategory
