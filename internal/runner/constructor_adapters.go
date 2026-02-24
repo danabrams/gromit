@@ -222,8 +222,9 @@ type scopeGateSubBead struct {
 
 // decomposerAdapter uses provider routing to invoke LLM-powered decomposition of oversized beads.
 type decomposerAdapter struct {
-	beads  *bead.Client
-	router *provider.Router
+	beads       *bead.Client
+	router      *provider.Router
+	maxSubBeads int
 
 	mu               sync.Mutex
 	createdChildKeys map[string]map[string]struct{}
@@ -252,7 +253,7 @@ func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 	if err := jsonutil.ExtractJSON(strings.TrimSpace(result.Output), &subBeads); err != nil {
 		return fmt.Errorf("decomposerAdapter: parsing LLM output: %w", err)
 	}
-	if err := validateRuntimeScopeGateDecomposeOutput(subBeads, b.Title); err != nil {
+	if err := validateRuntimeScopeGateDecomposeOutput(subBeads, b.Title, a.maxSubBeads); err != nil {
 		return err
 	}
 
@@ -295,11 +296,12 @@ func scopeGateSubBeadsToCandidates(subBeads []scopeGateSubBead) []validate.BeadC
 	return candidates
 }
 
-func validateRuntimeScopeGateDecomposeOutput(subBeads []scopeGateSubBead, parentTitle string) error {
-	validation := validate.ValidateDecomposeOutput(
+func validateRuntimeScopeGateDecomposeOutput(subBeads []scopeGateSubBead, parentTitle string, maxSubBeads int) error {
+	validation := validate.ValidateDecomposeOutputWithMax(
 		scopeGateSubBeadsToCandidates(subBeads),
 		validate.DecomposeValidationModeRuntime,
 		parentTitle,
+		maxSubBeads,
 	)
 	if len(validation.BatchViolations) > 0 {
 		v := validation.BatchViolations[0]

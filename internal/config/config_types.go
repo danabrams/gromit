@@ -34,6 +34,7 @@ const (
 	DefaultMaxTDDCycles       = 10
 	DefaultSpecGateMaxCycles  = 3
 	DefaultSpecGateMaxRetries = 3
+	DefaultMaxSubBeads        = 5
 
 	DefaultAndonConfigDocSectionTitle = "# Andon autonomy controls"
 
@@ -173,6 +174,8 @@ type ValidationConfig struct {
 	NonInteractive       *bool         `yaml:"non_interactive"`
 	MaxFixAttempts       int           `yaml:"max_fix_attempts"`
 	MaxValidationRetries int           `yaml:"max_validation_retries"`
+	PlanMaxSubBeads      *int          `yaml:"plan_max_sub_beads"`
+	RuntimeMaxSubBeads   int           `yaml:"runtime_max_sub_beads"`
 }
 
 type RefactorConfig struct {

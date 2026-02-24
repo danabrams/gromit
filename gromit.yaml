@@ -158,6 +158,8 @@ validation:
     - "go vet"
     - "go build"
   max_validation_retries: 1  # one recovery loop; unchanged failures stop immediately
+  plan_max_sub_beads: 0  # 0 disables plan decomposition max-size cap
+  runtime_max_sub_beads: 10  # scope-gate/runtime decomposition max size
 
 # Pre-flight checks - verify required tools before validation
 preflight:

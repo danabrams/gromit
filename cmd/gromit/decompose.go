@@ -268,6 +268,7 @@ func buildDecomposeInput(planName string, cfg *config.Config) pipeline.Decompose
 		Review:               decomposeReview,
 		SkipValidation:       decomposeSkipValidation,
 		MaxValidationRetries: maxRetries,
+		MaxSubBeads:          cfg.Validation.PlanMaxSubBeadsValue(),
 		Tier:                 cfg.Decompose.Tier,
 	}
 }

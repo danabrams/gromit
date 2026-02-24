@@ -9,6 +9,10 @@ func boolPtr(value bool) *bool {
 	return &value
 }
 
+func intPtr(value int) *int {
+	return &value
+}
+
 func (c *Config) SetDefaults() {
 	if c.Models.P0 == "" {
 		c.Models.P0 = ModelOpus
@@ -72,6 +76,12 @@ func (c *Config) SetDefaults() {
 	}
 	if c.Validation.MaxValidationRetries == 0 {
 		c.Validation.MaxValidationRetries = 2
+	}
+	if c.Validation.PlanMaxSubBeads == nil {
+		c.Validation.PlanMaxSubBeads = intPtr(DefaultMaxSubBeads)
+	}
+	if c.Validation.RuntimeMaxSubBeads == 0 {
+		c.Validation.RuntimeMaxSubBeads = DefaultMaxSubBeads
 	}
 	if c.Validation.MaxParallelCommands == 0 {
 		c.Validation.MaxParallelCommands = 1

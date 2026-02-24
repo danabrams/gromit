@@ -16,6 +16,7 @@ import (
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/pipeline/prepare"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/validate"
 )
 
 // stubRunProvider is a minimal provider.Provider for testing decomposerAdapter.
@@ -795,6 +796,7 @@ func TestValidateRuntimeScopeGateDecomposeOutput_ReturnsRuleCodeFromSharedValida
 			{Title: "Part 6", ExpectedOutputs: []string{"f6"}},
 		},
 		"Oversized Feature",
+		validate.MaxSubBeads,
 	)
 	if err == nil {
 		t.Fatal("validateRuntimeScopeGateDecomposeOutput() error = nil, want batch_size_max violation")
@@ -811,6 +813,7 @@ func TestValidateRuntimeScopeGateDecomposeOutput_UsesSharedRequiredFieldViolatio
 			{Title: "Part 2", ExpectedOutputs: []string{"f2"}},
 		},
 		"Oversized Feature",
+		validate.MaxSubBeads,
 	)
 	if err == nil {
 		t.Fatal("validateRuntimeScopeGateDecomposeOutput() error = nil, want title_empty violation")

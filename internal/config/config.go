@@ -79,6 +79,12 @@ func warnConfigDeprecation(message string) {
 
 // Validate ensures config values are within supported ranges.
 func (c *Config) Validate() error {
+	if c.Validation.PlanMaxSubBeads != nil && *c.Validation.PlanMaxSubBeads < 0 {
+		return fmt.Errorf("validation.plan_max_sub_beads must be >= 0 (got %d)", *c.Validation.PlanMaxSubBeads)
+	}
+	if c.Validation.RuntimeMaxSubBeadsValue() <= 0 {
+		return fmt.Errorf("validation.runtime_max_sub_beads must be > 0 (got %d)", c.Validation.RuntimeMaxSubBeads)
+	}
 	if err := c.Methodology.Validate(); err != nil {
 		return err
 	}

@@ -15,10 +15,10 @@ const (
 	// maxExpectedOutputs is the maximum number of expected outputs allowed per bead.
 	maxExpectedOutputs = 5
 
-	// minSubBeads is the minimum number of sub-beads required from a decomposition.
-	minSubBeads = 2
+	// MinSubBeads is the minimum number of sub-beads required from a decomposition.
+	MinSubBeads = 2
 
-	// MaxSubBeads is the maximum number of sub-beads allowed from a decomposition.
+	// MaxSubBeads is the default maximum number of sub-beads allowed from a decomposition.
 	MaxSubBeads = 5
 
 	// highComplexityFileThreshold marks candidates above this estimate as high complexity.
@@ -88,6 +88,12 @@ type DecomposeOutputValidation struct {
 // ValidateDecomposeOutput is the shared decompose validation entry point used by
 // decomposition workflows in pipeline and runtime/scope-gate modes.
 func ValidateDecomposeOutput(beads []BeadCandidate, mode DecomposeValidationMode, parentTitle string) DecomposeOutputValidation {
+	return ValidateDecomposeOutputWithMax(beads, mode, parentTitle, MaxSubBeads)
+}
+
+// ValidateDecomposeOutputWithMax is the shared decompose validation entry point
+// with configurable max-sub-bead enforcement. maxSubBeads <= 0 disables max-size checks.
+func ValidateDecomposeOutputWithMax(beads []BeadCandidate, mode DecomposeValidationMode, parentTitle string, maxSubBeads int) DecomposeOutputValidation {
 	violations := CheckBeads(beads)
 	if mode == DecomposeValidationModeRuntime && strings.TrimSpace(parentTitle) != "" {
 		violations = CheckBeadsWithParentTitle(beads, parentTitle)
@@ -95,28 +101,34 @@ func ValidateDecomposeOutput(beads []BeadCandidate, mode DecomposeValidationMode
 
 	return DecomposeOutputValidation{
 		Violations:      violations,
-		BatchViolations: CheckBatchContract(beads),
+		BatchViolations: CheckBatchContractWithMax(beads, maxSubBeads),
 	}
 }
 
 // CheckBatchContract validates batch-level constraints on the full set of decomposed beads.
 // These are hard structural rules checked after the reprompt loop.
 func CheckBatchContract(beads []BeadCandidate) []Violation {
+	return CheckBatchContractWithMax(beads, MaxSubBeads)
+}
+
+// CheckBatchContractWithMax validates batch-level constraints with configurable
+// max-sub-bead enforcement. maxSubBeads <= 0 disables the max-size check.
+func CheckBatchContractWithMax(beads []BeadCandidate, maxSubBeads int) []Violation {
 	var violations []Violation
 
-	if len(beads) < minSubBeads {
+	if len(beads) < MinSubBeads {
 		violations = append(violations, Violation{
 			BeadIndex: -1,
 			Rule:      "batch_size_min",
-			Message:   fmt.Sprintf("Decomposition produced %d sub-bead(s); minimum is %d", len(beads), minSubBeads),
+			Message:   fmt.Sprintf("Decomposition produced %d sub-bead(s); minimum is %d", len(beads), MinSubBeads),
 		})
 	}
 
-	if len(beads) > MaxSubBeads {
+	if maxSubBeads > 0 && len(beads) > maxSubBeads {
 		violations = append(violations, Violation{
 			BeadIndex: -1,
 			Rule:      "batch_size_max",
-			Message:   fmt.Sprintf("Decomposition produced %d sub-beads; maximum is %d", len(beads), MaxSubBeads),
+			Message:   fmt.Sprintf("Decomposition produced %d sub-beads; maximum is %d", len(beads), maxSubBeads),
 		})
 	}
 

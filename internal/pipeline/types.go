@@ -84,6 +84,7 @@ type DecomposeInput struct {
 	Review               bool   // Return proposed beads for review before creating
 	SkipValidation       bool   // Skip validation checks on decomposed bead candidates
 	MaxValidationRetries int    // Max retries after validation failures
+	MaxSubBeads          int    // Max sub-beads to allow (<=0 disables max-size enforcement)
 }
 
 // CreatedBead contains information about a bead that was created.

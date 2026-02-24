@@ -79,6 +79,24 @@ func (v ValidationConfig) ResolvePhaseTimeoutSeconds(beadTimeoutSeconds int) int
 	return beadTimeoutSeconds
 }
 
+// PlanMaxSubBeadsValue returns the configured plan decomposition max sub-bead
+// count. A value <= 0 means the plan max-size check is disabled.
+func (v ValidationConfig) PlanMaxSubBeadsValue() int {
+	if v.PlanMaxSubBeads == nil {
+		return DefaultMaxSubBeads
+	}
+	return *v.PlanMaxSubBeads
+}
+
+// RuntimeMaxSubBeadsValue returns the configured runtime decomposition max
+// sub-bead count.
+func (v ValidationConfig) RuntimeMaxSubBeadsValue() int {
+	if v.RuntimeMaxSubBeads <= 0 {
+		return DefaultMaxSubBeads
+	}
+	return v.RuntimeMaxSubBeads
+}
+
 // IsTierName returns true if the string is a valid tier name (high, medium, low).
 // Case-insensitive comparison handles config variations like "High", "MEDIUM", etc.
 func (c *Config) IsTierName(s string) bool {

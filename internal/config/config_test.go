@@ -4367,6 +4367,43 @@ validation:
 	}
 }
 
+func TestValidationConfig_MaxSubBeadsDefaults(t *testing.T) {
+	cfg := &Config{}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	if cfg.Validation.PlanMaxSubBeads != DefaultMaxSubBeads {
+		t.Fatalf("PlanMaxSubBeads = %d, want %d", cfg.Validation.PlanMaxSubBeads, DefaultMaxSubBeads)
+	}
+	if cfg.Validation.RuntimeMaxSubBeads != DefaultMaxSubBeads {
+		t.Fatalf("RuntimeMaxSubBeads = %d, want %d", cfg.Validation.RuntimeMaxSubBeads, DefaultMaxSubBeads)
+	}
+}
+
+func TestValidationConfig_MaxSubBeadsYAML(t *testing.T) {
+	yamlContent := `
+validation:
+  plan_max_sub_beads: 0
+  runtime_max_sub_beads: 10
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+	if cfg.Validation.PlanMaxSubBeads != 0 {
+		t.Fatalf("PlanMaxSubBeads = %d, want 0", cfg.Validation.PlanMaxSubBeads)
+	}
+	if cfg.Validation.RuntimeMaxSubBeads != 10 {
+		t.Fatalf("RuntimeMaxSubBeads = %d, want 10", cfg.Validation.RuntimeMaxSubBeads)
+	}
+}
+
 func TestValidationConfig_CommandTimeoutYAML(t *testing.T) {
 	yamlContent := `
 validation:

@@ -125,9 +125,9 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 		}
 
 		candidates := toBeadCandidates(beadDefs)
-		validation := validatePipelineDecomposeCandidates(beadDefs)
+		validation := validatePipelineDecomposeCandidates(beadDefs, input.MaxSubBeads)
 		violations := validation.Violations
-		violations = append(violations, validate.CheckBatchContract(candidates)...)
+		violations = append(violations, validate.CheckBatchContractWithMax(candidates, input.MaxSubBeads)...)
 		stats.ViolationCount += len(violations)
 		if attempt == 0 {
 			firstViolationCount = len(violations)
@@ -221,7 +221,7 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 		return nil, fmt.Errorf("no beads extracted from plan")
 	}
 
-	if err := enforceBatchContract(beadDefs); err != nil {
+	if err := enforceBatchContract(beadDefs, input.MaxSubBeads); err != nil {
 		return nil, err
 	}
 	if err := validateDecompositionCoverage(planBody, beadDefs); err != nil {
@@ -465,16 +465,17 @@ func toBeadCandidates(defs []beadDef) []validate.BeadCandidate {
 	return candidates
 }
 
-func validatePipelineDecomposeCandidates(defs []beadDef) validate.DecomposeOutputValidation {
-	return validate.ValidateDecomposeOutput(
+func validatePipelineDecomposeCandidates(defs []beadDef, maxSubBeads int) validate.DecomposeOutputValidation {
+	return validate.ValidateDecomposeOutputWithMax(
 		toBeadCandidates(defs),
 		validate.DecomposeValidationModePipeline,
 		"",
+		maxSubBeads,
 	)
 }
 
-func enforceBatchContract(defs []beadDef) error {
-	violations := validatePipelineDecomposeCandidates(defs).BatchViolations
+func enforceBatchContract(defs []beadDef, maxSubBeads int) error {
+	violations := validatePipelineDecomposeCandidates(defs, maxSubBeads).BatchViolations
 	for _, v := range violations {
 		if v.Rule == "batch_size_max" || v.Rule == "batch_size_min" {
 			return fmt.Errorf("decomposition contract violation: %s: %s", v.Rule, v.Message)
