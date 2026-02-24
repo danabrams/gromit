@@ -300,14 +300,41 @@ func (r *Renderer) RenderCoverageValidation(ctx *CoverageValidationContext) (str
 }
 
 func (r *Renderer) renderBuildPrompt(promptType, templateName string, ctx *Context) (string, error) {
+	originalCtx := ctx
 	var shapeReport *ShapeReport
 	ctx, shapeReport = r.shapeBuildContext(ctx, promptPhaseBuild)
+	populateRenderStaticPreambleCacheMetadata(ctx, promptType, templateName)
+	if originalCtx != nil && originalCtx != ctx && ctx != nil {
+		originalCtx.StaticPreambleCacheClass = ctx.StaticPreambleCacheClass
+		originalCtx.StaticPreambleCacheKey = ctx.StaticPreambleCacheKey
+	}
 	if r != nil {
 		diagnostics := r.computeBuildDiagnostics(promptType, templateName, ctx)
 		applyShapeReportToDiagnostics(diagnostics, shapeReport, r.budgetMaxChars)
 		r.lastDiagnostics = diagnostics
 	}
 	return r.render(templateName, ctx)
+}
+
+func populateRenderStaticPreambleCacheMetadata(ctx *Context, promptType, templateName string) {
+	if ctx == nil {
+		return
+	}
+	cacheClass := promptType
+	if cacheClass == "" {
+		cacheClass = "build"
+	}
+	ctx.StaticPreambleCacheClass = "render_static_" + cacheClass
+	ctx.StaticPreambleCacheKey = StaticPreambleCacheKeyWithExclusions(
+		ctx.StaticPreambleCacheClass,
+		map[string]string{
+			"template":  templateName,
+			"claude_md": ctx.ClaudeMD,
+			"rules":     ctx.Rules,
+			"spec":      ctx.Spec,
+		},
+		nil,
+	)
 }
 
 func (r *Renderer) computeBuildDiagnostics(promptType, templateName string, ctx *Context) *PromptDiagnostics {
