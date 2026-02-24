@@ -63,3 +63,10 @@ func TestValidateSelectedCohort_ReturnsErrorWhenBeadIsClosed(t *testing.T) {
 		t.Fatalf("ValidateSelectedCohort() error = %q, want open-state error", err.Error())
 	}
 }
+
+func TestComplexityTier_DefaultsToMediumWhenUnlabeled(t *testing.T) {
+	got := complexityTier([]string{"spec:runner"})
+	if got != "medium" {
+		t.Fatalf("complexityTier() = %q, want %q", got, "medium")
+	}
+}
