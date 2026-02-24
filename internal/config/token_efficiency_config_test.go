@@ -105,3 +105,30 @@ func TestTokenEfficiencyAccessorsRespectIndependentKillSwitches(t *testing.T) {
 		t.Errorf("TokenEfficiency.Routing.IsEnabled() = true, want false when disable_utility_routing is set")
 	}
 }
+
+func TestTokenEfficiencyRoutingTaskOverridesYAMLDeserialization(t *testing.T) {
+	yamlContent := `
+token_efficiency:
+  routing:
+    task_overrides:
+      summarization: low
+      discovery_indexing: medium
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.TokenEfficiency.Routing.TaskOverrides["summarization"] != "low" {
+		t.Errorf("TokenEfficiency.Routing.TaskOverrides[summarization] = %q, want %q", cfg.TokenEfficiency.Routing.TaskOverrides["summarization"], "low")
+	}
+	if cfg.TokenEfficiency.Routing.TaskOverrides["discovery_indexing"] != "medium" {
+		t.Errorf("TokenEfficiency.Routing.TaskOverrides[discovery_indexing] = %q, want %q", cfg.TokenEfficiency.Routing.TaskOverrides["discovery_indexing"], "medium")
+	}
+}
