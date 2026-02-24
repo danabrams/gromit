@@ -87,7 +87,7 @@ func parseGeminiCommandLog(t *testing.T, content []byte) []geminiCommandLogEntry
 }
 
 func TestGeminiPreflightFixture_IncludesChecklistAndObservedResults(t *testing.T) {
-	fixturePath := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "preflight.md")
+	fixturePath := geminiFixturePath("preflight.md")
 
 	content, err := os.ReadFile(fixturePath)
 	if err != nil {
@@ -110,7 +110,7 @@ func TestGeminiPreflightFixture_IncludesChecklistAndObservedResults(t *testing.T
 }
 
 func TestGeminiCommandsLogFixture_InitializedWithTimestampedLedgerEntries(t *testing.T) {
-	fixturePath := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "commands.log")
+	fixturePath := geminiFixturePath("commands.log")
 
 	content, err := os.ReadFile(fixturePath)
 	if err != nil {
@@ -140,7 +140,7 @@ func TestGeminiCommandsLogFixture_InitializedWithTimestampedLedgerEntries(t *tes
 }
 
 func TestGeminiPreflightFixture_DocumentsAppendHarnessPattern(t *testing.T) {
-	fixturePath := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "preflight.md")
+	fixturePath := geminiFixturePath("preflight.md")
 
 	content, err := os.ReadFile(fixturePath)
 	if err != nil {
@@ -163,7 +163,7 @@ func TestGeminiPreflightFixture_DocumentsAppendHarnessPattern(t *testing.T) {
 }
 
 func TestGeminiPermissionsNotesFixture_DocumentsPermissionChecksAndLedgerEvidence(t *testing.T) {
-	fixturePath := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "permissions", "permissions-notes.md")
+	fixturePath := geminiFixturePath("permissions", "permissions-notes.md")
 
 	content, err := os.ReadFile(fixturePath)
 	if err != nil {
@@ -186,7 +186,7 @@ func TestGeminiPermissionsNotesFixture_DocumentsPermissionChecksAndLedgerEvidenc
 		}
 	}
 
-	logPath := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "commands.log")
+	logPath := geminiFixturePath("commands.log")
 	logContent, err := os.ReadFile(logPath)
 	if err != nil {
 		t.Fatalf("failed to read commands log fixture: %v", err)
@@ -210,7 +210,7 @@ func TestGeminiPermissionsNotesFixture_DocumentsPermissionChecksAndLedgerEvidenc
 }
 
 func TestGeminiWorkdirNotesFixture_DocumentsCwdChecksAndLedgerEvidence(t *testing.T) {
-	fixturePath := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "workdir", "workdir-notes.md")
+	fixturePath := geminiFixturePath("workdir", "workdir-notes.md")
 
 	content, err := os.ReadFile(fixturePath)
 	if err != nil {
@@ -233,7 +233,7 @@ func TestGeminiWorkdirNotesFixture_DocumentsCwdChecksAndLedgerEvidence(t *testin
 		}
 	}
 
-	logPath := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "commands.log")
+	logPath := geminiFixturePath("commands.log")
 	logContent, err := os.ReadFile(logPath)
 	if err != nil {
 		t.Fatalf("failed to read commands log fixture: %v", err)
@@ -257,7 +257,7 @@ func TestGeminiWorkdirNotesFixture_DocumentsCwdChecksAndLedgerEvidence(t *testin
 }
 
 func TestGeminiSchemaNotesFixture_DocumentsTokenCostAndModelObservations(t *testing.T) {
-	fixturePath := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "schema-notes.md")
+	fixturePath := geminiFixturePath("schema-notes.md")
 
 	content, err := os.ReadFile(fixturePath)
 	if err != nil {
@@ -283,7 +283,7 @@ func TestGeminiSchemaNotesFixture_DocumentsTokenCostAndModelObservations(t *test
 }
 
 func TestGeminiErrorsFixtures_CaptureCategorizedStderrSamples(t *testing.T) {
-	dir := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "errors")
+	dir := geminiFixturePath("errors")
 
 	required := []string{
 		"command-missing.stderr.txt",
@@ -305,7 +305,7 @@ func TestGeminiErrorsFixtures_CaptureCategorizedStderrSamples(t *testing.T) {
 }
 
 func TestGeminiModelFixtures_CaptureValidAndInvalidModelRawArtifacts(t *testing.T) {
-	dir := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "models")
+	dir := geminiFixturePath("models")
 	required := []string{
 		"valid-model.stdout.txt",
 		"valid-model.stderr.txt",
@@ -328,7 +328,7 @@ func TestGeminiModelFixtures_CaptureValidAndInvalidModelRawArtifacts(t *testing.
 }
 
 func TestGeminiExitCodeNotesFixture_DocumentsConcreteTriggerAttempts(t *testing.T) {
-	path := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "errors", "exit-codes-notes.md")
+	path := geminiFixturePath("errors", "exit-codes-notes.md")
 
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -355,7 +355,7 @@ func TestGeminiExitCodeNotesFixture_DocumentsConcreteTriggerAttempts(t *testing.
 }
 
 func TestGeminiCommandsLogFixture_IncludesModelTokenCostAndExitErrorEntries(t *testing.T) {
-	logPath := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "commands.log")
+	logPath := geminiFixturePath("commands.log")
 	content, err := os.ReadFile(logPath)
 	if err != nil {
 		t.Fatalf("failed to read commands log fixture: %v", err)
@@ -376,7 +376,7 @@ func TestGeminiCommandsLogFixture_IncludesModelTokenCostAndExitErrorEntries(t *t
 }
 
 func TestGeminiSchemaNotesFixture_ReferencesModelArtifactsAndTokenCostEvidence(t *testing.T) {
-	path := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "schema-notes.md")
+	path := geminiFixturePath("schema-notes.md")
 	content, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("failed to read schema notes fixture: %v", err)
@@ -399,7 +399,7 @@ func TestGeminiSchemaNotesFixture_ReferencesModelArtifactsAndTokenCostEvidence(t
 }
 
 func TestGeminiPromptDeliveryFixtures_CaptureRawArtifactsPerPromptMode(t *testing.T) {
-	dir := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "prompt-delivery")
+	dir := geminiFixturePath("prompt-delivery")
 	required := []string{
 		"inline-small.stdout.txt",
 		"inline-small.stderr.txt",
@@ -420,7 +420,7 @@ func TestGeminiPromptDeliveryFixtures_CaptureRawArtifactsPerPromptMode(t *testin
 }
 
 func TestGeminiCommandsLogFixture_HasProvenanceAndRefreshHeaders(t *testing.T) {
-	logPath := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "commands.log")
+	logPath := geminiFixturePath("commands.log")
 	content, err := os.ReadFile(logPath)
 	if err != nil {
 		t.Fatalf("failed to read commands log fixture: %v", err)
@@ -439,7 +439,7 @@ func TestGeminiCommandsLogFixture_HasProvenanceAndRefreshHeaders(t *testing.T) {
 }
 
 func TestGeminiStreamJSONSuccessFixture_ExistsWithJSONLRecords(t *testing.T) {
-	path := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "stream-json-success.jsonl")
+	path := geminiFixturePath("stream-json-success.jsonl")
 	content, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("failed to read stream-json fixture: %v", err)
@@ -498,7 +498,7 @@ func TestGeminiStreamJSONSuccessFixture_ExistsWithJSONLRecords(t *testing.T) {
 }
 
 func TestGeminiJSONSuccessFixture_ExistsWithUsageAndCostFields(t *testing.T) {
-	path := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "json-success.json")
+	path := geminiFixturePath("json-success.json")
 	content, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("failed to read json-success fixture: %v", err)
@@ -539,7 +539,7 @@ func TestGeminiJSONSuccessFixture_ExistsWithUsageAndCostFields(t *testing.T) {
 }
 
 func TestGeminiSchemaNotesFixture_DocumentsPromptModesAndSchemaExtraction(t *testing.T) {
-	path := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "schema-notes.md")
+	path := geminiFixturePath("schema-notes.md")
 	content, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("failed to read schema notes fixture: %v", err)
@@ -583,7 +583,7 @@ func TestGeminiFixtures_DoNotReferenceLegacyPlansFixturePath(t *testing.T) {
 }
 
 func TestGeminiCommandsLogFixture_IncludesPromptDeliveryAndFixtureGenerationEntries(t *testing.T) {
-	logPath := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "commands.log")
+	logPath := geminiFixturePath("commands.log")
 	content, err := os.ReadFile(logPath)
 	if err != nil {
 		t.Fatalf("failed to read commands log fixture: %v", err)
