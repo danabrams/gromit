@@ -245,6 +245,28 @@ func TestProcessCodexStreamExtractsLastAgentMessageAsResult(t *testing.T) {
 	}
 }
 
+// TestProcessCodexStreamAccumulatesMessageOutputTextDone verifies that
+// message.output_text.done events are concatenated into the final result text.
+func TestProcessCodexStreamAccumulatesMessageOutputTextDone(t *testing.T) {
+	input := strings.Join([]string{
+		`{"type":"message.output_text.done","text":"Hello"}`,
+		`{"type":"message.output_text.done","text":" world"}`,
+		`{"type":"message.output_text.done","text":"!"}`,
+	}, "\n") + "\n"
+
+	reader := strings.NewReader(input)
+	var output bytes.Buffer
+
+	resultText, _, _, err := processCodexStream(reader, &output, nil, nil)
+	if err != nil {
+		t.Fatalf("processCodexStream() error = %v", err)
+	}
+
+	if resultText != "Hello world!" {
+		t.Errorf("resultText = %q, want %q", resultText, "Hello world!")
+	}
+}
+
 // TestProcessCodexStreamWritesAgentTextToOutput verifies that agent message text
 // is written to the output writer as it arrives.
 func TestProcessCodexStreamWritesAgentTextToOutput(t *testing.T) {
