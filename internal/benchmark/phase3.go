@@ -27,6 +27,12 @@ type Phase3MeasurementReport struct {
 	Baseline            Phase3RunMetrics
 	Optimized           Phase3RunMetrics
 	CacheHitRatesByClass map[string]float64
+	Rollback            Phase3RollbackAssessment
+}
+
+type Phase3RollbackAssessment struct {
+	KillSwitchRecommended bool
+	Triggers              []string
 }
 
 type phase3IterationRecord struct {
@@ -53,7 +59,25 @@ func RunPhase3Measurement(input Phase3MeasurementInput) (Phase3MeasurementReport
 		Optimized:            summarizePhase3Run(optimizedRecords),
 		CacheHitRatesByClass: computeCacheHitRatesByClass(optimizedRecords),
 	}
+	report.Rollback = evaluatePhase3Rollback(report.Baseline, report.Optimized)
 	return report, nil
+}
+
+func evaluatePhase3Rollback(baseline, optimized Phase3RunMetrics) Phase3RollbackAssessment {
+	triggers := make([]string, 0, 3)
+	if baseline.MedianSuccessRate-optimized.MedianSuccessRate > 0.05 {
+		triggers = append(triggers, "success_rate_regression")
+	}
+	if optimized.MedianInputTokens > baseline.MedianInputTokens {
+		triggers = append(triggers, "median_input_tokens_regression")
+	}
+	if optimized.MedianCostUSD > baseline.MedianCostUSD {
+		triggers = append(triggers, "median_cost_regression")
+	}
+	return Phase3RollbackAssessment{
+		KillSwitchRecommended: len(triggers) > 0,
+		Triggers:              triggers,
+	}
 }
 
 func summarizePhase3Run(records []phase3IterationRecord) Phase3RunMetrics {
