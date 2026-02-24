@@ -220,3 +220,16 @@ func TestResolveCompatibilityContext_DeprecationMarkerTracksLegacyAssumptions(t 
 		t.Fatalf("explicit MethodologyAdapter.DeprecationMarker = %q, want empty", explicitResolved.MethodologyAdapter.DeprecationMarker)
 	}
 }
+
+func TestResolveCompatibilityContext_DeprecationMarkerTracksLegacyTrackerBackendFallback(t *testing.T) {
+	cfg := Config{
+		Project: ProjectConfig{
+			Profile: "go",
+		},
+	}
+
+	resolved := cfg.ResolveCompatibilityContext()
+	if resolved.TrackerBackend.DeprecationMarker != CompatibilityDeprecationMarkerLegacyTrackerBackendFallback {
+		t.Fatalf("TrackerBackend.DeprecationMarker = %q, want %q", resolved.TrackerBackend.DeprecationMarker, CompatibilityDeprecationMarkerLegacyTrackerBackendFallback)
+	}
+}
