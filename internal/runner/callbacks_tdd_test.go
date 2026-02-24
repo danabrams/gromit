@@ -37,9 +37,13 @@ func (s *callbacksTDDProviderStub) StreamRun(ctx context.Context, prompt, tier s
 func (s *callbacksTDDProviderStub) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*provider.Result, error) {
 	return &provider.Result{Success: true}, nil
 }
-func (s *callbacksTDDProviderStub) IsUsageLimitError(result *provider.Result, err error) bool { return false }
-func (s *callbacksTDDProviderStub) IsValidationPassed(result *provider.Result) bool           { return true }
-func (s *callbacksTDDProviderStub) IsScopeTooLarge(result *provider.Result) (bool, string)    { return false, "" }
+func (s *callbacksTDDProviderStub) IsUsageLimitError(result *provider.Result, err error) bool {
+	return false
+}
+func (s *callbacksTDDProviderStub) IsValidationPassed(result *provider.Result) bool { return true }
+func (s *callbacksTDDProviderStub) IsScopeTooLarge(result *provider.Result) (bool, string) {
+	return false, ""
+}
 
 // TestAppendTDDPhaseMetric_AppendsPhaseMetricToBcResult verifies that
 // appendTDDPhaseMetric appends one PhaseMetric entry to bc.Result.PhaseMetrics
@@ -396,6 +400,24 @@ func TestBuildRenderGreenFn_ReturnsErrorWhenGreenRulesLoadFails(t *testing.T) {
 	}
 }
 
+func TestBuildInvokeFn_ReturnsErrorWhenProviderResultIsUnsuccessful(t *testing.T) {
+	router := provider.NewSingleProviderRouter(&callbacksTDDProviderStub{
+		name: "build-provider",
+		streamRunFn: func(ctx context.Context, prompt, tier string, w io.Writer, h provider.EventHandler, tc provider.ToolCallHandler) (*provider.Result, error) {
+			return &provider.Result{Success: false, ExitCode: 1}, nil
+		},
+	})
+
+	fn := buildInvokeFn(router, io.Discard)
+	err := fn(context.Background(), "prompt", "low")
+	if err == nil {
+		t.Fatal("buildInvokeFn() error = nil, want error for Success=false result")
+	}
+	if !strings.Contains(err.Error(), "unsuccessful result") {
+		t.Fatalf("buildInvokeFn() error = %q, want unsuccessful result context", err)
+	}
+}
+
 func TestBuildRunRefactorFn_SelectsProviderForRefactorPhase(t *testing.T) {
 	tmpDir := t.TempDir()
 	templatesDir := filepath.Join(tmpDir, "templates")
@@ -643,5 +665,58 @@ func TestBuildRunRefactorFn_UsesRefactorPhaseTierOverride(t *testing.T) {
 	}
 	if bc.Tier != wantTier {
 		t.Fatalf("bc.Tier = %q, want %q", bc.Tier, wantTier)
+	}
+}
+
+func TestBuildRunRefactorFn_ReturnsErrorWhenProviderResultIsUnsuccessful(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	specsDir := filepath.Join(tmpDir, "specs")
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(templatesDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(templates): %v", err)
+	}
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(specs): %v", err)
+	}
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(.gromit): %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(templatesDir, "PROMPT_refactor.md"), []byte("refactor"), 0o644); err != nil {
+		t.Fatalf("WriteFile(PROMPT_refactor.md): %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gromitDir, "RULES.md"), []byte("# Rules\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(RULES.md): %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "CLAUDE.md"), []byte(""), 0o644); err != nil {
+		t.Fatalf("WriteFile(CLAUDE.md): %v", err)
+	}
+
+	renderer, err := prompt.NewRenderer(templatesDir, specsDir, filepath.Join(tmpDir, "CLAUDE.md"), gromitDir)
+	if err != nil {
+		t.Fatalf("prompt.NewRenderer: %v", err)
+	}
+
+	cfg := &config.Config{}
+	router := provider.NewSingleProviderRouter(&callbacksTDDProviderStub{
+		name: "refactor-provider",
+		streamRunFn: func(ctx context.Context, prompt, tier string, w io.Writer, h provider.EventHandler, tc provider.ToolCallHandler) (*provider.Result, error) {
+			return &provider.Result{Success: false, ExitCode: 2}, nil
+		},
+	})
+
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{ID: "b1", Title: "title"},
+		Tier: "high",
+	}
+
+	fn := buildRunRefactorFn(cfg, renderer, router, io.Discard)
+	err = fn(context.Background(), bc)
+	if err == nil {
+		t.Fatal("buildRunRefactorFn() error = nil, want error for Success=false result")
+	}
+	if !strings.Contains(err.Error(), "unsuccessful result") {
+		t.Fatalf("buildRunRefactorFn() error = %q, want unsuccessful result context", err)
 	}
 }
