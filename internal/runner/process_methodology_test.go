@@ -174,9 +174,29 @@ func TestExtractRequirementsViaLLM_InvokesAtTierLow(t *testing.T) {
 		capturedTier = tier
 		return &provider.Result{Success: true, Output: "req one\nreq two"}, nil
 	}
-	extractRequirementsViaLLM(context.Background(), "Title", "desc", invoke)
+	extractRequirementsViaLLM(context.Background(), nil, "Title", "desc", invoke)
 	if capturedTier != provider.TierLow {
 		t.Errorf("got tier %q, want %q", capturedTier, provider.TierLow)
+	}
+}
+
+func TestExtractRequirementsViaLLM_UsesUtilityRoutingTierWhenEnabled(t *testing.T) {
+	cfg := &config.Config{
+		TokenEfficiency: config.TokenEfficiencyConfig{
+			Routing: config.TokenEfficiencyRoutingConfig{
+				Enabled:     true,
+				UtilityTier: provider.TierMedium,
+			},
+		},
+	}
+	var capturedTier string
+	invoke := func(_ context.Context, _ string, tier string) (*provider.Result, error) {
+		capturedTier = tier
+		return &provider.Result{Success: true, Output: "req one\nreq two"}, nil
+	}
+	extractRequirementsViaLLM(context.Background(), cfg, "Title", "desc", invoke)
+	if capturedTier != provider.TierMedium {
+		t.Errorf("got tier %q, want %q", capturedTier, provider.TierMedium)
 	}
 }
 
