@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/test/testutil"
 )
 
@@ -21,6 +22,25 @@ func TestMigrationCompatibilityContract_OldConfigExecutionParity(t *testing.T) {
 	}
 	if legacy.Model != explicit.Model {
 		t.Fatalf("resolved build model legacy/new = %q/%q, want parity", legacy.Model, explicit.Model)
+	}
+}
+
+func TestMigrationCompatibilityContract_NewConfigExplicitResolution(t *testing.T) {
+	cfgPath := filepath.Join(fixturesDir, "migration", "new_explicit_resolution.yaml")
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load(%q) error = %v", cfgPath, err)
+	}
+
+	resolved := cfg.ResolveCompatibilityContext()
+	if resolved.Profile.Source != config.CompatibilitySourceExplicit {
+		t.Fatalf("profile source = %q, want %q", resolved.Profile.Source, config.CompatibilitySourceExplicit)
+	}
+	if resolved.TrackerBackend.Source != config.CompatibilitySourceExplicit {
+		t.Fatalf("tracker backend source = %q, want %q", resolved.TrackerBackend.Source, config.CompatibilitySourceExplicit)
+	}
+	if resolved.MethodologyAdapter.Source != config.CompatibilitySourceExplicit {
+		t.Fatalf("methodology adapter source = %q, want %q", resolved.MethodologyAdapter.Source, config.CompatibilitySourceExplicit)
 	}
 }
 
