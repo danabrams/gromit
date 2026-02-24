@@ -1000,6 +1000,72 @@ func TestLogIterationWithCacheTelemetry(t *testing.T) {
 	}
 }
 
+func TestLogIterationWithRoutingTelemetry(t *testing.T) {
+	tmpDir := t.TempDir()
+	l, err := NewLogger(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
+	withRouting := &IterationLog{
+		Timestamp:              time.Now(),
+		Iteration:              1,
+		BeadID:                 "b1",
+		BeadTitle:              "Routing telemetry bead",
+		Model:                  "haiku",
+		Success:                true,
+		Validated:              true,
+		Escalated:              false,
+		DurationMs:             400,
+		UtilityRoutingCategory: "summarization",
+		UtilityRoutingTier:     "low",
+	}
+	if err := l.LogIteration(withRouting); err != nil {
+		t.Fatal(err)
+	}
+
+	withoutRouting := &IterationLog{
+		Timestamp:  time.Now(),
+		Iteration:  2,
+		BeadID:     "b2",
+		BeadTitle:  "No routing telemetry",
+		Model:      "sonnet",
+		Success:    true,
+		Validated:  true,
+		Escalated:  false,
+		DurationMs: 900,
+	}
+	if err := l.LogIteration(withoutRouting); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(l.FilePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := bytes.Split(bytes.TrimSpace(data), []byte("\n"))
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 log lines, got %d", len(lines))
+	}
+
+	first := string(lines[0])
+	if !contains(first, `"utility_routing_category":"summarization"`) {
+		t.Fatalf("expected utility_routing_category in first log, got %s", first)
+	}
+	if !contains(first, `"utility_routing_tier":"low"`) {
+		t.Fatalf("expected utility_routing_tier in first log, got %s", first)
+	}
+
+	second := string(lines[1])
+	if contains(second, `"utility_routing_category"`) {
+		t.Fatalf("expected utility_routing_category omitted in second log, got %s", second)
+	}
+	if contains(second, `"utility_routing_tier"`) {
+		t.Fatalf("expected utility_routing_tier omitted in second log, got %s", second)
+	}
+}
+
 func TestReadLogFileWithCostAndTokens(t *testing.T) {
 	dir := t.TempDir()
 
