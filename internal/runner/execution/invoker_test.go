@@ -449,6 +449,59 @@ func TestInvokerExecute_CacheMissWritesPromptAfterInvocation(t *testing.T) {
 	}
 }
 
+func TestInvokerExecute_VersionKeyChangeInvalidatesBeforeNextLookup(t *testing.T) {
+	callOrder := []string{}
+	cache := &mockCacheAdapter{
+		lookupFn: func(ctx context.Context, req provider.CacheLookupRequest) (*provider.CacheEntry, bool, error) {
+			callOrder = append(callOrder, "lookup")
+			return nil, false, nil
+		},
+		writeFn: func(ctx context.Context, req provider.CacheWriteRequest) error {
+			callOrder = append(callOrder, "write")
+			return nil
+		},
+		invalidateFn: func(ctx context.Context, req provider.CacheInvalidateRequest) error {
+			callOrder = append(callOrder, "invalidate")
+			return nil
+		},
+	}
+	mp := &mockProvider{
+		name:         "provider-cache",
+		cacheAdapter: cache,
+		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			callOrder = append(callOrder, "stream")
+			return &provider.Result{Success: true, Model: "model-cache"}, nil
+		},
+	}
+	mr := &mockRouter{
+		selectFn: func(phase, tier string) (Provider, string) {
+			return mp, "model-cache"
+		},
+	}
+
+	invoker := NewInvoker(mr, &bytes.Buffer{}, nil).WithCacheVersionKey("rules:v1")
+	bc := newTestBeadContext()
+	bc.PromptCtx = &prompt.Context{
+		StaticPreambleCacheClass: "render_static_build",
+		StaticPreambleCacheKey:   "cache-key-3",
+	}
+
+	if _, err := invoker.Execute(context.Background(), bc, "original prompt"); err != nil {
+		t.Fatalf("first execute error: %v", err)
+	}
+
+	invoker.WithCacheVersionKey("rules:v2")
+	if _, err := invoker.Execute(context.Background(), bc, "original prompt"); err != nil {
+		t.Fatalf("second execute error: %v", err)
+	}
+
+	got := strings.Join(callOrder, ",")
+	want := "lookup,stream,write,invalidate,lookup,stream,write"
+	if got != want {
+		t.Fatalf("call order = %q, want %q", got, want)
+	}
+}
+
 func TestInvokerExecute_EscalatedInvocationUpdatesEscalatedTo(t *testing.T) {
 	// When bc.Result.Escalated is true and EscalatedTo is set, Execute
 	// should update EscalatedTo with the concrete model name from the router.
