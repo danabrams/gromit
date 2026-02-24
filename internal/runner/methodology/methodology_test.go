@@ -764,6 +764,50 @@ func TestCheckTestsFailWithDiagnostic_ReturnsAlreadyDoneFromDiagnosticVerdict(t 
 	}
 }
 
+func TestCheckTestsFailWithDiagnostic_UsesUtilityRoutingTierWhenEnabled(t *testing.T) {
+	cfg := newTestConfig()
+	cfg.TokenEfficiency.Routing.Enabled = true
+	cfg.TokenEfficiency.Routing.UtilityTier = provider.TierMedium
+
+	var buf strings.Builder
+
+	validateFn := func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
+		return &claude.Result{
+			Success:  true,
+			Output:   "VALIDATION_PASSED",
+			ExitCode: 0,
+		}, nil
+	}
+
+	exec := NewExecutor(cfg, &buf, nil, nil, validateFn)
+	exec.SetGetDiffFn(func(startCommit string) (string, error) {
+		return "diff --git a/internal/runner/foo_test.go b/internal/runner/foo_test.go\n+new assertion", nil
+	})
+
+	var capturedTier string
+	exec.SetDiagnosticDeps(
+		func(ctx context.Context, diagnosticPrompt string, tier string) (*claude.Result, error) {
+			capturedTier = tier
+			return &claude.Result{
+				Success:  true,
+				Output:   "VERDICT: ALREADY_DONE",
+				ExitCode: 0,
+			}, nil
+		},
+		func(ctx *prompt.DiagnosticContext) (string, error) {
+			return "diagnostic prompt", nil
+		},
+	)
+
+	bc := newTestBeadContext()
+	bc.StartCommit = "abc123"
+	_ = exec.CheckTestsFailWithDiagnostic(context.Background(), bc)
+
+	if capturedTier != provider.TierMedium {
+		t.Fatalf("diagnostic invoke tier = %q, want %q", capturedTier, provider.TierMedium)
+	}
+}
+
 func TestCheckTestsFailWithDiagnostic_ReturnsRewriteFromDiagnosticVerdict(t *testing.T) {
 	cfg := newTestConfig()
 	var buf strings.Builder
