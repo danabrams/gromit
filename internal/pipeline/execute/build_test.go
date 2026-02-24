@@ -493,6 +493,44 @@ func TestBuildStage_EscalationEnabled_RetriesWithNextTierOnFailure(t *testing.T)
 	}
 }
 
+// TestBuildStage_EscalationEnabled_RetriesWhenProviderReturnsUnsuccessfulResult
+// verifies that result.Success=false is treated as a failed invocation and
+// triggers tier escalation.
+func TestBuildStage_EscalationEnabled_RetriesWhenProviderReturnsUnsuccessfulResult(t *testing.T) {
+	var calledTiers []string
+	invoker := &fakeInvoker{
+		streamRunFn: func(_ context.Context, _, tier string, _ io.Writer, _ provider.EventHandler, _ provider.ToolCallHandler) (*provider.Result, error) {
+			calledTiers = append(calledTiers, tier)
+			if tier == "low" {
+				return &provider.Result{Success: false, ExitCode: 1}, nil
+			}
+			return &provider.Result{Success: true}, nil
+		},
+	}
+	stage := execute.New(invoker, &fakePromptRenderer{}, io.Discard)
+
+	cfg := defaultConfig()
+	cfg.Escalation.Enabled = true
+	cfg.Escalation.Chain = []string{"low", "medium", "high"}
+	cfg.Models.P2 = "low"
+
+	b := &bead.Bead{ID: "bead-1", Title: "Fix bug", Priority: 2, Labels: []string{}}
+	in := makeInput(b, cfg)
+	in.EscalationEnabled = true
+	in.Complexity = "low"
+
+	out, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil after escalation retry", err)
+	}
+	if len(calledTiers) != 2 || calledTiers[0] != "low" || calledTiers[1] != "medium" {
+		t.Fatalf("StreamRun tiers = %v, want [low medium]", calledTiers)
+	}
+	if out.ActualTier != "medium" {
+		t.Fatalf("Output.ActualTier = %q, want %q", out.ActualTier, "medium")
+	}
+}
+
 // fakeTDDCycleRunner is a minimal implementation of TDDCycleRunner used to verify
 // that the interface can be satisfied by a concrete type.
 type fakeTDDCycleRunner struct{}

@@ -167,7 +167,8 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 	}
 
 	result, err := b.invoker.StreamRun(ctx, prompt, tier, w, nil, nil)
-	if err != nil && in.EscalationEnabled {
+	invocationErr := streamRunResultError(result, err)
+	if invocationErr != nil && in.EscalationEnabled {
 		for {
 			nextTier := in.Config.NextEscalationTier(tier)
 			if nextTier == "" {
@@ -175,13 +176,14 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 			}
 			tier = nextTier
 			result, err = b.invoker.StreamRun(ctx, prompt, tier, w, nil, nil)
-			if err == nil {
+			invocationErr = streamRunResultError(result, err)
+			if invocationErr == nil {
 				break
 			}
 		}
 	}
-	if err != nil {
-		return pipeline.Output{}, fmt.Errorf("build: LLM invocation: %w", err)
+	if invocationErr != nil {
+		return pipeline.Output{}, fmt.Errorf("build: LLM invocation: %w", invocationErr)
 	}
 
 	out := pipeline.Output{
@@ -235,4 +237,17 @@ func hasBuildStrategyLabel(b *bead.Bead, want string) bool {
 		}
 	}
 	return false
+}
+
+func streamRunResultError(result *provider.Result, err error) error {
+	if err != nil {
+		return err
+	}
+	if result == nil {
+		return errors.New("provider returned nil result")
+	}
+	if !result.Success {
+		return fmt.Errorf("provider reported unsuccessful result (exit code: %d)", result.ExitCode)
+	}
+	return nil
 }

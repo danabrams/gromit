@@ -128,8 +128,8 @@ func buildInvokeFn(router *provider.Router, output io.Writer) tdd.InvokeFn {
 		if p == nil {
 			return fmt.Errorf("no provider available for tier %s", tier)
 		}
-		_, err := p.StreamRun(ctx, promptText, tier, output, nil, nil)
-		return err
+		result, err := p.StreamRun(ctx, promptText, tier, output, nil, nil)
+		return streamRunFailureError(result, err)
 	}
 }
 
@@ -178,9 +178,22 @@ func buildRunRefactorFn(cfg *config.Config, renderer *prompt.Renderer, router *p
 		if p == nil {
 			return fmt.Errorf("no provider available for tier %s", bc.Tier)
 		}
-		_, err = p.StreamRun(ctx, promptText, bc.Tier, output, nil, nil)
+		result, err := p.StreamRun(ctx, promptText, bc.Tier, output, nil, nil)
+		return streamRunFailureError(result, err)
+	}
+}
+
+func streamRunFailureError(result *provider.Result, err error) error {
+	if err != nil {
 		return err
 	}
+	if result == nil {
+		return fmt.Errorf("provider returned nil result")
+	}
+	if !result.Success {
+		return fmt.Errorf("provider reported unsuccessful result (exit code: %d)", result.ExitCode)
+	}
+	return nil
 }
 
 func readFileAsString(path string) (string, error) {
