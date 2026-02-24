@@ -47,6 +47,9 @@ func LoadManifest(path string) (Manifest, error) {
 	if manifest.Provider == "" {
 		return Manifest{}, fmt.Errorf("validate manifest %q: provider is required", path)
 	}
+	if manifest.HighTierModel == "" {
+		return Manifest{}, fmt.Errorf("validate manifest %q: high_tier_model is required", path)
+	}
 	for _, mode := range manifest.Modes {
 		if _, ok := allowedBenchmarkModes[mode]; !ok {
 			return Manifest{}, fmt.Errorf("validate manifest %q: unsupported mode %q", path, mode)
