@@ -20,6 +20,9 @@ func ResolveSelectedBeads(manifestBeads []string, cliBeads []string, beadCount i
 		}
 		selected = selected[:beadCount]
 	}
+	if len(selected) != 5 {
+		return nil, fmt.Errorf("selected cohort size %d must be exactly 5", len(selected))
+	}
 
 	seen := make(map[string]struct{}, len(selected))
 	for _, bead := range selected {
