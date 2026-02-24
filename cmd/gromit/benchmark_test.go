@@ -210,7 +210,7 @@ func TestRunBenchmarkPipeline_WritesDeterministicArtifacts(t *testing.T) {
 		t.Fatalf("unmarshal json artifact: %v", err)
 	}
 
-	if strings.Join(payload.SelectedBeads, ",") != "gromit-1,gromit-2,gromit-3" {
+	if strings.Join(payload.SelectedBeads, ",") != "gromit-1,gromit-2,gromit-3,gromit-4,gromit-5" {
 		t.Fatalf("selected_beads = %v", payload.SelectedBeads)
 	}
 	if len(payload.Modes) != 3 {
@@ -220,7 +220,7 @@ func TestRunBenchmarkPipeline_WritesDeterministicArtifacts(t *testing.T) {
 		if mode.BaseCommit != "abc123" {
 			t.Fatalf("mode %s base_commit = %q, want %q", mode.Mode, mode.BaseCommit, "abc123")
 		}
-		if strings.Join(mode.SelectedBeads, ",") != "gromit-1,gromit-2,gromit-3" {
+		if strings.Join(mode.SelectedBeads, ",") != "gromit-1,gromit-2,gromit-3,gromit-4,gromit-5" {
 			t.Fatalf("mode %s selected_beads = %v", mode.Mode, mode.SelectedBeads)
 		}
 	}
@@ -241,7 +241,7 @@ func TestWriteBenchmarkReport_PreservesInternalReportMarkdownSections(t *testing
 		},
 		benchmarkHarnessResult{
 			BaseCommit:    "abc123",
-			SelectedBeads: []string{"gromit-1", "gromit-2", "gromit-3"},
+			SelectedBeads: []string{"gromit-1", "gromit-2", "gromit-3", "gromit-4", "gromit-5"},
 		},
 		benchmarkMetricsResult{
 			ModeSummaries: []benchpkg.ModeSummary{
@@ -291,6 +291,8 @@ beads:
   - gromit-1
   - gromit-2
   - gromit-3
+  - gromit-4
+  - gromit-5
 modes:
   - single_pass
 provider: openai
@@ -373,6 +375,10 @@ func TestRunBenchmarkPipeline_RejectsManifestMissingProviderPinning(t *testing.T
 base_commit: abc123
 beads:
   - gromit-1
+  - gromit-2
+  - gromit-3
+  - gromit-4
+  - gromit-5
 modes:
   - single_pass
 `
@@ -417,7 +423,7 @@ func TestRunBenchmarkPipeline_UsesInternalBenchmarkStagesInOrder(t *testing.T) {
 	manifest := benchpkg.Manifest{
 		ID:         "bench-1",
 		BaseCommit: "abc123",
-		Beads:      []string{"gromit-1", "gromit-2", "gromit-3"},
+		Beads:      []string{"gromit-1", "gromit-2", "gromit-3", "gromit-4", "gromit-5"},
 		ModeConfig: benchpkg.ModeConfig{Modes: []string{"single_pass"}},
 		ModelPinning: benchpkg.ModelPinning{
 			Provider:        "openai",
@@ -503,8 +509,8 @@ func TestBenchmarkRunCommand_BeadOverridesDriveSelection(t *testing.T) {
 	_, stderr, exitCode := runGromitCobra(t,
 		"benchmark", "run",
 		"--manifest", manifestPath,
-		"--beads", "gromit-9,gromit-8,gromit-7",
-		"--bead-count", "3",
+		"--beads", "gromit-9,gromit-8,gromit-7,gromit-6,gromit-10",
+		"--bead-count", "5",
 		"--output-ts", "20260223T130000Z",
 	)
 	if exitCode != 0 {
@@ -524,8 +530,8 @@ func TestBenchmarkRunCommand_BeadOverridesDriveSelection(t *testing.T) {
 		t.Fatalf("unmarshal report json: %v", err)
 	}
 
-	if strings.Join(payload.SelectedBeads, ",") != "gromit-9,gromit-8,gromit-7" {
-		t.Fatalf("selected_beads = %v, want [%s]", payload.SelectedBeads, "gromit-9 gromit-8 gromit-7")
+	if strings.Join(payload.SelectedBeads, ",") != "gromit-9,gromit-8,gromit-7,gromit-6,gromit-10" {
+		t.Fatalf("selected_beads = %v, want [%s]", payload.SelectedBeads, "gromit-9 gromit-8 gromit-7 gromit-6 gromit-10")
 	}
 }
 

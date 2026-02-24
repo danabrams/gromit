@@ -4,6 +4,8 @@ beads:
   - gromit-1
   - gromit-2
   - gromit-3
+  - gromit-4
+  - gromit-5
 modes:
   - single_pass
   - tdd_shared_context

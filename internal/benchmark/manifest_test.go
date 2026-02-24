@@ -10,10 +10,14 @@ import (
 func TestLoadManifest_ParsesValidYAML(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "manifest.yaml")
-	content := `id: tdd-vs-single-pass
+content := `id: tdd-vs-single-pass
 base_commit: abc123
 beads:
   - gromit-1
+  - gromit-2
+  - gromit-3
+  - gromit-4
+  - gromit-5
 modes:
   - single_pass
 provider: openai
@@ -34,8 +38,8 @@ high_tier_model: gpt-5.3-codex
 	if manifest.ID != "tdd-vs-single-pass" {
 		t.Fatalf("manifest id = %q, want %q", manifest.ID, "tdd-vs-single-pass")
 	}
-	if len(manifest.Beads) != 1 || manifest.Beads[0] != "gromit-1" {
-		t.Fatalf("manifest beads = %v, want [gromit-1]", manifest.Beads)
+	if len(manifest.Beads) != 5 || manifest.Beads[0] != "gromit-1" || manifest.Beads[4] != "gromit-5" {
+		t.Fatalf("manifest beads = %v, want [gromit-1 gromit-2 gromit-3 gromit-4 gromit-5]", manifest.Beads)
 	}
 	if len(manifest.Modes) != 1 || manifest.Modes[0] != "single_pass" {
 		t.Fatalf("manifest modes = %v, want [single_pass]", manifest.Modes)
@@ -71,6 +75,10 @@ content := `id: tdd-vs-single-pass
 base_commit: abc123
 beads:
   - gromit-1
+  - gromit-2
+  - gromit-3
+  - gromit-4
+  - gromit-5
 modes:
   - unsupported_mode
 provider: openai
@@ -116,10 +124,14 @@ modes:
 func TestLoadManifest_RequiresModes(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "manifest.yaml")
-	content := `id: tdd-vs-single-pass
+content := `id: tdd-vs-single-pass
 base_commit: abc123
 beads:
   - gromit-1
+  - gromit-2
+  - gromit-3
+  - gromit-4
+  - gromit-5
 `
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
@@ -137,10 +149,14 @@ beads:
 func TestLoadManifest_RequiresProvider(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "manifest.yaml")
-	content := `id: tdd-vs-single-pass
+content := `id: tdd-vs-single-pass
 base_commit: abc123
 beads:
   - gromit-1
+  - gromit-2
+  - gromit-3
+  - gromit-4
+  - gromit-5
 modes:
   - single_pass
 model_family: gpt-5
@@ -164,10 +180,14 @@ high_tier_model: gpt-5.3-codex
 func TestLoadManifest_RequiresHighTierModel(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "manifest.yaml")
-	content := `id: tdd-vs-single-pass
+content := `id: tdd-vs-single-pass
 base_commit: abc123
 beads:
   - gromit-1
+  - gromit-2
+  - gromit-3
+  - gromit-4
+  - gromit-5
 modes:
   - single_pass
 provider: openai
@@ -204,7 +224,7 @@ func TestValidateManifest_AcceptsValidManifest(t *testing.T) {
 	manifest := Manifest{
 		ID:         "tdd-vs-single-pass",
 		BaseCommit: "abc123",
-		Beads:      []string{"gromit-1"},
+		Beads:      []string{"gromit-1", "gromit-2", "gromit-3", "gromit-4", "gromit-5"},
 		ModeConfig: ModeConfig{
 			Modes: []string{"single_pass"},
 		},
