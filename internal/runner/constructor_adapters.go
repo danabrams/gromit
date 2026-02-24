@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/jsonutil"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
@@ -25,9 +26,10 @@ import (
 
 // invokerAdapter wraps *provider.Router to satisfy execute.Invoker.
 type invokerAdapter struct {
-	execInvoker     *execution.Invoker
-	promptRegistry  *buildPromptRegistry
-	cacheVersionKey string
+	execInvoker      *execution.Invoker
+	promptRegistry   *buildPromptRegistry
+	cacheVersionKey  string
+	providerCostDefs map[string]config.ProviderDef
 }
 
 func (a *invokerAdapter) Run(ctx context.Context, promptText, tier string) (*provider.Result, error) {
@@ -65,6 +67,7 @@ func (a *invokerAdapter) StreamRun(ctx context.Context, promptText, tier string,
 		return nil, fmt.Errorf("build invocation returned nil provider result")
 	}
 	providerResult := result.ProviderResult
+	applyCostFallback(providerResult, result.ProviderName, a.providerCostDefs)
 	providerResult.CacheHit = bc.Result.CacheHit
 	providerResult.CacheMiss = bc.Result.CacheMiss
 	providerResult.CacheWrite = bc.Result.CacheWrite
@@ -73,6 +76,26 @@ func (a *invokerAdapter) StreamRun(ctx context.Context, promptText, tier string,
 	providerResult.CacheInvalidationReason = bc.Result.CacheInvalidationReason
 	providerResult.CacheVersionMarker = bc.Result.CacheVersionMarker
 	return providerResult, nil
+}
+
+func applyCostFallback(result *provider.Result, providerName string, defs map[string]config.ProviderDef) {
+	if result == nil || result.CostUSD > 0 {
+		return
+	}
+	if result.InputTokens <= 0 && result.OutputTokens <= 0 {
+		return
+	}
+	if len(defs) == 0 {
+		return
+	}
+	def, ok := defs[providerName]
+	if !ok {
+		return
+	}
+	estimate := def.EstimateCostForModel(result.Model, result.InputTokens, result.OutputTokens)
+	if estimate > 0 {
+		result.CostUSD = estimate
+	}
 }
 
 // renderAdapter wraps prompt.Renderer to satisfy execute.PromptRenderer.

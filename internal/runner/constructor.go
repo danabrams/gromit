@@ -116,9 +116,10 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 	buildExecInvoker := execution.NewInvoker(&executionRouterAdapter{router: router}, syncOut, streamLogger)
 	buildStage := execute.New(
 		&invokerAdapter{
-			execInvoker:     buildExecInvoker,
-			promptRegistry:  buildPromptRegistry,
-			cacheVersionKey: buildCacheVersionKey,
+			execInvoker:      buildExecInvoker,
+			promptRegistry:   buildPromptRegistry,
+			cacheVersionKey:  buildCacheVersionKey,
+			providerCostDefs: costDefs,
 		},
 		&renderAdapter{
 			r:              renderer,
