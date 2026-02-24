@@ -235,6 +235,7 @@ func TestRunBenchmarkPipeline_ReportArtifactsMatchInternalWriter(t *testing.T) {
 	}
 
 	origLoad := benchmarkInternalLoadManifestFn
+	origSelect := benchmarkSelectCohortFn
 	origValidate := benchmarkValidateCohortFn
 	origHarness := benchmarkRunHarnessFn
 	origAggregate := benchmarkInternalAggregateModeMetricsFn
@@ -242,6 +243,7 @@ func TestRunBenchmarkPipeline_ReportArtifactsMatchInternalWriter(t *testing.T) {
 	origNow := benchmarkNowFn
 	t.Cleanup(func() {
 		benchmarkInternalLoadManifestFn = origLoad
+		benchmarkSelectCohortFn = origSelect
 		benchmarkValidateCohortFn = origValidate
 		benchmarkRunHarnessFn = origHarness
 		benchmarkInternalAggregateModeMetricsFn = origAggregate
@@ -265,6 +267,10 @@ func TestRunBenchmarkPipeline_ReportArtifactsMatchInternalWriter(t *testing.T) {
 			MediumTierModel: "gpt-5.3-codex",
 			HighTierModel:   "gpt-5.3-codex",
 		},
+	}
+
+	benchmarkSelectCohortFn = func(manifest benchmarkManifest, opts benchmarkRunOptions) (benchmarkSelection, error) {
+		return benchmarkSelection{SelectedBeads: []string{"gromit-1", "gromit-2", "gromit-3", "gromit-4", "gromit-5"}}, nil
 	}
 
 	benchmarkInternalLoadManifestFn = func(path string) (benchpkg.Manifest, error) {
@@ -337,6 +343,41 @@ func TestRunBenchmarkPipeline_ReportArtifactsMatchInternalWriter(t *testing.T) {
 	if !bytes.Equal(actualMD, expectedMD) {
 		t.Fatalf("markdown artifact diverges from internal writer\nactual:\n%s\nexpected:\n%s", string(actualMD), string(expectedMD))
 	}
+}
+
+func renderInternalBenchmarkReport(t *testing.T, input benchpkg.ReportInput) ([]byte, []byte) {
+	t.Helper()
+
+	tmpDir := t.TempDir()
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd: %v", err)
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir expected dir: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(origWD); err != nil {
+			t.Fatalf("restore cwd: %v", err)
+		}
+	}()
+
+	if _, err := benchpkg.WriteReport(input); err != nil {
+		t.Fatalf("render internal report: %v", err)
+	}
+
+	jsonPath := filepath.Join(tmpDir, ".gromit", "benchmarks", "results", input.Manifest.ID, input.Timestamp+".json")
+	mdPath := filepath.Join(tmpDir, ".gromit", "benchmarks", "results", input.Manifest.ID, input.Timestamp+".md")
+
+	jsonBytes, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("read internal json: %v", err)
+	}
+	mdBytes, err := os.ReadFile(mdPath)
+	if err != nil {
+		t.Fatalf("read internal markdown: %v", err)
+	}
+	return jsonBytes, mdBytes
 }
 
 func TestWriteBenchmarkReport_PreservesInternalReportMarkdownSections(t *testing.T) {
