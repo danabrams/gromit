@@ -622,3 +622,36 @@ func TestCodexErrorInfoTypes(t *testing.T) {
 		})
 	}
 }
+
+func TestProcessCodexStreamMapsMessageCreatedToSystem(t *testing.T) {
+	input := `{"type":"message.created"}` + "\n"
+	reader := strings.NewReader(input)
+	var output bytes.Buffer
+	var receivedEvents [][]byte
+
+	handler := func(line []byte) {
+		cp := make([]byte, len(line))
+		copy(cp, line)
+		receivedEvents = append(receivedEvents, cp)
+	}
+
+	_, _, _, err := processCodexStream(reader, &output, handler, nil)
+	if err != nil {
+		t.Fatalf("processCodexStream() error = %v", err)
+	}
+
+	if len(receivedEvents) == 0 {
+		t.Fatal("EventHandler was not called for message.created event")
+	}
+
+	var parsed struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(receivedEvents[0], &parsed); err != nil {
+		t.Fatalf("failed to parse emitted event: %v", err)
+	}
+
+	if parsed.Type != "system" {
+		t.Errorf("message.created mapped to type %q, want %q", parsed.Type, "system")
+	}
+}

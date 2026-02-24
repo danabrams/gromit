@@ -1624,3 +1624,8 @@ Use package-level `var _ Interface = (*Impl)(nil)` declarations in non-test `.go
 
 *Archived from provisional: filtered: generic engineering advice*
 
+### 2026-02-24 | gromit-4dkw | conventions
+When implementing JSONL stream readers, examine test fixtures to understand the event structure and which fields contain the data to extract. For accumulating results, check if events signal completion (like 'done' messages) and how to properly concatenate streamed text chunks.
+
+*Archived from new: filtered: generic engineering advice*
+

@@ -72,6 +72,7 @@ Replace God Object pattern with pure orchestration: hold only stage references a
 
 ### 2026-02-23 | Escalation Policy Must Have a Single Tier-Advance Source | architecture
 *Related to: review-1771855648673321351, review-1771854448297640630, gromit-fjxy1*
+
 *Consolidated into: 2026-02-24 Orchestrator Cross-Cutting Concerns on Shared Path*
 
 Escalation progression must be implemented in one shared path. Duplicating next-tier logic between execution code and config accessors creates drift risk (especially for legacy model-name mapping and disabled-escalation semantics) and weakens policy consistency.
@@ -83,12 +84,14 @@ When build telemetry adds `original_tier` and `actual_tier`, tests must cover al
 
 ### 2026-02-23 | Decomposition Batch-Contract Enforcement Must Use Retry Loop | conventions
 *Related to: gromit-xjeu3, review-1771835747422178794, gromit-9946, review-1771832540735638835*
+
 *Consolidated into: 2026-02-24 Decomposition Contract-Field Parity Across Layers*
 
 Decomposition batch-size contracts must be enforced in the retry validation loop for all modes (including SkipValidation); violations must reprompt or return a clear contract error at retry cap, never silently truncate output.
 
 ### 2026-02-23 | Single Shared Decompose Validator With Full Required-Field Coverage | architecture
 *Related to: gromit-btk9n, review-1771835747422178794, gromit-9947, review-1771832540735638835*
+
 *Consolidated into: 2026-02-24 Decomposition Contract-Field Parity Across Layers*
 
 Use one shared decompose validator for runtime and pipeline paths, and centralize required-field checks (title, expected_outputs, dependency fields) there with mode flags for context-specific rules.
@@ -100,6 +103,7 @@ Complexity classification based only on `estimated_files` is easy for model outp
 
 ### 2026-02-23 | Orchestrator Migration Parity and Adapter Surface Minimization | patterns
 *Related to: code-review, review-1771733992016921570*
+
 *Consolidated into: 2026-02-24 Orchestrator Cross-Cutting Concerns on Shared Path*
 
 Orchestrator migration must keep cross-cutting concerns on one shared execution path, minimize adapter surface, and enforce parity tests until legacy path removal.
@@ -161,10 +165,10 @@ JSON parsing alone is not enough for LLM decomposition output. Gate paths should
 
 ### 2026-02-23 | DECOMPOSE_VALIDATION_RULE_CHANGES_REQUIRE_CONTRACT_PARITY | ARCHITECTURE
 *Related to: gromit-jysme, gromit-o9i5v*
+
 *Consolidated into: 2026-02-24 Decomposition Contract-Field Parity Across Layers*
 
 When decompose validation rules change (for example, expected_outputs requirements or complexity signal expansion), the prompt contract, fixture payloads, retry-loop behavior, and telemetry expectations must be updated together. Partial adoption creates persistent retry churn, misleading ValidationStats, and test brittleness.
-
 
 ### 2026-02-23 | PIPELINE_STAGE_CONFIG_ACCESS_REQUIRES_EXPLICIT_NIL_GUARDS | CONVENTIONS
 *Related to: review-1771880675971102580*
@@ -180,11 +184,15 @@ When Gate computes complexity routing metadata, all decision outcomes (Proceed/S
 *Related to: gromit-1xv79, gromit-gr1st, gromit-k0eke*
 
 Adding deprecation-marker fields to compatibility resolution is not sufficient by itself; migration guardrails only work when those markers are surfaced in debug/status output and runtime warnings, with end-to-end tests proving explicit-vs-legacy behavior.
+
+### 2026-02-24 | gromit-sjg0 | conventions
+Codex event mappings require registration in an event handler dispatch mechanism (likely a switch/map in the message processing code). New event types must be explicitly registered to trigger their corresponding handlers
+
 ---
 
 ## Archived
 
-*Moved to LEARNINGS_ARCHIVE.md to reduce prompt context overhead.*
+*Previously archived learnings.*
 
 ### 2026-02-22 | Silent Error Swallowing in Render Builder Functions | gotchas
 *Related to: review-1771763626626526682*
@@ -199,3 +207,9 @@ The TDD render builder functions (buildRenderRedFn, buildRenderGreenFn) discard 
 Use package-level `var _ Interface = (*Impl)(nil)` declarations in non-test `.go` files to enforce architectural invariants at compile time. A check inside a test function body gates test compilation only — it does not gate production builds. Avoid tests that use `os.ReadFile`+`strings.Contains` on `.go` source files — they break silently on renames/moves. Distinguish from forced-import keep-alive patterns (`var _ = Type{}`): these exist solely to prevent the compiler from removing an unused import, indicate incomplete refactoring, and should be removed. When removing package usage, search for these keep-alive patterns in the same file and related consumers.
 
 *Archived from provisional: filtered: generic engineering advice*
+
+### 2026-02-24 | gromit-4dkw | conventions
+When implementing JSONL stream readers, examine test fixtures to understand the event structure and which fields contain the data to extract. For accumulating results, check if events signal completion (like 'done' messages) and how to properly concatenate streamed text chunks.
+
+*Archived from new: filtered: generic engineering advice*
+

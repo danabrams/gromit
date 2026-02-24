@@ -1,8 +1,9 @@
 ---
+created: 2026-02-24T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-24T11:15:29Z"
 id: provider-type-rename
 source_spec: provider-type-rename
-created: 2026-02-24
-decomposed: false
 ---
 
 # Provider Type Rename Implementation Plan
