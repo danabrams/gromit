@@ -34,6 +34,18 @@ func TestPhase3Coverage_HasCacheFailureFallbackIntegrationCase(t *testing.T) {
 	}
 }
 
+func TestPhase3Coverage_HasUtilityRoutingSelectionIntegrationCase(t *testing.T) {
+	tests, err := listPackageTests(repoRoot(t), "./internal/runner")
+	if err != nil {
+		t.Fatalf("list runner tests: %v", err)
+	}
+
+	const expected = "TestExtractRequirementsViaLLM_Integration_UsesUtilityCategoryTaskOverrideTier"
+	if !tests[expected] {
+		t.Fatalf("missing phase-3 utility routing integration test %q", expected)
+	}
+}
+
 func listPackageTests(root, pkg string) (map[string]bool, error) {
 	cmd := exec.Command("go", "test", "-list", "^Test", pkg)
 	cmd.Dir = root
