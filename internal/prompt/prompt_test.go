@@ -938,6 +938,34 @@ func TestRenderBuildAndReviewUpdateLastDiagnostics(t *testing.T) {
 	}
 }
 
+func TestRenderBuildDiagnosticsUsesTemplateNameForTemplateSection(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	if err := os.MkdirAll(templatesDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(templatesDir, "PROMPT_build.md"), []byte("Build {{.Bead.Title}}"), 0644); err != nil {
+		t.Fatalf("WriteFile(build template) error = %v", err)
+	}
+
+	r := &Renderer{templatesDir: templatesDir}
+	ctx := &Context{Bead: &bead.Bead{ID: "b-1", Title: "T", Description: "D"}}
+
+	if _, err := r.RenderBuild(ctx); err != nil {
+		t.Fatalf("RenderBuild() error = %v", err)
+	}
+
+	diagnostics := r.LastDiagnostics()
+	if diagnostics == nil {
+		t.Fatal("expected LastDiagnostics() to return non-nil after RenderBuild")
+	}
+
+	want := EstimateTokens("PROMPT_build.md")
+	if got := diagnostics.SectionTokens[SectionTemplateStatic]; got != want {
+		t.Fatalf("SectionTokens[%q] = %d, want %d", SectionTemplateStatic, got, want)
+	}
+}
+
 func TestRenderThoroughReview(t *testing.T) {
 	tmpDir := t.TempDir()
 	templatesDir := filepath.Join(tmpDir, "templates")
