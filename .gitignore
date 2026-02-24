@@ -44,6 +44,8 @@ coverage.out
 
 # Runtime lock/state artifacts
 cmd/gromit/.gromit/interactive-state.json.lock
+.gromit/interactive-state.json.lock
 
 # Benchmark run outputs are ephemeral; curated fixtures belong under test/fixtures
 cmd/gromit/.gromit/benchmarks/results/
+.gromit/benchmarks/results/

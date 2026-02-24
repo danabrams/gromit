@@ -47,15 +47,21 @@ func findProjectRoot() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	nearestGromitDir := ""
 	for {
 		if hasRepoMarker(dir, repoConfigName) {
 			return dir, nil
 		}
 		if hasRepoMarker(dir, repoDirName) {
-			return dir, nil
+			if nearestGromitDir == "" {
+				nearestGromitDir = dir
+			}
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
+			if nearestGromitDir != "" {
+				return nearestGromitDir, nil
+			}
 			return "", os.ErrNotExist
 		}
 		dir = parent

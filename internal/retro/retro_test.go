@@ -1232,6 +1232,9 @@ func TestRenderPromptWithProviderFamiliesInRealTemplate(t *testing.T) {
 	r.templatePath = templatePath
 
 	efficiency := &logger.EfficiencyReport{
+		CurrentIterations: []logger.IterationEfficiency{
+			{BeadID: "gromit-1", Model: "codex"},
+		},
 		CurrentProviderFamilies: map[string]logger.ModelEfficiency{
 			"claude": {Model: "claude", IterationCount: 2},
 			"codex":  {Model: "codex", IterationCount: 1},

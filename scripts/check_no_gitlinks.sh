@@ -15,7 +15,7 @@ fi
 
 # Runtime artifacts and benchmark run outputs must never be tracked.
 # Keep only deterministic fixtures under approved fixture paths.
-blocked_regex='^(\.dolt/|\.doltcfg/|beads_gromit/|cmd/gromit/\.gromit/interactive-state\.json\.lock$|cmd/gromit/\.gromit/benchmarks/results/)'
+blocked_regex='^(\.dolt/|\.doltcfg/|beads_gromit/|cmd/gromit/\.gromit/interactive-state\.json\.lock$|cmd/gromit/\.gromit/benchmarks/results/|\.gromit/interactive-state\.json\.lock$|\.gromit/benchmarks/results/)'
 blocked="$(git ls-files | grep -E "${blocked_regex}" || true)"
 if [[ -n "${blocked}" ]]; then
   echo "[repo-hygiene] unexpected tracked runtime artifacts detected:" >&2
