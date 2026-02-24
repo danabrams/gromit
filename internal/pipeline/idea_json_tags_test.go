@@ -3,6 +3,7 @@ package pipeline
 import (
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestIdeaJSONTags(t *testing.T) {
@@ -36,7 +37,30 @@ func TestIdeaJSONTags(t *testing.T) {
 	}
 }
 
-<<<<<<< HEAD
+func TestIdeaJSONKeysIncludesCreatedAt(t *testing.T) {
+	t.Parallel()
+
+	idea := Idea{
+		ID:        "idea-1",
+		Text:      "text",
+		Type:      "feature",
+		Context:   "ctx",
+		CreatedAt: time.Now(),
+	}
+
+	_ = idea // compile-time field check for canonical key list coverage
+
+	found := false
+	for _, key := range IdeaJSONKeys {
+		if key == "created_at" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("IdeaJSONKeys missing %q", "created_at")
+	}
+}
 func TestIdeaOptionalJSONTagsUseOmitEmpty(t *testing.T) {
 	t.Parallel()
 
