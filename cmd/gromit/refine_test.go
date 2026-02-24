@@ -189,6 +189,46 @@ func TestBacklogAdapterAdd_PreservesCreatedAt(t *testing.T) {
 	}
 }
 
+func TestBacklogAdapterUpdate_PreservesCreatedAtChanges(t *testing.T) {
+	t.Parallel()
+
+	gromitDir := t.TempDir()
+	file, err := backlog.NewFile(gromitDir)
+	if err != nil {
+		t.Fatalf("backlog.NewFile() error = %v", err)
+	}
+
+	original := time.Date(2026, time.February, 3, 1, 0, 0, 0, time.UTC)
+	if err := file.Add(&backlog.Idea{
+		ID:        "idea-1",
+		Text:      "Update timestamp",
+		Type:      "feature",
+		CreatedAt: original,
+	}); err != nil {
+		t.Fatalf("Add() error = %v", err)
+	}
+
+	adapter := &backlogAdapter{file: file}
+	updated := time.Date(2026, time.February, 4, 2, 0, 0, 0, time.UTC)
+	if err := adapter.Update("idea-1", func(idea *pipeline.Idea) {
+		idea.CreatedAt = updated
+		idea.Status = "refined"
+	}); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	ideas, err := file.List()
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(ideas) != 1 {
+		t.Fatalf("idea count = %d, want 1", len(ideas))
+	}
+	if !ideas[0].CreatedAt.Equal(updated) {
+		t.Fatalf("CreatedAt = %v, want %v", ideas[0].CreatedAt, updated)
+	}
+}
+
 type refineSessionTestAgent struct {
 	launchInDirFn func(promptPath, dir string) error
 }
