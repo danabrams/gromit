@@ -225,9 +225,6 @@ func emitStartupCompatibilityDeprecationWarning(cfg *config.Config, output io.Wr
 
 	ctx := cfg.ResolveCompatibilityContext()
 	markers := config.CompatibilityDeprecationMarkers(ctx)
-	if marker := resolveTrackerBackendDeprecationMarker(cfg); marker != "" {
-		markers = append(markers, marker)
-	}
 	if len(markers) == 0 {
 		return
 	}

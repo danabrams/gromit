@@ -583,8 +583,8 @@ func TestNewRunnerImpl_LegacyCompatibilityEmitsStartupDeprecationWarning(t *test
 	}
 
 	warnings := output.String()
-	if !strings.Contains(warnings, RunnerDeprecationMarkerLegacyTrackerBackendFallback) {
-		t.Fatalf("startup warnings missing %q, got:\n%s", RunnerDeprecationMarkerLegacyTrackerBackendFallback, warnings)
+	if !strings.Contains(warnings, config.CompatibilityDeprecationMarkerLegacyTrackerBackendFallback) {
+		t.Fatalf("startup warnings missing %q, got:\n%s", config.CompatibilityDeprecationMarkerLegacyTrackerBackendFallback, warnings)
 	}
 	if !strings.Contains(warnings, config.CompatibilityDeprecationMarkerLegacyHardcodedDefaults) {
 		t.Fatalf("startup warnings missing %q, got:\n%s", config.CompatibilityDeprecationMarkerLegacyHardcodedDefaults, warnings)
