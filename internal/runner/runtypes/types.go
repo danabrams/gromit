@@ -102,6 +102,13 @@ type IterationResult struct {
 	StallTier           string // "initial" or "active"
 	RateLimitHits       int
 	RateLimitRecoveryMs int64  // ms to recover from most recent rate limit
+	CacheHit            bool   `json:"cache_hit,omitempty"`
+	CacheMiss           bool   `json:"cache_miss,omitempty"`
+	CacheWrite          bool   `json:"cache_write,omitempty"`
+	CacheClass          string `json:"cache_class,omitempty"`
+	CacheKey            string `json:"cache_key,omitempty"`
+	CacheInvalidationReason string `json:"cache_invalidation_reason,omitempty"`
+	CacheVersionMarker  string `json:"cache_version_marker,omitempty"`
 	FallbackAttempts    int    // number of fallback attempts triggered this iteration
 	FallbackSuccesses   int    // successful fallback outcomes this iteration
 	FallbackFailures    int    // failed fallback outcomes this iteration
