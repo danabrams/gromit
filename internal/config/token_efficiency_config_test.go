@@ -82,3 +82,26 @@ func TestSetDefaultsTokenEfficiencyDefaults(t *testing.T) {
 		t.Errorf("TokenEfficiency.Routing.KillSwitches.DisableTaskOverrides = true, want false by default")
 	}
 }
+
+func TestTokenEfficiencyAccessorsRespectIndependentKillSwitches(t *testing.T) {
+	cfg := Config{
+		TokenEfficiency: TokenEfficiencyConfig{
+			Cache: TokenEfficiencyCacheConfig{
+				Enabled: true,
+			},
+			Routing: TokenEfficiencyRoutingConfig{
+				Enabled: true,
+				KillSwitches: TokenEfficiencyRoutingKillSwitchesConfig{
+					DisableUtilityRouting: true,
+				},
+			},
+		},
+	}
+
+	if !cfg.TokenEfficiency.Cache.IsEnabled() {
+		t.Errorf("TokenEfficiency.Cache.IsEnabled() = false, want true")
+	}
+	if cfg.TokenEfficiency.Routing.IsEnabled() {
+		t.Errorf("TokenEfficiency.Routing.IsEnabled() = true, want false when disable_utility_routing is set")
+	}
+}
