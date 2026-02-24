@@ -12,3 +12,6 @@ echo "[pre-commit] checking for unexpected gitlinks"
 
 echo "[pre-commit] checking staged artifact policy"
 ./scripts/check_staged_artifact_policy.sh
+
+echo "[pre-commit] checking beads issues policy"
+./scripts/check_beads_issues_policy.sh
