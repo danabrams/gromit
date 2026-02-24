@@ -1,8 +1,9 @@
 ---
+created: 2026-02-24T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-24T04:25:16Z"
 id: phase-1-2-token-efficiency-foundation
 source_spec: phase-1-2-token-efficiency-foundation
-created: 2026-02-24
-decomposed: false
 ---
 
 # Token Efficiency Foundation (Phase 1-2) Implementation Plan
