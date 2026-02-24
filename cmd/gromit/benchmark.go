@@ -80,6 +80,11 @@ var benchmarkRunCmd = &cobra.Command{
 	Short:        "Run benchmark pipeline",
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if benchmarkOutputTS != "" {
+			if _, err := time.Parse("20060102T150405Z", benchmarkOutputTS); err != nil {
+				return fmt.Errorf("--output-ts must be in UTC format YYYYMMDDTHHMMSSZ")
+			}
+		}
 		beads := parseCSV(benchmarkBeads)
 		return benchmarkRunPipelineFn(benchmarkRunOptions{
 			ManifestPath:    benchmarkManifestPath,
