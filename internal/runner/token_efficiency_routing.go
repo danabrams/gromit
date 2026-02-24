@@ -1,19 +1,23 @@
 package runner
 
 import (
+	"strings"
+
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/provider"
 )
 
 func resolveUtilityTaskTier(cfg *config.Config, taskCategory, fallbackTier string) string {
+	normalizedCategory := strings.ToLower(strings.TrimSpace(taskCategory))
+
 	if cfg == nil || !cfg.TokenEfficiency.Routing.IsEnabled() {
 		return fallbackTier
 	}
-	if !isUtilityTaskCategory(taskCategory) {
+	if !isUtilityTaskCategory(normalizedCategory) {
 		return fallbackTier
 	}
 	if !cfg.TokenEfficiency.Routing.KillSwitches.DisableTaskOverrides {
-		if overrideTier, ok := cfg.TokenEfficiency.Routing.TaskOverrides[taskCategory]; ok && overrideTier != "" {
+		if overrideTier, ok := cfg.TokenEfficiency.Routing.TaskOverrides[normalizedCategory]; ok && overrideTier != "" {
 			return provider.TierFromLegacyModel(overrideTier)
 		}
 	}
