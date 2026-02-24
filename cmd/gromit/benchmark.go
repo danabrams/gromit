@@ -89,6 +89,9 @@ var benchmarkRunCmd = &cobra.Command{
 			}
 		}
 		beads := parseCSV(benchmarkBeads)
+		if strings.TrimSpace(benchmarkBeads) != "" && len(beads) == 0 {
+			return fmt.Errorf("--beads must include at least one bead id when provided")
+		}
 		return benchmarkRunPipelineFn(benchmarkRunOptions{
 			ManifestPath:    benchmarkManifestPath,
 			OutputTimestamp: benchmarkOutputTS,
