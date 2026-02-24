@@ -85,7 +85,7 @@ func TestPrintStatus_IncludesCompatibilityDiagnostics(t *testing.T) {
 	}
 }
 
-func TestPrintStatus_LegacyCompatibilityIncludesRunnerDeprecationMarker(t *testing.T) {
+func TestPrintStatus_LegacyCompatibilityIncludesTrackerBackendDeprecationMarker(t *testing.T) {
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
@@ -110,8 +110,8 @@ func TestPrintStatus_LegacyCompatibilityIncludesRunnerDeprecationMarker(t *testi
 	}
 
 	output := buf.String()
-	if !strings.Contains(output, RunnerDeprecationMarkerLegacyTrackerBackendFallback) {
-		t.Fatalf("expected runner deprecation marker %q in output, got:\n%s", RunnerDeprecationMarkerLegacyTrackerBackendFallback, output)
+	if !strings.Contains(output, config.CompatibilityDeprecationMarkerLegacyTrackerBackendFallback) {
+		t.Fatalf("expected tracker backend deprecation marker %q in output, got:\n%s", config.CompatibilityDeprecationMarkerLegacyTrackerBackendFallback, output)
 	}
 }
 
