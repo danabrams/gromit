@@ -133,6 +133,17 @@ func TestAdapterSimplification_NoMapConstruction(t *testing.T) {
 	}
 }
 
+func TestAdapterHelpers_UseLLMRunResultNaming(t *testing.T) {
+	contentStr := adapterTestReadFile(t, "adapters.go")
+
+	if !adapterTestContainsString(contentStr, "func toLLMRunResult(") {
+		t.Fatal("adapters.go should define helper func toLLMRunResult")
+	}
+	if adapterTestContainsString(contentStr, "func toClaudeRunResult(") {
+		t.Fatal("adapters.go should not define helper func toClaudeRunResult")
+	}
+}
+
 // Helper functions for string analysis
 
 func adapterTestContainsString(content, substr string) bool {
