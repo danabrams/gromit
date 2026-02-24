@@ -64,7 +64,7 @@ func buildTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *
 				// Layer 3: LLM-based requirement extraction when we only have
 				// a single broad requirement (title fallback).
 				if len(remaining) <= 1 {
-					if extracted, _ := applyLayer3Requirements(ctx, remaining, bc.Bead.Title, bc.Bead.Description, layer3Invoke); len(extracted) > len(remaining) {
+					if extracted, _ := applyLayer3Requirements(ctx, cfg, remaining, bc.Bead.Title, bc.Bead.Description, layer3Invoke); len(extracted) > len(remaining) {
 						remaining = extracted
 					}
 				}

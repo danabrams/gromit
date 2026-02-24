@@ -138,7 +138,7 @@ func TestExtractRequirementsViaLLM_ReturnsParsedItems(t *testing.T) {
 	invoke := func(_ context.Context, _ string, _ string) (*provider.Result, error) {
 		return &provider.Result{Success: true, Output: "item one\nitem two\nitem three"}, nil
 	}
-	got := extractRequirementsViaLLM(context.Background(), "My Title", "some description", invoke)
+	got := extractRequirementsViaLLM(context.Background(), nil, "My Title", "some description", invoke)
 	want := []string{"item one", "item two", "item three"}
 	if len(got) != len(want) {
 		t.Fatalf("got %d items, want %d: %v", len(got), len(want), got)
@@ -157,7 +157,7 @@ func TestExtractRequirementsViaLLM_TruncatesDescriptionTo2000Chars(t *testing.T)
 		capturedPrompt = prompt
 		return &provider.Result{Success: true, Output: "req one\nreq two"}, nil
 	}
-	extractRequirementsViaLLM(context.Background(), "Title", longDesc, invoke)
+	extractRequirementsViaLLM(context.Background(), nil, "Title", longDesc, invoke)
 	truncated := strings.Repeat("x", 2000)
 	if !strings.Contains(capturedPrompt, truncated) {
 		t.Errorf("expected prompt to contain 2000-char description")
@@ -204,7 +204,7 @@ func TestExtractRequirementsViaLLM_SkipsBlankLines(t *testing.T) {
 	invoke := func(_ context.Context, _ string, _ string) (*provider.Result, error) {
 		return &provider.Result{Success: true, Output: "item one\n\n\nitem two\n\nitem three\n"}, nil
 	}
-	got := extractRequirementsViaLLM(context.Background(), "Title", "desc", invoke)
+	got := extractRequirementsViaLLM(context.Background(), nil, "Title", "desc", invoke)
 	want := []string{"item one", "item two", "item three"}
 	if len(got) != len(want) {
 		t.Fatalf("got %d items, want %d: %v", len(got), len(want), got)
@@ -220,7 +220,7 @@ func TestExtractRequirementsViaLLM_ReturnsNilForFewerThanTwoItems(t *testing.T) 
 	invoke := func(_ context.Context, _ string, _ string) (*provider.Result, error) {
 		return &provider.Result{Success: true, Output: "only one item"}, nil
 	}
-	got := extractRequirementsViaLLM(context.Background(), "Title", "desc", invoke)
+	got := extractRequirementsViaLLM(context.Background(), nil, "Title", "desc", invoke)
 	if got != nil {
 		t.Fatalf("expected nil for single item, got %v", got)
 	}
@@ -230,7 +230,7 @@ func TestExtractRequirementsViaLLM_ReturnsNilOnError(t *testing.T) {
 	invoke := func(_ context.Context, _ string, _ string) (*provider.Result, error) {
 		return nil, fmt.Errorf("provider unavailable")
 	}
-	got := extractRequirementsViaLLM(context.Background(), "Title", "desc", invoke)
+	got := extractRequirementsViaLLM(context.Background(), nil, "Title", "desc", invoke)
 	if got != nil {
 		t.Fatalf("expected nil on error, got %v", got)
 	}
@@ -240,7 +240,7 @@ func TestApplyLayer3Requirements_TriggersAndReplacesOutputsWhenOnlyOneItem(t *te
 	invoke := func(_ context.Context, _ string, _ string) (*provider.Result, error) {
 		return &provider.Result{Success: true, Output: "llm req one\nllm req two"}, nil
 	}
-	got, activated := applyLayer3Requirements(context.Background(), []string{"My Title"}, "My Title", "no parseable list", invoke)
+	got, activated := applyLayer3Requirements(context.Background(), nil, []string{"My Title"}, "My Title", "no parseable list", invoke)
 	if !activated {
 		t.Fatal("expected layer3 to be activated")
 	}
@@ -262,7 +262,7 @@ func TestApplyLayer3Requirements_DoesNotTriggerWhenOutputsHasMoreThanOneItem(t *
 		called = true
 		return nil, nil
 	}
-	got, activated := applyLayer3Requirements(context.Background(), outputs, "Title", "desc", invoke)
+	got, activated := applyLayer3Requirements(context.Background(), nil, outputs, "Title", "desc", invoke)
 	if activated {
 		t.Fatal("expected layer3 NOT to be activated when outputs > 1")
 	}
@@ -279,7 +279,7 @@ func TestApplyLayer3Requirements_TitleFallbackPreservedOnLayer3Failure(t *testin
 	invoke := func(_ context.Context, _ string, _ string) (*provider.Result, error) {
 		return nil, fmt.Errorf("provider unavailable")
 	}
-	got, activated := applyLayer3Requirements(context.Background(), outputs, "My Title", "no parseable list", invoke)
+	got, activated := applyLayer3Requirements(context.Background(), nil, outputs, "My Title", "no parseable list", invoke)
 	if activated {
 		t.Fatal("expected layer3 NOT to be activated on invoke failure")
 	}
@@ -511,7 +511,7 @@ func TestExtractRequirementsViaLLM_PromptRequestsIndividualItems(t *testing.T) {
 		capturedPrompt = prompt
 		return &provider.Result{Success: true, Output: "item one\nitem two"}, nil
 	}
-	extractRequirementsViaLLM(context.Background(), "Title", "desc with formatRun, formatDuration", invoke)
+	extractRequirementsViaLLM(context.Background(), nil, "Title", "desc with formatRun, formatDuration", invoke)
 
 	requiredPhrases := []string{
 		"individual",
@@ -534,7 +534,7 @@ func TestExtractRequirementsViaLLM_PromptDoesNotGroupItems(t *testing.T) {
 		capturedPrompt = prompt
 		return &provider.Result{Success: true, Output: "a\nb"}, nil
 	}
-	extractRequirementsViaLLM(context.Background(), "Title", "desc", invoke)
+	extractRequirementsViaLLM(context.Background(), nil, "Title", "desc", invoke)
 
 	promptLower := strings.ToLower(capturedPrompt)
 	if !strings.Contains(promptLower, "do not group") {

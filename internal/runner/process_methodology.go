@@ -32,7 +32,7 @@ func resolveBuildStrategy(cfg *config.Config, b *bead.Bead) string {
 	return strategy
 }
 
-func extractRequirementsViaLLM(ctx context.Context, title, description string, invoke func(ctx context.Context, prompt, tier string) (*provider.Result, error)) []string {
+func extractRequirementsViaLLM(ctx context.Context, cfg *config.Config, title, description string, invoke func(ctx context.Context, prompt, tier string) (*provider.Result, error)) []string {
 	const maxDescLen = 2000
 	desc := description
 	if len(desc) > maxDescLen {
@@ -48,7 +48,8 @@ Do not summarize. Do not group items. Return each individual requirement on its 
 	invokeCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	result, err := invoke(invokeCtx, promptText, provider.TierLow)
+	tier := resolveUtilityTaskTier(cfg, "summarization", provider.TierLow)
+	result, err := invoke(invokeCtx, promptText, tier)
 	if err != nil {
 		return nil
 	}
