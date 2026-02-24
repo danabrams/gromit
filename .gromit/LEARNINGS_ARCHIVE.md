@@ -1,8 +1,18 @@
 # Learnings Archive
 
-Archived learnings moved from LEARNINGS.md. Last moved: 2026-02-21.
+Archived learnings moved from LEARNINGS.md. Last moved: 2026-02-24.
 
 ---
+
+### 2026-02-24 | Archived (Stale Generic/Transitional)
+
+The following learnings have been archived as generic or transitional:
+
+- **387c1483**: Generic Go language behavior (pointer receiver mutation) rather than project-specific operational knowledge.
+- **2914f3b9**: Mostly generic signature-propagation checklist; not specific enough to this codebase's recurring failure modes.
+- **c212d62c**: Already covered by existing test-quality rule on shared setup helper extraction.
+- **9575bf49**: Already codified in RULES.md (behavioral/compile-time checks over source-reading tests).
+- **8a4ea1bbdf88003f**: Transitional migration note; likely stale after adapter/path convergence.
 
 ### 2026-02-21 | Clean Exit False With Successful Iterations Suggests Post-Loop Failure | gotchas
 When analyzing Gromit failures, check both the run logs and state.json. A clean_exit=false with successful recorded iterations suggests the failure occurred during post-iteration cleanup or during the final validation gate itself, possibly a timeout or signal interruption.
