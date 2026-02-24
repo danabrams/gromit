@@ -656,3 +656,39 @@ func TestValidateBenchmarkCohort_UsesRequiredSizeFive(t *testing.T) {
 		t.Fatalf("validateBenchmarkCohort() error = %v", err)
 	}
 }
+
+func TestBenchmarkPhase3ReportCommand_DispatchesWriter(t *testing.T) {
+	called := false
+	orig := benchmarkWritePhase3MeasurementReportFn
+	t.Cleanup(func() { benchmarkWritePhase3MeasurementReportFn = orig })
+
+	benchmarkWritePhase3MeasurementReportFn = func(input benchpkg.Phase3MeasurementInput) (benchpkg.Phase3ReportPaths, error) {
+		called = true
+		if input.BaselineLogPath != "baseline.jsonl" {
+			t.Fatalf("baseline log = %q, want %q", input.BaselineLogPath, "baseline.jsonl")
+		}
+		if input.OptimizedLogPath != "optimized.jsonl" {
+			t.Fatalf("optimized log = %q, want %q", input.OptimizedLogPath, "optimized.jsonl")
+		}
+		if input.Timestamp != "20260224T124500Z" {
+			t.Fatalf("timestamp = %q, want %q", input.Timestamp, "20260224T124500Z")
+		}
+		return benchpkg.Phase3ReportPaths{}, errors.New("sentinel")
+	}
+
+	_, stderr, exitCode := runGromitCobra(t,
+		"benchmark", "phase3-report",
+		"--baseline-log", "baseline.jsonl",
+		"--optimized-log", "optimized.jsonl",
+		"--output-ts", "20260224T124500Z",
+	)
+	if !called {
+		t.Fatal("expected benchmarkWritePhase3MeasurementReportFn to be called")
+	}
+	if exitCode == 0 {
+		t.Fatalf("exitCode = %d, want non-zero", exitCode)
+	}
+	if !strings.Contains(stderr, "sentinel") {
+		t.Fatalf("stderr = %q, want to contain %q", stderr, "sentinel")
+	}
+}
