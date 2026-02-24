@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 	stdstrings "strings"
+	"time"
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/worktree"
@@ -57,8 +58,11 @@ type ModeWorktreeRequest struct {
 }
 
 type ModeWorktreeRun struct {
-	Mode    string
-	Cleanup func() error
+	Mode          string
+	RunStartedAt  time.Time
+	RunFinishedAt time.Time
+	LogPath       string
+	Cleanup       func() error
 }
 
 type ModeWorktreeRunner interface {

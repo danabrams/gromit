@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -8,8 +9,9 @@ import (
 	"strings"
 	"time"
 
+	benchpkg "github.com/danabrams/gromit/internal/benchmark"
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 )
 
 type benchmarkRunOptions struct {
@@ -27,6 +29,23 @@ var benchmarkValidateCohortFn = validateBenchmarkCohort
 var benchmarkRunHarnessFn = runBenchmarkHarness
 var benchmarkComputeMetricsFn = computeBenchmarkMetrics
 var benchmarkWriteReportFn = writeBenchmarkReport
+var benchmarkInternalLoadManifestFn = benchpkg.LoadManifest
+var benchmarkInternalResolveSelectedBeadsFn = benchpkg.ResolveSelectedBeads
+var benchmarkInternalValidateSelectedCohortFn = benchpkg.ValidateSelectedCohort
+var benchmarkInternalRunModesInIsolatedWorktreesFn = benchpkg.RunModesInIsolatedWorktrees
+var benchmarkInternalAggregateModeMetricsFn = benchpkg.AggregateModeMetrics
+var benchmarkInternalWriteReportFn = benchpkg.WriteReport
+var benchmarkNewBeadLookupFn = func() (benchpkg.BeadLookup, error) { return bead.NewClient() }
+var benchmarkNewBaseCommitResolverFn = func() benchpkg.BaseCommitResolver {
+	return benchpkg.NewGitBaseCommitResolver(nil)
+}
+var benchmarkNewModeWorktreeRunnerFn = func() benchpkg.ModeWorktreeRunner {
+	cwd, _ := os.Getwd()
+	return benchpkg.NewSessionModeWorktreeRunner(benchpkg.SessionModeWorktreeRunnerOptions{
+		MainDir: cwd,
+	})
+}
+var benchmarkNowFn = time.Now
 
 var benchmarkManifestPath string
 var benchmarkOutputTS string
@@ -58,6 +77,7 @@ type benchmarkHarnessResult struct {
 	BaseCommit    string
 	SelectedBeads []string
 	Modes         []benchmarkModeResult
+	ModeLogs      []benchpkg.ModeLogInput
 }
 
 type benchmarkModeResult struct {
@@ -67,7 +87,8 @@ type benchmarkModeResult struct {
 }
 
 type benchmarkMetricsResult struct {
-	ModeScores []benchmarkModeScore `json:"mode_scores"`
+	ModeScores    []benchmarkModeScore `json:"mode_scores"`
+	ModeSummaries []benchpkg.ModeSummary
 }
 
 type benchmarkModeScore struct {
@@ -159,90 +180,92 @@ func runBenchmarkPipeline(opts benchmarkRunOptions) error {
 }
 
 func loadBenchmarkManifest(path string) (benchmarkManifest, error) {
-	content, err := os.ReadFile(path)
+	manifest, err := benchmarkInternalLoadManifestFn(path)
 	if err != nil {
-		return benchmarkManifest{}, fmt.Errorf("read manifest: %w", err)
+		return benchmarkManifest{}, err
 	}
-
-	var manifest benchmarkManifest
-	if err := yaml.Unmarshal(content, &manifest); err != nil {
-		return benchmarkManifest{}, fmt.Errorf("parse manifest: %w", err)
-	}
-	if manifest.ID == "" {
-		return benchmarkManifest{}, fmt.Errorf("manifest id is required")
-	}
-	if len(manifest.Beads) == 0 {
-		return benchmarkManifest{}, fmt.Errorf("manifest beads is required")
-	}
-	if len(manifest.Modes) == 0 {
-		return benchmarkManifest{}, fmt.Errorf("manifest modes is required")
-	}
-	if strings.TrimSpace(manifest.Provider) == "" {
-		return benchmarkManifest{}, fmt.Errorf("provider is required")
-	}
-	if strings.TrimSpace(manifest.ModelFamily) == "" {
-		return benchmarkManifest{}, fmt.Errorf("model_family is required")
-	}
-	if strings.TrimSpace(manifest.LowTierModel) == "" {
-		return benchmarkManifest{}, fmt.Errorf("low_tier_model is required")
-	}
-	if strings.TrimSpace(manifest.MediumTierModel) == "" {
-		return benchmarkManifest{}, fmt.Errorf("medium_tier_model is required")
-	}
-	if strings.TrimSpace(manifest.HighTierModel) == "" {
-		return benchmarkManifest{}, fmt.Errorf("high_tier_model is required")
-	}
-
-	return manifest, nil
+	return benchmarkManifest{
+		ID:              manifest.ID,
+		BaseCommit:      manifest.BaseCommit,
+		Beads:           append([]string(nil), manifest.Beads...),
+		Modes:           append([]string(nil), manifest.Modes...),
+		Provider:        manifest.Provider,
+		ModelFamily:     manifest.ModelFamily,
+		LowTierModel:    manifest.LowTierModel,
+		MediumTierModel: manifest.MediumTierModel,
+		HighTierModel:   manifest.HighTierModel,
+	}, nil
 }
 
 func selectBenchmarkCohort(manifest benchmarkManifest, opts benchmarkRunOptions) (benchmarkSelection, error) {
-	selected := manifest.Beads
-	if len(opts.Beads) > 0 {
-		selected = opts.Beads
+	selected, err := benchmarkInternalResolveSelectedBeadsFn(manifest.Beads, opts.Beads, opts.BeadCount)
+	if err != nil {
+		return benchmarkSelection{}, err
 	}
-	if opts.BeadCount > 0 {
-		if opts.BeadCount > len(selected) {
-			return benchmarkSelection{}, fmt.Errorf("--bead-count %d exceeds selected cohort size %d", opts.BeadCount, len(selected))
-		}
-		selected = selected[:opts.BeadCount]
-	}
-
-	return benchmarkSelection{SelectedBeads: append([]string(nil), selected...)}, nil
+	return benchmarkSelection{SelectedBeads: selected}, nil
 }
 
 func validateBenchmarkCohort(selection benchmarkSelection) (benchmarkValidatedCohort, error) {
-	if len(selection.SelectedBeads) == 0 {
-		return benchmarkValidatedCohort{}, fmt.Errorf("selected cohort cannot be empty")
+	lookup, err := benchmarkNewBeadLookupFn()
+	if err != nil {
+		return benchmarkValidatedCohort{}, fmt.Errorf("create bead lookup: %w", err)
 	}
-	return benchmarkValidatedCohort{SelectedBeads: selection.SelectedBeads}, nil
+	selected, err := benchmarkInternalValidateSelectedCohortFn(lookup, selection.SelectedBeads, 3)
+	if err != nil {
+		return benchmarkValidatedCohort{}, err
+	}
+	return benchmarkValidatedCohort{SelectedBeads: selected}, nil
 }
 
 func runBenchmarkHarness(manifest benchmarkManifest, cohort benchmarkValidatedCohort, opts benchmarkRunOptions) (benchmarkHarnessResult, error) {
-	baseCommit := manifest.BaseCommit
-	if opts.BaseCommit != "" {
-		baseCommit = opts.BaseCommit
+	runs, baseCommit, err := benchmarkInternalRunModesInIsolatedWorktreesFn(context.Background(), benchpkg.RunModesInput{
+		Manifest: benchpkg.HarnessManifest{
+			Provider:        manifest.Provider,
+			ModelFamily:     manifest.ModelFamily,
+			LowTierModel:    manifest.LowTierModel,
+			MediumTierModel: manifest.MediumTierModel,
+			HighTierModel:   manifest.HighTierModel,
+		},
+		SelectedBeads:  append([]string(nil), cohort.SelectedBeads...),
+		BaseCommitHint: firstNonEmpty(opts.BaseCommit, manifest.BaseCommit),
+		Resolver:       benchmarkNewBaseCommitResolverFn(),
+		Runner:         benchmarkNewModeWorktreeRunnerFn(),
+	})
+	if err != nil {
+		return benchmarkHarnessResult{}, err
 	}
-
 	result := benchmarkHarnessResult{
 		BaseCommit:    baseCommit,
 		SelectedBeads: append([]string(nil), cohort.SelectedBeads...),
-		Modes:         make([]benchmarkModeResult, 0, len(manifest.Modes)),
+		Modes:         make([]benchmarkModeResult, 0, len(runs)),
+		ModeLogs:      make([]benchpkg.ModeLogInput, 0, len(runs)),
 	}
-	for _, mode := range manifest.Modes {
+	for _, run := range runs {
 		result.Modes = append(result.Modes, benchmarkModeResult{
-			Mode:          mode,
+			Mode:          run.Mode,
 			BaseCommit:    baseCommit,
 			SelectedBeads: append([]string(nil), cohort.SelectedBeads...),
 		})
+		result.ModeLogs = append(result.ModeLogs, benchpkg.ModeLogInput{
+			Mode:          run.Mode,
+			RunStartedAt:  run.RunStartedAt,
+			RunFinishedAt: run.RunFinishedAt,
+			LogPath:       run.LogPath,
+		})
 	}
-
 	return result, nil
 }
 
 func computeBenchmarkMetrics(result benchmarkHarnessResult) (benchmarkMetricsResult, error) {
-	metrics := benchmarkMetricsResult{ModeScores: make([]benchmarkModeScore, 0, len(result.Modes))}
-	for idx, mode := range result.Modes {
+	summaries, err := benchmarkInternalAggregateModeMetricsFn(result.ModeLogs)
+	if err != nil {
+		return benchmarkMetricsResult{}, err
+	}
+	metrics := benchmarkMetricsResult{
+		ModeScores:    make([]benchmarkModeScore, 0, len(summaries)),
+		ModeSummaries: summaries,
+	}
+	for idx, mode := range summaries {
 		metrics.ModeScores = append(metrics.ModeScores, benchmarkModeScore{
 			Mode:  mode.Mode,
 			Score: idx + 1,
@@ -257,9 +280,29 @@ func writeBenchmarkReport(manifest benchmarkManifest, result benchmarkHarnessRes
 		ts = time.Now().UTC().Format("20060102T150405Z")
 	}
 
-	resultDir := filepath.Join(".gromit", "benchmarks", "results", manifest.ID)
-	if err := os.MkdirAll(resultDir, 0755); err != nil {
-		return fmt.Errorf("create results directory: %w", err)
+	modeSummaries := metrics.ModeSummaries
+	if len(modeSummaries) == 0 {
+		modeSummaries = make([]benchpkg.ModeSummary, 0, len(metrics.ModeScores))
+		for _, score := range metrics.ModeScores {
+			modeSummaries = append(modeSummaries, benchpkg.ModeSummary{Mode: score.Mode})
+		}
+	}
+	_, err := benchmarkInternalWriteReportFn(benchpkg.ReportInput{
+		Timestamp: ts,
+		Manifest: benchpkg.ManifestMetadata{
+			ID:              manifest.ID,
+			BaseCommit:      result.BaseCommit,
+			Beads:           append([]string(nil), result.SelectedBeads...),
+			Provider:        manifest.Provider,
+			ModelFamily:     manifest.ModelFamily,
+			LowTierModel:    manifest.LowTierModel,
+			MediumTierModel: manifest.MediumTierModel,
+			HighTierModel:   manifest.HighTierModel,
+		},
+		Modes: modeSummaries,
+	})
+	if err != nil {
+		return err
 	}
 
 	payload := struct {
@@ -282,6 +325,10 @@ func writeBenchmarkReport(manifest benchmarkManifest, result benchmarkHarnessRes
 		SelectedBeads: append([]string(nil), result.SelectedBeads...),
 		Modes:         result.Modes,
 		Metrics:       metrics,
+	}
+	resultDir := filepath.Join(".gromit", "benchmarks", "results", manifest.ID)
+	if err := os.MkdirAll(resultDir, 0o755); err != nil {
+		return fmt.Errorf("create results directory: %w", err)
 	}
 	payload.Manifest.ID = manifest.ID
 	payload.Manifest.BaseCommit = result.BaseCommit
@@ -337,4 +384,13 @@ func parseCSV(value string) []string {
 		out = append(out, trimmed)
 	}
 	return out
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return v
+		}
+	}
+	return ""
 }
