@@ -107,3 +107,24 @@ modes:
 		t.Fatalf("LoadManifest() error = %q, want contains %q", err.Error(), "beads is required")
 	}
 }
+
+func TestLoadManifest_RequiresModes(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "manifest.yaml")
+	content := `id: tdd-vs-single-pass
+base_commit: abc123
+beads:
+  - gromit-1
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	_, err := LoadManifest(path)
+	if err == nil {
+		t.Fatal("LoadManifest() error = nil, want error")
+	}
+	if !stdstrings.Contains(err.Error(), "modes is required") {
+		t.Fatalf("LoadManifest() error = %q, want contains %q", err.Error(), "modes is required")
+	}
+}
