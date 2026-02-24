@@ -9,6 +9,18 @@ import (
 	"testing"
 )
 
+func TestLLMRunResult_HasExpectedPayloadFields(t *testing.T) {
+	result := &LLMRunResult{
+		Success:  true,
+		ExitCode: 0,
+		Output:   "ok",
+	}
+
+	if !result.Success || result.ExitCode != 0 || result.Output != "ok" {
+		t.Fatal("LLMRunResult payload fields should match existing behavior")
+	}
+}
+
 // TestClaudeClientRun_ReturnsTypedResult verifies ClaudeClient.Run returns *ClaudeRunResult instead of interface{}
 // Expected failure: ClaudeClient.Run() currently returns (interface{}, error) and ClaudeRunResult type does not exist
 func TestClaudeClientRun_ReturnsTypedResult(t *testing.T) {
