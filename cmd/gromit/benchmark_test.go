@@ -273,3 +273,20 @@ func TestBenchmarkRunCommand_RejectsEmptyBeadsOverride(t *testing.T) {
 		t.Fatalf("stderr = %q, want beads validation error", stderr)
 	}
 }
+
+func TestBenchmarkRunCommand_RejectsInvalidBaseCommit(t *testing.T) {
+	manifestPath := filepath.Join("/home/dabrams/gromit", "cmd", "gromit", "testdata", "fixtures", "benchmark", "basic.yaml")
+
+	_, stderr, exitCode := runGromitCobra(t,
+		"benchmark", "run",
+		"--manifest", manifestPath,
+		"--base-commit", " ",
+	)
+
+	if exitCode == 0 {
+		t.Fatalf("exitCode = %d, want non-zero", exitCode)
+	}
+	if !strings.Contains(stderr, "--base-commit must be a non-empty commit reference") {
+		t.Fatalf("stderr = %q, want base-commit validation error", stderr)
+	}
+}
