@@ -80,6 +80,10 @@ var benchmarkRunCmd = &cobra.Command{
 	Short:        "Run benchmark pipeline",
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		manifestPath := strings.TrimSpace(benchmarkManifestPath)
+		if manifestPath == "" {
+			return fmt.Errorf("--manifest must be a non-empty path")
+		}
 		if benchmarkBaseCommit != "" && strings.TrimSpace(benchmarkBaseCommit) == "" {
 			return fmt.Errorf("--base-commit must be a non-empty commit reference")
 		}
@@ -96,7 +100,7 @@ var benchmarkRunCmd = &cobra.Command{
 			return fmt.Errorf("--beads must include at least one bead id when provided")
 		}
 		return benchmarkRunPipelineFn(benchmarkRunOptions{
-			ManifestPath:    benchmarkManifestPath,
+			ManifestPath:    manifestPath,
 			OutputTimestamp: benchmarkOutputTS,
 			BaseCommit:      benchmarkBaseCommit,
 			Beads:           beads,
