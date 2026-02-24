@@ -409,3 +409,9 @@ func (c Config) ResolvedMethodologyAdapter() CompatibilityResolvedValue {
 func (c Config) ResolvedTrackerBackend() CompatibilityResolvedValue {
 	return c.ResolveCompatibilityContext().TrackerBackend
 }
+
+// ResolvedProfile returns the resolved project profile selector and source
+// metadata from compatibility resolution.
+func (c Config) ResolvedProfile() CompatibilityResolvedValue {
+	return c.ResolveCompatibilityContext().Profile
+}
