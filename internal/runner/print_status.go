@@ -41,6 +41,9 @@ func PrintStatus(gromitDir string, cfg *config.Config, w io.Writer, processCheck
 	if _, err := fmt.Fprintln(w, formatRun(status)); err != nil {
 		return fmt.Errorf("writing status: %w", err)
 	}
+	if _, err := fmt.Fprintln(w, formatCompatibility(cfg.ResolveCompatibilityContext())); err != nil {
+		return fmt.Errorf("writing compatibility status: %w", err)
+	}
 
 	// Pipeline section
 	var startedAt *time.Time

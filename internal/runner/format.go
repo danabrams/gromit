@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 )
@@ -142,6 +143,16 @@ func formatRun(s *Status) string {
 		lines = append(lines, fmt.Sprintf("  Recurrence: %s", rec))
 	}
 
+	return strings.Join(lines, "\n")
+}
+
+func formatCompatibility(ctx config.CompatibilityContext) string {
+	lines := []string{
+		"Compatibility:",
+		fmt.Sprintf("  Profile:  %s (source: %s)", ctx.Profile.Value, ctx.Profile.Source),
+		fmt.Sprintf("  Backend:  %s (source: %s)", ctx.TrackerBackend.Value, ctx.TrackerBackend.Source),
+		fmt.Sprintf("  Adapter:  %s (source: %s)", ctx.MethodologyAdapter.Value, ctx.MethodologyAdapter.Source),
+	}
 	return strings.Join(lines, "\n")
 }
 
