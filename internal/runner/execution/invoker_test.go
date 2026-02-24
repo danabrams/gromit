@@ -652,6 +652,59 @@ func TestInvokerExecute_CacheLookupErrorContinuesUncachedWithoutWrite(t *testing
 	}
 }
 
+func TestInvokerExecute_Integration_CacheLookupFailureFallsBackWithoutAbort(t *testing.T) {
+	cacheClass := "render_static_build"
+	cacheKey := prompt.StaticPreambleCacheKey(cacheClass, map[string]string{
+		"rules": "rules",
+		"spec":  "spec",
+	})
+
+	streamCalled := false
+	writeCalls := 0
+	cache := &mockCacheAdapter{
+		lookupFn: func(ctx context.Context, req provider.CacheLookupRequest) (*provider.CacheEntry, bool, error) {
+			if req.CacheClass != cacheClass || req.CacheKey != cacheKey {
+				t.Fatalf("lookup request = (%q,%q), want (%q,%q)", req.CacheClass, req.CacheKey, cacheClass, cacheKey)
+			}
+			return nil, false, fmt.Errorf("cache backend unavailable")
+		},
+		writeFn: func(ctx context.Context, req provider.CacheWriteRequest) error {
+			writeCalls++
+			return nil
+		},
+	}
+	mp := &mockProvider{
+		name:         "provider-cache",
+		cacheAdapter: cache,
+		streamRunFn: func(ctx context.Context, promptText, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			streamCalled = true
+			return &provider.Result{Success: true, Model: "model-cache"}, nil
+		},
+	}
+	mr := &mockRouter{
+		selectFn: func(phase, tier string) (Provider, string) {
+			return mp, "model-cache"
+		},
+	}
+	invoker := NewInvoker(mr, &bytes.Buffer{}, nil)
+
+	bc := newTestBeadContext()
+	bc.PromptCtx = &prompt.Context{
+		StaticPreambleCacheClass: cacheClass,
+		StaticPreambleCacheKey:   cacheKey,
+	}
+
+	if _, err := invoker.Execute(context.Background(), bc, "prompt"); err != nil {
+		t.Fatalf("Execute() error = %v, want nil when cache lookup fails", err)
+	}
+	if !streamCalled {
+		t.Fatal("expected provider StreamRun to execute after cache lookup failure")
+	}
+	if writeCalls != 0 {
+		t.Fatalf("cache write calls = %d, want 0 when lookup fails", writeCalls)
+	}
+}
+
 func TestInvokerExecute_EscalatedInvocationUpdatesEscalatedTo(t *testing.T) {
 	// When bc.Result.Escalated is true and EscalatedTo is set, Execute
 	// should update EscalatedTo with the concrete model name from the router.
