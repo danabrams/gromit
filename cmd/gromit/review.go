@@ -438,7 +438,7 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 		return fmt.Errorf("creating renderer: %w", err)
 	}
 
-	reviewInvoker, err := buildReviewNonInteractiveClient(cfg)
+	llmClient, err := buildReviewNonInteractiveClient(cfg)
 	if err != nil {
 		return fmt.Errorf("creating review invoker: %w", err)
 	}
@@ -464,7 +464,7 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 	learningsAdapter := &cliLearningsManager{
 		gromitDir: gromitDir,
 		runner: &pipelineLearningsRunnerAdapter{
-			client: reviewInvoker,
+			client: llmClient,
 		},
 	}
 
@@ -481,7 +481,7 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 
 	deps := &pipeline.Deps{
 		ReviewRenderer:   reviewRendererAdapter,
-		ReviewInvoker:    reviewInvoker,
+		ReviewInvoker:    llmClient,
 		BeadClient:       beadAdapter,
 		BacklogClient:    backlogAdapter,
 		LearningsManager: learningsAdapter,
@@ -537,7 +537,7 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 	return nil
 }
 
-func buildReviewNonInteractiveClient(cfg *config.Config) (pipeline.ReviewInvoker, error) {
+func buildReviewNonInteractiveClient(cfg *config.Config) (pipeline.LLMClient, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config is nil")
 	}
@@ -687,13 +687,13 @@ func (m *cliLearningsManager) Add(content string) error {
 	return err
 }
 
-// pipelineLearningsRunnerAdapter implements learnings.ClaudeRunner using pipeline.ReviewInvoker.
+// pipelineLearningsRunnerAdapter implements learnings.ClaudeRunner using pipeline.LLMClient.
 type pipelineLearningsRunnerAdapter struct {
-	client pipeline.ReviewInvoker
+	client pipeline.LLMClient
 }
 
 func (r *pipelineLearningsRunnerAdapter) Run(ctx context.Context, prompt string, model string) (*learnings.Result, error) {
-	_ = ctx // pipeline.ReviewInvoker handles its own timeout/context.
+	_ = ctx // pipeline.LLMClient handles its own timeout/context.
 	if r == nil || r.client == nil {
 		return nil, fmt.Errorf("review invoker is nil")
 	}
