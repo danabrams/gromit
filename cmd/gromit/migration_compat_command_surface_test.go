@@ -13,6 +13,7 @@ func TestDebugCompatibilityDiagnostics_CommandSurfaceSupportsLegacyAndExplicitCo
 		name            string
 		fixture         string
 		wantSubstrings  []string
+		wantAbsent      []string
 	}{
 		{
 			name:    "legacy fixture surfaces fallback diagnostics",
@@ -21,6 +22,8 @@ func TestDebugCompatibilityDiagnostics_CommandSurfaceSupportsLegacyAndExplicitCo
 				"Profile:  go (source: legacy_fallback)",
 				"Backend:  bd (source: legacy_fallback)",
 				"Adapter:  go (source: legacy_fallback)",
+				config.CompatibilityDeprecationMarkerLegacyHardcodedDefaults,
+				config.CompatibilityStrictDefaultCutoverDate,
 			},
 		},
 		{
@@ -30,6 +33,9 @@ func TestDebugCompatibilityDiagnostics_CommandSurfaceSupportsLegacyAndExplicitCo
 				"Profile:  go (source: explicit)",
 				"Backend:  bd (source: explicit)",
 				"Adapter:  go (source: explicit)",
+			},
+			wantAbsent: []string{
+				config.CompatibilityDeprecationMarkerLegacyHardcodedDefaults,
 			},
 		},
 	}
@@ -46,6 +52,11 @@ func TestDebugCompatibilityDiagnostics_CommandSurfaceSupportsLegacyAndExplicitCo
 			for _, want := range tc.wantSubstrings {
 				if !strings.Contains(got, want) {
 					t.Fatalf("diagnostics missing %q\nfull output:\n%s", want, got)
+				}
+			}
+			for _, unwanted := range tc.wantAbsent {
+				if strings.Contains(got, unwanted) {
+					t.Fatalf("diagnostics unexpectedly included %q\nfull output:\n%s", unwanted, got)
 				}
 			}
 		})
