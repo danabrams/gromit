@@ -45,6 +45,23 @@ func TestCheckBeadsIssuesPolicyRejectsMixedSemanticAndNormalizationChanges(t *te
 	}
 }
 
+func TestPreCommitRunsBeadsIssuesPolicyCheck(t *testing.T) {
+	_, thisFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", ".."))
+	preCommitPath := filepath.Join(repoRoot, ".githooks", "pre-commit")
+
+	content, err := os.ReadFile(preCommitPath)
+	if err != nil {
+		t.Fatalf("read pre-commit hook: %v", err)
+	}
+	if !strings.Contains(string(content), "./scripts/check_beads_issues_policy.sh") {
+		t.Fatalf("expected pre-commit to run beads issues policy script; hook content:\n%s", string(content))
+	}
+}
+
 func runCmd(t *testing.T, dir string, name string, args ...string) {
 	t.Helper()
 	cmd := exec.Command(name, args...)
