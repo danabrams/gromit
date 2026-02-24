@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
@@ -252,16 +251,8 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 		stopHeartbeat()
 	}
 
-	var claudeResult *claude.Result
 	if providerResult != nil {
 		bc.Result.FailureCategory = providerResult.FailureCategory
-		claudeResult = &claude.Result{
-			Success:  providerResult.Success,
-			Output:   providerResult.Output,
-			ExitCode: providerResult.ExitCode,
-			Duration: providerResult.Duration,
-			Model:    providerResult.Model,
-		}
 	}
 
 	inv.logLifecycleCompletion(p, modelName, tier, providerResult, err)
@@ -280,7 +271,6 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 	bc.Result.CacheVersionMarker = cacheVersionMarker
 
 	return &runtypes.InvocationResult{
-		Result:         claudeResult,
 		Stats:          stats,
 		StallFired:     stallFired,
 		ModelName:      modelName,
