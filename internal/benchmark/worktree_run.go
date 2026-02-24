@@ -40,7 +40,11 @@ func (r *GitBaseCommitResolver) ResolveBaseCommit(ctx context.Context, baseCommi
 	}
 	out, err := r.runGit(ctx, "rev-parse", "--verify", ref)
 	if err != nil {
-		return "", fmt.Errorf("resolve base commit %q: %w", ref, err)
+		msg := stdstrings.TrimSpace(out)
+		if msg == "" {
+			return "", fmt.Errorf("resolve base commit %q: %w", ref, err)
+		}
+		return "", fmt.Errorf("resolve base commit %q: %w: %s", ref, err, msg)
 	}
 	commit := stdstrings.TrimSpace(out)
 	if commit == "" {
