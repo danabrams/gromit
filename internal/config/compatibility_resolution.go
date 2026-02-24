@@ -6,11 +6,16 @@ const (
 	CompatibilitySourceExplicit       CompatibilitySource = "explicit"
 	CompatibilitySourceProfileDefault CompatibilitySource = "profile_default"
 	CompatibilitySourceLegacyFallback CompatibilitySource = "legacy_fallback"
+
+	// CompatibilityDeprecationMarkerLegacyHardcodedDefaults marks values resolved by
+	// legacy hard-coded compatibility shims that should be removed after migration.
+	CompatibilityDeprecationMarkerLegacyHardcodedDefaults = "compat-deprecated-legacy-hardcoded-defaults"
 )
 
 type CompatibilityResolvedValue struct {
-	Value  string
-	Source CompatibilitySource
+	Value             string
+	Source            CompatibilitySource
+	DeprecationMarker string
 }
 
 type CompatibilityContext struct {
@@ -21,8 +26,9 @@ type CompatibilityContext struct {
 
 func (c Config) ResolveCompatibilityContext() CompatibilityContext {
 	profile := CompatibilityResolvedValue{
-		Value:  "go",
-		Source: CompatibilitySourceLegacyFallback,
+		Value:             "go",
+		Source:            CompatibilitySourceLegacyFallback,
+		DeprecationMarker: CompatibilityDeprecationMarkerLegacyHardcodedDefaults,
 	}
 	if c.Project.Profile != "" {
 		profile = CompatibilityResolvedValue{
@@ -32,12 +38,14 @@ func (c Config) ResolveCompatibilityContext() CompatibilityContext {
 	}
 
 	backend := CompatibilityResolvedValue{
-		Value:  "bd",
-		Source: CompatibilitySourceLegacyFallback,
+		Value:             "bd",
+		Source:            CompatibilitySourceLegacyFallback,
+		DeprecationMarker: CompatibilityDeprecationMarkerLegacyHardcodedDefaults,
 	}
 	adapter := CompatibilityResolvedValue{
-		Value:  "go",
-		Source: CompatibilitySourceLegacyFallback,
+		Value:             "go",
+		Source:            CompatibilitySourceLegacyFallback,
+		DeprecationMarker: CompatibilityDeprecationMarkerLegacyHardcodedDefaults,
 	}
 	if profile.Source == CompatibilitySourceExplicit {
 		backend.Source = CompatibilitySourceProfileDefault
