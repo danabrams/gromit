@@ -481,7 +481,7 @@ func TestValidatePipelineDecomposeCandidates_ReturnsBeadAndBatchViolations(t *te
 		{Title: "F", ExpectedOutputs: []string{"ok"}},
 	}
 
-	result := validatePipelineDecomposeCandidates(defs)
+	result := validatePipelineDecomposeCandidates(defs, validate.MaxSubBeads)
 
 	if !containsViolationRule(result.Violations, "output_duplicate") {
 		t.Fatalf("Violations missing output_duplicate: %+v", result.Violations)
@@ -597,6 +597,7 @@ func TestDecomposeWorkflow_SkipValidationOversizedBatchErrorsWithoutCreatingBead
 	_, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:       "skip-validation-oversized",
 		SkipValidation: true,
+		MaxSubBeads:    validate.MaxSubBeads,
 	})
 	if err == nil {
 		t.Fatal("Decompose() returned nil error, want batch_size_max contract violation")
@@ -1877,6 +1878,7 @@ func TestDecomposeWorkflow_SixBeadBatchViolationRepromptsThenErrorsAtRetryCap(t 
 	_, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "big-plan",
 		MaxValidationRetries: 1,
+		MaxSubBeads:          validate.MaxSubBeads,
 	})
 	if err == nil {
 		t.Fatal("Decompose() returned nil error, want retry-cap validation error")
