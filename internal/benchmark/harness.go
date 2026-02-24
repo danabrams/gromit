@@ -3,6 +3,8 @@ package benchmark
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 )
 
 type HarnessManifest struct {
@@ -89,6 +91,11 @@ func RunModesInIsolatedWorktrees(ctx context.Context, input RunModesInput) ([]Mo
 			}
 			return nil, "", err
 		}
+		deterministicLogPath, err := persistModeLog(run.Mode, run.LogPath)
+		if err != nil {
+			return nil, "", err
+		}
+		run.LogPath = deterministicLogPath
 		if run.Cleanup != nil {
 			if err := run.Cleanup(); err != nil {
 				return nil, "", err
@@ -97,6 +104,24 @@ func RunModesInIsolatedWorktrees(ctx context.Context, input RunModesInput) ([]Mo
 		runs = append(runs, run)
 	}
 	return runs, baseCommit, nil
+}
+
+func persistModeLog(mode, sourcePath string) (string, error) {
+	if sourcePath == "" {
+		return "", nil
+	}
+	content, err := os.ReadFile(sourcePath)
+	if err != nil {
+		return "", fmt.Errorf("read mode log %q: %w", sourcePath, err)
+	}
+	destPath := filepath.Join(".gromit", "benchmarks", "logs", mode+".jsonl")
+	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
+		return "", fmt.Errorf("create benchmark logs directory: %w", err)
+	}
+	if err := os.WriteFile(destPath, content, 0o644); err != nil {
+		return "", fmt.Errorf("write deterministic mode log %q: %w", destPath, err)
+	}
+	return destPath, nil
 }
 
 func BuildModeOverlay(manifest HarnessManifest, mode string) (ModeOverlay, error) {
