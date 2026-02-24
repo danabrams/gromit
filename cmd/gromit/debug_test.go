@@ -789,6 +789,27 @@ func TestBuildDebugPrompt_IncludesCompatibilityDiagnostics(t *testing.T) {
 	}
 }
 
+func TestBuildDebugPrompt_LegacyCompatibilityUsesConfigMarkerContract(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("failed to create gromit dir: %v", err)
+	}
+
+	cfg := &config.Config{}
+	result, err := buildDebugPrompt(cfg, gromitDir, []string{}, nil)
+	if err != nil {
+		t.Fatalf("buildDebugPrompt failed: %v", err)
+	}
+
+	if !strings.Contains(result, config.CompatibilityDeprecationMarkerLegacyTrackerBackendFallback) {
+		t.Fatalf("expected compatibility diagnostic marker %q in prompt, got:\n%s", config.CompatibilityDeprecationMarkerLegacyTrackerBackendFallback, result)
+	}
+	if strings.Contains(result, "runner-deprecated-legacy-tracker-backend-fallback") {
+		t.Fatalf("expected prompt to avoid runner marker string, got:\n%s", result)
+	}
+}
+
 // TestBuildDebugPromptWithRunbookEntryDetailsSection verifies the Failure Context section
 // contains commit diff instructions, validation commands, failure output, and build prompt.
 func TestBuildDebugPromptWithRunbookEntryDetailsSection(t *testing.T) {
