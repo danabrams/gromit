@@ -12,6 +12,9 @@ const (
 	// CompatibilityDeprecationMarkerLegacyHardcodedDefaults marks values resolved by
 	// legacy hard-coded compatibility shims that should be removed after migration.
 	CompatibilityDeprecationMarkerLegacyHardcodedDefaults = "compat-deprecated-legacy-hardcoded-defaults"
+	// CompatibilityDeprecationMarkerLegacyTrackerBackendFallback marks tracker backend
+	// selection that comes from legacy fallback or profile defaults.
+	CompatibilityDeprecationMarkerLegacyTrackerBackendFallback = "compat-deprecated-legacy-tracker-backend-fallback"
 	CompatibilityStrictDefaultCutoverDate                = "2026-06-01"
 )
 
@@ -43,7 +46,7 @@ func (c Config) ResolveCompatibilityContext() CompatibilityContext {
 	backend := CompatibilityResolvedValue{
 		Value:             "bd",
 		Source:            CompatibilitySourceLegacyFallback,
-		DeprecationMarker: CompatibilityDeprecationMarkerLegacyHardcodedDefaults,
+		DeprecationMarker: CompatibilityDeprecationMarkerLegacyTrackerBackendFallback,
 	}
 	adapter := CompatibilityResolvedValue{
 		Value:             "go",
@@ -53,6 +56,7 @@ func (c Config) ResolveCompatibilityContext() CompatibilityContext {
 	if profile.Source == CompatibilitySourceExplicit {
 		backend.Source = CompatibilitySourceProfileDefault
 		adapter.Source = CompatibilitySourceProfileDefault
+		backend.DeprecationMarker = CompatibilityDeprecationMarkerLegacyTrackerBackendFallback
 	}
 	if c.Tracker.Backend != "" {
 		backend = CompatibilityResolvedValue{

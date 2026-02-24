@@ -195,8 +195,8 @@ func TestResolveCompatibilityContext_DeprecationMarkerTracksLegacyAssumptions(t 
 	if legacyResolved.Profile.DeprecationMarker != CompatibilityDeprecationMarkerLegacyHardcodedDefaults {
 		t.Fatalf("legacy Profile.DeprecationMarker = %q, want %q", legacyResolved.Profile.DeprecationMarker, CompatibilityDeprecationMarkerLegacyHardcodedDefaults)
 	}
-	if legacyResolved.TrackerBackend.DeprecationMarker != CompatibilityDeprecationMarkerLegacyHardcodedDefaults {
-		t.Fatalf("legacy TrackerBackend.DeprecationMarker = %q, want %q", legacyResolved.TrackerBackend.DeprecationMarker, CompatibilityDeprecationMarkerLegacyHardcodedDefaults)
+	if legacyResolved.TrackerBackend.DeprecationMarker != CompatibilityDeprecationMarkerLegacyTrackerBackendFallback {
+		t.Fatalf("legacy TrackerBackend.DeprecationMarker = %q, want %q", legacyResolved.TrackerBackend.DeprecationMarker, CompatibilityDeprecationMarkerLegacyTrackerBackendFallback)
 	}
 	if legacyResolved.MethodologyAdapter.DeprecationMarker != CompatibilityDeprecationMarkerLegacyHardcodedDefaults {
 		t.Fatalf("legacy MethodologyAdapter.DeprecationMarker = %q, want %q", legacyResolved.MethodologyAdapter.DeprecationMarker, CompatibilityDeprecationMarkerLegacyHardcodedDefaults)
