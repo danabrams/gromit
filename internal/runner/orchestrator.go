@@ -265,25 +265,20 @@ func (o *Orchestrator) RunSequence(
 		return fmt.Errorf("orchestrator: GetBeadByID is not configured")
 	}
 
-	sequence := make([]*bead.Bead, 0, len(beadIDs))
-	for _, id := range beadIDs {
-		b, err := o.cfg.GetBeadByID(ctx, id)
-		if err != nil {
-			return fmt.Errorf("orchestrator: resolving bead %s: %w", id, err)
-		}
-		if b == nil {
-			return fmt.Errorf("orchestrator: bead %s not found", id)
-		}
-		sequence = append(sequence, b)
-	}
-
 	index := 0
-	getFromSequence := func(_ context.Context) (*bead.Bead, error) {
-		if index >= len(sequence) {
+	getFromSequence := func(seqCtx context.Context) (*bead.Bead, error) {
+		if index >= len(beadIDs) {
 			return nil, nil
 		}
-		b := sequence[index]
+		id := beadIDs[index]
 		index++
+		b, err := o.cfg.GetBeadByID(seqCtx, id)
+		if err != nil {
+			return nil, fmt.Errorf("resolving bead %s: %w", id, err)
+		}
+		if b == nil {
+			return nil, fmt.Errorf("bead %s not found", id)
+		}
 		return b, nil
 	}
 
