@@ -142,9 +142,14 @@ func init() {
 	retroCmd.Flags().String("agent", "", "Override the default agent for this retro session")
 	retroCmd.Flags().Bool("choose-agent", false, "Show interactive picker to choose agent")
 
-	rootCmd.AddCommand(runCmd)
-	rootCmd.AddCommand(statusCmd)
-	rootCmd.AddCommand(retroCmd)
+	registerRootCommands(rootCmd)
+}
+
+func registerRootCommands(root *cobra.Command) {
+	root.AddCommand(runCmd)
+	root.AddCommand(statusCmd)
+	root.AddCommand(retroCmd)
+	registerBenchmarkCommands(root)
 }
 
 func commandRequiresRepoRoot(cmd *cobra.Command) bool {

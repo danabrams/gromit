@@ -98,9 +98,11 @@ func init() {
 	benchmarkRunCmd.Flags().StringVar(&benchmarkBeads, "beads", "", "Comma-separated ordered bead IDs to benchmark")
 	benchmarkRunCmd.Flags().IntVar(&benchmarkBeadCount, "bead-count", 0, "Optional deterministic truncation count for selected beads")
 	_ = benchmarkRunCmd.MarkFlagRequired("manifest")
+}
 
+func registerBenchmarkCommands(root *cobra.Command) {
 	benchmarkCmd.AddCommand(benchmarkRunCmd)
-	rootCmd.AddCommand(benchmarkCmd)
+	root.AddCommand(benchmarkCmd)
 }
 
 func runBenchmarkPipeline(opts benchmarkRunOptions) error {
