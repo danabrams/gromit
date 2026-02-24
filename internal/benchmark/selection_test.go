@@ -28,3 +28,16 @@ func TestResolveSelectedBeads_ReturnsErrorForEmptySelection(t *testing.T) {
 		t.Fatal("ResolveSelectedBeads() error = nil, want empty selection error")
 	}
 }
+
+func TestResolveSelectedBeads_TruncatesDeterministicallyWithBeadCount(t *testing.T) {
+	resolved, err := ResolveSelectedBeads([]string{"gromit-1", "gromit-2", "gromit-3"}, nil, 2)
+	if err != nil {
+		t.Fatalf("ResolveSelectedBeads() error = %v", err)
+	}
+	if len(resolved) != 2 {
+		t.Fatalf("resolved length = %d, want 2", len(resolved))
+	}
+	if resolved[0] != "gromit-1" || resolved[1] != "gromit-2" {
+		t.Fatalf("resolved = %v, want [gromit-1 gromit-2]", resolved)
+	}
+}
