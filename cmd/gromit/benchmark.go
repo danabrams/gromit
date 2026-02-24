@@ -80,6 +80,9 @@ var benchmarkRunCmd = &cobra.Command{
 	Short:        "Run benchmark pipeline",
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if benchmarkBaseCommit != "" && strings.TrimSpace(benchmarkBaseCommit) == "" {
+			return fmt.Errorf("--base-commit must be a non-empty commit reference")
+		}
 		if benchmarkBeadCount < 0 {
 			return fmt.Errorf("--bead-count must be zero or greater")
 		}
