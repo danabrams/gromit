@@ -144,6 +144,17 @@ func TestAdapterHelpers_UseLLMRunResultNaming(t *testing.T) {
 	}
 }
 
+func TestProviderGenericAdapter_UsesLLMRouterNaming(t *testing.T) {
+	contentStr := adapterTestReadFile(t, "adapters.go")
+
+	if !adapterTestContainsString(contentStr, "type llmRouterClientAdapter struct") {
+		t.Fatal("adapters.go should define type llmRouterClientAdapter")
+	}
+	if adapterTestContainsString(contentStr, "type providerRouterClientAdapter struct") {
+		t.Fatal("adapters.go should not define type providerRouterClientAdapter")
+	}
+}
+
 // Helper functions for string analysis
 
 func adapterTestContainsString(content, substr string) bool {
