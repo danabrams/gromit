@@ -65,10 +65,10 @@ This is a research-only spike. No production Go code is added. The deliverable i
 
 ### Files to Create
 
-- `.gromit/plans/fixtures/gemini/stream-json-success.jsonl` - Complete stream-json fixture candidate
-- `.gromit/plans/fixtures/gemini/json-success.json` - Complete json fixture candidate
-- `.gromit/plans/fixtures/gemini/errors/*.stderr.txt` - Error pattern evidence samples
-- `.gromit/plans/fixtures/gemini/commands.log` - Command ledger with timestamps and exit codes
+- `test/fixtures/gemini/stream-json-success.jsonl` - Complete stream-json fixture candidate
+- `test/fixtures/gemini/json-success.json` - Complete json fixture candidate
+- `test/fixtures/gemini/errors/*.stderr.txt` - Error pattern evidence samples
+- `test/fixtures/gemini/commands.log` - Command ledger with timestamps and exit codes
 
 ### Tradeoffs
 
@@ -118,7 +118,7 @@ This is a research-only spike. No production Go code is added. The deliverable i
 ### Test Organization
 
 - Findings: `.gromit/plans/gemini-cli-spike-findings.md`
-- Raw captures: `.gromit/plans/fixtures/gemini/`
+- Raw captures: `test/fixtures/gemini/`
 - Section format in findings: `Commands Run` -> `Observed Output` -> `Implementation Implications`
 
 ## Implementation Tasks
@@ -126,8 +126,8 @@ This is a research-only spike. No production Go code is added. The deliverable i
 ### Task 1: Preflight Gemini environment and define capture harness
 
 **Files:**
-- Create: `.gromit/plans/fixtures/gemini/commands.log`
-- Create: `.gromit/plans/fixtures/gemini/preflight.md`
+- Create: `test/fixtures/gemini/commands.log`
+- Create: `test/fixtures/gemini/preflight.md`
 
 **What to Do:**
 Establish a repeatable preflight procedure (binary/version, auth readiness, baseline command sanity) and a capture harness convention for stdout/stderr/exit code logging used by all subsequent tasks.
@@ -145,10 +145,10 @@ If preflight fails, findings must clearly separate environment blocker from Gemi
 ### Task 2: Execute prompt delivery and output-schema investigations
 
 **Files:**
-- Create: `.gromit/plans/fixtures/gemini/prompt-delivery/`
-- Create: `.gromit/plans/fixtures/gemini/stream-json-success.jsonl`
-- Create: `.gromit/plans/fixtures/gemini/json-success.json`
-- Create: `.gromit/plans/fixtures/gemini/schema-notes.md`
+- Create: `test/fixtures/gemini/prompt-delivery/`
+- Create: `test/fixtures/gemini/stream-json-success.jsonl`
+- Create: `test/fixtures/gemini/json-success.json`
+- Create: `test/fixtures/gemini/schema-notes.md`
 
 **What to Do:**
 Run and capture the first five investigation areas: prompt delivery modes, stream-json schema/events, json schema/stats, token/cost fields, and model-selection behavior (including invalid model errors).
@@ -167,9 +167,9 @@ Keep raw captures unedited; perform normalization only in derived notes.
 ### Task 3: Execute error, exit-code, permissions, and CWD investigations
 
 **Files:**
-- Create: `.gromit/plans/fixtures/gemini/errors/`
-- Create: `.gromit/plans/fixtures/gemini/permissions/permissions-notes.md`
-- Create: `.gromit/plans/fixtures/gemini/workdir/workdir-notes.md`
+- Create: `test/fixtures/gemini/errors/`
+- Create: `test/fixtures/gemini/permissions/permissions-notes.md`
+- Create: `test/fixtures/gemini/workdir/workdir-notes.md`
 
 **What to Do:**
 Run and capture the remaining areas: exit-code triggers (0/1/42/53), auth/rate-limit/transport error patterns, tool permission flags/default behavior, and working-directory semantics.
