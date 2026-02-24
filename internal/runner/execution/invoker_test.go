@@ -396,6 +396,59 @@ func TestInvokerExecute_CacheLookupHitUsesCachedPromptBeforeInvocation(t *testin
 	}
 }
 
+func TestInvokerExecute_CacheMissWritesPromptAfterInvocation(t *testing.T) {
+	callOrder := []string{}
+	var writeReq provider.CacheWriteRequest
+	cache := &mockCacheAdapter{
+		lookupFn: func(ctx context.Context, req provider.CacheLookupRequest) (*provider.CacheEntry, bool, error) {
+			callOrder = append(callOrder, "lookup")
+			return nil, false, nil
+		},
+		writeFn: func(ctx context.Context, req provider.CacheWriteRequest) error {
+			callOrder = append(callOrder, "write")
+			writeReq = req
+			return nil
+		},
+	}
+	mp := &mockProvider{
+		name:         "provider-cache",
+		cacheAdapter: cache,
+		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			callOrder = append(callOrder, "stream")
+			return &provider.Result{Success: true, Model: "model-cache"}, nil
+		},
+	}
+	mr := &mockRouter{
+		selectFn: func(phase, tier string) (Provider, string) {
+			return mp, "model-cache"
+		},
+	}
+
+	invoker := NewInvoker(mr, &bytes.Buffer{}, nil)
+	bc := newTestBeadContext()
+	bc.PromptCtx = &prompt.Context{
+		StaticPreambleCacheClass: "render_static_build",
+		StaticPreambleCacheKey:   "cache-key-2",
+	}
+
+	_, err := invoker.Execute(context.Background(), bc, "original prompt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if writeReq.CacheClass != "render_static_build" {
+		t.Fatalf("write cache class = %q, want %q", writeReq.CacheClass, "render_static_build")
+	}
+	if writeReq.CacheKey != "cache-key-2" {
+		t.Fatalf("write cache key = %q, want %q", writeReq.CacheKey, "cache-key-2")
+	}
+	if writeReq.Content != "test prompt" {
+		t.Fatalf("write content = %q, want %q", writeReq.Content, "test prompt")
+	}
+	if len(callOrder) != 3 || callOrder[0] != "lookup" || callOrder[1] != "stream" || callOrder[2] != "write" {
+		t.Fatalf("call order = %v, want [lookup stream write]", callOrder)
+	}
+}
+
 func TestInvokerExecute_EscalatedInvocationUpdatesEscalatedTo(t *testing.T) {
 	// When bc.Result.Escalated is true and EscalatedTo is set, Execute
 	// should update EscalatedTo with the concrete model name from the router.
