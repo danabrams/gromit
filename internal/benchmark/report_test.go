@@ -349,3 +349,65 @@ func TestRunPhase3Measurement_FlagsKillSwitchRollbackOnSuccessRegression(t *test
 		t.Fatalf("first rollback trigger = %q, want %q", report.Rollback.Triggers[0], "success_rate_regression")
 	}
 }
+
+func TestWritePhase3MeasurementReport_WritesReportAndRunArtifactsToReportsDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+
+	baselineLog := filepath.Join(tmpDir, "baseline.jsonl")
+	optimizedLog := filepath.Join(tmpDir, "optimized.jsonl")
+
+	baselineContent := "" +
+		"{\"iteration\":1,\"input_tokens\":100,\"cost_usd\":1.0,\"success\":true}\n" +
+		"{\"iteration\":2,\"input_tokens\":120,\"cost_usd\":1.2,\"success\":true}\n" +
+		"{\"iteration\":3,\"input_tokens\":110,\"cost_usd\":1.1,\"success\":true}\n"
+	optimizedContent := "" +
+		"{\"iteration\":1,\"input_tokens\":90,\"cost_usd\":0.9,\"success\":true,\"cache_class\":\"render_static_build\",\"cache_hit\":true}\n" +
+		"{\"iteration\":2,\"input_tokens\":95,\"cost_usd\":0.95,\"success\":true,\"cache_class\":\"render_static_build\",\"cache_hit\":false,\"cache_miss\":true}\n" +
+		"{\"iteration\":3,\"input_tokens\":92,\"cost_usd\":0.92,\"success\":true,\"cache_class\":\"utility_summarization\",\"cache_hit\":true}\n"
+
+	if err := os.WriteFile(baselineLog, []byte(baselineContent), 0o644); err != nil {
+		t.Fatalf("write baseline log: %v", err)
+	}
+	if err := os.WriteFile(optimizedLog, []byte(optimizedContent), 0o644); err != nil {
+		t.Fatalf("write optimized log: %v", err)
+	}
+
+	paths, err := WritePhase3MeasurementReport(Phase3MeasurementInput{
+		Timestamp:        "20260224T123000Z",
+		BaselineLogPath:  baselineLog,
+		OptimizedLogPath: optimizedLog,
+	})
+	if err != nil {
+		t.Fatalf("WritePhase3MeasurementReport() error = %v", err)
+	}
+
+	if _, err := os.Stat(paths.JSONPath); err != nil {
+		t.Fatalf("json report missing: %v", err)
+	}
+	if _, err := os.Stat(paths.MarkdownPath); err != nil {
+		t.Fatalf("markdown report missing: %v", err)
+	}
+	if _, err := os.Stat(paths.BaselineArtifactPath); err != nil {
+		t.Fatalf("baseline artifact missing: %v", err)
+	}
+	if _, err := os.Stat(paths.OptimizedArtifactPath); err != nil {
+		t.Fatalf("optimized artifact missing: %v", err)
+	}
+
+	md, err := os.ReadFile(paths.MarkdownPath)
+	if err != nil {
+		t.Fatalf("read markdown report: %v", err)
+	}
+
+	content := string(md)
+	for _, section := range []string{
+		"## Median Comparison",
+		"## Cache Hit Rates By Prompt Class",
+		"## Kill-Switch Rollback Assessment",
+	} {
+		if !strings.Contains(content, section) {
+			t.Fatalf("missing markdown section %q\n%s", section, content)
+		}
+	}
+}
