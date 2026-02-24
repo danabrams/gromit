@@ -4,6 +4,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/danabrams/gromit/internal/backlog"
 )
 
 func TestIdeaJSONTags(t *testing.T) {
@@ -88,5 +90,15 @@ func TestIdeaJSONKeys(t *testing.T) {
 	want := []string{"id", "text", "type", "context", "created_at", "status", "spec_name"}
 	if !reflect.DeepEqual(IdeaJSONKeys, want) {
 		t.Fatalf("IdeaJSONKeys = %#v, want %#v", IdeaJSONKeys, want)
+	}
+}
+
+func TestIdeaTypeIdentityWithBacklog(t *testing.T) {
+	t.Parallel()
+
+	var pipelineIdea *Idea
+	var backlogIdea *backlog.Idea = pipelineIdea
+	if backlogIdea != nil {
+		t.Fatal("unexpected non-nil value")
 	}
 }
