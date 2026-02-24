@@ -55,6 +55,18 @@ func TestMigrationCompatibilityContract_LegacyFixtureEmitsDeprecationWarnings(t 
 	}
 }
 
+func TestMigrationCompatibilityContract_CLIOutputShowsLegacyMarkersOnly(t *testing.T) {
+	legacy := runMigrationFixture(t, "legacy_run.yaml")
+	explicit := runMigrationFixture(t, "new_explicit_run.yaml")
+
+	if !strings.Contains(legacy.Stdout, config.CompatibilityDeprecationMarkerLegacyTrackerBackendFallback) {
+		t.Fatalf("legacy stdout missing marker %q\nstdout:\n%s", config.CompatibilityDeprecationMarkerLegacyTrackerBackendFallback, legacy.Stdout)
+	}
+	if strings.Contains(explicit.Stdout, config.CompatibilityDeprecationMarkerLegacyTrackerBackendFallback) {
+		t.Fatalf("explicit stdout unexpectedly included marker %q\nstdout:\n%s", config.CompatibilityDeprecationMarkerLegacyTrackerBackendFallback, explicit.Stdout)
+	}
+}
+
 type migrationRunResult struct {
 	ClaudeCalls int
 	Model       string
