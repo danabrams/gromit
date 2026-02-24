@@ -222,6 +222,28 @@ func TestValidateManifest_AcceptsValidManifest(t *testing.T) {
 	}
 }
 
+func TestValidateManifest_RequiresExactlyFiveBeads(t *testing.T) {
+	manifest := Manifest{
+		ID:         "tdd-vs-single-pass",
+		BaseCommit: "abc123",
+		Beads:      []string{"gromit-1", "gromit-2", "gromit-3", "gromit-4"},
+		ModeConfig: ModeConfig{
+			Modes: []string{"single_pass"},
+		},
+		ModelPinning: ModelPinning{
+			Provider:        "openai",
+			ModelFamily:     "gpt-5",
+			LowTierModel:    "gpt-5-mini",
+			MediumTierModel: "gpt-5.3-codex",
+			HighTierModel:   "gpt-5.3-codex",
+		},
+	}
+
+	if err := ValidateManifest(manifest); err == nil {
+		t.Fatal("ValidateManifest() error = nil, want exact-size bead cohort error")
+	}
+}
+
 func TestManifest_TypedModeAndModelPinningModelsExist(t *testing.T) {
 	var _ ModeConfig
 	var _ ModelPinning
