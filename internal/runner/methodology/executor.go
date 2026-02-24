@@ -319,7 +319,19 @@ func (e *Executor) CheckTestsFailWithDiagnostic(ctx context.Context, bc *runtype
 	if e.diagnosticInvokeFn == nil {
 		return fmt.Errorf("diagnostic invoke function not configured")
 	}
-	diagnosticResult, err := e.diagnosticInvokeFn(ctx, diagnosticPrompt, provider.TierLow)
+	diagnosticTier := provider.TierLow
+	if e.cfg != nil && e.cfg.TokenEfficiency.Routing.IsEnabled() {
+		if !e.cfg.TokenEfficiency.Routing.KillSwitches.DisableTaskOverrides {
+			if overrideTier, ok := e.cfg.TokenEfficiency.Routing.TaskOverrides["discovery_indexing"]; ok && overrideTier != "" {
+				diagnosticTier = provider.TierFromLegacyModel(overrideTier)
+			}
+		}
+		if diagnosticTier == provider.TierLow && e.cfg.TokenEfficiency.Routing.UtilityTier != "" {
+			diagnosticTier = provider.TierFromLegacyModel(e.cfg.TokenEfficiency.Routing.UtilityTier)
+		}
+	}
+
+	diagnosticResult, err := e.diagnosticInvokeFn(ctx, diagnosticPrompt, diagnosticTier)
 	if err != nil {
 		return ErrATDDAlreadyDone
 	}
