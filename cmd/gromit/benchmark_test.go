@@ -239,3 +239,20 @@ func TestBenchmarkRunCommand_RejectsInvalidOutputTimestamp(t *testing.T) {
 		t.Fatalf("stderr = %q, want output-ts validation error", stderr)
 	}
 }
+
+func TestBenchmarkRunCommand_RejectsNegativeBeadCount(t *testing.T) {
+	manifestPath := filepath.Join("/home/dabrams/gromit", "cmd", "gromit", "testdata", "fixtures", "benchmark", "basic.yaml")
+
+	_, stderr, exitCode := runGromitCobra(t,
+		"benchmark", "run",
+		"--manifest", manifestPath,
+		"--bead-count", "-1",
+	)
+
+	if exitCode == 0 {
+		t.Fatalf("exitCode = %d, want non-zero", exitCode)
+	}
+	if !strings.Contains(stderr, "--bead-count must be zero or greater") {
+		t.Fatalf("stderr = %q, want bead-count validation error", stderr)
+	}
+}
