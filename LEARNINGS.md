@@ -19,5 +19,15 @@ Use structured fixture assertions (parse JSON/JSONL and ledger rows) instead of 
 
 ## Provisional Learnings
 
+### 2026-02-24 | benchmark_cli_should_reuse_internal_benchmark_pipeline | ARCHITECTURE
+*Related to: gromit/review-1771893007120033611*
+
+Prefer routing benchmark CLI through the internal benchmark pipeline to prevent spec drift from duplicated manifest/selection logic.
+
+### 2026-02-24 | harness_requires_real_worktree_execution_and_log_wiring | RELIABILITY
+*Related to: gromit/review-1771893007120033611*
+
+Harness abstractions alone are insufficient; acceptance requires real worktree execution plus log wiring so metrics/reporting reflect actual runs.
+
 ## Archived Learnings
 *Moved to LEARNINGS_ARCHIVE.md to reduce prompt context overhead.*
