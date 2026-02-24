@@ -67,7 +67,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 	renderer.SetSkipBuildLearnings(cfg.Learnings.SkipBuildLearnings)
 	renderer.SetBudgetConfig(cfg.Prompt.Budget.MaxChars, cfg.Prompt.Budget.LearningCapChars)
 
-	beadsClient, err := bead.NewClient()
+	beadsClient, err := newTrackerClient(resolveTrackerBackend(cfg))
 	if err != nil {
 		return nil, err
 	}
@@ -296,6 +296,22 @@ func buildRouterAndLearningsProvider(cfg *config.Config, gromitDir string, outpu
 	}
 	claudeProvider := provider.NewClaudeProvider(claudeClient, defaultTierToModelMap)
 	return provider.NewSingleProviderRouter(claudeProvider), claudeProvider, nil, nil, nil
+}
+
+func resolveTrackerBackend(cfg *config.Config) string {
+	if cfg == nil {
+		return "bd"
+	}
+	return cfg.ResolveCompatibilityContext().TrackerBackend.Value
+}
+
+func newTrackerClient(backend string) (*bead.Client, error) {
+	switch backend {
+	case "bd":
+		return bead.NewClient()
+	default:
+		return nil, fmt.Errorf("unsupported tracker backend: %s", backend)
+	}
 }
 
 func selectLearningsProvider(providers map[string]provider.Provider) provider.Provider {
