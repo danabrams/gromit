@@ -34,3 +34,17 @@ func TestIdeaJSONTags(t *testing.T) {
 		}
 	}
 }
+
+func TestIdeaCreatedAtJSONTag(t *testing.T) {
+	t.Parallel()
+
+	ideaType := reflect.TypeOf(Idea{})
+	sf, ok := ideaType.FieldByName("CreatedAt")
+	if !ok {
+		t.Fatalf("missing field %q on Idea", "CreatedAt")
+	}
+
+	if got := sf.Tag.Get("json"); got != "created_at" {
+		t.Fatalf("Idea.CreatedAt json tag = %q, want %q", got, "created_at")
+	}
+}
