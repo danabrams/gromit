@@ -12,6 +12,11 @@ func resolveUtilityTaskTier(cfg *config.Config, taskCategory, fallbackTier strin
 	if taskCategory != "summarization" {
 		return fallbackTier
 	}
+	if !cfg.TokenEfficiency.Routing.KillSwitches.DisableTaskOverrides {
+		if overrideTier, ok := cfg.TokenEfficiency.Routing.TaskOverrides[taskCategory]; ok && overrideTier != "" {
+			return provider.TierFromLegacyModel(overrideTier)
+		}
+	}
 	if cfg.TokenEfficiency.Routing.UtilityTier == "" {
 		return fallbackTier
 	}
