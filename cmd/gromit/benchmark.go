@@ -39,6 +39,11 @@ type benchmarkManifest struct {
 	BaseCommit string   `yaml:"base_commit"`
 	Beads      []string `yaml:"beads"`
 	Modes      []string `yaml:"modes"`
+	Provider        string `yaml:"provider"`
+	ModelFamily     string `yaml:"model_family"`
+	LowTierModel    string `yaml:"low_tier_model"`
+	MediumTierModel string `yaml:"medium_tier_model"`
+	HighTierModel   string `yaml:"high_tier_model"`
 }
 
 type benchmarkSelection struct {
@@ -243,6 +248,16 @@ func writeBenchmarkReport(manifest benchmarkManifest, result benchmarkHarnessRes
 	}
 
 	payload := struct {
+		Manifest struct {
+			ID              string   `json:"id"`
+			BaseCommit      string   `json:"base_commit"`
+			Beads           []string `json:"beads"`
+			Provider        string   `json:"provider,omitempty"`
+			ModelFamily     string   `json:"model_family,omitempty"`
+			LowTierModel    string   `json:"low_tier_model,omitempty"`
+			MediumTierModel string   `json:"medium_tier_model,omitempty"`
+			HighTierModel   string   `json:"high_tier_model,omitempty"`
+		} `json:"manifest"`
 		ManifestID    string                 `json:"manifest_id"`
 		SelectedBeads []string               `json:"selected_beads"`
 		Modes         []benchmarkModeResult  `json:"modes"`
@@ -253,6 +268,14 @@ func writeBenchmarkReport(manifest benchmarkManifest, result benchmarkHarnessRes
 		Modes:         result.Modes,
 		Metrics:       metrics,
 	}
+	payload.Manifest.ID = manifest.ID
+	payload.Manifest.BaseCommit = result.BaseCommit
+	payload.Manifest.Beads = append([]string(nil), result.SelectedBeads...)
+	payload.Manifest.Provider = manifest.Provider
+	payload.Manifest.ModelFamily = manifest.ModelFamily
+	payload.Manifest.LowTierModel = manifest.LowTierModel
+	payload.Manifest.MediumTierModel = manifest.MediumTierModel
+	payload.Manifest.HighTierModel = manifest.HighTierModel
 
 	jsonBytes, err := json.MarshalIndent(payload, "", "  ")
 	if err != nil {
