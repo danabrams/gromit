@@ -200,6 +200,32 @@ func TestExtractRequirementsViaLLM_UsesUtilityRoutingTierWhenEnabled(t *testing.
 	}
 }
 
+func TestExtractRequirementsViaLLM_Integration_UsesUtilityCategoryTaskOverrideTier(t *testing.T) {
+	cfg := &config.Config{
+		TokenEfficiency: config.TokenEfficiencyConfig{
+			Routing: config.TokenEfficiencyRoutingConfig{
+				Enabled:     true,
+				UtilityTier: provider.TierLow,
+				TaskOverrides: map[string]string{
+					"summarization": provider.TierMedium,
+				},
+			},
+		},
+	}
+
+	var capturedTier string
+	invoke := func(_ context.Context, _ string, tier string) (*provider.Result, error) {
+		capturedTier = tier
+		return &provider.Result{Success: true, Output: "req one\nreq two"}, nil
+	}
+
+	extractRequirementsViaLLM(context.Background(), cfg, "Title", "desc", invoke)
+
+	if capturedTier != provider.TierMedium {
+		t.Fatalf("captured tier = %q, want %q", capturedTier, provider.TierMedium)
+	}
+}
+
 func TestExtractRequirementsViaLLM_SkipsBlankLines(t *testing.T) {
 	invoke := func(_ context.Context, _ string, _ string) (*provider.Result, error) {
 		return &provider.Result{Success: true, Output: "item one\n\n\nitem two\n\nitem three\n"}, nil
