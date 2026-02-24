@@ -20,7 +20,7 @@ func (f fakeBeadLookup) Show(id string) (*bead.Bead, error) {
 }
 
 func TestValidateSelectedCohort_EnforcesMinimumSize(t *testing.T) {
-	_, err := ValidateSelectedCohort(nil, []string{"gromit-1"}, 2)
+	_, err := ValidateSelectedCohort(nil, []string{"gromit-1"}, 2, true)
 	if err == nil {
 		t.Fatal("ValidateSelectedCohort() error = nil, want minimum size error")
 	}
@@ -39,7 +39,7 @@ func TestValidateSelectedCohort_ReturnsErrorWhenBeadDoesNotExist(t *testing.T) {
 		},
 	}
 
-	_, err := ValidateSelectedCohort(lookup, []string{"gromit-missing"}, 1)
+	_, err := ValidateSelectedCohort(lookup, []string{"gromit-missing"}, 1, true)
 	if err == nil {
 		t.Fatal("ValidateSelectedCohort() error = nil, want missing bead error")
 	}
@@ -55,7 +55,7 @@ func TestValidateSelectedCohort_ReturnsErrorWhenBeadIsClosed(t *testing.T) {
 		},
 	}
 
-	_, err := ValidateSelectedCohort(lookup, []string{"gromit-1"}, 1)
+	_, err := ValidateSelectedCohort(lookup, []string{"gromit-1"}, 1, true)
 	if err == nil {
 		t.Fatal("ValidateSelectedCohort() error = nil, want closed bead error")
 	}
@@ -85,7 +85,7 @@ func TestValidateSelectedCohort_ReturnsErrorWhenTierCoverageMissing(t *testing.T
 		},
 	}
 
-	_, err := ValidateSelectedCohort(lookup, []string{"gromit-1", "gromit-2", "gromit-3"}, 3)
+	_, err := ValidateSelectedCohort(lookup, []string{"gromit-1", "gromit-2", "gromit-3"}, 3, true)
 	if err == nil {
 		t.Fatal("ValidateSelectedCohort() error = nil, want missing-tier error")
 	}
@@ -110,7 +110,7 @@ func TestValidateSelectedCohort_ReturnsErrorForUnsupportedComplexityLabel(t *tes
 		},
 	}
 
-	_, err := ValidateSelectedCohort(lookup, []string{"gromit-1", "gromit-2", "gromit-3"}, 3)
+	_, err := ValidateSelectedCohort(lookup, []string{"gromit-1", "gromit-2", "gromit-3"}, 3, true)
 	if err == nil {
 		t.Fatal("ValidateSelectedCohort() error = nil, want unsupported complexity error")
 	}
@@ -133,8 +133,24 @@ func TestValidateSelectedCohort_RejectsSizeGreaterThanFive(t *testing.T) {
 		},
 	}
 
-	_, err := ValidateSelectedCohort(lookup, []string{"gromit-1", "gromit-2", "gromit-3", "gromit-4", "gromit-5", "gromit-6"}, 5)
+	_, err := ValidateSelectedCohort(lookup, []string{"gromit-1", "gromit-2", "gromit-3", "gromit-4", "gromit-5", "gromit-6"}, 5, true)
 	if err == nil {
 		t.Fatal("ValidateSelectedCohort() error = nil, want fixed-size cohort error")
+	}
+}
+
+func TestValidateSelectedCohort_SkipsTierCoverageWhenDisabled(t *testing.T) {
+	lookup := fakeBeadLookup{
+		showFn: func(id string) (*bead.Bead, error) {
+			return &bead.Bead{ID: id, Status: "open", Labels: []string{"complexity:urgent"}}, nil
+		},
+	}
+
+	selected, err := ValidateSelectedCohort(lookup, []string{"gromit-1"}, 1, false)
+	if err != nil {
+		t.Fatalf("ValidateSelectedCohort() error = %v", err)
+	}
+	if len(selected) != 1 || selected[0] != "gromit-1" {
+		t.Fatalf("selected = %v, want [gromit-1]", selected)
 	}
 }

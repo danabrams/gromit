@@ -76,7 +76,7 @@ func TestRunBenchmarkPipeline_ExecutesStagesInOrder(t *testing.T) {
 		order = append(order, "selection")
 		return benchmarkSelection{SelectedBeads: []string{"gromit-1", "gromit-2"}}, nil
 	}
-	benchmarkValidateCohortFn = func(selection benchmarkSelection) (benchmarkValidatedCohort, error) {
+	benchmarkValidateCohortFn = func(selection benchmarkSelection, opts benchmarkRunOptions) (benchmarkValidatedCohort, error) {
 		order = append(order, "validation")
 		return benchmarkValidatedCohort{SelectedBeads: selection.SelectedBeads}, nil
 	}
@@ -133,7 +133,7 @@ func TestRunBenchmarkPipeline_WritesDeterministicArtifacts(t *testing.T) {
 		benchmarkRunHarnessFn = origHarness
 		benchmarkComputeMetricsFn = origMetrics
 	})
-	benchmarkValidateCohortFn = func(selection benchmarkSelection) (benchmarkValidatedCohort, error) {
+	benchmarkValidateCohortFn = func(selection benchmarkSelection, opts benchmarkRunOptions) (benchmarkValidatedCohort, error) {
 		return benchmarkValidatedCohort{SelectedBeads: selection.SelectedBeads}, nil
 	}
 	benchmarkRunHarnessFn = func(manifest benchmarkManifest, cohort benchmarkValidatedCohort, opts benchmarkRunOptions) (benchmarkHarnessResult, error) {
@@ -311,7 +311,7 @@ high_tier_model: gpt-5.3-codex
 		benchmarkComputeMetricsFn = origMetrics
 	})
 
-	benchmarkValidateCohortFn = func(selection benchmarkSelection) (benchmarkValidatedCohort, error) {
+	benchmarkValidateCohortFn = func(selection benchmarkSelection, opts benchmarkRunOptions) (benchmarkValidatedCohort, error) {
 		return benchmarkValidatedCohort{SelectedBeads: selection.SelectedBeads}, nil
 	}
 	benchmarkRunHarnessFn = func(manifest benchmarkManifest, cohort benchmarkValidatedCohort, opts benchmarkRunOptions) (benchmarkHarnessResult, error) {
@@ -439,7 +439,7 @@ func TestRunBenchmarkPipeline_UsesInternalBenchmarkStagesInOrder(t *testing.T) {
 		order = append(order, "resolve")
 		return append([]string(nil), manifestBeads...), nil
 	}
-	benchmarkInternalValidateSelectedCohortFn = func(lookup benchpkg.BeadLookup, selected []string, minSize int) ([]string, error) {
+	benchmarkInternalValidateSelectedCohortFn = func(lookup benchpkg.BeadLookup, selected []string, minSize int, requireTierCoverage bool) ([]string, error) {
 		order = append(order, "validate")
 		return append([]string(nil), selected...), nil
 	}
@@ -485,7 +485,7 @@ func TestBenchmarkRunCommand_BeadOverridesDriveSelection(t *testing.T) {
 		benchmarkRunHarnessFn = origHarness
 		benchmarkComputeMetricsFn = origMetrics
 	})
-	benchmarkValidateCohortFn = func(selection benchmarkSelection) (benchmarkValidatedCohort, error) {
+	benchmarkValidateCohortFn = func(selection benchmarkSelection, opts benchmarkRunOptions) (benchmarkValidatedCohort, error) {
 		return benchmarkValidatedCohort{SelectedBeads: selection.SelectedBeads}, nil
 	}
 	benchmarkRunHarnessFn = func(manifest benchmarkManifest, cohort benchmarkValidatedCohort, opts benchmarkRunOptions) (benchmarkHarnessResult, error) {
@@ -645,16 +645,140 @@ func TestValidateBenchmarkCohort_UsesRequiredSizeFive(t *testing.T) {
 	})
 
 	benchmarkNewBeadLookupFn = func() (benchpkg.BeadLookup, error) { return nil, nil }
-	benchmarkInternalValidateSelectedCohortFn = func(lookup benchpkg.BeadLookup, selected []string, minSize int) ([]string, error) {
+	benchmarkInternalValidateSelectedCohortFn = func(lookup benchpkg.BeadLookup, selected []string, minSize int, requireTierCoverage bool) ([]string, error) {
 		if minSize != 5 {
 			t.Fatalf("minSize = %d, want 5", minSize)
+		}
+		if !requireTierCoverage {
+			t.Fatal("requireTierCoverage = false, want true")
 		}
 		return append([]string(nil), selected...), nil
 	}
 
-	_, err := validateBenchmarkCohort(benchmarkSelection{SelectedBeads: []string{"gromit-1", "gromit-2", "gromit-3", "gromit-4", "gromit-5"}})
+	_, err := validateBenchmarkCohort(benchmarkSelection{SelectedBeads: []string{"gromit-1", "gromit-2", "gromit-3", "gromit-4", "gromit-5"}}, benchmarkRunOptions{})
 	if err != nil {
 		t.Fatalf("validateBenchmarkCohort() error = %v", err)
+	}
+}
+
+func TestValidateBenchmarkCohort_UsesSingleBeadPilotConstraints(t *testing.T) {
+	origNewLookup := benchmarkNewBeadLookupFn
+	origValidate := benchmarkInternalValidateSelectedCohortFn
+	t.Cleanup(func() {
+		benchmarkNewBeadLookupFn = origNewLookup
+		benchmarkInternalValidateSelectedCohortFn = origValidate
+	})
+
+	benchmarkNewBeadLookupFn = func() (benchpkg.BeadLookup, error) { return nil, nil }
+	benchmarkInternalValidateSelectedCohortFn = func(lookup benchpkg.BeadLookup, selected []string, minSize int, requireTierCoverage bool) ([]string, error) {
+		if minSize != 1 {
+			t.Fatalf("minSize = %d, want 1", minSize)
+		}
+		if requireTierCoverage {
+			t.Fatal("requireTierCoverage = true, want false")
+		}
+		return append([]string(nil), selected...), nil
+	}
+
+	_, err := validateBenchmarkCohort(
+		benchmarkSelection{SelectedBeads: []string{"gromit-1"}},
+		benchmarkRunOptions{SingleBead: "gromit-1"},
+	)
+	if err != nil {
+		t.Fatalf("validateBenchmarkCohort() error = %v", err)
+	}
+}
+
+func TestBenchmarkRunCommand_SingleBeadPilotSelection(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+	origValidate := benchmarkValidateCohortFn
+	origHarness := benchmarkRunHarnessFn
+	origMetrics := benchmarkComputeMetricsFn
+	t.Cleanup(func() {
+		benchmarkValidateCohortFn = origValidate
+		benchmarkRunHarnessFn = origHarness
+		benchmarkComputeMetricsFn = origMetrics
+	})
+	benchmarkValidateCohortFn = func(selection benchmarkSelection, opts benchmarkRunOptions) (benchmarkValidatedCohort, error) {
+		return benchmarkValidatedCohort{SelectedBeads: selection.SelectedBeads}, nil
+	}
+	benchmarkRunHarnessFn = func(manifest benchmarkManifest, cohort benchmarkValidatedCohort, opts benchmarkRunOptions) (benchmarkHarnessResult, error) {
+		return benchmarkHarnessResult{
+			BaseCommit:    "abc123",
+			SelectedBeads: append([]string(nil), cohort.SelectedBeads...),
+			Modes: []benchmarkModeResult{
+				{Mode: "single_pass", BaseCommit: "abc123", SelectedBeads: append([]string(nil), cohort.SelectedBeads...)},
+				{Mode: "tdd_shared_context", BaseCommit: "abc123", SelectedBeads: append([]string(nil), cohort.SelectedBeads...)},
+				{Mode: "tdd_fresh_context", BaseCommit: "abc123", SelectedBeads: append([]string(nil), cohort.SelectedBeads...)},
+			},
+		}, nil
+	}
+	benchmarkComputeMetricsFn = func(result benchmarkHarnessResult) (benchmarkMetricsResult, error) {
+		return benchmarkMetricsResult{ModeSummaries: []benchpkg.ModeSummary{{Mode: "single_pass"}}}, nil
+	}
+
+	manifestPath := filepath.Join("/home/dabrams/gromit", "cmd", "gromit", "testdata", "fixtures", "benchmark", "basic.yaml")
+	_, stderr, exitCode := runGromitCobra(t,
+		"benchmark", "run",
+		"--manifest", manifestPath,
+		"--single-bead", "gromit-9",
+		"--output-ts", "20260224T150000Z",
+	)
+	if exitCode != 0 {
+		t.Fatalf("benchmark run exitCode = %d, stderr = %q", exitCode, stderr)
+	}
+
+	jsonPath := filepath.Join(".gromit", "benchmarks", "results", "tdd-vs-single-pass", "20260224T150000Z.json")
+	reportBytes, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("read report json: %v", err)
+	}
+
+	var payload struct {
+		Manifest struct {
+			Beads []string `json:"beads"`
+		} `json:"manifest"`
+	}
+	if err := json.Unmarshal(reportBytes, &payload); err != nil {
+		t.Fatalf("unmarshal report json: %v", err)
+	}
+	if strings.Join(payload.Manifest.Beads, ",") != "gromit-9" {
+		t.Fatalf("manifest.beads = %v, want [gromit-9]", payload.Manifest.Beads)
+	}
+}
+
+func TestBenchmarkRunCommand_RejectsSingleBeadWithBeadsOverride(t *testing.T) {
+	manifestPath := filepath.Join("/home/dabrams/gromit", "cmd", "gromit", "testdata", "fixtures", "benchmark", "basic.yaml")
+
+	_, stderr, exitCode := runGromitCobra(t,
+		"benchmark", "run",
+		"--manifest", manifestPath,
+		"--single-bead", "gromit-1",
+		"--beads", "gromit-1,gromit-2,gromit-3,gromit-4,gromit-5",
+	)
+	if exitCode == 0 {
+		t.Fatalf("exitCode = %d, want non-zero", exitCode)
+	}
+	if !strings.Contains(stderr, "--single-bead cannot be combined with --beads") {
+		t.Fatalf("stderr = %q, want single-bead/beads validation error", stderr)
+	}
+}
+
+func TestBenchmarkRunCommand_RejectsSingleBeadWithBeadCount(t *testing.T) {
+	manifestPath := filepath.Join("/home/dabrams/gromit", "cmd", "gromit", "testdata", "fixtures", "benchmark", "basic.yaml")
+
+	_, stderr, exitCode := runGromitCobra(t,
+		"benchmark", "run",
+		"--manifest", manifestPath,
+		"--single-bead", "gromit-1",
+		"--bead-count", "1",
+	)
+	if exitCode == 0 {
+		t.Fatalf("exitCode = %d, want non-zero", exitCode)
+	}
+	if !strings.Contains(stderr, "--single-bead cannot be combined with --bead-count") {
+		t.Fatalf("stderr = %q, want single-bead/bead-count validation error", stderr)
 	}
 }
 
