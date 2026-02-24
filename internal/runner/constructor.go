@@ -47,6 +47,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 	if output == nil {
 		output = os.Stdout
 	}
+	emitStartupCompatibilityDeprecationWarning(cfg, output)
 
 	iterationLogger, err := logger.NewLogger(cfg.Paths.Logs)
 	if err != nil {
@@ -215,6 +216,28 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 	}
 
 	return NewOrchestrator(orchCfg), nil
+}
+
+func emitStartupCompatibilityDeprecationWarning(cfg *config.Config, output io.Writer) {
+	if cfg == nil || output == nil {
+		return
+	}
+
+	ctx := cfg.ResolveCompatibilityContext()
+	markers := config.CompatibilityDeprecationMarkers(ctx)
+	if marker := resolveTrackerBackendDeprecationMarker(cfg); marker != "" {
+		markers = append(markers, marker)
+	}
+	if len(markers) == 0 {
+		return
+	}
+
+	_, _ = fmt.Fprintf(
+		output,
+		"Warning: %s active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after %s)\n",
+		strings.Join(markers, ", "),
+		config.CompatibilityStrictDefaultCutoverDate,
+	)
 }
 
 func resolveSingleSpecProgressLabel(labels []string) string {
