@@ -23,12 +23,15 @@ type Paths struct {
 	EpicsDir  string
 }
 
-// ClaudeRunResult holds the fields the pipeline needs from a Claude invocation.
-type ClaudeRunResult struct {
+// LLMRunResult holds the fields the pipeline needs from an LLM invocation.
+type LLMRunResult struct {
 	Success  bool
 	ExitCode int
 	Output   string
 }
+
+// ClaudeRunResult is kept as an alias for compatibility.
+type ClaudeRunResult = LLMRunResult
 
 // BeadInfo holds the fields the pipeline needs from a bead operation.
 type BeadInfo struct {
