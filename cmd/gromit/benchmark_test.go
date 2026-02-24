@@ -256,3 +256,20 @@ func TestBenchmarkRunCommand_RejectsNegativeBeadCount(t *testing.T) {
 		t.Fatalf("stderr = %q, want bead-count validation error", stderr)
 	}
 }
+
+func TestBenchmarkRunCommand_RejectsEmptyBeadsOverride(t *testing.T) {
+	manifestPath := filepath.Join("/home/dabrams/gromit", "cmd", "gromit", "testdata", "fixtures", "benchmark", "basic.yaml")
+
+	_, stderr, exitCode := runGromitCobra(t,
+		"benchmark", "run",
+		"--manifest", manifestPath,
+		"--beads", ", ,",
+	)
+
+	if exitCode == 0 {
+		t.Fatalf("exitCode = %d, want non-zero", exitCode)
+	}
+	if !strings.Contains(stderr, "--beads must include at least one bead id when provided") {
+		t.Fatalf("stderr = %q, want beads validation error", stderr)
+	}
+}
