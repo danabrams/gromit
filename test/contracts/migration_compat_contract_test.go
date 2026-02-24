@@ -58,6 +58,7 @@ func TestMigrationCompatibilityContract_LegacyFixtureEmitsDeprecationWarnings(t 
 type migrationRunResult struct {
 	ClaudeCalls int
 	Model       string
+	Stderr      string
 }
 
 func runMigrationFixture(t *testing.T, fixtureName string) migrationRunResult {
@@ -104,6 +105,7 @@ func runMigrationFixture(t *testing.T, fixtureName string) migrationRunResult {
 	if len(calls) > 0 {
 		result.Model = modelFlagValue(calls[0])
 	}
+	result.Stderr = stderr
 	return result
 }
 
