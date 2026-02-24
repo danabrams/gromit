@@ -282,12 +282,12 @@ func (b *backlogAdapter) Get(id string) (*pipeline.Idea, error) {
 }
 
 func (b *backlogAdapter) Add(item *pipeline.Idea) error {
-	// Note: CreatedAt and ID generation handled by caller
 	return b.file.Add(&backlog.Idea{
 		ID:       item.ID,
 		Text:     item.Text,
 		Type:     item.Type,
 		Context:  item.Context,
+		CreatedAt: item.CreatedAt,
 		Status:   item.Status,
 		SpecName: item.SpecName,
 	})
