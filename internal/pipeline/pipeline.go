@@ -79,6 +79,7 @@ type LogEntry struct {
 // Deps contains all dependencies for pipeline workflows.
 type Deps struct {
 	AgentResolver     AgentResolver
+	LLMClient         LLMClient
 	ClaudeClient      ClaudeClient
 	ReviewInvoker     ReviewInvoker
 	BeadClient        BeadClient
@@ -118,6 +119,11 @@ type Agent interface {
 	Name() string
 	Launch(promptPath string) error
 	LaunchInDir(promptPath, dir string) error
+}
+
+// LLMClient abstracts LLM CLI operations for non-interactive workflows.
+type LLMClient interface {
+	Run(prompt string, model string) (*ClaudeRunResult, error)
 }
 
 // ClaudeClient abstracts Claude CLI operations for non-interactive workflows.
