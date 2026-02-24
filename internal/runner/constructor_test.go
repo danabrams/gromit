@@ -403,6 +403,17 @@ func TestOptionalTDDCycleRunner_ReturnsAdapterWhenFreshContextEnabled(t *testing
 	}
 }
 
+func TestOptionalTDDCycleRunner_ReturnsNilWhenMethodologyAdapterIsNonGo(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Methodology.FreshContextPerCycle = true
+	cfg.Methodology.Adapter = "python"
+
+	result := optionalTDDCycleRunner(cfg, nil, nil, io.Discard)
+	if result != nil {
+		t.Fatalf("optionalTDDCycleRunner returned %T, want nil when methodology adapter is non-go", result)
+	}
+}
+
 // TestFailureLearnerAdapter_ForwardsFailureOutput verifies that the failureOutput
 // string passed to ExtractFailureLearning reaches the analyzer.Analyze call.
 func TestFailureLearnerAdapter_ForwardsFailureOutput(t *testing.T) {
