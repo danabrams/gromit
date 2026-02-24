@@ -100,3 +100,25 @@ func TestResolveUtilityTaskTier_KillSwitchAndNonUtilityFallbacks(t *testing.T) {
 		}
 	}
 }
+
+func TestResolveUtilityTaskTier_Integration_BuildAndCodegenRemainOnFallbackTier(t *testing.T) {
+	cfg := &config.Config{
+		TokenEfficiency: config.TokenEfficiencyConfig{
+			Routing: config.TokenEfficiencyRoutingConfig{
+				Enabled:     true,
+				UtilityTier: provider.TierLow,
+				TaskOverrides: map[string]string{
+					"build":   provider.TierLow,
+					"codegen": provider.TierLow,
+				},
+			},
+		},
+	}
+
+	for _, category := range []string{"build", "codegen"} {
+		got := resolveUtilityTaskTier(cfg, category, provider.TierHigh)
+		if got != provider.TierHigh {
+			t.Fatalf("resolveUtilityTaskTier(%q) = %q, want fallback %q", category, got, provider.TierHigh)
+		}
+	}
+}
