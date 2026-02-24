@@ -35,7 +35,7 @@ func TestGeminiSpikeFindingsDocument_ContainsRequiredStructureAndRecommendations
 		".gromit/plans/fixtures/gemini/stream-json-success.jsonl",
 		".gromit/plans/fixtures/gemini/json-success.json",
 		".gromit/plans/fixtures/gemini/commands.log",
-		".gromit/plans/fixtures/gemini/errors/",
+		".gromit/plans/fixtures/gemini/errors/command-missing.stderr.txt",
 	} {
 		if !strings.Contains(body, ref) {
 			t.Fatalf("findings document must reference %q", ref)
