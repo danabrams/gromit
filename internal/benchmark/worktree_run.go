@@ -354,6 +354,20 @@ func applyBenchmarkOverlayToConfig(cfg *config.Config, overlay ModeOverlay) (*co
 	cloned.Validation.NonInteractive = &validationNonInteractive
 	runFinalFullGate := true
 	cloned.Validation.RunFinalFullGate = &runFinalFullGate
+	// Keep benchmark mode runs bounded so one stalled provider call does not
+	// block report generation for an extended period.
+	if cloned.Claude.Timeout <= 0 || cloned.Claude.Timeout > 360 {
+		cloned.Claude.Timeout = 360
+	}
+	if cloned.Claude.StallTimeout <= 0 || cloned.Claude.StallTimeout > 120 {
+		cloned.Claude.StallTimeout = 120
+	}
+	if cloned.Claude.StallTimeoutActive <= 0 || cloned.Claude.StallTimeoutActive > 240 {
+		cloned.Claude.StallTimeoutActive = 240
+	}
+	if cloned.Claude.BeadTimeout <= 0 || cloned.Claude.BeadTimeout > 900 {
+		cloned.Claude.BeadTimeout = 900
+	}
 
 	// Pin to one provider and manifest tier models.
 	pinned := config.ProviderDef{

@@ -48,7 +48,7 @@ func TestBuildModeOverlay_PinsProviderAndModelFamilyAcrossModes(t *testing.T) {
 	}
 }
 
-func TestBuildModeOverlay_UsesLowTierDefaultsForBuildAndValidation(t *testing.T) {
+func TestBuildModeOverlay_UsesExpectedTierDefaultsForBuildAndValidation(t *testing.T) {
 	manifest := HarnessManifest{
 		Provider:        "openai",
 		ModelFamily:     "gpt-5",
@@ -57,16 +57,21 @@ func TestBuildModeOverlay_UsesLowTierDefaultsForBuildAndValidation(t *testing.T)
 		HighTierModel:   "gpt-5.3-codex",
 	}
 
-	for _, mode := range []string{"single_pass", "tdd_shared_context", "tdd_fresh_context"} {
+	cases := map[string]string{
+		"single_pass":       "low",
+		"tdd_shared_context": "low",
+		"tdd_fresh_context":  "medium",
+	}
+	for mode, expectedTier := range cases {
 		overlay, err := BuildModeOverlay(manifest, mode)
 		if err != nil {
 			t.Fatalf("BuildModeOverlay(%q) error = %v", mode, err)
 		}
-		if overlay.BuildTierDefault != "low" {
-			t.Fatalf("mode %q build tier default = %q, want %q", mode, overlay.BuildTierDefault, "low")
+		if overlay.BuildTierDefault != expectedTier {
+			t.Fatalf("mode %q build tier default = %q, want %q", mode, overlay.BuildTierDefault, expectedTier)
 		}
-		if overlay.ValidationTierDefault != "low" {
-			t.Fatalf("mode %q validation tier default = %q, want %q", mode, overlay.ValidationTierDefault, "low")
+		if overlay.ValidationTierDefault != expectedTier {
+			t.Fatalf("mode %q validation tier default = %q, want %q", mode, overlay.ValidationTierDefault, expectedTier)
 		}
 	}
 }

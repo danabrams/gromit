@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -124,12 +125,34 @@ func buildRenderGreenFn(cfg *config.Config, renderer *prompt.Renderer) tdd.Rende
 
 func buildInvokeFn(router *provider.Router, output io.Writer) tdd.InvokeFn {
 	return func(ctx context.Context, promptText, tier string) error {
-		p, _ := router.Select("build", tier)
+		p, model := router.Select("build", tier)
 		if p == nil {
 			return fmt.Errorf("no provider available for tier %s", tier)
 		}
-		result, err := p.StreamRun(ctx, promptText, tier, output, nil, nil)
+		invokeCtx := ctx
+		cancel := func() {}
+		if timeout := resolveTDDPhaseInvocationTimeout(model); timeout > 0 {
+			invokeCtx, cancel = context.WithTimeout(ctx, timeout)
+		}
+		defer cancel()
+
+		result, err := p.StreamRun(invokeCtx, promptText, tier, output, nil, nil)
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("phase invocation timed out after %s", resolveTDDPhaseInvocationTimeout(model))
+		}
 		return streamRunFailureError(result, err)
+	}
+}
+
+func resolveTDDPhaseInvocationTimeout(model string) time.Duration {
+	trimmed := strings.TrimSpace(strings.ToLower(model))
+	switch {
+	case strings.Contains(trimmed, "mini"):
+		return 3 * time.Minute
+	case strings.Contains(trimmed, "codex"), strings.Contains(trimmed, "sonnet"):
+		return 6 * time.Minute
+	default:
+		return 6 * time.Minute
 	}
 }
 

@@ -412,8 +412,8 @@ func TestApplyBenchmarkOverlayToConfig_PinsProviderAndEnforcesTierPolicies(t *te
 	if !got.Methodology.FreshContextPerCycle {
 		t.Fatal("fresh_context_per_cycle = false, want true")
 	}
-	if got.Methodology.PhaseModels.Build != "low" {
-		t.Fatalf("phase_models.build = %q, want %q", got.Methodology.PhaseModels.Build, "low")
+	if got.Methodology.PhaseModels.Build != "medium" {
+		t.Fatalf("phase_models.build = %q, want %q", got.Methodology.PhaseModels.Build, "medium")
 	}
 	if got.Review.Tier != "high" {
 		t.Fatalf("review.tier = %q, want %q", got.Review.Tier, "high")

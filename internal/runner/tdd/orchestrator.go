@@ -216,17 +216,8 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 		return fmt.Errorf("green prompt render: %w", err)
 	}
 
-	if err := o.runPhaseInvocation(ctx, bc, greenPrompt, "green"); err != nil {
+	if err := o.runGreenPhaseUntilValidated(ctx, bc, state.CycleNumber+1, greenPrompt); err != nil {
 		return err
-	}
-
-	// VALIDATE GREEN: expect tests to pass
-	_, passed, err = o.validateFn(ctx, nil, "")
-	if err != nil {
-		return fmt.Errorf("green validation: %w", err)
-	}
-	if !passed {
-		return fmt.Errorf("green validation failed: tests still failing after green phase")
 	}
 	o.logPhase(state.CycleNumber+1, "green-pass", "tests passing")
 
@@ -237,6 +228,42 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 	// Advance state
 	*state = AssembleCycleState(*state, "")
 	return nil
+}
+
+func (o *CycleOrchestrator) runGreenPhaseUntilValidated(
+	ctx context.Context,
+	bc *runtypes.BeadContext,
+	cycleNumber int,
+	greenPrompt string,
+) error {
+	if err := o.runPhaseInvocation(ctx, bc, greenPrompt, "green"); err != nil {
+		return err
+	}
+
+	for {
+		// VALIDATE GREEN: expect tests to pass
+		_, passed, err := o.validateFn(ctx, nil, "")
+		if err != nil {
+			return fmt.Errorf("green validation: %w", err)
+		}
+		if passed {
+			return nil
+		}
+
+		if o.escalateTierFn == nil {
+			return fmt.Errorf("green validation failed: tests still failing after green phase")
+		}
+		nextTier := o.escalateTierFn(bc.Tier)
+		if nextTier == "" || nextTier == bc.Tier {
+			return fmt.Errorf("green validation failed: tests still failing after green phase")
+		}
+
+		bc.Tier = nextTier
+		o.logPhase(cycleNumber, "green-retry", fmt.Sprintf("green validation failed, retrying at tier %s", nextTier))
+		if err := o.runPhaseInvocation(ctx, bc, greenPrompt, "green"); err != nil {
+			return err
+		}
+	}
 }
 
 func (o *CycleOrchestrator) runRefactorAndFinalValidation(ctx context.Context, bc *runtypes.BeadContext, cycleNumber int) error {

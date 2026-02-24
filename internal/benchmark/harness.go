@@ -209,8 +209,8 @@ func BuildModeOverlay(manifest HarnessManifest, mode string) (ModeOverlay, error
 			},
 			BuildStrategy:         "tdd",
 			FreshContextPerCycle:  true,
-			BuildTierDefault:      "low",
-			ValidationTierDefault: "low",
+			BuildTierDefault:      "medium",
+			ValidationTierDefault: "medium",
 			FinalReview: FinalReviewPolicy{
 				Enabled:        true,
 				NonInteractive: true,
