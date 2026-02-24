@@ -1,0 +1,8 @@
+project:
+  profile: go
+
+tracker:
+  backend: bd
+
+methodology:
+  adapter: go
