@@ -4372,8 +4372,8 @@ func TestValidationConfig_MaxSubBeadsDefaults(t *testing.T) {
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
 
-	if cfg.Validation.PlanMaxSubBeads != DefaultMaxSubBeads {
-		t.Fatalf("PlanMaxSubBeads = %d, want %d", cfg.Validation.PlanMaxSubBeads, DefaultMaxSubBeads)
+	if cfg.Validation.PlanMaxSubBeads == nil || *cfg.Validation.PlanMaxSubBeads != DefaultMaxSubBeads {
+		t.Fatalf("PlanMaxSubBeads = %v, want %d", cfg.Validation.PlanMaxSubBeads, DefaultMaxSubBeads)
 	}
 	if cfg.Validation.RuntimeMaxSubBeads != DefaultMaxSubBeads {
 		t.Fatalf("RuntimeMaxSubBeads = %d, want %d", cfg.Validation.RuntimeMaxSubBeads, DefaultMaxSubBeads)
@@ -4396,8 +4396,8 @@ validation:
 	if err != nil {
 		t.Fatalf("loading config: %v", err)
 	}
-	if cfg.Validation.PlanMaxSubBeads != 0 {
-		t.Fatalf("PlanMaxSubBeads = %d, want 0", cfg.Validation.PlanMaxSubBeads)
+	if cfg.Validation.PlanMaxSubBeads == nil || *cfg.Validation.PlanMaxSubBeads != 0 {
+		t.Fatalf("PlanMaxSubBeads = %v, want 0", cfg.Validation.PlanMaxSubBeads)
 	}
 	if cfg.Validation.RuntimeMaxSubBeads != 10 {
 		t.Fatalf("RuntimeMaxSubBeads = %d, want 10", cfg.Validation.RuntimeMaxSubBeads)
