@@ -35,26 +35,43 @@ func LoadManifest(path string) (Manifest, error) {
 	if err := yaml.Unmarshal(data, &manifest); err != nil {
 		return Manifest{}, fmt.Errorf("parse manifest %q: %w", path, err)
 	}
-	if manifest.ID == "" {
-		return Manifest{}, fmt.Errorf("validate manifest %q: id is required", path)
-	}
-	if len(manifest.Beads) == 0 {
-		return Manifest{}, fmt.Errorf("validate manifest %q: beads is required", path)
-	}
-	if len(manifest.Modes) == 0 {
-		return Manifest{}, fmt.Errorf("validate manifest %q: modes is required", path)
-	}
-	if manifest.Provider == "" {
-		return Manifest{}, fmt.Errorf("validate manifest %q: provider is required", path)
-	}
-	if manifest.HighTierModel == "" {
-		return Manifest{}, fmt.Errorf("validate manifest %q: high_tier_model is required", path)
-	}
-	for _, mode := range manifest.Modes {
-		if _, ok := allowedBenchmarkModes[mode]; !ok {
-			return Manifest{}, fmt.Errorf("validate manifest %q: unsupported mode %q", path, mode)
-		}
+	if err := ValidateManifest(manifest); err != nil {
+		return Manifest{}, fmt.Errorf("validate manifest %q: %w", path, err)
 	}
 
 	return manifest, nil
+}
+
+func ValidateManifest(manifest Manifest) error {
+	if manifest.ID == "" {
+		return fmt.Errorf("id is required")
+	}
+	if len(manifest.Beads) == 0 {
+		return fmt.Errorf("beads is required")
+	}
+	if len(manifest.Modes) == 0 {
+		return fmt.Errorf("modes is required")
+	}
+	if manifest.Provider == "" {
+		return fmt.Errorf("provider is required")
+	}
+	if manifest.ModelFamily == "" {
+		return fmt.Errorf("model_family is required")
+	}
+	if manifest.LowTierModel == "" {
+		return fmt.Errorf("low_tier_model is required")
+	}
+	if manifest.MediumTierModel == "" {
+		return fmt.Errorf("medium_tier_model is required")
+	}
+	if manifest.HighTierModel == "" {
+		return fmt.Errorf("high_tier_model is required")
+	}
+	for _, mode := range manifest.Modes {
+		if _, ok := allowedBenchmarkModes[mode]; !ok {
+			return fmt.Errorf("unsupported mode %q", mode)
+		}
+	}
+
+	return nil
 }
