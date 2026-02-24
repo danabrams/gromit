@@ -62,6 +62,27 @@ func TestPreCommitRunsBeadsIssuesPolicyCheck(t *testing.T) {
 	}
 }
 
+func TestMakefileDefinesBeadsIssuesPolicyGuard(t *testing.T) {
+	_, thisFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", ".."))
+	makefilePath := filepath.Join(repoRoot, "Makefile")
+
+	content, err := os.ReadFile(makefilePath)
+	if err != nil {
+		t.Fatalf("read Makefile: %v", err)
+	}
+	makefile := string(content)
+	if !strings.Contains(makefile, "beads-issues-policy-guard:") {
+		t.Fatalf("expected Makefile target beads-issues-policy-guard, got:\n%s", makefile)
+	}
+	if !strings.Contains(makefile, "./scripts/check_beads_issues_policy.sh") {
+		t.Fatalf("expected Makefile to invoke beads issues policy script, got:\n%s", makefile)
+	}
+}
+
 func runCmd(t *testing.T, dir string, name string, args ...string) {
 	t.Helper()
 	cmd := exec.Command(name, args...)
