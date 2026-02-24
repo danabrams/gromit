@@ -306,3 +306,46 @@ func TestRunPhase3Measurement_ComputesMediansAndCacheHitRatesByPromptClass(t *te
 		t.Fatalf("cache hit-rate utility_summarization = %v, want 1.0", report.CacheHitRatesByClass["utility_summarization"])
 	}
 }
+
+func TestRunPhase3Measurement_FlagsKillSwitchRollbackOnSuccessRegression(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+
+	baselineLog := filepath.Join(tmpDir, "baseline.jsonl")
+	optimizedLog := filepath.Join(tmpDir, "optimized.jsonl")
+
+	baselineContent := "" +
+		"{\"iteration\":1,\"input_tokens\":100,\"cost_usd\":1.0,\"success\":true}\n" +
+		"{\"iteration\":2,\"input_tokens\":120,\"cost_usd\":1.2,\"success\":true}\n" +
+		"{\"iteration\":3,\"input_tokens\":110,\"cost_usd\":1.1,\"success\":true}\n"
+	optimizedContent := "" +
+		"{\"iteration\":1,\"input_tokens\":90,\"cost_usd\":0.9,\"success\":false}\n" +
+		"{\"iteration\":2,\"input_tokens\":95,\"cost_usd\":0.95,\"success\":false}\n" +
+		"{\"iteration\":3,\"input_tokens\":92,\"cost_usd\":0.92,\"success\":true}\n"
+
+	if err := os.WriteFile(baselineLog, []byte(baselineContent), 0o644); err != nil {
+		t.Fatalf("write baseline log: %v", err)
+	}
+	if err := os.WriteFile(optimizedLog, []byte(optimizedContent), 0o644); err != nil {
+		t.Fatalf("write optimized log: %v", err)
+	}
+
+	report, err := RunPhase3Measurement(Phase3MeasurementInput{
+		Timestamp:        "20260224T121500Z",
+		BaselineLogPath:  baselineLog,
+		OptimizedLogPath: optimizedLog,
+	})
+	if err != nil {
+		t.Fatalf("RunPhase3Measurement() error = %v", err)
+	}
+
+	if !report.Rollback.KillSwitchRecommended {
+		t.Fatal("KillSwitchRecommended = false, want true")
+	}
+	if len(report.Rollback.Triggers) == 0 {
+		t.Fatal("rollback triggers = empty, want non-empty")
+	}
+	if report.Rollback.Triggers[0] != "success_rate_regression" {
+		t.Fatalf("first rollback trigger = %q, want %q", report.Rollback.Triggers[0], "success_rate_regression")
+	}
+}
