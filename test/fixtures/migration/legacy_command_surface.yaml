@@ -1,0 +1,5 @@
+models:
+  p0: opus
+  p1: sonnet
+  p2: haiku
+  validation: haiku
