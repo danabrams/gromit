@@ -208,7 +208,7 @@ func defaultCheckoutBaseCommitInWorktree(ctx context.Context, worktreeDir, baseC
 }
 
 func defaultSessionCleanup(mainDir, sessionDir string) error {
-	cmd := exec.Command("git", "worktree", "remove", sessionDir)
+	cmd := exec.Command("git", "worktree", "remove", "--force", sessionDir)
 	cmd.Dir = mainDir
 	if output, err := cmd.CombinedOutput(); err != nil {
 		msg := stdstrings.TrimSpace(string(output))
