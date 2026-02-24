@@ -1,2 +1,2 @@
 /tmp
-/home/dabrams/gromit/.gromit/plans/fixtures/gemini/preflight.md
+/home/dabrams/gromit/test/fixtures/gemini/preflight.md

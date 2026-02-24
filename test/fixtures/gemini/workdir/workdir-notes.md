@@ -9,7 +9,7 @@ This fixture records command-backed working directory behavior observed in a non
 ## Commands
 
 1. `pwd`
-2. `cd /tmp && pwd && ls /home/dabrams/gromit/.gromit/plans/fixtures/gemini/preflight.md`
+2. `cd /tmp && pwd && ls /home/dabrams/gromit/test/fixtures/gemini/preflight.md`
 3. `d=$(mktemp -d); cd "$d" && pwd && ls preflight.md`
 
 ## Raw Evidence

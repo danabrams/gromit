@@ -7,7 +7,7 @@ timestamp=2026-02-23T22:23:07Z command="touch /root/gromit-permissions-check # p
 timestamp=2026-02-23T22:23:07Z command="sh -c "d=$(mktemp -d); chmod 000 \"$d\"; ls \"$d\"" # permissions" exit_code=2
 timestamp=2026-02-23T22:23:17Z command="d=$(mktemp -d); chmod 000 "$d"; ls "$d" # permissions" exit_code=2
 timestamp=2026-02-23T22:23:49Z command="pwd # workdir" exit_code=0
-timestamp=2026-02-23T22:23:49Z command="cd /tmp && pwd && ls /home/dabrams/gromit/.gromit/plans/fixtures/gemini/preflight.md # workdir" exit_code=0
+timestamp=2026-02-23T22:23:49Z command="cd /tmp && pwd && ls /home/dabrams/gromit/test/fixtures/gemini/preflight.md # workdir" exit_code=0
 timestamp=2026-02-23T22:23:49Z command="d=$(mktemp -d); cd "$d" && pwd && ls preflight.md # workdir" exit_code=2
 timestamp=2026-02-23T22:27:17Z command="gemini --model gemini-2.0-flash -p ping" exit_code=127 # model
 timestamp=2026-02-23T22:27:17Z command="gemini --model invalid-model-does-not-exist -p ping" exit_code=127 # model
@@ -19,9 +19,9 @@ timestamp=2026-02-23T22:27:17Z command="sh -c echo intentional trigger for exit 
 timestamp=2026-02-23T22:31:00Z command="gemini -p \"Respond with the single word: ready\"" exit_code=127 # prompt-delivery
 timestamp=2026-02-23T22:31:01Z command="gemini -p \"<large prompt omitted>\"" exit_code=127 # prompt-delivery
 timestamp=2026-02-23T22:31:02Z command="printf 'Return the token PIPE_OK.\n' | gemini" exit_code=127 # prompt-delivery
-timestamp=2026-02-23T22:31:03Z command="gemini -p \"@.gromit/plans/fixtures/gemini/prompt-delivery/prompt-file-input.txt\"" exit_code=127 # prompt-delivery
-timestamp=2026-02-23T22:31:04Z command="cat > .gromit/plans/fixtures/gemini/stream-json-success.jsonl" exit_code=0 # fixture-generation
-timestamp=2026-02-23T22:31:05Z command="cat > .gromit/plans/fixtures/gemini/json-success.json" exit_code=0 # fixture-generation
+timestamp=2026-02-23T22:31:03Z command="gemini -p \"@test/fixtures/gemini/prompt-delivery/prompt-file-input.txt\"" exit_code=127 # prompt-delivery
+timestamp=2026-02-23T22:31:04Z command="cat > test/fixtures/gemini/stream-json-success.jsonl" exit_code=0 # fixture-generation
+timestamp=2026-02-23T22:31:05Z command="cat > test/fixtures/gemini/json-success.json" exit_code=0 # fixture-generation
 timestamp=2026-02-23T23:41:29Z command="npm ... -p READY --output-format json" exit_code=0
 timestamp=2026-02-23T23:41:29Z command="printf PIPE_OK | npm ... --output-format json" exit_code=0
 timestamp=2026-02-23T23:41:29Z command="npm ... -p @prompt-file-input.txt --output-format json" exit_code=0

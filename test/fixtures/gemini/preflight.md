@@ -19,5 +19,5 @@ Use this pattern for every command capture:
 cmd='gemini --version'
 $cmd
 exit_code=$?
-printf 'timestamp=%s command="%s" exit_code=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$cmd" "$exit_code" >> .gromit/plans/fixtures/gemini/commands.log
+printf 'timestamp=%s command="%s" exit_code=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$cmd" "$exit_code" >> test/fixtures/gemini/commands.log
 ```
