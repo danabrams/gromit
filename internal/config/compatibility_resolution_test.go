@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestResolveCompatibilityContextLegacyFallbackDefaults(t *testing.T) {
 	var cfg Config
@@ -79,5 +82,64 @@ func TestResolveCompatibilityContextExplicitSelectorsOverrideProfileDefaults(t *
 	}
 	if resolved.MethodologyAdapter.Source != CompatibilitySourceExplicit {
 		t.Fatalf("MethodologyAdapter.Source = %q, want %q", resolved.MethodologyAdapter.Source, CompatibilitySourceExplicit)
+	}
+}
+
+func TestValidateCompatibilityRejectsInvalidExplicitValuesOnly(t *testing.T) {
+	t.Run("legacy empty config is valid", func(t *testing.T) {
+		var cfg Config
+		cfg.SetDefaults()
+		cfg.NormalizeNilFields()
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("Validate() error = %v, want nil", err)
+		}
+	})
+
+	testCases := []struct {
+		name        string
+		cfg         Config
+		wantErrPart string
+	}{
+		{
+			name: "invalid project profile",
+			cfg: Config{
+				Project: ProjectConfig{
+					Profile: "bad-profile",
+				},
+			},
+			wantErrPart: "project.profile",
+		},
+		{
+			name: "invalid tracker backend",
+			cfg: Config{
+				Tracker: TrackerConfig{
+					Backend: "bad-backend",
+				},
+			},
+			wantErrPart: "tracker.backend",
+		},
+		{
+			name: "invalid methodology adapter",
+			cfg: Config{
+				Methodology: MethodologyConfig{
+					Adapter: "bad-adapter",
+				},
+			},
+			wantErrPart: "methodology.adapter",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.cfg.SetDefaults()
+			tc.cfg.NormalizeNilFields()
+			err := tc.cfg.Validate()
+			if err == nil {
+				t.Fatal("Validate() error = nil, want non-nil")
+			}
+			if !strings.Contains(err.Error(), tc.wantErrPart) {
+				t.Fatalf("Validate() error = %q, want substring %q", err.Error(), tc.wantErrPart)
+			}
+		})
 	}
 }
