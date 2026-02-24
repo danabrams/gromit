@@ -1,0 +1,23 @@
+{
+  "timestamp": "20260224T130000Z",
+  "baseline": {
+    "MedianInputTokens": 2400,
+    "MedianCostUSD": 1.58,
+    "MedianSuccessRate": 0.8
+  },
+  "optimized": {
+    "MedianInputTokens": 1725,
+    "MedianCostUSD": 1.12,
+    "MedianSuccessRate": 1
+  },
+  "cache_hit_rates_by_class": {
+    "render_static_build": 0.67,
+    "utility_summarization": 1
+  },
+  "rollback": {
+    "KillSwitchRecommended": false,
+    "Triggers": []
+  },
+  "baseline_artifact_path": ".gromit/reports/phase3-measurement-20260224T130000Z/baseline.jsonl",
+  "optimized_artifact_path": ".gromit/reports/phase3-measurement-20260224T130000Z/optimized.jsonl"
+}

@@ -1,0 +1,5 @@
+{"iteration":1,"bead_id":"gromit-a","input_tokens":2100,"cost_usd":1.42,"success":true}
+{"iteration":2,"bead_id":"gromit-b","input_tokens":2300,"cost_usd":1.55,"success":true}
+{"iteration":3,"bead_id":"gromit-c","input_tokens":2500,"cost_usd":1.63,"success":false}
+{"iteration":4,"bead_id":"gromit-d","input_tokens":2400,"cost_usd":1.58,"success":true}
+{"iteration":5,"bead_id":"gromit-e","input_tokens":2600,"cost_usd":1.71,"success":true}
