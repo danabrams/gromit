@@ -397,3 +397,9 @@ func (s SpecGateConfig) IsAutoTrigger() bool {
 	}
 	return *s.AutoTrigger
 }
+
+// ResolvedMethodologyAdapter returns the resolved methodology adapter selector
+// and source metadata from compatibility resolution.
+func (c Config) ResolvedMethodologyAdapter() CompatibilityResolvedValue {
+	return c.ResolveCompatibilityContext().MethodologyAdapter
+}
