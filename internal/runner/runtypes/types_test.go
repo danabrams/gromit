@@ -293,6 +293,37 @@ func TestIterationResult_CacheTelemetryJSONTags(t *testing.T) {
 	}
 }
 
+func TestIterationResult_RoutingTelemetryJSONTags(t *testing.T) {
+	result := IterationResult{
+		UtilityRoutingCategory: "summarization",
+		UtilityRoutingTier:     "low",
+	}
+
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal iteration result: %v", err)
+	}
+	s := string(data)
+	if !strings.Contains(s, "\"utility_routing_category\":\"summarization\"") {
+		t.Fatalf("expected utility_routing_category in JSON, got %s", s)
+	}
+	if !strings.Contains(s, "\"utility_routing_tier\":\"low\"") {
+		t.Fatalf("expected utility_routing_tier in JSON, got %s", s)
+	}
+
+	emptyData, err := json.Marshal(IterationResult{})
+	if err != nil {
+		t.Fatalf("marshal empty iteration result: %v", err)
+	}
+	empty := string(emptyData)
+	if strings.Contains(empty, "utility_routing_category") {
+		t.Fatalf("expected utility_routing_category omitted from empty result, got %s", empty)
+	}
+	if strings.Contains(empty, "utility_routing_tier") {
+		t.Fatalf("expected utility_routing_tier omitted from empty result, got %s", empty)
+	}
+}
+
 // TestSubTask_InRuntypes verifies that SubTask is defined in runtypes with JSON tags.
 func TestSubTask_InRuntypes(t *testing.T) {
 	dependsOn := 1
