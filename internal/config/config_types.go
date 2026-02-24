@@ -461,6 +461,7 @@ type TokenEfficiencyCacheConfig struct {
 type TokenEfficiencyRoutingConfig struct {
 	Enabled      bool                                    `yaml:"enabled"`
 	UtilityTier  string                                  `yaml:"utility_tier"`
+	TaskOverrides map[string]string                      `yaml:"task_overrides"`
 	KillSwitches TokenEfficiencyRoutingKillSwitchesConfig `yaml:"kill_switches"`
 }
 
