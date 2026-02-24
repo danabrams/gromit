@@ -22,10 +22,10 @@ type claudeClientAdapter struct {
 	Timeout time.Duration
 }
 
-var _ pipeline.ClaudeClient = (*claudeClientAdapter)(nil)
+var _ pipeline.LLMClient = (*claudeClientAdapter)(nil)
 var _ pipeline.ReviewInvoker = (*claudeClientAdapter)(nil)
 
-func (a *claudeClientAdapter) Run(prompt string, model string) (*pipeline.ClaudeRunResult, error) {
+func (a *claudeClientAdapter) Run(prompt string, model string) (*pipeline.LLMRunResult, error) {
 	// Timeout is configured by the caller when constructing the adapter.
 	ctx, cancel := context.WithTimeout(context.Background(), a.Timeout)
 	defer cancel()
@@ -34,7 +34,7 @@ func (a *claudeClientAdapter) Run(prompt string, model string) (*pipeline.Claude
 	if err != nil {
 		return nil, err
 	}
-	return toClaudeRunResult(result.Success, result.ExitCode, result.Output), nil
+	return toLLMRunResult(result.Success, result.ExitCode, result.Output), nil
 }
 
 type routerSelector interface {
@@ -49,10 +49,10 @@ type providerRouterClientAdapter struct {
 	Phase   string
 }
 
-var _ pipeline.ClaudeClient = (*providerRouterClientAdapter)(nil)
+var _ pipeline.LLMClient = (*providerRouterClientAdapter)(nil)
 var _ pipeline.ReviewInvoker = (*providerRouterClientAdapter)(nil)
 
-func (a *providerRouterClientAdapter) Run(prompt string, model string) (*pipeline.ClaudeRunResult, error) {
+func (a *providerRouterClientAdapter) Run(prompt string, model string) (*pipeline.LLMRunResult, error) {
 	if a == nil || a.Router == nil {
 		return nil, fmt.Errorf("provider router adapter is nil")
 	}
@@ -83,7 +83,7 @@ func (a *providerRouterClientAdapter) Run(prompt string, model string) (*pipelin
 		return nil, fmt.Errorf("provider returned nil result")
 	}
 
-	return toClaudeRunResult(result.Success, result.ExitCode, result.Output), nil
+	return toLLMRunResult(result.Success, result.ExitCode, result.Output), nil
 }
 
 // retroRouterAdapter adapts provider routing to retro.ProviderRunner.
@@ -177,8 +177,8 @@ func resolveProviderReviewPhase(phase string) string {
 	return phase
 }
 
-func toClaudeRunResult(success bool, exitCode int, output string) *pipeline.ClaudeRunResult {
-	return &pipeline.ClaudeRunResult{
+func toLLMRunResult(success bool, exitCode int, output string) *pipeline.LLMRunResult {
+	return &pipeline.LLMRunResult{
 		Success:  success,
 		ExitCode: exitCode,
 		Output:   output,

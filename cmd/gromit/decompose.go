@@ -211,8 +211,8 @@ func decomposeSinglePlanInCurrentDir(planName string, cfg *config.Config) error 
 
 	// Create pipeline
 	deps := &pipeline.Deps{
-		ClaudeClient: decomposeClient,
-		BeadClient:   &beadClientAdapter{Client: beadClient},
+		LLMClient:  decomposeClient,
+		BeadClient: &beadClientAdapter{Client: beadClient},
 	}
 	paths := &pipeline.Paths{
 		GromitDir: resolveGromitDir(cfg),
@@ -290,7 +290,7 @@ func buildDecomposeInput(planName string, cfg *config.Config) pipeline.Decompose
 	}
 }
 
-func buildDecomposeClient(cfg *config.Config) (pipeline.ClaudeClient, error) {
+func buildDecomposeClient(cfg *config.Config) (pipeline.LLMClient, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config is nil")
 	}
