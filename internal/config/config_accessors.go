@@ -398,6 +398,20 @@ func (s SpecGateConfig) IsAutoTrigger() bool {
 	return *s.AutoTrigger
 }
 
+// IsEnabled returns whether token-efficiency cache optimization is enabled.
+func (c TokenEfficiencyCacheConfig) IsEnabled() bool {
+	return c.Enabled
+}
+
+// IsEnabled returns whether token-efficiency utility routing is enabled.
+// disable_utility_routing acts as a hard kill switch.
+func (r TokenEfficiencyRoutingConfig) IsEnabled() bool {
+	if r.KillSwitches.DisableUtilityRouting {
+		return false
+	}
+	return r.Enabled
+}
+
 // ResolvedMethodologyAdapter returns the resolved methodology adapter selector
 // and source metadata from compatibility resolution.
 func (c Config) ResolvedMethodologyAdapter() CompatibilityResolvedValue {
