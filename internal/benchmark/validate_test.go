@@ -48,6 +48,22 @@ func TestValidateSelectedCohort_ReturnsErrorWhenBeadDoesNotExist(t *testing.T) {
 	}
 }
 
+func TestValidateSelectedCohort_ReturnsErrorWhenLookupReturnsNilBead(t *testing.T) {
+	lookup := fakeBeadLookup{
+		showFn: func(id string) (*bead.Bead, error) {
+			return nil, nil
+		},
+	}
+
+	_, err := ValidateSelectedCohort(lookup, []string{"gromit-1"}, 1, false)
+	if err == nil {
+		t.Fatal("ValidateSelectedCohort() error = nil, want nil-bead error")
+	}
+	if !stdstrings.Contains(err.Error(), "lookup returned nil bead") {
+		t.Fatalf("ValidateSelectedCohort() error = %q, want nil-bead message", err.Error())
+	}
+}
+
 func TestValidateSelectedCohort_ReturnsErrorWhenBeadIsClosed(t *testing.T) {
 	lookup := fakeBeadLookup{
 		showFn: func(id string) (*bead.Bead, error) {

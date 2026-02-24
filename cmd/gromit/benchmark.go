@@ -339,7 +339,7 @@ func computeBenchmarkMetrics(result benchmarkHarnessResult) (benchmarkMetricsRes
 func writeBenchmarkReport(manifest benchmarkManifest, result benchmarkHarnessResult, metrics benchmarkMetricsResult, opts benchmarkRunOptions) error {
 	ts := opts.OutputTimestamp
 	if ts == "" {
-		ts = time.Now().UTC().Format("20060102T150405Z")
+		ts = benchmarkNowFn().UTC().Format("20060102T150405Z")
 	}
 
 	modeSummaries := metrics.ModeSummaries

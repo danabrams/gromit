@@ -67,6 +67,16 @@ Raw provider-capture fixtures and contract fixtures need one canonical repositor
 *Related to: gromit/review-1771936368864075181*
 
 When issue-ledger normalization (ordering/canonical encoding) and semantic issue edits land in the same change, reviewability and merge safety degrade. Keep normalization-only rewrites separate from content changes and enforce that separation in automation.
+
+### 2026-02-24 | cohort_validation_must_reject_nil_lookup_payloads_before_field_access | RELIABILITY
+*Related to: gromit/review-1771938913730053167*
+
+Cohort validation paths that call external lookups must treat a nil object as invalid input and return a typed error before dereferencing fields, preventing panic-class failures from malformed integration responses.
+
+### 2026-02-24 | time_injection_only_helps_when_runtime_paths_consume_the_injected_clock | TEST_QUALITY
+*Related to: gromit/review-1771938913730053167*
+
+Deterministic clock injection should be wired through runtime code paths (not just declared for tests); otherwise tests can configure a fake clock that production paths ignore, creating false confidence.
 ## Provisional Learnings
 
 ### 2026-02-24 | benchmark_execution_and_reporting_require_single_source_truth_and_owner | ARCHITECTURE

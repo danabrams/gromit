@@ -33,6 +33,9 @@ func ValidateSelectedCohort(lookup BeadLookup, selected []string, requiredSize i
 		if err != nil {
 			return nil, fmt.Errorf("selected bead %q lookup failed: %w", id, err)
 		}
+		if b == nil {
+			return nil, fmt.Errorf("selected bead %q lookup returned nil bead", id)
+		}
 		if b.Status != "open" {
 			return nil, fmt.Errorf("selected bead %q must be open, got %q", id, b.Status)
 		}
