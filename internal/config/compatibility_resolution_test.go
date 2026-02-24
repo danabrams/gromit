@@ -187,3 +187,36 @@ func TestResolvedProfileAccessorUsesExplicitSource(t *testing.T) {
 		t.Fatalf("ResolvedProfile().Source = %q, want %q", resolved.Source, CompatibilitySourceExplicit)
 	}
 }
+
+func TestResolveCompatibilityContext_DeprecationMarkerTracksLegacyAssumptions(t *testing.T) {
+	var legacy Config
+
+	legacyResolved := legacy.ResolveCompatibilityContext()
+	if legacyResolved.Profile.DeprecationMarker != CompatibilityDeprecationMarkerLegacyHardcodedDefaults {
+		t.Fatalf("legacy Profile.DeprecationMarker = %q, want %q", legacyResolved.Profile.DeprecationMarker, CompatibilityDeprecationMarkerLegacyHardcodedDefaults)
+	}
+	if legacyResolved.TrackerBackend.DeprecationMarker != CompatibilityDeprecationMarkerLegacyHardcodedDefaults {
+		t.Fatalf("legacy TrackerBackend.DeprecationMarker = %q, want %q", legacyResolved.TrackerBackend.DeprecationMarker, CompatibilityDeprecationMarkerLegacyHardcodedDefaults)
+	}
+	if legacyResolved.MethodologyAdapter.DeprecationMarker != CompatibilityDeprecationMarkerLegacyHardcodedDefaults {
+		t.Fatalf("legacy MethodologyAdapter.DeprecationMarker = %q, want %q", legacyResolved.MethodologyAdapter.DeprecationMarker, CompatibilityDeprecationMarkerLegacyHardcodedDefaults)
+	}
+
+	explicit := Config{
+		Project: ProjectConfig{Profile: "go"},
+		Tracker: TrackerConfig{Backend: "bd"},
+		Methodology: MethodologyConfig{
+			Adapter: "go",
+		},
+	}
+	explicitResolved := explicit.ResolveCompatibilityContext()
+	if explicitResolved.Profile.DeprecationMarker != "" {
+		t.Fatalf("explicit Profile.DeprecationMarker = %q, want empty", explicitResolved.Profile.DeprecationMarker)
+	}
+	if explicitResolved.TrackerBackend.DeprecationMarker != "" {
+		t.Fatalf("explicit TrackerBackend.DeprecationMarker = %q, want empty", explicitResolved.TrackerBackend.DeprecationMarker)
+	}
+	if explicitResolved.MethodologyAdapter.DeprecationMarker != "" {
+		t.Fatalf("explicit MethodologyAdapter.DeprecationMarker = %q, want empty", explicitResolved.MethodologyAdapter.DeprecationMarker)
+	}
+}
