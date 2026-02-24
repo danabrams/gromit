@@ -112,6 +112,28 @@ func TestPipelinePromptInputTypes_Exist(t *testing.T) {
 	}
 }
 
+func TestAdapterIntegrationTypedTest_UsesLLMNames(t *testing.T) {
+	typedIntegrationPath := filepath.Join(".", "adapter_integration_typed_test.go")
+	content, err := os.ReadFile(typedIntegrationPath)
+	if err != nil {
+		t.Fatalf("reading adapter_integration_typed_test.go: %v", err)
+	}
+
+	contentStr := string(content)
+	if strings.Contains(contentStr, "ClaudeRunResult") {
+		t.Fatal("adapter_integration_typed_test.go should use LLMRunResult, not ClaudeRunResult")
+	}
+	if strings.Contains(contentStr, "pipeline.ClaudeClient") {
+		t.Fatal("adapter_integration_typed_test.go should use pipeline.LLMClient, not pipeline.ClaudeClient")
+	}
+	if !strings.Contains(contentStr, "LLMRunResult") {
+		t.Fatal("adapter_integration_typed_test.go should reference LLMRunResult")
+	}
+	if !strings.Contains(contentStr, "pipeline.LLMClient") {
+		t.Fatal("adapter_integration_typed_test.go should reference pipeline.LLMClient")
+	}
+}
+
 // TestAdapters_NoMapConstructionForPrompts verifies adapters don't construct intermediate maps for prompt data
 func TestAdapters_NoMapConstructionForPrompts(t *testing.T) {
 	// Expected failure: If there are any remaining map[string]interface{} constructions for prompt data
