@@ -33,6 +33,9 @@ func Load(path string) (*Config, error) {
 }
 
 func (c *Config) applyPostLoadNormalization(matchBuildModelConfigured bool) {
+	c.Project.Profile = strings.ToLower(strings.TrimSpace(c.Project.Profile))
+	c.Tracker.Backend = strings.ToLower(strings.TrimSpace(c.Tracker.Backend))
+	c.Methodology.Adapter = strings.ToLower(strings.TrimSpace(c.Methodology.Adapter))
 	c.Review.Tier = normalizeConfiguredTier(c.Review.Tier)
 	c.Review.Thorough.Tier = normalizeConfiguredTier(c.Review.Thorough.Tier)
 	c.Methodology.BuildStrategy = strings.ToLower(strings.TrimSpace(c.Methodology.BuildStrategy))
@@ -85,11 +88,27 @@ func (c *Config) Validate() error {
 	if c.Validation.RuntimeMaxSubBeadsValue() <= 0 {
 		return fmt.Errorf("validation.runtime_max_sub_beads must be > 0 (got %d)", c.Validation.RuntimeMaxSubBeads)
 	}
+	if err := c.validateCompatibilitySelections(); err != nil {
+		return err
+	}
 	if err := c.Methodology.Validate(); err != nil {
 		return err
 	}
 	if err := c.Routing.CircuitBreaker.Validate(); err != nil {
 		return err
+	}
+	return nil
+}
+
+func (c *Config) validateCompatibilitySelections() error {
+	if c.Project.Profile != "" && c.Project.Profile != "go" {
+		return fmt.Errorf("project.profile must be %q (got %q)", "go", c.Project.Profile)
+	}
+	if c.Tracker.Backend != "" && c.Tracker.Backend != "bd" {
+		return fmt.Errorf("tracker.backend must be %q (got %q)", "bd", c.Tracker.Backend)
+	}
+	if c.Methodology.Adapter != "" && c.Methodology.Adapter != "go" {
+		return fmt.Errorf("methodology.adapter must be %q (got %q)", "go", c.Methodology.Adapter)
 	}
 	return nil
 }
