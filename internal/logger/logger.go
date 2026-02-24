@@ -68,6 +68,8 @@ type IterationLog struct {
 	CacheKey            string `json:"cache_key,omitempty"`
 	CacheInvalidationReason string `json:"cache_invalidation_reason,omitempty"`
 	CacheVersionMarker  string `json:"cache_version_marker,omitempty"`
+	UtilityRoutingCategory string `json:"utility_routing_category,omitempty"`
+	UtilityRoutingTier string `json:"utility_routing_tier,omitempty"`
 	FallbackAttempts    int    `json:"fallback_attempts,omitempty"`      // fallback attempts in this iteration
 	FallbackSuccesses   int    `json:"fallback_successes,omitempty"`     // successful fallback outcomes
 	FallbackFailures    int    `json:"fallback_failures,omitempty"`      // failed fallback outcomes
