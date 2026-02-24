@@ -27,6 +27,7 @@ var benchmarkValidateCohortFn = validateBenchmarkCohort
 var benchmarkRunHarnessFn = runBenchmarkHarness
 var benchmarkComputeMetricsFn = computeBenchmarkMetrics
 var benchmarkWriteReportFn = writeBenchmarkReport
+var benchmarkWritePhase3MeasurementReportFn = benchpkg.WritePhase3MeasurementReport
 var benchmarkInternalLoadManifestFn = benchpkg.LoadManifest
 var benchmarkInternalResolveSelectedBeadsFn = benchpkg.ResolveSelectedBeads
 var benchmarkInternalValidateSelectedCohortFn = benchpkg.ValidateSelectedCohort
@@ -50,6 +51,9 @@ var benchmarkOutputTS string
 var benchmarkBaseCommit string
 var benchmarkBeads string
 var benchmarkBeadCount int
+var benchmarkPhase3BaselineLog string
+var benchmarkPhase3OptimizedLog string
+var benchmarkPhase3OutputTS string
 
 type benchmarkManifest struct {
 	ID              string   `yaml:"id"`
@@ -136,6 +140,29 @@ var benchmarkRunCmd = &cobra.Command{
 	},
 }
 
+var benchmarkPhase3ReportCmd = &cobra.Command{
+	Use:          "phase3-report",
+	Short:        "Compute and publish phase-3 measurement report artifacts",
+	SilenceUsage: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if strings.TrimSpace(benchmarkPhase3BaselineLog) == "" {
+			return fmt.Errorf("--baseline-log must be a non-empty path")
+		}
+		if strings.TrimSpace(benchmarkPhase3OptimizedLog) == "" {
+			return fmt.Errorf("--optimized-log must be a non-empty path")
+		}
+		if _, err := time.Parse("20060102T150405Z", benchmarkPhase3OutputTS); err != nil {
+			return fmt.Errorf("--output-ts must be in UTC format YYYYMMDDTHHMMSSZ")
+		}
+		_, err := benchmarkWritePhase3MeasurementReportFn(benchpkg.Phase3MeasurementInput{
+			Timestamp:        benchmarkPhase3OutputTS,
+			BaselineLogPath:  benchmarkPhase3BaselineLog,
+			OptimizedLogPath: benchmarkPhase3OptimizedLog,
+		})
+		return err
+	},
+}
+
 func init() {
 	benchmarkRunCmd.Flags().StringVar(&benchmarkManifestPath, "manifest", "", "Path to benchmark manifest")
 	benchmarkRunCmd.Flags().StringVar(&benchmarkOutputTS, "output-ts", "", "Timestamp override for deterministic artifact names")
@@ -143,10 +170,18 @@ func init() {
 	benchmarkRunCmd.Flags().StringVar(&benchmarkBeads, "beads", "", "Comma-separated ordered bead IDs to benchmark")
 	benchmarkRunCmd.Flags().IntVar(&benchmarkBeadCount, "bead-count", 0, "Optional deterministic truncation count for selected beads")
 	_ = benchmarkRunCmd.MarkFlagRequired("manifest")
+
+	benchmarkPhase3ReportCmd.Flags().StringVar(&benchmarkPhase3BaselineLog, "baseline-log", "", "Path to baseline JSONL run log")
+	benchmarkPhase3ReportCmd.Flags().StringVar(&benchmarkPhase3OptimizedLog, "optimized-log", "", "Path to optimized JSONL run log")
+	benchmarkPhase3ReportCmd.Flags().StringVar(&benchmarkPhase3OutputTS, "output-ts", "", "UTC timestamp for report artifact names")
+	_ = benchmarkPhase3ReportCmd.MarkFlagRequired("baseline-log")
+	_ = benchmarkPhase3ReportCmd.MarkFlagRequired("optimized-log")
+	_ = benchmarkPhase3ReportCmd.MarkFlagRequired("output-ts")
 }
 
 func registerBenchmarkCommands(root *cobra.Command) {
 	benchmarkCmd.AddCommand(benchmarkRunCmd)
+	benchmarkCmd.AddCommand(benchmarkPhase3ReportCmd)
 	root.AddCommand(benchmarkCmd)
 }
 
