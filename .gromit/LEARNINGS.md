@@ -175,6 +175,11 @@ Stage code that accepts injected config pointers should fail fast with a typed e
 *Related to: review-1771880675971102580*
 
 When Gate computes complexity routing metadata, all decision outcomes (Proceed/Skip/Block) should propagate that metadata. Returning it only on Proceed creates observability drift and inconsistent iteration logs.
+
+### 2026-02-24 | LEGACY_COMPATIBILITY_MARKERS_REQUIRE_USER-VISIBLE SURFACING | ARCHITECTURE
+*Related to: gromit-1xv79, gromit-gr1st, gromit-k0eke*
+
+Adding deprecation-marker fields to compatibility resolution is not sufficient by itself; migration guardrails only work when those markers are surfaced in debug/status output and runtime warnings, with end-to-end tests proving explicit-vs-legacy behavior.
 ---
 
 ## Archived
