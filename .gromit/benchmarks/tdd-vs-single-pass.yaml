@@ -1,5 +1,5 @@
 id: tdd-vs-single-pass
-base_commit: abc123
+base_commit: ae0f672c59fdd0486a0212ce69df8889d4e88ee7
 beads:
   - gromit-1
   - gromit-2

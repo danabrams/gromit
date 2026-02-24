@@ -2,6 +2,8 @@ package benchmark
 
 import (
 	"context"
+	"errors"
+	stdstrings "strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -29,6 +31,25 @@ func TestGitBaseCommitResolver_ResolvesHintWithRevParse(t *testing.T) {
 	}
 	if len(calls[0]) != 3 || calls[0][0] != "rev-parse" || calls[0][1] != "--verify" || calls[0][2] != "feature-branch" {
 		t.Fatalf("git args = %v, want [rev-parse --verify feature-branch]", calls[0])
+	}
+}
+
+func TestGitBaseCommitResolver_IncludesGitOutputOnResolveFailure(t *testing.T) {
+	t.Parallel()
+
+	resolver := NewGitBaseCommitResolver(func(_ context.Context, _ ...string) (string, error) {
+		return "fatal: Needed a single revision\n", errors.New("exit status 128")
+	})
+
+	_, err := resolver.ResolveBaseCommit(context.Background(), "abc123")
+	if err == nil {
+		t.Fatal("ResolveBaseCommit() error = nil, want non-nil")
+	}
+	if !stdstrings.Contains(err.Error(), `resolve base commit "abc123"`) {
+		t.Fatalf("error = %q, want base commit context", err)
+	}
+	if !stdstrings.Contains(err.Error(), "fatal: Needed a single revision") {
+		t.Fatalf("error = %q, want git stderr output", err)
 	}
 }
 
