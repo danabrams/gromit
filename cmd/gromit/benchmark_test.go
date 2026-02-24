@@ -304,3 +304,20 @@ func TestBenchmarkRunCommand_RejectsBlankManifestPath(t *testing.T) {
 		t.Fatalf("stderr = %q, want manifest validation error", stderr)
 	}
 }
+
+func TestBenchmarkRunCommand_RejectsBaseCommitWithWhitespace(t *testing.T) {
+	manifestPath := filepath.Join("/home/dabrams/gromit", "cmd", "gromit", "testdata", "fixtures", "benchmark", "basic.yaml")
+
+	_, stderr, exitCode := runGromitCobra(t,
+		"benchmark", "run",
+		"--manifest", manifestPath,
+		"--base-commit", "abc def",
+	)
+
+	if exitCode == 0 {
+		t.Fatalf("exitCode = %d, want non-zero", exitCode)
+	}
+	if !strings.Contains(stderr, "--base-commit must not contain whitespace") {
+		t.Fatalf("stderr = %q, want base-commit whitespace validation error", stderr)
+	}
+}
