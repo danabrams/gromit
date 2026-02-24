@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
@@ -393,6 +395,101 @@ func TestInvokerExecute_CacheLookupHitUsesCachedPromptBeforeInvocation(t *testin
 	}
 	if len(callOrder) != 2 || callOrder[0] != "lookup" || callOrder[1] != "stream" {
 		t.Fatalf("call order = %v, want [lookup stream]", callOrder)
+	}
+}
+
+func TestInvokerExecute_Integration_CacheKeyStableAcrossBuildContextIterations(t *testing.T) {
+	root := t.TempDir()
+	templatesDir := filepath.Join(root, "templates")
+	specsDir := filepath.Join(root, "specs")
+	gromitDir := filepath.Join(root, ".gromit")
+	claudePath := filepath.Join(root, "CLAUDE.md")
+
+	if err := os.MkdirAll(templatesDir, 0o755); err != nil {
+		t.Fatalf("mkdir templates: %v", err)
+	}
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("mkdir specs: %v", err)
+	}
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("mkdir gromit: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(templatesDir, "PROMPT_build.md"), []byte("{{ .Rules }}\n{{ .Spec }}"), 0o644); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gromitDir, "RULES.md"), []byte("rules"), 0o644); err != nil {
+		t.Fatalf("write RULES.md: %v", err)
+	}
+	if err := os.WriteFile(claudePath, []byte("claude"), 0o644); err != nil {
+		t.Fatalf("write CLAUDE.md: %v", err)
+	}
+
+	renderer, err := prompt.NewRenderer(templatesDir, specsDir, claudePath, gromitDir)
+	if err != nil {
+		t.Fatalf("NewRenderer() error = %v", err)
+	}
+
+	b := &bead.Bead{ID: "b1", Title: "task"}
+	ctx1, err := renderer.BuildContext(b, nil, 1, "model-a", "build")
+	if err != nil {
+		t.Fatalf("BuildContext(iteration=1) error = %v", err)
+	}
+	if _, err := renderer.RenderBuild(ctx1); err != nil {
+		t.Fatalf("RenderBuild(iteration=1) error = %v", err)
+	}
+
+	ctx2, err := renderer.BuildContext(b, nil, 2, "model-b", "build")
+	if err != nil {
+		t.Fatalf("BuildContext(iteration=2) error = %v", err)
+	}
+	if _, err := renderer.RenderBuild(ctx2); err != nil {
+		t.Fatalf("RenderBuild(iteration=2) error = %v", err)
+	}
+
+	lookupKeys := []string{}
+	cache := &mockCacheAdapter{
+		lookupFn: func(ctx context.Context, req provider.CacheLookupRequest) (*provider.CacheEntry, bool, error) {
+			lookupKeys = append(lookupKeys, req.CacheKey)
+			return nil, false, nil
+		},
+	}
+	mp := &mockProvider{
+		name:         "provider-cache",
+		cacheAdapter: cache,
+		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			return &provider.Result{Success: true, Model: "model-cache"}, nil
+		},
+	}
+	mr := &mockRouter{
+		selectFn: func(phase, tier string) (Provider, string) {
+			return mp, "model-cache"
+		},
+	}
+	invoker := NewInvoker(mr, &bytes.Buffer{}, nil)
+
+	bc1 := newTestBeadContext()
+	bc1.PromptCtx = ctx1
+	if _, err := invoker.Execute(context.Background(), bc1, "prompt"); err != nil {
+		t.Fatalf("Execute(iteration=1) error = %v", err)
+	}
+
+	bc2 := newTestBeadContext()
+	bc2.PromptCtx = ctx2
+	if _, err := invoker.Execute(context.Background(), bc2, "prompt"); err != nil {
+		t.Fatalf("Execute(iteration=2) error = %v", err)
+	}
+
+	if len(lookupKeys) != 2 {
+		t.Fatalf("lookup calls = %d, want 2", len(lookupKeys))
+	}
+	if lookupKeys[0] != ctx1.StaticPreambleCacheKey {
+		t.Fatalf("lookup key for iteration=1 = %q, want %q", lookupKeys[0], ctx1.StaticPreambleCacheKey)
+	}
+	if lookupKeys[1] != ctx2.StaticPreambleCacheKey {
+		t.Fatalf("lookup key for iteration=2 = %q, want %q", lookupKeys[1], ctx2.StaticPreambleCacheKey)
+	}
+	if lookupKeys[0] != lookupKeys[1] {
+		t.Fatalf("lookup keys differ across iterations: %q vs %q", lookupKeys[0], lookupKeys[1])
 	}
 }
 
