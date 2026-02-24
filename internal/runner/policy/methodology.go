@@ -42,6 +42,10 @@ func NewConfigMethodologyPolicy(cfg *config.Config) MethodologyPolicy {
 // IsActive checks whether the named methodology is active for the given bead
 // labels, falling back to the global config default when no label overrides it.
 func (p *ConfigMethodologyPolicy) IsActive(labels []string, methodology string) bool {
+	if p.cfg == nil || p.cfg.ResolvedMethodologyAdapter().Value != "go" {
+		return false
+	}
+
 	if methodology == methodologyATDD && p.cfg.Methodology.Granularity == config.MethodologyGranularitySpec {
 		for _, label := range labels {
 			if strings.HasPrefix(label, specLabelPrefix) {
