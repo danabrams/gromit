@@ -87,6 +87,9 @@ var benchmarkRunCmd = &cobra.Command{
 		if benchmarkBaseCommit != "" && strings.TrimSpace(benchmarkBaseCommit) == "" {
 			return fmt.Errorf("--base-commit must be a non-empty commit reference")
 		}
+		if strings.ContainsAny(benchmarkBaseCommit, " \t\r\n") {
+			return fmt.Errorf("--base-commit must not contain whitespace")
+		}
 		if benchmarkBeadCount < 0 {
 			return fmt.Errorf("--bead-count must be zero or greater")
 		}
