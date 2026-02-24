@@ -66,6 +66,7 @@ type codexResponse struct {
 // codexEvent represents a top-level Codex JSONL event.
 type codexEvent struct {
 	Type         string          `json:"type"`
+	Text         string          `json:"text,omitempty"`
 	Item         *codexItem      `json:"item,omitempty"`
 	Message      *codexMessage   `json:"message,omitempty"`
 	Delta        *codexDelta     `json:"delta,omitempty"`
@@ -242,6 +243,12 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 			lastAgentText = text
 			if output != nil {
 				_, _ = output.Write([]byte(text))
+			}
+
+		case "message.output_text.done":
+			lastAgentText += event.Text
+			if output != nil && event.Text != "" {
+				_, _ = output.Write([]byte(event.Text))
 			}
 
 		case "result":
