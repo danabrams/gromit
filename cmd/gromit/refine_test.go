@@ -175,6 +175,25 @@ func TestBacklogAdapterAddPreservesCreatedAt(t *testing.T) {
 	}
 }
 
+func TestToPipelineIdeaPreservesCreatedAt(t *testing.T) {
+	t.Parallel()
+
+	createdAt := time.Date(2026, 2, 24, 13, 0, 0, 0, time.UTC)
+	got := toPipelineIdea(&backlog.Idea{
+		ID:        "idea-1",
+		Text:      "test",
+		Type:      "feature",
+		Context:   "ctx",
+		CreatedAt: createdAt,
+	})
+	if got == nil {
+		t.Fatal("toPipelineIdea() = nil, want non-nil")
+	}
+	if !got.CreatedAt.Equal(createdAt) {
+		t.Fatalf("CreatedAt = %v, want %v", got.CreatedAt, createdAt)
+	}
+}
+
 type refineSessionTestAgent struct {
 	launchInDirFn func(promptPath, dir string) error
 }
