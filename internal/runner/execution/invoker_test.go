@@ -1307,6 +1307,39 @@ func TestInvocationResult_ConvertsClaudeResult(t *testing.T) {
 	}
 }
 
+func TestInvocationResult_DoesNotConvertProviderResultToClaudeResult(t *testing.T) {
+	mp := &mockProvider{
+		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			return &provider.Result{
+				Success:  true,
+				Output:   "output text",
+				ExitCode: 0,
+				Duration: 5 * time.Second,
+				Model:    "opus-4",
+			}, nil
+		},
+	}
+	mr := &mockRouter{
+		selectFn: func(phase, tier string) (Provider, string) {
+			return mp, "opus-4"
+		},
+	}
+
+	invoker := NewInvoker(mr, &bytes.Buffer{}, nil)
+	bc := newTestBeadContext()
+
+	invResult, err := invoker.Execute(context.Background(), bc, "prompt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if invResult.Result != nil {
+		t.Fatalf("InvocationResult.Result = %+v, want nil", invResult.Result)
+	}
+	if invResult.ProviderResult == nil {
+		t.Fatal("InvocationResult.ProviderResult should not be nil")
+	}
+}
+
 // TestInvokerExecute_PreserveStreamModeStillPropagatesCostFromProviderResult verifies
 // that when preserve_provider_stream mode is active (nil event handler), cost data
 // reported by the provider result flows through MergeCostData into invResult.Stats.
