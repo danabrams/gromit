@@ -103,6 +103,26 @@ func TestProviderAcceptanceSuiteHasReducedFootprint(t *testing.T) {
 	}
 }
 
+func TestProviderAcceptanceSurfaceIncludesPhase3CacheFallbackIntegrationCase(t *testing.T) {
+	repoRoot := AssertProviderAcceptanceReclassificationImplemented(t)
+
+	tests, err := listProviderTests(t, repoRoot, false)
+	if err != nil {
+		t.Fatalf("list provider tests: %v", err)
+	}
+
+	found := false
+	for _, name := range tests {
+		if name == "TestResolveCacheAdapter_Integration_NilCapableAdapterFallsBackToNoop" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("missing provider phase-3 cache fallback integration test %q", "TestResolveCacheAdapter_Integration_NilCapableAdapterFallsBackToNoop")
+	}
+}
+
 func listProviderTests(t *testing.T, repoRoot string, withAcceptance bool) ([]string, error) {
 	t.Helper()
 
