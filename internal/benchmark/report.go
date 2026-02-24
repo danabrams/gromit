@@ -41,14 +41,15 @@ type ManifestMetadata struct {
 }
 
 type ModeSummary struct {
-	Mode             string         `json:"mode"`
-	ElapsedSeconds   int            `json:"elapsed_seconds"`
-	TotalInput       int            `json:"total_input_tokens"`
-	TotalOutput      int            `json:"total_output_tokens"`
-	TotalCostUSD     float64        `json:"total_cost_usd"`
-	TierTotals       TierTotals     `json:"tier_totals"`
-	Quality          QualityMetrics `json:"quality"`
-	CostQualityRatio float64        `json:"cost_quality_ratio"`
+	Mode             string           `json:"mode"`
+	ElapsedSeconds   int              `json:"elapsed_seconds"`
+	TotalInput       int              `json:"total_input_tokens"`
+	TotalOutput      int              `json:"total_output_tokens"`
+	TotalCostUSD     float64          `json:"total_cost_usd"`
+	TierTotals       TierTotals       `json:"tier_totals"`
+	ModelTotals      []ModelTotalsRow `json:"model_totals,omitempty"`
+	Quality          QualityMetrics   `json:"quality"`
+	CostQualityRatio float64          `json:"cost_quality_ratio"`
 }
 
 type TierTotals struct {
@@ -58,6 +59,13 @@ type TierTotals struct {
 }
 
 type TierTotalsRow struct {
+	InputTokens  int     `json:"input_tokens"`
+	OutputTokens int     `json:"output_tokens"`
+	CostUSD      float64 `json:"cost_usd"`
+}
+
+type ModelTotalsRow struct {
+	Model        string  `json:"model"`
 	InputTokens  int     `json:"input_tokens"`
 	OutputTokens int     `json:"output_tokens"`
 	CostUSD      float64 `json:"cost_usd"`
@@ -155,6 +163,15 @@ func WriteReport(input ReportInput) (ReportPaths, error) {
 			{name: "high", row: mode.TierTotals.High},
 		} {
 			md.WriteString(fmt.Sprintf("| %s | %s | %d | %d | %.2f |\n", mode.Mode, tier.name, tier.row.InputTokens, tier.row.OutputTokens, tier.row.CostUSD))
+		}
+	}
+
+	md.WriteString("\n## By-Model Totals\n\n")
+	md.WriteString("| Mode | Model | Input Tokens | Output Tokens | Cost USD |\n")
+	md.WriteString("| --- | --- | ---: | ---: | ---: |\n")
+	for _, mode := range modes {
+		for _, model := range mode.ModelTotals {
+			md.WriteString(fmt.Sprintf("| %s | %s | %d | %d | %.2f |\n", mode.Mode, model.Model, model.InputTokens, model.OutputTokens, model.CostUSD))
 		}
 	}
 

@@ -20,6 +20,7 @@ type ModeLogInput struct {
 }
 
 type iterationMetricRecord struct {
+	Model        string  `json:"model"`
 	ActualTier   string  `json:"actual_tier"`
 	InputTokens  int     `json:"input_tokens"`
 	OutputTokens int     `json:"output_tokens"`
@@ -50,10 +51,18 @@ func AggregateModeMetrics(inputs []ModeLogInput) ([]ModeSummary, error) {
 		}
 
 		summary := ModeSummary{Mode: input.Mode}
+		modelTotals := make(map[string]TierTotalsRow)
 		for _, rec := range recs.Iterations {
 			summary.TotalInput += rec.InputTokens
 			summary.TotalOutput += rec.OutputTokens
 			summary.TotalCostUSD = roundUSD(summary.TotalCostUSD + rec.CostUSD)
+			if model := stdstrings.TrimSpace(rec.Model); model != "" {
+				row := modelTotals[model]
+				row.InputTokens += rec.InputTokens
+				row.OutputTokens += rec.OutputTokens
+				row.CostUSD = roundUSD(row.CostUSD + rec.CostUSD)
+				modelTotals[model] = row
+			}
 			switch normalizeTier(rec.ActualTier) {
 			case "low":
 				summary.TierTotals.Low.InputTokens += rec.InputTokens
@@ -93,6 +102,23 @@ func AggregateModeMetrics(inputs []ModeLogInput) ([]ModeSummary, error) {
 		}
 		if !input.RunStartedAt.IsZero() && !input.RunFinishedAt.IsZero() && input.RunFinishedAt.After(input.RunStartedAt) {
 			summary.ElapsedSeconds = int(input.RunFinishedAt.Sub(input.RunStartedAt).Seconds())
+		}
+		if len(modelTotals) > 0 {
+			models := make([]string, 0, len(modelTotals))
+			for model := range modelTotals {
+				models = append(models, model)
+			}
+			sort.Strings(models)
+			summary.ModelTotals = make([]ModelTotalsRow, 0, len(models))
+			for _, model := range models {
+				row := modelTotals[model]
+				summary.ModelTotals = append(summary.ModelTotals, ModelTotalsRow{
+					Model:        model,
+					InputTokens:  row.InputTokens,
+					OutputTokens: row.OutputTokens,
+					CostUSD:      row.CostUSD,
+				})
+			}
 		}
 		summaries = append(summaries, summary)
 	}
