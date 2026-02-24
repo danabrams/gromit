@@ -1258,6 +1258,33 @@ func TestExecuteWithRetry_BlocksSameScopeRetryAfterTimeoutWithoutDecision(t *tes
 	}
 }
 
+func TestHandleInvocationTimeout_RecordsTimeoutDecompositionOutcome(t *testing.T) {
+	cfg := newTestConfig()
+	h := NewHandler(
+		cfg,
+		&mockFailureAnalyzer{},
+		&mockBeadClient{},
+		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+			return []runtypes.SubTask{{Title: "subtask 1"}}, nil
+		},
+		func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error { return nil },
+		nil,
+		nil,
+	)
+
+	bc := newTestBeadContext()
+	bc.ParentCtx = context.Background()
+
+	h.HandleInvocationTimeout(context.Background(), bc)
+
+	if !bc.Result.TimeoutDecompositionAttempted {
+		t.Fatal("expected timeout decomposition attempt to be recorded")
+	}
+	if !bc.Result.TimeoutDecompositionSucceeded {
+		t.Fatal("expected timeout decomposition success to be recorded")
+	}
+}
+
 func TestExecuteWithRetry_AccumulatesTokensAcrossInvocations(t *testing.T) {
 	cfg := newTestConfig()
 	mfa := &mockFailureAnalyzer{
