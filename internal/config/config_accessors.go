@@ -403,3 +403,9 @@ func (s SpecGateConfig) IsAutoTrigger() bool {
 func (c Config) ResolvedMethodologyAdapter() CompatibilityResolvedValue {
 	return c.ResolveCompatibilityContext().MethodologyAdapter
 }
+
+// ResolvedTrackerBackend returns the resolved tracker backend selector and
+// source metadata from compatibility resolution.
+func (c Config) ResolvedTrackerBackend() CompatibilityResolvedValue {
+	return c.ResolveCompatibilityContext().TrackerBackend
+}
