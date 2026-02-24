@@ -52,6 +52,21 @@ Adding telemetry fields to runtypes/logger schemas is not sufficient by itself; 
 *Related to: gromit/review-1771933220448456983*
 
 Typed interface migrations are strongest when accompanied by strict repository boundaries: runtime Dolt/lock state must never be tracked, generated benchmark runs must stay outside committed source paths, and provider-fixture tests should validate structured schema/contracts rather than brittle prose token presence.
+
+### 2026-02-24 | runtime_state_and_timestamped_report_artifacts_must_be_blocked_from_commits | SAFETY
+*Related to: gromit/review-1771936368864075181*
+
+Operational state and timestamped run artifacts under `.gromit/` (state snapshots, interactive state, metrics streams, dated reports) should be treated as ephemeral outputs and blocked from version control by default; only deterministic curated fixtures should be committed.
+
+### 2026-02-24 | provider_fixture_storage_requires_single_canonical_location | CONSISTENCY
+*Related to: gromit/review-1771936368864075181*
+
+Raw provider-capture fixtures and contract fixtures need one canonical repository location with explicit policy boundaries. Splitting fixtures across planning/runtime paths and test-fixture paths creates review noise and makes deterministic-fixture policy hard to enforce.
+
+### 2026-02-24 | issue_ledger_normalization_should_be_isolated_from_semantic_edits | CODE_QUALITY
+*Related to: gromit/review-1771936368864075181*
+
+When issue-ledger normalization (ordering/canonical encoding) and semantic issue edits land in the same change, reviewability and merge safety degrade. Keep normalization-only rewrites separate from content changes and enforce that separation in automation.
 ## Provisional Learnings
 
 ### 2026-02-24 | benchmark_execution_and_reporting_require_single_source_truth_and_owner | ARCHITECTURE

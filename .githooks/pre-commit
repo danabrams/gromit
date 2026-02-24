@@ -9,3 +9,6 @@ make lint
 
 echo "[pre-commit] checking for unexpected gitlinks"
 ./scripts/check_no_gitlinks.sh
+
+echo "[pre-commit] checking staged artifact policy"
+./scripts/check_staged_artifact_policy.sh

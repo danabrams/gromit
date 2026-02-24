@@ -49,7 +49,7 @@ Repository hygiene checks (gitlink guards, worktree exclusions) are most effecti
 **Enforcement:** Hook audit on every CI run; contributor workflow documentation.
 
 ### Runtime artifacts must stay out of git; only deterministic fixtures are versioned
-Machine-local runtime state (`.dolt/`, `.doltcfg/`, `beads_gromit/`, lock files, timestamped benchmark run outputs) must be ignored and untracked. Versioned artifacts must be deterministic fixtures under designated fixture paths.
+Machine-local runtime state (`.dolt/`, `.doltcfg/`, `beads_gromit/`, lock files, `.gromit/state.json`, `.gromit/stats.json`, `.gromit/interactive-state.json`) and timestamped run/report outputs must be ignored and untracked. Raw run outputs belong under ignored paths (for example `.gromit/reports/runs/`). Versioned artifacts must be deterministic fixtures under designated fixture paths; for report artifacts, use curated deterministic files (for example `.gromit/reports/curated/`).
 
 **Enforcement:** Repo ignore coverage, staged-file guards in pre-commit/CI, and review rejection for timestamped runtime output commits.
 

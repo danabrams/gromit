@@ -28,7 +28,7 @@ These are non-negotiable constraints for this project.
 - Pass large strings to Claude CLI via temp files, not CLI arguments (avoids ARG_MAX)
 - Shell scripts with user content: use quoted <<'EOF' heredocs; pass dynamic values as arguments, not string interpolation
 - Go subprocesses with user-influenced args (bead IDs, refs, branch names) must use `runArgv`, not `runCmd`, to prevent shell/flag injection
-- Runtime/local state artifacts (`.dolt/`, `.doltcfg/`, `beads_gromit/`, lock files, timestamped benchmark outputs) must not be committed; only deterministic fixtures in approved fixture paths may be versioned
+- Runtime/local state artifacts (`.dolt/`, `.doltcfg/`, `beads_gromit/`, lock files, `.gromit/state.json`, `.gromit/stats.json`, `.gromit/interactive-state.json`) and timestamped benchmark/report outputs must not be committed. Raw run outputs belong in ignored paths (for example `.gromit/reports/runs/`); only deterministic curated fixtures/artifacts in approved paths (for example `test/fixtures/`, `.gromit/reports/curated/`) may be versioned
 
 ## Test Quality <!-- phases: red, build, green, refactor, review -->
 
