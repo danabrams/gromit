@@ -328,35 +328,3 @@ func TestRunExploreInSession_WorktreeDisabledSkipsSessionLauncher(t *testing.T) 
 		t.Fatal("session launcher should not be called when worktree is disabled")
 	}
 }
-
-func TestExploreBacklogClientList_PreservesCreatedAt(t *testing.T) {
-	t.Parallel()
-
-	gromitDir := t.TempDir()
-	file, err := backlog.NewFile(gromitDir)
-	if err != nil {
-		t.Fatalf("backlog.NewFile() error = %v", err)
-	}
-
-	createdAt := time.Date(2026, time.February, 10, 11, 12, 13, 0, time.UTC)
-	if err := file.Add(&backlog.Idea{
-		ID:        "idea-1",
-		Text:      "idea",
-		Type:      "feature",
-		CreatedAt: createdAt,
-	}); err != nil {
-		t.Fatalf("file.Add() error = %v", err)
-	}
-
-	client := &exploreBacklogClient{file: file}
-	items, err := client.List()
-	if err != nil {
-		t.Fatalf("client.List() error = %v", err)
-	}
-	if len(items) != 1 {
-		t.Fatalf("len(items) = %d, want 1", len(items))
-	}
-	if !items[0].CreatedAt.Equal(createdAt) {
-		t.Fatalf("CreatedAt = %v, want %v", items[0].CreatedAt, createdAt)
-	}
-}

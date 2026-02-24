@@ -141,7 +141,6 @@ func TestRunRefineReturnsErrorWhenPipelineCreationFails(t *testing.T) {
 	}
 }
 
-<<<<<<< HEAD
 func TestToPipelineIdea_PreservesCreatedAt(t *testing.T) {
 	t.Parallel()
 
@@ -370,57 +369,5 @@ func TestRunRefineInSession_WorktreeDisabledSkipsSessionLauncher(t *testing.T) {
 	}
 	if launcherCalled {
 		t.Fatal("session launcher should not be called when worktree is disabled")
-	}
-}
-
-func TestBacklogAdapterAdd_PreservesCreatedAt(t *testing.T) {
-	t.Parallel()
-
-	gromitDir := t.TempDir()
-	file, err := backlog.NewFile(gromitDir)
-	if err != nil {
-		t.Fatalf("backlog.NewFile() error = %v", err)
-	}
-
-	adapter := &backlogAdapter{file: file}
-	createdAt := time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC)
-
-	err = adapter.Add(&pipeline.Idea{
-		ID:        "idea-1",
-		Text:      "idea",
-		Type:      "feature",
-		CreatedAt: createdAt,
-	})
-	if err != nil {
-		t.Fatalf("adapter.Add() error = %v", err)
-	}
-
-	got, err := file.Get("idea-1")
-	if err != nil {
-		t.Fatalf("file.Get() error = %v", err)
-	}
-	if got == nil {
-		t.Fatal("file.Get() = nil, want stored idea")
-	}
-	if !got.CreatedAt.Equal(createdAt) {
-		t.Fatalf("CreatedAt = %v, want %v", got.CreatedAt, createdAt)
-	}
-}
-
-func TestToPipelineIdea_PreservesCreatedAt(t *testing.T) {
-	t.Parallel()
-
-	createdAt := time.Date(2026, time.February, 3, 4, 5, 6, 0, time.UTC)
-	got := toPipelineIdea(&backlog.Idea{
-		ID:        "idea-1",
-		Text:      "idea",
-		Type:      "feature",
-		CreatedAt: createdAt,
-	})
-	if got == nil {
-		t.Fatal("toPipelineIdea() = nil, want idea")
-	}
-	if !got.CreatedAt.Equal(createdAt) {
-		t.Fatalf("CreatedAt = %v, want %v", got.CreatedAt, createdAt)
 	}
 }
