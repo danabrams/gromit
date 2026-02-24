@@ -226,6 +226,60 @@ func TestRunBenchmarkPipeline_WritesDeterministicArtifacts(t *testing.T) {
 	}
 }
 
+func TestWriteBenchmarkReport_PreservesInternalReportMarkdownSections(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+
+	err := writeBenchmarkReport(
+		benchmarkManifest{
+			ID:              "tdd-vs-single-pass",
+			Provider:        "openai",
+			ModelFamily:     "gpt-5",
+			LowTierModel:    "gpt-5-mini",
+			MediumTierModel: "gpt-5.3-codex",
+			HighTierModel:   "gpt-5.3-codex",
+		},
+		benchmarkHarnessResult{
+			BaseCommit:    "abc123",
+			SelectedBeads: []string{"gromit-1", "gromit-2", "gromit-3"},
+		},
+		benchmarkMetricsResult{
+			ModeSummaries: []benchpkg.ModeSummary{
+				{
+					Mode:             "single_pass",
+					ElapsedSeconds:   120,
+					TotalInput:       1000,
+					TotalOutput:      500,
+					TotalCostUSD:     1.25,
+					CostQualityRatio: 1.42,
+					Quality:          benchpkg.QualityMetrics{AverageScore: 0.88, FirstPassRate: 0.67, ReviewFindings: 3, ReviewFixesApplied: 2, FinalValidationPassed: true},
+				},
+			},
+		},
+		benchmarkRunOptions{OutputTimestamp: "20260223T120000Z"},
+	)
+	if err != nil {
+		t.Fatalf("writeBenchmarkReport() error = %v", err)
+	}
+
+	mdPath := filepath.Join(".gromit", "benchmarks", "results", "tdd-vs-single-pass", "20260223T120000Z.md")
+	content, err := os.ReadFile(mdPath)
+	if err != nil {
+		t.Fatalf("read report markdown: %v", err)
+	}
+
+	for _, section := range []string{
+		"## Per-Mode Summary",
+		"## By-Tier Totals",
+		"## Quality Metrics",
+		"## Winner Hints",
+	} {
+		if !strings.Contains(string(content), section) {
+			t.Fatalf("markdown missing %q section\n%s", section, string(content))
+		}
+	}
+}
+
 func TestRunBenchmarkPipeline_ReportJSONUsesInternalManifestMetadataShape(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
