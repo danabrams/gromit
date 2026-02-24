@@ -68,6 +68,7 @@ type SessionModeWorktreeRunnerOptions struct {
 	MainDir string
 
 	CreateSessionWorktree func(command string) (*worktree.SessionWorktree, error)
+	CheckoutBaseCommitInWorktree func(ctx context.Context, worktreeDir, baseCommit string) error
 	RunModeInWorktree     func(ctx context.Context, worktreeDir string, req ModeWorktreeRequest) error
 	CleanupSession        func(mainDir, sessionDir string) error
 }
@@ -75,6 +76,7 @@ type SessionModeWorktreeRunnerOptions struct {
 type SessionModeWorktreeRunner struct {
 	mainDir               string
 	createSessionWorktree func(command string) (*worktree.SessionWorktree, error)
+	checkoutBaseCommitInWorktree func(ctx context.Context, worktreeDir, baseCommit string) error
 	runModeInWorktree     func(ctx context.Context, worktreeDir string, req ModeWorktreeRequest) error
 	cleanupSession        func(mainDir, sessionDir string) error
 }
@@ -83,6 +85,7 @@ func NewSessionModeWorktreeRunner(opts SessionModeWorktreeRunnerOptions) *Sessio
 	r := &SessionModeWorktreeRunner{
 		mainDir:               opts.MainDir,
 		createSessionWorktree: opts.CreateSessionWorktree,
+		checkoutBaseCommitInWorktree: opts.CheckoutBaseCommitInWorktree,
 		runModeInWorktree:     opts.RunModeInWorktree,
 		cleanupSession:        opts.CleanupSession,
 	}
@@ -98,6 +101,9 @@ func NewSessionModeWorktreeRunner(opts SessionModeWorktreeRunnerOptions) *Sessio
 	if r.runModeInWorktree == nil {
 		r.runModeInWorktree = func(_ context.Context, _ string, _ ModeWorktreeRequest) error { return nil }
 	}
+	if r.checkoutBaseCommitInWorktree == nil {
+		r.checkoutBaseCommitInWorktree = defaultCheckoutBaseCommitInWorktree
+	}
 	if r.cleanupSession == nil {
 		r.cleanupSession = defaultSessionCleanup
 	}
@@ -108,6 +114,14 @@ func (r *SessionModeWorktreeRunner) RunMode(ctx context.Context, req ModeWorktre
 	session, err := r.createSessionWorktree("benchmark-" + req.Mode)
 	if err != nil {
 		return ModeWorktreeRun{}, fmt.Errorf("create session worktree for mode %q: %w", req.Mode, err)
+	}
+	if err := r.checkoutBaseCommitInWorktree(ctx, session.WorktreeDir, req.BaseCommit); err != nil {
+		return ModeWorktreeRun{
+			Mode: req.Mode,
+			Cleanup: func() error {
+				return r.cleanupSession(r.mainDir, session.WorktreeDir)
+			},
+		}, fmt.Errorf("checkout base commit for mode %q: %w", req.Mode, err)
 	}
 
 	if err := r.runModeInWorktree(ctx, session.WorktreeDir, req); err != nil {
@@ -125,6 +139,19 @@ func (r *SessionModeWorktreeRunner) RunMode(ctx context.Context, req ModeWorktre
 			return r.cleanupSession(r.mainDir, session.WorktreeDir)
 		},
 	}, nil
+}
+
+func defaultCheckoutBaseCommitInWorktree(ctx context.Context, worktreeDir, baseCommit string) error {
+	cmd := exec.CommandContext(ctx, "git", "checkout", "--detach", baseCommit)
+	cmd.Dir = worktreeDir
+	if output, err := cmd.CombinedOutput(); err != nil {
+		msg := stdstrings.TrimSpace(string(output))
+		if msg == "" {
+			return fmt.Errorf("checkout base commit %q in %q: %w", baseCommit, worktreeDir, err)
+		}
+		return fmt.Errorf("checkout base commit %q in %q: %w: %s", baseCommit, worktreeDir, err, msg)
+	}
+	return nil
 }
 
 func defaultSessionCleanup(mainDir, sessionDir string) error {

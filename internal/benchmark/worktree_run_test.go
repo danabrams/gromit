@@ -50,6 +50,7 @@ func TestSessionModeWorktreeRunner_RunModeExecutesInSessionAndReturnsCleanup(t *
 			}
 			return session, nil
 		},
+		CheckoutBaseCommitInWorktree: func(_ context.Context, _, _ string) error { return nil },
 		RunModeInWorktree: func(_ context.Context, worktreeDir string, req ModeWorktreeRequest) error {
 			executedDir = worktreeDir
 			executedReq = req
