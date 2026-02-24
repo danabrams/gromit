@@ -29,6 +29,9 @@ func LoadManifest(path string) (Manifest, error) {
 	if err := yaml.Unmarshal(data, &manifest); err != nil {
 		return Manifest{}, fmt.Errorf("parse manifest %q: %w", path, err)
 	}
+	if manifest.ID == "" {
+		return Manifest{}, fmt.Errorf("validate manifest %q: id is required", path)
+	}
 
 	return manifest, nil
 }
