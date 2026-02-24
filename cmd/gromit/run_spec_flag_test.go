@@ -28,6 +28,7 @@ func setupRunSpecTestEnv(t *testing.T) (specsDir string, cleanup func()) {
 	origConfigPath := configPath
 	origRunSpec := runSpecFlag
 	origRunEpic := runEpicFlag
+	origRunHasOpenBeadsForLabel := runHasOpenBeadsForLabelFn
 
 	t.Chdir(tempDir)
 
@@ -37,6 +38,7 @@ func setupRunSpecTestEnv(t *testing.T) (specsDir string, cleanup func()) {
 		configPath = origConfigPath
 		runSpecFlag = origRunSpec
 		runEpicFlag = origRunEpic
+		runHasOpenBeadsForLabelFn = origRunHasOpenBeadsForLabel
 	}
 
 	return specsDir, cleanup
@@ -138,6 +140,62 @@ func TestRunLoop_SpecFlagValidSpec(t *testing.T) {
 		if strings.Contains(errMsg, "Available specs") {
 			t.Errorf("Error should not list available specs for valid spec, got: %v", err)
 		}
+	}
+}
+
+func TestRunLoop_SpecFlagMissingSpecFallsBackToLegacyLabelWhenOpenBeadsExist(t *testing.T) {
+	_, cleanup := setupRunSpecTestEnv(t)
+	defer cleanup()
+
+	runHasOpenBeadsForLabelFn = func(label string) (bool, error) {
+		return label == "spec:review-revisions", nil
+	}
+
+	runSpecFlag = "review-revisions"
+	runEpicFlag = ""
+
+	err := runLoop(runCmd, []string{})
+	if err != nil {
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "validating spec:") {
+			t.Errorf("Error should not be spec validation error when legacy fallback applies, got: %v", err)
+		}
+		if strings.Contains(errMsg, "Available specs") {
+			t.Errorf("Error should not list available specs when legacy fallback applies, got: %v", err)
+		}
+	}
+}
+
+func TestRunLoop_SpecFlagMissingSpecDoesNotFallbackWhenStrictLegacyFallbackEnabled(t *testing.T) {
+	_, cleanup := setupRunSpecTestEnv(t)
+	defer cleanup()
+
+	strictCfg := `project:
+  profile: go
+tracker:
+  backend: bd
+methodology:
+  adapter: go
+compatibility:
+  strict_legacy_fallback: true
+`
+	if err := os.WriteFile(configPath, []byte(strictCfg), 0644); err != nil {
+		t.Fatalf("Failed to write strict compatibility config: %v", err)
+	}
+
+	runHasOpenBeadsForLabelFn = func(label string) (bool, error) {
+		return label == "spec:review-revisions", nil
+	}
+
+	runSpecFlag = "review-revisions"
+	runEpicFlag = ""
+
+	err := runLoop(runCmd, []string{})
+	if err == nil {
+		t.Fatal("runLoop with strict legacy fallback should return spec validation error for missing spec")
+	}
+	if !strings.Contains(err.Error(), "validating spec:") {
+		t.Fatalf("expected spec validation error under strict compatibility, got: %v", err)
 	}
 }
 

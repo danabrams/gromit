@@ -36,6 +36,8 @@ var (
 	runEpicFlag       string
 )
 
+var runHasOpenBeadsForLabelFn = hasOpenBeadsForLabel
+
 var retroResolveAgentFn = agent.Resolve
 var retroSessionLauncherFn = runWithSessionWorktreeWithConflictSettings
 var retroRecordStateFn = recordRetroState
@@ -206,7 +208,11 @@ func runLoop(cmd *cobra.Command, args []string) error {
 	specsDir := resolveSpecsDir(cfg)
 	labels, err := resolveScopeLabels(specsDir, runEpicFlag, runSpecFlag)
 	if err != nil {
-		return err
+		fallbackLabels, fallbackErr := resolveLegacyRunSpecScope(cfg, specsDir, runSpecFlag, err)
+		if fallbackErr != nil {
+			return fallbackErr
+		}
+		labels = fallbackLabels
 	}
 
 	// Override max iterations from flag if set
@@ -412,6 +418,39 @@ func resolveScopeLabels(specsDir, epicFlag, specFlag string) ([]string, error) {
 	}
 
 	return nil, nil
+}
+
+func resolveLegacyRunSpecScope(cfg *config.Config, specsDir, specFlag string, originalErr error) ([]string, error) {
+	if originalErr == nil || specFlag == "" || cfg == nil || cfg.Compatibility.StrictLegacyFallback {
+		return nil, originalErr
+	}
+
+	label := fmt.Sprintf("spec:%s", specFlag)
+	hasOpen, err := runHasOpenBeadsForLabelFn(label)
+	if err != nil || !hasOpen {
+		return nil, originalErr
+	}
+
+	fmt.Fprintf(
+		os.Stderr,
+		"Warning: spec %q not found in %s; using legacy label scope %q because matching open beads exist\n",
+		specFlag,
+		specsDir,
+		label,
+	)
+	return []string{label}, nil
+}
+
+func hasOpenBeadsForLabel(label string) (bool, error) {
+	client, err := bead.NewClient()
+	if err != nil {
+		return false, err
+	}
+	beads, err := client.ListWithLabel(label)
+	if err != nil {
+		return false, err
+	}
+	return len(beads) > 0, nil
 }
 
 func buildRetroProviderRunner(cfg *config.Config) (retro.ProviderRunner, error) {
