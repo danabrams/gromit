@@ -2,8 +2,10 @@ package benchmark
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -81,27 +83,30 @@ type ModeWorktreeRunner interface {
 type SessionModeWorktreeRunnerOptions struct {
 	MainDir string
 
-	CreateSessionWorktree func(command string) (*worktree.SessionWorktree, error)
+	CreateSessionWorktree        func(command string) (*worktree.SessionWorktree, error)
 	CheckoutBaseCommitInWorktree func(ctx context.Context, worktreeDir, baseCommit string) error
-	RunModeInWorktree     func(ctx context.Context, worktreeDir string, req ModeWorktreeRequest) error
-	CleanupSession        func(mainDir, sessionDir string) error
+	RunModeInWorktree            func(ctx context.Context, worktreeDir string, req ModeWorktreeRequest) error
+	CleanupSession               func(mainDir, sessionDir string) error
 }
 
 type SessionModeWorktreeRunner struct {
-	mainDir               string
-	createSessionWorktree func(command string) (*worktree.SessionWorktree, error)
+	mainDir                      string
+	createSessionWorktree        func(command string) (*worktree.SessionWorktree, error)
 	checkoutBaseCommitInWorktree func(ctx context.Context, worktreeDir, baseCommit string) error
-	runModeInWorktree     func(ctx context.Context, worktreeDir string, req ModeWorktreeRequest) error
-	cleanupSession        func(mainDir, sessionDir string) error
+	runModeInWorktree            func(ctx context.Context, worktreeDir string, req ModeWorktreeRequest) error
+	cleanupSession               func(mainDir, sessionDir string) error
 }
+
+var sessionCleanupRemoveFn = removeSessionWorktree
+var sessionCleanupNormalizePermissionsFn = ensureRemovablePermissions
 
 func NewSessionModeWorktreeRunner(opts SessionModeWorktreeRunnerOptions) *SessionModeWorktreeRunner {
 	r := &SessionModeWorktreeRunner{
-		mainDir:               opts.MainDir,
-		createSessionWorktree: opts.CreateSessionWorktree,
+		mainDir:                      opts.MainDir,
+		createSessionWorktree:        opts.CreateSessionWorktree,
 		checkoutBaseCommitInWorktree: opts.CheckoutBaseCommitInWorktree,
-		runModeInWorktree:     opts.RunModeInWorktree,
-		cleanupSession:        opts.CleanupSession,
+		runModeInWorktree:            opts.RunModeInWorktree,
+		cleanupSession:               opts.CleanupSession,
 	}
 	if r.createSessionWorktree == nil {
 		r.createSessionWorktree = func(command string) (*worktree.SessionWorktree, error) {
@@ -141,8 +146,8 @@ func (r *SessionModeWorktreeRunner) RunMode(ctx context.Context, req ModeWorktre
 
 	if err := r.runModeInWorktree(ctx, session.WorktreeDir, req); err != nil {
 		return ModeWorktreeRun{
-			Mode:         req.Mode,
-			RunStartedAt: startedAt,
+			Mode:          req.Mode,
+			RunStartedAt:  startedAt,
 			RunFinishedAt: time.Now().UTC(),
 			Cleanup: func() error {
 				return r.cleanupSession(r.mainDir, session.WorktreeDir)
@@ -208,6 +213,31 @@ func defaultCheckoutBaseCommitInWorktree(ctx context.Context, worktreeDir, baseC
 }
 
 func defaultSessionCleanup(mainDir, sessionDir string) error {
+	err := sessionCleanupRemoveFn(mainDir, sessionDir)
+	if err == nil {
+		return nil
+	}
+	if !isPermissionDeniedError(err) {
+		return err
+	}
+	if normalizeErr := sessionCleanupNormalizePermissionsFn(sessionDir); normalizeErr != nil {
+		return fmt.Errorf(
+			"normalize permissions for session worktree %q after remove failure: %w",
+			sessionDir,
+			errors.Join(err, normalizeErr),
+		)
+	}
+	if retryErr := sessionCleanupRemoveFn(mainDir, sessionDir); retryErr != nil {
+		return fmt.Errorf(
+			"remove session worktree %q after permission normalization: %w",
+			sessionDir,
+			errors.Join(err, retryErr),
+		)
+	}
+	return nil
+}
+
+func removeSessionWorktree(mainDir, sessionDir string) error {
 	cmd := exec.Command("git", "worktree", "remove", "--force", sessionDir)
 	cmd.Dir = mainDir
 	if output, err := cmd.CombinedOutput(); err != nil {
@@ -218,6 +248,69 @@ func defaultSessionCleanup(mainDir, sessionDir string) error {
 		return fmt.Errorf("remove session worktree %q: %w: %s", sessionDir, err, msg)
 	}
 	return nil
+}
+
+func ensureRemovablePermissions(root string) error {
+	if root == "" {
+		return fmt.Errorf("session worktree path is empty")
+	}
+
+	if err := os.Chmod(root, 0o700); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("chmod root %q: %w", root, err)
+	}
+
+	return filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			if os.IsPermission(walkErr) {
+				if err := os.Chmod(path, 0o700); err != nil && !os.IsNotExist(err) {
+					return fmt.Errorf("chmod path %q after walk permission error: %w", path, err)
+				}
+				return nil
+			}
+			if os.IsNotExist(walkErr) {
+				return nil
+			}
+			return walkErr
+		}
+
+		if d.Type()&os.ModeSymlink != 0 {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return err
+		}
+
+		mode := info.Mode().Perm()
+		if info.IsDir() {
+			targetMode := mode | 0o700
+			if targetMode != mode {
+				if err := os.Chmod(path, targetMode); err != nil && !os.IsNotExist(err) {
+					return fmt.Errorf("chmod directory %q: %w", path, err)
+				}
+			}
+			return nil
+		}
+		if info.Mode().IsRegular() {
+			targetMode := mode | 0o600
+			if targetMode != mode {
+				if err := os.Chmod(path, targetMode); err != nil && !os.IsNotExist(err) {
+					return fmt.Errorf("chmod file %q: %w", path, err)
+				}
+			}
+		}
+		return nil
+	})
+}
+
+func isPermissionDeniedError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return stdstrings.Contains(stdstrings.ToLower(err.Error()), "permission denied")
 }
 
 func applyBenchmarkOverlayToConfig(cfg *config.Config, overlay ModeOverlay) (*config.Config, error) {

@@ -3,6 +3,9 @@ package benchmark
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	stdstrings "strings"
 	"testing"
 
@@ -162,6 +165,135 @@ func TestSessionModeWorktreeRunner_RunModeChecksOutBaseCommitBeforeExecution(t *
 	}
 	if len(sequence) != 2 || sequence[0] != "checkout" || sequence[1] != "run" {
 		t.Fatalf("execution sequence = %v, want [checkout run]", sequence)
+	}
+}
+
+func TestDefaultSessionCleanup_RetriesAfterPermissionDenied(t *testing.T) {
+	origRemove := sessionCleanupRemoveFn
+	origNormalize := sessionCleanupNormalizePermissionsFn
+	t.Cleanup(func() {
+		sessionCleanupRemoveFn = origRemove
+		sessionCleanupNormalizePermissionsFn = origNormalize
+	})
+
+	removeCalls := 0
+	normalized := false
+	sessionCleanupRemoveFn = func(_, _ string) error {
+		removeCalls++
+		if removeCalls == 1 {
+			return fmt.Errorf("remove session worktree %q: %w: %s", "/tmp/wt", errors.New("exit status 255"), "failed to delete '/tmp/wt': Permission denied")
+		}
+		return nil
+	}
+	sessionCleanupNormalizePermissionsFn = func(sessionDir string) error {
+		if sessionDir != "/tmp/wt" {
+			t.Fatalf("sessionDir = %q, want %q", sessionDir, "/tmp/wt")
+		}
+		normalized = true
+		return nil
+	}
+
+	if err := defaultSessionCleanup("/tmp/repo", "/tmp/wt"); err != nil {
+		t.Fatalf("defaultSessionCleanup() error = %v", err)
+	}
+	if !normalized {
+		t.Fatal("expected permission normalization on permission denied failure")
+	}
+	if removeCalls != 2 {
+		t.Fatalf("remove calls = %d, want 2", removeCalls)
+	}
+}
+
+func TestDefaultSessionCleanup_DoesNotRetryOnNonPermissionFailure(t *testing.T) {
+	origRemove := sessionCleanupRemoveFn
+	origNormalize := sessionCleanupNormalizePermissionsFn
+	t.Cleanup(func() {
+		sessionCleanupRemoveFn = origRemove
+		sessionCleanupNormalizePermissionsFn = origNormalize
+	})
+
+	removeCalls := 0
+	sessionCleanupRemoveFn = func(_, _ string) error {
+		removeCalls++
+		return fmt.Errorf("remove session worktree %q: %w: %s", "/tmp/wt", errors.New("exit status 255"), "invalid argument")
+	}
+	sessionCleanupNormalizePermissionsFn = func(string) error {
+		t.Fatal("normalize should not run for non-permission failures")
+		return nil
+	}
+
+	err := defaultSessionCleanup("/tmp/repo", "/tmp/wt")
+	if err == nil {
+		t.Fatal("defaultSessionCleanup() error = nil, want non-nil")
+	}
+	if removeCalls != 1 {
+		t.Fatalf("remove calls = %d, want 1", removeCalls)
+	}
+}
+
+func TestDefaultSessionCleanup_ReturnsCombinedErrorWhenNormalizationFails(t *testing.T) {
+	origRemove := sessionCleanupRemoveFn
+	origNormalize := sessionCleanupNormalizePermissionsFn
+	t.Cleanup(func() {
+		sessionCleanupRemoveFn = origRemove
+		sessionCleanupNormalizePermissionsFn = origNormalize
+	})
+
+	sessionCleanupRemoveFn = func(_, _ string) error {
+		return fmt.Errorf("remove session worktree %q: %w: %s", "/tmp/wt", errors.New("exit status 255"), "Permission denied")
+	}
+	sessionCleanupNormalizePermissionsFn = func(string) error {
+		return errors.New("chmod failed")
+	}
+
+	err := defaultSessionCleanup("/tmp/repo", "/tmp/wt")
+	if err == nil {
+		t.Fatal("defaultSessionCleanup() error = nil, want non-nil")
+	}
+	if !stdstrings.Contains(err.Error(), "normalize permissions for session worktree") {
+		t.Fatalf("error = %q, want normalization context", err)
+	}
+	if !stdstrings.Contains(err.Error(), "chmod failed") {
+		t.Fatalf("error = %q, want chmod failure context", err)
+	}
+}
+
+func TestEnsureRemovablePermissions_GrantsOwnerPermissionsRecursively(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	subDir := filepath.Join(root, "nested")
+	if err := os.MkdirAll(subDir, 0o700); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	filePath := filepath.Join(subDir, "data.txt")
+	if err := os.WriteFile(filePath, []byte("x"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.Chmod(filePath, 0o000); err != nil {
+		t.Fatalf("Chmod(filePath) error = %v", err)
+	}
+	if err := os.Chmod(subDir, 0o000); err != nil {
+		t.Fatalf("Chmod(subDir) error = %v", err)
+	}
+
+	if err := ensureRemovablePermissions(root); err != nil {
+		t.Fatalf("ensureRemovablePermissions() error = %v", err)
+	}
+
+	subInfo, err := os.Stat(subDir)
+	if err != nil {
+		t.Fatalf("Stat(subDir) error = %v", err)
+	}
+	if subInfo.Mode().Perm()&0o700 != 0o700 {
+		t.Fatalf("subDir perms = %o, want owner rwx set", subInfo.Mode().Perm())
+	}
+	fileInfo, err := os.Stat(filePath)
+	if err != nil {
+		t.Fatalf("Stat(filePath) error = %v", err)
+	}
+	if fileInfo.Mode().Perm()&0o600 != 0o600 {
+		t.Fatalf("file perms = %o, want owner rw set", fileInfo.Mode().Perm())
 	}
 }
 
