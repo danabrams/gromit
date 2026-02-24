@@ -63,6 +63,14 @@ type OrchestratorConfig struct {
 	// ProviderCostDefs maps runtime provider names to their configuration,
 	// enabling cost estimation from token counts when providers don't report cost.
 	ProviderCostDefs map[string]config.ProviderDef
+
+	// TrendUpdater refreshes SPC process trend metrics from iteration logs.
+	// Optional: nil means skip refresh lifecycle management.
+	TrendUpdater trendUpdaterCloser
+}
+
+type trendUpdaterCloser interface {
+	Close()
 }
 
 // StateSaver persists provider routing state (provider counts, availability) to disk.
@@ -97,6 +105,9 @@ func NewOrchestrator(cfg OrchestratorConfig) *Orchestrator {
 func (o *Orchestrator) Run(ctx context.Context, maxIterations int, deadline time.Time, stopCh <-chan struct{}) error {
 	if stopCh == nil {
 		stopCh = make(chan struct{})
+	}
+	if o.cfg.TrendUpdater != nil {
+		defer o.cfg.TrendUpdater.Close()
 	}
 
 	var validationFailures []string

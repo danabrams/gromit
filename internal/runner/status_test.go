@@ -371,6 +371,64 @@ func TestPrintStatus_IncludesSPCSection(t *testing.T) {
 	}
 }
 
+func TestPrintStatus_ReadsSPCFromMetricsDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	sw, err := NewStatusWriter(gromitDir)
+	if err != nil {
+		t.Fatalf("NewStatusWriter: %v", err)
+	}
+	if err := sw.Write(2, "bead-spc-metrics", "SPC metrics test", "sonnet", true, 0, 0); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	logsDir := filepath.Join(gromitDir, "logs")
+	if err := os.MkdirAll(logsDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll logs: %v", err)
+	}
+
+	metricsDir := filepath.Join(gromitDir, "metrics")
+	if err := os.MkdirAll(metricsDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll metrics: %v", err)
+	}
+	trendJSON := `{
+		"generated_at":"2026-02-24T11:30:00Z",
+		"total_iterations":12,
+		"window_size":10,
+		"control_limits":[
+			{"metric":"rolling_success_rate","latest":0.8,"mean":0.7,"std_dev":0.1,"ucl":0.9,"lcl":0.5}
+		]
+	}`
+	if err := os.WriteFile(filepath.Join(metricsDir, "process_trend.json"), []byte(trendJSON), 0o644); err != nil {
+		t.Fatalf("WriteFile process trend: %v", err)
+	}
+
+	cfg := &config.Config{}
+	cfg.Paths.Specs = filepath.Join(tmpDir, "specs")
+	cfg.Paths.Plans = filepath.Join(tmpDir, "plans")
+	cfg.Paths.Logs = logsDir
+
+	var buf strings.Builder
+	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }); err != nil {
+		t.Fatalf("PrintStatus: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "SPC:") {
+		t.Fatalf("expected SPC section, got:\n%s", output)
+	}
+	if strings.Contains(output, "SPC: (no data)") {
+		t.Fatalf("expected metrics-backed SPC data, got:\n%s", output)
+	}
+	if !strings.Contains(output, "Window:   10 iterations (12 total)") {
+		t.Fatalf("expected metrics trend window from metrics file, got:\n%s", output)
+	}
+}
+
 // TestPrintStatus_StalePIDWarnsAndDeletesFile verifies that when status.json
 // says running:true but the processChecker reports the PID as dead, PrintStatus
 // outputs a stale-run warning with bead details, prints a removal message, and

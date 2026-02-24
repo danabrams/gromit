@@ -95,14 +95,31 @@ func PrintStatus(gromitDir string, cfg *config.Config, w io.Writer, processCheck
 	}
 
 	// SPC section: read process trend from logs directory
-	var trend *logger.ProcessTrend
-	if cfg.Paths.Logs != "" {
-		trend, _ = logger.ReadProcessTrend(filepath.Join(cfg.Paths.Logs, "process_trend.json"))
-	}
+	trend := readProcessTrendForStatus(gromitDir, cfg)
 	if _, err := fmt.Fprintln(w, formatSPCSummary(trend)); err != nil {
 		return fmt.Errorf("writing SPC status: %w", err)
 	}
 
+	return nil
+}
+
+func readProcessTrendForStatus(gromitDir string, cfg *config.Config) *logger.ProcessTrend {
+	if cfg == nil {
+		return nil
+	}
+
+	paths := []string{filepath.Join(gromitDir, "metrics", "process_trend.json")}
+	if cfg.Paths.Logs != "" {
+		// Backward-compatible fallback for legacy location.
+		paths = append(paths, filepath.Join(cfg.Paths.Logs, "process_trend.json"))
+	}
+
+	for _, p := range paths {
+		trend, err := logger.ReadProcessTrend(p)
+		if err == nil && trend != nil {
+			return trend
+		}
+	}
 	return nil
 }
 

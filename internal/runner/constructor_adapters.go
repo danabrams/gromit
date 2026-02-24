@@ -349,14 +349,25 @@ func (a *epilogueCommandRunnerAdapter) Run(ctx context.Context, command string) 
 
 // iterationLogWriterAdapter wraps *logger.Logger to satisfy epilogue.IterationLogWriter.
 type iterationLogWriterAdapter struct {
-	logger *logger.Logger
+	logger       *logger.Logger
+	trendUpdater trendTrigger
 }
 
 func (a *iterationLogWriterAdapter) Write(log *logger.IterationLog) error {
 	if a.logger == nil {
 		return nil
 	}
-	return a.logger.LogIteration(log)
+	if err := a.logger.LogIteration(log); err != nil {
+		return err
+	}
+	if a.trendUpdater != nil {
+		a.trendUpdater.Trigger()
+	}
+	return nil
+}
+
+type trendTrigger interface {
+	Trigger()
 }
 
 // scopeGateSubBead represents a single sub-bead from the LLM decomposition response.

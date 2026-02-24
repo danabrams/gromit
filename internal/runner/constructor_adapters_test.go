@@ -2,10 +2,12 @@ package runner
 
 import (
 	"math"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/provider"
 )
 
@@ -88,5 +90,40 @@ func TestApplyCostFallback_NoProviderDefLeavesZero(t *testing.T) {
 
 	if result.CostUSD != 0 {
 		t.Fatalf("CostUSD = %v, want 0", result.CostUSD)
+	}
+}
+
+type testTrendTrigger struct {
+	triggered int
+}
+
+func (t *testTrendTrigger) Trigger() {
+	t.triggered++
+}
+
+func TestIterationLogWriterAdapter_TriggersTrendRefreshOnSuccess(t *testing.T) {
+	logDir := filepath.Join(t.TempDir(), "logs")
+	l, err := logger.NewLogger(logDir)
+	if err != nil {
+		t.Fatalf("NewLogger: %v", err)
+	}
+	defer l.Close()
+
+	trigger := &testTrendTrigger{}
+	adapter := &iterationLogWriterAdapter{
+		logger:       l,
+		trendUpdater: trigger,
+	}
+
+	entry := &logger.IterationLog{
+		Iteration: 1,
+		BeadID:    "bead-1",
+		Success:   true,
+	}
+	if err := adapter.Write(entry); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	if trigger.triggered != 1 {
+		t.Fatalf("Trigger count = %d, want 1", trigger.triggered)
 	}
 }

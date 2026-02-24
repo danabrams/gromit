@@ -52,13 +52,25 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		output = os.Stdout
 	}
 	emitStartupCompatibilityDeprecationWarning(cfg, output)
+	gromitDir := filepath.Dir(cfg.Paths.Templates)
 
 	iterationLogger, err := logger.NewLogger(cfg.Paths.Logs)
 	if err != nil {
 		_, _ = fmt.Fprintf(output, "Warning: could not create logger: %v\n", err)
 	}
-
-	gromitDir := filepath.Dir(cfg.Paths.Templates)
+	var trendUpdater *logger.AsyncTrendUpdater
+	if iterationLogger != nil {
+		trendUpdater = logger.NewAsyncTrendUpdater(
+			cfg.Paths.Logs,
+			filepath.Join(gromitDir, "metrics"),
+			30,
+			func(err error) {
+				if err != nil {
+					_, _ = fmt.Fprintf(output, "Warning: could not refresh process trend metrics: %v\n", err)
+				}
+			},
+		)
+	}
 
 	statusWriter, err := NewStatusWriter(gromitDir)
 	if err != nil {
@@ -173,7 +185,10 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 	})
 
 	if iterationLogger != nil {
-		epilogueStage.WithIterationLogWriter(&iterationLogWriterAdapter{logger: iterationLogger})
+		epilogueStage.WithIterationLogWriter(&iterationLogWriterAdapter{
+			logger:       iterationLogger,
+			trendUpdater: trendUpdater,
+		})
 	}
 
 	// Create OrchestratorConfig
@@ -214,6 +229,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		GetRunID:        getRunIDFn,
 		LogsDir:         cfg.Paths.Logs,
 		Output:          syncOut,
+		TrendUpdater:    trendUpdater,
 		StatusWriter: func(iteration int, beadID, beadTitle string, dl time.Time) {
 			if statusWriter != nil {
 				if specProgressLabel != "" {
