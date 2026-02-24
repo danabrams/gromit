@@ -6,6 +6,28 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func TestRegisterRootCommands_RegistersBenchmarkRun(t *testing.T) {
+	root := &cobra.Command{Use: "gromit"}
+
+	registerRootCommands(root)
+
+	benchmark, _, err := root.Find([]string{"benchmark"})
+	if err != nil {
+		t.Fatalf("find benchmark command: %v", err)
+	}
+	if benchmark == nil || benchmark.Name() != "benchmark" {
+		t.Fatalf("benchmark command = %v", benchmark)
+	}
+
+	run, _, err := root.Find([]string{"benchmark", "run"})
+	if err != nil {
+		t.Fatalf("find benchmark run command: %v", err)
+	}
+	if run == nil || run.Name() != "run" {
+		t.Fatalf("benchmark run command = %v", run)
+	}
+}
+
 func TestCommandRequiresRepoRoot_Regression(t *testing.T) {
 	tests := []struct {
 		name string
