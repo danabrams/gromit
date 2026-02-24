@@ -15,9 +15,9 @@ import (
 func TestClaudeClientAdapter_ConstructsTypedStruct(t *testing.T) {
 	contentStr := adapterTestReadFile(t, "adapters.go")
 
-	// Check that claudeClientAdapter.Run constructs &pipeline.ClaudeRunResult{...}
-	if !adapterTestContainsString(contentStr, "&pipeline.ClaudeRunResult{") {
-		t.Error("claudeClientAdapter.Run() should construct &pipeline.ClaudeRunResult{...}, not map[string]interface{}")
+	// Check that claudeClientAdapter.Run constructs &pipeline.LLMRunResult{...}
+	if !adapterTestContainsString(contentStr, "&pipeline.LLMRunResult{") {
+		t.Error("claudeClientAdapter.Run() should construct &pipeline.LLMRunResult{...}, not map[string]interface{}")
 	}
 
 	// Check that map[string]interface{} construction is removed
@@ -97,8 +97,8 @@ func TestAdapterFile_ImportsTypedPipeline(t *testing.T) {
 	}
 
 	// Verify usage of typed pipeline types (not interface{})
-	if !adapterTestContainsString(contentStr, "pipeline.ClaudeRunResult") {
-		t.Error("adapters.go should reference pipeline.ClaudeRunResult type")
+	if !adapterTestContainsString(contentStr, "pipeline.LLMRunResult") {
+		t.Error("adapters.go should reference pipeline.LLMRunResult type")
 	}
 
 	if !adapterTestContainsString(contentStr, "pipeline.BeadInfo") {

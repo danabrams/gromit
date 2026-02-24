@@ -71,10 +71,10 @@ func TestPipelineInterfaces_AllTypedSignatures(t *testing.T) {
 		}
 	}
 
-	// Verify ClaudeClient returns typed result
-	claudeClientSection := extractBetweenMarkers(contentStr, "type ClaudeClient interface", "type BeadClient interface")
-	if !strings.Contains(claudeClientSection, "(*ClaudeRunResult, error)") {
-		t.Error("ClaudeClient.Run should return (*ClaudeRunResult, error)")
+	// Verify LLMClient returns typed result
+	llmClientSection := extractBetweenMarkers(contentStr, "type LLMClient interface", "type ReviewInvoker interface")
+	if !strings.Contains(llmClientSection, "(*LLMRunResult, error)") {
+		t.Error("LLMClient.Run should return (*LLMRunResult, error)")
 	}
 
 	// Verify BeadClient returns typed results
