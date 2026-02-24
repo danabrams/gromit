@@ -77,6 +77,12 @@ Cohort validation paths that call external lookups must treat a nil object as in
 *Related to: gromit/review-1771938913730053167*
 
 Deterministic clock injection should be wired through runtime code paths (not just declared for tests); otherwise tests can configure a fake clock that production paths ignore, creating false confidence.
+
+### 2026-02-24 | post_fix_reviews_should_re_run_touched_package_suites | PROCESS
+*Related to: gromit/review-1771938913730053167*
+
+After landing targeted fixes, re-running tests for touched packages is a lightweight regression gate that quickly confirms behavioral integrity without waiting for full-suite signal.
+
 ## Provisional Learnings
 
 ### 2026-02-24 | benchmark_execution_and_reporting_require_single_source_truth_and_owner | ARCHITECTURE
