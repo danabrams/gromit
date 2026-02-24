@@ -71,6 +71,7 @@ type Config struct {
 	Agents      AgentsConfig           `yaml:"agents"`
 	Providers   map[string]ProviderDef `yaml:"providers"`
 	Routing     RoutingConfig          `yaml:"routing"`
+	TokenEfficiency TokenEfficiencyConfig `yaml:"token_efficiency"`
 	Stream      StreamConfig           `yaml:"stream"`
 	Worktree    WorktreeConfig         `yaml:"worktree"`
 	Session     SessionConfig          `yaml:"session"`
@@ -444,6 +445,28 @@ type RoutingConfig struct {
 	Ratio            map[string]int       `yaml:"ratio"`
 	Fallback         FallbackConfig       `yaml:"fallback"`
 	CircuitBreaker   CircuitBreakerConfig `yaml:"circuit_breaker"`
+}
+
+type TokenEfficiencyConfig struct {
+	Cache   TokenEfficiencyCacheConfig   `yaml:"cache"`
+	Routing TokenEfficiencyRoutingConfig `yaml:"routing"`
+}
+
+type TokenEfficiencyCacheConfig struct {
+	Enabled  bool   `yaml:"enabled"`
+	TTL      string `yaml:"ttl"`
+	Capacity int    `yaml:"capacity"`
+}
+
+type TokenEfficiencyRoutingConfig struct {
+	Enabled      bool                                    `yaml:"enabled"`
+	UtilityTier  string                                  `yaml:"utility_tier"`
+	KillSwitches TokenEfficiencyRoutingKillSwitchesConfig `yaml:"kill_switches"`
+}
+
+type TokenEfficiencyRoutingKillSwitchesConfig struct {
+	DisableUtilityRouting bool `yaml:"disable_utility_routing"`
+	DisableTaskOverrides  bool `yaml:"disable_task_overrides"`
 }
 
 type FallbackConfig struct {
