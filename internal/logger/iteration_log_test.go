@@ -203,6 +203,27 @@ func TestIterationLog_ProviderAndFailureCategoryJSONTags(t *testing.T) {
 	}
 }
 
+func TestIterationLog_TimeoutDecompositionJSONTags(t *testing.T) {
+	log := &IterationLog{
+		BeadID:                       "bead-timeout",
+		Model:                        "sonnet",
+		TimeoutDecompositionAttempted: true,
+		TimeoutDecompositionSucceeded: true,
+	}
+
+	data, err := json.Marshal(log)
+	if err != nil {
+		t.Fatalf("marshal log: %v", err)
+	}
+	s := string(data)
+	if !strings.Contains(s, "\"timeout_decomposition_attempted\":true") {
+		t.Fatalf("expected timeout_decomposition_attempted in JSON, got %s", s)
+	}
+	if !strings.Contains(s, "\"timeout_decomposition_succeeded\":true") {
+		t.Fatalf("expected timeout_decomposition_succeeded in JSON, got %s", s)
+	}
+}
+
 func TestIterationLog_ReasoningEffortJSONTag(t *testing.T) {
 	log := &IterationLog{
 		BeadID:          "test-1",
