@@ -273,6 +273,31 @@ high_tier_model: gpt-5.3-codex
 	}
 }
 
+func TestRunBenchmarkPipeline_RejectsManifestMissingProviderPinning(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+
+	manifestPath := filepath.Join(t.TempDir(), "manifest.yaml")
+	manifest := `id: tdd-vs-single-pass
+base_commit: abc123
+beads:
+  - gromit-1
+modes:
+  - single_pass
+`
+	if err := os.WriteFile(manifestPath, []byte(manifest), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	err := runBenchmarkPipeline(benchmarkRunOptions{ManifestPath: manifestPath, OutputTimestamp: "20260223T140500Z"})
+	if err == nil {
+		t.Fatal("runBenchmarkPipeline() error = nil, want provider/model pinning validation error")
+	}
+	if !strings.Contains(err.Error(), "provider is required") {
+		t.Fatalf("runBenchmarkPipeline() error = %q, want contains %q", err.Error(), "provider is required")
+	}
+}
+
 func TestBenchmarkRunCommand_BeadOverridesDriveSelection(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
