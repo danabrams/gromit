@@ -7,7 +7,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/analyzer"
 	"github.com/danabrams/gromit/internal/bead"
-	"github.com/danabrams/gromit/internal/claude"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
@@ -31,7 +31,7 @@ func TestAnalyzeAndHandleFailure_HardStopBlocksAutonomousPathWithoutApproval(t *
 	bc := newTestBeadContext()
 	bc.HardStopApproval = runtypes.HardStopApprovalState{Approved: false}
 
-	continueLoop := h.AnalyzeAndHandleFailure(context.Background(), bc, &claude.Result{Output: "dangerous action requested"})
+	continueLoop := h.AnalyzeAndHandleFailure(context.Background(), bc, &provider.Result{Output: "dangerous action requested"})
 	if continueLoop {
 		t.Fatal("expected hard-stop guardrail to halt autonomous execution when approval is missing")
 	}
@@ -69,7 +69,7 @@ func TestAnalyzeAndHandleFailure_HardStopApprovedCanProceedViaEscalation(t *test
 		ApprovedBy: "human-reviewer",
 	}
 
-	continueLoop := h.AnalyzeAndHandleFailure(context.Background(), bc, &claude.Result{Output: "credential mutation requested"})
+	continueLoop := h.AnalyzeAndHandleFailure(context.Background(), bc, &provider.Result{Output: "credential mutation requested"})
 	if !continueLoop {
 		t.Fatal("expected approved hard-stop action to continue via escalation path")
 	}

@@ -240,7 +240,7 @@ func TestAnalyzeAndHandleFailure_UnclearSpecStops(t *testing.T) {
 	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, nil, nil)
 
 	bc := newTestBeadContext()
-	claudeResult := &claude.Result{Output: "build failed output"}
+	claudeResult := &provider.Result{Output: "build failed output"}
 
 	continueLoop := h.AnalyzeAndHandleFailure(context.Background(), bc, claudeResult)
 	if continueLoop {
@@ -271,7 +271,7 @@ func TestAnalyzeAndHandleFailure_TaskTooComplexStopsAndComments(t *testing.T) {
 	h := NewHandler(cfg, mfa, mbc, nil, nil, nil, nil)
 
 	bc := newTestBeadContext()
-	claudeResult := &claude.Result{Output: "build output"}
+	claudeResult := &provider.Result{Output: "build output"}
 
 	continueLoop := h.AnalyzeAndHandleFailure(context.Background(), bc, claudeResult)
 	if continueLoop {
@@ -308,7 +308,7 @@ func TestAnalyzeAndHandleFailure_RecoverableRetries(t *testing.T) {
 	bc := newTestBeadContext()
 	bc.RetriesThisModel = 0
 	bc.MaxRetries = 2
-	claudeResult := &claude.Result{Output: "compilation error"}
+	claudeResult := &provider.Result{Output: "compilation error"}
 
 	continueLoop := h.AnalyzeAndHandleFailure(context.Background(), bc, claudeResult)
 	if !continueLoop {
@@ -349,7 +349,7 @@ func TestAnalyzeAndHandleFailure_RecoverableRetrySetsPromptContext(t *testing.T)
 	}
 	bc.RetriesThisModel = 0
 	bc.MaxRetries = 2
-	claudeResult := &claude.Result{Success: false, Output: "compile error: missing import"}
+	claudeResult := &provider.Result{Success: false, Output: "compile error: missing import"}
 
 	continueLoop := h.AnalyzeAndHandleFailure(context.Background(), bc, claudeResult)
 	if !continueLoop {
@@ -387,7 +387,7 @@ func TestAnalyzeAndHandleFailure_RecoverableRetryTruncatesFailureContextTail(t *
 		ConfirmedLearnings: []learnings.Learning{},
 		RecentLearnings:    []learnings.Learning{},
 	}
-	claudeResult := &claude.Result{Success: false, Output: "compile error"}
+	claudeResult := &provider.Result{Success: false, Output: "compile error"}
 
 	continueLoop := h.AnalyzeAndHandleFailure(context.Background(), bc, claudeResult)
 	if !continueLoop {
@@ -420,7 +420,7 @@ func TestAnalyzeAndHandleFailure_AnalysisErrorRetriesCommonCauseFirst(t *testing
 	bc := newTestBeadContext()
 	bc.Tier = provider.TierLow
 	bc.Model = "haiku"
-	claudeResult := &claude.Result{Output: "failed build output"}
+	claudeResult := &provider.Result{Output: "failed build output"}
 
 	continueLoop := h.AnalyzeAndHandleFailure(context.Background(), bc, claudeResult)
 	if !continueLoop {
@@ -453,7 +453,7 @@ func TestAnalyzeAndHandleFailure_NonRecoverableCommonCauseRetriesSameTier(t *tes
 	bc := newTestBeadContext()
 	bc.Tier = provider.TierMedium
 	bc.Model = "sonnet"
-	claudeResult := &claude.Result{Output: "failed build output"}
+	claudeResult := &provider.Result{Output: "failed build output"}
 
 	continueLoop := h.AnalyzeAndHandleFailure(context.Background(), bc, claudeResult)
 	if !continueLoop {
@@ -486,7 +486,7 @@ func TestAnalyzeAndHandleFailure_NonRecoverableConsecutiveFailureEscalates(t *te
 	bc.Tier = provider.TierMedium
 	bc.Model = "sonnet"
 	bc.RetriesThisModel = 1 // consecutive failure on same bead => special cause
-	claudeResult := &claude.Result{Output: "failed again"}
+	claudeResult := &provider.Result{Output: "failed again"}
 
 	continueLoop := h.AnalyzeAndHandleFailure(context.Background(), bc, claudeResult)
 	if !continueLoop {
@@ -529,7 +529,7 @@ func TestHandleEscalation_EscalatesToNextTier(t *testing.T) {
 	bc := newTestBeadContext()
 	bc.Tier = provider.TierLow
 	bc.Model = "haiku"
-	claudeResult := &claude.Result{Output: "build failed"}
+	claudeResult := &provider.Result{Output: "build failed"}
 
 	continueLoop := h.HandleEscalation(context.Background(), bc, claudeResult)
 	if !continueLoop {
@@ -566,7 +566,7 @@ func TestHandleEscalation_NoMoreTiersAttempsDecomposition(t *testing.T) {
 	bc := newTestBeadContext()
 	bc.Tier = provider.TierHigh // highest tier, no further escalation
 	bc.Model = "opus"
-	claudeResult := &claude.Result{Output: "build failed"}
+	claudeResult := &provider.Result{Output: "build failed"}
 
 	h.HandleEscalation(context.Background(), bc, claudeResult)
 	if !decomposeCalled {
@@ -584,7 +584,7 @@ func TestHandleEscalation_MaxRetriesPerBeadExceededStops(t *testing.T) {
 	bc.Tier = provider.TierLow
 	bc.TotalRetriesThisBead = 6
 	bc.MaxRetriesPerBead = 5
-	claudeResult := &claude.Result{Output: "build failed"}
+	claudeResult := &provider.Result{Output: "build failed"}
 
 	continueLoop := h.HandleEscalation(context.Background(), bc, claudeResult)
 	if continueLoop {
@@ -1885,7 +1885,7 @@ func TestAnalyzeAndHandleFailure_IntegrityUnsafeStateTriggersImmediateL3(t *test
 	bc := newTestBeadContext()
 	bc.Tier = provider.TierLow
 	bc.Model = "haiku"
-	claudeResult := &claude.Result{Output: "fatal integrity failure"}
+	claudeResult := &provider.Result{Output: "fatal integrity failure"}
 
 	continueLoop := h.AnalyzeAndHandleFailure(context.Background(), bc, claudeResult)
 	if continueLoop {

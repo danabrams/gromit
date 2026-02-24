@@ -6,7 +6,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/analyzer"
 	"github.com/danabrams/gromit/internal/bead"
-	"github.com/danabrams/gromit/internal/claude"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
@@ -75,7 +75,7 @@ func TestHandlerLogCallbackOnAnalyzeFailure(t *testing.T) {
 	bc := newTestBeadContext()
 	bc.Tier = "low"
 
-	claudeResult := &claude.Result{Success: false, Output: "build failed: missing import"}
+	claudeResult := &provider.Result{Success: false, Output: "build failed: missing import"}
 	h.AnalyzeAndHandleFailure(context.Background(), bc, claudeResult)
 
 	if len(logMessages) == 0 {
@@ -103,7 +103,7 @@ func TestHandlerLogCallbackOnEscalation(t *testing.T) {
 	bc.Tier = "low"
 	bc.Model = "haiku"
 
-	claudeResult := &claude.Result{Success: false, Output: "build failed"}
+	claudeResult := &provider.Result{Success: false, Output: "build failed"}
 	h.HandleEscalation(context.Background(), bc, claudeResult)
 
 	if len(logMessages) == 0 {

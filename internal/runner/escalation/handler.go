@@ -7,7 +7,6 @@ import (
 
 	"github.com/danabrams/gromit/internal/analyzer"
 	"github.com/danabrams/gromit/internal/bead"
-	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
@@ -249,7 +248,8 @@ func (h *Handler) truncateFailureContext(failureContext string) string {
 
 // HandleEscalation tries to escalate to the next tier or decompose the task.
 // Returns true if the retry loop should continue, false if processBead should return.
-func (h *Handler) HandleEscalation(ctx context.Context, bc *runtypes.BeadContext, claudeResult *claude.Result) (continueLoop bool) {
+func (h *Handler) HandleEscalation(ctx context.Context, bc *runtypes.BeadContext, providerResult *provider.Result) (continueLoop bool) {
+	_ = providerResult
 	nextTier := h.cfg.NextEscalationTier(bc.Tier)
 	if nextTier == "" {
 		h.log("Andon L4 option selected: no more tiers to escalate to, attempting decomposition")
@@ -267,25 +267,25 @@ func (h *Handler) HandleEscalation(ctx context.Context, bc *runtypes.BeadContext
 	return true
 }
 
-func (h *Handler) retryOrEscalateWhenAnalysisUnavailable(ctx context.Context, bc *runtypes.BeadContext, claudeResult *claude.Result) bool {
-	if !h.shouldEscalateAsSpecialCause(bc) && h.retryCommonCauseFailure(bc, claudeResult.Output) {
+func (h *Handler) retryOrEscalateWhenAnalysisUnavailable(ctx context.Context, bc *runtypes.BeadContext, providerResult *provider.Result) bool {
+	if !h.shouldEscalateAsSpecialCause(bc) && h.retryCommonCauseFailure(bc, providerResult.Output) {
 		return true
 	}
-	return h.HandleEscalation(ctx, bc, claudeResult)
+	return h.HandleEscalation(ctx, bc, providerResult)
 }
 
 // AnalyzeAndHandleFailure runs failure analysis and decides whether to retry, escalate, or stop.
 // Returns true if the retry loop should continue, false if processBead should return.
-func (h *Handler) AnalyzeAndHandleFailure(ctx context.Context, bc *runtypes.BeadContext, claudeResult *claude.Result) (continueLoop bool) {
+func (h *Handler) AnalyzeAndHandleFailure(ctx context.Context, bc *runtypes.BeadContext, providerResult *provider.Result) (continueLoop bool) {
 	h.log("Build failed, running failure analysis...")
-	analysis, err := h.analyzer.Analyze(ctx, bc.Bead, claudeResult.Output)
+	analysis, err := h.analyzer.Analyze(ctx, bc.Bead, providerResult.Output)
 	if err != nil {
 		h.log("Warning: failure analysis failed: %v", err)
-		return h.retryOrEscalateWhenAnalysisUnavailable(ctx, bc, claudeResult)
+		return h.retryOrEscalateWhenAnalysisUnavailable(ctx, bc, providerResult)
 	}
 	if analysis == nil {
 		h.log("Warning: failure analysis returned no result")
-		return h.retryOrEscalateWhenAnalysisUnavailable(ctx, bc, claudeResult)
+		return h.retryOrEscalateWhenAnalysisUnavailable(ctx, bc, providerResult)
 	}
 
 	h.log("Analysis: category=%s, recoverable=%v", analysis.Category, analysis.Recoverable)
@@ -317,7 +317,7 @@ func (h *Handler) AnalyzeAndHandleFailure(ctx context.Context, bc *runtypes.Bead
 		}
 
 		bc.Result.HardStopPendingApproval = false
-		return h.HandleEscalation(ctx, bc, claudeResult)
+		return h.HandleEscalation(ctx, bc, providerResult)
 	}
 
 	if analysis.Recoverable {
@@ -354,7 +354,7 @@ func (h *Handler) AnalyzeAndHandleFailure(ctx context.Context, bc *runtypes.Bead
 	if !h.shouldEscalateAsSpecialCause(bc) && h.retryCommonCauseFailure(bc, analysis.Suggestion) {
 		return true
 	}
-	return h.HandleEscalation(ctx, bc, claudeResult)
+	return h.HandleEscalation(ctx, bc, providerResult)
 }
 
 // AttemptDecomposition tries to decompose the task into sub-beads.
@@ -506,8 +506,20 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 			return false
 		}
 
+		providerResult := invResult.ProviderResult
+		if providerResult == nil {
+			providerResult = &provider.Result{
+				Success:      claudeResult.Success,
+				Output:       claudeResult.Output,
+				Model:        claudeResult.Model,
+				CostUSD:      claudeResult.CostUSD,
+				InputTokens:  claudeResult.InputTokens,
+				OutputTokens: claudeResult.OutputTokens,
+			}
+		}
+
 		// Analyze failure and decide: retry, escalate, or stop
-		if h.AnalyzeAndHandleFailure(ctx, bc, claudeResult) {
+		if h.AnalyzeAndHandleFailure(ctx, bc, providerResult) {
 			continue
 		}
 		if bc.Result != nil && bc.Result.FailurePhase == "" {
