@@ -3,7 +3,10 @@ package benchmark
 import "fmt"
 
 func ResolveSelectedBeads(manifestBeads []string, cliBeads []string, beadCount int) ([]string, error) {
-	_ = beadCount
+	if beadCount < 0 {
+		return nil, fmt.Errorf("--bead-count must be zero or greater")
+	}
+
 	selected := manifestBeads
 	if len(cliBeads) > 0 {
 		selected = cliBeads
