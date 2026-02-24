@@ -1226,6 +1226,38 @@ func TestExecuteWithRetry_StopsWhenAttemptBudgetExceeded(t *testing.T) {
 	}
 }
 
+func TestExecuteWithRetry_BlocksSameScopeRetryAfterTimeoutWithoutDecision(t *testing.T) {
+	cfg := newTestConfig()
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := newTestBeadContext()
+	bc.Tier = provider.TierLow
+	bc.Model = "haiku"
+
+	callCount := 0
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		callCount++
+		if callCount == 1 {
+			return &runtypes.InvocationResult{StallFired: true}, fmt.Errorf("stall timeout")
+		}
+		return &runtypes.InvocationResult{Result: &claude.Result{Success: true, Output: "ok"}}, nil
+	}
+
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+	if success {
+		t.Fatal("expected failure because same-scope retry should be blocked after timeout")
+	}
+	if callCount != 1 {
+		t.Fatalf("expected 1 invocation before block, got %d", callCount)
+	}
+	if bc.Result.Error == nil {
+		t.Fatal("expected blocking error")
+	}
+	if got := bc.Result.Error.Error(); !strings.Contains(got, "Same-scope retry blocked: timeout requires decomposition or escalation decision") {
+		t.Fatalf("unexpected error: %q", got)
+	}
+}
+
 func TestExecuteWithRetry_AccumulatesTokensAcrossInvocations(t *testing.T) {
 	cfg := newTestConfig()
 	mfa := &mockFailureAnalyzer{
