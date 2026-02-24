@@ -85,6 +85,36 @@ func TestPrintStatus_IncludesCompatibilityDiagnostics(t *testing.T) {
 	}
 }
 
+func TestPrintStatus_LegacyCompatibilityIncludesRunnerDeprecationMarker(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	sw, err := NewStatusWriter(gromitDir)
+	if err != nil {
+		t.Fatalf("NewStatusWriter: %v", err)
+	}
+	if err := sw.Write(1, "bead-compat-legacy", "Compatibility legacy test", "sonnet", true, 0, 0); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	cfg := &config.Config{}
+	cfg.Paths.Specs = filepath.Join(tmpDir, "specs")
+	cfg.Paths.Plans = filepath.Join(tmpDir, "plans")
+
+	var buf strings.Builder
+	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }); err != nil {
+		t.Fatalf("PrintStatus: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, RunnerDeprecationMarkerLegacyTrackerBackendFallback) {
+		t.Fatalf("expected runner deprecation marker %q in output, got:\n%s", RunnerDeprecationMarkerLegacyTrackerBackendFallback, output)
+	}
+}
+
 func TestStatusWriter_ScopeLabelRoundTrip(t *testing.T) {
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
