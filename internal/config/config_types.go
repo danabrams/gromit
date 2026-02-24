@@ -48,6 +48,7 @@ var defaultAndonBulkDeleteAllowlist = []string{
 }
 
 type Config struct {
+	Project     ProjectConfig          `yaml:"project"`
 	Models      ModelsConfig           `yaml:"models"`
 	Escalation  EscalationConfig       `yaml:"escalation"`
 	Andon       AndonConfig            `yaml:"andon"`
@@ -74,6 +75,10 @@ type Config struct {
 	Runbook     RunbookConfig          `yaml:"runbook"`
 	SpecGate    SpecGateConfig         `yaml:"spec_gate"`
 	Decompose   DecomposeConfig        `yaml:"decompose"`
+}
+
+type ProjectConfig struct {
+	Profile string `yaml:"profile"`
 }
 
 type ModelsConfig struct {

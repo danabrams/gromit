@@ -20,18 +20,33 @@ type CompatibilityContext struct {
 }
 
 func (c Config) ResolveCompatibilityContext() CompatibilityContext {
+	profile := CompatibilityResolvedValue{
+		Value:  "go",
+		Source: CompatibilitySourceLegacyFallback,
+	}
+	if c.Project.Profile != "" {
+		profile = CompatibilityResolvedValue{
+			Value:  c.Project.Profile,
+			Source: CompatibilitySourceExplicit,
+		}
+	}
+
+	backend := CompatibilityResolvedValue{
+		Value:  "bd",
+		Source: CompatibilitySourceLegacyFallback,
+	}
+	adapter := CompatibilityResolvedValue{
+		Value:  "go",
+		Source: CompatibilitySourceLegacyFallback,
+	}
+	if profile.Source == CompatibilitySourceExplicit {
+		backend.Source = CompatibilitySourceProfileDefault
+		adapter.Source = CompatibilitySourceProfileDefault
+	}
+
 	return CompatibilityContext{
-		Profile: CompatibilityResolvedValue{
-			Value:  "go",
-			Source: CompatibilitySourceLegacyFallback,
-		},
-		TrackerBackend: CompatibilityResolvedValue{
-			Value:  "bd",
-			Source: CompatibilitySourceLegacyFallback,
-		},
-		MethodologyAdapter: CompatibilityResolvedValue{
-			Value:  "go",
-			Source: CompatibilitySourceLegacyFallback,
-		},
+		Profile:            profile,
+		TrackerBackend:     backend,
+		MethodologyAdapter: adapter,
 	}
 }
