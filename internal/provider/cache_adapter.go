@@ -20,6 +20,7 @@ type CacheWriteRequest struct {
 	CacheClass string
 	CacheKey   string
 	Content    string
+	Refresh    bool
 	Config     config.TokenEfficiencyCacheConfig
 }
 
