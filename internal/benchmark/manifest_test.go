@@ -199,3 +199,21 @@ func TestLoadManifest_LoadsSampleManifestFile(t *testing.T) {
 		t.Fatalf("manifest id = %q, want %q", manifest.ID, "tdd-vs-single-pass")
 	}
 }
+
+func TestValidateManifest_AcceptsValidManifest(t *testing.T) {
+	manifest := Manifest{
+		ID:              "tdd-vs-single-pass",
+		BaseCommit:      "abc123",
+		Beads:           []string{"gromit-1"},
+		Modes:           []string{"single_pass"},
+		Provider:        "openai",
+		ModelFamily:     "gpt-5",
+		LowTierModel:    "gpt-5-mini",
+		MediumTierModel: "gpt-5.3-codex",
+		HighTierModel:   "gpt-5.3-codex",
+	}
+
+	if err := ValidateManifest(manifest); err != nil {
+		t.Fatalf("ValidateManifest() error = %v", err)
+	}
+}
