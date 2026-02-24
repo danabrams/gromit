@@ -55,7 +55,7 @@ func (r *Renderer) RenderValidate(ctx *Context, commands []string) (string, erro
 	}
 	vctx := &ValidateContext{Context: ctx, Commands: commands}
 	if r != nil {
-		r.lastDiagnostics = r.computeBuildDiagnostics("validate", ctx)
+		r.lastDiagnostics = r.computeBuildDiagnostics("validate", "PROMPT_validate.md", ctx)
 	}
 	return r.render("PROMPT_validate.md", vctx)
 }
@@ -303,17 +303,20 @@ func (r *Renderer) renderBuildPrompt(promptType, templateName string, ctx *Conte
 	var shapeReport *ShapeReport
 	ctx, shapeReport = r.shapeBuildContext(ctx, promptPhaseBuild)
 	if r != nil {
-		diagnostics := r.computeBuildDiagnostics(promptType, ctx)
+		diagnostics := r.computeBuildDiagnostics(promptType, templateName, ctx)
 		applyShapeReportToDiagnostics(diagnostics, shapeReport, r.budgetMaxChars)
 		r.lastDiagnostics = diagnostics
 	}
 	return r.render(templateName, ctx)
 }
 
-func (r *Renderer) computeBuildDiagnostics(promptType string, ctx *Context) *PromptDiagnostics {
+func (r *Renderer) computeBuildDiagnostics(promptType, templateName string, ctx *Context) *PromptDiagnostics {
+	if templateName == "" {
+		templateName = promptType
+	}
 	if ctx == nil {
 		return r.computeDiagnostics(promptType, map[string]string{
-			SectionTemplateStatic: promptType,
+			SectionTemplateStatic: templateName,
 		})
 	}
 
@@ -330,7 +333,7 @@ func (r *Renderer) computeBuildDiagnostics(promptType string, ctx *Context) *Pro
 		SectionRecentLearnings:    recentLearnings,
 		SectionTaskIdentity:       taskIdentity,
 		SectionFailureContext:     failureContext,
-		SectionTemplateStatic:     promptType,
+		SectionTemplateStatic:     templateName,
 	})
 }
 
