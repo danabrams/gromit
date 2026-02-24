@@ -452,9 +452,9 @@ func TestBuildDecomposeClient_CodexProviderPath(t *testing.T) {
 		t.Fatalf("buildDecomposeClient() error = %v", err)
 	}
 
-	typedClient, ok := client.(*providerRouterClientAdapter)
+	typedClient, ok := client.(*llmRouterClientAdapter)
 	if !ok {
-		t.Fatalf("client type = %T, want *providerRouterClientAdapter", client)
+		t.Fatalf("client type = %T, want *llmRouterClientAdapter", client)
 	}
 	if typedClient.Timeout != 789*time.Second {
 		t.Fatalf("timeout = %v, want %v", typedClient.Timeout, 789*time.Second)
@@ -509,9 +509,9 @@ func TestBuildDecomposeClient_ProviderRouterPath_DefaultPipelineTimeout(t *testi
 		t.Fatalf("buildDecomposeClient() error = %v", err)
 	}
 
-	typedClient, ok := client.(*providerRouterClientAdapter)
+	typedClient, ok := client.(*llmRouterClientAdapter)
 	if !ok {
-		t.Fatalf("client type = %T, want *providerRouterClientAdapter", client)
+		t.Fatalf("client type = %T, want *llmRouterClientAdapter", client)
 	}
 	if typedClient.Timeout != time.Duration(config.DefaultPipelineTimeoutSeconds)*time.Second {
 		t.Fatalf("timeout = %v, want %v", typedClient.Timeout, time.Duration(config.DefaultPipelineTimeoutSeconds)*time.Second)

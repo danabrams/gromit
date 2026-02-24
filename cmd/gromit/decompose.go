@@ -305,7 +305,7 @@ func buildDecomposeClient(cfg *config.Config) (pipeline.LLMClient, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &providerRouterClientAdapter{
+		return &llmRouterClientAdapter{
 			Router:  router,
 			Timeout: timeout,
 			Phase:   decomposeSessionCommand,

@@ -488,9 +488,9 @@ func TestBuildReviewNonInteractiveClient_CodexProviderPath(t *testing.T) {
 		t.Fatalf("buildReviewNonInteractiveClient() error = %v", err)
 	}
 
-	typedClient, ok := client.(*providerRouterClientAdapter)
+	typedClient, ok := client.(*llmRouterClientAdapter)
 	if !ok {
-		t.Fatalf("client type = %T, want *providerRouterClientAdapter", client)
+		t.Fatalf("client type = %T, want *llmRouterClientAdapter", client)
 	}
 	if typedClient.Timeout != 789*time.Second {
 		t.Fatalf("timeout = %v, want %v", typedClient.Timeout, 789*time.Second)
@@ -515,7 +515,7 @@ func TestProviderRouterClientAdapterRun_ClaudePath(t *testing.T) {
 			return mockProvider, "opus"
 		},
 	}
-	adapter := &providerRouterClientAdapter{
+	adapter := &llmRouterClientAdapter{
 		Router:  mockRouter,
 		Timeout: 2 * time.Second,
 		Phase:   "review",
@@ -553,7 +553,7 @@ func TestProviderRouterClientAdapterRun_CodexPath(t *testing.T) {
 			return mockProvider, "gpt-5.3-codex"
 		},
 	}
-	adapter := &providerRouterClientAdapter{
+	adapter := &llmRouterClientAdapter{
 		Router:  mockRouter,
 		Timeout: 2 * time.Second,
 		Phase:   "review",

@@ -548,7 +548,7 @@ func buildReviewNonInteractiveClient(cfg *config.Config) (pipeline.ReviewInvoker
 		if err != nil {
 			return nil, err
 		}
-		return &providerRouterClientAdapter{
+		return &llmRouterClientAdapter{
 			Router:  router,
 			Timeout: timeout,
 			Phase:   reviewSessionCommand,

@@ -42,17 +42,17 @@ type routerSelector interface {
 	MarkUnavailable(name string)
 }
 
-// providerRouterClientAdapter adapts provider router invocation to pipeline.ReviewInvoker.
-type providerRouterClientAdapter struct {
+// llmRouterClientAdapter adapts provider router invocation to pipeline.ReviewInvoker.
+type llmRouterClientAdapter struct {
 	Router  routerSelector
 	Timeout time.Duration
 	Phase   string
 }
 
-var _ pipeline.LLMClient = (*providerRouterClientAdapter)(nil)
-var _ pipeline.ReviewInvoker = (*providerRouterClientAdapter)(nil)
+var _ pipeline.LLMClient = (*llmRouterClientAdapter)(nil)
+var _ pipeline.ReviewInvoker = (*llmRouterClientAdapter)(nil)
 
-func (a *providerRouterClientAdapter) Run(prompt string, model string) (*pipeline.LLMRunResult, error) {
+func (a *llmRouterClientAdapter) Run(prompt string, model string) (*pipeline.LLMRunResult, error) {
 	if a == nil || a.Router == nil {
 		return nil, fmt.Errorf("provider router adapter is nil")
 	}
