@@ -155,8 +155,8 @@ type Idea struct {
 	Type      string    `json:"type"`
 	Context   string    `json:"context"`
 	CreatedAt time.Time `json:"created_at"`
-	Status    string    `json:"status"`
-	SpecName  string    `json:"spec_name"`
+	Status    string    `json:"status,omitempty"`
+	SpecName  string    `json:"spec_name,omitempty"`
 }
 
 // IdeaJSONKeys defines the expected snake_case JSON keys for Idea.
