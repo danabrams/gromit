@@ -244,3 +244,65 @@ func TestWriteReport_WinnerHintsUseStableTieBreakAndLowerCostQualityRatio(t *tes
 		t.Fatalf("best_cost_quality = %q, want %q", payload.WinnerHints.BestCostQuality, "a_mode")
 	}
 }
+func TestRunPhase3Measurement_ComputesMediansAndCacheHitRatesByPromptClass(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+
+	baselineLog := filepath.Join(tmpDir, "baseline.jsonl")
+	optimizedLog := filepath.Join(tmpDir, "optimized.jsonl")
+
+	baselineContent := "" +
+		"{\"iteration\":1,\"input_tokens\":100,\"cost_usd\":1.0,\"success\":true}\n" +
+		"{\"iteration\":2,\"input_tokens\":140,\"cost_usd\":1.4,\"success\":false}\n" +
+		"{\"iteration\":3,\"input_tokens\":120,\"cost_usd\":1.2,\"success\":true}\n"
+	optimizedContent := "" +
+		"{\"iteration\":1,\"input_tokens\":80,\"cost_usd\":0.8,\"success\":true,\"cache_class\":\"render_static_build\",\"cache_hit\":true}\n" +
+		"{\"iteration\":2,\"input_tokens\":100,\"cost_usd\":1.0,\"success\":true,\"cache_class\":\"render_static_build\",\"cache_hit\":false,\"cache_miss\":true}\n" +
+		"{\"iteration\":3,\"input_tokens\":90,\"cost_usd\":0.9,\"success\":true,\"cache_class\":\"utility_summarization\",\"cache_hit\":true}\n"
+
+	if err := os.WriteFile(baselineLog, []byte(baselineContent), 0o644); err != nil {
+		t.Fatalf("write baseline log: %v", err)
+	}
+	if err := os.WriteFile(optimizedLog, []byte(optimizedContent), 0o644); err != nil {
+		t.Fatalf("write optimized log: %v", err)
+	}
+
+	report, err := RunPhase3Measurement(Phase3MeasurementInput{
+		Timestamp:        "20260224T120000Z",
+		BaselineLogPath:  baselineLog,
+		OptimizedLogPath: optimizedLog,
+	})
+	if err != nil {
+		t.Fatalf("RunPhase3Measurement() error = %v", err)
+	}
+
+	if report.Baseline.MedianInputTokens != 120 {
+		t.Fatalf("baseline median input = %d, want 120", report.Baseline.MedianInputTokens)
+	}
+	if report.Baseline.MedianCostUSD != 1.2 {
+		t.Fatalf("baseline median cost = %v, want 1.2", report.Baseline.MedianCostUSD)
+	}
+	if report.Baseline.MedianSuccessRate != 0.67 {
+		t.Fatalf("baseline median success = %v, want 0.67", report.Baseline.MedianSuccessRate)
+	}
+
+	if report.Optimized.MedianInputTokens != 90 {
+		t.Fatalf("optimized median input = %d, want 90", report.Optimized.MedianInputTokens)
+	}
+	if report.Optimized.MedianCostUSD != 0.9 {
+		t.Fatalf("optimized median cost = %v, want 0.9", report.Optimized.MedianCostUSD)
+	}
+	if report.Optimized.MedianSuccessRate != 1.0 {
+		t.Fatalf("optimized median success = %v, want 1.0", report.Optimized.MedianSuccessRate)
+	}
+
+	if len(report.CacheHitRatesByClass) != 2 {
+		t.Fatalf("cache hit-rate class count = %d, want 2", len(report.CacheHitRatesByClass))
+	}
+	if report.CacheHitRatesByClass["render_static_build"] != 0.5 {
+		t.Fatalf("cache hit-rate render_static_build = %v, want 0.5", report.CacheHitRatesByClass["render_static_build"])
+	}
+	if report.CacheHitRatesByClass["utility_summarization"] != 1.0 {
+		t.Fatalf("cache hit-rate utility_summarization = %v, want 1.0", report.CacheHitRatesByClass["utility_summarization"])
+	}
+}
