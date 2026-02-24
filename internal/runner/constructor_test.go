@@ -549,6 +549,22 @@ func TestResolveTrackerBackend_DefaultAndExplicitBD(t *testing.T) {
 	}
 }
 
+func TestResolveTrackerBackendDeprecationMarker_LegacyAndExplicit(t *testing.T) {
+	var legacyCfg config.Config
+	if got := resolveTrackerBackendDeprecationMarker(&legacyCfg); got != RunnerDeprecationMarkerLegacyTrackerBackendFallback {
+		t.Fatalf("resolveTrackerBackendDeprecationMarker(legacy) = %q, want %q", got, RunnerDeprecationMarkerLegacyTrackerBackendFallback)
+	}
+
+	explicitCfg := &config.Config{
+		Tracker: config.TrackerConfig{
+			Backend: "bd",
+		},
+	}
+	if got := resolveTrackerBackendDeprecationMarker(explicitCfg); got != "" {
+		t.Fatalf("resolveTrackerBackendDeprecationMarker(explicit) = %q, want empty", got)
+	}
+}
+
 func TestResolveSingleSpecProgressLabel(t *testing.T) {
 	tests := []struct {
 		name   string
