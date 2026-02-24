@@ -51,11 +51,22 @@ You are analyzing accumulated learnings from gromit iterations to identify patte
 
 ## Current Run Efficiency
 
+{{- if .Efficiency.CurrentIterations }}
+
 ### Per-Iteration Efficiency
 | Bead ID | Model | Duration | Cost (USD) | Input Tokens | Output Tokens | Files |
 |---------|-------|----------|------------|--------------|---------------|-------|
 {{- range .Efficiency.CurrentIterations }}
 | {{ .BeadID }} | {{ .Model }} | {{ .Duration }} | ${{ printf "%.4f" .CostUSD }} | {{ .InputTokens }} | {{ .OutputTokens }} | {{ .FilesTouched }} |
+{{- end }}
+
+{{- else }}
+
+### Data Quality Warning
+**Status: `insufficient_current_run_data`**
+
+Current-run iteration data is empty. All comparative efficiency metrics below are unavailable.
+
 {{- end }}
 
 ### Per-Model Aggregates (Current Run)
@@ -73,7 +84,7 @@ You are analyzing accumulated learnings from gromit iterations to identify patte
 {{- end }}
 
 ### Historical Comparison
-{{- if .Efficiency.HistoricalModels }}
+{{- if and .Efficiency.HistoricalModels .Efficiency.CurrentIterations }}
 
 **Per-Model Aggregates (Historical)**
 | Model | Iterations | Avg Cost | Avg Duration | Avg Input Tokens | Avg Output Tokens |
@@ -106,6 +117,8 @@ You are analyzing accumulated learnings from gromit iterations to identify patte
 {{- end }}
 {{- end }}
 
+{{- if .Efficiency.CurrentIterations }}
+
 {{- if .Efficiency.MixedProviderFamilies }}
 **Overall Metrics (Mixed providers: Claude + Codex)**
 {{- else }}
@@ -113,20 +126,38 @@ You are analyzing accumulated learnings from gromit iterations to identify patte
 {{- end }}
 - Current avg cost per bead: ${{ printf "%.4f" .Efficiency.CurrentAvgCostPerBead }}
 - Historical avg cost per bead: ${{ printf "%.4f" .Efficiency.HistoricalAvgCostPerBead }}
-{{- if ne .Efficiency.CostDelta 0.0 }}
+{{- if and .Efficiency.HistoricalModels (ne .Efficiency.CostDelta 0.0) }}
 - Cost delta: ${{ printf "%.4f" .Efficiency.CostDelta }} ({{ if gt .Efficiency.CostDelta 0.0 }}+{{ printf "%.1f%%" (mul (div .Efficiency.CostDelta .Efficiency.HistoricalAvgCostPerBead) 100) }} more expensive{{ else }}{{ printf "%.1f%%" (mul (div .Efficiency.CostDelta .Efficiency.HistoricalAvgCostPerBead) 100) }} cheaper{{ end }})
+{{- else if .Efficiency.HistoricalModels }}
+- Cost delta: N/A
 {{- end }}
 
 - Current avg duration per bead: {{ .Efficiency.CurrentAvgDurationPerBead }}
 - Historical avg duration per bead: {{ .Efficiency.HistoricalAvgDurationPerBead }}
-{{- if ne .Efficiency.DurationDelta 0 }}
+{{- if and .Efficiency.HistoricalModels (ne .Efficiency.DurationDelta 0) }}
 - Duration delta: {{ .Efficiency.DurationDelta }} ({{ if gt .Efficiency.DurationDelta 0 }}+{{ printf "%.1f%%" (mul (div (durationMs .Efficiency.DurationDelta) (durationMs .Efficiency.HistoricalAvgDurationPerBead)) 100) }} slower{{ else }}{{ printf "%.1f%%" (mul (div (durationMs .Efficiency.DurationDelta) (durationMs .Efficiency.HistoricalAvgDurationPerBead)) 100) }} faster{{ end }})
+{{- else if .Efficiency.HistoricalModels }}
+- Duration delta: N/A
+{{- end }}
+
+{{- else }}
+
+{{- if .Efficiency.HistoricalModels }}
+**Overall Metrics**
+- Current avg cost per bead: N/A (insufficient current-run data)
+- Historical avg cost per bead: ${{ printf "%.4f" .Efficiency.HistoricalAvgCostPerBead }}
+- Cost delta: N/A
+- Current avg duration per bead: N/A (insufficient current-run data)
+- Historical avg duration per bead: {{ .Efficiency.HistoricalAvgDurationPerBead }}
+- Duration delta: N/A
+{{- end }}
+
 {{- end }}
 {{- else }}
 *No historical data available for comparison.*
 {{- end }}
 
-{{- if .Efficiency.HighContextIterations }}
+{{- if and .Efficiency.CurrentIterations .Efficiency.HighContextIterations }}
 
 ### Context Window Utilization Flags
 The following iterations exceeded 80% of their model's context window:

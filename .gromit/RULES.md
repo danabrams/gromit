@@ -46,9 +46,9 @@ These are non-negotiable constraints for this project.
 ## Architecture <!-- phases: red, build, green, refactor, review -->
 
 - `internal/runner/*/` sub-packages must not import siblings **in production or test files**; cross-cutting types live in `runtypes/`. Parent `runner` package uses type aliases for backward compatibility. Production files: <550 lines; facade files: <1000 lines
-- Interactive commands use the session worktree lifecycle with a single merge/cleanup owner and a typed conflict classifier that evaluates git output + exit status. Do not classify conflicts using message fragments alone.
+- Interactive commands use the session worktree lifecycle with a single merge/cleanup owner and a typed conflict classifier that evaluates git output + exit status. Do not classify conflicts using message fragments alone. Merge-back cleanup may abort only merge state created by the current operation; pre-existing `MERGE_HEAD` must return a typed non-destructive error.
 - During orchestrator migrations, cross-cutting concerns (state persistence, cost/token metrics, status updates) must be implemented in one shared path, with parity tests if legacy and new paths coexist
-- All decomposition entry points must call the same shared validator. Required-field rules (non-empty title, expected_outputs contract, dependency-field validity) must not live in call-site-only checks
+- All decomposition entry points must call the same shared validator. Required-field rules (non-empty title, expected_outputs contract, dependency-field validity) must not live in call-site-only checks. Any field required by validation must be present in candidate mapping and reprompt context; prompt/schema/fixture changes for those fields must ship together.
 
 ## Build Process <!-- phases: build -->
 
@@ -63,7 +63,7 @@ These are non-negotiable constraints for this project.
 - Validation recovery: auto-fix (`gofmt`/`goimports`) first, re-validate, then Claude escalation only if still failing (`MaxValidationRetries`, default 1)
 - `test/contracts/` contract tests verify git call order (rev-parse before `git diff --stat`); keep harness init and sequencing intact
 - Validation commands in gromit.yaml must match the build system (check go.mod/package.json). For this project: `go test`, `go vet`, `go build` only — never pnpm/npm. For API deletions/migrations touching exported symbols or lifecycle/orchestrator files, add compile gate: `go test -tags acceptance -run '^$' ./...`
-- Usage accounting must use explicit before/after snapshots for every phase (red/green/refactor/validate) and a single merge strategy for provider stream events. Mixing raw totals and deltas in one run is forbidden. Retro/efficiency report generation must fail if total_iterations > 0 and current-run per-iteration rows are empty, or if run-level aggregates are non-zero while rows are empty, or if any phase snapshot is missing. In addition, retro output must emit an explicit `insufficient_current_run_data` status when current-run rows are empty, and suppress comparative efficiency conclusions in that state.
+- Usage accounting must use explicit before/after snapshots for every phase (red/green/refactor/validate) and a single merge strategy for provider stream events. Mixing raw totals and deltas in one run is forbidden. Retro/efficiency report generation must fail if total_iterations > 0 and current-run per-iteration rows are empty, or if run-level aggregates are non-zero while rows are empty, or if any phase snapshot is missing. In this state, output must show `insufficient_current_run_data` and all current-vs-historical deltas as `N/A` (never zero-filled defaults).
 - When deleting exported APIs or large orchestration files, run `go test -tags acceptance -run '^$' ./...` as a compile gate before merge; blocked build-tagged references must be resolved in the same bead
 - Build phases: run test/vet on touched packages only. Full validation: `go test ./...`, `go vet ./...`, `go build ./...`
 - `test_touched.sh` tests all branch-modified packages. Pre-existing failures in touched packages block new beads — verify target packages pass before starting dependent work

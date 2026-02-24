@@ -9,6 +9,21 @@ This file is automatically updated. Review periodically with `gromit retro`.
 
 *Patterns seen multiple times - high confidence.*
 
+### 2026-02-24 | Decomposition Contract-Field Parity Across Layers | architecture
+*Related to: gromit-jysme, gromit-o9i5v, gromit-btk9n, review-1771835747422178794, gromit-9947, review-1771832540735638835*
+
+Decomposition quality depends on contract parity across validator, mapping, prompt/reprompt context, and telemetry fixtures. Required fields (title, expected_outputs, dependency fields) must be present in candidate mapping and reprompt context shown to the model; prompt/schema/fixture changes for those fields must ship together. Partial adoption creates persistent retry churn, misleading telemetry, and test brittleness.
+
+### 2026-02-24 | Session Worktree and Mergeback Safety Contract | architecture
+*Related to: gromit-r7lcc, gromit-1fjzj, gromit-9948, gromit-9949, review-1771880675971102580*
+
+Session worktree and mergeback behavior must follow a single ownership contract: deterministic lifecycle order (create→callback→record pending→merge attempt→cleanup or conflict handoff), typed retryable/non-retryable conflict classification using git output plus exit status, and merge-state safety that never aborts unrelated pre-existing merges. MergeBack cleanup may abort only merge state created by the current operation; pre-existing MERGE_HEAD must return a typed error and preserve the user's in-progress merge state.
+
+### 2026-02-24 | Orchestrator Cross-Cutting Concerns on Shared Path | architecture
+*Related to: code-review, review-1771733992016921570, review-1771855648673321351, review-1771854448297640630*
+
+Policy progression and cross-cutting concerns (tier advancement, metrics, status behavior) should have one shared orchestration path with explicit dependency injection to avoid duplicating logic between execution code and config accessors. This keeps policy consistent and prevents drift in legacy model-name mapping and disabled-escalation semantics.
+
 ### 2026-02-07 | Status File Management | patterns
 *Related to: nalr, k8c2, kydj, ead1, xpfn, lm34, 2y2d, yj2h, vpyl, kim2*
 
@@ -57,6 +72,7 @@ Replace God Object pattern with pure orchestration: hold only stage references a
 
 ### 2026-02-23 | Escalation Policy Must Have a Single Tier-Advance Source | architecture
 *Related to: review-1771855648673321351, review-1771854448297640630, gromit-fjxy1*
+*Consolidated into: 2026-02-24 Orchestrator Cross-Cutting Concerns on Shared Path*
 
 Escalation progression must be implemented in one shared path. Duplicating next-tier logic between execution code and config accessors creates drift risk (especially for legacy model-name mapping and disabled-escalation semantics) and weakens policy consistency.
 
@@ -67,24 +83,24 @@ When build telemetry adds `original_tier` and `actual_tier`, tests must cover al
 
 ### 2026-02-23 | Decomposition Batch-Contract Enforcement Must Use Retry Loop | conventions
 *Related to: gromit-xjeu3, review-1771835747422178794, gromit-9946, review-1771832540735638835*
-*Promoted to RULES.md (Decomposition section)*
+*Consolidated into: 2026-02-24 Decomposition Contract-Field Parity Across Layers*
 
 Decomposition batch-size contracts must be enforced in the retry validation loop for all modes (including SkipValidation); violations must reprompt or return a clear contract error at retry cap, never silently truncate output.
 
 ### 2026-02-23 | Single Shared Decompose Validator With Full Required-Field Coverage | architecture
 *Related to: gromit-btk9n, review-1771835747422178794, gromit-9947, review-1771832540735638835*
-*Promoted to RULES.md (Architecture section)*
+*Consolidated into: 2026-02-24 Decomposition Contract-Field Parity Across Layers*
 
 Use one shared decompose validator for runtime and pipeline paths, and centralize required-field checks (title, expected_outputs, dependency fields) there with mode flags for context-specific rules.
 
 ### 2026-02-23 | Estimate-Only Complexity Scoring Is Fragile | gotchas
 *Related to: gromit-fu70d, review-1771835747422178794*
-*Promoted to RULES.md (Decomposition section)*
 
 Complexity classification based only on `estimated_files` is easy for model output to underreport or omit. Retain non-estimate signals or enforce strict estimated-files contracts so high-scope decompositions cannot slip through as low risk.
 
 ### 2026-02-23 | Orchestrator Migration Parity and Adapter Surface Minimization | patterns
 *Related to: code-review, review-1771733992016921570*
+*Consolidated into: 2026-02-24 Orchestrator Cross-Cutting Concerns on Shared Path*
 
 Orchestrator migration must keep cross-cutting concerns on one shared execution path, minimize adapter surface, and enforce parity tests until legacy path removal.
 
@@ -145,38 +161,10 @@ JSON parsing alone is not enough for LLM decomposition output. Gate paths should
 
 ### 2026-02-23 | DECOMPOSE_VALIDATION_RULE_CHANGES_REQUIRE_CONTRACT_PARITY | ARCHITECTURE
 *Related to: gromit-jysme, gromit-o9i5v*
+*Consolidated into: 2026-02-24 Decomposition Contract-Field Parity Across Layers*
 
 When decompose validation rules change (for example, expected_outputs requirements or complexity signal expansion), the prompt contract, fixture payloads, retry-loop behavior, and telemetry expectations must be updated together. Partial adoption creates persistent retry churn, misleading ValidationStats, and test brittleness.
 
-### 2026-02-23 | SESSION_WORKTREE_CONTENTION_HANDLING_NEEDS_EXPLICIT_CONTRACT | ARCHITECTURE
-*Related to: gromit-r7lcc, gromit-1fjzj*
-
-Session worktree retry behavior should be driven by an explicit retryable/non-retryable error contract, not ad-hoc message matching alone. Defining the contract first avoids locale/version-sensitive drift in contention detection and keeps retries deterministic.
-
-### 2026-02-23 | REPROMPT_CONTRACT_FIELDS_MUST_BE_VISIBLE_TO_MODEL | ARCHITECTURE
-*Related to: gromit-h1s0f*
-
-If reprompt instructions require preserving fields such as `depends_on_index` and `expected_outputs`, those fields must be rendered in the candidate context shown to the model. Telling the model to keep fields unchanged without displaying them creates avoidable contract drift and retry churn.
-
-### 2026-02-23 | REVIEW_LEARNINGS_DEPENDENCY_CONTEXT_PARITY | ARCHITECTURE
-*Related to: review-1771839601749019692*
-
-Decomposition/validation contract fields should move together across pipeline mapping and reprompt rendering. Propagating `depends_on_index` into `validate.BeadCandidate` and showing both `depends_on_index` plus `expected_outputs` in reprompt candidate context keeps model repair loops aligned with validator expectations and reduces avoidable retries.
-
-### 2026-02-23 | SESSION_WORKTREE_LIFECYCLE_ORDER_MUST_MATCH_HANDBACK_CONTRACT | ARCHITECTURE
-*Related to: gromit-9948*
-
-Session worktree flow must preserve the documented order (create -> callback -> record pending -> merge attempt -> cleanup or conflict handoff). Pre-removing the session directory before merge/resolve can invalidate retry assumptions and break conflict-resolution tooling that expects a live session context.
-
-### 2026-02-23 | WORKTREE_CLEANUP_NEEDS_SINGLE_OWNERSHIP | ARCHITECTURE
-*Related to: gromit-9949*
-
-Cleanup responsibilities should have one clear owner. Splitting deletion between launcher orchestration and manager merge routines introduces duplicated side effects, hidden failure modes, and harder-to-reason recovery behavior.
-
-### 2026-02-23 | PREEXISTING_MERGE_STATE_MUST_NOT_BE_ABORTED_BY_MERGEBACK | ARCHITECTURE
-*Related to: review-1771880675971102580*
-
-`MergeBack` conflict handling should distinguish merge state created by the current merge attempt from pre-existing `MERGE_HEAD` state. Aborting blindly on any active merge state can destroy unrelated in-progress merge work in the main worktree.
 
 ### 2026-02-23 | PIPELINE_STAGE_CONFIG_ACCESS_REQUIRES_EXPLICIT_NIL_GUARDS | CONVENTIONS
 *Related to: review-1771880675971102580*
@@ -192,6 +180,16 @@ When Gate computes complexity routing metadata, all decision outcomes (Proceed/S
 ## Archived
 
 *Previously archived learnings.*
+
+### 2026-02-24 | Archived (Stale Generic/Transitional)
+
+The following learnings have been archived as generic or transitional:
+
+- **387c1483**: Generic Go language behavior (pointer receiver mutation) rather than project-specific operational knowledge.
+- **2914f3b9**: Mostly generic signature-propagation checklist; not specific enough to this codebase's recurring failure modes.
+- **c212d62c**: Already covered by existing test-quality rule on shared setup helper extraction.
+- **9575bf49**: Already codified in RULES.md (behavioral/compile-time checks over source-reading tests).
+- **8a4ea1bbdf88003f**: Transitional migration note; likely stale after adapter/path convergence.
 
 ### 2026-02-22 | Silent Error Swallowing in Render Builder Functions | gotchas
 *Related to: review-1771763626626526682*

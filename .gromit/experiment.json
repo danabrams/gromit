@@ -1,20 +1,17 @@
 {
-  "name": "Low-tier routing for single-file leaf beads and test-only beads",
-  "hypothesis": "Leaf beads touching only 1 file with low-complexity signals AND test-only beads regardless of file count succeed on low tier (haiku for Claude, gpt-5.3-codex-spark for Codex) at >=90% first-pass rate, reducing per-bead cost by ~60% for qualifying beads. Provider split ratio is unchanged — the router selects the provider, then the low tier maps to each provider's cheapest model.",
-  "change": "In isLowComplexity(), return true immediately for IsTestOnlyBead() beads (bypassing signal counting). Other beads still use the existing >=2 signal threshold (leaf + single file + tdd:false etc.). SelectTier() returns TierLow, which the router dispatches to haiku (Claude) or codex-spark (Codex) based on the existing provider ratio.",
-  "measurement": "Track success rate and cost of low-tier beads over 30 iterations. Success threshold: >=90% first-pass success rate. Cost threshold: >=50% reduction vs medium-tier baseline for qualifying beads.",
-  "risk": "Medium. Haiku may fail on beads that appear simple but have subtle cross-file dependencies, increasing retries and negating cost savings. Test-only beads may require understanding complex package internals. Mitigation: escalation chain (haiku -> sonnet -> opus) catches failures; validation phase catches compilation errors; review phase catches weak tests.",
-  "primary_concern": "any",
-  "started_at": "2026-02-20T18:00:00Z",
-  "status": "study",
-  "study_summary": "Extension 1 (2026-02-20): Routing bug fixed (process.go now uses escalation.SelectModel). Extension 2 (2026-02-21): 35 low-tier data points collected. Haiku: 20/20 actual builds succeeded (100% first-pass, exceeds >=90% threshold). 8 zero-duration haiku 'failures' are scope gate rejections, not model failures — the gate is working correctly. Codex-spark: 5/6 successes (83%), one failure retried successfully. Cost data for haiku was $0 due to a MergeCostData bug (fixed in c15ba8c3, Feb 15); a regression test added. Going forward, haiku cost will be tracked correctly. Cost reduction vs baseline not yet measurable for haiku (historical $0 entries are artifacts). Codex-spark avg ~$1.57/success vs $1.72 baseline (~9% savings, below 50% target but small sample). Extension 3 (2026-02-23): Retro confirmed haiku success rate exceeds threshold. Extending to accumulate clean cost data post-MergeCostData fix. Decomposition and telemetry issues addressed via rule changes rather than new experiments.",
-  "act_decision": "extend",
-  "act_date": "2026-02-23",
+  "id": "fail-closed-efficiency-2026-02-24",
+  "name": "Fail-Closed Efficiency Reporting",
+  "hypothesis": "If current-run rows are missing, explicit fail-closed output will eliminate misleading zero-delta reports and speed data-pipeline fixes.",
+  "change": "When current-run rows are empty, output `insufficient_current_run_data`, render deltas as `N/A`, and skip comparative efficiency narrative.",
+  "measurement": "Count of retro reports with empty current rows that still show numeric deltas (target: 0).",
+  "risk": "More retros may surface as 'insufficient data' until upstream logging gaps are fixed.",
+  "status": "act",
+  "started_at": "2026-02-24T00:00:00Z",
   "baseline_metrics": {
-    "avg_cost_per_bead": 1.71752058,
-    "avg_duration_ms": 340425.63,
-    "avg_input_tokens": 935543.7171717172,
-    "avg_output_tokens": 6043.575757575758,
-    "failure_rate": 0.01
+    "avg_cost_per_bead": 0.0,
+    "avg_duration_ms": 0,
+    "avg_input_tokens": 0,
+    "avg_output_tokens": 0,
+    "failure_rate": 0
   }
 }
