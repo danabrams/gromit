@@ -1,0 +1,29 @@
+project:
+  profile: go
+
+tracker:
+  backend: bd
+
+methodology:
+  adapter: go
+
+models:
+  p0: opus
+  p1: sonnet
+  p2: haiku
+  validation: haiku
+
+escalation:
+  enabled: false
+
+loop:
+  max_iterations: 0
+
+validation:
+  enabled: false
+
+paths:
+  templates: ".gromit/templates"
+  specs: ".gromit/specs"
+  logs: ".gromit/logs"
+  project_claude_md: "CLAUDE.md"
