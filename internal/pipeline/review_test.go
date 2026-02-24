@@ -484,6 +484,9 @@ func TestReviewNonInteractiveWorkflow_CreatesBacklogWithLabels(t *testing.T) {
 	if capturedBacklogIdea.Text != "Consider adding metrics" {
 		t.Errorf("Backlog text = %q, want 'Consider adding metrics'", capturedBacklogIdea.Text)
 	}
+	if capturedBacklogIdea.CreatedAt.IsZero() {
+		t.Error("backlog idea CreatedAt should be set")
+	}
 }
 
 // TestReviewNonInteractiveWorkflow_RespectsTimeout verifies ReviewInput.Timeout field is provided
