@@ -290,3 +290,17 @@ func TestBenchmarkRunCommand_RejectsInvalidBaseCommit(t *testing.T) {
 		t.Fatalf("stderr = %q, want base-commit validation error", stderr)
 	}
 }
+
+func TestBenchmarkRunCommand_RejectsBlankManifestPath(t *testing.T) {
+	_, stderr, exitCode := runGromitCobra(t,
+		"benchmark", "run",
+		"--manifest", " ",
+	)
+
+	if exitCode == 0 {
+		t.Fatalf("exitCode = %d, want non-zero", exitCode)
+	}
+	if !strings.Contains(stderr, "--manifest must be a non-empty path") {
+		t.Fatalf("stderr = %q, want manifest validation error", stderr)
+	}
+}
