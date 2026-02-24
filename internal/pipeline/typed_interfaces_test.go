@@ -21,6 +21,25 @@ func TestLLMRunResult_HasExpectedPayloadFields(t *testing.T) {
 	}
 }
 
+func TestPipelineCoreSurface_UsesLLMNames(t *testing.T) {
+	pipelinePath := filepath.Join("..", "..", "internal", "pipeline", "pipeline.go")
+	content, err := os.ReadFile(pipelinePath)
+	if err != nil {
+		t.Fatalf("reading pipeline.go: %v", err)
+	}
+	body := string(content)
+
+	if strings.Contains(body, "type ClaudeRunResult struct") {
+		t.Fatal("pipeline.go still declares ClaudeRunResult struct")
+	}
+	if strings.Contains(body, "type ClaudeClient interface") {
+		t.Fatal("pipeline.go still declares ClaudeClient interface")
+	}
+	if strings.Contains(body, "ClaudeClient      ClaudeClient") {
+		t.Fatal("Deps still exposes ClaudeClient field")
+	}
+}
+
 // TestClaudeClientRun_ReturnsTypedResult verifies ClaudeClient.Run returns *ClaudeRunResult instead of interface{}
 // Expected failure: ClaudeClient.Run() currently returns (interface{}, error) and ClaudeRunResult type does not exist
 func TestClaudeClientRun_ReturnsTypedResult(t *testing.T) {
