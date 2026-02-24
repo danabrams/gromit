@@ -8,11 +8,11 @@ import (
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
-func applyLayer3Requirements(ctx context.Context, cfg *config.Config, outputs []string, title, description string, invoke func(ctx context.Context, prompt, tier string) (*provider.Result, error)) ([]string, bool) {
+func applyLayer3Requirements(ctx context.Context, cfg *config.Config, result *runtypes.IterationResult, outputs []string, title, description string, invoke func(ctx context.Context, prompt, tier string) (*provider.Result, error)) ([]string, bool) {
 	if len(outputs) > 1 {
 		return outputs, false
 	}
-	llmOutputs := extractRequirementsViaLLM(ctx, cfg, title, description, invoke)
+	llmOutputs := extractRequirementsViaLLM(ctx, cfg, result, title, description, invoke)
 	if llmOutputs != nil {
 		return llmOutputs, true
 	}

@@ -240,6 +240,82 @@ func TestDecomposerAdapter_ClosesParentBeadAfterLLMDecomposition(t *testing.T) {
 	}
 }
 
+func TestResolveBuildCacheVersionKey_StableForSameInputs(t *testing.T) {
+	root := t.TempDir()
+	gromitDir := filepath.Join(root, ".gromit")
+	templatesDir := filepath.Join(root, "templates")
+	claudePath := filepath.Join(root, "CLAUDE.md")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("mkdir gromit dir: %v", err)
+	}
+	if err := os.MkdirAll(templatesDir, 0o755); err != nil {
+		t.Fatalf("mkdir templates dir: %v", err)
+	}
+	write := func(path, content string) {
+		t.Helper()
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatalf("write %s: %v", path, err)
+		}
+	}
+	write(filepath.Join(gromitDir, "RULES.md"), "rules v1")
+	write(filepath.Join(templatesDir, "PROMPT_build.md"), "build template v1")
+	write(filepath.Join(templatesDir, "PROMPT_tdd_build.md"), "tdd template v1")
+	write(filepath.Join(templatesDir, "PROMPT_refactor_build.md"), "refactor template v1")
+	write(claudePath, "claude v1")
+
+	cfg := &config.Config{
+		Paths: config.PathsConfig{
+			Templates:       templatesDir,
+			ProjectClaudeMD: claudePath,
+		},
+	}
+	first := resolveBuildCacheVersionKey(cfg, gromitDir)
+	second := resolveBuildCacheVersionKey(cfg, gromitDir)
+	if first == "" {
+		t.Fatal("cache version key is empty, want non-empty")
+	}
+	if first != second {
+		t.Fatalf("cache version key mismatch for stable inputs: %q vs %q", first, second)
+	}
+}
+
+func TestResolveBuildCacheVersionKey_ChangesWhenRulesChange(t *testing.T) {
+	root := t.TempDir()
+	gromitDir := filepath.Join(root, ".gromit")
+	templatesDir := filepath.Join(root, "templates")
+	claudePath := filepath.Join(root, "CLAUDE.md")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("mkdir gromit dir: %v", err)
+	}
+	if err := os.MkdirAll(templatesDir, 0o755); err != nil {
+		t.Fatalf("mkdir templates dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gromitDir, "RULES.md"), []byte("rules v1"), 0o644); err != nil {
+		t.Fatalf("write RULES.md: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(templatesDir, "PROMPT_build.md"), []byte("build template v1"), 0o644); err != nil {
+		t.Fatalf("write PROMPT_build.md: %v", err)
+	}
+	if err := os.WriteFile(claudePath, []byte("claude v1"), 0o644); err != nil {
+		t.Fatalf("write CLAUDE.md: %v", err)
+	}
+
+	cfg := &config.Config{
+		Paths: config.PathsConfig{
+			Templates:       templatesDir,
+			ProjectClaudeMD: claudePath,
+		},
+	}
+	before := resolveBuildCacheVersionKey(cfg, gromitDir)
+	if err := os.WriteFile(filepath.Join(gromitDir, "RULES.md"), []byte("rules v2"), 0o644); err != nil {
+		t.Fatalf("rewrite RULES.md: %v", err)
+	}
+	after := resolveBuildCacheVersionKey(cfg, gromitDir)
+	if before == after {
+		t.Fatalf("cache version key unchanged after RULES.md update: %q", before)
+	}
+}
+
 func TestDecomposerAdapter_Decompose_InheritsParentBuildStrategyAndSpecLabels(t *testing.T) {
 	stubRouter := provider.NewSingleProviderRouter(&stubRunProvider{
 		name: "test",
@@ -798,7 +874,7 @@ func TestGateRunScopeGate_ContractViolationFallsBackToBlock(t *testing.T) {
 	blockTrue := true
 	cfg := &config.Config{
 		ScopeCheck: config.ScopeCheckConfig{
-			Enabled:       true,
+			Enabled:        true,
 			BlockOversized: &blockTrue,
 		},
 	}

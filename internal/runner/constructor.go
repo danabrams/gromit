@@ -2,10 +2,13 @@ package runner
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -99,6 +102,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		_, _ = fmt.Fprintf(output, "Warning: could not create stream logger: %v\n", err)
 	}
 	buildPromptRegistry := newBuildPromptRegistry()
+	buildCacheVersionKey := resolveBuildCacheVersionKey(cfg, gromitDir)
 
 	// Stage 1: Gate (prepare.New with optional Prechecker, StuckDetector, Decomposer)
 	gateStage := prepare.New(syncOut)
@@ -112,8 +116,9 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 	buildExecInvoker := execution.NewInvoker(&executionRouterAdapter{router: router}, syncOut, streamLogger)
 	buildStage := execute.New(
 		&invokerAdapter{
-			execInvoker:    buildExecInvoker,
-			promptRegistry: buildPromptRegistry,
+			execInvoker:     buildExecInvoker,
+			promptRegistry:  buildPromptRegistry,
+			cacheVersionKey: buildCacheVersionKey,
 		},
 		&renderAdapter{
 			r:              renderer,
@@ -233,6 +238,45 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 	}
 
 	return NewOrchestrator(orchCfg), nil
+}
+
+func resolveBuildCacheVersionKey(cfg *config.Config, gromitDir string) string {
+	if cfg == nil {
+		return ""
+	}
+	paths := []string{
+		filepath.Join(gromitDir, "RULES.md"),
+		filepath.Join(cfg.Paths.Templates, "PROMPT_build.md"),
+		filepath.Join(cfg.Paths.Templates, "PROMPT_tdd_build.md"),
+		filepath.Join(cfg.Paths.Templates, "PROMPT_refactor_build.md"),
+		cfg.Paths.ProjectClaudeMD,
+	}
+	sort.Strings(paths)
+
+	hasher := sha1.New()
+	wroteAny := false
+	for _, path := range paths {
+		trimmed := strings.TrimSpace(path)
+		if trimmed == "" {
+			continue
+		}
+		data, err := os.ReadFile(trimmed)
+		if err != nil {
+			continue
+		}
+		if len(data) == 0 {
+			continue
+		}
+		wroteAny = true
+		_, _ = hasher.Write([]byte(trimmed))
+		_, _ = hasher.Write([]byte{0})
+		_, _ = hasher.Write(data)
+		_, _ = hasher.Write([]byte{0})
+	}
+	if !wroteAny {
+		return ""
+	}
+	return "build-rules-v1-" + hex.EncodeToString(hasher.Sum(nil))
 }
 
 func emitStartupCompatibilityDeprecationWarning(cfg *config.Config, output io.Writer) {

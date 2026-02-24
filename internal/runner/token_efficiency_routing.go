@@ -27,6 +27,15 @@ func resolveUtilityTaskTier(cfg *config.Config, taskCategory, fallbackTier strin
 	return provider.TierFromLegacyModel(cfg.TokenEfficiency.Routing.UtilityTier)
 }
 
+func resolveUtilityTaskTierWithTelemetry(cfg *config.Config, taskCategory, fallbackTier string) (tier, telemetryCategory, telemetryTier string) {
+	normalizedCategory := strings.ToLower(strings.TrimSpace(taskCategory))
+	tier = resolveUtilityTaskTier(cfg, normalizedCategory, fallbackTier)
+	if isUtilityTaskCategory(normalizedCategory) {
+		return tier, normalizedCategory, tier
+	}
+	return tier, "", ""
+}
+
 func isUtilityTaskCategory(taskCategory string) bool {
 	switch taskCategory {
 	case "summarization", "masking_transform", "discovery_indexing":

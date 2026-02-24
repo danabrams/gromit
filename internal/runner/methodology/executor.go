@@ -319,16 +319,14 @@ func (e *Executor) CheckTestsFailWithDiagnostic(ctx context.Context, bc *runtype
 	if e.diagnosticInvokeFn == nil {
 		return fmt.Errorf("diagnostic invoke function not configured")
 	}
-	diagnosticTier := provider.TierLow
-	if e.cfg != nil && e.cfg.TokenEfficiency.Routing.IsEnabled() {
-		if !e.cfg.TokenEfficiency.Routing.KillSwitches.DisableTaskOverrides {
-			if overrideTier, ok := e.cfg.TokenEfficiency.Routing.TaskOverrides["discovery_indexing"]; ok && overrideTier != "" {
-				diagnosticTier = provider.TierFromLegacyModel(overrideTier)
-			}
-		}
-		if diagnosticTier == provider.TierLow && e.cfg.TokenEfficiency.Routing.UtilityTier != "" {
-			diagnosticTier = provider.TierFromLegacyModel(e.cfg.TokenEfficiency.Routing.UtilityTier)
-		}
+	diagnosticTier, telemetryCategory, telemetryTier := resolveUtilityDiagnosticTierWithTelemetry(
+		e.cfg,
+		"discovery_indexing",
+		provider.TierLow,
+	)
+	if bc != nil && bc.Result != nil && telemetryCategory != "" {
+		bc.Result.UtilityRoutingCategory = telemetryCategory
+		bc.Result.UtilityRoutingTier = telemetryTier
 	}
 
 	diagnosticResult, err := e.diagnosticInvokeFn(ctx, diagnosticPrompt, diagnosticTier)
@@ -367,4 +365,23 @@ func summarizeAcceptanceFailureOutput(output string) string {
 	}
 	const side = 900
 	return trimmed[:side] + "\n...[truncated]...\n" + trimmed[len(trimmed)-side:]
+}
+
+func resolveUtilityDiagnosticTierWithTelemetry(cfg *config.Config, taskCategory, fallbackTier string) (tier, telemetryCategory, telemetryTier string) {
+	normalizedCategory := strings.ToLower(strings.TrimSpace(taskCategory))
+	if normalizedCategory != "summarization" && normalizedCategory != "masking_transform" && normalizedCategory != "discovery_indexing" {
+		return fallbackTier, "", ""
+	}
+	tier = fallbackTier
+	if cfg != nil && cfg.TokenEfficiency.Routing.IsEnabled() {
+		if !cfg.TokenEfficiency.Routing.KillSwitches.DisableTaskOverrides {
+			if overrideTier, ok := cfg.TokenEfficiency.Routing.TaskOverrides[normalizedCategory]; ok && overrideTier != "" {
+				tier = provider.TierFromLegacyModel(overrideTier)
+			}
+		}
+		if tier == fallbackTier && cfg.TokenEfficiency.Routing.UtilityTier != "" {
+			tier = provider.TierFromLegacyModel(cfg.TokenEfficiency.Routing.UtilityTier)
+		}
+	}
+	return tier, normalizedCategory, tier
 }

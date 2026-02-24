@@ -32,7 +32,7 @@ func resolveBuildStrategy(cfg *config.Config, b *bead.Bead) string {
 	return strategy
 }
 
-func extractRequirementsViaLLM(ctx context.Context, cfg *config.Config, title, description string, invoke func(ctx context.Context, prompt, tier string) (*provider.Result, error)) []string {
+func extractRequirementsViaLLM(ctx context.Context, cfg *config.Config, iterResult *runtypes.IterationResult, title, description string, invoke func(ctx context.Context, prompt, tier string) (*provider.Result, error)) []string {
 	const maxDescLen = 2000
 	desc := description
 	if len(desc) > maxDescLen {
@@ -48,14 +48,18 @@ Do not summarize. Do not group items. Return each individual requirement on its 
 	invokeCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	tier := resolveUtilityTaskTier(cfg, "summarization", provider.TierLow)
-	result, err := invoke(invokeCtx, promptText, tier)
+	tier, telemetryCategory, telemetryTier := resolveUtilityTaskTierWithTelemetry(cfg, "summarization", provider.TierLow)
+	if iterResult != nil && telemetryCategory != "" {
+		iterResult.UtilityRoutingCategory = telemetryCategory
+		iterResult.UtilityRoutingTier = telemetryTier
+	}
+	invokeResult, err := invoke(invokeCtx, promptText, tier)
 	if err != nil {
 		return nil
 	}
 
 	var items []string
-	for _, line := range strings.Split(result.Output, "\n") {
+	for _, line := range strings.Split(invokeResult.Output, "\n") {
 		line = strings.TrimSpace(line)
 		if line != "" {
 			items = append(items, line)

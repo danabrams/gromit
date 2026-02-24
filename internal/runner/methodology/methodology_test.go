@@ -762,6 +762,12 @@ func TestCheckTestsFailWithDiagnostic_ReturnsAlreadyDoneFromDiagnosticVerdict(t 
 	if capturedTier != provider.TierLow {
 		t.Fatalf("diagnostic invoke tier = %q, want %q", capturedTier, provider.TierLow)
 	}
+	if bc.Result.UtilityRoutingCategory != "discovery_indexing" {
+		t.Fatalf("UtilityRoutingCategory = %q, want %q", bc.Result.UtilityRoutingCategory, "discovery_indexing")
+	}
+	if bc.Result.UtilityRoutingTier != provider.TierLow {
+		t.Fatalf("UtilityRoutingTier = %q, want %q", bc.Result.UtilityRoutingTier, provider.TierLow)
+	}
 }
 
 func TestCheckTestsFailWithDiagnostic_UsesUtilityRoutingTierWhenEnabled(t *testing.T) {
@@ -805,6 +811,12 @@ func TestCheckTestsFailWithDiagnostic_UsesUtilityRoutingTierWhenEnabled(t *testi
 
 	if capturedTier != provider.TierMedium {
 		t.Fatalf("diagnostic invoke tier = %q, want %q", capturedTier, provider.TierMedium)
+	}
+	if bc.Result.UtilityRoutingCategory != "discovery_indexing" {
+		t.Fatalf("UtilityRoutingCategory = %q, want %q", bc.Result.UtilityRoutingCategory, "discovery_indexing")
+	}
+	if bc.Result.UtilityRoutingTier != provider.TierMedium {
+		t.Fatalf("UtilityRoutingTier = %q, want %q", bc.Result.UtilityRoutingTier, provider.TierMedium)
 	}
 }
 
