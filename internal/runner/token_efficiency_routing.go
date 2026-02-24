@@ -9,7 +9,7 @@ func resolveUtilityTaskTier(cfg *config.Config, taskCategory, fallbackTier strin
 	if cfg == nil || !cfg.TokenEfficiency.Routing.IsEnabled() {
 		return fallbackTier
 	}
-	if taskCategory != "summarization" {
+	if !isUtilityTaskCategory(taskCategory) {
 		return fallbackTier
 	}
 	if !cfg.TokenEfficiency.Routing.KillSwitches.DisableTaskOverrides {
@@ -21,4 +21,13 @@ func resolveUtilityTaskTier(cfg *config.Config, taskCategory, fallbackTier strin
 		return fallbackTier
 	}
 	return provider.TierFromLegacyModel(cfg.TokenEfficiency.Routing.UtilityTier)
+}
+
+func isUtilityTaskCategory(taskCategory string) bool {
+	switch taskCategory {
+	case "summarization", "masking_transform":
+		return true
+	default:
+		return false
+	}
 }
