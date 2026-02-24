@@ -1,0 +1,142 @@
+{
+  "manifest": {
+    "id": "tdd-vs-single-pass",
+    "base_commit": "ae0f672c59fdd0486a0212ce69df8889d4e88ee7",
+    "beads": [
+      "gromit-q1b1k"
+    ],
+    "provider": "openai",
+    "model_family": "gpt-5",
+    "low_tier_model": "gpt-5-mini",
+    "medium_tier_model": "gpt-5.3-codex",
+    "high_tier_model": "gpt-5.3-codex"
+  },
+  "modes": [
+    {
+      "mode": "single_pass",
+      "elapsed_seconds": 308,
+      "total_input_tokens": 2569028,
+      "total_output_tokens": 14620,
+      "total_cost_usd": 4.700479,
+      "tier_totals": {
+        "low": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cost_usd": 0
+        },
+        "medium": {
+          "input_tokens": 2569028,
+          "output_tokens": 14620,
+          "cost_usd": 4.700479
+        },
+        "high": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cost_usd": 0
+        }
+      },
+      "model_totals": [
+        {
+          "model": "gpt-5.3-codex",
+          "input_tokens": 2569028,
+          "output_tokens": 14620,
+          "cost_usd": 4.700479
+        }
+      ],
+      "quality": {
+        "average_score": 0,
+        "first_pass_rate": 0,
+        "review_findings": 0,
+        "review_fixes_applied": 0,
+        "final_validation_passed": false
+      },
+      "cost_quality_ratio": 4.700479
+    },
+    {
+      "mode": "tdd_fresh_context",
+      "elapsed_seconds": 1551,
+      "total_input_tokens": 5614451,
+      "total_output_tokens": 65968,
+      "total_cost_usd": 0,
+      "tier_totals": {
+        "low": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cost_usd": 0
+        },
+        "medium": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cost_usd": 0
+        },
+        "high": {
+          "input_tokens": 5614451,
+          "output_tokens": 65968,
+          "cost_usd": 0
+        }
+      },
+      "model_totals": [
+        {
+          "model": "gpt-5.3-codex",
+          "input_tokens": 5614451,
+          "output_tokens": 65968,
+          "cost_usd": 0
+        }
+      ],
+      "quality": {
+        "average_score": 0,
+        "first_pass_rate": 0,
+        "review_findings": 0,
+        "review_fixes_applied": 0,
+        "final_validation_passed": false
+      },
+      "cost_quality_ratio": 0
+    },
+    {
+      "mode": "tdd_shared_context",
+      "elapsed_seconds": 246,
+      "total_input_tokens": 2204041,
+      "total_output_tokens": 11522,
+      "total_cost_usd": 4.01838,
+      "tier_totals": {
+        "low": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cost_usd": 0
+        },
+        "medium": {
+          "input_tokens": 2204041,
+          "output_tokens": 11522,
+          "cost_usd": 4.01838
+        },
+        "high": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cost_usd": 0
+        }
+      },
+      "model_totals": [
+        {
+          "model": "gpt-5.3-codex",
+          "input_tokens": 2204041,
+          "output_tokens": 11522,
+          "cost_usd": 4.01838
+        }
+      ],
+      "quality": {
+        "average_score": 0,
+        "first_pass_rate": 0,
+        "review_findings": 0,
+        "review_fixes_applied": 0,
+        "final_validation_passed": false
+      },
+      "cost_quality_ratio": 4.01838
+    }
+  ],
+  "winner_hints": {
+    "fastest": "tdd_shared_context",
+    "cheapest": "tdd_fresh_context",
+    "best_quality": "single_pass",
+    "best_cost_quality": "tdd_fresh_context"
+  }
+}
