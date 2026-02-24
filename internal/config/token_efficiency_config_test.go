@@ -54,3 +54,31 @@ token_efficiency:
 		t.Errorf("TokenEfficiency.Routing.KillSwitches.DisableTaskOverrides = false, want true")
 	}
 }
+
+func TestSetDefaultsTokenEfficiencyDefaults(t *testing.T) {
+	cfg := &Config{}
+	cfg.SetDefaults()
+
+	if cfg.TokenEfficiency.Cache.Enabled {
+		t.Errorf("TokenEfficiency.Cache.Enabled = true, want false by default")
+	}
+	if cfg.TokenEfficiency.Cache.TTL != "30m" {
+		t.Errorf("TokenEfficiency.Cache.TTL = %q, want %q", cfg.TokenEfficiency.Cache.TTL, "30m")
+	}
+	if cfg.TokenEfficiency.Cache.Capacity != 256 {
+		t.Errorf("TokenEfficiency.Cache.Capacity = %d, want 256", cfg.TokenEfficiency.Cache.Capacity)
+	}
+
+	if cfg.TokenEfficiency.Routing.Enabled {
+		t.Errorf("TokenEfficiency.Routing.Enabled = true, want false by default")
+	}
+	if cfg.TokenEfficiency.Routing.UtilityTier != "low" {
+		t.Errorf("TokenEfficiency.Routing.UtilityTier = %q, want %q", cfg.TokenEfficiency.Routing.UtilityTier, "low")
+	}
+	if cfg.TokenEfficiency.Routing.KillSwitches.DisableUtilityRouting {
+		t.Errorf("TokenEfficiency.Routing.KillSwitches.DisableUtilityRouting = true, want false by default")
+	}
+	if cfg.TokenEfficiency.Routing.KillSwitches.DisableTaskOverrides {
+		t.Errorf("TokenEfficiency.Routing.KillSwitches.DisableTaskOverrides = true, want false by default")
+	}
+}
