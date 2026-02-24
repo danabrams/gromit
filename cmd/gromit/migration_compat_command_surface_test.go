@@ -23,7 +23,7 @@ func TestDebugCompatibilityDiagnostics_CommandSurfaceSupportsLegacyAndExplicitCo
 				"Backend:  bd (source: legacy_fallback)",
 				"Adapter:  go (source: legacy_fallback)",
 				config.CompatibilityDeprecationMarkerLegacyHardcodedDefaults,
-				"runner-deprecated-legacy-tracker-backend-fallback",
+				config.CompatibilityDeprecationMarkerLegacyTrackerBackendFallback,
 				config.CompatibilityStrictDefaultCutoverDate,
 			},
 		},

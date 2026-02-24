@@ -15,7 +15,6 @@ import (
 	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/prompt"
-	"github.com/danabrams/gromit/internal/runner"
 	"github.com/danabrams/gromit/internal/runbook"
 	"github.com/danabrams/gromit/skills"
 	"github.com/spf13/cobra"
@@ -426,9 +425,6 @@ func formatDebugCompatibilityDiagnostics(cfg *config.Config) string {
 		resolved.MethodologyAdapter.Value, resolved.MethodologyAdapter.Source,
 	)
 	markers := config.CompatibilityDeprecationMarkers(resolved)
-	if resolved.TrackerBackend.Source != config.CompatibilitySourceExplicit {
-		markers = append(markers, runner.RunnerDeprecationMarkerLegacyTrackerBackendFallback)
-	}
 	if len(markers) > 0 {
 		diagnostics += fmt.Sprintf("\n  Deprecation markers: %s\n  Strict default cutoff: %s", strings.Join(markers, ", "), config.CompatibilityStrictDefaultCutoverDate)
 	}
