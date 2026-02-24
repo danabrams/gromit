@@ -29,3 +29,34 @@ func TestNoopCacheAdapterLookupReturnsMiss(t *testing.T) {
 		t.Fatalf("Lookup() entry = %#v, want nil", entry)
 	}
 }
+
+func TestNoopCacheAdapterWriteAndInvalidateAreSafeNoops(t *testing.T) {
+	adapter := NewNoopCacheAdapter()
+
+	writeErr := adapter.Write(context.Background(), CacheWriteRequest{
+		CacheClass: "build",
+		CacheKey:   "k1",
+		Content:    "cached",
+		Config: config.TokenEfficiencyCacheConfig{
+			Enabled:  true,
+			TTL:      "30m",
+			Capacity: 256,
+		},
+	})
+	if writeErr != nil {
+		t.Fatalf("Write() error = %v, want nil", writeErr)
+	}
+
+	invalidateErr := adapter.Invalidate(context.Background(), CacheInvalidateRequest{
+		CacheClass: "build",
+		CacheKey:   "k1",
+		Config: config.TokenEfficiencyCacheConfig{
+			Enabled:  true,
+			TTL:      "30m",
+			Capacity: 256,
+		},
+	})
+	if invalidateErr != nil {
+		t.Fatalf("Invalidate() error = %v, want nil", invalidateErr)
+	}
+}
