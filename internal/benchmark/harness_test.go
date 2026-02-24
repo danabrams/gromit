@@ -3,6 +3,8 @@ package benchmark
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -247,6 +249,56 @@ func TestRunModesInIsolatedWorktrees_CleansUpFailedModeBeforeReturningError(t *t
 	}
 }
 
+func TestRunModesInIsolatedWorktrees_PersistsModeLogsToDeterministicPathBeforeCleanup(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+
+	logContent := "" +
+		"{\"iteration\":1,\"actual_tier\":\"low\",\"input_tokens\":100,\"output_tokens\":20,\"cost_usd\":0.10}\n" +
+		"{\"type\":\"review\",\"review_type\":\"light\",\"iteration\":1,\"fixes_applied\":1,\"beads_created\":1,\"backlog_created\":0}\n"
+
+	resolver := &stubBaseCommitResolver{resolved: "abc123"}
+	runner := &persistingLogModeRunner{
+		baseDir:    tmpDir,
+		logContent: logContent,
+	}
+
+	runs, _, err := RunModesInIsolatedWorktrees(context.Background(), RunModesInput{
+		Manifest: HarnessManifest{
+			Provider:        "openai",
+			ModelFamily:     "gpt-5",
+			LowTierModel:    "gpt-5-mini",
+			MediumTierModel: "gpt-5.3-codex",
+			HighTierModel:   "gpt-5.3-codex",
+		},
+		SelectedBeads:  []string{"gromit-1", "gromit-2", "gromit-3"},
+		BaseCommitHint: "HEAD",
+		Resolver:       resolver,
+		Runner:         runner,
+	})
+	if err != nil {
+		t.Fatalf("RunModesInIsolatedWorktrees() error = %v", err)
+	}
+	if len(runs) != 3 {
+		t.Fatalf("run count = %d, want 3", len(runs))
+	}
+
+	for _, run := range runs {
+		wantPath := filepath.Join(".gromit", "benchmarks", "logs", run.Mode+".jsonl")
+		if run.LogPath != wantPath {
+			t.Fatalf("mode %q log path = %q, want %q", run.Mode, run.LogPath, wantPath)
+		}
+
+		content, err := os.ReadFile(run.LogPath)
+		if err != nil {
+			t.Fatalf("read persisted mode log %q: %v", run.LogPath, err)
+		}
+		if string(content) != logContent {
+			t.Fatalf("mode %q persisted log content mismatch\nwant:\n%s\ngot:\n%s", run.Mode, logContent, string(content))
+		}
+	}
+}
+
 type stubBaseCommitResolver struct {
 	resolved string
 	err      error
@@ -293,6 +345,25 @@ func (r *cleanupRecordingModeRunner) RunMode(_ context.Context, req ModeWorktree
 type cleanupOnFailureModeRunner struct {
 	callIndex               int
 	failedModeCleanupCalls  int
+}
+
+type persistingLogModeRunner struct {
+	baseDir    string
+	logContent string
+}
+
+func (r *persistingLogModeRunner) RunMode(_ context.Context, req ModeWorktreeRequest) (ModeWorktreeRun, error) {
+	sourceLogPath := filepath.Join(r.baseDir, req.Mode+"-session-run.jsonl")
+	if err := os.WriteFile(sourceLogPath, []byte(r.logContent), 0o644); err != nil {
+		return ModeWorktreeRun{}, err
+	}
+	return ModeWorktreeRun{
+		Mode:    req.Mode,
+		LogPath: sourceLogPath,
+		Cleanup: func() error {
+			return os.Remove(sourceLogPath)
+		},
+	}, nil
 }
 
 func (r *cleanupOnFailureModeRunner) RunMode(_ context.Context, req ModeWorktreeRequest) (ModeWorktreeRun, error) {
