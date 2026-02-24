@@ -87,16 +87,16 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 	for attempt := 0; ; attempt++ {
 		stats.Attempts++
 		// Run provider non-interactively
-		claudeResult, err := p.deps.LLMClient.Run(currentPrompt, model)
+		llmResult, err := p.deps.LLMClient.Run(currentPrompt, model)
 		if err != nil {
 			return nil, fmt.Errorf("invoking provider: %w", err)
 		}
 
 		// Extract output from typed result
-		if !claudeResult.Success {
-			return nil, fmt.Errorf("provider invocation failed (exit code %d)\nOutput:\n%s", claudeResult.ExitCode, claudeResult.Output)
+		if !llmResult.Success {
+			return nil, fmt.Errorf("provider invocation failed (exit code %d)\nOutput:\n%s", llmResult.ExitCode, llmResult.Output)
 		}
-		output := strings.TrimSpace(claudeResult.Output)
+		output := strings.TrimSpace(llmResult.Output)
 		if output == "" {
 			return nil, fmt.Errorf("provider returned empty output for decompose; check CLI connectivity and retry")
 		}
