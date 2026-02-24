@@ -16,6 +16,7 @@ type benchmarkRunOptions struct {
 	ManifestPath    string
 	OutputTimestamp string
 	BaseCommit      string
+	SingleBead      string
 	Beads           []string
 	BeadCount       int
 }
@@ -49,6 +50,7 @@ var benchmarkNowFn = time.Now
 var benchmarkManifestPath string
 var benchmarkOutputTS string
 var benchmarkBaseCommit string
+var benchmarkSingleBead string
 var benchmarkBeads string
 var benchmarkBeadCount int
 var benchmarkPhase3BaselineLog string
@@ -121,12 +123,27 @@ var benchmarkRunCmd = &cobra.Command{
 		if benchmarkBeadCount < 0 {
 			return fmt.Errorf("--bead-count must be zero or greater")
 		}
+		singleBead := strings.TrimSpace(benchmarkSingleBead)
+		if benchmarkSingleBead != "" && singleBead == "" {
+			return fmt.Errorf("--single-bead must be a non-empty bead id")
+		}
+		if strings.ContainsAny(singleBead, " \t\r\n") {
+			return fmt.Errorf("--single-bead must not contain whitespace")
+		}
 		if benchmarkOutputTS != "" {
 			if _, err := time.Parse("20060102T150405Z", benchmarkOutputTS); err != nil {
 				return fmt.Errorf("--output-ts must be in UTC format YYYYMMDDTHHMMSSZ")
 			}
 		}
 		beads := parseCSV(benchmarkBeads)
+		if singleBead != "" {
+			if strings.TrimSpace(benchmarkBeads) != "" {
+				return fmt.Errorf("--single-bead cannot be combined with --beads")
+			}
+			if benchmarkBeadCount != 0 {
+				return fmt.Errorf("--single-bead cannot be combined with --bead-count")
+			}
+		}
 		if strings.TrimSpace(benchmarkBeads) != "" && len(beads) == 0 {
 			return fmt.Errorf("--beads must include at least one bead id when provided")
 		}
@@ -134,6 +151,7 @@ var benchmarkRunCmd = &cobra.Command{
 			ManifestPath:    manifestPath,
 			OutputTimestamp: benchmarkOutputTS,
 			BaseCommit:      benchmarkBaseCommit,
+			SingleBead:      singleBead,
 			Beads:           beads,
 			BeadCount:       benchmarkBeadCount,
 		})
@@ -167,6 +185,7 @@ func init() {
 	benchmarkRunCmd.Flags().StringVar(&benchmarkManifestPath, "manifest", "", "Path to benchmark manifest")
 	benchmarkRunCmd.Flags().StringVar(&benchmarkOutputTS, "output-ts", "", "Timestamp override for deterministic artifact names")
 	benchmarkRunCmd.Flags().StringVar(&benchmarkBaseCommit, "base-commit", "", "Base commit override for benchmark runs")
+	benchmarkRunCmd.Flags().StringVar(&benchmarkSingleBead, "single-bead", "", "Pilot mode: run benchmark modes on one bead id")
 	benchmarkRunCmd.Flags().StringVar(&benchmarkBeads, "beads", "", "Comma-separated ordered bead IDs to benchmark")
 	benchmarkRunCmd.Flags().IntVar(&benchmarkBeadCount, "bead-count", 0, "Optional deterministic truncation count for selected beads")
 	_ = benchmarkRunCmd.MarkFlagRequired("manifest")
@@ -194,7 +213,7 @@ func runBenchmarkPipeline(opts benchmarkRunOptions) error {
 	if err != nil {
 		return err
 	}
-	cohort, err := benchmarkValidateCohortFn(selection)
+	cohort, err := benchmarkValidateCohortFn(selection, opts)
 	if err != nil {
 		return err
 	}
@@ -231,6 +250,9 @@ func loadBenchmarkManifest(path string) (benchmarkManifest, error) {
 }
 
 func selectBenchmarkCohort(manifest benchmarkManifest, opts benchmarkRunOptions) (benchmarkSelection, error) {
+	if opts.SingleBead != "" {
+		return benchmarkSelection{SelectedBeads: []string{opts.SingleBead}}, nil
+	}
 	selected, err := benchmarkInternalResolveSelectedBeadsFn(manifest.Beads, opts.Beads, opts.BeadCount)
 	if err != nil {
 		return benchmarkSelection{}, err
@@ -238,12 +260,18 @@ func selectBenchmarkCohort(manifest benchmarkManifest, opts benchmarkRunOptions)
 	return benchmarkSelection{SelectedBeads: selected}, nil
 }
 
-func validateBenchmarkCohort(selection benchmarkSelection) (benchmarkValidatedCohort, error) {
+func validateBenchmarkCohort(selection benchmarkSelection, opts benchmarkRunOptions) (benchmarkValidatedCohort, error) {
 	lookup, err := benchmarkNewBeadLookupFn()
 	if err != nil {
 		return benchmarkValidatedCohort{}, fmt.Errorf("create bead lookup: %w", err)
 	}
-	selected, err := benchmarkInternalValidateSelectedCohortFn(lookup, selection.SelectedBeads, 5)
+	requiredSize := 5
+	requireTierCoverage := true
+	if opts.SingleBead != "" {
+		requiredSize = 1
+		requireTierCoverage = false
+	}
+	selected, err := benchmarkInternalValidateSelectedCohortFn(lookup, selection.SelectedBeads, requiredSize, requireTierCoverage)
 	if err != nil {
 		return benchmarkValidatedCohort{}, err
 	}

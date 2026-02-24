@@ -11,18 +11,21 @@ type BeadLookup interface {
 	Show(id string) (*bead.Bead, error)
 }
 
-func ValidateSelectedCohort(lookup BeadLookup, selected []string, minSize int) ([]string, error) {
-	if len(selected) < minSize {
-		return nil, fmt.Errorf("selected cohort size %d is below minimum %d", len(selected), minSize)
+func ValidateSelectedCohort(lookup BeadLookup, selected []string, requiredSize int, requireTierCoverage bool) ([]string, error) {
+	if len(selected) < requiredSize {
+		return nil, fmt.Errorf("selected cohort size %d is below minimum %d", len(selected), requiredSize)
 	}
-	if len(selected) > minSize {
-		return nil, fmt.Errorf("selected cohort size %d exceeds required %d", len(selected), minSize)
+	if len(selected) > requiredSize {
+		return nil, fmt.Errorf("selected cohort size %d exceeds required %d", len(selected), requiredSize)
 	}
 
-	covered := map[string]bool{
-		"low":    false,
-		"medium": false,
-		"high":   false,
+	var covered map[string]bool
+	if requireTierCoverage {
+		covered = map[string]bool{
+			"low":    false,
+			"medium": false,
+			"high":   false,
+		}
 	}
 
 	for _, id := range selected {
@@ -33,21 +36,25 @@ func ValidateSelectedCohort(lookup BeadLookup, selected []string, minSize int) (
 		if b.Status != "open" {
 			return nil, fmt.Errorf("selected bead %q must be open, got %q", id, b.Status)
 		}
-		tier, err := parseComplexityTier(b.Labels)
-		if err != nil {
-			return nil, fmt.Errorf("selected bead %q: %w", id, err)
+		if requireTierCoverage {
+			tier, err := parseComplexityTier(b.Labels)
+			if err != nil {
+				return nil, fmt.Errorf("selected bead %q: %w", id, err)
+			}
+			covered[tier] = true
 		}
-		covered[tier] = true
 	}
 
-	missing := make([]string, 0, 3)
-	for _, tier := range []string{"low", "medium", "high"} {
-		if !covered[tier] {
-			missing = append(missing, tier)
+	if requireTierCoverage {
+		missing := make([]string, 0, 3)
+		for _, tier := range []string{"low", "medium", "high"} {
+			if !covered[tier] {
+				missing = append(missing, tier)
+			}
 		}
-	}
-	if len(missing) > 0 {
-		return nil, fmt.Errorf("missing complexity tiers: %s", stdstrings.Join(missing, ","))
+		if len(missing) > 0 {
+			return nil, fmt.Errorf("missing complexity tiers: %s", stdstrings.Join(missing, ","))
+		}
 	}
 
 	return append([]string(nil), selected...), nil
