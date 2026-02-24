@@ -171,3 +171,19 @@ func TestResolvedTrackerBackendAccessorUsesProfileDefaultSource(t *testing.T) {
 		t.Fatalf("ResolvedTrackerBackend().Source = %q, want %q", resolved.Source, CompatibilitySourceProfileDefault)
 	}
 }
+
+func TestResolvedProfileAccessorUsesExplicitSource(t *testing.T) {
+	cfg := Config{
+		Project: ProjectConfig{
+			Profile: "go",
+		},
+	}
+
+	resolved := cfg.ResolvedProfile()
+	if resolved.Value != "go" {
+		t.Fatalf("ResolvedProfile().Value = %q, want %q", resolved.Value, "go")
+	}
+	if resolved.Source != CompatibilitySourceExplicit {
+		t.Fatalf("ResolvedProfile().Source = %q, want %q", resolved.Source, CompatibilitySourceExplicit)
+	}
+}
