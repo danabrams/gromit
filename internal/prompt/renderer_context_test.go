@@ -120,3 +120,36 @@ func TestBuildContext_RedPhaseScopesBeforeBudgetShaping(t *testing.T) {
 		t.Fatalf("budget shaping should not drop red-phase ConfirmedLearnings once phase scoping is applied, got %v", report.TrimActions)
 	}
 }
+
+func TestBuildContext_PopulatesStaticPreambleCacheMetadata(t *testing.T) {
+	r := newRendererForContextTests(t,
+		"## Build <!-- phases: build -->\nbuild-rules\n",
+		"# Claude\nproject context",
+		"phase-cost-optimization",
+		"# Spec\ncriterion",
+	)
+	b := &bead.Bead{
+		ID:     "b1",
+		Title:  "task",
+		Labels: []string{"spec:phase-cost-optimization"},
+	}
+
+	ctx1, err := r.BuildContext(b, nil, 1, "sonnet", "build")
+	if err != nil {
+		t.Fatalf("BuildContext() first call error = %v", err)
+	}
+	ctx2, err := r.BuildContext(b, nil, 2, "haiku", "build")
+	if err != nil {
+		t.Fatalf("BuildContext() second call error = %v", err)
+	}
+
+	if ctx1.StaticPreambleCacheClass == "" || ctx1.StaticPreambleCacheKey == "" {
+		t.Fatalf("expected cache metadata to be populated, got class=%q key=%q", ctx1.StaticPreambleCacheClass, ctx1.StaticPreambleCacheKey)
+	}
+	if ctx1.StaticPreambleCacheClass != ctx2.StaticPreambleCacheClass {
+		t.Fatalf("expected cache class to remain stable, got %q vs %q", ctx1.StaticPreambleCacheClass, ctx2.StaticPreambleCacheClass)
+	}
+	if ctx1.StaticPreambleCacheKey != ctx2.StaticPreambleCacheKey {
+		t.Fatalf("expected cache key to remain stable across dynamic BuildContext fields, got %q vs %q", ctx1.StaticPreambleCacheKey, ctx2.StaticPreambleCacheKey)
+	}
+}
