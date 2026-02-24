@@ -33,3 +33,6 @@ coverage.out
 
 # Codex runtime artifacts
 .codex-home/
+
+# Ephemeral gromit worktree artifacts
+/.-gromit-*

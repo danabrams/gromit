@@ -17,6 +17,11 @@ Session worktree lifecycle should use one explicit owner for merge-attempt and c
 
 Use structured fixture assertions (parse JSON/JSONL and ledger rows) instead of broad markdown/log token matching.
 
+### 2026-02-24 | gitlink_entries_should_be_blocked_for_ephemeral_worktree_paths | RELIABILITY
+*Related to: gromit/review-1771906824758942325*
+
+Ephemeral `.-gromit-*` worktree paths must stay untracked. Add repository-level ignore plus an explicit gitlink guard so mode `160000` entries fail fast before commit/CI.
+
 ## Provisional Learnings
 
 ### 2026-02-24 | benchmark_cli_should_reuse_internal_benchmark_pipeline | ARCHITECTURE
