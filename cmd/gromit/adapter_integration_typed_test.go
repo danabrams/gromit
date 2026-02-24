@@ -12,7 +12,7 @@ import (
 
 // TestClaudeAdapter_IntegrationWithTypedResult verifies the complete adapter chain returns typed results
 func TestClaudeAdapter_IntegrationWithTypedResult(t *testing.T) {
-	// Expected failure: This will pass once adapters return typed ClaudeRunResult
+	// Expected failure: This will pass once adapters return typed LLMRunResult
 	// This test demonstrates the behavioral difference: no type assertions in workflow code
 
 	// Create a mock claude.Result (the concrete type from internal/claude)
@@ -23,7 +23,7 @@ func TestClaudeAdapter_IntegrationWithTypedResult(t *testing.T) {
 	}
 
 	// The adapter converts concrete type to pipeline type
-	pipelineResult := &pipeline.ClaudeRunResult{
+	pipelineResult := &pipeline.LLMRunResult{
 		Success:  concreteResult.Success,
 		ExitCode: concreteResult.ExitCode,
 		Output:   concreteResult.Output,
@@ -45,7 +45,7 @@ func TestClaudeAdapter_IntegrationWithTypedResult(t *testing.T) {
 	// output := resultMap["Output"].(string)  // nested type assertion
 
 	// New code does:
-	// result := claudeAdapter.Run(...)  // returns *ClaudeRunResult
+	// result := claudeAdapter.Run(...)  // returns *LLMRunResult
 	// if !result.Success { ... }  // direct field access, compile-time checked
 	// output := result.Output  // direct field access, compile-time checked
 }
@@ -102,7 +102,7 @@ func TestWorkflowUsage_NoTypeAssertions(t *testing.T) {
 	// Expected failure: This demonstrates the usage pattern after typed interfaces
 
 	// Simulate what decompose workflow does:
-	mockClaudeResult := &pipeline.ClaudeRunResult{
+	mockClaudeResult := &pipeline.LLMRunResult{
 		Success:  true,
 		ExitCode: 0,
 		Output:   `[{"title":"Task","description":"Do it","priority":"P1","acceptance_criteria":[],"depends_on_index":[]}]`,
@@ -151,7 +151,7 @@ func TestWorkflowUsage_NoTypeAssertions(t *testing.T) {
 func TestCompileTimeTypeSafety(t *testing.T) {
 	// This test demonstrates compile-time safety with typed interfaces
 
-	var claudeClient pipeline.ClaudeClient
+	var claudeClient pipeline.LLMClient
 	var beadClient pipeline.BeadClient
 
 	// These are interface declarations - the test verifies they compile
@@ -161,7 +161,7 @@ func TestCompileTimeTypeSafety(t *testing.T) {
 
 	// Mock implementations must match the exact signature
 	typedClaude := &mockClaudeForIntegration{
-		result: &pipeline.ClaudeRunResult{Success: true},
+		result: &pipeline.LLMRunResult{Success: true},
 	}
 	typedBead := &mockBeadForIntegration{
 		info: &pipeline.BeadInfo{ID: "test"},
@@ -190,11 +190,11 @@ func TestCompileTimeTypeSafety(t *testing.T) {
 // Mock implementations for integration tests
 
 type mockClaudeForIntegration struct {
-	result *pipeline.ClaudeRunResult
+	result *pipeline.LLMRunResult
 	err    error
 }
 
-func (m *mockClaudeForIntegration) Run(prompt, model string) (*pipeline.ClaudeRunResult, error) {
+func (m *mockClaudeForIntegration) Run(prompt, model string) (*pipeline.LLMRunResult, error) {
 	return m.result, m.err
 }
 
