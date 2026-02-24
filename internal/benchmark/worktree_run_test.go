@@ -98,3 +98,46 @@ func TestSessionModeWorktreeRunner_RunModeExecutesInSessionAndReturnsCleanup(t *
 		t.Fatal("cleanup callback was not invoked")
 	}
 }
+
+func TestSessionModeWorktreeRunner_RunModeChecksOutBaseCommitBeforeExecution(t *testing.T) {
+	t.Parallel()
+
+	session := &worktree.SessionWorktree{
+		BranchName:  "gromit/benchmark-single_pass-2",
+		WorktreeDir: "/tmp/repo-wt",
+	}
+	sequence := make([]string, 0, 2)
+
+	runner := NewSessionModeWorktreeRunner(SessionModeWorktreeRunnerOptions{
+		MainDir: "/tmp/repo",
+		CreateSessionWorktree: func(command string) (*worktree.SessionWorktree, error) {
+			return session, nil
+		},
+		CheckoutBaseCommitInWorktree: func(_ context.Context, worktreeDir, baseCommit string) error {
+			if worktreeDir != session.WorktreeDir {
+				t.Fatalf("checkout worktreeDir = %q, want %q", worktreeDir, session.WorktreeDir)
+			}
+			if baseCommit != "abc123" {
+				t.Fatalf("checkout baseCommit = %q, want %q", baseCommit, "abc123")
+			}
+			sequence = append(sequence, "checkout")
+			return nil
+		},
+		RunModeInWorktree: func(_ context.Context, _ string, _ ModeWorktreeRequest) error {
+			sequence = append(sequence, "run")
+			return nil
+		},
+		CleanupSession: func(_, _ string) error { return nil },
+	})
+
+	_, err := runner.RunMode(context.Background(), ModeWorktreeRequest{
+		Mode:       "single_pass",
+		BaseCommit: "abc123",
+	})
+	if err != nil {
+		t.Fatalf("RunMode() error = %v", err)
+	}
+	if len(sequence) != 2 || sequence[0] != "checkout" || sequence[1] != "run" {
+		t.Fatalf("execution sequence = %v, want [checkout run]", sequence)
+	}
+}
