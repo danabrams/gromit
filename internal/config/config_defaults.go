@@ -310,6 +310,16 @@ func (c *Config) SetDefaults() {
 		c.Stream.PreserveProviderOutput = boolPtr(true)
 	}
 
+	if c.TokenEfficiency.Cache.TTL == "" {
+		c.TokenEfficiency.Cache.TTL = "30m"
+	}
+	if c.TokenEfficiency.Cache.Capacity == 0 {
+		c.TokenEfficiency.Cache.Capacity = 256
+	}
+	if c.TokenEfficiency.Routing.UtilityTier == "" {
+		c.TokenEfficiency.Routing.UtilityTier = tierLow
+	}
+
 	if c.Routing.CircuitBreaker.Enabled {
 		if c.Routing.CircuitBreaker.WindowSize == 0 {
 			c.Routing.CircuitBreaker.WindowSize = 10
