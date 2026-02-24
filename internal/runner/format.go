@@ -153,6 +153,10 @@ func formatCompatibility(ctx config.CompatibilityContext) string {
 		fmt.Sprintf("  Backend:  %s (source: %s)", ctx.TrackerBackend.Value, ctx.TrackerBackend.Source),
 		fmt.Sprintf("  Adapter:  %s (source: %s)", ctx.MethodologyAdapter.Value, ctx.MethodologyAdapter.Source),
 	}
+	if markers := config.CompatibilityDeprecationSummary(ctx); markers != "" {
+		lines = append(lines, fmt.Sprintf("  Deprecation markers: %s", markers))
+		lines = append(lines, fmt.Sprintf("  Strict default cutoff: %s", config.CompatibilityStrictDefaultCutoverDate))
+	}
 	return strings.Join(lines, "\n")
 }
 

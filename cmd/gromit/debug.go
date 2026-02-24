@@ -419,11 +419,15 @@ func formatDebugCompatibilityDiagnostics(cfg *config.Config) string {
 		resolved = cfg.ResolveCompatibilityContext()
 	}
 
-	return fmt.Sprintf("Compatibility:\n  Profile:  %s (source: %s)\n  Backend:  %s (source: %s)\n  Adapter:  %s (source: %s)",
+	diagnostics := fmt.Sprintf("Compatibility:\n  Profile:  %s (source: %s)\n  Backend:  %s (source: %s)\n  Adapter:  %s (source: %s)",
 		resolved.Profile.Value, resolved.Profile.Source,
 		resolved.TrackerBackend.Value, resolved.TrackerBackend.Source,
 		resolved.MethodologyAdapter.Value, resolved.MethodologyAdapter.Source,
 	)
+	if markers := config.CompatibilityDeprecationSummary(resolved); markers != "" {
+		diagnostics += fmt.Sprintf("\n  Deprecation markers: %s\n  Strict default cutoff: %s", markers, config.CompatibilityStrictDefaultCutoverDate)
+	}
+	return diagnostics
 }
 
 // getMDFiles returns a list of .md files in the given directory

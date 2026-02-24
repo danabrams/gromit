@@ -82,14 +82,15 @@ func warnConfigDeprecation(message string) {
 }
 
 func warnCompatibilityDeprecation(ctx CompatibilityContext) {
-	if ctx.Profile.DeprecationMarker == "" && ctx.TrackerBackend.DeprecationMarker == "" && ctx.MethodologyAdapter.DeprecationMarker == "" {
+	markers := CompatibilityDeprecationSummary(ctx)
+	if markers == "" {
 		return
 	}
 
 	warnConfigDeprecation(
 		fmt.Sprintf(
 			"%s active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after %s)",
-			CompatibilityDeprecationMarkerLegacyHardcodedDefaults,
+			markers,
 			CompatibilityStrictDefaultCutoverDate,
 		),
 	)

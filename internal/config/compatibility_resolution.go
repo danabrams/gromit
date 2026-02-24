@@ -1,5 +1,7 @@
 package config
 
+import "strings"
+
 type CompatibilitySource string
 
 const (
@@ -70,4 +72,34 @@ func (c Config) ResolveCompatibilityContext() CompatibilityContext {
 		TrackerBackend:     backend,
 		MethodologyAdapter: adapter,
 	}
+}
+
+func CompatibilityDeprecationMarkers(ctx CompatibilityContext) []string {
+	markers := make([]string, 0, 3)
+	seen := map[string]struct{}{}
+
+	for _, marker := range []string{
+		ctx.Profile.DeprecationMarker,
+		ctx.TrackerBackend.DeprecationMarker,
+		ctx.MethodologyAdapter.DeprecationMarker,
+	} {
+		if marker == "" {
+			continue
+		}
+		if _, exists := seen[marker]; exists {
+			continue
+		}
+		seen[marker] = struct{}{}
+		markers = append(markers, marker)
+	}
+
+	return markers
+}
+
+func CompatibilityDeprecationSummary(ctx CompatibilityContext) string {
+	markers := CompatibilityDeprecationMarkers(ctx)
+	if len(markers) == 0 {
+		return ""
+	}
+	return strings.Join(markers, ", ")
 }
