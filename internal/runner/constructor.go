@@ -28,11 +28,17 @@ import (
 
 // defaultTierToModelMap defines the default Claude model tier mapping.
 // This is used for backward compatibility when no providers are configured.
+// Deprecation marker: RunnerDeprecationMarkerLegacyClaudeTierModelMap
 var defaultTierToModelMap = map[string]string{
 	"high":   "opus",
 	"medium": "sonnet",
 	"low":    "haiku",
 }
+
+const (
+	RunnerDeprecationMarkerLegacyClaudeTierModelMap    = "runner-deprecated-legacy-claude-tier-model-map"
+	RunnerDeprecationMarkerLegacyTrackerBackendFallback = "runner-deprecated-legacy-tracker-backend-fallback"
+)
 
 func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orchestrator, error) {
 	if cfg == nil {
@@ -303,6 +309,17 @@ func resolveTrackerBackend(cfg *config.Config) string {
 		return "bd"
 	}
 	return cfg.ResolveCompatibilityContext().TrackerBackend.Value
+}
+
+func resolveTrackerBackendDeprecationMarker(cfg *config.Config) string {
+	if cfg == nil {
+		return RunnerDeprecationMarkerLegacyTrackerBackendFallback
+	}
+	resolved := cfg.ResolveCompatibilityContext()
+	if resolved.TrackerBackend.Source == config.CompatibilitySourceExplicit {
+		return ""
+	}
+	return RunnerDeprecationMarkerLegacyTrackerBackendFallback
 }
 
 func newTrackerClient(backend string) (*bead.Client, error) {
