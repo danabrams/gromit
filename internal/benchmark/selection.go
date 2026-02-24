@@ -8,6 +8,9 @@ func ResolveSelectedBeads(manifestBeads []string, cliBeads []string, beadCount i
 	if len(cliBeads) > 0 {
 		selected = cliBeads
 	}
+	if len(selected) == 0 {
+		return nil, fmt.Errorf("selected cohort cannot be empty")
+	}
 
 	seen := make(map[string]struct{}, len(selected))
 	for _, bead := range selected {
