@@ -32,10 +32,10 @@ func TestGeminiSpikeFindingsDocument_ContainsRequiredStructureAndRecommendations
 	}
 
 	for _, ref := range []string{
-		".gromit/plans/fixtures/gemini/stream-json-success.jsonl",
-		".gromit/plans/fixtures/gemini/json-success.json",
-		".gromit/plans/fixtures/gemini/commands.log",
-		".gromit/plans/fixtures/gemini/errors/command-missing.stderr.txt",
+		"test/fixtures/gemini/stream-json-success.jsonl",
+		"test/fixtures/gemini/json-success.json",
+		"test/fixtures/gemini/commands.log",
+		"test/fixtures/gemini/errors/command-missing.stderr.txt",
 	} {
 		if !strings.Contains(body, ref) {
 			t.Fatalf("findings document must reference %q", ref)
