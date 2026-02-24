@@ -124,6 +124,37 @@ func TestExplorePromptRenderer_RenderExploreBuildsPromptDiagnostics(t *testing.T
 	}
 }
 
+func TestExploreBacklogClientList_PreservesCreatedAt(t *testing.T) {
+	t.Parallel()
+
+	gromitDir := t.TempDir()
+	file, err := backlog.NewFile(gromitDir)
+	if err != nil {
+		t.Fatalf("backlog.NewFile() error = %v", err)
+	}
+	createdAt := time.Date(2026, time.February, 6, 11, 10, 9, 0, time.UTC)
+	if err := file.Add(&backlog.Idea{
+		ID:        "idea-1",
+		Text:      "Keep created timestamp",
+		Type:      "feature",
+		CreatedAt: createdAt,
+	}); err != nil {
+		t.Fatalf("Add() error = %v", err)
+	}
+
+	client := &exploreBacklogClient{file: file}
+	ideas, err := client.List()
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(ideas) != 1 {
+		t.Fatalf("idea count = %d, want 1", len(ideas))
+	}
+	if !ideas[0].CreatedAt.Equal(createdAt) {
+		t.Fatalf("CreatedAt = %v, want %v", ideas[0].CreatedAt, createdAt)
+	}
+}
+
 type exploreSessionTestAgent struct {
 	launchInDirFn func(promptPath, dir string) error
 }
