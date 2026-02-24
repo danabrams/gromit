@@ -5120,3 +5120,30 @@ routing:
 		})
 	}
 }
+
+func TestLoadLegacyCompatibilityConfig_EmitsMigrationWarningByDefault(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte("models:\n  p0: opus\n"), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	var warning strings.Builder
+	originalWriter := configWarningWriter
+	configWarningWriter = &warning
+	t.Cleanup(func() {
+		configWarningWriter = originalWriter
+	})
+
+	if _, err := Load(cfgPath); err != nil {
+		t.Fatalf("Load(%q) error = %v", cfgPath, err)
+	}
+
+	warningText := warning.String()
+	if !strings.Contains(warningText, CompatibilityDeprecationMarkerLegacyHardcodedDefaults) {
+		t.Fatalf("warning = %q, want legacy deprecation marker %q", warningText, CompatibilityDeprecationMarkerLegacyHardcodedDefaults)
+	}
+	if !strings.Contains(warningText, CompatibilityStrictDefaultCutoverDate) {
+		t.Fatalf("warning = %q, want cutoff date %q", warningText, CompatibilityStrictDefaultCutoverDate)
+	}
+}
