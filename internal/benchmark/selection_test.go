@@ -41,3 +41,10 @@ func TestResolveSelectedBeads_TruncatesDeterministicallyWithBeadCount(t *testing
 		t.Fatalf("resolved = %v, want [gromit-1 gromit-2]", resolved)
 	}
 }
+
+func TestResolveSelectedBeads_ReturnsErrorWhenBeadCountExceedsSelection(t *testing.T) {
+	_, err := ResolveSelectedBeads([]string{"gromit-1", "gromit-2"}, nil, 3)
+	if err == nil {
+		t.Fatal("ResolveSelectedBeads() error = nil, want out-of-range bead-count error")
+	}
+}
