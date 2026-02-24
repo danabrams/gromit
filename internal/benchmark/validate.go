@@ -16,6 +16,12 @@ func ValidateSelectedCohort(lookup BeadLookup, selected []string, minSize int) (
 		return nil, fmt.Errorf("selected cohort size %d is below minimum %d", len(selected), minSize)
 	}
 
+	covered := map[string]bool{
+		"low":    false,
+		"medium": false,
+		"high":   false,
+	}
+
 	for _, id := range selected {
 		b, err := lookup.Show(id)
 		if err != nil {
@@ -24,6 +30,17 @@ func ValidateSelectedCohort(lookup BeadLookup, selected []string, minSize int) (
 		if b.Status != "open" {
 			return nil, fmt.Errorf("selected bead %q must be open, got %q", id, b.Status)
 		}
+		covered[complexityTier(b.Labels)] = true
+	}
+
+	missing := make([]string, 0, 3)
+	for _, tier := range []string{"low", "medium", "high"} {
+		if !covered[tier] {
+			missing = append(missing, tier)
+		}
+	}
+	if len(missing) > 0 {
+		return nil, fmt.Errorf("missing complexity tiers: %s", stdstrings.Join(missing, ","))
 	}
 
 	return append([]string(nil), selected...), nil
