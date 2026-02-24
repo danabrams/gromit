@@ -177,12 +177,15 @@ runLoop:
 		buildOut, buildErr := o.cfg.Build.Run(ctx, baseIn)
 		if buildErr != nil {
 			o.logf("Warning: build failed for bead %s (iteration %d): %v", b.ID, iteration, buildErr)
+			failurePhase := inferBuildFailurePhase(buildErr)
 			baseIn.Result = &logger.IterationLog{
 				Timestamp:                time.Now(),
 				Iteration:                iteration,
 				BeadID:                   b.ID,
 				BeadTitle:                b.Title,
 				Success:                  false,
+				Error:                    buildErr.Error(),
+				FailurePhase:             failurePhase,
 				Complexity:               baseIn.Complexity,
 				ComplexitySource:         baseIn.ComplexitySource,
 				ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
@@ -265,6 +268,25 @@ runLoop:
 		}
 	}
 	return nil
+}
+
+func inferBuildFailurePhase(err error) string {
+	if err == nil {
+		return ""
+	}
+	msg := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(msg, "red phase"):
+		return "red"
+	case strings.Contains(msg, "green phase"):
+		return "green"
+	case strings.Contains(msg, "refactor phase"):
+		return "refactor"
+	case strings.Contains(msg, "final validation"):
+		return "final_validation"
+	default:
+		return "build"
+	}
 }
 
 // RunSequence executes the pipeline for an explicit, caller-provided bead ID sequence.
