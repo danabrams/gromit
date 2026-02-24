@@ -2,7 +2,18 @@
   "last_retro": "0001-01-01T00:00:00Z",
   "last_review_commit": "6b92b27ba0ca4880712f19b031141abb38616975",
   "pending_worktree_branches": [
-    "gromit/plan-1771876936244131063"
+    "gromit/plan-1771876936244131063",
+    "gromit/debug-1771877305894423090",
+    "gromit/review-1771878486437709843",
+    "gromit/explore-1771879202862821143",
+    "gromit/debug-1771880340072393806",
+    "gromit/review-1771880675971102580",
+    "gromit/plan-1771881584771609109",
+    "gromit/explore-1771882332170426559",
+    "gromit/plan-1771884440576962659",
+    "gromit/review-1771886115282672489",
+    "gromit/debug-1771887478560397176",
+    "gromit/review-1771893007120033611"
   ],
-  "updated_at": "2026-02-23T15:28:13.941935865Z"
+  "updated_at": "2026-02-24T01:33:13.698770433Z"
 }

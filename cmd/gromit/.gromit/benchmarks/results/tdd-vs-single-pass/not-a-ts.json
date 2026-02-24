@@ -1,0 +1,53 @@
+{
+  "manifest_id": "tdd-vs-single-pass",
+  "selected_beads": [
+    "gromit-1",
+    "gromit-2",
+    "gromit-3"
+  ],
+  "modes": [
+    {
+      "mode": "single_pass",
+      "base_commit": "abc123",
+      "selected_beads": [
+        "gromit-1",
+        "gromit-2",
+        "gromit-3"
+      ]
+    },
+    {
+      "mode": "tdd_shared_context",
+      "base_commit": "abc123",
+      "selected_beads": [
+        "gromit-1",
+        "gromit-2",
+        "gromit-3"
+      ]
+    },
+    {
+      "mode": "tdd_fresh_context",
+      "base_commit": "abc123",
+      "selected_beads": [
+        "gromit-1",
+        "gromit-2",
+        "gromit-3"
+      ]
+    }
+  ],
+  "metrics": {
+    "mode_scores": [
+      {
+        "mode": "single_pass",
+        "score": 1
+      },
+      {
+        "mode": "tdd_shared_context",
+        "score": 2
+      },
+      {
+        "mode": "tdd_fresh_context",
+        "score": 3
+      }
+    ]
+  }
+}

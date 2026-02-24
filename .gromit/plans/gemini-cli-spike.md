@@ -1,8 +1,9 @@
 ---
+created: 2026-02-23T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-23T22:13:47Z"
 id: gemini-cli-spike
 source_spec: gemini-cli-spike
-created: 2026-02-23
-decomposed: false
 ---
 
 # Gemini CLI Spike Implementation Plan

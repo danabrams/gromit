@@ -1,8 +1,9 @@
 ---
+created: 2026-02-23T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-23T22:55:37Z"
 id: methodology-benchmark-harness
 source_spec: methodology-benchmark-harness
-created: 2026-02-23
-decomposed: false
 ---
 
 # Methodology Benchmark Harness Implementation Plan

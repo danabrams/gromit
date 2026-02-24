@@ -1,0 +1,75 @@
+{
+  "manifest": {
+    "id": "bench-1",
+    "base_commit": "abc123",
+    "beads": [
+      "gromit-1",
+      "gromit-2",
+      "gromit-3"
+    ],
+    "provider": "openai",
+    "model_family": "gpt-5",
+    "low_tier_model": "gpt-5-mini",
+    "medium_tier_model": "gpt-5.3-codex",
+    "high_tier_model": "gpt-5.3-codex"
+  },
+  "manifest_id": "bench-1",
+  "selected_beads": [
+    "gromit-1",
+    "gromit-2",
+    "gromit-3"
+  ],
+  "modes": [
+    {
+      "mode": "single_pass",
+      "base_commit": "abc123",
+      "selected_beads": [
+        "gromit-1",
+        "gromit-2",
+        "gromit-3"
+      ]
+    }
+  ],
+  "metrics": {
+    "mode_scores": [
+      {
+        "mode": "single_pass",
+        "score": 1
+      }
+    ],
+    "ModeSummaries": [
+      {
+        "mode": "single_pass",
+        "elapsed_seconds": 0,
+        "total_input_tokens": 0,
+        "total_output_tokens": 0,
+        "total_cost_usd": 0,
+        "tier_totals": {
+          "low": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "cost_usd": 0
+          },
+          "medium": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "cost_usd": 0
+          },
+          "high": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "cost_usd": 0
+          }
+        },
+        "quality": {
+          "average_score": 0,
+          "first_pass_rate": 0,
+          "review_findings": 0,
+          "review_fixes_applied": 0,
+          "final_validation_passed": false
+        },
+        "cost_quality_ratio": 0
+      }
+    ]
+  }
+}
