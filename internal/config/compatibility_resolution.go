@@ -10,6 +10,7 @@ const (
 	// CompatibilityDeprecationMarkerLegacyHardcodedDefaults marks values resolved by
 	// legacy hard-coded compatibility shims that should be removed after migration.
 	CompatibilityDeprecationMarkerLegacyHardcodedDefaults = "compat-deprecated-legacy-hardcoded-defaults"
+	CompatibilityStrictDefaultCutoverDate                = "2026-06-01"
 )
 
 type CompatibilityResolvedValue struct {

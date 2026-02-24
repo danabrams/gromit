@@ -29,6 +29,7 @@ func Load(path string) (*Config, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("validating config: %w", err)
 	}
+	warnCompatibilityDeprecation(cfg.ResolveCompatibilityContext())
 	return &cfg, nil
 }
 
@@ -78,6 +79,20 @@ func normalizeConfiguredTier(tier string) string {
 
 func warnConfigDeprecation(message string) {
 	_, _ = fmt.Fprintf(configWarningWriter, "Warning: %s\n", message)
+}
+
+func warnCompatibilityDeprecation(ctx CompatibilityContext) {
+	if ctx.Profile.DeprecationMarker == "" && ctx.TrackerBackend.DeprecationMarker == "" && ctx.MethodologyAdapter.DeprecationMarker == "" {
+		return
+	}
+
+	warnConfigDeprecation(
+		fmt.Sprintf(
+			"%s active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after %s)",
+			CompatibilityDeprecationMarkerLegacyHardcodedDefaults,
+			CompatibilityStrictDefaultCutoverDate,
+		),
+	)
 }
 
 // Validate ensures config values are within supported ranges.
