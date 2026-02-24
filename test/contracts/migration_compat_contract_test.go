@@ -86,6 +86,10 @@ type migrationRunResult struct {
 	Stderr      string
 }
 
+func (r migrationRunResult) WarningHas(marker string) bool {
+	return strings.Contains(r.Stderr, marker)
+}
+
 func runMigrationFixture(t *testing.T, fixtureName string) migrationRunResult {
 	t.Helper()
 
