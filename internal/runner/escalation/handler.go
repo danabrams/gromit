@@ -31,6 +31,7 @@ type CreateSubFn func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTas
 
 const integrityUnsafeStateCategory analyzer.Category = "integrity_unsafe_state"
 const failureContextTruncatedPrefix = "[truncated] "
+const sameScopeRetryBlockedMessage = "Same-scope retry blocked: timeout requires decomposition or escalation decision"
 const (
 	triageSubCategoryBadPrompt = "bad_prompt"
 	triageSubCategoryBadBead   = "bad_bead"
@@ -391,6 +392,15 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 			h.setBuildTimeoutFailurePhase(bc)
 			return false
 		default:
+		}
+		if bc.Result != nil &&
+			bc.Result.TimeoutType != "" &&
+			bc.TotalRetriesThisBead > 0 &&
+			!bc.Result.Decomposed &&
+			!bc.Result.Escalated {
+			bc.Result.Error = errors.New(sameScopeRetryBlockedMessage)
+			h.setBuildTimeoutFailurePhase(bc)
+			return false
 		}
 
 		budgetHandled, budgetErr := h.checkRetryBudgetBeforeAttempt(ctx, bc)
