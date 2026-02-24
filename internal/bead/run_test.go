@@ -2,6 +2,7 @@ package bead
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -142,5 +143,41 @@ func TestClientRun_SubprocessNonExitErrorIsUnchanged(t *testing.T) {
 	var exitErr *exec.ExitError
 	if errors.As(err, &exitErr) {
 		t.Fatalf("run() error unexpectedly wraps *exec.ExitError: %v", err)
+	}
+}
+
+func TestClientRun_RetriesWithNoDBOnDatabaseNotFound(t *testing.T) {
+	counterPath := filepath.Join(t.TempDir(), "run-count")
+	script := fmt.Sprintf(`#!/bin/sh
+count=0
+if [ -f %q ]; then
+  count=$(cat %q)
+fi
+count=$((count + 1))
+echo "$count" > %q
+if [ "${BEADS_NO_DB:-}" = "true" ]; then
+  printf '[{"id":"b1","title":"ok","description":"d","priority":2,"labels":[]}]'
+  exit 0
+fi
+printf 'Error: failed to get ready work: Error 1049 (HY000): database not found: beads_gromit/\n' >&2
+exit 1
+`, counterPath, counterPath, counterPath)
+	binaryPath := writeExecutableScript(t, script)
+
+	c := &Client{binary: binaryPath}
+	out, err := c.run("ready", "--json", "--limit", "1")
+	if err != nil {
+		t.Fatalf("run() unexpected error: %v", err)
+	}
+	if !strings.Contains(out, `"id":"b1"`) {
+		t.Fatalf("run() output = %q, want fallback success output", out)
+	}
+
+	countRaw, readErr := os.ReadFile(counterPath)
+	if readErr != nil {
+		t.Fatalf("ReadFile(%q): %v", counterPath, readErr)
+	}
+	if strings.TrimSpace(string(countRaw)) != "2" {
+		t.Fatalf("run() invocation count = %q, want %q", strings.TrimSpace(string(countRaw)), "2")
 	}
 }

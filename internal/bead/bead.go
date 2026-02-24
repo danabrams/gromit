@@ -390,9 +390,27 @@ func (c *Client) run(args ...string) (string, error) {
 	if c.RunFn != nil {
 		return c.RunFn(args...)
 	}
+	out, err := c.runWithEnv(args, nil)
+	if err == nil {
+		return out, nil
+	}
+	if shouldRetryWithNoDB(err) && !beadsNoDBAlreadyEnabled() {
+		retryOut, retryErr := c.runWithEnv(args, []string{"BEADS_NO_DB=true"})
+		if retryErr == nil {
+			return retryOut, nil
+		}
+		return "", fmt.Errorf("%w (retry with BEADS_NO_DB=true failed: %v)", err, retryErr)
+	}
+	return "", err
+}
+
+func (c *Client) runWithEnv(args []string, extraEnv []string) (string, error) {
 	cmd := exec.Command(c.binary, args...)
 	if c.Dir != "" {
 		cmd.Dir = c.Dir
+	}
+	if len(extraEnv) > 0 {
+		cmd.Env = append(os.Environ(), extraEnv...)
 	}
 	out, err := cmd.Output()
 	if err != nil {
@@ -402,6 +420,22 @@ func (c *Client) run(args ...string) (string, error) {
 		return "", err
 	}
 	return string(out), nil
+}
+
+func shouldRetryWithNoDB(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "database not found:")
+}
+
+func beadsNoDBAlreadyEnabled() bool {
+	value, ok := os.LookupEnv("BEADS_NO_DB")
+	if !ok {
+		return false
+	}
+	value = strings.TrimSpace(strings.ToLower(value))
+	return value == "1" || value == "true" || value == "yes"
 }
 
 func writeTempFile(pattern, content string) (string, func(), error) {
