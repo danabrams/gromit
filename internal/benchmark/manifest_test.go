@@ -187,3 +187,15 @@ medium_tier_model: gpt-5.3-codex
 		t.Fatalf("LoadManifest() error = %q, want contains %q", err.Error(), "high_tier_model is required")
 	}
 }
+
+func TestLoadManifest_LoadsSampleManifestFile(t *testing.T) {
+	path := filepath.Join("..", "..", ".gromit", "benchmarks", "tdd-vs-single-pass.yaml")
+
+	manifest, err := LoadManifest(path)
+	if err != nil {
+		t.Fatalf("LoadManifest() error = %v", err)
+	}
+	if manifest.ID != "tdd-vs-single-pass" {
+		t.Fatalf("manifest id = %q, want %q", manifest.ID, "tdd-vs-single-pass")
+	}
+}
