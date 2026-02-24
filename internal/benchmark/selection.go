@@ -12,6 +12,9 @@ func ResolveSelectedBeads(manifestBeads []string, cliBeads []string, beadCount i
 		return nil, fmt.Errorf("selected cohort cannot be empty")
 	}
 	if beadCount > 0 {
+		if beadCount > len(selected) {
+			return nil, fmt.Errorf("--bead-count %d exceeds selected cohort size %d", beadCount, len(selected))
+		}
 		selected = selected[:beadCount]
 	}
 
