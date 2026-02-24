@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"io"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -58,5 +59,48 @@ func TestNoopCacheAdapterWriteAndInvalidateAreSafeNoops(t *testing.T) {
 	})
 	if invalidateErr != nil {
 		t.Fatalf("Invalidate() error = %v, want nil", invalidateErr)
+	}
+}
+
+type testProviderWithoutCache struct{}
+
+func (testProviderWithoutCache) Name() string { return "test" }
+func (testProviderWithoutCache) ModelForTier(tier string) string {
+	return tier
+}
+func (testProviderWithoutCache) Run(context.Context, string, string) (*Result, error) {
+	return nil, nil
+}
+func (testProviderWithoutCache) StreamRun(context.Context, string, string, io.Writer, EventHandler, ToolCallHandler) (*Result, error) {
+	return nil, nil
+}
+func (testProviderWithoutCache) RunValidation(context.Context, []string, string, string) (*Result, error) {
+	return nil, nil
+}
+func (testProviderWithoutCache) IsUsageLimitError(*Result, error) bool { return false }
+func (testProviderWithoutCache) IsValidationPassed(*Result) bool        { return false }
+func (testProviderWithoutCache) IsScopeTooLarge(*Result) (bool, string) {
+	return false, ""
+}
+
+func TestResolveCacheAdapterFallsBackToNoopWhenProviderLacksCapability(t *testing.T) {
+	adapter := ResolveCacheAdapter(testProviderWithoutCache{})
+
+	if SupportsProviderCache(testProviderWithoutCache{}) {
+		t.Fatalf("SupportsProviderCache() = true, want false")
+	}
+
+	entry, hit, err := adapter.Lookup(context.Background(), CacheLookupRequest{
+		CacheClass: "build",
+		CacheKey:   "k1",
+	})
+	if err != nil {
+		t.Fatalf("Lookup() error = %v, want nil", err)
+	}
+	if hit {
+		t.Fatalf("Lookup() hit = true, want false")
+	}
+	if entry != nil {
+		t.Fatalf("Lookup() entry = %#v, want nil", entry)
 	}
 }
