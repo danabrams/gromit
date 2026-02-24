@@ -177,6 +177,21 @@ func loadBenchmarkManifest(path string) (benchmarkManifest, error) {
 	if len(manifest.Modes) == 0 {
 		return benchmarkManifest{}, fmt.Errorf("manifest modes is required")
 	}
+	if strings.TrimSpace(manifest.Provider) == "" {
+		return benchmarkManifest{}, fmt.Errorf("provider is required")
+	}
+	if strings.TrimSpace(manifest.ModelFamily) == "" {
+		return benchmarkManifest{}, fmt.Errorf("model_family is required")
+	}
+	if strings.TrimSpace(manifest.LowTierModel) == "" {
+		return benchmarkManifest{}, fmt.Errorf("low_tier_model is required")
+	}
+	if strings.TrimSpace(manifest.MediumTierModel) == "" {
+		return benchmarkManifest{}, fmt.Errorf("medium_tier_model is required")
+	}
+	if strings.TrimSpace(manifest.HighTierModel) == "" {
+		return benchmarkManifest{}, fmt.Errorf("high_tier_model is required")
+	}
 
 	return manifest, nil
 }
