@@ -106,6 +106,9 @@ func (c *Config) Validate() error {
 	if err := c.validateCompatibilitySelections(); err != nil {
 		return err
 	}
+	if err := c.validateCompatibilityPolicy(); err != nil {
+		return err
+	}
 	if err := c.Methodology.Validate(); err != nil {
 		return err
 	}
@@ -125,6 +128,21 @@ func (c *Config) validateCompatibilitySelections() error {
 	if c.Methodology.Adapter != "" && c.Methodology.Adapter != "go" {
 		return fmt.Errorf("methodology.adapter must be %q (got %q)", "go", c.Methodology.Adapter)
 	}
+	return nil
+}
+
+func (c *Config) validateCompatibilityPolicy() error {
+	if !c.Compatibility.StrictLegacyFallback {
+		return nil
+	}
+
+	resolved := c.ResolveCompatibilityContext()
+	if resolved.Profile.Source == CompatibilitySourceLegacyFallback ||
+		resolved.TrackerBackend.Source == CompatibilitySourceLegacyFallback ||
+		resolved.MethodologyAdapter.Source == CompatibilitySourceLegacyFallback {
+		return fmt.Errorf("compatibility.strict_legacy_fallback requires explicit selectors (project.profile, tracker.backend, methodology.adapter)")
+	}
+
 	return nil
 }
 
