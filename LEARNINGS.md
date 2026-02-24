@@ -27,6 +27,16 @@ Repository hygiene checks are most effective when enforced in both local pre-com
 *Related to: gromit/review-1771908518510170783*
 
 Provider fixture suites should commit deterministic, curated artifacts with explicit provenance/refresh metadata and structured schema assertions; avoid brittle prose-token checks and normalize generated ledgers before commit to reduce merge churn.
+
+### 2026-02-24 | gemini_fixture_metadata_and_artifact_requirements_are_test_enforced | TEST_QUALITY
+*Related to: gromit/review-1771929160626448252*
+
+Gemini fixture tests require provenance/refresh headers plus specific prompt-delivery artifacts (inline, stdin pipe, file ref). Missing any artifact or header causes failures across the suite.
+
+### 2026-02-24 | gemini_schema_notes_must_reference_model_and_token_cost_evidence | TEST_QUALITY
+*Related to: gromit/review-1771929160626448252*
+
+Schema notes fixtures are validated for explicit references to model/token-cost evidence files and concrete prompt-mode comparisons, making those references part of the fixture contract.
 ## Provisional Learnings
 
 ### 2026-02-24 | benchmark_execution_and_reporting_require_single_source_truth_and_owner | ARCHITECTURE
