@@ -4,9 +4,11 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/worktree"
 )
@@ -548,5 +550,94 @@ func TestBuildDecomposeInput_UsesConfiguredTier(t *testing.T) {
 	input := buildDecomposeInput("tier-plan", cfg)
 	if input.Tier != "high" {
 		t.Fatalf("Tier = %q, want %q", input.Tier, "high")
+	}
+}
+
+func TestReconcilePlanDecomposedState_MarksPlanWhenSpecBeadsExist(t *testing.T) {
+	origListWithLabel := decomposeListWithLabelFn
+	t.Cleanup(func() {
+		decomposeListWithLabelFn = origListWithLabel
+	})
+
+	plansDir := t.TempDir()
+	planPath := filepath.Join(plansDir, "sample.md")
+	content := `---
+id: sample
+decomposed: false
+---
+# Sample plan`
+	if err := os.WriteFile(planPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("writing plan file: %v", err)
+	}
+
+	decomposeListWithLabelFn = func(label string) ([]*bead.Bead, error) {
+		if label != "spec:sample" {
+			t.Fatalf("label = %q, want %q", label, "spec:sample")
+		}
+		return []*bead.Bead{{ID: "gromit-1", Title: "Task"}}, nil
+	}
+
+	alreadyDecomposed, reconciled, err := reconcilePlanDecomposedState(planPath, "sample", false)
+	if err != nil {
+		t.Fatalf("reconcilePlanDecomposedState() error = %v", err)
+	}
+	if !alreadyDecomposed {
+		t.Fatal("expected plan to be considered decomposed after reconciliation")
+	}
+	if !reconciled {
+		t.Fatal("expected reconciliation flag to be true")
+	}
+
+	gotBytes, err := os.ReadFile(planPath)
+	if err != nil {
+		t.Fatalf("reading updated plan file: %v", err)
+	}
+	got := string(gotBytes)
+	if !strings.Contains(got, "decomposed: true") {
+		t.Fatalf("updated plan missing decomposed: true\n%s", got)
+	}
+	if !strings.Contains(got, "decomposed_at:") {
+		t.Fatalf("updated plan missing decomposed_at\n%s", got)
+	}
+}
+
+func TestFilterUndecomposedPlans_ReconcilesAndSkipsDecomposedPlans(t *testing.T) {
+	origListWithLabel := decomposeListWithLabelFn
+	t.Cleanup(func() {
+		decomposeListWithLabelFn = origListWithLabel
+	})
+
+	plansDir := t.TempDir()
+	planPath := filepath.Join(plansDir, "sample.md")
+	content := `---
+id: sample
+decomposed: false
+---
+# Sample plan`
+	if err := os.WriteFile(planPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("writing plan file: %v", err)
+	}
+
+	decomposeListWithLabelFn = func(label string) ([]*bead.Bead, error) {
+		if label != "spec:sample" {
+			return []*bead.Bead{}, nil
+		}
+		return []*bead.Bead{{ID: "gromit-1", Title: "Task"}}, nil
+	}
+
+	plans, err := filterUndecomposedPlans(plansDir, false)
+	if err != nil {
+		t.Fatalf("filterUndecomposedPlans() error = %v", err)
+	}
+	if len(plans) != 0 {
+		t.Fatalf("expected reconciled plan to be skipped, got %d plan(s)", len(plans))
+	}
+
+	gotBytes, err := os.ReadFile(planPath)
+	if err != nil {
+		t.Fatalf("reading updated plan file: %v", err)
+	}
+	if !strings.Contains(string(gotBytes), "decomposed: true") {
+		t.Fatalf("expected plan to be marked decomposed, got:\n%s", string(gotBytes))
 	}
 }

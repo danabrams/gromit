@@ -2,7 +2,8 @@
 id: phase-3-token-efficiency-cache-and-tiering
 source_spec: phase-3-token-efficiency-cache-and-tiering
 created: 2026-02-24
-decomposed: false
+decomposed: true
+decomposed_at: "2026-02-24T11:05:00Z"
 ---
 
 # Token Efficiency Cache and Tiering (Phase 3) Implementation Plan

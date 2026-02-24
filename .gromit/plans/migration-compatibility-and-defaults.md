@@ -2,7 +2,8 @@
 id: migration-compatibility-and-defaults
 source_spec: migration-compatibility-and-defaults
 created: 2026-02-24
-decomposed: false
+decomposed: true
+decomposed_at: "2026-02-24T11:05:00Z"
 ---
 
 # Migration Compatibility and Defaults Implementation Plan

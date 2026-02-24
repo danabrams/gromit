@@ -2,7 +2,8 @@
 id: session-worktree-pre-remove
 source_spec: session-worktree-pre-remove
 created: 2026-02-23
-decomposed: false
+decomposed: true
+decomposed_at: "2026-02-24T11:05:00Z"
 ---
 
 # Session Worktree Pre-Remove Implementation Plan

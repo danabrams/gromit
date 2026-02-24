@@ -32,6 +32,7 @@ const decomposeSessionCommand = "decompose"
 var decomposeSessionLauncherFn = runWithSessionWorktreeWithConflictSettings
 var decomposeSinglePlanInDirFn = decomposeSinglePlanInCurrentDir
 var decomposeRunInDirFn = runInDir
+var decomposeListWithLabelFn = listBeadsWithLabel
 
 var decomposeCmd = &cobra.Command{
 	Use:   "decompose [plan-name]",
@@ -181,6 +182,22 @@ func runDecomposeReviewInSession(planName string, cfg *config.Config) error {
 }
 
 func decomposeSinglePlanInCurrentDir(planName string, cfg *config.Config) error {
+	plansDir := resolvePlansDir(cfg)
+	planPath := filepath.Join(plansDir, planName+".md")
+
+	alreadyDecomposed, reconciled, err := reconcilePlanDecomposedState(planPath, planName, decomposeForce)
+	if err != nil {
+		return err
+	}
+	if alreadyDecomposed {
+		if reconciled {
+			fmt.Printf("Plan '%s' already has spec-labeled beads; marked as decomposed.\n", planName)
+		} else {
+			fmt.Printf("Plan '%s' is already decomposed.\n", planName)
+		}
+		return nil
+	}
+
 	decomposeClient, err := buildDecomposeClient(cfg)
 	if err != nil {
 		return fmt.Errorf("creating decompose client: %w", err)
@@ -195,12 +212,12 @@ func decomposeSinglePlanInCurrentDir(planName string, cfg *config.Config) error 
 	// Create pipeline
 	deps := &pipeline.Deps{
 		ClaudeClient: decomposeClient,
-		BeadClient: &beadClientAdapter{Client: beadClient},
+		BeadClient:   &beadClientAdapter{Client: beadClient},
 	}
 	paths := &pipeline.Paths{
 		GromitDir: resolveGromitDir(cfg),
 		SpecsDir:  resolveSpecsDir(cfg),
-		PlansDir:  resolvePlansDir(cfg),
+		PlansDir:  plansDir,
 	}
 
 	p := pipeline.New(deps, paths)
@@ -465,6 +482,13 @@ func filterUndecomposedPlans(plansDir string, force bool) ([]planInfo, error) {
 			if decomposed, ok := planFrontmatter["decomposed"].(bool); ok && decomposed {
 				continue
 			}
+			alreadyDecomposed, _, err := reconcilePlanDecomposedState(planPath, planName, false)
+			if err != nil {
+				continue
+			}
+			if alreadyDecomposed {
+				continue
+			}
 		}
 
 		// Extract title from plan file
@@ -486,4 +510,52 @@ func filterUndecomposedPlans(plansDir string, force bool) ([]planInfo, error) {
 	})
 
 	return plans, nil
+}
+
+func listBeadsWithLabel(label string) ([]*bead.Bead, error) {
+	beadClient, err := bead.NewClient()
+	if err != nil {
+		return nil, fmt.Errorf("creating bead client: %w", err)
+	}
+
+	beads, err := beadClient.ListWithLabel(label)
+	if err != nil {
+		return nil, fmt.Errorf("listing beads with label %q: %w", label, err)
+	}
+
+	return beads, nil
+}
+
+func reconcilePlanDecomposedState(planPath, planName string, force bool) (alreadyDecomposed bool, reconciled bool, err error) {
+	if force {
+		return false, false, nil
+	}
+
+	planFrontmatter, _, err := frontmatter.ReadFile(planPath)
+	if err != nil {
+		return false, false, fmt.Errorf("reading plan file: %w", err)
+	}
+
+	if decomposed, ok := planFrontmatter["decomposed"].(bool); ok && decomposed {
+		return true, false, nil
+	}
+
+	label := fmt.Sprintf("spec:%s", planName)
+	beads, err := decomposeListWithLabelFn(label)
+	if err != nil {
+		return false, false, err
+	}
+	if len(beads) == 0 {
+		return false, false, nil
+	}
+
+	updates := map[string]interface{}{
+		"decomposed":    true,
+		"decomposed_at": time.Now().Format(time.RFC3339),
+	}
+	if err := frontmatter.UpdateFile(planPath, updates); err != nil {
+		return false, false, fmt.Errorf("updating plan frontmatter: %w", err)
+	}
+
+	return true, true, nil
 }
