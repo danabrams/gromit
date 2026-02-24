@@ -32,6 +32,8 @@ type Invoker struct {
 	overwriteOut         OverwriteWriter
 	stallTimeoutFn       StallTimeoutFunc
 	preserveNativeStream bool
+	cacheVersionKey      string
+	cacheVersionByClass  map[string]string
 }
 
 // NewInvoker creates an Invoker with the given narrow dependencies.
@@ -40,6 +42,7 @@ func NewInvoker(router Router, output io.Writer, streamLogger *logger.StreamLogg
 		router:       router,
 		output:       output,
 		streamLogger: streamLogger,
+		cacheVersionByClass: make(map[string]string),
 	}
 }
 
@@ -57,6 +60,16 @@ func (inv *Invoker) WithHeartbeat(out OverwriteWriter, stallTimeoutFn StallTimeo
 // provider-native terminal stream rendering over structured event parsing.
 func (inv *Invoker) WithPreserveProviderTerminalStream(enabled bool) *Invoker {
 	inv.preserveNativeStream = enabled
+	return inv
+}
+
+// WithCacheVersionKey configures an optional cache version marker used to trigger
+// invalidation when the configured version changes between invocations.
+func (inv *Invoker) WithCacheVersionKey(versionKey string) *Invoker {
+	if inv == nil {
+		return inv
+	}
+	inv.cacheVersionKey = strings.TrimSpace(versionKey)
 	return inv
 }
 
@@ -101,6 +114,20 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 	cacheClass, cacheKey, cacheable := cacheMetadataFromBeadContext(bc)
 	if cacheable {
 		cacheAdapter := resolveCacheAdapter(p)
+		cacheVersionKey := strings.TrimSpace(inv.cacheVersionKey)
+		if cacheVersionKey != "" {
+			prevVersion := inv.cacheVersionByClass[cacheClass]
+			if prevVersion != "" && prevVersion != cacheVersionKey {
+				invalidateErr := cacheAdapter.Invalidate(ctx, provider.CacheInvalidateRequest{
+					CacheClass: cacheClass,
+					CacheKey:   cacheKey,
+				})
+				if invalidateErr != nil {
+					// Cache invalidation is optimization-only and must never fail invocation flow.
+				}
+			}
+			inv.cacheVersionByClass[cacheClass] = cacheVersionKey
+		}
 		entry, hit, cacheErr := cacheAdapter.Lookup(ctx, provider.CacheLookupRequest{
 			CacheClass: cacheClass,
 			CacheKey:   cacheKey,
