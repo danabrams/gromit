@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"sort"
 	stdstrings "strings"
 )
@@ -35,6 +36,13 @@ type Phase3RollbackAssessment struct {
 	Triggers              []string
 }
 
+type Phase3ReportPaths struct {
+	JSONPath            string
+	MarkdownPath        string
+	BaselineArtifactPath string
+	OptimizedArtifactPath string
+}
+
 type phase3IterationRecord struct {
 	InputTokens int     `json:"input_tokens"`
 	CostUSD     float64 `json:"cost_usd"`
@@ -61,6 +69,109 @@ func RunPhase3Measurement(input Phase3MeasurementInput) (Phase3MeasurementReport
 	}
 	report.Rollback = evaluatePhase3Rollback(report.Baseline, report.Optimized)
 	return report, nil
+}
+
+func WritePhase3MeasurementReport(input Phase3MeasurementInput) (Phase3ReportPaths, error) {
+	report, err := RunPhase3Measurement(input)
+	if err != nil {
+		return Phase3ReportPaths{}, err
+	}
+
+	ts := stdstrings.TrimSpace(input.Timestamp)
+	if ts == "" {
+		return Phase3ReportPaths{}, fmt.Errorf("timestamp is required")
+	}
+
+	reportsDir := filepath.Join(".gromit", "reports")
+	artifactsDir := filepath.Join(reportsDir, "phase3-measurement-"+ts)
+	if err := os.MkdirAll(artifactsDir, 0o755); err != nil {
+		return Phase3ReportPaths{}, fmt.Errorf("create phase-3 artifacts dir: %w", err)
+	}
+
+	baselineBytes, err := os.ReadFile(input.BaselineLogPath)
+	if err != nil {
+		return Phase3ReportPaths{}, fmt.Errorf("read baseline log for artifact copy: %w", err)
+	}
+	optimizedBytes, err := os.ReadFile(input.OptimizedLogPath)
+	if err != nil {
+		return Phase3ReportPaths{}, fmt.Errorf("read optimized log for artifact copy: %w", err)
+	}
+
+	baselineArtifactPath := filepath.Join(artifactsDir, "baseline.jsonl")
+	optimizedArtifactPath := filepath.Join(artifactsDir, "optimized.jsonl")
+	if err := os.WriteFile(baselineArtifactPath, baselineBytes, 0o644); err != nil {
+		return Phase3ReportPaths{}, fmt.Errorf("write baseline artifact copy: %w", err)
+	}
+	if err := os.WriteFile(optimizedArtifactPath, optimizedBytes, 0o644); err != nil {
+		return Phase3ReportPaths{}, fmt.Errorf("write optimized artifact copy: %w", err)
+	}
+
+	jsonPath := filepath.Join(reportsDir, "phase3-measurement-"+ts+".json")
+	payload := struct {
+		Timestamp           string                      `json:"timestamp"`
+		Baseline            Phase3RunMetrics           `json:"baseline"`
+		Optimized           Phase3RunMetrics           `json:"optimized"`
+		CacheHitRatesByClass map[string]float64         `json:"cache_hit_rates_by_class"`
+		Rollback            Phase3RollbackAssessment    `json:"rollback"`
+		BaselineArtifactPath string                     `json:"baseline_artifact_path"`
+		OptimizedArtifactPath string                    `json:"optimized_artifact_path"`
+	}{
+		Timestamp:            ts,
+		Baseline:             report.Baseline,
+		Optimized:            report.Optimized,
+		CacheHitRatesByClass: report.CacheHitRatesByClass,
+		Rollback:             report.Rollback,
+		BaselineArtifactPath: baselineArtifactPath,
+		OptimizedArtifactPath: optimizedArtifactPath,
+	}
+	jsonBytes, err := stdjson.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		return Phase3ReportPaths{}, fmt.Errorf("marshal phase-3 report json: %w", err)
+	}
+	jsonBytes = append(jsonBytes, '\n')
+	if err := os.WriteFile(jsonPath, jsonBytes, 0o644); err != nil {
+		return Phase3ReportPaths{}, fmt.Errorf("write phase-3 report json: %w", err)
+	}
+
+	mdPath := filepath.Join(reportsDir, "phase3-measurement-"+ts+".md")
+	builder := stdstrings.Builder{}
+	builder.WriteString("# Phase-3 Measurement Report\n\n")
+	builder.WriteString("## Median Comparison\n\n")
+	builder.WriteString("| Metric | Baseline | Optimized |\n")
+	builder.WriteString("| --- | ---: | ---: |\n")
+	builder.WriteString(fmt.Sprintf("| median_input_tokens | %d | %d |\n", report.Baseline.MedianInputTokens, report.Optimized.MedianInputTokens))
+	builder.WriteString(fmt.Sprintf("| median_cost_usd | %.2f | %.2f |\n", report.Baseline.MedianCostUSD, report.Optimized.MedianCostUSD))
+	builder.WriteString(fmt.Sprintf("| median_success_rate | %.2f | %.2f |\n", report.Baseline.MedianSuccessRate, report.Optimized.MedianSuccessRate))
+
+	builder.WriteString("\n## Cache Hit Rates By Prompt Class\n\n")
+	builder.WriteString("| Prompt Class | Hit Rate |\n")
+	builder.WriteString("| --- | ---: |\n")
+	classes := make([]string, 0, len(report.CacheHitRatesByClass))
+	for class := range report.CacheHitRatesByClass {
+		classes = append(classes, class)
+	}
+	sort.Strings(classes)
+	for _, class := range classes {
+		builder.WriteString(fmt.Sprintf("| %s | %.2f |\n", class, report.CacheHitRatesByClass[class]))
+	}
+
+	builder.WriteString("\n## Kill-Switch Rollback Assessment\n\n")
+	builder.WriteString(fmt.Sprintf("- kill_switch_recommended: %t\n", report.Rollback.KillSwitchRecommended))
+	if len(report.Rollback.Triggers) == 0 {
+		builder.WriteString("- triggers: none\n")
+	} else {
+		builder.WriteString("- triggers: " + stdstrings.Join(report.Rollback.Triggers, ", ") + "\n")
+	}
+	if err := os.WriteFile(mdPath, []byte(builder.String()), 0o644); err != nil {
+		return Phase3ReportPaths{}, fmt.Errorf("write phase-3 report markdown: %w", err)
+	}
+
+	return Phase3ReportPaths{
+		JSONPath:             jsonPath,
+		MarkdownPath:         mdPath,
+		BaselineArtifactPath: baselineArtifactPath,
+		OptimizedArtifactPath: optimizedArtifactPath,
+	}, nil
 }
 
 func evaluatePhase3Rollback(baseline, optimized Phase3RunMetrics) Phase3RollbackAssessment {
