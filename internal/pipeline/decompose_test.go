@@ -1519,6 +1519,18 @@ func TestBuildDecomposePrompt_ConstructsPromptDiagnostics(t *testing.T) {
 	}
 }
 
+func TestDecomposeSource_UsesLLMResultNaming(t *testing.T) {
+	source, err := os.ReadFile("decompose.go")
+	if err != nil {
+		t.Fatalf("ReadFile(decompose.go) failed: %v", err)
+	}
+
+	body := string(source)
+	if strings.Contains(body, "claudeResult") {
+		t.Fatalf("decompose.go contains legacy claudeResult identifier")
+	}
+}
+
 // Mock types for acceptance tests
 
 type decomposeAcceptanceLLMClient struct {
