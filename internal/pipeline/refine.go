@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/danabrams/gromit/skills"
 )
@@ -111,6 +112,7 @@ func (p *Pipeline) Refine(ctx context.Context, input RefineInput) (*RefineResult
 			ID:       fmt.Sprintf("idea-%d", len(specName)), // Simple ID generation for now
 			Text:     specTitle,
 			Type:     "feature",
+			CreatedAt: time.Now(),
 			Status:   "refined",
 			SpecName: specName,
 		}
