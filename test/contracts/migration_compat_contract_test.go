@@ -67,9 +67,22 @@ func TestMigrationCompatibilityContract_CLIOutputShowsLegacyMarkersOnly(t *testi
 	}
 }
 
+func TestMigrationCompatibilityContract_ExplicitFixtureOmitsDeprecationWarnings(t *testing.T) {
+	legacy := runMigrationFixture(t, "legacy_run.yaml")
+	explicit := runMigrationFixture(t, "new_explicit_run.yaml")
+
+	if !legacy.WarningHas(config.CompatibilityDeprecationMarkerLegacyHardcodedDefaults) {
+		t.Fatalf("legacy warnings missing marker %q\nstderr:\n%s", config.CompatibilityDeprecationMarkerLegacyHardcodedDefaults, legacy.Stderr)
+	}
+	if explicit.WarningHas(config.CompatibilityDeprecationMarkerLegacyHardcodedDefaults) {
+		t.Fatalf("explicit warnings unexpectedly included marker %q\nstderr:\n%s", config.CompatibilityDeprecationMarkerLegacyHardcodedDefaults, explicit.Stderr)
+	}
+}
+
 type migrationRunResult struct {
 	ClaudeCalls int
 	Model       string
+	Stdout      string
 	Stderr      string
 }
 
@@ -117,6 +130,7 @@ func runMigrationFixture(t *testing.T, fixtureName string) migrationRunResult {
 	if len(calls) > 0 {
 		result.Model = modelFlagValue(calls[0])
 	}
+	result.Stdout = stdout
 	result.Stderr = stderr
 	return result
 }
