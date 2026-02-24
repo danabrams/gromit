@@ -235,6 +235,64 @@ func TestIterationResult_TierFieldsJSONTags(t *testing.T) {
 	}
 }
 
+func TestIterationResult_CacheTelemetryJSONTags(t *testing.T) {
+	result := IterationResult{
+		CacheHit:                true,
+		CacheMiss:               true,
+		CacheWrite:              true,
+		CacheClass:              "render_static_build",
+		CacheKey:                "abc123",
+		CacheInvalidationReason: "version_change",
+		CacheVersionMarker:      "rules-v2",
+	}
+
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal iteration result: %v", err)
+	}
+	s := string(data)
+	if !strings.Contains(s, "\"cache_hit\":true") {
+		t.Fatalf("expected cache_hit in JSON, got %s", s)
+	}
+	if !strings.Contains(s, "\"cache_miss\":true") {
+		t.Fatalf("expected cache_miss in JSON, got %s", s)
+	}
+	if !strings.Contains(s, "\"cache_write\":true") {
+		t.Fatalf("expected cache_write in JSON, got %s", s)
+	}
+	if !strings.Contains(s, "\"cache_class\":\"render_static_build\"") {
+		t.Fatalf("expected cache_class in JSON, got %s", s)
+	}
+	if !strings.Contains(s, "\"cache_key\":\"abc123\"") {
+		t.Fatalf("expected cache_key in JSON, got %s", s)
+	}
+	if !strings.Contains(s, "\"cache_invalidation_reason\":\"version_change\"") {
+		t.Fatalf("expected cache_invalidation_reason in JSON, got %s", s)
+	}
+	if !strings.Contains(s, "\"cache_version_marker\":\"rules-v2\"") {
+		t.Fatalf("expected cache_version_marker in JSON, got %s", s)
+	}
+
+	emptyData, err := json.Marshal(IterationResult{})
+	if err != nil {
+		t.Fatalf("marshal empty iteration result: %v", err)
+	}
+	empty := string(emptyData)
+	for _, key := range []string{
+		"cache_hit",
+		"cache_miss",
+		"cache_write",
+		"cache_class",
+		"cache_key",
+		"cache_invalidation_reason",
+		"cache_version_marker",
+	} {
+		if strings.Contains(empty, key) {
+			t.Fatalf("expected %s omitted from empty result, got %s", key, empty)
+		}
+	}
+}
+
 // TestSubTask_InRuntypes verifies that SubTask is defined in runtypes with JSON tags.
 func TestSubTask_InRuntypes(t *testing.T) {
 	dependsOn := 1
