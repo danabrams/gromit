@@ -141,6 +141,40 @@ func TestRunRefineReturnsErrorWhenPipelineCreationFails(t *testing.T) {
 	}
 }
 
+func TestBacklogAdapterAddPreservesCreatedAt(t *testing.T) {
+	t.Parallel()
+
+	gromitDir := t.TempDir()
+	bf, err := backlog.NewFile(gromitDir)
+	if err != nil {
+		t.Fatalf("NewFile() error = %v", err)
+	}
+	adapter := &backlogAdapter{file: bf}
+
+	createdAt := time.Date(2026, 2, 24, 12, 0, 0, 0, time.UTC)
+	err = adapter.Add(&pipeline.Idea{
+		ID:        "idea-created-at",
+		Text:      "keep timestamp",
+		Type:      "feature",
+		Context:   "ctx",
+		CreatedAt: createdAt,
+	})
+	if err != nil {
+		t.Fatalf("Add() error = %v", err)
+	}
+
+	ideas, err := bf.List()
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(ideas) != 1 {
+		t.Fatalf("List() len = %d, want 1", len(ideas))
+	}
+	if !ideas[0].CreatedAt.Equal(createdAt) {
+		t.Fatalf("created_at = %v, want %v", ideas[0].CreatedAt, createdAt)
+	}
+}
+
 type refineSessionTestAgent struct {
 	launchInDirFn func(promptPath, dir string) error
 }
