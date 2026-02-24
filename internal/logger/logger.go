@@ -61,6 +61,13 @@ type IterationLog struct {
 	StallTier           string `json:"stall_tier,omitempty"`             // "initial" or "active"
 	RateLimitHits       int    `json:"rate_limit_hits,omitempty"`        // rate limit events detected
 	RateLimitRecoveryMs int64  `json:"rate_limit_recovery_ms,omitempty"` // ms to recover from most recent rate limit
+	CacheHit            bool   `json:"cache_hit,omitempty"`
+	CacheMiss           bool   `json:"cache_miss,omitempty"`
+	CacheWrite          bool   `json:"cache_write,omitempty"`
+	CacheClass          string `json:"cache_class,omitempty"`
+	CacheKey            string `json:"cache_key,omitempty"`
+	CacheInvalidationReason string `json:"cache_invalidation_reason,omitempty"`
+	CacheVersionMarker  string `json:"cache_version_marker,omitempty"`
 	FallbackAttempts    int    `json:"fallback_attempts,omitempty"`      // fallback attempts in this iteration
 	FallbackSuccesses   int    `json:"fallback_successes,omitempty"`     // successful fallback outcomes
 	FallbackFailures    int    `json:"fallback_failures,omitempty"`      // failed fallback outcomes
