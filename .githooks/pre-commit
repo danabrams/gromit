@@ -6,3 +6,6 @@ cd "${ROOT_DIR}"
 
 echo "[pre-commit] running make lint"
 make lint
+
+echo "[pre-commit] checking for unexpected gitlinks"
+./scripts/check_no_gitlinks.sh
