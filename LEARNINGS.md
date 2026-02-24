@@ -22,6 +22,11 @@ Use structured fixture assertions (parse JSON/JSONL and ledger rows) instead of 
 
 Ephemeral `.-gromit-*` worktree paths must stay untracked. Add repository-level ignore plus an explicit gitlink guard so mode `160000` entries fail fast before commit/CI.
 
+### 2026-02-24 | repo_hygiene_guards_should_run_in_local_and_ci_paths | PROCESS
+*Related to: gromit/review-1771906824758942325*
+
+Repository hygiene checks are most effective when enforced in both local pre-commit hooks and CI entry targets so regressions are blocked regardless of contributor workflow.
+
 ## Provisional Learnings
 
 ### 2026-02-24 | benchmark_cli_should_reuse_internal_benchmark_pipeline | ARCHITECTURE
