@@ -33,8 +33,13 @@ func tierRank(tier string) int {
 
 // aggregateTDDPhaseMetricsToResult sums cost and token totals from all
 // PhaseMetrics into bc.Result and sets Model to the highest-tier model used.
+// When PhaseMetrics is empty, the function preserves any values already
+// accumulated directly into bc.Result (e.g. by the telemetry-aware InvokeFn).
 func aggregateTDDPhaseMetricsToResult(bc *runtypes.BeadContext) {
 	if bc == nil || bc.Result == nil {
+		return
+	}
+	if len(bc.Result.PhaseMetrics) == 0 {
 		return
 	}
 	var totalCost float64

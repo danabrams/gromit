@@ -32,6 +32,10 @@ type TDDCycleResult struct {
 	PhaseMetrics []pipeline.PhaseMetric
 	OriginalTier string
 	ActualTier   string
+	Model        string
+	CostUSD      float64
+	InputTokens  int
+	OutputTokens int
 }
 
 // TDDCycleRunner runs multiple TDD cycles (red-green-refactor) for a bead,
@@ -123,15 +127,20 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 
 	if methodology == MethodologyTDD && in.Config != nil && in.Config.Methodology.FreshContextPerCycle && b.tddCycleRunner != nil {
 		result, err := b.tddCycleRunner.RunCycles(ctx, in.Bead, in.Config)
-		if err != nil {
-			return pipeline.Output{}, fmt.Errorf("build: TDD cycle runner: %w", err)
-		}
-		return pipeline.Output{
+		out := pipeline.Output{
 			Decision:     pipeline.Proceed,
 			PhaseMetrics: result.PhaseMetrics,
 			OriginalTier: result.OriginalTier,
 			ActualTier:   result.ActualTier,
-		}, nil
+			Model:        result.Model,
+			CostUSD:      result.CostUSD,
+			InputTokens:  result.InputTokens,
+			OutputTokens: result.OutputTokens,
+		}
+		if err != nil {
+			return out, fmt.Errorf("build: TDD cycle runner: %w", err)
+		}
+		return out, nil
 	}
 
 	var (

@@ -41,18 +41,32 @@ func (a *TDDPipelineAdapter) RunCycles(ctx context.Context, b *bead.Bead, cfg *c
 		return execute.TDDCycleResult{}, err
 	}
 
-	if err := a.runner.tddOrchestrator.RunCycles(ctx, bc, coverageTracker, coverageCriteria); err != nil {
-		return execute.TDDCycleResult{}, err
-	}
+	cycleErr := a.runner.tddOrchestrator.RunCycles(ctx, bc, coverageTracker, coverageCriteria)
 
 	aggregateTDDPhaseMetricsToResult(bc)
 	originalTier, actualTier := tddTierProvenance(bc.Result.PhaseMetrics)
+	// Fall back to bc-level tier when PhaseMetrics is empty (telemetry
+	// accumulated directly into bc.Result by the InvokeFn).
+	if originalTier == "" {
+		originalTier = bc.Tier
+	}
+	if actualTier == "" {
+		actualTier = bc.Tier
+	}
 
-	return execute.TDDCycleResult{
+	result := execute.TDDCycleResult{
 		PhaseMetrics: convertPhaseMetrics(bc.Result.PhaseMetrics),
 		OriginalTier: originalTier,
 		ActualTier:   actualTier,
-	}, nil
+		Model:        bc.Result.Model,
+		CostUSD:      bc.Result.CostUSD,
+		InputTokens:  bc.Result.InputTokens,
+		OutputTokens: bc.Result.OutputTokens,
+	}
+	if cycleErr != nil {
+		return result, cycleErr
+	}
+	return result, nil
 }
 
 func tddTierProvenance(metrics []runtypes.PhaseMetric) (originalTier, actualTier string) {

@@ -33,6 +33,9 @@ type GetGitHeadFn func() (string, error)
 // GitResetFn resets the working tree to a given commit.
 type GitResetFn func(commit string) error
 
+// ListChangedFilesFn returns the list of files changed since a given commit.
+type ListChangedFilesFn func(sinceCommit string) ([]string, error)
+
 // LogPhaseFn logs TDD phase transitions for observability.
 type LogPhaseFn func(cycle int, phase string, detail string)
 
@@ -55,52 +58,55 @@ func isSupportedRefactorOutcome(outcome refactorOutcome) bool {
 
 // CycleOrchestrator runs TDD red-green-refactor cycles with fresh context per phase.
 type CycleOrchestrator struct {
-	renderRedFn    RenderRedFn
-	renderGreenFn  RenderGreenFn
-	invokeFn       InvokeFn
-	validateFn     ValidateFn
-	runRefactorFn  RunRefactorFn
-	escalateTierFn EscalateTierFn
-	getDiffFn      GetDiffFn
-	readFileFn     ReadFileFn
-	getGitHeadFn   GetGitHeadFn
-	gitResetFn     GitResetFn
-	logPhaseFn     LogPhaseFn
-	output         io.Writer
-	cfg            *config.Config
+	renderRedFn        RenderRedFn
+	renderGreenFn      RenderGreenFn
+	invokeFn           InvokeFn
+	validateFn         ValidateFn
+	runRefactorFn      RunRefactorFn
+	escalateTierFn     EscalateTierFn
+	getDiffFn          GetDiffFn
+	readFileFn         ReadFileFn
+	getGitHeadFn       GetGitHeadFn
+	gitResetFn         GitResetFn
+	listChangedFilesFn ListChangedFilesFn
+	logPhaseFn         LogPhaseFn
+	output             io.Writer
+	cfg                *config.Config
 }
 
 // CycleOrchestratorDeps holds callback dependencies for building a CycleOrchestrator.
 type CycleOrchestratorDeps struct {
-	RenderRedFn    RenderRedFn
-	RenderGreenFn  RenderGreenFn
-	InvokeFn       InvokeFn
-	ValidateFn     ValidateFn
-	RunRefactorFn  RunRefactorFn
-	EscalateTierFn EscalateTierFn
-	GetDiffFn      GetDiffFn
-	ReadFileFn     ReadFileFn
-	GetGitHeadFn   GetGitHeadFn
-	GitResetFn     GitResetFn
-	LogPhaseFn     LogPhaseFn
+	RenderRedFn        RenderRedFn
+	RenderGreenFn      RenderGreenFn
+	InvokeFn           InvokeFn
+	ValidateFn         ValidateFn
+	RunRefactorFn      RunRefactorFn
+	EscalateTierFn     EscalateTierFn
+	GetDiffFn          GetDiffFn
+	ReadFileFn         ReadFileFn
+	GetGitHeadFn       GetGitHeadFn
+	GitResetFn         GitResetFn
+	ListChangedFilesFn ListChangedFilesFn
+	LogPhaseFn         LogPhaseFn
 }
 
 // NewCycleOrchestrator creates a TDD cycle orchestrator with injected callbacks.
 func NewCycleOrchestrator(cfg *config.Config, output io.Writer, deps CycleOrchestratorDeps) *CycleOrchestrator {
 	return &CycleOrchestrator{
-		renderRedFn:    deps.RenderRedFn,
-		renderGreenFn:  deps.RenderGreenFn,
-		invokeFn:       deps.InvokeFn,
-		validateFn:     deps.ValidateFn,
-		runRefactorFn:  deps.RunRefactorFn,
-		escalateTierFn: deps.EscalateTierFn,
-		getDiffFn:      deps.GetDiffFn,
-		readFileFn:     deps.ReadFileFn,
-		getGitHeadFn:   deps.GetGitHeadFn,
-		gitResetFn:     deps.GitResetFn,
-		logPhaseFn:     deps.LogPhaseFn,
-		output:         output,
-		cfg:            cfg,
+		renderRedFn:        deps.RenderRedFn,
+		renderGreenFn:      deps.RenderGreenFn,
+		invokeFn:           deps.InvokeFn,
+		validateFn:         deps.ValidateFn,
+		runRefactorFn:      deps.RunRefactorFn,
+		escalateTierFn:     deps.EscalateTierFn,
+		getDiffFn:          deps.GetDiffFn,
+		readFileFn:         deps.ReadFileFn,
+		getGitHeadFn:       deps.GetGitHeadFn,
+		gitResetFn:         deps.GitResetFn,
+		listChangedFilesFn: deps.ListChangedFilesFn,
+		logPhaseFn:         deps.LogPhaseFn,
+		output:             output,
+		cfg:                cfg,
 	}
 }
 
@@ -188,6 +194,9 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 		return err
 	}
 
+	// Discover files touched by the red phase so the green handoff includes them.
+	o.updateTouchedFiles(state)
+
 	// VALIDATE RED: expect tests to fail
 	redValidationOutput, passed, err := o.validateFn(ctx, nil, "")
 	if err != nil {
@@ -216,7 +225,7 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 		return fmt.Errorf("green prompt render: %w", err)
 	}
 
-	if err := o.runGreenPhaseUntilValidated(ctx, bc, state.CycleNumber+1, greenPrompt); err != nil {
+	if err := o.runGreenPhaseUntilValidated(ctx, bc, state.CycleNumber+1, greenPrompt, state.TouchedFiles); err != nil {
 		return err
 	}
 	o.logPhase(state.CycleNumber+1, "green-pass", "tests passing")
@@ -235,6 +244,7 @@ func (o *CycleOrchestrator) runGreenPhaseUntilValidated(
 	bc *runtypes.BeadContext,
 	cycleNumber int,
 	greenPrompt string,
+	touchedFiles []string,
 ) error {
 	if err := o.runPhaseInvocation(ctx, bc, greenPrompt, "green"); err != nil {
 		return err
@@ -242,7 +252,7 @@ func (o *CycleOrchestrator) runGreenPhaseUntilValidated(
 
 	for {
 		// VALIDATE GREEN: expect tests to pass
-		_, passed, err := o.validateFn(ctx, nil, "")
+		validationOutput, passed, err := o.validateFn(ctx, nil, "")
 		if err != nil {
 			return fmt.Errorf("green validation: %w", err)
 		}
@@ -260,7 +270,20 @@ func (o *CycleOrchestrator) runGreenPhaseUntilValidated(
 
 		bc.Tier = nextTier
 		o.logPhase(cycleNumber, "green-retry", fmt.Sprintf("green validation failed, retrying at tier %s", nextTier))
-		if err := o.runPhaseInvocation(ctx, bc, greenPrompt, "green"); err != nil {
+
+		// Re-assemble the green handoff with updated implementation files
+		// and validation failure context so the retry has full context.
+		retryPrompt := greenPrompt
+		if o.renderGreenFn != nil && o.readFileFn != nil {
+			retryHandoff, assembleErr := AssembleGreenHandoff(validationOutput, o.readFileFn, touchedFiles)
+			if assembleErr == nil {
+				if rendered, renderErr := o.renderGreenFn(retryHandoff, bc); renderErr == nil {
+					retryPrompt = rendered
+				}
+			}
+		}
+
+		if err := o.runPhaseInvocation(ctx, bc, retryPrompt, "green"); err != nil {
 			return err
 		}
 	}
@@ -310,6 +333,38 @@ func (o *CycleOrchestrator) executeRefactorPhase(ctx context.Context, bc *runtyp
 
 	_ = o.gitResetFn(preRefactorCommit)
 	return refactorOutcomeRevertedContinue
+}
+
+// SetInvokeFn replaces the orchestrator's invoke callback. This allows
+// callers to inject a telemetry-accumulating wrapper once the BeadContext
+// is available (which is after orchestrator construction).
+func (o *CycleOrchestrator) SetInvokeFn(fn InvokeFn) {
+	o.invokeFn = fn
+}
+
+// updateTouchedFiles merges newly changed files into state.TouchedFiles.
+// Uses listChangedFilesFn when available, falling back to getGitHeadFn +
+// getDiffFn-based parsing for backwards compatibility.
+func (o *CycleOrchestrator) updateTouchedFiles(state *CycleState) {
+	if o.listChangedFilesFn == nil {
+		return
+	}
+	// List files changed since the parent of the current commit (i.e. the
+	// commit before the phase invocation).
+	files, err := o.listChangedFilesFn("HEAD~1")
+	if err != nil {
+		return
+	}
+	existing := make(map[string]bool, len(state.TouchedFiles))
+	for _, f := range state.TouchedFiles {
+		existing[f] = true
+	}
+	for _, f := range files {
+		if !existing[f] {
+			state.TouchedFiles = append(state.TouchedFiles, f)
+			existing[f] = true
+		}
+	}
 }
 
 func (o *CycleOrchestrator) runFinalValidation(ctx context.Context) error {

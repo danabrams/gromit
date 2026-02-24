@@ -29,10 +29,11 @@ func buildTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *
 		ValidateFn:     buildValidateFn(cfg),
 		RunRefactorFn:  buildRunRefactorFn(cfg, renderer, router, output),
 		EscalateTierFn: func(currentTier string) string { return cfg.NextEscalationTier(currentTier) },
-		GetDiffFn:      func() (string, error) { return getGitDiff("HEAD") },
-		ReadFileFn:     readFileAsString,
-		GetGitHeadFn:   gitHeadCommit,
-		GitResetFn:     gitResetHard,
+		GetDiffFn:          func() (string, error) { return getGitDiff("HEAD") },
+		ReadFileFn:         readFileAsString,
+		GetGitHeadFn:       gitHeadCommit,
+		GitResetFn:         gitResetHard,
+		ListChangedFilesFn: gitListChangedFiles,
 		LogPhaseFn: func(cycle int, phase, detail string) {
 			_, _ = fmt.Fprintf(output, "  [tdd] cycle %d %s: %s\n", cycle, phase, detail)
 		},
@@ -58,6 +59,8 @@ func buildTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *
 				if bc.Model == "" {
 					bc.Model = provider.TierToLegacyModel(bc.Tier)
 				}
+				// Swap in a telemetry-accumulating InvokeFn now that bc is available.
+				orch.SetInvokeFn(buildInvokeFnWithTelemetry(router, output, bc))
 				remaining := bc.Bead.ExpectedOutputs
 				if len(remaining) == 0 {
 					remaining = tddExpectedOutputsOrTitle(bc.Bead)
@@ -137,6 +140,39 @@ func buildInvokeFn(router *provider.Router, output io.Writer) tdd.InvokeFn {
 		defer cancel()
 
 		result, err := p.StreamRun(invokeCtx, promptText, tier, output, nil, nil)
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("phase invocation timed out after %s", resolveTDDPhaseInvocationTimeout(model))
+		}
+		return streamRunFailureError(result, err)
+	}
+}
+
+// buildInvokeFnWithTelemetry creates an InvokeFn that accumulates provider
+// telemetry (cost, tokens, model) into bc.Result after each invocation.
+func buildInvokeFnWithTelemetry(router *provider.Router, output io.Writer, bc *runtypes.BeadContext) tdd.InvokeFn {
+	return func(ctx context.Context, promptText, tier string) error {
+		p, model := router.Select("build", tier)
+		if p == nil {
+			return fmt.Errorf("no provider available for tier %s", tier)
+		}
+		invokeCtx := ctx
+		cancel := func() {}
+		if timeout := resolveTDDPhaseInvocationTimeout(model); timeout > 0 {
+			invokeCtx, cancel = context.WithTimeout(ctx, timeout)
+		}
+		defer cancel()
+
+		result, err := p.StreamRun(invokeCtx, promptText, tier, output, nil, nil)
+		// Accumulate telemetry into bc.Result regardless of error.
+		if result != nil && bc != nil && bc.Result != nil {
+			bc.Result.CostUSD += result.CostUSD
+			bc.Result.InputTokens += result.InputTokens
+			bc.Result.OutputTokens += result.OutputTokens
+			if result.Model != "" {
+				bc.Model = result.Model
+				bc.Result.Model = result.Model
+			}
+		}
 		if errors.Is(err, context.DeadlineExceeded) {
 			return fmt.Errorf("phase invocation timed out after %s", resolveTDDPhaseInvocationTimeout(model))
 		}
@@ -237,6 +273,19 @@ func gitHeadCommit() (string, error) {
 
 func gitResetHard(commit string) error {
 	return exec.Command("git", "reset", "--hard", commit).Run()
+}
+
+// gitListChangedFiles returns the list of files changed since the given commit.
+func gitListChangedFiles(sinceCommit string) ([]string, error) {
+	out, err := exec.Command("git", "diff", "--name-only", sinceCommit).Output()
+	if err != nil {
+		return nil, fmt.Errorf("git diff --name-only: %w", err)
+	}
+	raw := strings.TrimSpace(string(out))
+	if raw == "" {
+		return nil, nil
+	}
+	return strings.Split(raw, "\n"), nil
 }
 
 // optionalTDDCycleRunner returns a TDDCycleRunner when FreshContextPerCycle is
