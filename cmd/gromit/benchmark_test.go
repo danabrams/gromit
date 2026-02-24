@@ -189,6 +189,90 @@ func TestRunBenchmarkPipeline_WritesDeterministicArtifacts(t *testing.T) {
 	}
 }
 
+func TestRunBenchmarkPipeline_ReportJSONUsesInternalManifestMetadataShape(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+
+	manifestPath := filepath.Join(t.TempDir(), "manifest.yaml")
+	manifest := `id: tdd-vs-single-pass
+base_commit: abc123
+beads:
+  - gromit-1
+  - gromit-2
+  - gromit-3
+modes:
+  - single_pass
+provider: openai
+model_family: gpt-5
+low_tier_model: gpt-5-mini
+medium_tier_model: gpt-5.3-codex
+high_tier_model: gpt-5.3-codex
+`
+	if err := os.WriteFile(manifestPath, []byte(manifest), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	origValidate := benchmarkValidateCohortFn
+	origHarness := benchmarkRunHarnessFn
+	origMetrics := benchmarkComputeMetricsFn
+	t.Cleanup(func() {
+		benchmarkValidateCohortFn = origValidate
+		benchmarkRunHarnessFn = origHarness
+		benchmarkComputeMetricsFn = origMetrics
+	})
+
+	benchmarkValidateCohortFn = func(selection benchmarkSelection) (benchmarkValidatedCohort, error) {
+		return benchmarkValidatedCohort{SelectedBeads: selection.SelectedBeads}, nil
+	}
+	benchmarkRunHarnessFn = func(manifest benchmarkManifest, cohort benchmarkValidatedCohort, opts benchmarkRunOptions) (benchmarkHarnessResult, error) {
+		return benchmarkHarnessResult{
+			BaseCommit:    "abc123",
+			SelectedBeads: append([]string(nil), cohort.SelectedBeads...),
+			Modes: []benchmarkModeResult{
+				{Mode: "single_pass", BaseCommit: "abc123", SelectedBeads: append([]string(nil), cohort.SelectedBeads...)},
+			},
+		}, nil
+	}
+	benchmarkComputeMetricsFn = func(result benchmarkHarnessResult) (benchmarkMetricsResult, error) {
+		return benchmarkMetricsResult{}, nil
+	}
+
+	opts := benchmarkRunOptions{
+		ManifestPath:    manifestPath,
+		OutputTimestamp: "20260223T140000Z",
+	}
+	if err := runBenchmarkPipeline(opts); err != nil {
+		t.Fatalf("runBenchmarkPipeline() error = %v", err)
+	}
+
+	jsonPath := filepath.Join(".gromit", "benchmarks", "results", "tdd-vs-single-pass", "20260223T140000Z.json")
+	reportBytes, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("read report json: %v", err)
+	}
+
+	var payload struct {
+		Manifest struct {
+			ID          string `json:"id"`
+			Provider    string `json:"provider"`
+			ModelFamily string `json:"model_family"`
+		} `json:"manifest"`
+	}
+	if err := json.Unmarshal(reportBytes, &payload); err != nil {
+		t.Fatalf("unmarshal report json: %v", err)
+	}
+
+	if payload.Manifest.ID != "tdd-vs-single-pass" {
+		t.Fatalf("manifest.id = %q, want %q", payload.Manifest.ID, "tdd-vs-single-pass")
+	}
+	if payload.Manifest.Provider != "openai" {
+		t.Fatalf("manifest.provider = %q, want %q", payload.Manifest.Provider, "openai")
+	}
+	if payload.Manifest.ModelFamily != "gpt-5" {
+		t.Fatalf("manifest.model_family = %q, want %q", payload.Manifest.ModelFamily, "gpt-5")
+	}
+}
+
 func TestBenchmarkRunCommand_BeadOverridesDriveSelection(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
