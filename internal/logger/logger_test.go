@@ -915,6 +915,91 @@ func TestLogIterationWithPromptDiagnostics(t *testing.T) {
 	}
 }
 
+func TestLogIterationWithCacheTelemetry(t *testing.T) {
+	tmpDir := t.TempDir()
+	l, err := NewLogger(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
+	cached := &IterationLog{
+		Timestamp:               time.Now(),
+		Iteration:               1,
+		BeadID:                  "b1",
+		BeadTitle:               "Cache telemetry bead",
+		Model:                   "sonnet",
+		Success:                 true,
+		Validated:               true,
+		Escalated:               false,
+		DurationMs:              1000,
+		CacheHit:                true,
+		CacheMiss:               true,
+		CacheWrite:              true,
+		CacheClass:              "render_static_build",
+		CacheKey:                "cache-key-1",
+		CacheInvalidationReason: "version_change",
+		CacheVersionMarker:      "rules-v2",
+	}
+	if err := l.LogIteration(cached); err != nil {
+		t.Fatal(err)
+	}
+
+	uncached := &IterationLog{
+		Timestamp:  time.Now(),
+		Iteration:  2,
+		BeadID:     "b2",
+		BeadTitle:  "No cache telemetry",
+		Model:      "sonnet",
+		Success:    true,
+		Validated:  true,
+		Escalated:  false,
+		DurationMs: 1000,
+	}
+	if err := l.LogIteration(uncached); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(l.FilePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := bytes.Split(bytes.TrimSpace(data), []byte("\n"))
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 log lines, got %d", len(lines))
+	}
+
+	first := string(lines[0])
+	for _, want := range []string{
+		`"cache_hit":true`,
+		`"cache_miss":true`,
+		`"cache_write":true`,
+		`"cache_class":"render_static_build"`,
+		`"cache_key":"cache-key-1"`,
+		`"cache_invalidation_reason":"version_change"`,
+		`"cache_version_marker":"rules-v2"`,
+	} {
+		if !contains(first, want) {
+			t.Fatalf("expected first log to contain %s, got %s", want, first)
+		}
+	}
+
+	second := string(lines[1])
+	for _, key := range []string{
+		`"cache_hit"`,
+		`"cache_miss"`,
+		`"cache_write"`,
+		`"cache_class"`,
+		`"cache_key"`,
+		`"cache_invalidation_reason"`,
+		`"cache_version_marker"`,
+	} {
+		if contains(second, key) {
+			t.Fatalf("expected second log to omit %s, got %s", key, second)
+		}
+	}
+}
+
 func TestReadLogFileWithCostAndTokens(t *testing.T) {
 	dir := t.TempDir()
 
