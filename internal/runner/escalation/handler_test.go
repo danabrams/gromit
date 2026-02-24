@@ -202,7 +202,7 @@ func TestHandleStallTimeout_OnlyOneNoToolRetry(t *testing.T) {
 	}
 }
 
-func TestHandleInvocationTimeout_EscalatesOnlyOncePerBead(t *testing.T) {
+func TestHandleInvocationTimeout_WithoutDecomposerReturnsError(t *testing.T) {
 	cfg := newTestConfig()
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
@@ -210,21 +210,17 @@ func TestHandleInvocationTimeout_EscalatesOnlyOncePerBead(t *testing.T) {
 	bc.Tier = provider.TierLow
 	bc.Model = "haiku"
 
-	if !h.HandleInvocationTimeout(context.Background(), bc) {
-		t.Fatal("expected first invocation timeout to escalate")
-	}
-	if bc.Tier != provider.TierMedium {
-		t.Fatalf("expected tier=%s after first escalation, got %s", provider.TierMedium, bc.Tier)
-	}
-	if bc.TimeoutEscalationsThisBead != 1 {
-		t.Fatalf("TimeoutEscalationsThisBead=%d, want 1", bc.TimeoutEscalationsThisBead)
-	}
-
 	if h.HandleInvocationTimeout(context.Background(), bc) {
-		t.Fatal("expected second invocation timeout to stop (escalation limit reached)")
+		t.Fatal("expected invocation timeout to stop when decomposition is unavailable")
+	}
+	if bc.Result.TimeoutDecompositionAttempted != true {
+		t.Fatal("expected timeout decomposition attempt marker to be set")
+	}
+	if bc.Result.TimeoutDecompositionSucceeded {
+		t.Fatal("did not expect timeout decomposition success when decomposer is unavailable")
 	}
 	if bc.Result.Error == nil {
-		t.Fatal("expected error when timeout escalation limit is reached")
+		t.Fatal("expected error when decomposition is unavailable")
 	}
 }
 
@@ -785,7 +781,7 @@ func TestExecuteWithRetry_StallFiresRetryAndEscalate(t *testing.T) {
 	}
 }
 
-func TestExecuteWithRetry_InvocationTimeoutEscalatesAndThenSucceeds(t *testing.T) {
+func TestExecuteWithRetry_InvocationTimeoutWithoutDecomposerFails(t *testing.T) {
 	cfg := newTestConfig()
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
@@ -803,11 +799,14 @@ func TestExecuteWithRetry_InvocationTimeoutEscalatesAndThenSucceeds(t *testing.T
 	}
 
 	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
-	if !success {
-		t.Fatal("expected success after one timeout escalation")
+	if success {
+		t.Fatal("expected timeout-first decomposition path to stop when decomposer is unavailable")
 	}
-	if bc.Tier != provider.TierMedium {
-		t.Fatalf("expected escalation to %s, got %s", provider.TierMedium, bc.Tier)
+	if callCount != 1 {
+		t.Fatalf("expected exactly 1 invocation before stop, got %d", callCount)
+	}
+	if bc.Result.Error == nil {
+		t.Fatal("expected error from timeout-first decomposition path")
 	}
 }
 
@@ -892,9 +891,7 @@ func TestHandleInvocationTimeout_FirstTimeoutDecomposesWithoutEscalation(t *test
 	}
 }
 
-func TestExecuteWithRetry_BeadTimeoutEscalatesBeforeDecomposing(t *testing.T) {
-	// When a bead timeout occurs and a higher tier is available, escalate once
-	// before falling through to decomposition.
+func TestExecuteWithRetry_BeadTimeoutDecomposesOnFirstTimeout(t *testing.T) {
 	cfg := newTestConfig()
 	cfg.Escalation.Chain = []string{"haiku", "sonnet", "opus"}
 
@@ -925,17 +922,11 @@ func TestExecuteWithRetry_BeadTimeoutEscalatesBeforeDecomposing(t *testing.T) {
 
 	h.ExecuteWithRetry(context.Background(), bc, invokeFn)
 
-	if len(invocationTiers) < 2 {
-		t.Fatalf("expected at least 2 invocations (medium then high), got %d: %v", len(invocationTiers), invocationTiers)
-	}
-	if invocationTiers[0] != provider.TierMedium {
-		t.Errorf("expected first invocation on medium tier, got %q", invocationTiers[0])
-	}
-	if invocationTiers[1] != provider.TierHigh {
-		t.Errorf("expected second invocation on high tier, got %q", invocationTiers[1])
+	if len(invocationTiers) != 1 {
+		t.Fatalf("expected exactly 1 invocation before decomposition, got %d: %v", len(invocationTiers), invocationTiers)
 	}
 	if !decomposeCalled {
-		t.Error("expected decomposition after escalated tier also timed out")
+		t.Error("expected decomposition after first bead timeout")
 	}
 }
 
