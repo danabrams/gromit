@@ -833,6 +833,24 @@ func TestValidateRuntimeScopeGateDecomposeOutput_ReturnsRuleCodeFromSharedValida
 	}
 }
 
+func TestValidateRuntimeScopeGateDecomposeOutput_ZeroMaxUsesDefaultLimit(t *testing.T) {
+	err := validateRuntimeScopeGateDecomposeOutput(
+		[]scopeGateSubBead{
+			{Title: "Part 1", ExpectedOutputs: []string{"f1"}},
+			{Title: "Part 2", ExpectedOutputs: []string{"f2"}},
+			{Title: "Part 3", ExpectedOutputs: []string{"f3"}},
+			{Title: "Part 4", ExpectedOutputs: []string{"f4"}},
+			{Title: "Part 5", ExpectedOutputs: []string{"f5"}},
+			{Title: "Part 6", ExpectedOutputs: []string{"f6"}},
+		},
+		"Oversized Feature",
+		0,
+	)
+	if err == nil {
+		t.Fatal("validateRuntimeScopeGateDecomposeOutput() error = nil, want batch_size_max violation when maxSubBeads is zero")
+	}
+}
+
 func TestValidateRuntimeScopeGateDecomposeOutput_UsesSharedRequiredFieldViolationMessage(t *testing.T) {
 	err := validateRuntimeScopeGateDecomposeOutput(
 		[]scopeGateSubBead{
