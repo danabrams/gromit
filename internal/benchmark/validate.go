@@ -30,7 +30,11 @@ func ValidateSelectedCohort(lookup BeadLookup, selected []string, minSize int) (
 		if b.Status != "open" {
 			return nil, fmt.Errorf("selected bead %q must be open, got %q", id, b.Status)
 		}
-		covered[complexityTier(b.Labels)] = true
+		tier, err := parseComplexityTier(b.Labels)
+		if err != nil {
+			return nil, fmt.Errorf("selected bead %q: %w", id, err)
+		}
+		covered[tier] = true
 	}
 
 	missing := make([]string, 0, 3)
@@ -47,15 +51,27 @@ func ValidateSelectedCohort(lookup BeadLookup, selected []string, minSize int) (
 }
 
 func complexityTier(labels []string) string {
+	tier, err := parseComplexityTier(labels)
+	if err != nil {
+		return "medium"
+	}
+	return tier
+}
+
+func parseComplexityTier(labels []string) (string, error) {
 	for _, label := range labels {
 		switch stdstrings.TrimSpace(stdstrings.ToLower(label)) {
 		case "complexity:low":
-			return "low"
+			return "low", nil
 		case "complexity:medium":
-			return "medium"
+			return "medium", nil
 		case "complexity:high":
-			return "high"
+			return "high", nil
+		default:
+			if stdstrings.HasPrefix(stdstrings.TrimSpace(stdstrings.ToLower(label)), "complexity:") {
+				return "", fmt.Errorf("unsupported complexity label %q", label)
+			}
 		}
 	}
-	return "medium"
+	return "medium", nil
 }
