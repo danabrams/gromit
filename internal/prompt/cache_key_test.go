@@ -45,3 +45,25 @@ func TestStaticPreambleCacheKeyWithExclusions_IgnoresDynamicSections(t *testing.
 		t.Fatalf("expected excluded dynamic section changes to not affect key, got %q vs %q", keyA, keyB)
 	}
 }
+
+func TestCanonicalizeStaticPreamble_StableAndRepeatable(t *testing.T) {
+	sections := map[string]string{
+		"template": "PROMPT_build.md",
+		"rules":    "rules",
+		"spec":     "spec",
+	}
+
+	first := CanonicalizeStaticPreamble(sections, nil)
+	second := CanonicalizeStaticPreamble(sections, nil)
+
+	if first == "" {
+		t.Fatal("expected canonical serialization to be non-empty")
+	}
+	if first != second {
+		t.Fatalf("expected repeatable canonical serialization, got %q then %q", first, second)
+	}
+	want := "rules=rules\nspec=spec\ntemplate=PROMPT_build.md"
+	if first != want {
+		t.Fatalf("canonical serialization mismatch\nwant: %q\n got: %q", want, first)
+	}
+}
