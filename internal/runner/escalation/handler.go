@@ -127,13 +127,16 @@ func (h *Handler) HandleInvocationTimeout(ctx context.Context, bc *runtypes.Bead
 	if bc == nil || bc.Result == nil {
 		return false
 	}
+	bc.Result.TimeoutDecompositionAttempted = true
 
 	decomposeCtx := firstNonNilContext(bc.ParentCtx, ctx)
 	if decomposeCtx.Err() != nil {
 		bc.Result.Error = fmt.Errorf("invocation timeout (decomposition skipped: parent context canceled: %w)", decomposeCtx.Err())
 		return false
 	}
-	return h.AttemptDecomposition(decomposeCtx, bc, "invocation timeout")
+	continueLoop = h.AttemptDecomposition(decomposeCtx, bc, "invocation timeout")
+	bc.Result.TimeoutDecompositionSucceeded = bc.Result.Decomposed
+	return continueLoop
 }
 
 func (h *Handler) resolveL1RetryCap(bc *runtypes.BeadContext) int {
@@ -168,12 +171,19 @@ func (h *Handler) handleTimeoutEscalationOrFail(bc *runtypes.BeadContext, failur
 
 func (h *Handler) HandleBeadTimeout(bc *runtypes.BeadContext) (continueLoop bool) {
 	failureReason := fmt.Sprintf("bead timeout: exceeded %v total processing time", bc.BeadTimeout)
+	if bc != nil && bc.Result != nil {
+		bc.Result.TimeoutDecompositionAttempted = true
+	}
 	decomposeCtx := firstNonNilContext(bc.ParentCtx)
 	if decomposeCtx.Err() != nil {
 		bc.Result.Error = fmt.Errorf("%s (decomposition skipped: parent context canceled: %w)", failureReason, decomposeCtx.Err())
 		return false
 	}
-	return h.AttemptDecomposition(decomposeCtx, bc, failureReason)
+	continueLoop = h.AttemptDecomposition(decomposeCtx, bc, failureReason)
+	if bc != nil && bc.Result != nil {
+		bc.Result.TimeoutDecompositionSucceeded = bc.Result.Decomposed
+	}
+	return continueLoop
 }
 
 func (h *Handler) handleTriageResult(bc *runtypes.BeadContext, triageResult *TriageResult) (continueLoop bool, handled bool) {

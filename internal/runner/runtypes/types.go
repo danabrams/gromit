@@ -89,6 +89,8 @@ type IterationResult struct {
 	ValidationDurationMs    int64  // time spent in validation in milliseconds
 	ValidationTimeouts      int    // count of validation command timeouts/cancellations
 	CompilationErrors       bool   // true when pre-build compilation check found errors
+	TimeoutDecompositionAttempted bool `json:"timeout_decomposition_attempted,omitempty"`
+	TimeoutDecompositionSucceeded bool `json:"timeout_decomposition_succeeded,omitempty"`
 	HardStopPendingApproval bool   // true when hard-stop action requires explicit human approval
 
 	// Diagnostic fields for timeout investigation
