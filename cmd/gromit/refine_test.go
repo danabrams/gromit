@@ -318,3 +318,21 @@ func TestBacklogAdapterAdd_PreservesCreatedAt(t *testing.T) {
 		t.Fatalf("CreatedAt = %v, want %v", got.CreatedAt, createdAt)
 	}
 }
+
+func TestToPipelineIdea_PreservesCreatedAt(t *testing.T) {
+	t.Parallel()
+
+	createdAt := time.Date(2026, time.February, 3, 4, 5, 6, 0, time.UTC)
+	got := toPipelineIdea(&backlog.Idea{
+		ID:        "idea-1",
+		Text:      "idea",
+		Type:      "feature",
+		CreatedAt: createdAt,
+	})
+	if got == nil {
+		t.Fatal("toPipelineIdea() = nil, want idea")
+	}
+	if !got.CreatedAt.Equal(createdAt) {
+		t.Fatalf("CreatedAt = %v, want %v", got.CreatedAt, createdAt)
+	}
+}
