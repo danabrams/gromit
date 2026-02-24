@@ -118,3 +118,23 @@ func TestValidateSelectedCohort_ReturnsErrorForUnsupportedComplexityLabel(t *tes
 		t.Fatalf("ValidateSelectedCohort() error = %q, want unsupported complexity message", err.Error())
 	}
 }
+
+func TestValidateSelectedCohort_RejectsSizeGreaterThanFive(t *testing.T) {
+	lookup := fakeBeadLookup{
+		showFn: func(id string) (*bead.Bead, error) {
+			switch id {
+			case "gromit-1":
+				return &bead.Bead{ID: id, Status: "open", Labels: []string{"complexity:low"}}, nil
+			case "gromit-2":
+				return &bead.Bead{ID: id, Status: "open", Labels: []string{"complexity:high"}}, nil
+			default:
+				return &bead.Bead{ID: id, Status: "open", Labels: []string{"complexity:medium"}}, nil
+			}
+		},
+	}
+
+	_, err := ValidateSelectedCohort(lookup, []string{"gromit-1", "gromit-2", "gromit-3", "gromit-4", "gromit-5", "gromit-6"}, 5)
+	if err == nil {
+		t.Fatal("ValidateSelectedCohort() error = nil, want fixed-size cohort error")
+	}
+}
