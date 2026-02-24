@@ -526,6 +526,55 @@ func TestOrchestrator_ValidationFailure_CarriesComplexityRoutingToIterationLog(t
 	}
 }
 
+// TestOrchestrator_BuildFailure_RecordsErrorTelemetry verifies that build-stage
+// failures preserve actionable error details in the iteration log payload,
+// including the failing TDD phase when present in the error text.
+func TestOrchestrator_BuildFailure_RecordsErrorTelemetry(t *testing.T) {
+	var capturedResult *logger.IterationLog
+
+	build := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{}, errors.New("build: TDD cycle runner: red phase: invocation failed after retry and escalation")
+	}}
+	epilogueStage := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		capturedResult = in.Result
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-build-failure-log", Title: "Build failure log test bead"}, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     &fakeStage{},
+		Build:    build,
+		Validate: &fakeStage{},
+		Epilogue: epilogueStage,
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if capturedResult == nil {
+		t.Fatal("Epilogue Result is nil; want IterationLog populated on build failure path")
+	}
+	if capturedResult.FailurePhase != "red" {
+		t.Fatalf("IterationLog.FailurePhase = %q, want %q", capturedResult.FailurePhase, "red")
+	}
+	if !strings.Contains(capturedResult.Error, "TDD cycle runner") {
+		t.Fatalf("IterationLog.Error = %q, want build failure detail", capturedResult.Error)
+	}
+}
+
 // TestRunner_RunMethod_Removed verifies that the legacy Runner.Run method has been
 // removed as part of the architecture migration to Orchestrator. All loop execution
 // now flows through Orchestrator.Run. This test prevents accidental reintroduction.
