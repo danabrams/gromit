@@ -563,6 +563,25 @@ func TestGeminiSchemaNotesFixture_DocumentsPromptModesAndSchemaExtraction(t *tes
 	}
 }
 
+func TestGeminiFixtures_DoNotReferenceLegacyPlansFixturePath(t *testing.T) {
+	paths := []string{
+		geminiFixturePath("preflight.md"),
+		geminiFixturePath("commands.log"),
+		geminiFixturePath("workdir", "workdir-notes.md"),
+		geminiFixturePath("prompt-delivery", "prompt-file-ref.stdout.txt"),
+	}
+
+	for _, path := range paths {
+		content, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("failed to read fixture %q: %v", path, err)
+		}
+		if strings.Contains(string(content), ".gromit/plans/fixtures/gemini") {
+			t.Fatalf("fixture %q must not reference legacy .gromit/plans/fixtures/gemini path", path)
+		}
+	}
+}
+
 func TestGeminiCommandsLogFixture_IncludesPromptDeliveryAndFixtureGenerationEntries(t *testing.T) {
 	logPath := filepath.Join("..", "..", ".gromit", "plans", "fixtures", "gemini", "commands.log")
 	content, err := os.ReadFile(logPath)
