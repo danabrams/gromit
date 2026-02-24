@@ -41,6 +41,9 @@ func LoadManifest(path string) (Manifest, error) {
 	if len(manifest.Beads) == 0 {
 		return Manifest{}, fmt.Errorf("validate manifest %q: beads is required", path)
 	}
+	if len(manifest.Modes) == 0 {
+		return Manifest{}, fmt.Errorf("validate manifest %q: modes is required", path)
+	}
 	for _, mode := range manifest.Modes {
 		if _, ok := allowedBenchmarkModes[mode]; !ok {
 			return Manifest{}, fmt.Errorf("validate manifest %q: unsupported mode %q", path, mode)
