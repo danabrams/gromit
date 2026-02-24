@@ -166,10 +166,6 @@ func (h *Handler) handleTimeoutEscalationOrFail(bc *runtypes.BeadContext, failur
 }
 
 func (h *Handler) HandleBeadTimeout(bc *runtypes.BeadContext) (continueLoop bool) {
-	if h.handleTimeoutEscalationOrFail(bc, "bead timeout") {
-		return true
-	}
-
 	failureReason := fmt.Sprintf("bead timeout: exceeded %v total processing time", bc.BeadTimeout)
 	decomposeCtx := firstNonNilContext(bc.ParentCtx)
 	if decomposeCtx.Err() != nil {
