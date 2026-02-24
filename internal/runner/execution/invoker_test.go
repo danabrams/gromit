@@ -218,11 +218,14 @@ func TestInvokerExecute_ReturnsInvocationResult(t *testing.T) {
 	if result.ProviderName != "test-claude" {
 		t.Errorf("ProviderName = %q, want %q", result.ProviderName, "test-claude")
 	}
-	if !result.Result.Success {
-		t.Error("Result.Success = false, want true")
+	if result.ProviderResult == nil {
+		t.Fatal("ProviderResult should not be nil")
 	}
-	if result.Result.Output != "build complete" {
-		t.Errorf("Result.Output = %q, want %q", result.Result.Output, "build complete")
+	if !result.ProviderResult.Success {
+		t.Error("ProviderResult.Success = false, want true")
+	}
+	if result.ProviderResult.Output != "build complete" {
+		t.Errorf("ProviderResult.Output = %q, want %q", result.ProviderResult.Output, "build complete")
 	}
 	if result.StallFired {
 		t.Error("StallFired = true, want false for successful invocation")
@@ -1258,52 +1261,6 @@ func TestInvokerExecute_MergesProviderUsageIntoStatsWhenStreamHasNoResultEvent(t
 	}
 	if out != 210 {
 		t.Errorf("CostData output tokens = %d, want 210", out)
-	}
-}
-
-func TestInvocationResult_ConvertsClaudeResult(t *testing.T) {
-	// The Result field in InvocationResult should be a *claude.Result,
-	// converted from the provider.Result returned by StreamRun.
-	mp := &mockProvider{
-		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
-			return &provider.Result{
-				Success:  true,
-				Output:   "output text",
-				ExitCode: 0,
-				Duration: 5 * time.Second,
-				Model:    "opus-4",
-			}, nil
-		},
-	}
-	mr := &mockRouter{
-		selectFn: func(phase, tier string) (Provider, string) {
-			return mp, "opus-4"
-		},
-	}
-
-	invoker := NewInvoker(mr, &bytes.Buffer{}, nil)
-	bc := newTestBeadContext()
-
-	invResult, err := invoker.Execute(context.Background(), bc, "prompt")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	cr := invResult.Result
-	if cr == nil {
-		t.Fatal("InvocationResult.Result should not be nil")
-	}
-	if !cr.Success {
-		t.Error("claude.Result.Success = false, want true")
-	}
-	if cr.Output != "output text" {
-		t.Errorf("claude.Result.Output = %q, want %q", cr.Output, "output text")
-	}
-	if cr.ExitCode != 0 {
-		t.Errorf("claude.Result.ExitCode = %d, want 0", cr.ExitCode)
-	}
-	if cr.Duration != 5*time.Second {
-		t.Errorf("claude.Result.Duration = %v, want 5s", cr.Duration)
 	}
 }
 
