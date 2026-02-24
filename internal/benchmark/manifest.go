@@ -57,6 +57,9 @@ func ValidateManifest(manifest Manifest) error {
 	if len(manifest.Beads) == 0 {
 		return fmt.Errorf("beads is required")
 	}
+	if len(manifest.Beads) != 5 {
+		return fmt.Errorf("beads must contain exactly 5 ids, got %d", len(manifest.Beads))
+	}
 	if len(manifest.Modes) == 0 {
 		return fmt.Errorf("modes is required")
 	}
