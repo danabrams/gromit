@@ -247,13 +247,13 @@ func toPipelineIdea(idea *backlog.Idea) *pipeline.Idea {
 	}
 
 	return &pipeline.Idea{
-		ID:       idea.ID,
-		Text:     idea.Text,
-		Type:     idea.Type,
-		Context:  idea.Context,
+		ID:        idea.ID,
+		Text:      idea.Text,
+		Type:      idea.Type,
+		Context:   idea.Context,
 		CreatedAt: idea.CreatedAt,
-		Status:   idea.Status,
-		SpecName: idea.SpecName,
+		Status:    idea.Status,
+		SpecName:  idea.SpecName,
 	}
 }
 
