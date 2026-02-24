@@ -2,6 +2,7 @@ package benchmark
 
 import (
 	"fmt"
+	stdstrings "strings"
 
 	"github.com/danabrams/gromit/internal/bead"
 )
@@ -26,4 +27,18 @@ func ValidateSelectedCohort(lookup BeadLookup, selected []string, minSize int) (
 	}
 
 	return append([]string(nil), selected...), nil
+}
+
+func complexityTier(labels []string) string {
+	for _, label := range labels {
+		switch stdstrings.TrimSpace(stdstrings.ToLower(label)) {
+		case "complexity:low":
+			return "low"
+		case "complexity:medium":
+			return "medium"
+		case "complexity:high":
+			return "high"
+		}
+	}
+	return "medium"
 }
