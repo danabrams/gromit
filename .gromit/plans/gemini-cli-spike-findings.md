@@ -20,16 +20,16 @@ Live invocation path used: `npm start --prefix /home/dabrams/gemini-cli -- --app
 
 ## Evidence Index
 
-- Command ledger: `.gromit/plans/fixtures/gemini/commands.log`
-- Prompt delivery artifacts: `.gromit/plans/fixtures/gemini/prompt-delivery/*`
-- Stream fixture candidate (live): `.gromit/plans/fixtures/gemini/stream-json-success.jsonl`
-- JSON fixture candidate (live): `.gromit/plans/fixtures/gemini/json-success.json`
-- Model artifacts: `.gromit/plans/fixtures/gemini/models/*`
-- Error artifacts: `.gromit/plans/fixtures/gemini/errors/*`
-- Concrete error evidence: `.gromit/plans/fixtures/gemini/errors/command-missing.stderr.txt`
-- Permissions notes: `.gromit/plans/fixtures/gemini/permissions/permissions-notes.md`
-- Workdir notes: `.gromit/plans/fixtures/gemini/workdir/workdir-notes.md`
-- Temporary fixture policy: `.gromit/plans/fixtures/gemini/FIXTURE_POLICY.md`
+- Command ledger: `test/fixtures/gemini/commands.log`
+- Prompt delivery artifacts: `test/fixtures/gemini/prompt-delivery/*`
+- Stream fixture candidate (live): `test/fixtures/gemini/stream-json-success.jsonl`
+- JSON fixture candidate (live): `test/fixtures/gemini/json-success.json`
+- Model artifacts: `test/fixtures/gemini/models/*`
+- Error artifacts: `test/fixtures/gemini/errors/*`
+- Concrete error evidence: `test/fixtures/gemini/errors/command-missing.stderr.txt`
+- Permissions notes: `test/fixtures/gemini/permissions/permissions-notes.md`
+- Workdir notes: `test/fixtures/gemini/workdir/workdir-notes.md`
+- Temporary fixture policy: `test/fixtures/gemini/FIXTURE_POLICY.md`
 
 ## 1. Prompt Delivery Modes
 
@@ -37,7 +37,7 @@ Live invocation path used: `npm start --prefix /home/dabrams/gemini-cli -- --app
 
 - Inline: `... -p "Respond with exactly: READY" --output-format json`
 - Stdin: `printf 'Return exactly PIPE_OK\n' | ... --output-format json`
-- Prompt-file ref: `... -p "@.gromit/plans/fixtures/gemini/prompt-delivery/prompt-file-input.txt" --output-format json`
+- Prompt-file ref: `... -p "@test/fixtures/gemini/prompt-delivery/prompt-file-input.txt" --output-format json`
 
 ### Observed Output
 
