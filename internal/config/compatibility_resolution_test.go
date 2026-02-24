@@ -143,3 +143,15 @@ func TestValidateCompatibilityRejectsInvalidExplicitValuesOnly(t *testing.T) {
 		})
 	}
 }
+
+func TestResolvedMethodologyAdapterAccessorUsesLegacyFallback(t *testing.T) {
+	var cfg Config
+
+	resolved := cfg.ResolvedMethodologyAdapter()
+	if resolved.Value != "go" {
+		t.Fatalf("ResolvedMethodologyAdapter().Value = %q, want %q", resolved.Value, "go")
+	}
+	if resolved.Source != CompatibilitySourceLegacyFallback {
+		t.Fatalf("ResolvedMethodologyAdapter().Source = %q, want %q", resolved.Source, CompatibilitySourceLegacyFallback)
+	}
+}
