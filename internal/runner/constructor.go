@@ -172,6 +172,9 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		Review:          reviewStage,
 		Epilogue:        epilogueStage,
 		GetBead:         getBeadFn,
+		GetBeadByID: func(ctx context.Context, beadID string) (*bead.Bead, error) {
+			return beadsClient.Show(beadID)
+		},
 		Config:          cfg,
 		GlobalStatsPath: filepath.Join(gromitDir, "stats.json"),
 		GetRunID:        getRunIDFn,

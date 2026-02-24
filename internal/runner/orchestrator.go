@@ -31,6 +31,8 @@ type OrchestratorConfig struct {
 
 	// GetBead returns the next bead to process, or nil when the queue is empty.
 	GetBead func(ctx context.Context) (*bead.Bead, error)
+	// GetBeadByID resolves a bead by ID for explicit sequence execution.
+	GetBeadByID func(ctx context.Context, beadID string) (*bead.Bead, error)
 
 	// Config is the loaded gromit configuration.
 	Config *config.Config
@@ -245,6 +247,49 @@ runLoop:
 		}
 	}
 	return nil
+}
+
+// RunSequence executes the pipeline for an explicit, caller-provided bead ID sequence.
+// IDs are resolved in-order via GetBeadByID, then processed through the existing run loop.
+func (o *Orchestrator) RunSequence(
+	ctx context.Context,
+	beadIDs []string,
+	maxIterations int,
+	deadline time.Time,
+	stopCh <-chan struct{},
+) error {
+	if len(beadIDs) == 0 {
+		return o.Run(ctx, maxIterations, deadline, stopCh)
+	}
+	if o.cfg.GetBeadByID == nil {
+		return fmt.Errorf("orchestrator: GetBeadByID is not configured")
+	}
+
+	sequence := make([]*bead.Bead, 0, len(beadIDs))
+	for _, id := range beadIDs {
+		b, err := o.cfg.GetBeadByID(ctx, id)
+		if err != nil {
+			return fmt.Errorf("orchestrator: resolving bead %s: %w", id, err)
+		}
+		if b == nil {
+			return fmt.Errorf("orchestrator: bead %s not found", id)
+		}
+		sequence = append(sequence, b)
+	}
+
+	index := 0
+	getFromSequence := func(_ context.Context) (*bead.Bead, error) {
+		if index >= len(sequence) {
+			return nil, nil
+		}
+		b := sequence[index]
+		index++
+		return b, nil
+	}
+
+	cloned := *o
+	cloned.cfg.GetBead = getFromSequence
+	return cloned.Run(ctx, maxIterations, deadline, stopCh)
 }
 
 // buildInput constructs the pipeline.Input for a given bead and iteration.
