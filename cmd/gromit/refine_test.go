@@ -156,6 +156,39 @@ func TestToPipelineIdea_PreservesCreatedAt(t *testing.T) {
 	}
 }
 
+func TestBacklogAdapterAdd_PreservesCreatedAt(t *testing.T) {
+	t.Parallel()
+
+	gromitDir := t.TempDir()
+	file, err := backlog.NewFile(gromitDir)
+	if err != nil {
+		t.Fatalf("backlog.NewFile() error = %v", err)
+	}
+
+	adapter := &backlogAdapter{file: file}
+	createdAt := time.Date(2026, time.February, 3, 9, 8, 7, 0, time.UTC)
+	err = adapter.Add(&pipeline.Idea{
+		ID:        "idea-1",
+		Text:      "Persist timestamp",
+		Type:      "feature",
+		CreatedAt: createdAt,
+	})
+	if err != nil {
+		t.Fatalf("Add() error = %v", err)
+	}
+
+	ideas, err := file.List()
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(ideas) != 1 {
+		t.Fatalf("idea count = %d, want 1", len(ideas))
+	}
+	if !ideas[0].CreatedAt.Equal(createdAt) {
+		t.Fatalf("CreatedAt = %v, want %v", ideas[0].CreatedAt, createdAt)
+	}
+}
+
 type refineSessionTestAgent struct {
 	launchInDirFn func(promptPath, dir string) error
 }
