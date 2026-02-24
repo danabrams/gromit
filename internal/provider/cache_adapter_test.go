@@ -131,3 +131,17 @@ func TestClaudeAndCodexProvidersExposeCacheAdapterCapability(t *testing.T) {
 		}
 	}
 }
+
+func TestNoopCacheAdapterWriteSupportsRefreshFlag(t *testing.T) {
+	adapter := NewNoopCacheAdapter()
+	err := adapter.Write(context.Background(), CacheWriteRequest{
+		CacheClass: "build",
+		CacheKey:   "k-refresh",
+		Content:    "cached",
+		Refresh:    true,
+		Config:     config.TokenEfficiencyCacheConfig{Enabled: true, TTL: "30m", Capacity: 256},
+	})
+	if err != nil {
+		t.Fatalf("Write() with refresh error = %v, want nil", err)
+	}
+}
