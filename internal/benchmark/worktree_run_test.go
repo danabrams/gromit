@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/worktree"
 )
 
@@ -140,5 +141,74 @@ func TestSessionModeWorktreeRunner_RunModeChecksOutBaseCommitBeforeExecution(t *
 	}
 	if len(sequence) != 2 || sequence[0] != "checkout" || sequence[1] != "run" {
 		t.Fatalf("execution sequence = %v, want [checkout run]", sequence)
+	}
+}
+
+func TestApplyBenchmarkOverlayToConfig_PinsProviderAndEnforcesTierPolicies(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		Providers: map[string]config.ProviderDef{
+			"openai": {
+				Models: map[string]string{
+					"low":    "placeholder-low",
+					"medium": "placeholder-medium",
+					"high":   "placeholder-high",
+				},
+			},
+			"other": {
+				Models: map[string]string{
+					"low":    "other-low",
+					"medium": "other-medium",
+					"high":   "other-high",
+				},
+			},
+		},
+	}
+	overlay, err := BuildModeOverlay(HarnessManifest{
+		Provider:        "openai",
+		ModelFamily:     "gpt-5",
+		LowTierModel:    "gpt-5-mini",
+		MediumTierModel: "gpt-5.3-codex",
+		HighTierModel:   "gpt-5.3-codex",
+	}, "tdd_fresh_context")
+	if err != nil {
+		t.Fatalf("BuildModeOverlay() error = %v", err)
+	}
+
+	got, err := applyBenchmarkOverlayToConfig(cfg, overlay)
+	if err != nil {
+		t.Fatalf("applyBenchmarkOverlayToConfig() error = %v", err)
+	}
+
+	if got.Methodology.BuildStrategy != "tdd" {
+		t.Fatalf("build_strategy = %q, want %q", got.Methodology.BuildStrategy, "tdd")
+	}
+	if !got.Methodology.FreshContextPerCycle {
+		t.Fatal("fresh_context_per_cycle = false, want true")
+	}
+	if got.Methodology.PhaseModels.Build != "low" {
+		t.Fatalf("phase_models.build = %q, want %q", got.Methodology.PhaseModels.Build, "low")
+	}
+	if got.Review.Tier != "high" {
+		t.Fatalf("review.tier = %q, want %q", got.Review.Tier, "high")
+	}
+	if got.Review.Thorough.Tier != "high" {
+		t.Fatalf("review.thorough.tier = %q, want %q", got.Review.Thorough.Tier, "high")
+	}
+	if !got.Validation.IsNonInteractive() {
+		t.Fatal("validation.non_interactive = false, want true")
+	}
+	if got.Providers["openai"].Models["low"] != "gpt-5-mini" {
+		t.Fatalf("provider low model = %q, want %q", got.Providers["openai"].Models["low"], "gpt-5-mini")
+	}
+	if got.Providers["openai"].Models["medium"] != "gpt-5.3-codex" {
+		t.Fatalf("provider medium model = %q, want %q", got.Providers["openai"].Models["medium"], "gpt-5.3-codex")
+	}
+	if got.Providers["openai"].Models["high"] != "gpt-5.3-codex" {
+		t.Fatalf("provider high model = %q, want %q", got.Providers["openai"].Models["high"], "gpt-5.3-codex")
+	}
+	if _, exists := got.Providers["other"]; exists {
+		t.Fatal("unexpected non-pinned provider retained in overlay config")
 	}
 }
