@@ -9,13 +9,13 @@ import (
 // use typed struct returns instead of interface{} or map[string]interface{}
 func TestAllMocks_SatisfyInterfacesWithTypedSignatures(t *testing.T) {
 	// Compile-time checks - these will fail if mocks don't match interfaces
-	var _ LLMClient = (*testClaudeClient)(nil)
+	var _ LLMClient = (*testLLMClient)(nil)
 	var _ BeadClient = (*testBeadClient)(nil)
 	var _ ReviewRenderer = (*testReviewRenderer)(nil)
 
 	// Verify LLMClient mock returns typed LLMRunResult
 	t.Run("LLMClient returns typed LLMRunResult", func(t *testing.T) {
-		mock := &testClaudeClient{}
+		mock := &testLLMClient{}
 		result, err := mock.Run("test prompt", "opus")
 		if err != nil {
 			// Expected - mock returns nil
