@@ -8,6 +8,8 @@ import (
 	"testing"
 )
 
+var _ LLMClient = (*testClaudeClient)(nil)
+
 func TestNew_ReturnsNonNil(t *testing.T) {
 	deps := &Deps{}
 	paths := &Paths{}
