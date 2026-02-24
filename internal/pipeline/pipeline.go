@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
-	"time"
 
+	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/internal/review"
 )
 
@@ -148,16 +148,8 @@ type BacklogClient interface {
 	Update(id string, fn func(*Idea)) error
 }
 
-// Idea represents a backlog idea (matches backlog.Idea).
-type Idea struct {
-	ID        string    `json:"id"`
-	Text      string    `json:"text"`
-	Type      string    `json:"type"`
-	Context   string    `json:"context"`
-	CreatedAt time.Time `json:"created_at"`
-	Status    string    `json:"status,omitempty"`
-	SpecName  string    `json:"spec_name,omitempty"`
-}
+// Idea aliases backlog.Idea as the canonical idea schema.
+type Idea = backlog.Idea
 
 // IdeaJSONKeys defines the expected snake_case JSON keys for Idea.
 var IdeaJSONKeys = []string{"id", "text", "type", "context", "created_at", "status", "spec_name"}
