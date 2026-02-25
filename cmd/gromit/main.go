@@ -88,7 +88,10 @@ Each iteration:
 3. Invokes the selected provider with a fresh context
 4. Runs validation (optional)
 5. Closes the bead on success
-6. Escalates to a stronger model on failure`,
+6. Escalates to a stronger model on failure
+
+Press Ctrl+C once to stop after the current iteration (press again to force stop).
+`,
 	RunE: runLoop,
 }
 
