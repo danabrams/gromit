@@ -66,24 +66,14 @@ func TestCodexProviderStreamRunWithJSONFlag(t *testing.T) {
 // TestCodexProviderStreamRunNilHandlerStillUsesJSONFlag verifies that StreamRun()
 // still adds --json when EventHandler is nil, so usage/cost events are available.
 func TestCodexProviderStreamRunNilHandlerStillUsesJSONFlag(t *testing.T) {
-	tempDir := t.TempDir()
-
-	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := `#!/bin/bash
-echo "ARGS: $@"
-exit 0
-`
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+	callLog := setupCodexStreamingFixtureEnv(t, "codex_stream_json_flag.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
+	cp := NewCodexProvider(fakeCodexBinaryPath(t), []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
 
-	// EventHandler is nil, but --json is still required for usage/cost extraction.
 	result, err := cp.StreamRun(ctx, "test prompt", TierMedium, &output, nil, nil)
 
 	if err != nil {
@@ -94,10 +84,16 @@ exit 0
 		t.Fatal("StreamRun() returned nil result")
 	}
 
-	// Verify that --json flag is still passed when handler is nil.
-	outputStr := result.Output + output.String()
-	if !strings.Contains(outputStr, "--json") {
-		t.Errorf("StreamRun() with nil EventHandler should pass --json flag for usage/cost tracking, output: %s", outputStr)
+	callLogData, err := os.ReadFile(callLog)
+	if err != nil {
+		t.Fatalf("reading codex call log: %v", err)
+	}
+	if !strings.Contains(string(callLogData), "--json") {
+		t.Errorf("StreamRun() with nil handler should still request --json mode, log: %s", strings.TrimSpace(string(callLogData)))
+	}
+
+	if result.InputTokens == 0 || result.OutputTokens == 0 {
+		t.Errorf("expected StreamRun() to capture usage tokens, got %#v", result)
 	}
 }
 
