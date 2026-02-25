@@ -53,3 +53,8 @@ func NewManager(experiments []*Experiment, stateDir string) *Manager {
 	}
 	return mgr
 }
+
+// ExperimentForPhase returns the experiment for a given phase, or nil if none exists.
+func (m *Manager) ExperimentForPhase(phase string) *Experiment {
+	return m.experimentsByPhase[phase]
+}
