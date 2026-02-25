@@ -402,8 +402,8 @@ paths:
 		t.Fatalf("Failed to write gromit.yaml: %v", err)
 	}
 
-	// Run one dry-run iteration so we exercise: bd ready -> bd show.
-	stdout, stderr, exitCode, err := runGromitWithEnv(env, "run", "-n", "1", "--dry-run")
+	// Run triage to exercise bd show (triage fetches detailed bead info with bd show).
+	stdout, stderr, exitCode, err := runGromitWithStdin(env, "k\n", "triage")
 	if err != nil {
 		t.Fatalf("Failed to run gromit: %v", err)
 	}
@@ -449,7 +449,7 @@ paths:
 		t.Errorf("Expected bd ready to happen before bd show. Calls: %v", calls)
 	}
 
-	// Verify dry-run output references the selected bead.
+	// Verify triage output references the selected bead.
 	if !strings.Contains(stdout, "test-bead-1") {
 		t.Errorf("Expected stdout to contain bead ID 'test-bead-1', got: %s", stdout)
 	}
