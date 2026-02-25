@@ -1,6 +1,9 @@
 package prompt
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -258,5 +261,47 @@ func TestExtractScopedPackagePathsFromText_IgnoresInvalidOrIncompleteCandidates(
 	got := extractScopedPackagePathsFromText(spec, "", "")
 	if len(got) != 0 {
 		t.Fatalf("expected no extracted paths, got %#v", got)
+	}
+}
+
+func TestReadPackageSynopsis_PrioritizesDocGoEvenWhenOtherFilesAreLexicographicallyFirst(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a file that comes before doc.go alphabetically
+	abPath := filepath.Join(tmpDir, "abc.go")
+	if err := os.WriteFile(abPath, []byte(`// This is a misleading comment from abc.go that should be ignored.
+package test
+`), 0644); err != nil {
+		t.Fatalf("writing abc.go: %v", err)
+	}
+
+	// Create doc.go with the correct synopsis
+	docGoPath := filepath.Join(tmpDir, "doc.go")
+	if err := os.WriteFile(docGoPath, []byte(`// Package test provides core functionality with extra details.
+package test
+`), 0644); err != nil {
+		t.Fatalf("writing doc.go: %v", err)
+	}
+
+	parsed, err := parser.ParseDir(token.NewFileSet(), tmpDir, func(info os.FileInfo) bool {
+		return strings.HasSuffix(info.Name(), ".go") && !strings.HasSuffix(info.Name(), "_test.go")
+	}, parser.ParseComments)
+	if err != nil {
+		t.Fatalf("parsing directory: %v", err)
+	}
+	if len(parsed) == 0 {
+		t.Fatal("expected parsed packages")
+	}
+
+	var pkg *ast.Package
+	for _, p := range parsed {
+		pkg = p
+		break
+	}
+
+	synopsis := readPackageSynopsis(pkg)
+	want := "Package test provides core functionality with extra details."
+	if synopsis != want {
+		t.Fatalf("unexpected synopsis:\nwant: %q\n got: %q (doc.go should be prioritized over abc.go)", want, synopsis)
 	}
 }
