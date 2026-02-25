@@ -1883,3 +1883,59 @@ func TestDecomposerAdapter_Decompose_RetryAfterPartialStateDeduplicatesSuccessfu
 		t.Fatalf("closeCalls = %d, want %d (parent should close on successful retry)", closeCalls, closesBeforeSecondAttempt+1)
 	}
 }
+
+// TestDecomposerAdapter_Decompose_FullySuccessfulPathReturnsNil verifies that
+// when all child beads are created successfully, decomposerAdapter.Decompose
+// returns nil and closes the parent bead as expected.
+func TestDecomposerAdapter_Decompose_FullySuccessfulPathReturnsNil(t *testing.T) {
+	stub := &stubRunProvider{
+		name: "test-provider",
+		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
+			return &provider.Result{
+				Success: true,
+				Output:  `[{"title":"Part 1","expected_outputs":["f1"]},{"title":"Part 2","expected_outputs":["f2"]}]`,
+			}, nil
+		},
+	}
+	router := provider.NewSingleProviderRouter(stub)
+	client, err := bead.NewClient()
+	if err != nil {
+		t.Fatalf("bead.NewClient: %v", err)
+	}
+
+	createCalls := 0
+	closeCalls := 0
+	client.RunFn = func(args ...string) (string, error) {
+		if len(args) == 0 {
+			return "", nil
+		}
+		switch args[0] {
+		case "create":
+			createCalls++
+			return `{"id":"child-1","title":"part","status":"open"}`, nil
+		case "close":
+			closeCalls++
+		}
+		return "", nil
+	}
+
+	adapter := &decomposerAdapter{beads: client, router: router}
+	parent := &bead.Bead{
+		ID:       "parent-1",
+		Title:    "Oversized Feature",
+		Priority: 1,
+	}
+
+	err = adapter.Decompose(context.Background(), parent)
+	if err != nil {
+		t.Fatalf("Decompose returned error %v, want nil for fully successful decomposition", err)
+	}
+
+	if createCalls != 2 {
+		t.Fatalf("createCalls = %d, want 2", createCalls)
+	}
+
+	if closeCalls != 1 {
+		t.Fatalf("closeCalls = %d, want 1 (parent should be closed)", closeCalls)
+	}
+}
