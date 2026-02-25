@@ -841,7 +841,19 @@ func TestBenchmarkReportInput_PreservesInternalReportMarkdownSections(t *testing
 		},
 	}
 	opts := benchmarkRunOptions{OutputTimestamp: "20260223T120000Z"}
-	input := buildBenchmarkReportInput(manifest, result, metrics, opts)
+	// Use the internal BuildReportInput exclusively - this is the single source of truth for report input
+	input := benchpkg.BuildReportInput(
+		manifest.ID,
+		result.BaseCommit,
+		result.SelectedBeads,
+		manifest.Provider,
+		manifest.ModelFamily,
+		manifest.LowTierModel,
+		manifest.MediumTierModel,
+		manifest.HighTierModel,
+		metrics.ModeSummaries,
+		opts.OutputTimestamp,
+	)
 
 	if _, err := benchpkg.WriteReport(input); err != nil {
 		t.Fatalf("benchpkg.WriteReport() error = %v", err)
