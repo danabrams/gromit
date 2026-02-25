@@ -20,6 +20,10 @@ func ApplyCodexFailEnv(env []string, exitCode string) []string {
 	return codexTestEnvWithFailureExitCode(env, exitCode)
 }
 
+func ApplyCodexDelayEnv(env []string, delay string) []string {
+	return codexTestEnvWithDelay(env, delay)
+}
+
 func FilterToolCalls(env *testEnv, tool ToolCallKind) ([]string, error) {
 	prefix, err := toolCallPrefix(tool)
 	if err != nil {

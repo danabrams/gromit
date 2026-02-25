@@ -25,6 +25,10 @@ func codexTestEnvWithFailureExitCode(baseEnv []string, exitCode string) []string
 	return testutil.ReplaceOrAppend(append([]string{}, baseEnv...), codexFailureExitCodeEnvVar, exitCode)
 }
 
+func codexTestEnvWithDelay(baseEnv []string, delay string) []string {
+	return testutil.ReplaceOrAppend(append([]string{}, baseEnv...), codexDelayEnvVar, delay)
+}
+
 func newCodexFakeCommand(testDir string, env []string, args ...string) *exec.Cmd {
 	cmd := exec.Command(filepath.Join(fakesDir, "codex"), args...)
 	cmd.Dir = testDir
