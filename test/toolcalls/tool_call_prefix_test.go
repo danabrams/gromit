@@ -24,13 +24,11 @@ func TestToolCallPrefixMapping(t *testing.T) {
 	}
 }
 
-func TestToolCallPrefixMapExported(t *testing.T) {
-	if ToolCallPrefixMap == nil {
-		t.Fatal("ToolCallPrefixMap is nil")
-	}
+func TestToolCallPrefixesContainsExpectedEntries(t *testing.T) {
+	prefixes := ToolCallPrefixes()
 
-	if len(ToolCallPrefixMap) != 3 {
-		t.Fatalf("expected 3 entries in ToolCallPrefixMap, got %d", len(ToolCallPrefixMap))
+	if len(prefixes) != 3 {
+		t.Fatalf("expected 3 entries in ToolCallPrefixes, got %d", len(prefixes))
 	}
 
 	cases := map[ToolCallKind]string{
@@ -40,12 +38,12 @@ func TestToolCallPrefixMapExported(t *testing.T) {
 	}
 
 	for kind, expected := range cases {
-		prefix, ok := ToolCallPrefixMap[kind]
+		prefix, ok := prefixes[kind]
 		if !ok {
-			t.Fatalf("ToolCallPrefixMap does not contain %q", kind)
+			t.Fatalf("ToolCallPrefixes does not contain %q", kind)
 		}
 		if prefix != expected {
-			t.Fatalf("ToolCallPrefixMap[%q] = %q, want %q", kind, prefix, expected)
+			t.Fatalf("ToolCallPrefixes[%q] = %q, want %q", kind, prefix, expected)
 		}
 	}
 }

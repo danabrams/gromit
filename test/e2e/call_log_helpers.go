@@ -22,7 +22,9 @@ const (
 
 const codexFixtureEnvVar = "CODEX_FIXTURE"
 
-var E2EToolCallPrefixMap = toolcalls.ToolCallPrefixMap
+func E2EToolCallPrefixes() map[ToolCallKind]string {
+	return toolcalls.ToolCallPrefixes()
+}
 
 func ApplyCodexFixtureEnvE2E(env []string, fixtureFile string) []string {
 	fixtureValue := fixtureFile

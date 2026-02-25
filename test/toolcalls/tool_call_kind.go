@@ -10,14 +10,11 @@ const (
 	ToolCallBD     ToolCallKind = "bd"
 )
 
-var ToolCallPrefixMap = map[ToolCallKind]string{
+var toolCallPrefixes = map[ToolCallKind]string{
 	ToolCallCodex:  "codex",
 	ToolCallClaude: "claude",
 	ToolCallBD:     "bd",
 }
-
-// toolCallPrefixes is kept for backward compatibility with ToolCallPrefix function
-var toolCallPrefixes = ToolCallPrefixMap
 
 func ToolCallPrefix(kind ToolCallKind) (string, error) {
 	prefix, ok := toolCallPrefixes[kind]
@@ -25,4 +22,13 @@ func ToolCallPrefix(kind ToolCallKind) (string, error) {
 		return "", fmt.Errorf("unknown tool call kind: %q", kind)
 	}
 	return prefix, nil
+}
+
+// ToolCallPrefixes returns a copy of the configured tool prefixes.
+func ToolCallPrefixes() map[ToolCallKind]string {
+	prefixes := make(map[ToolCallKind]string, len(toolCallPrefixes))
+	for kind, prefix := range toolCallPrefixes {
+		prefixes[kind] = prefix
+	}
+	return prefixes
 }
