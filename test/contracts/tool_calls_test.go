@@ -62,6 +62,24 @@ func TestApplyCodexFailEnv(t *testing.T) {
 	}
 }
 
+func TestApplyCodexDelayEnv(t *testing.T) {
+	const delay = "5s"
+
+	env := []string{"PATH=/tmp/bin", "HOME=/tmp/home"}
+	got := ApplyCodexDelayEnv(env, delay)
+
+	found := false
+	for _, v := range got {
+		if v == codexDelayEnvVar+"="+delay {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("%s was not set to %q in env: %v", codexDelayEnvVar, delay, got)
+	}
+}
+
 func TestFilterToolCalls_UnknownKind(t *testing.T) {
 	env := setupTestEnv(t)
 	_, err := FilterToolCalls(env, ToolCallKind("unknown"))
