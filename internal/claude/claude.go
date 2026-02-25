@@ -435,13 +435,6 @@ func (m *startupMonitor) Read(p []byte) (int, error) {
 	return m.reader.Read(p)
 }
 
-// processStreamJSON reads stream-json lines, calls the handler for each,
-// extracts the final result text, and invokes onToolCall for tool events.
-func (c *Client) processStreamJSON(stdout io.Reader, output io.Writer, handler EventHandler, onToolCall ToolCallHandler) string {
-	resultText, _, _, _ := c.processStreamJSONWithCost(stdout, output, handler, onToolCall)
-	return resultText
-}
-
 // processStreamJSONWithCost reads stream-json lines, calls the handler for each,
 // extracts the final result text, cost, and token data from result events.
 // Handler and onToolCall may be nil.
