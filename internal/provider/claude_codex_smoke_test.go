@@ -110,6 +110,40 @@ func TestCodexNonStreamSuccess(t *testing.T) {
 	}
 }
 
+// TestCodexStreamSuccess exercises the Codex provider with a real CLI
+// invocation in stream mode when CODEX_SMOKE=1.
+func TestCodexStreamSuccess(t *testing.T) {
+	if os.Getenv("CODEX_SMOKE") != "1" {
+		t.Skip("CODEX_SMOKE=1 not set")
+	}
+
+	cp := GetCodexProvider(t)
+
+	ctx := context.Background()
+	var eventCount int
+	handler := func(line []byte) {
+		eventCount++
+	}
+
+	result, err := cp.StreamRun(ctx, "Say 'hello' in exactly 1 word.", TierMedium, nil, handler, nil)
+
+	if err != nil {
+		t.Fatalf("StreamRun() error = %v, want nil", err)
+	}
+
+	if result == nil {
+		t.Fatal("StreamRun() returned nil result")
+	}
+
+	if !result.Success {
+		t.Errorf("StreamRun() Success = %v, want true", result.Success)
+	}
+
+	if result.Output == "" {
+		t.Error("StreamRun() Output is empty")
+	}
+}
+
 // GetClaudeClient creates a real Claude CLI client for smoke tests.
 func GetClaudeClient(t *testing.T) *claude.Client {
 	t.Helper()
