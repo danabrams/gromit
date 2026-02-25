@@ -113,3 +113,28 @@ variants:
 		t.Fatal("expected error for missing control, got nil")
 	}
 }
+
+func TestLoadExperimentsRejectsDuplicateVariantIDs(t *testing.T) {
+	dir := t.TempDir()
+	expPath := filepath.Join(dir, "exp.yaml")
+	expYAML := `id: exp-4
+phase: build
+description: duplicate ids
+created: 2026-02-24T00:00:00Z
+control:
+  id: variant-1
+  template: PROMPT_build.md
+variants:
+  - id: variant-1
+    template: PROMPT_build.md
+`
+
+	if err := os.WriteFile(expPath, []byte(expYAML), 0o644); err != nil {
+		t.Fatalf("failed to write experiment file: %v", err)
+	}
+
+	_, err := LoadExperiments(dir)
+	if err == nil {
+		t.Fatal("expected error for duplicate variant IDs, got nil")
+	}
+}
