@@ -43,6 +43,43 @@ func TestClaudeNonStreamSuccess(t *testing.T) {
 	}
 }
 
+// TestClaudeStreamSuccess exercises the Claude provider with a real CLI
+// invocation in stream mode when CLAUDE_SMOKE=1.
+func TestClaudeStreamSuccess(t *testing.T) {
+	if os.Getenv("CLAUDE_SMOKE") != "1" {
+		t.Skip("CLAUDE_SMOKE=1 not set")
+	}
+
+	client := GetClaudeClient(t)
+	cp := NewClaudeProvider(client, map[string]string{
+		TierLow: "haiku",
+	})
+
+	ctx := context.Background()
+	var eventCount int
+	handler := func(line []byte) {
+		eventCount++
+	}
+
+	result, err := cp.StreamRun(ctx, "Say 'hello' in exactly 1 word.", TierLow, nil, handler, nil)
+
+	if err != nil {
+		t.Fatalf("StreamRun() error = %v, want nil", err)
+	}
+
+	if result == nil {
+		t.Fatal("StreamRun() returned nil result")
+	}
+
+	if !result.Success {
+		t.Errorf("StreamRun() Success = %v, want true", result.Success)
+	}
+
+	if result.Output == "" {
+		t.Error("StreamRun() Output is empty")
+	}
+}
+
 // GetClaudeClient creates a real Claude CLI client for smoke tests.
 func GetClaudeClient(t *testing.T) *claude.Client {
 	t.Helper()
