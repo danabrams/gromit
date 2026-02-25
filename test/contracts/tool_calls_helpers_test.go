@@ -16,6 +16,10 @@ func ApplyCodexFixtureEnv(env []string, fixtureFile string) []string {
 	return codexTestEnvWithFixture(env, fixtureFile)
 }
 
+func ApplyCodexFailEnv(env []string, exitCode string) []string {
+	return codexTestEnvWithFailureExitCode(env, exitCode)
+}
+
 func FilterToolCalls(env *testEnv, tool ToolCallKind) ([]string, error) {
 	prefix, err := toolCallPrefix(tool)
 	if err != nil {
