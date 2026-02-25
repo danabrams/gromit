@@ -1,6 +1,7 @@
 package toolcalls
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -104,5 +105,32 @@ func TestApplyCodexFixtureEnv_ReplacesExistingValue(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("expected exactly 1 CODEX_FIXTURE in env, got %d", count)
+	}
+}
+
+func TestApplyCodexFixtureEnv_NormalizesRelativePaths(t *testing.T) {
+	relFixture := filepath.Join("..", "fixtures", "codex_success.txt")
+	absFixture, err := filepath.Abs(relFixture)
+	if err != nil {
+		t.Fatalf("failed to resolve absolute path for %s: %v", relFixture, err)
+	}
+
+	baseEnv := []string{"PATH=/tmp/bin", "CODEX_FIXTURE=/old/path"}
+	updatedEnv := ApplyCodexFixtureEnv(baseEnv, relFixture)
+
+	var gotFixture string
+	for _, entry := range updatedEnv {
+		if strings.HasPrefix(entry, "CODEX_FIXTURE=") {
+			gotFixture = strings.TrimPrefix(entry, "CODEX_FIXTURE=")
+			break
+		}
+	}
+
+	if gotFixture != absFixture {
+		t.Fatalf("CODEX_FIXTURE = %q, want %q", gotFixture, absFixture)
+	}
+
+	if baseEnv[1] != "CODEX_FIXTURE=/old/path" {
+		t.Fatalf("ApplyCodexFixtureEnv mutated original env: got %v", baseEnv)
 	}
 }
