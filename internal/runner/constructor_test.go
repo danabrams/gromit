@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/pipeline/prepare"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/escalation"
 	"github.com/danabrams/gromit/internal/validate"
 )
 
@@ -1697,4 +1699,62 @@ variants:
 	// The experiment manager should be accessible (we'll test this in phase 3)
 	// For now, we're just verifying that newRunnerImpl completes successfully
 	// with experiments enabled
+}
+
+// TestDecomposerAdapter_Decompose_DetectsPartialDecompositionState verifies that
+// decomposerAdapter.Decompose returns ErrPartialDecompositionState when some child
+// beads are created successfully but a subsequent child bead creation fails.
+func TestDecomposerAdapter_Decompose_DetectsPartialDecompositionState(t *testing.T) {
+	stub := &stubRunProvider{
+		name: "test-provider",
+		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
+			return &provider.Result{
+				Success: true,
+				Output:  `[{"title":"Part 1","expected_outputs":["f1"]},{"title":"Part 2","expected_outputs":["f2"]}]`,
+			}, nil
+		},
+	}
+	router := provider.NewSingleProviderRouter(stub)
+	client, err := bead.NewClient()
+	if err != nil {
+		t.Fatalf("bead.NewClient: %v", err)
+	}
+
+	createCallCount := 0
+	client.RunFn = func(args ...string) (string, error) {
+		if len(args) == 0 {
+			return "", nil
+		}
+		switch args[0] {
+		case "create":
+			createCallCount++
+			// First child succeeds, second child fails
+			if createCallCount == 1 {
+				return `{"id":"child-1","title":"part 1","status":"open"}`, nil
+			}
+			if createCallCount == 2 {
+				return "", os.ErrPermission
+			}
+		case "close":
+			// Should not be called on partial decomposition failure
+		}
+		return "", nil
+	}
+
+	adapter := &decomposerAdapter{beads: client, router: router}
+	parent := &bead.Bead{
+		ID:       "parent-1",
+		Title:    "Oversized Feature",
+		Priority: 1,
+	}
+
+	err = adapter.Decompose(context.Background(), parent)
+	if err == nil {
+		t.Fatal("Decompose returned nil, want error for partial decomposition")
+	}
+
+	// Must return ErrPartialDecompositionState, not the original create error
+	if !errors.Is(err, escalation.ErrPartialDecompositionState) {
+		t.Fatalf("Decompose returned %v, want ErrPartialDecompositionState", err)
+	}
 }

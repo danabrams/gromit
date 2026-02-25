@@ -17,6 +17,7 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/escalation"
 	"github.com/danabrams/gromit/internal/runner/execution"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/specgate"
@@ -557,6 +558,7 @@ func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 	}
 
 	labels := a.resolveInheritedLabels(b)
+	successfullyCreatedCount := 0
 	for _, sb := range subBeads {
 		dedupeLabel := scopeGateChildDedupeLabel(b.ID, sb)
 		if a.hasCreatedChildKey(b.ID, dedupeLabel) {
@@ -573,9 +575,14 @@ func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 
 		childLabels := append(append([]string(nil), labels...), dedupeLabel)
 		if _, err := a.beads.CreateWithParent(sb.Title, b.Priority, childLabels, sb.ExpectedOutputs, b.ID); err != nil {
+			// If we've already created some children and now one fails, this is a partial state
+			if successfullyCreatedCount > 0 {
+				return fmt.Errorf("decomposerAdapter: partial decomposition state: %w", escalation.ErrPartialDecompositionState)
+			}
 			return fmt.Errorf("decomposerAdapter: creating child bead %q: %w", sb.Title, err)
 		}
 		a.rememberCreatedChildKey(b.ID, dedupeLabel)
+		successfullyCreatedCount++
 	}
 
 	if err := a.beads.Close(b.ID); err != nil {
