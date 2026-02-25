@@ -41,18 +41,19 @@ type DataQualityBlocker interface {
 }
 
 // Gate implements pipeline.Stage for Stage 1: gate decisions.
-// It runs precheck, stuck-bead detection, scope gate, and proactive decomposition
+// It runs precheck, stuck-bead detection, and scope gate
 // before any LLM build invocation.
 // If precheck passes (work already done), returns Skip.
 // If stuck (failure threshold exceeded), returns Block.
 // If scope too large (expected outputs > maxScopeFiles), returns Block.
-// If proactive decomposition candidate (keyword title, no parent), decomposes and returns Skip.
+// Keyword-based proactive decomposition is intentionally disabled to avoid
+// decomposition loops from title/description heuristics.
 // If data quality blocked, returns Block.
 // Otherwise returns Proceed.
 type Gate struct {
 	precheck          Prechecker        // optional; nil means skip precheck
 	stuck             StuckDetector     // optional; nil means skip stuck detection
-	decomposer        Decomposer        // optional; nil means skip proactive decomposition
+	decomposer        Decomposer        // optional; used only by scope-gate decomposition
 	dataQualityChecker DataQualityBlocker // optional; nil means skip data quality checks
 	output            io.Writer
 }
@@ -78,7 +79,7 @@ func (g *Gate) WithStuckDetector(s StuckDetector) *Gate {
 	return g
 }
 
-// WithDecomposer configures an optional Decomposer for proactive decomposition of oversized beads.
+// WithDecomposer configures an optional Decomposer for scope-gate decomposition of oversized beads.
 func (g *Gate) WithDecomposer(d Decomposer) *Gate {
 	g.decomposer = d
 	return g
@@ -97,7 +98,7 @@ func (g *Gate) HasDecomposer() bool {
 
 // Run executes the gate stage.
 // It runs precheck (Skip if work already done), stuck detection (Block if threshold exceeded),
-// scope gate (Block if file count too large), proactive decomposition (Skip if keyword candidate),
+// and scope gate (Block/Skip based on oversized decomposition outcome),
 // and returns Proceed otherwise.
 func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
 	if in.Bead == nil {
@@ -160,15 +161,6 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 	if scopeGateDecision != nil {
 		scopeGateDecision.ComplexityRouting = complexityRouting
 		return *scopeGateDecision, nil
-	}
-
-	// Proactive decomposition: skip beads whose title contains broad-scope keywords.
-	// Only applies to root beads (no parent) to prevent decompose loops.
-	if g.runProactiveDecomposition(ctx, in.Bead, out) {
-		return pipeline.Output{
-			Decision:          pipeline.Skip,
-			ComplexityRouting: complexityRouting,
-		}, nil
 	}
 
 	return pipeline.Output{
@@ -241,8 +233,8 @@ func (g *Gate) runScopeGate(ctx context.Context, in pipeline.Input, out io.Write
 	}
 
 	// Bead exceeds scope limit. Try decomposition if available.
-	// Unlike proactive (keyword) decomposition, scope-based decomposition applies to
-	// child beads too: the finite expected-outputs count bounds recursion depth naturally.
+	// Scope-based decomposition applies to child beads too: the finite
+	// expected-outputs count bounds recursion depth naturally.
 	if g.decomposer != nil {
 		fmt.Fprintf(out, "Scope gate: bead %s has %d expected outputs (max %d), attempting decomposition\n",
 			in.Bead.ID, fileCount, maxScopeFiles)
@@ -258,23 +250,4 @@ func (g *Gate) runScopeGate(ctx context.Context, in pipeline.Input, out io.Write
 	fmt.Fprintf(out, "Scope gate: bead %s has %d expected outputs (max %d), blocking\n",
 		in.Bead.ID, fileCount, maxScopeFiles)
 	return &pipeline.Output{Decision: pipeline.Block}, nil
-}
-
-// runProactiveDecomposition attempts keyword-based decomposition on root beads.
-// Returns true if decomposition succeeded; false otherwise.
-func (g *Gate) runProactiveDecomposition(ctx context.Context, b *bead.Bead, out io.Writer) bool {
-	if g.decomposer == nil || b.Parent != "" {
-		return false
-	}
-
-	if !bead.IsProactiveDecompositionCandidateWithDesc(b.Title, b.Description) {
-		return false
-	}
-
-	if err := g.decomposer.Decompose(ctx, b); err != nil {
-		fmt.Fprintf(out, "Warning: proactive decomposition failed for bead %s: %v\n", b.ID, err)
-		return false
-	}
-
-	return true
 }

@@ -241,46 +241,30 @@ func TestGateRunScopeGate(t *testing.T) {
 	}
 }
 
-func TestGateRunProactiveDecomposition(t *testing.T) {
+func TestGateRunDoesNotProactivelyDecomposeFromKeywords(t *testing.T) {
 	tests := []struct {
 		name         string
 		title        string
 		parent       string
-		decomposeErr error
 		wantDecision pipeline.Decision
-		wantCalled   bool
 	}{
 		{
-			name:         "skip keyword candidate bead with no parent",
+			name:         "proceed keyword candidate bead with no parent",
 			title:        "Refactor config loading to use interfaces",
 			parent:       "",
-			decomposeErr: nil,
-			wantDecision: pipeline.Skip,
-			wantCalled:   true,
+			wantDecision: pipeline.Proceed,
 		},
 		{
 			name:         "proceed keyword candidate bead with parent (child bead)",
 			title:        "Refactor config validation helpers",
 			parent:       "parent-1",
-			decomposeErr: nil,
 			wantDecision: pipeline.Proceed,
-			wantCalled:   false,
 		},
 		{
 			name:         "proceed non-keyword bead",
 			title:        "Add retry count to iteration log",
 			parent:       "",
-			decomposeErr: nil,
 			wantDecision: pipeline.Proceed,
-			wantCalled:   false,
-		},
-		{
-			name:         "proceed when decompose fails (non-blocking)",
-			title:        "Refactor config loading",
-			parent:       "",
-			decomposeErr: errors.New("decompose failed"),
-			wantDecision: pipeline.Proceed,
-			wantCalled:   true,
 		},
 	}
 
@@ -291,7 +275,7 @@ func TestGateRunProactiveDecomposition(t *testing.T) {
 				Title:  tt.title,
 				Parent: tt.parent,
 			}
-			d := &fakeDecomposer{err: tt.decomposeErr}
+			d := &fakeDecomposer{}
 			gate := New(io.Discard).WithDecomposer(d)
 			in := pipeline.Input{Bead: b}
 			out, err := gate.Run(context.Background(), in)
@@ -301,8 +285,8 @@ func TestGateRunProactiveDecomposition(t *testing.T) {
 			if out.Decision != tt.wantDecision {
 				t.Errorf("decision = %v, want %v", out.Decision, tt.wantDecision)
 			}
-			if d.called != tt.wantCalled {
-				t.Errorf("decomposer called = %v, want %v", d.called, tt.wantCalled)
+			if d.called {
+				t.Errorf("decomposer called = true, want false (keyword-based proactive decomposition disabled)")
 			}
 		})
 	}
