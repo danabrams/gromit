@@ -300,7 +300,14 @@ func formatSPCSummary(trend *logger.ProcessTrend) string {
 	for _, cl := range trend.ControlLimits {
 		limitsByMetric[cl.Metric] = cl
 	}
-	for _, dm := range displayMetrics {
+	sortedMetrics := append([]struct {
+		metric string
+		label  string
+	}{}, displayMetrics...)
+	sort.Slice(sortedMetrics, func(i, j int) bool {
+		return sortedMetrics[i].label < sortedMetrics[j].label
+	})
+	for _, dm := range sortedMetrics {
 		cl, ok := limitsByMetric[dm.metric]
 		if !ok {
 			continue
