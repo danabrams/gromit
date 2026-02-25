@@ -591,6 +591,22 @@ func TestLoadAndDefaults(t *testing.T) {
 	}
 }
 
+func TestExperimentDefaults(t *testing.T) {
+	cfg := &Config{}
+	cfg.SetDefaults()
+
+	if cfg.Experiment.MinSampleSize != 20 {
+		t.Fatalf("expected Experiment.MinSampleSize=20, got %d", cfg.Experiment.MinSampleSize)
+	}
+	if cfg.Experiment.ConfidenceThreshold != 0.95 {
+		t.Fatalf("expected Experiment.ConfidenceThreshold=0.95, got %f", cfg.Experiment.ConfidenceThreshold)
+	}
+	expectedDir := filepath.Join(cfg.Paths.GromitDir, "experiments")
+	if cfg.Experiment.ExperimentsDir != expectedDir {
+		t.Fatalf("expected Experiment.ExperimentsDir=%q, got %q", expectedDir, cfg.Experiment.ExperimentsDir)
+	}
+}
+
 func TestStallTimeoutDefault(t *testing.T) {
 	cfg := &Config{}
 	cfg.SetDefaults()
