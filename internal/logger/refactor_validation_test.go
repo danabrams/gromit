@@ -2,9 +2,13 @@ package logger
 
 import (
 	"bufio"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"testing"
 )
 
@@ -57,20 +61,49 @@ func TestRefactorValidation_ProcessTrendPublicSurface(t *testing.T) {
 		"ReadProcessTrend",
 	}
 
-	// Verify all required types exist and are exported
-	for _, typeName := range requiredTypes {
-		// Check that type starts with uppercase (exported)
-		if len(typeName) == 0 || typeName[0] < 'A' || typeName[0] > 'Z' {
-			t.Errorf("type %s is not exported (doesn't start with uppercase)", typeName)
+	_, currentFile, _, _ := runtime.Caller(0)
+	loggerDir := filepath.Dir(currentFile)
+	processTrendPath := filepath.Join(loggerDir, "process_trend.go")
+
+	fset := token.NewFileSet()
+	parsed, err := parser.ParseFile(fset, processTrendPath, nil, 0)
+	if err != nil {
+		t.Fatalf("failed to parse %s: %v", processTrendPath, err)
+	}
+
+	actualTypes := make([]string, 0, len(requiredTypes))
+	actualFunctions := make([]string, 0, len(requiredFunctions))
+	for _, decl := range parsed.Decls {
+		switch d := decl.(type) {
+		case *ast.GenDecl:
+			if d.Tok != token.TYPE {
+				continue
+			}
+			for _, spec := range d.Specs {
+				typeSpec, ok := spec.(*ast.TypeSpec)
+				if !ok || !typeSpec.Name.IsExported() {
+					continue
+				}
+				actualTypes = append(actualTypes, typeSpec.Name.Name)
+			}
+		case *ast.FuncDecl:
+			if d.Recv != nil || !d.Name.IsExported() {
+				continue
+			}
+			actualFunctions = append(actualFunctions, d.Name.Name)
 		}
 	}
 
-	// Verify all required functions exist and are exported
-	for _, funcName := range requiredFunctions {
-		// Check that function starts with uppercase (exported)
-		if len(funcName) == 0 || funcName[0] < 'A' || funcName[0] > 'Z' {
-			t.Errorf("function %s is not exported (doesn't start with uppercase)", funcName)
-		}
+	slices.Sort(actualTypes)
+	slices.Sort(actualFunctions)
+	slices.Sort(requiredTypes)
+	slices.Sort(requiredFunctions)
+
+	if !slices.Equal(requiredTypes, actualTypes) {
+		t.Errorf("exported types in process_trend.go mismatch: got %v want %v", actualTypes, requiredTypes)
+	}
+	if !slices.Equal(requiredFunctions, actualFunctions) {
+		t.Errorf("exported functions in process_trend.go mismatch: got %v want %v", actualFunctions, requiredFunctions)
 	}
 }
 

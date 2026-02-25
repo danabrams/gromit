@@ -66,6 +66,16 @@ Post-run efficiency completeness checks should diagnose both missing efficiency 
 
 When tracking last-review commit, prefer workspace-local interactive state as the authoritative value and use git tags only as repo-scoped fallback history markers to avoid stale cross-worktree state bleed.
 
+### 2026-02-25 | process_trend_split_should_keep_same_package_boundaries | ARCHITECTURE
+*Related to: gromit/review-1772062103155608386*
+
+Large internal metrics modules can be split safely by responsibility (orchestration, builders, SPC, analytics) inside the same package to reduce file size without changing API surfaces or coupling.
+
+### 2026-02-25 | refactor_guardrail_tests_should_validate_structure_directly | TEST_QUALITY
+*Related to: gromit/review-1772062103155608386*
+
+Refactor guardrail tests should parse and validate actual declarations (for example via AST) rather than rely on naming heuristics that can pass even when required exported surface drifts.
+
 ## Provisional Learnings
 
 ## Archived Learnings
