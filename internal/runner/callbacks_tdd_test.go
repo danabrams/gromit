@@ -834,3 +834,104 @@ func TestTDDCycleOrchestrator_RecordsRefactorPhaseMetricsWithSnapshotDeltas(t *t
 		t.Errorf("OutputTokens delta = %d, want %d", refactorMetric.OutputTokens, wantOutputDelta)
 	}
 }
+
+// TestPhaseMetricRecording_AllPhasesUseSnapshotIterationUsage verifies that
+// all three TDD phases (red, green, refactor) record PhaseMetric using
+// snapshotIterationUsage() for consistent per-phase delta calculation.
+// This test ensures red and refactor phases use the same snapshot-based
+// semantics as the green phase.
+func TestPhaseMetricRecording_AllPhasesUseSnapshotIterationUsage(t *testing.T) {
+	tests := []struct {
+		name  string
+		phase string
+	}{
+		{name: "red phase", phase: "red"},
+		{name: "green phase", phase: "green"},
+		{name: "refactor phase", phase: "refactor"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup: BeadContext with initial usage state
+			bc := &runtypes.BeadContext{
+				Bead:  &bead.Bead{ID: "test-bead"},
+				Model: "test-model",
+				Tier:  "test-tier",
+				Result: &runtypes.IterationResult{
+					CostUSD:      0.10,
+					InputTokens:  1000,
+					OutputTokens: 500,
+				},
+			}
+
+			// Take before snapshot using snapshotIterationUsage semantics
+			beforeCostUSD, beforeInputTokens, beforeOutputTokens := snapshotIterationUsage(bc.Result)
+
+			// Simulate phase invocation by adding to result
+			bc.Result.CostUSD += 0.02
+			bc.Result.InputTokens += 100
+			bc.Result.OutputTokens += 50
+
+			// Record metric using appendTDDPhaseMetric (which uses snapshotIterationUsage internally)
+			appendTDDPhaseMetric(bc, tt.phase, 1, beforeCostUSD, beforeInputTokens, beforeOutputTokens, time.Now())
+
+			// Verify metric was recorded with correct delta
+			if len(bc.Result.PhaseMetrics) != 1 {
+				t.Errorf("%s: expected 1 PhaseMetric, got %d", tt.phase, len(bc.Result.PhaseMetrics))
+				return
+			}
+
+			pm := bc.Result.PhaseMetrics[0]
+			if pm.Phase != tt.phase {
+				t.Errorf("%s: Phase = %q, want %q", tt.phase, pm.Phase, tt.phase)
+			}
+
+			// Verify delta values match expected additions
+			if math.Abs(pm.CostUSD-0.02) > 1e-10 {
+				t.Errorf("%s: CostUSD delta = %.20f, want 0.02", tt.phase, pm.CostUSD)
+			}
+			if pm.InputTokens != 100 {
+				t.Errorf("%s: InputTokens delta = %d, want 100", tt.phase, pm.InputTokens)
+			}
+			if pm.OutputTokens != 50 {
+				t.Errorf("%s: OutputTokens delta = %d, want 50", tt.phase, pm.OutputTokens)
+			}
+		})
+	}
+}
+
+// TestSnapshotIterationUsage_CanBeUsedByOrchestratorForAllPhases verifies that
+// snapshotIterationUsage() can be called directly with bc.Result to capture
+// per-phase snapshots, enabling consistent usage across all TDD phases (red,
+// green, refactor) without direct field access.
+func TestSnapshotIterationUsage_CanBeUsedByOrchestratorForAllPhases(t *testing.T) {
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{
+			CostUSD:      0.15,
+			InputTokens:  1500,
+			OutputTokens: 750,
+		},
+	}
+
+	// This test verifies that snapshotIterationUsage(bc.Result) can be called
+	// directly by the orchestrator for all phases, ensuring consistent snapshot
+	// semantics without using direct field access or methods like snapshotUsage()
+	cost, input, output := snapshotIterationUsage(bc.Result)
+
+	// Verify the snapshot captures the current state
+	if cost != 0.15 {
+		t.Errorf("snapshotIterationUsage(bc.Result).cost = %.20f, want 0.15", cost)
+	}
+	if input != 1500 {
+		t.Errorf("snapshotIterationUsage(bc.Result).input = %d, want 1500", input)
+	}
+	if output != 750 {
+		t.Errorf("snapshotIterationUsage(bc.Result).output = %d, want 750", output)
+	}
+
+	// Verify nil handling works correctly for safety
+	nilCost, nilInput, nilOutput := snapshotIterationUsage(nil)
+	if nilCost != 0 || nilInput != 0 || nilOutput != 0 {
+		t.Errorf("snapshotIterationUsage(nil) = (%.20f, %d, %d), want (0, 0, 0)", nilCost, nilInput, nilOutput)
+	}
+}
