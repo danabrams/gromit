@@ -51,7 +51,7 @@ These are non-negotiable constraints for this project.
 - Keep `internal/runner/` packages independent, expose shared contracts via `runtypes/`, enforce production file limits (≤550 lines, facades ≤1000), and reuse shared state/metrics/persistence paths with parity tests during migrations.
 - Interactive commands keep a single merge/cleanup owner, use typed conflict classifiers, and never abort pre-existing `MERGE_HEAD`; decomposition entry points call the shared validator with all required fields.
 
-## Architecture <!-- phases: build, review -->
+## Architecture <!-- phases: red, build, green, refactor, review -->
 
 - `internal/runner/*/` sub-packages must not import siblings **in production or test files**; cross-cutting types live in `runtypes/`. Parent `runner` package uses type aliases for backward compatibility. Production files: <550 lines; facade files: <1000 lines
 - Interactive commands use the session worktree lifecycle with a single merge/cleanup owner and a typed conflict classifier that evaluates git output + exit status. Do not classify conflicts using message fragments alone. Merge-back cleanup may abort only merge state created by the current operation; pre-existing `MERGE_HEAD` must return a typed non-destructive error.
