@@ -127,6 +127,29 @@ func TestReadE2ECallLog_TrimsWhitespace(t *testing.T) {
 	}
 }
 
+func TestWriteE2ECallLog_WritesLines(t *testing.T) {
+	env := setupE2E(t)
+
+	lines := []string{
+		"bd ready --json --limit 10",
+		"codex run --model sonnet",
+		"claude -p --model sonnet",
+	}
+	if err := writeE2ECallLog(env, lines...); err != nil {
+		t.Fatalf("writeE2ECallLog returned error: %v", err)
+	}
+
+	data, err := os.ReadFile(env.CallLog)
+	if err != nil {
+		t.Fatalf("failed to read call log: %v", err)
+	}
+
+	want := strings.Join(lines, "\n") + "\n"
+	if string(data) != want {
+		t.Fatalf("call log = %q, want %q", string(data), want)
+	}
+}
+
 func filterE2ECalls(env *e2eEnv, prefix string) ([]string, error) {
 	calls, err := readE2ECallLog(env)
 	if err != nil {
@@ -172,4 +195,9 @@ func readE2ECallLog(env *e2eEnv) ([]string, error) {
 	}
 
 	return calls, nil
+}
+
+func writeE2ECallLog(env *e2eEnv, lines ...string) error {
+	callLog := strings.Join(lines, "\n") + "\n"
+	return os.WriteFile(env.CallLog, []byte(callLog), 0644)
 }

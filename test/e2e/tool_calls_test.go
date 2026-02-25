@@ -4,7 +4,6 @@ package e2e
 
 import (
 	"os"
-	"strings"
 	"testing"
 )
 
@@ -29,12 +28,14 @@ func TestFilterE2EToolCalls_Codex(t *testing.T) {
 func TestFilterE2EToolCalls_ByKind(t *testing.T) {
 	env := setupE2E(t)
 
-	writeE2ECallLog(t, env,
+	if err := writeE2ECallLog(env,
 		"bd ready --json --limit 10",
 		"codex run --model sonnet",
 		"claude -p --model sonnet",
 		"codex run --jsonl --model sonnet",
-	)
+	); err != nil {
+		t.Fatalf("failed to write call log: %v", err)
+	}
 
 	cases := []struct {
 		tool ToolCallKind
@@ -53,14 +54,5 @@ func TestFilterE2EToolCalls_ByKind(t *testing.T) {
 		if len(calls) != tc.want {
 			t.Fatalf("expected %d %s calls, got %d (%v)", tc.want, tc.tool, len(calls), calls)
 		}
-	}
-}
-
-func writeE2ECallLog(t *testing.T, env *e2eEnv, lines ...string) {
-	t.Helper()
-
-	callLog := strings.Join(lines, "\n") + "\n"
-	if err := os.WriteFile(env.CallLog, []byte(callLog), 0644); err != nil {
-		t.Fatalf("failed to write call log: %v", err)
 	}
 }
