@@ -55,3 +55,15 @@ func TestVariantReportHasAvgCost(t *testing.T) {
 		t.Fatalf("expected avg cost 0.125, got %f", vr.AvgCost)
 	}
 }
+
+func TestVariantReportHasBanditWeight(t *testing.T) {
+	// Verify that VariantReport has a BanditWeight field
+	vr := &VariantReport{
+		VariantID:    "variant-1",
+		BanditWeight: 0.75,
+	}
+
+	if vr.BanditWeight != 0.75 {
+		t.Fatalf("expected bandit weight 0.75, got %f", vr.BanditWeight)
+	}
+}
