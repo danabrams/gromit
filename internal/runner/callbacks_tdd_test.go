@@ -777,3 +777,60 @@ func TestTDDCycleOrchestrator_RecordsRedPhaseMetricsWithSnapshotDeltas(t *testin
 		t.Errorf("OutputTokens delta = %d, want %d", redMetric.OutputTokens, wantOutputDelta)
 	}
 }
+
+// TestTDDCycleOrchestrator_RecordsRefactorPhaseMetricsWithSnapshotDeltas verifies
+// that refactor phase invocations record PhaseMetric with cost/token deltas computed
+// from before/after snapshots, not raw usage values from the provider response.
+func TestTDDCycleOrchestrator_RecordsRefactorPhaseMetricsWithSnapshotDeltas(t *testing.T) {
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{ID: "b1", Title: "Test"},
+		Tier: "medium",
+		Model: "claude-sonnet",
+		Result: &runtypes.IterationResult{
+			CostUSD:      0.10,   // Starting cost (after red + green)
+			InputTokens:  600,    // Starting tokens
+			OutputTokens: 300,    // Starting tokens
+		},
+	}
+
+	// Simulate refactor phase: capture before snapshot, update result, record metric
+	beforeCostUSD := bc.Result.CostUSD
+	beforeInputTokens := bc.Result.InputTokens
+	beforeOutputTokens := bc.Result.OutputTokens
+
+	// Provider returns additional usage during refactor phase invocation
+	bc.Result.CostUSD += 0.03      // Provider adds cost
+	bc.Result.InputTokens += 200   // Provider adds input tokens
+	bc.Result.OutputTokens += 100  // Provider adds output tokens
+
+	// Record metric with snapshot-based deltas (as would happen in real execution)
+	appendTDDPhaseMetric(bc, "refactor", 1, beforeCostUSD, beforeInputTokens, beforeOutputTokens, time.Now())
+
+	// Verify that refactor phase metrics are recorded with correct deltas
+	if len(bc.Result.PhaseMetrics) != 1 {
+		t.Fatalf("expected 1 recorded metric, got %d", len(bc.Result.PhaseMetrics))
+	}
+
+	refactorMetric := bc.Result.PhaseMetrics[0]
+	if refactorMetric.Phase != "refactor" {
+		t.Errorf("Phase = %q, want %q", refactorMetric.Phase, "refactor")
+	}
+
+	// Verify delta calculation
+	// Before snapshot: Cost=0.10, Input=600, Output=300
+	// After update: Cost=0.13, Input=800, Output=400
+	// Delta: Cost=0.03, Input=200, Output=100
+	wantCostDelta := 0.03
+	wantInputDelta := 200
+	wantOutputDelta := 100
+
+	if math.Abs(refactorMetric.CostUSD-wantCostDelta) > 1e-10 {
+		t.Errorf("CostUSD delta = %.20f, want %.20f", refactorMetric.CostUSD, wantCostDelta)
+	}
+	if refactorMetric.InputTokens != wantInputDelta {
+		t.Errorf("InputTokens delta = %d, want %d", refactorMetric.InputTokens, wantInputDelta)
+	}
+	if refactorMetric.OutputTokens != wantOutputDelta {
+		t.Errorf("OutputTokens delta = %d, want %d", refactorMetric.OutputTokens, wantOutputDelta)
+	}
+}

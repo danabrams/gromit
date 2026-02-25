@@ -247,9 +247,17 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 		return fmt.Errorf("green prompt render: %w", err)
 	}
 
+	// Take snapshot before green phase invocation
+	beforeGreenCostUSD, beforeGreenInputTokens, beforeGreenOutputTokens := o.snapshotUsage(bc)
+	greenStartTime := time.Now()
+
 	if err := o.runGreenPhaseUntilValidated(ctx, bc, state.CycleNumber+1, greenPrompt, state.TouchedFiles); err != nil {
 		return err
 	}
+
+	// Record green phase metrics with snapshot-based deltas
+	o.recordPhaseMetric(bc, "green", state.CycleNumber+1, beforeGreenCostUSD, beforeGreenInputTokens, beforeGreenOutputTokens, greenStartTime)
+
 	o.logPhase(state.CycleNumber+1, "green-pass", "tests passing")
 
 	if err := o.runRefactorAndFinalValidation(ctx, bc, state.CycleNumber+1); err != nil {
@@ -333,6 +341,11 @@ func (o *CycleOrchestrator) restoreTestFiles(testFiles []string) {
 
 func (o *CycleOrchestrator) runRefactorAndFinalValidation(ctx context.Context, bc *runtypes.BeadContext, cycleNumber int) error {
 	o.logPhase(cycleNumber, "refactor", "refactoring")
+
+	// Take snapshot before refactor phase invocation
+	beforeRefactorCostUSD, beforeRefactorInputTokens, beforeRefactorOutputTokens := o.snapshotUsage(bc)
+	refactorStartTime := time.Now()
+
 	outcome := o.executeRefactorPhase(ctx, bc)
 	if !isSupportedRefactorOutcome(outcome) {
 		return fmt.Errorf("refactor phase: unsupported outcome %q", outcome)
@@ -340,6 +353,10 @@ func (o *CycleOrchestrator) runRefactorAndFinalValidation(ctx context.Context, b
 	if outcome == refactorOutcomeFailed {
 		return fmt.Errorf("refactor phase failed")
 	}
+
+	// Record refactor phase metrics with snapshot-based deltas
+	o.recordPhaseMetric(bc, "refactor", cycleNumber, beforeRefactorCostUSD, beforeRefactorInputTokens, beforeRefactorOutputTokens, refactorStartTime)
+
 	return o.runFinalValidation(ctx)
 }
 
