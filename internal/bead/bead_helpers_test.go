@@ -1,6 +1,9 @@
 package bead
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestIsLowComplexityTitle(t *testing.T) {
 	t.Parallel()
@@ -205,4 +208,51 @@ func TestEstimatedFileCount(t *testing.T) {
 
 func intPtr(v int) *int {
 	return &v
+}
+
+func TestExpectedOutputsOrTitle(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		outputs []string
+		title   string
+		want    []string
+	}{
+		{
+			name:    "prefer provided outputs",
+			outputs: []string{"one", "two"},
+			title:   "fallback",
+			want:    []string{"one", "two"},
+		},
+		{
+			name:    "fallback to trimmed title",
+			outputs: nil,
+			title:   "  Important work  ",
+			want:    []string{"Important work"},
+		},
+		{
+			name:    "empty title returns empty slice",
+			outputs: nil,
+			title:   "   ",
+			want:    []string{},
+		},
+		{
+			name:    "nil inputs return empty slice",
+			outputs: nil,
+			title:   "",
+			want:    []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := ExpectedOutputsOrTitle(tt.outputs, tt.title)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("ExpectedOutputsOrTitle(%v, %q) = %v, want %v", tt.outputs, tt.title, got, tt.want)
+			}
+		})
+	}
 }
