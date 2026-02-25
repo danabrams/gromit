@@ -85,3 +85,21 @@ func TestExperimentReportHasVariantReports(t *testing.T) {
 		t.Fatalf("expected 2 variant reports, got %d", len(er.VariantReports))
 	}
 }
+
+func TestFormatReportReturnsString(t *testing.T) {
+	// Verify that FormatReport returns a formatted string
+	er := &ExperimentReport{
+		ExperimentID: "exp-1",
+		VariantReports: []*VariantReport{
+			{VariantID: "control", SuccessRate: 0.8},
+		},
+	}
+
+	formatted := er.FormatReport()
+	if formatted == "" {
+		t.Fatalf("expected non-empty formatted report")
+	}
+	if formatted == "ExperimentReport{}" {
+		t.Fatalf("expected formatted report with content, got %q", formatted)
+	}
+}
