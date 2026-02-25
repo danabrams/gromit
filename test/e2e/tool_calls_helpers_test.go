@@ -23,6 +23,12 @@ const (
 
 const codexFixtureEnvVar = "CODEX_FIXTURE"
 
+var E2EToolCallPrefixMap = map[ToolCallKind]string{
+	ToolCallCodex:  "codex",
+	ToolCallClaude: "claude",
+	ToolCallBD:     "bd",
+}
+
 func ApplyCodexFixtureEnvE2E(env []string, fixtureFile string) []string {
 	fixtureValue := fixtureFile
 	if absFixture, err := filepath.Abs(fixtureFile); err == nil {
@@ -67,16 +73,11 @@ func FilterE2EToolCalls(env *e2eEnv, tool ToolCallKind) ([]string, error) {
 }
 
 func ToolCallPrefix(tool ToolCallKind) (string, error) {
-	switch tool {
-	case ToolCallCodex:
-		return "codex", nil
-	case ToolCallClaude:
-		return "claude", nil
-	case ToolCallBD:
-		return "bd", nil
-	default:
+	prefix, ok := E2EToolCallPrefixMap[tool]
+	if !ok {
 		return "", fmt.Errorf("unknown tool call kind: %q", tool)
 	}
+	return prefix, nil
 }
 
 func TestToolCallPrefixMapping(t *testing.T) {
