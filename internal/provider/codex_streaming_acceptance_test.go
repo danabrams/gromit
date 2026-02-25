@@ -137,32 +137,17 @@ func TestCodexProviderParsesThreadStartedEvent(t *testing.T) {
 // TestCodexProviderParsesAgentMessageEvent verifies that item.completed events
 // with type "agent_message" are converted to StreamEvent type "assistant".
 func TestCodexProviderParsesAgentMessageEvent(t *testing.T) {
-	tempDir := t.TempDir()
-
-	mockBinary := filepath.Join(tempDir, "codex")
-	codexEvent := map[string]interface{}{
-		"type": "item.completed",
-		"item": map[string]interface{}{
-			"type": "agent_message",
-			"text": "This is the agent response.",
-		},
-	}
-	eventJSON, _ := json.Marshal(codexEvent)
-	// Use printf with %s to avoid bash quoting issues with JSON content
-	mockScript := fmt.Sprintf("#!/bin/bash\ncat > /dev/null\nprintf '%%s\\n' '%s'\nexit 0\n", string(eventJSON))
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+	setupCodexStreamingFixtureEnv(t, "codex_stream_agent_message.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
+	cp := NewCodexProvider(fakeCodexBinaryPath(t), []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
 	var receivedEvents [][]byte
 
 	handler := func(line []byte) {
-		receivedEvents = append(receivedEvents, line)
+		receivedEvents = append(receivedEvents, append([]byte(nil), line...))
 	}
 
 	_, err := cp.StreamRun(ctx, "test", TierMedium, &output, handler, nil)
@@ -174,7 +159,6 @@ func TestCodexProviderParsesAgentMessageEvent(t *testing.T) {
 		t.Fatal("EventHandler was not called for item.completed agent_message event")
 	}
 
-	// Parse the normalized event
 	var streamEvent struct {
 		Type    string `json:"type"`
 		Message struct {
@@ -192,7 +176,6 @@ func TestCodexProviderParsesAgentMessageEvent(t *testing.T) {
 		t.Errorf("agent_message event normalized to type %q, want %q", streamEvent.Type, "assistant")
 	}
 
-	// Verify text content is present
 	if len(streamEvent.Message.Content) == 0 {
 		t.Fatal("agent_message event missing content blocks")
 	}
