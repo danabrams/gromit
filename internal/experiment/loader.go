@@ -1,6 +1,7 @@
 package experiment
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -27,8 +28,19 @@ func LoadExperiments(dir string) ([]*Experiment, error) {
 			return nil, err
 		}
 
+		if err := validateExperiment(&exp); err != nil {
+			return nil, fmt.Errorf("validating %s: %w", path, err)
+		}
+
 		exps = append(exps, &exp)
 	}
 
 	return exps, nil
+}
+
+func validateExperiment(exp *Experiment) error {
+	if !ValidPhases[exp.Phase] {
+		return fmt.Errorf("invalid phase %q", exp.Phase)
+	}
+	return nil
 }
