@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/danabrams/gromit/test/helpers"
 )
 
 // TestNewManager_CreatesManagerWithCorrectFields verifies that NewManager
@@ -2072,5 +2074,47 @@ func TestSessionWorktreeContentionContractDocumented(t *testing.T) {
 		if !strings.Contains(doc, snippet) {
 			t.Fatalf("decision record missing required section/snippet %q", snippet)
 		}
+	}
+}
+
+// TestMergeBack_ConflictDetectionWithDeterministicFixture verifies that a single
+// interactive session correctly detects and handles a git conflict using the
+// deterministic fixture helper. This is an integration test that uses real git
+// operations on a real repository.
+func TestMergeBack_ConflictDetectionWithDeterministicFixture(t *testing.T) {
+	// Create a deterministic conflict fixture with two divergent branches
+	fixture := helpers.NewDeterministicGitConflictFixture(t)
+	defer os.RemoveAll(fixture.Dir)
+
+	// Create a Manager for the fixture repository
+	m, err := NewManager(fixture.Dir)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v, want nil", err)
+	}
+
+	// Checkout the "ours" branch where we'll attempt the merge
+	if _, err := fixture.RunGit("checkout", fixture.OurBranch); err != nil {
+		t.Fatalf("git checkout %s failed: %v", fixture.OurBranch, err)
+	}
+
+	// Attempt to merge the "theirs" branch, which will conflict
+	err = m.MergeBack(fixture.TheirBranch)
+
+	// Verify that MergeBack correctly detected and reported the conflict
+	if err == nil {
+		t.Fatal("MergeBack() should return error on merge conflict, got nil")
+	}
+	if !strings.Contains(err.Error(), "conflict") {
+		t.Errorf("MergeBack() error should mention conflict, got: %v", err)
+	}
+
+	// Verify the conflicting file still exists in the working directory
+	// (conflict wasn't deleted, just reported)
+	fileContent, err := os.ReadFile(filepath.Join(fixture.Dir, fixture.ConflictingFile))
+	if err != nil {
+		t.Fatalf("ConflictingFile should still exist after conflict, got error: %v", err)
+	}
+	if len(fileContent) == 0 {
+		t.Error("ConflictingFile should not be empty after conflict")
 	}
 }
