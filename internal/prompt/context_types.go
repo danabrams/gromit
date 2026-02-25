@@ -52,6 +52,8 @@ type Context struct {
 	IsRetry        bool
 	PrevFailure    string // Output from previous failed attempt
 	FailureContext string // Suggestion from failure analysis
+	ExperimentID   string // Identifier for running experiments impacting prompts
+	VariantID      string // Variant identifier within an experiment
 }
 
 // normalizeNilFields ensures nil slices are replaced with empty slices.
