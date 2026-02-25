@@ -162,3 +162,57 @@ func TestSelectCostAwareModelKeepsExpensiveForSmallScope(t *testing.T) {
 		t.Errorf("SelectCostAwareModel() = %q, want %q for small scope", selectedModel, "gpt-5.3-codex")
 	}
 }
+
+// TestSelectCostAwareModelReturnsOriginalWhenCheaperUnavailable verifies that
+// SelectCostAwareModel returns original model when cheaper alternative is not configured.
+// Expected failure: function does not exist yet
+func TestSelectCostAwareModelReturnsOriginalWhenCheaperUnavailable(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.ProviderDef{
+			"codex": {
+				ModelCosts: map[string]*config.ModelCost{
+					"gpt-5.3-codex": {
+						CostPer1kInput:  0.30,
+						CostPer1kOutput: 0.60,
+					},
+					// gpt-5.2-codex not configured
+				},
+			},
+		},
+	}
+
+	b := &bead.Bead{
+		Title: "large bead",
+		// 6 files = broad scope
+		ExpectedOutputs: []string{"f1.go", "f2.go", "f3.go", "f4.go", "f5.go", "f6.go"},
+	}
+
+	selectedModel := SelectCostAwareModel(cfg, b, "gpt-5.3-codex", "codex")
+	// Should keep original model if cheaper is unavailable
+	if selectedModel != "gpt-5.3-codex" {
+		t.Errorf("SelectCostAwareModel() = %q, want %q when cheaper unavailable", selectedModel, "gpt-5.3-codex")
+	}
+}
+
+// TestSelectCostAwareModelReturnsOriginalWhenProviderUnavailable verifies that
+// SelectCostAwareModel returns original model when provider is not configured.
+// Expected failure: function does not exist yet
+func TestSelectCostAwareModelReturnsOriginalWhenProviderUnavailable(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.ProviderDef{
+			// "codex" provider not configured
+		},
+	}
+
+	b := &bead.Bead{
+		Title: "large bead",
+		// 6 files = broad scope
+		ExpectedOutputs: []string{"f1.go", "f2.go", "f3.go", "f4.go", "f5.go", "f6.go"},
+	}
+
+	selectedModel := SelectCostAwareModel(cfg, b, "gpt-5.3-codex", "codex")
+	// Should keep original model if provider doesn't exist
+	if selectedModel != "gpt-5.3-codex" {
+		t.Errorf("SelectCostAwareModel() = %q, want %q when provider unavailable", selectedModel, "gpt-5.3-codex")
+	}
+}
