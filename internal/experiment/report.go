@@ -1,6 +1,9 @@
 package experiment
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 // VariantReport represents the report for a single variant.
 type VariantReport struct {
@@ -29,4 +32,10 @@ func (er *ExperimentReport) FormatReport() string {
 			vr.VariantID, vr.SuccessRate, vr.AvgCost, vr.BanditWeight)
 	}
 	return result
+}
+
+// FormatReportJSON formats the experiment report as JSON.
+func (er *ExperimentReport) FormatReportJSON() string {
+	data, _ := json.MarshalIndent(er, "", "  ")
+	return string(data)
 }
