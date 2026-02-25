@@ -21,6 +21,11 @@ Pipeline methods follow the pattern: typed input/output structs → validate dep
 
 ## Process
 
+### Beads touching telemetry or usage paths require telemetry contract validation
+If a bead touches usage accounting, provider stream-event handling, or retro efficiency formatting, mandatory validation must also include telemetry contract suites covering provider merge semantics and iteration-row completeness before merge.
+
+**Enforcement:** Bead scope tagging; CI gate on telemetry-tagged beads requiring contract suite pass.
+
 ### Ephemeral session worktree paths must remain untracked via repo ignore plus gitlink mode guard
 Ephemeral `.-gromit-*` worktree paths must stay untracked in version control. Repository-level ignore plus explicit gitlink guard (mode `160000` fails fast before commit/CI) prevents accidental repo integrity corruption.
 
@@ -32,9 +37,9 @@ Apply timeout-first decomposition at >=60% elapsed budget when complexity signal
 **Enforcement:** Orchestrator/runner validates elapsed budget and complexity signals before allowing same-scope retry; telemetry gates on escalation recording.
 
 ### Usage accounting must use explicit snapshots and fail-closed on missing data
-Usage accounting must use explicit before/after snapshots for every phase (red/green/refactor/validate) and a single merge strategy for provider stream events. Mixing raw totals and deltas in one run is forbidden. If completeness checks fail (missing rows/snapshots with iterations present), mark the run `data_quality_blocked`, auto-create/link a blocking bead, and block keep/revert experiment decisions until one complete current-run dataset is recorded. Output must remain fail-closed (`insufficient_current_run_data`, deltas `N/A`).
+Usage accounting must use explicit before/after snapshots for every phase (red/green/refactor/validate) and a single merge strategy for provider stream events. Mixing raw totals and deltas in one run is forbidden. If completeness checks fail (missing rows/snapshots with iterations present), mark the run `data_quality_blocked`, auto-create/link a blocking bead, and block keep/revert experiment decisions until one complete current-run dataset is recorded. Output must remain fail-closed (`insufficient_current_run_data`, deltas `N/A`). Additionally, any non-empty run with `model=unknown` or `provider=unknown` usage attribution is a data-quality failure that auto-creates/links a blocking bead and blocks experiment keep/revert decisions until resolved.
 
-**Enforcement:** Runtime telemetry validator; experiment decision gate; experiment.json schema validator on keep/revert/extend.
+**Enforcement:** Runtime telemetry validator; experiment decision gate; experiment.json schema validator on keep/revert/extend; unknown-attribution detector in post-run validation.
 
 ## Reliability
 
@@ -54,6 +59,11 @@ Machine-local runtime state (`.dolt/`, `.doltcfg/`, `beads_gromit/`, lock files,
 **Enforcement:** Repo ignore coverage, staged-file guards in pre-commit/CI, and review rejection for timestamped runtime output commits.
 
 ## Test Quality
+
+### Tool-call log parsing in tests must use shared helpers to prevent cross-suite drift
+Tool-call log parsing in tests must use shared helpers (for example `test/toolcalls`) rather than suite-local parsers to prevent cross-suite behavior drift on whitespace handling and command matching.
+
+**Enforcement:** Code review on test helper changes; grep for duplicated call-log parsing outside shared helpers.
 
 ### Fixture tests should assert schema and records, not prose tokens
 Use structured fixture assertions (parse JSON/JSONL and ledger rows) instead of broad markdown/log token matching. Real-provider probe fixtures are canonical and should drive parser/schema updates rather than forcing fixtures back to stale assumptions.
