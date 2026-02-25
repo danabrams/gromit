@@ -3791,6 +3791,29 @@ func TestGitConfigPushTimeoutDurationFromYAML(t *testing.T) {
 	}
 }
 
+func TestGitConfigPushTimeoutZeroFromYAML(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	yaml := `git:
+  push_timeout: 0
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	if cfg.Git.PushTimeout != 0 {
+		t.Errorf("expected git push_timeout=0, got %d", cfg.Git.PushTimeout)
+	}
+	if cfg.Git.PushTimeoutDuration() != 0 {
+		t.Errorf("expected git PushTimeoutDuration=0, got %s", cfg.Git.PushTimeoutDuration())
+	}
+}
+
 func TestGitConfigFromYAML(t *testing.T) {
 	tests := []struct {
 		name              string
