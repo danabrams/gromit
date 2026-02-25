@@ -734,6 +734,12 @@ type cliStateManager struct {
 var _ pipeline.StateManager = (*cliStateManager)(nil)
 
 func (m *cliStateManager) GetLastReviewCommit() (string, error) {
+	// Try git tag first (primary source of truth).
+	if tagCommit, err := state.LatestReviewTagCommit(); err == nil && tagCommit != "" {
+		return tagCommit, nil
+	}
+
+	// Fall back to interactive-state.json.
 	sf, err := state.NewInteractiveFile(m.gromitDir)
 	if err != nil {
 		return "", err
@@ -762,5 +768,6 @@ func (m *cliStateManager) SetLastReviewCommit(commit string) error {
 		currentCommit = commit // Fallback to input commit
 	}
 
+	// RecordReview saves to JSON and also creates a git tag.
 	return sf.RecordReview(currentCommit, 0)
 }

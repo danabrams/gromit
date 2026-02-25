@@ -3,6 +3,7 @@ package state
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -115,10 +116,14 @@ func (f *InteractiveFile) RecordRetro() error {
 	})
 }
 
-// LastReviewCommit returns the commit hash of the last review
+// LastReviewCommit returns the commit hash of the last review.
+// It tries the git tag first; if unavailable, falls back to the JSON field.
 func (f *InteractiveFile) LastReviewCommit() string {
 	if f == nil {
 		return ""
+	}
+	if tagCommit, err := LatestReviewTagCommit(); err == nil && tagCommit != "" {
+		return tagCommit
 	}
 	return f.state.LastReviewCommit
 }
@@ -131,15 +136,24 @@ func (f *InteractiveFile) LastReviewIteration() int {
 	return f.state.LastReviewIteration
 }
 
-// RecordReview updates the last review commit and iteration, and saves
+// RecordReview updates the last review commit and iteration, and saves.
+// It also creates a git tag as the primary record; JSON is the backup.
 func (f *InteractiveFile) RecordReview(commit string, iteration int) error {
 	if err := f.ensureReceiver(); err != nil {
 		return err
 	}
-	return f.mutateAndSaveLocked(func(s *InteractiveState) {
+	err := f.mutateAndSaveLocked(func(s *InteractiveState) {
 		s.LastReviewCommit = commit
 		s.LastReviewIteration = iteration
 	})
+	if err != nil {
+		return err
+	}
+
+	if tagErr := CreateReviewTag(commit); tagErr != nil {
+		log.Printf("WARNING: failed to create review tag: %v", tagErr)
+	}
+	return nil
 }
 
 // GetFilteredHashes returns a map of filtered learning hashes for O(1) lookups
