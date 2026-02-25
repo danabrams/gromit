@@ -23,29 +23,21 @@ func TestCodexStreamingAcceptanceFakeBinaryAvailable(t *testing.T) {
 // TestCodexProviderStreamRunWithJSONFlag verifies that StreamRun() invokes
 // codex exec with --json flag when EventHandler is non-nil.
 func TestCodexProviderStreamRunWithJSONFlag(t *testing.T) {
-	tempDir := t.TempDir()
-
-	// Create a mock codex binary that echoes arguments as JSON (for handler mode)
-	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := `#!/bin/bash
-cat > /dev/null  # Consume stdin
-# Emit JSON with args embedded
-echo '{"type":"item.completed","item":{"type":"agent_message","text":"ARGS: '"$*"'"}}'
-exit 0
-`
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+	callLog := filepath.Join(t.TempDir(), "codex_call_log.txt")
+	t.Setenv("TEST_CALL_LOG", callLog)
+	t.Setenv("CODEX_RAW_JSONL", "1")
+	fixture := codexFixturePath(t, "codex_stream_success.jsonl")
+	t.Setenv("CODEX_FIXTURE", fixture)
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
+	cp := NewCodexProvider(fakeCodexBinaryPath(t), []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
+	var receivedEvents [][]byte
 
-	// EventHandler is non-nil, so --json flag should be added
 	handler := func(line []byte) {
-		// Handler called for events
+		receivedEvents = append(receivedEvents, append([]byte(nil), line...))
 	}
 
 	result, err := cp.StreamRun(ctx, "test prompt", TierMedium, &output, handler, nil)
@@ -58,9 +50,16 @@ exit 0
 		t.Fatal("StreamRun() returned nil result")
 	}
 
-	// Verify that --json flag was passed to the command
-	if !strings.Contains(result.Output, "--json") && !strings.Contains(output.String(), "--json") {
-		t.Errorf("StreamRun() with non-nil EventHandler should pass --json flag, output: %s", result.Output)
+	if len(receivedEvents) == 0 {
+		t.Fatal("expected StreamRun() handler to receive at least one event")
+	}
+
+	callLogData, err := os.ReadFile(callLog)
+	if err != nil {
+		t.Fatalf("reading codex call log: %v", err)
+	}
+	if !strings.Contains(string(callLogData), "--json") {
+		t.Errorf("StreamRun() should invoke codex with --json flag, log: %s", strings.TrimSpace(string(callLogData)))
 	}
 }
 
