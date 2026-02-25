@@ -74,6 +74,11 @@ func (t *CoverageTracker) ToComplete() {
 	}
 }
 
+// ToError transitions the tracker to error state from any state.
+func (t *CoverageTracker) ToError() {
+	t.state = StateError
+}
+
 // RecordRejection increments rejection count; transitions to Untestable at threshold.
 func (t *CoverageTracker) RecordRejection(n int) {
 	cs := t.findCriterionState(n)
