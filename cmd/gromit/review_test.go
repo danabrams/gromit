@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/prompt"
@@ -699,6 +700,50 @@ func TestCliLogWriter_WriteUsesProviderAtWriteTime(t *testing.T) {
 	if got, _ := diagMap["prompt_type"].(string); got != "updated" {
 		t.Fatalf("prompt_type = %q, want %q", got, "updated")
 	}
+}
+
+func TestCliBacklogClient_AddUsesTrimmedExpectedOutputs(t *testing.T) {
+	idea := &pipeline.Idea{
+		Text: "  backlog item  ",
+		Type: "review-finding",
+	}
+
+	var acceptedLabels []string
+	var acceptanceText string
+	client := &bead.Client{
+		RunFn: func(args ...string) (string, error) {
+			for i := 0; i < len(args); i++ {
+				if args[i] == "--label" && i+1 < len(args) {
+					acceptedLabels = append(acceptedLabels, args[i+1])
+				}
+				if args[i] == "--acceptance" && i+1 < len(args) {
+					acceptanceText = args[i+1]
+				}
+			}
+			return `{"id":"fake","title":"fake","description":"","status":"open","priority":2}`, nil
+		},
+	}
+
+	backlog := &cliBacklogClient{beadClient: client}
+	if err := backlog.Add(idea); err != nil {
+		t.Fatalf("Add() error = %v", err)
+	}
+
+	if acceptanceText != "backlog item" {
+		t.Fatalf("expected trimmed text in acceptance, got %q", acceptanceText)
+	}
+	if !containsLabel(acceptedLabels, "from-review") || !containsLabel(acceptedLabels, "backlog") {
+		t.Fatalf("expected labels to include from-review/backlog, got %v", acceptedLabels)
+	}
+}
+
+func containsLabel(labels []string, target string) bool {
+	for _, label := range labels {
+		if label == target {
+			return true
+		}
+	}
+	return false
 }
 
 // TestValidateCommitRef verifies that commit refs starting with "-" are rejected.
