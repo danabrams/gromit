@@ -48,3 +48,31 @@ func CheckAndLogCostCeiling(ceiling, estimatedCost float64, logFn func(format st
 	}
 	return false
 }
+
+const (
+	broadScopeFileThreshold = 5
+	cheaperCodexModel       = "gpt-5.2-codex"
+)
+
+// SelectCostAwareModel selects between models based on scope size.
+// When file count exceeds broadScopeFileThreshold, prefers cheaper alternatives (gpt-5.2-codex).
+// Otherwise returns the original model.
+func SelectCostAwareModel(cfg *config.Config, b *bead.Bead, originalModel, providerName string) string {
+	if b == nil || cfg == nil {
+		return originalModel
+	}
+
+	fileCount := bead.EstimatedFileCount(b)
+
+	// For broad scope (> 5 files), prefer cheaper model if available
+	if fileCount > broadScopeFileThreshold {
+		provider, ok := cfg.Providers[providerName]
+		if ok && provider.ModelCosts != nil {
+			if _, hasCheaper := provider.ModelCosts[cheaperCodexModel]; hasCheaper {
+				return cheaperCodexModel
+			}
+		}
+	}
+
+	return originalModel
+}

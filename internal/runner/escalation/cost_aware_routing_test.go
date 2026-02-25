@@ -94,3 +94,71 @@ func TestCheckAndLogCostCeilingNoWarningWhenUnderCeiling(t *testing.T) {
 		t.Error("CheckAndLogCostCeiling should not call logFn when cost is under ceiling")
 	}
 }
+
+// TestSelectCostAwareModelPrefersCheaperWhenBroadScope verifies that
+// SelectCostAwareModel returns cheaper model when bead scope is large (> 5 files).
+// Expected failure: function does not exist yet
+func TestSelectCostAwareModelPrefersCheaperWhenBroadScope(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.ProviderDef{
+			"codex": {
+				ModelCosts: map[string]*config.ModelCost{
+					"gpt-5.3-codex": {
+						CostPer1kInput:  0.30, // Expensive
+						CostPer1kOutput: 0.60,
+					},
+					"gpt-5.2-codex": {
+						CostPer1kInput:  0.05, // Cheap
+						CostPer1kOutput: 0.10,
+					},
+				},
+			},
+		},
+	}
+
+	b := &bead.Bead{
+		Title: "large bead",
+		// 6 files = broad scope (> 5)
+		ExpectedOutputs: []string{"f1.go", "f2.go", "f3.go", "f4.go", "f5.go", "f6.go"},
+	}
+
+	selectedModel := SelectCostAwareModel(cfg, b, "gpt-5.3-codex", "codex")
+	// Should select cheaper gpt-5.2-codex for broad scope
+	if selectedModel != "gpt-5.2-codex" {
+		t.Errorf("SelectCostAwareModel() = %q, want %q for broad scope", selectedModel, "gpt-5.2-codex")
+	}
+}
+
+// TestSelectCostAwareModelKeepsExpensiveForSmallScope verifies that
+// SelectCostAwareModel returns original model when bead scope is small (<= 5 files).
+// Expected failure: function does not exist yet
+func TestSelectCostAwareModelKeepsExpensiveForSmallScope(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.ProviderDef{
+			"codex": {
+				ModelCosts: map[string]*config.ModelCost{
+					"gpt-5.3-codex": {
+						CostPer1kInput:  0.30,
+						CostPer1kOutput: 0.60,
+					},
+					"gpt-5.2-codex": {
+						CostPer1kInput:  0.05,
+						CostPer1kOutput: 0.10,
+					},
+				},
+			},
+		},
+	}
+
+	b := &bead.Bead{
+		Title: "small bead",
+		// 3 files = small scope (<= 5)
+		ExpectedOutputs: []string{"f1.go", "f2.go", "f3.go"},
+	}
+
+	selectedModel := SelectCostAwareModel(cfg, b, "gpt-5.3-codex", "codex")
+	// Should keep original model for small scope
+	if selectedModel != "gpt-5.3-codex" {
+		t.Errorf("SelectCostAwareModel() = %q, want %q for small scope", selectedModel, "gpt-5.3-codex")
+	}
+}
