@@ -357,7 +357,8 @@ func TestRunBenchmarkPipeline_ReportArtifactsMatchCuratedFixture(t *testing.T) {
 		t.Fatalf("chdir tmp dir: %v", err)
 	}
 
-	fixtureDir := filepath.Join(origWD, ".gromit", "reports", "curated", "benchmark-report")
+	repoRoot := repoRootFrom(t, origWD)
+	fixtureDir := filepath.Join(repoRoot, ".gromit", "reports", "curated", "benchmark-report")
 
 	origLoad := benchmarkInternalLoadManifestFn
 	origSelect := benchmarkSelectCohortFn
@@ -637,6 +638,21 @@ func readBenchmarkReportFixture(t *testing.T, dir, name string) []byte {
 		t.Fatalf("read benchmark report fixture %q: %v", name, err)
 	}
 	return data
+}
+
+func repoRootFrom(t *testing.T, start string) string {
+	t.Helper()
+	dir := start
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Fatalf("could not find repo root from %q", start)
+		}
+		dir = parent
+	}
 }
 
 func TestBenchmarkReportInput_PreservesInternalReportMarkdownSections(t *testing.T) {

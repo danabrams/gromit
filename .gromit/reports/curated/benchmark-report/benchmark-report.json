@@ -1,0 +1,58 @@
+{
+  "manifest": {
+    "id": "tdd-vs-single-pass",
+    "base_commit": "abc123",
+    "beads": [
+      "gromit-1",
+      "gromit-2",
+      "gromit-3",
+      "gromit-4",
+      "gromit-5"
+    ],
+    "provider": "openai",
+    "model_family": "gpt-5",
+    "low_tier_model": "gpt-5.1-codex-mini",
+    "medium_tier_model": "gpt-5.3-codex",
+    "high_tier_model": "gpt-5.3-codex"
+  },
+  "modes": [
+    {
+      "mode": "single_pass",
+      "elapsed_seconds": 60,
+      "total_input_tokens": 1200,
+      "total_output_tokens": 600,
+      "total_cost_usd": 1.5,
+      "tier_totals": {
+        "low": {
+          "input_tokens": 800,
+          "output_tokens": 400,
+          "cost_usd": 0.8
+        },
+        "medium": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cost_usd": 0
+        },
+        "high": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cost_usd": 0
+        }
+      },
+      "quality": {
+        "average_score": 0.9,
+        "first_pass_rate": 0.75,
+        "review_findings": 1,
+        "review_fixes_applied": 0,
+        "final_validation_passed": true
+      },
+      "cost_quality_ratio": 1.67
+    }
+  ],
+  "winner_hints": {
+    "fastest": "single_pass",
+    "cheapest": "single_pass",
+    "best_quality": "single_pass",
+    "best_cost_quality": "single_pass"
+  }
+}
