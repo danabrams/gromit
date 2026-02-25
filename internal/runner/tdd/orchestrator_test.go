@@ -1731,6 +1731,30 @@ func TestRunOneCycle_ReturnsErrorWhenRenderRedFnNil(t *testing.T) {
 	}
 }
 
+func TestRunOneCycle_RenderRedFnNilSkipsRedHandoff(t *testing.T) {
+	orch := newTestOrchestrator()
+	readCalls := 0
+	orch.readFileFn = func(path string) (string, error) {
+		readCalls++
+		return "", nil
+	}
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{},
+		Tier:   "medium",
+	}
+
+	state := singleRequirementState()
+	state.TouchedFiles = []string{"foo_test.go"}
+	err := orch.runOneCycle(context.Background(), bc, &state)
+	if err == nil {
+		t.Fatalf("expected error when renderRedFn is nil, got nil")
+	}
+	if readCalls != 0 {
+		t.Fatalf("expected AssembleRedHandoff not to run when renderRedFn nil, got %d reads", readCalls)
+	}
+}
+
 func TestRunOneCycle_ReturnsErrorWhenRenderGreenFnNil(t *testing.T) {
 	orch := newTestOrchestrator()
 
