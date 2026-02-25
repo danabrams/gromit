@@ -12,6 +12,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 )
@@ -816,5 +817,68 @@ func TestOrchestrator_PostRunCompletenessAssertion_FailsWhenEfficiencyDataIncomp
 		t.Error("Run() expected to fail with efficiency data completeness issue, got nil error")
 	} else if !strings.Contains(err.Error(), "efficiency") && !strings.Contains(err.Error(), "completeness") {
 		t.Errorf("Run() error = %v, want error containing 'efficiency' or 'completeness'", err)
+	}
+}
+
+// TestOrchestrator_CoverageTracker_TransitionsStatesAcrossTDDCycle verifies that when
+// a CoverageTracker is wired into the orchestrator, it transitions through states
+// during a simulated TDD cycle, tracking acceptance criteria coverage.
+func TestOrchestrator_CoverageTracker_TransitionsStatesAcrossTDDCycle(t *testing.T) {
+	// Create criteria for a simple feature.
+	criteria := []coverage.Criterion{
+		{Number: 1, Text: "System accepts valid input"},
+		{Number: 2, Text: "System rejects invalid input"},
+		{Number: 3, Text: "System logs errors"},
+	}
+	tracker := coverage.NewTracker(criteria, 2)
+
+	// Verify initial state before running.
+	if tracker.State() != coverage.StatePending {
+		t.Fatalf("initial tracker state = %d, want StatePending (%d)", tracker.State(), coverage.StatePending)
+	}
+
+	gate := &fakeStage{}
+	build := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+	validate := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+	epilogueStage := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-1", Title: "Test bead"}, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     gate,
+		Build:    build,
+		Validate: validate,
+		Epilogue: epilogueStage,
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+		CoverageTracker: tracker,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	// Verify tracker transitioned through states during the cycle.
+	// After a successful iteration: Pending -> Collecting -> Validating -> Complete
+	if tracker.State() != coverage.StateComplete {
+		t.Errorf("final tracker state = %d, want StateComplete (%d)", tracker.State(), coverage.StateComplete)
+	}
+	if tracker.TotalCriteria() != 3 {
+		t.Errorf("total criteria = %d, want 3", tracker.TotalCriteria())
 	}
 }
