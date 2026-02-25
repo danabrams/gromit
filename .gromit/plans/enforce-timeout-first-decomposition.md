@@ -1,6 +1,7 @@
 ---
 created: 2026-02-25T00:00:00Z
-decomposed: false
+decomposed: true
+decomposed_at: "2026-02-25T23:25:46Z"
 id: enforce-timeout-first-decomposition
 source_spec: enforce-timeout-first-decomposition
 ---
