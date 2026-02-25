@@ -168,7 +168,7 @@ func outputText(projectStats map[string]logger.ModelStats, globalStats *logger.G
 
 	if len(costPerSpec) > 0 {
 		fmt.Println()
-		fmt.Println("Cost per spec (by total cost):")
+		fmt.Println("Cost per spec:")
 		for _, entry := range sortedSpecCosts(costPerSpec) {
 			fmt.Printf("  %s: $%.2f  %d iter  %d beads  [%s]\n",
 				entry.specID, entry.cost.TotalCostUSD,
