@@ -230,3 +230,11 @@ func TestMarkCovered_DoesNotChangeUntestableCriterion(t *testing.T) {
 		t.Fatalf("UntestableCriteria()[0].Number = %d, want 1", untestable[0].Number)
 	}
 }
+
+func TestNewTracker_InitialStateIsPending(t *testing.T) {
+	tracker := NewTracker([]Criterion{}, 2)
+
+	if tracker.State() != StatePending {
+		t.Fatalf("tracker.State() = %v, want %v", tracker.State(), StatePending)
+	}
+}
