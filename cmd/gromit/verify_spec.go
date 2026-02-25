@@ -17,6 +17,7 @@ import (
 	"github.com/danabrams/gromit/internal/frontmatter"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/review"
 	"github.com/danabrams/gromit/internal/scope"
 	"github.com/danabrams/gromit/internal/specgate"
 	"github.com/spf13/cobra"
@@ -364,7 +365,7 @@ func (c *specGateBeadCreator) Create(ctx context.Context, title, description, pr
 		return "", err
 	}
 
-	expectedOutputs := bead.ExpectedOutputsOrTitle(nil, title)
+	expectedOutputs := review.ExpectedOutputsOrTitle(nil, title)
 	bead, err := c.client.CreateWithParentAndDescription(title, priorityInt, labels, expectedOutputs, "", description)
 	if err != nil {
 		return "", err

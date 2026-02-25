@@ -17,6 +17,7 @@ import (
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/review"
 	"github.com/danabrams/gromit/internal/scope"
 	"github.com/danabrams/gromit/internal/state"
 	"github.com/spf13/cobra"
@@ -648,7 +649,7 @@ func (c *cliBacklogClient) Get(id string) (*pipeline.Idea, error) {
 func (c *cliBacklogClient) Add(item *pipeline.Idea) error {
 	// Create a backlog bead with P2 priority and backlog label
 	labels := []string{"from-review", "backlog"}
-	expectedOutputs := bead.ExpectedOutputsOrTitle(nil, item.Text)
+	expectedOutputs := review.ExpectedOutputsOrTitle(nil, item.Text)
 	_, err := c.beadClient.Create(item.Text, 2, labels, expectedOutputs)
 	return err
 }
