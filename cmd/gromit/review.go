@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -192,6 +193,12 @@ func determineReviewScopeWithClient(cfg *config.Config, beadsClient *bead.Client
 
 	// Default: use last review commit from state
 	gromitDir := resolveGromitDir(cfg)
+	repoDir := reviewRepoDirFromGromitDir(gromitDir)
+
+	// Prefer repo-global review tags for continuity across worktrees/branches.
+	if tagCommit, err := state.LatestReviewTagCommitInRepo(repoDir); err == nil && tagCommit != "" {
+		return tagCommit, nil
+	}
 
 	sf, err := state.NewInteractiveFile(gromitDir)
 	if err != nil {
@@ -734,8 +741,8 @@ type cliStateManager struct {
 var _ pipeline.StateManager = (*cliStateManager)(nil)
 
 func (m *cliStateManager) GetLastReviewCommit() (string, error) {
-	// Try git tag first (primary source of truth).
-	if tagCommit, err := state.LatestReviewTagCommit(); err == nil && tagCommit != "" {
+	// Prefer repo-global tags for continuity across worktrees/branches.
+	if tagCommit, err := state.LatestReviewTagCommitInRepo(reviewRepoDirFromGromitDir(m.gromitDir)); err == nil && tagCommit != "" {
 		return tagCommit, nil
 	}
 
@@ -770,4 +777,12 @@ func (m *cliStateManager) SetLastReviewCommit(commit string) error {
 
 	// RecordReview saves to JSON and also creates a git tag.
 	return sf.RecordReview(currentCommit, 0)
+}
+
+func reviewRepoDirFromGromitDir(gromitDir string) string {
+	clean := filepath.Clean(gromitDir)
+	if filepath.Base(clean) == ".gromit" {
+		return filepath.Dir(clean)
+	}
+	return clean
 }

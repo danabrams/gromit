@@ -404,6 +404,26 @@ func TestCliStateManagerSetLastReviewCommit_FallsBackToProvidedCommit(t *testing
 	}
 }
 
+func TestCliStateManagerGetLastReviewCommit_ReturnsStateCommit(t *testing.T) {
+	gromitDir := t.TempDir()
+	sf, err := state.NewInteractiveFile(gromitDir)
+	if err != nil {
+		t.Fatalf("NewInteractiveFile() error = %v", err)
+	}
+	if err := sf.RecordReview("json-commit", 1); err != nil {
+		t.Fatalf("RecordReview() error = %v", err)
+	}
+
+	manager := &cliStateManager{gromitDir: gromitDir}
+	commit, err := manager.GetLastReviewCommit()
+	if err != nil {
+		t.Fatalf("GetLastReviewCommit() error = %v", err)
+	}
+	if commit != "json-commit" {
+		t.Fatalf("GetLastReviewCommit() = %q, want %q", commit, "json-commit")
+	}
+}
+
 // saveReviewFlags saves the current review flag values and registers a cleanup
 // to restore them after the test completes.
 func saveReviewFlags(t *testing.T) {

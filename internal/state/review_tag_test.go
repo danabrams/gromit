@@ -13,6 +13,7 @@ import (
 type reviewTagCapture struct {
 	name string
 	args []string
+	dir  string
 }
 
 func stubReviewTag(t *testing.T, output []byte, outputErr error) *reviewTagCapture {
@@ -32,6 +33,7 @@ func stubReviewTag(t *testing.T, output []byte, outputErr error) *reviewTagCaptu
 		return exec.Command("echo", "stub")
 	}
 	reviewTagOutputFn = func(cmd *exec.Cmd) ([]byte, error) {
+		capture.dir = cmd.Dir
 		return output, outputErr
 	}
 
@@ -66,6 +68,9 @@ func stubReviewTagSequence(t *testing.T, responses []reviewTagResponse) *[]revie
 	reviewTagOutputFn = func(cmd *exec.Cmd) ([]byte, error) {
 		idx := callIdx
 		callIdx++
+		if idx < len(captures) {
+			captures[idx].dir = cmd.Dir
+		}
 		if idx < len(responses) {
 			return responses[idx].output, responses[idx].err
 		}
@@ -104,6 +109,27 @@ func TestCreateReviewTag_ReturnsErrorOnFailure(t *testing.T) {
 		t.Fatal("expected error from CreateReviewTag")
 	}
 	if !strings.Contains(err.Error(), "creating review tag") {
+		t.Fatalf("unexpected error message: %v", err)
+	}
+}
+
+func TestCreateReviewTagInRepo_SetsCommandDir(t *testing.T) {
+	capture := stubReviewTag(t, []byte(""), nil)
+
+	if err := CreateReviewTagInRepo("/tmp/repo", "abc123"); err != nil {
+		t.Fatalf("CreateReviewTagInRepo() error = %v", err)
+	}
+	if capture.dir != "/tmp/repo" {
+		t.Fatalf("git command dir = %q, want %q", capture.dir, "/tmp/repo")
+	}
+}
+
+func TestCreateReviewTagInRepo_RejectsEmptyCommit(t *testing.T) {
+	err := CreateReviewTagInRepo("/tmp/repo", "   ")
+	if err == nil {
+		t.Fatal("expected error from CreateReviewTagInRepo with empty commit")
+	}
+	if !strings.Contains(err.Error(), "commit cannot be empty") {
 		t.Fatalf("unexpected error message: %v", err)
 	}
 }
@@ -183,5 +209,23 @@ func TestLatestReviewTagCommit_MultipleTagsReturnsFirst(t *testing.T) {
 	revListArgs := (*captures)[1].args
 	if len(revListArgs) < 3 || revListArgs[2] != "gromit/interactive-review/2026-02-25T12-00-00" {
 		t.Fatalf("rev-list should target first tag, got args %v", revListArgs)
+	}
+}
+
+func TestLatestReviewTagCommitInRepo_SetsCommandDir(t *testing.T) {
+	captures := stubReviewTagSequence(t, []reviewTagResponse{
+		{output: []byte("gromit/interactive-review/2026-02-25T12-00-00\n"), err: nil},
+		{output: []byte("latest-commit-hash\n"), err: nil},
+	})
+
+	_, err := LatestReviewTagCommitInRepo("/tmp/repo")
+	if err != nil {
+		t.Fatalf("LatestReviewTagCommitInRepo() error = %v", err)
+	}
+	if len(*captures) != 2 {
+		t.Fatalf("expected 2 git calls, got %d", len(*captures))
+	}
+	if (*captures)[0].dir != "/tmp/repo" || (*captures)[1].dir != "/tmp/repo" {
+		t.Fatalf("expected both git calls to run in /tmp/repo, got dirs %q and %q", (*captures)[0].dir, (*captures)[1].dir)
 	}
 }

@@ -19,16 +19,29 @@ var reviewTagOutputFn = func(cmd *exec.Cmd) ([]byte, error) {
 	return cmd.Output()
 }
 
-func runReviewTagOutput(args ...string) ([]byte, error) {
+func runReviewTagOutputInDir(repoDir string, args ...string) ([]byte, error) {
 	cmd := reviewTagCommandFn("git", args...)
+	if repoDir != "" {
+		cmd.Dir = repoDir
+	}
 	return reviewTagOutputFn(cmd)
 }
 
 // CreateReviewTag creates a git tag gromit/interactive-review/<timestamp> pointing
 // at the given commit. The timestamp uses the format YYYY-MM-DDTHH-MM-SS.
 func CreateReviewTag(commit string) error {
-	tag := reviewTagPrefix + time.Now().Format("2006-01-02T15-04-05")
-	_, err := runReviewTagOutput("tag", tag, commit)
+	return CreateReviewTagInRepo("", commit)
+}
+
+// CreateReviewTagInRepo creates a review tag in the provided repository directory.
+// If repoDir is empty, git runs in the current process working directory.
+func CreateReviewTagInRepo(repoDir, commit string) error {
+	if strings.TrimSpace(commit) == "" {
+		return fmt.Errorf("creating review tag: commit cannot be empty")
+	}
+	// Use nanoseconds to avoid collisions when multiple reviews are recorded in the same second.
+	tag := fmt.Sprintf("%s%d", reviewTagPrefix, time.Now().UTC().UnixNano())
+	_, err := runReviewTagOutputInDir(repoDir, "tag", tag, commit)
 	if err != nil {
 		return fmt.Errorf("creating review tag %s: %w", tag, err)
 	}
@@ -38,7 +51,13 @@ func CreateReviewTag(commit string) error {
 // LatestReviewTagCommit finds the most recent gromit/interactive-review/* tag and
 // returns the commit hash it points to. Returns ("", nil) when no review tags exist.
 func LatestReviewTagCommit() (string, error) {
-	out, err := runReviewTagOutput("tag", "-l", "--sort=-creatordate", reviewTagPrefix+"*")
+	return LatestReviewTagCommitInRepo("")
+}
+
+// LatestReviewTagCommitInRepo finds the most recent review tag in repoDir.
+// If repoDir is empty, git runs in the current process working directory.
+func LatestReviewTagCommitInRepo(repoDir string) (string, error) {
+	out, err := runReviewTagOutputInDir(repoDir, "tag", "-l", "--sort=-creatordate", reviewTagPrefix+"*")
 	if err != nil {
 		return "", fmt.Errorf("listing review tags: %w", err)
 	}
@@ -51,7 +70,7 @@ func LatestReviewTagCommit() (string, error) {
 	// First line is the most recent tag.
 	latestTag := strings.SplitN(tags, "\n", 2)[0]
 
-	commitOut, err := runReviewTagOutput("rev-list", "-1", latestTag)
+	commitOut, err := runReviewTagOutputInDir(repoDir, "rev-list", "-1", latestTag)
 	if err != nil {
 		return "", fmt.Errorf("resolving tag %s: %w", latestTag, err)
 	}

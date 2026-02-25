@@ -117,15 +117,18 @@ func (f *InteractiveFile) RecordRetro() error {
 }
 
 // LastReviewCommit returns the commit hash of the last review.
-// It tries the git tag first; if unavailable, falls back to the JSON field.
+// It prefers JSON state, then falls back to git tags when JSON is empty.
 func (f *InteractiveFile) LastReviewCommit() string {
 	if f == nil {
 		return ""
 	}
-	if tagCommit, err := LatestReviewTagCommit(); err == nil && tagCommit != "" {
+	if f.state.LastReviewCommit != "" {
+		return f.state.LastReviewCommit
+	}
+	if tagCommit, err := LatestReviewTagCommitInRepo(f.reviewRepoDir()); err == nil && tagCommit != "" {
 		return tagCommit
 	}
-	return f.state.LastReviewCommit
+	return ""
 }
 
 // LastReviewIteration returns the iteration number of the last review
@@ -137,7 +140,7 @@ func (f *InteractiveFile) LastReviewIteration() int {
 }
 
 // RecordReview updates the last review commit and iteration, and saves.
-// It also creates a git tag as the primary record; JSON is the backup.
+// It also attempts to create a git tag as a secondary history marker.
 func (f *InteractiveFile) RecordReview(commit string, iteration int) error {
 	if err := f.ensureReceiver(); err != nil {
 		return err
@@ -150,10 +153,21 @@ func (f *InteractiveFile) RecordReview(commit string, iteration int) error {
 		return err
 	}
 
-	if tagErr := CreateReviewTag(commit); tagErr != nil {
+	if tagErr := CreateReviewTagInRepo(f.reviewRepoDir(), commit); tagErr != nil {
 		log.Printf("WARNING: failed to create review tag: %v", tagErr)
 	}
 	return nil
+}
+
+func (f *InteractiveFile) reviewRepoDir() string {
+	if f == nil {
+		return ""
+	}
+	gromitDir := filepath.Dir(f.path)
+	if filepath.Base(gromitDir) == ".gromit" {
+		return filepath.Dir(gromitDir)
+	}
+	return gromitDir
 }
 
 // GetFilteredHashes returns a map of filtered learning hashes for O(1) lookups

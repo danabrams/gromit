@@ -89,6 +89,41 @@ func TestInteractiveFileLastReviewCommit(t *testing.T) {
 	}
 }
 
+func TestInteractiveFileLastReviewCommit_PrefersJSONOverTag(t *testing.T) {
+	stubReviewTagSequence(t, []reviewTagResponse{
+		{output: []byte("gromit/interactive-review/2026-02-25T12-00-00\n"), err: nil},
+		{output: []byte("tag-commit\n"), err: nil},
+	})
+
+	f, _ := NewInteractiveFile(t.TempDir())
+	f.state.LastReviewCommit = "json-commit"
+
+	if got := f.LastReviewCommit(); got != "json-commit" {
+		t.Fatalf("LastReviewCommit() = %q, want %q", got, "json-commit")
+	}
+}
+
+func TestInteractiveFileLastReviewCommit_TagFallbackUsesRepoDir(t *testing.T) {
+	repoDir := t.TempDir()
+	captures := stubReviewTagSequence(t, []reviewTagResponse{
+		{output: []byte("gromit/interactive-review/2026-02-25T12-00-00\n"), err: nil},
+		{output: []byte("tag-commit\n"), err: nil},
+	})
+
+	gromitDir := filepath.Join(repoDir, ".gromit")
+	f, _ := NewInteractiveFile(gromitDir)
+
+	if got := f.LastReviewCommit(); got != "tag-commit" {
+		t.Fatalf("LastReviewCommit() = %q, want %q", got, "tag-commit")
+	}
+	if len(*captures) != 2 {
+		t.Fatalf("expected 2 git calls, got %d", len(*captures))
+	}
+	if (*captures)[0].dir != repoDir || (*captures)[1].dir != repoDir {
+		t.Fatalf("expected git calls in repo dir %q, got %q and %q", repoDir, (*captures)[0].dir, (*captures)[1].dir)
+	}
+}
+
 // TestInteractiveFileLastReviewIteration verifies that LastReviewIteration is accessible
 func TestInteractiveFileLastReviewIteration(t *testing.T) {
 	dir := t.TempDir()

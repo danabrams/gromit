@@ -56,6 +56,16 @@ When issue-ledger normalization (ordering/canonical encoding) and semantic issue
 
 Cohort validation paths that call external lookups must treat a nil object as invalid input and return a typed error before dereferencing fields, preventing panic-class failures from malformed integration responses.
 
+### 2026-02-25 | efficiency_completeness_assertions_should_include_missing_row_diagnostics | RELIABILITY
+*Related to: gromit/review-1772059511071909600*
+
+Post-run efficiency completeness checks should diagnose both missing efficiency fields and missing iteration log rows so failures point directly to log wiring defects rather than generic completeness errors.
+
+### 2026-02-25 | review_state_should_prefer_local_json_with_repo_scoped_tag_fallback | ARCHITECTURE
+*Related to: gromit/review-1772059511071909600*
+
+When tracking last-review commit, prefer workspace-local interactive state as the authoritative value and use git tags only as repo-scoped fallback history markers to avoid stale cross-worktree state bleed.
+
 ## Provisional Learnings
 
 ## Archived Learnings
