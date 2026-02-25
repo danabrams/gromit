@@ -253,18 +253,26 @@ func (a *reviewInvokerAdapter) StreamRun(ctx context.Context, prompt string, mod
 	if a.router == nil {
 		return "", fmt.Errorf("router is nil")
 	}
-	p, _ := a.router.Select("review", "high")
+	p, _ := a.router.Select("review", model)
 	if p == nil {
 		return "", fmt.Errorf("no provider available for review")
 	}
-	result, err := p.Run(ctx, prompt, "high")
+	var out io.Writer
+	var sb strings.Builder
+	if w == nil {
+		out = &sb
+	} else {
+		out = io.MultiWriter(w, &sb)
+	}
+
+	result, err := p.StreamRun(ctx, prompt, model, out, nil, nil)
 	if err != nil {
 		return "", err
 	}
 	if result == nil {
 		return "", fmt.Errorf("review invoker returned nil result")
 	}
-	return result.Output, nil
+	return sb.String(), nil
 }
 
 // beadCreatorAdapter wraps bead.Client to satisfy review.BeadCreator.

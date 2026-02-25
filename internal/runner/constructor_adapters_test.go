@@ -135,7 +135,7 @@ type trackingProvider struct {
 	runCalled    bool
 }
 
-func (p *trackingProvider) Name() string { return "tracking" }
+func (p *trackingProvider) Name() string                    { return "tracking" }
 func (p *trackingProvider) ModelForTier(tier string) string { return "sonnet" }
 func (p *trackingProvider) Run(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
 	p.runCalled = true
@@ -152,8 +152,8 @@ func (p *trackingProvider) RunValidation(ctx context.Context, commands []string,
 	return &provider.Result{Success: true}, nil
 }
 func (p *trackingProvider) IsUsageLimitError(result *provider.Result, err error) bool { return false }
-func (p *trackingProvider) IsValidationPassed(result *provider.Result) bool { return result.Success }
-func (p *trackingProvider) IsScopeTooLarge(result *provider.Result) (bool, string) { return false, "" }
+func (p *trackingProvider) IsValidationPassed(result *provider.Result) bool           { return result.Success }
+func (p *trackingProvider) IsScopeTooLarge(result *provider.Result) (bool, string)    { return false, "" }
 
 func TestReviewInvokerAdapter_UsesStreamRun(t *testing.T) {
 	prov := &trackingProvider{}
