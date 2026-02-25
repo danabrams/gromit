@@ -1,0 +1,6 @@
+# provenance: fixture for streaming agent delta text to writer.
+# refresh: keep delta sequence deterministic.
+{"type":"item.agentMessage.delta","delta":{"text":"Hello "}}
+{"type":"item.agentMessage.delta","delta":{"text":"world"}}
+{"type":"item.completed","item":{"type":"agent_message","text":"Hello world"}}
+{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}
