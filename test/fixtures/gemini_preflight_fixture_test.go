@@ -569,6 +569,22 @@ func TestGeminiSchemaNotesFixture_DocumentsPromptModesAndSchemaExtraction(t *tes
 	}
 }
 
+func TestGeminiSchemaNotesFixture_DocumentsJSONStatsModels(t *testing.T) {
+	path := geminiFixturePath("schema-notes.md")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read schema notes fixture: %v", err)
+	}
+
+	body := strings.ToLower(string(content))
+	required := []string{"stats.models", "models/<model>.tokens", "stats.tools"}
+	for _, token := range required {
+		if !strings.Contains(body, token) {
+			t.Fatalf("schema notes must document JSON stats clause %q", token)
+		}
+	}
+}
+
 func TestGeminiFixtures_DoNotReferenceLegacyPlansFixturePath(t *testing.T) {
 	paths := []string{
 		geminiFixturePath("preflight.md"),
