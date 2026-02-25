@@ -411,6 +411,42 @@ func TestSPCMetricConstants(t *testing.T) {
 	}
 }
 
+func TestFormatSPCSummary_IncludesProviderMetrics(t *testing.T) {
+	trend := &logger.ProcessTrend{
+		TotalIterations: 3,
+		WindowSize:      1,
+		ProviderMetrics: []logger.ProviderMetrics{
+			{
+				Name:                 "openai",
+				TotalInvocations:     2,
+				Successes:            1,
+				SuccessRate:          0.5,
+				TransportFailures:    1,
+				TransportFailureRate: 0.5,
+				FallbacksTriggered:   1,
+				AvgDurationMs:        2000,
+				TotalCostUSD:         3.14,
+			},
+		},
+		ControlLimits: []logger.TrendControlLimit{
+			{Metric: spcMetricRollingSuccessRate, Latest: 0.5, LCL: 0.2, UCL: 0.8},
+		},
+	}
+
+	got := formatSPCSummary(trend)
+	for _, substr := range []string{
+		"Provider metrics:",
+		"openai:",
+		"2 invocations",
+		"50% success",
+		"$3.14 total cost",
+	} {
+		if !strings.Contains(got, substr) {
+			t.Fatalf("formatSPCSummary() = %q, want substring %q", got, substr)
+		}
+	}
+}
+
 func TestFormatSPCSummary(t *testing.T) {
 	tests := []struct {
 		name           string
