@@ -12,12 +12,14 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/jsonutil"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/execution"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
+	"github.com/danabrams/gromit/internal/specgate"
 	"github.com/danabrams/gromit/internal/validate"
 	"github.com/danabrams/gromit/internal/worktree"
 )
@@ -368,6 +370,139 @@ func (a *iterationLogWriterAdapter) Write(log *logger.IterationLog) error {
 
 type trendTrigger interface {
 	Trigger()
+}
+
+// specGateAdapter wraps dependencies to satisfy epilogue.SpecGateRunner.
+// It evaluates acceptance criteria for a bead when spec-level methodology is active.
+type specGateAdapter struct {
+	renderer *prompt.Renderer
+	router   *provider.Router
+	cfg      *config.Config
+	logFn    func(string, ...interface{})
+}
+
+// Run evaluates the acceptance criteria for the bead using the spec gate.
+func (a *specGateAdapter) Run(ctx context.Context, beadID string, labels []string) error {
+	if a == nil || a.router == nil || a.cfg == nil {
+		return nil
+	}
+
+	// Extract spec name from labels (format: "spec:name")
+	specName := extractSpecLabel(labels)
+	if specName == "" {
+		return nil
+	}
+
+	// Load the spec to extract acceptance criteria
+	if a.renderer == nil {
+		return nil
+	}
+	specContent, err := a.renderer.LoadSpec(specName)
+	if err != nil {
+		if a.logFn != nil {
+			a.logFn("Warning: could not load spec %q: %v", specName, err)
+		}
+		return nil
+	}
+
+	// Parse acceptance criteria from the spec
+	criteria, err := coverage.ParseCriteria(specContent)
+	if err != nil {
+		if a.logFn != nil {
+			a.logFn("Warning: could not parse criteria from spec %q: %v", specName, err)
+		}
+		return nil
+	}
+
+	if len(criteria) == 0 {
+		return nil
+	}
+
+	// Convert criteria to strings for the gate
+	criteriaTexts := make([]string, len(criteria))
+	for i, c := range criteria {
+		criteriaTexts[i] = c.Text
+	}
+
+	// Get the spec gate config
+	if !a.cfg.SpecGate.IsEnabled() {
+		return nil
+	}
+
+	// Create a gate with the necessary dependencies
+	gate := &specgate.Gate{
+		RunTests: func(ctx context.Context) (string, error) {
+			// For now, skip test running; return empty output
+			return "", nil
+		},
+		GetDiff: func(ctx context.Context) (string, error) {
+			return getGitDiff("")
+		},
+		RenderPrompt: func(ctx context.Context, specName, testOutput, diff string, criteria []string) (string, error) {
+			// Render the gate prompt using the renderer
+			if a.renderer == nil {
+				return "", fmt.Errorf("renderer is nil")
+			}
+			criteriaText := strings.Join(criteria, "\n")
+			sgCtx := &prompt.SpecGateContext{
+				TestOutput:         testOutput,
+				CumulativeDiff:     diff,
+				AcceptanceCriteria: criteriaText,
+			}
+			return a.renderer.RenderSpecGate(sgCtx)
+		},
+		InvokeLLM: func(ctx context.Context, model, prompt string) ([]byte, error) {
+			// Invoke the LLM with the spec gate model
+			if a.router == nil {
+				return nil, fmt.Errorf("router is nil")
+			}
+			p, _ := a.router.Select("spec-gate", provider.TierMedium)
+			if p == nil {
+				return nil, fmt.Errorf("no provider available for spec gate")
+			}
+			result, err := p.Run(ctx, prompt, a.cfg.SpecGate.Model)
+			if err != nil {
+				return nil, err
+			}
+			if result == nil {
+				return nil, fmt.Errorf("nil result from provider")
+			}
+			return []byte(result.Output), nil
+		},
+		Model:     a.cfg.SpecGate.Model,
+		MaxCycles: a.cfg.SpecGate.MaxCycles,
+	}
+
+	// Run the gate
+	verdict, err := gate.Run(ctx, specName, criteriaTexts)
+	if err != nil {
+		if a.logFn != nil {
+			a.logFn("Warning: spec gate evaluation failed: %v", err)
+		}
+		return nil
+	}
+
+	// Check if the gate passed
+	if verdict != nil && !verdict.Passed {
+		if a.logFn != nil {
+			a.logFn("Warning: spec gate failed for bead %q (spec %q)", beadID, specName)
+		}
+		return nil
+	}
+
+	return nil
+}
+
+// extractSpecLabel returns the spec name from labels (format: "spec:name").
+func extractSpecLabel(labels []string) string {
+	const specPrefix = "spec:"
+	for _, label := range labels {
+		if strings.HasPrefix(label, specPrefix) {
+			specName := strings.TrimPrefix(label, specPrefix)
+			return strings.TrimSpace(specName)
+		}
+	}
+	return ""
 }
 
 // scopeGateSubBead represents a single sub-bead from the LLM decomposition response.
