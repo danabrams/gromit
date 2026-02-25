@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/worktree"
@@ -808,6 +809,132 @@ func TestRunWithSessionWorktreeConflictAgentPolicyFallsBackToManual(t *testing.T
 	if cleanupCalled {
 		t.Fatal("session worktree should not be removed before fallback to manual handoff")
 	}
+}
+
+func TestRunWithSessionWorktreeDualConflictHandoff(t *testing.T) {
+	mainDir := t.TempDir()
+	gromitDir := filepath.Join(mainDir, ".gromit")
+	sessionA := &worktree.SessionWorktree{
+		BranchName:  "gromit/dual-session-a",
+		WorktreeDir: filepath.Join(mainDir, "session-a"),
+	}
+	sessionB := &worktree.SessionWorktree{
+		BranchName:  "gromit/dual-session-b",
+		WorktreeDir: filepath.Join(mainDir, "session-b"),
+	}
+
+	mergeBarrier := newSyncBarrier(2)
+	addDone := make(chan struct{})
+	var (
+		addMu   sync.Mutex
+		addCount int
+		recorded  = map[string]struct{}{}
+		recordMu sync.Mutex
+	)
+
+	manager := &mockSessionWorktreeCreator{
+		CreateSessionWorktreeFn: func(command string) (*worktree.SessionWorktree, error) {
+			switch command {
+			case "dual-session-a":
+				return sessionA, nil
+			case "dual-session-b":
+				return sessionB, nil
+			default:
+				t.Fatalf("unexpected command %q", command)
+				return nil, nil
+			}
+		},
+		MergeBackFn: func(branch string) error {
+			<-addDone
+			mergeBarrier.Wait()
+			return errors.New("merge conflict for branch " + branch)
+		},
+	}
+
+	stateRecorder := &mockPendingBranchRecorder{
+		AddPendingWorktreeBranchFn: func(branch string) error {
+			recordMu.Lock()
+			recorded[branch] = struct{}{}
+			recordMu.Unlock()
+
+			addMu.Lock()
+			addCount++
+			if addCount == 2 {
+				close(addDone)
+			}
+			addMu.Unlock()
+			return nil
+		},
+		RemovePendingWorktreeBranchFn: func(branch string) error {
+			t.Fatalf("pending branch should not be removed: %s", branch)
+			return nil
+		},
+	}
+
+	cleanupCalled := false
+	withInteractiveWorktreeFactories(t, func(gotMainDir string) (sessionWorktreeCreator, error) {
+		if gotMainDir != mainDir {
+			t.Fatalf("mainDir = %q, want %q", gotMainDir, mainDir)
+		}
+		return manager, nil
+	}, func(gotGromitDir string) (pendingBranchRecorder, error) {
+		if gotGromitDir != gromitDir {
+			t.Fatalf("gromitDir = %q, want %q", gotGromitDir, gromitDir)
+		}
+		return stateRecorder, nil
+	}, func(gotMainDir, gotSessionDir string) error {
+		cleanupCalled = true
+		return nil
+	})
+
+	resCh := make(chan struct {
+		branch  string
+		session *worktree.SessionWorktree
+		err     error
+	}, 2)
+
+	runSession := func(command string) {
+		go func() {
+			session, err := runWithSessionWorktreeWithConflictSettings(gromitDir, command, sessionConflictSettings{}, func(string) error {
+				return nil
+			})
+			resCh <- struct {
+				branch  string
+				session *worktree.SessionWorktree
+				err     error
+			}{branch: command, session: session, err: err}
+		}()
+	}
+
+	runSession("dual-session-a")
+	runSession("dual-session-b")
+
+	seen := map[string]struct{}{}
+	for i := 0; i < 2; i++ {
+		result := <-resCh
+		if result.session == nil {
+			t.Fatalf("session result is nil for command %s", result.branch)
+		}
+		if !isMergeConflictHandoffError(result.err) {
+			t.Fatalf("expected merge conflict error for %s, got %v", result.branch, result.err)
+		}
+		seen[result.session.BranchName] = struct{}{}
+	}
+
+	if cleanupCalled {
+		t.Fatal("cleanup should not run when both sessions conflict")
+	}
+
+	recordMu.Lock()
+	if len(recorded) != 2 {
+		t.Fatalf("recorded pending branches %v, want 2", recorded)
+	}
+	for branch := range recorded {
+		if branch != sessionA.BranchName && branch != sessionB.BranchName {
+			t.Fatalf("unexpected branch recorded: %s", branch)
+		}
+	}
+	recordMu.Unlock()
 }
 
 func TestMergeConflictHandoffError_ManualIncludesActionableGitInstructions(t *testing.T) {
