@@ -297,9 +297,9 @@ runLoop:
 	o.mergeGlobalStats()
 
 	// Post-run completeness assertion: verify all iterations have complete efficiency data
-	//if err := o.assertEfficiencyCompleteness(iteration); err != nil {
-	//	return err
-	//}
+	if err := o.assertEfficiencyCompleteness(iteration); err != nil {
+		return err
+	}
 
 	// Persist provider routing state so availability counts survive across runs.
 	if o.cfg.StateSaver != nil {
