@@ -134,11 +134,12 @@ exit ${1:-0}
 
 func createTempShellScript(t *testing.T, dir, name, content string) string {
 	t.Helper()
-	scriptPath := filepath.Join(dir, name)
 	// Write to a temp file then rename atomically to avoid ETXTBSY on Linux:
 	// when parallel subtests write+exec concurrently, os.WriteFile may have
 	// O_WRONLY open on an inode that another goroutine's fork() inherits.
 	// The rename ensures the final path has no open write fd at exec time.
+	// Use unique final names to prevent races when concurrent goroutines
+	// create scripts with the same base name.
 	f, err := os.CreateTemp(dir, name+".*.tmp")
 	if err != nil {
 		t.Fatalf("failed to create temp file for script %s: %v", name, err)
@@ -154,14 +155,42 @@ func createTempShellScript(t *testing.T, dir, name, content string) string {
 		os.Remove(tmpPath)
 		t.Fatalf("failed to chmod test shell script %s: %v", name, err)
 	}
+	// Fsync before close to ensure all writes are persisted and the inode
+	// is stable. This hardens against ETXTBSY when the kernel sees the file
+	// changing while another process is about to execute it.
+	if err := f.Sync(); err != nil {
+		f.Close()
+		os.Remove(tmpPath)
+		t.Fatalf("failed to sync test shell script %s: %v", name, err)
+	}
 	if err := f.Close(); err != nil {
 		os.Remove(tmpPath)
 		t.Fatalf("failed to close test shell script %s: %v", name, err)
 	}
+	// Keep the random component from the temp file to ensure unique final names
+	// across concurrent invocations. This prevents ETXTBSY when parallel
+	// goroutines try to replace the same binary name simultaneously.
+	// Pattern: name.ABC.tmp → name.ABC (removing only the .tmp suffix)
+	scriptPath := strings.TrimSuffix(tmpPath, ".tmp")
 	if err := os.Rename(tmpPath, scriptPath); err != nil {
 		os.Remove(tmpPath)
 		t.Fatalf("failed to rename test shell script to %s: %v", scriptPath, err)
 	}
+
+	// Sync the parent directory to ensure the rename is fully persisted.
+	// This is critical for ETXTBSY hardening: the directory entry must be
+	// stable before another process tries to execute the file.
+	dirFile, err := os.Open(dir)
+	if err != nil {
+		os.Remove(scriptPath)
+		t.Fatalf("failed to open directory for sync %s: %v", dir, err)
+	}
+	defer dirFile.Close()
+	if err := dirFile.Sync(); err != nil {
+		os.Remove(scriptPath)
+		t.Fatalf("failed to sync directory %s: %v", dir, err)
+	}
+
 	return scriptPath
 }
 
