@@ -2,6 +2,7 @@ package tdd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -55,6 +56,8 @@ const (
 	refactorOutcomeRevertedContinue refactorOutcome = "reverted_continue"
 	refactorOutcomeFailed           refactorOutcome = "failed"
 )
+
+var errValidateFnNotConfigured = errors.New("validateFn is not configured")
 
 func isSupportedRefactorOutcome(outcome refactorOutcome) bool {
 	switch outcome {
@@ -223,8 +226,8 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 	o.updateTouchedFiles(state)
 
 	// VALIDATE RED: expect tests to fail
-	if o.validateFn == nil {
-		return fmt.Errorf("validateFn is not configured")
+	if err := o.ensureValidateFn(); err != nil {
+		return err
 	}
 	redValidationOutput, passed, err := o.validateFn(ctx, nil, "")
 	if err != nil {
@@ -291,8 +294,8 @@ func (o *CycleOrchestrator) runGreenPhaseUntilValidated(
 
 	for {
 		// VALIDATE GREEN: expect tests to pass
-		if o.validateFn == nil {
-			return fmt.Errorf("validateFn is not configured")
+		if err := o.ensureValidateFn(); err != nil {
+			return err
 		}
 		validationOutput, passed, err := o.validateFn(ctx, nil, "")
 		if err != nil {
@@ -386,7 +389,7 @@ func (o *CycleOrchestrator) executeRefactorPhase(ctx context.Context, bc *runtyp
 	}
 
 	// Verify tests still pass after refactor.
-	if o.validateFn == nil {
+	if err := o.ensureValidateFn(); err != nil {
 		return refactorOutcomeFailed
 	}
 	_, passed, validateErr := o.validateFn(ctx, nil, "")
@@ -440,8 +443,8 @@ func (o *CycleOrchestrator) updateTouchedFiles(state *CycleState) {
 
 func (o *CycleOrchestrator) runFinalValidation(ctx context.Context) error {
 	// Final validation must run immediately after refactor in the same cycle.
-	if o.validateFn == nil {
-		return fmt.Errorf("validateFn is not configured")
+	if err := o.ensureValidateFn(); err != nil {
+		return err
 	}
 	_, finalPassed, finalErr := o.validateFn(ctx, nil, "")
 	if finalErr != nil {
@@ -459,4 +462,11 @@ func (o *CycleOrchestrator) recordPhaseMetric(bc *runtypes.BeadContext, phase st
 	if o.recordPhaseMetricFn != nil {
 		o.recordPhaseMetricFn(bc, phase, cycleNumber, beforeCostUSD, beforeInputTokens, beforeOutputTokens, startTime)
 	}
+}
+
+func (o *CycleOrchestrator) ensureValidateFn() error {
+	if o.validateFn == nil {
+		return errValidateFnNotConfigured
+	}
+	return nil
 }
