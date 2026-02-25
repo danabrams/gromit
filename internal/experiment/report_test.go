@@ -103,3 +103,30 @@ func TestFormatReportReturnsString(t *testing.T) {
 		t.Fatalf("expected formatted report with content, got %q", formatted)
 	}
 }
+
+func TestFormatReportJSONReturnsJSON(t *testing.T) {
+	// Verify that FormatReportJSON returns valid JSON
+	er := &ExperimentReport{
+		ExperimentID: "exp-1",
+		VariantReports: []*VariantReport{
+			{VariantID: "control", SuccessRate: 0.8},
+		},
+	}
+
+	json := er.FormatReportJSON()
+	if json == "" {
+		t.Fatalf("expected non-empty JSON report")
+	}
+	if !contains(json, "exp-1") {
+		t.Fatalf("expected JSON to contain experiment ID, got %s", json)
+	}
+}
+
+func contains(s, substr string) bool {
+	for i := 0; i < len(s)-len(substr)+1; i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
