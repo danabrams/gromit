@@ -321,6 +321,10 @@ func formatSPCSummary(trend *logger.ProcessTrend) string {
 		lines = append(lines, formatSPCLine(dm.label, cl, dm.metric == spcMetricRollingAvgDurationMs))
 	}
 
+	if providerLines := formatSPCProviderMetrics(trend.ProviderMetrics); len(providerLines) > 0 {
+		lines = append(lines, providerLines...)
+	}
+
 	// Anomaly summary.
 	if len(trend.Anomalies) == 0 {
 		lines = append(lines, "  Anomaly:  none")
@@ -343,6 +347,33 @@ func formatSPCLine(label string, cl logger.TrendControlLimit, isDuration bool) s
 	}
 	return fmt.Sprintf("  %-10s %s, limits %s..%s",
 		label, formatSPCValue(cl.Latest, true), formatSPCValue(cl.LCL, true), formatSPCValue(cl.UCL, true))
+}
+
+func formatSPCProviderMetrics(metrics []logger.ProviderMetrics) []string {
+	if len(metrics) == 0 {
+		return nil
+	}
+
+	lines := []string{"  Provider metrics:"}
+	for _, pm := range metrics {
+		avgDuration := time.Duration(math.Round(pm.AvgDurationMs)) * time.Millisecond
+		successPct := int(math.Round(pm.SuccessRate * 100))
+		transportPct := int(math.Round(pm.TransportFailureRate * 100))
+		lines = append(lines, fmt.Sprintf("    %s: %d invocations, %d%% success (%d/%d), transport %d%% (%d), fallbacks %d, avg %s, $%.2f total cost",
+			pm.Name,
+			pm.TotalInvocations,
+			successPct,
+			pm.Successes,
+			pm.TotalInvocations,
+			transportPct,
+			pm.TransportFailures,
+			pm.FallbacksTriggered,
+			formatDuration(avgDuration),
+			pm.TotalCostUSD,
+		))
+	}
+
+	return lines
 }
 
 // formatSPCValue formats a single SPC metric value for display.
