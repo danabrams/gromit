@@ -98,3 +98,33 @@ func TestRecordOutcomeIncrementsFailures(t *testing.T) {
 		t.Fatalf("Expected variant-1 failures to be 5, got %d", state.Arms[1].Failures)
 	}
 }
+
+func TestIsConvergedDetectsHighConfidenceWinner(t *testing.T) {
+	// When one arm is clearly better, IsConverged should return true
+	state := &BanditState{
+		Arms: []ArmState{
+			{ID: "control", Successes: 10, Failures: 10},
+			{ID: "variant-1", Successes: 100, Failures: 5},
+		},
+	}
+
+	converged := state.IsConverged(0.95)
+	if !converged {
+		t.Fatalf("Expected IsConverged to be true when one arm is clearly better")
+	}
+}
+
+func TestIsConvergedDetectsInconsistentData(t *testing.T) {
+	// When arms are similar, IsConverged should return false
+	state := &BanditState{
+		Arms: []ArmState{
+			{ID: "control", Successes: 10, Failures: 10},
+			{ID: "variant-1", Successes: 11, Failures: 9},
+		},
+	}
+
+	converged := state.IsConverged(0.95)
+	if converged {
+		t.Fatalf("Expected IsConverged to be false when arms are similar")
+	}
+}
