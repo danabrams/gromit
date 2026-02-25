@@ -242,28 +242,6 @@ func (f *File) Add(beadID, content, category string) (*Learning, error) {
 		return nil, nil // Exact duplicate, skip
 	}
 
-	// Apply filter if configured
-	if f.filterFunc != nil {
-		isGeneric, err := f.filterFunc(content)
-		if err != nil {
-			// Fall through to normal logic on filter error — don't block learning placement
-		} else if isGeneric {
-			// Archive as generic engineering advice
-			learning := Learning{
-				Date:     time.Now(),
-				BeadID:   beadID,
-				Content:  fmt.Sprintf("%s\n\n*Archived from new: filtered: generic engineering advice*", content),
-				Category: category,
-				Hash:     hash,
-			}
-			if err := f.appendToArchiveFile(learning); err != nil {
-				return nil, err
-			}
-			f.trackArchivedLearning(learning)
-			return nil, f.Save()
-		}
-	}
-
 	learning := Learning{
 		Date:     time.Now(),
 		BeadID:   beadID,
@@ -272,28 +250,7 @@ func (f *File) Add(beadID, content, category string) (*Learning, error) {
 		Hash:     hash,
 	}
 
-	// Check for fuzzy match in provisional (might promote to confirmed)
-	for i, existing := range f.provisional {
-		if similarity(existing.Content, content) > FuzzyMatchThreshold {
-			// Similar learning exists - promote to confirmed
-			f.provisional = append(f.provisional[:i], f.provisional[i+1:]...)
-			learning.RelatedTo = existing.BeadID
-			f.confirmed = append(f.confirmed, learning)
-			return &learning, f.Save()
-		}
-	}
-
-	// Check for fuzzy match in confirmed (mark as related)
-	for _, existing := range f.confirmed {
-		if similarity(existing.Content, content) > FuzzyMatchThreshold {
-			learning.RelatedTo = existing.BeadID
-			break
-		}
-	}
-
-	// Add as provisional
-	f.provisional = append(f.provisional, learning)
-	return &learning, f.Save()
+	return f.processNewLearning(learning)
 }
 
 // Save writes the learnings back to the file
