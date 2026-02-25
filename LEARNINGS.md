@@ -2,6 +2,16 @@
 
 ## Confirmed Learnings
 
+### 2026-02-25 | agent_test_setup_should_be_shared_helpers | TEST_QUALITY
+*Related to: gromit/review-1772054097495408438*
+
+When multiple agent-related tests need temporary config/backlog scaffolding, centralize the setup in shared helpers to avoid drift and simplify new acceptance tests.
+
+### 2026-02-25 | thorough_review_logic_belongs_in_dedicated_package | ARCHITECTURE
+*Related to: gromit/review-1772054097495408438*
+
+Thorough review orchestration should live in its own package so runner wiring stays thin and review-specific dependencies remain isolated.
+
 ### 2026-02-25 | provider_fixture_governance_schema_first_deterministic | TEST_QUALITY
 *Related to: gromit/review-1771886115282672489, gromit/review-1771908518510170783, gromit/review-1771929160626448252, gromit/review-1771897964548429202*
 *Consolidated from: fixture_tests_should_assert_schema_and_records_not_prose_tokens + provider_fixture_contracts_should_be_curated_with_provenance_and_deterministic_metadata + gemini_fixture_metadata_and_artifact_requirements_are_test_enforced + gemini_schema_notes_must_reference_model_and_token_cost_evidence + real_probe_fixtures_are_canonical_and_tests_should_follow_them*
