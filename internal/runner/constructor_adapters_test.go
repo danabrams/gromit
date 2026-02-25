@@ -1,6 +1,8 @@
 package runner
 
 import (
+	"context"
+	"io"
 	"math"
 	"path/filepath"
 	"strings"
@@ -125,5 +127,47 @@ func TestIterationLogWriterAdapter_TriggersTrendRefreshOnSuccess(t *testing.T) {
 	}
 	if trigger.triggered != 1 {
 		t.Fatalf("Trigger count = %d, want 1", trigger.triggered)
+	}
+}
+
+type trackingProvider struct {
+	streamCalled bool
+	runCalled    bool
+}
+
+func (p *trackingProvider) Name() string { return "tracking" }
+func (p *trackingProvider) ModelForTier(tier string) string { return "sonnet" }
+func (p *trackingProvider) Run(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
+	p.runCalled = true
+	return &provider.Result{Success: true, Output: "ok"}, nil
+}
+func (p *trackingProvider) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+	p.streamCalled = true
+	if output != nil {
+		output.Write([]byte(prompt))
+	}
+	return &provider.Result{Success: true, Output: "ok"}, nil
+}
+func (p *trackingProvider) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*provider.Result, error) {
+	return &provider.Result{Success: true}, nil
+}
+func (p *trackingProvider) IsUsageLimitError(result *provider.Result, err error) bool { return false }
+func (p *trackingProvider) IsValidationPassed(result *provider.Result) bool { return result.Success }
+func (p *trackingProvider) IsScopeTooLarge(result *provider.Result) (bool, string) { return false, "" }
+
+func TestReviewInvokerAdapter_UsesStreamRun(t *testing.T) {
+	prov := &trackingProvider{}
+	router := provider.NewSingleProviderRouter(prov)
+	adapter := &reviewInvokerAdapter{router: router}
+
+	if _, err := adapter.StreamRun(context.Background(), "prompt", "high", io.Discard); err != nil {
+		t.Fatalf("StreamRun returned error: %v", err)
+	}
+
+	if prov.runCalled {
+		t.Fatal("expected Run() NOT to be called")
+	}
+	if !prov.streamCalled {
+		t.Fatal("expected StreamRun() to be called")
 	}
 }
