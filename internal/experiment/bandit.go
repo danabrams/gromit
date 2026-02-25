@@ -60,6 +60,21 @@ func (bs *BanditState) SelectVariant(forceVariant string) string {
 	return bs.Arms[bestIdx].ID
 }
 
+// RecordOutcome records the outcome of selecting an arm.
+// success=true increments successes, success=false increments failures.
+func (bs *BanditState) RecordOutcome(armID string, success bool) {
+	for i, arm := range bs.Arms {
+		if arm.ID == armID {
+			if success {
+				bs.Arms[i].Successes++
+			} else {
+				bs.Arms[i].Failures++
+			}
+			break
+		}
+	}
+}
+
 // sampleGamma samples from Gamma(shape, 1) distribution using Marsaglia-Tsang method
 func sampleGamma(shape float64) float64 {
 	if shape < 1 {
