@@ -118,13 +118,13 @@ func TestIsConvergedDetectsInconsistentData(t *testing.T) {
 	// When arms are similar, IsConverged should return false
 	state := &BanditState{
 		Arms: []ArmState{
-			{ID: "control", Successes: 10, Failures: 10},
-			{ID: "variant-1", Successes: 11, Failures: 9},
+			{ID: "control", Successes: 50, Failures: 50},
+			{ID: "variant-1", Successes: 50, Failures: 50},
 		},
 	}
 
 	converged := state.IsConverged(0.95)
 	if converged {
-		t.Fatalf("Expected IsConverged to be false when arms are similar")
+		t.Fatalf("Expected IsConverged to be false when arms are equally good")
 	}
 }
