@@ -1304,6 +1304,44 @@ func TestRenderPromptWithProviderFamiliesEmitsMixedProviderAggregateLabel(t *tes
 	}
 }
 
+func TestRenderPromptEmitsMixedProviderFamilyLabel(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	templatePath := filepath.Join(tmpDir, "template.md")
+	templateContent := `{{- if .ExperimentMetrics }}Provider family: {{ .ExperimentMetrics.ProviderFamily }}{{- end }}`
+	if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+		t.Fatalf("writing template: %v", err)
+	}
+
+	tmpGromitDir := t.TempDir()
+	mockProvider := &mockProvider{}
+	r, err := NewRetroWithProvider(mockProvider, tmpGromitDir)
+	if err != nil {
+		t.Fatalf("failed to create Retro: %v", err)
+	}
+	r.templatePath = templatePath
+
+	experiment := &Experiment{Name: "Mixed family experiment"}
+	efficiency := &logger.EfficiencyReport{
+		CurrentProviderFamilies: map[string]logger.ModelEfficiency{
+			providerFamilyClaude: {Model: providerFamilyClaude, IterationCount: 2},
+			providerFamilyCodex:  {Model: providerFamilyCodex, IterationCount: 1},
+		},
+		MixedProviderFamilies:     true,
+		CurrentAvgCostPerBead:     0.45,
+		CurrentAvgDurationPerBead: 2 * time.Second,
+	}
+
+	prompt, err := r.renderPrompt("# Rules", "# Learnings", logger.RunStats{Total: 1}, nil, efficiency, experiment)
+	if err != nil {
+		t.Fatalf("renderPrompt failed: %v", err)
+	}
+
+	if !contains(prompt, "Provider family: Mixed-provider aggregate") {
+		t.Errorf("expected mixed provider family label, got prompt: %q", prompt)
+	}
+}
+
 func TestRenderPromptWithProcessTrendFailureBreakdownInRealTemplate(t *testing.T) {
 	tmpDir := t.TempDir()
 
