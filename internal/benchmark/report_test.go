@@ -850,6 +850,53 @@ func TestWritePhase3MeasurementReport_WritesReportAndRunArtifactsToReportsDir(t 
 	}
 }
 
+func TestBuildReportInput_ConstructsReportInputFromManifestAndModes(t *testing.T) {
+	input := BuildReportInput(
+		"test-manifest-id",
+		"abc123def456",
+		[]string{"bead-1", "bead-2", "bead-3"},
+		"openai",
+		"gpt-5",
+		"gpt-5.1-codex-mini",
+		"gpt-5.3-codex",
+		"gpt-5.3-codex",
+		[]ModeSummary{
+			{
+				Mode:             "single_pass",
+				ElapsedSeconds:   120,
+				TotalInput:       1000,
+				TotalOutput:      500,
+				TotalCostUSD:     1.25,
+				CostQualityRatio: 1.42,
+				Quality:          QualityMetrics{AverageScore: 0.88, FirstPassRate: 0.67},
+			},
+		},
+		"20260225T120000Z",
+	)
+
+	if input.Timestamp != "20260225T120000Z" {
+		t.Errorf("Timestamp = %q, want %q", input.Timestamp, "20260225T120000Z")
+	}
+	if input.Manifest.ID != "test-manifest-id" {
+		t.Errorf("Manifest.ID = %q, want %q", input.Manifest.ID, "test-manifest-id")
+	}
+	if input.Manifest.BaseCommit != "abc123def456" {
+		t.Errorf("Manifest.BaseCommit = %q, want %q", input.Manifest.BaseCommit, "abc123def456")
+	}
+	if len(input.Manifest.Beads) != 3 {
+		t.Errorf("Manifest.Beads length = %d, want 3", len(input.Manifest.Beads))
+	}
+	if input.Manifest.Provider != "openai" {
+		t.Errorf("Manifest.Provider = %q, want %q", input.Manifest.Provider, "openai")
+	}
+	if len(input.Modes) != 1 {
+		t.Errorf("Modes length = %d, want 1", len(input.Modes))
+	}
+	if input.Modes[0].Mode != "single_pass" {
+		t.Errorf("Modes[0].Mode = %q, want %q", input.Modes[0].Mode, "single_pass")
+	}
+}
+
 func repoRootFrom(t *testing.T, start string) string {
 	t.Helper()
 	dir := start
