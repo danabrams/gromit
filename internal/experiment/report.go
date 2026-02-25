@@ -1,0 +1,11 @@
+package experiment
+
+// ExperimentReport represents the report for a single experiment.
+type ExperimentReport struct {
+	ExperimentID string
+}
+
+// GenerateReport loads bandit state for each experiment and returns the report.
+func GenerateReport(experiments []*Experiment, stateDir string) (*ExperimentReport, error) {
+	return &ExperimentReport{}, nil
+}
