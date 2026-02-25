@@ -8,51 +8,6 @@ import (
 	"time"
 )
 
-// TestBuildFromReviewLabels_PrependsSingleLabel verifies that BuildFromReviewLabels
-// prepends "from-review" to a new label list.
-func TestBuildFromReviewLabels_PrependsSingleLabel(t *testing.T) {
-	labels := BuildFromReviewLabels([]string{"bug"})
-	if len(labels) != 2 {
-		t.Errorf("got %d labels, want 2", len(labels))
-	}
-	if labels[0] != "from-review" {
-		t.Errorf("first label = %q, want 'from-review'", labels[0])
-	}
-	if labels[1] != "bug" {
-		t.Errorf("second label = %q, want 'bug'", labels[1])
-	}
-}
-
-// TestBuildFromReviewLabels_DeduplicatesExistingLabel verifies that if "from-review"
-// is already in the labels, it is not duplicated.
-func TestBuildFromReviewLabels_DeduplicatesExistingLabel(t *testing.T) {
-	labels := BuildFromReviewLabels([]string{"from-review", "bug"})
-	if len(labels) != 2 {
-		t.Errorf("got %d labels, want 2 (deduplicated)", len(labels))
-	}
-	if labels[0] != "from-review" {
-		t.Errorf("first label = %q, want 'from-review'", labels[0])
-	}
-	if labels[1] != "bug" {
-		t.Errorf("second label = %q, want 'bug'", labels[1])
-	}
-}
-
-// TestBuildFromReviewLabels_PreservesOriginalLabelsOrder verifies that original labels
-// appear after from-review in the same order.
-func TestBuildFromReviewLabels_PreservesOriginalLabelsOrder(t *testing.T) {
-	labels := BuildFromReviewLabels([]string{"bug", "enhancement", "docs"})
-	if len(labels) != 4 {
-		t.Errorf("got %d labels, want 4", len(labels))
-	}
-	expected := []string{"from-review", "bug", "enhancement", "docs"}
-	for i, label := range expected {
-		if labels[i] != label {
-			t.Errorf("labels[%d] = %q, want %q", i, labels[i], label)
-		}
-	}
-}
-
 // TestReviewInteractiveWorkflow_BuildsContextAndReturnsSession verifies ReviewInteractive validates dependencies,
 // builds ThoroughReviewContext, renders prompt, writes temp file, resolves agent, and returns ReviewSession.
 // Expected failure: Pipeline.ReviewInteractive method does not exist yet

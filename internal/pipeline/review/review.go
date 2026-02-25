@@ -102,7 +102,7 @@ func (r *Review) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, e
 
 	beadIDs := []string{}
 	for _, bp := range result.BeadsToCreate {
-		labels := pipeline.BuildFromReviewLabels(bp.Labels)
+		labels := reviewpkg.BuildReviewBeadLabels(bp.Labels)
 		id, err := r.beads.Create(bp.Title, bp.Priority, labels, bp.ExpectedOutputs)
 		if err != nil {
 			return pipeline.Output{}, fmt.Errorf("review: creating bead %q: %w", bp.Title, err)

@@ -10,7 +10,6 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
-	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/review"
@@ -642,11 +641,10 @@ func TestWriteReviewLog_RoundsUpSubMillisecondDuration(t *testing.T) {
 	}
 }
 
-// TestReviewerUsesConsolidatedBuildFromReviewLabels verifies that the reviewer package
-// uses the consolidated BuildFromReviewLabels function from the pipeline package.
-func TestReviewerUsesConsolidatedBuildFromReviewLabels(t *testing.T) {
-	// Verify that BuildFromReviewLabels from pipeline package produces the expected output
-	labels := pipeline.BuildFromReviewLabels([]string{"bug", "urgent"})
+// TestReviewerUsesBuildReviewBeadLabels verifies the reviewer package builds bead labels
+// with the shared helper that deduplicates the from-review tag.
+func TestReviewerUsesBuildReviewBeadLabels(t *testing.T) {
+	labels := review.BuildReviewBeadLabels([]string{"bug", "urgent"})
 	if len(labels) != 3 {
 		t.Errorf("got %d labels, want 3", len(labels))
 	}

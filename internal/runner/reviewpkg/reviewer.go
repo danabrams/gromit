@@ -9,7 +9,6 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
-	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/pipeline/execute"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
@@ -255,7 +254,7 @@ func (r *Reviewer) ApplyResult(result *review.ReviewResult) (beadsCreated int, b
 
 	// Create regular beads from review proposals
 	for _, bp := range result.BeadsToCreate {
-		labels := pipeline.BuildFromReviewLabels(bp.Labels)
+		labels := review.BuildReviewBeadLabels(bp.Labels)
 		expectedOutputs := expectedOutputsOrTitle(bp.ExpectedOutputs, bp.Title)
 		_, err := r.beads.CreateWithParentAndDescription(
 			bp.Title,
@@ -275,7 +274,7 @@ func (r *Reviewer) ApplyResult(result *review.ReviewResult) (beadsCreated int, b
 
 	// Create backlog items as P2 beads
 	for _, bi := range result.BacklogItems {
-		labels := buildBacklogLabels()
+		labels := review.BuildBacklogLabels()
 		expectedOutputs := expectedOutputsOrTitle(bi.ExpectedOutputs, bi.Title)
 		// Build description from description + reason
 		description := bi.Description
@@ -302,11 +301,6 @@ func (r *Reviewer) ApplyResult(result *review.ReviewResult) (beadsCreated int, b
 	}
 
 	return beadsCreated, backlogCreated
-}
-
-// buildBacklogLabels constructs the label list for a backlog item created from a review.
-func buildBacklogLabels() []string {
-	return []string{"from-review", "backlog"}
 }
 
 // WriteReviewLog writes a review result to the iteration log.
