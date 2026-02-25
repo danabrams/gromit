@@ -1589,3 +1589,26 @@ func TestInvokeWithRetryAndEscalation_ReturnsErrorWhenInvokeFnNil(t *testing.T) 
 		t.Fatalf("expected error when invokeFn is nil, got nil")
 	}
 }
+
+func TestRunCycles_ReturnsErrorWhenValidateFnNilAtRedPhase(t *testing.T) {
+	orch := newTestOrchestrator()
+
+	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "red-prompt", nil
+	}
+	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
+		return nil
+	}
+	// validateFn is intentionally left nil to trigger the error
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{},
+		Tier:   "medium",
+	}
+	state := singleRequirementState()
+
+	err := orch.RunCycles(context.Background(), bc, state)
+	if err == nil {
+		t.Fatalf("expected error when validateFn is nil, got nil")
+	}
+}

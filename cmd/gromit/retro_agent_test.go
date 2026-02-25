@@ -1,21 +1,16 @@
 package main
 
 import (
+	"io"
 	"os"
-	"strings"
+	"os/exec"
+	"path/filepath"
 	"testing"
+
+	"github.com/danabrams/gromit/internal/agent"
+	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/worktree"
 )
-
-func readMainSource(t *testing.T) string {
-	t.Helper()
-
-	mainSource, err := os.ReadFile("main.go")
-	if err != nil {
-		t.Fatalf("Reading main.go: %v", err)
-	}
-
-	return string(mainSource)
-}
 
 func TestRetroCommandHasAgentFlag(t *testing.T) {
 	flag := retroCmd.Flags().Lookup("agent")
@@ -37,55 +32,121 @@ func TestRetroCommandHasChooseAgentFlag(t *testing.T) {
 	}
 }
 
-func TestRetroUsesAgentLaunchNotDirectExec(t *testing.T) {
-	sourceStr := readMainSource(t)
+func TestLaunchRetroInteractiveSessionUsesSessionLauncher(t *testing.T) {
+	origResolve := retroResolveAgentFn
+	origLauncher := retroSessionLauncherFn
+	origRecord := retroRecordStateFn
+	t.Cleanup(func() {
+		retroResolveAgentFn = origResolve
+		retroSessionLauncherFn = origLauncher
+		retroRecordStateFn = origRecord
+	})
 
-	if !strings.Contains(sourceStr, `"github.com/danabrams/gromit/internal/agent"`) {
-		t.Error("main.go does not import agent package - retro migration not complete")
+	sessionDir := filepath.Join(t.TempDir(), "session")
+	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
+		t.Fatalf("mkdir session dir: %v", err)
 	}
 
-	if !strings.Contains(sourceStr, "agent.Resolve") {
-		t.Error("main.go does not call agent.Resolve - agent selection not integrated for retro")
+	promptPath := filepath.Join(t.TempDir(), "retro-prompt.md")
+	if err := os.WriteFile(promptPath, []byte("prompt"), 0644); err != nil {
+		t.Fatalf("write prompt file: %v", err)
 	}
 
-	if !strings.Contains(sourceStr, "runWithSessionWorktreeWithConflictSettings") {
-		t.Error("main.go does not use session worktree launcher for retro interactive flow")
+	launchCalled := false
+	selectedAgent := &testRetroAgent{}
+	retroResolveAgentFn = func(cfg *config.Config, phase, flagOverride string, chooseAgent bool, r io.Reader, w io.Writer) (agent.Agent, error) {
+		return selectedAgent, nil
+	}
+	retroSessionLauncherFn = func(gromitDir string, command string, conflict sessionConflictSettings, callback func(sessionDir string) error) (*worktree.SessionWorktree, error) {
+		if command != retroSessionCommand {
+			t.Fatalf("command = %q, want %q", command, retroSessionCommand)
+		}
+		launchCalled = true
+		if err := callback(sessionDir); err != nil {
+			return nil, err
+		}
+		return &worktree.SessionWorktree{WorktreeDir: sessionDir}, nil
+	}
+	recordCalled := false
+	retroRecordStateFn = func(gromitDir string) error {
+		recordCalled = true
+		return nil
 	}
 
-	if !strings.Contains(sourceStr, ".LaunchInDir(") {
-		t.Error("main.go does not call .LaunchInDir() - agent launch not integrated for retro")
+	if err := launchRetroInteractiveSession(&config.Config{}, retroCmd, t.TempDir(), promptPath); err != nil {
+		t.Fatalf("launchRetroInteractiveSession error = %v", err)
 	}
 
-	if !strings.Contains(sourceStr, ".LaunchInDir(absPromptPath, sessionDir)") &&
-		!strings.Contains(sourceStr, ".LaunchInDir(promptPath, sessionDir)") {
-		t.Error("main.go does not call .LaunchInDir(<promptPath>, sessionDir) in session callback")
+	if !launchCalled {
+		t.Fatal("expected session launcher to be called")
 	}
-
-	if strings.Contains(sourceStr, "selectedAgent.Launch(promptPath)") {
-		t.Error("main.go still calls selectedAgent.Launch(promptPath) - should use LaunchInDir with launchDir")
+	if selectedAgent.launchDir != sessionDir {
+		t.Fatalf("launch dir = %q, want %q", selectedAgent.launchDir, sessionDir)
 	}
-
-	if strings.Contains(sourceStr, "retro.LaunchClaudeCode") {
-		t.Error("main.go still contains retro.LaunchClaudeCode - migration not complete")
+	if !recordCalled {
+		t.Fatal("expected retro state to be recorded")
 	}
 }
 
-func TestRetroUsesResolveSpecsDir(t *testing.T) {
-	sourceStr := readMainSource(t)
+func TestLaunchRetroInteractiveSessionResolvesAgentWithRetroCommand(t *testing.T) {
+	origResolve := retroResolveAgentFn
+	origLauncher := retroSessionLauncherFn
+	origRecord := retroRecordStateFn
+	t.Cleanup(func() {
+		retroResolveAgentFn = origResolve
+		retroSessionLauncherFn = origLauncher
+		retroRecordStateFn = origRecord
+	})
 
-	if strings.Contains(sourceStr, `filepath.Join(gromitDir, "specs")`) {
-		t.Error(`main.go contains hardcoded filepath.Join(gromitDir, "specs") - should use resolveSpecsDir(cfg)`)
+	promptPath := filepath.Join(t.TempDir(), "retro-prompt.md")
+	if err := os.WriteFile(promptPath, []byte("prompt"), 0644); err != nil {
+		t.Fatalf("write prompt file: %v", err)
+	}
+
+	gotPhase := ""
+	gotChoose := true
+	retroResolveAgentFn = func(cfg *config.Config, phase, flagOverride string, chooseAgent bool, r io.Reader, w io.Writer) (agent.Agent, error) {
+		gotPhase = phase
+		gotChoose = chooseAgent
+		return &testRetroAgent{}, nil
+	}
+	retroSessionLauncherFn = func(gromitDir string, command string, conflict sessionConflictSettings, callback func(sessionDir string) error) (*worktree.SessionWorktree, error) {
+		if err := callback(""); err != nil {
+			return nil, err
+		}
+		return &worktree.SessionWorktree{WorktreeDir: ""}, nil
+	}
+	retroRecordStateFn = func(gromitDir string) error { return nil }
+
+	if err := launchRetroInteractiveSession(&config.Config{}, retroCmd, t.TempDir(), promptPath); err != nil {
+		t.Fatalf("launchRetroInteractiveSession error = %v", err)
+	}
+
+	if gotPhase != retroSessionCommand {
+		t.Fatalf("phase = %q, want %q", gotPhase, retroSessionCommand)
+	}
+	if gotChoose {
+		t.Fatalf("chooseAgent = %v, want false", gotChoose)
 	}
 }
 
-func TestRetroWritesPromptToTempFile(t *testing.T) {
-	sourceStr := readMainSource(t)
+type testRetroAgent struct {
+	launchDir  string
+	promptPath string
+}
 
-	if !strings.Contains(sourceStr, "retro.BuildClaudeCodePrompt") {
-		t.Error("main.go does not call retro.BuildClaudeCodePrompt - prompt building not separated from launch")
-	}
-
-	if !strings.Contains(sourceStr, "os.CreateTemp") {
-		t.Error("main.go does not write retro prompt to a temp file via os.CreateTemp")
-	}
+func (t *testRetroAgent) Name() string { return "retro-test" }
+func (t *testRetroAgent) Launch(promptPath string) error {
+	t.promptPath = promptPath
+	t.launchDir = ""
+	return nil
+}
+func (t *testRetroAgent) LaunchInDir(promptPath, dir string) error {
+	t.promptPath = promptPath
+	t.launchDir = dir
+	return nil
+}
+func (t *testRetroAgent) Command(promptPath string) (*exec.Cmd, error) {
+	t.promptPath = promptPath
+	return nil, nil
 }

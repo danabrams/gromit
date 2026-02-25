@@ -186,151 +186,37 @@ agents:
 	t.Log("agents.prompt: true picker triggering will be tested via integration test")
 }
 
-// TestReviewUsesAgentLaunchNotDirectExec verifies review uses pipeline which uses agent abstraction
-func TestReviewUsesAgentLaunchNotDirectExec(t *testing.T) {
-	// This acceptance test verifies that the review command has been refactored
-	// to use the pipeline pattern, which in turn uses agent.LaunchInDir() instead of exec.Command directly
-
-	// Read the review.go source code
-	reviewSource, err := os.ReadFile("review.go")
+func TestCmdAgentResolverDefaultsToClaude(t *testing.T) {
+	resolver := &cmdAgentResolver{cfg: nil}
+	agent, err := resolver.Resolve(reviewSessionCommand, "", false)
 	if err != nil {
-		t.Fatalf("Reading review.go: %v", err)
+		t.Fatalf("Resolve() error = %v", err)
 	}
-
-	sourceStr := string(reviewSource)
-
-	// Shared resolver adapter now owns agent.Resolve integration.
-	adaptersSource, err := os.ReadFile("adapters.go")
-	if err != nil {
-		t.Fatalf("Reading adapters.go: %v", err)
-	}
-	adaptersStr := string(adaptersSource)
-	if !strings.Contains(adaptersStr, `"github.com/danabrams/gromit/internal/agent"`) {
-		t.Error("adapters.go does not import agent package - resolver integration not complete")
-	}
-	if !strings.Contains(adaptersStr, "agent.Resolve") {
-		t.Error("adapters.go does not call agent.Resolve - resolver integration not complete")
-	}
-
-	// Check that pipeline.ReviewInteractive is called
-	// After pipeline extraction, review.go delegates to pipeline which does agent.Launch
-	if !strings.Contains(sourceStr, "p.ReviewInteractive") {
-		t.Error("review.go does not call pipeline.ReviewInteractive - pipeline integration missing")
-	}
-
-	// Check that the old exec.Command pattern for Claude in interactive mode is removed
-	// The old code had: exec.Command(cfg.Claude.Binary, args...)
-	// After refactoring, this should be gone from runReviewInteractive (replaced with pipeline call)
-	// Note: runReviewNonInteractive should still use exec.Command via pipeline
-	if interactiveFn, ok := extractFunction(sourceStr, "runReviewInteractive"); ok {
-		// Check that exec.Command(cfg.Claude.Binary is not in runReviewInteractive
-		if strings.Contains(interactiveFn, "exec.Command(cfg.Claude.Binary") {
-			t.Error("runReviewInteractive still contains direct exec.Command(cfg.Claude.Binary...) - old code not removed")
-		}
+	if agent.Name() != "claude" {
+		t.Fatalf("agent.Name() = %q, want %q", agent.Name(), "claude")
 	}
 }
 
-// TestReviewInteractiveOnlyUsesAgentSelection verifies agent selection is only for interactive mode
-func TestReviewInteractiveOnlyUsesAgentSelection(t *testing.T) {
-	// This acceptance test verifies that agent selection is ONLY used in runReviewInteractive,
-	// not in runReviewNonInteractive (which should remain unchanged)
+func TestCmdAgentResolverFlagOverride(t *testing.T) {
+	cfg := &config.Config{
+		Agents: config.AgentsConfig{
+			Definitions: map[string]config.AgentDefinition{
+				"stub-agent": {
+					Binary: "echo",
+					Flags:  []string{},
+				},
+			},
+		},
+	}
 
-	reviewSource, err := os.ReadFile("review.go")
+	resolver := &cmdAgentResolver{cfg: cfg}
+	agent, err := resolver.Resolve(reviewSessionCommand, "stub-agent", false)
 	if err != nil {
-		t.Fatalf("Reading review.go: %v", err)
+		t.Fatalf("Resolve() error = %v", err)
 	}
-
-	sourceStr := string(reviewSource)
-
-	nonInteractiveFn, ok := extractFunction(sourceStr, "runReviewNonInteractive")
-	if !ok {
-		t.Fatal("Cannot find runReviewNonInteractive function")
+	if agent.Name() != "stub-agent" {
+		t.Fatalf("agent.Name() = %q, want %q", agent.Name(), "stub-agent")
 	}
-
-	// runReviewNonInteractive should NOT use agent.Resolve or agent.Launch
-	if strings.Contains(nonInteractiveFn, "agent.Resolve") {
-		t.Error("runReviewNonInteractive contains agent.Resolve - should remain unchanged (only interactive mode uses agents)")
-	}
-
-	if strings.Contains(nonInteractiveFn, "agent.Launch") {
-		t.Error("runReviewNonInteractive contains agent.Launch - should remain unchanged (only interactive mode uses agents)")
-	}
-
-	if strings.Contains(nonInteractiveFn, "agent.LaunchInDir") {
-		t.Error("runReviewNonInteractive contains agent.LaunchInDir - should remain unchanged (only interactive mode uses agents)")
-	}
-
-	// runReviewNonInteractive should use provider-neutral client builder.
-	if !strings.Contains(nonInteractiveFn, "buildReviewNonInteractiveClient") {
-		t.Error("runReviewNonInteractive missing buildReviewNonInteractiveClient call")
-	}
-}
-
-// TestReviewBuildReviewArgsHelperRemoved verifies buildReviewArgs is removed
-func TestReviewBuildReviewArgsHelperRemoved(t *testing.T) {
-	// This acceptance test verifies that buildReviewArgs helper is removed
-	// after refactoring to use agent.Launch
-
-	reviewSource, err := os.ReadFile("review.go")
-	if err != nil {
-		t.Fatalf("Reading review.go: %v", err)
-	}
-
-	sourceStr := string(reviewSource)
-
-	// Check that buildReviewArgs function is removed
-	if strings.Contains(sourceStr, "func buildReviewArgs") {
-		t.Error("review.go still contains buildReviewArgs function - should be removed after refactoring to agent.Launch")
-	}
-
-	// Check that buildReviewArgs is not called
-	if strings.Contains(sourceStr, "buildReviewArgs(") {
-		t.Error("review.go still calls buildReviewArgs - should be removed after refactoring to agent.Launch")
-	}
-}
-
-func TestBuildReviewNonInteractiveClient_UsesProviderBuildRouterFromConfig(t *testing.T) {
-	reviewSource, err := os.ReadFile("review.go")
-	if err != nil {
-		t.Fatalf("Reading review.go: %v", err)
-	}
-
-	sourceStr := string(reviewSource)
-	buildClientFn, ok := extractFunction(sourceStr, "buildReviewNonInteractiveClient")
-	if !ok {
-		t.Fatal("Cannot find buildReviewNonInteractiveClient function")
-	}
-
-	if !strings.Contains(buildClientFn, "provider.BuildRouterFromConfig(cfg)") {
-		t.Error("buildReviewNonInteractiveClient missing provider.BuildRouterFromConfig(cfg) call")
-	}
-
-	if strings.Contains(buildClientFn, "buildReviewRouter(cfg)") {
-		t.Error("buildReviewNonInteractiveClient still uses buildReviewRouter(cfg)")
-	}
-}
-
-// TestReviewAgentSelectionIntegration is a comprehensive integration test
-func TestReviewAgentSelectionIntegration(t *testing.T) {
-	// This test verifies the complete integration flow:
-	// 1. Flags exist and are parsed
-	// 2. agent.Resolve is called with correct parameters
-	// 3. agent.Launch is called with prompt file path
-	// 4. Prompt building remains unchanged
-	// 5. Non-interactive path remains unchanged
-
-	t.Run("flags are defined", func(t *testing.T) {
-		agentFlag := reviewCmd.Flags().Lookup("agent")
-		if agentFlag == nil {
-			t.Error("--agent flag not defined")
-		}
-
-		chooseAgentFlag := reviewCmd.Flags().Lookup("choose-agent")
-		if chooseAgentFlag == nil {
-			t.Error("--choose-agent flag not defined")
-		}
-	})
-
 }
 
 // TestReviewAgentConfigBackwardCompatibility verifies review works without agent config

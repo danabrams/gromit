@@ -4,9 +4,9 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/worktree"
@@ -358,141 +358,48 @@ func (testBacklogClient) Update(id string, fn func(*pipeline.Idea)) error {
 	return nil
 }
 
-// TestRefineUsesAgentLaunchNotDirectExec verifies refine uses agent.LaunchInDir() not exec.Command directly
-func TestRefineUsesAgentLaunchNotDirectExec(t *testing.T) {
-	// This acceptance test verifies that the refine workflow has been refactored
-	// to use agent.LaunchInDir() instead of constructing exec.Command directly
-	// The agent integration now lives in internal/pipeline/refine.go
-
-	// Read the pipeline refine.go source code
-	refineSource, err := os.ReadFile("../../internal/pipeline/refine.go")
-	if err != nil {
-		t.Fatalf("Reading pipeline/refine.go: %v", err)
+func TestToPipelineIdeaCopiesFields(t *testing.T) {
+	idea := &backlog.Idea{
+		ID:       "idea-1",
+		Text:     "refine this",
+		Type:     "feature",
+		Context:  "context",
+		Status:   "open",
+		SpecName: "spec-name",
 	}
 
-	sourceStr := string(refineSource)
-
-	// Check that agent.Resolve is called
-	// This is the key integration point - refine should call Resolve
-	// to get the appropriate agent based on config and flags
-	if !strings.Contains(sourceStr, ".Resolve(") {
-		t.Error("pipeline/refine.go does not call .Resolve() - agent selection not integrated")
+	pipeIdea := toPipelineIdea(idea)
+	if pipeIdea == nil {
+		t.Fatal("toPipelineIdea returned nil")
 	}
-
-	// Check that agent.LaunchInDir is called
-	// After getting the agent, refine should call agent.LaunchInDir(promptPath, ...)
-	// instead of constructing exec.Command directly
-	if !strings.Contains(sourceStr, ".LaunchInDir(") {
-		t.Error("pipeline/refine.go does not call .LaunchInDir() - agent launch not integrated")
+	if pipeIdea.ID != idea.ID {
+		t.Fatalf("ID = %q, want %q", pipeIdea.ID, idea.ID)
+	}
+	if pipeIdea.Text != idea.Text {
+		t.Fatalf("Text = %q, want %q", pipeIdea.Text, idea.Text)
+	}
+	if pipeIdea.SpecName != idea.SpecName {
+		t.Fatalf("SpecName = %q, want %q", pipeIdea.SpecName, idea.SpecName)
 	}
 }
 
-// TestRefinePreservesPromptBuilding verifies refine still builds prompts correctly
-func TestRefinePreservesPromptBuilding(t *testing.T) {
-	// This acceptance test verifies that prompt building logic is preserved
-	// Prompt construction now lives in internal/pipeline/refine.go
-
-	refineSource, err := os.ReadFile("../../internal/pipeline/refine.go")
-	if err != nil {
-		t.Fatalf("Reading pipeline/refine.go: %v", err)
+func TestApplyPipelineIdeaFieldsCopiesStatus(t *testing.T) {
+	idea := &backlog.Idea{
+		Status:   "open",
+		SpecName: "old-spec",
+	}
+	pipeIdea := &pipeline.Idea{
+		Status:   "refined",
+		SpecName: "new-spec",
 	}
 
-	sourceStr := string(refineSource)
-
-	// Verify prompt building steps are still present
-	requiredPatterns := []string{
-		"systemPrompt",      // System prompt variable
-		"buildRefinePrompt", // Prompt building method
-		"WriteTempPrompt",   // Writing prompt to temp file
-		"SpecsDir",          // Specs directory still used in prompt
+	applyPipelineIdeaFields(idea, pipeIdea)
+	if idea.Status != "refined" {
+		t.Fatalf("Status = %q, want %q", idea.Status, "refined")
 	}
-
-	for _, pattern := range requiredPatterns {
-		if !strings.Contains(sourceStr, pattern) {
-			t.Errorf("pipeline/refine.go missing prompt building pattern %q - prompt construction may be broken", pattern)
-		}
+	if idea.SpecName != "new-spec" {
+		t.Fatalf("SpecName = %q, want %q", idea.SpecName, "new-spec")
 	}
-}
-
-// TestRefinePreservesArtifactDetection verifies refine still detects new spec files
-func TestRefinePreservesArtifactDetection(t *testing.T) {
-	// This acceptance test verifies that post-launch artifact detection is preserved
-	// After agent exits, refine should still scan for new spec files
-	// Artifact detection now lives in internal/pipeline/refine.go
-
-	refineSource, err := os.ReadFile("../../internal/pipeline/refine.go")
-	if err != nil {
-		t.Fatalf("Reading pipeline/refine.go: %v", err)
-	}
-
-	sourceStr := string(refineSource)
-
-	// Verify artifact detection steps are still present
-	requiredPatterns := []string{
-		"existingSpecs",     // Recording specs before launch
-		"ListMarkdownFiles", // Getting spec files
-		"newSpecs",          // Getting specs after launch
-		"createdSpecs",      // Finding newly created specs
-		"DiffFiles",         // Comparing old vs new specs
-	}
-
-	for _, pattern := range requiredPatterns {
-		if !strings.Contains(sourceStr, pattern) {
-			t.Errorf("pipeline/refine.go missing artifact detection pattern %q - spec detection may be broken", pattern)
-		}
-	}
-}
-
-// TestRefineAgentSelectionIntegration is a comprehensive integration test
-func TestRefineAgentSelectionIntegration(t *testing.T) {
-	// This test verifies the complete integration flow:
-	// 1. Flags exist and are parsed
-	// 2. agent.Resolve is called with correct parameters
-	// 3. agent.Launch is called with prompt file path
-	// 4. Prompt building and artifact detection remain unchanged
-
-	t.Run("flags are defined", func(t *testing.T) {
-		agentFlag := refineCmd.Flags().Lookup("agent")
-		if agentFlag == nil {
-			t.Error("--agent flag not defined")
-		}
-
-		chooseAgentFlag := refineCmd.Flags().Lookup("choose-agent")
-		if chooseAgentFlag == nil {
-			t.Error("--choose-agent flag not defined")
-		}
-	})
-
-	t.Run("old exec.Command pattern removed", func(t *testing.T) {
-		// Check both cmd/gromit/refine.go and internal/pipeline/refine.go
-		files := []string{"refine.go", "../../internal/pipeline/refine.go"}
-
-		for _, file := range files {
-			refineSource, err := os.ReadFile(file)
-			if err != nil {
-				continue // Skip if file doesn't exist
-			}
-
-			sourceStr := string(refineSource)
-
-			// Check that old patterns are removed
-			oldPatterns := []string{
-				"exec.Command(claudeBinary",
-				"claudeCmd := exec.Command",
-			}
-
-			foundOldPatterns := []string{}
-			for _, pattern := range oldPatterns {
-				if strings.Contains(sourceStr, pattern) {
-					foundOldPatterns = append(foundOldPatterns, pattern)
-				}
-			}
-
-			if len(foundOldPatterns) > 0 {
-				t.Errorf("%s: Old exec.Command patterns still present (should be replaced by agent.Launch): %v", file, foundOldPatterns)
-			}
-		}
-	})
 }
 
 // TestRefineAgentConfigBackwardCompatibility verifies refine works without agent config

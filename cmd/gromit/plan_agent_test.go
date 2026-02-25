@@ -2,11 +2,13 @@ package main
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/agent"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/worktree"
 )
 
 // TestPlanCommandHasAgentFlag verifies plan command has --agent flag
@@ -218,178 +220,92 @@ agents:
 	t.Log("agents.prompt: true picker triggering will be tested via integration test")
 }
 
-// TestPlanUsesAgentLaunchNotDirectExec verifies plan uses agent.LaunchInDir() via session launcher, not exec.Command directly
-func TestPlanUsesAgentLaunchNotDirectExec(t *testing.T) {
-	// This acceptance test verifies that the plan command has been refactored
-	// to use agent.LaunchInDir() instead of constructing exec.Command directly
+func TestLaunchPlanSessionUsesSessionLauncher(t *testing.T) {
+	origLauncher := planSessionLauncherFn
+	t.Cleanup(func() { planSessionLauncherFn = origLauncher })
+	planSessionLauncherFn = func(gDir, command string, _ sessionConflictSettings, callback func(sessionDir string) error) (*worktree.SessionWorktree, error) {
+		if gDir == "" || command == "" {
+			t.Fatalf("unexpected launcher args: gDir=%q command=%q", gDir, command)
+		}
+		if err := callback("session-dir"); err != nil {
+			return nil, err
+		}
+		return &worktree.SessionWorktree{WorktreeDir: "session-dir"}, nil
+	}
 
-	// Read the plan.go source code
-	planSource, err := os.ReadFile("plan.go")
+	agent := &recordingAgent{}
+	cfg := &config.Config{}
+	promptPath, err := filepath.Abs("prompt-path.md")
 	if err != nil {
-		t.Fatalf("Reading plan.go: %v", err)
+		t.Fatalf("abs prompt path: %v", err)
 	}
 
-	sourceStr := string(planSource)
-
-	// Check that agent package is imported
-	if !strings.Contains(sourceStr, `"github.com/danabrams/gromit/internal/agent"`) {
-		t.Error("plan.go does not import agent package - integration not complete")
+	if err := launchPlanSession(cfg, "/tmp/gromit", agent, promptPath); err != nil {
+		t.Fatalf("launchPlanSession error: %v", err)
 	}
 
-	// Check that plan uses the shared command resolver adapter.
-	if !strings.Contains(sourceStr, "cmdAgentResolver") {
-		t.Error("plan.go does not use cmdAgentResolver - shared resolver adapter not integrated")
+	if agent.launchDir != "session-dir" {
+		t.Fatalf("expected launch dir session-dir, got %q", agent.launchDir)
 	}
-	if !strings.Contains(sourceStr, "resolvePlanAgent") {
-		t.Error("plan.go does not call resolvePlanAgent - plan agent selection not integrated")
-	}
-
-	// Check that agent.LaunchInDir is called
-	// After getting the agent, plan should call agent.LaunchInDir(promptPath, ...)
-	// instead of constructing exec.Command directly
-	if !strings.Contains(sourceStr, ".LaunchInDir(") {
-		t.Error("plan.go does not call .LaunchInDir() - agent launch not integrated")
-	}
-
-	// Check that the old exec.Command pattern for Claude is removed
-	// The old code had: exec.Command(claudeBinary, cmdArgs...)
-	// After refactoring, this should be gone (replaced with agent.Launch)
-	if strings.Contains(sourceStr, "exec.Command(claudeBinary") {
-		t.Error("plan.go still contains direct exec.Command(claudeBinary...) - old code not removed")
+	if agent.promptPath != promptPath {
+		t.Fatalf("expected prompt path %q, got %q", promptPath, agent.promptPath)
 	}
 }
 
-// TestPlanPreservesPromptBuilding verifies plan still builds prompts correctly
-func TestPlanPreservesPromptBuilding(t *testing.T) {
-	// This acceptance test verifies that prompt building logic is unchanged
-	// Only the agent invocation should change, not prompt construction
+func TestLaunchPlanSessionSkipsSessionLauncherWhenWorktreeDisabled(t *testing.T) {
+	origLauncher := planSessionLauncherFn
+	t.Cleanup(func() { planSessionLauncherFn = origLauncher })
+	planSessionLauncherFn = func(string, string, sessionConflictSettings, func(string) error) (*worktree.SessionWorktree, error) {
+		t.Fatalf("session launcher should not be invoked when worktree is disabled")
+		return nil, nil
+	}
 
-	planSource, err := os.ReadFile("plan.go")
+	agent := &recordingAgent{}
+	cfg := &config.Config{Worktree: config.WorktreeConfig{Enabled: boolPtr(false)}}
+	promptPath, err := filepath.Abs("prompt-path.md")
 	if err != nil {
-		t.Fatalf("Reading plan.go: %v", err)
+		t.Fatalf("abs prompt path: %v", err)
 	}
 
-	sourceStr := string(planSource)
-
-	// Verify prompt building steps are still present
-	requiredPatterns := []string{
-		"systemPrompt",              // System prompt variable
-		"WriteString(systemPrompt)", // Writing prompt to temp file
-		"CreateTemp",                // Creating temp file for prompt
-		"specsDir",                  // Specs directory still used in prompt
-		"plansDir",                  // Plans directory still used in prompt
-		"skills.PlanSkill",          // Plan skill still embedded
-		"specBody",                  // Spec content still included
-		"openBeads",                 // Open beads context still included
+	if err := launchPlanSession(cfg, "/tmp/gromit", agent, promptPath); err != nil {
+		t.Fatalf("launchPlanSession error: %v", err)
 	}
 
-	for _, pattern := range requiredPatterns {
-		if !strings.Contains(sourceStr, pattern) {
-			t.Errorf("plan.go missing prompt building pattern %q - prompt construction may be broken", pattern)
-		}
+	if agent.launchDir != "" {
+		t.Fatalf("expected empty launch dir, got %q", agent.launchDir)
+	}
+	if agent.promptPath != promptPath {
+		t.Fatalf("expected prompt path %q, got %q", promptPath, agent.promptPath)
 	}
 }
 
-// TestPlanPreservesArtifactDetection verifies plan still detects new plan files
-func TestPlanPreservesArtifactDetection(t *testing.T) {
-	// This acceptance test verifies that post-launch artifact detection is unchanged
-	// After agent exits, plan should still check if plan file was created
-
-	planSource, err := os.ReadFile("plan.go")
-	if err != nil {
-		t.Fatalf("Reading plan.go: %v", err)
-	}
-
-	sourceStr := string(planSource)
-
-	// Verify artifact detection steps are still present
-	requiredPatterns := []string{
-		"planPath",       // Plan path construction
-		"planCreated",    // Flag for tracking plan creation
-		"os.Stat",        // Checking if file exists
-		"Plan created:",  // Success message
-		"chainAfterPlan", // Offering to chain to decompose
-	}
-
-	for _, pattern := range requiredPatterns {
-		if !strings.Contains(sourceStr, pattern) {
-			t.Errorf("plan.go missing artifact detection pattern %q - plan detection may be broken", pattern)
-		}
-	}
+type recordingAgent struct {
+	promptPath string
+	launchDir  string
 }
 
-// TestPlanAgentSelectionIntegration is a comprehensive integration test
-func TestPlanAgentSelectionIntegration(t *testing.T) {
-	// This test verifies the complete integration flow:
-	// 1. Flags exist and are parsed
-	// 2. shared cmdAgentResolver is used with correct parameters
-	// 3. agent.LaunchInDir is called with prompt file path
-	// 4. Prompt building and artifact detection remain unchanged
+var _ agent.Agent = (*recordingAgent)(nil)
 
-	t.Run("flags are defined", func(t *testing.T) {
-		agentFlag := planCmd.Flags().Lookup("agent")
-		if agentFlag == nil {
-			t.Error("--agent flag not defined")
-		}
-
-		chooseAgentFlag := planCmd.Flags().Lookup("choose-agent")
-		if chooseAgentFlag == nil {
-			t.Error("--choose-agent flag not defined")
-		}
-	})
-
-	t.Run("source code has agent integration", func(t *testing.T) {
-		planSource, err := os.ReadFile("plan.go")
-		if err != nil {
-			t.Fatalf("Cannot read plan.go: %v", err)
-		}
-
-		sourceStr := string(planSource)
-
-		// Verify key integration points
-		integrationChecks := map[string]string{
-			"imports agent package":   `"github.com/danabrams/gromit/internal/agent"`,
-			"uses shared resolver":    "cmdAgentResolver",
-			"calls resolvePlanAgent":  "resolvePlanAgent(",
-			"calls agent.LaunchInDir": ".LaunchInDir(",
-		}
-
-		for check, pattern := range integrationChecks {
-			if !strings.Contains(sourceStr, pattern) {
-				t.Errorf("Integration check failed: %s (missing pattern %q)", check, pattern)
-			}
-		}
-	})
-
-	t.Run("old exec.Command pattern removed", func(t *testing.T) {
-		planSource, err := os.ReadFile("plan.go")
-		if err != nil {
-			t.Fatalf("Cannot read plan.go: %v", err)
-		}
-
-		sourceStr := string(planSource)
-
-		// Check that old patterns are removed
-		oldPatterns := []string{
-			"exec.Command(claudeBinary",
-			"claudeCmd := exec.Command",
-			"claudeCmd.Stdin = os.Stdin",
-			"claudeCmd.Stdout = os.Stdout",
-			"claudeCmd.Run()",
-		}
-
-		foundOldPatterns := []string{}
-		for _, pattern := range oldPatterns {
-			if strings.Contains(sourceStr, pattern) {
-				foundOldPatterns = append(foundOldPatterns, pattern)
-			}
-		}
-
-		if len(foundOldPatterns) > 0 {
-			t.Errorf("Old exec.Command patterns still present (should be replaced by agent.LaunchInDir): %v", foundOldPatterns)
-		}
-	})
+func (r *recordingAgent) Name() string { return "recording" }
+func (r *recordingAgent) Launch(promptPath string) error {
+	r.promptPath = promptPath
+	r.launchDir = ""
+	return nil
 }
+
+func (r *recordingAgent) LaunchInDir(promptPath, dir string) error {
+	r.promptPath = promptPath
+	r.launchDir = dir
+	return nil
+}
+
+func (r *recordingAgent) Command(promptPath string) (*exec.Cmd, error) {
+	r.promptPath = promptPath
+	r.launchDir = ""
+	return nil, nil
+}
+
+func boolPtr(v bool) *bool { return &v }
 
 // TestPlanAgentConfigBackwardCompatibility verifies plan works without agent config
 func TestPlanAgentConfigBackwardCompatibility(t *testing.T) {

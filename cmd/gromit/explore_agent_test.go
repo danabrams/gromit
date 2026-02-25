@@ -1,23 +1,15 @@
 package main
 
 import (
-	"io/fs"
+	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
+
+	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/worktree"
 )
-
-func readExploreSource(t *testing.T) string {
-	t.Helper()
-
-	sourcePath := "explore.go"
-	data, err := os.ReadFile(sourcePath)
-	if err != nil {
-		t.Fatalf("failed to read %s: %v", sourcePath, err)
-	}
-	return string(data)
-}
 
 // TestExploreCommandHasAgentFlag verifies explore command has --agent flag.
 func TestExploreCommandHasAgentFlag(t *testing.T) {
@@ -45,73 +37,158 @@ func TestExploreCommandHasChooseAgentFlag(t *testing.T) {
 	}
 }
 
-// TestExploreCommand_WiresAgentFlagsIntoExploreInput verifies runExplore wires agent flags into ExploreInput.
-func TestExploreCommand_WiresAgentFlagsIntoExploreInput(t *testing.T) {
-	// Expected failure: runExplore does not read --agent/--choose-agent or populate ExploreInput.ChooseAgent yet
-	source := readExploreSource(t)
+func TestRunExploreInSessionUsesSessionLauncher(t *testing.T) {
+	origLauncher := exploreSessionLauncherFn
+	origRunInDir := exploreRunInDirFn
+	t.Cleanup(func() {
+		exploreSessionLauncherFn = origLauncher
+		exploreRunInDirFn = origRunInDir
+	})
 
-	if !strings.Contains(source, `GetString("agent")`) {
-		t.Error("explore.go does not read --agent flag via GetString(\"agent\")")
+	sessionDir := filepath.Join(t.TempDir(), "session")
+	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
+		t.Fatalf("mkdir session dir: %v", err)
 	}
 
-	if !strings.Contains(source, `GetBool("choose-agent")`) {
-		t.Error("explore.go does not read --choose-agent flag via GetBool(\"choose-agent\")")
+	targetGromit := filepath.Join(t.TempDir(), ".gromit")
+	p, _ := newTestExplorePipeline(t, targetGromit)
+
+	exploreSessionLauncherFn = func(gromitDir string, command string, conflict sessionConflictSettings, callback func(sessionDir string) error) (*worktree.SessionWorktree, error) {
+		if command != exploreSessionCommand {
+			t.Fatalf("command = %q, want %q", command, exploreSessionCommand)
+		}
+		if err := callback(sessionDir); err != nil {
+			return nil, err
+		}
+		return &worktree.SessionWorktree{WorktreeDir: sessionDir}, nil
+	}
+	exploreRunInDirFn = func(dir string, fn func() error) error {
+		if dir != sessionDir {
+			t.Fatalf("runInDir called with %q, want %q", dir, sessionDir)
+		}
+		return fn()
 	}
 
-	if strings.Contains(source, `AgentName: ""`) {
-		t.Error("explore.go still hardcodes AgentName to empty string instead of flag value")
+	result, err := runExploreInSession(context.Background(), &config.Config{}, targetGromit, p, pipeline.ExploreInput{Topic: "test"})
+	if err != nil {
+		t.Fatalf("runExploreInSession error = %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+}
+
+func TestRunExploreInSessionSkipsSessionLauncherWhenWorktreeDisabled(t *testing.T) {
+	origLauncher := exploreSessionLauncherFn
+	origRunInDir := exploreRunInDirFn
+	t.Cleanup(func() {
+		exploreSessionLauncherFn = origLauncher
+		exploreRunInDirFn = origRunInDir
+	})
+
+	exploreSessionLauncherFn = func(gromitDir string, command string, conflict sessionConflictSettings, callback func(sessionDir string) error) (*worktree.SessionWorktree, error) {
+		t.Fatalf("session launcher should not be called when worktree is disabled")
+		return nil, nil
+	}
+	exploreRunInDirFn = func(string, func() error) error {
+		t.Fatalf("exploreRunInDir should not be invoked when worktree is disabled")
+		return nil
 	}
 
-	if !strings.Contains(source, "ChooseAgent:") {
-		t.Error("explore.go does not populate ExploreInput.ChooseAgent from --choose-agent flag")
+	targetGromit := filepath.Join(t.TempDir(), ".gromit")
+	p, _ := newTestExplorePipeline(t, targetGromit)
+	cfg := &config.Config{Worktree: config.WorktreeConfig{Enabled: boolPtr(false)}}
+
+	result, err := runExploreInSession(context.Background(), cfg, targetGromit, p, pipeline.ExploreInput{Topic: "test"})
+	if err != nil {
+		t.Fatalf("runExploreInSession error = %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
 	}
 }
 
 func TestExplorePhaseConfigSelectsAgent_Reclassified(t *testing.T) {
-	source, err := os.ReadFile("adapters.go")
-	if err != nil {
-		t.Fatalf("failed to read adapters.go: %v", err)
+	cfg := &config.Config{
+		Agents: config.AgentsConfig{
+			Definitions: map[string]config.AgentDefinition{
+				"test-agent": {
+					Binary: "echo",
+				},
+			},
+			Phases: config.PhasesConfig{
+				Explore: "test-agent",
+			},
+		},
 	}
-	sourceStr := string(source)
 
-	if !strings.Contains(sourceStr, "type cmdAgentResolver struct") {
-		t.Fatal("adapters.go missing cmdAgentResolver adapter")
+	resolver := &cmdAgentResolver{cfg: cfg}
+	agent, err := resolver.Resolve(exploreSessionCommand, "", false)
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
 	}
-	if !strings.Contains(sourceStr, "func (r *cmdAgentResolver) Resolve(phase string") {
-		t.Fatal("cmdAgentResolver.Resolve missing")
-	}
-	if !strings.Contains(sourceStr, "agent.Resolve(r.cfg, phase, flagOverride, choosePicker") {
-		t.Fatal("explore agent resolver must pass through phase for phase-config selection")
+	if agent.Name() != "test-agent" {
+		t.Fatalf("agent.Name() = %q, want %q", agent.Name(), "test-agent")
 	}
 }
 
-func TestExploreResolverAdapterSingleSource(t *testing.T) {
-	err := filepath.WalkDir(".", func(path string, d fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
+func newTestExplorePipeline(t *testing.T, gromitDir string) (*pipeline.Pipeline, *stubPipelineAgent) {
+	t.Helper()
+	specsDir := filepath.Join(gromitDir, "specs")
+	epicsDir := filepath.Join(gromitDir, "epics")
+	for _, dir := range []string{gromitDir, specsDir, epicsDir} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", dir, err)
 		}
-		if d.IsDir() {
-			return nil
-		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-
-		content, readErr := os.ReadFile(path)
-		if readErr != nil {
-			return readErr
-		}
-		contentStr := string(content)
-
-		if path != "adapters.go" && strings.Contains(contentStr, "agent.Resolve(") {
-			t.Errorf("%s must not call agent.Resolve directly; use cmdAgentResolver from adapters.go", path)
-		}
-		if path != "adapters.go" && strings.Contains(contentStr, "type exploreAgentResolver struct") {
-			t.Errorf("%s must not define exploreAgentResolver; resolver adapters are centralized in adapters.go", path)
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walk cmd/gromit files: %v", err)
 	}
+
+	agent := &stubPipelineAgent{}
+	deps := &pipeline.Deps{
+		AgentResolver:  &stubAgentResolver{agent: agent},
+		ExploreRenderer: stubExploreRenderer{},
+		BacklogClient:  stubBacklogClient{},
+	}
+	paths := &pipeline.Paths{
+		GromitDir: gromitDir,
+		SpecsDir:  specsDir,
+		EpicsDir:  epicsDir,
+	}
+	return pipeline.New(deps, paths), agent
+}
+
+type stubExploreRenderer struct{}
+
+func (stubExploreRenderer) RenderExplore(input *pipeline.ExplorePromptInput) (string, error) {
+	return "prompt", nil
+}
+
+type stubBacklogClient struct{}
+
+func (stubBacklogClient) List() ([]*pipeline.Idea, error)       { return nil, nil }
+func (stubBacklogClient) Get(id string) (*pipeline.Idea, error) { return nil, nil }
+func (stubBacklogClient) Add(item *pipeline.Idea) error         { return nil }
+func (stubBacklogClient) Update(id string, fn func(*pipeline.Idea)) error {
+	return nil
+}
+
+type stubAgentResolver struct {
+	agent pipeline.Agent
+}
+
+func (r *stubAgentResolver) Resolve(phase string, flagOverride string, choosePicker bool) (pipeline.Agent, error) {
+	return r.agent, nil
+}
+
+type stubPipelineAgent struct {
+	lastLaunchDir string
+}
+
+func (a *stubPipelineAgent) Name() string { return "explore-stub" }
+func (a *stubPipelineAgent) Launch(promptPath string) error {
+	a.lastLaunchDir = ""
+	return nil
+}
+func (a *stubPipelineAgent) LaunchInDir(promptPath, dir string) error {
+	a.lastLaunchDir = dir
+	return nil
 }

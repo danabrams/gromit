@@ -210,6 +210,9 @@ When normalizing event merge semantics or adding new event emission paths, verif
 ### 2026-02-25 | gromit-qs2ks | conventions
 The orchestrator has post-run completeness assertions (orchestrator_test.go:883) that validate efficiency data across event handlers. Changes to provider event handling (usage extraction, stream event emissions) must ensure the orchestrator's completeness checks still trigger when they should.
 
+### 2026-02-25 | gromit-jmqps.1 | conventions
+When extracting types across packages, verify all imports are updated in test files and watch for circular dependencies when moving code to internal/review (which may be imported by packages that import cmd/gromit). Use verbose build output to pinpoint exact compilation errors.
+
 ---
 
 ## Archived
@@ -234,3 +237,4 @@ Use package-level `var _ Interface = (*Impl)(nil)` declarations in non-test `.go
 When implementing JSONL stream readers, examine test fixtures to understand the event structure and which fields contain the data to extract. For accumulating results, check if events signal completion (like 'done' messages) and how to properly concatenate streamed text chunks.
 
 *Archived from new: filtered: generic engineering advice*
+

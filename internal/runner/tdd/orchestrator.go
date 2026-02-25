@@ -223,6 +223,9 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 	o.updateTouchedFiles(state)
 
 	// VALIDATE RED: expect tests to fail
+	if o.validateFn == nil {
+		return fmt.Errorf("validateFn is not configured")
+	}
 	redValidationOutput, passed, err := o.validateFn(ctx, nil, "")
 	if err != nil {
 		return fmt.Errorf("red validation: %w", err)
