@@ -86,15 +86,28 @@ func hasRepoMarker(dir, marker string) bool {
 // file location to determine the project root instead of relying on the current working directory.
 // This allows tests to work correctly when run from any directory.
 func resolveProjectPath(caller string, relativePath string) string {
+	root := getProjectRootFromTestFile(caller)
+	if root == "" {
+		return relativePath
+	}
+	return filepath.Join(root, relativePath)
+}
+
+// getProjectRootFromTestFile finds the project root starting from the caller's file location.
+// This function uses runtime.Caller to get the test file's directory, then walks up
+// to find the project root. This works correctly regardless of the current working directory.
+func getProjectRootFromTestFile(caller string) string {
 	// Get the caller's file location using runtime.Caller
-	// skip=2: skip runtime.Caller itself and this function
-	_, callerFile, _, ok := runtime.Caller(1)
+	// We skip 2 frames: runtime.Caller itself and this function
+	// to get back to the caller of getProjectRootFromTestFile (which is resolveProjectPath)
+	// But we actually need to skip 3 to get the actual caller of resolveProjectPath
+	_, callerFile, _, ok := runtime.Caller(2)
 	if !ok {
 		// Fallback to using current working directory if we can't get caller info
 		if root, err := findProjectRoot(); err == nil {
-			return filepath.Join(root, relativePath)
+			return root
 		}
-		return relativePath
+		return ""
 	}
 
 	// Start from the directory containing the caller's file
@@ -103,16 +116,19 @@ func resolveProjectPath(caller string, relativePath string) string {
 	// Walk up to find the project root
 	for {
 		if hasRepoMarker(dir, repoConfigName) {
-			return filepath.Join(dir, relativePath)
+			return dir
 		}
 		if hasRepoMarker(dir, repoDirName) {
-			return filepath.Join(dir, relativePath)
+			return dir
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
 			// Reached filesystem root without finding project root
-			// Fallback to relative path
-			return relativePath
+			// Fallback to using findProjectRoot
+			if root, err := findProjectRoot(); err == nil {
+				return root
+			}
+			return ""
 		}
 		dir = parent
 	}

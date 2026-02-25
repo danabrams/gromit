@@ -33,10 +33,3 @@ func TestCollectAcceptanceTests_UsesProperPathResolution(t *testing.T) {
 	}
 }
 
-// getProjectRootFromTestFile finds the project root using the test file's location.
-// This will fail until implemented - it's a placeholder to verify proper path resolution.
-func getProjectRootFromTestFile(caller string) string {
-	// This should use resolveProjectPath with an empty string to get the project root directory
-	// When implemented, it will use the test file's location instead of os.Getwd()
-	return resolveProjectPath(caller, "")
-}
