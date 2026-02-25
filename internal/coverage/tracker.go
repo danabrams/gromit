@@ -67,6 +67,13 @@ func (t *CoverageTracker) ToValidating() {
 	}
 }
 
+// ToComplete transitions the tracker from validating to complete.
+func (t *CoverageTracker) ToComplete() {
+	if t.state == StateValidating {
+		t.state = StateComplete
+	}
+}
+
 // RecordRejection increments rejection count; transitions to Untestable at threshold.
 func (t *CoverageTracker) RecordRejection(n int) {
 	cs := t.findCriterionState(n)
