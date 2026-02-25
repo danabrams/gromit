@@ -453,7 +453,9 @@ func TestWriteReport_CanonicalBenchmarkReportFixture(t *testing.T) {
 				TotalOutput:    600,
 				TotalCostUSD:   1.5,
 				TierTotals: TierTotals{
-					Low: TierTotalsRow{InputTokens: 800, OutputTokens: 400, CostUSD: 0.8},
+					Low:    TierTotalsRow{InputTokens: 1200, OutputTokens: 600, CostUSD: 1.5},
+					Medium: TierTotalsRow{InputTokens: 0, OutputTokens: 0, CostUSD: 0},
+					High:   TierTotalsRow{InputTokens: 0, OutputTokens: 0, CostUSD: 0},
 				},
 				Quality: QualityMetrics{
 					AverageScore:          0.9,
@@ -462,7 +464,7 @@ func TestWriteReport_CanonicalBenchmarkReportFixture(t *testing.T) {
 					ReviewFixesApplied:    0,
 					FinalValidationPassed: true,
 				},
-				CostQualityRatio: 1.67,
+				CostQualityRatio: 1.666667,
 			},
 		},
 	}
