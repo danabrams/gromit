@@ -46,7 +46,12 @@ These are non-negotiable constraints for this project.
 
 - "Backlog" always means the ideas backlog (`gromit add` / `.gromit/backlog.jsonl`), not beads. Beads are work items; backlog items are raw ideas awaiting refinement
 
-## Architecture <!-- phases: red, build, green, refactor, review -->
+## Architecture Guardrails <!-- phases: red, green, refactor -->
+
+- Keep `internal/runner/` packages independent, expose shared contracts via `runtypes/`, enforce production file limits (≤550 lines, facades ≤1000), and reuse shared state/metrics/persistence paths with parity tests during migrations.
+- Interactive commands keep a single merge/cleanup owner, use typed conflict classifiers, and never abort pre-existing `MERGE_HEAD`; decomposition entry points call the shared validator with all required fields.
+
+## Architecture <!-- phases: build, review -->
 
 - `internal/runner/*/` sub-packages must not import siblings **in production or test files**; cross-cutting types live in `runtypes/`. Parent `runner` package uses type aliases for backward compatibility. Production files: <550 lines; facade files: <1000 lines
 - Interactive commands use the session worktree lifecycle with a single merge/cleanup owner and a typed conflict classifier that evaluates git output + exit status. Do not classify conflicts using message fragments alone. Merge-back cleanup may abort only merge state created by the current operation; pre-existing `MERGE_HEAD` must return a typed non-destructive error.
@@ -55,22 +60,22 @@ These are non-negotiable constraints for this project.
 
 ## Build Process <!-- phases: build -->
 
-- Pipeline methods: typed input/output structs, validate deps first, renderer processing, post-processing change detection. Keep pipeline tests next to command files
-- Config fields: defaults in `SetDefaults()` (use `*int`/`-1` when zero is valid), test omitted-YAML defaults. Mirror new `IterationResult` fields into `IterationLog` in `writeIterationLog()`
-- Shared-package refactors (e.g., learnings/config): rerun all affected dependent test suites after each commit; verify each diff still matches intent
+- Pipeline methods use typed input/output structs, validate deps first, renderer processing, and post-processing change detection; keep pipeline tests next to command files
+- Config fields provide defaults in `SetDefaults()` (test the omitted-YAML defaults) and mirror new `IterationResult` fields into `IterationLog` via `writeIterationLog()`
+- Shared-package refactors (e.g., learnings/config) rerun dependent test suites after each commit and verify each diff still matches intent
 - Test-only bead detection: use `bead.IsTestOnlyBead()` (e.g., "Add tests for") alongside `IsMethodologyActive()`
-- On bead failure: add to `skippedBeads`, not inline. After 2 consecutive cross-run failures, automatically create/link decomposition sub-beads that each include explicit expected_outputs and bounded scope; block parent retries until one child lands. Retries are forbidden if decomposition creation is partial/non-idempotent. Emit an auditable decomposition-attempt event and fail the iteration if this enforcement step is skipped. Keep 3+ threshold for final skip escalation
-- On timeout failure, apply timeout-first decomposition after the first timeout when elapsed phase time exceeds 75% of budget. Do not allow same-scope retry before decomposition or explicit escalation decision is recorded.
+- On bead failure: add the bead to `skippedBeads`, not inline, and after 2 consecutive cross-run failures automatically create/link decomposition sub-beads with explicit expected_outputs and bounded scope. Block parent retries until a child lands, forbid retries when decomposition creation is partial/non-idempotent, emit an auditable decomposition-attempt event, fail the iteration if enforcement is skipped, and keep a 3+ threshold for final skip escalation
+- On timeout failure, when elapsed phase time exceeds 75% of budget apply timeout-first decomposition and forbid same-scope retries until decomposition or explicit escalation occurs.
 - `Run()` order: validate → execute → persist state → between-iteration hooks → continue. No reordering; log timeout warnings (not early return); nil-safe receiver/config checks at method entry. Iteration metrics (duration/cost/tokens) must be persisted before any timeout/failure return path and verified by completeness tests
 - New config types/fields: update `gromit.yaml` to match — project-config tests validate the live file against the schema
-- Validation recovery: auto-fix (`gofmt`/`goimports`) first, re-validate, then Claude escalation only if still failing (`MaxValidationRetries`, default 1)
-- `test/contracts/` contract tests verify git call order (rev-parse before `git diff --stat`); keep harness init and sequencing intact
-- Validation commands in gromit.yaml must match the build system (check go.mod/package.json). For this project: `go test`, `go vet`, `go build` only — never pnpm/npm. For API deletions/migrations touching exported symbols or lifecycle/orchestrator files, add compile gate: `go test -tags acceptance -run '^$' ./...`
-- Usage accounting must use explicit before/after snapshots for every phase (red/green/refactor/validate) and a single merge strategy for provider stream events. Mixing raw totals and deltas in one run is forbidden. Retro/efficiency report generation must fail if total_iterations > 0 and current-run per-iteration rows are empty, or if run-level aggregates are non-zero while rows are empty, or if any phase snapshot is missing. In this state, output must show `insufficient_current_run_data` and all current-vs-historical deltas as `N/A` (never zero-filled defaults).
+- Validation recovery auto-fixes (`gofmt`/`goimports`), re-validates, and escalates to Claude only if still failing (`MaxValidationRetries` default 1)
+- `test/contracts/` contract tests verify git call order (`rev-parse` before `git diff --stat`) and keep harness init and sequencing intact
+- Validation commands in gromit.yaml must match the build system (`go test`, `go vet`, `go build` per go.mod); never pnpm/npm. API/lifecycle/orchestrator deletions or migrations must add compile gate `go test -tags acceptance -run '^$' ./...`.
+- Usage accounting must use explicit before/after snapshots for every phase and a consistent merge strategy for provider stream events; mixing raw totals and deltas in one run is forbidden. Retro/efficiency report generation must fail if total_iterations > 0 and current-run per-iteration rows are empty, or if run-level aggregates are non-zero while rows are empty, or if any phase snapshot is missing. In this state, output must show `insufficient_current_run_data` and all current-vs-historical deltas as `N/A` (never zero-filled defaults).
 - When deleting exported APIs or large orchestration files, run `go test -tags acceptance -run '^$' ./...` as a compile gate before merge; blocked build-tagged references must be resolved in the same bead
-- Build phases: run test/vet on touched packages only. Full validation: `go test ./...`, `go vet ./...`, `go build ./...`
-- `test_touched.sh` tests all branch-modified packages. Pre-existing failures in touched packages block new beads — verify target packages pass before starting dependent work
-- Benchmark run outputs are ephemeral and must write to ignored artifact paths; committed benchmark/test artifacts must be deterministic curated fixtures (for this repo, under `test/fixtures/`)
+- Build phases run `go test`/`go vet` on touched packages only; full validation runs `go test ./...`, `go vet ./...`, `go build ./...`
+- `test_touched.sh` tests branch-modified packages; existing failures in those packages block new beads, so verify they pass before starting dependent work
+- Benchmark run outputs are ephemeral and must write to ignored artifact paths; committed benchmark/test artifacts must be deterministic curated fixtures (under `test/fixtures/`)
 
 ## Decomposition <!-- phases: plan -->
 
