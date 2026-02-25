@@ -317,6 +317,9 @@ runLoop:
 		return err
 	}
 
+	// Check for control limit alerts (first-pass success regression below 70%)
+	o.checkControlLimitAlerts()
+
 	// Persist provider routing state so availability counts survive across runs.
 	if o.cfg.StateSaver != nil {
 		if setter, ok := o.cfg.StateSaver.(interface{ SetCleanExit(bool) }); ok {
@@ -345,6 +348,41 @@ func inferBuildFailurePhase(err error) string {
 		return "final_validation"
 	default:
 		return "build"
+	}
+}
+
+// checkControlLimitAlerts verifies that first-pass success rate stays above 70%.
+// If rolling_first_pass_success_rate < 0.70 (with minimum 10 iterations in window),
+// logs a warning and sets a flag in state to trigger retro on next run.
+func (o *Orchestrator) checkControlLimitAlerts() {
+	const firstPassSuccessThreshold = 0.70
+	const minimumWindowSize = 10
+
+	// Need both LogsDir and StateSaver to perform this check
+	if o.cfg.LogsDir == "" || o.cfg.StateSaver == nil {
+		return
+	}
+
+	// Try to read the process trend
+	trend, err := logger.ReadProcessTrend(o.cfg.LogsDir)
+	if err != nil {
+		o.logf("Warning: could not read process trend for control limit check: %v", err)
+		return
+	}
+
+	if trend == nil {
+		return
+	}
+
+	// Check if window has enough data and first-pass success is below threshold
+	if trend.LatestWindow.FirstPassSuccess < firstPassSuccessThreshold && trend.WindowSize >= minimumWindowSize {
+		o.logf("Warning: first-pass success rate %.1f%% is below control limit of %.0f%% (window: %d iterations)",
+			trend.LatestWindow.FirstPassSuccess*100, firstPassSuccessThreshold*100, trend.WindowSize)
+
+		// Set the control limit alert flag in state so retro is triggered on next run
+		if setter, ok := o.cfg.StateSaver.(interface{ SetControlLimitAlertTriggered(bool) }); ok {
+			setter.SetControlLimitAlertTriggered(true)
+		}
 	}
 }
 

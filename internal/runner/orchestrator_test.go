@@ -18,6 +18,7 @@ import (
 	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/state"
 )
 
 // fakeStage is a test double for pipeline.Stage.
@@ -1183,4 +1184,97 @@ func writeOrchestratorTestLogFile(t *testing.T, dir string, runID string, logs [
 			t.Fatalf("Failed to write test log entry: %v", err)
 		}
 	}
+}
+
+// TestOrchestrator_ControlLimitAlert_SetsRetroFlagWhenFirstPassSuccessBelow70 verifies
+// that when the rolling_first_pass_success_rate drops below 70% with at least 10 iterations
+// in the window, a warning is logged and the state is marked to trigger retro on next run.
+func TestOrchestrator_ControlLimitAlert_SetsRetroFlagWhenFirstPassSuccessBelow70(t *testing.T) {
+	// Create temp directories
+	logsDir := t.TempDir()
+	metricsDir := t.TempDir()
+	stateDir := t.TempDir()
+
+	// Create iteration logs with low first-pass success rate
+	logs := make([]logger.IterationLog, 12)
+	for i := 0; i < 12; i++ {
+		logs[i] = logger.IterationLog{
+			Iteration:        i + 1,
+			BeadID:           fmt.Sprintf("bead-%d", i),
+			Success:          true,
+			Validated:        true,
+			FirstPassSuccess: i < 2, // Only 2 out of 12 first-pass successes = 16.67%
+		}
+	}
+	writeOrchestratorTestLogFile(t, logsDir, "test-run", logs)
+
+	// Create ProcessTrend with low FirstPassSuccess rate
+	trend := &logger.ProcessTrend{
+		TotalIterations: 12,
+		WindowSize:      12,
+		LatestWindow: logger.ProcessTrendWindow{
+			FirstPassSuccess: 0.1667, // ~16.67%, below 70% threshold
+		},
+	}
+
+	// Write trend file
+	trendPath := filepath.Join(metricsDir, "process_trend.json")
+	trendData, err := json.MarshalIndent(trend, "", "  ")
+	if err != nil {
+		t.Fatalf("marshalling trend: %v", err)
+	}
+	if err := os.WriteFile(trendPath, trendData, 0644); err != nil {
+		t.Fatalf("writing trend file: %v", err)
+	}
+
+	// Create a real state file for testing
+	stateFile, err := state.NewFile(stateDir)
+	if err != nil {
+		t.Fatalf("creating state file: %v", err)
+	}
+
+	// Create orchestrator with a TrendReader that returns our test trend
+	trendUpdater := &fakeTrendUpdater{
+		trend: trend,
+	}
+
+	getBead := func(_ context.Context) (*bead.Bead, error) { return nil, nil }
+
+	cfg := OrchestratorConfig{
+		Gate:         &fakeStage{},
+		Build:        &fakeStage{},
+		Validate:     &fakeStage{},
+		Epilogue:     &fakeStage{},
+		GetBead:      getBead,
+		Config:       &config.Config{},
+		Output:       io.Discard,
+		StateSaver:   stateFile,
+		TrendUpdater: trendUpdater,
+		LogsDir:      trendPath, // Pass the full path to the trend file
+	}
+
+	orch := NewOrchestrator(cfg)
+	err = orch.Run(context.Background(), 10, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	// Verify that state file was saved (this happens at line 325 in orchestrator.go)
+	if err := stateFile.Load(); err != nil {
+		t.Fatalf("loading state file: %v", err)
+	}
+
+	// Verify that the control limit alert flag was set
+	if !stateFile.IsControlLimitAlertTriggered() {
+		t.Error("ControlLimitAlert flag should be set when FirstPassSuccess < 0.70")
+	}
+}
+
+// fakeTrendUpdater is a test double for trendUpdaterCloser
+type fakeTrendUpdater struct {
+	trend *logger.ProcessTrend
+}
+
+func (f *fakeTrendUpdater) Close() {
+	// no-op for testing
 }

@@ -14,14 +14,15 @@ import (
 // InteractiveState / interactive-state.json.  Do NOT add review fields here;
 // the compiler will catch callers that try to use state.File for review state.
 type State struct {
-	LastRetro                time.Time            `json:"last_retro,omitempty"`
-	IterationsSinceReview    int                  `json:"iterations_since_review,omitempty"`
-	CleanExit                bool                 `json:"clean_exit"`
-	UpdatedAt                time.Time            `json:"updated_at"`
-	FilteredLearningHashes   []string             `json:"filtered_learning_hashes,omitempty"`
-	ArchivedLearningHashes   []string             `json:"archived_learning_hashes,omitempty"`
-	ProviderCounts           map[string]int       `json:"provider_counts,omitempty"`
-	ProviderUnavailableUntil map[string]time.Time `json:"provider_unavailable_until,omitempty"`
+	LastRetro                      time.Time            `json:"last_retro,omitempty"`
+	IterationsSinceReview          int                  `json:"iterations_since_review,omitempty"`
+	CleanExit                      bool                 `json:"clean_exit"`
+	UpdatedAt                      time.Time            `json:"updated_at"`
+	FilteredLearningHashes         []string             `json:"filtered_learning_hashes,omitempty"`
+	ArchivedLearningHashes         []string             `json:"archived_learning_hashes,omitempty"`
+	ProviderCounts                 map[string]int       `json:"provider_counts,omitempty"`
+	ProviderUnavailableUntil       map[string]time.Time `json:"provider_unavailable_until,omitempty"`
+	ControlLimitAlertTriggered     bool                 `json:"control_limit_alert_triggered,omitempty"`
 }
 
 // File manages the state.json file
@@ -127,6 +128,22 @@ func (f *File) SetCleanExit(cleanExit bool) {
 		return
 	}
 	f.state.CleanExit = cleanExit
+}
+
+// IsControlLimitAlertTriggered returns whether a control limit alert has been triggered
+func (f *File) IsControlLimitAlertTriggered() bool {
+	if f == nil {
+		return false
+	}
+	return f.state.ControlLimitAlertTriggered
+}
+
+// SetControlLimitAlertTriggered sets the control limit alert flag
+func (f *File) SetControlLimitAlertTriggered(triggered bool) {
+	if f == nil {
+		return
+	}
+	f.state.ControlLimitAlertTriggered = triggered
 }
 
 // CheckStaleness detects whether state is stale due to crash or old timestamp.
