@@ -44,6 +44,24 @@ func TestApplyCodexFixtureEnv(t *testing.T) {
 	}
 }
 
+func TestApplyCodexFailEnv(t *testing.T) {
+	const exitCode = "42"
+
+	env := []string{"PATH=/tmp/bin", "HOME=/tmp/home"}
+	got := ApplyCodexFailEnv(env, exitCode)
+
+	found := false
+	for _, v := range got {
+		if v == codexFailureExitCodeEnvVar+"="+exitCode {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("%s was not set to %q in env: %v", codexFailureExitCodeEnvVar, exitCode, got)
+	}
+}
+
 func TestFilterToolCalls_UnknownKind(t *testing.T) {
 	env := setupTestEnv(t)
 	_, err := FilterToolCalls(env, ToolCallKind("unknown"))
