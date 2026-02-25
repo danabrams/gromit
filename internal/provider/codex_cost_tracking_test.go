@@ -292,3 +292,92 @@ func TestProcessCodexStreamExtractsUsageFromTurnCompletedTopLevelFields(t *testi
 		t.Errorf("usage.TotalCostUSD = %f, want 0.033", usage.TotalCostUSD)
 	}
 }
+
+// TestProcessCodexStreamNormalizesMergeSemantics verifies that all three event
+// handlers (turn.completed, response.completed, result) use consistent merge
+// semantics with extractUsageFromFields and mergeCodexUsage.
+func TestProcessCodexStreamNormalizesMergeSemantics(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         string
+		expectedInput int
+		expectedOut   int
+		expectedCost  float64
+	}{
+		{
+			name: "turn.completed with nested usage",
+			input: strings.Join([]string{
+				`{"type":"item.completed","item":{"type":"agent_message","text":"Done"}}`,
+				`{"type":"turn.completed","usage":{"input_tokens":2000,"output_tokens":500,"total_cost_usd":0.035}}`,
+			}, "\n") + "\n",
+			expectedInput: 2000,
+			expectedOut:   500,
+			expectedCost:  0.035,
+		},
+		{
+			name: "response.completed with nested usage",
+			input: strings.Join([]string{
+				`{"type":"assistant","message":{"content":[{"type":"text","text":"Done"}]}}`,
+				`{"type":"response.completed","response":{"usage":{"input_tokens":2100,"output_tokens":520,"total_cost_usd":0.036}}}`,
+			}, "\n") + "\n",
+			expectedInput: 2100,
+			expectedOut:   520,
+			expectedCost:  0.036,
+		},
+		{
+			name: "result with nested usage",
+			input: strings.Join([]string{
+				`{"type":"item.completed","item":{"type":"agent_message","text":"Done"}}`,
+				`{"type":"result","result":{"usage":{"input_tokens":2200,"output_tokens":540,"total_cost_usd":0.037}}}`,
+			}, "\n") + "\n",
+			expectedInput: 2200,
+			expectedOut:   540,
+			expectedCost:  0.037,
+		},
+		{
+			name: "turn.completed with top-level fields (after normalization)",
+			input: strings.Join([]string{
+				`{"type":"item.completed","item":{"type":"agent_message","text":"Done"}}`,
+				`{"type":"turn.completed","input_tokens":1900,"output_tokens":480,"total_cost_usd":0.033}`,
+			}, "\n") + "\n",
+			expectedInput: 1900,
+			expectedOut:   480,
+			expectedCost:  0.033,
+		},
+		{
+			name: "result with top-level fields (after normalization)",
+			input: strings.Join([]string{
+				`{"type":"item.completed","item":{"type":"agent_message","text":"Done"}}`,
+				`{"type":"result","input_tokens":1800,"output_tokens":450,"total_cost_usd":0.031}`,
+			}, "\n") + "\n",
+			expectedInput: 1800,
+			expectedOut:   450,
+			expectedCost:  0.031,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			reader := strings.NewReader(tc.input)
+			var output bytes.Buffer
+
+			_, usage, _, err := processCodexStream(reader, &output, nil, nil)
+			if err != nil {
+				t.Fatalf("processCodexStream() error = %v", err)
+			}
+
+			if usage == nil {
+				t.Fatal("usage is nil, want non-nil for valid usage data")
+			}
+			if usage.InputTokens != tc.expectedInput {
+				t.Errorf("usage.InputTokens = %d, want %d", usage.InputTokens, tc.expectedInput)
+			}
+			if usage.OutputTokens != tc.expectedOut {
+				t.Errorf("usage.OutputTokens = %d, want %d", usage.OutputTokens, tc.expectedOut)
+			}
+			if usage.TotalCostUSD != tc.expectedCost {
+				t.Errorf("usage.TotalCostUSD = %f, want %f", usage.TotalCostUSD, tc.expectedCost)
+			}
+		})
+	}
+}
