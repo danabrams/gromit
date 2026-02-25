@@ -764,7 +764,7 @@ func TestRunTimesOutQuicklyAgainstClaudeBinary(t *testing.T) {
 		t.Skip("requires POSIX shell to run the fake Claude binary")
 	}
 
-	binary := filepath.Join("test", "fakes", "claude")
+	binary := filepath.Join("..", "..", "test", "fakes", "claude")
 	if _, err := os.Stat(binary); err != nil {
 		t.Fatalf("expected fake claude binary at %s: %v", binary, err)
 	}
