@@ -25,6 +25,16 @@ Runtime/state artifacts and raw captures must remain outside versioned source pa
 
 Call-log assertions should match the first argv token (for example `codex`) after trim, not raw string prefixes, to avoid false positives like `codex-helper`.
 
+### 2026-02-25 | end_to_end_tests_must_assert_cli_surface_not_only_internal_calls | TEST_QUALITY
+*Related to: gromit-lqqvs*
+
+Tests named end-to-end should execute the CLI path and assert user-visible behavior (output/exit code/artifacts); parser- or model-state-only checks belong in focused unit tests.
+
+### 2026-02-25 | shared_test_helpers_should_not_export_mutable_global_maps | RELIABILITY
+*Related to: gromit-ay3oy, gromit-jm77m*
+
+Shared helper packages should avoid exposing mutable global maps because external mutation creates hidden coupling and order-dependent test behavior; prefer immutable internals with copy/accessor APIs.
+
 ### 2026-02-24 | worktree_mergeback_conflict_ownership_and_classification | ARCHITECTURE
 *Related to: gromit-9948, gromit-9949, gromit-y7flm, gromit-z9z2k, gromit/review-1771861273153074810, gromit/review-1771878486437709843*
 *Consolidated from: session_worktree_conflict_classification_and_cleanup_ownership + mergeback_requires_typed_failure_decision_and_defensive_abort*
