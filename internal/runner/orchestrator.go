@@ -273,6 +273,11 @@ runLoop:
 	// pre-existing entries from prior runs.
 	o.mergeGlobalStats()
 
+	// Post-run completeness assertion: verify all iterations have complete efficiency data
+	if err := o.assertEfficiencyCompleteness(iteration); err != nil {
+		return err
+	}
+
 	// Persist provider routing state so availability counts survive across runs.
 	if o.cfg.StateSaver != nil {
 		if err := o.cfg.StateSaver.Save(); err != nil {
@@ -390,6 +395,34 @@ func (o *Orchestrator) mergeGlobalStats() {
 	if err := logger.UpdateGlobalStats(o.cfg.GlobalStatsPath, runStats); err != nil {
 		o.logf("Warning: could not update global stats: %v", err)
 	}
+}
+
+// assertEfficiencyCompleteness verifies that all iterations have complete efficiency data.
+// If iterations exist but efficiency data is incomplete, returns an error with diagnostics.
+func (o *Orchestrator) assertEfficiencyCompleteness(totalIterations int) error {
+	// Skip check if logs directory or run ID is not configured
+	if o.cfg.LogsDir == "" {
+		return nil
+	}
+	var runID string
+	if o.cfg.GetRunID != nil {
+		runID = o.cfg.GetRunID()
+	}
+	if runID == "" {
+		return nil
+	}
+
+	// Check completeness using logger utility
+	// This will check any iterations that exist in the logs, regardless of totalIterations
+	result, diags := logger.AssertEfficiencyCompleteness(o.cfg.LogsDir, runID)
+
+	// Only fail if there were iterations recorded and data was incomplete
+	if result.TotalIterations > 0 && !result.IsComplete {
+		diagMsg := strings.Join(diags, "\n  ")
+		return fmt.Errorf("efficiency data completeness assertion failed: %d/%d iterations missing efficiency data\nDiagnostics:\n  %s", result.MissingDataCount, result.TotalIterations, diagMsg)
+	}
+
+	return nil
 }
 
 // logf writes a formatted diagnostic message to the configured output.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -776,5 +777,44 @@ func TestOrchestrator_RunSequence_RespectsMaxIterationsWithoutExtraResolution(t 
 	}
 	if !reflect.DeepEqual(buildOrder, []string{"b-1", "b-2"}) {
 		t.Errorf("build order = %v, want %v", buildOrder, []string{"b-1", "b-2"})
+	}
+}
+
+func TestOrchestrator_PostRunCompletenessAssertion_FailsWhenEfficiencyDataIncomplete(t *testing.T) {
+	// Create a temporary logs directory
+	logsDir := t.TempDir()
+
+	// Create log file with iterations but missing efficiency data
+	logContent := `{"type":"iteration","timestamp":"2026-02-25T12:00:00Z","iteration":1,"bead_id":"b1","bead_title":"Task 1","model":"haiku","success":true,"validated":true,"duration_ms":0,"cost_usd":0,"input_tokens":0,"output_tokens":0}
+{"type":"iteration","timestamp":"2026-02-25T12:00:01Z","iteration":2,"bead_id":"b2","bead_title":"Task 2","model":"haiku","success":true,"validated":true,"duration_ms":0,"cost_usd":0,"input_tokens":0,"output_tokens":0}
+`
+	logPath := logsDir + "/run-20260225-120000.jsonl"
+	if err := os.WriteFile(logPath, []byte(logContent), 0644); err != nil {
+		t.Fatalf("failed to write log file: %v", err)
+	}
+
+	// Set up orchestrator that will not process any beads but will read the logs
+	getBead := func(_ context.Context) (*bead.Bead, error) { return nil, nil }
+
+	cfg := OrchestratorConfig{
+		Gate:       &fakeStage{},
+		Build:      &fakeStage{},
+		Validate:   &fakeStage{},
+		Epilogue:   &fakeStage{},
+		GetBead:    getBead,
+		Config:     &config.Config{},
+		Output:     io.Discard,
+		LogsDir:    logsDir,
+		GetRunID:   func() string { return "20260225-120000" },
+	}
+
+	orch := NewOrchestrator(cfg)
+	err := orch.Run(context.Background(), 10, time.Time{}, nil)
+
+	// Should fail due to incomplete efficiency data
+	if err == nil {
+		t.Error("Run() expected to fail with efficiency data completeness issue, got nil error")
+	} else if !strings.Contains(err.Error(), "efficiency") && !strings.Contains(err.Error(), "completeness") {
+		t.Errorf("Run() error = %v, want error containing 'efficiency' or 'completeness'", err)
 	}
 }
