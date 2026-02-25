@@ -153,3 +153,25 @@ func TestBuildContext_PopulatesStaticPreambleCacheMetadata(t *testing.T) {
 		t.Fatalf("expected cache key to remain stable across dynamic BuildContext fields, got %q vs %q", ctx1.StaticPreambleCacheKey, ctx2.StaticPreambleCacheKey)
 	}
 }
+
+func TestBuildContext_SkipBuildLearningsOnlyForBuildPhase(t *testing.T) {
+	r := setupRendererWithLearnings(t, 2, 120)
+	r.SetSkipBuildLearnings(true)
+	testBead := newBuildContextTestBead()
+
+	buildCtx, err := r.BuildContext(testBead, nil, 1, "sonnet", promptPhaseBuild)
+	if err != nil {
+		t.Fatalf("BuildContext(build) error = %v", err)
+	}
+	if len(buildCtx.ConfirmedLearnings) != 0 {
+		t.Fatalf("expected build-phase context to exclude confirmed learnings, got %d", len(buildCtx.ConfirmedLearnings))
+	}
+
+	reviewCtx, err := r.BuildContext(testBead, nil, 1, "sonnet", "review")
+	if err != nil {
+		t.Fatalf("BuildContext(review) error = %v", err)
+	}
+	if len(reviewCtx.ConfirmedLearnings) == 0 {
+		t.Fatal("expected review-phase context to include confirmed learnings")
+	}
+}
