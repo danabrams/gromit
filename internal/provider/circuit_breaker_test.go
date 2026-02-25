@@ -251,3 +251,33 @@ func TestNewCircuitBreakerFromConfig(t *testing.T) {
 		t.Errorf("recoverySuccesses = %d, want 3", cb.recoverySuccesses)
 	}
 }
+
+// TestNewCircuitBreakerReturnsNilWhenDisabled verifies that NewCircuitBreaker
+// returns nil when config.Enabled is false.
+func TestNewCircuitBreakerReturnsNilWhenDisabled(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.CircuitBreakerConfig{
+		Enabled:           false,
+		WindowSize:        10,
+		FailureThreshold:  0.3,
+		DegradedFloor:     20,
+		RecoverySuccesses: 5,
+	}
+
+	cb := NewCircuitBreaker(cfg)
+	if cb != nil {
+		t.Fatal("NewCircuitBreaker returned non-nil for disabled config")
+	}
+}
+
+// TestNewCircuitBreakerReturnsNilForNilConfig verifies that NewCircuitBreaker
+// returns nil when config is nil.
+func TestNewCircuitBreakerReturnsNilForNilConfig(t *testing.T) {
+	t.Parallel()
+
+	cb := NewCircuitBreaker(nil)
+	if cb != nil {
+		t.Fatal("NewCircuitBreaker returned non-nil for nil config")
+	}
+}
