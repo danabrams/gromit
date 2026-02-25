@@ -283,3 +283,38 @@ func TestRunRefineInSession_WorktreeDisabledSkipsSessionLauncher(t *testing.T) {
 		t.Fatal("session launcher should not be called when worktree is disabled")
 	}
 }
+
+func TestDetermineRefineInput_ChooseAgentWithIdeaID(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("mkdir gromitDir: %v", err)
+	}
+
+	// Create an empty backlog file so the picker logic doesn't try to read it
+	backlogFile := filepath.Join(gromitDir, "backlog.json")
+	if err := os.WriteFile(backlogFile, []byte("[]"), 0644); err != nil {
+		t.Fatalf("write backlog file: %v", err)
+	}
+
+	cmd := &cobra.Command{}
+	cmd.Flags().String("agent", "", "")
+	cmd.Flags().Bool("choose-agent", false, "")
+
+	// Set flags
+	cmd.Flag("choose-agent").Value.Set("true")
+
+	// Test with backlog ID argument
+	input, err := determineRefineInput(cmd, []string{"idea-123"}, gromitDir)
+	if err != nil {
+		t.Fatalf("determineRefineInput() error = %v", err)
+	}
+
+	if !input.ChooseAgent {
+		t.Errorf("ChooseAgent = %v, want true when --choose-agent flag is set", input.ChooseAgent)
+	}
+
+	if input.IdeaID != "idea-123" {
+		t.Errorf("IdeaID = %q, want %q", input.IdeaID, "idea-123")
+	}
+}
