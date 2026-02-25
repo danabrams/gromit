@@ -1,0 +1,17 @@
+id: tdd-vs-single-pass-low
+base_commit: ae0f672c59fdd0486a0212ce69df8889d4e88ee7
+beads:
+  - gromit-1
+  - gromit-2
+  - gromit-3
+  - gromit-4
+  - gromit-5
+modes:
+  - single_pass
+  - tdd_shared_context
+  - tdd_fresh_context
+provider: openai
+model_family: gpt-5
+low_tier_model: gpt-5.1-codex-mini
+medium_tier_model: gpt-5.1-codex-mini
+high_tier_model: gpt-5.1-codex-mini

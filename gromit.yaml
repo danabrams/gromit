@@ -62,8 +62,8 @@ routing:
     decompose: openai    # force decompose to Codex/OpenAI provider
     retro: openai        # force retro to Codex/OpenAI provider
   ratio:
-    claude: 0
-    openai: 100
+    claude: 50
+    openai: 50
   fallback:
     enabled: true
     cooldown: 30m
@@ -204,6 +204,10 @@ agents:
     explore: codex
     debug: codex
 
+# Review settings
+review:
+  tier: "low"  # Start reviews on low tier; benchmark shows mini handles all tested complexities
+
 # Git settings
 git:
   auto_push: true  # Push to remote after each successful bead (default: true)
@@ -229,6 +233,10 @@ state:
 methodology:
   atdd: false
   tdd: true
+  phase_models:
+    build: "low"
+    decompose: "low"
+    green: "low"
   # max_tdd_cycles: 10  # Maximum red/green/refactor loops per bead before stopping (default: 10)
   # spec_gate_max_retries: 3  # Max scoped spec-gate fix synthesis retries before stopping (default: 3)
   # atdd_prompt:
@@ -264,11 +272,11 @@ paths:
   project_claude_md: "CLAUDE.md"  # Your project's CLAUDE.md
 
 # Session - per-session overrides for loop behavior and tooling
-# session:
+session:
+  fix_tier: "low"             # Start fixes on low tier, escalation handles failures
 #   iterations: 0              # Max iterations this session (0 = use loop.max_iterations)
 #   test_command: ""           # Override validation test command for this session
 #   max_fix_retries: 3         # Max auto-fix retries before escalating to Claude
-#   fix_tier: "medium"         # Model tier to use for auto-fix (low, medium, high)
 #   review: true               # Run code review after each bead
 #   retro: true                # Run retrospective at session end
 
