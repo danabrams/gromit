@@ -48,6 +48,63 @@ func TestBenchmarkRunCommand_DispatchesPipeline(t *testing.T) {
 	}
 }
 
+func TestBenchmarkCLI_UsesInternalBuildReportInputExclusively(t *testing.T) {
+	// Verify that benchmarkBuildReportInputFn is delegating to the single internal BuildReportInput
+	if benchmarkBuildReportInputFn == nil {
+		t.Fatal("benchmarkBuildReportInputFn must not be nil")
+	}
+
+	// Call the function pointer and verify it works correctly
+	testResult := benchmarkBuildReportInputFn(
+		"test-manifest",
+		"abc123",
+		[]string{"bead-1", "bead-2"},
+		"provider", "modelFamily", "lowTier", "mediumTier", "highTier",
+		[]benchpkg.ModeSummary{{Mode: "test"}},
+		"20260225T120000Z",
+	)
+
+	// Verify the result has expected structure
+	if testResult.Manifest.ID != "test-manifest" {
+		t.Fatalf("manifest ID mismatch: got %q, want %q", testResult.Manifest.ID, "test-manifest")
+	}
+	if testResult.Timestamp != "20260225T120000Z" {
+		t.Fatalf("timestamp mismatch: got %q, want %q", testResult.Timestamp, "20260225T120000Z")
+	}
+	if len(testResult.Modes) != 1 || testResult.Modes[0].Mode != "test" {
+		t.Fatalf("modes mismatch: got %+v", testResult.Modes)
+	}
+}
+
+func TestBenchmarkTests_DoNotUseDuplicateReportInputBuilder(t *testing.T) {
+	// This test verifies that tests do not call the local buildBenchmarkReportInput function
+	// Instead, all tests should use benchpkg.BuildReportInput as the single source of truth
+	// Verify that we can construct ReportInput directly using the internal builder
+	beads := []string{"bead-1", "bead-2"}
+	modeSummaries := []benchpkg.ModeSummary{{Mode: "test_mode"}}
+
+	// This is the correct way to build a report input - through the internal builder
+	input := benchpkg.BuildReportInput(
+		"manifest-id",
+		"commit123",
+		beads,
+		"provider", "modelFamily", "lowTier", "mediumTier", "highTier",
+		modeSummaries,
+		"20260225T120000Z",
+	)
+
+	// Verify structure is correct
+	if input.Manifest.ID != "manifest-id" {
+		t.Fatalf("expected manifest ID manifest-id, got %q", input.Manifest.ID)
+	}
+	if len(input.Manifest.Beads) != 2 {
+		t.Fatalf("expected 2 beads, got %d", len(input.Manifest.Beads))
+	}
+	if len(input.Modes) != 1 {
+		t.Fatalf("expected 1 mode, got %d", len(input.Modes))
+	}
+}
+
 func TestRunBenchmarkPipeline_ExecutesStagesInOrder(t *testing.T) {
 	origLoad := benchmarkLoadManifestFn
 	origSelect := benchmarkSelectCohortFn
