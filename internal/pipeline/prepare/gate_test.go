@@ -631,3 +631,15 @@ func TestConsolidatedMocks_PrecheckerCanBeCreatedWithHelper(t *testing.T) {
 		t.Errorf("done = %v, want false", done)
 	}
 }
+
+func TestConsolidatedMocks_StuckDetectorCanBeCreatedWithHelper(t *testing.T) {
+	s := newMockStuckDetector().WithIsStuck(true, nil)
+
+	stuck, err := s.IsStuck(context.Background(), &bead.Bead{ID: "test"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if stuck != true {
+		t.Errorf("stuck = %v, want true", stuck)
+	}
+}
