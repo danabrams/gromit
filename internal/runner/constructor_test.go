@@ -1807,3 +1807,79 @@ func TestDecomposerAdapter_Decompose_FirstChildFailureReturnsOriginalError(t *te
 		t.Fatalf("Decompose returned ErrPartialDecompositionState, want original error")
 	}
 }
+
+// TestDecomposerAdapter_Decompose_RetryAfterPartialStateDeduplicatesSuccessfulChildren
+// verifies that when a first call creates some children then fails partway through,
+// the second call properly deduplicates the already-created children and only creates
+// the remaining ones.
+func TestDecomposerAdapter_Decompose_RetryAfterPartialStateDeduplicatesSuccessfulChildren(t *testing.T) {
+	stub := &stubRunProvider{
+		name: "test-provider",
+		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
+			return &provider.Result{
+				Success: true,
+				Output:  `[{"title":"Part 1","expected_outputs":["f1"]},{"title":"Part 2","expected_outputs":["f2"]},{"title":"Part 3","expected_outputs":["f3"]}]`,
+			}, nil
+		},
+	}
+	router := provider.NewSingleProviderRouter(stub)
+	client, err := bead.NewClient()
+	if err != nil {
+		t.Fatalf("bead.NewClient: %v", err)
+	}
+
+	createCalls := 0
+	closeCalls := 0
+	attemptNumber := 0
+	client.RunFn = func(args ...string) (string, error) {
+		if len(args) == 0 {
+			return "", nil
+		}
+		switch args[0] {
+		case "create":
+			createCalls++
+			// On first attempt: Part 1 succeeds, Part 2 fails
+			if attemptNumber == 0 && createCalls == 2 {
+				return "", os.ErrPermission
+			}
+			// On second attempt: Parts 2 and 3 should succeed (Part 1 is deduplicated)
+			return `{"id":"child-1","title":"part","status":"open"}`, nil
+		case "close":
+			closeCalls++
+		}
+		return "", nil
+	}
+
+	adapter := &decomposerAdapter{beads: client, router: router}
+	parent := &bead.Bead{
+		ID:       "parent-1",
+		Title:    "Oversized Feature",
+		Priority: 1,
+	}
+
+	// First attempt: partial state
+	err = adapter.Decompose(context.Background(), parent)
+	if err == nil || !errors.Is(err, escalation.ErrPartialDecompositionState) {
+		t.Fatalf("first Decompose() error = %v, want ErrPartialDecompositionState", err)
+	}
+	createsBeforeSecondAttempt := createCalls
+	closesBeforeSecondAttempt := closeCalls
+
+	// Start second attempt
+	attemptNumber = 1
+	err = adapter.Decompose(context.Background(), parent)
+	if err != nil {
+		t.Fatalf("second Decompose() error = %v, want nil", err)
+	}
+
+	// Verify deduplication: only 2 more creates (Part 2 and Part 3), not Part 1 again
+	expectedCreatesAfterSecond := createsBeforeSecondAttempt + 2
+	if createCalls != expectedCreatesAfterSecond {
+		t.Fatalf("createCalls = %d, want %d (Part 1 should be deduplicated)", createCalls, expectedCreatesAfterSecond)
+	}
+
+	// Verify parent was closed on second attempt
+	if closeCalls != closesBeforeSecondAttempt+1 {
+		t.Fatalf("closeCalls = %d, want %d (parent should close on successful retry)", closeCalls, closesBeforeSecondAttempt+1)
+	}
+}
