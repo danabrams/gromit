@@ -7,7 +7,6 @@ import (
 	"reflect"
 
 	"github.com/danabrams/gromit/internal/backlog"
-	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/review"
 )
 
@@ -286,7 +285,7 @@ func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) 
 	beadsCreated := 0
 	for _, bp := range reviewResult.BeadsToCreate {
 		labels := review.BuildReviewBeadLabels(bp.Labels)
-		_, err := p.deps.BeadClient.Create(bp.Title, bp.Priority, labels, bead.ExpectedOutputsOrTitle(bp.ExpectedOutputs, bp.Title))
+		_, err := p.deps.BeadClient.Create(bp.Title, bp.Priority, labels, review.ExpectedOutputsOrTitle(bp.ExpectedOutputs, bp.Title))
 		if err != nil {
 			return nil, fmt.Errorf("creating review bead: %w", err)
 		}

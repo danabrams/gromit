@@ -140,6 +140,7 @@ func TestReviewNonInteractiveWorkflow_E2E(t *testing.T) {
 				title:    title,
 				priority: priority,
 				labels:   labels,
+				outputs:  outputs,
 			})
 			return &BeadInfo{ID: fmt.Sprintf("bead-%d", len(createdBeads))}, nil
 		},
@@ -677,10 +678,103 @@ func (m *reviewAcceptanceMockReviewInvoker) Run(prompt string, model string) (*L
 	return nil, fmt.Errorf("not implemented")
 }
 
+// TestReviewNonInteractiveWorkflow_UsesExpectedOutputsOrTitle verifies that beads without
+// explicit expected_outputs get the title as their expected output.
+func TestReviewNonInteractiveWorkflow_UsesExpectedOutputsOrTitle(t *testing.T) {
+	mockRenderer := &reviewAcceptanceMockReviewRenderer{
+		renderThoroughReviewFunc: func(input *ThoroughReviewPromptInput) (string, error) {
+			return "# Review", nil
+		},
+	}
+
+	mockReviewInvoker := &reviewAcceptanceMockReviewInvoker{
+		runFunc: func(prompt string, model string, timeout time.Duration) (*LLMRunResult, error) {
+			jsonOutput := `{
+				"passed": true,
+				"fixes_applied": [],
+				"beads_to_create": [
+					{
+						"title": "Implement feature X",
+						"description": "Feature X is needed",
+						"priority": 1,
+						"labels": [],
+						"expected_outputs": null
+					}
+				],
+				"backlog_items": [],
+				"summary": "OK"
+			}`
+			return &LLMRunResult{
+				Success: true,
+				Output:  jsonOutput,
+			}, nil
+		},
+	}
+
+	var createdBeads []reviewAcceptanceBeadRecord
+	mockBead := &reviewAcceptanceMockBeadClient{
+		createFunc: func(title string, priority int, labels []string, outputs []string) (*BeadInfo, error) {
+			createdBeads = append(createdBeads, reviewAcceptanceBeadRecord{
+				title:    title,
+				priority: priority,
+				labels:   labels,
+				outputs:  outputs,
+			})
+			return &BeadInfo{ID: "bead-1"}, nil
+		},
+	}
+
+	deps := &Deps{
+		ReviewRenderer:   mockRenderer,
+		ReviewInvoker:    mockReviewInvoker,
+		BeadClient:       mockBead,
+		BacklogClient:    &reviewAcceptanceMockBacklogClient{},
+		LearningsManager: &reviewAcceptanceMockLearningsManager{},
+		LogWriter:        &reviewAcceptanceMockLogWriter{},
+		StateManager:     &reviewAcceptanceMockStateManager{},
+	}
+	paths := &Paths{
+		GromitDir: t.TempDir(),
+	}
+
+	p := New(deps, paths)
+
+	ctx := context.Background()
+	input := ReviewInput{
+		FromCommit: "abc123",
+		Diff:       "diff",
+		Model:      "sonnet",
+		Timeout:    300,
+	}
+
+	_, err := p.ReviewNonInteractive(ctx, input)
+	if err != nil {
+		t.Fatalf("ReviewNonInteractive() failed: %v", err)
+	}
+
+	// Verify bead was created with title as expected output
+	if len(createdBeads) != 1 {
+		t.Fatalf("Expected 1 bead, got %d", len(createdBeads))
+	}
+
+	bead := createdBeads[0]
+	if bead.title != "Implement feature X" {
+		t.Errorf("Bead title = %q, want 'Implement feature X'", bead.title)
+	}
+
+	// Verify the outputs contain the title (via ExpectedOutputsOrTitle)
+	if len(bead.outputs) != 1 {
+		t.Errorf("Bead outputs length = %d, want 1", len(bead.outputs))
+	} else if bead.outputs[0] != "Implement feature X" {
+		t.Errorf("Bead outputs[0] = %q, want 'Implement feature X'", bead.outputs[0])
+	}
+}
+
 type reviewAcceptanceBeadRecord struct {
 	title    string
 	priority int
 	labels   []string
+	outputs  []string
 }
 
 type reviewAcceptanceMockBeadClient struct {
