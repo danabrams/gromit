@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"testing"
 
 	"github.com/danabrams/gromit/test/testutil"
 )
@@ -43,6 +44,28 @@ func toolCallPrefix(tool ToolCallKind) (string, error) {
 		return "bd", nil
 	default:
 		return "", fmt.Errorf("unknown tool call kind: %q", tool)
+	}
+}
+
+func TestToolCallPrefixMapping(t *testing.T) {
+	cases := map[ToolCallKind]string{
+		ToolCallCodex:  "codex",
+		ToolCallClaude: "claude",
+		ToolCallBD:     "bd",
+	}
+
+	for kind, want := range cases {
+		prefix, err := ToolCallPrefix(kind)
+		if err != nil {
+			t.Fatalf("ToolCallPrefix(%q) returned error: %v", kind, err)
+		}
+		if prefix != want {
+			t.Fatalf("ToolCallPrefix(%q) = %q, want %q", kind, prefix, want)
+		}
+	}
+
+	if _, err := ToolCallPrefix(ToolCallKind("unknown")); err == nil {
+		t.Fatal("expected error for unknown ToolCallKind")
 	}
 }
 
