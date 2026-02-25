@@ -778,6 +778,11 @@ func TestStreamRunTimeoutCompositionUsesContextDeadline(t *testing.T) {
 		t.Fatalf("StreamRun() error should wrap context deadline: %v", err)
 	}
 
+	// Verify error message indicates timeout for proper classification
+	errMsg := err.Error()
+	if !strings.Contains(errMsg, "timed out") {
+		t.Errorf("StreamRun() error message should indicate timeout, got: %q", errMsg)
+	}
 }
 
 func blockingClaudeBinary(t *testing.T) string {
