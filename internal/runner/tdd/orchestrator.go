@@ -206,6 +206,10 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 		return fmt.Errorf("red handoff assembly: %w", err)
 	}
 
+	if o.renderRedFn == nil {
+		return fmt.Errorf("renderRedFn is not configured")
+	}
+
 	redPrompt, err := o.renderRedFn(redHandoff, bc)
 	if err != nil {
 		return fmt.Errorf("red prompt render: %w", err)
