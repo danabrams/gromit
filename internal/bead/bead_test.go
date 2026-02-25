@@ -1645,6 +1645,31 @@ func TestHasOpenChildrenWithMockedRun(t *testing.T) {
 	}
 }
 
+func TestHasOpenChildrenHandlesPrefixedJSON(t *testing.T) {
+	const parentID = "epic-noise"
+	noisyOutput := `NOTICE: query succeeded
+bd version 1.2.3
+[{"id":"task-001","title":"Child 1","priority":1,"issue_type":"task","status":"open","parent":"epic-noise"}]
+`
+
+	mockRun := func(args ...string) (string, error) {
+		return noisyOutput, nil
+	}
+
+	c := &Client{
+		binary: "bd",
+		RunFn:  mockRun,
+	}
+
+	got, err := c.HasOpenChildren(parentID)
+	if err != nil {
+		t.Fatalf("HasOpenChildren(%q) unexpected error: %v", parentID, err)
+	}
+	if !got {
+		t.Fatalf("HasOpenChildren(%q) expected true even when output contains noise", parentID)
+	}
+}
+
 // TestClientListReadyIDsNilClient tests that ListReadyIDs() returns error on nil client
 func TestClientListReadyIDsNilClient(t *testing.T) {
 	var c *Client
