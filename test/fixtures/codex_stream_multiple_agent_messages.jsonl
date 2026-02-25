@@ -1,0 +1,6 @@
+# provenance: fixture for verifying final agent message selection.
+# refresh: keep event order deterministic for stream-text assertions.
+{"type":"item.completed","item":{"type":"agent_message","text":"First response"}}
+{"type":"item.completed","item":{"type":"agent_message","text":"Second response"}}
+{"type":"item.completed","item":{"type":"agent_message","text":"Final answer"}}
+{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}
