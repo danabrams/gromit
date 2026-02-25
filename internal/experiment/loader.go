@@ -42,5 +42,8 @@ func validateExperiment(exp *Experiment) error {
 	if !ValidPhases[exp.Phase] {
 		return fmt.Errorf("invalid phase %q", exp.Phase)
 	}
+	if exp.Control == nil {
+		return fmt.Errorf("experiment %q missing control variant", exp.ID)
+	}
 	return nil
 }
