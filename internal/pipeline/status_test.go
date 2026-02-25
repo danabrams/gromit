@@ -772,6 +772,44 @@ func (m *testBacklogClientWithIdeas) Update(id string, fn func(*Idea)) error {
 	return nil
 }
 
+func TestReadStatus_RefactoredUsesInjection(t *testing.T) {
+	disableLiveBDForStatusTests(t)
+
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	specsDir := filepath.Join(gromitDir, "specs")
+	plansDir := filepath.Join(gromitDir, "plans")
+
+	os.MkdirAll(gromitDir, 0755)
+	os.MkdirAll(specsDir, 0755)
+	os.MkdirAll(plansDir, 0755)
+
+	// Add test data directly to backlog file
+	bf, _ := backlog.NewFile(gromitDir)
+	bf.Add(&backlog.Idea{
+		ID:     "idea-1",
+		Text:   "Test idea",
+		Status: "",
+	})
+
+	// Create a spec without plan
+	os.WriteFile(filepath.Join(specsDir, "spec-1.md"), []byte("# Spec"), 0644)
+
+	// ReadStatus should use dependency injection internally
+	status, err := ReadStatus(gromitDir, specsDir, plansDir, nil)
+	if err != nil {
+		t.Fatalf("ReadStatus() error = %v", err)
+	}
+
+	if status.UnrefinedCount != 1 {
+		t.Errorf("UnrefinedCount = %d, want 1", status.UnrefinedCount)
+	}
+
+	if len(status.UnplannedSpecs) != 1 {
+		t.Errorf("UnplannedSpecs count = %d, want 1", len(status.UnplannedSpecs))
+	}
+}
+
 func TestReadStatus_WithInjectedDependencies(t *testing.T) {
 	disableLiveBDForStatusTests(t)
 
