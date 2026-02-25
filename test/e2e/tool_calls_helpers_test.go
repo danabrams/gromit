@@ -24,7 +24,11 @@ const (
 const codexFixtureEnvVar = "CODEX_FIXTURE"
 
 func ApplyCodexFixtureEnvE2E(env []string, fixtureFile string) []string {
-	return testutil.ReplaceOrAppend(append([]string{}, env...), codexFixtureEnvVar, fixtureFile)
+	fixtureValue := fixtureFile
+	if absFixture, err := filepath.Abs(fixtureFile); err == nil {
+		fixtureValue = absFixture
+	}
+	return testutil.ReplaceOrAppend(append([]string{}, env...), codexFixtureEnvVar, fixtureValue)
 }
 
 func TestApplyCodexFixtureEnvE2E_ProvidesAbsolutePath(t *testing.T) {
