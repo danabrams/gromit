@@ -344,3 +344,38 @@ func TestIterationLog_TouchedPackagesJSONTag(t *testing.T) {
 		t.Fatalf("expected touched_packages to be omitted, got %s", string(emptyData))
 	}
 }
+
+// TestIterationLog_ExperimentIDAndVariantIDJSONTags verifies that IterationLog has
+// ExperimentID and VariantID fields with json tags and omitempty behavior.
+func TestIterationLog_ExperimentIDAndVariantIDJSONTags(t *testing.T) {
+	log := &IterationLog{
+		BeadID:       "test-1",
+		Model:        "sonnet",
+		ExperimentID: "exp-abc",
+		VariantID:    "var-xyz",
+	}
+
+	data, err := json.Marshal(log)
+	if err != nil {
+		t.Fatalf("marshal log: %v", err)
+	}
+	s := string(data)
+	if !strings.Contains(s, "\"experiment_id\":\"exp-abc\"") {
+		t.Fatalf("expected experiment_id in JSON, got %s", s)
+	}
+	if !strings.Contains(s, "\"variant_id\":\"var-xyz\"") {
+		t.Fatalf("expected variant_id in JSON, got %s", s)
+	}
+
+	emptyData, err := json.Marshal(IterationLog{})
+	if err != nil {
+		t.Fatalf("marshal empty log: %v", err)
+	}
+	empty := string(emptyData)
+	if strings.Contains(empty, "experiment_id") {
+		t.Fatalf("expected experiment_id to be omitted, got %s", empty)
+	}
+	if strings.Contains(empty, "variant_id") {
+		t.Fatalf("expected variant_id to be omitted, got %s", empty)
+	}
+}
