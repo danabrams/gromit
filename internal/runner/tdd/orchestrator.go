@@ -138,6 +138,9 @@ func (o *CycleOrchestrator) RunCycles(ctx context.Context, bc *runtypes.BeadCont
 // invokeWithRetryAndEscalation attempts invocation, retries once on failure,
 // then escalates tier. Returns error if all attempts fail.
 func (o *CycleOrchestrator) invokeWithRetryAndEscalation(ctx context.Context, prompt string, tier *string) error {
+	if o.invokeFn == nil {
+		return fmt.Errorf("invokeFn is not configured")
+	}
 	// First attempt
 	err := o.invokeFn(ctx, prompt, *tier)
 	if err == nil {
