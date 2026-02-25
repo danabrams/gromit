@@ -76,3 +76,26 @@ func TestExperimentForPhaseReturnsExperimentOrNil(t *testing.T) {
 		t.Fatalf("Expected nil for 'refactor' phase with no experiment")
 	}
 }
+
+func TestValidPhasesContainsAllExpectedPhases(t *testing.T) {
+	// Test that ValidPhases contains all expected phases
+	expectedPhases := map[string]bool{
+		"build":    true,
+		"validate": true,
+		"review":   true,
+		"refactor": true,
+		"analyze":  true,
+		"learn":    true,
+	}
+
+	for phase := range expectedPhases {
+		if !ValidPhases[phase] {
+			t.Fatalf("Expected phase %q to be in ValidPhases", phase)
+		}
+	}
+
+	// Verify we have exactly the expected phases
+	if len(ValidPhases) != len(expectedPhases) {
+		t.Fatalf("Expected ValidPhases to have %d entries, got %d", len(expectedPhases), len(ValidPhases))
+	}
+}
