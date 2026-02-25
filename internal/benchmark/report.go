@@ -129,6 +129,7 @@ func WriteReport(input ReportInput) (ReportPaths, error) {
 	payload.Manifest.ID = input.Manifest.ID
 	payload.Manifest.BaseCommit = input.Manifest.BaseCommit
 	payload.Manifest.Beads = append([]string(nil), input.Manifest.Beads...)
+	sort.Strings(payload.Manifest.Beads)
 	payload.Manifest.Provider = input.Manifest.Provider
 	payload.Manifest.ModelFamily = input.Manifest.ModelFamily
 	payload.Manifest.LowTierModel = input.Manifest.LowTierModel
