@@ -328,6 +328,41 @@ func TestPrintStatus_ShowsModelAndTimeBudget(t *testing.T) {
 	}
 }
 
+func TestStatusWriter_UsesFixedTimeBudgetFromDeadline(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	sw, err := NewStatusWriter(gromitDir)
+	if err != nil {
+		t.Fatalf("NewStatusWriter: %v", err)
+	}
+
+	start := time.Now().Add(-15 * time.Minute)
+	sw.SetStartTime(start)
+	deadline := start.Add(59 * time.Minute)
+	sw.SetTimeBudgetFromDeadline(deadline)
+
+	if err := sw.Write(2, "bead-fixed-budget", "Fixed budget test", "sonnet", true, 10, 44); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	status, err := ReadStatus(gromitDir)
+	if err != nil {
+		t.Fatalf("ReadStatus: %v", err)
+	}
+	if status.TimeBudgetMinutes != 59 {
+		t.Fatalf("TimeBudgetMinutes = %d; want 59", status.TimeBudgetMinutes)
+	}
+
+	display := formatRun(status)
+	if !strings.Contains(display, "of 59m elapsed") {
+		t.Errorf("formatRun missing fixed time budget; got:\n%s", display)
+	}
+}
+
 // TestPrintStatus_IncludesSPCSection verifies that PrintStatus reads process
 // trend data from the logs directory and includes an SPC section in the output.
 // Even with no log data, the output should contain "SPC:" with a "(no data)"

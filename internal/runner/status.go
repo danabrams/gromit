@@ -39,11 +39,13 @@ type Status struct {
 type StatusWriter struct {
 	path      string
 	startTime time.Time
+	// timeBudgetMinutes, when >0, is used as the fixed total time budget for display.
+	timeBudgetMinutes int
 	// iterationTotal, when >0, is used by status formatting as the denominator
 	// for "iteration X of Y" progress displays.
 	iterationTotal int
 	scopeLabel     string
-	mu        sync.Mutex
+	mu             sync.Mutex
 }
 
 // NewStatusWriter creates a new status writer for the given gromit directory
@@ -77,6 +79,34 @@ func (sw *StatusWriter) SetScopeLabel(label string) {
 	sw.scopeLabel = label
 }
 
+// SetTimeBudgetFromDeadline sets the fixed time budget based on the provided deadline.
+// It uses the writer's start time and only sets the budget once.
+func (sw *StatusWriter) SetTimeBudgetFromDeadline(deadline time.Time) {
+	if sw == nil || deadline.IsZero() {
+		return
+	}
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
+	if sw.timeBudgetMinutes > 0 {
+		return
+	}
+	total := int(deadline.Sub(sw.startTime).Minutes())
+	if total <= 0 {
+		return
+	}
+	sw.timeBudgetMinutes = total
+}
+
+// TimeBudgetMinutes returns the configured fixed time budget minutes.
+func (sw *StatusWriter) TimeBudgetMinutes() int {
+	if sw == nil {
+		return 0
+	}
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
+	return sw.timeBudgetMinutes
+}
+
 // Write writes the current status to status.json
 func (sw *StatusWriter) Write(iteration int, beadID, beadTitle, model string, running bool, maxIterations, timeBudgetMinutes int) error {
 	if sw == nil {
@@ -84,6 +114,10 @@ func (sw *StatusWriter) Write(iteration int, beadID, beadTitle, model string, ru
 	}
 	sw.mu.Lock()
 	defer sw.mu.Unlock()
+
+	if sw.timeBudgetMinutes > 0 {
+		timeBudgetMinutes = sw.timeBudgetMinutes
+	}
 
 	status := Status{
 		Running:           running,
