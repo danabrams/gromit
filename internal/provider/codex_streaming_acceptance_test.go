@@ -192,24 +192,10 @@ func TestCodexProviderParsesAgentMessageEvent(t *testing.T) {
 // TestCodexProviderInvokesToolCallHandlerForCommandExecution verifies that
 // item.started events with type "command_execution" trigger ToolCallHandler.
 func TestCodexProviderInvokesToolCallHandlerForCommandExecution(t *testing.T) {
-	tempDir := t.TempDir()
-
-	mockBinary := filepath.Join(tempDir, "codex")
-	codexEvent := map[string]interface{}{
-		"type": "item.started",
-		"item": map[string]interface{}{
-			"type":    "command_execution",
-			"command": "go test ./...",
-		},
-	}
-	eventJSON, _ := json.Marshal(codexEvent)
-	mockScript := fmt.Sprintf("#!/bin/bash\ncat > /dev/null\nprintf '%%s\\n' '%s'\nexit 0\n", string(eventJSON))
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+	setupCodexStreamingFixtureEnv(t, "codex_stream_command_execution.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
+	cp := NewCodexProvider(fakeCodexBinaryPath(t), []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
