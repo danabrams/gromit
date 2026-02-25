@@ -1,0 +1,4 @@
+# provenance: fixture for agent_message event normalization acceptance test.
+# refresh: update to keep event ordering consistent.
+{"type":"item.completed","item":{"type":"agent_message","text":"This is the agent response."}}
+{"type":"turn.completed","usage":{"input_tokens":5,"output_tokens":2}}
