@@ -386,6 +386,9 @@ func (o *CycleOrchestrator) executeRefactorPhase(ctx context.Context, bc *runtyp
 	}
 
 	// Verify tests still pass after refactor.
+	if o.validateFn == nil {
+		return refactorOutcomeFailed
+	}
 	_, passed, validateErr := o.validateFn(ctx, nil, "")
 	if validateErr != nil {
 		return refactorOutcomeContinue

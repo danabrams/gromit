@@ -1631,3 +1631,26 @@ func TestRunGreenPhaseUntilValidated_ReturnsErrorWhenValidateFnNil(t *testing.T)
 		t.Fatalf("expected error when validateFn is nil in green phase, got nil")
 	}
 }
+
+func TestExecuteRefactorPhase_ReturnsErrorWhenValidateFnNil(t *testing.T) {
+	orch := newTestOrchestrator()
+
+	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
+		return nil // Refactor succeeds
+	}
+	orch.getGitHeadFn = func() (string, error) {
+		return "abc123", nil
+	}
+	// validateFn is intentionally left nil to trigger the error
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{},
+		Tier:   "medium",
+	}
+
+	outcome := orch.executeRefactorPhase(context.Background(), bc)
+	// When validateFn is nil, executeRefactorPhase should return a failed outcome
+	if outcome != refactorOutcomeFailed {
+		t.Fatalf("expected refactorOutcomeFailed when validateFn is nil, got %v", outcome)
+	}
+}
