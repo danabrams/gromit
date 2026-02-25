@@ -128,6 +128,9 @@ func (c *Config) Validate() error {
 	if err := c.validateTokenEfficiencyRouting(); err != nil {
 		return err
 	}
+	if err := c.validateExperimentConfig(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -169,6 +172,16 @@ func (c *Config) validateTokenEfficiencyRouting() error {
 				tier,
 			)
 		}
+	}
+	return nil
+}
+
+func (c *Config) validateExperimentConfig() error {
+	if c.Experiment.MinSampleSize < 1 {
+		return fmt.Errorf("experiment.min_sample_size must be >= 1 (got %d)", c.Experiment.MinSampleSize)
+	}
+	if c.Experiment.ConfidenceThreshold <= 0 || c.Experiment.ConfidenceThreshold > 1 {
+		return fmt.Errorf("experiment.confidence_threshold must be > 0 and <= 1 (got %f)", c.Experiment.ConfidenceThreshold)
 	}
 	return nil
 }
