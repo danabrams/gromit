@@ -1,5 +1,7 @@
 package config
 
+import "path/filepath"
+
 const (
 	defaultPhaseAgent             = "claude"
 	defaultMethodologyBuildStrategy = "single_pass"
@@ -70,6 +72,15 @@ func (c *Config) SetDefaults() {
 	}
 	if c.Paths.ProjectClaudeMD == "" {
 		c.Paths.ProjectClaudeMD = "CLAUDE.md"
+	}
+	if c.Experiment.MinSampleSize == 0 {
+		c.Experiment.MinSampleSize = 20
+	}
+	if c.Experiment.ConfidenceThreshold == 0 {
+		c.Experiment.ConfidenceThreshold = 0.95
+	}
+	if c.Experiment.ExperimentsDir == "" {
+		c.Experiment.ExperimentsDir = filepath.Join(c.Paths.GromitDir, "experiments")
 	}
 	if c.Validation.MaxFixAttempts == 0 {
 		c.Validation.MaxFixAttempts = 1

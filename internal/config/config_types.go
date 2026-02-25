@@ -62,6 +62,7 @@ type Config struct {
 	Preflight   PreflightConfig        `yaml:"preflight"`
 	Claude      ClaudeConfig           `yaml:"claude"`
 	Paths       PathsConfig            `yaml:"paths"`
+	Experiment  ExperimentConfig       `yaml:"experiment"`
 	Review      ReviewConfig           `yaml:"review"`
 	Methodology MethodologyConfig      `yaml:"methodology"`
 	Git         GitConfig              `yaml:"git"`
@@ -254,6 +255,12 @@ type PathsConfig struct {
 	Plans           string `yaml:"plans"`
 	Logs            string `yaml:"logs"`
 	ProjectClaudeMD string `yaml:"project_claude_md"`
+}
+
+type ExperimentConfig struct {
+	MinSampleSize      int     `yaml:"min_sample_size"`
+	ConfidenceThreshold float64 `yaml:"confidence_threshold"`
+	ExperimentsDir     string  `yaml:"experiments_dir"`
 }
 
 type ReviewConfig struct {
