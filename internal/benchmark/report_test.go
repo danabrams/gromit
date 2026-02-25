@@ -415,6 +415,92 @@ func TestWriteReport_NoArtifactDuplication(t *testing.T) {
 	}
 }
 
+func TestWriteReport_CanonicalBenchmarkReportFixture(t *testing.T) {
+	tmpDir := t.TempDir()
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd: %v", err)
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir tmp dir: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(origWD); err != nil {
+			t.Fatalf("restore cwd: %v", err)
+		}
+	})
+
+	repoRoot := repoRootFrom(t, origWD)
+	fixtureDir := filepath.Join(repoRoot, ".gromit", "reports", "curated", "benchmark-report")
+
+	input := ReportInput{
+		Timestamp: "20260225T120000Z",
+		Manifest: ManifestMetadata{
+			ID:           "tdd-vs-single-pass",
+			BaseCommit:   "abc123",
+			Beads:        []string{"gromit-1", "gromit-2", "gromit-3", "gromit-4", "gromit-5"},
+			Provider:      "openai",
+			ModelFamily:   "gpt-5",
+			LowTierModel:  "gpt-5.1-codex-mini",
+			MediumTierModel: "gpt-5.3-codex",
+			HighTierModel:  "gpt-5.3-codex",
+		},
+		Modes: []ModeSummary{
+			{
+				Mode:           "single_pass",
+				ElapsedSeconds: 60,
+				TotalInput:     1200,
+				TotalOutput:    600,
+				TotalCostUSD:   1.5,
+				TierTotals: TierTotals{
+					Low: TierTotalsRow{InputTokens: 800, OutputTokens: 400, CostUSD: 0.8},
+				},
+				Quality: QualityMetrics{
+					AverageScore:          0.9,
+					FirstPassRate:         0.75,
+					ReviewFindings:        1,
+					ReviewFixesApplied:    0,
+					FinalValidationPassed: true,
+				},
+				CostQualityRatio: 1.67,
+			},
+		},
+	}
+
+	if _, err := WriteReport(input); err != nil {
+		t.Fatalf("WriteReport() error = %v", err)
+	}
+
+	resultDir := filepath.Join(".gromit", "benchmarks", "results", input.Manifest.ID)
+	jsonPath := filepath.Join(resultDir, input.Timestamp+".json")
+	mdPath := filepath.Join(resultDir, input.Timestamp+".md")
+
+	actualJSON, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("read json artifact: %v", err)
+	}
+	actualMD, err := os.ReadFile(mdPath)
+	if err != nil {
+		t.Fatalf("read markdown artifact: %v", err)
+	}
+
+	expectedJSON, err := os.ReadFile(filepath.Join(fixtureDir, "benchmark-report.json"))
+	if err != nil {
+		t.Fatalf("read json fixture: %v", err)
+	}
+	expectedMD, err := os.ReadFile(filepath.Join(fixtureDir, "benchmark-report.md"))
+	if err != nil {
+		t.Fatalf("read markdown fixture: %v", err)
+	}
+
+	if !bytes.Equal(actualJSON, expectedJSON) {
+		t.Fatalf("json artifact mismatch\nactual:\n%s\nexpected:\n%s", string(actualJSON), string(expectedJSON))
+	}
+	if !bytes.Equal(actualMD, expectedMD) {
+		t.Fatalf("markdown artifact mismatch\nactual:\n%s\nexpected:\n%s", string(actualMD), string(expectedMD))
+	}
+}
+
 func TestWritePhase3MeasurementReport_CacheHitRatesAreSortedArray(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
