@@ -101,6 +101,32 @@ func TestToolCallPrefixMapping(t *testing.T) {
 	}
 }
 
+func TestE2EToolCallPrefixMapExported(t *testing.T) {
+	if E2EToolCallPrefixMap == nil {
+		t.Fatal("E2EToolCallPrefixMap is nil")
+	}
+
+	if len(E2EToolCallPrefixMap) != 3 {
+		t.Fatalf("expected 3 entries in E2EToolCallPrefixMap, got %d", len(E2EToolCallPrefixMap))
+	}
+
+	cases := map[ToolCallKind]string{
+		ToolCallCodex:  "codex",
+		ToolCallClaude: "claude",
+		ToolCallBD:     "bd",
+	}
+
+	for kind, expected := range cases {
+		prefix, ok := E2EToolCallPrefixMap[kind]
+		if !ok {
+			t.Fatalf("E2EToolCallPrefixMap does not contain %q", kind)
+		}
+		if prefix != expected {
+			t.Fatalf("E2EToolCallPrefixMap[%q] = %q, want %q", kind, prefix, expected)
+		}
+	}
+}
+
 func TestReadE2ECallLog_TrimsWhitespace(t *testing.T) {
 	env := setupE2E(t)
 
