@@ -559,6 +559,42 @@ func TestFormatSPCSummary_IncludesEWMAValues(t *testing.T) {
 	}
 }
 
+func TestFormatSPCSummary_IncludesLeadingIndicatorsAndEconomicMetrics(t *testing.T) {
+	trend := &logger.ProcessTrend{
+		TotalIterations: 5,
+		WindowSize:      5,
+		LatestWindow: logger.ProcessTrendWindow{
+			FirstPassSuccess:    0.75,
+			ReworkRate:          0.22,
+			EscalationRate:      0.05,
+			AvgInputTokens:      1234.56,
+			AvgCostUSD:          4.56,
+			AvgCostPerBeadUSD:   2.34,
+			AvgDurationMs:       62000,
+		},
+		ControlLimits: []logger.TrendControlLimit{
+			{Metric: spcMetricRollingSuccessRate, Latest: 0.85, LCL: 0.6, UCL: 1.0},
+		},
+	}
+
+	got := formatSPCSummary(trend)
+	for _, substr := range []string{
+		"Leading indicators:",
+		"first-pass success 75%",
+		"rework 22%",
+		"escalation 5%",
+		"input 1235 tokens",
+		"Economic metrics:",
+		"Avg $4.56",
+		"cost per bead $2.34",
+		"avg duration 1m",
+	} {
+		if !strings.Contains(got, substr) {
+			t.Fatalf("formatSPCSummary() = %q, want substring %q", got, substr)
+		}
+	}
+}
+
 func TestFormatSPCSummary_SortsMetricsDeterministically(t *testing.T) {
 	trend := &logger.ProcessTrend{
 		TotalIterations: 4,
