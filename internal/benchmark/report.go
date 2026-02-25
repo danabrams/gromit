@@ -101,6 +101,12 @@ func WriteReport(input ReportInput) (ReportPaths, error) {
 	sort.Slice(modes, func(i, j int) bool {
 		return modes[i].Mode < modes[j].Mode
 	})
+	for i := range modes {
+		modes[i].ModelTotals = append([]ModelTotalsRow(nil), modes[i].ModelTotals...)
+		sort.Slice(modes[i].ModelTotals, func(j, k int) bool {
+			return modes[i].ModelTotals[j].Model < modes[i].ModelTotals[k].Model
+		})
+	}
 	winners := computeWinnerHints(modes)
 
 	jsonPath := filepath.Join(resultDir, input.Timestamp+".json")
