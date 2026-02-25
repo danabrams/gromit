@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -71,13 +72,15 @@ Do not summarize. Do not group items. Return each individual requirement on its 
 	return items
 }
 
+var errCoverageTrackerDisabled = errors.New("coverage tracker disabled until approved scoped criteria are available")
+
 func buildCoverageTrackerFromSpec(bc *runtypes.BeadContext) (*coverage.CoverageTracker, []coverage.Criterion, error) {
-	if bc == nil || bc.Bead == nil || bc.PromptCtx == nil {
-		return nil, nil, nil
+	if bc == nil || bc.Bead == nil {
+		return nil, nil, errCoverageTrackerDisabled
 	}
 	// Spec-level criteria can't be satisfied by individual beads and waste
 	// 30-40 min per bead. The spec gate handles them after all beads complete.
-	return nil, nil, nil
+	return nil, nil, errCoverageTrackerDisabled
 }
 
 // isRequirementHeader returns true if line is a single word ending with ":"

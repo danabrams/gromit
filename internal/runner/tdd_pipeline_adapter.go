@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -39,7 +40,13 @@ func (a *TDDPipelineAdapter) RunCycles(ctx context.Context, b *bead.Bead, cfg *c
 
 	coverageTracker, coverageCriteria, err := buildCoverageTrackerFromSpec(bc)
 	if err != nil {
-		return execute.TDDCycleResult{}, err
+		if errors.Is(err, errCoverageTrackerDisabled) {
+			err = nil
+			coverageTracker = nil
+			coverageCriteria = nil
+		} else {
+			return execute.TDDCycleResult{}, err
+		}
 	}
 
 	startTime := time.Now()
