@@ -354,6 +354,10 @@ func (o *CycleOrchestrator) restoreTestFiles(testFiles []string) {
 func (o *CycleOrchestrator) runRefactorAndFinalValidation(ctx context.Context, bc *runtypes.BeadContext, cycleNumber int) error {
 	o.logPhase(cycleNumber, "refactor", "refactoring")
 
+	if err := o.ensureValidateFn(); err != nil {
+		return err
+	}
+
 	// Take snapshot before refactor phase invocation
 	beforeRefactorCostUSD, beforeRefactorInputTokens, beforeRefactorOutputTokens := runtypes.SnapshotIterationUsage(bc.Result)
 	refactorStartTime := time.Now()
