@@ -43,3 +43,15 @@ func TestVariantReportHasSuccessRate(t *testing.T) {
 		t.Fatalf("expected success rate 0.85, got %f", vr.SuccessRate)
 	}
 }
+
+func TestVariantReportHasAvgCost(t *testing.T) {
+	// Verify that VariantReport has an avg cost field
+	vr := &VariantReport{
+		VariantID: "variant-1",
+		AvgCost:   0.125,
+	}
+
+	if vr.AvgCost != 0.125 {
+		t.Fatalf("expected avg cost 0.125, got %f", vr.AvgCost)
+	}
+}
