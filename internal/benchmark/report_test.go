@@ -267,7 +267,7 @@ func TestWriteReport_JSONArtifactModelTotalsAreSorted(t *testing.T) {
 		},
 		Modes: []ModeSummary{
 			{
-				Mode:        "test_mode",
+				Mode: "test_mode",
 				ModelTotals: []ModelTotalsRow{
 					{Model: "z-model", InputTokens: 100, OutputTokens: 50, CostUSD: 1.0},
 					{Model: "a-model", InputTokens: 150, OutputTokens: 75, CostUSD: 1.5},
@@ -436,14 +436,14 @@ func TestWriteReport_CanonicalBenchmarkReportFixture(t *testing.T) {
 	input := ReportInput{
 		Timestamp: "20260225T120000Z",
 		Manifest: ManifestMetadata{
-			ID:           "tdd-vs-single-pass",
-			BaseCommit:   "abc123",
-			Beads:        []string{"gromit-1", "gromit-2", "gromit-3", "gromit-4", "gromit-5"},
-			Provider:      "openai",
-			ModelFamily:   "gpt-5",
-			LowTierModel:  "gpt-5.1-codex-mini",
+			ID:              "tdd-vs-single-pass",
+			BaseCommit:      "abc123",
+			Beads:           []string{"gromit-1", "gromit-2", "gromit-3", "gromit-4", "gromit-5"},
+			Provider:        "openai",
+			ModelFamily:     "gpt-5",
+			LowTierModel:    "gpt-5.1-codex-mini",
 			MediumTierModel: "gpt-5.3-codex",
-			HighTierModel:  "gpt-5.3-codex",
+			HighTierModel:   "gpt-5.3-codex",
 		},
 		Modes: []ModeSummary{
 			{
@@ -847,5 +847,20 @@ func TestWritePhase3MeasurementReport_WritesReportAndRunArtifactsToReportsDir(t 
 		if !strings.Contains(content, section) {
 			t.Fatalf("missing markdown section %q\n%s", section, content)
 		}
+	}
+}
+
+func repoRootFrom(t *testing.T, start string) string {
+	t.Helper()
+	dir := start
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Fatalf("could not find repo root from %q", start)
+		}
+		dir = parent
 	}
 }
