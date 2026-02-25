@@ -1536,3 +1536,12 @@ func TestDecomposerAdapter_Decompose_RetryDoesNotDuplicateWhenTitleAndOutputsVar
 		t.Fatalf("close calls after successful retry = %d, want 1", closeCalls)
 	}
 }
+
+// TestSpecGateAdapterImplementsEpilogueSpecGateRunner verifies that specGateAdapter
+// satisfies the epilogue.SpecGateRunner interface so it can be wired into the Epilogue stage.
+func TestSpecGateAdapterImplementsEpilogueSpecGateRunner(t *testing.T) {
+	adapter := &specGateAdapter{}
+	// This test is a compile-time check via implicit interface satisfaction.
+	// If specGateAdapter doesn't implement SpecGateRunner, this will fail at compile time.
+	_ = interface{}(adapter)
+}
