@@ -419,6 +419,75 @@ func TestStatsCmd_JSONOutputIncludesCostPerSpec(t *testing.T) {
 	}
 }
 
+func TestStatsCmd_JSONIncludesProviderMetrics(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	logsDir := filepath.Join(gromitDir, "logs")
+	metricsDir := filepath.Join(gromitDir, "metrics")
+	if err := os.MkdirAll(logsDir, 0755); err != nil {
+		t.Fatalf("failed to create logs dir: %v", err)
+	}
+	if err := os.MkdirAll(metricsDir, 0755); err != nil {
+		t.Fatalf("failed to create metrics dir: %v", err)
+	}
+
+	trend := logger.ProcessTrend{
+		ProviderMetrics: []logger.ProviderMetrics{
+			{
+				Name:                 "openai",
+				TotalInvocations:     5,
+				Successes:            4,
+				SuccessRate:          0.8,
+				TransportFailures:    1,
+				TransportFailureRate: 0.2,
+				FallbacksTriggered:   2,
+				AvgDurationMs:        1500,
+				TotalCostUSD:         10.25,
+				TotalInputTokens:     1000,
+				TotalOutputTokens:    500,
+			},
+		},
+	}
+	data, err := json.MarshalIndent(trend, "", "  ")
+	if err != nil {
+		t.Fatalf("failed to marshal process trend: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(metricsDir, "process_trend.json"), data, 0644); err != nil {
+		t.Fatalf("failed to write process trend: %v", err)
+	}
+
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	configContent := `paths:
+  gromit_dir: .gromit
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	t.Chdir(tmpDir)
+
+	output := captureStdout(t, func() {
+		rootCmd.SetArgs([]string{"stats", "--json"})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("stats command with --json failed: %v", err)
+		}
+	})
+
+	var result struct {
+		ProviderMetrics []logger.ProviderMetrics `json:"provider_metrics"`
+	}
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
+		t.Fatalf("output should be valid JSON, got parse error: %v", err)
+	}
+
+	if len(result.ProviderMetrics) != 1 {
+		t.Fatalf("expected 1 provider metric entry, got %d", len(result.ProviderMetrics))
+	}
+	if got, want := result.ProviderMetrics[0].Name, "openai"; got != want {
+		t.Fatalf("provider name = %q, want %q", got, want)
+	}
+}
+
 func TestStatsCmd_TDDTextOutput(t *testing.T) {
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
