@@ -53,6 +53,26 @@ func runScopeGateCase(t *testing.T, tc scopeGateCase) pipeline.Output {
 	return out
 }
 
+type mockPrechecker struct {
+	done bool
+	err  error
+}
+
+func newMockPrechecker() *mockPrechecker {
+	return &mockPrechecker{}
+}
+
+func (m *mockPrechecker) WithCheck(done bool, err error) *mockPrechecker {
+	m.done = done
+	m.err = err
+	return m
+}
+
+func (m *mockPrechecker) Check(_ context.Context, _ *bead.Bead) (bool, error) {
+	return m.done, m.err
+}
+
+// Deprecated: use newMockPrechecker() instead
 type fakePrechecker struct {
 	done bool
 	err  error
