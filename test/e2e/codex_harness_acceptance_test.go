@@ -1,4 +1,4 @@
-//go:build e2e
+//go:build acceptance
 
 package e2e
 
