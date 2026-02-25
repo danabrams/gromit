@@ -595,6 +595,93 @@ func TestBenchmarkRunCommand_ReportInputMatchesCanonicalBuilder(t *testing.T) {
 	}
 }
 
+func TestRunBenchmarkPipeline_DelegatesReportInputBuildingToBenchpkg(t *testing.T) {
+	tmpDir := t.TempDir()
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd: %v", err)
+	}
+	t.Cleanup(func() { os.Chdir(origWD) })
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir tmp dir: %v", err)
+	}
+
+	origLoad := benchmarkInternalLoadManifestFn
+	origSelect := benchmarkSelectCohortFn
+	origValidate := benchmarkValidateCohortFn
+	origHarness := benchmarkRunHarnessFn
+	origMetrics := benchmarkComputeMetricsFn
+	origWrite := benchmarkInternalWriteReportFn
+	origBuildInput := benchmarkBuildReportInputFn
+	origNow := benchmarkNowFn
+	t.Cleanup(func() {
+		benchmarkInternalLoadManifestFn = origLoad
+		benchmarkSelectCohortFn = origSelect
+		benchmarkValidateCohortFn = origValidate
+		benchmarkRunHarnessFn = origHarness
+		benchmarkComputeMetricsFn = origMetrics
+		benchmarkInternalWriteReportFn = origWrite
+		benchmarkBuildReportInputFn = origBuildInput
+		benchmarkNowFn = origNow
+	})
+
+	manifest := benchpkg.Manifest{
+		ID:         "test-manifest",
+		BaseCommit: "abc123",
+		Beads:      []string{"bead-1", "bead-2"},
+		ModeConfig: benchpkg.ModeConfig{
+			Modes: []string{"single_pass"},
+		},
+		ModelPinning: benchpkg.ModelPinning{
+			Provider:        "openai",
+			ModelFamily:     "gpt-5",
+			LowTierModel:    "gpt-5.1-codex",
+			MediumTierModel: "gpt-5.3-codex",
+			HighTierModel:   "gpt-5.3-codex",
+		},
+	}
+
+	benchmarkNowFn = func() time.Time {
+		return time.Date(2026, 2, 25, 12, 0, 0, 0, time.UTC)
+	}
+
+	benchmarkInternalLoadManifestFn = func(path string) (benchpkg.Manifest, error) {
+		return manifest, nil
+	}
+	benchmarkSelectCohortFn = func(manifest benchmarkManifest, opts benchmarkRunOptions) (benchmarkSelection, error) {
+		return benchmarkSelection{SelectedBeads: manifest.Beads}, nil
+	}
+	benchmarkValidateCohortFn = func(selection benchmarkSelection, opts benchmarkRunOptions) (benchmarkValidatedCohort, error) {
+		return benchmarkValidatedCohort{SelectedBeads: selection.SelectedBeads}, nil
+	}
+
+	benchmarkRunHarnessFn = func(manifest benchmarkManifest, cohort benchmarkValidatedCohort, opts benchmarkRunOptions) (benchmarkHarnessResult, error) {
+		return benchmarkHarnessResult{BaseCommit: manifest.BaseCommit, SelectedBeads: cohort.SelectedBeads}, nil
+	}
+
+	benchmarkComputeMetricsFn = func(result benchmarkHarnessResult) (benchmarkMetricsResult, error) {
+		return benchmarkMetricsResult{}, nil
+	}
+
+	var buildInputCalled bool
+	benchmarkBuildReportInputFn = func(id, baseCommit string, beads []string, provider, modelFamily, lowTier, midTier, highTier string, modes []benchpkg.ModeSummary, ts string) benchpkg.ReportInput {
+		buildInputCalled = true
+		return benchpkg.ReportInput{Timestamp: ts, Manifest: benchpkg.ManifestMetadata{ID: id, BaseCommit: baseCommit}}
+	}
+
+	benchmarkInternalWriteReportFn = func(input benchpkg.ReportInput) (benchpkg.ReportPaths, error) {
+		return benchpkg.ReportPaths{}, nil
+	}
+
+	if err := runBenchmarkPipeline(benchmarkRunOptions{ManifestPath: "manifest.yaml"}); err != nil {
+		t.Fatalf("runBenchmarkPipeline error = %v", err)
+	}
+
+	if !buildInputCalled {
+		t.Fatalf("benchpkg.BuildReportInput was not called - CLI should delegate to benchpkg")
+	}
+}
+
 func renderInternalBenchmarkReport(t *testing.T, input benchpkg.ReportInput) ([]byte, []byte) {
 	t.Helper()
 
