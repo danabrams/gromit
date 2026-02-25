@@ -1,0 +1,4 @@
+# provenance: fixture for mcp_tool_call event acceptance test.
+# refresh: keep tool name and usage values consistent.
+{"type":"item.started","item":{"type":"mcp_tool_call","tool_name":"github_create_issue"}}
+{"type":"turn.completed","usage":{"input_tokens":3,"output_tokens":2}}
