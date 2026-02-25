@@ -25,3 +25,25 @@ func TestExperimentStructHasAllRequiredFields(t *testing.T) {
 		t.Fatalf("Expected Phase to be 'build', got %q", exp.Phase)
 	}
 }
+
+func TestNewManagerConstructsManagerWithExperiments(t *testing.T) {
+	// Test NewManager constructor with a slice of experiments
+	exp1 := &Experiment{
+		ID:    "exp-1",
+		Phase: "build",
+	}
+	exp2 := &Experiment{
+		ID:    "exp-2",
+		Phase: "validate",
+	}
+
+	mgr := NewManager([]*Experiment{exp1, exp2}, "/test/state")
+
+	if mgr == nil {
+		t.Fatalf("NewManager returned nil")
+	}
+
+	if mgr.stateDir != "/test/state" {
+		t.Fatalf("Expected stateDir to be '/test/state', got %q", mgr.stateDir)
+	}
+}
