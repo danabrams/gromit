@@ -32,4 +32,9 @@
 ## JSON Schema
 
 - Fixture file: `json-success.json`
-- Object keys observed in fixture: `output`, `usage.input_tokens`, `usage.output_tokens`, `cost.total`, `model`, `finish_reason`.
+- Object keys observed in fixture: `output`, `usage.input_tokens`, `usage.output_tokens`, `cost.total`, `model`, `finish_reason`, `stats`.
+- Stats structure:
+- `stats.models` contains a mapping by model id.
+- `stats.models.<model>.tokens` exposes `input`, `prompt`, `candidates`, `total`, `cached`, `thoughts`, `tool`.
+- `models/<model>.tokens` (alias for `stats.models.<model>.tokens`) carries the observed counts for comparison to provider stats.
+- `stats.tools` surfaces aggregated call/timing totals for any observed tool activity.
