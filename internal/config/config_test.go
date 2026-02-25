@@ -4480,6 +4480,26 @@ validation:
 	}
 }
 
+func TestValidationConfig_CommandTimeoutYAMLIntegerSeconds(t *testing.T) {
+	yamlContent := `
+validation:
+  command_timeout: 30
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+	if cfg.Validation.CommandTimeout != 30*time.Second {
+		t.Fatalf("CommandTimeout = %s, want %s", cfg.Validation.CommandTimeout, 30*time.Second)
+	}
+}
+
 func TestValidationConfig_RunFinalFullGateDefaultTrue(t *testing.T) {
 	cfg := &Config{}
 	cfg.SetDefaults()
