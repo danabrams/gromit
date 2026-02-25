@@ -599,3 +599,15 @@ func TestGateRunDataQualityBlocker_BlocksBeadWhenDataIncomplete(t *testing.T) {
 		t.Fatalf("decision = %v, want %v", out.Decision, pipeline.Block)
 	}
 }
+
+func TestConsolidatedMocks_PrecheckerCanBeCreatedWithHelper(t *testing.T) {
+	p := newMockPrechecker().WithCheck(false, nil)
+
+	done, err := p.Check(context.Background(), &bead.Bead{ID: "test"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if done != false {
+		t.Errorf("done = %v, want false", done)
+	}
+}
