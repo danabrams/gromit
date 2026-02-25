@@ -80,3 +80,21 @@ func SaveState(stateDir, experimentID string, state *BanditState) error {
 
 	return nil
 }
+
+// InitializeState ensures a persisted state file exists and returns its decoded state.
+// If the file is missing, it writes a fresh zero state before returning it.
+func InitializeState(stateDir, experimentID string) (*BanditState, error) {
+	target := stateFilePath(stateDir, experimentID)
+	if _, err := os.Stat(target); err == nil {
+		return LoadState(stateDir, experimentID)
+	} else if !os.IsNotExist(err) {
+		return nil, fmt.Errorf("checking state file: %w", err)
+	}
+
+	state := &BanditState{}
+	if err := SaveState(stateDir, experimentID, state); err != nil {
+		return nil, err
+	}
+
+	return state, nil
+}
