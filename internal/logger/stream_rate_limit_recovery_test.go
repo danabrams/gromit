@@ -164,6 +164,9 @@ func TestMultipleRateLimitHits_WithoutInterveningEvent(t *testing.T) {
 
 	// Recovery should be measured from the most recent (third) hit, not the first.
 	_, _, _, _, _, recoveryMs := stats.DiagnosticSnapshot()
+	if recoveryMs < 10 {
+		t.Errorf("expected recovery >= 10ms (recovery actually being measured), got %d ms", recoveryMs)
+	}
 	if recoveryMs < 50 || recoveryMs > 80 {
 		t.Errorf("expected recovery time from most recent hit (~50ms), got %d ms", recoveryMs)
 	}
