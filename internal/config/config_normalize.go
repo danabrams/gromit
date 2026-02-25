@@ -78,9 +78,7 @@ func (c *Config) NormalizeNilFields() {
 		if def.ReasoningEffort == nil {
 			def.ReasoningEffort = make(map[string]string)
 		}
-		if def.ModelCosts == nil {
-			def.ModelCosts = map[string]*ModelCost{}
-		}
+		def.ModelCosts = normalizeProviderModelCosts(def.ModelCosts)
 		c.Providers[name] = def
 	}
 	if c.Routing.PhasePreferences == nil {
@@ -89,4 +87,11 @@ func (c *Config) NormalizeNilFields() {
 	if c.Routing.Ratio == nil {
 		c.Routing.Ratio = make(map[string]int)
 	}
+}
+
+func normalizeProviderModelCosts(costs map[string]*ModelCost) map[string]*ModelCost {
+	if costs == nil {
+		return make(map[string]*ModelCost)
+	}
+	return costs
 }
