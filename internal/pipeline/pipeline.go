@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"reflect"
+	"time"
 
 	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/internal/review"
@@ -137,6 +138,13 @@ type BeadClient interface {
 	Create(title string, priority int, labels []string, outputs []string) (*BeadInfo, error)
 	CreateWithDepsAndDescription(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error)
 	Close(id string) error
+}
+
+// BeadQueryClient abstracts bead query and status operations.
+type BeadQueryClient interface {
+	CountByStatus(status string) (int, error)
+	ListReadyIDs() ([]string, error)
+	CountClosedAfter(after time.Time) (int, error)
 }
 
 // BacklogClient abstracts backlog operations.
