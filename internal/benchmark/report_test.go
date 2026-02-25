@@ -415,6 +415,62 @@ func TestWriteReport_NoArtifactDuplication(t *testing.T) {
 	}
 }
 
+func TestWritePhase3MeasurementReport_JSONArtifactIsDeterministic(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+
+	baselineLog := filepath.Join(tmpDir, "baseline.jsonl")
+	optimizedLog := filepath.Join(tmpDir, "optimized.jsonl")
+
+	baselineContent := "" +
+		"{\"iteration\":1,\"input_tokens\":100,\"cost_usd\":1.0,\"success\":true}\n" +
+		"{\"iteration\":2,\"input_tokens\":120,\"cost_usd\":1.2,\"success\":true}\n"
+	optimizedContent := "" +
+		"{\"iteration\":1,\"input_tokens\":90,\"cost_usd\":0.9,\"success\":true,\"cache_class\":\"zebra_class\",\"cache_hit\":true}\n" +
+		"{\"iteration\":2,\"input_tokens\":95,\"cost_usd\":0.95,\"success\":true,\"cache_class\":\"apple_class\",\"cache_hit\":true}\n" +
+		"{\"iteration\":3,\"input_tokens\":88,\"cost_usd\":0.88,\"success\":true,\"cache_class\":\"monkey_class\",\"cache_hit\":false,\"cache_miss\":true}\n"
+
+	if err := os.WriteFile(baselineLog, []byte(baselineContent), 0o644); err != nil {
+		t.Fatalf("write baseline log: %v", err)
+	}
+	if err := os.WriteFile(optimizedLog, []byte(optimizedContent), 0o644); err != nil {
+		t.Fatalf("write optimized log: %v", err)
+	}
+
+	_, err := WritePhase3MeasurementReport(Phase3MeasurementInput{
+		Timestamp:        "20260224T120000Z",
+		BaselineLogPath:  baselineLog,
+		OptimizedLogPath: optimizedLog,
+	})
+	if err != nil {
+		t.Fatalf("first WritePhase3MeasurementReport() error = %v", err)
+	}
+
+	jsonPath := filepath.Join(".gromit", "reports", "phase3-measurement-20260224T120000Z.json")
+	firstJSON, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("read first json artifact: %v", err)
+	}
+
+	_, err = WritePhase3MeasurementReport(Phase3MeasurementInput{
+		Timestamp:        "20260224T120000Z",
+		BaselineLogPath:  baselineLog,
+		OptimizedLogPath: optimizedLog,
+	})
+	if err != nil {
+		t.Fatalf("second WritePhase3MeasurementReport() error = %v", err)
+	}
+
+	secondJSON, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("read second json artifact: %v", err)
+	}
+
+	if !bytes.Equal(firstJSON, secondJSON) {
+		t.Fatalf("phase3 json artifact not deterministic\nfirst:\n%s\nsecond:\n%s", string(firstJSON), string(secondJSON))
+	}
+}
+
 func TestRunPhase3Measurement_ComputesMediansAndCacheHitRatesByPromptClass(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
