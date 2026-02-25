@@ -2056,6 +2056,42 @@ func TestRenderCoverageValidationIncludesSampleReference(t *testing.T) {
 	}
 }
 
+func TestRenderCoverageValidationSampleDataOverrides(t *testing.T) {
+	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
+	templatePath := filepath.Join(templatesDir, "PROMPT_coverage_validation.md")
+	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
+		t.Fatalf("skipping: real template not found at %s", templatePath)
+	}
+
+	r := &Renderer{templatesDir: templatesDir}
+	ctx := &CoverageValidationContext{
+		TestCode:             "func TestOriginal(t *testing.T) {}",
+		CriterionNumber:      1,
+		CriterionText:        "Original criterion",
+		SampleTestCode:       "func TestSampleOverride(t *testing.T) {}",
+		SampleCriterionNumber: 42,
+		SampleCriterionText:  "Sample criterion override",
+	}
+
+	result, err := r.RenderCoverageValidation(ctx)
+	if err != nil {
+		t.Fatalf("RenderCoverageValidation() error = %v", err)
+	}
+
+	wantSample := fmt.Sprintf("Criterion #%d", ctx.SampleCriterionNumber)
+	if !strings.Contains(result, wantSample) {
+		t.Fatalf("expected sample criterion header %q in output", wantSample)
+	}
+
+	if !strings.Contains(result, ctx.SampleCriterionText) {
+		t.Fatalf("expected sample criterion text %q in output", ctx.SampleCriterionText)
+	}
+
+	if !strings.Contains(result, ctx.SampleTestCode) {
+		t.Fatalf("expected sample test code %q in output", ctx.SampleTestCode)
+	}
+}
+
 func TestRenderTestFixRealTemplateContainsRequiredSections(t *testing.T) {
 	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
 	templatePath := filepath.Join(templatesDir, "PROMPT_test_fix.md")
