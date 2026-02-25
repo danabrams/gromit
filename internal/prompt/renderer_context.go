@@ -43,7 +43,11 @@ func (r *Renderer) BuildContext(b *bead.Bead, parent *bead.Bead, iteration int, 
 	}
 	ctx.Rules = rules
 
-	if r.learningsFile != nil && !r.skipBuildLearnings {
+	includeLearnings := true
+	if r.skipBuildLearnings && phase == promptPhaseBuild {
+		includeLearnings = false
+	}
+	if r.learningsFile != nil && includeLearnings {
 		ctx.ConfirmedLearnings = r.learningsFile.GetConfirmedFiltered(learnings.FilterOptions{
 			MaxChars: r.maxLearningChars,
 		})
