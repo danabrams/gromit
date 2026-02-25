@@ -59,7 +59,7 @@ type BeadContext struct {
 type IterationResult struct {
 	BeadID                  string
 	BeadTitle               string
-	SpecID                  string
+	SpecID                  string `json:"spec_id,omitempty"`
 	Model                   string
 	ReasoningEffort         string
 	Provider                string `json:"provider,omitempty"`
