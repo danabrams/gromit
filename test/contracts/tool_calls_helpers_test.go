@@ -17,9 +17,5 @@ func ApplyCodexDelayEnv(env []string, delay string) []string {
 }
 
 func FilterToolCalls(env *testEnv, tool toolcalls.ToolCallKind) ([]string, error) {
-	prefix, err := toolcalls.ToolCallPrefix(tool)
-	if err != nil {
-		return nil, err
-	}
-	return filterCalls(env, prefix)
+	return toolcalls.FilterToolCalls(env.CallLog, tool)
 }

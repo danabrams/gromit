@@ -20,8 +20,16 @@ func FilterToolCalls(callLogPath string, kind ToolCallKind) ([]string, error) {
 
 	var filtered []string
 	for _, call := range calls {
-		if strings.HasPrefix(call, prefix) {
-			filtered = append(filtered, call)
+		trimmed := strings.TrimSpace(call)
+		if trimmed == "" {
+			continue
+		}
+		fields := strings.Fields(trimmed)
+		if len(fields) == 0 {
+			continue
+		}
+		if fields[0] == prefix {
+			filtered = append(filtered, trimmed)
 		}
 	}
 

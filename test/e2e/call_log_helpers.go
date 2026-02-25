@@ -4,29 +4,25 @@ package e2e
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/danabrams/gromit/test/testutil"
+	"github.com/danabrams/gromit/test/toolcalls"
 )
 
-type ToolCallKind string
+type ToolCallKind = toolcalls.ToolCallKind
 
 const (
-	ToolCallCodex  ToolCallKind = "codex"
-	ToolCallClaude ToolCallKind = "claude"
-	ToolCallBD     ToolCallKind = "bd"
+	ToolCallCodex  = toolcalls.ToolCallCodex
+	ToolCallClaude = toolcalls.ToolCallClaude
+	ToolCallBD     = toolcalls.ToolCallBD
 )
 
 const codexFixtureEnvVar = "CODEX_FIXTURE"
 
-var E2EToolCallPrefixMap = map[ToolCallKind]string{
-	ToolCallCodex:  "codex",
-	ToolCallClaude: "claude",
-	ToolCallBD:     "bd",
-}
+var E2EToolCallPrefixMap = toolcalls.ToolCallPrefixMap
 
 func ApplyCodexFixtureEnvE2E(env []string, fixtureFile string) []string {
 	fixtureValue := fixtureFile
@@ -37,39 +33,11 @@ func ApplyCodexFixtureEnvE2E(env []string, fixtureFile string) []string {
 }
 
 func FilterE2EToolCalls(env *e2eEnv, tool ToolCallKind) ([]string, error) {
-	prefix, err := ToolCallPrefix(tool)
-	if err != nil {
-		return nil, err
-	}
-	return filterE2ECalls(env, prefix)
+	return toolcalls.FilterToolCalls(env.CallLog, tool)
 }
 
 func ToolCallPrefix(tool ToolCallKind) (string, error) {
-	prefix, ok := E2EToolCallPrefixMap[tool]
-	if !ok {
-		return "", fmt.Errorf("unknown tool call kind: %q", tool)
-	}
-	return prefix, nil
-}
-
-func filterE2ECalls(env *e2eEnv, prefix string) ([]string, error) {
-	calls, err := readE2ECallLog(env)
-	if err != nil {
-		return nil, err
-	}
-
-	var filtered []string
-	for _, call := range calls {
-		trimmed := strings.TrimSpace(call)
-		if trimmed == "" {
-			continue
-		}
-		if strings.HasPrefix(trimmed, prefix) {
-			filtered = append(filtered, call)
-		}
-	}
-
-	return filtered, nil
+	return toolcalls.ToolCallPrefix(tool)
 }
 
 func readE2ECallLog(env *e2eEnv) ([]string, error) {

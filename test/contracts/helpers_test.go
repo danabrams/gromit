@@ -215,7 +215,11 @@ func filterCalls(env *testEnv, prefix string) ([]string, error) {
 		if trimmed == "" {
 			continue
 		}
-		if strings.HasPrefix(trimmed, prefix) {
+		fields := strings.Fields(trimmed)
+		if len(fields) == 0 {
+			continue
+		}
+		if fields[0] == prefix {
 			filtered = append(filtered, trimmed)
 		}
 	}

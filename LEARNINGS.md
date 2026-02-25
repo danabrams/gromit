@@ -2,6 +2,16 @@
 
 ## Confirmed Learnings
 
+### 2026-02-25 | shared_tool_call_filtering_prevents_cross_suite_behavior_drift | ARCHITECTURE
+*Related to: gromit/review-1772019888577324268*
+
+Tool-call log parsing should live in one shared helper (`test/toolcalls`) and be reused by contract/e2e wrappers; duplicated per-suite parsing quickly drifts on whitespace handling and command matching.
+
+### 2026-02-25 | cli_call_filters_should_match_command_token_not_string_prefix | TEST_QUALITY
+*Related to: gromit/review-1772019888577324268*
+
+Call-log assertions should match the first argv token (for example `codex`) after trim, not raw string prefixes, to avoid false positives like `codex-helper`.
+
 ### 2026-02-25 | policy_guard_tests_should_cover_pass_and_fail_paths | TEST_QUALITY
 *Related to: gromit/review-1771989652251291587*
 

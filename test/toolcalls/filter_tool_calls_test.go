@@ -62,3 +62,44 @@ func TestFilterToolCalls_MultipleMatches(t *testing.T) {
 		t.Fatalf("expected 2 codex calls, got %d (%v)", len(calls), calls)
 	}
 }
+
+func TestFilterToolCalls_IgnoresLeadingWhitespace(t *testing.T) {
+	tmpDir := t.TempDir()
+	callLogPath := filepath.Join(tmpDir, "call_log.txt")
+
+	callLog := "claude -p --model sonnet\n" +
+		"\tcodex run --model sonnet\n"
+	if err := os.WriteFile(callLogPath, []byte(callLog), 0644); err != nil {
+		t.Fatalf("failed to write call log: %v", err)
+	}
+
+	calls, err := FilterToolCalls(callLogPath, ToolCallCodex)
+	if err != nil {
+		t.Fatalf("FilterToolCalls returned error: %v", err)
+	}
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 codex call, got %d (%v)", len(calls), calls)
+	}
+	if calls[0] != "codex run --model sonnet" {
+		t.Fatalf("expected trimmed call, got %q", calls[0])
+	}
+}
+
+func TestFilterToolCalls_DoesNotMatchPrefixSubstring(t *testing.T) {
+	tmpDir := t.TempDir()
+	callLogPath := filepath.Join(tmpDir, "call_log.txt")
+
+	callLog := "codex-helper run\n" +
+		"codex run --model sonnet\n"
+	if err := os.WriteFile(callLogPath, []byte(callLog), 0644); err != nil {
+		t.Fatalf("failed to write call log: %v", err)
+	}
+
+	calls, err := FilterToolCalls(callLogPath, ToolCallCodex)
+	if err != nil {
+		t.Fatalf("FilterToolCalls returned error: %v", err)
+	}
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 codex call, got %d (%v)", len(calls), calls)
+	}
+}
