@@ -954,6 +954,36 @@ func TestBuildStage_Run_PopulatesOutputMetadataFromProviderResult(t *testing.T) 
 	}
 }
 
+func TestBuildStage_RoundsUpSubMillisecondDuration(t *testing.T) {
+	invoker := &fakeInvoker{
+		streamRunFn: func(_ context.Context, _, _ string, _ io.Writer, _ provider.EventHandler, _ provider.ToolCallHandler) (*provider.Result, error) {
+			return &provider.Result{
+				Success:      true,
+				Model:        "claude-haiku-4-6",
+				Duration:     500 * time.Microsecond,
+				CostUSD:      0.005,
+				InputTokens:  15,
+				OutputTokens: 7,
+			}, nil
+		},
+	}
+	stage := execute.New(invoker, &fakePromptRenderer{}, io.Discard)
+
+	bead := makeBead("haiku-bead", "Fast haiku iteration")
+	bead.Priority = 2
+	cfg := defaultConfig()
+	cfg.Models.P2 = "haiku"
+
+	out, err := stage.Run(context.Background(), makeInput(bead, cfg))
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if out.DurationMs <= 0 {
+		t.Errorf("DurationMs = %d, want positive value for sub-millisecond duration", out.DurationMs)
+	}
+}
+
 func TestBuildStage_Run_SetsCacheHitTelemetryFromProviderResult(t *testing.T) {
 	invoker := &fakeInvoker{
 		streamRunFn: func(_ context.Context, _, _ string, _ io.Writer, _ provider.EventHandler, _ provider.ToolCallHandler) (*provider.Result, error) {
