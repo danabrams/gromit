@@ -233,6 +233,38 @@ func TestReadPerBeadStatsWithEntries(t *testing.T) {
 	}
 }
 
+func TestReadLogsUsageLimitedAnalytics(t *testing.T) {
+	dir := t.TempDir()
+
+	logContent := `{"timestamp":"2026-02-05T12:00:00Z","iteration":1,"bead_id":"b1","bead_title":"Task 1","model":"sonnet","success":false,"validated":false,"escalated":false,"duration_ms":1000,"usage_limited":true,"error":"usage limit exceeded"}
+{"timestamp":"2026-02-05T12:01:00Z","iteration":2,"bead_id":"b1","bead_title":"Task 1","model":"sonnet","success":true,"validated":true,"escalated":false,"duration_ms":2000}
+{"timestamp":"2026-02-05T12:02:00Z","iteration":3,"bead_id":"b2","bead_title":"Task 2","model":"opus","success":false,"validated":false,"escalated":false,"duration_ms":3000,"usage_limited":true,"error":"rate limit exceeded"}
+`
+
+	if err := os.WriteFile(filepath.Join(dir, "run-20260205-120000.jsonl"), []byte(logContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	stats, err := ReadAllLogs(dir)
+	if err != nil {
+		t.Fatalf("reading logs: %v", err)
+	}
+
+	if stats.UsageLimited != 2 {
+		t.Fatalf("expected 2 usage-limited iterations, got %d", stats.UsageLimited)
+	}
+
+	beadStats, err := ReadPerBeadStats(dir)
+	if err != nil {
+		t.Fatalf("reading per-bead stats: %v", err)
+	}
+
+	b1 := beadStats["b1"]
+	if b1.UsageLimitedFailures != 1 {
+		t.Fatalf("expected b1 usage-limited failures 1, got %d", b1.UsageLimitedFailures)
+	}
+}
+
 func TestReadPerBeadStatsMultipleFiles(t *testing.T) {
 	dir := t.TempDir()
 
