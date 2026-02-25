@@ -1,30 +1,11 @@
 package main
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
 )
-
-func writeReviewTestConfig(t *testing.T, configContent string) (string, string) {
-	t.Helper()
-
-	tmpDir := t.TempDir()
-	templatesDir := filepath.Join(tmpDir, ".gromit", "templates")
-	if err := os.MkdirAll(templatesDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	return tmpDir, configPath
-}
 
 func extractFunction(source, name string) (string, bool) {
 	startIdx := strings.Index(source, "func "+name)
@@ -70,7 +51,7 @@ func TestReviewCommandHasChooseAgentFlag(t *testing.T) {
 func TestReviewUsesAgentResolve(t *testing.T) {
 	// This test verifies the integration by creating a minimal config and checking
 	// that the agent selection behavior works end-to-end
-	tmpDir, configPath := writeReviewTestConfig(t, `
+	configContent := `
 agents:
   definitions:
     test-agent:
@@ -78,7 +59,8 @@ agents:
       flags: []
   phases:
     review: test-agent
-`)
+`
+	tmpDir, _, configPath := setupAgentConfig(t, configContent)
 
 	// Change to temp directory so config is found
 	t.Chdir(tmpDir)
@@ -108,7 +90,7 @@ func TestReviewFlagOverrideTakesPriority(t *testing.T) {
 	// This acceptance test verifies the priority order:
 	// --agent flag should override agents.phases config
 
-	_, configPath := writeReviewTestConfig(t, `
+	_, _, configPath := setupAgentConfig(t, `
 agents:
   phases:
     review: codex
@@ -135,7 +117,7 @@ func TestReviewChooseAgentTriggersPickerBehavior(t *testing.T) {
 	// This acceptance test verifies that --choose-agent flag is wired up correctly
 	// The actual picker interaction would be tested in integration tests
 
-	_, configPath := writeReviewTestConfig(t, `
+	_, _, configPath := setupAgentConfig(t, `
 agents:
   definitions:
     agent1:
@@ -163,7 +145,7 @@ agents:
 func TestReviewAgentPromptConfigTriggersPicker(t *testing.T) {
 	// This acceptance test verifies agents.prompt: true config is respected
 
-	_, configPath := writeReviewTestConfig(t, `
+	_, _, configPath := setupAgentConfig(t, `
 agents:
   prompt: true
   definitions:
@@ -224,7 +206,7 @@ func TestReviewAgentConfigBackwardCompatibility(t *testing.T) {
 	// This acceptance test verifies backward compatibility
 	// Existing configs without agents section should still work (defaults to claude)
 
-	_, configPath := writeReviewTestConfig(t, `
+	_, _, configPath := setupAgentConfig(t, `
 claude:
   binary: "claude"
   flags: []

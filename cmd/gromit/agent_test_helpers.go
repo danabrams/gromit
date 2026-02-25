@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func setupAgentConfig(t *testing.T, configYAML string) (string, string) {
+func setupAgentConfig(t *testing.T, configYAML string) (string, string, string) {
 	t.Helper()
 
 	tmpDir := t.TempDir()
@@ -26,5 +26,5 @@ func setupAgentConfig(t *testing.T, configYAML string) (string, string) {
 		t.Fatalf("writing backlog file: %v", err)
 	}
 
-	return tmpDir, configPath
+	return tmpDir, gromitDir, configPath
 }

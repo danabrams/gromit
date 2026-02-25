@@ -40,7 +40,7 @@ func TestRefineCommandHasChooseAgentFlag(t *testing.T) {
 }
 
 func TestSetupAgentConfigCreatesExpectedFiles(t *testing.T) {
-	tmpDir, configPath := setupAgentConfig(t, `
+	_, gromitDir, configPath := setupAgentConfig(t, `
 agents:
   definitions:
     helper-agent:
@@ -61,7 +61,7 @@ agents:
 		t.Fatalf("helper-agent binary = %q, want %q", def.Binary, "echo")
 	}
 
-	backlogPath := filepath.Join(tmpDir, ".gromit", "backlog.jsonl")
+	backlogPath := filepath.Join(gromitDir, "backlog.jsonl")
 	if _, err := os.Stat(backlogPath); err != nil {
 		t.Fatalf("backlog file missing: %v", err)
 	}
@@ -71,16 +71,6 @@ agents:
 func TestRefineUsesAgentResolve(t *testing.T) {
 	// This test verifies the integration by creating a minimal config and checking
 	// that the agent selection behavior works end-to-end
-	tmpDir := t.TempDir()
-
-	// Create minimal gromit config with custom agent
-	gromitDir := filepath.Join(tmpDir, ".gromit")
-	specsDir := filepath.Join(gromitDir, "specs")
-	if err := os.MkdirAll(specsDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
 	configContent := `
 agents:
   definitions:
@@ -90,16 +80,7 @@ agents:
   phases:
     refine: test-agent
 `
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create an empty backlog file
-	backlogPath := filepath.Join(gromitDir, "backlog.jsonl")
-	if err := os.WriteFile(backlogPath, []byte(""), 0644); err != nil {
-		t.Fatal(err)
-	}
-
+	tmpDir, _, configPath := setupAgentConfig(t, configContent)
 	// Change to temp directory so config is found
 	t.Chdir(tmpDir)
 
@@ -128,29 +109,12 @@ func TestRefineFlagOverrideTakesPriority(t *testing.T) {
 	// This acceptance test verifies the priority order:
 	// --agent flag should override agents.phases config
 
-	tmpDir := t.TempDir()
-	gromitDir := filepath.Join(tmpDir, ".gromit")
-	specsDir := filepath.Join(gromitDir, "specs")
-	if err := os.MkdirAll(specsDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create config with phase default
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
 	configContent := `
 agents:
   phases:
     refine: codex
 `
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create empty backlog
-	backlogPath := filepath.Join(gromitDir, "backlog.jsonl")
-	if err := os.WriteFile(backlogPath, []byte(""), 0644); err != nil {
-		t.Fatal(err)
-	}
+	_, _, configPath := setupAgentConfig(t, configContent)
 
 	cfg, err := config.Load(configPath)
 	if err != nil {
@@ -173,14 +137,6 @@ func TestRefineChooseAgentTriggersPickerBehavior(t *testing.T) {
 	// This acceptance test verifies that --choose-agent flag is wired up correctly
 	// The actual picker interaction would be tested in integration tests
 
-	tmpDir := t.TempDir()
-	gromitDir := filepath.Join(tmpDir, ".gromit")
-	specsDir := filepath.Join(gromitDir, "specs")
-	if err := os.MkdirAll(specsDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
 	configContent := `
 agents:
   definitions:
@@ -189,15 +145,7 @@ agents:
     agent2:
       binary: "cat"
 `
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create empty backlog
-	backlogPath := filepath.Join(gromitDir, "backlog.jsonl")
-	if err := os.WriteFile(backlogPath, []byte(""), 0644); err != nil {
-		t.Fatal(err)
-	}
+	_, _, configPath := setupAgentConfig(t, configContent)
 
 	cfg, err := config.Load(configPath)
 	if err != nil {
@@ -218,14 +166,6 @@ agents:
 func TestRefineAgentPromptConfigTriggersPicker(t *testing.T) {
 	// This acceptance test verifies agents.prompt: true config is respected
 
-	tmpDir := t.TempDir()
-	gromitDir := filepath.Join(tmpDir, ".gromit")
-	specsDir := filepath.Join(gromitDir, "specs")
-	if err := os.MkdirAll(specsDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
 	configContent := `
 agents:
   prompt: true
@@ -233,9 +173,7 @@ agents:
     agent1:
       binary: "echo"
 `
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatal(err)
-	}
+	_, _, configPath := setupAgentConfig(t, configContent)
 
 	cfg, err := config.Load(configPath)
 	if err != nil {
@@ -253,25 +191,16 @@ agents:
 }
 
 func TestRefineChooseAgentFlagPropagatesToResolver(t *testing.T) {
-	tmpDir := t.TempDir()
-	gromitDir := filepath.Join(tmpDir, ".gromit")
-	specsDir := filepath.Join(gromitDir, "specs")
-	plansDir := filepath.Join(gromitDir, "plans")
-	if err := os.MkdirAll(specsDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(plansDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	testConfigPath := filepath.Join(tmpDir, "gromit.yaml")
 	configContent := `
 agents:
   definitions:
     stub-agent:
       binary: "echo"
 `
-	if err := os.WriteFile(testConfigPath, []byte(configContent), 0644); err != nil {
+	tmpDir, gromitDir, testConfigPath := setupAgentConfig(t, configContent)
+	specsDir := filepath.Join(gromitDir, "specs")
+	plansDir := filepath.Join(gromitDir, "plans")
+	if err := os.MkdirAll(plansDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -435,23 +364,12 @@ func TestRefineAgentConfigBackwardCompatibility(t *testing.T) {
 	// This acceptance test verifies backward compatibility
 	// Existing configs without agents section should still work (defaults to claude)
 
-	tmpDir := t.TempDir()
-	gromitDir := filepath.Join(tmpDir, ".gromit")
-	specsDir := filepath.Join(gromitDir, "specs")
-	if err := os.MkdirAll(specsDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create minimal config WITHOUT agents section (legacy config)
-	configPath := filepath.Join(tmpDir, "gromit.yaml")
 	configContent := `
 claude:
   binary: "claude"
   flags: []
 `
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatal(err)
-	}
+	_, _, configPath := setupAgentConfig(t, configContent)
 
 	cfg, err := config.Load(configPath)
 	if err != nil {
