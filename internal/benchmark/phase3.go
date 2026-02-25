@@ -27,8 +27,13 @@ type Phase3RunMetrics struct {
 type Phase3MeasurementReport struct {
 	Baseline            Phase3RunMetrics
 	Optimized           Phase3RunMetrics
-	CacheHitRatesByClass map[string]float64
+	CacheHitRatesByClass []CacheHitRateEntry
 	Rollback            Phase3RollbackAssessment
+}
+
+type CacheHitRateEntry struct {
+	Class   string  `json:"class"`
+	HitRate float64 `json:"hit_rate"`
 }
 
 type Phase3RollbackAssessment struct {
@@ -111,7 +116,7 @@ func WritePhase3MeasurementReport(input Phase3MeasurementInput) (Phase3ReportPat
 		Timestamp           string                      `json:"timestamp"`
 		Baseline            Phase3RunMetrics           `json:"baseline"`
 		Optimized           Phase3RunMetrics           `json:"optimized"`
-		CacheHitRatesByClass map[string]float64         `json:"cache_hit_rates_by_class"`
+		CacheHitRatesByClass []CacheHitRateEntry       `json:"cache_hit_rates_by_class"`
 		Rollback            Phase3RollbackAssessment    `json:"rollback"`
 		BaselineArtifactPath string                     `json:"baseline_artifact_path"`
 		OptimizedArtifactPath string                    `json:"optimized_artifact_path"`
@@ -146,13 +151,8 @@ func WritePhase3MeasurementReport(input Phase3MeasurementInput) (Phase3ReportPat
 	builder.WriteString("\n## Cache Hit Rates By Prompt Class\n\n")
 	builder.WriteString("| Prompt Class | Hit Rate |\n")
 	builder.WriteString("| --- | ---: |\n")
-	classes := make([]string, 0, len(report.CacheHitRatesByClass))
-	for class := range report.CacheHitRatesByClass {
-		classes = append(classes, class)
-	}
-	sort.Strings(classes)
-	for _, class := range classes {
-		builder.WriteString(fmt.Sprintf("| %s | %.2f |\n", class, report.CacheHitRatesByClass[class]))
+	for _, entry := range report.CacheHitRatesByClass {
+		builder.WriteString(fmt.Sprintf("| %s | %.2f |\n", entry.Class, entry.HitRate))
 	}
 
 	builder.WriteString("\n## Kill-Switch Rollback Assessment\n\n")
@@ -244,7 +244,7 @@ func round2(v float64) float64 {
 	return math.Round(v*100) / 100
 }
 
-func computeCacheHitRatesByClass(records []phase3IterationRecord) map[string]float64 {
+func computeCacheHitRatesByClass(records []phase3IterationRecord) []CacheHitRateEntry {
 	type bucket struct {
 		hits  int
 		total int
@@ -265,15 +265,18 @@ func computeCacheHitRatesByClass(records []phase3IterationRecord) map[string]flo
 		buckets[class] = row
 	}
 
-	out := make(map[string]float64, len(buckets))
+	entries := make([]CacheHitRateEntry, 0, len(buckets))
 	for class, row := range buckets {
-		if row.total == 0 {
-			out[class] = 0
-			continue
+		hitRate := 0.0
+		if row.total > 0 {
+			hitRate = round2(float64(row.hits) / float64(row.total))
 		}
-		out[class] = round2(float64(row.hits) / float64(row.total))
+		entries = append(entries, CacheHitRateEntry{Class: class, HitRate: hitRate})
 	}
-	return out
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Class < entries[j].Class
+	})
+	return entries
 }
 
 func readPhase3IterationRecords(path string) ([]phase3IterationRecord, error) {

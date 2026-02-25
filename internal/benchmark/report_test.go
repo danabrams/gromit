@@ -415,6 +415,66 @@ func TestWriteReport_NoArtifactDuplication(t *testing.T) {
 	}
 }
 
+func TestWritePhase3MeasurementReport_CacheHitRatesAreSortedArray(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+
+	baselineLog := filepath.Join(tmpDir, "baseline.jsonl")
+	optimizedLog := filepath.Join(tmpDir, "optimized.jsonl")
+
+	baselineContent := "" +
+		"{\"iteration\":1,\"input_tokens\":100,\"cost_usd\":1.0,\"success\":true}\n"
+	optimizedContent := "" +
+		"{\"iteration\":1,\"input_tokens\":90,\"cost_usd\":0.9,\"success\":true,\"cache_class\":\"zebra_class\",\"cache_hit\":true}\n" +
+		"{\"iteration\":2,\"input_tokens\":95,\"cost_usd\":0.95,\"success\":true,\"cache_class\":\"apple_class\",\"cache_hit\":true}\n" +
+		"{\"iteration\":3,\"input_tokens\":88,\"cost_usd\":0.88,\"success\":true,\"cache_class\":\"monkey_class\",\"cache_hit\":true}\n"
+
+	if err := os.WriteFile(baselineLog, []byte(baselineContent), 0o644); err != nil {
+		t.Fatalf("write baseline log: %v", err)
+	}
+	if err := os.WriteFile(optimizedLog, []byte(optimizedContent), 0o644); err != nil {
+		t.Fatalf("write optimized log: %v", err)
+	}
+
+	_, err := WritePhase3MeasurementReport(Phase3MeasurementInput{
+		Timestamp:        "20260224T120000Z",
+		BaselineLogPath:  baselineLog,
+		OptimizedLogPath: optimizedLog,
+	})
+	if err != nil {
+		t.Fatalf("WritePhase3MeasurementReport() error = %v", err)
+	}
+
+	jsonPath := filepath.Join(".gromit", "reports", "phase3-measurement-20260224T120000Z.json")
+	reportBytes, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("read json artifact: %v", err)
+	}
+
+	var payload struct {
+		CacheHitRatesByClass []struct {
+			Class   string  `json:"class"`
+			HitRate float64 `json:"hit_rate"`
+		} `json:"cache_hit_rates_by_class"`
+	}
+	if err := json.Unmarshal(reportBytes, &payload); err != nil {
+		t.Fatalf("unmarshal json artifact: %v", err)
+	}
+
+	if len(payload.CacheHitRatesByClass) != 3 {
+		t.Fatalf("cache hit rate entries count = %d, want 3", len(payload.CacheHitRatesByClass))
+	}
+	if payload.CacheHitRatesByClass[0].Class != "apple_class" {
+		t.Fatalf("first entry class = %q, want apple_class (sorted order)", payload.CacheHitRatesByClass[0].Class)
+	}
+	if payload.CacheHitRatesByClass[1].Class != "monkey_class" {
+		t.Fatalf("second entry class = %q, want monkey_class (sorted order)", payload.CacheHitRatesByClass[1].Class)
+	}
+	if payload.CacheHitRatesByClass[2].Class != "zebra_class" {
+		t.Fatalf("third entry class = %q, want zebra_class (sorted order)", payload.CacheHitRatesByClass[2].Class)
+	}
+}
+
 func TestWritePhase3MeasurementReport_JSONArtifactIsDeterministic(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
@@ -526,11 +586,17 @@ func TestRunPhase3Measurement_ComputesMediansAndCacheHitRatesByPromptClass(t *te
 	if len(report.CacheHitRatesByClass) != 2 {
 		t.Fatalf("cache hit-rate class count = %d, want 2", len(report.CacheHitRatesByClass))
 	}
-	if report.CacheHitRatesByClass["render_static_build"] != 0.5 {
-		t.Fatalf("cache hit-rate render_static_build = %v, want 0.5", report.CacheHitRatesByClass["render_static_build"])
+
+	hitRateByClass := make(map[string]float64)
+	for _, entry := range report.CacheHitRatesByClass {
+		hitRateByClass[entry.Class] = entry.HitRate
 	}
-	if report.CacheHitRatesByClass["utility_summarization"] != 1.0 {
-		t.Fatalf("cache hit-rate utility_summarization = %v, want 1.0", report.CacheHitRatesByClass["utility_summarization"])
+
+	if hitRateByClass["render_static_build"] != 0.5 {
+		t.Fatalf("cache hit-rate render_static_build = %v, want 0.5", hitRateByClass["render_static_build"])
+	}
+	if hitRateByClass["utility_summarization"] != 1.0 {
+		t.Fatalf("cache hit-rate utility_summarization = %v, want 1.0", hitRateByClass["utility_summarization"])
 	}
 }
 
