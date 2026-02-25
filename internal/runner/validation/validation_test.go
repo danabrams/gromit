@@ -895,7 +895,7 @@ func TestValidate_AllowsPromptPatternWhenNonInteractiveDisabled(t *testing.T) {
 
 func TestValidate_CommandTimeoutReturnsValidationFailure(t *testing.T) {
 	cfg := newTestConfig()
-	cfg.Validation.CommandTimeout = 20 * time.Millisecond
+	cfg.Validation.CommandTimeout = config.DurationSeconds(20 * time.Millisecond)
 	cfg.Validation.Commands = []string{"go test ./..."}
 
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
@@ -1034,7 +1034,7 @@ func TestRunWithRecoveryForCommands_ExecuteFnHonorsPhaseDeadline(t *testing.T) {
 func TestRunWithRecoveryForCommands_PhaseTimeoutCapsCommandTimeout(t *testing.T) {
 	cfg := newTestConfig()
 	cfg.Validation.Commands = []string{"go test ./..."}
-	cfg.Validation.CommandTimeout = 10 * time.Second
+	cfg.Validation.CommandTimeout = config.DurationSeconds(10 * time.Second)
 	cfg.Validation.MaxValidationRetries = 1
 
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
@@ -1069,7 +1069,7 @@ func TestRunWithRecoveryForCommands_PhaseTimeoutCapsCommandTimeout(t *testing.T)
 func TestRunWithRecoveryForCommands_CommandTimeoutPreservedWithinPhaseBudget(t *testing.T) {
 	cfg := newTestConfig()
 	cfg.Validation.Commands = []string{"go test ./..."}
-	cfg.Validation.CommandTimeout = 20 * time.Millisecond
+	cfg.Validation.CommandTimeout = config.DurationSeconds(20 * time.Millisecond)
 	cfg.Validation.MaxValidationRetries = 0
 
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {

@@ -212,7 +212,7 @@ func (r *Runner) runValidationWithCommands(ctx context.Context, bc *runtypes.Bea
 				return fmt.Errorf("validation command %q aborted: %w", result.command, parentErr)
 			}
 			if errors.Is(result.err, context.DeadlineExceeded) {
-				failureOutput := formatTimeoutFailureOutput(result.command, r.cfg.Validation.CommandTimeout, result.stdout, result.stderr)
+				failureOutput := formatTimeoutFailureOutput(result.command, time.Duration(r.cfg.Validation.CommandTimeout), result.stdout, result.stderr)
 				r.lastFailureOutput = failureOutput
 				bc.Result.Output += runtypes.ValidationOutputHeader + failureOutput
 				return ErrValidationFailed
@@ -293,8 +293,9 @@ func (r *Runner) runCommands(ctx context.Context, commands []string, workDir str
 func (r *Runner) runSingleCommand(ctx context.Context, command, workDir string) commandResult {
 	commandCtx := ctx
 	cancel := func() {}
-	if r.cfg.Validation.CommandTimeout > 0 {
-		commandCtx, cancel = context.WithTimeout(ctx, r.cfg.Validation.CommandTimeout)
+	commandTimeout := time.Duration(r.cfg.Validation.CommandTimeout)
+	if commandTimeout > 0 {
+		commandCtx, cancel = context.WithTimeout(ctx, commandTimeout)
 	}
 	defer cancel()
 

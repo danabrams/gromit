@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -48,37 +49,37 @@ var defaultAndonBulkDeleteAllowlist = []string{
 }
 
 type Config struct {
-	Project     ProjectConfig          `yaml:"project"`
-	Compatibility CompatibilityConfig   `yaml:"compatibility"`
-	Tracker     TrackerConfig          `yaml:"tracker"`
-	Models      ModelsConfig           `yaml:"models"`
-	Escalation  EscalationConfig       `yaml:"escalation"`
-	Andon       AndonConfig            `yaml:"andon"`
-	Loop        LoopConfig             `yaml:"loop"`
-	Validation  ValidationConfig       `yaml:"validation"`
-	Refactor    RefactorConfig         `yaml:"refactor"`
-	ScopeCheck  ScopeCheckConfig       `yaml:"scope_check"`
-	Precheck    PrecheckConfig         `yaml:"precheck"`
-	Preflight   PreflightConfig        `yaml:"preflight"`
-	Claude      ClaudeConfig           `yaml:"claude"`
-	Paths       PathsConfig            `yaml:"paths"`
-	Experiment  ExperimentConfig       `yaml:"experiment"`
-	Review      ReviewConfig           `yaml:"review"`
-	Methodology MethodologyConfig      `yaml:"methodology"`
-	Git         GitConfig              `yaml:"git"`
-	State       StateConfig            `yaml:"state"`
-	Learnings   LearningsConfig        `yaml:"learnings"`
-	Prompt      PromptConfig           `yaml:"prompt"`
-	Agents      AgentsConfig           `yaml:"agents"`
-	Providers   map[string]ProviderDef `yaml:"providers"`
-	Routing     RoutingConfig          `yaml:"routing"`
-	TokenEfficiency TokenEfficiencyConfig `yaml:"token_efficiency"`
-	Stream      StreamConfig           `yaml:"stream"`
-	Worktree    WorktreeConfig         `yaml:"worktree"`
-	Session     SessionConfig          `yaml:"session"`
-	Runbook     RunbookConfig          `yaml:"runbook"`
-	SpecGate    SpecGateConfig         `yaml:"spec_gate"`
-	Decompose   DecomposeConfig        `yaml:"decompose"`
+	Project         ProjectConfig          `yaml:"project"`
+	Compatibility   CompatibilityConfig    `yaml:"compatibility"`
+	Tracker         TrackerConfig          `yaml:"tracker"`
+	Models          ModelsConfig           `yaml:"models"`
+	Escalation      EscalationConfig       `yaml:"escalation"`
+	Andon           AndonConfig            `yaml:"andon"`
+	Loop            LoopConfig             `yaml:"loop"`
+	Validation      ValidationConfig       `yaml:"validation"`
+	Refactor        RefactorConfig         `yaml:"refactor"`
+	ScopeCheck      ScopeCheckConfig       `yaml:"scope_check"`
+	Precheck        PrecheckConfig         `yaml:"precheck"`
+	Preflight       PreflightConfig        `yaml:"preflight"`
+	Claude          ClaudeConfig           `yaml:"claude"`
+	Paths           PathsConfig            `yaml:"paths"`
+	Experiment      ExperimentConfig       `yaml:"experiment"`
+	Review          ReviewConfig           `yaml:"review"`
+	Methodology     MethodologyConfig      `yaml:"methodology"`
+	Git             GitConfig              `yaml:"git"`
+	State           StateConfig            `yaml:"state"`
+	Learnings       LearningsConfig        `yaml:"learnings"`
+	Prompt          PromptConfig           `yaml:"prompt"`
+	Agents          AgentsConfig           `yaml:"agents"`
+	Providers       map[string]ProviderDef `yaml:"providers"`
+	Routing         RoutingConfig          `yaml:"routing"`
+	TokenEfficiency TokenEfficiencyConfig  `yaml:"token_efficiency"`
+	Stream          StreamConfig           `yaml:"stream"`
+	Worktree        WorktreeConfig         `yaml:"worktree"`
+	Session         SessionConfig          `yaml:"session"`
+	Runbook         RunbookConfig          `yaml:"runbook"`
+	SpecGate        SpecGateConfig         `yaml:"spec_gate"`
+	Decompose       DecomposeConfig        `yaml:"decompose"`
 }
 
 type CompatibilityConfig struct {
@@ -177,22 +178,45 @@ type LoopConfig struct {
 	MaxDecomposeDepth        int    `yaml:"max_decompose_depth"`
 }
 
+type DurationSeconds time.Duration
+
+// UnmarshalYAML accepts integer values as seconds or duration strings like "30s".
+func (d *DurationSeconds) UnmarshalYAML(node *yaml.Node) error {
+	var seconds int64
+	if err := node.Decode(&seconds); err == nil {
+		*d = DurationSeconds(time.Duration(seconds) * time.Second)
+		return nil
+	}
+
+	var text string
+	if err := node.Decode(&text); err == nil {
+		parsed, err := time.ParseDuration(text)
+		if err != nil {
+			return fmt.Errorf("command_timeout: %w", err)
+		}
+		*d = DurationSeconds(parsed)
+		return nil
+	}
+
+	return fmt.Errorf("command_timeout must be an integer (seconds) or duration string")
+}
+
 type ValidationConfig struct {
-	Enabled              bool          `yaml:"enabled"`
-	Commands             []string      `yaml:"commands"`
-	FastCommands         []string      `yaml:"fast_commands"`
-	FullCommands         []string      `yaml:"full_commands"`
-	MandatoryCommands    []string      `yaml:"mandatory_commands"`
-	PhaseTimeoutSeconds  int           `yaml:"phase_timeout_seconds"`
-	MaxParallelCommands  int           `yaml:"max_parallel_commands"`
-	CommandTimeout       time.Duration `yaml:"command_timeout"`
-	FullValidationEveryN int           `yaml:"full_validation_every_n_successes"`
-	RunFinalFullGate     *bool         `yaml:"run_final_full_gate"`
-	NonInteractive       *bool         `yaml:"non_interactive"`
-	MaxFixAttempts       int           `yaml:"max_fix_attempts"`
-	MaxValidationRetries int           `yaml:"max_validation_retries"`
-	PlanMaxSubBeads      *int          `yaml:"plan_max_sub_beads"`
-	RuntimeMaxSubBeads   int           `yaml:"runtime_max_sub_beads"`
+	Enabled              bool            `yaml:"enabled"`
+	Commands             []string        `yaml:"commands"`
+	FastCommands         []string        `yaml:"fast_commands"`
+	FullCommands         []string        `yaml:"full_commands"`
+	MandatoryCommands    []string        `yaml:"mandatory_commands"`
+	PhaseTimeoutSeconds  int             `yaml:"phase_timeout_seconds"`
+	MaxParallelCommands  int             `yaml:"max_parallel_commands"`
+	CommandTimeout       DurationSeconds `yaml:"command_timeout"`
+	FullValidationEveryN int             `yaml:"full_validation_every_n_successes"`
+	RunFinalFullGate     *bool           `yaml:"run_final_full_gate"`
+	NonInteractive       *bool           `yaml:"non_interactive"`
+	MaxFixAttempts       int             `yaml:"max_fix_attempts"`
+	MaxValidationRetries int             `yaml:"max_validation_retries"`
+	PlanMaxSubBeads      *int            `yaml:"plan_max_sub_beads"`
+	RuntimeMaxSubBeads   int             `yaml:"runtime_max_sub_beads"`
 }
 
 type RefactorConfig struct {
@@ -258,10 +282,10 @@ type PathsConfig struct {
 }
 
 type ExperimentConfig struct {
-	Enabled            bool    `yaml:"enabled"`
-	MinSampleSize      int     `yaml:"min_sample_size"`
+	Enabled             bool    `yaml:"enabled"`
+	MinSampleSize       int     `yaml:"min_sample_size"`
 	ConfidenceThreshold float64 `yaml:"confidence_threshold"`
-	ExperimentsDir     string  `yaml:"experiments_dir"`
+	ExperimentsDir      string  `yaml:"experiments_dir"`
 }
 
 type ReviewConfig struct {
@@ -467,10 +491,10 @@ type TokenEfficiencyCacheConfig struct {
 }
 
 type TokenEfficiencyRoutingConfig struct {
-	Enabled      bool                                    `yaml:"enabled"`
-	UtilityTier  string                                  `yaml:"utility_tier"`
-	TaskOverrides map[string]string                      `yaml:"task_overrides"`
-	KillSwitches TokenEfficiencyRoutingKillSwitchesConfig `yaml:"kill_switches"`
+	Enabled       bool                                     `yaml:"enabled"`
+	UtilityTier   string                                   `yaml:"utility_tier"`
+	TaskOverrides map[string]string                        `yaml:"task_overrides"`
+	KillSwitches  TokenEfficiencyRoutingKillSwitchesConfig `yaml:"kill_switches"`
 }
 
 type TokenEfficiencyRoutingKillSwitchesConfig struct {

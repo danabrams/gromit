@@ -4475,8 +4475,8 @@ validation:
 	if err != nil {
 		t.Fatalf("loading config: %v", err)
 	}
-	if cfg.Validation.CommandTimeout != 30*time.Second {
-		t.Fatalf("CommandTimeout = %s, want %s", cfg.Validation.CommandTimeout, 30*time.Second)
+	if got := time.Duration(cfg.Validation.CommandTimeout); got != 30*time.Second {
+		t.Fatalf("CommandTimeout = %s, want %s", got, 30*time.Second)
 	}
 }
 
@@ -4495,8 +4495,8 @@ validation:
 	if err != nil {
 		t.Fatalf("loading config: %v", err)
 	}
-	if cfg.Validation.CommandTimeout != 30*time.Second {
-		t.Fatalf("CommandTimeout = %s, want %s", cfg.Validation.CommandTimeout, 30*time.Second)
+	if got := time.Duration(cfg.Validation.CommandTimeout); got != 30*time.Second {
+		t.Fatalf("CommandTimeout = %s, want %s", got, 30*time.Second)
 	}
 }
 
