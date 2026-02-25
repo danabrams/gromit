@@ -2031,6 +2031,31 @@ func TestCoverageValidationTemplateSampleData(t *testing.T) {
 	}
 }
 
+func TestRenderCoverageValidationIncludesSampleReference(t *testing.T) {
+	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
+	templatePath := filepath.Join(templatesDir, "PROMPT_coverage_validation.md")
+	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
+		t.Fatalf("skipping: real template not found at %s", templatePath)
+	}
+
+	r := &Renderer{templatesDir: templatesDir}
+	ctx := &CoverageValidationContext{
+		TestCode:        "func TestSampleReference(t *testing.T) {}",
+		CriterionNumber: 7,
+		CriterionText:   "Sample coverage reference criterion",
+	}
+
+	result, err := r.RenderCoverageValidation(ctx)
+	if err != nil {
+		t.Fatalf("RenderCoverageValidation() error = %v", err)
+	}
+
+	want := "Use the sample coverage validation snippet above to guide your reasoning."
+	if !strings.Contains(result, want) {
+		t.Fatalf("expected sample reference %q in output", want)
+	}
+}
+
 func TestRenderTestFixRealTemplateContainsRequiredSections(t *testing.T) {
 	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
 	templatePath := filepath.Join(templatesDir, "PROMPT_test_fix.md")
