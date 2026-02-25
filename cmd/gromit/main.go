@@ -34,6 +34,7 @@ var (
 	retroEpicFlag     string
 	runSpecFlag       string
 	runEpicFlag       string
+	statusSPC         bool
 )
 
 var runHasOpenBeadsForLabelFn = hasOpenBeadsForLabel
@@ -138,6 +139,8 @@ func init() {
 	runCmd.Flags().IntVarP(&timeBudgetHours, "time-budget-hours", "H", 0, "Time budget in hours (0 = unlimited)")
 	runCmd.Flags().StringVar(&runSpecFlag, "spec", "", "Filter to beads for a specific spec")
 	runCmd.Flags().StringVar(&runEpicFlag, "epic", "", "Filter to beads for a specific epic")
+
+	statusCmd.Flags().BoolVar(&statusSPC, "spc", false, "Show SPC dashboard status only")
 
 	retroCmd.Flags().BoolVar(&nonInteractive, "non-interactive", false, "Skip interactive session and write analysis to .gromit/RETRO_PROPOSED_CHANGES.md")
 	retroCmd.Flags().StringVar(&retroSpecFlag, "spec", "", "Scope retro to a specific spec")
@@ -257,6 +260,11 @@ func handleRunSignals(sigCh <-chan os.Signal, stopCh chan<- struct{}, cancel con
 }
 
 func showStatus(cmd *cobra.Command, args []string) error {
+	if statusSPC {
+		fmt.Fprintln(os.Stdout, "SPC dashboard is not yet implemented")
+		return nil
+	}
+
 	cfg, err := loadConfig()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)

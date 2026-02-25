@@ -21,7 +21,7 @@ import (
 const (
 	providerFamilyClaude = "claude"
 	providerFamilyCodex  = "codex"
-	providerFamilyMixed  = "mixed"
+	providerFamilyMixed  = "Mixed-provider aggregate"
 	retroAnalysisTier    = "high"
 	sectionEfficiency    = "efficiency"
 	sectionProcessTrend  = "process_trend"
@@ -437,6 +437,26 @@ func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, 
 		"sub": func(a, b float64) float64 { return a - b },
 		"durationMs": func(d time.Duration) float64 {
 			return float64(d.Milliseconds())
+		},
+		"avgInputTokens": func(entries []logger.IterationEfficiency) float64 {
+			if len(entries) == 0 {
+				return 0
+			}
+			total := 0
+			for _, entry := range entries {
+				total += entry.InputTokens
+			}
+			return float64(total) / float64(len(entries))
+		},
+		"avgOutputTokens": func(entries []logger.IterationEfficiency) float64 {
+			if len(entries) == 0 {
+				return 0
+			}
+			total := 0
+			for _, entry := range entries {
+				total += entry.OutputTokens
+			}
+			return float64(total) / float64(len(entries))
 		},
 	}).Parse(string(tmplContent))
 	if err != nil {

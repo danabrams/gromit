@@ -82,6 +82,9 @@ Current-run iteration data is empty. All comparative efficiency metrics below ar
 {{- range $family, $stats := .Efficiency.CurrentProviderFamilies }}
 | {{ $stats.Model }} | {{ $stats.IterationCount }} | ${{ printf "%.4f" $stats.AvgCostUSD }} | {{ $stats.AvgDuration }} | {{ printf "%.0f" $stats.AvgInputTokens }} | {{ printf "%.0f" $stats.AvgOutputTokens }} |
 {{- end }}
+{{- if .Efficiency.MixedProviderFamilies }}
+| Mixed-provider aggregate | {{ len .Efficiency.CurrentIterations }} | ${{ printf "%.4f" .Efficiency.CurrentAvgCostPerBead }} | {{ .Efficiency.CurrentAvgDurationPerBead }} | {{ printf "%.0f" (avgInputTokens .Efficiency.CurrentIterations) }} | {{ printf "%.0f" (avgOutputTokens .Efficiency.CurrentIterations) }} |
+{{- end }}
 
 ### Historical Comparison
 {{- if and .Efficiency.HistoricalModels .Efficiency.CurrentIterations }}

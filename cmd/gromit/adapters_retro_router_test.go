@@ -9,6 +9,7 @@ import (
 	"go/token"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -23,7 +24,11 @@ func TestRetroRouterAdapter_ConformsToProviderRunner(t *testing.T) {
 func TestRetroRouterAdapterCompileTimeCheckLivesInProduction(t *testing.T) {
 	const sentinel = "var _ retro.ProviderRunner = (*retroRouterAdapter)(nil)"
 
-	prod, err := os.ReadFile("cmd/gromit/adapters.go")
+	root, err := findProjectRoot()
+	if err != nil {
+		t.Fatalf("findProjectRoot: %v", err)
+	}
+	prod, err := os.ReadFile(filepath.Join(root, "cmd", "gromit", "adapters.go"))
 	if err != nil {
 		t.Fatalf("reading production adapters file: %v", err)
 	}
@@ -35,8 +40,12 @@ func TestRetroRouterAdapterCompileTimeCheckLivesInProduction(t *testing.T) {
 func TestRetroRouterAdapterCompileTimeCheckIsPackageLevel(t *testing.T) {
 	const sentinel = "var _ retro.ProviderRunner = (*retroRouterAdapter)(nil)"
 
+	root, err := findProjectRoot()
+	if err != nil {
+		t.Fatalf("findProjectRoot: %v", err)
+	}
 	fset := token.NewFileSet()
-	prod, err := parser.ParseFile(fset, "cmd/gromit/adapters.go", nil, parser.ParseComments)
+	prod, err := parser.ParseFile(fset, filepath.Join(root, "cmd", "gromit", "adapters.go"), nil, parser.ParseComments)
 	if err != nil {
 		t.Fatalf("parsing production adapters file: %v", err)
 	}

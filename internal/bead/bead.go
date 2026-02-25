@@ -1,7 +1,6 @@
 package bead
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -377,9 +376,9 @@ func (c *Client) HasOpenChildren(parentID string) (bool, error) {
 		return false, nil
 	}
 
-	// Verify it's a valid JSON array (basic sanity check)
+	// Verify it's a valid JSON array (with noise-tolerant extraction).
 	var beads []Bead
-	if err := json.Unmarshal([]byte(out), &beads); err != nil {
+	if err := jsonutil.ExtractArray(out, &beads); err != nil {
 		return false, fmt.Errorf("failed to parse bd output: %w", err)
 	}
 

@@ -79,6 +79,15 @@ routing:
 stream:
   preserve_provider_output: true  # keep provider-native terminal colors/layout
 
+# Session-level overrides for one-off runs
+# session:
+#   iterations: 0        # override run iterations (0 = unlimited)
+#   test_command: ""     # override validation command
+#   max_fix_retries: 0   # override fix retry cap
+#   fix_tier: ""         # override tier for auto-fixes (low|medium|high)
+#   review: true         # include review phase
+#   retro: true          # include retro phase
+
 # Example: Codex provider configuration
 # codex:
 #     binary: codex
