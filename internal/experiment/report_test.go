@@ -28,3 +28,18 @@ func TestGenerateReportReturnsReport(t *testing.T) {
 		t.Fatalf("expected non-nil report")
 	}
 }
+
+func TestVariantReportHasSuccessRate(t *testing.T) {
+	// Verify that VariantReport has a success rate field
+	vr := &VariantReport{
+		VariantID:   "variant-1",
+		SuccessRate: 0.85,
+	}
+
+	if vr.VariantID != "variant-1" {
+		t.Fatalf("expected variant ID variant-1, got %q", vr.VariantID)
+	}
+	if vr.SuccessRate != 0.85 {
+		t.Fatalf("expected success rate 0.85, got %f", vr.SuccessRate)
+	}
+}
