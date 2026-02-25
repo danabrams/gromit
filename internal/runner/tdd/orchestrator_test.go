@@ -1654,3 +1654,14 @@ func TestExecuteRefactorPhase_ReturnsErrorWhenValidateFnNil(t *testing.T) {
 		t.Fatalf("expected refactorOutcomeFailed when validateFn is nil, got %v", outcome)
 	}
 }
+
+func TestRunFinalValidation_ReturnsErrorWhenValidateFnNil(t *testing.T) {
+	orch := newTestOrchestrator()
+
+	// validateFn is intentionally left nil to trigger the error
+
+	err := orch.runFinalValidation(context.Background())
+	if err == nil {
+		t.Fatalf("expected error when validateFn is nil in final validation, got nil")
+	}
+}

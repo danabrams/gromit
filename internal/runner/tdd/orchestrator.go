@@ -440,6 +440,9 @@ func (o *CycleOrchestrator) updateTouchedFiles(state *CycleState) {
 
 func (o *CycleOrchestrator) runFinalValidation(ctx context.Context) error {
 	// Final validation must run immediately after refactor in the same cycle.
+	if o.validateFn == nil {
+		return fmt.Errorf("validateFn is not configured")
+	}
 	_, finalPassed, finalErr := o.validateFn(ctx, nil, "")
 	if finalErr != nil {
 		return fmt.Errorf("final validation: %w", finalErr)
