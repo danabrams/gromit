@@ -1579,3 +1579,13 @@ func TestLogPhaseFn_RetryAndEscalation_LogsRetryAndEscalate(t *testing.T) {
 		}
 	}
 }
+
+func TestInvokeWithRetryAndEscalation_ReturnsErrorWhenInvokeFnNil(t *testing.T) {
+	orch := newTestOrchestrator()
+	tier := "medium"
+
+	err := orch.invokeWithRetryAndEscalation(context.Background(), "prompt", &tier)
+	if err == nil {
+		t.Fatalf("expected error when invokeFn is nil, got nil")
+	}
+}
