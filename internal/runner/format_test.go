@@ -740,6 +740,37 @@ func TestFormatSPCLine(t *testing.T) {
 	}
 }
 
+func TestFormatSPCSummary_IncludesNelsonRuleViolations(t *testing.T) {
+	trend := &logger.ProcessTrend{
+		TotalIterations: 12,
+		WindowSize:      10,
+		ControlLimits: []logger.TrendControlLimit{
+			{Metric: spcMetricRollingSuccessRate, Latest: 0.8, LCL: 0.5, UCL: 0.95},
+		},
+		PatternViolations: []logger.PatternViolation{
+			{
+				Metric:    "rolling_success_rate",
+				Rule:      "nelson_rule_2",
+				Direction: "below",
+				RunLength: 9,
+				Message:   "9 points below center line",
+			},
+		},
+	}
+
+	got := formatSPCSummary(trend)
+	for _, substr := range []string{
+		"Nelson rule violations:",
+		"success",
+		"nelson_rule_2",
+		"9 points below center line",
+	} {
+		if !strings.Contains(got, substr) {
+			t.Fatalf("formatSPCSummary() = %q, want substring %q", got, substr)
+		}
+	}
+}
+
 func TestFormatRun(t *testing.T) {
 	tests := []struct {
 		name   string
