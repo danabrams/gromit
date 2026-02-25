@@ -389,22 +389,10 @@ func TestCodexProviderStreamsAgentTextToWriter(t *testing.T) {
 // TestCodexProviderHandlesMultipleEventTypes verifies that processCodexStream
 // correctly handles a mix of different Codex event types in a single stream.
 func TestCodexProviderHandlesMultipleEventTypes(t *testing.T) {
-	tempDir := t.TempDir()
-
-	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := `#!/bin/bash
-echo '{"type":"thread.started","data":{"thread_id":"t1"}}'
-echo '{"type":"item.started","item":{"type":"command_execution","command":"ls"}}'
-echo '{"type":"item.completed","item":{"type":"agent_message","text":"Done"}}'
-echo '{"type":"turn.completed","usage":{"input_tokens":100,"output_tokens":50}}'
-exit 0
-`
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+	setupCodexStreamingFixtureEnv(t, "codex_stream_multiple_event_types.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
+	cp := NewCodexProvider(fakeCodexBinaryPath(t), []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
@@ -412,7 +400,7 @@ exit 0
 	var receivedToolCalls []ToolEvent
 
 	handler := func(line []byte) {
-		receivedEvents = append(receivedEvents, line)
+		receivedEvents = append(receivedEvents, append([]byte(nil), line...))
 	}
 
 	toolHandler := func(event ToolEvent) {
@@ -424,7 +412,6 @@ exit 0
 		t.Fatalf("StreamRun() error = %v", err)
 	}
 
-	// Verify multiple event types were processed
 	if len(receivedEvents) < 3 {
 		t.Errorf("expected at least 3 events, got %d", len(receivedEvents))
 	}
@@ -433,7 +420,6 @@ exit 0
 		t.Error("expected at least 1 tool call for command_execution")
 	}
 
-	// Verify result contains agent text
 	if !strings.Contains(result.Output, "Done") {
 		t.Errorf("Result.Output missing agent message text: %s", result.Output)
 	}
