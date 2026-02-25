@@ -404,6 +404,60 @@ func TestOrchestrator_SuccessPath_CarriesBuildTelemetryToIterationLog(t *testing
 	}
 }
 
+func TestOrchestrator_AccumulatesTouchedPackagesAcrossIterations(t *testing.T) {
+	recorded := make(map[int][]string)
+	gateStage := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		recorded[in.Iteration] = append([]string(nil), in.TouchedPackages...)
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+	epilogueOutputs := map[int][]string{
+		1: {"./pkg-one", "./pkg-one"},
+		2: {"pkg-two"},
+	}
+	epilogueStage := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		if out, ok := epilogueOutputs[in.Iteration]; ok {
+			return pipeline.Output{TouchedPackages: append([]string(nil), out...)}, nil
+		}
+		return pipeline.Output{}, nil
+	}}
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 3 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: fmt.Sprintf("bead-%d", beadCalls), Title: fmt.Sprintf("Bead %d", beadCalls)}, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     gateStage,
+		Build:    &fakeStage{},
+		Validate: &fakeStage{},
+		Epilogue: epilogueStage,
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	expected := map[int][]string{
+		1: nil,
+		2: {"pkg-one"},
+		3: {"pkg-one", "pkg-two"},
+	}
+	for iter, want := range expected {
+		got := recorded[iter]
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("Iteration %d touched packages = %v, want %v", iter, got, want)
+		}
+	}
+}
+
 // TestOrchestrator_PropagatesGateComplexityRoutingToBuildInput verifies that
 // complexity metadata produced by Gate is copied into the Build stage input.
 func TestOrchestrator_PropagatesGateComplexityRoutingToBuildInput(t *testing.T) {
