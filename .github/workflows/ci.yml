@@ -33,6 +33,13 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Beads issues policy guard
+        run: |
+          if git ls-files --error-unmatch .beads/issues.jsonl >/dev/null 2>&1; then
+            git add .beads/issues.jsonl
+          fi
+          make beads-issues-policy-guard
+
       - name: Shared-state guard + parallel-safe top-5 package tests
         run: make test-parallel-safe-top5
 
