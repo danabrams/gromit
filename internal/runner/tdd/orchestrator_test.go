@@ -1755,6 +1755,49 @@ func TestRunOneCycle_RenderRedFnNilSkipsRedHandoff(t *testing.T) {
 	}
 }
 
+func TestRunOneCycle_RenderGreenFnNilSkipsGreenHandoff(t *testing.T) {
+	orch := newTestOrchestrator()
+	readCalls := 0
+	orch.readFileFn = func(path string) (string, error) {
+		readCalls++
+		return "", nil
+	}
+
+	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "red-prompt", nil
+	}
+
+	validateCall := 0
+	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
+		validateCall++
+		if validateCall == 1 {
+			return "FAIL: TestFoo", false, nil // Red: tests fail, so we proceed to green
+		}
+		return "PASS", true, nil
+	}
+
+	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
+		return nil
+	}
+
+	// renderGreenFn is intentionally left nil to trigger the error
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{},
+		Tier:   "medium",
+	}
+
+	state := singleRequirementState()
+	state.TouchedFiles = []string{"foo_test.go"}
+	err := orch.runOneCycle(context.Background(), bc, &state)
+	if err == nil {
+		t.Fatalf("expected error when renderGreenFn is nil, got nil")
+	}
+	if readCalls != 1 {
+		t.Fatalf("expected only red-phase reads when renderGreenFn nil, got %d total reads", readCalls)
+	}
+}
+
 func TestRunOneCycle_ReturnsErrorWhenRenderGreenFnNil(t *testing.T) {
 	orch := newTestOrchestrator()
 
