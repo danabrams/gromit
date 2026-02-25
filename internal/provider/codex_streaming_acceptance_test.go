@@ -100,30 +100,17 @@ func TestCodexProviderStreamRunNilHandlerStillUsesJSONFlag(t *testing.T) {
 // TestCodexProviderParsesThreadStartedEvent verifies that processCodexStream
 // converts thread.started events to StreamEvent with type "system".
 func TestCodexProviderParsesThreadStartedEvent(t *testing.T) {
-	tempDir := t.TempDir()
-
-	mockBinary := filepath.Join(tempDir, "codex")
-	codexEvent := map[string]interface{}{
-		"type": "thread.started",
-		"data": map[string]interface{}{
-			"thread_id": "thread-123",
-		},
-	}
-	eventJSON, _ := json.Marshal(codexEvent)
-	mockScript := fmt.Sprintf("#!/bin/bash\ncat > /dev/null\nprintf '%%s\\n' '%s'\nexit 0\n", string(eventJSON))
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+	setupCodexStreamingFixtureEnv(t, "codex_stream_thread_started.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
+	cp := NewCodexProvider(fakeCodexBinaryPath(t), []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
 	var receivedEvents [][]byte
 
 	handler := func(line []byte) {
-		receivedEvents = append(receivedEvents, line)
+		receivedEvents = append(receivedEvents, append([]byte(nil), line...))
 	}
 
 	_, err := cp.StreamRun(ctx, "test", TierMedium, &output, handler, nil)
@@ -131,12 +118,10 @@ func TestCodexProviderParsesThreadStartedEvent(t *testing.T) {
 		t.Fatalf("StreamRun() error = %v", err)
 	}
 
-	// Verify that handler was called and event was normalized to StreamEvent format
 	if len(receivedEvents) == 0 {
 		t.Fatal("EventHandler was not called for thread.started event")
 	}
 
-	// Parse the normalized event and verify it's type "system"
 	var streamEvent struct {
 		Type string `json:"type"`
 	}
