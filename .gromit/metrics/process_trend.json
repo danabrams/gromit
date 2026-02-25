@@ -1,21 +1,21 @@
 {
-  "generated_at": "2026-02-25T13:03:20.0535906Z",
-  "total_iterations": 171,
+  "generated_at": "2026-02-25T14:12:40.686949382Z",
+  "total_iterations": 176,
   "window_size": 30,
   "latest_window": {
-    "success_rate": 0.8333333333333334,
-    "failure_rate": 0.16666666666666666,
-    "first_pass_success_rate": 0.8,
-    "rework_rate": 0.2,
+    "success_rate": 0.9333333333333333,
+    "failure_rate": 0.06666666666666667,
+    "first_pass_success_rate": 0.9,
+    "rework_rate": 0.1,
     "escalation_rate": 0,
     "quality_score": 1,
-    "avg_duration_ms": 270015.9666666667,
-    "p95_duration_ms": 654728.399999999,
+    "avg_duration_ms": 281756,
+    "p95_duration_ms": 540425.1999999995,
     "avg_validation_ms": 0,
     "p95_validation_ms": 0,
-    "avg_cost_usd": 0.7462936750000001,
-    "avg_input_tokens": 2149489.3666666667,
-    "avg_cost_per_bead_usd": 0.8955524100000004,
+    "avg_cost_usd": 0.6892756116666666,
+    "avg_input_tokens": 1769464.1666666667,
+    "avg_cost_per_bead_usd": 0.7385095839285715,
     "avg_mttr_proxy_ms": 0,
     "preflight_failure_rate": 0,
     "build_failure_rate": 0,
@@ -35,29 +35,29 @@
   "provider_metrics": [
     {
       "name": "claude",
-      "total_invocations": 41,
-      "successes": 41,
+      "total_invocations": 44,
+      "successes": 44,
       "success_rate": 1,
       "transport_failures": 0,
       "transport_failure_rate": 0,
       "fallbacks_triggered": 0,
-      "avg_duration_ms": 193874.29268292684,
-      "total_cost_usd": 19.205270750000004,
-      "total_input_tokens": 18868,
-      "total_output_tokens": 645118
+      "avg_duration_ms": 199000.06818181818,
+      "total_cost_usd": 21.36192905,
+      "total_input_tokens": 20540,
+      "total_output_tokens": 710026
     },
     {
       "name": "openai",
-      "total_invocations": 108,
-      "successes": 108,
+      "total_invocations": 110,
+      "successes": 110,
       "success_rate": 1,
       "transport_failures": 0,
       "transport_failure_rate": 0,
       "fallbacks_triggered": 0,
-      "avg_duration_ms": 335750.97222222225,
-      "total_cost_usd": 71.36871300000001,
-      "total_input_tokens": 361561306,
-      "total_output_tokens": 2509564
+      "avg_duration_ms": 338045.4727272727,
+      "total_cost_usd": 74.26030050000001,
+      "total_input_tokens": 372692908,
+      "total_output_tokens": 2582022
     },
     {
       "name": "unknown",
@@ -76,35 +76,35 @@
   "control_limits": [
     {
       "metric": "rolling_avg_cost_per_bead_usd",
-      "latest": 0.8955524100000004,
-      "mean": 0.5859049795167699,
-      "std_dev": 0.5310487332867169,
-      "ucl": 2.1790511793769207,
-      "lcl": -1.0072412203433807
+      "latest": 0.7385095839285715,
+      "mean": 0.589968130461182,
+      "std_dev": 0.5240057933393929,
+      "ucl": 2.1619855104793606,
+      "lcl": -0.9820492495569967
     },
     {
       "metric": "rolling_avg_cost_usd",
-      "latest": 0.7462936750000001,
-      "mean": 0.5296724195906434,
-      "std_dev": 1.0679103810958226,
-      "ucl": 3.733403562878111,
-      "lcl": -2.6740587236968243
+      "latest": 0.6892756116666666,
+      "mean": 0.5433081224431819,
+      "std_dev": 1.0624178516732177,
+      "ucl": 3.730561677462835,
+      "lcl": -2.643945432576471
     },
     {
       "metric": "rolling_avg_duration_ms",
-      "latest": 270015.9666666667,
-      "mean": 258537.72514619882,
-      "std_dev": 272362.2582087569,
-      "ucl": 1075624.4997724695,
-      "lcl": -558549.049480072
+      "latest": 281756,
+      "mean": 261028.4375,
+      "std_dev": 270009.3948902868,
+      "ucl": 1071056.6221708604,
+      "lcl": -548999.7471708604
     },
     {
       "metric": "rolling_avg_input_tokens",
-      "latest": 2149489.3666666667,
-      "mean": 2114503.941520468,
-      "std_dev": 3755134.05174283,
-      "ucl": 13379906.096748957,
-      "lcl": -9150898.213708023
+      "latest": 1769464.1666666667,
+      "mean": 2117690.0454545454,
+      "std_dev": 3749333.754544328,
+      "ucl": 13365691.309087528,
+      "lcl": -9130311.218178438
     },
     {
       "metric": "rolling_avg_validation_ms",
@@ -117,9 +117,9 @@
     {
       "metric": "rolling_build_failure_rate",
       "latest": 0,
-      "mean": 0.005847953216374269,
-      "std_dev": 0.012678060461215657,
-      "ucl": 0.043882134600021244,
+      "mean": 0.005681818181818181,
+      "std_dev": 0.012534387960435059,
+      "ucl": 0.04328498206312336,
       "lcl": 0
     },
     {
@@ -132,9 +132,9 @@
     },
     {
       "metric": "rolling_first_pass_success_rate",
-      "latest": 0.8,
-      "mean": 0.3914230019493178,
-      "std_dev": 0.3825182313141092,
+      "latest": 0.9,
+      "mean": 0.4041666666666666,
+      "std_dev": 0.38439617150365446,
       "ucl": 1,
       "lcl": 0
     },
@@ -156,17 +156,17 @@
     },
     {
       "metric": "rolling_rework_rate",
-      "latest": 0.2,
-      "mean": 0.5321637426900585,
-      "std_dev": 0.498964421232784,
+      "latest": 0.1,
+      "mean": 0.5170454545454546,
+      "std_dev": 0.49970936801238697,
       "ucl": 1,
       "lcl": 0
     },
     {
       "metric": "rolling_success_rate",
-      "latest": 0.8333333333333334,
-      "mean": 0.8713450292397661,
-      "std_dev": 0.3348176656912199,
+      "latest": 0.9333333333333333,
+      "mean": 0.875,
+      "std_dev": 0.33071891388307384,
       "ucl": 1,
       "lcl": 0
     },
@@ -191,35 +191,35 @@
     "model:gpt-5.1-codex-mini": [
       {
         "metric": "rolling_avg_cost_per_bead_usd",
-        "latest": 0.8955524100000004,
-        "mean": 1.0474301909757928,
-        "std_dev": 0.2599786547249903,
-        "ucl": 1.8273661551507638,
-        "lcl": 0.2674942268008218
+        "latest": 0.7385095839285715,
+        "mean": 1.0331782728452081,
+        "std_dev": 0.2616049341501169,
+        "ucl": 1.8179930752955586,
+        "lcl": 0.2483634703948575
       },
       {
         "metric": "rolling_avg_cost_usd",
-        "latest": 0.7462936750000001,
-        "mean": 1.4663072687499998,
-        "std_dev": 1.5351337951988477,
-        "ucl": 6.071708654346543,
-        "lcl": -3.139094116846544
+        "latest": 0.6892756116666666,
+        "mean": 1.4653304345238094,
+        "std_dev": 1.5114434224598445,
+        "ucl": 5.999660701903343,
+        "lcl": -3.0689998328557238
       },
       {
         "metric": "rolling_avg_duration_ms",
-        "latest": 270015.9666666667,
-        "mean": 559404.45,
-        "std_dev": 381731.4588239322,
-        "ucl": 1704598.8264717965,
-        "lcl": -585789.9264717966
+        "latest": 281756,
+        "mean": 554763.6904761905,
+        "std_dev": 374544.2299554593,
+        "ucl": 1678396.3803425685,
+        "lcl": -568868.9993901874
       },
       {
         "metric": "rolling_avg_input_tokens",
-        "latest": 2149489.3666666667,
-        "mean": 5583502.225,
-        "std_dev": 5973688.115679991,
-        "ucl": 23504566.572039977,
-        "lcl": -12337562.122039976
+        "latest": 1769464.1666666667,
+        "mean": 5582659.30952381,
+        "std_dev": 5881802.775523271,
+        "ucl": 23228067.636093624,
+        "lcl": -12062749.017046005
       },
       {
         "metric": "rolling_avg_validation_ms",
@@ -232,9 +232,9 @@
       {
         "metric": "rolling_build_failure_rate",
         "latest": 0,
-        "mean": 0.009999999999999998,
-        "std_dev": 0.015275252316519463,
-        "ucl": 0.05582575694955838,
+        "mean": 0.009523809523809523,
+        "std_dev": 0.015058465048420854,
+        "ucl": 0.054699204669072084,
         "lcl": 0
       },
       {
@@ -247,11 +247,11 @@
       },
       {
         "metric": "rolling_first_pass_success_rate",
-        "latest": 0.8,
-        "mean": 0.7483333333333331,
-        "std_dev": 0.1701225048800618,
+        "latest": 0.9,
+        "mean": 0.7539682539682536,
+        "std_dev": 0.16808167278926994,
         "ucl": 1,
-        "lcl": 0.2379658186931477
+        "lcl": 0.24972323560044385
       },
       {
         "metric": "rolling_preflight_failure_rate",
@@ -271,7 +271,7 @@
       },
       {
         "metric": "rolling_rework_rate",
-        "latest": 0.2,
+        "latest": 0.1,
         "mean": 0,
         "std_dev": 0,
         "ucl": 0,
@@ -279,7 +279,7 @@
       },
       {
         "metric": "rolling_success_rate",
-        "latest": 0.8333333333333334,
+        "latest": 0.9333333333333333,
         "mean": 1,
         "std_dev": 0,
         "ucl": 1,
@@ -306,7 +306,7 @@
       {
         "metric": "rolling_avg_cost_per_bead_usd",
         "latest": 0.45415793749999994,
-        "mean": 0.015169486566091954,
+        "mean": 0.01516948656609195,
         "std_dev": 0.07088624410978392,
         "ucl": 0.22782821889544372,
         "lcl": -0.1974892457632598
@@ -419,35 +419,35 @@
     "model:haiku": [
       {
         "metric": "rolling_avg_cost_per_bead_usd",
-        "latest": 1.019684918,
-        "mean": 0.9396831204042393,
-        "std_dev": 0.317199188651707,
-        "ucl": 1.8912806863593603,
-        "lcl": -0.011914445550881725
+        "latest": 0.7462703833333335,
+        "mean": 0.9244401722706169,
+        "std_dev": 0.3113906398553008,
+        "ucl": 1.8586120918365192,
+        "lcl": -0.009731747295285476
       },
       {
         "metric": "rolling_avg_cost_usd",
-        "latest": 0.8497374316666668,
-        "mean": 0.46842123780487815,
-        "std_dev": 0.24346975829817413,
-        "ucl": 1.1988305126994006,
-        "lcl": -0.2619880370896442
+        "latest": 0.671643345,
+        "mean": 0.4854983875,
+        "std_dev": 0.252900180292095,
+        "ucl": 1.244198928376285,
+        "lcl": -0.273202153376285
       },
       {
         "metric": "rolling_avg_duration_ms",
-        "latest": 277800.23333333334,
-        "mean": 193874.29268292684,
-        "std_dev": 85211.05769828633,
-        "ucl": 449507.46577778587,
-        "lcl": -61758.88041193216
+        "latest": 271360.76666666666,
+        "mean": 199000.06818181818,
+        "std_dev": 86963.70717938441,
+        "ucl": 459891.1897199714,
+        "lcl": -61891.05335633503
       },
       {
         "metric": "rolling_avg_input_tokens",
-        "latest": 2517550.033333333,
-        "mean": 460.1951219512195,
-        "std_dev": 333.1025052451496,
-        "ucl": 1459.5026376866683,
-        "lcl": -539.1123937842292
+        "latest": 1703233.5,
+        "mean": 466.8181818181818,
+        "std_dev": 325.9475189719457,
+        "ucl": 1444.6607387340189,
+        "lcl": -511.0243750976553
       },
       {
         "metric": "rolling_avg_validation_ms",
@@ -460,9 +460,9 @@
       {
         "metric": "rolling_build_failure_rate",
         "latest": 0,
-        "mean": 0.0065040650406504065,
-        "std_dev": 0.013209818544123512,
-        "ucl": 0.04613352067302094,
+        "mean": 0.006060606060606061,
+        "std_dev": 0.01285648693066451,
+        "ucl": 0.044630066852599584,
         "lcl": 0
       },
       {
@@ -475,9 +475,9 @@
       },
       {
         "metric": "rolling_first_pass_success_rate",
-        "latest": 0.8,
-        "mean": 0.6512195121951218,
-        "std_dev": 0.2892001455257583,
+        "latest": 0.8666666666666667,
+        "mean": 0.6628787878787877,
+        "std_dev": 0.2825940362923919,
         "ucl": 1,
         "lcl": 0
       },
@@ -499,15 +499,15 @@
       },
       {
         "metric": "rolling_rework_rate",
-        "latest": 0.2,
-        "mean": 0.024390243902439025,
-        "std_dev": 0.15425744683748188,
-        "ucl": 0.4871625844148847,
+        "latest": 0.13333333333333333,
+        "mean": 0.022727272727272728,
+        "std_dev": 0.14903269373413636,
+        "ucl": 0.4698253539296818,
         "lcl": 0
       },
       {
         "metric": "rolling_success_rate",
-        "latest": 0.8333333333333334,
+        "latest": 0.9,
         "mean": 1,
         "std_dev": 0,
         "ucl": 1,
@@ -647,35 +647,35 @@
     "provider:claude": [
       {
         "metric": "rolling_avg_cost_per_bead_usd",
-        "latest": 1.019684918,
-        "mean": 0.9396831204042393,
-        "std_dev": 0.317199188651707,
-        "ucl": 1.8912806863593603,
-        "lcl": -0.011914445550881725
+        "latest": 0.7462703833333335,
+        "mean": 0.9244401722706169,
+        "std_dev": 0.3113906398553008,
+        "ucl": 1.8586120918365192,
+        "lcl": -0.009731747295285476
       },
       {
         "metric": "rolling_avg_cost_usd",
-        "latest": 0.8497374316666668,
-        "mean": 0.46842123780487815,
-        "std_dev": 0.24346975829817413,
-        "ucl": 1.1988305126994006,
-        "lcl": -0.2619880370896442
+        "latest": 0.671643345,
+        "mean": 0.4854983875,
+        "std_dev": 0.252900180292095,
+        "ucl": 1.244198928376285,
+        "lcl": -0.273202153376285
       },
       {
         "metric": "rolling_avg_duration_ms",
-        "latest": 277800.23333333334,
-        "mean": 193874.29268292684,
-        "std_dev": 85211.05769828633,
-        "ucl": 449507.46577778587,
-        "lcl": -61758.88041193216
+        "latest": 271360.76666666666,
+        "mean": 199000.06818181818,
+        "std_dev": 86963.70717938441,
+        "ucl": 459891.1897199714,
+        "lcl": -61891.05335633503
       },
       {
         "metric": "rolling_avg_input_tokens",
-        "latest": 2517550.033333333,
-        "mean": 460.1951219512195,
-        "std_dev": 333.1025052451496,
-        "ucl": 1459.5026376866683,
-        "lcl": -539.1123937842292
+        "latest": 1703233.5,
+        "mean": 466.8181818181818,
+        "std_dev": 325.9475189719457,
+        "ucl": 1444.6607387340189,
+        "lcl": -511.0243750976553
       },
       {
         "metric": "rolling_avg_validation_ms",
@@ -688,9 +688,9 @@
       {
         "metric": "rolling_build_failure_rate",
         "latest": 0,
-        "mean": 0.0065040650406504065,
-        "std_dev": 0.013209818544123512,
-        "ucl": 0.04613352067302094,
+        "mean": 0.006060606060606061,
+        "std_dev": 0.01285648693066451,
+        "ucl": 0.044630066852599584,
         "lcl": 0
       },
       {
@@ -703,9 +703,9 @@
       },
       {
         "metric": "rolling_first_pass_success_rate",
-        "latest": 0.8,
-        "mean": 0.6512195121951218,
-        "std_dev": 0.2892001455257583,
+        "latest": 0.8666666666666667,
+        "mean": 0.6628787878787877,
+        "std_dev": 0.2825940362923919,
         "ucl": 1,
         "lcl": 0
       },
@@ -727,15 +727,15 @@
       },
       {
         "metric": "rolling_rework_rate",
-        "latest": 0.2,
-        "mean": 0.024390243902439025,
-        "std_dev": 0.15425744683748188,
-        "ucl": 0.4871625844148847,
+        "latest": 0.13333333333333333,
+        "mean": 0.022727272727272728,
+        "std_dev": 0.14903269373413636,
+        "ucl": 0.4698253539296818,
         "lcl": 0
       },
       {
         "metric": "rolling_success_rate",
-        "latest": 0.8333333333333334,
+        "latest": 0.9,
         "mean": 1,
         "std_dev": 0,
         "ucl": 1,
@@ -761,35 +761,35 @@
     "provider:openai": [
       {
         "metric": "rolling_avg_cost_per_bead_usd",
-        "latest": 0.8955524100000004,
-        "mean": 0.3974882659770923,
-        "std_dev": 0.5260054469384068,
-        "ucl": 1.9755046067923128,
-        "lcl": -1.180528074838128
+        "latest": 0.7385095839285715,
+        "mean": 0.4038637504181182,
+        "std_dev": 0.5233046596735272,
+        "ucl": 1.9737777294386998,
+        "lcl": -1.1660502286024634
       },
       {
         "metric": "rolling_avg_cost_usd",
-        "latest": 0.7462936750000001,
-        "mean": 0.6608214166666668,
-        "std_dev": 1.3066780168047663,
-        "ucl": 4.580855467080966,
-        "lcl": -3.259212633747632
+        "latest": 0.6892756116666666,
+        "mean": 0.6750936409090911,
+        "std_dev": 1.3048549167505288,
+        "ucl": 4.589658391160677,
+        "lcl": -3.2394711093424955
       },
       {
         "metric": "rolling_avg_duration_ms",
-        "latest": 270015.9666666667,
-        "mean": 335750.97222222225,
-        "std_dev": 305829.9160642404,
-        "ucl": 1253240.7204149435,
-        "lcl": -581738.7759704989
+        "latest": 281756,
+        "mean": 338045.4727272727,
+        "std_dev": 304179.62224289624,
+        "ucl": 1250584.3394559615,
+        "lcl": -574493.3940014159
       },
       {
         "metric": "rolling_avg_input_tokens",
-        "latest": 2149489.3666666667,
-        "mean": 3347789.8703703703,
-        "std_dev": 4265937.264891886,
-        "ucl": 16145601.665046029,
-        "lcl": -9450021.92430529
+        "latest": 1769464.1666666667,
+        "mean": 3388117.345454545,
+        "std_dev": 4264744.34102421,
+        "ucl": 16182350.368527176,
+        "lcl": -9406115.677618084
       },
       {
         "metric": "rolling_avg_validation_ms",
@@ -802,9 +802,9 @@
       {
         "metric": "rolling_build_failure_rate",
         "latest": 0,
-        "mean": 0.0037037037037037034,
-        "std_dev": 0.010475656017578492,
-        "ucl": 0.03513067175643918,
+        "mean": 0.003636363636363636,
+        "std_dev": 0.01039177466635288,
+        "ucl": 0.03481168763542228,
         "lcl": 0
       },
       {
@@ -817,9 +817,9 @@
       },
       {
         "metric": "rolling_first_pass_success_rate",
-        "latest": 0.8,
-        "mean": 0.2771604938271604,
-        "std_dev": 0.37591173522243954,
+        "latest": 0.9,
+        "mean": 0.28787878787878773,
+        "std_dev": 0.380741628046926,
         "ucl": 1,
         "lcl": 0
       },
@@ -841,15 +841,15 @@
       },
       {
         "metric": "rolling_rework_rate",
-        "latest": 0.2,
-        "mean": 0.6296296296296297,
-        "std_dev": 0.48290388186686306,
+        "latest": 0.1,
+        "mean": 0.6181818181818182,
+        "std_dev": 0.48583233512317797,
         "ucl": 1,
         "lcl": 0
       },
       {
         "metric": "rolling_success_rate",
-        "latest": 0.8333333333333334,
+        "latest": 0.9333333333333333,
         "mean": 1,
         "std_dev": 0,
         "ucl": 1,
@@ -992,19 +992,19 @@
     "model:gpt-5.1-codex-mini": [
       {
         "metric": "rolling_rework_rate",
-        "latest": 0.2,
+        "latest": 0.1,
         "ucl": 0,
         "lcl": 0,
         "severity": "high",
-        "message": "latest value 0.2000 is above control limits [0.0000, 0.0000]"
+        "message": "latest value 0.1000 is above control limits [0.0000, 0.0000]"
       },
       {
         "metric": "rolling_success_rate",
-        "latest": 0.8333333333333334,
+        "latest": 0.9333333333333333,
         "ucl": 1,
         "lcl": 1,
         "severity": "high",
-        "message": "latest value 0.8333 is below control limits [1.0000, 1.0000]"
+        "message": "latest value 0.9333 is below control limits [1.0000, 1.0000]"
       }
     ],
     "model:gpt-5.3-codex": [
@@ -1028,19 +1028,19 @@
     "model:haiku": [
       {
         "metric": "rolling_avg_input_tokens",
-        "latest": 2517550.033333333,
-        "ucl": 1459.5026376866683,
-        "lcl": -539.1123937842292,
+        "latest": 1703233.5,
+        "ucl": 1444.6607387340189,
+        "lcl": -511.0243750976553,
         "severity": "high",
-        "message": "latest value 2517550.0333 is above control limits [-539.1124, 1459.5026]"
+        "message": "latest value 1703233.5000 is above control limits [-511.0244, 1444.6607]"
       },
       {
         "metric": "rolling_success_rate",
-        "latest": 0.8333333333333334,
+        "latest": 0.9,
         "ucl": 1,
         "lcl": 1,
         "severity": "high",
-        "message": "latest value 0.8333 is below control limits [1.0000, 1.0000]"
+        "message": "latest value 0.9000 is below control limits [1.0000, 1.0000]"
       }
     ],
     "model:unknown": [
@@ -1088,29 +1088,29 @@
     "provider:claude": [
       {
         "metric": "rolling_avg_input_tokens",
-        "latest": 2517550.033333333,
-        "ucl": 1459.5026376866683,
-        "lcl": -539.1123937842292,
+        "latest": 1703233.5,
+        "ucl": 1444.6607387340189,
+        "lcl": -511.0243750976553,
         "severity": "high",
-        "message": "latest value 2517550.0333 is above control limits [-539.1124, 1459.5026]"
+        "message": "latest value 1703233.5000 is above control limits [-511.0244, 1444.6607]"
       },
       {
         "metric": "rolling_success_rate",
-        "latest": 0.8333333333333334,
+        "latest": 0.9,
         "ucl": 1,
         "lcl": 1,
         "severity": "high",
-        "message": "latest value 0.8333 is below control limits [1.0000, 1.0000]"
+        "message": "latest value 0.9000 is below control limits [1.0000, 1.0000]"
       }
     ],
     "provider:openai": [
       {
         "metric": "rolling_success_rate",
-        "latest": 0.8333333333333334,
+        "latest": 0.9333333333333333,
         "ucl": 1,
         "lcl": 1,
         "severity": "high",
-        "message": "latest value 0.8333 is below control limits [1.0000, 1.0000]"
+        "message": "latest value 0.9333 is below control limits [1.0000, 1.0000]"
       }
     ],
     "provider:unknown": [
@@ -1162,57 +1162,41 @@
       "metric": "rolling_avg_cost_per_bead_usd",
       "rule": "nelson_rule_2",
       "direction": "above",
-      "run_length": 62,
-      "center_line": 0.5859049795167699,
-      "message": "latest 62 points are above center line 0.5859 (Nelson Rule 2)"
+      "run_length": 67,
+      "center_line": 0.589968130461182,
+      "message": "latest 67 points are above center line 0.5900 (Nelson Rule 2)"
     },
     {
       "metric": "rolling_avg_cost_usd",
       "rule": "nelson_rule_2",
       "direction": "above",
-      "run_length": 60,
-      "center_line": 0.5296724195906434,
-      "message": "latest 60 points are above center line 0.5297 (Nelson Rule 2)"
-    },
-    {
-      "metric": "rolling_avg_duration_ms",
-      "rule": "nelson_rule_2",
-      "direction": "above",
-      "run_length": 60,
-      "center_line": 258537.72514619882,
-      "message": "latest 60 points are above center line 258537.7251 (Nelson Rule 2)"
+      "run_length": 65,
+      "center_line": 0.5433081224431819,
+      "message": "latest 65 points are above center line 0.5433 (Nelson Rule 2)"
     },
     {
       "metric": "rolling_build_failure_rate",
       "rule": "nelson_rule_2",
       "direction": "below",
-      "run_length": 58,
-      "center_line": 0.005847953216374269,
-      "message": "latest 58 points are below center line 0.0058 (Nelson Rule 2)"
+      "run_length": 63,
+      "center_line": 0.005681818181818181,
+      "message": "latest 63 points are below center line 0.0057 (Nelson Rule 2)"
     },
     {
       "metric": "rolling_first_pass_success_rate",
       "rule": "nelson_rule_2",
       "direction": "above",
-      "run_length": 84,
-      "center_line": 0.3914230019493178,
-      "message": "latest 84 points are above center line 0.3914 (Nelson Rule 2)"
+      "run_length": 86,
+      "center_line": 0.4041666666666666,
+      "message": "latest 86 points are above center line 0.4042 (Nelson Rule 2)"
     },
     {
       "metric": "rolling_rework_rate",
       "rule": "nelson_rule_2",
       "direction": "below",
-      "run_length": 78,
-      "center_line": 0.5321637426900585,
-      "message": "latest 78 points are below center line 0.5322 (Nelson Rule 2)"
-    },
-    {
-      "metric": "rolling_success_rate",
-      "rule": "nelson_rule_2",
-      "direction": "below",
-      "run_length": 26,
-      "center_line": 0.8713450292397661,
-      "message": "latest 26 points are below center line 0.8713 (Nelson Rule 2)"
+      "run_length": 83,
+      "center_line": 0.5170454545454546,
+      "message": "latest 83 points are below center line 0.5170 (Nelson Rule 2)"
     }
   ]
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/experiment"
@@ -123,62 +124,59 @@ func TestEndToEndVerification_BanditConvergesOver100Iterations(t *testing.T) {
 	}
 }
 
-// TestEndToEndVerification_ExperimentsCommandWithFixtureData verifies that the
-// gromit experiments command works correctly with fixture data.
-func TestEndToEndVerification_ExperimentsCommandWithFixtureData(t *testing.T) {
+// TestEndToEndVerification_ExperimentsCommandExecutesAndOutputsTextReport verifies that
+// the experiments command executes and outputs a formatted text report with experiment
+// ID and variant details when given experiment definitions and state files.
+func TestEndToEndVerification_ExperimentsCommandExecutesAndOutputsTextReport(t *testing.T) {
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	experimentsDir := filepath.Join(gromitDir, "experiments")
+	stateDir := filepath.Join(gromitDir, "experiment-state")
 
 	if err := os.MkdirAll(experimentsDir, 0o755); err != nil {
 		t.Fatalf("failed to create experiments directory: %v", err)
 	}
-
-	// Create a fixture experiment YAML
-	fixtureExpYAML := `id: fixture-exp-1
-phase: validate
-description: Fixture experiment for testing
-created: 2026-02-25T00:00:00Z
-control:
-  id: control
-  template: PROMPT_validate.md
-variants:
-  - id: variant-test
-    template: PROMPT_validate_test.md
-`
-
-	expPath := filepath.Join(experimentsDir, "fixture-experiment.yaml")
-	if err := os.WriteFile(expPath, []byte(fixtureExpYAML), 0o644); err != nil {
-		t.Fatalf("failed to write fixture experiment file: %v", err)
-	}
-
-	// Create a fixture state file with bandit data
-	stateDir := filepath.Join(gromitDir, "experiment-state")
 	if err := os.MkdirAll(stateDir, 0o755); err != nil {
 		t.Fatalf("failed to create state directory: %v", err)
 	}
 
+	// Create experiment YAML
+	expYAML := `id: cli-test-exp
+phase: build
+description: CLI test experiment
+created: 2026-02-25T00:00:00Z
+control:
+  id: control
+  template: PROMPT_build.md
+variants:
+  - id: variant-v1
+    template: PROMPT_build_v1.md
+`
+	expPath := filepath.Join(experimentsDir, "cli-test-exp.yaml")
+	if err := os.WriteFile(expPath, []byte(expYAML), 0o644); err != nil {
+		t.Fatalf("failed to write experiment YAML: %v", err)
+	}
+
+	// Create state file with bandit data
 	stateData := map[string]interface{}{
-		"fixture-exp-1": map[string]interface{}{
+		"cli-test-exp": map[string]interface{}{
 			"control": map[string]interface{}{
-				"successes": 50,
+				"successes": 40,
 				"failures":  10,
 				"samples":   []interface{}{},
 			},
-			"variant-test": map[string]interface{}{
+			"variant-v1": map[string]interface{}{
 				"successes": 30,
 				"failures":  20,
 				"samples":   []interface{}{},
 			},
 		},
 	}
-
 	stateFile := filepath.Join(stateDir, "state.json")
 	stateBytes, err := json.MarshalIndent(stateData, "", "  ")
 	if err != nil {
 		t.Fatalf("failed to marshal state data: %v", err)
 	}
-
 	if err := os.WriteFile(stateFile, stateBytes, 0o644); err != nil {
 		t.Fatalf("failed to write state file: %v", err)
 	}
@@ -190,37 +188,44 @@ variants:
 experiment:
   experiments_dir: %s
 `, gromitDir, experimentsDir)
-
 	if err := os.WriteFile(configFile, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("failed to write config file: %v", err)
 	}
 
-	// Load experiments and verify they're parsed correctly
-	exps, err := experiment.LoadExperiments(experimentsDir)
+	// Change to tmpDir and set config path
+	origDir, err := os.Getwd()
 	if err != nil {
-		t.Fatalf("LoadExperiments failed: %v", err)
+		t.Fatalf("failed to get cwd: %v", err)
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		os.Chdir(origDir)
+	})
+
+	restore := configPath
+	defer func() { configPath = restore }()
+	configPath = configFile
+
+	// Execute experiments command and capture output
+	output := captureExperimentsStdout(t, func() {
+		rootCmd.SetArgs([]string{"experiments"})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("experiments command failed: %v", err)
+		}
+	})
+
+	// Verify output contains experiment ID
+	if !strings.Contains(output, "cli-test-exp") {
+		t.Errorf("expected output to contain 'cli-test-exp', got: %q", output)
 	}
 
-	if len(exps) != 1 {
-		t.Errorf("expected 1 experiment, got %d", len(exps))
+	// Verify output contains variant IDs
+	if !strings.Contains(output, "control") {
+		t.Errorf("expected output to contain 'control', got: %q", output)
 	}
-
-	if exps[0].ID != "fixture-exp-1" {
-		t.Errorf("expected experiment ID 'fixture-exp-1', got %q", exps[0].ID)
-	}
-
-	// Verify the state file exists and is valid JSON
-	loadedStateBytes, err := os.ReadFile(stateFile)
-	if err != nil {
-		t.Fatalf("failed to read state file: %v", err)
-	}
-
-	var loadedState map[string]interface{}
-	if err := json.Unmarshal(loadedStateBytes, &loadedState); err != nil {
-		t.Fatalf("failed to unmarshal state file: %v", err)
-	}
-
-	if _, hasExp := loadedState["fixture-exp-1"]; !hasExp {
-		t.Error("state file missing fixture-exp-1 data")
+	if !strings.Contains(output, "variant-v1") {
+		t.Errorf("expected output to contain 'variant-v1', got: %q", output)
 	}
 }
