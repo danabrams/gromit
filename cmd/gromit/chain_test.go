@@ -2,7 +2,9 @@ package main
 
 import (
 	"bufio"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -163,6 +165,38 @@ func TestExecGromitBinaryResolution(t *testing.T) {
 		t.Error("Binary resolution failed - both os.Executable() and os.Args[0] are empty")
 	}
 }
+
+func TestExecGromitExitErrorIsNil(t *testing.T) {
+	prevFactory := execCommandFactory
+	defer func() { execCommandFactory = prevFactory }()
+
+	execCommandFactory = func(name string, args ...string) execCommand {
+		return &testExecCommand{
+			run: func() error {
+				return &exec.ExitError{}
+			},
+		}
+	}
+
+	if err := execGromit("--help"); err != nil {
+		t.Fatalf("expected nil for ExitError, got %v", err)
+	}
+}
+
+type testExecCommand struct {
+	run func() error
+}
+
+func (c *testExecCommand) Run() error {
+	if c.run != nil {
+		return c.run()
+	}
+	return nil
+}
+
+func (c *testExecCommand) SetStdin(_ io.Reader)   {}
+func (c *testExecCommand) SetStdout(_ io.Writer) {}
+func (c *testExecCommand) SetStderr(_ io.Writer) {}
 
 func TestIsPlanDecomposed(t *testing.T) {
 	// Create temp directory for test files
