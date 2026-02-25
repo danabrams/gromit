@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -212,6 +213,78 @@ func TestDecomposeWorkflow_ProviderReturnsEmptyOutput(t *testing.T) {
 	if !strings.Contains(err.Error(), "provider returned empty output for decompose") {
 		t.Fatalf("Decompose() error = %v, want message about empty provider output", err)
 	}
+}
+
+func TestDecomposeWorkflow_CancelsWhenContextCanceledDuringProviderCall(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	planPath := filepath.Join(plansDir, "cancel-plan.md")
+	planContent := `---
+spec: cancel-plan
+created: 2026-02-01
+---
+
+# Cancel Plan
+
+- Task 1
+`
+	if err := os.WriteFile(planPath, []byte(planContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	blocker := make(chan struct{})
+	started := make(chan struct{})
+	mockClaude := &decomposeAcceptanceLLMClient{
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
+			close(started)
+			<-blocker
+			return &LLMRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output:   "[]",
+			}, nil
+		},
+	}
+
+	p := New(
+		&Deps{
+			LLMClient:  mockClaude,
+			BeadClient: &testBeadClient{},
+		},
+		&Paths{
+			PlansDir: plansDir,
+		},
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, err := p.Decompose(ctx, DecomposeInput{PlanName: "cancel-plan"})
+		done <- err
+	}()
+
+	select {
+	case <-started:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("provider Run was not invoked before cancellation")
+	}
+
+	cancel()
+
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("error = %v, want context cancellation", err)
+		}
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("Decompose did not exit promptly after context cancellation")
+	}
+
+	close(blocker)
 }
 
 func TestDecomposeWorkflow_DoesNotMarkPlanDecomposedWhenTaskCoverageIsIncomplete(t *testing.T) {
