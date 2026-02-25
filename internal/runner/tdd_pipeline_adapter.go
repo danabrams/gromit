@@ -54,7 +54,7 @@ func (a *TDDPipelineAdapter) RunCycles(ctx context.Context, b *bead.Bead, cfg *c
 
 	startTime := time.Now()
 	cycleErr := a.runner.tddOrchestrator.RunCycles(ctx, bc, coverageTracker, coverageCriteria)
-	durationMs := time.Since(startTime).Milliseconds()
+	durationMs := execute.DurationMsFromDuration(time.Since(startTime))
 
 	populateCoverageResult(bc, coverageTracker)
 	aggregateTDDPhaseMetricsToResult(bc)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
@@ -204,7 +205,7 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 	}
 	if result != nil {
 		out.Model = result.Model
-		out.DurationMs = result.Duration.Milliseconds()
+		out.DurationMs = DurationMsFromDuration(result.Duration)
 		out.CostUSD = result.CostUSD
 		out.InputTokens = result.InputTokens
 		out.OutputTokens = result.OutputTokens
@@ -217,6 +218,17 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 		out.CacheVersionMarker = result.CacheVersionMarker
 	}
 	return out, nil
+}
+
+// DurationMsFromDuration converts a time.Duration to milliseconds while ensuring that
+// any positive duration rounds up to at least 1ms so haiku iterations are not
+// recorded as 0ms.
+func DurationMsFromDuration(duration time.Duration) int64 {
+	ms := duration.Milliseconds()
+	if duration > 0 && ms == 0 {
+		return 1
+	}
+	return ms
 }
 
 func resolveBuildStrategy(cfg *config.Config, b *bead.Bead) string {
