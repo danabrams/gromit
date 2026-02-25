@@ -1016,3 +1016,30 @@ func TestClearMergedState_StateOnlyLeavesSessionDirIntact(t *testing.T) {
 		t.Fatalf("session dir should remain after state cleanup: %v", err)
 	}
 }
+
+type syncBarrier struct {
+	total int
+	count int
+	release chan struct{}
+	mu    sync.Mutex
+}
+
+func newSyncBarrier(total int) *syncBarrier {
+	if total <= 0 {
+		total = 1
+	}
+	return &syncBarrier{
+		total:   total,
+		release: make(chan struct{}),
+	}
+}
+
+func (b *syncBarrier) Wait() {
+	b.mu.Lock()
+	if b.count++; b.count == b.total {
+		close(b.release)
+	}
+	release := b.release
+	b.mu.Unlock()
+	<-release
+}
