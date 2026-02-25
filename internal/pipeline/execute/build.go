@@ -9,6 +9,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/experiment"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/provider"
 )
@@ -70,6 +71,7 @@ type Build struct {
 	renderer       PromptRenderer
 	output         io.Writer
 	tddCycleRunner TDDCycleRunner
+	experimentMgr  *experiment.Manager
 }
 
 // Compile-time check: *Build must implement pipeline.Stage.
@@ -89,6 +91,13 @@ func New(invoker Invoker, renderer PromptRenderer, output io.Writer) *Build {
 // Returns the receiver for fluent chaining.
 func (b *Build) WithTDDCycleRunner(runner TDDCycleRunner) *Build {
 	b.tddCycleRunner = runner
+	return b
+}
+
+// WithExperimentManager injects an ExperimentManager for variant selection.
+// Returns the receiver for fluent chaining.
+func (b *Build) WithExperimentManager(mgr *experiment.Manager) *Build {
+	b.experimentMgr = mgr
 	return b
 }
 

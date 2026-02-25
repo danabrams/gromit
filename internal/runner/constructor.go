@@ -78,6 +78,17 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		_, _ = fmt.Fprintf(output, "Warning: could not create status writer: %v\n", err)
 	}
 
+	// Load experiments early so they can be injected into stages
+	var experimentMgr *experiment.Manager
+	if cfg.Experiment.Enabled {
+		exps, err := experiment.LoadExperiments(cfg.Experiment.ExperimentsDir)
+		if err != nil {
+			_, _ = fmt.Fprintf(output, "Warning: could not load experiments: %v\n", err)
+		} else {
+			experimentMgr = experiment.NewManager(exps, filepath.Join(gromitDir, "experiment"))
+		}
+	}
+
 	renderer, err := prompt.NewRenderer(
 		cfg.Paths.Templates,
 		cfg.Paths.Specs,
@@ -142,6 +153,9 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 	)
 	if runner := optionalTDDCycleRunner(cfg, renderer, router, syncOut, costDefs); runner != nil {
 		buildStage.WithTDDCycleRunner(runner)
+	}
+	if experimentMgr != nil {
+		buildStage.WithExperimentManager(experimentMgr)
 	}
 
 	// Stage 3: Validate (validate.New with CommandRunner)
@@ -223,17 +237,6 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 	specProgressLabel := resolveSingleSpecProgressLabel(labels)
 	if statusWriter != nil {
 		statusWriter.SetScopeLabel(specProgressLabel)
-	}
-
-	// Load experiments if enabled
-	var experimentMgr *experiment.Manager
-	if cfg.Experiment.Enabled {
-		exps, err := experiment.LoadExperiments(cfg.Experiment.ExperimentsDir)
-		if err != nil {
-			_, _ = fmt.Fprintf(output, "Warning: could not load experiments: %v\n", err)
-		} else {
-			experimentMgr = experiment.NewManager(exps, filepath.Join(gromitDir, "experiment"))
-		}
 	}
 
 	orchCfg := OrchestratorConfig{
