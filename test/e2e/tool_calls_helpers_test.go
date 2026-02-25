@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/danabrams/gromit/test/testutil"
 )
 
 func TestApplyCodexFixtureEnvE2E_ProvidesAbsolutePath(t *testing.T) {
