@@ -1,0 +1,5 @@
+{"timestamp":"2026-02-25T10:00:01Z","iteration":1,"model":"","actual_tier":"low","input_tokens":300,"output_tokens":150,"cost_usd":0.375,"quality_score":1.0,"first_pass_success":true,"validated":false}
+{"timestamp":"2026-02-25T10:00:16Z","iteration":2,"model":"","actual_tier":"low","input_tokens":300,"output_tokens":150,"cost_usd":0.375,"quality_score":0.9,"first_pass_success":true,"validated":false}
+{"timestamp":"2026-02-25T10:00:31Z","iteration":3,"model":"","actual_tier":"low","input_tokens":300,"output_tokens":150,"cost_usd":0.375,"quality_score":0.9,"first_pass_success":true,"validated":false}
+{"timestamp":"2026-02-25T10:00:46Z","iteration":4,"model":"","actual_tier":"low","input_tokens":300,"output_tokens":150,"cost_usd":0.375,"quality_score":0.8,"first_pass_success":false,"validated":true}
+{"type":"review","review_type":"light","iteration":4,"passed":true,"fixes_applied":0,"beads_created":1,"backlog_created":0}

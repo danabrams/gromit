@@ -24,9 +24,9 @@
       "total_cost_usd": 1.5,
       "tier_totals": {
         "low": {
-          "input_tokens": 800,
-          "output_tokens": 400,
-          "cost_usd": 0.8
+          "input_tokens": 1200,
+          "output_tokens": 600,
+          "cost_usd": 1.5
         },
         "medium": {
           "input_tokens": 0,
@@ -46,7 +46,7 @@
         "review_fixes_applied": 0,
         "final_validation_passed": true
       },
-      "cost_quality_ratio": 1.67
+      "cost_quality_ratio": 1.666667
     }
   ],
   "winner_hints": {

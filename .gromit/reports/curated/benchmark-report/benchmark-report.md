@@ -12,7 +12,7 @@ Manifest: tdd-vs-single-pass
 
 | Mode | Tier | Input Tokens | Output Tokens | Cost USD |
 | --- | --- | ---: | ---: | ---: |
-| single_pass | low | 800 | 400 | 0.80 |
+| single_pass | low | 1200 | 600 | 1.50 |
 | single_pass | medium | 0 | 0 | 0.00 |
 | single_pass | high | 0 | 0 | 0.00 |
 
