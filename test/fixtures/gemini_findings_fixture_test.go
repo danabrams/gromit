@@ -36,6 +36,7 @@ func TestGeminiSpikeFindingsDocument_ContainsRequiredStructureAndRecommendations
 		"test/fixtures/gemini/json-success.json",
 		"test/fixtures/gemini/commands.log",
 		"test/fixtures/gemini/errors/command-missing.stderr.txt",
+		"test/fixtures/gemini/models/invalid-model.stderr.txt",
 	} {
 		if !strings.Contains(body, ref) {
 			t.Fatalf("findings document must reference %q", ref)
