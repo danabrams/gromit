@@ -59,7 +59,11 @@ for arg in "$@"; do
 done
 
 if [[ $jsonl_mode -eq 1 ]]; then
-    emit_jsonl_fixture "$fixture_file"
+    if [[ "${CODEX_RAW_JSONL:-}" == "1" ]]; then
+        cat "$fixture_file"
+    else
+        emit_jsonl_fixture "$fixture_file"
+    fi
 else
     cat "$fixture_file"
 fi

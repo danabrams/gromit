@@ -1,0 +1,4 @@
+# provenance: fixture for stream-json flag acceptance test; contains minimal events for handler verification.
+# refresh: keep this fixture deterministic so tests consistently exercise event parsing.
+{"type":"item.completed","item":{"type":"agent_message","text":"json flag response"}}
+{"type":"turn.completed","usage":{"input_tokens":7,"output_tokens":3}}

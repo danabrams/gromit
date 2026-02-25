@@ -26,7 +26,7 @@ func TestCodexProviderStreamRunWithJSONFlag(t *testing.T) {
 	callLog := filepath.Join(t.TempDir(), "codex_call_log.txt")
 	t.Setenv("TEST_CALL_LOG", callLog)
 	t.Setenv("CODEX_RAW_JSONL", "1")
-	fixture := codexFixturePath(t, "codex_stream_success.jsonl")
+	fixture := codexFixturePath(t, "codex_stream_json_flag.jsonl")
 	t.Setenv("CODEX_FIXTURE", fixture)
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
@@ -641,4 +641,25 @@ func fakeCodexBinaryPath(t *testing.T) string {
 	}
 
 	return path
+}
+
+func codexFixturePath(t *testing.T, fixtureName string) string {
+	t.Helper()
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getting working directory: %v", err)
+	}
+
+	ctx, err := testutil.ResolveTaggedHarnessContext(wd)
+	if err != nil {
+		t.Fatalf("resolve tagged harness context: %v", err)
+	}
+
+	fixturePath := filepath.Join(ctx.FixturesDir, fixtureName)
+	if _, err := os.Stat(fixturePath); err != nil {
+		t.Fatalf("fixture %s not found: %v", fixturePath, err)
+	}
+
+	return fixturePath
 }
