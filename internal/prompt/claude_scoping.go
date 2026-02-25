@@ -247,9 +247,12 @@ func readPackageSynopsis(pkg *ast.Package) string {
 		return ""
 	}
 
-	if file, ok := pkg.Files["doc.go"]; ok && file != nil {
-		if synopsis := commentSynopsis(file.Doc); synopsis != "" {
-			return synopsis
+	// Fast-path: check for doc.go file
+	for fileName, file := range pkg.Files {
+		if file != nil && filepath.Base(fileName) == "doc.go" {
+			if synopsis := commentSynopsis(file.Doc); synopsis != "" {
+				return synopsis
+			}
 		}
 	}
 
