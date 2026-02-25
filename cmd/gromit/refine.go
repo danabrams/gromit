@@ -159,7 +159,7 @@ func determineRefineInput(cmd *cobra.Command, args []string, gromitDir string) (
 	// One arg: backlog ID or ad-hoc text
 	arg := args[0]
 	if strings.HasPrefix(arg, "idea-") {
-		return &pipeline.RefineInput{IdeaID: arg, AgentName: agentFlag}, nil
+		return &pipeline.RefineInput{IdeaID: arg, AgentName: agentFlag, ChooseAgent: chooseAgent}, nil
 	}
 	return &pipeline.RefineInput{IdeaText: arg, AgentName: agentFlag, ChooseAgent: chooseAgent}, nil
 }
