@@ -646,7 +646,19 @@ func TestBenchmarkRunCommand_ReportInputMatchesCanonicalBuilder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load manifest: %v", err)
 	}
-	expected := buildBenchmarkReportInput(loadedManifest, harnessResult, metrics, opts)
+	// Use the internal BuildReportInput exclusively - this is the single source of truth for report input
+	expected := benchpkg.BuildReportInput(
+		loadedManifest.ID,
+		harnessResult.BaseCommit,
+		harnessResult.SelectedBeads,
+		loadedManifest.Provider,
+		loadedManifest.ModelFamily,
+		loadedManifest.LowTierModel,
+		loadedManifest.MediumTierModel,
+		loadedManifest.HighTierModel,
+		metrics.ModeSummaries,
+		opts.OutputTimestamp,
+	)
 	if !reflect.DeepEqual(expected, capturedInput) {
 		t.Fatalf("report input mismatch\nexpected: %+v\nactual: %+v", expected, capturedInput)
 	}
