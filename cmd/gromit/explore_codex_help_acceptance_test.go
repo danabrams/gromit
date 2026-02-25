@@ -34,8 +34,9 @@ func TestCmdSmoke_ExploreAgentSelectionEndToEnd(t *testing.T) {
 	if strings.Contains(stderr, "unknown flag") {
 		t.Fatalf("unexpected flag error: %s", stderr)
 	}
-	if !strings.Contains(stdout, exploreAgentOverrideFlag) {
-		t.Fatalf("expected explore output to include override flag %q, got: %s", exploreAgentOverrideFlag, stdout)
+	const overrideFlag = "--from-override"
+	if !strings.Contains(stdout, overrideFlag) {
+		t.Fatalf("expected explore output to include override flag %q, got: %s", overrideFlag, stdout)
 	}
 	if !strings.Contains(stdout, "--prompt") {
 		t.Fatalf("expected explore output to include --prompt, got: %s", stdout)

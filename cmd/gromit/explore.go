@@ -43,8 +43,6 @@ var exploreRunInDirFn = runInDir
 const exploreCodexHelpExample = `  gromit explore --agent codex "Audit onboarding flow" # Use Codex for the session`
 const exploreChooseAgentHelpExample = `  gromit explore --choose-agent "Audit onboarding flow" # Pick an agent interactively`
 const exploreAgentSelectionHelpSentence = "Agent selection priority: --agent, --choose-agent, agents.phases.explore, then the configured default agent."
-const exploreAgentOverrideFlag = "--from-override"
-const explorePhaseConfigFlag = "--from-phase-config"
 const exploreAgentFlagName = "agent"
 const exploreChooseAgentFlagName = "choose-agent"
 const (
