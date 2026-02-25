@@ -720,3 +720,60 @@ func TestBuildRunRefactorFn_ReturnsErrorWhenProviderResultIsUnsuccessful(t *test
 		t.Fatalf("buildRunRefactorFn() error = %q, want unsuccessful result context", err)
 	}
 }
+
+// TestTDDCycleOrchestrator_RecordsRedPhaseMetricsWithSnapshotDeltas verifies
+// that red phase invocations record PhaseMetric with cost/token deltas computed
+// from before/after snapshots, not raw usage values from the provider response.
+func TestTDDCycleOrchestrator_RecordsRedPhaseMetricsWithSnapshotDeltas(t *testing.T) {
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{ID: "b1", Title: "Test"},
+		Tier: "medium",
+		Model: "claude-sonnet",
+		Result: &runtypes.IterationResult{
+			CostUSD:      0.01,   // Starting cost
+			InputTokens:  100,    // Starting tokens
+			OutputTokens: 50,     // Starting tokens
+		},
+	}
+
+	// Simulate red phase: capture before snapshot, update result, record metric
+	beforeCostUSD := bc.Result.CostUSD
+	beforeInputTokens := bc.Result.InputTokens
+	beforeOutputTokens := bc.Result.OutputTokens
+
+	// Provider returns additional usage during red phase invocation
+	bc.Result.CostUSD += 0.05      // Provider adds cost
+	bc.Result.InputTokens += 500   // Provider adds input tokens
+	bc.Result.OutputTokens += 250  // Provider adds output tokens
+
+	// Record metric with snapshot-based deltas (as would happen in real execution)
+	appendTDDPhaseMetric(bc, "red", 1, beforeCostUSD, beforeInputTokens, beforeOutputTokens, time.Now())
+
+	// Verify that red phase metrics are recorded with correct deltas
+	if len(bc.Result.PhaseMetrics) != 1 {
+		t.Fatalf("expected 1 recorded metric, got %d", len(bc.Result.PhaseMetrics))
+	}
+
+	redMetric := bc.Result.PhaseMetrics[0]
+	if redMetric.Phase != "red" {
+		t.Errorf("Phase = %q, want %q", redMetric.Phase, "red")
+	}
+
+	// Verify delta calculation
+	// Before snapshot: Cost=0.01, Input=100, Output=50
+	// After update: Cost=0.06, Input=600, Output=300
+	// Delta: Cost=0.05, Input=500, Output=250
+	wantCostDelta := 0.05
+	wantInputDelta := 500
+	wantOutputDelta := 250
+
+	if math.Abs(redMetric.CostUSD-wantCostDelta) > 1e-10 {
+		t.Errorf("CostUSD delta = %.20f, want %.20f", redMetric.CostUSD, wantCostDelta)
+	}
+	if redMetric.InputTokens != wantInputDelta {
+		t.Errorf("InputTokens delta = %d, want %d", redMetric.InputTokens, wantInputDelta)
+	}
+	if redMetric.OutputTokens != wantOutputDelta {
+		t.Errorf("OutputTokens delta = %d, want %d", redMetric.OutputTokens, wantOutputDelta)
+	}
+}

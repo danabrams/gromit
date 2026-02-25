@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
@@ -44,6 +45,9 @@ type RestoreTestFilesFn func(testFiles []string) error
 // LogPhaseFn logs TDD phase transitions for observability.
 type LogPhaseFn func(cycle int, phase string, detail string)
 
+// RecordPhaseMetricFn records per-invocation phase metrics with snapshot-based deltas.
+type RecordPhaseMetricFn func(bc *runtypes.BeadContext, phase string, cycleNumber int, beforeCostUSD float64, beforeInputTokens int, beforeOutputTokens int, startTime time.Time)
+
 type refactorOutcome string
 
 const (
@@ -76,6 +80,7 @@ type CycleOrchestrator struct {
 	listChangedFilesFn   ListChangedFilesFn
 	restoreTestFilesFn   RestoreTestFilesFn
 	logPhaseFn           LogPhaseFn
+	recordPhaseMetricFn  RecordPhaseMetricFn
 	output               io.Writer
 	cfg                  *config.Config
 }
@@ -95,6 +100,7 @@ type CycleOrchestratorDeps struct {
 	ListChangedFilesFn   ListChangedFilesFn
 	RestoreTestFilesFn   RestoreTestFilesFn
 	LogPhaseFn           LogPhaseFn
+	RecordPhaseMetricFn  RecordPhaseMetricFn
 }
 
 // NewCycleOrchestrator creates a TDD cycle orchestrator with injected callbacks.
@@ -113,6 +119,7 @@ func NewCycleOrchestrator(cfg *config.Config, output io.Writer, deps CycleOrches
 		listChangedFilesFn:   deps.ListChangedFilesFn,
 		restoreTestFilesFn:   deps.RestoreTestFilesFn,
 		logPhaseFn:           deps.LogPhaseFn,
+		recordPhaseMetricFn:  deps.RecordPhaseMetricFn,
 		output:               output,
 		cfg:                  cfg,
 	}
@@ -198,9 +205,16 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 		return fmt.Errorf("red prompt render: %w", err)
 	}
 
+	// Take snapshot before red phase invocation
+	beforeRedCostUSD, beforeRedInputTokens, beforeRedOutputTokens := o.snapshotUsage(bc)
+	redStartTime := time.Now()
+
 	if err := o.runPhaseInvocation(ctx, bc, redPrompt, "red"); err != nil {
 		return err
 	}
+
+	// Record red phase metrics with snapshot-based deltas
+	o.recordPhaseMetric(bc, "red", state.CycleNumber+1, beforeRedCostUSD, beforeRedInputTokens, beforeRedOutputTokens, redStartTime)
 
 	// Discover files touched by the red phase so the green handoff includes them.
 	o.updateTouchedFiles(state)
@@ -405,4 +419,19 @@ func (o *CycleOrchestrator) runFinalValidation(ctx context.Context) error {
 		return fmt.Errorf("final validation failed: tests failing after refactor phase")
 	}
 	return nil
+}
+
+// snapshotUsage returns the current usage snapshot from the BeadContext result.
+func (o *CycleOrchestrator) snapshotUsage(bc *runtypes.BeadContext) (costUSD float64, inputTokens int, outputTokens int) {
+	if bc == nil || bc.Result == nil {
+		return 0, 0, 0
+	}
+	return bc.Result.CostUSD, bc.Result.InputTokens, bc.Result.OutputTokens
+}
+
+// recordPhaseMetric records a phase metric with snapshot-based deltas.
+func (o *CycleOrchestrator) recordPhaseMetric(bc *runtypes.BeadContext, phase string, cycleNumber int, beforeCostUSD float64, beforeInputTokens int, beforeOutputTokens int, startTime time.Time) {
+	if o.recordPhaseMetricFn != nil {
+		o.recordPhaseMetricFn(bc, phase, cycleNumber, beforeCostUSD, beforeInputTokens, beforeOutputTokens, startTime)
+	}
 }

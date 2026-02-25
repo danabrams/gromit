@@ -171,8 +171,18 @@ if [[ $stream_json -eq 1 ]]; then
     # Emit assistant event with text content
     echo "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":$escaped_content}]}}"
 
-    # Emit result event with the same content
-    echo "{\"type\":\"result\",\"result\":$escaped_content}"
+    # Emit result event with the fixture content and optional cost/token metadata
+    result_event="{\"type\":\"result\",\"result\":$escaped_content"
+    if [[ -n "${CLAUDE_INPUT_TOKENS:-}" ]] || [[ -n "${CLAUDE_OUTPUT_TOKENS:-}" ]] || [[ -n "${CLAUDE_COST_USD:-}" ]]; then
+        input_tokens="${CLAUDE_INPUT_TOKENS:-0}"
+        output_tokens="${CLAUDE_OUTPUT_TOKENS:-0}"
+        cost_usd="${CLAUDE_COST_USD:-0}"
+        result_event+=",\"total_cost_usd\":$cost_usd"
+        result_event+=",\"input_tokens\":$input_tokens"
+        result_event+=",\"output_tokens\":$output_tokens"
+    fi
+    result_event+="}"
+    echo "$result_event"
 else
     # Plain mode: just output the fixture content directly
     cat "$fixture_file"

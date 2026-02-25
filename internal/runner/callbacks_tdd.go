@@ -38,6 +38,9 @@ func buildTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *
 		LogPhaseFn: func(cycle int, phase, detail string) {
 			_, _ = fmt.Fprintf(output, "  [tdd] cycle %d %s: %s\n", cycle, phase, detail)
 		},
+		RecordPhaseMetricFn: func(bc *runtypes.BeadContext, phase string, cycleNumber int, beforeCostUSD float64, beforeInputTokens int, beforeOutputTokens int, startTime time.Time) {
+			appendTDDPhaseMetric(bc, phase, cycleNumber, beforeCostUSD, beforeInputTokens, beforeOutputTokens, startTime)
+		},
 	})
 
 	// layer3Invoke wraps the router to provide the invoke signature that
