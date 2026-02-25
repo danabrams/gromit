@@ -130,3 +130,52 @@ func contains(s, substr string) bool {
 	}
 	return false
 }
+
+func TestGenerateReportLoadsStateAndBuildsReport(t *testing.T) {
+	// Verify that GenerateReport loads bandit state and builds variant reports
+	stateDir := t.TempDir()
+
+	// Create a bandit state with some data
+	state := &BanditState{
+		Arms: []ArmState{
+			{ID: "control", Successes: 10, Failures: 2},
+			{ID: "variant-1", Successes: 15, Failures: 1},
+		},
+	}
+
+	// Save the state
+	if err := SaveState(stateDir, "exp-1", state); err != nil {
+		t.Fatalf("SaveState error: %v", err)
+	}
+
+	// Create experiment
+	exp := &Experiment{
+		ID:    "exp-1",
+		Phase: "build",
+		Control: &Variant{
+			ID: "control",
+		},
+		Variants: []*Variant{
+			{ID: "variant-1"},
+		},
+		Created: time.Now(),
+	}
+
+	// Generate report
+	report, err := GenerateReport([]*Experiment{exp}, stateDir)
+	if err != nil {
+		t.Fatalf("GenerateReport error: %v", err)
+	}
+
+	if report == nil {
+		t.Fatalf("expected non-nil report")
+	}
+
+	if report.ExperimentID != "exp-1" {
+		t.Fatalf("expected experiment ID exp-1, got %q", report.ExperimentID)
+	}
+
+	if len(report.VariantReports) == 0 {
+		t.Fatalf("expected variant reports, got none")
+	}
+}
