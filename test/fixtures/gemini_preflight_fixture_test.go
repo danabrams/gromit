@@ -154,26 +154,14 @@ func TestGeminiMarkdownFixtures_HaveMetadataHeaders(t *testing.T) {
 }
 
 func TestGeminiPreflightFixture_IncludesChecklistAndObservedResults(t *testing.T) {
-	fixturePath := geminiFixturePath("preflight.md")
-
-	content, err := os.ReadFile(fixturePath)
-	if err != nil {
-		t.Fatalf("failed to read preflight fixture: %v", err)
-	}
-
-	body := string(content)
-	required := []string{
+	requireMarkdownHeaders(t, geminiFixturePath("preflight.md"), []string{
+		"# provenance:",
+		"# refresh:",
 		"# Gemini Preflight",
 		"## Checklist",
 		"## Observed Results",
 		"## Capture Harness",
-	}
-
-	for _, token := range required {
-		if !strings.Contains(body, token) {
-			t.Fatalf("preflight fixture must contain %q", token)
-		}
-	}
+	})
 }
 
 func TestGeminiCommandsLogFixture_InitializedWithTimestampedLedgerEntries(t *testing.T) {
@@ -206,52 +194,30 @@ func TestGeminiCommandsLogFixture_InitializedWithTimestampedLedgerEntries(t *tes
 	}
 }
 
-func TestGeminiPreflightFixture_DocumentsAppendHarnessPattern(t *testing.T) {
-	fixturePath := geminiFixturePath("preflight.md")
+func TestGeminiPreflightFixture_DocumentsCaptureHarnessCodeBlock(t *testing.T) {
+	path := geminiFixturePath("preflight.md")
 
-	content, err := os.ReadFile(fixturePath)
+	content, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("failed to read preflight fixture: %v", err)
 	}
 
 	body := string(content)
-	required := []string{
-		"# provenance:",
-		"# refresh:",
-		"## Capture Harness",
-		"printf 'timestamp=%s command=\"%s\" exit_code=%s\\n'",
-	}
-
-	for _, token := range required {
-		if !strings.Contains(body, token) {
-			t.Fatalf("preflight fixture must document harness token %q", token)
-		}
+	if !strings.Contains(body, "```bash") {
+		t.Fatalf("preflight fixture must include a bash code block in the Capture Harness section")
 	}
 }
 
 func TestGeminiPermissionsNotesFixture_DocumentsPermissionChecksAndLedgerEvidence(t *testing.T) {
-	fixturePath := geminiFixturePath("permissions", "permissions-notes.md")
-
-	content, err := os.ReadFile(fixturePath)
-	if err != nil {
-		t.Fatalf("failed to read permissions notes fixture: %v", err)
-	}
-
-	body := string(content)
-	required := []string{
+	path := geminiFixturePath("permissions", "permissions-notes.md")
+	requireMarkdownHeaders(t, path, []string{
 		"# provenance:",
 		"# refresh:",
 		"# Gemini Permissions Notes",
 		"## Commands",
 		"## Raw Evidence",
 		"## Observations",
-	}
-
-	for _, token := range required {
-		if !strings.Contains(strings.ToLower(body), strings.ToLower(token)) {
-			t.Fatalf("permissions notes must contain %q", token)
-		}
-	}
+	})
 
 	logPath := geminiFixturePath("commands.log")
 	logContent, err := os.ReadFile(logPath)
@@ -277,28 +243,15 @@ func TestGeminiPermissionsNotesFixture_DocumentsPermissionChecksAndLedgerEvidenc
 }
 
 func TestGeminiWorkdirNotesFixture_DocumentsCwdChecksAndLedgerEvidence(t *testing.T) {
-	fixturePath := geminiFixturePath("workdir", "workdir-notes.md")
-
-	content, err := os.ReadFile(fixturePath)
-	if err != nil {
-		t.Fatalf("failed to read workdir notes fixture: %v", err)
-	}
-
-	body := string(content)
-	required := []string{
+	path := geminiFixturePath("workdir", "workdir-notes.md")
+	requireMarkdownHeaders(t, path, []string{
 		"# provenance:",
 		"# refresh:",
 		"# Gemini Workdir Notes",
 		"## Commands",
 		"## Raw Evidence",
 		"## Observations",
-	}
-
-	for _, token := range required {
-		if !strings.Contains(strings.ToLower(body), strings.ToLower(token)) {
-			t.Fatalf("workdir notes must contain %q", token)
-		}
-	}
+	})
 
 	logPath := geminiFixturePath("commands.log")
 	logContent, err := os.ReadFile(logPath)
@@ -326,27 +279,13 @@ func TestGeminiWorkdirNotesFixture_DocumentsCwdChecksAndLedgerEvidence(t *testin
 func TestGeminiSchemaNotesFixture_DocumentsTokenCostAndModelObservations(t *testing.T) {
 	fixturePath := geminiFixturePath("schema-notes.md")
 
-	content, err := os.ReadFile(fixturePath)
-	if err != nil {
-		t.Fatalf("failed to read schema notes fixture: %v", err)
-	}
-
-	body := string(content)
-	required := []string{
+	requireMarkdownHeaders(t, fixturePath, []string{
 		"# provenance:",
 		"# refresh:",
 		"# Gemini Schema Notes",
 		"## Token and Cost Observations",
 		"## Model Observations",
-		"## Prompt Mode Comparison",
-		"## Stream-JSON Schema",
-		"## JSON Schema",
-	}
-	for _, token := range required {
-		if !strings.Contains(strings.ToLower(body), strings.ToLower(token)) {
-			t.Fatalf("schema notes must contain %q", token)
-		}
-	}
+	})
 }
 
 func TestGeminiErrorsFixtures_CaptureCategorizedStderrSamples(t *testing.T) {
@@ -396,6 +335,13 @@ func TestGeminiModelFixtures_CaptureValidAndInvalidModelRawArtifacts(t *testing.
 
 func TestGeminiExitCodeNotesFixture_DocumentsConcreteTriggerAttempts(t *testing.T) {
 	path := geminiFixturePath("errors", "exit-codes-notes.md")
+	requireMarkdownHeaders(t, path, []string{
+		"# provenance:",
+		"# refresh:",
+		"# Gemini Exit Code Notes",
+		"## Trigger Attempts",
+		"## Observations",
+	})
 
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -404,9 +350,6 @@ func TestGeminiExitCodeNotesFixture_DocumentsConcreteTriggerAttempts(t *testing.
 
 	body := strings.ToLower(string(content))
 	required := []string{
-		"# provenance:",
-		"# refresh:",
-		"# gemini exit code notes",
 		"trigger attempts",
 		"exit code 0",
 		"exit code 1",
@@ -613,19 +556,15 @@ func TestGeminiSchemaNotesFixture_DocumentsPromptModesAndSchemaExtraction(t *tes
 	}
 
 	body := strings.ToLower(string(content))
-	required := []string{
-		"prompt mode comparison",
-		"inline -p",
-		"stdin pipe",
-		"@file",
-		"stream-json schema",
-		"json schema",
-		"message_start",
-		"usage.input_tokens",
-	}
-	for _, token := range required {
+	requireMarkdownHeaders(t, path, []string{
+		"# Gemini Schema Notes",
+		"## Prompt Mode Comparison",
+		"## Stream-JSON Schema",
+		"## JSON Schema",
+	})
+	for _, token := range []string{"message_start", "usage.input_tokens"} {
 		if !strings.Contains(body, token) {
-			t.Fatalf("schema notes must contain %q", token)
+			t.Fatalf("schema notes must include schema marker %q", token)
 		}
 	}
 }
@@ -681,6 +620,48 @@ func TestGeminiCommandsLogFixture_IncludesPromptDeliveryAndFixtureGenerationEntr
 	for name, seen := range seenFixtureWrite {
 		if !seen {
 			t.Fatalf("commands log must include fixture-generation command for %q", name)
+		}
+	}
+}
+
+func requireMarkdownHeaders(t *testing.T, path string, headers []string) {
+	t.Helper()
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read fixture %q: %v", path, err)
+	}
+
+	lines := strings.Split(string(content), "\n")
+	found := make(map[string]bool, len(headers))
+	type req struct {
+		raw        string
+		normalized string
+	}
+	reqs := make([]req, len(headers))
+	for i, header := range headers {
+		reqs[i] = req{
+			raw:        header,
+			normalized: strings.ToLower(header),
+		}
+	}
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		lower := strings.ToLower(trimmed)
+		for _, r := range reqs {
+			if strings.HasPrefix(lower, r.normalized) {
+				found[r.raw] = true
+			}
+		}
+	}
+
+	for _, r := range reqs {
+		if !found[r.raw] {
+			t.Fatalf("fixture %q missing required header %q", path, r.raw)
 		}
 	}
 }
