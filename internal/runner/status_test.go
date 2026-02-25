@@ -429,6 +429,30 @@ func TestPrintStatus_ReadsSPCFromMetricsDirectory(t *testing.T) {
 	}
 }
 
+func TestPrintStatus_SPCOnlySkipsDefaultSections(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	cfg := &config.Config{}
+	var buf strings.Builder
+	if err := PrintStatus(gromitDir, cfg, &buf, nil, true); err != nil {
+		t.Fatalf("PrintStatus: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "SPC:") {
+		t.Fatalf("PrintStatus SPC-only output missing SPC section; got:\n%s", output)
+	}
+	for _, section := range []string{"Run:", "Pipeline:", "Health:", "Model Performance:", "Compatibility:", "Next action:"} {
+		if strings.Contains(output, section) {
+			t.Fatalf("expected SPC-only view to skip %q section, got:\n%s", section, output)
+		}
+	}
+}
+
 // TestPrintStatus_StalePIDWarnsAndDeletesFile verifies that when status.json
 // says running:true but the processChecker reports the PID as dead, PrintStatus
 // outputs a stale-run warning with bead details, prints a removal message, and
