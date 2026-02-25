@@ -300,3 +300,10 @@ session:
 #   max_cycles: 3              # Max validation cycles before giving up (default: 3)
 #   model: sonnet              # Model to use for spec validation (default: sonnet)
 #   auto_trigger: true         # Trigger spec gate automatically before work (default: true)
+
+# Experiments - A/B testing configuration for variant selection
+# experiment:
+#   enabled: false             # Enable experiments (default: false)
+#   min_sample_size: 20        # Minimum samples before convergence analysis (default: 20)
+#   confidence_threshold: 0.95 # Confidence threshold for declaring convergence (0-1, default: 0.95)
+#   experiments_dir: ".gromit/experiments"  # Directory containing experiment definitions
