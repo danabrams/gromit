@@ -160,11 +160,14 @@ func setupE2E(t *testing.T) *e2eEnv {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	t.Cleanup(func() {
-		// Clean up any claude fail-once state files before removing the directory
-		testutil.CleanupClaudeFailOnceStateFiles(tmpDir)
-		os.RemoveAll(tmpDir)
-	})
+	if os.Getenv("KEEP_E2E_DIR") == "" {
+		t.Cleanup(func() {
+			// Clean up any claude fail-once state files before removing the directory
+			testutil.CleanupClaudeFailOnceStateFiles(tmpDir)
+			os.RemoveAll(tmpDir)
+		})
+	}
+	t.Logf("E2E temp dir: %s", tmpDir)
 
 	// Copy scaffold to temp directory
 	if err := copyScaffold(scaffoldDir, tmpDir); err != nil {
@@ -1080,6 +1083,9 @@ func TestE2E_LowTierHaikuRoutingRegression(t *testing.T) {
 	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE", buildFixture)
 	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE_HAIKU", validateFixture)
 	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE_SONNET", validateFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_INPUT_TOKENS", "400")
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_OUTPUT_TOKENS", "120")
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_COST_USD", "0.05")
 
 	stdout, stderr, exitCode, err := runGromit(env, "run", "-n", "1")
 	if err != nil {
@@ -1105,5 +1111,56 @@ func TestE2E_LowTierHaikuRoutingRegression(t *testing.T) {
 	}
 	if !strings.Contains(strings.ToLower(entry.Model), "haiku") {
 		t.Fatalf("Expected model to reference haiku, got %q", entry.Model)
+	}
+	if entry.CostUSD <= 0 {
+		t.Fatalf("Expected CostUSD > 0, got %f", entry.CostUSD)
+	}
+	if entry.InputTokens <= 0 || entry.OutputTokens <= 0 {
+		t.Fatalf("Expected positive token counts, got in=%d out=%d", entry.InputTokens, entry.OutputTokens)
+	}
+}
+
+// TestE2E_LowTierHaikuIterationMetricsRegression ensures the haiku tier's iteration
+// metrics entry records a positive duration and routes to the haiku model.
+func TestE2E_LowTierHaikuIterationMetricsRegression(t *testing.T) {
+	env := setupE2E(t)
+	beadID := "test-low-tier-haiku-metric"
+	if err := createBead(env, beadID, "Add unit tests for low-tier metrics", "Regression bead for haiku metrics", 0, []string{"complexity:low"}); err != nil {
+		t.Fatalf("Failed to create bead: %v", err)
+	}
+
+	buildFixture := filepath.Join(fixturesDir, "claude_build_success.txt")
+	validateFixture := filepath.Join(fixturesDir, "claude_validate_success.txt")
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE", buildFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE_HAIKU", validateFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE_SONNET", validateFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_INPUT_TOKENS", "400")
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_OUTPUT_TOKENS", "120")
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_COST_USD", "0.05")
+
+	stdout, stderr, exitCode, err := runGromit(env, "run", "-n", "1")
+	if err != nil {
+		t.Fatalf("Failed to run gromit: %v", err)
+	}
+
+	t.Logf("Exit code: %d", exitCode)
+	t.Logf("Stdout:\n%s", stdout)
+	t.Logf("Stderr:\n%s", stderr)
+
+	if exitCode != 0 {
+		t.Fatalf("Expected exit code 0, got %d", exitCode)
+	}
+
+	metricsDir := filepath.Join(env.Dir, ".gromit", "metrics")
+	entry, err := testutil.FindIterationMetricForBead(metricsDir, beadID)
+	if err != nil {
+		t.Fatalf("Failed to find iteration metric for bead %s: %v", beadID, err)
+	}
+
+	if entry.DurationMs <= 0 {
+		t.Fatalf("Expected DurationMs > 0 in metrics, got %d", entry.DurationMs)
+	}
+	if !strings.Contains(strings.ToLower(entry.Model), "haiku") {
+		t.Fatalf("Expected haiku model in metrics, got %q", entry.Model)
 	}
 }
