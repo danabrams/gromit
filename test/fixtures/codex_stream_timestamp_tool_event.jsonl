@@ -1,0 +1,4 @@
+# provenance: fixture for timestamped tool events acceptance test.
+# refresh: keep command string consistent for deterministic expectations.
+{"type":"item.started","item":{"type":"command_execution","command":"go test"}}
+{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}
