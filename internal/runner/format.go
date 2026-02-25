@@ -341,6 +341,11 @@ func formatSPCSummary(trend *logger.ProcessTrend) string {
 		lines = append(lines, ewmaLines...)
 	}
 
+	// Nelson rule violations.
+	if nelsonLines := formatSPCNelsonViolations(trend.PatternViolations); len(nelsonLines) > 0 {
+		lines = append(lines, nelsonLines...)
+	}
+
 	// Anomaly summary.
 	if len(trend.Anomalies) == 0 {
 		lines = append(lines, "  Anomaly:  none")
@@ -428,6 +433,19 @@ func formatSPCEconomicMetrics(window logger.ProcessTrendWindow) []string {
 	if window.AvgDurationMs > 0 {
 		lines = append(lines, fmt.Sprintf("    avg duration %s", formatDuration(time.Duration(window.AvgDurationMs)*time.Millisecond)))
 	}
+	return lines
+}
+
+func formatSPCNelsonViolations(violations []logger.PatternViolation) []string {
+	if len(violations) == 0 {
+		return nil
+	}
+
+	lines := []string{"  Nelson rule violations:"}
+	for _, v := range violations {
+		lines = append(lines, fmt.Sprintf("    %s (%s): %s", simplifySPCMetric(v.Metric), v.Rule, v.Message))
+	}
+
 	return lines
 }
 
