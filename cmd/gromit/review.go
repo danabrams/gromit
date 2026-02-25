@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -601,34 +600,6 @@ func recordInteractiveReviewCompletion(gromitDir, fromCommit string) error {
 		return fmt.Errorf("recording review completion: %w", err)
 	}
 	return nil
-}
-
-// cliPromptRenderer adapts prompt.Renderer to pipeline.ReviewRenderer interface
-// It loads ClaudeMD and Rules before rendering
-type cliPromptRenderer struct {
-	renderer *prompt.Renderer
-}
-
-var _ pipeline.ReviewRenderer = (*cliPromptRenderer)(nil)
-
-func (r *cliPromptRenderer) RenderThoroughReview(input *pipeline.ThoroughReviewPromptInput) (string, error) {
-	// Build ThoroughReviewContext from pipeline input
-	reviewCtx := &prompt.ThoroughReviewContext{
-		Diff: input.Diff,
-	}
-
-	// Load ClaudeMD and Rules (warnings only)
-	var err error
-	reviewCtx.ClaudeMD, err = r.renderer.LoadClaudeMD()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: could not load CLAUDE.md: %v\n", err)
-	}
-	reviewCtx.Rules, err = r.renderer.LoadRules()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: could not load rules: %v\n", err)
-	}
-
-	return r.renderer.RenderThoroughReview(reviewCtx)
 }
 
 // cliBacklogClient adapts bead operations to pipeline.BacklogClient interface
