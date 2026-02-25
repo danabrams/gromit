@@ -146,123 +146,25 @@ func ReadStatusWithDeps(gromitDir, specsDir, plansDir string, startedAt *time.Ti
 
 // ReadStatus reads pipeline state from gromit data sources and returns structured status
 func ReadStatus(gromitDir, specsDir, plansDir string, startedAt *time.Time) (*PipelineStatus, error) {
-	status := &PipelineStatus{
-		UnrefinedIdeas:    []string{},
-		UnplannedSpecs:    []string{},
-		UndecomposedPlans: []string{},
-		ReadyBeads:        []string{},
-	}
-
-	// Read backlog for unrefined ideas
+	// Create concrete implementations of required interfaces
 	backlogFile, err := backlog.NewFile(gromitDir)
 	if err != nil {
 		return nil, fmt.Errorf("creating backlog file: %w", err)
 	}
 
-	ideas, err := backlogFile.List()
-	if err != nil {
-		return nil, fmt.Errorf("reading backlog: %w", err)
-	}
-
-	for _, idea := range ideas {
-		if idea.Status != "refined" {
-			status.UnrefinedCount++
-			status.UnrefinedIdeas = append(status.UnrefinedIdeas, idea.Text)
-		}
-	}
-
-	// Scan specs directory for unplanned specs
-	specFiles, err := findMarkdownFiles(specsDir)
-	if err != nil && !os.IsNotExist(err) {
-		return nil, fmt.Errorf("reading specs directory: %w", err)
-	}
-
-	for _, specFile := range specFiles {
-		specName := strings.TrimSuffix(filepath.Base(specFile), ".md")
-		planFile := filepath.Join(plansDir, specName+".md")
-
-		// Check if corresponding plan exists
-		if _, err := os.Stat(planFile); os.IsNotExist(err) {
-			status.UnplannedSpecs = append(status.UnplannedSpecs, specName)
-		}
-	}
-	sort.Strings(status.UnplannedSpecs)
-
-	// Scan plans directory for undecomposed plans
-	planFiles, err := findMarkdownFiles(plansDir)
-	if err != nil && !os.IsNotExist(err) {
-		return nil, fmt.Errorf("reading plans directory: %w", err)
-	}
-
-	for _, planFile := range planFiles {
-		planName := strings.TrimSuffix(filepath.Base(planFile), ".md")
-
-		// Parse frontmatter to check decomposed field
-		fm, _, err := frontmatter.ReadFile(planFile)
-		if err != nil {
-			return nil, fmt.Errorf("reading plan frontmatter %s: %w", planName, err)
-		}
-
-		// Check if decomposed field is missing or false
-		decomposed, ok := fm["decomposed"].(bool)
-		if !ok || !decomposed {
-			status.UndecomposedPlans = append(status.UndecomposedPlans, planName)
-		}
-	}
-	sort.Strings(status.UndecomposedPlans)
-
-	if startedAt != nil {
-		status.HasRunInfo = true
-	}
-
-	// Count ready/closed/in-progress beads only when a bd repo is present.
-	// This avoids repeated expensive shellouts in non-bd directories.
+	// Optionally create bead client if a beads repo is present
+	var beadQueryClient BeadQueryClient
 	repoRoot := filepath.Dir(gromitDir)
 	if hasBeadsRepo(repoRoot) {
-		// Best-effort: if client creation or any command fails, counts remain at zero.
 		client, err := bead.NewClient()
 		if err == nil {
 			client.Dir = repoRoot
-			status.ReadyBeads, status.ReadyBeadCount = listReadyBeads(client)
-
-			// In-progress count
-			if count, err := client.CountByStatus("in_progress"); err == nil {
-				status.InProgressCount = count
-			}
-
-			// Deferred count
-			if count, err := client.CountByStatus("deferred"); err == nil {
-				status.DeferredCount = count
-			}
-
-			// Closed count
-			if count, err := client.CountByStatus("closed"); err == nil {
-				status.ClosedCount = count
-			}
-
-			// Blocked count = open - ready
-			// Open beads include both ready and blocked (those with unmet dependencies)
-			if openCount, err := client.CountByStatus("open"); err == nil {
-				status.BlockedCount = openCount - status.ReadyBeadCount
-				if status.BlockedCount < 0 {
-					status.BlockedCount = 0
-				}
-			}
-
-			// If startedAt is provided, populate "closed this run" count.
-			if startedAt != nil {
-				if count, err := client.CountClosedAfter(*startedAt); err == nil {
-					status.ClosedThisRunCount = count
-				}
-			}
+			beadQueryClient = client
 		}
 	}
-	// If client creation fails, all counts remain zero
 
-	// Generate recommendation based on priority
-	status.Recommendation = generateRecommendation(status)
-
-	return status, nil
+	// Use dependency-injected implementation
+	return ReadStatusWithDeps(gromitDir, specsDir, plansDir, startedAt, backlogFile, beadQueryClient)
 }
 
 func hasBeadsRepo(repoRoot string) bool {
