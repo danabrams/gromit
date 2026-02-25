@@ -39,6 +39,13 @@ type CoverageTracker struct {
 	maxRejections int
 }
 
+// Snapshot captures the current tracker lifecycle and criterion statuses.
+type Snapshot struct {
+	State         State
+	Criteria      []CriterionState
+	MaxRejections int
+}
+
 // NewTracker creates a CoverageTracker from a list of criteria.
 func NewTracker(criteria []Criterion, maxRejections int) *CoverageTracker {
 	states := make([]CriterionState, len(criteria))
@@ -46,6 +53,35 @@ func NewTracker(criteria []Criterion, maxRejections int) *CoverageTracker {
 		states[i] = CriterionState{Criterion: c, Status: Unchecked}
 	}
 	return &CoverageTracker{state: StatePending, criteria: states, maxRejections: maxRejections}
+}
+
+// Snapshot returns a copy of the tracker state suitable for persistence or cloning.
+func (t *CoverageTracker) Snapshot() Snapshot {
+	if t == nil {
+		return Snapshot{}
+	}
+	criteriaCopy := make([]CriterionState, len(t.criteria))
+	copy(criteriaCopy, t.criteria)
+	return Snapshot{
+		State:         t.state,
+		Criteria:      criteriaCopy,
+		MaxRejections: t.maxRejections,
+	}
+}
+
+// ApplySnapshot restores tracker state produced by Snapshot.
+func (t *CoverageTracker) ApplySnapshot(snapshot Snapshot) {
+	if t == nil {
+		return
+	}
+	t.state = snapshot.State
+	t.maxRejections = snapshot.MaxRejections
+	if len(snapshot.Criteria) == 0 {
+		t.criteria = nil
+		return
+	}
+	t.criteria = make([]CriterionState, len(snapshot.Criteria))
+	copy(t.criteria, snapshot.Criteria)
 }
 
 // State returns the current lifecycle state of the tracker.
