@@ -238,3 +238,13 @@ func TestNewTracker_InitialStateIsPending(t *testing.T) {
 		t.Fatalf("tracker.State() = %v, want %v", tracker.State(), StatePending)
 	}
 }
+
+func TestTracker_ToCollectingTransition(t *testing.T) {
+	tracker := NewTracker([]Criterion{{Number: 1, Text: "First"}}, 2)
+
+	tracker.ToCollecting()
+
+	if tracker.State() != StateCollecting {
+		t.Fatalf("tracker.State() = %v, want %v", tracker.State(), StateCollecting)
+	}
+}
