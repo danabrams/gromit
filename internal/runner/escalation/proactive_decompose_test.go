@@ -203,3 +203,63 @@ func TestCheckProactiveDecomposition_TriggersDecomposition(t *testing.T) {
 		t.Errorf("createSubFn not called, expected it to be called after decomposition")
 	}
 }
+
+// TestExecuteWithRetry_ChecksProactiveDecomposition verifies that ExecuteWithRetry
+// checks for proactive decomposition before invoking Claude on high-risk beads at 60% elapsed.
+func TestExecuteWithRetry_ChecksProactiveDecomposition(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	proactiveDecompositionAttempted := false
+	decomposeFn := func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+		proactiveDecompositionAttempted = true
+		return []runtypes.SubTask{}, nil
+	}
+
+	createSubFn := func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error {
+		return nil
+	}
+
+	handler := NewHandler(cfg, nil, nil, decomposeFn, createSubFn, nil, nil)
+
+	// Set up a bead context that triggers proactive decomposition
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
+			ID:       "test-002",
+			Title:    "High-risk TDD bead",
+			Priority: 1,
+		},
+		ScopeEstimate: &prompt.ScopeEstimate{
+			Complexity:                   "high",
+			EstimatedIterations:          2,
+			CanCompleteInSingleIteration: false,
+		},
+		TotalRetriesThisBead: 0,
+		MaxRetries:           1,
+		MaxRetriesPerBead:    1,
+		BeadTimeout:          10 * time.Minute,
+		BeadStartTime:        time.Now().Add(-6 * time.Minute), // 60% elapsed
+		Result: &runtypes.IterationResult{
+			Model: "test-model",
+		},
+		ParentCtx:   context.Background(),
+		BuildPrompt: "test prompt",
+	}
+
+	// Invocation function that should not be called (proactive decomposition should prevent it)
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		t.Errorf("InvokeFn should not be called due to proactive decomposition")
+		return nil, nil
+	}
+
+	ctx := context.Background()
+	success := handler.ExecuteWithRetry(ctx, bc, invokeFn)
+
+	if success {
+		t.Errorf("ExecuteWithRetry() = true, want false after proactive decomposition")
+	}
+	if !proactiveDecompositionAttempted {
+		t.Errorf("proactive decomposition not attempted, expected it to be triggered")
+	}
+}
