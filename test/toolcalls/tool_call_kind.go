@@ -10,11 +10,14 @@ const (
 	ToolCallBD     ToolCallKind = "bd"
 )
 
-var toolCallPrefixes = map[ToolCallKind]string{
+var ToolCallPrefixMap = map[ToolCallKind]string{
 	ToolCallCodex:  "codex",
 	ToolCallClaude: "claude",
 	ToolCallBD:     "bd",
 }
+
+// toolCallPrefixes is kept for backward compatibility with ToolCallPrefix function
+var toolCallPrefixes = ToolCallPrefixMap
 
 func ToolCallPrefix(kind ToolCallKind) (string, error) {
 	prefix, ok := toolCallPrefixes[kind]
