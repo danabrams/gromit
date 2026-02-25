@@ -1,6 +1,9 @@
 package provider
 
-import "sync"
+import (
+	"sort"
+	"sync"
+)
 
 const (
 	defaultCircuitBreakerWindowSize        = 10
@@ -62,8 +65,8 @@ func (w *outcomeWindow) failureRatio() float64 {
 	return float64(w.failures) / float64(w.count)
 }
 
-// Record appends a provider outcome and updates degraded/recovery state.
-func (cb *CircuitBreaker) Record(providerName string, failureCategory string) {
+// RecordOutcome appends a provider outcome and updates degraded/recovery state.
+func (cb *CircuitBreaker) RecordOutcome(providerName string, failureCategory string) {
 	if cb == nil || providerName == "" {
 		return
 	}
@@ -96,21 +99,73 @@ func (cb *CircuitBreaker) Record(providerName string, failureCategory string) {
 	}
 }
 
-// EffectiveRatio returns the configured ratio unless the provider is degraded,
-// in which case it returns the configured degraded floor.
-func (cb *CircuitBreaker) EffectiveRatio(providerName string, configuredRatio int) int {
-	if cb == nil || providerName == "" {
-		return configuredRatio
+// EffectiveRatio returns the adjusted ratio map after applying degraded floors
+// and redistributing freed ratios to healthy providers.
+func (cb *CircuitBreaker) EffectiveRatio(configured map[string]int) map[string]int {
+	if len(configured) == 0 {
+		return map[string]int{}
+	}
+
+	if cb == nil {
+		return copyRatioMap(configured)
 	}
 
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 
-	if cb.degraded != nil && cb.degraded[providerName] {
-		return cb.effectiveDegradedFloor()
+	providers := make([]string, 0, len(configured))
+	for provider := range configured {
+		providers = append(providers, provider)
+	}
+	sort.Strings(providers)
+
+	result := make(map[string]int, len(configured))
+	floor := cb.effectiveDegradedFloor()
+	freed := 0
+	healthyBase := 0
+
+	for _, provider := range providers {
+		configuredRatio := configured[provider]
+		if cb.degraded != nil && cb.degraded[provider] {
+			if configuredRatio > floor {
+				freed += configuredRatio - floor
+				result[provider] = floor
+			} else {
+				result[provider] = configuredRatio
+			}
+			continue
+		}
+
+		result[provider] = configuredRatio
+		healthyBase += configuredRatio
 	}
 
-	return configuredRatio
+	if freed > 0 && healthyBase > 0 {
+		distributed := 0
+		for _, provider := range providers {
+			if cb.degraded != nil && cb.degraded[provider] {
+				continue
+			}
+			configuredRatio := configured[provider]
+			extra := freed * configuredRatio / healthyBase
+			result[provider] += extra
+			distributed += extra
+		}
+
+		remainder := freed - distributed
+		for _, provider := range providers {
+			if remainder == 0 {
+				break
+			}
+			if cb.degraded != nil && cb.degraded[provider] {
+				continue
+			}
+			result[provider]++
+			remainder--
+		}
+	}
+
+	return result
 }
 
 // IsDegraded reports whether the provider is currently in degraded mode.
@@ -173,4 +228,17 @@ func (cb *CircuitBreaker) effectiveRecoverySuccesses() int {
 		return defaultCircuitBreakerRecoverySuccesses
 	}
 	return cb.recoverySuccesses
+}
+
+func copyRatioMap(src map[string]int) map[string]int {
+	if src == nil {
+		return map[string]int{}
+	}
+
+	dst := make(map[string]int, len(src))
+	for key, value := range src {
+		dst[key] = value
+	}
+
+	return dst
 }

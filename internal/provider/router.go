@@ -145,8 +145,9 @@ func (r *Router) selectByRatio() string {
 	// Find available provider with largest gap below its target
 	var selectedName string
 	largestGap := -1.0
+	effectiveRatios := r.effectiveRatioMap()
 
-	for name, configuredRatio := range r.ratio {
+	for name, configuredRatio := range effectiveRatios {
 		if !r.isAvailable(name) {
 			continue
 		}
@@ -157,7 +158,7 @@ func (r *Router) selectByRatio() string {
 			currentPercent = float64(currentCount) / float64(totalCount) * 100.0
 		}
 
-		effectiveTargetPercent := float64(r.effectiveRatio(name, configuredRatio))
+		effectiveTargetPercent := float64(configuredRatio)
 		gap := effectiveTargetPercent - currentPercent
 
 		if gap > largestGap {
@@ -169,12 +170,16 @@ func (r *Router) selectByRatio() string {
 	return selectedName
 }
 
-func (r *Router) effectiveRatio(providerName string, configuredRatio int) int {
+func (r *Router) effectiveRatioMap() map[string]int {
 	if r == nil {
-		return configuredRatio
+		return map[string]int{}
 	}
-	// CircuitBreaker methods are nil-receiver safe, so this passes through when disabled.
-	return r.circuitBreaker.EffectiveRatio(providerName, configuredRatio)
+
+	if r.circuitBreaker == nil {
+		return copyRatioMap(r.ratio)
+	}
+
+	return r.circuitBreaker.EffectiveRatio(r.ratio)
 }
 
 // selectProvider returns the provider and model name, and increments count
@@ -235,8 +240,8 @@ func (r *Router) RecordInvocation(name string) {
 
 // RecordOutcome records an invocation outcome in the circuit breaker.
 func (r *Router) RecordOutcome(providerName, failureCategory string) {
-	if r == nil {
+	if r == nil || r.circuitBreaker == nil {
 		return
 	}
-	r.circuitBreaker.Record(providerName, failureCategory)
+	r.circuitBreaker.RecordOutcome(providerName, failureCategory)
 }
