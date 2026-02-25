@@ -95,6 +95,9 @@ type claudeClientAdapter struct {
 	client *claude.Client
 }
 
+// Compile-time check that claudeClientAdapter implements ProviderRunner.
+var _ ProviderRunner = (*claudeClientAdapter)(nil)
+
 // NewClaudeClientAdapter creates an adapter from a Claude client
 func NewClaudeClientAdapter(client *claude.Client) ProviderRunner {
 	return &claudeClientAdapter{client: client}
