@@ -1065,3 +1065,45 @@ func TestE2E_TimeBudget(t *testing.T) {
 		t.Logf("Warning: Expected output to mention time budget or context cancellation")
 	}
 }
+
+// TestE2E_LowTierHaikuRoutingRegression ensures low-tier beads (haiku tier) record
+// a positive duration and the expected model name in the iteration log.
+func TestE2E_LowTierHaikuRoutingRegression(t *testing.T) {
+	env := setupE2E(t)
+	beadID := "test-low-tier-haiku"
+	if err := createBead(env, beadID, "Add unit tests for low-tier routing", "Regression bead for haiku routing", 0, []string{"complexity:low"}); err != nil {
+		t.Fatalf("Failed to create bead: %v", err)
+	}
+
+	buildFixture := filepath.Join(fixturesDir, "claude_build_success.txt")
+	validateFixture := filepath.Join(fixturesDir, "claude_validate_success.txt")
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE", buildFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE_HAIKU", validateFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE_SONNET", validateFixture)
+
+	stdout, stderr, exitCode, err := runGromit(env, "run", "-n", "1")
+	if err != nil {
+		t.Fatalf("Failed to run gromit: %v", err)
+	}
+
+	t.Logf("Exit code: %d", exitCode)
+	t.Logf("Stdout:\n%s", stdout)
+	t.Logf("Stderr:\n%s", stderr)
+
+	if exitCode != 0 {
+		t.Fatalf("Expected exit code 0, got %d", exitCode)
+	}
+
+	logsDir := filepath.Join(env.Dir, ".gromit", "logs")
+	entry, err := testutil.FindIterationLogForBead(logsDir, beadID)
+	if err != nil {
+		t.Fatalf("Failed to find iteration log for bead %s: %v", beadID, err)
+	}
+
+	if entry.DurationMs <= 0 {
+		t.Fatalf("Expected DurationMs > 0, got %d", entry.DurationMs)
+	}
+	if !strings.Contains(strings.ToLower(entry.Model), "haiku") {
+		t.Fatalf("Expected model to reference haiku, got %q", entry.Model)
+	}
+}
