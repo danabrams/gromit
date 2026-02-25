@@ -2,9 +2,10 @@ package experiment
 
 // VariantReport represents the report for a single variant.
 type VariantReport struct {
-	VariantID   string
-	SuccessRate float64
-	AvgCost     float64
+	VariantID    string
+	SuccessRate  float64
+	AvgCost      float64
+	BanditWeight float64
 }
 
 // ExperimentReport represents the report for a single experiment.
