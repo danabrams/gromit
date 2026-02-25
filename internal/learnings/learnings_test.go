@@ -201,6 +201,33 @@ func TestAddFuzzyMatchNonPromotion(t *testing.T) {
 	}
 }
 
+func TestProcessNewLearningArchivesGeneric(t *testing.T) {
+	tmpDir := t.TempDir()
+	f, _ := NewFile(tmpDir)
+	f.SetFilter(func(content string) (bool, error) {
+		return true, nil
+	})
+
+	learning := Learning{
+		Date:     time.Now(),
+		BeadID:   "bead-filter",
+		Content:  "Generic advice",
+		Category: CategoryConventions,
+		Hash:     hashContent("Generic advice"),
+	}
+
+	result, err := f.processNewLearning(learning)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if result != nil {
+		t.Fatalf("expected nil result for filtered learning, got %#v", result)
+	}
+	if len(f.archived) != 1 {
+		t.Fatalf("expected 1 archived learning, got %d", len(f.archived))
+	}
+}
+
 // TestLoadAndSaveRoundTrip tests that loading and saving preserves data
 func TestLoadAndSaveRoundTrip(t *testing.T) {
 	tmpDir := t.TempDir()
