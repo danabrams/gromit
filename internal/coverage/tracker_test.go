@@ -282,3 +282,15 @@ func TestTracker_ToErrorTransition(t *testing.T) {
 		t.Fatalf("tracker.State() = %v, want %v", tracker.State(), StateError)
 	}
 }
+
+func TestTracker_ResetFromErrorStateToPending(t *testing.T) {
+	tracker := NewTracker([]Criterion{{Number: 1, Text: "First"}}, 2)
+	tracker.ToCollecting()
+	tracker.ToError()
+
+	tracker.Reset()
+
+	if tracker.State() != StatePending {
+		t.Fatalf("tracker.State() after reset = %v, want %v", tracker.State(), StatePending)
+	}
+}
