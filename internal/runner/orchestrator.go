@@ -212,6 +212,7 @@ runLoop:
 				BeadID:                   b.ID,
 				BeadTitle:                b.Title,
 				Success:                  false,
+				ValidationFailures:       validateOut.ValidationFailures,
 				Complexity:               baseIn.Complexity,
 				ComplexitySource:         baseIn.ComplexitySource,
 				ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
@@ -230,12 +231,17 @@ runLoop:
 
 		// Stage 5: Epilogue — close bead, sync, write status, write iteration log,
 		// run between-iterations command, trigger thorough review when due.
+		escalated := buildOut.OriginalTier != buildOut.ActualTier
+		validationRetried := len(baseIn.ValidationFailures) > 0
 		baseIn.Result = &logger.IterationLog{
 			Timestamp:                time.Now(),
 			Iteration:                iteration,
 			BeadID:                   b.ID,
 			BeadTitle:                b.Title,
 			Success:                  true,
+			Validated:                true,
+			FirstPassSuccess:         !validationRetried && !escalated,
+			QualityScore:             logger.ComputeQualityScore(0, 0, validationRetried, false, escalated, 0),
 			Model:                    buildOut.Model,
 			OriginalTier:             buildOut.OriginalTier,
 			ActualTier:               buildOut.ActualTier,

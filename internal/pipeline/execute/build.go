@@ -33,6 +33,7 @@ type TDDCycleResult struct {
 	OriginalTier string
 	ActualTier   string
 	Model        string
+	DurationMs   int64
 	CostUSD      float64
 	InputTokens  int
 	OutputTokens int
@@ -133,6 +134,7 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 			OriginalTier: result.OriginalTier,
 			ActualTier:   result.ActualTier,
 			Model:        result.Model,
+			DurationMs:   result.DurationMs,
 			CostUSD:      result.CostUSD,
 			InputTokens:  result.InputTokens,
 			OutputTokens: result.OutputTokens,

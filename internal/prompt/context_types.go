@@ -174,8 +174,9 @@ type TDDRedContext struct {
 
 // TDDGreenContext holds data for TDD green-phase prompt template.
 type TDDGreenContext struct {
-	BeadID            string
-	BeadTitle         string
+	BeadID          string
+	BeadTitle       string
+	BeadDescription string
 	FailingTest       string
 	TestFailureOutput string
 	ImplFileContents  map[string]string

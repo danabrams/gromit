@@ -38,6 +38,7 @@ type IterationLog struct {
 	OutputTokens             int       `json:"output_tokens"`
 	Error                    string    `json:"error,omitempty"`
 	Outcome                  string    `json:"outcome,omitempty"`
+	ValidationFailures       []string  `json:"validation_failures,omitempty"`
 	ValidationRetried        bool      `json:"validation_retried,omitempty"`
 	TrivialAutoFixed         bool      `json:"trivial_auto_fixed,omitempty"`
 	ReviewFixesNeeded        int       `json:"review_fixes_needed,omitempty"`

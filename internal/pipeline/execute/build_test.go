@@ -784,6 +784,47 @@ func TestBuildRun_TDD_FreshContext_ReturnsTierProvenanceInOutput(t *testing.T) {
 	}
 }
 
+// TestBuildRun_TDD_FreshContext_ReturnsDurationAndCostInOutput verifies that
+// fresh-context TDD returns DurationMs and CostUSD in Build output so
+// iteration logs capture telemetry parity with single-pass flows.
+func TestBuildRun_TDD_FreshContext_ReturnsDurationAndCostInOutput(t *testing.T) {
+	runner := &trackingTDDCycleRunner{
+		runCyclesFn: func(_ context.Context, _ *bead.Bead, _ *config.Config) (execute.TDDCycleResult, error) {
+			return execute.TDDCycleResult{
+				DurationMs:   42000,
+				CostUSD:      1.25,
+				InputTokens:  5000,
+				OutputTokens: 500,
+			}, nil
+		},
+	}
+
+	stage := execute.New(&fakeInvoker{}, &fakePromptRenderer{}, io.Discard).WithTDDCycleRunner(runner)
+
+	cfg := defaultConfig()
+	cfg.Methodology.TDD = true
+	cfg.Methodology.FreshContextPerCycle = true
+	in := makeInput(makeBead("bead-1", "Implement TDD feature"), cfg)
+
+	out, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if out.DurationMs != 42000 {
+		t.Errorf("Output.DurationMs = %d, want 42000", out.DurationMs)
+	}
+	if out.CostUSD != 1.25 {
+		t.Errorf("Output.CostUSD = %f, want 1.25", out.CostUSD)
+	}
+	if out.InputTokens != 5000 {
+		t.Errorf("Output.InputTokens = %d, want 5000", out.InputTokens)
+	}
+	if out.OutputTokens != 500 {
+		t.Errorf("Output.OutputTokens = %d, want 500", out.OutputTokens)
+	}
+}
+
 // TestBuildRun_TDD_FreshContext_NilRunner_FallsBackToStreamRun verifies that when
 // methodology=TDD and FreshContextPerCycle=true but no TDDCycleRunner is injected,
 // Build.Run() falls back to the existing single-invocation StreamRun path.

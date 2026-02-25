@@ -12,7 +12,7 @@ You are in the **GREEN phase** of TDD. Write the MINIMUM production code to make
 - Add imports needed by your production code
 
 **What you MUST NOT do:**
-- Modify any `_test.go` file — the test was written in the red phase and must not change
+- **NEVER modify any `_test.go` file** — test files are LOCKED. The test was written in the red phase and is read-only. Any changes you make to test files will be automatically reverted.
 - Write more code than necessary to pass the test — no "while I'm here" additions
 - Add features, helpers, or abstractions beyond what this one test requires
 - Refactor existing code — that happens in the refactor phase

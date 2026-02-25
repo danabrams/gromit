@@ -21,7 +21,7 @@ import (
 
 // buildTDDCycleRunner creates a TDDCycleRunner adapter backed by a Runner with a
 // configured tddOrchestrator. Inject the result into execute.Build via WithTDDCycleRunner.
-func buildTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *provider.Router, output io.Writer) execute.TDDCycleRunner {
+func buildTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *provider.Router, output io.Writer, costDefs map[string]config.ProviderDef) execute.TDDCycleRunner {
 	orch := tdd.NewCycleOrchestrator(cfg, output, tdd.CycleOrchestratorDeps{
 		RenderRedFn:    buildRenderRedFn(cfg, renderer),
 		RenderGreenFn:  buildRenderGreenFn(cfg, renderer),
@@ -33,7 +33,8 @@ func buildTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *
 		ReadFileFn:         readFileAsString,
 		GetGitHeadFn:       gitHeadCommit,
 		GitResetFn:         gitResetHard,
-		ListChangedFilesFn: gitListChangedFiles,
+		ListChangedFilesFn:  gitListChangedFiles,
+		RestoreTestFilesFn: gitRestoreFiles,
 		LogPhaseFn: func(cycle int, phase, detail string) {
 			_, _ = fmt.Fprintf(output, "  [tdd] cycle %d %s: %s\n", cycle, phase, detail)
 		},
@@ -54,13 +55,16 @@ func buildTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *
 		tddOrchestrator: &tddOrchestrator{
 			runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, criteria []coverage.Criterion) error {
 				if bc.Tier == "" {
-					bc.Tier = cfg.SelectTier(bc.Bead.Priority, bc.Bead.Labels)
+					bc.Tier = cfg.PhaseModelTier("build", cfg.SelectTier(bc.Bead.Priority, bc.Bead.Labels))
 				}
 				if bc.Model == "" {
 					bc.Model = provider.TierToLegacyModel(bc.Tier)
+					if bc.Result != nil {
+						bc.Result.Model = bc.Model
+					}
 				}
 				// Swap in a telemetry-accumulating InvokeFn now that bc is available.
-				orch.SetInvokeFn(buildInvokeFnWithTelemetry(router, output, bc))
+				orch.SetInvokeFn(buildInvokeFnWithTelemetry(router, output, bc, costDefs))
 				remaining := bc.Bead.ExpectedOutputs
 				if len(remaining) == 0 {
 					remaining = tddExpectedOutputsOrTitle(bc.Bead)
@@ -101,7 +105,14 @@ func buildRenderRedFn(cfg *config.Config, renderer *prompt.Renderer) tdd.RenderR
 			CycleSummary:     handoff.CycleSummary,
 			Rules:            rules,
 		}
-		return renderer.RenderTDDRed(ctx)
+		rendered, renderErr := renderer.RenderTDDRed(ctx)
+		// TEMP: log rendered red prompt for benchmark diagnosis
+		if renderErr == nil {
+			logPath := fmt.Sprintf("/tmp/gromit-red-prompt-%s-%d.md", bc.Bead.ID, time.Now().UnixMilli())
+			_ = os.WriteFile(logPath, []byte(rendered), 0644)
+			_, _ = fmt.Fprintf(os.Stderr, "[tdd-debug] red prompt written to %s (%d bytes)\n", logPath, len(rendered))
+		}
+		return rendered, renderErr
 	}
 }
 
@@ -114,15 +125,28 @@ func buildRenderGreenFn(cfg *config.Config, renderer *prompt.Renderer) tdd.Rende
 		if err != nil {
 			return "", err
 		}
+		scopedCmd := ""
+		if len(cfg.Validation.FastCommands) > 0 {
+			scopedCmd = cfg.Validation.FastCommands[0]
+		}
 		ctx := &prompt.TDDGreenContext{
 			BeadID:            bc.Bead.ID,
 			BeadTitle:         bc.Bead.Title,
+			BeadDescription:   bc.Bead.Description,
 			FailingTest:       handoff.FailingTest,
 			TestFailureOutput: handoff.TestFailureOutput,
 			ImplFileContents:  handoff.ImplFiles,
 			Rules:             rules,
+			ScopedTestCommand: scopedCmd,
 		}
-		return renderer.RenderTDDGreen(ctx)
+		rendered, renderErr := renderer.RenderTDDGreen(ctx)
+		// TEMP: log rendered green prompt for benchmark diagnosis
+		if renderErr == nil {
+			logPath := fmt.Sprintf("/tmp/gromit-green-prompt-%s-%d.md", bc.Bead.ID, time.Now().UnixMilli())
+			_ = os.WriteFile(logPath, []byte(rendered), 0644)
+			_, _ = fmt.Fprintf(os.Stderr, "[tdd-debug] green prompt written to %s (%d bytes)\n", logPath, len(rendered))
+		}
+		return rendered, renderErr
 	}
 }
 
@@ -149,7 +173,9 @@ func buildInvokeFn(router *provider.Router, output io.Writer) tdd.InvokeFn {
 
 // buildInvokeFnWithTelemetry creates an InvokeFn that accumulates provider
 // telemetry (cost, tokens, model) into bc.Result after each invocation.
-func buildInvokeFnWithTelemetry(router *provider.Router, output io.Writer, bc *runtypes.BeadContext) tdd.InvokeFn {
+// costDefs enables token-based cost estimation when the provider doesn't
+// return cost in its streaming response (e.g. codex).
+func buildInvokeFnWithTelemetry(router *provider.Router, output io.Writer, bc *runtypes.BeadContext, costDefs map[string]config.ProviderDef) tdd.InvokeFn {
 	return func(ctx context.Context, promptText, tier string) error {
 		p, model := router.Select("build", tier)
 		if p == nil {
@@ -165,7 +191,9 @@ func buildInvokeFnWithTelemetry(router *provider.Router, output io.Writer, bc *r
 		result, err := p.StreamRun(invokeCtx, promptText, tier, output, nil, nil)
 		// Accumulate telemetry into bc.Result regardless of error.
 		if result != nil && bc != nil && bc.Result != nil {
+			applyCostFallback(result, p.Name(), costDefs)
 			bc.Result.CostUSD += result.CostUSD
+			bc.Result.Duration += result.Duration
 			bc.Result.InputTokens += result.InputTokens
 			bc.Result.OutputTokens += result.OutputTokens
 			if result.Model != "" {
@@ -184,7 +212,7 @@ func resolveTDDPhaseInvocationTimeout(model string) time.Duration {
 	trimmed := strings.TrimSpace(strings.ToLower(model))
 	switch {
 	case strings.Contains(trimmed, "mini"):
-		return 3 * time.Minute
+		return 6 * time.Minute
 	case strings.Contains(trimmed, "codex"), strings.Contains(trimmed, "sonnet"):
 		return 6 * time.Minute
 	default:
@@ -195,7 +223,13 @@ func resolveTDDPhaseInvocationTimeout(model string) time.Duration {
 func buildValidateFn(cfg *config.Config) tdd.ValidateFn {
 	return func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
 		if len(commands) == 0 {
-			commands = cfg.Validation.Commands
+			// Prefer fast (scoped) commands for TDD per-phase validation to avoid
+			// false negatives from pre-existing failures in unrelated packages.
+			if len(cfg.Validation.FastCommands) > 0 {
+				commands = cfg.Validation.FastCommands
+			} else {
+				commands = cfg.Validation.Commands
+			}
 		}
 		if workDir == "" {
 			workDir = "."
@@ -275,6 +309,15 @@ func gitResetHard(commit string) error {
 	return exec.Command("git", "reset", "--hard", commit).Run()
 }
 
+// gitRestoreFiles restores the given files to their last committed state.
+func gitRestoreFiles(files []string) error {
+	if len(files) == 0 {
+		return nil
+	}
+	args := append([]string{"checkout", "HEAD", "--"}, files...)
+	return exec.Command("git", args...).Run()
+}
+
 // gitListChangedFiles returns the list of files changed since the given commit.
 func gitListChangedFiles(sinceCommit string) ([]string, error) {
 	out, err := exec.Command("git", "diff", "--name-only", sinceCommit).Output()
@@ -291,14 +334,14 @@ func gitListChangedFiles(sinceCommit string) ([]string, error) {
 // optionalTDDCycleRunner returns a TDDCycleRunner when FreshContextPerCycle is
 // enabled, or nil otherwise. The caller should inject the result into the Build
 // stage via WithTDDCycleRunner.
-func optionalTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *provider.Router, output io.Writer) execute.TDDCycleRunner {
+func optionalTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *provider.Router, output io.Writer, costDefs map[string]config.ProviderDef) execute.TDDCycleRunner {
 	if cfg == nil || !cfg.Methodology.FreshContextPerCycle {
 		return nil
 	}
 	if cfg.ResolvedMethodologyAdapter().Value != "go" {
 		return nil
 	}
-	return buildTDDCycleRunner(cfg, renderer, router, output)
+	return buildTDDCycleRunner(cfg, renderer, router, output, costDefs)
 }
 
 func snapshotIterationUsage(result *runtypes.IterationResult) (costUSD float64, inputTokens int, outputTokens int) {

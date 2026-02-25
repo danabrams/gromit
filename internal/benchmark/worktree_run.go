@@ -370,21 +370,19 @@ func applyBenchmarkOverlayToConfig(cfg *config.Config, overlay ModeOverlay) (*co
 	}
 
 	// Pin to one provider and manifest tier models.
+	// Build a fresh Models map so the overlay fully overrides the provider's
+	// model configuration instead of mutating the original config's shared map.
+	overlayModels := map[string]string{
+		"low":    overlay.TierModels.Low,
+		"medium": overlay.TierModels.Medium,
+		"high":   overlay.TierModels.High,
+	}
 	pinned := config.ProviderDef{
-		Models: map[string]string{
-			"low":    overlay.TierModels.Low,
-			"medium": overlay.TierModels.Medium,
-			"high":   overlay.TierModels.High,
-		},
+		Models: overlayModels,
 	}
 	if existing, ok := cfg.Providers[overlay.Provider]; ok {
 		pinned = existing
-		if pinned.Models == nil {
-			pinned.Models = map[string]string{}
-		}
-		pinned.Models["low"] = overlay.TierModels.Low
-		pinned.Models["medium"] = overlay.TierModels.Medium
-		pinned.Models["high"] = overlay.TierModels.High
+		pinned.Models = overlayModels
 	}
 	cloned.Providers = map[string]config.ProviderDef{
 		overlay.Provider: pinned,

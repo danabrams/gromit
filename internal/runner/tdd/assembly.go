@@ -2,6 +2,7 @@ package tdd
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 )
 
@@ -91,11 +92,32 @@ func buildCycleSummary(state CycleState) string {
 	return sb.String()
 }
 
+// GlobFn matches file paths by pattern. Defaults to filepath.Glob.
+type GlobFn func(pattern string) ([]string, error)
+
+// defaultGlobFn is the production glob implementation (filepath.Glob).
+var defaultGlobFn GlobFn = filepath.Glob
+
 // AssembleGreenHandoff builds context for the green (implementation) phase.
 // It reads the test file just written and current impl files, capturing the
 // test failure output for context.
 func AssembleGreenHandoff(testOutput string, readFile ReadFileFn, touchedFiles []string) (*GreenHandoff, error) {
+	return AssembleGreenHandoffWithGlob(testOutput, readFile, touchedFiles, defaultGlobFn)
+}
+
+// AssembleGreenHandoffWithGlob is like AssembleGreenHandoff but accepts a custom
+// glob function for testability. When the touched files contain only test files
+// (no implementation files), it discovers sibling .go files in the same directories
+// so the green phase LLM can see the code it needs to modify.
+func AssembleGreenHandoffWithGlob(testOutput string, readFile ReadFileFn, touchedFiles []string, globFn GlobFn) (*GreenHandoff, error) {
 	testPaths, implPaths := ClassifyTouchedFiles(touchedFiles)
+
+	// When only test files were touched (typical after red phase), discover
+	// sibling implementation files from the same directories so the green
+	// phase has the implementation context it needs.
+	if len(implPaths) == 0 && len(testPaths) > 0 {
+		implPaths = discoverSiblingImplFiles(testPaths, globFn)
+	}
 
 	failingTest, err := readAndJoinFiles(readFile, testPaths)
 	if err != nil {
@@ -111,6 +133,58 @@ func AssembleGreenHandoff(testOutput string, readFile ReadFileFn, touchedFiles [
 		TestFailureOutput: testOutput,
 		ImplFiles:         implFiles,
 	}, nil
+}
+
+// discoverSiblingImplFiles finds the implementation files that correspond to
+// the given test file paths. It first tries direct filename matching
+// (e.g. helpers_test.go → helpers.go). If no direct matches exist, it falls
+// back to all non-test .go files in the same directories.
+func discoverSiblingImplFiles(testPaths []string, globFn GlobFn) []string {
+	// First pass: try direct filename match for each test file.
+	var directMatches []string
+	seen := make(map[string]bool)
+	for _, tp := range testPaths {
+		implPath := strings.TrimSuffix(tp, "_test.go") + ".go"
+		if !seen[implPath] {
+			seen[implPath] = true
+			directMatches = append(directMatches, implPath)
+		}
+	}
+
+	// Verify direct matches exist via glob (the files must actually be on disk).
+	var verified []string
+	dirGlobbed := make(map[string]map[string]bool)
+	for _, impl := range directMatches {
+		dir := filepath.Dir(impl)
+		if _, ok := dirGlobbed[dir]; !ok {
+			dirGlobbed[dir] = make(map[string]bool)
+			matches, err := globFn(filepath.Join(dir, "*.go"))
+			if err == nil {
+				for _, m := range matches {
+					dirGlobbed[dir][m] = true
+				}
+			}
+		}
+		if dirGlobbed[dir][impl] {
+			verified = append(verified, impl)
+		}
+	}
+
+	if len(verified) > 0 {
+		return verified
+	}
+
+	// Fallback: no direct matches found, return all non-test .go siblings.
+	var implPaths []string
+	for dir, files := range dirGlobbed {
+		_ = dir
+		for f := range files {
+			if !strings.HasSuffix(f, "_test.go") {
+				implPaths = append(implPaths, f)
+			}
+		}
+	}
+	return implPaths
 }
 
 // AssembleRefactorHandoff builds context for the refactor phase.

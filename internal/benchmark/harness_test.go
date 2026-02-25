@@ -60,7 +60,7 @@ func TestBuildModeOverlay_UsesExpectedTierDefaultsForBuildAndValidation(t *testi
 	cases := map[string]string{
 		"single_pass":       "low",
 		"tdd_shared_context": "low",
-		"tdd_fresh_context":  "medium",
+		"tdd_fresh_context":  "low",
 	}
 	for mode, expectedTier := range cases {
 		overlay, err := BuildModeOverlay(manifest, mode)

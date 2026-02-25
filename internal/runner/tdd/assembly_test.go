@@ -392,3 +392,142 @@ func TestExtractAPISurfaceIncludesMethodReceivers(t *testing.T) {
 		t.Fatalf("expected APISurface to contain method SetID with receiver, got %q", surface)
 	}
 }
+
+func TestAssembleGreenHandoffDiscoversSiblingImplFilesWhenOnlyTestFilesTouched(t *testing.T) {
+	// Simulate the bug scenario: red phase only touches test files,
+	// so touchedFiles contains only _test.go paths.
+	touchedFiles := []string{
+		"internal/pipeline/helpers_test.go",
+	}
+	testOutput := "--- FAIL: TestHelpers (0.00s)\n    helpers_test.go:10: expected true"
+
+	readFile := fakeReadFile(map[string]string{
+		"internal/pipeline/helpers_test.go": "package pipeline\n\nfunc TestHelpers(t *testing.T) { t.Fatal(\"nope\") }",
+		"internal/pipeline/helpers.go":      "package pipeline\n\nfunc Helpers() bool { return false }",
+		"internal/pipeline/pipeline.go":     "package pipeline\n\nfunc Run() {}",
+	})
+
+	// Fake glob that returns sibling .go files in the directory.
+	fakeGlob := func(pattern string) ([]string, error) {
+		if pattern == "internal/pipeline/*.go" {
+			return []string{
+				"internal/pipeline/helpers.go",
+				"internal/pipeline/helpers_test.go",
+				"internal/pipeline/pipeline.go",
+			}, nil
+		}
+		return nil, nil
+	}
+
+	handoff, err := AssembleGreenHandoffWithGlob(testOutput, readFile, touchedFiles, fakeGlob)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if handoff.FailingTest == "" {
+		t.Fatalf("expected failing test content to be populated")
+	}
+	if handoff.TestFailureOutput != testOutput {
+		t.Fatalf("expected test failure output to be preserved")
+	}
+	// The key assertion: only the direct-match impl file (helpers.go) should be included,
+	// not the entire directory (pipeline.go is irrelevant to helpers_test.go).
+	if len(handoff.ImplFiles) != 1 {
+		t.Fatalf("expected 1 impl file (direct filename match), got %d: %v",
+			len(handoff.ImplFiles), handoff.ImplFiles)
+	}
+	if handoff.ImplFiles["internal/pipeline/helpers.go"] == "" {
+		t.Fatalf("expected helpers.go content to be populated")
+	}
+}
+
+func TestAssembleGreenHandoffSkipsSiblingDiscoveryWhenImplFilesAlreadyPresent(t *testing.T) {
+	// When touchedFiles already includes impl files, no sibling discovery needed.
+	touchedFiles := []string{
+		"internal/auth/login_test.go",
+		"internal/auth/login.go",
+	}
+	testOutput := "--- FAIL: TestLogin"
+
+	readFile := fakeReadFile(map[string]string{
+		"internal/auth/login_test.go": "package auth\n\nfunc TestLogin(t *testing.T) {}",
+		"internal/auth/login.go":      "package auth\n\nfunc Login() {}",
+	})
+
+	globCalled := false
+	fakeGlob := func(pattern string) ([]string, error) {
+		globCalled = true
+		return nil, nil
+	}
+
+	handoff, err := AssembleGreenHandoffWithGlob(testOutput, readFile, touchedFiles, fakeGlob)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if globCalled {
+		t.Fatalf("glob should not be called when impl files are already present in touchedFiles")
+	}
+	if len(handoff.ImplFiles) != 1 {
+		t.Fatalf("expected 1 impl file from touchedFiles, got %d", len(handoff.ImplFiles))
+	}
+}
+
+func TestDiscoverSiblingImplFilesDeduplicatesDirectories(t *testing.T) {
+	// Two test files in the same directory should only glob once.
+	testPaths := []string{
+		"internal/auth/login_test.go",
+		"internal/auth/session_test.go",
+	}
+
+	globCallCount := 0
+	fakeGlob := func(pattern string) ([]string, error) {
+		globCallCount++
+		if pattern == "internal/auth/*.go" {
+			return []string{
+				"internal/auth/login.go",
+				"internal/auth/login_test.go",
+				"internal/auth/session.go",
+				"internal/auth/session_test.go",
+				"internal/auth/middleware.go",
+			}, nil
+		}
+		return nil, nil
+	}
+
+	implPaths := discoverSiblingImplFiles(testPaths, fakeGlob)
+
+	if globCallCount != 1 {
+		t.Fatalf("expected glob called once for deduplicated directory, got %d calls", globCallCount)
+	}
+	// Direct filename matching: login_test.go→login.go, session_test.go→session.go.
+	// middleware.go should NOT be included.
+	if len(implPaths) != 2 {
+		t.Fatalf("expected 2 impl files (direct matches only), got %d: %v", len(implPaths), implPaths)
+	}
+}
+
+func TestDiscoverSiblingImplFilesFallsBackWhenNoDirectMatch(t *testing.T) {
+	// When the test file has no direct impl file match, fall back to all siblings.
+	testPaths := []string{
+		"internal/auth/integration_test.go",
+	}
+
+	fakeGlob := func(pattern string) ([]string, error) {
+		if pattern == "internal/auth/*.go" {
+			return []string{
+				"internal/auth/login.go",
+				"internal/auth/integration_test.go",
+				"internal/auth/session.go",
+			}, nil
+		}
+		return nil, nil
+	}
+
+	implPaths := discoverSiblingImplFiles(testPaths, fakeGlob)
+
+	// No integration.go exists, so fallback returns all non-test siblings.
+	if len(implPaths) != 2 {
+		t.Fatalf("expected 2 impl files (fallback to all siblings), got %d: %v", len(implPaths), implPaths)
+	}
+}

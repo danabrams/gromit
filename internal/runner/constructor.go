@@ -139,7 +139,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		},
 		syncOut,
 	)
-	if runner := optionalTDDCycleRunner(cfg, renderer, router, syncOut); runner != nil {
+	if runner := optionalTDDCycleRunner(cfg, renderer, router, syncOut, costDefs); runner != nil {
 		buildStage.WithTDDCycleRunner(runner)
 	}
 

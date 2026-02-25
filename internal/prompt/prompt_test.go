@@ -1509,6 +1509,7 @@ func TestTDDGreenContextFields(t *testing.T) {
 	want := []string{
 		"BeadID",
 		"BeadTitle",
+		"BeadDescription",
 		"FailingTest",
 		"TestFailureOutput",
 		"ImplFileContents",

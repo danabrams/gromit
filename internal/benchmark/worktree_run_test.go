@@ -412,8 +412,8 @@ func TestApplyBenchmarkOverlayToConfig_PinsProviderAndEnforcesTierPolicies(t *te
 	if !got.Methodology.FreshContextPerCycle {
 		t.Fatal("fresh_context_per_cycle = false, want true")
 	}
-	if got.Methodology.PhaseModels.Build != "medium" {
-		t.Fatalf("phase_models.build = %q, want %q", got.Methodology.PhaseModels.Build, "medium")
+	if got.Methodology.PhaseModels.Build != "low" {
+		t.Fatalf("phase_models.build = %q, want %q", got.Methodology.PhaseModels.Build, "low")
 	}
 	if got.Review.Tier != "high" {
 		t.Fatalf("review.tier = %q, want %q", got.Review.Tier, "high")
@@ -435,5 +435,70 @@ func TestApplyBenchmarkOverlayToConfig_PinsProviderAndEnforcesTierPolicies(t *te
 	}
 	if _, exists := got.Providers["other"]; exists {
 		t.Fatal("unexpected non-pinned provider retained in overlay config")
+	}
+
+	// Verify the original config's models were NOT mutated by the overlay.
+	origModels := cfg.Providers["openai"].Models
+	if origModels["low"] != "placeholder-low" {
+		t.Fatalf("original config openai low model = %q, want %q (shared map mutation)", origModels["low"], "placeholder-low")
+	}
+	if origModels["medium"] != "placeholder-medium" {
+		t.Fatalf("original config openai medium model = %q, want %q (shared map mutation)", origModels["medium"], "placeholder-medium")
+	}
+	if origModels["high"] != "placeholder-high" {
+		t.Fatalf("original config openai high model = %q, want %q (shared map mutation)", origModels["high"], "placeholder-high")
+	}
+}
+
+func TestApplyBenchmarkOverlay_ManifestModelsReachProviderConstructor(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		Providers: map[string]config.ProviderDef{
+			"openai": {
+				Binary: "codex",
+				Flags:  []string{"--dangerously-bypass-approvals-and-sandbox"},
+				Models: map[string]string{
+					"high":   "gpt-5.3-codex",
+					"medium": "gpt-5.3-codex",
+					"low":    "gpt-5-mini",
+				},
+			},
+		},
+	}
+
+	overlay, err := BuildModeOverlay(HarnessManifest{
+		Provider:        "openai",
+		ModelFamily:     "gpt-5",
+		LowTierModel:    "manifest-low",
+		MediumTierModel: "manifest-medium",
+		HighTierModel:   "manifest-high",
+	}, "single_pass")
+	if err != nil {
+		t.Fatalf("BuildModeOverlay() error = %v", err)
+	}
+
+	got, err := applyBenchmarkOverlayToConfig(cfg, overlay)
+	if err != nil {
+		t.Fatalf("applyBenchmarkOverlayToConfig() error = %v", err)
+	}
+
+	// Simulate what buildRouterAndLearningsProvider does before constructing providers.
+	got.SetDefaults()
+	got.NormalizeNilFields()
+
+	def := got.Providers["openai"]
+	if def.Models["low"] != "manifest-low" {
+		t.Fatalf("after defaults, provider low model = %q, want %q", def.Models["low"], "manifest-low")
+	}
+	if def.Models["medium"] != "manifest-medium" {
+		t.Fatalf("after defaults, provider medium model = %q, want %q", def.Models["medium"], "manifest-medium")
+	}
+	if def.Models["high"] != "manifest-high" {
+		t.Fatalf("after defaults, provider high model = %q, want %q", def.Models["high"], "manifest-high")
+	}
+	// Verify the existing provider fields survived the overlay.
+	if def.Binary != "codex" {
+		t.Fatalf("provider binary = %q, want %q", def.Binary, "codex")
 	}
 }

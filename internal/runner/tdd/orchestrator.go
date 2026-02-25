@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
@@ -36,6 +37,10 @@ type GitResetFn func(commit string) error
 // ListChangedFilesFn returns the list of files changed since a given commit.
 type ListChangedFilesFn func(sinceCommit string) ([]string, error)
 
+// RestoreTestFilesFn restores test files to their pre-invocation state.
+// This prevents the green phase from modifying test files written in the red phase.
+type RestoreTestFilesFn func(testFiles []string) error
+
 // LogPhaseFn logs TDD phase transitions for observability.
 type LogPhaseFn func(cycle int, phase string, detail string)
 
@@ -58,55 +63,58 @@ func isSupportedRefactorOutcome(outcome refactorOutcome) bool {
 
 // CycleOrchestrator runs TDD red-green-refactor cycles with fresh context per phase.
 type CycleOrchestrator struct {
-	renderRedFn        RenderRedFn
-	renderGreenFn      RenderGreenFn
-	invokeFn           InvokeFn
-	validateFn         ValidateFn
-	runRefactorFn      RunRefactorFn
-	escalateTierFn     EscalateTierFn
-	getDiffFn          GetDiffFn
-	readFileFn         ReadFileFn
-	getGitHeadFn       GetGitHeadFn
-	gitResetFn         GitResetFn
-	listChangedFilesFn ListChangedFilesFn
-	logPhaseFn         LogPhaseFn
-	output             io.Writer
-	cfg                *config.Config
+	renderRedFn          RenderRedFn
+	renderGreenFn        RenderGreenFn
+	invokeFn             InvokeFn
+	validateFn           ValidateFn
+	runRefactorFn        RunRefactorFn
+	escalateTierFn       EscalateTierFn
+	getDiffFn            GetDiffFn
+	readFileFn           ReadFileFn
+	getGitHeadFn         GetGitHeadFn
+	gitResetFn           GitResetFn
+	listChangedFilesFn   ListChangedFilesFn
+	restoreTestFilesFn   RestoreTestFilesFn
+	logPhaseFn           LogPhaseFn
+	output               io.Writer
+	cfg                  *config.Config
 }
 
 // CycleOrchestratorDeps holds callback dependencies for building a CycleOrchestrator.
 type CycleOrchestratorDeps struct {
-	RenderRedFn        RenderRedFn
-	RenderGreenFn      RenderGreenFn
-	InvokeFn           InvokeFn
-	ValidateFn         ValidateFn
-	RunRefactorFn      RunRefactorFn
-	EscalateTierFn     EscalateTierFn
-	GetDiffFn          GetDiffFn
-	ReadFileFn         ReadFileFn
-	GetGitHeadFn       GetGitHeadFn
-	GitResetFn         GitResetFn
-	ListChangedFilesFn ListChangedFilesFn
-	LogPhaseFn         LogPhaseFn
+	RenderRedFn          RenderRedFn
+	RenderGreenFn        RenderGreenFn
+	InvokeFn             InvokeFn
+	ValidateFn           ValidateFn
+	RunRefactorFn        RunRefactorFn
+	EscalateTierFn       EscalateTierFn
+	GetDiffFn            GetDiffFn
+	ReadFileFn           ReadFileFn
+	GetGitHeadFn         GetGitHeadFn
+	GitResetFn           GitResetFn
+	ListChangedFilesFn   ListChangedFilesFn
+	RestoreTestFilesFn   RestoreTestFilesFn
+	LogPhaseFn           LogPhaseFn
 }
 
 // NewCycleOrchestrator creates a TDD cycle orchestrator with injected callbacks.
 func NewCycleOrchestrator(cfg *config.Config, output io.Writer, deps CycleOrchestratorDeps) *CycleOrchestrator {
 	return &CycleOrchestrator{
-		renderRedFn:        deps.RenderRedFn,
-		renderGreenFn:      deps.RenderGreenFn,
-		invokeFn:           deps.InvokeFn,
-		validateFn:         deps.ValidateFn,
-		runRefactorFn:      deps.RunRefactorFn,
-		escalateTierFn:     deps.EscalateTierFn,
-		getDiffFn:          deps.GetDiffFn,
-		readFileFn:         deps.ReadFileFn,
-		getGitHeadFn:       deps.GetGitHeadFn,
-		gitResetFn:         deps.GitResetFn,
-		listChangedFilesFn: deps.ListChangedFilesFn,
-		logPhaseFn:         deps.LogPhaseFn,
-		output:             output,
-		cfg:                cfg,
+		renderRedFn:          deps.RenderRedFn,
+		renderGreenFn:        deps.RenderGreenFn,
+		invokeFn:             deps.InvokeFn,
+		validateFn:           deps.ValidateFn,
+		runRefactorFn:        deps.RunRefactorFn,
+		escalateTierFn:       deps.EscalateTierFn,
+		getDiffFn:            deps.GetDiffFn,
+		readFileFn:           deps.ReadFileFn,
+		getGitHeadFn:         deps.GetGitHeadFn,
+		gitResetFn:           deps.GitResetFn,
+		listChangedFilesFn:   deps.ListChangedFilesFn,
+		restoreTestFilesFn:   deps.RestoreTestFilesFn,
+		logPhaseFn:           deps.LogPhaseFn,
+		output:               output,
+		cfg:                  cfg,
 	}
 }
 
@@ -246,9 +254,12 @@ func (o *CycleOrchestrator) runGreenPhaseUntilValidated(
 	greenPrompt string,
 	touchedFiles []string,
 ) error {
+	testFiles, _ := ClassifyTouchedFiles(touchedFiles)
+
 	if err := o.runPhaseInvocation(ctx, bc, greenPrompt, "green"); err != nil {
 		return err
 	}
+	o.restoreTestFiles(testFiles)
 
 	for {
 		// VALIDATE GREEN: expect tests to pass
@@ -283,9 +294,26 @@ func (o *CycleOrchestrator) runGreenPhaseUntilValidated(
 			}
 		}
 
+		// Restore the escalated tier: renderGreenFn's PhaseModelTier() side
+		// effect resets bc.Tier to the default phase tier, which would cause
+		// escalateTierFn to return the same "next" tier infinitely.
+		bc.Tier = nextTier
+
 		if err := o.runPhaseInvocation(ctx, bc, retryPrompt, "green"); err != nil {
 			return err
 		}
+		o.restoreTestFiles(testFiles)
+	}
+}
+
+// restoreTestFiles reverts any unauthorized modifications to test files
+// made by the green phase model, which should only modify implementation files.
+func (o *CycleOrchestrator) restoreTestFiles(testFiles []string) {
+	if o.restoreTestFilesFn == nil || len(testFiles) == 0 {
+		return
+	}
+	if err := o.restoreTestFilesFn(testFiles); err != nil {
+		fmt.Fprintf(os.Stderr, "[tdd] warning: failed to restore test files: %v\n", err)
 	}
 }
 

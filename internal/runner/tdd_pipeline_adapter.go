@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
@@ -41,7 +42,9 @@ func (a *TDDPipelineAdapter) RunCycles(ctx context.Context, b *bead.Bead, cfg *c
 		return execute.TDDCycleResult{}, err
 	}
 
+	startTime := time.Now()
 	cycleErr := a.runner.tddOrchestrator.RunCycles(ctx, bc, coverageTracker, coverageCriteria)
+	durationMs := time.Since(startTime).Milliseconds()
 
 	aggregateTDDPhaseMetricsToResult(bc)
 	originalTier, actualTier := tddTierProvenance(bc.Result.PhaseMetrics)
@@ -59,6 +62,7 @@ func (a *TDDPipelineAdapter) RunCycles(ctx context.Context, b *bead.Bead, cfg *c
 		OriginalTier: originalTier,
 		ActualTier:   actualTier,
 		Model:        bc.Result.Model,
+		DurationMs:   durationMs,
 		CostUSD:      bc.Result.CostUSD,
 		InputTokens:  bc.Result.InputTokens,
 		OutputTokens: bc.Result.OutputTokens,

@@ -429,7 +429,7 @@ func TestFailureLearnerAdapter_CallsAnalyzer(t *testing.T) {
 // cycles to the runner-backed orchestrator.
 func TestBuildTDDCycleRunner_ReturnsTDDPipelineAdapter(t *testing.T) {
 	cfg := &config.Config{}
-	result := buildTDDCycleRunner(cfg, nil, nil, io.Discard)
+	result := buildTDDCycleRunner(cfg, nil, nil, io.Discard, nil)
 	if result == nil {
 		t.Fatal("buildTDDCycleRunner returned nil TDDCycleRunner")
 	}
@@ -443,7 +443,7 @@ func TestBuildTDDCycleRunner_ReturnsTDDPipelineAdapter(t *testing.T) {
 // runCyclesFn, so TDD cycle invocations will execute rather than error with "not configured".
 func TestBuildTDDCycleRunner_RunnerHasConfiguredOrchestrator(t *testing.T) {
 	cfg := &config.Config{}
-	result := buildTDDCycleRunner(cfg, nil, nil, io.Discard)
+	result := buildTDDCycleRunner(cfg, nil, nil, io.Discard, nil)
 	adapter, ok := result.(*TDDPipelineAdapter)
 	if !ok {
 		t.Fatalf("expected *TDDPipelineAdapter, got %T", result)
@@ -461,7 +461,7 @@ func TestBuildTDDCycleRunner_RunnerHasConfiguredOrchestrator(t *testing.T) {
 // Build stage falls back to single-invocation StreamRun.
 func TestOptionalTDDCycleRunner_ReturnsNilWhenFreshContextDisabled(t *testing.T) {
 	cfg := &config.Config{}
-	result := optionalTDDCycleRunner(cfg, nil, nil, io.Discard)
+	result := optionalTDDCycleRunner(cfg, nil, nil, io.Discard, nil)
 	if result != nil {
 		t.Errorf("optionalTDDCycleRunner returned %T, want nil when FreshContextPerCycle is false", result)
 	}
@@ -473,7 +473,7 @@ func TestOptionalTDDCycleRunner_ReturnsNilWhenFreshContextDisabled(t *testing.T)
 func TestOptionalTDDCycleRunner_ReturnsAdapterWhenFreshContextEnabled(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Methodology.FreshContextPerCycle = true
-	result := optionalTDDCycleRunner(cfg, nil, nil, io.Discard)
+	result := optionalTDDCycleRunner(cfg, nil, nil, io.Discard, nil)
 	if result == nil {
 		t.Fatal("optionalTDDCycleRunner returned nil, want non-nil TDDCycleRunner when FreshContextPerCycle is true")
 	}
@@ -484,7 +484,7 @@ func TestOptionalTDDCycleRunner_ReturnsNilWhenMethodologyAdapterIsNonGo(t *testi
 	cfg.Methodology.FreshContextPerCycle = true
 	cfg.Methodology.Adapter = "python"
 
-	result := optionalTDDCycleRunner(cfg, nil, nil, io.Discard)
+	result := optionalTDDCycleRunner(cfg, nil, nil, io.Discard, nil)
 	if result != nil {
 		t.Fatalf("optionalTDDCycleRunner returned %T, want nil when methodology adapter is non-go", result)
 	}
