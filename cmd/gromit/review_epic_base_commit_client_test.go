@@ -35,7 +35,7 @@ created: 2026-02-22
 	}
 	mockClient := &bead.Client{RunFn: mockFn}
 
-	_, err := getEpicBaseCommit(mockClient, "client-epic", specsDir, tempDir)
+	_, err := getEpicBaseCommit(mockClient, "client-epic", specsDir)
 	if err == nil {
 		t.Fatal("getEpicBaseCommit should return error when no beads are found")
 	}

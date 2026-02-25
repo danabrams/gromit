@@ -180,8 +180,14 @@ func determineReviewScopeWithClient(cfg *config.Config, beadsClient *bead.Client
 
 	if reviewEpic != "" {
 		// Find the earliest commit from beads in this epic
-		gromitDir := resolveGromitDir(cfg)
-		return getEpicBaseCommit(reviewEpic, resolveSpecsDir(cfg), gromitDir)
+		if beadsClient == nil {
+			var err error
+			beadsClient, err = bead.NewClient()
+			if err != nil {
+				return "", fmt.Errorf("creating bead client: %w", err)
+			}
+		}
+		return getEpicBaseCommit(beadsClient, reviewEpic, resolveSpecsDir(cfg))
 	}
 
 	// Default: use last review commit from state
@@ -238,7 +244,10 @@ func getSpecBaseCommit(beadsClient *bead.Client, specName string, specsDir strin
 	return earliestCommit, nil
 }
 
-func getEpicBaseCommit(epicID, specsDir, gromitDir string) (string, error) {
+func getEpicBaseCommit(beadsClient *bead.Client, epicID, specsDir string) (string, error) {
+	if beadsClient == nil {
+		return "", fmt.Errorf("bead client is nil")
+	}
 	// Use scope.ResolveEpic to get spec labels for this epic
 	specLabels, err := scope.ResolveEpic(epicID, specsDir)
 	if err != nil {
@@ -247,12 +256,6 @@ func getEpicBaseCommit(epicID, specsDir, gromitDir string) (string, error) {
 
 	if len(specLabels) == 0 {
 		return "", fmt.Errorf("no specs found for epic %q - try using --since to specify a commit", epicID)
-	}
-
-	// Get beads for each spec label
-	beadsClient, err := bead.NewClient()
-	if err != nil {
-		return "", fmt.Errorf("creating bead client: %w", err)
 	}
 
 	allBeads := make([]*bead.Bead, 0)
