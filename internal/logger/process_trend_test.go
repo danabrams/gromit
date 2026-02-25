@@ -1152,6 +1152,34 @@ func TestBuildProcessTrend_IncludesProviderMetrics(t *testing.T) {
 	}
 }
 
+func TestBuildProcessTrend_ProviderMetricsUsesRollingWindow(t *testing.T) {
+	windowSize := 30
+	metrics := make([]IterationMetric, windowSize+5)
+	total := len(metrics)
+	for i := range metrics {
+		provider := "recent"
+		if i < total-windowSize {
+			provider = "old"
+		}
+		metrics[i] = IterationMetric{
+			Provider:     provider,
+			Success:      true,
+			DurationMs:   1000 + int64(i),
+			CostUSD:      0.25,
+			InputTokens:  100,
+			OutputTokens: 10,
+		}
+	}
+
+	trend := buildProcessTrend(metrics, windowSize)
+	if len(trend.ProviderMetrics) != 1 {
+		t.Fatalf("len(ProviderMetrics) = %d, want 1", len(trend.ProviderMetrics))
+	}
+	if trend.ProviderMetrics[0].Name != "recent" {
+		t.Fatalf("ProviderMetrics[0].Name = %q, want %q", trend.ProviderMetrics[0].Name, "recent")
+	}
+}
+
 func TestBuildProcessTrend_ComputesStratifiedControlLimits(t *testing.T) {
 	metrics := []IterationMetric{
 		{
