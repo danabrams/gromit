@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -24,6 +25,33 @@ const codexFixtureEnvVar = "CODEX_FIXTURE"
 
 func ApplyCodexFixtureEnvE2E(env []string, fixtureFile string) []string {
 	return testutil.ReplaceOrAppend(append([]string{}, env...), codexFixtureEnvVar, fixtureFile)
+}
+
+func TestApplyCodexFixtureEnvE2E_ProvidesAbsolutePath(t *testing.T) {
+	relFixture := filepath.Join("..", "fixtures", "codex_success.txt")
+	absFixture, err := filepath.Abs(relFixture)
+	if err != nil {
+		t.Fatalf("failed to resolve absolute path for %s: %v", relFixture, err)
+	}
+
+	baseEnv := []string{"PATH=/tmp/bin", codexFixtureEnvVar + "=/old/path"}
+	updatedEnv := ApplyCodexFixtureEnvE2E(baseEnv, relFixture)
+
+	var gotFixture string
+	for _, entry := range updatedEnv {
+		if strings.HasPrefix(entry, codexFixtureEnvVar+"=") {
+			gotFixture = strings.TrimPrefix(entry, codexFixtureEnvVar+"=")
+			break
+		}
+	}
+
+	if gotFixture != absFixture {
+		t.Fatalf("CODEX_FIXTURE = %q, want %q", gotFixture, absFixture)
+	}
+
+	if baseEnv[1] != codexFixtureEnvVar+"=/old/path" {
+		t.Fatalf("ApplyCodexFixtureEnvE2E mutated original env: got %v", baseEnv)
+	}
 }
 
 func FilterE2EToolCalls(env *e2eEnv, tool ToolCallKind) ([]string, error) {
