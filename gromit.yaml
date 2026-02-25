@@ -57,6 +57,7 @@ routing:
     validate: any
     review: claude       # force review to Claude provider
     analyze: any
+    refine: claude       # force refine to Claude provider
     scope_check: any
     precheck: any
     decompose: claude    # force decompose to Claude provider
