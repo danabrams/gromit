@@ -81,6 +81,16 @@ func (f *fakeDecomposer) Decompose(_ context.Context, _ *bead.Bead) error {
 	return f.err
 }
 
+type fakeDataQualityBlocker struct {
+	blocked bool
+	reason  string
+	err     error
+}
+
+func (f *fakeDataQualityBlocker) ShouldBlock(_ context.Context, _ *bead.Bead) (bool, string, error) {
+	return f.blocked, f.reason, f.err
+}
+
 func TestGateRun(t *testing.T) {
 	b := &bead.Bead{ID: "test-1", Title: "test bead"}
 
@@ -587,4 +597,21 @@ func TestGateRunComplexityRouting_OnSkipAndBlockPaths(t *testing.T) {
 			t.Fatalf("unexpected complexity routing: %+v", out.ComplexityRouting)
 		}
 	})
+}
+
+func TestGateRunDataQualityBlocker_BlocksBeadWhenDataIncomplete(t *testing.T) {
+	b := &bead.Bead{
+		ID:    "bead-quality-check",
+		Title: "test bead",
+	}
+	in := pipeline.Input{Bead: b}
+
+	gate := New(io.Discard).WithDataQualityBlocker(&fakeDataQualityBlocker{blocked: true, reason: "incomplete_efficiency_data"})
+	out, err := gate.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if out.Decision != pipeline.Block {
+		t.Fatalf("decision = %v, want %v", out.Decision, pipeline.Block)
+	}
 }

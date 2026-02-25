@@ -393,7 +393,7 @@ func TestApplyBenchmarkOverlayToConfig_PinsProviderAndEnforcesTierPolicies(t *te
 	overlay, err := BuildModeOverlay(HarnessManifest{
 		Provider:        "openai",
 		ModelFamily:     "gpt-5",
-		LowTierModel:    "gpt-5-mini",
+		LowTierModel:    "gpt-5.1-codex-mini",
 		MediumTierModel: "gpt-5.3-codex",
 		HighTierModel:   "gpt-5.3-codex",
 	}, "tdd_fresh_context")
@@ -424,8 +424,8 @@ func TestApplyBenchmarkOverlayToConfig_PinsProviderAndEnforcesTierPolicies(t *te
 	if !got.Validation.IsNonInteractive() {
 		t.Fatal("validation.non_interactive = false, want true")
 	}
-	if got.Providers["openai"].Models["low"] != "gpt-5-mini" {
-		t.Fatalf("provider low model = %q, want %q", got.Providers["openai"].Models["low"], "gpt-5-mini")
+	if got.Providers["openai"].Models["low"] != "gpt-5.1-codex-mini" {
+		t.Fatalf("provider low model = %q, want %q", got.Providers["openai"].Models["low"], "gpt-5.1-codex-mini")
 	}
 	if got.Providers["openai"].Models["medium"] != "gpt-5.3-codex" {
 		t.Fatalf("provider medium model = %q, want %q", got.Providers["openai"].Models["medium"], "gpt-5.3-codex")
@@ -461,7 +461,7 @@ func TestApplyBenchmarkOverlay_ManifestModelsReachProviderConstructor(t *testing
 				Models: map[string]string{
 					"high":   "gpt-5.3-codex",
 					"medium": "gpt-5.3-codex",
-					"low":    "gpt-5-mini",
+					"low":    "gpt-5.1-codex-mini",
 				},
 			},
 		},

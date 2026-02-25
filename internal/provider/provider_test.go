@@ -426,7 +426,7 @@ func TestTierFromLegacyModelCaseInsensitive(t *testing.T) {
 func TestTierFromLegacyModelAllKnownModels(t *testing.T) {
 	// Complete mapping from the spec: opus→high, sonnet→medium, haiku→low,
 	// o3→high, gpt-4o→medium, gpt-4o-mini→low, gpt-5.3-codex→medium,
-	// gpt-5-mini→low
+	// gpt-5.1-codex-mini→low
 	tests := []struct {
 		modelName    string
 		expectedTier string
@@ -441,7 +441,7 @@ func TestTierFromLegacyModelAllKnownModels(t *testing.T) {
 		{"gpt-4o-mini", TierLow},
 		// Codex models
 		{"gpt-5.3-codex", TierMedium},
-		{"gpt-5-mini", TierLow},
+		{"gpt-5.1-codex-mini", TierLow},
 	}
 
 	for _, tt := range tests {

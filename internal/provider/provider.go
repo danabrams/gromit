@@ -34,7 +34,7 @@ var legacyModelToTier = map[string]string{
 	"gpt-4o-mini": TierLow,
 	// Codex models
 	"gpt-5.3-codex": TierMedium,
-	"gpt-5-mini":    TierLow,
+	"gpt-5.1-codex-mini":    TierLow,
 }
 
 var tierToLegacyModel = map[string]string{
@@ -108,7 +108,7 @@ type ProviderCacheHooks interface {
 //   - gpt-4o → medium
 //   - gpt-4o-mini → low
 //   - gpt-5.3-codex → medium
-//   - gpt-5-mini → low
+//   - gpt-5.1-codex-mini → low
 //
 // Unrecognized model names are returned unchanged for forward compatibility.
 // Case-insensitive matching allows for flexible config formats (e.g., "Opus" or "OPUS").

@@ -22,7 +22,7 @@ modes:
   - single_pass
 provider: openai
 model_family: gpt-5
-low_tier_model: gpt-5-mini
+low_tier_model: gpt-5.1-codex-mini
 medium_tier_model: gpt-5.3-codex
 high_tier_model: gpt-5.3-codex
 `
@@ -83,7 +83,7 @@ modes:
   - unsupported_mode
 provider: openai
 model_family: gpt-5
-low_tier_model: gpt-5-mini
+low_tier_model: gpt-5.1-codex-mini
 medium_tier_model: gpt-5.3-codex
 high_tier_model: gpt-5.3-codex
 `
@@ -160,7 +160,7 @@ beads:
 modes:
   - single_pass
 model_family: gpt-5
-low_tier_model: gpt-5-mini
+low_tier_model: gpt-5.1-codex-mini
 medium_tier_model: gpt-5.3-codex
 high_tier_model: gpt-5.3-codex
 `
@@ -192,7 +192,7 @@ modes:
   - single_pass
 provider: openai
 model_family: gpt-5
-low_tier_model: gpt-5-mini
+low_tier_model: gpt-5.1-codex-mini
 medium_tier_model: gpt-5.3-codex
 `
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
@@ -231,7 +231,7 @@ func TestValidateManifest_AcceptsValidManifest(t *testing.T) {
 		ModelPinning: ModelPinning{
 			Provider:        "openai",
 			ModelFamily:     "gpt-5",
-			LowTierModel:    "gpt-5-mini",
+			LowTierModel:    "gpt-5.1-codex-mini",
 			MediumTierModel: "gpt-5.3-codex",
 			HighTierModel:   "gpt-5.3-codex",
 		},
@@ -253,7 +253,7 @@ func TestValidateManifest_RequiresExactlyFiveBeads(t *testing.T) {
 		ModelPinning: ModelPinning{
 			Provider:        "openai",
 			ModelFamily:     "gpt-5",
-			LowTierModel:    "gpt-5-mini",
+			LowTierModel:    "gpt-5.1-codex-mini",
 			MediumTierModel: "gpt-5.3-codex",
 			HighTierModel:   "gpt-5.3-codex",
 		},
@@ -275,7 +275,7 @@ func TestValidateManifest_RejectsDuplicateModes(t *testing.T) {
 		ModelPinning: ModelPinning{
 			Provider:        "openai",
 			ModelFamily:     "gpt-5",
-			LowTierModel:    "gpt-5-mini",
+			LowTierModel:    "gpt-5.1-codex-mini",
 			MediumTierModel: "gpt-5.3-codex",
 			HighTierModel:   "gpt-5.3-codex",
 		},

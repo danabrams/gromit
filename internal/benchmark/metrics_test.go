@@ -193,9 +193,9 @@ func TestAggregateModeMetrics_AggregatesModelTotals(t *testing.T) {
 	tmpDir := t.TempDir()
 	logPath := filepath.Join(tmpDir, "models.jsonl")
 	content := "" +
-		"{\"iteration\":1,\"model\":\"gpt-5-mini\",\"input_tokens\":100,\"output_tokens\":20,\"cost_usd\":0.10}\n" +
+		"{\"iteration\":1,\"model\":\"gpt-5.1-codex-mini\",\"input_tokens\":100,\"output_tokens\":20,\"cost_usd\":0.10}\n" +
 		"{\"iteration\":2,\"model\":\"gpt-5.3-codex\",\"input_tokens\":200,\"output_tokens\":40,\"cost_usd\":0.20}\n" +
-		"{\"iteration\":3,\"model\":\"gpt-5-mini\",\"input_tokens\":300,\"output_tokens\":60,\"cost_usd\":0.30}\n"
+		"{\"iteration\":3,\"model\":\"gpt-5.1-codex-mini\",\"input_tokens\":300,\"output_tokens\":60,\"cost_usd\":0.30}\n"
 	if err := os.WriteFile(logPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("write fixture log: %v", err)
 	}
@@ -217,7 +217,7 @@ func TestAggregateModeMetrics_AggregatesModelTotals(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("model total count = %d, want 2", len(got))
 	}
-	if got[0].Model != "gpt-5-mini" || got[0].InputTokens != 400 || got[0].OutputTokens != 80 || got[0].CostUSD != 0.4 {
+	if got[0].Model != "gpt-5.1-codex-mini" || got[0].InputTokens != 400 || got[0].OutputTokens != 80 || got[0].CostUSD != 0.4 {
 		t.Fatalf("first model totals = %+v", got[0])
 	}
 	if got[1].Model != "gpt-5.3-codex" || got[1].InputTokens != 200 || got[1].OutputTokens != 40 || got[1].CostUSD != 0.2 {

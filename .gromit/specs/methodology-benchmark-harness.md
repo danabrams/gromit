@@ -51,7 +51,7 @@ modes:
   - tdd_fresh_context
 provider: openai
 model_family: gpt-5
-low_tier_model: gpt-5-mini
+low_tier_model: gpt-5.1-codex-mini
 medium_tier_model: gpt-5.3-codex
 high_tier_model: gpt-5.3-codex
 build_tier_default: low

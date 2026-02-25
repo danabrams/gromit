@@ -20,7 +20,7 @@ func TestBuildRetroProviderRunner_ProvidersPathUsesRouterAdapter(t *testing.T) {
 				Models: map[string]string{
 					provider.TierHigh:   "gpt-5.3-codex",
 					provider.TierMedium: "gpt-5.3-codex",
-					provider.TierLow:    "gpt-5-mini",
+					provider.TierLow:    "gpt-5.1-codex-mini",
 				},
 			},
 		},
@@ -51,7 +51,7 @@ func TestBuildRetroProviderRunner_ProvidersPathDoesNotUseClaudeFallbackFactory(t
 				Models: map[string]string{
 					provider.TierHigh:   "gpt-5.3-codex",
 					provider.TierMedium: "gpt-5.3-codex",
-					provider.TierLow:    "gpt-5-mini",
+					provider.TierLow:    "gpt-5.1-codex-mini",
 				},
 			},
 		},

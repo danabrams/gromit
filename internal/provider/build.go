@@ -18,7 +18,7 @@ var DefaultTierToModelMap = map[string]string{
 var defaultCodexTierToModelMap = map[string]string{
 	TierHigh:   "gpt-5.3-codex",
 	TierMedium: "gpt-5.3-codex",
-	TierLow:    "gpt-5-mini",
+	TierLow:    "gpt-5.1-codex-mini",
 }
 
 func ParseFallbackCooldown(cfg *config.Config) time.Duration {

@@ -438,7 +438,7 @@ func TestBuildDecomposeClient_CodexProviderPath(t *testing.T) {
 				Models: map[string]string{
 					"high":   "gpt-5.3-codex",
 					"medium": "gpt-5.3-codex",
-					"low":    "gpt-5-mini",
+					"low":    "gpt-5.1-codex-mini",
 				},
 			},
 		},
@@ -497,7 +497,7 @@ func TestBuildDecomposeClient_ProviderRouterPath_DefaultPipelineTimeout(t *testi
 				Models: map[string]string{
 					"high":   "gpt-5.3-codex",
 					"medium": "gpt-5.3-codex",
-					"low":    "gpt-5-mini",
+					"low":    "gpt-5.1-codex-mini",
 				},
 			},
 		},

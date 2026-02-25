@@ -34,6 +34,12 @@ type Decomposer interface {
 	Decompose(ctx context.Context, b *bead.Bead) error
 }
 
+// DataQualityBlocker determines whether data quality requirements are met for proceeding.
+// When ShouldBlock returns true, the Gate returns Block to prevent further processing.
+type DataQualityBlocker interface {
+	ShouldBlock(ctx context.Context, b *bead.Bead) (bool, string, error) // blocked, reason, error
+}
+
 // Gate implements pipeline.Stage for Stage 1: gate decisions.
 // It runs precheck, stuck-bead detection, scope gate, and proactive decomposition
 // before any LLM build invocation.
@@ -41,12 +47,14 @@ type Decomposer interface {
 // If stuck (failure threshold exceeded), returns Block.
 // If scope too large (expected outputs > maxScopeFiles), returns Block.
 // If proactive decomposition candidate (keyword title, no parent), decomposes and returns Skip.
+// If data quality blocked, returns Block.
 // Otherwise returns Proceed.
 type Gate struct {
-	precheck   Prechecker    // optional; nil means skip precheck
-	stuck      StuckDetector // optional; nil means skip stuck detection
-	decomposer Decomposer    // optional; nil means skip proactive decomposition
-	output     io.Writer
+	precheck          Prechecker        // optional; nil means skip precheck
+	stuck             StuckDetector     // optional; nil means skip stuck detection
+	decomposer        Decomposer        // optional; nil means skip proactive decomposition
+	dataQualityChecker DataQualityBlocker // optional; nil means skip data quality checks
+	output            io.Writer
 }
 
 // Compile-time check: *Gate must implement pipeline.Stage.
@@ -73,6 +81,12 @@ func (g *Gate) WithStuckDetector(s StuckDetector) *Gate {
 // WithDecomposer configures an optional Decomposer for proactive decomposition of oversized beads.
 func (g *Gate) WithDecomposer(d Decomposer) *Gate {
 	g.decomposer = d
+	return g
+}
+
+// WithDataQualityBlocker configures an optional DataQualityBlocker for data completeness checks.
+func (g *Gate) WithDataQualityBlocker(dq DataQualityBlocker) *Gate {
+	g.dataQualityChecker = dq
 	return g
 }
 
@@ -117,6 +131,20 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 		if err != nil {
 			fmt.Fprintf(out, "Warning: stuck detection failed for bead %s: %v\n", in.Bead.ID, err)
 		} else if stuck {
+			return pipeline.Output{
+				Decision:          pipeline.Block,
+				ComplexityRouting: complexityRouting,
+			}, nil
+		}
+	}
+
+	// Data quality check: block beads if data quality requirements are not met.
+	if g.dataQualityChecker != nil {
+		blocked, reason, err := g.dataQualityChecker.ShouldBlock(ctx, in.Bead)
+		if err != nil {
+			fmt.Fprintf(out, "Warning: data quality check failed for bead %s: %v\n", in.Bead.ID, err)
+		} else if blocked {
+			fmt.Fprintf(out, "Data quality block for bead %s: %s\n", in.Bead.ID, reason)
 			return pipeline.Output{
 				Decision:          pipeline.Block,
 				ComplexityRouting: complexityRouting,

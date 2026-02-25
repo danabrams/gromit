@@ -64,8 +64,8 @@ func TestBuildProvidersFromConfig_CodexDefaults(t *testing.T) {
 	if got := codexProvider.ModelForTier(provider.TierMedium); got != "gpt-5.3-codex" {
 		t.Fatalf("ModelForTier(%q) = %q, want %q", provider.TierMedium, got, "gpt-5.3-codex")
 	}
-	if got := codexProvider.ModelForTier(provider.TierLow); got != "gpt-5-mini" {
-		t.Fatalf("ModelForTier(%q) = %q, want %q", provider.TierLow, got, "gpt-5-mini")
+	if got := codexProvider.ModelForTier(provider.TierLow); got != "gpt-5.1-codex-mini" {
+		t.Fatalf("ModelForTier(%q) = %q, want %q", provider.TierLow, got, "gpt-5.1-codex-mini")
 	}
 }
 

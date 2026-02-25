@@ -19,7 +19,7 @@ var legacyModelToTier = map[string]string{
 	"gpt-4o":        tierMedium,
 	"gpt-4o-mini":   tierLow,
 	"gpt-5.3-codex": tierMedium,
-	"gpt-5-mini":    tierLow,
+	"gpt-5.1-codex-mini":    tierLow,
 }
 
 func (f FallbackConfig) EnabledOrDefault(multiProvider bool) bool {

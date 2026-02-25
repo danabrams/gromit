@@ -20,7 +20,7 @@ func TestBuildModeOverlay_PinsProviderAndModelFamilyAcrossModes(t *testing.T) {
 	manifest := HarnessManifest{
 		Provider:        "openai",
 		ModelFamily:     "gpt-5",
-		LowTierModel:    "gpt-5-mini",
+		LowTierModel:    "gpt-5.1-codex-mini",
 		MediumTierModel: "gpt-5.3-codex",
 		HighTierModel:   "gpt-5.3-codex",
 	}
@@ -52,7 +52,7 @@ func TestBuildModeOverlay_UsesExpectedTierDefaultsForBuildAndValidation(t *testi
 	manifest := HarnessManifest{
 		Provider:        "openai",
 		ModelFamily:     "gpt-5",
-		LowTierModel:    "gpt-5-mini",
+		LowTierModel:    "gpt-5.1-codex-mini",
 		MediumTierModel: "gpt-5.3-codex",
 		HighTierModel:   "gpt-5.3-codex",
 	}
@@ -80,7 +80,7 @@ func TestBuildModeOverlay_ConfiguresFinalHighTierReviewWithApplyFixes(t *testing
 	manifest := HarnessManifest{
 		Provider:        "openai",
 		ModelFamily:     "gpt-5",
-		LowTierModel:    "gpt-5-mini",
+		LowTierModel:    "gpt-5.1-codex-mini",
 		MediumTierModel: "gpt-5.3-codex",
 		HighTierModel:   "gpt-5.3-codex",
 	}
@@ -107,7 +107,7 @@ func TestBuildModeOverlay_ModeDifferencesAreMethodologyOnly(t *testing.T) {
 	manifest := HarnessManifest{
 		Provider:        "openai",
 		ModelFamily:     "gpt-5",
-		LowTierModel:    "gpt-5-mini",
+		LowTierModel:    "gpt-5.1-codex-mini",
 		MediumTierModel: "gpt-5.3-codex",
 		HighTierModel:   "gpt-5.3-codex",
 	}
@@ -143,7 +143,7 @@ func TestFinalizeModeRunResult_RecordsFinalValidationAfterReview(t *testing.T) {
 	manifest := HarnessManifest{
 		Provider:        "openai",
 		ModelFamily:     "gpt-5",
-		LowTierModel:    "gpt-5-mini",
+		LowTierModel:    "gpt-5.1-codex-mini",
 		MediumTierModel: "gpt-5.3-codex",
 		HighTierModel:   "gpt-5.3-codex",
 	}
@@ -173,7 +173,7 @@ func TestRunModesInIsolatedWorktrees_UsesOneResolvedBaseCommitAndSameSelectedBea
 	manifest := HarnessManifest{
 		Provider:        "openai",
 		ModelFamily:     "gpt-5",
-		LowTierModel:    "gpt-5-mini",
+		LowTierModel:    "gpt-5.1-codex-mini",
 		MediumTierModel: "gpt-5.3-codex",
 		HighTierModel:   "gpt-5.3-codex",
 	}
@@ -220,7 +220,7 @@ func TestRunModesInIsolatedWorktrees_CleansUpEveryModeAfterSuccessfulRun(t *test
 		Manifest: HarnessManifest{
 			Provider:        "openai",
 			ModelFamily:     "gpt-5",
-			LowTierModel:    "gpt-5-mini",
+			LowTierModel:    "gpt-5.1-codex-mini",
 			MediumTierModel: "gpt-5.3-codex",
 			HighTierModel:   "gpt-5.3-codex",
 		},
@@ -247,7 +247,7 @@ func TestRunModesInIsolatedWorktrees_CleansUpFailedModeBeforeReturningError(t *t
 		Manifest: HarnessManifest{
 			Provider:        "openai",
 			ModelFamily:     "gpt-5",
-			LowTierModel:    "gpt-5-mini",
+			LowTierModel:    "gpt-5.1-codex-mini",
 			MediumTierModel: "gpt-5.3-codex",
 			HighTierModel:   "gpt-5.3-codex",
 		},
@@ -283,7 +283,7 @@ func TestRunModesInIsolatedWorktrees_PersistsModeLogsToDeterministicPathBeforeCl
 		Manifest: HarnessManifest{
 			Provider:        "openai",
 			ModelFamily:     "gpt-5",
-			LowTierModel:    "gpt-5-mini",
+			LowTierModel:    "gpt-5.1-codex-mini",
 			MediumTierModel: "gpt-5.3-codex",
 			HighTierModel:   "gpt-5.3-codex",
 		},
@@ -324,7 +324,7 @@ func TestRunModesInIsolatedWorktrees_ExecutesOnlyRequestedManifestModes(t *testi
 		Manifest: HarnessManifest{
 			Provider:        "openai",
 			ModelFamily:     "gpt-5",
-			LowTierModel:    "gpt-5-mini",
+			LowTierModel:    "gpt-5.1-codex-mini",
 			MediumTierModel: "gpt-5.3-codex",
 			HighTierModel:   "gpt-5.3-codex",
 		},
@@ -364,7 +364,7 @@ func TestRunModesInIsolatedWorktrees_ReopensSelectedBeadsBeforeEachMode(t *testi
 		Manifest: HarnessManifest{
 			Provider:        "openai",
 			ModelFamily:     "gpt-5",
-			LowTierModel:    "gpt-5-mini",
+			LowTierModel:    "gpt-5.1-codex-mini",
 			MediumTierModel: "gpt-5.3-codex",
 			HighTierModel:   "gpt-5.3-codex",
 		},
@@ -395,7 +395,7 @@ func TestRunModesInIsolatedWorktrees_ReturnsOpenBeadErrorBeforeModeRun(t *testin
 		Manifest: HarnessManifest{
 			Provider:        "openai",
 			ModelFamily:     "gpt-5",
-			LowTierModel:    "gpt-5-mini",
+			LowTierModel:    "gpt-5.1-codex-mini",
 			MediumTierModel: "gpt-5.3-codex",
 			HighTierModel:   "gpt-5.3-codex",
 		},
@@ -420,7 +420,7 @@ func TestRunModesInIsolatedWorktrees_RejectsEmptyModes(t *testing.T) {
 		Manifest: HarnessManifest{
 			Provider:        "openai",
 			ModelFamily:     "gpt-5",
-			LowTierModel:    "gpt-5-mini",
+			LowTierModel:    "gpt-5.1-codex-mini",
 			MediumTierModel: "gpt-5.3-codex",
 			HighTierModel:   "gpt-5.3-codex",
 		},

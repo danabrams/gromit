@@ -263,7 +263,7 @@ func TestRunBenchmarkPipeline_ReportArtifactsMatchInternalWriter(t *testing.T) {
 		ModelPinning: benchpkg.ModelPinning{
 			Provider:        "openai",
 			ModelFamily:     "gpt-5",
-			LowTierModel:    "gpt-5-mini",
+			LowTierModel:    "gpt-5.1-codex-mini",
 			MediumTierModel: "gpt-5.3-codex",
 			HighTierModel:   "gpt-5.3-codex",
 		},
@@ -389,7 +389,7 @@ func TestWriteBenchmarkReport_PreservesInternalReportMarkdownSections(t *testing
 			ID:              "tdd-vs-single-pass",
 			Provider:        "openai",
 			ModelFamily:     "gpt-5",
-			LowTierModel:    "gpt-5-mini",
+			LowTierModel:    "gpt-5.1-codex-mini",
 			MediumTierModel: "gpt-5.3-codex",
 			HighTierModel:   "gpt-5.3-codex",
 		},
@@ -452,7 +452,7 @@ modes:
   - single_pass
 provider: openai
 model_family: gpt-5
-low_tier_model: gpt-5-mini
+low_tier_model: gpt-5.1-codex-mini
 medium_tier_model: gpt-5.3-codex
 high_tier_model: gpt-5.3-codex
 `
@@ -583,7 +583,7 @@ func TestRunBenchmarkPipeline_UsesInternalBenchmarkStagesInOrder(t *testing.T) {
 		ModelPinning: benchpkg.ModelPinning{
 			Provider:        "openai",
 			ModelFamily:     "gpt-5",
-			LowTierModel:    "gpt-5-mini",
+			LowTierModel:    "gpt-5.1-codex-mini",
 			MediumTierModel: "gpt-5.3-codex",
 			HighTierModel:   "gpt-5.3-codex",
 		},
