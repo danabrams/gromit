@@ -3,7 +3,7 @@ package config
 import "path/filepath"
 
 const (
-	defaultPhaseAgent             = "claude"
+	defaultPhaseAgent               = "claude"
 	defaultMethodologyBuildStrategy = "single_pass"
 )
 
@@ -256,7 +256,7 @@ func (c *Config) SetDefaults() {
 	if c.Git.PushFailure == "" {
 		c.Git.PushFailure = "warn"
 	}
-	if c.Git.PushTimeout == 0 {
+	if !c.Git.pushTimeoutSet && c.Git.PushTimeout == 0 {
 		c.Git.PushTimeout = 60
 	}
 	if c.State.StaleThreshold == 0 {

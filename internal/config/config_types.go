@@ -387,9 +387,34 @@ type MethodologyPhaseTimeout struct {
 }
 
 type GitConfig struct {
-	AutoPush    *bool  `yaml:"auto_push"`
-	PushFailure string `yaml:"push_failure"`
-	PushTimeout int    `yaml:"push_timeout"`
+	AutoPush       *bool  `yaml:"auto_push"`
+	PushFailure    string `yaml:"push_failure"`
+	PushTimeout    int    `yaml:"push_timeout"`
+	pushTimeoutSet bool
+}
+
+func (g *GitConfig) UnmarshalYAML(value *yaml.Node) error {
+	type gitConfigDecode struct {
+		AutoPush    *bool  `yaml:"auto_push"`
+		PushFailure string `yaml:"push_failure"`
+		PushTimeout *int   `yaml:"push_timeout"`
+	}
+
+	var decoded gitConfigDecode
+	if err := value.Decode(&decoded); err != nil {
+		return err
+	}
+
+	g.AutoPush = decoded.AutoPush
+	g.PushFailure = decoded.PushFailure
+	if decoded.PushTimeout != nil {
+		g.PushTimeout = *decoded.PushTimeout
+		g.pushTimeoutSet = true
+	} else {
+		g.pushTimeoutSet = false
+	}
+
+	return nil
 }
 
 type StateConfig struct {
