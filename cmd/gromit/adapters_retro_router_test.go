@@ -1,7 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"go/ast"
+	"go/format"
+	"go/parser"
+	"go/token"
 	"io"
 	"os"
 	"strings"
@@ -25,6 +30,32 @@ func TestRetroRouterAdapterCompileTimeCheckLivesInProduction(t *testing.T) {
 	if !strings.Contains(string(prod), sentinel) {
 		t.Fatalf("expected compile-time check in production file %q", sentinel)
 	}
+}
+
+func TestRetroRouterAdapterCompileTimeCheckIsPackageLevel(t *testing.T) {
+	const sentinel = "var _ retro.ProviderRunner = (*retroRouterAdapter)(nil)"
+
+	fset := token.NewFileSet()
+	prod, err := parser.ParseFile(fset, "cmd/gromit/adapters.go", nil, parser.ParseComments)
+	if err != nil {
+		t.Fatalf("parsing production adapters file: %v", err)
+	}
+
+	for _, decl := range prod.Decls {
+		genDecl, ok := decl.(*ast.GenDecl)
+		if !ok || genDecl.Tok != token.VAR {
+			continue
+		}
+		var buf bytes.Buffer
+		if err := format.Node(&buf, fset, genDecl); err != nil {
+			t.Fatalf("formatting declaration: %v", err)
+		}
+		if strings.Contains(buf.String(), sentinel) {
+			return
+		}
+	}
+
+	t.Fatalf("expected package-level compile-time assertion %q in production file", sentinel)
 }
 
 func TestRetroRouterAdapterRun_DelegatesToRouterSelectedProvider(t *testing.T) {
