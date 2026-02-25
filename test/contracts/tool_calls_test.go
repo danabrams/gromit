@@ -28,6 +28,27 @@ func TestFilterToolCalls_Codex(t *testing.T) {
 	}
 }
 
+func TestFilterToolCalls_IgnoresLeadingWhitespace(t *testing.T) {
+	env := setupTestEnv(t)
+
+	callLog := "claude -p --model sonnet\n" +
+		"\tcodex run --model sonnet\n"
+	if err := os.WriteFile(env.CallLog, []byte(callLog), 0644); err != nil {
+		t.Fatalf("failed to write call log: %v", err)
+	}
+
+	calls, err := FilterToolCalls(env, toolcalls.ToolCallCodex)
+	if err != nil {
+		t.Fatalf("FilterToolCalls returned error: %v", err)
+	}
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 codex call, got %d (%v)", len(calls), calls)
+	}
+	if calls[0] != "codex run --model sonnet" {
+		t.Fatalf("expected trimmed call, got %q", calls[0])
+	}
+}
+
 func TestApplyCodexFixtureEnv(t *testing.T) {
 	const fixture = "/tmp/codex-fixture.txt"
 
