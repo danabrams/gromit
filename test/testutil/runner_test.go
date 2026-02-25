@@ -134,6 +134,14 @@ exit ${1:-0}
 
 func createTempShellScript(t *testing.T, dir, name, content string) string {
 	t.Helper()
+	scriptPath, err := createTempShellScriptWithError(dir, name, content)
+	if err != nil {
+		t.Fatalf("failed to create temp shell script %s: %v", name, err)
+	}
+	return scriptPath
+}
+
+func createTempShellScriptWithError(dir, name, content string) (string, error) {
 	// Write to a temp file then rename atomically to avoid ETXTBSY on Linux:
 	// when parallel subtests write+exec concurrently, os.WriteFile may have
 	// O_WRONLY open on an inode that another goroutine's fork() inherits.
@@ -142,18 +150,18 @@ func createTempShellScript(t *testing.T, dir, name, content string) string {
 	// create scripts with the same base name.
 	f, err := os.CreateTemp(dir, name+".*.tmp")
 	if err != nil {
-		t.Fatalf("failed to create temp file for script %s: %v", name, err)
+		return "", fmt.Errorf("create temp file: %w", err)
 	}
 	tmpPath := f.Name()
 	if _, err := f.WriteString(content); err != nil {
 		f.Close()
 		os.Remove(tmpPath)
-		t.Fatalf("failed to write test shell script %s: %v", name, err)
+		return "", fmt.Errorf("write script content: %w", err)
 	}
 	if err := f.Chmod(0755); err != nil {
 		f.Close()
 		os.Remove(tmpPath)
-		t.Fatalf("failed to chmod test shell script %s: %v", name, err)
+		return "", fmt.Errorf("chmod script: %w", err)
 	}
 	// Fsync before close to ensure all writes are persisted and the inode
 	// is stable. This hardens against ETXTBSY when the kernel sees the file
@@ -161,11 +169,11 @@ func createTempShellScript(t *testing.T, dir, name, content string) string {
 	if err := f.Sync(); err != nil {
 		f.Close()
 		os.Remove(tmpPath)
-		t.Fatalf("failed to sync test shell script %s: %v", name, err)
+		return "", fmt.Errorf("sync script: %w", err)
 	}
 	if err := f.Close(); err != nil {
 		os.Remove(tmpPath)
-		t.Fatalf("failed to close test shell script %s: %v", name, err)
+		return "", fmt.Errorf("close script: %w", err)
 	}
 	// Keep the random component from the temp file to ensure unique final names
 	// across concurrent invocations. This prevents ETXTBSY when parallel
@@ -174,7 +182,7 @@ func createTempShellScript(t *testing.T, dir, name, content string) string {
 	scriptPath := strings.TrimSuffix(tmpPath, ".tmp")
 	if err := os.Rename(tmpPath, scriptPath); err != nil {
 		os.Remove(tmpPath)
-		t.Fatalf("failed to rename test shell script to %s: %v", scriptPath, err)
+		return "", fmt.Errorf("rename script: %w", err)
 	}
 
 	// Sync the parent directory to ensure the rename is fully persisted.
@@ -183,15 +191,15 @@ func createTempShellScript(t *testing.T, dir, name, content string) string {
 	dirFile, err := os.Open(dir)
 	if err != nil {
 		os.Remove(scriptPath)
-		t.Fatalf("failed to open directory for sync %s: %v", dir, err)
+		return "", fmt.Errorf("open dir for sync: %w", err)
 	}
 	defer dirFile.Close()
 	if err := dirFile.Sync(); err != nil {
 		os.Remove(scriptPath)
-		t.Fatalf("failed to sync directory %s: %v", dir, err)
+		return "", fmt.Errorf("sync parent dir: %w", err)
 	}
 
-	return scriptPath
+	return scriptPath, nil
 }
 
 func TestRunGromitWithStdin_EmptyDirNotSet(t *testing.T) {
@@ -400,7 +408,11 @@ echo "test output"
 		go func(index int) {
 			defer wg.Done()
 			// All use the same base name "test-script" to stress the hardening
-			scriptPath := createTempShellScript(t, tmpDir, "test-script", scriptContent)
+			scriptPath, err := createTempShellScriptWithError(tmpDir, "test-script", scriptContent)
+			if err != nil {
+				errors[index] = fmt.Errorf("script creation %d failed: %w", index, err)
+				return
+			}
 			stdout, _, exitCode, err := RunGromitWithStdin(scriptPath, "", nil, "")
 			if err != nil {
 				errors[index] = fmt.Errorf("execution %d failed: %w", index, err)

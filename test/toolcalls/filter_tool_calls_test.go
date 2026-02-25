@@ -3,6 +3,7 @@ package toolcalls
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -101,5 +102,27 @@ func TestFilterToolCalls_DoesNotMatchPrefixSubstring(t *testing.T) {
 	}
 	if len(calls) != 1 {
 		t.Fatalf("expected 1 codex call, got %d (%v)", len(calls), calls)
+	}
+}
+
+func TestFilterToolCalls_SupportsLargeLines(t *testing.T) {
+	tmpDir := t.TempDir()
+	callLogPath := filepath.Join(tmpDir, "call_log.txt")
+
+	largeArg := strings.Repeat("a", 200000)
+	callLog := "codex run --payload " + largeArg + "\n"
+	if err := os.WriteFile(callLogPath, []byte(callLog), 0644); err != nil {
+		t.Fatalf("failed to write call log: %v", err)
+	}
+
+	calls, err := FilterToolCalls(callLogPath, ToolCallCodex)
+	if err != nil {
+		t.Fatalf("FilterToolCalls returned error for large line: %v", err)
+	}
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 codex call, got %d", len(calls))
+	}
+	if !strings.HasPrefix(calls[0], "codex run --payload ") {
+		t.Fatalf("unexpected parsed call prefix: %q", calls[0])
 	}
 }

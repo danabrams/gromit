@@ -50,6 +50,16 @@ Contract tests consume canonical provider fixtures under test/fixtures/ using sc
 
 *Seen once - may be specific to one task.*
 
+### 2026-02-25 | Goroutine-Safe Test Failures Require Error-Returning Helpers | TEST_QUALITY
+*Related to: review-1772029155449854699*
+
+When a helper may run inside worker goroutines, it must not call `t.Fatalf`/`FailNow` internally. Return `(value, error)` from the helper and aggregate/report failures from the parent test goroutine after synchronization.
+
+### 2026-02-25 | Scanner-Based Call Log Parsers Need Explicit Buffer Limits | PATTERNS
+*Related to: review-1772029155449854699*
+
+`bufio.Scanner` defaults can fail on long CLI invocation lines; call-log utilities should set an explicit scanner buffer and test oversized-line behavior to avoid latent parsing failures in CI logs.
+
 ### 2026-02-21 | Pipeline Stage Dependency Injection and Soft Failure Patterns | patterns
 *Related to: 9980dae8, gromit-22nrv*
 
@@ -224,4 +234,3 @@ Use package-level `var _ Interface = (*Impl)(nil)` declarations in non-test `.go
 When implementing JSONL stream readers, examine test fixtures to understand the event structure and which fields contain the data to extract. For accumulating results, check if events signal completion (like 'done' messages) and how to properly concatenate streamed text chunks.
 
 *Archived from new: filtered: generic engineering advice*
-

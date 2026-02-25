@@ -2,9 +2,12 @@ package toolcalls
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"strings"
 )
+
+const maxCallLogLineSize = 1024 * 1024 // 1 MiB
 
 // FilterToolCalls reads a call log file and returns all calls matching the given tool kind.
 func FilterToolCalls(callLogPath string, kind ToolCallKind) ([]string, error) {
@@ -49,11 +52,15 @@ func readCallLog(callLogPath string) ([]string, error) {
 
 	var calls []string
 	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, 64*1024), maxCallLogLineSize)
 	for scanner.Scan() {
 		calls = append(calls, scanner.Text())
 	}
 
 	if err := scanner.Err(); err != nil {
+		if err == bufio.ErrTooLong {
+			return nil, fmt.Errorf("call log line exceeds max size %d bytes: %w", maxCallLogLineSize, err)
+		}
 		return nil, err
 	}
 
