@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -755,6 +756,55 @@ func TestRunTimeoutCompositionUsesClientLimit(t *testing.T) {
 
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("Run() error should wrap context deadline: %v", err)
+	}
+}
+
+func TestRunTimesOutQuicklyAgainstClaudeBinary(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("requires POSIX shell to run the fake Claude binary")
+	}
+
+	binary := filepath.Join("test", "fakes", "claude")
+	if _, err := os.Stat(binary); err != nil {
+		t.Fatalf("expected fake claude binary at %s: %v", binary, err)
+	}
+
+	fixtureDir := t.TempDir()
+	fixturePath := filepath.Join(fixtureDir, "timeout_fixture.txt")
+	if err := os.WriteFile(fixturePath, []byte("timeout fixture"), 0o644); err != nil {
+		t.Fatalf("failed to write fixture: %v", err)
+	}
+
+	t.Setenv("CLAUDE_FIXTURE", fixturePath)
+	t.Setenv("CLAUDE_DELAY", "5")
+	t.Setenv("CLAUDE_INPUT_TOKENS", "10")
+	t.Setenv("CLAUDE_OUTPUT_TOKENS", "20")
+	t.Setenv("CLAUDE_COST_USD", "0.1")
+	t.Setenv("TEST_DIR", fixtureDir)
+
+	client, err := NewClient(binary, nil, 1)
+	if err != nil {
+		t.Fatalf("NewClient() error: %v", err)
+	}
+
+	start := time.Now()
+	_, err = client.Run(context.Background(), "timeout prompt", "sonnet")
+	duration := time.Since(start)
+
+	if err == nil {
+		t.Fatal("Run() should error when Claude invocation exceeds timeout")
+	}
+
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected context deadline exceeded, got %v", err)
+	}
+
+	if !strings.Contains(err.Error(), "invocation timed out after") {
+		t.Fatalf("expected timeout message, got %q", err)
+	}
+
+	if duration >= 2*time.Second {
+		t.Fatalf("Run() should return shortly after timeout (duration=%v)", duration)
 	}
 }
 
