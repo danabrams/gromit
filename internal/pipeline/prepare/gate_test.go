@@ -150,6 +150,28 @@ func (f *fakeDecomposer) Decompose(_ context.Context, _ *bead.Bead) error {
 	return f.err
 }
 
+type mockDataQualityBlocker struct {
+	blocked bool
+	reason  string
+	err     error
+}
+
+func newMockDataQualityBlocker() *mockDataQualityBlocker {
+	return &mockDataQualityBlocker{}
+}
+
+func (m *mockDataQualityBlocker) WithShouldBlock(blocked bool, reason string, err error) *mockDataQualityBlocker {
+	m.blocked = blocked
+	m.reason = reason
+	m.err = err
+	return m
+}
+
+func (m *mockDataQualityBlocker) ShouldBlock(_ context.Context, _ *bead.Bead) (bool, string, error) {
+	return m.blocked, m.reason, m.err
+}
+
+// Deprecated: use newMockDataQualityBlocker() instead
 type fakeDataQualityBlocker struct {
 	blocked bool
 	reason  string
