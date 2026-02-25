@@ -318,3 +318,26 @@ func TestDetermineRefineInput_ChooseAgentWithIdeaID(t *testing.T) {
 		t.Errorf("IdeaID = %q, want %q", input.IdeaID, "idea-123")
 	}
 }
+
+func TestDetermineRefineInput_ChooseAgentWithIdeaText(t *testing.T) {
+	cmd := &cobra.Command{}
+	cmd.Flags().String("agent", "", "")
+	cmd.Flags().Bool("choose-agent", false, "")
+
+	if err := cmd.Flags().Set("choose-agent", "true"); err != nil {
+		t.Fatalf("set choose-agent flag: %v", err)
+	}
+
+	input, err := determineRefineInput(cmd, []string{"an ad-hoc idea"}, "")
+	if err != nil {
+		t.Fatalf("determineRefineInput() error = %v", err)
+	}
+
+	if !input.ChooseAgent {
+		t.Errorf("ChooseAgent = %v, want true when --choose-agent flag is set", input.ChooseAgent)
+	}
+
+	if input.IdeaText != "an ad-hoc idea" {
+		t.Errorf("IdeaText = %q, want %q", input.IdeaText, "an ad-hoc idea")
+	}
+}
