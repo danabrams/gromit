@@ -21,7 +21,75 @@ type ExperimentReport struct {
 
 // GenerateReport loads bandit state for each experiment and returns the report.
 func GenerateReport(experiments []*Experiment, stateDir string) (*ExperimentReport, error) {
-	return &ExperimentReport{}, nil
+	if len(experiments) == 0 {
+		return &ExperimentReport{}, nil
+	}
+
+	exp := experiments[0]
+	state, err := LoadState(stateDir, exp.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	report := &ExperimentReport{
+		ExperimentID: exp.ID,
+	}
+
+	// Build variant reports from bandit state
+	for _, arm := range state.Arms {
+		total := arm.Successes + arm.Failures
+		successRate := 0.0
+		if total > 0 {
+			successRate = float64(arm.Successes) / float64(total)
+		}
+
+		banditWeight := computeBanditWeight(state, arm.ID)
+
+		vr := &VariantReport{
+			VariantID:    arm.ID,
+			SuccessRate:  successRate,
+			AvgCost:      0.0,
+			BanditWeight: banditWeight,
+		}
+		report.VariantReports = append(report.VariantReports, vr)
+	}
+
+	return report, nil
+}
+
+// computeBanditWeight computes the probability that an arm is the best using Monte Carlo sampling.
+func computeBanditWeight(bs *BanditState, targetArmID string) float64 {
+	if len(bs.Arms) == 0 {
+		return 0.0
+	}
+
+	const numDraws = 10000
+
+	// Count how many times the target arm is the best across draws
+	winCount := 0
+
+	for draw := 0; draw < numDraws; draw++ {
+		maxValue := -1.0
+		bestArmID := ""
+
+		for _, arm := range bs.Arms {
+			// Sample from Beta(successes+1, failures+1)
+			x := sampleGamma(float64(arm.Successes + 1))
+			y := sampleGamma(float64(arm.Failures + 1))
+			sample := x / (x + y)
+
+			if sample > maxValue {
+				maxValue = sample
+				bestArmID = arm.ID
+			}
+		}
+
+		if bestArmID == targetArmID {
+			winCount++
+		}
+	}
+
+	return float64(winCount) / numDraws
 }
 
 // FormatReport formats the experiment report as a human-readable string.
