@@ -671,3 +671,37 @@ func TestCallbackFunctionTypes(t *testing.T) {
 		}
 	})
 }
+
+// TestIterationResult_ExperimentIDAndVariantIDJSONTags verifies that IterationResult has
+// ExperimentID and VariantID fields with json tags and omitempty behavior.
+func TestIterationResult_ExperimentIDAndVariantIDJSONTags(t *testing.T) {
+	result := IterationResult{
+		BeadID:       "test-1",
+		ExperimentID: "exp-xyz",
+		VariantID:    "var-abc",
+	}
+
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal iteration result: %v", err)
+	}
+	s := string(data)
+	if !strings.Contains(s, "\"experiment_id\":\"exp-xyz\"") {
+		t.Fatalf("expected experiment_id in JSON, got %s", s)
+	}
+	if !strings.Contains(s, "\"variant_id\":\"var-abc\"") {
+		t.Fatalf("expected variant_id in JSON, got %s", s)
+	}
+
+	emptyData, err := json.Marshal(IterationResult{})
+	if err != nil {
+		t.Fatalf("marshal empty iteration result: %v", err)
+	}
+	empty := string(emptyData)
+	if strings.Contains(empty, "experiment_id") {
+		t.Fatalf("expected experiment_id omitted from empty result, got %s", empty)
+	}
+	if strings.Contains(empty, "variant_id") {
+		t.Fatalf("expected variant_id omitted from empty result, got %s", empty)
+	}
+}
