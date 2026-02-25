@@ -321,6 +321,56 @@ func TestWriteReport_JSONArtifactModelTotalsAreSorted(t *testing.T) {
 	}
 }
 
+func TestWriteReport_BeadsArrayIsSorted(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+
+	unsortedBeads := ReportInput{
+		Timestamp: "20260223T120000Z",
+		Manifest: ManifestMetadata{
+			ID:         "test-beads-determinism",
+			BaseCommit: "abc123",
+			Beads:      []string{"zebra", "apple", "monkey", "banana"},
+		},
+		Modes: []ModeSummary{{Mode: "test_mode"}},
+	}
+
+	_, err := WriteReport(unsortedBeads)
+	if err != nil {
+		t.Fatalf("first WriteReport() error = %v", err)
+	}
+
+	jsonPath := filepath.Join(".gromit", "benchmarks", "results", "test-beads-determinism", "20260223T120000Z.json")
+	firstJSON, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("read first json artifact: %v", err)
+	}
+
+	sortedBeads := ReportInput{
+		Timestamp: "20260223T120000Z",
+		Manifest: ManifestMetadata{
+			ID:         "test-beads-determinism",
+			BaseCommit: "abc123",
+			Beads:      []string{"apple", "banana", "monkey", "zebra"},
+		},
+		Modes: []ModeSummary{{Mode: "test_mode"}},
+	}
+
+	_, err = WriteReport(sortedBeads)
+	if err != nil {
+		t.Fatalf("second WriteReport() error = %v", err)
+	}
+
+	secondJSON, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("read second json artifact: %v", err)
+	}
+
+	if !bytes.Equal(firstJSON, secondJSON) {
+		t.Fatalf("json artifact not deterministic for unordered Beads\nfirst:\n%s\nsecond:\n%s", string(firstJSON), string(secondJSON))
+	}
+}
+
 func TestRunPhase3Measurement_ComputesMediansAndCacheHitRatesByPromptClass(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
