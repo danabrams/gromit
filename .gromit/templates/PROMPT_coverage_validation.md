@@ -12,6 +12,16 @@ Criterion #{{.CriterionNumber}}: {{.CriterionText}}
 {{.TestCode}}
 ```
 
+## Sample Coverage Data
+
+The snippet below represents the sample coverage evidence for the criterion you are evaluating.
+
+Criterion #{{.CriterionNumber}}: {{.CriterionText}}
+
+```go
+{{.TestCode}}
+```
+
 ## Instructions
 
 1. Decide whether the test code fully covers the criterion.
