@@ -1,8 +1,8 @@
 ---
+created: 2026-02-25T00:00:00Z
+decomposed: false
 id: enforce-timeout-first-decomposition
 source_spec: enforce-timeout-first-decomposition
-created: 2026-02-25
-decomposed: false
 ---
 
 # Enforce Timeout-First Decomposition Implementation Plan
