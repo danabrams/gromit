@@ -54,6 +54,18 @@ func templateFuncs() template.FuncMap {
 		"hasLabel": func(labels []string, target string) bool {
 			return bead.HasLabel(labels, target)
 		},
+		"defaultInt": func(value, fallback int) int {
+			if value != 0 {
+				return value
+			}
+			return fallback
+		},
+		"defaultString": func(value, fallback string) string {
+			if value != "" {
+				return value
+			}
+			return fallback
+		},
 		"indent": func(spaces int, s string) string {
 			pad := strings.Repeat(" ", spaces)
 			lines := strings.Split(s, "\n")

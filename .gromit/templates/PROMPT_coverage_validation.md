@@ -16,10 +16,11 @@ Criterion #{{.CriterionNumber}}: {{.CriterionText}}
 
 The snippet below represents the sample coverage evidence for the criterion you are evaluating.
 
-Criterion #{{.CriterionNumber}}: {{.CriterionText}}
+{{- $sampleCriterionNumber := defaultInt .SampleCriterionNumber .CriterionNumber -}}
+Criterion #{{ $sampleCriterionNumber }}: {{ defaultString .SampleCriterionText .CriterionText }}
 
 ```go
-{{.TestCode}}
+{{ defaultString .SampleTestCode .TestCode }}
 ```
 
 Use the sample coverage validation snippet above to guide your reasoning.

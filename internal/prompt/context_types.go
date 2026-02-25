@@ -154,6 +154,10 @@ type CoverageValidationContext struct {
 	TestCode        string
 	CriterionNumber int
 	CriterionText   string
+	// Optional overrides used for sample coverage data in the template.
+	SampleTestCode        string
+	SampleCriterionNumber int
+	SampleCriterionText   string
 }
 
 // TDDRedContext holds data for TDD red-phase prompt template.
@@ -174,9 +178,9 @@ type TDDRedContext struct {
 
 // TDDGreenContext holds data for TDD green-phase prompt template.
 type TDDGreenContext struct {
-	BeadID          string
-	BeadTitle       string
-	BeadDescription string
+	BeadID            string
+	BeadTitle         string
+	BeadDescription   string
 	FailingTest       string
 	TestFailureOutput string
 	ImplFileContents  map[string]string
