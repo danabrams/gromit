@@ -329,6 +329,14 @@ func formatSPCSummary(trend *logger.ProcessTrend) string {
 		lines = append(lines, providerLines...)
 	}
 
+	if leading := formatSPCLeadingIndicators(trend.LatestWindow); len(leading) > 0 {
+		lines = append(lines, leading...)
+	}
+
+	if econ := formatSPCEconomicMetrics(trend.LatestWindow); len(econ) > 0 {
+		lines = append(lines, econ...)
+	}
+
 	if ewmaLines := formatSPCEWMAValues(trend.EWMAAnomalies); len(ewmaLines) > 0 {
 		lines = append(lines, ewmaLines...)
 	}
@@ -381,6 +389,45 @@ func formatSPCProviderMetrics(metrics []logger.ProviderMetrics) []string {
 		))
 	}
 
+	return lines
+}
+
+func formatSPCLeadingIndicators(window logger.ProcessTrendWindow) []string {
+	lines := []string{}
+	if window.FirstPassSuccess > 0 {
+		lines = append(lines, fmt.Sprintf("    first-pass success %d%%", int(math.Round(window.FirstPassSuccess*100))))
+	}
+	if window.ReworkRate > 0 {
+		lines = append(lines, fmt.Sprintf("    rework %d%%", int(math.Round(window.ReworkRate*100))))
+	}
+	if window.EscalationRate > 0 {
+		lines = append(lines, fmt.Sprintf("    escalation %d%%", int(math.Round(window.EscalationRate*100))))
+	}
+	if window.AvgInputTokens > 0 {
+		lines = append(lines, fmt.Sprintf("    input %d tokens", int(math.Round(window.AvgInputTokens))))
+	}
+	if len(lines) == 0 {
+		return nil
+	}
+	return append([]string{"  Leading indicators:"}, lines...)
+}
+
+func formatSPCEconomicMetrics(window logger.ProcessTrendWindow) []string {
+	shouldShow := window.AvgCostUSD > 0 || window.AvgCostPerBeadUSD > 0 || window.AvgDurationMs > 0
+	if !shouldShow {
+		return nil
+	}
+
+	lines := []string{"  Economic metrics:"}
+	if window.AvgCostUSD > 0 {
+		lines = append(lines, fmt.Sprintf("    Avg $%.2f", window.AvgCostUSD))
+	}
+	if window.AvgCostPerBeadUSD > 0 {
+		lines = append(lines, fmt.Sprintf("    cost per bead $%.2f", window.AvgCostPerBeadUSD))
+	}
+	if window.AvgDurationMs > 0 {
+		lines = append(lines, fmt.Sprintf("    avg duration %s", formatDuration(time.Duration(window.AvgDurationMs)*time.Millisecond)))
+	}
 	return lines
 }
 
