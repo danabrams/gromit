@@ -91,6 +91,30 @@ type ReportPaths struct {
 	MDPath   string
 }
 
+func BuildReportInput(
+	manifestID string,
+	baseCommit string,
+	beads []string,
+	provider, modelFamily, lowTierModel, mediumTierModel, highTierModel string,
+	modes []ModeSummary,
+	timestamp string,
+) ReportInput {
+	return ReportInput{
+		Timestamp: timestamp,
+		Manifest: ManifestMetadata{
+			ID:              manifestID,
+			BaseCommit:      baseCommit,
+			Beads:           append([]string(nil), beads...),
+			Provider:        provider,
+			ModelFamily:     modelFamily,
+			LowTierModel:    lowTierModel,
+			MediumTierModel: mediumTierModel,
+			HighTierModel:   highTierModel,
+		},
+		Modes: append([]ModeSummary(nil), modes...),
+	}
+}
+
 func WriteReport(input ReportInput) (ReportPaths, error) {
 	resultDir := filepath.Join(".gromit", "benchmarks", "results", input.Manifest.ID)
 	if err := os.MkdirAll(resultDir, 0o755); err != nil {
