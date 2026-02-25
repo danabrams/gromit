@@ -80,6 +80,46 @@ func TestApplyCodexDelayEnv(t *testing.T) {
 	}
 }
 
+func TestApplyCodexEnv_ComposesMultipleHelpers(t *testing.T) {
+	const fixture = "/tmp/codex-fixture.txt"
+	const exitCode = "42"
+	const delay = "5s"
+
+	env := []string{"PATH=/tmp/bin", "HOME=/tmp/home"}
+
+	// Apply all three helpers in sequence
+	env = ApplyCodexFixtureEnv(env, fixture)
+	env = ApplyCodexFailEnv(env, exitCode)
+	env = ApplyCodexDelayEnv(env, delay)
+
+	// Verify all three are set
+	foundFixture := false
+	foundFailure := false
+	foundDelay := false
+
+	for _, v := range env {
+		if v == codexFixtureEnvVar+"="+fixture {
+			foundFixture = true
+		}
+		if v == codexFailureExitCodeEnvVar+"="+exitCode {
+			foundFailure = true
+		}
+		if v == codexDelayEnvVar+"="+delay {
+			foundDelay = true
+		}
+	}
+
+	if !foundFixture {
+		t.Fatalf("%s was not set to %q in env: %v", codexFixtureEnvVar, fixture, env)
+	}
+	if !foundFailure {
+		t.Fatalf("%s was not set to %q in env: %v", codexFailureExitCodeEnvVar, exitCode, env)
+	}
+	if !foundDelay {
+		t.Fatalf("%s was not set to %q in env: %v", codexDelayEnvVar, delay, env)
+	}
+}
+
 func TestFilterToolCalls_UnknownKind(t *testing.T) {
 	env := setupTestEnv(t)
 	_, err := FilterToolCalls(env, ToolCallKind("unknown"))
