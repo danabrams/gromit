@@ -86,8 +86,8 @@ func TestFinalVerification(t *testing.T) {
 				name: "explore tests consolidated in explore_test.go",
 				file: "cmd/gromit/explore_test.go",
 				contains: []string{
-					"buildExplorePrompt",
 					"setupExploreTest",
+					"explorePromptRenderer",
 				},
 			},
 			{

@@ -46,22 +46,6 @@ func setupExploreTest(t *testing.T) (*config.Config, string) {
 	return cfg, gromitDir
 }
 
-// buildExplorePrompt is preserved as a reference for what the CLI adapter
-// used to do before extracting to Pipeline.Explore.
-//
-// The actual prompt building now happens in internal/prompt via
-// explorePromptRenderer.RenderExplore(), which is called by Pipeline.Explore().
-//
-// This stub is kept to satisfy final_verification_test.go which checks for
-// the existence of these functions after the explore test consolidation.
-func buildExplorePrompt(cfg *config.Config, gromitDir string, args []string) (string, error) {
-	// This function was moved to internal/prompt as part of pipeline extraction.
-	// Tests for prompt building are now in internal/prompt/prompt_test.go.
-	// Tests for the full explore workflow are in internal/pipeline/explore_test.go.
-	// This stub documents the refactoring for future reference.
-	return "", nil
-}
-
 func TestBuildExplorePipeline_NilConfigUsesResolvedDefaults(t *testing.T) {
 	t.Chdir(t.TempDir())
 
