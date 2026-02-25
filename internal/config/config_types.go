@@ -488,7 +488,9 @@ func (p ProviderDef) EstimateCostForModel(model string, inputTokens, outputToken
 	costIn, costOut := p.CostPer1kInput, p.CostPer1kOutput
 	if model != "" && p.ModelCosts != nil {
 		if mc, ok := p.ModelCosts[model]; ok && mc != nil {
-			costIn, costOut = mc.CostPer1kInput, mc.CostPer1kOutput
+			if mc.CostPer1kInput != 0 || mc.CostPer1kOutput != 0 {
+				costIn, costOut = mc.CostPer1kInput, mc.CostPer1kOutput
+			}
 		}
 	}
 	if costIn == 0 && costOut == 0 {
