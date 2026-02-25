@@ -1437,3 +1437,40 @@ func assertProviderMetricsEqual(t *testing.T, got, want ProviderMetrics) {
 		t.Errorf("%s.TotalOutputTokens = %d, want %d", got.Name, got.TotalOutputTokens, want.TotalOutputTokens)
 	}
 }
+
+// TestTrendBuilderFunctionsExist verifies that computation pipeline functions exist in trend_builder.go
+func TestTrendBuilderFunctionsExist(t *testing.T) {
+	// This test should fail until trend_builder.go exists with buildBeadEntryIndices function
+	entries := []IterationLog{
+		{
+			Timestamp: time.Now(),
+			Iteration: 1,
+			BeadID:    "bead1",
+			Success:   true,
+		},
+		{
+			Timestamp: time.Now(),
+			Iteration: 2,
+			BeadID:    "bead1",
+			Success:   true,
+		},
+		{
+			Timestamp: time.Now(),
+			Iteration: 3,
+			BeadID:    "bead2",
+			Success:   false,
+		},
+	}
+
+	// This call should work after trend_builder.go is created with buildBeadEntryIndices
+	indices := buildBeadEntryIndices(entries)
+	if len(indices) != 2 {
+		t.Errorf("buildBeadEntryIndices returned %d beads, want 2", len(indices))
+	}
+	if len(indices["bead1"]) != 2 {
+		t.Errorf("buildBeadEntryIndices for bead1 returned %d indices, want 2", len(indices["bead1"]))
+	}
+	if len(indices["bead2"]) != 1 {
+		t.Errorf("buildBeadEntryIndices for bead2 returned %d indices, want 1", len(indices["bead2"]))
+	}
+}
