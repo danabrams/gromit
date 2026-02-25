@@ -9,7 +9,7 @@
   "started_at": "2026-02-24T00:00:00Z",
   "act_decision": "extend",
   "act_date": "2026-02-25T00:00:00Z",
-  "study_summary": "Hypothesis partially held: anti-misreporting objective succeeded (`insufficient_current_run_data`, deltas `N/A`), but speed-to-fix has not improved because current-run rows remain empty. Process trend still shows sustained stress (Nelson Rule 2 shifts on cost metrics) and stratified out-of-control unknown-attribution signals. Extending to evaluate objective (b) once gromit-qs2ks upstream fix lands.",
+  "study_summary": "Hypothesis partially held: fail-closed rendering prevented misleading numeric deltas, but pipeline-fix speed did not improve because current-run rows remain empty. Process trend shows favorable Nelson Rule 2 shifts (cost/duration below centerline, success above), while stratified control limits still show high-severity unknown-attribution signals, indicating unresolved upstream telemetry integrity. Extending until gromit-qs2ks children land and one complete known-attribution run is recorded.",
   "baseline_metrics": {
     "avg_cost_per_bead": 0.0,
     "avg_duration_ms": 0,

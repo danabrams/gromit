@@ -24,10 +24,12 @@ Session worktree and mergeback behavior must follow a single ownership contract:
 
 Policy progression and cross-cutting concerns (tier advancement, metrics, status behavior) should have one shared orchestration path with explicit dependency injection to avoid duplicating logic between execution code and config accessors. This keeps policy consistent and prevents drift in legacy model-name mapping and disabled-escalation semantics.
 
-### 2026-02-25 | Runtime State Artifacts Must Stay Untracked | safety
-*Related to: review-1772037612174531122*
+### 2026-02-25 | Deterministic Artifact Boundaries | safety
+*Related to: review-1772037612174531122, gromit-d7j9*
 
-Runtime/local state artifacts (for example `.gromit/state.json`, `.gromit/stats.json`, `.gromit/interactive-state.json`, and `.gromit/metrics/*.jsonl`) must never be committed. If they become tracked, remove them from the git index with `git rm --cached` and keep `.gitignore` as the source of truth.
+Deterministic artifact boundaries require one governance policy: block ephemeral/runtime artifacts (`.gromit/state.json`, `.gromit/stats.json`, `.gromit/interactive-state.json`, `.gromit/metrics/*.jsonl`) from git, and require schema-first curated fixtures with provenance for any versioned provider/test artifact. If runtime artifacts become tracked, remove them from the git index with `git rm --cached` and keep `.gitignore` as the source of truth.
+
+*Consolidated from: Runtime State Artifacts Must Stay Untracked + Provider Contract Fixtures*
 
 ### 2026-02-07 | Status File Management | patterns
 *Related to: nalr, k8c2, kydj, ead1, xpfn, lm34, 2y2d, yj2h, vpyl, kim2*
@@ -46,6 +48,8 @@ Prompt templates in .gromit/templates/ use explicit section headers (##) and pre
 
 ### 2026-02-16 | Provider Contract Fixtures | patterns
 *Related to: gromit-d7j9*
+
+*Consolidated into: 2026-02-25 Deterministic Artifact Boundaries*
 
 Contract tests consume canonical provider fixtures under test/fixtures/ using scenario-driven naming: `{provider}[_stream]_{outcome}.{format}`. Fixtures (codex_success.txt, codex_failure.txt, codex_stream_success.jsonl, codex_stream_failure.jsonl, claude_stream_success.jsonl) must include brief provenance comments describing the source and refresh workflow. Payloads should be minimal but realistic—Codex plain-text fixtures show output structure (touched/tests lines), JSONL fixtures emit `{"type":"assistant",...}` and `{"type":"result",...}` events. Fixture environment variables (CODEX_FIXTURE, CLAUDE_FIXTURE) point fake CLIs to fixture paths. Test assertions verify output matches canonical payloads, enabling both roundtrip validation and contract evolution tracking. Provenance comments facilitate fixture refresh workflow without manual intervention.
 
@@ -70,10 +74,12 @@ When a helper may run inside worker goroutines, it must not call `t.Fatalf`/`Fai
 
 Pipeline stages use local dependency interfaces injected via builder pattern methods (WithAutoFixer, WithPrechecker, WithStuckDetector), allowing optional composition. Nil checks in Run() enable graceful degradation when a dependency isn't configured—errors from optional dependencies are logged as warnings, not pipeline blockers. Compile-time checks (`var _ pipeline.Stage = (*Impl)(nil)`) enforce architectural contracts. The Validate stage uses a soft-failure pattern: unresolved validation failures populate ValidationFailures for the next Build input rather than blocking the pipeline. Auto-fix (gofmt/goimports) runs first, re-validates, and returns Proceed regardless. Periodic full validation is gated via modulo arithmetic. Mandatory command prefix enforcement happens upfront via checkMandatoryPrefixes(). Decision ordering matters in Gate: precheck (Skip) runs before stuck detection (Block) to ensure already-completed work is closed promptly.
 
-### 2026-02-20 | Cost/Token Accounting Needs Consistent Delta Semantics | gotchas
-*Related to: code-review*
+### 2026-02-25 | Telemetry Integrity Contract | gotchas
+*Related to: code-review, review-1771855648673321351, review-1771854448297640630, gromit-8w81a*
 
-Cost/token tracking uses inconsistent accumulation patterns: (1) PhaseMetric recording — the green phase uses before/after usage snapshots via snapshotIterationUsage() but red and refactor phases use recordPhaseMetric() without snapshots, mixing per-phase deltas with raw values. (2) Codex stream events — turn.completed overwrites usage while response.completed and result events merge via mergeCodexUsage(). Both patterns should use explicit before/after snapshots for phases and consistent merge semantics for stream events to make cost attribution reliable for retrospective analysis.
+Telemetry integrity requires runtime-path parity plus strict routing-config validation: instrumentation only counts if consumed end-to-end, and routing overrides must reject invalid categories/tier values before execution. Specifically: (1) phase metrics must use explicit before/after snapshots consistently (not mixing deltas with raw values); (2) stream event merge semantics must be canonical (one strategy for turn/response/result events); (3) tier provenance fields (`original_tier`, `actual_tier`) must cover all methodology paths.
+
+*Consolidated from: Cost/Token Accounting Needs Consistent Delta Semantics + Tier Provenance Metrics Need Methodology-Parity Coverage*
 
 ### 2026-02-21 | Multi-Stage Pipeline Orchestrator Pattern | patterns
 *Related to: 8d85f5d7*
@@ -94,6 +100,8 @@ Escalation progression must be implemented in one shared path. Duplicating next-
 
 ### 2026-02-23 | Tier Provenance Metrics Need Methodology-Parity Coverage | test_quality
 *Related to: review-1771855648673321351, review-1771854448297640630, gromit-8w81a*
+
+*Consolidated into: 2026-02-25 Telemetry Integrity Contract*
 
 When build telemetry adds `original_tier` and `actual_tier`, tests must cover all methodology paths (single-pass and fresh-context TDD) so iteration logs preserve consistent provenance semantics across strategies.
 
@@ -158,20 +166,10 @@ runScopeGate in gate.go now propagates decomposition failures as errors instead 
 
 The decomposerAdapter implementation creates a single child bead with title "(decomposed)" suffix and closes the parent. This is a minimal decomposition — it doesn't split work into multiple sub-beads based on expected outputs. Real decomposition intelligence comes from the pipeline.Decompose() path (provider-parity-decompose-retro spec).
 
-### 2026-02-22 | TEST_HELPER_DUPLICATION_IN_GATE_TESTS | TEST_QUALITY
-*Related to: review-1771788120407657627*
-
-gate_test.go accumulated 6+ near-identical mock decomposer/bead-client types across iterative TDD work. When adding test doubles incrementally, check if existing mocks can be parameterized rather than creating new types. Per project rule: "2+ tests sharing 10+ lines of setup: extract a setup helper."
-
 ### 2026-02-22 | SCOPE_GATE_DECOMPOSITION_NEEDS_STATE_SAFETY | ARCHITECTURE
 *Related to: review-1771797265171555605*
 
 Scope-gate decomposition is resilient to provider failures (falls back to Block), but sequential child creation without idempotency safeguards can leave partial state and duplicate work on retries. Decomposition paths should enforce either rollback or deduped re-entry semantics before parent close.
-
-### 2026-02-22 | BEHAVIOR_FIRST_TESTS_OVER_SOURCE_READING | TEST_QUALITY
-*Related to: review-1771797265171555605*
-
-Source-reading tests (e.g., checking function text with os.ReadFile + strings.Contains) are brittle and violate project testing guidance. Prefer behavioral assertions on public interfaces/contracts and compile-time guarantees, then use shared helpers when setup repeats.
 
 ### 2026-02-22 | DECOMPOSITION_OUTPUT_CONTRACTS_MUST_BE_STRICT | CONVENTIONS
 *Related to: review-1771797265171555605*
@@ -278,3 +276,17 @@ When adding nil-checks to callback functions executed in loops, verify the contr
 When implementing display features that iterate over data structures (specs, costs), watch for infinite loops in iteration logic or N² performance patterns that can cause timeouts in test suites
 
 *Archived from new: filtered: generic engineering advice*
+
+### 2026-02-22 | TEST_HELPER_DUPLICATION_IN_GATE_TESTS | TEST_QUALITY
+*Related to: review-1771788120407657627*
+
+gate_test.go accumulated 6+ near-identical mock decomposer/bead-client types across iterative TDD work. When adding test doubles incrementally, check if existing mocks can be parameterized rather than creating new types. Per project rule: "2+ tests sharing 10+ lines of setup: extract a setup helper."
+
+*Archived 2026-02-25: Generic testing hygiene (shared setup helpers) without strong project-specific failure mechanics.*
+
+### 2026-02-22 | BEHAVIOR_FIRST_TESTS_OVER_SOURCE_READING | TEST_QUALITY
+*Related to: review-1771797265171555605*
+
+Source-reading tests (e.g., checking function text with os.ReadFile + strings.Contains) are brittle and violate project testing guidance. Prefer behavioral assertions on public interfaces/contracts and compile-time guarantees, then use shared helpers when setup repeats.
+
+*Archived 2026-02-25: Already encoded as explicit test-quality rule ("Prefer compile-time checks or behavioral tests over os.ReadFile+strings.Contains"); maintaining both rule and learning is redundant.*
