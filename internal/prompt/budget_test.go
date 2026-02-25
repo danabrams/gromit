@@ -1226,6 +1226,30 @@ func TestSetBudgetConfig_NilReceiverSafe(t *testing.T) {
 	r.SetBudgetConfig(20000, 2000) // should not panic
 }
 
+func TestSetBudgetMaxChars_StoresValue(t *testing.T) {
+	r := &Renderer{}
+	r.SetBudgetMaxChars(2500)
+
+	if r.budgetMaxChars != 2500 {
+		t.Fatalf("budgetMaxChars = %d, want %d", r.budgetMaxChars, 2500)
+	}
+
+	var nilRenderer *Renderer
+	nilRenderer.SetBudgetMaxChars(5000) // should not panic
+}
+
+func TestSetBudgetLearningCapChars_StoresValue(t *testing.T) {
+	r := &Renderer{}
+	r.SetBudgetLearningCapChars(750)
+
+	if r.budgetLearningCapChars != 750 {
+		t.Fatalf("budgetLearningCapChars = %d, want %d", r.budgetLearningCapChars, 750)
+	}
+
+	var nilRenderer *Renderer
+	nilRenderer.SetBudgetLearningCapChars(1250) // should not panic
+}
+
 func TestTruncateUTF8_RespectsRuneBoundary(t *testing.T) {
 	// "Hello" (5 bytes) + "世界" (6 bytes, 3 bytes each) = 11 bytes total
 	s := "Hello世界"
