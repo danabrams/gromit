@@ -972,6 +972,40 @@ func TestOrchestrator_PostRunCompletenessAssertion_FailsWhenEfficiencyDataIncomp
 	}
 }
 
+func TestOrchestrator_PostRunCompletenessAssertion_FailsWhenLogRowsMissing(t *testing.T) {
+	logsDir := t.TempDir()
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls == 1 {
+			return &bead.Bead{ID: "missing-row", Title: "Missing log row"}, nil
+		}
+		return nil, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     &fakeStage{},
+		Build:    &fakeStage{},
+		Validate: &fakeStage{},
+		Epilogue: &fakeStage{},
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+		LogsDir:  logsDir,
+		GetRunID: func() string { return "20260225-120000" },
+	}
+
+	orch := NewOrchestrator(cfg)
+	err := orch.Run(context.Background(), 10, time.Time{}, nil)
+
+	if err == nil {
+		t.Fatal("Run() expected to fail with missing efficiency log rows, got nil error")
+	} else if !strings.Contains(err.Error(), "efficiency") && !strings.Contains(err.Error(), "completeness") {
+		t.Errorf("Run() error = %v, want error containing 'efficiency' or 'completeness'", err)
+	}
+}
+
 // TestOrchestrator_CoverageTracker_TransitionsStatesAcrossTDDCycle verifies that when
 // a CoverageTracker is wired into the orchestrator, it transitions through states
 // during a simulated TDD cycle, tracking acceptance criteria coverage.
