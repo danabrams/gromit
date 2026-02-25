@@ -425,6 +425,15 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 			}
 			return false
 		}
+
+		// Check for proactive decomposition on high-risk beads at 60% elapsed budget
+		if !h.CheckProactiveDecomposition(ctx, bc) {
+			if bc.Result != nil && bc.Result.FailurePhase == "" {
+				h.setBuildFailurePhase(bc)
+			}
+			return false
+		}
+
 		bc.AttemptsThisBead++
 
 		invResult, err := invokeFn(ctx, bc, bc.BuildPrompt)
