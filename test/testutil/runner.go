@@ -1,13 +1,17 @@
 package testutil
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	"github.com/danabrams/gromit/internal/logger"
 )
 
 // RunGromitWithStdin executes a gromit command with stdin input.
@@ -153,4 +157,84 @@ func CleanupClaudeFailOnceStateFiles(testDir string) {
 		// Ignore errors - file may not exist, which is fine
 		os.Remove(stateFile)
 	}
+}
+
+// FindIterationLogForBead returns the latest iteration log entry for the given bead ID.
+func FindIterationLogForBead(logsDir, beadID string) (*logger.IterationLog, error) {
+	pattern := filepath.Join(logsDir, "run-*.jsonl")
+	files, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("glob iteration logs: %w", err)
+	}
+
+	var found *logger.IterationLog
+	for _, path := range files {
+		f, err := os.Open(path)
+		if err != nil {
+			return nil, fmt.Errorf("open iteration log %s: %w", path, err)
+		}
+
+		scanner := bufio.NewScanner(f)
+		for scanner.Scan() {
+			var entry logger.IterationLog
+			if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
+				continue
+			}
+			if entry.BeadID != beadID {
+				continue
+			}
+			copy := entry
+			if found == nil || copy.Timestamp.After(found.Timestamp) {
+				found = &copy
+			}
+		}
+
+		if err := scanner.Err(); err != nil {
+			f.Close()
+			return nil, fmt.Errorf("scan iteration log %s: %w", path, err)
+		}
+		f.Close()
+	}
+
+	if found == nil {
+		return nil, fmt.Errorf("iteration log for bead %s not found", beadID)
+	}
+	return found, nil
+}
+
+// FindIterationMetricForBead returns the latest iteration metric entry for the given bead ID.
+func FindIterationMetricForBead(metricsDir, beadID string) (*logger.IterationMetric, error) {
+	if metricsDir == "" {
+		return nil, fmt.Errorf("metricsDir is empty")
+	}
+	path := filepath.Join(metricsDir, "iteration_metrics.jsonl")
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open iteration metrics %s: %w", path, err)
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	var found *logger.IterationMetric
+	for scanner.Scan() {
+		var entry logger.IterationMetric
+		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
+			continue
+		}
+		if entry.BeadID != beadID {
+			continue
+		}
+		copy := entry
+		if found == nil || copy.Timestamp.After(found.Timestamp) {
+			found = &copy
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("scan iteration metrics %s: %w", path, err)
+	}
+	if found == nil {
+		return nil, fmt.Errorf("iteration metric for bead %s not found", beadID)
+	}
+	return found, nil
 }
