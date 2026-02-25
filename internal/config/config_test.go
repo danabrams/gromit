@@ -4850,17 +4850,21 @@ func TestProviderDefEstimateCostForModel(t *testing.T) {
 	def := ProviderDef{
 		CostPer1kInput:  0.00175,
 		CostPer1kOutput: 0.014,
-		ModelCosts: map[string]*ModelCost{
-			"gpt-5.3-codex": {
-				CostPer1kInput:  0.00875,
-				CostPer1kOutput: 0.070,
-			},
-			"gpt-5.1-codex-mini": {
-				CostPer1kInput:  0.00025,
-				CostPer1kOutput: 0.0015,
-			},
+	ModelCosts: map[string]*ModelCost{
+		"gpt-5.3-codex": {
+			CostPer1kInput:  0.00875,
+			CostPer1kOutput: 0.070,
 		},
-	}
+		"gpt-5.1-codex-mini": {
+			CostPer1kInput:  0.00025,
+			CostPer1kOutput: 0.0015,
+		},
+		"gpt-5.4-codex-zero": {
+			CostPer1kInput:  0,
+			CostPer1kOutput: 0,
+		},
+	},
+}
 
 	tests := []struct {
 		name         string
@@ -4893,6 +4897,13 @@ func TestProviderDefEstimateCostForModel(t *testing.T) {
 		{
 			name:         "empty model falls back to provider rate",
 			model:        "",
+			inputTokens:  1000,
+			outputTokens: 1000,
+			want:         0.00175 + 0.014,
+		},
+		{
+			name:         "zero-value model-specific costs fall back to provider rate",
+			model:        "gpt-5.4-codex-zero",
 			inputTokens:  1000,
 			outputTokens: 1000,
 			want:         0.00175 + 0.014,
