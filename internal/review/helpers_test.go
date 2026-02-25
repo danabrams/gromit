@@ -46,3 +46,30 @@ func TestBuildReviewBeadLabels_PreservesOriginalLabelsOrder(t *testing.T) {
 		}
 	}
 }
+
+// TestExpectedOutputsOrTitle_PrefersProvidedOutputs ensures outputs are returned
+// when provided.
+func TestExpectedOutputsOrTitle_PrefersProvidedOutputs(t *testing.T) {
+	outputs := ExpectedOutputsOrTitle([]string{"one", "two"}, "fallback")
+	if len(outputs) != 2 || outputs[0] != "one" || outputs[1] != "two" {
+		t.Fatalf("ExpectedOutputsOrTitle([]string{\"one\", \"two\"}, \"fallback\") = %v, want [one two]", outputs)
+	}
+}
+
+// TestExpectedOutputsOrTitle_FallsBackToTrimmedTitle ensures title is used
+// when outputs are empty.
+func TestExpectedOutputsOrTitle_FallsBackToTrimmedTitle(t *testing.T) {
+	outputs := ExpectedOutputsOrTitle(nil, "  Important work  ")
+	if len(outputs) != 1 || outputs[0] != "Important work" {
+		t.Fatalf("ExpectedOutputsOrTitle(nil, \"  Important work  \") = %v, want [Important work]", outputs)
+	}
+}
+
+// TestExpectedOutputsOrTitle_ReturnsEmptyWhenTitleIsBlank ensures empty slice
+// is returned when title is blank.
+func TestExpectedOutputsOrTitle_ReturnsEmptyWhenTitleIsBlank(t *testing.T) {
+	outputs := ExpectedOutputsOrTitle(nil, "   ")
+	if len(outputs) != 0 {
+		t.Fatalf("ExpectedOutputsOrTitle(nil, \"   \") = %v, want []", outputs)
+	}
+}
