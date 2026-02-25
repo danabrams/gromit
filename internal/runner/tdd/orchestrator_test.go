@@ -1682,6 +1682,28 @@ func TestExecuteRefactorPhase_ReturnsErrorWhenValidateFnNil(t *testing.T) {
 	}
 }
 
+func TestRunRefactorAndFinalValidation_ReturnsErrValidateFnNotConfiguredWhenValidateFnNil(t *testing.T) {
+	orch := newTestOrchestrator()
+
+	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
+		return nil
+	}
+	// validateFn is intentionally left nil to trigger the error
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{},
+		Tier:   "medium",
+	}
+
+	err := orch.runRefactorAndFinalValidation(context.Background(), bc, 1)
+	if err == nil {
+		t.Fatalf("expected error when validateFn is nil in refactor/final phase, got nil")
+	}
+	if !errors.Is(err, errValidateFnNotConfigured) {
+		t.Fatalf("expected errValidateFnNotConfigured, got %v", err)
+	}
+}
+
 func TestRunFinalValidation_ReturnsErrorWhenValidateFnNil(t *testing.T) {
 	orch := newTestOrchestrator()
 
