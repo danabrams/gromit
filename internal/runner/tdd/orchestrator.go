@@ -255,6 +255,10 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 		return fmt.Errorf("green handoff assembly: %w", err)
 	}
 
+	if o.renderGreenFn == nil {
+		return fmt.Errorf("renderGreenFn is not configured")
+	}
+
 	greenPrompt, err := o.renderGreenFn(greenHandoff, bc)
 	if err != nil {
 		return fmt.Errorf("green prompt render: %w", err)
