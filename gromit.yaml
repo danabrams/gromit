@@ -36,7 +36,7 @@ providers:
     models:
       high: gpt-5.3-codex
       medium: gpt-5.3-codex
-      low: gpt-5-mini
+      low: gpt-5.1-codex-mini
     reasoning_effort:
       high: high
       medium: medium
@@ -46,9 +46,9 @@ providers:
       gpt-5.3-codex:                # high tier
         cost_per_1k_input: 0.00175
         cost_per_1k_output: 0.014
-      gpt-5-mini:                    # low tier
+      gpt-5.1-codex-mini:            # low tier
         cost_per_1k_input: 0.00025
-        cost_per_1k_output: 0.002
+        cost_per_1k_output: 0.0015
 
 # Routing - multi-provider routing configuration
 routing:

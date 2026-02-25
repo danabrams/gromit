@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-02-24T12:15:50Z",
+  "updated": "2026-02-24T14:29:41Z",
   "models": {
     "": {
       "iterations": 67,
@@ -11,10 +11,10 @@
       "escalations_to": 0
     },
     "gpt-5.3-codex": {
-      "iterations": 106,
-      "successes": 106,
+      "iterations": 109,
+      "successes": 109,
       "failures": 0,
-      "total_cost_usd": 0.999089,
+      "total_cost_usd": 12.71642225,
       "escalations_from": 0,
       "escalations_to": 0
     },

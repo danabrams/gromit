@@ -713,3 +713,34 @@ func TestReadEfficiencyReportFiltered_FilterIncludesOnlyMatchingBeads(t *testing
 		t.Error("b3 should be included in filtered report")
 	}
 }
+
+func TestCompletenessAssertion_FailsWhenIterationsExistButEfficiencyDataEmpty(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create log file with iterations that have zero/missing efficiency data
+	logContent := `{"type":"iteration","timestamp":"2026-02-25T12:00:00Z","iteration":1,"bead_id":"b1","bead_title":"Task 1","model":"haiku","success":true,"validated":true,"duration_ms":0,"cost_usd":0,"input_tokens":0,"output_tokens":0}
+{"type":"iteration","timestamp":"2026-02-25T12:00:01Z","iteration":2,"bead_id":"b2","bead_title":"Task 2","model":"haiku","success":true,"validated":true,"duration_ms":0,"cost_usd":0,"input_tokens":0,"output_tokens":0}
+`
+	logPath := filepath.Join(dir, "run-20260225-120000.jsonl")
+	if err := os.WriteFile(logPath, []byte(logContent), 0644); err != nil {
+		t.Fatalf("failed to write log file: %v", err)
+	}
+
+	// Call completeness assertion
+	result, diags := AssertEfficiencyCompleteness(dir, "20260225-120000")
+
+	// Should fail because iterations exist but efficiency data is empty
+	if result.IsComplete {
+		t.Error("expected IsComplete=false when efficiency data is empty, got true")
+	}
+
+	// Should have diagnostics about missing efficiency data
+	if result.MissingDataCount != 2 {
+		t.Errorf("expected 2 iterations with missing data, got %d", result.MissingDataCount)
+	}
+
+	// Should have bead IDs in diagnostics
+	if len(diags) == 0 {
+		t.Error("expected diagnostics for missing efficiency data, got empty list")
+	}
+}

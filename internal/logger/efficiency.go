@@ -302,3 +302,43 @@ func extractRunID(path string) string {
 	}
 	return base[4 : len(base)-6]
 }
+
+// CompletenessCheckResult holds the result of an efficiency completeness check.
+type CompletenessCheckResult struct {
+	IsComplete       bool   // true if all iterations have efficiency data
+	MissingDataCount int    // number of iterations missing efficiency data
+	TotalIterations  int    // total iterations in the log
+	ErrorMessage     string // non-empty if check failed
+}
+
+// AssertEfficiencyCompleteness checks that all iterations in a run have complete
+// efficiency data. Returns a result and a list of diagnostic strings for missing data.
+func AssertEfficiencyCompleteness(logsDir string, runID string) (CompletenessCheckResult, []string) {
+	result := CompletenessCheckResult{IsComplete: true}
+	var diagnostics []string
+
+	// Read log file for this run
+	logPath := filepath.Join(logsDir, fmt.Sprintf("run-%s.jsonl", runID))
+	entries, err := readLogFile(logPath)
+	if err != nil {
+		result.ErrorMessage = fmt.Sprintf("failed to read log file: %v", err)
+		return result, diagnostics
+	}
+
+	result.TotalIterations = len(entries)
+
+	// Check each iteration for complete efficiency data
+	for _, entry := range entries {
+		// An iteration is considered to have missing efficiency data if:
+		// - CostUSD is zero AND
+		// - InputTokens is zero AND
+		// - OutputTokens is zero
+		if entry.CostUSD == 0 && entry.InputTokens == 0 && entry.OutputTokens == 0 {
+			result.IsComplete = false
+			result.MissingDataCount++
+			diagnostics = append(diagnostics, fmt.Sprintf("Iteration %d (BeadID: %s, Title: %s) missing efficiency data", entry.Iteration, entry.BeadID, entry.BeadTitle))
+		}
+	}
+
+	return result, diagnostics
+}
