@@ -231,3 +231,128 @@ experiment:
 		t.Errorf("expected output to contain 'variant-v1', got: %q", output)
 	}
 }
+
+// TestEndToEndVerification_ExperimentsCommandOutputsJSONFormat verifies that
+// the experiments command with --json flag outputs valid JSON with experiment
+// and variant data.
+func TestEndToEndVerification_ExperimentsCommandOutputsJSONFormat(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	experimentsDir := filepath.Join(gromitDir, "experiments")
+	stateDir := filepath.Join(gromitDir, "experiment-state")
+
+	if err := os.MkdirAll(experimentsDir, 0o755); err != nil {
+		t.Fatalf("failed to create experiments directory: %v", err)
+	}
+	if err := os.MkdirAll(stateDir, 0o755); err != nil {
+		t.Fatalf("failed to create state directory: %v", err)
+	}
+
+	// Create experiment YAML
+	expYAML := `id: json-test-exp
+phase: validate
+description: JSON test experiment
+created: 2026-02-25T00:00:00Z
+control:
+  id: control
+  template: PROMPT_validate.md
+variants:
+  - id: variant-a
+    template: PROMPT_validate_a.md
+`
+	expPath := filepath.Join(experimentsDir, "json-test-exp.yaml")
+	if err := os.WriteFile(expPath, []byte(expYAML), 0o644); err != nil {
+		t.Fatalf("failed to write experiment YAML: %v", err)
+	}
+
+	// Create state file with bandit data
+	stateData := map[string]interface{}{
+		"arms": []interface{}{
+			map[string]interface{}{
+				"id":        "control",
+				"successes": 25,
+				"failures":  5,
+				"samples":   []interface{}{},
+			},
+			map[string]interface{}{
+				"id":        "variant-a",
+				"successes": 15,
+				"failures":  15,
+				"samples":   []interface{}{},
+			},
+		},
+	}
+	stateFile := filepath.Join(stateDir, "json-test-exp.json")
+	stateBytes, err := json.MarshalIndent(stateData, "", "  ")
+	if err != nil {
+		t.Fatalf("failed to marshal state data: %v", err)
+	}
+	if err := os.WriteFile(stateFile, stateBytes, 0o644); err != nil {
+		t.Fatalf("failed to write state file: %v", err)
+	}
+
+	// Create config file
+	configFile := filepath.Join(tmpDir, "gromit.yaml")
+	configContent := fmt.Sprintf(`paths:
+  gromit_dir: %s
+experiment:
+  experiments_dir: %s
+`, gromitDir, experimentsDir)
+	if err := os.WriteFile(configFile, []byte(configContent), 0o644); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	// Change to tmpDir and set config path
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get cwd: %v", err)
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		os.Chdir(origDir)
+	})
+
+	restore := configPath
+	defer func() { configPath = restore }()
+	configPath = configFile
+
+	// Execute experiments command with --json flag and capture output
+	output := captureExperimentsStdout(t, func() {
+		rootCmd.SetArgs([]string{"experiments", "--json"})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("experiments command failed: %v", err)
+		}
+	})
+
+	// Parse JSON output
+	var report map[string]interface{}
+	if err := json.Unmarshal([]byte(output), &report); err != nil {
+		t.Fatalf("output is not valid JSON: %v\nOutput: %q", err, output)
+	}
+
+	// Verify JSON structure contains experiment ID
+	experimentID, ok := report["ExperimentID"]
+	if !ok {
+		t.Fatalf("JSON missing ExperimentID field")
+	}
+	if experimentID != "json-test-exp" {
+		t.Errorf("expected ExperimentID 'json-test-exp', got %q", experimentID)
+	}
+
+	// Verify JSON structure contains variant reports
+	variantReports, ok := report["VariantReports"]
+	if !ok {
+		t.Fatalf("JSON missing VariantReports field")
+	}
+
+	variantsList, ok := variantReports.([]interface{})
+	if !ok {
+		t.Fatalf("VariantReports is not an array")
+	}
+
+	if len(variantsList) != 2 {
+		t.Errorf("expected 2 variant reports, got %d", len(variantsList))
+	}
+}
