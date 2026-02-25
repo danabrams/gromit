@@ -3,6 +3,8 @@ package runner
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -150,4 +152,22 @@ func addCoverageCommentWithClient(bc *runtypes.BeadContext, tracker *coverage.Co
 
 	summary := tracker.Summary()
 	_ = beadsClient.AddComment(bc.Bead.ID, summary)
+}
+
+// logCoverageSummary logs the coverage summary to the provided writer when
+// there are uncovered or untestable criteria.
+func logCoverageSummary(output io.Writer, tracker *coverage.CoverageTracker) {
+	if output == nil || tracker == nil {
+		return
+	}
+
+	// Only log if there are uncovered or untestable criteria
+	uncovered := tracker.UncoveredCriteria()
+	untestable := tracker.UntestableCriteria()
+	if len(uncovered) == 0 && len(untestable) == 0 {
+		return
+	}
+
+	summary := tracker.Summary()
+	fmt.Fprintf(output, "Coverage Summary: %s\n", summary)
 }
