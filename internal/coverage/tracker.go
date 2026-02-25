@@ -53,6 +53,13 @@ func (t *CoverageTracker) State() State {
 	return t.state
 }
 
+// ToCollecting transitions the tracker from pending to collecting.
+func (t *CoverageTracker) ToCollecting() {
+	if t.state == StatePending {
+		t.state = StateCollecting
+	}
+}
+
 // RecordRejection increments rejection count; transitions to Untestable at threshold.
 func (t *CoverageTracker) RecordRejection(n int) {
 	cs := t.findCriterionState(n)
