@@ -38,6 +38,9 @@ func (m *mockOverwriteWriter) WriteOverwrite(p []byte) (int, error) {
 	return len(p), nil
 }
 
+// Compile-time interface check for mockOverwriteWriter
+var _ OverwriteWriter = (*mockOverwriteWriter)(nil)
+
 // --- Heartbeat tests ---
 
 // Expected failure: StartHeartbeat function does not exist in execution/ package yet
