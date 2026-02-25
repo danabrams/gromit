@@ -47,7 +47,7 @@ func TestOrchestratorHelper_StatusIntegrationIdleWithHistory(t *testing.T) {
 	}
 
 	var buf strings.Builder
-	if err := runner.PrintStatus(gromitDir, cfg, &buf, nil); err != nil {
+	if err := runner.PrintStatus(gromitDir, cfg, &buf, nil, false); err != nil {
 		t.Fatalf("PrintStatus() failed: %v", err)
 	}
 

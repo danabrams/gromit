@@ -97,7 +97,7 @@ func TestOrchestratorHelper_StatusWithLiveRun(t *testing.T) {
 			cfg.Paths.Specs = filepath.Join(gromitDir, "specs")
 			cfg.Paths.Plans = filepath.Join(gromitDir, "plans")
 			var buf strings.Builder
-			if err := runner.PrintStatus(gromitDir, cfg, &buf, tt.processChecker); err != nil {
+			if err := runner.PrintStatus(gromitDir, cfg, &buf, tt.processChecker, false); err != nil {
 				t.Fatalf("PrintStatus() failed: %v", err)
 			}
 
@@ -142,7 +142,7 @@ func TestOrchestratorHelper_StatusLivePID(t *testing.T) {
 	}
 
 	var buf strings.Builder
-	if err := runner.PrintStatus(gromitDir, cfg, &buf, nil); err != nil {
+	if err := runner.PrintStatus(gromitDir, cfg, &buf, nil, false); err != nil {
 		t.Fatalf("PrintStatus() failed: %v", err)
 	}
 
@@ -221,7 +221,7 @@ func TestOrchestratorHelper_StatusDeadPID(t *testing.T) {
 	}
 
 	var buf strings.Builder
-	if err := runner.PrintStatus(gromitDir, cfg, &buf, nil); err != nil {
+	if err := runner.PrintStatus(gromitDir, cfg, &buf, nil, false); err != nil {
 		t.Fatalf("PrintStatus() failed: %v", err)
 	}
 
@@ -292,7 +292,7 @@ func TestOrchestratorHelper_StatusIntegrationActiveRun(t *testing.T) {
 	}
 
 	var buf strings.Builder
-	if err := runner.PrintStatus(gromitDir, cfg, &buf, nil); err != nil {
+	if err := runner.PrintStatus(gromitDir, cfg, &buf, nil, false); err != nil {
 		t.Fatalf("PrintStatus() failed: %v", err)
 	}
 

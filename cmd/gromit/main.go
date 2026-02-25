@@ -267,18 +267,7 @@ func showStatus(cmd *cobra.Command, args []string) error {
 
 	gromitDir := resolveGromitDir(cfg)
 
-	if statusSPC {
-		return showSPCStatus(gromitDir, cfg)
-	}
-
-	return runner.PrintStatus(gromitDir, cfg, os.Stdout, nil)
-}
-
-func showSPCStatus(gromitDir string, cfg *config.Config) error {
-	trend := runner.ReadProcessTrendForStatus(gromitDir, cfg)
-	spcOutput := runner.FormatSPCSummary(trend)
-	fmt.Fprintln(os.Stdout, spcOutput)
-	return nil
+	return runner.PrintStatus(gromitDir, cfg, os.Stdout, nil, statusSPC)
 }
 
 func runRetro(cmd *cobra.Command, args []string) error {

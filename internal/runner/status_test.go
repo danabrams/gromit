@@ -36,7 +36,7 @@ func TestPrintStatus_IncludesPipelineSection(t *testing.T) {
 	cfg.Paths.Plans = filepath.Join(tmpDir, "plans")
 
 	var buf strings.Builder
-	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }); err != nil {
+	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }, false); err != nil {
 		t.Fatalf("PrintStatus: %v", err)
 	}
 
@@ -67,7 +67,7 @@ func TestPrintStatus_IncludesCompatibilityDiagnostics(t *testing.T) {
 	cfg.Paths.Plans = filepath.Join(tmpDir, "plans")
 
 	var buf strings.Builder
-	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }); err != nil {
+	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }, false); err != nil {
 		t.Fatalf("PrintStatus: %v", err)
 	}
 
@@ -105,7 +105,7 @@ func TestPrintStatus_LegacyCompatibilityIncludesTrackerBackendDeprecationMarker(
 	cfg.Paths.Plans = filepath.Join(tmpDir, "plans")
 
 	var buf strings.Builder
-	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }); err != nil {
+	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }, false); err != nil {
 		t.Fatalf("PrintStatus: %v", err)
 	}
 
@@ -135,7 +135,7 @@ func TestPrintStatus_LegacyCompatibilityUsesConfigMarkerContract(t *testing.T) {
 	cfg.Paths.Plans = filepath.Join(tmpDir, "plans")
 
 	var buf strings.Builder
-	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }); err != nil {
+	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }, false); err != nil {
 		t.Fatalf("PrintStatus: %v", err)
 	}
 
@@ -211,7 +211,7 @@ func TestPrintStatus_RecomputesScopedIterationTotalOnEachCall(t *testing.T) {
 	cfg.Paths.Plans = filepath.Join(tmpDir, "plans")
 
 	var buf strings.Builder
-	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }); err != nil {
+	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }, false); err != nil {
 		t.Fatalf("PrintStatus: %v", err)
 	}
 
@@ -260,7 +260,7 @@ func TestPrintStatus_RecomputesScopedIterationTotal_WhenScopeLabelMissing(t *tes
 	cfg.Paths.Plans = filepath.Join(tmpDir, "plans")
 
 	var buf strings.Builder
-	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }); err != nil {
+	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }, false); err != nil {
 		t.Fatalf("PrintStatus: %v", err)
 	}
 
@@ -316,7 +316,7 @@ func TestPrintStatus_ShowsModelAndTimeBudget(t *testing.T) {
 	cfg := &config.Config{}
 	printStatus := PrintStatus
 	var buf strings.Builder
-	if err := printStatus(gromitDir, cfg, &buf, func(int) bool { return true }); err != nil {
+	if err := printStatus(gromitDir, cfg, &buf, func(int) bool { return true }, false); err != nil {
 		t.Fatalf("PrintStatus: %v", err)
 	}
 	output := buf.String()
@@ -361,7 +361,7 @@ func TestPrintStatus_IncludesSPCSection(t *testing.T) {
 	cfg.Paths.Logs = logsDir
 
 	var buf strings.Builder
-	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }); err != nil {
+	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }, false); err != nil {
 		t.Fatalf("PrintStatus: %v", err)
 	}
 
@@ -413,7 +413,7 @@ func TestPrintStatus_ReadsSPCFromMetricsDirectory(t *testing.T) {
 	cfg.Paths.Logs = logsDir
 
 	var buf strings.Builder
-	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }); err != nil {
+	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }, false); err != nil {
 		t.Fatalf("PrintStatus: %v", err)
 	}
 
@@ -481,7 +481,7 @@ func TestPrintStatus_StalePIDWarnsAndDeletesFile(t *testing.T) {
 
 	var buf strings.Builder
 	// processChecker returns false → PID is dead → stale detection should trigger.
-	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return false }); err != nil {
+	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return false }, false); err != nil {
 		t.Fatalf("PrintStatus: %v", err)
 	}
 
@@ -554,7 +554,7 @@ func TestPrintStatus_ReadsStateFilesForHealthSection(t *testing.T) {
 	cfg.Paths.Plans = filepath.Join(tmpDir, "plans")
 
 	var buf strings.Builder
-	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }); err != nil {
+	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }, false); err != nil {
 		t.Fatalf("PrintStatus: %v", err)
 	}
 
@@ -587,7 +587,7 @@ func TestPrintStatus_NoStatusFile_ShowsStructuredOutput(t *testing.T) {
 	cfg.Paths.Plans = filepath.Join(tmpDir, "plans")
 
 	var buf strings.Builder
-	if err := PrintStatus(gromitDir, cfg, &buf, nil); err != nil {
+	if err := PrintStatus(gromitDir, cfg, &buf, nil, false); err != nil {
 		t.Fatalf("PrintStatus: %v", err)
 	}
 
@@ -646,7 +646,7 @@ func TestPrintStatus_IncludesModelPerformanceSection(t *testing.T) {
 	cfg.Paths.Logs = logsDir
 
 	var buf strings.Builder
-	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }); err != nil {
+	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }, false); err != nil {
 		t.Fatalf("PrintStatus: %v", err)
 	}
 
@@ -683,7 +683,7 @@ func TestPrintStatus_IncludesNextActionSection(t *testing.T) {
 	cfg.Paths.Plans = filepath.Join(tmpDir, "plans")
 
 	var buf strings.Builder
-	if err := PrintStatus(gromitDir, cfg, &buf, nil); err != nil {
+	if err := PrintStatus(gromitDir, cfg, &buf, nil, false); err != nil {
 		t.Fatalf("PrintStatus: %v", err)
 	}
 
