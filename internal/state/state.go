@@ -141,13 +141,15 @@ func (f *File) CheckStaleness(thresholdMinutes int) (bool, string) {
 		return true, "previous run did not exit cleanly (crash detected)"
 	}
 
+	if f.state.UpdatedAt.IsZero() {
+		return true, "state file missing updated_at timestamp"
+	}
+
 	// Secondary signal: timestamp age
-	if !f.state.UpdatedAt.IsZero() {
-		age := time.Since(f.state.UpdatedAt)
-		threshold := time.Duration(thresholdMinutes) * time.Minute
-		if age > threshold {
-			return true, fmt.Sprintf("state file is stale (last updated %v ago, threshold is %v)", age.Round(time.Second), threshold)
-		}
+	age := time.Since(f.state.UpdatedAt)
+	threshold := time.Duration(thresholdMinutes) * time.Minute
+	if age > threshold {
+		return true, fmt.Sprintf("state file is stale (last updated %v ago, threshold is %v)", age.Round(time.Second), threshold)
 	}
 
 	return false, ""
@@ -160,6 +162,8 @@ func (f *File) AutoHeal() {
 		return
 	}
 	f.state.IterationsSinceReview = 0
+	f.state.ProviderCounts = make(map[string]int)
+	f.state.ProviderUnavailableUntil = make(map[string]time.Time)
 	// Preserve: LastRetro
 }
 

@@ -389,6 +389,8 @@ func buildRouterAndLearningsProvider(cfg *config.Config, gromitDir string, outpu
 			_, _ = fmt.Fprintf(output, "Warning: could not create state file: %v\n", err)
 		} else if loadErr := sf.Load(); loadErr != nil {
 			_, _ = fmt.Fprintf(output, "Warning: could not load state: %v\n", loadErr)
+		} else {
+			applyStateStalenessRecovery(sf, cfg, output)
 		}
 
 		router := provider.NewRouter(
@@ -410,6 +412,31 @@ func buildRouterAndLearningsProvider(cfg *config.Config, gromitDir string, outpu
 	}
 	claudeProvider := provider.NewClaudeProvider(claudeClient, defaultTierToModelMap)
 	return provider.NewSingleProviderRouter(claudeProvider), claudeProvider, nil, nil, nil
+}
+
+func applyStateStalenessRecovery(sf *state.File, cfg *config.Config, output io.Writer) {
+	if sf == nil {
+		return
+	}
+	threshold := 60
+	if cfg != nil && cfg.State.StaleThreshold > 0 {
+		threshold = cfg.State.StaleThreshold
+	}
+
+	isStale, reason := sf.CheckStaleness(threshold)
+	if !isStale {
+		return
+	}
+
+	sf.AutoHeal()
+	if output != nil {
+		_, _ = fmt.Fprintf(output, "Warning: state.json staleness detected (%s); provider routing state reset\n", reason)
+	}
+	if err := sf.Save(); err != nil {
+		if output != nil {
+			_, _ = fmt.Fprintf(output, "Warning: could not save healed state: %v\n", err)
+		}
+	}
 }
 
 func resolveTrackerBackend(cfg *config.Config) string {

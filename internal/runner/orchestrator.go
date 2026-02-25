@@ -109,6 +109,14 @@ func (o *Orchestrator) Run(ctx context.Context, maxIterations int, deadline time
 	if o.cfg.TrendUpdater != nil {
 		defer o.cfg.TrendUpdater.Close()
 	}
+	if o.cfg.StateSaver != nil {
+		if setter, ok := o.cfg.StateSaver.(interface{ SetCleanExit(bool) }); ok {
+			setter.SetCleanExit(false)
+			if err := o.cfg.StateSaver.Save(); err != nil {
+				o.logf("Warning: could not mark state clean_exit=false: %v", err)
+			}
+		}
+	}
 
 	var validationFailures []string
 	var touchedPackages []string
@@ -280,6 +288,9 @@ runLoop:
 
 	// Persist provider routing state so availability counts survive across runs.
 	if o.cfg.StateSaver != nil {
+		if setter, ok := o.cfg.StateSaver.(interface{ SetCleanExit(bool) }); ok {
+			setter.SetCleanExit(true)
+		}
 		if err := o.cfg.StateSaver.Save(); err != nil {
 			o.logf("Warning: could not save provider state: %v", err)
 		}

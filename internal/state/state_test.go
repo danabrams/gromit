@@ -254,8 +254,8 @@ func TestCheckStaleness(t *testing.T) {
 			cleanExit:         true,
 			updatedAt:         time.Time{},
 			thresholdMinutes:  60,
-			expectStale:       false,
-			expectReasonMatch: "",
+			expectStale:       true,
+			expectReasonMatch: "missing updated_at",
 		},
 		{
 			name:              "crash with zero timestamp",
@@ -311,6 +311,13 @@ func TestAutoHeal(t *testing.T) {
 	// Set up state with all fields populated
 	f.state.IterationsSinceReview = 5
 	f.state.LastRetro = time.Now().Add(-24 * time.Hour)
+	f.state.ProviderCounts = map[string]int{
+		"claude": 10,
+		"openai": 2,
+	}
+	f.state.ProviderUnavailableUntil = map[string]time.Time{
+		"claude": time.Now().Add(30 * time.Minute),
+	}
 
 	// Call AutoHeal
 	f.AutoHeal()
@@ -323,6 +330,13 @@ func TestAutoHeal(t *testing.T) {
 	// Check that timestamps were preserved
 	if f.state.LastRetro.IsZero() {
 		t.Error("LastRetro should be preserved")
+	}
+
+	if len(f.state.ProviderCounts) != 0 {
+		t.Errorf("ProviderCounts should be reset, got %d entries", len(f.state.ProviderCounts))
+	}
+	if len(f.state.ProviderUnavailableUntil) != 0 {
+		t.Errorf("ProviderUnavailableUntil should be reset, got %d entries", len(f.state.ProviderUnavailableUntil))
 	}
 }
 
