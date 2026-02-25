@@ -88,6 +88,38 @@ func TestFormatCoverageState_RendersTargetingAndRemaining(t *testing.T) {
 	}
 }
 
+func TestCoverageTrackerSnapshotRestoresState(t *testing.T) {
+	criteria := []Criterion{
+		{Number: 1, Text: "First"},
+		{Number: 2, Text: "Second"},
+	}
+	tracker := NewTracker(criteria, 2)
+	tracker.ToCollecting()
+	tracker.MarkCovered(1)
+	tracker.RecordRejection(2)
+	tracker.RecordRejection(2)
+	tracker.ToValidating()
+
+	snapshot := tracker.Snapshot()
+
+	clone := NewTracker(criteria, 2)
+	clone.ApplySnapshot(snapshot)
+
+	if clone.State() != tracker.State() {
+		t.Fatalf("clone.State() = %d, want %d", clone.State(), tracker.State())
+	}
+
+	if len(clone.CoveredCriteria()) != 1 || clone.CoveredCriteria()[0].Number != 1 {
+		t.Fatalf("clone covered set = %v, want criterion 1", clone.CoveredCriteria())
+	}
+	if len(clone.UncoveredCriteria()) != 0 {
+		t.Fatalf("clone uncovered set = %v, want none", clone.UncoveredCriteria())
+	}
+	if len(clone.UntestableCriteria()) != 1 || clone.UntestableCriteria()[0].Number != 2 {
+		t.Fatalf("clone untestable set = %v, want criterion 2", clone.UntestableCriteria())
+	}
+}
+
 func TestUntestableCriteria_ReturnsOnlyUntestableItems(t *testing.T) {
 	criteria := []Criterion{
 		{Number: 1, Text: "First"},
