@@ -412,44 +412,37 @@ paths:
 	t.Logf("Stdout: %s", stdout)
 	t.Logf("Stderr: %s", stderr)
 
-	// Verify bd ready and bd show were both called, and in that order.
+	if exitCode != 0 {
+		t.Fatalf("triage exit code = %d (stdout:\n%s\nstderr:\n%s)", exitCode, stdout, stderr)
+	}
+
+	// Verify bd show was called (triage uses bd show to enrich bead details).
 	calls, err := filterCalls(env, "bd")
 	if err != nil {
 		t.Fatalf("Failed to read call log: %v", err)
 	}
 
-	foundReady := false
+	foundList := false
 	foundShow := false
-	readyIndex := -1
-	showIndex := -1
 	for _, call := range calls {
-		if strings.Contains(call, "bd ready") {
-			foundReady = true
-			t.Logf("✓ Found ready call: %s", call)
+		if strings.Contains(call, "bd list --json") {
+			foundList = true
+			t.Logf("✓ Found list call: %s", call)
 		}
-	}
-	for i, call := range calls {
-		if readyIndex == -1 && strings.Contains(call, "bd ready") {
-			readyIndex = i
-		}
-		if showIndex == -1 && strings.Contains(call, "bd show test-bead-1 --json") {
-			showIndex = i
+		if strings.Contains(call, "bd show test-bead-1 --json") {
 			foundShow = true
 			t.Logf("✓ Found show call: %s", call)
 		}
 	}
 
-	if !foundReady {
-		t.Errorf("Expected 'bd ready' call. Calls: %v", calls)
+	if !foundList {
+		t.Errorf("Expected 'bd list --json' call. Calls: %v", calls)
 	}
 	if !foundShow {
 		t.Errorf("Expected 'bd show test-bead-1 --json' call. Calls: %v", calls)
 	}
-	if readyIndex >= 0 && showIndex >= 0 && readyIndex > showIndex {
-		t.Errorf("Expected bd ready to happen before bd show. Calls: %v", calls)
-	}
 
-	// Verify triage output references the selected bead.
+	// Verify dry-run output references the selected bead.
 	if !strings.Contains(stdout, "test-bead-1") {
 		t.Errorf("Expected stdout to contain bead ID 'test-bead-1', got: %s", stdout)
 	}
@@ -605,12 +598,10 @@ Create a test file and commit it.
 		t.Logf("  %d: %s", i+1, call)
 	}
 
-	// Verify the sequence: ready, show, close, sync.
-	// Intentional order: run uses `bd show` after `bd ready` to re-check status
-	// and backfill parent data before deciding whether to close the bead.
+	// Verify the sequence: ready, close, sync.
+	// Intentional order: Ready() returns full bead details, so bd show is not expected here.
 	expectedSequence := []string{
 		"bd ready --json --limit 3",
-		"bd show test-bead-1 --json",
 		"bd close test-bead-1",
 		"bd sync",
 	}
