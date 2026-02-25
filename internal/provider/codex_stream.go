@@ -260,6 +260,12 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 			resultUsage := extractUsageFromResultEvent(event)
 			if resultUsage != nil {
 				usage = mergeCodexUsage(usage, resultUsage)
+				emitStreamEvent(handler, map[string]interface{}{
+					"type":           "result",
+					"total_cost_usd": resultUsage.TotalCostUSD,
+					"input_tokens":   resultUsage.InputTokens,
+					"output_tokens":  resultUsage.OutputTokens,
+				})
 			}
 
 		case "turn.completed":
