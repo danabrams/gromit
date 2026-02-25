@@ -260,18 +260,25 @@ func handleRunSignals(sigCh <-chan os.Signal, stopCh chan<- struct{}, cancel con
 }
 
 func showStatus(cmd *cobra.Command, args []string) error {
-	if statusSPC {
-		fmt.Fprintln(os.Stdout, "SPC dashboard is not yet implemented")
-		return nil
-	}
-
 	cfg, err := loadConfig()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
 	gromitDir := resolveGromitDir(cfg)
+
+	if statusSPC {
+		return showSPCStatus(gromitDir, cfg)
+	}
+
 	return runner.PrintStatus(gromitDir, cfg, os.Stdout, nil)
+}
+
+func showSPCStatus(gromitDir string, cfg *config.Config) error {
+	trend := runner.ReadProcessTrendForStatus(gromitDir, cfg)
+	spcOutput := runner.FormatSPCSummary(trend)
+	fmt.Fprintln(os.Stdout, spcOutput)
+	return nil
 }
 
 func runRetro(cmd *cobra.Command, args []string) error {

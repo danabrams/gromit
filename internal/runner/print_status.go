@@ -103,6 +103,12 @@ func PrintStatus(gromitDir string, cfg *config.Config, w io.Writer, processCheck
 	return nil
 }
 
+// ReadProcessTrendForStatus reads process trend data from the metrics directory.
+// Exported for use by commands like status --spc.
+func ReadProcessTrendForStatus(gromitDir string, cfg *config.Config) *logger.ProcessTrend {
+	return readProcessTrendForStatus(gromitDir, cfg)
+}
+
 func readProcessTrendForStatus(gromitDir string, cfg *config.Config) *logger.ProcessTrend {
 	if cfg == nil {
 		return nil

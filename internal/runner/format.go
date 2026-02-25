@@ -276,6 +276,12 @@ func formatItems(items []string, maxShow int) []string {
 	return lines
 }
 
+// FormatSPCSummary formats SPC (Statistical Process Control) trend data for display.
+// Exported for use by commands like status --spc.
+func FormatSPCSummary(trend *logger.ProcessTrend) string {
+	return formatSPCSummary(trend)
+}
+
 // formatSPCSummary formats SPC (Statistical Process Control) trend data for display.
 func formatSPCSummary(trend *logger.ProcessTrend) string {
 	if trend == nil || trend.TotalIterations == 0 {
