@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -342,6 +343,130 @@ func TestRunBenchmarkPipeline_ReportArtifactsMatchInternalWriter(t *testing.T) {
 	}
 	if !bytes.Equal(actualMD, expectedMD) {
 		t.Fatalf("markdown artifact diverges from internal writer\nactual:\n%s\nexpected:\n%s", string(actualMD), string(expectedMD))
+	}
+}
+
+func TestBenchmarkRunCommand_ReportInputMatchesCanonicalBuilder(t *testing.T) {
+	tmpDir := t.TempDir()
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd: %v", err)
+	}
+	t.Cleanup(func() { os.Chdir(origWD) })
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir tmp dir: %v", err)
+	}
+
+	origLoad := benchmarkInternalLoadManifestFn
+	origSelect := benchmarkSelectCohortFn
+	origValidate := benchmarkValidateCohortFn
+	origHarness := benchmarkRunHarnessFn
+	origMetrics := benchmarkComputeMetricsFn
+	origWrite := benchmarkInternalWriteReportFn
+	origNow := benchmarkNowFn
+	t.Cleanup(func() {
+		benchmarkInternalLoadManifestFn = origLoad
+		benchmarkSelectCohortFn = origSelect
+		benchmarkValidateCohortFn = origValidate
+		benchmarkRunHarnessFn = origHarness
+		benchmarkComputeMetricsFn = origMetrics
+		benchmarkInternalWriteReportFn = origWrite
+		benchmarkNowFn = origNow
+	})
+
+	manifest := benchpkg.Manifest{
+		ID:         "cli-benchmark",
+		BaseCommit: "abc123",
+		Beads:      []string{"gromit-1", "gromit-2"},
+		ModeConfig: benchpkg.ModeConfig{
+			Modes: []string{"single_pass"},
+		},
+		ModelPinning: benchpkg.ModelPinning{
+			Provider:        "openai",
+			ModelFamily:     "gpt-5",
+			LowTierModel:    "gpt-5.1-codex-mini",
+			MediumTierModel: "gpt-5.3-codex",
+			HighTierModel:   "gpt-5.3-codex",
+		},
+	}
+	selectedBeads := append([]string(nil), manifest.Beads...)
+
+	benchmarkNowFn = func() time.Time {
+		return time.Date(2026, 2, 25, 12, 0, 0, 0, time.UTC)
+	}
+
+	benchmarkInternalLoadManifestFn = func(path string) (benchpkg.Manifest, error) {
+		return manifest, nil
+	}
+	benchmarkSelectCohortFn = func(manifest benchmarkManifest, opts benchmarkRunOptions) (benchmarkSelection, error) {
+		return benchmarkSelection{SelectedBeads: append([]string(nil), selectedBeads...)}, nil
+	}
+	benchmarkValidateCohortFn = func(selection benchmarkSelection, opts benchmarkRunOptions) (benchmarkValidatedCohort, error) {
+		return benchmarkValidatedCohort{SelectedBeads: selection.SelectedBeads}, nil
+	}
+	harnessResult := benchmarkHarnessResult{
+		BaseCommit:    manifest.BaseCommit,
+		SelectedBeads: append([]string(nil), selectedBeads...),
+		Modes: []benchmarkModeResult{
+			{
+				Mode:          "single_pass",
+				BaseCommit:    manifest.BaseCommit,
+				SelectedBeads: append([]string(nil), selectedBeads...),
+			},
+		},
+	}
+	benchmarkRunHarnessFn = func(manifest benchmarkManifest, cohort benchmarkValidatedCohort, opts benchmarkRunOptions) (benchmarkHarnessResult, error) {
+		return harnessResult, nil
+	}
+	metrics := benchmarkMetricsResult{
+		ModeSummaries: []benchpkg.ModeSummary{
+			{
+				Mode:           "single_pass",
+				ElapsedSeconds: 90,
+				TotalInput:     1500,
+				TotalOutput:    700,
+				TotalCostUSD:   1.75,
+				Quality:        benchpkg.QualityMetrics{AverageScore: 0.95, FirstPassRate: 0.8},
+			},
+		},
+		ModeScores: []benchmarkModeScore{{Mode: "single_pass", Score: 1}},
+	}
+	benchmarkComputeMetricsFn = func(result benchmarkHarnessResult) (benchmarkMetricsResult, error) {
+		return metrics, nil
+	}
+
+	var capturedInput benchpkg.ReportInput
+	benchmarkInternalWriteReportFn = func(input benchpkg.ReportInput) (benchpkg.ReportPaths, error) {
+		capturedInput = input
+		return benchpkg.WriteReport(input)
+	}
+
+	manifestPath := filepath.Join(tmpDir, "manifest.yaml")
+	if err := os.WriteFile(manifestPath, []byte("test manifest"), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	opts := benchmarkRunOptions{
+		ManifestPath:    manifestPath,
+		OutputTimestamp: "20260225T010000Z",
+	}
+
+	_, stderr, exitCode := runGromitCobra(t,
+		"benchmark", "run",
+		"--manifest", manifestPath,
+		"--output-ts", opts.OutputTimestamp,
+	)
+	if exitCode != 0 {
+		t.Fatalf("benchmark run exitCode = %d, stderr = %q", exitCode, stderr)
+	}
+
+	loadedManifest, err := benchmarkLoadManifestFn(opts.ManifestPath)
+	if err != nil {
+		t.Fatalf("load manifest: %v", err)
+	}
+	expected := buildBenchmarkReportInput(loadedManifest, harnessResult, metrics, opts)
+	if !reflect.DeepEqual(expected, capturedInput) {
+		t.Fatalf("report input mismatch\nexpected: %+v\nactual: %+v", expected, capturedInput)
 	}
 }
 
