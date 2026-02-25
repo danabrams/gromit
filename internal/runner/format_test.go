@@ -485,6 +485,49 @@ func TestFormatSPCSummary(t *testing.T) {
 	}
 }
 
+func TestFormatSPCSummary_SortsMetricsDeterministically(t *testing.T) {
+	trend := &logger.ProcessTrend{
+		TotalIterations: 4,
+		WindowSize:      3,
+		ControlLimits: []logger.TrendControlLimit{
+			{Metric: spcMetricRollingSuccessRate, Latest: 0.8, UCL: 0.97, LCL: 0.65},
+			{Metric: spcMetricRollingAvgDurationMs, Latest: 45000, UCL: 65000, LCL: 35000},
+			{Metric: spcMetricRollingQualityScore, Latest: 0.9, UCL: 1.0, LCL: 0.7},
+			{Metric: spcMetricRollingEscalateRate, Latest: 0.12, UCL: 0.3, LCL: 0.06},
+		},
+	}
+
+	got := formatSPCSummary(trend)
+	var metricLines []string
+	for _, line := range strings.Split(got, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || !strings.Contains(trimmed, "limits") {
+			continue
+		}
+		metricLines = append(metricLines, trimmed)
+	}
+
+	if len(metricLines) != 4 {
+		t.Fatalf("expected 4 metric lines, got %d: %v", len(metricLines), metricLines)
+	}
+
+	var labels []string
+	for _, line := range metricLines {
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			t.Fatalf("metric line missing label: %q", line)
+		}
+		labels = append(labels, fields[0])
+	}
+
+	want := []string{"Duration:", "Escalate:", "Quality:", "Success:"}
+	for i := range want {
+		if labels[i] != want[i] {
+			t.Fatalf("metric order = %v, want %v", labels, want)
+		}
+	}
+}
+
 func TestFormatSPCValue(t *testing.T) {
 	tests := []struct {
 		name      string
