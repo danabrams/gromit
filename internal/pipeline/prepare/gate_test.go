@@ -663,3 +663,15 @@ func TestConsolidatedMocks_StuckDetectorCanBeCreatedWithHelper(t *testing.T) {
 		t.Errorf("stuck = %v, want true", stuck)
 	}
 }
+
+func TestConsolidatedMocks_DecomposerCanBeCreatedWithHelper(t *testing.T) {
+	d := newMockDecomposer().WithDecompose(nil).WithCalled(false)
+
+	err := d.Decompose(context.Background(), &bead.Bead{ID: "test"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !d.WasCalled() {
+		t.Error("WasCalled() = false, want true")
+	}
+}
