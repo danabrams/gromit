@@ -410,13 +410,15 @@ func buildRouterAndLearningsProvider(cfg *config.Config, gromitDir string, outpu
 			applyStateStalenessRecovery(sf, cfg, output)
 		}
 
+		circuitBreaker := provider.NewCircuitBreaker(&cfg.Routing.CircuitBreaker)
+
 		router := provider.NewRouter(
 			providers,
 			cfg.Routing.PhasePreferences,
 			cfg.Routing.Ratio,
 			provider.ParseFallbackCooldown(cfg),
 			sf,
-			nil,
+			circuitBreaker,
 		)
 
 		learningsProvider := selectLearningsProvider(providers)
