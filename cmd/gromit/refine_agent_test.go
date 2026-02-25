@@ -39,6 +39,34 @@ func TestRefineCommandHasChooseAgentFlag(t *testing.T) {
 	}
 }
 
+func TestSetupAgentConfigCreatesExpectedFiles(t *testing.T) {
+	tmpDir, configPath := setupAgentConfig(t, `
+agents:
+  definitions:
+    helper-agent:
+      binary: "echo"
+      flags: []
+`)
+
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		t.Fatalf("Loading config: %v", err)
+	}
+
+	def, ok := cfg.Agents.Definitions["helper-agent"]
+	if !ok {
+		t.Fatalf("Config missing helper-agent definition")
+	}
+	if def.Binary != "echo" {
+		t.Fatalf("helper-agent binary = %q, want %q", def.Binary, "echo")
+	}
+
+	backlogPath := filepath.Join(tmpDir, ".gromit", "backlog.jsonl")
+	if _, err := os.Stat(backlogPath); err != nil {
+		t.Fatalf("backlog file missing: %v", err)
+	}
+}
+
 // TestRefineUsesAgentResolve verifies refine command integrates with agent.Resolve
 func TestRefineUsesAgentResolve(t *testing.T) {
 	// This test verifies the integration by creating a minimal config and checking
