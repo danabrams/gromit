@@ -105,6 +105,56 @@ func TestBenchmarkTests_DoNotUseDuplicateReportInputBuilder(t *testing.T) {
 	}
 }
 
+func TestBenchmarkCLI_DelegatesBuildReportInputToInternalFunction(t *testing.T) {
+	// This test verifies that the CLI's report input builder is a direct delegation to benchpkg.BuildReportInput
+	// Verify that benchmarkBuildReportInputFn points to the internal function
+	// by comparing their behavior on the same inputs
+
+	testInputs := struct {
+		manifestID      string
+		baseCommit      string
+		beads           []string
+		provider        string
+		modelFamily     string
+		lowTierModel    string
+		mediumTierModel string
+		highTierModel   string
+		modes           []benchpkg.ModeSummary
+		timestamp       string
+	}{
+		manifestID:      "test-manifest",
+		baseCommit:      "commit123",
+		beads:           []string{"bead-1", "bead-2"},
+		provider:        "openai",
+		modelFamily:     "gpt-5",
+		lowTierModel:    "gpt-5.1",
+		mediumTierModel: "gpt-5.3",
+		highTierModel:   "gpt-5.3",
+		modes:           []benchpkg.ModeSummary{{Mode: "test"}},
+		timestamp:       "20260225T120000Z",
+	}
+
+	// Call both the CLI function pointer and the internal function with the same inputs
+	cliResult := benchmarkBuildReportInputFn(
+		testInputs.manifestID, testInputs.baseCommit, testInputs.beads,
+		testInputs.provider, testInputs.modelFamily,
+		testInputs.lowTierModel, testInputs.mediumTierModel, testInputs.highTierModel,
+		testInputs.modes, testInputs.timestamp,
+	)
+
+	internalResult := benchpkg.BuildReportInput(
+		testInputs.manifestID, testInputs.baseCommit, testInputs.beads,
+		testInputs.provider, testInputs.modelFamily,
+		testInputs.lowTierModel, testInputs.mediumTierModel, testInputs.highTierModel,
+		testInputs.modes, testInputs.timestamp,
+	)
+
+	// Verify they produce identical results
+	if !reflect.DeepEqual(cliResult, internalResult) {
+		t.Fatalf("CLI report input builder does not match internal function\nCLI: %+v\nInternal: %+v", cliResult, internalResult)
+	}
+}
+
 func TestRunBenchmarkPipeline_ExecutesStagesInOrder(t *testing.T) {
 	origLoad := benchmarkLoadManifestFn
 	origSelect := benchmarkSelectCohortFn
