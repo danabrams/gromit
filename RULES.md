@@ -2,7 +2,7 @@
 
 These rules represent high-leverage control points that have either caused repeated failures or represent confirmed best practices. Rules are enforced through code review, automated checks, and process gates.
 
-## Architecture
+## Architecture <!-- phases: red, build, green, refactor, review -->
 
 ### Benchmark runtime must treat manifest.modes as the sole execution source of truth
 Hardcoded mode lists are forbidden in production paths. All benchmark execution must derive modes from `manifest.modes`. This prevents spec drift and ensures manifest-driven experiments are valid.
