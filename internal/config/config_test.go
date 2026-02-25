@@ -607,6 +607,41 @@ func TestExperimentDefaults(t *testing.T) {
 	}
 }
 
+func TestValidateRejectsInvalidExperimentConfig(t *testing.T) {
+	tests := []struct {
+		name       string
+		experiment ExperimentConfig
+		wantErr    string
+	}{
+		{
+			name:       "MinSampleSizeTooLow",
+			experiment: ExperimentConfig{MinSampleSize: 0},
+			wantErr:    "experiment.min_sample_size",
+		},
+		{
+			name:       "ThresholdTooHigh",
+			experiment: ExperimentConfig{MinSampleSize: 20, ConfidenceThreshold: 1.1},
+			wantErr:    "experiment.confidence_threshold",
+		},
+		{
+			name:       "ThresholdTooLow",
+			experiment: ExperimentConfig{MinSampleSize: 20, ConfidenceThreshold: 0},
+			wantErr:    "experiment.confidence_threshold",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{Experiment: tt.experiment}
+			cfg.SetDefaults()
+			err := cfg.Validate()
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("Validate() error = %v, want substring %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestStallTimeoutDefault(t *testing.T) {
 	cfg := &Config{}
 	cfg.SetDefaults()
