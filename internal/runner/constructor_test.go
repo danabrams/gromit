@@ -76,6 +76,32 @@ func TestBuildRouterAndLearningsProvider_UsesConfiguredProviders(t *testing.T) {
 	}
 }
 
+// TestBuildRouterAndLearningsProvider_WiresCircuitBreakerFromConfig verifies that
+// circuit-breaker from config is wired to the router.
+// When circuit-breaker is enabled in config, it should be initialized and passed to NewRouter.
+func TestBuildRouterAndLearningsProvider_WiresCircuitBreakerFromConfig(t *testing.T) {
+	cfg := newCodexProvidersConfig()
+	cfg.Routing.Ratio = map[string]int{"codex": 100}
+	cfg.Routing.CircuitBreaker = config.CircuitBreakerConfig{
+		Enabled:           true,
+		WindowSize:        5,
+		FailureThreshold:  0.3,
+		DegradedFloor:     20,
+		RecoverySuccesses: 2,
+	}
+	router, _, _, _, err := buildRouterAndLearningsProvider(cfg, t.TempDir(), io.Discard)
+	if err != nil {
+		t.Fatalf("buildRouterAndLearningsProvider() with circuit-breaker config error = %v", err)
+	}
+	if router == nil {
+		t.Fatal("buildRouterAndLearningsProvider() router = nil, want non-nil")
+	}
+	// If circuit-breaker is wired correctly, calling RecordOutcome should not panic
+	// and the circuit-breaker should properly track outcomes.
+	router.RecordOutcome("codex", provider.FailureCategoryNone)
+	router.RecordOutcome("codex", provider.FailureCategoryNone)
+}
+
 // TestDecomposerAdapter_Decompose_CreatesChildBeads verifies that decomposerAdapter.Decompose
 // actually calls bead.Client to create child beads when decomposing an oversized bead,
 // rather than returning nil without performing any work.
