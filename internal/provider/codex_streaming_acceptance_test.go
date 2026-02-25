@@ -364,23 +364,10 @@ func TestCodexProviderExtractsAgentTextFromItemCompleted(t *testing.T) {
 // TestCodexProviderStreamsAgentTextToWriter verifies that agent message text
 // is written to the output writer in real-time as events arrive.
 func TestCodexProviderStreamsAgentTextToWriter(t *testing.T) {
-	tempDir := t.TempDir()
-
-	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := `#!/bin/bash
-echo '{"type":"item.agentMessage.delta","delta":{"text":"Hello "}}'
-sleep 0.05
-echo '{"type":"item.agentMessage.delta","delta":{"text":"world"}}'
-sleep 0.05
-echo '{"type":"item.completed","item":{"type":"agent_message","text":"Hello world"}}'
-exit 0
-`
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+	setupCodexStreamingFixtureEnv(t, "codex_stream_agent_deltas.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
+	cp := NewCodexProvider(fakeCodexBinaryPath(t), []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
