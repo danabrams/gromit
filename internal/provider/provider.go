@@ -43,6 +43,18 @@ var tierToLegacyModel = map[string]string{
 	TierLow:    "haiku",
 }
 
+// modelToProvider maps known model names to their owning provider.
+// This enforces the known attribution of models to providers for usage accounting.
+var modelToProvider = map[string]string{
+	// Claude models
+	"opus":   "claude",
+	"sonnet": "claude",
+	"haiku":  "claude",
+	// Codex models
+	"gpt-5.3-codex":      "codex",
+	"gpt-5.1-codex-mini": "codex",
+}
+
 // Result represents the outcome of a provider invocation
 type Result struct {
 	Success                 bool          `json:"success"`
@@ -133,6 +145,37 @@ func TierToLegacyModel(tier string) string {
 
 	// Pass through unrecognized tiers unchanged
 	return tier
+}
+
+// ValidateModelProviderAttribution validates that a model name belongs to the specified provider.
+// This enforces known attribution mappings for usage accounting data quality.
+// Returns (true, "") for valid attribution, (false, reason) for invalid attribution.
+// Both model and provider names are matched case-insensitively.
+// Empty model or provider values are treated as invalid.
+func ValidateModelProviderAttribution(model, provider string) (valid bool, reason string) {
+	// Check for empty values
+	modelLower := strings.TrimSpace(strings.ToLower(model))
+	providerLower := strings.TrimSpace(strings.ToLower(provider))
+
+	if modelLower == "" {
+		return false, "empty model name"
+	}
+	if providerLower == "" {
+		return false, "empty provider name"
+	}
+
+	// Look up expected provider for this model
+	expectedProvider, isKnownModel := modelToProvider[modelLower]
+	if !isKnownModel {
+		return false, "model not in known attribution mapping: " + model
+	}
+
+	// Verify the provider matches
+	if providerLower != expectedProvider {
+		return false, "model " + model + " belongs to " + expectedProvider + " not " + provider
+	}
+
+	return true, ""
 }
 
 // Compile-time interface satisfaction checks
