@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -1034,4 +1035,28 @@ func TestValidateCoverage_PropagatesResultAndError(t *testing.T) {
 	if !errors.Is(err, expectedErr) {
 		t.Fatalf("ValidateCoverage error = %v, want %v", err, expectedErr)
 	}
+}
+
+// TestVerifyAcceptanceTestsPass_NoDeadNilResultCheck verifies that the dead nil-result
+// check has been removed from VerifyAcceptanceTestsPass. The validateFn always returns
+// a non-nil *claude.Result when error is nil, so the nil check is unreachable dead code.
+func TestVerifyAcceptanceTestsPass_NoDeadNilResultCheck(t *testing.T) {
+	content, err := readExecutorSourceFile()
+	if err != nil {
+		t.Fatalf("failed to read executor.go: %v", err)
+	}
+
+	deadCodeString := "acceptance validation returned no result"
+	if strings.Contains(content, deadCodeString) {
+		t.Fatalf("executor.go must not contain dead nil-result check: %q", deadCodeString)
+	}
+}
+
+func readExecutorSourceFile() (string, error) {
+	executorFilePath := filepath.Join(".", "executor.go")
+	data, err := os.ReadFile(executorFilePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read executor.go: %w", err)
+	}
+	return string(data), nil
 }
