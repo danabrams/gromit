@@ -24,6 +24,11 @@ Session worktree and mergeback behavior must follow a single ownership contract:
 
 Policy progression and cross-cutting concerns (tier advancement, metrics, status behavior) should have one shared orchestration path with explicit dependency injection to avoid duplicating logic between execution code and config accessors. This keeps policy consistent and prevents drift in legacy model-name mapping and disabled-escalation semantics.
 
+### 2026-02-25 | Runtime State Artifacts Must Stay Untracked | safety
+*Related to: review-1772037612174531122*
+
+Runtime/local state artifacts (for example `.gromit/state.json`, `.gromit/stats.json`, `.gromit/interactive-state.json`, and `.gromit/metrics/*.jsonl`) must never be committed. If they become tracked, remove them from the git index with `git rm --cached` and keep `.gitignore` as the source of truth.
+
 ### 2026-02-07 | Status File Management | patterns
 *Related to: nalr, k8c2, kydj, ead1, xpfn, lm34, 2y2d, yj2h, vpyl, kim2*
 
@@ -237,4 +242,3 @@ Use package-level `var _ Interface = (*Impl)(nil)` declarations in non-test `.go
 When implementing JSONL stream readers, examine test fixtures to understand the event structure and which fields contain the data to extract. For accumulating results, check if events signal completion (like 'done' messages) and how to properly concatenate streamed text chunks.
 
 *Archived from new: filtered: generic engineering advice*
-
