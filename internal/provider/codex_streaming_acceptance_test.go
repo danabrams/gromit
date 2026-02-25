@@ -659,3 +659,16 @@ func codexFixturePath(t *testing.T, fixtureName string) string {
 
 	return fixturePath
 }
+
+func setupCodexStreamingFixtureEnv(t *testing.T, fixtureName string) string {
+	t.Helper()
+
+	t.Setenv("CODEX_RAW_JSONL", "1")
+	fixture := codexFixturePath(t, fixtureName)
+	t.Setenv("CODEX_FIXTURE", fixture)
+
+	callLog := filepath.Join(t.TempDir(), "codex_call_log.txt")
+	t.Setenv("TEST_CALL_LOG", callLog)
+
+	return callLog
+}
