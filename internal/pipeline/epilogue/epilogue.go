@@ -78,6 +78,7 @@ type Epilogue struct {
 	epic           EpicChecker        // optional; used with review for epic completion detection
 	failureLearner FailureLearner     // optional; nil means skip failure-path learning
 	logWriter      IterationLogWriter // optional; nil means skip iteration log write
+	mergeWarnings  map[string]string  // per-run de-duplication of merge warnings by branch
 }
 
 // Compile-time check: *Epilogue must implement pipeline.Stage.
@@ -185,7 +186,12 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 				}
 				seen[branch] = struct{}{}
 				if err := e.worktree.MergeBack(branch); err != nil {
-					fmt.Fprintf(w, "Warning: failed to merge branch %s: %v\n", branch, err)
+					errMsg := err.Error()
+					if e.shouldEmitMergeWarning(branch, errMsg) {
+						fmt.Fprintf(w, "Warning: failed to merge branch %s: %v\n", branch, err)
+					}
+				} else {
+					e.clearMergeWarning(branch)
 				}
 			}
 		}
@@ -268,4 +274,26 @@ func computeTimeBudgetMinutes(deadline time.Time) int {
 		return 0
 	}
 	return m
+}
+
+func (e *Epilogue) shouldEmitMergeWarning(branch, errMsg string) bool {
+	if e == nil {
+		return true
+	}
+	if e.mergeWarnings == nil {
+		e.mergeWarnings = make(map[string]string)
+	}
+	last, exists := e.mergeWarnings[branch]
+	if exists && last == errMsg {
+		return false
+	}
+	e.mergeWarnings[branch] = errMsg
+	return true
+}
+
+func (e *Epilogue) clearMergeWarning(branch string) {
+	if e == nil || e.mergeWarnings == nil {
+		return
+	}
+	delete(e.mergeWarnings, branch)
 }

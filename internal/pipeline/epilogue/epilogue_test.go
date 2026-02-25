@@ -1,8 +1,11 @@
 package epilogue_test
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -328,6 +331,29 @@ func TestEpilogue_DeduplicatesPendingBranchesBeforeMerge(t *testing.T) {
 	}
 	if merger.mergedBranches[0] != "gromit/review-1" || merger.mergedBranches[1] != "gromit/review-2" {
 		t.Fatalf("merged branches order = %v, want [gromit/review-1 gromit/review-2]", merger.mergedBranches)
+	}
+}
+
+func TestEpilogue_DeduplicatesRepeatedMergeWarningsAcrossIterations(t *testing.T) {
+	merger := &fakeWorktreeMerger{
+		branches:   []string{"gromit/review-1"},
+		mergeErr:   errors.New("merge conflict for branch gromit/review-1"),
+	}
+	var out bytes.Buffer
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, &out).
+		WithWorktree(merger)
+
+	in := makeInput("bead-1", "Test", true)
+	if _, err := stage.Run(context.Background(), in); err != nil {
+		t.Fatalf("first Run() error = %v, want nil", err)
+	}
+	if _, err := stage.Run(context.Background(), in); err != nil {
+		t.Fatalf("second Run() error = %v, want nil", err)
+	}
+
+	got := strings.Count(out.String(), "Warning: failed to merge branch gromit/review-1")
+	if got != 1 {
+		t.Fatalf("warning count = %d, want 1; output:\n%s", got, out.String())
 	}
 }
 
