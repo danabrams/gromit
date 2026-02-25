@@ -346,6 +346,130 @@ func TestRunBenchmarkPipeline_ReportArtifactsMatchInternalWriter(t *testing.T) {
 	}
 }
 
+func TestRunBenchmarkPipeline_ReportArtifactsMatchCuratedFixture(t *testing.T) {
+	tmpDir := t.TempDir()
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd: %v", err)
+	}
+	t.Cleanup(func() { os.Chdir(origWD) })
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir tmp dir: %v", err)
+	}
+
+	fixtureDir := filepath.Join(origWD, ".gromit", "reports", "curated", "benchmark-report")
+
+	origLoad := benchmarkInternalLoadManifestFn
+	origSelect := benchmarkSelectCohortFn
+	origValidate := benchmarkValidateCohortFn
+	origHarness := benchmarkRunHarnessFn
+	origAggregate := benchmarkInternalAggregateModeMetricsFn
+	origWrite := benchmarkInternalWriteReportFn
+	origNow := benchmarkNowFn
+	t.Cleanup(func() {
+		benchmarkInternalLoadManifestFn = origLoad
+		benchmarkSelectCohortFn = origSelect
+		benchmarkValidateCohortFn = origValidate
+		benchmarkRunHarnessFn = origHarness
+		benchmarkInternalAggregateModeMetricsFn = origAggregate
+		benchmarkInternalWriteReportFn = origWrite
+		benchmarkNowFn = origNow
+	})
+
+	benchmarkNowFn = func() time.Time {
+		return time.Date(2026, 2, 25, 12, 0, 0, 0, time.UTC)
+	}
+
+	manifest := benchpkg.Manifest{
+		ID:         "tdd-vs-single-pass",
+		BaseCommit: "abc123",
+		Beads:      []string{"gromit-1", "gromit-2", "gromit-3", "gromit-4", "gromit-5"},
+		ModeConfig: benchpkg.ModeConfig{Modes: []string{"single_pass", "tdd_shared_context"}},
+		ModelPinning: benchpkg.ModelPinning{
+			Provider:        "openai",
+			ModelFamily:     "gpt-5",
+			LowTierModel:    "gpt-5.1-codex-mini",
+			MediumTierModel: "gpt-5.3-codex",
+			HighTierModel:   "gpt-5.3-codex",
+		},
+	}
+
+	benchmarkSelectCohortFn = func(manifest benchmarkManifest, opts benchmarkRunOptions) (benchmarkSelection, error) {
+		return benchmarkSelection{SelectedBeads: []string{"gromit-1", "gromit-2", "gromit-3", "gromit-4", "gromit-5"}}, nil
+	}
+
+	benchmarkInternalLoadManifestFn = func(path string) (benchpkg.Manifest, error) {
+		return manifest, nil
+	}
+
+	benchmarkValidateCohortFn = func(selection benchmarkSelection, opts benchmarkRunOptions) (benchmarkValidatedCohort, error) {
+		return benchmarkValidatedCohort{SelectedBeads: selection.SelectedBeads}, nil
+	}
+
+	benchmarkRunHarnessFn = func(manifest benchmarkManifest, cohort benchmarkValidatedCohort, opts benchmarkRunOptions) (benchmarkHarnessResult, error) {
+		return benchmarkHarnessResult{
+			BaseCommit:    manifest.BaseCommit,
+			SelectedBeads: append([]string(nil), cohort.SelectedBeads...),
+			Modes: []benchmarkModeResult{
+				{Mode: "single_pass", BaseCommit: manifest.BaseCommit, SelectedBeads: append([]string(nil), cohort.SelectedBeads...)},
+				{Mode: "tdd_shared_context", BaseCommit: manifest.BaseCommit, SelectedBeads: append([]string(nil), cohort.SelectedBeads...)},
+			},
+		}, nil
+	}
+
+	summary := benchpkg.ModeSummary{
+		Mode:             "single_pass",
+		ElapsedSeconds:   60,
+		TotalInput:       1200,
+		TotalOutput:      600,
+		TotalCostUSD:     1.5,
+		TierTotals:       benchpkg.TierTotals{Low: benchpkg.TierTotalsRow{InputTokens: 800, OutputTokens: 400, CostUSD: 0.8}},
+		Quality:          benchpkg.QualityMetrics{AverageScore: 0.9, FirstPassRate: 0.75, ReviewFindings: 1, ReviewFixesApplied: 0, FinalValidationPassed: true},
+		CostQualityRatio: 1.67,
+	}
+
+	benchmarkInternalAggregateModeMetricsFn = func(inputs []benchpkg.ModeLogInput) ([]benchpkg.ModeSummary, error) {
+		return []benchpkg.ModeSummary{summary}, nil
+	}
+
+	var capturedInput benchpkg.ReportInput
+	benchmarkInternalWriteReportFn = func(input benchpkg.ReportInput) (benchpkg.ReportPaths, error) {
+		capturedInput = input
+		return benchpkg.WriteReport(input)
+	}
+
+	opts := benchmarkRunOptions{
+		ManifestPath:    "unused-manifest.yaml",
+		OutputTimestamp: "20260225T120000Z",
+	}
+
+	if err := runBenchmarkPipeline(opts); err != nil {
+		t.Fatalf("runBenchmarkPipeline() error = %v", err)
+	}
+
+	resultDir := filepath.Join(tmpDir, ".gromit", "benchmarks", "results", capturedInput.Manifest.ID)
+	jsonPath := filepath.Join(resultDir, capturedInput.Timestamp+".json")
+	mdPath := filepath.Join(resultDir, capturedInput.Timestamp+".md")
+	actualJSON, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("read actual json artifact: %v", err)
+	}
+	actualMD, err := os.ReadFile(mdPath)
+	if err != nil {
+		t.Fatalf("read actual markdown artifact: %v", err)
+	}
+
+	fixtureJSON := readBenchmarkReportFixture(t, fixtureDir, "benchmark-report.json")
+	if !bytes.Equal(actualJSON, fixtureJSON) {
+		t.Fatalf("json artifact diverged from golden fixture\nactual:\n%s\nexpected:\n%s", string(actualJSON), string(fixtureJSON))
+	}
+
+	fixtureMD := readBenchmarkReportFixture(t, fixtureDir, "benchmark-report.md")
+	if !bytes.Equal(actualMD, fixtureMD) {
+		t.Fatalf("markdown artifact diverged from golden fixture\nactual:\n%s\nexpected:\n%s", string(actualMD), string(fixtureMD))
+	}
+}
+
 func TestBenchmarkRunCommand_ReportInputMatchesCanonicalBuilder(t *testing.T) {
 	tmpDir := t.TempDir()
 	origWD, err := os.Getwd()
@@ -503,6 +627,16 @@ func renderInternalBenchmarkReport(t *testing.T, input benchpkg.ReportInput) ([]
 		t.Fatalf("read internal markdown: %v", err)
 	}
 	return jsonBytes, mdBytes
+}
+
+func readBenchmarkReportFixture(t *testing.T, dir, name string) []byte {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read benchmark report fixture %q: %v", name, err)
+	}
+	return data
 }
 
 func TestBenchmarkReportInput_PreservesInternalReportMarkdownSections(t *testing.T) {
