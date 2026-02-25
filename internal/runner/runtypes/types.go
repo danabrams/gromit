@@ -91,6 +91,9 @@ type IterationResult struct {
 	CompilationErrors       bool   // true when pre-build compilation check found errors
 	TimeoutDecompositionAttempted bool `json:"timeout_decomposition_attempted,omitempty"`
 	TimeoutDecompositionSucceeded bool `json:"timeout_decomposition_succeeded,omitempty"`
+	TimeoutDecompositionAttemptTime time.Time `json:"timeout_decomposition_attempt_time,omitempty"`
+	TimeoutDecompositionOutcome string `json:"timeout_decomposition_outcome,omitempty"`
+	TimeoutDecompositionReason string `json:"timeout_decomposition_reason,omitempty"`
 	HardStopPendingApproval bool   // true when hard-stop action requires explicit human approval
 
 	// Diagnostic fields for timeout investigation

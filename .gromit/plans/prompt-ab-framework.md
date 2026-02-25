@@ -1,8 +1,9 @@
 ---
+created: 2026-02-20T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-25T23:09:17Z"
 id: prompt-ab-framework
 source_spec: prompt-ab-framework
-created: 2026-02-20
-decomposed: false
 ---
 
 # Prompt A/B Testing Framework Implementation Plan

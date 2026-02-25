@@ -1,8 +1,9 @@
 ---
+created: 2026-02-25T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-25T23:11:07Z"
 id: process-trend-split
 source_spec: process-trend-split
-created: 2026-02-25
-decomposed: false
 ---
 
 # Process Trend Split Implementation Plan

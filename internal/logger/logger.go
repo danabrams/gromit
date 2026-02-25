@@ -56,6 +56,9 @@ type IterationLog struct {
 	TimeoutPhase        string `json:"timeout_phase,omitempty"`          // phase active when timeout/cancel occurred
 	TimeoutDecompositionAttempted bool `json:"timeout_decomposition_attempted,omitempty"` // timeout triggered decomposition attempt
 	TimeoutDecompositionSucceeded bool `json:"timeout_decomposition_succeeded,omitempty"` // timeout decomposition completed successfully
+	TimeoutDecompositionAttemptTime time.Time `json:"timeout_decomposition_attempt_time,omitempty"` // timestamp of decomposition attempt
+	TimeoutDecompositionOutcome string `json:"timeout_decomposition_outcome,omitempty"` // outcome of decomposition attempt
+	TimeoutDecompositionReason string `json:"timeout_decomposition_reason,omitempty"` // reason/decision marker for decomposition
 	TimeToFirstEventMs  int64  `json:"time_to_first_event_ms,omitempty"` // ms from start to first stream event
 	ToolCallCount       int    `json:"tool_call_count,omitempty"`        // tool calls before completion/timeout
 	StallCount          int    `json:"stall_count,omitempty"`            // number of stall detections

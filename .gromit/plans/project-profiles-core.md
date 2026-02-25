@@ -1,8 +1,9 @@
 ---
+created: 2026-02-25T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-25T23:21:39Z"
 id: project-profiles-core
 source_spec: project-profiles-core
-created: 2026-02-25
-decomposed: false
 ---
 
 # Project Profiles Core Implementation Plan
