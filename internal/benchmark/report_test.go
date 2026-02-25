@@ -1,6 +1,7 @@
 package benchmark
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -254,6 +255,72 @@ func TestWriteReport_WinnerHintsUseStableTieBreakAndLowerCostQualityRatio(t *tes
 		t.Fatalf("best_cost_quality = %q, want %q", payload.WinnerHints.BestCostQuality, "a_mode")
 	}
 }
+func TestWriteReport_JSONArtifactModelTotalsAreSorted(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+
+	unsortedInput := ReportInput{
+		Timestamp: "20260223T120000Z",
+		Manifest: ManifestMetadata{
+			ID:         "test-determinism",
+			BaseCommit: "abc123",
+		},
+		Modes: []ModeSummary{
+			{
+				Mode:        "test_mode",
+				ModelTotals: []ModelTotalsRow{
+					{Model: "z-model", InputTokens: 100, OutputTokens: 50, CostUSD: 1.0},
+					{Model: "a-model", InputTokens: 150, OutputTokens: 75, CostUSD: 1.5},
+					{Model: "m-model", InputTokens: 120, OutputTokens: 60, CostUSD: 1.2},
+				},
+			},
+		},
+	}
+
+	_, err := WriteReport(unsortedInput)
+	if err != nil {
+		t.Fatalf("first WriteReport() error = %v", err)
+	}
+
+	jsonPath := filepath.Join(".gromit", "benchmarks", "results", "test-determinism", "20260223T120000Z.json")
+	firstJSON, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("read first json artifact: %v", err)
+	}
+
+	sortedInput := ReportInput{
+		Timestamp: "20260223T120000Z",
+		Manifest: ManifestMetadata{
+			ID:         "test-determinism",
+			BaseCommit: "abc123",
+		},
+		Modes: []ModeSummary{
+			{
+				Mode: "test_mode",
+				ModelTotals: []ModelTotalsRow{
+					{Model: "a-model", InputTokens: 150, OutputTokens: 75, CostUSD: 1.5},
+					{Model: "m-model", InputTokens: 120, OutputTokens: 60, CostUSD: 1.2},
+					{Model: "z-model", InputTokens: 100, OutputTokens: 50, CostUSD: 1.0},
+				},
+			},
+		},
+	}
+
+	_, err = WriteReport(sortedInput)
+	if err != nil {
+		t.Fatalf("second WriteReport() error = %v", err)
+	}
+
+	secondJSON, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("read second json artifact: %v", err)
+	}
+
+	if !bytes.Equal(firstJSON, secondJSON) {
+		t.Fatalf("json artifact not deterministic for unordered ModelTotals\nfirst:\n%s\nsecond:\n%s", string(firstJSON), string(secondJSON))
+	}
+}
+
 func TestRunPhase3Measurement_ComputesMediansAndCacheHitRatesByPromptClass(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
