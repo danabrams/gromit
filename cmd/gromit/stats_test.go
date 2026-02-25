@@ -672,6 +672,67 @@ func TestStatsCmd_ShowsCostPerSpecSortedByTotalCost(t *testing.T) {
 	}
 }
 
+func TestStatsCmd_TextOutputIncludesCostPerSpecDetails(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	logsDir := filepath.Join(gromitDir, "logs")
+	if err := os.MkdirAll(logsDir, 0755); err != nil {
+		t.Fatalf("failed to create logs dir: %v", err)
+	}
+
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	configContent := `paths:
+  gromit_dir: .gromit
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	logs := []logger.IterationLog{
+		{BeadID: "bead-1", SpecID: "spec-full", Model: "haiku", Success: true, CostUSD: 0.50, DurationMs: 1000},
+		{BeadID: "bead-2", SpecID: "spec-full", Model: "opus", Success: true, CostUSD: 1.00, DurationMs: 1500},
+	}
+
+	runID := "20260211-120000"
+	logFilePath := filepath.Join(logsDir, "run-"+runID+".jsonl")
+	logFile, err := os.Create(logFilePath)
+	if err != nil {
+		t.Fatalf("failed to create log file: %v", err)
+	}
+	encoder := json.NewEncoder(logFile)
+	for _, log := range logs {
+		if err := encoder.Encode(log); err != nil {
+			t.Fatalf("failed to write log entry: %v", err)
+		}
+	}
+	logFile.Close()
+
+	t.Chdir(tmpDir)
+
+	output := captureStdout(t, func() {
+		rootCmd.SetArgs([]string{"stats"})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("stats command failed: %v", err)
+		}
+	})
+
+	if !strings.Contains(output, "Cost per spec:") {
+		t.Fatalf("output should start a clearly labeled cost per spec section, got:\n%s", output)
+	}
+	if !strings.Contains(output, "spec-full") {
+		t.Fatalf("output should include spec ID lines, got:\n%s", output)
+	}
+	if !strings.Contains(output, "2 iter") {
+		t.Fatalf("output should show iteration count, got:\n%s", output)
+	}
+	if !strings.Contains(output, "2 beads") {
+		t.Fatalf("output should show bead count, got:\n%s", output)
+	}
+	if !strings.Contains(output, "haiku:1") || !strings.Contains(output, "opus:1") {
+		t.Fatalf("output should show model mix details, got:\n%s", output)
+	}
+}
+
 func TestStatsCmd_ShowsCostPerCompletedBead(t *testing.T) {
 	// Create temp directory structure
 	tmpDir := t.TempDir()
