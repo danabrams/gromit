@@ -257,9 +257,9 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 			// Extract usage from native result events (matches Claude's reporting path).
 			// Some codex provider versions report token usage in a "result" event with
 			// a nested "usage" field rather than via "turn.completed" events.
-			resultUsage := extractUsageFromResultEvent(event)
+			mergedUsage, resultUsage := mergeCodexEventUsage(usage, event)
 			if resultUsage != nil {
-				usage = mergeCodexUsage(usage, resultUsage)
+				usage = mergedUsage
 				emitStreamEvent(handler, map[string]interface{}{
 					"type":           "result",
 					"total_cost_usd": resultUsage.TotalCostUSD,
@@ -269,10 +269,9 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 			}
 
 		case "turn.completed":
-			// Extract usage data using same extraction logic as response.completed and result.
-			turnUsage := extractUsageFromTurnCompletedEvent(event)
+			mergedUsage, turnUsage := mergeCodexEventUsage(usage, event)
 			if turnUsage != nil {
-				usage = mergeCodexUsage(usage, turnUsage)
+				usage = mergedUsage
 				emitStreamEvent(handler, map[string]interface{}{
 					"type":           "result",
 					"total_cost_usd": turnUsage.TotalCostUSD,
@@ -296,9 +295,9 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 			}
 
 		case "response.completed":
-			responseUsage := extractUsageFromResponseEvent(event)
+			mergedUsage, responseUsage := mergeCodexEventUsage(usage, event)
 			if responseUsage != nil {
-				usage = mergeCodexUsage(usage, responseUsage)
+				usage = mergedUsage
 				emitStreamEvent(handler, map[string]interface{}{
 					"type":           "result",
 					"total_cost_usd": responseUsage.TotalCostUSD,
@@ -477,6 +476,25 @@ func applyUsageScalars(usage *codexUsage, inputTokens, outputTokens int, totalCo
 		applied = true
 	}
 	return applied
+}
+
+func mergeCodexEventUsage(existing *codexUsage, event codexEvent) (*codexUsage, *codexUsage) {
+	var extracted *codexUsage
+	switch event.Type {
+	case "result":
+		extracted = extractUsageFromResultEvent(event)
+	case "turn.completed":
+		extracted = extractUsageFromTurnCompletedEvent(event)
+	case "response.completed":
+		extracted = extractUsageFromResponseEvent(event)
+	default:
+		return existing, nil
+	}
+	if extracted == nil {
+		return existing, nil
+	}
+	merged := mergeCodexUsage(existing, extracted)
+	return merged, extracted
 }
 
 func mergeCodexUsage(existing *codexUsage, incoming *codexUsage) *codexUsage {
