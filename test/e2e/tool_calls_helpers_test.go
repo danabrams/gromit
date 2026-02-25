@@ -69,6 +69,32 @@ func TestToolCallPrefixMapping(t *testing.T) {
 	}
 }
 
+func TestReadE2ECallLog_TrimsWhitespace(t *testing.T) {
+	env := setupE2E(t)
+
+	callLog := "   codex run --model sonnet\n" +
+		"\n" +
+		"\tclaude -p --model sonnet\n"
+	if err := os.WriteFile(env.CallLog, []byte(callLog), 0644); err != nil {
+		t.Fatalf("failed to write call log: %v", err)
+	}
+
+	calls, err := readE2ECallLog(env)
+	if err != nil {
+		t.Fatalf("readE2ECallLog returned error: %v", err)
+	}
+
+	want := []string{"codex run --model sonnet", "claude -p --model sonnet"}
+	if len(calls) != len(want) {
+		t.Fatalf("expected %d entries, got %d (%v)", len(want), len(calls), calls)
+	}
+	for i, line := range want {
+		if calls[i] != line {
+			t.Fatalf("call %d = %q, want %q", i, calls[i], line)
+		}
+	}
+}
+
 func filterE2ECalls(env *e2eEnv, prefix string) ([]string, error) {
 	calls, err := readE2ECallLog(env)
 	if err != nil {
