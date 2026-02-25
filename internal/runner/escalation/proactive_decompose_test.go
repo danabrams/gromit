@@ -8,6 +8,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
@@ -261,5 +262,61 @@ func TestExecuteWithRetry_ChecksProactiveDecomposition(t *testing.T) {
 	}
 	if !proactiveDecompositionAttempted {
 		t.Errorf("proactive decomposition not attempted, expected it to be triggered")
+	}
+}
+
+// TestExecuteWithRetry_LowRiskBypassesProactiveCheck verifies that low-risk beads
+// proceed normally through ExecuteWithRetry without triggering proactive decomposition.
+func TestExecuteWithRetry_LowRiskBypassesProactiveCheck(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	handler := NewHandler(cfg, nil, nil, nil, nil, nil, nil)
+
+	// Set up a low-risk bead that should proceed normally
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
+			ID:       "test-003",
+			Title:    "Low-risk bead",
+			Priority: 1,
+		},
+		ScopeEstimate: &prompt.ScopeEstimate{
+			Complexity:                   "low",
+			EstimatedIterations:          1,
+			CanCompleteInSingleIteration: true,
+		},
+		TotalRetriesThisBead: 0,
+		MaxRetries:           1,
+		MaxRetriesPerBead:    1,
+		BeadTimeout:          10 * time.Minute,
+		BeadStartTime:        time.Now().Add(-6 * time.Minute), // 60% elapsed (but low-risk)
+		Result: &runtypes.IterationResult{
+			Model: "test-model",
+		},
+		ParentCtx:   context.Background(),
+		BuildPrompt: "test prompt",
+	}
+
+	// Invocation function that should be called (no proactive decomposition for low-risk)
+	invocationCalled := false
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		invocationCalled = true
+		return &runtypes.InvocationResult{
+			ProviderResult: &provider.Result{
+				Success: true,
+				Model:   "test-model",
+			},
+		}, nil
+	}
+
+	ctx := context.Background()
+	success := handler.ExecuteWithRetry(ctx, bc, invokeFn)
+
+	if !success {
+		t.Errorf("ExecuteWithRetry() = false, want true for successful low-risk bead")
+	}
+	if !invocationCalled {
+		t.Errorf("invokeFn not called, expected normal invocation for low-risk bead")
 	}
 }
