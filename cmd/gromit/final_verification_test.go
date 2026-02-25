@@ -157,16 +157,6 @@ func TestFinalVerification(t *testing.T) {
 		}
 	})
 
-	t.Run("explore prompt stub removed", func(t *testing.T) {
-		explorePath := filepath.Join(projectRoot, "cmd", "gromit", "explore_test.go")
-		content, err := os.ReadFile(explorePath)
-		if err != nil {
-			t.Fatalf("failed to read explore_test.go: %v", err)
-		}
-		if strings.Contains(string(content), "buildExplorePrompt") {
-			t.Fatalf("explore_test.go must no longer contain buildExplorePrompt stub")
-		}
-	})
 }
 
 func TestFinalVerification_NoBuildExplorePromptReference(t *testing.T) {
