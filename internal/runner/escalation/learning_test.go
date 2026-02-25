@@ -264,3 +264,43 @@ func TestExtractLearning_NeverSkippedForLowTier(t *testing.T) {
 		t.Errorf("failure learning should be extracted even for low-tier beads, got:\n%s", string(content))
 	}
 }
+
+// TestExtractLearning_NeverSkippedForSeenPackages verifies that failure learning extraction
+// bypasses the package novelty filter that is applied to success learning. Failure paths must always
+// extract and persist learning even when all touched packages have been seen before in this run.
+func TestExtractLearning_NeverSkippedForSeenPackages(t *testing.T) {
+	dir := t.TempDir()
+	lf, err := learnings.NewFile(dir)
+	if err != nil {
+		t.Fatalf("failed to create learnings file: %v", err)
+	}
+
+	learningText := "Repeated package failure pattern requiring persistent learning"
+	analysis := &analyzer.Analysis{
+		Category:    "logic_error",
+		Recoverable: true,
+		RootCause:   "off-by-one error",
+		Learning:    &learningText,
+	}
+
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{ID: "fail-repeat-001", Title: "Repeated package failure"},
+		Tier: provider.TierMedium,
+		Model: "sonnet",
+		TouchedPackages: []string{"internal/foo", "internal/bar"},
+		Result: &runtypes.IterationResult{},
+	}
+
+	// Extract failure learning for a bead whose packages have already been seen
+	// (In success learning, this would trigger the package novelty skip)
+	ExtractLearning(bc, analysis, lf)
+
+	// Verify the learning was persisted despite the seen packages
+	content, err := os.ReadFile(filepath.Join(dir, "LEARNINGS.md"))
+	if err != nil {
+		t.Fatalf("failed to read learnings file: %v", err)
+	}
+	if !strings.Contains(string(content), learningText) {
+		t.Errorf("failure learning should be extracted even for packages seen before, got:\n%s", string(content))
+	}
+}
