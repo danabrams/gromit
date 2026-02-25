@@ -1,0 +1,4 @@
+# provenance: fixture for turn.completed usage extraction acceptance test.
+# refresh: maintain stable usage numbers for deterministic assertions.
+{"type":"item.completed","item":{"type":"agent_message","text":"usage response"}}
+{"type":"turn.completed","usage":{"input_tokens":1500,"output_tokens":800}}
