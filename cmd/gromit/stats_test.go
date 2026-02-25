@@ -672,6 +672,77 @@ func TestStatsCmd_ShowsCostPerSpecSortedByTotalCost(t *testing.T) {
 	}
 }
 
+func TestStatsCmd_OmitsUnassignedSpecFromCostPerSpec(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	logsDir := filepath.Join(gromitDir, "logs")
+	if err := os.MkdirAll(logsDir, 0755); err != nil {
+		t.Fatalf("failed to create logs dir: %v", err)
+	}
+
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	configContent := `paths:
+  gromit_dir: .gromit
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	logs := []logger.IterationLog{
+		{BeadID: "bead-1", SpecID: "", Model: "sonnet", Success: true, CostUSD: 0.75, DurationMs: 2000},
+		{BeadID: "bead-2", SpecID: "spec-valid", Model: "opus", Success: true, CostUSD: 1.25, DurationMs: 2500},
+	}
+
+	runID := "20260211-120000"
+	logFilePath := filepath.Join(logsDir, "run-"+runID+".jsonl")
+	logFile, err := os.Create(logFilePath)
+	if err != nil {
+		t.Fatalf("failed to create log file: %v", err)
+	}
+	encoder := json.NewEncoder(logFile)
+	for _, log := range logs {
+		if err := encoder.Encode(log); err != nil {
+			t.Fatalf("failed to write log entry: %v", err)
+		}
+	}
+	logFile.Close()
+
+	t.Chdir(tmpDir)
+
+	textOutput := captureStdout(t, func() {
+		rootCmd.SetArgs([]string{"stats"})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("stats command failed: %v", err)
+		}
+	})
+
+	if !strings.Contains(textOutput, "spec-valid") {
+		t.Fatalf("text output should include valid spec entry, got:\n%s", textOutput)
+	}
+	if strings.Contains(textOutput, "(unassigned)") {
+		t.Fatalf("text output should omit unassigned spec entries, got:\n%s", textOutput)
+	}
+
+	jsonOutput := captureStdout(t, func() {
+		rootCmd.SetArgs([]string{"stats", "--json"})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("stats command --json failed: %v", err)
+		}
+	})
+
+	var result map[string]any
+	if err := json.Unmarshal([]byte(jsonOutput), &result); err != nil {
+		t.Fatalf("json output should parse: %v", err)
+	}
+	raw, ok := result["cost_per_spec"].(map[string]any)
+	if !ok {
+		t.Fatalf("cost_per_spec should be an object, got: %T", result["cost_per_spec"])
+	}
+	if _, exists := raw["(unassigned)"]; exists {
+		t.Fatalf("JSON cost_per_spec should omit unassigned spec entries, got: %v", raw)
+	}
+}
+
 func TestStatsCmd_TextOutputIncludesCostPerSpecDetails(t *testing.T) {
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
