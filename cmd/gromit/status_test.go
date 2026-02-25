@@ -61,3 +61,33 @@ func TestStatusCmd_OutputIncludesPipelineSection(t *testing.T) {
 		t.Errorf("expected output to contain 'Pipeline:' section (from runner.PrintStatus), got:\n%s", output)
 	}
 }
+
+func TestStatusCmd_SPCFlagDisplaysPlaceholder(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("failed to create gromit dir: %v", err)
+	}
+
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	configContent := `paths:
+  gromit_dir: .gromit
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	t.Chdir(tmpDir)
+
+	output := captureStdout(t, func() {
+		rootCmd.SetArgs([]string{"status", "--spc"})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("status --spc command failed: %v", err)
+		}
+	})
+
+	const placeholder = "SPC dashboard is not yet implemented"
+	if !strings.Contains(output, placeholder) {
+		t.Fatalf("expected placeholder %q in output, got:\n%s", placeholder, output)
+	}
+}
