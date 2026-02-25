@@ -9,34 +9,63 @@ import (
 	"testing"
 )
 
+func TestCheckBeadsIssuesPolicyPassesForCanonicalSemanticOnlyChange(t *testing.T) {
+	repoDir, scriptPath := setupPolicyTestRepo(t)
+	seedIssuesAndCommit(t, repoDir, "{\"id\":\"a\",\"title\":\"First\"}\n{\"id\":\"b\",\"title\":\"Second\"}\n")
+
+	writeFile(t, filepath.Join(repoDir, ".beads", "issues.jsonl"), "{\"id\":\"a\",\"title\":\"First updated\"}\n{\"id\":\"b\",\"title\":\"Second\"}\n")
+	runCmd(t, repoDir, "git", "add", ".beads/issues.jsonl")
+
+	output, err := runPolicyScript(scriptPath, repoDir)
+	if err != nil {
+		t.Fatalf("expected canonical semantic-only change to pass, got err=%v output=%s", err, output)
+	}
+	if !strings.Contains(string(output), "policy check passed") {
+		t.Fatalf("expected pass output, got: %s", output)
+	}
+}
+
+func TestCheckBeadsIssuesPolicyPassesForNormalizationOnlyRewrite(t *testing.T) {
+	repoDir, scriptPath := setupPolicyTestRepo(t)
+	seedIssuesAndCommit(t, repoDir, "{ \"title\": \"Second\", \"id\": \"b\" }\n{ \"title\": \"First\", \"id\": \"a\" }\n")
+
+	writeFile(t, filepath.Join(repoDir, ".beads", "issues.jsonl"), "{\"id\":\"a\",\"title\":\"First\"}\n{\"id\":\"b\",\"title\":\"Second\"}\n")
+	runCmd(t, repoDir, "git", "add", ".beads/issues.jsonl")
+
+	output, err := runPolicyScript(scriptPath, repoDir)
+	if err != nil {
+		t.Fatalf("expected normalization-only rewrite to pass, got err=%v output=%s", err, output)
+	}
+	if !strings.Contains(string(output), "policy check passed") {
+		t.Fatalf("expected pass output, got: %s", output)
+	}
+}
+
+func TestCheckBeadsIssuesPolicyRejectsNonCanonicalStagedContent(t *testing.T) {
+	repoDir, scriptPath := setupPolicyTestRepo(t)
+	seedIssuesAndCommit(t, repoDir, "{\"id\":\"a\",\"title\":\"First\"}\n{\"id\":\"b\",\"title\":\"Second\"}\n")
+
+	writeFile(t, filepath.Join(repoDir, ".beads", "issues.jsonl"), "{ \"title\": \"Second\", \"id\": \"b\" }\n{ \"title\": \"First\", \"id\": \"a\" }\n")
+	runCmd(t, repoDir, "git", "add", ".beads/issues.jsonl")
+
+	output, err := runPolicyScript(scriptPath, repoDir)
+	if err == nil {
+		t.Fatalf("expected non-canonical staged content to fail, output: %s", output)
+	}
+	if !strings.Contains(string(output), "must be canonical") {
+		t.Fatalf("expected canonical guidance in output, got: %s", output)
+	}
+}
+
 func TestCheckBeadsIssuesPolicyRejectsMixedSemanticAndNormalizationChanges(t *testing.T) {
-	_, thisFile, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("runtime.Caller failed")
-	}
-	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", ".."))
-	scriptPath := filepath.Join(repoRoot, "scripts", "check_beads_issues_policy.sh")
-
-	repoDir := t.TempDir()
-	runCmd(t, repoDir, "git", "init")
-	runCmd(t, repoDir, "git", "config", "user.email", "test@example.com")
-	runCmd(t, repoDir, "git", "config", "user.name", "Test User")
-	if err := os.MkdirAll(filepath.Join(repoDir, ".beads"), 0o755); err != nil {
-		t.Fatalf("mkdir .beads: %v", err)
-	}
-
-	headNonCanonical := "{ \"title\": \"Second\", \"id\": \"b\" }\n{ \"title\": \"First\", \"id\": \"a\" }\n"
-	writeFile(t, filepath.Join(repoDir, ".beads", "issues.jsonl"), headNonCanonical)
-	runCmd(t, repoDir, "git", "add", ".")
-	runCmd(t, repoDir, "git", "commit", "-m", "seed")
+	repoDir, scriptPath := setupPolicyTestRepo(t)
+	seedIssuesAndCommit(t, repoDir, "{ \"title\": \"Second\", \"id\": \"b\" }\n{ \"title\": \"First\", \"id\": \"a\" }\n")
 
 	stagedCanonicalWithSemanticChange := "{\"id\":\"a\",\"title\":\"First updated\"}\n{\"id\":\"b\",\"title\":\"Second\"}\n"
 	writeFile(t, filepath.Join(repoDir, ".beads", "issues.jsonl"), stagedCanonicalWithSemanticChange)
 	runCmd(t, repoDir, "git", "add", ".beads/issues.jsonl")
 
-	cmd := exec.Command(scriptPath)
-	cmd.Dir = repoDir
-	output, err := cmd.CombinedOutput()
+	output, err := runPolicyScript(scriptPath, repoDir)
 	if err == nil {
 		t.Fatalf("expected policy script to fail, output: %s", output)
 	}
@@ -98,4 +127,37 @@ func writeFile(t *testing.T, path string, content string) {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write %s: %v", path, err)
 	}
+}
+
+func setupPolicyTestRepo(t *testing.T) (string, string) {
+	t.Helper()
+	_, thisFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", ".."))
+	scriptPath := filepath.Join(repoRoot, "scripts", "check_beads_issues_policy.sh")
+
+	repoDir := t.TempDir()
+	runCmd(t, repoDir, "git", "init")
+	runCmd(t, repoDir, "git", "config", "user.email", "test@example.com")
+	runCmd(t, repoDir, "git", "config", "user.name", "Test User")
+	if err := os.MkdirAll(filepath.Join(repoDir, ".beads"), 0o755); err != nil {
+		t.Fatalf("mkdir .beads: %v", err)
+	}
+
+	return repoDir, scriptPath
+}
+
+func seedIssuesAndCommit(t *testing.T, repoDir string, issues string) {
+	t.Helper()
+	writeFile(t, filepath.Join(repoDir, ".beads", "issues.jsonl"), issues)
+	runCmd(t, repoDir, "git", "add", ".")
+	runCmd(t, repoDir, "git", "commit", "-m", "seed")
+}
+
+func runPolicyScript(scriptPath string, repoDir string) ([]byte, error) {
+	cmd := exec.Command(scriptPath)
+	cmd.Dir = repoDir
+	return cmd.CombinedOutput()
 }
