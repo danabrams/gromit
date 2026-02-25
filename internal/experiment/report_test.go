@@ -67,3 +67,21 @@ func TestVariantReportHasBanditWeight(t *testing.T) {
 		t.Fatalf("expected bandit weight 0.75, got %f", vr.BanditWeight)
 	}
 }
+
+func TestExperimentReportHasVariantReports(t *testing.T) {
+	// Verify that ExperimentReport has variant reports
+	er := &ExperimentReport{
+		ExperimentID: "exp-1",
+		VariantReports: []*VariantReport{
+			{VariantID: "control"},
+			{VariantID: "variant-1"},
+		},
+	}
+
+	if er.ExperimentID != "exp-1" {
+		t.Fatalf("expected experiment ID exp-1, got %q", er.ExperimentID)
+	}
+	if len(er.VariantReports) != 2 {
+		t.Fatalf("expected 2 variant reports, got %d", len(er.VariantReports))
+	}
+}
