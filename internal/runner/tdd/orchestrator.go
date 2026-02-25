@@ -249,14 +249,14 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 	o.logf("cycle %d: green phase — implementing to pass", state.CycleNumber+1)
 	o.logPhase(state.CycleNumber+1, "green", "implementing to pass")
 
+	if o.renderGreenFn == nil {
+		return fmt.Errorf("renderGreenFn is not configured")
+	}
+
 	// GREEN: assemble handoff -> render prompt -> invoke
 	greenHandoff, err := AssembleGreenHandoff(redValidationOutput, o.readFileFn, state.TouchedFiles)
 	if err != nil {
 		return fmt.Errorf("green handoff assembly: %w", err)
-	}
-
-	if o.renderGreenFn == nil {
-		return fmt.Errorf("renderGreenFn is not configured")
 	}
 
 	greenPrompt, err := o.renderGreenFn(greenHandoff, bc)
