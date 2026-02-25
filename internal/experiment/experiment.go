@@ -41,3 +41,15 @@ type Manager struct {
 	experimentsByPhase map[string]*Experiment
 	stateDir           string
 }
+
+// NewManager creates a new Manager from a slice of experiments.
+func NewManager(experiments []*Experiment, stateDir string) *Manager {
+	mgr := &Manager{
+		experimentsByPhase: make(map[string]*Experiment),
+		stateDir:           stateDir,
+	}
+	for _, exp := range experiments {
+		mgr.experimentsByPhase[exp.Phase] = exp
+	}
+	return mgr
+}
