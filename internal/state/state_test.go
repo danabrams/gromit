@@ -60,6 +60,31 @@ func TestRecordRetroAndLoad(t *testing.T) {
 	}
 }
 
+func TestRecordRetroClearsControlLimitAlertFlag(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+
+	f.SetControlLimitAlertTriggered(true)
+	if err := f.Save(); err != nil {
+		t.Fatalf("saving state with alert flag: %v", err)
+	}
+
+	if err := f.RecordRetro(); err != nil {
+		t.Fatalf("recording retro: %v", err)
+	}
+	if f.IsControlLimitAlertTriggered() {
+		t.Fatal("control limit alert flag should be cleared after RecordRetro")
+	}
+
+	f2, _ := NewFile(dir)
+	if err := f2.Load(); err != nil {
+		t.Fatalf("loading state: %v", err)
+	}
+	if f2.IsControlLimitAlertTriggered() {
+		t.Fatal("persisted control limit alert flag should be cleared after RecordRetro")
+	}
+}
+
 func TestLoadCorruptFile(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "state.json"), []byte("not json"), 0644); err != nil {

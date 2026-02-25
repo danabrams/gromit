@@ -379,7 +379,8 @@ func (o *Orchestrator) checkControlLimitAlerts() {
 		o.logf("Warning: first-pass success rate %.1f%% is below control limit of %.0f%% (window: %d iterations)",
 			trend.LatestWindow.FirstPassSuccess*100, firstPassSuccessThreshold*100, trend.WindowSize)
 
-		// Set the control limit alert flag in state so retro is triggered on next run
+		// Set a persistent control-limit alert flag in state.
+		// recordRetroState/RecordRetro clears this flag after retro completes.
 		if setter, ok := o.cfg.StateSaver.(interface{ SetControlLimitAlertTriggered(bool) }); ok {
 			setter.SetControlLimitAlertTriggered(true)
 		}

@@ -29,9 +29,9 @@ func (r *cliPromptRenderer) RenderThoroughReview(input *pipeline.ThoroughReviewP
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: could not load CLAUDE.md: %v\n", err)
 	}
-	reviewCtx.Rules, err = r.renderer.LoadRules()
+	reviewCtx.Rules, err = r.renderer.LoadRulesForPhase("thorough_review")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: could not load rules: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Warning: could not load thorough_review rules: %v\n", err)
 	}
 
 	return r.renderer.RenderThoroughReview(reviewCtx)
@@ -67,7 +67,11 @@ func (r *explorePromptRenderer) RenderExplore(input *pipeline.ExplorePromptInput
 	recentLearnings := formatLearnings(lf, false)
 
 	// Get working directory and paths
-	workDir, _ := os.Getwd()
+	workDir, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not determine working directory: %v\n", err)
+		workDir = "."
+	}
 	gromitDir := r.renderer.GetGromitDir()
 	specsDir := r.renderer.GetSpecsDir()
 

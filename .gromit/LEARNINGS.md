@@ -218,6 +218,12 @@ The orchestrator has post-run completeness assertions (orchestrator_test.go:883)
 ### 2026-02-25 | gromit-jmqps.1 | conventions
 When extracting types across packages, verify all imports are updated in test files and watch for circular dependencies when moving code to internal/review (which may be imported by packages that import cmd/gromit). Use verbose build output to pinpoint exact compilation errors.
 
+### 2026-02-25 | Thorough Review Rules Must Use Phase Filtering | conventions
+When wiring CLI adapters for thorough review prompt rendering, load rules via `LoadRulesForPhase("thorough_review")` instead of `LoadRules()` so build-only sections do not leak into review prompts.
+
+### 2026-02-25 | Record Retro Should Clear Pending Control Alerts | patterns
+If run health logic sets a persistent control-limit alert flag in `state.json`, clear that flag as part of `RecordRetro()` so the alert lifecycle is one-shot and does not remain stale after a retro is completed.
+
 ---
 
 ## Archived
@@ -272,4 +278,3 @@ When adding nil-checks to callback functions executed in loops, verify the contr
 When implementing display features that iterate over data structures (specs, costs), watch for infinite loops in iteration logic or N² performance patterns that can cause timeouts in test suites
 
 *Archived from new: filtered: generic engineering advice*
-

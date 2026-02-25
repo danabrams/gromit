@@ -94,6 +94,8 @@ func (f *File) RecordRetro() error {
 		return fmt.Errorf("state file is nil")
 	}
 	f.state.LastRetro = time.Now()
+	// A retro run satisfies any pending control-limit alert trigger.
+	f.state.ControlLimitAlertTriggered = false
 	return f.Save()
 }
 
