@@ -45,5 +45,16 @@ func validateExperiment(exp *Experiment) error {
 	if exp.Control == nil {
 		return fmt.Errorf("experiment %q missing control variant", exp.ID)
 	}
+	ids := make(map[string]struct{})
+	ids[exp.Control.ID] = struct{}{}
+	for _, variant := range exp.Variants {
+		if variant == nil {
+			return fmt.Errorf("nil variant in experiment %q", exp.ID)
+		}
+		if _, exists := ids[variant.ID]; exists {
+			return fmt.Errorf("duplicate variant ID %q", variant.ID)
+		}
+		ids[variant.ID] = struct{}{}
+	}
 	return nil
 }
