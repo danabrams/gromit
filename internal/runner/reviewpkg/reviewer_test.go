@@ -616,6 +616,32 @@ func TestWriteReviewLog_NilResultIsNoOp(t *testing.T) {
 	}
 }
 
+// TestWriteReviewLog_RoundsUpSubMillisecondDuration verifies that when review duration is
+// sub-millisecond (e.g., 500 microseconds), it is rounded up to at least 1ms in the log
+// so review iterations are not recorded as 0ms.
+func TestWriteReviewLog_RoundsUpSubMillisecondDuration(t *testing.T) {
+	cfg := newTestConfig()
+	mockLogger := &mockIterationLogger{}
+
+	rev := NewReviewer(cfg, nil, nil, nil, nil, mockLogger)
+
+	result := &review.ReviewResult{
+		Passed:       true,
+		FixesApplied: []string{},
+	}
+
+	// Pass a sub-millisecond duration (500 microseconds)
+	rev.WriteReviewLog(5, "bead-123", "haiku", result, 0, 0, 500*time.Microsecond)
+
+	if len(mockLogger.reviews) != 1 {
+		t.Fatalf("mockLogger.reviews has %d entries, want 1", len(mockLogger.reviews))
+	}
+	log := mockLogger.reviews[0]
+	if log.DurationMs <= 0 {
+		t.Errorf("log.DurationMs = %d, want positive value (at least 1ms for sub-millisecond duration)", log.DurationMs)
+	}
+}
+
 // TestReviewerUsesConsolidatedBuildFromReviewLabels verifies that the reviewer package
 // uses the consolidated BuildFromReviewLabels function from the pipeline package.
 func TestReviewerUsesConsolidatedBuildFromReviewLabels(t *testing.T) {

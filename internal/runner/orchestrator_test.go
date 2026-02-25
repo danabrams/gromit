@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"reflect"
@@ -151,6 +152,71 @@ func TestOrchestrator_SuccessPath_CarriesBuildModelToIterationLog(t *testing.T) 
 	}
 	if capturedResult.Model != "claude-opus-4-6" {
 		t.Errorf("IterationLog.Model = %q, want %q", capturedResult.Model, "claude-opus-4-6")
+	}
+}
+
+// TestOrchestrator_LowTierHaikuIterationRecordsDuration verifies that when a low-tier
+// haiku bead returns a DurationMs from the Build stage, it is properly propagated to
+// the IterationLog via the router/timer source so haiku iterations are not recorded as 0ms.
+func TestOrchestrator_LowTierHaikuIterationRecordsDuration(t *testing.T) {
+	var capturedResult *logger.IterationLog
+
+	build := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		if in.Config == nil {
+			return pipeline.Output{}, fmt.Errorf("config nil")
+		}
+		// Assert that the low-tier bead runs the build stage with a haiku model.
+		return pipeline.Output{
+			Decision:    pipeline.Proceed,
+			Model:       "claude-haiku-4-6",
+			DurationMs:  42,
+			CostUSD:     0.02,
+			InputTokens: 400,
+			OutputTokens: 200,
+		}, nil
+	}}
+	epilogueStage := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		capturedResult = in.Result
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{
+			ID: "haiku-bead",
+			Title: "Add unit tests for feature X",
+			Priority: 2,
+			ExpectedOutputs: []string{"feature_x_test.go"},
+		}, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     &fakeStage{},
+		Build:    build,
+		Validate: &fakeStage{},
+		Epilogue: epilogueStage,
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if capturedResult == nil {
+		t.Fatal("Epilogue Result is nil; want IterationLog populated")
+	}
+	if capturedResult.Model != "claude-haiku-4-6" {
+		t.Errorf("IterationLog.Model = %q, want claude-haiku-4-6", capturedResult.Model)
+	}
+	if capturedResult.DurationMs != 42 {
+		t.Errorf("IterationLog.DurationMs = %d, want 42", capturedResult.DurationMs)
 	}
 }
 
