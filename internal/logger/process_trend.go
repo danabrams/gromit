@@ -726,7 +726,12 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 		TimeoutFailureRate:    latestMetric.RollingTimeoutFailureRate,
 	}
 	trend.PromptTokenSummary = summarizePromptTokens(metrics, windowSize)
-	trend.ProviderMetrics = computeProviderMetrics(metrics)
+	windowStart := len(metrics) - windowSize
+	if windowStart < 0 {
+		windowStart = 0
+	}
+	windowEntries := metrics[windowStart:]
+	trend.ProviderMetrics = computeProviderMetrics(windowEntries)
 
 	for _, metric := range trendControlLimitSeries {
 		latestValue := metric.latestSample(latestMetric)
