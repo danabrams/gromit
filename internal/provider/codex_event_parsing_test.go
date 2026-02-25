@@ -655,3 +655,65 @@ func TestProcessCodexStreamMapsMessageCreatedToSystem(t *testing.T) {
 		t.Errorf("message.created mapped to type %q, want %q", parsed.Type, "system")
 	}
 }
+
+// TestProcessCodexStreamEmitsResultEventFromResultEvents verifies that result
+// events emit a result stream event with token usage, consistent with
+// turn.completed and response.completed handlers.
+func TestProcessCodexStreamEmitsResultEventFromResultEvents(t *testing.T) {
+	input := strings.Join([]string{
+		`{"type":"item.completed","item":{"type":"agent_message","text":"Done"}}`,
+		`{"type":"result","usage":{"input_tokens":1500,"output_tokens":400,"total_cost_usd":0.025}}`,
+	}, "\n") + "\n"
+
+	reader := strings.NewReader(input)
+	var output bytes.Buffer
+	var receivedEvents [][]byte
+
+	handler := func(line []byte) {
+		cp := make([]byte, len(line))
+		copy(cp, line)
+		receivedEvents = append(receivedEvents, cp)
+	}
+
+	_, _, _, err := processCodexStream(reader, &output, handler, nil)
+	if err != nil {
+		t.Fatalf("processCodexStream() error = %v", err)
+	}
+
+	// Should have assistant event + result event
+	var foundResultEvent bool
+	for _, event := range receivedEvents {
+		var parsed struct {
+			Type string `json:"type"`
+		}
+		if err := json.Unmarshal(event, &parsed); err != nil {
+			continue
+		}
+		if parsed.Type == "result" {
+			foundResultEvent = true
+			// Verify result event has token fields
+			var resultEvent struct {
+				Type         string  `json:"type"`
+				InputTokens  int     `json:"input_tokens"`
+				OutputTokens int     `json:"output_tokens"`
+				TotalCostUSD float64 `json:"total_cost_usd"`
+			}
+			if err := json.Unmarshal(event, &resultEvent); err != nil {
+				t.Fatalf("failed to parse result event: %v", err)
+			}
+			if resultEvent.InputTokens != 1500 {
+				t.Errorf("result event input_tokens = %d, want 1500", resultEvent.InputTokens)
+			}
+			if resultEvent.OutputTokens != 400 {
+				t.Errorf("result event output_tokens = %d, want 400", resultEvent.OutputTokens)
+			}
+			if resultEvent.TotalCostUSD != 0.025 {
+				t.Errorf("result event total_cost_usd = %f, want 0.025", resultEvent.TotalCostUSD)
+			}
+		}
+	}
+
+	if !foundResultEvent {
+		t.Fatal("result event did not emit a result stream event; result events should emit like turn.completed and response.completed")
+	}
+}
