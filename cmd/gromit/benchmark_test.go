@@ -1258,8 +1258,8 @@ func TestRunBenchmarkPipeline_UsesInternalBenchmarkStagesInOrder(t *testing.T) {
 	}
 	benchmarkInternalRunModesInIsolatedWorktreesFn = func(ctx context.Context, input benchpkg.RunModesInput) ([]benchpkg.ModeWorktreeRun, string, error) {
 		order = append(order, "run_modes")
-		if strings.Join(input.Modes, ",") != "single_pass" {
-			t.Fatalf("run modes input = %v, want [single_pass]", input.Modes)
+		if strings.Join(input.Manifest.Modes, ",") != "single_pass" {
+			t.Fatalf("run modes input = %v, want [single_pass]", input.Manifest.Modes)
 		}
 		return []benchpkg.ModeWorktreeRun{{Mode: "single_pass"}}, "abc123", nil
 	}

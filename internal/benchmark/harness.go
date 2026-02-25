@@ -15,6 +15,7 @@ type HarnessManifest struct {
 	LowTierModel    string
 	MediumTierModel string
 	HighTierModel   string
+	Modes           []string
 }
 
 type OverlayTierModels struct {
@@ -74,7 +75,7 @@ func RunModesInIsolatedWorktrees(ctx context.Context, input RunModesInput) ([]Mo
 		return nil, "", err
 	}
 
-	modes := append([]string(nil), input.Modes...)
+	modes := append([]string(nil), input.Manifest.Modes...)
 	if len(modes) == 0 {
 		return nil, "", fmt.Errorf("at least one benchmark mode is required")
 	}
