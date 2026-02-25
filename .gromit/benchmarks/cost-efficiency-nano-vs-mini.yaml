@@ -1,0 +1,17 @@
+id: cost-efficiency-nano-vs-mini
+base_commit: ae0f672c59fdd0486a0212ce69df8889d4e88ee7
+beads:
+  - gromit-7rj2f
+  - gromit-980iu
+  - gromit-dh34r
+  - gromit-cflw8
+  - gromit-50ggy
+modes:
+  - single_pass
+  - tdd_shared_context
+  - tdd_fresh_context
+provider: openai
+model_family: gpt-5
+low_tier_model: gpt-5-nano
+medium_tier_model: gpt-5-nano
+high_tier_model: gpt-5-nano
