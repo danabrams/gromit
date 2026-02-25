@@ -112,7 +112,7 @@ func runRefineInSession(
 
 func determineRefineInput(cmd *cobra.Command, args []string, gromitDir string) (*pipeline.RefineInput, error) {
 	agentFlag, _ := cmd.Flags().GetString("agent")
-	chooseAgent, _ := cmd.Flags().GetBool("choose-agent")
+	chooseAgent := parseRefineChooseAgentFlag(cmd)
 
 	// No args: interactive picker or blank session
 	if len(args) == 0 {
