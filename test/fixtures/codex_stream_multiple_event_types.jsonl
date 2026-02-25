@@ -1,0 +1,6 @@
+# provenance: fixture for mixed event type processing test.
+# refresh: keep event order deterministic for coverage of event handlers.
+{"type":"thread.started","data":{"thread_id":"t1"}}
+{"type":"item.started","item":{"type":"command_execution","command":"ls"}}
+{"type":"item.completed","item":{"type":"agent_message","text":"Done"}}
+{"type":"turn.completed","usage":{"input_tokens":100,"output_tokens":50}}
