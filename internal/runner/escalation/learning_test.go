@@ -226,3 +226,41 @@ func TestExtractSuccessLearning_SkipsForLowTier(t *testing.T) {
 		t.Error("should not extract success learning for low-tier beads")
 	}
 }
+
+// TestExtractLearning_NeverSkippedForLowTier verifies that failure learning extraction
+// bypasses the tier filter that is applied to success learning. Failure paths must always
+// extract and persist learning, regardless of tier (low-tier haiku beads).
+func TestExtractLearning_NeverSkippedForLowTier(t *testing.T) {
+	dir := t.TempDir()
+	lf, err := learnings.NewFile(dir)
+	if err != nil {
+		t.Fatalf("failed to create learnings file: %v", err)
+	}
+
+	learningText := "Low-tier bead failure pattern that must be learned from"
+	analysis := &analyzer.Analysis{
+		Category:    "logic_error",
+		Recoverable: true,
+		RootCause:   "missed edge case",
+		Learning:    &learningText,
+	}
+
+	bc := &runtypes.BeadContext{
+		Bead:   &bead.Bead{ID: "fail-low-001", Title: "Low-tier failure"},
+		Tier:   provider.TierLow,
+		Model:  "haiku",
+		Result: &runtypes.IterationResult{},
+	}
+
+	// Extract failure learning for a low-tier bead
+	ExtractLearning(bc, analysis, lf)
+
+	// Verify the learning was persisted despite the low tier
+	content, err := os.ReadFile(filepath.Join(dir, "LEARNINGS.md"))
+	if err != nil {
+		t.Fatalf("failed to read learnings file: %v", err)
+	}
+	if !strings.Contains(string(content), learningText) {
+		t.Errorf("failure learning should be extracted even for low-tier beads, got:\n%s", string(content))
+	}
+}
