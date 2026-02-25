@@ -49,3 +49,13 @@ func TestToolCallPrefixMapExported(t *testing.T) {
 		}
 	}
 }
+
+func TestToolCallPrefixesReturnsCopy(t *testing.T) {
+	prefixes := ToolCallPrefixes()
+	prefixes[ToolCallCodex] = "mutated"
+
+	fresh := ToolCallPrefixes()
+	if fresh[ToolCallCodex] != "codex" {
+		t.Fatalf("expected fresh copy to preserve prefix, got %q", fresh[ToolCallCodex])
+	}
+}
