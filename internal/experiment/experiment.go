@@ -2,6 +2,16 @@ package experiment
 
 import "time"
 
+// ValidPhases defines the set of valid phases for experiments.
+var ValidPhases = map[string]bool{
+	"build":    true,
+	"validate": true,
+	"review":   true,
+	"refactor": true,
+	"analyze":  true,
+	"learn":    true,
+}
+
 // Experiment represents an A/B testing experiment for a specific phase.
 type Experiment struct {
 	ID              string       `yaml:"id"`
