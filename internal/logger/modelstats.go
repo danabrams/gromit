@@ -125,7 +125,7 @@ type SpecCost struct {
 	ModelMix     map[string]int `json:"model_mix"`
 }
 
-const unassignedSpecID = "(unassigned)"
+const UnassignedSpecID = "(unassigned)"
 
 // CostPerSpec aggregates cost and usage statistics grouped by spec_id.
 // Entries with an empty spec_id are grouped under "unassigned".
@@ -153,7 +153,7 @@ func CostPerSpec(logsDir string) (map[string]SpecCost, error) {
 		for _, entry := range entries {
 			specID := entry.SpecID
 			if specID == "" {
-				specID = unassignedSpecID
+				specID = UnassignedSpecID
 			}
 			spec := accum[specID]
 			if spec == nil {

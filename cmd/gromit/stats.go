@@ -85,6 +85,7 @@ func loadStatsData(cfg *config.Config) (*statsData, error) {
 	if err != nil {
 		return nil, fmt.Errorf("computing cost per spec: %w", err)
 	}
+	costPerSpec = filterSpecCosts(costPerSpec)
 
 	// Read global stats
 	homeDir, err := os.UserHomeDir()
@@ -209,6 +210,17 @@ func sortedSpecCosts(costs map[string]logger.SpecCost) []specCostEntry {
 		return entries[i].cost.TotalCostUSD > entries[j].cost.TotalCostUSD
 	})
 	return entries
+}
+
+func filterSpecCosts(costs map[string]logger.SpecCost) map[string]logger.SpecCost {
+	filtered := make(map[string]logger.SpecCost, len(costs))
+	for specID, cost := range costs {
+		if specID == logger.UnassignedSpecID {
+			continue
+		}
+		filtered[specID] = cost
+	}
+	return filtered
 }
 
 func printProjectModelStats(stats map[string]logger.ModelStats) {
