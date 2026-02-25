@@ -34,6 +34,7 @@ var benchmarkInternalValidateSelectedCohortFn = benchpkg.ValidateSelectedCohort
 var benchmarkInternalRunModesInIsolatedWorktreesFn = benchpkg.RunModesInIsolatedWorktrees
 var benchmarkInternalAggregateModeMetricsFn = benchpkg.AggregateModeMetrics
 var benchmarkInternalWriteReportFn = benchpkg.WriteReport
+var benchmarkBuildReportInputFn = benchpkg.BuildReportInput
 var benchmarkNewBeadLookupFn = func() (benchpkg.BeadLookup, error) { return bead.NewClient() }
 var benchmarkNewBaseCommitResolverFn = func() benchpkg.BaseCommitResolver {
 	return benchpkg.NewGitBaseCommitResolver(nil)
@@ -224,7 +225,29 @@ func runBenchmarkPipeline(opts benchmarkRunOptions) error {
 	if err != nil {
 		return err
 	}
-	input := buildBenchmarkReportInput(manifest, harnessResult, metrics, opts)
+	ts := opts.OutputTimestamp
+	if ts == "" {
+		ts = benchmarkNowFn().UTC().Format("20060102T150405Z")
+	}
+	modeSummaries := metrics.ModeSummaries
+	if len(modeSummaries) == 0 {
+		modeSummaries = make([]benchpkg.ModeSummary, 0, len(metrics.ModeScores))
+		for _, score := range metrics.ModeScores {
+			modeSummaries = append(modeSummaries, benchpkg.ModeSummary{Mode: score.Mode})
+		}
+	}
+	input := benchmarkBuildReportInputFn(
+		manifest.ID,
+		harnessResult.BaseCommit,
+		harnessResult.SelectedBeads,
+		manifest.Provider,
+		manifest.ModelFamily,
+		manifest.LowTierModel,
+		manifest.MediumTierModel,
+		manifest.HighTierModel,
+		modeSummaries,
+		ts,
+	)
 	if _, err := benchmarkInternalWriteReportFn(input); err != nil {
 		return err
 	}
