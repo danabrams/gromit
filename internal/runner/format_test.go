@@ -699,6 +699,45 @@ func TestSimplifySPCMetric(t *testing.T) {
 	}
 }
 
+func TestFormatSPCSummary_DisplaysUCLAndLCLInControlLimits(t *testing.T) {
+	trend := &logger.ProcessTrend{
+		TotalIterations: 20,
+		WindowSize:      15,
+		ControlLimits: []logger.TrendControlLimit{
+			{
+				Metric: spcMetricRollingSuccessRate,
+				Latest: 0.82,
+				Mean:   0.80,
+				StdDev: 0.06,
+				UCL:    0.98,
+				LCL:    0.62,
+			},
+			{
+				Metric: spcMetricRollingAvgDurationMs,
+				Latest: 45000,
+				Mean:   50000,
+				StdDev: 5000,
+				UCL:    70000,
+				LCL:    30000,
+			},
+		},
+	}
+
+	got := formatSPCSummary(trend)
+	// Verify that control limits are displayed with both UCL and LCL
+	for _, substr := range []string{
+		"Success:",
+		"82%",
+		"limits 62%..98%",
+		"Duration:",
+		"limits", // Should show duration limits
+	} {
+		if !strings.Contains(got, substr) {
+			t.Fatalf("formatSPCSummary() = %q, want substring %q", got, substr)
+		}
+	}
+}
+
 func TestFormatSPCLine(t *testing.T) {
 	tests := []struct {
 		name       string
