@@ -600,6 +600,57 @@ func TestRunPhase3Measurement_ComputesMediansAndCacheHitRatesByPromptClass(t *te
 	}
 }
 
+func TestRunPhase3Measurement_RollbackTriggersAreSorted(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+
+	baselineLog := filepath.Join(tmpDir, "baseline.jsonl")
+	optimizedLog := filepath.Join(tmpDir, "optimized.jsonl")
+
+	baselineContent := "" +
+		"{\"iteration\":1,\"input_tokens\":100,\"cost_usd\":1.0,\"success\":true}\n" +
+		"{\"iteration\":2,\"input_tokens\":120,\"cost_usd\":1.2,\"success\":true}\n" +
+		"{\"iteration\":3,\"input_tokens\":110,\"cost_usd\":1.1,\"success\":true}\n"
+	optimizedContent := "" +
+		"{\"iteration\":1,\"input_tokens\":150,\"cost_usd\":1.5,\"success\":false}\n" +
+		"{\"iteration\":2,\"input_tokens\":165,\"cost_usd\":1.65,\"success\":false}\n" +
+		"{\"iteration\":3,\"input_tokens\":155,\"cost_usd\":1.55,\"success\":false}\n"
+
+	if err := os.WriteFile(baselineLog, []byte(baselineContent), 0o644); err != nil {
+		t.Fatalf("write baseline log: %v", err)
+	}
+	if err := os.WriteFile(optimizedLog, []byte(optimizedContent), 0o644); err != nil {
+		t.Fatalf("write optimized log: %v", err)
+	}
+
+	report, err := RunPhase3Measurement(Phase3MeasurementInput{
+		Timestamp:        "20260224T121500Z",
+		BaselineLogPath:  baselineLog,
+		OptimizedLogPath: optimizedLog,
+	})
+	if err != nil {
+		t.Fatalf("RunPhase3Measurement() error = %v", err)
+	}
+
+	if !report.Rollback.KillSwitchRecommended {
+		t.Fatal("KillSwitchRecommended = false, want true")
+	}
+	if len(report.Rollback.Triggers) < 3 {
+		t.Fatalf("rollback triggers count = %d, want 3 (all conditions triggered)", len(report.Rollback.Triggers))
+	}
+
+	// Verify all three triggers are present and sorted alphabetically
+	expectedTriggers := []string{"median_cost_regression", "median_input_tokens_regression", "success_rate_regression"}
+	if len(report.Rollback.Triggers) != len(expectedTriggers) {
+		t.Fatalf("trigger count = %d, want %d", len(report.Rollback.Triggers), len(expectedTriggers))
+	}
+	for i, expected := range expectedTriggers {
+		if report.Rollback.Triggers[i] != expected {
+			t.Fatalf("trigger[%d] = %q, want %q (sorted)", i, report.Rollback.Triggers[i], expected)
+		}
+	}
+}
+
 func TestRunPhase3Measurement_FlagsKillSwitchRollbackOnSuccessRegression(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
@@ -638,8 +689,16 @@ func TestRunPhase3Measurement_FlagsKillSwitchRollbackOnSuccessRegression(t *test
 	if len(report.Rollback.Triggers) == 0 {
 		t.Fatal("rollback triggers = empty, want non-empty")
 	}
-	if report.Rollback.Triggers[0] != "success_rate_regression" {
-		t.Fatalf("first rollback trigger = %q, want %q", report.Rollback.Triggers[0], "success_rate_regression")
+	// Should contain success_rate_regression when success drops significantly
+	found := false
+	for _, t := range report.Rollback.Triggers {
+		if t == "success_rate_regression" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("success_rate_regression not in triggers: %v", report.Rollback.Triggers)
 	}
 }
 

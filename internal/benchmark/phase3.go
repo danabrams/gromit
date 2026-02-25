@@ -185,6 +185,7 @@ func evaluatePhase3Rollback(baseline, optimized Phase3RunMetrics) Phase3Rollback
 	if optimized.MedianCostUSD > baseline.MedianCostUSD {
 		triggers = append(triggers, "median_cost_regression")
 	}
+	sort.Strings(triggers)
 	return Phase3RollbackAssessment{
 		KillSwitchRecommended: len(triggers) > 0,
 		Triggers:              triggers,
