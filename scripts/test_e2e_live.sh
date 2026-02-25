@@ -5,10 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 mapfile -t pkgs < <(
-  rg -l '^//go:build e2e_live' --glob '*_test.go' . \
-    | xargs -r -n1 dirname \
-    | sed 's#^\./#./#' \
-    | sort -u
+  go run ./cmd/test_e2e_live_packages --root="$ROOT_DIR" --tag=e2e_live
 )
 
 if [[ ${#pkgs[@]} -eq 0 ]]; then
