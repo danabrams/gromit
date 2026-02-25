@@ -49,6 +49,7 @@ var retroClaudeFallbackRunnerFn = func(cfg *config.Config) (retro.ProviderRunner
 	}
 	return provider.NewClaudeProvider(claudeClient, provider.DefaultTierToModelMap), nil
 }
+var _ retro.ProviderRunner = (*provider.ClaudeProvider)(nil)
 
 const retroSessionCommand = "retro"
 
