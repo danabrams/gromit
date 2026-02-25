@@ -48,12 +48,11 @@ func runStats(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-
 	if statsJSON {
-		return outputJSON(statsData.projectStats, statsData.globalStats, statsData.costPerSpec, statsData.tddMetrics)
+		return outputJSON(statsData.projectStats, statsData.globalStats, statsData.costPerSpec, statsData.providerMetrics, statsData.tddMetrics)
 	}
 
-	return outputText(statsData.projectStats, statsData.globalStats, statsData.beadCosts, statsData.costPerSpec, statsData.tddMetrics)
+	return outputText(statsData.projectStats, statsData.globalStats, statsData.beadCosts, statsData.costPerSpec, statsData.providerMetrics, statsData.tddMetrics)
 }
 
 type statsData struct {
@@ -61,12 +60,14 @@ type statsData struct {
 	globalStats  *logger.GlobalStats
 	beadCosts    map[string]float64
 	costPerSpec  map[string]logger.SpecCost
+	providerMetrics []logger.ProviderMetrics
 	tddMetrics   *logger.TDDStats
 }
 
 func loadStatsData(cfg *config.Config) (*statsData, error) {
 	gromitDir := resolveGromitDir(cfg)
 	logsDir := filepath.Join(gromitDir, "logs")
+	metricsDir := filepath.Join(gromitDir, "metrics")
 
 	// Read project stats
 	projectStats, err := logger.ReadModelStats(logsDir)
@@ -86,6 +87,17 @@ func loadStatsData(cfg *config.Config) (*statsData, error) {
 		return nil, fmt.Errorf("computing cost per spec: %w", err)
 	}
 	costPerSpec = filterSpecCosts(costPerSpec)
+
+	// Read provider metrics from process_trend
+	var providerMetrics []logger.ProviderMetrics
+	processTrendPath := filepath.Join(metricsDir, "process_trend.json")
+	processTrend, err := logger.ReadProcessTrend(processTrendPath)
+	if err != nil {
+		return nil, fmt.Errorf("reading process trend: %w", err)
+	}
+	if processTrend != nil {
+		providerMetrics = processTrend.ProviderMetrics
+	}
 
 	// Read global stats
 	homeDir, err := os.UserHomeDir()
@@ -112,6 +124,7 @@ func loadStatsData(cfg *config.Config) (*statsData, error) {
 		globalStats:  globalStats,
 		beadCosts:    beadCosts,
 		costPerSpec:  costPerSpec,
+		providerMetrics: providerMetrics,
 		tddMetrics:   tddMetrics,
 	}, nil
 }
@@ -134,14 +147,16 @@ type statsJSONOutput struct {
 	ProjectStats map[string]logger.ModelStats `json:"project_stats"`
 	GlobalStats  *logger.GlobalStats          `json:"global_stats"`
 	CostPerSpec  map[string]logger.SpecCost   `json:"cost_per_spec"`
+	ProviderMetrics []logger.ProviderMetrics  `json:"provider_metrics"`
 	TDDMetrics   *logger.TDDStats             `json:"tdd_metrics"`
 }
 
-func outputJSON(projectStats map[string]logger.ModelStats, globalStats *logger.GlobalStats, costPerSpec map[string]logger.SpecCost, tddMetrics *logger.TDDStats) error {
+func outputJSON(projectStats map[string]logger.ModelStats, globalStats *logger.GlobalStats, costPerSpec map[string]logger.SpecCost, providerMetrics []logger.ProviderMetrics, tddMetrics *logger.TDDStats) error {
 	output := statsJSONOutput{
 		ProjectStats: projectStats,
 		GlobalStats:  globalStats,
 		CostPerSpec:  costPerSpec,
+		ProviderMetrics: providerMetrics,
 		TDDMetrics:   tddMetrics,
 	}
 
@@ -154,7 +169,7 @@ func outputJSON(projectStats map[string]logger.ModelStats, globalStats *logger.G
 	return nil
 }
 
-func outputText(projectStats map[string]logger.ModelStats, globalStats *logger.GlobalStats, beadCosts map[string]float64, costPerSpec map[string]logger.SpecCost, tddMetrics *logger.TDDStats) error {
+func outputText(projectStats map[string]logger.ModelStats, globalStats *logger.GlobalStats, beadCosts map[string]float64, costPerSpec map[string]logger.SpecCost, providerMetrics []logger.ProviderMetrics, tddMetrics *logger.TDDStats) error {
 	fmt.Println("Project Model Performance (Escalation rates shown):")
 	fmt.Println()
 	printProjectModelStats(projectStats)
@@ -184,6 +199,8 @@ func outputText(projectStats map[string]logger.ModelStats, globalStats *logger.G
 		fmt.Println()
 		printGlobalModelStats(globalStats.Models)
 	}
+
+	printProviderMetrics(providerMetrics)
 
 	if tddMetrics != nil {
 		fmt.Println()
@@ -237,6 +254,35 @@ func printGlobalModelStats(stats map[string]*logger.GlobalModelStats) {
 		printModelLine(model, successRate, s.Successes, s.Iterations, s.TotalCostUSD)
 		printEscalations(s.EscalationsFrom, s.EscalationsTo)
 		fmt.Println()
+	}
+}
+
+func printProviderMetrics(metrics []logger.ProviderMetrics) {
+	if len(metrics) == 0 {
+		return
+	}
+
+	fmt.Println()
+	fmt.Println("Provider Metrics (process_trend):")
+	sorted := append([]logger.ProviderMetrics(nil), metrics...)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Name < sorted[j].Name
+	})
+
+	for _, metric := range sorted {
+		fmt.Printf("  %s: success %.0f%% (%d/%d) transport failure %.0f%% (%d) fallback %d avg %.0fms cost $%.2f tokens in=%d out=%d\n",
+			metric.Name,
+			metric.SuccessRate*100,
+			metric.Successes,
+			metric.TotalInvocations,
+			metric.TransportFailureRate*100,
+			metric.TransportFailures,
+			metric.FallbacksTriggered,
+			metric.AvgDurationMs,
+			metric.TotalCostUSD,
+			metric.TotalInputTokens,
+			metric.TotalOutputTokens,
+		)
 	}
 }
 
