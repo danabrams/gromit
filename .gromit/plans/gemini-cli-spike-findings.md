@@ -25,6 +25,7 @@ Live invocation path used: `npm start --prefix /home/dabrams/gemini-cli -- --app
 - Stream fixture candidate (live): `test/fixtures/gemini/stream-json-success.jsonl`
 - JSON fixture candidate (live): `test/fixtures/gemini/json-success.json`
 - Model artifacts: `test/fixtures/gemini/models/*`
+- Invalid-model error evidence: `test/fixtures/gemini/models/invalid-model.stderr.txt`
 - Error artifacts: `test/fixtures/gemini/errors/*`
 - Concrete error evidence: `test/fixtures/gemini/errors/command-missing.stderr.txt`
 - Permissions notes: `test/fixtures/gemini/permissions/permissions-notes.md`
