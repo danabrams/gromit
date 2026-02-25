@@ -200,14 +200,14 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 	o.logf("cycle %d: red phase — writing failing test", state.CycleNumber+1)
 	o.logPhase(state.CycleNumber+1, "red", "writing failing test")
 
+	if o.renderRedFn == nil {
+		return fmt.Errorf("renderRedFn is not configured")
+	}
+
 	// RED: assemble handoff -> render prompt -> invoke
 	redHandoff, err := AssembleRedHandoff(*state, o.readFileFn, o.getDiffFn)
 	if err != nil {
 		return fmt.Errorf("red handoff assembly: %w", err)
-	}
-
-	if o.renderRedFn == nil {
-		return fmt.Errorf("renderRedFn is not configured")
 	}
 
 	redPrompt, err := o.renderRedFn(redHandoff, bc)
