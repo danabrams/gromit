@@ -11,6 +11,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 )
@@ -67,6 +68,10 @@ type OrchestratorConfig struct {
 	// TrendUpdater refreshes SPC process trend metrics from iteration logs.
 	// Optional: nil means skip refresh lifecycle management.
 	TrendUpdater trendUpdaterCloser
+
+	// CoverageTracker tracks acceptance criteria coverage across the TDD cycle.
+	// Optional: nil means skip tracker state transitions.
+	CoverageTracker *coverage.CoverageTracker
 }
 
 type trendUpdaterCloser interface {
@@ -182,6 +187,9 @@ runLoop:
 		}
 
 		// Stage 2: Build — selects methodology, renders prompt, invokes LLM via StreamRun.
+		if o.cfg.CoverageTracker != nil {
+			o.cfg.CoverageTracker.ToCollecting()
+		}
 		buildOut, buildErr := o.cfg.Build.Run(ctx, baseIn)
 		if buildErr != nil {
 			o.logf("Warning: build failed for bead %s (iteration %d): %v", b.ID, iteration, buildErr)
@@ -209,6 +217,9 @@ runLoop:
 		}
 
 		// Stage 3: Validate — runs fast validation commands, enforces deadline.
+		if o.cfg.CoverageTracker != nil {
+			o.cfg.CoverageTracker.ToValidating()
+		}
 		validateOut, validateErr := o.cfg.Validate.Run(ctx, baseIn)
 		if validateErr != nil || validateOut.Decision != pipeline.Proceed {
 			// Accumulate failure summaries for the next Build invocation.
@@ -231,6 +242,10 @@ runLoop:
 
 		// Validation passed: clear accumulated failures so the next bead starts clean.
 		validationFailures = nil
+
+		if o.cfg.CoverageTracker != nil {
+			o.cfg.CoverageTracker.ToComplete()
+		}
 
 		// Stage 4: Review — optional LLM code review.
 		if o.cfg.Review != nil && o.cfg.Config != nil && o.cfg.Config.Review.Enabled {
