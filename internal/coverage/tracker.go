@@ -79,6 +79,13 @@ func (t *CoverageTracker) ToError() {
 	t.state = StateError
 }
 
+// Reset transitions the tracker from error state back to pending.
+func (t *CoverageTracker) Reset() {
+	if t.state == StateError {
+		t.state = StatePending
+	}
+}
+
 // RecordRejection increments rejection count; transitions to Untestable at threshold.
 func (t *CoverageTracker) RecordRejection(n int) {
 	cs := t.findCriterionState(n)
