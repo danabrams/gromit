@@ -283,19 +283,20 @@ func (r *Renderer) RenderTestFix(ctx *TestFixContext) (string, error) {
 // RenderCoverageValidation renders the coverage validation prompt.
 func (r *Renderer) RenderCoverageValidation(ctx *CoverageValidationContext) (string, error) {
 	const coverageValidationTemplate = "PROMPT_coverage_validation.md"
-	if r != nil {
-		taskIdentity := "criterion=0"
-		criterionAndTestCode := ""
-		if ctx != nil {
-			taskIdentity = fmt.Sprintf("criterion=%d", ctx.CriterionNumber)
-			criterionAndTestCode = ctx.CriterionText + "\n" + ctx.TestCode
-		}
-		r.lastDiagnostics = r.computeDiagnostics("coverage_validation", map[string]string{
-			SectionTaskIdentity:   taskIdentity,
-			SectionPlanBody:       criterionAndTestCode,
-			SectionTemplateStatic: coverageValidationTemplate,
-		})
+	if r == nil {
+		return "", fmt.Errorf("renderer is nil")
 	}
+	if ctx == nil {
+		return "", fmt.Errorf("coverage validation context is nil")
+	}
+
+	taskIdentity := fmt.Sprintf("criterion=%d", ctx.CriterionNumber)
+	criterionAndTestCode := ctx.CriterionText + "\n" + ctx.TestCode
+	r.lastDiagnostics = r.computeDiagnostics("coverage_validation", map[string]string{
+		SectionTaskIdentity:   taskIdentity,
+		SectionPlanBody:       criterionAndTestCode,
+		SectionTemplateStatic: coverageValidationTemplate,
+	})
 	return r.render(coverageValidationTemplate, ctx)
 }
 
