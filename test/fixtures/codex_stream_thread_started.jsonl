@@ -1,0 +1,4 @@
+# provenance: fixture for thread.started event normalization acceptance test.
+# refresh: update when the thread lifecycle shape changes.
+{"type":"thread.started","data":{"thread_id":"thread-123"}}
+{"type":"turn.completed","usage":{"input_tokens":2,"output_tokens":1}}
