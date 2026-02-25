@@ -1,0 +1,4 @@
+# provenance: fixture for file_change tool call event acceptance test.
+# refresh: maintain consistent path and usage values.
+{"type":"item.started","item":{"type":"file_change","path":"/home/user/project/main.go"}}
+{"type":"turn.completed","usage":{"input_tokens":2,"output_tokens":1}}
