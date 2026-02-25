@@ -262,24 +262,10 @@ func TestCodexProviderInvokesToolCallHandlerForFileChange(t *testing.T) {
 // TestCodexProviderInvokesToolCallHandlerForMCPTool verifies that
 // item.started events with type "mcp_tool_call" trigger ToolCallHandler.
 func TestCodexProviderInvokesToolCallHandlerForMCPTool(t *testing.T) {
-	tempDir := t.TempDir()
-
-	mockBinary := filepath.Join(tempDir, "codex")
-	codexEvent := map[string]interface{}{
-		"type": "item.started",
-		"item": map[string]interface{}{
-			"type":      "mcp_tool_call",
-			"tool_name": "github_create_issue",
-		},
-	}
-	eventJSON, _ := json.Marshal(codexEvent)
-	mockScript := fmt.Sprintf("#!/bin/bash\ncat > /dev/null\nprintf '%%s\\n' '%s'\nexit 0\n", string(eventJSON))
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+	setupCodexStreamingFixtureEnv(t, "codex_stream_mcp_tool_call.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
+	cp := NewCodexProvider(fakeCodexBinaryPath(t), []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
