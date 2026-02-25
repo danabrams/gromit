@@ -261,3 +261,34 @@ func TestCodexStreamRunNilHandlerReturnsCost(t *testing.T) {
 		t.Errorf("usageOutputTokens() = %d, want 300", outTokens)
 	}
 }
+
+// TestProcessCodexStreamExtractsUsageFromTurnCompletedTopLevelFields verifies
+// that turn.completed extracts token usage from top-level InputTokens/OutputTokens
+// fields using the same extraction logic as response.completed and result events.
+func TestProcessCodexStreamExtractsUsageFromTurnCompletedTopLevelFields(t *testing.T) {
+	input := strings.Join([]string{
+		`{"type":"item.completed","item":{"type":"agent_message","text":"Done"}}`,
+		`{"type":"turn.completed","input_tokens":1900,"output_tokens":480,"total_cost_usd":0.033}`,
+	}, "\n") + "\n"
+
+	reader := strings.NewReader(input)
+	var output bytes.Buffer
+
+	_, usage, _, err := processCodexStream(reader, &output, nil, nil)
+	if err != nil {
+		t.Fatalf("processCodexStream() error = %v", err)
+	}
+
+	if usage == nil {
+		t.Fatal("usage is nil, want non-nil when turn.completed has direct token fields")
+	}
+	if usage.InputTokens != 1900 {
+		t.Errorf("usage.InputTokens = %d, want 1900", usage.InputTokens)
+	}
+	if usage.OutputTokens != 480 {
+		t.Errorf("usage.OutputTokens = %d, want 480", usage.OutputTokens)
+	}
+	if usage.TotalCostUSD != 0.033 {
+		t.Errorf("usage.TotalCostUSD = %f, want 0.033", usage.TotalCostUSD)
+	}
+}
