@@ -4,9 +4,49 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/backlog"
 )
+
+// testBeadQueryClientStatus is a mock BeadQueryClient for status tests
+type testBeadQueryClientStatus struct {
+	readyBeads   []string
+	inProgress   int
+	deferred     int
+	closed       int
+	open         int
+	closedAfter  int
+	countByError map[string]error
+}
+
+func (m *testBeadQueryClientStatus) CountByStatus(status string) (int, error) {
+	if m.countByError != nil {
+		if err, ok := m.countByError[status]; ok {
+			return 0, err
+		}
+	}
+	switch status {
+	case "in_progress":
+		return m.inProgress, nil
+	case "deferred":
+		return m.deferred, nil
+	case "closed":
+		return m.closed, nil
+	case "open":
+		return m.open, nil
+	default:
+		return 0, nil
+	}
+}
+
+func (m *testBeadQueryClientStatus) ListReadyIDs() ([]string, error) {
+	return m.readyBeads, nil
+}
+
+func (m *testBeadQueryClientStatus) CountClosedAfter(since time.Time) (int, error) {
+	return m.closedAfter, nil
+}
 
 func disableLiveBDForStatusTests(t *testing.T) {
 	t.Helper()
@@ -696,5 +736,77 @@ func TestReadStatus_PlanNamesSorted(t *testing.T) {
 		if status.UndecomposedPlans[i] != want {
 			t.Errorf("UndecomposedPlans[%d] = %q, want %q", i, status.UndecomposedPlans[i], want)
 		}
+	}
+}
+
+// testBacklogClientWithIdeas implements BacklogClient with preset ideas
+type testBacklogClientWithIdeas struct {
+	ideas []*Idea
+}
+
+func (m *testBacklogClientWithIdeas) List() ([]*Idea, error) {
+	return m.ideas, nil
+}
+
+func (m *testBacklogClientWithIdeas) Get(id string) (*Idea, error) {
+	for _, idea := range m.ideas {
+		if idea.ID == id {
+			return idea, nil
+		}
+	}
+	return nil, nil
+}
+
+func (m *testBacklogClientWithIdeas) Add(item *Idea) error {
+	m.ideas = append(m.ideas, item)
+	return nil
+}
+
+func (m *testBacklogClientWithIdeas) Update(id string, fn func(*Idea)) error {
+	for _, idea := range m.ideas {
+		if idea.ID == id {
+			fn(idea)
+			return nil
+		}
+	}
+	return nil
+}
+
+func TestReadStatus_WithInjectedDependencies(t *testing.T) {
+	disableLiveBDForStatusTests(t)
+
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	specsDir := filepath.Join(gromitDir, "specs")
+	plansDir := filepath.Join(gromitDir, "plans")
+
+	os.MkdirAll(gromitDir, 0755)
+	os.MkdirAll(specsDir, 0755)
+	os.MkdirAll(plansDir, 0755)
+
+	// Create a mock BacklogClient with test data
+	mockBacklog := &testBacklogClientWithIdeas{
+		ideas: []*Idea{
+			{
+				ID:     "idea-1",
+				Text:   "Test idea",
+				Status: "",
+			},
+		},
+	}
+
+	// Create a mock BeadQueryClient
+	mockBeadQueryClient := &testBeadQueryClientStatus{
+		readyBeads: []string{},
+	}
+
+	// This should work with dependency injection
+	status, err := ReadStatusWithDeps(gromitDir, specsDir, plansDir, nil, mockBacklog, mockBeadQueryClient)
+	if err != nil {
+		t.Fatalf("ReadStatusWithDeps() error = %v", err)
+	}
+
+	if status.UnrefinedCount != 1 {
+		t.Errorf("UnrefinedCount = %d, want 1", status.UnrefinedCount)
 	}
 }
