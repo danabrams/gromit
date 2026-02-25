@@ -294,3 +294,139 @@ func TestTracker_ResetFromErrorStateToPending(t *testing.T) {
 		t.Fatalf("tracker.State() after reset = %v, want %v", tracker.State(), StatePending)
 	}
 }
+
+func TestTrackerStateTransitions_TableDriven(t *testing.T) {
+	tests := []struct {
+		name            string
+		setup           func(*CoverageTracker)
+		transition      func(*CoverageTracker)
+		expectedState   State
+		description     string
+	}{
+		{
+			name: "PendingToCollecting",
+			setup: func(tr *CoverageTracker) {
+				// Already in pending state
+			},
+			transition: func(tr *CoverageTracker) {
+				tr.ToCollecting()
+			},
+			expectedState: StateCollecting,
+			description:   "Pending -> Collecting transition",
+		},
+		{
+			name: "CollectingToValidating",
+			setup: func(tr *CoverageTracker) {
+				tr.ToCollecting()
+			},
+			transition: func(tr *CoverageTracker) {
+				tr.ToValidating()
+			},
+			expectedState: StateValidating,
+			description:   "Collecting -> Validating transition",
+		},
+		{
+			name: "ValidatingToComplete",
+			setup: func(tr *CoverageTracker) {
+				tr.ToCollecting()
+				tr.ToValidating()
+			},
+			transition: func(tr *CoverageTracker) {
+				tr.ToComplete()
+			},
+			expectedState: StateComplete,
+			description:   "Validating -> Complete transition",
+		},
+		{
+			name: "CollectingToError",
+			setup: func(tr *CoverageTracker) {
+				tr.ToCollecting()
+			},
+			transition: func(tr *CoverageTracker) {
+				tr.ToError()
+			},
+			expectedState: StateError,
+			description:   "Collecting -> Error transition (error from any state)",
+		},
+		{
+			name: "ValidatingToError",
+			setup: func(tr *CoverageTracker) {
+				tr.ToCollecting()
+				tr.ToValidating()
+			},
+			transition: func(tr *CoverageTracker) {
+				tr.ToError()
+			},
+			expectedState: StateError,
+			description:   "Validating -> Error transition",
+		},
+		{
+			name: "ErrorToPending",
+			setup: func(tr *CoverageTracker) {
+				tr.ToCollecting()
+				tr.ToError()
+			},
+			transition: func(tr *CoverageTracker) {
+				tr.Reset()
+			},
+			expectedState: StatePending,
+			description:   "Error -> Pending transition (reset path)",
+		},
+		{
+			name: "InvalidTransitionToCollectingFromCollecting",
+			setup: func(tr *CoverageTracker) {
+				tr.ToCollecting()
+			},
+			transition: func(tr *CoverageTracker) {
+				tr.ToCollecting()
+			},
+			expectedState: StateCollecting,
+			description:   "ToCollecting from collecting should remain in collecting",
+		},
+		{
+			name: "InvalidTransitionToValidatingFromPending",
+			setup: func(tr *CoverageTracker) {
+				// stays in pending
+			},
+			transition: func(tr *CoverageTracker) {
+				tr.ToValidating()
+			},
+			expectedState: StatePending,
+			description:   "ToValidating from pending should remain in pending (invalid transition)",
+		},
+		{
+			name: "InvalidTransitionToCompleteFromPending",
+			setup: func(tr *CoverageTracker) {
+				// stays in pending
+			},
+			transition: func(tr *CoverageTracker) {
+				tr.ToComplete()
+			},
+			expectedState: StatePending,
+			description:   "ToComplete from pending should remain in pending (invalid transition)",
+		},
+		{
+			name: "ResetFromPendingHasNoEffect",
+			setup: func(tr *CoverageTracker) {
+				// stays in pending
+			},
+			transition: func(tr *CoverageTracker) {
+				tr.Reset()
+			},
+			expectedState: StatePending,
+			description:   "Reset from pending should remain in pending (only valid from error)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tracker := NewTracker([]Criterion{{Number: 1, Text: "First"}}, 2)
+			tt.setup(tracker)
+			tt.transition(tracker)
+
+			if tracker.State() != tt.expectedState {
+				t.Errorf("%s: got state %v, want %v", tt.description, tracker.State(), tt.expectedState)
+			}
+		})
+	}
+}
