@@ -302,6 +302,21 @@ func TestGetRecentTimeFiltering(t *testing.T) {
 	}
 }
 
+func TestQueryCountsHelper(t *testing.T) {
+	f := &File{}
+	f.confirmed = append(f.confirmed, Learning{Hash: "confirmed-1"})
+	f.provisional = append(f.provisional, Learning{Hash: "provisional-1"})
+	f.provisional = append(f.provisional, Learning{Hash: "provisional-2"})
+
+	confirmed, provisional := f.queryCounts()
+	if confirmed != 1 {
+		t.Errorf("expected 1 confirmed learning, got %d", confirmed)
+	}
+	if provisional != 2 {
+		t.Errorf("expected 2 provisional learnings, got %d", provisional)
+	}
+}
+
 // TestSimilarity tests the similarity function
 func TestSimilarity(t *testing.T) {
 	tests := []struct {
