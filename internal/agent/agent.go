@@ -33,6 +33,9 @@ type Agent interface {
 	Command(promptPath string) (*exec.Cmd, error)
 }
 
+// Compile-time check that cliAgent implements Agent.
+var _ Agent = (*cliAgent)(nil)
+
 // cliAgent is a CLI-based agent implementation
 type cliAgent struct {
 	name           string
