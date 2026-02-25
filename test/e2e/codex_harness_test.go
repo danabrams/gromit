@@ -43,3 +43,31 @@ func TestE2EHarness_CodexUsesSharedFixtureAndCallLogHelpers(t *testing.T) {
 		t.Fatalf("expected 1 claude call, got %d (%v)", len(claudeCalls), claudeCalls)
 	}
 }
+
+
+func TestE2EHarness_FilterToolCallsIgnoresLeadingWhitespace(t *testing.T) {
+	env := setupE2E(t)
+
+	callLog := "   codex run --model sonnet\n" +
+		"\tclaude -p --model sonnet\n" +
+		"bd ready --json --limit 10\n"
+	if err := os.WriteFile(env.CallLog, []byte(callLog), 0644); err != nil {
+		t.Fatalf("failed to write call log: %v", err)
+	}
+
+	codexCalls, err := FilterE2EToolCalls(env, ToolCallCodex)
+	if err != nil {
+		t.Fatalf("FilterE2EToolCalls(codex) returned error: %v", err)
+	}
+	if len(codexCalls) != 1 {
+		t.Fatalf("expected 1 codex call despite leading whitespace, got %d (%v)", len(codexCalls), codexCalls)
+	}
+
+	claudeCalls, err := FilterE2EToolCalls(env, ToolCallClaude)
+	if err != nil {
+		t.Fatalf("FilterE2EToolCalls(claude) returned error: %v", err)
+	}
+	if len(claudeCalls) != 1 {
+		t.Fatalf("expected 1 claude call despite leading whitespace, got %d (%v)", len(claudeCalls), claudeCalls)
+	}
+}
