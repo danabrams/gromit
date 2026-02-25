@@ -271,7 +271,8 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 
 				timeBudgetMinutes := 0
 				if !dl.IsZero() {
-					timeBudgetMinutes = int(time.Until(dl).Minutes())
+					statusWriter.SetTimeBudgetFromDeadline(dl)
+					timeBudgetMinutes = statusWriter.TimeBudgetMinutes()
 				}
 				_ = statusWriter.Write(iteration, beadID, beadTitle, "", true, cfg.Loop.MaxIterations, timeBudgetMinutes)
 			}

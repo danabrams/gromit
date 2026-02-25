@@ -167,11 +167,11 @@ func TestOrchestrator_LowTierHaikuIterationRecordsDuration(t *testing.T) {
 		}
 		// Assert that the low-tier bead runs the build stage with a haiku model.
 		return pipeline.Output{
-			Decision:    pipeline.Proceed,
-			Model:       "claude-haiku-4-6",
-			DurationMs:  42,
-			CostUSD:     0.02,
-			InputTokens: 400,
+			Decision:     pipeline.Proceed,
+			Model:        "claude-haiku-4-6",
+			DurationMs:   42,
+			CostUSD:      0.02,
+			InputTokens:  400,
 			OutputTokens: 200,
 		}, nil
 	}}
@@ -187,9 +187,9 @@ func TestOrchestrator_LowTierHaikuIterationRecordsDuration(t *testing.T) {
 			return nil, nil
 		}
 		return &bead.Bead{
-			ID: "haiku-bead",
-			Title: "Add unit tests for feature X",
-			Priority: 2,
+			ID:              "haiku-bead",
+			Title:           "Add unit tests for feature X",
+			Priority:        2,
 			ExpectedOutputs: []string{"feature_x_test.go"},
 		}, nil
 	}
@@ -708,6 +708,35 @@ func TestOrchestrator_StatusWriter_ReceivesDeadline(t *testing.T) {
 	}
 }
 
+func TestOrchestrator_StopsBeforeDeadline(t *testing.T) {
+	deadline := time.Now().Add(-1 * time.Second)
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		return &bead.Bead{ID: "bead-1", Title: "Should not run"}, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     &fakeStage{},
+		Build:    &fakeStage{},
+		Validate: &fakeStage{},
+		Epilogue: &fakeStage{},
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	err := orch.Run(context.Background(), 10, deadline, nil)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if beadCalls != 0 {
+		t.Fatalf("GetBead called %d times; want 0 when deadline already passed", beadCalls)
+	}
+}
+
 // TestOrchestrator_ValidationFailure_SetsFailureOutput verifies that when the
 // validate stage returns Block with ValidationFailures, the orchestrator sets
 // FailureOutput on the epilogue Input so the failure learner receives it.
@@ -864,15 +893,15 @@ func TestOrchestrator_PostRunCompletenessAssertion_FailsWhenEfficiencyDataIncomp
 	getBead := func(_ context.Context) (*bead.Bead, error) { return nil, nil }
 
 	cfg := OrchestratorConfig{
-		Gate:       &fakeStage{},
-		Build:      &fakeStage{},
-		Validate:   &fakeStage{},
-		Epilogue:   &fakeStage{},
-		GetBead:    getBead,
-		Config:     &config.Config{},
-		Output:     io.Discard,
-		LogsDir:    logsDir,
-		GetRunID:   func() string { return "20260225-120000" },
+		Gate:     &fakeStage{},
+		Build:    &fakeStage{},
+		Validate: &fakeStage{},
+		Epilogue: &fakeStage{},
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+		LogsDir:  logsDir,
+		GetRunID: func() string { return "20260225-120000" },
 	}
 
 	orch := NewOrchestrator(cfg)
@@ -924,13 +953,13 @@ func TestOrchestrator_CoverageTracker_TransitionsStatesAcrossTDDCycle(t *testing
 	}
 
 	cfg := OrchestratorConfig{
-		Gate:     gate,
-		Build:    build,
-		Validate: validate,
-		Epilogue: epilogueStage,
-		GetBead:  getBead,
-		Config:   &config.Config{},
-		Output:   io.Discard,
+		Gate:            gate,
+		Build:           build,
+		Validate:        validate,
+		Epilogue:        epilogueStage,
+		GetBead:         getBead,
+		Config:          &config.Config{},
+		Output:          io.Discard,
 		CoverageTracker: tracker,
 	}
 

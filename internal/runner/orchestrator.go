@@ -156,6 +156,11 @@ runLoop:
 			break runLoop
 		}
 
+		// Check wall-clock deadline before starting a new iteration.
+		if !deadline.IsZero() && time.Now().After(deadline) {
+			break runLoop
+		}
+
 		// Get the next bead from the work queue.
 		b, err := o.cfg.GetBead(ctx)
 		if err != nil {
