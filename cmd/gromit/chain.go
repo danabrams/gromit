@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,6 +11,37 @@ import (
 
 	"github.com/danabrams/gromit/internal/frontmatter"
 )
+
+type execCommand interface {
+	Run() error
+	SetStdin(io.Reader)
+	SetStdout(io.Writer)
+	SetStderr(io.Writer)
+}
+
+type standardExecCommand struct {
+	cmd *exec.Cmd
+}
+
+func (c *standardExecCommand) Run() error {
+	return c.cmd.Run()
+}
+
+func (c *standardExecCommand) SetStdin(r io.Reader) {
+	c.cmd.Stdin = r
+}
+
+func (c *standardExecCommand) SetStdout(w io.Writer) {
+	c.cmd.Stdout = w
+}
+
+func (c *standardExecCommand) SetStderr(w io.Writer) {
+	c.cmd.Stderr = w
+}
+
+var execCommandFactory = func(name string, args ...string) execCommand {
+	return &standardExecCommand{cmd: exec.Command(name, args...)}
+}
 
 // confirmPrompt prints a yes/no prompt and reads the user's response.
 // Returns true for yes, false for no.
@@ -66,10 +98,10 @@ func execGromit(args ...string) error {
 	}
 
 	// Create command
-	cmd := exec.Command(binary, args...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd := execCommandFactory(binary, args...)
+	cmd.SetStdin(os.Stdin)
+	cmd.SetStdout(os.Stdout)
+	cmd.SetStderr(os.Stderr)
 
 	// Run the subprocess
 	if err := cmd.Run(); err != nil {
