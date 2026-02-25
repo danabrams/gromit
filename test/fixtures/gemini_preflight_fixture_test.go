@@ -640,6 +640,46 @@ func TestGeminiCommandsLogFixture_IncludesPromptDeliveryAndFixtureGenerationEntr
 	}
 }
 
+func TestGeminiCommandsLogFixture_IncludesGeminiPermissionFlagCommands(t *testing.T) {
+	logPath := geminiFixturePath("commands.log")
+	content, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("failed to read commands log fixture: %v", err)
+	}
+
+	entries := parseGeminiCommandLog(t, content)
+	foundGeminiPermissions := false
+	for _, entry := range entries {
+		if entry.Category == "permission" && strings.Contains(entry.Command, "gemini") {
+			foundGeminiPermissions = true
+			break
+		}
+	}
+	if !foundGeminiPermissions {
+		t.Fatalf("commands log must include Gemini-specific permission flag commands (--yolo, --allowed-tools, etc.)")
+	}
+}
+
+func TestGeminiCommandsLogFixture_IncludesGeminiWorkdirCommands(t *testing.T) {
+	logPath := geminiFixturePath("commands.log")
+	content, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("failed to read commands log fixture: %v", err)
+	}
+
+	entries := parseGeminiCommandLog(t, content)
+	foundGeminiWorkdir := false
+	for _, entry := range entries {
+		if entry.Category == "workdir" && strings.Contains(entry.Command, "gemini") {
+			foundGeminiWorkdir = true
+			break
+		}
+	}
+	if !foundGeminiWorkdir {
+		t.Fatalf("commands log must include Gemini-specific working directory behavior commands")
+	}
+}
+
 func requireMarkdownHeaders(t *testing.T, path string, headers []string) {
 	t.Helper()
 
