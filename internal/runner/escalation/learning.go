@@ -14,6 +14,9 @@ import (
 )
 
 // ExtractLearning saves a learning from failure analysis to the learnings file.
+// IMPORTANT: Failure path learning is NEVER filtered by tier or package novelty,
+// unlike success learning which has these filters applied. This ensures critical
+// failure patterns are always captured, regardless of how filtering rules evolve.
 func ExtractLearning(bc *runtypes.BeadContext, analysis *analyzer.Analysis, lf *learnings.File) {
 	if bc == nil || bc.Bead == nil {
 		return
