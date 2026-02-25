@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -31,7 +32,7 @@ const (
 )
 
 var (
-	taskHeadingPattern = regexp.MustCompile(`^###\s+Task\s+\d+:\s*(.+?)\s*$`)
+	taskHeadingPattern = regexp.MustCompile(`^###\s+Task\s+(\d+):\s*(.+?)\s*$`)
 	stopwordTokens     = []string{
 		"a", "an", "and", "for", "from", "in", "into", "of", "on", "or", "the", "to", "with",
 		"task", "add", "create", "implement", "build", "wire", "update",
@@ -46,6 +47,7 @@ type beadDef struct {
 	EstimatedFiles     int      `json:"estimated_files,omitempty"`
 	AcceptanceCriteria []string `json:"acceptance_criteria"`
 	ExpectedOutputs    []string `json:"expected_outputs,omitempty"`
+	CoversTasks        []int    `json:"covers_tasks,omitempty"`
 	DependsOnIndex     []int    `json:"depends_on_index"`
 }
 
@@ -381,9 +383,10 @@ You are decomposing an implementation plan into bd beads following the gromit-de
 ## Output
 
 Output ONLY a JSON array of bead definitions. No markdown, no explanations, no wrapper.
-Each bead must include: title, description, priority, acceptance_criteria, expected_outputs, depends_on_index.
+Each bead must include: title, description, priority, acceptance_criteria, expected_outputs, covers_tasks, depends_on_index.
 
 expected_outputs: list each individual deliverable, function, or independently testable item as a separate entry. These drive TDD RED-GREEN cycles — one cycle per entry. Do not summarize or group; enumerate fine-grained items.
+covers_tasks: list the 1-based Task numbers from the plan that this bead covers. Every Task in the plan must be covered by at least one bead.
 
 The spec label will be added automatically: spec:%s
 `
@@ -456,6 +459,7 @@ func toBeadCandidates(defs []beadDef) []validate.BeadCandidate {
 		candidates[i] = validate.BeadCandidate{
 			Title:              def.Title,
 			Description:        def.Description,
+			CoversTasks:        def.CoversTasks,
 			DependsOnIndex:     def.DependsOnIndex,
 			EstimatedFiles:     def.EstimatedFiles,
 			AcceptanceCriteria: def.AcceptanceCriteria,
@@ -523,8 +527,15 @@ func formatViolations(violations []validate.Violation) string {
 }
 
 func validateDecompositionCoverage(planBody string, defs []beadDef) error {
-	taskTitles := extractPlanTaskTitles(planBody)
+	tasks := extractPlanTasks(planBody)
+	taskTitles := taskTitlesFromTasks(tasks)
 	if len(taskTitles) == 0 {
+		return nil
+	}
+	if hasExplicitCoverageMap(defs) {
+		if err := validateExplicitCoverageMap(tasks, defs); err != nil {
+			return err
+		}
 		return nil
 	}
 
@@ -554,21 +565,94 @@ func validateDecompositionCoverage(planBody string, defs []beadDef) error {
 	)
 }
 
-func extractPlanTaskTitles(planBody string) []string {
+type planTask struct {
+	Number int
+	Title  string
+}
+
+func extractPlanTasks(planBody string) []planTask {
 	scanner := bufio.NewScanner(strings.NewReader(planBody))
-	titles := make([]string, 0)
+	tasks := make([]planTask, 0)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		matches := taskHeadingPattern.FindStringSubmatch(line)
-		if len(matches) != 2 {
+		if len(matches) != 3 {
 			continue
 		}
-		title := strings.TrimSpace(matches[1])
-		if title != "" {
-			titles = append(titles, title)
+		taskNumber, err := strconv.Atoi(strings.TrimSpace(matches[1]))
+		if err != nil || taskNumber <= 0 {
+			continue
 		}
+		title := strings.TrimSpace(matches[2])
+		if title == "" {
+			continue
+		}
+		tasks = append(tasks, planTask{Number: taskNumber, Title: title})
+	}
+	return tasks
+}
+
+func taskTitlesFromTasks(tasks []planTask) []string {
+	titles := make([]string, 0, len(tasks))
+	for _, task := range tasks {
+		titles = append(titles, task.Title)
 	}
 	return titles
+}
+
+func hasExplicitCoverageMap(defs []beadDef) bool {
+	for _, def := range defs {
+		if len(def.CoversTasks) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func validateExplicitCoverageMap(tasks []planTask, defs []beadDef) error {
+	maxTaskNumber := 0
+	taskByNumber := make(map[int]planTask, len(tasks))
+	for _, task := range tasks {
+		taskByNumber[task.Number] = task
+		if task.Number > maxTaskNumber {
+			maxTaskNumber = task.Number
+		}
+	}
+	coveredTasks := make(map[int]struct{}, len(tasks))
+	for i, def := range defs {
+		if len(def.CoversTasks) == 0 {
+			return fmt.Errorf("decomposition contract violation: bead %d missing covers_tasks mapping", i)
+		}
+		seen := make(map[int]struct{}, len(def.CoversTasks))
+		for _, taskNumber := range def.CoversTasks {
+			if _, exists := taskByNumber[taskNumber]; !exists {
+				return fmt.Errorf("decomposition contract violation: bead %d covers_tasks references undefined plan task number %d (defined task numbers are 1-%d)", i, taskNumber, maxTaskNumber)
+			}
+			if _, exists := seen[taskNumber]; exists {
+				return fmt.Errorf("decomposition contract violation: bead %d covers_tasks contains duplicate task number %d", i, taskNumber)
+			}
+			seen[taskNumber] = struct{}{}
+			coveredTasks[taskNumber] = struct{}{}
+		}
+	}
+
+	missingTasks := make([]string, 0)
+	for _, task := range tasks {
+		if _, ok := coveredTasks[task.Number]; ok {
+			continue
+		}
+		missingTasks = append(missingTasks, task.Title)
+	}
+	if len(missingTasks) == 0 {
+		return nil
+	}
+
+	return fmt.Errorf(
+		"incomplete decomposition coverage: %d/%d plan task(s) missing bead coverage: %s",
+		len(missingTasks),
+		len(tasks),
+		strings.Join(missingTasks, "; "),
+	)
 }
 
 func hasTaskCoverage(taskTitle string, beadCorpus []string) bool {

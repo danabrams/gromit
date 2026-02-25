@@ -70,6 +70,7 @@ For each task in the plan:
 - `description`: 2-4 sentences describing what needs to be done, including files to touch
 - `priority`: `P1` (use plan's default priority — P1 for most features)
 - `acceptance_criteria`: Array of 1-3 concrete, testable criteria
+- `covers_tasks`: Array of 1-based plan task numbers this bead covers (must reference `### Task N:` headings from the plan)
 - `depends_on_index`: Array of zero-based indices of beads this depends on (or empty array if no dependencies)
 - `estimated_files`: Integer estimate of how many files this bead will touch
 
@@ -115,6 +116,7 @@ Output a JSON array of bead definitions. **DO NOT** output any markdown, explana
       "Fields have appropriate JSON tags for serialization",
       "Struct includes validation tags for required fields"
     ],
+    "covers_tasks": [1],
     "depends_on_index": [],
     "estimated_files": 2
   },
@@ -127,6 +129,7 @@ Output a JSON array of bead definitions. **DO NOT** output any markdown, explana
       "Error types defined for common failure cases",
       "Method signatures include context.Context for cancellation"
     ],
+    "covers_tasks": [1, 2],
     "depends_on_index": [0],
     "estimated_files": 2
   },
@@ -139,6 +142,7 @@ Output a JSON array of bead definitions. **DO NOT** output any markdown, explana
       "Validates user owns the profile being updated",
       "Returns 200 with updated profile on success"
     ],
+    "covers_tasks": [3],
     "depends_on_index": [0, 1],
     "estimated_files": 1
   }
@@ -159,7 +163,7 @@ The beads will be created with additional metadata by the CLI command:
 - `complexity:high` is auto-applied when `estimated_files > 5`; otherwise `complexity:low` is used
 - Proper bd dependencies based on `depends_on_index`
 
-You do NOT need to include labels in the JSON output. Focus only on the seven bead fields listed above.
+You do NOT need to include labels in the JSON output. Focus only on the eight bead fields listed above.
 
 ## Bead Splitting Examples
 

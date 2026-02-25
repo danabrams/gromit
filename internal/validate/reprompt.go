@@ -14,9 +14,9 @@ const (
 	repromptCandidatesHeader     = "## Candidate Beads\n\n"
 	repromptViolationsHeader     = "## Violations By Flagged Bead\n\n"
 	repromptInstructionsHeader   = "## Instructions\n\n"
-	repromptInstructionsBody     = "- Keep every unflagged bead unchanged (title, description, depends_on_index, acceptance_criteria, and expected_outputs).\n" +
+	repromptInstructionsBody     = "- Keep every unflagged bead unchanged (title, description, covers_tasks, depends_on_index, acceptance_criteria, and expected_outputs).\n" +
 		"- Modify only flagged beads, and only as needed to fix the listed validation violations.\n" +
-		"- Return the same JSON format as before: a JSON array of bead objects with title, description, depends_on_index, acceptance_criteria, and expected_outputs.\n" +
+		"- Return the same JSON format as before: a JSON array of bead objects with title, description, covers_tasks, depends_on_index, acceptance_criteria, and expected_outputs.\n" +
 		"- Respond with ONLY the JSON array (no markdown, no explanation).\n"
 )
 
@@ -77,6 +77,7 @@ func BuildReprompt(originalPrompt string, candidates []BeadCandidate, violations
 	for i, c := range candidates {
 		sb.WriteString(fmt.Sprintf("%d. %s\n", i, c.Title))
 		sb.WriteString(fmt.Sprintf("   Description: %s\n", c.Description))
+		sb.WriteString(fmt.Sprintf("   Covers Tasks: %s\n", formatDependsOnIndex(c.CoversTasks)))
 		sb.WriteString(fmt.Sprintf("   Depends On Index: %s\n", formatDependsOnIndex(c.DependsOnIndex)))
 		sb.WriteString("   Acceptance Criteria:\n")
 		for _, criterion := range c.AcceptanceCriteria {

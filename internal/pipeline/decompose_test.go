@@ -247,6 +247,7 @@ id: coverage-gap
 						"description": "Create benchmark command and run subcommand",
 						"priority": "P1",
 						"acceptance_criteria": ["CLI accepts benchmark flags"],
+						"covers_tasks": [1],
 						"depends_on_index": []
 					},
 					{
@@ -254,6 +255,7 @@ id: coverage-gap
 						"description": "Parse benchmark YAML with validation",
 						"priority": "P1",
 						"acceptance_criteria": ["Manifest parsing works"],
+						"covers_tasks": [2],
 						"depends_on_index": [0]
 					}
 				]`,
@@ -298,6 +300,114 @@ id: coverage-gap
 	}
 	if strings.Contains(planStr, "decomposed_at:") {
 		t.Fatal("plan frontmatter unexpectedly includes decomposed_at on coverage failure")
+	}
+}
+
+func TestDecomposeWorkflow_AllowsExactCoverageMappingWithNonOverlappingTitles(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	planPath := filepath.Join(plansDir, "explicit-coverage.md")
+	planContent := `---
+id: explicit-coverage
+---
+
+# Explicit Coverage Plan
+
+### Task 1: Implement convergence reporting
+### Task 2: End-to-end verification
+`
+	if err := os.WriteFile(planPath, []byte(planContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	mockClaude := &decomposeAcceptanceLLMClient{
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
+			return &LLMRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output: `[
+					{
+						"title": "Add experiment winner summary output",
+						"description": "Print converged status and selected winner for configured phases.",
+						"priority": "P1",
+						"acceptance_criteria": ["Summary output includes winner and confidence"],
+						"covers_tasks": [1],
+						"depends_on_index": []
+					},
+					{
+						"title": "Add integration acceptance run for experiment flow",
+						"description": "Execute and assert full experiment lifecycle from selection through reporting.",
+						"priority": "P1",
+						"acceptance_criteria": ["Acceptance run validates full lifecycle"],
+						"covers_tasks": [2],
+						"depends_on_index": [0]
+					}
+				]`,
+			}, nil
+		},
+	}
+
+	createCalls := 0
+	mockBead := &decomposeAcceptanceBeadClient{
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+			createCalls++
+			return &BeadInfo{ID: fmt.Sprintf("bead-%d", createCalls), Title: title, Priority: priority, Labels: labels}, nil
+		},
+	}
+
+	p := New(&Deps{
+		LLMClient:  mockClaude,
+		BeadClient: mockBead,
+	}, &Paths{
+		GromitDir: tmpDir,
+		PlansDir:  plansDir,
+	})
+
+	result, err := p.Decompose(context.Background(), DecomposeInput{PlanName: "explicit-coverage"})
+	if err != nil {
+		t.Fatalf("Decompose() failed with explicit covers_tasks mapping: %v", err)
+	}
+	if result == nil {
+		t.Fatal("Decompose() returned nil result")
+	}
+	if createCalls != 2 {
+		t.Fatalf("create calls = %d, want 2 when explicit coverage map covers all tasks", createCalls)
+	}
+}
+
+func TestValidateDecompositionCoverage_RejectsMixedExplicitCoverageMapping(t *testing.T) {
+	planBody := `
+### Task 1: Implement convergence reporting
+### Task 2: End-to-end verification
+`
+
+	defs := []beadDef{
+		{
+			Title:           "Convergence output changes",
+			Description:     "Emit converged winner summary",
+			CoversTasks:     []int{1},
+			DependsOnIndex:  []int{},
+			ExpectedOutputs: []string{"winner summary output"},
+		},
+		{
+			Title:           "Acceptance verification suite",
+			Description:     "Add end-to-end verification harness checks",
+			CoversTasks:     nil,
+			DependsOnIndex:  []int{0},
+			ExpectedOutputs: []string{"acceptance verifies full flow"},
+		},
+	}
+
+	err := validateDecompositionCoverage(planBody, defs)
+	if err == nil {
+		t.Fatal("validateDecompositionCoverage() returned nil error, want contract violation")
+	}
+	if !strings.Contains(err.Error(), "missing covers_tasks mapping") {
+		t.Fatalf("validateDecompositionCoverage() error = %v, want missing covers_tasks mapping", err)
 	}
 }
 
@@ -1706,6 +1816,7 @@ func TestBeadDef_ExpectedOutputsDeserializesFromJSON(t *testing.T) {
 		"priority": "P1",
 		"acceptance_criteria": ["Criterion A"],
 		"expected_outputs": ["Output X", "Output Y"],
+		"covers_tasks": [2, 4],
 		"depends_on_index": []
 	}`
 
@@ -1722,6 +1833,9 @@ func TestBeadDef_ExpectedOutputsDeserializesFromJSON(t *testing.T) {
 	}
 	if def.ExpectedOutputs[1] != "Output Y" {
 		t.Errorf("ExpectedOutputs[1] = %q, want %q", def.ExpectedOutputs[1], "Output Y")
+	}
+	if len(def.CoversTasks) != 2 || def.CoversTasks[0] != 2 || def.CoversTasks[1] != 4 {
+		t.Fatalf("CoversTasks = %v, want [2 4]", def.CoversTasks)
 	}
 }
 
@@ -1753,6 +1867,7 @@ func TestToBeadCandidates_MapsDependsOnIndex(t *testing.T) {
 		{
 			Title:              "Child bead",
 			Description:        "depends on prior work",
+			CoversTasks:        []int{1, 2},
 			DependsOnIndex:     []int{0, 2},
 			AcceptanceCriteria: []string{"criterion"},
 			ExpectedOutputs:    []string{"output"},
@@ -1771,6 +1886,14 @@ func TestToBeadCandidates_MapsDependsOnIndex(t *testing.T) {
 	if got[0] != 0 || got[1] != 2 {
 		t.Fatalf("DependsOnIndex = %v, want [0 2]", got)
 	}
+
+	gotTasks := candidates[0].CoversTasks
+	if len(gotTasks) != 2 {
+		t.Fatalf("CoversTasks len = %d, want 2", len(gotTasks))
+	}
+	if gotTasks[0] != 1 || gotTasks[1] != 2 {
+		t.Fatalf("CoversTasks = %v, want [1 2]", gotTasks)
+	}
 }
 
 // TestDecomposePrompt_MentionsExpectedOutputs verifies the decompose prompt instructs
@@ -1781,6 +1904,9 @@ func TestDecomposePrompt_MentionsExpectedOutputs(t *testing.T) {
 
 	if !strings.Contains(promptLower, "expected_outputs") {
 		t.Errorf("decompose prompt should mention expected_outputs field.\nPrompt:\n%s", promptText)
+	}
+	if !strings.Contains(promptLower, "covers_tasks") {
+		t.Errorf("decompose prompt should mention covers_tasks field.\nPrompt:\n%s", promptText)
 	}
 }
 

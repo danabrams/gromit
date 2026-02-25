@@ -37,6 +37,7 @@ var scopeSignals = []string{
 type BeadCandidate struct {
 	Title              string
 	Description        string
+	CoversTasks        []int
 	DependsOnIndex     []int
 	EstimatedFiles     int
 	AcceptanceCriteria []string
@@ -59,8 +60,8 @@ type ComplexityResult struct {
 
 // ComplexityOutcome summarizes high-complexity candidates across a batch.
 type ComplexityOutcome struct {
-	HighCount      int
-	HighComplexity []CandidateComplexityResult
+	HighCount        int
+	HighComplexity   []CandidateComplexityResult
 	AggregateReasons []string
 }
 

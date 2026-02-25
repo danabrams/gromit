@@ -57,6 +57,9 @@ func TestBuildReprompt_RequestsExpectedOutputsContractFields(t *testing.T) {
 	if !strings.Contains(prompt, "depends_on_index") {
 		t.Fatalf("expected reprompt to require depends_on_index field, got:\n%s", prompt)
 	}
+	if !strings.Contains(prompt, "covers_tasks") {
+		t.Fatalf("expected reprompt to require covers_tasks field, got:\n%s", prompt)
+	}
 }
 
 func TestBuildReprompt_RendersCandidateDependencyAndExpectedOutputsContext(t *testing.T) {
@@ -64,6 +67,7 @@ func TestBuildReprompt_RendersCandidateDependencyAndExpectedOutputsContext(t *te
 		{
 			Title:              "Implement auth API",
 			Description:        "Add auth endpoint wiring",
+			CoversTasks:        []int{1, 3},
 			DependsOnIndex:     []int{0, 2},
 			AcceptanceCriteria: []string{"Auth endpoint responds with 200"},
 			ExpectedOutputs:    []string{"Auth handler created", "Route registered"},
@@ -72,6 +76,9 @@ func TestBuildReprompt_RendersCandidateDependencyAndExpectedOutputsContext(t *te
 
 	prompt := BuildReprompt("original prompt", candidates, []Violation{{BeadIndex: 0, Rule: "x", Message: "y"}})
 
+	if !strings.Contains(prompt, "Covers Tasks: [1, 3]") {
+		t.Fatalf("expected candidate context to include covers_tasks data, got:\n%s", prompt)
+	}
 	if !strings.Contains(prompt, "Depends On Index: [0, 2]") {
 		t.Fatalf("expected candidate context to include depends_on_index data, got:\n%s", prompt)
 	}
