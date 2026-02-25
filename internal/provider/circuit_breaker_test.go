@@ -1,6 +1,9 @@
 package provider
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 type circuitBreakerStep struct {
 	provider string
@@ -172,6 +175,32 @@ func TestCircuitBreakerEffectiveRatio(t *testing.T) {
 				t.Fatalf("EffectiveRatio(%q, %d) = %d, want %d", tc.provider, tc.configuredRatio, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestCircuitBreakerEffectiveRatioRedistributesFreedRatio(t *testing.T) {
+	t.Parallel()
+
+	cb := &CircuitBreaker{
+		degradedFloor: 20,
+	}
+	cb.degraded = map[string]bool{
+		"codex": true,
+	}
+
+	configured := map[string]int{
+		"codex":  60,
+		"claude": 40,
+	}
+
+	got := cb.EffectiveRatio(configured)
+	want := map[string]int{
+		"codex":  20,
+		"claude": 80,
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("EffectiveRatio() = %#v, want %#v", got, want)
 	}
 }
 
