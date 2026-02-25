@@ -40,7 +40,7 @@ func TestFinalVerification(t *testing.T) {
 		}
 
 		if len(untagged) > 0 {
-			t.Errorf("found %d *_acceptance_test.go files without //go:build acceptance or //go:build e2e_live:\n  %s",
+			t.Errorf("found %d *_acceptance_test.go files without //go:build acceptance/contract/e2e/e2e_live:\n  %s",
 				len(untagged), strings.Join(untagged, "\n  "))
 		}
 	})
@@ -188,9 +188,10 @@ func scanProjectTestFiles(projectRoot string) ([]scannedTestFile, error) {
 	return files, err
 }
 
-// hasAcceptedBuildTag checks the first few lines for //go:build acceptance/e2e_live or old-style tags.
+// hasAcceptedBuildTag checks the first few lines for //go:build acceptance/e2e_live/contract/e2e or old-style tags.
 func hasAcceptedBuildTag(content string) bool {
-	return hasBuildTagContent(content, "acceptance") || hasBuildTagContent(content, "e2e_live")
+	return hasBuildTagContent(content, "acceptance") || hasBuildTagContent(content, "e2e_live") ||
+		hasBuildTagContent(content, "contract") || hasBuildTagContent(content, "e2e")
 }
 
 func hasBuildTagContent(content string, tag string) bool {
