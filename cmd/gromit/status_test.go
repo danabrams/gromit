@@ -91,3 +91,37 @@ func TestStatusCmd_SPCFlagDisplaysPlaceholder(t *testing.T) {
 		t.Fatalf("expected placeholder %q in output, got:\n%s", placeholder, output)
 	}
 }
+
+func TestStatusCmd_SPCFlagSkipsDefaultSections(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("failed to create gromit dir: %v", err)
+	}
+
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	configContent := `paths:
+  gromit_dir: .gromit
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	t.Chdir(tmpDir)
+
+	stdout, stderr, exitCode := runGromitCobra(t, "status", "--spc")
+	if exitCode != 0 {
+		t.Fatalf("status --spc exit %d, stderr: %s", exitCode, stderr)
+	}
+
+	const placeholder = "SPC dashboard is not yet implemented"
+	if !strings.Contains(stdout, placeholder) {
+		t.Fatalf("expected placeholder %q in output, got:\n%s", placeholder, stdout)
+	}
+
+	for _, section := range []string{"Run:", "Pipeline:", "Health:"} {
+		if strings.Contains(stdout, section) {
+			t.Fatalf("expected SPC guard path to skip %q section, got:\n%s", section, stdout)
+		}
+	}
+}
