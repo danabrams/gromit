@@ -111,6 +111,35 @@ func (f *fakeStuckDetector) IsStuck(_ context.Context, _ *bead.Bead) (bool, erro
 	return f.stuck, f.err
 }
 
+type mockDecomposer struct {
+	err    error
+	called bool
+}
+
+func newMockDecomposer() *mockDecomposer {
+	return &mockDecomposer{}
+}
+
+func (m *mockDecomposer) WithDecompose(err error) *mockDecomposer {
+	m.err = err
+	return m
+}
+
+func (m *mockDecomposer) WithCalled(called bool) *mockDecomposer {
+	m.called = called
+	return m
+}
+
+func (m *mockDecomposer) WasCalled() bool {
+	return m.called
+}
+
+func (m *mockDecomposer) Decompose(_ context.Context, _ *bead.Bead) error {
+	m.called = true
+	return m.err
+}
+
+// Deprecated: use newMockDecomposer() instead
 type fakeDecomposer struct {
 	err    error
 	called bool
