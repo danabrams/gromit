@@ -145,6 +145,10 @@ type IterationResult struct {
 	PhaseMetrics []PhaseMetric `json:"phase_metrics,omitempty"`
 	// Prompt diagnostics for token attribution and shaping decisions.
 	PromptDiagnostics *prompt.PromptDiagnostics `json:"prompt_diagnostics,omitempty"`
+
+	// Experiment tracking fields
+	ExperimentID string `json:"experiment_id,omitempty"`
+	VariantID    string `json:"variant_id,omitempty"`
 }
 
 // PhaseMetric captures per-phase metrics for TDD cycle tracking.
