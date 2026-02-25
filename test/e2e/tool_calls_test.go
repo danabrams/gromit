@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -52,5 +53,14 @@ func TestFilterE2EToolCalls_ByKind(t *testing.T) {
 		if len(calls) != tc.want {
 			t.Fatalf("expected %d %s calls, got %d (%v)", tc.want, tc.tool, len(calls), calls)
 		}
+	}
+}
+
+func writeE2ECallLog(t *testing.T, env *e2eEnv, lines ...string) {
+	t.Helper()
+
+	callLog := strings.Join(lines, "\n") + "\n"
+	if err := os.WriteFile(env.CallLog, []byte(callLog), 0644); err != nil {
+		t.Fatalf("failed to write call log: %v", err)
 	}
 }
