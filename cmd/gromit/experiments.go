@@ -45,7 +45,8 @@ func runExperiments(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	report, err := experiment.GenerateReport(experiments, experimentsDir)
+	stateDir := resolveExperimentStateDir(cfg)
+	report, err := experiment.GenerateReport(experiments, stateDir)
 	if err != nil {
 		return fmt.Errorf("generating experiment report: %w", err)
 	}

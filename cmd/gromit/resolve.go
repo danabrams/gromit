@@ -1,6 +1,10 @@
 package main
 
-import "github.com/danabrams/gromit/internal/config"
+import (
+	"path/filepath"
+
+	"github.com/danabrams/gromit/internal/config"
+)
 
 func resolveGromitDir(cfg *config.Config) string {
 	if cfg != nil && cfg.Paths.GromitDir != "" {
@@ -40,4 +44,10 @@ func resolveProjectClaudeMD(cfg *config.Config) string {
 		return cfg.Paths.ProjectClaudeMD
 	}
 	return "CLAUDE.md"
+}
+
+// resolveExperimentStateDir returns the experiment state directory from config or default
+func resolveExperimentStateDir(cfg *config.Config) string {
+	gromitDir := resolveGromitDir(cfg)
+	return filepath.Join(gromitDir, "experiment-state")
 }

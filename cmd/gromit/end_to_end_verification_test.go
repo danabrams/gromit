@@ -159,20 +159,22 @@ variants:
 
 	// Create state file with bandit data
 	stateData := map[string]interface{}{
-		"cli-test-exp": map[string]interface{}{
-			"control": map[string]interface{}{
+		"arms": []interface{}{
+			map[string]interface{}{
+				"id":        "control",
 				"successes": 40,
 				"failures":  10,
 				"samples":   []interface{}{},
 			},
-			"variant-v1": map[string]interface{}{
+			map[string]interface{}{
+				"id":        "variant-v1",
 				"successes": 30,
 				"failures":  20,
 				"samples":   []interface{}{},
 			},
 		},
 	}
-	stateFile := filepath.Join(stateDir, "state.json")
+	stateFile := filepath.Join(stateDir, "cli-test-exp.json")
 	stateBytes, err := json.MarshalIndent(stateData, "", "  ")
 	if err != nil {
 		t.Fatalf("failed to marshal state data: %v", err)
