@@ -453,6 +453,100 @@ func TestRunBenchmarkPipeline_ReportArtifactsMatchInternalWriter(t *testing.T) {
 	}
 }
 
+func TestRunBenchmarkPipeline_NoSecondJSONWriteWithDifferentPayload(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+
+	origLoadManifest := benchmarkInternalLoadManifestFn
+	origSelectCohort := benchmarkSelectCohortFn
+	origValidate := benchmarkValidateCohortFn
+	origHarness := benchmarkRunHarnessFn
+	origMetrics := benchmarkComputeMetricsFn
+	t.Cleanup(func() {
+		benchmarkInternalLoadManifestFn = origLoadManifest
+		benchmarkSelectCohortFn = origSelectCohort
+		benchmarkValidateCohortFn = origValidate
+		benchmarkRunHarnessFn = origHarness
+		benchmarkComputeMetricsFn = origMetrics
+	})
+
+	benchmarkInternalLoadManifestFn = func(path string) (benchpkg.Manifest, error) {
+		return benchpkg.Manifest{
+			ID:         "test-id",
+			BaseCommit: "abc123",
+			Beads:      []string{"bead-1"},
+			ModeConfig: benchpkg.ModeConfig{Modes: []string{"mode-1"}},
+		}, nil
+	}
+	benchmarkSelectCohortFn = func(manifest benchmarkManifest, opts benchmarkRunOptions) (benchmarkSelection, error) {
+		return benchmarkSelection{SelectedBeads: []string{"bead-1"}}, nil
+	}
+	benchmarkValidateCohortFn = func(selection benchmarkSelection, opts benchmarkRunOptions) (benchmarkValidatedCohort, error) {
+		return benchmarkValidatedCohort{SelectedBeads: selection.SelectedBeads}, nil
+	}
+	benchmarkRunHarnessFn = func(manifest benchmarkManifest, cohort benchmarkValidatedCohort, opts benchmarkRunOptions) (benchmarkHarnessResult, error) {
+		return benchmarkHarnessResult{
+			BaseCommit:    "abc123",
+			SelectedBeads: cohort.SelectedBeads,
+			Modes:         []benchmarkModeResult{{Mode: "mode-1"}},
+		}, nil
+	}
+	benchmarkComputeMetricsFn = func(result benchmarkHarnessResult) (benchmarkMetricsResult, error) {
+		return benchmarkMetricsResult{
+			ModeSummaries: []benchpkg.ModeSummary{{Mode: "mode-1"}},
+		}, nil
+	}
+
+	opts := benchmarkRunOptions{
+		ManifestPath:    "test.yaml",
+		OutputTimestamp: "20260225T120000Z",
+	}
+
+	if err := runBenchmarkPipeline(opts); err != nil {
+		t.Fatalf("runBenchmarkPipeline() error = %v", err)
+	}
+
+	// Verify the JSON artifact matches WriteReport schema
+	jsonPath := filepath.Join(".gromit", "benchmarks", "results", "test-id", "20260225T120000Z.json")
+	jsonBytes, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("read json artifact: %v", err)
+	}
+
+	// Parse and verify it has the expected WriteReport schema with manifest, modes, and winner_hints
+	var payload struct {
+		Manifest struct {
+			ID string `json:"id"`
+		} `json:"manifest"`
+		Modes       []interface{} `json:"modes"`
+		WinnerHints struct {
+			Fastest string `json:"fastest"`
+		} `json:"winner_hints"`
+	}
+	if err := json.Unmarshal(jsonBytes, &payload); err != nil {
+		t.Fatalf("unmarshal json artifact: %v", err)
+	}
+
+	// Verify required WriteReport schema fields exist
+	if payload.Manifest.ID == "" {
+		t.Error("JSON artifact missing manifest.id (WriteReport schema)")
+	}
+	if payload.Modes == nil {
+		t.Error("JSON artifact missing modes array (WriteReport schema)")
+	}
+	if payload.WinnerHints.Fastest == "" {
+		t.Error("JSON artifact missing winner_hints.fastest (WriteReport schema)")
+	}
+
+	// Verify no duplicate JSON objects - should unmarshal to exactly one object
+	var validateOnlyOneObject interface{}
+	if err := json.Unmarshal(jsonBytes, &validateOnlyOneObject); err != nil {
+		t.Fatalf("json artifact is not valid JSON: %v", err)
+	}
+	// If there were two JSON objects concatenated, it would fail to unmarshal
+	// This ensures we haven't appended a second JSON object with different schema
+}
+
 func TestRunBenchmarkPipeline_SingleSchemaOwner_EnforcesOnlyInternalWriterIsUsed(t *testing.T) {
 	origLoadManifest := benchmarkInternalLoadManifestFn
 	origSelectCohort := benchmarkSelectCohortFn
