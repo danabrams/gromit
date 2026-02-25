@@ -1,6 +1,7 @@
 package prompt
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -1995,6 +1996,38 @@ func TestRenderCoverageValidationRealTemplateIncludesInputs(t *testing.T) {
 		if !strings.Contains(result, want) {
 			t.Errorf("expected %q in output", want)
 		}
+	}
+}
+
+func TestCoverageValidationTemplateSampleData(t *testing.T) {
+	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
+	templatePath := filepath.Join(templatesDir, "PROMPT_coverage_validation.md")
+	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
+		t.Fatalf("skipping: real template not found at %s", templatePath)
+	}
+
+	r := &Renderer{templatesDir: templatesDir}
+	ctx := &CoverageValidationContext{
+		TestCode:        "func TestSampleCoverage(t *testing.T) {}",
+		CriterionNumber: 5,
+		CriterionText:   "Ensures sample coverage behavior",
+	}
+
+	result, err := r.RenderCoverageValidation(ctx)
+	if err != nil {
+		t.Fatalf("RenderCoverageValidation() error = %v", err)
+	}
+
+	if !strings.Contains(result, "## Sample Coverage Data") {
+		t.Fatalf("expected sample coverage section in output:\n%s", result)
+	}
+
+	if !strings.Contains(result, fmt.Sprintf("Criterion #%d", ctx.CriterionNumber)) {
+		t.Fatalf("expected criterion number %d in sample section", ctx.CriterionNumber)
+	}
+
+	if !strings.Contains(result, ctx.TestCode) {
+		t.Fatalf("expected test code in sample section")
 	}
 }
 
