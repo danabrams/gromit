@@ -202,6 +202,48 @@ func TestHandleStallTimeout_OnlyOneNoToolRetry(t *testing.T) {
 	}
 }
 
+func TestHandleStallTimeout_FirstTimeoutDecomposesBeforeEscalation(t *testing.T) {
+	cfg := newTestConfig()
+	decomposeCalled := false
+	createSubCalled := false
+	h := NewHandler(
+		cfg,
+		&mockFailureAnalyzer{},
+		&mockBeadClient{},
+		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+			decomposeCalled = true
+			return []runtypes.SubTask{{Title: "split"}}, nil
+		},
+		func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error {
+			createSubCalled = true
+			return nil
+		},
+		nil,
+		nil,
+	)
+
+	bc := newTestBeadContext()
+	bc.ParentCtx = context.Background()
+	bc.Result.ToolCallCount = 1
+	bc.RetriesThisModel = bc.MaxRetries + 1
+
+	if h.HandleStallTimeout(context.Background(), bc) {
+		t.Fatal("expected first timeout to stop for decomposition before escalation")
+	}
+	if !decomposeCalled {
+		t.Fatal("expected decomposition to run on first timeout")
+	}
+	if !createSubCalled {
+		t.Fatal("expected create sub-beads to be invoked after decomposition")
+	}
+	if bc.Result.Escalated {
+		t.Fatal("did not expect escalation before decomposition on first timeout")
+	}
+	if bc.TimeoutEscalationsThisBead != 0 {
+		t.Fatalf("expected no timeout escalation count after decomposition, got %d", bc.TimeoutEscalationsThisBead)
+	}
+}
+
 func TestHandleInvocationTimeout_WithoutDecomposerReturnsError(t *testing.T) {
 	cfg := newTestConfig()
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
