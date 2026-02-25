@@ -8,32 +8,16 @@
 
 Provider fixture governance should be schema-first and deterministic: canonical real-probe fixtures with provenance metadata, explicit required artifacts, and structured assertions (never prose-token checks).
 
-### 2026-02-25 | repo_hygiene_policy_enforced_local_and_ci_with_gitlink_guards | PROCESS
-*Related to: gromit/review-1771986309252130811, gromit/review-1771906824758942325*
-*Consolidated from: beads_policy_checks_need_ci_enforcement + gitlink_entries_should_be_blocked_for_ephemeral_worktree_paths + repo_hygiene_guards_should_run_in_local_and_ci_paths*
+### 2026-02-25 | repo_boundary_governance_local_ci_and_runtime_artifacts | PROCESS
+*Related to: gromit/review-1771986309252130811, gromit/review-1771906824758942325, gromit/review-1771933220448456983, gromit/review-1771936368864075181*
+*Consolidated from: repo_hygiene_policy_enforced_local_and_ci_with_gitlink_guards + runtime_artifacts_outside_versioned_paths_canonical_fixtures_only*
 
-Repository hygiene/policy checks must be enforced in both local hooks and CI, with explicit guards for high-risk git states (for example gitlinks in ephemeral worktree paths).
-
-### 2026-02-25 | runtime_artifacts_outside_versioned_paths_canonical_fixtures_only | ARCHITECTURE
-*Related to: gromit/review-1771933220448456983, gromit/review-1771936368864075181*
-*Consolidated from: runtime_artifacts_and_fixture_validation_need_explicit_repo_boundaries + runtime_state_and_timestamped_report_artifacts_must_be_blocked_from_commits + provider_fixture_storage_requires_single_canonical_location*
-
-Runtime/state artifacts and raw captures must remain outside versioned source paths; only deterministic curated fixtures in canonical directories should be committed.
-
-### 2026-02-25 | cli_call_filters_should_match_command_token_not_string_prefix | TEST_QUALITY
-*Related to: gromit/review-1772019888577324268*
-
-Call-log assertions should match the first argv token (for example `codex`) after trim, not raw string prefixes, to avoid false positives like `codex-helper`.
+Repository boundary governance should be enforced as one policy: local+CI guards must block gitlinks/ephemeral runtime artifacts, and only deterministic curated fixtures are allowed in versioned paths.
 
 ### 2026-02-25 | end_to_end_tests_must_assert_cli_surface_not_only_internal_calls | TEST_QUALITY
 *Related to: gromit-lqqvs*
 
 Tests named end-to-end should execute the CLI path and assert user-visible behavior (output/exit code/artifacts); parser- or model-state-only checks belong in focused unit tests.
-
-### 2026-02-25 | shared_test_helpers_should_not_export_mutable_global_maps | RELIABILITY
-*Related to: gromit-ay3oy, gromit-jm77m*
-
-Shared helper packages should avoid exposing mutable global maps because external mutation creates hidden coupling and order-dependent test behavior; prefer immutable internals with copy/accessor APIs.
 
 ### 2026-02-24 | worktree_mergeback_conflict_ownership_and_classification | ARCHITECTURE
 *Related to: gromit-9948, gromit-9949, gromit-y7flm, gromit-z9z2k, gromit/review-1771861273153074810, gromit/review-1771878486437709843*
@@ -41,10 +25,11 @@ Shared helper packages should avoid exposing mutable global maps because externa
 
 Session worktree + MergeBack must use one cleanup owner and typed conflict/failure classification based on git output and exit status, with defensive abort only for merge state created in the current operation. Classification combines git output signals and exit codes so true merge conflicts route to conflict handoff while non-conflict git failures follow cleanup + explicit error handling. Prefer explicit conflict probes over message-fragment matching for contention retry.
 
-### 2026-02-24 | token_efficiency_telemetry_requires_single_runtime_wiring_path | ARCHITECTURE
-*Related to: gromit/review-1771929519774405451*
+### 2026-02-25 | runtime_path_parity_for_observability | ARCHITECTURE
+*Related to: gromit/review-1771929519774405451, gromit/review-1771938913730053167, gromit/review-1771893007120033611*
+*Consolidated from: token_efficiency_telemetry_requires_single_runtime_wiring_path + time_injection_only_helps_when_runtime_paths_consume_the_injected_clock + harness_requires_real_worktree_execution_and_log_wiring*
 
-Adding telemetry fields to runtypes/logger schemas is not sufficient by itself; production invocation/stage outputs must carry those values through to orchestrator iteration-log writes or observability will silently drift.
+Runtime path parity is mandatory for observability: injected clocks/harnesses/telemetry fields only matter if production execution paths consume them end-to-end, with log wiring validated by acceptance/contract tests.
 
 ### 2026-02-24 | token_efficiency_routing_needs_strict_category_and_tier_validation | RELIABILITY
 *Related to: gromit/review-1771929519774405451*
@@ -61,17 +46,7 @@ When issue-ledger normalization (ordering/canonical encoding) and semantic issue
 
 Cohort validation paths that call external lookups must treat a nil object as invalid input and return a typed error before dereferencing fields, preventing panic-class failures from malformed integration responses.
 
-### 2026-02-24 | time_injection_only_helps_when_runtime_paths_consume_the_injected_clock | TEST_QUALITY
-*Related to: gromit/review-1771938913730053167*
-
-Deterministic clock injection should be wired through runtime code paths (not just declared for tests); otherwise tests can configure a fake clock that production paths ignore, creating false confidence.
-
 ## Provisional Learnings
-
-### 2026-02-24 | harness_requires_real_worktree_execution_and_log_wiring | RELIABILITY
-*Related to: gromit/review-1771893007120033611*
-
-Harness abstractions alone are insufficient; acceptance requires real worktree execution plus log wiring so metrics/reporting reflect actual runs.
 
 ## Archived Learnings
 *Moved to LEARNINGS_ARCHIVE.md to reduce prompt context overhead.*

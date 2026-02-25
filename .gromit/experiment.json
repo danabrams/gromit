@@ -9,7 +9,7 @@
   "started_at": "2026-02-24T00:00:00Z",
   "act_decision": "extend",
   "act_date": "2026-02-25T00:00:00Z",
-  "study_summary": "Fail-closed behavior worked as intended (`insufficient_current_run_data`, deltas rendered `N/A`), meeting the anti-misreporting objective. However, speed-to-fix did not improve yet: current-run rows remain empty. Process trend still shows sustained efficiency stress (Nelson Rule 2 shifts on cost/duration/input tokens; latest rolling success 80.0%).",
+  "study_summary": "Hypothesis partially held: anti-misreporting objective succeeded (`insufficient_current_run_data`, deltas `N/A`), but speed-to-fix has not improved because current-run rows remain empty. Process trend still shows sustained stress (Nelson Rule 2 shifts on cost metrics) and stratified out-of-control unknown-attribution signals. Extending to evaluate objective (b) once gromit-qs2ks upstream fix lands.",
   "baseline_metrics": {
     "avg_cost_per_bead": 0.0,
     "avg_duration_ms": 0,

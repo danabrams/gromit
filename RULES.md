@@ -26,20 +26,30 @@ If a bead touches usage accounting, provider stream-event handling, or retro eff
 
 **Enforcement:** Bead scope tagging; CI gate on telemetry-tagged beads requiring contract suite pass.
 
+### Beads touching stream events must add event-matrix contract tests
+Any bead touching provider stream usage/event handling must add a stream-event matrix contract test (turn/response/result paths) and verify post-run completeness assertions still fail/pass in the expected scenarios.
+
+**Enforcement:** Bead scope tagging for stream-event paths; CI gate requiring matrix contract test pass before merge.
+
 ### Ephemeral session worktree paths must remain untracked via repo ignore plus gitlink mode guard
 Ephemeral `.-gromit-*` worktree paths must stay untracked in version control. Repository-level ignore plus explicit gitlink guard (mode `160000` fails fast before commit/CI) prevents accidental repo integrity corruption.
 
 **Enforcement:** Local pre-commit hooks and CI entry targets; audit gitlink entries in hook output.
+
+### Bead failure decomposition must be enforced by preflight
+On bead failure: after 2 consecutive cross-run failures, preflight must verify decomposition children exist and parent is blocked before any retry is allowed. Missing child-bead links is a hard error (not warning), with idempotent child creation and explicit `discovered-from` linkage required.
+
+**Enforcement:** Preflight gate on bead retry; auditable decomposition-attempt event; block parent retries until child lands.
 
 ### On timeout risk, trigger decomposition earlier for high-risk scope
 Apply timeout-first decomposition at >=60% elapsed budget when complexity signals are high (broad title signals, multi-type scope, or prior retry), and forbid same-scope retry before decomposition or explicit escalation is recorded. This reduces timeout/rework loops by preventing late-stage surprises.
 
 **Enforcement:** Orchestrator/runner validates elapsed budget and complexity signals before allowing same-scope retry; telemetry gates on escalation recording.
 
-### Usage accounting must use explicit snapshots and fail-closed on missing data
-Usage accounting must use explicit before/after snapshots for every phase (red/green/refactor/validate) and a single merge strategy for provider stream events. Mixing raw totals and deltas in one run is forbidden. If completeness checks fail (missing rows/snapshots with iterations present), mark the run `data_quality_blocked`, auto-create/link a blocking bead, and block keep/revert experiment decisions until one complete current-run dataset is recorded. Output must remain fail-closed (`insufficient_current_run_data`, deltas `N/A`). Additionally, any non-empty run with `model=unknown` or `provider=unknown` usage attribution is a data-quality failure that auto-creates/links a blocking bead and blocks experiment keep/revert decisions until resolved.
+### Usage accounting must use explicit snapshots and one canonical merge strategy
+Usage accounting must use explicit before/after snapshots for every phase and one canonical merge strategy for provider stream events. Treat any non-empty run with `model=unknown` or `provider=unknown` attribution as a data-quality failure: auto-create/link a blocking bead and block keep/revert experiment decisions until one complete current-run dataset with known attribution is recorded. Output must remain fail-closed (`insufficient_current_run_data`, deltas `N/A`).
 
-**Enforcement:** Runtime telemetry validator; experiment decision gate; experiment.json schema validator on keep/revert/extend; unknown-attribution detector in post-run validation.
+**Enforcement:** Runtime telemetry validator; experiment decision gate; unknown-attribution detector in post-run validation; experiment.json schema validator on keep/revert/extend.
 
 ## Reliability
 
@@ -64,6 +74,16 @@ Machine-local runtime state (`.dolt/`, `.doltcfg/`, `beads_gromit/`, lock files,
 Tool-call log parsing in tests must use shared helpers (for example `test/toolcalls`) rather than suite-local parsers to prevent cross-suite behavior drift on whitespace handling and command matching.
 
 **Enforcement:** Code review on test helper changes; grep for duplicated call-log parsing outside shared helpers.
+
+### Shared helper APIs must not expose mutable global maps or slices
+Shared helper packages (especially test helpers) must not expose mutable global maps/slices. Keep mutable sources unexported and provide copy/accessor functions. This prevents order-dependent tests and hidden cross-suite coupling.
+
+**Enforcement:** Code review on helper API changes; grep for exported `var` maps/slices in shared packages.
+
+### End-to-end tests must execute CLI path and assert user-visible behavior
+Acceptance tests must verify behavior through public API/CLI surfaces, not private helpers. Tests named `end_to_end` must execute the CLI command path and assert exit code + user-visible output/artifacts; parser- or model-state-only checks belong in focused unit tests.
+
+**Enforcement:** Code review on test naming; CI lint for tests named `end_to_end` that don't invoke CLI.
 
 ### Fixture tests should assert schema and records, not prose tokens
 Use structured fixture assertions (parse JSON/JSONL and ledger rows) instead of broad markdown/log token matching. Real-provider probe fixtures are canonical and should drive parser/schema updates rather than forcing fixtures back to stale assumptions.

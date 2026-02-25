@@ -39,6 +39,13 @@ Use structured fixture assertions (parse JSON/JSONL and ledger rows) instead of 
 
 *Archived: already codified in current rules (schema/records over prose-token assertions); keep rules as source of truth.*
 
+### 2026-02-25 | cli_call_filters_should_match_command_token_not_string_prefix | TEST_QUALITY
+*Related to: gromit/review-1772019888577324268*
+
+Call-log assertions should match the first argv token (for example `codex`) after trim, not raw string prefixes, to avoid false positives like `codex-helper`.
+
+*Archived: narrow implementation detail now subsumed by broader shared tool-call parsing rule; low incremental guidance value.*
+
 ## Promoted to Rules
 
 ### 2026-02-24 | benchmark_execution_and_reporting_require_single_source_truth_and_owner | ARCHITECTURE
@@ -55,3 +62,17 @@ Benchmark execution and reporting must have single source-of-truth ownership to 
 Tool-call log parsing should live in one shared helper (`test/toolcalls`) and be reused by contract/e2e wrappers; duplicated per-suite parsing quickly drifts on whitespace handling and command matching.
 
 *Promoted to Process rule: concrete repeated testing drift mode with high regression risk once suites fork helper logic.*
+
+### 2026-02-25 | shared_test_helpers_should_not_export_mutable_global_maps | RELIABILITY
+*Related to: gromit-ay3oy, gromit-jm77m*
+
+Shared helper packages should avoid exposing mutable global maps because external mutation creates hidden coupling and order-dependent test behavior; prefer immutable internals with copy/accessor APIs.
+
+*Promoted to Test Quality rule: prevents order-dependent tests and hidden cross-suite coupling.*
+
+### 2026-02-25 | stream_event_matrix_contract_test_required | PROCESS
+*Related to: runtime_path_parity_for_observability*
+
+Any bead touching provider stream usage/event handling must add a stream-event matrix contract test and verify post-run completeness assertions.
+
+*Promoted to Process rule: directly targets repeated telemetry-attribution regressions and stuck-bead recurrence.*
