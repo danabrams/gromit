@@ -101,6 +101,10 @@ type IterationLog struct {
 	UncoveredCriteria  []string `json:"uncovered_criteria,omitempty"`
 	// Prompt diagnostics for token attribution and shaping decisions.
 	PromptDiagnostics *prompt.PromptDiagnostics `json:"prompt_diagnostics,omitempty"`
+
+	// Experiment tracking fields
+	ExperimentID string `json:"experiment_id,omitempty"`
+	VariantID    string `json:"variant_id,omitempty"`
 }
 
 // ReviewLog represents a review's outcome (light or thorough)
