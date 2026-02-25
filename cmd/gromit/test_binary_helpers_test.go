@@ -66,6 +66,19 @@ func TestRunGromitCobra_HelpOutputsUsage(t *testing.T) {
 	}
 }
 
+func TestRunCommandHelpIncludesGracefulStopHint(t *testing.T) {
+	stdout, stderr, exitCode := runGromitCobra(t, "run", "--help")
+
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d (stderr: %s)", exitCode, stderr)
+	}
+
+	const hint = "Press Ctrl+C once to stop after the current iteration"
+	if !strings.Contains(stdout, hint) {
+		t.Fatalf("expected run help hint %q, got: %s", hint, stdout)
+	}
+}
+
 func TestRunGromitCobra_ResetsHelpFlag(t *testing.T) {
 	_, _, _ = runGromitCobra(t, "--help")
 
