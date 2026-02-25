@@ -20,6 +20,10 @@ const (
 	spcMetricRollingAvgDurationMs = "rolling_avg_duration_ms"
 	spcMetricFirstPassSuccessRate = "rolling_first_pass_success_rate"
 	spcMetricRollingAvgCostUSD    = "rolling_avg_cost_usd"
+	spcMetricEWMASuccessRate      = "ewma_success_rate"
+	spcMetricEWMACostUSD          = "ewma_cost_usd"
+	spcMetricEWMADurationMs       = "ewma_duration_ms"
+	spcMetricEWMAInputTokens      = "ewma_input_tokens"
 )
 
 // formatDuration formats a duration as a human-readable string.
@@ -325,6 +329,10 @@ func formatSPCSummary(trend *logger.ProcessTrend) string {
 		lines = append(lines, providerLines...)
 	}
 
+	if ewmaLines := formatSPCEWMAValues(trend.EWMAAnomalies); len(ewmaLines) > 0 {
+		lines = append(lines, ewmaLines...)
+	}
+
 	// Anomaly summary.
 	if len(trend.Anomalies) == 0 {
 		lines = append(lines, "  Anomaly:  none")
@@ -376,6 +384,45 @@ func formatSPCProviderMetrics(metrics []logger.ProviderMetrics) []string {
 	return lines
 }
 
+func formatSPCEWMAValues(anomalies []logger.TrendAnomaly) []string {
+	if len(anomalies) == 0 {
+		return nil
+	}
+
+	sorted := make([]logger.TrendAnomaly, len(anomalies))
+	copy(sorted, anomalies)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Metric < sorted[j].Metric
+	})
+
+	lines := []string{"  EWMA values:"}
+	for _, anomaly := range sorted {
+		lines = append(lines, fmt.Sprintf("    %s: %s, limits %s..%s",
+			simplifySPCMetric(anomaly.Metric),
+			formatSPCEWMAValue(anomaly.Metric, anomaly.Latest),
+			formatSPCEWMAValue(anomaly.Metric, anomaly.LCL),
+			formatSPCEWMAValue(anomaly.Metric, anomaly.UCL),
+		))
+	}
+
+	return lines
+}
+
+func formatSPCEWMAValue(metric string, value float64) string {
+	switch metric {
+	case spcMetricEWMASuccessRate:
+		return formatSPCValue(value, true)
+	case spcMetricEWMADurationMs:
+		return formatSPCValue(value, false)
+	case spcMetricEWMACostUSD:
+		return fmt.Sprintf("$%.2f", value)
+	case spcMetricEWMAInputTokens:
+		return fmt.Sprintf("%d tokens", int(math.Round(value)))
+	default:
+		return fmt.Sprintf("%.2f", value)
+	}
+}
+
 // formatSPCValue formats a single SPC metric value for display.
 // When asPercent is true, v is treated as a ratio (0.0–1.0) and formatted as a percentage.
 // When asPercent is false, v is treated as milliseconds and formatted as a duration.
@@ -416,6 +463,14 @@ func simplifySPCMetric(metric string) string {
 		return "duration"
 	case spcMetricRollingAvgCostUSD:
 		return "cost"
+	case spcMetricEWMASuccessRate:
+		return "EWMA success rate"
+	case spcMetricEWMACostUSD:
+		return "EWMA cost"
+	case spcMetricEWMADurationMs:
+		return "EWMA duration"
+	case spcMetricEWMAInputTokens:
+		return "EWMA input tokens"
 	default:
 		return metric
 	}

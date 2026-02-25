@@ -550,8 +550,7 @@ func TestFormatSPCSummary_IncludesEWMAValues(t *testing.T) {
 		"EWMA success rate",
 		"70%",
 		"limits 50%..90%",
-		"EWMA duration",
-		"1m 10s",
+		"EWMA duration: 1m",
 		"limits 1m..2m",
 	} {
 		if !strings.Contains(got, substr) {
@@ -647,6 +646,10 @@ func TestSimplifySPCMetric(t *testing.T) {
 		{"quality score", spcMetricRollingQualityScore, "quality"},
 		{"avg duration", spcMetricRollingAvgDurationMs, "duration"},
 		{"avg cost", spcMetricRollingAvgCostUSD, "cost"},
+		{"ewma success rate", spcMetricEWMASuccessRate, "EWMA success rate"},
+		{"ewma duration", spcMetricEWMADurationMs, "EWMA duration"},
+		{"ewma cost", spcMetricEWMACostUSD, "EWMA cost"},
+		{"ewma input tokens", spcMetricEWMAInputTokens, "EWMA input tokens"},
 		{"unknown metric returns as-is", "some_custom_metric", "some_custom_metric"},
 	}
 
