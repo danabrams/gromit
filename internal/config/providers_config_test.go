@@ -196,6 +196,22 @@ func TestNormalizeNilFieldsInitializesProvidersAndRouting(t *testing.T) {
 	}
 }
 
+func TestNormalizeNilFieldsInitializesProviderModelCosts(t *testing.T) {
+	cfg := &Config{
+		Providers: map[string]ProviderDef{
+			"test": {Binary: "test"},
+		},
+	}
+	cfg.NormalizeNilFields()
+
+	if cfg.Providers["test"].ModelCosts == nil {
+		t.Fatal("ModelCosts is nil after NormalizeNilFields, want empty map")
+	}
+	if len(cfg.Providers["test"].ModelCosts) != 0 {
+		t.Fatalf("len(ModelCosts) = %d, want 0", len(cfg.Providers["test"].ModelCosts))
+	}
+}
+
 func TestNormalizeNilFieldsInitializesNilProvidersMap(t *testing.T) {
 	cfg := &Config{}
 	cfg.NormalizeNilFields()
