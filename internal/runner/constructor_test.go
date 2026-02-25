@@ -1758,3 +1758,52 @@ func TestDecomposerAdapter_Decompose_DetectsPartialDecompositionState(t *testing
 		t.Fatalf("Decompose returned %v, want ErrPartialDecompositionState", err)
 	}
 }
+
+// TestDecomposerAdapter_Decompose_FirstChildFailureReturnsOriginalError verifies that
+// when the first child bead creation fails, decomposerAdapter.Decompose returns the
+// original error (not ErrPartialDecompositionState), since no partial state has been created yet.
+func TestDecomposerAdapter_Decompose_FirstChildFailureReturnsOriginalError(t *testing.T) {
+	stub := &stubRunProvider{
+		name: "test-provider",
+		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
+			return &provider.Result{
+				Success: true,
+				Output:  `[{"title":"Part 1","expected_outputs":["f1"]},{"title":"Part 2","expected_outputs":["f2"]}]`,
+			}, nil
+		},
+	}
+	router := provider.NewSingleProviderRouter(stub)
+	client, err := bead.NewClient()
+	if err != nil {
+		t.Fatalf("bead.NewClient: %v", err)
+	}
+
+	client.RunFn = func(args ...string) (string, error) {
+		if len(args) == 0 {
+			return "", nil
+		}
+		switch args[0] {
+		case "create":
+			// Fail on the first child
+			return "", os.ErrPermission
+		}
+		return "", nil
+	}
+
+	adapter := &decomposerAdapter{beads: client, router: router}
+	parent := &bead.Bead{
+		ID:       "parent-1",
+		Title:    "Oversized Feature",
+		Priority: 1,
+	}
+
+	err = adapter.Decompose(context.Background(), parent)
+	if err == nil {
+		t.Fatal("Decompose returned nil, want error for first child failure")
+	}
+
+	// Should NOT be ErrPartialDecompositionState since no child was created
+	if errors.Is(err, escalation.ErrPartialDecompositionState) {
+		t.Fatalf("Decompose returned ErrPartialDecompositionState, want original error")
+	}
+}
