@@ -47,3 +47,32 @@ func TestNewManagerConstructsManagerWithExperiments(t *testing.T) {
 		t.Fatalf("Expected stateDir to be '/test/state', got %q", mgr.stateDir)
 	}
 }
+
+func TestExperimentForPhaseReturnsExperimentOrNil(t *testing.T) {
+	// Test that ExperimentForPhase returns the correct experiment or nil
+	exp1 := &Experiment{
+		ID:    "exp-1",
+		Phase: "build",
+	}
+	exp2 := &Experiment{
+		ID:    "exp-2",
+		Phase: "validate",
+	}
+
+	mgr := NewManager([]*Experiment{exp1, exp2}, "/test/state")
+
+	// Test getting an experiment that exists
+	buildExp := mgr.ExperimentForPhase("build")
+	if buildExp == nil {
+		t.Fatalf("Expected to find experiment for 'build' phase")
+	}
+	if buildExp.ID != "exp-1" {
+		t.Fatalf("Expected exp-1 for 'build' phase, got %q", buildExp.ID)
+	}
+
+	// Test getting an experiment for a phase with no experiment
+	refactorExp := mgr.ExperimentForPhase("refactor")
+	if refactorExp != nil {
+		t.Fatalf("Expected nil for 'refactor' phase with no experiment")
+	}
+}
