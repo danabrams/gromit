@@ -66,3 +66,28 @@ variants:
 		t.Fatalf("expected one variant, got %d", len(exp.Variants))
 	}
 }
+
+func TestLoadExperimentsRejectsInvalidPhase(t *testing.T) {
+	dir := t.TempDir()
+	expPath := filepath.Join(dir, "exp.yaml")
+	expYAML := `id: exp-2
+phase: broken
+description: bad phase
+created: 2026-02-24T00:00:00Z
+control:
+  id: control
+  template: PROMPT_build.md
+variants:
+  - id: variant-1
+    template: PROMPT_build.md
+`
+
+	if err := os.WriteFile(expPath, []byte(expYAML), 0o644); err != nil {
+		t.Fatalf("failed to write experiment file: %v", err)
+	}
+
+	_, err := LoadExperiments(dir)
+	if err == nil {
+		t.Fatal("expected error for invalid phase, got nil")
+	}
+}
