@@ -781,3 +781,6 @@ func (a *failureLearnerAdapter) ExtractFailureLearning(ctx context.Context, bead
 	}
 	return nil
 }
+
+// Compile-time interface checks
+var _ execution.Router = (*executionRouterAdapter)(nil)
