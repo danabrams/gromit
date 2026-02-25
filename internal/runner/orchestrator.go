@@ -303,9 +303,7 @@ runLoop:
 		}
 		epilogueOut := o.runEpilogue(ctx, baseIn, true)
 		o.logf("Iteration %d: bead %s completed successfully", iteration, b.ID)
-		if len(epilogueOut.TouchedPackages) > 0 {
-			touchedPackages = epilogueOut.TouchedPackages
-		}
+		touchedPackages = mergeTouchedPackages(touchedPackages, epilogueOut.TouchedPackages)
 	}
 
 	o.logf("Gromit loop complete. Processed %d iterations.", iteration)
@@ -415,6 +413,38 @@ func (o *Orchestrator) runEpilogue(ctx context.Context, in pipeline.Input, build
 		o.logf("Warning: epilogue error for bead %s (iteration %d): %v", in.Bead.ID, in.Iteration, err)
 	}
 	return out
+}
+
+func mergeTouchedPackages(existing, incoming []string) []string {
+	if len(existing) == 0 && len(incoming) == 0 {
+		return nil
+	}
+	combined := append([]string(nil), existing...)
+	combined = append(combined, incoming...)
+	return normalizeTouchedPackages(combined)
+}
+
+func normalizeTouchedPackages(touchedPackages []string) []string {
+	uniqueTouched := make([]string, 0, len(touchedPackages))
+	seen := make(map[string]struct{}, len(touchedPackages))
+
+	for _, pkg := range touchedPackages {
+		trimmed := strings.TrimSpace(pkg)
+		normalized := strings.Trim(strings.TrimPrefix(trimmed, "./"), "/")
+		if trimmed == "." || normalized == "." {
+			normalized = "."
+		}
+		if normalized == "" {
+			continue
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		uniqueTouched = append(uniqueTouched, normalized)
+	}
+
+	return uniqueTouched
 }
 
 // mergeGlobalStats reads the existing global stats file and merges the current
