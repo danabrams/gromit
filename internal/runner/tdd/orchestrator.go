@@ -291,6 +291,9 @@ func (o *CycleOrchestrator) runGreenPhaseUntilValidated(
 
 	for {
 		// VALIDATE GREEN: expect tests to pass
+		if o.validateFn == nil {
+			return fmt.Errorf("validateFn is not configured")
+		}
 		validationOutput, passed, err := o.validateFn(ctx, nil, "")
 		if err != nil {
 			return fmt.Errorf("green validation: %w", err)

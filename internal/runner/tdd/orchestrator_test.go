@@ -1612,3 +1612,22 @@ func TestRunCycles_ReturnsErrorWhenValidateFnNilAtRedPhase(t *testing.T) {
 		t.Fatalf("expected error when validateFn is nil, got nil")
 	}
 }
+
+func TestRunGreenPhaseUntilValidated_ReturnsErrorWhenValidateFnNil(t *testing.T) {
+	orch := newTestOrchestrator()
+
+	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
+		return nil
+	}
+	// validateFn is intentionally left nil to trigger the error
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{},
+		Tier:   "medium",
+	}
+
+	err := orch.runGreenPhaseUntilValidated(context.Background(), bc, 1, "green-prompt", []string{})
+	if err == nil {
+		t.Fatalf("expected error when validateFn is nil in green phase, got nil")
+	}
+}
