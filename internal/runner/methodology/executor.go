@@ -258,9 +258,6 @@ func (e *Executor) VerifyAcceptanceTestsPass(ctx context.Context, bc *runtypes.B
 	if err != nil {
 		return fmt.Errorf("acceptance validation invocation: %w", err)
 	}
-	if valResult == nil {
-		return fmt.Errorf("acceptance validation returned no result")
-	}
 
 	if !claude.IsValidationPassed(valResult) {
 		e.log("Acceptance tests failed after implementation")
