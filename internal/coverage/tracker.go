@@ -5,6 +5,17 @@ import (
 	"strings"
 )
 
+// State represents the lifecycle state of the coverage tracker.
+type State int
+
+const (
+	StatePending State = iota
+	StateCollecting
+	StateValidating
+	StateComplete
+	StateError
+)
+
 // Status represents the coverage state of a single criterion.
 type Status int
 
@@ -23,6 +34,7 @@ type CriterionState struct {
 
 // CoverageTracker manages a checklist of criteria states.
 type CoverageTracker struct {
+	state         State
 	criteria      []CriterionState
 	maxRejections int
 }
@@ -33,7 +45,12 @@ func NewTracker(criteria []Criterion, maxRejections int) *CoverageTracker {
 	for i, c := range criteria {
 		states[i] = CriterionState{Criterion: c, Status: Unchecked}
 	}
-	return &CoverageTracker{criteria: states, maxRejections: maxRejections}
+	return &CoverageTracker{state: StatePending, criteria: states, maxRejections: maxRejections}
+}
+
+// State returns the current lifecycle state of the tracker.
+func (t *CoverageTracker) State() State {
+	return t.state
 }
 
 // RecordRejection increments rejection count; transitions to Untestable at threshold.
