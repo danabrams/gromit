@@ -164,6 +164,11 @@ func determineRefineInput(cmd *cobra.Command, args []string, gromitDir string) (
 	return &pipeline.RefineInput{IdeaText: arg, AgentName: agentFlag, ChooseAgent: chooseAgent}, nil
 }
 
+func parseRefineChooseAgentFlag(cmd *cobra.Command) bool {
+	chooseAgent, _ := cmd.Flags().GetBool("choose-agent")
+	return chooseAgent
+}
+
 func showRefinePicker(unrefined []*backlog.Idea, reader io.Reader) int {
 	newIdeaIndex := len(unrefined)
 	maxChoice := newIdeaIndex + 1
