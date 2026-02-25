@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -293,5 +295,44 @@ func TestRunExploreInSession_WorktreeDisabledSkipsSessionLauncher(t *testing.T) 
 	}
 	if launcherCalled {
 		t.Fatal("session launcher should not be called when worktree is disabled")
+	}
+}
+
+func TestHandleExploreOutput_RendersCreatedArtifacts(t *testing.T) {
+	result := &pipeline.ExploreResult{
+		CreatedEpics:        []string{"epic1.md", "epic2.md"},
+		CreatedSpecs:        []string{"spec1.md"},
+		CreatedBacklogItems: []string{"id1", "id2", "id3"},
+	}
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	handleExploreOutput(result)
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	// Read captured output
+	data, _ := io.ReadAll(r)
+	output := string(data)
+
+	// Verify output contains expected content
+	if !strings.Contains(output, "Epics created") {
+		t.Fatalf("output missing 'Epics created', got: %q", output)
+	}
+	if !strings.Contains(output, "epic1.md") {
+		t.Fatalf("output missing 'epic1.md', got: %q", output)
+	}
+	if !strings.Contains(output, "Specs created") {
+		t.Fatalf("output missing 'Specs created', got: %q", output)
+	}
+	if !strings.Contains(output, "spec1.md") {
+		t.Fatalf("output missing 'spec1.md', got: %q", output)
+	}
+	if !strings.Contains(output, "Backlog items created: 3") {
+		t.Fatalf("output missing 'Backlog items created: 3', got: %q", output)
 	}
 }

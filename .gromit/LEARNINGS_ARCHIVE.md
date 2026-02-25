@@ -1629,3 +1629,8 @@ When implementing JSONL stream readers, examine test fixtures to understand the 
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-25 | gromit-scrae.1 | patterns
+When adding nil-checks to callback functions executed in loops, verify the control flow continues properly and doesn't create indefinite waits or blocking calls when the function is nil
+
+*Archived from new: filtered: generic engineering advice*
+

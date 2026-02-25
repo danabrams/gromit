@@ -242,3 +242,27 @@ Use package-level `var _ Interface = (*Impl)(nil)` declarations in non-test `.go
 When implementing JSONL stream readers, examine test fixtures to understand the event structure and which fields contain the data to extract. For accumulating results, check if events signal completion (like 'done' messages) and how to properly concatenate streamed text chunks.
 
 *Archived from new: filtered: generic engineering advice*
+### 2026-02-25 | gromit-scrae.3 | patterns
+When implementing nil-checks for function pointers that might be called in retry/escalation loops, ensure the check doesn't block indefinitely or create recursive calls without proper termination conditions
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-25 | gromit-scrae.3 | patterns
+When adding guard checks at multiple call sites, verify they don't create unexpected control flow issues (infinite loops, excessive recursion) or performance degradation; consider profiling or adding early returns at entry points rather than nested checks throughout the codebase
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-25 | gromit-scrae.3 | patterns
+When implementing guard helpers for callback validation, carefully verify the implementation doesn't introduce infinite loops or blocking patterns; test the nil-case specifically to ensure it fails or returns cleanly rather than hanging
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-25 | gromit-scrae.3 | conventions
+When fixing 'at all call sites' issues, systematically search with grep before implementing. Incomplete coverage of call sites can cause subtle failures (timeouts, hangs) that are harder to debug than immediate panics.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-25 | gromit-scrae.1 | patterns
+When adding nil-checks to callback functions executed in loops, verify the control flow continues properly and doesn't create indefinite waits or blocking calls when the function is nil
+
+*Archived from new: filtered: generic engineering advice*
