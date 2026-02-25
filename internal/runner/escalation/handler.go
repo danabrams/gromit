@@ -434,6 +434,16 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 			return false
 		}
 
+		// Check pre-execution scope gate on first attempt only
+		if bc.AttemptsThisBead == 0 {
+			if !h.CheckPreExecutionScopeGate(ctx, bc) {
+				if bc.Result != nil && bc.Result.FailurePhase == "" {
+					h.setBuildFailurePhase(bc)
+				}
+				return false
+			}
+		}
+
 		bc.AttemptsThisBead++
 
 		invResult, err := invokeFn(ctx, bc, bc.BuildPrompt)
