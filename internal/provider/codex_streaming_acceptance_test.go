@@ -14,6 +14,10 @@ import (
 	"time"
 )
 
+func TestCodexStreamingAcceptanceFakeBinaryAvailable(t *testing.T) {
+	_ = fakeCodexBinaryPath(t)
+}
+
 // TestCodexProviderStreamRunWithJSONFlag verifies that StreamRun() invokes
 // codex exec with --json flag when EventHandler is non-nil.
 func TestCodexProviderStreamRunWithJSONFlag(t *testing.T) {
