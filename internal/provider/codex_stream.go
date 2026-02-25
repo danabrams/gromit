@@ -263,13 +263,16 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 			}
 
 		case "turn.completed":
-			// Extract usage data.
-			if event.Usage != nil {
-				usage = mergeCodexUsage(usage, event.Usage)
-				// Prefer cost nested in usage, but accept top-level for compatibility.
-				if usage.TotalCostUSD == 0 && event.TotalCostUSD > 0 {
-					usage.TotalCostUSD = event.TotalCostUSD
-				}
+			// Extract usage data using same extraction logic as response.completed and result.
+			turnUsage := extractUsageFromTurnCompletedEvent(event)
+			if turnUsage != nil {
+				usage = mergeCodexUsage(usage, turnUsage)
+				emitStreamEvent(handler, map[string]interface{}{
+					"type":           "result",
+					"total_cost_usd": turnUsage.TotalCostUSD,
+					"input_tokens":   turnUsage.InputTokens,
+					"output_tokens":  turnUsage.OutputTokens,
+				})
 			}
 
 			// Capture error info from failed turns.
@@ -283,20 +286,6 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 					"type":    "error",
 					"subtype": event.ErrorInfo.Type,
 					"message": event.ErrorInfo.Message,
-				})
-			}
-
-			// Emit result event with token usage.
-			if event.Usage != nil {
-				totalCostUSD := event.TotalCostUSD
-				if totalCostUSD == 0 && event.Usage.TotalCostUSD > 0 {
-					totalCostUSD = event.Usage.TotalCostUSD
-				}
-				emitStreamEvent(handler, map[string]interface{}{
-					"type":           "result",
-					"total_cost_usd": totalCostUSD,
-					"input_tokens":   event.Usage.InputTokens,
-					"output_tokens":  event.Usage.OutputTokens,
 				})
 			}
 
@@ -384,6 +373,19 @@ func extractUsageFromResultEvent(event codexEvent) *codexUsage {
 		nestedInputTokens,
 		nestedOutputTokens,
 		nestedTotalCostUSD,
+	)
+}
+
+func extractUsageFromTurnCompletedEvent(event codexEvent) *codexUsage {
+	return extractUsageFromFields(
+		event.Usage,
+		event.InputTokens,
+		event.OutputTokens,
+		event.TotalCostUSD,
+		nil,
+		0,
+		0,
+		0,
 	)
 }
 
