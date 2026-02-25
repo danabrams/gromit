@@ -76,3 +76,30 @@ func SelectCostAwareModel(cfg *config.Config, b *bead.Bead, originalModel, provi
 
 	return originalModel
 }
+
+// SelectModelWithCostAwareness returns a concrete model name considering cost awareness for broad scopes.
+// For codex provider with broad scopes (> 5 files), prefers the cheaper gpt-5.2-codex.
+// Returns the concrete model name from the provider, or empty string if provider not found.
+func SelectModelWithCostAwareness(cfg *config.Config, b *bead.Bead, providerName string) string {
+	if cfg == nil || b == nil {
+		return ""
+	}
+
+	provider, ok := cfg.Providers[providerName]
+	if !ok {
+		return ""
+	}
+
+	fileCount := bead.EstimatedFileCount(b)
+
+	// For broad scope, prefer cheaper model if available
+	if fileCount > broadScopeFileThreshold && provider.ModelCosts != nil {
+		if _, hasCheaper := provider.ModelCosts[cheaperCodexModel]; hasCheaper {
+			return cheaperCodexModel
+		}
+	}
+
+	// Otherwise, fallback to default behavior (empty, will be filled by caller)
+	// This is just a routing hint that returns the concrete model name
+	return ""
+}

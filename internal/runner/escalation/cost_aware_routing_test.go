@@ -216,3 +216,43 @@ func TestSelectCostAwareModelReturnsOriginalWhenProviderUnavailable(t *testing.T
 		t.Errorf("SelectCostAwareModel() = %q, want %q when provider unavailable", selectedModel, "gpt-5.3-codex")
 	}
 }
+
+// TestSelectModelWithCostAwarenessPrefersCheaperForBroadScope verifies that
+// SelectModelWithCostAwareness integrates cost-aware model selection when provider is specified.
+// Expected failure: function does not exist yet
+func TestSelectModelWithCostAwarenessPrefersCheaperForBroadScope(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.ProviderDef{
+			"codex": {
+				ModelCosts: map[string]*config.ModelCost{
+					"gpt-5.3-codex": {
+						CostPer1kInput:  0.30,
+						CostPer1kOutput: 0.60,
+					},
+					"gpt-5.2-codex": {
+						CostPer1kInput:  0.05,
+						CostPer1kOutput: 0.10,
+					},
+				},
+			},
+		},
+		Models: config.ModelsConfig{
+			P0: "opus",
+			P1: "sonnet",
+			P2: "haiku",
+		},
+	}
+
+	b := &bead.Bead{
+		Title:    "broad bead",
+		Priority: 0, // P0 would normally route to opus, but should prefer cheaper for broad scope
+		// 6 files = broad scope (> 5)
+		ExpectedOutputs: []string{"f1.go", "f2.go", "f3.go", "f4.go", "f5.go", "f6.go"},
+	}
+
+	selectedModel := SelectModelWithCostAwareness(cfg, b, "codex")
+	// For broad scope with codex provider, should prefer cheaper model
+	if selectedModel == "" {
+		t.Errorf("SelectModelWithCostAwareness() = empty string, want non-empty model")
+	}
+}
