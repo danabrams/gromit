@@ -1161,6 +1161,30 @@ func TestStreamRunFailure(t *testing.T) {
 	}
 }
 
+func TestStreamRunTimeoutCompositionUsesClientLimit(t *testing.T) {
+	binary := blockingClaudeBinary(t)
+	client, err := NewClient(binary, nil, 1)
+	if err != nil {
+		t.Fatalf("NewClient() error: %v", err)
+	}
+
+	_, err = client.StreamRun(context.Background(), "prompt", "sonnet", io.Discard, nil, nil)
+
+	if err == nil {
+		t.Fatalf("StreamRun() should error when client timeout fires")
+	}
+
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("StreamRun() error should wrap context deadline: %v", err)
+	}
+
+	// Verify error message indicates timeout for proper classification
+	errMsg := err.Error()
+	if !strings.Contains(errMsg, "timed out") {
+		t.Errorf("StreamRun() error message should indicate timeout, got: %q", errMsg)
+	}
+}
+
 func TestRunValidationPromptStructure(t *testing.T) {
 	// Test that RunValidation builds the correct prompt structure
 	// We can't easily test the actual prompt without mocking, but we can
