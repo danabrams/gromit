@@ -82,6 +82,26 @@ func (f *fakePrechecker) Check(_ context.Context, _ *bead.Bead) (bool, error) {
 	return f.done, f.err
 }
 
+type mockStuckDetector struct {
+	stuck bool
+	err   error
+}
+
+func newMockStuckDetector() *mockStuckDetector {
+	return &mockStuckDetector{}
+}
+
+func (m *mockStuckDetector) WithIsStuck(stuck bool, err error) *mockStuckDetector {
+	m.stuck = stuck
+	m.err = err
+	return m
+}
+
+func (m *mockStuckDetector) IsStuck(_ context.Context, _ *bead.Bead) (bool, error) {
+	return m.stuck, m.err
+}
+
+// Deprecated: use newMockStuckDetector() instead
 type fakeStuckDetector struct {
 	stuck bool
 	err   error
