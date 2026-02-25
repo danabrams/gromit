@@ -54,14 +54,14 @@ func TestRunBenchmarkPipeline_ExecutesStagesInOrder(t *testing.T) {
 	origValidate := benchmarkValidateCohortFn
 	origHarness := benchmarkRunHarnessFn
 	origMetrics := benchmarkComputeMetricsFn
-	origReport := benchmarkWriteReportFn
+	origInternalWrite := benchmarkInternalWriteReportFn
 	t.Cleanup(func() {
 		benchmarkLoadManifestFn = origLoad
 		benchmarkSelectCohortFn = origSelect
 		benchmarkValidateCohortFn = origValidate
 		benchmarkRunHarnessFn = origHarness
 		benchmarkComputeMetricsFn = origMetrics
-		benchmarkWriteReportFn = origReport
+		benchmarkInternalWriteReportFn = origInternalWrite
 	})
 
 	opts := benchmarkRunOptions{ManifestPath: "manifest.yaml", BaseCommit: "abc123"}
@@ -102,15 +102,15 @@ func TestRunBenchmarkPipeline_ExecutesStagesInOrder(t *testing.T) {
 		}
 		return benchmarkMetricsResult{}, nil
 	}
-	benchmarkWriteReportFn = func(manifest benchmarkManifest, result benchmarkHarnessResult, metrics benchmarkMetricsResult, opts benchmarkRunOptions) error {
+	benchmarkInternalWriteReportFn = func(input benchpkg.ReportInput) (benchpkg.ReportPaths, error) {
 		order = append(order, "report")
-		if result.BaseCommit != "abc123" {
-			return fmt.Errorf("report base_commit = %q, want %q", result.BaseCommit, "abc123")
+		if input.Manifest.BaseCommit != "abc123" {
+			return benchpkg.ReportPaths{}, fmt.Errorf("report base_commit = %q, want %q", input.Manifest.BaseCommit, "abc123")
 		}
-		if strings.Join(result.SelectedBeads, ",") != "gromit-1,gromit-2" {
-			return fmt.Errorf("report selected_beads = %v", result.SelectedBeads)
+		if strings.Join(input.Manifest.Beads, ",") != "gromit-1,gromit-2" {
+			return benchpkg.ReportPaths{}, fmt.Errorf("report beads = %v, want %s", input.Manifest.Beads, "gromit-1,gromit-2")
 		}
-		return nil
+		return benchpkg.ReportPaths{}, nil
 	}
 
 	if err := runBenchmarkPipeline(opts); err != nil {
@@ -505,43 +505,43 @@ func renderInternalBenchmarkReport(t *testing.T, input benchpkg.ReportInput) ([]
 	return jsonBytes, mdBytes
 }
 
-func TestWriteBenchmarkReport_PreservesInternalReportMarkdownSections(t *testing.T) {
+func TestBenchmarkReportInput_PreservesInternalReportMarkdownSections(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
 
-	err := writeBenchmarkReport(
-		benchmarkManifest{
-			ID:              "tdd-vs-single-pass",
-			Provider:        "openai",
-			ModelFamily:     "gpt-5",
-			LowTierModel:    "gpt-5.1-codex-mini",
-			MediumTierModel: "gpt-5.3-codex",
-			HighTierModel:   "gpt-5.3-codex",
-		},
-		benchmarkHarnessResult{
-			BaseCommit:    "abc123",
-			SelectedBeads: []string{"gromit-1", "gromit-2", "gromit-3", "gromit-4", "gromit-5"},
-		},
-		benchmarkMetricsResult{
-			ModeSummaries: []benchpkg.ModeSummary{
-				{
-					Mode:             "single_pass",
-					ElapsedSeconds:   120,
-					TotalInput:       1000,
-					TotalOutput:      500,
-					TotalCostUSD:     1.25,
-					CostQualityRatio: 1.42,
-					Quality:          benchpkg.QualityMetrics{AverageScore: 0.88, FirstPassRate: 0.67, ReviewFindings: 3, ReviewFixesApplied: 2, FinalValidationPassed: true},
-				},
+	manifest := benchmarkManifest{
+		ID:              "tdd-vs-single-pass",
+		Provider:        "openai",
+		ModelFamily:     "gpt-5",
+		LowTierModel:    "gpt-5.1-codex-mini",
+		MediumTierModel: "gpt-5.3-codex",
+		HighTierModel:   "gpt-5.3-codex",
+	}
+	result := benchmarkHarnessResult{
+		BaseCommit:    "abc123",
+		SelectedBeads: []string{"gromit-1", "gromit-2", "gromit-3", "gromit-4", "gromit-5"},
+	}
+	metrics := benchmarkMetricsResult{
+		ModeSummaries: []benchpkg.ModeSummary{
+			{
+				Mode:             "single_pass",
+				ElapsedSeconds:   120,
+				TotalInput:       1000,
+				TotalOutput:      500,
+				TotalCostUSD:     1.25,
+				CostQualityRatio: 1.42,
+				Quality:          benchpkg.QualityMetrics{AverageScore: 0.88, FirstPassRate: 0.67, ReviewFindings: 3, ReviewFixesApplied: 2, FinalValidationPassed: true},
 			},
 		},
-		benchmarkRunOptions{OutputTimestamp: "20260223T120000Z"},
-	)
-	if err != nil {
-		t.Fatalf("writeBenchmarkReport() error = %v", err)
+	}
+	opts := benchmarkRunOptions{OutputTimestamp: "20260223T120000Z"}
+	input := buildBenchmarkReportInput(manifest, result, metrics, opts)
+
+	if _, err := benchpkg.WriteReport(input); err != nil {
+		t.Fatalf("benchpkg.WriteReport() error = %v", err)
 	}
 
-	mdPath := filepath.Join(".gromit", "benchmarks", "results", "tdd-vs-single-pass", "20260223T120000Z.md")
+	mdPath := filepath.Join(".gromit", "benchmarks", "results", input.Manifest.ID, input.Timestamp+".md")
 	content, err := os.ReadFile(mdPath)
 	if err != nil {
 		t.Fatalf("read report markdown: %v", err)
@@ -815,8 +815,8 @@ func TestBenchmarkRunCommand_BeadOverridesDriveSelection(t *testing.T) {
 		t.Fatalf("unmarshal report json: %v", err)
 	}
 
-	if strings.Join(payload.Manifest.Beads, ",") != "gromit-9,gromit-8,gromit-7,gromit-6,gromit-10" {
-		t.Fatalf("manifest.beads = %v, want [%s]", payload.Manifest.Beads, "gromit-9 gromit-8 gromit-7 gromit-6 gromit-10")
+	if strings.Join(payload.Manifest.Beads, ",") != "gromit-10,gromit-6,gromit-7,gromit-8,gromit-9" {
+		t.Fatalf("manifest.beads = %v, want [%s]", payload.Manifest.Beads, "gromit-10 gromit-6 gromit-7 gromit-8 gromit-9")
 	}
 }
 

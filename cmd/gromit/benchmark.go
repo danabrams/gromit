@@ -27,7 +27,6 @@ var benchmarkSelectCohortFn = selectBenchmarkCohort
 var benchmarkValidateCohortFn = validateBenchmarkCohort
 var benchmarkRunHarnessFn = runBenchmarkHarness
 var benchmarkComputeMetricsFn = computeBenchmarkMetrics
-var benchmarkWriteReportFn = writeBenchmarkReport
 var benchmarkWritePhase3MeasurementReportFn = benchpkg.WritePhase3MeasurementReport
 var benchmarkInternalLoadManifestFn = benchpkg.LoadManifest
 var benchmarkInternalResolveSelectedBeadsFn = benchpkg.ResolveSelectedBeads
@@ -225,7 +224,8 @@ func runBenchmarkPipeline(opts benchmarkRunOptions) error {
 	if err != nil {
 		return err
 	}
-	if err := benchmarkWriteReportFn(manifest, harnessResult, metrics, opts); err != nil {
+	input := buildBenchmarkReportInput(manifest, harnessResult, metrics, opts)
+	if _, err := benchmarkInternalWriteReportFn(input); err != nil {
 		return err
 	}
 	return nil
@@ -336,7 +336,7 @@ func computeBenchmarkMetrics(result benchmarkHarnessResult) (benchmarkMetricsRes
 	return metrics, nil
 }
 
-func writeBenchmarkReport(manifest benchmarkManifest, result benchmarkHarnessResult, metrics benchmarkMetricsResult, opts benchmarkRunOptions) error {
+func buildBenchmarkReportInput(manifest benchmarkManifest, result benchmarkHarnessResult, metrics benchmarkMetricsResult, opts benchmarkRunOptions) benchpkg.ReportInput {
 	ts := opts.OutputTimestamp
 	if ts == "" {
 		ts = benchmarkNowFn().UTC().Format("20060102T150405Z")
@@ -349,7 +349,8 @@ func writeBenchmarkReport(manifest benchmarkManifest, result benchmarkHarnessRes
 			modeSummaries = append(modeSummaries, benchpkg.ModeSummary{Mode: score.Mode})
 		}
 	}
-	_, err := benchmarkInternalWriteReportFn(benchpkg.ReportInput{
+
+	return benchpkg.ReportInput{
 		Timestamp: ts,
 		Manifest: benchpkg.ManifestMetadata{
 			ID:              manifest.ID,
@@ -362,11 +363,7 @@ func writeBenchmarkReport(manifest benchmarkManifest, result benchmarkHarnessRes
 			HighTierModel:   manifest.HighTierModel,
 		},
 		Modes: modeSummaries,
-	})
-	if err != nil {
-		return err
 	}
-	return nil
 }
 
 func parseCSV(value string) []string {
