@@ -521,6 +521,45 @@ func TestFormatSPCSummary(t *testing.T) {
 	}
 }
 
+func TestFormatSPCSummary_IncludesEWMAValues(t *testing.T) {
+	trend := &logger.ProcessTrend{
+		TotalIterations: 10,
+		WindowSize:      5,
+		ControlLimits: []logger.TrendControlLimit{
+			{Metric: spcMetricRollingSuccessRate, Latest: 0.5, LCL: 0.2, UCL: 0.8},
+		},
+		EWMAAnomalies: []logger.TrendAnomaly{
+			{
+				Metric: "ewma_success_rate",
+				Latest: 0.7,
+				LCL:    0.5,
+				UCL:    0.9,
+			},
+			{
+				Metric: "ewma_duration_ms",
+				Latest: 70000,
+				LCL:    60000,
+				UCL:    120000,
+			},
+		},
+	}
+
+	got := formatSPCSummary(trend)
+	for _, substr := range []string{
+		"EWMA values:",
+		"EWMA success rate",
+		"70%",
+		"limits 50%..90%",
+		"EWMA duration",
+		"1m 10s",
+		"limits 1m..2m",
+	} {
+		if !strings.Contains(got, substr) {
+			t.Fatalf("formatSPCSummary() = %q, want substring %q", got, substr)
+		}
+	}
+}
+
 func TestFormatSPCSummary_SortsMetricsDeterministically(t *testing.T) {
 	trend := &logger.ProcessTrend{
 		TotalIterations: 4,
