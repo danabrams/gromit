@@ -86,6 +86,73 @@ func parseGeminiCommandLog(t *testing.T, content []byte) []geminiCommandLogEntry
 	return entries
 }
 
+func TestGeminiMarkdownFixtures_HaveMetadataHeaders(t *testing.T) {
+	fixtures := []struct {
+		parts   []string
+		headers []string
+	}{
+		{
+			parts: []string{"preflight.md"},
+			headers: []string{
+				"# provenance:",
+				"# refresh:",
+				"# Gemini Preflight",
+				"## Checklist",
+				"## Observed Results",
+				"## Capture Harness",
+			},
+		},
+		{
+			parts: []string{"permissions", "permissions-notes.md"},
+			headers: []string{
+				"# provenance:",
+				"# refresh:",
+				"# Gemini Permissions Notes",
+				"## Commands",
+				"## Raw Evidence",
+				"## Observations",
+			},
+		},
+		{
+			parts: []string{"workdir", "workdir-notes.md"},
+			headers: []string{
+				"# provenance:",
+				"# refresh:",
+				"# Gemini Workdir Notes",
+				"## Commands",
+				"## Raw Evidence",
+				"## Observations",
+			},
+		},
+		{
+			parts: []string{"schema-notes.md"},
+			headers: []string{
+				"# provenance:",
+				"# refresh:",
+				"# Gemini Schema Notes",
+				"## Token and Cost Observations",
+				"## Model Observations",
+				"## Stream-JSON Schema",
+				"## JSON Schema",
+			},
+		},
+		{
+			parts: []string{"errors", "exit-codes-notes.md"},
+			headers: []string{
+				"# provenance:",
+				"# refresh:",
+				"# Gemini Exit Code Notes",
+				"## Trigger Attempts",
+				"## Observations",
+			},
+		},
+	}
+
+	for _, fixture := range fixtures {
+		requireMarkdownHeaders(t, geminiFixturePath(fixture.parts...), fixture.headers)
+	}
+}
+
 func TestGeminiPreflightFixture_IncludesChecklistAndObservedResults(t *testing.T) {
 	fixturePath := geminiFixturePath("preflight.md")
 
