@@ -1,0 +1,4 @@
+# provenance: fixture for command_execution tool call event acceptance test.
+# refresh: keep usage data stable for deterministic assertions.
+{"type":"item.started","item":{"type":"command_execution","command":"go test ./..."}}
+{"type":"turn.completed","usage":{"input_tokens":3,"output_tokens":1}}
