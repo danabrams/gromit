@@ -2,6 +2,16 @@
 
 ## Confirmed Learnings
 
+### 2026-02-25 | policy_guard_tests_should_cover_pass_and_fail_paths | TEST_QUALITY
+*Related to: gromit/review-1771989652251291587*
+
+Repository policy guards are safest when tests cover both positive and negative paths (canonical semantic edits pass, normalization-only rewrites pass, non-canonical and mixed semantic+normalization edits fail with actionable messages).
+
+### 2026-02-25 | centralized_policy_scripts_pair_well_with_scenario_matrix_tests | RELIABILITY
+*Related to: gromit/review-1771989652251291587*
+
+Centralized shell policy scripts are most regression-resistant when Go tests exercise a full scenario matrix (pass and fail cases) against the script’s real process behavior and user-facing guidance text.
+
 ### 2026-02-25 | beads_policy_checks_need_ci_enforcement | PROCESS
 *Related to: gromit/review-1771986309252130811*
 
