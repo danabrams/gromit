@@ -16,6 +16,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/experiment"
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline/epilogue"
@@ -224,6 +225,17 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		statusWriter.SetScopeLabel(specProgressLabel)
 	}
 
+	// Load experiments if enabled
+	var experimentMgr *experiment.Manager
+	if cfg.Experiment.Enabled {
+		exps, err := experiment.LoadExperiments(cfg.Experiment.ExperimentsDir)
+		if err != nil {
+			_, _ = fmt.Fprintf(output, "Warning: could not load experiments: %v\n", err)
+		} else {
+			experimentMgr = experiment.NewManager(exps, filepath.Join(gromitDir, "experiment"))
+		}
+	}
+
 	orchCfg := OrchestratorConfig{
 		Gate:     gateStage,
 		Build:    buildStage,
@@ -240,6 +252,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		LogsDir:         cfg.Paths.Logs,
 		Output:          syncOut,
 		TrendUpdater:    trendUpdater,
+		ExperimentMgr:   experimentMgr,
 		StatusWriter: func(iteration int, beadID, beadTitle string, dl time.Time) {
 			if statusWriter != nil {
 				if specProgressLabel != "" {

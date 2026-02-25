@@ -12,6 +12,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/coverage"
+	"github.com/danabrams/gromit/internal/experiment"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 )
@@ -72,6 +73,10 @@ type OrchestratorConfig struct {
 	// CoverageTracker tracks acceptance criteria coverage across the TDD cycle.
 	// Optional: nil means skip tracker state transitions.
 	CoverageTracker *coverage.CoverageTracker
+
+	// ExperimentMgr manages experiments and variant selection.
+	// Optional: nil means experiments are disabled.
+	ExperimentMgr *experiment.Manager
 }
 
 type trendUpdaterCloser interface {

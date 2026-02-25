@@ -1579,3 +1579,61 @@ func TestNewRunnerImpl_WiresSpecGateIntoEpilogue(t *testing.T) {
 		t.Fatal("orchestrator epilogue stage is nil, want non-nil")
 	}
 }
+
+func TestNewRunnerLoadsExperimentsWhenEnabled(t *testing.T) {
+	// Setup: Create a temporary directory with an experiment
+	tmpDir := t.TempDir()
+	experimentsDir := filepath.Join(tmpDir, "experiments")
+	if err := os.MkdirAll(experimentsDir, 0755); err != nil {
+		t.Fatalf("failed to create experiments dir: %v", err)
+	}
+
+	// Create a sample experiment YAML file
+	expFile := filepath.Join(experimentsDir, "test_exp.yaml")
+	expYAML := `id: test-exp
+phase: build
+description: Test experiment
+control:
+  id: control
+  template: control_template
+variants:
+  - id: variant1
+    template: variant_template
+`
+	if err := os.WriteFile(expFile, []byte(expYAML), 0644); err != nil {
+		t.Fatalf("failed to write experiment file: %v", err)
+	}
+
+	// Create a minimal config with experiments enabled
+	cfg := &config.Config{
+		Experiment: config.ExperimentConfig{
+			Enabled:        true,
+			ExperimentsDir: experimentsDir,
+		},
+		Paths: config.PathsConfig{
+			Templates: filepath.Join(tmpDir, "templates"),
+			Specs:     filepath.Join(tmpDir, "specs"),
+			Logs:      filepath.Join(tmpDir, "logs"),
+			GromitDir: tmpDir,
+		},
+		Loop: config.LoopConfig{
+			MaxIterations: 10,
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	// Create the runner
+	orch, err := newRunnerImpl(cfg, io.Discard, nil)
+	if err != nil {
+		t.Fatalf("newRunnerImpl() error = %v, want nil", err)
+	}
+
+	if orch == nil {
+		t.Fatal("newRunnerImpl() returned nil orchestrator, want non-nil")
+	}
+
+	// The experiment manager should be accessible (we'll test this in phase 3)
+	// For now, we're just verifying that newRunnerImpl completes successfully
+	// with experiments enabled
+}

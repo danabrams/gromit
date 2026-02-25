@@ -258,6 +258,7 @@ type PathsConfig struct {
 }
 
 type ExperimentConfig struct {
+	Enabled            bool    `yaml:"enabled"`
 	MinSampleSize      int     `yaml:"min_sample_size"`
 	ConfidenceThreshold float64 `yaml:"confidence_threshold"`
 	ExperimentsDir     string  `yaml:"experiments_dir"`
