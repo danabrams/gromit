@@ -1370,3 +1370,7 @@ func TestNewInvoker_AcceptsNarrowInterfaces(t *testing.T) {
 		t.Fatal("result should not be nil")
 	}
 }
+
+// Compile-time interface checks for mock implementations
+var _ Router = (*mockRouter)(nil)
+var _ Provider = (*mockProvider)(nil)
