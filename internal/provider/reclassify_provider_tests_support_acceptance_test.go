@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-const codexProviderAcceptanceMaxTests = 16
+const codexProviderAcceptanceMaxTests = 17
 
 func AssertProviderAcceptanceReclassificationImplemented(t *testing.T) string {
 	t.Helper()
