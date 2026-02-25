@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/danabrams/gromit/test/testutil"
 )
 
 func TestCodexStreamingAcceptanceFakeBinaryAvailable(t *testing.T) {
@@ -612,4 +614,32 @@ func TestCodexProviderStreamRunCreatesTimestampedToolEvents(t *testing.T) {
 	if toolEvent.Timestamp.After(time.Now().Add(1 * time.Second)) {
 		t.Errorf("ToolEvent.Timestamp = %v is too far in the future", toolEvent.Timestamp)
 	}
+}
+
+func fakeCodexBinaryPath(t *testing.T) string {
+	t.Helper()
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getting working directory: %v", err)
+	}
+
+	ctx, err := testutil.ResolveTaggedHarnessContext(wd)
+	if err != nil {
+		t.Fatalf("resolve tagged harness context: %v", err)
+	}
+
+	path := filepath.Join(ctx.FakesDir, "codex")
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat fake Codex binary %q: %v", path, err)
+	}
+	if info.IsDir() {
+		t.Fatalf("fake Codex binary %q is a directory", path)
+	}
+	if info.Mode()&0111 == 0 {
+		t.Fatalf("fake Codex binary %q is not executable", path)
+	}
+
+	return path
 }
