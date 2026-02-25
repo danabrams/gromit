@@ -5,7 +5,6 @@ import (
 	"go/parser"
 	"go/token"
 	"path/filepath"
-	"runtime"
 	"testing"
 )
 
@@ -22,16 +21,4 @@ func TestRefineHelpersContainsSpecAbsent(t *testing.T) {
 			t.Fatalf("found containsSpec declared in %s", path)
 		}
 	}
-}
-
-func productionFilePath(t *testing.T, rel string) string {
-	t.Helper()
-
-	_, currentFile, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("unable to determine caller file path")
-	}
-
-	root := filepath.Dir(filepath.Dir(filepath.Dir(currentFile)))
-	return filepath.Join(root, rel)
 }
