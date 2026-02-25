@@ -435,6 +435,38 @@ func TestRunModesInIsolatedWorktrees_RejectsEmptyModes(t *testing.T) {
 	}
 }
 
+func TestRunModesInIsolatedWorktrees_ExecutesOnlyManifestDeclaredModes(t *testing.T) {
+	resolver := &stubBaseCommitResolver{resolved: "abc123"}
+	runner := &recordingModeRunner{}
+
+	_, _, err := RunModesInIsolatedWorktrees(context.Background(), RunModesInput{
+		Manifest: HarnessManifest{
+			Provider:        "openai",
+			ModelFamily:     "gpt-5",
+			LowTierModel:    "gpt-5.1-codex-mini",
+			MediumTierModel: "gpt-5.3-codex",
+			HighTierModel:   "gpt-5.3-codex",
+			Modes:           []string{"single_pass", "tdd_fresh_context"},
+		},
+		SelectedBeads:  []string{"gromit-1", "gromit-2", "gromit-3"},
+		BaseCommitHint: "HEAD",
+		Resolver:       resolver,
+		Runner:         runner,
+	})
+	if err != nil {
+		t.Fatalf("RunModesInIsolatedWorktrees() error = %v", err)
+	}
+	if len(runner.requests) != 2 {
+		t.Fatalf("mode run requests = %d, want 2 (only manifest declared modes)", len(runner.requests))
+	}
+	if runner.requests[0].Mode != "single_pass" {
+		t.Fatalf("first mode = %q, want %q", runner.requests[0].Mode, "single_pass")
+	}
+	if runner.requests[1].Mode != "tdd_fresh_context" {
+		t.Fatalf("second mode = %q, want %q", runner.requests[1].Mode, "tdd_fresh_context")
+	}
+}
+
 type stubBaseCommitResolver struct {
 	resolved string
 	err      error
