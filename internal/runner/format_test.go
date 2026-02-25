@@ -771,6 +771,64 @@ func TestFormatSPCSummary_IncludesNelsonRuleViolations(t *testing.T) {
 	}
 }
 
+func TestFormatSPCSummary_DisplaysMultipleNelsonRuleViolations(t *testing.T) {
+	trend := &logger.ProcessTrend{
+		TotalIterations: 15,
+		WindowSize:      10,
+		ControlLimits: []logger.TrendControlLimit{
+			{Metric: spcMetricRollingSuccessRate, Latest: 0.7, LCL: 0.5, UCL: 0.95},
+			{Metric: spcMetricRollingEscalateRate, Latest: 0.2, LCL: 0.05, UCL: 0.3},
+		},
+		PatternViolations: []logger.PatternViolation{
+			{
+				Metric:    "rolling_success_rate",
+				Rule:      "nelson_rule_2",
+				Direction: "below",
+				RunLength: 9,
+				Message:   "9 points below center line",
+			},
+			{
+				Metric:    "rolling_escalation_rate",
+				Rule:      "nelson_rule_8",
+				Direction: "above",
+				RunLength: 4,
+				Message:   "4 points above 1 std dev",
+			},
+		},
+	}
+
+	got := formatSPCSummary(trend)
+	for _, substr := range []string{
+		"Nelson rule violations:",
+		"success",
+		"nelson_rule_2",
+		"9 points below center line",
+		"escalation",
+		"nelson_rule_8",
+		"4 points above 1 std dev",
+	} {
+		if !strings.Contains(got, substr) {
+			t.Fatalf("formatSPCSummary() = %q, want substring %q", got, substr)
+		}
+	}
+}
+
+func TestFormatSPCSummary_OmitsNelsonSectionWhenNoViolations(t *testing.T) {
+	trend := &logger.ProcessTrend{
+		TotalIterations: 10,
+		WindowSize:      10,
+		ControlLimits: []logger.TrendControlLimit{
+			{Metric: spcMetricRollingSuccessRate, Latest: 0.85, LCL: 0.65, UCL: 0.95},
+		},
+		PatternViolations: []logger.PatternViolation{},
+	}
+
+	got := formatSPCSummary(trend)
+	if strings.Contains(got, "Nelson rule violations:") {
+		t.Fatalf("formatSPCSummary() should not include 'Nelson rule violations:' when empty, got:\n%s", got)
+	}
+}
+
 func TestFormatRun(t *testing.T) {
 	tests := []struct {
 		name   string
