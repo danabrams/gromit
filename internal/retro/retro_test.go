@@ -1258,6 +1258,53 @@ func TestRenderPromptWithProviderFamiliesInRealTemplate(t *testing.T) {
 	}
 }
 
+func TestRenderPromptWithProviderFamiliesIncludesMixedAggregateRow(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	realTemplatePath := "../../.gromit/templates/PROMPT_retro.md"
+	templateContent, err := os.ReadFile(realTemplatePath)
+	if err != nil {
+		t.Fatalf("failed to read real template: %v", err)
+	}
+
+	templatePath := filepath.Join(tmpDir, "PROMPT_retro.md")
+	if err := os.WriteFile(templatePath, templateContent, 0644); err != nil {
+		t.Fatalf("failed to write template: %v", err)
+	}
+
+	tmpGromitDir := t.TempDir()
+	mockProvider := &mockProvider{}
+	r, err := NewRetroWithProvider(mockProvider, tmpGromitDir)
+	if err != nil {
+		t.Fatalf("failed to create Retro: %v", err)
+	}
+	r.templatePath = templatePath
+
+	efficiency := &logger.EfficiencyReport{
+		CurrentIterations: []logger.IterationEfficiency{
+			{BeadID: "gromit-1", Model: "gpt-5.1-codex-mini"},
+			{BeadID: "gromit-2", Model: "sonnet"},
+		},
+		CurrentProviderFamilies: map[string]logger.ModelEfficiency{
+			providerFamilyClaude: {Model: providerFamilyClaude, IterationCount: 2},
+			providerFamilyCodex:  {Model: providerFamilyCodex, IterationCount: 1},
+		},
+		HistoricalModels: map[string]logger.ModelEfficiency{
+			"opus": {Model: "opus", IterationCount: 1},
+		},
+		MixedProviderFamilies: true,
+	}
+
+	prompt, err := r.renderPrompt("# Rules", "# Learnings", logger.RunStats{Total: 2}, nil, efficiency, nil)
+	if err != nil {
+		t.Fatalf("renderPrompt with provider families failed: %v", err)
+	}
+
+	if !strings.Contains(prompt, "| Mixed-provider aggregate |") {
+		t.Errorf("rendered prompt should include the mixed-provider aggregate row, got prompt: %q", prompt)
+	}
+}
+
 func TestRenderPromptWithProviderFamiliesEmitsMixedProviderAggregateLabel(t *testing.T) {
 	tmpDir := t.TempDir()
 
