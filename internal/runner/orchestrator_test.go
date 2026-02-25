@@ -1490,6 +1490,104 @@ func TestOrchestrator_ControlLimitAlert_LogsWarningWhenTriggered(t *testing.T) {
 	}
 }
 
+// TestOrchestrator_ScopeGateBlockedBeads_IterationCounterConsistency verifies that
+// when beads are blocked by the scope gate, the iteration counter is properly
+// incremented so that scope-blocked beads and successfully completed beads have
+// different (non-overlapping) iteration numbers.
+func TestOrchestrator_ScopeGateBlockedBeads_IterationCounterConsistency(t *testing.T) {
+	// Simulate a sequence: success, blocked, success to verify iteration counters don't overlap
+	capturedLogs := []*logger.IterationLog{}
+
+	gateStage := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		// Block bead-2-blocked
+		if in.Bead.ID == "bead-2-blocked" {
+			return pipeline.Output{Decision: pipeline.Block}, nil
+		}
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	buildStage := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{
+			Decision:     pipeline.Proceed,
+			Model:        "claude-opus",
+			CostUSD:      0.01,
+			InputTokens:  100,
+			OutputTokens: 50,
+		}, nil
+	}}
+
+	validateStage := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	epilogueStage := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		if in.Result != nil {
+			capturedLogs = append(capturedLogs, in.Result)
+		}
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	beads := []*bead.Bead{
+		{ID: "bead-1", Title: "First bead"},
+		{ID: "bead-2-blocked", Title: "Blocked by scope gate"},
+		{ID: "bead-3", Title: "Third bead"},
+	}
+	beadIndex := 0
+
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		if beadIndex >= len(beads) {
+			return nil, nil
+		}
+		b := beads[beadIndex]
+		beadIndex++
+		return b, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     gateStage,
+		Build:    buildStage,
+		Validate: validateStage,
+		Epilogue: epilogueStage,
+		GetBead:  getBead,
+		Config:   &config.Config{},
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	// All 3 beads should produce iteration logs (including the blocked one)
+	if len(capturedLogs) != 3 {
+		t.Errorf("Expected 3 iteration logs, got %d", len(capturedLogs))
+		return
+	}
+
+	// Each bead should have a unique, monotonically increasing iteration number
+	seenIterations := make(map[int]string) // iteration -> beadID
+	for _, log := range capturedLogs {
+		if _, exists := seenIterations[log.Iteration]; exists {
+			t.Errorf("Duplicate iteration number %d: appears for both %q and %q",
+				log.Iteration, seenIterations[log.Iteration], log.BeadID)
+		}
+		seenIterations[log.Iteration] = log.BeadID
+	}
+
+	// Verify the beads appear in order and have correct iteration numbers
+	if capturedLogs[0].BeadID != "bead-1" || capturedLogs[0].Iteration != 1 {
+		t.Errorf("Log 0: Expected BeadID=bead-1 Iteration=1, got BeadID=%s Iteration=%d",
+			capturedLogs[0].BeadID, capturedLogs[0].Iteration)
+	}
+	if capturedLogs[1].BeadID != "bead-2-blocked" || capturedLogs[1].Iteration != 2 {
+		t.Errorf("Log 1 (blocked bead): Expected BeadID=bead-2-blocked Iteration=2, got BeadID=%s Iteration=%d",
+			capturedLogs[1].BeadID, capturedLogs[1].Iteration)
+	}
+	if capturedLogs[2].BeadID != "bead-3" || capturedLogs[2].Iteration != 3 {
+		t.Errorf("Log 2: Expected BeadID=bead-3 Iteration=3, got BeadID=%s Iteration=%d",
+			capturedLogs[2].BeadID, capturedLogs[2].Iteration)
+	}
+}
+
 // fakeTrendUpdater is a test double for trendUpdaterCloser
 type fakeTrendUpdater struct {
 	trend *logger.ProcessTrend
