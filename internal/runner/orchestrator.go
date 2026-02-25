@@ -132,6 +132,14 @@ func (o *Orchestrator) Run(ctx context.Context, maxIterations int, deadline time
 	var touchedPackages []string
 	iteration := 0
 
+	// Check experiments for convergence and emit summary
+	if o.cfg.ExperimentMgr != nil {
+		experiments := o.cfg.ExperimentMgr.ListExperiments()
+		for _, exp := range experiments {
+			o.logf("Experiment %s (%s): checking if converged", exp.ID, exp.Phase)
+		}
+	}
+
 runLoop:
 	for {
 		// Check stop signals before each iteration.

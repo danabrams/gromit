@@ -68,3 +68,12 @@ func NewManager(experiments []*Experiment, stateDir string) *Manager {
 func (m *Manager) ExperimentForPhase(phase string) *Experiment {
 	return m.experimentsByPhase[phase]
 }
+
+// ListExperiments returns all experiments managed by this manager.
+func (m *Manager) ListExperiments() []*Experiment {
+	experiments := make([]*Experiment, 0, len(m.experimentsByPhase))
+	for _, exp := range m.experimentsByPhase {
+		experiments = append(experiments, exp)
+	}
+	return experiments
+}
