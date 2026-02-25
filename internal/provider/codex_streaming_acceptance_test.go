@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -428,24 +427,10 @@ func TestCodexProviderHandlesMultipleEventTypes(t *testing.T) {
 // TestCodexProviderStreamRunCreatesTimestampedToolEvents verifies that
 // ToolEvent structs created from Codex events have a Timestamp field populated.
 func TestCodexProviderStreamRunCreatesTimestampedToolEvents(t *testing.T) {
-	tempDir := t.TempDir()
-
-	mockBinary := filepath.Join(tempDir, "codex")
-	codexEvent := map[string]interface{}{
-		"type": "item.started",
-		"item": map[string]interface{}{
-			"type":    "command_execution",
-			"command": "go test",
-		},
-	}
-	eventJSON, _ := json.Marshal(codexEvent)
-	mockScript := fmt.Sprintf("#!/bin/bash\ncat > /dev/null\nprintf '%%s\\n' '%s'\nexit 0\n", string(eventJSON))
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+	setupCodexStreamingFixtureEnv(t, "codex_stream_timestamp_tool_event.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
+	cp := NewCodexProvider(fakeCodexBinaryPath(t), []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
@@ -470,7 +455,6 @@ func TestCodexProviderStreamRunCreatesTimestampedToolEvents(t *testing.T) {
 		t.Error("ToolEvent.Timestamp is zero, want non-zero timestamp")
 	}
 
-	// Timestamp should be after start time and not too far in the future
 	if toolEvent.Timestamp.Before(startTime) {
 		t.Errorf("ToolEvent.Timestamp = %v is before test start %v", toolEvent.Timestamp, startTime)
 	}
