@@ -24,3 +24,33 @@ func TestResultToIterationLog_MapsExperimentFields(t *testing.T) {
 		t.Errorf("VariantID = %q, want %q", log.VariantID, "var-456")
 	}
 }
+
+// TestResultToIterationLog_MapsSpecIDWithLabel verifies that ResultToIterationLog
+// correctly maps SpecID from IterationResult to IterationLog when spec label is present.
+func TestResultToIterationLog_MapsSpecIDWithLabel(t *testing.T) {
+	result := &runtypes.IterationResult{
+		BeadID: "test-bead",
+		SpecID: "authentication",
+	}
+
+	log := ResultToIterationLog(result)
+
+	if log.SpecID != "authentication" {
+		t.Errorf("SpecID = %q, want %q", log.SpecID, "authentication")
+	}
+}
+
+// TestResultToIterationLog_MapsSpecIDWithoutLabel verifies that ResultToIterationLog
+// correctly maps an empty SpecID from IterationResult to IterationLog.
+func TestResultToIterationLog_MapsSpecIDWithoutLabel(t *testing.T) {
+	result := &runtypes.IterationResult{
+		BeadID: "test-bead",
+		SpecID: "",
+	}
+
+	log := ResultToIterationLog(result)
+
+	if log.SpecID != "" {
+		t.Errorf("SpecID = %q, want empty string", log.SpecID)
+	}
+}
