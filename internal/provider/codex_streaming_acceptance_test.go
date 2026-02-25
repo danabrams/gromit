@@ -343,22 +343,10 @@ func TestCodexProviderExtractsTokenUsageFromTurnCompleted(t *testing.T) {
 // TestCodexProviderExtractsAgentTextFromItemCompleted verifies that
 // Result.Output contains the text from item.completed agent_message events.
 func TestCodexProviderExtractsAgentTextFromItemCompleted(t *testing.T) {
-	tempDir := t.TempDir()
-
-	mockBinary := filepath.Join(tempDir, "codex")
-	// Emit multiple agent message events - last one should be in Result.Output
-	mockScript := `#!/bin/bash
-echo '{"type":"item.completed","item":{"type":"agent_message","text":"First response"}}'
-echo '{"type":"item.completed","item":{"type":"agent_message","text":"Second response"}}'
-echo '{"type":"item.completed","item":{"type":"agent_message","text":"Final answer"}}'
-exit 0
-`
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+	setupCodexStreamingFixtureEnv(t, "codex_stream_multiple_agent_messages.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
+	cp := NewCodexProvider(fakeCodexBinaryPath(t), []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
@@ -368,8 +356,6 @@ exit 0
 		t.Fatalf("StreamRun() error = %v", err)
 	}
 
-	// Result.Output should contain the text from agent_message events
-	// (spec says "last such event's text field becomes Result.Output")
 	if !strings.Contains(result.Output, "Final answer") {
 		t.Errorf("Result.Output = %q, want it to contain text from agent_message events", result.Output)
 	}
