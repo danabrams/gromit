@@ -100,6 +100,12 @@ func runExplore(cmd *cobra.Command, args []string) error {
 	}
 
 	// Display results
+	handleExploreOutput(result)
+
+	return nil
+}
+
+func handleExploreOutput(result *pipeline.ExploreResult) {
 	if len(result.CreatedEpics) > 0 {
 		fmt.Printf("\nEpics created:\n")
 		for _, epic := range result.CreatedEpics {
@@ -117,8 +123,6 @@ func runExplore(cmd *cobra.Command, args []string) error {
 	if len(result.CreatedBacklogItems) > 0 {
 		fmt.Printf("\nBacklog items created: %d\n", len(result.CreatedBacklogItems))
 	}
-
-	return nil
 }
 
 func runExploreInSession(
