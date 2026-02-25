@@ -562,7 +562,7 @@ func TestGeminiSchemaNotesFixture_DocumentsPromptModesAndSchemaExtraction(t *tes
 		"## Stream-JSON Schema",
 		"## JSON Schema",
 	})
-	for _, token := range []string{"message_start", "usage.input_tokens"} {
+	for _, token := range []string{"message", "stats.input_tokens", "stats.output_tokens"} {
 		if !strings.Contains(body, token) {
 			t.Fatalf("schema notes must include schema marker %q", token)
 		}
