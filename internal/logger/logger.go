@@ -262,6 +262,7 @@ type RunStats struct {
 	Total     int
 	Failed    int
 	Succeeded int
+	UsageLimited int
 }
 
 // FailureRate returns the failure rate as a float64 (0.0-1.0)
@@ -283,6 +284,7 @@ type BeadStats struct {
 	Status      string
 	CloseReason string
 	Comments    []string
+	UsageLimitedFailures int
 }
 
 // normalizeNilFields ensures nil slices are replaced with empty slices.
@@ -323,19 +325,22 @@ func ReadAllLogsFiltered(logsDir string, beadFilter map[string]bool) (RunStats, 
 		if err != nil {
 			continue // Skip unreadable files
 		}
-		for _, entry := range entries {
-			// Apply filter if provided
-			if len(beadFilter) > 0 && !beadFilter[entry.BeadID] {
-				continue
-			}
-
-			stats.Total++
-			if entry.Success {
-				stats.Succeeded++
-			} else {
-				stats.Failed++
-			}
+	for _, entry := range entries {
+		// Apply filter if provided
+		if len(beadFilter) > 0 && !beadFilter[entry.BeadID] {
+			continue
 		}
+
+		stats.Total++
+		if entry.UsageLimited {
+			stats.UsageLimited++
+		}
+		if entry.Success {
+			stats.Succeeded++
+		} else {
+			stats.Failed++
+		}
+	}
 	}
 
 	return stats, nil
@@ -375,11 +380,14 @@ func ReadPerBeadStatsFiltered(logsDir string, beadFilter map[string]bool) (map[s
 				stats.BeadTitle = entry.BeadTitle
 			}
 
-			stats.TotalRuns++
-			if entry.Success {
-				stats.Successes++
-			} else {
-				stats.Failures++
+		stats.TotalRuns++
+		if entry.UsageLimited {
+			stats.UsageLimitedFailures++
+		}
+		if entry.Success {
+			stats.Successes++
+		} else {
+			stats.Failures++
 			}
 
 			// Update last attempt time if this entry is more recent
