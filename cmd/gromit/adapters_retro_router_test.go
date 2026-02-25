@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"io"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/provider"
@@ -11,6 +13,18 @@ import (
 
 func TestRetroRouterAdapter_ConformsToProviderRunner(t *testing.T) {
 	var _ retro.ProviderRunner = (*retroRouterAdapter)(nil)
+}
+
+func TestRetroRouterAdapterCompileTimeCheckLivesInProduction(t *testing.T) {
+	const sentinel = "var _ retro.ProviderRunner = (*retroRouterAdapter)(nil)"
+
+	prod, err := os.ReadFile("cmd/gromit/adapters.go")
+	if err != nil {
+		t.Fatalf("reading production adapters file: %v", err)
+	}
+	if !strings.Contains(string(prod), sentinel) {
+		t.Fatalf("expected compile-time check in production file %q", sentinel)
+	}
 }
 
 func TestRetroRouterAdapterRun_DelegatesToRouterSelectedProvider(t *testing.T) {
