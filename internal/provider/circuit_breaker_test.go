@@ -3,6 +3,8 @@ package provider
 import (
 	"reflect"
 	"testing"
+
+	"github.com/danabrams/gromit/internal/config"
 )
 
 type circuitBreakerStep struct {
@@ -214,5 +216,38 @@ func TestCircuitBreakerNilSafetyAndDefaults(t *testing.T) {
 	}
 	if defaultCB.IsDegraded("claude") {
 		t.Fatal("default CircuitBreaker should recover after default recovery successes")
+	}
+}
+
+// TestNewCircuitBreakerFromConfig verifies that NewCircuitBreaker initializes
+// a CircuitBreaker from CircuitBreakerConfig when enabled.
+func TestNewCircuitBreakerFromConfig(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.CircuitBreakerConfig{
+		Enabled:           true,
+		WindowSize:        15,
+		FailureThreshold:  0.25,
+		DegradedFloor:     10,
+		RecoverySuccesses: 3,
+	}
+
+	cb := NewCircuitBreaker(cfg)
+	if cb == nil {
+		t.Fatal("NewCircuitBreaker returned nil for enabled config")
+	}
+
+	// Verify the circuit breaker was initialized with the correct values
+	if cb.windowSize != 15 {
+		t.Errorf("windowSize = %d, want 15", cb.windowSize)
+	}
+	if cb.failureThreshold != 0.25 {
+		t.Errorf("failureThreshold = %f, want 0.25", cb.failureThreshold)
+	}
+	if cb.degradedFloor != 10 {
+		t.Errorf("degradedFloor = %d, want 10", cb.degradedFloor)
+	}
+	if cb.recoverySuccesses != 3 {
+		t.Errorf("recoverySuccesses = %d, want 3", cb.recoverySuccesses)
 	}
 }
