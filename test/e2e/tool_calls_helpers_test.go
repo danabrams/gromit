@@ -128,7 +128,11 @@ func readE2ECallLog(env *e2eEnv) ([]string, error) {
 	var calls []string
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		calls = append(calls, scanner.Text())
+		trimmed := strings.TrimSpace(scanner.Text())
+		if trimmed == "" {
+			continue
+		}
+		calls = append(calls, trimmed)
 	}
 
 	if err := scanner.Err(); err != nil {
