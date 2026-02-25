@@ -3,10 +3,12 @@ package testutil
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -342,5 +344,56 @@ sleep 5
 			break
 		}
 		t.Fatalf("unexpected error checking child process: %v", err)
+	}
+}
+
+// TestCreateTempShellScript_ConcurrentCreationAndExecution verifies that
+// createTempShellScript hardening prevents ETXTBSY races when multiple
+// goroutines create and immediately execute scripts in parallel.
+func TestCreateTempShellScript_ConcurrentCreationAndExecution(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	scriptContent := `#!/bin/bash
+echo "test output"
+`
+
+	const numConcurrent = 20
+	errors := make([]error, numConcurrent)
+
+	// Create a wait group to ensure all goroutines finish
+	var wg sync.WaitGroup
+	wg.Add(numConcurrent)
+
+	// Launch multiple goroutines that each create and execute a script
+	// with the same base name, simulating the parallel subtest scenario
+	for i := 0; i < numConcurrent; i++ {
+		go func(index int) {
+			defer wg.Done()
+			// All use the same base name "test-script" to stress the hardening
+			scriptPath := createTempShellScript(t, tmpDir, "test-script", scriptContent)
+			stdout, _, exitCode, err := RunGromitWithStdin(scriptPath, "", nil, "")
+			if err != nil {
+				errors[index] = fmt.Errorf("execution %d failed: %w", index, err)
+				return
+			}
+			if exitCode != 0 {
+				errors[index] = fmt.Errorf("execution %d exited with code %d", index, exitCode)
+				return
+			}
+			if !strings.Contains(stdout, "test output") {
+				errors[index] = fmt.Errorf("execution %d missing expected output", index)
+				return
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	// Check for any ETXTBSY or other errors
+	for i, err := range errors {
+		if err != nil {
+			t.Errorf("error[%d]: %v", i, err)
+		}
 	}
 }
