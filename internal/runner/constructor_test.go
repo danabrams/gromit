@@ -1545,3 +1545,37 @@ func TestSpecGateAdapterImplementsEpilogueSpecGateRunner(t *testing.T) {
 	// If specGateAdapter doesn't implement SpecGateRunner, this will fail at compile time.
 	_ = interface{}(adapter)
 }
+
+// TestNewRunnerImpl_WiresSpecGateIntoEpilogue verifies that the spec gate adapter
+// is wired into the epilogue stage when newRunnerImpl creates the orchestrator.
+func TestNewRunnerImpl_WiresSpecGateIntoEpilogue(t *testing.T) {
+	cfg := &config.Config{
+		Paths: config.PathsConfig{
+			Templates: t.TempDir(),
+			Logs:      t.TempDir(),
+			Specs:     t.TempDir(),
+		},
+		Models: config.ModelsConfig{
+			Validation: "test-model",
+		},
+		Loop: config.LoopConfig{
+			MaxIterations: 10,
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	orch, err := newRunnerImpl(cfg, io.Discard, nil)
+	if err != nil {
+		t.Fatalf("newRunnerImpl() error = %v, want nil", err)
+	}
+
+	if orch == nil {
+		t.Fatal("newRunnerImpl() returned nil orchestrator, want non-nil")
+	}
+
+	// Verify that the orchestrator's epilogue is configured
+	if orch.cfg.Epilogue == nil {
+		t.Fatal("orchestrator epilogue stage is nil, want non-nil")
+	}
+}

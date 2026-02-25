@@ -191,6 +191,16 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		})
 	}
 
+	// Wire spec gate when spec-level methodology is active
+	if cfg.Methodology.Granularity == config.MethodologyGranularitySpec && cfg.SpecGate.IsEnabled() {
+		epilogueStage.WithSpecGate(&specGateAdapter{
+			renderer: renderer,
+			router:   router,
+			cfg:      cfg,
+			logFn:    func(msg string, args ...interface{}) { _, _ = fmt.Fprintf(syncOut, msg+"\n", args...) },
+		})
+	}
+
 	// Create OrchestratorConfig
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
