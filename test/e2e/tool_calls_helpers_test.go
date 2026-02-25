@@ -27,14 +27,14 @@ func ApplyCodexFixtureEnvE2E(env []string, fixtureFile string) []string {
 }
 
 func FilterE2EToolCalls(env *e2eEnv, tool ToolCallKind) ([]string, error) {
-	prefix, err := toolCallPrefix(tool)
+	prefix, err := ToolCallPrefix(tool)
 	if err != nil {
 		return nil, err
 	}
 	return filterE2ECalls(env, prefix)
 }
 
-func toolCallPrefix(tool ToolCallKind) (string, error) {
+func ToolCallPrefix(tool ToolCallKind) (string, error) {
 	switch tool {
 	case ToolCallCodex:
 		return "codex", nil
