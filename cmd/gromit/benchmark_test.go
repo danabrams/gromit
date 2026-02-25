@@ -628,33 +628,26 @@ func TestRunBenchmarkPipeline_ReportArtifactsMatchCuratedFixture(t *testing.T) {
 
 	repoRoot := repoRootFrom(t, origWD)
 	fixtureDir := filepath.Join(repoRoot, ".gromit", "reports", "curated", "benchmark-report")
+	t.Setenv("BEADS_DIR", filepath.Join(repoRoot, ".beads"))
 
 	origLoad := benchmarkInternalLoadManifestFn
 	origSelect := benchmarkSelectCohortFn
 	origValidate := benchmarkValidateCohortFn
-	origHarness := benchmarkRunHarnessFn
-	origAggregate := benchmarkInternalAggregateModeMetricsFn
-	origWrite := benchmarkInternalWriteReportFn
-	origNow := benchmarkNowFn
+	origResolver := benchmarkNewBaseCommitResolverFn
+	origRunner := benchmarkNewModeWorktreeRunnerFn
 	t.Cleanup(func() {
 		benchmarkInternalLoadManifestFn = origLoad
 		benchmarkSelectCohortFn = origSelect
 		benchmarkValidateCohortFn = origValidate
-		benchmarkRunHarnessFn = origHarness
-		benchmarkInternalAggregateModeMetricsFn = origAggregate
-		benchmarkInternalWriteReportFn = origWrite
-		benchmarkNowFn = origNow
+		benchmarkNewBaseCommitResolverFn = origResolver
+		benchmarkNewModeWorktreeRunnerFn = origRunner
 	})
-
-	benchmarkNowFn = func() time.Time {
-		return time.Date(2026, 2, 25, 12, 0, 0, 0, time.UTC)
-	}
 
 	manifest := benchpkg.Manifest{
 		ID:         "tdd-vs-single-pass",
 		BaseCommit: "abc123",
 		Beads:      []string{"gromit-1", "gromit-2", "gromit-3", "gromit-4", "gromit-5"},
-		ModeConfig: benchpkg.ModeConfig{Modes: []string{"single_pass", "tdd_shared_context"}},
+		ModeConfig: benchpkg.ModeConfig{Modes: []string{"single_pass"}},
 		ModelPinning: benchpkg.ModelPinning{
 			Provider:        "openai",
 			ModelFamily:     "gpt-5",
@@ -664,48 +657,30 @@ func TestRunBenchmarkPipeline_ReportArtifactsMatchCuratedFixture(t *testing.T) {
 		},
 	}
 
-	benchmarkSelectCohortFn = func(manifest benchmarkManifest, opts benchmarkRunOptions) (benchmarkSelection, error) {
-		return benchmarkSelection{SelectedBeads: []string{"gromit-1", "gromit-2", "gromit-3", "gromit-4", "gromit-5"}}, nil
-	}
-
 	benchmarkInternalLoadManifestFn = func(path string) (benchpkg.Manifest, error) {
 		return manifest, nil
 	}
 
+	benchmarkSelectCohortFn = func(manifest benchmarkManifest, opts benchmarkRunOptions) (benchmarkSelection, error) {
+		return benchmarkSelection{SelectedBeads: append([]string(nil), manifest.Beads...)}, nil
+	}
+
 	benchmarkValidateCohortFn = func(selection benchmarkSelection, opts benchmarkRunOptions) (benchmarkValidatedCohort, error) {
-		return benchmarkValidatedCohort{SelectedBeads: selection.SelectedBeads}, nil
+		return benchmarkValidatedCohort{SelectedBeads: append([]string(nil), selection.SelectedBeads...)}, nil
 	}
 
-	benchmarkRunHarnessFn = func(manifest benchmarkManifest, cohort benchmarkValidatedCohort, opts benchmarkRunOptions) (benchmarkHarnessResult, error) {
-		return benchmarkHarnessResult{
-			BaseCommit:    manifest.BaseCommit,
-			SelectedBeads: append([]string(nil), cohort.SelectedBeads...),
-			Modes: []benchmarkModeResult{
-				{Mode: "single_pass", BaseCommit: manifest.BaseCommit, SelectedBeads: append([]string(nil), cohort.SelectedBeads...)},
-				{Mode: "tdd_shared_context", BaseCommit: manifest.BaseCommit, SelectedBeads: append([]string(nil), cohort.SelectedBeads...)},
-			},
-		}, nil
+	logPath := filepath.Join(repoRoot, "cmd", "gromit", "testdata", "fixtures", "benchmark", "logs", "single_pass.jsonl")
+	runner := &fixtureModeRunner{
+		logPaths: map[string]string{"single_pass": logPath},
+		starts:   map[string]time.Time{"single_pass": time.Date(2026, 2, 25, 10, 0, 0, 0, time.UTC)},
+		duration: 60 * time.Second,
 	}
 
-	summary := benchpkg.ModeSummary{
-		Mode:             "single_pass",
-		ElapsedSeconds:   60,
-		TotalInput:       1200,
-		TotalOutput:      600,
-		TotalCostUSD:     1.5,
-		TierTotals:       benchpkg.TierTotals{Low: benchpkg.TierTotalsRow{InputTokens: 800, OutputTokens: 400, CostUSD: 0.8}},
-		Quality:          benchpkg.QualityMetrics{AverageScore: 0.9, FirstPassRate: 0.75, ReviewFindings: 1, ReviewFixesApplied: 0, FinalValidationPassed: true},
-		CostQualityRatio: 1.67,
+	benchmarkNewBaseCommitResolverFn = func() benchpkg.BaseCommitResolver {
+		return &stubBaseCommitResolver{resolved: manifest.BaseCommit}
 	}
-
-	benchmarkInternalAggregateModeMetricsFn = func(inputs []benchpkg.ModeLogInput) ([]benchpkg.ModeSummary, error) {
-		return []benchpkg.ModeSummary{summary}, nil
-	}
-
-	var capturedInput benchpkg.ReportInput
-	benchmarkInternalWriteReportFn = func(input benchpkg.ReportInput) (benchpkg.ReportPaths, error) {
-		capturedInput = input
-		return benchpkg.WriteReport(input)
+	benchmarkNewModeWorktreeRunnerFn = func() benchpkg.ModeWorktreeRunner {
+		return runner
 	}
 
 	opts := benchmarkRunOptions{
@@ -717,9 +692,9 @@ func TestRunBenchmarkPipeline_ReportArtifactsMatchCuratedFixture(t *testing.T) {
 		t.Fatalf("runBenchmarkPipeline() error = %v", err)
 	}
 
-	resultDir := filepath.Join(tmpDir, ".gromit", "benchmarks", "results", capturedInput.Manifest.ID)
-	jsonPath := filepath.Join(resultDir, capturedInput.Timestamp+".json")
-	mdPath := filepath.Join(resultDir, capturedInput.Timestamp+".md")
+	resultDir := filepath.Join(tmpDir, ".gromit", "benchmarks", "results", manifest.ID)
+	jsonPath := filepath.Join(resultDir, opts.OutputTimestamp+".json")
+	mdPath := filepath.Join(resultDir, opts.OutputTimestamp+".md")
 	actualJSON, err := os.ReadFile(jsonPath)
 	if err != nil {
 		t.Fatalf("read actual json artifact: %v", err)
@@ -1006,6 +981,38 @@ func readBenchmarkReportFixture(t *testing.T, dir, name string) []byte {
 		t.Fatalf("read benchmark report fixture %q: %v", name, err)
 	}
 	return data
+}
+
+type fixtureModeRunner struct {
+	logPaths map[string]string
+	starts   map[string]time.Time
+	duration time.Duration
+}
+
+func (r *fixtureModeRunner) RunMode(_ context.Context, req benchpkg.ModeWorktreeRequest) (benchpkg.ModeWorktreeRun, error) {
+	logPath, ok := r.logPaths[req.Mode]
+	if !ok {
+		return benchpkg.ModeWorktreeRun{}, fmt.Errorf("missing fixture log for mode %q", req.Mode)
+	}
+	start := time.Now().UTC()
+	if configured, ok := r.starts[req.Mode]; ok {
+		start = configured
+	}
+	return benchpkg.ModeWorktreeRun{
+		Mode:          req.Mode,
+		RunStartedAt:  start,
+		RunFinishedAt: start.Add(r.duration),
+		LogPath:       logPath,
+		Cleanup:       func() error { return nil },
+	}, nil
+}
+
+type stubBaseCommitResolver struct {
+	resolved string
+}
+
+func (s *stubBaseCommitResolver) ResolveBaseCommit(_ context.Context, _ string) (string, error) {
+	return s.resolved, nil
 }
 
 func repoRootFrom(t *testing.T, start string) string {
