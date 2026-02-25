@@ -112,6 +112,7 @@ func runRefineInSession(
 
 func determineRefineInput(cmd *cobra.Command, args []string, gromitDir string) (*pipeline.RefineInput, error) {
 	agentFlag, _ := cmd.Flags().GetString("agent")
+	chooseAgent, _ := cmd.Flags().GetBool("choose-agent")
 
 	// No args: interactive picker or blank session
 	if len(args) == 0 {
@@ -137,7 +138,7 @@ func determineRefineInput(cmd *cobra.Command, args []string, gromitDir string) (
 		if len(unrefined) == 0 {
 			fmt.Println("No unrefined backlog items. Starting a blank refinement session...")
 			fmt.Println()
-			return &pipeline.RefineInput{AgentName: agentFlag}, nil
+			return &pipeline.RefineInput{AgentName: agentFlag, ChooseAgent: chooseAgent}, nil
 		}
 
 		// Show picker
@@ -146,13 +147,13 @@ func determineRefineInput(cmd *cobra.Command, args []string, gromitDir string) (
 			// "Something new..." selected
 			fmt.Println("\nStarting a blank refinement session...")
 			fmt.Println()
-			return &pipeline.RefineInput{AgentName: agentFlag}, nil
+			return &pipeline.RefineInput{AgentName: agentFlag, ChooseAgent: chooseAgent}, nil
 		}
 
 		// Existing idea selected
 		idea := unrefined[choice]
 		fmt.Printf("\nRefining: %s\n\n", idea.Text)
-		return &pipeline.RefineInput{IdeaID: idea.ID, AgentName: agentFlag}, nil
+		return &pipeline.RefineInput{IdeaID: idea.ID, AgentName: agentFlag, ChooseAgent: chooseAgent}, nil
 	}
 
 	// One arg: backlog ID or ad-hoc text
@@ -160,7 +161,7 @@ func determineRefineInput(cmd *cobra.Command, args []string, gromitDir string) (
 	if strings.HasPrefix(arg, "idea-") {
 		return &pipeline.RefineInput{IdeaID: arg, AgentName: agentFlag}, nil
 	}
-	return &pipeline.RefineInput{IdeaText: arg, AgentName: agentFlag}, nil
+	return &pipeline.RefineInput{IdeaText: arg, AgentName: agentFlag, ChooseAgent: chooseAgent}, nil
 }
 
 func showRefinePicker(unrefined []*backlog.Idea, reader io.Reader) int {

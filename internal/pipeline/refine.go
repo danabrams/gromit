@@ -54,7 +54,7 @@ func (p *Pipeline) Refine(ctx context.Context, input RefineInput) (*RefineResult
 	defer cleanup()
 
 	// Resolve agent
-	agent, err := p.deps.AgentResolver.Resolve("refine", input.AgentName, false)
+	agent, err := p.deps.AgentResolver.Resolve("refine", input.AgentName, input.ChooseAgent)
 	if err != nil {
 		return nil, fmt.Errorf("resolving agent: %w", err)
 	}

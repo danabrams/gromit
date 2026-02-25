@@ -36,9 +36,10 @@ type Session interface {
 
 // RefineInput contains parameters for the Refine workflow.
 type RefineInput struct {
-	IdeaText  string // Ad-hoc idea text (mutually exclusive with IdeaID)
-	IdeaID    string // Backlog item ID (mutually exclusive with IdeaText)
-	AgentName string // Optional agent override
+	IdeaText    string // Ad-hoc idea text (mutually exclusive with IdeaID)
+	IdeaID      string // Backlog item ID (mutually exclusive with IdeaText)
+	AgentName   string // Optional agent override
+	ChooseAgent bool   // Show interactive picker to choose agent
 }
 
 // RefineResult contains the output from the Refine workflow.
@@ -105,13 +106,13 @@ func NewCreatedBead() CreatedBead {
 
 // ValidationStats tracks validation retry metrics for a decompose run.
 type ValidationStats struct {
-	Attempts                            int  `json:"attempts"`                               // Total provider invocations (1 = no retries)
-	ViolationCount                      int  `json:"violation_count"`                        // Total violations found across all attempts
-	Improved                            bool `json:"improved"`                               // True if retry reduced violations vs first attempt
-	RetryCapReached                     bool `json:"retry_cap_reached"`                      // True when loop exits after exhausting configured retries
-	SucceededAfterRetry                 bool `json:"succeeded_after_retry"`                  // True when a retry attempt converges before hitting retry cap
-	NonImprovingAtRetryCap              bool `json:"non_improving_at_retry_cap"`             // True when retry cap is reached and no improvement is observed
-	ProceededWithHighComplexityWarning  bool `json:"proceeded_with_high_complexity_warning"` // True when loop exits with remaining high-complexity beads
+	Attempts                           int  `json:"attempts"`                               // Total provider invocations (1 = no retries)
+	ViolationCount                     int  `json:"violation_count"`                        // Total violations found across all attempts
+	Improved                           bool `json:"improved"`                               // True if retry reduced violations vs first attempt
+	RetryCapReached                    bool `json:"retry_cap_reached"`                      // True when loop exits after exhausting configured retries
+	SucceededAfterRetry                bool `json:"succeeded_after_retry"`                  // True when a retry attempt converges before hitting retry cap
+	NonImprovingAtRetryCap             bool `json:"non_improving_at_retry_cap"`             // True when retry cap is reached and no improvement is observed
+	ProceededWithHighComplexityWarning bool `json:"proceeded_with_high_complexity_warning"` // True when loop exits with remaining high-complexity beads
 }
 
 // DecomposeResult contains the output from the Decompose workflow.
