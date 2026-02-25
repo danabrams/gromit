@@ -10,6 +10,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/pipeline/execute"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/review"
@@ -325,7 +326,7 @@ func (r *Reviewer) WriteReviewLog(iteration int, beadID string, model string, re
 		FixCategories:  append([]string(nil), result.FixCategories...),
 		BeadsCreated:   beadsCreated,
 		BacklogCreated: backlogCreated,
-		DurationMs:     duration.Milliseconds(),
+		DurationMs:     execute.DurationMsFromDuration(duration),
 	})
 }
 
@@ -445,7 +446,7 @@ func (r *Reviewer) RunThorough(ctx context.Context, sa StateAccess, iteration in
 			FixCategories:  append([]string(nil), result.FixCategories...),
 			BeadsCreated:   beadsCreated,
 			BacklogCreated: backlogCreated,
-			DurationMs:     time.Since(start).Milliseconds(),
+			DurationMs:     execute.DurationMsFromDuration(time.Since(start)),
 		})
 	}
 
