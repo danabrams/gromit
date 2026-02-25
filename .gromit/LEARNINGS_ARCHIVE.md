@@ -1634,3 +1634,8 @@ When adding nil-checks to callback functions executed in loops, verify the contr
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-25 | gromit-5l15c | patterns
+When implementing display features that iterate over data structures (specs, costs), watch for infinite loops in iteration logic or N² performance patterns that can cause timeouts in test suites
+
+*Archived from new: filtered: generic engineering advice*
+
