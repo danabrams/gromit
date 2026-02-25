@@ -462,6 +462,87 @@ func TestParseBeadOutputWithExplicitNullFields(t *testing.T) {
 	}
 }
 
+// TestNormalizeNilFieldsDoesNotMapAcceptanceCriteria verifies that normalizeNilFields()
+// does NOT handle AcceptanceCriteria→ExpectedOutputs mapping (that's a separate concern)
+func TestNormalizeNilFieldsDoesNotMapAcceptanceCriteria(t *testing.T) {
+	b := &Bead{
+		ID:                 "test-separate-concerns",
+		Title:              "Test bead",
+		AcceptanceCriteria: "first output\nsecond output",
+		ExpectedOutputs:    nil,
+		Labels:             nil,
+	}
+
+	// Call normalizeNilFields() - should only normalize nil slices, not map AcceptanceCriteria
+	b.normalizeNilFields()
+
+	// ExpectedOutputs should be normalized to empty slice, not populated from AcceptanceCriteria
+	if b.ExpectedOutputs == nil {
+		t.Error("ExpectedOutputs should be non-nil after normalizeNilFields()")
+	}
+	if len(b.ExpectedOutputs) != 0 {
+		t.Errorf("normalizeNilFields() should not map AcceptanceCriteria to ExpectedOutputs; got %d outputs", len(b.ExpectedOutputs))
+	}
+	if b.Labels == nil {
+		t.Error("Labels should be non-nil after normalizeNilFields()")
+	}
+
+	// Now call resolveExpectedOutputsFromAcceptanceCriteria() to do the mapping
+	b.resolveExpectedOutputsFromAcceptanceCriteria()
+
+	// Now ExpectedOutputs should be populated from AcceptanceCriteria
+	if len(b.ExpectedOutputs) != 2 {
+		t.Fatalf("resolveExpectedOutputsFromAcceptanceCriteria() should map criteria to outputs; got %d outputs", len(b.ExpectedOutputs))
+	}
+	if b.ExpectedOutputs[0] != "first output" {
+		t.Errorf("ExpectedOutputs[0] = %q, want %q", b.ExpectedOutputs[0], "first output")
+	}
+	if b.ExpectedOutputs[1] != "second output" {
+		t.Errorf("ExpectedOutputs[1] = %q, want %q", b.ExpectedOutputs[1], "second output")
+	}
+}
+
+// TestPrepareBeadForUseOrchestrates verifies that prepareBeadForUse() correctly
+// orchestrates normalizeNilFields() then resolveExpectedOutputsFromAcceptanceCriteria()
+func TestPrepareBeadForUseOrchestrates(t *testing.T) {
+	b := &Bead{
+		ID:                 "test-orchestration",
+		Title:              "Test orchestration",
+		AcceptanceCriteria: "line 1\nline 2\nline 3",
+		ExpectedOutputs:    nil,
+		Labels:             nil,
+		Dependencies:       nil,
+	}
+
+	err := prepareBeadForUse(b)
+	if err != nil {
+		t.Fatalf("prepareBeadForUse() error = %v", err)
+	}
+
+	// After prepareBeadForUse(), both normalizeNilFields() and resolveExpectedOutputsFromAcceptanceCriteria()
+	// should have been called
+	if b.Labels == nil {
+		t.Error("Labels should be non-nil after prepareBeadForUse()")
+	}
+	if b.Dependencies == nil {
+		t.Error("Dependencies should be non-nil after prepareBeadForUse()")
+	}
+
+	// ExpectedOutputs should be populated from AcceptanceCriteria by resolveExpectedOutputsFromAcceptanceCriteria()
+	if len(b.ExpectedOutputs) != 3 {
+		t.Fatalf("prepareBeadForUse() should result in 3 expected outputs, got %d", len(b.ExpectedOutputs))
+	}
+	if b.ExpectedOutputs[0] != "line 1" {
+		t.Errorf("ExpectedOutputs[0] = %q, want %q", b.ExpectedOutputs[0], "line 1")
+	}
+	if b.ExpectedOutputs[1] != "line 2" {
+		t.Errorf("ExpectedOutputs[1] = %q, want %q", b.ExpectedOutputs[1], "line 2")
+	}
+	if b.ExpectedOutputs[2] != "line 3" {
+		t.Errorf("ExpectedOutputs[2] = %q, want %q", b.ExpectedOutputs[2], "line 3")
+	}
+}
+
 func TestParseBeadOutputMapsAcceptanceCriteriaToExpectedOutputs(t *testing.T) {
 	jsonStr := `[{
 		"id": "test-criteria",
