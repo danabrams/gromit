@@ -2,6 +2,11 @@
 
 ## Confirmed Learnings
 
+### 2026-02-25 | beads_policy_checks_need_ci_enforcement | PROCESS
+*Related to: gromit/review-1771986309252130811*
+
+When repository hygiene depends on local hooks (like beads normalization/semantic edit guards), mirror those checks in CI so contributors without hooks cannot bypass policy.
+
 ### 2026-02-24 | worktree_mergeback_conflict_ownership_and_classification | ARCHITECTURE
 *Related to: gromit-9948, gromit-9949, gromit-y7flm, gromit-z9z2k, gromit/review-1771861273153074810, gromit/review-1771878486437709843*
 *Consolidated from: session_worktree_conflict_classification_and_cleanup_ownership + mergeback_requires_typed_failure_decision_and_defensive_abort*
