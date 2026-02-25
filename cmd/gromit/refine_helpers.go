@@ -37,16 +37,6 @@ func listMarkdownFiles(dir string) ([]string, error) {
 	return files, nil
 }
 
-// containsSpec checks if a string slice contains a value
-func containsSpec(slice []string, value string) bool {
-	for _, item := range slice {
-		if item == value {
-			return true
-		}
-	}
-	return false
-}
-
 // formatTypeLabel formats type as colored label
 func formatTypeLabel(ideaType string) string {
 	typeMap := map[string]string{
