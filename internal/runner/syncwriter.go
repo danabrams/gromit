@@ -3,6 +3,8 @@ package runner
 import (
 	"io"
 	"sync"
+
+	"github.com/danabrams/gromit/internal/runner/execution"
 )
 
 // syncWriter wraps an io.Writer with thread-safe writes and automatic newline
@@ -51,3 +53,6 @@ func (sw *syncWriter) WriteOverwrite(p []byte) (n int, err error) {
 	}
 	return n, err
 }
+
+// Compile-time interface check
+var _ execution.OverwriteWriter = (*syncWriter)(nil)
