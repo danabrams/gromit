@@ -159,13 +159,29 @@ func registerRootCommands(root *cobra.Command) {
 }
 
 func commandRequiresRepoRoot(cmd *cobra.Command) bool {
-	if cmd == initCmd {
+	if isInitCommand(cmd) {
 		return false
 	}
 	if isBenchmarkCommand(cmd) {
 		return false
 	}
 	return true
+}
+
+func isInitCommand(cmd *cobra.Command) bool {
+	if cmd == nil {
+		return false
+	}
+	if cmd == initCmd {
+		return true
+	}
+	if cmd.Name() == initCmd.Name() {
+		return true
+	}
+	if cmd.Use == initCmd.Use {
+		return true
+	}
+	return false
 }
 
 func isBenchmarkCommand(cmd *cobra.Command) bool {
