@@ -3,6 +3,8 @@ package provider
 import (
 	"sort"
 	"sync"
+
+	"github.com/danabrams/gromit/internal/config"
 )
 
 const (
@@ -11,6 +13,21 @@ const (
 	defaultCircuitBreakerDegradedFloor     = 20
 	defaultCircuitBreakerRecoverySuccesses = 5
 )
+
+// NewCircuitBreaker creates a CircuitBreaker from config, or returns nil if disabled.
+// When config is nil or disabled=false, returns nil (circuit-breaker is optional).
+func NewCircuitBreaker(cfg *config.CircuitBreakerConfig) *CircuitBreaker {
+	if cfg == nil || !cfg.Enabled {
+		return nil
+	}
+
+	return &CircuitBreaker{
+		windowSize:        cfg.WindowSize,
+		failureThreshold:  cfg.FailureThreshold,
+		degradedFloor:     cfg.DegradedFloor,
+		recoverySuccesses: cfg.RecoverySuccesses,
+	}
+}
 
 // CircuitBreaker tracks recent provider outcomes and temporarily degrades
 // routing ratio for providers with elevated transport disconnect failures.
