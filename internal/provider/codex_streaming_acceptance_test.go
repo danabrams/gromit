@@ -293,31 +293,17 @@ func TestCodexProviderInvokesToolCallHandlerForMCPTool(t *testing.T) {
 // TestCodexProviderExtractsTokenUsageFromTurnCompleted verifies that
 // turn.completed events with usage data populate Result's token fields.
 func TestCodexProviderExtractsTokenUsageFromTurnCompleted(t *testing.T) {
-	tempDir := t.TempDir()
-
-	mockBinary := filepath.Join(tempDir, "codex")
-	codexEvent := map[string]interface{}{
-		"type": "turn.completed",
-		"usage": map[string]interface{}{
-			"input_tokens":  1500,
-			"output_tokens": 800,
-		},
-	}
-	eventJSON, _ := json.Marshal(codexEvent)
-	mockScript := fmt.Sprintf("#!/bin/bash\ncat > /dev/null\nprintf '%%s\\n' '%s'\nexit 0\n", string(eventJSON))
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+	setupCodexStreamingFixtureEnv(t, "codex_stream_turn_completed_usage.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
-	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
+	cp := NewCodexProvider(fakeCodexBinaryPath(t), []string{}, tierMap)
 
 	ctx := context.Background()
 	var output bytes.Buffer
 	var receivedEvents [][]byte
 
 	handler := func(line []byte) {
-		receivedEvents = append(receivedEvents, line)
+		receivedEvents = append(receivedEvents, append([]byte(nil), line...))
 	}
 
 	result, err := cp.StreamRun(ctx, "test", TierMedium, &output, handler, nil)
@@ -325,7 +311,6 @@ func TestCodexProviderExtractsTokenUsageFromTurnCompleted(t *testing.T) {
 		t.Fatalf("StreamRun() error = %v", err)
 	}
 
-	// Verify that a result event was emitted with token usage
 	var foundResultEvent bool
 	for _, eventData := range receivedEvents {
 		var streamEvent struct {
@@ -352,7 +337,6 @@ func TestCodexProviderExtractsTokenUsageFromTurnCompleted(t *testing.T) {
 		t.Error("turn.completed event did not produce a result StreamEvent with token usage")
 	}
 
-	// Also verify Result object has the token data (if Result includes these fields)
 	_ = result
 }
 
