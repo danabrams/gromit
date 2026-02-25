@@ -169,6 +169,23 @@ func TestFinalVerification(t *testing.T) {
 	})
 }
 
+func TestFinalVerification_NoBuildExplorePromptReference(t *testing.T) {
+	projectRoot, err := findProjectRoot()
+	if err != nil {
+		t.Fatalf("could not find project root: %v", err)
+	}
+
+	content, err := os.ReadFile(filepath.Join(projectRoot, "cmd", "gromit", "final_verification_test.go"))
+	if err != nil {
+		t.Fatalf("failed to read final_verification_test.go: %v", err)
+	}
+
+	needle := strings.Join([]string{"build", "ExplorePrompt"}, "")
+	if strings.Contains(string(content), needle) {
+		t.Fatalf("final_verification_test.go must not reference %q", needle)
+	}
+}
+
 func scanProjectTestFiles(projectRoot string) ([]scannedTestFile, error) {
 	files := make([]scannedTestFile, 0, 512)
 	err := filepath.WalkDir(projectRoot, func(path string, d os.DirEntry, err error) error {
