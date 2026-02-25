@@ -485,6 +485,32 @@ func TestIterationResult_SpecID(t *testing.T) {
 	}
 }
 
+// TestIterationResult_SpecIDJSONTag ensures the struct tags
+// marshal SpecID using the expected json key and respects omitempty.
+func TestIterationResult_SpecIDJSONTag(t *testing.T) {
+	result := IterationResult{
+		BeadID: "bead-1",
+		SpecID: "spec-json",
+	}
+
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal result: %v", err)
+	}
+	s := string(data)
+	if !strings.Contains(s, "\"spec_id\":\"spec-json\"") {
+		t.Fatalf("expected spec_id in JSON, got %s", s)
+	}
+
+	emptyData, err := json.Marshal(IterationResult{})
+	if err != nil {
+		t.Fatalf("marshal empty result: %v", err)
+	}
+	if strings.Contains(string(emptyData), "spec_id") {
+		t.Fatalf("expected spec_id to be omitted, got %s", string(emptyData))
+	}
+}
+
 // TestIterationResult_CoverageFields verifies that IterationResult has the four
 // coverage result fields required by the coverage tracker feature.
 func TestIterationResult_CoverageFields(t *testing.T) {
