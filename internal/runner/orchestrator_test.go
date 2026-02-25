@@ -1270,6 +1270,192 @@ func TestOrchestrator_ControlLimitAlert_SetsRetroFlagWhenFirstPassSuccessBelow70
 	}
 }
 
+// TestOrchestrator_ControlLimitAlert_NotTriggeredWhenSuccessRateAtThreshold verifies
+// that the control limit alert is NOT triggered when the success rate equals 70%
+// (the threshold is strictly less than).
+func TestOrchestrator_ControlLimitAlert_NotTriggeredWhenSuccessRateAtThreshold(t *testing.T) {
+	metricsDir := t.TempDir()
+	stateDir := t.TempDir()
+
+	// Create ProcessTrend with FirstPassSuccess exactly at 70% (should NOT trigger)
+	trend := &logger.ProcessTrend{
+		TotalIterations: 10,
+		WindowSize:      10,
+		LatestWindow: logger.ProcessTrendWindow{
+			FirstPassSuccess: 0.70, // Exactly at threshold, should NOT trigger
+		},
+	}
+
+	trendPath := filepath.Join(metricsDir, "process_trend.json")
+	trendData, err := json.MarshalIndent(trend, "", "  ")
+	if err != nil {
+		t.Fatalf("marshalling trend: %v", err)
+	}
+	if err := os.WriteFile(trendPath, trendData, 0644); err != nil {
+		t.Fatalf("writing trend file: %v", err)
+	}
+
+	stateFile, err := state.NewFile(stateDir)
+	if err != nil {
+		t.Fatalf("creating state file: %v", err)
+	}
+
+	trendUpdater := &fakeTrendUpdater{trend: trend}
+	getBead := func(_ context.Context) (*bead.Bead, error) { return nil, nil }
+
+	cfg := OrchestratorConfig{
+		Gate:         &fakeStage{},
+		Build:        &fakeStage{},
+		Validate:     &fakeStage{},
+		Epilogue:     &fakeStage{},
+		GetBead:      getBead,
+		Config:       &config.Config{},
+		Output:       io.Discard,
+		StateSaver:   stateFile,
+		TrendUpdater: trendUpdater,
+		LogsDir:      trendPath,
+	}
+
+	orch := NewOrchestrator(cfg)
+	err = orch.Run(context.Background(), 10, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if err := stateFile.Load(); err != nil {
+		t.Fatalf("loading state file: %v", err)
+	}
+
+	if stateFile.IsControlLimitAlertTriggered() {
+		t.Error("ControlLimitAlert flag should NOT be set when FirstPassSuccess = 0.70")
+	}
+}
+
+// TestOrchestrator_ControlLimitAlert_NotTriggeredWhenWindowTooSmall verifies
+// that the control limit alert is NOT triggered when the window has fewer
+// than 10 iterations, even if success rate is low.
+func TestOrchestrator_ControlLimitAlert_NotTriggeredWhenWindowTooSmall(t *testing.T) {
+	metricsDir := t.TempDir()
+	stateDir := t.TempDir()
+
+	// Create ProcessTrend with low success rate but window < 10
+	trend := &logger.ProcessTrend{
+		TotalIterations: 5,
+		WindowSize:      5, // Less than minimum 10
+		LatestWindow: logger.ProcessTrendWindow{
+			FirstPassSuccess: 0.20, // Low rate, but window is too small
+		},
+	}
+
+	trendPath := filepath.Join(metricsDir, "process_trend.json")
+	trendData, err := json.MarshalIndent(trend, "", "  ")
+	if err != nil {
+		t.Fatalf("marshalling trend: %v", err)
+	}
+	if err := os.WriteFile(trendPath, trendData, 0644); err != nil {
+		t.Fatalf("writing trend file: %v", err)
+	}
+
+	stateFile, err := state.NewFile(stateDir)
+	if err != nil {
+		t.Fatalf("creating state file: %v", err)
+	}
+
+	trendUpdater := &fakeTrendUpdater{trend: trend}
+	getBead := func(_ context.Context) (*bead.Bead, error) { return nil, nil }
+
+	cfg := OrchestratorConfig{
+		Gate:         &fakeStage{},
+		Build:        &fakeStage{},
+		Validate:     &fakeStage{},
+		Epilogue:     &fakeStage{},
+		GetBead:      getBead,
+		Config:       &config.Config{},
+		Output:       io.Discard,
+		StateSaver:   stateFile,
+		TrendUpdater: trendUpdater,
+		LogsDir:      trendPath,
+	}
+
+	orch := NewOrchestrator(cfg)
+	err = orch.Run(context.Background(), 10, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if err := stateFile.Load(); err != nil {
+		t.Fatalf("loading state file: %v", err)
+	}
+
+	if stateFile.IsControlLimitAlertTriggered() {
+		t.Error("ControlLimitAlert flag should NOT be set when window size < 10")
+	}
+}
+
+// TestOrchestrator_ControlLimitAlert_LogsWarningWhenTriggered verifies that when
+// the control limit alert is triggered, a warning message is logged to the output.
+func TestOrchestrator_ControlLimitAlert_LogsWarningWhenTriggered(t *testing.T) {
+	metricsDir := t.TempDir()
+	stateDir := t.TempDir()
+
+	// Create ProcessTrend with low FirstPassSuccess rate
+	trend := &logger.ProcessTrend{
+		TotalIterations: 12,
+		WindowSize:      12,
+		LatestWindow: logger.ProcessTrendWindow{
+			FirstPassSuccess: 0.1667, // 16.67%, below 70% threshold
+		},
+	}
+
+	trendPath := filepath.Join(metricsDir, "process_trend.json")
+	trendData, err := json.MarshalIndent(trend, "", "  ")
+	if err != nil {
+		t.Fatalf("marshalling trend: %v", err)
+	}
+	if err := os.WriteFile(trendPath, trendData, 0644); err != nil {
+		t.Fatalf("writing trend file: %v", err)
+	}
+
+	stateFile, err := state.NewFile(stateDir)
+	if err != nil {
+		t.Fatalf("creating state file: %v", err)
+	}
+
+	// Capture log output
+	var logOutput strings.Builder
+
+	trendUpdater := &fakeTrendUpdater{trend: trend}
+	getBead := func(_ context.Context) (*bead.Bead, error) { return nil, nil }
+
+	cfg := OrchestratorConfig{
+		Gate:         &fakeStage{},
+		Build:        &fakeStage{},
+		Validate:     &fakeStage{},
+		Epilogue:     &fakeStage{},
+		GetBead:      getBead,
+		Config:       &config.Config{},
+		Output:       &logOutput,
+		StateSaver:   stateFile,
+		TrendUpdater: trendUpdater,
+		LogsDir:      trendPath,
+	}
+
+	orch := NewOrchestrator(cfg)
+	err = orch.Run(context.Background(), 10, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	// Verify that warning was logged
+	logStr := logOutput.String()
+	if !strings.Contains(logStr, "first-pass success rate") {
+		t.Errorf("Warning message not found in logs. Got: %q", logStr)
+	}
+	if !strings.Contains(logStr, "70%") {
+		t.Errorf("Control limit threshold not mentioned in logs. Got: %q", logStr)
+	}
+}
+
 // fakeTrendUpdater is a test double for trendUpdaterCloser
 type fakeTrendUpdater struct {
 	trend *logger.ProcessTrend
