@@ -704,3 +704,18 @@ func TestConsolidatedMocks_DecomposerCanBeCreatedWithHelper(t *testing.T) {
 		t.Error("WasCalled() = false, want true")
 	}
 }
+
+func TestConsolidatedMocks_DataQualityBlockerCanBeCreatedWithHelper(t *testing.T) {
+	dq := newMockDataQualityBlocker().WithShouldBlock(true, "incomplete_data", nil)
+
+	blocked, reason, err := dq.ShouldBlock(context.Background(), &bead.Bead{ID: "test"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !blocked {
+		t.Errorf("blocked = %v, want true", blocked)
+	}
+	if reason != "incomplete_data" {
+		t.Errorf("reason = %q, want %q", reason, "incomplete_data")
+	}
+}
