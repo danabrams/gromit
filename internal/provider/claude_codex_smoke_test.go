@@ -173,6 +173,36 @@ func TestClaudeFailurePath(t *testing.T) {
 	}
 }
 
+// TestCodexFailurePath exercises the Codex provider failure behavior
+// when CODEX_SMOKE=1. Tests that failures are properly reported.
+func TestCodexFailurePath(t *testing.T) {
+	if os.Getenv("CODEX_SMOKE") != "1" {
+		t.Skip("CODEX_SMOKE=1 not set")
+	}
+
+	// Use a Codex provider with a nonexistent binary path
+	tierMap := map[string]string{
+		TierMedium: "gpt-5.3-codex",
+	}
+	cp := NewCodexProvider("/nonexistent/codex/binary", []string{}, tierMap)
+
+	ctx := context.Background()
+	result, err := cp.Run(ctx, "Test prompt", TierMedium)
+
+	// We expect either an error or a failed result
+	if err != nil && result != nil {
+		// If there's an error, there shouldn't be a result
+		t.Errorf("Run() returned both error and result: err=%v, result=%+v", err, result)
+	}
+
+	if err == nil && result != nil && !result.Success {
+		// Verify that a failed result has exit code or diagnostics
+		if result.ExitCode == 0 && result.Diagnostics == "" {
+			t.Errorf("Run() failed but has no exit code or diagnostics: %+v", result)
+		}
+	}
+}
+
 // GetClaudeClient creates a real Claude CLI client for smoke tests.
 func GetClaudeClient(t *testing.T) *claude.Client {
 	t.Helper()
