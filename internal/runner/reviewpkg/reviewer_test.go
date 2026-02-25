@@ -367,8 +367,8 @@ func TestSelectReviewTier_OpusBuildReturnsHigh(t *testing.T) {
 	b := &bead.Bead{ID: "test-tier-001", Priority: 2} // P2 would normally be low
 
 	tier := SelectReviewTier(cfg, b, "opus")
-	if tier != provider.TierHigh {
-		t.Errorf("SelectReviewTier(opus) = %q, want %q", tier, provider.TierHigh)
+	if tier != "high" {
+		t.Errorf("SelectReviewTier(opus) = %q, want %q", tier, "high")
 	}
 }
 
@@ -382,8 +382,8 @@ func TestSelectReviewTier_NonOpusDelegatesToEscalation(t *testing.T) {
 	b := &bead.Bead{ID: "test-tier-002", Priority: 1}
 
 	tier := SelectReviewTier(cfg, b, "sonnet")
-	if tier != provider.TierMedium {
-		t.Errorf("SelectReviewTier(sonnet) = %q, want %q", tier, provider.TierMedium)
+	if tier != "medium" {
+		t.Errorf("SelectReviewTier(sonnet) = %q, want %q", tier, "medium")
 	}
 }
 
