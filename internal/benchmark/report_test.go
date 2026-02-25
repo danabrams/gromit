@@ -371,6 +371,50 @@ func TestWriteReport_BeadsArrayIsSorted(t *testing.T) {
 	}
 }
 
+func TestWriteReport_NoArtifactDuplication(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+
+	input := ReportInput{
+		Timestamp: "20260223T120000Z",
+		Manifest: ManifestMetadata{
+			ID:         "test-no-duplication",
+			BaseCommit: "abc123",
+		},
+		Modes: []ModeSummary{{Mode: "test_mode"}},
+	}
+
+	_, err := WriteReport(input)
+	if err != nil {
+		t.Fatalf("first WriteReport() error = %v", err)
+	}
+
+	resultDir := filepath.Join(".gromit", "benchmarks", "results", "test-no-duplication")
+	files, err := os.ReadDir(resultDir)
+	if err != nil {
+		t.Fatalf("read results directory: %v", err)
+	}
+	firstCount := len(files)
+
+	_, err = WriteReport(input)
+	if err != nil {
+		t.Fatalf("second WriteReport() error = %v", err)
+	}
+
+	files, err = os.ReadDir(resultDir)
+	if err != nil {
+		t.Fatalf("read results directory after second write: %v", err)
+	}
+	secondCount := len(files)
+
+	if firstCount != secondCount {
+		t.Fatalf("artifact count changed after repeated writes: first = %d, second = %d", firstCount, secondCount)
+	}
+	if firstCount != 2 {
+		t.Fatalf("expected 2 artifacts (json + markdown), got %d", firstCount)
+	}
+}
+
 func TestRunPhase3Measurement_ComputesMediansAndCacheHitRatesByPromptClass(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
