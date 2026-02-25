@@ -259,3 +259,15 @@ func TestTracker_ToValidatingTransition(t *testing.T) {
 		t.Fatalf("tracker.State() = %v, want %v", tracker.State(), StateValidating)
 	}
 }
+
+func TestTracker_ToCompleteTransition(t *testing.T) {
+	tracker := NewTracker([]Criterion{{Number: 1, Text: "First"}}, 2)
+	tracker.ToCollecting()
+	tracker.ToValidating()
+
+	tracker.ToComplete()
+
+	if tracker.State() != StateComplete {
+		t.Fatalf("tracker.State() = %v, want %v", tracker.State(), StateComplete)
+	}
+}
