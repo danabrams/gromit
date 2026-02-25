@@ -453,6 +453,74 @@ func TestRunBenchmarkPipeline_ReportArtifactsMatchInternalWriter(t *testing.T) {
 	}
 }
 
+func TestRunBenchmarkPipeline_SingleSchemaOwner_EnforcesOnlyInternalWriterIsUsed(t *testing.T) {
+	origLoadManifest := benchmarkInternalLoadManifestFn
+	origSelectCohort := benchmarkSelectCohortFn
+	origValidate := benchmarkValidateCohortFn
+	origHarness := benchmarkRunHarnessFn
+	origMetrics := benchmarkComputeMetricsFn
+	origWrite := benchmarkInternalWriteReportFn
+	t.Cleanup(func() {
+		benchmarkInternalLoadManifestFn = origLoadManifest
+		benchmarkSelectCohortFn = origSelectCohort
+		benchmarkValidateCohortFn = origValidate
+		benchmarkRunHarnessFn = origHarness
+		benchmarkComputeMetricsFn = origMetrics
+		benchmarkInternalWriteReportFn = origWrite
+	})
+
+	writeReportCallCount := 0
+	benchmarkInternalWriteReportFn = func(input benchpkg.ReportInput) (benchpkg.ReportPaths, error) {
+		writeReportCallCount++
+		// Ensure we can still call the real implementation
+		return benchpkg.ReportPaths{
+			JSONPath: ".gromit/benchmarks/results/" + input.Manifest.ID + "/" + input.Timestamp + ".json",
+			MDPath:   ".gromit/benchmarks/results/" + input.Manifest.ID + "/" + input.Timestamp + ".md",
+		}, nil
+	}
+
+	benchmarkInternalLoadManifestFn = func(path string) (benchpkg.Manifest, error) {
+		return benchpkg.Manifest{
+			ID:         "test-id",
+			BaseCommit: "abc123",
+			Beads:      []string{"bead-1"},
+			ModeConfig: benchpkg.ModeConfig{Modes: []string{"mode-1"}},
+		}, nil
+	}
+	benchmarkSelectCohortFn = func(manifest benchmarkManifest, opts benchmarkRunOptions) (benchmarkSelection, error) {
+		return benchmarkSelection{SelectedBeads: []string{"bead-1"}}, nil
+	}
+	benchmarkValidateCohortFn = func(selection benchmarkSelection, opts benchmarkRunOptions) (benchmarkValidatedCohort, error) {
+		return benchmarkValidatedCohort{SelectedBeads: selection.SelectedBeads}, nil
+	}
+	benchmarkRunHarnessFn = func(manifest benchmarkManifest, cohort benchmarkValidatedCohort, opts benchmarkRunOptions) (benchmarkHarnessResult, error) {
+		return benchmarkHarnessResult{
+			BaseCommit:    "abc123",
+			SelectedBeads: cohort.SelectedBeads,
+			Modes:         []benchmarkModeResult{{Mode: "mode-1"}},
+		}, nil
+	}
+	benchmarkComputeMetricsFn = func(result benchmarkHarnessResult) (benchmarkMetricsResult, error) {
+		return benchmarkMetricsResult{
+			ModeSummaries: []benchpkg.ModeSummary{{Mode: "mode-1"}},
+		}, nil
+	}
+
+	opts := benchmarkRunOptions{
+		ManifestPath:    "test.yaml",
+		OutputTimestamp: "20260225T120000Z",
+	}
+
+	if err := runBenchmarkPipeline(opts); err != nil {
+		t.Fatalf("runBenchmarkPipeline() error = %v", err)
+	}
+
+	// Verify that WriteReport was called exactly once
+	if writeReportCallCount != 1 {
+		t.Errorf("benchmarkInternalWriteReportFn call count = %d, want 1 (single schema owner)", writeReportCallCount)
+	}
+}
+
 func TestRunBenchmarkPipeline_ReportArtifactsMatchCuratedFixture(t *testing.T) {
 	tmpDir := t.TempDir()
 	origWD, err := os.Getwd()
