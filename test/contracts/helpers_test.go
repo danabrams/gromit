@@ -211,8 +211,12 @@ func filterCalls(env *testEnv, prefix string) ([]string, error) {
 
 	var filtered []string
 	for _, call := range calls {
-		if strings.HasPrefix(call, prefix) {
-			filtered = append(filtered, call)
+		trimmed := strings.TrimSpace(call)
+		if trimmed == "" {
+			continue
+		}
+		if strings.HasPrefix(trimmed, prefix) {
+			filtered = append(filtered, trimmed)
 		}
 	}
 
