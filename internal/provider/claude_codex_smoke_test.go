@@ -6,6 +6,8 @@ import (
 	"context"
 	"os"
 	"testing"
+
+	"github.com/danabrams/gromit/internal/claude"
 )
 
 // TestClaudeNonStreamSuccess exercises the Claude provider with a real CLI
@@ -39,4 +41,17 @@ func TestClaudeNonStreamSuccess(t *testing.T) {
 	if result.Output == "" {
 		t.Error("Run() Output is empty")
 	}
+}
+
+// GetClaudeClient creates a real Claude CLI client for smoke tests.
+func GetClaudeClient(t *testing.T) *claude.Client {
+	t.Helper()
+	client, err := claude.NewClient("claude", []string{}, 30)
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	if client == nil {
+		t.Fatal("NewClient() returned nil")
+	}
+	return client
 }
