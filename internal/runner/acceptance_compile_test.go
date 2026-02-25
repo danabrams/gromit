@@ -21,6 +21,20 @@ func TestAcceptanceTestsCompile(t *testing.T) {
 	}
 }
 
+func TestNoAcceptanceTestsInRunnerTestFile(t *testing.T) {
+	// Verify that runner_test.go does not exist in internal/runner/.
+	// Acceptance tests must be in internal/runner/acceptance/ only.
+	runnerTestPath := filepath.Join(findRepoRoot(t), "internal", "runner", "runner_test.go")
+
+	_, err := os.Stat(runnerTestPath)
+	if err == nil {
+		t.Fatalf("runner_test.go should not exist at %s; acceptance tests must be isolated in internal/runner/acceptance/", runnerTestPath)
+	}
+	if !os.IsNotExist(err) {
+		t.Fatalf("unexpected error checking for runner_test.go: %v", err)
+	}
+}
+
 func findRepoRoot(t *testing.T) string {
 	t.Helper()
 	dir, err := os.Getwd()
