@@ -1697,6 +1697,33 @@ WARNING: closing connection
 	}
 }
 
+func TestHasOpenChildrenHandlesRichSurroundingNoise(t *testing.T) {
+	const parentID = "epic-noise-rich"
+	noisyOutput := `NOTICE: query succeeded
+bd version 1.2.3
+INFO: opened tcp connection
+bd list running (elapsed 0.02s)
+[{"id":"task-002","title":"Child 2","priority":1,"issue_type":"task","status":"open","parent":"epic-noise-rich"}]
+bd list completed (elapsed 0.02s)
+WARNING: closing connection
+`
+
+	c := &Client{
+		binary: "bd",
+		RunFn: func(args ...string) (string, error) {
+			return noisyOutput, nil
+		},
+	}
+
+	got, err := c.HasOpenChildren(parentID)
+	if err != nil {
+		t.Fatalf("HasOpenChildren(%q) unexpected error: %v", parentID, err)
+	}
+	if !got {
+		t.Fatalf("HasOpenChildren(%q) expected true even when bd list output is padded with noise", parentID)
+	}
+}
+
 // TestClientListReadyIDsNilClient tests that ListReadyIDs() returns error on nil client
 func TestClientListReadyIDsNilClient(t *testing.T) {
 	var c *Client
