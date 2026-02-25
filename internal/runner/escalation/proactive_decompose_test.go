@@ -1,9 +1,12 @@
 package escalation
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
@@ -145,5 +148,58 @@ func TestProactiveDecomposeThreshold_LowRiskNotTriggered(t *testing.T) {
 	shouldDecompose := ShouldProactivelyDecompose(bc)
 	if shouldDecompose {
 		t.Errorf("ShouldProactivelyDecompose() = true, want false for low-risk bead")
+	}
+}
+
+// TestCheckProactiveDecomposition_TriggersDecomposition verifies that the Handler
+// detects when proactive decomposition should occur and initiates decomposition.
+func TestCheckProactiveDecomposition_TriggersDecomposition(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	decomposeCalled := false
+	decomposeFn := func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+		decomposeCalled = true
+		return []runtypes.SubTask{}, nil
+	}
+
+	createSubCalled := false
+	createSubFn := func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error {
+		createSubCalled = true
+		return nil
+	}
+
+	handler := NewHandler(cfg, nil, nil, decomposeFn, createSubFn, nil, nil)
+
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
+			ID:       "test-001",
+			Title:    "High-risk test bead",
+			Priority: 1,
+		},
+		ScopeEstimate: &prompt.ScopeEstimate{
+			Complexity:                   "high",
+			EstimatedIterations:          2,
+			CanCompleteInSingleIteration: false,
+		},
+		TotalRetriesThisBead: 0,
+		BeadTimeout:          10 * time.Minute,
+		BeadStartTime:        time.Now().Add(-6 * time.Minute), // 60% elapsed
+		Result:               &runtypes.IterationResult{},
+		ParentCtx:            context.Background(),
+	}
+
+	ctx := context.Background()
+	continueLoop := handler.CheckProactiveDecomposition(ctx, bc)
+
+	if continueLoop {
+		t.Errorf("CheckProactiveDecomposition() = true, want false (should attempt decomposition)")
+	}
+	if !decomposeCalled {
+		t.Errorf("decomposeFn not called, expected it to be called for proactive decomposition")
+	}
+	if !createSubCalled {
+		t.Errorf("createSubFn not called, expected it to be called after decomposition")
 	}
 }
