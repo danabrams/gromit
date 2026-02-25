@@ -7,6 +7,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/pipeline/execute"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
@@ -53,6 +54,7 @@ func (a *TDDPipelineAdapter) RunCycles(ctx context.Context, b *bead.Bead, cfg *c
 	cycleErr := a.runner.tddOrchestrator.RunCycles(ctx, bc, coverageTracker, coverageCriteria)
 	durationMs := time.Since(startTime).Milliseconds()
 
+	populateCoverageResult(bc, coverageTracker)
 	aggregateTDDPhaseMetricsToResult(bc)
 	originalTier, actualTier := tddTierProvenance(bc.Result.PhaseMetrics)
 	// Fall back to bc-level tier when PhaseMetrics is empty (telemetry
@@ -108,4 +110,24 @@ func convertPhaseMetrics(metrics []runtypes.PhaseMetric) []pipeline.PhaseMetric 
 		}
 	}
 	return out
+}
+
+// populateCoverageResult populates coverage fields in bc.Result from the tracker.
+func populateCoverageResult(bc *runtypes.BeadContext, tracker *coverage.CoverageTracker) {
+	if bc == nil || bc.Result == nil || tracker == nil {
+		return
+	}
+
+	bc.Result.CriteriaTotal = tracker.TotalCriteria()
+	coveredCriteria := tracker.CoveredCriteria()
+	bc.Result.CriteriaCovered = len(coveredCriteria)
+
+	untestableCriteria := tracker.UntestableCriteria()
+	bc.Result.CriteriaUntestable = len(untestableCriteria)
+
+	uncoveredCriteria := tracker.UncoveredCriteria()
+	bc.Result.UncoveredCriteria = make([]string, len(uncoveredCriteria))
+	for i, criterion := range uncoveredCriteria {
+		bc.Result.UncoveredCriteria[i] = criterion.Text
+	}
 }
