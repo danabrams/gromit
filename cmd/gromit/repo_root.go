@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
 const (
@@ -79,4 +80,40 @@ func absPath(path, label string) (string, error) {
 func hasRepoMarker(dir, marker string) bool {
 	_, err := os.Stat(filepath.Join(dir, marker))
 	return err == nil
+}
+
+// resolveProjectPath resolves a path relative to the project root, using the caller's
+// file location to determine the project root instead of relying on the current working directory.
+// This allows tests to work correctly when run from any directory.
+func resolveProjectPath(caller string, relativePath string) string {
+	// Get the caller's file location using runtime.Caller
+	// skip=2: skip runtime.Caller itself and this function
+	_, callerFile, _, ok := runtime.Caller(1)
+	if !ok {
+		// Fallback to using current working directory if we can't get caller info
+		if root, err := findProjectRoot(); err == nil {
+			return filepath.Join(root, relativePath)
+		}
+		return relativePath
+	}
+
+	// Start from the directory containing the caller's file
+	dir := filepath.Dir(callerFile)
+
+	// Walk up to find the project root
+	for {
+		if hasRepoMarker(dir, repoConfigName) {
+			return filepath.Join(dir, relativePath)
+		}
+		if hasRepoMarker(dir, repoDirName) {
+			return filepath.Join(dir, relativePath)
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			// Reached filesystem root without finding project root
+			// Fallback to relative path
+			return relativePath
+		}
+		dir = parent
+	}
 }
