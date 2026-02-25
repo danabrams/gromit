@@ -10,7 +10,8 @@ type VariantReport struct {
 
 // ExperimentReport represents the report for a single experiment.
 type ExperimentReport struct {
-	ExperimentID string
+	ExperimentID   string
+	VariantReports []*VariantReport
 }
 
 // GenerateReport loads bandit state for each experiment and returns the report.
