@@ -2,15 +2,7 @@
 
 package contracts
 
-import "fmt"
-
-type ToolCallKind string
-
-const (
-	ToolCallCodex  ToolCallKind = "codex"
-	ToolCallClaude ToolCallKind = "claude"
-	ToolCallBD     ToolCallKind = "bd"
-)
+import "github.com/danabrams/gromit/test/toolcalls"
 
 func ApplyCodexFixtureEnv(env []string, fixtureFile string) []string {
 	return codexTestEnvWithFixture(env, fixtureFile)
@@ -24,23 +16,10 @@ func ApplyCodexDelayEnv(env []string, delay string) []string {
 	return codexTestEnvWithDelay(env, delay)
 }
 
-func FilterToolCalls(env *testEnv, tool ToolCallKind) ([]string, error) {
-	prefix, err := toolCallPrefix(tool)
+func FilterToolCalls(env *testEnv, tool toolcalls.ToolCallKind) ([]string, error) {
+	prefix, err := toolcalls.ToolCallPrefix(tool)
 	if err != nil {
 		return nil, err
 	}
 	return filterCalls(env, prefix)
-}
-
-func toolCallPrefix(tool ToolCallKind) (string, error) {
-	switch tool {
-	case ToolCallCodex:
-		return "codex", nil
-	case ToolCallClaude:
-		return "claude", nil
-	case ToolCallBD:
-		return "bd", nil
-	default:
-		return "", fmt.Errorf("unknown tool call kind: %q", tool)
-	}
 }

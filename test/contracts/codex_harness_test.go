@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/danabrams/gromit/test/toolcalls"
 )
 
 func TestContractHarness_CodexUsesSharedFixtureAndCallLogHelpers(t *testing.T) {
@@ -24,7 +26,7 @@ func TestContractHarness_CodexUsesSharedFixtureAndCallLogHelpers(t *testing.T) {
 		t.Fatalf("failed to write call log: %v", err)
 	}
 
-	codexCalls, err := FilterToolCalls(env, ToolCallCodex)
+	codexCalls, err := FilterToolCalls(env, toolcalls.ToolCallCodex)
 	if err != nil {
 		t.Fatalf("FilterToolCalls returned error: %v", err)
 	}
@@ -45,7 +47,7 @@ func TestContractHarness_SharedFilterKeepsNonCodexBehavior(t *testing.T) {
 		t.Fatalf("failed to write call log: %v", err)
 	}
 
-	claudeCalls, err := FilterToolCalls(env, ToolCallClaude)
+	claudeCalls, err := FilterToolCalls(env, toolcalls.ToolCallClaude)
 	if err != nil {
 		t.Fatalf("FilterToolCalls(claude) returned error: %v", err)
 	}
@@ -53,7 +55,7 @@ func TestContractHarness_SharedFilterKeepsNonCodexBehavior(t *testing.T) {
 		t.Fatalf("expected 1 claude call, got %d (%v)", len(claudeCalls), claudeCalls)
 	}
 
-	bdCalls, err := FilterToolCalls(env, ToolCallBD)
+	bdCalls, err := FilterToolCalls(env, toolcalls.ToolCallBD)
 	if err != nil {
 		t.Fatalf("FilterToolCalls(bd) returned error: %v", err)
 	}

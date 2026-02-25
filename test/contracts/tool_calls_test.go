@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/danabrams/gromit/test/toolcalls"
 )
 
 func TestFilterToolCalls_Codex(t *testing.T) {
@@ -17,7 +19,7 @@ func TestFilterToolCalls_Codex(t *testing.T) {
 		t.Fatalf("failed to write call log: %v", err)
 	}
 
-	calls, err := FilterToolCalls(env, ToolCallCodex)
+	calls, err := FilterToolCalls(env, toolcalls.ToolCallCodex)
 	if err != nil {
 		t.Fatalf("FilterToolCalls returned error: %v", err)
 	}
@@ -122,7 +124,7 @@ func TestApplyCodexEnv_ComposesMultipleHelpers(t *testing.T) {
 
 func TestFilterToolCalls_UnknownKind(t *testing.T) {
 	env := setupTestEnv(t)
-	_, err := FilterToolCalls(env, ToolCallKind("unknown"))
+	_, err := FilterToolCalls(env, toolcalls.ToolCallKind("unknown"))
 	if err == nil {
 		t.Fatal("expected an error for unknown tool kind")
 	}
