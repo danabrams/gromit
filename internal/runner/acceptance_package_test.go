@@ -90,3 +90,47 @@ func TestAcceptancePackageHasDocumentation(t *testing.T) {
 		t.Errorf("doc.go should document the acceptance test package purpose")
 	}
 }
+
+func TestValidatePackageHasDocumentation(t *testing.T) {
+	// Verify that the validate package has a doc.go file documenting
+	// its purpose as Stage 3 of the pipeline.
+	repoRoot := findRepoRootForDocs(t)
+	validateDir := filepath.Join(repoRoot, "internal", "pipeline", "validate")
+	docPath := filepath.Join(validateDir, "doc.go")
+
+	content, err := os.ReadFile(docPath)
+	if err != nil {
+		t.Fatalf("doc.go not found in validate package: %v", err)
+	}
+
+	docContent := string(content)
+	if !strings.Contains(docContent, "package validate") {
+		t.Errorf("doc.go must declare 'package validate', got:\n%s", docContent)
+	}
+
+	if !strings.Contains(docContent, "Stage") {
+		t.Errorf("doc.go should document the validate stage package purpose")
+	}
+}
+
+func TestReviewPackageHasDocumentation(t *testing.T) {
+	// Verify that the review package has a doc.go file documenting
+	// its purpose as Stage 4 of the pipeline.
+	repoRoot := findRepoRootForDocs(t)
+	reviewDir := filepath.Join(repoRoot, "internal", "pipeline", "review")
+	docPath := filepath.Join(reviewDir, "doc.go")
+
+	content, err := os.ReadFile(docPath)
+	if err != nil {
+		t.Fatalf("doc.go not found in review package: %v", err)
+	}
+
+	docContent := string(content)
+	if !strings.Contains(docContent, "package review") {
+		t.Errorf("doc.go must declare 'package review', got:\n%s", docContent)
+	}
+
+	if !strings.Contains(docContent, "Stage") {
+		t.Errorf("doc.go should document the review stage package purpose")
+	}
+}
