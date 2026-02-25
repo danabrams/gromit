@@ -25,8 +25,9 @@
 ## Stream-JSON Schema
 
 - Fixture file: `stream-json-success.jsonl`
-- Event/object keys observed in fixture: `type`, `message`, `delta`, `finish_reason`, `usage.input_tokens`, `usage.output_tokens`, `cost.total`.
-- Representative event types in fixture: `message_start`, `content_delta`, `message_end`.
+- Event/object keys observed in fixture: `type`, `role`, `content`, `delta`, `finish_reason`, `status`, `stats.input_tokens`, `stats.output_tokens`, `stats.total_tokens`, `stats.duration_ms`, `stats.tool_calls`.
+- Representative event types in fixture: `init`, `message`, `result`.
+- Parser planning note: tokenize assistant/user contributions from `message` events and record usage totals from the final `result.stats` object (Gemini stream-json fixtures do not expose `usage.*` directly).
 
 ## JSON Schema
 
