@@ -41,6 +41,8 @@ func (a *TDDPipelineAdapter) RunCycles(ctx context.Context, b *bead.Bead, cfg *c
 		Result: &runtypes.IterationResult{},
 	}
 
+	SetupBeadContext(bc)
+
 	coverageTracker, coverageCriteria, err := buildCoverageTrackerFromSpec(bc)
 	if err != nil {
 		if errors.Is(err, errCoverageTrackerDisabled) {
