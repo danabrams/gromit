@@ -129,6 +129,22 @@ func (r *Renderer) SetBudgetConfig(maxChars, learningCapChars int) {
 	r.budgetLearningCapChars = learningCapChars
 }
 
+// SetBudgetMaxChars sets the total prompt budget used for shaping.
+func (r *Renderer) SetBudgetMaxChars(maxChars int) {
+	if r == nil {
+		return
+	}
+	r.budgetMaxChars = maxChars
+}
+
+// SetBudgetLearningCapChars sets the cap applied to learning summaries during shaping.
+func (r *Renderer) SetBudgetLearningCapChars(maxChars int) {
+	if r == nil {
+		return
+	}
+	r.budgetLearningCapChars = maxChars
+}
+
 // SetATDDPromptConfig stores ATDD-specific prompt shaping config.
 func (r *Renderer) SetATDDPromptConfig(cfg ATDDPromptConfig) {
 	if r == nil {
