@@ -75,6 +75,58 @@ func (bs *BanditState) RecordOutcome(armID string, success bool) {
 	}
 }
 
+// IsConverged determines if the bandit has converged with high confidence.
+// Uses Monte Carlo simulation over 10,000 draws to estimate convergence.
+// Returns true if the best arm is identified with >= confidenceThreshold probability.
+func (bs *BanditState) IsConverged(confidenceThreshold float64) bool {
+	if len(bs.Arms) == 0 {
+		return true
+	}
+
+	if len(bs.Arms) == 1 {
+		return true
+	}
+
+	const numDraws = 10000
+
+	// Count how many times each arm is the best across draws
+	bestArmCounts := make([]int, len(bs.Arms))
+
+	for draw := 0; draw < numDraws; draw++ {
+		// Sample from Beta distribution for each arm
+		maxValue := -1.0
+		bestIdx := -1
+
+		for i, arm := range bs.Arms {
+			// Sample from Beta(successes+1, failures+1)
+			x := sampleGamma(float64(arm.Successes + 1))
+			y := sampleGamma(float64(arm.Failures + 1))
+			sample := x / (x + y)
+
+			if sample > maxValue {
+				maxValue = sample
+				bestIdx = i
+			}
+		}
+
+		if bestIdx >= 0 {
+			bestArmCounts[bestIdx]++
+		}
+	}
+
+	// Find the arm that was best most frequently
+	maxCount := 0
+	for _, count := range bestArmCounts {
+		if count > maxCount {
+			maxCount = count
+		}
+	}
+
+	// Check if the best arm's confidence is above threshold
+	confidence := float64(maxCount) / numDraws
+	return confidence >= confidenceThreshold
+}
+
 // sampleGamma samples from Gamma(shape, 1) distribution using Marsaglia-Tsang method
 func sampleGamma(shape float64) float64 {
 	if shape < 1 {
