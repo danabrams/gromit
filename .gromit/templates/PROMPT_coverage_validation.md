@@ -22,6 +22,8 @@ Criterion #{{.CriterionNumber}}: {{.CriterionText}}
 {{.TestCode}}
 ```
 
+Use the sample coverage validation snippet above to guide your reasoning.
+
 ## Instructions
 
 1. Decide whether the test code fully covers the criterion.
