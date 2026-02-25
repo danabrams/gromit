@@ -359,36 +359,6 @@ func computeBenchmarkMetrics(result benchmarkHarnessResult) (benchmarkMetricsRes
 	return metrics, nil
 }
 
-func buildBenchmarkReportInput(manifest benchmarkManifest, result benchmarkHarnessResult, metrics benchmarkMetricsResult, opts benchmarkRunOptions) benchpkg.ReportInput {
-	ts := opts.OutputTimestamp
-	if ts == "" {
-		ts = benchmarkNowFn().UTC().Format("20060102T150405Z")
-	}
-
-	modeSummaries := metrics.ModeSummaries
-	if len(modeSummaries) == 0 {
-		modeSummaries = make([]benchpkg.ModeSummary, 0, len(metrics.ModeScores))
-		for _, score := range metrics.ModeScores {
-			modeSummaries = append(modeSummaries, benchpkg.ModeSummary{Mode: score.Mode})
-		}
-	}
-
-	return benchpkg.ReportInput{
-		Timestamp: ts,
-		Manifest: benchpkg.ManifestMetadata{
-			ID:              manifest.ID,
-			BaseCommit:      result.BaseCommit,
-			Beads:           append([]string(nil), result.SelectedBeads...),
-			Provider:        manifest.Provider,
-			ModelFamily:     manifest.ModelFamily,
-			LowTierModel:    manifest.LowTierModel,
-			MediumTierModel: manifest.MediumTierModel,
-			HighTierModel:   manifest.HighTierModel,
-		},
-		Modes: modeSummaries,
-	}
-}
-
 func parseCSV(value string) []string {
 	if strings.TrimSpace(value) == "" {
 		return nil

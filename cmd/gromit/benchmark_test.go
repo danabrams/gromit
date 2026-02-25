@@ -77,8 +77,8 @@ func TestBenchmarkCLI_UsesInternalBuildReportInputExclusively(t *testing.T) {
 }
 
 func TestBenchmarkTests_DoNotUseDuplicateReportInputBuilder(t *testing.T) {
-	// This test verifies that tests do not call the local buildBenchmarkReportInput function
-	// Instead, all tests should use benchpkg.BuildReportInput as the single source of truth
+	// This test verifies that only benchpkg.BuildReportInput is used as the single source of truth
+	// for constructing ReportInput, preventing duplicate schema definitions
 	// Verify that we can construct ReportInput directly using the internal builder
 	beads := []string{"bead-1", "bead-2"}
 	modeSummaries := []benchpkg.ModeSummary{{Mode: "test_mode"}}
