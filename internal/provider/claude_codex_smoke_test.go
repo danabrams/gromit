@@ -122,3 +122,17 @@ func GetClaudeClient(t *testing.T) *claude.Client {
 	}
 	return client
 }
+
+// GetCodexProvider creates a real Codex provider for smoke tests.
+func GetCodexProvider(t *testing.T) *CodexProvider {
+	t.Helper()
+	tierMap := map[string]string{
+		TierMedium: "gpt-5.3-codex",
+		TierLow:    "gpt-5.1-codex-mini",
+	}
+	cp := NewCodexProvider("codex", []string{}, tierMap)
+	if cp == nil {
+		t.Fatal("NewCodexProvider() returned nil")
+	}
+	return cp
+}
