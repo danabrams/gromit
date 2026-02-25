@@ -48,6 +48,9 @@ func validateExperiment(exp *Experiment) error {
 	if exp.Control.ID == "" {
 		return fmt.Errorf("control variant in experiment %q missing ID", exp.ID)
 	}
+	if exp.Control.Template == "" {
+		return fmt.Errorf("control variant in experiment %q missing template", exp.ID)
+	}
 	ids := make(map[string]struct{})
 	ids[exp.Control.ID] = struct{}{}
 	for _, variant := range exp.Variants {
@@ -56,6 +59,9 @@ func validateExperiment(exp *Experiment) error {
 		}
 		if variant.ID == "" {
 			return fmt.Errorf("variant in experiment %q missing ID", exp.ID)
+		}
+		if variant.Template == "" {
+			return fmt.Errorf("variant %q in experiment %q missing template", variant.ID, exp.ID)
 		}
 		if _, exists := ids[variant.ID]; exists {
 			return fmt.Errorf("duplicate variant ID %q", variant.ID)
