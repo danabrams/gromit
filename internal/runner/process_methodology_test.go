@@ -13,6 +13,7 @@ import (
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/pipeline/execute"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
@@ -131,6 +132,28 @@ func TestResolveBuildStrategy_LastSinglePassWins(t *testing.T) {
 
 	if got := resolveBuildStrategy(cfg, b); got != "single_pass" {
 		t.Fatalf("resolveBuildStrategy() = %q, want %q when single_pass is the last explicit override", got, "single_pass")
+	}
+}
+
+func TestBuildCoverageTrackerFromSpec_DisabledPendingActivation(t *testing.T) {
+	spec := `## Acceptance Criteria
+- Accept valid input
+- Reject invalid input
+`
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{ID: "b1"},
+		PromptCtx: &prompt.Context{
+			SpecName: "example-spec",
+			Spec:     spec,
+		},
+	}
+
+	tracker, criteria, err := buildCoverageTrackerFromSpec(bc)
+	if err == nil {
+		t.Fatal("expected error when coverage tracker is disabled by policy")
+	}
+	if tracker != nil || len(criteria) != 0 {
+		t.Fatalf("expected nil tracker/criteria when coverage tracking is gated, got %v / %v", tracker, criteria)
 	}
 }
 
