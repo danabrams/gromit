@@ -46,3 +46,13 @@ func TestCommandRequiresRepoRoot_Regression(t *testing.T) {
 		}
 	}
 }
+
+func TestCommandRequiresRepoRoot_InitAlias(t *testing.T) {
+	alias := &cobra.Command{
+		Use: "init",
+	}
+
+	if commandRequiresRepoRoot(alias) {
+		t.Fatalf("init alias should not require repo root")
+	}
+}
