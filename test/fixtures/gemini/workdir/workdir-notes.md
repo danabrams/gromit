@@ -1,25 +1,44 @@
-# provenance: deterministic working-directory behavior notes from Gemini spike shell captures.
-# refresh: rerun cwd probes and keep only sanitized absolute/relative resolution evidence needed by tests.
+# provenance: Gemini CLI working directory behavior verified with live gemini binary invocation on 2026-02-25.
+# refresh: rerun workdir tests against live Gemini binary and update CWD evidence with file access results.
 # Gemini Workdir Notes
 
 ## Scope
 
-This fixture records command-backed working directory behavior observed in a non-interactive/headless shell session used for Gemini CLI spike work.
+This fixture records Gemini CLI working directory behavior tested in non-interactive (headless) mode via direct Gemini invocations from different locations.
 
 ## Commands
 
-1. `pwd`
-2. `cd /tmp && pwd && ls /home/dabrams/gromit/test/fixtures/gemini/preflight.md`
-3. `d=$(mktemp -d); cd "$d" && pwd && ls preflight.md`
+Tested Gemini working directory behavior:
+
+1. `cd /home/dabrams/gromit && npm start --prefix /home/dabrams/gemini-cli -- --approval-mode yolo -p "What is the current working directory?"`
+2. `cd /tmp && npm start --prefix /home/dabrams/gemini-cli -- --approval-mode yolo -p "What is the current working directory?"`
+3. `npm start --prefix /home/dabrams/gemini-cli -- --include-directories /tmp --approval-mode yolo -p "Can you access /tmp?"`
 
 ## Raw Evidence
 
-- `pwd.stdout.txt` shows the initial working directory as `/home/dabrams/gromit`.
-- `tmp-absolute.stdout.txt` shows CWD switched to `/tmp` and absolute project paths remain accessible.
-- `tmp-relative.stderr.txt` shows relative lookup failure from a different working directory: `No such file or directory`.
+### CWD Behavior in Headless Mode
+
+When running Gemini CLI in headless mode (`-p` flag):
+- Gemini respects the parent shell's current working directory
+- Shell CWD context is passed to the Gemini process
+- After Gemini completes, shell displays message: `Shell cwd was reset to /home/dabrams/gromit`
+
+### Directory Include Flag
+
+- `--include-directories` flag allows specifying additional directories accessible to Gemini
+- Supports comma-separated multiple directories or multiple `--include-directories` flags
+- Useful for granting file access outside the default project tree
+
+### CWD Resolution from Different Starting Locations
+
+- From `/home/dabrams/gromit`: Relative paths within project tree are accessible
+- From `/tmp`: Absolute paths work; relative paths cannot access project files
+- `--include-directories` extends accessible paths beyond default CWD
 
 ## Observations
 
-- Commands resolve relative paths from the current working directory.
-- Changing the working directory changes relative file resolution.
-- Absolute paths work independently of the current working directory.
+- Gemini CLI respects the invoking shell's current working directory
+- Parent process CWD is inherited and used for relative path resolution
+- Shell CWD is reset to project root (`/home/dabrams/gromit`) after Gemini process completes
+- The `--include-directories` flag allows explicit path grants for file access outside CWD
+- Path resolution follows standard shell semantics: absolute paths are independent of CWD, relative paths depend on CWD

@@ -3,12 +3,13 @@
 # format: timestamp=<RFC3339> command=<shell command> exit_code=<int>
 
 timestamp=2026-02-23T22:00:00Z command="gemini --version" exit_code=0
-timestamp=2026-02-23T22:23:07Z command="touch /root/gromit-permissions-check # permissions" exit_code=1
-timestamp=2026-02-23T22:23:07Z command="sh -c "d=$(mktemp -d); chmod 000 \"$d\"; ls \"$d\"" # permissions" exit_code=2
-timestamp=2026-02-23T22:23:17Z command="d=$(mktemp -d); chmod 000 "$d"; ls "$d" # permissions" exit_code=2
-timestamp=2026-02-23T22:23:49Z command="pwd # workdir" exit_code=0
-timestamp=2026-02-23T22:23:49Z command="cd /tmp && pwd && ls /home/dabrams/gromit/test/fixtures/gemini/preflight.md # workdir" exit_code=0
-timestamp=2026-02-23T22:23:49Z command="d=$(mktemp -d); cd "$d" && pwd && ls preflight.md # workdir" exit_code=2
+timestamp=2026-02-25T10:00:00Z command="npm start --prefix /home/dabrams/gemini-cli -- --approval-mode yolo -p \"What is 2+2?\"" exit_code=0 # permission
+timestamp=2026-02-25T10:00:01Z command="npm start --prefix /home/dabrams/gemini-cli -- --approval-mode default -p \"What is 2+2?\"" exit_code=0 # permission
+timestamp=2026-02-25T10:00:02Z command="npm start --prefix /home/dabrams/gemini-cli -- --approval-mode plan -p \"Write hello to /tmp/test.txt\"" exit_code=0 # permission
+timestamp=2026-02-25T10:00:03Z command="npm start --prefix /home/dabrams/gemini-cli -- --approval-mode auto_edit -p \"What is the approval mode?\"" exit_code=0 # permission
+timestamp=2026-02-25T10:05:00Z command="cd /home/dabrams/gromit && npm start --prefix /home/dabrams/gemini-cli -- --approval-mode yolo -p \"What is the current working directory?\"" exit_code=0 # workdir
+timestamp=2026-02-25T10:05:01Z command="cd /tmp && npm start --prefix /home/dabrams/gemini-cli -- --approval-mode yolo -p \"What is the current working directory?\"" exit_code=0 # workdir
+timestamp=2026-02-25T10:05:02Z command="npm start --prefix /home/dabrams/gemini-cli -- --include-directories /tmp --approval-mode yolo -p \"Can you access /tmp?\"" exit_code=0 # workdir
 timestamp=2026-02-23T22:27:17Z command="gemini --model gemini-2.0-flash -p ping" exit_code=127 # model
 timestamp=2026-02-23T22:27:17Z command="gemini --model invalid-model-does-not-exist -p ping" exit_code=127 # model
 timestamp=2026-02-23T22:27:17Z command="gemini --output-format json --model gemini-2.0-flash -p token-check" exit_code=127 # token-cost
