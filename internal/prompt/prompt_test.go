@@ -2164,3 +2164,22 @@ func TestRenderCoverageValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderCoverageValidationNilContext(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	os.MkdirAll(templatesDir, 0755)
+
+	tmpl := `Coverage validation placeholder.`
+	os.WriteFile(filepath.Join(templatesDir, "PROMPT_coverage_validation.md"), []byte(tmpl), 0644)
+
+	r := &Renderer{templatesDir: templatesDir}
+	_, err := r.RenderCoverageValidation(nil)
+	if err == nil {
+		t.Fatal("expected error for nil coverage validation context")
+	}
+
+	if !strings.Contains(err.Error(), "coverage validation context") {
+		t.Fatalf("unexpected error %v", err)
+	}
+}
