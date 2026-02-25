@@ -60,3 +60,41 @@ func TestSelectVariantWithoutForceSelectsArm(t *testing.T) {
 		t.Fatalf("Expected selected variant to be 'control' or 'variant-1', got %q", selected)
 	}
 }
+
+func TestRecordOutcomeIncrementsSuccesses(t *testing.T) {
+	// Verify that RecordOutcome increments successes when outcome is true
+	state := &BanditState{
+		Arms: []ArmState{
+			{ID: "control", Successes: 5, Failures: 2},
+			{ID: "variant-1", Successes: 3, Failures: 4},
+		},
+	}
+
+	state.RecordOutcome("control", true)
+
+	if state.Arms[0].Successes != 6 {
+		t.Fatalf("Expected control successes to be 6, got %d", state.Arms[0].Successes)
+	}
+	if state.Arms[0].Failures != 2 {
+		t.Fatalf("Expected control failures to remain 2, got %d", state.Arms[0].Failures)
+	}
+}
+
+func TestRecordOutcomeIncrementsFailures(t *testing.T) {
+	// Verify that RecordOutcome increments failures when outcome is false
+	state := &BanditState{
+		Arms: []ArmState{
+			{ID: "control", Successes: 5, Failures: 2},
+			{ID: "variant-1", Successes: 3, Failures: 4},
+		},
+	}
+
+	state.RecordOutcome("variant-1", false)
+
+	if state.Arms[1].Successes != 3 {
+		t.Fatalf("Expected variant-1 successes to remain 3, got %d", state.Arms[1].Successes)
+	}
+	if state.Arms[1].Failures != 5 {
+		t.Fatalf("Expected variant-1 failures to be 5, got %d", state.Arms[1].Failures)
+	}
+}
