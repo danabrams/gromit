@@ -206,7 +206,7 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 	}
 
 	// Take snapshot before red phase invocation
-	beforeRedCostUSD, beforeRedInputTokens, beforeRedOutputTokens := o.snapshotUsage(bc)
+	beforeRedCostUSD, beforeRedInputTokens, beforeRedOutputTokens := runtypes.SnapshotIterationUsage(bc.Result)
 	redStartTime := time.Now()
 
 	if err := o.runPhaseInvocation(ctx, bc, redPrompt, "red"); err != nil {
@@ -248,7 +248,7 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 	}
 
 	// Take snapshot before green phase invocation
-	beforeGreenCostUSD, beforeGreenInputTokens, beforeGreenOutputTokens := o.snapshotUsage(bc)
+	beforeGreenCostUSD, beforeGreenInputTokens, beforeGreenOutputTokens := runtypes.SnapshotIterationUsage(bc.Result)
 	greenStartTime := time.Now()
 
 	if err := o.runGreenPhaseUntilValidated(ctx, bc, state.CycleNumber+1, greenPrompt, state.TouchedFiles); err != nil {
@@ -343,7 +343,7 @@ func (o *CycleOrchestrator) runRefactorAndFinalValidation(ctx context.Context, b
 	o.logPhase(cycleNumber, "refactor", "refactoring")
 
 	// Take snapshot before refactor phase invocation
-	beforeRefactorCostUSD, beforeRefactorInputTokens, beforeRefactorOutputTokens := o.snapshotUsage(bc)
+	beforeRefactorCostUSD, beforeRefactorInputTokens, beforeRefactorOutputTokens := runtypes.SnapshotIterationUsage(bc.Result)
 	refactorStartTime := time.Now()
 
 	outcome := o.executeRefactorPhase(ctx, bc)
@@ -438,13 +438,6 @@ func (o *CycleOrchestrator) runFinalValidation(ctx context.Context) error {
 	return nil
 }
 
-// snapshotUsage returns the current usage snapshot from the BeadContext result.
-func (o *CycleOrchestrator) snapshotUsage(bc *runtypes.BeadContext) (costUSD float64, inputTokens int, outputTokens int) {
-	if bc == nil || bc.Result == nil {
-		return 0, 0, 0
-	}
-	return bc.Result.CostUSD, bc.Result.InputTokens, bc.Result.OutputTokens
-}
 
 // recordPhaseMetric records a phase metric with snapshot-based deltas.
 func (o *CycleOrchestrator) recordPhaseMetric(bc *runtypes.BeadContext, phase string, cycleNumber int, beforeCostUSD float64, beforeInputTokens int, beforeOutputTokens int, startTime time.Time) {

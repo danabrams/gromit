@@ -837,7 +837,7 @@ func TestTDDCycleOrchestrator_RecordsRefactorPhaseMetricsWithSnapshotDeltas(t *t
 
 // TestPhaseMetricRecording_AllPhasesUseSnapshotIterationUsage verifies that
 // all three TDD phases (red, green, refactor) record PhaseMetric using
-// snapshotIterationUsage() for consistent per-phase delta calculation.
+// SnapshotIterationUsage() for consistent per-phase delta calculation.
 // This test ensures red and refactor phases use the same snapshot-based
 // semantics as the green phase.
 func TestPhaseMetricRecording_AllPhasesUseSnapshotIterationUsage(t *testing.T) {
@@ -864,15 +864,15 @@ func TestPhaseMetricRecording_AllPhasesUseSnapshotIterationUsage(t *testing.T) {
 				},
 			}
 
-			// Take before snapshot using snapshotIterationUsage semantics
-			beforeCostUSD, beforeInputTokens, beforeOutputTokens := snapshotIterationUsage(bc.Result)
+			// Take before snapshot using SnapshotIterationUsage semantics
+			beforeCostUSD, beforeInputTokens, beforeOutputTokens := runtypes.SnapshotIterationUsage(bc.Result)
 
 			// Simulate phase invocation by adding to result
 			bc.Result.CostUSD += 0.02
 			bc.Result.InputTokens += 100
 			bc.Result.OutputTokens += 50
 
-			// Record metric using appendTDDPhaseMetric (which uses snapshotIterationUsage internally)
+			// Record metric using appendTDDPhaseMetric (which uses SnapshotIterationUsage internally)
 			appendTDDPhaseMetric(bc, tt.phase, 1, beforeCostUSD, beforeInputTokens, beforeOutputTokens, time.Now())
 
 			// Verify metric was recorded with correct delta
@@ -901,7 +901,7 @@ func TestPhaseMetricRecording_AllPhasesUseSnapshotIterationUsage(t *testing.T) {
 }
 
 // TestSnapshotIterationUsage_CanBeUsedByOrchestratorForAllPhases verifies that
-// snapshotIterationUsage() can be called directly with bc.Result to capture
+// SnapshotIterationUsage() can be called directly with bc.Result to capture
 // per-phase snapshots, enabling consistent usage across all TDD phases (red,
 // green, refactor) without direct field access.
 func TestSnapshotIterationUsage_CanBeUsedByOrchestratorForAllPhases(t *testing.T) {
@@ -913,25 +913,25 @@ func TestSnapshotIterationUsage_CanBeUsedByOrchestratorForAllPhases(t *testing.T
 		},
 	}
 
-	// This test verifies that snapshotIterationUsage(bc.Result) can be called
+	// This test verifies that SnapshotIterationUsage(bc.Result) can be called
 	// directly by the orchestrator for all phases, ensuring consistent snapshot
 	// semantics without using direct field access or methods like snapshotUsage()
-	cost, input, output := snapshotIterationUsage(bc.Result)
+	cost, input, output := runtypes.SnapshotIterationUsage(bc.Result)
 
 	// Verify the snapshot captures the current state
 	if cost != 0.15 {
-		t.Errorf("snapshotIterationUsage(bc.Result).cost = %.20f, want 0.15", cost)
+		t.Errorf("SnapshotIterationUsage(bc.Result).cost = %.20f, want 0.15", cost)
 	}
 	if input != 1500 {
-		t.Errorf("snapshotIterationUsage(bc.Result).input = %d, want 1500", input)
+		t.Errorf("SnapshotIterationUsage(bc.Result).input = %d, want 1500", input)
 	}
 	if output != 750 {
-		t.Errorf("snapshotIterationUsage(bc.Result).output = %d, want 750", output)
+		t.Errorf("SnapshotIterationUsage(bc.Result).output = %d, want 750", output)
 	}
 
 	// Verify nil handling works correctly for safety
-	nilCost, nilInput, nilOutput := snapshotIterationUsage(nil)
+	nilCost, nilInput, nilOutput := runtypes.SnapshotIterationUsage(nil)
 	if nilCost != 0 || nilInput != 0 || nilOutput != 0 {
-		t.Errorf("snapshotIterationUsage(nil) = (%.20f, %d, %d), want (0, 0, 0)", nilCost, nilInput, nilOutput)
+		t.Errorf("SnapshotIterationUsage(nil) = (%.20f, %d, %d), want (0, 0, 0)", nilCost, nilInput, nilOutput)
 	}
 }

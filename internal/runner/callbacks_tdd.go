@@ -347,12 +347,6 @@ func optionalTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, route
 	return buildTDDCycleRunner(cfg, renderer, router, output, costDefs)
 }
 
-func snapshotIterationUsage(result *runtypes.IterationResult) (costUSD float64, inputTokens int, outputTokens int) {
-	if result == nil {
-		return 0, 0, 0
-	}
-	return result.CostUSD, result.InputTokens, result.OutputTokens
-}
 
 func phaseUsageDelta(
 	result *runtypes.IterationResult,
@@ -360,7 +354,7 @@ func phaseUsageDelta(
 	beforeInputTokens int,
 	beforeOutputTokens int,
 ) (costUSD float64, inputTokens int, outputTokens int) {
-	afterCostUSD, afterInputTokens, afterOutputTokens := snapshotIterationUsage(result)
+	afterCostUSD, afterInputTokens, afterOutputTokens := runtypes.SnapshotIterationUsage(result)
 	costUSD = afterCostUSD - beforeCostUSD
 	inputTokens = afterInputTokens - beforeInputTokens
 	outputTokens = afterOutputTokens - beforeOutputTokens

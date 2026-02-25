@@ -217,6 +217,16 @@ type ArgvRunnerFn func(ctx context.Context, program string, args []string, workD
 // AutoFixFn runs auto-fix tools (gofmt/goimports) on changed files since a commit.
 type AutoFixFn func(startCommit string) error
 
+// SnapshotIterationUsage captures the current usage state from an IterationResult.
+// Used by all TDD phases (red, green, refactor) to take before-snapshots for
+// per-phase delta calculation.
+func SnapshotIterationUsage(result *IterationResult) (costUSD float64, inputTokens int, outputTokens int) {
+	if result == nil {
+		return 0, 0, 0
+	}
+	return result.CostUSD, result.InputTokens, result.OutputTokens
+}
+
 // MaxSynthesizedSpecFixBeads is the sole source of truth for the maximum
 // number of synthesized spec-fix beads. It is consumed by both
 // runner.SynthesizeFixBeads and specgate.SynthesizeFixBeads.
