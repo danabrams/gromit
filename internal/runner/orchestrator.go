@@ -529,9 +529,41 @@ func (o *Orchestrator) assertEfficiencyCompleteness(totalIterations int) error {
 	// This will check any iterations that exist in the logs, regardless of totalIterations
 	result, diags := logger.AssertEfficiencyCompleteness(o.cfg.LogsDir, runID)
 
+	baseDiags := make([]string, 0, len(diags)+1)
+	baseDiags = append(baseDiags, diags...)
+	if result.ErrorMessage != "" {
+		baseDiags = append(baseDiags, result.ErrorMessage)
+	}
+	joinDiagnostics := func(extras ...string) string {
+		parts := make([]string, 0, len(baseDiags)+len(extras))
+		parts = append(parts, baseDiags...)
+		for _, extra := range extras {
+			if extra == "" {
+				continue
+			}
+			parts = append(parts, extra)
+		}
+		if len(parts) == 0 {
+			return ""
+		}
+		return strings.Join(parts, "\n  ")
+	}
+
 	// Only fail if there were iterations recorded and data was incomplete
+	if totalIterations > 0 && result.TotalIterations < totalIterations {
+		missingRows := totalIterations - result.TotalIterations
+		missingMsg := fmt.Sprintf("%d iteration log row(s) missing for run %s (found %d/%d entries)", missingRows, runID, result.TotalIterations, totalIterations)
+		diagMsg := joinDiagnostics(missingMsg)
+		if diagMsg == "" {
+			diagMsg = missingMsg
+		}
+		return fmt.Errorf("efficiency data completeness assertion failed: %d/%d iteration logs missing\nDiagnostics:\n  %s", missingRows, totalIterations, diagMsg)
+	}
 	if result.TotalIterations > 0 && !result.IsComplete {
-		diagMsg := strings.Join(diags, "\n  ")
+		diagMsg := joinDiagnostics()
+		if diagMsg == "" {
+			diagMsg = "no diagnostics available"
+		}
 		return fmt.Errorf("efficiency data completeness assertion failed: %d/%d iterations missing efficiency data\nDiagnostics:\n  %s", result.MissingDataCount, result.TotalIterations, diagMsg)
 	}
 
