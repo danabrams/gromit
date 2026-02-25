@@ -1,6 +1,8 @@
 package escalation
 
 import (
+	"context"
+	"fmt"
 	"time"
 
 	"github.com/danabrams/gromit/internal/runner/runtypes"
@@ -74,4 +76,39 @@ func ShouldProactivelyDecompose(bc *runtypes.BeadContext) bool {
 
 	elapsedRatio := float64(elapsed) / float64(bc.BeadTimeout)
 	return elapsedRatio >= proactiveDecomposeThreshold
+}
+
+// CheckProactiveDecomposition checks if a bead should be proactively decomposed
+// based on risk score and elapsed time. If proactive decomposition is triggered,
+// calls AttemptDecomposition and returns false (no loop continuation).
+// Returns true if no proactive decomposition is needed (loop should continue normally).
+// Returns false if proactive decomposition was triggered or attempted.
+func (h *Handler) CheckProactiveDecomposition(ctx context.Context, bc *runtypes.BeadContext) (continueLoop bool) {
+	if bc == nil {
+		return true
+	}
+
+	// Only check for high-risk beads that haven't timed out yet
+	if !ShouldProactivelyDecompose(bc) {
+		return true
+	}
+
+	if bc.Result == nil {
+		return true
+	}
+
+	// Mark that we attempted proactive decomposition
+	bc.Result.TimeoutDecompositionAttempted = true
+
+	// Get a usable context for decomposition
+	decomposeCtx := firstNonNilContext(bc.ParentCtx, ctx)
+	if decomposeCtx.Err() != nil {
+		bc.Result.Error = fmt.Errorf("proactive decomposition attempted (bead 60%% timeout: parent context canceled: %w)", decomposeCtx.Err())
+		return false
+	}
+
+	failureReason := fmt.Sprintf("proactive decomposition triggered: bead 60%% elapsed budget")
+	continueLoop = h.AttemptDecomposition(decomposeCtx, bc, failureReason)
+	bc.Result.TimeoutDecompositionSucceeded = bc.Result.Decomposed
+	return continueLoop
 }
