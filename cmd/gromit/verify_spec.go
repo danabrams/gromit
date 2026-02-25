@@ -364,10 +364,7 @@ func (c *specGateBeadCreator) Create(ctx context.Context, title, description, pr
 		return "", err
 	}
 
-	expectedOutputs := []string{}
-	if strings.TrimSpace(title) != "" {
-		expectedOutputs = []string{strings.TrimSpace(title)}
-	}
+	expectedOutputs := bead.ExpectedOutputsOrTitle(nil, title)
 	bead, err := c.client.CreateWithParentAndDescription(title, priorityInt, labels, expectedOutputs, "", description)
 	if err != nil {
 		return "", err

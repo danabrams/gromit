@@ -648,10 +648,7 @@ func (c *cliBacklogClient) Get(id string) (*pipeline.Idea, error) {
 func (c *cliBacklogClient) Add(item *pipeline.Idea) error {
 	// Create a backlog bead with P2 priority and backlog label
 	labels := []string{"from-review", "backlog"}
-	expectedOutputs := []string{}
-	if strings.TrimSpace(item.Text) != "" {
-		expectedOutputs = []string{strings.TrimSpace(item.Text)}
-	}
+	expectedOutputs := bead.ExpectedOutputsOrTitle(nil, item.Text)
 	_, err := c.beadClient.Create(item.Text, 2, labels, expectedOutputs)
 	return err
 }

@@ -57,6 +57,18 @@ func IsTestOnlyBead(title string) bool {
 	return false
 }
 
+// ExpectedOutputsOrTitle returns expected outputs when provided or falls back to a trimmed title.
+func ExpectedOutputsOrTitle(outputs []string, title string) []string {
+	if len(outputs) > 0 {
+		return outputs
+	}
+	trimmedTitle := strings.TrimSpace(title)
+	if trimmedTitle == "" {
+		return []string{}
+	}
+	return []string{trimmedTitle}
+}
+
 // IsLeafBead returns true when the bead has no downstream dependents.
 // A nil DependentCount is treated as 0 (leaf) when dependency metadata
 // is not present in the bead payload.
