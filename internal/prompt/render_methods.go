@@ -304,17 +304,21 @@ func (r *Renderer) renderBuildPrompt(promptType, templateName string, ctx *Conte
 	originalCtx := ctx
 	var shapeReport *ShapeReport
 	ctx, shapeReport = r.shapeBuildContext(ctx, promptPhaseBuild)
-	populateRenderStaticPreambleCacheMetadata(ctx, promptType, templateName)
+	templateToRender := templateName
+	if ctx != nil && ctx.TemplateOverride != "" {
+		templateToRender = ctx.TemplateOverride
+	}
+	populateRenderStaticPreambleCacheMetadata(ctx, promptType, templateToRender)
 	if originalCtx != nil && originalCtx != ctx && ctx != nil {
 		originalCtx.StaticPreambleCacheClass = ctx.StaticPreambleCacheClass
 		originalCtx.StaticPreambleCacheKey = ctx.StaticPreambleCacheKey
 	}
 	if r != nil {
-		diagnostics := r.computeBuildDiagnostics(promptType, templateName, ctx)
+		diagnostics := r.computeBuildDiagnostics(promptType, templateToRender, ctx)
 		applyShapeReportToDiagnostics(diagnostics, shapeReport, r.budgetMaxChars)
 		r.lastDiagnostics = diagnostics
 	}
-	return r.render(templateName, ctx)
+	return r.render(templateToRender, ctx)
 }
 
 func populateRenderStaticPreambleCacheMetadata(ctx *Context, promptType, templateName string) {

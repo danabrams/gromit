@@ -38,6 +38,9 @@ type Context struct {
 	// When non-empty, templates should use this instead of the generic "./..." form.
 	ScopedTestCommand string
 
+	// TemplateOverride lets callers specify an alternate template path for build renders.
+	TemplateOverride string
+
 	// SiblingTouchedPackages lists package paths touched by completed sibling beads.
 	SiblingTouchedPackages []string
 
