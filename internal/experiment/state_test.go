@@ -52,3 +52,24 @@ func TestSaveStateWritesStateFile(t *testing.T) {
 		t.Fatalf("expected arm ID control, got %q", loaded.Arms[0].ID)
 	}
 }
+
+func TestInitializeStateCreatesFileWhenMissing(t *testing.T) {
+	dir := t.TempDir()
+
+	state, err := InitializeState(dir, "exp-2")
+	if err != nil {
+		t.Fatalf("InitializeState error: %v", err)
+	}
+
+	if state == nil {
+		t.Fatalf("expected non-nil state")
+	}
+	if len(state.Arms) != 0 {
+		t.Fatalf("expected zero arms, got %d", len(state.Arms))
+	}
+
+	path := filepath.Join(dir, "exp-2.json")
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("expected state file to exist, got %v", err)
+	}
+}
