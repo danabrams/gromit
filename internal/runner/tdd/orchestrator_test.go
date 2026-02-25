@@ -1714,3 +1714,19 @@ func TestRunFinalValidation_ReturnsErrorWhenValidateFnNil(t *testing.T) {
 		t.Fatalf("expected error when validateFn is nil in final validation, got nil")
 	}
 }
+
+func TestRunOneCycle_ReturnsErrorWhenRenderRedFnNil(t *testing.T) {
+	orch := newTestOrchestrator()
+	// renderRedFn is intentionally left nil to trigger the error
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{},
+		Tier:   "medium",
+	}
+
+	state := singleRequirementState()
+	err := orch.runOneCycle(context.Background(), bc, &state)
+	if err == nil {
+		t.Fatalf("expected error when renderRedFn is nil, got nil")
+	}
+}
