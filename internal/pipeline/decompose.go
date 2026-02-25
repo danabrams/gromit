@@ -89,7 +89,7 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 	for attempt := 0; ; attempt++ {
 		stats.Attempts++
 		// Run provider non-interactively
-		llmResult, err := p.deps.LLMClient.Run(currentPrompt, model)
+		llmResult, err := runLLMClientWithContext(ctx, p.deps.LLMClient, currentPrompt, model)
 		if err != nil {
 			return nil, fmt.Errorf("invoking provider: %w", err)
 		}
@@ -407,6 +407,26 @@ func buildDecomposePrompt(planName, planBody, skillContent string) (string, *pro
 	})
 
 	return promptText, diagnostics
+}
+
+type llmClientResult struct {
+	result *LLMRunResult
+	err    error
+}
+
+func runLLMClientWithContext(ctx context.Context, client LLMClient, prompt, model string) (*LLMRunResult, error) {
+	respCh := make(chan llmClientResult, 1)
+	go func() {
+		result, err := client.Run(prompt, model)
+		respCh <- llmClientResult{result: result, err: err}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return nil, fmt.Errorf("decompose canceled: %w", ctx.Err())
+	case resp := <-respCh:
+		return resp.result, resp.err
+	}
 }
 
 // parsePriority converts priority string (P0, P1, P2) to int (0, 1, 2).
