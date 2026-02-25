@@ -106,6 +106,37 @@ func TestBuildRouterAndLearningsProvider_InitializesCircuitBreakerWhenEnabled(t 
 	}
 }
 
+// TestBuildRouterAndLearningsProvider_RouterBehavesNormallyWhenCircuitBreakerDisabled
+// verifies that when circuit-breaker is disabled, the router works as before.
+func TestBuildRouterAndLearningsProvider_RouterBehavesNormallyWhenCircuitBreakerDisabled(t *testing.T) {
+	cfg := newCodexProvidersConfig()
+	cfg.Routing.Ratio = map[string]int{"codex": 100}
+	// Circuit breaker is not enabled (Enabled defaults to false)
+	cfg.Routing.CircuitBreaker = config.CircuitBreakerConfig{
+		Enabled:           false,
+		WindowSize:        10,
+		FailureThreshold:  0.3,
+		DegradedFloor:     20,
+		RecoverySuccesses: 5,
+	}
+
+	router, _, _, _, err := buildRouterAndLearningsProvider(cfg, t.TempDir(), io.Discard)
+	if err != nil {
+		t.Fatalf("buildRouterAndLearningsProvider() error = %v", err)
+	}
+	if router == nil {
+		t.Fatal("buildRouterAndLearningsProvider() returned nil router")
+	}
+	// Router should work normally even without circuit-breaker
+	p, model := router.Select("build", "high")
+	if p == nil {
+		t.Fatal("router.Select() returned nil provider when circuit-breaker disabled")
+	}
+	if model == "" {
+		t.Fatal("router.Select() returned empty model when circuit-breaker disabled")
+	}
+}
+
 // TestDecomposerAdapter_Decompose_CreatesChildBeads verifies that decomposerAdapter.Decompose
 // actually calls bead.Client to create child beads when decomposing an oversized bead,
 // rather than returning nil without performing any work.
