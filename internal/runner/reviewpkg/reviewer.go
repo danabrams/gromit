@@ -255,7 +255,7 @@ func (r *Reviewer) ApplyResult(result *review.ReviewResult) (beadsCreated int, b
 	// Create regular beads from review proposals
 	for _, bp := range result.BeadsToCreate {
 		labels := review.BuildReviewBeadLabels(bp.Labels)
-		expectedOutputs := bead.ExpectedOutputsOrTitle(bp.ExpectedOutputs, bp.Title)
+		expectedOutputs := review.ExpectedOutputsOrTitle(bp.ExpectedOutputs, bp.Title)
 		_, err := r.beads.CreateWithParentAndDescription(
 			bp.Title,
 			bp.Priority,
@@ -275,7 +275,7 @@ func (r *Reviewer) ApplyResult(result *review.ReviewResult) (beadsCreated int, b
 	// Create backlog items as P2 beads
 	for _, bi := range result.BacklogItems {
 		labels := review.BuildBacklogLabels()
-		expectedOutputs := bead.ExpectedOutputsOrTitle(bi.ExpectedOutputs, bi.Title)
+		expectedOutputs := review.ExpectedOutputsOrTitle(bi.ExpectedOutputs, bi.Title)
 		// Build description from description + reason
 		description := bi.Description
 		if bi.Reason != "" {
