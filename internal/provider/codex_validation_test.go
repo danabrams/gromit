@@ -8,6 +8,31 @@ import (
 	"testing"
 )
 
+// TestCodexProviderRunValidationUsesSharedBinaryHelper verifies that
+// codex_validation_test can call the shared testCreateBinaryWithETXTBSYProtection
+// helper from other test files for creating temp executables safely.
+func TestCodexProviderRunValidationUsesSharedBinaryHelper(t *testing.T) {
+	t.Parallel()
+	bashScript := `#!/bin/bash
+cat
+echo "VALIDATION_PASSED"
+exit 0
+`
+	mockBinary := testCreateBinaryWithETXTBSYProtection(t, bashScript)
+
+	cp := NewCodexProvider(mockBinary, nil, map[string]string{TierLow: "gpt-4o-mini"})
+	result, err := cp.RunValidation(context.Background(), []string{"go test"}, TierLow, t.TempDir())
+	if err != nil {
+		t.Fatalf("RunValidation() error = %v, want nil", err)
+	}
+	if result == nil {
+		t.Fatal("RunValidation() returned nil result")
+	}
+	if !strings.Contains(result.Output, validationPassedMarker) {
+		t.Errorf("RunValidation() output missing marker, got: %s", result.Output)
+	}
+}
+
 func TestCodexProviderRunValidationRunsPrompt(t *testing.T) {
 	t.Parallel()
 	tempDir := t.TempDir()
