@@ -234,7 +234,7 @@ func TestLaunchDebugSession_ConvertsPromptPathToAbsolute(t *testing.T) {
 	}
 
 	capturedPromptPath := ""
-	agent := &retroTestAgent{
+	agent := &sessionTestAgent{
 		launchInDirFn: func(promptPath, dir string) error {
 			capturedPromptPath = promptPath
 			return nil
