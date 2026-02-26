@@ -1,6 +1,9 @@
 package escalation
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
@@ -58,4 +61,55 @@ func (h *DecomposeFirstHandler) IsAtomicBead(bc *runtypes.BeadContext) bool {
 	}
 	// A bead is atomic if decomposition is not available
 	return h.decomposeFn == nil
+}
+
+// log calls the logging callback if set.
+func (h *DecomposeFirstHandler) log(format string, args ...interface{}) {
+	if h.logFn != nil {
+		h.logFn(format, args...)
+	}
+}
+
+// AttemptDecomposition tries to decompose the task into sub-beads.
+// On success, sets result.Decomposed=true. On failure, sets result.Error.
+// Always returns false (processBead should return after this).
+func (h *DecomposeFirstHandler) AttemptDecomposition(ctx context.Context, bc *runtypes.BeadContext, failureReason string) (continueLoop bool) {
+	if h.decomposeFn == nil {
+		if bc != nil && bc.Result != nil {
+			bc.Result.Error = fmt.Errorf("%s and decomposition not available", failureReason)
+		}
+		return false
+	}
+
+	h.log("Attempting to decompose task after: %s", failureReason)
+	subTasks, err := h.decomposeFn(ctx, bc.Bead)
+	if err != nil {
+		h.log("Decomposition failed: %v", err)
+		if bc != nil && bc.Result != nil {
+			bc.Result.Error = fmt.Errorf("%s and decomposition failed: %w", failureReason, err)
+		}
+		return false
+	}
+
+	if h.createSubFn == nil {
+		if bc != nil && bc.Result != nil {
+			bc.Result.Error = fmt.Errorf("%s decomposition succeeded but sub-bead creation not available", failureReason)
+		}
+		return false
+	}
+
+	if err := h.createSubFn(ctx, bc.Bead, subTasks); err != nil {
+		h.log("Failed to create sub-beads: %v", err)
+		if bc != nil && bc.Result != nil {
+			bc.Result.Error = fmt.Errorf("%s decomposition succeeded but failed to create sub-beads: %w", failureReason, err)
+		}
+		return false
+	}
+
+	h.log("Task successfully decomposed into %d sub-tasks", len(subTasks))
+	if bc != nil && bc.Result != nil {
+		bc.Result.Decomposed = true
+		bc.Result.Error = nil
+	}
+	return false
 }
