@@ -431,9 +431,8 @@ func TestNormalizeNilFieldsOnNilBead(t *testing.T) {
 
 // TestParseBeadOutputNormalizesNilFields tests that parseBeadOutput normalizes nil fields
 func TestParseBeadOutputNormalizesNilFields(t *testing.T) {
-	t.Parallel(
+	t.Parallel()
 	// Simulates bd output where labels and expected_outputs are missing
-	)
 
 	jsonStr := `[{
 		"id": "test-nil",
@@ -603,10 +602,9 @@ func TestParseBeadOutputMapsAcceptanceCriteriaToExpectedOutputs(t *testing.T) {
 
 // TestShowParsesArrayWrappedJSON tests that Show handles both array and object JSON formats
 func TestShowParsesArrayWrappedJSON(t *testing.T) {
-	t.Parallel(
+	t.Parallel()
 	// We can't call Show() directly without bd running, but we can test
 	// the parsing logic by testing parseBeadOutput with array format
-	)
 
 	tests := []struct {
 		name    string

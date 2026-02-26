@@ -13,9 +13,8 @@ import (
 
 // TestExecGromitSuccessExitZero verifies that execGromit returns nil when subprocess exits successfully (exit 0)
 func TestExecGromitSuccessExitZero(t *testing.T) {
-	t.Parallel(
+	t.Parallel()
 	// Create a test binary that exits 0
-	)
 
 	tmpDir := t.TempDir()
 	testProg := filepath.Join(tmpDir, "success.go")
@@ -91,10 +90,9 @@ func main() {
 // Testing actual launch failure of execGromit is difficult because os.Executable()
 // always returns a valid path during tests. This test documents the expected behavior.
 func TestExecGromitLaunchFailure(t *testing.T) {
-	t.Parallel(
+	t.Parallel()
 	// Directly test the distinction between launch errors and exit errors
 	// This is what execGromit must handle correctly
-	)
 
 	// Try to execute a non-existent binary (launch failure)
 	cmd := exec.Command("/nonexistent/binary/path/that/does/not/exist")
@@ -116,10 +114,9 @@ func TestExecGromitLaunchFailure(t *testing.T) {
 
 // TestChainAfterRefineThreePhasesEmptyInput verifies chainAfterRefine with empty spec list
 func TestChainAfterRefineThreePhasesEmptyInput(t *testing.T) {
-	t.Parallel(
+	t.Parallel()
 	// Call the actual chainAfterRefine function with empty spec list
 	// It should return immediately without prompting
-	)
 
 	confirmCalled := false
 	executeCalled := false

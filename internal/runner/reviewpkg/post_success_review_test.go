@@ -32,10 +32,9 @@ func newTestBeadContext() *runtypes.BeadContext {
 // --- RunPostSuccess tests ---
 
 func TestRunPostSuccess_RunsLightReviewAndLogs(t *testing.T) {
-	t.Parallel(
+	t.Parallel()
 	// RunPostSuccess should call RunLight, then ApplyResult, then WriteReviewLog
 	// when the review returns a result.
-	)
 
 	cfg := newTestConfig()
 
@@ -87,10 +86,9 @@ func TestRunPostSuccess_RunsLightReviewAndLogs(t *testing.T) {
 }
 
 func TestRunPostSuccess_ReviewFailureIsNonBlocking(t *testing.T) {
-	t.Parallel(
+	t.Parallel()
 	// When the light review itself fails (provider error), RunPostSuccess
 	// should log a warning and return nil (not propagate the error).
-	)
 
 	cfg := newTestConfig()
 
@@ -120,10 +118,9 @@ func TestRunPostSuccess_ReviewFailureIsNonBlocking(t *testing.T) {
 }
 
 func TestRunPostSuccess_NilReviewResultIsNoOp(t *testing.T) {
-	t.Parallel(
+	t.Parallel()
 	// When RunLight returns nil result (e.g., no diff or deadline expired),
 	// RunPostSuccess should return nil without logging or creating beads.
-	)
 
 	cfg := newTestConfig()
 
@@ -141,10 +138,9 @@ func TestRunPostSuccess_NilReviewResultIsNoOp(t *testing.T) {
 }
 
 func TestRunPostSuccess_RevalidatesAfterFixesApplied(t *testing.T) {
-	t.Parallel(
+	t.Parallel()
 	// When the light review applies fixes, RunPostSuccess should re-validate.
 	// If validation passes, no error should be returned.
-	)
 
 	cfg := newTestConfig()
 	cfg.Validation.Commands = []string{"full-check"}
@@ -203,11 +199,10 @@ func TestRunPostSuccess_RevalidatesAfterFixesApplied(t *testing.T) {
 }
 
 func TestRunPostSuccess_SetsReviewBrokeValidation(t *testing.T) {
-	t.Parallel(
+	t.Parallel()
 	// When the light review applies fixes that break validation,
 	// RunPostSuccess should set bc.Result.ReviewBrokeValidation = true
 	// and return an error.
-	)
 
 	cfg := newTestConfig()
 
@@ -252,10 +247,9 @@ func TestRunPostSuccess_SetsReviewBrokeValidation(t *testing.T) {
 }
 
 func TestRunPostSuccess_AppendsValidationOutputOnFailure(t *testing.T) {
-	t.Parallel(
+	t.Parallel()
 	// When review fixes break validation, RunPostSuccess should append
 	// the validation failure output to bc.Result.Output.
-	)
 
 	cfg := newTestConfig()
 
@@ -294,10 +288,9 @@ func TestRunPostSuccess_AppendsValidationOutputOnFailure(t *testing.T) {
 }
 
 func TestRunPostSuccess_SkipsValidationWhenNoFixes(t *testing.T) {
-	t.Parallel(
+	t.Parallel()
 	// When the review returns no fixes_applied, RunPostSuccess should not
 	// run re-validation — just apply results and log.
-	)
 
 	cfg := newTestConfig()
 
@@ -341,10 +334,9 @@ func TestRunPostSuccess_SkipsValidationWhenNoFixes(t *testing.T) {
 }
 
 func TestRunPostSuccess_UsesBeadContextFieldsCorrectly(t *testing.T) {
-	t.Parallel(
+	t.Parallel()
 	// RunPostSuccess should pass the correct fields from BeadContext
 	// to RunLight: bead, parent, startCommit, model, iteration, deadline, buildProvider.
-	)
 
 	cfg := newTestConfig()
 
@@ -397,10 +389,9 @@ func TestRunPostSuccess_UsesBeadContextFieldsCorrectly(t *testing.T) {
 // --- RunPostSuccess: Signature acceptance ---
 
 func TestRunPostSuccess_AcceptsBeadContext(t *testing.T) {
-	t.Parallel(
+	t.Parallel()
 	// RunPostSuccess must accept a *runtypes.BeadContext and return error.
 	// This tests the method signature through the public API.
-	)
 
 	cfg := newTestConfig()
 

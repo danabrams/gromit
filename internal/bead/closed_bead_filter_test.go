@@ -135,10 +135,9 @@ func TestReadyExcluding_SkipsClosedAndExcludedBeads(t *testing.T) {
 }
 
 func TestReadyWithLabel_SkipsClosedBeadFromShow(t *testing.T) {
-	t.Parallel(
+	t.Parallel()
 	// parseBeadOutputExcluding returns a bead that has the right label
 	// but Show reveals it is actually closed
-	)
 
 	readyOutput := []Bead{
 		{ID: "bead-1", Title: "Task with label", Priority: 1, Status: "open", Type: "task", Labels: []string{}},
@@ -235,10 +234,9 @@ func TestReadyExcluding_AllClosedReturnsNil(t *testing.T) {
 }
 
 func TestReadyExcluding_DelegatesToReadyWhenNoExcludes(t *testing.T) {
-	t.Parallel(
+	t.Parallel()
 	// When excludeIDs is empty, ReadyExcluding delegates to Ready,
 	// which calls parseBeadOutputExcluding. Verify closed beads are still filtered.
-	)
 
 	beads := []Bead{
 		{ID: "closed-1", Title: "Closed task", Priority: 1, Status: "closed", Type: "task"},
@@ -270,9 +268,8 @@ func TestReadyExcluding_DelegatesToReadyWhenNoExcludes(t *testing.T) {
 }
 
 func TestReadyWithLabel_SkipsClosedBeadFromParse(t *testing.T) {
-	t.Parallel(
+	t.Parallel()
 	// All beads from bd ready are closed
-	)
 
 	beads := []Bead{
 		{ID: "closed-1", Title: "Closed task", Priority: 1, Status: "closed", Type: "task", Labels: []string{"spec:foo"}},
