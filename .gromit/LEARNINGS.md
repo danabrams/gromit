@@ -160,6 +160,31 @@ If run health logic sets a persistent control-limit alert flag in `state.json`, 
 ### 2026-02-26 | gromit-9mo | patterns
 When implementing retry/loop bounds (especially in escalation chains like haiku→sonnet→opus), verify the retry cap is checked BEFORE entering loops, not just at exit conditions, to prevent infinite retry cycles.
 
+### 2026-02-26 | Tracker Adapter Metadata Must Use JSON Not Sprintf | gotchas
+*Related to: code-review, review-1772143302280772186*
+
+fmt.Sprintf("%v", slice) for tracker metadata produces Go's [a b c] syntax which is not parseable back into a slice. All adapter entry points must use JSON encoding consistently — internal/bead/tracker_convert.go establishes the canonical pattern with encodeJSONIfNonEmpty. Using fmt.Sprintf or comma concatenation creates incompatible formats that silently corrupt on roundtrip.
+
+### 2026-02-26 | Duplicate Error Types Across Packages Break errors.As | gotchas
+*Related to: code-review, review-1772143302280772186*
+
+Identical error types defined in separate packages (e.g. specbranch.ConflictError vs specmerge.ConflictError) cause silent errors.As failures since Go's type system treats them as distinct. Error types used in cross-package errors.As matching must be defined in exactly one package; other packages import that definition.
+
+### 2026-02-26 | Display Package Extraction Must Deduplicate Constants | conventions
+*Related to: code-review, review-1772143302280772186*
+
+When extracting display/formatting logic to a new sub-package, ensure metric string constants are defined in one place only. The display package extracted from runner/format.go left duplicate constant sets — changes to metric names must now be updated in two files with no compile-time safety net.
+
+### 2026-02-26 | Worktree Cleanup-Before-Merge Eliminates Checked-Out-Branch Error | patterns
+*Related to: code-review, review-1772143302280772186*
+
+Session worktree lifecycle reordered from add→merge→remove→cleanup to add→cleanup→merge→remove. Removing the worktree directory before branch merge/delete eliminates the "cannot delete branch checked out at" error entirely but removes the recovery path for in-merge cleanup needs.
+
+### 2026-02-26 | Dead Code Accumulation in Gemini Provider Stream/Helper Functions | tech_debt
+*Related to: code-review, review-1772143302280772186*
+
+parseGeminiStream, extractGeminiAssistantText/Tokens/Cost helpers are defined and tested but not called from any production code path. Scaffolded code without production callers creates maintenance burden and confusion about which parsing path is canonical.
+
 ---
 
 ## Archived
