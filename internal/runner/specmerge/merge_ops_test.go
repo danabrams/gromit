@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/danabrams/gromit/internal/runner/specbranch"
 	"github.com/danabrams/gromit/internal/runner/specmerge"
 )
 
@@ -228,9 +227,9 @@ func (f *fakeResolver) Resolve(ctx context.Context, branch string, cause error) 
 
 // TestFinalizeSpecBranch_SpecbranchConflictErrorDetectedAfterConsolidation verifies that
 // when specbranch.GitOps returns a ConflictError, specmerge's FinalizeSpecBranch
-// properly detects it and calls the resolver. This test requires ConflictError
-// to be consolidated into the specmerge package so that specbranch imports it
-// from there, ensuring errors.As can match the types correctly.
+// properly detects it and calls the resolver. After ConflictError is consolidated
+// into the specmerge package and imported by specbranch, both packages use the
+// same type, ensuring errors.As can match the types correctly.
 func TestFinalizeSpecBranch_SpecbranchConflictErrorDetectedAfterConsolidation(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -238,16 +237,16 @@ func TestFinalizeSpecBranch_SpecbranchConflictErrorDetectedAfterConsolidation(t 
 	callLog := []string{}
 	rebaseAttempts := 0
 
-	// This fakeGitOps returns specbranch.ConflictError to simulate what happens
-	// when specbranch.GitOps is wired as the real implementation.
-	// After ConflictError is consolidated to specmerge and imported by specbranch,
-	// this ConflictError will be the same type that specmerge expects.
+	// This fakeGitOps returns the consolidated ConflictError type (from specmerge)
+	// to simulate what happens when specbranch.GitOps is wired as the real implementation.
+	// Now that ConflictError is in specmerge and imported by specbranch,
+	// this is the same type that specmerge.FinalizeSpecBranch expects and can detect.
 	git := &fakeGitOps{
 		rebaseFn: func(_ context.Context, b, onto string) error {
 			rebaseAttempts++
 			callLog = append(callLog, fmt.Sprintf("rebase %d %s", rebaseAttempts, onto))
 			if rebaseAttempts == 1 {
-				return &specbranch.ConflictError{
+				return &specmerge.ConflictError{
 					Operation: "rebase",
 					Err:       fmt.Errorf("merge conflict"),
 				}

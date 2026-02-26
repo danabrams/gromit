@@ -273,7 +273,7 @@ func TestRebaseSpecOntoMain_ReturnsConflictError(t *testing.T) {
 	err = ops.RebaseSpecOntoMain(context.Background(), specBranchName)
 
 	// Verify it's a ConflictError
-	var conflictErr *ConflictError
+	var conflictErr *specmerge.ConflictError
 	if !errors.As(err, &conflictErr) {
 		t.Fatalf("expected ConflictError, got %T: %v", err, err)
 	}
@@ -320,7 +320,7 @@ func TestFastForwardMergeToMain_ReturnsConflictError(t *testing.T) {
 	err = ops.FastForwardMergeToMain(context.Background(), specBranchName)
 
 	// Should return a ConflictError since fast-forward is not possible
-	var conflictErr *ConflictError
+	var conflictErr *specmerge.ConflictError
 	if !errors.As(err, &conflictErr) {
 		t.Fatalf("expected ConflictError or regular error, got %T: %v", err, err)
 	}

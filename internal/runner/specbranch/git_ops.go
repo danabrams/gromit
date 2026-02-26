@@ -5,29 +5,9 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+
+	"github.com/danabrams/gromit/internal/runner/specmerge"
 )
-
-// ConflictError represents a git operation that failed due to a conflict.
-type ConflictError struct {
-	Operation string
-	Err       error
-}
-
-// Error implements the error interface.
-func (e *ConflictError) Error() string {
-	if e == nil {
-		return ""
-	}
-	return fmt.Sprintf("%s conflict: %v", e.Operation, e.Err)
-}
-
-// Unwrap returns the underlying error.
-func (e *ConflictError) Unwrap() error {
-	if e == nil {
-		return nil
-	}
-	return e.Err
-}
 
 // GitOps provides git operations for spec branch lifecycle.
 type GitOps struct {
@@ -92,7 +72,7 @@ func (g *GitOps) RebaseOnto(ctx context.Context, branch, onto string) error {
 		abortCmd.Dir = g.repoDir
 		_ = abortCmd.Run()
 
-		return &ConflictError{
+		return &specmerge.ConflictError{
 			Operation: "rebase",
 			Err:       err,
 		}
@@ -127,7 +107,7 @@ func (g *GitOps) FastForwardMerge(ctx context.Context, branch string) error {
 
 	// Check if this is a merge conflict
 	if isMergeConflict(string(output), err) {
-		return &ConflictError{
+		return &specmerge.ConflictError{
 			Operation: "merge",
 			Err:       err,
 		}
