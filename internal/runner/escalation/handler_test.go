@@ -3,6 +3,7 @@ package escalation
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -2093,5 +2094,25 @@ func TestExecuteWithRetry_DecompositionRemainsAvailableAsL4Option(t *testing.T) 
 	joinedLogs := strings.ToLower(strings.Join(logs, "\n"))
 	if !strings.Contains(joinedLogs, "l4") {
 		t.Fatalf("expected L4 decomposition signal in logs, got logs: %q", joinedLogs)
+	}
+}
+
+// --- Retry gate tests ---
+
+func TestCheckRetryGate_BlocksTimeoutRetryWithoutDecompositionOrEscalation(t *testing.T) {
+	// Red: test that CheckRetryGate exists and returns ErrSameScopeRetryBlocked
+	// when timeout has occurred, retries have happened, but no decomposition/escalation
+	cfg := newTestConfig()
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := newTestBeadContext()
+	bc.Result.TimeoutType = "invocation" // Timeout occurred
+	bc.TotalRetriesThisBead = 1            // At least one retry has happened
+	bc.Result.Decomposed = false          // No decomposition
+	bc.Result.Escalated = false           // No escalation
+
+	err := h.CheckRetryGate(bc)
+	if !errors.Is(err, ErrSameScopeRetryBlocked) {
+		t.Fatalf("expected ErrSameScopeRetryBlocked, got %v", err)
 	}
 }
