@@ -2118,3 +2118,63 @@ func TestMergeBack_ConflictDetectionWithDeterministicFixture(t *testing.T) {
 		t.Error("ConflictingFile should not be empty after conflict")
 	}
 }
+
+// TestRemoveByPath_RemovesRegisteredWorktree verifies that RemoveByPath removes
+// a worktree when its path is registered in the worktree list.
+func TestRemoveByPath_RemovesRegisteredWorktree(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "myproject")
+	worktreePath := filepath.Join(tmpDir, "session-worktree")
+
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	gitCalls := []string{}
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		gitCalls = append(gitCalls, strings.Join(args, " "))
+		// Simulate git worktree list --porcelain output
+		if args[0] == "worktree" && args[1] == "list" && len(args) >= 3 && args[2] == "--porcelain" {
+			return fmt.Sprintf("worktree %s\nbranch refs/heads/gromit/test-123\n", worktreePath), nil
+		}
+		// Simulate successful worktree removal
+		if args[0] == "worktree" && args[1] == "remove" {
+			return "", nil
+		}
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v, want nil", err)
+	}
+
+	err = m.RemoveByPath(worktreePath)
+	if err != nil {
+		t.Fatalf("RemoveByPath() error = %v, want nil", err)
+	}
+
+	// Verify git worktree list --porcelain was called
+	foundListCall := false
+	for _, call := range gitCalls {
+		if strings.Contains(call, "worktree list --porcelain") {
+			foundListCall = true
+			break
+		}
+	}
+	if !foundListCall {
+		t.Errorf("expected 'git worktree list --porcelain' to be called, got calls: %v", gitCalls)
+	}
+
+	// Verify git worktree remove was called with correct path
+	foundRemoveCall := false
+	for _, call := range gitCalls {
+		if strings.Contains(call, fmt.Sprintf("worktree remove %s", worktreePath)) {
+			foundRemoveCall = true
+			break
+		}
+	}
+	if !foundRemoveCall {
+		t.Errorf("expected 'git worktree remove %s' to be called, got calls: %v", worktreePath, gitCalls)
+	}
+}
