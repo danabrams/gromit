@@ -234,6 +234,16 @@ type ReviewContext struct {
 	ValidationCommands []string
 }
 
+// normalizeNilFields ensures nil slices are replaced with empty slices.
+func (r *ReviewContext) normalizeNilFields() {
+	if r == nil {
+		return
+	}
+	if r.ValidationCommands == nil {
+		r.ValidationCommands = []string{}
+	}
+}
+
 // CompletedBeadSummary holds summary information about a completed bead for thorough reviews
 type CompletedBeadSummary struct {
 	ID          string
