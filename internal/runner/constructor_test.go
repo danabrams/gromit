@@ -117,6 +117,22 @@ func TestBuildRouterAndLearningsProvider_UsesConfiguredProviders(t *testing.T) {
 	}
 }
 
+func TestBuildRouterAndLearningsProvider_LearningsProviderMatchesConfiguredName(t *testing.T) {
+	t.Parallel()
+	cfg := newDualProviderConfig()
+	cfg.Learnings.Provider = "claude"
+	_, lp, _, _, err := buildRouterAndLearningsProvider(cfg, t.TempDir(), io.Discard)
+	if err != nil {
+		t.Fatalf("buildRouterAndLearningsProvider() error = %v", err)
+	}
+	if lp == nil {
+		t.Fatal("buildRouterAndLearningsProvider() learnings provider = nil, want non-nil")
+	}
+	if got := lp.Name(); got != "claude" {
+		t.Fatalf("learnings provider name = %q, want %q", got, "claude")
+	}
+}
+
 // TestBuildRouterAndLearningsProvider_InitializesCircuitBreakerWhenEnabled verifies that
 // circuit-breaker is created from config when enabled and passed to NewRouter.
 func TestBuildRouterAndLearningsProvider_InitializesCircuitBreakerWhenEnabled(t *testing.T) {
