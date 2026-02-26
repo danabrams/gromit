@@ -58,3 +58,51 @@ func TestHandleStageFailure_CreateFixBeads(t *testing.T) {
 		t.Fatalf("HandleStageFailure created %d beads, want 1", len(createdBeadIDs))
 	}
 }
+
+func TestCheckRetryCapExceeded_AtCapOrBeyond(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		attemptCount int
+		retryCap     int
+		want         bool
+	}{
+		{
+			name:         "attempt equals cap",
+			attemptCount: 3,
+			retryCap:     3,
+			want:         true,
+		},
+		{
+			name:         "attempt exceeds cap",
+			attemptCount: 4,
+			retryCap:     3,
+			want:         true,
+		},
+		{
+			name:         "attempt below cap",
+			attemptCount: 2,
+			retryCap:     3,
+			want:         false,
+		},
+		{
+			name:         "zero attempts at zero cap",
+			attemptCount: 0,
+			retryCap:     0,
+			want:         true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := specmerge.CheckRetryCapExceeded(tt.attemptCount, tt.retryCap)
+			if err != nil {
+				t.Fatalf("CheckRetryCapExceeded returned error: %v", err)
+			}
+			if result != tt.want {
+				t.Fatalf("CheckRetryCapExceeded(%d, %d) = %v, want %v", tt.attemptCount, tt.retryCap, result, tt.want)
+			}
+		})
+	}
+}
