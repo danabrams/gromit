@@ -5153,6 +5153,20 @@ routing:
 	}
 }
 
+func TestRoutingStrategyValidationRejectsUnknown(t *testing.T) {
+	yamlContent := `
+routing:
+  strategy: mystery
+`
+	err := loadConfigErrorFromYAML(t, yamlContent)
+	if err == nil {
+		t.Fatal("Load() error = nil, want validation failure")
+	}
+	if !strings.Contains(err.Error(), "routing.strategy") {
+		t.Fatalf("err = %v, want mention of routing.strategy", err)
+	}
+}
+
 func TestSetDefaultsRoutingStrategyAndCostOptimized(t *testing.T) {
 	cfg := &Config{}
 	cfg.SetDefaults()
