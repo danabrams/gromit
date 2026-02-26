@@ -23,6 +23,9 @@ func firstAlphabeticalProvider(providers map[string]provider.Provider) provider.
 	for name := range providers {
 		names = append(names, name)
 	}
+	if len(names) == 0 {
+		return nil
+	}
 	sort.Strings(names)
 	return providers[names[0]]
 }
