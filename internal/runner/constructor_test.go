@@ -20,6 +20,7 @@ import (
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/escalation"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
+	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/danabrams/gromit/internal/validate"
 )
 
@@ -2244,4 +2245,20 @@ func TestSelectEscalationHandler_PassesDependenciesToDecomposeFirstHandler(t *te
 	if !dfh.ShouldDecomposeBeforeEscalate(bc) {
 		t.Fatalf("ShouldDecomposeBeforeEscalate should return true when retries >= max")
 	}
+}
+
+func TestNewTrackerClientReturnsBDAdapterAsTrackerClient(t *testing.T) {
+	t.Parallel()
+
+	client, err := newTrackerClient("bd")
+	if err != nil {
+		t.Fatalf("newTrackerClient returned unexpected error: %v", err)
+	}
+
+	if client == nil {
+		t.Fatalf("newTrackerClient returned nil, expected tracker.Client")
+	}
+
+	// Verify the returned value implements tracker.Client
+	var _ tracker.Client = client
 }
