@@ -44,6 +44,19 @@ func setupRunSpecTestEnv(t *testing.T) (specsDir string, cleanup func()) {
 	return specsDir, cleanup
 }
 
+func TestRunSpecTestEnvSeedsExplicitProfile(t *testing.T) {
+	_, cleanup := setupRunSpecTestEnv(t)
+	defer cleanup()
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("reading config fixture: %v", err)
+	}
+	if !strings.Contains(string(data), "project:\n  profile: \"go\"") {
+		t.Fatalf("expected seeded gromit.yaml to declare explicit profile for profile-aware paths, got:\n%s", string(data))
+	}
+}
+
 // TestRunCmd_ScopeFlagsRegistered verifies that --spec and --epic flags are registered.
 func TestRunCmd_ScopeFlagsRegistered(t *testing.T) {
 	tests := []struct {
