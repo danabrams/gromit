@@ -102,6 +102,11 @@ type IterationMetric struct {
 	RollingTimeoutDecompositionSuccessRate float64          `json:"rolling_timeout_decomposition_success_rate"`
 	RollingTimeoutRetryBlockCount int                       `json:"rolling_timeout_retry_block_count"`
 	RollingTimeoutRetryBlockRate float64                     `json:"rolling_timeout_retry_block_rate"`
+	TimeoutType                  string                    `json:"timeout_type,omitempty"`
+	TimeoutDecompositionAttempted bool                      `json:"timeout_decomposition_attempted,omitempty"`
+	TimeoutDecompositionSucceeded bool                      `json:"timeout_decomposition_succeeded,omitempty"`
+	TimeoutDecompositionOutcome   string                    `json:"timeout_decomposition_outcome,omitempty"`
+	TimeoutDecompositionReason    string                    `json:"timeout_decomposition_reason,omitempty"`
 	EWMASuccessRate              EWMAMetricState           `json:"ewma_success_rate"`
 	EWMACostUSD                  EWMAMetricState           `json:"ewma_cost_usd"`
 	EWMADurationMs               EWMAMetricState           `json:"ewma_duration_ms"`
