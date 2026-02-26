@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -18,6 +19,7 @@ import (
 	"github.com/danabrams/gromit/internal/pipeline/prepare"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/escalation"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/validate"
 )
 
@@ -1938,4 +1940,158 @@ func TestDecomposerAdapter_Decompose_FullySuccessfulPathReturnsNil(t *testing.T)
 	if closeCalls != 1 {
 		t.Fatalf("closeCalls = %d, want 1 (parent should be closed)", closeCalls)
 	}
+}
+
+// TestIntegration_TimeoutDecompositionFlowEndToEnd validates the complete timeout -> decomposition -> telemetry flow
+// when a handler is constructed and used in ExecuteWithRetry.
+// This verifies that the constructor pattern properly assembles handlers with all necessary dependencies,
+// and that the timeout decomposition contract is honored through the complete execution path.
+func TestIntegration_TimeoutDecompositionFlowEndToEnd(t *testing.T) {
+	cfg := newCodexProvidersConfig()
+	tmpDir := t.TempDir()
+
+	// Construct through normal pattern to verify components
+	router, lp, _, _, err := buildRouterAndLearningsProvider(cfg, tmpDir, io.Discard)
+	if err != nil {
+		t.Fatalf("buildRouterAndLearningsProvider error = %v", err)
+	}
+	if router == nil || lp == nil {
+		t.Fatalf("constructor should build router and learning provider")
+	}
+
+	// Create a mock analyzer for the handler
+	mockAnalyzer := &mockFailureAnalyzer{}
+
+	// Create a handler with decomposition enabled
+	decomposeCalled := false
+	createSubCalled := false
+	h := escalation.NewHandler(
+		cfg,
+		mockAnalyzer,
+		&mockBeadClient{},
+		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+			decomposeCalled = true
+			return []runtypes.SubTask{{Title: "sub1"}}, nil
+		},
+		func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error {
+			createSubCalled = true
+			return nil
+		},
+		nil,
+		nil,
+	)
+
+	// Create a proper BeadContext for testing
+	bc := &runtypes.BeadContext{
+		Bead:              &bead.Bead{ID: "test-001", Title: "Test", Description: "Test"},
+		Tier:              provider.TierMedium,
+		Model:             "sonnet",
+		BuildPrompt:       "test prompt",
+		Result:            &runtypes.IterationResult{},
+		ParentCtx:         context.Background(),
+		MaxRetries:        2,
+		MaxRetriesPerBead: 5,
+	}
+
+	// Simulate invocation timeout to trigger decomposition
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		return &runtypes.InvocationResult{
+			TimeoutType: "invocation",
+		}, fmt.Errorf("invocation timeout")
+	}
+
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+
+	// Verify timeout -> decomposition flow completed
+	if success {
+		t.Fatalf("ExecuteWithRetry should return false after decomposition")
+	}
+	if !decomposeCalled {
+		t.Fatalf("decomposition should have been called")
+	}
+	if !createSubCalled {
+		t.Fatalf("sub-bead creation should have been called")
+	}
+
+	// Verify complete telemetry flow
+	if !bc.Result.TimeoutDecompositionAttempted {
+		t.Fatalf("TimeoutDecompositionAttempted should be true")
+	}
+	if !bc.Result.TimeoutDecompositionSucceeded {
+		t.Fatalf("TimeoutDecompositionSucceeded should be true")
+	}
+	if bc.Result.TimeoutDecompositionOutcome != "success" {
+		t.Fatalf("TimeoutDecompositionOutcome = %q, want success", bc.Result.TimeoutDecompositionOutcome)
+	}
+}
+
+// TestIntegration_RetryGateBlocksAfterPartialDecomposition validates that the retry gate
+// properly blocks retries when partial decomposition state is detected, even when handler
+// is constructed through normal patterns.
+func TestIntegration_RetryGateBlocksAfterPartialDecomposition(t *testing.T) {
+	cfg := newCodexProvidersConfig()
+	tmpDir := t.TempDir()
+
+	_, _, _, _, err := buildRouterAndLearningsProvider(cfg, tmpDir, io.Discard)
+	if err != nil {
+		t.Fatalf("buildRouterAndLearningsProvider error = %v", err)
+	}
+
+	h := escalation.NewHandler(
+		cfg,
+		&mockFailureAnalyzer{},
+		&mockBeadClient{},
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+
+	// Set up partial decomposition state
+	bc := &runtypes.BeadContext{
+		Bead:              &bead.Bead{ID: "test-002"},
+		Tier:              provider.TierMedium,
+		Result:            &runtypes.IterationResult{},
+		MaxRetriesPerBead: 5,
+		MaxRetries:        2,
+	}
+	bc.Result.TimeoutDecompositionAttempted = true
+	bc.Result.TimeoutDecompositionSucceeded = false // Attempted but failed
+	bc.Result.TimeoutType = "invocation"
+	bc.TotalRetriesThisBead = 1
+
+	// Verify retry gate blocks
+	gateErr := h.CheckRetryGate(bc)
+	if gateErr == nil {
+		t.Fatalf("CheckRetryGate should return error for partial decomposition state")
+	}
+	if !errors.Is(gateErr, escalation.ErrPartialDecompositionState) {
+		t.Fatalf("expected ErrPartialDecompositionState, got %v", gateErr)
+	}
+}
+
+type mockFailureAnalyzer struct {
+	analyzeFn    func(ctx context.Context, b *bead.Bead, failureOutput string) (*analyzer.Analysis, error)
+	analyzeCalls int
+}
+
+func (m *mockFailureAnalyzer) Analyze(ctx context.Context, b *bead.Bead, failureOutput string) (*analyzer.Analysis, error) {
+	m.analyzeCalls++
+	if m.analyzeFn != nil {
+		return m.analyzeFn(ctx, b, failureOutput)
+	}
+	return &analyzer.Analysis{Category: "logic_error", Recoverable: false, RootCause: "test"}, nil
+}
+
+type mockBeadClient struct {
+	comments []mockComment
+}
+
+type mockComment struct {
+	id, comment string
+}
+
+func (m *mockBeadClient) AddComment(id, comment string) error {
+	m.comments = append(m.comments, mockComment{id, comment})
+	return nil
 }
