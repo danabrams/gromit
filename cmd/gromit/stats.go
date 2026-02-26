@@ -28,6 +28,8 @@ Examples:
 var statsJSON bool
 var statsTDD bool
 
+const defaultRoutingStrategy = "priority_based"
+
 func init() {
 	statsCmd.Flags().BoolVar(&statsJSON, "json", false, "Output stats as JSON")
 	statsCmd.Flags().BoolVar(&statsTDD, "tdd", false, "Include TDD phase/cycle metrics")
@@ -49,10 +51,10 @@ func runStats(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if statsJSON {
-		return outputJSON(statsData.projectStats, statsData.globalStats, statsData.costPerSpec, statsData.providerMetrics, statsData.tddMetrics)
+		return outputJSON(statsData.projectStats, statsData.globalStats, statsData.costPerSpec, statsData.providerMetrics, statsData.tddMetrics, statsData.routingStrategy)
 	}
 
-	return outputText(statsData.projectStats, statsData.globalStats, statsData.beadCosts, statsData.costPerSpec, statsData.providerMetrics, statsData.tddMetrics)
+	return outputText(statsData.projectStats, statsData.globalStats, statsData.beadCosts, statsData.costPerSpec, statsData.providerMetrics, statsData.tddMetrics, statsData.routingStrategy)
 }
 
 type statsData struct {
@@ -61,6 +63,7 @@ type statsData struct {
 	beadCosts    map[string]float64
 	costPerSpec  map[string]logger.SpecCost
 	providerMetrics []logger.ProviderMetrics
+	routingStrategy string
 	tddMetrics   *logger.TDDStats
 }
 
@@ -119,12 +122,18 @@ func loadStatsData(cfg *config.Config) (*statsData, error) {
 		tddMetrics = metrics
 	}
 
+	routingStrategy := defaultRoutingStrategy
+	if cfg != nil && cfg.Routing.Strategy != "" {
+		routingStrategy = cfg.Routing.Strategy
+	}
+
 	return &statsData{
 		projectStats: projectStats,
 		globalStats:  globalStats,
 		beadCosts:    beadCosts,
 		costPerSpec:  costPerSpec,
 		providerMetrics: providerMetrics,
+		routingStrategy: routingStrategy,
 		tddMetrics:   tddMetrics,
 	}, nil
 }
@@ -147,17 +156,19 @@ type statsJSONOutput struct {
 	ProjectStats map[string]logger.ModelStats `json:"project_stats"`
 	GlobalStats  *logger.GlobalStats          `json:"global_stats"`
 	CostPerSpec  map[string]logger.SpecCost   `json:"cost_per_spec"`
+	RoutingStrategy string                     `json:"routing_strategy"`
 	ProviderMetrics []logger.ProviderMetrics  `json:"provider_metrics"`
 	TDDMetrics   *logger.TDDStats             `json:"tdd_metrics"`
 }
 
-func outputJSON(projectStats map[string]logger.ModelStats, globalStats *logger.GlobalStats, costPerSpec map[string]logger.SpecCost, providerMetrics []logger.ProviderMetrics, tddMetrics *logger.TDDStats) error {
+func outputJSON(projectStats map[string]logger.ModelStats, globalStats *logger.GlobalStats, costPerSpec map[string]logger.SpecCost, providerMetrics []logger.ProviderMetrics, tddMetrics *logger.TDDStats, routingStrategy string) error {
 	output := statsJSONOutput{
 		ProjectStats: projectStats,
 		GlobalStats:  globalStats,
 		CostPerSpec:  costPerSpec,
 		ProviderMetrics: providerMetrics,
 		TDDMetrics:   tddMetrics,
+		RoutingStrategy: routingStrategy,
 	}
 
 	data, err := json.MarshalIndent(output, "", "  ")
@@ -169,10 +180,12 @@ func outputJSON(projectStats map[string]logger.ModelStats, globalStats *logger.G
 	return nil
 }
 
-func outputText(projectStats map[string]logger.ModelStats, globalStats *logger.GlobalStats, beadCosts map[string]float64, costPerSpec map[string]logger.SpecCost, providerMetrics []logger.ProviderMetrics, tddMetrics *logger.TDDStats) error {
+func outputText(projectStats map[string]logger.ModelStats, globalStats *logger.GlobalStats, beadCosts map[string]float64, costPerSpec map[string]logger.SpecCost, providerMetrics []logger.ProviderMetrics, tddMetrics *logger.TDDStats, routingStrategy string) error {
 	fmt.Println("Project Model Performance (Escalation rates shown):")
 	fmt.Println()
 	printProjectModelStats(projectStats)
+	fmt.Println()
+	fmt.Printf("Routing strategy: %s\n", routingStrategy)
 
 	if len(beadCosts) > 0 {
 		fmt.Println()
