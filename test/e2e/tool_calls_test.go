@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -366,5 +367,167 @@ func TestE2E_FilterComplexCallArguments(t *testing.T) {
 	expectedCodex := `codex run --model sonnet --input-tokens 4000 --output-tokens 2000`
 	if codexCalls[0] != expectedCodex {
 		t.Errorf("expected %q, got %q", expectedCodex, codexCalls[0])
+	}
+}
+
+func TestE2E_WriteCallLog_WithOnlyWhitespace(t *testing.T) {
+	env := setupE2E(t)
+
+	calls := []string{
+		"",
+		"   ",
+		"\t",
+		"",
+	}
+
+	if err := writeE2ECallLog(env, calls...); err != nil {
+		t.Fatalf("writeE2ECallLog failed: %v", err)
+	}
+
+	bdCalls, err := FilterE2EToolCalls(env, ToolCallBD)
+	if err != nil {
+		t.Fatalf("FilterE2EToolCalls(BD) failed: %v", err)
+	}
+	if len(bdCalls) != 0 {
+		t.Errorf("expected 0 BD calls from whitespace-only log, got %d: %v", len(bdCalls), bdCalls)
+	}
+
+	claudeCalls, err := FilterE2EToolCalls(env, ToolCallClaude)
+	if err != nil {
+		t.Fatalf("FilterE2EToolCalls(Claude) failed: %v", err)
+	}
+	if len(claudeCalls) != 0 {
+		t.Errorf("expected 0 Claude calls from whitespace-only log, got %d: %v", len(claudeCalls), claudeCalls)
+	}
+}
+
+func TestE2E_WriteAndReadCallLog_RoundTrip(t *testing.T) {
+	env := setupE2E(t)
+
+	originalCalls := []string{
+		"bd ready --json --limit 10",
+		"claude -p --model haiku",
+		"codex run --model sonnet",
+		"bd close test-id",
+	}
+
+	if err := writeE2ECallLog(env, originalCalls...); err != nil {
+		t.Fatalf("writeE2ECallLog failed: %v", err)
+	}
+
+	readCalls, err := readE2ECallLog(env)
+	if err != nil {
+		t.Fatalf("readE2ECallLog failed: %v", err)
+	}
+
+	if len(readCalls) != len(originalCalls) {
+		t.Fatalf("expected %d calls, got %d", len(originalCalls), len(readCalls))
+	}
+
+	for i, expected := range originalCalls {
+		if readCalls[i] != expected {
+			t.Errorf("call %d: expected %q, got %q", i, expected, readCalls[i])
+		}
+	}
+
+	allBD, _ := FilterE2EToolCalls(env, ToolCallBD)
+	allClaude, _ := FilterE2EToolCalls(env, ToolCallClaude)
+	allCodex, _ := FilterE2EToolCalls(env, ToolCallCodex)
+
+	if len(allBD) + len(allClaude) + len(allCodex) != len(originalCalls) {
+		t.Errorf("expected filtered calls to sum to %d, got %d", len(originalCalls), len(allBD) + len(allClaude) + len(allCodex))
+	}
+}
+
+func TestE2E_MultipleWriteOperations_LastWinsSemanticsPreserved(t *testing.T) {
+	env := setupE2E(t)
+
+	firstWrite := []string{"bd ready --json --limit 10"}
+	secondWrite := []string{"claude -p --model haiku", "codex run --model sonnet"}
+	thirdWrite := []string{"bd close test-id"}
+
+	if err := writeE2ECallLog(env, firstWrite...); err != nil {
+		t.Fatalf("first writeE2ECallLog failed: %v", err)
+	}
+
+	if err := writeE2ECallLog(env, secondWrite...); err != nil {
+		t.Fatalf("second writeE2ECallLog failed: %v", err)
+	}
+
+	if err := writeE2ECallLog(env, thirdWrite...); err != nil {
+		t.Fatalf("third writeE2ECallLog failed: %v", err)
+	}
+
+	readCalls, err := readE2ECallLog(env)
+	if err != nil {
+		t.Fatalf("readE2ECallLog failed: %v", err)
+	}
+
+	if len(readCalls) != len(thirdWrite) {
+		t.Fatalf("expected %d calls (last write), got %d: %v", len(thirdWrite), len(readCalls), readCalls)
+	}
+
+	for i, expected := range thirdWrite {
+		if readCalls[i] != expected {
+			t.Errorf("call %d: expected %q, got %q", i, expected, readCalls[i])
+		}
+	}
+
+	bdCalls, _ := FilterE2EToolCalls(env, ToolCallBD)
+	claudeCalls, _ := FilterE2EToolCalls(env, ToolCallClaude)
+	codexCalls, _ := FilterE2EToolCalls(env, ToolCallCodex)
+
+	if len(bdCalls) != 1 || bdCalls[0] != "bd close test-id" {
+		t.Errorf("expected 1 BD call 'bd close test-id', got %d: %v", len(bdCalls), bdCalls)
+	}
+
+	if len(claudeCalls) != 0 {
+		t.Errorf("expected 0 Claude calls from third write, got %d: %v", len(claudeCalls), claudeCalls)
+	}
+
+	if len(codexCalls) != 0 {
+		t.Errorf("expected 0 Codex calls from third write, got %d: %v", len(codexCalls), codexCalls)
+	}
+}
+
+func TestE2E_CallLogWithLeadingTrailingWhitespace_FilterStillWorks(t *testing.T) {
+	env := setupE2E(t)
+
+	data := strings.Join([]string{
+		"  bd ready --json --limit 10",
+		"\tclaude -p --model haiku",
+		"   codex run --model sonnet   ",
+		"bd close test-id\t",
+	}, "\n") + "\n"
+
+	if err := os.WriteFile(env.CallLog, []byte(data), 0644); err != nil {
+		t.Fatalf("failed to write call log: %v", err)
+	}
+
+	bdCalls, err := FilterE2EToolCalls(env, ToolCallBD)
+	if err != nil {
+		t.Fatalf("FilterE2EToolCalls(BD) failed: %v", err)
+	}
+
+	if len(bdCalls) != 2 {
+		t.Errorf("expected 2 BD calls despite whitespace, got %d: %v", len(bdCalls), bdCalls)
+	}
+
+	claudeCalls, err := FilterE2EToolCalls(env, ToolCallClaude)
+	if err != nil {
+		t.Fatalf("FilterE2EToolCalls(Claude) failed: %v", err)
+	}
+
+	if len(claudeCalls) != 1 {
+		t.Errorf("expected 1 Claude call despite whitespace, got %d: %v", len(claudeCalls), claudeCalls)
+	}
+
+	codexCalls, err := FilterE2EToolCalls(env, ToolCallCodex)
+	if err != nil {
+		t.Fatalf("FilterE2EToolCalls(Codex) failed: %v", err)
+	}
+
+	if len(codexCalls) != 1 {
+		t.Errorf("expected 1 Codex call despite whitespace, got %d: %v", len(codexCalls), codexCalls)
 	}
 }
