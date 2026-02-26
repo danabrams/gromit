@@ -181,6 +181,42 @@ These are non-negotiable constraints for this project. Gromit will always follow
 	return universal + profileGuide + safety
 }
 
+func nextStepsForProfile(profile string) string {
+	universalSteps := []string{
+		"1. Edit gromit.yaml to customize validation commands",
+		"2. Edit .gromit/RULES.md to add project-specific rules",
+		"3. Create specs in .gromit/specs/ and plans in .gromit/plans/",
+		"4. Create beads with: bd create \"Task title\" --priority 1",
+	}
+
+	// Profile-specific validation and running guidance
+	var profileStep string
+	if strings.EqualFold(profile, "go") {
+		profileStep = "5. Run validation: go test && go vet && go build"
+		universalSteps = append(universalSteps, profileStep)
+		universalSteps = append(universalSteps, "6. Run: gromit run --dry-run")
+	} else if strings.EqualFold(profile, "node") {
+		profileStep = "5. Run validation: npm test && npm run build"
+		universalSteps = append(universalSteps, profileStep)
+		universalSteps = append(universalSteps, "6. Run: gromit run --dry-run")
+	} else if strings.EqualFold(profile, "python") {
+		profileStep = "5. Run validation: pytest"
+		universalSteps = append(universalSteps, profileStep)
+		universalSteps = append(universalSteps, "6. Run: gromit run --dry-run")
+	} else {
+		universalSteps = append(universalSteps, "5. Run: gromit run --dry-run")
+	}
+
+	var b strings.Builder
+	b.WriteString("\nDone! Next steps:\n")
+	for _, step := range universalSteps {
+		b.WriteString("  " + step + "\n")
+	}
+	b.WriteString("\nPeriodically run 'gromit retro' to analyze and consolidate learnings.\n")
+
+	return b.String()
+}
+
 func seedProfileAwareCommandExamples(profile string, template string) string {
 	// Inject profile-aware guidance into command example sections
 	// For now, inject the guidance snippet into the template where commands are discussed
