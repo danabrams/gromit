@@ -152,6 +152,11 @@ func (r *cmdAgentResolver) Resolve(phase string, flagOverride string, choosePick
 	return agent.Resolve(r.cfg, phase, flagOverride, choosePicker, os.Stdin, os.Stdout)
 }
 
+// newAgentResolver creates a resolver wrapping agent.Resolve with os.Stdin/os.Stdout.
+func newAgentResolver(cfg *config.Config) pipeline.AgentResolver {
+	return &cmdAgentResolver{cfg: cfg}
+}
+
 func resolveCommandAgent(cfg *config.Config, phase, flagOverride string, choosePicker bool) (agent.Agent, error) {
 	resolvedAgent, err := (&cmdAgentResolver{cfg: cfg}).Resolve(phase, flagOverride, choosePicker)
 	if err != nil {
