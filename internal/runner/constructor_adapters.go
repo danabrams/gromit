@@ -15,6 +15,11 @@ import (
 	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/jsonutil"
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/pipeline/epilogue"
+	"github.com/danabrams/gromit/internal/pipeline/execute"
+	"github.com/danabrams/gromit/internal/pipeline/prepare"
+	"github.com/danabrams/gromit/internal/pipeline/review"
+	pipelinevalidate "github.com/danabrams/gromit/internal/pipeline/validate"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/escalation"
@@ -798,4 +803,18 @@ func (a *failureLearnerAdapter) ExtractFailureLearning(ctx context.Context, bead
 }
 
 // Compile-time interface checks
+var _ execute.Invoker = (*invokerAdapter)(nil)
+var _ execute.PromptRenderer = (*renderAdapter)(nil)
+var _ pipelinevalidate.CommandRunner = (*cmdRunnerAdapter)(nil)
+var _ review.Invoker = (*reviewInvokerAdapter)(nil)
+var _ review.BeadCreator = (*beadCreatorAdapter)(nil)
+var _ review.PromptRenderer = (*reviewRendererAdapter)(nil)
+var _ epilogue.BeadLifecycle = (*beadLifecycleAdapter)(nil)
+var _ epilogue.StatusWriter = (*statusWriterAdapter)(nil)
+var _ epilogue.WorktreeMerger = (*worktreeMergerAdapter)(nil)
+var _ epilogue.CommandRunner = (*epilogueCommandRunnerAdapter)(nil)
+var _ epilogue.IterationLogWriter = (*iterationLogWriterAdapter)(nil)
+var _ epilogue.SpecGateRunner = (*specGateAdapter)(nil)
+var _ prepare.Decomposer = (*decomposerAdapter)(nil)
+var _ epilogue.FailureLearner = (*failureLearnerAdapter)(nil)
 var _ execution.Router = (*executionRouterAdapter)(nil)
