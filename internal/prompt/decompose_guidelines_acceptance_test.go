@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/config"
 )
 
 // TestRenderDecomposeGuidelinesStructure verifies that the decompose template
@@ -352,4 +353,76 @@ func TestRenderDecomposeExampleIntegrity(t *testing.T) {
 	if !strings.Contains(result, "Respond with ONLY the JSON array") {
 		t.Error("expected instruction to respond with only JSON array")
 	}
+}
+
+// TestRenderDecomposeSingleConcernGuidance verifies that single-concern targeting
+// guidance is present when in single_concern mode, including the constraint that
+// each bead should target one function/method/test/config change.
+func TestRenderDecomposeSingleConcernGuidance(t *testing.T) {
+	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
+	templatePath := filepath.Join(templatesDir, "PROMPT_decompose.md")
+	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
+		t.Fatalf("skipping: real template not found at %s", templatePath)
+	}
+
+	r := &Renderer{templatesDir: templatesDir}
+	r.SetDecomposeTarget(config.DecompositionTargetSingleConcern)
+
+	testBead := &bead.Bead{
+		ID:              "test-single-concern",
+		Title:           "Test single-concern targeting",
+		Priority:        1,
+		Description:     "Verify single-concern guidance in decompose template",
+		Labels:          []string{},
+		ExpectedOutputs: []string{},
+	}
+
+	ctx := &DecomposeContext{
+		Bead:                testBead,
+		ATDDActive:          false,
+		DecompositionTarget: config.DecompositionTargetSingleConcern,
+	}
+
+	result, err := r.RenderDecompose(ctx)
+	if err != nil {
+		t.Fatalf("RenderDecompose() error = %v", err)
+	}
+
+	t.Run("single_concern mode includes targeting guidance", func(t *testing.T) {
+		// Expected failure: Template does not yet have single_concern targeting guidance
+		if !strings.Contains(result, "single_concern") {
+			t.Error("expected 'single_concern' in output when in single_concern mode")
+		}
+	})
+
+	t.Run("single_concern guidance mentions one function/method/test/config", func(t *testing.T) {
+		// Expected failure: Template does not yet specify the constraints for single_concern
+		keywords := []string{"function", "method", "test", "config"}
+		foundKeywords := 0
+		for _, kw := range keywords {
+			if strings.Contains(result, kw) {
+				foundKeywords++
+			}
+		}
+		if foundKeywords < 2 {
+			t.Error("expected single_concern guidance to mention function, method, test, or config")
+		}
+	})
+
+	t.Run("single_concern mode preserves never-split constraints", func(t *testing.T) {
+		// Expected failure: We need to verify never-split constraints are still present in single_concern mode
+		if !strings.Contains(result, "Never split these natural units") {
+			t.Error("expected 'Never split these natural units' section to be preserved in single_concern mode")
+		}
+		if !strings.Contains(result, "Interface + implementation + mock updates") {
+			t.Error("expected never-split patterns to be preserved in single_concern mode")
+		}
+	})
+
+	t.Run("single_concern mode preserves overlap checks", func(t *testing.T) {
+		// Expected failure: Overlap checks should still be present
+		if !strings.Contains(result, "Avoiding Sibling Overlap") {
+			t.Error("expected 'Avoiding Sibling Overlap' section to be preserved in single_concern mode")
+		}
+	})
 }
