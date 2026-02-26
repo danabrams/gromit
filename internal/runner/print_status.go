@@ -12,6 +12,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/runner/display"
 	"github.com/danabrams/gromit/internal/state"
 )
 
@@ -23,7 +24,7 @@ var newBeadClientForStatus = bead.NewClient
 func PrintStatus(gromitDir string, cfg *config.Config, w io.Writer, processChecker func(int) bool, spcOnly bool) error {
 	if spcOnly {
 		trend := readProcessTrendForStatus(gromitDir, cfg)
-		if _, err := fmt.Fprintln(w, formatSPCSummary(trend)); err != nil {
+		if _, err := fmt.Fprintln(w, display.FormatSPCSummary(trend)); err != nil {
 			return fmt.Errorf("writing SPC status: %w", err)
 		}
 		return nil
@@ -46,10 +47,10 @@ func PrintStatus(gromitDir string, cfg *config.Config, w io.Writer, processCheck
 
 	refreshScopedIterationTotal(status, gromitDir)
 
-	if _, err := fmt.Fprintln(w, formatRun(status)); err != nil {
+	if _, err := fmt.Fprintln(w, display.FormatRun(toDisplayRunStatus(status))); err != nil {
 		return fmt.Errorf("writing status: %w", err)
 	}
-	if _, err := fmt.Fprintln(w, formatCompatibility(cfg.ResolveCompatibilityContext())); err != nil {
+	if _, err := fmt.Fprintln(w, display.FormatCompatibility(cfg.ResolveCompatibilityContext())); err != nil {
 		return fmt.Errorf("writing compatibility status: %w", err)
 	}
 
@@ -62,12 +63,12 @@ func PrintStatus(gromitDir string, cfg *config.Config, w io.Writer, processCheck
 	if err != nil {
 		return fmt.Errorf("reading pipeline status: %w", err)
 	}
-	if _, err := fmt.Fprintln(w, formatPipeline(ps)); err != nil {
+	if _, err := fmt.Fprintln(w, display.FormatPipeline(ps)); err != nil {
 		return fmt.Errorf("writing pipeline status: %w", err)
 	}
 
 	// Next action recommendation
-	if rec := formatRecommendation(ps.Recommendation); rec != "" {
+	if rec := display.FormatRecommendation(ps.Recommendation); rec != "" {
 		if _, err := fmt.Fprintln(w, rec); err != nil {
 			return fmt.Errorf("writing recommendation: %w", err)
 		}
@@ -89,14 +90,14 @@ func PrintStatus(gromitDir string, cfg *config.Config, w io.Writer, processCheck
 		}
 	}
 
-	if _, err := fmt.Fprint(w, formatHealth(lastRetro, iterationsSinceReview)); err != nil {
+	if _, err := fmt.Fprint(w, display.FormatHealth(lastRetro, iterationsSinceReview)); err != nil {
 		return fmt.Errorf("writing health status: %w", err)
 	}
 
 	// Model Performance section: read per-model stats from iteration logs
 	if cfg.Paths.Logs != "" {
 		if modelStats, err := logger.ReadModelStats(cfg.Paths.Logs); err == nil && len(modelStats) > 0 {
-			if _, err := fmt.Fprintln(w, formatModelPerformance(modelStats)); err != nil {
+			if _, err := fmt.Fprintln(w, display.FormatModelPerformance(modelStats)); err != nil {
 				return fmt.Errorf("writing model performance: %w", err)
 			}
 		}
@@ -104,7 +105,7 @@ func PrintStatus(gromitDir string, cfg *config.Config, w io.Writer, processCheck
 
 	// SPC section: read process trend from logs directory
 	trend := readProcessTrendForStatus(gromitDir, cfg)
-	if _, err := fmt.Fprintln(w, formatSPCSummary(trend)); err != nil {
+	if _, err := fmt.Fprintln(w, display.FormatSPCSummary(trend)); err != nil {
 		return fmt.Errorf("writing SPC status: %w", err)
 	}
 
