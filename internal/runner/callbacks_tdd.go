@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/pipeline/execute"
@@ -418,4 +419,17 @@ func (o *tddOrchestrator) RunCycles(ctx context.Context, bc *runtypes.BeadContex
 		return o.runCyclesFn(ctx, bc, tracker, criteria)
 	}
 	return fmt.Errorf("tdd orchestrator is not configured")
+}
+
+func warnTddFreshContextMissingOutputs(output io.Writer, b *bead.Bead) {
+	if output == nil || b == nil {
+		return
+	}
+	if len(b.ExpectedOutputs) > 0 {
+		return
+	}
+	if strings.TrimSpace(b.Title) != "" {
+		return
+	}
+	fmt.Fprintf(output, "[tdd] bead %s lacks expected outputs and title fallback; FreshContextPerCycle will error\n", b.ID)
 }
