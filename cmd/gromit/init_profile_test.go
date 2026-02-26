@@ -442,6 +442,47 @@ func TestSelectInitProfileCustomProfile(t *testing.T) {
 	}
 }
 
+func TestInitWritesGoProfileRules(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test"), 0644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
+
+	prevWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get wd: %v", err)
+	}
+	defer os.Chdir(prevWd)
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+
+	prevForce := forceInit
+	prevProfile := initProfile
+	defer func() {
+		forceInit = prevForce
+		initProfile = prevProfile
+	}()
+	forceInit = true
+	initProfile = ""
+
+	if err := runInit(nil, nil); err != nil {
+		t.Fatalf("runInit: %v", err)
+	}
+
+	rules, err := os.ReadFile(filepath.Join(dir, ".gromit/RULES.md"))
+	if err != nil {
+		t.Fatalf("read RULES.md: %v", err)
+	}
+	content := string(rules)
+	if !strings.Contains(content, "go fmt") {
+		t.Fatalf("RULES.md missing go fmt guidance, got:\n%s", content)
+	}
+	if !strings.Contains(content, "error") || !strings.Contains(content, "returns") {
+		t.Fatalf("RULES.md missing error handling guidance, got:\n%s", content)
+	}
+}
+
 func TestSelectInitProfileRejectsInvalidConfigProfile(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
