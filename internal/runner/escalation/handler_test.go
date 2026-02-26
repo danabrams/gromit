@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/analyzer"
 	"github.com/danabrams/gromit/internal/bead"
@@ -964,6 +965,62 @@ func TestHandleInvocationTimeout_FirstTimeoutDecomposesWithoutEscalation(t *test
 	}
 	if !bc.Result.Decomposed {
 		t.Fatal("expected decomposition success to be recorded")
+	}
+	if !bc.Result.TimeoutDecompositionAttempted {
+		t.Fatal("expected timeout decomposition attempt audit to be recorded")
+	}
+	if !bc.Result.TimeoutDecompositionSucceeded {
+		t.Fatal("expected timeout decomposition audit to mark success")
+	}
+}
+
+func TestHandleStallTimeout_FirstTimeoutBudgetThresholdSkipsDecomposition(t *testing.T) {
+	cfg := newTestConfig()
+	decomposeCalled := false
+	h := NewHandler(
+		cfg,
+		&mockFailureAnalyzer{},
+		&mockBeadClient{},
+		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+			decomposeCalled = true
+			return nil, fmt.Errorf("unexpected decomposition call")
+		},
+		nil,
+		nil,
+		nil,
+	)
+
+	bc := newTestBeadContext()
+	bc.ParentCtx = context.Background()
+	bc.Result.ToolCallCount = 1
+	bc.RetriesThisModel = bc.MaxRetries + 1
+	bc.BeadTimeout = time.Minute
+	bc.BeadStartTime = time.Now().Add(-50 * time.Second)
+
+	continueLoop := h.HandleStallTimeout(context.Background(), bc)
+	if !continueLoop {
+		t.Fatal("expected escalation to continue when budget threshold already consumed")
+	}
+	if decomposeCalled {
+		t.Fatal("did not expect decomposition when budget threshold exceeded")
+	}
+	if !bc.Result.TimeoutDecompositionAttempted {
+		t.Fatal("expected timeout decomposition audit to be recorded even when skipped")
+	}
+	if bc.Result.TimeoutDecompositionOutcome != "skipped" {
+		t.Fatalf("TimeoutDecompositionOutcome = %q, want %q", bc.Result.TimeoutDecompositionOutcome, "skipped")
+	}
+	if !strings.Contains(bc.Result.TimeoutDecompositionReason, "skipped") {
+		t.Fatalf("unexpected timeout decomposition reason: %q", bc.Result.TimeoutDecompositionReason)
+	}
+	if bc.Result.TimeoutDecompositionAttemptTime.IsZero() {
+		t.Fatal("expected timeout decomposition attempt time to be recorded")
+	}
+	if bc.TimeoutEscalationsThisBead != 1 {
+		t.Fatalf("TimeoutEscalationsThisBead = %d, want 1", bc.TimeoutEscalationsThisBead)
+	}
+	if !bc.Result.Escalated {
+		t.Fatal("expected escalation after budget threshold prevented decomposition")
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/danabrams/gromit/internal/analyzer"
 	"github.com/danabrams/gromit/internal/bead"
@@ -37,6 +38,14 @@ const (
 	metricBuildFailureRate     = "rolling_build_failure_rate"
 	processTrendMetricsDir     = "metrics"
 	processTrendFileName       = "process_trend.json"
+)
+
+const firstTimeoutBudgetThreshold = 0.75
+
+const (
+	timeoutDecompositionOutcomeSuccess = "success"
+	timeoutDecompositionOutcomeSkipped = "skipped"
+	timeoutDecompositionOutcomeFailed  = "failed"
 )
 
 // InvokeFn executes a single Claude invocation. The facade wraps
@@ -98,7 +107,6 @@ func (h *Handler) EscalateTier(bc *runtypes.BeadContext, nextTier string) {
 // HandleStallTimeout handles the case where a stall timeout was detected during execution.
 // Returns true if the retry loop should continue, false if processBead should return.
 func (h *Handler) HandleStallTimeout(ctx context.Context, bc *runtypes.BeadContext) (continueLoop bool) {
-	_ = ctx
 	if bc.MaxRetriesPerBead > 0 && bc.TotalRetriesThisBead >= bc.MaxRetriesPerBead {
 		h.log("Stall timeout: max retries per bead exceeded (%d/%d)", bc.TotalRetriesThisBead, bc.MaxRetriesPerBead)
 		bc.Result.Error = fmt.Errorf("stall timeout: exceeded max retries per bead (%d)", bc.MaxRetriesPerBead)
@@ -117,7 +125,7 @@ func (h *Handler) HandleStallTimeout(ctx context.Context, bc *runtypes.BeadConte
 		return true
 	}
 
-	return h.handleTimeoutEscalationOrFail(bc, "stall timeout")
+	return h.handleTimeoutEscalationOrFail(ctx, bc, "stall timeout")
 }
 
 // HandleInvocationTimeout applies timeout-first decomposition.
@@ -148,8 +156,11 @@ func (h *Handler) resolveL1RetryCap(bc *runtypes.BeadContext) int {
 	return l1RetryCap
 }
 
-func (h *Handler) handleTimeoutEscalationOrFail(bc *runtypes.BeadContext, failureLabel string) bool {
+func (h *Handler) handleTimeoutEscalationOrFail(ctx context.Context, bc *runtypes.BeadContext, failureLabel string) bool {
 	if bc == nil || bc.Result == nil {
+		return false
+	}
+	if decision := h.handleFirstTimeoutDecomposition(ctx, bc, failureLabel); decision == firstTimeoutDecisionStop {
 		return false
 	}
 	if bc.TimeoutEscalationsThisBead >= 1 {
@@ -165,6 +176,81 @@ func (h *Handler) handleTimeoutEscalationOrFail(bc *runtypes.BeadContext, failur
 	h.log("%s detected, escalating from %s to %s", failureLabel, bc.Tier, nextTier)
 	h.EscalateTier(bc, nextTier)
 	return true
+}
+
+type firstTimeoutDecision int
+
+const (
+	firstTimeoutDecisionNone firstTimeoutDecision = iota
+	firstTimeoutDecisionEscalate
+	firstTimeoutDecisionStop
+)
+
+func (h *Handler) handleFirstTimeoutDecomposition(ctx context.Context, bc *runtypes.BeadContext, failureLabel string) firstTimeoutDecision {
+	if bc == nil || bc.Result == nil {
+		return firstTimeoutDecisionNone
+	}
+	if bc.TimeoutEscalationsThisBead > 0 {
+		return firstTimeoutDecisionNone
+	}
+	if bc.Result.TimeoutDecompositionAttempted {
+		return firstTimeoutDecisionNone
+	}
+	if h.decomposeFn == nil {
+		now := time.Now()
+		bc.Result.TimeoutDecompositionAttempted = true
+		bc.Result.TimeoutDecompositionAttemptTime = now
+		bc.Result.TimeoutDecompositionOutcome = timeoutDecompositionOutcomeSkipped
+		bc.Result.TimeoutDecompositionReason = fmt.Sprintf("first timeout (%s) skipped: decomposition unavailable", failureLabel)
+		return firstTimeoutDecisionEscalate
+	}
+
+	now := time.Now()
+	bc.Result.TimeoutDecompositionAttempted = true
+	bc.Result.TimeoutDecompositionAttemptTime = now
+
+	if exceeded, usage := firstTimeoutBudgetUsage(bc); exceeded {
+		percent := usage * 100
+		if percent > 100 {
+			percent = 100
+		}
+		bc.Result.TimeoutDecompositionOutcome = timeoutDecompositionOutcomeSkipped
+		bc.Result.TimeoutDecompositionReason = fmt.Sprintf("first timeout (%s) skipped: %.0f%% of bead budget used before escalation", failureLabel, percent)
+		return firstTimeoutDecisionEscalate
+	}
+
+	decomposeCtx := firstNonNilContext(bc.ParentCtx, ctx)
+	failureReason := fmt.Sprintf("first timeout (%s)", failureLabel)
+	if err := decomposeCtx.Err(); err != nil {
+		bc.Result.TimeoutDecompositionOutcome = timeoutDecompositionOutcomeSkipped
+		bc.Result.TimeoutDecompositionReason = fmt.Sprintf("%s skipped: parent context canceled: %v", failureReason, err)
+		bc.Result.Error = fmt.Errorf("%s (decomposition skipped: parent context canceled: %w)", failureReason, err)
+		return firstTimeoutDecisionStop
+	}
+
+	h.AttemptDecomposition(decomposeCtx, bc, failureReason)
+	bc.Result.TimeoutDecompositionSucceeded = bc.Result.Decomposed
+	if bc.Result.Decomposed {
+		bc.Result.TimeoutDecompositionOutcome = timeoutDecompositionOutcomeSuccess
+		bc.Result.TimeoutDecompositionReason = fmt.Sprintf("%s decomposition succeeded", failureReason)
+	} else {
+		bc.Result.TimeoutDecompositionOutcome = timeoutDecompositionOutcomeFailed
+		bc.Result.TimeoutDecompositionReason = fmt.Sprintf("%s decomposition failed: %v", failureReason, bc.Result.Error)
+	}
+
+	return firstTimeoutDecisionStop
+}
+
+func firstTimeoutBudgetUsage(bc *runtypes.BeadContext) (bool, float64) {
+	if bc == nil || bc.BeadTimeout <= 0 || bc.BeadStartTime.IsZero() {
+		return false, 0
+	}
+	elapsed := time.Since(bc.BeadStartTime)
+	if elapsed <= 0 {
+		return false, 0
+	}
+	usage := float64(elapsed) / float64(bc.BeadTimeout)
+	return usage >= firstTimeoutBudgetThreshold, usage
 }
 
 func (h *Handler) HandleBeadTimeout(bc *runtypes.BeadContext) (continueLoop bool) {
