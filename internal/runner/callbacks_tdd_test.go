@@ -154,6 +154,17 @@ func TestBuildRenderRedFn_UsesRedPhaseTierOverride(t *testing.T) {
 	}
 }
 
+func TestResolveTDDBuildTier_CostOptimizedStartsLow(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Routing.Strategy = "cost_optimized"
+	cfg.Routing.CostOptimized.BuildTier = "low"
+
+	bead := &bead.Bead{Priority: 1}
+	if got := resolveTDDBuildTier(cfg, bead); got != "low" {
+		t.Fatalf("resolveTDDBuildTier = %q, want %q", got, "low")
+	}
+}
+
 func TestBuildRenderRedFn_LoadsRulesForRedPhase(t *testing.T) {
 	t.Parallel()
 	tmpDir := t.TempDir()
