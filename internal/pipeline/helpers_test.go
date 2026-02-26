@@ -75,6 +75,17 @@ func TestDiffFiles_NoChanges(t *testing.T) {
 	}
 }
 
+func TestDiffFiles_NoChangesReturnsEmptySlice(t *testing.T) {
+	before := []string{"/path/to/spec1.md", "/path/to/spec2.md"}
+	after := []string{"/path/to/spec1.md", "/path/to/spec2.md"}
+
+	diff := DiffFiles(before, after)
+
+	if diff == nil {
+		t.Fatalf("expected empty slice, got nil")
+	}
+}
+
 func TestDiffFiles_WithNewFiles(t *testing.T) {
 	before := []string{"/path/to/spec1.md"}
 	after := []string{"/path/to/spec1.md", "/path/to/spec2.md", "/path/to/spec3.md"}
