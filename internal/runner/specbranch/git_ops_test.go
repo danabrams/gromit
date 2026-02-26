@@ -176,6 +176,13 @@ func TestDeleteSpecBranch_DeletesSuccessfully(t *testing.T) {
 		t.Fatalf("branch %s does not exist before deletion", specBranchName)
 	}
 
+	// Checkout a different branch before deleting
+	cmd = exec.Command("git", "checkout", fixture.BaseBranch)
+	cmd.Dir = fixture.Dir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to checkout base branch before deletion: %v", err)
+	}
+
 	// Delete the branch
 	err = ops.DeleteSpecBranch(context.Background(), specBranchName)
 	if err != nil {

@@ -140,6 +140,23 @@ func isRebaseConflict(output string, err error) bool {
 	return strings.Contains(output, "CONFLICT") || strings.Contains(output, "conflict")
 }
 
+// DeleteSpecBranch deletes the spec branch.
+func (g *GitOps) DeleteSpecBranch(ctx context.Context, specBranchName string) error {
+	if specBranchName == "" {
+		return fmt.Errorf("spec branch name cannot be empty")
+	}
+
+	cmd := exec.CommandContext(ctx, "git", "branch", "-d", specBranchName)
+	cmd.Dir = g.repoDir
+	_, err := cmd.CombinedOutput()
+
+	if err != nil {
+		return fmt.Errorf("failed to delete spec branch %s: %w", specBranchName, err)
+	}
+
+	return nil
+}
+
 func isMergeConflict(output string, err error) bool {
 	if err == nil {
 		return false
