@@ -32,7 +32,8 @@ Respond with a JSON array containing your proposed sub-tasks. Each sub-task shou
 - `title`: Brief title (max 60 chars)
 - `description`: What needs to be done
 - `depends_on`: Index of previous task if dependent (null if independent)
-- `acceptance_criteria`: 2-3 bullet points
+- `acceptance_criteria`: 2-3 bullet points defining the overall definition of done
+- `expected_outputs`: 2-5 discrete, independently testable behavioral requirements (incremental TDD steps)
 
 Example format:
 ```json
@@ -41,23 +42,65 @@ Example format:
     "title": "Set up database migrations",
     "description": "Create the initial migration files and schema...",
     "depends_on": null,
-    "acceptance_criteria": ["Migration files created", "Schema matches spec"]
+    "acceptance_criteria": ["Migration files created", "Schema matches spec"],
+    "expected_outputs": ["Running `go test ./internal/db/...` exits 0", "Migration file exists at migrations/001_init.sql"]
   },
   {
     "title": "Implement user model",
     "description": "Add User model with validation...",
     "depends_on": 0,
-    "acceptance_criteria": ["Model created", "Tests pass", "Validation works"]
+    "acceptance_criteria": ["Model created", "Tests pass", "Validation works"],
+    "expected_outputs": ["User struct compiles with required fields", "Validation rejects empty email", "Validation rejects email without @"]
   }
 ]
 ```
 
 ## Guidelines
 
-- Keep tasks focused on a single concern
+{{if and .DecompositionTarget (eq .DecompositionTarget "single_concern")}}
+### Single-Concern Targeting Mode
+
+You are in **single_concern targeting mode**. Each bead should target **exactly one** of the following:
+- One function/method implementation
+- One test case or test fixture
+- One config option or setting
+- One UI component or interaction
+
+This produces finer-grained beads that are easier to review and validate. The never-split constraints below still apply — you cannot split a function and its tests, an interface and its implementation, etc.
+
+{{end}}
+- Keep tasks focused on **one deliverable behavior** — a single observable change that a caller or user could verify. Not "one file" or "one concern," but one unit of working functionality
+- Soft file limit of 4-5 — if touching 6+ files across unrelated packages, consider splitting. But touching interface.go, impl.go, mock_test.go, and impl_test.go for one method addition is fine — that's one change, not four
+- **Never split these natural units:**
+  - **Interface + implementation + mock updates** — In Go, changing an interface requires updating all implementations and mocks to compile. This is one change, not three beads
+  - **Implementation + its tests** — The implementation agent writes tests alongside implementation. Under ATDD, they're explicitly the same workflow. Never create a separate "write tests for X" bead
+  - **Companion methods in same package** — Methods that follow the same pattern in the same file are one bead. If you'd copy-paste-modify to create the second, they belong together
+  - **Command flags + wiring that makes them work** — A CLI flag that does nothing isn't a deliverable. The flag, its plumbing, and its effect are one bead
+  - **Template + registration** — Adding a template file and registering it in the renderer are one action, not two
+- **When to Split:**
+  - If a task has 4+ acceptance criteria, split by distinct behaviors
+  - If a task touches 6+ files across unrelated packages, split by package boundary
+  - If two parts of a task are independently useful and don't need each other to compile, they can be separate beads
+  - If a task requires design decisions that would benefit from being settled first (e.g., define the data model, then build the API), split at the decision boundary
 - If a task has a natural prerequisite, indicate the dependency
 - Avoid tasks that are just "refactoring" or "cleanup" - focus on functionality
 - Each task should be demonstrable with commits/tests
-- Consider what files will likely be touched by each task
+
+### Avoiding Sibling Overlap
+
+Each sub-task's acceptance criteria must be **unique to that task** — criteria that would NOT be satisfied by completing any sibling task. Before finalizing your decomposition, perform this cross-check:
+
+> For each sub-task, ask: "If I completed any other sub-task instead, would this task's acceptance criteria still fail?"
+
+If the answer is "no" for any pair, the tasks overlap. Fix this by:
+- Merging the overlapping tasks into one
+- Rewriting acceptance criteria to be more specific to each task's unique contribution
+- Ensuring each task adds distinct, observable behavior that no sibling provides
+{{if .ATDDActive}}
+
+### ATDD Active — No Test-Only Beads
+
+ATDD methodology is active. Do NOT create sub-tasks whose sole purpose is writing tests (e.g., "Add unit tests for X", "Write tests for Y"). ATDD handles test writing automatically as Phase 1 of each bead — creating a separate test bead leads to a logical contradiction where acceptance tests always pass before implementation.
+{{end}}
 
 Respond with ONLY the JSON array (no markdown, no explanation).

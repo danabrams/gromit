@@ -14,7 +14,7 @@ import (
 )
 
 func TestFilterUndecomposedPlans(t *testing.T) {
-	t.Parallel()
+	// Not parallel: subtests mutate package-level decomposeListWithLabelFn.
 	tests := []struct {
 		name      string
 		planFiles map[string]string // filename -> content (with frontmatter)
@@ -215,9 +215,12 @@ decomposed: false
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel(
-			// Create temporary directory
-			)
+			// Not parallel: subtests mutate package-level decomposeListWithLabelFn.
+			origListFn := decomposeListWithLabelFn
+			decomposeListWithLabelFn = func(label string) ([]*bead.Bead, error) {
+				return nil, nil // stub: no beads found
+			}
+			t.Cleanup(func() { decomposeListWithLabelFn = origListFn })
 
 			plansDir := t.TempDir()
 

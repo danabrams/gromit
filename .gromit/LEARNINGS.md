@@ -309,3 +309,9 @@ When creating temporary executable files in Go tests, ensure execute permissions
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-26 | review | gotchas
+Tests in cmd/gromit (package main) that mutate package-level function variables (*Fn pattern), rootCmd, os.Stdout/Stderr, or call os.Chdir MUST NOT use t.Parallel(). The add_parallel script cannot detect these indirect races — manual audit is required after bulk t.Parallel() additions. Categories: (1) *Fn injectable globals, (2) rootCmd cobra mutations via runGromitCobra/SetArgs/Execute, (3) os.Stdout/Stderr capture helpers, (4) os.Chdir via runInDir, (5) flag variables like reviewEpic/reviewSpec.
+
+### 2026-02-26 | review | gotchas
+cmd/gromit/ contains scaffold/template copies of CLAUDE.md, RULES.md, PROMPT_decompose.md, and SKILL.md under cmd/gromit/.gromit/. Tests using getProjectRootFromTestFile may resolve to cmd/gromit/ instead of the real project root if the function stops at the first .gromit/ directory. The function must prefer gromit.yaml as the definitive project root marker.
+

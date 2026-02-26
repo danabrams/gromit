@@ -20,9 +20,9 @@ type backlogIdea struct {
 func loadBacklogIdeas(t *testing.T) []backlogIdea {
 	t.Helper()
 
-	projectRoot, err := findProjectRoot()
-	if err != nil {
-		t.Fatalf("could not find project root: %v", err)
+	projectRoot := getProjectRootFromTestFile("loadBacklogIdeas")
+	if projectRoot == "" {
+		t.Fatalf("could not find project root from test file location")
 	}
 
 	backlogPath := filepath.Join(projectRoot, ".gromit", "backlog.jsonl")

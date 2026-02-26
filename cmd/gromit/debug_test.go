@@ -1214,7 +1214,7 @@ func TestMaybeCreateDebugRestoreWorktreeFallsBackOnGitFailure(t *testing.T) {
 }
 
 func TestMaybeCleanupDebugRestoreWorktreeRemovesWhenDeclined(t *testing.T) {
-	t.Parallel()
+	// Not parallel: mutates package-level debugConfirmPromptFn.
 	originalConfirm := debugConfirmPromptFn
 	defer func() {
 		debugConfirmPromptFn = originalConfirm
@@ -1248,7 +1248,7 @@ func TestMaybeCleanupDebugRestoreWorktreeRemovesWhenDeclined(t *testing.T) {
 }
 
 func TestMaybeCleanupDebugRestoreWorktreeKeepsWhenAccepted(t *testing.T) {
-	t.Parallel()
+	// Not parallel: mutates package-level debugConfirmPromptFn.
 	originalConfirm := debugConfirmPromptFn
 	defer func() {
 		debugConfirmPromptFn = originalConfirm

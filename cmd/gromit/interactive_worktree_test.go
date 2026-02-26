@@ -90,7 +90,7 @@ func withInteractiveWorktreeFactories(
 }
 
 func TestRunWithSessionWorktreeExecutesCallbackInSessionDir(t *testing.T) {
-	t.Parallel()
+	// Not parallel: withInteractiveWorktreeFactories mutates package-level globals.
 	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "refine")
 	session.BranchName = "gromit/refine-123"
 
@@ -135,7 +135,7 @@ func TestRunWithSessionWorktreeExecutesCallbackInSessionDir(t *testing.T) {
 }
 
 func TestRunWithSessionWorktreeRecordsPendingBranch(t *testing.T) {
-	t.Parallel()
+	// Not parallel: withInteractiveWorktreeFactories mutates package-level globals.
 	_, gromitDir, session := setupRunWithSessionWorktreeTest(t, "plan")
 	session.BranchName = "gromit/plan-456"
 
@@ -172,7 +172,7 @@ func TestRunWithSessionWorktreeRecordsPendingBranch(t *testing.T) {
 }
 
 func TestRunWithSessionWorktreeDoesNotRecordBranchWhenCallbackFails(t *testing.T) {
-	t.Parallel()
+	// Not parallel: withInteractiveWorktreeFactories mutates package-level globals.
 	_, gromitDir, session := setupRunWithSessionWorktreeTest(t, "explore")
 	session.BranchName = "gromit/explore-789"
 
@@ -208,7 +208,7 @@ func TestRunWithSessionWorktreeDoesNotRecordBranchWhenCallbackFails(t *testing.T
 }
 
 func TestRunWithSessionWorktreeImmediateMergeSuccessRunsCleanupAndClearsPendingBranch(t *testing.T) {
-	t.Parallel()
+	// Not parallel: withInteractiveWorktreeFactories mutates package-level globals.
 	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "debug")
 	session.BranchName = "gromit/debug-123"
 
@@ -293,7 +293,7 @@ func TestRunWithSessionWorktreeImmediateMergeSuccessRunsCleanupAndClearsPendingB
 }
 
 func TestRunWithSessionWorktreeImmediateMergeSuccessPreRemovesBeforeMerge(t *testing.T) {
-	t.Parallel()
+	// Not parallel: withInteractiveWorktreeFactories mutates package-level globals.
 	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "sync")
 	session.BranchName = "gromit/sync-999"
 
@@ -355,7 +355,7 @@ func TestRunWithSessionWorktreeImmediateMergeSuccessPreRemovesBeforeMerge(t *tes
 }
 
 func TestRunWithSessionWorktreeMergeRecoversFromCheckedOutBranchDeleteError(t *testing.T) {
-	t.Parallel()
+	// Not parallel: withInteractiveWorktreeFactories mutates package-level globals.
 	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "debug")
 	session.BranchName = "gromit/debug-123"
 
@@ -424,7 +424,7 @@ func TestRunWithSessionWorktreeMergeRecoversFromCheckedOutBranchDeleteError(t *t
 }
 
 func TestRunWithSessionWorktreeCleanupFailureReturnsErrorAfterMerge(t *testing.T) {
-	t.Parallel()
+	// Not parallel: withInteractiveWorktreeFactories mutates package-level globals.
 	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "repair")
 	session.BranchName = "gromit/repair-111"
 
@@ -494,7 +494,7 @@ func TestRunWithSessionWorktreeCleanupFailureReturnsErrorAfterMerge(t *testing.T
 }
 
 func TestRunWithSessionWorktreeCleanupFailureWrapsBranchContext(t *testing.T) {
-	t.Parallel()
+	// Not parallel: withInteractiveWorktreeFactories mutates package-level globals.
 	_, gromitDir, session := setupRunWithSessionWorktreeTest(t, "context")
 	session.BranchName = "gromit/context-222"
 
@@ -524,7 +524,7 @@ func TestRunWithSessionWorktreeCleanupFailureWrapsBranchContext(t *testing.T) {
 }
 
 func TestRunWithSessionWorktreeConflictManualPolicyKeepsPendingBranch(t *testing.T) {
-	t.Parallel()
+	// Not parallel: withInteractiveWorktreeFactories mutates package-level globals.
 	_, gromitDir, session := setupRunWithSessionWorktreeTest(t, "review")
 	session.BranchName = "gromit/review-111"
 
@@ -581,7 +581,7 @@ func TestRunWithSessionWorktreeConflictManualPolicyKeepsPendingBranch(t *testing
 }
 
 func TestRunWithSessionWorktreeConflictAgentPolicyRetriesAndMerges(t *testing.T) {
-	t.Parallel()
+	// Not parallel: withInteractiveWorktreeFactories mutates package-level globals.
 	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "refine")
 	session.BranchName = "gromit/refine-222"
 
@@ -666,7 +666,7 @@ func TestRunWithSessionWorktreeConflictAgentPolicyRetriesAndMerges(t *testing.T)
 }
 
 func TestRunWithSessionWorktreeConflictAgentPolicyRetriesBeforeCleanup(t *testing.T) {
-	t.Parallel()
+	// Not parallel: withInteractiveWorktreeFactories mutates package-level globals.
 	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "review")
 	session.BranchName = "gromit/review-234"
 
@@ -756,7 +756,7 @@ func TestRunWithSessionWorktreeConflictAgentPolicyRetriesBeforeCleanup(t *testin
 }
 
 func TestRunWithSessionWorktreeConflictAgentPolicyFallsBackToManual(t *testing.T) {
-	t.Parallel()
+	// Not parallel: withInteractiveWorktreeFactories mutates package-level globals.
 	_, gromitDir, session := setupRunWithSessionWorktreeTest(t, "debug")
 	session.BranchName = "gromit/debug-333"
 
@@ -824,7 +824,7 @@ func TestRunWithSessionWorktreeConflictAgentPolicyFallsBackToManual(t *testing.T
 }
 
 func TestRunWithSessionWorktreeDualConflictHandoff(t *testing.T) {
-	t.Parallel()
+	// Not parallel: withInteractiveWorktreeFactories mutates package-level globals.
 	mainDir := t.TempDir()
 	gromitDir := filepath.Join(mainDir, ".gromit")
 	sessionA := &worktree.SessionWorktree{

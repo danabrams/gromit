@@ -173,7 +173,7 @@ func TestExecGromitBinaryResolution(t *testing.T) {
 }
 
 func TestExecGromitExitErrorIsNil(t *testing.T) {
-	t.Parallel()
+	// Not parallel: mutates package-level execCommandFactory.
 	prevFactory := execCommandFactory
 	defer func() { execCommandFactory = prevFactory }()
 

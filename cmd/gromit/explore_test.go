@@ -275,7 +275,7 @@ func TestRunExploreInSession_WorktreeDisabledSkipsSessionLauncher(t *testing.T) 
 }
 
 func TestHandleExploreOutput_RendersCreatedArtifacts(t *testing.T) {
-	t.Parallel()
+	// Not parallel: mutates os.Stdout.
 	result := &pipeline.ExploreResult{
 		CreatedEpics:        []string{"epic1.md", "epic2.md"},
 		CreatedSpecs:        []string{"spec1.md"},

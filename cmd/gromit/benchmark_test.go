@@ -1380,7 +1380,7 @@ func TestBenchmarkRunCommand_BeadOverridesDriveSelection(t *testing.T) {
 }
 
 func TestBenchmarkRunCommand_RejectsInvalidOutputTimestamp(t *testing.T) {
-	t.Parallel()
+	// Not parallel: runGromitCobra mutates rootCmd, os.Stdout, and os.Stderr.
 	manifestPath := filepath.Join("/home/dabrams/gromit", "cmd", "gromit", "testdata", "fixtures", "benchmark", "basic.yaml")
 
 	_, stderr, exitCode := runGromitCobra(t,
@@ -1398,7 +1398,7 @@ func TestBenchmarkRunCommand_RejectsInvalidOutputTimestamp(t *testing.T) {
 }
 
 func TestBenchmarkRunCommand_RejectsNegativeBeadCount(t *testing.T) {
-	t.Parallel()
+	// Not parallel: runGromitCobra mutates rootCmd, os.Stdout, and os.Stderr.
 	manifestPath := filepath.Join("/home/dabrams/gromit", "cmd", "gromit", "testdata", "fixtures", "benchmark", "basic.yaml")
 
 	_, stderr, exitCode := runGromitCobra(t,
@@ -1416,7 +1416,7 @@ func TestBenchmarkRunCommand_RejectsNegativeBeadCount(t *testing.T) {
 }
 
 func TestBenchmarkRunCommand_RejectsEmptyBeadsOverride(t *testing.T) {
-	t.Parallel()
+	// Not parallel: runGromitCobra mutates rootCmd, os.Stdout, and os.Stderr.
 	manifestPath := filepath.Join("/home/dabrams/gromit", "cmd", "gromit", "testdata", "fixtures", "benchmark", "basic.yaml")
 
 	_, stderr, exitCode := runGromitCobra(t,
@@ -1434,7 +1434,7 @@ func TestBenchmarkRunCommand_RejectsEmptyBeadsOverride(t *testing.T) {
 }
 
 func TestBenchmarkRunCommand_RejectsInvalidBaseCommit(t *testing.T) {
-	t.Parallel()
+	// Not parallel: runGromitCobra mutates rootCmd, os.Stdout, and os.Stderr.
 	manifestPath := filepath.Join("/home/dabrams/gromit", "cmd", "gromit", "testdata", "fixtures", "benchmark", "basic.yaml")
 
 	_, stderr, exitCode := runGromitCobra(t,
@@ -1452,7 +1452,7 @@ func TestBenchmarkRunCommand_RejectsInvalidBaseCommit(t *testing.T) {
 }
 
 func TestBenchmarkRunCommand_RejectsBlankManifestPath(t *testing.T) {
-	t.Parallel()
+	// Not parallel: runGromitCobra mutates rootCmd, os.Stdout, and os.Stderr.
 	_, stderr, exitCode := runGromitCobra(t,
 		"benchmark", "run",
 		"--manifest", " ",
@@ -1467,7 +1467,7 @@ func TestBenchmarkRunCommand_RejectsBlankManifestPath(t *testing.T) {
 }
 
 func TestBenchmarkRunCommand_RejectsBaseCommitWithWhitespace(t *testing.T) {
-	t.Parallel()
+	// Not parallel: runGromitCobra mutates rootCmd, os.Stdout, and os.Stderr.
 	manifestPath := filepath.Join("/home/dabrams/gromit", "cmd", "gromit", "testdata", "fixtures", "benchmark", "basic.yaml")
 
 	_, stderr, exitCode := runGromitCobra(t,
@@ -1600,7 +1600,7 @@ func TestBenchmarkRunCommand_SingleBeadPilotSelection(t *testing.T) {
 }
 
 func TestBenchmarkRunCommand_RejectsSingleBeadWithBeadsOverride(t *testing.T) {
-	t.Parallel()
+	// Not parallel: runGromitCobra mutates rootCmd, os.Stdout, and os.Stderr.
 	manifestPath := filepath.Join("/home/dabrams/gromit", "cmd", "gromit", "testdata", "fixtures", "benchmark", "basic.yaml")
 
 	_, stderr, exitCode := runGromitCobra(t,
@@ -1618,7 +1618,7 @@ func TestBenchmarkRunCommand_RejectsSingleBeadWithBeadsOverride(t *testing.T) {
 }
 
 func TestBenchmarkRunCommand_RejectsSingleBeadWithBeadCount(t *testing.T) {
-	t.Parallel()
+	// Not parallel: runGromitCobra mutates rootCmd, os.Stdout, and os.Stderr.
 	manifestPath := filepath.Join("/home/dabrams/gromit", "cmd", "gromit", "testdata", "fixtures", "benchmark", "basic.yaml")
 
 	_, stderr, exitCode := runGromitCobra(t,

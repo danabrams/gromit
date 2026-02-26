@@ -401,7 +401,6 @@ func assertSpecValidationError(t *testing.T, errMsg string, wantContains []strin
 		}
 	}
 }
-
 func writeSpecFixtures(t *testing.T, specsDir string, names []string) {
 	t.Helper()
 	for _, name := range names {
