@@ -3,9 +3,11 @@ id: parallel-bead-execution
 source_ideas: []
 created: 2026-02-17
 epic: run-loop-reliability
+deprecated: 2026-02-26
+deprecated_reason: "Conflicts with spec-branch-merge-pipeline branching model. Worker worktrees assume single-branch (main) execution, but spec beads route to gromit/spec-<name> branches. Merge coordinator topology, batch validation, and worker reset logic all need redesign to be branch-aware. Will revisit parallelism after branch-per-spec is fully operational."
 ---
 
-# Parallel Bead Execution
+# Parallel Bead Execution (DEPRECATED)
 
 ## Specification
 
