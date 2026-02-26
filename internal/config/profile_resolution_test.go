@@ -148,3 +148,39 @@ func TestEffectiveMethodologyAdapterExplicitPrecedence(t *testing.T) {
 		t.Errorf("ResolvedMethodologyAdapter().Source = %q, want %q", resolved.Source, CompatibilitySourceExplicit)
 	}
 }
+
+func TestCustomProfileNoValidationCommandInjection(t *testing.T) {
+	cfg := Config{
+		Project: ProjectConfig{
+			Profile: "custom",
+		},
+		Validation: ValidationConfig{
+			Commands: nil, // No explicit commands
+		},
+	}
+
+	effective := cfg.EffectiveValidationCommands()
+
+	// Custom profile should not inject validation commands
+	if effective != nil && len(effective) > 0 {
+		t.Errorf("EffectiveValidationCommands() for custom profile = %v, want empty/nil", effective)
+	}
+}
+
+func TestCustomProfileNoPreflightCompileCommandInjection(t *testing.T) {
+	cfg := Config{
+		Project: ProjectConfig{
+			Profile: "custom",
+		},
+		Preflight: PreflightConfig{
+			CompileCommand: "", // No explicit compile command
+		},
+	}
+
+	effective := cfg.EffectivePreflightCompileCommand()
+
+	// Custom profile should not inject compile command
+	if effective != "" {
+		t.Errorf("EffectivePreflightCompileCommand() for custom profile = %q, want empty string", effective)
+	}
+}
