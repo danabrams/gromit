@@ -10,6 +10,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/runner/display"
 )
 
 // SPC metric name constants used for ProcessTrend control limits.
@@ -574,4 +575,27 @@ func formatModelPerformance(stats map[string]logger.ModelStats) string {
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+// toDisplayRunStatus converts a *runner.Status to a display.RunStatus for rendering.
+func toDisplayRunStatus(s *Status) *display.RunStatus {
+	if s == nil {
+		return nil
+	}
+	return &display.RunStatus{
+		Running:                s.Running,
+		Iteration:              s.Iteration,
+		IterationTotal:         s.IterationTotal,
+		MaxIterations:          s.MaxIterations,
+		TimeBudgetMinutes:      s.TimeBudgetMinutes,
+		BeadID:                 s.BeadID,
+		BeadTitle:              s.BeadTitle,
+		Model:                  s.Model,
+		ElapsedS:               s.ElapsedS,
+		AutonomyRate:           s.AutonomyRate,
+		FirstPassSuccessRate:   s.FirstPassSuccessRate,
+		MTTRProxyMs:            s.MTTRProxyMs,
+		EscalationRatesByClass: s.EscalationRatesByClass,
+		RecurrenceCounters:     s.RecurrenceCounters,
+	}
 }

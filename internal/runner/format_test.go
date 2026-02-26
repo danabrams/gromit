@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/runner/display"
 )
 
 func TestFormatDuration(t *testing.T) {
@@ -1005,5 +1006,46 @@ func TestFormatRun(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestToDisplayRunStatus_convertsFields(t *testing.T) {
+	t.Parallel()
+
+	status := &Status{
+		Running:                true,
+		Iteration:              3,
+		IterationTotal:         10,
+		MaxIterations:          10,
+		TimeBudgetMinutes:      30,
+		BeadID:                 "beads-123",
+		BeadTitle:              "Add feature",
+		Model:                  "sonnet",
+		ElapsedS:               120,
+		AutonomyRate:           0.95,
+		FirstPassSuccessRate:   0.88,
+		MTTRProxyMs:            5000,
+		EscalationRatesByClass: map[string]float64{"warning": 0.05},
+		RecurrenceCounters:     map[string]int{"class-A": 2},
+	}
+
+	got := toDisplayRunStatus(status)
+	if got == nil {
+		t.Fatalf("toDisplayRunStatus() returned nil")
+	}
+	if _, ok := interface{}(got).(*display.RunStatus); !ok {
+		t.Fatalf("toDisplayRunStatus() did not return *display.RunStatus")
+	}
+	if got.Running != true {
+		t.Errorf("toDisplayRunStatus().Running = %v, want true", got.Running)
+	}
+	if got.Iteration != 3 {
+		t.Errorf("toDisplayRunStatus().Iteration = %d, want 3", got.Iteration)
+	}
+	if got.BeadID != "beads-123" {
+		t.Errorf("toDisplayRunStatus().BeadID = %q, want beads-123", got.BeadID)
+	}
+	if got.Model != "sonnet" {
+		t.Errorf("toDisplayRunStatus().Model = %q, want sonnet", got.Model)
 	}
 }
