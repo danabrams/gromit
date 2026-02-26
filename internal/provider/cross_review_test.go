@@ -334,3 +334,15 @@ func TestSelectCrossReturnsNilWhenAllProvidersUnavailable(t *testing.T) {
 		t.Errorf("SelectCross() returned model %q when no providers available, want empty", model)
 	}
 }
+
+// assertAllowedCrossProvider checks that a selected provider is a member of
+// the allowed set. This helper is resilient to non-deterministic map iteration
+// because it only checks set membership regardless of order.
+func assertAllowedCrossProvider(t *testing.T, selected string, allowed []string) {
+	for _, a := range allowed {
+		if a == selected {
+			return
+		}
+	}
+	t.Errorf("Selected provider %q is not in allowed set %v", selected, allowed)
+}
