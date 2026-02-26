@@ -328,3 +328,8 @@ When moving tests to a new package in this codebase, verify test isolation and c
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-26 | gromit-4oh | gotchas
+Unmerged files (UU status) prevent test compilation and setup. Always check git status for merge conflicts before running tests in conflicted areas.
+
+*Archived from new: filtered: generic engineering advice*
+

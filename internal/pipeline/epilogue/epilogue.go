@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 )
@@ -177,15 +176,10 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 		}
 	}
 
-	// 2. Spec gate: evaluate acceptance criteria when spec-level methodology is active.
-	if in.BuildSucceeded && in.Config != nil && e.specgate != nil {
-		if in.Config.Methodology.Granularity == config.MethodologyGranularitySpec &&
-			in.Config.SpecGate.IsEnabled() && in.Config.SpecGate.IsAutoTrigger() {
-			if err := e.specgate.Run(ctx, in.Bead.ID, in.Bead.Labels); err != nil {
-				fmt.Fprintf(w, "Warning: spec gate failed: %v\n", err)
-			}
-		}
-	}
+	// 2. Spec gate: DEPRECATED - the new merge pipeline is now the only completion
+	// mechanism for spec-level methodology. Legacy auto-trigger has been disabled.
+	// The spec gate runner is kept wired for backward compatibility but no longer invoked.
+	_ = e.specgate
 
 	// 3. Worktree merge: merge pending interactive branches when enabled.
 	if e.worktree != nil && in.Config != nil &&

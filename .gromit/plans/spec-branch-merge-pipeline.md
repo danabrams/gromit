@@ -1,8 +1,9 @@
 ---
+created: 2026-02-26T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-26T19:32:19Z"
 id: spec-branch-merge-pipeline
 source_spec: spec-branch-merge-pipeline
-created: 2026-02-26
-decomposed: false
 ---
 
 # Spec Branch Merge Pipeline Implementation Plan
