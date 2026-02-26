@@ -2,6 +2,7 @@ package provider
 
 import (
 	"bytes"
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -379,5 +380,53 @@ func TestProcessCodexStreamNormalizesMergeSemantics(t *testing.T) {
 				t.Errorf("usage.TotalCostUSD = %f, want %f", usage.TotalCostUSD, tc.expectedCost)
 			}
 		})
+	}
+}
+
+// TestProcessCodexStreamEmitsWarningWhenInputTokensExceed3M verifies that a warning
+// event is emitted when input tokens exceed 3 million (the high-cost iteration threshold).
+func TestProcessCodexStreamEmitsWarningWhenInputTokensExceed3M(t *testing.T) {
+	input := strings.Join([]string{
+		`{"type":"item.completed","item":{"type":"agent_message","text":"Done"}}`,
+		`{"type":"turn.completed","usage":{"input_tokens":3100000,"output_tokens":500,"total_cost_usd":0.527}}`,
+	}, "\n") + "\n"
+
+	reader := strings.NewReader(input)
+	var output bytes.Buffer
+
+	var capturedEvents []map[string]interface{}
+	handler := func(eventJSON []byte) {
+		var event map[string]interface{}
+		if err := json.Unmarshal(eventJSON, &event); err != nil {
+			t.Fatalf("failed to unmarshal event: %v", err)
+		}
+		capturedEvents = append(capturedEvents, event)
+	}
+
+	_, usage, _, err := processCodexStream(reader, &output, handler, nil)
+	if err != nil {
+		t.Fatalf("processCodexStream() error = %v", err)
+	}
+
+	if usage == nil {
+		t.Fatal("usage is nil, want non-nil")
+	}
+	if usage.InputTokens != 3100000 {
+		t.Errorf("usage.InputTokens = %d, want 3100000", usage.InputTokens)
+	}
+
+	// Verify warning event was emitted
+	var foundWarning bool
+	for _, event := range capturedEvents {
+		if eventType, ok := event["type"].(string); ok && eventType == "warning" {
+			foundWarning = true
+			if msg, ok := event["message"].(string); !ok || !strings.Contains(msg, "3000000") {
+				t.Errorf("warning event message missing threshold: %v", event)
+			}
+			break
+		}
+	}
+	if !foundWarning {
+		t.Errorf("no warning event emitted for input tokens > 3M, events: %v", capturedEvents)
 	}
 }
