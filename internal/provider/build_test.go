@@ -194,6 +194,40 @@ func TestBuildProvidersFromConfig_GeminiDefaults(t *testing.T) {
 	}
 }
 
+func TestBuildProvidersFromConfig_GeminiUsesConfigModelMap(t *testing.T) {
+	t.Parallel()
+	cfg := &config.Config{
+		Providers: map[string]config.ProviderDef{
+			"gemini": {
+				Binary: "gemini",
+				Models: map[string]string{
+					provider.TierHigh: "custom-gemini-high",
+				},
+			},
+		},
+	}
+
+	providers, err := provider.BuildProvidersFromConfig(cfg)
+	if err != nil {
+		t.Fatalf("BuildProvidersFromConfig() error = %v", err)
+	}
+
+	geminiProvider, ok := providers["gemini"]
+	if !ok {
+		t.Fatalf("providers missing %q entry", "gemini")
+	}
+
+	if got := geminiProvider.ModelForTier(provider.TierHigh); got != "custom-gemini-high" {
+		t.Fatalf("ModelForTier(%q) = %q, want %q", provider.TierHigh, got, "custom-gemini-high")
+	}
+	if got := geminiProvider.ModelForTier(provider.TierMedium); got != "gemini-3-flash" {
+		t.Fatalf("ModelForTier(%q) = %q, want %q", provider.TierMedium, got, "gemini-3-flash")
+	}
+	if got := geminiProvider.ModelForTier(provider.TierLow); got != "gemini-3-flash" {
+		t.Fatalf("ModelForTier(%q) = %q, want %q", provider.TierLow, got, "gemini-3-flash")
+	}
+}
+
 func TestBuildProvidersFromConfig_NilConfig(t *testing.T) {
 	t.Parallel()
 	providers, err := provider.BuildProvidersFromConfig(nil)
