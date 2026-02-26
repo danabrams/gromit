@@ -63,10 +63,29 @@ func (p *ConfigValidationPolicy) MandatoryCommandPrefixes() []string {
 		return nil
 	}
 	if len(p.cfg.Validation.MandatoryCommands) == 0 {
-		return nil
+		return copyStrings(p.resolvedValidationCommands())
 	}
 
 	prefixes := make([]string, len(p.cfg.Validation.MandatoryCommands))
 	copy(prefixes, p.cfg.Validation.MandatoryCommands)
 	return prefixes
+}
+
+func (p *ConfigValidationPolicy) resolvedValidationCommands() []string {
+	if p == nil || p.cfg == nil {
+		return nil
+	}
+	resolvedProfile := p.cfg.ResolvedProfile()
+	if resolvedProfile.Source == config.CompatibilitySourceLegacyFallback {
+		return nil
+	}
+	return p.cfg.ResolveProfileDependentDefaults().ValidationCommands
+}
+
+func copyStrings(src []string) []string {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := append([]string(nil), src...)
+	return dst
 }
