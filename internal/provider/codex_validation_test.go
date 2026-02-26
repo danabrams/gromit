@@ -2,8 +2,6 @@ package provider
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -35,16 +33,10 @@ exit 0
 
 func TestCodexProviderRunValidationRunsPrompt(t *testing.T) {
 	t.Parallel()
-	tempDir := t.TempDir()
-	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := `#!/bin/bash
-cat
+	mockBinary := testCreateBinaryWithETXTBSYProtection(t, `cat
 echo "VALIDATION_PASSED"
 exit 0
-`
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+`)
 
 	cp := NewCodexProvider(mockBinary, nil, map[string]string{TierLow: "gpt-4o-mini"})
 	result, err := cp.RunValidation(context.Background(), []string{"go test", "go vet"}, TierLow, t.TempDir())
