@@ -242,3 +242,67 @@ func TestSelectCrossWithThreeProviders(t *testing.T) {
 		t.Errorf("SelectCross(\"claude\") should return a non-claude provider, got %q", p.Name())
 	}
 }
+
+func TestSelectCrossThreeProviderPermutations(t *testing.T) {
+	t.Parallel()
+
+	providerModels := map[string]string{
+		TierMedium: "cross-model",
+	}
+
+	tests := []struct {
+		name          string
+		buildProvider string
+		allowed       []string
+	}{
+		{
+			name:          "gemini build provider selects claude or openai",
+			buildProvider: "gemini",
+			allowed:       []string{"claude", "openai"},
+		},
+		{
+			name:          "claude build provider selects gemini or openai",
+			buildProvider: "claude",
+			allowed:       []string{"gemini", "openai"},
+		},
+		{
+			name:          "openai build provider selects gemini or claude",
+			buildProvider: "openai",
+			allowed:       []string{"gemini", "claude"},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			r := &Router{
+				providers: map[string]Provider{
+					"claude": &mockProviderWithModels{name: "claude", models: providerModels},
+					"openai": &mockProviderWithModels{name: "openai", models: providerModels},
+					"gemini": &mockProviderWithModels{name: "gemini", models: providerModels},
+				},
+				preferences: map[string]string{"review": "cross"},
+				ratio: map[string]int{
+					"claude": 33,
+					"openai": 33,
+					"gemini": 34,
+				},
+				counts:      map[string]int{},
+				unavailable: map[string]time.Time{},
+				cooldown:    30 * time.Minute,
+				stateFn:     &mockStateFile{},
+			}
+
+			p, _ := r.SelectCross(tt.buildProvider, TierMedium)
+			if p == nil {
+				t.Fatal("SelectCross() returned nil provider")
+			}
+			if got := p.Name(); got == tt.buildProvider {
+				t.Fatalf("SelectCross(%q) selected build provider %q, want cross provider", tt.buildProvider, got)
+			}
+			assertAllowedCrossProvider(t, p.Name(), tt.allowed)
+		})
+	}
+}
