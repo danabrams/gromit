@@ -492,11 +492,13 @@ func (m *mockIterationLogger) RunID() string {
 // --- mockWorktreeManager ---
 
 type mockWorktreeManager struct {
-	EnsureWorktreeFn  func() (string, error)
-	CreateBranchFn    func(command string) (string, error)
-	MergeBackFn       func(branch string) error
-	PendingBranchesFn func() ([]string, error)
-	CleanupFn         func() error
+	EnsureWorktreeFn       func() (string, error)
+	CreateBranchFn         func(command string) (string, error)
+	MergeBackFn            func(branch string) error
+	PendingBranchesFn      func() ([]string, error)
+	CleanupFn              func() error
+	DeriveSessionWorktreeFn func(branch string) string
+	RemoveByPathFn         func(path string) error
 }
 
 func (m *mockWorktreeManager) EnsureWorktree() (string, error) {
@@ -530,6 +532,20 @@ func (m *mockWorktreeManager) PendingBranches() ([]string, error) {
 func (m *mockWorktreeManager) Cleanup() error {
 	if m.CleanupFn != nil {
 		return m.CleanupFn()
+	}
+	return nil
+}
+
+func (m *mockWorktreeManager) DeriveSessionWorktreePath(branch string) string {
+	if m.DeriveSessionWorktreeFn != nil {
+		return m.DeriveSessionWorktreeFn(branch)
+	}
+	return ""
+}
+
+func (m *mockWorktreeManager) RemoveByPath(path string) error {
+	if m.RemoveByPathFn != nil {
+		return m.RemoveByPathFn(path)
 	}
 	return nil
 }
