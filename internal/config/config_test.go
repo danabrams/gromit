@@ -5552,3 +5552,33 @@ func TestLoadBackwardCompatibility_PartialConfigsDoNotImplicitlyInject(t *testin
 		})
 	}
 }
+
+func TestMergePipelineConfigYAMLRoundTrip(t *testing.T) {
+	const raw = `merge_pipeline:
+  retry_cap_default: 5
+`
+	var cfg Config
+	if err := yaml.Unmarshal([]byte(raw), &cfg); err != nil {
+		t.Fatalf("yaml.Unmarshal() error = %v", err)
+	}
+
+	if cfg.MergePipeline.RetryCapDefault != 5 {
+		t.Errorf("MergePipeline.RetryCapDefault = %d, want 5", cfg.MergePipeline.RetryCapDefault)
+	}
+
+	// Marshal back to YAML
+	marshaled, err := yaml.Marshal(&cfg)
+	if err != nil {
+		t.Fatalf("yaml.Marshal() error = %v", err)
+	}
+
+	// Unmarshal again to verify round-trip
+	var cfg2 Config
+	if err := yaml.Unmarshal(marshaled, &cfg2); err != nil {
+		t.Fatalf("yaml.Unmarshal() error on round-trip = %v", err)
+	}
+
+	if cfg2.MergePipeline.RetryCapDefault != 5 {
+		t.Errorf("after round-trip: MergePipeline.RetryCapDefault = %d, want 5", cfg2.MergePipeline.RetryCapDefault)
+	}
+}
