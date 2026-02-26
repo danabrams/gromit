@@ -11,6 +11,8 @@ import (
     "github.com/danabrams/gromit/internal/runner/specmerge"
 )
 
+const codeQualityPhase = "code_quality"
+
 func TestRunStage2SpecConformance_RendersSpecDiffAndReturnsResult(t *testing.T) {
     ctx := context.Background()
     fakeRenderer := &capturingRenderer{specContent: "# Spec\n- Do the thing", rulesForPhase: "phase rules"}
@@ -68,14 +70,14 @@ func TestRunStage3CodeQuality_UsesDiffAndRules(t *testing.T) {
 
     fakeRenderer := &capturingRenderer{
         rulesByPhase: map[string]string{
-            stageCodeQuality: "quality rules",
+            codeQualityPhase: "quality rules",
         },
     }
 
     router := &fakeRouter{
         selectFn: func(phase, tier string) (provider.Provider, string) {
-            if phase != stageCodeQuality {
-                t.Fatalf("phase = %q, want %q", phase, stageCodeQuality)
+            if phase != codeQualityPhase {
+                t.Fatalf("phase = %q, want %q", phase, codeQualityPhase)
             }
             if tier != "medium" {
                 t.Fatalf("tier = %q, want medium", tier)
@@ -121,7 +123,7 @@ func TestRunStage3CodeQuality_UsesDiffAndRules(t *testing.T) {
     if fakeRenderer.renderCtx.Spec != "" {
         t.Errorf("spec = %q, want empty", fakeRenderer.renderCtx.Spec)
     }
-    if fakeRenderer.lastRulesPhase != stageCodeQuality {
+    if fakeRenderer.lastRulesPhase != codeQualityPhase {
         t.Errorf("rules phase = %q", fakeRenderer.lastRulesPhase)
     }
 }

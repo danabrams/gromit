@@ -9,7 +9,11 @@ import (
 	"github.com/danabrams/gromit/internal/review"
 )
 
-const stageSpecConformance = "spec_conformance"
+const (
+	stageSpecConformance = "spec_conformance"
+	stageCodeQuality      = "code_quality"
+	stageArchitecture     = "architecture"
+)
 
 type ReviewStageDependencies struct {
 	Router   Router
@@ -28,6 +32,15 @@ type ReviewPromptRenderer interface {
 
 // RunStage2SpecConformance runs the spec-conformance review stage on the full diff.
 func RunStage2SpecConformance(ctx context.Context, deps ReviewStageDependencies, specName, diff, tier string) (*review.ReviewResult, *provider.Result, error) {
+	return runBlockingReviewStage(ctx, deps, stageSpecConformance, diff, tier, specName, true)
+}
+
+// RunStage3CodeQuality runs the full diff code-quality review stage.
+func RunStage3CodeQuality(ctx context.Context, deps ReviewStageDependencies, diff, tier string) (*review.ReviewResult, *provider.Result, error) {
+	return runBlockingReviewStage(ctx, deps, stageCodeQuality, diff, tier, "", false)
+}
+
+func runBlockingReviewStage(ctx context.Context, deps ReviewStageDependencies, phase, diff, tier, specName string, includeSpec bool) (*review.ReviewResult, *provider.Result, error) {
 	if deps.Router == nil {
 		return nil, nil, fmt.Errorf("router is nil")
 	}
@@ -35,20 +48,26 @@ func RunStage2SpecConformance(ctx context.Context, deps ReviewStageDependencies,
 		return nil, nil, fmt.Errorf("renderer is nil")
 	}
 
-	specContent, err := deps.Renderer.LoadSpec(specName)
-	if err != nil {
-		return nil, nil, fmt.Errorf("load spec %q: %w", specName, err)
+	var specContent string
+	if includeSpec {
+		var err error
+		specContent, err = deps.Renderer.LoadSpec(specName)
+		if err != nil {
+			return nil, nil, fmt.Errorf("load spec %q: %w", specName, err)
+		}
 	}
 
-	rules, err := deps.Renderer.LoadRulesForPhase(stageSpecConformance)
+	rules, err := deps.Renderer.LoadRulesForPhase(phase)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load rules for phase %q: %w", stageSpecConformance, err)
+		return nil, nil, fmt.Errorf("load rules for phase %q: %w", phase, err)
 	}
 
 	reviewCtx := &prompt.ReviewContext{
-		Spec:  specContent,
 		Diff:  diff,
 		Rules: rules,
+	}
+	if includeSpec {
+		reviewCtx.Spec = specContent
 	}
 
 	promptText, err := deps.Renderer.RenderReview(reviewCtx)
@@ -56,9 +75,9 @@ func RunStage2SpecConformance(ctx context.Context, deps ReviewStageDependencies,
 		return nil, nil, fmt.Errorf("render review prompt: %w", err)
 	}
 
-	provider, _ := deps.Router.Select(stageSpecConformance, tier)
+	provider, _ := deps.Router.Select(phase, tier)
 	if provider == nil {
-		return nil, nil, fmt.Errorf("no provider available for phase %q", stageSpecConformance)
+		return nil, nil, fmt.Errorf("no provider available for phase %q", phase)
 	}
 
 	result, err := provider.Run(ctx, promptText, tier)
