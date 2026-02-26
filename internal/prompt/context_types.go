@@ -185,6 +185,16 @@ type TDDRedContext struct {
 	PrevFailure       string
 }
 
+// normalizeNilFields ensures nil slices/maps are replaced with empty collections.
+func (t *TDDRedContext) normalizeNilFields() {
+	if t == nil {
+		return
+	}
+	if t.TestFileContents == nil {
+		t.TestFileContents = map[string]string{}
+	}
+}
+
 // TDDGreenContext holds data for TDD green-phase prompt template.
 type TDDGreenContext struct {
 	BeadID            string
