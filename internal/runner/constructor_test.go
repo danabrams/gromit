@@ -79,6 +79,74 @@ func TestSelectLearningsProvider_ConfiguredName(t *testing.T) {
 	}
 }
 
+func TestEstimateScopedIterationTotalCountsOpenNonEpic(t *testing.T) {
+	t.Parallel()
+
+	trackerClient := &listLabelTrackerClient{
+		listFn: func(_ context.Context, label string) ([]tracker.Item, error) {
+			if label != "spec:test" {
+				t.Fatalf("label = %q, want spec:test", label)
+			}
+			return []tracker.Item{
+				{ID: "b-1", Status: "open", Metadata: map[string]string{"type": "task"}},
+				{ID: "b-2", Status: "closed", Metadata: map[string]string{"type": "task"}},
+			}, nil
+		},
+	}
+
+	total, err := estimateScopedIterationTotal(context.Background(), trackerClient, "spec:test", 3)
+	if err != nil {
+		t.Fatalf("estimateScopedIterationTotal returned error: %v", err)
+	}
+	if total != 3 {
+		t.Fatalf("total = %d, want 3", total)
+	}
+}
+
+type listLabelTrackerClient struct {
+	listFn func(ctx context.Context, label string) ([]tracker.Item, error)
+}
+
+func (l *listLabelTrackerClient) Ready(ctx context.Context) (*tracker.Item, error) {
+	return nil, nil
+}
+func (l *listLabelTrackerClient) List(ctx context.Context, q tracker.Query) ([]tracker.Item, error) {
+	return nil, nil
+}
+func (l *listLabelTrackerClient) Show(ctx context.Context, id string) (*tracker.Item, error) {
+	return nil, nil
+}
+func (l *listLabelTrackerClient) Search(ctx context.Context, q tracker.Query) ([]tracker.Item, error) {
+	return nil, nil
+}
+func (l *listLabelTrackerClient) Create(ctx context.Context, req tracker.CreateRequest) (*tracker.Item, error) {
+	return nil, nil
+}
+func (l *listLabelTrackerClient) CreateWithParent(ctx context.Context, req tracker.CreateRequest, parentID string) (*tracker.Item, error) {
+	return nil, nil
+}
+func (l *listLabelTrackerClient) Update(ctx context.Context, req tracker.UpdateRequest) (*tracker.Item, error) {
+	return nil, nil
+}
+func (l *listLabelTrackerClient) ListWithLabel(ctx context.Context, label string) ([]tracker.Item, error) {
+	if l.listFn == nil {
+		return nil, nil
+	}
+	return l.listFn(ctx, label)
+}
+func (l *listLabelTrackerClient) Close(ctx context.Context, id string) error {
+	return nil
+}
+func (l *listLabelTrackerClient) Sync(ctx context.Context) error {
+	return nil
+}
+func (l *listLabelTrackerClient) AddComment(ctx context.Context, id, comment string) error {
+	return nil
+}
+func (l *listLabelTrackerClient) HasOpenChildren(ctx context.Context, parentID string) (bool, error) {
+	return false, nil
+}
+
 func TestSelectLearningsProvider_AlphabeticalFallback(t *testing.T) {
 	t.Parallel()
 	providers := map[string]provider.Provider{
