@@ -2257,3 +2257,82 @@ func TestRemoveByPath_ErrorsWhenRemoveFails(t *testing.T) {
 		t.Errorf("RemoveByPath() error should mention 'failed to remove', got: %v", err)
 	}
 }
+
+// TestRemoveByPath_NilReceiver verifies that RemoveByPath returns an error
+// when called on a nil Manager receiver.
+func TestRemoveByPath_NilReceiver(t *testing.T) {
+	var m *Manager
+	err := m.RemoveByPath("/some/path")
+	if err == nil {
+		t.Fatal("RemoveByPath() should return error for nil receiver, got nil")
+	}
+	if !strings.Contains(err.Error(), "nil Manager") {
+		t.Errorf("RemoveByPath() error should mention 'nil Manager', got: %v", err)
+	}
+}
+
+// TestRemoveByPath_EmptyPath verifies that RemoveByPath returns an error
+// when called with an empty path.
+func TestRemoveByPath_EmptyPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "myproject")
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v, want nil", err)
+	}
+
+	err = m.RemoveByPath("")
+	if err == nil {
+		t.Fatal("RemoveByPath() should return error for empty path, got nil")
+	}
+	if !strings.Contains(err.Error(), "path cannot be empty") {
+		t.Errorf("RemoveByPath() error should mention 'path cannot be empty', got: %v", err)
+	}
+}
+
+// TestRemoveByPath_GitRunFnCalledWithCorrectDir verifies that RemoveByPath
+// calls gitRunFn with the main directory.
+func TestRemoveByPath_GitRunFnCalledWithCorrectDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "myproject")
+	worktreePath := filepath.Join(tmpDir, "session-worktree")
+
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	var capturedDir string
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		capturedDir = dir
+		// Simulate git worktree list --porcelain output
+		if args[0] == "worktree" && args[1] == "list" && len(args) >= 3 && args[2] == "--porcelain" {
+			return fmt.Sprintf("worktree %s\nbranch refs/heads/gromit/test-123\n", worktreePath), nil
+		}
+		if args[0] == "worktree" && args[1] == "remove" {
+			return "", nil
+		}
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v, want nil", err)
+	}
+
+	err = m.RemoveByPath(worktreePath)
+	if err != nil {
+		t.Fatalf("RemoveByPath() error = %v, want nil", err)
+	}
+
+	if capturedDir != mainDir {
+		t.Errorf("RemoveByPath() called gitRunFn with dir %q, want %q", capturedDir, mainDir)
+	}
+}
