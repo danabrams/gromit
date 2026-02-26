@@ -1,10 +1,10 @@
 package main
 
 import (
-    "os"
-    "path/filepath"
-    "strings"
-    "testing"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
 )
 
 func TestDetectProfilePriority(t *testing.T) {
@@ -40,6 +40,48 @@ func TestDetectProfileFallbacksToGo(t *testing.T) {
 	dir := t.TempDir()
 	if got := detectProfile(dir); got != "go" {
 		t.Fatalf("detectProfile() = %q, want go when no signals", got)
+	}
+}
+
+func TestSelectProfilePrefersExplicitOverride(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte{}, 0644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
+
+	prevProfile := initProfile
+	initProfile = "python"
+	defer func() {
+		initProfile = prevProfile
+	}()
+
+	profile, err := selectInitProfile(dir)
+	if err != nil {
+		t.Fatalf("selectInitProfile: %v", err)
+	}
+	if profile != "python" {
+		t.Fatalf("selectInitProfile() = %q, want python", profile)
+	}
+}
+
+func TestSelectProfileUsesExistingConfig(t *testing.T) {
+	dir := t.TempDir()
+	content := `project:
+  profile: "node"
+`
+	if err := os.WriteFile(filepath.Join(dir, "gromit.yaml"), []byte(content), 0644); err != nil {
+		t.Fatalf("write gromit.yaml: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte("{}"), 0644); err != nil {
+		t.Fatalf("write package.json: %v", err)
+	}
+
+	profile, err := selectInitProfile(dir)
+	if err != nil {
+		t.Fatalf("selectInitProfile: %v", err)
+	}
+	if profile != "node" {
+		t.Fatalf("selectInitProfile() = %q, want node", profile)
 	}
 }
 
