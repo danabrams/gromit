@@ -39,3 +39,8 @@ func HandleStageFailure(ctx context.Context, deps FixBeadDependencies, opts Hand
 func CheckRetryCapExceeded(attemptCount, retryCap int) (bool, error) {
 	return attemptCount >= retryCap, nil
 }
+
+// EmitRetryCapReachedAlert returns a terminal alert message when the retry cap is reached.
+func EmitRetryCapReachedAlert(specName string, retryCap int) string {
+	return fmt.Sprintf("merge pipeline for spec %q has reached retry cap of %d fix attempts", specName, retryCap)
+}
