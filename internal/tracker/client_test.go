@@ -50,3 +50,7 @@ func (stubClient) HasOpenChildren(ctx context.Context, parentID string) (bool, e
 func TestClientInterface(t *testing.T) {
 	var _ Client = stubClient{}
 }
+
+func TestItemReaderInterface(t *testing.T) {
+	var _ ItemReader = stubClient{}
+}
