@@ -171,7 +171,8 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	// Write RULES.md
 	rulesPath := filepath.Join(cwd, ".gromit/RULES.md")
-	if err := writeFileIfNotExists(rulesPath, defaultRules, forceInit); err != nil {
+	profileRules := rulesForProfile(profile)
+	if err := writeFileIfNotExists(rulesPath, profileRules, forceInit); err != nil {
 		return err
 	}
 
@@ -187,13 +188,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		appendToGitignore(gitignorePath)
 	}
 
-	fmt.Println("\nDone! Next steps:")
-	fmt.Println("  1. Edit gromit.yaml to customize validation commands")
-	fmt.Println("  2. Edit .gromit/RULES.md to add project-specific rules")
-	fmt.Println("  3. Create specs in .gromit/specs/ and plans in .gromit/plans/")
-	fmt.Println("  4. Create beads with: bd create \"Task title\" --priority 1")
-	fmt.Println("  5. Run: gromit run --dry-run")
-	fmt.Println("\nPeriodically run 'gromit retro' to analyze and consolidate learnings.")
+	fmt.Print(nextStepsForProfile(profile))
 
 	return nil
 }
