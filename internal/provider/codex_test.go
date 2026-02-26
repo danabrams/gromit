@@ -16,22 +16,11 @@ import (
 )
 
 // newTestBinary creates a temporary executable file with the given bash script.
-// It ensures the file is properly synced before returning to avoid ETXTBSY errors
+// It delegates to the shared testCreateBinaryWithETXTBSYProtection helper
+// which ensures the file is properly synced before returning to avoid ETXTBSY errors
 // under parallel test execution.
 func newTestBinary(t *testing.T, bashScript string) string {
-	tempDir := t.TempDir()
-	mockBinary := filepath.Join(tempDir, "testbinary")
-	fullScript := "#!/bin/bash\n" + bashScript
-
-	if err := os.WriteFile(mockBinary, []byte(fullScript), 0755); err != nil {
-		t.Fatalf("failed to create test binary: %v", err)
-	}
-
-	// Explicitly sync filesystem to ensure file is readable before execution.
-	// This prevents ETXTBSY ("text file busy") errors under parallel test load.
-	syscall.Sync()
-
-	return mockBinary
+	return testCreateBinaryWithETXTBSYProtection(t, bashScript)
 }
 
 // newShellProvider creates a CodexProvider that executes shell commands via /bin/sh -c,
