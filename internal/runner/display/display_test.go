@@ -60,3 +60,13 @@ func TestFormatPipeline_basic(t *testing.T) {
 		t.Fatalf("FormatPipeline() = %q, want substring %q", got, "Pipeline:")
 	}
 }
+
+func TestFormatRecommendation_hint(t *testing.T) {
+	t.Parallel()
+
+	got := FormatRecommendation("Refine backlog ideas")
+	want := "Next action: Refine backlog ideas (gromit refine)"
+	if got != want {
+		t.Fatalf("FormatRecommendation() = %q, want %q", got, want)
+	}
+}
