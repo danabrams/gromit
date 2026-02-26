@@ -70,3 +70,22 @@ func TestEffectiveValidationCommandsExplicitPrecedence(t *testing.T) {
 		t.Errorf("EffectiveValidationCommands() = %v, want %v", effective, want)
 	}
 }
+
+func TestEffectiveValidationCommandsProfileDefaults(t *testing.T) {
+	cfg := Config{
+		Project: ProjectConfig{
+			Profile: "go",
+		},
+		Validation: ValidationConfig{
+			Commands: nil, // No explicit commands
+		},
+	}
+
+	effective := cfg.EffectiveValidationCommands()
+
+	// Profile defaults should be used when explicit commands are empty
+	want := []string{"go test", "go build", "go vet"}
+	if !reflect.DeepEqual(effective, want) {
+		t.Errorf("EffectiveValidationCommands() = %v, want %v", effective, want)
+	}
+}
