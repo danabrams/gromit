@@ -86,7 +86,8 @@ func TestGetReadyBeads_UsesReadyStatusFromBD(t *testing.T) {
 		},
 	}
 
-	ready, err := getReadyBeads(c)
+	ctx := context.Background()
+	ready, err := getReadyBeads(ctx, c)
 	if err != nil {
 		t.Fatalf("getReadyBeads() error = %v", err)
 	}
@@ -384,4 +385,44 @@ func (m *mockTrackerForReadyBeads) AddComment(context.Context, string, string) e
 
 func (m *mockTrackerForReadyBeads) HasOpenChildren(context.Context, string) (bool, error) {
 	return false, nil
+}
+
+// TestGetReadyBeadsThreadsContext verifies that getReadyBeads accepts context parameter
+func TestGetReadyBeadsThreadsContext(t *testing.T) {
+	t.Parallel()
+
+	// Create a real bead client with a stub RunFn
+	c := &bead.Client{
+		RunFn: func(args ...string) (string, error) {
+			return `[]`, nil
+		},
+	}
+
+	// Call getReadyBeads with context - should accept context parameter
+	ctx := context.WithValue(context.Background(), "test-key", "test-value")
+	_, err := getReadyBeads(ctx, c)
+
+	if err != nil {
+		t.Fatalf("getReadyBeads returned error: %v", err)
+	}
+}
+
+// TestGetActiveBeadsThreadsContext verifies that getActiveBeads accepts context parameter
+func TestGetActiveBeadsThreadsContext(t *testing.T) {
+	t.Parallel()
+
+	// Create a real bead client with a stub RunFn
+	c := &bead.Client{
+		RunFn: func(args ...string) (string, error) {
+			return `[]`, nil
+		},
+	}
+
+	// Call getActiveBeads with context - should accept context parameter
+	ctx := context.WithValue(context.Background(), "test-key", "test-value")
+	_, err := getActiveBeads(ctx, c)
+
+	if err != nil {
+		t.Fatalf("getActiveBeads returned error: %v", err)
+	}
 }

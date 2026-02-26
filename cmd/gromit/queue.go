@@ -50,14 +50,16 @@ func showQueue(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("creating bead client: %w", err)
 	}
 
+	ctx := context.Background()
+
 	// Get ready beads (unblocked, type=task to exclude epics)
-	readyBeads, err := getReadyBeads(bc)
+	readyBeads, err := getReadyBeads(ctx, bc)
 	if err != nil {
 		return fmt.Errorf("getting ready beads: %w", err)
 	}
 
 	// Get all active beads (open + in_progress) to identify blocked ones.
-	allBeads, err := getActiveBeads(bc)
+	allBeads, err := getActiveBeads(ctx, bc)
 	if err != nil {
 		return fmt.Errorf("getting all beads: %w", err)
 	}
@@ -85,15 +87,15 @@ func showQueue(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func getActiveBeads(bc *bead.Client) ([]*bead.Bead, error) {
+func getActiveBeads(ctx context.Context, bc *bead.Client) ([]*bead.Bead, error) {
 	if bc == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
-	openBeads, err := bc.List(context.Background())
+	openBeads, err := bc.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	inProgressBeads, err := bc.ListByStatus(context.Background(), "in_progress")
+	inProgressBeads, err := bc.ListByStatus(ctx, "in_progress")
 	if err != nil {
 		return nil, err
 	}
@@ -484,11 +486,11 @@ func colorizeLine(line, color string, useColor bool) string {
 
 // getReadyBeads fetches ready beads using bd ready --json
 // This simulates getting multiple ready beads instead of just one
-func getReadyBeads(bc *bead.Client) ([]*bead.Bead, error) {
+func getReadyBeads(ctx context.Context, bc *bead.Client) ([]*bead.Bead, error) {
 	if bc == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
-	readyBeads, err := bc.ListReadyWork(context.Background())
+	readyBeads, err := bc.ListReadyWork(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("getting ready beads: %w", err)
 	}
