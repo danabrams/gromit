@@ -306,3 +306,31 @@ func TestSelectCrossThreeProviderPermutations(t *testing.T) {
 		})
 	}
 }
+
+// TestSelectCrossReturnsNilWhenAllProvidersUnavailable ensures SelectCross
+// returns nil when every configured provider is marked as unavailable.
+func TestSelectCrossReturnsNilWhenAllProvidersUnavailable(t *testing.T) {
+	t.Parallel()
+	future := time.Now().Add(1 * time.Hour)
+
+	r := &Router{
+		providers: map[string]Provider{
+			"claude": &mockProviderWithModels{name: "claude", models: map[string]string{TierMedium: "sonnet"}},
+			"openai": &mockProviderWithModels{name: "openai", models: map[string]string{TierMedium: "gpt-4o"}},
+		},
+		preferences: map[string]string{"review": "cross"},
+		ratio:       map[string]int{"claude": 50, "openai": 50},
+		counts:      map[string]int{},
+		unavailable: map[string]time.Time{"claude": future, "openai": future},
+		cooldown:    30 * time.Minute,
+		stateFn:     &mockStateFile{},
+	}
+
+	p, model := r.SelectCross("claude", TierMedium)
+	if p != nil {
+		t.Fatalf("SelectCross() should return nil when no provider is available, got %q", p.Name())
+	}
+	if model != "" {
+		t.Errorf("SelectCross() returned model %q when no providers available, want empty", model)
+	}
+}
