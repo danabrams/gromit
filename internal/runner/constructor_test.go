@@ -79,6 +79,19 @@ func TestSelectLearningsProvider_ConfiguredName(t *testing.T) {
 	}
 }
 
+func TestSelectLearningsProvider_AlphabeticalFallback(t *testing.T) {
+	t.Parallel()
+	providers := map[string]provider.Provider{
+		"beta":  &stubRunProvider{name: "beta"},
+		"alpha": &stubRunProvider{name: "alpha"},
+	}
+	if got := selectLearningsProvider("", providers); got == nil {
+		t.Fatal("selectLearningsProvider returned nil, want alphabetical first provider")
+	} else if got.Name() != "alpha" {
+		t.Fatalf("selectLearningsProvider returned %q, want %q", got.Name(), "alpha")
+	}
+}
+
 func TestBuildRouterAndLearningsProvider_UsesConfiguredProviders(t *testing.T) {
 	t.Parallel()
 	cfg := newCodexProvidersConfig()
