@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/danabrams/gromit/internal/pipeline"
 )
 
 func TestFormatRun_nilStatus(t *testing.T) {
@@ -47,5 +49,14 @@ func TestFormatHealth_defaults(t *testing.T) {
 	got := FormatHealth(time.Time{}, 0)
 	if !strings.Contains(got, "Health:") {
 		t.Fatalf("FormatHealth() = %q, want substring %q", got, "Health:")
+	}
+}
+
+func TestFormatPipeline_basic(t *testing.T) {
+	t.Parallel()
+
+	got := FormatPipeline(&pipeline.PipelineStatus{})
+	if !strings.Contains(got, "Pipeline:") {
+		t.Fatalf("FormatPipeline() = %q, want substring %q", got, "Pipeline:")
 	}
 }
