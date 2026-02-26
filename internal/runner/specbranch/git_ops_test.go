@@ -2,7 +2,10 @@ package specbranch
 
 import (
 	"context"
+	"errors"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
 
 	"github.com/danabrams/gromit/test/helpers"
@@ -194,5 +197,87 @@ func TestDeleteSpecBranch_DeletesSuccessfully(t *testing.T) {
 	cmd.Dir = fixture.Dir
 	if err := cmd.Run(); err == nil {
 		t.Error("branch should have been deleted but still exists")
+	}
+}
+
+// TestRebaseSpecOntoMain_ReturnsConflictError verifies that RebaseSpecOntoMain
+// returns a ConflictError when rebase conflicts occur.
+func TestRebaseSpecOntoMain_ReturnsConflictError(t *testing.T) {
+	fixture := helpers.NewDeterministicGitConflictFixture(t)
+	ops := NewGitOps(fixture.Dir)
+
+	// Make a conflicting spec branch
+	specBranchName := "gromit/spec-conflict-test"
+	err := ops.CreateOrCheckoutSpecBranch(context.Background(), specBranchName)
+	if err != nil {
+		t.Fatalf("CreateOrCheckoutSpecBranch() error = %v", err)
+	}
+
+	// Make a change on spec branch
+	cmd := exec.Command("git", "commit", "--allow-empty", "-m", "spec change")
+	cmd.Dir = fixture.Dir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to create spec commit: %v", err)
+	}
+
+	// Make a conflicting change on main
+	cmd = exec.Command("git", "checkout", fixture.BaseBranch)
+	cmd.Dir = fixture.Dir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to checkout main: %v", err)
+	}
+
+	// Create a conflict by modifying the same file on main
+	conflictFile := "rebase_conflict_test.txt"
+	if err := os.WriteFile(filepath.Join(fixture.Dir, conflictFile), []byte("main change"), 0o644); err != nil {
+		t.Fatalf("failed to write conflict file: %v", err)
+	}
+
+	cmd = exec.Command("git", "add", conflictFile)
+	cmd.Dir = fixture.Dir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to add conflict file: %v", err)
+	}
+
+	cmd = exec.Command("git", "commit", "-m", "main conflict change")
+	cmd.Dir = fixture.Dir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to commit on main: %v", err)
+	}
+
+	// Make same file change on spec branch
+	cmd = exec.Command("git", "checkout", specBranchName)
+	cmd.Dir = fixture.Dir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to checkout spec branch: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(fixture.Dir, conflictFile), []byte("spec change"), 0o644); err != nil {
+		t.Fatalf("failed to write conflict file on spec: %v", err)
+	}
+
+	cmd = exec.Command("git", "add", conflictFile)
+	cmd.Dir = fixture.Dir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to add conflict file on spec: %v", err)
+	}
+
+	cmd = exec.Command("git", "commit", "--amend", "-m", "spec with conflict")
+	cmd.Dir = fixture.Dir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to commit on spec: %v", err)
+	}
+
+	// Attempt rebase which should conflict
+	err = ops.RebaseSpecOntoMain(context.Background(), specBranchName)
+
+	// Verify it's a ConflictError
+	var conflictErr *ConflictError
+	if !errors.As(err, &conflictErr) {
+		t.Fatalf("expected ConflictError, got %T: %v", err, err)
+	}
+
+	if conflictErr.Operation != "rebase" {
+		t.Errorf("ConflictError.Operation = %q, want %q", conflictErr.Operation, "rebase")
 	}
 }
