@@ -234,6 +234,60 @@ func TestResolveCompatibilityContext_DeprecationMarkerTracksLegacyTrackerBackend
 	}
 }
 
+func TestResolveCompatibilityContextProfileDeterminedAdapter(t *testing.T) {
+	t.Run("go profile determines go adapter", func(t *testing.T) {
+		cfg := Config{
+			Project: ProjectConfig{Profile: "go"},
+		}
+		resolved := cfg.ResolveCompatibilityContext()
+		if resolved.MethodologyAdapter.Value != "go" {
+			t.Errorf("adapter = %q, want %q", resolved.MethodologyAdapter.Value, "go")
+		}
+		if resolved.MethodologyAdapter.Source != CompatibilitySourceProfileDefault {
+			t.Errorf("adapter source = %q, want %q", resolved.MethodologyAdapter.Source, CompatibilitySourceProfileDefault)
+		}
+	})
+
+	t.Run("node profile determines passthrough adapter", func(t *testing.T) {
+		cfg := Config{
+			Project: ProjectConfig{Profile: "node"},
+		}
+		resolved := cfg.ResolveCompatibilityContext()
+		if resolved.MethodologyAdapter.Value != "passthrough" {
+			t.Errorf("adapter = %q, want %q", resolved.MethodologyAdapter.Value, "passthrough")
+		}
+		if resolved.MethodologyAdapter.Source != CompatibilitySourceProfileDefault {
+			t.Errorf("adapter source = %q, want %q", resolved.MethodologyAdapter.Source, CompatibilitySourceProfileDefault)
+		}
+	})
+
+	t.Run("python profile determines passthrough adapter", func(t *testing.T) {
+		cfg := Config{
+			Project: ProjectConfig{Profile: "python"},
+		}
+		resolved := cfg.ResolveCompatibilityContext()
+		if resolved.MethodologyAdapter.Value != "passthrough" {
+			t.Errorf("adapter = %q, want %q", resolved.MethodologyAdapter.Value, "passthrough")
+		}
+		if resolved.MethodologyAdapter.Source != CompatibilitySourceProfileDefault {
+			t.Errorf("adapter source = %q, want %q", resolved.MethodologyAdapter.Source, CompatibilitySourceProfileDefault)
+		}
+	})
+
+	t.Run("custom profile determines passthrough adapter", func(t *testing.T) {
+		cfg := Config{
+			Project: ProjectConfig{Profile: "custom"},
+		}
+		resolved := cfg.ResolveCompatibilityContext()
+		if resolved.MethodologyAdapter.Value != "passthrough" {
+			t.Errorf("adapter = %q, want %q", resolved.MethodologyAdapter.Value, "passthrough")
+		}
+		if resolved.MethodologyAdapter.Source != CompatibilitySourceProfileDefault {
+			t.Errorf("adapter source = %q, want %q", resolved.MethodologyAdapter.Source, CompatibilitySourceProfileDefault)
+		}
+	})
+}
+
 func TestResolveCompatibilityContext_FullPrecedenceMatrix(t *testing.T) {
 	testCases := []struct {
 		name      string
@@ -273,9 +327,9 @@ func TestResolveCompatibilityContext_FullPrecedenceMatrix(t *testing.T) {
 				"tracker.value": "bd",
 				"tracker.source": string(CompatibilitySourceProfileDefault),
 				"tracker.marker": CompatibilityDeprecationMarkerLegacyTrackerBackendFallback,
-				"adapter.value": "go",
+				"adapter.value": "passthrough",
 				"adapter.source": string(CompatibilitySourceProfileDefault),
-				"adapter.marker": CompatibilityDeprecationMarkerLegacyHardcodedDefaults,
+				"adapter.marker": "",
 			},
 		},
 		{
@@ -292,9 +346,9 @@ func TestResolveCompatibilityContext_FullPrecedenceMatrix(t *testing.T) {
 				"tracker.value": "linear",
 				"tracker.source": string(CompatibilitySourceExplicit),
 				"tracker.marker": "",
-				"adapter.value": "go",
+				"adapter.value": "passthrough",
 				"adapter.source": string(CompatibilitySourceProfileDefault),
-				"adapter.marker": CompatibilityDeprecationMarkerLegacyHardcodedDefaults,
+				"adapter.marker": "",
 			},
 		},
 		{
