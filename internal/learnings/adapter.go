@@ -92,3 +92,7 @@ func (a *providerRunnerAdapter) Run(ctx context.Context, prompt string, model st
 		Output:  providerResult.Output,
 	}, nil
 }
+
+// Compile-time interface checks
+var _ ClaudeRunner = (*claudeRunnerAdapter)(nil)
+var _ ClaudeRunner = (*providerRunnerAdapter)(nil)
