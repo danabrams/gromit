@@ -3,9 +3,58 @@ package specmerge
 import (
 	"context"
 	"fmt"
+	"strings"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/specgate"
 )
+
+const specLabelPrefix = "spec:"
+
+// beadQuery defines the subset of the bead client needed by Pipeline.
+type beadQuery interface {
+	ListWithLabel(label string) ([]*bead.Bead, error)
+}
+
+// Pipeline runs spec merge orchestration helpers.
+type Pipeline struct {
+	query beadQuery
+}
+
+// NewPipeline constructs a Pipeline with the provided bead query dependencies.
+func NewPipeline(query beadQuery) *Pipeline {
+	return &Pipeline{query: query}
+}
+
+// IsSpecComplete returns true when no open beads remain for the given spec.
+func (p *Pipeline) IsSpecComplete(specName string) (bool, error) {
+	if p == nil {
+		return false, fmt.Errorf("pipeline is nil")
+	}
+	if p.query == nil {
+		return false, fmt.Errorf("bead query is required")
+	}
+	specName = strings.TrimSpace(specName)
+	if specName == "" {
+		return false, fmt.Errorf("spec name is required")
+	}
+
+	label := specLabelPrefix + specName
+	beads, err := p.query.ListWithLabel(label)
+	if err != nil {
+		return false, fmt.Errorf("list beads for spec %q: %w", specName, err)
+	}
+	for _, b := range beads {
+		if b == nil {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(b.Status), "closed") {
+			continue
+		}
+		return false, nil
+	}
+	return true, nil
+}
 
 // FixBeadDependencies holds the dependencies needed to create fix beads.
 type FixBeadDependencies struct {
