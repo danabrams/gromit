@@ -1544,3 +1544,17 @@ func TestFakeClaudeHangBeforeOutput_ReturnsValidBinaryPath(t *testing.T) {
 		t.Fatalf("fakeClaudeHangBeforeOutput() returned non-existent binary path: %v", err)
 	}
 }
+
+// fakeClaudeHangBeforeOutput returns a path to a fake Claude binary that hangs indefinitely
+// without producing any output. This simulates an invocation timeout scenario where
+// no output is received before the timeout fires.
+func fakeClaudeHangBeforeOutput(t *testing.T) string {
+	t.Helper()
+	tempDir := t.TempDir()
+	binary := filepath.Join(tempDir, "claude")
+	script := "#!/bin/sh\nsleep 3600\n" // Sleep for 1 hour - effectively indefinite for test purposes
+	if err := os.WriteFile(binary, []byte(script), 0755); err != nil {
+		t.Fatalf("failed to write fake claude hang-before-output binary: %v", err)
+	}
+	return binary
+}
