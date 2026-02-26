@@ -127,6 +127,9 @@ func ExtractSuccessLearning(ctx context.Context, bc *runtypes.BeadContext, cfg *
 
 	result, err := p.Run(ctx, prompt, tier)
 	if err != nil {
+		if logFn != nil {
+			logFn("Success learning extraction failed for %s: provider call error: %v", bc.Bead.ID, err)
+		}
 		return
 	}
 	if result == nil {
