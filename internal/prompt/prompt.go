@@ -278,3 +278,37 @@ func (r *Renderer) LoadRulesForPhase(phase string) (string, error) {
 
 	return filterRulesByPhase(content, phase), nil
 }
+
+// ExtractATDDRulesSubset extracts only ATDD-relevant rules from RULES.md content.
+// ATDD-relevant rules focus on test quality and acceptance test discipline.
+// Returns only the Test Quality section, excluding Architecture, Process, and Reliability rules.
+func ExtractATDDRulesSubset(rulesContent string) string {
+	if rulesContent == "" {
+		return ""
+	}
+
+	lines := strings.Split(rulesContent, "\n")
+	var result []string
+	inTestQualitySection := false
+
+	for _, line := range lines {
+		// Check if this is a top-level section header (## ...)
+		if strings.HasPrefix(line, "## ") {
+			if strings.Contains(line, "Test Quality") {
+				inTestQualitySection = true
+				result = append(result, line)
+			} else if inTestQualitySection {
+				// We've hit a new section, stop including lines
+				break
+			}
+			continue
+		}
+
+		// Include lines if we're in the Test Quality section
+		if inTestQualitySection {
+			result = append(result, line)
+		}
+	}
+
+	return strings.Join(result, "\n")
+}
