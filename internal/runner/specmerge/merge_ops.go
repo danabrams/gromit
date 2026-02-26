@@ -2,6 +2,7 @@ package specmerge
 
 import (
 	"context"
+	"errors"
 	"fmt"
 )
 
@@ -60,7 +61,9 @@ func FinalizeSpecBranch(ctx context.Context, deps FinalizeDependencies, branch s
 		mainBranch = defaultMainBranch
 	}
 
-	if err := deps.Git.RebaseOnto(ctx, branch, mainBranch); err != nil {
+	if err := executeWithConflictResolution(ctx, deps, branch, func() error {
+		return deps.Git.RebaseOnto(ctx, branch, mainBranch)
+	}); err != nil {
 		return err
 	}
 	if err := deps.Git.FastForwardMerge(ctx, branch); err != nil {
@@ -70,4 +73,22 @@ func FinalizeSpecBranch(ctx context.Context, deps FinalizeDependencies, branch s
 		return err
 	}
 	return nil
+}
+
+func executeWithConflictResolution(ctx context.Context, deps FinalizeDependencies, branch string, op func() error) error {
+	err := op()
+	if err == nil {
+		return nil
+	}
+	if deps.ConflictResolver == nil {
+		return err
+	}
+	var conflictErr *ConflictError
+	if !errors.As(err, &conflictErr) {
+		return err
+	}
+	if resolveErr := deps.ConflictResolver.Resolve(ctx, branch, err); resolveErr != nil {
+		return fmt.Errorf("resolve conflict for branch %s: %w", branch, resolveErr)
+	}
+	return op()
 }
