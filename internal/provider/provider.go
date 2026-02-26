@@ -35,6 +35,10 @@ var legacyModelToTier = map[string]string{
 	// Codex models
 	"gpt-5.3-codex": TierMedium,
 	"gpt-5.1-codex-mini":    TierLow,
+	// Gemini models
+	"gemini-3.1-pro": TierHigh,
+	"gemini-3-pro":   TierHigh,
+	"gemini-3-flash": TierMedium,
 }
 
 var tierToLegacyModel = map[string]string{
