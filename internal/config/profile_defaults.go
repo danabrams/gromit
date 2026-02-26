@@ -4,7 +4,8 @@ import "strings"
 
 // ProfileDefaults describes configuration overrides derived from a profile selector.
 type ProfileDefaults struct {
-	ValidationCommands []string
+	ValidationCommands     []string
+	PreflightCompileCommand string
 }
 
 var (

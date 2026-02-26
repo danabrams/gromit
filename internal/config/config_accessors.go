@@ -452,3 +452,26 @@ func (c Config) EffectiveValidationCommands() []string {
 	// Fall back to empty slice
 	return nil
 }
+
+// EffectivePreflightCompileCommand returns the effective preflight compile command
+// following the precedence: explicit > profile_default > legacy_fallback.
+// Explicit command is returned if set, otherwise profile defaults for the
+// resolved profile are returned.
+func (c Config) EffectivePreflightCompileCommand() string {
+	// Explicit compile command takes precedence
+	if c.Preflight.CompileCommand != "" {
+		return c.Preflight.CompileCommand
+	}
+
+	// Fall back to profile defaults
+	resolvedProfile := c.ResolvedProfile()
+	if resolvedProfile.Value != "" {
+		defaults, ok := ProfileForName(resolvedProfile.Value)
+		if ok && defaults.PreflightCompileCommand != "" {
+			return defaults.PreflightCompileCommand
+		}
+	}
+
+	// Fall back to empty string
+	return ""
+}
