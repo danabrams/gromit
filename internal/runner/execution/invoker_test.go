@@ -369,6 +369,61 @@ func TestInvokerExecute_UsageLimitTriggersProviderFallback(t *testing.T) {
 	}
 }
 
+func TestInvokerExecute_StreamNotSupportedTriggersProviderFallback(t *testing.T) {
+	t.Parallel()
+
+	primaryCalled := false
+	fallbackCalled := false
+
+	primary := &mockProvider{
+		name: "provider-unsupported",
+		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			primaryCalled = true
+			return nil, provider.ErrStreamNotSupported
+		},
+	}
+
+	fallback := &mockProvider{
+		name: "provider-b",
+		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+			fallbackCalled = true
+			return &provider.Result{Success: true, Model: "fallback-model"}, nil
+		},
+	}
+
+	callCount := 0
+	mr := &mockRouter{
+		selectFn: func(phase, tier string) (Provider, string) {
+			callCount++
+			if callCount == 1 {
+				return primary, "primary-model"
+			}
+			return fallback, "fallback-model"
+		},
+	}
+
+	invoker := NewInvoker(mr, &bytes.Buffer{}, nil)
+	bc := newTestBeadContext()
+
+	result, err := invoker.Execute(context.Background(), bc, "prompt")
+	if err != nil {
+		t.Fatalf("unexpected error after fallback: %v", err)
+	}
+
+	if !primaryCalled {
+		t.Error("primary provider should have been called")
+	}
+	if !fallbackCalled {
+		t.Error("fallback provider should have been called")
+	}
+	if len(mr.markCalls) != 1 || mr.markCalls[0] != "provider-unsupported" {
+		t.Errorf("MarkUnavailable calls = %v, want [provider-unsupported]", mr.markCalls)
+	}
+	if result.ModelName != "fallback-model" {
+		t.Errorf("ModelName = %q, want %q after fallback", result.ModelName, "fallback-model")
+	}
+}
+
 func TestInvokerExecute_CacheLookupHitUsesCachedPromptBeforeInvocation(t *testing.T) {
 	t.Parallel()
 	callOrder := []string{}
