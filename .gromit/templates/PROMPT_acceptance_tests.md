@@ -101,6 +101,8 @@ Your job is to write acceptance tests that verify the acceptance criteria for th
 
 5. **Commit your changes** with a clear commit message like "test: add acceptance tests for [task title]"
 
+Budget shaping may drop optional sections (Rules, Learnings) and insert the explicit `...[truncated]...` marker where the specification was shortened to meet the prompt budget. Work with the preserved fragments as the full context even when other sections vanish.
+
 ## CRITICAL: Tests Must Fail Before Implementation
 
 **Tests MUST verify behavior that does NOT exist yet.** If a test would pass against the current codebase without any implementation changes, it is testing existing behavior and is WRONG.
