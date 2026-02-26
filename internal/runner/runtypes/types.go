@@ -199,6 +199,8 @@ type SubTask struct {
 }
 
 // NormalizeNilFields ensures nil slices are replaced with empty slices.
+// See CLAUDE.md nil-field normalization visibility convention:
+// SubTask crosses package boundaries so the helper stays exported.
 func (s *SubTask) NormalizeNilFields() {
 	if s == nil {
 		return
