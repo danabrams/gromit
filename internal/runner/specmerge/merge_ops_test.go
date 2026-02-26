@@ -2,6 +2,7 @@ package specmerge_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -48,6 +49,75 @@ func TestFinalizeSpecBranch_RebaseBeforeMergeBeforeDelete(t *testing.T) {
 	}
 }
 
+func TestFinalizeSpecBranch_RebaseConflictTriggersResolver(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	branch := "gromit/spec-payments"
+	callLog := []string{}
+	rebaseAttempts := 0
+
+	git := &fakeGitOps{
+		rebaseFn: func(_ context.Context, b, onto string) error {
+			rebaseAttempts++
+			callLog = append(callLog, fmt.Sprintf("rebase %d %s", rebaseAttempts, onto))
+			if rebaseAttempts == 1 {
+				return &specmerge.ConflictError{
+					Operation: "rebase",
+					Err:       fmt.Errorf("merge conflict"),
+				}
+			}
+			return nil
+		},
+		mergeFn: func(_ context.Context, b string) error {
+			callLog = append(callLog, fmt.Sprintf("merge %s", b))
+			return nil
+		},
+		deleteFn: func(_ context.Context, b string) error {
+			callLog = append(callLog, fmt.Sprintf("delete %s", b))
+			return nil
+		},
+	}
+
+	resolverCalled := 0
+	resolver := &fakeResolver{
+		resolveFn: func(_ context.Context, b string, cause error) error {
+			resolverCalled++
+			if b != branch {
+				t.Fatalf("resolver branch = %q, want %q", b, branch)
+			}
+			var conflictErr *specmerge.ConflictError
+			if !errors.As(cause, &conflictErr) {
+				t.Fatalf("resolve cause = %v, want ConflictError", cause)
+			}
+			callLog = append(callLog, "resolve")
+			return nil
+		},
+	}
+
+	deps := specmerge.FinalizeDependencies{
+		Git:              git,
+		ConflictResolver: resolver,
+	}
+
+	if err := specmerge.FinalizeSpecBranch(ctx, deps, branch); err != nil {
+		t.Fatalf("FinalizeSpecBranch returned %v", err)
+	}
+	if resolverCalled != 1 {
+		t.Fatalf("resolver called %d times, want 1", resolverCalled)
+	}
+
+	want := []string{
+		"rebase 1 main",
+		"resolve",
+		"rebase 2 main",
+		"merge gromit/spec-payments",
+		"delete gromit/spec-payments",
+	}
+	if !reflect.DeepEqual(callLog, want) {
+		t.Fatalf("call order = %v, want %v", callLog, want)
+	}
+}
+
 type fakeGitOps struct {
 	rebaseFn func(ctx context.Context, branch, onto string) error
 	mergeFn  func(ctx context.Context, branch string) error
@@ -73,4 +143,15 @@ func (f *fakeGitOps) DeleteBranch(ctx context.Context, branch string) error {
 		return nil
 	}
 	return f.deleteFn(ctx, branch)
+}
+
+type fakeResolver struct {
+	resolveFn func(ctx context.Context, branch string, cause error) error
+}
+
+func (f *fakeResolver) Resolve(ctx context.Context, branch string, cause error) error {
+	if f.resolveFn == nil {
+		return nil
+	}
+	return f.resolveFn(ctx, branch, cause)
 }
