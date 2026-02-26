@@ -148,3 +148,98 @@ func TestE2E_SequentialWriteAndFilter_Interleaved(t *testing.T) {
 		t.Errorf("expected 1 Codex call from second batch, got %d: %v", len(codexCalls), codexCalls)
 	}
 }
+
+func TestE2E_FilterEmptyCallLog_ReturnsEmptySlice(t *testing.T) {
+	env := setupE2E(t)
+
+	if err := writeE2ECallLog(env); err != nil {
+		t.Fatalf("writeE2ECallLog (empty) failed: %v", err)
+	}
+
+	bdCalls, err := FilterE2EToolCalls(env, ToolCallBD)
+	if err != nil {
+		t.Fatalf("FilterE2EToolCalls(BD) on empty log failed: %v", err)
+	}
+	if len(bdCalls) != 0 {
+		t.Errorf("expected empty slice for BD calls, got %d calls: %v", len(bdCalls), bdCalls)
+	}
+
+	claudeCalls, err := FilterE2EToolCalls(env, ToolCallClaude)
+	if err != nil {
+		t.Fatalf("FilterE2EToolCalls(Claude) on empty log failed: %v", err)
+	}
+	if len(claudeCalls) != 0 {
+		t.Errorf("expected empty slice for Claude calls, got %d calls: %v", len(claudeCalls), claudeCalls)
+	}
+
+	codexCalls, err := FilterE2EToolCalls(env, ToolCallCodex)
+	if err != nil {
+		t.Fatalf("FilterE2EToolCalls(Codex) on empty log failed: %v", err)
+	}
+	if len(codexCalls) != 0 {
+		t.Errorf("expected empty slice for Codex calls, got %d calls: %v", len(codexCalls), codexCalls)
+	}
+}
+
+func TestE2E_FilterLargeCallLog_Correctness(t *testing.T) {
+	env := setupE2E(t)
+
+	calls := make([]string, 100)
+	expectedBD := 0
+	expectedClaude := 0
+	expectedCodex := 0
+
+	for i := 0; i < 100; i++ {
+		switch i % 3 {
+		case 0:
+			calls[i] = "bd ready --json --limit 10"
+			expectedBD++
+		case 1:
+			calls[i] = "claude -p --model haiku"
+			expectedClaude++
+		case 2:
+			calls[i] = "codex run --model sonnet"
+			expectedCodex++
+		}
+	}
+
+	if err := writeE2ECallLog(env, calls...); err != nil {
+		t.Fatalf("writeE2ECallLog failed: %v", err)
+	}
+
+	bdCalls, err := FilterE2EToolCalls(env, ToolCallBD)
+	if err != nil {
+		t.Fatalf("FilterE2EToolCalls(BD) failed: %v", err)
+	}
+	if len(bdCalls) != expectedBD {
+		t.Errorf("expected %d BD calls, got %d", expectedBD, len(bdCalls))
+	}
+
+	claudeCalls, err := FilterE2EToolCalls(env, ToolCallClaude)
+	if err != nil {
+		t.Fatalf("FilterE2EToolCalls(Claude) failed: %v", err)
+	}
+	if len(claudeCalls) != expectedClaude {
+		t.Errorf("expected %d Claude calls, got %d", expectedClaude, len(claudeCalls))
+	}
+
+	codexCalls, err := FilterE2EToolCalls(env, ToolCallCodex)
+	if err != nil {
+		t.Fatalf("FilterE2EToolCalls(Codex) failed: %v", err)
+	}
+	if len(codexCalls) != expectedCodex {
+		t.Errorf("expected %d Codex calls, got %d", expectedCodex, len(codexCalls))
+	}
+}
+
+func TestE2E_FilterNonexistentCallLog_ReturnsEmptySlice(t *testing.T) {
+	env := setupE2E(t)
+
+	bdCalls, err := FilterE2EToolCalls(env, ToolCallBD)
+	if err != nil {
+		t.Fatalf("FilterE2EToolCalls(BD) on nonexistent log failed: %v", err)
+	}
+	if len(bdCalls) != 0 {
+		t.Errorf("expected empty slice when call log doesn't exist, got %d calls: %v", len(bdCalls), bdCalls)
+	}
+}
