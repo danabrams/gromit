@@ -1,0 +1,6 @@
+# provenance: canonical snapshot from gemini fake CLI success transcript.
+# refresh: rerun contract fixture generation and replace this deterministic transcript.
+command: gemini run --model gemini-2.0-flash --json
+status: success
+exit_code: 0
+output_summary: model=gemini-2.0-flash tokens=input:13284,output:33 cost=estimated
