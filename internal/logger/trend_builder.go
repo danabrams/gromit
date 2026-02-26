@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/danabrams/gromit/internal/failurephase"
 )
@@ -12,6 +13,7 @@ const (
 	failureAttributionSystem    = "system"
 	failureAttributionModel     = "model"
 	failureAttributionTransient = "transient"
+	sameScopeRetryBlockedMessage = "Same-scope retry blocked: timeout requires decomposition or escalation decision"
 )
 
 func readAllIterationLogsSorted(logsDir string) ([]IterationLog, error) {
@@ -139,6 +141,8 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 			RollingTimeoutFailureRate:    w.TimeoutFailureRate,
 			RollingTimeoutDecompositionAttempts: w.TimeoutDecompositionAttempts,
 			RollingTimeoutDecompositionSuccessRate: w.TimeoutDecompositionSuccessRate,
+			RollingTimeoutRetryBlockCount: w.TimeoutRetryBlockCount,
+			RollingTimeoutRetryBlockRate:  w.TimeoutRetryBlockRate,
 			EWMASuccessRate:              successEWMA,
 			EWMACostUSD:                  costEWMA,
 			EWMADurationMs:               durationEWMA,
@@ -272,6 +276,7 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 		preflightFailures, buildFailures, validationFailures, timeoutFailures int
 		timeoutDecompositionAttempts int
 		timeoutDecompositionSuccesses int
+		timeoutRetryBlockCount int
 	)
 	var durationTotal int64
 	var validationDurationTotal int64
@@ -338,6 +343,9 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 				timeoutDecompositionSuccesses++
 			}
 		}
+		if isSameScopeRetryBlocked(e.Error) {
+			timeoutRetryBlockCount++
+		}
 	}
 
 	totalIterations := len(window)
@@ -383,6 +391,8 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 			}
 			return float64(timeoutDecompositionSuccesses) / float64(timeoutDecompositionAttempts)
 		}(),
+		TimeoutRetryBlockCount: timeoutRetryBlockCount,
+		TimeoutRetryBlockRate:  float64(timeoutRetryBlockCount) / count,
 	}
 }
 
@@ -417,4 +427,8 @@ func averageCompletedBeadCost(beadCosts map[string]beadCostAccum) float64 {
 		return 0
 	}
 	return completedBeadCostSum / float64(completedBeadCount)
+}
+
+func isSameScopeRetryBlocked(err string) bool {
+	return strings.Contains(err, sameScopeRetryBlockedMessage)
 }
