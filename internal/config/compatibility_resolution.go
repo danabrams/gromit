@@ -36,6 +36,20 @@ type ProfileDependentDefaults struct {
 	MethodologyAdapter      CompatibilityResolvedValue
 }
 
+// profileToAdapterName maps a profile name to the corresponding adapter name.
+// Returns "go" for "go" profile and "passthrough" for all other profiles.
+func profileToAdapterName(profileName string) string {
+	normalized := strings.ToLower(strings.TrimSpace(profileName))
+	switch normalized {
+	case "go":
+		return "go"
+	case "node", "python", "custom":
+		return "passthrough"
+	default:
+		return "go" // fallback
+	}
+}
+
 func (c Config) ResolveCompatibilityContext() CompatibilityContext {
 	profile := CompatibilityResolvedValue{
 		Value:             "go",
@@ -62,6 +76,8 @@ func (c Config) ResolveCompatibilityContext() CompatibilityContext {
 	if profile.Source == CompatibilitySourceExplicit {
 		backend.Source = CompatibilitySourceProfileDefault
 		adapter.Source = CompatibilitySourceProfileDefault
+		adapter.Value = profileToAdapterName(profile.Value)
+		adapter.DeprecationMarker = "" // No deprecation when adapter is determined by profile
 		backend.DeprecationMarker = CompatibilityDeprecationMarkerLegacyTrackerBackendFallback
 	}
 	if c.Tracker.Backend != "" {
