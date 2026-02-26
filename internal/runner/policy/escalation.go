@@ -1,6 +1,10 @@
 package policy
 
-import "github.com/danabrams/gromit/internal/config"
+import (
+	"strings"
+
+	"github.com/danabrams/gromit/internal/config"
+)
 
 const (
 	timeoutTypeStall      = "stall"
@@ -66,6 +70,9 @@ func (p *ConfigEscalationPolicy) ClassifyTimeout(ctxErr, parentErr error, stallF
 	if stallFired && ctxErr == nil {
 		return TimeoutClassification{TimeoutType: timeoutTypeStall}
 	}
+	if isInvocationTimeoutError(ctxErr) {
+		return TimeoutClassification{TimeoutType: timeoutTypeInvocation}
+	}
 	if ctxErr != nil && parentErr == nil {
 		return TimeoutClassification{TimeoutType: timeoutTypeBead}
 	}
@@ -73,4 +80,11 @@ func (p *ConfigEscalationPolicy) ClassifyTimeout(ctxErr, parentErr error, stallF
 		return TimeoutClassification{ParentCanceled: true}
 	}
 	return TimeoutClassification{TimeoutType: timeoutTypeInvocation}
+}
+
+func isInvocationTimeoutError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "invocation timed out")
 }
