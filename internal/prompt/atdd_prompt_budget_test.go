@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/learnings"
 )
 
@@ -184,5 +185,97 @@ func TestShapeATDDContextForBudget_Table(t *testing.T) {
 				t.Fatalf("expected truncated marker in Spec, got %q", shaped.Spec)
 			}
 		})
+	}
+}
+
+func TestShapeATDDContextForBudget_LargeContextRegressionCoverage(t *testing.T) {
+	// Simulate a high-payload scenario with large rules, spec, and learnings
+	// Verify that default ATDD budgeting yields at least 30% prompt-size reduction
+	// while preserving required bead/task identity
+	testBead := &bead.Bead{
+		ID:    "large-context-001",
+		Title: "Complex feature implementation",
+		Description: "Implement large feature with extensive constraints",
+		Priority: 1,
+	}
+
+	ctx := &Context{
+		Bead: testBead,
+		ClaudeMD: strings.Repeat("claude project context ", 200),
+		Spec: strings.Repeat("detailed specification section ", 300),
+		Rules: "# Complex Rules\n\n" +
+			"## Test Quality <!-- phases: build -->\n" +
+			strings.Repeat("test quality rule ", 100) +
+			"\n## Architecture <!-- phases: architecture -->\n" +
+			strings.Repeat("architecture constraint ", 150) +
+			"\n## Process <!-- phases: review -->\n" +
+			strings.Repeat("process guideline ", 100),
+		ConfirmedLearnings: []learnings.Learning{
+			makeLearning(strings.Repeat("confirmed learning A ", 50)),
+			makeLearning(strings.Repeat("confirmed learning B ", 50)),
+			makeLearning(strings.Repeat("confirmed learning C ", 50)),
+		},
+		RecentLearnings: []learnings.Learning{
+			makeLearning(strings.Repeat("recent finding X ", 30)),
+			makeLearning(strings.Repeat("recent finding Y ", 30)),
+		},
+	}
+	ctx.normalizeNilFields()
+
+	// Measure original size
+	originalSize := measureContext(ctx)
+
+	// Apply ATDD budget shaping with conservative budget (should trigger reduction)
+	cfg := ATDDPromptConfig{
+		IncludeRules:              true,
+		IncludeSpec:               true,
+		IncludeClaudeMD:           true,
+		MaxChars:                  originalSize / 2, // Target 50% of original
+		MaxConfirmedLearningChars: 100,
+	}
+
+	shaped, report := ShapeATDDContextForBudget(ctx, cfg)
+
+	// Verify shaped context is non-nil
+	if shaped == nil {
+		t.Fatal("expected non-nil shaped context")
+	}
+
+	// Verify report is non-nil
+	if report == nil {
+		t.Fatal("expected non-nil report")
+	}
+
+	// Verify Bead identity is preserved
+	if shaped.Bead == nil {
+		t.Fatal("expected shaped context to preserve Bead field")
+	}
+	if shaped.Bead.ID != testBead.ID {
+		t.Fatalf("Bead.ID = %q, want %q", shaped.Bead.ID, testBead.ID)
+	}
+	if shaped.Bead.Title != testBead.Title {
+		t.Fatalf("Bead.Title = %q, want %q", shaped.Bead.Title, testBead.Title)
+	}
+
+	// Verify at least 30% reduction in prompt size
+	finalSize := measureContext(shaped)
+	reductionPercent := float64(originalSize-finalSize) / float64(originalSize) * 100
+
+	if reductionPercent < 30 {
+		t.Fatalf("expected at least 30%% size reduction, got %.1f%% (original: %d, final: %d)",
+			reductionPercent, originalSize, finalSize)
+	}
+
+	// Verify trim actions were taken (we should have done something)
+	if len(report.TrimActions) == 0 {
+		t.Fatal("expected trim actions to be taken for large-context reduction")
+	}
+
+	// Verify before/after chars are tracked correctly
+	if report.BeforeChars != originalSize {
+		t.Fatalf("report.BeforeChars = %d, want %d", report.BeforeChars, originalSize)
+	}
+	if report.AfterChars != finalSize {
+		t.Fatalf("report.AfterChars = %d, want %d", report.AfterChars, finalSize)
 	}
 }
