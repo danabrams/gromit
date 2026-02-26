@@ -57,6 +57,18 @@ Example format:
 
 ## Guidelines
 
+{{if and .DecompositionTarget (eq .DecompositionTarget "single_concern")}}
+### Single-Concern Targeting Mode
+
+You are in **single_concern targeting mode**. Each bead should target **exactly one** of the following:
+- One function/method implementation
+- One test case or test fixture
+- One config option or setting
+- One UI component or interaction
+
+This produces finer-grained beads that are easier to review and validate. The never-split constraints below still apply — you cannot split a function and its tests, an interface and its implementation, etc.
+
+{{end}}
 - Keep tasks focused on **one deliverable behavior** — a single observable change that a caller or user could verify. Not "one file" or "one concern," but one unit of working functionality
 - Soft file limit of 4-5 — if touching 6+ files across unrelated packages, consider splitting. But touching interface.go, impl.go, mock_test.go, and impl_test.go for one method addition is fine — that's one change, not four
 - **Never split these natural units:**
