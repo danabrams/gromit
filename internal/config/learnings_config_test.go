@@ -79,3 +79,24 @@ func TestLearningsProviderFromYAML(t *testing.T) {
 		t.Errorf("expected Provider='claude', got %q", cfg.Learnings.Provider)
 	}
 }
+
+// TestLearningsProviderNormalization tests that provider is trimmed and lowercased.
+func TestLearningsProviderNormalization(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	yamlContent := `learnings:
+  provider: "  CLAUDE  "
+`
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	if cfg.Learnings.Provider != "claude" {
+		t.Errorf("expected Provider='claude' after normalization, got %q", cfg.Learnings.Provider)
+	}
+}
