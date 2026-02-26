@@ -1062,6 +1062,99 @@ func TestCheckTestsFailWithDiagnostic_FallsBackToAlreadyDoneWhenDiagnosticInvoke
 	}
 }
 
+// --- Non-Go profile tests for CheckTestsFailWithDiagnostic ---
+
+func TestCheckTestsFailWithDiagnostic_NodeProfileLogsAdapterCommands(t *testing.T) {
+	t.Parallel()
+	cfg := newTestConfig()
+	cfg.Project.Profile = "node"
+	var buf strings.Builder
+
+	validateFn := func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
+		// Tests fail as expected in red phase
+		return &claude.Result{
+			Success:  false,
+			Output:   "FAIL: test failed",
+			ExitCode: 1,
+		}, nil
+	}
+
+	exec := NewExecutor(cfg, &buf, nil, nil, validateFn)
+	bc := newTestBeadContext()
+	bc.StartCommit = "abc123"
+
+	err := exec.CheckTestsFailWithDiagnostic(context.Background(), bc)
+	if err != nil {
+		t.Fatalf("expected nil error when tests fail, got: %v", err)
+	}
+
+	logs := buf.String()
+	if !strings.Contains(logs, "Methodology adapter node acceptance commands:") {
+		t.Fatalf("expected adapter logging for node profile, got: %q", logs)
+	}
+}
+
+func TestCheckTestsFailWithDiagnostic_PythonProfileLogsAdapterCommands(t *testing.T) {
+	t.Parallel()
+	cfg := newTestConfig()
+	cfg.Project.Profile = "python"
+	var buf strings.Builder
+
+	validateFn := func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
+		// Tests fail as expected in red phase
+		return &claude.Result{
+			Success:  false,
+			Output:   "FAIL: test failed",
+			ExitCode: 1,
+		}, nil
+	}
+
+	exec := NewExecutor(cfg, &buf, nil, nil, validateFn)
+	bc := newTestBeadContext()
+	bc.StartCommit = "abc123"
+
+	err := exec.CheckTestsFailWithDiagnostic(context.Background(), bc)
+	if err != nil {
+		t.Fatalf("expected nil error when tests fail, got: %v", err)
+	}
+
+	logs := buf.String()
+	if !strings.Contains(logs, "Methodology adapter python acceptance commands:") {
+		t.Fatalf("expected adapter logging for python profile, got: %q", logs)
+	}
+}
+
+func TestCheckTestsFailWithDiagnostic_CustomProfileLogsAdapterCommands(t *testing.T) {
+	t.Parallel()
+	cfg := newTestConfig()
+	cfg.Project.Profile = "custom"
+	cfg.Validation.FastCommands = []string{"npm test"}
+	var buf strings.Builder
+
+	validateFn := func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
+		// Tests fail as expected in red phase
+		return &claude.Result{
+			Success:  false,
+			Output:   "FAIL: test failed",
+			ExitCode: 1,
+		}, nil
+	}
+
+	exec := NewExecutor(cfg, &buf, nil, nil, validateFn)
+	bc := newTestBeadContext()
+	bc.StartCommit = "abc123"
+
+	err := exec.CheckTestsFailWithDiagnostic(context.Background(), bc)
+	if err != nil {
+		t.Fatalf("expected nil error when tests fail, got: %v", err)
+	}
+
+	logs := buf.String()
+	if !strings.Contains(logs, "Methodology adapter custom acceptance commands:") {
+		t.Fatalf("expected adapter logging for custom profile, got: %q", logs)
+	}
+}
+
 // --- Package isolation test ---
 
 // TestPackageDoesNotImportRunner verifies structural isolation: this test file
