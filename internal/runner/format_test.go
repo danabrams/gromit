@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/runner/display"
 )
 
@@ -1047,5 +1048,45 @@ func TestToDisplayRunStatus_convertsFields(t *testing.T) {
 	}
 	if got.Model != "sonnet" {
 		t.Errorf("toDisplayRunStatus().Model = %q, want sonnet", got.Model)
+	}
+}
+
+func TestFormatRunWrapper_DelegatesToDisplay(t *testing.T) {
+	t.Parallel()
+
+	status := &Status{
+		Running:   true,
+		Iteration: 2,
+		BeadID:    "beads-xyz",
+		BeadTitle: "Test bead",
+		ElapsedS:  60,
+	}
+
+	got := formatRun(status)
+	want := display.FormatRun(toDisplayRunStatus(status))
+	if got != want {
+		t.Errorf("formatRun() = %q, want %q", got, want)
+	}
+}
+
+func TestFormatPipelineWrapper_DelegatesToDisplay(t *testing.T) {
+	t.Parallel()
+
+	ps := &pipeline.PipelineStatus{}
+	got := formatPipeline(ps)
+	want := display.FormatPipeline(ps)
+	if got != want {
+		t.Errorf("formatPipeline() = %q, want %q", got, want)
+	}
+}
+
+func TestFormatSPCSummaryWrapper_DelegatesToDisplay(t *testing.T) {
+	t.Parallel()
+
+	trend := (*logger.ProcessTrend)(nil)
+	got := formatSPCSummary(trend)
+	want := display.FormatSPCSummary(trend)
+	if got != want {
+		t.Errorf("formatSPCSummary() = %q, want %q", got, want)
 	}
 }

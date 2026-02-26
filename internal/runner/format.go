@@ -48,41 +48,9 @@ func FormatPipeline(ps *pipeline.PipelineStatus) string {
 	return formatPipeline(ps)
 }
 
-// formatPipeline formats pipeline status for display
+// formatPipeline formats pipeline status for display (thin wrapper, delegates to display package)
 func formatPipeline(ps *pipeline.PipelineStatus) string {
-	if ps == nil {
-		return "Pipeline: (status unavailable)\n"
-	}
-
-	var lines []string
-	lines = append(lines, "Pipeline:")
-
-	// Backlog
-	backlogLine := fmt.Sprintf("  Backlog:  %d unrefined idea", ps.UnrefinedCount)
-	if ps.UnrefinedCount != 1 {
-		backlogLine += "s"
-	}
-	lines = append(lines, backlogLine)
-	lines = append(lines, formatItems(ps.UnrefinedIdeas, 3)...)
-
-	// Specs
-	specCount := len(ps.UnplannedSpecs)
-	specLine := fmt.Sprintf("  Specs:    %d unplanned", specCount)
-	lines = append(lines, specLine)
-	lines = append(lines, formatItems(ps.UnplannedSpecs, 3)...)
-
-	// Plans
-	planCount := len(ps.UndecomposedPlans)
-	planLine := fmt.Sprintf("  Plans:    %d undecomposed", planCount)
-	lines = append(lines, planLine)
-	lines = append(lines, formatItems(ps.UndecomposedPlans, 3)...)
-
-	// Beads
-	beadLine := fmt.Sprintf("  Beads:    %s", formatBeadBreakdown(ps))
-	lines = append(lines, beadLine)
-	lines = append(lines, formatItems(ps.ReadyBeads, 3)...)
-
-	return strings.Join(lines, "\n")
+	return display.FormatPipeline(ps)
 }
 
 // formatIterationPrefix returns "Run: iteration N" or "Run: iteration N of M".
@@ -113,57 +81,13 @@ func formatRunningLine(s *Status) string {
 	return formatIterationPrefix(s) + ", " + formatElapsedSuffix(s)
 }
 
-// formatRun formats run status for display
+// formatRun formats run status for display (thin wrapper, delegates to display package)
 func formatRun(s *Status) string {
-	if s == nil {
-		return "Run: not running"
-	}
-	if !s.Running {
-		var lines []string
-		lines = append(lines, "Run: not running")
-		if s.Iteration > 0 {
-			lines = append(lines, fmt.Sprintf("  Last run: %d iterations completed", s.Iteration))
-		}
-		return strings.Join(lines, "\n")
-	}
-
-	var lines []string
-	lines = append(lines, formatIterationPrefix(s))
-	lines = append(lines, fmt.Sprintf("  %s", formatElapsedSuffix(s)))
-
-	if s.BeadID != "" {
-		lines = append(lines, fmt.Sprintf("  Bead:     %s — %s", s.BeadID, s.BeadTitle))
-	}
-	if s.Model != "" {
-		lines = append(lines, fmt.Sprintf("  Model:    %s", s.Model))
-	}
-
-	if rel := formatReliabilityLine(s); rel != "" {
-		lines = append(lines, fmt.Sprintf("  %s", rel))
-	}
-	if esc := formatEscalationBreakdown(s.EscalationRatesByClass); esc != "" {
-		lines = append(lines, fmt.Sprintf("  Escalation: %s", esc))
-	}
-	if rec := formatRecurrenceBreakdown(s.RecurrenceCounters); rec != "" {
-		lines = append(lines, fmt.Sprintf("  Recurrence: %s", rec))
-	}
-
-	return strings.Join(lines, "\n")
+	return display.FormatRun(toDisplayRunStatus(s))
 }
 
 func formatCompatibility(ctx config.CompatibilityContext) string {
-	lines := []string{
-		"Compatibility:",
-		fmt.Sprintf("  Profile:  %s (source: %s)", ctx.Profile.Value, ctx.Profile.Source),
-		fmt.Sprintf("  Backend:  %s (source: %s)", ctx.TrackerBackend.Value, ctx.TrackerBackend.Source),
-		fmt.Sprintf("  Adapter:  %s (source: %s)", ctx.MethodologyAdapter.Value, ctx.MethodologyAdapter.Source),
-	}
-	markers := config.CompatibilityDeprecationMarkers(ctx)
-	if len(markers) > 0 {
-		lines = append(lines, fmt.Sprintf("  Deprecation markers: %s", strings.Join(markers, ", ")))
-		lines = append(lines, fmt.Sprintf("  Strict default cutoff: %s", config.CompatibilityStrictDefaultCutoverDate))
-	}
-	return strings.Join(lines, "\n")
+	return display.FormatCompatibility(ctx)
 }
 
 // formatReliabilityLine formats the reliability summary line.
@@ -213,51 +137,14 @@ func formatRecurrenceBreakdown(counters map[string]int) string {
 	return strings.Join(parts, " | ")
 }
 
-// formatHealth formats health status for display
+// formatHealth formats health status for display (thin wrapper, delegates to display package)
 func formatHealth(lastRetro time.Time, iterationsSinceReview int) string {
-	var lines []string
-	lines = append(lines, "Health:")
-
-	retroStr := "never"
-	if !lastRetro.IsZero() {
-		retroStr = formatDuration(time.Since(lastRetro)) + " ago"
-	}
-	lines = append(lines, fmt.Sprintf("  Last retro:  %s", retroStr))
-
-	reviewStr := "never"
-	if iterationsSinceReview > 0 {
-		unit := "iterations"
-		if iterationsSinceReview == 1 {
-			unit = "iteration"
-		}
-		reviewStr = fmt.Sprintf("%d %s ago", iterationsSinceReview, unit)
-	}
-	lines = append(lines, fmt.Sprintf("  Last review: %s", reviewStr))
-
-	return strings.Join(lines, "\n") + "\n"
+	return display.FormatHealth(lastRetro, iterationsSinceReview)
 }
 
-// formatRecommendation formats a recommendation string with a command hint.
+// formatRecommendation formats a recommendation string with a command hint (thin wrapper, delegates to display package)
 func formatRecommendation(rec string) string {
-	if rec == "" {
-		return ""
-	}
-	hint := ""
-	for _, mapping := range []struct {
-		prefix string
-		cmd    string
-	}{
-		{"Refine", "gromit refine"},
-		{"Plan", "gromit plan"},
-		{"Decompose", "gromit decompose"},
-		{"Run", "gromit run"},
-	} {
-		if strings.HasPrefix(rec, mapping.prefix) {
-			hint = " (" + mapping.cmd + ")"
-			break
-		}
-	}
-	return "Next action: " + rec + hint
+	return display.FormatRecommendation(rec)
 }
 
 // formatItems formats a list of items, showing up to maxShow items and an overflow message
@@ -287,77 +174,9 @@ func FormatSPCSummary(trend *logger.ProcessTrend) string {
 	return formatSPCSummary(trend)
 }
 
-// formatSPCSummary formats SPC (Statistical Process Control) trend data for display.
+// formatSPCSummary formats SPC (Statistical Process Control) trend data for display (thin wrapper, delegates to display package)
 func formatSPCSummary(trend *logger.ProcessTrend) string {
-	if trend == nil || trend.TotalIterations == 0 {
-		return "SPC: (no data)"
-	}
-
-	var lines []string
-	lines = append(lines, "SPC:")
-	lines = append(lines, fmt.Sprintf("  Window:   %d iterations (%d total)", trend.WindowSize, trend.TotalIterations))
-
-	// Display known control limits with human-friendly labels.
-	displayMetrics := []struct {
-		metric string
-		label  string
-	}{
-		{spcMetricRollingSuccessRate, "Success:"},
-		{spcMetricRollingEscalateRate, "Escalate:"},
-		{spcMetricRollingQualityScore, "Quality:"},
-		{spcMetricRollingAvgDurationMs, "Duration:"},
-	}
-	limitsByMetric := map[string]logger.TrendControlLimit{}
-	for _, cl := range trend.ControlLimits {
-		limitsByMetric[cl.Metric] = cl
-	}
-	sortedMetrics := append([]struct {
-		metric string
-		label  string
-	}{}, displayMetrics...)
-	sort.Slice(sortedMetrics, func(i, j int) bool {
-		return sortedMetrics[i].label < sortedMetrics[j].label
-	})
-	for _, dm := range sortedMetrics {
-		cl, ok := limitsByMetric[dm.metric]
-		if !ok {
-			continue
-		}
-		lines = append(lines, formatSPCLine(dm.label, cl, dm.metric == spcMetricRollingAvgDurationMs))
-	}
-
-	if providerLines := formatSPCProviderMetrics(trend.ProviderMetrics); len(providerLines) > 0 {
-		lines = append(lines, providerLines...)
-	}
-
-	if leading := formatSPCLeadingIndicators(trend.LatestWindow); len(leading) > 0 {
-		lines = append(lines, leading...)
-	}
-
-	if econ := formatSPCEconomicMetrics(trend.LatestWindow); len(econ) > 0 {
-		lines = append(lines, econ...)
-	}
-
-	if ewmaLines := formatSPCEWMAValues(trend.EWMAAnomalies); len(ewmaLines) > 0 {
-		lines = append(lines, ewmaLines...)
-	}
-
-	// Nelson rule violations.
-	if nelsonLines := formatSPCNelsonViolations(trend.PatternViolations); len(nelsonLines) > 0 {
-		lines = append(lines, nelsonLines...)
-	}
-
-	// Anomaly summary.
-	if len(trend.Anomalies) == 0 {
-		lines = append(lines, "  Anomaly:  none")
-	} else {
-		lines = append(lines, fmt.Sprintf("  Anomaly:  %d", len(trend.Anomalies)))
-		for _, a := range trend.Anomalies {
-			lines = append(lines, fmt.Sprintf("    %s (%s)", simplifySPCMetric(a.Metric), a.Severity))
-		}
-	}
-
-	return strings.Join(lines, "\n")
+	return display.FormatSPCSummary(trend)
 }
 
 // formatSPCLine formats a single SPC control-limit line for display.
@@ -544,37 +363,7 @@ func simplifySPCMetric(metric string) string {
 
 // formatModelPerformance formats per-model performance statistics for display.
 func formatModelPerformance(stats map[string]logger.ModelStats) string {
-	var lines []string
-	lines = append(lines, "Model Performance:")
-
-	if len(stats) == 0 {
-		return strings.Join(lines, "\n")
-	}
-
-	// Sort model names for deterministic output
-	models := make([]string, 0, len(stats))
-	for m := range stats {
-		models = append(models, m)
-	}
-	sort.Strings(models)
-
-	for _, m := range models {
-		s := stats[m]
-		displayModel := m
-		if strings.TrimSpace(displayModel) == "" {
-			displayModel = "(unknown model)"
-		}
-		if s.Iterations == 0 {
-			lines = append(lines, fmt.Sprintf("  %s: no iterations", displayModel))
-			continue
-		}
-		pct := int(math.Round(s.SuccessRate() * 100))
-		costPerIter := s.TotalCostUSD / float64(s.Iterations)
-		lines = append(lines, fmt.Sprintf("  %s: %d%% (%d/%d) $%.2f/iter",
-			displayModel, pct, s.Successes, s.Iterations, costPerIter))
-	}
-
-	return strings.Join(lines, "\n")
+	return display.FormatModelPerformance(stats)
 }
 
 // toDisplayRunStatus converts a *runner.Status to a display.RunStatus for rendering.
