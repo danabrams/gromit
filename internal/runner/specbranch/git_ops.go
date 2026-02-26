@@ -66,14 +66,18 @@ func (g *GitOps) CreateOrCheckoutSpecBranch(ctx context.Context, specBranchName 
 	return nil
 }
 
-// RebaseSpecOntoMain rebases the spec branch onto the main branch.
+// RebaseOnto rebases the branch onto the specified target branch.
 // Returns a ConflictError if a rebase conflict occurs.
-func (g *GitOps) RebaseSpecOntoMain(ctx context.Context, specBranchName string) error {
-	if specBranchName == "" {
-		return fmt.Errorf("spec branch name cannot be empty")
+// Implements the GitOps interface from specmerge package.
+func (g *GitOps) RebaseOnto(ctx context.Context, branch, onto string) error {
+	if branch == "" {
+		return fmt.Errorf("branch name cannot be empty")
+	}
+	if onto == "" {
+		return fmt.Errorf("target branch cannot be empty")
 	}
 
-	cmd := exec.CommandContext(ctx, "git", "rebase", "main", specBranchName)
+	cmd := exec.CommandContext(ctx, "git", "rebase", onto, branch)
 	cmd.Dir = g.repoDir
 	output, err := cmd.CombinedOutput()
 
@@ -94,26 +98,26 @@ func (g *GitOps) RebaseSpecOntoMain(ctx context.Context, specBranchName string) 
 		}
 	}
 
-	return fmt.Errorf("failed to rebase spec branch %s onto main: %w", specBranchName, err)
+	return fmt.Errorf("failed to rebase branch %s onto %s: %w", branch, onto, err)
 }
 
-// FastForwardMergeToMain merges the spec branch into main using fast-forward only.
-// Returns a ConflictError if the merge would result in a conflict.
-func (g *GitOps) FastForwardMergeToMain(ctx context.Context, specBranchName string) error {
-	if specBranchName == "" {
-		return fmt.Errorf("spec branch name cannot be empty")
-	}
+// RebaseSpecOntoMain rebases the spec branch onto the main branch.
+// Returns a ConflictError if a rebase conflict occurs.
+// Convenience method that calls RebaseOnto with main as the target.
+func (g *GitOps) RebaseSpecOntoMain(ctx context.Context, specBranchName string) error {
+	return g.RebaseOnto(ctx, specBranchName, "main")
+}
 
-	// Check out main
-	cmd := exec.CommandContext(ctx, "git", "checkout", "main")
-	cmd.Dir = g.repoDir
-	_, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to checkout main: %w", err)
+// FastForwardMerge merges the branch into the current branch using fast-forward only.
+// Returns a ConflictError if the merge would result in a conflict.
+// Implements the GitOps interface from specmerge package.
+func (g *GitOps) FastForwardMerge(ctx context.Context, branch string) error {
+	if branch == "" {
+		return fmt.Errorf("branch name cannot be empty")
 	}
 
 	// Merge with --ff-only
-	cmd = exec.CommandContext(ctx, "git", "merge", "--ff-only", specBranchName)
+	cmd := exec.CommandContext(ctx, "git", "merge", "--ff-only", branch)
 	cmd.Dir = g.repoDir
 	output, err := cmd.CombinedOutput()
 
@@ -129,7 +133,50 @@ func (g *GitOps) FastForwardMergeToMain(ctx context.Context, specBranchName stri
 		}
 	}
 
-	return fmt.Errorf("failed to fast-forward merge spec branch %s to main: %w", specBranchName, err)
+	return fmt.Errorf("failed to fast-forward merge branch %s: %w", branch, err)
+}
+
+// FastForwardMergeToMain merges the spec branch into main using fast-forward only.
+// Returns a ConflictError if the merge would result in a conflict.
+// Convenience method that checks out main and calls FastForwardMerge.
+func (g *GitOps) FastForwardMergeToMain(ctx context.Context, specBranchName string) error {
+	if specBranchName == "" {
+		return fmt.Errorf("spec branch name cannot be empty")
+	}
+
+	// Check out main
+	cmd := exec.CommandContext(ctx, "git", "checkout", "main")
+	cmd.Dir = g.repoDir
+	_, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to checkout main: %w", err)
+	}
+
+	return g.FastForwardMerge(ctx, specBranchName)
+}
+
+// DeleteBranch deletes the specified branch.
+// Implements the GitOps interface from specmerge package.
+func (g *GitOps) DeleteBranch(ctx context.Context, branch string) error {
+	if branch == "" {
+		return fmt.Errorf("branch name cannot be empty")
+	}
+
+	cmd := exec.CommandContext(ctx, "git", "branch", "-d", branch)
+	cmd.Dir = g.repoDir
+	_, err := cmd.CombinedOutput()
+
+	if err != nil {
+		return fmt.Errorf("failed to delete branch %s: %w", branch, err)
+	}
+
+	return nil
+}
+
+// DeleteSpecBranch deletes the spec branch.
+// Convenience method that calls DeleteBranch.
+func (g *GitOps) DeleteSpecBranch(ctx context.Context, specBranchName string) error {
+	return g.DeleteBranch(ctx, specBranchName)
 }
 
 func isRebaseConflict(output string, err error) bool {
@@ -138,23 +185,6 @@ func isRebaseConflict(output string, err error) bool {
 	}
 	// Check for typical rebase conflict markers in output
 	return strings.Contains(output, "CONFLICT") || strings.Contains(output, "conflict")
-}
-
-// DeleteSpecBranch deletes the spec branch.
-func (g *GitOps) DeleteSpecBranch(ctx context.Context, specBranchName string) error {
-	if specBranchName == "" {
-		return fmt.Errorf("spec branch name cannot be empty")
-	}
-
-	cmd := exec.CommandContext(ctx, "git", "branch", "-d", specBranchName)
-	cmd.Dir = g.repoDir
-	_, err := cmd.CombinedOutput()
-
-	if err != nil {
-		return fmt.Errorf("failed to delete spec branch %s: %w", specBranchName, err)
-	}
-
-	return nil
 }
 
 func isMergeConflict(output string, err error) bool {
