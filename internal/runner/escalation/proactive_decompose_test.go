@@ -2,6 +2,7 @@ package escalation
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -210,6 +211,66 @@ func TestCheckProactiveDecomposition_TriggersDecomposition(t *testing.T) {
 	}
 	if !createSubCalled {
 		t.Errorf("createSubFn not called, expected it to be called after decomposition")
+	}
+}
+
+// TestCheckProactiveDecomposition_CanceledParentContextSkipsDecomposition verifies
+// that proactive decomposition is skipped when the parent context is already canceled
+// and telemetry fields record the skip.
+func TestCheckProactiveDecomposition_CanceledParentContextSkipsDecomposition(t *testing.T) {
+	t.Parallel()
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+	handler := NewHandler(cfg, nil, nil, nil, nil, nil, nil)
+
+	parentCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
+			ID:       "test-004",
+			Title:    "Canceled-context bead",
+			Priority: 1,
+		},
+		ScopeEstimate: &prompt.ScopeEstimate{
+			Complexity:                   "high",
+			EstimatedIterations:          2,
+			CanCompleteInSingleIteration: false,
+		},
+		TotalRetriesThisBead: 0,
+		BeadTimeout:          10 * time.Minute,
+		BeadStartTime:        time.Now().Add(-6 * time.Minute), // 60% elapsed
+		Result: &runtypes.IterationResult{
+			TimeoutDecompositionSucceeded: true,
+		},
+		ParentCtx: parentCtx,
+	}
+
+	continueLoop := handler.CheckProactiveDecomposition(context.Background(), bc)
+	if continueLoop {
+		t.Fatalf("CheckProactiveDecomposition() = true, want false when parent context is canceled")
+	}
+	if !bc.Result.TimeoutDecompositionAttempted {
+		t.Fatalf("TimeoutDecompositionAttempted = false, want true when proactive decomposition is skipped")
+	}
+	if bc.Result.TimeoutDecompositionAttemptTime.IsZero() {
+		t.Fatalf("TimeoutDecompositionAttemptTime is zero, want a timestamp")
+	}
+	if bc.Result.TimeoutDecompositionOutcome != timeoutDecompositionOutcomeSkipped {
+		t.Fatalf("TimeoutDecompositionOutcome = %q, want %q", bc.Result.TimeoutDecompositionOutcome, timeoutDecompositionOutcomeSkipped)
+	}
+	if !strings.Contains(bc.Result.TimeoutDecompositionReason, "parent context canceled") {
+		t.Fatalf("unexpected TimeoutDecompositionReason: %q", bc.Result.TimeoutDecompositionReason)
+	}
+	if bc.Result.TimeoutDecompositionSucceeded {
+		t.Fatalf("TimeoutDecompositionSucceeded = true, want false when skip occurs")
+	}
+	if bc.Result.Error == nil {
+		t.Fatalf("expected error describing skipped decomposition, got nil")
+	}
+	if !strings.Contains(bc.Result.Error.Error(), "parent context canceled") {
+		t.Fatalf("unexpected error message: %v", bc.Result.Error)
 	}
 }
 
