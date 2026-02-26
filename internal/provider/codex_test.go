@@ -1785,3 +1785,30 @@ func TestCodexProviderMaxInputTokensConfig(t *testing.T) {
 		t.Errorf("MaxInputTokensForTier() = %d, want 2000000", cp.MaxInputTokensForTier(TierMedium))
 	}
 }
+
+// TestNewShellProviderCreatesShellBasedProvider verifies that newShellProvider()
+// creates a CodexProvider that executes shell commands via /bin/sh -c pattern,
+// avoiding temporary executable files and ETXTBSY errors under parallel execution.
+func TestNewShellProviderCreatesShellBasedProvider(t *testing.T) {
+	t.Parallel()
+	bashScript := `echo "shell test output"
+exit 0`
+
+	tierMap := map[string]string{TierLow: "gpt-4o-mini"}
+	cp := newShellProvider(bashScript, tierMap)
+
+	if cp == nil {
+		t.Fatal("newShellProvider() returned nil")
+	}
+
+	ctx := context.Background()
+	result, err := cp.Run(ctx, "test", TierLow)
+
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if !strings.Contains(result.Output, "shell test output") {
+		t.Errorf("Run() output missing expected text, got: %s", result.Output)
+	}
+}
