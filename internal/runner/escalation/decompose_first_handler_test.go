@@ -288,3 +288,135 @@ func TestDecomposeFirstHandler_EscalatesAtomicBeads(t *testing.T) {
 	}
 }
 
+// TestDecomposeFirstHandler_HandleFailureDecision verifies the complete
+// decision flow: decompose non-atomic failures, escalate atomic failures.
+func TestDecomposeFirstHandler_HandleFailureDecision(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		Escalation: config.EscalationConfig{
+			Enabled:            true,
+			Chain:              []string{"haiku", "sonnet", "opus"},
+			MaxRetriesPerModel: 2,
+			MaxRetriesPerBead:  5,
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	mfa := &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, failureOutput string) (*analyzer.Analysis, error) {
+			return &analyzer.Analysis{Category: "logic_error", Recoverable: false}, nil
+		},
+	}
+
+	mbc := &mockBeadClient{}
+
+	decomposeCalled := 0
+	decomposeFn := func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+		decomposeCalled++
+		return []runtypes.SubTask{}, nil
+	}
+
+	createSubFn := func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error {
+		return nil
+	}
+
+	handler := NewDecomposeFirstHandler(cfg, mfa, mbc, decomposeFn, createSubFn, nil, nil, 2)
+	if handler == nil {
+		t.Fatal("NewDecomposeFirstHandler returned nil")
+	}
+
+	// Test scenario: bead has reached max retries
+	bc := &runtypes.BeadContext{
+		Bead:              &bead.Bead{ID: "test-001", Title: "Test", Description: "Test bead"},
+		Tier:              "haiku",
+		Model:             "haiku",
+		RetriesThisModel:  2,
+		MaxRetries:        2,
+		Result:            &runtypes.IterationResult{},
+	}
+
+	// Verify decision logic
+	shouldDecompose := handler.ShouldDecomposeBeforeEscalate(bc)
+	if !shouldDecompose {
+		t.Fatal("expected handler to decide to decompose when retries exhausted")
+	}
+
+	isAtomic := handler.IsAtomicBead(bc)
+	if isAtomic {
+		t.Fatal("expected handler to detect non-atomic bead")
+	}
+
+	// When the bead is non-atomic and retries exhausted, decompose
+	if shouldDecompose && !isAtomic {
+		handler.AttemptDecomposition(context.Background(), bc, "max retries exceeded")
+		if decomposeCalled == 0 {
+			t.Fatal("expected decomposition to be attempted")
+		}
+	}
+}
+
+// TestDecomposeFirstHandler_AtomicFallbackPath verifies the fallback
+// behavior when bead is atomic: escalation instead of decomposition.
+func TestDecomposeFirstHandler_AtomicFallbackPath(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		Escalation: config.EscalationConfig{
+			Enabled:            true,
+			Chain:              []string{"haiku", "sonnet", "opus"},
+			MaxRetriesPerModel: 2,
+			MaxRetriesPerBead:  5,
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	mfa := &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, failureOutput string) (*analyzer.Analysis, error) {
+			return &analyzer.Analysis{Category: "logic_error", Recoverable: false}, nil
+		},
+	}
+
+	mbc := &mockBeadClient{}
+
+	// Handler without decomposeFn - all beads are atomic
+	handler := NewDecomposeFirstHandler(cfg, mfa, mbc, nil, nil, nil, nil, 2)
+	if handler == nil {
+		t.Fatal("NewDecomposeFirstHandler returned nil")
+	}
+
+	// Test scenario: atomic bead has reached max retries
+	bc := &runtypes.BeadContext{
+		Bead:              &bead.Bead{ID: "test-001", Title: "Test", Description: "Test bead"},
+		Tier:              "haiku",
+		Model:             "haiku",
+		RetriesThisModel:  2,
+		MaxRetries:        2,
+		Result:            &runtypes.IterationResult{},
+	}
+
+	// Verify decision logic
+	shouldDecompose := handler.ShouldDecomposeBeforeEscalate(bc)
+	if !shouldDecompose {
+		t.Fatal("expected handler to decide to decompose/escalate when retries exhausted")
+	}
+
+	isAtomic := handler.IsAtomicBead(bc)
+	if !isAtomic {
+		t.Fatal("expected handler to detect atomic bead when decomposeFn is nil")
+	}
+
+	// When the bead is atomic and retries exhausted, escalate
+	if shouldDecompose && isAtomic {
+		nextTier := handler.GetNextTier(bc)
+		if nextTier == "" {
+			t.Fatal("expected next tier for escalation")
+		}
+		if nextTier != "medium" {
+			t.Fatalf("expected next tier to be 'medium', got '%s'", nextTier)
+		}
+	}
+}
+
