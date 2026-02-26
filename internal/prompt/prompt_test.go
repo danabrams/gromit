@@ -2262,3 +2262,69 @@ Reliability rule about hygiene.
 		t.Error("expected Reliability section to be excluded")
 	}
 }
+
+func TestExtractATDDRulesSubset_IsStable(t *testing.T) {
+	rulesContent := `# Project Rules
+
+## Test Quality
+
+### Tool-call log parsing in tests
+Test quality rule about tool-call logs.
+
+### Shared helper APIs
+Test quality rule about shared helpers.
+`
+
+	// Extract multiple times
+	result1 := ExtractATDDRulesSubset(rulesContent)
+	result2 := ExtractATDDRulesSubset(rulesContent)
+	result3 := ExtractATDDRulesSubset(rulesContent)
+
+	// All results should be identical
+	if result1 != result2 {
+		t.Error("ExtractATDDRulesSubset not stable: first and second calls differ")
+	}
+	if result2 != result3 {
+		t.Error("ExtractATDDRulesSubset not stable: second and third calls differ")
+	}
+}
+
+func TestLoadRules_UnchangedBehavior(t *testing.T) {
+	tmpDir := t.TempDir()
+	rulesPath := filepath.Join(tmpDir, "RULES.md")
+	rulesContent := `# Project Rules
+
+## Architecture
+
+Architecture rule content.
+
+## Test Quality
+
+Test quality rule content.
+`
+	if err := os.WriteFile(rulesPath, []byte(rulesContent), 0644); err != nil {
+		t.Fatalf("failed to write test RULES.md: %v", err)
+	}
+
+	r := &Renderer{
+		rulesPath: rulesPath,
+	}
+
+	// LoadRules should return the full, unmodified rules content
+	loaded, err := r.LoadRules()
+	if err != nil {
+		t.Fatalf("LoadRules() error = %v", err)
+	}
+
+	if loaded != rulesContent {
+		t.Errorf("LoadRules() returned modified content.\nGot:\n%s\n\nWant:\n%s", loaded, rulesContent)
+	}
+
+	// Verify it's the full content, not a subset
+	if !strings.Contains(loaded, "Architecture") {
+		t.Error("LoadRules() should return full rules including Architecture section")
+	}
+	if !strings.Contains(loaded, "Test Quality") {
+		t.Error("LoadRules() should return full rules including Test Quality section")
+	}
+}
