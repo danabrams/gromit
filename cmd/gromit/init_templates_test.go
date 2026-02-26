@@ -159,3 +159,21 @@ func TestRulesForProfile_IncludesGoSpecificGuide(t *testing.T) {
 	}
 }
 
+// TestNextStepsForProfile_IncludesGoSpecificGuidance verifies that nextStepsForProfile generates
+// Go-specific next steps terminal guidance with relevant commands
+func TestNextStepsForProfile_IncludesGoSpecificGuidance(t *testing.T) {
+	t.Parallel()
+
+	nextSteps := nextStepsForProfile("go")
+
+	// Should contain universal next steps
+	if !strings.Contains(nextSteps, "gromit.yaml") {
+		t.Error("next steps missing gromit.yaml guidance")
+	}
+
+	// Should contain Go-specific validation commands
+	if !strings.Contains(nextSteps, "go test") {
+		t.Error("next steps missing go test guidance for go profile")
+	}
+}
+
