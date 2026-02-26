@@ -597,7 +597,7 @@ decomposed: false
 		return []*bead.Bead{{ID: "gromit-1", Title: "Task"}}, nil
 	}
 
-	alreadyDecomposed, reconciled, err := reconcilePlanDecomposedState(planPath, "sample", false)
+	alreadyDecomposed, reconciled, err := reconcilePlanDecomposedState(context.Background(), planPath, "sample", false)
 	if err != nil {
 		t.Fatalf("reconcilePlanDecomposedState() error = %v", err)
 	}
@@ -854,6 +854,27 @@ func TestListBeadsWithLabelThreadsContext(t *testing.T) {
 	// Call listBeadsWithLabel with a custom context to verify it accepts context parameter
 	ctx := context.WithValue(context.Background(), "test-key", "test-value")
 	_, _ = listBeadsWithLabel(ctx, "test-label")
+
+	// If this compiles and runs without error, the signature is correct
+}
+
+// TestReconcilePlanDecomposedStateThreadsContext verifies that reconcilePlanDecomposedState accepts context
+func TestReconcilePlanDecomposedStateThreadsContext(t *testing.T) {
+	t.Parallel()
+
+	// Create a temporary plan file
+	planContent := `---
+decomposed: false
+---
+# Test Plan`
+	planPath := filepath.Join(t.TempDir(), "test-plan.md")
+	if err := os.WriteFile(planPath, []byte(planContent), 0644); err != nil {
+		t.Fatalf("failed to create plan file: %v", err)
+	}
+
+	// Call reconcilePlanDecomposedState with context to verify it accepts context parameter
+	ctx := context.WithValue(context.Background(), "test-key", "test-value")
+	_, _, _ = reconcilePlanDecomposedState(ctx, planPath, "test-plan", false)
 
 	// If this compiles and runs without error, the signature is correct
 }
