@@ -802,6 +802,52 @@ func TestProcessCodexStreamMapsToolCallCreatedToEventToolUse(t *testing.T) {
 	}
 }
 
+// TestProcessCodexStreamMapsToolCallOutputToEventToolResult verifies that tool_call.output
+// events map to StreamEvent type "EventToolResult" with tool result payload.
+func TestProcessCodexStreamMapsToolCallOutputToEventToolResult(t *testing.T) {
+	t.Parallel()
+	input := `{"type":"tool_call.output","tool_call":{"tool_name":"search","output":{"result":"ok"}}}` + "\n"
+	reader := strings.NewReader(input)
+	var output bytes.Buffer
+	var receivedEvents [][]byte
+
+	handler := func(line []byte) {
+		cp := make([]byte, len(line))
+		copy(cp, line)
+		receivedEvents = append(receivedEvents, cp)
+	}
+
+	_, _, _, err := processCodexStream(reader, &output, handler, nil)
+	if err != nil {
+		t.Fatalf("processCodexStream() error = %v", err)
+	}
+
+	if len(receivedEvents) == 0 {
+		t.Fatal("EventHandler was not called for tool_call.output event")
+	}
+
+	var parsed struct {
+		Type    string                 `json:"type"`
+		Payload map[string]interface{} `json:"payload"`
+	}
+	if err := json.Unmarshal(receivedEvents[0], &parsed); err != nil {
+		t.Fatalf("failed to parse emitted event: %v", err)
+	}
+
+	if parsed.Type != "EventToolResult" {
+		t.Errorf("tool_call.output mapped to type %q, want %q", parsed.Type, "EventToolResult")
+	}
+
+	toolCall, ok := parsed.Payload["tool_call"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("payload missing tool_call map, got %#v", parsed.Payload["tool_call"])
+	}
+
+	if toolCall["tool_name"] != "search" {
+		t.Errorf("tool_call.tool_name = %v, want %v", toolCall["tool_name"], "search")
+	}
+}
+
 // TestProcessCodexStreamEmitsResultEventFromResultEvents verifies that result
 // events emit a result stream event with token usage, consistent with
 // turn.completed and response.completed handlers.
