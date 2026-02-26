@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -775,6 +776,63 @@ func TestEpilogue_RemovesPendingBranchesAfterMerge(t *testing.T) {
 	}
 	if remover.removedBranches[1] != "gromit/debug-1" {
 		t.Errorf("second removed branch = %q, want %q", remover.removedBranches[1], "gromit/debug-1")
+	}
+}
+
+func TestImmediateFailDeferredSuccess_CleanupScenario(t *testing.T) {
+	const branch = "gromit/deferred-cleanup"
+	derivedPath := "/repo-gromit-deferred-cleanup"
+
+	merger := &fakeWorktreeMerger{
+		branches: []string{branch},
+		derivedPaths: map[string]string{
+			branch: derivedPath,
+		},
+		mergeErr: errors.New("merge conflict"),
+	}
+	remover := &fakePendingBranchRemover{}
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
+		WithWorktree(merger).
+		WithPendingBranchRemover(remover)
+
+	in := makeInput("bead-1", "Test", true)
+
+	if _, err := stage.Run(context.Background(), in); err != nil {
+		t.Fatalf("first Run() error = %v, want nil", err)
+	}
+	if len(remover.removedBranches) != 0 {
+		t.Fatalf("removed branches after failure = %v, want none", remover.removedBranches)
+	}
+	if len(merger.removedPaths) != 0 {
+		t.Fatalf("removed paths after failure = %v, want none", merger.removedPaths)
+	}
+
+	merger.mergeErr = nil
+	if _, err := stage.Run(context.Background(), in); err != nil {
+		t.Fatalf("second Run() error = %v, want nil", err)
+	}
+
+	if len(merger.mergedBranches) != 2 {
+		t.Fatalf("merged branches = %v, want 2 merge attempts", merger.mergedBranches)
+	}
+	if len(merger.removedPaths) != 1 || merger.removedPaths[0] != derivedPath {
+		t.Fatalf("removed worktree paths = %v, want [%s]", merger.removedPaths, derivedPath)
+	}
+	if len(remover.removedBranches) != 1 || remover.removedBranches[0] != branch {
+		t.Fatalf("removed pending branches = %v, want [%s]", remover.removedBranches, branch)
+	}
+
+	tailStart := len(merger.callOrder) - 3
+	if tailStart < 0 {
+		t.Fatalf("call order too short: %v", merger.callOrder)
+	}
+	wantCallOrder := []string{
+		fmt.Sprintf("MergeBack(%s)", branch),
+		fmt.Sprintf("DeriveSessionWorktreePath(%s)", branch),
+		fmt.Sprintf("RemoveByPath(%s)", derivedPath),
+	}
+	if !reflect.DeepEqual(merger.callOrder[tailStart:], wantCallOrder) {
+		t.Fatalf("call order suffix = %v, want %v", merger.callOrder[tailStart:], wantCallOrder)
 	}
 }
 
