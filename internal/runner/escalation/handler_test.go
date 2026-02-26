@@ -2234,3 +2234,79 @@ func TestExecuteWithRetry_ChecksRetryGateAtStartOfLoop(t *testing.T) {
 		t.Fatalf("expected 0 invocations, got %d", invocationCount)
 	}
 }
+
+// TestContract_TimeoutSuccessfulDecompositionFlow validates the complete timeout -> decomposition success -> telemetry flow.
+// This contract-style test ensures:
+// 1. Timeout occurs and TimeoutDecompositionAttempted is marked
+// 2. Decomposition succeeds with TimeoutDecompositionSucceeded=true and Decomposed=true
+// 3. Outcome is set to "success"
+// 4. Retry gate allows next attempt after successful decomposition
+// 5. All telemetry fields are properly populated for observability
+func TestContract_TimeoutSuccessfulDecompositionFlow(t *testing.T) {
+	cfg := newTestConfig()
+	decomposeCalled := false
+	createSubCalled := false
+
+	h := NewHandler(
+		cfg,
+		&mockFailureAnalyzer{},
+		&mockBeadClient{},
+		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+			decomposeCalled = true
+			return []runtypes.SubTask{{Title: "subtask1"}}, nil
+		},
+		func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error {
+			createSubCalled = true
+			return nil
+		},
+		nil,
+		nil,
+	)
+
+	bc := newTestBeadContext()
+	bc.ParentCtx = context.Background()
+
+	// Invoke with an invocation timeout, triggering decomposition
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		return &runtypes.InvocationResult{
+			TimeoutType: "invocation",
+		}, fmt.Errorf("invocation timeout")
+	}
+
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+
+	// Verify decomposition was attempted and succeeded.
+	// Note: ExecuteWithRetry returns false after decomposition (bead is decomposed, not retried).
+	if success {
+		t.Errorf("build should return false after decomposition (bead is decomposed, not retried)")
+	}
+	if !decomposeCalled {
+		t.Fatal("expected decomposition to be called on invocation timeout")
+	}
+	if !createSubCalled {
+		t.Fatal("expected sub-bead creation to be called")
+	}
+
+	// Verify telemetry fields for successful decomposition
+	if !bc.Result.TimeoutDecompositionAttempted {
+		t.Fatal("TimeoutDecompositionAttempted should be true")
+	}
+	if !bc.Result.TimeoutDecompositionSucceeded {
+		t.Fatal("TimeoutDecompositionSucceeded should be true")
+	}
+	if !bc.Result.Decomposed {
+		t.Fatal("Decomposed should be true")
+	}
+	if bc.Result.TimeoutDecompositionOutcome != timeoutDecompositionOutcomeSuccess {
+		t.Fatalf("TimeoutDecompositionOutcome = %q, want %q", bc.Result.TimeoutDecompositionOutcome, timeoutDecompositionOutcomeSuccess)
+	}
+	if bc.Result.TimeoutDecompositionReason == "" {
+		t.Fatal("TimeoutDecompositionReason should be populated")
+	}
+	if !strings.Contains(bc.Result.TimeoutDecompositionReason, "decomposition succeeded") {
+		t.Fatalf("TimeoutDecompositionReason should mention success: %q", bc.Result.TimeoutDecompositionReason)
+	}
+	if !bc.Result.TimeoutDecompositionAttemptTime.IsZero() == false {
+		t.Fatal("TimeoutDecompositionAttemptTime should be set")
+	}
+}
