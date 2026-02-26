@@ -272,8 +272,8 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		ExperimentMgr:   experimentMgr,
 		StatusWriter: func(iteration int, beadID, beadTitle string, dl time.Time) {
 			if statusWriter != nil {
-			if specProgressLabel != "" {
-				total, err := estimateScopedIterationTotal(context.Background(), beadsClient, specProgressLabel, iteration)
+				if specProgressLabel != "" {
+					total, err := estimateScopedIterationTotal(context.Background(), trackerClientInterface, specProgressLabel, iteration)
 					if err == nil {
 						statusWriter.SetIterationTotal(total)
 					} else {
@@ -367,25 +367,23 @@ func resolveSingleSpecProgressLabel(labels []string) string {
 	return labels[0]
 }
 
-func estimateScopedIterationTotal(ctx context.Context, client *bead.Client, label string, iteration int) (int, error) {
+func estimateScopedIterationTotal(ctx context.Context, client tracker.Client, label string, iteration int) (int, error) {
 	if client == nil || label == "" || iteration <= 0 {
 		return 0, nil
 	}
 
-	beads, err := client.ListWithLabel(ctx, label)
+	items, err := client.ListWithLabel(ctx, label)
 	if err != nil {
 		return 0, err
 	}
 
 	openNonEpicCount := 0
-	for _, b := range beads {
-		if b == nil {
+	for _, item := range items {
+		if strings.EqualFold(item.Status, tracker.StatusClosed) {
 			continue
 		}
-		if strings.EqualFold(b.Status, "closed") {
-			continue
-		}
-		if strings.EqualFold(b.Type, "epic") {
+		typ := strings.TrimSpace(item.Metadata["type"])
+		if strings.EqualFold(typ, "epic") {
 			continue
 		}
 		openNonEpicCount++
