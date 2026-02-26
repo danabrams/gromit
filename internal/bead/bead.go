@@ -427,7 +427,16 @@ func shouldRetryWithNoDB(err error) bool {
 	if err == nil {
 		return false
 	}
-	return strings.Contains(err.Error(), "database not found:")
+	errText := err.Error()
+	if strings.Contains(errText, "database not found:") {
+		return true
+	}
+	if strings.Contains(errText, "table not found: issues") {
+		return true
+	}
+	return strings.Contains(errText, "Error 1146") &&
+		strings.Contains(errText, "table not found") &&
+		strings.Contains(errText, "issues")
 }
 
 func beadsNoDBAlreadyEnabled() bool {

@@ -186,3 +186,40 @@ exit 1
 		t.Fatalf("run() invocation count = %q, want %q", strings.TrimSpace(string(countRaw)), "2")
 	}
 }
+
+func TestClientRun_RetriesWithNoDBOnMissingIssuesTable(t *testing.T) {
+	t.Parallel()
+	counterPath := filepath.Join(t.TempDir(), "run-count")
+	script := fmt.Sprintf(`#!/bin/sh
+count=0
+if [ -f %q ]; then
+  count=$(cat %q)
+fi
+count=$((count + 1))
+echo "$count" > %q
+if [ "${BEADS_NO_DB:-}" = "true" ]; then
+  printf '[{"id":"b1","title":"ok","description":"d","priority":2,"labels":[]}]'
+  exit 0
+fi
+printf 'Error: failed to get ready work: Error 1146 (HY000): table not found: issues\n' >&2
+exit 1
+`, counterPath, counterPath, counterPath)
+	binaryPath := writeExecutableScript(t, script)
+
+	c := &Client{binary: binaryPath}
+	out, err := c.run("ready", "--json", "--limit", "1")
+	if err != nil {
+		t.Fatalf("run() unexpected error: %v", err)
+	}
+	if !strings.Contains(out, `"id":"b1"`) {
+		t.Fatalf("run() output = %q, want fallback success output", out)
+	}
+
+	countRaw, readErr := os.ReadFile(counterPath)
+	if readErr != nil {
+		t.Fatalf("ReadFile(%q): %v", counterPath, readErr)
+	}
+	if strings.TrimSpace(string(countRaw)) != "2" {
+		t.Fatalf("run() invocation count = %q, want %q", strings.TrimSpace(string(countRaw)), "2")
+	}
+}

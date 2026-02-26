@@ -4,20 +4,14 @@ A Go CLI tool that runs the Gromit loop correctly - with fresh context on each i
 
 ## Architecture
 
-CLI commands live in `cmd/gromit/` — one file per subcommand. Run `gromit --help` for the full list.
+CLI commands live in `cmd/gromit/` — one file per subcommand.
 
 Internal packages live in `internal/` — each directory is a focused package. Key ones:
 - `runner/` — core loop orchestration
 - `config/` — YAML config loading
 - `bead/` — bd CLI integration
-- `claude/` — Claude CLI invocation
 - `prompt/` — prompt template rendering
-- `analyzer/` — failure analysis
 - `review/` — post-build code review
-- `learnings/`, `rules/`, `retro/` — self-improvement system
-- `preflight/` — environment checks before validation
-- `state/` — persistent state across runs
-- `logger/` — JSONL iteration logging
 
 ## Key Principles
 
@@ -29,6 +23,4 @@ Internal packages live in `internal/` — each directory is a focused package. K
 
 ## Code Patterns
 
-### Nil-Field Normalization Visibility Convention
-
-Use **Exported `NormalizeNilFields()`** for types that cross package boundaries (e.g., `Config`, `State`, `InteractiveState`, `SubTask`). These are typically top-level structs loaded externally and called after instantiation. Use **unexported `normalizeNilFields()`** for types consumed only within their package (e.g., `Context`, `ReviewResult`, `Bead`, `Proposals`). These are typically internal data structures called right after deserialization or construction, before rendering or processing. Both ensure nil slices/maps become empty instances (preventing nil→"null" vs []→"[]" marshaling differences).
+Nil-field normalization: use Exported `NormalizeNilFields()` for cross-package types; use unexported `normalizeNilFields()` for internal-only types. Both map nil slices/maps to empty values.
