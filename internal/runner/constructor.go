@@ -177,7 +177,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 	// Stage 4: Review (review.New with Invoker, BeadCreator, PromptRenderer, GitDiffFn)
 	reviewStage := review.New(
 		&reviewInvokerAdapter{router: router, syncOut: syncOut},
-		&beadCreatorAdapter{beads: beadsClient},
+		&beadCreatorAdapter{tracker: trackerClientInterface},
 		&reviewRendererAdapter{r: renderer},
 		gitDiffFn,
 		syncOut,

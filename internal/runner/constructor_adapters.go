@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"sort"
@@ -282,20 +283,42 @@ func (a *reviewInvokerAdapter) StreamRun(ctx context.Context, prompt string, mod
 	return sb.String(), nil
 }
 
-// beadCreatorAdapter wraps bead.Client to satisfy review.BeadCreator.
+// beadCreatorAdapter wraps tracker.Client to satisfy review.BeadCreator.
 type beadCreatorAdapter struct {
-	beads *bead.Client
+	tracker tracker.Client
 }
 
 func (a *beadCreatorAdapter) Create(title string, priority int, labels []string, outputs []string) (string, error) {
-	b, err := a.beads.Create(title, priority, labels, outputs)
+	beadClient := bead.UnwrapBDAdapter(a.tracker)
+	if beadClient != nil {
+		// Use native bead.Client method for optimal compatibility
+		b, err := beadClient.Create(title, priority, labels, outputs)
+		if err != nil {
+			return "", err
+		}
+		if b == nil {
+			return "", fmt.Errorf("beads.Create returned nil")
+		}
+		return b.ID, nil
+	}
+
+	// Fallback: use tracker.Client interface
+	req := tracker.CreateRequest{
+		Title: title,
+		Metadata: map[string]string{
+			"priority":         fmt.Sprintf("%d", priority),
+			"labels":           toJSONList(labels),
+			"expected_outputs": toJSONList(outputs),
+		},
+	}
+	item, err := a.tracker.Create(context.Background(), req)
 	if err != nil {
 		return "", err
 	}
-	if b == nil {
-		return "", fmt.Errorf("beads.Create returned nil")
+	if item == nil {
+		return "", fmt.Errorf("tracker.Create returned nil")
 	}
-	return b.ID, nil
+	return item.ID, nil
 }
 
 // reviewRendererAdapter wraps prompt.Renderer to satisfy review.PromptRenderer.
@@ -860,6 +883,15 @@ func selectEscalationHandler(
 
 	// Default to Handler for priority_based and empty strategy
 	return escalation.NewHandler(cfg, analyzer, beadClient, decomposeFn, createSubFn, logFn, showPartialProgressFn)
+}
+
+// toJSONList converts a string slice to a JSON array string.
+func toJSONList(items []string) string {
+	if len(items) == 0 {
+		return "[]"
+	}
+	data, _ := json.Marshal(items)
+	return string(data)
 }
 
 // Compile-time interface checks
