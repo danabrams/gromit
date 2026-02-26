@@ -748,6 +748,7 @@ type cliStateManager struct {
 }
 
 var _ pipeline.StateManager = (*cliStateManager)(nil)
+var _ learnings.ClaudeRunner = (*pipelineLearningsRunnerAdapter)(nil)
 
 func (m *cliStateManager) GetLastReviewCommit() (string, error) {
 	// Prefer repo-global tags for continuity across worktrees/branches.
