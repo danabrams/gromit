@@ -82,6 +82,24 @@ func TestShouldOverrideDebugModel(t *testing.T) {
 	}
 }
 
+func prepareDebugModelCmd(t *testing.T, withModelFlag, setModel bool) *cobra.Command {
+	t.Helper()
+
+	cmd := &cobra.Command{Use: "debug"}
+	if !withModelFlag {
+		return cmd
+	}
+
+	cmd.Flags().String(debugModelFlag, "opus", "model override")
+	if setModel {
+		if err := cmd.Flags().Set(debugModelFlag, "sonnet"); err != nil {
+			t.Fatalf("setting model flag: %v", err)
+		}
+	}
+
+	return cmd
+}
+
 func TestMaybeWarnModelFlagOnNonClaudeAgent(t *testing.T) {
 	t.Parallel()
 	newCmd := func(withModelFlag bool, setModel bool) *cobra.Command {
