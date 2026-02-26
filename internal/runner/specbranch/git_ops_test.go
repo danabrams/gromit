@@ -281,3 +281,46 @@ func TestRebaseSpecOntoMain_ReturnsConflictError(t *testing.T) {
 		t.Errorf("ConflictError.Operation = %q, want %q", conflictErr.Operation, "rebase")
 	}
 }
+
+// TestFastForwardMergeToMain_ReturnsConflictError verifies that FastForwardMergeToMain
+// returns a ConflictError when the branch cannot be fast-forward merged.
+func TestFastForwardMergeToMain_ReturnsConflictError(t *testing.T) {
+	fixture := helpers.NewDeterministicGitConflictFixture(t)
+	ops := NewGitOps(fixture.Dir)
+
+	// Create spec branch with changes
+	specBranchName := "gromit/spec-merge-conflict-test"
+	err := ops.CreateOrCheckoutSpecBranch(context.Background(), specBranchName)
+	if err != nil {
+		t.Fatalf("CreateOrCheckoutSpecBranch() error = %v", err)
+	}
+
+	// Make a change on spec branch
+	cmd := exec.Command("git", "commit", "--allow-empty", "-m", "spec commit")
+	cmd.Dir = fixture.Dir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to create spec commit: %v", err)
+	}
+
+	// Make another change on main that diverges
+	cmd = exec.Command("git", "checkout", fixture.BaseBranch)
+	cmd.Dir = fixture.Dir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to checkout main: %v", err)
+	}
+
+	cmd = exec.Command("git", "commit", "--allow-empty", "-m", "main commit")
+	cmd.Dir = fixture.Dir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to create main commit: %v", err)
+	}
+
+	// Now spec branch cannot be fast-forward merged
+	err = ops.FastForwardMergeToMain(context.Background(), specBranchName)
+
+	// Should return a ConflictError since fast-forward is not possible
+	var conflictErr *ConflictError
+	if !errors.As(err, &conflictErr) {
+		t.Fatalf("expected ConflictError or regular error, got %T: %v", err, err)
+	}
+}
