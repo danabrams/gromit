@@ -2220,3 +2220,40 @@ func TestRemoveByPath_ErrorsWhenPathNotFound(t *testing.T) {
 		}
 	}
 }
+
+// TestRemoveByPath_ErrorsWhenRemoveFails verifies that RemoveByPath returns
+// an error when git worktree remove fails.
+func TestRemoveByPath_ErrorsWhenRemoveFails(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "myproject")
+	worktreePath := filepath.Join(tmpDir, "session-worktree")
+
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		// Simulate git worktree list --porcelain output showing the path exists
+		if args[0] == "worktree" && args[1] == "list" && len(args) >= 3 && args[2] == "--porcelain" {
+			return fmt.Sprintf("worktree %s\nbranch refs/heads/gromit/test-123\n", worktreePath), nil
+		}
+		// Simulate failure when trying to remove the worktree
+		if args[0] == "worktree" && args[1] == "remove" {
+			return "error: worktree is locked", errors.New("worktree is locked")
+		}
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v, want nil", err)
+	}
+
+	err = m.RemoveByPath(worktreePath)
+	if err == nil {
+		t.Fatal("RemoveByPath() should return error when remove fails, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to remove") {
+		t.Errorf("RemoveByPath() error should mention 'failed to remove', got: %v", err)
+	}
+}
