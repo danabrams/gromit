@@ -299,3 +299,13 @@ The session launcher extraction (launchInSessionIfEnabled) is a good DRY pattern
 ### 2026-02-26 | review | conventions
 Test-only types in non-_test.go files get compiled into the production binary — always use _test.go suffix for test helpers in the same package
 
+### 2026-02-26 | gromit-9bhr | conventions
+When implementing features in TDD red-green cycles, ensure ALL types and interfaces referenced by tests are defined before running the build. Test failures should reference existing types or implementations.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-26 | gromit-9bhr | gotchas
+When creating temporary executable files in Go tests, ensure execute permissions are applied immediately after file write (using os.Chmod) and cleanup happens after all execution is complete. Avoid cleanup races by deferring cleanup at test function scope, not within helper functions.
+
+*Archived from new: filtered: generic engineering advice*
+

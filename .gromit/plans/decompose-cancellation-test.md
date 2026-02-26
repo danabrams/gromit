@@ -1,8 +1,9 @@
 ---
+created: 2026-02-26T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-26T09:15:30Z"
 id: decompose-cancellation-test
 source_spec: decompose-cancellation-test
-created: 2026-02-26
-decomposed: false
 ---
 
 # Decompose Cancellation-Path Test Implementation Plan

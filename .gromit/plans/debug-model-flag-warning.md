@@ -1,8 +1,9 @@
 ---
+created: 2026-02-26T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-26T09:02:57Z"
 id: debug-model-flag-warning
 source_spec: debug-model-flag-warning
-created: 2026-02-26
-decomposed: false
 ---
 
 # Debug --model Flag Warning for Non-Claude Agents Implementation Plan
