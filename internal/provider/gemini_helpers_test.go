@@ -210,3 +210,47 @@ func TestExtractGeminiTokens_EmptyData(t *testing.T) {
 		t.Errorf("expected all zeros, got input=%d, output=%d, cached=%d", inputTokens, outputTokens, cached)
 	}
 }
+
+func TestExtractGeminiCost_FromJSONResponse(t *testing.T) {
+	jsonData := map[string]interface{}{
+		"cost": map[string]interface{}{
+			"total": 0.0,
+		},
+	}
+
+	cost := extractGeminiCost(jsonData)
+	if cost != 0.0 {
+		t.Errorf("expected cost 0.0, got %f", cost)
+	}
+}
+
+func TestExtractGeminiCost_WithValue(t *testing.T) {
+	jsonData := map[string]interface{}{
+		"cost": map[string]interface{}{
+			"total": 0.123456,
+		},
+	}
+
+	cost := extractGeminiCost(jsonData)
+	if cost != 0.123456 {
+		t.Errorf("expected cost 0.123456, got %f", cost)
+	}
+}
+
+func TestExtractGeminiCost_EmptyData(t *testing.T) {
+	cost := extractGeminiCost(map[string]interface{}{})
+	if cost != 0.0 {
+		t.Errorf("expected cost 0.0, got %f", cost)
+	}
+}
+
+func TestExtractGeminiCost_MissingCostField(t *testing.T) {
+	jsonData := map[string]interface{}{
+		"output": "test",
+	}
+
+	cost := extractGeminiCost(jsonData)
+	if cost != 0.0 {
+		t.Errorf("expected cost 0.0, got %f", cost)
+	}
+}
