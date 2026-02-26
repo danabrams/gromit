@@ -203,3 +203,38 @@ func newTrackerQuery() tracker.Query {
 		},
 	}
 }
+
+func TestBDAdapterCreateWithParentPassesParent(t *testing.T) {
+	t.Parallel()
+
+	const expectedParent = "parent-123"
+	var recordedArgs []string
+
+	client := &Client{
+		RunFn: func(args ...string) (string, error) {
+			recordedArgs = append([]string{}, args...)
+			bead := Bead{ID: "child", Title: "child", Parent: expectedParent}
+			data, _ := json.Marshal(bead)
+			return string(data), nil
+		},
+	}
+
+	adapter := NewBDAdapter(client)
+	req := tracker.CreateRequest{Title: "child"}
+
+	if _, err := adapter.CreateWithParent(context.Background(), req, expectedParent); err != nil {
+		t.Fatalf("CreateWithParent() unexpected error: %v", err)
+	}
+
+	found := false
+	for i, arg := range recordedArgs {
+		if arg == "--parent" && i+1 < len(recordedArgs) && recordedArgs[i+1] == expectedParent {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		t.Fatalf("CreateWithParent() did not pass --parent %q to bd create, args: %v", expectedParent, recordedArgs)
+	}
+}
