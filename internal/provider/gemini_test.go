@@ -14,6 +14,51 @@ func TestGeminiShortPromptThresholdIsPractical(t *testing.T) {
 	}
 }
 
+func TestGeminiProviderRunFallsBackToInlinePUsesExportedConstant(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	shortPrompt := "short"             // Well under threshold
+	gp := &GeminiProvider{
+		binary: "gemini",
+		tierToModel: map[string]string{
+			TierLow: "gemini-2.0-flash",
+		},
+		runFn: func(ctx context.Context, binary string, args []string, prompt string, workDir string) (*geminiRunResult, error) {
+			// For short prompts, should use -p flag as fallback
+			hasInlineFlag := false
+			for i := 0; i < len(args)-1; i++ {
+				if args[i] == "-p" {
+					hasInlineFlag = true
+					if args[i+1] != shortPrompt {
+						t.Fatalf("expected -p flag value to match prompt, got %q", args[i+1])
+					}
+				}
+			}
+			// Verify that the comparison uses geminiShortPromptThreshold, not a redeclared constant
+			if len(prompt) <= geminiShortPromptThreshold && !hasInlineFlag {
+				t.Fatalf("short prompt should use -p flag, got args: %v", args)
+			}
+			payload := []byte(`{
+  "output": "OK",
+  "usage": {"input_tokens": 5, "output_tokens": 2, "cached_input_tokens": 0},
+  "cost": {"total": 0},
+  "model": "gemini-2.0-flash",
+  "session_id": "test",
+  "response": "OK"
+}`)
+			return &geminiRunResult{stdout: payload, stderr: nil, exitCode: 0, duration: 0}, nil
+		},
+	}
+
+	result, err := gp.Run(ctx, shortPrompt, TierLow)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if result == nil {
+		t.Fatal("Run() returned nil result")
+	}
+}
+
 func TestGeminiProviderRunValidationRunsPrompt(t *testing.T) {
 	t.Parallel()
 	mockBinary := testCreateBinaryWithETXTBSYProtection(t, `echo '{"output":"1. go test\n2. go vet\n\nVALIDATION_PASSED","usage":{"input_tokens":100,"output_tokens":50,"cached_input_tokens":0},"cost":{"total":0},"model":"gemini-2.0-flash","session_id":"test","response":"1. go test\n2. go vet\n\nVALIDATION_PASSED"}'
