@@ -243,3 +243,128 @@ func TestE2E_FilterNonexistentCallLog_ReturnsEmptySlice(t *testing.T) {
 		t.Errorf("expected empty slice when call log doesn't exist, got %d calls: %v", len(bdCalls), bdCalls)
 	}
 }
+
+func TestE2E_FilteredCallOrder_PreservesSequence(t *testing.T) {
+	env := setupE2E(t)
+
+	calls := []string{
+		"claude -p --model haiku",
+		"bd ready --json --limit 10",
+		"claude -p --model sonnet",
+		"codex run --model sonnet",
+		"claude -p --model opus",
+		"bd close test-1",
+	}
+
+	if err := writeE2ECallLog(env, calls...); err != nil {
+		t.Fatalf("writeE2ECallLog failed: %v", err)
+	}
+
+	claudeCalls, err := FilterE2EToolCalls(env, ToolCallClaude)
+	if err != nil {
+		t.Fatalf("FilterE2EToolCalls(Claude) failed: %v", err)
+	}
+
+	expectedClaude := []string{
+		"claude -p --model haiku",
+		"claude -p --model sonnet",
+		"claude -p --model opus",
+	}
+
+	if len(claudeCalls) != len(expectedClaude) {
+		t.Fatalf("expected %d Claude calls, got %d: %v", len(expectedClaude), len(claudeCalls), claudeCalls)
+	}
+
+	for i, expected := range expectedClaude {
+		if claudeCalls[i] != expected {
+			t.Errorf("Claude call %d: expected %q, got %q", i, expected, claudeCalls[i])
+		}
+	}
+}
+
+func TestE2E_WriteAndFilterContent_ExactMatching(t *testing.T) {
+	env := setupE2E(t)
+
+	calls := []string{
+		"bd ready --json --limit 10",
+		"bd close test-bead-1",
+		"bd sync",
+		"bd ready --json --limit 10",
+		"bd close test-bead-2",
+	}
+
+	if err := writeE2ECallLog(env, calls...); err != nil {
+		t.Fatalf("writeE2ECallLog failed: %v", err)
+	}
+
+	bdCalls, err := FilterE2EToolCalls(env, ToolCallBD)
+	if err != nil {
+		t.Fatalf("FilterE2EToolCalls(BD) failed: %v", err)
+	}
+
+	if len(bdCalls) != len(calls) {
+		t.Fatalf("expected %d BD calls, got %d: %v", len(calls), len(bdCalls), bdCalls)
+	}
+
+	for i, expected := range calls {
+		if bdCalls[i] != expected {
+			t.Errorf("BD call %d: expected %q, got %q", i, expected, bdCalls[i])
+		}
+	}
+}
+
+func TestE2E_FilterComplexCallArguments(t *testing.T) {
+	env := setupE2E(t)
+
+	calls := []string{
+		`claude -p "task description" --model haiku --stream --temperature 0.7`,
+		`bd ready --json --limit 10 --filter "status:open"`,
+		`codex run --model sonnet --input-tokens 4000 --output-tokens 2000`,
+	}
+
+	if err := writeE2ECallLog(env, calls...); err != nil {
+		t.Fatalf("writeE2ECallLog failed: %v", err)
+	}
+
+	claudeCalls, err := FilterE2EToolCalls(env, ToolCallClaude)
+	if err != nil {
+		t.Fatalf("FilterE2EToolCalls(Claude) failed: %v", err)
+	}
+
+	if len(claudeCalls) != 1 {
+		t.Fatalf("expected 1 Claude call, got %d: %v", len(claudeCalls), claudeCalls)
+	}
+
+	expectedCall := `claude -p "task description" --model haiku --stream --temperature 0.7`
+	if claudeCalls[0] != expectedCall {
+		t.Errorf("expected %q, got %q", expectedCall, claudeCalls[0])
+	}
+
+	bdCalls, err := FilterE2EToolCalls(env, ToolCallBD)
+	if err != nil {
+		t.Fatalf("FilterE2EToolCalls(BD) failed: %v", err)
+	}
+
+	if len(bdCalls) != 1 {
+		t.Fatalf("expected 1 BD call, got %d: %v", len(bdCalls), bdCalls)
+	}
+
+	expectedBD := `bd ready --json --limit 10 --filter "status:open"`
+	if bdCalls[0] != expectedBD {
+		t.Errorf("expected %q, got %q", expectedBD, bdCalls[0])
+	}
+
+	codexCalls, err := FilterE2EToolCalls(env, ToolCallCodex)
+	if err != nil {
+		t.Fatalf("FilterE2EToolCalls(Codex) failed: %v", err)
+	}
+
+	if len(codexCalls) != 1 {
+		t.Fatalf("expected 1 Codex call, got %d: %v", len(codexCalls), codexCalls)
+	}
+
+	expectedCodex := `codex run --model sonnet --input-tokens 4000 --output-tokens 2000`
+	if codexCalls[0] != expectedCodex {
+		t.Errorf("expected %q, got %q", expectedCodex, codexCalls[0])
+	}
+}
