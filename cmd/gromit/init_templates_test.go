@@ -8,6 +8,15 @@ import (
 	"testing"
 )
 
+type profileExpectation struct {
+	profileLine        string
+	rulesContains      []string
+	rulesNotContains   []string
+	templateContains   []string
+	nextStepsContains  []string
+	nextStepsNotContain []string
+}
+
 // TestInitGoLogicFileIsShort verifies that init.go stays under 500 lines (template constants moved to separate file)
 func TestInitGoLogicFileIsShort(t *testing.T) {
 	t.Parallel()
@@ -239,6 +248,114 @@ func TestInitWritesProfileAwareRules(t *testing.T) {
 	}
 }
 
+func TestInitProfileMatrixGeneratesContent(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name                 string
+		profile              string
+		signals              []string
+		rulesContains        []string
+		rulesNotContains     []string
+		templateContains     string
+		nextStepsContains    []string
+		nextStepsNotContains []string
+	}{
+		{
+			name:              "go profile",
+			profile:           "go",
+			signals:           []string{"go.mod"},
+			rulesContains:     []string{"go fmt"},
+			templateContains:  "go test",
+			nextStepsContains: []string{"go test"},
+		},
+		{
+			name:                 "node profile",
+			profile:              "node",
+			signals:              []string{"package.json"},
+			rulesContains:        []string{"ESLint"},
+			rulesNotContains:     []string{"go fmt"},
+			templateContains:     "npm test",
+			nextStepsContains:    []string{"npm test"},
+			nextStepsNotContains: []string{"go test"},
+		},
+		{
+			name:                 "python profile",
+			profile:              "python",
+			signals:              []string{"pyproject.toml"},
+			rulesContains:        []string{"Black"},
+			rulesNotContains:     []string{"go fmt"},
+			templateContains:     "pytest",
+			nextStepsContains:    []string{"pytest"},
+			nextStepsNotContains: []string{"go test"},
+		},
+		{
+			name:                 "custom profile",
+			profile:              "custom",
+			rulesContains:        []string{"project-specific rules"},
+			templateContains:     "Custom profiles have no default validation commands",
+			nextStepsContains:    []string{"gromit run --dry-run"},
+			nextStepsNotContains: []string{"go test"},
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir, stdout := runInitProfileMatrix(t, tc.profile, tc.signals)
+
+			cfgPath := filepath.Join(dir, "gromit.yaml")
+			configContent, err := os.ReadFile(cfgPath)
+			if err != nil {
+				t.Fatalf("failed to read gromit.yaml: %v", err)
+			}
+			expectedProfileLine := "project:\n  profile: \"" + tc.profile + "\""
+			if !strings.Contains(string(configContent), expectedProfileLine) {
+				t.Fatalf("gromit.yaml for profile %s missing profile line; got:\n%s", tc.profile, string(configContent))
+			}
+
+			rulesPath := filepath.Join(dir, ".gromit", "RULES.md")
+			rulesContent, err := os.ReadFile(rulesPath)
+			if err != nil {
+				t.Fatalf("failed to read RULES.md: %v", err)
+			}
+			rulesStr := string(rulesContent)
+			for _, want := range tc.rulesContains {
+				if !strings.Contains(rulesStr, want) {
+					t.Fatalf("RULES.md for %s missing %q; got:\n%s", tc.profile, want, rulesStr)
+				}
+			}
+			for _, not := range tc.rulesNotContains {
+				if strings.Contains(rulesStr, not) {
+					t.Fatalf("RULES.md for %s unexpectedly contained %q", tc.profile, not)
+				}
+			}
+
+			templatePath := filepath.Join(dir, ".gromit", "templates", "PROMPT_validate.md")
+			templateContent, err := os.ReadFile(templatePath)
+			if err != nil {
+				t.Fatalf("failed to read validate template: %v", err)
+			}
+			if !strings.Contains(string(templateContent), tc.templateContains) {
+				t.Fatalf("validate template for %s missing %q, got:\n%s", tc.profile, tc.templateContains, string(templateContent))
+			}
+
+			for _, want := range tc.nextStepsContains {
+				if !strings.Contains(stdout, want) {
+					t.Fatalf("next steps output for %s missing %q; got:\n%s", tc.profile, want, stdout)
+				}
+			}
+			for _, not := range tc.nextStepsNotContains {
+				if strings.Contains(stdout, not) {
+					t.Fatalf("next steps output for %s unexpectedly contained %q", tc.profile, not)
+				}
+			}
+		})
+	}
+}
+
 // TestRunInitUsesProfileAwareRulesAndNextSteps verifies that the actual runInit command
 // uses profile-aware RULES.md and next-steps guidance (not defaultRules and generic steps)
 func TestRunInitUsesProfileAwareRulesAndNextSteps(t *testing.T) {
@@ -290,4 +407,3 @@ validation:
 		t.Error("RULES.md missing universal safety guidance")
 	}
 }
-
