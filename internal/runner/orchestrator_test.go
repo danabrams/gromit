@@ -1475,6 +1475,64 @@ func TestOrchestrator_ControlLimitAlert_NotTriggeredWhenWindowTooSmall(t *testin
 	}
 }
 
+// TestOrchestrator_ControlLimitAlert_TriggeredWhenFirstPassBelowEightyPercent ensures
+// the alert fires when first-pass success dips below 80% in a full 30-iteration window.
+func TestOrchestrator_ControlLimitAlert_TriggeredWhenFirstPassBelowEightyPercent(t *testing.T) {
+	metricsDir := t.TempDir()
+	stateDir := t.TempDir()
+
+	trend := &logger.ProcessTrend{
+		TotalIterations: 30,
+		WindowSize:      30,
+		LatestWindow: logger.ProcessTrendWindow{
+			FirstPassSuccess: 0.75, // Below the new 80% guard
+		},
+	}
+
+	trendPath := filepath.Join(metricsDir, "process_trend.json")
+	trendData, err := json.MarshalIndent(trend, "", "  ")
+	if err != nil {
+		t.Fatalf("marshalling trend: %v", err)
+	}
+	if err := os.WriteFile(trendPath, trendData, 0644); err != nil {
+		t.Fatalf("writing trend file: %v", err)
+	}
+
+	stateFile, err := state.NewFile(stateDir)
+	if err != nil {
+		t.Fatalf("creating state file: %v", err)
+	}
+
+	trendUpdater := &fakeTrendUpdater{trend: trend}
+	getBead := func(_ context.Context) (*bead.Bead, error) { return nil, nil }
+
+	cfg := OrchestratorConfig{
+		Gate:         &fakeStage{},
+		Build:        &fakeStage{},
+		Validate:     &fakeStage{},
+		Epilogue:     &fakeStage{},
+		GetBead:      getBead,
+		Config:       &config.Config{},
+		Output:       io.Discard,
+		StateSaver:   stateFile,
+		TrendUpdater: trendUpdater,
+		LogsDir:      trendPath,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if err := stateFile.Load(); err != nil {
+		t.Fatalf("loading state file: %v", err)
+	}
+
+	if !stateFile.IsControlLimitAlertTriggered() {
+		t.Error("ControlLimitAlert flag should be set when FirstPassSuccess < 0.80")
+	}
+}
+
 // TestOrchestrator_ControlLimitAlert_LogsWarningWhenTriggered verifies that when
 // the control limit alert is triggered, a warning message is logged to the output.
 func TestOrchestrator_ControlLimitAlert_LogsWarningWhenTriggered(t *testing.T) {
