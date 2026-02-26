@@ -49,3 +49,13 @@ func (h *DecomposeFirstHandler) ShouldDecomposeBeforeEscalate(bc *runtypes.BeadC
 	}
 	return bc.RetriesThisModel >= h.maxRetriesBeforeDecompose
 }
+
+// IsAtomicBead determines if a bead is atomic and should not be decomposed.
+// A bead is atomic if decomposition is not available.
+func (h *DecomposeFirstHandler) IsAtomicBead(bc *runtypes.BeadContext) bool {
+	if bc == nil {
+		return true
+	}
+	// A bead is atomic if decomposition is not available
+	return h.decomposeFn == nil
+}
