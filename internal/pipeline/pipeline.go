@@ -82,7 +82,7 @@ type Deps struct {
 	AgentResolver     AgentResolver
 	LLMClient         LLMClient
 	ReviewInvoker     ReviewInvoker
-	BeadClient        BeadClient
+	TrackerClient     TrackerClient
 	BacklogClient     BacklogClient
 	RefineRenderer    RefineRenderer
 	PlanRenderer      PlanRenderer
@@ -131,13 +131,13 @@ type ReviewInvoker interface {
 	Run(prompt string, model string) (*LLMRunResult, error)
 }
 
-// BeadClient abstracts bead (bd) CLI operations.
-type BeadClient interface {
-	Ready() (*BeadInfo, error)
-	Show(id string) (*BeadInfo, error)
-	Create(title string, priority int, labels []string, outputs []string) (*BeadInfo, error)
-	CreateWithDepsAndDescription(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error)
-	Close(id string) error
+// TrackerClient abstracts tracker-compatible bead operations.
+type TrackerClient interface {
+	Ready(ctx context.Context) (*BeadInfo, error)
+	Show(ctx context.Context, id string) (*BeadInfo, error)
+	Create(ctx context.Context, title string, priority int, labels []string, outputs []string) (*BeadInfo, error)
+	CreateWithDepsAndDescription(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error)
+	Close(ctx context.Context, id string) error
 }
 
 // BeadQueryClient abstracts bead query and status operations.
@@ -296,7 +296,7 @@ func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) 
 	beadsCreated := 0
 	for _, bp := range reviewResult.BeadsToCreate {
 		labels := review.BuildReviewBeadLabels(bp.Labels)
-		_, err := p.deps.BeadClient.Create(bp.Title, bp.Priority, labels, review.ExpectedOutputsOrTitle(bp.ExpectedOutputs, bp.Title))
+		_, err := p.deps.TrackerClient.Create(ctx, bp.Title, bp.Priority, labels, review.ExpectedOutputsOrTitle(bp.ExpectedOutputs, bp.Title))
 		if err != nil {
 			return nil, fmt.Errorf("creating review bead: %w", err)
 		}
@@ -374,7 +374,7 @@ func (p *Pipeline) validateReviewDeps() error {
 	return validateRequiredDeps([]namedDependency{
 		{name: "ReviewInvoker", dep: p.deps.ReviewInvoker},
 		{name: "ReviewRenderer", dep: p.deps.ReviewRenderer},
-		{name: "BeadClient", dep: p.deps.BeadClient},
+		{name: "TrackerClient", dep: p.deps.TrackerClient},
 		{name: "BacklogClient", dep: p.deps.BacklogClient},
 		{name: "LearningsManager", dep: p.deps.LearningsManager},
 		{name: "LogWriter", dep: p.deps.LogWriter},

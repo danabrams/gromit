@@ -6,6 +6,7 @@
 package pipeline
 
 import (
+	"context"
 	"testing"
 )
 
@@ -60,7 +61,7 @@ func TestBeadClient_ReturnsTypedInfo(t *testing.T) {
 		},
 	}
 
-	bead, err := mock.Ready()
+	bead, err := mock.Ready(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -175,6 +176,7 @@ func TestDecomposeWorkflow_UsesTypedStructsDirectly(t *testing.T) {
 
 	// Create a bead and access ID directly from typed return
 	result, err := mockBeadClient.CreateWithDepsAndDescription(
+		context.Background(),
 		"Test Task",
 		1,
 		[]string{"spec:test"},
@@ -220,35 +222,35 @@ type mockBeadClientTyped struct {
 	closeFn          func(id string) error
 }
 
-func (m *mockBeadClientTyped) Ready() (*BeadInfo, error) {
+func (m *mockBeadClientTyped) Ready(ctx context.Context) (*BeadInfo, error) {
 	if m.readyFn != nil {
 		return m.readyFn()
 	}
 	return &BeadInfo{}, nil
 }
 
-func (m *mockBeadClientTyped) Show(id string) (*BeadInfo, error) {
+func (m *mockBeadClientTyped) Show(ctx context.Context, id string) (*BeadInfo, error) {
 	if m.showFn != nil {
 		return m.showFn(id)
 	}
 	return &BeadInfo{ID: id}, nil
 }
 
-func (m *mockBeadClientTyped) Create(title string, priority int, labels, outputs []string) (*BeadInfo, error) {
+func (m *mockBeadClientTyped) Create(ctx context.Context, title string, priority int, labels, outputs []string) (*BeadInfo, error) {
 	if m.createFn != nil {
 		return m.createFn(title, priority, labels, outputs)
 	}
 	return &BeadInfo{Title: title}, nil
 }
 
-func (m *mockBeadClientTyped) CreateWithDepsAndDescription(title string, priority int, labels, criteria, deps []string, desc string) (*BeadInfo, error) {
+func (m *mockBeadClientTyped) CreateWithDepsAndDescription(ctx context.Context, title string, priority int, labels, criteria, deps []string, desc string) (*BeadInfo, error) {
 	if m.createWithDepsFn != nil {
 		return m.createWithDepsFn(title, priority, labels, criteria, deps, desc)
 	}
 	return &BeadInfo{Title: title}, nil
 }
 
-func (m *mockBeadClientTyped) Close(id string) error {
+func (m *mockBeadClientTyped) Close(ctx context.Context, id string) error {
 	if m.closeFn != nil {
 		return m.closeFn(id)
 	}
@@ -331,7 +333,7 @@ func TestPipeline_WorksWithTypedDependencies(t *testing.T) {
 
 	deps := &Deps{
 		LLMClient:  mockClaude,
-		BeadClient: mockBead,
+		TrackerClient: mockBead,
 	}
 
 	paths := &Paths{

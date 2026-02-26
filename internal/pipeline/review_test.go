@@ -186,7 +186,7 @@ func TestReviewNonInteractiveWorkflow_E2E(t *testing.T) {
 	deps := &Deps{
 		ReviewRenderer:   mockRenderer,
 		ReviewInvoker:    mockReviewInvoker,
-		BeadClient:       mockBead,
+		TrackerClient:       mockBead,
 		BacklogClient:    mockBacklog,
 		LearningsManager: mockLearnings,
 		LogWriter:        mockLog,
@@ -320,7 +320,7 @@ func TestReviewNonInteractiveWorkflow_CreatesBeadsWithFromReviewLabel(t *testing
 	deps := &Deps{
 		ReviewRenderer:   mockRenderer,
 		ReviewInvoker:    mockReviewInvoker,
-		BeadClient:       mockBead,
+		TrackerClient:       mockBead,
 		BacklogClient:    &reviewAcceptanceMockBacklogClient{},
 		LearningsManager: &reviewAcceptanceMockLearningsManager{},
 		LogWriter:        &reviewAcceptanceMockLogWriter{},
@@ -407,7 +407,7 @@ func TestReviewNonInteractiveWorkflow_CreatesBacklogWithLabels(t *testing.T) {
 	deps := &Deps{
 		ReviewRenderer:   mockRenderer,
 		ReviewInvoker:    mockReviewInvoker,
-		BeadClient:       &reviewAcceptanceMockBeadClient{},
+		TrackerClient:       &reviewAcceptanceMockBeadClient{},
 		BacklogClient:    mockBacklog,
 		LearningsManager: &reviewAcceptanceMockLearningsManager{},
 		LogWriter:        &reviewAcceptanceMockLogWriter{},
@@ -467,7 +467,7 @@ func TestReviewNonInteractiveWorkflow_RespectsTimeout(t *testing.T) {
 	deps := &Deps{
 		ReviewRenderer:   mockRenderer,
 		ReviewInvoker:    mockReviewInvoker,
-		BeadClient:       &reviewAcceptanceMockBeadClient{},
+		TrackerClient:       &reviewAcceptanceMockBeadClient{},
 		BacklogClient:    &reviewAcceptanceMockBacklogClient{},
 		LearningsManager: &reviewAcceptanceMockLearningsManager{},
 		LogWriter:        &reviewAcceptanceMockLogWriter{},
@@ -527,7 +527,7 @@ func TestPipeline_validateReviewDeps(t *testing.T) {
 		return &Deps{
 			ReviewInvoker:    &reviewAcceptanceMockReviewInvoker{},
 			ReviewRenderer:   &reviewAcceptanceMockReviewRenderer{},
-			BeadClient:       &reviewAcceptanceMockBeadClient{},
+			TrackerClient:       &reviewAcceptanceMockBeadClient{},
 			BacklogClient:    &reviewAcceptanceMockBacklogClient{},
 			LearningsManager: &reviewAcceptanceMockLearningsManager{},
 			LogWriter:        &reviewAcceptanceMockLogWriter{},
@@ -551,9 +551,9 @@ func TestPipeline_validateReviewDeps(t *testing.T) {
 			wantErr: "pipeline: nil ReviewRenderer",
 		},
 		{
-			name:    "nil BeadClient",
-			mutate:  func(d *Deps) { d.BeadClient = nil },
-			wantErr: "pipeline: nil BeadClient",
+			name:    "nil TrackerClient",
+			mutate:  func(d *Deps) { d.TrackerClient = nil },
+			wantErr: "pipeline: nil TrackerClient",
 		},
 		{
 			name:    "nil BacklogClient",
@@ -729,7 +729,7 @@ func TestReviewNonInteractiveWorkflow_UsesExpectedOutputsOrTitle(t *testing.T) {
 	deps := &Deps{
 		ReviewRenderer:   mockRenderer,
 		ReviewInvoker:    mockReviewInvoker,
-		BeadClient:       mockBead,
+		TrackerClient:       mockBead,
 		BacklogClient:    &reviewAcceptanceMockBacklogClient{},
 		LearningsManager: &reviewAcceptanceMockLearningsManager{},
 		LogWriter:        &reviewAcceptanceMockLogWriter{},
@@ -783,26 +783,26 @@ type reviewAcceptanceMockBeadClient struct {
 	createFunc func(title string, priority int, labels []string, outputs []string) (*BeadInfo, error)
 }
 
-func (m *reviewAcceptanceMockBeadClient) Ready() (*BeadInfo, error) {
+func (m *reviewAcceptanceMockBeadClient) Ready(ctx context.Context) (*BeadInfo, error) {
 	return nil, nil
 }
 
-func (m *reviewAcceptanceMockBeadClient) Show(id string) (*BeadInfo, error) {
+func (m *reviewAcceptanceMockBeadClient) Show(ctx context.Context, id string) (*BeadInfo, error) {
 	return nil, nil
 }
 
-func (m *reviewAcceptanceMockBeadClient) Create(title string, priority int, labels []string, outputs []string) (*BeadInfo, error) {
+func (m *reviewAcceptanceMockBeadClient) Create(ctx context.Context, title string, priority int, labels []string, outputs []string) (*BeadInfo, error) {
 	if m.createFunc != nil {
 		return m.createFunc(title, priority, labels, outputs)
 	}
 	return &BeadInfo{ID: "bead-1"}, nil
 }
 
-func (m *reviewAcceptanceMockBeadClient) CreateWithDepsAndDescription(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+func (m *reviewAcceptanceMockBeadClient) CreateWithDepsAndDescription(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 	return nil, fmt.Errorf("not used by review workflow")
 }
 
-func (m *reviewAcceptanceMockBeadClient) Close(id string) error {
+func (m *reviewAcceptanceMockBeadClient) Close(ctx context.Context, id string) error {
 	return nil
 }
 

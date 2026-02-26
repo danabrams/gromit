@@ -107,8 +107,8 @@ func TestClaudeClientRun_FailureResult(t *testing.T) {
 	}
 }
 
-// TestBeadClientReady_ReturnsTypedResult verifies BeadClient.Ready returns *BeadInfo instead of interface{}
-// Expected failure: BeadClient.Ready() currently returns (interface{}, error) and BeadInfo type does not exist
+// TestTrackerClientReady_ReturnsTypedResult verifies TrackerClient.Ready returns *BeadInfo instead of interface{}
+// Expected failure: TrackerClient.Ready() currently returns (interface{}, error) and BeadInfo type does not exist
 func TestBeadClientReady_ReturnsTypedResult(t *testing.T) {
 	mockBead := &typedInterfacesBeadClient{
 		readyFn: func() (*BeadInfo, error) {
@@ -121,7 +121,7 @@ func TestBeadClientReady_ReturnsTypedResult(t *testing.T) {
 		},
 	}
 
-	result, err := mockBead.Ready()
+		result, err := mockBead.Ready(context.Background())
 	if err != nil {
 		t.Fatalf("Ready() error = %v", err)
 	}
@@ -147,8 +147,8 @@ func TestBeadClientReady_ReturnsTypedResult(t *testing.T) {
 	}
 }
 
-// TestBeadClientShow_ReturnsTypedResult verifies BeadClient.Show returns *BeadInfo instead of interface{}
-// Expected failure: BeadClient.Show() currently returns (interface{}, error) and BeadInfo type does not exist
+// TestTrackerClientShow_ReturnsTypedResult verifies TrackerClient.Show returns *BeadInfo instead of interface{}
+// Expected failure: TrackerClient.Show() currently returns (interface{}, error) and BeadInfo type does not exist
 func TestBeadClientShow_ReturnsTypedResult(t *testing.T) {
 	mockBead := &typedInterfacesBeadClient{
 		showFn: func(id string) (*BeadInfo, error) {
@@ -161,7 +161,7 @@ func TestBeadClientShow_ReturnsTypedResult(t *testing.T) {
 		},
 	}
 
-	result, err := mockBead.Show("bead-456")
+	result, err := mockBead.Show(context.Background(), "bead-456")
 	if err != nil {
 		t.Fatalf("Show() error = %v", err)
 	}
@@ -183,8 +183,8 @@ func TestBeadClientShow_ReturnsTypedResult(t *testing.T) {
 	}
 }
 
-// TestBeadClientCreate_ReturnsTypedResult verifies BeadClient.Create returns *BeadInfo instead of interface{}
-// Expected failure: BeadClient.Create() currently returns (interface{}, error) and BeadInfo type does not exist
+// TestTrackerClientCreate_ReturnsTypedResult verifies TrackerClient.Create returns *BeadInfo instead of interface{}
+// Expected failure: TrackerClient.Create() currently returns (interface{}, error) and BeadInfo type does not exist
 func TestBeadClientCreate_ReturnsTypedResult(t *testing.T) {
 	mockBead := &typedInterfacesBeadClient{
 		createFn: func(title string, priority int, labels []string, outputs []string) (*BeadInfo, error) {
@@ -197,7 +197,7 @@ func TestBeadClientCreate_ReturnsTypedResult(t *testing.T) {
 		},
 	}
 
-	result, err := mockBead.Create("New bead", 0, []string{"spec:test"}, nil)
+	result, err := mockBead.Create(context.Background(), "New bead", 0, []string{"spec:test"}, nil)
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -230,6 +230,7 @@ func TestBeadClientCreateWithDepsAndDescription_ReturnsTypedResult(t *testing.T)
 	}
 
 	result, err := mockBead.CreateWithDepsAndDescription(
+		context.Background(),
 		"Complex bead",
 		1,
 		[]string{"spec:auth"},
@@ -338,8 +339,8 @@ func TestDecompose_NoTypeAssertions(t *testing.T) {
 	}
 
 	deps := &Deps{
-		LLMClient:  mockClaude,
-		BeadClient: mockBead,
+		LLMClient:     mockClaude,
+		TrackerClient: mockBead,
 	}
 	paths := &Paths{
 		GromitDir: tmpDir,
@@ -354,7 +355,7 @@ func TestDecompose_NoTypeAssertions(t *testing.T) {
 	}
 
 	if !beadCreationCalled {
-		t.Error("BeadClient.CreateWithDepsAndDescription was not called")
+		t.Error("TrackerClient.CreateWithDepsAndDescription was not called")
 	}
 
 	if len(result.CreatedBeads) != 2 {
@@ -462,7 +463,7 @@ func TestReviewNonInteractive_UsesTypedClaudeResult(t *testing.T) {
 
 	deps := &Deps{
 		ReviewInvoker:    mockClaude,
-		BeadClient:       mockBead,
+		TrackerClient:    mockBead,
 		BacklogClient:    mockBacklog,
 		LearningsManager: mockLearnings,
 		StateManager:     mockState,
@@ -515,35 +516,35 @@ type typedInterfacesBeadClient struct {
 	createWithDepsFn func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error)
 }
 
-func (m *typedInterfacesBeadClient) Ready() (*BeadInfo, error) {
+func (m *typedInterfacesBeadClient) Ready(ctx context.Context) (*BeadInfo, error) {
 	if m.readyFn != nil {
 		return m.readyFn()
 	}
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (m *typedInterfacesBeadClient) Show(id string) (*BeadInfo, error) {
+func (m *typedInterfacesBeadClient) Show(ctx context.Context, id string) (*BeadInfo, error) {
 	if m.showFn != nil {
 		return m.showFn(id)
 	}
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (m *typedInterfacesBeadClient) Create(title string, priority int, labels []string, outputs []string) (*BeadInfo, error) {
+func (m *typedInterfacesBeadClient) Create(ctx context.Context, title string, priority int, labels []string, outputs []string) (*BeadInfo, error) {
 	if m.createFn != nil {
 		return m.createFn(title, priority, labels, outputs)
 	}
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (m *typedInterfacesBeadClient) CreateWithDepsAndDescription(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+func (m *typedInterfacesBeadClient) CreateWithDepsAndDescription(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 	if m.createWithDepsFn != nil {
 		return m.createWithDepsFn(title, priority, labels, criteria, deps, desc)
 	}
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (m *typedInterfacesBeadClient) Close(id string) error {
+func (m *typedInterfacesBeadClient) Close(ctx context.Context, id string) error {
 	return fmt.Errorf("not implemented")
 }
 
@@ -626,6 +627,6 @@ func hasFunction(content, funcName string) bool {
 
 // Ensure mocks compile against the new interface signatures
 var _ LLMClient = (*typedInterfacesClaudeClient)(nil)
-var _ BeadClient = (*typedInterfacesBeadClient)(nil)
+var _ TrackerClient = (*typedInterfacesBeadClient)(nil)
 var _ ReviewRenderer = (*typedInterfacesReviewRenderer)(nil)
 var _ LogWriter = (*typedInterfacesLogWriter)(nil)

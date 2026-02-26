@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"context"
 	"testing"
 	"time"
 )
@@ -10,7 +11,7 @@ import (
 func TestAllMocks_SatisfyInterfacesWithTypedSignatures(t *testing.T) {
 	// Compile-time checks - these will fail if mocks don't match interfaces
 	var _ LLMClient = (*testLLMClient)(nil)
-	var _ BeadClient = (*testBeadClient)(nil)
+	var _ TrackerClient = (*testBeadClient)(nil)
 	var _ ReviewRenderer = (*testReviewRenderer)(nil)
 
 	// Verify LLMClient mock returns typed LLMRunResult
@@ -26,22 +27,22 @@ func TestAllMocks_SatisfyInterfacesWithTypedSignatures(t *testing.T) {
 	})
 
 	// Verify BeadClient mock returns typed BeadInfo
-	t.Run("BeadClient methods return typed BeadInfo", func(t *testing.T) {
+	t.Run("TrackerClient methods return typed BeadInfo", func(t *testing.T) {
 		mock := &testBeadClient{}
 
-		ready, err := mock.Ready()
+		ready, err := mock.Ready(context.Background())
 		_ = ready
 		_ = err
 
-		show, err := mock.Show("test-id")
+		show, err := mock.Show(context.Background(), "test-id")
 		_ = show
 		_ = err
 
-		create, err := mock.Create("title", 1, []string{"label"}, []string{"output"})
+		create, err := mock.Create(context.Background(), "title", 1, []string{"label"}, []string{"output"})
 		_ = create
 		_ = err
 
-		createWithDeps, err := mock.CreateWithDepsAndDescription("title", 1, []string{"label"}, []string{"criterion"}, []string{"dep"}, "desc")
+		createWithDeps, err := mock.CreateWithDepsAndDescription(context.Background(), "title", 1, []string{"label"}, []string{"criterion"}, []string{"dep"}, "desc")
 		_ = createWithDeps
 		_ = err
 	})
@@ -63,7 +64,7 @@ func TestAllMocks_SatisfyInterfacesWithTypedSignatures(t *testing.T) {
 func TestDecomposeAcceptanceMocks_UseTypedReturns(t *testing.T) {
 	// Compile-time checks
 	var _ LLMClient = (*decomposeAcceptanceLLMClient)(nil)
-	var _ BeadClient = (*decomposeAcceptanceBeadClient)(nil)
+	var _ TrackerClient = (*decomposeAcceptanceBeadClient)(nil)
 
 	t.Run("decomposeAcceptanceLLMClient returns LLMRunResult", func(t *testing.T) {
 		mock := &decomposeAcceptanceLLMClient{
@@ -105,7 +106,7 @@ func TestDecomposeAcceptanceMocks_UseTypedReturns(t *testing.T) {
 			},
 		}
 
-		result, err := mock.CreateWithDepsAndDescription("Test", 1, []string{"test"}, []string{"criterion"}, []string{"dep-1"}, "desc")
+		result, err := mock.CreateWithDepsAndDescription(context.Background(), "Test", 1, []string{"test"}, []string{"criterion"}, []string{"dep-1"}, "desc")
 		if err != nil {
 			t.Fatalf("CreateWithDepsAndDescription() failed: %v", err)
 		}
@@ -124,7 +125,7 @@ func TestDecomposeAcceptanceMocks_UseTypedReturns(t *testing.T) {
 func TestReviewAcceptanceMocks_UseTypedReturns(t *testing.T) {
 	// Compile-time checks
 	var _ ReviewInvoker = (*reviewAcceptanceMockReviewInvoker)(nil)
-	var _ BeadClient = (*reviewAcceptanceMockBeadClient)(nil)
+	var _ TrackerClient = (*reviewAcceptanceMockBeadClient)(nil)
 
 	t.Run("reviewAcceptanceMockReviewInvoker returns LLMRunResult", func(t *testing.T) {
 		mock := &reviewAcceptanceMockReviewInvoker{
@@ -160,7 +161,7 @@ func TestReviewAcceptanceMocks_UseTypedReturns(t *testing.T) {
 			},
 		}
 
-		result, err := mock.Create("Review bead", 1, []string{"from-review"}, []string{})
+		result, err := mock.Create(context.Background(), "Review bead", 1, []string{"from-review"}, []string{})
 		if err != nil {
 			t.Fatalf("Create() failed: %v", err)
 		}
@@ -197,7 +198,7 @@ func TestDecomposeAcceptanceBeadDef_DoesNotExist(t *testing.T) {
 	}
 
 	// Use the mock
-	result, err := mock.CreateWithDepsAndDescription("Test", 1, []string{"label"}, []string{"criterion"}, []string{"dep"}, "desc")
+	result, err := mock.CreateWithDepsAndDescription(context.Background(), "Test", 1, []string{"label"}, []string{"criterion"}, []string{"dep"}, "desc")
 	if err != nil {
 		t.Fatalf("CreateWithDepsAndDescription failed: %v", err)
 	}

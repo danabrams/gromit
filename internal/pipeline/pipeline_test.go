@@ -46,8 +46,9 @@ func TestPaths_FieldAccess(t *testing.T) {
 func TestDeps_FieldAccess(t *testing.T) {
 	deps := Deps{
 		AgentResolver:     &testAgentResolver{},
-		LLMClient:         &testLLMClient{},
-		BacklogClient:     &testBacklogClient{},
+	LLMClient:         &testLLMClient{},
+	TrackerClient:     &testBeadClient{},
+	BacklogClient:     &testBacklogClient{},
 		RefineRenderer:    &testRefineRenderer{},
 		PlanRenderer:      &testPlanRenderer{},
 		DecomposeRenderer: &testDecomposeRenderer{},
@@ -64,8 +65,8 @@ func TestDeps_FieldAccess(t *testing.T) {
 	if deps.LLMClient == nil {
 		t.Error("LLMClient field should be set")
 	}
-	if deps.BeadClient == nil {
-		t.Error("BeadClient field should be set")
+	if deps.TrackerClient == nil {
+		t.Error("TrackerClient field should be set")
 	}
 	if deps.BacklogClient == nil {
 		t.Error("BacklogClient field should be set")

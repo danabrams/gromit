@@ -1,9 +1,11 @@
 package pipeline
 
+import "context"
+
 // These should compile if the interfaces are properly defined
 var _ AgentResolver = (*testAgentResolver)(nil)
 var _ LLMClient = (*testLLMClient)(nil)
-var _ BeadClient = (*testBeadClient)(nil)
+var _ TrackerClient = (*testBeadClient)(nil)
 var _ BacklogClient = (*testBacklogClient)(nil)
 var _ RefineRenderer = (*testRefineRenderer)(nil)
 var _ PlanRenderer = (*testPlanRenderer)(nil)
@@ -31,23 +33,23 @@ func (m *testLLMClient) Run(prompt string, model string) (*LLMRunResult, error) 
 // testBeadClient is a mock for unit tests
 type testBeadClient struct{}
 
-func (m *testBeadClient) Ready() (*BeadInfo, error) {
+func (m *testBeadClient) Ready(ctx context.Context) (*BeadInfo, error) {
 	return nil, nil
 }
 
-func (m *testBeadClient) Show(id string) (*BeadInfo, error) {
+func (m *testBeadClient) Show(ctx context.Context, id string) (*BeadInfo, error) {
 	return nil, nil
 }
 
-func (m *testBeadClient) Create(title string, priority int, labels []string, outputs []string) (*BeadInfo, error) {
+func (m *testBeadClient) Create(ctx context.Context, title string, priority int, labels []string, outputs []string) (*BeadInfo, error) {
 	return nil, nil
 }
 
-func (m *testBeadClient) CreateWithDepsAndDescription(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+func (m *testBeadClient) CreateWithDepsAndDescription(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 	return nil, nil
 }
 
-func (m *testBeadClient) Close(id string) error {
+func (m *testBeadClient) Close(ctx context.Context, id string) error {
 	return nil
 }
 

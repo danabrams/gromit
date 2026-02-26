@@ -275,8 +275,8 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 			criteria = def.ExpectedOutputs
 		}
 
-		// Create bead via BeadClient
-		beadResult, err := p.deps.BeadClient.CreateWithDepsAndDescription(
+		// Create bead via TrackerClient
+		beadResult, err := p.deps.TrackerClient.CreateWithDepsAndDescription(ctx,
 			def.Title,
 			priority,
 			labels,

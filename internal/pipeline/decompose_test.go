@@ -106,7 +106,7 @@ created: 2026-02-11
 
 	deps := &Deps{
 		LLMClient:  mockClaude,
-		BeadClient: mockBead,
+		TrackerClient: mockBead,
 	}
 	paths := &Paths{
 		GromitDir: tmpDir,
@@ -252,7 +252,7 @@ created: 2026-02-01
 	p := New(
 		&Deps{
 			LLMClient:  mockClaude,
-			BeadClient: &testBeadClient{},
+			TrackerClient: &testBeadClient{},
 		},
 		&Paths{
 			PlansDir: plansDir,
@@ -346,7 +346,7 @@ id: coverage-gap
 
 	p := New(&Deps{
 		LLMClient:  mockClaude,
-		BeadClient: mockBead,
+		TrackerClient: mockBead,
 	}, &Paths{
 		GromitDir: tmpDir,
 		PlansDir:  plansDir,
@@ -434,7 +434,7 @@ id: explicit-coverage
 
 	p := New(&Deps{
 		LLMClient:  mockClaude,
-		BeadClient: mockBead,
+		TrackerClient: mockBead,
 	}, &Paths{
 		GromitDir: tmpDir,
 		PlansDir:  plansDir,
@@ -555,7 +555,7 @@ func TestDecomposeWorkflow_RetriesOnValidationViolation(t *testing.T) {
 		},
 	}
 
-	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, TrackerClient: mockBead}, &Paths{PlansDir: plansDir})
 	result, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "retry-plan",
 		MaxValidationRetries: 2,
@@ -626,7 +626,7 @@ func TestDecomposeWorkflow_ValidationRetriesExhaustedContinues(t *testing.T) {
 		},
 	}
 
-	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, TrackerClient: mockBead}, &Paths{PlansDir: plansDir})
 	result, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "retry-exhausted",
 		MaxValidationRetries: 1,
@@ -727,7 +727,7 @@ func TestDecomposeWorkflow_SkipValidationDisablesRetryLoop(t *testing.T) {
 		},
 	}
 
-	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, TrackerClient: mockBead}, &Paths{PlansDir: plansDir})
 	_, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "skip-validation",
 		SkipValidation:       true,
@@ -776,7 +776,7 @@ func TestDecomposeWorkflow_SkipValidationOversizedBatchErrorsWithoutCreatingBead
 		},
 	}
 
-	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, TrackerClient: mockBead}, &Paths{PlansDir: plansDir})
 	_, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:       "skip-validation-oversized",
 		SkipValidation: true,
@@ -828,7 +828,7 @@ func TestDecomposeWorkflow_SkipValidationUnlimitedMaxAllowsLargeBatch(t *testing
 		},
 	}
 
-	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, TrackerClient: mockBead}, &Paths{PlansDir: plansDir})
 	_, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:       "skip-validation-unlimited",
 		SkipValidation: true,
@@ -872,7 +872,7 @@ func TestDecomposeWorkflow_SkipValidationUndersizedBatchErrorsWithoutCreatingBea
 		},
 	}
 
-	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, TrackerClient: mockBead}, &Paths{PlansDir: plansDir})
 	_, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:       "skip-validation-undersized",
 		SkipValidation: true,
@@ -939,7 +939,7 @@ func TestDecomposeWorkflow_CreatesBeadsWithCorrectLabels(t *testing.T) {
 
 	deps := &Deps{
 		LLMClient:  mockClaude,
-		BeadClient: mockBead,
+		TrackerClient: mockBead,
 	}
 	paths := &Paths{
 		PlansDir: plansDir,
@@ -1035,7 +1035,7 @@ func TestDecomposeWorkflow_HandlesDependencyMapping(t *testing.T) {
 
 	deps := &Deps{
 		LLMClient:  mockClaude,
-		BeadClient: mockBead,
+		TrackerClient: mockBead,
 	}
 	paths := &Paths{
 		PlansDir: plansDir,
@@ -1128,7 +1128,7 @@ func TestDecomposeWorkflow_SkipsSelfDependencies(t *testing.T) {
 
 	deps := &Deps{
 		LLMClient:  mockClaude,
-		BeadClient: mockBead,
+		TrackerClient: mockBead,
 	}
 	paths := &Paths{
 		PlansDir: plansDir,
@@ -1207,7 +1207,7 @@ func TestDecomposeWorkflow_SkipsOutOfRangeDependencies(t *testing.T) {
 
 	deps := &Deps{
 		LLMClient:  mockClaude,
-		BeadClient: mockBead,
+		TrackerClient: mockBead,
 	}
 	paths := &Paths{
 		PlansDir: plansDir,
@@ -1285,7 +1285,7 @@ func TestDecomposeWorkflow_ReviewModeReturnsProposedBeads(t *testing.T) {
 
 	deps := &Deps{
 		LLMClient:  mockClaude,
-		BeadClient: mockBead,
+		TrackerClient: mockBead,
 	}
 	paths := &Paths{
 		PlansDir: plansDir,
@@ -1381,7 +1381,7 @@ Already decomposed
 
 	deps := &Deps{
 		LLMClient:  mockClaude,
-		BeadClient: mockBead,
+		TrackerClient: mockBead,
 	}
 	paths := &Paths{
 		PlansDir: plansDir,
@@ -1434,7 +1434,7 @@ func TestDecomposeWorkflow_PlanNotFoundError(t *testing.T) {
 
 	deps := &Deps{
 		LLMClient:  &decomposeAcceptanceLLMClient{},
-		BeadClient: &decomposeAcceptanceBeadClient{},
+		TrackerClient: &decomposeAcceptanceBeadClient{},
 	}
 	paths := &Paths{
 		PlansDir: plansDir,
@@ -1505,7 +1505,7 @@ func TestDecomposeWorkflow_UpdatesPlanFrontmatterTimestamp(t *testing.T) {
 
 	deps := &Deps{
 		LLMClient:  mockClaude,
-		BeadClient: mockBead,
+		TrackerClient: mockBead,
 	}
 	paths := &Paths{
 		PlansDir: plansDir,
@@ -1610,7 +1610,7 @@ func TestDecomposeWorkflow_ParsesPriorityCorrectly(t *testing.T) {
 
 	deps := &Deps{
 		LLMClient:  mockClaude,
-		BeadClient: mockBead,
+		TrackerClient: mockBead,
 	}
 	paths := &Paths{
 		PlansDir: plansDir,
@@ -1731,28 +1731,28 @@ type decomposeAcceptanceBeadClient struct {
 	createFunc func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error)
 }
 
-func (m *decomposeAcceptanceBeadClient) Ready() (*BeadInfo, error) {
+func (m *decomposeAcceptanceBeadClient) Ready(ctx context.Context) (*BeadInfo, error) {
 	return nil, nil
 }
 
-func (m *decomposeAcceptanceBeadClient) Show(id string) (*BeadInfo, error) {
+func (m *decomposeAcceptanceBeadClient) Show(ctx context.Context, id string) (*BeadInfo, error) {
 	return nil, nil
 }
 
-func (m *decomposeAcceptanceBeadClient) Create(title string, priority int, labels []string, outputs []string) (*BeadInfo, error) {
+func (m *decomposeAcceptanceBeadClient) Create(ctx context.Context, title string, priority int, labels []string, outputs []string) (*BeadInfo, error) {
 	// Decompose workflow should use CreateWithDepsAndDescription, not Create
-	// This is here to satisfy the BeadClient interface
+	// This is here to satisfy the TrackerClient interface
 	return nil, fmt.Errorf("decompose should use CreateWithDepsAndDescription")
 }
 
-func (m *decomposeAcceptanceBeadClient) CreateWithDepsAndDescription(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+func (m *decomposeAcceptanceBeadClient) CreateWithDepsAndDescription(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 	if m.createFunc != nil {
 		return m.createFunc(title, priority, labels, criteria, deps, desc)
 	}
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (m *decomposeAcceptanceBeadClient) Close(id string) error {
+func (m *decomposeAcceptanceBeadClient) Close(ctx context.Context, id string) error {
 	return nil
 }
 
@@ -1802,7 +1802,7 @@ func TestDecomposeWorkflow_UsesExpectedOutputsWhenNonEmpty(t *testing.T) {
 		},
 	}
 
-	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, TrackerClient: mockBead}, &Paths{PlansDir: plansDir})
 	_, err := p.Decompose(context.Background(), DecomposeInput{PlanName: "test-plan"})
 	if err != nil {
 		t.Fatalf("Decompose() failed: %v", err)
@@ -1864,7 +1864,7 @@ func TestDecomposeWorkflow_FallsBackToAcceptanceCriteriaWhenNoExpectedOutputs(t 
 		},
 	}
 
-	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, TrackerClient: mockBead}, &Paths{PlansDir: plansDir})
 	_, err := p.Decompose(context.Background(), DecomposeInput{PlanName: "test-plan"})
 	if err != nil {
 		t.Fatalf("Decompose() failed: %v", err)
@@ -2026,7 +2026,7 @@ func TestDecomposeWorkflow_UsesInputTierForProviderCall(t *testing.T) {
 		},
 	}
 
-	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, TrackerClient: mockBead}, &Paths{PlansDir: plansDir})
 	_, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName: "tier-plan",
 		Tier:     "high",
@@ -2085,7 +2085,7 @@ func TestDecomposeWorkflow_SixBeadBatchViolationRepromptsThenErrorsAtRetryCap(t 
 		},
 	}
 
-	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, TrackerClient: mockBead}, &Paths{PlansDir: plansDir})
 	_, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "big-plan",
 		MaxValidationRetries: 1,
@@ -2147,7 +2147,7 @@ func TestDecomposeWorkflow_OneBeadBatchViolationRepromptsThenErrorsAtRetryCap(t 
 		},
 	}
 
-	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, TrackerClient: mockBead}, &Paths{PlansDir: plansDir})
 	_, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "one-bead-batch",
 		MaxValidationRetries: 1,
@@ -2192,7 +2192,7 @@ func TestDecomposeWorkflow_LogsComplexitySummaryPerAttempt(t *testing.T) {
 		},
 	}
 
-	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, TrackerClient: mockBead}, &Paths{PlansDir: plansDir})
 
 	output := captureStdout(t, func() {
 		_, err := p.Decompose(context.Background(), DecomposeInput{PlanName: "complexity-plan"})
@@ -2250,7 +2250,7 @@ func TestDecomposeWorkflow_IncludesComplexityFeedbackInReprompt(t *testing.T) {
 		},
 	}
 
-	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, TrackerClient: mockBead}, &Paths{PlansDir: plansDir})
 	_, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "reprompt-complexity",
 		MaxValidationRetries: 2,
@@ -2306,7 +2306,7 @@ func TestDecomposeWorkflow_IncludesStructuredComplexityFeedbackAndStillCreatesBe
 		},
 	}
 
-	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, TrackerClient: mockBead}, &Paths{PlansDir: plansDir})
 	_, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "reprompt-structured-complexity",
 		MaxValidationRetries: 1,
@@ -2376,7 +2376,7 @@ func TestDecomposeWorkflow_RetriesWhenHighComplexityRemains(t *testing.T) {
 		},
 	}
 
-	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, TrackerClient: mockBead}, &Paths{PlansDir: plansDir})
 	_, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "complexity-retry",
 		MaxValidationRetries: 2,
@@ -2439,7 +2439,7 @@ func TestDecomposeWorkflow_RetriesWhenBroadScopeSignalFlagsHighComplexity(t *tes
 		},
 	}
 
-	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, TrackerClient: mockBead}, &Paths{PlansDir: plansDir})
 	_, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "complexity-broad-scope-retry",
 		MaxValidationRetries: 2,
@@ -2485,7 +2485,7 @@ func TestDecomposeWorkflow_HighComplexityWarningIncludesDetails(t *testing.T) {
 		},
 	}
 
-	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, TrackerClient: mockBead}, &Paths{PlansDir: plansDir})
 
 	output := captureStdout(t, func() {
 		_, err := p.Decompose(context.Background(), DecomposeInput{
@@ -2540,7 +2540,7 @@ func TestDecomposeWorkflow_FinalHighComplexityWarningAtLoopExitAfterValidationFa
 		},
 	}
 
-	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, TrackerClient: mockBead}, &Paths{PlansDir: plansDir})
 
 	output := captureStdout(t, func() {
 		_, err := p.Decompose(context.Background(), DecomposeInput{
@@ -2595,7 +2595,7 @@ func TestDecomposeWorkflow_HighComplexityWarningIncludesBroadScopeReasonWithoutL
 		},
 	}
 
-	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, TrackerClient: mockBead}, &Paths{PlansDir: plansDir})
 
 	output := captureStdout(t, func() {
 		_, err := p.Decompose(context.Background(), DecomposeInput{
@@ -2647,7 +2647,7 @@ func TestDecomposeWorkflow_ComplexitySummaryIncludesHighTitles(t *testing.T) {
 		},
 	}
 
-	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, TrackerClient: mockBead}, &Paths{PlansDir: plansDir})
 
 	output := captureStdout(t, func() {
 		_, err := p.Decompose(context.Background(), DecomposeInput{
@@ -2719,7 +2719,7 @@ func TestDecomposeWorkflow_CleanExitAfterComplexityRetryHasNoWarning(t *testing.
 		},
 	}
 
-	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, TrackerClient: mockBead}, &Paths{PlansDir: plansDir})
 	output := captureStdout(t, func() {
 		_, err := p.Decompose(context.Background(), DecomposeInput{
 			PlanName:             "complexity-clean-exit",
@@ -2781,7 +2781,7 @@ func TestDecomposeWorkflow_ComplexityRetryCapWithPartialImprovementMarksImproved
 		},
 	}
 
-	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, TrackerClient: mockBead}, &Paths{PlansDir: plansDir})
 	result, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "complexity-partial-improvement",
 		MaxValidationRetries: 1,
@@ -2859,7 +2859,7 @@ func TestDecomposeWorkflow_StopsRetryingWhenComplexityTrajectoryStalls(t *testin
 		},
 	}
 
-	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, TrackerClient: mockBead}, &Paths{PlansDir: plansDir})
 	_, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "complexity-stall-stop",
 		MaxValidationRetries: 4,
@@ -2902,7 +2902,7 @@ func TestDecomposeWorkflow_HighComplexityWarningProceedSetsValidationFlag(t *tes
 		},
 	}
 
-	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, TrackerClient: mockBead}, &Paths{PlansDir: plansDir})
 	result, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "complexity-warning-flag",
 		MaxValidationRetries: 0,
@@ -2948,7 +2948,7 @@ func TestDecomposeWorkflow_RetryCapPathSetsValidationFlag(t *testing.T) {
 		},
 	}
 
-	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, TrackerClient: mockBead}, &Paths{PlansDir: plansDir})
 	result, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "retry-cap-flag",
 		MaxValidationRetries: 1,
@@ -3006,7 +3006,7 @@ func TestDecomposeWorkflow_RetryLoopSuccessPathSetsValidationFlag(t *testing.T) 
 		},
 	}
 
-	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, TrackerClient: mockBead}, &Paths{PlansDir: plansDir})
 	result, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "retry-success-flag",
 		MaxValidationRetries: 2,
@@ -3055,7 +3055,7 @@ func TestDecomposeWorkflow_RetryLoopNonImprovingPathSetsValidationFlag(t *testin
 		},
 	}
 
-	p := New(&Deps{LLMClient: mockClaude, BeadClient: mockBead}, &Paths{PlansDir: plansDir})
+	p := New(&Deps{LLMClient: mockClaude, TrackerClient: mockBead}, &Paths{PlansDir: plansDir})
 	result, err := p.Decompose(context.Background(), DecomposeInput{
 		PlanName:             "retry-non-improving-flag",
 		MaxValidationRetries: 1,
