@@ -1,9 +1,7 @@
 package main
 
 import (
-	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -11,26 +9,9 @@ import (
 	"github.com/danabrams/gromit/internal/worktree"
 )
 
-type planLaunchTestAgent struct {
-	launchInDirFn func(promptPath, dir string) error
-}
-
-func (a *planLaunchTestAgent) Name() string { return "plan-test-agent" }
-
-func (a *planLaunchTestAgent) Launch(promptPath string) error {
-	return a.LaunchInDir(promptPath, "")
-}
-
-func (a *planLaunchTestAgent) LaunchInDir(promptPath, dir string) error {
-	if a != nil && a.launchInDirFn != nil {
-		return a.launchInDirFn(promptPath, dir)
-	}
-	return nil
-}
-
-func (a *planLaunchTestAgent) Command(promptPath string) (*exec.Cmd, error) {
-	return nil, errors.New("not implemented")
-}
+// planLaunchTestAgent is now defined in session_test_agent_helper.go
+// using the shared sessionTestAgent test helper
+type planLaunchTestAgent = sessionTestAgent
 
 func TestFilterUnplannedSpecs(t *testing.T) {
 	tests := []struct {

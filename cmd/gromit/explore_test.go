@@ -108,22 +108,9 @@ func TestExplorePromptRenderer_RenderExploreBuildsPromptDiagnostics(t *testing.T
 	}
 }
 
-type exploreSessionTestAgent struct {
-	launchInDirFn func(promptPath, dir string) error
-}
-
-func (a *exploreSessionTestAgent) Name() string { return "explore-test-agent" }
-
-func (a *exploreSessionTestAgent) Launch(promptPath string) error {
-	return a.LaunchInDir(promptPath, "")
-}
-
-func (a *exploreSessionTestAgent) LaunchInDir(promptPath, dir string) error {
-	if a != nil && a.launchInDirFn != nil {
-		return a.launchInDirFn(promptPath, dir)
-	}
-	return nil
-}
+// exploreSessionTestAgent is now defined in session_test_agent_helper.go
+// using the shared sessionTestAgent test helper
+type exploreSessionTestAgent = sessionTestAgent
 
 type exploreSessionTestResolver struct {
 	agent pipeline.Agent
