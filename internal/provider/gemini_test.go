@@ -466,3 +466,50 @@ func TestGeminiProviderRunWithExplicitWorkingDirectory(t *testing.T) {
 		t.Fatalf("workDir=%q, want %q", capturedWorkDir, expectedWorkDir)
 	}
 }
+
+func TestGeminiProviderHandlesAbsolutePaths(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	// Test with absolute path as working directory
+	tempDir := t.TempDir()
+	// Ensure it's an absolute path
+	if !filepath.IsAbs(tempDir) {
+		t.Fatalf("test directory is not absolute: %q", tempDir)
+	}
+
+	var capturedWorkDir string
+	gp := &GeminiProvider{
+		binary: "gemini",
+		tierToModel: map[string]string{
+			TierLow: "gemini-2.0-flash",
+		},
+		runFn: func(ctx context.Context, binary string, args []string, prompt string, workDir string) (*geminiRunResult, error) {
+			capturedWorkDir = workDir
+			// Verify that if a workDir is provided, it should be absolute
+			if workDir != "" && !filepath.IsAbs(workDir) {
+				t.Fatalf("workDir must be absolute when set, got: %q", workDir)
+			}
+			payload := []byte(`{
+  "output": "OK",
+  "usage": {"input_tokens": 5, "output_tokens": 2, "cached_input_tokens": 0},
+  "cost": {"total": 0},
+  "model": "gemini-2.0-flash",
+  "session_id": "test",
+  "response": "OK"
+}`)
+			return &geminiRunResult{stdout: payload, stderr: nil, exitCode: 0, duration: 0}, nil
+		},
+	}
+
+	// Test RunValidation with absolute path
+	result, err := gp.RunValidation(ctx, []string{"go test"}, TierLow, tempDir)
+	if err != nil {
+		t.Fatalf("RunValidation() error = %v", err)
+	}
+	if result == nil {
+		t.Fatal("RunValidation() returned nil result")
+	}
+	if capturedWorkDir != tempDir {
+		t.Fatalf("workDir=%q, want %q", capturedWorkDir, tempDir)
+	}
+}
