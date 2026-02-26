@@ -58,3 +58,25 @@ func TestConvertResultPreservesExistingFields(t *testing.T) {
 		t.Errorf("Model = %q, want %q", result.Model, "opus")
 	}
 }
+
+// TestConvertResultPropagatesCachedInputTokens verifies that convertResult maps
+// CachedInputTokens from claude.Result to provider.Result.
+// This is used to track cache hit efficiency on prompt caching invocations.
+func TestConvertResultPropagatesCachedInputTokens(t *testing.T) {
+	claudeResult := &claude.Result{
+		Success:           true,
+		Output:            "cached response",
+		ExitCode:          0,
+		Model:             "sonnet",
+		CostUSD:           0.75,
+		InputTokens:       3000,
+		OutputTokens:      1500,
+		CachedInputTokens: 1500,
+	}
+
+	result := convertResult(claudeResult)
+
+	if result.CachedInputTokens != 1500 {
+		t.Errorf("CachedInputTokens = %d, want 1500", result.CachedInputTokens)
+	}
+}
