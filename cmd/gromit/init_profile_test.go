@@ -426,3 +426,28 @@ func TestSelectInitProfileRejectsInvalidConfigYAML(t *testing.T) {
 		t.Fatal("expected error for invalid gromit.yaml")
 	}
 }
+
+func setupProfileSignals(t *testing.T, signals []string) string {
+	t.Helper()
+	dir := t.TempDir()
+	for _, signal := range signals {
+		if signal == "" {
+			continue
+		}
+		path := filepath.Join(dir, signal)
+		if err := os.WriteFile(path, []byte{}, 0644); err != nil {
+			t.Fatalf("write signal file %s: %v", signal, err)
+		}
+	}
+	return dir
+}
+
+func writeProfileConfig(t *testing.T, dir, profile string) {
+	t.Helper()
+	content := `project:
+  profile: "` + profile + `"
+`
+	if err := os.WriteFile(filepath.Join(dir, "gromit.yaml"), []byte(content), 0644); err != nil {
+		t.Fatalf("write gromit.yaml: %v", err)
+	}
+}
