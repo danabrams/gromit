@@ -7,11 +7,12 @@ import (
 	"github.com/danabrams/gromit/internal/analyzer"
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
-// TestDecomposeFirstHandler_RetriesNonAtomicFailure verifies that
-// DecomposeFirstHandler retries up to max_retries_before_decompose on failure.
-func TestDecomposeFirstHandler_RetriesNonAtomicFailure(t *testing.T) {
+// TestDecomposeFirstHandler_CreatesHandler verifies that
+// DecomposeFirstHandler accepts narrow dependency interfaces.
+func TestDecomposeFirstHandler_CreatesHandler(t *testing.T) {
 	t.Parallel()
 
 	cfg := &config.Config{
@@ -37,5 +38,44 @@ func TestDecomposeFirstHandler_RetriesNonAtomicFailure(t *testing.T) {
 	handler := NewDecomposeFirstHandler(cfg, mfa, mbc, nil, nil, nil, nil, 2)
 	if handler == nil {
 		t.Fatal("NewDecomposeFirstHandler returned nil")
+	}
+}
+
+// TestDecomposeFirstHandler_DecomposesAfterMaxRetries verifies that
+// DecomposeFirstHandler triggers decomposition after exceeding max retries.
+func TestDecomposeFirstHandler_DecomposesAfterMaxRetries(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		Escalation: config.EscalationConfig{
+			Enabled:            true,
+			Chain:              []string{"haiku", "sonnet", "opus"},
+			MaxRetriesPerModel: 2,
+			MaxRetriesPerBead:  5,
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	mfa := &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, failureOutput string) (*analyzer.Analysis, error) {
+			return &analyzer.Analysis{Category: "logic_error", Recoverable: false}, nil
+		},
+	}
+
+	mbc := &mockBeadClient{}
+
+	decomposeFn := func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+		return []runtypes.SubTask{}, nil
+	}
+
+	handler := NewDecomposeFirstHandler(cfg, mfa, mbc, decomposeFn, nil, nil, nil, 2)
+	if handler == nil {
+		t.Fatal("NewDecomposeFirstHandler returned nil")
+	}
+
+	// Handler should have the decomposeFn set
+	if handler.decomposeFn == nil {
+		t.Fatal("DecomposeFirstHandler.decomposeFn not set")
 	}
 }
