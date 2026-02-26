@@ -123,7 +123,7 @@ func TestLaunchDebugSession_UsesSessionLauncherWhenEnabled(t *testing.T) {
 		return &worktree.SessionWorktree{BranchName: "gromit/debug-test", WorktreeDir: sessionDir}, nil
 	}
 
-	agent := &retroTestAgent{
+	agent := &sessionTestAgent{
 		launchInDirFn: func(promptPath, dir string) error {
 			launchedDir = dir
 			return nil
@@ -161,7 +161,7 @@ func TestLaunchDebugSession_WorktreeDisabledUsesInPlaceLaunchDir(t *testing.T) {
 	cfg.Worktree.Enabled = &enabled
 
 	launchedDir := ""
-	agent := &retroTestAgent{
+	agent := &sessionTestAgent{
 		launchInDirFn: func(promptPath, dir string) error {
 			launchedDir = dir
 			return nil
@@ -199,7 +199,7 @@ func TestLaunchDebugSession_UsesRestoreDirWhenProvided(t *testing.T) {
 		return &worktree.SessionWorktree{BranchName: "gromit/debug-test", WorktreeDir: sessionDir}, nil
 	}
 
-	agent := &retroTestAgent{
+	agent := &sessionTestAgent{
 		launchInDirFn: func(promptPath, dir string) error {
 			launchedDir = dir
 			return nil
