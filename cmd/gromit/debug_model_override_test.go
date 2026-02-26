@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/agent"
@@ -79,4 +80,66 @@ func TestShouldOverrideDebugModel(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMaybeWarnModelFlagOnNonClaudeAgent(t *testing.T) {
+	t.Parallel()
+	newCmd := func(withModelFlag bool, setModel bool) *cobra.Command {
+		cmd := &cobra.Command{Use: "debug"}
+		if withModelFlag {
+			cmd.Flags().String("model", "opus", "model override")
+			if setModel {
+				if err := cmd.Flags().Set("model", "sonnet"); err != nil {
+					t.Fatalf("setting model flag: %v", err)
+				}
+			}
+		}
+		return cmd
+	}
+
+	t.Run("warns when model flag changed for non-claude agent", func(t *testing.T) {
+		t.Parallel()
+		codexAgent := agent.New("codex", "codex", nil, agent.FileRef, "", nil)
+		cmd := newCmd(true, true)
+
+		stderr := &bytes.Buffer{}
+		maybeWarnModelFlagOnNonClaudeAgent(cmd, codexAgent, stderr)
+
+		warnOutput := stderr.String()
+		if warnOutput == "" {
+			t.Fatal("expected warning to be emitted to stderr")
+		}
+		if !bytes.Contains([]byte(warnOutput), []byte("codex")) {
+			t.Errorf("expected warning to contain agent name 'codex', got: %s", warnOutput)
+		}
+		if !bytes.Contains([]byte(warnOutput), []byte("model")) {
+			t.Errorf("expected warning to mention model flag, got: %s", warnOutput)
+		}
+	})
+
+	t.Run("does not warn when model flag not changed", func(t *testing.T) {
+		t.Parallel()
+		codexAgent := agent.New("codex", "codex", nil, agent.FileRef, "", nil)
+		cmd := newCmd(true, false) // model flag not changed
+
+		stderr := &bytes.Buffer{}
+		maybeWarnModelFlagOnNonClaudeAgent(cmd, codexAgent, stderr)
+
+		if stderr.String() != "" {
+			t.Errorf("expected no warning when model flag not changed, got: %s", stderr.String())
+		}
+	})
+
+	t.Run("does not warn for Claude agent", func(t *testing.T) {
+		t.Parallel()
+		claudeAgent := agent.New("claude", "claude", nil, agent.FileRef, "", nil)
+		cmd := newCmd(true, true) // model flag changed
+
+		stderr := &bytes.Buffer{}
+		maybeWarnModelFlagOnNonClaudeAgent(cmd, claudeAgent, stderr)
+
+		if stderr.String() != "" {
+			t.Errorf("expected no warning for Claude agent, got: %s", stderr.String())
+		}
+	})
 }
