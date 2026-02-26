@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline/epilogue"
@@ -361,6 +362,78 @@ func TestBeadLifecycleAdapterAcceptsTrackerClient(t *testing.T) {
 	var _ epilogue.BeadLifecycle = &beadLifecycleAdapter{
 		tracker: trackerClient,
 	}
+}
+
+func TestDecomposerAdapterChildWithDedupeLabelExistsUsesBeadClient(t *testing.T) {
+	t.Parallel()
+
+	adapter := &decomposerAdapter{
+		beads: &fakeBeadClient{
+			listFn: func(ctx context.Context, label string) ([]*bead.Bead, error) {
+				if label != "scope_decomp:foo" {
+					t.Fatalf("label = %q, want scope_decomp:foo", label)
+				}
+				return []*bead.Bead{
+					{ID: "child-1", Parent: "parent-1", Labels: []string{label}},
+				}, nil
+			},
+		},
+	}
+
+	exists, err := adapter.childWithDedupeLabelExists("parent-1", "scope_decomp:foo")
+	if err != nil {
+		t.Fatalf("childWithDedupeLabelExists returned error: %v", err)
+	}
+	if !exists {
+		t.Fatalf("expected child to exist")
+	}
+}
+
+type fakeBeadClient struct {
+	listFn func(ctx context.Context, label string) ([]*bead.Bead, error)
+}
+
+func (f *fakeBeadClient) Ready(ctx context.Context) (*bead.Bead, error) {
+	return nil, nil
+}
+func (f *fakeBeadClient) ReadyExcluding(ctx context.Context, excludeIDs map[string]bool) (*bead.Bead, error) {
+	return nil, nil
+}
+func (f *fakeBeadClient) ReadyWithLabel(ctx context.Context, label string) (*bead.Bead, error) {
+	return nil, nil
+}
+func (f *fakeBeadClient) ListWithLabel(ctx context.Context, label string) ([]*bead.Bead, error) {
+	if f.listFn == nil {
+		return nil, nil
+	}
+	return f.listFn(ctx, label)
+}
+func (f *fakeBeadClient) Show(ctx context.Context, id string) (*bead.Bead, error) {
+	return nil, nil
+}
+func (f *fakeBeadClient) Close(ctx context.Context, id string) error {
+	return nil
+}
+func (f *fakeBeadClient) Sync(ctx context.Context) error {
+	return nil
+}
+func (f *fakeBeadClient) AddComment(ctx context.Context, id, comment string) error {
+	return nil
+}
+func (f *fakeBeadClient) GetParent(ctx context.Context, b *bead.Bead) (*bead.Bead, error) {
+	return nil, nil
+}
+func (f *fakeBeadClient) Create(ctx context.Context, title string, priority int, labels []string, outputs []string) (*bead.Bead, error) {
+	return nil, nil
+}
+func (f *fakeBeadClient) CreateWithParent(ctx context.Context, title string, priority int, labels []string, outputs []string, parentID string) (*bead.Bead, error) {
+	return nil, nil
+}
+func (f *fakeBeadClient) CreateWithParentAndDescription(ctx context.Context, title string, priority int, labels []string, outputs []string, parentID string, description string) (*bead.Bead, error) {
+	return nil, nil
+}
+func (f *fakeBeadClient) HasOpenChildren(ctx context.Context, parentID string) (bool, error) {
+	return false, nil
 }
 
 type dummyGitOpsForSpec struct{}
