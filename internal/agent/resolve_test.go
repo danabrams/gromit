@@ -204,6 +204,48 @@ func TestResolveCustomAgent(t *testing.T) {
 	}
 }
 
+// TestResolveByName_GeminiCustomAgentOverridePreserved ensures custom gemini definitions keep prompt_file_arg delivery
+func TestResolveByName_GeminiCustomAgentOverridePreserved(t *testing.T) {
+	cfg := &config.Config{
+		Agents: config.AgentsConfig{
+			Definitions: map[string]config.AgentDefinition{
+				"gemini": {
+					Binary: "/custom/gemini",
+					Flags:  []string{"--wrapper"},
+				},
+			},
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	agent, err := resolveByName("gemini", cfg)
+	if err != nil {
+		t.Fatalf("Resolve(gemini) error = %v, want nil", err)
+	}
+
+	ca, ok := agent.(*cliAgent)
+	if !ok {
+		t.Fatal("Resolve(gemini) should return *cliAgent")
+	}
+
+	if ca.binary != "/custom/gemini" {
+		t.Errorf("gemini custom agent binary = %q, want %q", ca.binary, "/custom/gemini")
+	}
+
+	if len(ca.flags) != 1 || ca.flags[0] != "--wrapper" {
+		t.Errorf("gemini custom agent flags = %v, want [--wrapper]", ca.flags)
+	}
+
+	if ca.promptDelivery != PromptFileArg {
+		t.Errorf("gemini custom agent promptDelivery = %q, want %q", ca.promptDelivery, PromptFileArg)
+	}
+
+	if ca.promptFlag != "--prompt" {
+		t.Errorf("gemini custom agent promptFlag = %q, want %q", ca.promptFlag, "--prompt")
+	}
+}
+
 // TestResolveCustomAgentOverridesBuiltin verifies custom definition overrides built-in preset
 func TestResolveCustomAgentOverridesBuiltin(t *testing.T) {
 	cfg := &config.Config{
