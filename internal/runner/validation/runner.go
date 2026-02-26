@@ -22,19 +22,19 @@ var ErrValidationFailed = errors.New("validation failed")
 
 // ExecuteFn is a callback for Claude-based fix attempts during validation recovery.
 // The facade wraps escalation.Handler.ExecuteWithRetry and maps it to this signature.
-// Returns true if the fix invocation succeeded.
-type ExecuteFn func(ctx context.Context, bc *runtypes.BeadContext) bool
+// Returns true if the fix invocation succeeded. The escalationEnabled flag signals
+// whether the current invocation is allowed to escalate tiers.
+type ExecuteFn func(ctx context.Context, bc *runtypes.BeadContext, escalationEnabled bool) bool
 
 // Runner handles direct validation command execution and recovery.
 type Runner struct {
-	cfg                 *config.Config
-	cmdRunner           runtypes.CmdRunnerFn
-	autoFixFn           runtypes.AutoFixFn
-	executeFn           ExecuteFn
-	failures            []string // accumulated validation failure summaries
-	elapsed             time.Duration
-	lastFailureOutput   string
-	escalationEnabled   bool // current invocation's escalation setting
+	cfg               *config.Config
+	cmdRunner         runtypes.CmdRunnerFn
+	autoFixFn         runtypes.AutoFixFn
+	executeFn         ExecuteFn
+	failures          []string // accumulated validation failure summaries
+	elapsed           time.Duration
+	lastFailureOutput string
 }
 
 type commandResult struct {
@@ -117,14 +117,20 @@ func (r *Runner) RunWithRecovery(ctx context.Context, bc *runtypes.BeadContext) 
 
 // RunWithRecoveryForCommandsWithEscalation runs validation with recovery, explicitly
 // specifying whether escalation is enabled for this invocation. The escalationEnabled
-// value is stored in the runner and made available to executeFn closures that may
-// need it when calling escalation.Handler.ExecuteWithRetryWithEscalation.
+// value is passed directly to ExecuteFn rather than stored on the runner.
 func (r *Runner) RunWithRecoveryForCommandsWithEscalation(ctx context.Context, bc *runtypes.BeadContext, commands []string, mode string, escalationEnabled bool) error {
-	r.escalationEnabled = escalationEnabled
-	return r.RunWithRecoveryForCommands(ctx, bc, commands, mode)
+	return r.runWithRecoveryForCommands(ctx, bc, commands, mode, escalationEnabled)
 }
 
 func (r *Runner) RunWithRecoveryForCommands(ctx context.Context, bc *runtypes.BeadContext, commands []string, mode string) error {
+	escalationEnabled := false
+	if r.cfg != nil {
+		escalationEnabled = r.cfg.Escalation.Enabled
+	}
+	return r.runWithRecoveryForCommands(ctx, bc, commands, mode, escalationEnabled)
+}
+
+func (r *Runner) runWithRecoveryForCommands(ctx context.Context, bc *runtypes.BeadContext, commands []string, mode string, escalationEnabled bool) error {
 	err := r.runValidationWithCommands(ctx, bc, commands, mode)
 	if err == nil {
 		return nil
@@ -170,7 +176,7 @@ func (r *Runner) RunWithRecoveryForCommands(ctx context.Context, bc *runtypes.Be
 
 		// Step 2: Auto-fix didn't resolve it — invoke Claude for a fix
 		if r.executeFn != nil {
-			success := r.executeFn(ctx, bc)
+			success := r.executeFn(ctx, bc, escalationEnabled)
 
 			if !success {
 				if ctxErr := ctx.Err(); ctxErr != nil {

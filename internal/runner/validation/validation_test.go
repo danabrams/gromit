@@ -418,7 +418,7 @@ func TestRunWithRecovery_ExecuteFnCalledWhenAutoFixFails(t *testing.T) {
 
 	executeFnCalled := false
 	// Expected failure: ExecuteFn callback type does not exist in validation package yet
-	executeFn := func(ctx context.Context, bc *runtypes.BeadContext) bool {
+	executeFn := func(ctx context.Context, bc *runtypes.BeadContext, escalationEnabled bool) bool {
 		executeFnCalled = true
 		return true // Claude fix "succeeds"
 	}
@@ -449,7 +449,7 @@ func TestRunWithRecovery_RespectsSingleRecoveryCap(t *testing.T) {
 	}
 
 	executeFnCallCount := 0
-	executeFn := func(ctx context.Context, bc *runtypes.BeadContext) bool {
+	executeFn := func(ctx context.Context, bc *runtypes.BeadContext, escalationEnabled bool) bool {
 		executeFnCallCount++
 		return true
 	}
@@ -478,7 +478,7 @@ func TestRunWithRecovery_ZeroRetriesSkipsRecovery(t *testing.T) {
 	}
 
 	executeFnCalled := false
-	executeFn := func(ctx context.Context, bc *runtypes.BeadContext) bool {
+	executeFn := func(ctx context.Context, bc *runtypes.BeadContext, escalationEnabled bool) bool {
 		executeFnCalled = true
 		return true
 	}
@@ -532,7 +532,7 @@ func TestRunWithRecovery_NonValidationErrorNotRecovered(t *testing.T) {
 	}
 
 	executeFnCalled := false
-	executeFn := func(ctx context.Context, bc *runtypes.BeadContext) bool {
+	executeFn := func(ctx context.Context, bc *runtypes.BeadContext, escalationEnabled bool) bool {
 		executeFnCalled = true
 		return true
 	}
@@ -648,7 +648,7 @@ func TestNewRunner_AcceptsNarrowInterfaces(t *testing.T) {
 		return "", "", 0, nil
 	}
 	autoFix := func(startCommit string) error { return nil }
-	executeFn := func(ctx context.Context, bc *runtypes.BeadContext) bool { return true }
+	executeFn := func(ctx context.Context, bc *runtypes.BeadContext, escalationEnabled bool) bool { return true }
 
 	r := NewRunner(cfg, cmdRunner, autoFix, executeFn)
 	if r == nil {
@@ -848,7 +848,7 @@ func TestRunWithRecovery_CapsToSingleRecoveryAttempt(t *testing.T) {
 	}
 
 	execCalls := 0
-	execFn := func(ctx context.Context, bc *runtypes.BeadContext) bool {
+	execFn := func(ctx context.Context, bc *runtypes.BeadContext, escalationEnabled bool) bool {
 		execCalls++
 		return true
 	}
@@ -1031,7 +1031,7 @@ func TestRunWithRecoveryForCommands_ExecuteFnHonorsPhaseDeadline(t *testing.T) {
 		return "", "initial validation failure", 1, nil
 	}
 
-	executeFn := func(ctx context.Context, bc *runtypes.BeadContext) bool {
+	executeFn := func(ctx context.Context, bc *runtypes.BeadContext, escalationEnabled bool) bool {
 		<-ctx.Done()
 		return false
 	}
@@ -1063,7 +1063,7 @@ func TestRunWithRecoveryForCommands_PhaseTimeoutCapsCommandTimeout(t *testing.T)
 	}
 
 	executeCalled := false
-	executeFn := func(ctx context.Context, bc *runtypes.BeadContext) bool {
+	executeFn := func(ctx context.Context, bc *runtypes.BeadContext, escalationEnabled bool) bool {
 		executeCalled = true
 		return false
 	}
@@ -1146,8 +1146,7 @@ func TestRunWithRecoveryForCommands_TruncatesLargeOutput(t *testing.T) {
 }
 
 // TestRunWithRecoveryForCommands_PassesEscalationFlagToExecuteFn verifies that
-// when RunWithRecoveryForCommandsWithEscalation is called with escalationEnabled=false,
-// this flag is stored in the runner and accessible to callers that need to use it.
+// RunWithRecoveryForCommandsWithEscalation forwards the escalation flag to ExecuteFn.
 func TestRunWithRecoveryForCommands_PassesEscalationFlagToExecuteFn(t *testing.T) {
 	cfg := newTestConfig()
 
@@ -1156,10 +1155,12 @@ func TestRunWithRecoveryForCommands_PassesEscalationFlagToExecuteFn(t *testing.T
 		return "", "validation failure", 1, nil
 	}
 
-	// Track if executeFn was called
+	// Track execution and the observed escalation flag
 	executeFnCalled := false
-	executeFn := func(ctx context.Context, bc *runtypes.BeadContext) bool {
+	var seenEscalation []bool
+	executeFn := func(ctx context.Context, bc *runtypes.BeadContext, escalationEnabled bool) bool {
 		executeFnCalled = true
+		seenEscalation = append(seenEscalation, escalationEnabled)
 		return true
 	}
 
@@ -1169,14 +1170,13 @@ func TestRunWithRecoveryForCommands_PassesEscalationFlagToExecuteFn(t *testing.T
 	bc.StartCommit = "abc123"
 
 	// Call with escalationEnabled=false
-	// This should cause the runner to store escalationEnabled=false internally
 	_ = r.RunWithRecoveryForCommandsWithEscalation(context.Background(), bc, r.validationCommands(), "fast", false)
 
 	if !executeFnCalled {
 		t.Error("executeFn should have been called during validation recovery")
 	}
-	if r.escalationEnabled != false {
-		t.Errorf("escalationEnabled should be false, got %v", r.escalationEnabled)
+	if len(seenEscalation) == 0 || seenEscalation[0] != false {
+		t.Errorf("executeFn should have seen escalationEnabled=false, got %v", seenEscalation)
 	}
 }
 
@@ -1190,7 +1190,9 @@ func TestRunWithRecoveryForCommandsWithEscalation_EnabledTrue(t *testing.T) {
 		return "", "validation failure", 1, nil
 	}
 
-	executeFn := func(ctx context.Context, bc *runtypes.BeadContext) bool {
+	var seenEscalation []bool
+	executeFn := func(ctx context.Context, bc *runtypes.BeadContext, escalationEnabled bool) bool {
+		seenEscalation = append(seenEscalation, escalationEnabled)
 		return true
 	}
 
@@ -1202,15 +1204,13 @@ func TestRunWithRecoveryForCommandsWithEscalation_EnabledTrue(t *testing.T) {
 	// Call with escalationEnabled=true
 	_ = r.RunWithRecoveryForCommandsWithEscalation(context.Background(), bc, r.validationCommands(), "fast", true)
 
-	if r.escalationEnabled != true {
-		t.Errorf("escalationEnabled should be true, got %v", r.escalationEnabled)
+	if len(seenEscalation) == 0 || seenEscalation[0] != true {
+		t.Errorf("executeFn should have seen escalationEnabled=true, got %v", seenEscalation)
 	}
 }
 
 // TestExecuteFnCanAccessEscalationFlag verifies that executeFn closures can access
-// the runner's escalationEnabled flag to pass it to escalation handler when invoking.
-// This demonstrates the pattern: executeFn should be a closure that captures the runner
-// and checks r.escalationEnabled when calling handler.ExecuteWithRetryWithEscalation.
+// the escalationEnabled argument in ExecuteFn to pass through to escalation handlers.
 func TestExecuteFnCanAccessEscalationFlag(t *testing.T) {
 	cfg := newTestConfig()
 
@@ -1222,15 +1222,14 @@ func TestExecuteFnCanAccessEscalationFlag(t *testing.T) {
 	// Track what escalation value was seen by executeFn
 	var seenEscalationValues []bool
 
-	// This is the pattern: executeFn is a closure that captures the runner
-	// and checks escalationEnabled when calling the handler
+	// This is the pattern: executeFn captures the escalation flag and passes it to
+	// the escalation handler.
 	var createExecuteFn func(*Runner) ExecuteFn
 	createExecuteFn = func(r *Runner) ExecuteFn {
-		return func(ctx context.Context, bc *runtypes.BeadContext) bool {
-			// executeFn captures the runner and can check escalationEnabled
-			seenEscalationValues = append(seenEscalationValues, r.escalationEnabled)
+		return func(ctx context.Context, bc *runtypes.BeadContext, escalationEnabled bool) bool {
+			seenEscalationValues = append(seenEscalationValues, escalationEnabled)
 			// In real implementation, this would call:
-			// handler.ExecuteWithRetryWithEscalation(ctx, bc, invokeFn, r.escalationEnabled)
+			// handler.ExecuteWithRetryWithEscalation(ctx, bc, invokeFn, escalationEnabled)
 			return true
 		}
 	}
@@ -1269,15 +1268,14 @@ func TestValidationWithEscalationHandler_WiresEscalationCorrectly(t *testing.T) 
 
 	// Create an executeFn that demonstrates the pattern:
 	// 1. It captures the runner
-	// 2. It checks the runner's escalationEnabled flag
-	// 3. It passes this flag when calling the handler (mocked here)
+	// 2. It passes the escalation flag when calling the handler (mocked here)
 	var createExecuteFn func(*Runner) ExecuteFn
 	createExecuteFn = func(r *Runner) ExecuteFn {
-		return func(ctx context.Context, bc *runtypes.BeadContext) bool {
+		return func(ctx context.Context, bc *runtypes.BeadContext, escalationEnabled bool) bool {
 			// This is where the handler.ExecuteWithRetryWithEscalation would be called:
-			// success := handler.ExecuteWithRetryWithEscalation(ctx, bc, invokeFn, r.escalationEnabled)
+			// success := handler.ExecuteWithRetryWithEscalation(ctx, bc, invokeFn, escalationEnabled)
 			// For now, we just record what value we would have passed
-			seenEscalationFlags = append(seenEscalationFlags, r.escalationEnabled)
+			seenEscalationFlags = append(seenEscalationFlags, escalationEnabled)
 			return true // Pretend the fix succeeded
 		}
 	}
