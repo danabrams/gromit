@@ -428,10 +428,20 @@ func runReviewInteractiveInDir(cfg *config.Config, fromCommit string, diff strin
 	}
 
 	// Call pipeline
-	_, err = p.ReviewInteractive(context.Background(), input)
+	// ReviewInteractive returns a session that owns the temp prompt file cleanup.
+	// For synchronous mode, we clean up after LaunchInDir completes.
+	// For async mode, cleanup will be handled by the session owner (e.g., worktree manager).
+	session, err := p.ReviewInteractive(context.Background(), input)
 	if err != nil {
 		return fmt.Errorf("review interactive: %w", err)
 	}
+
+	// Clean up temp file now that LaunchInDir has completed (synchronous mode)
+	// In async mode, the session owner would manage this lifecycle
+	if session != nil {
+		session.Cleanup()
+	}
+
 	return nil
 }
 

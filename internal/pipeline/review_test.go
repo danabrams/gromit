@@ -1010,3 +1010,39 @@ func countTempPromptFiles(t *testing.T, tmpDir string) int {
 	}
 	return count
 }
+
+// TestReviewSessionCleanupIsIdempotent verifies that calling Cleanup multiple times is safe
+// and consistent with async mode where cleanup timing may be uncertain.
+// Expected behavior: Multiple Cleanup calls don't raise errors
+func TestReviewSessionCleanupIsIdempotent(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "test-prompt.md")
+
+	// Write a temp file
+	if err := os.WriteFile(tmpFile, []byte("test"), 0644); err != nil {
+		t.Fatalf("Failed to write temp file: %v", err)
+	}
+
+	// Create session that owns cleanup
+	cleanup := func() {
+		os.Remove(tmpFile)
+	}
+	session := NewReviewSession(cleanup)
+
+	// First cleanup should delete the file
+	session.Cleanup()
+
+	// Verify file is deleted
+	if _, err := os.Stat(tmpFile); err == nil {
+		t.Fatal("Temp file should be deleted after Cleanup()")
+	} else if !os.IsNotExist(err) {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Second cleanup should be safe (idempotent)
+	// Should not panic or error
+	session.Cleanup()
+
+	// Third cleanup should still be safe
+	session.Cleanup()
+}
