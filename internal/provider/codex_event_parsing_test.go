@@ -640,7 +640,9 @@ func TestCodexErrorInfoTypes(t *testing.T) {
 	}
 }
 
-func TestProcessCodexStreamMapsMessageCreatedToSystem(t *testing.T) {
+// TestProcessCodexStreamMapsMessageCreatedToEventStart verifies that processCodexStream
+// maps message.created events to StreamEvent type "EventStart" and calls EventHandler.
+func TestProcessCodexStreamMapsMessageCreatedToEventStart(t *testing.T) {
 	t.Parallel()
 	input := `{"type":"message.created"}` + "\n"
 	reader := strings.NewReader(input)
@@ -669,8 +671,8 @@ func TestProcessCodexStreamMapsMessageCreatedToSystem(t *testing.T) {
 		t.Fatalf("failed to parse emitted event: %v", err)
 	}
 
-	if parsed.Type != "system" {
-		t.Errorf("message.created mapped to type %q, want %q", parsed.Type, "system")
+	if parsed.Type != "EventStart" {
+		t.Errorf("message.created mapped to type %q, want %q", parsed.Type, "EventStart")
 	}
 }
 
