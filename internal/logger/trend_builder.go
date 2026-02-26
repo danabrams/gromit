@@ -137,6 +137,8 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 			RollingBuildFailureRate:      w.BuildFailureRate,
 			RollingValidationFailureRate: w.ValidationFailureRate,
 			RollingTimeoutFailureRate:    w.TimeoutFailureRate,
+			RollingTimeoutDecompositionAttempts: w.TimeoutDecompositionAttempts,
+			RollingTimeoutDecompositionSuccessRate: w.TimeoutDecompositionSuccessRate,
 			EWMASuccessRate:              successEWMA,
 			EWMACostUSD:                  costEWMA,
 			EWMADurationMs:               durationEWMA,
@@ -265,8 +267,12 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 		return ProcessTrendWindow{}
 	}
 
-	var successes, firstPasses, escalations int
-	var preflightFailures, buildFailures, validationFailures, timeoutFailures int
+	var (
+		successes, firstPasses, escalations int
+		preflightFailures, buildFailures, validationFailures, timeoutFailures int
+		timeoutDecompositionAttempts int
+		timeoutDecompositionSuccesses int
+	)
 	var durationTotal int64
 	var validationDurationTotal int64
 	var validationDurationCount int
@@ -326,6 +332,12 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 			mttrTotal += e.MTTRProxyMs
 			mttrCount++
 		}
+		if e.TimeoutDecompositionAttempted {
+			timeoutDecompositionAttempts++
+			if e.TimeoutDecompositionSucceeded {
+				timeoutDecompositionSuccesses++
+			}
+		}
 	}
 
 	totalIterations := len(window)
@@ -364,6 +376,13 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 		BuildFailureRate:      float64(buildFailures) / count,
 		ValidationFailureRate: float64(validationFailures) / count,
 		TimeoutFailureRate:    float64(timeoutFailures) / count,
+		TimeoutDecompositionAttempts: timeoutDecompositionAttempts,
+		TimeoutDecompositionSuccessRate: func() float64 {
+			if timeoutDecompositionAttempts == 0 {
+				return 0
+			}
+			return float64(timeoutDecompositionSuccesses) / float64(timeoutDecompositionAttempts)
+		}(),
 	}
 }
 

@@ -98,6 +98,8 @@ type IterationMetric struct {
 	RollingBuildFailureRate      float64                   `json:"rolling_build_failure_rate"`
 	RollingValidationFailureRate float64                   `json:"rolling_validation_failure_rate"`
 	RollingTimeoutFailureRate    float64                   `json:"rolling_timeout_failure_rate"`
+	RollingTimeoutDecompositionAttempts int                 `json:"rolling_timeout_decomposition_attempts"`
+	RollingTimeoutDecompositionSuccessRate float64          `json:"rolling_timeout_decomposition_success_rate"`
 	EWMASuccessRate              EWMAMetricState           `json:"ewma_success_rate"`
 	EWMACostUSD                  EWMAMetricState           `json:"ewma_cost_usd"`
 	EWMADurationMs               EWMAMetricState           `json:"ewma_duration_ms"`
@@ -166,6 +168,8 @@ type ProcessTrendWindow struct {
 	BuildFailureRate      float64 `json:"build_failure_rate"`
 	ValidationFailureRate float64 `json:"validation_failure_rate"`
 	TimeoutFailureRate    float64 `json:"timeout_failure_rate"`
+	TimeoutDecompositionAttempts int   `json:"timeout_decomposition_attempts"`
+	TimeoutDecompositionSuccessRate float64 `json:"timeout_decomposition_success_rate"`
 }
 
 // TrendControlLimit captures control-limit boundaries for a process metric.
@@ -364,6 +368,8 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 		BuildFailureRate:      latestMetric.RollingBuildFailureRate,
 		ValidationFailureRate: latestMetric.RollingValidationFailureRate,
 		TimeoutFailureRate:    latestMetric.RollingTimeoutFailureRate,
+		TimeoutDecompositionAttempts: latestMetric.RollingTimeoutDecompositionAttempts,
+		TimeoutDecompositionSuccessRate: latestMetric.RollingTimeoutDecompositionSuccessRate,
 	}
 	trend.PromptTokenSummary = summarizePromptTokens(metrics, windowSize)
 	windowStart := len(metrics) - windowSize
