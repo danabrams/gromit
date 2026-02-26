@@ -514,6 +514,50 @@ func TestOrchestrator_PropagatesGateComplexityRoutingToBuildInput(t *testing.T) 
 	}
 }
 
+func TestOrchestrator_SetsComplexityFromPriority(t *testing.T) {
+	var captured pipeline.Input
+
+	gate := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		captured = in
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "priority-p2", Title: "Priority 2 bead", Priority: 2}, nil
+	}
+
+	orchCfg := OrchestratorConfig{
+		Gate:     gate,
+		Build:    &fakeStage{},
+		Validate: &fakeStage{},
+		Epilogue: &fakeStage{},
+		GetBead:  getBead,
+		Config:   cfg,
+		Output:   io.Discard,
+	}
+
+	orch := NewOrchestrator(orchCfg)
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if captured.Complexity == "" {
+		t.Fatalf("captured Input.Complexity empty; want tier derived from priority")
+	}
+	want := cfg.SelectTier(2, nil)
+	if captured.Complexity != want {
+		t.Fatalf("Input.Complexity = %q, want %q for priority 2", captured.Complexity, want)
+	}
+}
+
 // TestOrchestrator_SuccessPath_CarriesComplexityRoutingToIterationLog verifies
 // that Gate-selected complexity routing metadata is persisted into the success
 // iteration log payload alongside tier telemetry.
