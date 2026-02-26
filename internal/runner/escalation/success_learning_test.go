@@ -2,6 +2,7 @@ package escalation
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -317,5 +318,69 @@ func TestExtractSuccessLearning_HighTierUsesRouter(t *testing.T) {
 	}
 	if !strings.Contains(string(content), learningText) {
 		t.Errorf("learnings file should contain %q for high-tier bead, got:\n%s", learningText, string(content))
+	}
+}
+
+func TestExtractSuccessLearning_FailedIteration(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	lf, err := learnings.NewFile(dir)
+	if err != nil {
+		t.Fatalf("failed to create learnings file: %v", err)
+	}
+
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	bc := &runtypes.BeadContext{
+		Bead: &bead.Bead{
+			ID:    "success-failure-001",
+			Title: "Failure path bead",
+		},
+		Tier:   provider.TierMedium,
+		Model:  "sonnet",
+		Result: &runtypes.IterationResult{},
+	}
+
+	logged := []string{}
+	router := &mockSuccessRouter{
+		selectFn: func(phase, tier string) (SuccessLearningProvider, string) {
+			return &mockSuccessProvider{
+				runFn: func(ctx context.Context, prompt string, tier string) (SuccessLearningResult, error) {
+					return &mockSuccessResult{
+						success: false,
+						output:  `{"learning": "should not persist", "category": "patterns"}`,
+					}, nil
+				},
+			}, "haiku"
+		},
+	}
+
+	ExtractSuccessLearning(context.Background(), bc, cfg, lf, router, func(format string, args ...interface{}) {
+		logged = append(logged, fmt.Sprintf(format, args...))
+	}, nil)
+
+	if len(logged) == 0 {
+		t.Fatal("expected failure path to log at least once")
+	}
+
+	foundFailureLog := false
+	for _, entry := range logged {
+		if strings.Contains(entry, "Success learning extraction failed") {
+			foundFailureLog = true
+			break
+		}
+	}
+	if !foundFailureLog {
+		t.Errorf("expected a failure log entry, got: %v", logged)
+	}
+
+	content, err := os.ReadFile(filepath.Join(dir, "LEARNINGS.md"))
+	if err == nil && strings.Contains(string(content), bc.Bead.ID) {
+		t.Errorf("should not persist learning when provider reports failure, got content:\n%s", string(content))
+	}
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatalf("failed to read learnings file: %v", err)
 	}
 }
