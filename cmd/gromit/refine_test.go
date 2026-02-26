@@ -140,22 +140,9 @@ func TestRunRefineReturnsErrorWhenPipelineCreationFails(t *testing.T) {
 	}
 }
 
-type refineSessionTestAgent struct {
-	launchInDirFn func(promptPath, dir string) error
-}
-
-func (a *refineSessionTestAgent) Name() string { return "refine-test-agent" }
-
-func (a *refineSessionTestAgent) Launch(promptPath string) error {
-	return a.LaunchInDir(promptPath, "")
-}
-
-func (a *refineSessionTestAgent) LaunchInDir(promptPath, dir string) error {
-	if a != nil && a.launchInDirFn != nil {
-		return a.launchInDirFn(promptPath, dir)
-	}
-	return nil
-}
+// refineSessionTestAgent is now defined in session_test_agent_helper.go
+// using the shared sessionTestAgent test helper
+type refineSessionTestAgent = sessionTestAgent
 
 type refineSessionTestResolver struct {
 	agent pipeline.Agent
