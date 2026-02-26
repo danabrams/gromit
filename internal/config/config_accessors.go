@@ -429,3 +429,26 @@ func (c Config) ResolvedTrackerBackend() CompatibilityResolvedValue {
 func (c Config) ResolvedProfile() CompatibilityResolvedValue {
 	return c.ResolveCompatibilityContext().Profile
 }
+
+// EffectiveValidationCommands returns the effective validation commands following
+// the precedence: explicit > profile_default > legacy_fallback.
+// Explicit commands are returned if set, otherwise profile defaults for the
+// resolved profile are returned.
+func (c Config) EffectiveValidationCommands() []string {
+	// Explicit commands take precedence
+	if len(c.Validation.Commands) > 0 {
+		return c.Validation.Commands
+	}
+
+	// Fall back to profile defaults
+	resolvedProfile := c.ResolvedProfile()
+	if resolvedProfile.Value != "" {
+		defaults, ok := ProfileForName(resolvedProfile.Value)
+		if ok && len(defaults.ValidationCommands) > 0 {
+			return defaults.ValidationCommands
+		}
+	}
+
+	// Fall back to empty slice
+	return nil
+}
