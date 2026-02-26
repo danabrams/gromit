@@ -66,27 +66,27 @@ func TestClaudeClientAdapter_NoHardcodedTimeout(t *testing.T) {
 	}
 }
 
-// TestBeadClientAdapter_ConstructsTypedStruct verifies beadClientAdapter methods return typed structs
+// TestTrackerClientAdapter_ConstructsTypedStruct verifies trackerClientAdapter methods return typed structs
 func TestBeadClientAdapter_ConstructsTypedStruct(t *testing.T) {
 	t.Parallel()
 	contentStr := adapterTestReadFile(t, "adapters.go")
 
 	// Check that adapter constructs &pipeline.BeadInfo{...}
 	if !adapterTestContainsString(contentStr, "&pipeline.BeadInfo{") {
-		t.Error("beadClientAdapter methods should construct &pipeline.BeadInfo{...}")
+		t.Error("trackerClientAdapter methods should construct &pipeline.BeadInfo{...}")
 	}
 
-	// Verify beadClientAdapter has expected methods returning typed values
+	// Verify trackerClientAdapter has expected methods returning typed values
 	requiredMethods := []string{
-		"func (a *beadClientAdapter) Ready() (*pipeline.BeadInfo, error)",
-		"func (a *beadClientAdapter) Show(id string) (*pipeline.BeadInfo, error)",
-		"func (a *beadClientAdapter) Create(",
-		"func (a *beadClientAdapter) CreateWithDepsAndDescription(",
+		"func (a *trackerClientAdapter) Ready(ctx context.Context) (*pipeline.BeadInfo, error)",
+		"func (a *trackerClientAdapter) Show(ctx context.Context, id string) (*pipeline.BeadInfo, error)",
+		"func (a *trackerClientAdapter) Create(ctx context.Context",
+		"func (a *trackerClientAdapter) CreateWithDepsAndDescription(ctx context.Context",
 	}
 
 	for _, method := range requiredMethods {
 		if !adapterTestContainsString(contentStr, method) {
-			t.Errorf("beadClientAdapter missing expected method signature: %s", method)
+			t.Errorf("trackerClientAdapter missing expected method signature: %s", method)
 		}
 	}
 }
@@ -116,25 +116,25 @@ func TestAdapterSimplification_NoMapConstruction(t *testing.T) {
 	t.Parallel()
 	contentStr := adapterTestReadFile(t, "adapters.go")
 
-	// Extract claude adapter section (between claudeClientAdapter type and beadClientAdapter type)
+	// Extract claude adapter section (between claudeClientAdapter type and trackerClientAdapter type)
 	claudeAdapterSection := adapterTestExtractBetween(contentStr,
 		"type claudeClientAdapter struct",
-		"type beadClientAdapter struct")
+		"type trackerClientAdapter struct")
 
 	if claudeAdapterSection != "" && adapterTestContainsString(claudeAdapterSection, "map[string]interface{}") {
 		t.Error("claudeClientAdapter should construct typed structs directly, not intermediate maps")
 	}
 
-	// Extract bead adapter section (between beadClientAdapter type and end of file)
-	beadAdapterSection := adapterTestExtractBetween(contentStr,
-		"type beadClientAdapter struct",
+	// Extract tracker adapter section (between trackerClientAdapter type and end of file)
+	trackerAdapterSection := adapterTestExtractBetween(contentStr,
+		"type trackerClientAdapter struct",
 		"")
 
-	if beadAdapterSection != "" && adapterTestContainsString(beadAdapterSection, "return a.Client") {
+	if trackerAdapterSection != "" && adapterTestContainsString(trackerAdapterSection, "return a.Client") {
 		// If it's just returning a.Client directly without constructing pipeline.BeadInfo,
 		// that's the old behavior
-		if !adapterTestContainsString(beadAdapterSection, "&pipeline.BeadInfo{") {
-			t.Error("beadClientAdapter should construct &pipeline.BeadInfo{...}, not return bead.Bead directly")
+		if !adapterTestContainsString(trackerAdapterSection, "&pipeline.BeadInfo{") {
+			t.Error("trackerClientAdapter should construct &pipeline.BeadInfo{...}, not return tracker.Item directly")
 		}
 	}
 }

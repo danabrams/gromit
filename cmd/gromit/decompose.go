@@ -211,16 +211,17 @@ func decomposeSinglePlanInCurrentDir(planName string, cfg *config.Config) error 
 		return fmt.Errorf("creating decompose client: %w", err)
 	}
 
-	// Create Bead client
+	// Create Bead client and wrap in tracker adapter
 	beadClient, err := bead.NewClient()
 	if err != nil {
 		return fmt.Errorf("creating bead client: %w", err)
 	}
+	trackerClient := bead.NewBDAdapter(beadClient)
 
 	// Create pipeline
 	deps := &pipeline.Deps{
-		LLMClient:  decomposeClient,
-		BeadClient: &beadClientAdapter{Client: beadClient},
+		LLMClient:     decomposeClient,
+		TrackerClient: &trackerClientAdapter{Client: trackerClient},
 	}
 	paths := &pipeline.Paths{
 		GromitDir: resolveGromitDir(cfg),

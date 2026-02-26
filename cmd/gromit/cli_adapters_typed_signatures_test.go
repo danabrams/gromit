@@ -81,10 +81,10 @@ func TestPipelineInterfaces_AllTypedSignatures(t *testing.T) {
 		t.Error("LLMClient.Run should return (*LLMRunResult, error)")
 	}
 
-	// Verify BeadClient returns typed results
-	beadClientSection := extractBetweenMarkers(contentStr, "type BeadClient interface", "type BacklogClient interface")
-	if !strings.Contains(beadClientSection, "(*BeadInfo, error)") {
-		t.Error("BeadClient methods should return (*BeadInfo, error)")
+	// Verify TrackerClient returns typed results
+	trackerClientSection := extractBetweenMarkers(contentStr, "type TrackerClient interface", "type BeadQueryClient interface")
+	if !strings.Contains(trackerClientSection, "(*BeadInfo, error)") {
+		t.Error("TrackerClient methods should return (*BeadInfo, error)")
 	}
 }
 

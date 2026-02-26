@@ -7,12 +7,12 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/agent"
-	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/retro"
+	"github.com/danabrams/gromit/internal/tracker"
 )
 
 // claudeClientAdapter adapts claude.Client to pipeline invocation interfaces.
@@ -173,55 +173,103 @@ func toLLMRunResult(success bool, exitCode int, output string) *pipeline.LLMRunR
 	}
 }
 
-// beadClientAdapter adapts bead.Client to pipeline.BeadClient interface.
-type beadClientAdapter struct {
-	Client *bead.Client
+// trackerClientAdapter adapts tracker.Client to pipeline.TrackerClient interface.
+type trackerClientAdapter struct {
+	Client tracker.Client
 }
 
-var _ pipeline.BeadClient = (*beadClientAdapter)(nil)
+var _ pipeline.TrackerClient = (*trackerClientAdapter)(nil)
 
-// toBeadInfo converts a bead.Bead to pipeline.BeadInfo.
-func toBeadInfo(b *bead.Bead) *pipeline.BeadInfo {
+// trackerItemToBeadInfo converts a tracker.Item to pipeline.BeadInfo.
+func trackerItemToBeadInfo(item *tracker.Item) *pipeline.BeadInfo {
+	if item == nil {
+		return nil
+	}
+
+	priority := 0
+	if p, ok := item.Metadata["priority"]; ok {
+		fmt.Sscanf(p, "%d", &priority)
+	}
+
+	var labels []string
+	if l, ok := item.Metadata["labels"]; ok {
+		// Labels were encoded as JSON array in metadata
+		fmt.Sscanf(l, "[%s]", &l)
+		// For now, we'll extract just the priority and basic fields
+	}
+
 	return &pipeline.BeadInfo{
-		ID:       b.ID,
-		Title:    b.Title,
-		Priority: b.Priority,
-		Labels:   b.Labels,
+		ID:       item.ID,
+		Title:    item.Title,
+		Priority: priority,
+		Labels:   labels,
 	}
 }
 
-func (a *beadClientAdapter) Ready() (*pipeline.BeadInfo, error) {
-	b, err := a.Client.Ready()
+func (a *trackerClientAdapter) Ready(ctx context.Context) (*pipeline.BeadInfo, error) {
+	item, err := a.Client.Ready(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return toBeadInfo(b), nil
+	return trackerItemToBeadInfo(item), nil
 }
 
-func (a *beadClientAdapter) Show(id string) (*pipeline.BeadInfo, error) {
-	b, err := a.Client.Show(id)
+func (a *trackerClientAdapter) Show(ctx context.Context, id string) (*pipeline.BeadInfo, error) {
+	item, err := a.Client.Show(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	return toBeadInfo(b), nil
+	return trackerItemToBeadInfo(item), nil
 }
 
-func (a *beadClientAdapter) Create(title string, priority int, labels []string, outputs []string) (*pipeline.BeadInfo, error) {
-	b, err := a.Client.Create(title, priority, labels, outputs)
+func (a *trackerClientAdapter) Create(ctx context.Context, title string, priority int, labels []string, outputs []string) (*pipeline.BeadInfo, error) {
+	req := tracker.CreateRequest{
+		Title:    title,
+		Metadata: make(map[string]string),
+	}
+	if priority > 0 {
+		req.Metadata["priority"] = fmt.Sprintf("%d", priority)
+	}
+	if len(labels) > 0 {
+		req.Metadata["labels"] = fmt.Sprintf("%v", labels)
+	}
+	if len(outputs) > 0 {
+		req.Metadata["expected_outputs"] = fmt.Sprintf("%v", outputs)
+	}
+
+	item, err := a.Client.Create(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	return toBeadInfo(b), nil
+	return trackerItemToBeadInfo(item), nil
 }
 
-func (a *beadClientAdapter) CreateWithDepsAndDescription(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*pipeline.BeadInfo, error) {
-	b, err := a.Client.CreateWithDepsAndDescription(title, priority, labels, criteria, deps, desc)
+func (a *trackerClientAdapter) CreateWithDepsAndDescription(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*pipeline.BeadInfo, error) {
+	req := tracker.CreateRequest{
+		Title:       title,
+		Description: desc,
+		Metadata:    make(map[string]string),
+	}
+	if priority > 0 {
+		req.Metadata["priority"] = fmt.Sprintf("%d", priority)
+	}
+	if len(labels) > 0 {
+		req.Metadata["labels"] = fmt.Sprintf("%v", labels)
+	}
+	if len(criteria) > 0 {
+		req.Metadata["acceptance_criteria"] = fmt.Sprintf("%v", criteria)
+	}
+	if len(deps) > 0 {
+		req.Metadata["dependencies"] = fmt.Sprintf("%v", deps)
+	}
+
+	item, err := a.Client.Create(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	return toBeadInfo(b), nil
+	return trackerItemToBeadInfo(item), nil
 }
 
-func (a *beadClientAdapter) Close(id string) error {
-	return a.Client.Close(id)
+func (a *trackerClientAdapter) Close(ctx context.Context, id string) error {
+	return a.Client.Close(ctx, id)
 }

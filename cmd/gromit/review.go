@@ -466,14 +466,15 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 	if err != nil {
 		return fmt.Errorf("creating bead client: %w", err)
 	}
+	trackerClient := bead.NewBDAdapter(beadsClient)
 
 	// Create adapters
 	reviewRendererAdapter := &cliPromptRenderer{
 		renderer: renderer,
 	}
 
-	beadAdapter := &beadClientAdapter{
-		Client: beadsClient,
+	trackerAdapter := &trackerClientAdapter{
+		Client: trackerClient,
 	}
 
 	backlogAdapter := &cliBacklogClient{
@@ -501,7 +502,7 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 	deps := &pipeline.Deps{
 		ReviewRenderer:   reviewRendererAdapter,
 		ReviewInvoker:    llmClient,
-		BeadClient:       beadAdapter,
+		TrackerClient:    trackerAdapter,
 		BacklogClient:    backlogAdapter,
 		LearningsManager: learningsAdapter,
 		LogWriter:        logAdapter,
