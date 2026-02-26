@@ -3,6 +3,7 @@ package provider
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"io"
 	"strings"
 	"sync/atomic"
@@ -10,8 +11,9 @@ import (
 )
 
 const (
-	codexStreamScannerMaxTokenSize = 10 * 1024 * 1024
-	codexStreamWatchdogInterval    = 10 * time.Second
+	codexStreamScannerMaxTokenSize   = 10 * 1024 * 1024
+	codexStreamWatchdogInterval      = 10 * time.Second
+	highInputTokenWarningThreshold   = 3000000 // 3M input tokens
 )
 
 // codexUsage represents token usage data from Codex turn.completed events.
@@ -115,6 +117,18 @@ func emitStreamEvent(handler EventHandler, streamEvent map[string]interface{}) {
 	}
 	eventJSON, _ := json.Marshal(streamEvent)
 	handler(eventJSON)
+}
+
+// emitHighInputTokenWarningIfNeeded checks if input tokens exceed the warning threshold
+// and emits a warning event if they do.
+func emitHighInputTokenWarningIfNeeded(handler EventHandler, usage *codexUsage) {
+	if usage == nil || usage.InputTokens <= highInputTokenWarningThreshold {
+		return
+	}
+	emitStreamEvent(handler, map[string]interface{}{
+		"type":    "warning",
+		"message": fmt.Sprintf("High input token usage: %d tokens exceed threshold of %d", usage.InputTokens, highInputTokenWarningThreshold),
+	})
 }
 
 // processCodexStream reads Codex JSONL events from reader, converts them to StreamEvent format,
@@ -266,6 +280,7 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 					"input_tokens":   resultUsage.InputTokens,
 					"output_tokens":  resultUsage.OutputTokens,
 				})
+				emitHighInputTokenWarningIfNeeded(handler, resultUsage)
 			}
 
 		case "turn.completed":
@@ -278,6 +293,7 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 					"input_tokens":   turnUsage.InputTokens,
 					"output_tokens":  turnUsage.OutputTokens,
 				})
+				emitHighInputTokenWarningIfNeeded(handler, turnUsage)
 			}
 
 			// Capture error info from failed turns.
@@ -304,6 +320,7 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 					"input_tokens":   responseUsage.InputTokens,
 					"output_tokens":  responseUsage.OutputTokens,
 				})
+				emitHighInputTokenWarningIfNeeded(handler, responseUsage)
 			}
 			if event.ErrorInfo != nil {
 				errInfo = event.ErrorInfo
