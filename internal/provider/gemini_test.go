@@ -139,6 +139,47 @@ func TestGeminiProviderIsUsageLimitErrorDetection(t *testing.T) {
 	}
 }
 
+func TestGeminiProviderRunValidationRejectsInvalidCommands(t *testing.T) {
+	gp := NewGeminiProvider("gemini", nil, map[string]string{TierLow: "gemini-2.0-flash"})
+
+	tests := []struct {
+		name     string
+		commands []string
+		wantErr  string
+	}{
+		{
+			name:     "empty command list",
+			commands: nil,
+			wantErr:  "at least one command is required",
+		},
+		{
+			name:     "empty command entry",
+			commands: []string{""},
+			wantErr:  "command 1 is empty",
+		},
+		{
+			name:     "multiline command",
+			commands: []string{"go test\ngo vet"},
+			wantErr:  "command 1 must be a single line",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := gp.RunValidation(context.Background(), tt.commands, TierLow, t.TempDir())
+			if err == nil {
+				t.Fatalf("RunValidation() error = nil, want error containing %q", tt.wantErr)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("RunValidation() error = %q, want to contain %q", err.Error(), tt.wantErr)
+			}
+			if result != nil {
+				t.Fatalf("RunValidation() result = %#v, want nil when command validation fails", result)
+			}
+		})
+	}
+}
+
 func TestGeminiProviderRunInvokesJSONMode(t *testing.T) {
 	ctx := context.Background()
 	clockwork := make([]string, 0)
