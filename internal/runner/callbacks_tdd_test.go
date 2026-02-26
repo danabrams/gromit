@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math"
@@ -183,6 +184,20 @@ type phaseUsage struct {
 	CostUSD     float64 `json:"cost_usd"`
 	InputTokens int     `json:"input_tokens"`
 	OutputTokens int    `json:"output_tokens"`
+}
+
+func loadHistoricalPhaseMetricsFixture(t *testing.T) []historicalPhaseMetricsFixture {
+	t.Helper()
+	fixturePath := filepath.Join("..", "..", "test", "fixtures", "historical_phase_metrics.json")
+	data, err := os.ReadFile(fixturePath)
+	if err != nil {
+		t.Fatalf("load fixture %s: %v", fixturePath, err)
+	}
+	var fixtures []historicalPhaseMetricsFixture
+	if err := json.Unmarshal(data, &fixtures); err != nil {
+		t.Fatalf("decode fixture %s: %v", fixturePath, err)
+	}
+	return fixtures
 }
 
 func TestBuildRenderRedFn_UsesRedPhaseTierOverride(t *testing.T) {

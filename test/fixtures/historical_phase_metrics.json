@@ -1,0 +1,90 @@
+[
+  {
+    "phase": "red",
+    "cycle_number": 1,
+    "bead_id": "bead-01",
+    "model": "claude-haiku-4-5",
+    "tier": "low",
+    "before": {
+      "cost_usd": 0.02,
+      "input_tokens": 180,
+      "output_tokens": 70
+    },
+    "after": {
+      "cost_usd": 0.08,
+      "input_tokens": 520,
+      "output_tokens": 230
+    },
+    "expected": {
+      "cost_usd": 0.06,
+      "input_tokens": 340,
+      "output_tokens": 160
+    }
+  },
+  {
+    "phase": "green",
+    "cycle_number": 1,
+    "bead_id": "bead-01",
+    "model": "claude-sonnet-4-6",
+    "tier": "medium",
+    "before": {
+      "cost_usd": 0.08,
+      "input_tokens": 520,
+      "output_tokens": 230
+    },
+    "after": {
+      "cost_usd": 0.23,
+      "input_tokens": 1020,
+      "output_tokens": 470
+    },
+    "expected": {
+      "cost_usd": 0.15,
+      "input_tokens": 500,
+      "output_tokens": 240
+    }
+  },
+  {
+    "phase": "refactor",
+    "cycle_number": 1,
+    "bead_id": "bead-01",
+    "model": "gemini-1.2",
+    "tier": "high",
+    "before": {
+      "cost_usd": 0.23,
+      "input_tokens": 1020,
+      "output_tokens": 470
+    },
+    "after": {
+      "cost_usd": 0.28,
+      "input_tokens": 1170,
+      "output_tokens": 530
+    },
+    "expected": {
+      "cost_usd": 0.05,
+      "input_tokens": 150,
+      "output_tokens": 60
+    }
+  },
+  {
+    "phase": "red",
+    "cycle_number": 2,
+    "bead_id": "bead-01",
+    "model": "claude-sonnet-4-6",
+    "tier": "medium",
+    "before": {
+      "cost_usd": 0.28,
+      "input_tokens": 1170,
+      "output_tokens": 530
+    },
+    "after": {
+      "cost_usd": 0.33,
+      "input_tokens": 1270,
+      "output_tokens": 590
+    },
+    "expected": {
+      "cost_usd": 0.05,
+      "input_tokens": 100,
+      "output_tokens": 60
+    }
+  }
+]
