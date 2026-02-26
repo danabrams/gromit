@@ -180,6 +180,13 @@ func maybeATDDRuleSubset(rules string) (string, bool) {
 	if rules == "" {
 		return rules, false
 	}
+	// Try to extract ATDD-relevant rules (Test Quality section)
+	// If not available, fall back to build-phase filtering
+	atddSubset := ExtractATDDRulesSubset(rules)
+	if atddSubset != "" && atddSubset != rules {
+		return atddSubset, true
+	}
+	// Fallback: filter by build phase if no Test Quality section found
 	filtered := filterRulesByPhase(rules, promptPhaseBuild)
 	if filtered == rules {
 		return rules, false
