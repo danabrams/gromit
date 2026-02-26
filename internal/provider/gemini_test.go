@@ -7,6 +7,13 @@ import (
 	"testing"
 )
 
+func TestGeminiShortPromptThresholdIsPractical(t *testing.T) {
+	// ARG_MAX on Linux is ~2MB, so threshold should be practical for command-line argument passing
+	if geminiShortPromptThreshold < 8192 {
+		t.Errorf("geminiShortPromptThreshold = %d, want >= 8192", geminiShortPromptThreshold)
+	}
+}
+
 func TestGeminiProviderRunValidationRunsPrompt(t *testing.T) {
 	t.Parallel()
 	mockBinary := testCreateBinaryWithETXTBSYProtection(t, `echo '{"output":"1. go test\n2. go vet\n\nVALIDATION_PASSED","usage":{"input_tokens":100,"output_tokens":50,"cached_input_tokens":0},"cost":{"total":0},"model":"gemini-2.0-flash","session_id":"test","response":"1. go test\n2. go vet\n\nVALIDATION_PASSED"}'
