@@ -2172,6 +2172,7 @@ func TestExecuteWithRetry_DecompositionRemainsAvailableAsL4Option(t *testing.T) 
 	)
 
 	bc := newTestBeadContext()
+	bc.Bead.Labels = []string{"atomic:true"} // Make bead atomic so it reaches L4 instead of decomposing at L1
 	bc.Tier = provider.TierHigh
 	bc.Model = "opus"
 	bc.MaxRetries = 0
@@ -2851,5 +2852,267 @@ func TestExecuteWithRetryWithEscalation_MethodAcceptsEscalationFlag(t *testing.T
 	successWithoutEscalation := h.ExecuteWithRetryWithEscalation(context.Background(), bc, invokeFn, false)
 	if !successWithoutEscalation {
 		t.Error("ExecuteWithRetryWithEscalation with escalationEnabled=false should succeed with successful invocation")
+	}
+}
+
+// --- Integration tests for decompose-first escalation ---
+
+// TestExecuteWithRetry_RetryCapsTriggersDecompositionNonAtomic verifies that
+// when a non-atomic bead exceeds the retry cap on its current tier, the handler
+// triggers decomposition instead of escalating to the next tier.
+func TestExecuteWithRetry_RetryCapsTriggersDecompositionNonAtomic(t *testing.T) {
+	t.Parallel()
+
+	cfg := newTestConfig()
+	cfg.Escalation.MaxRetriesPerModel = 2 // L1: 2 retries before escalation
+
+	// Track calls
+	decomposeCalled := false
+	createSubCalled := false
+
+	bc := newTestBeadContext()
+	bc.Bead.ExpectedOutputs = []string{"file1.go", "file2.go"} // Multi-file target -> not atomic
+	bc.Tier = provider.TierLow
+	bc.MaxRetries = 2
+	bc.MaxRetriesPerBead = 5
+
+	// Simulate repeated failures that exhaust L1 retries
+	invocationCount := 0
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		invocationCount++
+		return &runtypes.InvocationResult{
+			ProviderResult: &provider.Result{
+				Success: false,
+				Output:  "build failed",
+			},
+		}, nil
+	}
+
+	mfa := &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, failureOutput string) (*analyzer.Analysis, error) {
+			return &analyzer.Analysis{
+				Category:    analyzer.CategoryLogic,
+				Recoverable: true,
+				RootCause:   "recoverable failure",
+				Suggestion:  "retry",
+			}, nil
+		},
+	}
+
+	h := NewHandler(
+		cfg,
+		mfa,
+		&mockBeadClient{},
+		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+			decomposeCalled = true
+			return []runtypes.SubTask{{Title: "split task"}}, nil
+		},
+		func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error {
+			createSubCalled = true
+			return nil
+		},
+		nil,
+		nil,
+	)
+
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+
+	// Should not succeed
+	if success {
+		t.Error("ExecuteWithRetry should return false after decomposition attempt")
+	}
+
+	// Should have called decompose (because non-atomic bead hit retry cap at L1)
+	if !decomposeCalled {
+		t.Errorf("Expected decomposeFn to be called for non-atomic bead hitting retry cap")
+	}
+
+	// Should have created sub-beads
+	if !createSubCalled {
+		t.Errorf("Expected createSubFn to be called after decomposition")
+	}
+
+	// Result should be marked as decomposed
+	if !bc.Result.Decomposed {
+		t.Errorf("Result.Decomposed = %v, want true", bc.Result.Decomposed)
+	}
+
+	// Should not have escalated beyond L1
+	if bc.Tier != provider.TierLow {
+		t.Errorf("Tier = %q, want %q (should stay at initial tier after decomposition)", bc.Tier, provider.TierLow)
+	}
+}
+
+// TestExecuteWithRetry_AtomicBeadsEscalateDirect verifies that
+// when an atomic bead exceeds the retry cap on its current tier,
+// the handler escalates directly to the next tier instead of attempting decomposition.
+func TestExecuteWithRetry_AtomicBeadsEscalateDirect(t *testing.T) {
+	t.Parallel()
+
+	cfg := newTestConfig()
+	cfg.Escalation.MaxRetriesPerModel = 2 // L1: 2 retries before escalation
+
+	// Track calls
+	decomposeCalled := false
+
+	bc := newTestBeadContext()
+	bc.Bead.Labels = []string{"atomic:true"} // Explicitly mark as atomic
+	bc.Tier = provider.TierLow
+	bc.MaxRetries = 2
+	bc.MaxRetriesPerBead = 5
+
+	// Simulate repeated failures that exhaust L1 retries
+	invocationCount := 0
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		invocationCount++
+		return &runtypes.InvocationResult{
+			ProviderResult: &provider.Result{
+				Success: false,
+				Output:  "build failed",
+			},
+		}, nil
+	}
+
+	mfa := &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, failureOutput string) (*analyzer.Analysis, error) {
+			return &analyzer.Analysis{
+				Category:    analyzer.CategoryLogic,
+				Recoverable: true,
+				RootCause:   "recoverable failure",
+				Suggestion:  "retry",
+			}, nil
+		},
+	}
+
+	h := NewHandler(
+		cfg,
+		mfa,
+		&mockBeadClient{},
+		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+			decomposeCalled = true
+			return []runtypes.SubTask{{Title: "split task"}}, nil
+		},
+		func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error {
+			return nil
+		},
+		nil,
+		nil,
+	)
+
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+
+	// Should not succeed
+	if success {
+		t.Error("ExecuteWithRetry should return false after exhausting L1")
+	}
+
+	// Should NOT have called decompose (atomic bead should escalate instead)
+	if decomposeCalled {
+		t.Errorf("Expected decomposeFn NOT to be called for atomic bead hitting retry cap")
+	}
+
+	// Result should NOT be marked as decomposed
+	if bc.Result.Decomposed {
+		t.Errorf("Result.Decomposed = %v, want false for atomic bead", bc.Result.Decomposed)
+	}
+
+	// Should have escalated to next tier instead of decomposing
+	if bc.Tier != provider.TierMedium {
+		t.Errorf("Tier = %q, want %q (should have escalated)", bc.Tier, provider.TierMedium)
+	}
+
+	// Result should show escalation
+	if !bc.Result.Escalated {
+		t.Errorf("Result.Escalated = %v, want true for atomic bead reaching L1 limit", bc.Result.Escalated)
+	}
+}
+
+// TestExecuteWithRetry_MaxDepthAtomicEnforcement verifies that beads at max-depth
+// are treated as atomic and escalate instead of decomposing, preventing infinite decomposition chains.
+func TestExecuteWithRetry_MaxDepthAtomicEnforcement(t *testing.T) {
+	t.Parallel()
+
+	cfg := newTestConfig()
+	cfg.Escalation.MaxRetriesPerModel = 2 // L1: 2 retries before escalation
+	cfg.Routing.CostOptimized.MaxDecompositionDepth = 1 // Set maxDepth=1 so parent (depth=1) is at limit
+
+	// Track calls
+	decomposeCalled := false
+
+	bc := newTestBeadContext()
+	// Simulate a deeply decomposed bead by setting a parent, which increases depth
+	bc.Parent = &bead.Bead{
+		ID:              "parent-bead",
+		Title:           "Parent task",
+		Description:     "Parent description",
+		ExpectedOutputs: []string{"file1.go", "file2.go"},
+	}
+	// This bead has multiple targets, normally decomposable, but will be at max-depth
+	bc.Bead.ExpectedOutputs = []string{"file1.go", "file2.go"}
+	bc.Tier = provider.TierLow
+	bc.MaxRetries = 2
+	bc.MaxRetriesPerBead = 5
+
+	// Simulate repeated failures that exhaust L1 retries
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		return &runtypes.InvocationResult{
+			ProviderResult: &provider.Result{
+				Success: false,
+				Output:  "build failed",
+			},
+		}, nil
+	}
+
+	mfa := &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, failureOutput string) (*analyzer.Analysis, error) {
+			return &analyzer.Analysis{
+				Category:    analyzer.CategoryLogic,
+				Recoverable: true,
+				RootCause:   "recoverable failure",
+				Suggestion:  "retry",
+			}, nil
+		},
+	}
+
+	h := NewHandler(
+		cfg,
+		mfa,
+		&mockBeadClient{},
+		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+			decomposeCalled = true
+			return []runtypes.SubTask{{Title: "split task"}}, nil
+		},
+		func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error {
+			return nil
+		},
+		nil,
+		nil,
+	)
+
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+
+	// Should not succeed
+	if success {
+		t.Error("ExecuteWithRetry should return false after exhausting L1")
+	}
+
+	// Should NOT have called decompose (max-depth bead should be treated as atomic)
+	if decomposeCalled {
+		t.Errorf("Expected decomposeFn NOT to be called for max-depth bead")
+	}
+
+	// Result should NOT be marked as decomposed
+	if bc.Result.Decomposed {
+		t.Errorf("Result.Decomposed = %v, want false for max-depth bead", bc.Result.Decomposed)
+	}
+
+	// Should have escalated to next tier instead of decomposing
+	if bc.Tier != provider.TierMedium {
+		t.Errorf("Tier = %q, want %q (should have escalated for max-depth bead)", bc.Tier, provider.TierMedium)
+	}
+
+	// Result should show escalation
+	if !bc.Result.Escalated {
+		t.Errorf("Result.Escalated = %v, want true for max-depth bead reaching L1 limit", bc.Result.Escalated)
 	}
 }
