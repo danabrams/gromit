@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"math"
 	"os"
@@ -103,6 +104,85 @@ func TestAppendTDDPhaseMetric_AppendsPhaseMetricToBcResult(t *testing.T) {
 	if !pm.Success {
 		t.Error("Success should be true")
 	}
+}
+
+func TestAppendTDDPhaseMetric_HistoricalFixtureParity(t *testing.T) {
+	t.Parallel()
+	fixtures := loadHistoricalPhaseMetricsFixture(t)
+	if len(fixtures) == 0 {
+		t.Fatalf("no historical phase metric fixtures loaded")
+	}
+
+	for _, fixture := range fixtures {
+		fixture := fixture
+		t.Run(fmt.Sprintf("%s/%s/cycle-%d", fixture.Phase, fixture.Model, fixture.CycleNumber), func(t *testing.T) {
+			t.Parallel()
+			bc := &runtypes.BeadContext{
+				Bead:  &bead.Bead{ID: fixture.BeadID},
+				Model: fixture.Model,
+				Tier:  fixture.Tier,
+				Result: &runtypes.IterationResult{
+					CostUSD:      fixture.After.CostUSD,
+					InputTokens:  fixture.After.InputTokens,
+					OutputTokens: fixture.After.OutputTokens,
+				},
+			}
+			appendTDDPhaseMetric(
+				bc,
+				fixture.Phase,
+				fixture.CycleNumber,
+				fixture.Before.CostUSD,
+				fixture.Before.InputTokens,
+				fixture.Before.OutputTokens,
+				time.Time{},
+			)
+			if len(bc.Result.PhaseMetrics) != 1 {
+				t.Fatalf("expected 1 PhaseMetric, got %d", len(bc.Result.PhaseMetrics))
+			}
+			pm := bc.Result.PhaseMetrics[0]
+			if pm.Phase != fixture.Phase {
+				t.Errorf("phase %s does not match fixture %s", pm.Phase, fixture.Phase)
+			}
+			if pm.CycleNumber != fixture.CycleNumber {
+				t.Errorf("cycle %d does not match fixture %d", pm.CycleNumber, fixture.CycleNumber)
+			}
+			if pm.BeadID != fixture.BeadID {
+				t.Errorf("bead %s does not match fixture %s", pm.BeadID, fixture.BeadID)
+			}
+			if pm.Model != fixture.Model {
+				t.Errorf("model %s does not match fixture %s", pm.Model, fixture.Model)
+			}
+			if pm.Tier != fixture.Tier {
+				t.Errorf("tier %s does not match fixture %s", pm.Tier, fixture.Tier)
+			}
+			if math.Abs(pm.CostUSD-fixture.Expected.CostUSD) > 1e-10 {
+				t.Errorf("cost delta %.20f does not match fixture %.20f", pm.CostUSD, fixture.Expected.CostUSD)
+			}
+			if pm.InputTokens != fixture.Expected.InputTokens {
+				t.Errorf("input delta %d does not match fixture %d", pm.InputTokens, fixture.Expected.InputTokens)
+			}
+			if pm.OutputTokens != fixture.Expected.OutputTokens {
+				t.Errorf("output delta %d does not match fixture %d", pm.OutputTokens, fixture.Expected.OutputTokens)
+			}
+		})
+	}
+}
+
+type historicalPhaseMetricsFixture struct {
+	Phase       string      `json:"phase"`
+	CycleNumber int         `json:"cycle_number"`
+	BeadID      string      `json:"bead_id"`
+	Model       string      `json:"model"`
+	Tier        string      `json:"tier"`
+	Before      phaseUsage  `json:"before"`
+	After       phaseUsage  `json:"after"`
+	Expected    phaseUsage  `json:"expected"`
+}
+
+type phaseUsage struct {
+	CostUSD     float64 `json:"cost_usd"`
+	InputTokens int     `json:"input_tokens"`
+	OutputTokens int    `json:"output_tokens"`
 }
 
 func TestBuildRenderRedFn_UsesRedPhaseTierOverride(t *testing.T) {
