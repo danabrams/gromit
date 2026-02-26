@@ -1211,6 +1211,160 @@ func TestOrchestrator_MergesGlobalStatsPreservingExistingData(t *testing.T) {
 			t.Error("Updated timestamp should have changed from existing value")
 		}
 	})
+
+	t.Run("empty-initial-stats: all fields initialized from zero-values when no prior data exists", func(t *testing.T) {
+		_, logsDir, statsPath := setupMergeStatsTestDirs(t)
+		// Don't seed existing stats - start with empty
+		logEntries := []logger.IterationLog{
+			{
+				Timestamp:    time.Now(),
+				Iteration:    1,
+				BeadID:       "bead-1",
+				BeadTitle:    "Feature A",
+				Success:      true,
+				Model:        "sonnet",
+				CostUSD:      2.50,
+				InputTokens:  100,
+				OutputTokens: 50,
+				DurationMs:   800,
+			},
+		}
+		writeOrchestratorTestLogFile(t, logsDir, "2026-02-25-002", logEntries)
+		mergedStats := invokeOrchestrator(t, statsPath, logsDir, "2026-02-25-002")
+
+		// Verify exactly one model in stats
+		if len(mergedStats.Models) != 1 {
+			t.Fatalf("Expected 1 model, got %d", len(mergedStats.Models))
+		}
+
+		// Verify all fields initialized correctly from zero-values
+		sonnetStats := mergedStats.Models["sonnet"]
+		if sonnetStats.Iterations != 1 {
+			t.Errorf("Iterations: got %d, want 1", sonnetStats.Iterations)
+		}
+		if sonnetStats.Successes != 1 {
+			t.Errorf("Successes: got %d, want 1", sonnetStats.Successes)
+		}
+		if sonnetStats.Failures != 0 {
+			t.Errorf("Failures: got %d, want 0", sonnetStats.Failures)
+		}
+		if sonnetStats.TotalCostUSD != 2.50 {
+			t.Errorf("TotalCostUSD: got %.2f, want 2.50", sonnetStats.TotalCostUSD)
+		}
+		if sonnetStats.EscalationsFrom != 0 {
+			t.Errorf("EscalationsFrom: got %d, want 0", sonnetStats.EscalationsFrom)
+		}
+		if sonnetStats.EscalationsTo != 0 {
+			t.Errorf("EscalationsTo: got %d, want 0", sonnetStats.EscalationsTo)
+		}
+	})
+
+	t.Run("multiple-model-independence: each model stats tracked independently without cross-contamination", func(t *testing.T) {
+		_, logsDir, statsPath := setupMergeStatsTestDirs(t)
+		seedGlobalStats(t, statsPath) // Seed with opus: iter=10, succ=8, fail=2, cost=20.00, esc_to=2
+		// Create logs with opus, haiku, and sonnet
+		logEntries := []logger.IterationLog{
+			{
+				Timestamp:    time.Now(),
+				Iteration:    1,
+				BeadID:       "bead-1",
+				Success:      true,
+				Model:        "opus",
+				CostUSD:      3.00,
+			},
+			{
+				Timestamp:    time.Now(),
+				Iteration:    2,
+				BeadID:       "bead-2",
+				Success:      true,
+				Model:        "haiku",
+				CostUSD:      0.50,
+			},
+			{
+				Timestamp:    time.Now(),
+				Iteration:    3,
+				BeadID:       "bead-3",
+				Success:      true,
+				Model:        "sonnet",
+				CostUSD:      1.50,
+			},
+		}
+		writeOrchestratorTestLogFile(t, logsDir, "2026-02-25-003", logEntries)
+		mergedStats := invokeOrchestrator(t, statsPath, logsDir, "2026-02-25-003")
+
+		// Verify 3 models present
+		if len(mergedStats.Models) != 3 {
+			t.Fatalf("Expected 3 models, got %d", len(mergedStats.Models))
+		}
+
+		// Verify opus: old(10,8,2,20) + new(1,1,0,3) = (11,9,2,23)
+		opusStats := mergedStats.Models["opus"]
+		if opusStats.Iterations != 11 {
+			t.Errorf("opus.Iterations: got %d, want 11", opusStats.Iterations)
+		}
+		if opusStats.Successes != 9 {
+			t.Errorf("opus.Successes: got %d, want 9", opusStats.Successes)
+		}
+		if opusStats.Failures != 2 {
+			t.Errorf("opus.Failures: got %d, want 2 (unchanged)", opusStats.Failures)
+		}
+		if opusStats.TotalCostUSD != 23.00 {
+			t.Errorf("opus.TotalCostUSD: got %.2f, want 23.00", opusStats.TotalCostUSD)
+		}
+
+		// Verify haiku: new model (0,0,0,0) + new(1,1,0,0.50) = (1,1,0,0.50)
+		haikuStats := mergedStats.Models["haiku"]
+		if haikuStats.Iterations != 1 {
+			t.Errorf("haiku.Iterations: got %d, want 1", haikuStats.Iterations)
+		}
+		if haikuStats.Successes != 1 {
+			t.Errorf("haiku.Successes: got %d, want 1", haikuStats.Successes)
+		}
+		if haikuStats.Failures != 0 {
+			t.Errorf("haiku.Failures: got %d, want 0", haikuStats.Failures)
+		}
+
+		// Verify sonnet: new model (0,0,0,0) + new(1,1,0,1.50) = (1,1,0,1.50)
+		sonnetStats := mergedStats.Models["sonnet"]
+		if sonnetStats.Iterations != 1 {
+			t.Errorf("sonnet.Iterations: got %d, want 1", sonnetStats.Iterations)
+		}
+		if sonnetStats.TotalCostUSD != 1.50 {
+			t.Errorf("sonnet.TotalCostUSD: got %.2f, want 1.50", sonnetStats.TotalCostUSD)
+		}
+	})
+
+	t.Run("zero-value-additive-semantics: zero-count failures don't overwrite existing non-zero failures", func(t *testing.T) {
+		_, logsDir, statsPath := setupMergeStatsTestDirs(t)
+		// Seed with opus having 10 iterations, 8 successes, 2 failures
+		seedGlobalStats(t, statsPath)
+		// Create run with opus that has all successes (0 failures)
+		logEntries := []logger.IterationLog{
+			{
+				Timestamp:    time.Now(),
+				Iteration:    1,
+				BeadID:       "bead-1",
+				Success:      true, // Success, not failure
+				Model:        "opus",
+				CostUSD:      1.00,
+			},
+		}
+		writeOrchestratorTestLogFile(t, logsDir, "2026-02-25-004", logEntries)
+		mergedStats := invokeOrchestrator(t, statsPath, logsDir, "2026-02-25-004")
+
+		// Verify opus failures are additive: old 2 failures + new 0 failures = 2 failures (not overwritten)
+		opusStats := mergedStats.Models["opus"]
+		if opusStats.Failures != 2 {
+			t.Errorf("opus.Failures: got %d, want 2 (existing failures preserved with zero-value additivity)", opusStats.Failures)
+		}
+		// Also verify iterations and successes updated correctly
+		if opusStats.Iterations != 11 {
+			t.Errorf("opus.Iterations: got %d, want 11 (10 existing + 1 new)", opusStats.Iterations)
+		}
+		if opusStats.Successes != 9 {
+			t.Errorf("opus.Successes: got %d, want 9 (8 existing + 1 new success)", opusStats.Successes)
+		}
+	})
 }
 
 // writeOrchestratorTestLogFile writes iteration logs to a run-{runID}.jsonl file
