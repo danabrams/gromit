@@ -206,6 +206,14 @@ func trackerItemToBeadInfo(item *tracker.Item) *pipeline.BeadInfo {
 	}
 }
 
+func marshalJSONList(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	data, _ := json.Marshal(values)
+	return string(data)
+}
+
 func (a *trackerClientAdapter) Ready(ctx context.Context) (*pipeline.BeadInfo, error) {
 	item, err := a.Client.Ready(ctx)
 	if err != nil {
@@ -235,7 +243,9 @@ func (a *trackerClientAdapter) Create(ctx context.Context, title string, priorit
 		req.Metadata["labels"] = string(labelsJSON)
 	}
 	if len(outputs) > 0 {
-		req.Metadata["expected_outputs"] = fmt.Sprintf("%v", outputs)
+		if encoded := marshalJSONList(outputs); encoded != "" {
+			req.Metadata["expected_outputs"] = encoded
+		}
 	}
 
 	item, err := a.Client.Create(ctx, req)
@@ -259,10 +269,14 @@ func (a *trackerClientAdapter) CreateWithDepsAndDescription(ctx context.Context,
 		req.Metadata["labels"] = string(labelsJSON)
 	}
 	if len(criteria) > 0 {
-		req.Metadata["acceptance_criteria"] = fmt.Sprintf("%v", criteria)
+		if encoded := marshalJSONList(criteria); encoded != "" {
+			req.Metadata["acceptance_criteria"] = encoded
+		}
 	}
 	if len(deps) > 0 {
-		req.Metadata["dependencies"] = fmt.Sprintf("%v", deps)
+		if encoded := marshalJSONList(deps); encoded != "" {
+			req.Metadata["dependencies"] = encoded
+		}
 	}
 
 	item, err := a.Client.Create(ctx, req)
