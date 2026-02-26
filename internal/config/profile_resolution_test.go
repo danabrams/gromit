@@ -108,3 +108,22 @@ func TestEffectivePreflightCompileCommandExplicitPrecedence(t *testing.T) {
 		t.Errorf("EffectivePreflightCompileCommand() = %q, want %q", effective, want)
 	}
 }
+
+func TestEffectivePreflightCompileCommandProfileDefaults(t *testing.T) {
+	cfg := Config{
+		Project: ProjectConfig{
+			Profile: "go",
+		},
+		Preflight: PreflightConfig{
+			CompileCommand: "", // No explicit compile command
+		},
+	}
+
+	effective := cfg.EffectivePreflightCompileCommand()
+
+	// Profile defaults should be used when explicit compile command is empty
+	want := "go build"
+	if effective != want {
+		t.Errorf("EffectivePreflightCompileCommand() = %q, want %q", effective, want)
+	}
+}
