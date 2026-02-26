@@ -184,3 +184,38 @@ func TestCustomProfileNoPreflightCompileCommandInjection(t *testing.T) {
 		t.Errorf("EffectivePreflightCompileCommand() for custom profile = %q, want empty string", effective)
 	}
 }
+
+func TestResolveProfileDependentDefaultsCentralResolver(t *testing.T) {
+	cfg := Config{
+		Project: ProjectConfig{
+			Profile: "go",
+		},
+		Validation: ValidationConfig{
+			Commands: nil,
+		},
+		Preflight: PreflightConfig{
+			CompileCommand: "custom compile",
+		},
+		Methodology: MethodologyConfig{
+			Adapter: "",
+		},
+	}
+
+	resolved := cfg.ResolveProfileDependentDefaults()
+
+	// Validation commands should use profile defaults
+	want := []string{"go test", "go build", "go vet"}
+	if !reflect.DeepEqual(resolved.ValidationCommands, want) {
+		t.Errorf("ValidationCommands = %v, want %v", resolved.ValidationCommands, want)
+	}
+
+	// Preflight compile command should use explicit value
+	if resolved.PreflightCompileCommand != "custom compile" {
+		t.Errorf("PreflightCompileCommand = %q, want %q", resolved.PreflightCompileCommand, "custom compile")
+	}
+
+	// Methodology adapter should use profile default
+	if resolved.MethodologyAdapter.Source != CompatibilitySourceProfileDefault {
+		t.Errorf("MethodologyAdapter.Source = %q, want %q", resolved.MethodologyAdapter.Source, CompatibilitySourceProfileDefault)
+	}
+}
