@@ -90,6 +90,12 @@ func (h *Handler) CheckRetryGate(bc *runtypes.BeadContext) error {
 		return nil
 	}
 
+	// Check for partial decomposition state: decomposition was attempted but failed
+	if bc.Result.TimeoutDecompositionAttempted && !bc.Result.TimeoutDecompositionSucceeded &&
+		bc.TotalRetriesThisBead > 0 && bc.Result.TimeoutType != "" {
+		return ErrPartialDecompositionState
+	}
+
 	// If timeout occurred and we've already retried without decomposing/escalating, block
 	if bc.Result.TimeoutType != "" &&
 		bc.TotalRetriesThisBead > 0 &&
