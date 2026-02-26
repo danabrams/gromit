@@ -904,3 +904,109 @@ func TestReviewSessionOwnsAndCleansUpTempFile(t *testing.T) {
 		t.Fatalf("Unexpected error checking temp file: %v", err)
 	}
 }
+
+// TestReviewInteractiveReturnsSessionWithCleanupOwnership verifies that ReviewInteractive
+// returns a ReviewSession that owns the temp file cleanup, not using defer.
+// This is safe for async mode - the session retains cleanup until Cleanup() is called.
+// Expected failure: ReviewInteractive uses defer cleanup() instead of passing to session
+func TestReviewInteractiveReturnsSessionWithCleanupOwnership(t *testing.T) {
+	// Track temp files before and after ReviewInteractive
+	gromitDir := t.TempDir()
+	tmpDir := filepath.Join(gromitDir, "tmp")
+
+	mockAgent := &reviewAcceptanceMockAgent{
+		name: "opus",
+		launchInDirFunc: func(promptPath string, dir string) error {
+			// Track that the prompt file exists when LaunchInDir is called
+			// In async mode, the file should still exist here
+			if _, err := os.Stat(promptPath); err != nil {
+				t.Errorf("Prompt file should exist during LaunchInDir: %v", err)
+			}
+			return nil
+		},
+	}
+
+	mockAgentResolver := &reviewAcceptanceMockAgentResolver{
+		resolveFunc: func(phase string, flagOverride string, choosePicker bool) (Agent, error) {
+			return mockAgent, nil
+		},
+	}
+
+	mockRenderer := &reviewAcceptanceMockReviewRenderer{
+		renderThoroughReviewFunc: func(input *ThoroughReviewPromptInput) (string, error) {
+			return "# Review Prompt\n\nDiff content", nil
+		},
+	}
+
+	deps := &Deps{
+		AgentResolver:  mockAgentResolver,
+		ReviewRenderer: mockRenderer,
+	}
+	paths := &Paths{
+		GromitDir: gromitDir,
+	}
+
+	p := New(deps, paths)
+
+	ctx := context.Background()
+	input := ReviewInput{
+		FromCommit: "abc123",
+		Diff:       "diff content",
+		AgentName:  "opus",
+		LaunchDir:  "/tmp",
+	}
+
+	// Count temp files before
+	filesBefore := countTempPromptFiles(t, tmpDir)
+
+	session, err := p.ReviewInteractive(ctx, input)
+	if err != nil {
+		t.Fatalf("ReviewInteractive() failed: %v", err)
+	}
+
+	if session == nil {
+		t.Fatal("ReviewInteractive() returned nil session")
+	}
+
+	// Check temp files after ReviewInteractive returns
+	// Current implementation uses defer, so file is already deleted
+	// Desired implementation: file still exists, owned by session
+	filesAfter := countTempPromptFiles(t, tmpDir)
+
+	// With the fix: filesAfter should equal filesBefore + 1 (file still exists)
+	// Currently: filesAfter equals filesBefore (file was deleted by defer)
+	if filesAfter != filesBefore+1 {
+		t.Fatalf("ReviewInteractive() should return session owning temp file. Files before=%d, after=%d (want %d)",
+			filesBefore, filesAfter, filesBefore+1)
+	}
+
+	// Verify Cleanup method exists and can be called
+	session.Cleanup()
+
+	// After cleanup, file should be gone
+	filesAfterCleanup := countTempPromptFiles(t, tmpDir)
+	if filesAfterCleanup != filesBefore {
+		t.Fatalf("session.Cleanup() should remove temp file. Files after cleanup=%d, want %d",
+			filesAfterCleanup, filesBefore)
+	}
+}
+
+// countTempPromptFiles counts review-prompt-*.md files in tmpDir
+func countTempPromptFiles(t *testing.T, tmpDir string) int {
+	// tmpDir might not exist yet
+	entries, err := os.ReadDir(tmpDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0
+		}
+		t.Fatalf("Failed to read tmpDir: %v", err)
+	}
+
+	count := 0
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasPrefix(entry.Name(), "review-prompt-") && strings.HasSuffix(entry.Name(), ".md") {
+			count++
+		}
+	}
+	return count
+}
