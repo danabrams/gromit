@@ -123,6 +123,28 @@ func renderValidationCommands(commands []string) string {
 	return b.String()
 }
 
+func profileGuidanceSnippet(profile string) string {
+	commands := config.GuidanceCommandsForProfile(profile)
+	if len(commands) == 0 {
+		if strings.EqualFold(profile, "custom") {
+			return "Custom profiles have no default validation commands; customize them for your stack."
+		}
+		return "No profile-specific validation guidance available yet."
+	}
+
+	var b strings.Builder
+	b.WriteString("Command examples for validation guidance:\n")
+	for _, cmd := range commands {
+		b.WriteString(fmt.Sprintf("  - %s\n", cmd))
+	}
+
+	if strings.EqualFold(profile, "custom") {
+		b.WriteString("Customize these commands to match your project stack.\n")
+	}
+
+	return b.String()
+}
+
 const defaultBuildTemplate = `# Task Execution
 
 You are executing a single task from the work queue. Focus only on this task.

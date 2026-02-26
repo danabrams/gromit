@@ -42,3 +42,13 @@ func ProfileForName(name string) (ProfileDefaults, bool) {
 	}
 	return defaults, true
 }
+
+// GuidanceCommandsForProfile returns the validation commands used in init guidance for the
+// named profile. The returned slice is a copy owned by the caller.
+func GuidanceCommandsForProfile(name string) []string {
+	defaults, ok := ProfileForName(name)
+	if !ok || len(defaults.ValidationCommands) == 0 {
+		return nil
+	}
+	return defaults.ValidationCommands
+}
