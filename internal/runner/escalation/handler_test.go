@@ -2310,3 +2310,80 @@ func TestContract_TimeoutSuccessfulDecompositionFlow(t *testing.T) {
 		t.Fatal("TimeoutDecompositionAttemptTime should be set")
 	}
 }
+
+// TestContract_TimeoutSkippedDecompositionFlow validates the contract when decomposition is skipped.
+// This occurs when:
+// 1. Timeout happens
+// 2. Parent context is already canceled, preventing decomposition
+// 3. TimeoutDecompositionAttempted is marked
+// 4. TimeoutDecompositionOutcome is set to "skipped"
+// 5. TimeoutDecompositionSucceeded is false
+// 6. All telemetry fields are populated
+func TestContract_TimeoutSkippedDecompositionFlow(t *testing.T) {
+	cfg := newTestConfig()
+	decomposeCalled := false
+
+	h := NewHandler(
+		cfg,
+		&mockFailureAnalyzer{},
+		&mockBeadClient{},
+		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+			decomposeCalled = true
+			t.Fatal("decomposition should not be called when context is canceled")
+			return nil, nil
+		},
+		nil,
+		nil,
+		nil,
+	)
+
+	// Create a canceled parent context
+	parentCtx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	bc := newTestBeadContext()
+	bc.ParentCtx = parentCtx
+
+	// Invoke with an invocation timeout when context is already canceled
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		return &runtypes.InvocationResult{
+			TimeoutType: "invocation",
+		}, fmt.Errorf("invocation timeout")
+	}
+
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+
+	// Verify decomposition was skipped
+	if success {
+		t.Errorf("build should return false when decomposition is skipped")
+	}
+	if decomposeCalled {
+		t.Fatal("decomposition should not be called when context is canceled")
+	}
+
+	// Verify telemetry fields for skipped decomposition
+	if !bc.Result.TimeoutDecompositionAttempted {
+		t.Fatal("TimeoutDecompositionAttempted should be true")
+	}
+	if bc.Result.TimeoutDecompositionSucceeded {
+		t.Fatal("TimeoutDecompositionSucceeded should be false when decomposition is skipped")
+	}
+	if bc.Result.Decomposed {
+		t.Fatal("Decomposed should be false when decomposition is skipped")
+	}
+	if bc.Result.TimeoutDecompositionOutcome != timeoutDecompositionOutcomeSkipped {
+		t.Fatalf("TimeoutDecompositionOutcome = %q, want %q", bc.Result.TimeoutDecompositionOutcome, timeoutDecompositionOutcomeSkipped)
+	}
+	if bc.Result.TimeoutDecompositionReason == "" {
+		t.Fatal("TimeoutDecompositionReason should be populated")
+	}
+	if !strings.Contains(bc.Result.TimeoutDecompositionReason, "skipped") {
+		t.Fatalf("TimeoutDecompositionReason should mention skipped: %q", bc.Result.TimeoutDecompositionReason)
+	}
+	if !strings.Contains(bc.Result.TimeoutDecompositionReason, "context") {
+		t.Fatalf("TimeoutDecompositionReason should mention context: %q", bc.Result.TimeoutDecompositionReason)
+	}
+	if !bc.Result.TimeoutDecompositionAttemptTime.IsZero() == false {
+		t.Fatal("TimeoutDecompositionAttemptTime should be set")
+	}
+}
