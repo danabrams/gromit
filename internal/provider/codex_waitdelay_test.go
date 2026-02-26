@@ -2,20 +2,13 @@ package provider
 
 import (
 	"context"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"testing"
 )
 
 func TestCodexProviderRunSetsWaitDelay(t *testing.T) {
-
-	tempDir := t.TempDir()
-	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := "#!/bin/sh\ncat >/dev/null\n"
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+	mockBinary := testCreateBinaryWithETXTBSYProtection(t, `cat >/dev/null
+`)
 
 	original := execCommandContext
 	var captured *exec.Cmd
