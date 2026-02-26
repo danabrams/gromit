@@ -181,9 +181,17 @@ func (f *File) AutoHeal() {
 		return
 	}
 	f.state.IterationsSinceReview = 0
+	f.resetProviderRoutingState()
+	// Preserve: LastRetro
+}
+
+// resetProviderRoutingState ensures provider routing counters and cooldowns are empty.
+func (f *File) resetProviderRoutingState() {
+	if f == nil {
+		return
+	}
 	f.state.ProviderCounts = make(map[string]int)
 	f.state.ProviderUnavailableUntil = make(map[string]time.Time)
-	// Preserve: LastRetro
 }
 
 // GetFilteredHashes returns a map of filtered learning hashes for O(1) lookups
