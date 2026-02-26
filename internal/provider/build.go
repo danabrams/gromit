@@ -61,7 +61,7 @@ func BuildProvidersFromConfig(cfg *config.Config) (map[string]Provider, error) {
 			providers[name] = codexProvider
 		case name == providerNameGemini || def.Binary == providerNameGemini || binaryName == providerNameGemini:
 			tierMap := config.ResolveGeminiModelMap(def)
-			providers[name] = NewGeminiProvider(def.Binary, def.Flags, tierMap, nil)
+			providers[name] = NewGeminiProvider(def.Binary, def.Flags, tierMap, def)
 		default:
 			return nil, fmt.Errorf("unrecognized provider %q: supported providers are \"claude\", \"codex\", and \"gemini\"", name)
 		}
