@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/runner/specbranch"
 	"github.com/danabrams/gromit/internal/runner/specmerge"
 )
 
@@ -223,4 +224,85 @@ func (f *fakeResolver) Resolve(ctx context.Context, branch string, cause error) 
 		return nil
 	}
 	return f.resolveFn(ctx, branch, cause)
+}
+
+// TestFinalizeSpecBranch_SpecbranchConflictErrorDetectedAfterConsolidation verifies that
+// when specbranch.GitOps returns a ConflictError, specmerge's FinalizeSpecBranch
+// properly detects it and calls the resolver. This test requires ConflictError
+// to be consolidated into the specmerge package so that specbranch imports it
+// from there, ensuring errors.As can match the types correctly.
+func TestFinalizeSpecBranch_SpecbranchConflictErrorDetectedAfterConsolidation(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	branch := "gromit/spec-payments"
+	callLog := []string{}
+	rebaseAttempts := 0
+
+	// This fakeGitOps returns specbranch.ConflictError to simulate what happens
+	// when specbranch.GitOps is wired as the real implementation.
+	// After ConflictError is consolidated to specmerge and imported by specbranch,
+	// this ConflictError will be the same type that specmerge expects.
+	git := &fakeGitOps{
+		rebaseFn: func(_ context.Context, b, onto string) error {
+			rebaseAttempts++
+			callLog = append(callLog, fmt.Sprintf("rebase %d %s", rebaseAttempts, onto))
+			if rebaseAttempts == 1 {
+				return &specbranch.ConflictError{
+					Operation: "rebase",
+					Err:       fmt.Errorf("merge conflict"),
+				}
+			}
+			return nil
+		},
+		mergeFn: func(_ context.Context, b string) error {
+			callLog = append(callLog, fmt.Sprintf("merge %s", b))
+			return nil
+		},
+		deleteFn: func(_ context.Context, b string) error {
+			callLog = append(callLog, fmt.Sprintf("delete %s", b))
+			return nil
+		},
+	}
+
+	resolverCalled := 0
+	resolver := &fakeResolver{
+		resolveFn: func(_ context.Context, b string, cause error) error {
+			resolverCalled++
+			if b != branch {
+				t.Fatalf("resolver branch = %q, want %q", b, branch)
+			}
+			var conflictErr *specmerge.ConflictError
+			if !errors.As(cause, &conflictErr) {
+				t.Fatalf("resolve cause = %v, want ConflictError", cause)
+			}
+			callLog = append(callLog, "resolve")
+			return nil
+		},
+	}
+
+	deps := specmerge.FinalizeDependencies{
+		Git:              git,
+		ConflictResolver: resolver,
+	}
+
+	// After consolidation, FinalizeSpecBranch should properly detect the ConflictError
+	// returned by specbranch.GitOps and call the resolver
+	if err := specmerge.FinalizeSpecBranch(ctx, deps, branch); err != nil {
+		t.Fatalf("FinalizeSpecBranch returned %v", err)
+	}
+
+	if resolverCalled != 1 {
+		t.Fatalf("resolver called %d times, want 1", resolverCalled)
+	}
+
+	want := []string{
+		"rebase 1 main",
+		"resolve",
+		"rebase 2 main",
+		"merge gromit/spec-payments",
+		"delete gromit/spec-payments",
+	}
+	if !reflect.DeepEqual(callLog, want) {
+		t.Fatalf("call order = %v, want %v", callLog, want)
+	}
 }
