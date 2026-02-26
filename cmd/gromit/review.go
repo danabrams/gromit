@@ -237,7 +237,7 @@ func getSpecBaseCommit(beadsClient *bead.Client, specName string, specsDir strin
 	}
 
 	// Get all beads with this label
-	beadsWithLabel, err := beadsClient.ListWithLabel(labels[0])
+	beadsWithLabel, err := beadsClient.ListWithLabel(context.Background(), labels[0])
 	if err != nil {
 		return "", fmt.Errorf("listing beads with label %q: %w", labels[0], err)
 	}
@@ -271,7 +271,7 @@ func getEpicBaseCommit(beadsClient *bead.Client, epicID, specsDir string) (strin
 
 	allBeads := make([]*bead.Bead, 0)
 	for _, label := range specLabels {
-		beadsWithLabel, err := beadsClient.ListWithLabel(label)
+		beadsWithLabel, err := beadsClient.ListWithLabel(context.Background(), label)
 		if err != nil {
 			return "", fmt.Errorf("listing beads with label %q: %w", label, err)
 		}
@@ -640,7 +640,7 @@ func (c *cliBacklogClient) Add(item *pipeline.Idea) error {
 	// Create a backlog bead with P2 priority and backlog label
 	labels := []string{"from-review", "backlog"}
 	expectedOutputs := review.ExpectedOutputsOrTitle(nil, item.Text)
-	_, err := c.beadClient.Create(item.Text, 2, labels, expectedOutputs)
+	_, err := c.beadClient.Create(context.Background(), item.Text, 2, labels, expectedOutputs)
 	return err
 }
 

@@ -1,6 +1,9 @@
 package bead
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
 // TestReady_UsesLimit3_Unit is a simple unit test verifying Ready() uses --limit 3
 func TestReady_UsesLimit3_Unit(t *testing.T) {
@@ -16,7 +19,7 @@ func TestReady_UsesLimit3_Unit(t *testing.T) {
 		RunFn:  mockRun,
 	}
 
-	_, err := c.Ready()
+	_, err := c.Ready(context.Background())
 	if err != nil {
 		t.Fatalf("Ready() error: %v", err)
 	}
@@ -50,7 +53,7 @@ func TestReadyWithLabel_UsesLimit3_Unit(t *testing.T) {
 		RunFn:  mockRun,
 	}
 
-	_, err := c.ReadyWithLabel("spec:foo")
+	_, err := c.ReadyWithLabel(context.Background(), "spec:foo")
 	if err != nil {
 		t.Fatalf("ReadyWithLabel() error: %v", err)
 	}

@@ -43,7 +43,7 @@ func TestOrchestratorTestHelper_Run_DelegatesToOrchestrator(t *testing.T) {
 	t.Parallel()
 	getCalled := false
 	beads := &mockBeadClient{
-		ReadyFn: func() (*bead.Bead, error) {
+		ReadyFn: func(ctx context.Context) (*bead.Bead, error) {
 			getCalled = true
 			return nil, nil
 		},
@@ -64,11 +64,11 @@ func TestOrchestratorTestHelper_SetLabelFilters_CallsReadyWithLabel(t *testing.T
 	t.Parallel()
 	var calledLabel string
 	beads := &mockBeadClient{
-		ReadyFn: func() (*bead.Bead, error) {
+		ReadyFn: func(ctx context.Context) (*bead.Bead, error) {
 			t.Error("Ready() should not be called when label filters are set")
 			return nil, nil
 		},
-		ReadyWithLabelFn: func(label string) (*bead.Bead, error) {
+		ReadyWithLabelFn: func(ctx context.Context, label string) (*bead.Bead, error) {
 			calledLabel = label
 			return nil, nil
 		},

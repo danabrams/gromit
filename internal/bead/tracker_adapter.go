@@ -3,6 +3,7 @@ package bead
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/danabrams/gromit/internal/tracker"
@@ -42,7 +43,7 @@ func (a *BDAdapter) Ready(ctx context.Context) (*tracker.Item, error) {
 		return nil, err
 	}
 
-	bead, err := client.Ready()
+	bead, err := client.Ready(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +69,7 @@ func (a *BDAdapter) List(ctx context.Context, query tracker.Query) ([]tracker.It
 		if status == "" {
 			continue
 		}
-		beads, err := client.ListByStatus(strings.ToLower(status))
+		beads, err := client.ListByStatus(ctx, strings.ToLower(status))
 		if err != nil {
 			return nil, err
 		}
@@ -106,13 +107,17 @@ func (a *BDAdapter) List(ctx context.Context, query tracker.Query) ([]tracker.It
 	return items[start:end], nil
 }
 
+func (a *BDAdapter) Search(ctx context.Context, query tracker.Query) ([]tracker.Item, error) {
+	return a.List(ctx, query)
+}
+
 func (a *BDAdapter) ListWithLabel(ctx context.Context, label string) ([]tracker.Item, error) {
 	client, err := a.clientOrErr()
 	if err != nil {
 		return nil, err
 	}
 
-	beads, err := client.ListWithLabel(label)
+	beads, err := client.ListWithLabel(ctx, label)
 	if err != nil {
 		return nil, err
 	}
@@ -142,13 +147,35 @@ func beadHasAllLabels(b *Bead, requiredLabels []string) bool {
 	return false
 }
 
+func parsePriority(metadata map[string]string) (int, bool, error) {
+	if metadata == nil {
+		return 0, false, nil
+	}
+	raw, ok := metadata["priority"]
+	if !ok {
+		return 0, false, nil
+	}
+
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return 0, false, nil
+	}
+
+	value, err := strconv.Atoi(trimmed)
+	if err != nil {
+		return 0, false, fmt.Errorf("invalid priority %q: %w", raw, err)
+	}
+
+	return value, true, nil
+}
+
 func (a *BDAdapter) Show(ctx context.Context, id string) (*tracker.Item, error) {
 	client, err := a.clientOrErr()
 	if err != nil {
 		return nil, err
 	}
 
-	bead, err := client.Show(id)
+	bead, err := client.Show(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +193,7 @@ func (a *BDAdapter) Create(ctx context.Context, req tracker.CreateRequest) (*tra
 		return nil, paramsErr
 	}
 
-	bead, err := client.CreateWithParentAndDescription(req.Title, priority, labels, expectedOutputs, parent, req.Description)
+	bead, err := client.CreateWithParentAndDescription(ctx, req.Title, priority, labels, expectedOutputs, parent, req.Description)
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +215,7 @@ func (a *BDAdapter) CreateWithParent(ctx context.Context, req tracker.CreateRequ
 		parent = trimmed
 	}
 
-	bead, err := client.CreateWithParentAndDescription(req.Title, priority, labels, expectedOutputs, parent, req.Description)
+	bead, err := client.CreateWithParentAndDescription(ctx, req.Title, priority, labels, expectedOutputs, parent, req.Description)
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +227,7 @@ func (a *BDAdapter) Close(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	return client.Close(id)
+	return client.Close(ctx, id)
 }
 
 func (a *BDAdapter) Sync(ctx context.Context) error {
@@ -208,7 +235,28 @@ func (a *BDAdapter) Sync(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return client.Sync()
+	return client.Sync(ctx)
+}
+
+func (a *BDAdapter) Update(ctx context.Context, req tracker.UpdateRequest) (*tracker.Item, error) {
+	client, err := a.clientOrErr()
+	if err != nil {
+		return nil, err
+	}
+
+	if strings.TrimSpace(req.ID) == "" {
+		return nil, fmt.Errorf("update request must include an ID")
+	}
+
+	if priority, ok, parseErr := parsePriority(req.Metadata); parseErr != nil {
+		return nil, parseErr
+	} else if ok {
+		if err := client.UpdatePriority(ctx, req.ID, priority); err != nil {
+			return nil, err
+		}
+	}
+
+	return a.Show(ctx, req.ID)
 }
 
 func (a *BDAdapter) AddComment(ctx context.Context, id, comment string) error {
@@ -216,7 +264,7 @@ func (a *BDAdapter) AddComment(ctx context.Context, id, comment string) error {
 	if err != nil {
 		return err
 	}
-	return client.AddComment(id, comment)
+	return client.AddComment(ctx, id, comment)
 }
 
 func (a *BDAdapter) HasOpenChildren(ctx context.Context, parentID string) (bool, error) {
@@ -224,5 +272,5 @@ func (a *BDAdapter) HasOpenChildren(ctx context.Context, parentID string) (bool,
 	if err != nil {
 		return false, err
 	}
-	return client.HasOpenChildren(parentID)
+	return client.HasOpenChildren(ctx, parentID)
 }

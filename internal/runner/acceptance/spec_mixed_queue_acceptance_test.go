@@ -38,7 +38,7 @@ func TestOrchestratorSpecModeFullSuccessLoop(t *testing.T) {
 	executedBeads := []string{}
 
 	mockBeads := &mockBeadClient{
-		ReadyFn: func() (*bead.Bead, error) {
+		ReadyFn: func(ctx context.Context) (*bead.Bead, error) {
 			for _, b := range allBeads {
 				if !closedBeads[b.ID] && (len(b.Labels) == 0 || b.Labels[0] != "spec:auth") && (len(b.Labels) == 0 || b.Labels[0] != "spec:payment") {
 					return b, nil
@@ -46,7 +46,7 @@ func TestOrchestratorSpecModeFullSuccessLoop(t *testing.T) {
 			}
 			return nil, nil
 		},
-		CloseFn: func(id string) error {
+		CloseFn: func(ctx context.Context, id string) error {
 			closedBeads[id] = true
 			return nil
 		},
@@ -64,12 +64,12 @@ func TestOrchestratorSpecModeFullSuccessLoop(t *testing.T) {
 		Validate: &noopStage{},
 		Epilogue: &testEpilogueStage{
 			fn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
-				mockBeads.Close(in.Bead.ID)
+				mockBeads.Close(ctx, in.Bead.ID)
 				return pipeline.Output{Decision: pipeline.Proceed}, nil
 			},
 		},
 		GetBead: func(ctx context.Context) (*bead.Bead, error) {
-			return mockBeads.Ready()
+			return mockBeads.Ready(ctx)
 		},
 		Config: cfg,
 		Output: io.Discard,
@@ -117,13 +117,13 @@ func TestOrchestratorSpecModeWithIterationBoundary(t *testing.T) {
 	iterationCount := 0
 
 	mockBeads := &mockBeadClient{
-		ReadyFn: func() (*bead.Bead, error) {
+		ReadyFn: func(ctx context.Context) (*bead.Bead, error) {
 			if queueIndex >= len(beadQueue) || closedBeads[beadQueue[queueIndex].ID] {
 				return nil, nil
 			}
 			return beadQueue[queueIndex], nil
 		},
-		CloseFn: func(id string) error {
+		CloseFn: func(ctx context.Context, id string) error {
 			closedBeads[id] = true
 			queueIndex++
 			return nil
@@ -142,12 +142,12 @@ func TestOrchestratorSpecModeWithIterationBoundary(t *testing.T) {
 		Validate: &noopStage{},
 		Epilogue: &testEpilogueStage{
 			fn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
-				mockBeads.Close(in.Bead.ID)
+				mockBeads.Close(ctx, in.Bead.ID)
 				return pipeline.Output{Decision: pipeline.Proceed}, nil
 			},
 		},
 		GetBead: func(ctx context.Context) (*bead.Bead, error) {
-			return mockBeads.Ready()
+			return mockBeads.Ready(ctx)
 		},
 		Config: cfg,
 		Output: io.Discard,
@@ -191,7 +191,7 @@ func TestOrchestratorSpecModeNonSpecBeadsOnMain(t *testing.T) {
 	executedBeads := []string{}
 
 	mockBeads := &mockBeadClient{
-		ReadyFn: func() (*bead.Bead, error) {
+		ReadyFn: func(ctx context.Context) (*bead.Bead, error) {
 			for _, b := range allBeads {
 				if !closedBeads[b.ID] {
 					return b, nil
@@ -199,7 +199,7 @@ func TestOrchestratorSpecModeNonSpecBeadsOnMain(t *testing.T) {
 			}
 			return nil, nil
 		},
-		CloseFn: func(id string) error {
+		CloseFn: func(ctx context.Context, id string) error {
 			closedBeads[id] = true
 			return nil
 		},
@@ -217,12 +217,12 @@ func TestOrchestratorSpecModeNonSpecBeadsOnMain(t *testing.T) {
 		Validate: &noopStage{},
 		Epilogue: &testEpilogueStage{
 			fn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
-				mockBeads.Close(in.Bead.ID)
+				mockBeads.Close(ctx, in.Bead.ID)
 				return pipeline.Output{Decision: pipeline.Proceed}, nil
 			},
 		},
 		GetBead: func(ctx context.Context) (*bead.Bead, error) {
-			return mockBeads.Ready()
+			return mockBeads.Ready(ctx)
 		},
 		Config: cfg,
 		Output: io.Discard,

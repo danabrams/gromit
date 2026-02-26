@@ -367,7 +367,7 @@ func (c *specGateBeadCreator) Create(ctx context.Context, title, description, pr
 	}
 
 	expectedOutputs := review.ExpectedOutputsOrTitle(nil, title)
-	bead, err := c.client.CreateWithParentAndDescription(title, priorityInt, labels, expectedOutputs, "", description)
+	bead, err := c.client.CreateWithParentAndDescription(context.Background(), title, priorityInt, labels, expectedOutputs, "", description)
 	if err != nil {
 		return "", err
 	}

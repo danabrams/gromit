@@ -410,7 +410,7 @@ func buildBeadFilter(ctx context.Context, labels []string) (map[string]bool, err
 
 	filter := make(map[string]bool)
 	for _, label := range labels {
-		beads, err := client.ListWithLabel(label)
+		beads, err := client.ListWithLabel(context.Background(), label)
 		if err != nil {
 			return nil, err
 		}
@@ -470,7 +470,7 @@ func hasOpenBeadsForLabel(label string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	beads, err := client.ListWithLabel(label)
+	beads, err := client.ListWithLabel(context.Background(), label)
 	if err != nil {
 		return false, err
 	}

@@ -1,6 +1,7 @@
 package bead
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -91,7 +92,7 @@ func TestReadyExcluding_SkipsClosedBeads(t *testing.T) {
 		},
 	}
 
-	result, err := c.ReadyExcluding(map[string]bool{})
+	result, err := c.ReadyExcluding(context.Background(), map[string]bool{})
 	if err != nil {
 		t.Fatalf("ReadyExcluding error: %v", err)
 	}
@@ -122,7 +123,7 @@ func TestReadyExcluding_SkipsClosedAndExcludedBeads(t *testing.T) {
 		},
 	}
 
-	result, err := c.ReadyExcluding(map[string]bool{"excluded-1": true})
+	result, err := c.ReadyExcluding(context.Background(), map[string]bool{"excluded-1": true})
 	if err != nil {
 		t.Fatalf("ReadyExcluding error: %v", err)
 	}
@@ -167,7 +168,7 @@ func TestReadyWithLabel_SkipsClosedBeadFromShow(t *testing.T) {
 		},
 	}
 
-	result, err := c.ReadyWithLabel("spec:foo")
+	result, err := c.ReadyWithLabel(context.Background(), "spec:foo")
 	if err != nil {
 		t.Fatalf("ReadyWithLabel error: %v", err)
 	}
@@ -194,7 +195,7 @@ func TestReady_SkipsClosedBeads(t *testing.T) {
 		},
 	}
 
-	result, err := c.Ready()
+	result, err := c.Ready(context.Background())
 	if err != nil {
 		t.Fatalf("Ready error: %v", err)
 	}
@@ -224,7 +225,7 @@ func TestReadyExcluding_AllClosedReturnsNil(t *testing.T) {
 		},
 	}
 
-	result, err := c.ReadyExcluding(map[string]bool{})
+	result, err := c.ReadyExcluding(context.Background(), map[string]bool{})
 	if err != nil {
 		t.Fatalf("ReadyExcluding error: %v", err)
 	}
@@ -255,7 +256,7 @@ func TestReadyExcluding_DelegatesToReadyWhenNoExcludes(t *testing.T) {
 	}
 
 	// nil map triggers delegation to Ready()
-	result, err := c.ReadyExcluding(nil)
+	result, err := c.ReadyExcluding(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("ReadyExcluding(nil) error: %v", err)
 	}
@@ -291,7 +292,7 @@ func TestReadyWithLabel_SkipsClosedBeadFromParse(t *testing.T) {
 		},
 	}
 
-	result, err := c.ReadyWithLabel("spec:foo")
+	result, err := c.ReadyWithLabel(context.Background(), "spec:foo")
 	if err != nil {
 		t.Fatalf("ReadyWithLabel error: %v", err)
 	}

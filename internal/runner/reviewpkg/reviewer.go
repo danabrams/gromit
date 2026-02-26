@@ -30,7 +30,7 @@ type Router interface {
 
 // BeadClient creates beads from review findings.
 type BeadClient interface {
-	CreateWithParentAndDescription(title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error)
+	CreateWithParentAndDescription(ctx context.Context, title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error)
 }
 
 // PromptRenderer renders review prompts and loads context files.
@@ -242,7 +242,7 @@ func selectReviewModel(cfg *config.Config, buildModel string) string {
 
 // ApplyResult creates beads from review findings.
 // Returns the count of beads created and backlog items created.
-func (r *Reviewer) ApplyResult(result *review.ReviewResult) (beadsCreated int, backlogCreated int) {
+func (r *Reviewer) ApplyResult(ctx context.Context, result *review.ReviewResult) (beadsCreated int, backlogCreated int) {
 	if r == nil {
 		return 0, 0
 	}
@@ -255,6 +255,7 @@ func (r *Reviewer) ApplyResult(result *review.ReviewResult) (beadsCreated int, b
 		labels := review.BuildReviewBeadLabels(bp.Labels)
 		expectedOutputs := review.ExpectedOutputsOrTitle(bp.ExpectedOutputs, bp.Title)
 		_, err := r.beads.CreateWithParentAndDescription(
+			ctx,
 			bp.Title,
 			bp.Priority,
 			labels,
@@ -283,6 +284,7 @@ func (r *Reviewer) ApplyResult(result *review.ReviewResult) (beadsCreated int, b
 			description += "Reason for backlog: " + bi.Reason
 		}
 		_, err := r.beads.CreateWithParentAndDescription(
+			ctx,
 			bi.Title,
 			backlogPriority, // P2 for backlog
 			labels,
@@ -366,7 +368,7 @@ func (r *Reviewer) RunPostSuccess(ctx context.Context, bc *runtypes.BeadContext)
 	}
 
 	// Create beads/backlog from review findings
-	beadsCreated, backlogCreated := r.ApplyResult(reviewResult)
+	beadsCreated, backlogCreated := r.ApplyResult(ctx, reviewResult)
 
 	// Log review result
 	reviewDuration := time.Since(reviewStart)

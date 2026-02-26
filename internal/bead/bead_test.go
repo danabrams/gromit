@@ -1,6 +1,7 @@
 package bead
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -1077,7 +1078,7 @@ func TestClientShowValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := c.Show(tt.id)
+			_, err := c.Show(context.Background(), tt.id)
 			if err == nil {
 				t.Errorf("Show(%q) expected error but got nil", tt.id)
 				return
@@ -1120,7 +1121,7 @@ func TestClientCloseValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := c.Close(tt.id)
+			err := c.Close(context.Background(), tt.id)
 			if err == nil {
 				t.Errorf("Close(%q) expected error but got nil", tt.id)
 				return
@@ -1163,7 +1164,7 @@ func TestClientAddCommentValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := c.AddComment(tt.id, tt.comment)
+			err := c.AddComment(context.Background(), tt.id, tt.comment)
 			if err == nil {
 				t.Errorf("AddComment(%q, %q) expected error but got nil", tt.id, tt.comment)
 				return
@@ -1209,7 +1210,7 @@ func TestClientAddComment_UsesTempFile(t *testing.T) {
 		},
 	}
 
-	if err := c.AddComment("task-123", comment); err != nil {
+	if err := c.AddComment(context.Background(), "task-123", comment); err != nil {
 		t.Fatalf("AddComment() unexpected error: %v", err)
 	}
 	if gotPath == "" {
@@ -1272,7 +1273,7 @@ func TestClientGetParent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			parent, err := c.GetParent(tt.bead)
+			parent, err := c.GetParent(context.Background(), tt.bead)
 			if tt.wantNil {
 				if parent != nil {
 					t.Errorf("GetParent() expected nil, got %+v", parent)
@@ -1300,7 +1301,7 @@ func TestClientSync(t *testing.T) {
 			return "", nil
 		},
 	}
-	err := c.Sync()
+	err := c.Sync(context.Background())
 	if err != nil {
 		t.Fatalf("Sync() unexpected error: %v", err)
 	}
@@ -1319,17 +1320,17 @@ func TestErrorWrapping(t *testing.T) {
 	}
 
 	// Test that errors contain context
-	_, err := c.Ready()
+	_, err := c.Ready(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "bd ready") {
 		t.Errorf("Ready() error should contain context: %v", err)
 	}
 
-	_, err = c.ReadyAny()
+	_, err = c.ReadyAny(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "bd ready") {
 		t.Errorf("ReadyAny() error should contain context: %v", err)
 	}
 
-	err = c.Close("test-id")
+	err = c.Close(context.Background(), "test-id")
 	if err == nil || !strings.Contains(err.Error(), "bd close") {
 		t.Errorf("Close() error should contain context: %v", err)
 	}
@@ -1368,7 +1369,7 @@ func TestClientCreateWithParentAndDescription_UsesBodyFile(t *testing.T) {
 		},
 	}
 
-	_, err := c.CreateWithParentAndDescription("Test", 1, nil, nil, "", description)
+	_, err := c.CreateWithParentAndDescription(context.Background(), "Test", 1, nil, nil, "", description)
 	if err != nil {
 		t.Fatalf("CreateWithParentAndDescription() unexpected error: %v", err)
 	}
@@ -1411,7 +1412,7 @@ func TestClientCreateWithParentAndDescription_PassesAcceptanceInline(t *testing.
 		},
 	}
 
-	_, err := c.CreateWithParentAndDescription("Test", 1, nil, expectedOutputs, "", "")
+	_, err := c.CreateWithParentAndDescription(context.Background(), "Test", 1, nil, expectedOutputs, "", "")
 	if err != nil {
 		t.Fatalf("CreateWithParentAndDescription() unexpected error: %v", err)
 	}
@@ -1453,7 +1454,7 @@ func TestClientCreateWithDepsAndDescription_UsesBodyFile(t *testing.T) {
 		},
 	}
 
-	_, err := c.CreateWithDepsAndDescription("Test", 1, nil, nil, []string{"dep-1"}, description)
+	_, err := c.CreateWithDepsAndDescription(context.Background(), "Test", 1, nil, nil, []string{"dep-1"}, description)
 	if err != nil {
 		t.Fatalf("CreateWithDepsAndDescription() unexpected error: %v", err)
 	}
@@ -1683,7 +1684,7 @@ func TestClientHasOpenChildrenValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := c.HasOpenChildren(tt.parentID)
+			_, err := c.HasOpenChildren(context.Background(), tt.parentID)
 			if err == nil {
 				t.Errorf("HasOpenChildren(%q) expected error but got nil", tt.parentID)
 				return
@@ -1758,7 +1759,7 @@ func TestHasOpenChildrenWithMockedRun(t *testing.T) {
 				RunFn:  mockRun,
 			}
 
-			got, err := c.HasOpenChildren(tt.parentID)
+			got, err := c.HasOpenChildren(context.Background(), tt.parentID)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("HasOpenChildren(%q) error = %v, wantErr %v", tt.parentID, err, tt.wantErr)
 				return
@@ -1864,7 +1865,7 @@ bd version 1.2.3
 		RunFn:  mockRun,
 	}
 
-	got, err := c.HasOpenChildren(parentID)
+	got, err := c.HasOpenChildren(context.Background(), parentID)
 	if err != nil {
 		t.Fatalf("HasOpenChildren(%q) unexpected error: %v", parentID, err)
 	}
@@ -1892,7 +1893,7 @@ WARNING: closing connection
 		RunFn:  mockRun,
 	}
 
-	got, err := c.HasOpenChildren(parentID)
+	got, err := c.HasOpenChildren(context.Background(), parentID)
 	if err != nil {
 		t.Fatalf("HasOpenChildren(%q) unexpected error: %v", parentID, err)
 	}
@@ -1920,7 +1921,7 @@ WARNING: closing connection
 		},
 	}
 
-	got, err := c.HasOpenChildren(parentID)
+	got, err := c.HasOpenChildren(context.Background(), parentID)
 	if err != nil {
 		t.Fatalf("HasOpenChildren(%q) unexpected error: %v", parentID, err)
 	}
@@ -1933,7 +1934,7 @@ WARNING: closing connection
 func TestClientListReadyIDsNilClient(t *testing.T) {
 	t.Parallel()
 	var c *Client
-	_, err := c.ListReadyIDs()
+	_, err := c.ListReadyIDs(context.Background())
 	if err == nil {
 		t.Errorf("ListReadyIDs() on nil client expected error but got nil")
 		return
@@ -2133,7 +2134,7 @@ func TestClientListReadyIDsErrorWrapping(t *testing.T) {
 	c, _ := NewClient()
 
 	// Test that errors contain context when bd command fails
-	_, err := c.ListReadyIDs()
+	_, err := c.ListReadyIDs(context.Background())
 	if err != nil && !strings.Contains(err.Error(), "bd ready") {
 		t.Errorf("ListReadyIDs() error should contain 'bd ready' context: %v", err)
 	}
@@ -2198,7 +2199,7 @@ func TestClientReadyWithLabelValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := c.ReadyWithLabel(tt.label)
+			_, err := c.ReadyWithLabel(context.Background(), tt.label)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ReadyWithLabel(%q) error = %v, wantErr %v", tt.label, err, tt.wantErr)
 				return
@@ -2220,7 +2221,7 @@ func TestClientReadyWithLabelValidation(t *testing.T) {
 func TestClientReadyWithLabelNilClient(t *testing.T) {
 	t.Parallel()
 	var c *Client
-	_, err := c.ReadyWithLabel("spec:test")
+	_, err := c.ReadyWithLabel(context.Background(), "spec:test")
 	if err == nil {
 		t.Errorf("ReadyWithLabel() on nil client expected error but got nil")
 		return
@@ -2425,7 +2426,7 @@ func TestClientListWithLabelValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := c.ListWithLabel(tt.label)
+			_, err := c.ListWithLabel(context.Background(), tt.label)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ListWithLabel(%q) error = %v, wantErr %v", tt.label, err, tt.wantErr)
 				return
@@ -2447,7 +2448,7 @@ func TestClientListWithLabelValidation(t *testing.T) {
 func TestClientListWithLabelNilClient(t *testing.T) {
 	t.Parallel()
 	var c *Client
-	_, err := c.ListWithLabel("spec:test")
+	_, err := c.ListWithLabel(context.Background(), "spec:test")
 	if err == nil {
 		t.Errorf("ListWithLabel() on nil client expected error but got nil")
 		return
@@ -2922,7 +2923,7 @@ func TestCountClosedAfterNilClient(t *testing.T) {
 	t.Parallel()
 	var c *Client
 	after := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
-	_, err := c.CountClosedAfter(after)
+	_, err := c.CountClosedAfter(context.Background(), after)
 	if err == nil {
 		t.Fatal("CountClosedAfter() on nil client expected error but got nil")
 	}
@@ -3075,7 +3076,7 @@ func TestCountClosedAfterWithBeads(t *testing.T) {
 func TestCountByStatusNilClient(t *testing.T) {
 	t.Parallel()
 	var c *Client
-	_, err := c.CountByStatus("open")
+	_, err := c.CountByStatus(context.Background(), "open")
 	if err == nil {
 		t.Fatal("CountByStatus() on nil client expected error but got nil")
 	}

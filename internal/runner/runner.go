@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"context"
 	"fmt"
 	"io"
 
@@ -23,7 +24,7 @@ type Runner struct {
 }
 
 type coverageCommentClient interface {
-	AddComment(id, comment string) error
+	AddComment(ctx context.Context, id, comment string) error
 }
 
 func (r *Runner) reportCoverage(bc *runtypes.BeadContext, tracker *coverage.CoverageTracker) {
@@ -31,7 +32,7 @@ func (r *Runner) reportCoverage(bc *runtypes.BeadContext, tracker *coverage.Cove
 		return
 	}
 	populateCoverageResult(bc, tracker)
-	addCoverageCommentWithClient(bc, tracker, r.beads)
+	addCoverageCommentWithClient(context.Background(), bc, tracker, r.beads)
 	logCoverageSummary(r.output, tracker)
 }
 

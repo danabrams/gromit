@@ -1,6 +1,7 @@
 package benchmark
 
 import (
+	"context"
 	"fmt"
 	stdstrings "strings"
 
@@ -8,7 +9,7 @@ import (
 )
 
 type BeadLookup interface {
-	Show(id string) (*bead.Bead, error)
+	Show(ctx context.Context, id string) (*bead.Bead, error)
 }
 
 func ValidateSelectedCohort(lookup BeadLookup, selected []string, requiredSize int, requireTierCoverage bool) ([]string, error) {
@@ -29,7 +30,7 @@ func ValidateSelectedCohort(lookup BeadLookup, selected []string, requiredSize i
 	}
 
 	for _, id := range selected {
-		b, err := lookup.Show(id)
+		b, err := lookup.Show(context.Background(), id)
 		if err != nil {
 			return nil, fmt.Errorf("selected bead %q lookup failed: %w", id, err)
 		}

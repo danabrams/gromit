@@ -528,7 +528,7 @@ func listBeadsWithLabel(label string) ([]*bead.Bead, error) {
 		return nil, fmt.Errorf("creating bead client: %w", err)
 	}
 
-	beads, err := beadClient.ListWithLabel(label)
+	beads, err := beadClient.ListWithLabel(context.Background(), label)
 	if err != nil {
 		return nil, fmt.Errorf("listing beads with label %q: %w", label, err)
 	}

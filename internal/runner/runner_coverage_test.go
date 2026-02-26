@@ -2,6 +2,7 @@ package runner
 
 import (
 	"bytes"
+	"context"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -23,7 +24,7 @@ func TestRunnerReportCoverageAddsCommentAndLogsWhenCoverageIncomplete(t *testing
 	var loggedComment string
 
 	beadsClient := &captureBeadsClient{
-		addCommentFn: func(id, comment string) error {
+		addCommentFn: func(ctx context.Context, id, comment string) error {
 			loggedComment = comment
 			return nil
 		},
@@ -65,12 +66,12 @@ func TestRunnerReportCoverageAddsCommentAndLogsWhenCoverageIncomplete(t *testing
 }
 
 type captureBeadsClient struct {
-	addCommentFn func(id, comment string) error
+	addCommentFn func(ctx context.Context, id, comment string) error
 }
 
-func (c *captureBeadsClient) AddComment(id, comment string) error {
+func (c *captureBeadsClient) AddComment(ctx context.Context, id, comment string) error {
 	if c.addCommentFn == nil {
 		return nil
 	}
-	return c.addCommentFn(id, comment)
+	return c.addCommentFn(ctx, id, comment)
 }

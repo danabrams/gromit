@@ -1664,3 +1664,8 @@ Unmerged files (UU status) prevent test compilation and setup. Always check git 
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-26 | gromit-1cm | gotchas
+When refactoring Go interfaces to add context.Context as a parameter, must update ALL call sites, implementations, and inline callback definitions—acceptance tests often contain callbacks that are easy to miss during refactoring. Search comprehensively for all function definitions matching the old signature pattern.
+
+*Archived from new: filtered: generic engineering advice*
+

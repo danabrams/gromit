@@ -293,7 +293,7 @@ func (a *beadCreatorAdapter) Create(title string, priority int, labels []string,
 	beadClient := bead.UnwrapBDAdapter(a.tracker)
 	if beadClient != nil {
 		// Use native bead.Client method for optimal compatibility
-		b, err := beadClient.Create(title, priority, labels, outputs)
+		b, err := beadClient.Create(context.Background(), title, priority, labels, outputs)
 		if err != nil {
 			return "", err
 		}
@@ -401,12 +401,12 @@ type beadLifecycleAdapter struct {
 	tracker tracker.Client
 }
 
-func (a *beadLifecycleAdapter) Close(id string) error {
-	return a.tracker.Close(context.Background(), id)
+func (a *beadLifecycleAdapter) Close(ctx context.Context, id string) error {
+	return a.tracker.Close(ctx, id)
 }
 
-func (a *beadLifecycleAdapter) Sync() error {
-	return a.tracker.Sync(context.Background())
+func (a *beadLifecycleAdapter) Sync(ctx context.Context) error {
+	return a.tracker.Sync(ctx)
 }
 
 // statusWriterAdapter wraps runner.StatusWriter to satisfy epilogue.StatusWriter.
@@ -702,7 +702,7 @@ func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 		if beadClient == nil {
 			return fmt.Errorf("decomposerAdapter: unable to access bead client")
 		}
-		if _, err := beadClient.CreateWithParent(sb.Title, b.Priority, childLabels, sb.ExpectedOutputs, b.ID); err != nil {
+		if _, err := beadClient.CreateWithParent(context.Background(), sb.Title, b.Priority, childLabels, sb.ExpectedOutputs, b.ID); err != nil {
 			// If we've already created some children and now one fails, this is a partial state
 			if successfullyCreatedCount > 0 {
 				return fmt.Errorf("decomposerAdapter: partial decomposition state: %w", escalation.ErrPartialDecompositionState)
@@ -717,7 +717,7 @@ func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 	if beadClient == nil {
 		return fmt.Errorf("decomposerAdapter: unable to access bead client for closing")
 	}
-	if err := beadClient.Close(b.ID); err != nil {
+	if err := beadClient.Close(context.Background(), b.ID); err != nil {
 		return fmt.Errorf("decomposerAdapter: closing parent bead: %w", err)
 	}
 	return nil
@@ -804,7 +804,7 @@ func (a *decomposerAdapter) childWithDedupeLabelExists(parentID, dedupeLabel str
 		return false, fmt.Errorf("bead client is nil")
 	}
 
-	matches, err := beadClient.ListWithLabel(dedupeLabel)
+	matches, err := beadClient.ListWithLabel(context.Background(), dedupeLabel)
 	if err != nil {
 		return false, err
 	}
@@ -842,7 +842,7 @@ func (a *decomposerAdapter) resolveInheritedLabels(parent *bead.Bead) []string {
 	if beadClient == nil || parent.ID == "" {
 		return labels
 	}
-	fullParent, err := beadClient.Show(parent.ID)
+	fullParent, err := beadClient.Show(context.Background(), parent.ID)
 	if err != nil || fullParent == nil {
 		return labels
 	}

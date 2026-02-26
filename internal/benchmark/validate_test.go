@@ -1,6 +1,7 @@
 package benchmark
 
 import (
+	"context"
 	"errors"
 	stdstrings "strings"
 	"testing"
@@ -9,14 +10,14 @@ import (
 )
 
 type fakeBeadLookup struct {
-	showFn func(id string) (*bead.Bead, error)
+	showFn func(ctx context.Context, id string) (*bead.Bead, error)
 }
 
-func (f fakeBeadLookup) Show(id string) (*bead.Bead, error) {
+func (f fakeBeadLookup) Show(ctx context.Context, id string) (*bead.Bead, error) {
 	if f.showFn == nil {
 		return nil, errors.New("missing showFn")
 	}
-	return f.showFn(id)
+	return f.showFn(ctx, id)
 }
 
 func TestValidateSelectedCohort_EnforcesMinimumSize(t *testing.T) {
@@ -31,7 +32,7 @@ func TestValidateSelectedCohort_EnforcesMinimumSize(t *testing.T) {
 
 func TestValidateSelectedCohort_ReturnsErrorWhenBeadDoesNotExist(t *testing.T) {
 	lookup := fakeBeadLookup{
-		showFn: func(id string) (*bead.Bead, error) {
+		showFn: func(ctx context.Context, id string) (*bead.Bead, error) {
 			if id != "gromit-missing" {
 				t.Fatalf("Show() id = %q, want %q", id, "gromit-missing")
 			}
@@ -50,7 +51,7 @@ func TestValidateSelectedCohort_ReturnsErrorWhenBeadDoesNotExist(t *testing.T) {
 
 func TestValidateSelectedCohort_ReturnsErrorWhenLookupReturnsNilBead(t *testing.T) {
 	lookup := fakeBeadLookup{
-		showFn: func(id string) (*bead.Bead, error) {
+		showFn: func(ctx context.Context, id string) (*bead.Bead, error) {
 			return nil, nil
 		},
 	}
@@ -66,7 +67,7 @@ func TestValidateSelectedCohort_ReturnsErrorWhenLookupReturnsNilBead(t *testing.
 
 func TestValidateSelectedCohort_ReturnsErrorWhenBeadIsClosed(t *testing.T) {
 	lookup := fakeBeadLookup{
-		showFn: func(id string) (*bead.Bead, error) {
+		showFn: func(ctx context.Context, id string) (*bead.Bead, error) {
 			return &bead.Bead{ID: id, Status: "closed"}, nil
 		},
 	}
@@ -89,7 +90,7 @@ func TestComplexityTier_DefaultsToMediumWhenUnlabeled(t *testing.T) {
 
 func TestValidateSelectedCohort_ReturnsErrorWhenTierCoverageMissing(t *testing.T) {
 	lookup := fakeBeadLookup{
-		showFn: func(id string) (*bead.Bead, error) {
+		showFn: func(ctx context.Context, id string) (*bead.Bead, error) {
 			switch id {
 			case "gromit-1":
 				return &bead.Bead{ID: id, Status: "open", Labels: []string{"complexity:low"}}, nil
@@ -112,7 +113,7 @@ func TestValidateSelectedCohort_ReturnsErrorWhenTierCoverageMissing(t *testing.T
 
 func TestValidateSelectedCohort_ReturnsErrorForUnsupportedComplexityLabel(t *testing.T) {
 	lookup := fakeBeadLookup{
-		showFn: func(id string) (*bead.Bead, error) {
+		showFn: func(ctx context.Context, id string) (*bead.Bead, error) {
 			switch id {
 			case "gromit-1":
 				return &bead.Bead{ID: id, Status: "open", Labels: []string{"complexity:low"}}, nil
@@ -137,7 +138,7 @@ func TestValidateSelectedCohort_ReturnsErrorForUnsupportedComplexityLabel(t *tes
 
 func TestValidateSelectedCohort_RejectsSizeGreaterThanFive(t *testing.T) {
 	lookup := fakeBeadLookup{
-		showFn: func(id string) (*bead.Bead, error) {
+		showFn: func(ctx context.Context, id string) (*bead.Bead, error) {
 			switch id {
 			case "gromit-1":
 				return &bead.Bead{ID: id, Status: "open", Labels: []string{"complexity:low"}}, nil
@@ -157,7 +158,7 @@ func TestValidateSelectedCohort_RejectsSizeGreaterThanFive(t *testing.T) {
 
 func TestValidateSelectedCohort_SkipsTierCoverageWhenDisabled(t *testing.T) {
 	lookup := fakeBeadLookup{
-		showFn: func(id string) (*bead.Bead, error) {
+		showFn: func(ctx context.Context, id string) (*bead.Bead, error) {
 			return &bead.Bead{ID: id, Status: "open", Labels: []string{"complexity:urgent"}}, nil
 		},
 	}

@@ -1,6 +1,7 @@
 package bead
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -9,7 +10,7 @@ import (
 func TestReadyWithLabel_NilClient(t *testing.T) {
 	t.Parallel()
 	var c *Client
-	_, err := c.ReadyWithLabel("spec:test")
+	_, err := c.ReadyWithLabel(context.Background(), "spec:test")
 	if err == nil {
 		t.Errorf("ReadyWithLabel() on nil client expected error but got nil")
 		return
@@ -23,7 +24,7 @@ func TestReadyWithLabel_NilClient(t *testing.T) {
 func TestReadyWithLabel_EmptyLabel(t *testing.T) {
 	t.Parallel()
 	c, _ := NewClient()
-	_, err := c.ReadyWithLabel("")
+	_, err := c.ReadyWithLabel(context.Background(), "")
 	if err == nil {
 		t.Errorf("ReadyWithLabel(\"\") expected error but got nil")
 		return
@@ -63,7 +64,7 @@ func TestReadyWithLabel_InvalidLabel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := c.ReadyWithLabel(tt.label)
+			_, err := c.ReadyWithLabel(context.Background(), tt.label)
 			if err == nil {
 				t.Errorf("ReadyWithLabel(%q) expected validation error but got nil", tt.label)
 				return
@@ -121,7 +122,7 @@ func TestReadyWithLabel_ValidLabels(t *testing.T) {
 			t.Parallel()
 			gotArgs = nil
 
-			_, err := c.ReadyWithLabel(tt.label)
+			_, err := c.ReadyWithLabel(context.Background(), tt.label)
 			if err != nil {
 				t.Errorf("ReadyWithLabel(%q) unexpected error: %v", tt.label, err)
 				return
@@ -308,7 +309,7 @@ func TestReadyWithLabel_ErrorWrapping(t *testing.T) {
 	c, _ := NewClient()
 
 	// Test that errors contain context when bd command fails
-	_, err := c.ReadyWithLabel("spec:test")
+	_, err := c.ReadyWithLabel(context.Background(), "spec:test")
 	if err != nil && !strings.Contains(err.Error(), "bd ready") {
 		t.Errorf("ReadyWithLabel() error should contain 'bd ready' context: %v", err)
 	}

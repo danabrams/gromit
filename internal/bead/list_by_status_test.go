@@ -1,6 +1,7 @@
 package bead
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -8,7 +9,7 @@ import (
 func TestListByStatus_EmptyStatus(t *testing.T) {
 	t.Parallel()
 	c := &Client{}
-	_, err := c.ListByStatus("")
+	_, err := c.ListByStatus(context.Background(), "")
 	if err == nil {
 		t.Fatal("ListByStatus() expected error for empty status")
 	}
@@ -34,7 +35,7 @@ func TestListByStatus_ParsesResults(t *testing.T) {
 		},
 	}
 
-	beads, err := c.ListByStatus("in_progress")
+	beads, err := c.ListByStatus(context.Background(), "in_progress")
 	if err != nil {
 		t.Fatalf("ListByStatus() error = %v", err)
 	}

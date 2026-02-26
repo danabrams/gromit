@@ -83,6 +83,10 @@ func (m *mockTrackerClient) Show(ctx context.Context, id string) (*tracker.Item,
 	return nil, nil
 }
 
+func (m *mockTrackerClient) Search(ctx context.Context, query tracker.Query) ([]tracker.Item, error) {
+	return nil, nil
+}
+
 func (m *mockTrackerClient) Create(ctx context.Context, req tracker.CreateRequest) (*tracker.Item, error) {
 	item := &tracker.Item{
 		ID:       "created-item",
@@ -94,6 +98,9 @@ func (m *mockTrackerClient) Create(ctx context.Context, req tracker.CreateReques
 }
 func (m *mockTrackerClient) CreateWithParent(ctx context.Context, req tracker.CreateRequest, parentID string) (*tracker.Item, error) {
 	return m.Create(ctx, req)
+}
+func (m *mockTrackerClient) Update(ctx context.Context, req tracker.UpdateRequest) (*tracker.Item, error) {
+	return nil, nil
 }
 func (m *mockTrackerClient) ListWithLabel(ctx context.Context, label string) ([]tracker.Item, error) {
 	return nil, nil

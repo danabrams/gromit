@@ -89,11 +89,11 @@ func getActiveBeads(bc *bead.Client) ([]*bead.Bead, error) {
 	if bc == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
-	openBeads, err := bc.List()
+	openBeads, err := bc.List(context.Background())
 	if err != nil {
 		return nil, err
 	}
-	inProgressBeads, err := bc.ListByStatus("in_progress")
+	inProgressBeads, err := bc.ListByStatus(context.Background(), "in_progress")
 	if err != nil {
 		return nil, err
 	}
@@ -488,7 +488,7 @@ func getReadyBeads(bc *bead.Client) ([]*bead.Bead, error) {
 	if bc == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
-	readyBeads, err := bc.ListReadyWork()
+	readyBeads, err := bc.ListReadyWork(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("getting ready beads: %w", err)
 	}

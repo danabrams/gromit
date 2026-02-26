@@ -11,7 +11,7 @@ import (
 
 // enrichBeadStats populates Status, CloseReason, and Comments fields on BeadStats
 // by calling bd show for each bead. Errors are logged as warnings and do not stop enrichment.
-func (r *Retro) enrichBeadStats(_ context.Context, beadStats map[string]logger.BeadStats) {
+func (r *Retro) enrichBeadStats(ctx context.Context, beadStats map[string]logger.BeadStats) {
 	if r == nil || beadStats == nil {
 		return
 	}
@@ -25,7 +25,7 @@ func (r *Retro) enrichBeadStats(_ context.Context, beadStats map[string]logger.B
 	var skippedMissingBeads int
 	for beadID, stats := range beadStats {
 		// Get full bead details (may fail for beads deleted since the log was written)
-		b, err := client.Show(beadID)
+		b, err := client.Show(ctx, beadID)
 		if err != nil {
 			skippedMissingBeads++
 			continue
@@ -36,7 +36,7 @@ func (r *Retro) enrichBeadStats(_ context.Context, beadStats map[string]logger.B
 		stats.CloseReason = b.CloseReason
 
 		// Get comments
-		comments, err := client.GetComments(beadID)
+		comments, err := client.GetComments(ctx, beadID)
 		if err != nil {
 			stats.Comments = []string{}
 		} else {

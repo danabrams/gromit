@@ -41,7 +41,7 @@ func (m *mockFailureAnalyzer) Analyze(ctx context.Context, b *bead.Bead, failure
 
 // mockBeadClient implements the BeadClient interface for escalation tests.
 type mockBeadClient struct {
-	addCommentFn func(id, comment string) error
+	addCommentFn func(ctx context.Context, id, comment string) error
 	comments     []mockComment
 }
 
@@ -49,10 +49,10 @@ type mockComment struct {
 	id, comment string
 }
 
-func (m *mockBeadClient) AddComment(id, comment string) error {
+func (m *mockBeadClient) AddComment(ctx context.Context, id, comment string) error {
 	m.comments = append(m.comments, mockComment{id, comment})
 	if m.addCommentFn != nil {
-		return m.addCommentFn(id, comment)
+		return m.addCommentFn(ctx, id, comment)
 	}
 	return nil
 }

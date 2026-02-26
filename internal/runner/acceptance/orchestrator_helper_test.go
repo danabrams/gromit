@@ -43,7 +43,7 @@ func NewOrchestratorTestHelperWithDeps(t *testing.T, cfg *config.Config, output 
 	getBead := func(ctx context.Context) (*bead.Bead, error) {
 		if len(h.labelFilters) > 0 {
 			for _, label := range h.labelFilters {
-				b, err := beads.ReadyWithLabel(label)
+				b, err := beads.ReadyWithLabel(context.Background(), label)
 				if err != nil {
 					return nil, err
 				}
@@ -53,7 +53,7 @@ func NewOrchestratorTestHelperWithDeps(t *testing.T, cfg *config.Config, output 
 			}
 			return nil, nil
 		}
-		return beads.Ready()
+		return beads.Ready(context.Background())
 	}
 
 	orch := runner.NewOrchestrator(runner.OrchestratorConfig{

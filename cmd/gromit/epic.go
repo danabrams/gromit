@@ -280,7 +280,7 @@ func buildSpecSummaries(specs []spec) []string {
 func getBeadCounts(client *bead.Client, specID string) (open int, closed int, err error) {
 	// Query beads with label spec:<specID>
 	label := "spec:" + specID
-	beads, err := client.ListWithLabel(label)
+	beads, err := client.ListWithLabel(context.Background(), label)
 	if err != nil {
 		return 0, 0, err
 	}

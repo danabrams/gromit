@@ -1,6 +1,7 @@
 package bead
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -12,7 +13,7 @@ import (
 func TestListWithLabel_NilClient(t *testing.T) {
 	t.Parallel()
 	var c *Client
-	_, err := c.ListWithLabel("spec:test")
+	_, err := c.ListWithLabel(context.Background(), "spec:test")
 	if err == nil {
 		t.Errorf("ListWithLabel() on nil client expected error but got nil")
 		return
@@ -26,7 +27,7 @@ func TestListWithLabel_NilClient(t *testing.T) {
 func TestListWithLabel_EmptyLabel(t *testing.T) {
 	t.Parallel()
 	c, _ := NewClient()
-	_, err := c.ListWithLabel("")
+	_, err := c.ListWithLabel(context.Background(), "")
 	if err == nil {
 		t.Errorf("ListWithLabel(\"\") expected error but got nil")
 		return
@@ -66,7 +67,7 @@ func TestListWithLabel_InvalidLabel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := c.ListWithLabel(tt.label)
+			_, err := c.ListWithLabel(context.Background(), tt.label)
 			if err == nil {
 				t.Errorf("ListWithLabel(%q) expected validation error but got nil", tt.label)
 				return
@@ -124,7 +125,7 @@ func TestListWithLabel_ValidLabels(t *testing.T) {
 			t.Parallel()
 			gotArgs = nil
 
-			_, err := c.ListWithLabel(tt.label)
+			_, err := c.ListWithLabel(context.Background(), tt.label)
 			if err != nil {
 				t.Errorf("ListWithLabel(%q) unexpected error: %v", tt.label, err)
 				return
@@ -428,7 +429,7 @@ func TestListWithLabel_ErrorWrapping(t *testing.T) {
 	}
 
 	// Test that errors contain context when bd command fails
-	_, err := c.ListWithLabel("spec:test")
+	_, err := c.ListWithLabel(context.Background(), "spec:test")
 	if err == nil {
 		t.Fatal("ListWithLabel() expected error")
 	}
@@ -577,7 +578,7 @@ func TestListWithLabel_IntegrationReturnsPrioritySortedBeads(t *testing.T) {
 		},
 	}
 
-	beads, err := c.ListWithLabel(testLabel)
+	beads, err := c.ListWithLabel(context.Background(), testLabel)
 	if err != nil {
 		t.Fatalf("ListWithLabel() error = %v", err)
 	}
@@ -609,12 +610,12 @@ func TestListWithLabel_IntegrationConsistentWithListMethod(t *testing.T) {
 		},
 	}
 
-	allBeads, err := c.List()
+	allBeads, err := c.List(context.Background())
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
 	}
 
-	labelBeads, err := c.ListWithLabel("test-label")
+	labelBeads, err := c.ListWithLabel(context.Background(), "test-label")
 	if err != nil {
 		t.Fatalf("ListWithLabel() error = %v", err)
 	}
@@ -652,7 +653,7 @@ func TestListWithLabel_CommandArgumentsIncludeAllAndLimit(t *testing.T) {
 	}
 	testLabel := "spec:command-args-test"
 
-	_, err := c.ListWithLabel(testLabel)
+	_, err := c.ListWithLabel(context.Background(), testLabel)
 	if err != nil {
 		t.Fatalf("ListWithLabel() error = %v", err)
 	}

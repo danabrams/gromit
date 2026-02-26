@@ -47,7 +47,7 @@ func TestRunnerSmoke_ValidationFailureEscalatesTier(t *testing.T) {
 
 	beadReady := false
 	beads := &mockBeadClient{
-		ReadyFn: func() (*bead.Bead, error) {
+		ReadyFn: func(ctx context.Context) (*bead.Bead, error) {
 			if beadReady {
 				return nil, nil
 			}
@@ -67,7 +67,7 @@ func TestRunnerSmoke_ValidationFailureEscalatesTier(t *testing.T) {
 		Validate: &noopStage{},
 		Epilogue: &noopStage{},
 		GetBead: func(ctx context.Context) (*bead.Bead, error) {
-			return beads.Ready()
+			return beads.Ready(ctx)
 		},
 		Config: cfg,
 		Output: io.Discard,

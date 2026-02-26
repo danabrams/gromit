@@ -860,7 +860,7 @@ func TestEstimateScopedIterationTotal(t *testing.T) {
 		},
 	}
 
-	total, err := estimateScopedIterationTotal(client, "spec:auth", 3)
+	total, err := estimateScopedIterationTotal(context.Background(), client, "spec:auth", 3)
 	if err != nil {
 		t.Fatalf("estimateScopedIterationTotal() error = %v", err)
 	}
@@ -2172,7 +2172,7 @@ type mockComment struct {
 	id, comment string
 }
 
-func (m *mockBeadClient) AddComment(id, comment string) error {
+func (m *mockBeadClient) AddComment(ctx context.Context, id, comment string) error {
 	m.comments = append(m.comments, mockComment{id, comment})
 	return nil
 }

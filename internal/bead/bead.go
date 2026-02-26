@@ -356,7 +356,7 @@ func (c *Client) GetParent(ctx context.Context, b *Bead) (*Bead, error) {
 	if b == nil || b.Parent == "" {
 		return nil, nil
 	}
-	return c.Show(b.Parent)
+	return c.Show(ctx, b.Parent)
 }
 
 // HasOpenChildren checks if an epic has any remaining open child tasks

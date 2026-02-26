@@ -54,7 +54,7 @@ func (r *runnerBeadCreator) Create(ctx context.Context, title, description, prio
 	_ = ctx
 	_ = priority
 
-	b, err := r.beadClient.Create(title, fixBeadPriority, labels, []string{description})
+	b, err := r.beadClient.Create(ctx, title, fixBeadPriority, labels, []string{description})
 	if err != nil {
 		return "", err
 	}
