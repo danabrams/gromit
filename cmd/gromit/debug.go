@@ -219,6 +219,27 @@ func shouldOverrideDebugModel(cmd *cobra.Command, selectedAgent agent.Agent) boo
 	return cmd.Flags().Changed(debugModelFlag)
 }
 
+func maybeWarnModelFlagOnNonClaudeAgent(cmd *cobra.Command, selectedAgent agent.Agent, stderr io.Writer) {
+	if cmd == nil || selectedAgent == nil {
+		return
+	}
+
+	if selectedAgent.Name() == claudeAgentName {
+		return
+	}
+
+	modelFlag := cmd.Flags().Lookup(debugModelFlag)
+	if modelFlag == nil {
+		return
+	}
+
+	if !cmd.Flags().Changed(debugModelFlag) {
+		return
+	}
+
+	fmt.Fprintf(stderr, "Warning: --model flag ignored for non-Claude agent %q\n", selectedAgent.Name())
+}
+
 func resolveDebugAgent(cfg *config.Config, agentFlag string, chooseAgent bool) (agent.Agent, error) {
 	return resolveCommandAgent(cfg, debugSessionCommand, agentFlag, chooseAgent)
 }
