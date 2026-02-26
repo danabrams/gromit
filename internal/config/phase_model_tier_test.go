@@ -37,3 +37,22 @@ func TestConfigPhaseModelTier(t *testing.T) {
 		})
 	}
 }
+
+func TestPhaseTierForStrategyCostOptimized(t *testing.T) {
+	cfg := &Config{
+		Routing: RoutingConfig{
+			Strategy: "cost_optimized",
+			CostOptimized: CostOptimizedRoutingConfig{
+				DecomposeTier: "high",
+			},
+		},
+	}
+
+	phases := []string{"decompose", "review", "planning"}
+	for _, phase := range phases {
+		got := cfg.PhaseTierForStrategy(phase, "medium")
+		if got != "high" {
+			t.Fatalf("PhaseTierForStrategy(%q) = %q, want %q", phase, got, "high")
+		}
+	}
+}
