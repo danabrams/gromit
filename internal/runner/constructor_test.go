@@ -2324,3 +2324,56 @@ func TestNewTrackerClientReturnsBDAdapterAsTrackerClient(t *testing.T) {
 	// Verify the returned value implements tracker.Client
 	var _ tracker.Client = client
 }
+
+// TestBuildRouterAndLearningsProvider_DetectsAndHealsStaleState verifies that when
+// state.json is stale (clean_exit: false), buildRouterAndLearningsProvider detects
+// staleness, calls AutoHeal() to reset provider counts, saves the healed state,
+// and emits a warning to output.
+func TestBuildRouterAndLearningsProvider_DetectsAndHealsStaleState(t *testing.T) {
+	t.Parallel()
+
+	gromitDir := t.TempDir()
+	cfg := newCodexProvidersConfig()
+	cfg.State.StaleThreshold = 60
+
+	// Create a stale state.json with clean_exit: false and non-empty provider counts
+	stateFile := filepath.Join(gromitDir, "state.json")
+	staleState := map[string]interface{}{
+		"clean_exit": false,
+		"updated_at": time.Now().Format(time.RFC3339),
+		"provider_counts": map[string]int{
+			"codex":  5,
+			"claude": 3,
+		},
+	}
+	stateData, _ := json.MarshalIndent(staleState, "", "  ")
+	if err := os.WriteFile(stateFile, stateData, 0644); err != nil {
+		t.Fatalf("failed to write stale state.json: %v", err)
+	}
+
+	// Capture output to verify warning was emitted
+	var output strings.Builder
+	router, _, sf, _, err := buildRouterAndLearningsProvider(cfg, gromitDir, &output)
+
+	if err != nil {
+		t.Fatalf("buildRouterAndLearningsProvider() error = %v", err)
+	}
+	if router == nil {
+		t.Fatal("router is nil, want non-nil")
+	}
+
+	// Verify warning was emitted
+	warningOutput := output.String()
+	if !strings.Contains(warningOutput, "Warning:") || !strings.Contains(warningOutput, "staleness detected") {
+		t.Fatalf("expected staleness warning in output, got: %q", warningOutput)
+	}
+
+	// Verify provider counts were reset to empty
+	if sf == nil {
+		t.Fatal("state file is nil, want non-nil")
+	}
+	counts := sf.GetProviderCounts()
+	if len(counts) != 0 {
+		t.Fatalf("expected provider counts to be reset, got: %v", counts)
+	}
+}
