@@ -19,9 +19,9 @@ func setupRunSpecTestEnv(t *testing.T) (specsDir string, cleanup func()) {
 		t.Fatalf("Failed to create specs dir: %v", err)
 	}
 
-	// Write minimal gromit.yaml (empty YAML uses all defaults)
+	// Write minimal gromit.yaml (seed explicit profile to match current resolver expectations)
 	cfgPath := filepath.Join(tempDir, "gromit.yaml")
-	if err := os.WriteFile(cfgPath, []byte(""), 0644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(configForProfile("go")), 0644); err != nil {
 		t.Fatalf("Failed to write gromit.yaml: %v", err)
 	}
 
