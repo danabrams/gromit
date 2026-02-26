@@ -27,3 +27,17 @@ type ItemReader interface {
 	// ListWithLabel returns tracker items that have the provided label.
 	ListWithLabel(ctx context.Context, label string) ([]Item, error)
 }
+
+// ItemWriter defines item-creation and mutation operations for tracker backends.
+type ItemWriter interface {
+	// Create adds a new tracker item from the supplied request.
+	Create(ctx context.Context, req CreateRequest) (*Item, error)
+	// CreateWithParent adds a new tracker item with a parent reference.
+	CreateWithParent(ctx context.Context, req CreateRequest, parentID string) (*Item, error)
+	// Update modifies an existing tracker item.
+	Update(ctx context.Context, req UpdateRequest) (*Item, error)
+	// Close marks an item as completed.
+	Close(ctx context.Context, id string) error
+	// Sync ensures the tracker backend is in sync with its source of truth.
+	Sync(ctx context.Context) error
+}

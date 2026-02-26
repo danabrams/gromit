@@ -42,3 +42,12 @@ type CreateRequest struct {
 	Status      string
 	Metadata    map[string]string
 }
+
+// UpdateRequest describes the payload needed to update a tracker item.
+type UpdateRequest struct {
+	ID          string
+	Title       string
+	Description string
+	Status      string
+	Metadata    map[string]string
+}

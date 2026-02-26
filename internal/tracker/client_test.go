@@ -27,6 +27,10 @@ func (stubClient) CreateWithParent(ctx context.Context, req CreateRequest, paren
 	return nil, nil
 }
 
+func (stubClient) Update(ctx context.Context, req UpdateRequest) (*Item, error) {
+	return nil, nil
+}
+
 func (stubClient) ListWithLabel(ctx context.Context, label string) ([]Item, error) {
 	return nil, nil
 }
