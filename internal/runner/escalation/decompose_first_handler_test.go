@@ -79,3 +79,45 @@ func TestDecomposeFirstHandler_DecomposesAfterMaxRetries(t *testing.T) {
 		t.Fatal("DecomposeFirstHandler.decomposeFn not set")
 	}
 }
+
+// TestDecomposeFirstHandler_DecidesToDecomposeNonAtomic verifies that
+// the handler decides to decompose when a non-atomic bead exceeds max retries.
+func TestDecomposeFirstHandler_DecidesToDecomposeNonAtomic(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		Escalation: config.EscalationConfig{
+			Enabled:            true,
+			Chain:              []string{"haiku", "sonnet", "opus"},
+			MaxRetriesPerModel: 2,
+			MaxRetriesPerBead:  5,
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	mfa := &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, failureOutput string) (*analyzer.Analysis, error) {
+			return &analyzer.Analysis{Category: "logic_error", Recoverable: false}, nil
+		},
+	}
+
+	mbc := &mockBeadClient{}
+
+	handler := NewDecomposeFirstHandler(cfg, mfa, mbc, nil, nil, nil, nil, 2)
+	if handler == nil {
+		t.Fatal("NewDecomposeFirstHandler returned nil")
+	}
+
+	// ShouldDecomposeBeforeEscalate should exist and return a decision
+	bc := &runtypes.BeadContext{
+		Bead:              &bead.Bead{ID: "test-001", Title: "Test", Description: "Test bead"},
+		RetriesThisModel:  3, // Exceeded max of 2
+		MaxRetries:        2,
+	}
+
+	shouldDecompose := handler.ShouldDecomposeBeforeEscalate(bc)
+	if !shouldDecompose {
+		t.Fatal("expected ShouldDecomposeBeforeEscalate to return true when retries exceeded")
+	}
+}
