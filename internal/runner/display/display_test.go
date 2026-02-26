@@ -105,6 +105,15 @@ func TestFormatModelPerformance_singleModel(t *testing.T) {
 	}
 }
 
+func TestFormatSPCSummary_nilTrend(t *testing.T) {
+	t.Parallel()
+
+	got := FormatSPCSummary(nil)
+	if !strings.Contains(got, "SPC: (no data)") {
+		t.Fatalf("FormatSPCSummary(nil) = %q, want substring %q", got, "SPC: (no data)")
+	}
+}
+
 func TestSPCMetricConstants(t *testing.T) {
 	t.Parallel()
 

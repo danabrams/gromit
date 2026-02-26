@@ -321,3 +321,258 @@ func formatRecurrenceBreakdown(counters map[string]int) string {
 	}
 	return strings.Join(parts, " | ")
 }
+
+// FormatSPCSummary formats SPC (Statistical Process Control) trend data for display.
+func FormatSPCSummary(trend *logger.ProcessTrend) string {
+	if trend == nil || trend.TotalIterations == 0 {
+		return "SPC: (no data)"
+	}
+
+	var lines []string
+	lines = append(lines, "SPC:")
+	lines = append(lines, fmt.Sprintf("  Window:   %d iterations (%d total)", trend.WindowSize, trend.TotalIterations))
+
+	// Display known control limits with human-friendly labels.
+	displayMetrics := []struct {
+		metric string
+		label  string
+	}{
+		{spcMetricRollingSuccessRate, "Success:"},
+		{spcMetricRollingEscalateRate, "Escalate:"},
+		{spcMetricRollingQualityScore, "Quality:"},
+		{spcMetricRollingAvgDurationMs, "Duration:"},
+	}
+	limitsByMetric := map[string]logger.TrendControlLimit{}
+	for _, cl := range trend.ControlLimits {
+		limitsByMetric[cl.Metric] = cl
+	}
+	sortedMetrics := append([]struct {
+		metric string
+		label  string
+	}{}, displayMetrics...)
+	sort.Slice(sortedMetrics, func(i, j int) bool {
+		return sortedMetrics[i].label < sortedMetrics[j].label
+	})
+	for _, dm := range sortedMetrics {
+		cl, ok := limitsByMetric[dm.metric]
+		if !ok {
+			continue
+		}
+		lines = append(lines, formatSPCLine(dm.label, cl, dm.metric == spcMetricRollingAvgDurationMs))
+	}
+
+	if providerLines := formatSPCProviderMetrics(trend.ProviderMetrics); len(providerLines) > 0 {
+		lines = append(lines, providerLines...)
+	}
+
+	if leading := formatSPCLeadingIndicators(trend.LatestWindow); len(leading) > 0 {
+		lines = append(lines, leading...)
+	}
+
+	if econ := formatSPCEconomicMetrics(trend.LatestWindow); len(econ) > 0 {
+		lines = append(lines, econ...)
+	}
+
+	if ewmaLines := formatSPCEWMAValues(trend.EWMAAnomalies); len(ewmaLines) > 0 {
+		lines = append(lines, ewmaLines...)
+	}
+
+	// Nelson rule violations.
+	if nelsonLines := formatSPCNelsonViolations(trend.PatternViolations); len(nelsonLines) > 0 {
+		lines = append(lines, nelsonLines...)
+	}
+
+	// Anomaly summary.
+	if len(trend.Anomalies) == 0 {
+		lines = append(lines, "  Anomaly:  none")
+	} else {
+		lines = append(lines, fmt.Sprintf("  Anomaly:  %d", len(trend.Anomalies)))
+		for _, a := range trend.Anomalies {
+			lines = append(lines, fmt.Sprintf("    %s (%s)", simplifySPCMetric(a.Metric), a.Severity))
+		}
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+// formatSPCLine formats a single SPC control-limit line for display.
+// When isDuration is true, values are shown as milliseconds; otherwise as percentages.
+func formatSPCLine(label string, cl logger.TrendControlLimit, isDuration bool) string {
+	if isDuration {
+		return fmt.Sprintf("  %-10s %s, limits %s..%s",
+			label, formatSPCValue(cl.Latest, false), formatSPCValue(cl.LCL, false), formatSPCValue(cl.UCL, false))
+	}
+	return fmt.Sprintf("  %-10s %s, limits %s..%s",
+		label, formatSPCValue(cl.Latest, true), formatSPCValue(cl.LCL, true), formatSPCValue(cl.UCL, true))
+}
+
+func formatSPCProviderMetrics(metrics []logger.ProviderMetrics) []string {
+	if len(metrics) == 0 {
+		return nil
+	}
+
+	lines := []string{"  Provider metrics:"}
+	for _, pm := range metrics {
+		avgDuration := time.Duration(math.Round(pm.AvgDurationMs)) * time.Millisecond
+		successPct := int(math.Round(pm.SuccessRate * 100))
+		transportPct := int(math.Round(pm.TransportFailureRate * 100))
+		lines = append(lines, fmt.Sprintf("    %s: %d invocations, %d%% success (%d/%d), transport %d%% (%d), fallbacks %d, avg %s, $%.2f total cost",
+			pm.Name,
+			pm.TotalInvocations,
+			successPct,
+			pm.Successes,
+			pm.TotalInvocations,
+			transportPct,
+			pm.TransportFailures,
+			pm.FallbacksTriggered,
+			formatDuration(avgDuration),
+			pm.TotalCostUSD,
+		))
+	}
+
+	return lines
+}
+
+func formatSPCLeadingIndicators(window logger.ProcessTrendWindow) []string {
+	lines := []string{}
+	if window.FirstPassSuccess > 0 {
+		lines = append(lines, fmt.Sprintf("    first-pass success %d%%", int(math.Round(window.FirstPassSuccess*100))))
+	}
+	if window.ReworkRate > 0 {
+		lines = append(lines, fmt.Sprintf("    rework %d%%", int(math.Round(window.ReworkRate*100))))
+	}
+	if window.EscalationRate > 0 {
+		lines = append(lines, fmt.Sprintf("    escalation %d%%", int(math.Round(window.EscalationRate*100))))
+	}
+	if window.AvgInputTokens > 0 {
+		lines = append(lines, fmt.Sprintf("    input %d tokens", int(math.Round(window.AvgInputTokens))))
+	}
+	if len(lines) == 0 {
+		return nil
+	}
+	return append([]string{"  Leading indicators:"}, lines...)
+}
+
+func formatSPCEconomicMetrics(window logger.ProcessTrendWindow) []string {
+	shouldShow := window.AvgCostUSD > 0 || window.AvgCostPerBeadUSD > 0 || window.AvgDurationMs > 0
+	if !shouldShow {
+		return nil
+	}
+
+	lines := []string{"  Economic metrics:"}
+	if window.AvgCostUSD > 0 {
+		lines = append(lines, fmt.Sprintf("    Avg $%.2f", window.AvgCostUSD))
+	}
+	if window.AvgCostPerBeadUSD > 0 {
+		lines = append(lines, fmt.Sprintf("    cost per bead $%.2f", window.AvgCostPerBeadUSD))
+	}
+	if window.AvgDurationMs > 0 {
+		lines = append(lines, fmt.Sprintf("    avg duration %s", formatDuration(time.Duration(window.AvgDurationMs)*time.Millisecond)))
+	}
+	return lines
+}
+
+func formatSPCNelsonViolations(violations []logger.PatternViolation) []string {
+	if len(violations) == 0 {
+		return nil
+	}
+
+	lines := []string{"  Nelson rule violations:"}
+	for _, v := range violations {
+		lines = append(lines, fmt.Sprintf("    %s (%s): %s", simplifySPCMetric(v.Metric), v.Rule, v.Message))
+	}
+
+	return lines
+}
+
+func formatSPCEWMAValues(anomalies []logger.TrendAnomaly) []string {
+	if len(anomalies) == 0 {
+		return nil
+	}
+
+	sorted := make([]logger.TrendAnomaly, len(anomalies))
+	copy(sorted, anomalies)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Metric < sorted[j].Metric
+	})
+
+	lines := []string{"  EWMA values:"}
+	for _, anomaly := range sorted {
+		lines = append(lines, fmt.Sprintf("    %s: %s, limits %s..%s",
+			simplifySPCMetric(anomaly.Metric),
+			formatSPCEWMAValue(anomaly.Metric, anomaly.Latest),
+			formatSPCEWMAValue(anomaly.Metric, anomaly.LCL),
+			formatSPCEWMAValue(anomaly.Metric, anomaly.UCL),
+		))
+	}
+
+	return lines
+}
+
+func formatSPCEWMAValue(metric string, value float64) string {
+	switch metric {
+	case spcMetricEWMASuccessRate:
+		return formatSPCValue(value, true)
+	case spcMetricEWMADurationMs:
+		return formatSPCValue(value, false)
+	case spcMetricEWMACostUSD:
+		return fmt.Sprintf("$%.2f", value)
+	case spcMetricEWMAInputTokens:
+		return fmt.Sprintf("%d tokens", int(math.Round(value)))
+	default:
+		return fmt.Sprintf("%.2f", value)
+	}
+}
+
+// formatSPCValue formats a single SPC metric value for display.
+// When asPercent is true, v is treated as a ratio (0.0–1.0) and formatted as a percentage.
+// When asPercent is false, v is treated as milliseconds and formatted as a duration.
+func formatSPCValue(v float64, asPercent bool) string {
+	if asPercent {
+		pct := v * 100
+		if pct < 0 {
+			pct = 0
+		} else if pct > 100 {
+			pct = 100
+		}
+		return fmt.Sprintf("%d%%", int(math.Round(pct)))
+	}
+	// Duration in milliseconds.
+	if v < 0 {
+		v = 0
+	}
+	d := time.Duration(v) * time.Millisecond
+	if d >= time.Minute {
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	}
+	return fmt.Sprintf("%ds", int(d.Seconds()))
+}
+
+// simplifySPCMetric returns a short human-friendly label for a known SPC metric
+// constant, or returns the metric string unchanged if unrecognized.
+func simplifySPCMetric(metric string) string {
+	switch metric {
+	case spcMetricRollingSuccessRate:
+		return "success"
+	case spcMetricFirstPassSuccessRate:
+		return "first-pass"
+	case spcMetricRollingEscalateRate:
+		return "escalation"
+	case spcMetricRollingQualityScore:
+		return "quality"
+	case spcMetricRollingAvgDurationMs:
+		return "duration"
+	case spcMetricRollingAvgCostUSD:
+		return "cost"
+	case spcMetricEWMASuccessRate:
+		return "EWMA success rate"
+	case spcMetricEWMACostUSD:
+		return "EWMA cost"
+	case spcMetricEWMADurationMs:
+		return "EWMA duration"
+	case spcMetricEWMAInputTokens:
+		return "EWMA input tokens"
+	default:
+		return metric
+	}
+}
