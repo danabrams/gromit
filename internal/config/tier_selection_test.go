@@ -82,6 +82,22 @@ func TestSelectTierBasics(t *testing.T) {
 	}
 }
 
+func TestBuildTierForStrategyCostOptimized(t *testing.T) {
+	cfg := &Config{
+		Routing: RoutingConfig{
+			Strategy: "cost_optimized",
+			CostOptimized: CostOptimizedRoutingConfig{
+				BuildTier: "high",
+			},
+		},
+	}
+
+	got := cfg.BuildTierForStrategy(2, []string{"complexity:low"})
+	if got != "high" {
+		t.Fatalf("BuildTierForStrategy(cost_optimized) = %q, want %q", got, "high")
+	}
+}
+
 // TestSelectTierLabelOverrides verifies that SelectTier() respects label overrides
 // with higher precedence than priority-based selection.
 // Expected failure: SelectTier() method does not exist on Config yet
