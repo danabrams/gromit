@@ -106,3 +106,33 @@ func TestCheckRetryCapExceeded_AtCapOrBeyond(t *testing.T) {
 		})
 	}
 }
+
+func TestEmitRetryCapReachedAlert_ReturnsAlert(t *testing.T) {
+	t.Parallel()
+
+	specName := "test-spec"
+	retryCap := 3
+
+	alert := specmerge.EmitRetryCapReachedAlert(specName, retryCap)
+
+	if alert == "" {
+		t.Fatalf("EmitRetryCapReachedAlert returned empty string, want non-empty alert message")
+	}
+
+	if !contains(alert, specName) {
+		t.Fatalf("alert = %q, want to contain spec name %q", alert, specName)
+	}
+
+	if !contains(alert, "3") {
+		t.Fatalf("alert = %q, want to contain retry cap 3", alert)
+	}
+}
+
+func contains(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
