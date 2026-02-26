@@ -51,3 +51,22 @@ func TestProfileForName(t *testing.T) {
 		})
 	}
 }
+
+func TestEffectiveValidationCommandsExplicitPrecedence(t *testing.T) {
+	cfg := Config{
+		Project: ProjectConfig{
+			Profile: "go",
+		},
+		Validation: ValidationConfig{
+			Commands: []string{"custom test", "custom build"},
+		},
+	}
+
+	effective := cfg.EffectiveValidationCommands()
+
+	// Explicit commands take precedence over profile defaults
+	want := []string{"custom test", "custom build"}
+	if !reflect.DeepEqual(effective, want) {
+		t.Errorf("EffectiveValidationCommands() = %v, want %v", effective, want)
+	}
+}
