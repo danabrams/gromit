@@ -5582,3 +5582,31 @@ func TestMergePipelineConfigYAMLRoundTrip(t *testing.T) {
 		t.Errorf("after round-trip: MergePipeline.RetryCapDefault = %d, want 5", cfg2.MergePipeline.RetryCapDefault)
 	}
 }
+
+func TestMergePipelineConfigRetryCapDefaultValue(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   MergePipelineConfig
+		want     int
+	}{
+		{
+			name:     "explicit value",
+			config:   MergePipelineConfig{RetryCapDefault: 7},
+			want:     7,
+		},
+		{
+			name:     "zero value defaults",
+			config:   MergePipelineConfig{RetryCapDefault: 0},
+			want:     0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tc.config.RetryCapDefaultValue()
+			if got != tc.want {
+				t.Errorf("RetryCapDefaultValue() = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
