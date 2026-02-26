@@ -1207,6 +1207,51 @@ func TestRunWithRecoveryForCommandsWithEscalation_EnabledTrue(t *testing.T) {
 	}
 }
 
+// TestExecuteFnCanAccessEscalationFlag verifies that executeFn closures can access
+// the runner's escalationEnabled flag to pass it to escalation handler when invoking.
+// This demonstrates the pattern: executeFn should be a closure that captures the runner
+// and checks r.escalationEnabled when calling handler.ExecuteWithRetryWithEscalation.
+func TestExecuteFnCanAccessEscalationFlag(t *testing.T) {
+	cfg := newTestConfig()
+
+	// Always fail validation
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return "", "validation failure", 1, nil
+	}
+
+	// Track what escalation value was seen by executeFn
+	var seenEscalationValues []bool
+
+	// This is the pattern: executeFn is a closure that captures the runner
+	// and checks escalationEnabled when calling the handler
+	var createExecuteFn func(*Runner) ExecuteFn
+	createExecuteFn = func(r *Runner) ExecuteFn {
+		return func(ctx context.Context, bc *runtypes.BeadContext) bool {
+			// executeFn captures the runner and can check escalationEnabled
+			seenEscalationValues = append(seenEscalationValues, r.escalationEnabled)
+			// In real implementation, this would call:
+			// handler.ExecuteWithRetryWithEscalation(ctx, bc, invokeFn, r.escalationEnabled)
+			return true
+		}
+	}
+
+	r := NewRunner(cfg, cmdRunner, nil, nil)
+	r.executeFn = createExecuteFn(r)
+
+	bc := newTestBeadContext()
+	bc.StartCommit = "abc123"
+
+	// Call with escalationEnabled=false
+	_ = r.RunWithRecoveryForCommandsWithEscalation(context.Background(), bc, r.validationCommands(), "fast", false)
+
+	if len(seenEscalationValues) == 0 {
+		t.Error("executeFn should have been called and seen escalation value")
+	}
+	if len(seenEscalationValues) > 0 && seenEscalationValues[0] != false {
+		t.Errorf("executeFn should have seen escalationEnabled=false, got %v", seenEscalationValues[0])
+	}
+}
+
 // Ensure imports are used
 var (
 	_ = claude.Result{}
