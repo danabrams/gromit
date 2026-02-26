@@ -111,6 +111,36 @@ func TestBDAdapterContractCreateCloseSync(t *testing.T) {
 	requireBDCall(t, env, "bd ready --json --limit 3")
 }
 
+func TestBDAdapterContractHasOpenChildren(t *testing.T) {
+	env := setupTestEnv(t)
+	adapter := newBDAdapterWithEnv(t, env)
+
+	parent := createFakeBead(t, env, "Parent adapter bead", "--priority", "1")
+	child := createFakeBead(t, env, "Child adapter bead", "--parent", parent.ID)
+
+	open, err := adapter.HasOpenChildren(context.Background(), parent.ID)
+	if err != nil {
+		t.Fatalf("HasOpenChildren failed: %v", err)
+	}
+	if !open {
+		t.Fatal("expected parent to have open children")
+	}
+
+	if err := adapter.Close(context.Background(), child.ID); err != nil {
+		t.Fatalf("closing child failed: %v", err)
+	}
+
+	open, err = adapter.HasOpenChildren(context.Background(), parent.ID)
+	if err != nil {
+		t.Fatalf("HasOpenChildren after close failed: %v", err)
+	}
+	if open {
+		t.Fatal("expected parent to have no open children")
+	}
+
+	requireBDListCallWithParent(t, env, "bd list --json --status open --parent "+parent.ID+" --limit 1")
+}
+
 func newBDAdapterWithEnv(t *testing.T, env *testEnv) *bead.BDAdapter {
 	t.Helper()
 	applyAdapterEnv(t, env)
