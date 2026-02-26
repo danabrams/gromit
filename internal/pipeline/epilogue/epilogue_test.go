@@ -803,3 +803,65 @@ func TestEpilogue_RemovesOrphanedWorktreesAfterMerge(t *testing.T) {
 		t.Errorf("second removed path = %q, want %q", merger.removedPaths[1], "/repo-gromit-debug-9876543210")
 	}
 }
+
+// TestEpilogue_SkipsWorktreeRemovalWhenMergeFails verifies that RemoveByPath is not
+// called when MergeBack fails.
+func TestEpilogue_SkipsWorktreeRemovalWhenMergeFails(t *testing.T) {
+	merger := &fakeWorktreeMerger{
+		branches: []string{"gromit/review-1234567890"},
+		mergeErr: errors.New("merge conflict"),
+		derivedPaths: map[string]string{
+			"gromit/review-1234567890": "/repo-gromit-review-1234567890",
+		},
+	}
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
+		WithWorktree(merger)
+
+	in := makeInput("bead-1", "Test", true)
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if len(merger.removedPaths) != 0 {
+		t.Errorf("removed worktree paths = %v, want no removal on merge failure", merger.removedPaths)
+	}
+}
+
+// TestEpilogue_WorktreeRemovalErrorIsNonFatal verifies that RemoveByPath failures
+// are non-fatal and do not prevent the merge from being considered successful.
+func TestEpilogue_WorktreeRemovalErrorIsNonFatal(t *testing.T) {
+	merger := &fakeWorktreeMerger{
+		branches: []string{"gromit/review-1234567890"},
+		derivedPaths: map[string]string{
+			"gromit/review-1234567890": "/repo-gromit-review-1234567890",
+		},
+		removeByPathErr: errors.New("failed to remove worktree"),
+	}
+	remover := &fakePendingBranchRemover{}
+	var out bytes.Buffer
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, &out).
+		WithWorktree(merger).
+		WithPendingBranchRemover(remover)
+
+	in := makeInput("bead-1", "Test", true)
+
+	out2, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil (removal failure should be non-fatal)", err)
+	}
+	if out2.Decision != pipeline.Proceed {
+		t.Errorf("Decision = %v, want Proceed even after removal failure", out2.Decision)
+	}
+
+	// Branch should still be removed from pending state despite worktree removal failure
+	if len(remover.removedBranches) != 1 {
+		t.Errorf("removed branches = %v, want 1 branch removed", remover.removedBranches)
+	}
+
+	// Warning should be emitted for the removal failure
+	if !strings.Contains(out.String(), "Warning: failed to remove worktree") {
+		t.Errorf("output should contain warning about worktree removal failure, got:\n%s", out.String())
+	}
+}
