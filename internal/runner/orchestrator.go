@@ -351,11 +351,12 @@ func inferBuildFailurePhase(err error) string {
 	}
 }
 
-// checkControlLimitAlerts verifies that first-pass success rate stays above 70%.
-// If rolling_first_pass_success_rate < 0.70 (with minimum 30 iterations in window),
-// logs a warning and sets a flag in state to trigger retro on next run.
+// checkControlLimitAlerts verifies that first-pass success rate stays above 80%.
+// If rolling_first_pass_success_rate < 0.80 (with minimum 30 iterations in window),
+// logs a warning that triggers review of recent decomposition rule changes and sets
+// a flag in state to trigger retro on next run.
 func (o *Orchestrator) checkControlLimitAlerts() {
-	const firstPassSuccessThreshold = 0.70
+	const firstPassSuccessThreshold = 0.80
 	const minimumWindowSize = 30
 
 	// Need both LogsDir and StateSaver to perform this check
@@ -376,7 +377,7 @@ func (o *Orchestrator) checkControlLimitAlerts() {
 
 	// Check if window has enough data and first-pass success is below threshold
 	if trend.LatestWindow.FirstPassSuccess < firstPassSuccessThreshold && trend.WindowSize >= minimumWindowSize {
-		o.logf("Warning: first-pass success rate %.1f%% is below control limit of %.0f%% (window: %d iterations)",
+		o.logf("Warning: first-pass success rate %.1f%% is below control limit of %.0f%% (window: %d iterations); review recent decomposition rule changes",
 			trend.LatestWindow.FirstPassSuccess*100, firstPassSuccessThreshold*100, trend.WindowSize)
 
 		// Set a persistent control-limit alert flag in state.

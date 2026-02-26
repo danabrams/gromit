@@ -1269,34 +1269,34 @@ func writeOrchestratorTestLogFile(t *testing.T, dir string, runID string, logs [
 	}
 }
 
-// TestOrchestrator_ControlLimitAlert_SetsRetroFlagWhenFirstPassSuccessBelow70 verifies
-// that when the rolling_first_pass_success_rate drops below 70% with at least 10 iterations
+// TestOrchestrator_ControlLimitAlert_SetsRetroFlagWhenFirstPassSuccessBelowEightyPercent verifies
+// that when the rolling_first_pass_success_rate drops below 80% with at least 30 iterations
 // in the window, a warning is logged and the state is marked to trigger retro on next run.
-func TestOrchestrator_ControlLimitAlert_SetsRetroFlagWhenFirstPassSuccessBelow70(t *testing.T) {
+func TestOrchestrator_ControlLimitAlert_SetsRetroFlagWhenFirstPassSuccessBelowEightyPercent(t *testing.T) {
 	// Create temp directories
 	logsDir := t.TempDir()
 	metricsDir := t.TempDir()
 	stateDir := t.TempDir()
 
 	// Create iteration logs with low first-pass success rate
-	logs := make([]logger.IterationLog, 12)
-	for i := 0; i < 12; i++ {
+	logs := make([]logger.IterationLog, 30)
+	for i := 0; i < 30; i++ {
 		logs[i] = logger.IterationLog{
 			Iteration:        i + 1,
 			BeadID:           fmt.Sprintf("bead-%d", i),
 			Success:          true,
 			Validated:        true,
-			FirstPassSuccess: i < 2, // Only 2 out of 12 first-pass successes = 16.67%
+			FirstPassSuccess: i < 6, // Only 6 out of 30 first-pass successes = 20%
 		}
 	}
 	writeOrchestratorTestLogFile(t, logsDir, "test-run", logs)
 
 	// Create ProcessTrend with low FirstPassSuccess rate
 	trend := &logger.ProcessTrend{
-		TotalIterations: 12,
-		WindowSize:      12,
+		TotalIterations: 30,
+		WindowSize:      30,
 		LatestWindow: logger.ProcessTrendWindow{
-			FirstPassSuccess: 0.1667, // ~16.67%, below 70% threshold
+			FirstPassSuccess: 0.20, // 20%, below 80% threshold
 		},
 	}
 
@@ -1349,23 +1349,23 @@ func TestOrchestrator_ControlLimitAlert_SetsRetroFlagWhenFirstPassSuccessBelow70
 
 	// Verify that the control limit alert flag was set
 	if !stateFile.IsControlLimitAlertTriggered() {
-		t.Error("ControlLimitAlert flag should be set when FirstPassSuccess < 0.70")
+		t.Error("ControlLimitAlert flag should be set when FirstPassSuccess < 0.80")
 	}
 }
 
 // TestOrchestrator_ControlLimitAlert_NotTriggeredWhenSuccessRateAtThreshold verifies
-// that the control limit alert is NOT triggered when the success rate equals 70%
+// that the control limit alert is NOT triggered when the success rate equals 80%
 // (the threshold is strictly less than).
 func TestOrchestrator_ControlLimitAlert_NotTriggeredWhenSuccessRateAtThreshold(t *testing.T) {
 	metricsDir := t.TempDir()
 	stateDir := t.TempDir()
 
-	// Create ProcessTrend with FirstPassSuccess exactly at 70% (should NOT trigger)
+	// Create ProcessTrend with FirstPassSuccess exactly at 80% (should NOT trigger)
 	trend := &logger.ProcessTrend{
-		TotalIterations: 10,
-		WindowSize:      10,
+		TotalIterations: 30,
+		WindowSize:      30,
 		LatestWindow: logger.ProcessTrendWindow{
-			FirstPassSuccess: 0.70, // Exactly at threshold, should NOT trigger
+			FirstPassSuccess: 0.80, // Exactly at threshold, should NOT trigger
 		},
 	}
 
@@ -1410,7 +1410,7 @@ func TestOrchestrator_ControlLimitAlert_NotTriggeredWhenSuccessRateAtThreshold(t
 	}
 
 	if stateFile.IsControlLimitAlertTriggered() {
-		t.Error("ControlLimitAlert flag should NOT be set when FirstPassSuccess = 0.70")
+		t.Error("ControlLimitAlert flag should NOT be set when FirstPassSuccess = 0.80")
 	}
 }
 
@@ -1534,17 +1534,18 @@ func TestOrchestrator_ControlLimitAlert_TriggeredWhenFirstPassBelowEightyPercent
 }
 
 // TestOrchestrator_ControlLimitAlert_LogsWarningWhenTriggered verifies that when
-// the control limit alert is triggered, a warning message is logged to the output.
+// the control limit alert is triggered, a warning message with the new threshold
+// and review guidance is logged to the output.
 func TestOrchestrator_ControlLimitAlert_LogsWarningWhenTriggered(t *testing.T) {
 	metricsDir := t.TempDir()
 	stateDir := t.TempDir()
 
 	// Create ProcessTrend with low FirstPassSuccess rate
 	trend := &logger.ProcessTrend{
-		TotalIterations: 12,
-		WindowSize:      12,
+		TotalIterations: 30,
+		WindowSize:      30,
 		LatestWindow: logger.ProcessTrendWindow{
-			FirstPassSuccess: 0.1667, // 16.67%, below 70% threshold
+			FirstPassSuccess: 0.1667, // 16.67%, below 80% threshold
 		},
 	}
 
@@ -1592,8 +1593,11 @@ func TestOrchestrator_ControlLimitAlert_LogsWarningWhenTriggered(t *testing.T) {
 	if !strings.Contains(logStr, "first-pass success rate") {
 		t.Errorf("Warning message not found in logs. Got: %q", logStr)
 	}
-	if !strings.Contains(logStr, "70%") {
+	if !strings.Contains(logStr, "80%") {
 		t.Errorf("Control limit threshold not mentioned in logs. Got: %q", logStr)
+	}
+	if !strings.Contains(logStr, "decomposition rule changes") {
+		t.Errorf("Decomposition review guidance not mentioned in logs. Got: %q", logStr)
 	}
 }
 
