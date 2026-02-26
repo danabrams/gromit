@@ -620,7 +620,7 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 				h.setBuildTimeoutFailurePhase(bc)
 				return false
 			}
-			bc.Result.Error = fmt.Errorf("claude invocation: %w", err)
+			bc.Result.Error = fmt.Errorf("agent invocation: %w", err)
 			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 				h.setBuildTimeoutFailurePhase(bc)
 			} else {
@@ -630,7 +630,7 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 		}
 
 		if invResult == nil {
-			bc.Result.Error = fmt.Errorf("claude returned nil result")
+			bc.Result.Error = fmt.Errorf("agent returned nil result")
 			h.setBuildFailurePhase(bc)
 			return false
 		}
@@ -650,7 +650,7 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 			}
 		}
 		if providerResult == nil {
-			bc.Result.Error = fmt.Errorf("claude returned nil result")
+			bc.Result.Error = fmt.Errorf("agent returned nil result")
 			h.setBuildFailurePhase(bc)
 			return false
 		}
