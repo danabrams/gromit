@@ -175,17 +175,9 @@ func TestCodexProviderNameMethod(t *testing.T) {
 // Expected failure: CodexProvider Run() method does not exist yet
 func TestCodexProviderRunCapturesStdout(t *testing.T) {
 	t.Parallel()
-	tempDir := t.TempDir()
-
-	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := `#!/bin/bash
-echo "Test output line 1"
+	mockBinary := newTestBinary(t, `echo "Test output line 1"
 echo "Test output line 2"
-exit 0
-`
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+exit 0`)
 
 	tierMap := map[string]string{TierLow: "gpt-4o-mini"}
 	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
@@ -210,17 +202,9 @@ exit 0
 
 func TestCodexProviderRunDoesNotMixStderrIntoOutput(t *testing.T) {
 	t.Parallel()
-	tempDir := t.TempDir()
-
-	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := `#!/bin/bash
-echo "stdout line"
+	mockBinary := newTestBinary(t, `echo "stdout line"
 echo "stderr line" >&2
-exit 1
-`
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+exit 1`)
 
 	tierMap := map[string]string{TierLow: "gpt-4o-mini"}
 	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
@@ -248,16 +232,8 @@ exit 1
 // Expected failure: CodexProvider Run() method does not exist yet
 func TestCodexProviderRunCapturesStderr(t *testing.T) {
 	t.Parallel()
-	tempDir := t.TempDir()
-
-	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := `#!/bin/bash
-echo "Error message" >&2
-exit 1
-`
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+	mockBinary := newTestBinary(t, `echo "Error message" >&2
+exit 1`)
 
 	tierMap := map[string]string{TierLow: "gpt-4o-mini"}
 	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
@@ -292,9 +268,7 @@ func TestCodexProviderRun_CreatesMissingCODEXHOME(t *testing.T) {
 	t.Setenv("CODEX_HOME", missingHome)
 	t.Setenv("EXPECTED_BAD_CODEX_HOME", missingHome)
 
-	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := `#!/bin/bash
-echo "CODEX_HOME=$CODEX_HOME"
+	mockBinary := newTestBinary(t, `echo "CODEX_HOME=$CODEX_HOME"
 if [ ! -d "$CODEX_HOME" ]; then
   echo "missing CODEX_HOME directory: $CODEX_HOME" >&2
   exit 9
@@ -304,11 +278,7 @@ if [ "$CODEX_HOME" = "$EXPECTED_BAD_CODEX_HOME" ]; then
   exit 8
 fi
 echo "ok"
-exit 0
-`
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+exit 0`)
 
 	cp := NewCodexProvider(mockBinary, []string{}, map[string]string{TierLow: "gpt-4o-mini"})
 	result, err := cp.Run(context.Background(), "test", TierLow)
@@ -384,24 +354,18 @@ func TestCodexProviderRun_RetriesTransientFailureOnce(t *testing.T) {
 	t.Parallel()
 	tempDir := t.TempDir()
 	counterFile := filepath.Join(tempDir, "attempt-counter")
-	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := `#!/bin/bash
-COUNT=0
-if [ -f "` + counterFile + `" ]; then
-  COUNT=$(cat "` + counterFile + `")
+	mockBinary := newTestBinary(t, `COUNT=0
+if [ -f "`+counterFile+`" ]; then
+  COUNT=$(cat "`+counterFile+`")
 fi
 COUNT=$((COUNT+1))
-echo "$COUNT" > "` + counterFile + `"
+echo "$COUNT" > "`+counterFile+`"
 if [ "$COUNT" -eq 1 ]; then
   echo "stream disconnected during request" >&2
   exit 1
 fi
 echo "ok after retry"
-exit 0
-`
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+exit 0`)
 
 	cp := NewCodexProvider(mockBinary, []string{}, map[string]string{TierLow: "gpt-4o-mini"})
 	cp.sleepFn = func(context.Context, time.Duration) error { return nil }
@@ -426,15 +390,8 @@ exit 0
 
 func TestCodexProviderRun_FailureIncludesDiagnostics(t *testing.T) {
 	t.Parallel()
-	tempDir := t.TempDir()
-	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := `#!/bin/bash
-echo "fatal transport issue" >&2
-exit 4
-`
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+	mockBinary := newTestBinary(t, `echo "fatal transport issue" >&2
+exit 4`)
 
 	cp := NewCodexProvider(mockBinary, []string{"--dangerously-bypass-approvals-and-sandbox"}, map[string]string{TierLow: "gpt-4o-mini"})
 	result, err := cp.Run(context.Background(), "test", TierLow)
@@ -520,17 +477,9 @@ func TestClassifyCodexFailure(t *testing.T) {
 // Expected failure: CodexProvider Run() method does not exist yet
 func TestCodexProviderRunReturnsResultWithDuration(t *testing.T) {
 	t.Parallel()
-	tempDir := t.TempDir()
-
-	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := `#!/bin/bash
-sleep 0.1
+	mockBinary := newTestBinary(t, `sleep 0.1
 echo "done"
-exit 0
-`
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+exit 0`)
 
 	tierMap := map[string]string{TierLow: "gpt-4o-mini"}
 	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
@@ -556,7 +505,6 @@ exit 0
 // Expected failure: CodexProvider Run() method does not exist yet
 func TestCodexProviderRunSetsSuccessBasedOnExitCode(t *testing.T) {
 	t.Parallel()
-	tempDir := t.TempDir()
 
 	tests := []struct {
 		name        string
@@ -582,11 +530,7 @@ func TestCodexProviderRunSetsSuccessBasedOnExitCode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockBinary := filepath.Join(tempDir, "codex-"+tt.name)
-			mockScript := "#!/bin/bash\nexit " + string(rune('0'+tt.exitCode)) + "\n"
-			if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-				t.Fatalf("failed to create mock binary: %v", err)
-			}
+			mockBinary := newTestBinary(t, "exit "+string(rune('0'+tt.exitCode)))
 
 			tierMap := map[string]string{TierLow: "gpt-4o-mini"}
 			cp := NewCodexProvider(mockBinary, []string{}, tierMap)
@@ -656,11 +600,7 @@ func TestCodexProviderRunPopulatesModelInResult(t *testing.T) {
 // Expected failure: CodexProvider StreamRun() method does not exist yet
 func TestCodexProviderStreamRunStreamsOutput(t *testing.T) {
 	t.Parallel()
-	tempDir := t.TempDir()
-
-	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := `#!/bin/bash
-cat > /dev/null
+	mockBinary := newTestBinary(t, `cat > /dev/null
 echo '{"type":"item.agentMessage.delta","delta":{"text":"Line 1\n"}}'
 sleep 0.05
 echo '{"type":"item.agentMessage.delta","delta":{"text":"Line 2\n"}}'
@@ -668,11 +608,7 @@ sleep 0.05
 echo '{"type":"item.agentMessage.delta","delta":{"text":"Line 3\n"}}'
 echo '{"type":"item.completed","item":{"type":"agent_message","text":"Line 1\nLine 2\nLine 3"}}'
 echo '{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":5}}'
-exit 0
-`
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+exit 0`)
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
 	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
@@ -706,16 +642,8 @@ exit 0
 
 func TestCodexProviderStreamRunUsesAutoColor(t *testing.T) {
 	t.Parallel()
-	tempDir := t.TempDir()
-
-	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := `#!/bin/bash
-echo "ARGS: $@"
-exit 0
-`
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+	mockBinary := newTestBinary(t, `echo "ARGS: $@"
+exit 0`)
 
 	cp := NewCodexProvider(mockBinary, nil, map[string]string{TierMedium: "gpt-4o"})
 
@@ -739,21 +667,13 @@ exit 0
 // Expected failure: CodexProvider StreamRun() does not add --json flag or call handler yet
 func TestCodexProviderStreamRunEventHandlerCalledWithJSON(t *testing.T) {
 	t.Parallel()
-	tempDir := t.TempDir()
-
-	mockBinary := filepath.Join(tempDir, "codex")
 	// Mock binary that emits a JSONL event when --json flag is present
-	mockScript := `#!/bin/bash
-if [[ "$*" == *"--json"* ]]; then
+	mockBinary := newTestBinary(t, `if [[ "$*" == *"--json"* ]]; then
     echo '{"type":"thread.started","data":{"thread_id":"t-123"}}'
 else
     echo 'plain text output'
 fi
-exit 0
-`
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+exit 0`)
 
 	tierMap := map[string]string{TierLow: "gpt-4o-mini"}
 	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
@@ -788,21 +708,13 @@ exit 0
 // Expected failure: CodexProvider StreamRun() does not parse tool events or call handler yet
 func TestCodexProviderStreamRunToolCallHandlerCalledForToolEvents(t *testing.T) {
 	t.Parallel()
-	tempDir := t.TempDir()
-
-	mockBinary := filepath.Join(tempDir, "codex")
 	// Mock binary that emits a command_execution event when --json is present
-	mockScript := `#!/bin/bash
-if [[ "$*" == *"--json"* ]]; then
+	mockBinary := newTestBinary(t, `if [[ "$*" == *"--json"* ]]; then
     echo '{"type":"item.started","item":{"type":"command_execution","command":"go test"}}'
 else
     echo 'plain text output'
 fi
-exit 0
-`
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+exit 0`)
 
 	tierMap := map[string]string{TierLow: "gpt-4o-mini"}
 	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
@@ -844,13 +756,10 @@ exit 0
 // Expected failure: CodexProvider StreamRun() method does not exist yet
 func TestCodexProviderStreamRunReturnsResultWithMetadata(t *testing.T) {
 	t.Parallel()
-	tempDir := t.TempDir()
-
-	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := "#!/bin/bash\ncat > /dev/null\necho '{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"success\"}}'\necho '{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":10,\"output_tokens\":5}}'\nexit 0\n"
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+	mockBinary := newTestBinary(t, `cat > /dev/null
+echo '{"type":"item.completed","item":{"type":"agent_message","text":"success"}}'
+echo '{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":5}}'
+exit 0`)
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
 	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
@@ -1014,14 +923,9 @@ func TestCodexProviderRunWithContextCancellation(t *testing.T) {
 		t.Fatal("skipping context cancellation test in short mode")
 	}
 
-	tempDir := t.TempDir()
-
-	mockBinary := filepath.Join(tempDir, "codex")
-	// Keep this sleep short so context-cancellation coverage stays fast.
-	mockScript := "#!/bin/bash\nsleep 1\necho 'done'\nexit 0\n"
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+	mockBinary := newTestBinary(t, `sleep 1
+echo 'done'
+exit 0`)
 
 	tierMap := map[string]string{TierLow: "gpt-4o-mini"}
 	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
@@ -1053,12 +957,9 @@ func TestCodexProviderStreamRunWithContextCancellationJSONMode(t *testing.T) {
 		t.Fatal("skipping context cancellation test in short mode")
 	}
 
-	tempDir := t.TempDir()
-	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := "#!/bin/bash\nsleep 1\necho '{\"type\":\"turn.completed\"}'\nexit 0\n"
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+	mockBinary := newTestBinary(t, `sleep 1
+echo '{"type":"turn.completed"}'
+exit 0`)
 
 	tierMap := map[string]string{TierLow: "gpt-4o-mini"}
 	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
@@ -1078,18 +979,10 @@ func TestCodexProviderStreamRunWithContextCancellationJSONMode(t *testing.T) {
 
 func TestCodexProviderRun_PropagatesUsageToResult(t *testing.T) {
 	t.Parallel()
-	tempDir := t.TempDir()
-
-	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := `#!/bin/bash
-cat > /dev/null
+	mockBinary := newTestBinary(t, `cat > /dev/null
 echo '{"type":"assistant","message":{"content":[{"type":"text","text":"done"}]}}'
 echo '{"type":"response.completed","response":{"status":"completed","usage":{"input_tokens":3210,"cached_input_tokens":210,"output_tokens":987,"total_cost_usd":0.051}}}'
-exit 0
-`
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock codex binary: %v", err)
-	}
+exit 0`)
 
 	cp := NewCodexProvider(mockBinary, nil, map[string]string{TierMedium: "gpt-5.3-codex"})
 	ctx := context.Background()
@@ -1119,18 +1012,10 @@ exit 0
 
 func TestCodexProviderRun_PropagatesTurnCompletedUsageToResult(t *testing.T) {
 	t.Parallel()
-	tempDir := t.TempDir()
-
-	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := `#!/bin/bash
-cat > /dev/null
+	mockBinary := newTestBinary(t, `cat > /dev/null
 echo '{"type":"item.completed","item":{"type":"agent_message","text":"done from turn"}}'
 echo '{"type":"turn.completed","usage":{"input_tokens":111,"cached_input_tokens":22,"output_tokens":333,"total_cost_usd":0.004}}'
-exit 0
-`
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock codex binary: %v", err)
-	}
+exit 0`)
 
 	cp := NewCodexProvider(mockBinary, nil, map[string]string{TierMedium: "gpt-5.3-codex"})
 	result, err := cp.Run(context.Background(), "prompt", TierMedium)
@@ -1159,18 +1044,10 @@ exit 0
 
 func TestCodexProviderStreamRun_PropagatesUsageToResult(t *testing.T) {
 	t.Parallel()
-	tempDir := t.TempDir()
-
-	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := `#!/bin/bash
-cat > /dev/null
+	mockBinary := newTestBinary(t, `cat > /dev/null
 echo '{"type":"item.completed","item":{"type":"agent_message","text":"done"}}'
 echo '{"type":"turn.completed","usage":{"input_tokens":1234,"cached_input_tokens":567,"output_tokens":890,"total_cost_usd":0.042}}'
-exit 0
-`
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock codex binary: %v", err)
-	}
+exit 0`)
 
 	cp := NewCodexProvider(mockBinary, nil, map[string]string{TierMedium: "gpt-5.3-codex"})
 	ctx := context.Background()
@@ -1199,19 +1076,11 @@ exit 0
 
 func TestCodexProviderStreamRun_FailureOutputExcludesStderr(t *testing.T) {
 	t.Parallel()
-	tempDir := t.TempDir()
-
-	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := `#!/bin/bash
-cat > /dev/null
+	mockBinary := newTestBinary(t, `cat > /dev/null
 echo '{"type":"item.completed","item":{"type":"agent_message","text":"stream ok"}}'
 echo '{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}'
 echo "stream error" >&2
-exit 1
-`
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock codex binary: %v", err)
-	}
+exit 1`)
 
 	cp := NewCodexProvider(mockBinary, nil, map[string]string{TierMedium: "gpt-5.3-codex"})
 	ctx := context.Background()
@@ -1239,19 +1108,11 @@ exit 1
 
 func TestCodexProviderStreamRunUsageLimitErrorIncludesUsage(t *testing.T) {
 	t.Parallel()
-	tempDir := t.TempDir()
-
-	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := `#!/bin/bash
-cat > /dev/null
+	mockBinary := newTestBinary(t, `cat > /dev/null
 echo '{"type":"item.completed","item":{"type":"agent_message","text":"done"}}'
 echo '{"type":"turn.completed","usage":{"input_tokens":210,"output_tokens":80,"total_cost_usd":0.015}}'
 echo '{"type":"turn.completed","status":"failed","error":{"type":"UsageLimitExceeded","message":"Limit hit"}}'
-exit 0
-`
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock codex binary: %v", err)
-	}
+exit 0`)
 
 	cp := NewCodexProvider(mockBinary, nil, map[string]string{TierMedium: "gpt-5.3-codex"})
 	ctx := context.Background()
@@ -1508,6 +1369,9 @@ func writeTestExecutable(t *testing.T, path, script string) {
 	if err := os.WriteFile(path, []byte(script), 0755); err != nil {
 		t.Fatalf("failed to create mock binary: %v", err)
 	}
+	// Explicitly sync filesystem to ensure file is readable before execution.
+	// This prevents ETXTBSY ("text file busy") errors under parallel test load.
+	syscall.Sync()
 }
 
 func readAttemptCount(t *testing.T, path string) int {
@@ -1528,17 +1392,8 @@ func readAttemptCount(t *testing.T, path string) int {
 // Expected failure: CodexProvider Run() method does not exist yet
 func TestCodexProviderRunWithAdditionalFlags(t *testing.T) {
 	t.Parallel()
-	tempDir := t.TempDir()
-
-	mockBinary := filepath.Join(tempDir, "codex")
-	// Echo all arguments to verify flags were passed
-	mockScript := `#!/bin/bash
-echo "ARGS: $@"
-exit 0
-`
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+	mockBinary := newTestBinary(t, `echo "ARGS: $@"
+exit 0`)
 
 	flags := []string{"--verbose", "--no-color"}
 	tierMap := map[string]string{TierLow: "gpt-4o-mini"}
@@ -1632,11 +1487,7 @@ func TestCodexProviderBinaryNotFound(t *testing.T) {
 // Expected failure: CodexProvider Run() method does not exist yet
 func TestCodexProviderEmptyTierToModelMap(t *testing.T) {
 	t.Parallel()
-	tempDir := t.TempDir()
-
-	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := `#!/bin/bash
-# Extract model value from arguments
+	mockBinary := newTestBinary(t, `# Extract model value from arguments
 MODEL=""
 while [[ $# -gt 0 ]]; do
     if [ "$1" = "--model" ]; then
@@ -1646,11 +1497,7 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 echo "MODEL: $MODEL"
-exit 0
-`
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+exit 0`)
 
 	// Empty tier map
 	emptyTierMap := map[string]string{}
@@ -1678,13 +1525,8 @@ func TestCodexProviderIntegrationWithRealBinary(t *testing.T) {
 		t.Fatal("bash not available for integration test")
 	}
 
-	tempDir := t.TempDir()
-
 	// Create a realistic mock codex binary that reads from stdin
-	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := `#!/bin/bash
-
-# Parse arguments
+	mockBinary := newTestBinary(t, `# Parse arguments
 MODEL=""
 JSON_MODE=false
 
@@ -1718,11 +1560,7 @@ else
     echo "Response: This is a simulated Codex response."
 fi
 
-exit 0
-`
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+exit 0`)
 
 	// Create CodexProvider with full configuration
 	tierMap := map[string]string{
