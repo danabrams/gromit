@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/runner/specmerge"
 	"github.com/danabrams/gromit/test/helpers"
 )
 
@@ -322,5 +323,33 @@ func TestFastForwardMergeToMain_ReturnsConflictError(t *testing.T) {
 	var conflictErr *ConflictError
 	if !errors.As(err, &conflictErr) {
 		t.Fatalf("expected ConflictError or regular error, got %T: %v", err, err)
+	}
+}
+
+// TestGitOpsImplementsSpecmergeInterface verifies that GitOps implements
+// the specmerge.GitOps interface.
+func TestGitOpsImplementsSpecmergeInterface(t *testing.T) {
+	fixture := helpers.NewDeterministicGitConflictFixture(t)
+	ops := NewGitOps(fixture.Dir)
+
+	// Verify that GitOps implements specmerge.GitOps interface
+	var _ specmerge.GitOps = ops
+
+	// Verify all required methods exist and are callable
+	ctx := context.Background()
+
+	// RebaseOnto should exist
+	if err := ops.RebaseOnto(ctx, fixture.OurBranch, fixture.TheirBranch); err == nil {
+		// Error expected, but just verifying the method exists
+	}
+
+	// FastForwardMerge should exist
+	if err := ops.FastForwardMerge(ctx, fixture.OurBranch); err == nil {
+		// Error expected, but just verifying the method exists
+	}
+
+	// DeleteBranch should exist
+	if err := ops.DeleteBranch(ctx, fixture.OurBranch); err == nil {
+		// Error expected, but just verifying the method exists
 	}
 }
