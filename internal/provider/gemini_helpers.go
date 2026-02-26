@@ -43,3 +43,13 @@ func parseGeminiJSONResult(data []byte) (*Result, error) {
 
 	return result, nil
 }
+
+// parseGeminiStreamEvent parses a single line from Gemini stream-json output.
+// Returns a map[string]interface{} containing the parsed event data.
+func parseGeminiStreamEvent(line []byte) (map[string]interface{}, error) {
+	var event map[string]interface{}
+	if err := json.Unmarshal(line, &event); err != nil {
+		return nil, fmt.Errorf("unmarshaling Gemini stream event: %w", err)
+	}
+	return event, nil
+}
