@@ -99,7 +99,8 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 
 	validatePath := filepath.Join(cwd, ".gromit/templates/PROMPT_validate.md")
-	if err := writeFileIfNotExists(validatePath, defaultValidateTemplate, forceInit); err != nil {
+	seededValidateTemplate := seedProfileAwareCommandExamples(profile, defaultValidateTemplate)
+	if err := writeFileIfNotExists(validatePath, seededValidateTemplate, forceInit); err != nil {
 		return err
 	}
 
