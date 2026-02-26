@@ -47,7 +47,6 @@ func TestDeps_FieldAccess(t *testing.T) {
 	deps := Deps{
 		AgentResolver:     &testAgentResolver{},
 		LLMClient:         &testLLMClient{},
-		BeadClient:        &testBeadClient{},
 		BacklogClient:     &testBacklogClient{},
 		RefineRenderer:    &testRefineRenderer{},
 		PlanRenderer:      &testPlanRenderer{},
@@ -94,6 +93,13 @@ func TestDeps_FieldAccess(t *testing.T) {
 	}
 	if deps.LogWriter == nil {
 		t.Error("LogWriter field should be set")
+	}
+}
+
+func TestDeps_HasTrackerClientField(t *testing.T) {
+	var deps Deps
+	if deps.TrackerClient != nil {
+		t.Fatalf("deps.TrackerClient should be nil by default, got %v", deps.TrackerClient)
 	}
 }
 
