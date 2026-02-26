@@ -134,3 +134,14 @@ func TestResultHasCostFields(t *testing.T) {
 		t.Errorf("OutputTokens = %d, want 5000", r.OutputTokens)
 	}
 }
+
+// TestResultHasCachedInputTokensField verifies that Result struct has CachedInputTokens field.
+func TestResultHasCachedInputTokensField(t *testing.T) {
+	r := Result{
+		CachedInputTokens: 2500,
+	}
+
+	if r.CachedInputTokens != 2500 {
+		t.Errorf("CachedInputTokens = %d, want 2500", r.CachedInputTokens)
+	}
+}
