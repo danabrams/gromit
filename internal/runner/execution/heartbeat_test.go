@@ -331,6 +331,28 @@ func TestPrintHeartbeat_WaitingMessageWhenNoToolCalls(t *testing.T) {
 	}
 }
 
+func TestPrintHeartbeat_WaitingMessageUsesAgent(t *testing.T) {
+	t.Parallel(
+		// The waiting status should reference "agent" rather than a specific model.
+	)
+
+	stats, err := logger.NewStreamStats()
+	if err != nil {
+		t.Fatalf("failed to create StreamStats: %v", err)
+	}
+
+	var buf bytes.Buffer
+	line := PrintHeartbeat(stats, &buf)
+	const expected = "Waiting for agent to respond (may be thinking)..."
+
+	if !strings.Contains(line, expected) {
+		t.Fatalf("heartbeat line missing expected waiting text %q, got: %q", expected, line)
+	}
+	if !strings.Contains(buf.String(), expected) {
+		t.Fatalf("output buffer missing expected waiting text %q, got: %q", expected, buf.String())
+	}
+}
+
 // Expected failure: PrintHeartbeat function does not exist in execution/ package yet
 func TestPrintHeartbeat_NilSafetyReturnsEmpty(t *testing.T) {
 	t.Parallel(
