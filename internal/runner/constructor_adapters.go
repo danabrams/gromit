@@ -334,17 +334,17 @@ func (a *reviewRendererAdapter) LoadRulesForPhase(phase string) (string, error) 
 	return a.r.LoadRulesForPhase(phase)
 }
 
-// beadLifecycleAdapter wraps bead.Client to satisfy epilogue.BeadLifecycle.
+// beadLifecycleAdapter wraps tracker.Client to satisfy epilogue.BeadLifecycle.
 type beadLifecycleAdapter struct {
-	beads *bead.Client
+	tracker tracker.Client
 }
 
 func (a *beadLifecycleAdapter) Close(id string) error {
-	return a.beads.Close(id)
+	return a.tracker.Close(context.Background(), id)
 }
 
 func (a *beadLifecycleAdapter) Sync() error {
-	return a.beads.Sync()
+	return a.tracker.Sync(context.Background())
 }
 
 // statusWriterAdapter wraps runner.StatusWriter to satisfy epilogue.StatusWriter.

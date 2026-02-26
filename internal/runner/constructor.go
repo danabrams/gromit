@@ -185,7 +185,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 
 	// Stage 5: Epilogue (epilogue.New with BeadLifecycle and StatusWriter)
 	epilogueStage := epilogue.New(
-		&beadLifecycleAdapter{beads: beadsClient},
+		&beadLifecycleAdapter{tracker: trackerClientInterface},
 		&statusWriterAdapter{sw: statusWriter},
 		syncOut,
 	)
