@@ -428,8 +428,29 @@ func TestStatsCmd_JSONOutputIncludesCostPerSpec(t *testing.T) {
 	}
 
 	// Verify JSON includes cost_per_spec
-	if _, ok := result["cost_per_spec"]; !ok {
-		t.Error("JSON output should have cost_per_spec field")
+	costPerSpecRaw, ok := result["cost_per_spec"]
+	if !ok {
+		t.Fatal("JSON output should have cost_per_spec field")
+	}
+	costPerSpec, ok := costPerSpecRaw.(map[string]any)
+	if !ok {
+		t.Fatalf("cost_per_spec should be an object, got %T", costPerSpecRaw)
+	}
+	if _, exists := costPerSpec["spec-1"]; !exists {
+		t.Fatalf("JSON cost_per_spec should contain spec-1 entry, got: %v", costPerSpec)
+	}
+
+	// Verify routing strategy is reported and defaults to priority_based
+	routingRaw, ok := result["routing_strategy"]
+	if !ok {
+		t.Fatal("JSON output should include routing_strategy field")
+	}
+	routingStrategy, ok := routingRaw.(string)
+	if !ok {
+		t.Fatalf("routing_strategy should be a string, got %T", routingRaw)
+	}
+	if routingStrategy != "priority_based" {
+		t.Fatalf("routing_strategy = %q, want %q", routingStrategy, "priority_based")
 	}
 }
 
