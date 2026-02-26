@@ -21,6 +21,12 @@ var defaultCodexTierToModelMap = map[string]string{
 	TierLow:    "gpt-5.1-codex-mini",
 }
 
+var defaultGeminiTierToModelMap = map[string]string{
+	TierHigh:   "gemini-3.1-pro",
+	TierMedium: "gemini-3-flash",
+	TierLow:    "gemini-3-flash",
+}
+
 func ParseFallbackCooldown(cfg *config.Config) time.Duration {
 	if cfg == nil || !cfg.Routing.Fallback.EnabledOrDefault(len(cfg.Providers) > 1) || cfg.Routing.Fallback.Cooldown == "" {
 		return 0
@@ -59,8 +65,14 @@ func BuildProvidersFromConfig(cfg *config.Config) (map[string]Provider, error) {
 			codexProvider := NewCodexProvider(def.Binary, def.Flags, tierMap)
 			codexProvider.SetReasoningEffort(def.ReasoningEffort)
 			providers[name] = codexProvider
+		case name == providerNameGemini || def.Binary == providerNameGemini || binaryName == providerNameGemini:
+			tierMap := def.Models
+			if len(tierMap) == 0 {
+				tierMap = defaultGeminiTierToModelMap
+			}
+			providers[name] = NewGeminiProvider(def.Binary, def.Flags, tierMap)
 		default:
-			return nil, fmt.Errorf("unrecognized provider %q: supported providers are \"claude\" and \"codex\"", name)
+			return nil, fmt.Errorf("unrecognized provider %q: supported providers are \"claude\", \"codex\", and \"gemini\"", name)
 		}
 	}
 	return providers, nil
