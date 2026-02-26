@@ -3,6 +3,8 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -862,4 +864,43 @@ func (m *reviewAcceptanceMockStateManager) SetLastReviewCommit(commit string) er
 		return m.setLastReviewCommitFunc(commit)
 	}
 	return nil
+}
+
+// TestReviewSessionOwnsAndCleansUpTempFile verifies ReviewSession can manage temp file lifecycle
+// for async mode safety. Session should have a Cleanup method to explicitly clean up temp files.
+// Expected failure: ReviewSession.Cleanup method does not exist yet
+func TestReviewSessionOwnsAndCleansUpTempFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "test-prompt.md")
+
+	// Write a temp file to verify it gets cleaned up
+	if err := os.WriteFile(tmpFile, []byte("test prompt"), 0644); err != nil {
+		t.Fatalf("Failed to write temp file: %v", err)
+	}
+
+	// Verify file exists before cleanup
+	if _, err := os.Stat(tmpFile); err != nil {
+		t.Fatalf("Temp file does not exist before cleanup: %v", err)
+	}
+
+	// Create a ReviewSession with cleanup ownership
+	cleanup := func() {
+		os.Remove(tmpFile)
+	}
+	session := NewReviewSession(cleanup)
+
+	// Verify file still exists after session creation
+	if _, err := os.Stat(tmpFile); err != nil {
+		t.Fatalf("Temp file was deleted prematurely: %v", err)
+	}
+
+	// Cleanup the session
+	session.Cleanup()
+
+	// Verify file is now deleted
+	if _, err := os.Stat(tmpFile); err == nil {
+		t.Fatal("Temp file was not cleaned up after session.Cleanup()")
+	} else if !os.IsNotExist(err) {
+		t.Fatalf("Unexpected error checking temp file: %v", err)
+	}
 }
