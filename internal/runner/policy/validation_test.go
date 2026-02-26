@@ -1,6 +1,7 @@
 package policy_test
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -112,5 +113,17 @@ func TestMandatoryCommandPrefixes_EmptyWhenUnconfigured(t *testing.T) {
 	got := p.MandatoryCommandPrefixes()
 	if len(got) != 0 {
 		t.Fatalf("MandatoryCommandPrefixes: got %v, want empty", got)
+	}
+}
+
+func TestMandatoryCommandPrefixes_FallsBackToProfileDefaults(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Project.Profile = "go"
+	p := policy.NewConfigValidationPolicy(cfg)
+
+	want := []string{"go test", "go build", "go vet"}
+	got := p.MandatoryCommandPrefixes()
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("MandatoryCommandPrefixes: got %v, want %v", got, want)
 	}
 }
