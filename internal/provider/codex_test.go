@@ -14,6 +14,15 @@ import (
 	"time"
 )
 
+// newShellProvider creates a CodexProvider that executes shell commands via /bin/sh -c,
+// avoiding temporary executable files and ETXTBSY race conditions.
+// It takes a bash script string and returns a provider that executes it via shell.
+func newShellProvider(bashScript string, tierMap map[string]string) *CodexProvider {
+	// Use /bin/sh -c to execute bash script inline, avoiding temp file races (ETXTBSY)
+	// under high parallel test load. The "--" terminates flag parsing.
+	return NewCodexProvider("/bin/sh", []string{"-c", bashScript, "--"}, tierMap)
+}
+
 // TestCodexProviderStructExists verifies that CodexProvider struct exists
 // and can be instantiated.
 // Expected failure: CodexProvider struct does not exist yet
@@ -1791,24 +1800,41 @@ func TestCodexProviderMaxInputTokensConfig(t *testing.T) {
 // avoiding temporary executable files and ETXTBSY errors under parallel execution.
 func TestNewShellProviderCreatesShellBasedProvider(t *testing.T) {
 	t.Parallel()
-	bashScript := `echo "shell test output"
-exit 0`
+	bashScript := "echo done; exit 0"
 
-	tierMap := map[string]string{TierLow: "gpt-4o-mini"}
+	tierMap := map[string]string{
+		TierHigh:   "o3",
+		TierMedium: "gpt-4o",
+		TierLow:    "gpt-4o-mini",
+	}
 	cp := newShellProvider(bashScript, tierMap)
 
 	if cp == nil {
 		t.Fatal("newShellProvider() returned nil")
 	}
 
-	ctx := context.Background()
-	result, err := cp.Run(ctx, "test", TierLow)
-
-	if err != nil {
-		t.Fatalf("Run() error = %v, want nil", err)
+	tests := []struct {
+		tier      string
+		wantModel string
+	}{
+		{TierHigh, "o3"},
+		{TierMedium, "gpt-4o"},
+		{TierLow, "gpt-4o-mini"},
 	}
 
-	if !strings.Contains(result.Output, "shell test output") {
-		t.Errorf("Run() output missing expected text, got: %s", result.Output)
+	for _, tt := range tests {
+		t.Run("tier_"+tt.tier, func(t *testing.T) {
+			ctx := context.Background()
+			result, err := cp.Run(ctx, "test", tt.tier)
+
+			if err != nil {
+				t.Fatalf("Run() error = %v, want nil", err)
+			}
+
+			if result.Model != tt.wantModel {
+				t.Errorf("Run() Model = %q, want %q for tier %s",
+					result.Model, tt.wantModel, tt.tier)
+			}
+		})
 	}
 }
