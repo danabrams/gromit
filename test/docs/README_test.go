@@ -184,3 +184,40 @@ func TestFixtureRefreshWorkflowDocumented(t *testing.T) {
 		t.Error("README.md should document CODEX_SMOKE environment gate")
 	}
 }
+
+func TestLaneTimingScriptImplementsLaneDetection(t *testing.T) {
+	// GREEN test: Verify that test_timing.sh script implements lane detection
+	projectRoot := filepath.Join("..", "..")
+	scriptPath := filepath.Join(projectRoot, "scripts", "test_timing.sh")
+
+	content, err := os.ReadFile(scriptPath)
+	if err != nil {
+		t.Fatalf("failed to read test_timing.sh: %v", err)
+	}
+
+	body := string(content)
+
+	// Verify lane detection logic
+	laneDetectionChecks := []string{
+		"[Ss]moke",
+		"smoke_",
+		"default",
+		"get_budget",
+	}
+
+	for _, check := range laneDetectionChecks {
+		if !strings.Contains(body, check) {
+			t.Errorf("test_timing.sh missing lane detection element: %q", check)
+		}
+	}
+
+	// Verify per-lane budget handling
+	if !strings.Contains(body, "pkg_lane_elapsed") {
+		t.Error("test_timing.sh should track per-lane elapsed times")
+	}
+
+	// Verify lane-specific budget lookup with $pkg:$lane syntax
+	if !strings.Contains(body, "$pkg:$lane") {
+		t.Error("test_timing.sh should support lane-specific budgets using $pkg:$lane syntax")
+	}
+}
