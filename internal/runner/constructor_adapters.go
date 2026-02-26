@@ -26,6 +26,7 @@ import (
 	"github.com/danabrams/gromit/internal/runner/escalation"
 	"github.com/danabrams/gromit/internal/runner/execution"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
+	"github.com/danabrams/gromit/internal/runner/specmerge"
 	"github.com/danabrams/gromit/internal/specgate"
 	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/danabrams/gromit/internal/validate"
@@ -332,6 +333,59 @@ func (a *reviewRendererAdapter) RenderReview(ctx *prompt.ReviewContext) (string,
 
 func (a *reviewRendererAdapter) LoadRulesForPhase(phase string) (string, error) {
 	return a.r.LoadRulesForPhase(phase)
+}
+
+type providerRouter interface {
+	Select(phase, tier string) (provider.Provider, string)
+}
+
+type reviewPromptRenderer interface {
+	RenderReview(ctx *prompt.ReviewContext) (string, error)
+	LoadRulesForPhase(phase string) (string, error)
+	LoadSpec(name string) (string, error)
+}
+
+type specMergeRouterAdapter struct {
+	router providerRouter
+}
+
+func (a *specMergeRouterAdapter) Select(phase, tier string) (provider.Provider, string) {
+	if a == nil || a.router == nil {
+		return nil, ""
+	}
+	return a.router.Select(phase, tier)
+}
+
+type specMergeReviewRendererAdapter struct {
+	renderer reviewPromptRenderer
+}
+
+func (a *specMergeReviewRendererAdapter) RenderReview(ctx *prompt.ReviewContext) (string, error) {
+	if a == nil || a.renderer == nil {
+		return "", fmt.Errorf("spec merge renderer is not configured")
+	}
+	return a.renderer.RenderReview(ctx)
+}
+
+func (a *specMergeReviewRendererAdapter) LoadRulesForPhase(phase string) (string, error) {
+	if a == nil || a.renderer == nil {
+		return "", fmt.Errorf("spec merge renderer is not configured")
+	}
+	return a.renderer.LoadRulesForPhase(phase)
+}
+
+func (a *specMergeReviewRendererAdapter) LoadSpec(name string) (string, error) {
+	if a == nil || a.renderer == nil {
+		return "", fmt.Errorf("spec merge renderer is not configured")
+	}
+	return a.renderer.LoadSpec(name)
+}
+
+func newSpecMergeReviewDependencies(router providerRouter, renderer reviewPromptRenderer) specmerge.ReviewStageDependencies {
+	return specmerge.ReviewStageDependencies{
+		Router:   &specMergeRouterAdapter{router: router},
+		Renderer: &specMergeReviewRendererAdapter{renderer: renderer},
+	}
 }
 
 // beadLifecycleAdapter wraps tracker.Client to satisfy epilogue.BeadLifecycle.
