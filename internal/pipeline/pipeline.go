@@ -237,23 +237,26 @@ func (p *Pipeline) ReviewInteractive(ctx context.Context, input ReviewInput) (*R
 	if err != nil {
 		return nil, err
 	}
-	defer cleanup()
+	// Don't defer cleanup - session owns it now (safe for async mode)
 
 	// Resolve agent
 	agent, err := p.deps.AgentResolver.Resolve("review", input.AgentName, false)
 	if err != nil {
+		cleanup() // Clean up on error before returning
 		return nil, fmt.Errorf("resolving agent: %w", err)
 	}
 
 	// Launch agent and return session
-	// For now, we launch synchronously and return a simple session wrapper
+	// For now, we launch synchronously and return a session wrapper that owns cleanup
 	// TODO: implement actual async session management
 	if err := agent.LaunchInDir(promptPath, input.LaunchDir); err != nil {
+		cleanup() // Clean up on error before returning
 		return nil, fmt.Errorf("launching agent: %w", err)
 	}
 
-	// Return empty session wrapper (interactive mode has no post-processing)
-	return &ReviewSession{}, nil
+	// Return session that owns the cleanup function
+	// Caller must call session.Cleanup() to remove the temp file
+	return NewReviewSession(cleanup), nil
 }
 
 // ReviewNonInteractive executes the non-interactive review workflow.
