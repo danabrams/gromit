@@ -59,7 +59,7 @@ func buildTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *
 		tddOrchestrator: &tddOrchestrator{
 			runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, criteria []coverage.Criterion) error {
 				if bc.Tier == "" {
-					bc.Tier = cfg.PhaseModelTier("build", cfg.SelectTier(bc.Bead.Priority, bc.Bead.Labels))
+					bc.Tier = resolveTDDBuildTier(cfg, bc.Bead)
 				}
 				if bc.Model == "" {
 					bc.Model = provider.TierToLegacyModel(bc.Tier)
@@ -91,6 +91,13 @@ func buildTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *
 		output: output,
 	}
 	return &TDDPipelineAdapter{runner: r}
+}
+
+func resolveTDDBuildTier(cfg *config.Config, b *bead.Bead) string {
+	if cfg == nil || b == nil {
+		return ""
+	}
+	return cfg.PhaseModelTier("build", cfg.BuildTierForStrategy(b.Priority, b.Labels, ""))
 }
 
 func buildRenderRedFn(cfg *config.Config, renderer *prompt.Renderer) tdd.RenderRedFn {
