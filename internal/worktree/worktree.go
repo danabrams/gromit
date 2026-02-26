@@ -306,6 +306,37 @@ func (m *Manager) Cleanup() error {
 	return nil
 }
 
+// RemoveByPath removes a session worktree by explicit path.
+// Verifies the path is registered using git worktree list --porcelain
+// before issuing git worktree remove.
+func (m *Manager) RemoveByPath(path string) error {
+	if m == nil {
+		return errors.New("nil Manager receiver")
+	}
+	if path == "" {
+		return errors.New("path cannot be empty")
+	}
+
+	// Verify the path is registered in the worktree list
+	output, err := m.runGit(m.MainDir, "worktree", "list", "--porcelain")
+	if err != nil {
+		return fmt.Errorf("failed to list worktrees: %w", err)
+	}
+
+	if !strings.Contains(output, "\nworktree "+path+"\n") &&
+		!strings.HasPrefix(output, "worktree "+path+"\n") {
+		return fmt.Errorf("worktree path not found in registry: %s", path)
+	}
+
+	// Remove the worktree
+	_, err = m.runGit(m.MainDir, "worktree", "remove", path)
+	if err != nil {
+		return fmt.Errorf("failed to remove worktree at %s: %w", path, err)
+	}
+
+	return nil
+}
+
 // runGit executes a git command in the specified directory.
 func (m *Manager) runGit(dir string, args ...string) (string, error) {
 	if m.gitRunFn != nil {
