@@ -2181,6 +2181,24 @@ func TestCheckRetryGate_AllowsRetryWhenNoRetriesHappenedYet(t *testing.T) {
 	}
 }
 
+func TestCheckRetryGate_BlocksPartialDecompositionState(t *testing.T) {
+	cfg := newTestConfig()
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := newTestBeadContext()
+	bc.Result.TimeoutType = "invocation"               // Timeout occurred
+	bc.TotalRetriesThisBead = 1                        // At least one retry has happened
+	bc.Result.TimeoutDecompositionAttempted = true     // Decomposition was attempted
+	bc.Result.TimeoutDecompositionSucceeded = false    // But it failed
+	bc.Result.Decomposed = false                       // No successful decomposition
+	bc.Result.Escalated = false                        // No escalation
+
+	err := h.CheckRetryGate(bc)
+	if !errors.Is(err, ErrPartialDecompositionState) {
+		t.Fatalf("expected ErrPartialDecompositionState, got %v", err)
+	}
+}
+
 func TestExecuteWithRetry_ChecksRetryGateAtStartOfLoop(t *testing.T) {
 	// Verify that ExecuteWithRetry applies CheckRetryGate logic at loop start
 	cfg := newTestConfig()
