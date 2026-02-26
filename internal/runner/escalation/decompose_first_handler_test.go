@@ -235,3 +235,56 @@ func TestDecomposeFirstHandler_DecomposesNonAtomicBead(t *testing.T) {
 		t.Fatal("expected createSubFn to be called")
 	}
 }
+
+// TestDecomposeFirstHandler_EscalatesAtomicBeads verifies that
+// the handler escalates atomic beads through the tier chain.
+func TestDecomposeFirstHandler_EscalatesAtomicBeads(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		Escalation: config.EscalationConfig{
+			Enabled:            true,
+			Chain:              []string{"haiku", "sonnet", "opus"},
+			MaxRetriesPerModel: 2,
+			MaxRetriesPerBead:  5,
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	mfa := &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, failureOutput string) (*analyzer.Analysis, error) {
+			return &analyzer.Analysis{Category: "logic_error", Recoverable: false}, nil
+		},
+	}
+
+	mbc := &mockBeadClient{}
+
+	// Handler without decomposeFn (atomic beads only)
+	handler := NewDecomposeFirstHandler(cfg, mfa, mbc, nil, nil, nil, nil, 2)
+	if handler == nil {
+		t.Fatal("NewDecomposeFirstHandler returned nil")
+	}
+
+	// Verify bead is atomic
+	bc := &runtypes.BeadContext{
+		Bead:              &bead.Bead{ID: "test-001", Title: "Test", Description: "Test bead"},
+		Tier:              "haiku",
+		Model:             "haiku",
+		RetriesThisModel:  2,
+		MaxRetries:        2,
+		Result:            &runtypes.IterationResult{},
+	}
+
+	isAtomic := handler.IsAtomicBead(bc)
+	if !isAtomic {
+		t.Fatal("expected atomic bead when decomposeFn is nil")
+	}
+
+	// Handler should have HandleEscalation or equivalent for atomic beads
+	nextTier := handler.GetNextTier(bc)
+	if nextTier == "" {
+		t.Fatal("expected next tier to be available for atomic bead escalation")
+	}
+}
+
