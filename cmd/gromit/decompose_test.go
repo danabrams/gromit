@@ -755,3 +755,68 @@ func (m *mockTrackerForDecompose) AddComment(context.Context, string, string) er
 func (m *mockTrackerForDecompose) HasOpenChildren(context.Context, string) (bool, error) {
 	return false, nil
 }
+
+func TestListBeadsWithLabelUsingTrackerClient(t *testing.T) {
+	t.Parallel()
+
+	// Create a mock tracker client that returns items with specific labels
+	mockClient := &mockTrackerClientWithItems{
+		returnItems: []tracker.Item{
+			{ID: "bead-1", Title: "Auth System"},
+			{ID: "bead-2", Title: "DB Migration"},
+		},
+	}
+
+	// This test expects listBeadsWithLabelUsingTrackerClient to exist
+	label := "spec:auth"
+	items, err := listBeadsWithLabelUsingTrackerClient(label, mockClient)
+
+	if err != nil {
+		t.Fatalf("listBeadsWithLabelUsingTrackerClient returned error: %v", err)
+	}
+
+	if len(items) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(items))
+	}
+
+	if items[0].ID != "bead-1" {
+		t.Fatalf("expected first item ID to be bead-1, got %s", items[0].ID)
+	}
+}
+
+// mockTrackerClientWithItems is a test double for tracker.Client that returns specific items
+type mockTrackerClientWithItems struct {
+	returnItems []tracker.Item
+}
+
+func (m *mockTrackerClientWithItems) Ready(context.Context) (*tracker.Item, error) {
+	return nil, nil
+}
+
+func (m *mockTrackerClientWithItems) List(context.Context, tracker.Query) ([]tracker.Item, error) {
+	return m.returnItems, nil
+}
+
+func (m *mockTrackerClientWithItems) Show(context.Context, string) (*tracker.Item, error) {
+	return nil, nil
+}
+
+func (m *mockTrackerClientWithItems) Create(context.Context, tracker.CreateRequest) (*tracker.Item, error) {
+	return nil, nil
+}
+
+func (m *mockTrackerClientWithItems) Close(context.Context, string) error {
+	return nil
+}
+
+func (m *mockTrackerClientWithItems) Sync(context.Context) error {
+	return nil
+}
+
+func (m *mockTrackerClientWithItems) AddComment(context.Context, string, string) error {
+	return nil
+}
+
+func (m *mockTrackerClientWithItems) HasOpenChildren(context.Context, string) (bool, error) {
+	return false, nil
+}

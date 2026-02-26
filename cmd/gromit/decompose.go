@@ -536,6 +536,28 @@ func listBeadsWithLabel(label string) ([]*bead.Bead, error) {
 	return beads, nil
 }
 
+// listBeadsWithLabelUsingTrackerClient is the tracker.Client version of listBeadsWithLabel.
+// It uses tracker.Client to query for items with the specified label.
+func listBeadsWithLabelUsingTrackerClient(label string, trackerClient tracker.Client) ([]tracker.Item, error) {
+	if trackerClient == nil {
+		return nil, fmt.Errorf("tracker client is nil")
+	}
+
+	query := tracker.Query{
+		Filter: tracker.Filter{
+			Statuses: []string{"open"},
+			Labels:   []string{label},
+		},
+	}
+
+	items, err := trackerClient.List(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("listing items with label %q: %w", label, err)
+	}
+
+	return items, nil
+}
+
 func reconcilePlanDecomposedState(planPath, planName string, force bool) (alreadyDecomposed bool, reconciled bool, err error) {
 	if force {
 		return false, false, nil
