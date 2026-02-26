@@ -4,7 +4,30 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"strings"
 )
+
+// ConflictError represents a git operation that failed due to a conflict.
+type ConflictError struct {
+	Operation string
+	Err       error
+}
+
+// Error implements the error interface.
+func (e *ConflictError) Error() string {
+	if e == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s conflict: %v", e.Operation, e.Err)
+}
+
+// Unwrap returns the underlying error.
+func (e *ConflictError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
 
 // GitOps provides git operations for spec branch lifecycle.
 type GitOps struct {
@@ -41,4 +64,43 @@ func (g *GitOps) CreateOrCheckoutSpecBranch(ctx context.Context, specBranchName 
 	}
 
 	return nil
+}
+
+// RebaseSpecOntoMain rebases the spec branch onto the main branch.
+// Returns a ConflictError if a rebase conflict occurs.
+func (g *GitOps) RebaseSpecOntoMain(ctx context.Context, specBranchName string) error {
+	if specBranchName == "" {
+		return fmt.Errorf("spec branch name cannot be empty")
+	}
+
+	cmd := exec.CommandContext(ctx, "git", "rebase", "main", specBranchName)
+	cmd.Dir = g.repoDir
+	output, err := cmd.CombinedOutput()
+
+	if err == nil {
+		return nil
+	}
+
+	// Check if this is a rebase conflict
+	if isRebaseConflict(string(output), err) {
+		// Abort the rebase to clean up state
+		abortCmd := exec.CommandContext(ctx, "git", "rebase", "--abort")
+		abortCmd.Dir = g.repoDir
+		_ = abortCmd.Run()
+
+		return &ConflictError{
+			Operation: "rebase",
+			Err:       err,
+		}
+	}
+
+	return fmt.Errorf("failed to rebase spec branch %s onto main: %w", specBranchName, err)
+}
+
+func isRebaseConflict(output string, err error) bool {
+	if err == nil {
+		return false
+	}
+	// Check for typical rebase conflict markers in output
+	return strings.Contains(output, "CONFLICT") || strings.Contains(output, "conflict")
 }
