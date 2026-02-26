@@ -189,6 +189,11 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		if mgrErr == nil {
 			epilogueStage.WithWorktree(&worktreeMergerAdapter{mgr: manager})
 		}
+		// Wire interactive state file for removing merged branches from pending state
+		interactiveFile, err := state.NewInteractiveFile(gromitDir)
+		if err == nil {
+			epilogueStage.WithPendingBranchRemover(interactiveFile)
+		}
 	}
 
 	epilogueStage.WithCommandRunner(&epilogueCommandRunnerAdapter{runner: defaultCmdRunner})
