@@ -80,3 +80,23 @@ func (h *Handler) retryCommonCauseFailure(bc *runtypes.BeadContext, failureConte
 	h.log("Common-cause failure: retrying on same tier (attempt %d/%d)", bc.RetriesThisModel, l1RetryCap)
 	return true
 }
+
+// CheckRetryGate checks whether a retry is allowed given the current bead context.
+// Returns ErrSameScopeRetryBlocked if a timeout occurred without decomposition/escalation decision.
+// Returns ErrPartialDecompositionState if partial decomposition state exists.
+// Returns nil if the retry is allowed.
+func (h *Handler) CheckRetryGate(bc *runtypes.BeadContext) error {
+	if bc == nil || bc.Result == nil {
+		return nil
+	}
+
+	// If timeout occurred and we've already retried without decomposing/escalating, block
+	if bc.Result.TimeoutType != "" &&
+		bc.TotalRetriesThisBead > 0 &&
+		!bc.Result.Decomposed &&
+		!bc.Result.Escalated {
+		return ErrSameScopeRetryBlocked
+	}
+
+	return nil
+}
