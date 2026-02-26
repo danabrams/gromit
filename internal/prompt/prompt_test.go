@@ -2328,3 +2328,55 @@ Test quality rule content.
 		t.Error("LoadRules() should return full rules including Test Quality section")
 	}
 }
+
+func TestMaybeATDDRuleSubset_UsesATDDExtraction(t *testing.T) {
+	rulesContent := `# Project Rules
+
+## Architecture
+
+### Architecture rule
+Not in ATDD subset.
+
+## Process
+
+### Process rule
+Not in ATDD subset.
+
+## Test Quality
+
+### Test Quality rule
+In ATDD subset.
+
+## Reliability
+
+### Reliability rule
+Not in ATDD subset.
+`
+
+	// maybeATDDRuleSubset should filter using ExtractATDDRulesSubset
+	// which extracts only Test Quality section
+	result, changed := maybeATDDRuleSubset(rulesContent)
+
+	if !changed {
+		t.Error("expected maybeATDDRuleSubset to return true for changed=true when rules are filtered")
+	}
+
+	// Should include Test Quality
+	if !strings.Contains(result, "Test Quality") {
+		t.Error("expected Test Quality section to be included in subset")
+	}
+	if !strings.Contains(result, "Test Quality rule") {
+		t.Error("expected Test Quality rules to be included in subset")
+	}
+
+	// Should exclude other sections
+	if strings.Contains(result, "Architecture rule") {
+		t.Error("expected Architecture to be excluded from ATDD subset")
+	}
+	if strings.Contains(result, "Process rule") {
+		t.Error("expected Process to be excluded from ATDD subset")
+	}
+	if strings.Contains(result, "Reliability rule") {
+		t.Error("expected Reliability to be excluded from ATDD subset")
+	}
+}
