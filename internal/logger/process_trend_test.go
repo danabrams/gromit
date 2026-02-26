@@ -378,6 +378,21 @@ func TestSummarizeWindow_ValidationDurationExcludesZeroEntries(t *testing.T) {
 	assertFloatNear(t, summary.P95ValidationMs, 290, "P95ValidationMs")
 }
 
+func TestSummarizeWindow_TimeoutDecompositionMetrics(t *testing.T) {
+	window := []IterationLog{
+		{TimeoutDecompositionAttempted: true, TimeoutDecompositionSucceeded: true},
+		{TimeoutDecompositionAttempted: true, TimeoutDecompositionSucceeded: false},
+		{TimeoutDecompositionAttempted: true, TimeoutDecompositionSucceeded: true},
+		{TimeoutDecompositionAttempted: false},
+	}
+
+	summary := summarizeWindow(window)
+	if summary.TimeoutDecompositionAttempts != 3 {
+		t.Fatalf("TimeoutDecompositionAttempts = %d, want 3", summary.TimeoutDecompositionAttempts)
+	}
+	assertFloatNear(t, summary.TimeoutDecompositionSuccessRate, 2.0/3.0, "TimeoutDecompositionSuccessRate")
+}
+
 func TestBuildIterationMetrics_SinglePhaseRollingRates(t *testing.T) {
 	entries := []IterationLog{
 		makeIterationLog(false, failurephase.Build),
