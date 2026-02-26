@@ -479,6 +479,19 @@ func newCodexProvidersConfig() *config.Config {
 	}
 }
 
+func newDualProviderConfig() *config.Config {
+	return &config.Config{
+		Providers: map[string]config.ProviderDef{
+			"codex": {
+				Binary: "codex",
+			},
+			"claude": {
+				Binary: "claude",
+			},
+		},
+	}
+}
+
 // stubFailureAnalyzer is a test double for FailureAnalyzer.
 type stubFailureAnalyzer struct {
 	fn func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error)
