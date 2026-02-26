@@ -11,6 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline/prepare"
+	"github.com/danabrams/gromit/internal/pipeline/review"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/tracker"
 )
@@ -215,4 +216,17 @@ func (m *mockTrackerClient) HasOpenChildren(ctx context.Context, parentID string
 type decomposerAdapterWithTrackerClient struct {
 	tracker tracker.Client
 	router  *provider.Router
+}
+
+func TestBeadCreatorAdapterAcceptsTrackerClient(t *testing.T) {
+	t.Parallel()
+
+	// This test verifies that beadCreatorAdapter accepts tracker.Client
+	// in its struct field instead of *bead.Client
+	trackerClient := &mockTrackerClient{}
+
+	// The beadCreatorAdapter should be able to hold a tracker.Client interface
+	var _ review.BeadCreator = &beadCreatorAdapter{
+		tracker: trackerClient,
+	}
 }
