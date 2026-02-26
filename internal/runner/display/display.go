@@ -275,6 +275,11 @@ func formatDuration(d time.Duration) string {
 	return fmt.Sprintf("%dh %dm", hours, mins)
 }
 
+// FormatDuration exposes duration formatting for tests and callers.
+func FormatDuration(d time.Duration) string {
+	return formatDuration(d)
+}
+
 func formatIterationPrefix(status *RunStatus) string {
 	prefix := fmt.Sprintf("Run: iteration %d", status.Iteration)
 	total := status.IterationTotal
@@ -294,6 +299,14 @@ func formatElapsedSuffix(status *RunStatus) string {
 		return fmt.Sprintf("%s of %s elapsed", elapsed, budget)
 	}
 	return fmt.Sprintf("%s elapsed", elapsed)
+}
+
+// FormatRunningLine exposes the iteration prefix and elapsed suffix for tests.
+func FormatRunningLine(status *RunStatus) string {
+	if status == nil {
+		return ""
+	}
+	return formatIterationPrefix(status) + ", " + formatElapsedSuffix(status)
 }
 
 func formatReliabilityLine(status *RunStatus) string {
@@ -323,6 +336,11 @@ func formatEscalationBreakdown(rates map[string]float64) string {
 	return strings.Join(parts, " | ")
 }
 
+// FormatEscalationBreakdown exposes the escalation breakdown formatting.
+func FormatEscalationBreakdown(rates map[string]float64) string {
+	return formatEscalationBreakdown(rates)
+}
+
 func formatRecurrenceBreakdown(counters map[string]int) string {
 	if len(counters) == 0 {
 		return ""
@@ -337,6 +355,11 @@ func formatRecurrenceBreakdown(counters map[string]int) string {
 		parts = append(parts, fmt.Sprintf("%s x%d", k, counters[k]))
 	}
 	return strings.Join(parts, " | ")
+}
+
+// FormatRecurrenceBreakdown exposes the recurrence breakdown formatting.
+func FormatRecurrenceBreakdown(counters map[string]int) string {
+	return formatRecurrenceBreakdown(counters)
 }
 
 // FormatSPCSummary formats SPC (Statistical Process Control) trend data for display.
@@ -421,6 +444,11 @@ func formatSPCLine(label string, cl logger.TrendControlLimit, isDuration bool) s
 	}
 	return fmt.Sprintf("  %-10s %s, limits %s..%s",
 		label, formatSPCValue(cl.Latest, true), formatSPCValue(cl.LCL, true), formatSPCValue(cl.UCL, true))
+}
+
+// FormatSPCLine exposes the SPC control-line formatting for tests.
+func FormatSPCLine(label string, cl logger.TrendControlLimit, isDuration bool) string {
+	return formatSPCLine(label, cl, isDuration)
 }
 
 func formatSPCProviderMetrics(metrics []logger.ProviderMetrics) []string {
@@ -565,6 +593,11 @@ func formatSPCValue(v float64, asPercent bool) string {
 	return fmt.Sprintf("%ds", int(d.Seconds()))
 }
 
+// FormatSPCValue exposes SPC value formatting for tests.
+func FormatSPCValue(v float64, asPercent bool) string {
+	return formatSPCValue(v, asPercent)
+}
+
 // simplifySPCMetric returns a short human-friendly label for a known SPC metric
 // constant, or returns the metric string unchanged if unrecognized.
 func simplifySPCMetric(metric string) string {
@@ -592,4 +625,9 @@ func simplifySPCMetric(metric string) string {
 	default:
 		return metric
 	}
+}
+
+// SimplifySPCMetric exposes metric label simplification for tests.
+func SimplifySPCMetric(metric string) string {
+	return simplifySPCMetric(metric)
 }
