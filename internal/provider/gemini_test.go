@@ -432,7 +432,6 @@ func TestGeminiProviderRunDeliveredViaStdin(t *testing.T) {
 func TestGeminiProviderRunFallsBackToInlinePForShortPrompts(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	const shortPromptThreshold = 256 // Hypothetical threshold for short prompts
 	shortPrompt := "short"             // Well under threshold
 	gp := &GeminiProvider{
 		binary: "gemini",
@@ -450,7 +449,7 @@ func TestGeminiProviderRunFallsBackToInlinePForShortPrompts(t *testing.T) {
 					}
 				}
 			}
-			if len(prompt) <= shortPromptThreshold && !hasInlineFlag {
+			if len(prompt) <= geminiShortPromptThreshold && !hasInlineFlag {
 				t.Fatalf("short prompt should use -p flag, got args: %v", args)
 			}
 			payload := []byte(`{
