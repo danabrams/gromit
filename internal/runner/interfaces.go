@@ -9,12 +9,14 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
+	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/danabrams/gromit/internal/worktree"
 )
 
 // Compile-time interface satisfaction checks.
 var (
 	_ BeadClient      = (*bead.Client)(nil)
+	_ tracker.Client  = (*bead.BDAdapter)(nil)
 	_ FailureAnalyzer = (*analyzer.Analyzer)(nil)
 	_ PromptRenderer  = (*prompt.Renderer)(nil)
 	_ IterationLogger = (*logger.Logger)(nil)
