@@ -2219,3 +2219,46 @@ func TestRenderCoverageValidationNilContext(t *testing.T) {
 		t.Fatalf("unexpected error %v", err)
 	}
 }
+
+func TestExtractATDDRulesSubset_ExcludesArchitectureRules(t *testing.T) {
+	rulesContent := `# Project Rules
+
+## Architecture
+
+### Architecture rule 1
+This should not be in ATDD subset.
+
+## Test Quality
+
+### Tool-call log parsing in tests
+Test quality rule about tool-call logs.
+
+### Shared helper APIs
+Test quality rule about shared helpers.
+
+## Reliability
+
+### Repository hygiene checks
+Reliability rule about hygiene.
+`
+
+	result := ExtractATDDRulesSubset(rulesContent)
+
+	// Test Quality rules should be included
+	if !strings.Contains(result, "Tool-call log parsing") {
+		t.Error("expected Test Quality section to be included")
+	}
+	if !strings.Contains(result, "Shared helper APIs") {
+		t.Error("expected second Test Quality rule to be included")
+	}
+
+	// Architecture rules should be excluded
+	if strings.Contains(result, "Architecture rule 1") {
+		t.Error("expected Architecture section to be excluded")
+	}
+
+	// Reliability rules should be excluded
+	if strings.Contains(result, "Repository hygiene checks") {
+		t.Error("expected Reliability section to be excluded")
+	}
+}
