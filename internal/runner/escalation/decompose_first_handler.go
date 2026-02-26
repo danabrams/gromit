@@ -113,3 +113,14 @@ func (h *DecomposeFirstHandler) AttemptDecomposition(ctx context.Context, bc *ru
 	}
 	return false
 }
+
+// GetNextTier returns the next tier for escalation based on the config.
+func (h *DecomposeFirstHandler) GetNextTier(bc *runtypes.BeadContext) string {
+	if h.cfg == nil {
+		return ""
+	}
+	if bc == nil {
+		return ""
+	}
+	return h.cfg.NextEscalationTier(bc.Tier)
+}
