@@ -66,6 +66,19 @@ func TestProviderParseFallbackCooldown_NilConfigReturnsZero(t *testing.T) {
 	}
 }
 
+func TestSelectLearningsProvider_ConfiguredName(t *testing.T) {
+	t.Parallel()
+	providers := map[string]provider.Provider{
+		"codex":  &stubRunProvider{name: "codex"},
+		"claude": &stubRunProvider{name: "claude"},
+	}
+	if got := selectLearningsProvider("codex", providers); got == nil {
+		t.Fatal("selectLearningsProvider returned nil, want configured provider")
+	} else if got.Name() != "codex" {
+		t.Fatalf("selectLearningsProvider returned %q, want %q", got.Name(), "codex")
+	}
+}
+
 func TestBuildRouterAndLearningsProvider_UsesConfiguredProviders(t *testing.T) {
 	t.Parallel()
 	cfg := newCodexProvidersConfig()
