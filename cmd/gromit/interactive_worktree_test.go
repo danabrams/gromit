@@ -354,6 +354,67 @@ func TestRunWithSessionWorktreeImmediateMergeSuccessPreRemovesBeforeMerge(t *tes
 	}
 }
 
+func TestImmediatePath_CleansUpWorktreeBeforeMerge(t *testing.T) {
+	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "cleanup-before-merge")
+	session.BranchName = "gromit/cleanup-before-merge"
+
+	var events []string
+
+	withInteractiveWorktreeFactories(t, func(gotMainDir string) (sessionWorktreeCreator, error) {
+		if gotMainDir != mainDir {
+			t.Fatalf("mainDir = %q, want %q", gotMainDir, mainDir)
+		}
+		return &mockSessionWorktreeCreator{
+			CreateSessionWorktreeFn: func(string) (*worktree.SessionWorktree, error) {
+				return session, nil
+			},
+			MergeBackFn: func(branch string) error {
+				if branch != session.BranchName {
+					t.Fatalf("merge branch = %q, want %q", branch, session.BranchName)
+				}
+				events = append(events, "merge")
+				return nil
+			},
+		}, nil
+	}, func(string) (pendingBranchRecorder, error) {
+		return &mockPendingBranchRecorder{
+			AddPendingWorktreeBranchFn: func(branch string) error {
+				if branch != session.BranchName {
+					t.Fatalf("add branch = %q, want %q", branch, session.BranchName)
+				}
+				events = append(events, "add")
+				return nil
+			},
+			RemovePendingWorktreeBranchFn: func(branch string) error {
+				if branch != session.BranchName {
+					t.Fatalf("remove branch = %q, want %q", branch, session.BranchName)
+				}
+				events = append(events, "remove")
+				return nil
+			},
+		}, nil
+	}, func(gotMainDir, sessionDir string) error {
+		if gotMainDir != mainDir {
+			t.Fatalf("cleanup mainDir = %q, want %q", gotMainDir, mainDir)
+		}
+		if sessionDir != session.WorktreeDir {
+			t.Fatalf("cleanup sessionDir = %q, want %q", sessionDir, session.WorktreeDir)
+		}
+		events = append(events, "cleanup")
+		return nil
+	})
+
+	_, err := runWithSessionWorktree(gromitDir, "cleanup-before-merge", func(string) error { return nil })
+	if err != nil {
+		t.Fatalf("runWithSessionWorktree() error = %v", err)
+	}
+
+	want := []string{"add", "cleanup", "merge", "remove"}
+	if !reflect.DeepEqual(events, want) {
+		t.Fatalf("events = %v, want %v", events, want)
+	}
+}
+
 func TestRunWithSessionWorktreeMergeRecoversFromCheckedOutBranchDeleteError(t *testing.T) {
 	// Not parallel: withInteractiveWorktreeFactories mutates package-level globals.
 	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "debug")
