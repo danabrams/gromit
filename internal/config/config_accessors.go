@@ -475,3 +475,13 @@ func (c Config) EffectivePreflightCompileCommand() string {
 	// Fall back to empty string
 	return ""
 }
+
+// ResolveProfileDependentDefaults returns all profile-dependent defaults in one
+// central resolver path with explicit > profile_default > legacy_fallback precedence.
+func (c Config) ResolveProfileDependentDefaults() ProfileDependentDefaults {
+	return ProfileDependentDefaults{
+		ValidationCommands:      c.EffectiveValidationCommands(),
+		PreflightCompileCommand: c.EffectivePreflightCompileCommand(),
+		MethodologyAdapter:      c.ResolvedMethodologyAdapter(),
+	}
+}
