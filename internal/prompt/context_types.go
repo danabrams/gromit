@@ -211,6 +211,16 @@ type TDDGreenContext struct {
 	PrevFailure       string
 }
 
+// normalizeNilFields ensures nil slices/maps are replaced with empty collections.
+func (t *TDDGreenContext) normalizeNilFields() {
+	if t == nil {
+		return
+	}
+	if t.ImplFileContents == nil {
+		t.ImplFileContents = map[string]string{}
+	}
+}
+
 // ScopeEstimate represents the result of scope estimation
 type ScopeEstimate struct {
 	Complexity                   string   `json:"complexity"`

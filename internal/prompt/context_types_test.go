@@ -67,3 +67,11 @@ func TestTDDRedContextNormalizeNilFields(t *testing.T) {
 		t.Fatalf("TestFileContents nil after normalizeNilFields")
 	}
 }
+
+func TestTDDGreenContextNormalizeNilFields(t *testing.T) {
+	ctx := &TDDGreenContext{}
+	ctx.normalizeNilFields()
+	if ctx.ImplFileContents == nil {
+		t.Fatalf("ImplFileContents nil after normalizeNilFields")
+	}
+}
