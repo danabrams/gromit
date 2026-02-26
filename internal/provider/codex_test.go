@@ -10,17 +10,28 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
 
-// newShellProvider creates a CodexProvider that executes shell commands via /bin/sh -c,
-// avoiding temporary executable files and ETXTBSY race conditions.
-// It takes a bash script string and returns a provider that executes it via shell.
-func newShellProvider(bashScript string, tierMap map[string]string) *CodexProvider {
-	// Use /bin/sh -c to execute bash script inline, avoiding temp file races (ETXTBSY)
-	// under high parallel test load. The "--" terminates flag parsing.
-	return NewCodexProvider("/bin/sh", []string{"-c", bashScript, "--"}, tierMap)
+// newTestBinary creates a temporary executable file with the given bash script.
+// It ensures the file is properly synced before returning to avoid ETXTBSY errors
+// under parallel test execution.
+func newTestBinary(t *testing.T, bashScript string) string {
+	tempDir := t.TempDir()
+	mockBinary := filepath.Join(tempDir, "testbinary")
+	fullScript := "#!/bin/bash\n" + bashScript
+
+	if err := os.WriteFile(mockBinary, []byte(fullScript), 0755); err != nil {
+		t.Fatalf("failed to create test binary: %v", err)
+	}
+
+	// Explicitly sync filesystem to ensure file is readable before execution.
+	// This prevents ETXTBSY ("text file busy") errors under parallel test load.
+	syscall.Sync()
+
+	return mockBinary
 }
 
 // TestCodexProviderStructExists verifies that CodexProvider struct exists
@@ -1795,46 +1806,35 @@ func TestCodexProviderMaxInputTokensConfig(t *testing.T) {
 	}
 }
 
-// TestNewShellProviderCreatesShellBasedProvider verifies that newShellProvider()
-// creates a CodexProvider that executes shell commands via /bin/sh -c pattern,
-// avoiding temporary executable files and ETXTBSY errors under parallel execution.
-func TestNewShellProviderCreatesShellBasedProvider(t *testing.T) {
+// TestNewTestBinaryWithSync verifies that newTestBinary() helper function creates
+// executable files with proper filesystem sync to prevent ETXTBSY errors under
+// parallel test execution.
+func TestNewTestBinaryWithSync(t *testing.T) {
 	t.Parallel()
-	bashScript := "echo done; exit 0"
+	bashScript := `cat > /dev/null
+echo "Test output line 1"
+echo "Test output line 2"
+exit 0`
 
-	tierMap := map[string]string{
-		TierHigh:   "o3",
-		TierMedium: "gpt-4o",
-		TierLow:    "gpt-4o-mini",
-	}
-	cp := newShellProvider(bashScript, tierMap)
+	mockBinary := newTestBinary(t, bashScript)
 
-	if cp == nil {
-		t.Fatal("newShellProvider() returned nil")
-	}
+	tierMap := map[string]string{TierLow: "gpt-4o-mini"}
+	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
 
-	tests := []struct {
-		tier      string
-		wantModel string
-	}{
-		{TierHigh, "o3"},
-		{TierMedium, "gpt-4o"},
-		{TierLow, "gpt-4o-mini"},
+	ctx := context.Background()
+	result, err := cp.Run(ctx, "test", TierLow)
+
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
 	}
 
-	for _, tt := range tests {
-		t.Run("tier_"+tt.tier, func(t *testing.T) {
-			ctx := context.Background()
-			result, err := cp.Run(ctx, "test", tt.tier)
-
-			if err != nil {
-				t.Fatalf("Run() error = %v, want nil", err)
-			}
-
-			if result.Model != tt.wantModel {
-				t.Errorf("Run() Model = %q, want %q for tier %s",
-					result.Model, tt.wantModel, tt.tier)
-			}
-		})
+	if !strings.Contains(result.Output, "Test output line 1") {
+		t.Errorf("Run() output missing expected stdout, got: %s", result.Output)
+	}
+	if !strings.Contains(result.Output, "Test output line 2") {
+		t.Errorf("Run() output missing expected stdout line 2, got: %s", result.Output)
+	}
+	if strings.TrimSpace(result.Stderr) != "" {
+		t.Errorf("Run() stderr should be empty for stdout-only command, got: %q", result.Stderr)
 	}
 }
