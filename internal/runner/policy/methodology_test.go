@@ -159,6 +159,23 @@ func TestIsActive_TDDNotSuppressedBySpecGranularity(t *testing.T) {
 	}
 }
 
+func TestIsActive_UsesResolvedMethodologyAdapter(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Project.Profile = "go"
+	cfg.Methodology.TDD = true
+
+	policyImpl := policy.NewConfigMethodologyPolicy(cfg)
+	cmp := policyImpl.(*policy.ConfigMethodologyPolicy)
+
+	if got := cmp.ResolvedMethodologyAdapterValue(); got != "go" {
+		t.Fatalf("ResolvedMethodologyAdapterValue() = %q, want %q", got, "go")
+	}
+
+	if !policyImpl.IsActive(nil, "tdd") {
+		t.Fatal("expected IsActive to return true when resolved adapter is go")
+	}
+}
+
 func TestIsActive_ReturnsFalseForNonGoMethodologyAdapter(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Methodology.TDD = true
