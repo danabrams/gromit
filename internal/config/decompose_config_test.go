@@ -22,6 +22,14 @@ func TestSetDefaultsDecomposeTierDefaultsMedium(t *testing.T) {
 	}
 }
 
+func TestSetDefaultsDecomposeTargetDefaultsNarrowScope(t *testing.T) {
+	var cfg Config
+	cfg.SetDefaults()
+	if cfg.Decompose.Target != DecompositionTargetNarrowScope {
+		t.Fatalf("Decompose.Target = %q, want %q", cfg.Decompose.Target, DecompositionTargetNarrowScope)
+	}
+}
+
 func TestConfigParsesDecomposeTarget(t *testing.T) {
 	const raw = `
 decompose:
