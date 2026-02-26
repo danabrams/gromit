@@ -5,6 +5,8 @@ import (
 	"io"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/provider"
 )
 
@@ -347,4 +349,18 @@ func TestRetroRouterAdapterStreamRun_ReturnsProviderExhaustedErrorAfterUsageLimi
 	if markedUnavailable != "first" {
 		t.Fatalf("marked unavailable provider = %q, want %q", markedUnavailable, "first")
 	}
+}
+
+func TestNewAgentResolver_ReturnsAgentResolver(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{}
+	resolver := newAgentResolver(cfg)
+
+	if resolver == nil {
+		t.Fatal("newAgentResolver returned nil")
+	}
+
+	// Verify it implements pipeline.AgentResolver
+	var _ pipeline.AgentResolver = resolver
 }
