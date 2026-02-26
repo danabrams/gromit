@@ -36,7 +36,7 @@ type geminiRunResult struct {
 	duration time.Duration
 }
 
-type geminiRunFn func(ctx context.Context, binary string, args []string, prompt string) (*geminiRunResult, error)
+type geminiRunFn func(ctx context.Context, binary string, args []string, prompt string, workDir string) (*geminiRunResult, error)
 
 // NewGeminiProvider constructs a GeminiProvider with the specified binary, flags,
 // and tier-to-model mapping.
@@ -90,7 +90,7 @@ func (gp *GeminiProvider) Run(ctx context.Context, prompt string, tier string) (
 		runner = defaultGeminiRunFn
 	}
 
-	execResult, err := runner(ctx, gp.binary, args, prompt)
+	execResult, err := runner(ctx, gp.binary, args, prompt, "")
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +142,7 @@ func (gp *GeminiProvider) runWithWorkDir(ctx context.Context, prompt string, tie
 		runner = defaultGeminiRunFn
 	}
 
-	execResult, err := runner(ctx, gp.binary, args, prompt)
+	execResult, err := runner(ctx, gp.binary, args, prompt, workDir)
 	if err != nil {
 		return nil, err
 	}
@@ -291,8 +291,13 @@ func extractJSONPayload(data []byte) ([]byte, error) {
 	return nil, fmt.Errorf("gemini json payload not found")
 }
 
-func defaultGeminiRunFn(ctx context.Context, binary string, args []string, prompt string) (*geminiRunResult, error) {
+func defaultGeminiRunFn(ctx context.Context, binary string, args []string, prompt string, workDir string) (*geminiRunResult, error) {
 	cmd := execCommandContext(ctx, binary, args...)
+
+	// Set working directory if provided
+	if workDir != "" {
+		cmd.Dir = workDir
+	}
 
 	// Check if this is a stdin invocation (last arg is "-")
 	// For inline -p invocations, the prompt is already in the args, no stdin needed

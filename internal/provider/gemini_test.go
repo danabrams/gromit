@@ -294,7 +294,7 @@ func TestGeminiProviderRunInvokesJSONMode(t *testing.T) {
 		tierToModel: map[string]string{
 			TierHigh: "auto-gemini-3",
 		},
-		runFn: func(ctx context.Context, binary string, args []string, prompt string) (*geminiRunResult, error) {
+		runFn: func(ctx context.Context, binary string, args []string, prompt string, workDir string) (*geminiRunResult, error) {
 			if binary != "gemini" {
 				t.Fatalf("binary=%q, want gemini", binary)
 			}
@@ -351,7 +351,7 @@ func TestGeminiProviderRunDeliveredViaStdin(t *testing.T) {
 		tierToModel: map[string]string{
 			TierLow: "gemini-2.0-flash",
 		},
-		runFn: func(ctx context.Context, binary string, args []string, prompt string) (*geminiRunResult, error) {
+		runFn: func(ctx context.Context, binary string, args []string, prompt string, workDir string) (*geminiRunResult, error) {
 			// Verify args end with "-" to indicate stdin
 			if len(args) == 0 || args[len(args)-1] != "-" {
 				t.Fatalf("expected last arg to be '-' for stdin, got args: %v", args)
@@ -394,7 +394,7 @@ func TestGeminiProviderRunFallsBackToInlinePForShortPrompts(t *testing.T) {
 		tierToModel: map[string]string{
 			TierLow: "gemini-2.0-flash",
 		},
-		runFn: func(ctx context.Context, binary string, args []string, prompt string) (*geminiRunResult, error) {
+		runFn: func(ctx context.Context, binary string, args []string, prompt string, workDir string) (*geminiRunResult, error) {
 			// For short prompts, should use -p flag as fallback
 			hasInlineFlag := false
 			for i := 0; i < len(args)-1; i++ {
@@ -426,5 +426,43 @@ func TestGeminiProviderRunFallsBackToInlinePForShortPrompts(t *testing.T) {
 	}
 	if result == nil {
 		t.Fatal("Run() returned nil result")
+	}
+}
+
+func TestGeminiProviderRunWithExplicitWorkingDirectory(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	expectedWorkDir := "/expected/work/dir"
+	var capturedWorkDir string
+
+	gp := &GeminiProvider{
+		binary: "gemini",
+		tierToModel: map[string]string{
+			TierLow: "gemini-2.0-flash",
+		},
+		runFn: func(ctx context.Context, binary string, args []string, prompt string, workDir string) (*geminiRunResult, error) {
+			capturedWorkDir = workDir
+			payload := []byte(`{
+  "output": "OK",
+  "usage": {"input_tokens": 5, "output_tokens": 2, "cached_input_tokens": 0},
+  "cost": {"total": 0},
+  "model": "gemini-2.0-flash",
+  "session_id": "test",
+  "response": "OK"
+}`)
+			return &geminiRunResult{stdout: payload, stderr: nil, exitCode: 0, duration: 0}, nil
+		},
+	}
+
+	// Test that RunValidation passes workDir parameter to the runner
+	result, err := gp.RunValidation(ctx, []string{"go test"}, TierLow, expectedWorkDir)
+	if err != nil {
+		t.Fatalf("RunValidation() error = %v", err)
+	}
+	if result == nil {
+		t.Fatal("RunValidation() returned nil result")
+	}
+	if capturedWorkDir != expectedWorkDir {
+		t.Fatalf("workDir=%q, want %q", capturedWorkDir, expectedWorkDir)
 	}
 }
