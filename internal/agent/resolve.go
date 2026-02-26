@@ -196,5 +196,10 @@ func resolveCustomAgent(name string, def config.AgentDefinition) Agent {
 	}
 
 	// Custom agents default to prompt_file_arg delivery
-	return New(name, binary, def.Flags, PromptFileArg, defaultPromptFlag, nil)
+	return resolvePromptFileArgAgent(name, binary, def.Flags)
+}
+
+// resolvePromptFileArgAgent creates an agent using prompt_file_arg delivery
+func resolvePromptFileArgAgent(name, binary string, flags []string) Agent {
+	return New(name, binary, flags, PromptFileArg, defaultPromptFlag, nil)
 }
