@@ -34,6 +34,30 @@ func (f *fakeStage) Run(ctx context.Context, in pipeline.Input) (pipeline.Output
 	return pipeline.Output{Decision: pipeline.Proceed}, nil
 }
 
+// fakeSpecMergeController is a minimal test double for specmerge.Controller.
+type fakeSpecMergeController struct {
+	isCompleteFn func(string) (bool, error)
+	triggerFn    func(context.Context, string) error
+	isCompleteCalls []string
+	triggerCalls    []string
+}
+
+func (f *fakeSpecMergeController) IsSpecComplete(specName string) (bool, error) {
+	f.isCompleteCalls = append(f.isCompleteCalls, specName)
+	if f.isCompleteFn != nil {
+		return f.isCompleteFn(specName)
+	}
+	return false, nil
+}
+
+func (f *fakeSpecMergeController) Trigger(ctx context.Context, specName string) error {
+	f.triggerCalls = append(f.triggerCalls, specName)
+	if f.triggerFn != nil {
+		return f.triggerFn(ctx, specName)
+	}
+	return nil
+}
+
 // TestOrchestrator_CallsStateSaverAfterRun verifies that when StateSaver is set
 // in the config, it is called once after the orchestrator loop completes,
 // so provider routing state is persisted across runs.
@@ -110,6 +134,65 @@ func TestOrchestrator_ProviderCostDefs_Accessible(t *testing.T) {
 	}
 	if _, ok := orch.cfg.ProviderCostDefs["claude"]; !ok {
 		t.Error("ProviderCostDefs missing 'claude' entry")
+	}
+}
+
+func TestOrchestrator_SpecMergePipelineTriggersOnce(t *testing.T) {
+	t.Parallel()
+
+	specName := "payments"
+	beads := []*bead.Bead{
+		{ID: "spec-1", Labels: []string{"spec:" + specName}},
+		{ID: "spec-2", Labels: []string{"spec:" + specName}},
+	}
+	beadIndex := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		if beadIndex >= len(beads) {
+			return nil, nil
+		}
+		next := beads[beadIndex]
+		beadIndex++
+		return next, nil
+	}
+
+	completeCalls := 0
+	specPipeline := &fakeSpecMergeController{
+		isCompleteFn: func(name string) (bool, error) {
+			if name != specName {
+				t.Fatalf("IsSpecComplete called with spec %q, want %q", name, specName)
+			}
+			completeCalls++
+			return completeCalls >= len(beads), nil
+		},
+		triggerFn: func(ctx context.Context, name string) error {
+			if name != specName {
+				t.Fatalf("Trigger called with spec %q, want %q", name, specName)
+			}
+			return nil
+		},
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:               &fakeStage{},
+		Build:              &fakeStage{},
+		Validate:           &fakeStage{},
+		Epilogue:           &fakeStage{},
+		GetBead:            getBead,
+		Config:             &config.Config{Methodology: config.MethodologyConfig{Granularity: config.MethodologyGranularitySpec}},
+		SpecMergeController: specPipeline,
+		Output:             io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	if len(specPipeline.triggerCalls) != 1 {
+		t.Fatalf("Trigger was called %d times, want 1", len(specPipeline.triggerCalls))
+	}
+	if completeCalls != len(beads) {
+		t.Fatalf("IsSpecComplete called %d times, want %d", completeCalls, len(beads))
 	}
 }
 
