@@ -1009,3 +1009,111 @@ func TestProcessCodexStreamEmitsResultEventFromResultEvents(t *testing.T) {
 		t.Fatal("result event did not emit a result stream event; result events should emit like turn.completed and response.completed")
 	}
 }
+
+// TestProcessCodexStreamToolCallCreatedHandlerRouting verifies that processCodexStream
+// invokes ToolCallHandler when tool_call.created events are processed, extracting
+// the tool_name for routing.
+func TestProcessCodexStreamToolCallCreatedHandlerRouting(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name         string
+		jsonLine     string
+		wantToolName string
+	}{
+		{
+			name:         "tool_call.created with search tool",
+			jsonLine:     `{"type":"tool_call.created","tool_call":{"tool_name":"search","input":{"query":"foo"}}}`,
+			wantToolName: "search",
+		},
+		{
+			name:         "tool_call.created with github tool",
+			jsonLine:     `{"type":"tool_call.created","tool_call":{"tool_name":"github_api","input":{"action":"list"}}}`,
+			wantToolName: "github_api",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			input := tt.jsonLine + "\n"
+			reader := strings.NewReader(input)
+			var output bytes.Buffer
+			var receivedToolCalls []ToolEvent
+
+			toolHandler := func(event ToolEvent) {
+				receivedToolCalls = append(receivedToolCalls, event)
+			}
+
+			_, _, _, err := processCodexStream(reader, &output, func([]byte) {}, toolHandler)
+			if err != nil {
+				t.Fatalf("processCodexStream() error = %v", err)
+			}
+
+			if len(receivedToolCalls) == 0 {
+				t.Fatal("ToolCallHandler was not invoked for tool_call.created event")
+			}
+
+			tc := receivedToolCalls[0]
+			if tc.ToolName != tt.wantToolName {
+				t.Errorf("ToolEvent.ToolName = %q, want %q", tc.ToolName, tt.wantToolName)
+			}
+			if tc.Timestamp.IsZero() {
+				t.Error("ToolEvent.Timestamp is zero, want non-zero")
+			}
+		})
+	}
+}
+
+// TestProcessCodexStreamToolCallOutputHandlerRouting verifies that processCodexStream
+// invokes ToolCallHandler when tool_call.output events are processed, extracting
+// the tool_name for routing.
+func TestProcessCodexStreamToolCallOutputHandlerRouting(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name         string
+		jsonLine     string
+		wantToolName string
+	}{
+		{
+			name:         "tool_call.output with search tool",
+			jsonLine:     `{"type":"tool_call.output","tool_call":{"tool_name":"search","output":{"result":"ok"}}}`,
+			wantToolName: "search",
+		},
+		{
+			name:         "tool_call.output with github tool",
+			jsonLine:     `{"type":"tool_call.output","tool_call":{"tool_name":"github_api","output":{"data":"repos"}}}`,
+			wantToolName: "github_api",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			input := tt.jsonLine + "\n"
+			reader := strings.NewReader(input)
+			var output bytes.Buffer
+			var receivedToolCalls []ToolEvent
+
+			toolHandler := func(event ToolEvent) {
+				receivedToolCalls = append(receivedToolCalls, event)
+			}
+
+			_, _, _, err := processCodexStream(reader, &output, func([]byte) {}, toolHandler)
+			if err != nil {
+				t.Fatalf("processCodexStream() error = %v", err)
+			}
+
+			if len(receivedToolCalls) == 0 {
+				t.Fatal("ToolCallHandler was not invoked for tool_call.output event")
+			}
+
+			tc := receivedToolCalls[0]
+			if tc.ToolName != tt.wantToolName {
+				t.Errorf("ToolEvent.ToolName = %q, want %q", tc.ToolName, tt.wantToolName)
+			}
+			if tc.Timestamp.IsZero() {
+				t.Error("ToolEvent.Timestamp is zero, want non-zero")
+			}
+		})
+	}
+}
