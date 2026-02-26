@@ -121,7 +121,61 @@ func TestInitWritesDetectedProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read gromit.yaml: %v", err)
 	}
-	if !strings.Contains(string(content), "project:\n  profile: \"node\"") {
-		t.Fatalf("gromit.yaml missing profile header, got:\n%s", string(content))
+	cfg := string(content)
+	if !strings.Contains(cfg, "project:\n  profile: \"node\"") {
+		t.Fatalf("gromit.yaml missing profile header, got:\n%s", cfg)
+	}
+	if !strings.Contains(cfg, "- \"npm test\"") {
+		t.Fatalf("gromit.yaml missing node validation command, got:\n%s", cfg)
+	}
+	if !strings.Contains(cfg, "- \"npm run build\"") {
+		t.Fatalf("gromit.yaml missing node validation build command, got:\n%s", cfg)
+	}
+	if !strings.Contains(cfg, "compile_command: \"npm run build\"") {
+		t.Fatalf("gromit.yaml missing node compile command, got:\n%s", cfg)
+	}
+}
+
+func TestInitRespectsProfileFlag(t *testing.T) {
+	dir := t.TempDir()
+	prevWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get wd: %v", err)
+	}
+	defer os.Chdir(prevWd)
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+
+	if err := os.WriteFile("go.mod", []byte("module example"), 0644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
+
+	prevForce := forceInit
+	prevProfile := initProfile
+	defer func() {
+		forceInit = prevForce
+		initProfile = prevProfile
+	}()
+	forceInit = true
+	initProfile = "python"
+
+	if err := runInit(nil, nil); err != nil {
+		t.Fatalf("runInit: %v", err)
+	}
+
+	content, err := os.ReadFile(filepath.Join(dir, "gromit.yaml"))
+	if err != nil {
+		t.Fatalf("read gromit.yaml: %v", err)
+	}
+	cfg := string(content)
+	if !strings.Contains(cfg, "project:\n  profile: \"python\"") {
+		t.Fatalf("gromit.yaml missing python profile header, got:\n%s", cfg)
+	}
+	if !strings.Contains(cfg, "- \"pytest\"") {
+		t.Fatalf("gromit.yaml missing python validation command, got:\n%s", cfg)
+	}
+	if !strings.Contains(cfg, "compile_command: \"\"") {
+		t.Fatalf("gromit.yaml missing python compile command override, got:\n%s", cfg)
 	}
 }
