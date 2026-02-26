@@ -1584,3 +1584,15 @@ func fakeClaudeEmitThenHang(t *testing.T) string {
 	}
 	return binary
 }
+
+// RED: Test for parent-context-canceled helper pattern
+func TestFakeClaudeWithDelay_ReturnsValidBinaryPath(t *testing.T) {
+	delay := 5 * time.Second
+	binary := fakeClaudeWithDelay(t, delay)
+	if binary == "" {
+		t.Fatal("fakeClaudeWithDelay() returned empty path")
+	}
+	if _, err := os.Stat(binary); err != nil {
+		t.Fatalf("fakeClaudeWithDelay() returned non-existent binary path: %v", err)
+	}
+}
