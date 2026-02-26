@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -245,6 +246,25 @@ func TestRunDirect_ParallelCommands_BoundedConcurrency(t *testing.T) {
 	}
 	if got := atomic.LoadInt32(&peak); got != 2 {
 		t.Fatalf("peak parallelism=%d, want 2", got)
+	}
+}
+
+func TestRunnerValidate_UsesProfileDefaultCommands(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Project.Profile = "go"
+	cfg.Validation.Enabled = true
+	commandsRun := []string{}
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		commandsRun = append(commandsRun, command)
+		return "ok", "", 0, nil
+	}
+	r := NewRunner(cfg, cmdRunner, nil, nil)
+	if err := r.Validate(context.Background(), newTestBeadContext()); err != nil {
+		t.Fatalf("Validate returned error: %v", err)
+	}
+	want := []string{"go test", "go build", "go vet"}
+	if !reflect.DeepEqual(commandsRun, want) {
+		t.Fatalf("commands run = %v, want %v", commandsRun, want)
 	}
 }
 
