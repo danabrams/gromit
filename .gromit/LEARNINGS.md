@@ -198,20 +198,11 @@ When Gate computes complexity routing metadata, all decision outcomes (Proceed/S
 
 Adding deprecation-marker fields to compatibility resolution is not sufficient by itself; migration guardrails only work when those markers are surfaced in debug/status output and runtime warnings, with end-to-end tests proving explicit-vs-legacy behavior.
 
-### 2026-02-24 | gromit-sjg0 | conventions
-Codex event mappings require registration in an event handler dispatch mechanism (likely a switch/map in the message processing code). New event types must be explicitly registered to trigger their corresponding handlers
-
 ### 2026-02-25 | gromit-10kg.3.1.1.1 | conventions
 The ToolCallKind type and constants (ToolCallCodex, ToolCallClaude, ToolCallBD) are already defined in test/e2e/tool_calls_helpers_test.go and test/contracts/tool_calls_helpers_test.go - verify if task requires consolidating duplicate definitions into a shared location or moving to a non-test package
 
 ### 2026-02-25 | gromit-sq2a3 | conventions
 The orchestrator should include post-run completeness assertions for efficiency metrics; tests checking these assertions need properly configured incomplete efficiency data to trigger validation.
-
-### 2026-02-25 | gromit-qs2ks | conventions
-When normalizing event merge semantics or adding new event emission paths, verify that data completeness checks still trigger appropriately. New event sources may inadvertently provide previously-missing data, causing validation assertions to unexpectedly pass.
-
-### 2026-02-25 | gromit-qs2ks | conventions
-The orchestrator has post-run completeness assertions (orchestrator_test.go:883) that validate efficiency data across event handlers. Changes to provider event handling (usage extraction, stream event emissions) must ensure the orchestrator's completeness checks still trigger when they should.
 
 ### 2026-02-25 | gromit-jmqps.1 | conventions
 When extracting types across packages, verify all imports are updated in test files and watch for circular dependencies when moving code to internal/review (which may be imported by packages that import cmd/gromit). Use verbose build output to pinpoint exact compilation errors.
