@@ -1252,6 +1252,63 @@ func TestExecuteFnCanAccessEscalationFlag(t *testing.T) {
 	}
 }
 
+// TestValidationWithEscalationHandler_WiresEscalationCorrectly demonstrates
+// the complete pattern where a validation runner with an executeFn callback
+// that uses an escalation handler wires the escalation flag correctly.
+// This is the pattern that call sites should follow when creating validation runners.
+func TestValidationWithEscalationHandler_WiresEscalationCorrectly(t *testing.T) {
+	cfg := newTestConfig()
+
+	// Validation always fails
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return "", "validation failure", 1, nil
+	}
+
+	// Track what escalation flag was passed to "execute"
+	var seenEscalationFlags []bool
+
+	// Create an executeFn that demonstrates the pattern:
+	// 1. It captures the runner
+	// 2. It checks the runner's escalationEnabled flag
+	// 3. It passes this flag when calling the handler (mocked here)
+	var createExecuteFn func(*Runner) ExecuteFn
+	createExecuteFn = func(r *Runner) ExecuteFn {
+		return func(ctx context.Context, bc *runtypes.BeadContext) bool {
+			// This is where the handler.ExecuteWithRetryWithEscalation would be called:
+			// success := handler.ExecuteWithRetryWithEscalation(ctx, bc, invokeFn, r.escalationEnabled)
+			// For now, we just record what value we would have passed
+			seenEscalationFlags = append(seenEscalationFlags, r.escalationEnabled)
+			return true // Pretend the fix succeeded
+		}
+	}
+
+	// Create the validation runner with the executeFn
+	r := NewRunner(cfg, cmdRunner, nil, nil)
+	r.executeFn = createExecuteFn(r)
+
+	bc := newTestBeadContext()
+	bc.StartCommit = "abc123"
+
+	// Call with escalationEnabled=false - the important part of this test
+	_ = r.RunWithRecoveryForCommandsWithEscalation(context.Background(), bc, r.validationCommands(), "fast", false)
+
+	// Verify that executeFn saw the correct escalation value
+	if len(seenEscalationFlags) == 0 {
+		t.Error("executeFn should have been called during validation recovery")
+	}
+	if len(seenEscalationFlags) > 0 && seenEscalationFlags[0] != false {
+		t.Errorf("executeFn should have passed escalationEnabled=false to handler, but saw %v", seenEscalationFlags[0])
+	}
+
+	// Reset and test with escalationEnabled=true
+	seenEscalationFlags = nil
+	_ = r.RunWithRecoveryForCommandsWithEscalation(context.Background(), bc, r.validationCommands(), "fast", true)
+
+	if len(seenEscalationFlags) > 0 && seenEscalationFlags[0] != true {
+		t.Errorf("executeFn should have passed escalationEnabled=true to handler, but saw %v", seenEscalationFlags[0])
+	}
+}
+
 // Ensure imports are used
 var (
 	_ = claude.Result{}
