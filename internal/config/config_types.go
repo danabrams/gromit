@@ -500,20 +500,20 @@ func (p ProviderDef) EstimateCostForModel(model string, inputTokens, outputToken
 }
 
 type RoutingConfig struct {
-	PhasePreferences map[string]string    `yaml:"phase_preferences"`
-	Ratio            map[string]int       `yaml:"ratio"`
-	Fallback         FallbackConfig       `yaml:"fallback"`
-	CircuitBreaker   CircuitBreakerConfig `yaml:"circuit_breaker"`
-	Strategy         string               `yaml:"strategy"`
+	PhasePreferences map[string]string          `yaml:"phase_preferences"`
+	Ratio            map[string]int             `yaml:"ratio"`
+	Fallback         FallbackConfig             `yaml:"fallback"`
+	CircuitBreaker   CircuitBreakerConfig       `yaml:"circuit_breaker"`
+	Strategy         string                     `yaml:"strategy"`
 	CostOptimized    CostOptimizedRoutingConfig `yaml:"cost_optimized"`
 }
 
 type CostOptimizedRoutingConfig struct {
-	BuildTier               string `yaml:"build_tier"`
-	DecomposeTier           string `yaml:"decompose_tier"`
-	EscalationTier          string `yaml:"escalation_tier"`
-	MaxDecompositionDepth   int    `yaml:"max_decomposition_depth"`
-	MaxRetriesBeforeDecompose int  `yaml:"max_retries_before_decompose"`
+	BuildTier                 string `yaml:"build_tier"`
+	DecomposeTier             string `yaml:"decompose_tier"`
+	EscalationTier            string `yaml:"escalation_tier"`
+	MaxDecompositionDepth     int    `yaml:"max_decomposition_depth"`
+	MaxRetriesBeforeDecompose int    `yaml:"max_retries_before_decompose"`
 }
 
 type TokenEfficiencyConfig struct {
@@ -586,8 +586,16 @@ type SpecGateConfig struct {
 	AutoTrigger *bool  `yaml:"auto_trigger"`
 }
 
+type DecompositionTarget string
+
+const (
+	DecompositionTargetNarrowScope   DecompositionTarget = "narrow_scope"
+	DecompositionTargetSingleConcern DecompositionTarget = "single_concern"
+)
+
 type DecomposeConfig struct {
-	Tier string `yaml:"tier"`
+	Tier   string              `yaml:"tier"`
+	Target DecompositionTarget `yaml:"target"`
 }
 
 // ResolvePhaseTimeoutSeconds returns the configured timeout for a methodology
