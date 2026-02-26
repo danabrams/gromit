@@ -274,7 +274,7 @@ func TestRunAcceptanceTests_AppliesATDDContextShaping(t *testing.T) {
 	cfg.Methodology.ATDDPrompt.IncludeRules = false
 	cfg.Methodology.ATDDPrompt.IncludeSpec = false
 	cfg.Methodology.ATDDPrompt.IncludeClaudeMD = false
-	cfg.Methodology.ATDDPrompt.MaxChars = 0
+	cfg.Methodology.ATDDPrompt.MaxChars = 10
 	cfg.Methodology.ATDDPrompt.MaxConfirmedLearningChars = 0
 
 	renderer := newProjectPromptRenderer(t)
@@ -318,6 +318,52 @@ func TestRunAcceptanceTests_AppliesATDDContextShaping(t *testing.T) {
 	}
 	if len(renderedCtx.RecentLearnings) != 0 {
 		t.Fatalf("expected ATDD config to drop recent learnings, got %d", len(renderedCtx.RecentLearnings))
+	}
+}
+
+func TestRunAcceptanceTests_LogsATDDPromptMetrics(t *testing.T) {
+	t.Parallel()
+	cfg := newTestConfig()
+	var buf strings.Builder
+
+	cfg.Methodology.ATDDPrompt.MaxChars = 30
+	cfg.Methodology.ATDDPrompt.MaxConfirmedLearningChars = 0
+
+	renderer := newProjectPromptRenderer(t)
+
+	renderFn := func(ctx *prompt.Context) (string, error) {
+		return renderer.RenderAcceptanceTests(ctx)
+	}
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, promptText string) error {
+		return nil
+	}
+
+	exec := NewExecutor(cfg, &buf, renderFn, invokeFn, nil)
+	bc := newTestBeadContext()
+	bc.PromptCtx.Bead = bc.Bead
+	bc.PromptCtx.WorkDir = t.TempDir()
+	bc.PromptCtx.ClaudeMD = "claude context"
+	bc.PromptCtx.Rules = "## Rules\n- follow constraints"
+	bc.PromptCtx.Spec = "## Spec\n- add behavior"
+	bc.PromptCtx.ConfirmedLearnings = []learnings.Learning{{Content: "confirmed learning"}}
+	bc.PromptCtx.RecentLearnings = []learnings.Learning{{Content: "recent learning"}}
+
+	if err := exec.RunAcceptanceTests(context.Background(), bc); err != nil {
+		t.Fatalf("RunAcceptanceTests returned unexpected error: %v", err)
+	}
+
+	logs := buf.String()
+	if !strings.Contains(logs, "prompt_chars_before=") {
+		t.Fatalf("expected prompt_chars_before log, got %q", logs)
+	}
+	if !strings.Contains(logs, "prompt_chars_after=") {
+		t.Fatalf("expected prompt_chars_after log, got %q", logs)
+	}
+	if !strings.Contains(logs, "trim_actions=") {
+		t.Fatalf("expected trim_actions log, got %q", logs)
+	}
+	if !strings.Contains(logs, "section_sizes=") {
+		t.Fatalf("expected section_sizes log, got %q", logs)
 	}
 }
 

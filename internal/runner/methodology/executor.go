@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -222,7 +223,13 @@ func (e *Executor) RunAcceptanceTests(ctx context.Context, bc *runtypes.BeadCont
 		return fmt.Errorf("render function not configured")
 	}
 
-	acceptancePrompt, err := e.renderFn(bc.PromptCtx)
+	shapedCtx, shapeReport := e.shapeATDDContext(bc.PromptCtx)
+	if shapedCtx != bc.PromptCtx {
+		bc.PromptCtx = shapedCtx
+	}
+	e.logATDDPromptShape(shapeReport)
+
+	acceptancePrompt, err := e.renderFn(shapedCtx)
 	if err != nil {
 		e.log("ATDD acceptance generation failed after %s: render error: %v", time.Since(start).Round(time.Millisecond), err)
 		return fmt.Errorf("rendering acceptance tests prompt: %w", err)
@@ -238,6 +245,60 @@ func (e *Executor) RunAcceptanceTests(ctx context.Context, bc *runtypes.BeadCont
 	}
 	e.log("ATDD acceptance generation completed in %s", time.Since(start).Round(time.Millisecond))
 	return nil
+}
+
+func (e *Executor) shapeATDDContext(ctx *prompt.Context) (*prompt.Context, *prompt.ShapeReport) {
+	if e == nil || e.cfg == nil || ctx == nil {
+		return ctx, nil
+	}
+	return prompt.ShapeATDDContextForBudget(ctx, e.atddPromptConfig())
+}
+
+func (e *Executor) atddPromptConfig() prompt.ATDDPromptConfig {
+	if e == nil || e.cfg == nil {
+		return prompt.ATDDPromptConfig{}
+	}
+	return prompt.ATDDPromptConfig{
+		IncludeRules:              e.cfg.Methodology.ATDDPrompt.IncludeRules,
+		IncludeSpec:               e.cfg.Methodology.ATDDPrompt.IncludeSpec,
+		IncludeClaudeMD:           e.cfg.Methodology.ATDDPrompt.IncludeClaudeMD,
+		MaxChars:                  e.cfg.Methodology.ATDDPrompt.MaxChars,
+		MaxConfirmedLearningChars: e.cfg.Methodology.ATDDPrompt.MaxConfirmedLearningChars,
+	}
+}
+
+func (e *Executor) logATDDPromptShape(report *prompt.ShapeReport) {
+	if report == nil {
+		return
+	}
+	trimActions := strings.Join(report.TrimActions, ",")
+	sections := formatSectionSizes(report.SectionSizes)
+	e.log("ATDD acceptance prompt metrics: prompt_chars_before=%d prompt_chars_after=%d trim_actions=%s section_sizes=%s",
+		report.BeforeChars,
+		report.AfterChars,
+		trimActions,
+		sections,
+	)
+}
+
+func formatSectionSizes(sizes map[string]int) string {
+	if len(sizes) == 0 {
+		return ""
+	}
+	keys := []string{"ClaudeMD", "Rules", "Spec", "ConfirmedLearnings", "RecentLearnings"}
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		if val, ok := sizes[key]; ok {
+			parts = append(parts, fmt.Sprintf("%s=%d", key, val))
+		}
+	}
+	if len(parts) == 0 {
+		for key, val := range sizes {
+			parts = append(parts, fmt.Sprintf("%s=%d", key, val))
+		}
+		sort.Strings(parts)
+	}
+	return strings.Join(parts, " ")
 }
 
 // VerifyAcceptanceTestsPass runs acceptance-tagged tests and expects them to pass.
