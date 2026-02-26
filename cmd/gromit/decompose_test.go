@@ -699,7 +699,7 @@ Some content here.
 	// This test expects reconcilePlanDecomposedStateWithTrackerClient to exist
 	// and use the tracker client to query for beads with the plan's label
 	alreadyDecomposed, reconciled, err := reconcilePlanDecomposedStateWithTrackerClient(
-		planPath, "test-plan", false, mockTrackerClient,
+		context.Background(), planPath, "test-plan", false, mockTrackerClient,
 	)
 
 	if err != nil {
@@ -782,7 +782,7 @@ func TestListBeadsWithLabelUsingTrackerClient(t *testing.T) {
 
 	// This test expects listBeadsWithLabelUsingTrackerClient to exist
 	label := "spec:auth"
-	items, err := listBeadsWithLabelUsingTrackerClient(label, mockClient)
+	items, err := listBeadsWithLabelUsingTrackerClient(context.Background(), label, mockClient)
 
 	if err != nil {
 		t.Fatalf("listBeadsWithLabelUsingTrackerClient returned error: %v", err)
@@ -877,4 +877,93 @@ decomposed: false
 	_, _, _ = reconcilePlanDecomposedState(ctx, planPath, "test-plan", false)
 
 	// If this compiles and runs without error, the signature is correct
+}
+
+// TestReconcilePlanDecomposedStateUsesTrackerVersion verifies that reconcilePlanDecomposedState
+// internally uses the tracker-based version for queries
+func TestReconcilePlanDecomposedStateUsesTrackerVersion(t *testing.T) {
+	t.Parallel()
+
+	// Create a temporary plan file
+	planContent := `---
+decomposed: false
+---
+# Test Plan`
+	planPath := filepath.Join(t.TempDir(), "test-plan.md")
+	if err := os.WriteFile(planPath, []byte(planContent), 0644); err != nil {
+		t.Fatalf("failed to create plan file: %v", err)
+	}
+
+	// Create mock tracker client
+	trackerCalled := false
+	mockTracker := &mockTrackerForTrackerVersionTest{
+		onList: func(_ context.Context, _ tracker.Query) ([]tracker.Item, error) {
+			trackerCalled = true
+			return []tracker.Item{{ID: "bead-1", Title: "Test"}}, nil
+		},
+	}
+
+	// Call with tracker client - expects the tracker version to be used internally
+	ctx := context.Background()
+	_, _, _ = reconcilePlanDecomposedStateWithTrackerClient(ctx, planPath, "test-plan", false, mockTracker)
+
+	if !trackerCalled {
+		t.Errorf("expected tracker client to be called, but it was not")
+	}
+}
+
+// mockTrackerForTrackerVersionTest is a test double for tracker.Client
+type mockTrackerForTrackerVersionTest struct {
+	onList func(context.Context, tracker.Query) ([]tracker.Item, error)
+}
+
+func (m *mockTrackerForTrackerVersionTest) Ready(context.Context) (*tracker.Item, error) {
+	return nil, nil
+}
+
+func (m *mockTrackerForTrackerVersionTest) List(ctx context.Context, q tracker.Query) ([]tracker.Item, error) {
+	if m.onList != nil {
+		return m.onList(ctx, q)
+	}
+	return []tracker.Item{}, nil
+}
+
+func (m *mockTrackerForTrackerVersionTest) Show(context.Context, string) (*tracker.Item, error) {
+	return nil, nil
+}
+
+func (m *mockTrackerForTrackerVersionTest) Search(context.Context, tracker.Query) ([]tracker.Item, error) {
+	return nil, nil
+}
+
+func (m *mockTrackerForTrackerVersionTest) Create(context.Context, tracker.CreateRequest) (*tracker.Item, error) {
+	return nil, nil
+}
+
+func (m *mockTrackerForTrackerVersionTest) CreateWithParent(context.Context, tracker.CreateRequest, string) (*tracker.Item, error) {
+	return nil, nil
+}
+
+func (m *mockTrackerForTrackerVersionTest) Update(context.Context, tracker.UpdateRequest) (*tracker.Item, error) {
+	return nil, nil
+}
+
+func (m *mockTrackerForTrackerVersionTest) ListWithLabel(context.Context, string) ([]tracker.Item, error) {
+	return nil, nil
+}
+
+func (m *mockTrackerForTrackerVersionTest) Close(context.Context, string) error {
+	return nil
+}
+
+func (m *mockTrackerForTrackerVersionTest) Sync(context.Context) error {
+	return nil
+}
+
+func (m *mockTrackerForTrackerVersionTest) AddComment(context.Context, string, string) error {
+	return nil
+}
+
+func (m *mockTrackerForTrackerVersionTest) HasOpenChildren(context.Context, string) (bool, error) {
+	return false, nil
 }

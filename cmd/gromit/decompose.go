@@ -195,7 +195,16 @@ func decomposeSinglePlanInCurrentDir(planName string, cfg *config.Config) error 
 	planPath := filepath.Join(plansDir, planName+".md")
 
 	ctx := context.Background()
-	alreadyDecomposed, reconciled, err := reconcilePlanDecomposedState(ctx, planPath, planName, decomposeForce)
+
+	// Create Bead client and wrap in tracker adapter early so we can use it for reconciliation
+	beadClient, err := bead.NewClient()
+	if err != nil {
+		return fmt.Errorf("creating bead client: %w", err)
+	}
+	trackerClient := bead.NewBDAdapter(beadClient)
+
+	// Use tracker-based reconciliation
+	alreadyDecomposed, reconciled, err := reconcilePlanDecomposedStateWithTrackerClient(ctx, planPath, planName, decomposeForce, trackerClient)
 	if err != nil {
 		return err
 	}
@@ -212,13 +221,6 @@ func decomposeSinglePlanInCurrentDir(planName string, cfg *config.Config) error 
 	if err != nil {
 		return fmt.Errorf("creating decompose client: %w", err)
 	}
-
-	// Create Bead client and wrap in tracker adapter
-	beadClient, err := bead.NewClient()
-	if err != nil {
-		return fmt.Errorf("creating bead client: %w", err)
-	}
-	trackerClient := bead.NewBDAdapter(beadClient)
 
 	// Create pipeline
 	deps := &pipeline.Deps{
@@ -539,7 +541,7 @@ func listBeadsWithLabel(ctx context.Context, label string) ([]*bead.Bead, error)
 
 // listBeadsWithLabelUsingTrackerClient is the tracker.Client version of listBeadsWithLabel.
 // It uses tracker.Client to query for items with the specified label.
-func listBeadsWithLabelUsingTrackerClient(label string, trackerClient tracker.Client) ([]tracker.Item, error) {
+func listBeadsWithLabelUsingTrackerClient(ctx context.Context, label string, trackerClient tracker.Client) ([]tracker.Item, error) {
 	if trackerClient == nil {
 		return nil, fmt.Errorf("tracker client is nil")
 	}
@@ -551,7 +553,7 @@ func listBeadsWithLabelUsingTrackerClient(label string, trackerClient tracker.Cl
 		},
 	}
 
-	items, err := trackerClient.List(context.Background(), query)
+	items, err := trackerClient.List(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("listing items with label %q: %w", label, err)
 	}
@@ -595,7 +597,7 @@ func reconcilePlanDecomposedState(ctx context.Context, planPath, planName string
 
 // reconcilePlanDecomposedStateWithTrackerClient is the tracker.Client version of reconcilePlanDecomposedState.
 // It uses tracker.Client to query for beads with the plan's label instead of calling bead.Client directly.
-func reconcilePlanDecomposedStateWithTrackerClient(planPath, planName string, force bool, trackerClient tracker.Client) (alreadyDecomposed bool, reconciled bool, err error) {
+func reconcilePlanDecomposedStateWithTrackerClient(ctx context.Context, planPath, planName string, force bool, trackerClient tracker.Client) (alreadyDecomposed bool, reconciled bool, err error) {
 	if force {
 		return false, false, nil
 	}
@@ -618,7 +620,7 @@ func reconcilePlanDecomposedStateWithTrackerClient(planPath, planName string, fo
 		},
 	}
 
-	items, err := trackerClient.List(context.Background(), query)
+	items, err := trackerClient.List(ctx, query)
 	if err != nil {
 		return false, false, err
 	}
