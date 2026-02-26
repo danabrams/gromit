@@ -848,6 +848,60 @@ func TestProcessCodexStreamMapsToolCallOutputToEventToolResult(t *testing.T) {
 	}
 }
 
+// TestProcessCodexStreamMapsTurnCompletedToEventUsage verifies that turn.completed
+// events map to StreamEvent type "EventUsage" with usage payload.
+func TestProcessCodexStreamMapsTurnCompletedToEventUsage(t *testing.T) {
+	t.Parallel()
+	input := `{"type":"turn.completed","usage":{"input_tokens":123,"output_tokens":456,"total_cost_usd":0.123}}` + "\n"
+	reader := strings.NewReader(input)
+	var output bytes.Buffer
+	var receivedEvents [][]byte
+
+	handler := func(line []byte) {
+		cp := make([]byte, len(line))
+		copy(cp, line)
+		receivedEvents = append(receivedEvents, cp)
+	}
+
+	_, _, _, err := processCodexStream(reader, &output, handler, nil)
+	if err != nil {
+		t.Fatalf("processCodexStream() error = %v", err)
+	}
+
+	var found bool
+	for _, event := range receivedEvents {
+		var parsed struct {
+			Type  string `json:"type"`
+			Usage struct {
+				TotalCostUSD float64 `json:"total_cost_usd"`
+				InputTokens  int     `json:"input_tokens"`
+				OutputTokens int     `json:"output_tokens"`
+			} `json:"usage"`
+		}
+		if err := json.Unmarshal(event, &parsed); err != nil {
+			continue
+		}
+		if parsed.Type != "EventUsage" {
+			continue
+		}
+		found = true
+		if parsed.Usage.TotalCostUSD != 0.123 {
+			t.Errorf("usage total_cost_usd = %f, want %f", parsed.Usage.TotalCostUSD, 0.123)
+		}
+		if parsed.Usage.InputTokens != 123 {
+			t.Errorf("usage input_tokens = %d, want %d", parsed.Usage.InputTokens, 123)
+		}
+		if parsed.Usage.OutputTokens != 456 {
+			t.Errorf("usage output_tokens = %d, want %d", parsed.Usage.OutputTokens, 456)
+		}
+		break
+	}
+
+	if !found {
+		t.Fatal("EventHandler did not receive EventUsage for turn.completed")
+	}
+}
+
 // TestProcessCodexStreamEmitsResultEventFromResultEvents verifies that result
 // events emit a result stream event with token usage, consistent with
 // turn.completed and response.completed handlers.
