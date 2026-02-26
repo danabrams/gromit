@@ -5111,6 +5111,48 @@ func assertSpecGateDefaults(t *testing.T, cfg *Config, context string) {
 	}
 }
 
+func TestRoutingCostOptimizedConfigParsing(t *testing.T) {
+	yamlContent := `
+routing:
+  strategy: cost_optimized
+  cost_optimized:
+    build_tier: high
+    decompose_tier: medium
+    escalation_tier: medium
+    max_decomposition_depth: 10
+    max_retries_before_decompose: 2
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.Routing.Strategy != "cost_optimized" {
+		t.Fatalf("Routing.Strategy = %q, want %q", cfg.Routing.Strategy, "cost_optimized")
+	}
+	if cfg.Routing.CostOptimized.BuildTier != "high" {
+		t.Fatalf("Routing.CostOptimized.BuildTier = %q, want %q", cfg.Routing.CostOptimized.BuildTier, "high")
+	}
+	if cfg.Routing.CostOptimized.DecomposeTier != "medium" {
+		t.Fatalf("Routing.CostOptimized.DecomposeTier = %q, want %q", cfg.Routing.CostOptimized.DecomposeTier, "medium")
+	}
+	if cfg.Routing.CostOptimized.EscalationTier != "medium" {
+		t.Fatalf("Routing.CostOptimized.EscalationTier = %q, want %q", cfg.Routing.CostOptimized.EscalationTier, "medium")
+	}
+	if cfg.Routing.CostOptimized.MaxDecompositionDepth != 10 {
+		t.Fatalf("Routing.CostOptimized.MaxDecompositionDepth = %d, want %d", cfg.Routing.CostOptimized.MaxDecompositionDepth, 10)
+	}
+	if cfg.Routing.CostOptimized.MaxRetriesBeforeDecompose != 2 {
+		t.Fatalf("Routing.CostOptimized.MaxRetriesBeforeDecompose = %d, want %d", cfg.Routing.CostOptimized.MaxRetriesBeforeDecompose, 2)
+	}
+}
+
 func TestRoutingCircuitBreakerDefaultsWhenEnabled(t *testing.T) {
 	yamlContent := `
 routing:
