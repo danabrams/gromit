@@ -114,7 +114,14 @@ func (gp *GeminiProvider) RunValidation(ctx context.Context, commands []string, 
 }
 
 func (gp *GeminiProvider) IsUsageLimitError(result *Result, err error) bool {
-    return false
+	if result == nil {
+		return false
+	}
+	// Must have exit code 2 to be a usage limit error
+	if result.ExitCode != 2 {
+		return false
+	}
+	return containsAnyKeywordCaseInsensitive(result.Output, usageLimitKeywords)
 }
 
 func (gp *GeminiProvider) IsValidationPassed(result *Result) bool {
