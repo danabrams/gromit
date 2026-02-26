@@ -121,3 +121,46 @@ func TestDecomposeFirstHandler_DecidesToDecomposeNonAtomic(t *testing.T) {
 		t.Fatal("expected ShouldDecomposeBeforeEscalate to return true when retries exceeded")
 	}
 }
+
+// TestDecomposeFirstHandler_DetectsAtomicBead verifies that
+// the handler can detect when a bead is atomic and should not be decomposed.
+func TestDecomposeFirstHandler_DetectsAtomicBead(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		Escalation: config.EscalationConfig{
+			Enabled:            true,
+			Chain:              []string{"haiku", "sonnet", "opus"},
+			MaxRetriesPerModel: 2,
+			MaxRetriesPerBead:  5,
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	mfa := &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, failureOutput string) (*analyzer.Analysis, error) {
+			return &analyzer.Analysis{Category: "logic_error", Recoverable: false}, nil
+		},
+	}
+
+	mbc := &mockBeadClient{}
+
+	handler := NewDecomposeFirstHandler(cfg, mfa, mbc, nil, nil, nil, nil, 2)
+	if handler == nil {
+		t.Fatal("NewDecomposeFirstHandler returned nil")
+	}
+
+	// IsAtomicBead should exist
+	bc := &runtypes.BeadContext{
+		Bead:              &bead.Bead{ID: "test-001", Title: "Test", Description: "Test bead"},
+		RetriesThisModel:  2,
+		MaxRetries:        2,
+	}
+
+	isAtomic := handler.IsAtomicBead(bc)
+	// When decomposeFn is nil, a bead is atomic (cannot be decomposed)
+	if !isAtomic {
+		t.Fatal("expected atomic bead when decomposeFn is nil")
+	}
+}
