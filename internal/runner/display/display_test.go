@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 )
 
@@ -68,5 +69,25 @@ func TestFormatRecommendation_hint(t *testing.T) {
 	want := "Next action: Refine backlog ideas (gromit refine)"
 	if got != want {
 		t.Fatalf("FormatRecommendation() = %q, want %q", got, want)
+	}
+}
+
+func TestFormatModelPerformance_singleModel(t *testing.T) {
+	t.Parallel()
+
+	stats := map[string]logger.ModelStats{
+		"opus": {
+			Model:        "opus",
+			Iterations:   10,
+			Successes:    9,
+			Failures:     1,
+			TotalCostUSD: 20.40,
+		},
+	}
+	got := FormatModelPerformance(stats)
+	for _, substr := range []string{"Model Performance", "opus", "90%", "(9/10)", "$2.04/iter"} {
+		if !strings.Contains(got, substr) {
+			t.Fatalf("FormatModelPerformance() = %q, want substring %q", got, substr)
+		}
 	}
 }
