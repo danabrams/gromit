@@ -1,8 +1,9 @@
 ---
+created: 2026-02-26T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-26T18:48:06Z"
 id: review-context-nil-guards
 source_spec: review-context-nil-guards
-created: 2026-02-26
-decomposed: false
 ---
 
 # ReviewContext and ThoroughReviewContext Nil Guards Implementation Plan

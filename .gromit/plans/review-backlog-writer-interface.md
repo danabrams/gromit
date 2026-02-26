@@ -1,8 +1,9 @@
 ---
+created: 2026-02-26T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-26T18:47:03Z"
 id: review-backlog-writer-interface
 source_spec: review-backlog-writer-interface
-created: 2026-02-26
-decomposed: false
 ---
 
 # Review Backlog Writer Interface Implementation Plan

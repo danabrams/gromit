@@ -504,7 +504,7 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 		ReviewRenderer:   reviewRendererAdapter,
 		ReviewInvoker:    llmClient,
 		TrackerClient:    trackerAdapter,
-		BacklogClient:    backlogAdapter,
+		BacklogWriter:    backlogAdapter,
 		LearningsManager: learningsAdapter,
 		LogWriter:        logAdapter,
 		StateManager:     stateAdapter,
@@ -623,20 +623,12 @@ func recordInteractiveReviewCompletion(gromitDir, fromCommit string) error {
 	return nil
 }
 
-// cliBacklogClient adapts bead operations to pipeline.BacklogClient interface
+// cliBacklogClient adapts bead operations to pipeline.BacklogWriter interface
 type cliBacklogClient struct {
 	beadClient *bead.Client
 }
 
-var _ pipeline.BacklogClient = (*cliBacklogClient)(nil)
-
-func (c *cliBacklogClient) List() ([]*pipeline.Idea, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-func (c *cliBacklogClient) Get(id string) (*pipeline.Idea, error) {
-	return nil, fmt.Errorf("not implemented")
-}
+var _ pipeline.BacklogWriter = (*cliBacklogClient)(nil)
 
 func (c *cliBacklogClient) Add(item *pipeline.Idea) error {
 	// Create a backlog bead with P2 priority and backlog label

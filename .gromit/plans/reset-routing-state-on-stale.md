@@ -1,6 +1,7 @@
 ---
 created: 2026-02-25T03:10:18Z
-decomposed: false
+decomposed: true
+decomposed_at: "2026-02-26T18:46:50Z"
 id: reset-routing-state-on-stale
 source_spec: debug-20260225-031018
 ---

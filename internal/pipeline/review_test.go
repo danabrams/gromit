@@ -149,7 +149,7 @@ func TestReviewNonInteractiveWorkflow_E2E(t *testing.T) {
 	}
 
 	backlogAdded := []string{}
-	mockBacklog := &reviewAcceptanceMockBacklogClient{
+	mockBacklog := &reviewAcceptanceMockBacklogWriter{
 		addFunc: func(idea *Idea) error {
 			backlogAdded = append(backlogAdded, idea.Text)
 			return nil
@@ -187,7 +187,7 @@ func TestReviewNonInteractiveWorkflow_E2E(t *testing.T) {
 		ReviewRenderer:   mockRenderer,
 		ReviewInvoker:    mockReviewInvoker,
 		TrackerClient:       mockBead,
-		BacklogClient:    mockBacklog,
+		BacklogWriter:    mockBacklog,
 		LearningsManager: mockLearnings,
 		LogWriter:        mockLog,
 		StateManager:     mockState,
@@ -321,7 +321,7 @@ func TestReviewNonInteractiveWorkflow_CreatesBeadsWithFromReviewLabel(t *testing
 		ReviewRenderer:   mockRenderer,
 		ReviewInvoker:    mockReviewInvoker,
 		TrackerClient:       mockBead,
-		BacklogClient:    &reviewAcceptanceMockBacklogClient{},
+		BacklogWriter:    &reviewAcceptanceMockBacklogWriter{},
 		LearningsManager: &reviewAcceptanceMockLearningsManager{},
 		LogWriter:        &reviewAcceptanceMockLogWriter{},
 		StateManager:     &reviewAcceptanceMockStateManager{},
@@ -397,7 +397,7 @@ func TestReviewNonInteractiveWorkflow_CreatesBacklogWithLabels(t *testing.T) {
 	}
 
 	var capturedBacklogIdea *Idea
-	mockBacklog := &reviewAcceptanceMockBacklogClient{
+	mockBacklog := &reviewAcceptanceMockBacklogWriter{
 		addFunc: func(idea *Idea) error {
 			capturedBacklogIdea = idea
 			return nil
@@ -408,7 +408,7 @@ func TestReviewNonInteractiveWorkflow_CreatesBacklogWithLabels(t *testing.T) {
 		ReviewRenderer:   mockRenderer,
 		ReviewInvoker:    mockReviewInvoker,
 		TrackerClient:       &reviewAcceptanceMockBeadClient{},
-		BacklogClient:    mockBacklog,
+		BacklogWriter:    mockBacklog,
 		LearningsManager: &reviewAcceptanceMockLearningsManager{},
 		LogWriter:        &reviewAcceptanceMockLogWriter{},
 		StateManager:     &reviewAcceptanceMockStateManager{},
@@ -468,7 +468,7 @@ func TestReviewNonInteractiveWorkflow_RespectsTimeout(t *testing.T) {
 		ReviewRenderer:   mockRenderer,
 		ReviewInvoker:    mockReviewInvoker,
 		TrackerClient:       &reviewAcceptanceMockBeadClient{},
-		BacklogClient:    &reviewAcceptanceMockBacklogClient{},
+		BacklogWriter:    &reviewAcceptanceMockBacklogWriter{},
 		LearningsManager: &reviewAcceptanceMockLearningsManager{},
 		LogWriter:        &reviewAcceptanceMockLogWriter{},
 		StateManager:     &reviewAcceptanceMockStateManager{},
@@ -528,7 +528,7 @@ func TestPipeline_validateReviewDeps(t *testing.T) {
 			ReviewInvoker:    &reviewAcceptanceMockReviewInvoker{},
 			ReviewRenderer:   &reviewAcceptanceMockReviewRenderer{},
 			TrackerClient:       &reviewAcceptanceMockBeadClient{},
-			BacklogClient:    &reviewAcceptanceMockBacklogClient{},
+			BacklogWriter:    &reviewAcceptanceMockBacklogWriter{},
 			LearningsManager: &reviewAcceptanceMockLearningsManager{},
 			LogWriter:        &reviewAcceptanceMockLogWriter{},
 			StateManager:     &reviewAcceptanceMockStateManager{},
@@ -556,9 +556,9 @@ func TestPipeline_validateReviewDeps(t *testing.T) {
 			wantErr: "pipeline: nil TrackerClient",
 		},
 		{
-			name:    "nil BacklogClient",
-			mutate:  func(d *Deps) { d.BacklogClient = nil },
-			wantErr: "pipeline: nil BacklogClient",
+			name:    "nil BacklogWriter",
+			mutate:  func(d *Deps) { d.BacklogWriter = nil },
+			wantErr: "pipeline: nil BacklogWriter",
 		},
 		{
 			name:    "nil LearningsManager",
@@ -730,7 +730,7 @@ func TestReviewNonInteractiveWorkflow_UsesExpectedOutputsOrTitle(t *testing.T) {
 		ReviewRenderer:   mockRenderer,
 		ReviewInvoker:    mockReviewInvoker,
 		TrackerClient:       mockBead,
-		BacklogClient:    &reviewAcceptanceMockBacklogClient{},
+		BacklogWriter:    &reviewAcceptanceMockBacklogWriter{},
 		LearningsManager: &reviewAcceptanceMockLearningsManager{},
 		LogWriter:        &reviewAcceptanceMockLogWriter{},
 		StateManager:     &reviewAcceptanceMockStateManager{},
@@ -806,26 +806,18 @@ func (m *reviewAcceptanceMockBeadClient) Close(ctx context.Context, id string) e
 	return nil
 }
 
-type reviewAcceptanceMockBacklogClient struct {
+type reviewAcceptanceMockBacklogWriter struct {
 	addFunc func(idea *Idea) error
 }
 
-func (m *reviewAcceptanceMockBacklogClient) List() ([]*Idea, error) {
-	return nil, nil
-}
-
-func (m *reviewAcceptanceMockBacklogClient) Get(id string) (*Idea, error) {
-	return nil, nil
-}
-
-func (m *reviewAcceptanceMockBacklogClient) Add(item *Idea) error {
+func (m *reviewAcceptanceMockBacklogWriter) Add(item *Idea) error {
 	if m.addFunc != nil {
 		return m.addFunc(item)
 	}
 	return nil
 }
 
-func (m *reviewAcceptanceMockBacklogClient) Update(id string, fn func(*Idea)) error {
+func (m *reviewAcceptanceMockBacklogWriter) Update(id string, fn func(*Idea)) error {
 	return nil
 }
 

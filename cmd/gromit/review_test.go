@@ -743,6 +743,11 @@ func TestCliLogWriter_WriteUsesProviderAtWriteTime(t *testing.T) {
 	}
 }
 
+func TestCliBacklogClient_ImplementsBacklogWriter(t *testing.T) {
+	t.Parallel()
+	var _ pipeline.BacklogWriter = (*cliBacklogClient)(nil)
+}
+
 func TestCliBacklogClient_AddUsesTrimmedExpectedOutputs(t *testing.T) {
 	t.Parallel()
 	idea := &pipeline.Idea{

@@ -84,6 +84,7 @@ type Deps struct {
 	ReviewInvoker     ReviewInvoker
 	TrackerClient     TrackerClient
 	BacklogClient     BacklogClient
+	BacklogWriter     BacklogWriter
 	RefineRenderer    RefineRenderer
 	PlanRenderer      PlanRenderer
 	DecomposeRenderer DecomposeRenderer
@@ -151,6 +152,12 @@ type BeadQueryClient interface {
 type BacklogClient interface {
 	List() ([]*Idea, error)
 	Get(id string) (*Idea, error)
+	Add(item *Idea) error
+	Update(id string, fn func(*Idea)) error
+}
+
+// BacklogWriter abstracts write-only backlog operations.
+type BacklogWriter interface {
 	Add(item *Idea) error
 	Update(id string, fn func(*Idea)) error
 }
@@ -310,7 +317,7 @@ func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) 
 			Text: bi.Title,
 			Type: backlogTypeReviewFinding,
 		}
-		if err := p.deps.BacklogClient.Add(idea); err != nil {
+		if err := p.deps.BacklogWriter.Add(idea); err != nil {
 			return nil, fmt.Errorf("creating backlog item: %w", err)
 		}
 		backlogCreated++
@@ -375,7 +382,7 @@ func (p *Pipeline) validateReviewDeps() error {
 		{name: "ReviewInvoker", dep: p.deps.ReviewInvoker},
 		{name: "ReviewRenderer", dep: p.deps.ReviewRenderer},
 		{name: "TrackerClient", dep: p.deps.TrackerClient},
-		{name: "BacklogClient", dep: p.deps.BacklogClient},
+		{name: "BacklogWriter", dep: p.deps.BacklogWriter},
 		{name: "LearningsManager", dep: p.deps.LearningsManager},
 		{name: "LogWriter", dep: p.deps.LogWriter},
 		{name: "StateManager", dep: p.deps.StateManager},

@@ -447,7 +447,7 @@ func TestReviewNonInteractive_UsesTypedClaudeResult(t *testing.T) {
 	}
 
 	mockBead := &typedInterfacesBeadClient{}
-	mockBacklog := &typedInterfacesBacklogClient{}
+	mockBacklog := &typedInterfacesBacklogWriter{}
 	mockLearnings := &typedInterfacesLearningsManager{}
 	mockState := &typedInterfacesStateManager{}
 	mockLog := &typedInterfacesLogWriter{
@@ -464,7 +464,7 @@ func TestReviewNonInteractive_UsesTypedClaudeResult(t *testing.T) {
 	deps := &Deps{
 		ReviewInvoker:    mockClaude,
 		TrackerClient:    mockBead,
-		BacklogClient:    mockBacklog,
+		BacklogWriter:    mockBacklog,
 		LearningsManager: mockLearnings,
 		StateManager:     mockState,
 		LogWriter:        mockLog,
@@ -570,21 +570,13 @@ func (m *typedInterfacesLogWriter) Write(entry *LogEntry) error {
 	return fmt.Errorf("not implemented")
 }
 
-type typedInterfacesBacklogClient struct{}
+type typedInterfacesBacklogWriter struct{}
 
-func (m *typedInterfacesBacklogClient) List() ([]*Idea, error) {
-	return nil, nil
-}
-
-func (m *typedInterfacesBacklogClient) Get(id string) (*Idea, error) {
-	return nil, nil
-}
-
-func (m *typedInterfacesBacklogClient) Add(item *Idea) error {
+func (m *typedInterfacesBacklogWriter) Add(item *Idea) error {
 	return nil
 }
 
-func (m *typedInterfacesBacklogClient) Update(id string, fn func(*Idea)) error {
+func (m *typedInterfacesBacklogWriter) Update(id string, fn func(*Idea)) error {
 	return nil
 }
 
