@@ -2,6 +2,7 @@ package prompt
 
 import (
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/learnings"
 )
 
@@ -105,9 +106,10 @@ type SuccessLearning struct {
 
 // DecomposeContext holds data for task decomposition prompt template
 type DecomposeContext struct {
-	Bead       *bead.Bead
-	ParentBead *bead.Bead
-	ATDDActive bool // Whether ATDD methodology is active for this bead
+	Bead                *bead.Bead
+	ParentBead          *bead.Bead
+	ATDDActive          bool // Whether ATDD methodology is active for this bead
+	DecompositionTarget config.DecompositionTarget
 }
 
 // ScopeContext holds data for scope estimation prompt template

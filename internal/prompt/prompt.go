@@ -8,6 +8,7 @@ import (
 	"text/template"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/learnings"
 )
 
@@ -33,6 +34,7 @@ type Renderer struct {
 	skipBuildLearnings     bool // When true, omit learnings from build prompts (experiment)
 	budgetMaxChars         int  // Total prompt budget in chars; 0 means no budget shaping
 	budgetLearningCapChars int  // Learning cap used during budget shaping
+	decomposeTarget        config.DecompositionTarget
 
 	// Cache fields - files are immutable during a run, so cache after first load
 	claudeMDCache   *string                       // Cached CLAUDE.md content
@@ -66,7 +68,7 @@ func NewRenderer(templatesDir, specsDir, claudeMDPath, gromitDir string) (*Rende
 	}
 	lf.Load() // Ignore error - learnings are optional
 
-	return &Renderer{
+	r := &Renderer{
 		templatesDir:  templatesDir,
 		specsDir:      specsDir,
 		claudeMDPath:  claudeMDPath,
@@ -74,7 +76,9 @@ func NewRenderer(templatesDir, specsDir, claudeMDPath, gromitDir string) (*Rende
 		gromitDir:     gromitDir,
 		learningsFile: lf,
 		specCache:     make(map[string]string),
-	}, nil
+	}
+	r.SetDecomposeTarget(config.DecompositionTargetNarrowScope)
+	return r, nil
 }
 
 // GetLearningsFile returns the learnings file for external use
@@ -165,6 +169,17 @@ func (r *Renderer) SetSiblingTouchedPackagesResolver(resolver SiblingTouchedPack
 		return
 	}
 	r.siblingTouchedPackagesResolver = resolver
+}
+
+// SetDecomposeTarget stores the decomposition target mode that should be injected into contexts.
+func (r *Renderer) SetDecomposeTarget(target config.DecompositionTarget) {
+	if r == nil {
+		return
+	}
+	if target == "" {
+		target = config.DecompositionTargetNarrowScope
+	}
+	r.decomposeTarget = target
 }
 
 // LastDiagnostics returns diagnostics from the most recent Render* call.

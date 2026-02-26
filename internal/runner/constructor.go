@@ -101,6 +101,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 	renderer.SetMaxLearningChars(cfg.Learnings.MaxLearningChars)
 	renderer.SetSkipBuildLearnings(cfg.Learnings.SkipBuildLearnings)
 	renderer.SetBudgetConfig(cfg.Prompt.Budget.MaxChars, cfg.Prompt.Budget.LearningCapChars)
+	renderer.SetDecomposeTarget(cfg.Decompose.Target)
 
 	beadsClient, err := newTrackerClient(resolveTrackerBackend(cfg))
 	if err != nil {

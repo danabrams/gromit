@@ -65,6 +65,7 @@ func (r *Renderer) RenderDecompose(ctx *DecomposeContext) (string, error) {
 	if r != nil {
 		taskIdentity := ""
 		if ctx != nil {
+			ctx.DecompositionTarget = r.decomposeTarget
 			taskIdentity = formatTaskIdentity(ctx.Bead, ctx.ParentBead, 0, "")
 		}
 		r.lastDiagnostics = r.computeDiagnostics("decompose", map[string]string{

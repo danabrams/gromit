@@ -2128,12 +2128,12 @@ func TestRenderCoverageValidationSampleDataOverrides(t *testing.T) {
 
 	r := &Renderer{templatesDir: templatesDir}
 	ctx := &CoverageValidationContext{
-		TestCode:             "func TestOriginal(t *testing.T) {}",
-		CriterionNumber:      1,
-		CriterionText:        "Original criterion",
-		SampleTestCode:       "func TestSampleOverride(t *testing.T) {}",
+		TestCode:              "func TestOriginal(t *testing.T) {}",
+		CriterionNumber:       1,
+		CriterionText:         "Original criterion",
+		SampleTestCode:        "func TestSampleOverride(t *testing.T) {}",
 		SampleCriterionNumber: 42,
-		SampleCriterionText:  "Sample criterion override",
+		SampleCriterionText:   "Sample criterion override",
 	}
 
 	result, err := r.RenderCoverageValidation(ctx)
