@@ -62,15 +62,82 @@ func TestRunStage2SpecConformance_RendersSpecDiffAndReturnsResult(t *testing.T) 
     }
 }
 
+func TestRunStage3CodeQuality_UsesDiffAndRules(t *testing.T) {
+    t.Parallel()
+    ctx := context.Background()
+
+    fakeRenderer := &capturingRenderer{
+        rulesByPhase: map[string]string{
+            stageCodeQuality: "quality rules",
+        },
+    }
+
+    router := &fakeRouter{
+        selectFn: func(phase, tier string) (provider.Provider, string) {
+            if phase != stageCodeQuality {
+                t.Fatalf("phase = %q, want %q", phase, stageCodeQuality)
+            }
+            if tier != "medium" {
+                t.Fatalf("tier = %q, want medium", tier)
+            }
+            return &fakeProvider{
+                runFn: func(ctx context.Context, promptText, tier string) (*provider.Result, error) {
+                    if promptText == "" {
+                        return nil, errors.New("prompt missing")
+                    }
+                    return &provider.Result{Output: `{"passed":true,"summary":"Quality ok"}`}, nil
+                },
+            }, "sonnet"
+        },
+    }
+
+    deps := specmerge.ReviewStageDependencies{
+        Router:   router,
+        Renderer: fakeRenderer,
+    }
+
+    result, provResult, err := specmerge.RunStage3CodeQuality(ctx, deps, "diff --git", "medium")
+    if err != nil {
+        t.Fatalf("unexpected error: %v", err)
+    }
+    if result == nil {
+        t.Fatal("expected review result")
+    }
+    if provResult == nil {
+        t.Fatal("expected provider result")
+    }
+    if result.Summary != "Quality ok" {
+        t.Errorf("summary = %q, want %q", result.Summary, "Quality ok")
+    }
+    if fakeRenderer.loadSpecCalled {
+        t.Error("expected LoadSpec not to be invoked for code quality stage")
+    }
+    if fakeRenderer.renderCtx == nil {
+        t.Fatal("RenderReview was not called")
+    }
+    if fakeRenderer.renderCtx.Diff != "diff --git" {
+        t.Errorf("diff = %q, want %q", fakeRenderer.renderCtx.Diff, "diff --git")
+    }
+    if fakeRenderer.renderCtx.Spec != "" {
+        t.Errorf("spec = %q, want empty", fakeRenderer.renderCtx.Spec)
+    }
+    if fakeRenderer.lastRulesPhase != stageCodeQuality {
+        t.Errorf("rules phase = %q", fakeRenderer.lastRulesPhase)
+    }
+}
+
 // capturingRenderer records context supplied to RenderReview.
 type capturingRenderer struct {
     specContent    string
     rulesForPhase  string
     lastRulesPhase string
     renderCtx      *prompt.ReviewContext
+    loadSpecCalled bool
+    rulesByPhase   map[string]string
 }
 
 func (r *capturingRenderer) LoadSpec(name string) (string, error) {
+    r.loadSpecCalled = true
     if name != "payments" {
         return "", errors.New("unexpected spec name")
     }
@@ -79,6 +146,11 @@ func (r *capturingRenderer) LoadSpec(name string) (string, error) {
 
 func (r *capturingRenderer) LoadRulesForPhase(phase string) (string, error) {
     r.lastRulesPhase = phase
+    if r.rulesByPhase != nil {
+        if value, ok := r.rulesByPhase[phase]; ok {
+            return value, nil
+        }
+    }
     return r.rulesForPhase, nil
 }
 
