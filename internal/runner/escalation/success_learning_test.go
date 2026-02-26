@@ -321,6 +321,58 @@ func TestExtractSuccessLearning_HighTierUsesRouter(t *testing.T) {
 	}
 }
 
+// TestExtractSuccessLearning_LogsWhenProviderCallFails verifies that
+// ExtractSuccessLearning calls logFn when p.Run() returns an error.
+func TestExtractSuccessLearning_LogsWhenProviderCallFails(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	lf, err := learnings.NewFile(dir)
+	if err != nil {
+		t.Fatalf("failed to create learnings file: %v", err)
+	}
+
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	bc := &runtypes.BeadContext{
+		Bead:   &bead.Bead{ID: "success-provfail-001", Title: "Provider error bead"},
+		Tier:   provider.TierMedium,
+		Model:  "sonnet",
+		Result: &runtypes.IterationResult{},
+	}
+
+	logged := []string{}
+	router := &mockSuccessRouter{
+		selectFn: func(phase, tier string) (SuccessLearningProvider, string) {
+			return &mockSuccessProvider{
+				runFn: func(ctx context.Context, prompt string, tier string) (SuccessLearningResult, error) {
+					return nil, context.DeadlineExceeded
+				},
+			}, "haiku"
+		},
+	}
+
+	ExtractSuccessLearning(context.Background(), bc, cfg, lf, router, func(format string, args ...interface{}) {
+		logged = append(logged, fmt.Sprintf(format, args...))
+	}, nil)
+
+	if len(logged) == 0 {
+		t.Fatal("expected logFn to be called when provider call fails")
+	}
+
+	foundFailureLog := false
+	for _, entry := range logged {
+		if strings.Contains(entry, "Success learning extraction failed") {
+			foundFailureLog = true
+			break
+		}
+	}
+	if !foundFailureLog {
+		t.Errorf("expected a failure log entry, got: %v", logged)
+	}
+}
+
 func TestExtractSuccessLearning_FailedIteration(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
