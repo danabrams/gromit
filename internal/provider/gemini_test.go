@@ -344,8 +344,8 @@ func TestGeminiProviderRunDeliveredViaStdin(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	var capturedPrompt string
-	// Create a large prompt (> 256 bytes threshold) to force stdin delivery
-	largePrompt := strings.Repeat("This is a long prompt to test stdin delivery. ", 10)
+	// Create a large prompt (> 8192 bytes threshold) to force stdin delivery
+	largePrompt := strings.Repeat("This is a long prompt to test stdin delivery. ", 200)
 	gp := &GeminiProvider{
 		binary: "gemini",
 		tierToModel: map[string]string{
