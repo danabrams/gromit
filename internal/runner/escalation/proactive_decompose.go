@@ -107,6 +107,7 @@ func (h *Handler) CheckProactiveDecomposition(ctx context.Context, bc *runtypes.
 	if decomposeCtx.Err() != nil {
 		bc.Result.TimeoutDecompositionOutcome = timeoutDecompositionOutcomeSkipped
 		bc.Result.TimeoutDecompositionReason = fmt.Sprintf("proactive decomposition skipped (60%% elapsed): parent context canceled: %v", decomposeCtx.Err())
+		bc.Result.TimeoutDecompositionSucceeded = false
 		bc.Result.Error = fmt.Errorf("proactive decomposition attempted (bead 60%% timeout: parent context canceled: %w)", decomposeCtx.Err())
 		return false
 	}
