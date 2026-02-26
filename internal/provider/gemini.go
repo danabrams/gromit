@@ -10,7 +10,11 @@ import (
 	"time"
 )
 
-const providerNameGemini = "gemini"
+const (
+	providerNameGemini            = "gemini"
+	geminiShortPromptThreshold    = 256 // Use -p flag for prompts under this size
+)
+
 
 // GeminiProvider wraps the Gemini CLI and implements the Provider interface
 // for JSON and streaming invocations.
@@ -63,14 +67,23 @@ func (gp *GeminiProvider) ModelForTier(tier string) string {
 }
 
 // Run executes a non-streaming Gemini invocation and parses the JSON result.
+// Uses stdin-first delivery for large prompts, falls back to -p flag for short prompts.
 func (gp *GeminiProvider) Run(ctx context.Context, prompt string, tier string) (*Result, error) {
 	if gp == nil {
 		return nil, fmt.Errorf("gemini provider is nil")
 	}
 
 	model := gp.ModelForTier(tier)
-	// Use stdin-first delivery for Run(), with fallback to -p for short prompts
-	args := gp.buildCommandArgsForStdin(model, "json")
+
+	// Decide delivery method based on prompt size
+	var args []string
+	if len(prompt) <= geminiShortPromptThreshold {
+		// Use inline -p flag for short prompts (fallback)
+		args = gp.buildCommandArgs(model, "json", prompt)
+	} else {
+		// Use stdin for large prompts (primary delivery method)
+		args = gp.buildCommandArgsForStdin(model, "json")
+	}
 
 	runner := gp.runFn
 	if runner == nil {
@@ -282,6 +295,7 @@ func defaultGeminiRunFn(ctx context.Context, binary string, args []string, promp
 	cmd := execCommandContext(ctx, binary, args...)
 
 	// Check if this is a stdin invocation (last arg is "-")
+	// For inline -p invocations, the prompt is already in the args, no stdin needed
 	isStdinInvocation := len(args) > 0 && args[len(args)-1] == "-"
 
 	var stdout, stderr bytes.Buffer
@@ -328,7 +342,7 @@ func defaultGeminiRunFn(ctx context.Context, binary string, args []string, promp
 		}, nil
 	}
 
-	// Fallback: use inline -p flag for short prompts (for backward compatibility)
+	// Inline -p flag path: prompt is already in args, no stdin needed
 	err := cmd.Run()
 	duration := time.Since(start)
 

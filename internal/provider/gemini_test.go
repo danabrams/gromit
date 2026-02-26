@@ -328,7 +328,8 @@ func TestGeminiProviderRunInvokesJSONMode(t *testing.T) {
 		t.Fatalf("output=%q, want READY", result.Output)
 	}
 
-	wants := []string{"--approval-mode", "yolo", "--output-format", "json", "--model", "auto-gemini-3", "-"}
+	// "hello world" is short prompt (11 bytes < 256 threshold), so should use -p flag
+	wants := []string{"--approval-mode", "yolo", "--output-format", "json", "--model", "auto-gemini-3", "-p", "hello world"}
 	if len(clockwork) != len(wants) {
 		t.Fatalf("args=%v, want %v", clockwork, wants)
 	}
@@ -343,6 +344,8 @@ func TestGeminiProviderRunDeliveredViaStdin(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	var capturedPrompt string
+	// Create a large prompt (> 256 bytes threshold) to force stdin delivery
+	largePrompt := strings.Repeat("This is a long prompt to test stdin delivery. ", 10)
 	gp := &GeminiProvider{
 		binary: "gemini",
 		tierToModel: map[string]string{
@@ -366,7 +369,7 @@ func TestGeminiProviderRunDeliveredViaStdin(t *testing.T) {
 		},
 	}
 
-	result, err := gp.Run(ctx, "test prompt for stdin", TierLow)
+	result, err := gp.Run(ctx, largePrompt, TierLow)
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
@@ -376,7 +379,52 @@ func TestGeminiProviderRunDeliveredViaStdin(t *testing.T) {
 	if result.Output != "READY" {
 		t.Fatalf("output=%q, want READY", result.Output)
 	}
-	if capturedPrompt != "test prompt for stdin" {
-		t.Fatalf("prompt=%q, want 'test prompt for stdin'", capturedPrompt)
+	if capturedPrompt != largePrompt {
+		t.Fatalf("prompt=%q, want %q", capturedPrompt, largePrompt)
+	}
+}
+
+func TestGeminiProviderRunFallsBackToInlinePForShortPrompts(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	const shortPromptThreshold = 256 // Hypothetical threshold for short prompts
+	shortPrompt := "short"             // Well under threshold
+	gp := &GeminiProvider{
+		binary: "gemini",
+		tierToModel: map[string]string{
+			TierLow: "gemini-2.0-flash",
+		},
+		runFn: func(ctx context.Context, binary string, args []string, prompt string) (*geminiRunResult, error) {
+			// For short prompts, should use -p flag as fallback
+			hasInlineFlag := false
+			for i := 0; i < len(args)-1; i++ {
+				if args[i] == "-p" {
+					hasInlineFlag = true
+					if args[i+1] != shortPrompt {
+						t.Fatalf("expected -p flag value to match prompt, got %q", args[i+1])
+					}
+				}
+			}
+			if len(prompt) <= shortPromptThreshold && !hasInlineFlag {
+				t.Fatalf("short prompt should use -p flag, got args: %v", args)
+			}
+			payload := []byte(`{
+  "output": "OK",
+  "usage": {"input_tokens": 5, "output_tokens": 2, "cached_input_tokens": 0},
+  "cost": {"total": 0},
+  "model": "gemini-2.0-flash",
+  "session_id": "test",
+  "response": "OK"
+}`)
+			return &geminiRunResult{stdout: payload, stderr: nil, exitCode: 0, duration: 0}, nil
+		},
+	}
+
+	result, err := gp.Run(ctx, shortPrompt, TierLow)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if result == nil {
+		t.Fatal("Run() returned nil result")
 	}
 }
