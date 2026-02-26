@@ -11,6 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/frontmatter"
+	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/spf13/cobra"
 )
 
@@ -326,4 +327,37 @@ func performGapAnalysis(client claudeClient, model string, epicContent string, s
 		return "", err
 	}
 	return result.Output, nil
+}
+
+// getBeadCountsWithTrackerClient is the tracker.Client version of getBeadCounts.
+// It uses tracker.Client to query for items with the specified label.
+func getBeadCountsWithTrackerClient(trackerClient tracker.Client, specID string) (open int, closed int, err error) {
+	if trackerClient == nil {
+		return 0, 0, fmt.Errorf("tracker client is nil")
+	}
+
+	// Query items with label spec:<specID>
+	label := "spec:" + specID
+	query := tracker.Query{
+		Filter: tracker.Filter{
+			Statuses: []string{"open", "closed"},
+			Labels:   []string{label},
+		},
+	}
+
+	items, err := trackerClient.List(context.Background(), query)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	// Count open and closed items
+	for _, item := range items {
+		if item.Status == "closed" {
+			closed++
+		} else {
+			open++
+		}
+	}
+
+	return open, closed, nil
 }

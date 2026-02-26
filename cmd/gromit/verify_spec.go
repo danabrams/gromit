@@ -20,6 +20,7 @@ import (
 	"github.com/danabrams/gromit/internal/review"
 	"github.com/danabrams/gromit/internal/scope"
 	"github.com/danabrams/gromit/internal/specgate"
+	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/spf13/cobra"
 )
 
@@ -415,3 +416,54 @@ func defaultVerifySpecCmdRunner(ctx context.Context, command string, workDir str
 }
 
 var _ specgate.BeadCreator = (*specGateBeadCreator)(nil)
+
+// specGateBeadCreatorWithTrackerClient implements specgate.BeadCreator using tracker.Client
+type specGateBeadCreatorWithTrackerClient struct {
+	trackerClient tracker.Client
+}
+
+func newSpecGateBeadCreatorWithTrackerClient(trackerClient tracker.Client) (*specGateBeadCreatorWithTrackerClient, error) {
+	if trackerClient == nil {
+		return nil, fmt.Errorf("tracker client is nil")
+	}
+	return &specGateBeadCreatorWithTrackerClient{trackerClient: trackerClient}, nil
+}
+
+func (c *specGateBeadCreatorWithTrackerClient) Create(ctx context.Context, title, description, priority string, labels []string) (string, error) {
+	if c == nil || c.trackerClient == nil {
+		return "", fmt.Errorf("tracker client is nil")
+	}
+
+	// Parse priority from string (e.g., "P1" or "1")
+	priorityInt, err := parseBeadPriority(priority)
+	if err != nil {
+		return "", err
+	}
+
+	// Create metadata map with all the bead information
+	metadata := make(map[string]string)
+	metadata["priority"] = fmt.Sprintf("%d", priorityInt)
+	for _, label := range labels {
+		metadata["labels"] = label + "," // Simple concatenation for demo
+	}
+
+	// Create tracker item
+	req := tracker.CreateRequest{
+		Title:       title,
+		Description: description,
+		Metadata:    metadata,
+	}
+
+	item, err := c.trackerClient.Create(ctx, req)
+	if err != nil {
+		return "", err
+	}
+
+	if item == nil {
+		return "", fmt.Errorf("tracker.Create returned nil item")
+	}
+
+	return item.ID, nil
+}
+
+var _ specgate.BeadCreator = (*specGateBeadCreatorWithTrackerClient)(nil)

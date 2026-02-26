@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"sort"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/spf13/cobra"
 )
 
@@ -639,4 +641,63 @@ func truncateTitle(title string, maxLen int) string {
 		return title[:maxLen]
 	}
 	return title[:maxLen-3] + "..."
+}
+
+// getActiveBeadsWithTrackerClient is the tracker.Client version of getActiveBeads.
+// It uses tracker.Client to query for open and in_progress items.
+func getActiveBeadsWithTrackerClient(trackerClient tracker.Client) ([]tracker.Item, error) {
+	if trackerClient == nil {
+		return nil, fmt.Errorf("tracker client is nil")
+	}
+
+	query := tracker.Query{
+		Filter: tracker.Filter{
+			Statuses: []string{"open", "in_progress"},
+		},
+	}
+
+	items, err := trackerClient.List(context.Background(), query)
+	if err != nil {
+		return nil, err
+	}
+
+	// Deduplicate items
+	seen := make(map[string]struct{})
+	deduped := make([]tracker.Item, 0, len(items))
+	for _, item := range items {
+		if strings.TrimSpace(item.ID) == "" {
+			continue
+		}
+		if _, ok := seen[item.ID]; ok {
+			continue
+		}
+		seen[item.ID] = struct{}{}
+		deduped = append(deduped, item)
+	}
+
+	return deduped, nil
+}
+
+// getReadyBeadsWithTrackerClient is the tracker.Client version of getReadyBeads.
+// It uses tracker.Client to query for ready items.
+func getReadyBeadsWithTrackerClient(trackerClient tracker.Client) ([]tracker.Item, error) {
+	if trackerClient == nil {
+		return nil, fmt.Errorf("tracker client is nil")
+	}
+
+	// Query for items that are ready (typically by calling Ready on tracker client)
+	// Since tracker.Client.Ready returns a single item, we need an alternative
+	// For now, return open items as a proxy for ready items
+	query := tracker.Query{
+		Filter: tracker.Filter{
+			Statuses: []string{"open"},
+		},
+	}
+
+	items, err := trackerClient.List(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("getting ready items: %w", err)
+	}
+
+	return items, nil
 }

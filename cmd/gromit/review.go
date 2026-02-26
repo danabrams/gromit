@@ -21,6 +21,7 @@ import (
 	"github.com/danabrams/gromit/internal/review"
 	"github.com/danabrams/gromit/internal/scope"
 	"github.com/danabrams/gromit/internal/state"
+	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/spf13/cobra"
 )
 
@@ -796,4 +797,123 @@ func reviewRepoDirFromGromitDir(gromitDir string) string {
 		return filepath.Dir(clean)
 	}
 	return clean
+}
+
+// getSpecBaseCommitWithTrackerClient is the tracker.Client version of getSpecBaseCommit.
+// It uses tracker.Client to find beads with the spec label.
+func getSpecBaseCommitWithTrackerClient(specName string, specsDir string, trackerClient tracker.Client) (string, error) {
+	if trackerClient == nil {
+		return "", fmt.Errorf("tracker client is nil")
+	}
+
+	// Validate spec file exists before attempting to resolve
+	if err := scope.ValidateSpec(specsDir, specName); err != nil {
+		return "", err
+	}
+
+	// Get the spec label
+	labels := scope.ResolveSpec(specName)
+	if len(labels) == 0 {
+		return "", fmt.Errorf("no label found for spec %q", specName)
+	}
+
+	// Query for items with this label using tracker.Client
+	query := tracker.Query{
+		Filter: tracker.Filter{
+			Statuses: []string{"open"},
+			Labels:   []string{labels[0]},
+		},
+	}
+
+	items, err := trackerClient.List(context.Background(), query)
+	if err != nil {
+		return "", fmt.Errorf("listing items with label %q: %w", labels[0], err)
+	}
+
+	if len(items) == 0 {
+		return "", fmt.Errorf("no items found for spec %q - try using --since to specify a commit", specName)
+	}
+
+	// Extract IDs from items and find earliest commit
+	var beadIDs []string
+	for _, item := range items {
+		beadIDs = append(beadIDs, item.ID)
+	}
+
+	earliestCommit := ""
+	for _, id := range beadIDs {
+		commit, err := findFirstCommitForBead(id)
+		if err != nil || commit == "" {
+			continue
+		}
+		if earliestCommit == "" || isCommitEarlier(commit, earliestCommit) {
+			earliestCommit = commit
+		}
+	}
+
+	if earliestCommit == "" {
+		return "", fmt.Errorf("no commits found for spec %q - try using --since to specify a commit", specName)
+	}
+
+	return earliestCommit, nil
+}
+
+// getEpicBaseCommitWithTrackerClient is the tracker.Client version of getEpicBaseCommit.
+// It uses tracker.Client to find beads with the epic's spec labels.
+func getEpicBaseCommitWithTrackerClient(epicID, specsDir string, trackerClient tracker.Client) (string, error) {
+	if trackerClient == nil {
+		return "", fmt.Errorf("tracker client is nil")
+	}
+
+	// Use scope.ResolveEpic to get spec labels for this epic
+	specLabels, err := scope.ResolveEpic(epicID, specsDir)
+	if err != nil {
+		return "", fmt.Errorf("resolving epic %q: %w", epicID, err)
+	}
+
+	if len(specLabels) == 0 {
+		return "", fmt.Errorf("no specs found for epic %q - try using --since to specify a commit", epicID)
+	}
+
+	// Query for all items with any of the epic's spec labels
+	var allIDs []string
+	for _, label := range specLabels {
+		query := tracker.Query{
+			Filter: tracker.Filter{
+				Statuses: []string{"open"},
+				Labels:   []string{label},
+			},
+		}
+
+		items, err := trackerClient.List(context.Background(), query)
+		if err != nil {
+			return "", fmt.Errorf("listing items with label %q: %w", label, err)
+		}
+
+		for _, item := range items {
+			allIDs = append(allIDs, item.ID)
+		}
+	}
+
+	if len(allIDs) == 0 {
+		return "", fmt.Errorf("no items found for epic %q - try using --since to specify a commit", epicID)
+	}
+
+	// Find the earliest commit from all items
+	earliestCommit := ""
+	for _, id := range allIDs {
+		commit, err := findFirstCommitForBead(id)
+		if err != nil || commit == "" {
+			continue
+		}
+		if earliestCommit == "" || isCommitEarlier(commit, earliestCommit) {
+			earliestCommit = commit
+		}
+	}
+
+	if earliestCommit == "" {
+		return "", fmt.Errorf("no commits found for epic %q - try using --since to specify a commit", epicID)
+	}
+
+	return earliestCommit, nil
 }
