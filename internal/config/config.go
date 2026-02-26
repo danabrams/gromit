@@ -134,6 +134,9 @@ func (c *Config) Validate() error {
 	if err := c.validateExperimentConfig(); err != nil {
 		return err
 	}
+	if err := c.validateDecomposeTarget(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -196,6 +199,15 @@ func (c *Config) validateExperimentConfig() error {
 		return fmt.Errorf("experiment.confidence_threshold must be > 0 and <= 1 (got %f)", c.Experiment.ConfidenceThreshold)
 	}
 	return nil
+}
+
+func (c *Config) validateDecomposeTarget() error {
+	switch c.Decompose.Target {
+	case "", DecompositionTargetNarrowScope, DecompositionTargetSingleConcern:
+		return nil
+	default:
+		return fmt.Errorf("decompose.target must be one of [narrow_scope single_concern] (got %q)", c.Decompose.Target)
+	}
 }
 
 func (c *Config) validateCompatibilitySelections() error {
