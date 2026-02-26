@@ -88,7 +88,26 @@ func FormatPipeline(ps *pipeline.PipelineStatus) string {
 
 // FormatHealth renders health information for display.
 func FormatHealth(lastRetro time.Time, iterationsSinceReview int) string {
-	return "Health:\n"
+	var lines []string
+	lines = append(lines, "Health:")
+
+	retroStr := "never"
+	if !lastRetro.IsZero() {
+		retroStr = formatDuration(time.Since(lastRetro)) + " ago"
+	}
+	lines = append(lines, fmt.Sprintf("  Last retro:  %s", retroStr))
+
+	reviewStr := "never"
+	if iterationsSinceReview > 0 {
+		unit := "iterations"
+		if iterationsSinceReview == 1 {
+			unit = "iteration"
+		}
+		reviewStr = fmt.Sprintf("%d %s ago", iterationsSinceReview, unit)
+	}
+	lines = append(lines, fmt.Sprintf("  Last review: %s", reviewStr))
+
+	return strings.Join(lines, "\n") + "\n"
 }
 
 // FormatRecommendation formats a recommendation string with a command hint.
