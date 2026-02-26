@@ -488,12 +488,10 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 			return false
 		default:
 		}
-		if bc.Result != nil &&
-			bc.Result.TimeoutType != "" &&
-			bc.TotalRetriesThisBead > 0 &&
-			!bc.Result.Decomposed &&
-			!bc.Result.Escalated {
-			bc.Result.Error = ErrSameScopeRetryBlocked
+
+		// Check retry gate: block same-scope retries after timeout without decomposition/escalation
+		if gateErr := h.CheckRetryGate(bc); gateErr != nil {
+			bc.Result.Error = gateErr
 			h.setBuildTimeoutFailurePhase(bc)
 			return false
 		}
