@@ -1941,3 +1941,204 @@ func invokeOrchestratorImpl(t *testing.T, statsPath, logsDir, runID string) *log
 
 	return mergedStats
 }
+
+// TestNormalizeTouchedPackages tests that normalizeTouchedPackages correctly
+// deduplicates, trims whitespace, normalizes paths, and handles edge cases.
+func TestNormalizeTouchedPackages(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		in   []string
+		want []string
+	}{
+		{
+			name: "nil slice",
+			in:   nil,
+			want: []string{},
+		},
+		{
+			name: "empty slice",
+			in:   []string{},
+			want: []string{},
+		},
+		{
+			name: "single package",
+			in:   []string{"pkg"},
+			want: []string{"pkg"},
+		},
+		{
+			name: "package with ./ prefix",
+			in:   []string{"./pkg"},
+			want: []string{"pkg"},
+		},
+		{
+			name: "package with trailing slash",
+			in:   []string{"pkg/"},
+			want: []string{"pkg"},
+		},
+		{
+			name: "package with whitespace",
+			in:   []string{"  pkg  "},
+			want: []string{"pkg"},
+		},
+		{
+			name: "dot package",
+			in:   []string{"."},
+			want: []string{"."},
+		},
+		{
+			name: "dot-slash package normalized away",
+			in:   []string{"./"},
+			want: []string{},
+		},
+		{
+			name: "dot-slash-dot package",
+			in:   []string{"./."},
+			want: []string{"."},
+		},
+		{
+			name: "empty string skipped",
+			in:   []string{"pkg1", "", "pkg2"},
+			want: []string{"pkg1", "pkg2"},
+		},
+		{
+			name: "exact duplicates removed",
+			in:   []string{"pkg", "pkg", "pkg"},
+			want: []string{"pkg"},
+		},
+		{
+			name: "formatting variants deduplicated",
+			in:   []string{"./pkg/", "  pkg  ", "pkg"},
+			want: []string{"pkg"},
+		},
+		{
+			name: "overlapping packages",
+			in:   []string{"pkg1", "./pkg2/", "  pkg1  "},
+			want: []string{"pkg1", "pkg2"},
+		},
+		{
+			name: "multiple distinct packages",
+			in:   []string{"./a/", "b", "  c  ", "d"},
+			want: []string{"a", "b", "c", "d"},
+		},
+		{
+			name: "only empty strings",
+			in:   []string{"", "  ", ""},
+			want: []string{},
+		},
+		{
+			name: "complex mix",
+			in:   []string{"./pkg1/", "pkg1", "  pkg2  ", "./pkg2/", "pkg3", "  pkg3  ", ""},
+			want: []string{"pkg1", "pkg2", "pkg3"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := normalizeTouchedPackages(tt.in)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("normalizeTouchedPackages(%v) = %v, want %v", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestMergeTouchedPackages tests that mergeTouchedPackages correctly merges
+// and normalizes two slices of package names.
+func TestMergeTouchedPackages(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		exist []string
+		in    []string
+		want  []string
+	}{
+		{
+			name:  "both nil",
+			exist: nil,
+			in:    nil,
+			want:  nil,
+		},
+		{
+			name:  "both empty",
+			exist: []string{},
+			in:    []string{},
+			want:  nil,
+		},
+		{
+			name:  "existing empty incoming non-empty",
+			exist: []string{},
+			in:    []string{"pkg"},
+			want:  []string{"pkg"},
+		},
+		{
+			name:  "existing non-empty incoming empty",
+			exist: []string{"pkg"},
+			in:    []string{},
+			want:  []string{"pkg"},
+		},
+		{
+			name:  "disjoint packages",
+			exist: []string{"pkg1"},
+			in:    []string{"pkg2"},
+			want:  []string{"pkg1", "pkg2"},
+		},
+		{
+			name:  "overlapping packages deduplicated",
+			exist: []string{"pkg1"},
+			in:    []string{"pkg1"},
+			want:  []string{"pkg1"},
+		},
+		{
+			name:  "formatting variants deduplicated",
+			exist: []string{"./pkg1/"},
+			in:    []string{"  pkg1  "},
+			want:  []string{"pkg1"},
+		},
+		{
+			name:  "existing with duplicates",
+			exist: []string{"pkg1", "pkg1"},
+			in:    []string{"pkg2"},
+			want:  []string{"pkg1", "pkg2"},
+		},
+		{
+			name:  "incoming with duplicates",
+			exist: []string{"pkg1"},
+			in:    []string{"pkg2", "pkg2"},
+			want:  []string{"pkg1", "pkg2"},
+		},
+		{
+			name:  "multiple existing and incoming",
+			exist: []string{"./a/", "b"},
+			in:    []string{"  c  ", "d"},
+			want:  []string{"a", "b", "c", "d"},
+		},
+		{
+			name:  "complex merge with overlap",
+			exist: []string{"./pkg1/", "pkg2", "  pkg3  "},
+			in:    []string{"pkg3", "  pkg4  ", "./pkg5/"},
+			want:  []string{"pkg1", "pkg2", "pkg3", "pkg4", "pkg5"},
+		},
+		{
+			name:  "dot packages deduplicated",
+			exist: []string{"."},
+			in:    []string{"."},
+			want:  []string{"."},
+		},
+		{
+			name:  "dot with regular packages",
+			exist: []string{"pkg1"},
+			in:    []string{"."},
+			want:  []string{"pkg1", "."},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := mergeTouchedPackages(tt.exist, tt.in)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("mergeTouchedPackages(%v, %v) = %v, want %v", tt.exist, tt.in, got, tt.want)
+			}
+		})
+	}
+}
