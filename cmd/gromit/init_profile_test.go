@@ -207,6 +207,56 @@ func TestInitWritesDetectedProfile(t *testing.T) {
 	}
 }
 
+func TestInitWritesGoProfile(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test"), 0644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
+
+	prevWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get wd: %v", err)
+	}
+	defer os.Chdir(prevWd)
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+
+	prevForce := forceInit
+	prevProfile := initProfile
+	defer func() {
+		forceInit = prevForce
+		initProfile = prevProfile
+	}()
+	forceInit = true
+	initProfile = ""
+
+	if err := runInit(nil, nil); err != nil {
+		t.Fatalf("runInit: %v", err)
+	}
+
+	content, err := os.ReadFile(filepath.Join(dir, "gromit.yaml"))
+	if err != nil {
+		t.Fatalf("read gromit.yaml: %v", err)
+	}
+	cfg := string(content)
+	if !strings.Contains(cfg, "project:\n  profile: \"go\"") {
+		t.Fatalf("gromit.yaml missing go profile header, got:\n%s", cfg)
+	}
+	if !strings.Contains(cfg, "- \"go test\"") {
+		t.Fatalf("gromit.yaml missing go test validation command, got:\n%s", cfg)
+	}
+	if !strings.Contains(cfg, "- \"go build\"") {
+		t.Fatalf("gromit.yaml missing go build validation command, got:\n%s", cfg)
+	}
+	if !strings.Contains(cfg, "- \"go vet\"") {
+		t.Fatalf("gromit.yaml missing go vet validation command, got:\n%s", cfg)
+	}
+	if !strings.Contains(cfg, "compile_command: \"go build\"") {
+		t.Fatalf("gromit.yaml missing go compile command, got:\n%s", cfg)
+	}
+}
+
 func TestInitRespectsProfileFlag(t *testing.T) {
 	dir := t.TempDir()
 	prevWd, err := os.Getwd()
