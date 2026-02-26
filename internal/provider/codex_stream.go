@@ -208,6 +208,15 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 				"type":    "EventToolUse",
 				"payload": payload,
 			})
+		case "tool_call.output":
+			var payload map[string]interface{}
+			if err := json.Unmarshal(line, &payload); err != nil {
+				codexDebugf(output, "provider debug: failed to parse tool_call.output payload: %v", err)
+			}
+			emitStreamEvent(handler, map[string]interface{}{
+				"type":    "EventToolResult",
+				"payload": payload,
+			})
 
 		case "item.started":
 			if event.Item != nil && toolHandler != nil {
