@@ -2387,3 +2387,87 @@ func TestContract_TimeoutSkippedDecompositionFlow(t *testing.T) {
 		t.Fatal("TimeoutDecompositionAttemptTime should be set")
 	}
 }
+
+// TestContract_TimeoutFailedDecompositionFlow validates the contract when decomposition fails.
+// This occurs when:
+// 1. Timeout happens
+// 2. Decomposition is attempted but fails with an error
+// 3. TimeoutDecompositionAttempted is marked
+// 4. TimeoutDecompositionOutcome is set to "failed"
+// 5. TimeoutDecompositionSucceeded is false
+// 6. Decomposed is false
+// 7. All telemetry fields are populated
+func TestContract_TimeoutFailedDecompositionFlow(t *testing.T) {
+	cfg := newTestConfig()
+	decomposeCalled := false
+	createSubCalled := false
+
+	h := NewHandler(
+		cfg,
+		&mockFailureAnalyzer{},
+		&mockBeadClient{},
+		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+			decomposeCalled = true
+			// Simulate decomposition failure
+			return nil, fmt.Errorf("decompose failed: unable to parse task")
+		},
+		func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error {
+			createSubCalled = true
+			return nil
+		},
+		nil,
+		nil,
+	)
+
+	bc := newTestBeadContext()
+	bc.ParentCtx = context.Background()
+
+	// Invoke with an invocation timeout, triggering decomposition
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		return &runtypes.InvocationResult{
+			TimeoutType: "invocation",
+		}, fmt.Errorf("invocation timeout")
+	}
+
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+
+	// Verify decomposition was attempted but failed
+	if success {
+		t.Errorf("build should return false when decomposition fails")
+	}
+	if !decomposeCalled {
+		t.Fatal("expected decomposition to be called on invocation timeout")
+	}
+	if createSubCalled {
+		t.Fatal("expected sub-bead creation not to be called when decomposition fails")
+	}
+
+	// Verify telemetry fields for failed decomposition
+	if !bc.Result.TimeoutDecompositionAttempted {
+		t.Fatal("TimeoutDecompositionAttempted should be true")
+	}
+	if bc.Result.TimeoutDecompositionSucceeded {
+		t.Fatal("TimeoutDecompositionSucceeded should be false when decomposition fails")
+	}
+	if bc.Result.Decomposed {
+		t.Fatal("Decomposed should be false when decomposition fails")
+	}
+	if bc.Result.TimeoutDecompositionOutcome != timeoutDecompositionOutcomeFailed {
+		t.Fatalf("TimeoutDecompositionOutcome = %q, want %q", bc.Result.TimeoutDecompositionOutcome, timeoutDecompositionOutcomeFailed)
+	}
+	if bc.Result.TimeoutDecompositionReason == "" {
+		t.Fatal("TimeoutDecompositionReason should be populated")
+	}
+	if !strings.Contains(bc.Result.TimeoutDecompositionReason, "failed") {
+		t.Fatalf("TimeoutDecompositionReason should mention failed: %q", bc.Result.TimeoutDecompositionReason)
+	}
+	if bc.Result.Error == nil {
+		t.Fatal("Result.Error should be set when decomposition fails")
+	}
+	if !strings.Contains(bc.Result.Error.Error(), "decomposition failed") {
+		t.Fatalf("Result.Error should mention decomposition failed: %q", bc.Result.Error.Error())
+	}
+	if !bc.Result.TimeoutDecompositionAttemptTime.IsZero() == false {
+		t.Fatal("TimeoutDecompositionAttemptTime should be set")
+	}
+}
