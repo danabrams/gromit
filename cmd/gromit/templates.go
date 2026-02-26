@@ -145,6 +145,42 @@ func profileGuidanceSnippet(profile string) string {
 	return b.String()
 }
 
+func rulesForProfile(profile string) string {
+	universal := `# Rules
+
+These are non-negotiable constraints for this project. Gromit will always follow these.
+
+## Code Style
+
+`
+
+	// Profile-specific code style guidance
+	var profileGuide string
+	if strings.EqualFold(profile, "go") {
+		profileGuide = "- Use `go fmt` standard formatting\n- Use `error` returns, not panics, for recoverable failures. Exception: test helpers and init()\n"
+	} else if strings.EqualFold(profile, "node") {
+		profileGuide = "- Use ESLint or equivalent for code quality\n- Use consistent formatting with prettier or similar\n"
+	} else if strings.EqualFold(profile, "python") {
+		profileGuide = "- Use Black for code formatting\n- Use type hints for function signatures\n"
+	} else {
+		profileGuide = "<!-- Add project-specific rules for your stack here -->\n"
+	}
+
+	safety := `
+## Safety
+
+- Never commit secrets, API keys, or credentials
+- Never delete data without explicit confirmation in the spec
+
+## Process
+
+- Always run tests before committing
+- Follow existing patterns in the codebase
+`
+
+	return universal + profileGuide + safety
+}
+
 func seedProfileAwareCommandExamples(profile string, template string) string {
 	// Inject profile-aware guidance into command example sections
 	// For now, inject the guidance snippet into the template where commands are discussed
