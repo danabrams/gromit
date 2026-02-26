@@ -54,3 +54,7 @@ func TestClientInterface(t *testing.T) {
 func TestItemReaderInterface(t *testing.T) {
 	var _ ItemReader = stubClient{}
 }
+
+func TestItemWriterInterface(t *testing.T) {
+	var _ ItemWriter = stubClient{}
+}
