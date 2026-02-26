@@ -388,6 +388,14 @@ func newSpecMergeReviewDependencies(router providerRouter, renderer reviewPrompt
 	}
 }
 
+func newSpecMergeFinalizeDependencies(gitOps specmerge.GitOps, resolver specmerge.ConflictResolver, mainBranch string) specmerge.FinalizeDependencies {
+	return specmerge.FinalizeDependencies{
+		Git:              gitOps,
+		ConflictResolver: resolver,
+		MainBranch:       mainBranch,
+	}
+}
+
 // beadLifecycleAdapter wraps tracker.Client to satisfy epilogue.BeadLifecycle.
 type beadLifecycleAdapter struct {
 	tracker tracker.Client
