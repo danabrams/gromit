@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/danabrams/gromit/internal/agents"
+	"github.com/danabrams/gromit/internal/agent"
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
@@ -400,7 +400,7 @@ func runReviewInteractiveInDir(cfg *config.Config, fromCommit string, diff strin
 	}
 
 	// Create agent resolver adapter
-	agentResolver := agents.NewResolver(cfg)
+	agentResolver := agent.NewResolver(cfg)
 
 	// Create prompt renderer adapter that loads ClaudeMD and Rules
 	promptRendererAdapter := &cliPromptRenderer{

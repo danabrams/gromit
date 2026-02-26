@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/agent"
-	"github.com/danabrams/gromit/internal/agents"
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
@@ -142,7 +141,7 @@ func (a *retroRouterAdapter) StreamRun(ctx context.Context, prompt string, tier 
 }
 
 func resolveCommandAgent(cfg *config.Config, phase, flagOverride string, choosePicker bool) (agent.Agent, error) {
-	resolvedAgent, err := agents.NewResolver(cfg).Resolve(phase, flagOverride, choosePicker)
+	resolvedAgent, err := agent.NewResolver(cfg).Resolve(phase, flagOverride, choosePicker)
 	if err != nil {
 		return nil, err
 	}

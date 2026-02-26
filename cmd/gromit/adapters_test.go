@@ -5,7 +5,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/danabrams/gromit/internal/agents"
+	"github.com/danabrams/gromit/internal/agent"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/provider"
@@ -356,10 +356,10 @@ func TestNewAgentResolver_ReturnsAgentResolver(t *testing.T) {
 	t.Parallel()
 
 	cfg := &config.Config{}
-	resolver := agents.NewResolver(cfg)
+	resolver := agent.NewResolver(cfg)
 
 	if resolver == nil {
-		t.Fatal("agents.NewResolver returned nil")
+		t.Fatal("agent.NewResolver returned nil")
 	}
 
 	// Verify it implements pipeline.AgentResolver

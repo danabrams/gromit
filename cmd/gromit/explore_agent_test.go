@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/danabrams/gromit/internal/agents"
+	"github.com/danabrams/gromit/internal/agent"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/worktree"
@@ -132,7 +132,7 @@ func TestExplorePhaseConfigSelectsAgent_Reclassified(t *testing.T) {
 		},
 	}
 
-	resolver := agents.NewResolver(cfg)
+	resolver := agent.NewResolver(cfg)
 	agent, err := resolver.Resolve(exploreSessionCommand, "", false)
 	if err != nil {
 		t.Fatalf("Resolve() error = %v", err)
