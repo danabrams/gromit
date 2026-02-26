@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -10,15 +9,9 @@ import (
 
 func TestGeminiProviderRunValidationRunsPrompt(t *testing.T) {
 	t.Parallel()
-	tempDir := t.TempDir()
-	mockBinary := filepath.Join(tempDir, "gemini")
-mockScript := `#!/bin/bash
-echo '{"output":"1. go test\n2. go vet\n\nVALIDATION_PASSED","usage":{"input_tokens":100,"output_tokens":50,"cached_input_tokens":0},"cost":{"total":0},"model":"gemini-2.0-flash","session_id":"test","response":"1. go test\n2. go vet\n\nVALIDATION_PASSED"}'
+	mockBinary := testCreateBinaryWithETXTBSYProtection(t, `echo '{"output":"1. go test\n2. go vet\n\nVALIDATION_PASSED","usage":{"input_tokens":100,"output_tokens":50,"cached_input_tokens":0},"cost":{"total":0},"model":"gemini-2.0-flash","session_id":"test","response":"1. go test\n2. go vet\n\nVALIDATION_PASSED"}'
 exit 0
-`
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+`)
 
 	gp := NewGeminiProvider(mockBinary, nil, map[string]string{TierLow: "gemini-2.0-flash"}, nil)
 	result, err := gp.RunValidation(context.Background(), []string{"go test", "go vet"}, TierLow, t.TempDir())
