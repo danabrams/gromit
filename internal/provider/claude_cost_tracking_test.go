@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/claude"
@@ -93,4 +94,29 @@ func TestStreamJSONCachedTokensPropagateToProvider(t *testing.T) {
 	if result.CachedInputTokens == 0 {
 		t.Fatalf("CachedInputTokens = %d, want non-zero", result.CachedInputTokens)
 	}
+}
+
+func parseClaudeStreamResultFromJSON(payload string) (*claude.Result, error) {
+	var event struct {
+		Type                 string  `json:"type"`
+		Result               string  `json:"result"`
+		TotalCostUSD         float64 `json:"total_cost_usd"`
+		InputTokens          int     `json:"input_tokens"`
+		OutputTokens         int     `json:"output_tokens"`
+		CacheReadInputTokens int     `json:"cache_read_input_tokens"`
+		Model                string  `json:"model"`
+	}
+	if err := json.Unmarshal([]byte(payload), &event); err != nil {
+		return nil, err
+	}
+
+	return &claude.Result{
+		Success:           true,
+		Output:            event.Result,
+		Model:             event.Model,
+		CostUSD:           event.TotalCostUSD,
+		InputTokens:       event.InputTokens,
+		OutputTokens:      event.OutputTokens,
+		CachedInputTokens: event.CacheReadInputTokens,
+	}, nil
 }
