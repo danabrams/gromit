@@ -47,6 +47,7 @@ func setupExploreTest(t *testing.T) (*config.Config, string) {
 }
 
 func TestBuildExplorePipeline_NilConfigUsesResolvedDefaults(t *testing.T) {
+
 	t.Chdir(t.TempDir())
 
 	defer func() {
@@ -65,6 +66,7 @@ func TestBuildExplorePipeline_NilConfigUsesResolvedDefaults(t *testing.T) {
 }
 
 func TestExplorePromptRenderer_RenderExploreBuildsPromptDiagnostics(t *testing.T) {
+	t.Parallel()
 	cfg, gromitDir := setupExploreTest(t)
 
 	if err := os.WriteFile(filepath.Join(gromitDir, "RULES.md"), []byte("## Process\n- Keep it simple\n"), 0o644); err != nil {
@@ -138,6 +140,7 @@ func (b *exploreSessionTestBacklog) Update(id string, fn func(*pipeline.Idea)) e
 }
 
 func TestRunExploreInSession_UsesSessionLauncherWhenEnabled(t *testing.T) {
+
 	origLauncher := exploreSessionLauncherFn
 	origRunInDir := exploreRunInDirFn
 	t.Cleanup(func() {
@@ -221,6 +224,7 @@ func TestRunExploreInSession_UsesSessionLauncherWhenEnabled(t *testing.T) {
 }
 
 func TestRunExploreInSession_WorktreeDisabledSkipsSessionLauncher(t *testing.T) {
+
 	origLauncher := exploreSessionLauncherFn
 	t.Cleanup(func() { exploreSessionLauncherFn = origLauncher })
 
@@ -270,6 +274,7 @@ func TestRunExploreInSession_WorktreeDisabledSkipsSessionLauncher(t *testing.T) 
 }
 
 func TestHandleExploreOutput_RendersCreatedArtifacts(t *testing.T) {
+	t.Parallel()
 	result := &pipeline.ExploreResult{
 		CreatedEpics:        []string{"epic1.md", "epic2.md"},
 		CreatedSpecs:        []string{"spec1.md"},

@@ -7,6 +7,7 @@ import (
 
 // TestReadyWithLabel_NilClient tests that ReadyWithLabel() returns error on nil client
 func TestReadyWithLabel_NilClient(t *testing.T) {
+	t.Parallel()
 	var c *Client
 	_, err := c.ReadyWithLabel("spec:test")
 	if err == nil {
@@ -20,6 +21,7 @@ func TestReadyWithLabel_NilClient(t *testing.T) {
 
 // TestReadyWithLabel_EmptyLabel tests that ReadyWithLabel() rejects empty label
 func TestReadyWithLabel_EmptyLabel(t *testing.T) {
+	t.Parallel()
 	c, _ := NewClient()
 	_, err := c.ReadyWithLabel("")
 	if err == nil {
@@ -33,6 +35,7 @@ func TestReadyWithLabel_EmptyLabel(t *testing.T) {
 
 // TestReadyWithLabel_InvalidLabel tests that ReadyWithLabel() rejects invalid label characters
 func TestReadyWithLabel_InvalidLabel(t *testing.T) {
+	t.Parallel()
 	c, _ := NewClient()
 
 	tests := []struct {
@@ -59,6 +62,7 @@ func TestReadyWithLabel_InvalidLabel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			_, err := c.ReadyWithLabel(tt.label)
 			if err == nil {
 				t.Errorf("ReadyWithLabel(%q) expected validation error but got nil", tt.label)
@@ -73,6 +77,7 @@ func TestReadyWithLabel_InvalidLabel(t *testing.T) {
 
 // TestReadyWithLabel_ValidLabels tests that ReadyWithLabel() accepts valid label formats
 func TestReadyWithLabel_ValidLabels(t *testing.T) {
+	t.Parallel()
 	var gotArgs []string
 	c := &Client{
 		RunFn: func(args ...string) (string, error) {
@@ -113,6 +118,7 @@ func TestReadyWithLabel_ValidLabels(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			gotArgs = nil
 
 			_, err := c.ReadyWithLabel(tt.label)
@@ -136,6 +142,7 @@ func TestReadyWithLabel_ValidLabels(t *testing.T) {
 
 // TestReadyWithLabel_ParsesOutput tests that ReadyWithLabel() parses bd output correctly
 func TestReadyWithLabel_ParsesOutput(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		jsonOutput string
@@ -264,8 +271,11 @@ func TestReadyWithLabel_ParsesOutput(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel(
 			// Use the existing parseBeadOutputExcluding helper which should be
 			// what ReadyWithLabel uses internally
+			)
+
 			got, err := parseBeadOutputExcluding(tt.jsonOutput, "epic")
 			if err != nil {
 				t.Fatalf("parseBeadOutputExcluding() error = %v", err)
@@ -294,6 +304,7 @@ func TestReadyWithLabel_ParsesOutput(t *testing.T) {
 
 // TestReadyWithLabel_ErrorWrapping tests that ReadyWithLabel() wraps command errors with context
 func TestReadyWithLabel_ErrorWrapping(t *testing.T) {
+	t.Parallel()
 	c, _ := NewClient()
 
 	// Test that errors contain context when bd command fails
@@ -305,6 +316,7 @@ func TestReadyWithLabel_ErrorWrapping(t *testing.T) {
 
 // TestReadyWithLabel_JSONParseError tests that ReadyWithLabel() handles JSON parse errors
 func TestReadyWithLabel_JSONParseError(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		jsonOutput string
@@ -325,6 +337,7 @@ func TestReadyWithLabel_JSONParseError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			_, err := parseBeadOutputExcluding(tt.jsonOutput, "epic")
 			if err == nil {
 				t.Errorf("parseBeadOutputExcluding() expected error for invalid JSON, got nil")

@@ -11,6 +11,7 @@ import (
 // EstimateBreadScopeAndCost handles nil bead gracefully and returns zero cost.
 // Expected failure: function does not exist yet
 func TestEstimateBreadScopeAndCostReturnsZeroCostForNilBead(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Providers: map[string]config.ProviderDef{
 			"codex": {
@@ -34,6 +35,7 @@ func TestEstimateBreadScopeAndCostReturnsZeroCostForNilBead(t *testing.T) {
 // EstimateBreadScopeAndCost estimates the total cost based on bead file count and model pricing.
 // Expected failure: function does not exist yet
 func TestEstimateBreadScopeAndCostCalculatesTotalCost(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Providers: map[string]config.ProviderDef{
 			"codex": {
@@ -63,6 +65,7 @@ func TestEstimateBreadScopeAndCostCalculatesTotalCost(t *testing.T) {
 // CheckAndLogCostCeiling emits a warning when estimated cost exceeds the ceiling.
 // Expected failure: function does not exist yet
 func TestCheckAndLogCostCeilingWarnsWhenExceeded(t *testing.T) {
+	t.Parallel()
 	warningLogged := false
 	logFn := func(format string, args ...interface{}) {
 		warningLogged = true
@@ -81,6 +84,7 @@ func TestCheckAndLogCostCeilingWarnsWhenExceeded(t *testing.T) {
 // CheckAndLogCostCeiling does not emit a warning when estimated cost is under the ceiling.
 // Expected failure: function does not exist yet
 func TestCheckAndLogCostCeilingNoWarningWhenUnderCeiling(t *testing.T) {
+	t.Parallel()
 	warningLogged := false
 	logFn := func(format string, args ...interface{}) {
 		warningLogged = true
@@ -99,6 +103,7 @@ func TestCheckAndLogCostCeilingNoWarningWhenUnderCeiling(t *testing.T) {
 // SelectCostAwareModel returns cheaper model when bead scope is large (> 5 files).
 // Expected failure: function does not exist yet
 func TestSelectCostAwareModelPrefersCheaperWhenBroadScope(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Providers: map[string]config.ProviderDef{
 			"codex": {
@@ -133,6 +138,7 @@ func TestSelectCostAwareModelPrefersCheaperWhenBroadScope(t *testing.T) {
 // SelectCostAwareModel returns original model when bead scope is small (<= 5 files).
 // Expected failure: function does not exist yet
 func TestSelectCostAwareModelKeepsExpensiveForSmallScope(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Providers: map[string]config.ProviderDef{
 			"codex": {
@@ -167,6 +173,7 @@ func TestSelectCostAwareModelKeepsExpensiveForSmallScope(t *testing.T) {
 // SelectCostAwareModel returns original model when cheaper alternative is not configured.
 // Expected failure: function does not exist yet
 func TestSelectCostAwareModelReturnsOriginalWhenCheaperUnavailable(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Providers: map[string]config.ProviderDef{
 			"codex": {
@@ -198,6 +205,7 @@ func TestSelectCostAwareModelReturnsOriginalWhenCheaperUnavailable(t *testing.T)
 // SelectCostAwareModel returns original model when provider is not configured.
 // Expected failure: function does not exist yet
 func TestSelectCostAwareModelReturnsOriginalWhenProviderUnavailable(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Providers: map[string]config.ProviderDef{
 			// "codex" provider not configured
@@ -221,6 +229,7 @@ func TestSelectCostAwareModelReturnsOriginalWhenProviderUnavailable(t *testing.T
 // SelectModelWithCostAwareness integrates cost-aware model selection when provider is specified.
 // Expected failure: function does not exist yet
 func TestSelectModelWithCostAwarenessPrefersCheaperForBroadScope(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Providers: map[string]config.ProviderDef{
 			"codex": {

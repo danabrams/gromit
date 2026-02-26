@@ -8,6 +8,7 @@ import (
 )
 
 func TestShouldOverrideDebugModel(t *testing.T) {
+	t.Parallel()
 	newCmd := func(withModelFlag bool, setModel bool) *cobra.Command {
 		cmd := &cobra.Command{Use: "debug"}
 		if withModelFlag {
@@ -71,6 +72,7 @@ func TestShouldOverrideDebugModel(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			got := shouldOverrideDebugModel(tc.cmd, tc.selectedAgent)
 			if got != tc.want {
 				t.Fatalf("shouldOverrideDebugModel() = %v, want %v", got, tc.want)

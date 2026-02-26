@@ -14,7 +14,10 @@ type testClaudeSettings struct {
 }
 
 func TestBuildSkillContent(t *testing.T) {
+	t.Parallel(
 	// Create a minimal orchestrator template with all three placeholders
+	)
+
 	template := `---
 name: gromit
 ---
@@ -88,7 +91,10 @@ name: gromit
 }
 
 func TestBuildSkillContentWithRealOrchestratorTemplate(t *testing.T) {
+	t.Parallel(
 	// Test with the actual embedded orchestrator skill
+	)
+
 	result := buildSkillContent(skills.OrchestratorSkill)
 
 	// Verify that all three skills were inlined
@@ -112,7 +118,10 @@ func TestBuildSkillContentWithRealOrchestratorTemplate(t *testing.T) {
 }
 
 func TestBuildSkillContentPreservesOtherContent(t *testing.T) {
+	t.Parallel(
 	// Ensure that content outside the placeholders is preserved
+	)
+
 	template := `Header content
 
 <!-- BEGIN GROMIT-REFINE-SKILL -->
@@ -151,7 +160,10 @@ Footer content`
 }
 
 func TestMergeHookSettingsEmptyInput(t *testing.T) {
+	t.Parallel(
 	// Test with empty input (no existing settings.json)
+	)
+
 	result, err := mergeHookSettings([]byte{})
 	if err != nil {
 		t.Fatalf("mergeHookSettings failed: %v", err)
@@ -198,7 +210,10 @@ func TestMergeHookSettingsEmptyInput(t *testing.T) {
 }
 
 func TestMergeHookSettingsExistingHooksPreserved(t *testing.T) {
+	t.Parallel(
 	// Test that existing hooks are preserved when adding our hook
+	)
+
 	existingJSON := `{
   "hooks": {
     "SessionStart": [
@@ -272,7 +287,10 @@ func TestMergeHookSettingsExistingHooksPreserved(t *testing.T) {
 }
 
 func TestMergeHookSettingsIdempotent(t *testing.T) {
+	t.Parallel(
 	// Test that running mergeHookSettings multiple times doesn't duplicate the hook
+	)
+
 	emptyInput := []byte{}
 
 	// First call
@@ -321,7 +339,10 @@ func TestMergeHookSettingsIdempotent(t *testing.T) {
 }
 
 func TestMergeHookSettingsDifferentMatcher(t *testing.T) {
+	t.Parallel(
 	// Test that a different SessionStart matcher is preserved
+	)
+
 	existingJSON := `{
   "hooks": {
     "SessionStart": [
@@ -382,7 +403,10 @@ func TestMergeHookSettingsDifferentMatcher(t *testing.T) {
 }
 
 func TestMergeHookSettingsOtherHookTypes(t *testing.T) {
+	t.Parallel(
 	// Test that other hook types (beyond SessionStart) are preserved
+	)
+
 	existingJSON := `{
   "hooks": {
     "SessionStart": [
@@ -447,7 +471,10 @@ func TestMergeHookSettingsOtherHookTypes(t *testing.T) {
 }
 
 func TestMergeHookSettingsPreservesNonHookFields(t *testing.T) {
+	t.Parallel(
 	// Test that non-hook fields (permissions, allowedTools, model, etc.) are preserved
+	)
+
 	existingJSON := `{
   "permissions": {
     "allow": ["Read", "Write"],
@@ -529,7 +556,10 @@ func TestMergeHookSettingsPreservesNonHookFields(t *testing.T) {
 }
 
 func TestMergeHookSettingsInvalidJSON(t *testing.T) {
+	t.Parallel(
 	// Test that invalid JSON returns an error
+	)
+
 	invalidJSON := []byte(`{"hooks": invalid}`)
 
 	_, err := mergeHookSettings(invalidJSON)
@@ -542,7 +572,10 @@ func TestMergeHookSettingsInvalidJSON(t *testing.T) {
 }
 
 func TestMergeHookSettingsJSONFormatting(t *testing.T) {
+	t.Parallel(
 	// Test that the output is properly formatted JSON
+	)
+
 	result, err := mergeHookSettings([]byte{})
 	if err != nil {
 		t.Fatalf("mergeHookSettings failed: %v", err)

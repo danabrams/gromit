@@ -9,9 +9,13 @@ import (
 // TestSkippedTestCleanup verifies the acceptance criteria for the
 // "Capture skipped test ideas in backlog and delete entirely-skipped files" task.
 func TestSkippedTestCleanup(t *testing.T) {
+	t.Parallel()
 	t.Run("run_scope_acceptance_test.go is deleted", func(t *testing.T) {
+		t.Parallel(
 		// The file cmd/gromit/run_scope_acceptance_test.go should not exist
 		// because all 11 tests in it were t.Skip — the file should be deleted entirely.
+		)
+
 		_, err := os.Stat("run_scope_acceptance_test.go")
 		if err == nil {
 			t.Fatal("run_scope_acceptance_test.go should be deleted (all 11 tests were t.Skip)")
@@ -22,6 +26,7 @@ func TestSkippedTestCleanup(t *testing.T) {
 	})
 
 	t.Run("backlog contains ideas for skipped test behaviors", func(t *testing.T) {
+		t.Parallel(
 		// The implementation should have run `gromit add` for each category of
 		// skipped test behavior. Verify the backlog has entries covering these areas.
 		//
@@ -31,6 +36,7 @@ func TestSkippedTestCleanup(t *testing.T) {
 		//    and no-matching-beads handling
 		// 3. filtered_hash_eviction_acceptance_test.go: 2 skipped tests about single-save
 		//    optimization and archived learnings
+		)
 
 		ideas := loadBacklogIdeas(t)
 
@@ -71,12 +77,14 @@ func TestSkippedTestCleanup(t *testing.T) {
 // TestSkippedTestCleanup_GromitJ99sy verifies acceptance criteria for
 // "Delete entirely-skipped test files violating t.Skip rules".
 func TestSkippedTestCleanup_GromitJ99sy(t *testing.T) {
+	t.Parallel()
 	projectRoot, err := findProjectRoot()
 	if err != nil {
 		t.Fatalf("could not find project root: %v", err)
 	}
 
 	t.Run("entirely-skipped test files are deleted", func(t *testing.T) {
+		t.Parallel()
 		paths := []string{
 			filepath.Join(projectRoot, "cmd", "gromit", "explore_pipeline_adapter_test.go"),
 			filepath.Join(projectRoot, "cmd", "gromit", "retro_launch_in_dir_integration_test.go"),
@@ -96,6 +104,7 @@ func TestSkippedTestCleanup_GromitJ99sy(t *testing.T) {
 	})
 
 	t.Run("backlog contains ideas for skipped test behaviors (gromit-j99sy)", func(t *testing.T) {
+		t.Parallel()
 		ideas := loadBacklogIdeas(t)
 
 		assertBacklogContainsBehaviors(t, ideas, []backlogBehaviorCheck{

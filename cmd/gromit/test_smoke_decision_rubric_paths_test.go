@@ -9,7 +9,10 @@ import (
 // smoke decision rubric tests can read the coverage matrix correctly
 // regardless of working directory.
 func TestSmokeDecisionRubric_CanReadMatrixFromAnyDirectory(t *testing.T) {
+	t.Parallel(
 	// Use file-location-based path resolution to read the matrix
+	)
+
 	matrixPath := resolveProjectPath("t", "docs/smoke_coverage_matrix.md")
 
 	// Verify the file exists and can be read
@@ -27,7 +30,10 @@ func TestSmokeDecisionRubric_CanReadMatrixFromAnyDirectory(t *testing.T) {
 // TestPackageTestNameIndex_WorksWithFileLocationResolution verifies that
 // packageTestNameIndex can find test suites correctly.
 func TestPackageTestNameIndex_WorksWithFileLocationResolution(t *testing.T) {
+	t.Parallel(
 	// Get project root using file-location-based resolution
+	)
+
 	projectRoot := getProjectRootFromTestFile("t")
 
 	// Try to build an index of test names in a package

@@ -18,7 +18,9 @@ import (
 )
 
 func TestGetReportFiles(t *testing.T) {
+	t.Parallel()
 	t.Run("finds markdown files", func(t *testing.T) {
+		t.Parallel()
 		tmpDir := t.TempDir()
 		reportsDir := filepath.Join(tmpDir, "reports")
 		if err := os.MkdirAll(reportsDir, 0755); err != nil {
@@ -68,6 +70,7 @@ func TestGetReportFiles(t *testing.T) {
 	})
 
 	t.Run("handles missing directory", func(t *testing.T) {
+		t.Parallel()
 		tmpDir := t.TempDir()
 		reportsDir := filepath.Join(tmpDir, "nonexistent")
 
@@ -82,6 +85,7 @@ func TestGetReportFiles(t *testing.T) {
 	})
 
 	t.Run("handles empty directory", func(t *testing.T) {
+		t.Parallel()
 		tmpDir := t.TempDir()
 		reportsDir := filepath.Join(tmpDir, "reports")
 		if err := os.MkdirAll(reportsDir, 0755); err != nil {
@@ -100,6 +104,7 @@ func TestGetReportFiles(t *testing.T) {
 }
 
 func TestLaunchDebugSession_UsesSessionLauncherWhenEnabled(t *testing.T) {
+
 	origLauncher := debugSessionLauncherFn
 	t.Cleanup(func() { debugSessionLauncherFn = origLauncher })
 
@@ -142,6 +147,7 @@ func TestLaunchDebugSession_UsesSessionLauncherWhenEnabled(t *testing.T) {
 }
 
 func TestLaunchDebugSession_WorktreeDisabledUsesInPlaceLaunchDir(t *testing.T) {
+
 	origLauncher := debugSessionLauncherFn
 	t.Cleanup(func() { debugSessionLauncherFn = origLauncher })
 
@@ -180,6 +186,7 @@ func TestLaunchDebugSession_WorktreeDisabledUsesInPlaceLaunchDir(t *testing.T) {
 }
 
 func TestLaunchDebugSession_UsesRestoreDirWhenProvided(t *testing.T) {
+
 	origLauncher := debugSessionLauncherFn
 	t.Cleanup(func() { debugSessionLauncherFn = origLauncher })
 
@@ -215,6 +222,7 @@ func TestLaunchDebugSession_UsesRestoreDirWhenProvided(t *testing.T) {
 }
 
 func TestLaunchDebugSession_ConvertsPromptPathToAbsolute(t *testing.T) {
+
 	origLauncher := debugSessionLauncherFn
 	t.Cleanup(func() { debugSessionLauncherFn = origLauncher })
 
@@ -251,7 +259,9 @@ func TestLaunchDebugSession_ConvertsPromptPathToAbsolute(t *testing.T) {
 }
 
 func TestGetPlanFiles(t *testing.T) {
+	t.Parallel()
 	t.Run("finds markdown files", func(t *testing.T) {
+		t.Parallel()
 		tmpDir := t.TempDir()
 		plansDir := filepath.Join(tmpDir, "plans")
 		if err := os.MkdirAll(plansDir, 0755); err != nil {
@@ -295,6 +305,7 @@ func TestGetPlanFiles(t *testing.T) {
 	})
 
 	t.Run("handles missing directory", func(t *testing.T) {
+		t.Parallel()
 		tmpDir := t.TempDir()
 		plansDir := filepath.Join(tmpDir, "nonexistent")
 
@@ -310,7 +321,9 @@ func TestGetPlanFiles(t *testing.T) {
 }
 
 func TestGetNewBacklogItems(t *testing.T) {
+	t.Parallel()
 	t.Run("detects new items", func(t *testing.T) {
+		t.Parallel()
 		tmpDir := t.TempDir()
 		gromitDir := filepath.Join(tmpDir, ".gromit")
 		if err := os.MkdirAll(gromitDir, 0755); err != nil {
@@ -375,6 +388,7 @@ func TestGetNewBacklogItems(t *testing.T) {
 	})
 
 	t.Run("returns empty when no new items", func(t *testing.T) {
+		t.Parallel()
 		tmpDir := t.TempDir()
 		gromitDir := filepath.Join(tmpDir, ".gromit")
 		if err := os.MkdirAll(gromitDir, 0755); err != nil {
@@ -417,6 +431,7 @@ func TestGetNewBacklogItems(t *testing.T) {
 
 // TestGetMDFiles verifies the shared getMDFiles function correctly finds markdown files
 func TestGetMDFiles(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		setup       func(t *testing.T, dir string) []string // returns expected file paths
@@ -484,6 +499,7 @@ func TestGetMDFiles(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tmpDir := t.TempDir()
 			expectedFiles := tt.setup(t, tmpDir)
 
@@ -519,6 +535,7 @@ func TestGetMDFiles(t *testing.T) {
 
 // TestGetMDFilesNonexistentDirectory verifies getMDFiles handles missing directories gracefully
 func TestGetMDFilesNonexistentDirectory(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	nonexistentDir := filepath.Join(tmpDir, "nonexistent")
 
@@ -534,6 +551,7 @@ func TestGetMDFilesNonexistentDirectory(t *testing.T) {
 
 // TestGetReportFilesUsesGetMDFiles verifies getReportFiles works through getMDFiles
 func TestGetReportFilesUsesGetMDFiles(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	reportsDir := filepath.Join(tmpDir, "reports")
 	if err := os.MkdirAll(reportsDir, 0755); err != nil {
@@ -581,6 +599,7 @@ func TestGetReportFilesUsesGetMDFiles(t *testing.T) {
 
 // TestGetPlanFilesUsesGetMDFiles verifies getPlanFiles works through getMDFiles
 func TestGetPlanFilesUsesGetMDFiles(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	plansDir := filepath.Join(tmpDir, "plans")
 	if err := os.MkdirAll(plansDir, 0755); err != nil {
@@ -629,6 +648,7 @@ func TestGetPlanFilesUsesGetMDFiles(t *testing.T) {
 // TestDetectAndReportArtifactsUseSlicesContains verifies the artifact detection correctly
 // identifies newly created artifacts (testing the behavior that depends on proper slice containment check)
 func TestDetectAndReportArtifactsUseSlicesContains(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	reportsDir := filepath.Join(tmpDir, "reports")
 	plansDir := filepath.Join(tmpDir, "plans")
@@ -683,13 +703,19 @@ func TestDetectAndReportArtifactsUseSlicesContains(t *testing.T) {
 }
 
 func TestDebugModelFlag(t *testing.T) {
+	t.Parallel(
 	// Reset the debugModel variable to its default state before each subtest
+	)
+
 	originalModel := debugModel
 	defer func() { debugModel = originalModel }()
 
 	t.Run("default model is opus", func(t *testing.T) {
+		t.Parallel(
 		// The debugModel variable should have the default set by cobra
 		// when the command is initialized
+		)
+
 		debugModel = "" // Reset to empty
 
 		// Simulate what cobra does during flag initialization
@@ -703,7 +729,10 @@ func TestDebugModelFlag(t *testing.T) {
 	})
 
 	t.Run("model flag can be set", func(t *testing.T) {
+		t.Parallel(
 		// Test that the model variable can be changed
+		)
+
 		debugModel = "sonnet"
 		if debugModel != "sonnet" {
 			t.Errorf("expected debugModel to be 'sonnet', got %q", debugModel)
@@ -719,6 +748,7 @@ func TestDebugModelFlag(t *testing.T) {
 // TestBuildDebugPromptWithRunbookEntry verifies that buildDebugPrompt injects a Failure Context
 // section when a runbook entry is provided.
 func TestBuildDebugPromptWithRunbookEntry(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0755); err != nil {
@@ -760,6 +790,7 @@ func TestBuildDebugPromptWithRunbookEntry(t *testing.T) {
 }
 
 func TestBuildDebugPrompt_IncludesCompatibilityDiagnostics(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0755); err != nil {
@@ -790,6 +821,7 @@ func TestBuildDebugPrompt_IncludesCompatibilityDiagnostics(t *testing.T) {
 }
 
 func TestBuildDebugPrompt_LegacyCompatibilityUsesConfigMarkerContract(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0755); err != nil {
@@ -813,6 +845,7 @@ func TestBuildDebugPrompt_LegacyCompatibilityUsesConfigMarkerContract(t *testing
 // TestBuildDebugPromptWithRunbookEntryDetailsSection verifies the Failure Context section
 // contains commit diff instructions, validation commands, failure output, and build prompt.
 func TestBuildDebugPromptWithRunbookEntryDetailsSection(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0755); err != nil {
@@ -876,6 +909,7 @@ func TestBuildDebugPromptWithRunbookEntryDetailsSection(t *testing.T) {
 // TestBuildDebugPromptWithoutRunbookEntryHasNoFailureContext verifies that when no
 // runbook entry is provided, the Failure Context section is absent.
 func TestBuildDebugPromptWithoutRunbookEntryHasNoFailureContext(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0755); err != nil {
@@ -895,6 +929,7 @@ func TestBuildDebugPromptWithoutRunbookEntryHasNoFailureContext(t *testing.T) {
 // TestPickRunbookEntryReturnsSelectedEntry verifies that pickRunbookEntry returns the
 // entry corresponding to the user's numbered selection.
 func TestPickRunbookEntryReturnsSelectedEntry(t *testing.T) {
+	t.Parallel()
 	entries := []runbook.Entry{
 		{
 			BeadID:          "gromit-aaa",
@@ -927,6 +962,7 @@ func TestPickRunbookEntryReturnsSelectedEntry(t *testing.T) {
 // TestPickRunbookEntrySkipOnZeroOrInvalid verifies that pickRunbookEntry returns nil
 // when the user enters 0 or non-numeric input (skip selection).
 func TestPickRunbookEntrySkipOnZeroOrInvalid(t *testing.T) {
+	t.Parallel()
 	entries := []runbook.Entry{
 		{BeadID: "gromit-aaa", BeadTitle: "First bug", FailureCategory: "test_failure", Timestamp: time.Now()},
 	}
@@ -946,6 +982,7 @@ func TestPickRunbookEntrySkipOnZeroOrInvalid(t *testing.T) {
 // TestPickRunbookEntrySelectsSecondEntry verifies that pickRunbookEntry correctly returns
 // the second entry when "2" is entered.
 func TestPickRunbookEntrySelectsSecondEntry(t *testing.T) {
+	t.Parallel()
 	entries := []runbook.Entry{
 		{BeadID: "gromit-aaa", BeadTitle: "First bug", FailureCategory: "test_failure", Timestamp: time.Now()},
 		{BeadID: "gromit-bbb", BeadTitle: "Second bug", FailureCategory: "lint_error", Timestamp: time.Now()},
@@ -968,6 +1005,7 @@ func TestPickRunbookEntrySelectsSecondEntry(t *testing.T) {
 // arg is provided, the caller passes nil entry (picker is skipped) and the prompt
 // contains the description but no Failure Context.
 func TestBuildDebugPromptWithRunbookEntrySkippedWhenArgsPresent(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0755); err != nil {
@@ -991,6 +1029,7 @@ func TestBuildDebugPromptWithRunbookEntrySkippedWhenArgsPresent(t *testing.T) {
 // TestPickRunbookEntryEmptyListReturnsNil verifies that pickRunbookEntry returns nil
 // when the entries list is empty (no entries to pick from).
 func TestPickRunbookEntryEmptyListReturnsNil(t *testing.T) {
+	t.Parallel()
 	reader := strings.NewReader("1\n")
 	entry, err := pickRunbookEntry([]runbook.Entry{}, reader)
 	if err != nil {
@@ -1004,6 +1043,7 @@ func TestPickRunbookEntryEmptyListReturnsNil(t *testing.T) {
 // TestResolveRunbookEntrySkipsPickerWhenArgsPresent verifies that resolveRunbookEntry
 // returns nil without reading from the reader when description args are present.
 func TestResolveRunbookEntrySkipsPickerWhenArgsPresent(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0755); err != nil {
@@ -1031,6 +1071,7 @@ func TestResolveRunbookEntrySkipsPickerWhenArgsPresent(t *testing.T) {
 // TestResolveRunbookEntryShowsPickerWhenNoArgs verifies that resolveRunbookEntry
 // returns the selected entry when no args and entries exist.
 func TestResolveRunbookEntryShowsPickerWhenNoArgs(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0755); err != nil {
@@ -1061,6 +1102,7 @@ func TestResolveRunbookEntryShowsPickerWhenNoArgs(t *testing.T) {
 // TestResolveRunbookEntryReturnsNilWhenNoEntries verifies that resolveRunbookEntry
 // returns nil without prompting when no runbook entries exist.
 func TestResolveRunbookEntryReturnsNilWhenNoEntries(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0755); err != nil {
@@ -1095,6 +1137,7 @@ func setupDebugWorktreeTestDirs(t *testing.T) (string, string) {
 }
 
 func TestMaybeCreateDebugRestoreWorktreeCreatesAtFailureCommit(t *testing.T) {
+	t.Parallel()
 	gromitDir, mainDir := setupDebugWorktreeTestDirs(t)
 
 	entry := &runbook.Entry{
@@ -1125,6 +1168,7 @@ func TestMaybeCreateDebugRestoreWorktreeCreatesAtFailureCommit(t *testing.T) {
 }
 
 func TestMaybeCreateDebugRestoreWorktreeFallsBackWithoutFailureCommit(t *testing.T) {
+	t.Parallel()
 	gromitDir, mainDir := setupDebugWorktreeTestDirs(t)
 
 	entry := &runbook.Entry{ID: "rb-456-gromit-def"}
@@ -1148,6 +1192,7 @@ func TestMaybeCreateDebugRestoreWorktreeFallsBackWithoutFailureCommit(t *testing
 }
 
 func TestMaybeCreateDebugRestoreWorktreeFallsBackOnGitFailure(t *testing.T) {
+	t.Parallel()
 	gromitDir, mainDir := setupDebugWorktreeTestDirs(t)
 
 	entry := &runbook.Entry{
@@ -1169,6 +1214,7 @@ func TestMaybeCreateDebugRestoreWorktreeFallsBackOnGitFailure(t *testing.T) {
 }
 
 func TestMaybeCleanupDebugRestoreWorktreeRemovesWhenDeclined(t *testing.T) {
+	t.Parallel()
 	originalConfirm := debugConfirmPromptFn
 	defer func() {
 		debugConfirmPromptFn = originalConfirm
@@ -1202,6 +1248,7 @@ func TestMaybeCleanupDebugRestoreWorktreeRemovesWhenDeclined(t *testing.T) {
 }
 
 func TestMaybeCleanupDebugRestoreWorktreeKeepsWhenAccepted(t *testing.T) {
+	t.Parallel()
 	originalConfirm := debugConfirmPromptFn
 	defer func() {
 		debugConfirmPromptFn = originalConfirm

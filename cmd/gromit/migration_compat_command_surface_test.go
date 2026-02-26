@@ -9,11 +9,12 @@ import (
 )
 
 func TestDebugCompatibilityDiagnostics_CommandSurfaceSupportsLegacyAndExplicitConfig(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
-		name            string
-		fixture         string
-		wantSubstrings  []string
-		wantAbsent      []string
+		name           string
+		fixture        string
+		wantSubstrings []string
+		wantAbsent     []string
 	}{
 		{
 			name:    "legacy fixture surfaces fallback diagnostics",
@@ -43,6 +44,7 @@ func TestDebugCompatibilityDiagnostics_CommandSurfaceSupportsLegacyAndExplicitCo
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			cfgPath := filepath.Join("..", "..", "test", "fixtures", "migration", tc.fixture)
 			cfg, err := config.Load(cfgPath)
 			if err != nil {

@@ -38,6 +38,7 @@ func loadProjectRoot(t *testing.T) string {
 }
 
 func TestCmdSmokeMatrix_AllCmdCasesHaveDecisions(t *testing.T) {
+	t.Parallel()
 	projectRoot, matrix := loadCmdSmokeMatrix(t)
 
 	cases := collectAcceptanceTests(t, projectRoot, cmdAcceptanceTestFiles())
@@ -69,6 +70,7 @@ func TestCmdSmokeMatrix_AllCmdCasesHaveDecisions(t *testing.T) {
 }
 
 func TestCmdSmokeMatrix_MovedCasesHaveConcreteUnitDestinations(t *testing.T) {
+	t.Parallel()
 	projectRoot, matrix := loadCmdSmokeMatrix(t)
 	unitTests := listCmdUnitTests(t, projectRoot)
 
@@ -93,6 +95,7 @@ func TestCmdSmokeMatrix_MovedCasesHaveConcreteUnitDestinations(t *testing.T) {
 }
 
 func TestLoadCmdSmokeMatrix_IncludesKnownCase(t *testing.T) {
+	t.Parallel()
 	_, matrix := loadCmdSmokeMatrix(t)
 
 	entry, ok := matrix["cmd/gromit/debug_agent_acceptance_test.go:TestCmdSmoke_DebugAgentResolutionEndToEnd"]

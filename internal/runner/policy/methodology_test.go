@@ -16,6 +16,7 @@ func newMethodologyPolicy(atdd, tdd bool) policy.MethodologyPolicy {
 }
 
 func TestIsActive_TrueLabelOverridesGlobalFalse(t *testing.T) {
+	t.Parallel()
 	p := newMethodologyPolicy(false, false)
 	labels := []string{"tdd:true"}
 	if !p.IsActive(labels, "tdd") {
@@ -24,6 +25,7 @@ func TestIsActive_TrueLabelOverridesGlobalFalse(t *testing.T) {
 }
 
 func TestIsActive_FalseLabelOverridesGlobalTrue(t *testing.T) {
+	t.Parallel()
 	p := newMethodologyPolicy(false, true)
 	labels := []string{"tdd:false"}
 	if p.IsActive(labels, "tdd") {
@@ -32,6 +34,7 @@ func TestIsActive_FalseLabelOverridesGlobalTrue(t *testing.T) {
 }
 
 func TestIsActive_FallsBackToGlobalConfig(t *testing.T) {
+	t.Parallel()
 	pEnabled := newMethodologyPolicy(false, true)
 	pDisabled := newMethodologyPolicy(false, false)
 	labels := []string{"unrelated:label"}
@@ -44,6 +47,7 @@ func TestIsActive_FallsBackToGlobalConfig(t *testing.T) {
 }
 
 func TestPhaseTimeout_ConfiguredPhaseTimeoutUsed(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	cfg.Methodology.PhaseTimeouts.RedSeconds = 120
 	cfg.Methodology.PhaseTimeouts.GreenSeconds = 90
@@ -62,6 +66,7 @@ func TestPhaseTimeout_ConfiguredPhaseTimeoutUsed(t *testing.T) {
 }
 
 func TestPhaseTimeout_FallsBackToBeadTimeoutWhenUnconfigured(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{} // zero PhaseTimeouts
 	p := policy.NewConfigMethodologyPolicy(cfg)
 
@@ -72,6 +77,7 @@ func TestPhaseTimeout_FallsBackToBeadTimeoutWhenUnconfigured(t *testing.T) {
 }
 
 func TestMinRefactorBudget_Returns60Seconds(t *testing.T) {
+	t.Parallel()
 	p := newMethodologyPolicy(false, false)
 	want := 60 * time.Second
 	if got := p.MinRefactorBudget(); got != want {
@@ -80,6 +86,7 @@ func TestMinRefactorBudget_Returns60Seconds(t *testing.T) {
 }
 
 func TestMinRevalidationBudget_Returns30Seconds(t *testing.T) {
+	t.Parallel()
 	p := newMethodologyPolicy(false, false)
 	want := 30 * time.Second
 	if got := p.MinRevalidationBudget(); got != want {
@@ -88,6 +95,7 @@ func TestMinRevalidationBudget_Returns30Seconds(t *testing.T) {
 }
 
 func TestShouldDeferPostSuccess_WhenMethodologyActive(t *testing.T) {
+	t.Parallel()
 	p := newMethodologyPolicy(false, false)
 
 	// Both inactive: post-success should run immediately (no deferral = true)
@@ -109,6 +117,7 @@ func TestShouldDeferPostSuccess_WhenMethodologyActive(t *testing.T) {
 }
 
 func TestIsActive_ATDDGlobalConfig(t *testing.T) {
+	t.Parallel()
 	p := newMethodologyPolicy(true, false)
 	labels := []string{}
 	if !p.IsActive(labels, "atdd") {
@@ -128,6 +137,7 @@ func newMethodologyPolicyWithGranularity(atdd, tdd bool, granularity string) pol
 }
 
 func TestIsActive_ATDDSuppressedWhenSpecGranularityAndSpecLabel(t *testing.T) {
+	t.Parallel()
 	p := newMethodologyPolicyWithGranularity(true, false, config.MethodologyGranularitySpec)
 	labels := []string{"spec:my-feature"}
 	if p.IsActive(labels, "atdd") {
@@ -136,6 +146,7 @@ func TestIsActive_ATDDSuppressedWhenSpecGranularityAndSpecLabel(t *testing.T) {
 }
 
 func TestIsActive_ATDDNotSuppressedWhenSpecGranularityButNoSpecLabel(t *testing.T) {
+	t.Parallel()
 	p := newMethodologyPolicyWithGranularity(true, false, config.MethodologyGranularitySpec)
 	labels := []string{"unrelated:label"}
 	if !p.IsActive(labels, "atdd") {
@@ -144,6 +155,7 @@ func TestIsActive_ATDDNotSuppressedWhenSpecGranularityButNoSpecLabel(t *testing.
 }
 
 func TestIsActive_ATDDNotSuppressedWhenBeadGranularityEvenWithSpecLabel(t *testing.T) {
+	t.Parallel()
 	p := newMethodologyPolicyWithGranularity(true, false, config.MethodologyGranularityBead)
 	labels := []string{"spec:my-feature"}
 	if !p.IsActive(labels, "atdd") {
@@ -152,6 +164,7 @@ func TestIsActive_ATDDNotSuppressedWhenBeadGranularityEvenWithSpecLabel(t *testi
 }
 
 func TestIsActive_TDDNotSuppressedBySpecGranularity(t *testing.T) {
+	t.Parallel()
 	p := newMethodologyPolicyWithGranularity(false, true, config.MethodologyGranularitySpec)
 	labels := []string{"spec:my-feature"}
 	if !p.IsActive(labels, "tdd") {
@@ -160,6 +173,7 @@ func TestIsActive_TDDNotSuppressedBySpecGranularity(t *testing.T) {
 }
 
 func TestIsActive_UsesResolvedMethodologyAdapter(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	cfg.Project.Profile = "go"
 	cfg.Methodology.TDD = true
@@ -177,6 +191,7 @@ func TestIsActive_UsesResolvedMethodologyAdapter(t *testing.T) {
 }
 
 func TestIsActive_ReturnsFalseForNonGoMethodologyAdapter(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	cfg.Methodology.TDD = true
 	cfg.Methodology.Adapter = "python"

@@ -13,6 +13,7 @@ import (
 
 // TestClaudeClientAdapter_ConstructsTypedStruct verifies claudeClientAdapter.Run returns typed struct
 func TestClaudeClientAdapter_ConstructsTypedStruct(t *testing.T) {
+	t.Parallel()
 	contentStr := adapterTestReadFile(t, "adapters.go")
 
 	// Check that claudeClientAdapter.Run constructs &pipeline.LLMRunResult{...}
@@ -29,6 +30,7 @@ func TestClaudeClientAdapter_ConstructsTypedStruct(t *testing.T) {
 // TestClaudeClientAdapter_UsesConfigTimeout verifies that the adapter uses configurable timeout
 // sourced from config instead of a hardcoded duration.
 func TestClaudeClientAdapter_UsesConfigTimeout(t *testing.T) {
+	t.Parallel()
 	slowScript := adapterTestCreateSleepScript(t, 2*time.Second, "done")
 	adapter := adapterTestNewClaudeAdapter(t, slowScript, 50*time.Millisecond)
 
@@ -46,6 +48,7 @@ func TestClaudeClientAdapter_UsesConfigTimeout(t *testing.T) {
 
 // TestClaudeClientAdapter_NoHardcodedTimeout verifies the adapter no longer uses a fixed timeout.
 func TestClaudeClientAdapter_NoHardcodedTimeout(t *testing.T) {
+	t.Parallel()
 	slowScript := adapterTestCreateSleepScript(t, 200*time.Millisecond, "ok")
 	shortTimeoutAdapter := adapterTestNewClaudeAdapter(t, slowScript, 50*time.Millisecond)
 	longTimeoutAdapter := adapterTestNewClaudeAdapter(t, slowScript, 2*time.Second)
@@ -65,6 +68,7 @@ func TestClaudeClientAdapter_NoHardcodedTimeout(t *testing.T) {
 
 // TestBeadClientAdapter_ConstructsTypedStruct verifies beadClientAdapter methods return typed structs
 func TestBeadClientAdapter_ConstructsTypedStruct(t *testing.T) {
+	t.Parallel()
 	contentStr := adapterTestReadFile(t, "adapters.go")
 
 	// Check that adapter constructs &pipeline.BeadInfo{...}
@@ -89,6 +93,7 @@ func TestBeadClientAdapter_ConstructsTypedStruct(t *testing.T) {
 
 // TestAdapterFile_ImportsTypedPipeline verifies adapters.go imports pipeline package properly
 func TestAdapterFile_ImportsTypedPipeline(t *testing.T) {
+	t.Parallel()
 	contentStr := adapterTestReadFile(t, "adapters.go")
 
 	// Verify file imports pipeline package
@@ -108,6 +113,7 @@ func TestAdapterFile_ImportsTypedPipeline(t *testing.T) {
 
 // TestAdapterSimplification_NoMapConstruction verifies adapters don't construct intermediate maps
 func TestAdapterSimplification_NoMapConstruction(t *testing.T) {
+	t.Parallel()
 	contentStr := adapterTestReadFile(t, "adapters.go")
 
 	// Extract claude adapter section (between claudeClientAdapter type and beadClientAdapter type)
@@ -134,6 +140,7 @@ func TestAdapterSimplification_NoMapConstruction(t *testing.T) {
 }
 
 func TestAdapterHelpers_UseLLMRunResultNaming(t *testing.T) {
+	t.Parallel()
 	contentStr := adapterTestReadFile(t, "adapters.go")
 
 	if !adapterTestContainsString(contentStr, "func toLLMRunResult(") {
@@ -145,6 +152,7 @@ func TestAdapterHelpers_UseLLMRunResultNaming(t *testing.T) {
 }
 
 func TestProviderGenericAdapter_UsesLLMRouterNaming(t *testing.T) {
+	t.Parallel()
 	contentStr := adapterTestReadFile(t, "adapters.go")
 
 	if !adapterTestContainsString(contentStr, "type llmRouterClientAdapter struct") {
@@ -156,6 +164,7 @@ func TestProviderGenericAdapter_UsesLLMRouterNaming(t *testing.T) {
 }
 
 func TestAdapterTests_UseLLMTypeNaming(t *testing.T) {
+	t.Parallel()
 	contentStr := adapterTestReadFile(t, "decompose_adapters_test.go")
 	legacyType := "pipeline." + "ClaudeRunResult"
 	if adapterTestContainsString(contentStr, legacyType) {

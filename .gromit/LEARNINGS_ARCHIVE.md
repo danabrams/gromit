@@ -1639,3 +1639,8 @@ When implementing display features that iterate over data structures (specs, cos
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-26 | gromit-sirx | conventions
+When adding t.Parallel() to tests, verify each test uses isolated temporary directories (t.TempDir() or unique paths). Tests dealing with file I/O, fixtures, or profiles require careful isolation to avoid cross-test interference in parallel execution.
+
+*Archived from new: filtered: generic engineering advice*
+

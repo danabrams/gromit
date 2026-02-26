@@ -9,6 +9,7 @@ import (
 )
 
 func TestDefaultTierToModelMap(t *testing.T) {
+	t.Parallel()
 	if got := provider.DefaultTierToModelMap[provider.TierHigh]; got != "opus" {
 		t.Fatalf("DefaultTierToModelMap[%q] = %q, want %q", provider.TierHigh, got, "opus")
 	}
@@ -21,6 +22,7 @@ func TestDefaultTierToModelMap(t *testing.T) {
 }
 
 func TestParseFallbackCooldown_UsesConfiguredDuration(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Providers: map[string]config.ProviderDef{
 			"claude": {},
@@ -40,6 +42,7 @@ func TestParseFallbackCooldown_UsesConfiguredDuration(t *testing.T) {
 }
 
 func TestBuildProvidersFromConfig_CodexDefaults(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Providers: map[string]config.ProviderDef{
 			"codex": {
@@ -70,6 +73,7 @@ func TestBuildProvidersFromConfig_CodexDefaults(t *testing.T) {
 }
 
 func TestBuildProvidersFromConfig_ClaudeDefaults(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Claude: config.ClaudeConfig{
 			Timeout: 10,
@@ -103,6 +107,7 @@ func TestBuildProvidersFromConfig_ClaudeDefaults(t *testing.T) {
 }
 
 func TestBuildProvidersFromConfig_ClaudeBinaryPathEntry(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Claude: config.ClaudeConfig{
 			Timeout: 10,
@@ -130,6 +135,7 @@ func TestBuildProvidersFromConfig_ClaudeBinaryPathEntry(t *testing.T) {
 }
 
 func TestBuildProvidersFromConfig_CodexBinaryPathEntry(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Providers: map[string]config.ProviderDef{
 			"secondary": {
@@ -154,6 +160,7 @@ func TestBuildProvidersFromConfig_CodexBinaryPathEntry(t *testing.T) {
 }
 
 func TestBuildProvidersFromConfig_GeminiDefaults(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Providers: map[string]config.ProviderDef{
 			"gemini": {
@@ -188,6 +195,7 @@ func TestBuildProvidersFromConfig_GeminiDefaults(t *testing.T) {
 }
 
 func TestBuildProvidersFromConfig_NilConfig(t *testing.T) {
+	t.Parallel()
 	providers, err := provider.BuildProvidersFromConfig(nil)
 	if err == nil {
 		t.Fatal("BuildProvidersFromConfig() error = nil, want non-nil")
@@ -198,6 +206,7 @@ func TestBuildProvidersFromConfig_NilConfig(t *testing.T) {
 }
 
 func TestBuildRouterFromConfig_NoProvidersReturnsSingleClaudeRouter(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Claude: config.ClaudeConfig{
 			Binary:  "claude",
@@ -226,6 +235,7 @@ func TestBuildRouterFromConfig_NoProvidersReturnsSingleClaudeRouter(t *testing.T
 }
 
 func TestBuildRouterFromConfig_ClaudeOnlyConfigReturnsClaudeRouter(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Claude: config.ClaudeConfig{
 			Timeout: 10,
@@ -266,6 +276,7 @@ func TestBuildRouterFromConfig_ClaudeOnlyConfigReturnsClaudeRouter(t *testing.T)
 }
 
 func TestBuildRouterFromConfig_MultiProviderAppliesFallbackDefaults(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Claude: config.ClaudeConfig{
 			Timeout: 10,
@@ -310,6 +321,7 @@ func TestBuildRouterFromConfig_MultiProviderAppliesFallbackDefaults(t *testing.T
 }
 
 func TestBuildRouterFromConfig_CodexOnlyConfigReturnsCodexRouter(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Providers: map[string]config.ProviderDef{
 			"codex": {

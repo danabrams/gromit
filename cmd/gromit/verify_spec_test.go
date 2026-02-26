@@ -37,6 +37,7 @@ id: my-spec
 )
 
 func TestVerifySpecCmd_Registration(t *testing.T) {
+	t.Parallel()
 	found := false
 	for _, cmd := range rootCmd.Commands() {
 		if cmd.Use == "verify-spec <spec>" {
@@ -51,6 +52,7 @@ func TestVerifySpecCmd_Registration(t *testing.T) {
 }
 
 func TestVerifySpecCmd_Flags(t *testing.T) {
+	t.Parallel()
 	flag := verifySpecCmd.Flags().Lookup("create-beads")
 	if flag == nil {
 		t.Error("verify-spec should have --create-beads flag")
@@ -62,6 +64,7 @@ func TestVerifySpecCmd_Flags(t *testing.T) {
 }
 
 func TestVerifySpecCmd_ArgParsing(t *testing.T) {
+	t.Parallel()
 	_, stderr, exitCode := runGromitCobra(t, "verify-spec")
 	if exitCode != 1 {
 		t.Fatalf("exit code = %d, want 1", exitCode)
@@ -72,6 +75,7 @@ func TestVerifySpecCmd_ArgParsing(t *testing.T) {
 }
 
 func TestExtractAcceptanceCriteria(t *testing.T) {
+	t.Parallel()
 	body := `# Title
 
 ## Acceptance Criteria
@@ -289,6 +293,7 @@ func TestVerifySpecCmd_CreateBeadsPrintsIDs(t *testing.T) {
 }
 
 func TestBuildVerifySpecRouter_UsesProviderBuildRouterFromConfig(t *testing.T) {
+	t.Parallel()
 	verifySource, err := os.ReadFile("verify_spec.go")
 	if err != nil {
 		t.Fatalf("Reading verify_spec.go: %v", err)
@@ -306,6 +311,7 @@ func TestBuildVerifySpecRouter_UsesProviderBuildRouterFromConfig(t *testing.T) {
 }
 
 func TestBuildVerifySpecRouter_UsesInjectedProviderBuilder(t *testing.T) {
+
 	called := false
 	prevBuilder := verifySpecBuildRouterFromConfig
 	verifySpecBuildRouterFromConfig = func(cfg *config.Config) (*provider.Router, error) {
@@ -325,6 +331,7 @@ func TestBuildVerifySpecRouter_UsesInjectedProviderBuilder(t *testing.T) {
 }
 
 func TestVerifySpec_LocalProviderConfigHelpersRemoved(t *testing.T) {
+	t.Parallel()
 	verifySource, err := os.ReadFile("verify_spec.go")
 	if err != nil {
 		t.Fatalf("Reading verify_spec.go: %v", err)

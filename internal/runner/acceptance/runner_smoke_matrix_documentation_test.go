@@ -40,6 +40,7 @@ func collectAcceptanceCases(t *testing.T, projectRoot string) []string {
 }
 
 func TestRunnerSmokeMatrix_DocumentedCasesCoverAcceptanceSuite(t *testing.T) {
+	t.Parallel()
 	projectRoot := repoRoot(t)
 
 	matrix, err := runner.LoadRunnerSmokeMatrix(projectRoot)
@@ -63,6 +64,7 @@ func TestRunnerSmokeMatrix_DocumentedCasesCoverAcceptanceSuite(t *testing.T) {
 }
 
 func TestRunnerSmokeMatrix_DocumentedKeepSetIsExact(t *testing.T) {
+	t.Parallel()
 	projectRoot := repoRoot(t)
 
 	matrix, err := runner.LoadRunnerSmokeMatrix(projectRoot)
@@ -93,6 +95,7 @@ func TestRunnerSmokeMatrix_DocumentedKeepSetIsExact(t *testing.T) {
 }
 
 func TestRunnerSmokeMatrix_DocumentedMoveCasesMapToUnitDestinations(t *testing.T) {
+	t.Parallel()
 	projectRoot := repoRoot(t)
 
 	matrix, err := runner.LoadRunnerSmokeMatrix(projectRoot)

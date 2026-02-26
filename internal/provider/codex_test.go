@@ -17,6 +17,7 @@ import (
 // and can be instantiated.
 // Expected failure: CodexProvider struct does not exist yet
 func TestCodexProviderStructExists(t *testing.T) {
+	t.Parallel()
 	var cp *CodexProvider
 	if cp != nil {
 		t.Error("nil CodexProvider should be nil")
@@ -27,6 +28,7 @@ func TestCodexProviderStructExists(t *testing.T) {
 // satisfies the Provider interface via compile-time check.
 // Expected failure: CodexProvider struct does not exist yet
 func TestCodexProviderImplementsProviderInterface(t *testing.T) {
+	t.Parallel()
 	var _ Provider = (*CodexProvider)(nil)
 }
 
@@ -34,6 +36,7 @@ func TestCodexProviderImplementsProviderInterface(t *testing.T) {
 // binaryPath field for storing the path to the codex CLI binary.
 // Expected failure: CodexProvider struct and binaryPath field do not exist yet
 func TestCodexProviderHasBinaryPathField(t *testing.T) {
+	t.Parallel()
 	cp := &CodexProvider{
 		binaryPath: "/usr/local/bin/codex",
 	}
@@ -47,6 +50,7 @@ func TestCodexProviderHasBinaryPathField(t *testing.T) {
 // for storing CLI flags to pass to the codex binary.
 // Expected failure: CodexProvider struct and flags field do not exist yet
 func TestCodexProviderHasFlagsField(t *testing.T) {
+	t.Parallel()
 	flags := []string{"--verbose", "--no-color"}
 	cp := &CodexProvider{
 		flags: flags,
@@ -64,6 +68,7 @@ func TestCodexProviderHasFlagsField(t *testing.T) {
 // tierToModel map field for mapping abstract tiers to Codex-specific model names.
 // Expected failure: CodexProvider struct and tierToModel field do not exist yet
 func TestCodexProviderHasTierToModelMap(t *testing.T) {
+	t.Parallel()
 	tierMap := map[string]string{
 		TierHigh:   "o3",
 		TierMedium: "gpt-4o",
@@ -93,6 +98,7 @@ func TestCodexProviderHasTierToModelMap(t *testing.T) {
 // creates a CodexProvider with all required fields set correctly.
 // Expected failure: NewCodexProvider() function does not exist yet
 func TestNewCodexProviderConstructor(t *testing.T) {
+	t.Parallel()
 	binaryPath := "/usr/local/bin/codex"
 	flags := []string{"--no-color"}
 	tierMap := map[string]string{
@@ -124,6 +130,7 @@ func TestNewCodexProviderConstructor(t *testing.T) {
 // Name() method returning "codex".
 // Expected failure: CodexProvider struct and Name() method do not exist yet
 func TestCodexProviderNameMethod(t *testing.T) {
+	t.Parallel()
 	cp := &CodexProvider{}
 
 	name := cp.Name()
@@ -137,6 +144,7 @@ func TestCodexProviderNameMethod(t *testing.T) {
 // standard output from the codex CLI invocation.
 // Expected failure: CodexProvider Run() method does not exist yet
 func TestCodexProviderRunCapturesStdout(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -171,6 +179,7 @@ exit 0
 }
 
 func TestCodexProviderRunDoesNotMixStderrIntoOutput(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -208,6 +217,7 @@ exit 1
 // standard error output from the codex CLI invocation.
 // Expected failure: CodexProvider Run() method does not exist yet
 func TestCodexProviderRunCapturesStderr(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -308,6 +318,7 @@ func TestPrepareCodexEnv_RemovesCODEXCI(t *testing.T) {
 }
 
 func TestRemoveEnvKey_DropsOnlyMatchingKey(t *testing.T) {
+	t.Parallel()
 	env := []string{
 		"PATH=/usr/bin",
 		"CODEX_CI=1",
@@ -340,6 +351,7 @@ func containsEnvKV(env []string, target string) bool {
 }
 
 func TestCodexProviderRun_RetriesTransientFailureOnce(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 	counterFile := filepath.Join(tempDir, "attempt-counter")
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -383,6 +395,7 @@ exit 0
 }
 
 func TestCodexProviderRun_FailureIncludesDiagnostics(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 	mockBinary := filepath.Join(tempDir, "codex")
 	mockScript := `#!/bin/bash
@@ -410,6 +423,7 @@ exit 4
 }
 
 func TestClassifyCodexFailure(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name     string
 		exitCode int
@@ -462,6 +476,7 @@ func TestClassifyCodexFailure(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			got := classifyCodexFailure(tc.exitCode, tc.stdout, tc.stderr)
 			if got != tc.want {
 				t.Fatalf("classifyCodexFailure(%d, %q, %q) = %q, want %q", tc.exitCode, tc.stdout, tc.stderr, got, tc.want)
@@ -474,6 +489,7 @@ func TestClassifyCodexFailure(t *testing.T) {
 // the Result.Duration field with the actual execution time.
 // Expected failure: CodexProvider Run() method does not exist yet
 func TestCodexProviderRunReturnsResultWithDuration(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -509,6 +525,7 @@ exit 0
 // Result.Success to true when exit code is 0, false otherwise.
 // Expected failure: CodexProvider Run() method does not exist yet
 func TestCodexProviderRunSetsSuccessBasedOnExitCode(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	tests := []struct {
@@ -567,6 +584,7 @@ func TestCodexProviderRunSetsSuccessBasedOnExitCode(t *testing.T) {
 // Result.Model field to the resolved model name from the tier mapping.
 // Expected failure: CodexProvider Run() method does not exist yet
 func TestCodexProviderRunPopulatesModelInResult(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -612,6 +630,7 @@ func TestCodexProviderRunPopulatesModelInResult(t *testing.T) {
 // output to the provided io.Writer as it's produced by the codex CLI.
 // Expected failure: CodexProvider StreamRun() method does not exist yet
 func TestCodexProviderStreamRunStreamsOutput(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -661,6 +680,7 @@ exit 0
 }
 
 func TestCodexProviderStreamRunUsesAutoColor(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -693,6 +713,7 @@ exit 0
 // invokes EventHandler when a non-nil handler is provided and the binary emits JSONL.
 // Expected failure: CodexProvider StreamRun() does not add --json flag or call handler yet
 func TestCodexProviderStreamRunEventHandlerCalledWithJSON(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -741,6 +762,7 @@ exit 0
 // invokes ToolCallHandler when tool-related events are emitted in JSONL format.
 // Expected failure: CodexProvider StreamRun() does not parse tool events or call handler yet
 func TestCodexProviderStreamRunToolCallHandlerCalledForToolEvents(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -796,6 +818,7 @@ exit 0
 // returns a Result with all metadata fields populated correctly.
 // Expected failure: CodexProvider StreamRun() method does not exist yet
 func TestCodexProviderStreamRunReturnsResultWithMetadata(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -844,6 +867,7 @@ func TestCodexProviderStreamRunReturnsResultWithMetadata(t *testing.T) {
 // IsUsageLimitError() detects OpenAI/Codex-specific usage limit patterns.
 // Expected failure: CodexProvider IsUsageLimitError() method does not exist yet
 func TestCodexProviderIsUsageLimitErrorDetectsOpenAIErrors(t *testing.T) {
+	t.Parallel()
 	cp := &CodexProvider{}
 
 	tests := []struct {
@@ -912,6 +936,7 @@ func TestCodexProviderIsUsageLimitErrorDetectsOpenAIErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := cp.IsUsageLimitError(tt.result, tt.err)
 			if got != tt.expected {
 				t.Errorf("IsUsageLimitError() = %v, want %v", got, tt.expected)
@@ -924,6 +949,7 @@ func TestCodexProviderIsUsageLimitErrorDetectsOpenAIErrors(t *testing.T) {
 // maps tier constants to the configured Codex model names.
 // Expected failure: CodexProvider ModelForTier() method does not exist yet
 func TestCodexProviderModelForTierReturnsCorrectModel(t *testing.T) {
+	t.Parallel()
 	tierMap := map[string]string{
 		TierHigh:   "o3",
 		TierMedium: "gpt-4o",
@@ -945,6 +971,7 @@ func TestCodexProviderModelForTierReturnsCorrectModel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run("tier_"+tt.tier, func(t *testing.T) {
+			t.Parallel()
 			got := cp.ModelForTier(tt.tier)
 			if got != tt.wantModel {
 				t.Errorf("ModelForTier(%q) = %q, want %q", tt.tier, got, tt.wantModel)
@@ -957,6 +984,7 @@ func TestCodexProviderModelForTierReturnsCorrectModel(t *testing.T) {
 // context cancellation and stops execution when the context is cancelled.
 // Expected failure: CodexProvider Run() method does not exist yet
 func TestCodexProviderRunWithContextCancellation(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Fatal("skipping context cancellation test in short mode")
 	}
@@ -995,6 +1023,7 @@ func TestCodexProviderRunWithContextCancellation(t *testing.T) {
 // StreamRun() in JSON mode (non-nil handler) returns a context cancellation
 // error when the invocation context expires.
 func TestCodexProviderStreamRunWithContextCancellationJSONMode(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Fatal("skipping context cancellation test in short mode")
 	}
@@ -1023,6 +1052,7 @@ func TestCodexProviderStreamRunWithContextCancellationJSONMode(t *testing.T) {
 }
 
 func TestCodexProviderRun_PropagatesUsageToResult(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -1063,6 +1093,7 @@ exit 0
 }
 
 func TestCodexProviderRun_PropagatesTurnCompletedUsageToResult(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -1102,6 +1133,7 @@ exit 0
 }
 
 func TestCodexProviderStreamRun_PropagatesUsageToResult(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -1141,6 +1173,7 @@ exit 0
 }
 
 func TestCodexProviderStreamRun_FailureOutputExcludesStderr(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -1181,6 +1214,7 @@ exit 1
 
 // Expected failure: codexStreamTransientRetryCategories constant does not exist yet and StreamRun does not retry transient failures.
 func TestCodexProviderStreamRun_RetriesTransientFailuresAndPreservesJSONSemantics(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name                string
 		firstAttemptStderr  string
@@ -1200,6 +1234,7 @@ func TestCodexProviderStreamRun_RetriesTransientFailuresAndPreservesJSONSemantic
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tempDir := t.TempDir()
 			counterFile := filepath.Join(tempDir, "attempt-counter")
 			mockBinary := filepath.Join(tempDir, "codex")
@@ -1266,6 +1301,7 @@ exit 0
 
 // Expected failure: codexStreamTransientRetryTotalAttempts constant does not exist yet and StreamRun currently stops after the first failed attempt.
 func TestCodexProviderStreamRun_BoundedTransientRetryBudgetAndFailureClassification(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 	counterFile := filepath.Join(tempDir, "attempt-counter")
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -1310,6 +1346,7 @@ exit 1
 // TestCodexProvider_SleepFnDefaultsToSleepWithContext verifies that NewCodexProvider
 // sets sleepFn to a non-nil function (sleepWithContext) by default.
 func TestCodexProvider_SleepFnDefaultsToSleepWithContext(t *testing.T) {
+	t.Parallel()
 	cp := NewCodexProvider("/bin/codex", nil, nil)
 	if cp.sleepFn == nil {
 		t.Error("NewCodexProvider() sleepFn should default to sleepWithContext, got nil")
@@ -1320,6 +1357,7 @@ func TestCodexProvider_SleepFnDefaultsToSleepWithContext(t *testing.T) {
 // for retry backoff instead of calling sleepWithContext directly, allowing tests
 // to inject an instant-return stub.
 func TestCodexProvider_SleepFnCalledOnRetryInRun(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 	counterFile := filepath.Join(tempDir, "attempt-counter")
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -1362,6 +1400,7 @@ exit 0
 // TestCodexProvider_SleepFnCalledOnRetryInStreamRun verifies that StreamRun() uses
 // p.sleepFn for retry backoff, allowing tests to inject an instant-return stub.
 func TestCodexProvider_SleepFnCalledOnRetryInStreamRun(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 	counterFile := filepath.Join(tempDir, "attempt-counter")
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -1425,6 +1464,7 @@ func readAttemptCount(t *testing.T, path string) int {
 // any additional flags configured in the CodexProvider.flags field.
 // Expected failure: CodexProvider Run() method does not exist yet
 func TestCodexProviderRunWithAdditionalFlags(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -1461,10 +1501,14 @@ exit 0
 // handle nil receiver safely by returning appropriate errors.
 // Expected failure: CodexProvider methods do not exist yet
 func TestCodexProviderNilReceiverSafety(t *testing.T) {
+	t.Parallel()
 	var cp *CodexProvider
 
 	t.Run("Name with nil receiver", func(t *testing.T) {
+		t.Parallel(
 		// Name() should handle nil receiver safely (return empty string or panic)
+		)
+
 		defer func() {
 			if r := recover(); r == nil {
 				name := cp.Name()
@@ -1477,6 +1521,7 @@ func TestCodexProviderNilReceiverSafety(t *testing.T) {
 	})
 
 	t.Run("Run with nil receiver", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		result, err := cp.Run(ctx, "test", TierLow)
 
@@ -1493,6 +1538,7 @@ func TestCodexProviderNilReceiverSafety(t *testing.T) {
 // error when the codex binary path does not exist.
 // Expected failure: CodexProvider Run() method does not exist yet
 func TestCodexProviderBinaryNotFound(t *testing.T) {
+	t.Parallel()
 	nonexistentPath := "/nonexistent/path/to/codex"
 	tierMap := map[string]string{TierLow: "gpt-4o-mini"}
 	cp := NewCodexProvider(nonexistentPath, []string{}, tierMap)
@@ -1522,6 +1568,7 @@ func TestCodexProviderBinaryNotFound(t *testing.T) {
 // an empty tierToModel map by falling back to using the tier name as the model.
 // Expected failure: CodexProvider Run() method does not exist yet
 func TestCodexProviderEmptyTierToModelMap(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -1563,6 +1610,7 @@ exit 0
 // that verifies the full CodexProvider flow with a real-like binary interaction.
 // Expected failure: CodexProvider struct and methods do not exist yet
 func TestCodexProviderIntegrationWithRealBinary(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("bash"); err != nil {
 		t.Fatal("bash not available for integration test")
 	}
@@ -1693,6 +1741,7 @@ exit 0
 // TestCodexProviderMaxInputTokensConfig verifies that CodexProvider supports
 // a max_input_tokens configuration that limits input token usage.
 func TestCodexProviderMaxInputTokensConfig(t *testing.T) {
+	t.Parallel()
 	cp := NewCodexProvider("/usr/bin/codex", []string{}, map[string]string{TierMedium: "gpt-4o"})
 
 	// SetMaxInputTokens should allow configuration of max input token threshold

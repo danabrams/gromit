@@ -50,6 +50,7 @@ func (s *callbacksTDDProviderStub) IsScopeTooLarge(result *provider.Result) (boo
 // with the correct phase, cycle, model, tier, delta tokens/cost, duration, and
 // success flag — capturing the data that InvokeFn previously discarded.
 func TestAppendTDDPhaseMetric_AppendsPhaseMetricToBcResult(t *testing.T) {
+	t.Parallel()
 	bc := &runtypes.BeadContext{
 		Bead:  &bead.Bead{ID: "bead-1"},
 		Model: "claude-sonnet-4-6",
@@ -105,6 +106,7 @@ func TestAppendTDDPhaseMetric_AppendsPhaseMetricToBcResult(t *testing.T) {
 }
 
 func TestBuildRenderRedFn_UsesRedPhaseTierOverride(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	templatesDir := filepath.Join(tmpDir, "templates")
 	specsDir := filepath.Join(tmpDir, "specs")
@@ -153,6 +155,7 @@ func TestBuildRenderRedFn_UsesRedPhaseTierOverride(t *testing.T) {
 }
 
 func TestBuildRenderRedFn_LoadsRulesForRedPhase(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	templatesDir := filepath.Join(tmpDir, "templates")
 	specsDir := filepath.Join(tmpDir, "specs")
@@ -208,6 +211,7 @@ func TestBuildRenderRedFn_LoadsRulesForRedPhase(t *testing.T) {
 }
 
 func TestBuildRenderRedFn_ReturnsErrorWhenRedRulesLoadFails(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	templatesDir := filepath.Join(tmpDir, "templates")
 	specsDir := filepath.Join(tmpDir, "specs")
@@ -253,6 +257,7 @@ func TestBuildRenderRedFn_ReturnsErrorWhenRedRulesLoadFails(t *testing.T) {
 }
 
 func TestBuildRenderGreenFn_UsesGreenPhaseTierOverride(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	templatesDir := filepath.Join(tmpDir, "templates")
 	specsDir := filepath.Join(tmpDir, "specs")
@@ -301,6 +306,7 @@ func TestBuildRenderGreenFn_UsesGreenPhaseTierOverride(t *testing.T) {
 }
 
 func TestBuildRenderGreenFn_LoadsRulesForGreenPhase(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	templatesDir := filepath.Join(tmpDir, "templates")
 	specsDir := filepath.Join(tmpDir, "specs")
@@ -356,6 +362,7 @@ func TestBuildRenderGreenFn_LoadsRulesForGreenPhase(t *testing.T) {
 }
 
 func TestBuildRenderGreenFn_ReturnsErrorWhenGreenRulesLoadFails(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	templatesDir := filepath.Join(tmpDir, "templates")
 	specsDir := filepath.Join(tmpDir, "specs")
@@ -401,6 +408,7 @@ func TestBuildRenderGreenFn_ReturnsErrorWhenGreenRulesLoadFails(t *testing.T) {
 }
 
 func TestBuildInvokeFn_ReturnsErrorWhenProviderResultIsUnsuccessful(t *testing.T) {
+	t.Parallel()
 	router := provider.NewSingleProviderRouter(&callbacksTDDProviderStub{
 		name: "build-provider",
 		streamRunFn: func(ctx context.Context, prompt, tier string, w io.Writer, h provider.EventHandler, tc provider.ToolCallHandler) (*provider.Result, error) {
@@ -419,6 +427,7 @@ func TestBuildInvokeFn_ReturnsErrorWhenProviderResultIsUnsuccessful(t *testing.T
 }
 
 func TestBuildRunRefactorFn_SelectsProviderForRefactorPhase(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	templatesDir := filepath.Join(tmpDir, "templates")
 	specsDir := filepath.Join(tmpDir, "specs")
@@ -499,6 +508,7 @@ func TestBuildRunRefactorFn_SelectsProviderForRefactorPhase(t *testing.T) {
 }
 
 func TestBuildRunRefactorFn_LoadsRulesForRefactorPhase(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	templatesDir := filepath.Join(tmpDir, "templates")
 	specsDir := filepath.Join(tmpDir, "specs")
@@ -564,6 +574,7 @@ func TestBuildRunRefactorFn_LoadsRulesForRefactorPhase(t *testing.T) {
 }
 
 func TestBuildRunRefactorFn_ReturnsErrorWhenRefactorRulesLoadFails(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	templatesDir := filepath.Join(tmpDir, "templates")
 	specsDir := filepath.Join(tmpDir, "specs")
@@ -609,6 +620,7 @@ func TestBuildRunRefactorFn_ReturnsErrorWhenRefactorRulesLoadFails(t *testing.T)
 }
 
 func TestBuildRunRefactorFn_UsesRefactorPhaseTierOverride(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	templatesDir := filepath.Join(tmpDir, "templates")
 	specsDir := filepath.Join(tmpDir, "specs")
@@ -669,6 +681,7 @@ func TestBuildRunRefactorFn_UsesRefactorPhaseTierOverride(t *testing.T) {
 }
 
 func TestBuildRunRefactorFn_ReturnsErrorWhenProviderResultIsUnsuccessful(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	templatesDir := filepath.Join(tmpDir, "templates")
 	specsDir := filepath.Join(tmpDir, "specs")
@@ -725,14 +738,15 @@ func TestBuildRunRefactorFn_ReturnsErrorWhenProviderResultIsUnsuccessful(t *test
 // that red phase invocations record PhaseMetric with cost/token deltas computed
 // from before/after snapshots, not raw usage values from the provider response.
 func TestTDDCycleOrchestrator_RecordsRedPhaseMetricsWithSnapshotDeltas(t *testing.T) {
+	t.Parallel()
 	bc := &runtypes.BeadContext{
-		Bead: &bead.Bead{ID: "b1", Title: "Test"},
-		Tier: "medium",
+		Bead:  &bead.Bead{ID: "b1", Title: "Test"},
+		Tier:  "medium",
 		Model: "claude-sonnet",
 		Result: &runtypes.IterationResult{
-			CostUSD:      0.01,   // Starting cost
-			InputTokens:  100,    // Starting tokens
-			OutputTokens: 50,     // Starting tokens
+			CostUSD:      0.01, // Starting cost
+			InputTokens:  100,  // Starting tokens
+			OutputTokens: 50,   // Starting tokens
 		},
 	}
 
@@ -742,9 +756,9 @@ func TestTDDCycleOrchestrator_RecordsRedPhaseMetricsWithSnapshotDeltas(t *testin
 	beforeOutputTokens := bc.Result.OutputTokens
 
 	// Provider returns additional usage during red phase invocation
-	bc.Result.CostUSD += 0.05      // Provider adds cost
-	bc.Result.InputTokens += 500   // Provider adds input tokens
-	bc.Result.OutputTokens += 250  // Provider adds output tokens
+	bc.Result.CostUSD += 0.05     // Provider adds cost
+	bc.Result.InputTokens += 500  // Provider adds input tokens
+	bc.Result.OutputTokens += 250 // Provider adds output tokens
 
 	// Record metric with snapshot-based deltas (as would happen in real execution)
 	appendTDDPhaseMetric(bc, "red", 1, beforeCostUSD, beforeInputTokens, beforeOutputTokens, time.Now())
@@ -782,14 +796,15 @@ func TestTDDCycleOrchestrator_RecordsRedPhaseMetricsWithSnapshotDeltas(t *testin
 // that refactor phase invocations record PhaseMetric with cost/token deltas computed
 // from before/after snapshots, not raw usage values from the provider response.
 func TestTDDCycleOrchestrator_RecordsRefactorPhaseMetricsWithSnapshotDeltas(t *testing.T) {
+	t.Parallel()
 	bc := &runtypes.BeadContext{
-		Bead: &bead.Bead{ID: "b1", Title: "Test"},
-		Tier: "medium",
+		Bead:  &bead.Bead{ID: "b1", Title: "Test"},
+		Tier:  "medium",
 		Model: "claude-sonnet",
 		Result: &runtypes.IterationResult{
-			CostUSD:      0.10,   // Starting cost (after red + green)
-			InputTokens:  600,    // Starting tokens
-			OutputTokens: 300,    // Starting tokens
+			CostUSD:      0.10, // Starting cost (after red + green)
+			InputTokens:  600,  // Starting tokens
+			OutputTokens: 300,  // Starting tokens
 		},
 	}
 
@@ -799,9 +814,9 @@ func TestTDDCycleOrchestrator_RecordsRefactorPhaseMetricsWithSnapshotDeltas(t *t
 	beforeOutputTokens := bc.Result.OutputTokens
 
 	// Provider returns additional usage during refactor phase invocation
-	bc.Result.CostUSD += 0.03      // Provider adds cost
-	bc.Result.InputTokens += 200   // Provider adds input tokens
-	bc.Result.OutputTokens += 100  // Provider adds output tokens
+	bc.Result.CostUSD += 0.03     // Provider adds cost
+	bc.Result.InputTokens += 200  // Provider adds input tokens
+	bc.Result.OutputTokens += 100 // Provider adds output tokens
 
 	// Record metric with snapshot-based deltas (as would happen in real execution)
 	appendTDDPhaseMetric(bc, "refactor", 1, beforeCostUSD, beforeInputTokens, beforeOutputTokens, time.Now())
@@ -841,6 +856,7 @@ func TestTDDCycleOrchestrator_RecordsRefactorPhaseMetricsWithSnapshotDeltas(t *t
 // This test ensures red and refactor phases use the same snapshot-based
 // semantics as the green phase.
 func TestPhaseMetricRecording_AllPhasesUseSnapshotIterationUsage(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		phase string
@@ -852,7 +868,10 @@ func TestPhaseMetricRecording_AllPhasesUseSnapshotIterationUsage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel(
 			// Setup: BeadContext with initial usage state
+			)
+
 			bc := &runtypes.BeadContext{
 				Bead:  &bead.Bead{ID: "test-bead"},
 				Model: "test-model",
@@ -905,6 +924,7 @@ func TestPhaseMetricRecording_AllPhasesUseSnapshotIterationUsage(t *testing.T) {
 // per-phase snapshots, enabling consistent usage across all TDD phases (red,
 // green, refactor) without direct field access.
 func TestSnapshotIterationUsage_CanBeUsedByOrchestratorForAllPhases(t *testing.T) {
+	t.Parallel()
 	bc := &runtypes.BeadContext{
 		Result: &runtypes.IterationResult{
 			CostUSD:      0.15,

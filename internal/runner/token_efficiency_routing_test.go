@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveUtilityTaskTier_UsesUtilityTierForSummarization(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		TokenEfficiency: config.TokenEfficiencyConfig{
 			Routing: config.TokenEfficiencyRoutingConfig{
@@ -24,6 +25,7 @@ func TestResolveUtilityTaskTier_UsesUtilityTierForSummarization(t *testing.T) {
 }
 
 func TestResolveUtilityTaskTier_UsesTaskOverrideWhenEnabled(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		TokenEfficiency: config.TokenEfficiencyConfig{
 			Routing: config.TokenEfficiencyRoutingConfig{
@@ -43,6 +45,7 @@ func TestResolveUtilityTaskTier_UsesTaskOverrideWhenEnabled(t *testing.T) {
 }
 
 func TestResolveUtilityTaskTier_UsesUtilityTierForMaskingTransform(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		TokenEfficiency: config.TokenEfficiencyConfig{
 			Routing: config.TokenEfficiencyRoutingConfig{
@@ -59,6 +62,7 @@ func TestResolveUtilityTaskTier_UsesUtilityTierForMaskingTransform(t *testing.T)
 }
 
 func TestResolveUtilityTaskTier_UsesUtilityTierForDiscoveryIndexing(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		TokenEfficiency: config.TokenEfficiencyConfig{
 			Routing: config.TokenEfficiencyRoutingConfig{
@@ -75,6 +79,7 @@ func TestResolveUtilityTaskTier_UsesUtilityTierForDiscoveryIndexing(t *testing.T
 }
 
 func TestResolveUtilityTaskTier_KillSwitchAndNonUtilityFallbacks(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		TokenEfficiency: config.TokenEfficiencyConfig{
 			Routing: config.TokenEfficiencyRoutingConfig{
@@ -102,6 +107,7 @@ func TestResolveUtilityTaskTier_KillSwitchAndNonUtilityFallbacks(t *testing.T) {
 }
 
 func TestResolveUtilityTaskTier_Integration_BuildAndCodegenRemainOnFallbackTier(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		TokenEfficiency: config.TokenEfficiencyConfig{
 			Routing: config.TokenEfficiencyRoutingConfig{

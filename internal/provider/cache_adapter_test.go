@@ -9,6 +9,7 @@ import (
 )
 
 func TestNoopCacheAdapterLookupReturnsMiss(t *testing.T) {
+	t.Parallel()
 	adapter := NewNoopCacheAdapter()
 
 	entry, hit, err := adapter.Lookup(context.Background(), CacheLookupRequest{
@@ -32,6 +33,7 @@ func TestNoopCacheAdapterLookupReturnsMiss(t *testing.T) {
 }
 
 func TestNoopCacheAdapterWriteAndInvalidateAreSafeNoops(t *testing.T) {
+	t.Parallel()
 	adapter := NewNoopCacheAdapter()
 
 	writeErr := adapter.Write(context.Background(), CacheWriteRequest{
@@ -78,7 +80,7 @@ func (testProviderWithoutCache) RunValidation(context.Context, []string, string,
 	return nil, nil
 }
 func (testProviderWithoutCache) IsUsageLimitError(*Result, error) bool { return false }
-func (testProviderWithoutCache) IsValidationPassed(*Result) bool        { return false }
+func (testProviderWithoutCache) IsValidationPassed(*Result) bool       { return false }
 func (testProviderWithoutCache) IsScopeTooLarge(*Result) (bool, string) {
 	return false, ""
 }
@@ -92,6 +94,7 @@ func (testProviderWithNilCacheAdapter) CacheAdapter() CacheAdapter {
 }
 
 func TestResolveCacheAdapterFallsBackToNoopWhenProviderLacksCapability(t *testing.T) {
+	t.Parallel()
 	adapter := ResolveCacheAdapter(testProviderWithoutCache{})
 
 	if SupportsProviderCache(testProviderWithoutCache{}) {
@@ -114,6 +117,7 @@ func TestResolveCacheAdapterFallsBackToNoopWhenProviderLacksCapability(t *testin
 }
 
 func TestResolveCacheAdapter_Integration_NilCapableAdapterFallsBackToNoop(t *testing.T) {
+	t.Parallel()
 	adapter := ResolveCacheAdapter(testProviderWithNilCacheAdapter{})
 	if adapter == nil {
 		t.Fatal("ResolveCacheAdapter() = nil, want noop adapter")
@@ -135,6 +139,7 @@ func TestResolveCacheAdapter_Integration_NilCapableAdapterFallsBackToNoop(t *tes
 }
 
 func TestClaudeAndCodexProvidersExposeCacheAdapterCapability(t *testing.T) {
+	t.Parallel()
 	providers := []Provider{
 		NewClaudeProvider(nil, map[string]string{TierMedium: "sonnet"}),
 		NewCodexProvider("codex", nil, map[string]string{TierMedium: "gpt-5.3-codex"}),
@@ -162,6 +167,7 @@ func TestClaudeAndCodexProvidersExposeCacheAdapterCapability(t *testing.T) {
 }
 
 func TestNoopCacheAdapterWriteSupportsRefreshFlag(t *testing.T) {
+	t.Parallel()
 	adapter := NewNoopCacheAdapter()
 	err := adapter.Write(context.Background(), CacheWriteRequest{
 		CacheClass: "build",

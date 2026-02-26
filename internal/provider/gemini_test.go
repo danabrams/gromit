@@ -9,6 +9,7 @@ import (
 )
 
 func TestGeminiProviderRunValidationRunsPrompt(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 	mockBinary := filepath.Join(tempDir, "gemini")
 	mockScript := `#!/bin/bash
@@ -43,6 +44,7 @@ exit 0
 }
 
 func TestGeminiProviderIsUsageLimitErrorDetection(t *testing.T) {
+	t.Parallel()
 	gp := &GeminiProvider{}
 
 	tests := []struct {
@@ -131,6 +133,7 @@ func TestGeminiProviderIsUsageLimitErrorDetection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := gp.IsUsageLimitError(tt.result, tt.err)
 			if got != tt.expected {
 				t.Errorf("IsUsageLimitError() = %v, want %v (result=%+v)", got, tt.expected, tt.result)
@@ -140,6 +143,7 @@ func TestGeminiProviderIsUsageLimitErrorDetection(t *testing.T) {
 }
 
 func TestGeminiProviderRunValidationRejectsInvalidCommands(t *testing.T) {
+	t.Parallel()
 	gp := NewGeminiProvider("gemini", nil, map[string]string{TierLow: "gemini-2.0-flash"})
 
 	tests := []struct {
@@ -166,6 +170,7 @@ func TestGeminiProviderRunValidationRejectsInvalidCommands(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result, err := gp.RunValidation(context.Background(), tt.commands, TierLow, t.TempDir())
 			if err == nil {
 				t.Fatalf("RunValidation() error = nil, want error containing %q", tt.wantErr)
@@ -181,6 +186,7 @@ func TestGeminiProviderRunValidationRejectsInvalidCommands(t *testing.T) {
 }
 
 func TestGeminiProviderValidationMarkerDetection(t *testing.T) {
+	t.Parallel()
 	gp := &GeminiProvider{}
 
 	tests := []struct {
@@ -216,6 +222,7 @@ func TestGeminiProviderValidationMarkerDetection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := gp.IsValidationPassed(tt.result)
 			if got != tt.expected {
 				t.Fatalf("IsValidationPassed() = %v, want %v (output=%q)", got, tt.expected, tt.result.Output)
@@ -225,6 +232,7 @@ func TestGeminiProviderValidationMarkerDetection(t *testing.T) {
 }
 
 func TestGeminiProviderIsScopeTooLargeDetection(t *testing.T) {
+	t.Parallel()
 	gp := &GeminiProvider{}
 
 	tests := []struct {
@@ -264,6 +272,7 @@ func TestGeminiProviderIsScopeTooLargeDetection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			found, explanation := gp.IsScopeTooLarge(tt.result)
 			if found != tt.expectedFound {
 				t.Fatalf("IsScopeTooLarge() found = %v, want %v", found, tt.expectedFound)
@@ -276,6 +285,7 @@ func TestGeminiProviderIsScopeTooLargeDetection(t *testing.T) {
 }
 
 func TestGeminiProviderRunInvokesJSONMode(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	clockwork := make([]string, 0)
 	gp := &GeminiProvider{

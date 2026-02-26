@@ -6,6 +6,7 @@ import (
 )
 
 func TestCmdSmokeSuiteReclassified_AcceptanceFileSet(t *testing.T) {
+	t.Parallel()
 	projectRoot, err := findProjectRoot()
 	if err != nil {
 		t.Fatalf("findProjectRoot: %v", err)
@@ -21,7 +22,7 @@ func TestCmdSmokeSuiteReclassified_AcceptanceFileSet(t *testing.T) {
 		filepath.Join(projectRoot, "cmd/gromit/explore_codex_help_acceptance_test.go"):     true,
 		filepath.Join(projectRoot, "cmd/gromit/install_skill_acceptance_test.go"):          true,
 		filepath.Join(projectRoot, "cmd/gromit/review_spec_validation_acceptance_test.go"): true,
-		filepath.Join(projectRoot, "cmd/gromit/epic_acceptance_test.go"):                  true,
+		filepath.Join(projectRoot, "cmd/gromit/epic_acceptance_test.go"):                   true,
 	}
 
 	for _, abs := range matches {

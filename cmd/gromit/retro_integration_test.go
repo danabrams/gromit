@@ -89,6 +89,7 @@ func assertLabelSet(t *testing.T, got []string, expected []string) {
 // --- Scope flag tests ---
 
 func TestRetroCommand_SpecFlagExists(t *testing.T) {
+	t.Parallel()
 	specFlag := retroCmd.Flags().Lookup("spec")
 	if specFlag == nil {
 		t.Fatal("retro command should have --spec flag")
@@ -99,6 +100,7 @@ func TestRetroCommand_SpecFlagExists(t *testing.T) {
 }
 
 func TestRetroCommand_EpicFlagExists(t *testing.T) {
+	t.Parallel()
 	epicFlag := retroCmd.Flags().Lookup("epic")
 	if epicFlag == nil {
 		t.Fatal("retro command should have --epic flag")
@@ -111,6 +113,7 @@ func TestRetroCommand_EpicFlagExists(t *testing.T) {
 // TestRunRetro_ValidatesFlags verifies that runRetro calls scope.ValidateFlags
 // and returns an error when both --spec and --epic are set
 func TestRunRetro_ValidatesFlags(t *testing.T) {
+	t.Parallel()
 	retroSpecFlag = "init-wizard"
 	retroEpicFlag = "gromit-xyz"
 	defer func() {
@@ -128,6 +131,7 @@ func TestRunRetro_ValidatesFlags(t *testing.T) {
 }
 
 func TestRetroCommand_SpecFlagResolvesToLabel(t *testing.T) {
+	t.Parallel()
 	if err := scope.ValidateFlags("", "init-wizard"); err != nil {
 		t.Fatalf("ValidateFlags should accept --spec alone, got error: %v", err)
 	}
@@ -142,6 +146,7 @@ func TestRetroCommand_SpecFlagResolvesToLabel(t *testing.T) {
 }
 
 func TestRetroCommand_EpicFlagUsesResolveEpic(t *testing.T) {
+	t.Parallel()
 	specsDir := filepath.Join(t.TempDir(), "specs")
 	writeSpecFiles(t, specsDir, []specFile{
 		{"auth.md", "auth", "gromit-xyz"},
@@ -156,6 +161,7 @@ func TestRetroCommand_EpicFlagUsesResolveEpic(t *testing.T) {
 }
 
 func TestRetroCommand_EpicFlagFiltersIterationLogs(t *testing.T) {
+	t.Parallel()
 	specsDir := filepath.Join(t.TempDir(), "specs")
 	writeSpecFiles(t, specsDir, []specFile{
 		{"auth.md", "auth", "gromit-xyz"},
@@ -175,12 +181,14 @@ func TestRetroCommand_EpicFlagFiltersIterationLogs(t *testing.T) {
 }
 
 func TestRetroCommand_NoScopeFlagUsesDefaultBehavior(t *testing.T) {
+	t.Parallel()
 	if err := scope.ValidateFlags("", ""); err != nil {
 		t.Fatalf("ValidateFlags should accept both flags empty, got error: %v", err)
 	}
 }
 
 func TestRetroCommand_EpicResolutionWithNoSpecs(t *testing.T) {
+	t.Parallel()
 	specsDir := filepath.Join(t.TempDir(), "specs")
 	if err := os.MkdirAll(specsDir, 0755); err != nil {
 		t.Fatalf("Failed to create specs dir: %v", err)
@@ -202,6 +210,7 @@ func TestRetroCommand_EpicResolutionWithNoSpecs(t *testing.T) {
 // --- CLI help text tests ---
 
 func TestRetroCmd_HelpText_DocumentsSpecFlag(t *testing.T) {
+	t.Parallel()
 	helpText := retroCmd.Long
 	if !strings.Contains(helpText, "--spec") {
 		t.Error("retroCmd.Long should document --spec flag")
@@ -215,6 +224,7 @@ func TestRetroCmd_HelpText_DocumentsSpecFlag(t *testing.T) {
 }
 
 func TestRetroCmd_HelpText_DocumentsEpicFlag(t *testing.T) {
+	t.Parallel()
 	helpText := retroCmd.Long
 	if !strings.Contains(helpText, "--epic") {
 		t.Error("retroCmd.Long should document --epic flag")
@@ -230,6 +240,7 @@ func TestRetroCmd_HelpText_DocumentsEpicFlag(t *testing.T) {
 // --- buildBeadFilter tests ---
 
 func TestRetroCommand_BuildBeadFilterHandlesEmptyBeadList(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	filter, err := buildBeadFilter(ctx, []string{})
@@ -252,6 +263,7 @@ func TestRetroCommand_BuildBeadFilterHandlesEmptyBeadList(t *testing.T) {
 // --- End-to-end environment setup tests ---
 
 func TestRetroCommand_EndToEndSpecFiltering(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 	gromitDir := filepath.Join(tempDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0755); err != nil {
@@ -318,6 +330,7 @@ func TestRetroCommand_EndToEndSpecFiltering(t *testing.T) {
 }
 
 func TestRetroCommand_EndToEndEpicFiltering(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 	gromitDir := filepath.Join(tempDir, ".gromit")
 	specsDir := filepath.Join(gromitDir, "specs")

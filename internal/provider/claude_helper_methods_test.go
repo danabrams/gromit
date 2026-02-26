@@ -8,6 +8,7 @@ import (
 // TestClaudeProviderIsValidationPassedHelper verifies that ClaudeProvider
 // has an IsValidationPassed() helper that delegates to shared provider helpers.
 func TestClaudeProviderIsValidationPassedHelper(t *testing.T) {
+	t.Parallel()
 	cp := &ClaudeProvider{}
 
 	tests := []struct {
@@ -51,6 +52,7 @@ func TestClaudeProviderIsValidationPassedHelper(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := cp.IsValidationPassed(tt.result)
 			if got != tt.expected {
 				t.Errorf("IsValidationPassed() = %v, want %v (output=%q)", got, tt.expected, tt.result.Output)
@@ -62,6 +64,7 @@ func TestClaudeProviderIsValidationPassedHelper(t *testing.T) {
 // TestClaudeProviderIsScopeTooLargeHelper verifies that ClaudeProvider
 // has an IsScopeTooLarge() helper that delegates to shared provider helpers.
 func TestClaudeProviderIsScopeTooLargeHelper(t *testing.T) {
+	t.Parallel()
 	cp := &ClaudeProvider{}
 
 	tests := []struct {
@@ -116,6 +119,7 @@ func TestClaudeProviderIsScopeTooLargeHelper(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			gotTooLarge, gotExplanation := cp.IsScopeTooLarge(tt.result)
 			if gotTooLarge != tt.expectedTooLarge {
 				t.Errorf("IsScopeTooLarge() tooLarge = %v, want %v", gotTooLarge, tt.expectedTooLarge)

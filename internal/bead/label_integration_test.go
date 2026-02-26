@@ -11,6 +11,7 @@ import (
 
 // TestReadyWithLabel_IntegrationCallsBdWithLabelFlag tests that ReadyWithLabel() passes --label flag to bd ready
 func TestReadyWithLabel_IntegrationCallsBdWithLabelFlag(t *testing.T) {
+	t.Parallel()
 	c := newIsolatedClient(t)
 
 	// Create a test bead with a specific label
@@ -41,6 +42,7 @@ func TestReadyWithLabel_IntegrationCallsBdWithLabelFlag(t *testing.T) {
 
 // TestReadyWithLabel_IntegrationExcludesBeadsWithoutLabel tests that ReadyWithLabel() only returns beads with the specified label
 func TestReadyWithLabel_IntegrationExcludesBeadsWithoutLabel(t *testing.T) {
+	t.Parallel()
 	c := newIsolatedClient(t)
 
 	// Create multiple beads with different labels
@@ -79,6 +81,7 @@ func TestReadyWithLabel_IntegrationExcludesBeadsWithoutLabel(t *testing.T) {
 
 // TestListWithLabel_IntegrationCallsBdWithLabelFlag tests that ListWithLabel() passes --label flag to bd list
 func TestListWithLabel_IntegrationCallsBdWithLabelFlag(t *testing.T) {
+	t.Parallel()
 	c := newIsolatedClient(t)
 
 	// Create multiple test beads with the same label
@@ -112,6 +115,7 @@ func TestListWithLabel_IntegrationCallsBdWithLabelFlag(t *testing.T) {
 
 // TestListWithLabel_IntegrationExcludesBeadsWithoutLabel tests that ListWithLabel() only returns beads with the specified label
 func TestListWithLabel_IntegrationExcludesBeadsWithoutLabel(t *testing.T) {
+	t.Parallel()
 	c := newIsolatedClient(t)
 
 	// Create beads with different labels
@@ -152,6 +156,7 @@ func TestListWithLabel_IntegrationExcludesBeadsWithoutLabel(t *testing.T) {
 
 // TestReadyWithLabel_IntegrationReturnsNilWhenNoMatch tests that ReadyWithLabel() returns nil when no beads match the label
 func TestReadyWithLabel_IntegrationReturnsNilWhenNoMatch(t *testing.T) {
+	t.Parallel()
 	c := newIsolatedClient(t)
 
 	// Request a label that doesn't exist
@@ -168,6 +173,7 @@ func TestReadyWithLabel_IntegrationReturnsNilWhenNoMatch(t *testing.T) {
 
 // TestListWithLabel_IntegrationReturnsEmptySliceWhenNoMatch tests that ListWithLabel() returns empty slice when no beads match
 func TestListWithLabel_IntegrationReturnsEmptySliceWhenNoMatch(t *testing.T) {
+	t.Parallel()
 	c := newIsolatedClient(t)
 
 	// Request a label that doesn't exist
@@ -189,6 +195,7 @@ func TestListWithLabel_IntegrationReturnsEmptySliceWhenNoMatch(t *testing.T) {
 
 // TestReadyWithLabel_IntegrationExcludesEpics tests that ReadyWithLabel() excludes epic type beads
 func TestReadyWithLabel_IntegrationExcludesEpics(t *testing.T) {
+	t.Parallel()
 	c := newIsolatedClient(t)
 
 	testLabel := "spec:epic-exclusion-test"
@@ -220,7 +227,10 @@ func TestReadyWithLabel_IntegrationExcludesEpics(t *testing.T) {
 
 // TestReadyWithLabel_IntegrationCallsCorrectCommand verifies the exact command being called
 func TestReadyWithLabel_IntegrationCallsCorrectCommand(t *testing.T) {
+	t.Parallel(
 	// This test verifies the command structure by checking if bd accepts the arguments
+	)
+
 	c := newIsolatedClient(t)
 
 	testLabel := "spec:cmd-test"
@@ -249,7 +259,10 @@ func TestReadyWithLabel_IntegrationCallsCorrectCommand(t *testing.T) {
 
 // TestListWithLabel_IntegrationCallsCorrectCommand verifies the exact command being called
 func TestListWithLabel_IntegrationCallsCorrectCommand(t *testing.T) {
+	t.Parallel(
 	// This test verifies the command structure by checking if bd accepts the arguments
+	)
+
 	c := newIsolatedClient(t)
 
 	testLabel := "spec:list-cmd-test"
@@ -278,6 +291,7 @@ func TestListWithLabel_IntegrationCallsCorrectCommand(t *testing.T) {
 
 // TestReadyWithLabel_IntegrationWithSpecialCharacters tests label handling with various valid special characters
 func TestReadyWithLabel_IntegrationWithSpecialCharacters(t *testing.T) {
+	t.Parallel()
 	c := newIsolatedClient(t)
 
 	tests := []struct {
@@ -304,7 +318,10 @@ func TestReadyWithLabel_IntegrationWithSpecialCharacters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel(
 			// Create a bead with the label
+			)
+
 			_, err := c.Create("Test task", 1, []string{tt.label}, []string{})
 			if err != nil {
 				t.Fatalf("Cannot create test bead with label %q: %v", tt.label, err)
@@ -329,6 +346,7 @@ func TestReadyWithLabel_IntegrationWithSpecialCharacters(t *testing.T) {
 
 // TestListWithLabel_IntegrationReturnsMultipleBeadsInOrder tests that ListWithLabel() returns beads in consistent order
 func TestListWithLabel_IntegrationReturnsMultipleBeadsInOrder(t *testing.T) {
+	t.Parallel()
 	c := newIsolatedClient(t)
 
 	testLabel := "spec:order-test"
@@ -372,6 +390,7 @@ func TestListWithLabel_IntegrationReturnsMultipleBeadsInOrder(t *testing.T) {
 // TestListWithLabel_IntegrationExcludesEpics tests that ListWithLabel() excludes epic type beads
 // This is an acceptance test for the epic exclusion requirement
 func TestListWithLabel_IntegrationExcludesEpics(t *testing.T) {
+	t.Parallel()
 	c := newIsolatedClient(t)
 
 	testLabel := "spec:epic-exclusion-list-test"
@@ -398,6 +417,7 @@ func TestListWithLabel_IntegrationExcludesEpics(t *testing.T) {
 
 // TestReadyWithLabel_CommandContract verifies the exact bd command contract
 func TestReadyWithLabel_CommandContract(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("BD_AVAILABLE") != "true" {
 		t.Fatal("Skipping bd command contract test (set BD_AVAILABLE=true to run)")
 	}
@@ -439,6 +459,7 @@ func TestReadyWithLabel_CommandContract(t *testing.T) {
 // TestReadyWithLabel_IntegrationRegression_LabelFilterAndCommandContract verifies
 // ReadyWithLabel keeps honoring both the label filter behavior and the bd command contract.
 func TestReadyWithLabel_IntegrationRegression_LabelFilterAndCommandContract(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("BD_AVAILABLE") != "true" {
 		t.Fatal("Skipping bd command contract test (set BD_AVAILABLE=true to run)")
 	}
@@ -504,6 +525,7 @@ func TestReadyWithLabel_IntegrationRegression_LabelFilterAndCommandContract(t *t
 
 // TestListWithLabel_CommandContract verifies the exact bd command contract
 func TestListWithLabel_CommandContract(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("BD_AVAILABLE") != "true" {
 		t.Fatal("Skipping bd command contract test (set BD_AVAILABLE=true to run)")
 	}

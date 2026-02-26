@@ -12,7 +12,9 @@ import (
 
 // TestAddCommand_MultiWordContext verifies that multi-word context strings are captured in full
 func TestAddCommand_MultiWordContext(t *testing.T) {
+
 	// Create a temporary directory for the test
+
 	tmpDir := t.TempDir()
 
 	// Create .gromit directory
@@ -114,7 +116,9 @@ func TestAddCommand_MultiWordContext(t *testing.T) {
 
 // TestAddCommand_CategoryChoice verifies the category prompt still works correctly
 func TestAddCommand_CategoryChoice(t *testing.T) {
+
 	// Create a temporary directory for the test
+
 	tmpDir := t.TempDir()
 
 	// Create .gromit directory

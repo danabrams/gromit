@@ -11,6 +11,7 @@ import (
 // import sibling packages under internal/runner/. Sub-packages must not import
 // siblings — specifically the escalation package must not be imported here.
 func TestReviewerTestNoSiblingImports(t *testing.T) {
+	t.Parallel()
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, "reviewer_test.go", nil, 0)
 	if err != nil {
@@ -31,7 +32,10 @@ func TestReviewerTestNoSiblingImports(t *testing.T) {
 // TestVariableDeclarationMergePattern documents that variable declarations
 // followed immediately by assignment should be merged for clarity.
 func TestVariableDeclarationMergePattern(t *testing.T) {
+	t.Parallel(
 	// Good: merged declaration and assignment
+	)
+
 	result := computeValue()
 	if result != 42 {
 		t.Errorf("expected 42, got %d", result)

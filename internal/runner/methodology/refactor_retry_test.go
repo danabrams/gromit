@@ -74,6 +74,7 @@ func assertResultCostData(t *testing.T, result *runtypes.IterationResult, wantCo
 // --- ShouldRunRefactor tests ---
 
 func TestShouldRunRefactor(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name            string
 		tier            string
@@ -120,6 +121,7 @@ func TestShouldRunRefactor(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			cfg := newTestConfigWithEscalation()
 			cfg.Refactor.MinFilesChanged = tt.minFilesChanged
 			var buf strings.Builder
@@ -139,6 +141,7 @@ func TestShouldRunRefactor(t *testing.T) {
 // --- RunRefactorPhase tests ---
 
 func TestApplyRefactorStreamStats_AddsCostDataOntoExistingResult(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfigWithEscalation()
 	exec := NewExecutor(cfg, nil, nil, nil, nil)
 
@@ -158,6 +161,7 @@ func TestApplyRefactorStreamStats_AddsCostDataOntoExistingResult(t *testing.T) {
 }
 
 func TestApplyRefactorStreamStats_ZeroCostDataLeavesExistingResultUnchanged(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfigWithEscalation()
 	exec := NewExecutor(cfg, nil, nil, nil, nil)
 
@@ -176,6 +180,7 @@ func TestApplyRefactorStreamStats_ZeroCostDataLeavesExistingResultUnchanged(t *t
 }
 
 func TestApplyRefactorStreamStats_IncrementsCumulativeInputTokens(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfigWithEscalation()
 	exec := NewExecutor(cfg, nil, nil, nil, nil)
 
@@ -207,6 +212,7 @@ func TestApplyRefactorStreamStats_IncrementsCumulativeInputTokens(t *testing.T) 
 }
 
 func TestRunRefactorPhase_SkipsWhenNoDiff(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfigWithEscalation()
 	var buf strings.Builder
 
@@ -246,6 +252,7 @@ func TestRunRefactorPhase_SkipsWhenNoDiff(t *testing.T) {
 }
 
 func TestRunRefactorPhase_SkipsWhenBelowFileThreshold(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfigWithEscalation()
 	cfg.Refactor.MinFilesChanged = 5
 	var buf strings.Builder
@@ -281,6 +288,7 @@ func TestRunRefactorPhase_SkipsWhenBelowFileThreshold(t *testing.T) {
 }
 
 func TestRunRefactorPhase_ExecutesRefactorAndRevalidates(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfigWithEscalation()
 	cfg.Refactor.MinFilesChanged = 0 // always run
 	var buf strings.Builder
@@ -333,6 +341,7 @@ func TestRunRefactorPhase_ExecutesRefactorAndRevalidates(t *testing.T) {
 }
 
 func TestRunRefactorPhase_AccumulatesRefactorStreamStatsOntoExistingResult(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfigWithEscalation()
 	cfg.Refactor.MinFilesChanged = 0 // always run
 	var buf strings.Builder
@@ -386,6 +395,7 @@ func TestRunRefactorPhase_AccumulatesRefactorStreamStatsOntoExistingResult(t *te
 }
 
 func TestRunRefactorPhase_PreservesExistingResultWhenRefactorStatsNil(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfigWithEscalation()
 	cfg.Refactor.MinFilesChanged = 0 // always run
 	var buf strings.Builder
@@ -433,6 +443,7 @@ func TestRunRefactorPhase_PreservesExistingResultWhenRefactorStatsNil(t *testing
 }
 
 func TestRunRefactorPhase_RevertsAndRetriesOnValidationFailure(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfigWithEscalation()
 	cfg.Refactor.MinFilesChanged = 0
 	var buf strings.Builder
@@ -518,6 +529,7 @@ func TestRunRefactorPhase_RevertsAndRetriesOnValidationFailure(t *testing.T) {
 }
 
 func TestRunRefactorPhase_RevertsOnBothValidationFailures(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfigWithEscalation()
 	cfg.Refactor.MinFilesChanged = 0
 	var buf strings.Builder
@@ -573,6 +585,7 @@ func TestRunRefactorPhase_RevertsOnBothValidationFailures(t *testing.T) {
 // --- RunAcceptanceTestsWithRetry tests ---
 
 func TestRunAcceptanceTestsWithRetry_SucceedsOnFirstAttempt(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfigWithEscalation()
 	var buf strings.Builder
 
@@ -599,6 +612,7 @@ func TestRunAcceptanceTestsWithRetry_SucceedsOnFirstAttempt(t *testing.T) {
 }
 
 func TestRunAcceptanceTestsWithRetry_RetriesBeforeEscalating(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfigWithEscalation()
 	cfg.Escalation.MaxRetriesPerModel = 2
 	var buf strings.Builder
@@ -644,6 +658,7 @@ func TestRunAcceptanceTestsWithRetry_RetriesBeforeEscalating(t *testing.T) {
 }
 
 func TestRunAcceptanceTestsWithRetry_FailsWhenAllTiersExhausted(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfigWithEscalation()
 	cfg.Escalation.MaxRetriesPerModel = 0  // no retries, escalate immediately
 	cfg.Escalation.Chain = []string{"low"} // only one tier, no escalation possible
@@ -674,6 +689,7 @@ func TestRunAcceptanceTestsWithRetry_FailsWhenAllTiersExhausted(t *testing.T) {
 }
 
 func TestRunAcceptanceTestsWithRetry_FailsFastOnCanceledContext(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfigWithEscalation()
 	var buf strings.Builder
 
@@ -705,6 +721,7 @@ func TestRunAcceptanceTestsWithRetry_FailsFastOnCanceledContext(t *testing.T) {
 }
 
 func TestRunAcceptanceTestsWithRetry_StopsOnCyclicEscalationChain(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfigWithEscalation()
 	cfg.Escalation.MaxRetriesPerModel = 0                   // escalate immediately
 	cfg.Escalation.Chain = []string{"low", "medium", "low"} // cyclic chain
@@ -742,6 +759,7 @@ func TestRunAcceptanceTestsWithRetry_StopsOnCyclicEscalationChain(t *testing.T) 
 }
 
 func TestRunAcceptanceTestsWithRetry_StopsOnSameTierEscalation(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfigWithEscalation()
 	cfg.Escalation.MaxRetriesPerModel = 0         // escalate immediately
 	cfg.Escalation.Chain = []string{"low", "low"} // same tier repeated

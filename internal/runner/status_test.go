@@ -16,6 +16,7 @@ import (
 // only formats the Run section; this test drives adding pipeline.ReadStatus
 // integration so the output includes "Pipeline:" with bead/spec/plan counts.
 func TestPrintStatus_IncludesPipelineSection(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
@@ -47,6 +48,7 @@ func TestPrintStatus_IncludesPipelineSection(t *testing.T) {
 }
 
 func TestPrintStatus_IncludesCompatibilityDiagnostics(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
@@ -86,6 +88,7 @@ func TestPrintStatus_IncludesCompatibilityDiagnostics(t *testing.T) {
 }
 
 func TestPrintStatus_LegacyCompatibilityIncludesTrackerBackendDeprecationMarker(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
@@ -116,6 +119,7 @@ func TestPrintStatus_LegacyCompatibilityIncludesTrackerBackendDeprecationMarker(
 }
 
 func TestPrintStatus_LegacyCompatibilityUsesConfigMarkerContract(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
@@ -149,6 +153,7 @@ func TestPrintStatus_LegacyCompatibilityUsesConfigMarkerContract(t *testing.T) {
 }
 
 func TestStatusWriter_ScopeLabelRoundTrip(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
@@ -174,6 +179,7 @@ func TestStatusWriter_ScopeLabelRoundTrip(t *testing.T) {
 }
 
 func TestPrintStatus_RecomputesScopedIterationTotalOnEachCall(t *testing.T) {
+
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
@@ -222,6 +228,7 @@ func TestPrintStatus_RecomputesScopedIterationTotalOnEachCall(t *testing.T) {
 }
 
 func TestPrintStatus_RecomputesScopedIterationTotal_WhenScopeLabelMissing(t *testing.T) {
+
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
@@ -275,6 +282,7 @@ func TestPrintStatus_RecomputesScopedIterationTotal_WhenScopeLabelMissing(t *tes
 // The round-trip through the file is verified first, then the test fails
 // because PrintStatus does not yet exist — the GREEN phase will implement it.
 func TestPrintStatus_ShowsModelAndTimeBudget(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
@@ -329,6 +337,7 @@ func TestPrintStatus_ShowsModelAndTimeBudget(t *testing.T) {
 }
 
 func TestStatusWriter_UsesFixedTimeBudgetFromDeadline(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
@@ -369,6 +378,7 @@ func TestStatusWriter_UsesFixedTimeBudgetFromDeadline(t *testing.T) {
 // indicator. The current implementation only outputs Run, Pipeline, and Health
 // sections — this test drives adding logger.ReadProcessTrend integration.
 func TestPrintStatus_IncludesSPCSection(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
@@ -407,6 +417,7 @@ func TestPrintStatus_IncludesSPCSection(t *testing.T) {
 }
 
 func TestPrintStatus_ReadsSPCFromMetricsDirectory(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
@@ -465,6 +476,7 @@ func TestPrintStatus_ReadsSPCFromMetricsDirectory(t *testing.T) {
 }
 
 func TestPrintStatus_SPCOnlySkipsDefaultSections(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
@@ -493,6 +505,7 @@ func TestPrintStatus_SPCOnlySkipsDefaultSections(t *testing.T) {
 // outputs a stale-run warning with bead details, prints a removal message, and
 // deletes the status.json file from disk.
 func TestPrintStatus_StalePIDWarnsAndDeletesFile(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
@@ -556,6 +569,7 @@ func TestPrintStatus_StalePIDWarnsAndDeletesFile(t *testing.T) {
 // adding state file reads so the output includes "Health:" with review and
 // retro data.
 func TestPrintStatus_ReadsStateFilesForHealthSection(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
@@ -609,6 +623,7 @@ func TestPrintStatus_ReadsStateFilesForHealthSection(t *testing.T) {
 // status.json exists, PrintStatus still shows all structured sections (Run,
 // Pipeline, Health) instead of the old "No status file found" early return.
 func TestPrintStatus_NoStatusFile_ShowsStructuredOutput(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
@@ -649,6 +664,7 @@ func TestPrintStatus_NoStatusFile_ShowsStructuredOutput(t *testing.T) {
 // Health, and SPC sections — this test drives adding logger.ReadModelStats
 // integration so the output includes per-model success rates and costs.
 func TestPrintStatus_IncludesModelPerformanceSection(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
@@ -697,6 +713,7 @@ func TestPrintStatus_IncludesModelPerformanceSection(t *testing.T) {
 // formatRecommendation — this test drives adding that call so the output
 // includes the recommendation with a command hint.
 func TestPrintStatus_IncludesNextActionSection(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0o755); err != nil {

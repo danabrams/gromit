@@ -15,6 +15,7 @@ import (
 // AnalyzeAndHandleFailure can still continue autonomous execution for hard-stop
 // categories without explicit approval.
 func TestAnalyzeAndHandleFailure_HardStopBlocksAutonomousPathWithoutApproval(t *testing.T) {
+	t.Parallel()
 	mfa := &mockFailureAnalyzer{
 		analyzeFn: func(ctx context.Context, _ *bead.Bead, _ string) (*analyzer.Analysis, error) {
 			return &analyzer.Analysis{
@@ -50,6 +51,7 @@ func TestAnalyzeAndHandleFailure_HardStopBlocksAutonomousPathWithoutApproval(t *
 // implemented yet, so approved hard-stop actions do not follow the explicit
 // escalation path.
 func TestAnalyzeAndHandleFailure_HardStopApprovedCanProceedViaEscalation(t *testing.T) {
+	t.Parallel()
 	mfa := &mockFailureAnalyzer{
 		analyzeFn: func(ctx context.Context, _ *bead.Bead, _ string) (*analyzer.Analysis, error) {
 			return &analyzer.Analysis{

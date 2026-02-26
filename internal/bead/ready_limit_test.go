@@ -13,6 +13,7 @@ import (
 // Uses RunFn injection to verify command arguments without spawning subprocesses. The test verifies Ready() calls
 // run() with: bd ready --json --limit 3 (not --limit 10).
 func TestReadyUsesLimit3(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		bdOutput string
@@ -55,6 +56,7 @@ func TestReadyUsesLimit3(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var capturedArgs []string
 			mockRun := func(args ...string) (string, error) {
 				capturedArgs = args
@@ -92,6 +94,7 @@ func TestReadyUsesLimit3(t *testing.T) {
 // of 3 (down from 10) still provides sufficient margin for epic filtering.
 // This test verifies parseBeadOutputExcluding logic works with limit 3.
 func TestReadyLimit3StillFiltersEpicsCorrectly(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		bdOutput string
@@ -172,6 +175,7 @@ func TestReadyLimit3StillFiltersEpicsCorrectly(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			mockRun := func(args ...string) (string, error) {
 				// Verify --limit 3 is being used
 				limitIdx := -1
@@ -219,6 +223,7 @@ func TestReadyLimit3StillFiltersEpicsCorrectly(t *testing.T) {
 // and is not affected by the Ready() limit change.
 // This test ensures ReadyAny behavior remains unchanged.
 func TestReadyAnyStillUsesLimit1(t *testing.T) {
+	t.Parallel()
 	bdOutput := `[{
 		"id": "epic-001",
 		"title": "Epic",
@@ -263,6 +268,7 @@ func TestReadyAnyStillUsesLimit1(t *testing.T) {
 // Expected failure: The current implementation uses --limit 10, not --limit 3.
 // This test will fail when run against the current code because it will see "10" not "3".
 func TestReadyLimit3PerformanceCharacteristics(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		bdOutput       string
@@ -353,6 +359,7 @@ func TestReadyLimit3PerformanceCharacteristics(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var capturedArgs []string
 			mockRun := func(args ...string) (string, error) {
 				capturedArgs = args
@@ -401,8 +408,10 @@ func TestReadyLimit3PerformanceCharacteristics(t *testing.T) {
 // This is not a behavioral test but documents the optimization rationale.
 // Expected failure: Current code uses --limit 10, violating the intended optimization.
 func TestReadyBatchSizeReductionIntent(t *testing.T) {
+	t.Parallel(
 	// This test captures the intent: reduce from 10 to 3 to minimize overhead
 	// while still providing comfortable margin for epic filtering.
+	)
 
 	mockRun := func(args ...string) (string, error) {
 		// Verify limit is 3, not the old value of 10
@@ -437,6 +446,7 @@ func TestReadyBatchSizeReductionIntent(t *testing.T) {
 // TestReadyLimitValueIsNumeric verifies that the limit argument is a valid number.
 // This test ensures the implementation doesn't accidentally use non-numeric limit.
 func TestReadyLimitValueIsNumeric(t *testing.T) {
+	t.Parallel()
 	mockRun := func(args ...string) (string, error) {
 		// Find --limit flag and verify next arg is numeric
 		for i, arg := range args {
@@ -472,6 +482,7 @@ func TestReadyLimitValueIsNumeric(t *testing.T) {
 // when using --limit 3, ensuring all flags are in correct order.
 // This test verifies the full bd ready command with limit 3.
 func TestReadyCommandStructureWithLimit3(t *testing.T) {
+	t.Parallel()
 	var capturedArgs []string
 	mockRun := func(args ...string) (string, error) {
 		capturedArgs = args
@@ -514,6 +525,7 @@ func TestReadyCommandStructureWithLimit3(t *testing.T) {
 // Expected failure: Current implementation uses "--limit", "10" which this test rejects.
 // This test will fail until the code is changed from 10 to 3.
 func TestReadyDoesNotUseLimit10Anymore(t *testing.T) {
+	t.Parallel()
 	mockRun := func(args ...string) (string, error) {
 		// Scan for the old limit value
 		argStr := strings.Join(args, " ")

@@ -16,6 +16,7 @@ import (
 // TestOrchestrator_UsesLabelFiltersInLoop tests that OrchestratorTestHelper calls
 // ReadyWithLabel for each label and not Ready when label filters are set.
 func TestOrchestrator_UsesLabelFiltersInLoop(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
@@ -65,6 +66,7 @@ func TestOrchestrator_UsesLabelFiltersInLoop(t *testing.T) {
 // TestOrchestratorScopedRun_FullLoopWithLabelFilters tests that OrchestratorTestHelper
 // processes only beads matching the label filters and never calls Ready().
 func TestOrchestratorScopedRun_FullLoopWithLabelFilters(t *testing.T) {
+	t.Parallel()
 	allBeads := []*bead.Bead{
 		{ID: "auth-1", Title: "Auth task 1", Priority: 1, Labels: []string{"spec:auth"}, ExpectedOutputs: []string{}},
 		{ID: "auth-2", Title: "Auth task 2", Priority: 0, Labels: []string{"spec:auth"}, ExpectedOutputs: []string{}},

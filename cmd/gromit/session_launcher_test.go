@@ -10,6 +10,7 @@ import (
 func makeBoolPtr(v bool) *bool { return &v }
 
 func TestLaunchInSessionIfEnabled(t *testing.T) {
+	t.Parallel()
 	launcherCalled := 0
 	launcher := func(gromitDir string, command string, _ sessionConflictSettings, callback func(string) error) (*worktree.SessionWorktree, error) {
 		launcherCalled++

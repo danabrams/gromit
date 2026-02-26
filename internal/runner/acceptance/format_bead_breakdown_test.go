@@ -12,7 +12,9 @@ import (
 
 // TestFormatPipeline_ExpandedBeadBreakdown verifies runner.FormatPipeline shows all bead status counts
 func TestFormatPipeline_ExpandedBeadBreakdown(t *testing.T) {
+	t.Parallel(
 	// Expected failure: runner.FormatPipeline does not format expanded bead breakdown yet
+	)
 
 	tests := []struct {
 		name   string
@@ -127,6 +129,7 @@ func TestFormatPipeline_ExpandedBeadBreakdown(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := runner.FormatPipeline(tt.status)
 			if !strings.Contains(got, tt.want) {
 				t.Errorf("runner.FormatPipeline() missing expected Beads line:\n  want: %q\n  got:\n%s", tt.want, got)
@@ -137,7 +140,9 @@ func TestFormatPipeline_ExpandedBeadBreakdown(t *testing.T) {
 
 // TestFormatPipeline_BeadBreakdownOrder verifies status order is always consistent
 func TestFormatPipeline_BeadBreakdownOrder(t *testing.T) {
+	t.Parallel(
 	// Expected failure: runner.FormatPipeline does not format bead breakdown in fixed order yet
+	)
 
 	status := &pipeline.PipelineStatus{
 		ReadyBeadCount:  14,
@@ -179,7 +184,9 @@ func TestFormatPipeline_BeadBreakdownOrder(t *testing.T) {
 
 // TestFormatPipeline_ReadyBeadIDsStillShown verifies ready bead ID list is preserved
 func TestFormatPipeline_ReadyBeadIDsStillShown(t *testing.T) {
+	t.Parallel(
 	// Expected failure: runner.FormatPipeline may not preserve ready bead ID list with new format
+	)
 
 	status := &pipeline.PipelineStatus{
 		ReadyBeadCount:  5,
@@ -224,7 +231,9 @@ func TestFormatPipeline_ReadyBeadIDsStillShown(t *testing.T) {
 
 // TestFormatPipeline_ThisRunParenthetical verifies "(X this run)" formatting
 func TestFormatPipeline_ThisRunParenthetical(t *testing.T) {
+	t.Parallel(
 	// Expected failure: runner.FormatPipeline does not add "(X this run)" parenthetical yet
+	)
 
 	tests := []struct {
 		name       string
@@ -269,6 +278,7 @@ func TestFormatPipeline_ThisRunParenthetical(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := runner.FormatPipeline(tt.status)
 
 			if !strings.Contains(got, tt.wantInLine) {
@@ -284,7 +294,9 @@ func TestFormatPipeline_ThisRunParenthetical(t *testing.T) {
 
 // TestFormatPipeline_BackwardCompatibility verifies old status structs still work
 func TestFormatPipeline_BackwardCompatibility(t *testing.T) {
+	t.Parallel(
 	// Expected failure: runner.FormatPipeline may require new fields to be present
+	)
 
 	// Old-style PipelineStatus without new fields should still format correctly
 	// (new fields will be zero-valued)
@@ -312,7 +324,9 @@ func TestFormatPipeline_BackwardCompatibility(t *testing.T) {
 
 // TestFormatPipeline_NoneWhenAllZero verifies "none" is shown when all bead counts are zero
 func TestFormatPipeline_NoneWhenAllZero(t *testing.T) {
+	t.Parallel(
 	// Expected failure: runner.FormatPipeline does not show "none" for all-zero bead counts yet
+	)
 
 	status := &pipeline.PipelineStatus{
 		ReadyBeadCount:  0,
@@ -345,7 +359,9 @@ func TestFormatPipeline_NoneWhenAllZero(t *testing.T) {
 
 // TestFormatPipeline_SingleStatusShown verifies output when only one status has non-zero count
 func TestFormatPipeline_SingleStatusShown(t *testing.T) {
+	t.Parallel(
 	// Expected failure: runner.FormatPipeline does not handle single-status output correctly yet
+	)
 
 	tests := []struct {
 		name   string
@@ -391,6 +407,7 @@ func TestFormatPipeline_SingleStatusShown(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := runner.FormatPipeline(tt.status)
 			if !strings.Contains(got, tt.want) {
 				t.Errorf("runner.FormatPipeline() missing expected line:\n  want: %q\n  got:\n%s", tt.want, got)

@@ -14,6 +14,7 @@ import (
 // TestEndToEndVerification_LoaderParsesSampleExperimentYAML verifies that the loader
 // can parse a sample experiment YAML file in a temporary directory.
 func TestEndToEndVerification_LoaderParsesSampleExperimentYAML(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	// Write a sample experiment YAML file
@@ -68,7 +69,10 @@ variants:
 // converges correctly over 100 iterations with a rigged success rate (control has 80% success,
 // variant has 60% success).
 func TestEndToEndVerification_BanditConvergesOver100Iterations(t *testing.T) {
+	t.Parallel(
 	// Create a bandit with control and variant arms
+	)
+
 	bs := &experiment.BanditState{
 		Arms: []experiment.ArmState{
 			{ID: "control", Successes: 0, Failures: 0},
@@ -128,6 +132,7 @@ func TestEndToEndVerification_BanditConvergesOver100Iterations(t *testing.T) {
 // the experiments command executes and outputs a formatted text report with experiment
 // ID and variant details when given experiment definitions and state files.
 func TestEndToEndVerification_ExperimentsCommandExecutesAndOutputsTextReport(t *testing.T) {
+
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	experimentsDir := filepath.Join(gromitDir, "experiments")
@@ -236,6 +241,7 @@ experiment:
 // the experiments command with --json flag outputs valid JSON with experiment
 // and variant data.
 func TestEndToEndVerification_ExperimentsCommandOutputsJSONFormat(t *testing.T) {
+
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	experimentsDir := filepath.Join(gromitDir, "experiments")

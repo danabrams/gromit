@@ -24,6 +24,7 @@ func mustReadText(t *testing.T, path string) string {
 // TestCLAUDEMD_TrimmedToEssentials verifies that CLAUDE.md contains only the
 // header, Architecture section, and Key Principles section, and is under 1,500 chars.
 func TestCLAUDEMD_TrimmedToEssentials(t *testing.T) {
+	t.Parallel()
 	text := mustReadText(t, "CLAUDE.md")
 
 	// Must be under 1,500 characters
@@ -65,7 +66,9 @@ func TestCLAUDEMD_TrimmedToEssentials(t *testing.T) {
 // TestRULESMD_ProcessSection verifies that RULES.md process section is updated
 // from "more than 2 files" to "6+ files across unrelated packages".
 func TestRULESMD_ProcessSection(t *testing.T) {
+	t.Parallel(
 	// Expected failure: RULES.md still says "Beads that touch more than 2 files should be split"
+	)
 
 	text := mustReadText(t, ".gromit/RULES.md")
 
@@ -87,6 +90,7 @@ func TestRULESMD_ProcessSection(t *testing.T) {
 }
 
 func TestRULESMD_CoreSectionsAnnotatedForExecutionPhases(t *testing.T) {
+	t.Parallel()
 	text := mustReadText(t, ".gromit/RULES.md")
 
 	expectedHeaders := []string{
@@ -106,7 +110,9 @@ func TestRULESMD_CoreSectionsAnnotatedForExecutionPhases(t *testing.T) {
 // TestSKILLMD_SizingRulesUpdated verifies that the decompose skill's sizing rules
 // are updated to reflect the behavior-based philosophy instead of file-count rules.
 func TestSKILLMD_SizingRulesUpdated(t *testing.T) {
+	t.Parallel(
 	// Expected failure: skills/gromit-decompose/SKILL.md still contains "One concern per bead", "Max 2 files touched"
+	)
 
 	text := mustReadText(t, "skills/gromit-decompose/SKILL.md")
 
@@ -133,7 +139,9 @@ func TestSKILLMD_SizingRulesUpdated(t *testing.T) {
 // splitting logic is updated to remove "separate beads for implementation and tests"
 // and to add grouping rules.
 func TestSKILLMD_SplittingLogicUpdated(t *testing.T) {
+	t.Parallel(
 	// Expected failure: SKILL.md still says "If a task has both implementation and tests → consider separate beads"
+	)
 
 	text := mustReadText(t, "skills/gromit-decompose/SKILL.md")
 
@@ -175,7 +183,9 @@ func TestSKILLMD_SplittingLogicUpdated(t *testing.T) {
 // TestSKILLMD_ExamplesUpdated verifies that the decompose skill's examples
 // show coarser beads (e.g., interface + impl + tests as one bead).
 func TestSKILLMD_ExamplesUpdated(t *testing.T) {
+	t.Parallel(
 	// Expected failure: SKILL.md examples still show fine-grained splitting with separate implementation and test beads
+	)
 
 	text := mustReadText(t, "skills/gromit-decompose/SKILL.md")
 
@@ -202,7 +212,9 @@ func TestSKILLMD_ExamplesUpdated(t *testing.T) {
 // TestPROMPTDecompose_GuidelinesUpdated verifies that the decompose template's
 // guidelines section reflects the new sizing philosophy and grouping rules.
 func TestPROMPTDecompose_GuidelinesUpdated(t *testing.T) {
+	t.Parallel(
 	// Expected failure: .gromit/templates/PROMPT_decompose.md guidelines still reflect old file-count philosophy
+	)
 
 	text := mustReadText(t, ".gromit/templates/PROMPT_decompose.md")
 
@@ -229,7 +241,9 @@ func TestPROMPTDecompose_GuidelinesUpdated(t *testing.T) {
 // TestPROMPTDecompose_PreservesAntiOverlapGuidance verifies that the existing
 // anti-overlap guidance and ATDD test-only suppression remain intact.
 func TestPROMPTDecompose_PreservesAntiOverlapGuidance(t *testing.T) {
+	t.Parallel(
 	// Expected failure: This should pass if the changes are made correctly, but we're verifying preservation
+	)
 
 	text := mustReadText(t, ".gromit/templates/PROMPT_decompose.md")
 
@@ -256,6 +270,7 @@ func TestPROMPTDecompose_PreservesAntiOverlapGuidance(t *testing.T) {
 // use consistent file limit language (4-5 soft limit, 6+ for splitting).
 // CLAUDE.md is excluded — it was trimmed to only Architecture and Key Principles.
 func TestAllDocuments_ConsistentFileLimits(t *testing.T) {
+	t.Parallel()
 	docs := map[string]string{
 		".gromit/RULES.md":                      ".gromit/RULES.md",
 		"skills/gromit-decompose/SKILL.md":      "skills/gromit-decompose/SKILL.md",
@@ -302,6 +317,7 @@ func TestAllDocuments_ConsistentFileLimits(t *testing.T) {
 // logic also document the five never-split grouping patterns.
 // CLAUDE.md is excluded — it was trimmed to only Architecture and Key Principles.
 func TestAllDocuments_ConsistentGroupingRules(t *testing.T) {
+	t.Parallel()
 	docsWithSplitting := map[string]string{
 		".gromit/RULES.md":                      ".gromit/RULES.md",
 		"skills/gromit-decompose/SKILL.md":      "skills/gromit-decompose/SKILL.md",

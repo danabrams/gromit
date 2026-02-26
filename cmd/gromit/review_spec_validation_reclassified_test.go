@@ -38,6 +38,7 @@ func TestGetSpecBaseCommit_InvalidSpecValidationScenarios(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			tempDir := t.TempDir()
 			specsDir := filepath.Join(tempDir, "specs")
 			if err := os.MkdirAll(specsDir, 0755); err != nil {
@@ -68,12 +69,14 @@ func TestGetSpecBaseCommit_InvalidSpecValidationScenarios(t *testing.T) {
 // TestGetSpecBaseCommit_AcceptsSpecsDirParameter tests that getSpecBaseCommit
 // accepts specsDir as a parameter instead of using a global
 func TestGetSpecBaseCommit_AcceptsSpecsDirParameter(t *testing.T) {
+	t.Parallel(
 	// Expected failure: getSpecBaseCommit signature is currently:
 	//   func getSpecBaseCommit(specName string) (string, error)
 	// Expected signature:
 	//   func getSpecBaseCommit(beadsClient *bead.Client, specName string, specsDir string) (string, error)
 	//
 	// This test verifies the function signature has been updated to accept specsDir.
+	)
 
 	tempDir := t.TempDir()
 	specsDir := filepath.Join(tempDir, "specs")
@@ -110,12 +113,14 @@ created: 2026-02-11
 // TestDetermineReviewScope_PassesSpecsDirToGetSpecBaseCommit tests that
 // determineReviewScope passes cfg.Paths.Specs to getSpecBaseCommit
 func TestDetermineReviewScope_PassesSpecsDirToGetSpecBaseCommit(t *testing.T) {
+	t.Parallel(
 	// Expected failure: determineReviewScope calls getSpecBaseCommit without specsDir parameter
 	// Current call at line 119: return getSpecBaseCommit(reviewSpec)
 	// Expected call: return getSpecBaseCommit(beadsClient, reviewSpec, cfg.Paths.Specs)
 	//
 	// This test verifies that determineReviewScope correctly passes the specsDir
 	// from config to getSpecBaseCommit.
+	)
 
 	tempDir := t.TempDir()
 	specsDir := filepath.Join(tempDir, "specs")
@@ -167,6 +172,7 @@ func TestReviewSpecValidationScenarios_TableDriven(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			errMsg := runReviewSpecValidationScenario(t, tc.reviewSpec, tc.specFiles, tc.otherFiles)
 			assertSpecValidationError(t, errMsg, tc.wantContains, tc.wantExcludes)
 		})
@@ -176,6 +182,7 @@ func TestReviewSpecValidationScenarios_TableDriven(t *testing.T) {
 // TestReviewCommand_SpecValidationBeforeBeadClient tests that ValidateSpec
 // is called before creating a bead client
 func TestReviewCommand_SpecValidationBeforeBeadClient(t *testing.T) {
+	t.Parallel(
 	// Expected failure: getSpecBaseCommit creates bead.NewClient() before validating spec
 	//
 	// This test verifies the calling order:
@@ -185,6 +192,7 @@ func TestReviewCommand_SpecValidationBeforeBeadClient(t *testing.T) {
 	// 4. ListWithLabel (only if spec is valid)
 	//
 	// Currently getSpecBaseCommit goes straight to ResolveSpec -> NewClient -> ListWithLabel
+	)
 
 	tempDir := t.TempDir()
 	specsDir := filepath.Join(tempDir, "specs")
@@ -225,6 +233,7 @@ func TestReviewCommand_SpecValidationBeforeBeadClient(t *testing.T) {
 // TestGetSpecBaseCommit_ExistingSpecNoBeads tests that when spec exists but has no beads,
 // we get a different error than when spec doesn't exist
 func TestGetSpecBaseCommit_ExistingSpecNoBeads(t *testing.T) {
+	t.Parallel(
 	// Expected failure: Without ValidateSpec, both cases give "no beads found" error
 	//
 	// This test verifies we can distinguish between:
@@ -232,6 +241,7 @@ func TestGetSpecBaseCommit_ExistingSpecNoBeads(t *testing.T) {
 	// - Spec file exists but no beads tagged with it → bead lookup error
 	//
 	// Currently both cases return "no beads found for spec X"
+	)
 
 	tempDir := t.TempDir()
 	specsDir := filepath.Join(tempDir, "specs")

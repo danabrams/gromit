@@ -14,6 +14,7 @@ import (
 )
 
 func TestWorktreeMergerAdapterPendingBranches_NilManagerReturnsError(t *testing.T) {
+	t.Parallel()
 	adapter := &worktreeMergerAdapter{}
 
 	defer func() {
@@ -32,6 +33,7 @@ func TestWorktreeMergerAdapterPendingBranches_NilManagerReturnsError(t *testing.
 }
 
 func TestApplyCostFallback_EstimatesFromProviderPricing(t *testing.T) {
+	t.Parallel()
 	result := &provider.Result{
 		Model:        "gpt-5.3-codex",
 		CostUSD:      0,
@@ -60,6 +62,7 @@ func TestApplyCostFallback_EstimatesFromProviderPricing(t *testing.T) {
 }
 
 func TestApplyCostFallback_DoesNotOverrideProviderReportedCost(t *testing.T) {
+	t.Parallel()
 	result := &provider.Result{
 		Model:        "gpt-5.3-codex",
 		CostUSD:      0.25,
@@ -81,6 +84,7 @@ func TestApplyCostFallback_DoesNotOverrideProviderReportedCost(t *testing.T) {
 }
 
 func TestApplyCostFallback_NoProviderDefLeavesZero(t *testing.T) {
+	t.Parallel()
 	result := &provider.Result{
 		Model:        "gpt-5.3-codex",
 		CostUSD:      0,
@@ -104,6 +108,7 @@ func (t *testTrendTrigger) Trigger() {
 }
 
 func TestIterationLogWriterAdapter_TriggersTrendRefreshOnSuccess(t *testing.T) {
+	t.Parallel()
 	logDir := filepath.Join(t.TempDir(), "logs")
 	l, err := logger.NewLogger(logDir)
 	if err != nil {
@@ -156,6 +161,7 @@ func (p *trackingProvider) IsValidationPassed(result *provider.Result) bool     
 func (p *trackingProvider) IsScopeTooLarge(result *provider.Result) (bool, string)    { return false, "" }
 
 func TestReviewInvokerAdapter_UsesStreamRun(t *testing.T) {
+	t.Parallel()
 	prov := &trackingProvider{}
 	router := provider.NewSingleProviderRouter(prov)
 	adapter := &reviewInvokerAdapter{router: router}

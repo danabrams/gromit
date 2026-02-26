@@ -27,6 +27,7 @@ func validEscalationPacket() EscalationPacket {
 }
 
 func TestEscalationPacket_ValidateRequiresAllFields(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		mutate     func(*EscalationPacket)
@@ -85,6 +86,7 @@ func TestEscalationPacket_ValidateRequiresAllFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			packet := validEscalationPacket()
 			tt.mutate(&packet)
 
@@ -100,6 +102,7 @@ func TestEscalationPacket_ValidateRequiresAllFields(t *testing.T) {
 }
 
 func TestEscalationPacket_FormatEnforcesThreeOptionsAndRecommendation(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		options    []EscalationOption
@@ -140,6 +143,7 @@ func TestEscalationPacket_FormatEnforcesThreeOptionsAndRecommendation(t *testing
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			packet := validEscalationPacket()
 			packet.Options = tt.options
 			packet.Recommendation = tt.rec
@@ -156,6 +160,7 @@ func TestEscalationPacket_FormatEnforcesThreeOptionsAndRecommendation(t *testing
 }
 
 func TestEscalationPacket_FormatIncludesThreeTradeoffsAndExplicitRecommendation(t *testing.T) {
+	t.Parallel()
 	packet := validEscalationPacket()
 
 	output, err := FormatEscalationPacket(packet)

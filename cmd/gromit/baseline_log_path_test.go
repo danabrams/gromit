@@ -7,6 +7,7 @@ import (
 )
 
 func TestBaselineLogPath_FormatsTimestampAndPath(t *testing.T) {
+
 	now := time.Date(2026, time.February, 3, 4, 5, 6, 0, time.Local)
 
 	originalExists := baselineLogPathExistsFn
@@ -29,6 +30,7 @@ func TestBaselineLogPath_FormatsTimestampAndPath(t *testing.T) {
 }
 
 func TestBaselineLogPath_ReturnsCanonicalWhenNoCollision(t *testing.T) {
+
 	now := time.Date(2026, time.February, 3, 4, 5, 6, 0, time.Local)
 	want := filepath.Join("test-logs", "refactor-baseline-2026-02-03-040506.log")
 
@@ -55,6 +57,7 @@ func TestBaselineLogPath_ReturnsCanonicalWhenNoCollision(t *testing.T) {
 }
 
 func TestBaselineLogPath_AppendsSuffixOnCollision(t *testing.T) {
+
 	now := time.Date(2026, time.February, 3, 4, 5, 6, 0, time.Local)
 	base := filepath.Join("test-logs", "refactor-baseline-2026-02-03-040506.log")
 	want := filepath.Join("test-logs", "refactor-baseline-2026-02-03-040506-1.log")
@@ -95,6 +98,7 @@ func TestBaselineLogPath_AppendsSuffixOnCollision(t *testing.T) {
 }
 
 func TestBaselineLogPath_ErrorsOnRepeatedCollision(t *testing.T) {
+
 	now := time.Date(2026, time.February, 3, 4, 5, 6, 0, time.Local)
 	base := filepath.Join("test-logs", "refactor-baseline-2026-02-03-040506.log")
 	suffix := filepath.Join("test-logs", "refactor-baseline-2026-02-03-040506-1.log")
@@ -121,6 +125,7 @@ func TestBaselineLogPath_ErrorsOnRepeatedCollision(t *testing.T) {
 }
 
 func TestBaselineLogPathNow_UsesCurrentLocalTime(t *testing.T) {
+
 	stub := time.Date(2025, time.January, 2, 3, 4, 5, 0, time.Local)
 
 	originalNow := baselineLogPathNowFn
@@ -151,6 +156,7 @@ func TestBaselineLogPathNow_UsesCurrentLocalTime(t *testing.T) {
 }
 
 func TestInitBaselineLogPathForRun_UsesResolvedPathInConsumer(t *testing.T) {
+
 	stub := time.Date(2026, time.February, 4, 7, 8, 9, 0, time.Local)
 	want := filepath.Join("test-logs", "refactor-baseline-2026-02-04-070809.log")
 

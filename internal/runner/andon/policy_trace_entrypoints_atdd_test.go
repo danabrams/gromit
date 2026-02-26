@@ -6,6 +6,7 @@ import (
 )
 
 func TestEvaluateFailureWithTrace_ClassToDecisionFlowAcrossPublicEntryPoint(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, time.February, 16, 10, 0, 0, 0, time.UTC)
 	thresholds := DefaultThresholds()
 
@@ -55,6 +56,7 @@ func TestEvaluateFailureWithTrace_ClassToDecisionFlowAcrossPublicEntryPoint(t *t
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			trace := EvaluateFailureWithTrace(tt.signal, tt.state, thresholds, now)
 
 			if trace.Decision != tt.want {
@@ -72,6 +74,7 @@ func TestEvaluateFailureWithTrace_ClassToDecisionFlowAcrossPublicEntryPoint(t *t
 }
 
 func TestEvaluateFailureWithTrace_ReportsL1ToL2BoundaryTransition(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, time.February, 16, 10, 0, 0, 0, time.UTC)
 	thresholds := DefaultThresholds()
 
@@ -95,6 +98,7 @@ func TestEvaluateFailureWithTrace_ReportsL1ToL2BoundaryTransition(t *testing.T) 
 }
 
 func TestEvaluateClassifiedFailureWithTrace_UsesClassifiedInputSourceAtPublicEntryPoint(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, time.February, 16, 10, 0, 0, 0, time.UTC)
 	thresholds := DefaultThresholds()
 	classification := PolicyClassification{Class: FailureClassWorkflow}

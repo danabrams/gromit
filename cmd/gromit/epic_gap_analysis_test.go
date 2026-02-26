@@ -10,6 +10,7 @@ import (
 
 // TestPerformGapAnalysis_CallsClaudeWithHaikuModel verifies that gap analysis uses haiku model
 func TestPerformGapAnalysis_CallsClaudeWithHaikuModel(t *testing.T) {
+	t.Parallel()
 	var capturedModel string
 
 	mockClient := &mockClaudeClient{
@@ -37,6 +38,7 @@ func TestPerformGapAnalysis_CallsClaudeWithHaikuModel(t *testing.T) {
 
 // TestPerformGapAnalysis_IncludesEpicContentInPrompt verifies epic content is in the prompt
 func TestPerformGapAnalysis_IncludesEpicContentInPrompt(t *testing.T) {
+	t.Parallel()
 	var capturedPrompt string
 
 	mockClient := &mockClaudeClient{
@@ -64,6 +66,7 @@ func TestPerformGapAnalysis_IncludesEpicContentInPrompt(t *testing.T) {
 
 // TestPerformGapAnalysis_IncludesSpecSummariesInPrompt verifies spec summaries are in the prompt
 func TestPerformGapAnalysis_IncludesSpecSummariesInPrompt(t *testing.T) {
+	t.Parallel()
 	var capturedPrompt string
 
 	mockClient := &mockClaudeClient{
@@ -96,6 +99,7 @@ func TestPerformGapAnalysis_IncludesSpecSummariesInPrompt(t *testing.T) {
 
 // TestPerformGapAnalysis_AsksWhatAreasNotCovered verifies the prompt asks about coverage gaps
 func TestPerformGapAnalysis_AsksWhatAreasNotCovered(t *testing.T) {
+	t.Parallel()
 	var capturedPrompt string
 
 	mockClient := &mockClaudeClient{
@@ -128,6 +132,7 @@ func TestPerformGapAnalysis_AsksWhatAreasNotCovered(t *testing.T) {
 
 // TestPerformGapAnalysis_ReturnsClaudeOutput verifies the function returns Claude's output
 func TestPerformGapAnalysis_ReturnsClaudeOutput(t *testing.T) {
+	t.Parallel()
 	expectedOutput := "The epic is missing specs for: reporting, notifications, and audit logs."
 
 	mockClient := &mockClaudeClient{
@@ -151,6 +156,7 @@ func TestPerformGapAnalysis_ReturnsClaudeOutput(t *testing.T) {
 
 // TestBuildSpecSummaries_CreatesFormattedList verifies spec summaries are properly formatted
 func TestBuildSpecSummaries_CreatesFormattedList(t *testing.T) {
+	t.Parallel()
 	specs := []spec{
 		{id: "auth-spec", title: "Authentication System"},
 		{id: "api-spec", title: "REST API"},

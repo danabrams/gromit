@@ -10,6 +10,7 @@ import (
 )
 
 func TestHandleRunSignals_FirstSIGINTStopsGracefully(t *testing.T) {
+	t.Parallel()
 	sigCh := make(chan os.Signal, 2)
 	stopCh := make(chan struct{})
 	var stderr bytes.Buffer
@@ -48,6 +49,7 @@ func TestHandleRunSignals_FirstSIGINTStopsGracefully(t *testing.T) {
 }
 
 func TestHandleRunSignals_SecondSIGINTCancels(t *testing.T) {
+	t.Parallel()
 	sigCh := make(chan os.Signal, 2)
 	stopCh := make(chan struct{})
 	var stderr bytes.Buffer
@@ -82,6 +84,7 @@ func TestHandleRunSignals_SecondSIGINTCancels(t *testing.T) {
 }
 
 func TestHandleRunSignals_SIGTERMCancelsImmediately(t *testing.T) {
+	t.Parallel()
 	sigCh := make(chan os.Signal, 1)
 	stopCh := make(chan struct{})
 	var stderr bytes.Buffer

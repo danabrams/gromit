@@ -12,6 +12,7 @@ import (
 )
 
 func TestValidate_ValidBead(t *testing.T) {
+	t.Parallel()
 	b := &Bead{
 		ID:          "abc-123",
 		Title:       "Implement feature X",
@@ -27,6 +28,7 @@ func TestValidate_ValidBead(t *testing.T) {
 }
 
 func TestValidate_EmptyID(t *testing.T) {
+	t.Parallel()
 	b := &Bead{ID: "", Title: "Test"}
 	err := b.Validate()
 	if err == nil {
@@ -38,6 +40,7 @@ func TestValidate_EmptyID(t *testing.T) {
 }
 
 func TestValidate_IDWithShellMetachars(t *testing.T) {
+	t.Parallel()
 	badIDs := []string{
 		"id; rm -rf /",
 		"id$(whoami)",
@@ -59,6 +62,7 @@ func TestValidate_IDWithShellMetachars(t *testing.T) {
 }
 
 func TestValidate_IDTooLong(t *testing.T) {
+	t.Parallel()
 	b := &Bead{ID: strings.Repeat("a", maxIDLength+1), Title: "Test"}
 	err := b.Validate()
 	if err == nil {
@@ -70,6 +74,7 @@ func TestValidate_IDTooLong(t *testing.T) {
 }
 
 func TestValidate_ValidIDs(t *testing.T) {
+	t.Parallel()
 	validIDs := []string{
 		"abc-123",
 		"ABC_DEF",
@@ -89,6 +94,7 @@ func TestValidate_ValidIDs(t *testing.T) {
 }
 
 func TestValidate_TitleTooLong(t *testing.T) {
+	t.Parallel()
 	b := &Bead{
 		ID:    "test-1",
 		Title: strings.Repeat("x", maxTitleLength+1),
@@ -103,6 +109,7 @@ func TestValidate_TitleTooLong(t *testing.T) {
 }
 
 func TestValidate_DescriptionTooLong(t *testing.T) {
+	t.Parallel()
 	b := &Bead{
 		ID:          "test-1",
 		Title:       "Test",
@@ -118,6 +125,7 @@ func TestValidate_DescriptionTooLong(t *testing.T) {
 }
 
 func TestValidate_ControlCharsInTitle(t *testing.T) {
+	t.Parallel()
 	b := &Bead{
 		ID:    "test-1",
 		Title: "Title with \x00 null byte",
@@ -132,6 +140,7 @@ func TestValidate_ControlCharsInTitle(t *testing.T) {
 }
 
 func TestValidate_ControlCharsInDescription(t *testing.T) {
+	t.Parallel()
 	b := &Bead{
 		ID:          "test-1",
 		Title:       "Test",
@@ -144,6 +153,7 @@ func TestValidate_ControlCharsInDescription(t *testing.T) {
 }
 
 func TestValidate_AllowedWhitespaceInDescription(t *testing.T) {
+	t.Parallel()
 	b := &Bead{
 		ID:          "test-1",
 		Title:       "Test",
@@ -155,6 +165,7 @@ func TestValidate_AllowedWhitespaceInDescription(t *testing.T) {
 }
 
 func TestValidate_LabelTooLong(t *testing.T) {
+	t.Parallel()
 	b := &Bead{
 		ID:     "test-1",
 		Title:  "Test",
@@ -170,6 +181,7 @@ func TestValidate_LabelTooLong(t *testing.T) {
 }
 
 func TestValidate_TooManyLabels(t *testing.T) {
+	t.Parallel()
 	labels := make([]string, maxLabelCount+1)
 	for i := range labels {
 		labels[i] = "label"
@@ -189,6 +201,7 @@ func TestValidate_TooManyLabels(t *testing.T) {
 }
 
 func TestValidate_ControlCharsInLabel(t *testing.T) {
+	t.Parallel()
 	b := &Bead{
 		ID:     "test-1",
 		Title:  "Test",
@@ -201,6 +214,7 @@ func TestValidate_ControlCharsInLabel(t *testing.T) {
 }
 
 func TestValidate_InvalidParentID(t *testing.T) {
+	t.Parallel()
 	b := &Bead{
 		ID:     "test-1",
 		Title:  "Test",
@@ -216,6 +230,7 @@ func TestValidate_InvalidParentID(t *testing.T) {
 }
 
 func TestValidate_EmptyParentIsOK(t *testing.T) {
+	t.Parallel()
 	b := &Bead{
 		ID:    "test-1",
 		Title: "Test",
@@ -226,6 +241,7 @@ func TestValidate_EmptyParentIsOK(t *testing.T) {
 }
 
 func TestRejectControlChars(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		input   string
@@ -244,6 +260,7 @@ func TestRejectControlChars(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			err := rejectControlChars(tt.input, "test")
 			if (err != nil) != tt.wantErr {
 				t.Errorf("rejectControlChars(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
@@ -254,6 +271,7 @@ func TestRejectControlChars(t *testing.T) {
 
 // TestBeadJSONParsing tests unmarshaling bead JSON from bd CLI
 func TestBeadJSONParsing(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		jsonStr  string
@@ -324,6 +342,7 @@ func TestBeadJSONParsing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var got Bead
 			err := json.Unmarshal([]byte(tt.jsonStr), &got)
 			if (err != nil) != tt.wantErr {
@@ -350,6 +369,7 @@ func TestBeadJSONParsing(t *testing.T) {
 
 // TestNormalizeNilFields tests that nil slices are replaced with empty slices
 func TestNormalizeNilFields(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		bead *Bead
@@ -390,6 +410,7 @@ func TestNormalizeNilFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tt.bead.normalizeNilFields()
 			if tt.bead.Labels == nil {
 				t.Error("Labels should not be nil after normalization")
@@ -403,13 +424,17 @@ func TestNormalizeNilFields(t *testing.T) {
 
 // TestNormalizeNilFieldsOnNilBead tests that normalizeNilFields doesn't panic on nil bead
 func TestNormalizeNilFieldsOnNilBead(t *testing.T) {
+	t.Parallel()
 	var b *Bead
 	b.normalizeNilFields() // Should not panic
 }
 
 // TestParseBeadOutputNormalizesNilFields tests that parseBeadOutput normalizes nil fields
 func TestParseBeadOutputNormalizesNilFields(t *testing.T) {
+	t.Parallel(
 	// Simulates bd output where labels and expected_outputs are missing
+	)
+
 	jsonStr := `[{
 		"id": "test-nil",
 		"title": "Nil fields task",
@@ -436,6 +461,7 @@ func TestParseBeadOutputNormalizesNilFields(t *testing.T) {
 
 // TestParseBeadOutputWithExplicitNullFields tests handling of JSON null values
 func TestParseBeadOutputWithExplicitNullFields(t *testing.T) {
+	t.Parallel()
 	jsonStr := `[{
 		"id": "test-null",
 		"title": "Null fields task",
@@ -465,6 +491,7 @@ func TestParseBeadOutputWithExplicitNullFields(t *testing.T) {
 // TestNormalizeNilFieldsDoesNotMapAcceptanceCriteria verifies that normalizeNilFields()
 // does NOT handle AcceptanceCriteria→ExpectedOutputs mapping (that's a separate concern)
 func TestNormalizeNilFieldsDoesNotMapAcceptanceCriteria(t *testing.T) {
+	t.Parallel()
 	b := &Bead{
 		ID:                 "test-separate-concerns",
 		Title:              "Test bead",
@@ -505,6 +532,7 @@ func TestNormalizeNilFieldsDoesNotMapAcceptanceCriteria(t *testing.T) {
 // TestPrepareBeadForUseOrchestrates verifies that prepareBeadForUse() correctly
 // orchestrates normalizeNilFields() then resolveExpectedOutputsFromAcceptanceCriteria()
 func TestPrepareBeadForUseOrchestrates(t *testing.T) {
+	t.Parallel()
 	b := &Bead{
 		ID:                 "test-orchestration",
 		Title:              "Test orchestration",
@@ -544,6 +572,7 @@ func TestPrepareBeadForUseOrchestrates(t *testing.T) {
 }
 
 func TestParseBeadOutputMapsAcceptanceCriteriaToExpectedOutputs(t *testing.T) {
+	t.Parallel()
 	jsonStr := `[{
 		"id": "test-criteria",
 		"title": "Criteria-backed bead",
@@ -574,8 +603,11 @@ func TestParseBeadOutputMapsAcceptanceCriteriaToExpectedOutputs(t *testing.T) {
 
 // TestShowParsesArrayWrappedJSON tests that Show handles both array and object JSON formats
 func TestShowParsesArrayWrappedJSON(t *testing.T) {
+	t.Parallel(
 	// We can't call Show() directly without bd running, but we can test
 	// the parsing logic by testing parseBeadOutput with array format
+	)
+
 	tests := []struct {
 		name    string
 		json    string
@@ -609,6 +641,7 @@ func TestShowParsesArrayWrappedJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			b, err := parseBeadOutput(tt.json)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("parseBeadOutput() error = %v, wantErr %v", err, tt.wantErr)
@@ -630,6 +663,7 @@ func TestShowParsesArrayWrappedJSON(t *testing.T) {
 
 // TestFindSpecLabel tests the FindSpecLabel function
 func TestFindSpecLabel(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		labels []string
@@ -679,6 +713,7 @@ func TestFindSpecLabel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := FindSpecLabel(tt.labels)
 			if got != tt.want {
 				t.Errorf("FindSpecLabel() = %v, want %v", got, tt.want)
@@ -689,6 +724,7 @@ func TestFindSpecLabel(t *testing.T) {
 
 // TestHasLabel tests the HasLabel function
 func TestHasLabel(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		labels []string
@@ -747,6 +783,7 @@ func TestHasLabel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := HasLabel(tt.labels, tt.target)
 			if got != tt.want {
 				t.Errorf("HasLabel() = %v, want %v", got, tt.want)
@@ -757,6 +794,7 @@ func TestHasLabel(t *testing.T) {
 
 // TestReadyVsReadyAny tests parsing differences between Ready() and ReadyAny()
 func TestReadyVsReadyAny(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		jsonOutput  string
@@ -828,6 +866,7 @@ func TestReadyVsReadyAny(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := parseBeadOutput(tt.jsonOutput)
 			if err != nil {
 				t.Fatalf("parseBeadOutput() error = %v", err)
@@ -856,6 +895,7 @@ func TestReadyVsReadyAny(t *testing.T) {
 
 // TestReadyExcludesEpics tests that Ready() filters out epic beads
 func TestReadyExcludesEpics(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		jsonOutput string
@@ -972,6 +1012,7 @@ func TestReadyExcludesEpics(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := parseBeadOutputExcluding(tt.jsonOutput, "epic")
 			if err != nil {
 				t.Fatalf("parseBeadOutputExcluding() error = %v", err)
@@ -1000,6 +1041,7 @@ func TestReadyExcludesEpics(t *testing.T) {
 
 // TestClientShowValidation tests that Show() validates bead IDs before execution
 func TestClientShowValidation(t *testing.T) {
+	t.Parallel()
 	c := newValidationOnlyClient()
 
 	tests := []struct {
@@ -1036,6 +1078,7 @@ func TestClientShowValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			_, err := c.Show(tt.id)
 			if err == nil {
 				t.Errorf("Show(%q) expected error but got nil", tt.id)
@@ -1051,6 +1094,7 @@ func TestClientShowValidation(t *testing.T) {
 
 // TestClientCloseValidation tests that Close() validates bead IDs before execution
 func TestClientCloseValidation(t *testing.T) {
+	t.Parallel()
 	c := newValidationOnlyClient()
 
 	tests := []struct {
@@ -1077,6 +1121,7 @@ func TestClientCloseValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			err := c.Close(tt.id)
 			if err == nil {
 				t.Errorf("Close(%q) expected error but got nil", tt.id)
@@ -1092,6 +1137,7 @@ func TestClientCloseValidation(t *testing.T) {
 
 // TestClientAddCommentValidation tests that AddComment() validates bead IDs
 func TestClientAddCommentValidation(t *testing.T) {
+	t.Parallel()
 	c := newValidationOnlyClient()
 
 	tests := []struct {
@@ -1118,6 +1164,7 @@ func TestClientAddCommentValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			err := c.AddComment(tt.id, tt.comment)
 			if err == nil {
 				t.Errorf("AddComment(%q, %q) expected error but got nil", tt.id, tt.comment)
@@ -1132,6 +1179,7 @@ func TestClientAddCommentValidation(t *testing.T) {
 }
 
 func TestClientAddComment_UsesTempFile(t *testing.T) {
+	t.Parallel()
 	comment := "This is a comment\nwith multiple lines"
 	var gotArgs []string
 	var gotComment string
@@ -1192,6 +1240,7 @@ func newValidationOnlyClient() *Client {
 
 // TestClientGetParent tests the GetParent method
 func TestClientGetParent(t *testing.T) {
+	t.Parallel()
 	c, _ := NewClient()
 
 	tests := []struct {
@@ -1224,6 +1273,7 @@ func TestClientGetParent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			parent, err := c.GetParent(tt.bead)
 			if tt.wantNil {
 				if parent != nil {
@@ -1244,6 +1294,7 @@ func TestClientGetParent(t *testing.T) {
 
 // TestClientSync tests that Sync doesn't panic
 func TestClientSync(t *testing.T) {
+	t.Parallel()
 	var gotArgs []string
 	c := &Client{
 		RunFn: func(args ...string) (string, error) {
@@ -1262,6 +1313,7 @@ func TestClientSync(t *testing.T) {
 
 // TestErrorWrapping tests that CLI errors are properly wrapped
 func TestErrorWrapping(t *testing.T) {
+	t.Parallel()
 	c := &Client{
 		RunFn: func(args ...string) (string, error) {
 			return "", fmt.Errorf("boom")
@@ -1286,6 +1338,7 @@ func TestErrorWrapping(t *testing.T) {
 }
 
 func TestClientCreateWithParentAndDescription_UsesBodyFile(t *testing.T) {
+	t.Parallel()
 	description := "Line 1\nLine 2"
 	var gotArgs []string
 	var gotDescription string
@@ -1338,6 +1391,7 @@ func TestClientCreateWithParentAndDescription_UsesBodyFile(t *testing.T) {
 }
 
 func TestClientCreateWithParentAndDescription_PassesAcceptanceInline(t *testing.T) {
+	t.Parallel()
 	expectedOutputs := []string{"file1.go", "file2.go"}
 	wantAcceptance := strings.Join(expectedOutputs, "\n")
 	var gotAcceptance string
@@ -1369,6 +1423,7 @@ func TestClientCreateWithParentAndDescription_PassesAcceptanceInline(t *testing.
 }
 
 func TestClientCreateWithDepsAndDescription_UsesBodyFile(t *testing.T) {
+	t.Parallel()
 	description := "Deps description\nLine 2"
 	var gotArgs []string
 	var gotDescription string
@@ -1422,6 +1477,7 @@ func TestClientCreateWithDepsAndDescription_UsesBodyFile(t *testing.T) {
 
 // TestIsMethodologyActive tests the IsMethodologyActive function
 func TestIsMethodologyActive(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name            string
 		labels          []string
@@ -1580,6 +1636,7 @@ func TestIsMethodologyActive(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := IsMethodologyActive(tt.labels, tt.methodologyName, tt.globalDefault)
 			if got != tt.want {
 				t.Errorf("IsMethodologyActive() = %v, want %v", got, tt.want)
@@ -1590,6 +1647,7 @@ func TestIsMethodologyActive(t *testing.T) {
 
 // TestClientHasOpenChildrenValidation tests that HasOpenChildren() validates parent IDs
 func TestClientHasOpenChildrenValidation(t *testing.T) {
+	t.Parallel()
 	c, _ := NewClient()
 
 	tests := []struct {
@@ -1626,6 +1684,7 @@ func TestClientHasOpenChildrenValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			_, err := c.HasOpenChildren(tt.parentID)
 			if err == nil {
 				t.Errorf("HasOpenChildren(%q) expected error but got nil", tt.parentID)
@@ -1644,6 +1703,7 @@ func TestClientHasOpenChildrenValidation(t *testing.T) {
 // Uses RunFn injection to verify command arguments without spawning subprocesses. The test verifies HasOpenChildren
 // calls run() with: bd list --json --status open --parent <id> --limit 1
 func TestHasOpenChildrenWithMockedRun(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		parentID string
@@ -1688,6 +1748,7 @@ func TestHasOpenChildrenWithMockedRun(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var capturedArgs []string
 			mockRun := func(args ...string) (string, error) {
 				capturedArgs = args
@@ -1727,6 +1788,7 @@ func TestHasOpenChildrenWithMockedRun(t *testing.T) {
 }
 
 func TestHasOpenChildrenHandlesPrefixedJSON(t *testing.T) {
+	t.Parallel()
 	const parentID = "epic-noise"
 	noisyOutput := `NOTICE: query succeeded
 bd version 1.2.3
@@ -1752,6 +1814,7 @@ bd version 1.2.3
 }
 
 func TestHasOpenChildrenHandlesSurroundingNoise(t *testing.T) {
+	t.Parallel()
 	const parentID = "epic-noise"
 	noisyOutput := `NOTICE: query succeeded
 bd version 1.2.3
@@ -1779,6 +1842,7 @@ WARNING: closing connection
 }
 
 func TestHasOpenChildrenHandlesRichSurroundingNoise(t *testing.T) {
+	t.Parallel()
 	const parentID = "epic-noise-rich"
 	noisyOutput := `NOTICE: query succeeded
 bd version 1.2.3
@@ -1807,6 +1871,7 @@ WARNING: closing connection
 
 // TestClientListReadyIDsNilClient tests that ListReadyIDs() returns error on nil client
 func TestClientListReadyIDsNilClient(t *testing.T) {
+	t.Parallel()
 	var c *Client
 	_, err := c.ListReadyIDs()
 	if err == nil {
@@ -1820,6 +1885,7 @@ func TestClientListReadyIDsNilClient(t *testing.T) {
 
 // TestClientListReadyIDsEmpty tests that ListReadyIDs() returns empty slice for no beads
 func TestClientListReadyIDsEmpty(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		jsonOutput  string
@@ -1844,6 +1910,7 @@ func TestClientListReadyIDsEmpty(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			ids, err := parseBeadOutputToIDs(tt.jsonOutput)
 			if err != nil {
 				t.Fatalf("parseBeadOutputToIDs() error = %v", err)
@@ -1861,6 +1928,7 @@ func TestClientListReadyIDsEmpty(t *testing.T) {
 
 // TestClientListReadyIDsMultiple tests that ListReadyIDs() returns multiple bead IDs
 func TestClientListReadyIDsMultiple(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		jsonOutput string
@@ -1927,6 +1995,7 @@ func TestClientListReadyIDsMultiple(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			ids, err := parseBeadOutputToIDs(tt.jsonOutput)
 			if err != nil {
 				t.Fatalf("parseBeadOutputToIDs() error = %v", err)
@@ -1946,6 +2015,7 @@ func TestClientListReadyIDsMultiple(t *testing.T) {
 
 // TestClientListReadyIDsJSONParseError tests that ListReadyIDs() handles JSON parse errors
 func TestClientListReadyIDsJSONParseError(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		jsonOutput string
@@ -1966,6 +2036,7 @@ func TestClientListReadyIDsJSONParseError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			ids, err := parseBeadOutputToIDs(tt.jsonOutput)
 			if err == nil {
 				t.Errorf("parseBeadOutputToIDs() expected error for invalid JSON, got nil, ids=%v", ids)
@@ -1998,6 +2069,7 @@ func parseBeadOutputToIDs(out string) ([]string, error) {
 
 // TestClientListReadyIDsErrorWrapping tests that ListReadyIDs() wraps command errors with context
 func TestClientListReadyIDsErrorWrapping(t *testing.T) {
+	t.Parallel()
 	c, _ := NewClient()
 
 	// Test that errors contain context when bd command fails
@@ -2009,6 +2081,7 @@ func TestClientListReadyIDsErrorWrapping(t *testing.T) {
 
 // TestClientReadyWithLabelValidation tests that ReadyWithLabel validates label parameter
 func TestClientReadyWithLabelValidation(t *testing.T) {
+	t.Parallel()
 	c := &Client{
 		RunFn: func(args ...string) (string, error) {
 			return "[]", nil
@@ -2064,6 +2137,7 @@ func TestClientReadyWithLabelValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			_, err := c.ReadyWithLabel(tt.label)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ReadyWithLabel(%q) error = %v, wantErr %v", tt.label, err, tt.wantErr)
@@ -2084,6 +2158,7 @@ func TestClientReadyWithLabelValidation(t *testing.T) {
 
 // TestClientReadyWithLabelNilClient tests that ReadyWithLabel returns error on nil client
 func TestClientReadyWithLabelNilClient(t *testing.T) {
+	t.Parallel()
 	var c *Client
 	_, err := c.ReadyWithLabel("spec:test")
 	if err == nil {
@@ -2097,6 +2172,7 @@ func TestClientReadyWithLabelNilClient(t *testing.T) {
 
 // TestClientReadyWithLabelEmptyResults tests that ReadyWithLabel returns nil for empty results
 func TestClientReadyWithLabelEmptyResults(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		jsonOutput  string
@@ -2121,6 +2197,7 @@ func TestClientReadyWithLabelEmptyResults(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			bead, err := parseBeadOutputExcluding(tt.jsonOutput, "epic")
 			if err != nil {
 				t.Fatalf("parseBeadOutputExcluding() error = %v", err)
@@ -2134,6 +2211,7 @@ func TestClientReadyWithLabelEmptyResults(t *testing.T) {
 
 // TestClientReadyWithLabelExcludesEpics tests that ReadyWithLabel filters out epic beads
 func TestClientReadyWithLabelExcludesEpics(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		jsonOutput string
@@ -2211,6 +2289,7 @@ func TestClientReadyWithLabelExcludesEpics(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := parseBeadOutputExcluding(tt.jsonOutput, "epic")
 			if err != nil {
 				t.Fatalf("parseBeadOutputExcluding() error = %v", err)
@@ -2239,6 +2318,7 @@ func TestClientReadyWithLabelExcludesEpics(t *testing.T) {
 
 // TestClientListWithLabelValidation tests that ListWithLabel validates label parameter
 func TestClientListWithLabelValidation(t *testing.T) {
+	t.Parallel()
 	c := &Client{
 		RunFn: func(args ...string) (string, error) {
 			return "[]", nil
@@ -2284,6 +2364,7 @@ func TestClientListWithLabelValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			_, err := c.ListWithLabel(tt.label)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ListWithLabel(%q) error = %v, wantErr %v", tt.label, err, tt.wantErr)
@@ -2304,6 +2385,7 @@ func TestClientListWithLabelValidation(t *testing.T) {
 
 // TestClientListWithLabelNilClient tests that ListWithLabel returns error on nil client
 func TestClientListWithLabelNilClient(t *testing.T) {
+	t.Parallel()
 	var c *Client
 	_, err := c.ListWithLabel("spec:test")
 	if err == nil {
@@ -2317,6 +2399,7 @@ func TestClientListWithLabelNilClient(t *testing.T) {
 
 // TestClientListWithLabelEmptyResults tests that ListWithLabel returns empty slice for no results
 func TestClientListWithLabelEmptyResults(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		jsonOutput  string
@@ -2341,6 +2424,7 @@ func TestClientListWithLabelEmptyResults(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			beads, err := parseBeadOutputList(tt.jsonOutput)
 			if err != nil {
 				t.Fatalf("parseBeadOutputList() error = %v", err)
@@ -2358,6 +2442,7 @@ func TestClientListWithLabelEmptyResults(t *testing.T) {
 
 // TestClientListWithLabelMultipleBeads tests that ListWithLabel returns multiple beads correctly
 func TestClientListWithLabelMultipleBeads(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		jsonOutput string
@@ -2428,6 +2513,7 @@ func TestClientListWithLabelMultipleBeads(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			beads, err := parseBeadOutputList(tt.jsonOutput)
 			if err != nil {
 				t.Fatalf("parseBeadOutputList() error = %v", err)
@@ -2447,6 +2533,7 @@ func TestClientListWithLabelMultipleBeads(t *testing.T) {
 
 // TestClientListWithLabelIncludesAllTypes tests that ListWithLabel includes all bead types (not just tasks)
 func TestClientListWithLabelIncludesAllTypes(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		jsonOutput string
@@ -2489,6 +2576,7 @@ func TestClientListWithLabelIncludesAllTypes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			beads, err := parseBeadOutputList(tt.jsonOutput)
 			if err != nil {
 				t.Fatalf("parseBeadOutputList() error = %v", err)
@@ -2510,6 +2598,7 @@ func TestClientListWithLabelIncludesAllTypes(t *testing.T) {
 // whose deliverable IS tests (e.g., "Add unit tests for X"), which should
 // automatically skip the ATDD pre-pass.
 func TestIsTestOnlyBead(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		title string
@@ -2569,6 +2658,7 @@ func TestIsTestOnlyBead(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := IsTestOnlyBead(tt.title)
 			if got != tt.want {
 				t.Errorf("IsTestOnlyBead(%q) = %v, want %v", tt.title, got, tt.want)
@@ -2580,6 +2670,7 @@ func TestIsTestOnlyBead(t *testing.T) {
 // TestIsProactiveDecompositionCandidate tests the heuristic for detecting beads that
 // should be proactively decomposed before first attempt based on title keywords.
 func TestIsProactiveDecompositionCandidate_KeywordDetection(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		title string
@@ -2664,6 +2755,7 @@ func TestIsProactiveDecompositionCandidate_KeywordDetection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := IsProactiveDecompositionCandidate(tt.title)
 			if got != tt.want {
 				t.Errorf("IsProactiveDecompositionCandidate(%q) = %v, want %v", tt.title, got, tt.want)
@@ -2675,6 +2767,7 @@ func TestIsProactiveDecompositionCandidate_KeywordDetection(t *testing.T) {
 // TestIsProactiveDecompositionCandidate_TypeDefinitions tests that beads with 3 or more
 // new type definitions in the description are flagged as decomposition candidates.
 func TestIsProactiveDecompositionCandidate_TypeDefinitions(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		title       string
@@ -2718,6 +2811,7 @@ func TestIsProactiveDecompositionCandidate_TypeDefinitions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := IsProactiveDecompositionCandidateWithDesc(tt.title, tt.description)
 			if got != tt.want {
 				t.Errorf("IsProactiveDecompositionCandidateWithDesc(%q, %q) = %v, want %v", tt.title, tt.description, got, tt.want)
@@ -2765,6 +2859,7 @@ func parseBeadCount(out string) (int, error) {
 
 // TestCountClosedAfterNilClient tests that CountClosedAfter returns error on nil client
 func TestCountClosedAfterNilClient(t *testing.T) {
+	t.Parallel()
 	var c *Client
 	after := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	_, err := c.CountClosedAfter(after)
@@ -2778,6 +2873,7 @@ func TestCountClosedAfterNilClient(t *testing.T) {
 
 // TestCountClosedAfterEmptyResults tests that CountClosedAfter returns 0 for empty results
 func TestCountClosedAfterEmptyResults(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		jsonOutput string
@@ -2798,6 +2894,7 @@ func TestCountClosedAfterEmptyResults(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			count, err := parseBeadCount(tt.jsonOutput)
 			if err != nil {
 				t.Fatalf("parseBeadCount() error = %v", err)
@@ -2811,6 +2908,7 @@ func TestCountClosedAfterEmptyResults(t *testing.T) {
 
 // TestCountClosedAfterWithBeads tests that CountClosedAfter returns correct count
 func TestCountClosedAfterWithBeads(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		jsonOutput string
@@ -2901,6 +2999,7 @@ func TestCountClosedAfterWithBeads(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			count, err := parseBeadCount(tt.jsonOutput)
 			if err != nil {
 				t.Fatalf("parseBeadCount() error = %v", err)
@@ -2914,6 +3013,7 @@ func TestCountClosedAfterWithBeads(t *testing.T) {
 
 // TestCountByStatusNilClient tests that CountByStatus returns error on nil client
 func TestCountByStatusNilClient(t *testing.T) {
+	t.Parallel()
 	var c *Client
 	_, err := c.CountByStatus("open")
 	if err == nil {
@@ -2926,6 +3026,7 @@ func TestCountByStatusNilClient(t *testing.T) {
 
 // TestCountByStatusEmptyResults tests that CountByStatus returns 0 for empty results
 func TestCountByStatusEmptyResults(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		jsonOutput string
@@ -2946,6 +3047,7 @@ func TestCountByStatusEmptyResults(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			count, err := parseBeadCount(tt.jsonOutput)
 			if err != nil {
 				t.Fatalf("parseBeadCount() error = %v", err)
@@ -2959,6 +3061,7 @@ func TestCountByStatusEmptyResults(t *testing.T) {
 
 // TestCountByStatusWithBeads tests that CountByStatus returns correct count for various statuses
 func TestCountByStatusWithBeads(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		jsonOutput string
@@ -3037,6 +3140,7 @@ func TestCountByStatusWithBeads(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			count, err := parseBeadCount(tt.jsonOutput)
 			if err != nil {
 				t.Fatalf("parseBeadCount() error = %v", err)

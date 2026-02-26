@@ -111,6 +111,7 @@ func collectAcceptanceTests(t *testing.T, projectRoot string, files []string) []
 }
 
 func TestSmokeCoverageMatrix_ConsolidatedFileHasHeader(t *testing.T) {
+	t.Parallel()
 	projectRoot, err := findProjectRoot()
 	if err != nil {
 		t.Fatalf("findProjectRoot: %v", err)
@@ -129,8 +130,11 @@ func TestSmokeCoverageMatrix_ConsolidatedFileHasHeader(t *testing.T) {
 }
 
 func TestSmokeCoverageMatrix_ConsolidatedCaseMappingIsComplete(t *testing.T) {
+	t.Parallel(
 	// Expected failure: Consolidated smoke coverage matrix file and
 	// BuildConsolidatedSmokeMatrix generator do not exist yet.
+	)
+
 	projectRoot, err := findProjectRoot()
 	if err != nil {
 		t.Fatalf("findProjectRoot: %v", err)
@@ -180,8 +184,11 @@ func TestSmokeCoverageMatrix_ConsolidatedCaseMappingIsComplete(t *testing.T) {
 }
 
 func TestSmokeCoverageMatrix_KeepSetIsMinimalHighValue(t *testing.T) {
+	t.Parallel(
 	// Expected failure: Consolidated keep set is not limited to the critical
 	// E2E smoke cases defined by ConsolidatedSmokeKeepSet yet.
+	)
+
 	projectRoot, err := findProjectRoot()
 	if err != nil {
 		t.Fatalf("findProjectRoot: %v", err)
@@ -216,6 +223,7 @@ func TestSmokeCoverageMatrix_KeepSetIsMinimalHighValue(t *testing.T) {
 }
 
 func TestSmokeCoverageMatrix_KeepCasesHaveConcreteDestinations(t *testing.T) {
+	t.Parallel()
 	projectRoot, err := findProjectRoot()
 	if err != nil {
 		t.Fatalf("findProjectRoot: %v", err)
@@ -236,8 +244,11 @@ func TestSmokeCoverageMatrix_KeepCasesHaveConcreteDestinations(t *testing.T) {
 }
 
 func TestSmokeCoverageMatrix_MoveCasesHaveConcreteUnitDestinations(t *testing.T) {
+	t.Parallel(
 	// Expected failure: Consolidated move destinations are not validated against
 	// unit test suites, and ConsolidatedMoveDestinationResolution is missing.
+	)
+
 	projectRoot, err := findProjectRoot()
 	if err != nil {
 		t.Fatalf("findProjectRoot: %v", err)

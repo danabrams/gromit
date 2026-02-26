@@ -7,6 +7,7 @@ import (
 )
 
 func TestProjectBeadCompletionOrder_RespectsDependenciesAndReadiness(t *testing.T) {
+	t.Parallel()
 	all := []*bead.Bead{
 		{ID: "d", Status: "in_progress", Priority: 4, Labels: []string{"spec:gamma"}, Title: "in progress"},
 		{ID: "a", Status: "open", Priority: 1, Labels: []string{"spec:alpha"}, Title: "alpha"},
@@ -31,6 +32,7 @@ func TestProjectBeadCompletionOrder_RespectsDependenciesAndReadiness(t *testing.
 }
 
 func TestProjectSpecCompletionOrder_SortsByCompletionPoint(t *testing.T) {
+	t.Parallel()
 	all := []*bead.Bead{
 		{ID: "a1", Labels: []string{"spec:alpha"}},
 		{ID: "a2", Labels: []string{"spec:alpha"}},

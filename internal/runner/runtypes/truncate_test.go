@@ -6,6 +6,7 @@ import (
 )
 
 func TestTruncateOutput_ShortOutputUnchanged(t *testing.T) {
+	t.Parallel()
 	input := "some short output\nline two\n"
 	result := TruncateOutput(input)
 	if result != input {
@@ -14,7 +15,10 @@ func TestTruncateOutput_ShortOutputUnchanged(t *testing.T) {
 }
 
 func TestTruncateOutput_LongOutputKeepsTail(t *testing.T) {
+	t.Parallel(
 	// Build input larger than 50KB
+	)
+
 	line := "FAIL: TestSomething/case_one --- some error message here\n"
 	var builder []byte
 	for len(builder) < 60*1024 {

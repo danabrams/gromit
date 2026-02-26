@@ -45,8 +45,11 @@ var _ OverwriteWriter = (*mockOverwriteWriter)(nil)
 
 // Expected failure: StartHeartbeat function does not exist in execution/ package yet
 func TestStartHeartbeat_StallDetectionFiresOnStall(t *testing.T) {
+	t.Parallel(
 	// Tests that the heartbeat goroutine detects a stall when no events arrive
 	// within the stall timeout, and calls the onStall callback.
+	)
+
 	stats, err := logger.NewStreamStats()
 	if err != nil {
 		t.Fatalf("failed to create StreamStats: %v", err)
@@ -85,8 +88,11 @@ func TestStartHeartbeat_StallDetectionFiresOnStall(t *testing.T) {
 
 // Expected failure: StartHeartbeat function does not exist in execution/ package yet
 func TestStartHeartbeat_TwoTierStallTimeout(t *testing.T) {
+	t.Parallel(
 	// Tests the two-tier stall detection: before tool activity, uses stallTimeout;
 	// after tool activity, uses stallTimeoutActive (longer).
+	)
+
 	stats, err := logger.NewStreamStats()
 	if err != nil {
 		t.Fatalf("failed to create StreamStats: %v", err)
@@ -130,6 +136,7 @@ func TestStartHeartbeat_TwoTierStallTimeout(t *testing.T) {
 }
 
 func TestOverwriteHeartbeat_WriteOverwriteErrorKeepsLastLine(t *testing.T) {
+	t.Parallel()
 	stats, err := logger.NewStreamStats()
 	if err != nil {
 		t.Fatalf("failed to create StreamStats: %v", err)
@@ -172,8 +179,11 @@ func waitForCondition(t *testing.T, timeout, interval time.Duration, cond func()
 
 // Expected failure: StartHeartbeat function does not exist in execution/ package yet
 func TestStartHeartbeat_ToolCallEventsUpdateDisplay(t *testing.T) {
+	t.Parallel(
 	// When tool call events arrive on the channel, the heartbeat should update
 	// the display in-place using OverwriteWriter.
+	)
+
 	stats, err := logger.NewStreamStats()
 	if err != nil {
 		t.Fatalf("failed to create StreamStats: %v", err)
@@ -225,8 +235,11 @@ func TestStartHeartbeat_ToolCallEventsUpdateDisplay(t *testing.T) {
 
 // Expected failure: StartHeartbeat function does not exist in execution/ package yet
 func TestStartHeartbeat_StopFunctionCleansUpGoroutine(t *testing.T) {
+	t.Parallel(
 	// The stop function returned by StartHeartbeat should cleanly shut down
 	// the goroutine without blocking indefinitely.
+	)
+
 	stats, err := logger.NewStreamStats()
 	if err != nil {
 		t.Fatalf("failed to create StreamStats: %v", err)
@@ -264,8 +277,11 @@ func TestStartHeartbeat_StopFunctionCleansUpGoroutine(t *testing.T) {
 
 // Expected failure: PrintHeartbeat function does not exist in execution/ package yet
 func TestPrintHeartbeat_FormatsStatusLine(t *testing.T) {
+	t.Parallel(
 	// PrintHeartbeat should format "[Xm XXs] Y tool calls, Z files modified"
 	// from StreamStats data.
+	)
+
 	stats, err := logger.NewStreamStats()
 	if err != nil {
 		t.Fatalf("failed to create StreamStats: %v", err)
@@ -298,7 +314,10 @@ func TestPrintHeartbeat_FormatsStatusLine(t *testing.T) {
 
 // Expected failure: PrintHeartbeat function does not exist in execution/ package yet
 func TestPrintHeartbeat_WaitingMessageWhenNoToolCalls(t *testing.T) {
+	t.Parallel(
 	// When no tool calls have been made, PrintHeartbeat should show a waiting message.
+	)
+
 	stats, err := logger.NewStreamStats()
 	if err != nil {
 		t.Fatalf("failed to create StreamStats: %v", err)
@@ -314,7 +333,10 @@ func TestPrintHeartbeat_WaitingMessageWhenNoToolCalls(t *testing.T) {
 
 // Expected failure: PrintHeartbeat function does not exist in execution/ package yet
 func TestPrintHeartbeat_NilSafetyReturnsEmpty(t *testing.T) {
+	t.Parallel(
 	// PrintHeartbeat with nil stats should return empty string without panicking.
+	)
+
 	var buf bytes.Buffer
 	line := PrintHeartbeat(nil, &buf)
 
@@ -325,7 +347,10 @@ func TestPrintHeartbeat_NilSafetyReturnsEmpty(t *testing.T) {
 
 // Expected failure: HeartbeatConfig type does not exist in execution/ package yet
 func TestHeartbeatConfig_IsExported(t *testing.T) {
+	t.Parallel(
 	// HeartbeatConfig must be an exported type so callers can customize timing.
+	)
+
 	cfg := HeartbeatConfig{
 		InitialDelay:   15 * time.Second,
 		HeartbeatRate:  30 * time.Second,
@@ -345,15 +370,21 @@ func TestHeartbeatConfig_IsExported(t *testing.T) {
 
 // Expected failure: OverwriteWriter interface does not exist in execution/ package yet
 func TestOverwriteWriter_InterfaceDefinedNarrowly(t *testing.T) {
+	t.Parallel(
 	// The OverwriteWriter interface should be defined with Write and WriteOverwrite
 	// methods. This test verifies mockOverwriteWriter satisfies it.
+	)
+
 	var _ OverwriteWriter = (*mockOverwriteWriter)(nil)
 }
 
 // Expected failure: StartHeartbeat wrapper function does not exist in execution/ package yet
 func TestStartHeartbeat_DefaultConfigUsedByWrapper(t *testing.T) {
+	t.Parallel(
 	// StartHeartbeat (the convenience wrapper) should use DefaultHeartbeatConfig
 	// internally. We verify by calling it and seeing that it functions correctly.
+	)
+
 	stats, err := logger.NewStreamStats()
 	if err != nil {
 		t.Fatalf("failed to create StreamStats: %v", err)

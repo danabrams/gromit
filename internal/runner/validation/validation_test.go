@@ -58,8 +58,11 @@ func newSleepySuccessCmdRunner(delay time.Duration) runtypes.CmdRunnerFn {
 
 // Expected failure: validation.Runner type and NewRunner constructor do not exist yet
 func TestRunDirect_AllCommandsPass(t *testing.T) {
+	t.Parallel(
 	// When all validation commands exit 0, RunDirect should return a
 	// claude.Result with Success=true and Output="VALIDATION_PASSED".
+	)
+
 	cfg := newTestConfig()
 
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
@@ -83,8 +86,11 @@ func TestRunDirect_AllCommandsPass(t *testing.T) {
 
 // Expected failure: validation.Runner type and RunDirect method do not exist yet
 func TestRunDirect_FirstCommandFails(t *testing.T) {
+	t.Parallel(
 	// When a validation command exits non-zero, RunDirect should return a
 	// claude.Result with Success=false, the exit code, and captured output.
+	)
+
 	cfg := newTestConfig()
 
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
@@ -113,8 +119,11 @@ func TestRunDirect_FirstCommandFails(t *testing.T) {
 
 // Expected failure: validation.Runner type and RunDirect method do not exist yet
 func TestRunDirect_CommandExecutionError(t *testing.T) {
+	t.Parallel(
 	// When the command runner returns an error (not just non-zero exit),
 	// RunDirect should propagate the error.
+	)
+
 	cfg := newTestConfig()
 
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
@@ -131,8 +140,11 @@ func TestRunDirect_CommandExecutionError(t *testing.T) {
 
 // Expected failure: validation.Runner type and RunDirect method do not exist yet
 func TestRunDirect_CapturesStdoutAndStderr(t *testing.T) {
+	t.Parallel(
 	// When a command fails, RunDirect should include both stdout and stderr
 	// in the failure output.
+	)
+
 	cfg := newTestConfig()
 
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
@@ -156,8 +168,11 @@ func TestRunDirect_CapturesStdoutAndStderr(t *testing.T) {
 
 // Expected failure: validation.Runner type and RunDirect method do not exist yet
 func TestRunDirect_StopsAfterFirstFailure(t *testing.T) {
+	t.Parallel(
 	// RunDirect should stop execution after the first failing command
 	// and not run subsequent commands.
+	)
+
 	cfg := newTestConfig()
 
 	commandsRun := []string{}
@@ -184,6 +199,7 @@ func TestRunDirect_StopsAfterFirstFailure(t *testing.T) {
 }
 
 func TestRunDirect_ParallelCommands_BoundedConcurrency(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	cfg.Validation.MaxParallelCommands = 2
 	commands := []string{"cmd-1", "cmd-2", "cmd-3", "cmd-4"}
@@ -250,6 +266,7 @@ func TestRunDirect_ParallelCommands_BoundedConcurrency(t *testing.T) {
 }
 
 func TestRunnerValidate_UsesProfileDefaultCommands(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	cfg.Project.Profile = "go"
 	cfg.Validation.Enabled = true
@@ -269,6 +286,7 @@ func TestRunnerValidate_UsesProfileDefaultCommands(t *testing.T) {
 }
 
 func TestElapsedMs_RunDirectAccumulatesElapsedTime(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	cfg.Validation.Commands = []string{"go test ./..."}
 	cmdRunner := newSleepySuccessCmdRunner(testCommandSleep)
@@ -287,6 +305,7 @@ func TestElapsedMs_RunDirectAccumulatesElapsedTime(t *testing.T) {
 }
 
 func TestElapsedMs_RunWithRecoveryAccumulatesAcrossRetry(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	cfg.Validation.Commands = []string{"go test ./..."}
 	cfg.Validation.MaxValidationRetries = 1
@@ -316,6 +335,7 @@ func TestElapsedMs_RunWithRecoveryAccumulatesAcrossRetry(t *testing.T) {
 }
 
 func TestResetElapsed_ZeroesAccumulator(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	cfg.Validation.Commands = []string{"go test ./..."}
 	cmdRunner := newSleepySuccessCmdRunner(testCommandSleep)
@@ -338,8 +358,11 @@ func TestResetElapsed_ZeroesAccumulator(t *testing.T) {
 
 // Expected failure: validation.Runner type and RunWithRecovery method do not exist yet
 func TestRunWithRecovery_PassesOnFirstValidation(t *testing.T) {
+	t.Parallel(
 	// When validation passes on the first try, RunWithRecovery returns nil
 	// without any recovery attempts.
+	)
+
 	cfg := newTestConfig()
 
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
@@ -361,8 +384,11 @@ func TestRunWithRecovery_PassesOnFirstValidation(t *testing.T) {
 
 // Expected failure: validation.Runner type and RunWithRecovery method do not exist yet
 func TestRunWithRecovery_AutoFixResolvesFailure(t *testing.T) {
+	t.Parallel(
 	// When validation fails but auto-fix resolves the issue, RunWithRecovery
 	// should return nil and set TrivialAutoFixed=true.
+	)
+
 	cfg := newTestConfig()
 
 	callCount := 0
@@ -402,8 +428,11 @@ func TestRunWithRecovery_AutoFixResolvesFailure(t *testing.T) {
 
 // Expected failure: validation.Runner type and RunWithRecovery method do not exist yet
 func TestRunWithRecovery_ExecuteFnCalledWhenAutoFixFails(t *testing.T) {
+	t.Parallel(
 	// When validation fails and auto-fix doesn't resolve it, RunWithRecovery
 	// should invoke the ExecuteFn callback for Claude-based fix attempts.
+	)
+
 	cfg := newTestConfig()
 	cfg.Validation.MaxValidationRetries = 1
 
@@ -440,7 +469,10 @@ func TestRunWithRecovery_ExecuteFnCalledWhenAutoFixFails(t *testing.T) {
 
 // Expected failure: validation.Runner type and RunWithRecovery method do not exist yet
 func TestRunWithRecovery_RespectsSingleRecoveryCap(t *testing.T) {
+	t.Parallel(
 	// RunWithRecovery caps recovery to one attempt, even if configured higher.
+	)
+
 	cfg := newTestConfig()
 	cfg.Validation.MaxValidationRetries = 2
 
@@ -468,8 +500,11 @@ func TestRunWithRecovery_RespectsSingleRecoveryCap(t *testing.T) {
 
 // Expected failure: validation.Runner type and RunWithRecovery method do not exist yet
 func TestRunWithRecovery_ZeroRetriesSkipsRecovery(t *testing.T) {
+	t.Parallel(
 	// When MaxValidationRetries is 0, RunWithRecovery should return the error
 	// immediately without any recovery attempts.
+	)
+
 	cfg := newTestConfig()
 	cfg.Validation.MaxValidationRetries = 0
 
@@ -497,8 +532,11 @@ func TestRunWithRecovery_ZeroRetriesSkipsRecovery(t *testing.T) {
 
 // Expected failure: validation.Runner type and RunWithRecovery method do not exist yet
 func TestRunWithRecovery_SetsValidatedOnSuccess(t *testing.T) {
+	t.Parallel(
 	// After successful validation, RunWithRecovery should set
 	// bc.Result.Validated=true and bc.Result.ValidationMode="direct".
+	)
+
 	cfg := newTestConfig()
 
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
@@ -522,9 +560,12 @@ func TestRunWithRecovery_SetsValidatedOnSuccess(t *testing.T) {
 
 // Expected failure: validation.Runner type and RunWithRecovery method do not exist yet
 func TestRunWithRecovery_NonValidationErrorNotRecovered(t *testing.T) {
+	t.Parallel(
 	// When validation returns an error that is NOT errValidationFailed
 	// (e.g., a command execution error), RunWithRecovery should propagate
 	// it without attempting recovery.
+	)
+
 	cfg := newTestConfig()
 
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
@@ -553,7 +594,10 @@ func TestRunWithRecovery_NonValidationErrorNotRecovered(t *testing.T) {
 
 // Expected failure: ExtractValidationSummary does not exist in the validation package yet
 func TestExtractValidationSummary_ExtractsTestFailures(t *testing.T) {
+	t.Parallel(
 	// ExtractValidationSummary should extract "--- FAIL:" lines from test output.
+	)
+
 	input := `=== RUN   TestFoo
 --- FAIL: TestFoo (0.01s)
     foo_test.go:10: expected 1, got 2
@@ -576,7 +620,10 @@ ok  	github.com/example/other	0.005s`
 
 // Expected failure: ExtractValidationSummary does not exist in the validation package yet
 func TestExtractValidationSummary_ExtractsVetDiagnostics(t *testing.T) {
+	t.Parallel(
 	// ExtractValidationSummary should extract go vet diagnostic lines.
+	)
+
 	input := `./main.go:10:6: x declared and not used
 ./util.go:25:2: unreachable code`
 
@@ -592,7 +639,10 @@ func TestExtractValidationSummary_ExtractsVetDiagnostics(t *testing.T) {
 
 // Expected failure: ExtractValidationSummary does not exist in the validation package yet
 func TestExtractValidationSummary_TruncatesLongOutput(t *testing.T) {
+	t.Parallel(
 	// ExtractValidationSummary should cap output at 500 characters.
+	)
+
 	var longInput string
 	for i := 0; i < 100; i++ {
 		longInput += fmt.Sprintf("--- FAIL: TestCase%d (0.01s)\n", i)
@@ -607,6 +657,7 @@ func TestExtractValidationSummary_TruncatesLongOutput(t *testing.T) {
 
 // Expected failure: ExtractValidationSummary does not exist in the validation package yet
 func TestExtractValidationSummary_EmptyInput(t *testing.T) {
+	t.Parallel()
 	summary := ExtractValidationSummary("")
 	if summary != "PASS: all validations passed" {
 		t.Errorf("ExtractValidationSummary(\"\") = %q, want %q", summary, "PASS: all validations passed")
@@ -614,6 +665,7 @@ func TestExtractValidationSummary_EmptyInput(t *testing.T) {
 }
 
 func TestExtractValidationSummary_ExtractsAssertionDetailsWithPackage(t *testing.T) {
+	t.Parallel()
 	input := `=== RUN   TestRunner
 --- FAIL: TestRunner (0.00s)
     --- FAIL: TestRunner/Subcase (0.00s)
@@ -640,8 +692,11 @@ FAIL	github.com/danabrams/gromit/internal/runner	0.01s`
 
 // Expected failure: validation.NewRunner does not exist yet
 func TestNewRunner_AcceptsNarrowInterfaces(t *testing.T) {
+	t.Parallel(
 	// NewRunner should accept config, CmdRunnerFn, AutoFixFn, and ExecuteFn
 	// as narrow dependency interfaces — not the full runner.Runner.
+	)
+
 	cfg := newTestConfig()
 
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
@@ -658,7 +713,10 @@ func TestNewRunner_AcceptsNarrowInterfaces(t *testing.T) {
 
 // Expected failure: validation.NewRunner does not exist yet
 func TestNewRunner_NilAutoFixIsAllowed(t *testing.T) {
+	t.Parallel(
 	// AutoFixFn should be optional — passing nil means no auto-fix is available.
+	)
+
 	cfg := newTestConfig()
 
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
@@ -673,7 +731,10 @@ func TestNewRunner_NilAutoFixIsAllowed(t *testing.T) {
 
 // Expected failure: validation.NewRunner does not exist yet
 func TestNewRunner_NilExecuteFnIsAllowed(t *testing.T) {
+	t.Parallel(
 	// ExecuteFn should be optional — passing nil means no Claude-based recovery.
+	)
+
 	cfg := newTestConfig()
 
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
@@ -711,8 +772,11 @@ func TestNewRunner_NilExecuteFnIsAllowed(t *testing.T) {
 
 // Expected failure: validation.Runner.Failures method does not exist yet
 func TestRunDirect_FailureAccumulatesValidationSummary(t *testing.T) {
+	t.Parallel(
 	// When validation fails, the failure summary should be extractable
 	// via the Runner's Failures() accessor for build prompt injection.
+	)
+
 	cfg := newTestConfig()
 
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
@@ -737,6 +801,7 @@ func TestRunDirect_FailureAccumulatesValidationSummary(t *testing.T) {
 // that the validation package uses only narrow interfaces and does not import
 // the runner/ facade package.
 func TestPackageDoesNotImportRunner(t *testing.T) {
+	t.Parallel(
 	// The validation package must not import the runner/ facade.
 	// This is verified structurally: the test file imports from validation
 	// package (package validation), and the production code should only
@@ -746,6 +811,7 @@ func TestPackageDoesNotImportRunner(t *testing.T) {
 	// can be tested independently. The import structure at the top of
 	// this file demonstrates isolation: we import runtypes, config, bead,
 	// claude, and prompt — but NOT "runner".
+	)
 
 	// Verify the Runner struct exists and can be constructed
 	cfg := newTestConfig()
@@ -762,8 +828,11 @@ func TestPackageDoesNotImportRunner(t *testing.T) {
 
 // Expected failure: ErrValidationFailed does not exist in the validation package yet
 func TestErrValidationFailed_IsSentinelError(t *testing.T) {
+	t.Parallel(
 	// The validation package should export an ErrValidationFailed sentinel
 	// that callers can check with errors.Is().
+	)
+
 	err := ErrValidationFailed
 
 	if err == nil {
@@ -794,6 +863,7 @@ func searchSubstring(s, substr string) bool {
 // --- Validate (public runValidation) tests ---
 
 func TestValidate_PassesAndSetsValidated(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 		return "ok", "", 0, nil
@@ -814,6 +884,7 @@ func TestValidate_PassesAndSetsValidated(t *testing.T) {
 }
 
 func TestValidate_FailsAndAccumulatesFailures(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 		return "", "--- FAIL: TestBar (0.01s)\nFAIL\tpkg/bar", 1, nil
@@ -832,6 +903,7 @@ func TestValidate_FailsAndAccumulatesFailures(t *testing.T) {
 }
 
 func TestRunWithRecovery_CapsToSingleRecoveryAttempt(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	cfg.Validation.MaxValidationRetries = 5
 
@@ -873,6 +945,7 @@ func TestRunWithRecovery_CapsToSingleRecoveryAttempt(t *testing.T) {
 }
 
 func TestValidate_DetectsInteractivePromptWhenNonInteractive(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	tBool := true
 	cfg.Validation.NonInteractive = &tBool
@@ -895,6 +968,7 @@ func TestValidate_DetectsInteractivePromptWhenNonInteractive(t *testing.T) {
 }
 
 func TestValidate_AllowsPromptPatternWhenNonInteractiveDisabled(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	fBool := false
 	cfg.Validation.NonInteractive = &fBool
@@ -914,6 +988,7 @@ func TestValidate_AllowsPromptPatternWhenNonInteractiveDisabled(t *testing.T) {
 }
 
 func TestValidate_CommandTimeoutReturnsValidationFailure(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	cfg.Validation.CommandTimeout = config.DurationSeconds(20 * time.Millisecond)
 	cfg.Validation.Commands = []string{"go test ./..."}
@@ -936,6 +1011,7 @@ func TestValidate_CommandTimeoutReturnsValidationFailure(t *testing.T) {
 }
 
 func TestValidate_ParentDeadlineExceededReturnsExecutionError(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	cfg.Validation.CommandTimeout = 0
 	cfg.Validation.Commands = []string{"go test ./..."}
@@ -964,6 +1040,7 @@ func TestValidate_ParentDeadlineExceededReturnsExecutionError(t *testing.T) {
 }
 
 func TestValidate_ParentCanceledReturnsExecutionError(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	cfg.Validation.CommandTimeout = 0
 	cfg.Validation.Commands = []string{"go test ./..."}
@@ -992,6 +1069,7 @@ func TestValidate_ParentCanceledReturnsExecutionError(t *testing.T) {
 }
 
 func TestRunWithRecoveryForCommands_RecoveryRevalidationHonorsPhaseDeadline(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	cfg.Validation.Commands = []string{"go test ./..."}
 	cfg.Validation.MaxValidationRetries = 1
@@ -1023,6 +1101,7 @@ func TestRunWithRecoveryForCommands_RecoveryRevalidationHonorsPhaseDeadline(t *t
 }
 
 func TestRunWithRecoveryForCommands_ExecuteFnHonorsPhaseDeadline(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	cfg.Validation.Commands = []string{"go test ./..."}
 	cfg.Validation.MaxValidationRetries = 1
@@ -1052,6 +1131,7 @@ func TestRunWithRecoveryForCommands_ExecuteFnHonorsPhaseDeadline(t *testing.T) {
 }
 
 func TestRunWithRecoveryForCommands_PhaseTimeoutCapsCommandTimeout(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	cfg.Validation.Commands = []string{"go test ./..."}
 	cfg.Validation.CommandTimeout = config.DurationSeconds(10 * time.Second)
@@ -1087,6 +1167,7 @@ func TestRunWithRecoveryForCommands_PhaseTimeoutCapsCommandTimeout(t *testing.T)
 }
 
 func TestRunWithRecoveryForCommands_CommandTimeoutPreservedWithinPhaseBudget(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	cfg.Validation.Commands = []string{"go test ./..."}
 	cfg.Validation.CommandTimeout = config.DurationSeconds(20 * time.Millisecond)
@@ -1116,6 +1197,7 @@ func TestRunWithRecoveryForCommands_CommandTimeoutPreservedWithinPhaseBudget(t *
 // validation command fails with very large stdout/stderr, the output appended
 // to bc.Result.Output is capped at ~50KB to prevent context bloat.
 func TestRunWithRecoveryForCommands_TruncatesLargeOutput(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	cfg.Validation.MaxValidationRetries = 0 // no recovery, just run and fail
 
@@ -1148,6 +1230,7 @@ func TestRunWithRecoveryForCommands_TruncatesLargeOutput(t *testing.T) {
 // TestRunWithRecoveryForCommands_PassesEscalationFlagToExecuteFn verifies that
 // RunWithRecoveryForCommandsWithEscalation forwards the escalation flag to ExecuteFn.
 func TestRunWithRecoveryForCommands_PassesEscalationFlagToExecuteFn(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 
 	// Always fail validation
@@ -1183,6 +1266,7 @@ func TestRunWithRecoveryForCommands_PassesEscalationFlagToExecuteFn(t *testing.T
 // TestRunWithRecoveryForCommandsWithEscalation_EnabledTrue verifies that
 // when escalationEnabled=true is passed, the runner correctly stores it.
 func TestRunWithRecoveryForCommandsWithEscalation_EnabledTrue(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 
 	// Always fail validation
@@ -1212,6 +1296,7 @@ func TestRunWithRecoveryForCommandsWithEscalation_EnabledTrue(t *testing.T) {
 // TestExecuteFnCanAccessEscalationFlag verifies that executeFn closures can access
 // the escalationEnabled argument in ExecuteFn to pass through to escalation handlers.
 func TestExecuteFnCanAccessEscalationFlag(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 
 	// Always fail validation
@@ -1256,6 +1341,7 @@ func TestExecuteFnCanAccessEscalationFlag(t *testing.T) {
 // that uses an escalation handler wires the escalation flag correctly.
 // This is the pattern that call sites should follow when creating validation runners.
 func TestValidationWithEscalationHandler_WiresEscalationCorrectly(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 
 	// Validation always fails
@@ -1310,6 +1396,7 @@ func TestValidationWithEscalationHandler_WiresEscalationCorrectly(t *testing.T) 
 // TestExecuteFnReceivesEscalationFlagArgument verifies ExecuteFn is invoked with
 // the escalationEnabled argument instead of reading runner state.
 func TestExecuteFnReceivesEscalationFlagArgument(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {

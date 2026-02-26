@@ -12,8 +12,10 @@ import (
 
 // TestClaudeAdapter_IntegrationWithTypedResult verifies the complete adapter chain returns typed results
 func TestClaudeAdapter_IntegrationWithTypedResult(t *testing.T) {
+	t.Parallel(
 	// Expected failure: This will pass once adapters return typed LLMRunResult
 	// This test demonstrates the behavioral difference: no type assertions in workflow code
+	)
 
 	// Create a mock claude.Result (the concrete type from internal/claude)
 	concreteResult := &claude.Result{
@@ -52,8 +54,10 @@ func TestClaudeAdapter_IntegrationWithTypedResult(t *testing.T) {
 
 // TestBeadAdapter_IntegrationWithTypedResult verifies bead adapter returns typed BeadInfo
 func TestBeadAdapter_IntegrationWithTypedResult(t *testing.T) {
+	t.Parallel(
 	// Expected failure: This will pass once adapters return typed BeadInfo
 	// This test shows no extractBeadID function is needed
+	)
 
 	// Create a mock bead.Bead (the concrete type from internal/bead)
 	concreteBead := &bead.Bead{
@@ -99,7 +103,9 @@ func TestBeadAdapter_IntegrationWithTypedResult(t *testing.T) {
 
 // TestWorkflowUsage_NoTypeAssertions verifies workflow code uses typed results directly
 func TestWorkflowUsage_NoTypeAssertions(t *testing.T) {
+	t.Parallel(
 	// Expected failure: This demonstrates the usage pattern after typed interfaces
+	)
 
 	// Simulate what decompose workflow does:
 	mockClaudeResult := &pipeline.LLMRunResult{
@@ -149,7 +155,9 @@ func TestWorkflowUsage_NoTypeAssertions(t *testing.T) {
 
 // TestCompileTimeTypeSafety verifies typed interfaces catch errors at compile time
 func TestCompileTimeTypeSafety(t *testing.T) {
+	t.Parallel(
 	// This test demonstrates compile-time safety with typed interfaces
+	)
 
 	var claudeClient pipeline.LLMClient
 	var beadClient pipeline.BeadClient

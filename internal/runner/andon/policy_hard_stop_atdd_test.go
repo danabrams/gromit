@@ -9,6 +9,7 @@ import (
 // implemented yet, so policy still routes through existing autonomous L1/L2
 // retry behavior.
 func TestEvaluateFailureWithTrace_HardStopActionsBypassAutonomousL1L2(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, time.February, 16, 11, 0, 0, 0, time.UTC)
 	thresholds := DefaultThresholds()
 
@@ -32,6 +33,7 @@ func TestEvaluateFailureWithTrace_HardStopActionsBypassAutonomousL1L2(t *testing
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			trace := EvaluateFailureWithTrace(
 				tt.signal,
 				RecoveryState{
@@ -56,6 +58,7 @@ func TestEvaluateFailureWithTrace_HardStopActionsBypassAutonomousL1L2(t *testing
 // Expected failure: HardStopContext and allowlist-aware bulk delete classification
 // are not implemented yet, so scoped tmp deletions are not explicitly allowlisted.
 func TestEvaluateFailureWithTrace_BulkDeleteAllowlistIsExplicit(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, time.February, 16, 11, 30, 0, 0, time.UTC)
 	thresholds := DefaultThresholds()
 
@@ -93,6 +96,7 @@ func TestEvaluateFailureWithTrace_BulkDeleteAllowlistIsExplicit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			trace := EvaluateFailureWithTrace(
 				tt.signal,
 				RecoveryState{

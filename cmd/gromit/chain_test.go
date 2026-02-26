@@ -11,6 +11,7 @@ import (
 )
 
 func TestConfirmPrompt(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		input      string
@@ -135,7 +136,10 @@ func TestConfirmPrompt(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel(
 			// Create a bufio.Reader from the test input
+			)
+
 			reader := bufio.NewReader(strings.NewReader(tt.input))
 
 			// Call confirmPrompt
@@ -150,10 +154,12 @@ func TestConfirmPrompt(t *testing.T) {
 }
 
 func TestExecGromitBinaryResolution(t *testing.T) {
+	t.Parallel(
 	// This test verifies that execGromit uses os.Executable() or os.Args[0]
 	// We can't fully test the fallback without manipulating the environment,
 	// but we can at least verify the function doesn't panic and can resolve
 	// some binary path
+	)
 
 	binary, err := os.Executable()
 	if err != nil {
@@ -167,6 +173,7 @@ func TestExecGromitBinaryResolution(t *testing.T) {
 }
 
 func TestExecGromitExitErrorIsNil(t *testing.T) {
+	t.Parallel()
 	prevFactory := execCommandFactory
 	defer func() { execCommandFactory = prevFactory }()
 
@@ -194,12 +201,15 @@ func (c *testExecCommand) Run() error {
 	return nil
 }
 
-func (c *testExecCommand) SetStdin(_ io.Reader)   {}
+func (c *testExecCommand) SetStdin(_ io.Reader)  {}
 func (c *testExecCommand) SetStdout(_ io.Writer) {}
 func (c *testExecCommand) SetStderr(_ io.Writer) {}
 
 func TestIsPlanDecomposed(t *testing.T) {
+	t.Parallel(
 	// Create temp directory for test files
+	)
+
 	tmpDir := t.TempDir()
 
 	tests := []struct {

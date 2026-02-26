@@ -7,6 +7,7 @@ import (
 )
 
 func TestParseBeadOutputExcluding_SkipsClosedBeads(t *testing.T) {
+	t.Parallel()
 	beads := []Bead{
 		{ID: "closed-1", Title: "Closed task", Priority: 1, Status: "closed", Type: "task"},
 		{ID: "open-1", Title: "Open task", Priority: 1, Status: "open", Type: "task"},
@@ -29,6 +30,7 @@ func TestParseBeadOutputExcluding_SkipsClosedBeads(t *testing.T) {
 }
 
 func TestParseBeadOutputExcluding_SkipsClosedBeadsCaseInsensitive(t *testing.T) {
+	t.Parallel()
 	beads := []Bead{
 		{ID: "closed-1", Title: "Closed task", Priority: 1, Status: "Closed", Type: "task"},
 		{ID: "closed-2", Title: "Closed task 2", Priority: 1, Status: "CLOSED", Type: "task"},
@@ -52,6 +54,7 @@ func TestParseBeadOutputExcluding_SkipsClosedBeadsCaseInsensitive(t *testing.T) 
 }
 
 func TestParseBeadOutputExcluding_AllClosedReturnsNil(t *testing.T) {
+	t.Parallel()
 	beads := []Bead{
 		{ID: "closed-1", Title: "Closed task", Priority: 1, Status: "closed", Type: "task"},
 		{ID: "closed-2", Title: "Closed task 2", Priority: 1, Status: "closed", Type: "task"},
@@ -71,6 +74,7 @@ func TestParseBeadOutputExcluding_AllClosedReturnsNil(t *testing.T) {
 }
 
 func TestReadyExcluding_SkipsClosedBeads(t *testing.T) {
+	t.Parallel()
 	beads := []Bead{
 		{ID: "closed-1", Title: "Closed task", Priority: 1, Status: "closed", Type: "task"},
 		{ID: "open-1", Title: "Open task", Priority: 1, Status: "open", Type: "task"},
@@ -100,6 +104,7 @@ func TestReadyExcluding_SkipsClosedBeads(t *testing.T) {
 }
 
 func TestReadyExcluding_SkipsClosedAndExcludedBeads(t *testing.T) {
+	t.Parallel()
 	beads := []Bead{
 		{ID: "closed-1", Title: "Closed task", Priority: 1, Status: "closed", Type: "task"},
 		{ID: "excluded-1", Title: "Excluded task", Priority: 1, Status: "open", Type: "task"},
@@ -130,8 +135,11 @@ func TestReadyExcluding_SkipsClosedAndExcludedBeads(t *testing.T) {
 }
 
 func TestReadyWithLabel_SkipsClosedBeadFromShow(t *testing.T) {
+	t.Parallel(
 	// parseBeadOutputExcluding returns a bead that has the right label
 	// but Show reveals it is actually closed
+	)
+
 	readyOutput := []Bead{
 		{ID: "bead-1", Title: "Task with label", Priority: 1, Status: "open", Type: "task", Labels: []string{}},
 	}
@@ -170,6 +178,7 @@ func TestReadyWithLabel_SkipsClosedBeadFromShow(t *testing.T) {
 }
 
 func TestReady_SkipsClosedBeads(t *testing.T) {
+	t.Parallel()
 	beads := []Bead{
 		{ID: "closed-1", Title: "Closed task", Priority: 1, Status: "closed", Type: "task"},
 		{ID: "open-1", Title: "Open task", Priority: 1, Status: "open", Type: "task"},
@@ -199,6 +208,7 @@ func TestReady_SkipsClosedBeads(t *testing.T) {
 }
 
 func TestReadyExcluding_AllClosedReturnsNil(t *testing.T) {
+	t.Parallel()
 	beads := []Bead{
 		{ID: "closed-1", Title: "Closed 1", Priority: 1, Status: "closed", Type: "task"},
 		{ID: "closed-2", Title: "Closed 2", Priority: 1, Status: "closed", Type: "task"},
@@ -225,8 +235,11 @@ func TestReadyExcluding_AllClosedReturnsNil(t *testing.T) {
 }
 
 func TestReadyExcluding_DelegatesToReadyWhenNoExcludes(t *testing.T) {
+	t.Parallel(
 	// When excludeIDs is empty, ReadyExcluding delegates to Ready,
 	// which calls parseBeadOutputExcluding. Verify closed beads are still filtered.
+	)
+
 	beads := []Bead{
 		{ID: "closed-1", Title: "Closed task", Priority: 1, Status: "closed", Type: "task"},
 		{ID: "open-1", Title: "Open task", Priority: 1, Status: "open", Type: "task"},
@@ -257,7 +270,10 @@ func TestReadyExcluding_DelegatesToReadyWhenNoExcludes(t *testing.T) {
 }
 
 func TestReadyWithLabel_SkipsClosedBeadFromParse(t *testing.T) {
+	t.Parallel(
 	// All beads from bd ready are closed
+	)
+
 	beads := []Bead{
 		{ID: "closed-1", Title: "Closed task", Priority: 1, Status: "closed", Type: "task", Labels: []string{"spec:foo"}},
 	}

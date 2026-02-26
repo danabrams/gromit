@@ -12,7 +12,10 @@ import (
 )
 
 func TestStatsCmd_Registration(t *testing.T) {
+	t.Parallel(
 	// Verify the stats command is registered with rootCmd
+	)
+
 	found := false
 	for _, cmd := range rootCmd.Commands() {
 		if cmd.Use == "stats" {
@@ -27,7 +30,10 @@ func TestStatsCmd_Registration(t *testing.T) {
 }
 
 func TestStatsCmd_Flags(t *testing.T) {
+	t.Parallel(
 	// Verify the --json flag is available
+	)
+
 	jsonFlag := statsCmd.Flags().Lookup("json")
 	if jsonFlag == nil {
 		t.Error("stats command should have --json flag")
@@ -49,7 +55,9 @@ func TestStatsCmd_Flags(t *testing.T) {
 }
 
 func TestStatsCmd_DisplaysProjectStats(t *testing.T) {
+
 	// Create temp directory structure
+
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	logsDir := filepath.Join(gromitDir, "logs")
@@ -160,7 +168,9 @@ func TestStatsCmd_DisplaysProjectStats(t *testing.T) {
 }
 
 func TestStatsCmd_DisplaysGlobalStats(t *testing.T) {
+
 	// Create temp directory structure
+
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	logsDir := filepath.Join(gromitDir, "logs")
@@ -272,7 +282,9 @@ func TestStatsCmd_DisplaysGlobalStats(t *testing.T) {
 }
 
 func TestStatsCmd_JSONOutput(t *testing.T) {
+
 	// Create temp directory structure
+
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	logsDir := filepath.Join(gromitDir, "logs")
@@ -351,7 +363,9 @@ func TestStatsCmd_JSONOutput(t *testing.T) {
 }
 
 func TestStatsCmd_JSONOutputIncludesCostPerSpec(t *testing.T) {
+
 	// Create temp directory structure
+
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	logsDir := filepath.Join(gromitDir, "logs")
@@ -420,6 +434,7 @@ func TestStatsCmd_JSONOutputIncludesCostPerSpec(t *testing.T) {
 }
 
 func TestStatsCmd_JSONIncludesProviderMetrics(t *testing.T) {
+
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	logsDir := filepath.Join(gromitDir, "logs")
@@ -489,6 +504,7 @@ func TestStatsCmd_JSONIncludesProviderMetrics(t *testing.T) {
 }
 
 func TestStatsCmd_TDDTextOutput(t *testing.T) {
+
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	logsDir := filepath.Join(gromitDir, "logs")
@@ -578,6 +594,7 @@ func TestStatsCmd_TDDTextOutput(t *testing.T) {
 }
 
 func TestStatsCmd_TDDJSONOutputIncludesMetrics(t *testing.T) {
+
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	logsDir := filepath.Join(gromitDir, "logs")
@@ -655,7 +672,9 @@ func TestStatsCmd_TDDJSONOutputIncludesMetrics(t *testing.T) {
 }
 
 func TestStatsCmd_ShowsCostPerSpecSortedByTotalCost(t *testing.T) {
+
 	// Create temp directory structure
+
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	logsDir := filepath.Join(gromitDir, "logs")
@@ -742,6 +761,7 @@ func TestStatsCmd_ShowsCostPerSpecSortedByTotalCost(t *testing.T) {
 }
 
 func TestStatsCmd_OmitsUnassignedSpecFromCostPerSpec(t *testing.T) {
+
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	logsDir := filepath.Join(gromitDir, "logs")
@@ -813,6 +833,7 @@ func TestStatsCmd_OmitsUnassignedSpecFromCostPerSpec(t *testing.T) {
 }
 
 func TestStatsCmd_TextOutputIncludesCostPerSpecDetails(t *testing.T) {
+
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	logsDir := filepath.Join(gromitDir, "logs")
@@ -874,7 +895,9 @@ func TestStatsCmd_TextOutputIncludesCostPerSpecDetails(t *testing.T) {
 }
 
 func TestStatsCmd_ShowsCostPerCompletedBead(t *testing.T) {
+
 	// Create temp directory structure
+
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	logsDir := filepath.Join(gromitDir, "logs")
@@ -971,7 +994,9 @@ func TestStatsCmd_ShowsCostPerCompletedBead(t *testing.T) {
 }
 
 func TestStatsCmd_HandlesNoGlobalStats(t *testing.T) {
+
 	// Create temp directory structure
+
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	logsDir := filepath.Join(gromitDir, "logs")
@@ -1042,7 +1067,9 @@ func TestStatsCmd_HandlesNoGlobalStats(t *testing.T) {
 }
 
 func TestStatsCmd_ShowsEscalationFrequency(t *testing.T) {
+
 	// Create temp directory structure
+
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	logsDir := filepath.Join(gromitDir, "logs")
@@ -1153,6 +1180,7 @@ func TestStatsCmd_ShowsEscalationFrequency(t *testing.T) {
 }
 
 func TestStatsCmd_ShowsIterationsAndBeadsInSpecOutput(t *testing.T) {
+
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	logsDir := filepath.Join(gromitDir, "logs")

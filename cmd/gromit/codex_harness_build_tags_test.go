@@ -7,6 +7,7 @@ import (
 )
 
 func TestAssertCodexHarnessAcceptanceBuildTagsApplied(t *testing.T) {
+	t.Parallel()
 	AssertCodexHarnessAcceptanceBuildTagsApplied(t)
 }
 

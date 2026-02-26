@@ -9,6 +9,7 @@ import (
 )
 
 func TestHandlerFailureAPIsUseProviderResult(t *testing.T) {
+	t.Parallel()
 	var _ func(*Handler, context.Context, *runtypes.BeadContext, *provider.Result) bool = (*Handler).HandleEscalation
 	var _ func(*Handler, context.Context, *runtypes.BeadContext, *provider.Result) bool = (*Handler).AnalyzeAndHandleFailure
 }

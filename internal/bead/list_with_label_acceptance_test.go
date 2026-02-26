@@ -10,6 +10,7 @@ import (
 // TestListWithLabel_ReturnsUnlimitedResults keeps one high-value acceptance
 // check that proves ListWithLabel uses --limit 0 by validating >50 results.
 func TestListWithLabel_ReturnsUnlimitedResults(t *testing.T) {
+	t.Parallel()
 	c := newIsolatedClient(t)
 
 	const beadCount = 51

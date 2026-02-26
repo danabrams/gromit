@@ -13,6 +13,7 @@ func newConfigEscalationPolicy(cfg *config.Config) policy.EscalationPolicy {
 }
 
 func TestClassifyTimeout_StallFiredWithoutContextError(t *testing.T) {
+	t.Parallel()
 	p := newConfigEscalationPolicy(&config.Config{})
 	result := p.ClassifyTimeout(nil, nil, true)
 	if result.TimeoutType != "stall" {
@@ -24,6 +25,7 @@ func TestClassifyTimeout_StallFiredWithoutContextError(t *testing.T) {
 }
 
 func TestClassifyTimeout_BeadTimeoutWhenContextExpired(t *testing.T) {
+	t.Parallel()
 	p := newConfigEscalationPolicy(&config.Config{})
 	ctxErr := context.DeadlineExceeded
 	result := p.ClassifyTimeout(ctxErr, nil, false)
@@ -36,6 +38,7 @@ func TestClassifyTimeout_BeadTimeoutWhenContextExpired(t *testing.T) {
 }
 
 func TestClassifyTimeout_ParentCanceledReturnsNoTimeoutType(t *testing.T) {
+	t.Parallel()
 	p := newConfigEscalationPolicy(&config.Config{})
 	parentErr := context.Canceled
 	result := p.ClassifyTimeout(nil, parentErr, false)
@@ -48,6 +51,7 @@ func TestClassifyTimeout_ParentCanceledReturnsNoTimeoutType(t *testing.T) {
 }
 
 func TestClassifyTimeout_DefaultsToInvocation(t *testing.T) {
+	t.Parallel()
 	p := newConfigEscalationPolicy(&config.Config{})
 	result := p.ClassifyTimeout(nil, nil, false)
 	if result.TimeoutType != "invocation" {
@@ -59,6 +63,7 @@ func TestClassifyTimeout_DefaultsToInvocation(t *testing.T) {
 }
 
 func TestClassifyTimeout_AllBranchCombinations(t *testing.T) {
+	t.Parallel()
 	errCtx := context.DeadlineExceeded
 	errParent := context.Canceled
 	p := newConfigEscalationPolicy(&config.Config{})
@@ -81,6 +86,7 @@ func TestClassifyTimeout_AllBranchCombinations(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			result := p.ClassifyTimeout(tc.ctxErr, tc.parentErr, tc.stallFired)
 			if result.TimeoutType != tc.wantType {
 				t.Errorf("TimeoutType = %q, want %q", result.TimeoutType, tc.wantType)
@@ -93,6 +99,7 @@ func TestClassifyTimeout_AllBranchCombinations(t *testing.T) {
 }
 
 func TestSelectInitialTier_DelegatesToConfig(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	cfg.Models.P1 = "low"
 	p := newConfigEscalationPolicy(cfg)
@@ -104,6 +111,7 @@ func TestSelectInitialTier_DelegatesToConfig(t *testing.T) {
 }
 
 func TestSelectModel_DelegatesToConfig(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	cfg.Models.P2 = "haiku"
 	p := newConfigEscalationPolicy(cfg)
@@ -115,6 +123,7 @@ func TestSelectModel_DelegatesToConfig(t *testing.T) {
 }
 
 func TestNextTier_DelegatesToConfig(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	cfg.Escalation.Enabled = true
 	cfg.Escalation.Chain = []string{"low", "medium", "high"}
@@ -127,6 +136,7 @@ func TestNextTier_DelegatesToConfig(t *testing.T) {
 }
 
 func TestMaxRetriesPerModel_DelegatesToConfig(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	cfg.Escalation.MaxRetriesPerModel = 4
 	p := newConfigEscalationPolicy(cfg)
@@ -136,6 +146,7 @@ func TestMaxRetriesPerModel_DelegatesToConfig(t *testing.T) {
 }
 
 func TestMaxRetriesPerBead_DelegatesToConfig(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	cfg.Escalation.MaxRetriesPerBead = 9
 	p := newConfigEscalationPolicy(cfg)

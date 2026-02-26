@@ -71,6 +71,7 @@ func newProjectPromptRenderer(t *testing.T) *prompt.Renderer {
 // --- NewExecutor constructor tests ---
 
 func TestNewExecutor_ReturnsNonNil(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	var buf strings.Builder
 
@@ -81,6 +82,7 @@ func TestNewExecutor_ReturnsNonNil(t *testing.T) {
 }
 
 func TestNewExecutor_AcceptsNilCallbacks(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	var buf strings.Builder
 
@@ -93,6 +95,7 @@ func TestNewExecutor_AcceptsNilCallbacks(t *testing.T) {
 // --- RunAcceptanceTests tests ---
 
 func TestRunAcceptanceTests_RendersPromptAndInvokes(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	var buf strings.Builder
 
@@ -130,6 +133,7 @@ func TestRunAcceptanceTests_RendersPromptAndInvokes(t *testing.T) {
 }
 
 func TestRunAcceptanceTests_LogsLifecycle(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	var buf strings.Builder
 
@@ -157,6 +161,7 @@ func TestRunAcceptanceTests_LogsLifecycle(t *testing.T) {
 }
 
 func TestRunAcceptanceTests_PropagatesRenderError(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	var buf strings.Builder
 
@@ -186,6 +191,7 @@ func TestRunAcceptanceTests_PropagatesRenderError(t *testing.T) {
 }
 
 func TestRunAcceptanceTests_PropagatesInvocationError(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	var buf strings.Builder
 
@@ -209,6 +215,7 @@ func TestRunAcceptanceTests_PropagatesInvocationError(t *testing.T) {
 }
 
 func TestRunAcceptanceTests_ShapedContextTemplateCompatibility(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	var buf strings.Builder
 
@@ -261,6 +268,7 @@ func TestRunAcceptanceTests_ShapedContextTemplateCompatibility(t *testing.T) {
 // --- VerifyAcceptanceTestsPass tests ---
 
 func TestVerifyAcceptanceTestsPass_ReturnsNilWhenTestsPass(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	var buf strings.Builder
 
@@ -291,6 +299,7 @@ func TestVerifyAcceptanceTestsPass_ReturnsNilWhenTestsPass(t *testing.T) {
 }
 
 func TestVerifyAcceptanceTestsPass_ReturnsErrorWhenTestsFail(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	var buf strings.Builder
 
@@ -323,6 +332,7 @@ func TestVerifyAcceptanceTestsPass_ReturnsErrorWhenTestsFail(t *testing.T) {
 }
 
 func TestVerifyAcceptanceTestsPass_ReturnsErrorWhenValidationDisabled(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	cfg.Validation.Enabled = false
 	var buf strings.Builder
@@ -339,6 +349,7 @@ func TestVerifyAcceptanceTestsPass_ReturnsErrorWhenValidationDisabled(t *testing
 // --- AcceptanceCommands tests ---
 
 func TestAcceptanceCommands_InjectsTagsIntoGoTest(t *testing.T) {
+	t.Parallel()
 	commands := []string{"go test ./...", "go vet ./..."}
 	got := AcceptanceCommands(commands, nil)
 
@@ -354,6 +365,7 @@ func TestAcceptanceCommands_InjectsTagsIntoGoTest(t *testing.T) {
 }
 
 func TestAcceptanceCommands_HandlesGoTestWithExistingFlags(t *testing.T) {
+	t.Parallel()
 	commands := []string{"go test -v -count=1 ./..."}
 	got := AcceptanceCommands(commands, nil)
 
@@ -366,6 +378,7 @@ func TestAcceptanceCommands_HandlesGoTestWithExistingFlags(t *testing.T) {
 }
 
 func TestAcceptanceCommands_PreservesNonGoTestCommands(t *testing.T) {
+	t.Parallel()
 	commands := []string{"golangci-lint run ./...", "go vet ./..."}
 	got := AcceptanceCommands(commands, nil)
 
@@ -381,6 +394,7 @@ func TestAcceptanceCommands_PreservesNonGoTestCommands(t *testing.T) {
 }
 
 func TestAcceptanceCommands_EmptySlice(t *testing.T) {
+	t.Parallel()
 	got := AcceptanceCommands([]string{}, nil)
 	if len(got) != 0 {
 		t.Fatalf("AcceptanceCommands of empty slice should return empty, got %d", len(got))
@@ -388,6 +402,7 @@ func TestAcceptanceCommands_EmptySlice(t *testing.T) {
 }
 
 func TestAcceptanceCommands_SkipsIfAlreadyTagged(t *testing.T) {
+	t.Parallel()
 	commands := []string{"go test -tags acceptance ./..."}
 	got := AcceptanceCommands(commands, nil)
 
@@ -397,6 +412,7 @@ func TestAcceptanceCommands_SkipsIfAlreadyTagged(t *testing.T) {
 }
 
 func TestAcceptanceCommands_ScopesGoTestWhenTouchedPackagesPresent(t *testing.T) {
+	t.Parallel()
 	commands := []string{"go test ./...", "go vet ./..."}
 	got := AcceptanceCommands(commands, []string{"internal/runner"})
 
@@ -412,6 +428,7 @@ func TestAcceptanceCommands_ScopesGoTestWhenTouchedPackagesPresent(t *testing.T)
 }
 
 func TestAcceptanceCommands_ScopesGoTestToMultipleTouchedPackages(t *testing.T) {
+	t.Parallel()
 	commands := []string{"go test -count=1 ./..."}
 	got := AcceptanceCommands(commands, []string{"internal/config", "internal/runner", "internal/runner"})
 
@@ -425,6 +442,7 @@ func TestAcceptanceCommands_ScopesGoTestToMultipleTouchedPackages(t *testing.T) 
 }
 
 func TestAcceptanceCommands_IncludesRootPackage(t *testing.T) {
+	t.Parallel()
 	commands := []string{"go test -count=1 ./..."}
 	got := AcceptanceCommands(commands, []string{".", "internal/runner"})
 
@@ -441,6 +459,7 @@ func TestAcceptanceCommands_IncludesRootPackage(t *testing.T) {
 // --- IsTestOnlyDiff tests ---
 
 func TestIsTestOnlyDiff(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		diff string
@@ -475,6 +494,7 @@ func TestIsTestOnlyDiff(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := IsTestOnlyDiff(tt.diff)
 			if got != tt.want {
 				t.Errorf("IsTestOnlyDiff() = %v, want %v", got, tt.want)
@@ -486,6 +506,7 @@ func TestIsTestOnlyDiff(t *testing.T) {
 // --- ParseDiffFiles tests ---
 
 func TestParseDiffFiles(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		diff  string
@@ -520,6 +541,7 @@ func TestParseDiffFiles(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := ParseDiffFiles(tt.diff)
 
 			// Verify count
@@ -549,6 +571,7 @@ func TestParseDiffFiles(t *testing.T) {
 // --- ATDD diagnostic verdict tests ---
 
 func TestAsATDDRewrite(t *testing.T) {
+	t.Parallel()
 	base := &ErrATDDRewrite{Feedback: "assert new behavior"}
 	wrapped := fmt.Errorf("wrapped: %w", base)
 
@@ -562,6 +585,7 @@ func TestAsATDDRewrite(t *testing.T) {
 }
 
 func TestAsATDDRewrite_ReturnsFalseForNonRewriteError(t *testing.T) {
+	t.Parallel()
 	got, ok := AsATDDRewrite(errors.New("not a rewrite error"))
 	if ok {
 		t.Fatalf("AsATDDRewrite ok = true, want false (got %#v)", got)
@@ -572,6 +596,7 @@ func TestAsATDDRewrite_ReturnsFalseForNonRewriteError(t *testing.T) {
 }
 
 func TestErrATDDRewrite_Error(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		err  *ErrATDDRewrite
@@ -596,6 +621,7 @@ func TestErrATDDRewrite_Error(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			if got := tt.err.Error(); got != tt.want {
 				t.Fatalf("ErrATDDRewrite.Error() = %q, want %q", got, tt.want)
 			}
@@ -604,6 +630,7 @@ func TestErrATDDRewrite_Error(t *testing.T) {
 }
 
 func TestParseDiagnosticVerdict(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		output       string
@@ -638,6 +665,7 @@ func TestParseDiagnosticVerdict(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			gotVerdict, gotFeedback := parseDiagnosticVerdict(tt.output)
 			if gotVerdict != tt.wantVerdict {
 				t.Fatalf("parseDiagnosticVerdict() verdict = %q, want %q", gotVerdict, tt.wantVerdict)
@@ -650,6 +678,7 @@ func TestParseDiagnosticVerdict(t *testing.T) {
 }
 
 func TestCheckTestsFailWithDiagnostic_ReturnsNilWhenTestsFail(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	var buf strings.Builder
 
@@ -697,6 +726,7 @@ func TestCheckTestsFailWithDiagnostic_ReturnsNilWhenTestsFail(t *testing.T) {
 }
 
 func TestCheckTestsFailWithDiagnostic_ReturnsAlreadyDoneFromDiagnosticVerdict(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	var buf strings.Builder
 
@@ -772,6 +802,7 @@ func TestCheckTestsFailWithDiagnostic_ReturnsAlreadyDoneFromDiagnosticVerdict(t 
 }
 
 func TestCheckTestsFailWithDiagnostic_UsesUtilityRoutingTierWhenEnabled(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	cfg.TokenEfficiency.Routing.Enabled = true
 	cfg.TokenEfficiency.Routing.UtilityTier = provider.TierMedium
@@ -822,6 +853,7 @@ func TestCheckTestsFailWithDiagnostic_UsesUtilityRoutingTierWhenEnabled(t *testi
 }
 
 func TestCheckTestsFailWithDiagnostic_ReturnsRewriteFromDiagnosticVerdict(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	var buf strings.Builder
 
@@ -864,6 +896,7 @@ func TestCheckTestsFailWithDiagnostic_ReturnsRewriteFromDiagnosticVerdict(t *tes
 }
 
 func TestCheckTestsFailWithDiagnostic_FallsBackToAlreadyDoneWhenDiagnosticInvokeFails(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	var buf strings.Builder
 
@@ -903,6 +936,7 @@ func TestCheckTestsFailWithDiagnostic_FallsBackToAlreadyDoneWhenDiagnosticInvoke
 // compiles within the methodology package without importing runner/, proving
 // the package only depends on runtypes/ and external packages.
 func TestPackageDoesNotImportRunner(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	var buf strings.Builder
 	exec := NewExecutor(cfg, &buf, nil, nil, nil)
@@ -912,9 +946,12 @@ func TestPackageDoesNotImportRunner(t *testing.T) {
 }
 
 func TestRunAcceptanceTestsWithRetry_PropagatesDeadlineExceeded(t *testing.T) {
+	t.Parallel(
 	// When the invocation returns DeadlineExceeded, RunAcceptanceTestsWithRetry
 	// should propagate it immediately without retrying — timeout errors are
 	// phase-level concerns, not transient failures.
+	)
+
 	cfg := newTestConfig()
 	cfg.Escalation.MaxRetriesPerModel = 3 // would retry 3 times if not short-circuited
 	var buf strings.Builder
@@ -944,8 +981,11 @@ func TestRunAcceptanceTestsWithRetry_PropagatesDeadlineExceeded(t *testing.T) {
 }
 
 func TestRunAcceptanceTestsWithRetry_PropagatesContextCanceled(t *testing.T) {
+	t.Parallel(
 	// When the context is already canceled, RunAcceptanceTestsWithRetry should
 	// abort immediately without invoking the LLM.
+	)
+
 	cfg := newTestConfig()
 	var buf strings.Builder
 
@@ -977,6 +1017,7 @@ func TestRunAcceptanceTestsWithRetry_PropagatesContextCanceled(t *testing.T) {
 }
 
 func TestValidateCoverage_InvokesCallback(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	var buf strings.Builder
 
@@ -1016,6 +1057,7 @@ func TestValidateCoverage_InvokesCallback(t *testing.T) {
 }
 
 func TestValidateCoverage_PropagatesResultAndError(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	var buf strings.Builder
 
@@ -1041,6 +1083,7 @@ func TestValidateCoverage_PropagatesResultAndError(t *testing.T) {
 // check has been removed from VerifyAcceptanceTestsPass. The validateFn always returns
 // a non-nil *claude.Result when error is nil, so the nil check is unreachable dead code.
 func TestVerifyAcceptanceTestsPass_NoDeadNilResultCheck(t *testing.T) {
+	t.Parallel()
 	content, err := readExecutorSourceFile()
 	if err != nil {
 		t.Fatalf("failed to read executor.go: %v", err)

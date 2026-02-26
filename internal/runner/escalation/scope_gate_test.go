@@ -15,9 +15,9 @@ func TestShouldTriggerPreExecutionScopeDecomposition(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name             string
-		expectedOutputs  []string
-		wantDecompose    bool
+		name            string
+		expectedOutputs []string
+		wantDecompose   bool
 	}{
 		{
 			name:            "no expected outputs (0 files)",
@@ -48,6 +48,7 @@ func TestShouldTriggerPreExecutionScopeDecomposition(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			b := &bead.Bead{
 				ID:              "test-id",
 				Title:           "Test task",
@@ -94,6 +95,7 @@ func TestCheckPreExecutionScopeGate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			b := &bead.Bead{
 				ID:              "test-id",
 				Title:           "Test task",

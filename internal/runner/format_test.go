@@ -9,6 +9,7 @@ import (
 )
 
 func TestFormatDuration(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		duration time.Duration
@@ -26,6 +27,7 @@ func TestFormatDuration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := formatDuration(tt.duration)
 			if got != tt.want {
 				t.Errorf("formatDuration(%v) = %q, want %q", tt.duration, got, tt.want)
@@ -35,6 +37,7 @@ func TestFormatDuration(t *testing.T) {
 }
 
 func TestFormatRunningLine(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		status *Status
@@ -93,6 +96,7 @@ func TestFormatRunningLine(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := formatRunningLine(tt.status)
 			if got != tt.want {
 				t.Errorf("formatRunningLine() = %q, want %q", got, tt.want)
@@ -102,6 +106,7 @@ func TestFormatRunningLine(t *testing.T) {
 }
 
 func TestFormatEscalationBreakdown(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		rates map[string]float64
@@ -140,6 +145,7 @@ func TestFormatEscalationBreakdown(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := formatEscalationBreakdown(tt.rates)
 			if got != tt.want {
 				t.Errorf("formatEscalationBreakdown() = %q, want %q", got, tt.want)
@@ -149,6 +155,7 @@ func TestFormatEscalationBreakdown(t *testing.T) {
 }
 
 func TestFormatRecurrenceBreakdown(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		counters map[string]int
@@ -182,6 +189,7 @@ func TestFormatRecurrenceBreakdown(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := formatRecurrenceBreakdown(tt.counters)
 			if got != tt.want {
 				t.Errorf("formatRecurrenceBreakdown() = %q, want %q", got, tt.want)
@@ -191,6 +199,7 @@ func TestFormatRecurrenceBreakdown(t *testing.T) {
 }
 
 func TestFormatHealth(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name                  string
 		lastRetro             time.Time
@@ -241,6 +250,7 @@ func TestFormatHealth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := formatHealth(tt.lastRetro, tt.iterationsSinceReview)
 			for _, substr := range tt.wantSubstrings {
 				if !strings.Contains(got, substr) {
@@ -252,6 +262,7 @@ func TestFormatHealth(t *testing.T) {
 }
 
 func TestFormatRecommendation(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		rec  string
@@ -291,6 +302,7 @@ func TestFormatRecommendation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := formatRecommendation(tt.rec)
 			if got != tt.want {
 				t.Errorf("formatRecommendation(%q) = %q, want %q", tt.rec, got, tt.want)
@@ -300,6 +312,7 @@ func TestFormatRecommendation(t *testing.T) {
 }
 
 func TestFormatModelPerformance(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		stats          map[string]logger.ModelStats
@@ -376,6 +389,7 @@ func TestFormatModelPerformance(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := formatModelPerformance(tt.stats)
 			for _, substr := range tt.wantSubstrings {
 				if !strings.Contains(got, substr) {
@@ -387,8 +401,11 @@ func TestFormatModelPerformance(t *testing.T) {
 }
 
 func TestSPCMetricConstants(t *testing.T) {
+	t.Parallel(
 	// Verify runner-package SPC metric constants match the metric names
 	// used in ProcessTrend control limits from the logger package.
+	)
+
 	tests := []struct {
 		name     string
 		constant string
@@ -404,6 +421,7 @@ func TestSPCMetricConstants(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			if tt.constant != tt.want {
 				t.Errorf("SPC metric constant = %q, want %q", tt.constant, tt.want)
 			}
@@ -412,6 +430,7 @@ func TestSPCMetricConstants(t *testing.T) {
 }
 
 func TestFormatSPCSummary_IncludesProviderMetrics(t *testing.T) {
+	t.Parallel()
 	trend := &logger.ProcessTrend{
 		TotalIterations: 3,
 		WindowSize:      1,
@@ -448,6 +467,7 @@ func TestFormatSPCSummary_IncludesProviderMetrics(t *testing.T) {
 }
 
 func TestFormatSPCSummary(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		trend          *logger.ProcessTrend
@@ -511,6 +531,7 @@ func TestFormatSPCSummary(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := formatSPCSummary(tt.trend)
 			for _, substr := range tt.wantSubstrings {
 				if !strings.Contains(got, substr) {
@@ -522,6 +543,7 @@ func TestFormatSPCSummary(t *testing.T) {
 }
 
 func TestFormatSPCSummary_IncludesEWMAValues(t *testing.T) {
+	t.Parallel()
 	trend := &logger.ProcessTrend{
 		TotalIterations: 10,
 		WindowSize:      5,
@@ -560,17 +582,18 @@ func TestFormatSPCSummary_IncludesEWMAValues(t *testing.T) {
 }
 
 func TestFormatSPCSummary_IncludesLeadingIndicatorsAndEconomicMetrics(t *testing.T) {
+	t.Parallel()
 	trend := &logger.ProcessTrend{
 		TotalIterations: 5,
 		WindowSize:      5,
 		LatestWindow: logger.ProcessTrendWindow{
-			FirstPassSuccess:    0.75,
-			ReworkRate:          0.22,
-			EscalationRate:      0.05,
-			AvgInputTokens:      1234.56,
-			AvgCostUSD:          4.56,
-			AvgCostPerBeadUSD:   2.34,
-			AvgDurationMs:       62000,
+			FirstPassSuccess:  0.75,
+			ReworkRate:        0.22,
+			EscalationRate:    0.05,
+			AvgInputTokens:    1234.56,
+			AvgCostUSD:        4.56,
+			AvgCostPerBeadUSD: 2.34,
+			AvgDurationMs:     62000,
 		},
 		ControlLimits: []logger.TrendControlLimit{
 			{Metric: spcMetricRollingSuccessRate, Latest: 0.85, LCL: 0.6, UCL: 1.0},
@@ -596,6 +619,7 @@ func TestFormatSPCSummary_IncludesLeadingIndicatorsAndEconomicMetrics(t *testing
 }
 
 func TestFormatSPCSummary_SortsMetricsDeterministically(t *testing.T) {
+	t.Parallel()
 	trend := &logger.ProcessTrend{
 		TotalIterations: 4,
 		WindowSize:      3,
@@ -639,6 +663,7 @@ func TestFormatSPCSummary_SortsMetricsDeterministically(t *testing.T) {
 }
 
 func TestFormatSPCValue(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		v         float64
@@ -662,6 +687,7 @@ func TestFormatSPCValue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := formatSPCValue(tt.v, tt.asPercent)
 			if got != tt.want {
 				t.Errorf("formatSPCValue(%v, %v) = %q, want %q", tt.v, tt.asPercent, got, tt.want)
@@ -671,6 +697,7 @@ func TestFormatSPCValue(t *testing.T) {
 }
 
 func TestSimplifySPCMetric(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		metric string
@@ -691,6 +718,7 @@ func TestSimplifySPCMetric(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := simplifySPCMetric(tt.metric)
 			if got != tt.want {
 				t.Errorf("simplifySPCMetric(%q) = %q, want %q", tt.metric, got, tt.want)
@@ -700,6 +728,7 @@ func TestSimplifySPCMetric(t *testing.T) {
 }
 
 func TestFormatSPCSummary_DisplaysUCLAndLCLInControlLimits(t *testing.T) {
+	t.Parallel()
 	trend := &logger.ProcessTrend{
 		TotalIterations: 20,
 		WindowSize:      15,
@@ -739,6 +768,7 @@ func TestFormatSPCSummary_DisplaysUCLAndLCLInControlLimits(t *testing.T) {
 }
 
 func TestFormatSPCLine(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		label      string
@@ -771,6 +801,7 @@ func TestFormatSPCLine(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := formatSPCLine(tt.label, tt.cl, tt.isDuration)
 			if got != tt.want {
 				t.Errorf("formatSPCLine(%q, cl, %v) = %q, want %q", tt.label, tt.isDuration, got, tt.want)
@@ -780,6 +811,7 @@ func TestFormatSPCLine(t *testing.T) {
 }
 
 func TestFormatSPCSummary_IncludesNelsonRuleViolations(t *testing.T) {
+	t.Parallel()
 	trend := &logger.ProcessTrend{
 		TotalIterations: 12,
 		WindowSize:      10,
@@ -811,6 +843,7 @@ func TestFormatSPCSummary_IncludesNelsonRuleViolations(t *testing.T) {
 }
 
 func TestFormatSPCSummary_DisplaysMultipleNelsonRuleViolations(t *testing.T) {
+	t.Parallel()
 	trend := &logger.ProcessTrend{
 		TotalIterations: 15,
 		WindowSize:      10,
@@ -853,6 +886,7 @@ func TestFormatSPCSummary_DisplaysMultipleNelsonRuleViolations(t *testing.T) {
 }
 
 func TestFormatSPCSummary_OmitsNelsonSectionWhenNoViolations(t *testing.T) {
+	t.Parallel()
 	trend := &logger.ProcessTrend{
 		TotalIterations: 10,
 		WindowSize:      10,
@@ -869,6 +903,7 @@ func TestFormatSPCSummary_OmitsNelsonSectionWhenNoViolations(t *testing.T) {
 }
 
 func TestFormatRun(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		status *Status
@@ -962,6 +997,7 @@ func TestFormatRun(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := formatRun(tt.status)
 			for _, substr := range tt.want {
 				if !strings.Contains(got, substr) {

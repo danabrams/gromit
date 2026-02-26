@@ -35,6 +35,7 @@ func writeExecutableScript(t *testing.T, script string) string {
 }
 
 func TestClientRun_UsesRunFnWhenSet(t *testing.T) {
+	t.Parallel()
 	var gotArgs []string
 	c := &Client{
 		binary: filepath.Join(t.TempDir(), "does-not-exist"),
@@ -58,6 +59,7 @@ func TestClientRun_UsesRunFnWhenSet(t *testing.T) {
 }
 
 func TestClientRun_SubprocessUsesConfiguredBinaryAndDir(t *testing.T) {
+	t.Parallel()
 	workDir := t.TempDir()
 	script := "#!/bin/sh\n" +
 		"printf 'FAKE_BINARY\\n'\n" +
@@ -91,6 +93,7 @@ func TestClientRun_SubprocessUsesConfiguredBinaryAndDir(t *testing.T) {
 }
 
 func TestClientRun_SubprocessExitErrorWrapsStderr(t *testing.T) {
+	t.Parallel()
 	script := "#!/bin/sh\n" +
 		"printf 'bd failed on stderr\\n' >&2\n" +
 		"exit 17\n"
@@ -121,6 +124,7 @@ func TestClientRun_SubprocessExitErrorWrapsStderr(t *testing.T) {
 }
 
 func TestClientRun_SubprocessNonExitErrorIsUnchanged(t *testing.T) {
+	t.Parallel()
 	missingBinary := filepath.Join(t.TempDir(), "missing-bd")
 	c := &Client{binary: missingBinary}
 
@@ -147,6 +151,7 @@ func TestClientRun_SubprocessNonExitErrorIsUnchanged(t *testing.T) {
 }
 
 func TestClientRun_RetriesWithNoDBOnDatabaseNotFound(t *testing.T) {
+	t.Parallel()
 	counterPath := filepath.Join(t.TempDir(), "run-count")
 	script := fmt.Sprintf(`#!/bin/sh
 count=0

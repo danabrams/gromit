@@ -26,8 +26,11 @@ func findRepoRootForDocs(t *testing.T) string {
 }
 
 func TestPreparePackageHasDocumentation(t *testing.T) {
+	t.Parallel(
 	// Verify that the prepare package has a doc.go file documenting
 	// its purpose as Stage 1 of the pipeline.
+	)
+
 	repoRoot := findRepoRootForDocs(t)
 	prepareDir := filepath.Join(repoRoot, "internal", "pipeline", "prepare")
 	docPath := filepath.Join(prepareDir, "doc.go")
@@ -48,8 +51,11 @@ func TestPreparePackageHasDocumentation(t *testing.T) {
 }
 
 func TestExecutePackageHasDocumentation(t *testing.T) {
+	t.Parallel(
 	// Verify that the execute package has a doc.go file documenting
 	// its purpose as Stage 2 of the pipeline.
+	)
+
 	repoRoot := findRepoRootForDocs(t)
 	executeDir := filepath.Join(repoRoot, "internal", "pipeline", "execute")
 	docPath := filepath.Join(executeDir, "doc.go")
@@ -70,8 +76,11 @@ func TestExecutePackageHasDocumentation(t *testing.T) {
 }
 
 func TestAcceptancePackageHasDocumentation(t *testing.T) {
+	t.Parallel(
 	// Verify that the acceptance package has a doc.go file documenting
 	// its purpose as a proper Go package.
+	)
+
 	repoRoot := findRepoRootForDocs(t)
 	acceptanceDir := filepath.Join(repoRoot, "internal", "runner", "acceptance")
 	docPath := filepath.Join(acceptanceDir, "doc.go")
@@ -92,8 +101,11 @@ func TestAcceptancePackageHasDocumentation(t *testing.T) {
 }
 
 func TestValidatePackageHasDocumentation(t *testing.T) {
+	t.Parallel(
 	// Verify that the validate package has a doc.go file documenting
 	// its purpose as Stage 3 of the pipeline.
+	)
+
 	repoRoot := findRepoRootForDocs(t)
 	validateDir := filepath.Join(repoRoot, "internal", "pipeline", "validate")
 	docPath := filepath.Join(validateDir, "doc.go")
@@ -114,8 +126,11 @@ func TestValidatePackageHasDocumentation(t *testing.T) {
 }
 
 func TestReviewPackageHasDocumentation(t *testing.T) {
+	t.Parallel(
 	// Verify that the review package has a doc.go file documenting
 	// its purpose as Stage 4 of the pipeline.
+	)
+
 	repoRoot := findRepoRootForDocs(t)
 	reviewDir := filepath.Join(repoRoot, "internal", "pipeline", "review")
 	docPath := filepath.Join(reviewDir, "doc.go")

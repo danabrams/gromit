@@ -8,6 +8,7 @@ import (
 // TestIsValidationPassedDetectsMarker verifies that IsValidationPassed()
 // detects the VALIDATION_PASSED marker in result output.
 func TestIsValidationPassedDetectsMarker(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		result   *Result
@@ -57,6 +58,7 @@ func TestIsValidationPassedDetectsMarker(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := IsValidationPassed(tt.result)
 			if got != tt.expected {
 				t.Errorf("IsValidationPassed() = %v, want %v (output=%q)", got, tt.expected, tt.result.Output)
@@ -68,6 +70,7 @@ func TestIsValidationPassedDetectsMarker(t *testing.T) {
 // TestIsScopeTooLargeDetectsStartOfLineMarker verifies that IsScopeTooLarge()
 // detects the SCOPE_TOO_LARGE marker only at the start of a line.
 func TestIsScopeTooLargeDetectsStartOfLineMarker(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name                string
 		result              *Result
@@ -120,6 +123,7 @@ func TestIsScopeTooLargeDetectsStartOfLineMarker(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			gotTooLarge, gotExplanation := IsScopeTooLarge(tt.result)
 			if gotTooLarge != tt.expectedTooLarge {
 				t.Errorf("IsScopeTooLarge() tooLarge = %v, want %v", gotTooLarge, tt.expectedTooLarge)
@@ -134,6 +138,7 @@ func TestIsScopeTooLargeDetectsStartOfLineMarker(t *testing.T) {
 // TestGetScopeTooLargeBreakdownExtractsFullContent verifies that
 // GetScopeTooLargeBreakdown() extracts the full breakdown content after the marker.
 func TestGetScopeTooLargeBreakdownExtractsFullContent(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name             string
 		result           *Result
@@ -169,6 +174,7 @@ func TestGetScopeTooLargeBreakdownExtractsFullContent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := GetScopeTooLargeBreakdown(tt.result)
 			if tt.expectedContains == nil {
 				if got != "" {
@@ -188,6 +194,7 @@ func TestGetScopeTooLargeBreakdownExtractsFullContent(t *testing.T) {
 // TestFindStartOfLineMarkerMatchesOnlyAtLineStart verifies that
 // findStartOfLineMarker() only matches SCOPE_TOO_LARGE: at the start of a line.
 func TestFindStartOfLineMarkerMatchesOnlyAtLineStart(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		input       string
@@ -240,6 +247,7 @@ func TestFindStartOfLineMarkerMatchesOnlyAtLineStart(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := findStartOfLineMarker(tt.input)
 			if tt.wantMatched && got == -1 {
 				t.Errorf("findStartOfLineMarker() = -1, want index >= 0")
@@ -257,6 +265,7 @@ func TestFindStartOfLineMarkerMatchesOnlyAtLineStart(t *testing.T) {
 // TestValidateCommandsRejectsInvalidCommands verifies that ValidateCommands()
 // rejects commands with unsafe patterns like newlines or excessive length.
 func TestValidateCommandsRejectsInvalidCommands(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		commands    []string
@@ -312,6 +321,7 @@ func TestValidateCommandsRejectsInvalidCommands(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			err := ValidateCommands(tt.commands)
 			if tt.expectError && err == nil {
 				t.Errorf("ValidateCommands() error = nil, want error containing %q", tt.errorText)
@@ -329,6 +339,7 @@ func TestValidateCommandsRejectsInvalidCommands(t *testing.T) {
 // TestBuildValidationPromptFormatsCommandsCorrectly verifies that
 // BuildValidationPrompt() constructs a validation prompt with numbered commands.
 func TestBuildValidationPromptFormatsCommandsCorrectly(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name             string
 		commands         []string
@@ -374,6 +385,7 @@ func TestBuildValidationPromptFormatsCommandsCorrectly(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			prompt := BuildValidationPrompt(tt.commands, tt.workDir)
 			for _, expected := range tt.expectedContains {
 				if !strings.Contains(prompt, expected) {
@@ -395,7 +407,10 @@ func TestBuildValidationPromptFormatsCommandsCorrectly(t *testing.T) {
 // TestProviderInterfaceHasValidationHelpers verifies that the Provider interface
 // includes IsValidationPassed and IsScopeTooLarge methods.
 func TestProviderInterfaceHasValidationHelpers(t *testing.T) {
+	t.Parallel(
 	// Verify that a concrete provider (CodexProvider) implements these methods
+	)
+
 	cp := &CodexProvider{}
 
 	// These method calls should compile when the interface includes them
@@ -406,6 +421,7 @@ func TestProviderInterfaceHasValidationHelpers(t *testing.T) {
 // TestClaudeProviderUsesSharedHelpers verifies that ClaudeProvider's
 // IsValidationPassed and IsScopeTooLarge methods delegate to shared helpers.
 func TestClaudeProviderUsesSharedHelpers(t *testing.T) {
+	t.Parallel()
 	cp := &ClaudeProvider{}
 
 	// Test that ClaudeProvider delegates to shared IsValidationPassed
@@ -437,6 +453,7 @@ func TestClaudeProviderUsesSharedHelpers(t *testing.T) {
 // TestCodexProviderImplementsValidationHelpers verifies that CodexProvider
 // implements IsValidationPassed and IsScopeTooLarge methods using shared helpers.
 func TestCodexProviderImplementsValidationHelpers(t *testing.T) {
+	t.Parallel()
 	cp := &CodexProvider{}
 
 	tests := []struct {
@@ -464,6 +481,7 @@ func TestCodexProviderImplementsValidationHelpers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := cp.IsValidationPassed(tt.result)
 			if got != tt.wantPass {
 				t.Errorf("CodexProvider.IsValidationPassed() = %v, want %v", got, tt.wantPass)
@@ -497,6 +515,7 @@ func TestCodexProviderImplementsValidationHelpers(t *testing.T) {
 
 	for _, tt := range scopeTests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			gotTooLarge, gotExplanation := cp.IsScopeTooLarge(tt.result)
 			if gotTooLarge != tt.wantTooLarge {
 				t.Errorf("CodexProvider.IsScopeTooLarge() tooLarge = %v, want %v", gotTooLarge, tt.wantTooLarge)
@@ -511,6 +530,7 @@ func TestCodexProviderImplementsValidationHelpers(t *testing.T) {
 // TestSharedHelpersMatchClaudeBehavior verifies that the shared provider helpers
 // produce identical results to the original claude package functions.
 func TestSharedHelpersMatchClaudeBehavior(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		result *Result
@@ -548,7 +568,10 @@ func TestSharedHelpersMatchClaudeBehavior(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel(
 			// Test IsValidationPassed parity
+			)
+
 			providerResult := IsValidationPassed(tt.result)
 			claudeResult := claudeIsValidationPassed(tt.result)
 			if providerResult != claudeResult {

@@ -30,6 +30,7 @@ func assertFailureClass(t *testing.T, got FailureClass, want FailureClass) {
 // TestDefaultThresholds_SpecAligned verifies the default Andon bounds used by the
 // policy for L1/L2 autonomy.
 func TestDefaultThresholds_SpecAligned(t *testing.T) {
+	t.Parallel()
 	thresholds := DefaultThresholds()
 
 	if thresholds.L1MaxRetries != defaultL1MaxRetries {
@@ -48,6 +49,7 @@ func TestDefaultThresholds_SpecAligned(t *testing.T) {
 
 // TestLevels_IncludeL1ToL4 verifies all Andon levels are represented.
 func TestLevels_IncludeL1ToL4(t *testing.T) {
+	t.Parallel()
 	levels := []AndonLevel{LevelL1, LevelL2, LevelL3, LevelL4}
 
 	if len(levels) != 4 {
@@ -64,6 +66,7 @@ func TestLevels_IncludeL1ToL4(t *testing.T) {
 // TestClassifyFailure_SupportsAllAndonClasses verifies class routing entry-point
 // coverage for all Andon failure classes in the spec.
 func TestClassifyFailure_SupportsAllAndonClasses(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		signal FailureSignal
@@ -113,6 +116,7 @@ func TestClassifyFailure_SupportsAllAndonClasses(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := ClassifyFailure(tt.signal)
 			if got != tt.want {
 				t.Fatalf("ClassifyFailure() = %q, want %q", got, tt.want)
@@ -124,9 +128,11 @@ func TestClassifyFailure_SupportsAllAndonClasses(t *testing.T) {
 // TestChooseNextAction_EnforcesL1AndL2Bounds verifies L1 and L2 thresholds are
 // represented and enforced in policy decisions.
 func TestChooseNextAction_EnforcesL1AndL2Bounds(t *testing.T) {
+	t.Parallel()
 	now, thresholds := setupPolicyTest(t)
 
 	t.Run("L1 within retry/time bounds stays in L1", func(t *testing.T) {
+		t.Parallel()
 		state := RecoveryState{
 			Class:      FailureClassTransient,
 			Level:      LevelL1,
@@ -139,6 +145,7 @@ func TestChooseNextAction_EnforcesL1AndL2Bounds(t *testing.T) {
 	})
 
 	t.Run("L1 retry cap escalates to L2", func(t *testing.T) {
+		t.Parallel()
 		state := RecoveryState{
 			Class:      FailureClassTransient,
 			Level:      LevelL1,
@@ -151,6 +158,7 @@ func TestChooseNextAction_EnforcesL1AndL2Bounds(t *testing.T) {
 	})
 
 	t.Run("L2 timebox exhaustion escalates to L3", func(t *testing.T) {
+		t.Parallel()
 		state := RecoveryState{
 			Class:     FailureClassQuality,
 			Level:     LevelL2,
@@ -165,6 +173,7 @@ func TestChooseNextAction_EnforcesL1AndL2Bounds(t *testing.T) {
 // TestChooseNextAction_HasDecisionPathPerFailureClass verifies at least one policy
 // decision path for each Andon failure class.
 func TestChooseNextAction_HasDecisionPathPerFailureClass(t *testing.T) {
+	t.Parallel()
 	now, thresholds := setupPolicyTest(t)
 
 	tests := []struct {
@@ -222,6 +231,7 @@ func TestChooseNextAction_HasDecisionPathPerFailureClass(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			decision := ChooseNextAction(tt.state, thresholds, now)
 			assertDecision(t, decision, tt.want.NextLevel, tt.want.Action)
 		})
@@ -229,6 +239,7 @@ func TestChooseNextAction_HasDecisionPathPerFailureClass(t *testing.T) {
 }
 
 func TestEvaluateFailure_ClassifiesTransientAndChoosesDecision(t *testing.T) {
+	t.Parallel()
 	now, thresholds := setupPolicyTest(t)
 
 	got := EvaluateFailure(
@@ -250,6 +261,7 @@ func TestEvaluateFailure_ClassifiesTransientAndChoosesDecision(t *testing.T) {
 }
 
 func TestEvaluateFailure_ClassifiesWorkflowAndEscalatesFromL1(t *testing.T) {
+	t.Parallel()
 	now, thresholds := setupPolicyTest(t)
 
 	got := EvaluateFailure(
@@ -271,6 +283,7 @@ func TestEvaluateFailure_ClassifiesWorkflowAndEscalatesFromL1(t *testing.T) {
 }
 
 func TestEvaluateFailure_ClassifiesQualityAndStopsLineFromL2(t *testing.T) {
+	t.Parallel()
 	now, thresholds := setupPolicyTest(t)
 
 	got := EvaluateFailure(
@@ -291,6 +304,7 @@ func TestEvaluateFailure_ClassifiesQualityAndStopsLineFromL2(t *testing.T) {
 }
 
 func TestEvaluateFailure_ClassifiesIntentAndEscalatesWhenAssumptionsExhausted(t *testing.T) {
+	t.Parallel()
 	now, thresholds := setupPolicyTest(t)
 
 	got := EvaluateFailure(
@@ -311,6 +325,7 @@ func TestEvaluateFailure_ClassifiesIntentAndEscalatesWhenAssumptionsExhausted(t 
 }
 
 func TestEvaluateFailure_ClassifiesDataAndStopsLineImmediately(t *testing.T) {
+	t.Parallel()
 	now, thresholds := setupPolicyTest(t)
 
 	got := EvaluateFailure(
@@ -330,6 +345,7 @@ func TestEvaluateFailure_ClassifiesDataAndStopsLineImmediately(t *testing.T) {
 }
 
 func TestEvaluateFailure_EnforcesL1ToL2BoundaryAtRetryCap(t *testing.T) {
+	t.Parallel()
 	now, thresholds := setupPolicyTest(t)
 
 	got := EvaluateFailure(
@@ -351,6 +367,7 @@ func TestEvaluateFailure_EnforcesL1ToL2BoundaryAtRetryCap(t *testing.T) {
 }
 
 func TestEvaluateFailure_UsesWorkflowDecisionPath(t *testing.T) {
+	t.Parallel()
 	now, thresholds := setupPolicyTest(t)
 
 	got := EvaluateFailure(
@@ -373,6 +390,7 @@ func TestEvaluateFailure_UsesWorkflowDecisionPath(t *testing.T) {
 }
 
 func TestEvaluateClassifiedFailure_HasExplicitPathPerClass(t *testing.T) {
+	t.Parallel()
 	now, thresholds := setupPolicyTest(t)
 
 	tests := []struct {
@@ -415,6 +433,7 @@ func TestEvaluateClassifiedFailure_HasExplicitPathPerClass(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := EvaluateClassifiedFailure(tt.classification, tt.state, thresholds, now)
 			if got.Path != tt.wantPath {
 				t.Fatalf("Path = %q, want %q", got.Path, tt.wantPath)
@@ -424,6 +443,7 @@ func TestEvaluateClassifiedFailure_HasExplicitPathPerClass(t *testing.T) {
 }
 
 func TestEvaluateFailure_UnknownKindUsesDeterministicWorkflowFallbackPath(t *testing.T) {
+	t.Parallel()
 	now, thresholds := setupPolicyTest(t)
 	signal := FailureSignal{
 		Kind:   FailureKind("new_kind_not_yet_classified"),
@@ -451,6 +471,7 @@ func TestEvaluateFailure_UnknownKindUsesDeterministicWorkflowFallbackPath(t *tes
 }
 
 func TestDecisionPathForClass_ReturnsCanonicalPathPerClass(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		class FailureClass
@@ -466,6 +487,7 @@ func TestDecisionPathForClass_ReturnsCanonicalPathPerClass(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := DecisionPathForClass(tt.class)
 			if got != tt.want {
 				t.Fatalf("DecisionPathForClass(%q) = %q, want %q", tt.class, got, tt.want)
@@ -475,6 +497,7 @@ func TestDecisionPathForClass_ReturnsCanonicalPathPerClass(t *testing.T) {
 }
 
 func TestEvaluateFailureWithTrace_CoversDecisionPathForEachClass(t *testing.T) {
+	t.Parallel()
 	now, thresholds := setupPolicyTest(t)
 
 	tests := []struct {
@@ -523,6 +546,7 @@ func TestEvaluateFailureWithTrace_CoversDecisionPathForEachClass(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			trace := EvaluateFailureWithTrace(tt.signal, tt.state, thresholds, now)
 			if trace.Decision != tt.want {
 				t.Fatalf("EvaluateFailureWithTrace(...).Decision = %+v, want %+v", trace.Decision, tt.want)
@@ -538,6 +562,7 @@ func TestEvaluateFailureWithTrace_CoversDecisionPathForEachClass(t *testing.T) {
 }
 
 func TestEvaluateFailureWithTrace_EnforcesL1ToL2ThresholdBoundaryAtPublicEntryPoint(t *testing.T) {
+	t.Parallel()
 	now, thresholds := setupPolicyTest(t)
 
 	trace := EvaluateFailureWithTrace(
@@ -566,6 +591,7 @@ func TestEvaluateFailureWithTrace_EnforcesL1ToL2ThresholdBoundaryAtPublicEntryPo
 }
 
 func TestEvaluateClassifiedFailureWithTrace_UsesProvidedClassWithoutBypass(t *testing.T) {
+	t.Parallel()
 	now, thresholds := setupPolicyTest(t)
 
 	trace := EvaluateClassifiedFailureWithTrace(
@@ -591,6 +617,7 @@ func TestEvaluateClassifiedFailureWithTrace_UsesProvidedClassWithoutBypass(t *te
 }
 
 func TestEvaluateClassifiedFailureWithTrace_SetsClassifiedEntryInputSource(t *testing.T) {
+	t.Parallel()
 	now, thresholds := setupPolicyTest(t)
 
 	trace := EvaluateClassifiedFailureWithTrace(
@@ -610,6 +637,7 @@ func TestEvaluateClassifiedFailureWithTrace_SetsClassifiedEntryInputSource(t *te
 }
 
 func TestEvaluateFailureWithTrace_IrreversibleMigrationRequiresApproval(t *testing.T) {
+	t.Parallel()
 	now, thresholds := setupPolicyTest(t)
 
 	trace := EvaluateFailureWithTrace(

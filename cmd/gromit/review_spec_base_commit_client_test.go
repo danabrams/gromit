@@ -9,6 +9,7 @@ import (
 )
 
 func TestGetSpecBaseCommit_UsesProvidedClient(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 	specsDir := filepath.Join(tempDir, "specs")
 	if err := os.MkdirAll(specsDir, 0755); err != nil {

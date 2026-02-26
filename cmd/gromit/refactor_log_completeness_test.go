@@ -41,6 +41,7 @@ func readLogLines(t *testing.T, path string) []string {
 // TestRefactorLog_ContainsPerPackageOkLines verifies the log has per-package
 // summary lines starting with "ok" (as emitted by go test for passing packages).
 func TestRefactorLog_ContainsPerPackageOkLines(t *testing.T) {
+	t.Parallel()
 	path := refactorBaselineLogPath(t)
 	lines := readLogLines(t, path)
 
@@ -59,6 +60,7 @@ func TestRefactorLog_ContainsPerPackageOkLines(t *testing.T) {
 // TestRefactorLog_ContainsStatusMarkers verifies the log contains PASS/FAIL/SKIP
 // status indicators as emitted by go test.
 func TestRefactorLog_ContainsStatusMarkers(t *testing.T) {
+	t.Parallel()
 	path := refactorBaselineLogPath(t)
 	lines := readLogLines(t, path)
 
@@ -84,6 +86,7 @@ func TestRefactorLog_ContainsStatusMarkers(t *testing.T) {
 // TestRefactorLog_ArtifactPathIsUnderTestLogs verifies the saved log file path
 // is under the test-logs/ directory and the file exists.
 func TestRefactorLog_ArtifactPathIsUnderTestLogs(t *testing.T) {
+	t.Parallel()
 	const wantPrefix = "test-logs/"
 
 	if !strings.HasPrefix(refactorBaselineLog, wantPrefix) {

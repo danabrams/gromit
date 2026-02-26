@@ -29,6 +29,7 @@ import (
 // Expected failure: current acceptance test files still contain "move" cases
 // that should be removed per the smoke matrix reclassification.
 func TestCmdAcceptanceTests_OnlyContainSmokeMatrixKeepCases(t *testing.T) {
+	t.Parallel()
 	projectRoot, smokeMatrix := loadCmdSmokeMatrix(t)
 
 	for _, relPath := range cmdAcceptanceTestFiles() {
@@ -82,6 +83,7 @@ func TestCmdAcceptanceTests_OnlyContainSmokeMatrixKeepCases(t *testing.T) {
 // Expected failure: acceptance tests have not yet been updated to match the
 // canonical smoke matrix keep set.
 func TestCmdAcceptanceTests_AllKeepCasesPresent(t *testing.T) {
+	t.Parallel()
 	projectRoot, smokeMatrix := loadCmdSmokeMatrix(t)
 
 	// Build set of expected keep tests
@@ -118,6 +120,7 @@ func TestCmdAcceptanceTests_AllKeepCasesPresent(t *testing.T) {
 // at their destination.
 // Expected failure: unit test destinations do not yet exist for all moved cases.
 func TestCmdAcceptanceTests_RemovedCasesHaveUnitCoverage(t *testing.T) {
+	t.Parallel()
 	projectRoot, smokeMatrix := loadCmdSmokeMatrix(t)
 
 	// Find all "move" cases
@@ -156,6 +159,7 @@ func TestCmdAcceptanceTests_RemovedCasesHaveUnitCoverage(t *testing.T) {
 // Expected failure: current acceptance files contain TestDebug*, TestExplore*
 // and other non-smoke-prefixed test functions.
 func TestCmdAcceptanceTests_OnlyTestCmdSmokePatternFunctions(t *testing.T) {
+	t.Parallel()
 	projectRoot := loadProjectRoot(t)
 
 	for _, relPath := range cmdAcceptanceTestFiles() {
@@ -195,6 +199,7 @@ func TestCmdAcceptanceTests_OnlyTestCmdSmokePatternFunctions(t *testing.T) {
 // file contains at most one smoke test (one keep case per file per matrix).
 // Expected failure: current files contain multiple tests including move cases.
 func TestCmdAcceptanceTests_MaxThreeTestsPerFile(t *testing.T) {
+	t.Parallel()
 	projectRoot := loadProjectRoot(t)
 
 	for _, relPath := range cmdAcceptanceTestFiles() {
@@ -221,6 +226,7 @@ func TestCmdAcceptanceTests_MaxThreeTestsPerFile(t *testing.T) {
 // Expected failure: acceptance tests have not yet been annotated with the canonical
 // smoke-matrix comment format showing keep/move decisions.
 func TestCmdAcceptanceTests_SmokeAnnotationsMatchMatrix(t *testing.T) {
+	t.Parallel()
 	projectRoot, smokeMatrix := loadCmdSmokeMatrix(t)
 
 	for _, relPath := range cmdAcceptanceTestFiles() {

@@ -8,6 +8,7 @@ import (
 )
 
 func TestAppendToGitignore_AddsCodexHomeEntry(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 	gitignorePath := filepath.Join(tempDir, ".gitignore")
 

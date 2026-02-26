@@ -13,8 +13,10 @@ import (
 // TestRunRetro_SpecValidationPassesForExistingSpec tests that ValidateSpec succeeds
 // when spec file exists
 func TestRunRetro_SpecValidationPassesForExistingSpec(t *testing.T) {
+	t.Parallel(
 	// Expected failure: This test documents expected behavior - ValidateSpec should return nil
 	// for existing specs. The test will pass once ValidateSpec is called in main.go:207-208.
+	)
 
 	tempDir := t.TempDir()
 	specsDir := filepath.Join(tempDir, "specs")
@@ -45,6 +47,7 @@ func TestRunRetro_SpecValidationPassesForExistingSpec(t *testing.T) {
 // TestValidateSpecBeforeResolveSpec_OrderMatters tests that ValidateSpec is called
 // before ResolveSpec in the retro handler
 func TestValidateSpecBeforeResolveSpec_OrderMatters(t *testing.T) {
+	t.Parallel(
 	// Expected failure: The code at main.go:207-208 does not call scope.ValidateSpec before scope.ResolveSpec
 	//
 	// This test verifies the behavioral difference between calling ValidateSpec first vs not:
@@ -53,6 +56,7 @@ func TestValidateSpecBeforeResolveSpec_OrderMatters(t *testing.T) {
 	// - WITH ValidateSpec: Immediate error with helpful message listing available specs
 	//
 	// The key behavioral change is getting a helpful error BEFORE attempting to use the spec label.
+	)
 
 	tempDir := t.TempDir()
 	specsDir := filepath.Join(tempDir, "specs")
@@ -96,11 +100,13 @@ func TestValidateSpecBeforeResolveSpec_OrderMatters(t *testing.T) {
 
 // TestReviewCommandSpecValidation tests that review command validates specs
 func TestReviewCommandSpecValidation(t *testing.T) {
+	t.Parallel(
 	// Expected failure: This test demonstrates the target behavior that retro should match.
 	// The review command calls ValidateSpec at review.go:150 in getSpecBaseCommit.
 	// The retro command should do the same at main.go:207-208.
 	//
 	// This test verifies getSpecBaseCommit returns helpful error with available specs.
+	)
 
 	tempDir := t.TempDir()
 	specsDir := filepath.Join(tempDir, "specs")
@@ -139,6 +145,7 @@ func TestReviewCommandSpecValidation(t *testing.T) {
 // TestRetroSpecValidation_HelpfulErrorForTypo tests that retro command provides
 // helpful error when spec name has a typo
 func TestRetroSpecValidation_HelpfulErrorForTypo(t *testing.T) {
+	t.Parallel(
 	// Expected failure: main.go:207-208 does not call scope.ValidateSpec
 	// Current behavior: ResolveSpec("auth-typo") returns "spec:auth-typo", which later fails
 	//   with "no beads found for spec" - unhelpful for typos
@@ -146,6 +153,7 @@ func TestRetroSpecValidation_HelpfulErrorForTypo(t *testing.T) {
 	//   available specs, helping user spot the typo immediately
 	//
 	// This test demonstrates the user-facing value of validation.
+	)
 
 	tempDir := t.TempDir()
 	specsDir := filepath.Join(tempDir, "specs")

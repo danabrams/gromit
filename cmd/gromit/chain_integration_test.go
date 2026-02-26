@@ -13,7 +13,10 @@ import (
 
 // TestExecGromitSuccessExitZero verifies that execGromit returns nil when subprocess exits successfully (exit 0)
 func TestExecGromitSuccessExitZero(t *testing.T) {
+	t.Parallel(
 	// Create a test binary that exits 0
+	)
+
 	tmpDir := t.TempDir()
 	testProg := filepath.Join(tmpDir, "success.go")
 
@@ -49,6 +52,7 @@ func main() {
 // TestExecGromitNonZeroExit verifies that execGromit returns nil for non-zero exit codes
 // (it treats exec.ExitError as "subprocess handled its own errors")
 func TestExecGromitNonZeroExit(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	testProg := filepath.Join(tmpDir, "fail.go")
 
@@ -87,8 +91,10 @@ func main() {
 // Testing actual launch failure of execGromit is difficult because os.Executable()
 // always returns a valid path during tests. This test documents the expected behavior.
 func TestExecGromitLaunchFailure(t *testing.T) {
+	t.Parallel(
 	// Directly test the distinction between launch errors and exit errors
 	// This is what execGromit must handle correctly
+	)
 
 	// Try to execute a non-existent binary (launch failure)
 	cmd := exec.Command("/nonexistent/binary/path/that/does/not/exist")
@@ -110,8 +116,11 @@ func TestExecGromitLaunchFailure(t *testing.T) {
 
 // TestChainAfterRefineThreePhasesEmptyInput verifies chainAfterRefine with empty spec list
 func TestChainAfterRefineThreePhasesEmptyInput(t *testing.T) {
+	t.Parallel(
 	// Call the actual chainAfterRefine function with empty spec list
 	// It should return immediately without prompting
+	)
+
 	confirmCalled := false
 	executeCalled := false
 
@@ -137,6 +146,7 @@ func TestChainAfterRefineThreePhasesEmptyInput(t *testing.T) {
 
 // TestChainAfterRefinePhase1Planning verifies Phase 1 tracks successfully planned specs
 func TestChainAfterRefinePhase1Planning(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	plansDir := filepath.Join(tmpDir, "plans")
 	if err := os.MkdirAll(plansDir, 0755); err != nil {
@@ -188,6 +198,7 @@ func TestChainAfterRefinePhase1Planning(t *testing.T) {
 
 // TestChainAfterRefinePhase2Decompose verifies Phase 2 offers decompose for planned specs
 func TestChainAfterRefinePhase2Decompose(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	plansDir := filepath.Join(tmpDir, "plans")
 	if err := os.MkdirAll(plansDir, 0755); err != nil {
@@ -243,6 +254,7 @@ func sliceContains(slice []string, s string) bool {
 
 // TestChainAfterRefinePhase3RunOnlyIfDecomposed verifies Phase 3 only prompts for run when specs decomposed
 func TestChainAfterRefinePhase3RunOnlyIfDecomposed(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name              string
 		createDecomposed  bool
@@ -254,6 +266,7 @@ func TestChainAfterRefinePhase3RunOnlyIfDecomposed(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			tmpDir := t.TempDir()
 			plansDir := filepath.Join(tmpDir, "plans")
 			if err := os.MkdirAll(plansDir, 0755); err != nil {
@@ -298,6 +311,7 @@ func TestChainAfterRefinePhase3RunOnlyIfDecomposed(t *testing.T) {
 
 // TestChainAfterRefineDecomposedCountWithExecuteReturningNil verifies behavior when execute returns nil for failures
 func TestChainAfterRefineDecomposedCountWithExecuteReturningNil(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	plansDir := filepath.Join(tmpDir, "plans")
 	if err := os.MkdirAll(plansDir, 0755); err != nil {
@@ -339,6 +353,7 @@ func TestChainAfterRefineDecomposedCountWithExecuteReturningNil(t *testing.T) {
 
 // TestChainAfterRefineBreakOnDecline verifies that declining skips remaining items in phase
 func TestChainAfterRefineBreakOnDecline(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	plansDir := filepath.Join(tmpDir, "plans")
 	if err := os.MkdirAll(plansDir, 0755); err != nil {
@@ -385,6 +400,7 @@ func TestChainAfterRefineBreakOnDecline(t *testing.T) {
 
 // TestConfirmPromptDefaultBehavior verifies defaults are respected
 func TestConfirmPromptDefaultBehavior(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		input      string
@@ -399,6 +415,7 @@ func TestConfirmPromptDefaultBehavior(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			reader := bufio.NewReader(strings.NewReader(tt.input))
 			got := confirmPrompt(reader, "Test", tt.defaultYes)
 			if got != tt.want {

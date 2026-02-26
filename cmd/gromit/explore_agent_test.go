@@ -14,7 +14,10 @@ import (
 
 // TestExploreCommandHasAgentFlag verifies explore command has --agent flag.
 func TestExploreCommandHasAgentFlag(t *testing.T) {
+	t.Parallel(
 	// Expected failure: explore command does not define --agent flag or exploreAgentFlagName constant yet
+	)
+
 	flag := exploreCmd.Flags().Lookup("agent")
 	if flag == nil {
 		t.Error("explore command missing --agent flag")
@@ -27,7 +30,10 @@ func TestExploreCommandHasAgentFlag(t *testing.T) {
 
 // TestExploreCommandHasChooseAgentFlag verifies explore command has --choose-agent flag.
 func TestExploreCommandHasChooseAgentFlag(t *testing.T) {
+	t.Parallel(
 	// Expected failure: explore command does not define --choose-agent flag or exploreChooseAgentFlagName constant yet
+	)
+
 	flag := exploreCmd.Flags().Lookup("choose-agent")
 	if flag == nil {
 		t.Error("explore command missing --choose-agent flag")
@@ -39,6 +45,7 @@ func TestExploreCommandHasChooseAgentFlag(t *testing.T) {
 }
 
 func TestRunExploreInSessionUsesSessionLauncher(t *testing.T) {
+
 	origLauncher := exploreSessionLauncherFn
 	origRunInDir := exploreRunInDirFn
 	t.Cleanup(func() {
@@ -80,6 +87,7 @@ func TestRunExploreInSessionUsesSessionLauncher(t *testing.T) {
 }
 
 func TestRunExploreInSessionSkipsSessionLauncherWhenWorktreeDisabled(t *testing.T) {
+
 	origLauncher := exploreSessionLauncherFn
 	origRunInDir := exploreRunInDirFn
 	t.Cleanup(func() {
@@ -110,6 +118,7 @@ func TestRunExploreInSessionSkipsSessionLauncherWhenWorktreeDisabled(t *testing.
 }
 
 func TestExplorePhaseConfigSelectsAgent_Reclassified(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Agents: config.AgentsConfig{
 			Definitions: map[string]config.AgentDefinition{

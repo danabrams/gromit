@@ -10,6 +10,7 @@ import (
 // TestProcessCodexStreamMapsThreadStartedToSystem verifies that processCodexStream
 // maps thread.started events to StreamEvent type "system" and calls EventHandler.
 func TestProcessCodexStreamMapsThreadStartedToSystem(t *testing.T) {
+	t.Parallel()
 	input := `{"type":"thread.started","data":{"thread_id":"t-abc"}}` + "\n"
 	reader := strings.NewReader(input)
 	var output bytes.Buffer
@@ -46,6 +47,7 @@ func TestProcessCodexStreamMapsThreadStartedToSystem(t *testing.T) {
 // events with type "agent_message" are mapped to StreamEvent type "assistant"
 // with a text content block.
 func TestProcessCodexStreamMapsAgentMessageToAssistant(t *testing.T) {
+	t.Parallel()
 	input := `{"type":"item.completed","item":{"type":"agent_message","text":"Hello from agent"}}` + "\n"
 	reader := strings.NewReader(input)
 	var output bytes.Buffer
@@ -101,6 +103,7 @@ func TestProcessCodexStreamMapsAgentMessageToAssistant(t *testing.T) {
 // TestProcessCodexStreamMapsTurnCompletedToResult verifies that turn.completed
 // events with usage data are mapped to StreamEvent type "result" with token counts.
 func TestProcessCodexStreamMapsTurnCompletedToResult(t *testing.T) {
+	t.Parallel()
 	input := `{"type":"turn.completed","usage":{"input_tokens":2500,"output_tokens":1200,"cached_input_tokens":400,"total_cost_usd":0.042}}` + "\n"
 	reader := strings.NewReader(input)
 	var output bytes.Buffer
@@ -163,6 +166,7 @@ func TestProcessCodexStreamMapsTurnCompletedToResult(t *testing.T) {
 // TestProcessCodexStreamToolCallHandlers verifies that processCodexStream invokes
 // ToolCallHandler with correct ToolEvent fields for each tool-related item type.
 func TestProcessCodexStreamToolCallHandlers(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name            string
 		jsonLine        string
@@ -191,6 +195,7 @@ func TestProcessCodexStreamToolCallHandlers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			input := tt.jsonLine + "\n"
 			reader := strings.NewReader(input)
 			var output bytes.Buffer
@@ -226,6 +231,7 @@ func TestProcessCodexStreamToolCallHandlers(t *testing.T) {
 // TestProcessCodexStreamExtractsLastAgentMessageAsResult verifies that when
 // multiple agent_message events are present, the last one's text becomes the result.
 func TestProcessCodexStreamExtractsLastAgentMessageAsResult(t *testing.T) {
+	t.Parallel()
 	input := strings.Join([]string{
 		`{"type":"item.completed","item":{"type":"agent_message","text":"First thought"}}`,
 		`{"type":"item.completed","item":{"type":"agent_message","text":"Second thought"}}`,
@@ -248,6 +254,7 @@ func TestProcessCodexStreamExtractsLastAgentMessageAsResult(t *testing.T) {
 // TestProcessCodexStreamAccumulatesMessageOutputTextDone verifies that
 // message.output_text.done events are concatenated into the final result text.
 func TestProcessCodexStreamAccumulatesMessageOutputTextDone(t *testing.T) {
+	t.Parallel()
 	input := strings.Join([]string{
 		`{"type":"message.output_text.done","text":"Hello"}`,
 		`{"type":"message.output_text.done","text":" world"}`,
@@ -270,6 +277,7 @@ func TestProcessCodexStreamAccumulatesMessageOutputTextDone(t *testing.T) {
 // TestProcessCodexStreamWritesAgentTextToOutput verifies that agent message text
 // is written to the output writer as it arrives.
 func TestProcessCodexStreamWritesAgentTextToOutput(t *testing.T) {
+	t.Parallel()
 	input := `{"type":"item.completed","item":{"type":"agent_message","text":"Response text here"}}` + "\n"
 	reader := strings.NewReader(input)
 	var output bytes.Buffer
@@ -287,6 +295,7 @@ func TestProcessCodexStreamWritesAgentTextToOutput(t *testing.T) {
 // TestProcessCodexStreamSkipsMalformedLines verifies that non-JSON lines are
 // silently skipped without returning an error.
 func TestProcessCodexStreamSkipsMalformedLines(t *testing.T) {
+	t.Parallel()
 	input := strings.Join([]string{
 		"this is not json",
 		`{"type":"item.completed","item":{"type":"agent_message","text":"Valid"}}`,
@@ -309,6 +318,7 @@ func TestProcessCodexStreamSkipsMalformedLines(t *testing.T) {
 // TestProcessCodexStreamEmptyInput verifies that processCodexStream handles
 // empty input gracefully.
 func TestProcessCodexStreamEmptyInput(t *testing.T) {
+	t.Parallel()
 	reader := strings.NewReader("")
 	var output bytes.Buffer
 
@@ -328,6 +338,7 @@ func TestProcessCodexStreamEmptyInput(t *testing.T) {
 // TestProcessCodexStreamDetectsUsageLimitExceeded verifies that turn.completed
 // events with status "failed" and UsageLimitExceeded error type are detected.
 func TestProcessCodexStreamDetectsUsageLimitExceeded(t *testing.T) {
+	t.Parallel()
 	input := `{"type":"turn.completed","status":"failed","error":{"type":"UsageLimitExceeded","message":"Rate limit exceeded"}}` + "\n"
 	reader := strings.NewReader(input)
 	var output bytes.Buffer
@@ -367,6 +378,7 @@ func TestProcessCodexStreamDetectsUsageLimitExceeded(t *testing.T) {
 // TestProcessCodexStreamNilHandlers verifies that processCodexStream handles
 // nil EventHandler and ToolCallHandler gracefully without panicking.
 func TestProcessCodexStreamNilHandlers(t *testing.T) {
+	t.Parallel()
 	input := strings.Join([]string{
 		`{"type":"thread.started"}`,
 		`{"type":"item.started","item":{"type":"command_execution","command":"ls"}}`,
@@ -398,6 +410,7 @@ func TestProcessCodexStreamNilHandlers(t *testing.T) {
 // TestProcessCodexStreamFullConversation verifies end-to-end processing of a
 // realistic Codex JSONL stream with multiple event types in sequence.
 func TestProcessCodexStreamFullConversation(t *testing.T) {
+	t.Parallel()
 	input := strings.Join([]string{
 		`{"type":"thread.started","data":{"thread_id":"t-123"}}`,
 		`{"type":"turn.started"}`,
@@ -470,6 +483,7 @@ func TestProcessCodexStreamFullConversation(t *testing.T) {
 // parses all expected fields from Codex JSONL events including nested item,
 // usage, status, and error info.
 func TestCodexEventStructParsesAllFields(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		jsonInput  string
@@ -575,6 +589,7 @@ func TestCodexEventStructParsesAllFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var event codexEvent
 			if err := json.Unmarshal([]byte(tt.jsonInput), &event); err != nil {
 				t.Fatalf("json.Unmarshal() error = %v", err)
@@ -587,6 +602,7 @@ func TestCodexEventStructParsesAllFields(t *testing.T) {
 // TestCodexErrorInfoTypes verifies that codexErrorInfo correctly parses different
 // error types from Codex events.
 func TestCodexErrorInfoTypes(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		jsonInput   string
@@ -609,6 +625,7 @@ func TestCodexErrorInfoTypes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var errInfo codexErrorInfo
 			if err := json.Unmarshal([]byte(tt.jsonInput), &errInfo); err != nil {
 				t.Fatalf("json.Unmarshal() error = %v", err)
@@ -624,6 +641,7 @@ func TestCodexErrorInfoTypes(t *testing.T) {
 }
 
 func TestProcessCodexStreamMapsMessageCreatedToSystem(t *testing.T) {
+	t.Parallel()
 	input := `{"type":"message.created"}` + "\n"
 	reader := strings.NewReader(input)
 	var output bytes.Buffer
@@ -660,6 +678,7 @@ func TestProcessCodexStreamMapsMessageCreatedToSystem(t *testing.T) {
 // events emit a result stream event with token usage, consistent with
 // turn.completed and response.completed handlers.
 func TestProcessCodexStreamEmitsResultEventFromResultEvents(t *testing.T) {
+	t.Parallel()
 	input := strings.Join([]string{
 		`{"type":"item.completed","item":{"type":"agent_message","text":"Done"}}`,
 		`{"type":"result","usage":{"input_tokens":1500,"output_tokens":400,"total_cost_usd":0.025}}`,

@@ -7,6 +7,7 @@ import (
 )
 
 func TestRegisterRootCommands_RegistersBenchmarkRun(t *testing.T) {
+	t.Parallel()
 	root := &cobra.Command{Use: "gromit"}
 
 	registerRootCommands(root)
@@ -29,6 +30,7 @@ func TestRegisterRootCommands_RegistersBenchmarkRun(t *testing.T) {
 }
 
 func TestCommandRequiresRepoRoot_Regression(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		cmd  *cobra.Command
@@ -48,6 +50,7 @@ func TestCommandRequiresRepoRoot_Regression(t *testing.T) {
 }
 
 func TestCommandRequiresRepoRoot_InitAlias(t *testing.T) {
+	t.Parallel()
 	alias := &cobra.Command{
 		Use: "init",
 	}

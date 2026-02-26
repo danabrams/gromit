@@ -48,6 +48,7 @@ func (s *stubRunProvider) IsValidationPassed(result *provider.Result) bool      
 func (s *stubRunProvider) IsScopeTooLarge(result *provider.Result) (bool, string)    { return false, "" }
 
 func TestProviderBuildProvidersFromConfig_NilConfigReturnsError(t *testing.T) {
+	t.Parallel()
 	_, err := provider.BuildProvidersFromConfig(nil)
 	if err == nil {
 		t.Fatal("provider.BuildProvidersFromConfig(nil) error = nil, want non-nil")
@@ -58,12 +59,14 @@ func TestProviderBuildProvidersFromConfig_NilConfigReturnsError(t *testing.T) {
 }
 
 func TestProviderParseFallbackCooldown_NilConfigReturnsZero(t *testing.T) {
+	t.Parallel()
 	if got := provider.ParseFallbackCooldown(nil); got != 0 {
 		t.Fatalf("provider.ParseFallbackCooldown(nil) = %v, want 0", got)
 	}
 }
 
 func TestBuildRouterAndLearningsProvider_UsesConfiguredProviders(t *testing.T) {
+	t.Parallel()
 	cfg := newCodexProvidersConfig()
 	router, lp, _, _, err := buildRouterAndLearningsProvider(cfg, t.TempDir(), io.Discard)
 	if err != nil {
@@ -83,6 +86,7 @@ func TestBuildRouterAndLearningsProvider_UsesConfiguredProviders(t *testing.T) {
 // TestBuildRouterAndLearningsProvider_InitializesCircuitBreakerWhenEnabled verifies that
 // circuit-breaker is created from config when enabled and passed to NewRouter.
 func TestBuildRouterAndLearningsProvider_InitializesCircuitBreakerWhenEnabled(t *testing.T) {
+	t.Parallel()
 	cfg := newCodexProvidersConfig()
 	cfg.Routing.Ratio = map[string]int{"codex": 60, "claude": 40}
 	cfg.Providers["claude"] = config.ProviderDef{Binary: "claude"}
@@ -113,6 +117,7 @@ func TestBuildRouterAndLearningsProvider_InitializesCircuitBreakerWhenEnabled(t 
 // TestBuildRouterAndLearningsProvider_RouterBehavesNormallyWhenCircuitBreakerDisabled
 // verifies that when circuit-breaker is disabled, the router works as before.
 func TestBuildRouterAndLearningsProvider_RouterBehavesNormallyWhenCircuitBreakerDisabled(t *testing.T) {
+	t.Parallel()
 	cfg := newCodexProvidersConfig()
 	cfg.Routing.Ratio = map[string]int{"codex": 100}
 	// Circuit breaker is not enabled (Enabled defaults to false)
@@ -145,6 +150,7 @@ func TestBuildRouterAndLearningsProvider_RouterBehavesNormallyWhenCircuitBreaker
 // actually calls bead.Client to create child beads when decomposing an oversized bead,
 // rather than returning nil without performing any work.
 func TestDecomposerAdapter_Decompose_CreatesChildBeads(t *testing.T) {
+	t.Parallel()
 	client, err := bead.NewClient()
 	if err != nil {
 		t.Fatalf("bead.NewClient: %v", err)
@@ -186,6 +192,7 @@ func TestDecomposerAdapter_Decompose_CreatesChildBeads(t *testing.T) {
 // calls the provider (via router) for LLM-powered decomposition instead of creating
 // a dumb carbon-copy child bead.
 func TestDecomposerAdapter_InvokesProviderViaRouter(t *testing.T) {
+	t.Parallel()
 	providerCalled := false
 	stub := &stubRunProvider{
 		name: "test-provider",
@@ -228,6 +235,7 @@ func TestDecomposerAdapter_InvokesProviderViaRouter(t *testing.T) {
 // TestDecomposerAdapter_ClosesParentBeadAfterLLMDecomposition verifies that after LLM decomposition
 // creates child beads, the adapter closes the parent bead to prevent it from being re-queued.
 func TestDecomposerAdapter_ClosesParentBeadAfterLLMDecomposition(t *testing.T) {
+	t.Parallel()
 	stub := &stubRunProvider{
 		name: "test-provider",
 		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
@@ -270,6 +278,7 @@ func TestDecomposerAdapter_ClosesParentBeadAfterLLMDecomposition(t *testing.T) {
 }
 
 func TestResolveBuildCacheVersionKey_StableForSameInputs(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	gromitDir := filepath.Join(root, ".gromit")
 	templatesDir := filepath.Join(root, "templates")
@@ -309,6 +318,7 @@ func TestResolveBuildCacheVersionKey_StableForSameInputs(t *testing.T) {
 }
 
 func TestResolveBuildCacheVersionKey_ChangesWhenRulesChange(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	gromitDir := filepath.Join(root, ".gromit")
 	templatesDir := filepath.Join(root, "templates")
@@ -346,6 +356,7 @@ func TestResolveBuildCacheVersionKey_ChangesWhenRulesChange(t *testing.T) {
 }
 
 func TestDecomposerAdapter_Decompose_InheritsParentBuildStrategyAndSpecLabels(t *testing.T) {
+	t.Parallel()
 	stubRouter := provider.NewSingleProviderRouter(&stubRunProvider{
 		name: "test",
 		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
@@ -433,6 +444,7 @@ func (s *stubFailureAnalyzer) Analyze(ctx context.Context, b *bead.Bead, output 
 // TestFailureLearnerAdapter_CallsAnalyzer verifies that failureLearnerAdapter
 // calls the analyzer when ExtractFailureLearning is invoked on the failure path.
 func TestFailureLearnerAdapter_CallsAnalyzer(t *testing.T) {
+	t.Parallel()
 	called := false
 	stub := &stubFailureAnalyzer{
 		fn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
@@ -457,6 +469,7 @@ func TestFailureLearnerAdapter_CallsAnalyzer(t *testing.T) {
 // returns a non-nil *TDDPipelineAdapter so that the Build stage can delegate TDD
 // cycles to the runner-backed orchestrator.
 func TestBuildTDDCycleRunner_ReturnsTDDPipelineAdapter(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	result := buildTDDCycleRunner(cfg, nil, nil, io.Discard, nil, nil)
 	if result == nil {
@@ -471,6 +484,7 @@ func TestBuildTDDCycleRunner_ReturnsTDDPipelineAdapter(t *testing.T) {
 // returned by buildTDDCycleRunner has a non-nil tddOrchestrator with a configured
 // runCyclesFn, so TDD cycle invocations will execute rather than error with "not configured".
 func TestBuildTDDCycleRunner_RunnerHasConfiguredOrchestrator(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	result := buildTDDCycleRunner(cfg, nil, nil, io.Discard, nil, nil)
 	adapter, ok := result.(*TDDPipelineAdapter)
@@ -489,6 +503,7 @@ func TestBuildTDDCycleRunner_RunnerHasConfiguredOrchestrator(t *testing.T) {
 // optionalTDDCycleRunner returns nil when FreshContextPerCycle is false, so the
 // Build stage falls back to single-invocation StreamRun.
 func TestOptionalTDDCycleRunner_ReturnsNilWhenFreshContextDisabled(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	result := optionalTDDCycleRunner(cfg, nil, nil, io.Discard, nil, nil)
 	if result != nil {
@@ -500,6 +515,7 @@ func TestOptionalTDDCycleRunner_ReturnsNilWhenFreshContextDisabled(t *testing.T)
 // optionalTDDCycleRunner returns a non-nil TDDCycleRunner when FreshContextPerCycle
 // is true, so the Build stage can delegate to per-cycle TDD orchestration.
 func TestOptionalTDDCycleRunner_ReturnsAdapterWhenFreshContextEnabled(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	cfg.Methodology.FreshContextPerCycle = true
 	result := optionalTDDCycleRunner(cfg, nil, nil, io.Discard, nil, nil)
@@ -509,6 +525,7 @@ func TestOptionalTDDCycleRunner_ReturnsAdapterWhenFreshContextEnabled(t *testing
 }
 
 func TestOptionalTDDCycleRunner_ReturnsNilWhenMethodologyAdapterIsNonGo(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	cfg.Methodology.FreshContextPerCycle = true
 	cfg.Methodology.Adapter = "python"
@@ -522,6 +539,7 @@ func TestOptionalTDDCycleRunner_ReturnsNilWhenMethodologyAdapterIsNonGo(t *testi
 // TestFailureLearnerAdapter_ForwardsFailureOutput verifies that the failureOutput
 // string passed to ExtractFailureLearning reaches the analyzer.Analyze call.
 func TestFailureLearnerAdapter_ForwardsFailureOutput(t *testing.T) {
+	t.Parallel()
 	var receivedOutput string
 	stub := &stubFailureAnalyzer{
 		fn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
@@ -548,6 +566,7 @@ func TestFailureLearnerAdapter_ForwardsFailureOutput(t *testing.T) {
 // and checks that it delegates to the TDDCycleRunner (identified by the distinctive
 // error from the placeholder runCyclesFn) instead of falling back to StreamRun.
 func TestNewRunnerImpl_BuildStageUsesTDDCycleRunner_WhenFreshContextPerCycle(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	_ = os.MkdirAll(filepath.Join(gromitDir, "templates"), 0o755)
@@ -594,6 +613,7 @@ func TestNewRunnerImpl_BuildStageUsesTDDCycleRunner_WhenFreshContextPerCycle(t *
 // deadline parameter instead of hardcoding 0. When the deadline is 30 minutes away,
 // the status.json should contain time_budget_minutes ≈ 30, not 0.
 func TestNewRunnerImpl_StatusWriterComputesTimeBudgetFromDeadline(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	_ = os.MkdirAll(filepath.Join(gromitDir, "templates"), 0o755)
@@ -639,6 +659,7 @@ func TestNewRunnerImpl_StatusWriterComputesTimeBudgetFromDeadline(t *testing.T) 
 }
 
 func TestResolveTrackerBackend_DefaultAndExplicitBD(t *testing.T) {
+	t.Parallel()
 	var legacyCfg config.Config
 	if got := resolveTrackerBackend(&legacyCfg); got != "bd" {
 		t.Fatalf("resolveTrackerBackend(legacy) = %q, want %q", got, "bd")
@@ -655,6 +676,7 @@ func TestResolveTrackerBackend_DefaultAndExplicitBD(t *testing.T) {
 }
 
 func TestResolveTrackerBackendDeprecationMarker_LegacyAndExplicit(t *testing.T) {
+	t.Parallel()
 	var legacyCfg config.Config
 	if got := resolveTrackerBackendDeprecationMarker(&legacyCfg); got != RunnerDeprecationMarkerLegacyTrackerBackendFallback {
 		t.Fatalf("resolveTrackerBackendDeprecationMarker(legacy) = %q, want %q", got, RunnerDeprecationMarkerLegacyTrackerBackendFallback)
@@ -671,6 +693,7 @@ func TestResolveTrackerBackendDeprecationMarker_LegacyAndExplicit(t *testing.T) 
 }
 
 func TestNewRunnerImpl_LegacyCompatibilityEmitsStartupDeprecationWarning(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	_ = os.MkdirAll(filepath.Join(gromitDir, "templates"), 0o755)
@@ -700,6 +723,7 @@ func TestNewRunnerImpl_LegacyCompatibilityEmitsStartupDeprecationWarning(t *test
 }
 
 func TestNewRunnerImpl_LegacyCompatibilityWarningUsesConfigMarkerContract(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	_ = os.MkdirAll(filepath.Join(gromitDir, "templates"), 0o755)
@@ -726,6 +750,7 @@ func TestNewRunnerImpl_LegacyCompatibilityWarningUsesConfigMarkerContract(t *tes
 }
 
 func TestResolveSingleSpecProgressLabel(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		labels []string
@@ -750,6 +775,7 @@ func TestResolveSingleSpecProgressLabel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := resolveSingleSpecProgressLabel(tt.labels)
 			if got != tt.want {
 				t.Fatalf("resolveSingleSpecProgressLabel(%v) = %q, want %q", tt.labels, got, tt.want)
@@ -759,6 +785,7 @@ func TestResolveSingleSpecProgressLabel(t *testing.T) {
 }
 
 func TestEstimateScopedIterationTotal(t *testing.T) {
+	t.Parallel()
 	client := &bead.Client{
 		RunFn: func(args ...string) (string, error) {
 			return `[
@@ -783,6 +810,7 @@ func TestEstimateScopedIterationTotal(t *testing.T) {
 // wires a Decomposer implementation into the Gate stage so that oversized beads
 // can be auto-decomposed instead of blocked.
 func TestNewRunnerImpl_GateStageHasDecomposerConfigured(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	_ = os.MkdirAll(filepath.Join(gromitDir, "templates"), 0o755)
@@ -817,6 +845,7 @@ func TestNewRunnerImpl_GateStageHasDecomposerConfigured(t *testing.T) {
 // → calls bead.Client.CreateWithParent() to create child beads.
 // This test uses the real decomposerAdapter (not mocks) wired by newRunnerImpl.
 func TestNewRunnerImpl_GateIntegrationWithRealDecomposer(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	_ = os.MkdirAll(filepath.Join(gromitDir, "templates"), 0o755)
@@ -868,6 +897,7 @@ func TestNewRunnerImpl_GateIntegrationWithRealDecomposer(t *testing.T) {
 }
 
 func TestGateRunScopeGate_ContractViolationFallsBackToBlock(t *testing.T) {
+	t.Parallel()
 	stub := &stubRunProvider{
 		name: "test-provider",
 		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
@@ -933,6 +963,7 @@ func TestGateRunScopeGate_ContractViolationFallsBackToBlock(t *testing.T) {
 }
 
 func TestDecomposerAdapter_Decompose_RejectsMoreThanFiveSubBeads(t *testing.T) {
+	t.Parallel()
 	stub := &stubRunProvider{
 		name: "test-provider",
 		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
@@ -989,6 +1020,7 @@ func TestDecomposerAdapter_Decompose_RejectsMoreThanFiveSubBeads(t *testing.T) {
 }
 
 func TestValidateRuntimeScopeGateDecomposeOutput_ReturnsRuleCodeFromSharedValidator(t *testing.T) {
+	t.Parallel()
 	err := validateRuntimeScopeGateDecomposeOutput(
 		[]scopeGateSubBead{
 			{Title: "Part 1", ExpectedOutputs: []string{"f1"}},
@@ -1010,6 +1042,7 @@ func TestValidateRuntimeScopeGateDecomposeOutput_ReturnsRuleCodeFromSharedValida
 }
 
 func TestValidateRuntimeScopeGateDecomposeOutput_ZeroMaxUsesDefaultLimit(t *testing.T) {
+	t.Parallel()
 	err := validateRuntimeScopeGateDecomposeOutput(
 		[]scopeGateSubBead{
 			{Title: "Part 1", ExpectedOutputs: []string{"f1"}},
@@ -1028,6 +1061,7 @@ func TestValidateRuntimeScopeGateDecomposeOutput_ZeroMaxUsesDefaultLimit(t *test
 }
 
 func TestValidateRuntimeScopeGateDecomposeOutput_UsesSharedRequiredFieldViolationMessage(t *testing.T) {
+	t.Parallel()
 	err := validateRuntimeScopeGateDecomposeOutput(
 		[]scopeGateSubBead{
 			{Title: "", ExpectedOutputs: []string{"f1"}},
@@ -1048,6 +1082,7 @@ func TestValidateRuntimeScopeGateDecomposeOutput_UsesSharedRequiredFieldViolatio
 }
 
 func TestDecomposerAdapter_Decompose_RejectsChildWithMoreThanFiveExpectedOutputs(t *testing.T) {
+	t.Parallel()
 	stub := &stubRunProvider{
 		name: "test-provider",
 		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
@@ -1099,6 +1134,7 @@ func TestDecomposerAdapter_Decompose_RejectsChildWithMoreThanFiveExpectedOutputs
 }
 
 func TestDecomposerAdapter_Decompose_RejectsEmptyExpectedOutput(t *testing.T) {
+	t.Parallel()
 	stub := &stubRunProvider{
 		name: "test-provider",
 		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
@@ -1150,6 +1186,7 @@ func TestDecomposerAdapter_Decompose_RejectsEmptyExpectedOutput(t *testing.T) {
 }
 
 func TestDecomposerAdapter_Decompose_RejectsEmptyTitle(t *testing.T) {
+	t.Parallel()
 	stub := &stubRunProvider{
 		name: "test-provider",
 		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
@@ -1201,6 +1238,7 @@ func TestDecomposerAdapter_Decompose_RejectsEmptyTitle(t *testing.T) {
 }
 
 func TestDecomposerAdapter_Decompose_RejectsChildWithNoExpectedOutputs(t *testing.T) {
+	t.Parallel()
 	stub := &stubRunProvider{
 		name: "test-provider",
 		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
@@ -1252,6 +1290,7 @@ func TestDecomposerAdapter_Decompose_RejectsChildWithNoExpectedOutputs(t *testin
 }
 
 func TestDecomposerAdapter_Decompose_RejectsDuplicateExpectedOutputs(t *testing.T) {
+	t.Parallel()
 	stub := &stubRunProvider{
 		name: "test-provider",
 		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
@@ -1303,6 +1342,7 @@ func TestDecomposerAdapter_Decompose_RejectsDuplicateExpectedOutputs(t *testing.
 }
 
 func TestDecomposerAdapter_Decompose_RejectsExpectedOutputThatEchoesParentTitle(t *testing.T) {
+	t.Parallel()
 	stub := &stubRunProvider{
 		name: "test-provider",
 		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
@@ -1357,6 +1397,7 @@ func TestDecomposerAdapter_Decompose_RejectsExpectedOutputThatEchoesParentTitle(
 }
 
 func TestDecomposerAdapter_Decompose_RetryDoesNotDuplicatePreviouslyCreatedChildren(t *testing.T) {
+	t.Parallel()
 	stub := &stubRunProvider{
 		name: "test-provider",
 		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
@@ -1421,6 +1462,7 @@ func TestDecomposerAdapter_Decompose_RetryDoesNotDuplicatePreviouslyCreatedChild
 }
 
 func TestDecomposerAdapter_Decompose_RetryDoesNotDuplicateWhenExpectedOutputsAreReordered(t *testing.T) {
+	t.Parallel()
 	providerCalls := 0
 	stub := &stubRunProvider{
 		name: "test-provider",
@@ -1493,6 +1535,7 @@ func TestDecomposerAdapter_Decompose_RetryDoesNotDuplicateWhenExpectedOutputsAre
 }
 
 func TestDecomposerAdapter_Decompose_RetryDoesNotDuplicateWhenTitleAndOutputsVaryByWhitespace(t *testing.T) {
+	t.Parallel()
 	providerCalls := 0
 	stub := &stubRunProvider{
 		name: "test-provider",
@@ -1569,6 +1612,7 @@ func TestDecomposerAdapter_Decompose_RetryDoesNotDuplicateWhenTitleAndOutputsVar
 // TestSpecGateAdapterImplementsEpilogueSpecGateRunner verifies that specGateAdapter
 // satisfies the epilogue.SpecGateRunner interface so it can be wired into the Epilogue stage.
 func TestSpecGateAdapterImplementsEpilogueSpecGateRunner(t *testing.T) {
+	t.Parallel()
 	adapter := &specGateAdapter{}
 	// This test is a compile-time check via implicit interface satisfaction.
 	// If specGateAdapter doesn't implement SpecGateRunner, this will fail at compile time.
@@ -1578,6 +1622,7 @@ func TestSpecGateAdapterImplementsEpilogueSpecGateRunner(t *testing.T) {
 // TestNewRunnerImpl_WiresSpecGateIntoEpilogue verifies that the spec gate adapter
 // is wired into the epilogue stage when newRunnerImpl creates the orchestrator.
 func TestNewRunnerImpl_WiresSpecGateIntoEpilogue(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Paths: config.PathsConfig{
 			Templates: t.TempDir(),
@@ -1610,7 +1655,10 @@ func TestNewRunnerImpl_WiresSpecGateIntoEpilogue(t *testing.T) {
 }
 
 func TestNewRunnerLoadsExperimentsWhenEnabled(t *testing.T) {
+	t.Parallel(
 	// Setup: Create a temporary directory with an experiment
+	)
+
 	tmpDir := t.TempDir()
 	experimentsDir := filepath.Join(tmpDir, "experiments")
 	if err := os.MkdirAll(experimentsDir, 0755); err != nil {
@@ -1671,6 +1719,7 @@ variants:
 // decomposerAdapter.Decompose returns ErrPartialDecompositionState when some child
 // beads are created successfully but a subsequent child bead creation fails.
 func TestDecomposerAdapter_Decompose_DetectsPartialDecompositionState(t *testing.T) {
+	t.Parallel()
 	stub := &stubRunProvider{
 		name: "test-provider",
 		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
@@ -1729,6 +1778,7 @@ func TestDecomposerAdapter_Decompose_DetectsPartialDecompositionState(t *testing
 // when the first child bead creation fails, decomposerAdapter.Decompose returns the
 // original error (not ErrPartialDecompositionState), since no partial state has been created yet.
 func TestDecomposerAdapter_Decompose_FirstChildFailureReturnsOriginalError(t *testing.T) {
+	t.Parallel()
 	stub := &stubRunProvider{
 		name: "test-provider",
 		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
@@ -1779,6 +1829,7 @@ func TestDecomposerAdapter_Decompose_FirstChildFailureReturnsOriginalError(t *te
 // the second call properly deduplicates the already-created children and only creates
 // the remaining ones.
 func TestDecomposerAdapter_Decompose_RetryAfterPartialStateDeduplicatesSuccessfulChildren(t *testing.T) {
+	t.Parallel()
 	stub := &stubRunProvider{
 		name: "test-provider",
 		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
@@ -1854,6 +1905,7 @@ func TestDecomposerAdapter_Decompose_RetryAfterPartialStateDeduplicatesSuccessfu
 // when all child beads are created successfully, decomposerAdapter.Decompose
 // returns nil and closes the parent bead as expected.
 func TestDecomposerAdapter_Decompose_FullySuccessfulPathReturnsNil(t *testing.T) {
+	t.Parallel()
 	stub := &stubRunProvider{
 		name: "test-provider",
 		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
@@ -1911,6 +1963,7 @@ func TestDecomposerAdapter_Decompose_FullySuccessfulPathReturnsNil(t *testing.T)
 // This verifies that the constructor pattern properly assembles handlers with all necessary dependencies,
 // and that the timeout decomposition contract is honored through the complete execution path.
 func TestIntegration_TimeoutDecompositionFlowEndToEnd(t *testing.T) {
+	t.Parallel()
 	cfg := newCodexProvidersConfig()
 	tmpDir := t.TempDir()
 
@@ -1993,6 +2046,7 @@ func TestIntegration_TimeoutDecompositionFlowEndToEnd(t *testing.T) {
 // properly blocks retries when partial decomposition state is detected, even when handler
 // is constructed through normal patterns.
 func TestIntegration_RetryGateBlocksAfterPartialDecomposition(t *testing.T) {
+	t.Parallel()
 	cfg := newCodexProvidersConfig()
 	tmpDir := t.TempDir()
 

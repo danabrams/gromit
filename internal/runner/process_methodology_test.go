@@ -12,8 +12,8 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/pipeline/execute"
-	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
@@ -47,6 +47,7 @@ func (m *methodologyTestRenderer) RenderRefactorBuild(_, _ string, _ []string) (
 }
 
 func TestResolveBuildStrategy_BeadLabelOverridesConfig(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	cfg.Methodology.BuildStrategy = "single_pass"
 
@@ -58,6 +59,7 @@ func TestResolveBuildStrategy_BeadLabelOverridesConfig(t *testing.T) {
 }
 
 func TestBuildRun_SinglePassConfig_SkipsRefactorMethodology(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Models: config.ModelsConfig{
 			P0: "high",
@@ -89,6 +91,7 @@ func TestBuildRun_SinglePassConfig_SkipsRefactorMethodology(t *testing.T) {
 }
 
 func TestBuildRun_BuildStrategyLabels_LastTDDWins(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Models: config.ModelsConfig{
 			P0: "high",
@@ -123,6 +126,7 @@ func TestBuildRun_BuildStrategyLabels_LastTDDWins(t *testing.T) {
 }
 
 func TestResolveBuildStrategy_LastSinglePassWins(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	cfg.Methodology.BuildStrategy = "tdd"
 
@@ -136,6 +140,7 @@ func TestResolveBuildStrategy_LastSinglePassWins(t *testing.T) {
 }
 
 func TestBuildCoverageTrackerFromSpec_DisabledPendingActivation(t *testing.T) {
+	t.Parallel()
 	spec := `## Acceptance Criteria
 - Accept valid input
 - Reject invalid input
@@ -158,6 +163,7 @@ func TestBuildCoverageTrackerFromSpec_DisabledPendingActivation(t *testing.T) {
 }
 
 func TestExtractRequirementsViaLLM_ReturnsParsedItems(t *testing.T) {
+	t.Parallel()
 	invoke := func(_ context.Context, _ string, _ string) (*provider.Result, error) {
 		return &provider.Result{Success: true, Output: "item one\nitem two\nitem three"}, nil
 	}
@@ -174,6 +180,7 @@ func TestExtractRequirementsViaLLM_ReturnsParsedItems(t *testing.T) {
 }
 
 func TestExtractRequirementsViaLLM_TruncatesDescriptionTo2000Chars(t *testing.T) {
+	t.Parallel()
 	longDesc := strings.Repeat("x", 3000)
 	var capturedPrompt string
 	invoke := func(_ context.Context, prompt string, _ string) (*provider.Result, error) {
@@ -192,6 +199,7 @@ func TestExtractRequirementsViaLLM_TruncatesDescriptionTo2000Chars(t *testing.T)
 }
 
 func TestExtractRequirementsViaLLM_InvokesAtTierLow(t *testing.T) {
+	t.Parallel()
 	var capturedTier string
 	invoke := func(_ context.Context, _ string, tier string) (*provider.Result, error) {
 		capturedTier = tier
@@ -204,6 +212,7 @@ func TestExtractRequirementsViaLLM_InvokesAtTierLow(t *testing.T) {
 }
 
 func TestExtractRequirementsViaLLM_UsesUtilityRoutingTierWhenEnabled(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		TokenEfficiency: config.TokenEfficiencyConfig{
 			Routing: config.TokenEfficiencyRoutingConfig{
@@ -224,6 +233,7 @@ func TestExtractRequirementsViaLLM_UsesUtilityRoutingTierWhenEnabled(t *testing.
 }
 
 func TestExtractRequirementsViaLLM_Integration_UsesUtilityCategoryTaskOverrideTier(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		TokenEfficiency: config.TokenEfficiencyConfig{
 			Routing: config.TokenEfficiencyRoutingConfig{
@@ -250,6 +260,7 @@ func TestExtractRequirementsViaLLM_Integration_UsesUtilityCategoryTaskOverrideTi
 }
 
 func TestExtractRequirementsViaLLM_PopulatesUtilityRoutingTelemetry(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		TokenEfficiency: config.TokenEfficiencyConfig{
 			Routing: config.TokenEfficiencyRoutingConfig{
@@ -276,6 +287,7 @@ func TestExtractRequirementsViaLLM_PopulatesUtilityRoutingTelemetry(t *testing.T
 }
 
 func TestExtractRequirementsViaLLM_SkipsBlankLines(t *testing.T) {
+	t.Parallel()
 	invoke := func(_ context.Context, _ string, _ string) (*provider.Result, error) {
 		return &provider.Result{Success: true, Output: "item one\n\n\nitem two\n\nitem three\n"}, nil
 	}
@@ -292,6 +304,7 @@ func TestExtractRequirementsViaLLM_SkipsBlankLines(t *testing.T) {
 }
 
 func TestExtractRequirementsViaLLM_ReturnsNilForFewerThanTwoItems(t *testing.T) {
+	t.Parallel()
 	invoke := func(_ context.Context, _ string, _ string) (*provider.Result, error) {
 		return &provider.Result{Success: true, Output: "only one item"}, nil
 	}
@@ -302,6 +315,7 @@ func TestExtractRequirementsViaLLM_ReturnsNilForFewerThanTwoItems(t *testing.T) 
 }
 
 func TestExtractRequirementsViaLLM_ReturnsNilOnError(t *testing.T) {
+	t.Parallel()
 	invoke := func(_ context.Context, _ string, _ string) (*provider.Result, error) {
 		return nil, fmt.Errorf("provider unavailable")
 	}
@@ -312,6 +326,7 @@ func TestExtractRequirementsViaLLM_ReturnsNilOnError(t *testing.T) {
 }
 
 func TestApplyLayer3Requirements_TriggersAndReplacesOutputsWhenOnlyOneItem(t *testing.T) {
+	t.Parallel()
 	invoke := func(_ context.Context, _ string, _ string) (*provider.Result, error) {
 		return &provider.Result{Success: true, Output: "llm req one\nllm req two"}, nil
 	}
@@ -331,6 +346,7 @@ func TestApplyLayer3Requirements_TriggersAndReplacesOutputsWhenOnlyOneItem(t *te
 }
 
 func TestApplyLayer3Requirements_DoesNotTriggerWhenOutputsHasMoreThanOneItem(t *testing.T) {
+	t.Parallel()
 	outputs := []string{"req one", "req two"}
 	called := false
 	invoke := func(_ context.Context, _ string, _ string) (*provider.Result, error) {
@@ -350,6 +366,7 @@ func TestApplyLayer3Requirements_DoesNotTriggerWhenOutputsHasMoreThanOneItem(t *
 }
 
 func TestApplyLayer3Requirements_TitleFallbackPreservedOnLayer3Failure(t *testing.T) {
+	t.Parallel()
 	outputs := []string{"My Title"}
 	invoke := func(_ context.Context, _ string, _ string) (*provider.Result, error) {
 		return nil, fmt.Errorf("provider unavailable")
@@ -364,6 +381,7 @@ func TestApplyLayer3Requirements_TitleFallbackPreservedOnLayer3Failure(t *testin
 }
 
 func TestApplyLayer3Requirements_PropagatesUtilityRoutingTelemetry(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		TokenEfficiency: config.TokenEfficiencyConfig{
 			Routing: config.TokenEfficiencyRoutingConfig{
@@ -398,6 +416,7 @@ func TestApplyLayer3Requirements_PropagatesUtilityRoutingTelemetry(t *testing.T)
 }
 
 func TestExtractRequirementsFromDescription_BulletedList(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name  string
 		input string
@@ -421,6 +440,7 @@ func TestExtractRequirementsFromDescription_BulletedList(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			got := extractRequirementsFromDescription(tc.input)
 			if len(got) != len(tc.want) {
 				t.Fatalf("got %d items, want %d: %v", len(got), len(tc.want), got)
@@ -435,6 +455,7 @@ func TestExtractRequirementsFromDescription_BulletedList(t *testing.T) {
 }
 
 func TestExtractRequirementsFromDescription_HeaderPrefixedList(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name  string
 		input string
@@ -463,6 +484,7 @@ func TestExtractRequirementsFromDescription_HeaderPrefixedList(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			got := extractRequirementsFromDescription(tc.input)
 			if len(got) != len(tc.want) {
 				t.Fatalf("got %d items, want %d: %v", len(got), len(tc.want), got)
@@ -477,6 +499,7 @@ func TestExtractRequirementsFromDescription_HeaderPrefixedList(t *testing.T) {
 }
 
 func TestExtractRequirementsFromDescription_SemicolonSeparated(t *testing.T) {
+	t.Parallel()
 	input := "do this; do that; do the other"
 	got := extractRequirementsFromDescription(input)
 	want := []string{"do this", "do that", "do the other"}
@@ -491,6 +514,7 @@ func TestExtractRequirementsFromDescription_SemicolonSeparated(t *testing.T) {
 }
 
 func TestExtractRequirementsFromDescription_NumberedList(t *testing.T) {
+	t.Parallel()
 	input := "Some preamble\n1. do this\n2. do that\n3. do the other thing"
 	got := extractRequirementsFromDescription(input)
 	want := []string{"do this", "do that", "do the other thing"}
@@ -505,6 +529,7 @@ func TestExtractRequirementsFromDescription_NumberedList(t *testing.T) {
 }
 
 func TestExtractRequirementsFromDescription_CommaSeparated(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name  string
 		input string
@@ -533,6 +558,7 @@ func TestExtractRequirementsFromDescription_CommaSeparated(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			got := extractRequirementsFromDescription(tc.input)
 			if len(got) != len(tc.want) {
 				t.Fatalf("got %d items, want %d: %v", len(got), len(tc.want), got)
@@ -547,6 +573,7 @@ func TestExtractRequirementsFromDescription_CommaSeparated(t *testing.T) {
 }
 
 func TestExtractRequirementsFromDescription_HeaderWithCommasOnSameLine(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name  string
 		input string
@@ -570,6 +597,7 @@ func TestExtractRequirementsFromDescription_HeaderWithCommasOnSameLine(t *testin
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			got := extractRequirementsFromDescription(tc.input)
 			if len(got) != len(tc.want) {
 				t.Fatalf("got %d items, want %d: %v", len(got), len(tc.want), got)
@@ -584,6 +612,7 @@ func TestExtractRequirementsFromDescription_HeaderWithCommasOnSameLine(t *testin
 }
 
 func TestExtractRequirementsFromDescription_FunctionsHeader(t *testing.T) {
+	t.Parallel()
 	input := "Functions:\nformatRun\nformatDuration\nformatHealth"
 	got := extractRequirementsFromDescription(input)
 	want := []string{"formatRun", "formatDuration", "formatHealth"}
@@ -598,6 +627,7 @@ func TestExtractRequirementsFromDescription_FunctionsHeader(t *testing.T) {
 }
 
 func TestExtractRequirementsFromDescription_MixedBulletsAndCommas(t *testing.T) {
+	t.Parallel()
 	input := "- alpha\n- beta\nExtras: gamma, delta"
 	got := extractRequirementsFromDescription(input)
 	want := []string{"alpha", "beta", "gamma", "delta"}
@@ -615,6 +645,7 @@ func TestExtractRequirementsFromDescription_MixedBulletsAndCommas(t *testing.T) 
 // the prompt sent to the LLM asks for individual, fine-grained items rather
 // than summaries, so haiku enumerates each deliverable separately.
 func TestExtractRequirementsViaLLM_PromptRequestsIndividualItems(t *testing.T) {
+	t.Parallel()
 	var capturedPrompt string
 	invoke := func(_ context.Context, prompt string, _ string) (*provider.Result, error) {
 		capturedPrompt = prompt
@@ -638,6 +669,7 @@ func TestExtractRequirementsViaLLM_PromptRequestsIndividualItems(t *testing.T) {
 // TestExtractRequirementsViaLLM_PromptDoesNotGroupItems verifies the prompt
 // explicitly instructs against grouping or summarizing.
 func TestExtractRequirementsViaLLM_PromptDoesNotGroupItems(t *testing.T) {
+	t.Parallel()
 	var capturedPrompt string
 	invoke := func(_ context.Context, prompt string, _ string) (*provider.Result, error) {
 		capturedPrompt = prompt
@@ -655,6 +687,7 @@ func TestExtractRequirementsViaLLM_PromptDoesNotGroupItems(t *testing.T) {
 // that when ExpectedOutputs is empty and the description contains parseable
 // requirements, those parsed requirements are returned instead of the title.
 func TestTddExpectedOutputsOrTitle_Layer2UsedWhenExpectedOutputsEmpty(t *testing.T) {
+	t.Parallel()
 	b := &bead.Bead{
 		ID:          "test-bead",
 		Title:       "Bead Title",
@@ -675,6 +708,7 @@ func TestTddExpectedOutputsOrTitle_Layer2UsedWhenExpectedOutputsEmpty(t *testing
 // TestTddExpectedOutputsOrTitle_Layer1TakesPriorityOverDescription verifies
 // that ExpectedOutputs (Layer 1) takes priority over description parsing (Layer 2).
 func TestTddExpectedOutputsOrTitle_Layer1TakesPriorityOverDescription(t *testing.T) {
+	t.Parallel()
 	b := &bead.Bead{
 		ID:              "test-bead",
 		Title:           "Bead Title",
@@ -695,6 +729,7 @@ func TestTddExpectedOutputsOrTitle_Layer1TakesPriorityOverDescription(t *testing
 // that the bead title is used when both ExpectedOutputs is empty and the
 // description contains no parseable requirements.
 func TestTddExpectedOutputsOrTitle_TitleFallbackWhenDescriptionUnparseable(t *testing.T) {
+	t.Parallel()
 	b := &bead.Bead{
 		ID:          "test-bead",
 		Title:       "My Bead Title",
@@ -715,6 +750,7 @@ func TestTddExpectedOutputsOrTitle_TitleFallbackWhenDescriptionUnparseable(t *te
 // from all PhaseMetrics into bc.Result, so the iteration log reflects totals
 // across all TDD fresh-context cycle invocations rather than the last one only.
 func TestAggregateTDDPhaseMetricsToResult_SumsCostAndTokens(t *testing.T) {
+	t.Parallel()
 	bc := &runtypes.BeadContext{
 		Result: &runtypes.IterationResult{
 			PhaseMetrics: []runtypes.PhaseMetric{
@@ -742,6 +778,7 @@ func TestAggregateTDDPhaseMetricsToResult_SumsCostAndTokens(t *testing.T) {
 // aggregateTDDPhaseMetricsToResult sets bc.Result.Model to the model from the
 // highest-tier PhaseMetric, so the iteration log names the most capable model used.
 func TestAggregateTDDPhaseMetricsToResult_SetsModelToHighestTierModel(t *testing.T) {
+	t.Parallel()
 	bc := &runtypes.BeadContext{
 		Result: &runtypes.IterationResult{
 			PhaseMetrics: []runtypes.PhaseMetric{

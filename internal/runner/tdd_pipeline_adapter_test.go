@@ -16,6 +16,7 @@ import (
 // TestTDDPipelineAdapter_ImplementsInterface verifies that TDDPipelineAdapter
 // satisfies the execute.TDDCycleRunner interface.
 func TestTDDPipelineAdapter_ImplementsInterface(t *testing.T) {
+	t.Parallel()
 	var a *TDDPipelineAdapter
 	if _, ok := any(a).(execute.TDDCycleRunner); !ok {
 		t.Fatal("TDDPipelineAdapter does not implement execute.TDDCycleRunner")
@@ -26,6 +27,7 @@ func TestTDDPipelineAdapter_ImplementsInterface(t *testing.T) {
 // the underlying tdd orchestrator appends PhaseMetrics to the BeadContext,
 // RunCycles returns them converted to pipeline.PhaseMetric in TDDCycleResult.
 func TestTDDPipelineAdapter_RunCycles_ConvertsPhaseMetricsToResult(t *testing.T) {
+	t.Parallel()
 	r := &Runner{
 		cfg: &config.Config{},
 		tddOrchestrator: &tddOrchestrator{
@@ -64,6 +66,7 @@ func TestTDDPipelineAdapter_RunCycles_ConvertsPhaseMetricsToResult(t *testing.T)
 // that TDD cycle output carries top-level tier provenance for iteration logs:
 // OriginalTier is the first phase tier and ActualTier is the highest tier used.
 func TestTDDPipelineAdapter_RunCycles_InfersTierProvenanceFromPhaseMetrics(t *testing.T) {
+	t.Parallel()
 	r := &Runner{
 		cfg: &config.Config{},
 		tddOrchestrator: &tddOrchestrator{
@@ -97,6 +100,7 @@ func TestTDDPipelineAdapter_RunCycles_InfersTierProvenanceFromPhaseMetrics(t *te
 // TestTDDPipelineAdapter_RunCycles_PropagatesOrchestratorError verifies that when
 // the tdd orchestrator returns an error, RunCycles propagates it.
 func TestTDDPipelineAdapter_RunCycles_PropagatesOrchestratorError(t *testing.T) {
+	t.Parallel()
 	r := &Runner{
 		cfg: &config.Config{},
 		tddOrchestrator: &tddOrchestrator{
@@ -123,6 +127,7 @@ func TestTDDPipelineAdapter_RunCycles_PropagatesOrchestratorError(t *testing.T) 
 // (Layer 1/3 fallback logic) and populates bead.ExpectedOutputs before calling
 // the orchestrator.
 func TestTDDPipelineAdapter_RunCycles_AppliesLayer1_3WhenNoExpectedOutputs(t *testing.T) {
+	t.Parallel()
 	var capturedBead *bead.Bead
 	r := &Runner{
 		cfg: &config.Config{},

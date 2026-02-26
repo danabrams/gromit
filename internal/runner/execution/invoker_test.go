@@ -182,8 +182,11 @@ func lineIndex(lines []string, substring string) int {
 // --- Invoker.Execute tests ---
 
 func TestInvokerExecute_ReturnsInvocationResult(t *testing.T) {
+	t.Parallel(
 	// Tests that Execute returns a properly populated InvocationResult
 	// with Claude result data, model name, and provider name.
+	)
+
 	mp := &mockProvider{
 		name: "test-claude",
 		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
@@ -236,8 +239,11 @@ func TestInvokerExecute_ReturnsInvocationResult(t *testing.T) {
 }
 
 func TestInvokerExecute_PropagatesModelAndProviderToBeadContext(t *testing.T) {
+	t.Parallel(
 	// Tests that Execute updates bc.Model, bc.Result.Model, and bc.BuildProvider
 	// with the router-selected values.
+	)
+
 	mp := &mockProvider{name: "anthropic"}
 	mr := &mockRouter{
 		selectFn: func(phase, tier string) (Provider, string) {
@@ -266,6 +272,7 @@ func TestInvokerExecute_PropagatesModelAndProviderToBeadContext(t *testing.T) {
 }
 
 func TestInvokerExecute_NilRouterReturnsError(t *testing.T) {
+	t.Parallel()
 	invoker := NewInvoker(nil, &bytes.Buffer{}, nil)
 	bc := newTestBeadContext()
 
@@ -276,6 +283,7 @@ func TestInvokerExecute_NilRouterReturnsError(t *testing.T) {
 }
 
 func TestInvokerExecute_NoProviderAvailableReturnsError(t *testing.T) {
+	t.Parallel()
 	mr := &mockRouter{
 		selectFn: func(phase, tier string) (Provider, string) {
 			return nil, ""
@@ -292,8 +300,11 @@ func TestInvokerExecute_NoProviderAvailableReturnsError(t *testing.T) {
 }
 
 func TestInvokerExecute_UsageLimitTriggersProviderFallback(t *testing.T) {
+	t.Parallel(
 	// When the primary provider returns a usage limit error, Execute should
 	// mark it unavailable and retry with a fallback provider.
+	)
+
 	primaryCalled := false
 	fallbackCalled := false
 
@@ -359,6 +370,7 @@ func TestInvokerExecute_UsageLimitTriggersProviderFallback(t *testing.T) {
 }
 
 func TestInvokerExecute_CacheLookupHitUsesCachedPromptBeforeInvocation(t *testing.T) {
+	t.Parallel()
 	callOrder := []string{}
 	var promptUsed string
 	cache := &mockCacheAdapter{
@@ -408,6 +420,7 @@ func TestInvokerExecute_CacheLookupHitUsesCachedPromptBeforeInvocation(t *testin
 }
 
 func TestInvokerExecute_Integration_CacheKeyStableAcrossBuildContextIterations(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	templatesDir := filepath.Join(root, "templates")
 	specsDir := filepath.Join(root, "specs")
@@ -503,6 +516,7 @@ func TestInvokerExecute_Integration_CacheKeyStableAcrossBuildContextIterations(t
 }
 
 func TestInvokerExecute_CacheMissWritesPromptAfterInvocation(t *testing.T) {
+	t.Parallel()
 	callOrder := []string{}
 	var writeReq provider.CacheWriteRequest
 	cache := &mockCacheAdapter{
@@ -559,6 +573,7 @@ func TestInvokerExecute_CacheMissWritesPromptAfterInvocation(t *testing.T) {
 }
 
 func TestInvokerExecute_VersionKeyChangeInvalidatesBeforeNextLookup(t *testing.T) {
+	t.Parallel()
 	callOrder := []string{}
 	cache := &mockCacheAdapter{
 		lookupFn: func(ctx context.Context, req provider.CacheLookupRequest) (*provider.CacheEntry, bool, error) {
@@ -618,6 +633,7 @@ func TestInvokerExecute_VersionKeyChangeInvalidatesBeforeNextLookup(t *testing.T
 }
 
 func TestInvokerExecute_CacheLookupErrorContinuesUncachedWithoutWrite(t *testing.T) {
+	t.Parallel()
 	callOrder := []string{}
 	var promptUsed string
 	writeCalls := 0
@@ -674,6 +690,7 @@ func TestInvokerExecute_CacheLookupErrorContinuesUncachedWithoutWrite(t *testing
 }
 
 func TestInvokerExecute_Integration_CacheLookupFailureFallsBackWithoutAbort(t *testing.T) {
+	t.Parallel()
 	cacheClass := "render_static_build"
 	cacheKey := prompt.StaticPreambleCacheKey(cacheClass, map[string]string{
 		"rules": "rules",
@@ -727,8 +744,11 @@ func TestInvokerExecute_Integration_CacheLookupFailureFallsBackWithoutAbort(t *t
 }
 
 func TestInvokerExecute_EscalatedInvocationUpdatesEscalatedTo(t *testing.T) {
+	t.Parallel(
 	// When bc.Result.Escalated is true and EscalatedTo is set, Execute
 	// should update EscalatedTo with the concrete model name from the router.
+	)
+
 	mp := &mockProvider{name: "provider-x"}
 	mr := &mockRouter{
 		selectFn: func(phase, tier string) (Provider, string) {
@@ -752,8 +772,11 @@ func TestInvokerExecute_EscalatedInvocationUpdatesEscalatedTo(t *testing.T) {
 }
 
 func TestInvokerExecute_CapturesDiagnosticDataFromStreamStats(t *testing.T) {
+	t.Parallel(
 	// Execute should populate bc.Result diagnostic fields from the StreamStats
 	// DiagnosticSnapshot after the invocation completes.
+	)
+
 	mp := &mockProvider{
 		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
 			return &provider.Result{Success: true, Model: "test-model"}, nil
@@ -787,8 +810,11 @@ func TestInvokerExecute_CapturesDiagnosticDataFromStreamStats(t *testing.T) {
 }
 
 func TestInvokerExecute_PassesTierFromBeadContext(t *testing.T) {
+	t.Parallel(
 	// Execute should use bc.Tier when calling router.Select and pass it
 	// through to provider.StreamRun.
+	)
+
 	var capturedRouterTier string
 	var capturedStreamTier string
 
@@ -823,7 +849,10 @@ func TestInvokerExecute_PassesTierFromBeadContext(t *testing.T) {
 }
 
 func TestInvokerExecute_StreamRunErrorPropagates(t *testing.T) {
+	t.Parallel(
 	// When StreamRun returns a non-usage-limit error, it should propagate to the caller.
+	)
+
 	mp := &mockProvider{
 		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
 			return nil, fmt.Errorf("connection refused")
@@ -848,8 +877,11 @@ func TestInvokerExecute_StreamRunErrorPropagates(t *testing.T) {
 }
 
 func TestInvokerExecute_PassesEventHandlerWithoutStreamLogger(t *testing.T) {
+	t.Parallel(
 	// Even when stream logger is nil, invoker should still pass a non-nil event
 	// handler so providers can run in structured streaming mode.
+	)
+
 	var handlerWasNil bool
 	mp := &mockProvider{
 		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
@@ -916,6 +948,7 @@ func TestInvokerExecute_PreserveProviderStreamModePassesNilHandlers(t *testing.T
 }
 
 func TestInvokerExecute_PreserveProviderStreamConfiguredPassesNilHandlers(t *testing.T) {
+	t.Parallel()
 	var handlerWasNil bool
 	var toolHandlerWasNil bool
 	mp := &mockProvider{
@@ -979,6 +1012,7 @@ func TestInvokerExecute_PreserveProviderStreamEnvOverrideOff(t *testing.T) {
 }
 
 func TestInvokerExecute_EmitsStartMarker(t *testing.T) {
+	t.Parallel()
 	logsDir := t.TempDir()
 	sl, err := logger.NewStreamLogger(logsDir)
 	if err != nil {
@@ -1013,8 +1047,11 @@ func TestInvokerExecute_EmitsStartMarker(t *testing.T) {
 }
 
 func TestInvokerExecute_EmitsLifecycleMarkersWithoutStreamEvents(t *testing.T) {
+	t.Parallel(
 	// Ensure lifecycle markers are emitted even when no stream events are parsed.
 	// This test expects start, selection, and completion markers in the stream log.
+	)
+
 	logsDir := t.TempDir()
 	sl, err := logger.NewStreamLogger(logsDir)
 	if err != nil {
@@ -1079,6 +1116,7 @@ func TestInvokerExecute_EmitsLifecycleMarkersWithoutStreamEvents(t *testing.T) {
 }
 
 func TestInvokerExecute_EmitsFailureSummaryMarker(t *testing.T) {
+	t.Parallel()
 	logsDir := t.TempDir()
 	sl, err := logger.NewStreamLogger(logsDir)
 	if err != nil {
@@ -1119,7 +1157,10 @@ func TestInvokerExecute_EmitsFailureSummaryMarker(t *testing.T) {
 }
 
 func TestInvocationResult_ContainsStreamStats(t *testing.T) {
+	t.Parallel(
 	// InvocationResult should include StreamStats for the caller to inspect.
+	)
+
 	mp := &mockProvider{}
 	mr := &mockRouter{
 		selectFn: func(phase, tier string) (Provider, string) {
@@ -1150,6 +1191,7 @@ func TestInvocationResult_ContainsStreamStats(t *testing.T) {
 }
 
 func TestInvokerExecute_ExposesProviderResult(t *testing.T) {
+	t.Parallel()
 	expected := &provider.Result{
 		Success:      true,
 		Output:       "provider output",
@@ -1187,6 +1229,7 @@ func TestInvokerExecute_ExposesProviderResult(t *testing.T) {
 }
 
 func TestInvokerExecute_RecordsFailureCategoryWithRouter(t *testing.T) {
+	t.Parallel()
 	mp := &mockProvider{
 		name: "provider-z",
 		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
@@ -1221,6 +1264,7 @@ func TestInvokerExecute_RecordsFailureCategoryWithRouter(t *testing.T) {
 }
 
 func TestInvokerExecute_MergesProviderUsageIntoStatsWhenStreamHasNoResultEvent(t *testing.T) {
+	t.Parallel()
 	mp := &mockProvider{
 		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
 			// Emit a non-result event so stream stats record activity but no usage.
@@ -1265,6 +1309,7 @@ func TestInvokerExecute_MergesProviderUsageIntoStatsWhenStreamHasNoResultEvent(t
 }
 
 func TestInvocationResult_DoesNotConvertProviderResultToClaudeResult(t *testing.T) {
+	t.Parallel()
 	mp := &mockProvider{
 		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
 			return &provider.Result{
@@ -1304,6 +1349,7 @@ func TestInvocationResult_DoesNotConvertProviderResultToClaudeResult(t *testing.
 // event handler is nil so ParseAndLogEvent never fires, meaning cost must come
 // solely from providerResult.CostUSD via MergeCostData.
 func TestInvokerExecute_PreserveStreamModeStillPropagatesCostFromProviderResult(t *testing.T) {
+	t.Parallel()
 	mp := &mockProvider{
 		streamRunFn: func(ctx context.Context, prompt, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
 			// In preserve mode the handler is nil — no stream events are parsed.
@@ -1349,8 +1395,11 @@ func TestInvokerExecute_PreserveStreamModeStillPropagatesCostFromProviderResult(
 }
 
 func TestNewInvoker_AcceptsNarrowInterfaces(t *testing.T) {
+	t.Parallel(
 	// Verify that NewInvoker accepts the narrow Router interface (not *provider.Router),
 	// enabling mock injection without importing the provider package's concrete types.
+	)
+
 	var buf bytes.Buffer
 	mr := &mockRouter{
 		selectFn: func(phase, tier string) (Provider, string) {

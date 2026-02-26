@@ -16,6 +16,7 @@ import (
 )
 
 func TestShowRefinePickerEOFSelectsNew(t *testing.T) {
+	t.Parallel()
 	unrefined := []*backlog.Idea{
 		{ID: "idea-1", Text: "First", Type: "task"},
 	}
@@ -28,6 +29,7 @@ func TestShowRefinePickerEOFSelectsNew(t *testing.T) {
 }
 
 func TestShowRefinePickerNonNumericInputSelectsNew(t *testing.T) {
+	t.Parallel()
 	unrefined := []*backlog.Idea{
 		{ID: "idea-1", Text: "First", Type: "task"},
 		{ID: "idea-2", Text: "Second", Type: "feature"},
@@ -41,6 +43,7 @@ func TestShowRefinePickerNonNumericInputSelectsNew(t *testing.T) {
 }
 
 func TestShowRefinePickerZeroInputSelectsNew(t *testing.T) {
+	t.Parallel()
 	unrefined := []*backlog.Idea{
 		{ID: "idea-1", Text: "First", Type: "task"},
 	}
@@ -53,6 +56,7 @@ func TestShowRefinePickerZeroInputSelectsNew(t *testing.T) {
 }
 
 func TestShowRefinePickerOutOfBoundsHighSelectsNew(t *testing.T) {
+	t.Parallel()
 	unrefined := []*backlog.Idea{
 		{ID: "idea-1", Text: "First", Type: "task"},
 		{ID: "idea-2", Text: "Second", Type: "feature"},
@@ -67,6 +71,7 @@ func TestShowRefinePickerOutOfBoundsHighSelectsNew(t *testing.T) {
 }
 
 func TestShowRefinePickerValidInputSelectsCorrectItem(t *testing.T) {
+	t.Parallel()
 	unrefined := []*backlog.Idea{
 		{ID: "idea-1", Text: "First", Type: "task"},
 		{ID: "idea-2", Text: "Second", Type: "feature"},
@@ -82,6 +87,7 @@ func TestShowRefinePickerValidInputSelectsCorrectItem(t *testing.T) {
 }
 
 func TestShowRefinePickerSomethingNewOptionSelectsCorrectly(t *testing.T) {
+	t.Parallel()
 	unrefined := []*backlog.Idea{
 		{ID: "idea-1", Text: "First", Type: "task"},
 		{ID: "idea-2", Text: "Second", Type: "feature"},
@@ -96,6 +102,7 @@ func TestShowRefinePickerSomethingNewOptionSelectsCorrectly(t *testing.T) {
 }
 
 func TestShowRefinePickerNegativeInputSelectsNew(t *testing.T) {
+	t.Parallel()
 	unrefined := []*backlog.Idea{
 		{ID: "idea-1", Text: "First", Type: "task"},
 	}
@@ -108,6 +115,7 @@ func TestShowRefinePickerNegativeInputSelectsNew(t *testing.T) {
 }
 
 func TestRunRefineReturnsErrorWhenPipelineCreationFails(t *testing.T) {
+
 	tmpDir := t.TempDir()
 	configFile := filepath.Join(tmpDir, "gromit.yaml")
 	if err := os.WriteFile(configFile, []byte("loop:\n  max_iterations: 1\n"), 0644); err != nil {
@@ -153,6 +161,7 @@ func (r *refineSessionTestResolver) Resolve(phase string, flagOverride string, c
 }
 
 func TestRunRefineInSession_UsesSessionLauncherWhenEnabled(t *testing.T) {
+
 	origLauncher := refineSessionLauncherFn
 	origRunInDir := refineRunInDirFn
 	t.Cleanup(func() {
@@ -229,6 +238,7 @@ func TestRunRefineInSession_UsesSessionLauncherWhenEnabled(t *testing.T) {
 }
 
 func TestRunRefineInSession_WorktreeDisabledSkipsSessionLauncher(t *testing.T) {
+
 	origLauncher := refineSessionLauncherFn
 	t.Cleanup(func() { refineSessionLauncherFn = origLauncher })
 
@@ -272,6 +282,7 @@ func TestRunRefineInSession_WorktreeDisabledSkipsSessionLauncher(t *testing.T) {
 }
 
 func TestDetermineRefineInput_ChooseAgentWithIdeaID(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
@@ -307,6 +318,7 @@ func TestDetermineRefineInput_ChooseAgentWithIdeaID(t *testing.T) {
 }
 
 func TestDetermineRefineInput_ChooseAgentWithIdeaText(t *testing.T) {
+	t.Parallel()
 	cmd := &cobra.Command{}
 	cmd.Flags().String("agent", "", "")
 	cmd.Flags().Bool("choose-agent", false, "")

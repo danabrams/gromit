@@ -40,6 +40,7 @@ func listCmdAcceptanceTests(src string) []string {
 }
 
 func TestCmdDebugAcceptanceFile_OnlyContainsSmokeTest(t *testing.T) {
+	t.Parallel()
 	projectRoot, err := findProjectRoot()
 	if err != nil {
 		t.Fatalf("findProjectRoot: %v", err)
@@ -58,6 +59,7 @@ func TestCmdDebugAcceptanceFile_OnlyContainsSmokeTest(t *testing.T) {
 }
 
 func TestCmdExploreAcceptanceFile_OnlyContainsSmokeTest(t *testing.T) {
+	t.Parallel()
 	projectRoot, err := findProjectRoot()
 	if err != nil {
 		t.Fatalf("findProjectRoot: %v", err)
@@ -76,10 +78,13 @@ func TestCmdExploreAcceptanceFile_OnlyContainsSmokeTest(t *testing.T) {
 }
 
 func TestCmdAcceptanceSmokeSuite_IsSlimAndFocused(t *testing.T) {
+	t.Parallel(
 	// Expected failure: future smoke-only tests such as
 	// TestCmdSmoke_DebugAgentResolutionEndToEnd and
 	// TestCmdSmoke_ReviewSpecValidationEndToEnd do not exist yet, and
 	// non-smoke acceptance files have not been removed from cmd/gromit.
+	)
+
 	projectRoot, err := findProjectRoot()
 	if err != nil {
 		t.Fatalf("findProjectRoot: %v", err)
@@ -152,10 +157,13 @@ func TestCmdAcceptanceSmokeSuite_IsSlimAndFocused(t *testing.T) {
 }
 
 func TestCmdNonE2EChecks_AreReclassifiedIntoUnitSuite(t *testing.T) {
+	t.Parallel(
 	// Expected failure: future unit tests proving non-E2E reclassification,
 	// such as TestEpicBeadCountsReclassified_ClosedCountsIncludeAllStatuses and
 	// TestReviewSpecValidationRefactorReclassified_UsesSharedHelpers, do not
 	// exist yet in cmd/gromit unit tests.
+	)
+
 	projectRoot, err := findProjectRoot()
 	if err != nil {
 		t.Fatalf("findProjectRoot: %v", err)

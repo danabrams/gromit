@@ -10,6 +10,7 @@ import (
 )
 
 func TestRunnerReportCoverageAddsCommentAndLogsWhenCoverageIncomplete(t *testing.T) {
+	t.Parallel()
 	tracker := coverage.NewTracker([]coverage.Criterion{
 		{Number: 1, Text: "Criterion 1"},
 		{Number: 2, Text: "Criterion 2"},

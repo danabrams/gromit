@@ -12,6 +12,7 @@ func setupPolicyClassifierEntryATDD(t *testing.T) (time.Time, AndonThresholds) {
 
 // Expected failure: PolicyClassification and ClassifyFailureEntry do not exist yet.
 func TestClassifyFailureEntry_ReturnsOnlyCanonicalClasses(t *testing.T) {
+	t.Parallel()
 	allowed := map[FailureClass]struct{}{
 		FailureClassTransient: {},
 		FailureClassWorkflow:  {},
@@ -39,6 +40,7 @@ func TestClassifyFailureEntry_ReturnsOnlyCanonicalClasses(t *testing.T) {
 }
 
 func TestClassifyFailureEntry_MapsRepresentativeSignals(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		signal FailureSignal
@@ -73,6 +75,7 @@ func TestClassifyFailureEntry_MapsRepresentativeSignals(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			classified := ClassifyFailureEntry(tt.signal)
 			if classified.Class != tt.want {
 				t.Fatalf("ClassifyFailureEntry(%+v).Class = %q, want %q", tt.signal, classified.Class, tt.want)
@@ -82,6 +85,7 @@ func TestClassifyFailureEntry_MapsRepresentativeSignals(t *testing.T) {
 }
 
 func TestEvaluateClassifiedFailure_UsesClassificationForDecisionSelection(t *testing.T) {
+	t.Parallel()
 	now, thresholds := setupPolicyClassifierEntryATDD(t)
 
 	classification := PolicyClassification{Class: FailureClassWorkflow}

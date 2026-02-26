@@ -9,6 +9,7 @@ import (
 )
 
 func TestExplorePhaseConfigFlagRemoved(t *testing.T) {
+	t.Parallel()
 	path := productionFilePath(t, filepath.Join("cmd", "gromit", "explore.go"))
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, path, nil, parser.ParseComments)

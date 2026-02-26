@@ -15,6 +15,7 @@ import (
 // TestNewOrchestratorTestHelper_ReturnsNonNil verifies that NewOrchestratorTestHelper
 // returns a non-nil helper when given a valid config.
 func TestNewOrchestratorTestHelper_ReturnsNonNil(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	h := NewOrchestratorTestHelper(t, cfg, io.Discard)
 	if h == nil {
@@ -26,6 +27,7 @@ func TestNewOrchestratorTestHelper_ReturnsNonNil(t *testing.T) {
 // NewOrchestratorTestHelperWithDeps returns a non-nil helper when given
 // mock BeadClient and Router.
 func TestNewOrchestratorTestHelperWithDeps_ReturnsNonNil(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	beads := &mockBeadClient{}
 	router := newMockRouter()
@@ -38,6 +40,7 @@ func TestNewOrchestratorTestHelperWithDeps_ReturnsNonNil(t *testing.T) {
 // TestOrchestratorTestHelper_Run_DelegatesToOrchestrator verifies that Run
 // delegates to Orchestrator.Run by confirming GetBead is called via beads.Ready.
 func TestOrchestratorTestHelper_Run_DelegatesToOrchestrator(t *testing.T) {
+	t.Parallel()
 	getCalled := false
 	beads := &mockBeadClient{
 		ReadyFn: func() (*bead.Bead, error) {
@@ -58,6 +61,7 @@ func TestOrchestratorTestHelper_Run_DelegatesToOrchestrator(t *testing.T) {
 // TestOrchestratorTestHelper_SetLabelFilters_CallsReadyWithLabel verifies that
 // after SetLabelFilters is called, Run uses ReadyWithLabel instead of Ready.
 func TestOrchestratorTestHelper_SetLabelFilters_CallsReadyWithLabel(t *testing.T) {
+	t.Parallel()
 	var calledLabel string
 	beads := &mockBeadClient{
 		ReadyFn: func() (*bead.Bead, error) {

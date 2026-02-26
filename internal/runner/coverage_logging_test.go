@@ -10,6 +10,7 @@ import (
 // TestLogCoverageSummary verifies that the coverage summary is logged to output
 // when there are uncovered or untestable criteria.
 func TestLogCoverageSummary(t *testing.T) {
+	t.Parallel()
 	var output bytes.Buffer
 
 	// Create a tracker with test criteria
@@ -41,6 +42,7 @@ func TestLogCoverageSummary(t *testing.T) {
 
 // TestNoLoggingWhenAllCovered verifies that no logging happens when all criteria are covered.
 func TestNoLoggingWhenAllCovered(t *testing.T) {
+	t.Parallel()
 	var output bytes.Buffer
 
 	testCriteria := []coverage.Criterion{

@@ -37,6 +37,7 @@ func singleRequirementState() CycleState {
 }
 
 func TestRunCycles_ReturnsNilWhenStateAlreadyComplete(t *testing.T) {
+	t.Parallel()
 	orch := &CycleOrchestrator{
 		cfg: &config.Config{
 			Methodology: config.MethodologyConfig{
@@ -63,6 +64,7 @@ func TestRunCycles_ReturnsNilWhenStateAlreadyComplete(t *testing.T) {
 }
 
 func TestRunCycles_SingleCycle_CallsRedPhase(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 
 	var redPrompt string
@@ -116,6 +118,7 @@ func TestRunCycles_SingleCycle_CallsRedPhase(t *testing.T) {
 }
 
 func TestRunCycles_SingleCycle_CorrectCallSequence(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 
 	var phases []string
@@ -189,6 +192,7 @@ func TestRunCycles_SingleCycle_CorrectCallSequence(t *testing.T) {
 }
 
 func TestRunCycles_MultipleCycles_LoopsThroughRequirements(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 
 	cycleCount := 0
@@ -241,6 +245,7 @@ func TestRunCycles_MultipleCycles_LoopsThroughRequirements(t *testing.T) {
 }
 
 func TestRunCycles_TerminatesAtMaxCycles(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 
 	cycleCount := 0
@@ -292,6 +297,7 @@ func TestRunCycles_TerminatesAtMaxCycles(t *testing.T) {
 }
 
 func TestRunCycles_CoverageDone_TestsPassUnexpectedlyInRedPhase(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 
 	greenCalled := false
@@ -354,6 +360,7 @@ func TestRunCycles_CoverageDone_TestsPassUnexpectedlyInRedPhase(t *testing.T) {
 }
 
 func TestRunCycles_EarlyGreen_NoFinalValidation_NoRefactor(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 
 	refactorCalls := 0
@@ -394,6 +401,7 @@ func TestRunCycles_EarlyGreen_NoFinalValidation_NoRefactor(t *testing.T) {
 }
 
 func TestRunCycles_EarlyGreen_AdvancesAllRemaining(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 
 	redInvocations := 0
@@ -446,6 +454,7 @@ func TestRunCycles_EarlyGreen_AdvancesAllRemaining(t *testing.T) {
 }
 
 func TestRunCycles_InitialValidationNonGreen_RunsRefactorAfterGreenValidation(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 
 	refactorCalls := 0
@@ -498,6 +507,7 @@ func TestRunCycles_InitialValidationNonGreen_RunsRefactorAfterGreenValidation(t 
 }
 
 func TestRunCycles_RedEscalation_RetriesThenEscalates(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 
 	invokeAttempts := 0
@@ -569,6 +579,7 @@ func TestRunCycles_RedEscalation_RetriesThenEscalates(t *testing.T) {
 }
 
 func TestRunCycles_UnrecoverableFailure_NoHigherTier(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 
 	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
@@ -602,6 +613,7 @@ func TestRunCycles_UnrecoverableFailure_NoHigherTier(t *testing.T) {
 }
 
 func TestRunCycles_InitialValidationNonGreen_RefactorRunsAndDoesNotRevertOnPassingPostChecks(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 
 	var resetToCommit string
@@ -662,6 +674,7 @@ func TestRunCycles_InitialValidationNonGreen_RefactorRunsAndDoesNotRevertOnPassi
 }
 
 func TestExecuteRefactorPhase_ValidationFailure_ResetsToPreRefactorCommit(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 
 	refactorCalls := 0
@@ -703,6 +716,7 @@ func TestExecuteRefactorPhase_ValidationFailure_ResetsToPreRefactorCommit(t *tes
 }
 
 func TestRunCycles_GreenEscalation_RetriesThenEscalates(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 
 	greenInvokeAttempts := 0
@@ -773,6 +787,7 @@ func TestRunCycles_GreenEscalation_RetriesThenEscalates(t *testing.T) {
 }
 
 func TestRunCycles_RefactorFnError_IsTerminal(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 
 	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
@@ -818,6 +833,7 @@ func TestRunCycles_RefactorFnError_IsTerminal(t *testing.T) {
 }
 
 func TestRunCycles_EarlyGreen_OnlyRedValidation_NoRefactor(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 
 	var phases []string
@@ -867,8 +883,11 @@ func TestRunCycles_EarlyGreen_OnlyRedValidation_NoRefactor(t *testing.T) {
 }
 
 func TestRunCycles_RedPass_MixedWithFullCycles(t *testing.T) {
+	t.Parallel(
 	// Test that some criteria can pass red (already implemented) while others
 	// need the full red-green-refactor cycle.
+	)
+
 	orch := newTestOrchestrator()
 
 	redInvocations := 0
@@ -946,6 +965,7 @@ func TestRunCycles_RedPass_MixedWithFullCycles(t *testing.T) {
 }
 
 func TestRunCycles_EarlyGreen_NoRefactorCalledOnUnexpectedPass(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 
 	refactorCalls := 0
@@ -985,6 +1005,7 @@ func TestRunCycles_EarlyGreen_NoRefactorCalledOnUnexpectedPass(t *testing.T) {
 }
 
 func TestRunCycles_WritesPhaseStatusToOutput(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 
 	var buf bytes.Buffer
@@ -1036,6 +1057,7 @@ func TestRunCycles_WritesPhaseStatusToOutput(t *testing.T) {
 }
 
 func TestRunCycles_InitialValidationNonGreen_RunsRefactorAndFinalValidation(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 
 	var phases []string
@@ -1134,6 +1156,7 @@ func TestRunCycles_InitialValidationNonGreen_RunsRefactorAndFinalValidation(t *t
 }
 
 func TestRunCycles_RefactorValidationFailure_RevertContinue_AdvancesToNextCycle(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 
 	var phases []string
@@ -1261,8 +1284,11 @@ func TestRunCycles_RefactorValidationFailure_RevertContinue_AdvancesToNextCycle(
 }
 
 func TestRunCycles_RedPass_ContinuesToNextCriterion(t *testing.T) {
+	t.Parallel(
 	// Verifies that when red validation passes, the inner loop advances
 	// to the next remaining criterion instead of stopping.
+	)
+
 	orch := newTestOrchestrator()
 
 	var specExcerpts []string
@@ -1312,7 +1338,10 @@ func TestRunCycles_RedPass_ContinuesToNextCriterion(t *testing.T) {
 }
 
 func TestRunCycles_RedPass_RespectsMaxCycles(t *testing.T) {
+	t.Parallel(
 	// Even when red passes, MaxCycles is still respected.
+	)
+
 	orch := newTestOrchestrator()
 
 	redInvocations := 0
@@ -1357,6 +1386,7 @@ type phaseLogEntry struct {
 }
 
 func TestLogPhaseFn_FullCycle_LogsExpectedPhases(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 
 	var logged []phaseLogEntry
@@ -1414,6 +1444,7 @@ func TestLogPhaseFn_FullCycle_LogsExpectedPhases(t *testing.T) {
 }
 
 func TestLogPhaseFn_RedSkip_LogsRedAndRedSkip(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 
 	var logged []phaseLogEntry
@@ -1454,6 +1485,7 @@ func TestLogPhaseFn_RedSkip_LogsRedAndRedSkip(t *testing.T) {
 }
 
 func TestLogPhaseFn_NilDoesNotPanic(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 	// logPhaseFn is nil by default in newTestOrchestrator
 
@@ -1494,6 +1526,7 @@ func TestLogPhaseFn_NilDoesNotPanic(t *testing.T) {
 }
 
 func TestLogPhaseFn_RetryAndEscalation_LogsRetryAndEscalate(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 
 	var logged []phaseLogEntry
@@ -1582,6 +1615,7 @@ func TestLogPhaseFn_RetryAndEscalation_LogsRetryAndEscalate(t *testing.T) {
 }
 
 func TestInvokeWithRetryAndEscalation_ReturnsErrorWhenInvokeFnNil(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 	tier := "medium"
 
@@ -1592,6 +1626,7 @@ func TestInvokeWithRetryAndEscalation_ReturnsErrorWhenInvokeFnNil(t *testing.T) 
 }
 
 func TestRunCycles_ReturnsErrorWhenValidateFnNilAtRedPhase(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 
 	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
@@ -1615,6 +1650,7 @@ func TestRunCycles_ReturnsErrorWhenValidateFnNilAtRedPhase(t *testing.T) {
 }
 
 func TestRunCycles_ReturnsErrValidateFnNotConfiguredWhenValidateFnNil(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 
 	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
@@ -1641,6 +1677,7 @@ func TestRunCycles_ReturnsErrValidateFnNotConfiguredWhenValidateFnNil(t *testing
 }
 
 func TestRunGreenPhaseUntilValidated_ReturnsErrorWhenValidateFnNil(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 
 	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
@@ -1660,6 +1697,7 @@ func TestRunGreenPhaseUntilValidated_ReturnsErrorWhenValidateFnNil(t *testing.T)
 }
 
 func TestExecuteRefactorPhase_ReturnsErrorWhenValidateFnNil(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 
 	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
@@ -1683,6 +1721,7 @@ func TestExecuteRefactorPhase_ReturnsErrorWhenValidateFnNil(t *testing.T) {
 }
 
 func TestRunRefactorAndFinalValidation_ReturnsErrValidateFnNotConfiguredWhenValidateFnNil(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 
 	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
@@ -1705,6 +1744,7 @@ func TestRunRefactorAndFinalValidation_ReturnsErrValidateFnNotConfiguredWhenVali
 }
 
 func TestRunFinalValidation_ReturnsErrorWhenValidateFnNil(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 
 	// validateFn is intentionally left nil to trigger the error
@@ -1716,6 +1756,7 @@ func TestRunFinalValidation_ReturnsErrorWhenValidateFnNil(t *testing.T) {
 }
 
 func TestRunOneCycle_ReturnsErrorWhenRenderRedFnNil(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 	// renderRedFn is intentionally left nil to trigger the error
 
@@ -1732,6 +1773,7 @@ func TestRunOneCycle_ReturnsErrorWhenRenderRedFnNil(t *testing.T) {
 }
 
 func TestRunOneCycle_RenderRedFnNilSkipsRedHandoff(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 	readCalls := 0
 	orch.readFileFn = func(path string) (string, error) {
@@ -1756,6 +1798,7 @@ func TestRunOneCycle_RenderRedFnNilSkipsRedHandoff(t *testing.T) {
 }
 
 func TestRunOneCycle_RenderGreenFnNilSkipsGreenHandoff(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 	readCalls := 0
 	orch.readFileFn = func(path string) (string, error) {
@@ -1799,6 +1842,7 @@ func TestRunOneCycle_RenderGreenFnNilSkipsGreenHandoff(t *testing.T) {
 }
 
 func TestRunOneCycle_ReturnsErrorWhenRenderGreenFnNil(t *testing.T) {
+	t.Parallel()
 	orch := newTestOrchestrator()
 
 	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {

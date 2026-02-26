@@ -38,6 +38,7 @@ func (f *fakeStage) Run(ctx context.Context, in pipeline.Input) (pipeline.Output
 // in the config, it is called once after the orchestrator loop completes,
 // so provider routing state is persisted across runs.
 func TestOrchestrator_CallsStateSaverAfterRun(t *testing.T) {
+	t.Parallel()
 	saveCalled := false
 	saver := &fakeStateSaver{saveFn: func() error {
 		saveCalled = true
@@ -84,6 +85,7 @@ func (f *fakeStateSaver) Save() error {
 // definitions passed via OrchestratorConfig are stored and accessible, so the
 // Orchestrator path can estimate costs like the legacy Runner path.
 func TestOrchestrator_ProviderCostDefs_Accessible(t *testing.T) {
+	t.Parallel()
 	defs := map[string]config.ProviderDef{
 		"claude": {Binary: "claude"},
 	}
@@ -115,6 +117,7 @@ func TestOrchestrator_ProviderCostDefs_Accessible(t *testing.T) {
 // the Build stage returns a model name in its Output, the orchestrator copies it
 // into the IterationLog on the success path so audit logs show which model was used.
 func TestOrchestrator_SuccessPath_CarriesBuildModelToIterationLog(t *testing.T) {
+	t.Parallel()
 	var capturedResult *logger.IterationLog
 
 	build := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
@@ -163,6 +166,7 @@ func TestOrchestrator_SuccessPath_CarriesBuildModelToIterationLog(t *testing.T) 
 // haiku bead returns a DurationMs from the Build stage, it is properly propagated to
 // the IterationLog via the router/timer source so haiku iterations are not recorded as 0ms.
 func TestOrchestrator_LowTierHaikuIterationRecordsDuration(t *testing.T) {
+	t.Parallel()
 	var capturedResult *logger.IterationLog
 
 	build := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
@@ -228,6 +232,7 @@ func TestOrchestrator_LowTierHaikuIterationRecordsDuration(t *testing.T) {
 // DurationMs, CostUSD, InputTokens, and OutputTokens from the Build stage output
 // are propagated into the IterationLog on the success path for cost auditing.
 func TestOrchestrator_SuccessPath_CarriesBuildCostAndTokensToIterationLog(t *testing.T) {
+	t.Parallel()
 	var capturedResult *logger.IterationLog
 
 	build := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
@@ -291,6 +296,7 @@ func TestOrchestrator_SuccessPath_CarriesBuildCostAndTokensToIterationLog(t *tes
 // OriginalTier and ActualTier from Build stage output are propagated into
 // IterationLog on the success path.
 func TestOrchestrator_SuccessPath_CarriesBuildTiersToIterationLog(t *testing.T) {
+	t.Parallel()
 	var capturedResult *logger.IterationLog
 
 	build := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
@@ -342,6 +348,7 @@ func TestOrchestrator_SuccessPath_CarriesBuildTiersToIterationLog(t *testing.T) 
 }
 
 func TestOrchestrator_SuccessPath_CarriesBuildTelemetryToIterationLog(t *testing.T) {
+	t.Parallel()
 	var capturedResult *logger.IterationLog
 
 	build := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
@@ -407,6 +414,7 @@ func TestOrchestrator_SuccessPath_CarriesBuildTelemetryToIterationLog(t *testing
 }
 
 func TestOrchestrator_AccumulatesTouchedPackagesAcrossIterations(t *testing.T) {
+	t.Parallel()
 	recorded := make(map[int][]string)
 	gateStage := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
 		recorded[in.Iteration] = append([]string(nil), in.TouchedPackages...)
@@ -463,6 +471,7 @@ func TestOrchestrator_AccumulatesTouchedPackagesAcrossIterations(t *testing.T) {
 // TestOrchestrator_PropagatesGateComplexityRoutingToBuildInput verifies that
 // complexity metadata produced by Gate is copied into the Build stage input.
 func TestOrchestrator_PropagatesGateComplexityRoutingToBuildInput(t *testing.T) {
+	t.Parallel()
 	var buildInput pipeline.Input
 
 	gate := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
@@ -516,6 +525,7 @@ func TestOrchestrator_PropagatesGateComplexityRoutingToBuildInput(t *testing.T) 
 }
 
 func TestOrchestrator_SetsComplexityFromPriority(t *testing.T) {
+	t.Parallel()
 	var captured pipeline.Input
 
 	gate := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
@@ -567,6 +577,7 @@ func TestOrchestrator_SetsComplexityFromPriority(t *testing.T) {
 // that Gate-selected complexity routing metadata is persisted into the success
 // iteration log payload alongside tier telemetry.
 func TestOrchestrator_SuccessPath_CarriesComplexityRoutingToIterationLog(t *testing.T) {
+	t.Parallel()
 	var capturedResult *logger.IterationLog
 
 	gate := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
@@ -636,6 +647,7 @@ func TestOrchestrator_SuccessPath_CarriesComplexityRoutingToIterationLog(t *test
 // TestOrchestrator_ValidationFailure_CarriesComplexityRoutingToIterationLog verifies
 // that failure-path iteration log payloads still include Gate-derived complexity metadata.
 func TestOrchestrator_ValidationFailure_CarriesComplexityRoutingToIterationLog(t *testing.T) {
+	t.Parallel()
 	var capturedResult *logger.IterationLog
 
 	gate := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
@@ -705,6 +717,7 @@ func TestOrchestrator_ValidationFailure_CarriesComplexityRoutingToIterationLog(t
 // failures preserve actionable error details in the iteration log payload,
 // including the failing TDD phase when present in the error text.
 func TestOrchestrator_BuildFailure_RecordsErrorTelemetry(t *testing.T) {
+	t.Parallel()
 	var capturedResult *logger.IterationLog
 
 	build := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
@@ -754,6 +767,7 @@ func TestOrchestrator_BuildFailure_RecordsErrorTelemetry(t *testing.T) {
 // removed as part of the architecture migration to Orchestrator. All loop execution
 // now flows through Orchestrator.Run. This test prevents accidental reintroduction.
 func TestRunner_RunMethod_Removed(t *testing.T) {
+	t.Parallel()
 	rt := reflect.TypeOf(&Runner{})
 	if _, found := rt.MethodByName("Run"); found {
 		t.Error("Runner still has a Run method; the legacy run loop should be removed in favour of Orchestrator.Run")
@@ -765,8 +779,11 @@ func TestRunner_RunMethod_Removed(t *testing.T) {
 // The removal is enforced at compile time: re-introducing Deps would require adding it back
 // to this package, and any code referencing it would cause compilation errors elsewhere.
 func TestNewRunnerWithDeps_Removed(t *testing.T) {
+	t.Parallel(
 	// Deps type and NewRunnerWithDeps constructor are gone; nothing to assert here.
 	// The Runner type still exists for TDD orchestration but no longer exposes Run().
+	)
+
 	_ = reflect.TypeOf(&Runner{}) // ensure Runner itself is still present
 }
 
@@ -774,6 +791,7 @@ func TestNewRunnerWithDeps_Removed(t *testing.T) {
 // passes the deadline to the StatusWriter function so the constructor's closure
 // can compute timeBudgetMinutes instead of hardcoding 0.
 func TestOrchestrator_StatusWriter_ReceivesDeadline(t *testing.T) {
+	t.Parallel()
 	var capturedDeadline time.Time
 
 	deadline := time.Now().Add(30 * time.Minute)
@@ -815,6 +833,7 @@ func TestOrchestrator_StatusWriter_ReceivesDeadline(t *testing.T) {
 }
 
 func TestOrchestrator_StopsBeforeDeadline(t *testing.T) {
+	t.Parallel()
 	deadline := time.Now().Add(-1 * time.Second)
 
 	beadCalls := 0
@@ -847,6 +866,7 @@ func TestOrchestrator_StopsBeforeDeadline(t *testing.T) {
 // validate stage returns Block with ValidationFailures, the orchestrator sets
 // FailureOutput on the epilogue Input so the failure learner receives it.
 func TestOrchestrator_ValidationFailure_SetsFailureOutput(t *testing.T) {
+	t.Parallel()
 	var capturedInput pipeline.Input
 
 	gate := &fakeStage{}
@@ -899,6 +919,7 @@ func TestOrchestrator_ValidationFailure_SetsFailureOutput(t *testing.T) {
 // resolves bead IDs via GetBeadByID and executes them in the exact caller-provided
 // order, independent of queue ordering.
 func TestOrchestrator_RunSequence_UsesCallerProvidedOrder(t *testing.T) {
+	t.Parallel()
 	var buildOrder []string
 	var getByIDCalls []string
 	queueCalls := 0
@@ -945,6 +966,7 @@ func TestOrchestrator_RunSequence_UsesCallerProvidedOrder(t *testing.T) {
 // that RunSequence does not resolve bead IDs beyond maxIterations, preserving the
 // same iteration cap semantics as queue-based Run.
 func TestOrchestrator_RunSequence_RespectsMaxIterationsWithoutExtraResolution(t *testing.T) {
+	t.Parallel()
 	var getByIDCalls []string
 	var buildOrder []string
 
@@ -983,7 +1005,10 @@ func TestOrchestrator_RunSequence_RespectsMaxIterationsWithoutExtraResolution(t 
 }
 
 func TestOrchestrator_PostRunCompletenessAssertion_FailsWhenEfficiencyDataIncomplete(t *testing.T) {
+	t.Parallel(
 	// Create a temporary logs directory
+	)
+
 	logsDir := t.TempDir()
 
 	// Create log file with iterations but missing efficiency data
@@ -1022,6 +1047,7 @@ func TestOrchestrator_PostRunCompletenessAssertion_FailsWhenEfficiencyDataIncomp
 }
 
 func TestOrchestrator_PostRunCompletenessAssertion_FailsWhenLogRowsMissing(t *testing.T) {
+	t.Parallel()
 	logsDir := t.TempDir()
 
 	beadCalls := 0
@@ -1059,7 +1085,10 @@ func TestOrchestrator_PostRunCompletenessAssertion_FailsWhenLogRowsMissing(t *te
 // a CoverageTracker is wired into the orchestrator, it transitions through states
 // during a simulated TDD cycle, tracking acceptance criteria coverage.
 func TestOrchestrator_CoverageTracker_TransitionsStatesAcrossTDDCycle(t *testing.T) {
+	t.Parallel(
 	// Create criteria for a simple feature.
+	)
+
 	criteria := []coverage.Criterion{
 		{Number: 1, Text: "System accepts valid input"},
 		{Number: 2, Text: "System rejects invalid input"},
@@ -1123,6 +1152,7 @@ func TestOrchestrator_CoverageTracker_TransitionsStatesAcrossTDDCycle(t *testing
 // merges the new run stats into it, and updates the timestamp. Pre-existing
 // entries from prior runs are preserved (not overwritten).
 func TestOrchestrator_MergesGlobalStatsPreservingExistingData(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	logsDir := dir + "/logs"
 	statsPath := dir + "/stats.json"
@@ -1273,7 +1303,10 @@ func writeOrchestratorTestLogFile(t *testing.T, dir string, runID string, logs [
 // that when the rolling_first_pass_success_rate drops below 80% with at least 30 iterations
 // in the window, a warning is logged and the state is marked to trigger retro on next run.
 func TestOrchestrator_ControlLimitAlert_SetsRetroFlagWhenFirstPassSuccessBelowEightyPercent(t *testing.T) {
+	t.Parallel(
 	// Create temp directories
+	)
+
 	logsDir := t.TempDir()
 	metricsDir := t.TempDir()
 	stateDir := t.TempDir()
@@ -1357,6 +1390,7 @@ func TestOrchestrator_ControlLimitAlert_SetsRetroFlagWhenFirstPassSuccessBelowEi
 // that the control limit alert is NOT triggered when the success rate equals 80%
 // (the threshold is strictly less than).
 func TestOrchestrator_ControlLimitAlert_NotTriggeredWhenSuccessRateAtThreshold(t *testing.T) {
+	t.Parallel()
 	metricsDir := t.TempDir()
 	stateDir := t.TempDir()
 
@@ -1418,6 +1452,7 @@ func TestOrchestrator_ControlLimitAlert_NotTriggeredWhenSuccessRateAtThreshold(t
 // that the control limit alert is NOT triggered when the window has fewer
 // than 30 iterations, even if success rate is low.
 func TestOrchestrator_ControlLimitAlert_NotTriggeredWhenWindowTooSmall(t *testing.T) {
+	t.Parallel()
 	metricsDir := t.TempDir()
 	stateDir := t.TempDir()
 
@@ -1478,6 +1513,7 @@ func TestOrchestrator_ControlLimitAlert_NotTriggeredWhenWindowTooSmall(t *testin
 // TestOrchestrator_ControlLimitAlert_TriggeredWhenFirstPassBelowEightyPercent ensures
 // the alert fires when first-pass success dips below 80% in a full 30-iteration window.
 func TestOrchestrator_ControlLimitAlert_TriggeredWhenFirstPassBelowEightyPercent(t *testing.T) {
+	t.Parallel()
 	metricsDir := t.TempDir()
 	stateDir := t.TempDir()
 
@@ -1537,6 +1573,7 @@ func TestOrchestrator_ControlLimitAlert_TriggeredWhenFirstPassBelowEightyPercent
 // the control limit alert is triggered, a warning message with the new threshold
 // and review guidance is logged to the output.
 func TestOrchestrator_ControlLimitAlert_LogsWarningWhenTriggered(t *testing.T) {
+	t.Parallel()
 	metricsDir := t.TempDir()
 	stateDir := t.TempDir()
 
@@ -1606,7 +1643,10 @@ func TestOrchestrator_ControlLimitAlert_LogsWarningWhenTriggered(t *testing.T) {
 // incremented so that scope-blocked beads and successfully completed beads have
 // different (non-overlapping) iteration numbers.
 func TestOrchestrator_ScopeGateBlockedBeads_IterationCounterConsistency(t *testing.T) {
+	t.Parallel(
 	// Simulate a sequence: success, blocked, success to verify iteration counters don't overlap
+	)
+
 	capturedLogs := []*logger.IterationLog{}
 
 	gateStage := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {

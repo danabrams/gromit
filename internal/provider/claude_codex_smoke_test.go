@@ -13,6 +13,7 @@ import (
 // TestClaudeNonStreamSuccess exercises the Claude provider with a real CLI
 // invocation in non-stream mode when CLAUDE_SMOKE=1.
 func TestClaudeNonStreamSuccess(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("CLAUDE_SMOKE") != "1" {
 		t.Skip("CLAUDE_SMOKE=1 not set")
 	}
@@ -46,6 +47,7 @@ func TestClaudeNonStreamSuccess(t *testing.T) {
 // TestClaudeStreamSuccess exercises the Claude provider with a real CLI
 // invocation in stream mode when CLAUDE_SMOKE=1.
 func TestClaudeStreamSuccess(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("CLAUDE_SMOKE") != "1" {
 		t.Skip("CLAUDE_SMOKE=1 not set")
 	}
@@ -83,6 +85,7 @@ func TestClaudeStreamSuccess(t *testing.T) {
 // TestCodexNonStreamSuccess exercises the Codex provider with a real CLI
 // invocation in non-stream mode when CODEX_SMOKE=1.
 func TestCodexNonStreamSuccess(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("CODEX_SMOKE") != "1" {
 		t.Skip("CODEX_SMOKE=1 not set")
 	}
@@ -113,6 +116,7 @@ func TestCodexNonStreamSuccess(t *testing.T) {
 // TestCodexStreamSuccess exercises the Codex provider with a real CLI
 // invocation in stream mode when CODEX_SMOKE=1.
 func TestCodexStreamSuccess(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("CODEX_SMOKE") != "1" {
 		t.Skip("CODEX_SMOKE=1 not set")
 	}
@@ -147,6 +151,7 @@ func TestCodexStreamSuccess(t *testing.T) {
 // TestClaudeFailurePath exercises the Claude provider failure behavior
 // when CLAUDE_SMOKE=1. Tests that failures are properly reported.
 func TestClaudeFailurePath(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("CLAUDE_SMOKE") != "1" {
 		t.Skip("CLAUDE_SMOKE=1 not set")
 	}
@@ -176,6 +181,7 @@ func TestClaudeFailurePath(t *testing.T) {
 // TestCodexFailurePath exercises the Codex provider failure behavior
 // when CODEX_SMOKE=1. Tests that failures are properly reported.
 func TestCodexFailurePath(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("CODEX_SMOKE") != "1" {
 		t.Skip("CODEX_SMOKE=1 not set")
 	}

@@ -9,6 +9,7 @@ import (
 )
 
 func TestCodexProviderRunSetsWaitDelay(t *testing.T) {
+
 	tempDir := t.TempDir()
 	mockBinary := filepath.Join(tempDir, "codex")
 	mockScript := "#!/bin/sh\ncat >/dev/null\n"

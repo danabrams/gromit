@@ -172,8 +172,11 @@ func newTestConfig() *config.Config {
 // --- RunLight tests ---
 
 func TestRunLight_ReturnsPassingReview(t *testing.T) {
+	t.Parallel(
 	// When the provider returns a passing review, RunLight should return
 	// a ReviewResult with Passed=true and the summary from the output.
+	)
+
 	cfg := newTestConfig()
 
 	prov := &mockProvider{
@@ -216,8 +219,11 @@ func TestRunLight_ReturnsPassingReview(t *testing.T) {
 }
 
 func TestRunLight_SkipsWhenDeadlineExpired(t *testing.T) {
+	t.Parallel(
 	// When the deadline has already passed, RunLight should return nil, nil
 	// without invoking the provider.
+	)
+
 	cfg := newTestConfig()
 	providerCalled := false
 
@@ -249,8 +255,11 @@ func TestRunLight_SkipsWhenDeadlineExpired(t *testing.T) {
 }
 
 func TestRunLight_SkipsWhenNoDiff(t *testing.T) {
+	t.Parallel(
 	// When the git diff returns empty, RunLight should return nil, nil
 	// without invoking the provider.
+	)
+
 	cfg := newTestConfig()
 
 	rev := NewReviewer(cfg, &mockRouter{}, nil, &mockPromptRenderer{}, func(string) (string, error) {
@@ -268,8 +277,11 @@ func TestRunLight_SkipsWhenNoDiff(t *testing.T) {
 }
 
 func TestRunLight_UsesCrossReviewWhenConfigured(t *testing.T) {
+	t.Parallel(
 	// When routing.phase_preferences["review"] == "cross" and a buildProvider
 	// is specified, RunLight should call SelectCross instead of Select.
+	)
+
 	cfg := newTestConfig()
 	cfg.Routing.PhasePreferences["review"] = "cross"
 
@@ -312,8 +324,11 @@ func TestRunLight_UsesCrossReviewWhenConfigured(t *testing.T) {
 }
 
 func TestRunLight_LoadsSpecFromBeadOrParentLabels(t *testing.T) {
+	t.Parallel(
 	// When the bead or parent has a spec label, RunLight should load the spec
 	// and include it in the ReviewContext passed to the renderer.
+	)
+
 	cfg := newTestConfig()
 	prov := &mockProvider{name: "test"}
 
@@ -360,8 +375,11 @@ func TestRunLight_LoadsSpecFromBeadOrParentLabels(t *testing.T) {
 // --- SelectReviewTier tests ---
 
 func TestSelectReviewTier_OpusBuildReturnsHigh(t *testing.T) {
+	t.Parallel(
 	// When buildModel is "opus", SelectReviewTier should always return "high"
 	// regardless of the bead's priority or labels.
+	)
+
 	cfg := newTestConfig()
 	b := &bead.Bead{ID: "test-tier-001", Priority: 2} // P2 would normally be low
 
@@ -372,9 +390,12 @@ func TestSelectReviewTier_OpusBuildReturnsHigh(t *testing.T) {
 }
 
 func TestSelectReviewTier_NonOpusDelegatesToEscalation(t *testing.T) {
+	t.Parallel(
 	// When buildModel is not "opus", SelectReviewTier should return the tier
 	// derived from the bead's priority via config. For a P1 bead with
 	// cfg.Models.P1 = "medium", the expected tier is "medium".
+	)
+
 	cfg := newTestConfig()
 	cfg.Models.P1 = provider.TierMedium
 
@@ -389,8 +410,11 @@ func TestSelectReviewTier_NonOpusDelegatesToEscalation(t *testing.T) {
 // --- ApplyResult tests ---
 
 func TestApplyResult_CreatesBeadsFromProposals(t *testing.T) {
+	t.Parallel(
 	// When a ReviewResult has BeadsToCreate, ApplyResult should create them
 	// with the "from-review" label prepended, and return the count.
+	)
+
 	cfg := newTestConfig()
 	beadClient := &mockBeadClient{}
 
@@ -431,8 +455,11 @@ func TestApplyResult_CreatesBeadsFromProposals(t *testing.T) {
 }
 
 func TestApplyResult_CreatesBacklogItemsAsP2(t *testing.T) {
+	t.Parallel(
 	// BacklogItems should be created as P2 beads with both "from-review"
 	// and "backlog" labels, combining description and reason.
+	)
+
 	cfg := newTestConfig()
 	beadClient := &mockBeadClient{}
 
@@ -476,7 +503,10 @@ func TestApplyResult_CreatesBacklogItemsAsP2(t *testing.T) {
 }
 
 func TestApplyResult_NilResultReturnsZero(t *testing.T) {
+	t.Parallel(
 	// When result is nil, ApplyResult should return 0, 0 without panicking.
+	)
+
 	cfg := newTestConfig()
 	rev := NewReviewer(cfg, nil, &mockBeadClient{}, nil, nil, nil)
 
@@ -487,8 +517,11 @@ func TestApplyResult_NilResultReturnsZero(t *testing.T) {
 }
 
 func TestApplyResult_DeduplicatesFromReviewLabel(t *testing.T) {
+	t.Parallel(
 	// When a proposal already has "from-review" in its labels, ApplyResult
 	// should not duplicate it.
+	)
+
 	cfg := newTestConfig()
 	beadClient := &mockBeadClient{}
 
@@ -519,8 +552,11 @@ func TestApplyResult_DeduplicatesFromReviewLabel(t *testing.T) {
 }
 
 func TestApplyResult_ContinuesOnCreateError(t *testing.T) {
+	t.Parallel(
 	// When creating one bead fails, ApplyResult should continue creating
 	// the remaining beads and not count the failed one.
+	)
+
 	cfg := newTestConfig()
 	callCount := 0
 	beadClient := &mockBeadClient{
@@ -551,8 +587,11 @@ func TestApplyResult_ContinuesOnCreateError(t *testing.T) {
 // --- WriteReviewLog tests ---
 
 func TestWriteReviewLog_LogsCorrectFields(t *testing.T) {
+	t.Parallel(
 	// WriteReviewLog should call the IterationLogger with a ReviewLog
 	// containing all the correct field values.
+	)
+
 	cfg := newTestConfig()
 	mockLogger := &mockIterationLogger{}
 
@@ -602,7 +641,10 @@ func TestWriteReviewLog_LogsCorrectFields(t *testing.T) {
 }
 
 func TestWriteReviewLog_NilResultIsNoOp(t *testing.T) {
+	t.Parallel(
 	// When result is nil, WriteReviewLog should not panic and should not log.
+	)
+
 	cfg := newTestConfig()
 	mockLogger := &mockIterationLogger{}
 
@@ -619,6 +661,7 @@ func TestWriteReviewLog_NilResultIsNoOp(t *testing.T) {
 // sub-millisecond (e.g., 500 microseconds), it is rounded up to at least 1ms in the log
 // so review iterations are not recorded as 0ms.
 func TestWriteReviewLog_RoundsUpSubMillisecondDuration(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	mockLogger := &mockIterationLogger{}
 
@@ -644,6 +687,7 @@ func TestWriteReviewLog_RoundsUpSubMillisecondDuration(t *testing.T) {
 // TestReviewerUsesBuildReviewBeadLabels verifies the reviewer package builds bead labels
 // with the shared helper that deduplicates the from-review tag.
 func TestReviewerUsesBuildReviewBeadLabels(t *testing.T) {
+	t.Parallel()
 	labels := review.BuildReviewBeadLabels([]string{"bug", "urgent"})
 	if len(labels) != 3 {
 		t.Errorf("got %d labels, want 3", len(labels))

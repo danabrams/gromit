@@ -9,8 +9,11 @@ import (
 )
 
 func TestConfigModelsUsesModelsConfigType(t *testing.T) {
+	t.Parallel(
 	// Verify that Config.Models uses ModelsConfig (not ModelConfig).
 	// This mirrors the pattern in invocation_timeout_acceptance_test.go.
+	)
+
 	cfg := &config.Config{
 		Models: config.ModelsConfig{
 			P1: "sonnet",

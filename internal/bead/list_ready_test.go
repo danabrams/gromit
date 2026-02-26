@@ -6,6 +6,7 @@ import (
 )
 
 func TestListReadyNilClient(t *testing.T) {
+	t.Parallel()
 	var c *Client
 	_, err := c.ListReady()
 	if err == nil {
@@ -17,6 +18,7 @@ func TestListReadyNilClient(t *testing.T) {
 }
 
 func TestListReadyParsesResults(t *testing.T) {
+	t.Parallel()
 	c := &Client{
 		RunFn: func(args ...string) (string, error) {
 			want := []string{"list", "--json", "--status", "ready", "--sort", "priority", "--limit", "0"}
@@ -45,6 +47,7 @@ func TestListReadyParsesResults(t *testing.T) {
 }
 
 func TestListReadyEmptyOutput(t *testing.T) {
+	t.Parallel()
 	c := &Client{
 		RunFn: func(args ...string) (string, error) {
 			return "[]", nil

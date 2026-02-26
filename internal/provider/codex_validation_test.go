@@ -9,6 +9,7 @@ import (
 )
 
 func TestCodexProviderRunValidationRunsPrompt(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 	mockBinary := filepath.Join(tempDir, "codex")
 	mockScript := `#!/bin/bash
@@ -44,6 +45,7 @@ exit 0
 }
 
 func TestCodexProviderValidationMarkerDetection(t *testing.T) {
+	t.Parallel()
 	cp := &CodexProvider{}
 
 	tests := []struct {
@@ -79,6 +81,7 @@ func TestCodexProviderValidationMarkerDetection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := cp.IsValidationPassed(tt.result)
 			if got != tt.expected {
 				t.Fatalf("IsValidationPassed() = %v, want %v (output=%q)", got, tt.expected, tt.result.Output)
@@ -88,6 +91,7 @@ func TestCodexProviderValidationMarkerDetection(t *testing.T) {
 }
 
 func TestCodexProviderRunValidationRejectsInvalidCommands(t *testing.T) {
+	t.Parallel()
 	cp := NewCodexProvider("codex", nil, map[string]string{TierLow: "gpt-4o-mini"})
 
 	tests := []struct {
@@ -114,6 +118,7 @@ func TestCodexProviderRunValidationRejectsInvalidCommands(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result, err := cp.RunValidation(context.Background(), tt.commands, TierLow, t.TempDir())
 			if err == nil {
 				t.Fatalf("RunValidation() error = nil, want error containing %q", tt.wantErr)

@@ -3,6 +3,7 @@ package bead
 import "testing"
 
 func TestListReadyWork_UsesReadyCommand(t *testing.T) {
+	t.Parallel()
 	c := &Client{
 		RunFn: func(args ...string) (string, error) {
 			want := []string{"ready", "--json", "--sort", "priority", "--limit", "0"}

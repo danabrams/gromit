@@ -9,6 +9,7 @@ import (
 // TestReady_UsesLimit3 verifies that Ready() calls bd with --limit 3 instead of --limit 10.
 // This reduces the number of beads fetched and parsed when filtering out epics.
 func TestReady_UsesLimit3(t *testing.T) {
+	t.Parallel()
 	var capturedArgs []string
 	c := &Client{
 		RunFn: func(args ...string) (string, error) {
@@ -51,6 +52,7 @@ func TestReady_UsesLimit3(t *testing.T) {
 // TestReadyWithLabel_UsesLimit3 verifies that ReadyWithLabel() uses --limit 3
 // for consistency with Ready().
 func TestReadyWithLabel_UsesLimit3(t *testing.T) {
+	t.Parallel()
 	var capturedArgs []string
 	c := &Client{
 		RunFn: func(args ...string) (string, error) {
@@ -87,6 +89,7 @@ func TestReadyWithLabel_UsesLimit3(t *testing.T) {
 // TestReady_StillFiltersEpicsCorrectly verifies that reducing the batch size
 // from 10 to 3 does not break epic filtering behavior.
 func TestReady_StillFiltersEpicsCorrectly(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name         string
 		bdOutput     string
@@ -119,6 +122,7 @@ func TestReady_StillFiltersEpicsCorrectly(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			c := &Client{
 				RunFn: func(args ...string) (string, error) {
 					// Verify --limit 3
@@ -161,9 +165,11 @@ func TestReady_StillFiltersEpicsCorrectly(t *testing.T) {
 // is intentionally NOT changed by this optimization. It fetches IDs for display
 // purposes, so keeping --limit 10 is acceptable there.
 func TestListReadyIDs_NotAffectedByReadyOptimization(t *testing.T) {
+	t.Parallel(
 	// This test verifies that ListReadyIDs still uses --limit 10 because it's
 	// fetching a list of IDs for display, not filtering for a single next bead.
 	// The optimization only applies to Ready() which returns one bead.
+	)
 
 	var capturedArgs []string
 	c := &Client{

@@ -9,6 +9,7 @@ import (
 // TestTestLogsDir_ExistsAtRepoRoot verifies that test-logs/ exists at the repo
 // root and is safe to create idempotently via os.MkdirAll.
 func TestTestLogsDir_ExistsAtRepoRoot(t *testing.T) {
+	t.Parallel()
 	root, err := findProjectRoot()
 	if err != nil {
 		t.Fatalf("could not find project root: %v", err)
@@ -17,6 +18,7 @@ func TestTestLogsDir_ExistsAtRepoRoot(t *testing.T) {
 	testLogsDir := filepath.Join(root, "test-logs")
 
 	t.Run("directory exists", func(t *testing.T) {
+		t.Parallel()
 		info, err := os.Stat(testLogsDir)
 		if err != nil {
 			t.Fatalf("test-logs/ does not exist at repo root %q: %v", root, err)
@@ -27,12 +29,14 @@ func TestTestLogsDir_ExistsAtRepoRoot(t *testing.T) {
 	})
 
 	t.Run("MkdirAll is safe when directory already exists", func(t *testing.T) {
+		t.Parallel()
 		if err := os.MkdirAll(testLogsDir, 0o755); err != nil {
 			t.Errorf("os.MkdirAll failed on existing directory: %v", err)
 		}
 	})
 
 	t.Run("directory is writable", func(t *testing.T) {
+		t.Parallel()
 		tmp, err := os.CreateTemp(testLogsDir, "write-check-*.tmp")
 		if err != nil {
 			t.Fatalf("test-logs/ is not writable: %v", err)

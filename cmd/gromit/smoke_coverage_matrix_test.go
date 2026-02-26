@@ -72,8 +72,11 @@ func listCmdUnitTests(t *testing.T, projectRoot string) map[string]struct{} {
 }
 
 func TestCmdSmokeCoverageMatrix_CaseDecisionsIncludeRationale(t *testing.T) {
+	t.Parallel(
 	// Expected failure: SmokeCoverageMatrixEntry annotations and parseSmokeCoverageMatrixLine
 	// conventions do not exist in cmd acceptance tests yet.
+	)
+
 	projectRoot := loadProjectRoot(t)
 
 	for _, rel := range cmdAcceptanceTestFiles() {
@@ -94,8 +97,11 @@ func TestCmdSmokeCoverageMatrix_CaseDecisionsIncludeRationale(t *testing.T) {
 }
 
 func TestCmdSmokeCoverageMatrix_KeepSetIsHighValueE2E(t *testing.T) {
+	t.Parallel(
 	// Expected failure: cmdSmokeCoverageMatrixFromAnnotations has not been applied,
 	// so keep/move decisions for high-value E2E outcomes are not encoded yet.
+	)
+
 	projectRoot := loadProjectRoot(t)
 
 	expectedKeep := map[string]bool{
@@ -129,8 +135,11 @@ func TestCmdSmokeCoverageMatrix_KeepSetIsHighValueE2E(t *testing.T) {
 }
 
 func TestCmdSmokeCoverageMatrix_MovedCasesPointToConcreteUnitSuites(t *testing.T) {
+	t.Parallel(
 	// Expected failure: MoveToUnitSuiteDestination mappings and moveCoverageDestinations
 	// are not defined yet for cmd acceptance cases.
+	)
+
 	projectRoot := loadProjectRoot(t)
 	unitTests := listCmdUnitTests(t, projectRoot)
 

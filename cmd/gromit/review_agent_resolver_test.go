@@ -7,6 +7,7 @@ import (
 )
 
 func TestCliAgentResolver_UsesFlagOverrideParam(t *testing.T) {
+	t.Parallel()
 	resolver := agents.NewResolver(nil)
 
 	agent, err := resolver.Resolve("review", "codex", false)
@@ -20,6 +21,7 @@ func TestCliAgentResolver_UsesFlagOverrideParam(t *testing.T) {
 }
 
 func TestCmdAgentResolver_PropagatesResolveError(t *testing.T) {
+	t.Parallel()
 	resolver := agents.NewResolver(nil)
 
 	_, err := resolver.Resolve("review", "does-not-exist", false)

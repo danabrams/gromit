@@ -10,6 +10,7 @@ import (
 )
 
 func TestNewConfigStuckPolicy_NotNil(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 
 	p := policy.NewConfigStuckPolicy(cfg)
@@ -20,6 +21,7 @@ func TestNewConfigStuckPolicy_NotNil(t *testing.T) {
 }
 
 func TestNewConfigStuckPolicy_UsesThreshold(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Loop: config.LoopConfig{
 			StuckBeadThreshold: 3,
@@ -40,6 +42,7 @@ func TestNewConfigStuckPolicy_UsesThreshold(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			stats := map[string]logger.BeadStats{
 				b.ID: {Failures: tc.failures},
 			}
@@ -51,6 +54,7 @@ func TestNewConfigStuckPolicy_UsesThreshold(t *testing.T) {
 }
 
 func TestThresholdStuckPolicy_IsStuck_Boundary(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		failures  int
@@ -64,6 +68,7 @@ func TestThresholdStuckPolicy_IsStuck_Boundary(t *testing.T) {
 	b := &bead.Bead{ID: "bead-1"}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			p := policy.NewThresholdStuckPolicy(tc.threshold)
 			stats := map[string]logger.BeadStats{
 				b.ID: {Failures: tc.failures},
@@ -76,6 +81,7 @@ func TestThresholdStuckPolicy_IsStuck_Boundary(t *testing.T) {
 }
 
 func TestThresholdStuckPolicy_IsStuck_DisabledThreshold(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		threshold int
@@ -87,6 +93,7 @@ func TestThresholdStuckPolicy_IsStuck_DisabledThreshold(t *testing.T) {
 	b := &bead.Bead{ID: "bead-1"}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			p := policy.NewThresholdStuckPolicy(tc.threshold)
 			stats := map[string]logger.BeadStats{
 				b.ID: {Failures: 10},
@@ -99,6 +106,7 @@ func TestThresholdStuckPolicy_IsStuck_DisabledThreshold(t *testing.T) {
 }
 
 func TestThresholdStuckPolicy_IsStuck_MissingStats(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name  string
 		stats map[string]logger.BeadStats
@@ -111,6 +119,7 @@ func TestThresholdStuckPolicy_IsStuck_MissingStats(t *testing.T) {
 	p := policy.NewThresholdStuckPolicy(3)
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			if got := p.IsStuck(b, tc.stats); got {
 				t.Errorf("IsStuck() = true, want false")
 			}

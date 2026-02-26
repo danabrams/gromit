@@ -15,8 +15,10 @@ import (
 // instead of the removed NewRetro constructor
 // Expected failure: runRetro still calls retro.NewRetro(cfg, gromitDir)
 func TestRunRetro_UsesNewRetroWithProvider(t *testing.T) {
+	t.Parallel(
 	// This test verifies that the call site in cmd/gromit/main.go has been updated
 	// to construct a Provider and pass it to NewRetroWithProvider
+	)
 
 	tmpDir := t.TempDir()
 
@@ -40,8 +42,10 @@ func TestRunRetro_UsesNewRetroWithProvider(t *testing.T) {
 // TestRunRetro_ConstructsProviderFromConfig verifies that runRetro creates a Provider
 // from the config before calling NewRetroWithProvider
 func TestRunRetro_ConstructsProviderFromConfig(t *testing.T) {
+	t.Parallel(
 	// Migration complete: runRetro now creates claudeClient and wraps it in ClaudeProvider
 	// inline, using the pattern from runner.go
+	)
 
 	// The migration uses inline provider creation instead of a helper
 	// This pattern matches what runner.go does
@@ -52,7 +56,10 @@ func TestRunRetro_ConstructsProviderFromConfig(t *testing.T) {
 // not config, after migration
 // Expected failure: Retro still has NewRetro(cfg, gromitDir) constructor
 func TestRetro_AcceptsOnlyProvider(t *testing.T) {
+	t.Parallel(
 	// NewRetro has been removed - migration complete
+	)
+
 	t.Log("NewRetro has been successfully removed")
 
 	// Only NewRetroWithProvider exists now - migration complete
@@ -62,22 +69,31 @@ func TestRetro_AcceptsOnlyProvider(t *testing.T) {
 // TestProviderFromConfig_CreatesClaudeProvider documents that provider creation
 // is done inline in runRetro, not via a helper function
 func TestProviderFromConfig_CreatesClaudeProvider(t *testing.T) {
+	t.Parallel(
 	// Migration complete: provider creation is done inline in runRetro
 	// using the pattern: claude.NewClient -> provider.NewClaudeProvider
+	)
+
 	t.Log("Provider creation is now done inline in runRetro")
 }
 
 // TestProviderFromConfig_ErrorsOnNilConfig documents that provider creation
 // is done inline in runRetro, not via a helper function
 func TestProviderFromConfig_ErrorsOnNilConfig(t *testing.T) {
+	t.Parallel(
 	// Migration complete: no helper function needed
+	)
+
 	t.Log("Provider creation is now done inline in runRetro")
 }
 
 // TestRunRetro_Integration_UsesProvider verifies end-to-end that runRetro uses Provider
 // Expected failure: runRetro still uses old NewRetro constructor
 func TestRunRetro_Integration_UsesProvider(t *testing.T) {
+	t.Parallel(
 	// Migration complete: runRetro creates provider inline
+	)
+
 	t.Log("Migration complete: runRetro now creates provider inline and calls NewRetroWithProvider")
 }
 

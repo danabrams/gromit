@@ -7,10 +7,13 @@ import (
 )
 
 func TestWorktreeMergeConfigHelpersSuffice(t *testing.T) {
+	t.Parallel(
 	// Verify worktree merge test setup works via helpers only,
 	// without a direct config import in the test file.
 	// worktree_merge_acceptance_test.go has an unused config import
 	// that prevents this package from compiling.
+	)
+
 	cfg := baseWorktreeMergeConfig()
 	configureWorktreeMerge(cfg, true, "warn")
 	cfg.SetDefaults()

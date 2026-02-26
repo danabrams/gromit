@@ -7,12 +7,13 @@ import (
 // TestModelProviderAttributionKnownMappings tests that known model names
 // are correctly mapped to their owning providers.
 func TestModelProviderAttributionKnownMappings(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
-		name         string
-		model        string
-		provider     string
-		wantValid    bool
-		wantReason   string
+		name       string
+		model      string
+		provider   string
+		wantValid  bool
+		wantReason string
 	}{
 		// Claude provider with Claude models
 		{
@@ -76,6 +77,7 @@ func TestModelProviderAttributionKnownMappings(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			valid, reason := ValidateModelProviderAttribution(tt.model, tt.provider)
 			if valid != tt.wantValid {
 				t.Errorf("ValidateModelProviderAttribution(%q, %q) valid = %v, want %v",
@@ -91,6 +93,7 @@ func TestModelProviderAttributionKnownMappings(t *testing.T) {
 
 // TestModelProviderAttributionEmptyData tests handling of empty/incomplete data.
 func TestModelProviderAttributionEmptyData(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		model     string
@@ -119,6 +122,7 @@ func TestModelProviderAttributionEmptyData(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			valid, _ := ValidateModelProviderAttribution(tt.model, tt.provider)
 			if valid != tt.wantValid {
 				t.Errorf("ValidateModelProviderAttribution(%q, %q) = %v, want %v",
@@ -131,6 +135,7 @@ func TestModelProviderAttributionEmptyData(t *testing.T) {
 // TestModelProviderAttributionCaseInsensitive tests case-insensitive matching
 // for model and provider names.
 func TestModelProviderAttributionCaseInsensitive(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		model     string
@@ -159,6 +164,7 @@ func TestModelProviderAttributionCaseInsensitive(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			valid, _ := ValidateModelProviderAttribution(tt.model, tt.provider)
 			if valid != tt.wantValid {
 				t.Errorf("ValidateModelProviderAttribution(%q, %q) = %v, want %v",

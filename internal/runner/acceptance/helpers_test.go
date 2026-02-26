@@ -588,6 +588,7 @@ func configureWorktreeMerge(cfg *config.Config, enabled bool, mode string) {
 var _ = time.Now
 
 func TestMockPromptRendererBuildContextPassesPhase(t *testing.T) {
+	t.Parallel()
 	var capturedPhase string
 	m := &mockPromptRenderer{
 		BuildContextFn: func(b *bead.Bead, parent *bead.Bead, iteration int, model string, phase string) (*prompt.Context, error) {

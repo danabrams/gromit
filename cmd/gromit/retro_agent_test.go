@@ -13,6 +13,7 @@ import (
 )
 
 func TestRetroCommandHasAgentFlag(t *testing.T) {
+	t.Parallel()
 	flag := retroCmd.Flags().Lookup("agent")
 	if flag == nil {
 		t.Fatal("retro command missing --agent flag")
@@ -23,6 +24,7 @@ func TestRetroCommandHasAgentFlag(t *testing.T) {
 }
 
 func TestRetroCommandHasChooseAgentFlag(t *testing.T) {
+	t.Parallel()
 	flag := retroCmd.Flags().Lookup("choose-agent")
 	if flag == nil {
 		t.Fatal("retro command missing --choose-agent flag")
@@ -33,6 +35,7 @@ func TestRetroCommandHasChooseAgentFlag(t *testing.T) {
 }
 
 func TestLaunchRetroInteractiveSessionUsesSessionLauncher(t *testing.T) {
+
 	origResolve := retroResolveAgentFn
 	origLauncher := retroSessionLauncherFn
 	origRecord := retroRecordStateFn
@@ -89,6 +92,7 @@ func TestLaunchRetroInteractiveSessionUsesSessionLauncher(t *testing.T) {
 }
 
 func TestLaunchRetroInteractiveSessionResolvesAgentWithRetroCommand(t *testing.T) {
+
 	origResolve := retroResolveAgentFn
 	origLauncher := retroSessionLauncherFn
 	origRecord := retroRecordStateFn

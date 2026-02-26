@@ -18,8 +18,11 @@ import (
 // --- Learning extraction tests ---
 
 func TestExtractLearning_SavesAnalysisLearning(t *testing.T) {
+	t.Parallel(
 	// When an analysis contains a learning string, ExtractLearning should
 	// persist it to the learnings file via lf.Add().
+	)
+
 	dir := t.TempDir()
 	lf, err := learnings.NewFile(dir)
 	if err != nil {
@@ -52,7 +55,10 @@ func TestExtractLearning_SavesAnalysisLearning(t *testing.T) {
 }
 
 func TestExtractLearning_NilLearningIsNoOp(t *testing.T) {
+	t.Parallel(
 	// When analysis.Learning is nil, ExtractLearning should not write anything.
+	)
+
 	dir := t.TempDir()
 	lf, err := learnings.NewFile(dir)
 	if err != nil {
@@ -86,7 +92,10 @@ func TestExtractLearning_NilLearningIsNoOp(t *testing.T) {
 }
 
 func TestExtractLearning_NilBeadContextIsNoOp(t *testing.T) {
+	t.Parallel(
 	// When bc or bc.Bead is nil, ExtractLearning should not panic.
+	)
+
 	dir := t.TempDir()
 	lf, err := learnings.NewFile(dir)
 	if err != nil {
@@ -106,8 +115,11 @@ func TestExtractLearning_NilBeadContextIsNoOp(t *testing.T) {
 }
 
 func TestExtractSyntheticLearning_PersistsMessage(t *testing.T) {
+	t.Parallel(
 	// ExtractSyntheticLearning should save a custom message string to the
 	// learnings file with the "patterns" category.
+	)
+
 	dir := t.TempDir()
 	lf, err := learnings.NewFile(dir)
 	if err != nil {
@@ -132,8 +144,11 @@ func TestExtractSyntheticLearning_PersistsMessage(t *testing.T) {
 }
 
 func TestExtractScopeTooLargeLearning_FormatsCorrectly(t *testing.T) {
+	t.Parallel(
 	// ExtractScopeTooLargeLearning should create a learning message that
 	// includes the bead title and model name, then persist it.
+	)
+
 	dir := t.TempDir()
 	lf, err := learnings.NewFile(dir)
 	if err != nil {
@@ -162,8 +177,11 @@ func TestExtractScopeTooLargeLearning_FormatsCorrectly(t *testing.T) {
 }
 
 func TestExtractTimeoutLearning_FormatsCorrectly(t *testing.T) {
+	t.Parallel(
 	// ExtractTimeoutLearning should create a learning message that includes
 	// the bead title and model name, then persist it.
+	)
+
 	dir := t.TempDir()
 	lf, err := learnings.NewFile(dir)
 	if err != nil {
@@ -192,8 +210,11 @@ func TestExtractTimeoutLearning_FormatsCorrectly(t *testing.T) {
 }
 
 func TestExtractSuccessLearning_SkipsForLowTier(t *testing.T) {
+	t.Parallel(
 	// ExtractSuccessLearning should skip learning extraction for haiku/low-tier
 	// beads, since they don't produce novel enough patterns to learn from.
+	)
+
 	dir := t.TempDir()
 	lf, err := learnings.NewFile(dir)
 	if err != nil {
@@ -231,6 +252,7 @@ func TestExtractSuccessLearning_SkipsForLowTier(t *testing.T) {
 // bypasses the tier filter that is applied to success learning. Failure paths must always
 // extract and persist learning, regardless of tier (low-tier haiku beads).
 func TestExtractLearning_NeverSkippedForLowTier(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	lf, err := learnings.NewFile(dir)
 	if err != nil {
@@ -269,6 +291,7 @@ func TestExtractLearning_NeverSkippedForLowTier(t *testing.T) {
 // bypasses the package novelty filter that is applied to success learning. Failure paths must always
 // extract and persist learning even when all touched packages have been seen before in this run.
 func TestExtractLearning_NeverSkippedForSeenPackages(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	lf, err := learnings.NewFile(dir)
 	if err != nil {
@@ -284,11 +307,11 @@ func TestExtractLearning_NeverSkippedForSeenPackages(t *testing.T) {
 	}
 
 	bc := &runtypes.BeadContext{
-		Bead: &bead.Bead{ID: "fail-repeat-001", Title: "Repeated package failure"},
-		Tier: provider.TierMedium,
-		Model: "sonnet",
+		Bead:            &bead.Bead{ID: "fail-repeat-001", Title: "Repeated package failure"},
+		Tier:            provider.TierMedium,
+		Model:           "sonnet",
 		TouchedPackages: []string{"internal/foo", "internal/bar"},
-		Result: &runtypes.IterationResult{},
+		Result:          &runtypes.IterationResult{},
 	}
 
 	// Extract failure learning for a bead whose packages have already been seen

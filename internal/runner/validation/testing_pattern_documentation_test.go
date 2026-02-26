@@ -8,6 +8,7 @@ import (
 )
 
 func TestValidationErrorPatternDocumented(t *testing.T) {
+	t.Parallel()
 	docPath := filepath.Join("..", "..", "..", "docs", "testing-patterns.md")
 	data, err := os.ReadFile(docPath)
 	if err != nil {

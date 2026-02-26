@@ -12,6 +12,7 @@ import (
 )
 
 func TestStatusCmd_OutputIncludesPipelineSection(t *testing.T) {
+
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0755); err != nil {
@@ -127,6 +128,7 @@ func TestStatusCmd_SPCFlagSkipsDefaultSections(t *testing.T) {
 }
 
 func TestStatusCmd_SPCFlagWithStableOutput(t *testing.T) {
+
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	metricsDir := filepath.Join(gromitDir, "metrics")
@@ -145,10 +147,10 @@ func TestStatusCmd_SPCFlagWithStableOutput(t *testing.T) {
 
 	// Create process_trend.json with test data
 	processTrend := map[string]interface{}{
-		"generated_at":      time.Now().Format(time.RFC3339),
-		"total_iterations":  10,
-		"window_size":       5,
-		"latest_window":     map[string]interface{}{},
+		"generated_at":     time.Now().Format(time.RFC3339),
+		"total_iterations": 10,
+		"window_size":      5,
+		"latest_window":    map[string]interface{}{},
 		"prompt_token_summary": map[string]interface{}{
 			"by_prompt_type": []interface{}{},
 		},

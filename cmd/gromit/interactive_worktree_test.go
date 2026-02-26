@@ -90,6 +90,7 @@ func withInteractiveWorktreeFactories(
 }
 
 func TestRunWithSessionWorktreeExecutesCallbackInSessionDir(t *testing.T) {
+	t.Parallel()
 	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "refine")
 	session.BranchName = "gromit/refine-123"
 
@@ -134,6 +135,7 @@ func TestRunWithSessionWorktreeExecutesCallbackInSessionDir(t *testing.T) {
 }
 
 func TestRunWithSessionWorktreeRecordsPendingBranch(t *testing.T) {
+	t.Parallel()
 	_, gromitDir, session := setupRunWithSessionWorktreeTest(t, "plan")
 	session.BranchName = "gromit/plan-456"
 
@@ -170,6 +172,7 @@ func TestRunWithSessionWorktreeRecordsPendingBranch(t *testing.T) {
 }
 
 func TestRunWithSessionWorktreeDoesNotRecordBranchWhenCallbackFails(t *testing.T) {
+	t.Parallel()
 	_, gromitDir, session := setupRunWithSessionWorktreeTest(t, "explore")
 	session.BranchName = "gromit/explore-789"
 
@@ -205,6 +208,7 @@ func TestRunWithSessionWorktreeDoesNotRecordBranchWhenCallbackFails(t *testing.T
 }
 
 func TestRunWithSessionWorktreeImmediateMergeSuccessRunsCleanupAndClearsPendingBranch(t *testing.T) {
+	t.Parallel()
 	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "debug")
 	session.BranchName = "gromit/debug-123"
 
@@ -289,6 +293,7 @@ func TestRunWithSessionWorktreeImmediateMergeSuccessRunsCleanupAndClearsPendingB
 }
 
 func TestRunWithSessionWorktreeImmediateMergeSuccessPreRemovesBeforeMerge(t *testing.T) {
+	t.Parallel()
 	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "sync")
 	session.BranchName = "gromit/sync-999"
 
@@ -350,6 +355,7 @@ func TestRunWithSessionWorktreeImmediateMergeSuccessPreRemovesBeforeMerge(t *tes
 }
 
 func TestRunWithSessionWorktreeMergeRecoversFromCheckedOutBranchDeleteError(t *testing.T) {
+	t.Parallel()
 	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "debug")
 	session.BranchName = "gromit/debug-123"
 
@@ -418,6 +424,7 @@ func TestRunWithSessionWorktreeMergeRecoversFromCheckedOutBranchDeleteError(t *t
 }
 
 func TestRunWithSessionWorktreeCleanupFailureReturnsErrorAfterMerge(t *testing.T) {
+	t.Parallel()
 	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "repair")
 	session.BranchName = "gromit/repair-111"
 
@@ -487,6 +494,7 @@ func TestRunWithSessionWorktreeCleanupFailureReturnsErrorAfterMerge(t *testing.T
 }
 
 func TestRunWithSessionWorktreeCleanupFailureWrapsBranchContext(t *testing.T) {
+	t.Parallel()
 	_, gromitDir, session := setupRunWithSessionWorktreeTest(t, "context")
 	session.BranchName = "gromit/context-222"
 
@@ -516,6 +524,7 @@ func TestRunWithSessionWorktreeCleanupFailureWrapsBranchContext(t *testing.T) {
 }
 
 func TestRunWithSessionWorktreeConflictManualPolicyKeepsPendingBranch(t *testing.T) {
+	t.Parallel()
 	_, gromitDir, session := setupRunWithSessionWorktreeTest(t, "review")
 	session.BranchName = "gromit/review-111"
 
@@ -572,6 +581,7 @@ func TestRunWithSessionWorktreeConflictManualPolicyKeepsPendingBranch(t *testing
 }
 
 func TestRunWithSessionWorktreeConflictAgentPolicyRetriesAndMerges(t *testing.T) {
+	t.Parallel()
 	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "refine")
 	session.BranchName = "gromit/refine-222"
 
@@ -656,6 +666,7 @@ func TestRunWithSessionWorktreeConflictAgentPolicyRetriesAndMerges(t *testing.T)
 }
 
 func TestRunWithSessionWorktreeConflictAgentPolicyRetriesBeforeCleanup(t *testing.T) {
+	t.Parallel()
 	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "review")
 	session.BranchName = "gromit/review-234"
 
@@ -745,6 +756,7 @@ func TestRunWithSessionWorktreeConflictAgentPolicyRetriesBeforeCleanup(t *testin
 }
 
 func TestRunWithSessionWorktreeConflictAgentPolicyFallsBackToManual(t *testing.T) {
+	t.Parallel()
 	_, gromitDir, session := setupRunWithSessionWorktreeTest(t, "debug")
 	session.BranchName = "gromit/debug-333"
 
@@ -812,6 +824,7 @@ func TestRunWithSessionWorktreeConflictAgentPolicyFallsBackToManual(t *testing.T
 }
 
 func TestRunWithSessionWorktreeDualConflictHandoff(t *testing.T) {
+	t.Parallel()
 	mainDir := t.TempDir()
 	gromitDir := filepath.Join(mainDir, ".gromit")
 	sessionA := &worktree.SessionWorktree{
@@ -826,9 +839,9 @@ func TestRunWithSessionWorktreeDualConflictHandoff(t *testing.T) {
 	mergeBarrier := newSyncBarrier(2)
 	addDone := make(chan struct{})
 	var (
-		addMu   sync.Mutex
+		addMu    sync.Mutex
 		addCount int
-		recorded  = map[string]struct{}{}
+		recorded = map[string]struct{}{}
 		recordMu sync.Mutex
 	)
 
@@ -938,6 +951,7 @@ func TestRunWithSessionWorktreeDualConflictHandoff(t *testing.T) {
 }
 
 func TestMergeConflictHandoffError_ManualIncludesActionableGitInstructions(t *testing.T) {
+	t.Parallel()
 	err := newManualConflictHandoffError(&worktree.SessionWorktree{
 		BranchName:  "gromit/review-444",
 		WorktreeDir: "/tmp/repo-gromit-review-444",
@@ -962,6 +976,7 @@ func TestMergeConflictHandoffError_ManualIncludesActionableGitInstructions(t *te
 }
 
 func TestMergeConflictHandoffError_ManualCentersBranchBasedRecovery(t *testing.T) {
+	t.Parallel()
 	err := newManualConflictHandoffError(&worktree.SessionWorktree{
 		BranchName:  "gromit/review-555",
 		WorktreeDir: "/tmp/repo-gromit-review-555",
@@ -977,6 +992,7 @@ func TestMergeConflictHandoffError_ManualCentersBranchBasedRecovery(t *testing.T
 }
 
 func TestMergeConflictHandoffError_AgentCentersBranchBasedRecovery(t *testing.T) {
+	t.Parallel()
 	err := newAgentConflictHandoffError(&worktree.SessionWorktree{
 		BranchName:  "gromit/refine-777",
 		WorktreeDir: "/tmp/repo-gromit-refine-777",
@@ -992,6 +1008,7 @@ func TestMergeConflictHandoffError_AgentCentersBranchBasedRecovery(t *testing.T)
 }
 
 func TestClearMergedState_StateOnlyLeavesSessionDirIntact(t *testing.T) {
+	t.Parallel()
 	sessionDir := t.TempDir()
 	session := &worktree.SessionWorktree{
 		BranchName:  "gromit/cleanup-888",
@@ -1018,10 +1035,10 @@ func TestClearMergedState_StateOnlyLeavesSessionDirIntact(t *testing.T) {
 }
 
 type syncBarrier struct {
-	total int
-	count int
+	total   int
+	count   int
 	release chan struct{}
-	mu    sync.Mutex
+	mu      sync.Mutex
 }
 
 func newSyncBarrier(total int) *syncBarrier {

@@ -56,13 +56,16 @@ func requireGitignoreContains(t *testing.T, root string, patterns ...string) {
 }
 
 func TestRepoHygiene_TestBinaryRemoved(t *testing.T) {
+	t.Parallel()
 	root := projectRoot(t)
 
 	t.Run("gromit.test binary is not tracked by git", func(t *testing.T) {
+		t.Parallel()
 		requireNotTracked(t, root, "cmd/gromit/gromit.test")
 	})
 
 	t.Run("gromit.test binary does not exist on disk", func(t *testing.T) {
+		t.Parallel()
 		binaryPath := filepath.Join(root, "cmd", "gromit", "gromit.test")
 		if _, err := os.Stat(binaryPath); err == nil {
 			t.Error("cmd/gromit/gromit.test still exists on disk; should be deleted")
@@ -72,21 +75,25 @@ func TestRepoHygiene_TestBinaryRemoved(t *testing.T) {
 	})
 
 	t.Run("gitignore contains test binary pattern", func(t *testing.T) {
+		t.Parallel()
 		requireGitignoreContains(t, root, "*.test")
 	})
 }
 
 func TestRepoHygiene_CodexHomeIgnored(t *testing.T) {
+	t.Parallel()
 	root := projectRoot(t)
 	requireGitignoreContains(t, root, ".codex-home/")
 }
 
 func TestRepoHygiene_CodexHomeNotTracked(t *testing.T) {
+	t.Parallel()
 	root := projectRoot(t)
 	requireNotTracked(t, root, ".codex-home")
 }
 
 func TestRepoHygiene_ScratchFilesRemovedAndIgnored(t *testing.T) {
+	t.Parallel()
 	root := projectRoot(t)
 
 	scratchFiles := []string{
@@ -96,10 +103,12 @@ func TestRepoHygiene_ScratchFilesRemovedAndIgnored(t *testing.T) {
 	}
 
 	t.Run("scratch files are not tracked by git", func(t *testing.T) {
+		t.Parallel()
 		requireNotTracked(t, root, scratchFiles...)
 	})
 
 	t.Run("gitignore contains scratch markdown patterns", func(t *testing.T) {
+		t.Parallel()
 		requireGitignoreContains(t, root,
 			"debug.md", "devug.md", "fixed.md", "fixes.md",
 			"progress.md", "testfailure.md", "testfix.md",

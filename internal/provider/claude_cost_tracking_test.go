@@ -11,6 +11,7 @@ import (
 // CostUSD, InputTokens, and OutputTokens from claude.Result to provider.Result.
 // Previously these fields were silently dropped, causing 0 cost for all Claude models.
 func TestConvertResultPropagatesCostFields(t *testing.T) {
+	t.Parallel()
 	claudeResult := &claude.Result{
 		Success:      true,
 		Output:       "test output",
@@ -37,6 +38,7 @@ func TestConvertResultPropagatesCostFields(t *testing.T) {
 // TestConvertResultPreservesExistingFields verifies that cost field propagation
 // doesn't break existing field mapping.
 func TestConvertResultPreservesExistingFields(t *testing.T) {
+	t.Parallel()
 	claudeResult := &claude.Result{
 		Success:      true,
 		Output:       "hello",
@@ -64,6 +66,7 @@ func TestConvertResultPreservesExistingFields(t *testing.T) {
 // CachedInputTokens from claude.Result to provider.Result.
 // This is used to track cache hit efficiency on prompt caching invocations.
 func TestConvertResultPropagatesCachedInputTokens(t *testing.T) {
+	t.Parallel()
 	claudeResult := &claude.Result{
 		Success:           true,
 		Output:            "cached response",
@@ -83,6 +86,7 @@ func TestConvertResultPropagatesCachedInputTokens(t *testing.T) {
 }
 
 func TestStreamJSONCachedTokensPropagateToProvider(t *testing.T) {
+	t.Parallel()
 	payload := `{"type":"result","result":"cached output","model":"sonnet","total_cost_usd":0.35,"input_tokens":800,"output_tokens":400,"cache_read_input_tokens":200}` + "\n"
 
 	claudeResult, err := parseClaudeStreamResultFromJSON(payload)

@@ -15,7 +15,10 @@ import (
 // TestOrchestrator_EmitsConvergenceSummaryToStderr verifies that when an experiment
 // has been loaded, the orchestrator emits a summary line to stderr after starting the run.
 func TestOrchestrator_EmitsConvergenceSummaryToStderr(t *testing.T) {
+	t.Parallel(
 	// Create experiments
+	)
+
 	exp := &experiment.Experiment{
 		ID:    "exp-1",
 		Phase: "build",

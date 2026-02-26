@@ -15,7 +15,10 @@ import (
 
 // TestRefineCommandHasAgentFlag verifies refine command has --agent flag
 func TestRefineCommandHasAgentFlag(t *testing.T) {
+	t.Parallel(
 	// This test will fail until --agent flag is added to refine command
+	)
+
 	flag := refineCmd.Flags().Lookup("agent")
 	if flag == nil {
 		t.Error("refine command missing --agent flag")
@@ -28,7 +31,10 @@ func TestRefineCommandHasAgentFlag(t *testing.T) {
 
 // TestRefineCommandHasChooseAgentFlag verifies refine command has --choose-agent flag
 func TestRefineCommandHasChooseAgentFlag(t *testing.T) {
+	t.Parallel(
 	// This test will fail until --choose-agent flag is added to refine command
+	)
+
 	flag := refineCmd.Flags().Lookup("choose-agent")
 	if flag == nil {
 		t.Error("refine command missing --choose-agent flag")
@@ -40,6 +46,7 @@ func TestRefineCommandHasChooseAgentFlag(t *testing.T) {
 }
 
 func TestSetupAgentConfigCreatesExpectedFiles(t *testing.T) {
+	t.Parallel()
 	_, gromitDir, configPath := setupAgentConfig(t, `
 agents:
   definitions:
@@ -69,8 +76,10 @@ agents:
 
 // TestRefineUsesAgentResolve verifies refine command integrates with agent.Resolve
 func TestRefineUsesAgentResolve(t *testing.T) {
+
 	// This test verifies the integration by creating a minimal config and checking
 	// that the agent selection behavior works end-to-end
+
 	configContent := `
 agents:
   definitions:
@@ -106,8 +115,10 @@ agents:
 
 // TestRefineFlagOverrideTakesPriority verifies --agent flag overrides config
 func TestRefineFlagOverrideTakesPriority(t *testing.T) {
+	t.Parallel(
 	// This acceptance test verifies the priority order:
 	// --agent flag should override agents.phases config
+	)
 
 	configContent := `
 agents:
@@ -134,8 +145,10 @@ agents:
 
 // TestRefineChooseAgentTriggersPickerBehavior verifies --choose-agent flag behavior
 func TestRefineChooseAgentTriggersPickerBehavior(t *testing.T) {
+	t.Parallel(
 	// This acceptance test verifies that --choose-agent flag is wired up correctly
 	// The actual picker interaction would be tested in integration tests
+	)
 
 	configContent := `
 agents:
@@ -164,7 +177,9 @@ agents:
 
 // TestRefineAgentPromptConfigTriggersPicker verifies agents.prompt config triggers picker
 func TestRefineAgentPromptConfigTriggersPicker(t *testing.T) {
+	t.Parallel(
 	// This acceptance test verifies agents.prompt: true config is respected
+	)
 
 	configContent := `
 agents:
@@ -191,6 +206,7 @@ agents:
 }
 
 func TestRefineChooseAgentFlagPropagatesToResolver(t *testing.T) {
+
 	configContent := `
 agents:
   definitions:
@@ -316,6 +332,7 @@ func (testBacklogClient) Update(id string, fn func(*pipeline.Idea)) error {
 }
 
 func TestToPipelineIdeaCopiesFields(t *testing.T) {
+	t.Parallel()
 	idea := &backlog.Idea{
 		ID:       "idea-1",
 		Text:     "refine this",
@@ -341,6 +358,7 @@ func TestToPipelineIdeaCopiesFields(t *testing.T) {
 }
 
 func TestApplyPipelineIdeaFieldsCopiesStatus(t *testing.T) {
+	t.Parallel()
 	idea := &backlog.Idea{
 		Status:   "open",
 		SpecName: "old-spec",
@@ -361,8 +379,10 @@ func TestApplyPipelineIdeaFieldsCopiesStatus(t *testing.T) {
 
 // TestRefineAgentConfigBackwardCompatibility verifies refine works without agent config
 func TestRefineAgentConfigBackwardCompatibility(t *testing.T) {
+	t.Parallel(
 	// This acceptance test verifies backward compatibility
 	// Existing configs without agents section should still work (defaults to claude)
+	)
 
 	configContent := `
 claude:

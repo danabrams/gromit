@@ -12,6 +12,7 @@ import (
 // same canonical merge strategy: extracting usage via type-specific handlers and
 // merging via mergeCodexEventUsage.
 func TestCodexStreamMergeSemanticMatrixContractAllEventTypes(t *testing.T) {
+	t.Parallel()
 	eventTypes := []struct {
 		name     string
 		input    string
@@ -97,6 +98,7 @@ func TestCodexStreamMergeSemanticMatrixContractAllEventTypes(t *testing.T) {
 
 	for _, tc := range eventTypes {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			reader := strings.NewReader(tc.input)
 			var output bytes.Buffer
 
@@ -125,13 +127,14 @@ func TestCodexStreamMergeSemanticMatrixContractAllEventTypes(t *testing.T) {
 // when multiple events emit usage data, each event's usage replaces (overwrites) values
 // in the merged state when they are non-zero, across all event types.
 func TestCodexStreamMergeSemanticMatrixContractMergesBehavior(t *testing.T) {
+	t.Parallel()
 	scenarios := []struct {
-		name             string
-		input            string
-		expectedInput    int
-		expectedOutput   int
-		expectedCost     float64
-		description      string
+		name           string
+		input          string
+		expectedInput  int
+		expectedOutput int
+		expectedCost   float64
+		description    string
 	}{
 		{
 			name: "turn.completed replaces with latest usage",
@@ -178,6 +181,7 @@ func TestCodexStreamMergeSemanticMatrixContractMergesBehavior(t *testing.T) {
 
 	for _, sc := range scenarios {
 		t.Run(sc.name, func(t *testing.T) {
+			t.Parallel()
 			reader := strings.NewReader(sc.input)
 			var output bytes.Buffer
 
@@ -206,9 +210,10 @@ func TestCodexStreamMergeSemanticMatrixContractMergesBehavior(t *testing.T) {
 // when events contain partial usage data, existing accumulated usage is preserved
 // across all event types.
 func TestCodexStreamMergeSemanticMatrixContractPreservesPartialData(t *testing.T) {
+	t.Parallel()
 	preservationCases := []struct {
-		name         string
-		input        string
+		name          string
+		input         string
 		expectedUsage struct {
 			input  int
 			output int
@@ -258,6 +263,7 @@ func TestCodexStreamMergeSemanticMatrixContractPreservesPartialData(t *testing.T
 
 	for _, pc := range preservationCases {
 		t.Run(pc.name, func(t *testing.T) {
+			t.Parallel()
 			reader := strings.NewReader(pc.input)
 			var output bytes.Buffer
 
@@ -285,6 +291,7 @@ func TestCodexStreamMergeSemanticMatrixContractPreservesPartialData(t *testing.T
 // all event types (turn.completed, response.completed, result) emit stream events when
 // usage data is present, following the same emission pattern.
 func TestCodexStreamMergeSemanticMatrixContractEventTypeEmissions(t *testing.T) {
+	t.Parallel()
 	emissionCases := []struct {
 		name           string
 		input          string
@@ -322,6 +329,7 @@ func TestCodexStreamMergeSemanticMatrixContractEventTypeEmissions(t *testing.T) 
 
 	for _, ec := range emissionCases {
 		t.Run(ec.name, func(t *testing.T) {
+			t.Parallel()
 			reader := strings.NewReader(ec.input)
 			var output bytes.Buffer
 

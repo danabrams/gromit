@@ -58,9 +58,12 @@ func newThoroughTestConfig() *config.Config {
 // --- RunThorough tests ---
 
 func TestRunThorough_ReturnsResultFromProvider(t *testing.T) {
+	t.Parallel(
 	// When the provider returns a passing thorough review with findings,
 	// RunThorough should parse the result, apply it (create beads), log it,
 	// and record the review in state.
+	)
+
 	cfg := newThoroughTestConfig()
 
 	prov := &mockProvider{
@@ -143,7 +146,10 @@ func TestRunThorough_ReturnsResultFromProvider(t *testing.T) {
 }
 
 func TestRunThorough_SkipsWhenDeadlineExpired(t *testing.T) {
+	t.Parallel(
 	// When deadline has passed, RunThorough should return without calling the provider.
+	)
+
 	cfg := newThoroughTestConfig()
 
 	providerCalled := false
@@ -170,8 +176,11 @@ func TestRunThorough_SkipsWhenDeadlineExpired(t *testing.T) {
 }
 
 func TestRunThorough_SkipsWhenInsufficientTime(t *testing.T) {
+	t.Parallel(
 	// When the remaining time is less than the thorough review timeout,
 	// RunThorough should skip without calling the provider.
+	)
+
 	cfg := newThoroughTestConfig()
 	cfg.Review.Thorough.Timeout = 300 // 5 minutes
 
@@ -200,7 +209,10 @@ func TestRunThorough_SkipsWhenInsufficientTime(t *testing.T) {
 }
 
 func TestRunThorough_SkipsWhenNilStateFile(t *testing.T) {
+	t.Parallel(
 	// When state access is nil, RunThorough should return without error.
+	)
+
 	cfg := newThoroughTestConfig()
 
 	providerCalled := false
@@ -226,7 +238,10 @@ func TestRunThorough_SkipsWhenNilStateFile(t *testing.T) {
 }
 
 func TestRunThorough_SkipsWhenNoLastReviewCommit(t *testing.T) {
+	t.Parallel(
 	// When there is no previous review commit, RunThorough should skip.
+	)
+
 	cfg := newThoroughTestConfig()
 
 	providerCalled := false
@@ -255,7 +270,10 @@ func TestRunThorough_SkipsWhenNoLastReviewCommit(t *testing.T) {
 }
 
 func TestRunThorough_SkipsWhenNoDiff(t *testing.T) {
+	t.Parallel(
 	// When the diff since the last review is empty, RunThorough should skip.
+	)
+
 	cfg := newThoroughTestConfig()
 
 	providerCalled := false
@@ -284,8 +302,11 @@ func TestRunThorough_SkipsWhenNoDiff(t *testing.T) {
 }
 
 func TestRunThorough_RevalidatesAfterFixesApplied(t *testing.T) {
+	t.Parallel(
 	// When the thorough review applies fixes, RunThorough should run validation
 	// to ensure the fixes didn't break anything.
+	)
+
 	cfg := newThoroughTestConfig()
 
 	prov := &mockProvider{
@@ -330,8 +351,11 @@ func TestRunThorough_RevalidatesAfterFixesApplied(t *testing.T) {
 }
 
 func TestRunThorough_BuildsThoroughReviewContext(t *testing.T) {
+	t.Parallel(
 	// RunThorough should build a ThoroughReviewContext with the correct fields
 	// and pass it to the renderer's RenderThoroughReview method.
+	)
+
 	cfg := newThoroughTestConfig()
 	cfg.Review.Thorough.Model = "opus"
 
@@ -384,8 +408,11 @@ func TestRunThorough_BuildsThoroughReviewContext(t *testing.T) {
 }
 
 func TestRunThorough_UsesConfiguredThoroughTierAndPhase(t *testing.T) {
+	t.Parallel(
 	// RunThorough should use the configured thorough-review tier and
 	// select using the thorough_review phase key.
+	)
+
 	cfg := newThoroughTestConfig()
 	cfg.Review.Thorough.Tier = provider.TierLow
 
@@ -430,7 +457,10 @@ func TestRunThorough_UsesConfiguredThoroughTierAndPhase(t *testing.T) {
 }
 
 func TestRunThorough_LogsReviewAsThoroughType(t *testing.T) {
+	t.Parallel(
 	// The review log entry should have ReviewType "thorough" (not "light").
+	)
+
 	cfg := newThoroughTestConfig()
 
 	prov := &mockProvider{
@@ -480,6 +510,7 @@ func TestRunThorough_LogsReviewAsThoroughType(t *testing.T) {
 }
 
 func TestRunThorough_AppliesThoroughReviewPhaseProfile(t *testing.T) {
+	t.Parallel()
 	cfg := newThoroughTestConfig()
 
 	var rulesPhase string
@@ -547,8 +578,11 @@ func TestRunThorough_AppliesThoroughReviewPhaseProfile(t *testing.T) {
 // --- RunThorough: Verify state recording ---
 
 func TestRunThorough_RecordsReviewInState(t *testing.T) {
+	t.Parallel(
 	// After a successful thorough review, RunThorough should call
 	// RecordReview on the state access with the current git HEAD and iteration.
+	)
+
 	cfg := newThoroughTestConfig()
 
 	prov := &mockProvider{
@@ -598,8 +632,11 @@ func TestRunThorough_RecordsReviewInState(t *testing.T) {
 // --- RunThorough: Provider nil handling ---
 
 func TestRunThorough_HandlesNilProvider(t *testing.T) {
+	t.Parallel(
 	// When router.Select returns nil provider, RunThorough should log warning
 	// and return without panicking.
+	)
+
 	cfg := newThoroughTestConfig()
 
 	router := &mockRouter{
@@ -625,6 +662,7 @@ func TestRunThorough_HandlesNilProvider(t *testing.T) {
 // --- Verify PromptRenderer interface includes RenderThoroughReview ---
 
 func TestPromptRenderer_MustSupportThoroughReview(t *testing.T) {
+	t.Parallel()
 	var renderer PromptRenderer = &mockPromptRenderer{}
 	result, err := renderer.RenderThoroughReview(&prompt.ThoroughReviewContext{
 		Diff:  "test diff",

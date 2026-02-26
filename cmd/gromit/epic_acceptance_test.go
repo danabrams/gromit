@@ -12,6 +12,7 @@ import (
 
 // TestEpicStatusCommand_FlagExists verifies that epic command has status subcommand
 func TestEpicStatusCommand_FlagExists(t *testing.T) {
+	t.Parallel()
 	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "--help")
 
 	if exitCode != 0 {
@@ -25,6 +26,7 @@ func TestEpicStatusCommand_FlagExists(t *testing.T) {
 
 // TestEpicStatusCommand_RequiresEpicID verifies that status subcommand requires epic ID argument
 func TestEpicStatusCommand_RequiresEpicID(t *testing.T) {
+	t.Parallel()
 	_, stderr, exitCode := runGromitCobra(t, "epic", "status")
 
 	if exitCode == 0 {
@@ -38,6 +40,7 @@ func TestEpicStatusCommand_RequiresEpicID(t *testing.T) {
 
 // TestEpicStatusCommand_DisplaysEpicTitle verifies that status displays epic title from epic document
 func TestEpicStatusCommand_DisplaysEpicTitle(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
 	if err := os.MkdirAll(epicsDir, 0755); err != nil {
@@ -79,6 +82,7 @@ This epic explores ways to make developer onboarding smoother.
 
 // TestEpicStatusCommand_DisplaysLinkedSpecs verifies that status shows specs linked to the epic
 func TestEpicStatusCommand_DisplaysLinkedSpecs(t *testing.T) {
+	t.Parallel()
 	stdout, _, exitCode := runComplexEpicStatusFixture(t)
 
 	// If command succeeds, verify spec display
@@ -94,6 +98,7 @@ func TestEpicStatusCommand_DisplaysLinkedSpecs(t *testing.T) {
 
 // TestEpicStatusCommand_ShowsPipelineStages verifies that status displays pipeline stage for each spec
 func TestEpicStatusCommand_ShowsPipelineStages(t *testing.T) {
+	t.Parallel()
 	stdout, _, exitCode := runComplexEpicStatusFixture(t)
 
 	// If command succeeds, verify pipeline stages are displayed
@@ -117,6 +122,7 @@ func TestEpicStatusCommand_ShowsPipelineStages(t *testing.T) {
 
 // TestEpicStatusCommand_ShowsBeadProgress verifies that status displays bead progress for each spec
 func TestEpicStatusCommand_ShowsBeadProgress(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	prependFakeTools(t, tmpDir)
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
@@ -192,6 +198,7 @@ decomposed: true
 
 // TestEpicStatusCommand_DisplaysEpicStatus verifies that epic status (open/fully-specified/complete) is shown
 func TestEpicStatusCommand_DisplaysEpicStatus(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
 	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
@@ -242,6 +249,7 @@ created: 2026-02-08
 
 // TestEpicStatusCommand_ErrorWhenEpicNotFound verifies appropriate error for non-existent epic
 func TestEpicStatusCommand_ErrorWhenEpicNotFound(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
 	if err := os.MkdirAll(epicsDir, 0755); err != nil {
@@ -265,6 +273,7 @@ func TestEpicStatusCommand_ErrorWhenEpicNotFound(t *testing.T) {
 
 // TestEpicStatusCommand_HandlesEpicWithNoLinkedSpecs verifies display when epic has no linked specs
 func TestEpicStatusCommand_HandlesEpicWithNoLinkedSpecs(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
 	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
@@ -329,6 +338,7 @@ created: 2026-02-08
 
 // TestEpicStatusCommand_DisplaysTableFormat verifies that status displays specs in a table-like format
 func TestEpicStatusCommand_DisplaysTableFormat(t *testing.T) {
+	t.Parallel()
 	stdout, stderr, exitCode := runComplexEpicStatusFixture(t)
 
 	// Command may require bd binary - if not available, can still verify structure
@@ -366,9 +376,11 @@ func TestEpicStatusCommand_DisplaysTableFormat(t *testing.T) {
 
 // TestEpicStatusCommand_GapAnalysisUsesHaikuModel verifies gap analysis uses haiku for cost efficiency
 func TestEpicStatusCommand_GapAnalysisUsesHaikuModel(t *testing.T) {
+	t.Parallel(
 	// This test verifies that when epic status performs gap analysis,
 	// it uses the haiku model for cost efficiency as specified in the task.
 	// The implementation should call claude.Client.Run() with "haiku" as the model parameter.
+	)
 
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
@@ -455,8 +467,10 @@ models:
 
 // TestEpicStatusCommand_GapAnalysisIncludesEpicContent verifies epic content is fed to Claude
 func TestEpicStatusCommand_GapAnalysisIncludesEpicContent(t *testing.T) {
+	t.Parallel(
 	// This test verifies that the gap analysis feeds the epic document content to Claude.
 	// The analysis should be based on understanding what the epic describes.
+	)
 
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
@@ -529,8 +543,10 @@ Implement credit card payment processing via Stripe API.
 
 // TestEpicStatusCommand_GapAnalysisIncludesSpecSummaries verifies spec info is fed to Claude
 func TestEpicStatusCommand_GapAnalysisIncludesSpecSummaries(t *testing.T) {
+	t.Parallel(
 	// This test verifies that gap analysis feeds linked spec names and summaries to Claude,
 	// so it knows what's already covered.
+	)
 
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
@@ -608,7 +624,9 @@ created: 2026-02-08
 
 // TestEpicStatusCommand_GapAnalysisPrintsOutput verifies analysis is printed to stdout
 func TestEpicStatusCommand_GapAnalysisPrintsOutput(t *testing.T) {
+	t.Parallel(
 	// This test verifies that the gap analysis result from Claude is printed to stdout.
+	)
 
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
@@ -668,8 +686,10 @@ Build a simple feature with two components: frontend and backend.
 
 // TestEpicStatusCommand_GapAnalysisWithNoSpecs verifies analysis works when no specs exist
 func TestEpicStatusCommand_GapAnalysisWithNoSpecs(t *testing.T) {
+	t.Parallel(
 	// When an epic has no linked specs, gap analysis should identify that
 	// all areas of the epic are uncovered.
+	)
 
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
@@ -726,10 +746,12 @@ This epic needs work in three areas:
 
 // TestEpicStatusCommand_UsesResolveEpic verifies that status uses scope.ResolveEpic for spec resolution
 func TestEpicStatusCommand_UsesResolveEpic(t *testing.T) {
+	t.Parallel(
 	// This test verifies the behavior that results from using scope.ResolveEpic:
 	// - Specs are found by scanning frontmatter for matching epic field
 	// - Only specs with valid frontmatter are included
 	// - Specs without epic field or with different epic are excluded
+	)
 
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
@@ -816,6 +838,7 @@ created: 2026-02-08
 
 // TestEpicStatusCommand_HandlesSpecsWithoutPlans verifies specs without plans show as unplanned
 func TestEpicStatusCommand_HandlesSpecsWithoutPlans(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
 	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
@@ -878,6 +901,7 @@ created: 2026-02-08
 
 // TestEpicStatusCommand_HandlesMissingSpecsDirectory verifies graceful handling when specs directory does not exist
 func TestEpicStatusCommand_HandlesMissingSpecsDirectory(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
 	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
@@ -931,6 +955,7 @@ This epic should handle missing specs directory gracefully.
 
 // TestEpicStatusCommand_HandlesMissingEpicsDirectory verifies clear error when epics directory does not exist
 func TestEpicStatusCommand_HandlesMissingEpicsDirectory(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
 
@@ -954,6 +979,7 @@ func TestEpicStatusCommand_HandlesMissingEpicsDirectory(t *testing.T) {
 
 // TestEpicStatusCommand_HandlesSpecWithInvalidFrontmatter verifies specs with invalid frontmatter are skipped
 func TestEpicStatusCommand_HandlesSpecWithInvalidFrontmatter(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
 	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
@@ -1028,6 +1054,7 @@ created: [this is invalid yaml
 
 // TestEpicStatusCommand_HandlesEmptyEpicDocument verifies handling of epic with empty body
 func TestEpicStatusCommand_HandlesEmptyEpicDocument(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
 	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
@@ -1070,6 +1097,7 @@ created: 2026-02-08
 
 // TestEpicStatusCommand_HandlesSpecWithMissingID verifies specs without id field are skipped
 func TestEpicStatusCommand_HandlesSpecWithMissingID(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
 	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
@@ -1146,6 +1174,7 @@ created: 2026-02-08
 
 // TestEpicStatusCommand_HandlesSpecWithNonStringID verifies specs with non-string id are skipped
 func TestEpicStatusCommand_HandlesSpecWithNonStringID(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
 	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
@@ -1218,6 +1247,7 @@ created: 2026-02-08
 
 // TestEpicStatusCommand_HandlesSpecWithNoBeads verifies specs marked as decomposed but with no beads show appropriate message
 func TestEpicStatusCommand_HandlesSpecWithNoBeads(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
 	specsDir := filepath.Join(tmpDir, ".gromit", "specs")

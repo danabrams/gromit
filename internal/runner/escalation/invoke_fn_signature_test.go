@@ -8,6 +8,7 @@ import (
 )
 
 func TestInvokeFn_UsesRuntypesInvocationResult(t *testing.T) {
+	t.Parallel()
 	var _ InvokeFn = func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
 		return nil, nil
 	}

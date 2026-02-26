@@ -10,6 +10,7 @@ import (
 )
 
 func TestTriage(t *testing.T) {
+	t.Parallel()
 	validBC := &runtypes.BeadContext{
 		BuildPrompt: "build prompt",
 		Bead:        &bead.Bead{Description: "non-empty"},
@@ -215,6 +216,7 @@ func TestTriage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := Triage(tt.inv, tt.bc)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Fatalf("Triage() = %#v, want %#v", got, tt.want)

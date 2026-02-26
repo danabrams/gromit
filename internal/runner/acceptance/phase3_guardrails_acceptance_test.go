@@ -11,6 +11,7 @@ import (
 )
 
 func TestPhase3Coverage_HasCacheDeterminismIntegrationCase(t *testing.T) {
+	t.Parallel()
 	tests, err := listPackageTests(repoRoot(t), "./internal/runner/execution")
 	if err != nil {
 		t.Fatalf("list execution tests: %v", err)
@@ -23,6 +24,7 @@ func TestPhase3Coverage_HasCacheDeterminismIntegrationCase(t *testing.T) {
 }
 
 func TestPhase3Coverage_HasCacheFailureFallbackIntegrationCase(t *testing.T) {
+	t.Parallel()
 	tests, err := listPackageTests(repoRoot(t), "./internal/runner/execution")
 	if err != nil {
 		t.Fatalf("list execution tests: %v", err)
@@ -35,6 +37,7 @@ func TestPhase3Coverage_HasCacheFailureFallbackIntegrationCase(t *testing.T) {
 }
 
 func TestPhase3Coverage_HasUtilityRoutingSelectionIntegrationCase(t *testing.T) {
+	t.Parallel()
 	tests, err := listPackageTests(repoRoot(t), "./internal/runner")
 	if err != nil {
 		t.Fatalf("list runner tests: %v", err)
@@ -47,6 +50,7 @@ func TestPhase3Coverage_HasUtilityRoutingSelectionIntegrationCase(t *testing.T) 
 }
 
 func TestPhase3Coverage_HasBuildCodegenRoutingBoundaryIntegrationCase(t *testing.T) {
+	t.Parallel()
 	tests, err := listPackageTests(repoRoot(t), "./internal/runner")
 	if err != nil {
 		t.Fatalf("list runner tests: %v", err)

@@ -17,6 +17,7 @@ import (
 
 // smoke-matrix: keep | rationale: Retains high-value E2E failure-path coverage for timeout-triggered retry with tier escalation behavior. | destination: internal/runner/acceptance/invocation_timeout_acceptance_test.go:TestRunnerSmoke_ValidationFailureEscalatesTier
 func TestRunnerSmoke_ValidationFailureEscalatesTier(t *testing.T) {
+	t.Parallel()
 	callTiers := make(chan string, 3)
 	callCount := 0
 	mockInvoker := &mockProviderWithRouterTracking{

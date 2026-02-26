@@ -14,6 +14,7 @@ import (
 type planLaunchTestAgent = sessionTestAgent
 
 func TestFilterUnplannedSpecs(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		specs        []string
@@ -66,7 +67,10 @@ func TestFilterUnplannedSpecs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel(
 			// Create temporary directories
+			)
+
 			specsDir := t.TempDir()
 			plansDir := t.TempDir()
 
@@ -115,6 +119,7 @@ func TestFilterUnplannedSpecs(t *testing.T) {
 }
 
 func TestLaunchPlanSession_UsesSessionLauncherWhenEnabled(t *testing.T) {
+
 	origLauncher := planSessionLauncherFn
 	t.Cleanup(func() { planSessionLauncherFn = origLauncher })
 
@@ -157,6 +162,7 @@ func TestLaunchPlanSession_UsesSessionLauncherWhenEnabled(t *testing.T) {
 }
 
 func TestLaunchPlanSession_WorktreeDisabledUsesInPlaceLaunch(t *testing.T) {
+
 	origLauncher := planSessionLauncherFn
 	t.Cleanup(func() { planSessionLauncherFn = origLauncher })
 
@@ -195,6 +201,7 @@ func TestLaunchPlanSession_WorktreeDisabledUsesInPlaceLaunch(t *testing.T) {
 }
 
 func TestLaunchPlanSession_ConvertsPromptPathToAbsolute(t *testing.T) {
+
 	origLauncher := planSessionLauncherFn
 	t.Cleanup(func() { planSessionLauncherFn = origLauncher })
 

@@ -44,6 +44,7 @@ func TestBuildRetroProviderRunner_ProvidersPathUsesRouterAdapter(t *testing.T) {
 }
 
 func TestBuildRetroProviderRunner_ProvidersPathDoesNotUseClaudeFallbackFactory(t *testing.T) {
+
 	cfg := &config.Config{
 		Providers: map[string]config.ProviderDef{
 			"openai": {
@@ -75,6 +76,7 @@ func TestBuildRetroProviderRunner_ProvidersPathDoesNotUseClaudeFallbackFactory(t
 }
 
 func TestBuildRetroProviderRunner_ClaudeFallbackErrorIsWrapped(t *testing.T) {
+
 	cfg := &config.Config{}
 
 	orig := retroClaudeFallbackRunnerFn

@@ -10,6 +10,7 @@ import (
 // TestResultToIterationLog_MapsExperimentFields verifies that ResultToIterationLog
 // correctly maps ExperimentID and VariantID from IterationResult to IterationLog.
 func TestResultToIterationLog_MapsExperimentFields(t *testing.T) {
+	t.Parallel()
 	result := &runtypes.IterationResult{
 		BeadID:       "test-bead",
 		ExperimentID: "exp-123",
@@ -29,6 +30,7 @@ func TestResultToIterationLog_MapsExperimentFields(t *testing.T) {
 // TestResultToIterationLog_MapsSpecIDWithLabel verifies that ResultToIterationLog
 // correctly maps SpecID from IterationResult to IterationLog when spec label is present.
 func TestResultToIterationLog_MapsSpecIDWithLabel(t *testing.T) {
+	t.Parallel()
 	result := &runtypes.IterationResult{
 		BeadID: "test-bead",
 		SpecID: "authentication",
@@ -44,6 +46,7 @@ func TestResultToIterationLog_MapsSpecIDWithLabel(t *testing.T) {
 // TestResultToIterationLog_MapsSpecIDWithoutLabel verifies that ResultToIterationLog
 // correctly maps an empty SpecID from IterationResult to IterationLog.
 func TestResultToIterationLog_MapsSpecIDWithoutLabel(t *testing.T) {
+	t.Parallel()
 	result := &runtypes.IterationResult{
 		BeadID: "test-bead",
 		SpecID: "",
@@ -60,14 +63,15 @@ func TestResultToIterationLog_MapsSpecIDWithoutLabel(t *testing.T) {
 // ResultToIterationLog correctly maps timeout decomposition audit fields from
 // IterationResult to IterationLog.
 func TestResultToIterationLog_MapsTimeoutDecompositionAuditFields(t *testing.T) {
+	t.Parallel()
 	attemptTime := time.Now()
 	result := &runtypes.IterationResult{
-		BeadID:                           "test-bead",
-		TimeoutDecompositionAttempted:    true,
-		TimeoutDecompositionSucceeded:    true,
-		TimeoutDecompositionAttemptTime:  attemptTime,
-		TimeoutDecompositionOutcome:      "succeeded",
-		TimeoutDecompositionReason:       "high_complexity_timeout_exceeded",
+		BeadID:                          "test-bead",
+		TimeoutDecompositionAttempted:   true,
+		TimeoutDecompositionSucceeded:   true,
+		TimeoutDecompositionAttemptTime: attemptTime,
+		TimeoutDecompositionOutcome:     "succeeded",
+		TimeoutDecompositionReason:      "high_complexity_timeout_exceeded",
 	}
 
 	log := ResultToIterationLog(result)

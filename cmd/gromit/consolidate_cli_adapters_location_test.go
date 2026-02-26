@@ -11,6 +11,7 @@ import (
 // cliPromptRenderer and explorePromptRenderer have been moved to cli_adapters.go
 // and are no longer defined in review.go and explore.go.
 func TestCliAdapters_PromptRenderersNotInReviewOrExplore(t *testing.T) {
+	t.Parallel()
 	reviewPath := filepath.Join(".", "review.go")
 	reviewContent, err := os.ReadFile(reviewPath)
 	if err != nil {
@@ -37,6 +38,7 @@ func TestCliAdapters_PromptRenderersNotInReviewOrExplore(t *testing.T) {
 // TestCliAdapters_NoMapConstructionForPrompts verifies adapters in cli_adapters.go
 // don't construct intermediate maps for prompt data.
 func TestCliAdapters_NoMapConstructionForPrompts(t *testing.T) {
+	t.Parallel()
 	cliAdaptersPath := filepath.Join(".", "cli_adapters.go")
 	content, err := os.ReadFile(cliAdaptersPath)
 	if err != nil {

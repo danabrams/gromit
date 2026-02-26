@@ -9,9 +9,12 @@ import (
 )
 
 func TestAcceptanceTestsCompile(t *testing.T) {
+	t.Parallel(
 	// Verify that all acceptance tests compile when the acceptance build tag
 	// is active. This catches type errors, unused imports, and other
 	// compilation failures that only surface with -tags acceptance.
+	)
+
 	repoRoot := findRepoRoot(t)
 
 	cmd := exec.Command("go", "test", "-tags", "acceptance", "-run", "^$", "./internal/runner/acceptance/")
@@ -23,9 +26,12 @@ func TestAcceptanceTestsCompile(t *testing.T) {
 }
 
 func TestNoAcceptanceTestsInRunnerRootTests(t *testing.T) {
+	t.Parallel(
 	// Verify that runner_test.go does not exist in internal/runner/.
 	// All test files in internal/runner/ root must be unit tests only.
 	// Acceptance tests must be in internal/runner/acceptance/ only.
+	)
+
 	runnerDir := filepath.Join(findRepoRoot(t), "internal", "runner")
 
 	entries, err := os.ReadDir(runnerDir)

@@ -20,6 +20,7 @@ type retroTestAgent = sessionTestAgent
 var _ agent.Agent = (*retroTestAgent)(nil)
 
 func TestLaunchRetroInteractiveSession_UsesSessionWorktreeDir(t *testing.T) {
+
 	origResolve := retroResolveAgentFn
 	origLauncher := retroSessionLauncherFn
 	origRecord := retroRecordStateFn
@@ -82,6 +83,7 @@ func TestLaunchRetroInteractiveSession_UsesSessionWorktreeDir(t *testing.T) {
 }
 
 func TestLaunchRetroInteractiveSession_ConflictHandoffPropagates(t *testing.T) {
+
 	origResolve := retroResolveAgentFn
 	origLauncher := retroSessionLauncherFn
 	origRecord := retroRecordStateFn
@@ -135,6 +137,7 @@ func TestLaunchRetroInteractiveSession_ConflictHandoffPropagates(t *testing.T) {
 }
 
 func TestLaunchRetroInteractiveSession_ConvertsPromptPathToAbsolute(t *testing.T) {
+
 	origResolve := retroResolveAgentFn
 	origLauncher := retroSessionLauncherFn
 	origRecord := retroRecordStateFn

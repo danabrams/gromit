@@ -17,10 +17,11 @@ import (
 // - Prior retries (TotalRetriesThisBead > 0)
 // - Multi-iteration without explicit low-complexity marking
 func TestProactiveDecomposition_Contract_HighRiskBead(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
-		name       string
-		scope      *prompt.ScopeEstimate
-		retries    int
+		name         string
+		scope        *prompt.ScopeEstimate
+		retries      int
 		wantHighRisk bool
 	}{
 		{
@@ -57,6 +58,7 @@ func TestProactiveDecomposition_Contract_HighRiskBead(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			bc := &runtypes.BeadContext{
 				ScopeEstimate:        tt.scope,
 				TotalRetriesThisBead: tt.retries,
@@ -74,6 +76,7 @@ func TestProactiveDecomposition_Contract_HighRiskBead(t *testing.T) {
 // - Bead is high-risk, AND
 // - Elapsed time >= 60% of BeadTimeout
 func TestProactiveDecomposition_Contract_TimeoutBudgetThreshold(t *testing.T) {
+	t.Parallel()
 	if proactiveDecomposeThreshold != 0.60 {
 		t.Errorf("proactiveDecomposeThreshold = %v, want 0.60", proactiveDecomposeThreshold)
 	}
@@ -83,7 +86,10 @@ func TestProactiveDecomposition_Contract_TimeoutBudgetThreshold(t *testing.T) {
 // proactive decomposition only affects high-risk beads. Low-risk beads
 // proceed normally without decomposition checks.
 func TestProactiveDecomposition_Contract_OnlyAffectsHighRisk(t *testing.T) {
+	t.Parallel(
 	// Even at 100% elapsed time, low-risk beads don't trigger proactive decomposition
+	)
+
 	bc := &runtypes.BeadContext{
 		ScopeEstimate: &prompt.ScopeEstimate{
 			Complexity:                   "low",
@@ -104,11 +110,14 @@ func TestProactiveDecomposition_Contract_OnlyAffectsHighRisk(t *testing.T) {
 // If a hard timeout occurs, it takes precedence over proactive thresholds.
 // The timeout handlers (HandleInvocationTimeout, HandleBeadTimeout) remain unchanged.
 func TestProactiveDecomposition_Contract_PreservesTimeoutPath(t *testing.T) {
+	t.Parallel(
 	// This is documented behavior: proactive decomposition is a safeguard that
 	// triggers BEFORE timeouts occur. If a timeout happens anyway, the timeout
 	// handler takes over. This preserves the "timeout-first" semantics.
 	// See ExecuteWithRetry for the integration point: CheckProactiveDecomposition
 	// is called before invocation, before timeouts can occur.
+	)
+
 }
 
 // TestProactiveDecomposition_Contract_AuditableEvents documents that
@@ -116,6 +125,7 @@ func TestProactiveDecomposition_Contract_PreservesTimeoutPath(t *testing.T) {
 // TimeoutDecompositionAttempted and TimeoutDecompositionSucceeded track
 // whether proactive decomposition was attempted and whether it succeeded.
 func TestProactiveDecomposition_Contract_AuditableEvents(t *testing.T) {
+	t.Parallel(
 	// These fields in IterationResult provide auditability:
 	// - TimeoutDecompositionAttempted: bool (set to true when proactive check triggers)
 	// - TimeoutDecompositionSucceeded: bool (set to true when decomposition succeeds)
@@ -130,4 +140,6 @@ func TestProactiveDecomposition_Contract_AuditableEvents(t *testing.T) {
 	//   → proactive decomposition failed
 	// - TimeoutDecompositionAttempted=false
 	//   → no proactive decomposition (low-risk or below threshold)
+	)
+
 }

@@ -3,6 +3,7 @@ package tdd
 import "testing"
 
 func TestCycleStateIsCompleteWhenDone(t *testing.T) {
+	t.Parallel()
 	state := CycleState{
 		CycleNumber: 1,
 		MaxCycles:   3,
@@ -15,6 +16,7 @@ func TestCycleStateIsCompleteWhenDone(t *testing.T) {
 }
 
 func TestCycleStateIsCompleteWhenCycleReachesMax(t *testing.T) {
+	t.Parallel()
 	state := CycleState{
 		CycleNumber: 3,
 		MaxCycles:   3,
@@ -27,6 +29,7 @@ func TestCycleStateIsCompleteWhenCycleReachesMax(t *testing.T) {
 }
 
 func TestCycleStateIsNotCompleteWhenZeroCyclesAndEmptyRemaining(t *testing.T) {
+	t.Parallel()
 	state := CycleState{
 		CycleNumber: 0,
 		MaxCycles:   3,
@@ -40,6 +43,7 @@ func TestCycleStateIsNotCompleteWhenZeroCyclesAndEmptyRemaining(t *testing.T) {
 }
 
 func TestCycleStateIsCompleteWhenOneCycleAndEmptyRemaining(t *testing.T) {
+	t.Parallel()
 	state := CycleState{
 		CycleNumber: 1,
 		MaxCycles:   3,
@@ -53,6 +57,7 @@ func TestCycleStateIsCompleteWhenOneCycleAndEmptyRemaining(t *testing.T) {
 }
 
 func TestCycleStateIsCompleteWhenDoneRegardlessOfState(t *testing.T) {
+	t.Parallel()
 	state := CycleState{
 		CycleNumber: 0,
 		MaxCycles:   5,
@@ -66,6 +71,7 @@ func TestCycleStateIsCompleteWhenDoneRegardlessOfState(t *testing.T) {
 }
 
 func TestCycleStateIsNotCompleteWhenZeroCyclesWithRemaining(t *testing.T) {
+	t.Parallel()
 	state := CycleState{
 		CycleNumber: 0,
 		MaxCycles:   3,
@@ -79,6 +85,7 @@ func TestCycleStateIsNotCompleteWhenZeroCyclesWithRemaining(t *testing.T) {
 }
 
 func TestRedHandoffNilMapsAreSafeToRead(t *testing.T) {
+	t.Parallel()
 	var handoff RedHandoff
 
 	if len(handoff.TestFiles) != 0 {
@@ -90,6 +97,7 @@ func TestRedHandoffNilMapsAreSafeToRead(t *testing.T) {
 }
 
 func TestGreenHandoffNilMapIsSafeToRead(t *testing.T) {
+	t.Parallel()
 	var handoff GreenHandoff
 
 	if len(handoff.ImplFiles) != 0 {
@@ -98,6 +106,7 @@ func TestGreenHandoffNilMapIsSafeToRead(t *testing.T) {
 }
 
 func TestRefactorHandoffNilMapsAreSafeToRead(t *testing.T) {
+	t.Parallel()
 	var handoff RefactorHandoff
 
 	if len(handoff.TestFiles) != 0 {

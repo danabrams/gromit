@@ -7,6 +7,7 @@ import (
 
 // TestCodexUsageStruct verifies that codexUsage struct can parse token usage data.
 func TestCodexUsageStruct(t *testing.T) {
+	t.Parallel()
 	jsonData := `{"input_tokens":100,"cached_input_tokens":50,"output_tokens":75}`
 
 	var usage codexUsage
@@ -28,6 +29,7 @@ func TestCodexUsageStruct(t *testing.T) {
 
 // TestCodexErrorInfoStruct verifies that codexErrorInfo struct can parse error data.
 func TestCodexErrorInfoStruct(t *testing.T) {
+	t.Parallel()
 	jsonData := `{"type":"UsageLimitExceeded","message":"Rate limit exceeded"}`
 
 	var errInfo codexErrorInfo
@@ -46,6 +48,7 @@ func TestCodexErrorInfoStruct(t *testing.T) {
 
 // TestCodexItemStruct verifies that codexItem struct can parse different item types.
 func TestCodexItemStruct(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		jsonData string
@@ -103,6 +106,7 @@ func TestCodexItemStruct(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var item codexItem
 			err := json.Unmarshal([]byte(tt.jsonData), &item)
 			if err != nil {
@@ -115,6 +119,7 @@ func TestCodexItemStruct(t *testing.T) {
 
 // TestCodexEventStruct verifies that codexEvent struct can parse complete events.
 func TestCodexEventStruct(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		jsonData string
@@ -181,6 +186,7 @@ func TestCodexEventStruct(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var event codexEvent
 			err := json.Unmarshal([]byte(tt.jsonData), &event)
 			if err != nil {

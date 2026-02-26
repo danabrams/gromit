@@ -60,6 +60,7 @@ func (m *mockSuccessResult) GetOutput() string { return m.output }
 // render a prompt, call the provider, parse the JSON response, and
 // call lf.Add() to persist the learning.
 func TestExtractSuccessLearning_PersistsLearningForMediumTier(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	lf, err := learnings.NewFile(dir)
 	if err != nil {
@@ -117,6 +118,7 @@ func TestExtractSuccessLearning_PersistsLearningForMediumTier(t *testing.T) {
 // ignores the router parameter entirely. After implementation, it should
 // call router.Select() and gracefully skip when the provider is nil.
 func TestExtractSuccessLearning_SkipsWhenRouterReturnsNilProvider(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	lf, err := learnings.NewFile(dir)
 	if err != nil {
@@ -157,6 +159,7 @@ func TestExtractSuccessLearning_SkipsWhenRouterReturnsNilProvider(t *testing.T) 
 // never calls the provider. After implementation, it should call the
 // provider and gracefully skip when the call fails.
 func TestExtractSuccessLearning_SkipsWhenProviderFails(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	lf, err := learnings.NewFile(dir)
 	if err != nil {
@@ -210,6 +213,7 @@ func TestExtractSuccessLearning_SkipsWhenProviderFails(t *testing.T) {
 // After implementation, it should parse the provider response and skip
 // when the learning field is null.
 func TestExtractSuccessLearning_SkipsWhenProviderReturnsNoLearning(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	lf, err := learnings.NewFile(dir)
 	if err != nil {
@@ -264,6 +268,7 @@ func TestExtractSuccessLearning_SkipsWhenProviderReturnsNoLearning(t *testing.T)
 // After implementation, high-tier beads should follow the same
 // router → provider → parse → persist path.
 func TestExtractSuccessLearning_HighTierUsesRouter(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	lf, err := learnings.NewFile(dir)
 	if err != nil {

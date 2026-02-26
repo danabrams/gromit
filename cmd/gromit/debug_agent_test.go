@@ -8,6 +8,7 @@ import (
 )
 
 func TestDebugCommandHasAgentFlag(t *testing.T) {
+	t.Parallel()
 	flag := debugCmd.Flags().Lookup("agent")
 	if flag == nil {
 		t.Fatal("debug command missing --agent flag")
@@ -18,6 +19,7 @@ func TestDebugCommandHasAgentFlag(t *testing.T) {
 }
 
 func TestDebugCommandHasChooseAgentFlag(t *testing.T) {
+	t.Parallel()
 	flag := debugCmd.Flags().Lookup("choose-agent")
 	if flag == nil {
 		t.Fatal("debug command missing --choose-agent flag")
@@ -28,6 +30,7 @@ func TestDebugCommandHasChooseAgentFlag(t *testing.T) {
 }
 
 func TestDebugCommandHasRestoreFlag(t *testing.T) {
+	t.Parallel()
 	flag := debugCmd.Flags().Lookup("restore")
 	if flag == nil {
 		t.Fatal("debug command missing --restore flag")
@@ -38,6 +41,7 @@ func TestDebugCommandHasRestoreFlag(t *testing.T) {
 }
 
 func TestDebugUsesAgentLaunchNotDirectExec(t *testing.T) {
+
 	cmd := debugCmd
 	if err := cmd.Flags().Set(debugAgentFlag, "codex"); err != nil {
 		t.Fatalf("setting %s flag: %v", debugAgentFlag, err)
@@ -68,12 +72,14 @@ func TestDebugUsesAgentLaunchNotDirectExec(t *testing.T) {
 }
 
 func TestDebugHelpIncludesCodexExample(t *testing.T) {
+	t.Parallel()
 	if !strings.Contains(debugCmd.Long, "--agent codex") {
 		t.Fatalf("debug help missing codex example, got: %s", debugCmd.Long)
 	}
 }
 
 func TestDebugChooseAgentUsesPicker_Reclassified(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	cfg.Agents.Phases.Debug = "claude"
 	cfg.Agents.Definitions = map[string]config.AgentDefinition{
@@ -98,6 +104,7 @@ func TestDebugChooseAgentUsesPicker_Reclassified(t *testing.T) {
 }
 
 func TestDebugPhaseConfigUsesAgent_Reclassified(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	cfg.Agents.Phases.Debug = "codex"
 	cfg.Agents.Definitions = map[string]config.AgentDefinition{
@@ -122,6 +129,7 @@ func TestDebugPhaseConfigUsesAgent_Reclassified(t *testing.T) {
 }
 
 func TestShouldOverrideDebugModel_OnlyForClaudeWithChangedModelFlag(t *testing.T) {
+
 	cmd := debugCmd
 	_ = cmd.Flags().Set(debugModelFlag, "sonnet")
 	t.Cleanup(func() { _ = cmd.Flags().Set(debugModelFlag, "opus") })

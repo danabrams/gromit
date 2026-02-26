@@ -34,6 +34,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestGromitHelperProcess(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("GROMIT_TEST_HELPER_PROCESS") != "1" {
 		return
 	}
@@ -55,6 +56,7 @@ func TestGromitHelperProcess(t *testing.T) {
 }
 
 func TestRunGromitCobra_HelpOutputsUsage(t *testing.T) {
+	t.Parallel()
 	stdout, stderr, exitCode := runGromitCobra(t, "--help")
 
 	if exitCode != 0 {
@@ -67,6 +69,7 @@ func TestRunGromitCobra_HelpOutputsUsage(t *testing.T) {
 }
 
 func TestRunCommandHelpIncludesGracefulStopHint(t *testing.T) {
+	t.Parallel()
 	stdout, stderr, exitCode := runGromitCobra(t, "run", "--help")
 
 	if exitCode != 0 {
@@ -80,6 +83,7 @@ func TestRunCommandHelpIncludesGracefulStopHint(t *testing.T) {
 }
 
 func TestRunGromitCobra_ResetsHelpFlag(t *testing.T) {
+	t.Parallel()
 	_, _, _ = runGromitCobra(t, "--help")
 
 	helpFlag := rootCmd.Flags().Lookup("help")

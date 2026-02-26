@@ -17,6 +17,7 @@ import (
 // TestBeadContext_AllFieldsExported verifies that BeadContext has all expected
 // exported fields for use by runner sub-packages.
 func TestBeadContext_AllFieldsExported(t *testing.T) {
+	t.Parallel()
 	scopeEst := &prompt.ScopeEstimate{}
 	parentCtx := context.Background()
 	deadline := time.Now().Add(30 * time.Minute)
@@ -117,6 +118,7 @@ func TestBeadContext_AllFieldsExported(t *testing.T) {
 // TestIterationResult_InRuntypes verifies that IterationResult is defined in runtypes
 // with all expected fields matching the original runner.IterationResult.
 func TestIterationResult_InRuntypes(t *testing.T) {
+	t.Parallel()
 	promptDiagnostics := &prompt.PromptDiagnostics{
 		PromptType:      "build",
 		EstimatedTokens: 1234,
@@ -205,6 +207,7 @@ func TestIterationResult_InRuntypes(t *testing.T) {
 // TestIterationResult_TierFieldsJSONTags verifies that IterationResult marshals
 // tier provenance fields using snake_case JSON keys and omitempty behavior.
 func TestIterationResult_TierFieldsJSONTags(t *testing.T) {
+	t.Parallel()
 	result := IterationResult{
 		OriginalTier: "low",
 		ActualTier:   "medium",
@@ -236,6 +239,7 @@ func TestIterationResult_TierFieldsJSONTags(t *testing.T) {
 }
 
 func TestIterationResult_CacheTelemetryJSONTags(t *testing.T) {
+	t.Parallel()
 	result := IterationResult{
 		CacheHit:                true,
 		CacheMiss:               true,
@@ -294,6 +298,7 @@ func TestIterationResult_CacheTelemetryJSONTags(t *testing.T) {
 }
 
 func TestIterationResult_RoutingTelemetryJSONTags(t *testing.T) {
+	t.Parallel()
 	result := IterationResult{
 		UtilityRoutingCategory: "summarization",
 		UtilityRoutingTier:     "low",
@@ -326,6 +331,7 @@ func TestIterationResult_RoutingTelemetryJSONTags(t *testing.T) {
 
 // TestSubTask_InRuntypes verifies that SubTask is defined in runtypes with JSON tags.
 func TestSubTask_InRuntypes(t *testing.T) {
+	t.Parallel()
 	dependsOn := 1
 	task := SubTask{
 		Title:              "Create helper function",
@@ -351,7 +357,9 @@ func TestSubTask_InRuntypes(t *testing.T) {
 // TestSubTask_NormalizeNilFields verifies that normalizeNilFields converts nil
 // slices to empty slices and is nil-safe on the receiver.
 func TestSubTask_NormalizeNilFields(t *testing.T) {
+	t.Parallel()
 	t.Run("nil AcceptanceCriteria becomes empty slice", func(t *testing.T) {
+		t.Parallel()
 		task := SubTask{Title: "Test", AcceptanceCriteria: nil}
 		task.NormalizeNilFields()
 		if task.AcceptanceCriteria == nil {
@@ -363,6 +371,7 @@ func TestSubTask_NormalizeNilFields(t *testing.T) {
 	})
 
 	t.Run("non-nil AcceptanceCriteria unchanged", func(t *testing.T) {
+		t.Parallel()
 		task := SubTask{AcceptanceCriteria: []string{"criterion"}}
 		task.NormalizeNilFields()
 		if len(task.AcceptanceCriteria) != 1 || task.AcceptanceCriteria[0] != "criterion" {
@@ -371,6 +380,7 @@ func TestSubTask_NormalizeNilFields(t *testing.T) {
 	})
 
 	t.Run("nil receiver does not panic", func(t *testing.T) {
+		t.Parallel()
 		var task *SubTask
 		task.NormalizeNilFields() // should not panic
 	})
@@ -379,6 +389,7 @@ func TestSubTask_NormalizeNilFields(t *testing.T) {
 // TestInvocationResult_ResultField verifies that InvocationResult has a Result
 // field of type *claude.Result.
 func TestInvocationResult_ResultField(t *testing.T) {
+	t.Parallel()
 	claudeResult := &claude.Result{
 		Success: true,
 		Output:  "build output",
@@ -398,6 +409,7 @@ func TestInvocationResult_ResultField(t *testing.T) {
 // TestInvocationResult_AllFields verifies that InvocationResult has all 7 required fields
 // with correct types: Stats, StallFired, ModelName, ProviderName, ProviderResult, TimeoutType.
 func TestInvocationResult_AllFields(t *testing.T) {
+	t.Parallel()
 	stats, err := logger.NewStreamStats()
 	if err != nil {
 		t.Fatalf("NewStreamStats() error: %v", err)
@@ -439,6 +451,7 @@ func TestInvocationResult_AllFields(t *testing.T) {
 
 // TestIterationResult_FailurePhase verifies that IterationResult has a FailurePhase field.
 func TestIterationResult_FailurePhase(t *testing.T) {
+	t.Parallel()
 	result := IterationResult{
 		BeadID:       "bead-1",
 		FailurePhase: "validation",
@@ -449,6 +462,7 @@ func TestIterationResult_FailurePhase(t *testing.T) {
 }
 
 func TestIterationResult_FilesTouched(t *testing.T) {
+	t.Parallel()
 	result := IterationResult{
 		BeadID:       "test-1",
 		FilesTouched: 3,
@@ -459,6 +473,7 @@ func TestIterationResult_FilesTouched(t *testing.T) {
 }
 
 func TestIterationResult_TouchedPackages(t *testing.T) {
+	t.Parallel()
 	result := IterationResult{
 		BeadID:          "test-1",
 		TouchedPackages: []string{"internal/runner", "internal/logger"},
@@ -476,6 +491,7 @@ func TestIterationResult_TouchedPackages(t *testing.T) {
 
 // TestIterationResult_SpecID verifies that IterationResult has a SpecID field.
 func TestIterationResult_SpecID(t *testing.T) {
+	t.Parallel()
 	result := IterationResult{
 		BeadID: "bead-1",
 		SpecID: "spec-abc",
@@ -488,6 +504,7 @@ func TestIterationResult_SpecID(t *testing.T) {
 // TestIterationResult_SpecIDJSONTag ensures the struct tags
 // marshal SpecID using the expected json key and respects omitempty.
 func TestIterationResult_SpecIDJSONTag(t *testing.T) {
+	t.Parallel()
 	result := IterationResult{
 		BeadID: "bead-1",
 		SpecID: "spec-json",
@@ -514,6 +531,7 @@ func TestIterationResult_SpecIDJSONTag(t *testing.T) {
 // TestIterationResult_CoverageFields verifies that IterationResult has the four
 // coverage result fields required by the coverage tracker feature.
 func TestIterationResult_CoverageFields(t *testing.T) {
+	t.Parallel()
 	result := IterationResult{
 		BeadID:             "bead-cov",
 		CriteriaTotal:      10,
@@ -538,6 +556,7 @@ func TestIterationResult_CoverageFields(t *testing.T) {
 
 // TestPhaseMetric_CoreFields verifies PhaseMetric has all core per-phase fields.
 func TestPhaseMetric_CoreFields(t *testing.T) {
+	t.Parallel()
 	pm := PhaseMetric{
 		Phase:        "red",
 		CycleNumber:  2,
@@ -590,6 +609,7 @@ func TestPhaseMetric_CoreFields(t *testing.T) {
 // TestPhaseMetric_EscalatedFromAndCriteriaFields verifies PhaseMetric has
 // escalated_from and criteria tracking fields.
 func TestPhaseMetric_EscalatedFromAndCriteriaFields(t *testing.T) {
+	t.Parallel()
 	pm := PhaseMetric{
 		Phase:              "green",
 		EscalatedFrom:      "haiku",
@@ -615,7 +635,9 @@ func TestPhaseMetric_EscalatedFromAndCriteriaFields(t *testing.T) {
 // TestIterationResult_PhaseMetrics verifies IterationResult has a PhaseMetrics slice
 // that is zero-value safe (nil by default) and accepts PhaseMetric values.
 func TestIterationResult_PhaseMetrics(t *testing.T) {
+	t.Parallel()
 	t.Run("zero value has nil PhaseMetrics", func(t *testing.T) {
+		t.Parallel()
 		result := IterationResult{}
 		if result.PhaseMetrics != nil {
 			t.Error("zero-value IterationResult.PhaseMetrics should be nil")
@@ -623,6 +645,7 @@ func TestIterationResult_PhaseMetrics(t *testing.T) {
 	})
 
 	t.Run("PhaseMetrics accepts appended values", func(t *testing.T) {
+		t.Parallel()
 		result := IterationResult{BeadID: "bead-1"}
 		result.PhaseMetrics = append(result.PhaseMetrics, PhaseMetric{
 			Phase:       "red",
@@ -652,8 +675,12 @@ func TestIterationResult_PhaseMetrics(t *testing.T) {
 // TestCallbackFunctionTypes verifies that the callback function types are defined
 // and can be used with the correct signatures.
 func TestCallbackFunctionTypes(t *testing.T) {
+	t.Parallel()
 	t.Run("GitDiffFn signature", func(t *testing.T) {
+		t.Parallel(
 		// GitDiffFn takes a commit string and returns (diff string, error)
+		)
+
 		var fn GitDiffFn = func(startCommit string) (string, error) {
 			return "diff --git a/file.go b/file.go", nil
 		}
@@ -667,7 +694,10 @@ func TestCallbackFunctionTypes(t *testing.T) {
 	})
 
 	t.Run("CmdRunnerFn signature", func(t *testing.T) {
+		t.Parallel(
 		// CmdRunnerFn takes (ctx, command, workDir) and returns (stdout, stderr, exitCode, error)
+		)
+
 		var fn CmdRunnerFn = func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 			return "PASS", "", 0, nil
 		}
@@ -687,7 +717,10 @@ func TestCallbackFunctionTypes(t *testing.T) {
 	})
 
 	t.Run("AutoFixFn signature", func(t *testing.T) {
+		t.Parallel(
 		// AutoFixFn takes a startCommit string and returns error
+		)
+
 		var fn AutoFixFn = func(startCommit string) error {
 			return nil
 		}
@@ -701,6 +734,7 @@ func TestCallbackFunctionTypes(t *testing.T) {
 // TestIterationResult_ExperimentIDAndVariantIDJSONTags verifies that IterationResult has
 // ExperimentID and VariantID fields with json tags and omitempty behavior.
 func TestIterationResult_ExperimentIDAndVariantIDJSONTags(t *testing.T) {
+	t.Parallel()
 	result := IterationResult{
 		BeadID:       "test-1",
 		ExperimentID: "exp-xyz",

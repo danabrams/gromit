@@ -10,6 +10,7 @@ import (
 // TestSetupBeadContext_WithSpecLabel verifies that setupBeadContext
 // correctly extracts the spec name from bead labels and sets bc.Result.SpecID.
 func TestSetupBeadContext_WithSpecLabel(t *testing.T) {
+	t.Parallel()
 	b := &bead.Bead{
 		ID:     "bead-1",
 		Title:  "Test bead",
@@ -30,6 +31,7 @@ func TestSetupBeadContext_WithSpecLabel(t *testing.T) {
 // TestSetupBeadContext_WithoutSpecLabel verifies that setupBeadContext
 // correctly handles beads without a spec label (empty string).
 func TestSetupBeadContext_WithoutSpecLabel(t *testing.T) {
+	t.Parallel()
 	b := &bead.Bead{
 		ID:     "bead-2",
 		Title:  "Test bead without spec",

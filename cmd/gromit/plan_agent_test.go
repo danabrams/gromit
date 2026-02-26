@@ -13,7 +13,10 @@ import (
 
 // TestPlanCommandHasAgentFlag verifies plan command has --agent flag
 func TestPlanCommandHasAgentFlag(t *testing.T) {
+	t.Parallel(
 	// This test will fail until --agent flag is added to plan command
+	)
+
 	flag := planCmd.Flags().Lookup("agent")
 	if flag == nil {
 		t.Error("plan command missing --agent flag")
@@ -26,7 +29,10 @@ func TestPlanCommandHasAgentFlag(t *testing.T) {
 
 // TestPlanCommandHasChooseAgentFlag verifies plan command has --choose-agent flag
 func TestPlanCommandHasChooseAgentFlag(t *testing.T) {
+	t.Parallel(
 	// This test will fail until --choose-agent flag is added to plan command
+	)
+
 	flag := planCmd.Flags().Lookup("choose-agent")
 	if flag == nil {
 		t.Error("plan command missing --choose-agent flag")
@@ -39,8 +45,10 @@ func TestPlanCommandHasChooseAgentFlag(t *testing.T) {
 
 // TestPlanUsesAgentResolve verifies plan command integrates with agent.Resolve
 func TestPlanUsesAgentResolve(t *testing.T) {
+
 	// This test verifies the integration by creating a minimal config and checking
 	// that the agent selection behavior works end-to-end
+
 	tmpDir := t.TempDir()
 
 	// Create minimal gromit config with custom agent
@@ -93,8 +101,10 @@ agents:
 
 // TestPlanFlagOverrideTakesPriority verifies --agent flag overrides config
 func TestPlanFlagOverrideTakesPriority(t *testing.T) {
+	t.Parallel(
 	// This acceptance test verifies the priority order:
 	// --agent flag should override agents.phases config
+	)
 
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
@@ -136,8 +146,10 @@ agents:
 
 // TestPlanChooseAgentTriggersPickerBehavior verifies --choose-agent flag behavior
 func TestPlanChooseAgentTriggersPickerBehavior(t *testing.T) {
+	t.Parallel(
 	// This acceptance test verifies that --choose-agent flag is wired up correctly
 	// The actual picker interaction would be tested in integration tests
+	)
 
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
@@ -180,7 +192,9 @@ agents:
 
 // TestPlanAgentPromptConfigTriggersPicker verifies agents.prompt config triggers picker
 func TestPlanAgentPromptConfigTriggersPicker(t *testing.T) {
+	t.Parallel(
 	// This acceptance test verifies agents.prompt: true config is respected
+	)
 
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
@@ -221,6 +235,7 @@ agents:
 }
 
 func TestLaunchPlanSessionUsesSessionLauncher(t *testing.T) {
+
 	origLauncher := planSessionLauncherFn
 	t.Cleanup(func() { planSessionLauncherFn = origLauncher })
 	planSessionLauncherFn = func(gDir, command string, _ sessionConflictSettings, callback func(sessionDir string) error) (*worktree.SessionWorktree, error) {
@@ -253,6 +268,7 @@ func TestLaunchPlanSessionUsesSessionLauncher(t *testing.T) {
 }
 
 func TestLaunchPlanSessionSkipsSessionLauncherWhenWorktreeDisabled(t *testing.T) {
+
 	origLauncher := planSessionLauncherFn
 	t.Cleanup(func() { planSessionLauncherFn = origLauncher })
 	planSessionLauncherFn = func(string, string, sessionConflictSettings, func(string) error) (*worktree.SessionWorktree, error) {
@@ -309,8 +325,10 @@ func boolPtr(v bool) *bool { return &v }
 
 // TestPlanAgentConfigBackwardCompatibility verifies plan works without agent config
 func TestPlanAgentConfigBackwardCompatibility(t *testing.T) {
+	t.Parallel(
 	// This acceptance test verifies backward compatibility
 	// Existing configs without agents section should still work (defaults to claude)
+	)
 
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")

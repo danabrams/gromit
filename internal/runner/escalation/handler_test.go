@@ -88,8 +88,11 @@ func newTestConfig() *config.Config {
 // --- Handler tests ---
 
 func TestNewHandler_AcceptsNarrowInterfaces(t *testing.T) {
+	t.Parallel(
 	// Verify that NewHandler constructs a Handler from narrow dependency interfaces,
 	// not from concrete runner types. This is the key extraction pattern.
+	)
+
 	cfg := newTestConfig()
 	mfa := &mockFailureAnalyzer{}
 	mbc := &mockBeadClient{}
@@ -102,8 +105,11 @@ func TestNewHandler_AcceptsNarrowInterfaces(t *testing.T) {
 }
 
 func TestHandleStallTimeout_ExceedsBeadLimit(t *testing.T) {
+	t.Parallel(
 	// When TotalRetriesThisBead exceeds MaxRetriesPerBead, HandleStallTimeout
 	// should return false and set an error on the result.
+	)
+
 	cfg := newTestConfig()
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
@@ -124,8 +130,11 @@ func TestHandleStallTimeout_ExceedsBeadLimit(t *testing.T) {
 }
 
 func TestHandleStallTimeout_RetryWithSameModel(t *testing.T) {
+	t.Parallel(
 	// When retries are available for the current model, HandleStallTimeout
 	// should return true and increment retry counters.
+	)
+
 	cfg := newTestConfig()
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
@@ -148,8 +157,11 @@ func TestHandleStallTimeout_RetryWithSameModel(t *testing.T) {
 }
 
 func TestHandleStallTimeout_EscalatesToNextTier(t *testing.T) {
+	t.Parallel(
 	// When model retries are exhausted and a higher tier exists,
 	// HandleStallTimeout should escalate the tier.
+	)
+
 	cfg := newTestConfig()
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
@@ -177,6 +189,7 @@ func TestHandleStallTimeout_EscalatesToNextTier(t *testing.T) {
 }
 
 func TestHandleStallTimeout_OnlyOneNoToolRetry(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
@@ -205,6 +218,7 @@ func TestHandleStallTimeout_OnlyOneNoToolRetry(t *testing.T) {
 }
 
 func TestHandleStallTimeout_FirstTimeoutDecomposesBeforeEscalation(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	decomposeCalled := false
 	createSubCalled := false
@@ -247,6 +261,7 @@ func TestHandleStallTimeout_FirstTimeoutDecomposesBeforeEscalation(t *testing.T)
 }
 
 func TestHandleInvocationTimeout_WithoutDecomposerReturnsError(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
@@ -269,8 +284,11 @@ func TestHandleInvocationTimeout_WithoutDecomposerReturnsError(t *testing.T) {
 }
 
 func TestAnalyzeAndHandleFailure_UnclearSpecStops(t *testing.T) {
+	t.Parallel(
 	// When failure analysis returns CategoryUnclearSpec, the handler should
 	// stop retrying (return false) and set a spec-related error.
+	)
+
 	mfa := &mockFailureAnalyzer{
 		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
 			return &analyzer.Analysis{
@@ -299,8 +317,11 @@ func TestAnalyzeAndHandleFailure_UnclearSpecStops(t *testing.T) {
 }
 
 func TestAnalyzeAndHandleFailure_TaskTooComplexStopsAndComments(t *testing.T) {
+	t.Parallel(
 	// When analysis returns CategoryTaskTooComplex, the handler should stop,
 	// add a comment to the bead, and set an error.
+	)
+
 	mfa := &mockFailureAnalyzer{
 		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
 			return &analyzer.Analysis{
@@ -333,8 +354,11 @@ func TestAnalyzeAndHandleFailure_TaskTooComplexStopsAndComments(t *testing.T) {
 }
 
 func TestAnalyzeAndHandleFailure_RecoverableRetries(t *testing.T) {
+	t.Parallel(
 	// When analysis returns a recoverable failure with retries available,
 	// the handler should return true (continue) and increment retry counters.
+	)
+
 	mfa := &mockFailureAnalyzer{
 		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
 			suggestion := "try adding the missing import"
@@ -367,11 +391,14 @@ func TestAnalyzeAndHandleFailure_RecoverableRetries(t *testing.T) {
 }
 
 func TestAnalyzeAndHandleFailure_RecoverableRetrySetsPromptContext(t *testing.T) {
+	t.Parallel(
 	// Expected failure: AnalyzeAndHandleFailure does not set bc.PromptCtx.IsRetry
 	// or bc.PromptCtx.FailureContext when deciding to retry a recoverable failure.
 	// The old runner-local method set these fields but the escalation extraction
 	// lost that behavior. The fix must set IsRetry=true and FailureContext to the
 	// analysis Suggestion so the retry prompt includes failure context.
+	)
+
 	mfa := &mockFailureAnalyzer{
 		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
 			return &analyzer.Analysis{
@@ -411,6 +438,7 @@ func TestAnalyzeAndHandleFailure_RecoverableRetrySetsPromptContext(t *testing.T)
 }
 
 func TestAnalyzeAndHandleFailure_RecoverableRetryTruncatesFailureContextTail(t *testing.T) {
+	t.Parallel()
 	mfa := &mockFailureAnalyzer{
 		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
 			return &analyzer.Analysis{
@@ -451,8 +479,11 @@ func TestAnalyzeAndHandleFailure_RecoverableRetryTruncatesFailureContextTail(t *
 }
 
 func TestAnalyzeAndHandleFailure_AnalysisErrorRetriesCommonCauseFirst(t *testing.T) {
+	t.Parallel(
 	// Analyzer outages are treated as common-cause by default, so the first
 	// failure should retry at the same tier before escalation.
+	)
+
 	mfa := &mockFailureAnalyzer{
 		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
 			return nil, fmt.Errorf("analysis service unavailable")
@@ -479,6 +510,7 @@ func TestAnalyzeAndHandleFailure_AnalysisErrorRetriesCommonCauseFirst(t *testing
 }
 
 func TestAnalyzeAndHandleFailure_NonRecoverableCommonCauseRetriesSameTier(t *testing.T) {
+	t.Parallel()
 	mfa := &mockFailureAnalyzer{
 		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
 			return &analyzer.Analysis{
@@ -512,6 +544,7 @@ func TestAnalyzeAndHandleFailure_NonRecoverableCommonCauseRetriesSameTier(t *tes
 }
 
 func TestAnalyzeAndHandleFailure_NonRecoverableConsecutiveFailureEscalates(t *testing.T) {
+	t.Parallel()
 	mfa := &mockFailureAnalyzer{
 		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
 			return &analyzer.Analysis{
@@ -565,8 +598,11 @@ func writeModelBuildFailureLimit(t *testing.T, gromitDir, model string, latest, 
 }
 
 func TestHandleEscalation_EscalatesToNextTier(t *testing.T) {
+	t.Parallel(
 	// When a higher tier is available, HandleEscalation should escalate
 	// and return true to continue the loop.
+	)
+
 	cfg := newTestConfig()
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
@@ -591,8 +627,11 @@ func TestHandleEscalation_EscalatesToNextTier(t *testing.T) {
 }
 
 func TestHandleEscalation_NoMoreTiersAttempsDecomposition(t *testing.T) {
+	t.Parallel(
 	// When at the highest tier with no further escalation, HandleEscalation
 	// should attempt decomposition.
+	)
+
 	decomposeCalled := false
 	cfg := newTestConfig()
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{},
@@ -619,8 +658,11 @@ func TestHandleEscalation_NoMoreTiersAttempsDecomposition(t *testing.T) {
 }
 
 func TestHandleEscalation_MaxRetriesPerBeadExceededStops(t *testing.T) {
+	t.Parallel(
 	// When total retries exceed the per-bead limit, HandleEscalation should
 	// stop and set an error, even if a higher tier exists.
+	)
+
 	cfg := newTestConfig()
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
@@ -640,7 +682,10 @@ func TestHandleEscalation_MaxRetriesPerBeadExceededStops(t *testing.T) {
 }
 
 func TestAttemptDecomposition_SuccessSetsDecomposedFlag(t *testing.T) {
+	t.Parallel(
 	// When decomposition succeeds, Result.Decomposed should be set to true.
+	)
+
 	cfg := newTestConfig()
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{},
 		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
@@ -670,7 +715,10 @@ func TestAttemptDecomposition_SuccessSetsDecomposedFlag(t *testing.T) {
 }
 
 func TestAttemptDecomposition_DecomposeFailureSetsError(t *testing.T) {
+	t.Parallel(
 	// When the decompose callback fails, Result.Error should capture the reason.
+	)
+
 	cfg := newTestConfig()
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{},
 		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
@@ -695,8 +743,11 @@ func TestAttemptDecomposition_DecomposeFailureSetsError(t *testing.T) {
 }
 
 func TestEscalateTier_UpdatesBeadContextFields(t *testing.T) {
+	t.Parallel(
 	// EscalateTier should update all relevant fields on BeadContext:
 	// Tier, Model, Result.Escalated, Result.EscalatedTo, RetriesThisModel.
+	)
+
 	cfg := newTestConfig()
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
@@ -726,8 +777,11 @@ func TestEscalateTier_UpdatesBeadContextFields(t *testing.T) {
 }
 
 func TestExecuteWithRetry_SuccessOnFirstAttempt(t *testing.T) {
+	t.Parallel(
 	// When the InvokeFn succeeds on the first attempt, ExecuteWithRetry should
 	// return true (success) without any retry or escalation.
+	)
+
 	cfg := newTestConfig()
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
@@ -748,6 +802,7 @@ func TestExecuteWithRetry_SuccessOnFirstAttempt(t *testing.T) {
 }
 
 func TestExecuteWithRetryWithEscalation_DisabledSkipsTierEscalation(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	bc := newTestBeadContext()
 	bc.Tier = provider.TierLow
@@ -786,6 +841,7 @@ func TestExecuteWithRetryWithEscalation_DisabledSkipsTierEscalation(t *testing.T
 }
 
 func TestExecuteWithRetry_UsesProviderResultWhenClaudeResultMissing(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	capturedFailureOutput := ""
 	h := NewHandler(cfg, &mockFailureAnalyzer{
@@ -820,8 +876,11 @@ func TestExecuteWithRetry_UsesProviderResultWhenClaudeResultMissing(t *testing.T
 }
 
 func TestExecuteWithRetry_StallFiresRetryAndEscalate(t *testing.T) {
+	t.Parallel(
 	// When the invocation returns a stall, ExecuteWithRetry should handle it
 	// via HandleStallTimeout (retry same model or escalate).
+	)
+
 	cfg := newTestConfig()
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
@@ -860,6 +919,7 @@ func TestExecuteWithRetry_StallFiresRetryAndEscalate(t *testing.T) {
 }
 
 func TestExecuteWithRetry_InvocationTimeoutWithoutDecomposerFails(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
@@ -889,6 +949,7 @@ func TestExecuteWithRetry_InvocationTimeoutWithoutDecomposerFails(t *testing.T) 
 }
 
 func TestHandleInvocationTimeout_NoHigherTierAttemptsDecomposition(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	decomposeCalled := false
 	createSubCalled := false
@@ -931,6 +992,7 @@ func TestHandleInvocationTimeout_NoHigherTierAttemptsDecomposition(t *testing.T)
 }
 
 func TestHandleInvocationTimeout_FirstTimeoutDecomposesWithoutEscalation(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	decomposeCalled := false
 	h := NewHandler(
@@ -976,6 +1038,7 @@ func TestHandleInvocationTimeout_FirstTimeoutDecomposesWithoutEscalation(t *test
 }
 
 func TestHandleStallTimeout_FirstTimeoutBudgetThresholdSkipsDecomposition(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	decomposeCalled := false
 	h := NewHandler(
@@ -1026,6 +1089,7 @@ func TestHandleStallTimeout_FirstTimeoutBudgetThresholdSkipsDecomposition(t *tes
 }
 
 func TestExecuteWithRetry_BeadTimeoutDecomposesOnFirstTimeout(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	cfg.Escalation.Chain = []string{"haiku", "sonnet", "opus"}
 
@@ -1065,6 +1129,7 @@ func TestExecuteWithRetry_BeadTimeoutDecomposesOnFirstTimeout(t *testing.T) {
 }
 
 func TestExecuteWithRetry_BeadTimeoutFirstTimeoutDecomposesWithoutEscalation(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	cfg.Escalation.Chain = []string{"haiku", "sonnet", "opus"}
 
@@ -1107,8 +1172,11 @@ func TestExecuteWithRetry_BeadTimeoutFirstTimeoutDecomposesWithoutEscalation(t *
 }
 
 func TestExecuteWithRetry_BeadTimeoutEscalationLogsReason(t *testing.T) {
+	t.Parallel(
 	// When bead timeout triggers escalation, the log message should mention
 	// "bead timeout" so operators can distinguish it from stall/invocation escalations.
+	)
+
 	cfg := newTestConfig()
 	cfg.Escalation.Chain = []string{"haiku", "sonnet", "opus"}
 
@@ -1147,8 +1215,11 @@ func TestExecuteWithRetry_BeadTimeoutEscalationLogsReason(t *testing.T) {
 }
 
 func TestExecuteWithRetry_BeadTimeoutSkipsEscalationWhenLimitReached(t *testing.T) {
+	t.Parallel(
 	// When timeout escalation limit is already reached, bead timeout goes directly
 	// to decomposition without attempting another escalation.
+	)
+
 	cfg := newTestConfig()
 	cfg.Escalation.Chain = []string{"haiku", "sonnet", "opus"}
 
@@ -1189,7 +1260,10 @@ func TestExecuteWithRetry_BeadTimeoutSkipsEscalationWhenLimitReached(t *testing.
 }
 
 func TestExecuteWithRetry_BeadTimeoutAtHighestTierDecomposesDirectly(t *testing.T) {
+	t.Parallel(
 	// When a bead timeout occurs at the highest tier, decompose without escalation.
+	)
+
 	cfg := newTestConfig()
 	cfg.Escalation.Chain = []string{"haiku", "sonnet", "opus"}
 
@@ -1229,6 +1303,7 @@ func TestExecuteWithRetry_BeadTimeoutAtHighestTierDecomposesDirectly(t *testing.
 }
 
 func TestExecuteWithRetry_BeadTimeoutAttemptsDecomposition(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	decomposeCalled := false
 	createSubCalled := false
@@ -1280,6 +1355,7 @@ func TestExecuteWithRetry_BeadTimeoutAttemptsDecomposition(t *testing.T) {
 }
 
 func TestExecuteWithRetry_BeadTimeoutWithCanceledParentContextSkipsDecomposition(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	decomposeCalled := false
 	h := NewHandler(
@@ -1321,6 +1397,7 @@ func TestExecuteWithRetry_BeadTimeoutWithCanceledParentContextSkipsDecomposition
 }
 
 func TestExecuteWithRetry_StopsWhenAttemptBudgetExceeded(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	mfa := &mockFailureAnalyzer{
 		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
@@ -1352,6 +1429,7 @@ func TestExecuteWithRetry_StopsWhenAttemptBudgetExceeded(t *testing.T) {
 }
 
 func TestExecuteWithRetry_BlocksSameScopeRetryAfterTimeoutWithoutDecision(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
@@ -1384,6 +1462,7 @@ func TestExecuteWithRetry_BlocksSameScopeRetryAfterTimeoutWithoutDecision(t *tes
 }
 
 func TestHandleInvocationTimeout_RecordsTimeoutDecompositionOutcome(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	h := NewHandler(
 		cfg,
@@ -1411,6 +1490,7 @@ func TestHandleInvocationTimeout_RecordsTimeoutDecompositionOutcome(t *testing.T
 }
 
 func TestExecuteWithRetry_AccumulatesTokensAcrossInvocations(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	mfa := &mockFailureAnalyzer{
 		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
@@ -1446,6 +1526,7 @@ func TestExecuteWithRetry_AccumulatesTokensAcrossInvocations(t *testing.T) {
 }
 
 func TestExecuteWithRetry_TokenBudgetExceededAttemptsDecompositionBeforeInvocation(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	cfg.Claude.MaxInputTokensPerBead = 100
 
@@ -1535,6 +1616,7 @@ func newTokenBudgetHandlerWithDecomposition(
 }
 
 func TestExecuteWithRetry_RefactorTokensCanExhaustBudgetBeforeNextAttempt(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	cfg.Claude.MaxInputTokensPerBead = 100
 
@@ -1582,6 +1664,7 @@ func TestExecuteWithRetry_RefactorTokensCanExhaustBudgetBeforeNextAttempt(t *tes
 }
 
 func TestExecuteWithRetry_RefactorTokensUnderCapStillPermitRetryAttempt(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	cfg.Claude.MaxInputTokensPerBead = 100
 
@@ -1635,6 +1718,7 @@ func TestExecuteWithRetry_RefactorTokensUnderCapStillPermitRetryAttempt(t *testi
 }
 
 func TestExecuteWithRetry_MultiRefactorCyclesStopAtTokenBudget(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	cfg.Claude.MaxInputTokensPerBead = 140
 	cfg.Andon.L1RetryCap = 10
@@ -1716,7 +1800,10 @@ func TestExecuteWithRetry_MultiRefactorCyclesStopAtTokenBudget(t *testing.T) {
 }
 
 func TestExecuteWithRetry_ContextCancellationStops(t *testing.T) {
+	t.Parallel(
 	// When the context is cancelled, ExecuteWithRetry should stop and return false.
+	)
+
 	cfg := newTestConfig()
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
@@ -1742,8 +1829,11 @@ func TestExecuteWithRetry_ContextCancellationStops(t *testing.T) {
 }
 
 func TestExecuteWithRetry_BuildFailureAnalyzesAndRetries(t *testing.T) {
+	t.Parallel(
 	// When a build fails with a recoverable error, ExecuteWithRetry should
 	// analyze the failure and retry with failure context injected.
+	)
+
 	recoverableAnalysis := &analyzer.Analysis{
 		Category:    "logic_error",
 		Recoverable: true,
@@ -1784,6 +1874,7 @@ func TestExecuteWithRetry_BuildFailureAnalyzesAndRetries(t *testing.T) {
 }
 
 func TestExecuteWithRetry_TriageTransportDisconnectRetriesWithoutAnalyzer(t *testing.T) {
+	t.Parallel()
 	mfa := &mockFailureAnalyzer{
 		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
 			t.Fatal("analyzer should not run for retryable provider transport triage")
@@ -1827,6 +1918,7 @@ func TestExecuteWithRetry_TriageTransportDisconnectRetriesWithoutAnalyzer(t *tes
 }
 
 func TestExecuteWithRetry_TriageTransportAuthStopsWithoutAnalyzer(t *testing.T) {
+	t.Parallel()
 	mfa := &mockFailureAnalyzer{
 		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
 			t.Fatal("analyzer should not run for auth triage")
@@ -1865,6 +1957,7 @@ func TestExecuteWithRetry_TriageTransportAuthStopsWithoutAnalyzer(t *testing.T) 
 }
 
 func TestExecuteWithRetry_TriageEnvironmentStopsWithActionableErrorWithoutAnalyzer(t *testing.T) {
+	t.Parallel()
 	mfa := &mockFailureAnalyzer{
 		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
 			t.Fatal("analyzer should not run for environment triage")
@@ -1906,6 +1999,7 @@ func TestExecuteWithRetry_TriageEnvironmentStopsWithActionableErrorWithoutAnalyz
 }
 
 func TestExecuteWithRetry_TriageCodeLayerCallsAnalyzer(t *testing.T) {
+	t.Parallel()
 	mfa := &mockFailureAnalyzer{
 		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
 			return &analyzer.Analysis{
@@ -1950,9 +2044,12 @@ func TestExecuteWithRetry_TriageCodeLayerCallsAnalyzer(t *testing.T) {
 }
 
 func TestExecuteWithRetry_AndonBoundedRecoverableFlowStopsLine(t *testing.T) {
+	t.Parallel(
 	// Expected failure: Handler.ApplyAndonDecision(...) does not exist yet, so
 	// ExecuteWithRetry still follows tier/model retry patterns instead of Andon
 	// L1 -> L2 bounded recovery and stop-line escalation.
+	)
+
 	mfa := &mockFailureAnalyzer{
 		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
 			return &analyzer.Analysis{
@@ -2000,9 +2097,12 @@ func TestExecuteWithRetry_AndonBoundedRecoverableFlowStopsLine(t *testing.T) {
 }
 
 func TestAnalyzeAndHandleFailure_IntegrityUnsafeStateTriggersImmediateL3(t *testing.T) {
+	t.Parallel(
 	// Expected failure: analyzer.CategoryIntegrityUnsafeState does not exist yet,
 	// and Handler.routeIntegrityFailureToL3(...) is not implemented; current
 	// behavior escalates/retries instead of immediate L3 stop-line.
+	)
+
 	mfa := &mockFailureAnalyzer{
 		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
 			return &analyzer.Analysis{
@@ -2034,9 +2134,12 @@ func TestAnalyzeAndHandleFailure_IntegrityUnsafeStateTriggersImmediateL3(t *test
 }
 
 func TestExecuteWithRetry_DecompositionRemainsAvailableAsL4Option(t *testing.T) {
+	t.Parallel(
 	// Expected failure: Handler.AttemptL4Decomposition(...) does not exist yet,
 	// so ExecuteWithRetry does not expose decomposition explicitly as an L4 Andon
 	// option even when decomposition is used.
+	)
+
 	mfa := &mockFailureAnalyzer{
 		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
 			return &analyzer.Analysis{
@@ -2100,16 +2203,19 @@ func TestExecuteWithRetry_DecompositionRemainsAvailableAsL4Option(t *testing.T) 
 // --- Retry gate tests ---
 
 func TestCheckRetryGate_BlocksTimeoutRetryWithoutDecompositionOrEscalation(t *testing.T) {
+	t.Parallel(
 	// Red: test that CheckRetryGate exists and returns ErrSameScopeRetryBlocked
 	// when timeout has occurred, retries have happened, but no decomposition/escalation
+	)
+
 	cfg := newTestConfig()
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	bc.Result.TimeoutType = "invocation" // Timeout occurred
-	bc.TotalRetriesThisBead = 1            // At least one retry has happened
-	bc.Result.Decomposed = false          // No decomposition
-	bc.Result.Escalated = false           // No escalation
+	bc.TotalRetriesThisBead = 1          // At least one retry has happened
+	bc.Result.Decomposed = false         // No decomposition
+	bc.Result.Escalated = false          // No escalation
 
 	err := h.CheckRetryGate(bc)
 	if !errors.Is(err, ErrSameScopeRetryBlocked) {
@@ -2118,14 +2224,15 @@ func TestCheckRetryGate_BlocksTimeoutRetryWithoutDecompositionOrEscalation(t *te
 }
 
 func TestCheckRetryGate_AllowsRetryWhenNoTimeoutOccurred(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
 	bc := newTestBeadContext()
-	bc.Result.TimeoutType = ""           // No timeout occurred
-	bc.TotalRetriesThisBead = 1           // Retries have happened
-	bc.Result.Decomposed = false         // No decomposition
-	bc.Result.Escalated = false          // No escalation
+	bc.Result.TimeoutType = ""   // No timeout occurred
+	bc.TotalRetriesThisBead = 1  // Retries have happened
+	bc.Result.Decomposed = false // No decomposition
+	bc.Result.Escalated = false  // No escalation
 
 	err := h.CheckRetryGate(bc)
 	if err != nil {
@@ -2134,12 +2241,13 @@ func TestCheckRetryGate_AllowsRetryWhenNoTimeoutOccurred(t *testing.T) {
 }
 
 func TestCheckRetryGate_AllowsRetryWhenDecomposedAfterTimeout(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	bc.Result.TimeoutType = "invocation" // Timeout occurred
-	bc.TotalRetriesThisBead = 1           // Retries have happened
+	bc.TotalRetriesThisBead = 1          // Retries have happened
 	bc.Result.Decomposed = true          // Decomposition succeeded
 	bc.Result.Escalated = false          // No escalation
 
@@ -2150,14 +2258,15 @@ func TestCheckRetryGate_AllowsRetryWhenDecomposedAfterTimeout(t *testing.T) {
 }
 
 func TestCheckRetryGate_AllowsRetryWhenEscalatedAfterTimeout(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
 	bc := newTestBeadContext()
-	bc.Result.TimeoutType = "bead"       // Timeout occurred
-	bc.TotalRetriesThisBead = 1           // Retries have happened
-	bc.Result.Decomposed = false         // No decomposition
-	bc.Result.Escalated = true           // Escalation succeeded
+	bc.Result.TimeoutType = "bead" // Timeout occurred
+	bc.TotalRetriesThisBead = 1    // Retries have happened
+	bc.Result.Decomposed = false   // No decomposition
+	bc.Result.Escalated = true     // Escalation succeeded
 
 	err := h.CheckRetryGate(bc)
 	if err != nil {
@@ -2166,12 +2275,13 @@ func TestCheckRetryGate_AllowsRetryWhenEscalatedAfterTimeout(t *testing.T) {
 }
 
 func TestCheckRetryGate_AllowsRetryWhenNoRetriesHappenedYet(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
 	bc := newTestBeadContext()
 	bc.Result.TimeoutType = "invocation" // Timeout occurred
-	bc.TotalRetriesThisBead = 0           // No retries yet
+	bc.TotalRetriesThisBead = 0          // No retries yet
 	bc.Result.Decomposed = false         // No decomposition
 	bc.Result.Escalated = false          // No escalation
 
@@ -2182,16 +2292,17 @@ func TestCheckRetryGate_AllowsRetryWhenNoRetriesHappenedYet(t *testing.T) {
 }
 
 func TestCheckRetryGate_BlocksPartialDecompositionState(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
 	bc := newTestBeadContext()
-	bc.Result.TimeoutType = "invocation"               // Timeout occurred
-	bc.TotalRetriesThisBead = 1                        // At least one retry has happened
-	bc.Result.TimeoutDecompositionAttempted = true     // Decomposition was attempted
-	bc.Result.TimeoutDecompositionSucceeded = false    // But it failed
-	bc.Result.Decomposed = false                       // No successful decomposition
-	bc.Result.Escalated = false                        // No escalation
+	bc.Result.TimeoutType = "invocation"            // Timeout occurred
+	bc.TotalRetriesThisBead = 1                     // At least one retry has happened
+	bc.Result.TimeoutDecompositionAttempted = true  // Decomposition was attempted
+	bc.Result.TimeoutDecompositionSucceeded = false // But it failed
+	bc.Result.Decomposed = false                    // No successful decomposition
+	bc.Result.Escalated = false                     // No escalation
 
 	err := h.CheckRetryGate(bc)
 	if !errors.Is(err, ErrPartialDecompositionState) {
@@ -2200,15 +2311,18 @@ func TestCheckRetryGate_BlocksPartialDecompositionState(t *testing.T) {
 }
 
 func TestExecuteWithRetry_ChecksRetryGateAtStartOfLoop(t *testing.T) {
+	t.Parallel(
 	// Verify that ExecuteWithRetry applies CheckRetryGate logic at loop start
+	)
+
 	cfg := newTestConfig()
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
 	bc := newTestBeadContext()
-	bc.Result.TimeoutType = "stall"        // Timeout occurred
-	bc.TotalRetriesThisBead = 1            // Already retried once
-	bc.Result.Decomposed = false           // No decomposition
-	bc.Result.Escalated = false            // No escalation
+	bc.Result.TimeoutType = "stall" // Timeout occurred
+	bc.TotalRetriesThisBead = 1     // Already retried once
+	bc.Result.Decomposed = false    // No decomposition
+	bc.Result.Escalated = false     // No escalation
 	bc.MaxRetriesPerBead = 5
 	bc.MaxRetries = 2
 
@@ -2243,6 +2357,7 @@ func TestExecuteWithRetry_ChecksRetryGateAtStartOfLoop(t *testing.T) {
 // 4. Retry gate allows next attempt after successful decomposition
 // 5. All telemetry fields are properly populated for observability
 func TestContract_TimeoutSuccessfulDecompositionFlow(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	decomposeCalled := false
 	createSubCalled := false
@@ -2320,6 +2435,7 @@ func TestContract_TimeoutSuccessfulDecompositionFlow(t *testing.T) {
 // 5. TimeoutDecompositionSucceeded is false
 // 6. All telemetry fields are populated
 func TestContract_TimeoutSkippedDecompositionFlow(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	decomposeCalled := false
 
@@ -2398,6 +2514,7 @@ func TestContract_TimeoutSkippedDecompositionFlow(t *testing.T) {
 // 6. Decomposed is false
 // 7. All telemetry fields are populated
 func TestContract_TimeoutFailedDecompositionFlow(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	decomposeCalled := false
 	createSubCalled := false
@@ -2480,6 +2597,7 @@ func TestContract_TimeoutFailedDecompositionFlow(t *testing.T) {
 // 4. Blocks the retry with typed ErrPartialDecompositionState error
 // 5. ExecuteWithRetry returns false and sets the error
 func TestContract_PartialDecompositionStateBlocksRetry(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
@@ -2523,6 +2641,7 @@ func TestContract_PartialDecompositionStateBlocksRetry(t *testing.T) {
 // TestContract_SuccessfulDecompositionAllowsRetry validates that after successful decomposition,
 // the next iteration can retry without the retry gate blocking.
 func TestContract_SuccessfulDecompositionAllowsRetry(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
@@ -2544,6 +2663,7 @@ func TestContract_SuccessfulDecompositionAllowsRetry(t *testing.T) {
 
 // TestContract_EscalationAllowsRetry validates that after escalation, the retry gate allows continuation.
 func TestContract_EscalationAllowsRetry(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
 
@@ -2571,6 +2691,7 @@ func TestContract_EscalationAllowsRetry(t *testing.T) {
 // 6. TimeoutDecompositionOutcome is "success"
 // 7. ExecuteWithRetry returns false (decomposition happened, not normal retry)
 func TestContract_ProactiveDecompositionSuccessFlow(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	decomposeCalled := false
 	createSubCalled := false
@@ -2595,8 +2716,8 @@ func TestContract_ProactiveDecompositionSuccessFlow(t *testing.T) {
 	bc.ParentCtx = context.Background()
 	// Set up high-risk bead
 	bc.ScopeEstimate = &prompt.ScopeEstimate{
-		Complexity:               "high",
-		EstimatedIterations:      3,
+		Complexity:                   "high",
+		EstimatedIterations:          3,
 		CanCompleteInSingleIteration: false,
 	}
 	// Set timeout budget and elapsed time to trigger at 60%
@@ -2647,6 +2768,7 @@ func TestContract_ProactiveDecompositionSuccessFlow(t *testing.T) {
 // TestExecuteWithRetryWithEscalation_DisabledEscalation verifies that when
 // escalationEnabled=false is passed, the handler does not escalate even on failure.
 func TestExecuteWithRetryWithEscalation_DisabledEscalation(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Andon: config.AndonConfig{L1RetryCap: 1},
 	}
@@ -2654,12 +2776,12 @@ func TestExecuteWithRetryWithEscalation_DisabledEscalation(t *testing.T) {
 
 	b := &bead.Bead{ID: "test-001", Title: "Test", Priority: 1}
 	bc := &runtypes.BeadContext{
-		Bead:        b,
-		Tier:        "low",
-		Model:       "haiku",
-		Result:      &runtypes.IterationResult{},
-		MaxRetries:  1,
-		PromptCtx:   &prompt.Context{},
+		Bead:       b,
+		Tier:       "low",
+		Model:      "haiku",
+		Result:     &runtypes.IterationResult{},
+		MaxRetries: 1,
+		PromptCtx:  &prompt.Context{},
 	}
 
 	invokeCount := 0
@@ -2702,6 +2824,7 @@ func TestExecuteWithRetryWithEscalation_DisabledEscalation(t *testing.T) {
 // ExecuteWithRetryWithEscalation properly accepts and uses the escalationEnabled flag.
 // This is a simple test to verify the method signature and basic behavior.
 func TestExecuteWithRetryWithEscalation_MethodAcceptsEscalationFlag(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	bc := newTestBeadContext()
 

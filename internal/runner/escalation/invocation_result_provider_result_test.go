@@ -8,6 +8,7 @@ import (
 )
 
 func TestInvocationResult_StoresProviderResult(t *testing.T) {
+	t.Parallel()
 	expected := &provider.Result{Success: true}
 	result := &runtypes.InvocationResult{ProviderResult: expected}
 	if result.ProviderResult != expected {

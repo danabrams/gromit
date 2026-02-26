@@ -11,9 +11,11 @@ import (
 // This ensures all adapters have compile-time interface compliance checks via var _ declarations.
 // If an adapter doesn't implement its interface, the compiler will error here first.
 func TestAdapterCompileTimeChecks(t *testing.T) {
+	t.Parallel(
 	// These assignments verify the adapters implement their interfaces.
 	// The var _ InterfaceType = (*ConcreteType)(nil) pattern in the source provides
 	// clearer compile-time verification and improved IDE support.
+	)
 
 	// Adapters in cmd/gromit/adapters.go
 	var _ pipeline.BeadClient = (*beadClientAdapter)(nil)

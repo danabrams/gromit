@@ -24,7 +24,10 @@ func extractFunction(source, name string) (string, bool) {
 
 // TestReviewCommandHasAgentFlag verifies review command has --agent flag
 func TestReviewCommandHasAgentFlag(t *testing.T) {
+	t.Parallel(
 	// This test will fail until --agent flag is added to review command
+	)
+
 	flag := reviewCmd.Flags().Lookup("agent")
 	if flag == nil {
 		t.Error("review command missing --agent flag")
@@ -37,7 +40,10 @@ func TestReviewCommandHasAgentFlag(t *testing.T) {
 
 // TestReviewCommandHasChooseAgentFlag verifies review command has --choose-agent flag
 func TestReviewCommandHasChooseAgentFlag(t *testing.T) {
+	t.Parallel(
 	// This test will fail until --choose-agent flag is added to review command
+	)
+
 	flag := reviewCmd.Flags().Lookup("choose-agent")
 	if flag == nil {
 		t.Error("review command missing --choose-agent flag")
@@ -50,8 +56,10 @@ func TestReviewCommandHasChooseAgentFlag(t *testing.T) {
 
 // TestReviewUsesAgentResolve verifies review command integrates with agent.Resolve
 func TestReviewUsesAgentResolve(t *testing.T) {
+
 	// This test verifies the integration by creating a minimal config and checking
 	// that the agent selection behavior works end-to-end
+
 	configContent := `
 agents:
   definitions:
@@ -88,8 +96,10 @@ agents:
 
 // TestReviewFlagOverrideTakesPriority verifies --agent flag overrides config
 func TestReviewFlagOverrideTakesPriority(t *testing.T) {
+	t.Parallel(
 	// This acceptance test verifies the priority order:
 	// --agent flag should override agents.phases config
+	)
 
 	_, _, configPath := setupAgentConfig(t, `
 agents:
@@ -115,8 +125,10 @@ agents:
 
 // TestReviewChooseAgentTriggersPickerBehavior verifies --choose-agent flag behavior
 func TestReviewChooseAgentTriggersPickerBehavior(t *testing.T) {
+	t.Parallel(
 	// This acceptance test verifies that --choose-agent flag is wired up correctly
 	// The actual picker interaction would be tested in integration tests
+	)
 
 	_, _, configPath := setupAgentConfig(t, `
 agents:
@@ -144,7 +156,9 @@ agents:
 
 // TestReviewAgentPromptConfigTriggersPicker verifies agents.prompt config triggers picker
 func TestReviewAgentPromptConfigTriggersPicker(t *testing.T) {
+	t.Parallel(
 	// This acceptance test verifies agents.prompt: true config is respected
+	)
 
 	_, _, configPath := setupAgentConfig(t, `
 agents:
@@ -170,6 +184,7 @@ agents:
 }
 
 func TestCmdAgentResolverDefaultsToClaude(t *testing.T) {
+	t.Parallel()
 	resolver := agents.NewResolver(nil)
 	agent, err := resolver.Resolve(reviewSessionCommand, "", false)
 	if err != nil {
@@ -181,6 +196,7 @@ func TestCmdAgentResolverDefaultsToClaude(t *testing.T) {
 }
 
 func TestCmdAgentResolverFlagOverride(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Agents: config.AgentsConfig{
 			Definitions: map[string]config.AgentDefinition{
@@ -204,8 +220,10 @@ func TestCmdAgentResolverFlagOverride(t *testing.T) {
 
 // TestReviewAgentConfigBackwardCompatibility verifies review works without agent config
 func TestReviewAgentConfigBackwardCompatibility(t *testing.T) {
+	t.Parallel(
 	// This acceptance test verifies backward compatibility
 	// Existing configs without agents section should still work (defaults to claude)
+	)
 
 	_, _, configPath := setupAgentConfig(t, `
 claude:

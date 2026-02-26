@@ -11,8 +11,11 @@ import (
 // --- Tier/model selection tests ---
 
 func TestSelectTier_DelegatesToConfig(t *testing.T) {
+	t.Parallel(
 	// SelectTier should delegate to config.Config.SelectTier() and return
 	// the appropriate tier based on bead priority and labels.
+	)
+
 	cfg := &config.Config{
 		Models: config.ModelsConfig{
 			P0: provider.TierHigh,
@@ -52,6 +55,7 @@ func TestSelectTier_DelegatesToConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := SelectTier(cfg, tt.bead)
 			if result != tt.wantTier {
 				t.Errorf("SelectTier() = %q, want %q", result, tt.wantTier)
@@ -61,7 +65,10 @@ func TestSelectTier_DelegatesToConfig(t *testing.T) {
 }
 
 func TestSelectTier_NilConfigReturnsMedium(t *testing.T) {
+	t.Parallel(
 	// SelectTier should return TierMedium as a safe default when config is nil.
+	)
+
 	result := SelectTier(nil, &bead.Bead{ID: "test-001", Priority: 0})
 	if result != provider.TierMedium {
 		t.Errorf("SelectTier(nil config) = %q, want %q", result, provider.TierMedium)
@@ -69,8 +76,11 @@ func TestSelectTier_NilConfigReturnsMedium(t *testing.T) {
 }
 
 func TestSelectTier_LabelOverride(t *testing.T) {
+	t.Parallel(
 	// SelectTier should respect complexity label overrides that change the
 	// tier regardless of priority.
+	)
+
 	cfg := &config.Config{
 		Models: config.ModelsConfig{
 			P0: provider.TierHigh,
@@ -94,6 +104,7 @@ func TestSelectTier_LabelOverride(t *testing.T) {
 }
 
 func TestSelectTier_ComplexityHighBypassesLowComplexityRouting(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Models: config.ModelsConfig{
 			P0: provider.TierHigh,
@@ -120,8 +131,11 @@ func TestSelectTier_ComplexityHighBypassesLowComplexityRouting(t *testing.T) {
 }
 
 func TestSelectTier_TestOnlyBeadRoutesToLow(t *testing.T) {
+	t.Parallel(
 	// SelectTier should route test-only beads to low tier unless an explicit
 	// complexity label overrides the selection.
+	)
+
 	cfg := &config.Config{
 		Models: config.ModelsConfig{
 			P0: provider.TierHigh,
@@ -147,8 +161,11 @@ func TestSelectTier_TestOnlyBeadRoutesToLow(t *testing.T) {
 }
 
 func TestSelectTier_TestOnlyBeadWithComplexityLabelOverrides(t *testing.T) {
+	t.Parallel(
 	// When a test-only bead has an explicit complexity label, SelectTier
 	// should respect the label override instead of defaulting to low.
+	)
+
 	cfg := &config.Config{
 		Models: config.ModelsConfig{
 			Labels: map[string]string{
@@ -172,7 +189,10 @@ func TestSelectTier_TestOnlyBeadWithComplexityLabelOverrides(t *testing.T) {
 }
 
 func TestSelectModel_PriorityBasedSelection(t *testing.T) {
+	t.Parallel(
 	// SelectModel should return the legacy model name based on bead priority.
+	)
+
 	cfg := &config.Config{}
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
@@ -206,6 +226,7 @@ func TestSelectModel_PriorityBasedSelection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := SelectModel(cfg, tt.bead)
 			if result != tt.wantModel {
 				t.Errorf("SelectModel() = %q, want %q", result, tt.wantModel)
@@ -215,8 +236,11 @@ func TestSelectModel_PriorityBasedSelection(t *testing.T) {
 }
 
 func TestSelectModel_TestOnlyBeadRoutesToHaiku(t *testing.T) {
+	t.Parallel(
 	// SelectModel should route test-only beads to haiku unless an explicit
 	// complexity label overrides the selection.
+	)
+
 	cfg := &config.Config{}
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
@@ -237,8 +261,11 @@ func TestSelectModel_TestOnlyBeadRoutesToHaiku(t *testing.T) {
 }
 
 func TestSelectModel_TestOnlyBeadWithComplexityLabelOverrides(t *testing.T) {
+	t.Parallel(
 	// When a test-only bead has an explicit complexity label, SelectModel
 	// should respect the label override instead of defaulting to haiku.
+	)
+
 	cfg := &config.Config{
 		Models: config.ModelsConfig{
 			Labels: map[string]string{
@@ -262,7 +289,10 @@ func TestSelectModel_TestOnlyBeadWithComplexityLabelOverrides(t *testing.T) {
 }
 
 func TestSelectModel_NilConfigReturnsSonnet(t *testing.T) {
+	t.Parallel(
 	// SelectModel should return "sonnet" as a safe default when config is nil.
+	)
+
 	result := SelectModel(nil, &bead.Bead{ID: "test-001", Priority: 0})
 	if result != defaultModelSonnet {
 		t.Errorf("SelectModel(nil config) = %q, want %q", result, defaultModelSonnet)
@@ -270,6 +300,7 @@ func TestSelectModel_NilConfigReturnsSonnet(t *testing.T) {
 }
 
 func TestCountLowComplexitySignals_EachSignal(t *testing.T) {
+	t.Parallel()
 	one := 1
 
 	tests := []struct {
@@ -325,6 +356,7 @@ func TestCountLowComplexitySignals_EachSignal(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := countLowComplexitySignals(&config.Config{}, tt.bead)
 			if got != tt.want {
 				t.Errorf("countLowComplexitySignals() = %d, want %d", got, tt.want)
@@ -334,15 +366,19 @@ func TestCountLowComplexitySignals_EachSignal(t *testing.T) {
 }
 
 func TestCountLowComplexitySignals_NilBead(t *testing.T) {
+	t.Parallel()
 	if got := countLowComplexitySignals(&config.Config{}, nil); got != 0 {
 		t.Errorf("countLowComplexitySignals(nil) = %d, want 0", got)
 	}
 }
 
 func TestSelectTier_ZeroSignalsUsePriorityTier(t *testing.T) {
+	t.Parallel(
 	// A bead with zero low-complexity signals must fall through to priority-based
 	// routing. Five files (above max), a non-leaf with dependents, and a title
 	// that matches no mechanical-work pattern produce 0 signals.
+	)
+
 	five := 5
 	cfg := &config.Config{
 		Models: config.ModelsConfig{
@@ -372,8 +408,11 @@ func TestSelectTier_ZeroSignalsUsePriorityTier(t *testing.T) {
 }
 
 func TestSelectTier_LowComplexitySignalsOverrideHighPriority(t *testing.T) {
+	t.Parallel(
 	// A P0 bead with >= 2 low-complexity signals should route to TierLow even
 	// though P0 normally maps to TierHigh. The heuristic overrides priority.
+	)
+
 	cfg := &config.Config{
 		Models: config.ModelsConfig{
 			P0: provider.TierHigh,
@@ -399,8 +438,11 @@ func TestSelectTier_LowComplexitySignalsOverrideHighPriority(t *testing.T) {
 }
 
 func TestCountLowComplexitySignals_FileCountAboveMax(t *testing.T) {
+	t.Parallel(
 	// A bead with 4 files (> max of 3) should not contribute a file-count signal.
 	// With no other signals present, total count must be 0.
+	)
+
 	one := 1
 	b := &bead.Bead{
 		Title: "Update auth logic",
@@ -419,6 +461,7 @@ func TestCountLowComplexitySignals_FileCountAboveMax(t *testing.T) {
 }
 
 func TestIsLowComplexity_Threshold(t *testing.T) {
+	t.Parallel()
 	one := 1
 
 	tests := []struct {
@@ -462,6 +505,7 @@ func TestIsLowComplexity_Threshold(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := isLowComplexity(&config.Config{}, tt.bead)
 			if got != tt.want {
 				t.Errorf("isLowComplexity() = %t, want %t", got, tt.want)
@@ -471,6 +515,7 @@ func TestIsLowComplexity_Threshold(t *testing.T) {
 }
 
 func TestIsLowComplexity_TestOnlyTitleStillRequiresThreshold(t *testing.T) {
+	t.Parallel()
 	one := 1
 	b := &bead.Bead{
 		Title:          "Add tests for tier selection",

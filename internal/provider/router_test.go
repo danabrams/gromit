@@ -10,6 +10,7 @@ import (
 // TestRouterStructExists verifies that the Router struct exists and can be instantiated.
 // Expected failure: Router struct does not exist yet
 func TestRouterStructExists(t *testing.T) {
+	t.Parallel()
 	var r *Router
 	if r != nil {
 		t.Error("nil Router should be nil")
@@ -20,6 +21,7 @@ func TestRouterStructExists(t *testing.T) {
 // holding Provider implementations by name.
 // Expected failure: Router struct and providers field do not exist yet
 func TestRouterHasProvidersMapField(t *testing.T) {
+	t.Parallel()
 	mockProv := &mockProvider{}
 	r := &Router{
 		providers: map[string]Provider{
@@ -40,6 +42,7 @@ func TestRouterHasProvidersMapField(t *testing.T) {
 // mapping phase names to provider names or "any".
 // Expected failure: Router struct and preferences field do not exist yet
 func TestRouterHasPreferencesMapField(t *testing.T) {
+	t.Parallel()
 	r := &Router{
 		preferences: map[string]string{
 			"build":    "claude",
@@ -60,6 +63,7 @@ func TestRouterHasPreferencesMapField(t *testing.T) {
 // holding target percentages for each provider.
 // Expected failure: Router struct and ratio field do not exist yet
 func TestRouterHasRatioMapField(t *testing.T) {
+	t.Parallel()
 	r := &Router{
 		ratio: map[string]int{
 			"claude": 60,
@@ -80,6 +84,7 @@ func TestRouterHasRatioMapField(t *testing.T) {
 // tracking invocation counts per provider.
 // Expected failure: Router struct and counts field do not exist yet
 func TestRouterHasCountsMapField(t *testing.T) {
+	t.Parallel()
 	r := &Router{
 		counts: map[string]int{
 			"claude": 15,
@@ -100,6 +105,7 @@ func TestRouterHasCountsMapField(t *testing.T) {
 // tracking when providers became unavailable.
 // Expected failure: Router struct and unavailable field do not exist yet
 func TestRouterHasUnavailableMapField(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	r := &Router{
 		unavailable: map[string]time.Time{
@@ -120,6 +126,7 @@ func TestRouterHasUnavailableMapField(t *testing.T) {
 // specifying how long to avoid unavailable providers.
 // Expected failure: Router struct and cooldown field do not exist yet
 func TestRouterHasCooldownField(t *testing.T) {
+	t.Parallel()
 	r := &Router{
 		cooldown: 30 * time.Minute,
 	}
@@ -133,6 +140,7 @@ func TestRouterHasCooldownField(t *testing.T) {
 // for persisting provider routing state.
 // Expected failure: Router struct and stateFn field do not exist yet
 func TestRouterHasStateFnField(t *testing.T) {
+	t.Parallel()
 	mockStateFn := &mockStateFile{}
 	r := &Router{
 		stateFn: mockStateFn,
@@ -147,6 +155,7 @@ func TestRouterHasStateFnField(t *testing.T) {
 // and creates a Router instance.
 // Expected failure: NewRouter() function does not exist yet
 func TestNewRouterConstructorExists(t *testing.T) {
+	t.Parallel()
 	providers := map[string]Provider{
 		"claude": &mockProvider{},
 	}
@@ -170,6 +179,7 @@ func TestNewRouterConstructorExists(t *testing.T) {
 // properly initializes all Router fields from provided arguments.
 // Expected failure: NewRouter() function does not exist yet
 func TestNewRouterInitializesFields(t *testing.T) {
+	t.Parallel()
 	mockProv := &mockProvider{}
 	providers := map[string]Provider{
 		"claude": mockProv,
@@ -220,6 +230,7 @@ func TestNewRouterInitializesFields(t *testing.T) {
 // the counts map from the state file's provider counts.
 // Expected failure: NewRouter() function does not exist yet
 func TestNewRouterInitializesCounts(t *testing.T) {
+	t.Parallel()
 	stateFn := &mockStateFile{
 		providerCounts: map[string]int{
 			"claude": 15,
@@ -257,6 +268,7 @@ func TestNewRouterInitializesCounts(t *testing.T) {
 // that accepts phase and tier arguments and returns a Provider and model name.
 // Expected failure: Select() method does not exist yet
 func TestRouterSelectMethodExists(t *testing.T) {
+	t.Parallel()
 	r := &Router{
 		providers: map[string]Provider{
 			"claude": &mockProvider{},
@@ -284,6 +296,7 @@ func TestRouterSelectMethodExists(t *testing.T) {
 // This tests Layer 1: phase preference check.
 // Expected failure: Select() method does not exist yet
 func TestRouterSelectWithPhasePreference(t *testing.T) {
+	t.Parallel()
 	claudeProv := &mockProvider{name: "claude"}
 	openaiProv := &mockProvider{name: "openai"}
 
@@ -330,6 +343,7 @@ func TestRouterSelectWithPhasePreference(t *testing.T) {
 // This tests Layer 2: ratio-based balancing.
 // Expected failure: Select() method does not exist yet
 func TestRouterSelectWithAnyPreference(t *testing.T) {
+	t.Parallel()
 	claudeProv := &mockProvider{name: "claude"}
 	openaiProv := &mockProvider{name: "openai"}
 
@@ -375,6 +389,7 @@ func TestRouterSelectWithAnyPreference(t *testing.T) {
 // This tests Layer 3: automatic fallback.
 // Expected failure: Select() method does not exist yet
 func TestRouterSelectSkipsUnavailableProvider(t *testing.T) {
+	t.Parallel()
 	claudeProv := &mockProvider{name: "claude"}
 	openaiProv := &mockProvider{name: "openai"}
 
@@ -414,6 +429,7 @@ func TestRouterSelectSkipsUnavailableProvider(t *testing.T) {
 // returns an error when all providers are unavailable.
 // Expected failure: Select() method does not exist yet, and it should return (Provider, string, error)
 func TestRouterSelectErrorWhenAllUnavailable(t *testing.T) {
+	t.Parallel()
 	futureTime := time.Now().Add(1 * time.Hour)
 
 	r := &Router{
@@ -455,7 +471,10 @@ func TestRouterSelectErrorWhenAllUnavailable(t *testing.T) {
 // the concrete model name for the selected provider and tier.
 // Expected failure: Select() method does not exist yet
 func TestRouterSelectReturnsModelName(t *testing.T) {
+	t.Parallel(
 	// Create a custom provider that maps tiers to specific model names
+	)
+
 	claudeProv := &mockProviderWithModels{
 		name: "claude",
 		models: map[string]string{
@@ -490,6 +509,7 @@ func TestRouterSelectReturnsModelName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.tier, func(t *testing.T) {
+			t.Parallel()
 			_, modelName := r.Select("build", tt.tier)
 			if modelName != tt.expectedModel {
 				t.Errorf("Select(\"build\", %q) returned model %q, want %q", tt.tier, modelName, tt.expectedModel)
@@ -502,6 +522,7 @@ func TestRouterSelectReturnsModelName(t *testing.T) {
 // increments the provider's invocation count in the state file.
 // Expected failure: Select() method does not exist yet
 func TestRouterSelectIncrementsCountInState(t *testing.T) {
+	t.Parallel()
 	stateFn := &mockStateFile{
 		providerCounts: map[string]int{
 			"claude": 5,
@@ -544,6 +565,7 @@ func TestRouterSelectIncrementsCountInState(t *testing.T) {
 // balances invocations based on target ratios over multiple calls.
 // Expected failure: Select() method does not exist yet
 func TestRouterSelectRatioBalancing(t *testing.T) {
+	t.Parallel()
 	claudeProv := &mockProvider{name: "claude"}
 	openaiProv := &mockProvider{name: "openai"}
 
@@ -583,6 +605,7 @@ func TestRouterSelectRatioBalancing(t *testing.T) {
 }
 
 func TestRouterSelectPrefersNonDegradedProviderMoreOften(t *testing.T) {
+	t.Parallel()
 	const selectionRuns = 30
 
 	cb := &CircuitBreaker{
@@ -624,6 +647,7 @@ func TestRouterSelectPrefersNonDegradedProviderMoreOften(t *testing.T) {
 }
 
 func TestRouterSelectByRatioUsesConfiguredRatioWhenCircuitBreakerIsNil(t *testing.T) {
+	t.Parallel()
 	r := &Router{
 		providers: map[string]Provider{
 			"claude": &mockProvider{name: "claude"},
@@ -641,6 +665,7 @@ func TestRouterSelectByRatioUsesConfiguredRatioWhenCircuitBreakerIsNil(t *testin
 }
 
 func TestRouterRecordOutcomeDelegatesToCircuitBreaker(t *testing.T) {
+	t.Parallel()
 	cb := &CircuitBreaker{
 		windowSize:       1,
 		failureThreshold: 0.5,
@@ -659,6 +684,7 @@ func TestRouterRecordOutcomeDelegatesToCircuitBreaker(t *testing.T) {
 // checks provider availability using the state file's IsProviderAvailable method.
 // Expected failure: Select() method does not exist yet
 func TestRouterSelectAvailabilityCheckUsesStateFile(t *testing.T) {
+	t.Parallel()
 	stateFn := &mockStateFile{
 		unavailableProviders: map[string]bool{
 			"claude": true, // mark claude as unavailable
@@ -747,6 +773,7 @@ func (m *mockStateFile) SetProviderUnavailable(provider string, until time.Time)
 // records the current time plus cooldown for a provider.
 // Expected failure: MarkUnavailable() method does not exist yet
 func TestRouterMarkUnavailableMethod(t *testing.T) {
+	t.Parallel()
 	cooldown := 30 * time.Minute
 	stateFn := &mockStateFile{}
 
@@ -783,6 +810,7 @@ func TestRouterMarkUnavailableMethod(t *testing.T) {
 // persists the unavailable timestamp to the state file via SetProviderUnavailable.
 // Expected failure: MarkUnavailable() method does not exist yet
 func TestRouterMarkUnavailablePersistsToState(t *testing.T) {
+	t.Parallel()
 	cooldown := 30 * time.Minute
 	stateFn := &mockStateFile{}
 
@@ -807,6 +835,7 @@ func TestRouterMarkUnavailablePersistsToState(t *testing.T) {
 // handles nil stateFn gracefully without crashing.
 // Expected failure: MarkUnavailable() method does not exist yet
 func TestRouterMarkUnavailableWithNilStateFn(t *testing.T) {
+	t.Parallel()
 	cooldown := 30 * time.Minute
 
 	r := &Router{
@@ -831,6 +860,7 @@ func TestRouterMarkUnavailableWithNilStateFn(t *testing.T) {
 // increments the invocation count for a provider.
 // Expected failure: RecordInvocation() method does not exist yet
 func TestRouterRecordInvocationMethod(t *testing.T) {
+	t.Parallel()
 	stateFn := &mockStateFile{
 		providerCounts: map[string]int{
 			"claude": 5,
@@ -857,6 +887,7 @@ func TestRouterRecordInvocationMethod(t *testing.T) {
 // persists the updated count to the state file via IncrementProviderCount.
 // Expected failure: RecordInvocation() method does not exist yet
 func TestRouterRecordInvocationPersistsToState(t *testing.T) {
+	t.Parallel()
 	stateFn := &mockStateFile{
 		providerCounts: map[string]int{
 			"claude": 5,
@@ -888,6 +919,7 @@ func TestRouterRecordInvocationPersistsToState(t *testing.T) {
 // handles nil stateFn gracefully without crashing.
 // Expected failure: RecordInvocation() method does not exist yet
 func TestRouterRecordInvocationWithNilStateFn(t *testing.T) {
+	t.Parallel()
 	r := &Router{
 		providers: map[string]Provider{
 			"claude": &mockProvider{name: "claude"},
@@ -910,6 +942,7 @@ func TestRouterRecordInvocationWithNilStateFn(t *testing.T) {
 // initializes count to 1 for a provider that has never been invoked.
 // Expected failure: RecordInvocation() method does not exist yet
 func TestRouterRecordInvocationInitializesCount(t *testing.T) {
+	t.Parallel()
 	stateFn := &mockStateFile{
 		providerCounts: make(map[string]int),
 	}
@@ -934,6 +967,7 @@ func TestRouterRecordInvocationInitializesCount(t *testing.T) {
 // creates a router with minimal configuration for backward compatibility.
 // Expected failure: NewSingleProviderRouter() function does not exist yet
 func TestNewSingleProviderRouterConstructor(t *testing.T) {
+	t.Parallel()
 	provider := &mockProvider{name: "claude"}
 
 	r := NewSingleProviderRouter(provider)
@@ -947,6 +981,7 @@ func TestNewSingleProviderRouterConstructor(t *testing.T) {
 // created by NewSingleProviderRouter() contains exactly one provider.
 // Expected failure: NewSingleProviderRouter() function does not exist yet
 func TestNewSingleProviderRouterSingleProvider(t *testing.T) {
+	t.Parallel()
 	provider := &mockProvider{name: "claude"}
 
 	r := NewSingleProviderRouter(provider)
@@ -969,6 +1004,7 @@ func TestNewSingleProviderRouterSingleProvider(t *testing.T) {
 // created by NewSingleProviderRouter() sets ratio to 100% for the single provider.
 // Expected failure: NewSingleProviderRouter() function does not exist yet
 func TestNewSingleProviderRouterRatio100Percent(t *testing.T) {
+	t.Parallel()
 	provider := &mockProvider{name: "claude"}
 
 	r := NewSingleProviderRouter(provider)
@@ -986,6 +1022,7 @@ func TestNewSingleProviderRouterRatio100Percent(t *testing.T) {
 // created by NewSingleProviderRouter() sets all preferences to "any".
 // Expected failure: NewSingleProviderRouter() function does not exist yet
 func TestNewSingleProviderRouterPreferencesAny(t *testing.T) {
+	t.Parallel()
 	provider := &mockProvider{name: "openai"}
 
 	r := NewSingleProviderRouter(provider)
@@ -1012,6 +1049,7 @@ func TestNewSingleProviderRouterPreferencesAny(t *testing.T) {
 // counts and unavailable fields.
 // Expected failure: NewSingleProviderRouter() function does not exist yet
 func TestNewSingleProviderRouterInitializesEmptyMaps(t *testing.T) {
+	t.Parallel()
 	provider := &mockProvider{name: "claude"}
 
 	r := NewSingleProviderRouter(provider)
@@ -1034,6 +1072,7 @@ func TestNewSingleProviderRouterInitializesEmptyMaps(t *testing.T) {
 // backward compatibility with code that doesn't use state persistence.
 // Expected failure: NewSingleProviderRouter() function does not exist yet
 func TestNewSingleProviderRouterNilStateFn(t *testing.T) {
+	t.Parallel()
 	provider := &mockProvider{name: "claude"}
 
 	r := NewSingleProviderRouter(provider)
@@ -1051,6 +1090,7 @@ func TestNewSingleProviderRouterNilStateFn(t *testing.T) {
 // created by NewSingleProviderRouter() has zero cooldown.
 // Expected failure: NewSingleProviderRouter() function does not exist yet
 func TestNewSingleProviderRouterZeroCooldown(t *testing.T) {
+	t.Parallel()
 	provider := &mockProvider{name: "claude"}
 
 	r := NewSingleProviderRouter(provider)
@@ -1068,6 +1108,7 @@ func TestNewSingleProviderRouterZeroCooldown(t *testing.T) {
 // by NewSingleProviderRouter() can successfully route invocations.
 // Expected failure: NewSingleProviderRouter() function does not exist yet
 func TestNewSingleProviderRouterSelectWorks(t *testing.T) {
+	t.Parallel()
 	provider := &mockProvider{name: "claude"}
 
 	r := NewSingleProviderRouter(provider)

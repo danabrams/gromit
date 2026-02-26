@@ -15,6 +15,7 @@ func (testQueueModelSelector) SelectModel(priority int, labels []string) string 
 }
 
 func TestGroupBeadsBySpec(t *testing.T) {
+	t.Parallel()
 	beads := []*bead.Bead{
 		{ID: "a", Labels: []string{"spec:auth"}},
 		{ID: "b", Labels: []string{"priority:p1"}},
@@ -36,6 +37,7 @@ func TestGroupBeadsBySpec(t *testing.T) {
 }
 
 func TestOrderedSpecKeys_PutsNoneLast(t *testing.T) {
+	t.Parallel()
 	grouped := map[string][]*bead.Bead{
 		"":     []*bead.Bead{{ID: "none"}},
 		"auth": []*bead.Bead{{ID: "auth"}},
@@ -52,6 +54,7 @@ func TestOrderedSpecKeys_PutsNoneLast(t *testing.T) {
 }
 
 func TestColorizeLine(t *testing.T) {
+	t.Parallel()
 	line := "hello"
 	colored := colorizeLine(line, ansiGreen, true)
 	if colored != ansiGreen+line+ansiReset {
@@ -65,6 +68,7 @@ func TestColorizeLine(t *testing.T) {
 }
 
 func TestGetReadyBeads_UsesReadyStatusFromBD(t *testing.T) {
+	t.Parallel()
 	c := &bead.Client{
 		RunFn: func(args ...string) (string, error) {
 			want := []string{"ready", "--json", "--sort", "priority", "--limit", "0"}
@@ -93,6 +97,7 @@ func TestGetReadyBeads_UsesReadyStatusFromBD(t *testing.T) {
 }
 
 func TestGetReason_FromDependencies(t *testing.T) {
+	t.Parallel()
 	b := &bead.Bead{
 		ID: "b1",
 		Dependencies: []bead.Dependency{
@@ -108,6 +113,7 @@ func TestGetReason_FromDependencies(t *testing.T) {
 }
 
 func TestGetReason_FromDependencyCount(t *testing.T) {
+	t.Parallel()
 	count := 3
 	b := &bead.Bead{ID: "b1", DependencyCount: &count}
 	got := getReason(b, nil)
@@ -118,6 +124,7 @@ func TestGetReason_FromDependencyCount(t *testing.T) {
 }
 
 func TestFindStuckBeadIDs(t *testing.T) {
+	t.Parallel()
 	stats := map[string]logger.BeadStats{
 		"a": {BeadID: "a", Failures: 1},
 		"b": {BeadID: "b", Failures: 3},
@@ -137,6 +144,7 @@ func TestFindStuckBeadIDs(t *testing.T) {
 }
 
 func TestPartitionQueueBeads_SeparatesReadyBlockedAndStuck(t *testing.T) {
+	t.Parallel()
 	readyInput := []*bead.Bead{
 		{ID: "ready-1", Priority: 1, Title: "Ready 1"},
 		{ID: "stuck-ready", Priority: 0, Title: "Stuck But Ready"},
@@ -166,6 +174,7 @@ func TestPartitionQueueBeads_SeparatesReadyBlockedAndStuck(t *testing.T) {
 }
 
 func TestEnrichReadyBeads_MergesLabelsFromOpenList(t *testing.T) {
+	t.Parallel()
 	ready := []*bead.Bead{
 		{ID: "r1", Labels: []string{"tdd:true"}},
 		{ID: "r2", Labels: nil},
@@ -185,6 +194,7 @@ func TestEnrichReadyBeads_MergesLabelsFromOpenList(t *testing.T) {
 }
 
 func TestPrintQueueByStatus_BySpecGroupsStatusesWithinEachSpec(t *testing.T) {
+	t.Parallel()
 	cfg := testQueueModelSelector{}
 	ready := []*bead.Bead{
 		{ID: "gromit-1", Priority: 0, Title: "Ready auth", Labels: []string{"spec:auth"}},
@@ -250,6 +260,7 @@ func TestPrintQueueByStatus_BySpecGroupsStatusesWithinEachSpec(t *testing.T) {
 }
 
 func TestPrintQueueByStatus_BySpecIncludesSpecsWithoutReadyBeads(t *testing.T) {
+	t.Parallel()
 	cfg := testQueueModelSelector{}
 	ready := []*bead.Bead{
 		{ID: "gromit-1", Priority: 0, Title: "Ready auth", Labels: []string{"spec:auth"}},

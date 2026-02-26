@@ -18,10 +18,12 @@ import (
 )
 
 func TestRetroRouterAdapter_ConformsToProviderRunner(t *testing.T) {
+	t.Parallel()
 	var _ retro.ProviderRunner = (*retroRouterAdapter)(nil)
 }
 
 func TestRetroRouterAdapterCompileTimeCheckLivesInProduction(t *testing.T) {
+	t.Parallel()
 	const sentinel = "var _ retro.ProviderRunner = (*retroRouterAdapter)(nil)"
 
 	root, err := findProjectRoot()
@@ -38,6 +40,7 @@ func TestRetroRouterAdapterCompileTimeCheckLivesInProduction(t *testing.T) {
 }
 
 func TestRetroRouterAdapterCompileTimeCheckIsPackageLevel(t *testing.T) {
+	t.Parallel()
 	const sentinel = "var _ retro.ProviderRunner = (*retroRouterAdapter)(nil)"
 
 	root, err := findProjectRoot()

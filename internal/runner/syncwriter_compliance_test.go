@@ -10,5 +10,6 @@ import (
 // the execution.OverwriteWriter interface.
 // This is a compile-time check that fails if the implementation doesn't match.
 func TestSyncWriter_ImplementsExecutionOverwriteWriter(t *testing.T) {
+	t.Parallel()
 	var _ execution.OverwriteWriter = (*syncWriter)(nil)
 }

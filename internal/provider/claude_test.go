@@ -11,6 +11,7 @@ import (
 // and can be instantiated.
 // Expected failure: ClaudeProvider struct does not exist yet
 func TestClaudeProviderStructExists(t *testing.T) {
+	t.Parallel()
 	var cp *ClaudeProvider
 	if cp != nil {
 		t.Error("nil ClaudeProvider should be nil")
@@ -20,6 +21,7 @@ func TestClaudeProviderStructExists(t *testing.T) {
 // TestClaudeProviderHasClientField verifies that ClaudeProvider has a claude.Client field.
 // Expected failure: ClaudeProvider struct and client field do not exist yet
 func TestClaudeProviderHasClientField(t *testing.T) {
+	t.Parallel()
 	mockClient := &claude.Client{}
 	cp := &ClaudeProvider{
 		client: mockClient,
@@ -34,6 +36,7 @@ func TestClaudeProviderHasClientField(t *testing.T) {
 // tierToModel map field for mapping abstract tiers to concrete model names.
 // Expected failure: tierToModel field does not exist yet
 func TestClaudeProviderHasTierModelMap(t *testing.T) {
+	t.Parallel()
 	tierMap := map[string]string{
 		TierHigh:   "opus",
 		TierMedium: "sonnet",
@@ -57,6 +60,7 @@ func TestClaudeProviderHasTierModelMap(t *testing.T) {
 // Name() method returning "claude".
 // Expected failure: Name() method does not exist yet
 func TestClaudeProviderNameMethod(t *testing.T) {
+	t.Parallel()
 	cp := &ClaudeProvider{}
 
 	name := cp.Name()
@@ -70,6 +74,7 @@ func TestClaudeProviderNameMethod(t *testing.T) {
 // creates a ClaudeProvider with the provided client and tier-to-model mapping.
 // Expected failure: NewClaudeProvider() function does not exist yet
 func TestNewClaudeProviderConstructor(t *testing.T) {
+	t.Parallel()
 	mockClient := &claude.Client{}
 	tierMap := map[string]string{
 		TierHigh:   "opus",
@@ -100,6 +105,7 @@ func TestNewClaudeProviderConstructor(t *testing.T) {
 // tier constants to model names using the tierToModel map.
 // Expected failure: resolveTier() method does not exist yet
 func TestClaudeProviderResolveTier(t *testing.T) {
+	t.Parallel()
 	tierMap := map[string]string{
 		TierHigh:   "opus",
 		TierMedium: "sonnet",
@@ -121,6 +127,7 @@ func TestClaudeProviderResolveTier(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.tier, func(t *testing.T) {
+			t.Parallel()
 			modelName := cp.resolveTier(tt.tier)
 			if modelName != tt.expected {
 				t.Errorf("resolveTier(%q) = %q, want %q", tt.tier, modelName, tt.expected)
@@ -133,6 +140,7 @@ func TestClaudeProviderResolveTier(t *testing.T) {
 // with the correct signature matching the Provider interface.
 // Expected failure: Run() method does not exist yet
 func TestClaudeProviderRunMethodSignature(t *testing.T) {
+	t.Parallel()
 	cp := &ClaudeProvider{}
 
 	// Verify we can call Run() with the expected signature
@@ -149,6 +157,7 @@ func TestClaudeProviderRunMethodSignature(t *testing.T) {
 // exists with the correct signature matching the Provider interface.
 // Expected failure: StreamRun() method does not exist yet
 func TestClaudeProviderStreamRunMethodSignature(t *testing.T) {
+	t.Parallel()
 	cp := &ClaudeProvider{}
 
 	var handler EventHandler
@@ -168,6 +177,7 @@ func TestClaudeProviderStreamRunMethodSignature(t *testing.T) {
 // method exists with the correct signature matching the Provider interface.
 // Expected failure: RunValidation() method does not exist yet
 func TestClaudeProviderRunValidationMethodSignature(t *testing.T) {
+	t.Parallel()
 	cp := &ClaudeProvider{}
 
 	commands := []string{"go test ./..."}
@@ -188,6 +198,7 @@ func TestClaudeProviderRunValidationMethodSignature(t *testing.T) {
 // in a detectable way currently.
 // Expected failure: IsUsageLimitError() method does not exist yet
 func TestClaudeProviderIsUsageLimitError(t *testing.T) {
+	t.Parallel()
 	cp := &ClaudeProvider{}
 
 	tests := []struct {
@@ -222,6 +233,7 @@ func TestClaudeProviderIsUsageLimitError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := cp.IsUsageLimitError(tt.result, tt.err)
 			if got != tt.expected {
 				t.Errorf("IsUsageLimitError() = %v, want %v", got, tt.expected)
@@ -233,6 +245,7 @@ func TestClaudeProviderIsUsageLimitError(t *testing.T) {
 // TestClaudeProviderIsValidationPassedDelegation verifies that
 // IsValidationPassed() delegates to claude.IsValidationPassed().
 func TestClaudeProviderIsValidationPassedDelegation(t *testing.T) {
+	t.Parallel()
 	cp := &ClaudeProvider{}
 
 	result := &Result{
@@ -249,6 +262,7 @@ func TestClaudeProviderIsValidationPassedDelegation(t *testing.T) {
 // TestClaudeProviderIsScopeTooLargeDelegation verifies that
 // IsScopeTooLarge() delegates to claude.IsScopeTooLarge().
 func TestClaudeProviderIsScopeTooLargeDelegation(t *testing.T) {
+	t.Parallel()
 	cp := &ClaudeProvider{}
 
 	result := &Result{
@@ -268,6 +282,7 @@ func TestClaudeProviderIsScopeTooLargeDelegation(t *testing.T) {
 // TestClaudeProviderIsUsageLimitErrorExitCode2 verifies that
 // IsUsageLimitError() detects exit code 2 with usage limit keywords.
 func TestClaudeProviderIsUsageLimitErrorExitCode2(t *testing.T) {
+	t.Parallel()
 	cp := &ClaudeProvider{}
 
 	result := &Result{

@@ -8,6 +8,7 @@ import (
 )
 
 func TestMakefile_TestProfileTarget(t *testing.T) {
+	t.Parallel()
 	projectRoot, err := findProjectRoot()
 	if err != nil {
 		t.Fatalf("findProjectRoot: %v", err)

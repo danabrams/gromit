@@ -9,6 +9,7 @@ import (
 )
 
 func TestWarnTddFreshContextMissingOutputs_LogsWhenNoRequirements(t *testing.T) {
+	t.Parallel()
 	buf := new(bytes.Buffer)
 	warnTddFreshContextMissingOutputs(buf, &bead.Bead{ID: "bead-1", Title: "  "})
 
@@ -21,6 +22,7 @@ func TestWarnTddFreshContextMissingOutputs_LogsWhenNoRequirements(t *testing.T) 
 }
 
 func TestWarnTddFreshContextMissingOutputs_SkipsWhenTitlePresent(t *testing.T) {
+	t.Parallel()
 	buf := new(bytes.Buffer)
 	warnTddFreshContextMissingOutputs(buf, &bead.Bead{ID: "bead-2", Title: "Implement feature"})
 

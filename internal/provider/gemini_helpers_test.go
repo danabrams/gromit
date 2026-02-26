@@ -6,6 +6,7 @@ import (
 )
 
 func TestParseGeminiJSONResult(t *testing.T) {
+	t.Parallel()
 	jsonBytes, err := os.ReadFile("../../test/fixtures/gemini/json-success.json")
 	if err != nil {
 		t.Fatalf("failed to read fixture: %v", err)
@@ -42,6 +43,7 @@ func TestParseGeminiJSONResult(t *testing.T) {
 }
 
 func TestParseGeminiStreamEvent(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		line      string
@@ -50,10 +52,10 @@ func TestParseGeminiStreamEvent(t *testing.T) {
 		wantModel string
 	}{
 		{
-			name:     "init event",
-			line:     `{"type":"init","timestamp":"2026-02-23T23:22:33.421Z","session_id":"0fc744b2-d900-4dce-880f-c78c1d34fc80","model":"auto-gemini-3"}`,
-			wantType: "init",
-			wantRole: "",
+			name:      "init event",
+			line:      `{"type":"init","timestamp":"2026-02-23T23:22:33.421Z","session_id":"0fc744b2-d900-4dce-880f-c78c1d34fc80","model":"auto-gemini-3"}`,
+			wantType:  "init",
+			wantRole:  "",
 			wantModel: "auto-gemini-3",
 		},
 		{
@@ -78,6 +80,7 @@ func TestParseGeminiStreamEvent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			event, err := parseGeminiStreamEvent([]byte(tt.line))
 			if err != nil {
 				t.Fatalf("parseGeminiStreamEvent failed: %v", err)
@@ -107,6 +110,7 @@ func TestParseGeminiStreamEvent(t *testing.T) {
 }
 
 func TestExtractGeminiAssistantText(t *testing.T) {
+	t.Parallel()
 	events := []map[string]interface{}{
 		{
 			"type":    "message",
@@ -128,6 +132,7 @@ func TestExtractGeminiAssistantText(t *testing.T) {
 }
 
 func TestExtractGeminiAssistantText_MultipleMessages(t *testing.T) {
+	t.Parallel()
 	events := []map[string]interface{}{
 		{
 			"type":    "message",
@@ -153,6 +158,7 @@ func TestExtractGeminiAssistantText_MultipleMessages(t *testing.T) {
 }
 
 func TestExtractGeminiAssistantText_EmptyEvents(t *testing.T) {
+	t.Parallel()
 	text := extractGeminiAssistantText([]map[string]interface{}{})
 	if text != "" {
 		t.Errorf("expected empty string, got %q", text)
@@ -160,6 +166,7 @@ func TestExtractGeminiAssistantText_EmptyEvents(t *testing.T) {
 }
 
 func TestExtractGeminiTokens_FromStreamEvent(t *testing.T) {
+	t.Parallel()
 	event := map[string]interface{}{
 		"type":   "result",
 		"status": "success",
@@ -184,6 +191,7 @@ func TestExtractGeminiTokens_FromStreamEvent(t *testing.T) {
 }
 
 func TestExtractGeminiTokens_FromJSONResponse(t *testing.T) {
+	t.Parallel()
 	jsonData := map[string]interface{}{
 		"usage": map[string]interface{}{
 			"input_tokens":        13284.0,
@@ -205,6 +213,7 @@ func TestExtractGeminiTokens_FromJSONResponse(t *testing.T) {
 }
 
 func TestExtractGeminiTokens_EmptyData(t *testing.T) {
+	t.Parallel()
 	inputTokens, outputTokens, cached := extractGeminiTokens(map[string]interface{}{})
 	if inputTokens != 0 || outputTokens != 0 || cached != 0 {
 		t.Errorf("expected all zeros, got input=%d, output=%d, cached=%d", inputTokens, outputTokens, cached)
@@ -212,6 +221,7 @@ func TestExtractGeminiTokens_EmptyData(t *testing.T) {
 }
 
 func TestExtractGeminiCost_FromJSONResponse(t *testing.T) {
+	t.Parallel()
 	jsonData := map[string]interface{}{
 		"cost": map[string]interface{}{
 			"total": 0.0,
@@ -225,6 +235,7 @@ func TestExtractGeminiCost_FromJSONResponse(t *testing.T) {
 }
 
 func TestExtractGeminiCost_WithValue(t *testing.T) {
+	t.Parallel()
 	jsonData := map[string]interface{}{
 		"cost": map[string]interface{}{
 			"total": 0.123456,
@@ -238,6 +249,7 @@ func TestExtractGeminiCost_WithValue(t *testing.T) {
 }
 
 func TestExtractGeminiCost_EmptyData(t *testing.T) {
+	t.Parallel()
 	cost := extractGeminiCost(map[string]interface{}{})
 	if cost != 0.0 {
 		t.Errorf("expected cost 0.0, got %f", cost)
@@ -245,6 +257,7 @@ func TestExtractGeminiCost_EmptyData(t *testing.T) {
 }
 
 func TestExtractGeminiCost_MissingCostField(t *testing.T) {
+	t.Parallel()
 	jsonData := map[string]interface{}{
 		"output": "test",
 	}
@@ -256,6 +269,7 @@ func TestExtractGeminiCost_MissingCostField(t *testing.T) {
 }
 
 func TestClassifyGeminiFailure_Success(t *testing.T) {
+	t.Parallel()
 	category := classifyGeminiFailure(0, "")
 	if category != FailureCategoryNone {
 		t.Errorf("expected FailureCategoryNone for exit code 0, got %q", category)
@@ -263,6 +277,7 @@ func TestClassifyGeminiFailure_Success(t *testing.T) {
 }
 
 func TestClassifyGeminiFailure_AuthError(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		stderr string
@@ -275,6 +290,7 @@ func TestClassifyGeminiFailure_AuthError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			category := classifyGeminiFailure(1, tt.stderr)
 			if category != FailureCategoryAuth {
 				t.Errorf("expected FailureCategoryAuth, got %q", category)
@@ -284,6 +300,7 @@ func TestClassifyGeminiFailure_AuthError(t *testing.T) {
 }
 
 func TestClassifyGeminiFailure_StartupError(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		stderr string
@@ -295,6 +312,7 @@ func TestClassifyGeminiFailure_StartupError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			category := classifyGeminiFailure(1, tt.stderr)
 			if category != FailureCategoryStartupError {
 				t.Errorf("expected FailureCategoryStartupError, got %q", category)
@@ -304,6 +322,7 @@ func TestClassifyGeminiFailure_StartupError(t *testing.T) {
 }
 
 func TestClassifyGeminiFailure_TransportError(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		stderr string
@@ -316,6 +335,7 @@ func TestClassifyGeminiFailure_TransportError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			category := classifyGeminiFailure(1, tt.stderr)
 			if category != FailureCategoryTransportDisconnect {
 				t.Errorf("expected FailureCategoryTransportDisconnect, got %q", category)
@@ -325,6 +345,7 @@ func TestClassifyGeminiFailure_TransportError(t *testing.T) {
 }
 
 func TestClassifyGeminiFailure_RateLimit(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		stderr string
@@ -337,6 +358,7 @@ func TestClassifyGeminiFailure_RateLimit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			category := classifyGeminiFailure(1, tt.stderr)
 			if category != FailureCategoryRateLimited {
 				t.Errorf("expected FailureCategoryRateLimited, got %q", category)
@@ -346,6 +368,7 @@ func TestClassifyGeminiFailure_RateLimit(t *testing.T) {
 }
 
 func TestClassifyGeminiFailure_Other(t *testing.T) {
+	t.Parallel()
 	category := classifyGeminiFailure(1, "unknown error")
 	if category != FailureCategoryOther {
 		t.Errorf("expected FailureCategoryOther, got %q", category)

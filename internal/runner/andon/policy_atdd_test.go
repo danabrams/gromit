@@ -6,6 +6,7 @@ import (
 )
 
 func TestChooseNextActionPure_EnforcesL1AndL2Bounds(t *testing.T) {
+	t.Parallel()
 	thresholds := DefaultThresholdDefinition()
 
 	tests := []struct {
@@ -44,6 +45,7 @@ func TestChooseNextActionPure_EnforcesL1AndL2Bounds(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := ChooseNextActionPure(tt.input)
 			if got != tt.want {
 				t.Fatalf("ChooseNextActionPure(%+v) = %+v, want %+v", tt.input, got, tt.want)
@@ -53,6 +55,7 @@ func TestChooseNextActionPure_EnforcesL1AndL2Bounds(t *testing.T) {
 }
 
 func TestChooseNextActionPure_UsesDefaultBoundsWhenThresholdsUnset(t *testing.T) {
+	t.Parallel()
 	input := PolicyInput{
 		State: RecoveryState{
 			Class:      FailureClassTransient,
@@ -70,6 +73,7 @@ func TestChooseNextActionPure_UsesDefaultBoundsWhenThresholdsUnset(t *testing.T)
 }
 
 func TestChooseNextActionPure_UsesDefaultBoundsWhenThresholdsNonPositive(t *testing.T) {
+	t.Parallel()
 	input := PolicyInput{
 		State: RecoveryState{
 			Class:      FailureClassTransient,
@@ -93,6 +97,7 @@ func TestChooseNextActionPure_UsesDefaultBoundsWhenThresholdsNonPositive(t *test
 }
 
 func TestChooseNextActionPure_IsDeterministicForIdenticalInput(t *testing.T) {
+	t.Parallel()
 	input := PolicyInput{
 		State: RecoveryState{
 			Class:      FailureClassTransient,

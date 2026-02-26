@@ -27,6 +27,7 @@ func writeStatusFile(gromitDir string, status runner.Status) error {
 // TestOrchestratorHelper_StatusWithLiveRun tests status output using the standalone
 // runner.PrintStatus function instead of requiring a full Runner via NewRunnerWithDeps.
 func TestOrchestratorHelper_StatusWithLiveRun(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name              string
 		setupStatus       func(gromitDir string) error
@@ -84,6 +85,7 @@ func TestOrchestratorHelper_StatusWithLiveRun(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tmpDir := t.TempDir()
 			gromitDir := filepath.Join(tmpDir, ".gromit")
 			if err := os.MkdirAll(gromitDir, 0755); err != nil {
@@ -125,6 +127,7 @@ func TestOrchestratorHelper_StatusWithLiveRun(t *testing.T) {
 // TestOrchestratorHelper_StatusLivePID tests that PrintStatus shows run-in-progress
 // info when the status file references a live PID (current process).
 func TestOrchestratorHelper_StatusLivePID(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0755); err != nil {
@@ -193,6 +196,7 @@ func getDeadPID(t *testing.T) int {
 // TestOrchestratorHelper_StatusDeadPID tests that PrintStatus detects a stale
 // status file (dead PID), warns, and cleans up.
 func TestOrchestratorHelper_StatusDeadPID(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0755); err != nil {
@@ -255,6 +259,7 @@ func TestOrchestratorHelper_StatusDeadPID(t *testing.T) {
 // TestOrchestratorHelper_StatusIntegrationActiveRun tests full status output
 // with an active run, backlog, state, and interactive-state files.
 func TestOrchestratorHelper_StatusIntegrationActiveRun(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0755); err != nil {

@@ -12,6 +12,7 @@ import (
 )
 
 func TestRunnerSmokeSuite_ApprovedMatrixCasesOnly(t *testing.T) {
+	t.Parallel()
 	approved := runner.RunnerSmokeApprovedMatrixCases()
 	if len(approved) == 0 {
 		t.Fatalf("approved smoke matrix is empty")
@@ -38,6 +39,7 @@ func TestRunnerSmokeSuite_ApprovedMatrixCasesOnly(t *testing.T) {
 }
 
 func TestRunnerSmokeSuite_NoSubpackageAcceptanceFiles(t *testing.T) {
+	t.Parallel()
 	allowedRoots := runner.RunnerSmokeSuiteApprovedRoots()
 	projectRoot := repoRoot(t)
 	files := listAcceptanceFiles(t, projectRoot)
@@ -54,6 +56,7 @@ func TestRunnerSmokeSuite_NoSubpackageAcceptanceFiles(t *testing.T) {
 }
 
 func TestRunnerSmokeSuite_MovedBehaviorHasUnitCoverage(t *testing.T) {
+	t.Parallel()
 	moved := runner.RunnerSmokeMatrixMovedCases()
 	if len(moved) == 0 {
 		t.Fatalf("moved smoke cases list is empty")

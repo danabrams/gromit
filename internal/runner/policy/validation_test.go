@@ -22,6 +22,7 @@ func newConfigValidationPolicyWithMandatory(fullEveryN int, mandatory []string) 
 }
 
 func TestSelectGate_ReturnsFastOnNonModuloIteration(t *testing.T) {
+	t.Parallel()
 	p := newConfigValidationPolicy(3)
 	if got := p.SelectGate(1); got != policy.GateFast {
 		t.Errorf("SelectGate(1) with fullEveryN=3: got %v, want GateFast", got)
@@ -29,6 +30,7 @@ func TestSelectGate_ReturnsFastOnNonModuloIteration(t *testing.T) {
 }
 
 func TestSelectGate_ReturnsFullOnModuloBoundary(t *testing.T) {
+	t.Parallel()
 	p := newConfigValidationPolicy(3)
 	if got := p.SelectGate(3); got != policy.GateFull {
 		t.Errorf("SelectGate(3) with fullEveryN=3: got %v, want GateFull", got)
@@ -36,6 +38,7 @@ func TestSelectGate_ReturnsFullOnModuloBoundary(t *testing.T) {
 }
 
 func TestSelectGate_ZeroConsecutiveSuccessesReturnsFullWhenEnabled(t *testing.T) {
+	t.Parallel()
 	p := newConfigValidationPolicy(3)
 	if got := p.SelectGate(0); got != policy.GateFull {
 		t.Errorf("SelectGate(0) with fullEveryN=3: got %v, want GateFull (0%%3==0)", got)
@@ -43,6 +46,7 @@ func TestSelectGate_ZeroConsecutiveSuccessesReturnsFullWhenEnabled(t *testing.T)
 }
 
 func TestSelectGate_ZeroFullEveryNAlwaysReturnsFast(t *testing.T) {
+	t.Parallel()
 	p := newConfigValidationPolicy(0)
 	for _, n := range []int{0, 1, 5, 100} {
 		if got := p.SelectGate(n); got != policy.GateFast {
@@ -52,6 +56,7 @@ func TestSelectGate_ZeroFullEveryNAlwaysReturnsFast(t *testing.T) {
 }
 
 func TestMaxRecoveryAttempts_ReturnsTwo(t *testing.T) {
+	t.Parallel()
 	p := newConfigValidationPolicy(0)
 	if got := p.MaxRecoveryAttempts(); got != 2 {
 		t.Errorf("MaxRecoveryAttempts: got %d, want 2", got)
@@ -59,6 +64,7 @@ func TestMaxRecoveryAttempts_ReturnsTwo(t *testing.T) {
 }
 
 func TestShouldEscalateRecovery_ReturnsTrue(t *testing.T) {
+	t.Parallel()
 	p := newConfigValidationPolicy(0)
 	if !p.ShouldEscalateRecovery() {
 		t.Error("ShouldEscalateRecovery: expected true")
@@ -66,6 +72,7 @@ func TestShouldEscalateRecovery_ReturnsTrue(t *testing.T) {
 }
 
 func TestSelectGate_TableDrivenModuloArithmetic(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name                 string
 		fullEveryN           int
@@ -84,6 +91,7 @@ func TestSelectGate_TableDrivenModuloArithmetic(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			p := newConfigValidationPolicy(tc.fullEveryN)
 			got := p.SelectGate(tc.consecutiveSuccesses)
 			if got != tc.want {
@@ -95,6 +103,7 @@ func TestSelectGate_TableDrivenModuloArithmetic(t *testing.T) {
 }
 
 func TestMandatoryCommandPrefixes_ReturnsConfiguredPrefixes(t *testing.T) {
+	t.Parallel()
 	p := newConfigValidationPolicyWithMandatory(0, []string{"go test", "go vet", "go build"})
 	want := []string{"go test", "go vet", "go build"}
 	got := p.MandatoryCommandPrefixes()
@@ -109,6 +118,7 @@ func TestMandatoryCommandPrefixes_ReturnsConfiguredPrefixes(t *testing.T) {
 }
 
 func TestMandatoryCommandPrefixes_EmptyWhenUnconfigured(t *testing.T) {
+	t.Parallel()
 	p := newConfigValidationPolicy(0)
 	got := p.MandatoryCommandPrefixes()
 	if len(got) != 0 {
@@ -117,6 +127,7 @@ func TestMandatoryCommandPrefixes_EmptyWhenUnconfigured(t *testing.T) {
 }
 
 func TestMandatoryCommandPrefixes_FallsBackToProfileDefaults(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	cfg.Project.Profile = "go"
 	p := policy.NewConfigValidationPolicy(cfg)

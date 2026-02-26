@@ -15,6 +15,7 @@ import (
 // TestRiskScore_HighComplexity verifies that high-complexity scope
 // is recognized as a risk factor for proactive decomposition.
 func TestRiskScore_HighComplexity(t *testing.T) {
+	t.Parallel()
 	bc := &runtypes.BeadContext{
 		ScopeEstimate: &prompt.ScopeEstimate{
 			Complexity:                   "high",
@@ -35,6 +36,7 @@ func TestRiskScore_HighComplexity(t *testing.T) {
 // TestRiskScore_ManyIterations verifies that estimated_iterations >= 3
 // is recognized as a risk factor.
 func TestRiskScore_ManyIterations(t *testing.T) {
+	t.Parallel()
 	bc := &runtypes.BeadContext{
 		ScopeEstimate: &prompt.ScopeEstimate{
 			Complexity:                   "medium",
@@ -55,6 +57,7 @@ func TestRiskScore_ManyIterations(t *testing.T) {
 // TestRiskScore_PreviousRetries verifies that prior retries are recognized
 // as a risk factor.
 func TestRiskScore_PreviousRetries(t *testing.T) {
+	t.Parallel()
 	bc := &runtypes.BeadContext{
 		ScopeEstimate: &prompt.ScopeEstimate{
 			Complexity:                   "low",
@@ -75,6 +78,7 @@ func TestRiskScore_PreviousRetries(t *testing.T) {
 // TestRiskScore_NotHighRisk verifies that a low-risk bead is not flagged
 // as high-risk.
 func TestRiskScore_NotHighRisk(t *testing.T) {
+	t.Parallel()
 	bc := &runtypes.BeadContext{
 		ScopeEstimate: &prompt.ScopeEstimate{
 			Complexity:                   "low",
@@ -95,6 +99,7 @@ func TestRiskScore_NotHighRisk(t *testing.T) {
 // TestProactiveDecomposeThreshold_60Percent verifies that a high-risk bead
 // reaches the 60% elapsed budget threshold and triggers proactive decomposition.
 func TestProactiveDecomposeThreshold_60Percent(t *testing.T) {
+	t.Parallel()
 	bc := &runtypes.BeadContext{
 		ScopeEstimate: &prompt.ScopeEstimate{
 			Complexity:                   "high",
@@ -115,6 +120,7 @@ func TestProactiveDecomposeThreshold_60Percent(t *testing.T) {
 // TestProactiveDecomposeThreshold_Below60Percent verifies that a high-risk bead
 // below 60% elapsed does not trigger proactive decomposition.
 func TestProactiveDecomposeThreshold_Below60Percent(t *testing.T) {
+	t.Parallel()
 	bc := &runtypes.BeadContext{
 		ScopeEstimate: &prompt.ScopeEstimate{
 			Complexity:                   "high",
@@ -135,6 +141,7 @@ func TestProactiveDecomposeThreshold_Below60Percent(t *testing.T) {
 // TestProactiveDecomposeThreshold_LowRiskNotTriggered verifies that low-risk beads
 // do not trigger proactive decomposition even at 60%+ elapsed.
 func TestProactiveDecomposeThreshold_LowRiskNotTriggered(t *testing.T) {
+	t.Parallel()
 	bc := &runtypes.BeadContext{
 		ScopeEstimate: &prompt.ScopeEstimate{
 			Complexity:                   "low",
@@ -155,6 +162,7 @@ func TestProactiveDecomposeThreshold_LowRiskNotTriggered(t *testing.T) {
 // TestCheckProactiveDecomposition_TriggersDecomposition verifies that the Handler
 // detects when proactive decomposition should occur and initiates decomposition.
 func TestCheckProactiveDecomposition_TriggersDecomposition(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
@@ -208,6 +216,7 @@ func TestCheckProactiveDecomposition_TriggersDecomposition(t *testing.T) {
 // TestExecuteWithRetry_ChecksProactiveDecomposition verifies that ExecuteWithRetry
 // checks for proactive decomposition before invoking Claude on high-risk beads at 60% elapsed.
 func TestExecuteWithRetry_ChecksProactiveDecomposition(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()
@@ -268,6 +277,7 @@ func TestExecuteWithRetry_ChecksProactiveDecomposition(t *testing.T) {
 // TestExecuteWithRetry_LowRiskBypassesProactiveCheck verifies that low-risk beads
 // proceed normally through ExecuteWithRetry without triggering proactive decomposition.
 func TestExecuteWithRetry_LowRiskBypassesProactiveCheck(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	cfg.SetDefaults()
 	cfg.NormalizeNilFields()

@@ -6,6 +6,7 @@ import (
 )
 
 func TestListByStatus_EmptyStatus(t *testing.T) {
+	t.Parallel()
 	c := &Client{}
 	_, err := c.ListByStatus("")
 	if err == nil {
@@ -17,6 +18,7 @@ func TestListByStatus_EmptyStatus(t *testing.T) {
 }
 
 func TestListByStatus_ParsesResults(t *testing.T) {
+	t.Parallel()
 	c := &Client{
 		RunFn: func(args ...string) (string, error) {
 			want := []string{"list", "--json", "--status", "in_progress", "--sort", "priority", "--limit", "0"}

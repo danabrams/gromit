@@ -15,6 +15,7 @@ import (
 // TestOrchestratorHelper_TDDPromptSelection verifies that the orchestrator loop
 // runs a bead to completion for each TDD config scenario without error.
 func TestOrchestratorHelper_TDDPromptSelection(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		globalTDD  bool
@@ -28,6 +29,7 @@ func TestOrchestratorHelper_TDDPromptSelection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			cfg := &config.Config{
 				Methodology: config.MethodologyConfig{TDD: tt.globalTDD},
 			}
@@ -56,6 +58,7 @@ func TestOrchestratorHelper_TDDPromptSelection(t *testing.T) {
 // TestOrchestratorHelper_ATDDSkippedForTestOnlyBead verifies that the orchestrator
 // loop runs each ATDD scenario bead to completion without error.
 func TestOrchestratorHelper_ATDDSkippedForTestOnlyBead(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		beadTitle  string
@@ -68,6 +71,7 @@ func TestOrchestratorHelper_ATDDSkippedForTestOnlyBead(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			cfg := &config.Config{
 				Methodology: config.MethodologyConfig{ATDD: tt.globalATDD},
 			}

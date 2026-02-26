@@ -8,6 +8,7 @@ import (
 )
 
 func TestSmokeDecisionRubric_DefinesCriticalOutcomesOnly(t *testing.T) {
+	t.Parallel()
 	projectRoot, err := findProjectRoot()
 	if err != nil {
 		t.Fatalf("findProjectRoot: %v", err)
@@ -32,6 +33,7 @@ func TestSmokeDecisionRubric_DefinesCriticalOutcomesOnly(t *testing.T) {
 }
 
 func TestSmokeDecisionRubric_MatrixTemplateHasRequiredFields(t *testing.T) {
+	t.Parallel()
 	projectRoot, err := findProjectRoot()
 	if err != nil {
 		t.Fatalf("findProjectRoot: %v", err)
@@ -58,6 +60,7 @@ func TestSmokeDecisionRubric_MatrixTemplateHasRequiredFields(t *testing.T) {
 }
 
 func TestSmokeDecisionRubric_DestinationConventionsForCmdAndRunner(t *testing.T) {
+	t.Parallel()
 	projectRoot, err := findProjectRoot()
 	if err != nil {
 		t.Fatalf("findProjectRoot: %v", err)

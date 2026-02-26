@@ -33,7 +33,10 @@ func setupTestBeadClient(t *testing.T) *bead.Client {
 // Expected failure: Without --all flag in ListWithLabel, closed beads are not returned,
 // so the closed count will always be 0.
 func TestEpicBeadCountsReclassified_ClosedCountsIncludeAllStatuses(t *testing.T) {
+	t.Parallel(
 	// Create a temporary bd directory for testing
+	)
+
 	client := setupTestBeadClient(t)
 
 	testSpec := "test-epic-counts"
@@ -99,6 +102,7 @@ func TestEpicBeadCountsReclassified_ClosedCountsIncludeAllStatuses(t *testing.T)
 //
 // Expected failure: Without --all flag, ListWithLabel returns no beads when all are closed.
 func TestEpicBeadCountsReclassified_AllClosedBeadsCounted(t *testing.T) {
+	t.Parallel()
 	client := setupTestBeadClient(t)
 
 	testSpec := "all-closed-spec"
@@ -134,6 +138,7 @@ func TestEpicBeadCountsReclassified_AllClosedBeadsCounted(t *testing.T) {
 // TestGetBeadCounts_HandlesOnlyOpenBeads verifies that getBeadCounts works correctly
 // when all beads for a spec are open (baseline case that works without --all flag).
 func TestGetBeadCounts_HandlesOnlyOpenBeads(t *testing.T) {
+	t.Parallel()
 	client := setupTestBeadClient(t)
 
 	testSpec := "all-open-spec"

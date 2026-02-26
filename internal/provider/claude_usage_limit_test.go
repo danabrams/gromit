@@ -9,6 +9,7 @@ import (
 // IsUsageLimitError() detects Claude-specific usage limit errors
 // with exit code 2 and specific error messages (case-insensitive).
 func TestClaudeProviderIsUsageLimitErrorDetection(t *testing.T) {
+	t.Parallel()
 	cp := &ClaudeProvider{}
 
 	tests := []struct {
@@ -157,6 +158,7 @@ func TestClaudeProviderIsUsageLimitErrorDetection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := cp.IsUsageLimitError(tt.result, tt.err)
 			if got != tt.expected {
 				t.Errorf("IsUsageLimitError() = %v, want %v (result=%+v)", got, tt.expected, tt.result)
@@ -169,6 +171,7 @@ func TestClaudeProviderIsUsageLimitErrorDetection(t *testing.T) {
 // IsUsageLimitError() REQUIRES exit code 2 - other exit codes should not
 // be treated as usage limit errors even if the message contains keywords.
 func TestClaudeProviderIsUsageLimitErrorExitCodeRequired(t *testing.T) {
+	t.Parallel()
 	cp := &ClaudeProvider{}
 
 	// Test all non-2 exit codes with usage limit message
@@ -176,6 +179,7 @@ func TestClaudeProviderIsUsageLimitErrorExitCodeRequired(t *testing.T) {
 
 	for _, exitCode := range exitCodes {
 		t.Run(fmt.Sprintf("exit_code_%d", exitCode), func(t *testing.T) {
+			t.Parallel()
 			result := &Result{
 				Success:  false,
 				ExitCode: exitCode,
@@ -194,6 +198,7 @@ func TestClaudeProviderIsUsageLimitErrorExitCodeRequired(t *testing.T) {
 // IsUsageLimitError() REQUIRES one of the usage limit keywords,
 // not just exit code 2 alone.
 func TestClaudeProviderIsUsageLimitErrorKeywordRequired(t *testing.T) {
+	t.Parallel()
 	cp := &ClaudeProvider{}
 
 	nonLimitErrors := []string{
@@ -207,6 +212,7 @@ func TestClaudeProviderIsUsageLimitErrorKeywordRequired(t *testing.T) {
 
 	for _, errorMsg := range nonLimitErrors {
 		t.Run(errorMsg, func(t *testing.T) {
+			t.Parallel()
 			result := &Result{
 				Success:  false,
 				ExitCode: 2, // Correct exit code but wrong message

@@ -8,6 +8,7 @@ import (
 )
 
 func TestDetectProfilePriority(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name  string
 		files []string
@@ -21,6 +22,7 @@ func TestDetectProfilePriority(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			dir := t.TempDir()
 			for _, file := range tc.files {
 				path := filepath.Join(dir, file)
@@ -37,6 +39,7 @@ func TestDetectProfilePriority(t *testing.T) {
 }
 
 func TestDetectProfileFallbacksToCustom(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	if got := detectProfile(dir); got != "custom" {
 		t.Fatalf("detectProfile() = %q, want custom when no signals", got)
@@ -44,6 +47,7 @@ func TestDetectProfileFallbacksToCustom(t *testing.T) {
 }
 
 func TestSelectProfilePrefersExplicitOverride(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte{}, 0644); err != nil {
 		t.Fatalf("write go.mod: %v", err)
@@ -65,6 +69,7 @@ func TestSelectProfilePrefersExplicitOverride(t *testing.T) {
 }
 
 func TestSelectProfileUsesExistingConfig(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	content := `project:
   profile: "node"
@@ -86,6 +91,7 @@ func TestSelectProfileUsesExistingConfig(t *testing.T) {
 }
 
 func TestInitWritesDetectedProfile(t *testing.T) {
+	t.Parallel()
 	setupDir := func(t *testing.T) string {
 		dir := t.TempDir()
 		if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte("{}"), 0644); err != nil {
@@ -137,6 +143,7 @@ func TestInitWritesDetectedProfile(t *testing.T) {
 }
 
 func TestInitRespectsProfileFlag(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	prevWd, err := os.Getwd()
 	if err != nil {
@@ -181,6 +188,7 @@ func TestInitRespectsProfileFlag(t *testing.T) {
 }
 
 func TestExplicitProfileOverrideNoImplicitInjection(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name              string
 		explicitProfile   string
@@ -209,6 +217,7 @@ func TestExplicitProfileOverrideNoImplicitInjection(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			dir := t.TempDir()
 			// Create multiple signal files to ensure we're using explicit override
 			if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test"), 0644); err != nil {
@@ -273,6 +282,7 @@ func TestExplicitProfileOverrideNoImplicitInjection(t *testing.T) {
 }
 
 func TestSelectInitProfilePrecedenceExplicitOverDetection(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 
 	// Create go.mod to signal "go" profile
@@ -302,6 +312,7 @@ func TestSelectInitProfilePrecedenceExplicitOverDetection(t *testing.T) {
 }
 
 func TestSelectInitProfileCustomProfile(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 
 	prevProfile := initProfile
@@ -320,6 +331,7 @@ func TestSelectInitProfileCustomProfile(t *testing.T) {
 }
 
 func TestSelectInitProfileRejectsInvalidConfigProfile(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	content := `project:
   profile: "unknown"
@@ -338,6 +350,7 @@ func TestSelectInitProfileRejectsInvalidConfigProfile(t *testing.T) {
 }
 
 func TestSelectInitProfileRejectsInvalidConfigYAML(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "gromit.yaml"), []byte("project:\n  profile: [\n"), 0644); err != nil {
 		t.Fatalf("write gromit.yaml: %v", err)

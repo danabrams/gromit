@@ -4,6 +4,7 @@ import "testing"
 
 // TestReady_UsesLimit3_Unit is a simple unit test verifying Ready() uses --limit 3
 func TestReady_UsesLimit3_Unit(t *testing.T) {
+	t.Parallel()
 	var capturedArgs []string
 	mockRun := func(args ...string) (string, error) {
 		capturedArgs = args
@@ -37,6 +38,7 @@ func TestReady_UsesLimit3_Unit(t *testing.T) {
 
 // TestReadyWithLabel_UsesLimit3_Unit verifies ReadyWithLabel() uses --limit 3 for consistency
 func TestReadyWithLabel_UsesLimit3_Unit(t *testing.T) {
+	t.Parallel()
 	var capturedArgs []string
 	mockRun := func(args ...string) (string, error) {
 		capturedArgs = args

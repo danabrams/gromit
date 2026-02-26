@@ -16,6 +16,7 @@ import (
 // file contains only true StreamRun end-to-end behavior and excludes internal
 // event parsing/wiring tests.
 func TestProviderAcceptanceSurfaceOnlyStreamingE2E(t *testing.T) {
+	t.Parallel()
 	repoRoot := AssertProviderAcceptanceReclassificationImplemented(t)
 
 	acceptancePath := filepath.Join(repoRoot, "internal", "provider", "codex_streaming_acceptance_test.go")
@@ -52,6 +53,7 @@ func TestProviderAcceptanceSurfaceOnlyStreamingE2E(t *testing.T) {
 // TestProviderReclassifiedBehaviorRunsInUnitSuite verifies internal parsing and
 // wiring behavior tests are visible under normal go test (without acceptance tag).
 func TestProviderReclassifiedBehaviorRunsInUnitSuite(t *testing.T) {
+	t.Parallel()
 	repoRoot := AssertProviderAcceptanceReclassificationImplemented(t)
 
 	cmd := exec.Command("go", "test", "-list", "TestProcessCodexStream", "./internal/provider")
@@ -79,6 +81,7 @@ func TestProviderReclassifiedBehaviorRunsInUnitSuite(t *testing.T) {
 // TestProviderAcceptanceSuiteHasReducedFootprint verifies acceptance-tag runs in
 // internal/provider are reduced to a slim E2E surface.
 func TestProviderAcceptanceSuiteHasReducedFootprint(t *testing.T) {
+	t.Parallel()
 	repoRoot := AssertProviderAcceptanceReclassificationImplemented(t)
 
 	maxAllowed := codexProviderAcceptanceMaxTests
@@ -104,6 +107,7 @@ func TestProviderAcceptanceSuiteHasReducedFootprint(t *testing.T) {
 }
 
 func TestProviderAcceptanceSurfaceIncludesPhase3CacheFallbackIntegrationCase(t *testing.T) {
+	t.Parallel()
 	repoRoot := AssertProviderAcceptanceReclassificationImplemented(t)
 
 	tests, err := listProviderTests(t, repoRoot, false)

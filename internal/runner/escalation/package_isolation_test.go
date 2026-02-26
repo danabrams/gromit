@@ -21,6 +21,7 @@ import (
 // actions through the LogFn callback (e.g. "Stall timeout detected, escalating
 // from low to medium").
 func TestHandlerLogCallbackProducesOutput(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	var logMessages []string
 	logFn := func(format string, args ...interface{}) {
@@ -55,6 +56,7 @@ func TestHandlerLogCallbackProducesOutput(t *testing.T) {
 // recoverable=Y". After the local method is removed, the Handler must produce
 // equivalent log output through LogFn.
 func TestHandlerLogCallbackOnAnalyzeFailure(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	var logMessages []string
 	logFn := func(format string, args ...interface{}) {
@@ -92,6 +94,7 @@ func TestHandlerLogCallbackOnAnalyzeFailure(t *testing.T) {
 // "Escalating from tier X to Y". After the local method is removed, the
 // Handler must produce equivalent log output through LogFn.
 func TestHandlerLogCallbackOnEscalation(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	var logMessages []string
 	logFn := func(format string, args ...interface{}) {
@@ -120,6 +123,7 @@ func TestHandlerLogCallbackOnEscalation(t *testing.T) {
 // "Task successfully decomposed into N sub-tasks". After the local method
 // is removed, the Handler must produce equivalent log output through LogFn.
 func TestHandlerLogCallbackOnDecomposition(t *testing.T) {
+	t.Parallel()
 	cfg := newTestConfig()
 	var logMessages []string
 	logFn := func(format string, args ...interface{}) {

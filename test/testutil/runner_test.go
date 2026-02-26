@@ -331,6 +331,7 @@ sleep 5
 }
 
 func TestRunGromitHelperProcessWithStdin_TimeoutKillsProcessGroup(t *testing.T) {
+
 	tmpDir := t.TempDir()
 	childPIDPath := filepath.Join(tmpDir, "child.pid")
 

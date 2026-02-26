@@ -8,6 +8,7 @@ import (
 // that all Claude models are correctly attributed to the Claude provider.
 // This is a contract test that documents the expected mapping for all Claude models.
 func TestModelProviderAttributionMatrixContractClaudeProvider(t *testing.T) {
+	t.Parallel()
 	claudeModels := []string{
 		"opus",
 		"sonnet",
@@ -16,6 +17,7 @@ func TestModelProviderAttributionMatrixContractClaudeProvider(t *testing.T) {
 
 	for _, model := range claudeModels {
 		t.Run("claude_with_"+model, func(t *testing.T) {
+			t.Parallel()
 			valid, reason := ValidateModelProviderAttribution(model, "claude")
 			if !valid {
 				t.Errorf("Claude provider should accept model %q, but got error: %s", model, reason)
@@ -28,6 +30,7 @@ func TestModelProviderAttributionMatrixContractClaudeProvider(t *testing.T) {
 // that all Codex models are correctly attributed to the Codex provider.
 // This is a contract test that documents the expected mapping for all Codex models.
 func TestModelProviderAttributionMatrixContractCodexProvider(t *testing.T) {
+	t.Parallel()
 	codexModels := []string{
 		"gpt-5.3-codex",
 		"gpt-5.1-codex-mini",
@@ -35,6 +38,7 @@ func TestModelProviderAttributionMatrixContractCodexProvider(t *testing.T) {
 
 	for _, model := range codexModels {
 		t.Run("codex_with_"+model, func(t *testing.T) {
+			t.Parallel()
 			valid, reason := ValidateModelProviderAttribution(model, "codex")
 			if !valid {
 				t.Errorf("Codex provider should accept model %q, but got error: %s", model, reason)
@@ -47,12 +51,14 @@ func TestModelProviderAttributionMatrixContractCodexProvider(t *testing.T) {
 // that models from one provider are rejected by another provider.
 // This enforces data quality by rejecting misattributed models.
 func TestModelProviderAttributionMatrixContractCrossProviderRejects(t *testing.T) {
+	t.Parallel()
 	claudeModels := []string{"opus", "sonnet", "haiku"}
 	codexModels := []string{"gpt-5.3-codex", "gpt-5.1-codex-mini"}
 
 	// Claude models should be rejected by Codex
 	for _, model := range claudeModels {
 		t.Run("codex_rejects_claude_model_"+model, func(t *testing.T) {
+			t.Parallel()
 			valid, _ := ValidateModelProviderAttribution(model, "codex")
 			if valid {
 				t.Errorf("Codex provider should reject Claude model %q", model)
@@ -63,6 +69,7 @@ func TestModelProviderAttributionMatrixContractCrossProviderRejects(t *testing.T
 	// Codex models should be rejected by Claude
 	for _, model := range codexModels {
 		t.Run("claude_rejects_codex_model_"+model, func(t *testing.T) {
+			t.Parallel()
 			valid, _ := ValidateModelProviderAttribution(model, "claude")
 			if valid {
 				t.Errorf("Claude provider should reject Codex model %q", model)
@@ -75,6 +82,7 @@ func TestModelProviderAttributionMatrixContractCrossProviderRejects(t *testing.T
 // that incomplete attribution data is treated as invalid.
 // This ensures data quality by rejecting records with missing attribution.
 func TestModelProviderAttributionMatrixContractIncompleteDataHandling(t *testing.T) {
+	t.Parallel()
 	type testCase struct {
 		name     string
 		model    string
@@ -111,6 +119,7 @@ func TestModelProviderAttributionMatrixContractIncompleteDataHandling(t *testing
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			valid, reason := ValidateModelProviderAttribution(tc.model, tc.provider)
 			if valid {
 				t.Errorf("incomplete data (%q, %q) should be invalid", tc.model, tc.provider)
@@ -126,6 +135,7 @@ func TestModelProviderAttributionMatrixContractIncompleteDataHandling(t *testing
 // contract test that verifies all known models are in the attribution mapping
 // and are associated with the correct provider.
 func TestModelProviderAttributionMatrixContractAllKnownModels(t *testing.T) {
+	t.Parallel()
 	knownMappings := map[string]string{
 		// Claude models
 		"opus":   "claude",
@@ -138,6 +148,7 @@ func TestModelProviderAttributionMatrixContractAllKnownModels(t *testing.T) {
 
 	for model, expectedProvider := range knownMappings {
 		t.Run(model+"_maps_to_"+expectedProvider, func(t *testing.T) {
+			t.Parallel()
 			valid, reason := ValidateModelProviderAttribution(model, expectedProvider)
 			if !valid {
 				t.Errorf("model %q should map to provider %q, got error: %s",
@@ -151,6 +162,7 @@ func TestModelProviderAttributionMatrixContractAllKnownModels(t *testing.T) {
 // that ensures unknown models are always treated as invalid attribution data,
 // regardless of the provider.
 func TestModelProviderAttributionMatrixContractUnknownModelsAlwaysInvalid(t *testing.T) {
+	t.Parallel()
 	unknownModels := []string{
 		"future-model-v1",
 		"experimental-llm",
@@ -164,6 +176,7 @@ func TestModelProviderAttributionMatrixContractUnknownModelsAlwaysInvalid(t *tes
 	for _, model := range unknownModels {
 		for _, provider := range providers {
 			t.Run("unknown_model_"+model+"_with_"+provider, func(t *testing.T) {
+				t.Parallel()
 				valid, reason := ValidateModelProviderAttribution(model, provider)
 				if valid {
 					t.Errorf("unknown model %q should be invalid with provider %q",
@@ -180,6 +193,7 @@ func TestModelProviderAttributionMatrixContractUnknownModelsAlwaysInvalid(t *tes
 // TestModelProviderAttributionMatrixContractReasonMessagesAreInformative
 // verifies that validation failure reasons are informative for debugging.
 func TestModelProviderAttributionMatrixContractReasonMessagesAreInformative(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name              string
 		model             string
@@ -214,6 +228,7 @@ func TestModelProviderAttributionMatrixContractReasonMessagesAreInformative(t *t
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			_, reason := ValidateModelProviderAttribution(tt.model, tt.provider)
 			if !containsString(reason, tt.shouldContainText) {
 				t.Errorf("reason %q should contain %q", reason, tt.shouldContainText)

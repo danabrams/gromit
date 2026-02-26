@@ -8,6 +8,7 @@ import (
 
 // TestInitGoLogicFileIsShort verifies that init.go stays under 500 lines (template constants moved to separate file)
 func TestInitGoLogicFileIsShort(t *testing.T) {
+	t.Parallel()
 	file, err := os.Open("init.go")
 	if err != nil {
 		t.Fatalf("failed to open init.go: %v", err)

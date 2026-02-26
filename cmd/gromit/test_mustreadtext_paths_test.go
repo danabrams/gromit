@@ -8,8 +8,10 @@ import (
 // correctly resolves paths regardless of working directory.
 // This test will fail until mustReadText uses resolveProjectPath.
 func TestMustReadText_CanBeCalledFromAnyDirectory(t *testing.T) {
+	t.Parallel(
 	// This test verifies that mustReadText works without relying on relative paths
 	// that assume the working directory is cmd/gromit.
+	)
 
 	// Try to read a file from repo root
 	content := mustReadText(t, "CLAUDE.md")
@@ -23,7 +25,10 @@ func TestMustReadText_CanBeCalledFromAnyDirectory(t *testing.T) {
 
 // TestMustReadText_ReadsRulesMD verifies that RULES.md can be read
 func TestMustReadText_ReadsRulesMD(t *testing.T) {
+	t.Parallel(
 	// This will fail until mustReadText uses proper path resolution
+	)
+
 	content := mustReadText(t, ".gromit/RULES.md")
 	if len(content) == 0 {
 		t.Error("mustReadText should read RULES.md successfully")

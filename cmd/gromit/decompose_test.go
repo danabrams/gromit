@@ -14,6 +14,7 @@ import (
 )
 
 func TestFilterUndecomposedPlans(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		planFiles map[string]string // filename -> content (with frontmatter)
@@ -214,7 +215,10 @@ decomposed: false
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel(
 			// Create temporary directory
+			)
+
 			plansDir := t.TempDir()
 
 			// Create plan files
@@ -281,7 +285,10 @@ decomposed: false
 }
 
 func TestFilterUndecomposedPlans_NonexistentDirectory(t *testing.T) {
+	t.Parallel(
 	// Use a path that doesn't exist
+	)
+
 	nonexistentDir := filepath.Join(t.TempDir(), "does-not-exist")
 
 	got, err := filterUndecomposedPlans(nonexistentDir, false)
@@ -295,6 +302,7 @@ func TestFilterUndecomposedPlans_NonexistentDirectory(t *testing.T) {
 }
 
 func TestFilterUndecomposedPlans_UnreadableFile(t *testing.T) {
+	t.Parallel()
 	plansDir := t.TempDir()
 
 	// Create a valid plan
@@ -326,6 +334,7 @@ func TestFilterUndecomposedPlans_UnreadableFile(t *testing.T) {
 }
 
 func TestDecomposeSinglePlan_ReviewUsesSessionWorktreeDir(t *testing.T) {
+
 	origReview := decomposeReview
 	origLauncher := decomposeSessionLauncherFn
 	origRunInDir := decomposeRunInDirFn
@@ -382,6 +391,7 @@ func TestDecomposeSinglePlan_ReviewUsesSessionWorktreeDir(t *testing.T) {
 }
 
 func TestDecomposeSinglePlan_ReviewConflictHandoffPropagates(t *testing.T) {
+
 	origReview := decomposeReview
 	origLauncher := decomposeSessionLauncherFn
 	origCurrentDirFn := decomposeSinglePlanInDirFn
@@ -431,6 +441,7 @@ func TestDecomposeSinglePlan_ReviewConflictHandoffPropagates(t *testing.T) {
 }
 
 func TestBuildDecomposeClient_CodexProviderPath(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Providers: map[string]config.ProviderDef{
 			"openai": {
@@ -468,6 +479,7 @@ func TestBuildDecomposeClient_CodexProviderPath(t *testing.T) {
 }
 
 func TestBuildDecomposeClient_ClaudeFallbackPath(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Claude: config.ClaudeConfig{
 			Binary:  "claude",
@@ -490,6 +502,7 @@ func TestBuildDecomposeClient_ClaudeFallbackPath(t *testing.T) {
 }
 
 func TestBuildDecomposeClient_ProviderRouterPath_DefaultPipelineTimeout(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Providers: map[string]config.ProviderDef{
 			"openai": {
@@ -522,6 +535,7 @@ func TestBuildDecomposeClient_ProviderRouterPath_DefaultPipelineTimeout(t *testi
 }
 
 func TestBuildDecomposeInput_UsesConfiguredTier(t *testing.T) {
+
 	origForce := decomposeForce
 	origReview := decomposeReview
 	origSkipValidation := decomposeSkipValidation
@@ -554,6 +568,7 @@ func TestBuildDecomposeInput_UsesConfiguredTier(t *testing.T) {
 }
 
 func TestReconcilePlanDecomposedState_MarksPlanWhenSpecBeadsExist(t *testing.T) {
+
 	origListWithLabel := decomposeListWithLabelFn
 	t.Cleanup(func() {
 		decomposeListWithLabelFn = origListWithLabel
@@ -602,6 +617,7 @@ decomposed: false
 }
 
 func TestFilterUndecomposedPlans_ReconcilesAndSkipsDecomposedPlans(t *testing.T) {
+
 	origListWithLabel := decomposeListWithLabelFn
 	t.Cleanup(func() {
 		decomposeListWithLabelFn = origListWithLabel

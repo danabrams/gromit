@@ -8,7 +8,10 @@ import (
 // loadConsolidatedSmokeMatrix uses file-location-based path resolution so tests
 // work correctly from any directory.
 func TestLoadConsolidatedSmokeMatrix_UsesFileLocationBasedResolution(t *testing.T) {
+	t.Parallel(
 	// Get the project root using file-location-based resolution
+	)
+
 	projectRoot := getProjectRootFromTestFile("t")
 
 	// Try to load the consolidated smoke matrix
@@ -21,6 +24,7 @@ func TestLoadConsolidatedSmokeMatrix_UsesFileLocationBasedResolution(t *testing.
 // TestCollectAcceptanceTests_UsesProperPathResolution verifies that
 // collectAcceptanceTests works correctly with file-location-based resolution.
 func TestCollectAcceptanceTests_UsesProperPathResolution(t *testing.T) {
+	t.Parallel()
 	projectRoot := getProjectRootFromTestFile("t")
 
 	files := []string{
@@ -32,4 +36,3 @@ func TestCollectAcceptanceTests_UsesProperPathResolution(t *testing.T) {
 		t.Error("collectAcceptanceTests should find test cases")
 	}
 }
-

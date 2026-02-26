@@ -11,6 +11,7 @@ import (
 // TestAddCoverageCommentWhenUncoveredExists verifies that when there are uncovered
 // criteria, a bead comment is added with the coverage summary.
 func TestAddCoverageCommentWhenUncoveredExists(t *testing.T) {
+	t.Parallel()
 	var addedComments []string
 	beadsClient := &mockBeadsClient{
 		addCommentFn: func(id, comment string) error {
@@ -49,6 +50,7 @@ func TestAddCoverageCommentWhenUncoveredExists(t *testing.T) {
 // TestNoCommentWhenAllCovered verifies that when all criteria are covered,
 // no comment is added.
 func TestNoCommentWhenAllCovered(t *testing.T) {
+	t.Parallel()
 	var addedComments []string
 	beadsClient := &mockBeadsClient{
 		addCommentFn: func(id, comment string) error {

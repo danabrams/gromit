@@ -6,6 +6,7 @@ import (
 )
 
 func TestAllFailureClasses_CanonicalOrderAndLabels(t *testing.T) {
+	t.Parallel()
 	got := AllFailureClasses()
 	want := []FailureClass{
 		FailureClassTransient,
@@ -34,6 +35,7 @@ func TestAllFailureClasses_CanonicalOrderAndLabels(t *testing.T) {
 }
 
 func TestAllAndonLevels_CanonicalOrder(t *testing.T) {
+	t.Parallel()
 	got := AllAndonLevels()
 	want := []AndonLevel{LevelL1, LevelL2, LevelL3, LevelL4}
 
@@ -49,6 +51,7 @@ func TestAllAndonLevels_CanonicalOrder(t *testing.T) {
 }
 
 func TestDefaultThresholdDefinition_IsPureAndPolicyConsumable(t *testing.T) {
+	t.Parallel()
 	first := DefaultThresholdDefinition()
 	first.L1MaxRetries = 99
 	first.L1MaxDuration = 99 * time.Minute

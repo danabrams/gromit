@@ -23,6 +23,7 @@ func fakeGetDiff() GetDiffFn {
 }
 
 func TestClassifyTouchedFilesSeparatesTestFromImpl(t *testing.T) {
+	t.Parallel()
 	paths := []string{
 		"internal/foo/bar.go",
 		"internal/foo/bar_test.go",
@@ -49,6 +50,7 @@ func TestClassifyTouchedFilesSeparatesTestFromImpl(t *testing.T) {
 }
 
 func TestAssembleRedHandoffFirstCycleReturnsEmptyMapsAndSpecExcerpt(t *testing.T) {
+	t.Parallel()
 	state := CycleState{
 		CycleNumber:  1,
 		MaxCycles:    10,
@@ -76,6 +78,7 @@ func TestAssembleRedHandoffFirstCycleReturnsEmptyMapsAndSpecExcerpt(t *testing.T
 }
 
 func TestAssembleRedHandoffReadsExistingFilesOnSubsequentCycles(t *testing.T) {
+	t.Parallel()
 	state := CycleState{
 		CycleNumber: 2,
 		MaxCycles:   10,
@@ -115,6 +118,7 @@ func TestAssembleRedHandoffReadsExistingFilesOnSubsequentCycles(t *testing.T) {
 }
 
 func TestAssembleGreenHandoffCapturesTestContentAndFailure(t *testing.T) {
+	t.Parallel()
 	touchedFiles := []string{
 		"internal/auth/login_test.go",
 		"internal/auth/login.go",
@@ -146,6 +150,7 @@ func TestAssembleGreenHandoffCapturesTestContentAndFailure(t *testing.T) {
 }
 
 func TestAssembleRefactorHandoffReadsAllTouchedFiles(t *testing.T) {
+	t.Parallel()
 	touchedFiles := []string{
 		"internal/auth/login_test.go",
 		"internal/auth/login.go",
@@ -181,6 +186,7 @@ func TestAssembleRefactorHandoffReadsAllTouchedFiles(t *testing.T) {
 }
 
 func TestAssembleCycleStateIncrementsCycleAndMovesFirstRemainingToCovered(t *testing.T) {
+	t.Parallel()
 	prev := CycleState{
 		CycleNumber:  1,
 		MaxCycles:    10,
@@ -209,6 +215,7 @@ func TestAssembleCycleStateIncrementsCycleAndMovesFirstRemainingToCovered(t *tes
 }
 
 func TestAssembleCycleStateSetsDoneWhenLastRemainingConsumed(t *testing.T) {
+	t.Parallel()
 	prev := CycleState{
 		CycleNumber:  3,
 		MaxCycles:    10,
@@ -231,6 +238,7 @@ func TestAssembleCycleStateSetsDoneWhenLastRemainingConsumed(t *testing.T) {
 }
 
 func TestAssembleRedHandoffCycleSummaryIncludesTouchedFiles(t *testing.T) {
+	t.Parallel()
 	state := CycleState{
 		CycleNumber:  2,
 		MaxCycles:    3,
@@ -259,6 +267,7 @@ func TestAssembleRedHandoffCycleSummaryIncludesTouchedFiles(t *testing.T) {
 }
 
 func TestAssembleRedHandoffPopulatesAPISurfaceWithFunctionSignatures(t *testing.T) {
+	t.Parallel()
 	state := CycleState{
 		CycleNumber: 2,
 		MaxCycles:   10,
@@ -284,6 +293,7 @@ func TestAssembleRedHandoffPopulatesAPISurfaceWithFunctionSignatures(t *testing.
 }
 
 func TestAssembleRedHandoffAPISurfaceIncludesTypeDeclarations(t *testing.T) {
+	t.Parallel()
 	state := CycleState{
 		CycleNumber: 2,
 		MaxCycles:   10,
@@ -309,6 +319,7 @@ func TestAssembleRedHandoffAPISurfaceIncludesTypeDeclarations(t *testing.T) {
 }
 
 func TestAssembleRedHandoffPopulatesCycleSummaryWithCompletedRequirements(t *testing.T) {
+	t.Parallel()
 	state := CycleState{
 		CycleNumber:  2,
 		MaxCycles:    5,
@@ -334,6 +345,7 @@ func TestAssembleRedHandoffPopulatesCycleSummaryWithCompletedRequirements(t *tes
 }
 
 func TestExtractAPISurfaceIncludesInterfaceMethodSignatures(t *testing.T) {
+	t.Parallel()
 	implFiles := map[string]string{
 		"auth.go": "package auth\n\ntype Reader interface {\n\tRead(p []byte) (n int, err error)\n\tClose() error\n}\n",
 	}
@@ -349,6 +361,7 @@ func TestExtractAPISurfaceIncludesInterfaceMethodSignatures(t *testing.T) {
 }
 
 func TestExtractAPISurfaceIncludesConstVarDeclarations(t *testing.T) {
+	t.Parallel()
 	implFiles := map[string]string{
 		"config.go": "package config\n\nconst DefaultTimeout = 30\nvar GlobalConfig Config\n",
 	}
@@ -364,6 +377,7 @@ func TestExtractAPISurfaceIncludesConstVarDeclarations(t *testing.T) {
 }
 
 func TestExtractAPISurfaceIncludesConstantsInBlockDeclarations(t *testing.T) {
+	t.Parallel()
 	implFiles := map[string]string{
 		"config.go": "package config\n\nconst (\n\tDefaultTimeout = 30\n\tMaxRetries     = 3\n)\n",
 	}
@@ -379,6 +393,7 @@ func TestExtractAPISurfaceIncludesConstantsInBlockDeclarations(t *testing.T) {
 }
 
 func TestExtractAPISurfaceIncludesMethodReceivers(t *testing.T) {
+	t.Parallel()
 	implFiles := map[string]string{
 		"user.go": "package auth\n\ntype User struct {\n\tID string\n}\n\nfunc (u *User) GetID() string {\n\treturn u.ID\n}\n\nfunc (u *User) SetID(id string) {\n\tu.ID = id\n}\n",
 	}
@@ -394,8 +409,11 @@ func TestExtractAPISurfaceIncludesMethodReceivers(t *testing.T) {
 }
 
 func TestAssembleGreenHandoffDiscoversSiblingImplFilesWhenOnlyTestFilesTouched(t *testing.T) {
+	t.Parallel(
 	// Simulate the bug scenario: red phase only touches test files,
 	// so touchedFiles contains only _test.go paths.
+	)
+
 	touchedFiles := []string{
 		"internal/pipeline/helpers_test.go",
 	}
@@ -442,7 +460,10 @@ func TestAssembleGreenHandoffDiscoversSiblingImplFilesWhenOnlyTestFilesTouched(t
 }
 
 func TestAssembleGreenHandoffSkipsSiblingDiscoveryWhenImplFilesAlreadyPresent(t *testing.T) {
+	t.Parallel(
 	// When touchedFiles already includes impl files, no sibling discovery needed.
+	)
+
 	touchedFiles := []string{
 		"internal/auth/login_test.go",
 		"internal/auth/login.go",
@@ -474,7 +495,10 @@ func TestAssembleGreenHandoffSkipsSiblingDiscoveryWhenImplFilesAlreadyPresent(t 
 }
 
 func TestDiscoverSiblingImplFilesDeduplicatesDirectories(t *testing.T) {
+	t.Parallel(
 	// Two test files in the same directory should only glob once.
+	)
+
 	testPaths := []string{
 		"internal/auth/login_test.go",
 		"internal/auth/session_test.go",
@@ -508,7 +532,10 @@ func TestDiscoverSiblingImplFilesDeduplicatesDirectories(t *testing.T) {
 }
 
 func TestDiscoverSiblingImplFilesFallsBackWhenNoDirectMatch(t *testing.T) {
+	t.Parallel(
 	// When the test file has no direct impl file match, fall back to all siblings.
+	)
+
 	testPaths := []string{
 		"internal/auth/integration_test.go",
 	}

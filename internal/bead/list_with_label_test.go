@@ -10,6 +10,7 @@ import (
 
 // TestListWithLabel_NilClient tests that ListWithLabel() returns error on nil client
 func TestListWithLabel_NilClient(t *testing.T) {
+	t.Parallel()
 	var c *Client
 	_, err := c.ListWithLabel("spec:test")
 	if err == nil {
@@ -23,6 +24,7 @@ func TestListWithLabel_NilClient(t *testing.T) {
 
 // TestListWithLabel_EmptyLabel tests that ListWithLabel() rejects empty label
 func TestListWithLabel_EmptyLabel(t *testing.T) {
+	t.Parallel()
 	c, _ := NewClient()
 	_, err := c.ListWithLabel("")
 	if err == nil {
@@ -36,6 +38,7 @@ func TestListWithLabel_EmptyLabel(t *testing.T) {
 
 // TestListWithLabel_InvalidLabel tests that ListWithLabel() rejects invalid label characters
 func TestListWithLabel_InvalidLabel(t *testing.T) {
+	t.Parallel()
 	c, _ := NewClient()
 
 	tests := []struct {
@@ -62,6 +65,7 @@ func TestListWithLabel_InvalidLabel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			_, err := c.ListWithLabel(tt.label)
 			if err == nil {
 				t.Errorf("ListWithLabel(%q) expected validation error but got nil", tt.label)
@@ -76,6 +80,7 @@ func TestListWithLabel_InvalidLabel(t *testing.T) {
 
 // TestListWithLabel_ValidLabels tests that ListWithLabel() accepts valid label formats
 func TestListWithLabel_ValidLabels(t *testing.T) {
+	t.Parallel()
 	var gotArgs []string
 	c := &Client{
 		RunFn: func(args ...string) (string, error) {
@@ -116,6 +121,7 @@ func TestListWithLabel_ValidLabels(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			gotArgs = nil
 
 			_, err := c.ListWithLabel(tt.label)
@@ -136,6 +142,7 @@ func TestListWithLabel_ValidLabels(t *testing.T) {
 
 // TestListWithLabel_ReturnsEmptySliceForNoBeads tests that ListWithLabel() returns empty slice when no beads match
 func TestListWithLabel_ReturnsEmptySliceForNoBeads(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		jsonOutput  string
@@ -160,6 +167,7 @@ func TestListWithLabel_ReturnsEmptySliceForNoBeads(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			beads, err := parseListWithLabelOutput(tt.jsonOutput)
 			if err != nil {
 				t.Fatalf("parseListWithLabelOutput() error = %v", err)
@@ -177,6 +185,7 @@ func TestListWithLabel_ReturnsEmptySliceForNoBeads(t *testing.T) {
 
 // TestListWithLabel_ReturnsSingleBead tests that ListWithLabel() returns a single bead
 func TestListWithLabel_ReturnsSingleBead(t *testing.T) {
+	t.Parallel()
 	jsonOutput := `[{
 		"id": "task-001",
 		"title": "Test task",
@@ -208,6 +217,7 @@ func TestListWithLabel_ReturnsSingleBead(t *testing.T) {
 
 // TestListWithLabel_ReturnsMultipleBeads tests that ListWithLabel() returns multiple beads
 func TestListWithLabel_ReturnsMultipleBeads(t *testing.T) {
+	t.Parallel()
 	jsonOutput := `[{
 		"id": "task-001",
 		"title": "First task",
@@ -269,6 +279,7 @@ func TestListWithLabel_ReturnsMultipleBeads(t *testing.T) {
 // TestListWithLabel_ExcludesEpicBeads tests that ListWithLabel() excludes epic-type beads
 // This is an acceptance test for the epic exclusion requirement
 func TestListWithLabel_ExcludesEpicBeads(t *testing.T) {
+	t.Parallel()
 	jsonOutput := `[{
 		"id": "epic-001",
 		"title": "Epic",
@@ -337,6 +348,7 @@ func TestListWithLabel_ExcludesEpicBeads(t *testing.T) {
 
 // TestListWithLabel_ValidatesAndNormalizesBeads tests that ListWithLabel() validates and normalizes returned beads
 func TestListWithLabel_ValidatesAndNormalizesBeads(t *testing.T) {
+	t.Parallel()
 	jsonOutput := `[{
 		"id": "task-001",
 		"title": "Task with missing optional fields",
@@ -372,6 +384,7 @@ func TestListWithLabel_ValidatesAndNormalizesBeads(t *testing.T) {
 
 // TestListWithLabel_HandlesJSONParseErrors tests that ListWithLabel() handles JSON parse errors
 func TestListWithLabel_HandlesJSONParseErrors(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		jsonOutput string
@@ -392,6 +405,7 @@ func TestListWithLabel_HandlesJSONParseErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			_, err := parseListWithLabelOutput(tt.jsonOutput)
 			if err == nil {
 				t.Errorf("parseListWithLabelOutput() expected error for invalid JSON, got nil")
@@ -406,6 +420,7 @@ func TestListWithLabel_HandlesJSONParseErrors(t *testing.T) {
 
 // TestListWithLabel_ErrorWrapping tests that ListWithLabel() wraps command errors with context
 func TestListWithLabel_ErrorWrapping(t *testing.T) {
+	t.Parallel()
 	c := &Client{
 		RunFn: func(args ...string) (string, error) {
 			return "", fmt.Errorf("boom")
@@ -424,6 +439,7 @@ func TestListWithLabel_ErrorWrapping(t *testing.T) {
 
 // TestListWithLabel_ReturnsPointersToBeads tests that ListWithLabel() returns pointers not values
 func TestListWithLabel_ReturnsPointersToBeads(t *testing.T) {
+	t.Parallel()
 	jsonOutput := `[{
 		"id": "task-001",
 		"title": "Task",
@@ -450,6 +466,7 @@ func TestListWithLabel_ReturnsPointersToBeads(t *testing.T) {
 
 // TestListWithLabel_HandlesInvalidBeadData tests that ListWithLabel() returns error for invalid bead data
 func TestListWithLabel_HandlesInvalidBeadData(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		jsonOutput string
@@ -481,6 +498,7 @@ func TestListWithLabel_HandlesInvalidBeadData(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			_, err := parseListWithLabelOutput(tt.jsonOutput)
 			if err == nil {
 				t.Errorf("parseListWithLabelOutput() expected error for invalid bead data")
@@ -547,6 +565,7 @@ func parseListWithLabelOutputExcludingEpics(out string) ([]*Bead, error) {
 
 // TestListWithLabel_IntegrationReturnsPrioritySortedBeads tests that ListWithLabel returns beads sorted by priority
 func TestListWithLabel_IntegrationReturnsPrioritySortedBeads(t *testing.T) {
+	t.Parallel()
 	testLabel := "spec:priority-sort-test"
 	var gotArgs []string
 	c := &Client{
@@ -581,6 +600,7 @@ func TestListWithLabel_IntegrationReturnsPrioritySortedBeads(t *testing.T) {
 
 // TestListWithLabel_IntegrationConsistentWithListMethod tests ordering consistency between List() and ListWithLabel()
 func TestListWithLabel_IntegrationConsistentWithListMethod(t *testing.T) {
+	t.Parallel()
 	c := &Client{
 		RunFn: func(args ...string) (string, error) {
 			return `[{"id":"task-a","title":"P0","priority":0,"labels":["test-label"],"issue_type":"task","status":"open"},
@@ -622,6 +642,7 @@ func TestListWithLabel_IntegrationConsistentWithListMethod(t *testing.T) {
 // TestListWithLabel_CommandArgumentsIncludeAllAndLimit verifies that the bd list command
 // is invoked with --all and --limit 0 flags, ensuring complete results are returned.
 func TestListWithLabel_CommandArgumentsIncludeAllAndLimit(t *testing.T) {
+	t.Parallel()
 	var gotArgs []string
 	c := &Client{
 		RunFn: func(args ...string) (string, error) {

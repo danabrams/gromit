@@ -7,6 +7,7 @@ import (
 )
 
 func TestEnsureRepoRootFromSubdir(t *testing.T) {
+
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "gromit.yaml"), []byte(""), 0644); err != nil {
 		t.Fatalf("write gromit.yaml: %v", err)

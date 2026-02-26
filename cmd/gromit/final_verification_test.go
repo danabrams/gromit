@@ -16,6 +16,7 @@ type scannedTestFile struct {
 // TestFinalVerification verifies the acceptance criteria for the
 // "Final verification and line count audit" task (gromit-xeub).
 func TestFinalVerification(t *testing.T) {
+	t.Parallel()
 	projectRoot, err := findProjectRoot()
 	if err != nil {
 		t.Fatalf("could not find project root: %v", err)
@@ -26,8 +27,11 @@ func TestFinalVerification(t *testing.T) {
 	}
 
 	t.Run("no untagged acceptance test files exist", func(t *testing.T) {
+		t.Parallel(
 		// Walk the entire project tree and find all *_acceptance_test.go files.
 		// Each one must have //go:build acceptance or //go:build e2e_live.
+		)
+
 		var untagged []string
 
 		for _, file := range testFiles {
@@ -46,6 +50,7 @@ func TestFinalVerification(t *testing.T) {
 	})
 
 	t.Run("live-external tests must be e2e_live-tagged", func(t *testing.T) {
+		t.Parallel()
 		var violations []string
 		markers := []string{
 			"GROMIT_RUN_INTERACTIVE_ACCEPTANCE",
@@ -74,9 +79,12 @@ func TestFinalVerification(t *testing.T) {
 	})
 
 	t.Run("key test behaviors still have coverage", func(t *testing.T) {
+		t.Parallel(
 		// Spot-check that the consolidated test files still exist and cover
 		// the key behaviors that were in the original acceptance test files.
 		// These files should contain the merged test content.
+		)
+
 		behaviorChecks := []struct {
 			name     string
 			file     string // relative to project root
@@ -117,6 +125,7 @@ func TestFinalVerification(t *testing.T) {
 
 		for _, bc := range behaviorChecks {
 			t.Run(bc.name, func(t *testing.T) {
+				t.Parallel()
 				fullPath := filepath.Join(projectRoot, bc.file)
 				src, err := os.ReadFile(fullPath)
 				if err != nil {
@@ -133,10 +142,13 @@ func TestFinalVerification(t *testing.T) {
 	})
 
 	t.Run("no cleanup acceptance test files remain", func(t *testing.T) {
+		t.Parallel(
 		// The per-package cleanup acceptance test files were scaffolding for
 		// the cleanup effort. After the final verification task completes,
 		// these should be removed or renamed (they are themselves untagged
 		// *_acceptance_test.go files).
+		)
+
 		cleanupFiles := []string{
 			"cmd/gromit/explore_cleanup_acceptance_test.go",
 			"cmd/gromit/review_cleanup_acceptance_test.go",
@@ -160,6 +172,7 @@ func TestFinalVerification(t *testing.T) {
 }
 
 func TestFinalVerification_NoBuildExplorePromptReference(t *testing.T) {
+	t.Parallel()
 	projectRoot, err := findProjectRoot()
 	if err != nil {
 		t.Fatalf("could not find project root: %v", err)

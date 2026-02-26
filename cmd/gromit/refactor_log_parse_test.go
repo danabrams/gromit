@@ -7,6 +7,7 @@ import (
 )
 
 func TestParseTestLog_ZeroFailuresWhenAllPass(t *testing.T) {
+	t.Parallel()
 	input := `=== RUN   TestBar
 --- PASS: TestBar (0.00s)
 PASS
@@ -20,6 +21,7 @@ ok  	github.com/danabrams/gromit/internal/bar	(cached)
 }
 
 func TestParseTestLog_DetectsSkippedTest(t *testing.T) {
+	t.Parallel()
 	input := `=== RUN   TestBaz
     baz_test.go:10: skipping
 --- SKIP: TestBaz (0.00s)
@@ -37,6 +39,7 @@ ok  	github.com/danabrams/gromit/internal/baz	(cached)
 }
 
 func TestParseTestLog_DetectsBuildError(t *testing.T) {
+	t.Parallel()
 	input := `# github.com/danabrams/gromit/internal/broken [github.com/danabrams/gromit/internal/broken.test]
 FAIL	github.com/danabrams/gromit/internal/broken [build failed]
 `
@@ -51,6 +54,7 @@ FAIL	github.com/danabrams/gromit/internal/broken [build failed]
 }
 
 func TestFormatTestLogSummary_ZeroFailures(t *testing.T) {
+	t.Parallel()
 	result := TestLogResult{
 		Failures:     []TestFailure{},
 		BuildErrors:  []string{},
@@ -64,6 +68,7 @@ func TestFormatTestLogSummary_ZeroFailures(t *testing.T) {
 }
 
 func TestRefactorBaselineSummary_FileExistsAndIsClean(t *testing.T) {
+	t.Parallel()
 	root, err := findProjectRoot()
 	if err != nil {
 		t.Fatalf("could not find project root: %v", err)
@@ -82,6 +87,7 @@ func TestRefactorBaselineSummary_FileExistsAndIsClean(t *testing.T) {
 }
 
 func TestParseTestLog_DetectsFailingTest(t *testing.T) {
+	t.Parallel()
 	input := `=== RUN   TestFoo
 --- FAIL: TestFoo (0.01s)
     foo_test.go:12: got 1, want 2

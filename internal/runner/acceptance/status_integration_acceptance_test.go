@@ -16,6 +16,7 @@ import (
 // TestOrchestratorHelper_StatusIntegrationIdleWithHistory tests full status output
 // when idle with a completed run history, backlog, and state files.
 func TestOrchestratorHelper_StatusIntegrationIdleWithHistory(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	if err := os.MkdirAll(gromitDir, 0755); err != nil {

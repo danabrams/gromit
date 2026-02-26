@@ -16,12 +16,14 @@ import (
 )
 
 func TestCodexStreamingAcceptanceFakeBinaryAvailable(t *testing.T) {
+	t.Parallel()
 	_ = fakeCodexBinaryPath(t)
 }
 
 // TestCodexProviderStreamRunWithJSONFlag verifies that StreamRun() invokes
 // codex exec with --json flag when EventHandler is non-nil.
 func TestCodexProviderStreamRunWithJSONFlag(t *testing.T) {
+
 	callLog := filepath.Join(t.TempDir(), "codex_call_log.txt")
 	t.Setenv("TEST_CALL_LOG", callLog)
 	t.Setenv("CODEX_RAW_JSONL", "1")
@@ -65,6 +67,7 @@ func TestCodexProviderStreamRunWithJSONFlag(t *testing.T) {
 // TestCodexProviderStreamRunNilHandlerStillUsesJSONFlag verifies that StreamRun()
 // still adds --json when EventHandler is nil, so usage/cost events are available.
 func TestCodexProviderStreamRunNilHandlerStillUsesJSONFlag(t *testing.T) {
+	t.Parallel()
 	callLog := setupCodexStreamingFixtureEnv(t, "codex_stream_json_flag.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
@@ -99,6 +102,7 @@ func TestCodexProviderStreamRunNilHandlerStillUsesJSONFlag(t *testing.T) {
 // TestCodexProviderParsesThreadStartedEvent verifies that processCodexStream
 // converts thread.started events to StreamEvent with type "system".
 func TestCodexProviderParsesThreadStartedEvent(t *testing.T) {
+	t.Parallel()
 	setupCodexStreamingFixtureEnv(t, "codex_stream_thread_started.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
@@ -136,6 +140,7 @@ func TestCodexProviderParsesThreadStartedEvent(t *testing.T) {
 // TestCodexProviderParsesAgentMessageEvent verifies that item.completed events
 // with type "agent_message" are converted to StreamEvent type "assistant".
 func TestCodexProviderParsesAgentMessageEvent(t *testing.T) {
+	t.Parallel()
 	setupCodexStreamingFixtureEnv(t, "codex_stream_agent_message.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
@@ -191,6 +196,7 @@ func TestCodexProviderParsesAgentMessageEvent(t *testing.T) {
 // TestCodexProviderInvokesToolCallHandlerForCommandExecution verifies that
 // item.started events with type "command_execution" trigger ToolCallHandler.
 func TestCodexProviderInvokesToolCallHandlerForCommandExecution(t *testing.T) {
+	t.Parallel()
 	setupCodexStreamingFixtureEnv(t, "codex_stream_command_execution.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
@@ -226,6 +232,7 @@ func TestCodexProviderInvokesToolCallHandlerForCommandExecution(t *testing.T) {
 // TestCodexProviderInvokesToolCallHandlerForFileChange verifies that
 // item.started events with type "file_change" trigger ToolCallHandler with "Write".
 func TestCodexProviderInvokesToolCallHandlerForFileChange(t *testing.T) {
+	t.Parallel()
 	setupCodexStreamingFixtureEnv(t, "codex_stream_file_change.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
@@ -261,6 +268,7 @@ func TestCodexProviderInvokesToolCallHandlerForFileChange(t *testing.T) {
 // TestCodexProviderInvokesToolCallHandlerForMCPTool verifies that
 // item.started events with type "mcp_tool_call" trigger ToolCallHandler.
 func TestCodexProviderInvokesToolCallHandlerForMCPTool(t *testing.T) {
+	t.Parallel()
 	setupCodexStreamingFixtureEnv(t, "codex_stream_mcp_tool_call.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
@@ -292,6 +300,7 @@ func TestCodexProviderInvokesToolCallHandlerForMCPTool(t *testing.T) {
 // TestCodexProviderExtractsTokenUsageFromTurnCompleted verifies that
 // turn.completed events with usage data populate Result's token fields.
 func TestCodexProviderExtractsTokenUsageFromTurnCompleted(t *testing.T) {
+	t.Parallel()
 	setupCodexStreamingFixtureEnv(t, "codex_stream_turn_completed_usage.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
@@ -342,6 +351,7 @@ func TestCodexProviderExtractsTokenUsageFromTurnCompleted(t *testing.T) {
 // TestCodexProviderExtractsAgentTextFromItemCompleted verifies that
 // Result.Output contains the text from item.completed agent_message events.
 func TestCodexProviderExtractsAgentTextFromItemCompleted(t *testing.T) {
+	t.Parallel()
 	setupCodexStreamingFixtureEnv(t, "codex_stream_multiple_agent_messages.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
@@ -363,6 +373,7 @@ func TestCodexProviderExtractsAgentTextFromItemCompleted(t *testing.T) {
 // TestCodexProviderStreamsAgentTextToWriter verifies that agent message text
 // is written to the output writer in real-time as events arrive.
 func TestCodexProviderStreamsAgentTextToWriter(t *testing.T) {
+	t.Parallel()
 	setupCodexStreamingFixtureEnv(t, "codex_stream_agent_deltas.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
@@ -388,6 +399,7 @@ func TestCodexProviderStreamsAgentTextToWriter(t *testing.T) {
 // TestCodexProviderHandlesMultipleEventTypes verifies that processCodexStream
 // correctly handles a mix of different Codex event types in a single stream.
 func TestCodexProviderHandlesMultipleEventTypes(t *testing.T) {
+	t.Parallel()
 	setupCodexStreamingFixtureEnv(t, "codex_stream_multiple_event_types.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
@@ -427,6 +439,7 @@ func TestCodexProviderHandlesMultipleEventTypes(t *testing.T) {
 // TestCodexProviderStreamRunCreatesTimestampedToolEvents verifies that
 // ToolEvent structs created from Codex events have a Timestamp field populated.
 func TestCodexProviderStreamRunCreatesTimestampedToolEvents(t *testing.T) {
+	t.Parallel()
 	setupCodexStreamingFixtureEnv(t, "codex_stream_timestamp_tool_event.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}

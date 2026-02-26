@@ -9,6 +9,7 @@ import (
 )
 
 func TestExperimentsCmd_RegistrationAndFlags(t *testing.T) {
+	t.Parallel()
 	found := false
 	for _, cmd := range rootCmd.Commands() {
 		if cmd.Use == "experiments" {
@@ -31,6 +32,7 @@ func TestExperimentsCmd_RegistrationAndFlags(t *testing.T) {
 }
 
 func TestExperimentsCmd_ShowsNoExperimentsMessage(t *testing.T) {
+
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	experimentsDir := filepath.Join(gromitDir, "experiments")

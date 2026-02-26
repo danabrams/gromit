@@ -13,6 +13,7 @@ import (
 // the correct Codex CLI command structure: ['exec', flags..., '--full-auto',
 // '--skip-git-repo-check', '--color', 'never', '--model', model, '-'].
 func TestCodexProviderBuildsExecCommand(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -70,6 +71,7 @@ exit 0
 // TestCodexProviderDoesNotHavePromptDeliveryField verifies that CodexProvider
 // struct no longer has the promptDelivery field.
 func TestCodexProviderDoesNotHavePromptDeliveryField(t *testing.T) {
+	t.Parallel()
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
 	cp := NewCodexProvider("/bin/codex", []string{}, tierMap)
 
@@ -89,6 +91,7 @@ func TestCodexProviderDoesNotHavePromptDeliveryField(t *testing.T) {
 // TestCodexProviderDoesNotHavePromptFlagField verifies that CodexProvider
 // struct no longer has the promptFlag field.
 func TestCodexProviderDoesNotHavePromptFlagField(t *testing.T) {
+	t.Parallel()
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
 	cp := NewCodexProvider("/bin/codex", []string{}, tierMap)
 
@@ -104,6 +107,7 @@ func TestCodexProviderDoesNotHavePromptFlagField(t *testing.T) {
 // TestCodexProviderRunDeliversPromptViaStdin verifies that Run() pipes the
 // prompt content to the codex binary via stdin instead of using a temp file.
 func TestCodexProviderRunDeliversPromptViaStdin(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -141,6 +145,7 @@ exit 0
 // TestCodexProviderStreamRunDeliversPromptViaStdin verifies that StreamRun()
 // pipes the prompt content to the codex binary via stdin.
 func TestCodexProviderStreamRunDeliversPromptViaStdin(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -179,6 +184,7 @@ exit 0
 // TestCodexProviderRunDoesNotCreateTempFile verifies that Run() no longer
 // creates temporary prompt files in the system temp directory.
 func TestCodexProviderRunDoesNotCreateTempFile(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -222,6 +228,7 @@ exit 0
 // TestCodexProviderStreamRunDoesNotCreateTempFile verifies that StreamRun()
 // no longer creates temporary prompt files.
 func TestCodexProviderStreamRunDoesNotCreateTempFile(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -261,6 +268,7 @@ exit 0
 // TestCodexProviderConstructorDoesNotRequirePromptParams verifies that
 // NewCodexProvider no longer requires promptDelivery and promptFlag parameters.
 func TestCodexProviderConstructorDoesNotRequirePromptParams(t *testing.T) {
+	t.Parallel()
 	binaryPath := "/usr/local/bin/codex"
 	flags := []string{"--cd", "/workspace"}
 	tierMap := map[string]string{
@@ -294,6 +302,7 @@ func TestCodexProviderConstructorDoesNotRequirePromptParams(t *testing.T) {
 // TestCodexProviderCommandIncludesUserFlags verifies that buildCommandArgs
 // includes user-provided flags from the flags field before the standard flags.
 func TestCodexProviderCommandIncludesUserFlags(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -339,6 +348,7 @@ exit 0
 // TestCodexProviderStdinDeliveryWithLargePrompt verifies that stdin delivery
 // works correctly with large prompts that would exceed ARG_MAX if passed as arguments.
 func TestCodexProviderStdinDeliveryWithLargePrompt(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -380,6 +390,7 @@ exit 0
 // buildCommandArgs produces arguments in the correct order for Codex CLI:
 // ['exec', user_flags..., '--full-auto', '--skip-git-repo-check', '--color', 'never', '--model', model, '-']
 func TestCodexProviderBuildCommandArgsProducesCorrectOrder(t *testing.T) {
+	t.Parallel()
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
 	userFlags := []string{"--cd", "/workspace"}
 	cp := &CodexProvider{
@@ -457,6 +468,7 @@ func TestCodexProviderBuildCommandArgsProducesCorrectOrder(t *testing.T) {
 }
 
 func TestCodexProviderBuildCommandArgsAddsReasoningEffortByTier(t *testing.T) {
+	t.Parallel()
 	cp := &CodexProvider{
 		binaryPath:      "/bin/codex",
 		flags:           []string{},
@@ -473,6 +485,7 @@ func TestCodexProviderBuildCommandArgsAddsReasoningEffortByTier(t *testing.T) {
 }
 
 func TestCodexProviderBuildCommandArgsDoesNotOverrideUserReasoningEffort(t *testing.T) {
+	t.Parallel()
 	cp := &CodexProvider{
 		binaryPath:      "/bin/codex",
 		flags:           []string{"-c", "model_reasoning_effort=medium"},
@@ -492,6 +505,7 @@ func TestCodexProviderBuildCommandArgsDoesNotOverrideUserReasoningEffort(t *test
 }
 
 func TestReasoningEffortFromArgs(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		args []string
@@ -521,6 +535,7 @@ func TestReasoningEffortFromArgs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := reasoningEffortFromArgs(tt.args)
 			if got != tt.want {
 				t.Fatalf("reasoningEffortFromArgs(%v) = %q, want %q", tt.args, got, tt.want)
@@ -532,6 +547,7 @@ func TestReasoningEffortFromArgs(t *testing.T) {
 // TestCodexProviderStreamRunWithJSONFlagAndStdin verifies that when EventHandler
 // is present, StreamRun adds --json flag AND uses stdin for prompt delivery.
 func TestCodexProviderStreamRunWithJSONFlagAndStdin(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -595,8 +611,10 @@ exit 0
 // TestCodexProviderRunHandlesStdinWriteError verifies that Run() properly
 // handles errors when writing to stdin pipe fails.
 func TestCodexProviderRunHandlesStdinWriteError(t *testing.T) {
+	t.Parallel(
 	// This test verifies error handling for stdin write failures
 	// When the binary exits early or closes stdin, writing to stdin should error gracefully
+	)
 
 	tempDir := t.TempDir()
 
@@ -635,6 +653,7 @@ exit 1
 // TestCodexProviderStreamRunHandlesStdinPipeError verifies that StreamRun()
 // properly handles errors when creating or writing to stdin pipe.
 func TestCodexProviderStreamRunHandlesStdinPipeError(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
@@ -672,6 +691,7 @@ exit 0
 // TestCodexProviderBuildCommandArgsSignatureDoesNotRequirePromptFile verifies
 // that buildCommandArgs no longer accepts a promptFile parameter.
 func TestCodexProviderBuildCommandArgsSignatureDoesNotRequirePromptFile(t *testing.T) {
+	t.Parallel()
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
 	cp := &CodexProvider{
 		binaryPath:  "/bin/codex",

@@ -8,7 +8,10 @@ import (
 )
 
 func TestReviewPrompt_LearningsOnlyForViolationsAndNovelPatterns(t *testing.T) {
+	t.Parallel(
 	// Read the review prompt template
+	)
+
 	templatePath := filepath.Join("..", "..", ".gromit", "templates", "PROMPT_review.md")
 	content, err := os.ReadFile(templatePath)
 	if err != nil {

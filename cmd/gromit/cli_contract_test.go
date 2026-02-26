@@ -27,7 +27,10 @@ func goldenPath(command string) string {
 
 // TestCLIContractInfrastructure is a smoke test to verify the test infrastructure works
 func TestCLIContractInfrastructure(t *testing.T) {
+	t.Parallel(
 	// Verify binary path is set
+	)
+
 	if binaryPath == "" {
 		t.Fatal("binaryPath is empty - TestMain did not run")
 	}
@@ -56,6 +59,7 @@ func TestCLIContractInfrastructure(t *testing.T) {
 
 // TestCLIContract_HelpText verifies help output for all commands matches golden files
 func TestCLIContract_HelpText(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		args []string
@@ -81,6 +85,7 @@ func TestCLIContract_HelpText(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			stdout, stderr, exitCode := runGromit(t, tt.args...)
 
 			// Help commands should exit with code 0
@@ -127,6 +132,7 @@ type flagContract struct {
 
 // TestCLIContract_Flags verifies that commands have expected flags
 func TestCLIContract_Flags(t *testing.T) {
+	t.Parallel()
 	contracts := []flagContract{
 		{
 			name: "root",
@@ -246,7 +252,10 @@ func TestCLIContract_Flags(t *testing.T) {
 
 	for _, contract := range contracts {
 		t.Run(contract.name, func(t *testing.T) {
+			t.Parallel(
 			// Build args based on command name
+			)
+
 			var args []string
 			if contract.name == "root" {
 				args = []string{"--help"}
@@ -323,8 +332,12 @@ func parseFlagsFromHelp(helpText string) map[string]bool {
 
 // TestCLIContract_DecomposePickerBehavior tests the interactive picker for decompose command
 func TestCLIContract_DecomposePickerBehavior(t *testing.T) {
+	t.Parallel()
 	t.Run("no plans directory shows helpful message", func(t *testing.T) {
+		t.Parallel(
 		// Create temp directory without .gromit/plans/
+		)
+
 		tmpDir, err := os.MkdirTemp("", "gromit-cli-decompose-test-*")
 		if err != nil {
 			t.Fatalf("failed to create temp dir: %v", err)
@@ -376,7 +389,10 @@ func TestCLIContract_DecomposePickerBehavior(t *testing.T) {
 	})
 
 	t.Run("with undecomposed plans shows picker", func(t *testing.T) {
+		t.Parallel(
 		// Create temp directory with .gromit/plans/ and plan fixtures
+		)
+
 		tmpDir, err := os.MkdirTemp("", "gromit-cli-decompose-test-*")
 		if err != nil {
 			t.Fatalf("failed to create temp dir: %v", err)
@@ -488,7 +504,10 @@ This plan has already been decomposed.
 	})
 
 	t.Run("with single undecomposed plan shows picker without decompose all", func(t *testing.T) {
+		t.Parallel(
 		// Create temp directory with .gromit/plans/ and single plan fixture
+		)
+
 		tmpDir, err := os.MkdirTemp("", "gromit-cli-decompose-test-*")
 		if err != nil {
 			t.Fatalf("failed to create temp dir: %v", err)
@@ -551,6 +570,7 @@ This is a plan for adding logging.
 
 // TestCLIContract_AddContextCapture verifies that multi-word context is captured correctly
 func TestCLIContract_AddContextCapture(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		ideaText      string
@@ -590,7 +610,10 @@ func TestCLIContract_AddContextCapture(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel(
 			// Create isolated temp directory
+			)
+
 			tmpDir, err := os.MkdirTemp("", "gromit-add-context-test-*")
 			if err != nil {
 				t.Fatalf("failed to create temp dir: %v", err)
@@ -660,6 +683,7 @@ func TestCLIContract_AddContextCapture(t *testing.T) {
 
 // TestCLIContract_ExitCodes verifies exit codes for various error conditions
 func TestCLIContract_ExitCodes(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		args       []string
@@ -782,6 +806,7 @@ func TestCLIContract_ExitCodes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			stdout, stderr, exitCode := runGromit(t, tt.args...)
 
 			// Check exit code

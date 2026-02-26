@@ -151,6 +151,7 @@ func assertGitCommand(t *testing.T, capture *gitCommandCapture, wantName string,
 // TestReviewGitOutputFn_CanBeOverridden verifies that reviewGitOutputFn is a
 // package-level injectable variable with the expected signature.
 func TestReviewGitOutputFn_CanBeOverridden(t *testing.T) {
+
 	orig := reviewGitOutputFn
 	t.Cleanup(func() { reviewGitOutputFn = orig })
 
@@ -172,6 +173,7 @@ func TestReviewGitOutputFn_CanBeOverridden(t *testing.T) {
 // TestReviewGitCommandFn_CanBeOverridden verifies that reviewGitCommandFn is a
 // package-level injectable variable with the expected signature.
 func TestReviewGitCommandFn_CanBeOverridden(t *testing.T) {
+
 	orig := reviewGitCommandFn
 	t.Cleanup(func() { reviewGitCommandFn = orig })
 
@@ -194,6 +196,7 @@ func TestReviewGitCommandFn_CanBeOverridden(t *testing.T) {
 }
 
 func TestRunReviewInteractive_UsesSessionWorktreeLaunchDir(t *testing.T) {
+
 	origLauncher := reviewInteractiveSessionLauncherFn
 	origRunner := reviewInteractiveRunnerFn
 	origRecord := recordInteractiveReviewCompletionFn
@@ -247,6 +250,7 @@ func TestRunReviewInteractive_UsesSessionWorktreeLaunchDir(t *testing.T) {
 }
 
 func TestRunReviewInteractive_ConflictHandoffPropagates(t *testing.T) {
+
 	origLauncher := reviewInteractiveSessionLauncherFn
 	origRunner := reviewInteractiveRunnerFn
 	origRecord := recordInteractiveReviewCompletionFn
@@ -295,6 +299,7 @@ func TestRunReviewInteractive_ConflictHandoffPropagates(t *testing.T) {
 }
 
 func TestFindFirstCommitForBead_UsesInjectedGitWithFixedStrings(t *testing.T) {
+	t.Parallel()
 	capture := stubReviewGit(t, []byte("newest\nmiddle\nearliest\n"), nil)
 
 	commit, err := findFirstCommitForBead("gromit-[abc]")
@@ -309,6 +314,7 @@ func TestFindFirstCommitForBead_UsesInjectedGitWithFixedStrings(t *testing.T) {
 }
 
 func TestFindFirstCommitForBead_GitErrorReturnsEmptyWithoutError(t *testing.T) {
+	t.Parallel()
 	stubReviewGit(t, nil, errors.New("no commits"))
 
 	commit, err := findFirstCommitForBead("gromit-abc")
@@ -321,6 +327,7 @@ func TestFindFirstCommitForBead_GitErrorReturnsEmptyWithoutError(t *testing.T) {
 }
 
 func TestGetCommitTimestamp_UsesInjectedGit(t *testing.T) {
+	t.Parallel()
 	capture := stubReviewGit(t, []byte("1700000000\n"), nil)
 
 	ts, err := getCommitTimestamp("abc123")
@@ -335,6 +342,7 @@ func TestGetCommitTimestamp_UsesInjectedGit(t *testing.T) {
 }
 
 func TestRunGitDiffForReview_UsesInjectedGit(t *testing.T) {
+	t.Parallel()
 	capture := stubReviewGit(t, []byte("diff output\n"), nil)
 
 	diff, err := runGitDiffForReview("abc123", "git diff --stat", "--stat")
@@ -349,6 +357,7 @@ func TestRunGitDiffForReview_UsesInjectedGit(t *testing.T) {
 }
 
 func TestGetGitHeadForReview_UsesInjectedGit(t *testing.T) {
+	t.Parallel()
 	capture := stubReviewGit(t, []byte("deadbeef\n"), nil)
 
 	head, err := getGitHeadForReview()
@@ -363,6 +372,7 @@ func TestGetGitHeadForReview_UsesInjectedGit(t *testing.T) {
 }
 
 func TestCliStateManagerSetLastReviewCommit_UsesHeadCommit(t *testing.T) {
+	t.Parallel()
 	stubReviewGit(t, []byte("deadbeef\n"), nil)
 
 	gromitDir := t.TempDir()
@@ -384,6 +394,7 @@ func TestCliStateManagerSetLastReviewCommit_UsesHeadCommit(t *testing.T) {
 }
 
 func TestCliStateManagerSetLastReviewCommit_FallsBackToProvidedCommit(t *testing.T) {
+	t.Parallel()
 	stubReviewGit(t, nil, errors.New("git failure"))
 
 	gromitDir := t.TempDir()
@@ -405,6 +416,7 @@ func TestCliStateManagerSetLastReviewCommit_FallsBackToProvidedCommit(t *testing
 }
 
 func TestCliStateManagerGetLastReviewCommit_ReturnsStateCommit(t *testing.T) {
+	t.Parallel()
 	gromitDir := t.TempDir()
 	sf, err := state.NewInteractiveFile(gromitDir)
 	if err != nil {
@@ -439,6 +451,7 @@ func saveReviewFlags(t *testing.T) {
 }
 
 func TestResolveReviewRendererPaths_Defaults(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 
 	templatesDir, specsDir, claudeMDPath := resolveReviewRendererPaths(cfg)
@@ -455,6 +468,7 @@ func TestResolveReviewRendererPaths_Defaults(t *testing.T) {
 }
 
 func TestResolveReviewNonInteractiveTimeout_Defaults(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 
 	timeout := resolveReviewNonInteractiveTimeout(cfg)
@@ -465,6 +479,7 @@ func TestResolveReviewNonInteractiveTimeout_Defaults(t *testing.T) {
 }
 
 func TestBuildReviewNonInteractiveClient_ReturnsPipelineLLMClient(t *testing.T) {
+	t.Parallel()
 	var builder func(*config.Config) (pipeline.LLMClient, error) = buildReviewNonInteractiveClient
 	if builder == nil {
 		t.Fatal("builder is nil")
@@ -472,6 +487,7 @@ func TestBuildReviewNonInteractiveClient_ReturnsPipelineLLMClient(t *testing.T) 
 }
 
 func TestBuildReviewNonInteractiveClient_ClaudeFallbackPath(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Claude: config.ClaudeConfig{
 			Binary:          "claude",
@@ -495,6 +511,7 @@ func TestBuildReviewNonInteractiveClient_ClaudeFallbackPath(t *testing.T) {
 }
 
 func TestBuildReviewNonInteractiveClient_CodexProviderPath(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Providers: map[string]config.ProviderDef{
 			"openai": {
@@ -529,6 +546,7 @@ func TestBuildReviewNonInteractiveClient_CodexProviderPath(t *testing.T) {
 }
 
 func TestProviderRouterClientAdapterRun_ClaudePath(t *testing.T) {
+	t.Parallel()
 	var gotPhase, gotTier string
 	mockProvider := &reviewProviderStub{
 		NameFn: func() string { return "claude" },
@@ -568,6 +586,7 @@ func TestProviderRouterClientAdapterRun_ClaudePath(t *testing.T) {
 }
 
 func TestProviderRouterClientAdapterRun_CodexPath(t *testing.T) {
+	t.Parallel()
 	var gotTier string
 	mockProvider := &reviewProviderStub{
 		NameFn: func() string { return "codex" },
@@ -603,6 +622,7 @@ func TestProviderRouterClientAdapterRun_CodexPath(t *testing.T) {
 }
 
 func TestCliLogWriter_WriteIncludesPromptDiagnosticsFromProvider(t *testing.T) {
+	t.Parallel()
 	logsDir := t.TempDir()
 	wantDiagnostics := &prompt.PromptDiagnostics{
 		PromptType:      "thorough_review",
@@ -665,6 +685,7 @@ func TestCliLogWriter_WriteIncludesPromptDiagnosticsFromProvider(t *testing.T) {
 }
 
 func TestCliLogWriter_WriteUsesProviderAtWriteTime(t *testing.T) {
+	t.Parallel()
 	logsDir := t.TempDir()
 	initialDiagnostics := &prompt.PromptDiagnostics{PromptType: "initial"}
 	updatedDiagnostics := &prompt.PromptDiagnostics{PromptType: "updated"}
@@ -723,6 +744,7 @@ func TestCliLogWriter_WriteUsesProviderAtWriteTime(t *testing.T) {
 }
 
 func TestCliBacklogClient_AddUsesTrimmedExpectedOutputs(t *testing.T) {
+	t.Parallel()
 	idea := &pipeline.Idea{
 		Text: "  backlog item  ",
 		Type: "review-finding",
@@ -768,6 +790,7 @@ func containsLabel(labels []string, target string) bool {
 
 // TestValidateCommitRef verifies that commit refs starting with "-" are rejected.
 func TestValidateCommitRef(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		ref     string
@@ -784,6 +807,7 @@ func TestValidateCommitRef(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			err := validateCommitRef(tt.ref)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("validateCommitRef(%q) error = %v, wantErr %v", tt.ref, err, tt.wantErr)
@@ -795,6 +819,7 @@ func TestValidateCommitRef(t *testing.T) {
 // TestGetGitDiffForReview_RejectsFlagInjection verifies that getGitDiffForReview
 // rejects commit refs that look like git flags.
 func TestGetGitDiffForReview_RejectsFlagInjection(t *testing.T) {
+	t.Parallel()
 	_, err := getGitDiffForReview("--output=/tmp/x")
 	if err == nil {
 		t.Fatal("getGitDiffForReview should reject flag-like commit ref")
@@ -807,6 +832,7 @@ func TestGetGitDiffForReview_RejectsFlagInjection(t *testing.T) {
 // TestGetCommitTimestamp_RejectsFlagInjection verifies that getCommitTimestamp
 // rejects commit refs that look like git flags.
 func TestGetCommitTimestamp_RejectsFlagInjection(t *testing.T) {
+	t.Parallel()
 	_, err := getCommitTimestamp("--format=%H")
 	if err == nil {
 		t.Fatal("getCommitTimestamp should reject flag-like commit ref")
@@ -819,6 +845,7 @@ func TestGetCommitTimestamp_RejectsFlagInjection(t *testing.T) {
 // TestFindFirstCommitForBead_RejectsFlagInjection verifies that findFirstCommitForBead
 // rejects bead IDs that look like git flags.
 func TestFindFirstCommitForBead_RejectsFlagInjection(t *testing.T) {
+	t.Parallel()
 	_, err := findFirstCommitForBead("--all")
 	if err == nil {
 		t.Fatal("findFirstCommitForBead should reject flag-like bead ID")
@@ -832,6 +859,7 @@ func TestFindFirstCommitForBead_RejectsFlagInjection(t *testing.T) {
 // not lexicographically. This is a regression test for the bug where string comparison
 // was used (e.g. "9" > "10" in string comparison).
 func TestTimestampComparison(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		timestamp1 string
@@ -872,7 +900,10 @@ func TestTimestampComparison(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel(
 			// Parse the timestamps using the same logic as isCommitEarlier
+			)
+
 			ts1, err := strconv.ParseInt(tt.timestamp1, 10, 64)
 			if err != nil {
 				t.Fatalf("Failed to parse timestamp1 %q: %v", tt.timestamp1, err)
@@ -904,6 +935,7 @@ func TestTimestampComparison(t *testing.T) {
 
 // TestReviewCommand_SpecFlagExists verifies that the review command accepts --spec flag
 func TestReviewCommand_SpecFlagExists(t *testing.T) {
+	t.Parallel()
 	cmd := reviewCmd
 
 	specFlag := cmd.Flags().Lookup("spec")
@@ -919,6 +951,7 @@ func TestReviewCommand_SpecFlagExists(t *testing.T) {
 // TestReviewCommand_SpecAndEpicMutuallyExclusive verifies that --spec and --epic
 // cannot be used together on the review command
 func TestReviewCommand_SpecAndEpicMutuallyExclusive(t *testing.T) {
+	t.Parallel()
 	err := scope.ValidateFlags("gromit-xyz", "init-wizard")
 	if err == nil {
 		t.Fatal("scope.ValidateFlags should return error when both epic and spec are set")
@@ -932,6 +965,7 @@ func TestReviewCommand_SpecAndEpicMutuallyExclusive(t *testing.T) {
 // TestReviewCommand_SpecFlagResolvesToLabel verifies that --spec flag
 // resolves to the correct label format via scope.ResolveSpec
 func TestReviewCommand_SpecFlagResolvesToLabel(t *testing.T) {
+	t.Parallel()
 	specName := "init-wizard"
 	labels := scope.ResolveSpec(specName)
 
@@ -948,6 +982,7 @@ func TestReviewCommand_SpecFlagResolvesToLabel(t *testing.T) {
 // TestReviewCommand_EpicFlagUsesResolveEpic verifies that --epic flag
 // uses scope.ResolveEpic to resolve epic to spec labels
 func TestReviewCommand_EpicFlagUsesResolveEpic(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 	specsDir := filepath.Join(tempDir, "specs")
 	if err := os.MkdirAll(specsDir, 0755); err != nil {
@@ -1007,6 +1042,7 @@ created: 2026-02-08
 // TestReviewCommand_SpecFlagInHelpText verifies that --spec flag appears
 // in the review command help text
 func TestReviewCommand_SpecFlagInHelpText(t *testing.T) {
+	t.Parallel()
 	cmd := reviewCmd
 	helpText := cmd.Long
 
@@ -1020,6 +1056,7 @@ func TestReviewCommand_SpecFlagInHelpText(t *testing.T) {
 // TestReviewCommand_FlagMutualExclusivity verifies that --epic, --spec, and --since
 // flags are mutually exclusive on the review command
 func TestReviewCommand_FlagMutualExclusivity(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	saveReviewFlags(t)
 
@@ -1095,6 +1132,7 @@ func TestReviewCommand_FlagMutualExclusivity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			reviewEpic = tt.epic
 			reviewSpec = tt.spec
 			reviewSince = tt.since
@@ -1120,6 +1158,7 @@ func TestReviewCommand_FlagMutualExclusivity(t *testing.T) {
 // TestReviewCommand_MutualExclusivityCheckedEarly verifies that mutual exclusivity
 // is checked before attempting to resolve specs or epics
 func TestReviewCommand_MutualExclusivityCheckedEarly(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	saveReviewFlags(t)
 
@@ -1142,6 +1181,7 @@ func TestReviewCommand_MutualExclusivityCheckedEarly(t *testing.T) {
 // TestReviewCommand_MutualExclusivityWithWhitespace verifies that flags with
 // only whitespace are treated as empty and don't trigger mutual exclusivity
 func TestReviewCommand_MutualExclusivityWithWhitespace(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	saveReviewFlags(t)
 
@@ -1191,6 +1231,7 @@ func TestReviewCommand_MutualExclusivityWithWhitespace(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			reviewEpic = tt.epic
 			reviewSpec = tt.spec
 			reviewSince = tt.since

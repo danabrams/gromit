@@ -13,6 +13,7 @@ import (
 // TestPromptRendererAdapter_SingleWorkflowMethods verifies adapters only expose
 // the workflow-specific render method each pipeline interface requires.
 func TestPromptRendererAdapter_SingleWorkflowMethods(t *testing.T) {
+	t.Parallel()
 	var _ pipeline.ReviewRenderer = (*cliPromptRenderer)(nil)
 	var _ pipeline.ExploreRenderer = (*explorePromptRenderer)(nil)
 
@@ -42,7 +43,10 @@ func TestPromptRendererAdapter_SingleWorkflowMethods(t *testing.T) {
 
 // TestPipelineInterfaces_AllTypedSignatures verifies pipeline.go interface definitions use typed signatures
 func TestPipelineInterfaces_AllTypedSignatures(t *testing.T) {
+	t.Parallel(
 	// Expected failure: pipeline renderer interfaces still use interface{} or are not split by workflow.
+	)
+
 	pipelinePath := filepath.Join("..", "..", "internal", "pipeline", "pipeline.go")
 	content, err := os.ReadFile(pipelinePath)
 	if err != nil {
@@ -86,7 +90,10 @@ func TestPipelineInterfaces_AllTypedSignatures(t *testing.T) {
 
 // TestPipelinePromptInputTypes_Exist verifies all required prompt input types are defined
 func TestPipelinePromptInputTypes_Exist(t *testing.T) {
+	t.Parallel(
 	// Expected failure: RefinePromptInput, PlanPromptInput, DecomposePromptInput, ExplorePromptInput types do not exist
+	)
+
 	pipelinePath := filepath.Join("..", "..", "internal", "pipeline", "pipeline.go")
 	content, err := os.ReadFile(pipelinePath)
 	if err != nil {
@@ -113,6 +120,7 @@ func TestPipelinePromptInputTypes_Exist(t *testing.T) {
 }
 
 func TestAdapterIntegrationTypedTest_UsesLLMNames(t *testing.T) {
+	t.Parallel()
 	typedIntegrationPath := filepath.Join(".", "adapter_integration_typed_test.go")
 	content, err := os.ReadFile(typedIntegrationPath)
 	if err != nil {
@@ -136,7 +144,10 @@ func TestAdapterIntegrationTypedTest_UsesLLMNames(t *testing.T) {
 
 // TestAdapters_NoMapConstructionForPrompts verifies adapters don't construct intermediate maps for prompt data
 func TestAdapters_NoMapConstructionForPrompts(t *testing.T) {
+	t.Parallel(
 	// Expected failure: If there are any remaining map[string]interface{} constructions for prompt data
+	)
+
 	reviewPath := filepath.Join(".", "review.go")
 	content, err := os.ReadFile(reviewPath)
 	if err != nil {
@@ -154,6 +165,7 @@ func TestAdapters_NoMapConstructionForPrompts(t *testing.T) {
 
 // TestDecomposeWorkflow_NoReflectImport verifies decompose.go doesn't import reflect package
 func TestDecomposeWorkflow_NoReflectImport(t *testing.T) {
+	t.Parallel()
 	decomposePath := filepath.Join("..", "..", "internal", "pipeline", "decompose.go")
 	content, err := os.ReadFile(decomposePath)
 	if err != nil {
@@ -170,6 +182,7 @@ func TestDecomposeWorkflow_NoReflectImport(t *testing.T) {
 
 // TestDecomposeWorkflow_NoTypeAssertions verifies decompose.go doesn't use map[string]interface{} type assertions
 func TestDecomposeWorkflow_NoTypeAssertions(t *testing.T) {
+	t.Parallel()
 	decomposePath := filepath.Join("..", "..", "internal", "pipeline", "decompose.go")
 	content, err := os.ReadFile(decomposePath)
 	if err != nil {
@@ -191,6 +204,7 @@ func TestDecomposeWorkflow_NoTypeAssertions(t *testing.T) {
 
 // TestLogWriter_UsesTypedEntry verifies LogWriter.Write uses typed LogEntry.
 func TestLogWriter_UsesTypedEntry(t *testing.T) {
+	t.Parallel()
 	pipelinePath := filepath.Join("..", "..", "internal", "pipeline", "pipeline.go")
 	content, err := os.ReadFile(pipelinePath)
 	if err != nil {

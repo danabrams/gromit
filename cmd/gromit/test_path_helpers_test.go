@@ -8,8 +8,10 @@ import (
 // TestResolveProjectPath_ResolvesPaths_Independently_Of_WorkingDirectory verifies that
 // paths are resolved correctly regardless of the working directory when the test runs.
 func TestResolveProjectPath_ResolvesPaths_Independently_Of_WorkingDirectory(t *testing.T) {
+	t.Parallel(
 	// This test verifies that resolveProjectPath correctly resolves paths relative to the
 	// project root, regardless of the current working directory when tests are run.
+	)
 
 	// Try to read RULES.md using the resolver
 	rulesPath := resolveProjectPath("t", ".gromit/RULES.md")
@@ -27,6 +29,7 @@ func TestResolveProjectPath_ResolvesPaths_Independently_Of_WorkingDirectory(t *t
 // TestResolveProjectPath_ReturnsSame_Path_ForMultipleCalls verifies that
 // the resolver returns consistent results across multiple calls.
 func TestResolveProjectPath_ReturnsSame_Path_ForMultipleCalls(t *testing.T) {
+	t.Parallel()
 	path1 := resolveProjectPath("t", ".gromit/RULES.md")
 	path2 := resolveProjectPath("t", ".gromit/RULES.md")
 
@@ -38,6 +41,7 @@ func TestResolveProjectPath_ReturnsSame_Path_ForMultipleCalls(t *testing.T) {
 // TestResolveProjectPath_Resolves_Multiple_Files verifies that the resolver
 // works with different file paths.
 func TestResolveProjectPath_Resolves_Multiple_Files(t *testing.T) {
+	t.Parallel()
 	files := []string{
 		".gromit/RULES.md",
 		"CLAUDE.md",

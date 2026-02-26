@@ -24,6 +24,7 @@ func newIsolatedClient(t *testing.T) *Client {
 
 // TestClientCreate tests the Create() method
 func TestClientCreate(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name            string
 		title           string
@@ -63,6 +64,7 @@ func TestClientCreate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var gotArgs []string
 			var gotAcceptance string
 			c := &Client{
@@ -110,6 +112,7 @@ func TestClientCreate(t *testing.T) {
 
 // TestClientCreateWithParent tests the CreateWithParent() method
 func TestClientCreateWithParent(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name               string
 		title              string
@@ -160,6 +163,7 @@ func TestClientCreateWithParent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var gotArgs []string
 			c := &Client{
 				RunFn: func(args ...string) (string, error) {
@@ -191,6 +195,7 @@ func TestClientCreateWithParent(t *testing.T) {
 
 // TestClientCreateWithParentInheritance tests that Create() delegates to CreateWithParent
 func TestClientCreateInheritsCreateWithParent(t *testing.T) {
+	t.Parallel()
 	var createArgs []string
 	createClient := &Client{
 		RunFn: func(args ...string) (string, error) {
@@ -218,6 +223,7 @@ func TestClientCreateInheritsCreateWithParent(t *testing.T) {
 
 // TestClientCreateWithDeps tests CreateWithDepsAndDescription with multiple dependencies
 func TestClientCreateWithDeps(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name               string
 		title              string
@@ -284,6 +290,7 @@ func TestClientCreateWithDeps(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var gotArgs []string
 			c := &Client{
 				RunFn: func(args ...string) (string, error) {

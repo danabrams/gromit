@@ -9,7 +9,10 @@ import (
 // TestNewRunnerWithDeps_ConstructsWithRouterOnly verifies that NewRunnerWithDeps
 // can construct a Runner using only a Router dependency, without requiring Claude.
 func TestNewRunnerWithDeps_ConstructsWithRouterOnly(t *testing.T) {
+	t.Parallel(
 	// Create a minimal router for testing
+	)
+
 	router := &provider.Router{}
 
 	deps := &Deps{
@@ -29,6 +32,7 @@ func TestNewRunnerWithDeps_ConstructsWithRouterOnly(t *testing.T) {
 // TestNewRunnerWithDeps_RejectsNilDeps verifies that NewRunnerWithDeps
 // returns an error when passed nil deps.
 func TestNewRunnerWithDeps_RejectsNilDeps(t *testing.T) {
+	t.Parallel()
 	orch, err := NewRunnerWithDeps(nil)
 	if err == nil {
 		t.Error("NewRunnerWithDeps(nil) error = nil, want error")
@@ -41,6 +45,7 @@ func TestNewRunnerWithDeps_RejectsNilDeps(t *testing.T) {
 // TestNewRunnerWithDeps_RejectsNilRouter verifies that NewRunnerWithDeps
 // returns an error when deps has a nil Router.
 func TestNewRunnerWithDeps_RejectsNilRouter(t *testing.T) {
+	t.Parallel()
 	deps := &Deps{
 		Router: nil,
 	}
@@ -58,6 +63,7 @@ func TestNewRunnerWithDeps_RejectsNilRouter(t *testing.T) {
 // the Orchestrator returned from NewRunnerWithDeps is properly initialized with
 // Router-only configuration and no fallback dependencies.
 func TestNewRunnerWithDeps_OrchhestratorSupportsRouterOnlyConfiguration(t *testing.T) {
+	t.Parallel()
 	router := &provider.Router{}
 	deps := &Deps{
 		Router: router,

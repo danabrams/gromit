@@ -8,6 +8,7 @@ import (
 // TestSelectCrossReturnsOppositeProvider verifies that SelectCross returns the first
 // available provider whose name differs from the buildProvider argument.
 func TestSelectCrossReturnsOppositeProvider(t *testing.T) {
+	t.Parallel()
 	claudeProv := &mockProviderWithModels{
 		name: "claude",
 		models: map[string]string{
@@ -72,6 +73,7 @@ func TestSelectCrossReturnsOppositeProvider(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			p, modelName := r.SelectCross(tt.buildProvider, tt.tier)
 			if p == nil {
 				t.Fatal("SelectCross() returned nil provider")
@@ -92,6 +94,7 @@ func TestSelectCrossReturnsOppositeProvider(t *testing.T) {
 // SelectCross falls back to the buildProvider itself when no other provider
 // is available (either because there's only one provider or others are unavailable).
 func TestSelectCrossFallsBackToBuildProviderWhenNoCrossAvailable(t *testing.T) {
+	t.Parallel()
 	claudeProv := &mockProviderWithModels{
 		name: "claude",
 		models: map[string]string{
@@ -138,6 +141,7 @@ func TestSelectCrossFallsBackToBuildProviderWhenNoCrossAvailable(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			r := &Router{
 				providers:   tt.providers,
 				preferences: map[string]string{"review": "cross"},
@@ -164,6 +168,7 @@ func TestSelectCrossFallsBackToBuildProviderWhenNoCrossAvailable(t *testing.T) {
 // invocation count for the selected cross-provider, following the same
 // pattern as Select().
 func TestSelectCrossIncrementsCount(t *testing.T) {
+	t.Parallel()
 	stateFn := &mockStateFile{
 		providerCounts: map[string]int{},
 	}
@@ -205,6 +210,7 @@ func TestSelectCrossIncrementsCount(t *testing.T) {
 // available provider that differs from the buildProvider when more than
 // two providers are configured.
 func TestSelectCrossWithThreeProviders(t *testing.T) {
+	t.Parallel()
 	r := &Router{
 		providers: map[string]Provider{
 			"claude": &mockProviderWithModels{

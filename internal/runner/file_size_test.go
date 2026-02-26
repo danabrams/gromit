@@ -27,6 +27,7 @@ func countSourceLines(t *testing.T, filename string) int {
 }
 
 func TestProcessMethodologyFileSizeLimit(t *testing.T) {
+	t.Parallel()
 	n := countSourceLines(t, "process_methodology.go")
 	if n > fileSizeLimit {
 		t.Errorf("process_methodology.go has %d lines, want ≤ %d; extract ATDD red-phase logic to process_methodology_atdd.go", n, fileSizeLimit)
@@ -34,6 +35,7 @@ func TestProcessMethodologyFileSizeLimit(t *testing.T) {
 }
 
 func TestConstructorFileSizeLimit(t *testing.T) {
+	t.Parallel()
 	n := countSourceLines(t, "constructor.go")
 	if n > fileSizeLimit {
 		t.Errorf("constructor.go has %d lines, want ≤ %d; extract adapter types into constructor_adapters.go", n, fileSizeLimit)

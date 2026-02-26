@@ -19,6 +19,7 @@ import (
 // delegates to escalation.Handler, the Handler needs a LogFn to produce
 // the same log output the Runner's local methods produced.
 func TestEscalationHandlerHasLogFn(t *testing.T) {
+	t.Parallel()
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, "handler.go", nil, 0)
 	if err != nil {
@@ -64,6 +65,7 @@ func TestEscalationHandlerHasLogFn(t *testing.T) {
 // NewHandler should also accept a LogFn so the Handler can log retry/escalation
 // events that the Runner's local methods currently log.
 func TestNewHandlerAcceptsLogFn(t *testing.T) {
+	t.Parallel()
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, "handler.go", nil, 0)
 	if err != nil {

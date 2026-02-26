@@ -17,6 +17,7 @@ import (
 )
 
 func TestBenchmarkRunCommand_DispatchesPipeline(t *testing.T) {
+
 	called := false
 	orig := benchmarkRunPipelineFn
 	t.Cleanup(func() { benchmarkRunPipelineFn = orig })
@@ -49,7 +50,10 @@ func TestBenchmarkRunCommand_DispatchesPipeline(t *testing.T) {
 }
 
 func TestBenchmarkCLI_UsesInternalBuildReportInputExclusively(t *testing.T) {
+	t.Parallel(
 	// Verify that benchmarkBuildReportInputFn is delegating to the single internal BuildReportInput
+	)
+
 	if benchmarkBuildReportInputFn == nil {
 		t.Fatal("benchmarkBuildReportInputFn must not be nil")
 	}
@@ -77,9 +81,12 @@ func TestBenchmarkCLI_UsesInternalBuildReportInputExclusively(t *testing.T) {
 }
 
 func TestBenchmarkTests_DoNotUseDuplicateReportInputBuilder(t *testing.T) {
+	t.Parallel(
 	// This test verifies that only benchpkg.BuildReportInput is used as the single source of truth
 	// for constructing ReportInput, preventing duplicate schema definitions
 	// Verify that we can construct ReportInput directly using the internal builder
+	)
+
 	beads := []string{"bead-1", "bead-2"}
 	modeSummaries := []benchpkg.ModeSummary{{Mode: "test_mode"}}
 
@@ -106,9 +113,11 @@ func TestBenchmarkTests_DoNotUseDuplicateReportInputBuilder(t *testing.T) {
 }
 
 func TestBenchmarkCLI_DelegatesBuildReportInputToInternalFunction(t *testing.T) {
+	t.Parallel(
 	// This test verifies that the CLI's report input builder is a direct delegation to benchpkg.BuildReportInput
 	// Verify that benchmarkBuildReportInputFn points to the internal function
 	// by comparing their behavior on the same inputs
+	)
 
 	testInputs := struct {
 		manifestID      string
@@ -156,6 +165,7 @@ func TestBenchmarkCLI_DelegatesBuildReportInputToInternalFunction(t *testing.T) 
 }
 
 func TestRunBenchmarkPipeline_ExecutesStagesInOrder(t *testing.T) {
+
 	origLoad := benchmarkLoadManifestFn
 	origSelect := benchmarkSelectCohortFn
 	origValidate := benchmarkValidateCohortFn
@@ -232,6 +242,7 @@ func TestRunBenchmarkPipeline_ExecutesStagesInOrder(t *testing.T) {
 }
 
 func TestRunBenchmarkPipeline_WritesDeterministicArtifacts(t *testing.T) {
+
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
 	origValidate := benchmarkValidateCohortFn
@@ -332,6 +343,7 @@ func TestRunBenchmarkPipeline_WritesDeterministicArtifacts(t *testing.T) {
 }
 
 func TestRunBenchmarkPipeline_ReportArtifactsMatchInternalWriter(t *testing.T) {
+
 	tmpDir := t.TempDir()
 	origWD, err := os.Getwd()
 	if err != nil {
@@ -401,13 +413,13 @@ func TestRunBenchmarkPipeline_ReportArtifactsMatchInternalWriter(t *testing.T) {
 	}
 
 	summary := benchpkg.ModeSummary{
-		Mode:           "single_pass",
-		ElapsedSeconds: 60,
-		TotalInput:     1200,
-		TotalOutput:    600,
-		TotalCostUSD:   1.5,
-		TierTotals:     benchpkg.TierTotals{Low: benchpkg.TierTotalsRow{InputTokens: 800, OutputTokens: 400, CostUSD: 0.8}},
-		Quality:        benchpkg.QualityMetrics{AverageScore: 0.9, FirstPassRate: 0.75, ReviewFindings: 1, ReviewFixesApplied: 0, FinalValidationPassed: true},
+		Mode:             "single_pass",
+		ElapsedSeconds:   60,
+		TotalInput:       1200,
+		TotalOutput:      600,
+		TotalCostUSD:     1.5,
+		TierTotals:       benchpkg.TierTotals{Low: benchpkg.TierTotalsRow{InputTokens: 800, OutputTokens: 400, CostUSD: 0.8}},
+		Quality:          benchpkg.QualityMetrics{AverageScore: 0.9, FirstPassRate: 0.75, ReviewFindings: 1, ReviewFixesApplied: 0, FinalValidationPassed: true},
 		CostQualityRatio: 1.67,
 	}
 	benchmarkInternalAggregateModeMetricsFn = func(inputs []benchpkg.ModeLogInput) ([]benchpkg.ModeSummary, error) {
@@ -454,6 +466,7 @@ func TestRunBenchmarkPipeline_ReportArtifactsMatchInternalWriter(t *testing.T) {
 }
 
 func TestRunBenchmarkPipeline_NoSecondJSONWriteWithDifferentPayload(t *testing.T) {
+
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
 
@@ -548,6 +561,7 @@ func TestRunBenchmarkPipeline_NoSecondJSONWriteWithDifferentPayload(t *testing.T
 }
 
 func TestRunBenchmarkPipeline_SingleSchemaOwner_EnforcesOnlyInternalWriterIsUsed(t *testing.T) {
+
 	origLoadManifest := benchmarkInternalLoadManifestFn
 	origSelectCohort := benchmarkSelectCohortFn
 	origValidate := benchmarkValidateCohortFn
@@ -616,6 +630,7 @@ func TestRunBenchmarkPipeline_SingleSchemaOwner_EnforcesOnlyInternalWriterIsUsed
 }
 
 func TestRunBenchmarkPipeline_ReportArtifactsMatchCuratedFixture(t *testing.T) {
+
 	tmpDir := t.TempDir()
 	origWD, err := os.Getwd()
 	if err != nil {
@@ -716,6 +731,7 @@ func TestRunBenchmarkPipeline_ReportArtifactsMatchCuratedFixture(t *testing.T) {
 }
 
 func TestBenchmarkRunCommand_ReportInputMatchesCanonicalBuilder(t *testing.T) {
+
 	tmpDir := t.TempDir()
 	origWD, err := os.Getwd()
 	if err != nil {
@@ -852,6 +868,7 @@ func TestBenchmarkRunCommand_ReportInputMatchesCanonicalBuilder(t *testing.T) {
 }
 
 func TestRunBenchmarkPipeline_DelegatesReportInputBuildingToBenchpkg(t *testing.T) {
+
 	tmpDir := t.TempDir()
 	origWD, err := os.Getwd()
 	if err != nil {
@@ -1031,6 +1048,7 @@ func repoRootFrom(t *testing.T, start string) string {
 }
 
 func TestBenchmarkReportInput_PreservesInternalReportMarkdownSections(t *testing.T) {
+
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
 
@@ -1098,6 +1116,7 @@ func TestBenchmarkReportInput_PreservesInternalReportMarkdownSections(t *testing
 }
 
 func TestRunBenchmarkPipeline_ReportJSONUsesInternalManifestMetadataShape(t *testing.T) {
+
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
 
@@ -1184,6 +1203,7 @@ high_tier_model: gpt-5.3-codex
 }
 
 func TestRunBenchmarkPipeline_RejectsManifestMissingProviderPinning(t *testing.T) {
+
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
 
@@ -1213,6 +1233,7 @@ modes:
 }
 
 func TestRunBenchmarkPipeline_UsesInternalBenchmarkStagesInOrder(t *testing.T) {
+
 	origLoad := benchmarkInternalLoadManifestFn
 	origResolve := benchmarkInternalResolveSelectedBeadsFn
 	origValidate := benchmarkInternalValidateSelectedCohortFn
@@ -1295,6 +1316,7 @@ func TestRunBenchmarkPipeline_UsesInternalBenchmarkStagesInOrder(t *testing.T) {
 }
 
 func TestBenchmarkRunCommand_BeadOverridesDriveSelection(t *testing.T) {
+
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
 	origValidate := benchmarkValidateCohortFn
@@ -1358,6 +1380,7 @@ func TestBenchmarkRunCommand_BeadOverridesDriveSelection(t *testing.T) {
 }
 
 func TestBenchmarkRunCommand_RejectsInvalidOutputTimestamp(t *testing.T) {
+	t.Parallel()
 	manifestPath := filepath.Join("/home/dabrams/gromit", "cmd", "gromit", "testdata", "fixtures", "benchmark", "basic.yaml")
 
 	_, stderr, exitCode := runGromitCobra(t,
@@ -1375,6 +1398,7 @@ func TestBenchmarkRunCommand_RejectsInvalidOutputTimestamp(t *testing.T) {
 }
 
 func TestBenchmarkRunCommand_RejectsNegativeBeadCount(t *testing.T) {
+	t.Parallel()
 	manifestPath := filepath.Join("/home/dabrams/gromit", "cmd", "gromit", "testdata", "fixtures", "benchmark", "basic.yaml")
 
 	_, stderr, exitCode := runGromitCobra(t,
@@ -1392,6 +1416,7 @@ func TestBenchmarkRunCommand_RejectsNegativeBeadCount(t *testing.T) {
 }
 
 func TestBenchmarkRunCommand_RejectsEmptyBeadsOverride(t *testing.T) {
+	t.Parallel()
 	manifestPath := filepath.Join("/home/dabrams/gromit", "cmd", "gromit", "testdata", "fixtures", "benchmark", "basic.yaml")
 
 	_, stderr, exitCode := runGromitCobra(t,
@@ -1409,6 +1434,7 @@ func TestBenchmarkRunCommand_RejectsEmptyBeadsOverride(t *testing.T) {
 }
 
 func TestBenchmarkRunCommand_RejectsInvalidBaseCommit(t *testing.T) {
+	t.Parallel()
 	manifestPath := filepath.Join("/home/dabrams/gromit", "cmd", "gromit", "testdata", "fixtures", "benchmark", "basic.yaml")
 
 	_, stderr, exitCode := runGromitCobra(t,
@@ -1426,6 +1452,7 @@ func TestBenchmarkRunCommand_RejectsInvalidBaseCommit(t *testing.T) {
 }
 
 func TestBenchmarkRunCommand_RejectsBlankManifestPath(t *testing.T) {
+	t.Parallel()
 	_, stderr, exitCode := runGromitCobra(t,
 		"benchmark", "run",
 		"--manifest", " ",
@@ -1440,6 +1467,7 @@ func TestBenchmarkRunCommand_RejectsBlankManifestPath(t *testing.T) {
 }
 
 func TestBenchmarkRunCommand_RejectsBaseCommitWithWhitespace(t *testing.T) {
+	t.Parallel()
 	manifestPath := filepath.Join("/home/dabrams/gromit", "cmd", "gromit", "testdata", "fixtures", "benchmark", "basic.yaml")
 
 	_, stderr, exitCode := runGromitCobra(t,
@@ -1457,6 +1485,7 @@ func TestBenchmarkRunCommand_RejectsBaseCommitWithWhitespace(t *testing.T) {
 }
 
 func TestValidateBenchmarkCohort_UsesRequiredSizeFive(t *testing.T) {
+
 	origNewLookup := benchmarkNewBeadLookupFn
 	origValidate := benchmarkInternalValidateSelectedCohortFn
 	t.Cleanup(func() {
@@ -1482,6 +1511,7 @@ func TestValidateBenchmarkCohort_UsesRequiredSizeFive(t *testing.T) {
 }
 
 func TestValidateBenchmarkCohort_UsesSingleBeadPilotConstraints(t *testing.T) {
+
 	origNewLookup := benchmarkNewBeadLookupFn
 	origValidate := benchmarkInternalValidateSelectedCohortFn
 	t.Cleanup(func() {
@@ -1510,6 +1540,7 @@ func TestValidateBenchmarkCohort_UsesSingleBeadPilotConstraints(t *testing.T) {
 }
 
 func TestBenchmarkRunCommand_SingleBeadPilotSelection(t *testing.T) {
+
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
 	origValidate := benchmarkValidateCohortFn
@@ -1569,6 +1600,7 @@ func TestBenchmarkRunCommand_SingleBeadPilotSelection(t *testing.T) {
 }
 
 func TestBenchmarkRunCommand_RejectsSingleBeadWithBeadsOverride(t *testing.T) {
+	t.Parallel()
 	manifestPath := filepath.Join("/home/dabrams/gromit", "cmd", "gromit", "testdata", "fixtures", "benchmark", "basic.yaml")
 
 	_, stderr, exitCode := runGromitCobra(t,
@@ -1586,6 +1618,7 @@ func TestBenchmarkRunCommand_RejectsSingleBeadWithBeadsOverride(t *testing.T) {
 }
 
 func TestBenchmarkRunCommand_RejectsSingleBeadWithBeadCount(t *testing.T) {
+	t.Parallel()
 	manifestPath := filepath.Join("/home/dabrams/gromit", "cmd", "gromit", "testdata", "fixtures", "benchmark", "basic.yaml")
 
 	_, stderr, exitCode := runGromitCobra(t,
@@ -1603,6 +1636,7 @@ func TestBenchmarkRunCommand_RejectsSingleBeadWithBeadCount(t *testing.T) {
 }
 
 func TestBenchmarkPhase3ReportCommand_DispatchesWriter(t *testing.T) {
+
 	called := false
 	orig := benchmarkWritePhase3MeasurementReportFn
 	t.Cleanup(func() { benchmarkWritePhase3MeasurementReportFn = orig })

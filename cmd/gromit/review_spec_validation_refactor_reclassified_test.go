@@ -34,9 +34,12 @@ func lineCount(src string) int {
 }
 
 func TestReviewSpecValidationRefactor_UsesTableDrivenScenarioGroups(t *testing.T) {
+	t.Parallel(
 	// Expected failure: TestReviewSpecValidationScenarios_TableDriven and
 	// buildReviewSpecValidationCases do not exist yet in
 	// cmd/gromit/review_spec_validation_reclassified_test.go.
+	)
+
 	src := loadReviewSpecValidationReclassifiedSource(t)
 
 	if !strings.Contains(src, "func TestReviewSpecValidationScenarios_TableDriven") {
@@ -53,8 +56,11 @@ func TestReviewSpecValidationRefactor_UsesTableDrivenScenarioGroups(t *testing.T
 }
 
 func TestReviewSpecValidationRefactorReclassified_UsesSharedHelpers(t *testing.T) {
+	t.Parallel(
 	// Expected failure: setupReviewSpecValidationFixture and
 	// assertSpecValidationError helper functions do not exist yet.
+	)
+
 	src := loadReviewSpecValidationReclassifiedSource(t)
 
 	requiredHelpers := []string{
@@ -70,8 +76,11 @@ func TestReviewSpecValidationRefactorReclassified_UsesSharedHelpers(t *testing.T
 }
 
 func TestReviewSpecValidationRefactor_ReducesLinesAndKeepsDeterministicCoverage(t *testing.T) {
+	t.Parallel(
 	// Expected failure: maxReviewSpecValidationAcceptanceLines and
 	// reviewSpecValidationCoverageSentinels are not enforced yet via consolidated structure.
+	)
+
 	src := loadReviewSpecValidationReclassifiedSource(t)
 
 	const maxReviewSpecValidationAcceptanceLines = 420

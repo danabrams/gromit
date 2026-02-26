@@ -8,6 +8,7 @@ import (
 )
 
 func TestErrSameScopeRetryBlocked_PreservesMessageInChain(t *testing.T) {
+	t.Parallel()
 	err := fmt.Errorf("same-scope retry flow: %w", ErrSameScopeRetryBlocked)
 	if !errors.Is(err, ErrSameScopeRetryBlocked) {
 		t.Fatalf("errors.Is should detect ErrSameScopeRetryBlocked, got %v", err)
@@ -18,6 +19,7 @@ func TestErrSameScopeRetryBlocked_PreservesMessageInChain(t *testing.T) {
 }
 
 func TestErrPartialDecompositionState_IsDetectable(t *testing.T) {
+	t.Parallel()
 	err := fmt.Errorf("decomposition state alert: %w", ErrPartialDecompositionState)
 	if !errors.Is(err, ErrPartialDecompositionState) {
 		t.Fatalf("errors.Is should detect ErrPartialDecompositionState, got %v", err)

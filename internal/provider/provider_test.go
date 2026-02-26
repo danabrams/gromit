@@ -63,6 +63,7 @@ func (m *mockProvider) IsScopeTooLarge(result *Result) (bool, string) {
 // TestResultStructDoesNotExposeStdout verifies that Result no longer includes
 // a Stdout field in the public struct definition.
 func TestResultStructDoesNotExposeStdout(t *testing.T) {
+	t.Parallel()
 	resultType := reflect.TypeOf(Result{})
 	if _, ok := resultType.FieldByName("Stdout"); ok {
 		t.Fatalf("Result should not include Stdout field")
@@ -126,6 +127,7 @@ func TestResultAndToolEventJSONTags(t *testing.T) {
 // TestTierConstants verifies that the tier constants TierHigh, TierMedium, TierLow
 // are defined as strings with the expected values.
 func TestTierConstants(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		tier          string
@@ -150,6 +152,7 @@ func TestTierConstants(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			if tt.tier != tt.expectedValue {
 				t.Errorf("tier constant = %q, want %q", tt.tier, tt.expectedValue)
 			}
@@ -159,6 +162,7 @@ func TestTierConstants(t *testing.T) {
 
 // TestTierConstantsAreDistinct verifies that all tier constants have unique values.
 func TestTierConstantsAreDistinct(t *testing.T) {
+	t.Parallel()
 	tiers := []string{TierHigh, TierMedium, TierLow}
 
 	seen := make(map[string]bool)
@@ -176,6 +180,7 @@ func TestTierConstantsAreDistinct(t *testing.T) {
 
 // TestEventHandlerSignature verifies that EventHandler matches the expected function signature.
 func TestEventHandlerSignature(t *testing.T) {
+	t.Parallel()
 	lineProcessed := false
 	var capturedLine []byte
 
@@ -199,6 +204,7 @@ func TestEventHandlerSignature(t *testing.T) {
 
 // TestToolCallHandlerSignature verifies that ToolCallHandler matches the expected function signature.
 func TestToolCallHandlerSignature(t *testing.T) {
+	t.Parallel()
 	eventReceived := false
 	var capturedEvent ToolEvent
 	scriptPath := filepath.Join(t.TempDir(), "script.sh")
@@ -231,7 +237,10 @@ func TestToolCallHandlerSignature(t *testing.T) {
 // TestProviderMethodSignatures verifies that all Provider interface methods
 // have the correct signatures and can be called.
 func TestProviderMethodSignatures(t *testing.T) {
+	t.Parallel(
 	// Use the package-level mock implementation
+	)
+
 	impl := &mockProvider{}
 
 	// Verify Name() string
@@ -257,6 +266,7 @@ func TestProviderMethodSignatures(t *testing.T) {
 // TestTierFromLegacyModelClaudeModels verifies that TierFromLegacyModel() maps
 // Claude model names (opus, sonnet, haiku) to the correct tier constants.
 func TestTierFromLegacyModelClaudeModels(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		modelName    string
@@ -281,6 +291,7 @@ func TestTierFromLegacyModelClaudeModels(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := TierFromLegacyModel(tt.modelName)
 			if got != tt.expectedTier {
 				t.Errorf("TierFromLegacyModel(%q) = %q, want %q", tt.modelName, got, tt.expectedTier)
@@ -292,6 +303,7 @@ func TestTierFromLegacyModelClaudeModels(t *testing.T) {
 // TestTierFromLegacyModelOpenAIModels verifies that TierFromLegacyModel() maps
 // OpenAI model names (o3, gpt-4o, gpt-4o-mini) to the correct tier constants.
 func TestTierFromLegacyModelOpenAIModels(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		modelName    string
@@ -316,6 +328,7 @@ func TestTierFromLegacyModelOpenAIModels(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := TierFromLegacyModel(tt.modelName)
 			if got != tt.expectedTier {
 				t.Errorf("TierFromLegacyModel(%q) = %q, want %q", tt.modelName, got, tt.expectedTier)
@@ -327,6 +340,7 @@ func TestTierFromLegacyModelOpenAIModels(t *testing.T) {
 // TestTierFromLegacyModelGeminiModels verifies that Gemini model names map
 // to the expected tier constants for backward compatibility.
 func TestTierFromLegacyModelGeminiModels(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		modelName    string
@@ -351,6 +365,7 @@ func TestTierFromLegacyModelGeminiModels(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := TierFromLegacyModel(tt.modelName)
 			if got != tt.expectedTier {
 				t.Errorf("TierFromLegacyModel(%q) = %q, want %q", tt.modelName, got, tt.expectedTier)
@@ -362,6 +377,7 @@ func TestTierFromLegacyModelGeminiModels(t *testing.T) {
 // TestTierFromLegacyModelUnrecognizedPassthrough verifies that TierFromLegacyModel()
 // passes through unrecognized model names unchanged for forward compatibility.
 func TestTierFromLegacyModelUnrecognizedPassthrough(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		modelName    string
@@ -401,6 +417,7 @@ func TestTierFromLegacyModelUnrecognizedPassthrough(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := TierFromLegacyModel(tt.modelName)
 			if got != tt.expectedTier {
 				t.Errorf("TierFromLegacyModel(%q) = %q, want %q", tt.modelName, got, tt.expectedTier)
@@ -413,6 +430,7 @@ func TestTierFromLegacyModelUnrecognizedPassthrough(t *testing.T) {
 // handles model names case-insensitively for known models but preserves case
 // for unrecognized models (passthrough).
 func TestTierFromLegacyModelCaseInsensitive(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		modelName    string
@@ -447,6 +465,7 @@ func TestTierFromLegacyModelCaseInsensitive(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := TierFromLegacyModel(tt.modelName)
 			if got != tt.expectedTier {
 				t.Errorf("TierFromLegacyModel(%q) = %q, want %q", tt.modelName, got, tt.expectedTier)
@@ -459,9 +478,12 @@ func TestTierFromLegacyModelCaseInsensitive(t *testing.T) {
 // from the spec are properly mapped to their corresponding tiers.
 // This test captures the complete mapping requirement in one place.
 func TestTierFromLegacyModelAllKnownModels(t *testing.T) {
+	t.Parallel(
 	// Complete mapping from the spec: opus→high, sonnet→medium, haiku→low,
 	// o3→high, gpt-4o→medium, gpt-4o-mini→low, gpt-5.3-codex→medium,
 	// gpt-5.1-codex-mini→low
+	)
+
 	tests := []struct {
 		modelName    string
 		expectedTier string
@@ -481,6 +503,7 @@ func TestTierFromLegacyModelAllKnownModels(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.modelName, func(t *testing.T) {
+			t.Parallel()
 			got := TierFromLegacyModel(tt.modelName)
 			if got != tt.expectedTier {
 				t.Errorf("TierFromLegacyModel(%q) = %q, want %q", tt.modelName, got, tt.expectedTier)
@@ -493,6 +516,7 @@ func TestTierFromLegacyModelAllKnownModels(t *testing.T) {
 // is idempotent - calling it multiple times with the same input produces
 // the same output, and tier constants remain unchanged when passed through.
 func TestTierFromLegacyModelIdempotent(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		modelName string
@@ -513,6 +537,7 @@ func TestTierFromLegacyModelIdempotent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			first := TierFromLegacyModel(tt.modelName)
 			second := TierFromLegacyModel(tt.modelName)
 			third := TierFromLegacyModel(first)

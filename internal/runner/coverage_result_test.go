@@ -10,7 +10,10 @@ import (
 // TestPopulateCoverageResult verifies that populateCoverageResult correctly
 // populates coverage fields in IterationResult from a CoverageTracker.
 func TestPopulateCoverageResult(t *testing.T) {
+	t.Parallel(
 	// Create a tracker with test criteria
+	)
+
 	testCriteria := []coverage.Criterion{
 		{Number: 1, Text: "Criterion 1"},
 		{Number: 2, Text: "Criterion 2"},

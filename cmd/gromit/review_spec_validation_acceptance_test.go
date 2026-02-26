@@ -13,6 +13,7 @@ import (
 
 // smoke-matrix: keep | rationale: Retains high-value failure-path E2E coverage for strict spec validation and suggestion output. | destination: cmd/gromit/review_spec_validation_acceptance_test.go:TestCmdSmoke_ReviewSpecValidationEndToEnd
 func TestCmdSmoke_ReviewSpecValidationEndToEnd(t *testing.T) {
+	t.Parallel()
 	tmpDir := setupReviewSpecSmokeProject(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

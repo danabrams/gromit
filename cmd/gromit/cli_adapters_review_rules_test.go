@@ -11,6 +11,7 @@ import (
 )
 
 func TestCliPromptRenderer_RenderThoroughReview_UsesThoroughReviewPhaseRules(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	templatesDir := filepath.Join(gromitDir, "templates")

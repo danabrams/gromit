@@ -13,6 +13,7 @@ import (
 
 // smoke-matrix: keep | rationale: Verifies critical end-to-end explore invocation with explicit agent override and prompt forwarding. | destination: cmd/gromit/explore_codex_help_acceptance_test.go:TestCmdSmoke_ExploreAgentSelectionEndToEnd
 func TestCmdSmoke_ExploreAgentSelectionEndToEnd(t *testing.T) {
+	t.Parallel()
 	configContent := "paths:\n  gromit_dir: .gromit\nclaude:\n  binary: \"nonexistent-claude\"\nagents:\n  definitions:\n    override-agent:\n      binary: \"echo\"\n      flags:\n        - \"--from-override\"\n"
 	tmpDir := setupExploreAgentTestProject(t, configContent)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
