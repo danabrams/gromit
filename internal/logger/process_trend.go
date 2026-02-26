@@ -411,6 +411,11 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 	trend.StratifiedControlLimits = stratifiedLimits
 	trend.StratifiedAnomalies = stratifiedAnomalies
 
+	// Detect success rate regression (below 70%)
+	if anomaly, ok := detectSuccessRateRegression(latestMetric); ok {
+		trend.Anomalies = append(trend.Anomalies, anomaly)
+	}
+
 	sort.Slice(trend.ControlLimits, func(i, j int) bool { return trend.ControlLimits[i].Metric < trend.ControlLimits[j].Metric })
 	sort.Slice(trend.Anomalies, func(i, j int) bool { return trend.Anomalies[i].Metric < trend.Anomalies[j].Metric })
 	sort.Slice(trend.EWMAAnomalies, func(i, j int) bool { return trend.EWMAAnomalies[i].Metric < trend.EWMAAnomalies[j].Metric })

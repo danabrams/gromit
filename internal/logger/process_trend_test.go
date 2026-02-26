@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -1596,5 +1597,42 @@ func TestBuildContinuousMetrics_TimeoutDecompositionAggregates(t *testing.T) {
 	}
 	if trend.LatestWindow.TimeoutDecompositionSuccessRate != 1.0 {
 		t.Errorf("TimeoutDecompositionSuccessRate = %f, want 1.0", trend.LatestWindow.TimeoutDecompositionSuccessRate)
+	}
+}
+
+// TestBuildProcessTrend_DetectsRollingSuccessRateBelow70Percent verifies that
+// rolling success rate drops below 70% trigger a success_rate_regression alert.
+func TestBuildProcessTrend_DetectsRollingSuccessRateBelow70Percent(t *testing.T) {
+	// Create metrics with rolling success rate below 70% (simulating regression)
+	metrics := []IterationMetric{
+		{
+			Iteration:          1,
+			Success:            true,
+			RollingSuccessRate: 0.85,
+		},
+		{
+			Iteration:          2,
+			Success:            true,
+			RollingSuccessRate: 0.80,
+		},
+		{
+			Iteration:          3,
+			Success:            false,
+			RollingSuccessRate: 0.65, // Below 70% threshold
+		},
+	}
+
+	trend := buildProcessTrend(metrics, 30)
+
+	// Should have anomaly for success_rate_regression
+	anomaly, ok := findTrendAnomaly(trend.Anomalies, "success_rate_regression")
+	if !ok {
+		t.Fatalf("expected success_rate_regression anomaly, but not found in anomalies: %+v", trend.Anomalies)
+	}
+	if anomaly.Latest != 0.65 {
+		t.Errorf("anomaly latest = %v, want 0.65", anomaly.Latest)
+	}
+	if !strings.Contains(anomaly.Message, "70%") {
+		t.Errorf("anomaly message should mention 70%% threshold, got: %s", anomaly.Message)
 	}
 }

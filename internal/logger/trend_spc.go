@@ -340,3 +340,20 @@ func clamp(v, lo, hi float64) float64 {
 	}
 	return v
 }
+
+// detectSuccessRateRegression checks if rolling success rate drops below 70% threshold
+// and returns an anomaly if it does.
+func detectSuccessRateRegression(latestMetric IterationMetric) (TrendAnomaly, bool) {
+	threshold := 0.70
+	if latestMetric.RollingSuccessRate < threshold {
+		return TrendAnomaly{
+			Metric:   "success_rate_regression",
+			Latest:   latestMetric.RollingSuccessRate,
+			UCL:      threshold,
+			LCL:      0,
+			Severity: anomalySeverityHigh,
+			Message:  fmt.Sprintf("rolling success rate %.2f%% has dropped below 70%% threshold - potential regression", latestMetric.RollingSuccessRate*100),
+		}, true
+	}
+	return TrendAnomaly{}, false
+}
