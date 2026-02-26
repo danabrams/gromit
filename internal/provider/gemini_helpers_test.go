@@ -105,3 +105,56 @@ func TestParseGeminiStreamEvent(t *testing.T) {
 		})
 	}
 }
+
+func TestExtractGeminiAssistantText(t *testing.T) {
+	events := []map[string]interface{}{
+		{
+			"type":    "message",
+			"role":    "user",
+			"content": "Return exactly STREAM_OK",
+		},
+		{
+			"type":    "message",
+			"role":    "assistant",
+			"content": "STREAM_OK",
+			"delta":   true,
+		},
+	}
+
+	text := extractGeminiAssistantText(events)
+	if text != "STREAM_OK" {
+		t.Errorf("expected 'STREAM_OK', got %q", text)
+	}
+}
+
+func TestExtractGeminiAssistantText_MultipleMessages(t *testing.T) {
+	events := []map[string]interface{}{
+		{
+			"type":    "message",
+			"role":    "assistant",
+			"content": "Hello",
+		},
+		{
+			"type":    "message",
+			"role":    "assistant",
+			"content": " ",
+		},
+		{
+			"type":    "message",
+			"role":    "assistant",
+			"content": "world",
+		},
+	}
+
+	text := extractGeminiAssistantText(events)
+	if text != "Hello world" {
+		t.Errorf("expected 'Hello world', got %q", text)
+	}
+}
+
+func TestExtractGeminiAssistantText_EmptyEvents(t *testing.T) {
+	text := extractGeminiAssistantText([]map[string]interface{}{})
+	if text != "" {
+		t.Errorf("expected empty string, got %q", text)
+	}
+}
