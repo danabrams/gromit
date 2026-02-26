@@ -11,5 +11,20 @@
   "model": "gemini-3-flash-preview",
   "finish_reason": "stop",
   "session_id": "fb5c131e-afa6-47dd-8c5d-53b4ec953375",
+  "stats": {
+    "models": {
+      "gemini-3-flash-preview": {
+        "tokens": {
+          "input": 13284,
+          "prompt": 13284,
+          "candidates": 5,
+          "total": 13317,
+          "cached": 0,
+          "thoughts": 0,
+          "tool": 0
+        }
+      }
+    }
+  },
   "response": "READY"
 }

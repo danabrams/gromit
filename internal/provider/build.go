@@ -70,7 +70,7 @@ func BuildProvidersFromConfig(cfg *config.Config) (map[string]Provider, error) {
 			if len(tierMap) == 0 {
 				tierMap = defaultGeminiTierToModelMap
 			}
-			providers[name] = NewGeminiProvider(def.Binary, def.Flags, tierMap)
+			providers[name] = NewGeminiProvider(def.Binary, def.Flags, tierMap, nil)
 		default:
 			return nil, fmt.Errorf("unrecognized provider %q: supported providers are \"claude\", \"codex\", and \"gemini\"", name)
 		}

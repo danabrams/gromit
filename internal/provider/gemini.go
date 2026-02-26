@@ -3,7 +3,6 @@ package provider
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -16,10 +15,11 @@ const providerNameGemini = "gemini"
 // GeminiProvider wraps the Gemini CLI and implements the Provider interface
 // for JSON and streaming invocations.
 type GeminiProvider struct {
-	binary      string
-	flags       []string
-	tierToModel map[string]string
-	runFn       geminiRunFn
+	binary        string
+	flags         []string
+	tierToModel   map[string]string
+	runFn         geminiRunFn
+	costEstimator geminiCostEstimator
 }
 
 // Compile-time check to verify GeminiProvider satisfies Provider.
@@ -36,15 +36,16 @@ type geminiRunFn func(ctx context.Context, binary string, args []string) (*gemin
 
 // NewGeminiProvider constructs a GeminiProvider with the specified binary, flags,
 // and tier-to-model mapping.
-func NewGeminiProvider(binary string, flags []string, tierToModel map[string]string) *GeminiProvider {
+func NewGeminiProvider(binary string, flags []string, tierToModel map[string]string, estimator geminiCostEstimator) *GeminiProvider {
 	if tierToModel == nil {
 		tierToModel = map[string]string{}
 	}
 	return &GeminiProvider{
-		binary:      binary,
-		flags:       append([]string(nil), flags...),
-		tierToModel: tierToModel,
-		runFn:       defaultGeminiRunFn,
+		binary:        binary,
+		flags:         append([]string(nil), flags...),
+		tierToModel:   tierToModel,
+		runFn:         defaultGeminiRunFn,
+		costEstimator: estimator,
 	}
 }
 
@@ -83,7 +84,7 @@ func (gp *GeminiProvider) Run(ctx context.Context, prompt string, tier string) (
 		return nil, fmt.Errorf("gemini run returned nil result")
 	}
 
-	result, err := buildGeminiResult(execResult, model)
+	result, err := buildGeminiResult(execResult, model, gp.costEstimator)
 	if err != nil {
 		return nil, err
 	}
@@ -145,13 +146,13 @@ func (gp *GeminiProvider) buildCommandArgs(model, outputFormat, prompt string) [
 	return args
 }
 
-func buildGeminiResult(execResult *geminiRunResult, defaultModel string) (*Result, error) {
+func buildGeminiResult(execResult *geminiRunResult, defaultModel string, estimator geminiCostEstimator) (*Result, error) {
 	payload, err := extractJSONPayload(execResult.stdout)
 	if err != nil {
 		return nil, err
 	}
 
-	parsed, err := parseGeminiJSONResult(payload)
+	parsed, err := parseGeminiJSONResult(payload, defaultModel, estimator)
 	if err != nil {
 		return nil, err
 	}
@@ -164,11 +165,6 @@ func buildGeminiResult(execResult *geminiRunResult, defaultModel string) (*Resul
 
 	if parsed.Model == "" {
 		parsed.Model = defaultModel
-	}
-
-	var jsonData map[string]interface{}
-	if err := json.Unmarshal(payload, &jsonData); err == nil {
-		parsed.CostUSD = extractGeminiCost(jsonData)
 	}
 
 	return parsed, nil

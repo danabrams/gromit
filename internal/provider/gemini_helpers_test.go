@@ -12,7 +12,7 @@ func TestParseGeminiJSONResult(t *testing.T) {
 		t.Fatalf("failed to read fixture: %v", err)
 	}
 
-	result, err := parseGeminiJSONResult(jsonBytes)
+	result, err := parseGeminiJSONResult(jsonBytes, "gemini-3-flash-preview", nil)
 	if err != nil {
 		t.Fatalf("parseGeminiJSONResult failed: %v", err)
 	}
