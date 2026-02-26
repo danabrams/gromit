@@ -307,3 +307,6 @@ func (b *backlogAdapter) Update(id string, fn func(*pipeline.Idea)) error {
 		applyPipelineIdeaFields(idea, pipelineIdea)
 	})
 }
+
+// Compile-time interface check
+var _ pipeline.BacklogClient = (*backlogAdapter)(nil)
