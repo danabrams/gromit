@@ -19,8 +19,10 @@ import (
 
 // mockRouter implements the Router interface for reviewpkg tests.
 type mockRouter struct {
-	selectFn      func(phase, tier string) (provider.Provider, string)
-	selectCrossFn func(buildProvider, tier string) (provider.Provider, string)
+	selectFn          func(phase, tier string) (provider.Provider, string)
+	selectCrossFn     func(buildProvider, tier string) (provider.Provider, string)
+	SelectCalled      bool
+	SelectCrossCalled bool
 }
 
 func (m *mockRouter) Select(phase, tier string) (provider.Provider, string) {
