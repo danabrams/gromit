@@ -1,8 +1,9 @@
 ---
+created: 2026-02-26T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-26T19:18:44Z"
 id: touched-package-unit-tests
 source_spec: touched-package-unit-tests
-created: 2026-02-26
-decomposed: false
 ---
 
 # Touched Package Unit Tests Implementation Plan

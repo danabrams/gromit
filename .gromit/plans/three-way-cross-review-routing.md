@@ -1,8 +1,9 @@
 ---
+created: 2026-02-26T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-26T19:12:58Z"
 id: three-way-cross-review-routing
 source_spec: three-way-cross-review-routing
-created: 2026-02-26
-decomposed: false
 ---
 
 # Three-Way Cross-Review Routing Implementation Plan
