@@ -367,3 +367,111 @@ func (m *mockExploreRunner) Explore(ctx context.Context, input pipeline.ExploreI
 	}
 	return m.result, nil
 }
+
+type capturingMockExploreRunner struct {
+	result       *pipeline.ExploreResult
+	captureInput func(pipeline.ExploreInput)
+}
+
+func (m *capturingMockExploreRunner) Explore(ctx context.Context, input pipeline.ExploreInput) (*pipeline.ExploreResult, error) {
+	if m.captureInput != nil {
+		m.captureInput(input)
+	}
+	return m.result, nil
+}
+
+func TestExploreCommand_DelegatesToPipeline(t *testing.T) {
+	origRunnerFactory := exploreRunnerFactoryFn
+	t.Cleanup(func() {
+		exploreRunnerFactoryFn = origRunnerFactory
+	})
+
+	baseDir := t.TempDir()
+	t.Chdir(baseDir)
+	gromitDir := filepath.Join(baseDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("mkdir gromit: %v", err)
+	}
+
+	// Create a minimal gromit.yaml config file with worktrees disabled
+	configContent := `version: 1
+worktree:
+  enabled: false
+`
+	if err := os.WriteFile(filepath.Join(baseDir, "gromit.yaml"), []byte(configContent), 0o644); err != nil {
+		t.Fatalf("write gromit.yaml: %v", err)
+	}
+
+	// Track delegation details
+	var capturedInput pipeline.ExploreInput
+	delegationCallCount := 0
+
+	exploreRunnerFactoryFn = func(cfg *config.Config) (exploreRunner, error) {
+		return &capturingMockExploreRunner{
+			result: &pipeline.ExploreResult{
+				CreatedEpics:        []string{"epic1.md"},
+				CreatedSpecs:        []string{"spec1.md"},
+				CreatedBacklogItems: []string{"item1", "item2"},
+			},
+			captureInput: func(input pipeline.ExploreInput) {
+				capturedInput = input
+				delegationCallCount++
+			},
+		}, nil
+	}
+
+	cmd := exploreCmd
+	cmd.Flags().Set("model", "sonnet")
+	cmd.Flags().Set("agent", "test-agent")
+	cmd.Flags().Set("choose-agent", "false")
+
+	// Capture stdout to verify artifact path reporting
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	// Call runExplore with topic argument
+	topic := "Test exploration topic"
+	errResult := runExplore(cmd, []string{topic})
+
+	w.Close()
+	os.Stdout = oldStdout
+	output := ""
+	if data, err := io.ReadAll(r); err == nil {
+		output = string(data)
+	}
+
+	if errResult != nil {
+		t.Fatalf("runExplore() error = %v", errResult)
+	}
+
+	// Assert delegation call count
+	if delegationCallCount != 1 {
+		t.Fatalf("expected 1 delegation call, got %d", delegationCallCount)
+	}
+
+	// Assert input field mapping
+	if capturedInput.Topic != topic {
+		t.Fatalf("Topic: expected %q, got %q", topic, capturedInput.Topic)
+	}
+	if capturedInput.AgentName != "test-agent" {
+		t.Fatalf("AgentName: expected %q, got %q", "test-agent", capturedInput.AgentName)
+	}
+	if capturedInput.ChooseAgent != false {
+		t.Fatalf("ChooseAgent: expected false, got %v", capturedInput.ChooseAgent)
+	}
+	if capturedInput.Model != "sonnet" {
+		t.Fatalf("Model: expected %q, got %q", "sonnet", capturedInput.Model)
+	}
+
+	// Assert output artifact path reporting
+	if !strings.Contains(output, "epic1.md") {
+		t.Fatalf("output missing artifact path 'epic1.md', got: %q", output)
+	}
+	if !strings.Contains(output, "spec1.md") {
+		t.Fatalf("output missing artifact path 'spec1.md', got: %q", output)
+	}
+	if !strings.Contains(output, "Backlog items created: 2") {
+		t.Fatalf("output missing backlog count, got: %q", output)
+	}
+}
