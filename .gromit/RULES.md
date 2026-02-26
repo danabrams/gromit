@@ -12,14 +12,14 @@ These are non-negotiable constraints for this project.
 - Functions that run subprocesses or prompts must inject those dependencies for testability
 - JSON tags must be snake_case and explicit (e.g. `input_tokens`, `cost_usd`); use `omitempty` only for truly optional fields
 - Agent execution must use `agent.Resolve()` + `agent.Launch()`; never construct `exec.Command` directly
-- Spec order: `scope.ValidateSpec(specsDir, specName)` before `scope.ResolveSpec(specName)`
+- Spec order: `scope.ValidateSpec(...)` before `scope.ResolveSpec(...)`
 - Interface files must include `var _ InterfaceName = (*Impl)(nil)`. Interface changes must include implementation + mock updates in the same bead
-- Prompt templates: `PROMPT_<name>.md` files registered in `runInit()` via `defaultXxxTemplate` constants; renderers take context structs returning `(string, error)`. Share common sections; vary only Instructions/Completion per context type. Never ignore loader errors (`LoadRulesForPhase`, template reads); propagate or emit structured warnings
-- Router: choose tier (`low|medium|high`), resolve model (`haiku|sonnet|opus`). Store model names (not tier labels) in fields like `EscalatedTo`. Lives in `internal/runner/escalation/`
-- Mocks use FnField pattern: optional function-pointer fields with nil-safe defaults. Tests set only the callbacks needed for the code path under test; don't require full mock setup for a single method
+- Prompt templates: register `PROMPT_<name>.md` in `runInit()` via `defaultXxxTemplate`. Renderers take context structs returning `(string, error)`. Share common sections; vary only Instructions/Completion. Never ignore loader errors
+- Router: choose tier (`low|medium|high`), resolve model (`haiku|sonnet|opus`); store model names in fields like `EscalatedTo`. Lives in `internal/runner/escalation/`
+- Mocks use FnField pattern with nil-safe defaults; tests set only needed callbacks
 - Per-run accumulator fields (slices, maps) in Runner must be reset at the top of Run(), not in individual phases
-- Renderer owns context/state setup. Configure it in NewRunner() via setters; BuildContext() reads those values. Never bypass Renderer state
-- Do not discard errors from renderer/template/rules loaders (no `_, _ :=` for fallible setup). Propagate the error or log a structured warning with phase and file context
+- Renderer owns context/state; configure via setters in `NewRunner()`; `BuildContext()` reads it; don't bypass
+- Do not discard errors from renderer/template/rules loaders (no `_, _ :=` for fallible setup). Propagate or log a structured warning with phase + file context
 
 ## Safety <!-- phases: red, build, green, refactor, review -->
 
@@ -56,24 +56,24 @@ These are non-negotiable constraints for this project.
 - Observability fields (cost/tokens/duration/model/provider) must be produced through the same runtime execution path used in production; any alternate/test path must have parity contract tests proving identical field population semantics
 - Any bead touching provider stream usage/event handling must add a stream-event matrix contract test (turn/response/result paths) that covers both positive attribution (known model/provider) and negative completeness cases (missing current-run rows fail closed)
 - `internal/runner/*/` sub-packages must not import siblings **in production or test files**; cross-cutting types live in `runtypes/`. Parent `runner` package uses type aliases for backward compatibility. Production files: <550 lines; facade files: <1000 lines
-- Interactive commands use the session worktree lifecycle with a single merge/cleanup owner and a typed conflict classifier that evaluates git output + exit status. Do not classify conflicts using message fragments alone. Merge-back cleanup may abort only merge state created by the current operation; pre-existing `MERGE_HEAD` must return a typed non-destructive error.
+- Interactive commands use the session worktree lifecycle with a single merge/cleanup owner and typed conflict classification from git output + exit status. Do not classify conflicts by message fragments alone. Merge-back cleanup may abort only merge state created by the current operation; pre-existing `MERGE_HEAD` must return a typed non-destructive error.
 - During orchestrator migrations, cross-cutting concerns (state persistence, cost/token metrics, status updates) must be implemented in one shared path, with parity tests if legacy and new paths coexist
 - All decomposition entry points must call the same shared validator. Required-field rules (non-empty title, expected_outputs contract, dependency-field validity) must not live in call-site-only checks. Any field required by validation must be present in candidate mapping and reprompt context; prompt/schema/fixture changes for those fields must ship together.
 
 ## Build Process <!-- phases: build -->
 
-- Pipeline methods use typed input/output structs, validate deps first, renderer processing, and post-processing change detection; keep pipeline tests next to command files
-- Config fields provide defaults in `SetDefaults()` (test the omitted-YAML defaults) and mirror new `IterationResult` fields into `IterationLog` via `writeIterationLog()`
-- Shared-package refactors (e.g., learnings/config) rerun dependent test suites after each commit and verify each diff still matches intent
+- Pipeline methods use typed input/output structs; validate deps first; keep pipeline tests next to command files
+- Config defaults live in `SetDefaults()`; mirror new `IterationResult` fields into `IterationLog` via `writeIterationLog()`
+- Shared-package refactors rerun test suites after commits and verify each diff matches intent
 - Test-only bead detection: use `bead.IsTestOnlyBead()` (e.g., "Add tests for") alongside `IsMethodologyActive()`
-- On bead failure: add the bead to `skippedBeads`, not inline, and after 2 consecutive cross-run failures automatically create/link decomposition sub-beads with explicit expected_outputs and bounded scope. For telemetry/usage beads, children must split (1) event-merge semantics, (2) completeness assertions, and (3) attribution mapping. Block parent retries until a child lands, forbid retries when decomposition creation is partial/non-idempotent, emit an auditable decomposition-attempt event, fail the iteration if enforcement is skipped, and keep a 3+ threshold for final skip escalation
-- On timeout failure, when elapsed phase time exceeds 75% of budget apply timeout-first decomposition and forbid same-scope retries until decomposition or explicit escalation occurs.
-- `Run()` order: validate → execute → persist state → between-iteration hooks → continue. No reordering; log timeout warnings (not early return); nil-safe receiver/config checks at method entry. Iteration metrics (duration/cost/tokens) must be persisted before any timeout/failure return path and verified by completeness tests
+- On bead failure: add to `skippedBeads`. After 2 consecutive failures, create/link decomposition sub-beads with expected_outputs and bounded scope. Telemetry/usage children split: (1) event-merge, (2) completeness, (3) attribution. Block parent retries until a child lands; no retries on partial/non-idempotent decomposition; emit decomposition-attempt event; fail if skipped; skip escalation after 3+.
+- On timeout, if elapsed time exceeds 75% of budget apply timeout-first decomposition and forbid same-scope retries until decomposition or explicit escalation.
+- `Run()` order: validate → execute → persist state → between-iteration hooks → continue. No reordering; log timeout warnings (no early return); nil-safe receiver/config checks at method entry. Persist iteration metrics before any timeout/failure return and verify via completeness tests
 - New config types/fields: update `gromit.yaml` to match — project-config tests validate the live file against the schema
-- Validation recovery auto-fixes (`gofmt`/`goimports`), re-validates, and escalates to Claude only if still failing (`MaxValidationRetries` default 1)
+- Validation recovery auto-fixes (`gofmt`/`goimports`), re-validates, escalates to Claude only if still failing (`MaxValidationRetries` default 1)
 - `test/contracts/` contract tests verify git call order (`rev-parse` before `git diff --stat`) and keep harness init and sequencing intact
-- Validation commands in gromit.yaml must match the build system (`go test`, `go vet`, `go build` per go.mod); never pnpm/npm. API/lifecycle/orchestrator deletions or migrations must add compile gate `go test -tags acceptance -run '^$' ./...`.
-- Usage accounting must use explicit before/after snapshots for every phase and a consistent merge strategy for provider stream events; mixing raw totals and deltas in one run is forbidden. Retro/efficiency report generation must fail if total_iterations > 0 and current-run per-iteration rows are empty, or if run-level aggregates are non-zero while rows are empty, or if any phase snapshot is missing. In this state, output must show `insufficient_current_run_data` and all current-vs-historical deltas as `N/A` (never zero-filled defaults). SPC/control-limit alerts must suppress strata with insufficient sample size (for example <20 points) to avoid false high-severity unknown-bucket alerts.
+- Validation commands in gromit.yaml must match the build system (go test/vet/build); never pnpm/npm. API/lifecycle/orchestrator deletions or migrations must add compile gate `go test -tags acceptance -run '^$' ./...`.
+- Usage accounting must use explicit before/after snapshots and a consistent merge strategy for provider stream events; mixing raw totals and deltas in one run is forbidden. Retro/efficiency must fail if total_iterations > 0 with empty current-run rows, if aggregates are non-zero while rows are empty, or if any phase snapshot is missing. In this state, output must show `insufficient_current_run_data` and deltas as `N/A`. SPC/control-limit alerts must suppress strata with insufficient sample size (<20 points).
 - When deleting exported APIs or large orchestration files, run `go test -tags acceptance -run '^$' ./...` as a compile gate before merge; blocked build-tagged references must be resolved in the same bead
 - Build phases run `go test`/`go vet` on touched packages only; full validation runs `go test ./...`, `go vet ./...`, `go build ./...`
 - `test_touched.sh` tests branch-modified packages; existing failures in those packages block new beads, so verify they pass before starting dependent work
