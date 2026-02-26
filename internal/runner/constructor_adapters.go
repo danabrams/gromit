@@ -26,6 +26,7 @@ import (
 	"github.com/danabrams/gromit/internal/runner/execution"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/specgate"
+	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/danabrams/gromit/internal/validate"
 	"github.com/danabrams/gromit/internal/worktree"
 )
@@ -527,12 +528,21 @@ type scopeGateSubBead struct {
 
 // decomposerAdapter uses provider routing to invoke LLM-powered decomposition of oversized beads.
 type decomposerAdapter struct {
-	beads       *bead.Client
+	tracker     tracker.Client
 	router      *provider.Router
 	maxSubBeads int
 
 	mu               sync.Mutex
 	createdChildKeys map[string]map[string]struct{}
+}
+
+// getBeadClient unwraps the underlying *bead.Client from the tracker.Client.
+// Returns nil if the client is not a BDAdapter.
+func (a *decomposerAdapter) getBeadClient() *bead.Client {
+	if a == nil {
+		return nil
+	}
+	return bead.UnwrapBDAdapter(a.tracker)
 }
 
 func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
@@ -579,7 +589,11 @@ func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 		}
 
 		childLabels := append(append([]string(nil), labels...), dedupeLabel)
-		if _, err := a.beads.CreateWithParent(sb.Title, b.Priority, childLabels, sb.ExpectedOutputs, b.ID); err != nil {
+		beadClient := a.getBeadClient()
+		if beadClient == nil {
+			return fmt.Errorf("decomposerAdapter: unable to access bead client")
+		}
+		if _, err := beadClient.CreateWithParent(sb.Title, b.Priority, childLabels, sb.ExpectedOutputs, b.ID); err != nil {
 			// If we've already created some children and now one fails, this is a partial state
 			if successfullyCreatedCount > 0 {
 				return fmt.Errorf("decomposerAdapter: partial decomposition state: %w", escalation.ErrPartialDecompositionState)
@@ -590,7 +604,11 @@ func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 		successfullyCreatedCount++
 	}
 
-	if err := a.beads.Close(b.ID); err != nil {
+	beadClient := a.getBeadClient()
+	if beadClient == nil {
+		return fmt.Errorf("decomposerAdapter: unable to access bead client for closing")
+	}
+	if err := beadClient.Close(b.ID); err != nil {
 		return fmt.Errorf("decomposerAdapter: closing parent bead: %w", err)
 	}
 	return nil
@@ -672,11 +690,12 @@ func (a *decomposerAdapter) rememberCreatedChildKey(parentID, key string) {
 }
 
 func (a *decomposerAdapter) childWithDedupeLabelExists(parentID, dedupeLabel string) (bool, error) {
-	if a.beads == nil {
+	beadClient := a.getBeadClient()
+	if beadClient == nil {
 		return false, fmt.Errorf("bead client is nil")
 	}
 
-	matches, err := a.beads.ListWithLabel(dedupeLabel)
+	matches, err := beadClient.ListWithLabel(dedupeLabel)
 	if err != nil {
 		return false, err
 	}
@@ -710,10 +729,11 @@ func (a *decomposerAdapter) resolveInheritedLabels(parent *bead.Bead) []string {
 	}
 	appendUnique(findLabelWithPrefix(parent.Labels, buildStrategyPrefix))
 
-	if a.beads == nil || parent.ID == "" {
+	beadClient := a.getBeadClient()
+	if beadClient == nil || parent.ID == "" {
 		return labels
 	}
-	fullParent, err := a.beads.Show(parent.ID)
+	fullParent, err := beadClient.Show(parent.ID)
 	if err != nil || fullParent == nil {
 		return labels
 	}

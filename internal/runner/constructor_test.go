@@ -174,7 +174,7 @@ func TestDecomposerAdapter_Decompose_CreatesChildBeads(t *testing.T) {
 		return "", nil
 	}
 
-	adapter := &decomposerAdapter{beads: client, router: stubRouter}
+	adapter := &decomposerAdapter{tracker: bead.NewBDAdapter(client), router: stubRouter}
 	b := &bead.Bead{
 		ID:              "over-1",
 		Title:           "oversized bead",
@@ -218,7 +218,7 @@ func TestDecomposerAdapter_InvokesProviderViaRouter(t *testing.T) {
 		return "", nil
 	}
 
-	adapter := &decomposerAdapter{beads: client, router: router}
+	adapter := &decomposerAdapter{tracker: bead.NewBDAdapter(client), router: router}
 	b := &bead.Bead{
 		ID:              "parent-1",
 		Title:           "Oversized Feature",
@@ -263,7 +263,7 @@ func TestDecomposerAdapter_ClosesParentBeadAfterLLMDecomposition(t *testing.T) {
 		return "", nil
 	}
 
-	adapter := &decomposerAdapter{beads: client, router: router}
+	adapter := &decomposerAdapter{tracker: bead.NewBDAdapter(client), router: router}
 	b := &bead.Bead{
 		ID:              "parent-to-close",
 		Title:           "Oversized Feature",
@@ -389,7 +389,7 @@ func TestDecomposerAdapter_Decompose_InheritsParentBuildStrategyAndSpecLabels(t 
 		}
 	}
 
-	adapter := &decomposerAdapter{beads: client, router: stubRouter}
+	adapter := &decomposerAdapter{tracker: bead.NewBDAdapter(client), router: stubRouter}
 	b := &bead.Bead{
 		ID:              "parent-1",
 		Title:           "Oversized Feature",
@@ -930,7 +930,7 @@ func TestGateRunScopeGate_ContractViolationFallsBackToBlock(t *testing.T) {
 		return "", nil
 	}
 
-	gate := prepare.New(io.Discard).WithDecomposer(&decomposerAdapter{beads: client, router: router})
+	gate := prepare.New(io.Discard).WithDecomposer(&decomposerAdapter{tracker: bead.NewBDAdapter(client), router: router})
 	blockTrue := true
 	cfg := &config.Config{
 		ScopeCheck: config.ScopeCheckConfig{
@@ -1002,7 +1002,7 @@ func TestDecomposerAdapter_Decompose_RejectsMoreThanFiveSubBeads(t *testing.T) {
 		return "", nil
 	}
 
-	adapter := &decomposerAdapter{beads: client, router: router}
+	adapter := &decomposerAdapter{tracker: bead.NewBDAdapter(client), router: router}
 	err = adapter.Decompose(context.Background(), &bead.Bead{
 		ID:              "parent-1",
 		Title:           "Oversized Feature",
@@ -1117,7 +1117,7 @@ func TestDecomposerAdapter_Decompose_RejectsChildWithMoreThanFiveExpectedOutputs
 		return "", nil
 	}
 
-	adapter := &decomposerAdapter{beads: client, router: router}
+	adapter := &decomposerAdapter{tracker: bead.NewBDAdapter(client), router: router}
 	err = adapter.Decompose(context.Background(), &bead.Bead{
 		ID:       "parent-1",
 		Title:    "Oversized Feature",
@@ -1169,7 +1169,7 @@ func TestDecomposerAdapter_Decompose_RejectsEmptyExpectedOutput(t *testing.T) {
 		return "", nil
 	}
 
-	adapter := &decomposerAdapter{beads: client, router: router}
+	adapter := &decomposerAdapter{tracker: bead.NewBDAdapter(client), router: router}
 	err = adapter.Decompose(context.Background(), &bead.Bead{
 		ID:       "parent-1",
 		Title:    "Oversized Feature",
@@ -1221,7 +1221,7 @@ func TestDecomposerAdapter_Decompose_RejectsEmptyTitle(t *testing.T) {
 		return "", nil
 	}
 
-	adapter := &decomposerAdapter{beads: client, router: router}
+	adapter := &decomposerAdapter{tracker: bead.NewBDAdapter(client), router: router}
 	err = adapter.Decompose(context.Background(), &bead.Bead{
 		ID:       "parent-1",
 		Title:    "Oversized Feature",
@@ -1273,7 +1273,7 @@ func TestDecomposerAdapter_Decompose_RejectsChildWithNoExpectedOutputs(t *testin
 		return "", nil
 	}
 
-	adapter := &decomposerAdapter{beads: client, router: router}
+	adapter := &decomposerAdapter{tracker: bead.NewBDAdapter(client), router: router}
 	err = adapter.Decompose(context.Background(), &bead.Bead{
 		ID:       "parent-1",
 		Title:    "Oversized Feature",
@@ -1325,7 +1325,7 @@ func TestDecomposerAdapter_Decompose_RejectsDuplicateExpectedOutputs(t *testing.
 		return "", nil
 	}
 
-	adapter := &decomposerAdapter{beads: client, router: router}
+	adapter := &decomposerAdapter{tracker: bead.NewBDAdapter(client), router: router}
 	err = adapter.Decompose(context.Background(), &bead.Bead{
 		ID:       "parent-1",
 		Title:    "Oversized Feature",
@@ -1377,7 +1377,7 @@ func TestDecomposerAdapter_Decompose_RejectsExpectedOutputThatEchoesParentTitle(
 		return "", nil
 	}
 
-	adapter := &decomposerAdapter{beads: client, router: router}
+	adapter := &decomposerAdapter{tracker: bead.NewBDAdapter(client), router: router}
 	err = adapter.Decompose(context.Background(), &bead.Bead{
 		ID:       "parent-1",
 		Title:    "Oversized Feature",
@@ -1437,7 +1437,7 @@ func TestDecomposerAdapter_Decompose_RetryDoesNotDuplicatePreviouslyCreatedChild
 		return "", nil
 	}
 
-	adapter := &decomposerAdapter{beads: client, router: router}
+	adapter := &decomposerAdapter{tracker: bead.NewBDAdapter(client), router: router}
 	parent := &bead.Bead{
 		ID:       "parent-1",
 		Title:    "Oversized Feature",
@@ -1510,7 +1510,7 @@ func TestDecomposerAdapter_Decompose_RetryDoesNotDuplicateWhenExpectedOutputsAre
 		return "", nil
 	}
 
-	adapter := &decomposerAdapter{beads: client, router: router}
+	adapter := &decomposerAdapter{tracker: bead.NewBDAdapter(client), router: router}
 	parent := &bead.Bead{
 		ID:       "parent-1",
 		Title:    "Oversized Feature",
@@ -1585,7 +1585,7 @@ func TestDecomposerAdapter_Decompose_RetryDoesNotDuplicateWhenTitleAndOutputsVar
 		return "", nil
 	}
 
-	adapter := &decomposerAdapter{beads: client, router: router}
+	adapter := &decomposerAdapter{tracker: bead.NewBDAdapter(client), router: router}
 	parent := &bead.Bead{
 		ID:       "parent-1",
 		Title:    "Oversized Feature",
@@ -1757,7 +1757,7 @@ func TestDecomposerAdapter_Decompose_DetectsPartialDecompositionState(t *testing
 		return "", nil
 	}
 
-	adapter := &decomposerAdapter{beads: client, router: router}
+	adapter := &decomposerAdapter{tracker: bead.NewBDAdapter(client), router: router}
 	parent := &bead.Bead{
 		ID:       "parent-1",
 		Title:    "Oversized Feature",
@@ -1807,7 +1807,7 @@ func TestDecomposerAdapter_Decompose_FirstChildFailureReturnsOriginalError(t *te
 		return "", nil
 	}
 
-	adapter := &decomposerAdapter{beads: client, router: router}
+	adapter := &decomposerAdapter{tracker: bead.NewBDAdapter(client), router: router}
 	parent := &bead.Bead{
 		ID:       "parent-1",
 		Title:    "Oversized Feature",
@@ -1868,7 +1868,7 @@ func TestDecomposerAdapter_Decompose_RetryAfterPartialStateDeduplicatesSuccessfu
 		return "", nil
 	}
 
-	adapter := &decomposerAdapter{beads: client, router: router}
+	adapter := &decomposerAdapter{tracker: bead.NewBDAdapter(client), router: router}
 	parent := &bead.Bead{
 		ID:       "parent-1",
 		Title:    "Oversized Feature",
@@ -1938,7 +1938,7 @@ func TestDecomposerAdapter_Decompose_FullySuccessfulPathReturnsNil(t *testing.T)
 		return "", nil
 	}
 
-	adapter := &decomposerAdapter{beads: client, router: router}
+	adapter := &decomposerAdapter{tracker: bead.NewBDAdapter(client), router: router}
 	parent := &bead.Bead{
 		ID:       "parent-1",
 		Title:    "Oversized Feature",

@@ -139,7 +139,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 	// Stage 1: Gate (prepare.New with optional Prechecker, StuckDetector, Decomposer)
 	gateStage := prepare.New(syncOut)
 	gateStage.WithDecomposer(&decomposerAdapter{
-		beads:       beadsClient,
+		tracker:     trackerClientInterface,
 		router:      router,
 		maxSubBeads: cfg.Validation.RuntimeMaxSubBeadsValue(),
 	})
