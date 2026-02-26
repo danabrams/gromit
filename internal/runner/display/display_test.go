@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 )
@@ -111,6 +112,20 @@ func TestFormatSPCSummary_nilTrend(t *testing.T) {
 	got := FormatSPCSummary(nil)
 	if !strings.Contains(got, "SPC: (no data)") {
 		t.Fatalf("FormatSPCSummary(nil) = %q, want substring %q", got, "SPC: (no data)")
+	}
+}
+
+func TestFormatCompatibility_defaultContext(t *testing.T) {
+	t.Parallel()
+
+	ctx := config.CompatibilityContext{
+		Profile: config.CompatibilityResolvedValue{Value: "go", Source: "config"},
+		TrackerBackend: config.CompatibilityResolvedValue{Value: "jira", Source: "env"},
+		MethodologyAdapter: config.CompatibilityResolvedValue{Value: "go", Source: "default"},
+	}
+	got := FormatCompatibility(ctx)
+	if !strings.Contains(got, "Compatibility:") {
+		t.Fatalf("FormatCompatibility() = %q, want substring %q", got, "Compatibility:")
 	}
 }
 

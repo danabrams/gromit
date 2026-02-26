@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 )
@@ -145,6 +146,22 @@ func FormatRecommendation(rec string) string {
 		}
 	}
 	return "Next action: " + rec + hint
+}
+
+// FormatCompatibility formats compatibility context for display.
+func FormatCompatibility(ctx config.CompatibilityContext) string {
+	lines := []string{
+		"Compatibility:",
+		fmt.Sprintf("  Profile:  %s (source: %s)", ctx.Profile.Value, ctx.Profile.Source),
+		fmt.Sprintf("  Backend:  %s (source: %s)", ctx.TrackerBackend.Value, ctx.TrackerBackend.Source),
+		fmt.Sprintf("  Adapter:  %s (source: %s)", ctx.MethodologyAdapter.Value, ctx.MethodologyAdapter.Source),
+	}
+	markers := config.CompatibilityDeprecationMarkers(ctx)
+	if len(markers) > 0 {
+		lines = append(lines, fmt.Sprintf("  Deprecation markers: %s", strings.Join(markers, ", ")))
+		lines = append(lines, fmt.Sprintf("  Strict default cutoff: %s", config.CompatibilityStrictDefaultCutoverDate))
+	}
+	return strings.Join(lines, "\n")
 }
 
 // FormatModelPerformance formats per-model performance statistics for display.
