@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/tracker"
 )
 
 type testQueueModelSelector struct{}
@@ -282,4 +284,104 @@ func TestPrintQueueByStatus_BySpecIncludesSpecsWithoutReadyBeads(t *testing.T) {
 	if !strings.Contains(output, "Blocked (1):") {
 		t.Fatalf("expected blocked subsection, got:\n%s", output)
 	}
+}
+
+// TestGetReadyBeadsWithTrackerClientUsesReadyStatus verifies that getReadyBeadsWithTrackerClient
+// queries for "ready" status instead of "open" status
+func TestGetReadyBeadsWithTrackerClientUsesReadyStatus(t *testing.T) {
+	t.Parallel()
+
+	// Create a mock tracker client that captures the query
+	capturedQuery := tracker.Query{}
+	mockTracker := &mockTrackerForReadyBeads{
+		onList: func(_ context.Context, q tracker.Query) ([]tracker.Item, error) {
+			capturedQuery = q
+			return []tracker.Item{{ID: "ready-1", Title: "Ready Task"}}, nil
+		},
+	}
+
+	// Call with context to verify it accepts context and queries for ready status
+	ctx := context.Background()
+	items, err := getReadyBeadsWithTrackerClient(ctx, mockTracker)
+
+	if err != nil {
+		t.Fatalf("getReadyBeadsWithTrackerClient returned error: %v", err)
+	}
+
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
+	}
+
+	// Verify the query requested "ready" status, not "open"
+	if len(capturedQuery.Filter.Statuses) == 0 {
+		t.Fatalf("expected status filter in query, got none")
+	}
+
+	hasReadyStatus := false
+	for _, status := range capturedQuery.Filter.Statuses {
+		if status == "ready" {
+			hasReadyStatus = true
+			break
+		}
+	}
+
+	if !hasReadyStatus {
+		t.Fatalf("expected 'ready' status in query filter, got %v", capturedQuery.Filter.Statuses)
+	}
+}
+
+// mockTrackerForReadyBeads is a test double for tracker.Client
+type mockTrackerForReadyBeads struct {
+	onList func(context.Context, tracker.Query) ([]tracker.Item, error)
+}
+
+func (m *mockTrackerForReadyBeads) Ready(context.Context) (*tracker.Item, error) {
+	return nil, nil
+}
+
+func (m *mockTrackerForReadyBeads) List(ctx context.Context, q tracker.Query) ([]tracker.Item, error) {
+	if m.onList != nil {
+		return m.onList(ctx, q)
+	}
+	return []tracker.Item{}, nil
+}
+
+func (m *mockTrackerForReadyBeads) Show(context.Context, string) (*tracker.Item, error) {
+	return nil, nil
+}
+
+func (m *mockTrackerForReadyBeads) Search(context.Context, tracker.Query) ([]tracker.Item, error) {
+	return nil, nil
+}
+
+func (m *mockTrackerForReadyBeads) Create(context.Context, tracker.CreateRequest) (*tracker.Item, error) {
+	return nil, nil
+}
+
+func (m *mockTrackerForReadyBeads) CreateWithParent(context.Context, tracker.CreateRequest, string) (*tracker.Item, error) {
+	return nil, nil
+}
+
+func (m *mockTrackerForReadyBeads) Update(context.Context, tracker.UpdateRequest) (*tracker.Item, error) {
+	return nil, nil
+}
+
+func (m *mockTrackerForReadyBeads) ListWithLabel(context.Context, string) ([]tracker.Item, error) {
+	return nil, nil
+}
+
+func (m *mockTrackerForReadyBeads) Close(context.Context, string) error {
+	return nil
+}
+
+func (m *mockTrackerForReadyBeads) Sync(context.Context) error {
+	return nil
+}
+
+func (m *mockTrackerForReadyBeads) AddComment(context.Context, string, string) error {
+	return nil
+}
+
+func (m *mockTrackerForReadyBeads) HasOpenChildren(context.Context, string) (bool, error) {
+	return false, nil
 }

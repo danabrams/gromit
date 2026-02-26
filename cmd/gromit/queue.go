@@ -645,7 +645,7 @@ func truncateTitle(title string, maxLen int) string {
 
 // getActiveBeadsWithTrackerClient is the tracker.Client version of getActiveBeads.
 // It uses tracker.Client to query for open and in_progress items.
-func getActiveBeadsWithTrackerClient(trackerClient tracker.Client) ([]tracker.Item, error) {
+func getActiveBeadsWithTrackerClient(ctx context.Context, trackerClient tracker.Client) ([]tracker.Item, error) {
 	if trackerClient == nil {
 		return nil, fmt.Errorf("tracker client is nil")
 	}
@@ -656,7 +656,7 @@ func getActiveBeadsWithTrackerClient(trackerClient tracker.Client) ([]tracker.It
 		},
 	}
 
-	items, err := trackerClient.List(context.Background(), query)
+	items, err := trackerClient.List(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -680,21 +680,19 @@ func getActiveBeadsWithTrackerClient(trackerClient tracker.Client) ([]tracker.It
 
 // getReadyBeadsWithTrackerClient is the tracker.Client version of getReadyBeads.
 // It uses tracker.Client to query for ready items.
-func getReadyBeadsWithTrackerClient(trackerClient tracker.Client) ([]tracker.Item, error) {
+func getReadyBeadsWithTrackerClient(ctx context.Context, trackerClient tracker.Client) ([]tracker.Item, error) {
 	if trackerClient == nil {
 		return nil, fmt.Errorf("tracker client is nil")
 	}
 
-	// Query for items that are ready (typically by calling Ready on tracker client)
-	// Since tracker.Client.Ready returns a single item, we need an alternative
-	// For now, return open items as a proxy for ready items
+	// Query for items that are ready using the "ready" status
 	query := tracker.Query{
 		Filter: tracker.Filter{
-			Statuses: []string{"open"},
+			Statuses: []string{"ready"},
 		},
 	}
 
-	items, err := trackerClient.List(context.Background(), query)
+	items, err := trackerClient.List(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("getting ready items: %w", err)
 	}
