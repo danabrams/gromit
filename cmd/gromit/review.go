@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -541,18 +543,7 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 	fmt.Println(strings.Repeat("=", reviewSummaryBannerWidth))
 	fmt.Println(result.Summary)
 	fmt.Println()
-
-	if result.FixesApplied > 0 {
-		fmt.Printf("Fixes applied: %d\n", result.FixesApplied)
-		fmt.Println()
-	}
-
-	if result.BeadsCreated > 0 {
-		fmt.Printf("Created %d beads from review findings\n", result.BeadsCreated)
-	}
-	if result.BacklogCreated > 0 {
-		fmt.Printf("Created %d backlog items\n", result.BacklogCreated)
-	}
+	printReviewSummaryCounts(os.Stdout, result)
 
 	fmt.Println("\n" + reviewCompletionMessage)
 	return nil
@@ -585,6 +576,21 @@ func buildReviewNonInteractiveClient(cfg *config.Config) (pipeline.LLMClient, er
 		Client:  claudeClient,
 		Timeout: timeout,
 	}, nil
+}
+
+func printReviewSummaryCounts(w io.Writer, result *pipeline.ReviewResult) {
+	if w == nil || result == nil {
+		return
+	}
+	if result.FixesApplied > 0 {
+		fmt.Fprintf(w, "Fixes applied: %d\n", result.FixesApplied)
+	}
+	if result.BeadsCreated > 0 {
+		fmt.Fprintf(w, "Created %d beads from review findings\n", result.BeadsCreated)
+	}
+	if result.BacklogCreated > 0 {
+		fmt.Fprintf(w, "Created %d backlog items\n", result.BacklogCreated)
+	}
 }
 
 func getGitHeadForReview() (string, error) {
