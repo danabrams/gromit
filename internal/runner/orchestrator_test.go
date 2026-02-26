@@ -1416,15 +1416,15 @@ func TestOrchestrator_ControlLimitAlert_NotTriggeredWhenSuccessRateAtThreshold(t
 
 // TestOrchestrator_ControlLimitAlert_NotTriggeredWhenWindowTooSmall verifies
 // that the control limit alert is NOT triggered when the window has fewer
-// than 10 iterations, even if success rate is low.
+// than 30 iterations, even if success rate is low.
 func TestOrchestrator_ControlLimitAlert_NotTriggeredWhenWindowTooSmall(t *testing.T) {
 	metricsDir := t.TempDir()
 	stateDir := t.TempDir()
 
-	// Create ProcessTrend with low success rate but window < 10
+	// Create ProcessTrend with low success rate but window < 30
 	trend := &logger.ProcessTrend{
-		TotalIterations: 5,
-		WindowSize:      5, // Less than minimum 10
+		TotalIterations: 29,
+		WindowSize:      29, // Less than minimum 30
 		LatestWindow: logger.ProcessTrendWindow{
 			FirstPassSuccess: 0.20, // Low rate, but window is too small
 		},
@@ -1471,7 +1471,7 @@ func TestOrchestrator_ControlLimitAlert_NotTriggeredWhenWindowTooSmall(t *testin
 	}
 
 	if stateFile.IsControlLimitAlertTriggered() {
-		t.Error("ControlLimitAlert flag should NOT be set when window size < 10")
+		t.Error("ControlLimitAlert flag should NOT be set when window size < 30")
 	}
 }
 
