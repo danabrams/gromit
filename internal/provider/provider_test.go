@@ -324,6 +324,41 @@ func TestTierFromLegacyModelOpenAIModels(t *testing.T) {
 	}
 }
 
+// TestTierFromLegacyModelGeminiModels verifies that Gemini model names map
+// to the expected tier constants for backward compatibility.
+func TestTierFromLegacyModelGeminiModels(t *testing.T) {
+	tests := []struct {
+		name         string
+		modelName    string
+		expectedTier string
+	}{
+		{
+			name:         "gemini-3.1-pro maps to high tier",
+			modelName:    "gemini-3.1-pro",
+			expectedTier: TierHigh,
+		},
+		{
+			name:         "gemini-3-pro maps to high tier",
+			modelName:    "gemini-3-pro",
+			expectedTier: TierHigh,
+		},
+		{
+			name:         "gemini-3-flash maps to medium tier",
+			modelName:    "gemini-3-flash",
+			expectedTier: TierMedium,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := TierFromLegacyModel(tt.modelName)
+			if got != tt.expectedTier {
+				t.Errorf("TierFromLegacyModel(%q) = %q, want %q", tt.modelName, got, tt.expectedTier)
+			}
+		})
+	}
+}
+
 // TestTierFromLegacyModelUnrecognizedPassthrough verifies that TierFromLegacyModel()
 // passes through unrecognized model names unchanged for forward compatibility.
 func TestTierFromLegacyModelUnrecognizedPassthrough(t *testing.T) {
