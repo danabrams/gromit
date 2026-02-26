@@ -1616,3 +1616,51 @@ func fakeClaudeWithDelay(t *testing.T, delay time.Duration) string {
 	}
 	return binary
 }
+
+// RED: test for stall timeout classification
+func TestClaudeClient_StallTimeoutClassification(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("requires POSIX shell to run the fake Claude binary")
+	}
+
+	// Use the emit-then-hang binary which produces initial output then hangs indefinitely
+	binary := fakeClaudeEmitThenHang(t)
+
+	// Create client with a very long timeout (so invocation timeout doesn't fire)
+	client, err := NewClient(binary, nil, 100)
+	if err != nil {
+		t.Fatalf("NewClient() error: %v", err)
+	}
+
+	// Create a context with a short timeout to simulate stall detection canceling
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	// Run Claude - the context timeout should fire, simulating stall detection
+	_, err = client.Run(ctx, "test prompt", "sonnet")
+
+	// Capture the context error
+	ctxErr := ctx.Err()
+	if ctxErr == nil {
+		t.Fatal("expected context error after timeout")
+	}
+	if !errors.Is(ctxErr, context.DeadlineExceeded) {
+		t.Fatalf("expected context.DeadlineExceeded, got %v", ctxErr)
+	}
+
+	// Simulate stall detection having fired
+	stallFired := true
+	parentErr := context.Background().Err() // Parent context not canceled
+
+	// Classify the timeout using policy
+	// This will fail because policy package is not imported yet - GREEN phase will add the import
+	classification := policy.ClassifyTimeout(ctxErr, parentErr, stallFired)
+
+	// Assert the timeout is classified as "stall"
+	if classification.TimeoutType != "stall" {
+		t.Errorf("ClassifyTimeout() TimeoutType = %q, want %q", classification.TimeoutType, "stall")
+	}
+	if classification.ParentCanceled {
+		t.Error("ClassifyTimeout() ParentCanceled = true, want false")
+	}
+}

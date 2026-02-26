@@ -1,8 +1,9 @@
 ---
+created: 2026-02-26T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-26T02:50:59Z"
 id: claude-timeout-classification-tests
 source_spec: claude-timeout-classification-tests
-created: 2026-02-26
-decomposed: false
 ---
 
 # Claude Timeout Classification Tests Implementation Plan
