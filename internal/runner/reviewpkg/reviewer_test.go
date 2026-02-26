@@ -323,6 +323,54 @@ func TestRunLight_UsesCrossReviewWhenConfigured(t *testing.T) {
 	}
 }
 
+func TestRunLight_NonCrossPreferencesInvokeSelectNotSelectCross(t *testing.T) {
+	t.Parallel(
+	// Regression test: when routing.phase_preferences["review"] is NOT "cross"
+	// (e.g., "claude", "openai", "any"), RunLight should invoke Select and never
+	// SelectCross, even when buildProvider is non-empty.
+	)
+
+	cfg := newTestConfig()
+	// Explicitly set a non-cross preference
+	cfg.Routing.PhasePreferences["review"] = "claude"
+
+	prov := &mockProvider{
+		name: "test-provider",
+		runFn: func(ctx context.Context, p string, tier string) (*provider.Result, error) {
+			return &provider.Result{
+				Success: true,
+				Output:  `{"passed":true,"summary":"Review OK","fixes_applied":[],"beads_to_create":[],"backlog_items":[]}`,
+			}, nil
+		},
+	}
+
+	router := &mockRouter{}
+	router.selectFn = func(phase, tier string) (provider.Provider, string) {
+		router.SelectCalled = true
+		return prov, "test-provider"
+	}
+	router.selectCrossFn = func(buildProvider, tier string) (provider.Provider, string) {
+		router.SelectCrossCalled = true
+		return nil, ""
+	}
+
+	rev := NewReviewer(cfg, router, nil, &mockPromptRenderer{}, func(string) (string, error) {
+		return "diff content", nil
+	}, nil)
+
+	b := &bead.Bead{ID: "test-non-cross", Priority: 1}
+	_, err := rev.RunLight(context.Background(), b, nil, "abc123", "sonnet", 1, time.Time{}, "build-provider")
+	if err != nil {
+		t.Fatalf("RunLight returned unexpected error: %v", err)
+	}
+	if !router.SelectCalled {
+		t.Error("RunLight should invoke Select for non-cross preference")
+	}
+	if router.SelectCrossCalled {
+		t.Error("RunLight should not invoke SelectCross for non-cross preference, even when buildProvider is non-empty")
+	}
+}
+
 func TestRunLight_LoadsSpecFromBeadOrParentLabels(t *testing.T) {
 	t.Parallel(
 	// When the bead or parent has a spec label, RunLight should load the spec
