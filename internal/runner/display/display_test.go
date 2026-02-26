@@ -53,6 +53,19 @@ func TestFormatHealth_defaults(t *testing.T) {
 	}
 }
 
+func TestFormatHealth_withValues(t *testing.T) {
+	t.Parallel()
+
+	lastRetro := time.Now().Add(-2 * time.Hour)
+	got := FormatHealth(lastRetro, 2)
+	if !strings.Contains(got, "Last retro:") {
+		t.Fatalf("FormatHealth() = %q, want substring %q", got, "Last retro:")
+	}
+	if !strings.Contains(got, "Last review: 2 iterations ago") {
+		t.Fatalf("FormatHealth() = %q, want substring %q", got, "Last review: 2 iterations ago")
+	}
+}
+
 func TestFormatPipeline_basic(t *testing.T) {
 	t.Parallel()
 
