@@ -66,7 +66,7 @@ func resolveByName(name string, cfg *config.Config) (Agent, error) {
 	case "codex":
 		return resolveCodexPreset(), nil
 	case "gemini":
-		return resolvePromptFileArgPreset(name), nil
+		return resolveGeminiPreset(), nil
 	default:
 		return nil, fmt.Errorf("unknown agent: %s", name)
 	}
@@ -182,9 +182,9 @@ func resolveCodexPreset() Agent {
 	return New("codex", "codex", nil, FileRef, "", nil)
 }
 
-// resolvePromptFileArgPreset creates an agent using prompt_file_arg delivery
-func resolvePromptFileArgPreset(name string) Agent {
-	return New(name, name, nil, PromptFileArg, defaultPromptFlag, nil)
+// resolveGeminiPreset creates an agent for Gemini using stdin delivery
+func resolveGeminiPreset() Agent {
+	return New("gemini", "gemini", nil, Stdin, "", nil)
 }
 
 // resolveCustomAgent creates an agent from a custom definition
