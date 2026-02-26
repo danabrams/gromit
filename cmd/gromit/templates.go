@@ -185,26 +185,27 @@ func nextStepsForProfile(profile string) string {
 	universalSteps := []string{
 		"1. Edit gromit.yaml to customize validation commands",
 		"2. Edit .gromit/RULES.md to add project-specific rules",
-		"3. Create specs in .gromit/specs/ and plans in .gromit/plans/",
-		"4. Create beads with: bd create \"Task title\" --priority 1",
+		"3. Set bead ID prefix (one-time): bd config set issue_prefix <project-name>",
+		"4. Create specs in .gromit/specs/ and plans in .gromit/plans/",
+		"5. Create beads with: bd create \"Task title\" --priority 1",
 	}
 
 	// Profile-specific validation and running guidance
 	var profileStep string
 	if strings.EqualFold(profile, "go") {
-		profileStep = "5. Run validation: go test && go vet && go build"
+		profileStep = "6. Run validation: go test && go vet && go build"
 		universalSteps = append(universalSteps, profileStep)
-		universalSteps = append(universalSteps, "6. Run: gromit run --dry-run")
+		universalSteps = append(universalSteps, "7. Run: gromit run --dry-run")
 	} else if strings.EqualFold(profile, "node") {
-		profileStep = "5. Run validation: npm test && npm run build"
+		profileStep = "6. Run validation: npm test && npm run build"
 		universalSteps = append(universalSteps, profileStep)
-		universalSteps = append(universalSteps, "6. Run: gromit run --dry-run")
+		universalSteps = append(universalSteps, "7. Run: gromit run --dry-run")
 	} else if strings.EqualFold(profile, "python") {
-		profileStep = "5. Run validation: pytest"
+		profileStep = "6. Run validation: pytest"
 		universalSteps = append(universalSteps, profileStep)
-		universalSteps = append(universalSteps, "6. Run: gromit run --dry-run")
+		universalSteps = append(universalSteps, "7. Run: gromit run --dry-run")
 	} else {
-		universalSteps = append(universalSteps, "5. Run: gromit run --dry-run")
+		universalSteps = append(universalSteps, "6. Run: gromit run --dry-run")
 	}
 
 	var b strings.Builder

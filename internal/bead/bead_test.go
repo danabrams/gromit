@@ -1785,6 +1785,68 @@ func TestHasOpenChildrenWithMockedRun(t *testing.T) {
 	}
 }
 
+func TestShouldRetryWithIssuePrefixBootstrap(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "matches missing issue prefix error",
+			err:  fmt.Errorf("database not initialized: issue_prefix config is missing (run 'bd init --prefix <prefix>' first)"),
+			want: true,
+		},
+		{
+			name: "non-matching error",
+			err:  fmt.Errorf("database not found"),
+			want: false,
+		},
+		{
+			name: "nil error",
+			err:  nil,
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := shouldRetryWithIssuePrefixBootstrap(tt.err); got != tt.want {
+				t.Fatalf("shouldRetryWithIssuePrefixBootstrap() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNormalizeIssuePrefix(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "simple", input: "gromit", want: "gromit"},
+		{name: "uppercase and spaces", input: "My Repo", want: "my-repo"},
+		{name: "symbols collapse", input: "repo---name___v2", want: "repo-name-v2"},
+		{name: "trim separators", input: "...Repo...", want: "repo"},
+		{name: "only separators", input: "___", want: ""},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := normalizeIssuePrefix(tt.input); got != tt.want {
+				t.Fatalf("normalizeIssuePrefix(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestHasOpenChildrenHandlesPrefixedJSON(t *testing.T) {
 	t.Parallel()
 	const parentID = "epic-noise"
