@@ -902,6 +902,51 @@ func TestProcessCodexStreamMapsTurnCompletedToEventUsage(t *testing.T) {
 	}
 }
 
+// TestProcessCodexStreamMapsErrorToEventError verifies that error events map to StreamEvent type "EventError".
+func TestProcessCodexStreamMapsErrorToEventError(t *testing.T) {
+	t.Parallel()
+	input := `{"type":"error","error":{"type":"ToolError","message":"boom"}}` + "\n"
+	reader := strings.NewReader(input)
+	var output bytes.Buffer
+	var receivedEvents [][]byte
+
+	handler := func(line []byte) {
+		cp := make([]byte, len(line))
+		copy(cp, line)
+		receivedEvents = append(receivedEvents, cp)
+	}
+
+	_, _, _, err := processCodexStream(reader, &output, handler, nil)
+	if err != nil {
+		t.Fatalf("processCodexStream() error = %v", err)
+	}
+
+	if len(receivedEvents) == 0 {
+		t.Fatal("EventHandler was not called for error event")
+	}
+
+	var parsed struct {
+		Type  string `json:"type"`
+		Error struct {
+			Type    string `json:"type"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(receivedEvents[0], &parsed); err != nil {
+		t.Fatalf("failed to parse emitted event: %v", err)
+	}
+
+	if parsed.Type != "EventError" {
+		t.Errorf("error mapped to type %q, want %q", parsed.Type, "EventError")
+	}
+	if parsed.Error.Type != "ToolError" {
+		t.Errorf("error.type = %q, want %q", parsed.Error.Type, "ToolError")
+	}
+	if parsed.Error.Message != "boom" {
+		t.Errorf("error.message = %q, want %q", parsed.Error.Message, "boom")
+	}
+}
+
 // TestProcessCodexStreamEmitsResultEventFromResultEvents verifies that result
 // events emit a result stream event with token usage, consistent with
 // turn.completed and response.completed handlers.
