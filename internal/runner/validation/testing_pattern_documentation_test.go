@@ -8,7 +8,7 @@ import (
 )
 
 func TestValidationErrorPatternDocumented(t *testing.T) {
-	docPath := filepath.Join("docs", "testing-patterns.md")
+	docPath := filepath.Join("..", "..", "..", "docs", "testing-patterns.md")
 	data, err := os.ReadFile(docPath)
 	if err != nil {
 		t.Fatalf("unable to read %s: %v", docPath, err)
