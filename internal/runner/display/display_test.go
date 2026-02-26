@@ -176,38 +176,110 @@ func TestFormatRecurrenceBreakdown(t *testing.T) {
 	}
 }
 
-func TestFormatRun_nilStatus(t *testing.T) {
+func TestFormatRun_runnerCases(t *testing.T) {
 	t.Parallel()
 
-	got := FormatRun(nil)
-	if !strings.Contains(got, "Run: not running") {
-		t.Fatalf("FormatRun(nil) = %q, want substring %q", got, "Run: not running")
+	tests := []struct {
+		name   string
+		status *RunStatus
+		want   []string
+	}{
+		{
+			name:   "nil status",
+			status: nil,
+			want:   []string{"Run: not running"},
+		},
+		{
+			name: "running with iteration and model",
+			status: &RunStatus{
+				Running:   true,
+				Iteration: 3,
+				BeadID:    "beads-abc",
+				BeadTitle: "Add feature X",
+				Model:     "sonnet",
+				ElapsedS:  120,
+			},
+			want: []string{
+				"Run: iteration 3",
+				"2m elapsed",
+				"beads-abc",
+				"Add feature X",
+				"Model:    sonnet",
+			},
+		},
+		{
+			name: "running with max iterations and time budget",
+			status: &RunStatus{
+				Running:           true,
+				Iteration:         2,
+				MaxIterations:     10,
+				TimeBudgetMinutes: 30,
+				BeadID:            "beads-xyz",
+				BeadTitle:         "Fix bug Y",
+				Model:             "haiku",
+				ElapsedS:          300,
+			},
+			want: []string{
+				"Run: iteration 2 of 10",
+				"5m of 30m elapsed",
+				"beads-xyz",
+				"Fix bug Y",
+				"Model:    haiku",
+			},
+		},
+		{
+			name: "running with escalation recurrence and reliability",
+			status: &RunStatus{
+				Running:              true,
+				Iteration:            5,
+				BeadID:               "beads-qrs",
+				BeadTitle:            "Improve display",
+				Model:                "sonnet",
+				ElapsedS:             600,
+				AutonomyRate:         0.85,
+				FirstPassSuccessRate: 0.70,
+				MTTRProxyMs:          30000,
+				EscalationRatesByClass: map[string]float64{
+					"lint":    0.125,
+					"timeout": 0.50,
+				},
+				RecurrenceCounters: map[string]int{
+					"lint":  1,
+					"scope": 3,
+				},
+			},
+			want: []string{
+				"Run: iteration 5",
+				"Reliability: autonomy 85% | first-pass 70% | MTTR 30s",
+				"Escalation: lint 13% | timeout 50%",
+				"Recurrence: lint x1 | scope x3",
+			},
+		},
+		{
+			name: "not running with last run info",
+			status: &RunStatus{
+				Running:   false,
+				Iteration: 5,
+			},
+			want: []string{
+				"Run: not running",
+				"Last run:",
+				"5 iterations completed",
+			},
+		},
 	}
-}
 
-func TestFormatRun_runningStatus(t *testing.T) {
-	t.Parallel()
-
-	status := &RunStatus{
-		Running:   true,
-		Iteration: 3,
-		BeadID:    "beads-abc",
-		BeadTitle: "Add feature X",
-		Model:     "sonnet",
-		ElapsedS:  120,
-	}
-
-	got := FormatRun(status)
-	for _, substr := range []string{
-		"Run: iteration 3",
-		"2m elapsed",
-		"beads-abc",
-		"Add feature X",
-		"Model:    sonnet",
-	} {
-		if !strings.Contains(got, substr) {
-			t.Fatalf("FormatRun() = %q, want substring %q", got, substr)
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := FormatRun(tt.status)
+			for _, substr := range tt.want {
+				if !strings.Contains(got, substr) {
+					t.Fatalf("FormatRun() = %q, want substring %q", got, substr)
+				}
+			}
+		})
 	}
 }
 
