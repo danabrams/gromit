@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/runner/specmerge"
 	"github.com/danabrams/gromit/internal/specgate"
 )
@@ -135,4 +136,41 @@ func contains(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+func TestPipeline_IsSpecComplete_FalseWithOpenBead(t *testing.T) {
+	t.Parallel()
+
+	const specName = "payments"
+	client := &fakeBeadQuery{
+		listFn: func(label string) ([]*bead.Bead, error) {
+			if label != "spec:"+specName {
+				t.Fatalf("label = %q, want spec:%s", label, specName)
+			}
+			return []*bead.Bead{
+				{ID: "bead-1", Status: "open"},
+				{ID: "bead-2", Status: "closed"},
+			}, nil
+		},
+	}
+
+	p := specmerge.NewPipeline(client)
+	complete, err := p.IsSpecComplete(specName)
+	if err != nil {
+		t.Fatalf("IsSpecComplete returned error: %v", err)
+	}
+	if complete {
+		t.Fatal("IsSpecComplete returned true despite open bead")
+	}
+}
+
+type fakeBeadQuery struct {
+	listFn func(label string) ([]*bead.Bead, error)
+}
+
+func (f *fakeBeadQuery) ListWithLabel(label string) ([]*bead.Bead, error) {
+	if f == nil || f.listFn == nil {
+		return nil, nil
+	}
+	return f.listFn(label)
 }
