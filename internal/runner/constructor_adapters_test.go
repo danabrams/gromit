@@ -14,6 +14,7 @@ import (
 	"github.com/danabrams/gromit/internal/pipeline/prepare"
 	"github.com/danabrams/gromit/internal/pipeline/review"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/tracker"
 )
 
@@ -195,6 +196,88 @@ func TestDecomposerAdapterAcceptsTrackerClient(t *testing.T) {
 		tracker: trackerClient,
 		router:  router,
 	}
+}
+
+func TestSpecMergeRouterAdapter_SelectsUnderlyingRouter(t *testing.T) {
+	t.Parallel()
+	router := &dummyRouter{}
+	adapter := &specMergeRouterAdapter{router: router}
+
+	provider, model := adapter.Select("architecture", "high")
+	if provider != nil {
+		t.Fatalf("Select returned provider = %v, want nil", provider)
+	}
+	if model != "dummy-model" {
+		t.Fatalf("model = %q, want dummy-model", model)
+	}
+	if router.phase != "architecture" {
+		t.Fatalf("router phase recorded = %q, want architecture", router.phase)
+	}
+	if router.tier != "high" {
+		t.Fatalf("router tier recorded = %q, want high", router.tier)
+	}
+}
+
+func TestSpecMergeReviewRendererAdapter_ForwardsCalls(t *testing.T) {
+	t.Parallel()
+	fake := &dummyPromptRenderer{}
+	adapter := &specMergeReviewRendererAdapter{renderer: fake}
+
+	ctx := &prompt.ReviewContext{Diff: "diff"}
+	out, err := adapter.RenderReview(ctx)
+	if err != nil {
+		t.Fatalf("RenderReview returned error: %v", err)
+	}
+	if out != "rendered" {
+		t.Fatalf("RenderReview output = %q, want rendered", out)
+	}
+	if fake.renderCtx != ctx {
+		t.Fatalf("renderCtx = %v, want %v", fake.renderCtx, ctx)
+	}
+
+	rules, err := adapter.LoadRulesForPhase("code_quality")
+	if err != nil {
+		t.Fatalf("LoadRulesForPhase returned error: %v", err)
+	}
+	if rules != "rules" {
+		t.Fatalf("rules = %q, want rules", rules)
+	}
+
+	spec, err := adapter.LoadSpec("payments")
+	if err != nil {
+		t.Fatalf("LoadSpec returned error: %v", err)
+	}
+	if spec != "spec" {
+		t.Fatalf("spec = %q, want spec", spec)
+	}
+}
+
+type dummyRouter struct {
+	phase string
+	tier  string
+}
+
+func (d *dummyRouter) Select(phase, tier string) (provider.Provider, string) {
+	d.phase = phase
+	d.tier = tier
+	return nil, "dummy-model"
+}
+
+type dummyPromptRenderer struct {
+	renderCtx *prompt.ReviewContext
+}
+
+func (d *dummyPromptRenderer) RenderReview(ctx *prompt.ReviewContext) (string, error) {
+	d.renderCtx = ctx
+	return "rendered", nil
+}
+
+func (d *dummyPromptRenderer) LoadRulesForPhase(phase string) (string, error) {
+	return "rules", nil
+}
+
+func (d *dummyPromptRenderer) LoadSpec(name string) (string, error) {
+	return "spec", nil
 }
 
 // mockTrackerClient implements tracker.Client for testing
