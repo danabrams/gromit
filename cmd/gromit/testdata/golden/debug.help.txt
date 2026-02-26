@@ -1,0 +1,14 @@
+Launch an interactive agent session for investigating bugs.
+
+The session receives full project context (CLAUDE.md, RULES.md, LEARNINGS.md)
+and guides free-form investigation to identify root cause, triage severity, and
+produce appropriate outcomes:
+  - Trivial fix: Apply directly and validate
+  - Clear fix: Create investigation report + plan
+  - Needs investigation: Create report + backlog item
+
+Examples:
+  gromit debug                              # Blank session
+  gromit debug "login fails with + in email" # Pre-seeded description
+  gromit debug --model sonnet "API returns 500" # Override model
+  gromit debug --agent codex "Cache miss flapping" # Use Codex agent

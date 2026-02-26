@@ -2,13 +2,28 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
 
 func loadGolden(t *testing.T, path string) string {
 	t.Helper()
-	data, err := os.ReadFile(path)
+	var data []byte
+	var err error
+	for _, candidate := range []string{
+		path,
+		filepath.Join("..", path),
+		filepath.Join("..", "..", path),
+	} {
+		data, err = os.ReadFile(candidate)
+		if err == nil {
+			break
+		}
+		if !os.IsNotExist(err) {
+			t.Fatalf("reading golden file %q (tried %q): %v", path, candidate, err)
+		}
+	}
 	if err != nil {
 		t.Fatalf("reading golden file %q: %v", path, err)
 	}
