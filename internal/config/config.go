@@ -187,8 +187,10 @@ func (c *Config) validateExperimentConfig() error {
 }
 
 func (c *Config) validateCompatibilitySelections() error {
-	if c.Project.Profile != "" && c.Project.Profile != "go" {
-		return fmt.Errorf("project.profile must be %q (got %q)", "go", c.Project.Profile)
+	if c.Project.Profile != "" {
+		if _, ok := ProfileForName(c.Project.Profile); !ok {
+			return fmt.Errorf("project.profile must be one of %v (got %q)", profileNames, c.Project.Profile)
+		}
 	}
 	if c.Tracker.Backend != "" && c.Tracker.Backend != "bd" {
 		return fmt.Errorf("tracker.backend must be %q (got %q)", "bd", c.Tracker.Backend)
