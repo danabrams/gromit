@@ -53,6 +53,8 @@ type Executor struct {
 	renderDiagnosticFn RenderDiagnosticFn
 	gitResetFn         GitResetFn
 	getGitHeadFn       GetGitHeadFn
+	adapter             RunnerAdapter
+	adapterProfile      string
 }
 
 // AcceptanceVerificationError captures failure details when post-build
@@ -73,13 +75,30 @@ func (e *AcceptanceVerificationError) Error() string {
 // NewExecutor creates an Executor with narrow dependency interfaces.
 // renderFn, invokeFn, and validateFn may be nil for test scenarios.
 func NewExecutor(cfg *config.Config, output io.Writer, renderFn RenderFn, invokeFn InvokeFn, validateFn ValidateDirectFn) *Executor {
+	adapter, profile := resolveMethodologyAdapter(cfg)
 	return &Executor{
-		cfg:        cfg,
-		output:     output,
-		renderFn:   renderFn,
-		invokeFn:   invokeFn,
-		validateFn: validateFn,
+		cfg:            cfg,
+		output:         output,
+		renderFn:       renderFn,
+		invokeFn:       invokeFn,
+		validateFn:     validateFn,
+		adapter:        adapter,
+		adapterProfile: profile,
 	}
+}
+
+func resolveMethodologyAdapter(cfg *config.Config) (RunnerAdapter, string) {
+	profile := "go"
+	if cfg != nil {
+		if resolved := cfg.ResolvedProfile(); resolved.Value != "" {
+			profile = resolved.Value
+		}
+	}
+	adapter, err := ResolveAdapter(profile)
+	if err != nil {
+		return GoAdapter{}, profile
+	}
+	return adapter, profile
 }
 
 // SetGetDiffFn sets the git diff callback.
@@ -315,7 +334,10 @@ func (e *Executor) VerifyAcceptanceTestsPass(ctx context.Context, bc *runtypes.B
 	e.log("Verifying acceptance tests pass after implementation...")
 	e.refreshTouchedPackages(bc)
 
-	valResult, err := e.validateFn(ctx, AcceptanceCommands(e.cfg.Validation.FastCommandsOrDefault(), bc.TouchedPackages), bc.PromptCtx.WorkDir)
+	commands := e.adapter.Acceptance(e.cfg.Validation.FastCommandsOrDefault(), bc.TouchedPackages)
+	e.log("Methodology adapter %s acceptance commands: %v", e.adapterProfile, commands)
+
+	valResult, err := e.validateFn(ctx, commands, bc.PromptCtx.WorkDir)
 	if err != nil {
 		return fmt.Errorf("acceptance validation invocation: %w", err)
 	}
