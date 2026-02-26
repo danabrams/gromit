@@ -11,6 +11,7 @@ const (
 	defaultCostOptimizedEscalationTier            = "medium"
 	defaultCostOptimizedMaxDecompositionDepth     = 10
 	defaultCostOptimizedMaxRetriesBeforeDecompose = 2
+	defaultMergePipelineRetryCapDefault           = 3
 )
 
 func boolPtr(value bool) *bool {
@@ -421,5 +422,8 @@ func (c *Config) SetDefaults() {
 	}
 	if c.Decompose.Target == "" {
 		c.Decompose.Target = DecompositionTargetNarrowScope
+	}
+	if c.MergePipeline.RetryCapDefault == 0 {
+		c.MergePipeline.RetryCapDefault = defaultMergePipelineRetryCapDefault
 	}
 }
