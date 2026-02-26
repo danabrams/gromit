@@ -10,7 +10,9 @@ import (
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/pipeline/prepare"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/tracker"
 )
 
 func TestWorktreeMergerAdapterPendingBranches_NilManagerReturnsError(t *testing.T) {
@@ -176,4 +178,41 @@ func TestReviewInvokerAdapter_UsesStreamRun(t *testing.T) {
 	if !prov.streamCalled {
 		t.Fatal("expected StreamRun() to be called")
 	}
+}
+
+func TestDecomposerAdapterAcceptsTrackerClient(t *testing.T) {
+	t.Parallel()
+
+	// This test verifies that decomposerAdapter accepts tracker.Client
+	// in its struct field instead of *bead.Client
+	trackerClient := &mockTrackerClient{}
+	router := provider.NewSingleProviderRouter(&trackingProvider{})
+
+	// The decomposerAdapter should be able to hold a tracker.Client interface
+	var _ prepare.Decomposer = &decomposerAdapter{
+		tracker: trackerClient,
+		router:  router,
+	}
+}
+
+// mockTrackerClient implements tracker.Client for testing
+type mockTrackerClient struct{}
+
+func (m *mockTrackerClient) Ready(ctx context.Context) (*tracker.Item, error)               { return nil, nil }
+func (m *mockTrackerClient) List(ctx context.Context, q tracker.Query) ([]tracker.Item, error) { return nil, nil }
+func (m *mockTrackerClient) Show(ctx context.Context, id string) (*tracker.Item, error)    { return nil, nil }
+func (m *mockTrackerClient) Create(ctx context.Context, req tracker.CreateRequest) (*tracker.Item, error) {
+	return nil, nil
+}
+func (m *mockTrackerClient) Close(ctx context.Context, id string) error         { return nil }
+func (m *mockTrackerClient) Sync(ctx context.Context) error                    { return nil }
+func (m *mockTrackerClient) AddComment(ctx context.Context, id, comment string) error { return nil }
+func (m *mockTrackerClient) HasOpenChildren(ctx context.Context, parentID string) (bool, error) {
+	return false, nil
+}
+
+// decomposerAdapterWithTrackerClient is a version of decomposerAdapter that uses tracker.Client
+type decomposerAdapterWithTrackerClient struct {
+	tracker tracker.Client
+	router  *provider.Router
 }
