@@ -40,3 +40,23 @@ func TestTrackerTypeComposition(t *testing.T) {
         t.Fatalf("query filter assignee = %q, want %q", query.Filter.Assignee, filter.Assignee)
     }
 }
+
+func TestTrackerFilterSupportsLabels(t *testing.T) {
+    filter := Filter{
+        Statuses: []string{"open"},
+        Labels:   []string{"spec:example", "priority:high"},
+    }
+
+    query := Query{
+        Filter: filter,
+        Limit:  10,
+    }
+
+    if len(query.Filter.Labels) != 2 {
+        t.Fatalf("query filter labels count = %d, want 2", len(query.Filter.Labels))
+    }
+
+    if query.Filter.Labels[0] != "spec:example" {
+        t.Fatalf("query filter labels[0] = %q, want %q", query.Filter.Labels[0], "spec:example")
+    }
+}

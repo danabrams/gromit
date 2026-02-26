@@ -20,10 +20,11 @@ type Item struct {
 	Metadata    map[string]string
 }
 
-// Filter narrows queries by attributes such as status or assignee.
+// Filter narrows queries by attributes such as status, assignee, and labels.
 type Filter struct {
 	Statuses []string
 	Assignee string
+	Labels   []string
 }
 
 // Query defines pagination and sorting for tracker lookups.
