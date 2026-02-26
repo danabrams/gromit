@@ -521,6 +521,28 @@ Gromit auto-pushes to the remote after each successful task by default. Disable 
 | `gromit review` | Run a thorough code review |
 | `gromit retro` | Run retrospective analysis |
 
+## Testing Lanes
+
+### Default lane (fast)
+- **Command:** `go test ./...` (or `make test-unit` / `make test-touched` when limiting scope to touched packages).
+- **Intent:** Covers units, acceptance, and contract suites that rely on deterministic fakes (`test/fakes/*`, fixture-driven providers, fake CLIs), keeping PR validation fast.
+- **Runtime:** Optimized for local loops and PRs; expect a few minutes on a modern machine.
+- **Environment gates:** No special env vars—leave `CLAUDE_SMOKE`, `CODEX_SMOKE`, and provider credentials unset so tests remain hermetic.
+
+### Smoke lane (real CLI)
+- **Command:** `CLAUDE_SMOKE=1 CODEX_SMOKE=1 go test -tags smokecli ./internal/provider -count=1`.
+- **Intent:** Exercises the minimal real-CLI smoke suite (success, streaming, failure paths) protected by `//go:build smokecli`.
+- **Runtime:** Slower because it launches production CLIs; reserve for nightly/regression gates or focused investigations.
+- **Environment gates:** Set `CLAUDE_SMOKE=1` and `CODEX_SMOKE=1`, and configure real provider binaries/credentials intentionally (document the setup). Skip this lane unless you own the required tooling and can explain pass/fail signals—accidental runs burn quotas.
+
+## Fixture refresh workflow
+
+1. **Capture the output** of the real CLI scenario you want to refresh and save it under `test/fixtures/{provider}_{scenario}.{txt|json|jsonl}`.
+2. **Annotate the fixture** with `# provenance:` (source/time/context) and `# refresh:` (why it changed). Look at `test/fixtures/gemini/FIXTURE_POLICY.md` and `test/fixtures/gemini/commands.log` for the expected style.
+3. **Sanitize and stabilize** the transcript (no secrets or host-specific paths) so the new fixture is deterministic and reviewable.
+4. **Validate in the default lane** (`go test ./...`) to ensure all mock/fake consumers agree with the refreshed snapshot.
+5. **Review with intent:** Keep fixture diffs focused, describe the capture command in the `# refresh:` line, and mention which smoke lane run produced the output so reviewers can trust the change.
+
 ## License
 
 MIT
