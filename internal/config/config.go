@@ -128,10 +128,22 @@ func (c *Config) Validate() error {
 	if err := c.validateTokenEfficiencyRouting(); err != nil {
 		return err
 	}
+	if err := c.validateRoutingStrategy(); err != nil {
+		return err
+	}
 	if err := c.validateExperimentConfig(); err != nil {
 		return err
 	}
 	return nil
+}
+
+func (c *Config) validateRoutingStrategy() error {
+	switch c.Routing.Strategy {
+	case "", "priority_based", "cost_optimized":
+		return nil
+	default:
+		return fmt.Errorf("routing.strategy must be one of [priority_based cost_optimized] (got %q)", c.Routing.Strategy)
+	}
 }
 
 func (c *Config) validateTokenEfficiencyRouting() error {
