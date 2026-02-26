@@ -1,9 +1,10 @@
 package methodology
 
 import "testing"
+import "reflect"
 
 func TestGoAdapterAcceptanceAddsTagsAndScopes(t *testing.T) {
-    t.Parallel()
+	t.Parallel()
 
     adapter := GoAdapter{}
     commands := []string{"go test ./...", "go vet ./..."}
@@ -18,4 +19,22 @@ func TestGoAdapterAcceptanceAddsTagsAndScopes(t *testing.T) {
     if got[1] != "go vet ./..." {
         t.Errorf("GoAdapter.Acceptance()[1] = %q, want unchanged %q", got[1], "go vet ./...")
     }
+}
+
+func TestPassthroughAdapterLeavesCommandsUnchanged(t *testing.T) {
+	t.Parallel()
+
+	adapter := PassthroughAdapter{}
+	original := []string{"go test ./...", "go vet ./..."}
+	touched := []string{"internal/runner"}
+
+	assertUnchanged := func(name string, got []string) {
+		if !reflect.DeepEqual(got, original) {
+			t.Fatalf("PassthroughAdapter.%s() = %q, want %q", name, got, original)
+		}
+	}
+
+	assertUnchanged("Acceptance", adapter.Acceptance(original, touched))
+	assertUnchanged("TDD", adapter.TDD(original, touched))
+	assertUnchanged("Validation", adapter.Validation(original, touched))
 }
