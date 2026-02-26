@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -184,4 +185,21 @@ func requireBDCall(t *testing.T, env *testEnv, expected string) {
 func requireBDListCall(t *testing.T, env *testEnv, expected string) {
 	t.Helper()
 	requireBDCall(t, env, expected)
+}
+
+func requireBDCallContains(t *testing.T, env *testEnv, substring string) {
+	t.Helper()
+
+	calls, err := filterCalls(env, "bd")
+	if err != nil {
+		t.Fatalf("filterCalls failed: %v", err)
+	}
+
+	for _, call := range calls {
+		if strings.Contains(call, substring) {
+			return
+		}
+	}
+
+	t.Fatalf("expected bd calls to contain %q; calls: %v", substring, calls)
 }
