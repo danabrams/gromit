@@ -17,5 +17,10 @@ func IsAtomic(bead *Bead, depth, maxDepth int) bool {
 		return true
 	}
 
+	// Check if at or beyond max decomposition depth
+	if depth >= maxDepth {
+		return true
+	}
+
 	return false
 }
