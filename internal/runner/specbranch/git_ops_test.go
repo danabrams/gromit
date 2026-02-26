@@ -102,3 +102,55 @@ func TestRebaseSpecOntoMain_Rebases(t *testing.T) {
 		t.Error("spec branch should have commits ahead of main after rebase")
 	}
 }
+
+// TestFastForwardMergeToMain_MergesSuccessfully verifies that FastForwardMergeToMain
+// successfully merges the spec branch into main.
+func TestFastForwardMergeToMain_MergesSuccessfully(t *testing.T) {
+	fixture := helpers.NewDeterministicGitConflictFixture(t)
+	ops := NewGitOps(fixture.Dir)
+
+	specBranchName := "gromit/spec-merge-test"
+
+	// Create spec branch and make a commit
+	err := ops.CreateOrCheckoutSpecBranch(context.Background(), specBranchName)
+	if err != nil {
+		t.Fatalf("CreateOrCheckoutSpecBranch() error = %v", err)
+	}
+
+	cmd := exec.Command("git", "commit", "--allow-empty", "-m", "spec commit")
+	cmd.Dir = fixture.Dir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to create spec commit: %v", err)
+	}
+
+	// Rebase onto main to ensure fast-forward is possible
+	err = ops.RebaseSpecOntoMain(context.Background(), specBranchName)
+	if err != nil {
+		t.Fatalf("RebaseSpecOntoMain() error = %v", err)
+	}
+
+	// Merge spec branch into main
+	err = ops.FastForwardMergeToMain(context.Background(), specBranchName)
+	if err != nil {
+		t.Fatalf("FastForwardMergeToMain() error = %v, want nil", err)
+	}
+
+	// Verify main is now pointing to the same commit as spec branch
+	cmd = exec.Command("git", "rev-parse", "main")
+	cmd.Dir = fixture.Dir
+	mainRef, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("failed to get main ref: %v", err)
+	}
+
+	cmd = exec.Command("git", "rev-parse", specBranchName)
+	cmd.Dir = fixture.Dir
+	specRef, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("failed to get spec branch ref: %v", err)
+	}
+
+	if string(mainRef) != string(specRef) {
+		t.Errorf("main and spec branch should point to same commit after merge; got main=%q, spec=%q", string(mainRef), string(specRef))
+	}
+}
