@@ -19,10 +19,12 @@ Decomposition quality depends on contract parity across validator, mapping, prom
 
 Session worktree and mergeback behavior must follow a single ownership contract: deterministic lifecycle order (create→callback→record pending→merge attempt→cleanup or conflict handoff), typed retryable/non-retryable conflict classification using git output plus exit status, and merge-state safety that never aborts unrelated pre-existing merges. MergeBack cleanup may abort only merge state created by the current operation; pre-existing MERGE_HEAD must return a typed error and preserve the user's in-progress merge state.
 
-### 2026-02-24 | Orchestrator Cross-Cutting Concerns on Shared Path | architecture
-*Related to: code-review, review-1771733992016921570, review-1771855648673321351, review-1771854448297640630*
+### 2026-02-26 | Orchestrator Shared Path and Stage Wiring | architecture
+*Related to: code-review, review-1771733992016921570, review-1771855648673321351, review-1771854448297640630, 9980dae8, gromit-22nrv, 8d85f5d7*
 
-Policy progression and cross-cutting concerns (tier advancement, metrics, status behavior) should have one shared orchestration path with explicit dependency injection to avoid duplicating logic between execution code and config accessors. This keeps policy consistent and prevents drift in legacy model-name mapping and disabled-escalation semantics.
+Orchestrator policy progression, stage wiring, and cross-cutting metrics/status behavior must stay on one shared execution path with explicit DI; split-stage architecture is fine only when this shared policy path remains authoritative.
+
+*Consolidated from: Orchestrator Cross-Cutting Concerns on Shared Path + Pipeline Stage Dependency Injection and Soft Failure Patterns + Multi-Stage Pipeline Orchestrator Pattern*
 
 ### 2026-02-25 | Deterministic Artifact Boundaries | safety
 *Related to: review-1772037612174531122, gromit-d7j9*
@@ -46,13 +48,6 @@ Methodologies use label-based activation ("methodology:true"/"false") with globa
 
 Prompt templates in .gromit/templates/ use explicit section headers (##) and preserve exact whitespace/structure when updating. Template files follow a consistent structure: context section at top, then Guidelines, then preserved sections like 'Avoiding Sibling Overlap' and ATDD blocks. When modifying sections, maintain blank lines between sections and ensure downstream blocks remain unchanged. Acceptance tests for template changes must match the exact content being added, including specific phrases and subsection structure.
 
-### 2026-02-16 | Provider Contract Fixtures | patterns
-*Related to: gromit-d7j9*
-
-*Consolidated into: 2026-02-25 Deterministic Artifact Boundaries*
-
-Contract tests consume canonical provider fixtures under test/fixtures/ using scenario-driven naming: `{provider}[_stream]_{outcome}.{format}`. Fixtures (codex_success.txt, codex_failure.txt, codex_stream_success.jsonl, codex_stream_failure.jsonl, claude_stream_success.jsonl) must include brief provenance comments describing the source and refresh workflow. Payloads should be minimal but realistic—Codex plain-text fixtures show output structure (touched/tests lines), JSONL fixtures emit `{"type":"assistant",...}` and `{"type":"result",...}` events. Fixture environment variables (CODEX_FIXTURE, CLAUDE_FIXTURE) point fake CLIs to fixture paths. Test assertions verify output matches canonical payloads, enabling both roundtrip validation and contract evolution tracking. Provenance comments facilitate fixture refresh workflow without manual intervention.
-
 ---
 
 ## Provisional
@@ -69,82 +64,27 @@ When a helper may run inside worker goroutines, it must not call `t.Fatalf`/`Fai
 
 `bufio.Scanner` defaults can fail on long CLI invocation lines; call-log utilities should set an explicit scanner buffer and test oversized-line behavior to avoid latent parsing failures in CI logs.
 
-### 2026-02-21 | Pipeline Stage Dependency Injection and Soft Failure Patterns | patterns
-*Related to: 9980dae8, gromit-22nrv*
+### 2026-02-26 | Telemetry Integrity and Completeness Contract | gotchas
+*Related to: code-review, review-1771855648673321351, review-1771854448297640630, gromit-8w81a, gromit-sq2a3*
 
-Pipeline stages use local dependency interfaces injected via builder pattern methods (WithAutoFixer, WithPrechecker, WithStuckDetector), allowing optional composition. Nil checks in Run() enable graceful degradation when a dependency isn't configured—errors from optional dependencies are logged as warnings, not pipeline blockers. Compile-time checks (`var _ pipeline.Stage = (*Impl)(nil)`) enforce architectural contracts. The Validate stage uses a soft-failure pattern: unresolved validation failures populate ValidationFailures for the next Build input rather than blocking the pipeline. Auto-fix (gofmt/goimports) runs first, re-validates, and returns Proceed regardless. Periodic full validation is gated via modulo arithmetic. Mandatory command prefix enforcement happens upfront via checkMandatoryPrefixes(). Decision ordering matters in Gate: precheck (Skip) runs before stuck detection (Block) to ensure already-completed work is closed promptly.
+Telemetry integrity requires both runtime-path parity and post-run completeness assertions that explicitly fail closed on missing rows/fields and report actionable diagnostics.
 
-### 2026-02-25 | Telemetry Integrity Contract | gotchas
-*Related to: code-review, review-1771855648673321351, review-1771854448297640630, gromit-8w81a*
-
-Telemetry integrity requires runtime-path parity plus strict routing-config validation: instrumentation only counts if consumed end-to-end, and routing overrides must reject invalid categories/tier values before execution. Specifically: (1) phase metrics must use explicit before/after snapshots consistently (not mixing deltas with raw values); (2) stream event merge semantics must be canonical (one strategy for turn/response/result events); (3) tier provenance fields (`original_tier`, `actual_tier`) must cover all methodology paths.
-
-*Consolidated from: Cost/Token Accounting Needs Consistent Delta Semantics + Tier Provenance Metrics Need Methodology-Parity Coverage*
-
-### 2026-02-21 | Multi-Stage Pipeline Orchestrator Pattern | patterns
-*Related to: 8d85f5d7*
-
-Replace God Object pattern with pure orchestration: hold only stage references and config, no business logic. The Orchestrator struct contains just a config field; all per-stage logic lives in internal/pipeline/<stage>/. Enforce import discipline at the orchestrator level—import only internal/pipeline and internal/logger. Wire stages at construction time via OrchestratorConfig, making dependency graph explicit and mockable. Assign iteration numbers monotonically regardless of outcome (including beads blocked at Gate), preserving failure chains. Flow inter-stage outputs into subsequent iterations: ValidationFailures from Validate→Build Input, TouchedPackages from Epilogue→next iteration Input. Keep failed stages in Epilogue for logging/cleanup rather than early-exit—this ensures consistent logging and status updates. Handle optional stages (Review) via nil checks at runtime, not construction time. Merge global stats atomically at completion, preserving prior entries—use read-modify-write with idempotency checks. Benefit: stages become independently testable, sequencing is explicit and debuggable, and stage coupling is minimal.
+*Consolidated from: Telemetry Integrity Contract + Post-Run Completeness Assertions for Efficiency Metrics*
 
 
 ## Emerging
 
 *Newly observed — needs validation across more tasks.*
 
-### 2026-02-23 | Escalation Policy Must Have a Single Tier-Advance Source | architecture
-*Related to: review-1771855648673321351, review-1771854448297640630, gromit-fjxy1*
-
-*Consolidated into: 2026-02-24 Orchestrator Cross-Cutting Concerns on Shared Path*
-
-Escalation progression must be implemented in one shared path. Duplicating next-tier logic between execution code and config accessors creates drift risk (especially for legacy model-name mapping and disabled-escalation semantics) and weakens policy consistency.
-
-### 2026-02-23 | Tier Provenance Metrics Need Methodology-Parity Coverage | test_quality
-*Related to: review-1771855648673321351, review-1771854448297640630, gromit-8w81a*
-
-*Consolidated into: 2026-02-25 Telemetry Integrity Contract*
-
-When build telemetry adds `original_tier` and `actual_tier`, tests must cover all methodology paths (single-pass and fresh-context TDD) so iteration logs preserve consistent provenance semantics across strategies.
-
-### 2026-02-23 | Decomposition Batch-Contract Enforcement Must Use Retry Loop | conventions
-*Related to: gromit-xjeu3, review-1771835747422178794, gromit-9946, review-1771832540735638835*
-
-*Consolidated into: 2026-02-24 Decomposition Contract-Field Parity Across Layers*
-
-Decomposition batch-size contracts must be enforced in the retry validation loop for all modes (including SkipValidation); violations must reprompt or return a clear contract error at retry cap, never silently truncate output.
-
-### 2026-02-23 | Single Shared Decompose Validator With Full Required-Field Coverage | architecture
-*Related to: gromit-btk9n, review-1771835747422178794, gromit-9947, review-1771832540735638835*
-
-*Consolidated into: 2026-02-24 Decomposition Contract-Field Parity Across Layers*
-
-Use one shared decompose validator for runtime and pipeline paths, and centralize required-field checks (title, expected_outputs, dependency fields) there with mode flags for context-specific rules.
-
 ### 2026-02-23 | Estimate-Only Complexity Scoring Is Fragile | gotchas
 *Related to: gromit-fu70d, review-1771835747422178794*
 
 Complexity classification based only on `estimated_files` is easy for model output to underreport or omit. Retain non-estimate signals or enforce strict estimated-files contracts so high-scope decompositions cannot slip through as low risk.
 
-### 2026-02-23 | Orchestrator Migration Parity and Adapter Surface Minimization | patterns
-*Related to: code-review, review-1771733992016921570*
-
-*Consolidated into: 2026-02-24 Orchestrator Cross-Cutting Concerns on Shared Path*
-
-Orchestrator migration must keep cross-cutting concerns on one shared execution path, minimize adapter surface, and enforce parity tests until legacy path removal.
-
-### 2026-02-22 | Builder Pattern Pointer Receiver Mutation | gotchas
-*Related to: review-1771784092725425988*
-
-Builder-pattern methods that mutate the pointer receiver (like Gate.WithDecomposer setting g.decomposer = d) work correctly even when the return value is discarded. The return is for optional method chaining; the mutation happens on the receiver regardless. When reviewing builder calls like `obj.WithX(val)` without assignment, check whether the method mutates the receiver — if it does, the call is correct despite looking like a no-op.
-
 ### 2026-02-22 | SPC Display Formatting Two-Tier Pattern | patterns
 *Related to: review-1771784092725425988*
 
 SPC (Statistical Process Control) formatting follows a two-tier pattern: formatSPCSummary orchestrates sections (window, control limits, anomalies), while formatSPCLine/formatSPCValue handle individual metric values. simplifySPCMetric provides human-friendly labels for anomaly display (e.g., "rolling_success_rate" → "success"). Keep metric name constants in sync between the logger package (which produces them) and the runner/format package (which displays them) — string-based coupling requires test coverage since there's no compile-time check.
-
-### 2026-02-22 | Interface Evolution Through Signature Changes | patterns
-*Related to: review-1771784092725425988*
-
-When evolving function signatures (e.g., StatusWriter adding a deadline parameter), propagate changes through: (1) the type definition (OrchestratorConfig), (2) all call sites (orchestrator.go), (3) all implementations (constructor.go closure), and (4) all test doubles (orchestrator_test.go fakes). The StatusWriter deadline addition was a clean example — the new parameter flowed naturally through all four layers without breaking existing behavior for callers that pass zero-value deadlines.
 
 ### 2026-02-22 | Three-Layer Requirement Extraction Fallback | patterns
 *Related to: review-1771784092725425988*
@@ -176,13 +116,6 @@ Scope-gate decomposition is resilient to provider failures (falls back to Block)
 
 JSON parsing alone is not enough for LLM decomposition output. Gate paths should validate concrete quality constraints (sub-task count bounds, non-empty titles, bounded expected outputs, no degenerate parent echo) and define deterministic fallback behavior when outputs violate the contract.
 
-### 2026-02-23 | DECOMPOSE_VALIDATION_RULE_CHANGES_REQUIRE_CONTRACT_PARITY | ARCHITECTURE
-*Related to: gromit-jysme, gromit-o9i5v*
-
-*Consolidated into: 2026-02-24 Decomposition Contract-Field Parity Across Layers*
-
-When decompose validation rules change (for example, expected_outputs requirements or complexity signal expansion), the prompt contract, fixture payloads, retry-loop behavior, and telemetry expectations must be updated together. Partial adoption creates persistent retry churn, misleading ValidationStats, and test brittleness.
-
 ### 2026-02-23 | PIPELINE_STAGE_CONFIG_ACCESS_REQUIRES_EXPLICIT_NIL_GUARDS | CONVENTIONS
 *Related to: review-1771880675971102580*
 
@@ -198,15 +131,6 @@ When Gate computes complexity routing metadata, all decision outcomes (Proceed/S
 
 Adding deprecation-marker fields to compatibility resolution is not sufficient by itself; migration guardrails only work when those markers are surfaced in debug/status output and runtime warnings, with end-to-end tests proving explicit-vs-legacy behavior.
 
-### 2026-02-25 | gromit-10kg.3.1.1.1 | conventions
-The ToolCallKind type and constants (ToolCallCodex, ToolCallClaude, ToolCallBD) are already defined in test/e2e/tool_calls_helpers_test.go and test/contracts/tool_calls_helpers_test.go - verify if task requires consolidating duplicate definitions into a shared location or moving to a non-test package
-
-### 2026-02-25 | gromit-sq2a3 | conventions
-The orchestrator should include post-run completeness assertions for efficiency metrics; tests checking these assertions need properly configured incomplete efficiency data to trigger validation.
-
-### 2026-02-25 | gromit-jmqps.1 | conventions
-When extracting types across packages, verify all imports are updated in test files and watch for circular dependencies when moving code to internal/review (which may be imported by packages that import cmd/gromit). Use verbose build output to pinpoint exact compilation errors.
-
 ### 2026-02-25 | Thorough Review Rules Must Use Phase Filtering | conventions
 When wiring CLI adapters for thorough review prompt rendering, load rules via `LoadRulesForPhase("thorough_review")` instead of `LoadRules()` so build-only sections do not leak into review prompts.
 
@@ -218,6 +142,73 @@ If run health logic sets a persistent control-limit alert flag in `state.json`, 
 ## Archived
 
 *Previously archived learnings.*
+
+### 2026-02-26 | Provider Contract Fixtures | patterns
+*Related to: gromit-d7j9*
+
+*Archived 2026-02-26: Marker-only consolidated stub; content preserved in Deterministic Artifact Boundaries.*
+
+### 2026-02-26 | Escalation Policy Must Have a Single Tier-Advance Source | architecture
+*Related to: review-1771855648673321351, review-1771854448297640630, gromit-fjxy1*
+
+*Archived 2026-02-26: Marker-only consolidated stub; content preserved in Orchestrator Cross-Cutting Concerns on Shared Path.*
+
+### 2026-02-26 | Tier Provenance Metrics Need Methodology-Parity Coverage | test_quality
+*Related to: review-1771855648673321351, review-1771854448297640630, gromit-8w81a*
+
+*Archived 2026-02-26: Marker-only consolidated stub; content preserved in Telemetry Integrity Contract.*
+
+### 2026-02-26 | Decomposition Batch-Contract Enforcement Must Use Retry Loop | conventions
+*Related to: gromit-xjeu3, review-1771835747422178794, gromit-9946, review-1771832540735638835*
+
+*Archived 2026-02-26: Marker-only consolidated stub; content preserved in Decomposition Contract-Field Parity Across Layers.*
+
+### 2026-02-26 | Single Shared Decompose Validator With Full Required-Field Coverage | architecture
+*Related to: gromit-btk9n, review-1771835747422178794, gromit-9947, review-1771832540735638835*
+
+*Archived 2026-02-26: Marker-only consolidated stub; content preserved in Decomposition Contract-Field Parity Across Layers.*
+
+### 2026-02-26 | Orchestrator Migration Parity and Adapter Surface Minimization | patterns
+*Related to: code-review, review-1771733992016921570*
+
+*Archived 2026-02-26: Marker-only consolidated stub; content preserved in Orchestrator Cross-Cutting Concerns on Shared Path.*
+
+### 2026-02-26 | DECOMPOSE_VALIDATION_RULE_CHANGES_REQUIRE_CONTRACT_PARITY | ARCHITECTURE
+*Related to: gromit-jysme, gromit-o9i5v*
+
+*Archived 2026-02-26: Marker-only consolidated stub; content preserved in Decomposition Contract-Field Parity Across Layers.*
+
+### 2026-02-26 | gromit-10kg.3.1.1.1 | conventions
+
+*Archived 2026-02-26: Task-specific reminder, not a durable project rule.*
+
+### 2026-02-26 | gromit-jmqps.1 | conventions
+
+*Archived 2026-02-26: Generic migration caution; too broad under anti-generic archival policy.*
+
+### 2026-02-26 | Builder Pattern Pointer Receiver Mutation | gotchas
+*Related to: review-1771784092725425988*
+
+*Archived 2026-02-26: Primarily language-feature guidance, not project-specific behavior.*
+
+### 2026-02-26 | Interface Evolution Through Signature Changes | patterns
+*Related to: review-1771784092725425988*
+
+*Archived 2026-02-26: Generic interface evolution checklist; limited project-specific signal.*
+
+### 2026-02-26 | Pipeline Stage Dependency Injection and Soft Failure Patterns | patterns
+*Related to: 9980dae8, gromit-22nrv*
+
+*Archived 2026-02-26: Consolidated into Orchestrator Shared Path and Stage Wiring.*
+
+### 2026-02-26 | Multi-Stage Pipeline Orchestrator Pattern | patterns
+*Related to: 8d85f5d7*
+
+*Archived 2026-02-26: Consolidated into Orchestrator Shared Path and Stage Wiring.*
+
+### 2026-02-26 | gromit-sq2a3 | conventions
+
+*Archived 2026-02-26: Consolidated into Telemetry Integrity and Completeness Contract.*
 
 ### 2026-02-22 | Silent Error Swallowing in Render Builder Functions | gotchas
 *Related to: review-1771763626626526682*
@@ -314,4 +305,3 @@ Tests in cmd/gromit (package main) that mutate package-level function variables 
 
 ### 2026-02-26 | review | gotchas
 cmd/gromit/ contains scaffold/template copies of CLAUDE.md, RULES.md, PROMPT_decompose.md, and SKILL.md under cmd/gromit/.gromit/. Tests using getProjectRootFromTestFile may resolve to cmd/gromit/ instead of the real project root if the function stops at the first .gromit/ directory. The function must prefer gromit.yaml as the definitive project root marker.
-

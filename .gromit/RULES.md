@@ -51,11 +51,17 @@ These are non-negotiable constraints for this project.
 
 ## Architecture <!-- phases: red, build, green, refactor, review -->
 
-- Observability fields (cost/tokens/duration/model/provider) must be produced through the same runtime execution path used in production; any alternate/test path must have parity contract tests proving identical field population semantics
+- Observability fields (cost/tokens/duration/model/provider/current_run_row attribution) must be produced through the same runtime execution path used in production; any alternate/test path must have parity contract tests proving identical field population semantics and non-empty current-run row generation
 - Any bead touching provider stream usage/event handling must add a stream-event matrix contract test (turn/response/result paths) that covers both positive attribution (known model/provider) and negative completeness cases (missing current-run rows fail closed)
 - `internal/runner/*/` sub-packages must not import siblings **in production or test files**; cross-cutting types live in `runtypes/`. Parent `runner` package uses type aliases for backward compatibility. Production files: <550 lines; facade files: <1000 lines
+- Compatibility/deprecation markers are incomplete unless surfaced in user-visible status/debug output and covered by end-to-end behavior tests
 - Interactive commands use the session worktree lifecycle with a single merge/cleanup owner and typed conflict classification from git output + exit status. Do not classify conflicts by message fragments alone. Merge-back cleanup may abort only merge state created by the current operation; pre-existing `MERGE_HEAD` must return a typed non-destructive error.
 - All decomposition entry points must call the same shared validator. Required-field rules (non-empty title, expected_outputs contract, dependency-field validity) must not live in call-site-only checks. Any field required by validation must be present in candidate mapping and reprompt context; prompt/schema/fixture changes for those fields must ship together.
+
+## Process <!-- phases: build, retro -->
+
+- Post-run efficiency validation must fail closed on missing current-run rows or missing efficiency fields and include per-field diagnostics (missing row vs missing attribution vs missing numeric fields)
+- RecordRetro() must clear one-shot control-limit alert flags in state so previously acknowledged alerts do not persist across subsequent healthy runs
 
 ## Build Process <!-- phases: build -->
 
@@ -65,7 +71,7 @@ These are non-negotiable constraints for this project.
 - Test-only bead detection: use `bead.IsTestOnlyBead()` (e.g., "Add tests for") alongside `IsMethodologyActive()`
 - On bead failure: add to `skippedBeads`. After 2 consecutive failures, create/link decomposition sub-beads with expected_outputs and bounded scope. Telemetry/usage children split: (1) event-merge, (2) completeness, (3) attribution. Block parent retries until a child lands; no retries on partial/non-idempotent decomposition; emit decomposition-attempt event; fail if skipped; skip escalation after 3+.
 - On timeout, if elapsed time exceeds 75% of budget apply timeout-first decomposition and forbid same-scope retries until decomposition or explicit escalation.
-- `Run()` order: validate → execute → persist state → between-iteration hooks → continue. No reordering; log timeout warnings (no early return); nil-safe receiver/config checks at method entry. Persist iteration metrics before any timeout/failure return and verify via completeness tests
+- `Run()` order: validate → execute → persist state → between-iteration hooks → continue. No reordering; log timeout warnings (no early return); nil-safe receiver/config checks at method entry. Persist iteration metrics (including current-run row identity and attribution fields) before any timeout/failure return, and fail validation when comparative metrics would otherwise zero-fill
 - New config types/fields: update `gromit.yaml` to match — project-config tests validate the live file against the schema
 - Validation recovery auto-fixes (`gofmt`/`goimports`), re-validates, escalates to Claude only if still failing (`MaxValidationRetries` default 1)
 - `test/contracts/` contract tests verify git call order (`rev-parse` before `git diff --stat`) and keep harness init and sequencing intact
@@ -86,4 +92,4 @@ These are non-negotiable constraints for this project.
 
 ## Retro Formatting <!-- phases: retro -->
 
-- `LEARNINGS.md` headers: `### YYYY-MM-DD | DESCRIPTIVE_TITLE | CATEGORY_NAME`. Titles must be concise pattern descriptions (not bead IDs or vague words like "final"). Consolidated entries: add `*Related to: id1, id2*` line
+- `LEARNINGS.md` headers: `### YYYY-MM-DD | DESCRIPTIVE_TITLE | CATEGORY_NAME`. Titles must be concise pattern descriptions (not bead IDs or vague words like "final"). Consolidated entries: add `*Related to: id1, id2*` line. Marker-only entries whose body is only `*Consolidated into:*` must be archived immediately and moved to the Archived section

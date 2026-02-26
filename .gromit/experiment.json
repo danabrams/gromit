@@ -1,20 +1,17 @@
 {
-  "id": "fail-closed-efficiency-2026-02-24",
-  "name": "Fail-Closed Efficiency Reporting",
-  "hypothesis": "If current-run rows are missing, explicit fail-closed output will eliminate misleading zero-delta reports and speed data-pipeline fixes.",
-  "change": "When current-run rows are empty, output `insufficient_current_run_data`, render deltas as `N/A`, and skip comparative efficiency narrative.",
-  "measurement": "Count of retro reports with empty current rows that still show numeric deltas (target: 0).",
-  "risk": "More retros may surface as 'insufficient data' until upstream logging gaps are fixed.",
-  "status": "act",
-  "started_at": "2026-02-24T00:00:00Z",
-  "act_decision": "extend",
-  "act_date": "2026-02-25T00:00:00Z",
-  "study_summary": "Hypothesis partially held: fail-closed rendering prevented misleading numeric deltas, but pipeline-fix speed did not improve because current-run rows remain empty. Process trend shows favorable Nelson Rule 2 shifts (cost/duration below centerline, success above), while stratified control limits still show high-severity unknown-attribution signals, indicating unresolved upstream telemetry integrity. Extending until gromit-qs2ks children land and one complete known-attribution run is recorded.",
+  "id": "complexity-signal-coverage-2026-02-26",
+  "name": "Complexity Signal Coverage",
+  "hypothesis": "More than 60% of beads have sufficient signals (EstimatedFileCount, IsLeafBead, IsTestOnlyBead, title patterns) for non-default complexity classification. Logging these signals without changing routing will reveal the actual coverage gap and inform whether scope-first routing is viable.",
+  "change": "After rebuilding the binary with the existing wiring fix, add observability-only logging of all available complexity signals per bead (file count estimate, leaf status, test-only detection, low-complexity title match, label presence) to iteration logs. No routing changes.",
+  "measurement": "Percentage of beads with non-default complexity classification; distribution of complexity_source values (scope_estimate vs label vs default); count of beads where 2+ low-complexity signals fire. Target: >60% non-default classification after binary rebuild.",
+  "risk": "Minimal — observability-only change with no routing impact. The only risk is log volume increase from additional fields.",
+  "status": "plan",
+  "started_at": "2026-02-26T00:00:00Z",
   "baseline_metrics": {
-    "avg_cost_per_bead": 0.0,
-    "avg_duration_ms": 0,
-    "avg_input_tokens": 0,
-    "avg_output_tokens": 0,
-    "failure_rate": 0
+    "pct_non_default_complexity": 0.0,
+    "pct_scope_estimate_source": 0.0,
+    "pct_label_source": 0.0,
+    "pct_default_source": 100.0,
+    "avg_low_complexity_signals_per_bead": 0.0
   }
 }
