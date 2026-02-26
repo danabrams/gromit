@@ -448,6 +448,36 @@ func TestVerifyAcceptanceTestsPass_ReturnsErrorWhenValidationDisabled(t *testing
 	}
 }
 
+func TestVerifyAcceptanceTestsPass_CustomProfileUsesPassthroughAdapter(t *testing.T) {
+	t.Parallel()
+	cfg := newTestConfig()
+	cfg.Project.Profile = "custom"
+	cfg.Validation.FastCommands = []string{"go test ./..."}
+	var buf strings.Builder
+
+	var receivedCommands []string
+	validateFn := func(ctx context.Context, commands []string, workDir string) (*claude.Result, error) {
+		receivedCommands = append([]string(nil), commands...)
+		return &claude.Result{Success: true, Output: "VALIDATION_PASSED", ExitCode: 0}, nil
+	}
+
+	exec := NewExecutor(cfg, &buf, nil, nil, validateFn)
+	bc := newTestBeadContext()
+	if err := exec.VerifyAcceptanceTestsPass(context.Background(), bc); err != nil {
+		t.Fatalf("VerifyAcceptanceTestsPass returned unexpected error: %v", err)
+	}
+
+	if len(receivedCommands) != 1 || receivedCommands[0] != "go test ./..." {
+		t.Fatalf("expected passthrough commands for custom profile, got %v", receivedCommands)
+	}
+
+	logs := buf.String()
+	wantLog := "Methodology adapter custom acceptance commands: [go test ./...]"
+	if !strings.Contains(logs, wantLog) {
+		t.Fatalf("expected log %q, got %q", wantLog, logs)
+	}
+}
+
 // --- AcceptanceCommands tests ---
 
 func TestAcceptanceCommands_InjectsTagsIntoGoTest(t *testing.T) {
