@@ -76,6 +76,26 @@ Telemetry integrity requires both runtime-path parity and post-run completeness 
 
 *Newly observed — needs validation across more tasks.*
 
+### 2026-02-26 | Tracker Adapter Metadata Serialization Must Use JSON | gotchas
+*Related to: code-review, review-1772124256835385050, gromit-qdjqk*
+
+tracker.Client adapters use metadata map[string]string as the extension mechanism for backend-specific fields (priority, labels, expected_outputs). All adapter entry points must use JSON encoding consistently — internal/bead/tracker_convert.go establishes the canonical pattern with encodeJSONIfNonEmpty. Using fmt.Sprintf("%v") or comma concatenation creates incompatible formats that silently corrupt labels on roundtrip.
+
+### 2026-02-26 | Session Worktree Cleanup-Before-Merge Lifecycle | patterns
+*Related to: code-review, review-1772124256835385050*
+
+Session worktree lifecycle was reordered from add→merge→remove→cleanup to add→cleanup→merge→remove. Removing the worktree directory before attempting branch merge/delete eliminates the "cannot delete branch checked out at" error entirely, removing the need for the isCheckedOutBranchDeleteError recovery path.
+
+### 2026-02-26 | Profile-Aware Init Three-Function Pattern | patterns
+*Related to: code-review, review-1772124256835385050*
+
+Profile-aware init bootstrap uses three functions: rulesForProfile() for RULES.md content, nextStepsForProfile() for terminal output, seedProfileAwareCommandExamples() for template injection. Profile detection precedence: explicit --profile flag > gromit.yaml config > filesystem signals (go.mod, package.json, pyproject.toml) > "custom" default.
+
+### 2026-02-26 | UnwrapBDAdapter Creates Leaky Abstraction | architecture
+*Related to: code-review, review-1772124256835385050, gromit-67j3a*
+
+decomposerAdapter and beadCreatorAdapter use bead.UnwrapBDAdapter() to downcast tracker.Client back to *bead.Client for methods not on the interface (CreateWithParent, ListWithLabel). This defeats the abstraction — non-BD tracker backends will fail at runtime. Either extend tracker.Client or use a tiered interface before adding a second backend.
+
 ### 2026-02-23 | Estimate-Only Complexity Scoring Is Fragile | gotchas
 *Related to: gromit-fu70d, review-1771835747422178794*
 
