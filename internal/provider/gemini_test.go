@@ -42,6 +42,103 @@ exit 0
 	}
 }
 
+func TestGeminiProviderIsUsageLimitErrorDetection(t *testing.T) {
+	gp := &GeminiProvider{}
+
+	tests := []struct {
+		name     string
+		result   *Result
+		err      error
+		expected bool
+	}{
+		{
+			name: "exit code 2 with usage limit message",
+			result: &Result{
+				Success:  false,
+				ExitCode: 2,
+				Output:   "Error: usage limit exceeded. Please try again later.",
+			},
+			err:      nil,
+			expected: true,
+		},
+		{
+			name: "exit code 2 with rate limit message",
+			result: &Result{
+				Success:  false,
+				ExitCode: 2,
+				Output:   "Error: rate limit exceeded. Please wait before retrying.",
+			},
+			err:      nil,
+			expected: true,
+		},
+		{
+			name: "exit code 2 with quota exceeded message",
+			result: &Result{
+				Success:  false,
+				ExitCode: 2,
+				Output:   "Error: quota exceeded for this billing period.",
+			},
+			err:      nil,
+			expected: true,
+		},
+		{
+			name: "exit code 2 with case-insensitive USAGE LIMIT",
+			result: &Result{
+				Success:  false,
+				ExitCode: 2,
+				Output:   "Error: USAGE LIMIT has been reached.",
+			},
+			err:      nil,
+			expected: true,
+		},
+		{
+			name: "exit code 1 with usage limit message - not a limit error",
+			result: &Result{
+				Success:  false,
+				ExitCode: 1,
+				Output:   "Error: usage limit exceeded.",
+			},
+			err:      nil,
+			expected: false,
+		},
+		{
+			name: "exit code 2 with generic error - not a limit error",
+			result: &Result{
+				Success:  false,
+				ExitCode: 2,
+				Output:   "Error: invalid API key.",
+			},
+			err:      nil,
+			expected: false,
+		},
+		{
+			name:     "nil result returns false",
+			result:   nil,
+			err:      nil,
+			expected: false,
+		},
+		{
+			name: "successful result returns false",
+			result: &Result{
+				Success:  true,
+				ExitCode: 0,
+				Output:   "All good",
+			},
+			err:      nil,
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := gp.IsUsageLimitError(tt.result, tt.err)
+			if got != tt.expected {
+				t.Errorf("IsUsageLimitError() = %v, want %v (result=%+v)", got, tt.expected, tt.result)
+			}
+		})
+	}
+}
+
 func TestGeminiProviderRunInvokesJSONMode(t *testing.T) {
 	ctx := context.Background()
 	clockwork := make([]string, 0)
