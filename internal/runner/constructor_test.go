@@ -92,6 +92,13 @@ func TestSelectLearningsProvider_AlphabeticalFallback(t *testing.T) {
 	}
 }
 
+func TestSelectLearningsProvider_EmptyProvidersReturnsNil(t *testing.T) {
+	t.Parallel()
+	if got := selectLearningsProvider("", map[string]provider.Provider{}); got != nil {
+		t.Fatalf("selectLearningsProvider returned %q, want nil when no providers are configured", got.Name())
+	}
+}
+
 func TestBuildRouterAndLearningsProvider_UsesConfiguredProviders(t *testing.T) {
 	t.Parallel()
 	cfg := newCodexProvidersConfig()
