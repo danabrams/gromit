@@ -167,6 +167,51 @@ func (h *Handler) resolveL1RetryCap(bc *runtypes.BeadContext) int {
 	return l1RetryCap
 }
 
+// isBeadDecomposable determines if a bead should be decomposed instead of escalated.
+// Returns true if the bead is NOT atomic and can be decomposed.
+func (h *Handler) isBeadDecomposable(bc *runtypes.BeadContext) bool {
+	if bc == nil || bc.Bead == nil {
+		return false
+	}
+	if h.decomposeFn == nil {
+		return false
+	}
+
+	// Determine max decomposition depth from config, with fallback to default
+	maxDepth := 5 // default max decomposition depth
+	if h.cfg != nil && h.cfg.Routing.CostOptimized.MaxDecompositionDepth > 0 {
+		maxDepth = h.cfg.Routing.CostOptimized.MaxDecompositionDepth
+	}
+
+	// Calculate depth by counting parent chain
+	depth := h.calculateBeadDepth(bc)
+
+	// Check if the bead is atomic using the IsAtomic heuristics
+	isAtomic := bead.IsAtomic(bc.Bead, depth, maxDepth)
+	return !isAtomic
+}
+
+// calculateBeadDepth counts the decomposition depth by traversing the parent chain.
+// Top-level beads (no parent) have depth 0, first decomposition has depth 1, etc.
+func (h *Handler) calculateBeadDepth(bc *runtypes.BeadContext) int {
+	if bc == nil {
+		return 0
+	}
+
+	// Count depth by traversing parent bead chain
+	depth := 0
+	current := bc.Parent
+	for current != nil {
+		depth++
+		// In a full implementation, we'd track parent-parent relationships.
+		// For now, we increment once if there's a parent chain.
+		// This is a heuristic; ideally depth would be explicitly tracked in BeadContext.
+		break // Single parent level for now
+	}
+
+	return depth
+}
+
 func (h *Handler) handleTimeoutEscalationOrFail(ctx context.Context, bc *runtypes.BeadContext, failureLabel string) bool {
 	if bc == nil || bc.Result == nil {
 		return false
@@ -431,7 +476,15 @@ func (h *Handler) AnalyzeAndHandleFailure(ctx context.Context, bc *runtypes.Bead
 				return true
 			}
 
-			// L1 exhausted -> transition to L2 via one escalation.
+			// L1 exhausted -> check if we should decompose before escalating.
+			// For non-atomic beads, attempt decomposition (decompose-first pattern).
+			// For atomic beads, escalate to next tier.
+			if h.isBeadDecomposable(bc) {
+				h.log("Andon L1: non-atomic bead exhausted L1 retries, attempting decomposition before escalation")
+				return h.AttemptDecomposition(ctx, bc, "recoverable failure exhausted L1 retries")
+			}
+
+			// Bead is atomic or not decomposable -> escalate to next tier.
 			nextTier := h.cfg.NextEscalationTier(bc.Tier)
 			if nextTier == "" {
 				h.log("Andon L4 option selected: recoverable failure exhausted L1 with no higher tier, attempting decomposition")
