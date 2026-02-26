@@ -2,6 +2,11 @@
 
 ## Confirmed Learnings
 
+### 2026-02-26 | timeout_retry_block_metrics_must_cover_all_gate_errors | RELIABILITY
+*Related to: gromit/review-1772066330959789077*
+
+Retry-block metrics currently depend on error-string matching, so new retry-gate errors (like partial decomposition state) must be included or the timeout retry-block rate will silently undercount.
+
 ### 2026-02-25 | agent_test_setup_should_be_shared_helpers | TEST_QUALITY
 *Related to: gromit/review-1772054097495408438*
 

@@ -14,6 +14,7 @@ const (
 	failureAttributionModel     = "model"
 	failureAttributionTransient = "transient"
 	sameScopeRetryBlockedMessage = "Same-scope retry blocked: timeout requires decomposition or escalation decision"
+	partialDecompositionStateMessage = "Partial/unsafe decomposition state: retry or escalate before continuing"
 )
 
 func readAllIterationLogsSorted(logsDir string) ([]IterationLog, error) {
@@ -435,5 +436,6 @@ func averageCompletedBeadCost(beadCosts map[string]beadCostAccum) float64 {
 }
 
 func isSameScopeRetryBlocked(err string) bool {
-	return strings.Contains(err, sameScopeRetryBlockedMessage)
+	return strings.Contains(err, sameScopeRetryBlockedMessage) ||
+		strings.Contains(err, partialDecompositionStateMessage)
 }
