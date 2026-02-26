@@ -928,7 +928,7 @@ func TestEstimateScopedIterationTotal(t *testing.T) {
 		},
 	}
 
-	total, err := estimateScopedIterationTotal(context.Background(), client, "spec:auth", 3)
+	total, err := estimateScopedIterationTotal(context.Background(), bead.NewBDAdapter(client), "spec:auth", 3)
 	if err != nil {
 		t.Fatalf("estimateScopedIterationTotal() error = %v", err)
 	}

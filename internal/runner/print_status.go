@@ -155,7 +155,7 @@ func refreshScopedIterationTotal(status *Status, gromitDir string) {
 		return
 	}
 
-	total, err := estimateScopedIterationTotal(context.Background(), client, scopeLabel, status.Iteration)
+	total, err := estimateScopedIterationTotal(context.Background(), bead.NewBDAdapter(client), scopeLabel, status.Iteration)
 	if err != nil || total <= 0 {
 		return
 	}
