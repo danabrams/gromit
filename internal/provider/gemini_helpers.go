@@ -3,6 +3,7 @@ package provider
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // parseGeminiJSONResult parses a Gemini JSON response and returns a Result struct.
@@ -52,4 +53,26 @@ func parseGeminiStreamEvent(line []byte) (map[string]interface{}, error) {
 		return nil, fmt.Errorf("unmarshaling Gemini stream event: %w", err)
 	}
 	return event, nil
+}
+
+// extractGeminiAssistantText concatenates all assistant messages from the event stream.
+// Collects content from all events with type="message" and role="assistant".
+func extractGeminiAssistantText(events []map[string]interface{}) string {
+	var sb strings.Builder
+	for _, event := range events {
+		eventType, ok := event["type"].(string)
+		if !ok || eventType != "message" {
+			continue
+		}
+		role, ok := event["role"].(string)
+		if !ok || role != "assistant" {
+			continue
+		}
+		content, ok := event["content"].(string)
+		if !ok {
+			continue
+		}
+		sb.WriteString(content)
+	}
+	return sb.String()
 }
