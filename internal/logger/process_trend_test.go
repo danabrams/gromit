@@ -393,6 +393,22 @@ func TestSummarizeWindow_TimeoutDecompositionMetrics(t *testing.T) {
 	assertFloatNear(t, summary.TimeoutDecompositionSuccessRate, 2.0/3.0, "TimeoutDecompositionSuccessRate")
 }
 
+func TestSummarizeWindow_TimeoutRetryBlockMetrics(t *testing.T) {
+	const blockMessage = "Same-scope retry blocked: timeout requires decomposition or escalation decision"
+	window := []IterationLog{
+		{Error: blockMessage},
+		{Error: "something else"},
+		{Error: blockMessage + " (wrapped)"},
+		{Error: blockMessage},
+	}
+
+	summary := summarizeWindow(window)
+	if summary.TimeoutRetryBlockCount != 3 {
+		t.Fatalf("TimeoutRetryBlockCount = %d, want 3", summary.TimeoutRetryBlockCount)
+	}
+	assertFloatNear(t, summary.TimeoutRetryBlockRate, 0.75, "TimeoutRetryBlockRate")
+}
+
 func TestBuildIterationMetrics_SinglePhaseRollingRates(t *testing.T) {
 	entries := []IterationLog{
 		makeIterationLog(false, failurephase.Build),
