@@ -143,3 +143,72 @@ func TestMaybeWarnModelFlagOnNonClaudeAgent(t *testing.T) {
 		}
 	})
 }
+
+func TestMaybeWarnModelFlagOnNonClaudeAgentTableDriven(t *testing.T) {
+	t.Parallel()
+
+	codexAgent := agent.New("codex", "codex", nil, agent.FileRef, "", nil)
+	claudeAgent := agent.New("claude", "claude", nil, agent.FileRef, "", nil)
+
+	cases := []struct {
+		name           string
+		agent          agent.Agent
+		withModelFlag  bool
+		setModel       bool
+		expectWarning  bool
+		expectedSubstr string
+	}{
+		{
+			name:           "non-Claude warns when --model changed",
+			agent:          codexAgent,
+			withModelFlag:  true,
+			setModel:       true,
+			expectWarning:  true,
+			expectedSubstr: "codex",
+		},
+		{
+			name:          "non-Claude silent when --model not changed",
+			agent:         codexAgent,
+			withModelFlag: true,
+			setModel:      false,
+		},
+		{
+			name:          "non-Claude silent when --model flag missing",
+			agent:         codexAgent,
+			withModelFlag: false,
+			setModel:      false,
+		},
+		{
+			name:          "Claude silent when --model changed",
+			agent:         claudeAgent,
+			withModelFlag: true,
+			setModel:      true,
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			stderr := &bytes.Buffer{}
+			cmd := prepareDebugModelCmd(t, tc.withModelFlag, tc.setModel)
+
+			maybeWarnModelFlagOnNonClaudeAgent(cmd, tc.agent, stderr)
+			output := stderr.String()
+
+			if tc.expectWarning {
+				if output == "" {
+					t.Fatalf("expected warning for %s, got none", tc.name)
+				}
+				if tc.expectedSubstr != "" && !bytes.Contains(stderr.Bytes(), []byte(tc.expectedSubstr)) {
+					t.Fatalf("expected warning to contain %q, got: %s", tc.expectedSubstr, output)
+				}
+				return
+			}
+
+			if output != "" {
+				t.Fatalf("expected no warning for %s, got: %s", tc.name, output)
+			}
+		})
+	}
+}
