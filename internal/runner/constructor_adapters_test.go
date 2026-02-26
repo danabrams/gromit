@@ -5,6 +5,7 @@ import (
 	"io"
 	"math"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -13,8 +14,9 @@ import (
 	"github.com/danabrams/gromit/internal/pipeline/epilogue"
 	"github.com/danabrams/gromit/internal/pipeline/prepare"
 	"github.com/danabrams/gromit/internal/pipeline/review"
-	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/specmerge"
 	"github.com/danabrams/gromit/internal/tracker"
 )
 
@@ -283,9 +285,13 @@ func (d *dummyPromptRenderer) LoadSpec(name string) (string, error) {
 // mockTrackerClient implements tracker.Client for testing
 type mockTrackerClient struct{}
 
-func (m *mockTrackerClient) Ready(ctx context.Context) (*tracker.Item, error)               { return nil, nil }
-func (m *mockTrackerClient) List(ctx context.Context, q tracker.Query) ([]tracker.Item, error) { return nil, nil }
-func (m *mockTrackerClient) Show(ctx context.Context, id string) (*tracker.Item, error)    { return nil, nil }
+func (m *mockTrackerClient) Ready(ctx context.Context) (*tracker.Item, error) { return nil, nil }
+func (m *mockTrackerClient) List(ctx context.Context, q tracker.Query) ([]tracker.Item, error) {
+	return nil, nil
+}
+func (m *mockTrackerClient) Show(ctx context.Context, id string) (*tracker.Item, error) {
+	return nil, nil
+}
 func (m *mockTrackerClient) Create(ctx context.Context, req tracker.CreateRequest) (*tracker.Item, error) {
 	return nil, nil
 }
@@ -295,11 +301,28 @@ func (m *mockTrackerClient) CreateWithParent(ctx context.Context, req tracker.Cr
 func (m *mockTrackerClient) ListWithLabel(ctx context.Context, label string) ([]tracker.Item, error) {
 	return nil, nil
 }
-func (m *mockTrackerClient) Close(ctx context.Context, id string) error         { return nil }
-func (m *mockTrackerClient) Sync(ctx context.Context) error                    { return nil }
+func (m *mockTrackerClient) Close(ctx context.Context, id string) error               { return nil }
+func (m *mockTrackerClient) Sync(ctx context.Context) error                           { return nil }
 func (m *mockTrackerClient) AddComment(ctx context.Context, id, comment string) error { return nil }
 func (m *mockTrackerClient) HasOpenChildren(ctx context.Context, parentID string) (bool, error) {
 	return false, nil
+}
+
+func TestNewSpecMergeFinalizeDependencies(t *testing.T) {
+	t.Parallel()
+
+	gitOps := &dummyGitOpsForSpec{}
+	resolver := &dummyResolverForSpec{}
+	deps := newSpecMergeFinalizeDependencies(gitOps, resolver, "canonical-main")
+
+	want := specmerge.FinalizeDependencies{
+		Git:              gitOps,
+		ConflictResolver: resolver,
+		MainBranch:       "canonical-main",
+	}
+	if !reflect.DeepEqual(deps, want) {
+		t.Fatalf("deps = %+v, want %+v", deps, want)
+	}
 }
 
 // decomposerAdapterWithTrackerClient is a version of decomposerAdapter that uses tracker.Client
@@ -332,4 +355,16 @@ func TestBeadLifecycleAdapterAcceptsTrackerClient(t *testing.T) {
 	var _ epilogue.BeadLifecycle = &beadLifecycleAdapter{
 		tracker: trackerClient,
 	}
+}
+
+type dummyGitOpsForSpec struct{}
+
+func (d *dummyGitOpsForSpec) RebaseOnto(ctx context.Context, branch, onto string) error { return nil }
+func (d *dummyGitOpsForSpec) FastForwardMerge(ctx context.Context, branch string) error { return nil }
+func (d *dummyGitOpsForSpec) DeleteBranch(ctx context.Context, branch string) error     { return nil }
+
+type dummyResolverForSpec struct{}
+
+func (d *dummyResolverForSpec) Resolve(ctx context.Context, branch string, cause error) error {
+	return nil
 }
