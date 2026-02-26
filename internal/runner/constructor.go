@@ -219,15 +219,16 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		})
 	}
 
-	// Wire spec gate when spec-level methodology is active
-	if cfg.Methodology.Granularity == config.MethodologyGranularitySpec && cfg.SpecGate.IsEnabled() {
-		epilogueStage.WithSpecGate(&specGateAdapter{
-			renderer: renderer,
-			router:   router,
-			cfg:      cfg,
-			logFn:    func(msg string, args ...interface{}) { _, _ = fmt.Fprintf(syncOut, msg+"\n", args...) },
-		})
-	}
+	// DEPRECATED: Spec gate auto-trigger in epilogue has been replaced by the
+	// merge pipeline (internal/runner/specmerge). The merge pipeline is now the
+	// only completion mechanism for spec-level methodology. The spec gate is no
+	// longer wired to the epilogue.
+	//
+	// Previous code that wired spec gate:
+	// if cfg.Methodology.Granularity == config.MethodologyGranularitySpec && cfg.SpecGate.IsEnabled() {
+	//   epilogueStage.WithSpecGate(&specGateAdapter{...})
+	// }
+	// This has been disabled to ensure merge pipeline is the exclusive spec completion path.
 
 	// Create OrchestratorConfig
 	cfg.SetDefaults()
