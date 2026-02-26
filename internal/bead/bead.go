@@ -1,6 +1,7 @@
 package bead
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -207,7 +208,7 @@ func NewClient() (*Client, error) {
 }
 
 // Show returns full details for a bead
-func (c *Client) Show(id string) (*Bead, error) {
+func (c *Client) Show(ctx context.Context, id string) (*Bead, error) {
 	if c == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
@@ -246,7 +247,7 @@ func (c *Client) Show(id string) (*Bead, error) {
 }
 
 // Close marks a bead as complete
-func (c *Client) Close(id string) error {
+func (c *Client) Close(ctx context.Context, id string) error {
 	if c == nil {
 		return fmt.Errorf("bead client is nil")
 	}
@@ -262,7 +263,7 @@ func (c *Client) Close(id string) error {
 }
 
 // Sync syncs the bd database with git
-func (c *Client) Sync() error {
+func (c *Client) Sync(ctx context.Context) error {
 	if c == nil {
 		return fmt.Errorf("bead client is nil")
 	}
@@ -274,7 +275,7 @@ func (c *Client) Sync() error {
 }
 
 // AddComment adds a comment to a bead
-func (c *Client) AddComment(id, comment string) error {
+func (c *Client) AddComment(ctx context.Context, id, comment string) error {
 	if c == nil {
 		return fmt.Errorf("bead client is nil")
 	}
@@ -303,7 +304,7 @@ type Comment struct {
 }
 
 // GetComments retrieves all comments for a bead
-func (c *Client) GetComments(id string) ([]Comment, error) {
+func (c *Client) GetComments(ctx context.Context, id string) ([]Comment, error) {
 	if c == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
@@ -329,7 +330,7 @@ func (c *Client) GetComments(id string) ([]Comment, error) {
 }
 
 // UpdatePriority changes the priority of a bead
-func (c *Client) UpdatePriority(id string, priority int) error {
+func (c *Client) UpdatePriority(ctx context.Context, id string, priority int) error {
 	if c == nil {
 		return fmt.Errorf("bead client is nil")
 	}
@@ -348,7 +349,7 @@ func (c *Client) UpdatePriority(id string, priority int) error {
 }
 
 // GetParent returns the parent bead if one exists
-func (c *Client) GetParent(b *Bead) (*Bead, error) {
+func (c *Client) GetParent(ctx context.Context, b *Bead) (*Bead, error) {
 	if c == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
@@ -359,7 +360,7 @@ func (c *Client) GetParent(b *Bead) (*Bead, error) {
 }
 
 // HasOpenChildren checks if an epic has any remaining open child tasks
-func (c *Client) HasOpenChildren(parentID string) (bool, error) {
+func (c *Client) HasOpenChildren(ctx context.Context, parentID string) (bool, error) {
 	if c == nil {
 		return false, fmt.Errorf("bead client is nil")
 	}

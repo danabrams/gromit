@@ -1,6 +1,7 @@
 package bead
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -60,7 +61,7 @@ func parseBeadOutputExcluding(out string, excludeType string) (*Bead, error) {
 }
 
 // Ready returns the next unblocked bead ready for work (excludes epics)
-func (c *Client) Ready() (*Bead, error) {
+func (c *Client) Ready(ctx context.Context) (*Bead, error) {
 	if c == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
@@ -76,7 +77,7 @@ func (c *Client) Ready() (*Bead, error) {
 
 // ReadyExcluding returns the next unblocked non-epic bead whose ID is not in excludeIDs.
 // Fetches a larger batch to increase the chance of finding a non-excluded bead.
-func (c *Client) ReadyExcluding(excludeIDs map[string]bool) (*Bead, error) {
+func (c *Client) ReadyExcluding(ctx context.Context, excludeIDs map[string]bool) (*Bead, error) {
 	if c == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
@@ -115,7 +116,7 @@ func (c *Client) ReadyExcluding(excludeIDs map[string]bool) (*Bead, error) {
 }
 
 // ReadyAny returns the next unblocked bead of any type (including epics)
-func (c *Client) ReadyAny() (*Bead, error) {
+func (c *Client) ReadyAny(ctx context.Context) (*Bead, error) {
 	if c == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
@@ -151,23 +152,23 @@ func (c *Client) countBeads(cmdName string, args ...string) (int, error) {
 }
 
 // CountReady returns the count of ready (unblocked) beads
-func (c *Client) CountReady() (int, error) {
+func (c *Client) CountReady(ctx context.Context) (int, error) {
 	return c.countBeads("ready", "ready", "--json", "--limit", "0")
 }
 
 // CountByStatus returns the count of beads with the specified status
-func (c *Client) CountByStatus(status string) (int, error) {
+func (c *Client) CountByStatus(ctx context.Context, status string) (int, error) {
 	return c.countBeads("list", "list", "--json", "--status", status, "--limit", "0")
 }
 
 // CountClosedAfter returns the count of beads closed after the specified time
-func (c *Client) CountClosedAfter(after time.Time) (int, error) {
+func (c *Client) CountClosedAfter(ctx context.Context, after time.Time) (int, error) {
 	afterStr := after.Format(time.RFC3339)
 	return c.countBeads("list", "list", "--json", "--status", "closed", "--closed-after", afterStr, "--limit", "0")
 }
 
 // ListReadyIDs returns a slice of ready bead IDs (from a batch of 10)
-func (c *Client) ListReadyIDs() ([]string, error) {
+func (c *Client) ListReadyIDs(ctx context.Context) ([]string, error) {
 	if c == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
@@ -194,7 +195,7 @@ func (c *Client) ListReadyIDs() ([]string, error) {
 }
 
 // ReadyWithLabel returns the next unblocked bead with the specified label (excludes epics)
-func (c *Client) ReadyWithLabel(label string) (*Bead, error) {
+func (c *Client) ReadyWithLabel(ctx context.Context, label string) (*Bead, error) {
 	if c == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
@@ -262,12 +263,12 @@ func (c *Client) listByStatus(status string) ([]*Bead, error) {
 }
 
 // List returns all open beads, sorted by priority (P0 first)
-func (c *Client) List() ([]*Bead, error) {
+func (c *Client) List(ctx context.Context) ([]*Bead, error) {
 	return c.listByStatus("open")
 }
 
 // ListByStatus returns all beads with the given status, sorted by priority (P0 first).
-func (c *Client) ListByStatus(status string) ([]*Bead, error) {
+func (c *Client) ListByStatus(ctx context.Context, status string) ([]*Bead, error) {
 	if strings.TrimSpace(status) == "" {
 		return nil, fmt.Errorf("status cannot be empty")
 	}
@@ -275,7 +276,7 @@ func (c *Client) ListByStatus(status string) ([]*Bead, error) {
 }
 
 // ListReady returns all ready (unblocked) beads, sorted by priority (P0 first).
-func (c *Client) ListReady() ([]*Bead, error) {
+func (c *Client) ListReady(ctx context.Context) ([]*Bead, error) {
 	if c == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
@@ -305,7 +306,7 @@ func (c *Client) ListReady() ([]*Bead, error) {
 }
 
 // ListReadyWork returns all ready work based on bd ready semantics.
-func (c *Client) ListReadyWork() ([]*Bead, error) {
+func (c *Client) ListReadyWork(ctx context.Context) ([]*Bead, error) {
 	if c == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
@@ -335,7 +336,7 @@ func (c *Client) ListReadyWork() ([]*Bead, error) {
 }
 
 // ListAll returns all beads (both open and closed), grouped by status
-func (c *Client) ListAll() (open []*Bead, closed []*Bead, err error) {
+func (c *Client) ListAll(ctx context.Context) (open []*Bead, closed []*Bead, err error) {
 	if c == nil {
 		return nil, nil, fmt.Errorf("bead client is nil")
 	}
@@ -390,7 +391,7 @@ func (c *Client) ListAll() (open []*Bead, closed []*Bead, err error) {
 }
 
 // ListWithLabel returns all beads with the specified label
-func (c *Client) ListWithLabel(label string) ([]*Bead, error) {
+func (c *Client) ListWithLabel(ctx context.Context, label string) ([]*Bead, error) {
 	if c == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}

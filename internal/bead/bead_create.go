@@ -1,6 +1,7 @@
 package bead
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -15,17 +16,17 @@ func validateReferencedBeadID(id, idType string) error {
 }
 
 // Create creates a new bead via the bd CLI and returns the created bead.
-func (c *Client) Create(title string, priority int, labels []string, expectedOutputs []string) (*Bead, error) {
-	return c.CreateWithParentAndDescription(title, priority, labels, expectedOutputs, "", "")
+func (c *Client) Create(ctx context.Context, title string, priority int, labels []string, expectedOutputs []string) (*Bead, error) {
+	return c.CreateWithParentAndDescription(ctx, title, priority, labels, expectedOutputs, "", "")
 }
 
 // CreateWithParent creates a new bead with an optional parent and description via the bd CLI.
-func (c *Client) CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*Bead, error) {
-	return c.CreateWithParentAndDescription(title, priority, labels, expectedOutputs, parentID, "")
+func (c *Client) CreateWithParent(ctx context.Context, title string, priority int, labels []string, expectedOutputs []string, parentID string) (*Bead, error) {
+	return c.CreateWithParentAndDescription(ctx, title, priority, labels, expectedOutputs, parentID, "")
 }
 
 // CreateWithParentAndDescription creates a new bead with an optional parent and description via the bd CLI.
-func (c *Client) CreateWithParentAndDescription(title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*Bead, error) {
+func (c *Client) CreateWithParentAndDescription(ctx context.Context, title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*Bead, error) {
 	if c == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
@@ -43,7 +44,7 @@ func (c *Client) CreateWithParentAndDescription(title string, priority int, labe
 }
 
 // CreateWithDepsAndDescription creates a new bead with dependencies and description via the bd CLI.
-func (c *Client) CreateWithDepsAndDescription(title string, priority int, labels []string, expectedOutputs []string, dependencies []string, description string) (*Bead, error) {
+func (c *Client) CreateWithDepsAndDescription(ctx context.Context, title string, priority int, labels []string, expectedOutputs []string, dependencies []string, description string) (*Bead, error) {
 	if c == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
