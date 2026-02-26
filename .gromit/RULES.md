@@ -14,13 +14,11 @@ These are non-negotiable constraints for this project.
 - Agent execution must use `agent.Resolve()` + `agent.Launch()`; never construct `exec.Command` directly
 - Spec order: `scope.ValidateSpec(...)` before `scope.ResolveSpec(...)`
 - Interface files must include `var _ InterfaceName = (*Impl)(nil)`. Interface changes must include implementation + mock updates in the same bead
-- Prompt templates: register `PROMPT_<name>.md` in `runInit()` via `defaultXxxTemplate`. Renderers take context structs returning `(string, error)`. Share common sections; vary only Instructions/Completion. Never ignore loader errors
+- Prompt templates: register `PROMPT_<name>.md` in `runInit()` via `defaultXxxTemplate`. Renderers take context structs returning `(string, error)`. Share common sections; vary only Instructions/Completion.
 - Router: choose tier (`low|medium|high`), resolve model (`haiku|sonnet|opus`); store model names in fields like `EscalatedTo`. Lives in `internal/runner/escalation/`
 - Mocks use FnField pattern with nil-safe defaults; tests set only needed callbacks
 - Per-run accumulator fields (slices, maps) in Runner must be reset at the top of Run(), not in individual phases
 - Renderer owns context/state; configure via setters in `NewRunner()`; `BuildContext()` reads it; don't bypass
-- Do not discard errors from renderer/template/rules loaders (no `_, _ :=` for fallible setup). Propagate or log a structured warning with phase + file context
-
 ## Safety <!-- phases: red, build, green, refactor, review -->
 
 - Never commit secrets, API keys, or credentials
@@ -57,7 +55,6 @@ These are non-negotiable constraints for this project.
 - Any bead touching provider stream usage/event handling must add a stream-event matrix contract test (turn/response/result paths) that covers both positive attribution (known model/provider) and negative completeness cases (missing current-run rows fail closed)
 - `internal/runner/*/` sub-packages must not import siblings **in production or test files**; cross-cutting types live in `runtypes/`. Parent `runner` package uses type aliases for backward compatibility. Production files: <550 lines; facade files: <1000 lines
 - Interactive commands use the session worktree lifecycle with a single merge/cleanup owner and typed conflict classification from git output + exit status. Do not classify conflicts by message fragments alone. Merge-back cleanup may abort only merge state created by the current operation; pre-existing `MERGE_HEAD` must return a typed non-destructive error.
-- During orchestrator migrations, cross-cutting concerns (state persistence, cost/token metrics, status updates) must be implemented in one shared path, with parity tests if legacy and new paths coexist
 - All decomposition entry points must call the same shared validator. Required-field rules (non-empty title, expected_outputs contract, dependency-field validity) must not live in call-site-only checks. Any field required by validation must be present in candidate mapping and reprompt context; prompt/schema/fixture changes for those fields must ship together.
 
 ## Build Process <!-- phases: build -->
@@ -73,7 +70,6 @@ These are non-negotiable constraints for this project.
 - Validation recovery auto-fixes (`gofmt`/`goimports`), re-validates, escalates to Claude only if still failing (`MaxValidationRetries` default 1)
 - `test/contracts/` contract tests verify git call order (`rev-parse` before `git diff --stat`) and keep harness init and sequencing intact
 - Validation commands in gromit.yaml must match the build system (go test/vet/build); never pnpm/npm. API/lifecycle/orchestrator deletions or migrations must add compile gate `go test -tags acceptance -run '^$' ./...`.
-- Usage accounting must use explicit before/after snapshots and a consistent merge strategy for provider stream events; mixing raw totals and deltas in one run is forbidden. Retro/efficiency must fail if total_iterations > 0 with empty current-run rows, if aggregates are non-zero while rows are empty, or if any phase snapshot is missing. In this state, output must show `insufficient_current_run_data` and deltas as `N/A`. SPC/control-limit alerts must suppress strata with insufficient sample size (<20 points).
 - When deleting exported APIs or large orchestration files, run `go test -tags acceptance -run '^$' ./...` as a compile gate before merge; blocked build-tagged references must be resolved in the same bead
 - Build phases run `go test`/`go vet` on touched packages only; full validation runs `go test ./...`, `go vet ./...`, `go build ./...`
 - `test_touched.sh` tests branch-modified packages; existing failures in those packages block new beads, so verify they pass before starting dependent work
