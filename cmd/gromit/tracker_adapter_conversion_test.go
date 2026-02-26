@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/pipeline"
@@ -137,6 +138,40 @@ func TestTrackerClientAdapter_LabelsRoundtrip(t *testing.T) {
 	for i, label := range inputLabels {
 		if i >= len(created.Labels) || created.Labels[i] != label {
 			t.Errorf("Label %d mismatch: got %q, want %q", i, created.Labels[i], label)
+		}
+	}
+}
+
+
+func TestTrackerClientAdapter_CreateExpectedOutputsMetadata(t *testing.T) {
+	t.Parallel()
+
+	mockClient := &mockTrackerClient{}
+	adapter := &trackerClientAdapter{Client: mockClient}
+
+	ctx := context.Background()
+	outputs := []string{"output-one", "output-two"}
+	if _, err := adapter.Create(ctx, "title", 1, nil, outputs); err != nil {
+		t.Fatalf("Create() error: %v", err)
+	}
+
+	if len(mockClient.createdItems) == 0 {
+		t.Fatal("no created items captured")
+	}
+	raw := mockClient.createdItems[0].Metadata["expected_outputs"]
+	if raw == "" {
+		t.Fatal("expected_outputs metadata is empty")
+	}
+	var decoded []string
+	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
+		t.Fatalf("unmarshal metadata: %v", err)
+	}
+	if len(decoded) != len(outputs) {
+		t.Fatalf("decoded outputs length = %d, want %d", len(decoded), len(outputs))
+	}
+	for i, v := range outputs {
+		if decoded[i] != v {
+			t.Fatalf("output[%d] = %q, want %q", i, decoded[i], v)
 		}
 	}
 }
