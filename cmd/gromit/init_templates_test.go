@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -249,7 +251,6 @@ func TestInitWritesProfileAwareRules(t *testing.T) {
 }
 
 func TestInitProfileMatrixGeneratesContent(t *testing.T) {
-	t.Parallel()
 
 	cases := []struct {
 		name                 string
@@ -302,7 +303,6 @@ func TestInitProfileMatrixGeneratesContent(t *testing.T) {
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 
 			dir, stdout := runInitProfileMatrix(t, tc.profile, tc.signals)
 
@@ -406,4 +406,70 @@ validation:
 	if !strings.Contains(rulesStr, "Never commit secrets") {
 		t.Error("RULES.md missing universal safety guidance")
 	}
+}
+
+func runInitProfileMatrix(t *testing.T, profile string, signals []string) (string, string) {
+	t.Helper()
+
+	dir := setupProfileSignals(t, signals)
+
+	prevWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get wd: %v", err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	defer os.Chdir(prevWd)
+
+	prevForce := forceInit
+	prevProfile := initProfile
+	forceInit = true
+	initProfile = ""
+	defer func() {
+		forceInit = prevForce
+		initProfile = prevProfile
+	}()
+
+	stdout := captureRunInitOutput(t, func() {
+		if err := runInit(nil, nil); err != nil {
+			t.Fatalf("runInit: %v", err)
+		}
+	})
+
+	return dir, stdout
+}
+
+func captureRunInitOutput(t *testing.T, fn func()) string {
+	t.Helper()
+
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("create pipe: %v", err)
+	}
+
+	os.Stdout = w
+	defer func() {
+		os.Stdout = oldStdout
+	}()
+
+	var buf bytes.Buffer
+	done := make(chan struct{})
+	go func() {
+		_, _ = io.Copy(&buf, r)
+		close(done)
+	}()
+
+	fn()
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("close stdout writer: %v", err)
+	}
+	<-done
+	if err := r.Close(); err != nil {
+		t.Fatalf("close stdout reader: %v", err)
+	}
+
+	return buf.String()
 }
