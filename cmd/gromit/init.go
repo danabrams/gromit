@@ -201,6 +201,28 @@ func writeFileIfNotExists(path, content string, force bool) error {
 	return nil
 }
 
+var (
+	nodeProfileSignals   = []string{"package.json", "pnpm-lock.yaml", "package-lock.json", "yarn.lock"}
+	pythonProfileSignals = []string{"pyproject.toml", "requirements.txt", "setup.py", "Pipfile"}
+)
+
+func detectProfile(dir string) string {
+	if hasRepoMarker(dir, "go.mod") {
+		return "go"
+	}
+	for _, signal := range nodeProfileSignals {
+		if hasRepoMarker(dir, signal) {
+			return "node"
+		}
+	}
+	for _, signal := range pythonProfileSignals {
+		if hasRepoMarker(dir, signal) {
+			return "python"
+		}
+	}
+	return "custom"
+}
+
 func appendToGitignore(path string) {
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -236,4 +258,3 @@ func appendToGitignore(path string) {
 	}
 	fmt.Println("  Updated .gitignore")
 }
-
