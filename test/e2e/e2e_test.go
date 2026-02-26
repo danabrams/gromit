@@ -1164,3 +1164,58 @@ func TestE2E_LowTierHaikuIterationMetricsRegression(t *testing.T) {
 		t.Fatalf("Expected haiku model in metrics, got %q", entry.Model)
 	}
 }
+
+// TestE2E_LowTierP2Routing_RegressionBaseline is a narrow regression test that verifies
+// P2 priority beads are correctly routed to haiku model with non-zero duration.
+// This test ensures the low-tier routing does not regress.
+func TestE2E_LowTierP2Routing_RegressionBaseline(t *testing.T) {
+	env := setupE2E(t)
+
+	// Create a P2 (low-tier) bead
+	beadID := "test-p2-regression"
+	if err := createBead(env, beadID, "Low-tier P2 task", "Test bead for P2 routing regression", 2, []string{}); err != nil {
+		t.Fatalf("Failed to create P2 bead: %v", err)
+	}
+
+	// Set up claude fixtures for successful completion
+	buildFixture := filepath.Join(fixturesDir, "claude_build_success.txt")
+	validateFixture := filepath.Join(fixturesDir, "claude_validate_success.txt")
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE", buildFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_FIXTURE_HAIKU", validateFixture)
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_INPUT_TOKENS", "400")
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_OUTPUT_TOKENS", "120")
+	env.Env = testutil.ReplaceOrAppend(env.Env, "CLAUDE_COST_USD", "0.05")
+
+	// Run gromit
+	stdout, stderr, exitCode, err := runGromit(env, "run", "-n", "1")
+	if err != nil {
+		t.Fatalf("Failed to run gromit: %v", err)
+	}
+
+	t.Logf("Exit code: %d", exitCode)
+	if exitCode != 0 {
+		t.Logf("Stdout:\n%s", stdout)
+		t.Logf("Stderr:\n%s", stderr)
+	}
+
+	if exitCode != 0 {
+		t.Fatalf("Expected exit code 0, got %d", exitCode)
+	}
+
+	// Read iteration log to verify model selection and duration
+	logsDir := filepath.Join(env.Dir, ".gromit", "logs")
+	entry, err := testutil.FindIterationLogForBead(logsDir, beadID)
+	if err != nil {
+		t.Fatalf("Failed to find iteration log for bead %s: %v", beadID, err)
+	}
+
+	// Verify non-zero duration (regression baseline)
+	if entry.DurationMs <= 0 {
+		t.Errorf("Expected DurationMs > 0, got %d", entry.DurationMs)
+	}
+
+	// Verify correct model selection (haiku for P2)
+	if !strings.Contains(strings.ToLower(entry.Model), "haiku") {
+		t.Errorf("Expected model to be haiku for P2 bead, got %q", entry.Model)
+	}
+}
