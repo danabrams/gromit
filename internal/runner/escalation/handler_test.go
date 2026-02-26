@@ -2471,3 +2471,92 @@ func TestContract_TimeoutFailedDecompositionFlow(t *testing.T) {
 		t.Fatal("TimeoutDecompositionAttemptTime should be set")
 	}
 }
+
+// TestContract_PartialDecompositionStateBlocksRetry validates the contract for partial decomposition state.
+// This occurs when:
+// 1. Timeout with decomposition is attempted but fails (partial state)
+// 2. Next iteration tries to retry same-scope
+// 3. CheckRetryGate detects partial state (TimeoutDecompositionAttempted=true, TimeoutDecompositionSucceeded=false, retries exist)
+// 4. Blocks the retry with typed ErrPartialDecompositionState error
+// 5. ExecuteWithRetry returns false and sets the error
+func TestContract_PartialDecompositionStateBlocksRetry(t *testing.T) {
+	cfg := newTestConfig()
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := newTestBeadContext()
+	bc.Result.TimeoutDecompositionAttempted = true
+	bc.Result.TimeoutDecompositionSucceeded = false // Decomposition was attempted but failed
+	bc.Result.TimeoutType = "invocation"
+	bc.TotalRetriesThisBead = 1 // Already retried once
+	bc.MaxRetriesPerBead = 5
+	bc.MaxRetries = 2
+
+	invocationCount := 0
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		invocationCount++
+		t.Fatalf("invokeFn should not be called when partial decomposition state is detected (count=%d)", invocationCount)
+		return nil, fmt.Errorf("should not be called")
+	}
+
+	// ExecuteWithRetry should detect partial state and block with typed error
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+	if success {
+		t.Fatal("expected partial decomposition state to block execution")
+	}
+
+	// Verify the error is ErrPartialDecompositionState (typed error assertion)
+	if !errors.Is(bc.Result.Error, ErrPartialDecompositionState) {
+		t.Fatalf("expected ErrPartialDecompositionState, got %v (type: %T)", bc.Result.Error, bc.Result.Error)
+	}
+
+	// Verify specific error message
+	expectedMsg := "Partial/unsafe decomposition state"
+	if !strings.Contains(bc.Result.Error.Error(), expectedMsg) {
+		t.Fatalf("error message should contain %q, got: %q", expectedMsg, bc.Result.Error.Error())
+	}
+
+	if invocationCount != 0 {
+		t.Fatalf("expected 0 invocations, got %d", invocationCount)
+	}
+}
+
+// TestContract_SuccessfulDecompositionAllowsRetry validates that after successful decomposition,
+// the next iteration can retry without the retry gate blocking.
+func TestContract_SuccessfulDecompositionAllowsRetry(t *testing.T) {
+	cfg := newTestConfig()
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := newTestBeadContext()
+	bc.Result.TimeoutDecompositionAttempted = true
+	bc.Result.TimeoutDecompositionSucceeded = true // Decomposition succeeded
+	bc.Result.Decomposed = true
+	bc.Result.TimeoutType = "invocation"
+	bc.TotalRetriesThisBead = 1
+	bc.MaxRetriesPerBead = 5
+	bc.MaxRetries = 2
+
+	// Verify CheckRetryGate allows continuation when decomposition succeeded
+	gateErr := h.CheckRetryGate(bc)
+	if gateErr != nil {
+		t.Fatalf("CheckRetryGate should allow retry after successful decomposition, got error: %v", gateErr)
+	}
+}
+
+// TestContract_EscalationAllowsRetry validates that after escalation, the retry gate allows continuation.
+func TestContract_EscalationAllowsRetry(t *testing.T) {
+	cfg := newTestConfig()
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := newTestBeadContext()
+	bc.Result.TimeoutType = "stall"
+	bc.Result.Escalated = true // Escalation occurred
+	bc.TotalRetriesThisBead = 1
+	bc.MaxRetriesPerBead = 5
+	bc.MaxRetries = 2
+
+	// Verify CheckRetryGate allows continuation when escalation occurred
+	gateErr := h.CheckRetryGate(bc)
+	if gateErr != nil {
+		t.Fatalf("CheckRetryGate should allow retry after escalation, got error: %v", gateErr)
+	}
+}
