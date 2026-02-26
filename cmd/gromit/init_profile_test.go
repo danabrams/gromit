@@ -16,30 +16,30 @@ func TestDetectProfilePriority(t *testing.T) {
 		{name: "go takes precedence", files: []string{"go.mod", "package.json"}, want: "go"},
 		{name: "node before python", files: []string{"package.json", "pyproject.toml"}, want: "node"},
 		{name: "python when only python signal", files: []string{"pyproject.toml"}, want: "python"},
-		{name: "go when no signal", files: nil, want: "go"},
+		{name: "custom when no signal", files: nil, want: "custom"},
 	}
 
-    for _, tc := range cases {
-        t.Run(tc.name, func(t *testing.T) {
-            dir := t.TempDir()
-            for _, file := range tc.files {
-                path := filepath.Join(dir, file)
-                if err := os.WriteFile(path, []byte(""), 0644); err != nil {
-                    t.Fatalf("write signal file %s: %v", file, err)
-                }
-            }
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for _, file := range tc.files {
+				path := filepath.Join(dir, file)
+				if err := os.WriteFile(path, []byte(""), 0644); err != nil {
+					t.Fatalf("write signal file %s: %v", file, err)
+				}
+			}
 
-            if got := detectProfile(dir); got != tc.want {
-                t.Fatalf("detectProfile() = %q, want %q", got, tc.want)
-            }
-        })
-    }
+			if got := detectProfile(dir); got != tc.want {
+				t.Fatalf("detectProfile() = %q, want %q", got, tc.want)
+			}
+		})
+	}
 }
 
-func TestDetectProfileFallbacksToGo(t *testing.T) {
+func TestDetectProfileFallbacksToCustom(t *testing.T) {
 	dir := t.TempDir()
-	if got := detectProfile(dir); got != "go" {
-		t.Fatalf("detectProfile() = %q, want go when no signals", got)
+	if got := detectProfile(dir); got != "custom" {
+		t.Fatalf("detectProfile() = %q, want custom when no signals", got)
 	}
 }
 
@@ -182,26 +182,26 @@ func TestInitRespectsProfileFlag(t *testing.T) {
 
 func TestExplicitProfileOverrideNoImplicitInjection(t *testing.T) {
 	testCases := []struct {
-		name             string
-		explicitProfile  string
+		name              string
+		explicitProfile   string
 		shouldHaveTracker bool
 		shouldHaveAdapter bool
 	}{
 		{
-			name:             "explicit profile does not implicitly set tracker backend",
-			explicitProfile:  "go",
+			name:              "explicit profile does not implicitly set tracker backend",
+			explicitProfile:   "go",
 			shouldHaveTracker: false,
 			shouldHaveAdapter: false,
 		},
 		{
-			name:             "explicit python profile override ignores go.mod signal",
-			explicitProfile:  "python",
+			name:              "explicit python profile override ignores go.mod signal",
+			explicitProfile:   "python",
 			shouldHaveTracker: false,
 			shouldHaveAdapter: false,
 		},
 		{
-			name:             "explicit node profile override ignores pyproject.toml signal",
-			explicitProfile:  "node",
+			name:              "explicit node profile override ignores pyproject.toml signal",
+			explicitProfile:   "node",
 			shouldHaveTracker: false,
 			shouldHaveAdapter: false,
 		},
@@ -316,5 +316,38 @@ func TestSelectInitProfileCustomProfile(t *testing.T) {
 
 	if profile != "custom" {
 		t.Fatalf("selectInitProfile() = %q, want custom", profile)
+	}
+}
+
+func TestSelectInitProfileRejectsInvalidConfigProfile(t *testing.T) {
+	dir := t.TempDir()
+	content := `project:
+  profile: "unknown"
+`
+	if err := os.WriteFile(filepath.Join(dir, "gromit.yaml"), []byte(content), 0644); err != nil {
+		t.Fatalf("write gromit.yaml: %v", err)
+	}
+
+	prevProfile := initProfile
+	defer func() { initProfile = prevProfile }()
+	initProfile = ""
+
+	if _, err := selectInitProfile(dir); err == nil {
+		t.Fatal("expected error for invalid project.profile in gromit.yaml")
+	}
+}
+
+func TestSelectInitProfileRejectsInvalidConfigYAML(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "gromit.yaml"), []byte("project:\n  profile: [\n"), 0644); err != nil {
+		t.Fatalf("write gromit.yaml: %v", err)
+	}
+
+	prevProfile := initProfile
+	defer func() { initProfile = prevProfile }()
+	initProfile = ""
+
+	if _, err := selectInitProfile(dir); err == nil {
+		t.Fatal("expected error for invalid gromit.yaml")
 	}
 }

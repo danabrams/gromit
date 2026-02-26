@@ -2,6 +2,11 @@
 
 ## Confirmed Learnings
 
+### 2026-02-26 | profile_defaults_are_cross_cutting | ARCHITECTURE
+*Related to: gromit/review-1772071010321620531*
+
+Profile defaults now affect config resolution, init templates, validation policy, and the validation runner, so changes must be coordinated across these paths.
+
 ### 2026-02-26 | timeout_retry_block_metrics_must_cover_all_gate_errors | RELIABILITY
 *Related to: gromit/review-1772066330959789077*
 
