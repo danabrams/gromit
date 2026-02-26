@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -402,6 +403,20 @@ func (c *Client) run(args ...string) (string, error) {
 		}
 		return "", fmt.Errorf("%w (retry with BEADS_NO_DB=true failed: %v)", err, retryErr)
 	}
+	if shouldRetryWithIssuePrefixBootstrap(err) {
+		prefix, prefixErr := c.deriveIssuePrefix()
+		if prefixErr != nil {
+			return "", fmt.Errorf("%w (derive issue_prefix: %v)", err, prefixErr)
+		}
+		if _, setErr := c.runWithEnv([]string{"config", "set", "issue_prefix", prefix}, nil); setErr != nil {
+			return "", fmt.Errorf("%w (auto-set issue_prefix=%q failed: %v)", err, prefix, setErr)
+		}
+		retryOut, retryErr := c.runWithEnv(args, nil)
+		if retryErr == nil {
+			return retryOut, nil
+		}
+		return "", fmt.Errorf("%w (auto-set issue_prefix=%q succeeded, retry failed: %v)", err, prefix, retryErr)
+	}
 	return "", err
 }
 
@@ -437,6 +452,65 @@ func shouldRetryWithNoDB(err error) bool {
 	return strings.Contains(errText, "Error 1146") &&
 		strings.Contains(errText, "table not found") &&
 		strings.Contains(errText, "issues")
+}
+
+func shouldRetryWithIssuePrefixBootstrap(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "issue_prefix config is missing")
+}
+
+func (c *Client) deriveIssuePrefix() (string, error) {
+	repoName, err := c.repoBaseName()
+	if err != nil {
+		return "", err
+	}
+	prefix := normalizeIssuePrefix(repoName)
+	if prefix == "" {
+		return "", fmt.Errorf("empty normalized prefix from %q", repoName)
+	}
+	return prefix, nil
+}
+
+func (c *Client) repoBaseName() (string, error) {
+	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
+	if c != nil && c.Dir != "" {
+		cmd.Dir = c.Dir
+	}
+	out, err := cmd.Output()
+	if err == nil {
+		root := strings.TrimSpace(string(out))
+		if root != "" {
+			return filepath.Base(root), nil
+		}
+	}
+
+	cwd, cwdErr := os.Getwd()
+	if cwdErr != nil {
+		if err != nil {
+			return "", fmt.Errorf("git rev-parse failed: %v; getwd failed: %w", err, cwdErr)
+		}
+		return "", fmt.Errorf("getwd failed: %w", cwdErr)
+	}
+	return filepath.Base(cwd), nil
+}
+
+func normalizeIssuePrefix(name string) string {
+	var b strings.Builder
+	lastDash := false
+	for _, r := range strings.ToLower(strings.TrimSpace(name)) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+			lastDash = false
+			continue
+		}
+		if !lastDash {
+			b.WriteByte('-')
+			lastDash = true
+		}
+	}
+	return strings.Trim(b.String(), "-")
 }
 
 func beadsNoDBAlreadyEnabled() bool {

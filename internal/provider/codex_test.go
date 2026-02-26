@@ -586,20 +586,15 @@ func TestCodexProviderRunSetsSuccessBasedOnExitCode(t *testing.T) {
 // Expected failure: CodexProvider Run() method does not exist yet
 func TestCodexProviderRunPopulatesModelInResult(t *testing.T) {
 	t.Parallel()
-	tempDir := t.TempDir()
-
-	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := "#!/bin/bash\necho 'done'\nexit 0\n"
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
 
 	tierMap := map[string]string{
 		TierHigh:   "o3",
 		TierMedium: "gpt-4o",
 		TierLow:    "gpt-4o-mini",
 	}
-	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
+	// Use /bin/sh directly to avoid temp-file executable races (ETXTBSY)
+	// under high parallel test load.
+	cp := NewCodexProvider("/bin/sh", []string{"-c", "echo done; exit 0", "--"}, tierMap)
 
 	tests := []struct {
 		tier      string
