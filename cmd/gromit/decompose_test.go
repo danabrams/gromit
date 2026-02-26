@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/danabrams/gromit/internal/worktree"
 )
 
@@ -659,4 +661,97 @@ decomposed: false
 	if !strings.Contains(string(gotBytes), "decomposed: true") {
 		t.Fatalf("expected plan to be marked decomposed, got:\n%s", string(gotBytes))
 	}
+}
+
+func TestReconcilePlanDecomposedStateUsesTrackerClient(t *testing.T) {
+	t.Parallel()
+
+	// Create a plan file that's not decomposed
+	plansDir := t.TempDir()
+	planPath := filepath.Join(plansDir, "test-plan.md")
+
+	planContent := `---
+decomposed: false
+---
+
+# Test Plan
+
+Some content here.
+`
+
+	if err := os.WriteFile(planPath, []byte(planContent), 0644); err != nil {
+		t.Fatalf("failed to create test plan file: %v", err)
+	}
+
+	// Create a mock tracker client that returns items matching the plan label
+	mockTrackerClient := &mockTrackerForDecompose{
+		items: []interface{}{
+			struct {
+				ID    string
+				Title string
+			}{
+				ID:    "bead-1",
+				Title: "Test Bead",
+			},
+		},
+	}
+
+	// This test expects reconcilePlanDecomposedStateWithTrackerClient to exist
+	// and use the tracker client to query for beads with the plan's label
+	alreadyDecomposed, reconciled, err := reconcilePlanDecomposedStateWithTrackerClient(
+		planPath, "test-plan", false, mockTrackerClient,
+	)
+
+	if err != nil {
+		t.Fatalf("reconcilePlanDecomposedStateWithTrackerClient returned error: %v", err)
+	}
+
+	if !alreadyDecomposed {
+		t.Fatalf("expected alreadyDecomposed to be true, got false")
+	}
+
+	if !reconciled {
+		t.Fatalf("expected reconciled to be true, got false")
+	}
+}
+
+// mockTrackerForDecompose is a test double for tracker.Client
+type mockTrackerForDecompose struct {
+	items []interface{}
+}
+
+func (m *mockTrackerForDecompose) Ready(context.Context) (*tracker.Item, error) {
+	return nil, nil
+}
+
+func (m *mockTrackerForDecompose) List(context.Context, tracker.Query) ([]tracker.Item, error) {
+	if len(m.items) > 0 {
+		// Return one item to simulate finding beads
+		return []tracker.Item{{ID: "bead-1", Title: "Test"}}, nil
+	}
+	return []tracker.Item{}, nil
+}
+
+func (m *mockTrackerForDecompose) Show(context.Context, string) (*tracker.Item, error) {
+	return nil, nil
+}
+
+func (m *mockTrackerForDecompose) Create(context.Context, tracker.CreateRequest) (*tracker.Item, error) {
+	return nil, nil
+}
+
+func (m *mockTrackerForDecompose) Close(context.Context, string) error {
+	return nil
+}
+
+func (m *mockTrackerForDecompose) Sync(context.Context) error {
+	return nil
+}
+
+func (m *mockTrackerForDecompose) AddComment(context.Context, string, string) error {
+	return nil
+}
+
+func (m *mockTrackerForDecompose) HasOpenChildren(context.Context, string) (bool, error) {
+	return false, nil
 }

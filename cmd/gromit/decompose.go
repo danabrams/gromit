@@ -16,6 +16,7 @@ import (
 	"github.com/danabrams/gromit/internal/frontmatter"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/spf13/cobra"
 )
 
@@ -555,6 +556,50 @@ func reconcilePlanDecomposedState(planPath, planName string, force bool) (alread
 		return false, false, err
 	}
 	if len(beads) == 0 {
+		return false, false, nil
+	}
+
+	updates := map[string]interface{}{
+		"decomposed":    true,
+		"decomposed_at": time.Now().Format(time.RFC3339),
+	}
+	if err := frontmatter.UpdateFile(planPath, updates); err != nil {
+		return false, false, fmt.Errorf("updating plan frontmatter: %w", err)
+	}
+
+	return true, true, nil
+}
+
+// reconcilePlanDecomposedStateWithTrackerClient is the tracker.Client version of reconcilePlanDecomposedState.
+// It uses tracker.Client to query for beads with the plan's label instead of calling bead.Client directly.
+func reconcilePlanDecomposedStateWithTrackerClient(planPath, planName string, force bool, trackerClient tracker.Client) (alreadyDecomposed bool, reconciled bool, err error) {
+	if force {
+		return false, false, nil
+	}
+
+	planFrontmatter, _, err := frontmatter.ReadFile(planPath)
+	if err != nil {
+		return false, false, fmt.Errorf("reading plan file: %w", err)
+	}
+
+	if decomposed, ok := planFrontmatter["decomposed"].(bool); ok && decomposed {
+		return true, false, nil
+	}
+
+	// Use tracker.Client to query for beads with the spec label
+	label := fmt.Sprintf("spec:%s", planName)
+	query := tracker.Query{
+		Filter: tracker.Filter{
+			Statuses: []string{"open"},
+			Labels:   []string{label},
+		},
+	}
+
+	items, err := trackerClient.List(context.Background(), query)
+	if err != nil {
+		return false, false, err
+	}
+	if len(items) == 0 {
 		return false, false, nil
 	}
 
