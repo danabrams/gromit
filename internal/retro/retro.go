@@ -337,6 +337,9 @@ func (a *providerResultAdapter) GetOutput() string {
 	return a.result.Output
 }
 
+// Compile-time interface check
+var _ resultGetter = (*providerResultAdapter)(nil)
+
 // loadRules reads the RULES.md file
 func (r *Retro) loadRules() (string, error) {
 	content, err := os.ReadFile(r.rulesPath)
