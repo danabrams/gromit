@@ -24,3 +24,7 @@ func TestLoadCompatibilityFixtureMixedLegacyAndNewSelectors(t *testing.T) {
 		t.Fatalf("methodology adapter resolved = (%q, %q), want (%q, %q)", resolved.MethodologyAdapter.Value, resolved.MethodologyAdapter.Source, "go", CompatibilitySourceLegacyFallback)
 	}
 }
+
+func TestLoadCompatibilityFixtureMixedLegacyAndNewSelectors_ProfileFallbackDocumented(t *testing.T) {
+	t.Fatalf("document mixed selectors fixture profile resolution change: ensure project.profile absence falls back to legacy resolver before adding explicit profile metadata")
+}
