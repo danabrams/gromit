@@ -98,11 +98,15 @@ func (h *Handler) CheckProactiveDecomposition(ctx context.Context, bc *runtypes.
 	}
 
 	// Mark that we attempted proactive decomposition
+	now := time.Now()
 	bc.Result.TimeoutDecompositionAttempted = true
+	bc.Result.TimeoutDecompositionAttemptTime = now
 
 	// Get a usable context for decomposition
 	decomposeCtx := firstNonNilContext(bc.ParentCtx, ctx)
 	if decomposeCtx.Err() != nil {
+		bc.Result.TimeoutDecompositionOutcome = timeoutDecompositionOutcomeSkipped
+		bc.Result.TimeoutDecompositionReason = fmt.Sprintf("proactive decomposition skipped (60%% elapsed): parent context canceled: %v", decomposeCtx.Err())
 		bc.Result.Error = fmt.Errorf("proactive decomposition attempted (bead 60%% timeout: parent context canceled: %w)", decomposeCtx.Err())
 		return false
 	}
@@ -110,5 +114,12 @@ func (h *Handler) CheckProactiveDecomposition(ctx context.Context, bc *runtypes.
 	failureReason := fmt.Sprintf("proactive decomposition triggered: bead 60%% elapsed budget")
 	continueLoop = h.AttemptDecomposition(decomposeCtx, bc, failureReason)
 	bc.Result.TimeoutDecompositionSucceeded = bc.Result.Decomposed
+	if bc.Result.Decomposed {
+		bc.Result.TimeoutDecompositionOutcome = timeoutDecompositionOutcomeSuccess
+		bc.Result.TimeoutDecompositionReason = "proactive decomposition triggered (60%% elapsed) succeeded"
+	} else {
+		bc.Result.TimeoutDecompositionOutcome = timeoutDecompositionOutcomeFailed
+		bc.Result.TimeoutDecompositionReason = fmt.Sprintf("proactive decomposition triggered (60%% elapsed) failed: %v", bc.Result.Error)
+	}
 	return continueLoop
 }
