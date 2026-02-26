@@ -1,0 +1,109 @@
+package main
+
+import (
+	"context"
+	"testing"
+
+	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/tracker"
+)
+
+// TestTrackerClientAdapter_ConvertsTrackerItemToBeadInfo verifies trackerClientAdapter
+// correctly converts tracker.Item with metadata to pipeline.BeadInfo.
+func TestTrackerClientAdapter_ConvertsTrackerItemToBeadInfo(t *testing.T) {
+	t.Parallel()
+
+	// Create a mock tracker.Client that returns items with metadata
+	mockClient := &mockTrackerClient{
+		readyItem: &tracker.Item{
+			ID:          "test-123",
+			Title:       "Test Bead",
+			Description: "Test description",
+			Status:      tracker.StatusOpen,
+			Metadata: map[string]string{
+				"priority": "2",
+				"labels":   `["spec:test","important"]`,
+			},
+		},
+	}
+
+	adapter := &trackerClientAdapter{Client: mockClient}
+
+	// Call Ready with context
+	ctx := context.Background()
+	result, err := adapter.Ready(ctx)
+
+	if err != nil {
+		t.Fatalf("Ready() error: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Ready() returned nil result")
+	}
+
+	// Verify the conversion worked correctly
+	if result.ID != "test-123" {
+		t.Errorf("ID mismatch: got %q, want %q", result.ID, "test-123")
+	}
+
+	if result.Title != "Test Bead" {
+		t.Errorf("Title mismatch: got %q, want %q", result.Title, "Test Bead")
+	}
+
+	if result.Priority != 2 {
+		t.Errorf("Priority mismatch: got %d, want %d", result.Priority, 2)
+	}
+
+	// Verify it's using pipeline.BeadInfo type
+	_ = pipeline.BeadInfo{} // Use pipeline package to avoid unused import
+}
+
+// mockTrackerClient implements tracker.Client for testing
+type mockTrackerClient struct {
+	readyItem  *tracker.Item
+	showItems  map[string]*tracker.Item
+	createdItems []*tracker.Item
+}
+
+func (m *mockTrackerClient) Ready(ctx context.Context) (*tracker.Item, error) {
+	return m.readyItem, nil
+}
+
+func (m *mockTrackerClient) List(ctx context.Context, query tracker.Query) ([]tracker.Item, error) {
+	return nil, nil
+}
+
+func (m *mockTrackerClient) Show(ctx context.Context, id string) (*tracker.Item, error) {
+	if m.showItems != nil {
+		if item, ok := m.showItems[id]; ok {
+			return item, nil
+		}
+	}
+	return nil, nil
+}
+
+func (m *mockTrackerClient) Create(ctx context.Context, req tracker.CreateRequest) (*tracker.Item, error) {
+	item := &tracker.Item{
+		ID:       "created-item",
+		Title:    req.Title,
+		Metadata: req.Metadata,
+	}
+	m.createdItems = append(m.createdItems, item)
+	return item, nil
+}
+
+func (m *mockTrackerClient) Close(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *mockTrackerClient) Sync(ctx context.Context) error {
+	return nil
+}
+
+func (m *mockTrackerClient) AddComment(ctx context.Context, id, comment string) error {
+	return nil
+}
+
+func (m *mockTrackerClient) HasOpenChildren(ctx context.Context, parentID string) (bool, error) {
+	return false, nil
+}
