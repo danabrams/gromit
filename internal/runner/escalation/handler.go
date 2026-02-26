@@ -133,15 +133,26 @@ func (h *Handler) HandleInvocationTimeout(ctx context.Context, bc *runtypes.Bead
 	if bc == nil || bc.Result == nil {
 		return false
 	}
+	now := time.Now()
 	bc.Result.TimeoutDecompositionAttempted = true
+	bc.Result.TimeoutDecompositionAttemptTime = now
 
 	decomposeCtx := firstNonNilContext(bc.ParentCtx, ctx)
 	if decomposeCtx.Err() != nil {
+		bc.Result.TimeoutDecompositionOutcome = timeoutDecompositionOutcomeSkipped
+		bc.Result.TimeoutDecompositionReason = fmt.Sprintf("invocation timeout skipped: parent context canceled: %v", decomposeCtx.Err())
 		bc.Result.Error = fmt.Errorf("invocation timeout (decomposition skipped: parent context canceled: %w)", decomposeCtx.Err())
 		return false
 	}
 	continueLoop = h.AttemptDecomposition(decomposeCtx, bc, "invocation timeout")
 	bc.Result.TimeoutDecompositionSucceeded = bc.Result.Decomposed
+	if bc.Result.Decomposed {
+		bc.Result.TimeoutDecompositionOutcome = timeoutDecompositionOutcomeSuccess
+		bc.Result.TimeoutDecompositionReason = "invocation timeout decomposition succeeded"
+	} else {
+		bc.Result.TimeoutDecompositionOutcome = timeoutDecompositionOutcomeFailed
+		bc.Result.TimeoutDecompositionReason = fmt.Sprintf("invocation timeout decomposition failed: %v", bc.Result.Error)
+	}
 	return continueLoop
 }
 
