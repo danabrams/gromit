@@ -802,6 +802,46 @@ func (a *failureLearnerAdapter) ExtractFailureLearning(ctx context.Context, bead
 	return nil
 }
 
+// selectEscalationHandler selects the appropriate escalation handler based on routing strategy.
+// For cost_optimized strategy, returns a DecomposeFirstHandler.
+// For priority_based strategy (or default), returns the standard Handler.
+func selectEscalationHandler(
+	cfg *config.Config,
+	analyzer escalation.FailureAnalyzer,
+	beadClient escalation.BeadClient,
+	decomposeFn escalation.DecomposeFn,
+	createSubFn escalation.CreateSubFn,
+	logFn escalation.LogFn,
+	showPartialProgressFn escalation.ShowPartialProgressFn,
+) interface{} {
+	if cfg == nil {
+		// Default to Handler when config is nil
+		return escalation.NewHandler(cfg, analyzer, beadClient, decomposeFn, createSubFn, logFn, showPartialProgressFn)
+	}
+
+	strategy := strings.TrimSpace(cfg.Routing.Strategy)
+	if strings.EqualFold(strategy, "cost_optimized") {
+		// Use DecomposeFirstHandler for cost_optimized strategy
+		maxRetries := cfg.Routing.CostOptimized.MaxRetriesBeforeDecompose
+		if maxRetries <= 0 {
+			maxRetries = 2 // Default if not configured
+		}
+		return escalation.NewDecomposeFirstHandler(
+			cfg,
+			analyzer,
+			beadClient,
+			decomposeFn,
+			createSubFn,
+			logFn,
+			showPartialProgressFn,
+			maxRetries,
+		)
+	}
+
+	// Default to Handler for priority_based and empty strategy
+	return escalation.NewHandler(cfg, analyzer, beadClient, decomposeFn, createSubFn, logFn, showPartialProgressFn)
+}
+
 // Compile-time interface checks
 var _ execute.Invoker = (*invokerAdapter)(nil)
 var _ execute.PromptRenderer = (*renderAdapter)(nil)
