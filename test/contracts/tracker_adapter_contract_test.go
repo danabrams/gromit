@@ -233,3 +233,8 @@ func requireBDCallContains(t *testing.T, env *testEnv, substring string) {
 
 	t.Fatalf("expected bd calls to contain %q; calls: %v", substring, calls)
 }
+
+func requireBDListCallWithParent(t *testing.T, env *testEnv, substring string) {
+	t.Helper()
+	requireBDCallContains(t, env, substring)
+}

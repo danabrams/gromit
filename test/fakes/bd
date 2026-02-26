@@ -299,6 +299,8 @@ cmd_list() {
     local json_output=0
     local status="open"
     local sort_by=""
+    local parent=""
+    local limit="0"
 
     # Parse flags
     while [[ $# -gt 0 ]]; do
@@ -309,6 +311,14 @@ cmd_list() {
                 ;;
             --status)
                 status="$2"
+                shift 2
+                ;;
+            --parent)
+                parent="$2"
+                shift 2
+                ;;
+            --limit)
+                limit="$2"
                 shift 2
                 ;;
             --sort)
@@ -322,12 +332,18 @@ cmd_list() {
     done
 
     local state=$(read_state)
-    local beads
+    local selection=".beads[]"
+    if [[ "$status" != "all" && "$status" != "" ]]; then
+        selection="$selection | select(.status == \"$status\")"
+    fi
+    if [[ -n "$parent" ]]; then
+        selection="$selection | select(.parent == \"$parent\")"
+    fi
 
-    if [[ "$status" == "all" ]]; then
-        beads=$(echo "$state" | jq -c '[.beads[]]')
-    else
-        beads=$(echo "$state" | jq -c "[.beads[] | select(.status == \"$status\")]")
+    local beads=$(echo "$state" | jq -c "[ $selection ]")
+
+    if [[ "$limit" != "0" && "$limit" != "" ]]; then
+        beads=$(echo "$beads" | jq -c ".[:$limit]")
     fi
 
     # Apply sorting if requested
