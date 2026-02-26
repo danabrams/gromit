@@ -15,6 +15,10 @@ func selectLearningsProvider(configuredName string, providers map[string]provide
 			return p
 		}
 	}
+	return firstAlphabeticalProvider(providers)
+}
+
+func firstAlphabeticalProvider(providers map[string]provider.Provider) provider.Provider {
 	names := make([]string, 0, len(providers))
 	for name := range providers {
 		names = append(names, name)
