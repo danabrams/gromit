@@ -366,7 +366,8 @@ func (e *Executor) CheckTestsFailWithDiagnostic(ctx context.Context, bc *runtype
 	}
 
 	e.refreshTouchedPackages(bc)
-	acceptanceCommands := AcceptanceCommands(e.cfg.Validation.FastCommandsOrDefault(), bc.TouchedPackages)
+	acceptanceCommands := e.adapter.Acceptance(e.cfg.Validation.FastCommandsOrDefault(), bc.TouchedPackages)
+	e.log("Methodology adapter %s acceptance commands: %v", e.adapterProfile, acceptanceCommands)
 	validationResult, err := e.validateFn(ctx, acceptanceCommands, bc.PromptCtx.WorkDir)
 	if err != nil {
 		return fmt.Errorf("validation invocation: %w", err)
