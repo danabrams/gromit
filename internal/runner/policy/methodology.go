@@ -39,10 +39,19 @@ func NewConfigMethodologyPolicy(cfg *config.Config) MethodologyPolicy {
 	return &ConfigMethodologyPolicy{cfg: cfg}
 }
 
+// ResolvedMethodologyAdapterValue exposes the resolved methodology adapter selector
+// for policy consumers needing profile-aware knowledge.
+func (p *ConfigMethodologyPolicy) ResolvedMethodologyAdapterValue() string {
+	if p == nil || p.cfg == nil {
+		return ""
+	}
+	return p.cfg.ResolveProfileDependentDefaults().MethodologyAdapter.Value
+}
+
 // IsActive checks whether the named methodology is active for the given bead
 // labels, falling back to the global config default when no label overrides it.
 func (p *ConfigMethodologyPolicy) IsActive(labels []string, methodology string) bool {
-	if p.cfg == nil || p.cfg.ResolvedMethodologyAdapter().Value != "go" {
+	if p == nil || p.ResolvedMethodologyAdapterValue() != "go" {
 		return false
 	}
 
