@@ -1147,44 +1147,6 @@ func TestOrchestrator_CoverageTracker_TransitionsStatesAcrossTDDCycle(t *testing
 	}
 }
 
-// TestOrchestrator_MergesGlobalStatsPreservingExistingData_RefactoredWithSubtests verifies that when
-// GlobalStatsPath is configured, the orchestrator reads the existing stats file,
-// merges the new run stats into it, and updates the timestamp. Pre-existing
-// entries from prior runs are preserved (not overwritten).
-// This test uses t.Run subtests with shared setup helpers.
-func TestOrchestrator_MergesGlobalStatsPreservingExistingData_RefactoredWithSubtests(t *testing.T) {
-	t.Parallel()
-
-	// Setup helpers for common operations
-	setupMergeStatsTestDirs := func(t *testing.T) (dir, logsDir, statsPath string) {
-		return setupMergeStatsTestDirsImpl(t)
-	}
-
-	seedGlobalStats := func(t *testing.T, statsPath string) {
-		seedGlobalStatsImpl(t, statsPath)
-	}
-
-	createRunLogs := func(t *testing.T, logsDir, runID string, models []string) {
-		createRunLogsImpl(t, logsDir, runID, models)
-	}
-
-	invokeOrchestrator := func(t *testing.T, statsPath, logsDir, runID string) *logger.GlobalStats {
-		return invokeOrchestratorImpl(t, statsPath, logsDir, runID)
-	}
-
-	t.Run("baseline: merges with existing data", func(t *testing.T) {
-		_, logsDir, statsPath := setupMergeStatsTestDirs(t)
-		seedGlobalStats(t, statsPath)
-		createRunLogs(t, logsDir, "2026-02-25-001", []string{"opus", "haiku"})
-		mergedStats := invokeOrchestrator(t, statsPath, logsDir, "2026-02-25-001")
-
-		// Verify stats merged correctly
-		if len(mergedStats.Models) != 2 {
-			t.Errorf("Expected 2 models, got %d", len(mergedStats.Models))
-		}
-	})
-}
-
 // TestOrchestrator_MergesGlobalStatsPreservingExistingData verifies that when
 // GlobalStatsPath is configured, the orchestrator reads the existing stats file,
 // merges the new run stats into it, and updates the timestamp. Pre-existing
