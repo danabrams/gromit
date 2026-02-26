@@ -127,3 +127,24 @@ func TestEffectivePreflightCompileCommandProfileDefaults(t *testing.T) {
 		t.Errorf("EffectivePreflightCompileCommand() = %q, want %q", effective, want)
 	}
 }
+
+func TestEffectiveMethodologyAdapterExplicitPrecedence(t *testing.T) {
+	cfg := Config{
+		Project: ProjectConfig{
+			Profile: "go",
+		},
+		Methodology: MethodologyConfig{
+			Adapter: "custom-adapter",
+		},
+	}
+
+	resolved := cfg.ResolvedMethodologyAdapter()
+
+	// Explicit adapter takes precedence
+	if resolved.Value != "custom-adapter" {
+		t.Errorf("ResolvedMethodologyAdapter().Value = %q, want %q", resolved.Value, "custom-adapter")
+	}
+	if resolved.Source != CompatibilitySourceExplicit {
+		t.Errorf("ResolvedMethodologyAdapter().Source = %q, want %q", resolved.Source, CompatibilitySourceExplicit)
+	}
+}
