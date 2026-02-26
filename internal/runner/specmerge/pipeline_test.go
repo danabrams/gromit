@@ -2,9 +2,11 @@ package specmerge_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/runner/specmerge"
 	"github.com/danabrams/gromit/internal/specgate"
 )
@@ -173,4 +175,50 @@ func (f *fakeBeadQuery) ListWithLabel(label string) ([]*bead.Bead, error) {
 		return nil, nil
 	}
 	return f.listFn(label)
+}
+
+func TestRunStage1Validation_FailsOnValidationCommandError(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	commands := []string{"cmd-one", "cmd-two"}
+	var seen []string
+	runner := func(_ context.Context, command, workDir string) (string, string, int, error) {
+		seen = append(seen, command)
+		return "", "stderr detail", 1, nil
+	}
+	deps := specmerge.Stage1ValidationDependencies{
+		CmdRunner: runner,
+		GetDiff: func(_ context.Context) (string, error) {
+			return "diff --git", nil
+		},
+	}
+	res, err := specmerge.RunStage1Validation(ctx, deps, specmerge.Stage1ValidationOptions{
+		Config: &config.Config{Validation: config.ValidationConfig{Enabled: true, FullCommands: commands}},
+		WorkDir: "/repo",
+	})
+	if err != nil {
+		t.Fatalf("RunStage1Validation returned error: %v", err)
+	}
+	if res.Success {
+		t.Fatal("expected validation gate to fail, but success flag was true")
+	}
+	if res.Diff != "diff --git" {
+		t.Fatalf("diff = %q, want diff --git", res.Diff)
+	}
+	if len(seen) != 1 {
+		t.Fatalf("run commands %v, want only first", seen)
+	}
+	if len(res.Failures) != 1 {
+		t.Fatalf("failures = %d, want 1", len(res.Failures))
+	}
+	failure := res.Failures[0]
+	if failure.Criterion == "" {
+		t.Fatal("expected criterion name to be populated")
+	}
+	if failure.Passed {
+		t.Fatal("criterion should be marked as failed")
+	}
+	if !strings.Contains(failure.Evidence, "stderr detail") {
+		t.Fatalf("evidence = %q, want to include stderr detail", failure.Evidence)
+	}
 }
