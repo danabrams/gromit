@@ -11,13 +11,16 @@ type ProfileDefaults struct {
 var (
 	profileCatalog = map[string]ProfileDefaults{
 		"go": {
-			ValidationCommands: []string{"go test", "go build", "go vet"},
+			ValidationCommands:      []string{"go test", "go build", "go vet"},
+			PreflightCompileCommand: "go build",
 		},
 		"node": {
-			ValidationCommands: []string{"npm test", "npm run build"},
+			ValidationCommands:      []string{"npm test", "npm run build"},
+			PreflightCompileCommand: "npm run build",
 		},
 		"python": {
-			ValidationCommands: []string{"pytest"},
+			ValidationCommands:      []string{"pytest"},
+			PreflightCompileCommand: "",
 		},
 		"custom": {},
 	}
