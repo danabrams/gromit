@@ -399,9 +399,7 @@ func runReviewInteractiveInDir(cfg *config.Config, fromCommit string, diff strin
 	}
 
 	// Create agent resolver adapter
-	agentResolver := &cmdAgentResolver{
-		cfg: cfg,
-	}
+	agentResolver := newAgentResolver(cfg)
 
 	// Create prompt renderer adapter that loads ClaudeMD and Rules
 	promptRendererAdapter := &cliPromptRenderer{

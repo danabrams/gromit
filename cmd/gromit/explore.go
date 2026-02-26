@@ -188,7 +188,7 @@ func buildExplorePipeline(cfg *config.Config) (*pipeline.Pipeline, error) {
 	}
 
 	// Create adapters
-	agentResolver := &cmdAgentResolver{cfg: cfg}
+	agentResolver := newAgentResolver(cfg)
 	promptRenderer := &explorePromptRenderer{renderer: renderer}
 	backlogClient := &exploreBacklogClient{file: backlogFile}
 

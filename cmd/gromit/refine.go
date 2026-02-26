@@ -206,7 +206,7 @@ func createRefinePipeline(cfg *config.Config, gromitDir, specsDir, plansDir stri
 	}
 
 	deps := &pipeline.Deps{
-		AgentResolver: &cmdAgentResolver{cfg: cfg},
+		AgentResolver: newAgentResolver(cfg),
 		BacklogClient: &backlogAdapter{file: bf},
 	}
 
