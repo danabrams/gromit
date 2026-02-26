@@ -58,6 +58,11 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("getting working directory: %w", err)
 	}
 
+	profile, err := selectInitProfile(cwd)
+	if err != nil {
+		return fmt.Errorf("selecting profile: %w", err)
+	}
+
 	fmt.Printf("Initializing gromit in %s\n", cwd)
 
 	// Create .gromit directory structure
@@ -77,7 +82,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	// Write config file
 	configPath := filepath.Join(cwd, "gromit.yaml")
-	if err := writeFileIfNotExists(configPath, defaultConfig, forceInit); err != nil {
+	if err := writeFileIfNotExists(configPath, configForProfile(profile), forceInit); err != nil {
 		return err
 	}
 

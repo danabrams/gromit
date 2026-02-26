@@ -1,7 +1,17 @@
 package main
 
+import (
+	"fmt"
+	"strings"
+
+	"github.com/danabrams/gromit/internal/config"
+)
+
 const defaultConfig = `# Gromit Configuration
 # See: https://github.com/danabrams/gromit
+
+project:
+  profile: "%s"
 
 # Model selection based on bead priority
 models:
@@ -38,14 +48,12 @@ scope_check:
 # Validation settings - customize for your project
 validation:
   enabled: true
-  commands:
-    - "pnpm run test"
-    - "pnpm run lint:check"
-    - "pnpm run build"
+%s
 
 # Pre-flight checks - verify required tools before validation
 preflight:
   auto_install: ask  # ask | always | never
+  compile_command: "%s"
 
 # Methodology settings - ATDD workflow phases
 # Uncomment to enable Acceptance Test-Driven Development (ATDD) workflow phases:
@@ -91,6 +99,29 @@ paths:
   logs: ".gromit/logs"
   project_claude_md: "CLAUDE.md"  # Your project's CLAUDE.md
 `
+
+func configForProfile(profile string) string {
+	defaults, _ := config.ProfileForName(profile)
+	return fmt.Sprintf(
+		defaultConfig,
+		profile,
+		renderValidationCommands(defaults.ValidationCommands),
+		defaults.PreflightCompileCommand,
+	)
+}
+
+func renderValidationCommands(commands []string) string {
+	if len(commands) == 0 {
+		return "  commands: []  # Add validation commands for your project\n"
+	}
+
+	var b strings.Builder
+	b.WriteString("  commands:\n")
+	for _, cmd := range commands {
+		b.WriteString(fmt.Sprintf("    - %q\n", cmd))
+	}
+	return b.String()
+}
 
 const defaultBuildTemplate = `# Task Execution
 
