@@ -80,6 +80,7 @@ type Config struct {
 	Runbook         RunbookConfig          `yaml:"runbook"`
 	SpecGate        SpecGateConfig         `yaml:"spec_gate"`
 	Decompose       DecomposeConfig        `yaml:"decompose"`
+	MergePipeline   MergePipelineConfig    `yaml:"merge_pipeline"`
 }
 
 type CompatibilityConfig struct {
@@ -597,6 +598,10 @@ const (
 type DecomposeConfig struct {
 	Tier   string              `yaml:"tier"`
 	Target DecompositionTarget `yaml:"target"`
+}
+
+type MergePipelineConfig struct {
+	RetryCapDefault int `yaml:"retry_cap_default"`
 }
 
 // ResolvePhaseTimeoutSeconds returns the configured timeout for a methodology
