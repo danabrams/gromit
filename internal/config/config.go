@@ -219,8 +219,11 @@ func (c *Config) validateCompatibilitySelections() error {
 	if c.Tracker.Backend != "" && c.Tracker.Backend != "bd" {
 		return fmt.Errorf("tracker.backend must be %q (got %q)", "bd", c.Tracker.Backend)
 	}
-	if c.Methodology.Adapter != "" && c.Methodology.Adapter != "go" {
-		return fmt.Errorf("methodology.adapter must be %q (got %q)", "go", c.Methodology.Adapter)
+	if c.Methodology.Adapter != "" {
+		validAdapters := map[string]struct{}{"go": {}, "passthrough": {}}
+		if _, ok := validAdapters[c.Methodology.Adapter]; !ok {
+			return fmt.Errorf("methodology.adapter must be one of [go passthrough] (got %q)", c.Methodology.Adapter)
+		}
 	}
 	return nil
 }
