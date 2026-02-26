@@ -2643,3 +2643,90 @@ func TestContract_ProactiveDecompositionSuccessFlow(t *testing.T) {
 		t.Fatalf("TimeoutDecompositionReason should mention 60%% budget: %q", bc.Result.TimeoutDecompositionReason)
 	}
 }
+
+// TestExecuteWithRetryWithEscalation_DisabledEscalation verifies that when
+// escalationEnabled=false is passed, the handler does not escalate even on failure.
+func TestExecuteWithRetryWithEscalation_DisabledEscalation(t *testing.T) {
+	cfg := &config.Config{
+		Andon: config.AndonConfig{L1RetryCap: 1},
+	}
+	cfg.SetDefaults()
+
+	b := &bead.Bead{ID: "test-001", Title: "Test", Priority: 1}
+	bc := &runtypes.BeadContext{
+		Bead:        b,
+		Tier:        "low",
+		Model:       "haiku",
+		Result:      &runtypes.IterationResult{},
+		MaxRetries:  1,
+		PromptCtx:   &prompt.Context{},
+	}
+
+	invokeCount := 0
+	failingInvokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		invokeCount++
+		return &runtypes.InvocationResult{
+			Result: &claude.Result{
+				Success:  false,
+				ExitCode: 1,
+				Output:   "Build failed",
+			},
+		}, nil
+	}
+
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
+
+	// Call ExecuteWithRetryWithEscalation with escalationEnabled=false
+	success := h.ExecuteWithRetryWithEscalation(context.Background(), bc, failingInvokeFn, false)
+
+	if success {
+		t.Error("ExecuteWithRetryWithEscalation should return false when invocation fails and escalation is disabled")
+	}
+
+	// When escalation is disabled, the handler should NOT escalate tiers
+	// It should stay on the original tier (low) or retry on same tier, but not move up
+	if bc.Tier != "low" {
+		t.Errorf("Tier should remain 'low' when escalation is disabled, got %q", bc.Tier)
+	}
+
+	if !bc.Result.Escalated {
+		// Even without escalation, the handler may mark this as attempted
+		// but the important thing is that the tier didn't change
+		if bc.Tier != "low" {
+			t.Error("Tier should not have escalated when escalationEnabled=false")
+		}
+	}
+}
+
+// TestExecuteWithRetryWithEscalation_MethodAcceptsEscalationFlag verifies that
+// ExecuteWithRetryWithEscalation properly accepts and uses the escalationEnabled flag.
+// This is a simple test to verify the method signature and basic behavior.
+func TestExecuteWithRetryWithEscalation_MethodAcceptsEscalationFlag(t *testing.T) {
+	cfg := newTestConfig()
+	bc := newTestBeadContext()
+
+	// Simple invoke function that always succeeds
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		return &runtypes.InvocationResult{
+			Result: &claude.Result{Success: true, Output: "success"},
+		}, nil
+	}
+
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
+
+	// Verify that ExecuteWithRetryWithEscalation accepts the escalationEnabled parameter
+	// and returns a boolean result
+	successWithEscalation := h.ExecuteWithRetryWithEscalation(context.Background(), bc, invokeFn, true)
+	if !successWithEscalation {
+		t.Error("ExecuteWithRetryWithEscalation with escalationEnabled=true should succeed with successful invocation")
+	}
+
+	// Reset bc for the second call
+	bc = newTestBeadContext()
+
+	// Call with escalationEnabled=false
+	successWithoutEscalation := h.ExecuteWithRetryWithEscalation(context.Background(), bc, invokeFn, false)
+	if !successWithoutEscalation {
+		t.Error("ExecuteWithRetryWithEscalation with escalationEnabled=false should succeed with successful invocation")
+	}
+}
