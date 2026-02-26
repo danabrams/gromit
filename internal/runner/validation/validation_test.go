@@ -1309,6 +1309,36 @@ func TestValidationWithEscalationHandler_WiresEscalationCorrectly(t *testing.T) 
 	}
 }
 
+// TestExecuteFnReceivesEscalationFlagArgument verifies ExecuteFn is invoked with
+// the escalationEnabled argument instead of reading runner state.
+func TestExecuteFnReceivesEscalationFlagArgument(t *testing.T) {
+	cfg := newTestConfig()
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return "", "validation failure", 1, nil
+	}
+
+	var seen []bool
+	executeFn := func(ctx context.Context, bc *runtypes.BeadContext, escalationEnabled bool) bool {
+		seen = append(seen, escalationEnabled)
+		return true
+	}
+
+	r := NewRunner(cfg, cmdRunner, nil, executeFn)
+	bc := newTestBeadContext()
+
+	_ = r.RunWithRecoveryForCommandsWithEscalation(context.Background(), bc, r.validationCommands(), "fast", false)
+	if len(seen) == 0 || seen[len(seen)-1] != false {
+		t.Errorf("expected executeFn to see escalationEnabled=false, saw %v", seen)
+	}
+
+	seen = nil
+	_ = r.RunWithRecoveryForCommandsWithEscalation(context.Background(), bc, r.validationCommands(), "fast", true)
+	if len(seen) == 0 || seen[len(seen)-1] != true {
+		t.Errorf("expected executeFn to see escalationEnabled=true, saw %v", seen)
+	}
+}
+
 // Ensure imports are used
 var (
 	_ = claude.Result{}
