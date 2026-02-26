@@ -11,7 +11,10 @@ import (
     "github.com/danabrams/gromit/internal/runner/specmerge"
 )
 
-const codeQualityPhase = "code_quality"
+const (
+    codeQualityPhase  = "code_quality"
+    architecturePhase = "architecture"
+)
 
 func TestRunStage2SpecConformance_RendersSpecDiffAndReturnsResult(t *testing.T) {
     ctx := context.Background()
@@ -124,6 +127,70 @@ func TestRunStage3CodeQuality_UsesDiffAndRules(t *testing.T) {
         t.Errorf("spec = %q, want empty", fakeRenderer.renderCtx.Spec)
     }
     if fakeRenderer.lastRulesPhase != codeQualityPhase {
+        t.Errorf("rules phase = %q", fakeRenderer.lastRulesPhase)
+    }
+}
+
+func TestRunStage4Architecture_UsesDiffAndRules(t *testing.T) {
+    t.Parallel()
+    ctx := context.Background()
+
+    fakeRenderer := &capturingRenderer{
+        rulesByPhase: map[string]string{
+            architecturePhase: "architecture rules",
+        },
+    }
+
+    router := &fakeRouter{
+        selectFn: func(phase, tier string) (provider.Provider, string) {
+            if phase != architecturePhase {
+                t.Fatalf("phase = %q, want %q", phase, architecturePhase)
+            }
+            if tier != "medium" {
+                t.Fatalf("tier = %q, want medium", tier)
+            }
+            return &fakeProvider{
+                runFn: func(ctx context.Context, promptText, tier string) (*provider.Result, error) {
+                    if promptText == "" {
+                        return nil, errors.New("prompt missing")
+                    }
+                    return &provider.Result{Output: `{"passed":true,"summary":"Architecture ok"}`}, nil
+                },
+            }, "sonnet"
+        },
+    }
+
+    deps := specmerge.ReviewStageDependencies{
+        Router:   router,
+        Renderer: fakeRenderer,
+    }
+
+    result, provResult, err := specmerge.RunStage4Architecture(ctx, deps, "diff --git", "medium")
+    if err != nil {
+        t.Fatalf("unexpected error: %v", err)
+    }
+    if result == nil {
+        t.Fatal("expected review result")
+    }
+    if provResult == nil {
+        t.Fatal("expected provider result")
+    }
+    if result.Summary != "Architecture ok" {
+        t.Errorf("summary = %q, want %q", result.Summary, "Architecture ok")
+    }
+    if fakeRenderer.loadSpecCalled {
+        t.Error("expected LoadSpec not to be invoked for architecture stage")
+    }
+    if fakeRenderer.renderCtx == nil {
+        t.Fatal("RenderReview was not called")
+    }
+    if fakeRenderer.renderCtx.Diff != "diff --git" {
+        t.Errorf("diff = %q, want %q", fakeRenderer.renderCtx.Diff, "diff --git")
+    }
+    if fakeRenderer.renderCtx.Spec != "" {
+        t.Errorf("spec = %q, want empty", fakeRenderer.renderCtx.Spec)
+    }
+    if fakeRenderer.lastRulesPhase != architecturePhase {
         t.Errorf("rules phase = %q", fakeRenderer.lastRulesPhase)
     }
 }
