@@ -2,6 +2,7 @@ package learnings
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -225,6 +226,50 @@ func TestProcessNewLearningArchivesGeneric(t *testing.T) {
 	}
 	if len(f.archived) != 1 {
 		t.Fatalf("expected 1 archived learning, got %d", len(f.archived))
+	}
+}
+
+func TestAddFilterErrorLogsWarning(t *testing.T) {
+	tmpDir := t.TempDir()
+	f, err := NewFile(tmpDir)
+	if err != nil {
+		t.Fatalf("failed to create file: %v", err)
+	}
+	f.SetFilter(func(content string) (bool, error) {
+		return false, fmt.Errorf("filter boom")
+	})
+
+	oldStderr := os.Stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create pipe: %v", err)
+	}
+	os.Stderr = w
+	defer func() {
+		os.Stderr = oldStderr
+	}()
+	defer r.Close()
+
+	learning, err := f.Add("bead-error", "Fail-open test", CategoryPatterns)
+	if err != nil {
+		t.Fatalf("unexpected add error: %v", err)
+	}
+	if learning == nil {
+		t.Fatal("expected learning despite filter error")
+	}
+
+	w.Close()
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("failed to read stderr: %v", err)
+	}
+	output := string(out)
+
+	if !strings.Contains(output, "learnings filter failed") {
+		t.Fatalf("expected warning about filter failure, got %q", output)
+	}
+	if !strings.Contains(output, "filter boom") {
+		t.Fatalf("expected filter error details, got %q", output)
 	}
 }
 
