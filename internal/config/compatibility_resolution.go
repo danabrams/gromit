@@ -30,6 +30,12 @@ type CompatibilityContext struct {
 	MethodologyAdapter CompatibilityResolvedValue
 }
 
+type ProfileDependentDefaults struct {
+	ValidationCommands      []string
+	PreflightCompileCommand string
+	MethodologyAdapter      CompatibilityResolvedValue
+}
+
 func (c Config) ResolveCompatibilityContext() CompatibilityContext {
 	profile := CompatibilityResolvedValue{
 		Value:             "go",
