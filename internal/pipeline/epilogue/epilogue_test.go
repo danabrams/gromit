@@ -205,12 +205,17 @@ func TestEpilogue_ReturnsProceed(t *testing.T) {
 
 // fakeWorktreeMerger is a test double for epilogue.WorktreeMerger.
 type fakeWorktreeMerger struct {
-	branches       []string
-	pendingErr     error
-	mergeErr       error
-	pendingCalled  bool
-	pendingCallCount int
-	mergedBranches []string
+	branches              []string
+	pendingErr            error
+	mergeErr              error
+	pendingCalled         bool
+	pendingCallCount      int
+	mergedBranches        []string
+	derivedPaths          map[string]string // branch -> derived path
+	removedPaths          []string
+	removeByPathErr       error
+	derivedPathCallCount  int
+	removeByPathCallCount int
 }
 
 func (f *fakeWorktreeMerger) PendingBranches() ([]string, error) {
@@ -222,6 +227,20 @@ func (f *fakeWorktreeMerger) PendingBranches() ([]string, error) {
 func (f *fakeWorktreeMerger) MergeBack(branch string) error {
 	f.mergedBranches = append(f.mergedBranches, branch)
 	return f.mergeErr
+}
+
+func (f *fakeWorktreeMerger) DeriveSessionWorktreePath(branch string) string {
+	f.derivedPathCallCount++
+	if f.derivedPaths != nil {
+		return f.derivedPaths[branch]
+	}
+	return ""
+}
+
+func (f *fakeWorktreeMerger) RemoveByPath(path string) error {
+	f.removeByPathCallCount++
+	f.removedPaths = append(f.removedPaths, path)
+	return f.removeByPathErr
 }
 
 // fakeCommandRunner is a test double for epilogue.CommandRunner.
@@ -751,5 +770,36 @@ func TestEpilogue_RemovesPendingBranchesAfterMerge(t *testing.T) {
 	}
 	if remover.removedBranches[1] != "gromit/debug-1" {
 		t.Errorf("second removed branch = %q, want %q", remover.removedBranches[1], "gromit/debug-1")
+	}
+}
+
+// TestEpilogue_RemovesOrphanedWorktreesAfterMerge verifies that orphaned session
+// worktrees are removed after successful merge by calling RemoveByPath.
+func TestEpilogue_RemovesOrphanedWorktreesAfterMerge(t *testing.T) {
+	merger := &fakeWorktreeMerger{
+		branches: []string{"gromit/review-1234567890", "gromit/debug-9876543210"},
+		derivedPaths: map[string]string{
+			"gromit/review-1234567890":    "/repo-gromit-review-1234567890",
+			"gromit/debug-9876543210":     "/repo-gromit-debug-9876543210",
+		},
+	}
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
+		WithWorktree(merger)
+
+	in := makeInput("bead-1", "Test", true)
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if len(merger.removedPaths) != 2 {
+		t.Errorf("removed worktree paths = %v, want 2 paths removed", merger.removedPaths)
+	}
+	if merger.removedPaths[0] != "/repo-gromit-review-1234567890" {
+		t.Errorf("first removed path = %q, want %q", merger.removedPaths[0], "/repo-gromit-review-1234567890")
+	}
+	if merger.removedPaths[1] != "/repo-gromit-debug-9876543210" {
+		t.Errorf("second removed path = %q, want %q", merger.removedPaths[1], "/repo-gromit-debug-9876543210")
 	}
 }
