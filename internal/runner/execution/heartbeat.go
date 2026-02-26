@@ -121,7 +121,7 @@ func PrintHeartbeat(stats *logger.StreamStats, output io.Writer) string {
 	seconds := int(elapsed.Seconds()) % 60
 	var line string
 	if toolCalls == 0 {
-		line = fmt.Sprintf("[%dm%02ds] Waiting for Claude to respond (may be thinking)...", minutes, seconds)
+		line = fmt.Sprintf("[%dm%02ds] Waiting for agent to respond (may be thinking)...", minutes, seconds)
 	} else {
 		line = fmt.Sprintf("[%dm%02ds] %d tool calls, %d files modified", minutes, seconds, toolCalls, filesModified)
 	}
@@ -139,7 +139,7 @@ func overwriteHeartbeat(stats *logger.StreamStats, lastLine string, out Overwrit
 	seconds := int(elapsed.Seconds()) % 60
 	var newLine string
 	if toolCalls == 0 {
-		newLine = fmt.Sprintf("[%dm%02ds] Waiting for Claude to respond (may be thinking)...", minutes, seconds)
+		newLine = fmt.Sprintf("[%dm%02ds] Waiting for agent to respond (may be thinking)...", minutes, seconds)
 	} else {
 		newLine = fmt.Sprintf("[%dm%02ds] %d tool calls, %d files modified", minutes, seconds, toolCalls, filesModified)
 	}
