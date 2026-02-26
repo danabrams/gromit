@@ -19,12 +19,13 @@ const (
 
 // CodexProvider wraps the Codex CLI and implements the Provider interface
 type CodexProvider struct {
-	binaryPath      string
-	flags           []string
-	tierToModel     map[string]string
-	tierToReasoning map[string]string
-	sleepFn         func(context.Context, time.Duration) error
-	cacheAdapter    CacheAdapter
+	binaryPath           string
+	flags                []string
+	tierToModel          map[string]string
+	tierToReasoning      map[string]string
+	tierToMaxInputTokens map[string]int
+	sleepFn              func(context.Context, time.Duration) error
+	cacheAdapter         CacheAdapter
 }
 
 const (
@@ -66,12 +67,13 @@ func ResolveCodexHome() (string, error) {
 // NewCodexProvider creates a new CodexProvider with the given configuration
 func NewCodexProvider(binaryPath string, flags []string, tierToModel map[string]string) *CodexProvider {
 	return &CodexProvider{
-		binaryPath:      binaryPath,
-		flags:           flags,
-		tierToModel:     tierToModel,
-		tierToReasoning: map[string]string{},
-		sleepFn:         sleepWithContext,
-		cacheAdapter:    NewNoopCacheAdapter(),
+		binaryPath:           binaryPath,
+		flags:                flags,
+		tierToModel:          tierToModel,
+		tierToReasoning:      map[string]string{},
+		tierToMaxInputTokens: map[string]int{},
+		sleepFn:              sleepWithContext,
+		cacheAdapter:         NewNoopCacheAdapter(),
 	}
 }
 
@@ -91,6 +93,29 @@ func (cp *CodexProvider) SetReasoningEffort(tierToReasoning map[string]string) {
 		}
 		cp.tierToReasoning[key] = val
 	}
+}
+
+// SetMaxInputTokens configures per-tier maximum input token thresholds.
+// When a tier exceeds this threshold during invocation, a warning is emitted.
+func (cp *CodexProvider) SetMaxInputTokens(tier string, maxTokens int) {
+	if cp == nil {
+		return
+	}
+	key := strings.ToLower(strings.TrimSpace(tier))
+	if key == "" || maxTokens <= 0 {
+		return
+	}
+	cp.tierToMaxInputTokens[key] = maxTokens
+}
+
+// MaxInputTokensForTier returns the configured maximum input token threshold for a tier,
+// or 0 if no limit is set.
+func (cp *CodexProvider) MaxInputTokensForTier(tier string) int {
+	if cp == nil {
+		return 0
+	}
+	key := strings.ToLower(strings.TrimSpace(tier))
+	return cp.tierToMaxInputTokens[key]
 }
 
 // Name returns the provider name "codex"
