@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -216,6 +217,7 @@ type fakeWorktreeMerger struct {
 	removeByPathErr       error
 	derivedPathCallCount  int
 	removeByPathCallCount int
+	callOrder             []string // track order of calls
 }
 
 func (f *fakeWorktreeMerger) PendingBranches() ([]string, error) {
@@ -226,11 +228,13 @@ func (f *fakeWorktreeMerger) PendingBranches() ([]string, error) {
 
 func (f *fakeWorktreeMerger) MergeBack(branch string) error {
 	f.mergedBranches = append(f.mergedBranches, branch)
+	f.callOrder = append(f.callOrder, fmt.Sprintf("MergeBack(%s)", branch))
 	return f.mergeErr
 }
 
 func (f *fakeWorktreeMerger) DeriveSessionWorktreePath(branch string) string {
 	f.derivedPathCallCount++
+	f.callOrder = append(f.callOrder, fmt.Sprintf("DeriveSessionWorktreePath(%s)", branch))
 	if f.derivedPaths != nil {
 		return f.derivedPaths[branch]
 	}
@@ -239,6 +243,7 @@ func (f *fakeWorktreeMerger) DeriveSessionWorktreePath(branch string) string {
 
 func (f *fakeWorktreeMerger) RemoveByPath(path string) error {
 	f.removeByPathCallCount++
+	f.callOrder = append(f.callOrder, fmt.Sprintf("RemoveByPath(%s)", path))
 	f.removedPaths = append(f.removedPaths, path)
 	return f.removeByPathErr
 }
@@ -863,5 +868,77 @@ func TestEpilogue_WorktreeRemovalErrorIsNonFatal(t *testing.T) {
 	// Warning should be emitted for the removal failure
 	if !strings.Contains(out.String(), "Warning: failed to remove worktree") {
 		t.Errorf("output should contain warning about worktree removal failure, got:\n%s", out.String())
+	}
+}
+
+// TestEpilogue_SkipsRemoveByPathWhenDerivedPathEmpty verifies that RemoveByPath is not
+// called when DeriveSessionWorktreePath returns an empty string.
+func TestEpilogue_SkipsRemoveByPathWhenDerivedPathEmpty(t *testing.T) {
+	merger := &fakeWorktreeMerger{
+		branches: []string{"interactive/legacy-branch"},
+		// derivedPaths is empty, so lookup will return ""
+	}
+	remover := &fakePendingBranchRemover{}
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
+		WithWorktree(merger).
+		WithPendingBranchRemover(remover)
+
+	in := makeInput("bead-1", "Test", true)
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	// RemoveByPath should not be called
+	if len(merger.removedPaths) != 0 {
+		t.Errorf("RemoveByPath was called with %v, want no calls when derived path is empty", merger.removedPaths)
+	}
+
+	// But RemovePendingWorktreeBranch should still be called
+	if len(remover.removedBranches) != 1 {
+		t.Errorf("removed branches = %v, want 1 branch removed from pending state", remover.removedBranches)
+	}
+}
+
+// TestEpilogue_WorktreeRemovalCallOrderAfterMerge verifies that
+// DeriveSessionWorktreePath and RemoveByPath are called in the correct order
+// after successful MergeBack.
+func TestEpilogue_WorktreeRemovalCallOrderAfterMerge(t *testing.T) {
+	merger := &fakeWorktreeMerger{
+		branches: []string{"gromit/test-123456"},
+		derivedPaths: map[string]string{
+			"gromit/test-123456": "/repo-gromit-test-123456",
+		},
+	}
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
+		WithWorktree(merger)
+
+	in := makeInput("bead-1", "Test", true)
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	// Verify call order: MergeBack -> DeriveSessionWorktreePath -> RemoveByPath
+	if len(merger.callOrder) < 3 {
+		t.Fatalf("call order = %v, want at least 3 calls", merger.callOrder)
+	}
+
+	expectedOrder := []string{
+		"MergeBack(gromit/test-123456)",
+		"DeriveSessionWorktreePath(gromit/test-123456)",
+		"RemoveByPath(/repo-gromit-test-123456)",
+	}
+
+	for i, expected := range expectedOrder {
+		if i >= len(merger.callOrder) {
+			t.Errorf("call order missing at position %d, expected %q", i, expected)
+			continue
+		}
+		if merger.callOrder[i] != expected {
+			t.Errorf("call order[%d] = %q, want %q", i, merger.callOrder[i], expected)
+		}
 	}
 }
