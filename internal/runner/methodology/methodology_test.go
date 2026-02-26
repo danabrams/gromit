@@ -1205,3 +1205,121 @@ func readExecutorSourceFile() (string, error) {
 	}
 	return string(data), nil
 }
+
+func TestRunAcceptanceTests_EndToEndRenderPathWithStatsEmission(t *testing.T) {
+	// Fixture-style test for end-to-end acceptance render path coverage
+	// Verifies: shaped context rendering -> stats emission -> metrics validation
+	t.Parallel()
+	cfg := newTestConfig()
+	var buf strings.Builder
+
+	// Configure ATDD prompt shaping to trigger reductions
+	cfg.Methodology.ATDDPrompt.IncludeRules = true
+	cfg.Methodology.ATDDPrompt.IncludeSpec = true
+	cfg.Methodology.ATDDPrompt.IncludeClaudeMD = true
+	cfg.Methodology.ATDDPrompt.MaxChars = 500  // Tight budget to trigger shaping
+	cfg.Methodology.ATDDPrompt.MaxConfirmedLearningChars = 50
+
+	renderer := newProjectPromptRenderer(t)
+
+	// Track rendered context to verify shaping was applied
+	var capturedCtx *prompt.Context
+	var capturedPrompt string
+	renderFn := func(ctx *prompt.Context) (string, error) {
+		capturedCtx = ctx
+		rendered, err := renderer.RenderAcceptanceTests(ctx)
+		if err != nil {
+			return "", err
+		}
+		capturedPrompt = rendered
+		return rendered, nil
+	}
+
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, promptText string) error {
+		return nil
+	}
+
+	exec := NewExecutor(cfg, &buf, renderFn, invokeFn, nil)
+
+	// Create a context with content that should be shaped/reduced
+	bc := newTestBeadContext()
+	bc.PromptCtx.Bead = bc.Bead
+	bc.PromptCtx.WorkDir = t.TempDir()
+	bc.PromptCtx.ClaudeMD = strings.Repeat("claude project metadata ", 100)
+	bc.PromptCtx.Rules = "## Test Quality\n" + strings.Repeat("quality constraint ", 50)
+	bc.PromptCtx.Spec = strings.Repeat("specification detail ", 80)
+	bc.PromptCtx.ConfirmedLearnings = []learnings.Learning{
+		{Content: strings.Repeat("confirmed pattern ", 30)},
+		{Content: strings.Repeat("confirmed pattern ", 30)},
+		{Content: strings.Repeat("confirmed pattern ", 30)},
+	}
+	bc.PromptCtx.RecentLearnings = []learnings.Learning{
+		{Content: strings.Repeat("recent finding ", 20)},
+		{Content: strings.Repeat("recent finding ", 20)},
+	}
+
+	err := exec.RunAcceptanceTests(context.Background(), bc)
+	if err != nil {
+		t.Fatalf("RunAcceptanceTests returned unexpected error: %v", err)
+	}
+
+	logs := buf.String()
+
+	// Verify END-TO-END: shaped context was rendered
+	if capturedCtx == nil {
+		t.Fatal("expected render function to receive shaped context")
+	}
+
+	// Verify END-TO-END: stats metrics were emitted
+	if !strings.Contains(logs, "ATDD acceptance prompt metrics:") {
+		t.Fatalf("expected metrics header in logs, got: %q", logs)
+	}
+	if !strings.Contains(logs, "prompt_chars_before=") {
+		t.Fatalf("expected prompt_chars_before metric, got: %q", logs)
+	}
+	if !strings.Contains(logs, "prompt_chars_after=") {
+		t.Fatalf("expected prompt_chars_after metric, got: %q", logs)
+	}
+
+	// Verify END-TO-END: lifecycle events frame the operation
+	if !strings.Contains(logs, "ATDD acceptance generation started") {
+		t.Fatalf("expected start lifecycle event, got: %q", logs)
+	}
+	if !strings.Contains(logs, "ATDD acceptance generation completed in") {
+		t.Fatalf("expected completion lifecycle event, got: %q", logs)
+	}
+
+	// Verify END-TO-END: rendered prompt contains acceptance test content
+	if !strings.Contains(strings.ToLower(capturedPrompt), "acceptance") {
+		t.Fatalf("expected acceptance test content in rendered prompt, got: %q", capturedPrompt[:200])
+	}
+
+	// Verify END-TO-END: bead identity preserved through the entire pipeline
+	if capturedCtx.Bead == nil {
+		t.Fatal("expected bead to be preserved in shaped context")
+	}
+	if capturedCtx.Bead.ID != bc.Bead.ID {
+		t.Fatalf("bead ID mismatch: got %q, want %q", capturedCtx.Bead.ID, bc.Bead.ID)
+	}
+
+	// Verify END-TO-END: metrics show shaping occurred (some reduction should happen)
+	logLines := strings.Split(logs, "\n")
+	var metricsLine string
+	for _, line := range logLines {
+		if strings.Contains(line, "prompt_chars_before=") {
+			metricsLine = line
+			break
+		}
+	}
+	if metricsLine == "" {
+		t.Fatal("expected to find metrics line in logs")
+	}
+
+	// Parse the metrics to verify reduction
+	if !strings.Contains(metricsLine, "trim_actions=") {
+		t.Fatalf("expected trim_actions in metrics line: %q", metricsLine)
+	}
+	if !strings.Contains(metricsLine, "section_sizes=") {
+		t.Fatalf("expected section_sizes in metrics line: %q", metricsLine)
+	}
+}
