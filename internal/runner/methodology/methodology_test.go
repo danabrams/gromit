@@ -13,6 +13,7 @@ import (
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/coverage"
+	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
@@ -262,6 +263,61 @@ func TestRunAcceptanceTests_ShapedContextTemplateCompatibility(t *testing.T) {
 	}
 	if !strings.Contains(strings.ToLower(invokedPrompt), "acceptance test writing") {
 		t.Fatalf("expected acceptance template content, got %q", invokedPrompt)
+	}
+}
+
+func TestRunAcceptanceTests_AppliesATDDContextShaping(t *testing.T) {
+	t.Parallel()
+	cfg := newTestConfig()
+	var buf strings.Builder
+
+	cfg.Methodology.ATDDPrompt.IncludeRules = false
+	cfg.Methodology.ATDDPrompt.IncludeSpec = false
+	cfg.Methodology.ATDDPrompt.IncludeClaudeMD = false
+	cfg.Methodology.ATDDPrompt.MaxChars = 0
+	cfg.Methodology.ATDDPrompt.MaxConfirmedLearningChars = 0
+
+	renderer := newProjectPromptRenderer(t)
+
+	var renderedCtx *prompt.Context
+	renderFn := func(ctx *prompt.Context) (string, error) {
+		renderedCtx = ctx
+		return renderer.RenderAcceptanceTests(ctx)
+	}
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, promptText string) error {
+		return nil
+	}
+
+	exec := NewExecutor(cfg, &buf, renderFn, invokeFn, nil)
+	bc := newTestBeadContext()
+	bc.PromptCtx.Bead = bc.Bead
+	bc.PromptCtx.WorkDir = t.TempDir()
+	bc.PromptCtx.ClaudeMD = "claude context"
+	bc.PromptCtx.Rules = "## Rules\n- follow constraints"
+	bc.PromptCtx.Spec = "## Spec\n- add behavior"
+	bc.PromptCtx.ConfirmedLearnings = []learnings.Learning{{Content: "confirmed"}}
+	bc.PromptCtx.RecentLearnings = []learnings.Learning{{Content: "recent"}}
+
+	if err := exec.RunAcceptanceTests(context.Background(), bc); err != nil {
+		t.Fatalf("RunAcceptanceTests returned unexpected error: %v", err)
+	}
+	if renderedCtx == nil {
+		t.Fatal("expected render function to receive context")
+	}
+	if renderedCtx.ClaudeMD != "" {
+		t.Fatalf("expected ATDD config to trim ClaudeMD, got %q", renderedCtx.ClaudeMD)
+	}
+	if renderedCtx.Rules != "" {
+		t.Fatalf("expected ATDD config to drop Rules, got %q", renderedCtx.Rules)
+	}
+	if renderedCtx.Spec != "" {
+		t.Fatalf("expected ATDD config to drop Spec, got %q", renderedCtx.Spec)
+	}
+	if len(renderedCtx.ConfirmedLearnings) != 0 {
+		t.Fatalf("expected ATDD config to drop confirmed learnings, got %d", len(renderedCtx.ConfirmedLearnings))
+	}
+	if len(renderedCtx.RecentLearnings) != 0 {
+		t.Fatalf("expected ATDD config to drop recent learnings, got %d", len(renderedCtx.RecentLearnings))
 	}
 }
 
