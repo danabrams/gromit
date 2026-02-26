@@ -154,3 +154,38 @@ func TestFastForwardMergeToMain_MergesSuccessfully(t *testing.T) {
 		t.Errorf("main and spec branch should point to same commit after merge; got main=%q, spec=%q", string(mainRef), string(specRef))
 	}
 }
+
+// TestDeleteSpecBranch_DeletesSuccessfully verifies that DeleteSpecBranch
+// successfully deletes the spec branch.
+func TestDeleteSpecBranch_DeletesSuccessfully(t *testing.T) {
+	fixture := helpers.NewDeterministicGitConflictFixture(t)
+	ops := NewGitOps(fixture.Dir)
+
+	specBranchName := "gromit/spec-delete-test"
+
+	// Create spec branch
+	err := ops.CreateOrCheckoutSpecBranch(context.Background(), specBranchName)
+	if err != nil {
+		t.Fatalf("CreateOrCheckoutSpecBranch() error = %v", err)
+	}
+
+	// Verify the branch exists
+	cmd := exec.Command("git", "show-ref", "--verify", "--quiet", "refs/heads/"+specBranchName)
+	cmd.Dir = fixture.Dir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("branch %s does not exist before deletion", specBranchName)
+	}
+
+	// Delete the branch
+	err = ops.DeleteSpecBranch(context.Background(), specBranchName)
+	if err != nil {
+		t.Fatalf("DeleteSpecBranch() error = %v, want nil", err)
+	}
+
+	// Verify the branch no longer exists
+	cmd = exec.Command("git", "show-ref", "--verify", "--quiet", "refs/heads/"+specBranchName)
+	cmd.Dir = fixture.Dir
+	if err := cmd.Run(); err == nil {
+		t.Error("branch should have been deleted but still exists")
+	}
+}
