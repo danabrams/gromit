@@ -228,6 +228,8 @@ func readIterationCostForBeads(logsDir string, beadFilter map[string]bool) (floa
 	return totalCost, nil
 }
 
+var listRunLogFilesFn = listRunLogFiles
+
 func listRunLogFiles(logsDir string) ([]string, error) {
 	files, err := filepath.Glob(filepath.Join(logsDir, runLogPattern))
 	if err != nil {

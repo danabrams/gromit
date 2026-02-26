@@ -1,8 +1,6 @@
 package logger
 
 import (
-	"fmt"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -10,17 +8,17 @@ import (
 )
 
 const (
-	failureAttributionSystem    = "system"
-	failureAttributionModel     = "model"
-	failureAttributionTransient = "transient"
-	sameScopeRetryBlockedMessage = "Same-scope retry blocked: timeout requires decomposition or escalation decision"
+	failureAttributionSystem         = "system"
+	failureAttributionModel          = "model"
+	failureAttributionTransient      = "transient"
+	sameScopeRetryBlockedMessage     = "Same-scope retry blocked: timeout requires decomposition or escalation decision"
 	partialDecompositionStateMessage = "Partial/unsafe decomposition state: retry or escalate before continuing"
 )
 
 func readAllIterationLogsSorted(logsDir string) ([]IterationLog, error) {
-	files, err := filepath.Glob(filepath.Join(logsDir, "run-*.jsonl"))
+	files, err := listRunLogFilesFn(logsDir)
 	if err != nil {
-		return nil, fmt.Errorf("globbing log files: %w", err)
+		return nil, err
 	}
 
 	entries := make([]IterationLog, 0, 128)
@@ -114,45 +112,45 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 				entry.Escalated,
 				entry.ReviewFixesNeeded,
 			),
-			DurationMs:                   entry.DurationMs,
-			ValidationDurationMs:         entry.ValidationDurationMs,
-			CostUSD:                      entry.CostUSD,
-			InputTokens:                  entry.InputTokens,
-			OutputTokens:                 entry.OutputTokens,
-			MTTRProxyMs:                  entry.MTTRProxyMs,
-			FilesTouched:                 entry.FilesTouched,
-			PromptDiagnostics:            entry.PromptDiagnostics,
-			RollingSuccessRate:           w.SuccessRate,
-			RollingFailureRate:           w.FailureRate,
-			RollingFirstPassSuccess:      w.FirstPassSuccess,
-			RollingReworkRate:            w.ReworkRate,
-			RollingEscalationRate:        w.EscalationRate,
-			RollingQualityScore:          w.QualityScore,
-			RollingAvgDurationMs:         w.AvgDurationMs,
-			RollingP95DurationMs:         w.P95DurationMs,
-			RollingAvgValidationMs:       w.AvgValidationMs,
-			RollingP95ValidationMs:       w.P95ValidationMs,
-			RollingAvgCostUSD:            w.AvgCostUSD,
-			RollingAvgInputTokens:        w.AvgInputTokens,
-			RollingAvgCostPerBeadUSD:     w.AvgCostPerBeadUSD,
-			RollingAvgMTTRProxyMs:        w.AvgMTTRProxyMs,
-			RollingPreflightFailureRate:  w.PreflightFailureRate,
-			RollingBuildFailureRate:      w.BuildFailureRate,
-			RollingValidationFailureRate: w.ValidationFailureRate,
-			RollingTimeoutFailureRate:    w.TimeoutFailureRate,
-			RollingTimeoutDecompositionAttempts: w.TimeoutDecompositionAttempts,
+			DurationMs:                             entry.DurationMs,
+			ValidationDurationMs:                   entry.ValidationDurationMs,
+			CostUSD:                                entry.CostUSD,
+			InputTokens:                            entry.InputTokens,
+			OutputTokens:                           entry.OutputTokens,
+			MTTRProxyMs:                            entry.MTTRProxyMs,
+			FilesTouched:                           entry.FilesTouched,
+			PromptDiagnostics:                      entry.PromptDiagnostics,
+			RollingSuccessRate:                     w.SuccessRate,
+			RollingFailureRate:                     w.FailureRate,
+			RollingFirstPassSuccess:                w.FirstPassSuccess,
+			RollingReworkRate:                      w.ReworkRate,
+			RollingEscalationRate:                  w.EscalationRate,
+			RollingQualityScore:                    w.QualityScore,
+			RollingAvgDurationMs:                   w.AvgDurationMs,
+			RollingP95DurationMs:                   w.P95DurationMs,
+			RollingAvgValidationMs:                 w.AvgValidationMs,
+			RollingP95ValidationMs:                 w.P95ValidationMs,
+			RollingAvgCostUSD:                      w.AvgCostUSD,
+			RollingAvgInputTokens:                  w.AvgInputTokens,
+			RollingAvgCostPerBeadUSD:               w.AvgCostPerBeadUSD,
+			RollingAvgMTTRProxyMs:                  w.AvgMTTRProxyMs,
+			RollingPreflightFailureRate:            w.PreflightFailureRate,
+			RollingBuildFailureRate:                w.BuildFailureRate,
+			RollingValidationFailureRate:           w.ValidationFailureRate,
+			RollingTimeoutFailureRate:              w.TimeoutFailureRate,
+			RollingTimeoutDecompositionAttempts:    w.TimeoutDecompositionAttempts,
 			RollingTimeoutDecompositionSuccessRate: w.TimeoutDecompositionSuccessRate,
-			RollingTimeoutRetryBlockCount: w.TimeoutRetryBlockCount,
-			RollingTimeoutRetryBlockRate:  w.TimeoutRetryBlockRate,
-			TimeoutType:                  entry.TimeoutType,
-			TimeoutDecompositionAttempted: entry.TimeoutDecompositionAttempted,
-			TimeoutDecompositionSucceeded: entry.TimeoutDecompositionSucceeded,
-			TimeoutDecompositionOutcome:   entry.TimeoutDecompositionOutcome,
-			TimeoutDecompositionReason:    entry.TimeoutDecompositionReason,
-			EWMASuccessRate:              successEWMA,
-			EWMACostUSD:                  costEWMA,
-			EWMADurationMs:               durationEWMA,
-			EWMAInputTokens:              inputTokenEWMA,
+			RollingTimeoutRetryBlockCount:          w.TimeoutRetryBlockCount,
+			RollingTimeoutRetryBlockRate:           w.TimeoutRetryBlockRate,
+			TimeoutType:                            entry.TimeoutType,
+			TimeoutDecompositionAttempted:          entry.TimeoutDecompositionAttempted,
+			TimeoutDecompositionSucceeded:          entry.TimeoutDecompositionSucceeded,
+			TimeoutDecompositionOutcome:            entry.TimeoutDecompositionOutcome,
+			TimeoutDecompositionReason:             entry.TimeoutDecompositionReason,
+			EWMASuccessRate:                        successEWMA,
+			EWMACostUSD:                            costEWMA,
+			EWMADurationMs:                         durationEWMA,
+			EWMAInputTokens:                        inputTokenEWMA,
 		})
 	}
 
@@ -278,11 +276,11 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 	}
 
 	var (
-		successes, firstPasses, escalations int
+		successes, firstPasses, escalations                                   int
 		preflightFailures, buildFailures, validationFailures, timeoutFailures int
-		timeoutDecompositionAttempts int
-		timeoutDecompositionSuccesses int
-		timeoutRetryBlockCount int
+		timeoutDecompositionAttempts                                          int
+		timeoutDecompositionSuccesses                                         int
+		timeoutRetryBlockCount                                                int
 	)
 	var durationTotal int64
 	var validationDurationTotal int64
@@ -372,24 +370,24 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 	avgCostPerBead := averageCompletedBeadCost(beadCosts)
 
 	return ProcessTrendWindow{
-		SuccessRate:           float64(successes) / count,
-		FailureRate:           float64(len(window)-successes) / count,
-		FirstPassSuccess:      float64(firstPasses) / count,
-		ReworkRate:            float64(reworkIterations) / count,
-		EscalationRate:        float64(escalations) / count,
-		QualityScore:          qualityTotal / count,
-		AvgDurationMs:         avgDuration,
-		P95DurationMs:         percentileInt64(durations, p95Percentile),
-		AvgValidationMs:       avgValidationDuration,
-		P95ValidationMs:       percentileInt64(validationDurations, p95Percentile),
-		AvgCostUSD:            avgCost,
-		AvgInputTokens:        avgInputTokens,
-		AvgCostPerBeadUSD:     avgCostPerBead,
-		AvgMTTRProxyMs:        avgMTTR,
-		PreflightFailureRate:  float64(preflightFailures) / count,
-		BuildFailureRate:      float64(buildFailures) / count,
-		ValidationFailureRate: float64(validationFailures) / count,
-		TimeoutFailureRate:    float64(timeoutFailures) / count,
+		SuccessRate:                  float64(successes) / count,
+		FailureRate:                  float64(len(window)-successes) / count,
+		FirstPassSuccess:             float64(firstPasses) / count,
+		ReworkRate:                   float64(reworkIterations) / count,
+		EscalationRate:               float64(escalations) / count,
+		QualityScore:                 qualityTotal / count,
+		AvgDurationMs:                avgDuration,
+		P95DurationMs:                percentileInt64(durations, p95Percentile),
+		AvgValidationMs:              avgValidationDuration,
+		P95ValidationMs:              percentileInt64(validationDurations, p95Percentile),
+		AvgCostUSD:                   avgCost,
+		AvgInputTokens:               avgInputTokens,
+		AvgCostPerBeadUSD:            avgCostPerBead,
+		AvgMTTRProxyMs:               avgMTTR,
+		PreflightFailureRate:         float64(preflightFailures) / count,
+		BuildFailureRate:             float64(buildFailures) / count,
+		ValidationFailureRate:        float64(validationFailures) / count,
+		TimeoutFailureRate:           float64(timeoutFailures) / count,
 		TimeoutDecompositionAttempts: timeoutDecompositionAttempts,
 		TimeoutDecompositionSuccessRate: func() float64 {
 			if timeoutDecompositionAttempts == 0 {
