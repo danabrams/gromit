@@ -80,3 +80,17 @@ func TestConvertResultPropagatesCachedInputTokens(t *testing.T) {
 		t.Errorf("CachedInputTokens = %d, want 1500", result.CachedInputTokens)
 	}
 }
+
+func TestStreamJSONCachedTokensPropagateToProvider(t *testing.T) {
+	payload := `{"type":"result","result":"cached output","model":"sonnet","total_cost_usd":0.35,"input_tokens":800,"output_tokens":400,"cache_read_input_tokens":200}` + "\n"
+
+	claudeResult, err := parseClaudeStreamResultFromJSON(payload)
+	if err != nil {
+		t.Fatalf("parse stream JSON: %v", err)
+	}
+
+	result := convertResult(claudeResult)
+	if result.CachedInputTokens == 0 {
+		t.Fatalf("CachedInputTokens = %d, want non-zero", result.CachedInputTokens)
+	}
+}
