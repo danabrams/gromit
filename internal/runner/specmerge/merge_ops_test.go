@@ -118,6 +118,75 @@ func TestFinalizeSpecBranch_RebaseConflictTriggersResolver(t *testing.T) {
 	}
 }
 
+func TestFinalizeSpecBranch_MergeConflictTriggersResolver(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	branch := "gromit/spec-payments"
+	callLog := []string{}
+	mergeAttempts := 0
+
+	git := &fakeGitOps{
+		rebaseFn: func(_ context.Context, b, onto string) error {
+			callLog = append(callLog, fmt.Sprintf("rebase %s %s", b, onto))
+			return nil
+		},
+		mergeFn: func(_ context.Context, b string) error {
+			mergeAttempts++
+			callLog = append(callLog, fmt.Sprintf("merge %d %s", mergeAttempts, b))
+			if mergeAttempts == 1 {
+				return &specmerge.ConflictError{
+					Operation: "merge",
+					Err:       fmt.Errorf("fast-forward blocked"),
+				}
+			}
+			return nil
+		},
+		deleteFn: func(_ context.Context, b string) error {
+			callLog = append(callLog, fmt.Sprintf("delete %s", b))
+			return nil
+		},
+	}
+
+	resolverCalled := 0
+	resolver := &fakeResolver{
+		resolveFn: func(_ context.Context, b string, cause error) error {
+			resolverCalled++
+			if b != branch {
+				t.Fatalf("resolver branch = %q, want %q", b, branch)
+			}
+			var conflictErr *specmerge.ConflictError
+			if !errors.As(cause, &conflictErr) {
+				t.Fatalf("resolve cause = %v, want ConflictError", cause)
+			}
+			callLog = append(callLog, "resolve")
+			return nil
+		},
+	}
+
+	deps := specmerge.FinalizeDependencies{
+		Git:              git,
+		ConflictResolver: resolver,
+	}
+
+	if err := specmerge.FinalizeSpecBranch(ctx, deps, branch); err != nil {
+		t.Fatalf("FinalizeSpecBranch returned %v", err)
+	}
+	if resolverCalled != 1 {
+		t.Fatalf("resolver called %d times, want 1", resolverCalled)
+	}
+
+	want := []string{
+		"rebase gromit/spec-payments main",
+		"merge 1 gromit/spec-payments",
+		"resolve",
+		"merge 2 gromit/spec-payments",
+		"delete gromit/spec-payments",
+	}
+	if !reflect.DeepEqual(callLog, want) {
+		t.Fatalf("call order = %v, want %v", callLog, want)
+	}
+}
+
 type fakeGitOps struct {
 	rebaseFn func(ctx context.Context, branch, onto string) error
 	mergeFn  func(ctx context.Context, branch string) error
