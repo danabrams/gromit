@@ -1533,3 +1533,14 @@ func TestStartupMonitorWarnedIsAtomic(t *testing.T) {
 		t.Fatalf("expected startupMonitor.warned to be atomic.Bool, got %s", field.Type)
 	}
 }
+
+// RED: Test for hang-before-output helper function
+func TestFakeClaudeHangBeforeOutput_ReturnsValidBinaryPath(t *testing.T) {
+	binary := fakeClaudeHangBeforeOutput(t)
+	if binary == "" {
+		t.Fatal("fakeClaudeHangBeforeOutput() returned empty path")
+	}
+	if _, err := os.Stat(binary); err != nil {
+		t.Fatalf("fakeClaudeHangBeforeOutput() returned non-existent binary path: %v", err)
+	}
+}
