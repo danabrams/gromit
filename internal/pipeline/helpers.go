@@ -38,7 +38,7 @@ func DiffFiles(before, after []string) []string {
 		beforeSet[f] = true
 	}
 
-	var diff []string
+	diff := make([]string, 0, len(after))
 	for _, f := range after {
 		if !beforeSet[f] {
 			diff = append(diff, f)
