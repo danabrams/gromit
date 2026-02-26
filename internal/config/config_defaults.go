@@ -5,6 +5,12 @@ import "path/filepath"
 const (
 	defaultPhaseAgent               = "claude"
 	defaultMethodologyBuildStrategy = "single_pass"
+	defaultRoutingStrategy          = "priority_based"
+	defaultCostOptimizedBuildTier   = "low"
+	defaultCostOptimizedDecomposeTier = "medium"
+	defaultCostOptimizedEscalationTier = "medium"
+	defaultCostOptimizedMaxDecompositionDepth = 10
+	defaultCostOptimizedMaxRetriesBeforeDecompose = 2
 )
 
 func boolPtr(value bool) *bool {
@@ -284,7 +290,7 @@ func (c *Config) SetDefaults() {
 		c.Agents.Phases.Debug = defaultPhaseAgent
 	}
 
-	// Routing defaults - only when providers are configured
+// Routing defaults - only when providers are configured
 	if c.HasProviders() {
 		providerCount := len(c.Providers)
 
@@ -312,6 +318,26 @@ func (c *Config) SetDefaults() {
 			enabled := providerCount > 1
 			c.Routing.Fallback.Enabled = &enabled
 		}
+	}
+
+	// Cost-optimized routing defaults
+	if c.Routing.Strategy == "" {
+		c.Routing.Strategy = defaultRoutingStrategy
+	}
+	if c.Routing.CostOptimized.BuildTier == "" {
+		c.Routing.CostOptimized.BuildTier = defaultCostOptimizedBuildTier
+	}
+	if c.Routing.CostOptimized.DecomposeTier == "" {
+		c.Routing.CostOptimized.DecomposeTier = defaultCostOptimizedDecomposeTier
+	}
+	if c.Routing.CostOptimized.EscalationTier == "" {
+		c.Routing.CostOptimized.EscalationTier = defaultCostOptimizedEscalationTier
+	}
+	if c.Routing.CostOptimized.MaxDecompositionDepth == 0 {
+		c.Routing.CostOptimized.MaxDecompositionDepth = defaultCostOptimizedMaxDecompositionDepth
+	}
+	if c.Routing.CostOptimized.MaxRetriesBeforeDecompose == 0 {
+		c.Routing.CostOptimized.MaxRetriesBeforeDecompose = defaultCostOptimizedMaxRetriesBeforeDecompose
 	}
 
 	if c.Stream.PreserveProviderOutput == nil {
