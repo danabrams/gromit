@@ -104,3 +104,30 @@ func TestFormatModelPerformance_singleModel(t *testing.T) {
 		}
 	}
 }
+
+func TestSPCMetricConstants(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		constant string
+		want     string
+	}{
+		{name: "success rate", constant: spcMetricRollingSuccessRate, want: "rolling_success_rate"},
+		{name: "escalation rate", constant: spcMetricRollingEscalateRate, want: "rolling_escalation_rate"},
+		{name: "quality score", constant: spcMetricRollingQualityScore, want: "rolling_quality_score"},
+		{name: "avg duration", constant: spcMetricRollingAvgDurationMs, want: "rolling_avg_duration_ms"},
+		{name: "first pass", constant: spcMetricFirstPassSuccessRate, want: "rolling_first_pass_success_rate"},
+		{name: "avg cost", constant: spcMetricRollingAvgCostUSD, want: "rolling_avg_cost_usd"},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if tt.constant != tt.want {
+				t.Fatalf("SPC metric constant = %q, want %q", tt.constant, tt.want)
+			}
+		})
+	}
+}
