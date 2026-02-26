@@ -2178,3 +2178,45 @@ func TestRemoveByPath_RemovesRegisteredWorktree(t *testing.T) {
 		t.Errorf("expected 'git worktree remove %s' to be called, got calls: %v", worktreePath, gitCalls)
 	}
 }
+
+// TestRemoveByPath_ErrorsWhenPathNotFound verifies that RemoveByPath returns
+// an error when the path is not registered in the worktree list.
+func TestRemoveByPath_ErrorsWhenPathNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "myproject")
+	nonexistentPath := filepath.Join(tmpDir, "nonexistent-worktree")
+
+	if err := os.MkdirAll(mainDir, 0755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+
+	gitCalls := []string{}
+	mockGitRun := func(dir string, args ...string) (string, error) {
+		gitCalls = append(gitCalls, strings.Join(args, " "))
+		// Return an empty worktree list (no worktrees registered)
+		if args[0] == "worktree" && args[1] == "list" && len(args) >= 3 && args[2] == "--porcelain" {
+			return "worktree /some/other/path\nbranch refs/heads/master\n", nil
+		}
+		return "", nil
+	}
+
+	m, err := NewManager(mainDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v, want nil", err)
+	}
+
+	err = m.RemoveByPath(nonexistentPath)
+	if err == nil {
+		t.Fatal("RemoveByPath() should return error when path not found, got nil")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("RemoveByPath() error should mention 'not found', got: %v", err)
+	}
+
+	// Verify git worktree remove was NOT called
+	for _, call := range gitCalls {
+		if strings.Contains(call, "worktree remove") {
+			t.Errorf("expected 'git worktree remove' NOT to be called when path not found, got calls: %v", gitCalls)
+		}
+	}
+}
