@@ -291,6 +291,8 @@ type BeadStats struct {
 }
 
 // normalizeNilFields ensures nil slices are replaced with empty slices.
+// See CLAUDE.md nil-field normalization visibility convention:
+// BeadStats lives in logger/, so the helper stays unexported.
 func (s *BeadStats) normalizeNilFields() {
 	if s == nil {
 		return

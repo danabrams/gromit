@@ -46,6 +46,8 @@ type Proposals struct {
 // normalizeNilFields ensures nil slices are replaced with empty slices.
 // This prevents issues with downstream code that marshals to JSON (nil → "null"
 // vs [] → "[]") and ensures consistent behavior.
+// See CLAUDE.md nil-field normalization visibility convention:
+// Proposals lives in retro/, so the helper stays unexported.
 func (p *Proposals) normalizeNilFields() {
 	if p == nil {
 		return
@@ -69,6 +71,8 @@ func (p *Proposals) normalizeNilFields() {
 }
 
 // normalizeNilFields ensures nil slices are replaced with empty slices.
+// See CLAUDE.md nil-field normalization visibility convention:
+// ConsolidationProposal lives in retro/, so the helper stays unexported.
 func (c *ConsolidationProposal) normalizeNilFields() {
 	if c == nil {
 		return

@@ -87,6 +87,8 @@ func (f *File) SetFilter(fn FilterFunc) {
 }
 
 // normalizeNilFields ensures nil slices are replaced with empty slices.
+// See CLAUDE.md nil-field normalization visibility convention:
+// File lives in learnings/, so the helper stays unexported.
 func (f *File) normalizeNilFields() {
 	if f == nil {
 		return

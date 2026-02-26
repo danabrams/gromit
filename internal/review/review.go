@@ -44,6 +44,8 @@ type BacklogItem struct {
 // normalizeNilFields ensures nil slices are replaced with empty slices.
 // This prevents issues with downstream code that may range over nil slices
 // vs code that checks len() or marshals to JSON (nil → "null" vs [] → "[]").
+// See CLAUDE.md nil-field normalization visibility convention:
+// ReviewResult lives in review/, so the helper stays unexported.
 func (r *ReviewResult) normalizeNilFields() {
 	if r == nil {
 		return

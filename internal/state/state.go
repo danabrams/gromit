@@ -263,7 +263,9 @@ func (f *File) ReconcileFilteredHashes(currentHashes map[string]bool) bool {
 	return pruned
 }
 
-// NormalizeNilFields converts nil slices and maps to empty slices/maps
+// NormalizeNilFields converts nil slices and maps to empty slices/maps.
+// See CLAUDE.md nil-field normalization visibility convention:
+// State crosses package boundaries so the helper stays exported.
 func (s *State) NormalizeNilFields() {
 	if s.FilteredLearningHashes == nil {
 		s.FilteredLearningHashes = []string{}

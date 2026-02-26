@@ -28,6 +28,9 @@ type ValidationResponse struct {
 	Reason string `json:"reason"`
 }
 
+// normalizeNilFields ensures nil slices are replaced with empty slices.
+// See CLAUDE.md nil-field normalization visibility convention:
+// SelfReport lives in coverage/, so the helper stays unexported.
 func (s *SelfReport) normalizeNilFields() {
 	if s == nil {
 		return

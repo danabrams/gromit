@@ -41,6 +41,8 @@ type StreamMessage struct {
 // normalizeNilFields ensures nil slices are replaced with empty slices.
 // This prevents issues with downstream code that marshals to JSON (nil → "null"
 // vs [] → "[]") and ensures consistent behavior.
+// See CLAUDE.md nil-field normalization visibility convention:
+// StreamMessage lives in logger/, so the helper stays unexported.
 func (m *StreamMessage) normalizeNilFields() {
 	if m == nil {
 		return

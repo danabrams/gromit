@@ -3,6 +3,8 @@ package config
 // NormalizeNilFields ensures nil slices and maps are replaced with empty
 // instances. This prevents issues with downstream code that marshals to JSON
 // (nil -> "null" vs [] -> "[]") and ensures consistent behavior.
+// See CLAUDE.md nil-field normalization visibility convention:
+// Config crosses package boundaries so the helper stays exported.
 func (c *Config) NormalizeNilFields() {
 	if c.Methodology.BuildStrategy == "" {
 		c.Methodology.BuildStrategy = defaultMethodologyBuildStrategy

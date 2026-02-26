@@ -236,7 +236,9 @@ func (f *InteractiveFile) ListPendingWorktreeBranches() ([]string, error) {
 	return branches, nil
 }
 
-// NormalizeNilFields converts nil slices to empty slices
+// NormalizeNilFields converts nil slices to empty slices.
+// See CLAUDE.md nil-field normalization visibility convention:
+// InteractiveState crosses package boundaries so the helper stays exported.
 func (s *InteractiveState) NormalizeNilFields() {
 	if s.FilteredLearningHashes == nil {
 		s.FilteredLearningHashes = []string{}

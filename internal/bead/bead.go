@@ -63,6 +63,8 @@ const (
 // This prevents issues with downstream code that may range over nil slices
 // (which is safe) vs code that checks len() or marshals to JSON (nil → "null"
 // vs [] → "[]").
+// See CLAUDE.md nil-field normalization visibility convention:
+// Bead lives in bead/, so the helper stays unexported.
 func (b *Bead) normalizeNilFields() {
 	if b == nil {
 		return

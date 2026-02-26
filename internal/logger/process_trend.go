@@ -291,6 +291,9 @@ func ReadProcessTrend(path string) (*ProcessTrend, error) {
 	return &trend, nil
 }
 
+// normalizeNilFields ensures nil slices are replaced with empty slices.
+// See CLAUDE.md nil-field normalization visibility convention:
+// ProcessTrend lives in logger/, so the helper stays unexported.
 func (t *ProcessTrend) normalizeNilFields() {
 	if t == nil {
 		return

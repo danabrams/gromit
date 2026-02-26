@@ -61,6 +61,8 @@ type Context struct {
 }
 
 // normalizeNilFields ensures nil slices are replaced with empty slices.
+// See CLAUDE.md nil-field normalization visibility convention:
+// Context lives in prompt/, so the helper stays unexported.
 func (c *Context) normalizeNilFields() {
 	if c == nil {
 		return
@@ -209,6 +211,8 @@ type ScopeEstimate struct {
 }
 
 // normalizeNilFields ensures nil slices are replaced with empty slices.
+// See CLAUDE.md nil-field normalization visibility convention:
+// ScopeEstimate lives in prompt/, so the helper stays unexported.
 func (s *ScopeEstimate) normalizeNilFields() {
 	if s == nil {
 		return
