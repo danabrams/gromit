@@ -76,3 +76,40 @@ func extractGeminiAssistantText(events []map[string]interface{}) string {
 	}
 	return sb.String()
 }
+
+// extractGeminiTokens extracts token counts from a Gemini response or stream event.
+// Handles both JSON response format (usage.input_tokens, usage.output_tokens, usage.cached_input_tokens)
+// and stream event format (stats.input_tokens, stats.output_tokens, stats.cached).
+// Returns (inputTokens, outputTokens, cachedInputTokens).
+func extractGeminiTokens(data map[string]interface{}) (int, int, int) {
+	var inputTokens, outputTokens, cachedTokens int
+
+	// Try to extract from usage field (JSON response format)
+	if usage, ok := data["usage"].(map[string]interface{}); ok {
+		if val, ok := usage["input_tokens"].(float64); ok {
+			inputTokens = int(val)
+		}
+		if val, ok := usage["output_tokens"].(float64); ok {
+			outputTokens = int(val)
+		}
+		if val, ok := usage["cached_input_tokens"].(float64); ok {
+			cachedTokens = int(val)
+		}
+		return inputTokens, outputTokens, cachedTokens
+	}
+
+	// Try to extract from stats field (stream event format)
+	if stats, ok := data["stats"].(map[string]interface{}); ok {
+		if val, ok := stats["input_tokens"].(float64); ok {
+			inputTokens = int(val)
+		}
+		if val, ok := stats["output_tokens"].(float64); ok {
+			outputTokens = int(val)
+		}
+		if val, ok := stats["cached"].(float64); ok {
+			cachedTokens = int(val)
+		}
+	}
+
+	return inputTokens, outputTokens, cachedTokens
+}
