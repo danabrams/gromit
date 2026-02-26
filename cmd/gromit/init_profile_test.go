@@ -179,3 +179,142 @@ func TestInitRespectsProfileFlag(t *testing.T) {
 		t.Fatalf("gromit.yaml missing python compile command override, got:\n%s", cfg)
 	}
 }
+
+func TestExplicitProfileOverrideNoImplicitInjection(t *testing.T) {
+	testCases := []struct {
+		name             string
+		explicitProfile  string
+		shouldHaveTracker bool
+		shouldHaveAdapter bool
+	}{
+		{
+			name:             "explicit profile does not implicitly set tracker backend",
+			explicitProfile:  "go",
+			shouldHaveTracker: false,
+			shouldHaveAdapter: false,
+		},
+		{
+			name:             "explicit python profile override ignores go.mod signal",
+			explicitProfile:  "python",
+			shouldHaveTracker: false,
+			shouldHaveAdapter: false,
+		},
+		{
+			name:             "explicit node profile override ignores pyproject.toml signal",
+			explicitProfile:  "node",
+			shouldHaveTracker: false,
+			shouldHaveAdapter: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			// Create multiple signal files to ensure we're using explicit override
+			if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test"), 0644); err != nil {
+				t.Fatalf("write go.mod: %v", err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, "pyproject.toml"), []byte("[build-system]"), 0644); err != nil {
+				t.Fatalf("write pyproject.toml: %v", err)
+			}
+
+			prevWd, err := os.Getwd()
+			if err != nil {
+				t.Fatalf("get wd: %v", err)
+			}
+			defer os.Chdir(prevWd)
+			if err := os.Chdir(dir); err != nil {
+				t.Fatalf("chdir: %v", err)
+			}
+
+			prevForce := forceInit
+			prevProfile := initProfile
+			defer func() {
+				forceInit = prevForce
+				initProfile = prevProfile
+			}()
+			forceInit = true
+			initProfile = tc.explicitProfile
+
+			if err := runInit(nil, nil); err != nil {
+				t.Fatalf("runInit: %v", err)
+			}
+
+			content, err := os.ReadFile(filepath.Join(dir, "gromit.yaml"))
+			if err != nil {
+				t.Fatalf("read gromit.yaml: %v", err)
+			}
+			cfg := string(content)
+
+			// Verify profile is explicit
+			if !strings.Contains(cfg, "project:\n  profile: \""+tc.explicitProfile+"\"") {
+				t.Fatalf("gromit.yaml missing expected profile, got:\n%s", cfg)
+			}
+
+			// Verify NO implicit tracker backend injection
+			if tc.shouldHaveTracker {
+				if !strings.Contains(cfg, "tracker:") {
+					t.Errorf("expected tracker section in config, got:\n%s", cfg)
+				}
+			} else {
+				if strings.Contains(cfg, "  backend:") && strings.Contains(cfg, "tracker:") {
+					t.Errorf("unexpected tracker.backend section in config (explicit profile should not implicitly inject tracker), got:\n%s", cfg)
+				}
+			}
+
+			// Verify NO implicit methodology adapter injection
+			if tc.shouldHaveAdapter {
+				if !strings.Contains(cfg, "methodology:") {
+					t.Errorf("expected methodology section in config, got:\n%s", cfg)
+				}
+			}
+		})
+	}
+}
+
+func TestSelectInitProfilePrecedenceExplicitOverDetection(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create go.mod to signal "go" profile
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test"), 0644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
+	// Create package.json to signal "node" profile
+	if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte("{}"), 0644); err != nil {
+		t.Fatalf("write package.json: %v", err)
+	}
+
+	prevProfile := initProfile
+	defer func() { initProfile = prevProfile }()
+
+	// Set explicit profile
+	initProfile = "python"
+
+	profile, err := selectInitProfile(dir)
+	if err != nil {
+		t.Fatalf("selectInitProfile: %v", err)
+	}
+
+	// Explicit profile should take precedence over detected signals
+	if profile != "python" {
+		t.Fatalf("selectInitProfile() = %q, want python (explicit should override detection)", profile)
+	}
+}
+
+func TestSelectInitProfileCustomProfile(t *testing.T) {
+	dir := t.TempDir()
+
+	prevProfile := initProfile
+	defer func() { initProfile = prevProfile }()
+
+	initProfile = "custom"
+
+	profile, err := selectInitProfile(dir)
+	if err != nil {
+		t.Fatalf("selectInitProfile: %v", err)
+	}
+
+	if profile != "custom" {
+		t.Fatalf("selectInitProfile() = %q, want custom", profile)
+	}
+}
