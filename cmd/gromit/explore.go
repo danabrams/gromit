@@ -41,6 +41,14 @@ var exploreModel string
 var exploreSessionLauncherFn = runWithSessionWorktreeWithConflictSettings
 var exploreRunInDirFn = runInDir
 
+// exploreRunner defines the interface for running explore workflows
+type exploreRunner interface {
+	Explore(ctx context.Context, input pipeline.ExploreInput) (*pipeline.ExploreResult, error)
+}
+
+// exploreRunnerFactoryFn is a package-level seam for dependency injection
+var exploreRunnerFactoryFn = buildExploreRunner
+
 const exploreCodexHelpExample = `  gromit explore --agent codex "Audit onboarding flow" # Use Codex for the session`
 const exploreChooseAgentHelpExample = `  gromit explore --choose-agent "Audit onboarding flow" # Pick an agent interactively`
 const exploreAgentSelectionHelpSentence = "Agent selection priority: --agent, --choose-agent, agents.phases.explore, then the configured default agent."
@@ -76,10 +84,10 @@ func runExplore(cmd *cobra.Command, args []string) error {
 		topic = args[0]
 	}
 
-	// Build pipeline
-	p, err := buildExplorePipeline(cfg)
+	// Build runner via factory seam
+	runner, err := exploreRunnerFactoryFn(cfg)
 	if err != nil {
-		return fmt.Errorf("building pipeline: %w", err)
+		return fmt.Errorf("building runner: %w", err)
 	}
 
 	// Execute explore workflow
@@ -93,7 +101,7 @@ func runExplore(cmd *cobra.Command, args []string) error {
 		Model:       exploreModel,
 	}
 
-	result, err := runExploreInSession(ctx, cfg, resolveGromitDir(cfg), p, input)
+	result, err := runExploreInSession(ctx, cfg, resolveGromitDir(cfg), runner, input)
 	if err != nil {
 		return fmt.Errorf("explore workflow: %w", err)
 	}
@@ -128,24 +136,24 @@ func runExploreInSession(
 	ctx context.Context,
 	cfg *config.Config,
 	gromitDir string,
-	p *pipeline.Pipeline,
+	runner exploreRunner,
 	input pipeline.ExploreInput,
 ) (*pipeline.ExploreResult, error) {
-	if p == nil {
-		return nil, fmt.Errorf("pipeline is nil")
+	if runner == nil {
+		return nil, fmt.Errorf("runner is nil")
 	}
 
 	var result *pipeline.ExploreResult
 	fallback := func() error {
 		var err error
-		result, err = p.Explore(ctx, input)
+		result, err = runner.Explore(ctx, input)
 		return err
 	}
 
 	if err := launchInSessionIfEnabled(cfg, gromitDir, exploreSessionCommand, exploreSessionLauncherFn, func(sessionDir string) error {
 		return exploreRunInDirFn(sessionDir, func() error {
 			var runErr error
-			result, runErr = p.Explore(ctx, input)
+			result, runErr = runner.Explore(ctx, input)
 			return runErr
 		})
 	}, fallback); err != nil {
@@ -153,6 +161,11 @@ func runExploreInSession(
 	}
 
 	return result, nil
+}
+
+// buildExploreRunner creates an exploreRunner by building a pipeline
+func buildExploreRunner(cfg *config.Config) (exploreRunner, error) {
+	return buildExplorePipeline(cfg)
 }
 
 // buildExplorePipeline constructs a Pipeline configured for the explore workflow

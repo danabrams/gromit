@@ -1,8 +1,9 @@
 ---
+created: 2026-02-26T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-26T09:19:58Z"
 id: cost-optimized-routing
 source_spec: cost-optimized-routing
-created: 2026-02-26
-decomposed: false
 ---
 
 # Cost-Optimized Routing Implementation Plan

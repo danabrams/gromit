@@ -316,18 +316,24 @@ func TestHandleExploreOutput_RendersCreatedArtifacts(t *testing.T) {
 
 func TestExploreRunnerSeam_CanInjectMockRunner(t *testing.T) {
 	origRunnerFactory := exploreRunnerFactoryFn
-	t.Cleanup(func() { exploreRunnerFactoryFn = origRunnerFactory })
+	t.Cleanup(func() {
+		exploreRunnerFactoryFn = origRunnerFactory
+	})
 
 	baseDir := t.TempDir()
 	t.Chdir(baseDir)
 	gromitDir := filepath.Join(baseDir, ".gromit")
-	specsDir := filepath.Join(gromitDir, "specs")
-	epicsDir := filepath.Join(gromitDir, "epics")
-	if err := os.MkdirAll(specsDir, 0o755); err != nil {
-		t.Fatalf("mkdir specs: %v", err)
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("mkdir gromit: %v", err)
 	}
-	if err := os.MkdirAll(epicsDir, 0o755); err != nil {
-		t.Fatalf("mkdir epics: %v", err)
+
+	// Create a minimal gromit.yaml config file with worktrees disabled
+	configContent := `version: 1
+worktree:
+  enabled: false
+`
+	if err := os.WriteFile(filepath.Join(baseDir, "gromit.yaml"), []byte(configContent), 0o644); err != nil {
+		t.Fatalf("write gromit.yaml: %v", err)
 	}
 
 	mockRunnerCalled := false
