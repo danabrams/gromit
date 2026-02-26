@@ -149,12 +149,12 @@ func (gp *GeminiProvider) buildCommandArgs(model, outputFormat, prompt string) [
 func buildGeminiResult(execResult *geminiRunResult, defaultModel string, estimator geminiCostEstimator) (*Result, error) {
 	payload, err := extractJSONPayload(execResult.stdout)
 	if err != nil {
-		return nil, err
+		return buildGeminiFallbackResult(execResult, defaultModel, err)
 	}
 
 	parsed, err := parseGeminiJSONResult(payload, defaultModel, estimator)
 	if err != nil {
-		return nil, err
+		return buildGeminiFallbackResult(execResult, defaultModel, err)
 	}
 
 	parsed.ExitCode = execResult.exitCode
@@ -168,6 +168,25 @@ func buildGeminiResult(execResult *geminiRunResult, defaultModel string, estimat
 	}
 
 	return parsed, nil
+}
+
+func buildGeminiFallbackResult(execResult *geminiRunResult, defaultModel string, parseErr error) (*Result, error) {
+	classification := classifyGeminiCLIError(string(execResult.stderr))
+	diagnostics := fmt.Sprintf("gemini_error_category=%s retryable=%t exit_code=%d", classification.Category, classification.Retryable, execResult.exitCode)
+	if parseErr != nil {
+		diagnostics = fmt.Sprintf("%s json_error=%q", diagnostics, parseErr.Error())
+	}
+
+	return &Result{
+		Success:         execResult.exitCode == 0,
+		Output:          string(execResult.stdout),
+		Stderr:          string(execResult.stderr),
+		Diagnostics:     diagnostics,
+		FailureCategory: classifyGeminiFailure(execResult.exitCode, string(execResult.stderr)),
+		ExitCode:        execResult.exitCode,
+		Duration:        execResult.duration,
+		Model:           defaultModel,
+	}, nil
 }
 
 func extractJSONPayload(data []byte) ([]byte, error) {
