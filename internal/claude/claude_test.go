@@ -1558,3 +1558,14 @@ func fakeClaudeHangBeforeOutput(t *testing.T) string {
 	}
 	return binary
 }
+
+// RED: Test for emit-then-hang helper function
+func TestFakeClaudeEmitThenHang_ReturnsValidBinaryPath(t *testing.T) {
+	binary := fakeClaudeEmitThenHang(t)
+	if binary == "" {
+		t.Fatal("fakeClaudeEmitThenHang() returned empty path")
+	}
+	if _, err := os.Stat(binary); err != nil {
+		t.Fatalf("fakeClaudeEmitThenHang() returned non-existent binary path: %v", err)
+	}
+}
