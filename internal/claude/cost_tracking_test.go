@@ -192,3 +192,19 @@ func TestProcessStreamJSONParsesCacheReadInputTokensWithOtherTokens(t *testing.T
 		t.Errorf("cachedInputTokens = %d, want 1800", cachedInputTokens)
 	}
 }
+
+// TestProcessStreamJSONDefaultsCacheReadInputTokensToZero verifies that
+// cache_read_input_tokens defaults to zero when not present in the result event.
+func TestProcessStreamJSONDefaultsCacheReadInputTokensToZero(t *testing.T) {
+	input := `{"type":"result","result":"OK","input_tokens":1000,"output_tokens":500}` + "\n"
+
+	c := &Client{timeout: 60}
+	reader := strings.NewReader(input)
+	var output strings.Builder
+
+	_, _, _, _, cachedInputTokens := c.processStreamJSONWithCost(reader, &output, nil, nil)
+
+	if cachedInputTokens != 0 {
+		t.Errorf("cachedInputTokens = %d, want 0 (default)", cachedInputTokens)
+	}
+}
