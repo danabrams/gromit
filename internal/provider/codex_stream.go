@@ -374,6 +374,21 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 					"message": errInfo.Message,
 				})
 			}
+		case "error":
+			var payload map[string]interface{}
+			if err := json.Unmarshal(line, &payload); err != nil {
+				codexDebugf(output, "provider debug: failed to parse error payload: %v", err)
+			}
+			errorInfo := map[string]interface{}{}
+			if event.ErrorInfo != nil {
+				errorInfo["type"] = event.ErrorInfo.Type
+				errorInfo["message"] = event.ErrorInfo.Message
+			}
+			emitStreamEvent(handler, map[string]interface{}{
+				"type":    "EventError",
+				"error":   errorInfo,
+				"payload": payload,
+			})
 		}
 	}
 
