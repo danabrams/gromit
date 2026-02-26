@@ -146,3 +146,41 @@ func TestLaneAwareBudgetsAreConfigured(t *testing.T) {
 		t.Errorf("error reading budget file: %v", err)
 	}
 }
+
+func TestFixtureRefreshWorkflowDocumented(t *testing.T) {
+	// GREEN test: Verify that README documents the fixture refresh workflow
+	// with all required steps
+	projectRoot := filepath.Join("..", "..")
+	readmePath := filepath.Join(projectRoot, "README.md")
+
+	content, err := os.ReadFile(readmePath)
+	if err != nil {
+		t.Fatalf("failed to read README.md: %v", err)
+	}
+
+	body := string(content)
+
+	// Verify fixture refresh steps are documented
+	requiredSteps := []string{
+		"Capture the output",
+		"Annotate the fixture",
+		"Sanitize and stabilize",
+		"Validate in the default lane",
+		"Review with intent",
+	}
+
+	for _, step := range requiredSteps {
+		if !strings.Contains(body, step) {
+			t.Errorf("README.md missing fixture refresh step: %q", step)
+		}
+	}
+
+	// Verify environment gate documentation
+	if !strings.Contains(body, "CLAUDE_SMOKE") {
+		t.Error("README.md should document CLAUDE_SMOKE environment gate")
+	}
+
+	if !strings.Contains(body, "CODEX_SMOKE") {
+		t.Error("README.md should document CODEX_SMOKE environment gate")
+	}
+}
