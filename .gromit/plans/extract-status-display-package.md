@@ -1,8 +1,9 @@
 ---
+created: 2026-02-26T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-26T12:35:32Z"
 id: extract-status-display-package
 source_spec: extract-status-display-package
-created: 2026-02-26
-decomposed: false
 ---
 
 # Extract Status Display Package Implementation Plan

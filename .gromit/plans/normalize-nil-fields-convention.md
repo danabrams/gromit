@@ -1,8 +1,9 @@
 ---
+created: 2026-02-26T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-26T12:36:28Z"
 id: normalize-nil-fields-convention
 source_spec: normalize-nil-fields-convention
-created: 2026-02-26
-decomposed: false
 ---
 
 # Normalize Nil Fields Naming Convention Policy Implementation Plan

@@ -1,8 +1,9 @@
 ---
+created: 2026-02-26T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-26T12:38:04Z"
 id: session-worktree-cleanup-before-merge
 source_spec: session-worktree-cleanup-before-merge
-created: 2026-02-26
-decomposed: false
 ---
 
 # Session Worktree Cleanup Before Merge Attempt Implementation Plan

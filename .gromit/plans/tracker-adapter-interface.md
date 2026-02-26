@@ -1,8 +1,9 @@
 ---
+created: 2026-02-26T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-26T12:39:49Z"
 id: tracker-adapter-interface
 source_spec: tracker-adapter-interface
-created: 2026-02-26
-decomposed: false
 ---
 
 # Tracker Adapter Interface Implementation Plan

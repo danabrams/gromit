@@ -1,8 +1,9 @@
 ---
+created: 2026-02-26T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-26T12:37:07Z"
 id: provider-neutral-wording
 source_spec: provider-neutral-wording
-created: 2026-02-26
-decomposed: false
 ---
 
 # Provider-Neutral Wording Implementation Plan

@@ -69,3 +69,4 @@ func TestSeedProfileAwareCommandExamples_InjectsProfileGuidanceIntoValidateTempl
 		})
 	}
 }
+

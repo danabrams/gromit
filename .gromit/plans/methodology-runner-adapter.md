@@ -1,8 +1,9 @@
 ---
+created: 2026-02-26T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-26T12:40:06Z"
 id: methodology-runner-adapter
 source_spec: methodology-runner-adapter
-created: 2026-02-26
-decomposed: false
 ---
 
 # Methodology Runner Adapter Implementation Plan

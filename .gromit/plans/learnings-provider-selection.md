@@ -1,8 +1,9 @@
 ---
+created: 2026-02-26T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-26T12:36:50Z"
 id: learnings-provider-selection
 source_spec: learnings-provider-selection
-created: 2026-02-26
-decomposed: false
 ---
 
 # Learnings Provider Selection Implementation Plan

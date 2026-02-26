@@ -1,8 +1,9 @@
 ---
+created: 2026-02-26T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-26T12:50:09Z"
 id: profile-aware-init-bootstrap
 source_spec: profile-aware-init-bootstrap
-created: 2026-02-26
-decomposed: false
 ---
 
 # Profile-Aware Init Bootstrap Implementation Plan
