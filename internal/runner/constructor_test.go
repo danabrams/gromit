@@ -182,42 +182,6 @@ func TestDecomposerAdapter_Decompose_CreatesChildBeads(t *testing.T) {
 	}
 }
 
-// TestDecomposerAdapter_DecomposeSucceeds verifies that decomposerAdapter.Decompose
-// returns nil when asked to decompose an oversized bead, indicating the decomposition
-// workflow ran (creating child beads) rather than erroring with "not yet implemented".
-func TestDecomposerAdapter_DecomposeSucceeds(t *testing.T) {
-	client, err := bead.NewClient()
-	if err != nil {
-		t.Fatalf("bead.NewClient: %v", err)
-	}
-	stubRouter := provider.NewSingleProviderRouter(&stubRunProvider{
-		name: "test",
-		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
-			return &provider.Result{
-				Success: true,
-				Output:  `[{"title":"Part 1","expected_outputs":["f1","f2","f3"]},{"title":"Part 2","expected_outputs":["f4","f5"]}]`,
-			}, nil
-		},
-	})
-	client.RunFn = func(args ...string) (string, error) {
-		if len(args) > 0 && args[0] == "create" {
-			return `{"id":"child-1","title":"part 1","status":"open"}`, nil
-		}
-		return "", nil
-	}
-
-	adapter := &decomposerAdapter{beads: client, router: stubRouter}
-	b := &bead.Bead{
-		ID:              "over-1",
-		Title:           "oversized bead",
-		ExpectedOutputs: []string{"f1", "f2", "f3", "f4", "f5", "f6"},
-	}
-
-	if err := adapter.Decompose(context.Background(), b); err != nil {
-		t.Fatalf("Decompose returned error: %v; want nil for a decomposable oversized bead", err)
-	}
-}
-
 // TestDecomposerAdapter_InvokesProviderViaRouter verifies that decomposerAdapter.Decompose
 // calls the provider (via router) for LLM-powered decomposition instead of creating
 // a dumb carbon-copy child bead.
