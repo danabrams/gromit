@@ -40,3 +40,68 @@ func TestParseGeminiJSONResult(t *testing.T) {
 		t.Errorf("expected model 'gemini-3-flash-preview', got %q", result.Model)
 	}
 }
+
+func TestParseGeminiStreamEvent(t *testing.T) {
+	tests := []struct {
+		name      string
+		line      string
+		wantType  string
+		wantRole  string
+		wantModel string
+	}{
+		{
+			name:     "init event",
+			line:     `{"type":"init","timestamp":"2026-02-23T23:22:33.421Z","session_id":"0fc744b2-d900-4dce-880f-c78c1d34fc80","model":"auto-gemini-3"}`,
+			wantType: "init",
+			wantRole: "",
+			wantModel: "auto-gemini-3",
+		},
+		{
+			name:     "user message event",
+			line:     `{"type":"message","timestamp":"2026-02-23T23:22:33.424Z","role":"user","content":"Return exactly STREAM_OK"}`,
+			wantType: "message",
+			wantRole: "user",
+		},
+		{
+			name:     "assistant message event",
+			line:     `{"type":"message","timestamp":"2026-02-23T23:22:36.416Z","role":"assistant","content":"STREAM_OK","delta":true}`,
+			wantType: "message",
+			wantRole: "assistant",
+		},
+		{
+			name:     "result event",
+			line:     `{"type":"result","timestamp":"2026-02-23T23:22:36.430Z","status":"success","stats":{"total_tokens":13458,"input_tokens":13284,"output_tokens":33,"cached":0,"input":13284,"duration_ms":3009,"tool_calls":0}}`,
+			wantType: "result",
+			wantRole: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			event, err := parseGeminiStreamEvent([]byte(tt.line))
+			if err != nil {
+				t.Fatalf("parseGeminiStreamEvent failed: %v", err)
+			}
+
+			if event == nil {
+				t.Fatal("expected non-nil event")
+			}
+
+			if eventType, ok := event["type"].(string); !ok || eventType != tt.wantType {
+				t.Errorf("expected type %q, got %q", tt.wantType, eventType)
+			}
+
+			if tt.wantRole != "" {
+				if role, ok := event["role"].(string); !ok || role != tt.wantRole {
+					t.Errorf("expected role %q, got %q", tt.wantRole, role)
+				}
+			}
+
+			if tt.wantModel != "" {
+				if model, ok := event["model"].(string); !ok || model != tt.wantModel {
+					t.Errorf("expected model %q, got %q", tt.wantModel, model)
+				}
+			}
+		})
+	}
+}
