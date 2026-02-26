@@ -325,6 +325,14 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 					"output_tokens":  turnUsage.OutputTokens,
 				})
 				emitHighInputTokenWarningIfNeeded(handler, turnUsage)
+				emitStreamEvent(handler, map[string]interface{}{
+					"type": "EventUsage",
+					"usage": map[string]interface{}{
+						"total_cost_usd": turnUsage.TotalCostUSD,
+						"input_tokens":   turnUsage.InputTokens,
+						"output_tokens":  turnUsage.OutputTokens,
+					},
+				})
 			}
 
 			// Capture error info from failed turns.
