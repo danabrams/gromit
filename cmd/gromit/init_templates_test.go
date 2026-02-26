@@ -177,3 +177,117 @@ func TestNextStepsForProfile_IncludesGoSpecificGuidance(t *testing.T) {
 	}
 }
 
+// TestInitWritesProfileAwareRules verifies that gromit init writes profile-aware RULES.md
+// content when initializing a project with a specific profile
+func TestInitWritesProfileAwareRules(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		profile             string
+		wantProfileSpecific string
+	}{
+		{
+			profile:             "go",
+			wantProfileSpecific: "go fmt",
+		},
+		{
+			profile:             "node",
+			wantProfileSpecific: "ESLint",
+		},
+		{
+			profile:             "python",
+			wantProfileSpecific: "Black",
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.profile, func(t *testing.T) {
+			t.Parallel()
+
+			tempDir := t.TempDir()
+
+			// Simulate what runInit does: generate and write profile-aware RULES.md
+			rulesContent := rulesForProfile(tc.profile)
+			rulesPath := filepath.Join(tempDir, ".gromit", "RULES.md")
+
+			if err := os.MkdirAll(filepath.Dir(rulesPath), 0755); err != nil {
+				t.Fatalf("failed to create .gromit dir: %v", err)
+			}
+
+			if err := os.WriteFile(rulesPath, []byte(rulesContent), 0644); err != nil {
+				t.Fatalf("failed to write RULES.md: %v", err)
+			}
+
+			// Read back and verify it contains profile-specific guidance
+			content, err := os.ReadFile(rulesPath)
+			if err != nil {
+				t.Fatalf("failed to read RULES.md: %v", err)
+			}
+
+			contentStr := string(content)
+			if !strings.Contains(contentStr, tc.wantProfileSpecific) {
+				t.Errorf("RULES.md for profile %q missing expected profile-specific content %q, got:\n%s",
+					tc.profile, tc.wantProfileSpecific, contentStr)
+			}
+
+			// Should also contain universal safety guidance
+			if !strings.Contains(contentStr, "Never commit secrets") {
+				t.Error("RULES.md missing universal safety guidance")
+			}
+		})
+	}
+}
+
+// TestRunInitUsesProfileAwareRulesAndNextSteps verifies that the actual runInit command
+// uses profile-aware RULES.md and next-steps guidance (not defaultRules and generic steps)
+func TestRunInitUsesProfileAwareRulesAndNextSteps(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	// Change to temp directory for init command
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get current working directory: %v", err)
+	}
+	defer func() { os.Chdir(cwd) }()
+
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("failed to change to temp directory: %v", err)
+	}
+
+	// Write a gromit.yaml with go profile
+	configContent := `project:
+  profile: "go"
+models:
+  p0: opus
+  p1: sonnet
+  p2: haiku
+  validation: haiku
+validation:
+  enabled: true
+  commands: []
+`
+	if err := os.WriteFile("gromit.yaml", []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write gromit.yaml: %v", err)
+	}
+
+	// Run init
+	initCmd.RunE(initCmd, []string{})
+
+	// Read back RULES.md and verify it contains go fmt (profile-specific)
+	rulesContent, err := os.ReadFile(".gromit/RULES.md")
+	if err != nil {
+		t.Fatalf("failed to read generated RULES.md: %v", err)
+	}
+
+	rulesStr := string(rulesContent)
+	if !strings.Contains(rulesStr, "go fmt") {
+		t.Error("RULES.md missing Go-specific guidance (go fmt) - init not using profile-aware rules")
+	}
+
+	if !strings.Contains(rulesStr, "Never commit secrets") {
+		t.Error("RULES.md missing universal safety guidance")
+	}
+}
+
