@@ -5153,6 +5153,30 @@ routing:
 	}
 }
 
+func TestSetDefaultsRoutingStrategyAndCostOptimized(t *testing.T) {
+	cfg := &Config{}
+	cfg.SetDefaults()
+
+	if cfg.Routing.Strategy != "priority_based" {
+		t.Fatalf("Routing.Strategy = %q, want %q", cfg.Routing.Strategy, "priority_based")
+	}
+	if cfg.Routing.CostOptimized.BuildTier != "low" {
+		t.Fatalf("Routing.CostOptimized.BuildTier = %q, want %q", cfg.Routing.CostOptimized.BuildTier, "low")
+	}
+	if cfg.Routing.CostOptimized.DecomposeTier != "medium" {
+		t.Fatalf("Routing.CostOptimized.DecomposeTier = %q, want %q", cfg.Routing.CostOptimized.DecomposeTier, "medium")
+	}
+	if cfg.Routing.CostOptimized.EscalationTier != "medium" {
+		t.Fatalf("Routing.CostOptimized.EscalationTier = %q, want %q", cfg.Routing.CostOptimized.EscalationTier, "medium")
+	}
+	if cfg.Routing.CostOptimized.MaxDecompositionDepth != 10 {
+		t.Fatalf("Routing.CostOptimized.MaxDecompositionDepth = %d, want %d", cfg.Routing.CostOptimized.MaxDecompositionDepth, 10)
+	}
+	if cfg.Routing.CostOptimized.MaxRetriesBeforeDecompose != 2 {
+		t.Fatalf("Routing.CostOptimized.MaxRetriesBeforeDecompose = %d, want %d", cfg.Routing.CostOptimized.MaxRetriesBeforeDecompose, 2)
+	}
+}
+
 func TestRoutingCircuitBreakerDefaultsWhenEnabled(t *testing.T) {
 	yamlContent := `
 routing:
