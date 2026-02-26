@@ -1,8 +1,9 @@
 ---
+created: 2026-02-26T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-26T19:02:29Z"
 id: success-learning-failure-path-tests
 source_spec: success-learning-failure-path-tests
-created: 2026-02-26
-decomposed: false
 ---
 
 # Success-Learning Failure-Path Tests Implementation Plan

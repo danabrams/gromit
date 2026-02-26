@@ -1191,131 +1191,64 @@ func TestOrchestrator_MergesGlobalStatsPreservingExistingData_RefactoredWithSubt
 // entries from prior runs are preserved (not overwritten).
 func TestOrchestrator_MergesGlobalStatsPreservingExistingData(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
-	logsDir := dir + "/logs"
-	statsPath := dir + "/stats.json"
-	runID := "2026-02-25-001"
 
-	// Create logs directory for the run
-	if err := os.MkdirAll(logsDir, 0755); err != nil {
-		t.Fatalf("Failed to create logs dir: %v", err)
+	// Setup helpers for common operations
+	setupMergeStatsTestDirs := func(t *testing.T) (dir, logsDir, statsPath string) {
+		return setupMergeStatsTestDirsImpl(t)
 	}
 
-	// Create existing global stats file with opus history
-	existingStats := logger.GlobalStats{
-		Version: 1,
-		Updated: "2026-02-24T10:00:00Z",
-		Models: map[string]*logger.GlobalModelStats{
-			"opus": {
-				Iterations:      10,
-				Successes:       8,
-				Failures:        2,
-				TotalCostUSD:    20.00,
-				EscalationsFrom: 0,
-				EscalationsTo:   2,
-			},
-		},
-	}
-	existingData, _ := json.MarshalIndent(existingStats, "", "  ")
-	if err := os.WriteFile(statsPath, existingData, 0644); err != nil {
-		t.Fatalf("Failed to create existing stats file: %v", err)
+	seedGlobalStats := func(t *testing.T, statsPath string) {
+		seedGlobalStatsImpl(t, statsPath)
 	}
 
-	// Create iteration logs for this run (one successful opus iteration, one successful haiku)
-	logEntries := []logger.IterationLog{
-		{
-			Timestamp:    time.Now(),
-			Iteration:    1,
-			BeadID:       "bead-1",
-			BeadTitle:    "Feature A",
-			Success:      true,
-			Model:        "opus",
-			CostUSD:      3.00,
-			InputTokens:  100,
-			OutputTokens: 50,
-			DurationMs:   1000,
-		},
-		{
-			Timestamp:    time.Now(),
-			Iteration:    2,
-			BeadID:       "bead-2",
-			BeadTitle:    "Feature B",
-			Success:      true,
-			Model:        "haiku",
-			CostUSD:      0.50,
-			InputTokens:  50,
-			OutputTokens: 25,
-			DurationMs:   500,
-		},
-	}
-	writeOrchestratorTestLogFile(t, logsDir, runID, logEntries)
-
-	// Set up orchestrator with no iterations (we just care about stats merging)
-	beadCalls := 0
-	getBead := func(_ context.Context) (*bead.Bead, error) {
-		beadCalls++
-		return nil, nil // No beads, so run completes immediately
+	createRunLogs := func(t *testing.T, logsDir, runID string, models []string) {
+		createRunLogsImpl(t, logsDir, runID, models)
 	}
 
-	cfg := OrchestratorConfig{
-		Gate:            &fakeStage{},
-		Build:           &fakeStage{},
-		Validate:        &fakeStage{},
-		Epilogue:        &fakeStage{},
-		GetBead:         getBead,
-		Config:          &config.Config{},
-		Output:          io.Discard,
-		GlobalStatsPath: statsPath,
-		GetRunID: func() string {
-			return runID
-		},
-		LogsDir: logsDir,
+	invokeOrchestrator := func(t *testing.T, statsPath, logsDir, runID string) *logger.GlobalStats {
+		return invokeOrchestratorImpl(t, statsPath, logsDir, runID)
 	}
 
-	orch := NewOrchestrator(cfg)
-	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
-		t.Fatalf("Run() error = %v, want nil", err)
-	}
+	t.Run("baseline: merges with existing data, preserves prior runs", func(t *testing.T) {
+		_, logsDir, statsPath := setupMergeStatsTestDirs(t)
+		seedGlobalStats(t, statsPath)
+		createRunLogs(t, logsDir, "2026-02-25-001", []string{"opus", "haiku"})
+		mergedStats := invokeOrchestrator(t, statsPath, logsDir, "2026-02-25-001")
 
-	// Verify global stats were merged (not overwritten)
-	mergedStats, err := logger.ReadGlobalStats(statsPath)
-	if err != nil {
-		t.Fatalf("ReadGlobalStats failed: %v", err)
-	}
+		// Verify stats merged correctly (not overwritten)
+		if len(mergedStats.Models) != 2 {
+			t.Fatalf("Expected 2 models in merged stats, got %d", len(mergedStats.Models))
+		}
 
-	// Should have 2 models: opus (merged) and haiku (new)
-	if len(mergedStats.Models) != 2 {
-		t.Fatalf("Expected 2 models in merged stats, got %d", len(mergedStats.Models))
-	}
+		// Verify opus was merged (not overwritten): old 10 + new 1 = 11 iterations
+		opusStats := mergedStats.Models["opus"]
+		if opusStats.Iterations != 11 {
+			t.Errorf("opus.Iterations = %d, want 11 (10 existing + 1 new)", opusStats.Iterations)
+		}
+		if opusStats.Successes != 9 {
+			t.Errorf("opus.Successes = %d, want 9 (8 existing + 1 new)", opusStats.Successes)
+		}
+		if opusStats.TotalCostUSD != 23.00 {
+			t.Errorf("opus.TotalCostUSD = %.2f, want 23.00 (20.00 existing + 3.00 new)", opusStats.TotalCostUSD)
+		}
 
-	// Verify opus was merged (not overwritten): old 10 + new 1 = 11 iterations
-	opusStats := mergedStats.Models["opus"]
-	if opusStats.Iterations != 11 {
-		t.Errorf("opus.Iterations = %d, want 11 (10 existing + 1 new)", opusStats.Iterations)
-	}
-	if opusStats.Successes != 9 {
-		t.Errorf("opus.Successes = %d, want 9 (8 existing + 1 new)", opusStats.Successes)
-	}
-	if opusStats.TotalCostUSD != 23.00 {
-		t.Errorf("opus.TotalCostUSD = %.2f, want 23.00 (20.00 existing + 3.00 new)", opusStats.TotalCostUSD)
-	}
+		// Verify haiku was added: new model with 1 iteration
+		haikuStats := mergedStats.Models["haiku"]
+		if haikuStats.Iterations != 1 {
+			t.Errorf("haiku.Iterations = %d, want 1", haikuStats.Iterations)
+		}
+		if haikuStats.Successes != 1 {
+			t.Errorf("haiku.Successes = %d, want 1", haikuStats.Successes)
+		}
+		if haikuStats.TotalCostUSD != 0.50 {
+			t.Errorf("haiku.TotalCostUSD = %.2f, want 0.50", haikuStats.TotalCostUSD)
+		}
 
-	// Verify haiku was added: new model with 1 iteration
-	haikuStats := mergedStats.Models["haiku"]
-	if haikuStats.Iterations != 1 {
-		t.Errorf("haiku.Iterations = %d, want 1", haikuStats.Iterations)
-	}
-	if haikuStats.Successes != 1 {
-		t.Errorf("haiku.Successes = %d, want 1", haikuStats.Successes)
-	}
-	if haikuStats.TotalCostUSD != 0.50 {
-		t.Errorf("haiku.TotalCostUSD = %.2f, want 0.50", haikuStats.TotalCostUSD)
-	}
-
-	// Verify timestamp was updated
-	if mergedStats.Updated == "2026-02-24T10:00:00Z" {
-		t.Error("Updated timestamp should have changed from existing value")
-	}
+		// Verify timestamp was updated
+		if mergedStats.Updated == "2026-02-24T10:00:00Z" {
+			t.Error("Updated timestamp should have changed from existing value")
+		}
+	})
 }
 
 // writeOrchestratorTestLogFile writes iteration logs to a run-{runID}.jsonl file
