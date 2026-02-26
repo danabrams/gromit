@@ -15,6 +15,20 @@ type BDAdapter struct {
 
 var _ tracker.Client = (*BDAdapter)(nil)
 
+// NewBDAdapter creates a new BDAdapter wrapping the given bead.Client.
+func NewBDAdapter(c *Client) *BDAdapter {
+	return &BDAdapter{client: c}
+}
+
+// UnwrapBDAdapter extracts the underlying *bead.Client from a tracker.Client if it's a BDAdapter.
+// Returns nil if the client is not a BDAdapter.
+func UnwrapBDAdapter(tc tracker.Client) *Client {
+	if adapter, ok := tc.(*BDAdapter); ok && adapter != nil {
+		return adapter.client
+	}
+	return nil
+}
+
 func (a *BDAdapter) clientOrErr() (*Client, error) {
 	if a == nil || a.client == nil {
 		return nil, fmt.Errorf("bd adapter client is nil")

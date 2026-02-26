@@ -28,6 +28,7 @@ import (
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/execution"
 	"github.com/danabrams/gromit/internal/state"
+	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/danabrams/gromit/internal/worktree"
 )
 
@@ -103,9 +104,15 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 	renderer.SetBudgetConfig(cfg.Prompt.Budget.MaxChars, cfg.Prompt.Budget.LearningCapChars)
 	renderer.SetDecomposeTarget(cfg.Decompose.Target)
 
-	beadsClient, err := newTrackerClient(resolveTrackerBackend(cfg))
+	trackerClientInterface, err := newTrackerClient(resolveTrackerBackend(cfg))
 	if err != nil {
 		return nil, err
+	}
+
+	// Unwrap the BDAdapter to get the underlying *bead.Client for internal use
+	beadsClient := bead.UnwrapBDAdapter(trackerClientInterface)
+	if beadsClient == nil {
+		return nil, fmt.Errorf("failed to unwrap tracker client to bead.Client")
 	}
 
 	syncOut := newSyncWriter(output)
@@ -482,10 +489,14 @@ func resolveTrackerBackendDeprecationMarker(cfg *config.Config) string {
 	return RunnerDeprecationMarkerLegacyTrackerBackendFallback
 }
 
-func newTrackerClient(backend string) (*bead.Client, error) {
+func newTrackerClient(backend string) (tracker.Client, error) {
 	switch backend {
 	case "bd":
-		return bead.NewClient()
+		beadClient, err := bead.NewClient()
+		if err != nil {
+			return nil, err
+		}
+		return bead.NewBDAdapter(beadClient), nil
 	default:
 		return nil, fmt.Errorf("unsupported tracker backend: %s", backend)
 	}
