@@ -42,7 +42,7 @@ Creates:
 }
 
 var (
-	forceInit  bool
+	forceInit   bool
 	initProfile string
 )
 
@@ -231,7 +231,7 @@ func detectProfile(dir string) string {
 			return "python"
 		}
 	}
-	return "go"
+	return "custom"
 }
 
 func selectInitProfile(dir string) (string, error) {
@@ -243,17 +243,24 @@ func selectInitProfile(dir string) (string, error) {
 		return normalized, nil
 	}
 
-	if profile := profileFromConfig(dir); profile != "" {
+	profile, err := profileFromConfig(dir)
+	if err != nil {
+		return "", err
+	}
+	if profile != "" {
 		return profile, nil
 	}
 	return detectProfile(dir), nil
 }
 
-func profileFromConfig(dir string) string {
+func profileFromConfig(dir string) (string, error) {
 	path := filepath.Join(dir, "gromit.yaml")
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return ""
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("reading gromit.yaml: %w", err)
 	}
 	var parsed struct {
 		Project struct {
@@ -261,16 +268,16 @@ func profileFromConfig(dir string) string {
 		} `yaml:"project"`
 	}
 	if err := yaml.Unmarshal(data, &parsed); err != nil {
-		return ""
+		return "", fmt.Errorf("parsing gromit.yaml: %w", err)
 	}
 	profile := strings.ToLower(strings.TrimSpace(parsed.Project.Profile))
 	if profile == "" {
-		return ""
+		return "", nil
 	}
 	if _, ok := config.ProfileForName(profile); !ok {
-		return ""
+		return "", fmt.Errorf("gromit.yaml project.profile must be one of go, node, python, custom (got %q)", parsed.Project.Profile)
 	}
-	return profile
+	return profile, nil
 }
 
 func appendToGitignore(path string) {
