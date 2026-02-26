@@ -39,6 +39,13 @@ type codexItem struct {
 	ToolName string `json:"tool_name"`
 }
 
+// codexToolCall represents a tool call from Codex tool_call.created or tool_call.output events.
+type codexToolCall struct {
+	ToolName string `json:"tool_name"`
+	Input    map[string]interface{} `json:"input,omitempty"`
+	Output   map[string]interface{} `json:"output,omitempty"`
+}
+
 // codexContentBlock represents content blocks in assistant-style events.
 type codexContentBlock struct {
 	Type string `json:"type"`
@@ -76,6 +83,7 @@ type codexEvent struct {
 	Status       string          `json:"status,omitempty"`
 	Usage        *codexUsage     `json:"usage,omitempty"`
 	Result       *codexResult    `json:"result,omitempty"`
+	ToolCall     *codexToolCall  `json:"tool_call,omitempty"`
 	ErrorInfo    *codexErrorInfo `json:"error,omitempty"`
 	TotalCostUSD float64         `json:"total_cost_usd,omitempty"`
 	InputTokens  int             `json:"input_tokens,omitempty"`
@@ -208,6 +216,14 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 				"type":    "EventToolUse",
 				"payload": payload,
 			})
+
+			// Invoke toolHandler if tool_call has a tool_name
+			if event.ToolCall != nil && event.ToolCall.ToolName != "" && toolHandler != nil {
+				toolHandler(ToolEvent{
+					ToolName:  event.ToolCall.ToolName,
+					Timestamp: time.Now(),
+				})
+			}
 		case "tool_call.output":
 			var payload map[string]interface{}
 			if err := json.Unmarshal(line, &payload); err != nil {
@@ -217,6 +233,14 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 				"type":    "EventToolResult",
 				"payload": payload,
 			})
+
+			// Invoke toolHandler if tool_call has a tool_name
+			if event.ToolCall != nil && event.ToolCall.ToolName != "" && toolHandler != nil {
+				toolHandler(ToolEvent{
+					ToolName:  event.ToolCall.ToolName,
+					Timestamp: time.Now(),
+				})
+			}
 
 		case "item.started":
 			if event.Item != nil && toolHandler != nil {
