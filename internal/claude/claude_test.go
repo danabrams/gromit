@@ -1569,3 +1569,18 @@ func TestFakeClaudeEmitThenHang_ReturnsValidBinaryPath(t *testing.T) {
 		t.Fatalf("fakeClaudeEmitThenHang() returned non-existent binary path: %v", err)
 	}
 }
+
+// fakeClaudeEmitThenHang returns a path to a fake Claude binary that emits some output
+// then hangs indefinitely. This simulates a stall timeout scenario where the process
+// starts producing output but then becomes unresponsive.
+func fakeClaudeEmitThenHang(t *testing.T) string {
+	t.Helper()
+	tempDir := t.TempDir()
+	binary := filepath.Join(tempDir, "claude")
+	// Script that reads input, outputs a marker, then sleeps indefinitely
+	script := "#!/bin/sh\ncat /dev/null\necho 'starting work...'\nsleep 3600\n"
+	if err := os.WriteFile(binary, []byte(script), 0755); err != nil {
+		t.Fatalf("failed to write fake claude emit-then-hang binary: %v", err)
+	}
+	return binary
+}
