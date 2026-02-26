@@ -434,7 +434,7 @@ func buildRouterAndLearningsProvider(cfg *config.Config, gromitDir string, outpu
 			circuitBreaker,
 		)
 
-		learningsProvider := selectLearningsProvider(providers)
+		learningsProvider := selectLearningsProvider(cfg.Learnings.Provider, providers)
 		return router, learningsProvider, sf, costDefs, nil
 	}
 
@@ -500,16 +500,6 @@ func newTrackerClient(backend string) (tracker.Client, error) {
 	default:
 		return nil, fmt.Errorf("unsupported tracker backend: %s", backend)
 	}
-}
-
-func selectLearningsProvider(providers map[string]provider.Provider) provider.Provider {
-	if cp, ok := providers["claude"]; ok {
-		return cp
-	}
-	for _, p := range providers {
-		return p
-	}
-	return nil
 }
 
 func wireLearningsFilter(renderer PromptRenderer, learningsProvider provider.Provider) {
