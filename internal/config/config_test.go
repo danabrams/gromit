@@ -5279,3 +5279,196 @@ func TestLoadLegacyCompatibilityConfig_StrictModeRejectsLegacyFallback(t *testin
 		t.Fatalf("Load() error = %q, want mention of compatibility.strict_legacy_fallback", err.Error())
 	}
 }
+
+func TestLoadBackwardCompatibility_PartialConfigsLoadSuccessfully(t *testing.T) {
+	testCases := []struct {
+		name     string
+		yaml     string
+		validate func(t *testing.T, cfg *Config)
+	}{
+		{
+			name: "empty config uses all legacy defaults",
+			yaml: "",
+			validate: func(t *testing.T, cfg *Config) {
+				resolved := cfg.ResolveCompatibilityContext()
+				if resolved.Profile.Value != "go" {
+					t.Errorf("Profile.Value = %q, want go", resolved.Profile.Value)
+				}
+				if resolved.Profile.Source != CompatibilitySourceLegacyFallback {
+					t.Errorf("Profile.Source = %q, want legacy_fallback", resolved.Profile.Source)
+				}
+				if resolved.TrackerBackend.Value != "bd" {
+					t.Errorf("TrackerBackend.Value = %q, want bd", resolved.TrackerBackend.Value)
+				}
+				if resolved.MethodologyAdapter.Value != "go" {
+					t.Errorf("MethodologyAdapter.Value = %q, want go", resolved.MethodologyAdapter.Value)
+				}
+			},
+		},
+		{
+			name: "config with only profile specified",
+			yaml: `project:
+  profile: "python"
+`,
+			validate: func(t *testing.T, cfg *Config) {
+				resolved := cfg.ResolveCompatibilityContext()
+				if resolved.Profile.Value != "python" {
+					t.Errorf("Profile.Value = %q, want python", resolved.Profile.Value)
+				}
+				if resolved.Profile.Source != CompatibilitySourceExplicit {
+					t.Errorf("Profile.Source = %q, want explicit", resolved.Profile.Source)
+				}
+				// Tracker backend should fall to profile default
+				if resolved.TrackerBackend.Source != CompatibilitySourceProfileDefault {
+					t.Errorf("TrackerBackend.Source = %q, want profile_default", resolved.TrackerBackend.Source)
+				}
+				if resolved.TrackerBackend.Value != "bd" {
+					t.Errorf("TrackerBackend.Value = %q, want bd", resolved.TrackerBackend.Value)
+				}
+			},
+		},
+		{
+			name: "config with tracker backend but no profile falls back to legacy",
+			yaml: `tracker:
+  backend: "bd"
+`,
+			validate: func(t *testing.T, cfg *Config) {
+				resolved := cfg.ResolveCompatibilityContext()
+				// Profile is not explicit, so it's legacy fallback
+				if resolved.Profile.Source != CompatibilitySourceLegacyFallback {
+					t.Errorf("Profile.Source = %q, want legacy_fallback", resolved.Profile.Source)
+				}
+				// Tracker backend is explicit
+				if resolved.TrackerBackend.Value != "bd" {
+					t.Errorf("TrackerBackend.Value = %q, want bd", resolved.TrackerBackend.Value)
+				}
+				if resolved.TrackerBackend.Source != CompatibilitySourceExplicit {
+					t.Errorf("TrackerBackend.Source = %q, want explicit", resolved.TrackerBackend.Source)
+				}
+			},
+		},
+		{
+			name: "config with methodology adapter but no explicit profile or tracker",
+			yaml: `methodology:
+  adapter: "go"
+`,
+			validate: func(t *testing.T, cfg *Config) {
+				resolved := cfg.ResolveCompatibilityContext()
+				if resolved.MethodologyAdapter.Value != "go" {
+					t.Errorf("MethodologyAdapter.Value = %q, want go", resolved.MethodologyAdapter.Value)
+				}
+				if resolved.MethodologyAdapter.Source != CompatibilitySourceExplicit {
+					t.Errorf("MethodologyAdapter.Source = %q, want explicit", resolved.MethodologyAdapter.Source)
+				}
+				// Profile and tracker should use legacy defaults
+				if resolved.Profile.Source != CompatibilitySourceLegacyFallback {
+					t.Errorf("Profile.Source = %q, want legacy_fallback", resolved.Profile.Source)
+				}
+				if resolved.TrackerBackend.Source != CompatibilitySourceLegacyFallback {
+					t.Errorf("TrackerBackend.Source = %q, want legacy_fallback", resolved.TrackerBackend.Source)
+				}
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+			if err := os.WriteFile(cfgPath, []byte(tc.yaml), 0644); err != nil {
+				t.Fatalf("writing config: %v", err)
+			}
+
+			cfg, err := Load(cfgPath)
+			if err != nil {
+				t.Fatalf("Load(%q) error = %v", cfgPath, err)
+			}
+
+			tc.validate(t, cfg)
+		})
+	}
+}
+
+func TestLoadBackwardCompatibility_PartialConfigsDoNotImplicitlyInject(t *testing.T) {
+	testCases := []struct {
+		name             string
+		yaml             string
+		shouldHaveProfile bool
+		shouldHaveTracker bool
+		shouldHaveAdapter bool
+	}{
+		{
+			name: "explicit profile does not implicitly inject tracker backend",
+			yaml: `project:
+  profile: "node"
+`,
+			shouldHaveProfile: true,
+			shouldHaveTracker: false,
+			shouldHaveAdapter: false,
+		},
+		{
+			name: "explicit tracker backend does not implicitly inject profile",
+			yaml: `tracker:
+  backend: "bd"
+`,
+			shouldHaveProfile: false,
+			shouldHaveTracker: true,
+			shouldHaveAdapter: false,
+		},
+		{
+			name: "explicit methodology adapter does not implicitly inject profile or tracker",
+			yaml: `methodology:
+  adapter: "go"
+`,
+			shouldHaveProfile: false,
+			shouldHaveTracker: false,
+			shouldHaveAdapter: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+			if err := os.WriteFile(cfgPath, []byte(tc.yaml), 0644); err != nil {
+				t.Fatalf("writing config: %v", err)
+			}
+
+			cfg, err := Load(cfgPath)
+			if err != nil {
+				t.Fatalf("Load(%q) error = %v", cfgPath, err)
+			}
+
+			// Check that each field is independent
+			if tc.shouldHaveProfile {
+				if cfg.Project.Profile == "" {
+					t.Error("expected explicit project.profile, got empty")
+				}
+			} else {
+				if cfg.Project.Profile != "" {
+					t.Errorf("unexpected project.profile = %q, want implicit injection", cfg.Project.Profile)
+				}
+			}
+
+			if tc.shouldHaveTracker {
+				if cfg.Tracker.Backend == "" {
+					t.Error("expected explicit tracker.backend, got empty")
+				}
+			} else {
+				if cfg.Tracker.Backend != "" {
+					t.Errorf("unexpected tracker.backend = %q, want empty (no implicit injection)", cfg.Tracker.Backend)
+				}
+			}
+
+			if tc.shouldHaveAdapter {
+				if cfg.Methodology.Adapter == "" {
+					t.Error("expected explicit methodology.adapter, got empty")
+				}
+			} else {
+				if cfg.Methodology.Adapter != "" {
+					t.Errorf("unexpected methodology.adapter = %q, want empty (no implicit injection)", cfg.Methodology.Adapter)
+				}
+			}
+		})
+	}
+}
