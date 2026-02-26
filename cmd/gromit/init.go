@@ -6,7 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 )
 
 var initCmd = &cobra.Command{
@@ -225,6 +227,45 @@ func detectProfile(dir string) string {
 		}
 	}
 	return "go"
+}
+
+func selectInitProfile(dir string) (string, error) {
+	if override := strings.TrimSpace(initProfile); override != "" {
+		normalized := strings.ToLower(override)
+		if _, ok := config.ProfileForName(normalized); !ok {
+			return "", fmt.Errorf("profile must be one of go, node, python, custom (got %q)", override)
+		}
+		return normalized, nil
+	}
+
+	if profile := profileFromConfig(dir); profile != "" {
+		return profile, nil
+	}
+	return detectProfile(dir), nil
+}
+
+func profileFromConfig(dir string) string {
+	path := filepath.Join(dir, "gromit.yaml")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	var parsed struct {
+		Project struct {
+			Profile string `yaml:"profile"`
+		} `yaml:"project"`
+	}
+	if err := yaml.Unmarshal(data, &parsed); err != nil {
+		return ""
+	}
+	profile := strings.ToLower(strings.TrimSpace(parsed.Project.Profile))
+	if profile == "" {
+		return ""
+	}
+	if _, ok := config.ProfileForName(profile); !ok {
+		return ""
+	}
+	return profile
 }
 
 func appendToGitignore(path string) {
