@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/tracker"
 )
 
 func TestBDAdapterContractReady(t *testing.T) {
@@ -30,6 +31,31 @@ func TestBDAdapterContractReady(t *testing.T) {
 	}
 
 	requireBDCall(t, env, "bd ready --json --limit 3")
+}
+
+func TestBDAdapterContractListFiltersByLabels(t *testing.T) {
+	env := setupTestEnv(t)
+	adapter := newBDAdapterWithEnv(t, env)
+
+	primary := createFakeBead(t, env, "Tracker adapter label", "--label", "contract-reader")
+	createFakeBead(t, env, "Tracker adapter other", "--label", "other")
+
+	items, err := adapter.List(context.Background(), tracker.Query{
+		Filter: tracker.Filter{
+			Labels: []string{"contract-reader"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("adapter list failed: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
+	}
+	if items[0].ID != primary.ID {
+		t.Fatalf("list item ID = %q, want %q", items[0].ID, primary.ID)
+	}
+
+	requireBDListCall(t, env, "bd list --json --status open --sort priority --limit 0")
 }
 
 func newBDAdapterWithEnv(t *testing.T, env *testEnv) *bead.BDAdapter {
