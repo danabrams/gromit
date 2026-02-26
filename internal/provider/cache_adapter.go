@@ -58,6 +58,9 @@ func (noopCacheAdapter) Invalidate(context.Context, CacheInvalidateRequest) erro
 	return nil
 }
 
+// Compile-time interface check
+var _ CacheAdapter = noopCacheAdapter{}
+
 func SupportsProviderCache(p Provider) bool {
 	if p == nil {
 		return false
