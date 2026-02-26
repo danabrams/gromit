@@ -148,6 +148,9 @@ func ExtractSuccessLearning(ctx context.Context, bc *runtypes.BeadContext, cfg *
 	output := result.GetOutput()
 	var resp successLearningResponse
 	if err := json.Unmarshal([]byte(output), &resp); err != nil {
+		if logFn != nil {
+			logFn("Success learning extraction failed for %s: JSON unmarshal error: %v", bc.Bead.ID, err)
+		}
 		return
 	}
 
