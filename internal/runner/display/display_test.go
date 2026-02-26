@@ -15,6 +15,32 @@ func TestFormatRun_nilStatus(t *testing.T) {
 	}
 }
 
+func TestFormatRun_runningStatus(t *testing.T) {
+	t.Parallel()
+
+	status := &RunStatus{
+		Running:   true,
+		Iteration: 3,
+		BeadID:    "beads-abc",
+		BeadTitle: "Add feature X",
+		Model:     "sonnet",
+		ElapsedS:  120,
+	}
+
+	got := FormatRun(status)
+	for _, substr := range []string{
+		"Run: iteration 3",
+		"2m elapsed",
+		"beads-abc",
+		"Add feature X",
+		"Model:    sonnet",
+	} {
+		if !strings.Contains(got, substr) {
+			t.Fatalf("FormatRun() = %q, want substring %q", got, substr)
+		}
+	}
+}
+
 func TestFormatHealth_defaults(t *testing.T) {
 	t.Parallel()
 
