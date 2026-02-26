@@ -378,6 +378,30 @@ func (a *worktreeMergerAdapter) MergeBack(branch string) error {
 	return a.mgr.MergeBack(branch)
 }
 
+func (a *worktreeMergerAdapter) DeriveSessionWorktreePath(branch string) string {
+	if a == nil || a.mgr == nil {
+		return ""
+	}
+	// Extract command and timestamp from branch name
+	// Branch format: gromit/{command}-{timestamp}
+	if !strings.HasPrefix(branch, "gromit/") {
+		return ""
+	}
+	suffix := strings.TrimPrefix(branch, "gromit/")
+	if suffix == "" {
+		return ""
+	}
+	// Format: {mainDir}-gromit-{command}-{timestamp}
+	return fmt.Sprintf("%s-gromit-%s", a.mgr.MainDir, suffix)
+}
+
+func (a *worktreeMergerAdapter) RemoveByPath(path string) error {
+	if a == nil || a.mgr == nil {
+		return fmt.Errorf("worktree manager is nil")
+	}
+	return a.mgr.RemoveByPath(path)
+}
+
 // epilogueCommandRunnerAdapter wraps a command runner function to satisfy epilogue.CommandRunner.
 type epilogueCommandRunnerAdapter struct {
 	runner func(ctx context.Context, command, workDir string) (string, string, int, error)

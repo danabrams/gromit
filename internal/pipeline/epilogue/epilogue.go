@@ -23,10 +23,13 @@ type StatusWriter interface {
 	Write(iteration int, beadID, beadTitle, model string, maxIterations, timeBudgetMinutes int) error
 }
 
-// WorktreeMerger merges pending interactive worktree branches back into the main working tree.
+// WorktreeMerger merges pending interactive worktree branches back into the main working tree
+// and cleans up orphaned session worktrees.
 type WorktreeMerger interface {
 	PendingBranches() ([]string, error)
 	MergeBack(branch string) error
+	DeriveSessionWorktreePath(branch string) string
+	RemoveByPath(path string) error
 }
 
 // PendingBranchRemover removes successfully-merged branches from persistent state.
@@ -204,6 +207,13 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 					}
 				} else {
 					e.clearMergeWarning(branch)
+					// Remove orphaned session worktree after successful merge
+					worktreePath := e.worktree.DeriveSessionWorktreePath(branch)
+					if worktreePath != "" {
+						if err := e.worktree.RemoveByPath(worktreePath); err != nil {
+							fmt.Fprintf(w, "Warning: failed to remove worktree at %s: %v\n", worktreePath, err)
+						}
+					}
 					// Remove successfully-merged branch from pending state
 					if e.branchRemover != nil {
 						if err := e.branchRemover.RemovePendingWorktreeBranch(branch); err != nil {
