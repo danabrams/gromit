@@ -29,6 +29,11 @@ type WorktreeMerger interface {
 	MergeBack(branch string) error
 }
 
+// PendingBranchRemover removes successfully-merged branches from persistent state.
+type PendingBranchRemover interface {
+	RemovePendingWorktreeBranch(branch string) error
+}
+
 // CommandRunner executes a shell command and returns stdout, stderr, exit code, and any error.
 type CommandRunner interface {
 	Run(ctx context.Context, command string) (string, string, int, error)
@@ -68,17 +73,18 @@ type IterationLogWriter interface {
 // status after every iteration, triggers thorough reviews, and runs the
 // between-iterations command.
 type Epilogue struct {
-	beads          BeadLifecycle
-	status         StatusWriter
-	output         io.Writer
-	worktree       WorktreeMerger     // optional; nil means skip worktree merge
-	cmd            CommandRunner      // optional; nil means skip between-iterations command
-	specgate       SpecGateRunner     // optional; nil means skip spec gate
-	review         ThoroughReviewer   // optional; nil means skip thorough review
-	epic           EpicChecker        // optional; used with review for epic completion detection
-	failureLearner FailureLearner     // optional; nil means skip failure-path learning
-	logWriter      IterationLogWriter // optional; nil means skip iteration log write
-	mergeWarnings  map[string]string  // per-run de-duplication of merge warnings by branch
+	beads           BeadLifecycle
+	status          StatusWriter
+	output          io.Writer
+	worktree        WorktreeMerger      // optional; nil means skip worktree merge
+	branchRemover   PendingBranchRemover // optional; nil means skip branch removal from state
+	cmd             CommandRunner       // optional; nil means skip between-iterations command
+	specgate        SpecGateRunner      // optional; nil means skip spec gate
+	review          ThoroughReviewer    // optional; nil means skip thorough review
+	epic            EpicChecker         // optional; used with review for epic completion detection
+	failureLearner  FailureLearner      // optional; nil means skip failure-path learning
+	logWriter       IterationLogWriter  // optional; nil means skip iteration log write
+	mergeWarnings   map[string]string   // per-run de-duplication of merge warnings by branch
 }
 
 // Compile-time check: *Epilogue must implement pipeline.Stage.
@@ -97,6 +103,12 @@ func New(beads BeadLifecycle, status StatusWriter, output io.Writer) *Epilogue {
 // WithWorktree configures an optional WorktreeMerger for merging interactive branches.
 func (e *Epilogue) WithWorktree(m WorktreeMerger) *Epilogue {
 	e.worktree = m
+	return e
+}
+
+// WithPendingBranchRemover configures an optional PendingBranchRemover for removing merged branches from state.
+func (e *Epilogue) WithPendingBranchRemover(r PendingBranchRemover) *Epilogue {
+	e.branchRemover = r
 	return e
 }
 
@@ -192,6 +204,12 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 					}
 				} else {
 					e.clearMergeWarning(branch)
+					// Remove successfully-merged branch from pending state
+					if e.branchRemover != nil {
+						if err := e.branchRemover.RemovePendingWorktreeBranch(branch); err != nil {
+							fmt.Fprintf(w, "Warning: failed to remove pending branch %s from state: %v\n", branch, err)
+						}
+					}
 				}
 			}
 		}
