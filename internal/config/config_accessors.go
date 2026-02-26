@@ -533,3 +533,8 @@ func (c Config) ResolveProfileDependentDefaults() ProfileDependentDefaults {
 		MethodologyAdapter:      c.ResolvedMethodologyAdapter(),
 	}
 }
+
+// RetryCapDefaultValue returns the configured merge pipeline retry cap default.
+func (m MergePipelineConfig) RetryCapDefaultValue() int {
+	return m.RetryCapDefault
+}
