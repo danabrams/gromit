@@ -483,7 +483,6 @@ func TestExtractSuccessLearning_LogsWhenLearningIsNil(t *testing.T) {
 		t.Errorf("expected a failure log entry, got: %v", logged)
 	}
 }
-
 func TestExtractSuccessLearning_FailedIteration(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
