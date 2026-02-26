@@ -34,3 +34,8 @@ func HandleStageFailure(ctx context.Context, deps FixBeadDependencies, opts Hand
 
 	return nil
 }
+
+// CheckRetryCapExceeded returns true if the attempt count has reached or exceeded the retry cap.
+func CheckRetryCapExceeded(attemptCount, retryCap int) (bool, error) {
+	return attemptCount >= retryCap, nil
+}
