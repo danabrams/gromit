@@ -294,7 +294,7 @@ func TestGeminiProviderRunInvokesJSONMode(t *testing.T) {
 		tierToModel: map[string]string{
 			TierHigh: "auto-gemini-3",
 		},
-		runFn: func(ctx context.Context, binary string, args []string) (*geminiRunResult, error) {
+		runFn: func(ctx context.Context, binary string, args []string, prompt string) (*geminiRunResult, error) {
 			if binary != "gemini" {
 				t.Fatalf("binary=%q, want gemini", binary)
 			}
@@ -328,7 +328,7 @@ func TestGeminiProviderRunInvokesJSONMode(t *testing.T) {
 		t.Fatalf("output=%q, want READY", result.Output)
 	}
 
-	wants := []string{"--approval-mode", "yolo", "--output-format", "json", "--model", "auto-gemini-3", "-p", "hello world"}
+	wants := []string{"--approval-mode", "yolo", "--output-format", "json", "--model", "auto-gemini-3", "-"}
 	if len(clockwork) != len(wants) {
 		t.Fatalf("args=%v, want %v", clockwork, wants)
 	}
@@ -336,5 +336,47 @@ func TestGeminiProviderRunInvokesJSONMode(t *testing.T) {
 		if clockwork[i] != want {
 			t.Fatalf("arg[%d]=%q, want %q", i, clockwork[i], want)
 		}
+	}
+}
+
+func TestGeminiProviderRunDeliveredViaStdin(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	var capturedPrompt string
+	gp := &GeminiProvider{
+		binary: "gemini",
+		tierToModel: map[string]string{
+			TierLow: "gemini-2.0-flash",
+		},
+		runFn: func(ctx context.Context, binary string, args []string, prompt string) (*geminiRunResult, error) {
+			// Verify args end with "-" to indicate stdin
+			if len(args) == 0 || args[len(args)-1] != "-" {
+				t.Fatalf("expected last arg to be '-' for stdin, got args: %v", args)
+			}
+			capturedPrompt = prompt
+			payload := []byte(`{
+  "output": "READY",
+  "usage": {"input_tokens": 10, "output_tokens": 5, "cached_input_tokens": 0},
+  "cost": {"total": 0},
+  "model": "gemini-2.0-flash",
+  "session_id": "test",
+  "response": "READY"
+}`)
+			return &geminiRunResult{stdout: payload, stderr: nil, exitCode: 0, duration: 0}, nil
+		},
+	}
+
+	result, err := gp.Run(ctx, "test prompt for stdin", TierLow)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if result == nil {
+		t.Fatal("Run() returned nil result")
+	}
+	if result.Output != "READY" {
+		t.Fatalf("output=%q, want READY", result.Output)
+	}
+	if capturedPrompt != "test prompt for stdin" {
+		t.Fatalf("prompt=%q, want 'test prompt for stdin'", capturedPrompt)
 	}
 }

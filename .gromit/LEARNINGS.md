@@ -157,6 +157,9 @@ When wiring CLI adapters for thorough review prompt rendering, load rules via `L
 ### 2026-02-25 | Record Retro Should Clear Pending Control Alerts | patterns
 If run health logic sets a persistent control-limit alert flag in `state.json`, clear that flag as part of `RecordRetro()` so the alert lifecycle is one-shot and does not remain stale after a retro is completed.
 
+### 2026-02-26 | gromit-9mo | patterns
+When implementing retry/loop bounds (especially in escalation chains like haiku→sonnet→opus), verify the retry cap is checked BEFORE entering loops, not just at exit conditions, to prevent infinite retry cycles.
+
 ---
 
 ## Archived

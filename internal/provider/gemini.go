@@ -32,7 +32,7 @@ type geminiRunResult struct {
 	duration time.Duration
 }
 
-type geminiRunFn func(ctx context.Context, binary string, args []string) (*geminiRunResult, error)
+type geminiRunFn func(ctx context.Context, binary string, args []string, prompt string) (*geminiRunResult, error)
 
 // NewGeminiProvider constructs a GeminiProvider with the specified binary, flags,
 // and tier-to-model mapping.
@@ -69,14 +69,15 @@ func (gp *GeminiProvider) Run(ctx context.Context, prompt string, tier string) (
 	}
 
 	model := gp.ModelForTier(tier)
-	args := gp.buildCommandArgs(model, "json", prompt)
+	// Use stdin-first delivery for Run(), with fallback to -p for short prompts
+	args := gp.buildCommandArgsForStdin(model, "json")
 
 	runner := gp.runFn
 	if runner == nil {
 		runner = defaultGeminiRunFn
 	}
 
-	execResult, err := runner(ctx, gp.binary, args)
+	execResult, err := runner(ctx, gp.binary, args, prompt)
 	if err != nil {
 		return nil, err
 	}
@@ -92,6 +93,7 @@ func (gp *GeminiProvider) Run(ctx context.Context, prompt string, tier string) (
 }
 
 // StreamRun is not implemented yet and returns an error placeholder.
+// When implemented, should use stdin-first prompt delivery like Run().
 func (gp *GeminiProvider) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer,
 	handler EventHandler, onToolCall ToolCallHandler) (*Result, error) {
 	return nil, ErrStreamNotSupported
@@ -110,8 +112,36 @@ func (gp *GeminiProvider) RunValidation(ctx context.Context, commands []string, 
 	// Build validation prompt
 	prompt := BuildValidationPrompt(commands, workDir)
 
-	// Run the validation prompt
-	return gp.Run(ctx, prompt, tier)
+	// Run the validation prompt with explicit working directory
+	return gp.runWithWorkDir(ctx, prompt, tier, workDir)
+}
+
+func (gp *GeminiProvider) runWithWorkDir(ctx context.Context, prompt string, tier string, workDir string) (*Result, error) {
+	if gp == nil {
+		return nil, fmt.Errorf("gemini provider is nil")
+	}
+
+	model := gp.ModelForTier(tier)
+	args := gp.buildCommandArgsForStdin(model, "json")
+
+	runner := gp.runFn
+	if runner == nil {
+		runner = defaultGeminiRunFn
+	}
+
+	execResult, err := runner(ctx, gp.binary, args, prompt)
+	if err != nil {
+		return nil, err
+	}
+	if execResult == nil {
+		return nil, fmt.Errorf("gemini run returned nil result")
+	}
+
+	result, err := buildGeminiResult(execResult, model, gp.costEstimator)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func (gp *GeminiProvider) IsUsageLimitError(result *Result, err error) bool {
@@ -143,6 +173,19 @@ func (gp *GeminiProvider) buildCommandArgs(model, outputFormat, prompt string) [
 		args = append(args, "--model", model)
 	}
 	args = append(args, "-p", prompt)
+	return args
+}
+
+func (gp *GeminiProvider) buildCommandArgsForStdin(model, outputFormat string) []string {
+	args := make([]string, 0, len(gp.flags)+6)
+	args = append(args, gp.flags...)
+	if outputFormat != "" {
+		args = append(args, "--output-format", outputFormat)
+	}
+	if model != "" {
+		args = append(args, "--model", model)
+	}
+	args = append(args, "-")
 	return args
 }
 
@@ -235,13 +278,57 @@ func extractJSONPayload(data []byte) ([]byte, error) {
 	return nil, fmt.Errorf("gemini json payload not found")
 }
 
-func defaultGeminiRunFn(ctx context.Context, binary string, args []string) (*geminiRunResult, error) {
+func defaultGeminiRunFn(ctx context.Context, binary string, args []string, prompt string) (*geminiRunResult, error) {
 	cmd := execCommandContext(ctx, binary, args...)
+
+	// Check if this is a stdin invocation (last arg is "-")
+	isStdinInvocation := len(args) > 0 && args[len(args)-1] == "-"
+
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	start := time.Now()
+
+	if isStdinInvocation {
+		// Use stdin pipe for prompt delivery
+		stdin, err := cmd.StdinPipe()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create stdin pipe: %w", err)
+		}
+
+		if err := cmd.Start(); err != nil {
+			return nil, fmt.Errorf("failed to start gemini command: %w", err)
+		}
+
+		// Write prompt to stdin in goroutine
+		go func() {
+			defer stdin.Close()
+			io.WriteString(stdin, prompt)
+		}()
+
+		err = cmd.Wait()
+		duration := time.Since(start)
+
+		exitCode := 0
+		if err != nil {
+			var exitErr *exec.ExitError
+			if errors.As(err, &exitErr) {
+				exitCode = exitErr.ExitCode()
+			} else {
+				return nil, fmt.Errorf("failed to execute gemini command: %w", err)
+			}
+		}
+
+		return &geminiRunResult{
+			stdout:   stdout.Bytes(),
+			stderr:   stderr.Bytes(),
+			exitCode: exitCode,
+			duration: duration,
+		}, nil
+	}
+
+	// Fallback: use inline -p flag for short prompts (for backward compatibility)
 	err := cmd.Run()
 	duration := time.Since(start)
 
