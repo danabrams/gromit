@@ -17,12 +17,12 @@ func TestSharedAgentResolver_UsedInExplore(t *testing.T) {
 
 	// explore.go should NOT have its own agent resolver implementation
 	if strings.Contains(sourceStr, "type exploreAgentResolver") {
-		t.Fatal("explore.go should not have its own exploreAgentResolver - use shared agents.NewResolver")
+		t.Fatal("explore.go should not have its own exploreAgentResolver - use shared agent.NewResolver")
 	}
 
-	// explore.go SHOULD use the shared agents.NewResolver
-	if !strings.Contains(sourceStr, "agents.NewResolver(cfg)") {
-		t.Fatal("explore.go should use agents.NewResolver(cfg)")
+	// explore.go SHOULD use the shared agent.NewResolver
+	if !strings.Contains(sourceStr, "agent.NewResolver(cfg)") {
+		t.Fatal("explore.go should use agent.NewResolver(cfg)")
 	}
 }
 
@@ -37,12 +37,12 @@ func TestSharedAgentResolver_UsedInRefine(t *testing.T) {
 
 	// refine.go should NOT have its own agent resolver implementation
 	if strings.Contains(sourceStr, "type agentResolverAdapter") {
-		t.Fatal("refine.go should not have its own agentResolverAdapter - use shared agents.NewResolver")
+		t.Fatal("refine.go should not have its own agentResolverAdapter - use shared agent.NewResolver")
 	}
 
-	// refine.go SHOULD use the shared agents.NewResolver
-	if !strings.Contains(sourceStr, "agents.NewResolver(cfg)") {
-		t.Fatal("refine.go should use agents.NewResolver(cfg)")
+	// refine.go SHOULD use the shared agent.NewResolver
+	if !strings.Contains(sourceStr, "agent.NewResolver(cfg)") {
+		t.Fatal("refine.go should use agent.NewResolver(cfg)")
 	}
 }
 
@@ -57,12 +57,12 @@ func TestSharedAgentResolver_UsedInReview(t *testing.T) {
 
 	// review.go should NOT have its own agent resolver implementation
 	if strings.Contains(sourceStr, "type cliAgentResolver") {
-		t.Fatal("review.go should not have its own cliAgentResolver - use shared agents.NewResolver")
+		t.Fatal("review.go should not have its own cliAgentResolver - use shared agent.NewResolver")
 	}
 
-	// review.go SHOULD use the shared agents.NewResolver
-	if !strings.Contains(sourceStr, "agents.NewResolver(cfg)") {
-		t.Fatal("review.go should use agents.NewResolver(cfg)")
+	// review.go SHOULD use the shared agent.NewResolver
+	if !strings.Contains(sourceStr, "agent.NewResolver(cfg)") {
+		t.Fatal("review.go should use agent.NewResolver(cfg)")
 	}
 }
 
@@ -84,13 +84,13 @@ func TestSharedAgentResolver_IntegrationAcrossCommands(t *testing.T) {
 		}
 
 		// Each should import the shared resolver package
-		if !strings.Contains(sourceStr, `"github.com/danabrams/gromit/internal/agents"`) {
-			t.Errorf("%s does not import agents package for the shared resolver", file)
+		if !strings.Contains(sourceStr, `"github.com/danabrams/gromit/internal/agent"`) {
+			t.Errorf("%s does not import agent package for the shared resolver", file)
 		}
 
-		// Each should use agents.NewResolver
-		if !strings.Contains(sourceStr, "agents.NewResolver") {
-			t.Errorf("%s does not use agents.NewResolver - should not have duplicate adapter", file)
+		// Each should use agent.NewResolver
+		if !strings.Contains(sourceStr, "agent.NewResolver") {
+			t.Errorf("%s does not use agent.NewResolver - should not have duplicate adapter", file)
 		}
 	}
 }
