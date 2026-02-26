@@ -504,6 +504,16 @@ type RoutingConfig struct {
 	Ratio            map[string]int       `yaml:"ratio"`
 	Fallback         FallbackConfig       `yaml:"fallback"`
 	CircuitBreaker   CircuitBreakerConfig `yaml:"circuit_breaker"`
+	Strategy         string               `yaml:"strategy"`
+	CostOptimized    CostOptimizedRoutingConfig `yaml:"cost_optimized"`
+}
+
+type CostOptimizedRoutingConfig struct {
+	BuildTier               string `yaml:"build_tier"`
+	DecomposeTier           string `yaml:"decompose_tier"`
+	EscalationTier          string `yaml:"escalation_tier"`
+	MaxDecompositionDepth   int    `yaml:"max_decomposition_depth"`
+	MaxRetriesBeforeDecompose int  `yaml:"max_retries_before_decompose"`
 }
 
 type TokenEfficiencyConfig struct {
