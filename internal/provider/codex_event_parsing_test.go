@@ -902,6 +902,62 @@ func TestProcessCodexStreamMapsTurnCompletedToEventUsage(t *testing.T) {
 	}
 }
 
+func TestProcessCodexStreamEventUsageEmitsMergedUsage(t *testing.T) {
+	t.Parallel()
+	input := strings.Join([]string{
+		`{"type":"assistant","message":{"content":[{"type":"text","text":"Done"}]}}`,
+		`{"type":"response.completed","response":{"usage":{"input_tokens":1000,"output_tokens":600,"total_cost_usd":0.05}}}`,
+		`{"type":"turn.completed","input_tokens":1200}`,
+	}, "\n") + "\n"
+	reader := strings.NewReader(input)
+	var output bytes.Buffer
+	var captured [][]byte
+
+	handler := func(line []byte) {
+		cp := make([]byte, len(line))
+		copy(cp, line)
+		captured = append(captured, cp)
+	}
+
+	_, _, _, err := processCodexStream(reader, &output, handler, nil)
+	if err != nil {
+		t.Fatalf("processCodexStream() error = %v", err)
+	}
+
+	var found bool
+	for _, ev := range captured {
+		var parsed struct {
+			Type  string `json:"type"`
+			Usage struct {
+				TotalCostUSD float64 `json:"total_cost_usd"`
+				InputTokens  int     `json:"input_tokens"`
+				OutputTokens int     `json:"output_tokens"`
+			} `json:"usage"`
+		}
+		if err := json.Unmarshal(ev, &parsed); err != nil {
+			continue
+		}
+		if parsed.Type != "EventUsage" {
+			continue
+		}
+		found = true
+		if parsed.Usage.InputTokens != 1200 {
+			t.Errorf("EventUsage input_tokens = %d, want %d", parsed.Usage.InputTokens, 1200)
+		}
+		if parsed.Usage.OutputTokens != 600 {
+			t.Errorf("EventUsage output_tokens = %d, want %d", parsed.Usage.OutputTokens, 600)
+		}
+		if parsed.Usage.TotalCostUSD != 0.05 {
+			t.Errorf("EventUsage total_cost_usd = %f, want %f", parsed.Usage.TotalCostUSD, 0.05)
+		}
+		break
+	}
+
+	if !found {
+		t.Fatal("EventUsage event not emitted after turn.completed")
+	}
+}
+
 // TestProcessCodexStreamMapsErrorToEventError verifies that error events map to StreamEvent type "EventError".
 func TestProcessCodexStreamMapsErrorToEventError(t *testing.T) {
 	t.Parallel()
