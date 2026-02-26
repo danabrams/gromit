@@ -713,3 +713,43 @@ func TestEpilogue_SkipsIterationLog_WhenNoWriter(t *testing.T) {
 		t.Fatalf("Run() error = %v, want nil (log write skipped when no writer configured)", err)
 	}
 }
+
+// fakePendingBranchRemover is a test double for epilogue.PendingBranchRemover.
+type fakePendingBranchRemover struct {
+	removedBranches []string
+	removeErr       error
+}
+
+func (f *fakePendingBranchRemover) RemovePendingWorktreeBranch(branch string) error {
+	f.removedBranches = append(f.removedBranches, branch)
+	return f.removeErr
+}
+
+// TestEpilogue_RemovesPendingBranchesAfterMerge verifies that pending worktree branches
+// are removed from interactive state after successful merge.
+func TestEpilogue_RemovesPendingBranchesAfterMerge(t *testing.T) {
+	merger := &fakeWorktreeMerger{
+		branches: []string{"gromit/review-1", "gromit/debug-1"},
+	}
+	remover := &fakePendingBranchRemover{}
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
+		WithWorktree(merger).
+		WithPendingBranchRemover(remover)
+
+	in := makeInput("bead-1", "Test", true)
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if len(remover.removedBranches) != 2 {
+		t.Errorf("removed branches = %v, want 2 branches removed", remover.removedBranches)
+	}
+	if remover.removedBranches[0] != "gromit/review-1" {
+		t.Errorf("first removed branch = %q, want %q", remover.removedBranches[0], "gromit/review-1")
+	}
+	if remover.removedBranches[1] != "gromit/debug-1" {
+		t.Errorf("second removed branch = %q, want %q", remover.removedBranches[1], "gromit/debug-1")
+	}
+}
