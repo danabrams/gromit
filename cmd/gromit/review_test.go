@@ -743,6 +743,27 @@ func TestCliLogWriter_WriteUsesProviderAtWriteTime(t *testing.T) {
 	}
 }
 
+func TestPrintReviewSummaryCounts_IncludesBacklogCount(t *testing.T) {
+	t.Parallel()
+	var buf strings.Builder
+	result := &pipeline.ReviewResult{
+		FixesApplied: 1,
+		BeadsCreated: 2,
+		BacklogCreated: 3,
+	}
+	printReviewSummaryCounts(&buf, result)
+	got := buf.String()
+	if !strings.Contains(got, "Fixes applied: 1") {
+		t.Fatalf("missing fixes applied line, got %q", got)
+	}
+	if !strings.Contains(got, "Created 2 beads from review findings") {
+		t.Fatalf("missing beads count, got %q", got)
+	}
+	if !strings.Contains(got, "Created 3 backlog items") {
+		t.Fatalf("missing backlog count, got %q", got)
+	}
+}
+
 func TestCliBacklogClient_ImplementsBacklogWriter(t *testing.T) {
 	t.Parallel()
 	var _ pipeline.BacklogWriter = (*cliBacklogClient)(nil)
