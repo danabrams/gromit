@@ -164,3 +164,74 @@ func TestDecomposeFirstHandler_DetectsAtomicBead(t *testing.T) {
 		t.Fatal("expected atomic bead when decomposeFn is nil")
 	}
 }
+
+// TestDecomposeFirstHandler_DecomposesNonAtomicBead verifies that
+// the handler decomposes non-atomic beads when max retries are exceeded.
+func TestDecomposeFirstHandler_DecomposesNonAtomicBead(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		Escalation: config.EscalationConfig{
+			Enabled:            true,
+			Chain:              []string{"haiku", "sonnet", "opus"},
+			MaxRetriesPerModel: 2,
+			MaxRetriesPerBead:  5,
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	mfa := &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, failureOutput string) (*analyzer.Analysis, error) {
+			return &analyzer.Analysis{Category: "logic_error", Recoverable: false}, nil
+		},
+	}
+
+	mbc := &mockBeadClient{}
+
+	decomposeCalled := 0
+	decomposeFn := func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+		decomposeCalled++
+		return []runtypes.SubTask{}, nil
+	}
+
+	createSubCalled := 0
+	createSubFn := func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error {
+		createSubCalled++
+		return nil
+	}
+
+	handler := NewDecomposeFirstHandler(cfg, mfa, mbc, decomposeFn, createSubFn, nil, nil, 2)
+	if handler == nil {
+		t.Fatal("NewDecomposeFirstHandler returned nil")
+	}
+
+	// Verify handler is not atomic (has decomposeFn)
+	bc := &runtypes.BeadContext{
+		Bead:              &bead.Bead{ID: "test-001", Title: "Test", Description: "Test bead"},
+		RetriesThisModel:  2,
+		MaxRetries:        2,
+	}
+
+	isAtomic := handler.IsAtomicBead(bc)
+	if isAtomic {
+		t.Fatal("expected non-atomic bead when decomposeFn is provided")
+	}
+
+	// Handler should be able to attempt decomposition
+	continueLoop := handler.AttemptDecomposition(context.Background(), bc, "test failure")
+	// After decomposition attempt, the loop should stop (return false)
+	if continueLoop {
+		t.Fatal("expected AttemptDecomposition to return false (stop loop)")
+	}
+
+	// Decomposition should have been called
+	if decomposeCalled == 0 {
+		t.Fatal("expected decomposeFn to be called")
+	}
+
+	// CreateSubFn should have been called
+	if createSubCalled == 0 {
+		t.Fatal("expected createSubFn to be called")
+	}
+}
