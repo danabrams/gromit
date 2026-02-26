@@ -194,7 +194,8 @@ func decomposeSinglePlanInCurrentDir(planName string, cfg *config.Config) error 
 	plansDir := resolvePlansDir(cfg)
 	planPath := filepath.Join(plansDir, planName+".md")
 
-	alreadyDecomposed, reconciled, err := reconcilePlanDecomposedState(planPath, planName, decomposeForce)
+	ctx := context.Background()
+	alreadyDecomposed, reconciled, err := reconcilePlanDecomposedState(ctx, planPath, planName, decomposeForce)
 	if err != nil {
 		return err
 	}
@@ -234,7 +235,7 @@ func decomposeSinglePlanInCurrentDir(planName string, cfg *config.Config) error 
 
 	// Execute decompose workflow
 	fmt.Printf("Decomposing plan '%s' into beads...\n", planName)
-	ctx := context.Background()
+	ctx = context.Background()
 	input := buildDecomposeInput(planName, cfg)
 
 	result, err := p.Decompose(ctx, input)
@@ -492,7 +493,7 @@ func filterUndecomposedPlans(plansDir string, force bool) ([]planInfo, error) {
 			if decomposed, ok := planFrontmatter["decomposed"].(bool); ok && decomposed {
 				continue
 			}
-			alreadyDecomposed, _, err := reconcilePlanDecomposedState(planPath, planName, false)
+			alreadyDecomposed, _, err := reconcilePlanDecomposedState(context.Background(), planPath, planName, false)
 			if err != nil {
 				continue
 			}
@@ -558,7 +559,7 @@ func listBeadsWithLabelUsingTrackerClient(label string, trackerClient tracker.Cl
 	return items, nil
 }
 
-func reconcilePlanDecomposedState(planPath, planName string, force bool) (alreadyDecomposed bool, reconciled bool, err error) {
+func reconcilePlanDecomposedState(ctx context.Context, planPath, planName string, force bool) (alreadyDecomposed bool, reconciled bool, err error) {
 	if force {
 		return false, false, nil
 	}
@@ -573,7 +574,7 @@ func reconcilePlanDecomposedState(planPath, planName string, force bool) (alread
 	}
 
 	label := fmt.Sprintf("spec:%s", planName)
-	beads, err := decomposeListWithLabelFn(context.Background(), label)
+	beads, err := decomposeListWithLabelFn(ctx, label)
 	if err != nil {
 		return false, false, err
 	}
