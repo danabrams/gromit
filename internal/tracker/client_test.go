@@ -19,6 +19,10 @@ func (stubClient) Show(ctx context.Context, id string) (*Item, error) {
 	return nil, nil
 }
 
+func (stubClient) Search(ctx context.Context, query Query) ([]Item, error) {
+	return nil, nil
+}
+
 func (stubClient) Create(ctx context.Context, req CreateRequest) (*Item, error) {
 	return nil, nil
 }

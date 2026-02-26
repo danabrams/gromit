@@ -4,15 +4,12 @@ import "context"
 
 // Client defines the operations that a tracker backend must provide.
 type Client interface {
-	Ready(ctx context.Context) (*Item, error)
-	List(ctx context.Context, query Query) ([]Item, error)
-	Show(ctx context.Context, id string) (*Item, error)
-	Create(ctx context.Context, req CreateRequest) (*Item, error)
-	CreateWithParent(ctx context.Context, req CreateRequest, parentID string) (*Item, error)
-	ListWithLabel(ctx context.Context, label string) ([]Item, error)
-	Close(ctx context.Context, id string) error
-	Sync(ctx context.Context) error
+	ItemReader
+	ItemWriter
+	ItemQuery
+	// AddComment attaches a note to an item.
 	AddComment(ctx context.Context, id, comment string) error
+	// HasOpenChildren reports whether the provided parent still has outstanding children.
 	HasOpenChildren(ctx context.Context, parentID string) (bool, error)
 }
 
@@ -40,4 +37,10 @@ type ItemWriter interface {
 	Close(ctx context.Context, id string) error
 	// Sync ensures the tracker backend is in sync with its source of truth.
 	Sync(ctx context.Context) error
+}
+
+// ItemQuery defines search operations for tracker backends.
+type ItemQuery interface {
+	// Search finds tracker items matching the provided query.
+	Search(ctx context.Context, query Query) ([]Item, error)
 }
