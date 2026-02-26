@@ -20,6 +20,7 @@ func beadToItem(b *Bead) *tracker.Item {
 	metadata := map[string]string{
 		"priority": fmt.Sprintf("%d", b.Priority),
 	}
+	addStringMetadata(metadata, "status", b.Status)
 	addStringMetadata(metadata, "owner", b.Owner)
 	addStringMetadata(metadata, "parent", b.Parent)
 	addStringMetadata(metadata, "type", b.Type)
