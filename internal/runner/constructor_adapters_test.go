@@ -206,6 +206,12 @@ func (m *mockTrackerClient) Show(ctx context.Context, id string) (*tracker.Item,
 func (m *mockTrackerClient) Create(ctx context.Context, req tracker.CreateRequest) (*tracker.Item, error) {
 	return nil, nil
 }
+func (m *mockTrackerClient) CreateWithParent(ctx context.Context, req tracker.CreateRequest, parentID string) (*tracker.Item, error) {
+	return nil, nil
+}
+func (m *mockTrackerClient) ListWithLabel(ctx context.Context, label string) ([]tracker.Item, error) {
+	return nil, nil
+}
 func (m *mockTrackerClient) Close(ctx context.Context, id string) error         { return nil }
 func (m *mockTrackerClient) Sync(ctx context.Context) error                    { return nil }
 func (m *mockTrackerClient) AddComment(ctx context.Context, id, comment string) error { return nil }

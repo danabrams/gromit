@@ -739,6 +739,12 @@ func (m *mockTrackerForDecompose) Show(context.Context, string) (*tracker.Item, 
 func (m *mockTrackerForDecompose) Create(context.Context, tracker.CreateRequest) (*tracker.Item, error) {
 	return nil, nil
 }
+func (m *mockTrackerForDecompose) CreateWithParent(context.Context, tracker.CreateRequest, string) (*tracker.Item, error) {
+	return nil, nil
+}
+func (m *mockTrackerForDecompose) ListWithLabel(context.Context, string) ([]tracker.Item, error) {
+	return nil, nil
+}
 
 func (m *mockTrackerForDecompose) Close(context.Context, string) error {
 	return nil
@@ -803,6 +809,12 @@ func (m *mockTrackerClientWithItems) Show(context.Context, string) (*tracker.Ite
 
 func (m *mockTrackerClientWithItems) Create(context.Context, tracker.CreateRequest) (*tracker.Item, error) {
 	return nil, nil
+}
+func (m *mockTrackerClientWithItems) CreateWithParent(ctx context.Context, req tracker.CreateRequest, parentID string) (*tracker.Item, error) {
+	return m.Create(ctx, req)
+}
+func (m *mockTrackerClientWithItems) ListWithLabel(context.Context, string) ([]tracker.Item, error) {
+	return m.returnItems, nil
 }
 
 func (m *mockTrackerClientWithItems) Close(context.Context, string) error {

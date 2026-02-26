@@ -23,6 +23,14 @@ func (stubClient) Create(ctx context.Context, req CreateRequest) (*Item, error) 
 	return nil, nil
 }
 
+func (stubClient) CreateWithParent(ctx context.Context, req CreateRequest, parentID string) (*Item, error) {
+	return nil, nil
+}
+
+func (stubClient) ListWithLabel(ctx context.Context, label string) ([]Item, error) {
+	return nil, nil
+}
+
 func (stubClient) Close(ctx context.Context, id string) error {
 	return nil
 }

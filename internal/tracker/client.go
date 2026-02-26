@@ -12,6 +12,10 @@ type Client interface {
 	Show(ctx context.Context, id string) (*Item, error)
 	// Create adds a new tracker item from the supplied request.
 	Create(ctx context.Context, req CreateRequest) (*Item, error)
+	// CreateWithParent adds a new tracker item with a parent reference.
+	CreateWithParent(ctx context.Context, req CreateRequest, parentID string) (*Item, error)
+	// ListWithLabel returns tracker items that have the provided label.
+	ListWithLabel(ctx context.Context, label string) ([]Item, error)
 	// Close marks an item as completed.
 	Close(ctx context.Context, id string) error
 	// Sync ensures the tracker backend is in sync with its source of truth.

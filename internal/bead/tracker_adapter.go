@@ -106,6 +106,27 @@ func (a *BDAdapter) List(ctx context.Context, query tracker.Query) ([]tracker.It
 	return items[start:end], nil
 }
 
+func (a *BDAdapter) ListWithLabel(ctx context.Context, label string) ([]tracker.Item, error) {
+	client, err := a.clientOrErr()
+	if err != nil {
+		return nil, err
+	}
+
+	beads, err := client.ListWithLabel(label)
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]tracker.Item, 0, len(beads))
+	for _, b := range beads {
+		if item := beadToItem(b); item != nil {
+			items = append(items, *item)
+		}
+	}
+
+	return items, nil
+}
+
 // beadHasAllLabels checks if a bead has at least one of the specified labels
 func beadHasAllLabels(b *Bead, requiredLabels []string) bool {
 	if b == nil || len(requiredLabels) == 0 {
@@ -143,6 +164,28 @@ func (a *BDAdapter) Create(ctx context.Context, req tracker.CreateRequest) (*tra
 	priority, labels, expectedOutputs, parent, paramsErr := createParamsFromRequest(req)
 	if paramsErr != nil {
 		return nil, paramsErr
+	}
+
+	bead, err := client.CreateWithParentAndDescription(req.Title, priority, labels, expectedOutputs, parent, req.Description)
+	if err != nil {
+		return nil, err
+	}
+	return beadToItem(bead), nil
+}
+
+func (a *BDAdapter) CreateWithParent(ctx context.Context, req tracker.CreateRequest, parentID string) (*tracker.Item, error) {
+	client, err := a.clientOrErr()
+	if err != nil {
+		return nil, err
+	}
+
+	priority, labels, expectedOutputs, parent, paramsErr := createParamsFromRequest(req)
+	if paramsErr != nil {
+		return nil, paramsErr
+	}
+
+	if trimmed := strings.TrimSpace(parentID); trimmed != "" {
+		parent = trimmed
 	}
 
 	bead, err := client.CreateWithParentAndDescription(req.Title, priority, labels, expectedOutputs, parent, req.Description)

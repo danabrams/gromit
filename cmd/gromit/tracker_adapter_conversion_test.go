@@ -91,6 +91,12 @@ func (m *mockTrackerClient) Create(ctx context.Context, req tracker.CreateReques
 	m.createdItems = append(m.createdItems, item)
 	return item, nil
 }
+func (m *mockTrackerClient) CreateWithParent(ctx context.Context, req tracker.CreateRequest, parentID string) (*tracker.Item, error) {
+	return m.Create(ctx, req)
+}
+func (m *mockTrackerClient) ListWithLabel(ctx context.Context, label string) ([]tracker.Item, error) {
+	return nil, nil
+}
 
 func (m *mockTrackerClient) Close(ctx context.Context, id string) error {
 	return nil
