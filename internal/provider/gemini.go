@@ -59,7 +59,7 @@ func (gp *GeminiProvider) ModelForTier(tier string) string {
 	if model, ok := gp.tierToModel[tier]; ok {
 		return model
 	}
-	return tier
+	return ""
 }
 
 // Run executes a non-streaming Gemini invocation and parses the JSON result.
