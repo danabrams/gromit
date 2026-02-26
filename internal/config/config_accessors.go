@@ -303,8 +303,9 @@ func (c *Config) PhaseTierForStrategy(phase, beadTier string) string {
 	if c == nil {
 		return beadTier
 	}
-	if !strings.EqualFold(strings.TrimSpace(c.Routing.Strategy), "cost_optimized") {
-		return beadTier
+	strategy := strings.ToLower(strings.TrimSpace(c.Routing.Strategy))
+	if strategy != "cost_optimized" {
+		return c.PhaseModelTier(phase, beadTier)
 	}
 
 	switch strings.ToLower(strings.TrimSpace(phase)) {
