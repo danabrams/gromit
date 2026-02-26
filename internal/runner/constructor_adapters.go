@@ -286,40 +286,21 @@ func (a *reviewInvokerAdapter) StreamRun(ctx context.Context, prompt string, mod
 
 // beadCreatorAdapter wraps tracker.Client to satisfy review.BeadCreator.
 type beadCreatorAdapter struct {
-	tracker tracker.Client
+	beads BeadClient
 }
 
 func (a *beadCreatorAdapter) Create(title string, priority int, labels []string, outputs []string) (string, error) {
-	beadClient := bead.UnwrapBDAdapter(a.tracker)
-	if beadClient != nil {
-		// Use native bead.Client method for optimal compatibility
-		b, err := beadClient.Create(context.Background(), title, priority, labels, outputs)
-		if err != nil {
-			return "", err
-		}
-		if b == nil {
-			return "", fmt.Errorf("beads.Create returned nil")
-		}
-		return b.ID, nil
+	if a == nil || a.beads == nil {
+		return "", fmt.Errorf("bead creator is not configured")
 	}
-
-	// Fallback: use tracker.Client interface
-	req := tracker.CreateRequest{
-		Title: title,
-		Metadata: map[string]string{
-			"priority":         fmt.Sprintf("%d", priority),
-			"labels":           toJSONList(labels),
-			"expected_outputs": toJSONList(outputs),
-		},
-	}
-	item, err := a.tracker.Create(context.Background(), req)
+	b, err := a.beads.Create(context.Background(), title, priority, labels, outputs)
 	if err != nil {
 		return "", err
 	}
-	if item == nil {
-		return "", fmt.Errorf("tracker.Create returned nil")
+	if b == nil {
+		return "", fmt.Errorf("beads.Create returned nil")
 	}
-	return item.ID, nil
+	return b.ID, nil
 }
 
 // reviewRendererAdapter wraps prompt.Renderer to satisfy review.PromptRenderer.
@@ -638,20 +619,12 @@ type scopeGateSubBead struct {
 // decomposerAdapter uses provider routing to invoke LLM-powered decomposition of oversized beads.
 type decomposerAdapter struct {
 	tracker     tracker.Client
+	beads       BeadClient
 	router      *provider.Router
 	maxSubBeads int
 
 	mu               sync.Mutex
 	createdChildKeys map[string]map[string]struct{}
-}
-
-// getBeadClient unwraps the underlying *bead.Client from the tracker.Client.
-// Returns nil if the client is not a BDAdapter.
-func (a *decomposerAdapter) getBeadClient() *bead.Client {
-	if a == nil {
-		return nil
-	}
-	return bead.UnwrapBDAdapter(a.tracker)
 }
 
 func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
@@ -698,7 +671,7 @@ func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 		}
 
 		childLabels := append(append([]string(nil), labels...), dedupeLabel)
-		beadClient := a.getBeadClient()
+		beadClient := a.beads
 		if beadClient == nil {
 			return fmt.Errorf("decomposerAdapter: unable to access bead client")
 		}
@@ -713,7 +686,7 @@ func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 		successfullyCreatedCount++
 	}
 
-	beadClient := a.getBeadClient()
+	beadClient := a.beads
 	if beadClient == nil {
 		return fmt.Errorf("decomposerAdapter: unable to access bead client for closing")
 	}
@@ -799,7 +772,7 @@ func (a *decomposerAdapter) rememberCreatedChildKey(parentID, key string) {
 }
 
 func (a *decomposerAdapter) childWithDedupeLabelExists(parentID, dedupeLabel string) (bool, error) {
-	beadClient := a.getBeadClient()
+	beadClient := a.beads
 	if beadClient == nil {
 		return false, fmt.Errorf("bead client is nil")
 	}
@@ -838,7 +811,7 @@ func (a *decomposerAdapter) resolveInheritedLabels(parent *bead.Bead) []string {
 	}
 	appendUnique(findLabelWithPrefix(parent.Labels, buildStrategyPrefix))
 
-	beadClient := a.getBeadClient()
+	beadClient := a.beads
 	if beadClient == nil || parent.ID == "" {
 		return labels
 	}

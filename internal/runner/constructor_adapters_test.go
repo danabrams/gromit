@@ -347,7 +347,7 @@ func TestBeadCreatorAdapterAcceptsTrackerClient(t *testing.T) {
 
 	// The beadCreatorAdapter should be able to hold a tracker.Client interface
 	var _ review.BeadCreator = &beadCreatorAdapter{
-		tracker: trackerClient,
+		beads: newTrackerBeadClient(trackerClient),
 	}
 }
 
