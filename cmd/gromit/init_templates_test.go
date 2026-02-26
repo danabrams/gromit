@@ -141,3 +141,21 @@ validation:
 	}
 }
 
+// TestRulesForProfile_IncludesGoSpecificGuide verifies that rulesForProfile generates
+// Go-specific RULES.md content with relevant Code Style guidance for Go projects
+func TestRulesForProfile_IncludesGoSpecificGuide(t *testing.T) {
+	t.Parallel()
+
+	rules := rulesForProfile("go")
+
+	// Should contain universal Safety section
+	if !strings.Contains(rules, "Never commit secrets") {
+		t.Error("rules missing universal safety guidance")
+	}
+
+	// Should contain Go-specific Code Style guidance
+	if !strings.Contains(rules, "go fmt") {
+		t.Error("rules missing go fmt guidance for go profile")
+	}
+}
+
