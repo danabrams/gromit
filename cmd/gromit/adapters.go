@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"time"
@@ -193,9 +194,8 @@ func trackerItemToBeadInfo(item *tracker.Item) *pipeline.BeadInfo {
 
 	var labels []string
 	if l, ok := item.Metadata["labels"]; ok {
-		// Labels were encoded as JSON array in metadata
-		fmt.Sscanf(l, "[%s]", &l)
-		// For now, we'll extract just the priority and basic fields
+		// Labels are stored as JSON array in metadata
+		json.Unmarshal([]byte(l), &labels)
 	}
 
 	return &pipeline.BeadInfo{
@@ -231,7 +231,8 @@ func (a *trackerClientAdapter) Create(ctx context.Context, title string, priorit
 		req.Metadata["priority"] = fmt.Sprintf("%d", priority)
 	}
 	if len(labels) > 0 {
-		req.Metadata["labels"] = fmt.Sprintf("%v", labels)
+		labelsJSON, _ := json.Marshal(labels)
+		req.Metadata["labels"] = string(labelsJSON)
 	}
 	if len(outputs) > 0 {
 		req.Metadata["expected_outputs"] = fmt.Sprintf("%v", outputs)
@@ -254,7 +255,8 @@ func (a *trackerClientAdapter) CreateWithDepsAndDescription(ctx context.Context,
 		req.Metadata["priority"] = fmt.Sprintf("%d", priority)
 	}
 	if len(labels) > 0 {
-		req.Metadata["labels"] = fmt.Sprintf("%v", labels)
+		labelsJSON, _ := json.Marshal(labels)
+		req.Metadata["labels"] = string(labelsJSON)
 	}
 	if len(criteria) > 0 {
 		req.Metadata["acceptance_criteria"] = fmt.Sprintf("%v", criteria)
