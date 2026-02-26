@@ -259,3 +259,13 @@ type ThoroughReviewContext struct {
 	Rules          string
 	Model          string
 }
+
+// normalizeNilFields ensures nil slices are replaced with empty slices.
+func (t *ThoroughReviewContext) normalizeNilFields() {
+	if t == nil {
+		return
+	}
+	if t.CompletedBeads == nil {
+		t.CompletedBeads = []CompletedBeadSummary{}
+	}
+}

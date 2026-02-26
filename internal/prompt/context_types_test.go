@@ -51,3 +51,11 @@ func TestReviewContextNormalizeNilFields(t *testing.T) {
 		})
 	}
 }
+
+func TestThoroughReviewContextNormalizeNilFields(t *testing.T) {
+	ctx := &ThoroughReviewContext{}
+	ctx.normalizeNilFields()
+	if ctx.CompletedBeads == nil {
+		t.Fatalf("CompletedBeads nil after normalizeNilFields")
+	}
+}
