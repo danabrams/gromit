@@ -110,6 +110,18 @@ func TestSelectInitialTier_DelegatesToConfig(t *testing.T) {
 	}
 }
 
+func TestSelectInitialTier_CostOptimizedUsesBuildTier(t *testing.T) {
+	t.Parallel()
+	cfg := &config.Config{}
+	cfg.Routing.Strategy = "cost_optimized"
+	cfg.Routing.CostOptimized.BuildTier = "low"
+
+	p := newConfigEscalationPolicy(cfg)
+	if got := p.SelectInitialTier(2, nil); got != "low" {
+		t.Fatalf("SelectInitialTier(cost_optimized) = %q, want %q", got, "low")
+	}
+}
+
 func TestSelectModel_DelegatesToConfig(t *testing.T) {
 	t.Parallel()
 	cfg := &config.Config{}
