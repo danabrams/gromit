@@ -20,14 +20,15 @@ var ErrStallTimeout = errors.New("stall timeout: no output from Claude CLI")
 
 // Result represents the outcome of a Claude invocation
 type Result struct {
-	Success      bool          `json:"success"`
-	Output       string        `json:"output"`
-	ExitCode     int           `json:"exit_code"`
-	Duration     time.Duration `json:"duration"`
-	Model        string        `json:"model"`
-	CostUSD      float64       `json:"cost_usd"`
-	InputTokens  int           `json:"input_tokens"`
-	OutputTokens int           `json:"output_tokens"`
+	Success            bool          `json:"success"`
+	Output             string        `json:"output"`
+	ExitCode           int           `json:"exit_code"`
+	Duration           time.Duration `json:"duration"`
+	Model              string        `json:"model"`
+	CostUSD            float64       `json:"cost_usd"`
+	InputTokens        int           `json:"input_tokens"`
+	OutputTokens       int           `json:"output_tokens"`
+	CachedInputTokens  int           `json:"cached_input_tokens"`
 }
 
 // ToolEvent represents a tool call event with metadata
