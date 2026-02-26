@@ -1505,3 +1505,95 @@ func TestTrendBuilderFunctionsExist(t *testing.T) {
 		t.Errorf("buildBeadEntryIndices for bead2 returned %d indices, want 1", len(indices["bead2"]))
 	}
 }
+
+// TestBuildIterationMetrics_TimeoutDecompositionOutcome validates that timeout decomposition
+// outcome and reason fields are properly captured in iteration logs.
+func TestBuildIterationMetrics_TimeoutDecompositionOutcome(t *testing.T) {
+	entries := []IterationLog{
+		{
+			Timestamp:                     time.Now(),
+			Iteration:                     1,
+			BeadID:                        "b-1",
+			Model:                         "sonnet",
+			Success:                       false,
+			TimeoutType:                   "invocation",
+			TimeoutDecompositionAttempted: true,
+			TimeoutDecompositionSucceeded: true,
+			TimeoutDecompositionOutcome:   "success",
+			TimeoutDecompositionReason:    "invocation timeout decomposition succeeded",
+		},
+	}
+
+	metrics := buildIterationMetrics(entries, 10)
+	if len(metrics) != 1 {
+		t.Fatalf("expected 1 metric, got %d", len(metrics))
+	}
+
+	// Verify IterationLog fields are preserved
+	got := metrics[0]
+	if got.TimeoutType != "invocation" {
+		t.Errorf("TimeoutType = %q, want %q", got.TimeoutType, "invocation")
+	}
+	if !got.TimeoutDecompositionAttempted {
+		t.Error("TimeoutDecompositionAttempted should be true")
+	}
+	if !got.TimeoutDecompositionSucceeded {
+		t.Error("TimeoutDecompositionSucceeded should be true")
+	}
+	if got.TimeoutDecompositionOutcome != "success" {
+		t.Errorf("TimeoutDecompositionOutcome = %q, want %q", got.TimeoutDecompositionOutcome, "success")
+	}
+	if got.TimeoutDecompositionReason != "invocation timeout decomposition succeeded" {
+		t.Errorf("TimeoutDecompositionReason = %q, want %q", got.TimeoutDecompositionReason, "invocation timeout decomposition succeeded")
+	}
+}
+
+// TestBuildContinuousMetrics_TimeoutDecompositionAggregates validates that timeout decomposition
+// attempts and success rates are properly aggregated across the rolling window.
+func TestBuildContinuousMetrics_TimeoutDecompositionAggregates(t *testing.T) {
+	dir := t.TempDir()
+	metricsDir := t.TempDir()
+
+	l, err := NewLogger(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Log two iterations: first with successful decomposition, second without timeout
+	if err := l.LogIteration(&IterationLog{
+		Timestamp:                     time.Now(),
+		Iteration:                     1,
+		BeadID:                        "b-1",
+		Model:                         "sonnet",
+		Success:                       false,
+		TimeoutType:                   "invocation",
+		TimeoutDecompositionAttempted: true,
+		TimeoutDecompositionSucceeded: true,
+		TimeoutDecompositionOutcome:   "success",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.LogIteration(&IterationLog{
+		Timestamp: time.Now(),
+		Iteration: 2,
+		BeadID:    "b-2",
+		Model:     "sonnet",
+		Success:   true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	l.Close()
+
+	trend, err := BuildContinuousMetrics(dir, metricsDir, 30)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify rolling aggregates
+	if trend.LatestWindow.TimeoutDecompositionAttempts != 1 {
+		t.Errorf("TimeoutDecompositionAttempts = %d, want 1", trend.LatestWindow.TimeoutDecompositionAttempts)
+	}
+	if trend.LatestWindow.TimeoutDecompositionSuccessRate != 1.0 {
+		t.Errorf("TimeoutDecompositionSuccessRate = %f, want 1.0", trend.LatestWindow.TimeoutDecompositionSuccessRate)
+	}
+}
