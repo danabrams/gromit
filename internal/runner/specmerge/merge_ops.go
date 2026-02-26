@@ -66,7 +66,9 @@ func FinalizeSpecBranch(ctx context.Context, deps FinalizeDependencies, branch s
 	}); err != nil {
 		return err
 	}
-	if err := deps.Git.FastForwardMerge(ctx, branch); err != nil {
+	if err := executeWithConflictResolution(ctx, deps, branch, func() error {
+		return deps.Git.FastForwardMerge(ctx, branch)
+	}); err != nil {
 		return err
 	}
 	if err := deps.Git.DeleteBranch(ctx, branch); err != nil {
