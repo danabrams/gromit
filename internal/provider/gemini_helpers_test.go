@@ -158,3 +158,55 @@ func TestExtractGeminiAssistantText_EmptyEvents(t *testing.T) {
 		t.Errorf("expected empty string, got %q", text)
 	}
 }
+
+func TestExtractGeminiTokens_FromStreamEvent(t *testing.T) {
+	event := map[string]interface{}{
+		"type":   "result",
+		"status": "success",
+		"stats": map[string]interface{}{
+			"total_tokens":  13458.0,
+			"input_tokens":  13284.0,
+			"output_tokens": 33.0,
+			"cached":        0.0,
+		},
+	}
+
+	inputTokens, outputTokens, cached := extractGeminiTokens(event)
+	if inputTokens != 13284 {
+		t.Errorf("expected input_tokens 13284, got %d", inputTokens)
+	}
+	if outputTokens != 33 {
+		t.Errorf("expected output_tokens 33, got %d", outputTokens)
+	}
+	if cached != 0 {
+		t.Errorf("expected cached 0, got %d", cached)
+	}
+}
+
+func TestExtractGeminiTokens_FromJSONResponse(t *testing.T) {
+	jsonData := map[string]interface{}{
+		"usage": map[string]interface{}{
+			"input_tokens":        13284.0,
+			"output_tokens":       33.0,
+			"cached_input_tokens": 0.0,
+		},
+	}
+
+	inputTokens, outputTokens, cached := extractGeminiTokens(jsonData)
+	if inputTokens != 13284 {
+		t.Errorf("expected input_tokens 13284, got %d", inputTokens)
+	}
+	if outputTokens != 33 {
+		t.Errorf("expected output_tokens 33, got %d", outputTokens)
+	}
+	if cached != 0 {
+		t.Errorf("expected cached 0, got %d", cached)
+	}
+}
+
+func TestExtractGeminiTokens_EmptyData(t *testing.T) {
+	inputTokens, outputTokens, cached := extractGeminiTokens(map[string]interface{}{})
+	if inputTokens != 0 || outputTokens != 0 || cached != 0 {
+		t.Errorf("expected all zeros, got input=%d, output=%d, cached=%d", inputTokens, outputTokens, cached)
+	}
+}
