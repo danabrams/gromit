@@ -217,9 +217,6 @@ func (c *Config) SetDefaults() {
 	if c.Methodology.PhaseModels.Decompose == "" {
 		c.Methodology.PhaseModels.Decompose = "medium"
 	}
-	if c.Methodology.PhaseModels.Build == "" {
-		c.Methodology.PhaseModels.Build = "medium"
-	}
 	if c.Methodology.PhaseModels.Red == "" {
 		c.Methodology.PhaseModels.Red = "low"
 	}

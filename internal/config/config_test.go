@@ -270,8 +270,8 @@ func TestSetDefaultsMethodologyPhaseModels_SetsDefaultTiers(t *testing.T) {
 	if cfg.Methodology.PhaseModels.Decompose != "medium" {
 		t.Fatalf("Methodology.PhaseModels.Decompose = %q, want %q", cfg.Methodology.PhaseModels.Decompose, "medium")
 	}
-	if cfg.Methodology.PhaseModels.Build != "medium" {
-		t.Fatalf("Methodology.PhaseModels.Build = %q, want %q", cfg.Methodology.PhaseModels.Build, "medium")
+	if cfg.Methodology.PhaseModels.Build != "" {
+		t.Fatalf("Methodology.PhaseModels.Build = %q, want %q", cfg.Methodology.PhaseModels.Build, "")
 	}
 	if cfg.Methodology.PhaseModels.Red != "low" {
 		t.Fatalf("Methodology.PhaseModels.Red = %q, want %q", cfg.Methodology.PhaseModels.Red, "low")
@@ -295,8 +295,8 @@ func TestNormalizeNilFieldsMethodologyAndRefactor_SetsSafeDefaults(t *testing.T)
 	if cfg.Methodology.PhaseModels.Decompose != "medium" {
 		t.Fatalf("Methodology.PhaseModels.Decompose = %q, want %q", cfg.Methodology.PhaseModels.Decompose, "medium")
 	}
-	if cfg.Methodology.PhaseModels.Build != "medium" {
-		t.Fatalf("Methodology.PhaseModels.Build = %q, want %q", cfg.Methodology.PhaseModels.Build, "medium")
+	if cfg.Methodology.PhaseModels.Build != "" {
+		t.Fatalf("Methodology.PhaseModels.Build = %q, want %q", cfg.Methodology.PhaseModels.Build, "")
 	}
 	if cfg.Methodology.PhaseModels.Red != "low" {
 		t.Fatalf("Methodology.PhaseModels.Red = %q, want %q", cfg.Methodology.PhaseModels.Red, "low")
@@ -358,8 +358,8 @@ func TestMethodologyBuildStrategyAndPhaseModels_DefaultFromPartialYAML(t *testin
 	if cfg.Methodology.PhaseModels.Decompose != "medium" {
 		t.Fatalf("Methodology.PhaseModels.Decompose = %q, want %q", cfg.Methodology.PhaseModels.Decompose, "medium")
 	}
-	if cfg.Methodology.PhaseModels.Build != "medium" {
-		t.Fatalf("Methodology.PhaseModels.Build = %q, want %q", cfg.Methodology.PhaseModels.Build, "medium")
+	if cfg.Methodology.PhaseModels.Build != "" {
+		t.Fatalf("Methodology.PhaseModels.Build = %q, want %q", cfg.Methodology.PhaseModels.Build, "")
 	}
 	if cfg.Methodology.PhaseModels.Red != "high" {
 		t.Fatalf("Methodology.PhaseModels.Red = %q, want %q", cfg.Methodology.PhaseModels.Red, "high")
@@ -381,8 +381,8 @@ func TestMethodologyBuildStrategyAndPhaseModels_DefaultFromEmptyYAML(t *testing.
 	if cfg.Methodology.PhaseModels.Decompose != "medium" {
 		t.Fatalf("Methodology.PhaseModels.Decompose = %q, want %q", cfg.Methodology.PhaseModels.Decompose, "medium")
 	}
-	if cfg.Methodology.PhaseModels.Build != "medium" {
-		t.Fatalf("Methodology.PhaseModels.Build = %q, want %q", cfg.Methodology.PhaseModels.Build, "medium")
+	if cfg.Methodology.PhaseModels.Build != "" {
+		t.Fatalf("Methodology.PhaseModels.Build = %q, want %q", cfg.Methodology.PhaseModels.Build, "")
 	}
 	if cfg.Methodology.PhaseModels.Red != "low" {
 		t.Fatalf("Methodology.PhaseModels.Red = %q, want %q", cfg.Methodology.PhaseModels.Red, "low")
