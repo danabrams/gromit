@@ -111,7 +111,7 @@ func (r *Runner) RunDirect(ctx context.Context, commands []string, workDir strin
 // On validation failure, it first attempts trivial auto-fixes (gofmt/goimports),
 // then falls back to Claude-based fixes. Retry depth is capped by MaxValidationRetries.
 func (r *Runner) RunWithRecovery(ctx context.Context, bc *runtypes.BeadContext) error {
-	return r.RunWithRecoveryForCommands(ctx, bc, r.cfg.Validation.FastCommandsOrDefault(), "fast")
+	return r.RunWithRecoveryForCommands(ctx, bc, r.validationCommands(), "fast")
 }
 
 func (r *Runner) RunWithRecoveryForCommands(ctx context.Context, bc *runtypes.BeadContext, commands []string, mode string) error {
@@ -190,7 +190,25 @@ func (r *Runner) RunWithRecoveryForCommands(ctx context.Context, bc *runtypes.Be
 // and returns ErrValidationFailed. On success, it sets bc.Result.Validated
 // and bc.Result.ValidationMode.
 func (r *Runner) Validate(ctx context.Context, bc *runtypes.BeadContext) error {
-	return r.runValidationWithCommands(ctx, bc, r.cfg.Validation.FastCommandsOrDefault(), "fast")
+	return r.runValidationWithCommands(ctx, bc, r.validationCommands(), "fast")
+}
+
+func (r *Runner) validationCommands() []string {
+	if r == nil || r.cfg == nil {
+		return nil
+	}
+
+	commands := r.cfg.Validation.FastCommandsOrDefault()
+	if len(commands) > 0 {
+		return commands
+	}
+
+	profileDefaults := r.cfg.ResolveProfileDependentDefaults().ValidationCommands
+	if len(profileDefaults) > 0 {
+		return profileDefaults
+	}
+
+	return nil
 }
 
 // runValidation runs validation commands and updates the bead context result.
