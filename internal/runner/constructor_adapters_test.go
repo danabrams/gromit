@@ -10,6 +10,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/pipeline/epilogue"
 	"github.com/danabrams/gromit/internal/pipeline/prepare"
 	"github.com/danabrams/gromit/internal/pipeline/review"
 	"github.com/danabrams/gromit/internal/provider"
@@ -227,6 +228,19 @@ func TestBeadCreatorAdapterAcceptsTrackerClient(t *testing.T) {
 
 	// The beadCreatorAdapter should be able to hold a tracker.Client interface
 	var _ review.BeadCreator = &beadCreatorAdapter{
+		tracker: trackerClient,
+	}
+}
+
+func TestBeadLifecycleAdapterAcceptsTrackerClient(t *testing.T) {
+	t.Parallel()
+
+	// This test verifies that beadLifecycleAdapter accepts tracker.Client
+	// in its struct field instead of *bead.Client
+	trackerClient := &mockTrackerClient{}
+
+	// The beadLifecycleAdapter should be able to hold a tracker.Client interface
+	var _ epilogue.BeadLifecycle = &beadLifecycleAdapter{
 		tracker: trackerClient,
 	}
 }
