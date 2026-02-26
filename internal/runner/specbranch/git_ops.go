@@ -97,10 +97,53 @@ func (g *GitOps) RebaseSpecOntoMain(ctx context.Context, specBranchName string) 
 	return fmt.Errorf("failed to rebase spec branch %s onto main: %w", specBranchName, err)
 }
 
+// FastForwardMergeToMain merges the spec branch into main using fast-forward only.
+// Returns a ConflictError if the merge would result in a conflict.
+func (g *GitOps) FastForwardMergeToMain(ctx context.Context, specBranchName string) error {
+	if specBranchName == "" {
+		return fmt.Errorf("spec branch name cannot be empty")
+	}
+
+	// Check out main
+	cmd := exec.CommandContext(ctx, "git", "checkout", "main")
+	cmd.Dir = g.repoDir
+	_, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to checkout main: %w", err)
+	}
+
+	// Merge with --ff-only
+	cmd = exec.CommandContext(ctx, "git", "merge", "--ff-only", specBranchName)
+	cmd.Dir = g.repoDir
+	output, err := cmd.CombinedOutput()
+
+	if err == nil {
+		return nil
+	}
+
+	// Check if this is a merge conflict
+	if isMergeConflict(string(output), err) {
+		return &ConflictError{
+			Operation: "merge",
+			Err:       err,
+		}
+	}
+
+	return fmt.Errorf("failed to fast-forward merge spec branch %s to main: %w", specBranchName, err)
+}
+
 func isRebaseConflict(output string, err error) bool {
 	if err == nil {
 		return false
 	}
 	// Check for typical rebase conflict markers in output
 	return strings.Contains(output, "CONFLICT") || strings.Contains(output, "conflict")
+}
+
+func isMergeConflict(output string, err error) bool {
+	if err == nil {
+		return false
+	}
+	// Check for typical merge conflict markers in output
+	return strings.Contains(output, "CONFLICT") || strings.Contains(output, "conflict") || strings.Contains(output, "Merge made by")
 }
