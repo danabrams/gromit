@@ -96,6 +96,13 @@ Categorize each issue you find:
 
 ## Output Format
 
+**Learnings Clarification**: Only emit learnings for:
+- **Violations**: Code that breaks project rules, conventions, or best practices
+- **Novel patterns**: Unusual or previously-unseen approaches worth noting or reusing
+- **Failure gotchas**: Patterns that have caused or could cause issues
+
+Do NOT emit learnings that merely confirm existing, expected practices.
+
 Return a JSON object with this exact structure:
 
 ```json
@@ -125,8 +132,8 @@ Return a JSON object with this exact structure:
     }
   ],
   "learnings": [
-    "Error handling pattern in service.go is cleaner than older code in handler.go",
-    "Test naming convention followed consistently across new test cases"
+    "Violation: Missing bounds check before array access can cause panics in edge cases",
+    "Novel pattern: Error context aggregation approach discovered here should be applied elsewhere"
   ],
   "summary": "Implementation matches spec. Fixed 2 minor issues. Created 1 bead for validation gap."
 }
@@ -138,7 +145,7 @@ Return a JSON object with this exact structure:
 - `fix_categories`: Category labels for recurring review issues (prefer: `error_handling`, `test_quality`, `nil_checks`)
 - `beads_to_create`: Issues that need dedicated work (empty array if none)
 - `backlog_items`: Issues needing discussion/decision (empty array if none)
-- `learnings`: Codebase patterns, conventions, or gotchas observed during review (empty array if none)
+- `learnings`: ONLY violations, novel patterns, or failure gotchas—NOT confirmations of existing practices (empty array if none)
 - `summary`: 1-2 sentence summary of your review
 
 **Important:**
