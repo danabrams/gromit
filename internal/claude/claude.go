@@ -521,7 +521,7 @@ func (c *Client) processStreamJSONWithCost(stdout io.Reader, output io.Writer, h
 			inputTokens = event.InputTokens
 			outputTokens = event.OutputTokens
 			// Prefer nested usage if top-level fields are zero
-		cachedInputTokens = event.CacheReadInputTokens
+			cachedInputTokens = event.CacheReadInputTokens
 			if event.Usage != nil {
 				if costUSD == 0 && event.Usage.TotalCostUSD > 0 {
 					costUSD = event.Usage.TotalCostUSD

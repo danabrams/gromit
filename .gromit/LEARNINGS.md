@@ -287,3 +287,15 @@ When adding t.Parallel() to tests, verify each test uses isolated temporary dire
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-26 | review | conventions
+Automated code modification tools (like scripts/add_parallel) need a formatting post-pass — the tool produced valid but unusual Go syntax (comments inside empty function call parentheses) across 20+ files
+
+### 2026-02-26 | review | conventions
+Profile-based initialization follows a clean explicit > profile_default > legacy_fallback precedence chain in EffectiveValidationCommands() and EffectivePreflightCompileCommand()
+
+### 2026-02-26 | review | conventions
+The session launcher extraction (launchInSessionIfEnabled) is a good DRY pattern — it eliminated duplicated worktree-session launching logic from 6+ command files into one shared helper with proper nil checks
+
+### 2026-02-26 | review | conventions
+Test-only types in non-_test.go files get compiled into the production binary — always use _test.go suffix for test helpers in the same package
+
