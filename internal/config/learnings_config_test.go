@@ -58,3 +58,24 @@ func TestLearningsMaxLearningCharsZeroMeansDefault(t *testing.T) {
 		t.Errorf("expected default MaxLearningChars=8000 when omitted from YAML, got %d", cfg.Learnings.MaxLearningChars)
 	}
 }
+
+// TestLearningsProviderFromYAML tests that provider field can be set via YAML.
+func TestLearningsProviderFromYAML(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	yamlContent := `learnings:
+  provider: claude
+`
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	if cfg.Learnings.Provider != "claude" {
+		t.Errorf("expected Provider='claude', got %q", cfg.Learnings.Provider)
+	}
+}
