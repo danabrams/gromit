@@ -180,6 +180,101 @@ func TestGeminiProviderRunValidationRejectsInvalidCommands(t *testing.T) {
 	}
 }
 
+func TestGeminiProviderValidationMarkerDetection(t *testing.T) {
+	gp := &GeminiProvider{}
+
+	tests := []struct {
+		name     string
+		result   *Result
+		expected bool
+	}{
+		{
+			name: "validation passed marker",
+			result: &Result{
+				Success: true,
+				Output:  "log\nVALIDATION_PASSED\n",
+			},
+			expected: true,
+		},
+		{
+			name: "validation failed marker",
+			result: &Result{
+				Success: true,
+				Output:  "log\nVALIDATION_FAILED\nexit 1",
+			},
+			expected: false,
+		},
+		{
+			name: "failed run even with passed marker",
+			result: &Result{
+				Success: false,
+				Output:  "VALIDATION_PASSED",
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := gp.IsValidationPassed(tt.result)
+			if got != tt.expected {
+				t.Fatalf("IsValidationPassed() = %v, want %v (output=%q)", got, tt.expected, tt.result.Output)
+			}
+		})
+	}
+}
+
+func TestGeminiProviderIsScopeTooLargeDetection(t *testing.T) {
+	gp := &GeminiProvider{}
+
+	tests := []struct {
+		name           string
+		result         *Result
+		expectedFound  bool
+		expectedSubstr string
+	}{
+		{
+			name: "scope too large with explanation",
+			result: &Result{
+				Success: true,
+				Output:  "SCOPE_TOO_LARGE: The codebase is too large to analyze\n\nSome other content",
+			},
+			expectedFound:  true,
+			expectedSubstr: "codebase is too large",
+		},
+		{
+			name: "no scope too large marker",
+			result: &Result{
+				Success: true,
+				Output:  "Everything looks fine",
+			},
+			expectedFound:  false,
+			expectedSubstr: "",
+		},
+		{
+			name: "scope too large marker not at line start",
+			result: &Result{
+				Success: true,
+				Output:  "Some error: SCOPE_TOO_LARGE: message",
+			},
+			expectedFound:  false,
+			expectedSubstr: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			found, explanation := gp.IsScopeTooLarge(tt.result)
+			if found != tt.expectedFound {
+				t.Fatalf("IsScopeTooLarge() found = %v, want %v", found, tt.expectedFound)
+			}
+			if tt.expectedFound && !strings.Contains(explanation, tt.expectedSubstr) {
+				t.Fatalf("IsScopeTooLarge() explanation = %q, want to contain %q", explanation, tt.expectedSubstr)
+			}
+		})
+	}
+}
+
 func TestGeminiProviderRunInvokesJSONMode(t *testing.T) {
 	ctx := context.Background()
 	clockwork := make([]string, 0)
