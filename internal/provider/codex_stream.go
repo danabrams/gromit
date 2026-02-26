@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	codexStreamScannerMaxTokenSize   = 10 * 1024 * 1024
-	codexStreamWatchdogInterval      = 10 * time.Second
-	highInputTokenWarningThreshold   = 3000000 // 3M input tokens
+	codexStreamScannerMaxTokenSize = 10 * 1024 * 1024
+	codexStreamWatchdogInterval    = 10 * time.Second
+	highInputTokenWarningThreshold = 3000000 // 3M input tokens
 )
 
 // codexUsage represents token usage data from Codex turn.completed events.
@@ -41,7 +41,7 @@ type codexItem struct {
 
 // codexToolCall represents a tool call from Codex tool_call.created or tool_call.output events.
 type codexToolCall struct {
-	ToolName string `json:"tool_name"`
+	ToolName string                 `json:"tool_name"`
 	Input    map[string]interface{} `json:"input,omitempty"`
 	Output   map[string]interface{} `json:"output,omitempty"`
 }
@@ -619,4 +619,11 @@ func mergeCodexUsage(existing *codexUsage, incoming *codexUsage) *codexUsage {
 		merged.TotalCostUSD = incoming.TotalCostUSD
 	}
 	return &merged
+}
+
+func isCodexUsageLimitError(errInfo *codexErrorInfo) bool {
+	if errInfo == nil {
+		return false
+	}
+	return errInfo.Type == "UsageLimitExceeded"
 }

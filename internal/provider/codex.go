@@ -3,6 +3,7 @@ package provider
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -267,11 +268,15 @@ func (cp *CodexProvider) streamRunOnce(ctx context.Context, prompt string, tier 
 
 	// If the turn ended with an error (e.g. UsageLimitExceeded), report failure
 	if streamErrInfo != nil {
-		return &Result{
+		failureCategory := classifyCodexFailure(0, resultText, "")
+		if isCodexUsageLimitError(streamErrInfo) {
+			failureCategory = FailureCategoryRateLimited
+		}
+		failureResult := &Result{
 			Success:           false,
 			Output:            resultText,
 			Diagnostics:       buildCodexDiagnostics(args, effectiveCodexHome, ""),
-			FailureCategory:   classifyCodexFailure(0, resultText, ""),
+			FailureCategory:   failureCategory,
 			ExitCode:          0,
 			Duration:          duration,
 			Model:             model,
@@ -280,7 +285,14 @@ func (cp *CodexProvider) streamRunOnce(ctx context.Context, prompt string, tier 
 			InputTokens:       usageInputTokens(usage),
 			CachedInputTokens: usageCachedInputTokens(usage),
 			OutputTokens:      usageOutputTokens(usage),
-		}, nil
+		}
+		if isCodexUsageLimitError(streamErrInfo) {
+			return failureResult, &UsageLimitError{
+				Type:    streamErrInfo.Type,
+				Message: streamErrInfo.Message,
+			}
+		}
+		return failureResult, nil
 	}
 
 	return &Result{
@@ -302,10 +314,10 @@ func (cp *CodexProvider) runWithRetry(ctx context.Context, run func() (*Result, 
 	var last *Result
 	for attempt := 0; attempt <= codexTransientRetryMax; attempt++ {
 		result, err := run()
-		if err != nil {
-			return nil, err
-		}
 		last = result
+		if err != nil {
+			return result, err
+		}
 		if result == nil || result.Success {
 			return result, nil
 		}
@@ -419,6 +431,13 @@ func (cp *CodexProvider) RunValidation(ctx context.Context, commands []string, t
 func (cp *CodexProvider) IsUsageLimitError(result *Result, err error) bool {
 	if result == nil {
 		return false
+	}
+
+	if err != nil {
+		var usageErr *UsageLimitError
+		if errors.As(err, &usageErr) {
+			return true
+		}
 	}
 
 	// Must be a failure to be a usage limit error
