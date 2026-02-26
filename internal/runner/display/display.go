@@ -11,6 +11,20 @@ import (
 	"github.com/danabrams/gromit/internal/pipeline"
 )
 
+// SPC metric name constants used for ProcessTrend control limits.
+const (
+	spcMetricRollingSuccessRate   = "rolling_success_rate"
+	spcMetricRollingEscalateRate  = "rolling_escalation_rate"
+	spcMetricRollingQualityScore  = "rolling_quality_score"
+	spcMetricRollingAvgDurationMs = "rolling_avg_duration_ms"
+	spcMetricFirstPassSuccessRate = "rolling_first_pass_success_rate"
+	spcMetricRollingAvgCostUSD    = "rolling_avg_cost_usd"
+	spcMetricEWMASuccessRate      = "ewma_success_rate"
+	spcMetricEWMACostUSD          = "ewma_cost_usd"
+	spcMetricEWMADurationMs       = "ewma_duration_ms"
+	spcMetricEWMAInputTokens      = "ewma_input_tokens"
+)
+
 // FormatRun renders the current run state for display.
 func FormatRun(status *RunStatus) string {
 	if status == nil {
