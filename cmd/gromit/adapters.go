@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"time"
 
 	"github.com/danabrams/gromit/internal/agent"
+	"github.com/danabrams/gromit/internal/agents"
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
@@ -141,24 +141,8 @@ func (a *retroRouterAdapter) StreamRun(ctx context.Context, prompt string, tier 
 	return result, err
 }
 
-// cmdAgentResolver adapts agent.Resolve to pipeline.AgentResolver.
-type cmdAgentResolver struct {
-	cfg *config.Config
-}
-
-var _ pipeline.AgentResolver = (*cmdAgentResolver)(nil)
-
-func (r *cmdAgentResolver) Resolve(phase string, flagOverride string, choosePicker bool) (pipeline.Agent, error) {
-	return agent.Resolve(r.cfg, phase, flagOverride, choosePicker, os.Stdin, os.Stdout)
-}
-
-// newAgentResolver creates a resolver wrapping agent.Resolve with os.Stdin/os.Stdout.
-func newAgentResolver(cfg *config.Config) pipeline.AgentResolver {
-	return &cmdAgentResolver{cfg: cfg}
-}
-
 func resolveCommandAgent(cfg *config.Config, phase, flagOverride string, choosePicker bool) (agent.Agent, error) {
-	resolvedAgent, err := newAgentResolver(cfg).Resolve(phase, flagOverride, choosePicker)
+	resolvedAgent, err := agents.NewResolver(cfg).Resolve(phase, flagOverride, choosePicker)
 	if err != nil {
 		return nil, err
 	}

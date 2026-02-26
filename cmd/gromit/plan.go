@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/danabrams/gromit/internal/agent"
+	"github.com/danabrams/gromit/internal/agents"
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/frontmatter"
@@ -242,7 +243,7 @@ Plan output path: %s
 }
 
 func resolvePlanAgent(cfg *config.Config, agentFlag string, chooseAgent bool) (agent.Agent, error) {
-	resolvedAgent, err := newAgentResolver(cfg).Resolve(planSessionCommand, agentFlag, chooseAgent)
+	resolvedAgent, err := agents.NewResolver(cfg).Resolve(planSessionCommand, agentFlag, chooseAgent)
 	if err != nil {
 		return nil, err
 	}

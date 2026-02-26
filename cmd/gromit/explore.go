@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/agents"
 	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/learnings"
@@ -188,7 +189,7 @@ func buildExplorePipeline(cfg *config.Config) (*pipeline.Pipeline, error) {
 	}
 
 	// Create adapters
-	agentResolver := newAgentResolver(cfg)
+	agentResolver := agents.NewResolver(cfg)
 	promptRenderer := &explorePromptRenderer{renderer: renderer}
 	backlogClient := &exploreBacklogClient{file: backlogFile}
 

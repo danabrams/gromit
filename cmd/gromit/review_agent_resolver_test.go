@@ -1,9 +1,13 @@
 package main
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/danabrams/gromit/internal/agents"
+)
 
 func TestCliAgentResolver_UsesFlagOverrideParam(t *testing.T) {
-	resolver := &cmdAgentResolver{cfg: nil}
+	resolver := agents.NewResolver(nil)
 
 	agent, err := resolver.Resolve("review", "codex", false)
 	if err != nil {
@@ -16,7 +20,7 @@ func TestCliAgentResolver_UsesFlagOverrideParam(t *testing.T) {
 }
 
 func TestCmdAgentResolver_PropagatesResolveError(t *testing.T) {
-	resolver := &cmdAgentResolver{cfg: nil}
+	resolver := agents.NewResolver(nil)
 
 	_, err := resolver.Resolve("review", "does-not-exist", false)
 	if err == nil {

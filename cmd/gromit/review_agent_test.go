@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/agents"
 	"github.com/danabrams/gromit/internal/config"
 )
 
@@ -169,7 +170,7 @@ agents:
 }
 
 func TestCmdAgentResolverDefaultsToClaude(t *testing.T) {
-	resolver := &cmdAgentResolver{cfg: nil}
+	resolver := agents.NewResolver(nil)
 	agent, err := resolver.Resolve(reviewSessionCommand, "", false)
 	if err != nil {
 		t.Fatalf("Resolve() error = %v", err)
@@ -191,7 +192,7 @@ func TestCmdAgentResolverFlagOverride(t *testing.T) {
 		},
 	}
 
-	resolver := &cmdAgentResolver{cfg: cfg}
+	resolver := agents.NewResolver(cfg)
 	agent, err := resolver.Resolve(reviewSessionCommand, "stub-agent", false)
 	if err != nil {
 		t.Fatalf("Resolve() error = %v", err)

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/agents"
 	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
@@ -206,7 +207,7 @@ func createRefinePipeline(cfg *config.Config, gromitDir, specsDir, plansDir stri
 	}
 
 	deps := &pipeline.Deps{
-		AgentResolver: newAgentResolver(cfg),
+		AgentResolver: agents.NewResolver(cfg),
 		BacklogClient: &backlogAdapter{file: bf},
 	}
 

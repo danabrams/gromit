@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/agents"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/worktree"
@@ -122,7 +123,7 @@ func TestExplorePhaseConfigSelectsAgent_Reclassified(t *testing.T) {
 		},
 	}
 
-	resolver := &cmdAgentResolver{cfg: cfg}
+	resolver := agents.NewResolver(cfg)
 	agent, err := resolver.Resolve(exploreSessionCommand, "", false)
 	if err != nil {
 		t.Fatalf("Resolve() error = %v", err)
@@ -144,9 +145,9 @@ func newTestExplorePipeline(t *testing.T, gromitDir string) (*pipeline.Pipeline,
 
 	agent := &stubPipelineAgent{}
 	deps := &pipeline.Deps{
-		AgentResolver:  &stubAgentResolver{agent: agent},
+		AgentResolver:   &stubAgentResolver{agent: agent},
 		ExploreRenderer: stubExploreRenderer{},
-		BacklogClient:  stubBacklogClient{},
+		BacklogClient:   stubBacklogClient{},
 	}
 	paths := &pipeline.Paths{
 		GromitDir: gromitDir,

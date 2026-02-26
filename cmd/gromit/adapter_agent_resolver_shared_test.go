@@ -6,39 +6,6 @@ import (
 	"testing"
 )
 
-func TestSharedAgentResolver_DefinedInAdapters(t *testing.T) {
-	t.Parallel()
-
-	adaptersSource, err := os.ReadFile("adapters.go")
-	if err != nil {
-		t.Fatalf("failed to read adapters.go: %v", err)
-	}
-	sourceStr := string(adaptersSource)
-
-	// Verify cmdAgentResolver is defined
-	if !strings.Contains(sourceStr, "type cmdAgentResolver struct") {
-		t.Fatal("cmdAgentResolver not found in adapters.go")
-	}
-
-	// Verify it implements pipeline.AgentResolver
-	if !strings.Contains(sourceStr, "var _ pipeline.AgentResolver = (*cmdAgentResolver)(nil)") {
-		t.Fatal("cmdAgentResolver does not declare pipeline.AgentResolver interface")
-	}
-
-	// Verify Resolve method delegates to agent.Resolve
-	if !strings.Contains(sourceStr, "func (r *cmdAgentResolver) Resolve(phase string, flagOverride string, choosePicker bool)") {
-		t.Fatal("cmdAgentResolver.Resolve method not found")
-	}
-	if !strings.Contains(sourceStr, "agent.Resolve(r.cfg, phase, flagOverride, choosePicker, os.Stdin, os.Stdout)") {
-		t.Fatal("cmdAgentResolver.Resolve does not call agent.Resolve correctly")
-	}
-
-	// Verify newAgentResolver constructor exists
-	if !strings.Contains(sourceStr, "func newAgentResolver(cfg *config.Config) pipeline.AgentResolver") {
-		t.Fatal("newAgentResolver constructor not found")
-	}
-}
-
 func TestSharedAgentResolver_UsedInExplore(t *testing.T) {
 	t.Parallel()
 
@@ -50,12 +17,12 @@ func TestSharedAgentResolver_UsedInExplore(t *testing.T) {
 
 	// explore.go should NOT have its own agent resolver implementation
 	if strings.Contains(sourceStr, "type exploreAgentResolver") {
-		t.Fatal("explore.go should not have its own exploreAgentResolver - use shared newAgentResolver")
+		t.Fatal("explore.go should not have its own exploreAgentResolver - use shared agents.NewResolver")
 	}
 
-	// explore.go SHOULD use newAgentResolver
-	if !strings.Contains(sourceStr, "newAgentResolver(cfg)") {
-		t.Fatal("explore.go should use newAgentResolver(cfg)")
+	// explore.go SHOULD use the shared agents.NewResolver
+	if !strings.Contains(sourceStr, "agents.NewResolver(cfg)") {
+		t.Fatal("explore.go should use agents.NewResolver(cfg)")
 	}
 }
 
@@ -70,12 +37,12 @@ func TestSharedAgentResolver_UsedInRefine(t *testing.T) {
 
 	// refine.go should NOT have its own agent resolver implementation
 	if strings.Contains(sourceStr, "type agentResolverAdapter") {
-		t.Fatal("refine.go should not have its own agentResolverAdapter - use shared newAgentResolver")
+		t.Fatal("refine.go should not have its own agentResolverAdapter - use shared agents.NewResolver")
 	}
 
-	// refine.go SHOULD use newAgentResolver
-	if !strings.Contains(sourceStr, "newAgentResolver(cfg)") {
-		t.Fatal("refine.go should use newAgentResolver(cfg)")
+	// refine.go SHOULD use the shared agents.NewResolver
+	if !strings.Contains(sourceStr, "agents.NewResolver(cfg)") {
+		t.Fatal("refine.go should use agents.NewResolver(cfg)")
 	}
 }
 
@@ -90,23 +57,17 @@ func TestSharedAgentResolver_UsedInReview(t *testing.T) {
 
 	// review.go should NOT have its own agent resolver implementation
 	if strings.Contains(sourceStr, "type cliAgentResolver") {
-		t.Fatal("review.go should not have its own cliAgentResolver - use shared newAgentResolver")
+		t.Fatal("review.go should not have its own cliAgentResolver - use shared agents.NewResolver")
 	}
 
-	// review.go SHOULD use newAgentResolver
-	if !strings.Contains(sourceStr, "newAgentResolver(cfg)") {
-		t.Fatal("review.go should use newAgentResolver(cfg)")
+	// review.go SHOULD use the shared agents.NewResolver
+	if !strings.Contains(sourceStr, "agents.NewResolver(cfg)") {
+		t.Fatal("review.go should use agents.NewResolver(cfg)")
 	}
 }
 
 func TestSharedAgentResolver_IntegrationAcrossCommands(t *testing.T) {
 	t.Parallel()
-
-	adaptersSource, err := os.ReadFile("adapters.go")
-	if err != nil {
-		t.Skipf("Cannot read adapters.go: %v", err)
-	}
-	adaptersStr := string(adaptersSource)
 
 	// All three command files should be using the shared resolver
 	files := []string{"explore.go", "refine.go", "review.go"}
@@ -122,14 +83,14 @@ func TestSharedAgentResolver_IntegrationAcrossCommands(t *testing.T) {
 			t.Logf("Warning: %s should import config package", file)
 		}
 
-		// Each should use newAgentResolver
-		if !strings.Contains(sourceStr, "newAgentResolver") {
-			t.Errorf("%s does not use newAgentResolver - should not have duplicate adapter", file)
+		// Each should import the shared resolver package
+		if !strings.Contains(sourceStr, `"github.com/danabrams/gromit/internal/agents"`) {
+			t.Errorf("%s does not import agents package for the shared resolver", file)
 		}
-	}
 
-	// Shared adapter should have agent import
-	if !strings.Contains(adaptersStr, `"github.com/danabrams/gromit/internal/agent"`) {
-		t.Error("adapters.go must import agent package for shared resolver")
+		// Each should use agents.NewResolver
+		if !strings.Contains(sourceStr, "agents.NewResolver") {
+			t.Errorf("%s does not use agents.NewResolver - should not have duplicate adapter", file)
+		}
 	}
 }
