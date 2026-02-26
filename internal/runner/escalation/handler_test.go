@@ -2116,3 +2116,67 @@ func TestCheckRetryGate_BlocksTimeoutRetryWithoutDecompositionOrEscalation(t *te
 		t.Fatalf("expected ErrSameScopeRetryBlocked, got %v", err)
 	}
 }
+
+func TestCheckRetryGate_AllowsRetryWhenNoTimeoutOccurred(t *testing.T) {
+	cfg := newTestConfig()
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := newTestBeadContext()
+	bc.Result.TimeoutType = ""           // No timeout occurred
+	bc.TotalRetriesThisBead = 1           // Retries have happened
+	bc.Result.Decomposed = false         // No decomposition
+	bc.Result.Escalated = false          // No escalation
+
+	err := h.CheckRetryGate(bc)
+	if err != nil {
+		t.Fatalf("expected nil (retry allowed), got %v", err)
+	}
+}
+
+func TestCheckRetryGate_AllowsRetryWhenDecomposedAfterTimeout(t *testing.T) {
+	cfg := newTestConfig()
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := newTestBeadContext()
+	bc.Result.TimeoutType = "invocation" // Timeout occurred
+	bc.TotalRetriesThisBead = 1           // Retries have happened
+	bc.Result.Decomposed = true          // Decomposition succeeded
+	bc.Result.Escalated = false          // No escalation
+
+	err := h.CheckRetryGate(bc)
+	if err != nil {
+		t.Fatalf("expected nil (retry allowed after decomposition), got %v", err)
+	}
+}
+
+func TestCheckRetryGate_AllowsRetryWhenEscalatedAfterTimeout(t *testing.T) {
+	cfg := newTestConfig()
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := newTestBeadContext()
+	bc.Result.TimeoutType = "bead"       // Timeout occurred
+	bc.TotalRetriesThisBead = 1           // Retries have happened
+	bc.Result.Decomposed = false         // No decomposition
+	bc.Result.Escalated = true           // Escalation succeeded
+
+	err := h.CheckRetryGate(bc)
+	if err != nil {
+		t.Fatalf("expected nil (retry allowed after escalation), got %v", err)
+	}
+}
+
+func TestCheckRetryGate_AllowsRetryWhenNoRetriesHappenedYet(t *testing.T) {
+	cfg := newTestConfig()
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := newTestBeadContext()
+	bc.Result.TimeoutType = "invocation" // Timeout occurred
+	bc.TotalRetriesThisBead = 0           // No retries yet
+	bc.Result.Decomposed = false         // No decomposition
+	bc.Result.Escalated = false          // No escalation
+
+	err := h.CheckRetryGate(bc)
+	if err != nil {
+		t.Fatalf("expected nil (retry allowed on first attempt), got %v", err)
+	}
+}
