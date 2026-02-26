@@ -2,6 +2,7 @@
 id: optimize-bd-subprocess-calls
 source_ideas: []
 created: 2026-02-12
+epic: codebase-health
 ---
 
 # Optimize bd Subprocess Calls

@@ -1,3 +1,8 @@
+---
+id: enforce-timeout-first-decomposition
+epic: run-loop-reliability
+---
+
 # Enforce Timeout-First Decomposition
 
 ## Objective

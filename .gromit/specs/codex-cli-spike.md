@@ -2,6 +2,7 @@
 id: codex-cli-spike
 source_ideas: []
 created: 2026-02-11
+epic: provider-ecosystem
 ---
 
 # Spike: Codex CLI Invocation Modes

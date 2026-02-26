@@ -2,6 +2,7 @@
 id: parallel-bead-execution
 source_ideas: []
 created: 2026-02-17
+epic: run-loop-reliability
 ---
 
 # Parallel Bead Execution

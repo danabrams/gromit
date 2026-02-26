@@ -2,6 +2,7 @@
 id: decompose-picker
 source_ideas: [14]
 created: 2026-02-07
+epic: developer-experience
 ---
 
 # Decompose Picker

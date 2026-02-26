@@ -2,6 +2,7 @@
 id: pipeline-extraction
 source_ideas: []
 created: 2026-02-11
+epic: multi-interface-architecture
 ---
 
 # Pipeline Extraction

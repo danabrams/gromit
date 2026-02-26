@@ -2,6 +2,7 @@
 id: configurable-verification-script
 source_ideas: []
 created: 2026-02-18
+epic: codebase-health
 ---
 
 # Configurable Verification Script

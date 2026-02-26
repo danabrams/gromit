@@ -2,6 +2,7 @@
 id: bead-client-runfn-consolidation
 source_ideas: []
 created: 2026-02-19
+epic: codebase-health
 ---
 
 # Bead Client RunFn Consolidation

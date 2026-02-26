@@ -2,6 +2,7 @@
 id: parallel-interactive-command-worktrees
 source_ideas: []
 created: 2026-02-15
+epic: codebase-health
 ---
 
 # Parallel Interactive Command Worktrees

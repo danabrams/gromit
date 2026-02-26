@@ -2,6 +2,7 @@
 id: usage-limit-detection
 source_ideas: [idea-1770817453360]
 created: 2026-02-11
+epic: provider-ecosystem
 ---
 
 # Usage-Limit Error Detection for CLI Providers

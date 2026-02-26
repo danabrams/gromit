@@ -2,6 +2,7 @@
 id: expanded-status
 source_ideas: []
 created: 2026-02-07
+epic: developer-experience
 ---
 
 # Expanded Status Display

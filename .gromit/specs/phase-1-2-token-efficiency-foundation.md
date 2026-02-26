@@ -2,6 +2,7 @@
 id: phase-1-2-token-efficiency-foundation
 source_ideas: []
 created: 2026-02-23
+epic: token-efficiency-program
 ---
 
 # Token Efficiency Foundation (Phase 1-2)

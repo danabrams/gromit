@@ -2,6 +2,7 @@
 id: decompose-overlap-guard
 source_ideas: []
 created: 2026-02-10
+epic: codebase-health
 ---
 
 # Decompose Overlap Guard

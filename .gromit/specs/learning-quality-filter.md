@@ -2,6 +2,7 @@
 id: learning-quality-filter
 source_ideas: []
 created: 2026-02-07
+epic: codebase-health
 ---
 
 # Learning Quality Filter

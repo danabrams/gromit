@@ -2,6 +2,7 @@
 id: harden-fake-claude-writes
 source_ideas: [idea-1770459727449]
 created: 2026-02-07
+epic: test-quality
 ---
 
 # Harden Fake Claude Script File Writes

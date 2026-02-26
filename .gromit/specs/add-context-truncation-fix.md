@@ -2,6 +2,7 @@
 id: add-context-truncation-fix
 source_ideas: []
 created: 2026-02-07
+epic: codebase-health
 ---
 
 # Fix `gromit add` Context Field Truncation

@@ -2,6 +2,7 @@
 id: bead-scope-validation
 source_ideas: [1]
 created: 2026-02-12
+epic: run-loop-reliability
 ---
 
 # Bead Scope Validation

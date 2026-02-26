@@ -2,6 +2,7 @@
 id: run-loop-reliability-speed
 source_ideas: []
 created: 2026-02-15
+epic: run-loop-reliability
 ---
 
 # Improve Run Loop Reliability and Speed

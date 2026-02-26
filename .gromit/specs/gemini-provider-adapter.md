@@ -2,6 +2,7 @@
 id: gemini-provider-adapter
 source_ideas: []
 created: 2026-02-20
+epic: provider-ecosystem
 ---
 
 # Gemini Provider Adapter

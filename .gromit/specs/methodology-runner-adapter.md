@@ -3,6 +3,7 @@ id: methodology-runner-adapter
 source_ideas:
   - idea-1771591754844
 created: 2026-02-20
+epic: cross-project-portability
 ---
 
 # Methodology Runner Adapter

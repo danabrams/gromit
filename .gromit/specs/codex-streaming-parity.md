@@ -2,6 +2,7 @@
 id: codex-streaming-parity
 source_ideas: []
 created: 2026-02-12
+epic: provider-ecosystem
 ---
 
 # Codex Streaming Parity

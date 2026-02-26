@@ -2,6 +2,7 @@
 id: multi-agent-phases
 source_ideas: []
 created: 2026-02-08
+epic: provider-ecosystem
 ---
 
 # Multi-Agent Interactive Phases

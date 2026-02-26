@@ -3,6 +3,7 @@ id: tracker-adapter-interface
 source_ideas:
   - idea-1771591754839
 created: 2026-02-20
+epic: cross-project-portability
 ---
 
 # Tracker Adapter Interface

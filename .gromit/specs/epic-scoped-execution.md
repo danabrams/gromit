@@ -2,6 +2,7 @@
 id: epic-scoped-execution
 source_ideas: []
 created: 2026-02-08
+epic: spec-first-atdd-execution
 ---
 
 # Epic-Scoped Execution

@@ -2,6 +2,7 @@
 id: event-system
 source_ideas: [idea-1770820549600, idea-1770820550926]
 created: 2026-02-11
+epic: multi-interface-architecture
 ---
 
 # Structured Event System

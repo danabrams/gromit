@@ -2,6 +2,7 @@
 id: validation-duration-spc
 source_ideas: []
 created: 2026-02-18
+epic: observability-and-diagnostics
 ---
 
 # Track Validation Duration in SPC Metrics

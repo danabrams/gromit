@@ -2,6 +2,7 @@
 id: skip-decompose-if-done
 source_ideas: []
 created: 2026-02-07
+epic: developer-experience
 ---
 
 # Skip Decompose Prompt If Plan Already Decomposed

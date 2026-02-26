@@ -2,6 +2,7 @@
 id: runner-pipeline
 source_ideas: [gromit-5ncw5]
 created: 2026-02-21
+epic: multi-interface-architecture
 ---
 
 # Runner Pipeline Refactor

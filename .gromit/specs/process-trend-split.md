@@ -1,6 +1,7 @@
 ---
 id: process-trend-split
 created: 2026-02-21
+epic: observability-and-diagnostics
 ---
 
 # process_trend.go Split

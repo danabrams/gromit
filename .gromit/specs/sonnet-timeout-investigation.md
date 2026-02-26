@@ -1,3 +1,8 @@
+---
+id: sonnet-timeout-investigation
+epic: run-loop-reliability
+---
+
 # Sonnet Timeout Investigation
 
 ## Problem

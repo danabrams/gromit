@@ -4,6 +4,7 @@ source_ideas: []
 created: 2026-02-19
 depends_on:
   - tdd-fresh-context-per-cycle
+epic: observability-and-diagnostics
 ---
 
 # Hybrid Spec Coverage Tracker for TDD Cycles

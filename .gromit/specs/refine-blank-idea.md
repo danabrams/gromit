@@ -2,6 +2,7 @@
 id: refine-blank-idea
 source_ideas: []
 created: 2026-02-07
+epic: developer-experience
 ---
 
 # Blank Idea Refinement from the Picker

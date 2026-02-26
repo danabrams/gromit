@@ -2,6 +2,7 @@
 id: reduce-runner-test-runtime
 source_ideas: []
 created: 2026-02-16
+epic: test-quality
 ---
 
 # Reduce `internal/runner` Test Runtime

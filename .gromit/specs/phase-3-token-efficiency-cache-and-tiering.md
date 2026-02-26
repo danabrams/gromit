@@ -2,6 +2,7 @@
 id: phase-3-token-efficiency-cache-and-tiering
 source_ideas: []
 created: 2026-02-23
+epic: token-efficiency-program
 ---
 
 # Token Efficiency Cache and Tiering (Phase 3)

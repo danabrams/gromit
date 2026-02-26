@@ -2,6 +2,7 @@
 id: pipeline-stages
 source_ideas: []
 created: 2026-02-06
+epic: multi-interface-architecture
 ---
 
 # Pipeline Stages

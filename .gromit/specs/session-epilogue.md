@@ -2,6 +2,7 @@
 id: session-epilogue
 source_ideas: []
 created: 2026-02-18
+epic: developer-experience
 ---
 
 # Session Epilogue: Auto-Review and Retro After N Iterations

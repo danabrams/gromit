@@ -2,6 +2,7 @@
 id: pipeline-typed-nil-dependency-validation
 source_ideas: []
 created: 2026-02-19
+epic: codebase-health
 ---
 
 # Pipeline Typed Nil Dependency Validation

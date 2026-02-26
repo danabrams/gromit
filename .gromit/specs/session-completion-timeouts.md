@@ -2,6 +2,7 @@
 id: session-completion-timeouts
 source_ideas: []
 created: 2026-02-19
+epic: run-loop-reliability
 ---
 
 # Session Completion Timeouts

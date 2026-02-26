@@ -2,6 +2,7 @@
 id: robust-picker-tests
 source_ideas: []
 created: 2026-02-07
+epic: test-quality
 ---
 
 # Robust Picker Tests

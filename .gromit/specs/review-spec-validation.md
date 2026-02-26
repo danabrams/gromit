@@ -2,6 +2,7 @@
 id: review-spec-validation
 source_ideas: [idea-1770741396395]
 created: 2026-02-11
+epic: spec-first-atdd-execution
 ---
 
 # Review --spec Flag Validation and ListWithLabel Priority Ordering

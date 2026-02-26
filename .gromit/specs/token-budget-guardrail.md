@@ -1,3 +1,8 @@
+---
+id: token-budget-guardrail
+epic: run-loop-reliability
+---
+
 # Spec: Token Budget Guardrail
 
 **Problem:** Per-bead timeouts caused by high-token retry churn. On `gromit-evne`, a sonnet-tier bead consumed ~964k input tokens across retries, hitting the 40-minute bead timeout. The bead was closeable — retries burned the budget before it could finish.

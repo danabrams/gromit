@@ -1,6 +1,7 @@
 ---
 id: scope-first-complexity-routing
 created: 2026-02-22
+epic: provider-ecosystem
 ---
 
 # Scope-First Complexity Routing

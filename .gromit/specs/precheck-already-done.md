@@ -3,6 +3,7 @@ id: precheck-already-done
 source_ideas: []
 created: 2026-02-07
 priority: high
+epic: run-loop-reliability
 ---
 
 # Pre-Check: Skip Already-Completed Beads

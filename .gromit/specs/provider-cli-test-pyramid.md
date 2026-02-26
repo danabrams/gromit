@@ -2,6 +2,7 @@
 id: provider-cli-test-pyramid
 source_ideas: []
 created: 2026-02-16
+epic: provider-ecosystem
 ---
 
 # Split Provider Acceptance Tests Into Mocked Fast Path and Real-CLI Smoke Path

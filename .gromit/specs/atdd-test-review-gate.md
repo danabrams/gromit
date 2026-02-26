@@ -5,6 +5,7 @@ created: 2026-02-12
 status: retired
 retired: 2026-02-15
 superseded_by: atdd-simplification
+epic: spec-first-atdd-execution
 ---
 
 # ATDD Test Review Gate

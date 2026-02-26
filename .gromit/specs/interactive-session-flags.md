@@ -2,6 +2,7 @@
 id: interactive-session-flags
 source_ideas: []
 created: 2026-02-06
+epic: developer-experience
 ---
 
 # Pass claude.flags to Interactive Sessions

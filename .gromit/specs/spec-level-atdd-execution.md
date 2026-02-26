@@ -3,6 +3,7 @@ id: spec-level-atdd-execution
 source_ideas: []
 created: 2026-02-15
 updates: [atdd-simplification, run-scope-flags]
+epic: spec-first-atdd-execution
 ---
 
 # Spec-Level ATDD With Scoped Execution

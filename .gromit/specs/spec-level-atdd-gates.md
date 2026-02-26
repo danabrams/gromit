@@ -3,6 +3,7 @@ id: spec-level-atdd-gates
 source_ideas: []
 created: 2026-02-18
 updates: [spec-acceptance-verification-loop, spec-level-atdd-execution]
+epic: spec-first-atdd-execution
 ---
 
 # Spec-Level ATDD Gates

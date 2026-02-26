@@ -2,6 +2,7 @@
 id: tdd-methodology
 source_ideas: [idea-1770457558357]
 created: 2026-02-07
+epic: codebase-health
 ---
 
 # TDD Methodology Support

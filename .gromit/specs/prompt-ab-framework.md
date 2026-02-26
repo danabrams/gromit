@@ -2,6 +2,7 @@
 id: prompt-ab-framework
 source_ideas: []
 created: 2026-02-19
+epic: token-efficiency-program
 ---
 
 # Prompt A/B Testing Framework

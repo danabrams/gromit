@@ -2,6 +2,7 @@
 id: filtered-hash-eviction
 source_ideas: [idea-1770554172335]
 created: 2026-02-08
+epic: codebase-health
 ---
 
 # Filtered Learning Hash Eviction

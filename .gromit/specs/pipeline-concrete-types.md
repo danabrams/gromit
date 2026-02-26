@@ -2,6 +2,7 @@
 id: pipeline-concrete-types
 source_ideas: []
 created: 2026-02-12
+epic: codebase-health
 ---
 
 # Replace Pipeline interface{} Returns with Concrete Types

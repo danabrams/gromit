@@ -2,6 +2,7 @@
 id: decompose-low-complexity-bias
 source_ideas: []
 created: 2026-02-22
+epic: codebase-health
 ---
 
 # Decompose Low Complexity Bias

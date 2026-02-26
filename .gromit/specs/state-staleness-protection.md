@@ -2,6 +2,7 @@
 id: state-staleness-protection
 source_ideas: [idea-1770462181900]
 created: 2026-02-07
+epic: developer-experience
 ---
 
 # State File Staleness Protection

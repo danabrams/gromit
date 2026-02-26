@@ -2,6 +2,7 @@
 id: phase-isolated-methodology-contexts
 source_ideas: []
 created: 2026-02-16
+epic: codebase-health
 ---
 
 # Phase-Isolated Contexts for Red/Green/Refactor/Validation

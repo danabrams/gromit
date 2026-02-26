@@ -1,3 +1,8 @@
+---
+id: codex-cli-spike-findings
+epic: provider-ecosystem
+---
+
 # Codex CLI Spike Findings
 
 Date: 2026-02-11

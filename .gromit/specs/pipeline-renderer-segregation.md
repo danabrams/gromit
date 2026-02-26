@@ -2,6 +2,7 @@
 id: pipeline-renderer-segregation
 source_ideas: []
 created: 2026-02-19
+epic: multi-interface-architecture
 ---
 
 # Segregate pipeline.PromptRenderer into Per-Workflow Interfaces

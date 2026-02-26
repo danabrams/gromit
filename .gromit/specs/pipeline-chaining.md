@@ -2,6 +2,7 @@
 id: pipeline-chaining
 source_ideas: []
 created: 2026-02-06
+epic: developer-experience
 ---
 
 # Pipeline Chaining

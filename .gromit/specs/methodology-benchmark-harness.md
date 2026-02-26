@@ -4,6 +4,7 @@ source_ideas: []
 created: 2026-02-22
 depends_on:
   - phase-cost-optimization
+epic: cross-project-portability
 ---
 
 # Methodology Benchmark Harness (Controlled 3-Method Experiment)
