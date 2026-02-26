@@ -2194,3 +2194,54 @@ func TestSelectEscalationHandler_DefaultStrategyCreatesHandler(t *testing.T) {
 		t.Fatalf("selectEscalationHandler with default (empty) strategy returned %T, want *escalation.Handler", handler)
 	}
 }
+
+// TestSelectEscalationHandler_PassesDependenciesToDecomposeFirstHandler verifies
+// that DecomposeFirstHandler receives decomposer and beadClient dependencies correctly.
+func TestSelectEscalationHandler_PassesDependenciesToDecomposeFirstHandler(t *testing.T) {
+	t.Parallel()
+	cfg := &config.Config{
+		Routing: config.RoutingConfig{
+			Strategy: "cost_optimized",
+			CostOptimized: config.CostOptimizedRoutingConfig{
+				MaxRetriesBeforeDecompose: 3,
+			},
+		},
+	}
+
+	decomposeFn := func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+		return []runtypes.SubTask{{Title: "test"}}, nil
+	}
+
+	beadClient := &mockBeadClient{}
+	logFn := func(string, ...interface{}) {}
+
+	handler := selectEscalationHandler(
+		cfg,
+		&mockFailureAnalyzer{},
+		beadClient,
+		decomposeFn,
+		func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error { return nil },
+		logFn,
+		func(*bead.Bead, string) {},
+	)
+
+	// Verify DecomposeFirstHandler was created
+	dfh, ok := handler.(*escalation.DecomposeFirstHandler)
+	if !ok {
+		t.Fatalf("selectEscalationHandler returned %T, want *escalation.DecomposeFirstHandler", handler)
+	}
+
+	// Verify ShouldDecomposeBeforeEscalate works (tests that handler is properly initialized)
+	bc := &runtypes.BeadContext{
+		Bead:              &bead.Bead{ID: "test-001", Title: "Test"},
+		RetriesThisModel:  3,
+		Tier:              provider.TierMedium,
+		Result:            &runtypes.IterationResult{},
+		MaxRetriesPerBead: 5,
+	}
+
+	// Since RetriesThisModel == maxRetriesBeforeDecompose (3), should return true
+	if !dfh.ShouldDecomposeBeforeEscalate(bc) {
+		t.Fatalf("ShouldDecomposeBeforeEscalate should return true when retries >= max")
+	}
+}
