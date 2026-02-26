@@ -148,6 +148,7 @@ func (r *Renderer) RenderSpecGate(ctx *SpecGateContext) (string, error) {
 
 // RenderReview renders the light review prompt.
 func (r *Renderer) RenderReview(ctx *ReviewContext) (string, error) {
+	ctx.normalizeNilFields()
 	var shapeReport *ShapeReport
 	ctx, shapeReport = r.shapeReviewContext(ctx)
 	if r != nil {
@@ -160,6 +161,7 @@ func (r *Renderer) RenderReview(ctx *ReviewContext) (string, error) {
 
 // RenderThoroughReview renders the thorough review prompt.
 func (r *Renderer) RenderThoroughReview(ctx *ThoroughReviewContext) (string, error) {
+	ctx.normalizeNilFields()
 	var shapeReport *ShapeReport
 	ctx, shapeReport = r.shapeThoroughReviewContext(ctx)
 	if r != nil {
@@ -214,6 +216,7 @@ func (r *Renderer) RenderTDDBuild(ctx *Context) (string, error) {
 
 // RenderTDDRed renders the TDD red-phase prompt.
 func (r *Renderer) RenderTDDRed(ctx *TDDRedContext) (string, error) {
+	ctx.normalizeNilFields()
 	if r != nil {
 		rules := ""
 		spec := ""
@@ -238,6 +241,7 @@ func (r *Renderer) RenderTDDRed(ctx *TDDRedContext) (string, error) {
 
 // RenderTDDGreen renders the TDD green-phase prompt.
 func (r *Renderer) RenderTDDGreen(ctx *TDDGreenContext) (string, error) {
+	ctx.normalizeNilFields()
 	if r != nil {
 		rules := ""
 		taskIdentity := ""
