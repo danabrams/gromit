@@ -2113,3 +2113,84 @@ func (m *mockBeadClient) AddComment(id, comment string) error {
 	m.comments = append(m.comments, mockComment{id, comment})
 	return nil
 }
+
+// TestSelectEscalationHandler_CostOptimizedCreatesDecomposeFirstHandler verifies
+// that cost_optimized routing strategy creates a DecomposeFirstHandler.
+func TestSelectEscalationHandler_CostOptimizedCreatesDecomposeFirstHandler(t *testing.T) {
+	t.Parallel()
+	cfg := &config.Config{
+		Routing: config.RoutingConfig{
+			Strategy: "cost_optimized",
+			CostOptimized: config.CostOptimizedRoutingConfig{
+				MaxRetriesBeforeDecompose: 2,
+			},
+		},
+	}
+
+	handler := selectEscalationHandler(
+		cfg,
+		&mockFailureAnalyzer{},
+		&mockBeadClient{},
+		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) { return nil, nil },
+		func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error { return nil },
+		func(string, ...interface{}) {},
+		func(*bead.Bead, string) {},
+	)
+
+	// Verify DecomposeFirstHandler was selected
+	if _, ok := handler.(*escalation.DecomposeFirstHandler); !ok {
+		t.Fatalf("selectEscalationHandler with cost_optimized strategy returned %T, want *escalation.DecomposeFirstHandler", handler)
+	}
+}
+
+// TestSelectEscalationHandler_PriorityBasedCreatesHandler verifies
+// that priority_based routing strategy creates the standard Handler.
+func TestSelectEscalationHandler_PriorityBasedCreatesHandler(t *testing.T) {
+	t.Parallel()
+	cfg := &config.Config{
+		Routing: config.RoutingConfig{
+			Strategy: "priority_based",
+		},
+	}
+
+	handler := selectEscalationHandler(
+		cfg,
+		&mockFailureAnalyzer{},
+		&mockBeadClient{},
+		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) { return nil, nil },
+		func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error { return nil },
+		func(string, ...interface{}) {},
+		func(*bead.Bead, string) {},
+	)
+
+	// Verify Handler was selected
+	if _, ok := handler.(*escalation.Handler); !ok {
+		t.Fatalf("selectEscalationHandler with priority_based strategy returned %T, want *escalation.Handler", handler)
+	}
+}
+
+// TestSelectEscalationHandler_DefaultStrategyCreatesHandler verifies
+// that when no strategy is specified, the standard Handler is created.
+func TestSelectEscalationHandler_DefaultStrategyCreatesHandler(t *testing.T) {
+	t.Parallel()
+	cfg := &config.Config{
+		Routing: config.RoutingConfig{
+			Strategy: "",
+		},
+	}
+
+	handler := selectEscalationHandler(
+		cfg,
+		&mockFailureAnalyzer{},
+		&mockBeadClient{},
+		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) { return nil, nil },
+		func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error { return nil },
+		func(string, ...interface{}) {},
+		func(*bead.Bead, string) {},
+	)
+
+	// Verify Handler was selected
+	if _, ok := handler.(*escalation.Handler); !ok {
+		t.Fatalf("selectEscalationHandler with default (empty) strategy returned %T, want *escalation.Handler", handler)
+	}
+}
