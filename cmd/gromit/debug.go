@@ -64,6 +64,7 @@ type debugGitRunFn func(dir string, args ...string) (string, error)
 var debugGitRun debugGitRunFn = runDebugGit
 var debugConfirmPromptFn = confirmPrompt
 var debugSessionLauncherFn = runWithSessionWorktreeWithConflictSettings
+var debugWarnModelFn = maybeWarnModelFlagOnNonClaudeAgent
 
 func init() {
 	debugCmd.Flags().StringVar(&debugModel, debugModelFlag, "opus", "Model to use when the Claude agent is selected (opus, sonnet, haiku)")
@@ -164,6 +165,8 @@ func runDebug(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("resolving agent: %w", err)
 	}
+
+	debugWarnModelFn(cmd, selectedAgent, os.Stderr)
 
 	if shouldOverrideDebugModel(cmd, selectedAgent) {
 		binary := claudeAgentName
