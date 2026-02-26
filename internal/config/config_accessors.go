@@ -145,7 +145,7 @@ func (c *Config) SelectTier(priority int, labels []string) string {
 // BuildTierForStrategy returns the build tier for the configured routing strategy.
 // Priority-based strategy preserves legacy label and priority behavior, while
 // cost-optimized always routes through the configured cost_optimized.build_tier.
-func (c *Config) BuildTierForStrategy(priority int, labels []string) string {
+func (c *Config) BuildTierForStrategy(priority int, labels []string, complexity string) string {
 	if c == nil {
 		return tierMedium
 	}
@@ -156,7 +156,7 @@ func (c *Config) BuildTierForStrategy(priority int, labels []string) string {
 		}
 		return tier
 	}
-	return c.SelectTier(priority, labels)
+	return c.SelectInitialTierForComplexity(complexity)
 }
 
 // SelectInitialTierForComplexity maps effective complexity to an initial tier.

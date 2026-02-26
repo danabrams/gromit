@@ -92,7 +92,7 @@ func TestBuildTierForStrategyCostOptimized(t *testing.T) {
 		},
 	}
 
-	got := cfg.BuildTierForStrategy(2, []string{"complexity:low"})
+	got := cfg.BuildTierForStrategy(2, []string{"complexity:low"}, "low")
 	if got != "high" {
 		t.Fatalf("BuildTierForStrategy(cost_optimized) = %q, want %q", got, "high")
 	}
