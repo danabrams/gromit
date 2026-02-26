@@ -296,6 +296,29 @@ func (c *Config) PhaseModelTier(phase, beadTier string) string {
 	return beadTier
 }
 
+// PhaseTierForStrategy returns the effective tier for non-build phases under the configured strategy.
+// Cost-optimized strategy routes decompose/review/planning phases through CostOptimized.DecomposeTier.
+// Priority-based and other strategies retain the provided beadTier.
+func (c *Config) PhaseTierForStrategy(phase, beadTier string) string {
+	if c == nil {
+		return beadTier
+	}
+	if !strings.EqualFold(strings.TrimSpace(c.Routing.Strategy), "cost_optimized") {
+		return beadTier
+	}
+
+	switch strings.ToLower(strings.TrimSpace(phase)) {
+	case "decompose", "review", "planning":
+		tier := normalizeConfiguredTier(c.Routing.CostOptimized.DecomposeTier)
+		if tier == "" {
+			tier = defaultCostOptimizedDecomposeTier
+		}
+		return tier
+	default:
+		return beadTier
+	}
+}
+
 // IsVerificationEnabled returns whether precheck verification should run (defaults to true).
 func (v PrecheckVerificationConfig) IsVerificationEnabled() bool {
 	if v.Enabled == nil {
