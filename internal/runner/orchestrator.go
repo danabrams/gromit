@@ -15,6 +15,7 @@ import (
 	"github.com/danabrams/gromit/internal/experiment"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/runner/specmerge"
 )
 
 // OrchestratorConfig holds the wired dependencies for an Orchestrator.
@@ -38,6 +39,9 @@ type OrchestratorConfig struct {
 
 	// Config is the loaded gromit configuration.
 	Config *config.Config
+
+	// SpecMergeController triggers the merge pipeline when spec work completes.
+	SpecMergeController specmerge.Controller
 
 	// GlobalStatsPath is the path to the global stats JSON file (e.g. ~/.gromit/stats.json).
 	// When non-empty, Run merges per-run stats into this file at completion.
@@ -303,6 +307,7 @@ runLoop:
 		}
 		epilogueOut := o.runEpilogue(ctx, baseIn, true)
 		o.logf("Iteration %d: bead %s completed successfully", iteration, b.ID)
+		o.maybeTriggerSpecMerge(ctx, b)
 		touchedPackages = mergeTouchedPackages(touchedPackages, epilogueOut.TouchedPackages)
 	}
 
@@ -469,6 +474,31 @@ func mergeTouchedPackages(existing, incoming []string) []string {
 	combined := append([]string(nil), existing...)
 	combined = append(combined, incoming...)
 	return normalizeTouchedPackages(combined)
+}
+
+func (o *Orchestrator) maybeTriggerSpecMerge(ctx context.Context, b *bead.Bead) {
+	if o.cfg.SpecMergeController == nil || o.cfg.Config == nil {
+		return
+	}
+	if o.cfg.Config.Methodology.Granularity != config.MethodologyGranularitySpec {
+		return
+	}
+	specName := bead.FindSpecLabel(b.Labels)
+	if specName == "" {
+		return
+	}
+
+	complete, err := o.cfg.SpecMergeController.IsSpecComplete(specName)
+	if err != nil {
+		o.logf("Warning: could not check spec completion for %q: %v", specName, err)
+		return
+	}
+	if !complete {
+		return
+	}
+	if err := o.cfg.SpecMergeController.Trigger(ctx, specName); err != nil {
+		o.logf("Warning: spec merge pipeline trigger for %q failed: %v", specName, err)
+	}
 }
 
 func normalizeTouchedPackages(touchedPackages []string) []string {

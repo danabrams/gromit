@@ -36,8 +36,8 @@ func (f *fakeStage) Run(ctx context.Context, in pipeline.Input) (pipeline.Output
 
 // fakeSpecMergeController is a minimal test double for specmerge.Controller.
 type fakeSpecMergeController struct {
-	isCompleteFn func(string) (bool, error)
-	triggerFn    func(context.Context, string) error
+	isCompleteFn    func(string) (bool, error)
+	triggerFn       func(context.Context, string) error
 	isCompleteCalls []string
 	triggerCalls    []string
 }
@@ -173,14 +173,14 @@ func TestOrchestrator_SpecMergePipelineTriggersOnce(t *testing.T) {
 	}
 
 	cfg := OrchestratorConfig{
-		Gate:               &fakeStage{},
-		Build:              &fakeStage{},
-		Validate:           &fakeStage{},
-		Epilogue:           &fakeStage{},
-		GetBead:            getBead,
-		Config:             &config.Config{Methodology: config.MethodologyConfig{Granularity: config.MethodologyGranularitySpec}},
+		Gate:                &fakeStage{},
+		Build:               &fakeStage{},
+		Validate:            &fakeStage{},
+		Epilogue:            &fakeStage{},
+		GetBead:             getBead,
+		Config:              &config.Config{Methodology: config.MethodologyConfig{Granularity: config.MethodologyGranularitySpec}},
 		SpecMergeController: specPipeline,
-		Output:             io.Discard,
+		Output:              io.Discard,
 	}
 
 	orch := NewOrchestrator(cfg)
@@ -1348,28 +1348,28 @@ func TestOrchestrator_MergesGlobalStatsPreservingExistingData(t *testing.T) {
 		// Create logs with opus, haiku, and sonnet
 		logEntries := []logger.IterationLog{
 			{
-				Timestamp:    time.Now(),
-				Iteration:    1,
-				BeadID:       "bead-1",
-				Success:      true,
-				Model:        "opus",
-				CostUSD:      3.00,
+				Timestamp: time.Now(),
+				Iteration: 1,
+				BeadID:    "bead-1",
+				Success:   true,
+				Model:     "opus",
+				CostUSD:   3.00,
 			},
 			{
-				Timestamp:    time.Now(),
-				Iteration:    2,
-				BeadID:       "bead-2",
-				Success:      true,
-				Model:        "haiku",
-				CostUSD:      0.50,
+				Timestamp: time.Now(),
+				Iteration: 2,
+				BeadID:    "bead-2",
+				Success:   true,
+				Model:     "haiku",
+				CostUSD:   0.50,
 			},
 			{
-				Timestamp:    time.Now(),
-				Iteration:    3,
-				BeadID:       "bead-3",
-				Success:      true,
-				Model:        "sonnet",
-				CostUSD:      1.50,
+				Timestamp: time.Now(),
+				Iteration: 3,
+				BeadID:    "bead-3",
+				Success:   true,
+				Model:     "sonnet",
+				CostUSD:   1.50,
 			},
 		}
 		writeOrchestratorTestLogFile(t, logsDir, "2026-02-25-003", logEntries)
@@ -1424,12 +1424,12 @@ func TestOrchestrator_MergesGlobalStatsPreservingExistingData(t *testing.T) {
 		// Create run with opus that has all successes (0 failures)
 		logEntries := []logger.IterationLog{
 			{
-				Timestamp:    time.Now(),
-				Iteration:    1,
-				BeadID:       "bead-1",
-				Success:      true, // Success, not failure
-				Model:        "opus",
-				CostUSD:      1.00,
+				Timestamp: time.Now(),
+				Iteration: 1,
+				BeadID:    "bead-1",
+				Success:   true, // Success, not failure
+				Model:     "opus",
+				CostUSD:   1.00,
 			},
 		}
 		writeOrchestratorTestLogFile(t, logsDir, "2026-02-25-004", logEntries)

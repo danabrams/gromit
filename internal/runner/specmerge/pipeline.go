@@ -16,6 +16,12 @@ type beadQuery interface {
 	ListWithLabel(label string) ([]*bead.Bead, error)
 }
 
+// Controller coordinates spec merge completion triggers.
+type Controller interface {
+	IsSpecComplete(specName string) (bool, error)
+	Trigger(ctx context.Context, specName string) error
+}
+
 // Pipeline runs spec merge orchestration helpers.
 type Pipeline struct {
 	query beadQuery
@@ -54,6 +60,16 @@ func (p *Pipeline) IsSpecComplete(specName string) (bool, error) {
 		return false, nil
 	}
 	return true, nil
+}
+
+// Trigger is a placeholder that will eventually start the spec merge pipeline.
+func (p *Pipeline) Trigger(ctx context.Context, specName string) error {
+	if p == nil {
+		return fmt.Errorf("pipeline is nil")
+	}
+	_ = ctx
+	_ = specName
+	return nil
 }
 
 // FixBeadDependencies holds the dependencies needed to create fix beads.
