@@ -2560,3 +2560,86 @@ func TestContract_EscalationAllowsRetry(t *testing.T) {
 		t.Fatalf("CheckRetryGate should allow retry after escalation, got error: %v", gateErr)
 	}
 }
+
+// TestContract_ProactiveDecompositionSuccessFlow validates the contract for proactive decomposition.
+// This occurs when:
+// 1. Bead is high-risk (high complexity or multiple retries)
+// 2. 60% of bead budget is elapsed
+// 3. CheckProactiveDecomposition detects this and attempts decomposition
+// 4. Decomposition succeeds
+// 5. TimeoutDecompositionAttempted and TimeoutDecompositionSucceeded are set
+// 6. TimeoutDecompositionOutcome is "success"
+// 7. ExecuteWithRetry returns false (decomposition happened, not normal retry)
+func TestContract_ProactiveDecompositionSuccessFlow(t *testing.T) {
+	cfg := newTestConfig()
+	decomposeCalled := false
+	createSubCalled := false
+
+	h := NewHandler(
+		cfg,
+		&mockFailureAnalyzer{},
+		&mockBeadClient{},
+		func(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+			decomposeCalled = true
+			return []runtypes.SubTask{{Title: "subtask"}}, nil
+		},
+		func(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error {
+			createSubCalled = true
+			return nil
+		},
+		nil,
+		nil,
+	)
+
+	bc := newTestBeadContext()
+	bc.ParentCtx = context.Background()
+	// Set up high-risk bead
+	bc.ScopeEstimate = &prompt.ScopeEstimate{
+		Complexity:               "high",
+		EstimatedIterations:      3,
+		CanCompleteInSingleIteration: false,
+	}
+	// Set timeout budget and elapsed time to trigger at 60%
+	bc.BeadTimeout = time.Duration(1 * time.Second)
+	bc.BeadStartTime = time.Now().Add(-600 * time.Millisecond) // 600ms elapsed = 60% of 1s
+
+	invocationCount := 0
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		invocationCount++
+		// On first invocation, just return success (shouldn't be called after proactive decomposition is triggered)
+		return &runtypes.InvocationResult{}, nil
+	}
+
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+
+	// Verify proactive decomposition was triggered instead of normal invocation
+	if success {
+		t.Errorf("build should return false when proactive decomposition succeeds")
+	}
+	if !decomposeCalled {
+		t.Fatal("expected decomposition to be called proactively")
+	}
+	if !createSubCalled {
+		t.Fatal("expected sub-bead creation to be called after proactive decomposition")
+	}
+
+	// Verify telemetry fields for proactive decomposition
+	if !bc.Result.TimeoutDecompositionAttempted {
+		t.Fatal("TimeoutDecompositionAttempted should be true")
+	}
+	if !bc.Result.TimeoutDecompositionSucceeded {
+		t.Fatal("TimeoutDecompositionSucceeded should be true after proactive decomposition succeeds")
+	}
+	if !bc.Result.Decomposed {
+		t.Fatal("Decomposed should be true after proactive decomposition succeeds")
+	}
+	if bc.Result.TimeoutDecompositionOutcome != timeoutDecompositionOutcomeSuccess {
+		t.Fatalf("TimeoutDecompositionOutcome = %q, want %q", bc.Result.TimeoutDecompositionOutcome, timeoutDecompositionOutcomeSuccess)
+	}
+	if bc.Result.TimeoutDecompositionReason == "" {
+		t.Fatal("TimeoutDecompositionReason should be populated")
+	}
+	if !strings.Contains(bc.Result.TimeoutDecompositionReason, "60%") {
+		t.Fatalf("TimeoutDecompositionReason should mention 60%% budget: %q", bc.Result.TimeoutDecompositionReason)
+	}
+}
