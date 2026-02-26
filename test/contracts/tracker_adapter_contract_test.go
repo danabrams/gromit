@@ -58,6 +58,58 @@ func TestBDAdapterContractListFiltersByLabels(t *testing.T) {
 	requireBDListCall(t, env, "bd list --json --status open --sort priority --limit 0")
 }
 
+func TestBDAdapterContractCreateCloseSync(t *testing.T) {
+	env := setupTestEnv(t)
+	adapter := newBDAdapterWithEnv(t, env)
+
+	req := tracker.CreateRequest{
+		Title:       "Adapter contract create",
+		Description: "Create via BDAdapter",
+		Metadata: map[string]string{
+			"priority": "1",
+			"labels":   "[\"bdadapter\"]",
+		},
+	}
+
+	created, err := adapter.Create(context.Background(), req)
+	if err != nil {
+		t.Fatalf("adapter create failed: %v", err)
+	}
+	if created == nil {
+		t.Fatal("expected created item, got nil")
+	}
+	if got := created.Metadata["labels"]; got != "[\"bdadapter\"]" {
+		t.Fatalf("created metadata labels = %q, want %q", got, "[\"bdadapter\"]")
+	}
+
+	ready, err := adapter.Ready(context.Background())
+	if err != nil {
+		t.Fatalf("ready after create failed: %v", err)
+	}
+	if ready == nil || ready.ID != created.ID {
+		t.Fatalf("ready after create = %v, want ID %q", ready, created.ID)
+	}
+
+	if err := adapter.Sync(context.Background()); err != nil {
+		t.Fatalf("adapter sync failed: %v", err)
+	}
+	requireBDCall(t, env, "bd sync")
+
+	if err := adapter.Close(context.Background(), created.ID); err != nil {
+		t.Fatalf("adapter close failed: %v", err)
+	}
+	requireBDCallContains(t, env, "bd close "+created.ID)
+
+	afterClose, err := adapter.Ready(context.Background())
+	if err != nil {
+		t.Fatalf("ready after close failed: %v", err)
+	}
+	if afterClose != nil {
+		t.Fatalf("expected no ready beads after close, got %v", afterClose)
+	}
+	requireBDCall(t, env, "bd ready --json --limit 3")
+}
+
 func newBDAdapterWithEnv(t *testing.T, env *testEnv) *bead.BDAdapter {
 	t.Helper()
 	applyAdapterEnv(t, env)
