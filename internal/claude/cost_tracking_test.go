@@ -164,3 +164,31 @@ func TestProcessStreamJSONParsesCacheReadInputTokens(t *testing.T) {
 		t.Errorf("cachedInputTokens = %d, want 2500", cachedInputTokens)
 	}
 }
+
+// TestProcessStreamJSONParsesCacheReadInputTokensWithOtherTokens verifies that
+// cache_read_input_tokens is correctly extracted alongside other token counts.
+func TestProcessStreamJSONParsesCacheReadInputTokensWithOtherTokens(t *testing.T) {
+	input := `{"type":"result","result":"Done","total_cost_usd":0.15,"input_tokens":3000,"output_tokens":1200,"cache_read_input_tokens":1800}` + "\n"
+
+	c := &Client{timeout: 60}
+	reader := strings.NewReader(input)
+	var output strings.Builder
+
+	resultText, costUSD, inputTokens, outputTokens, cachedInputTokens := c.processStreamJSONWithCost(reader, &output, nil, nil)
+
+	if resultText != "Done" {
+		t.Errorf("resultText = %q, want %q", resultText, "Done")
+	}
+	if costUSD != 0.15 {
+		t.Errorf("costUSD = %f, want 0.15", costUSD)
+	}
+	if inputTokens != 3000 {
+		t.Errorf("inputTokens = %d, want 3000", inputTokens)
+	}
+	if outputTokens != 1200 {
+		t.Errorf("outputTokens = %d, want 1200", outputTokens)
+	}
+	if cachedInputTokens != 1800 {
+		t.Errorf("cachedInputTokens = %d, want 1800", cachedInputTokens)
+	}
+}
