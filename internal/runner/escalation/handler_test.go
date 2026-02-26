@@ -2180,3 +2180,39 @@ func TestCheckRetryGate_AllowsRetryWhenNoRetriesHappenedYet(t *testing.T) {
 		t.Fatalf("expected nil (retry allowed on first attempt), got %v", err)
 	}
 }
+
+func TestExecuteWithRetry_ChecksRetryGateAtStartOfLoop(t *testing.T) {
+	// Verify that ExecuteWithRetry applies CheckRetryGate logic at loop start
+	cfg := newTestConfig()
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := newTestBeadContext()
+	bc.Result.TimeoutType = "stall"        // Timeout occurred
+	bc.TotalRetriesThisBead = 1            // Already retried once
+	bc.Result.Decomposed = false           // No decomposition
+	bc.Result.Escalated = false            // No escalation
+	bc.MaxRetriesPerBead = 5
+	bc.MaxRetries = 2
+
+	invocationCount := 0
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		invocationCount++
+		t.Fatalf("invokeFn should not be called when retry gate blocks (count=%d)", invocationCount)
+		return nil, fmt.Errorf("should not be called")
+	}
+
+	// ExecuteWithRetry should skip invocation and return false due to retry gate
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+	if success {
+		t.Fatal("expected retry gate to block execution")
+	}
+
+	// Verify the error is ErrSameScopeRetryBlocked
+	if !errors.Is(bc.Result.Error, ErrSameScopeRetryBlocked) {
+		t.Fatalf("expected ErrSameScopeRetryBlocked, got %v", bc.Result.Error)
+	}
+
+	if invocationCount != 0 {
+		t.Fatalf("expected 0 invocations, got %d", invocationCount)
+	}
+}
