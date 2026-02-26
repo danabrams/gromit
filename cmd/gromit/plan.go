@@ -242,7 +242,7 @@ Plan output path: %s
 }
 
 func resolvePlanAgent(cfg *config.Config, agentFlag string, chooseAgent bool) (agent.Agent, error) {
-	resolvedAgent, err := (&cmdAgentResolver{cfg: cfg}).Resolve(planSessionCommand, agentFlag, chooseAgent)
+	resolvedAgent, err := newAgentResolver(cfg).Resolve(planSessionCommand, agentFlag, chooseAgent)
 	if err != nil {
 		return nil, err
 	}

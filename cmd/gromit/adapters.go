@@ -158,7 +158,7 @@ func newAgentResolver(cfg *config.Config) pipeline.AgentResolver {
 }
 
 func resolveCommandAgent(cfg *config.Config, phase, flagOverride string, choosePicker bool) (agent.Agent, error) {
-	resolvedAgent, err := (&cmdAgentResolver{cfg: cfg}).Resolve(phase, flagOverride, choosePicker)
+	resolvedAgent, err := newAgentResolver(cfg).Resolve(phase, flagOverride, choosePicker)
 	if err != nil {
 		return nil, err
 	}
