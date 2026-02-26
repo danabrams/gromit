@@ -1,7 +1,10 @@
 package provider
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -673,4 +676,25 @@ func claudeFindStartOfLineMarker(s string) int {
 		}
 		start = abs + len(marker)
 	}
+}
+
+// testCreateBinaryWithETXTBSYProtection creates a temporary executable file with the
+// given bash script in a safe manner that prevents ETXTBSY ("text file busy") errors
+// under parallel test execution.
+// It explicitly syncs the filesystem to ensure the file is readable before execution.
+func testCreateBinaryWithETXTBSYProtection(t *testing.T, bashScript string) string {
+	t.Helper()
+	tempDir := t.TempDir()
+	mockBinary := filepath.Join(tempDir, "testbinary")
+	fullScript := "#!/bin/bash\n" + bashScript
+
+	if err := os.WriteFile(mockBinary, []byte(fullScript), 0755); err != nil {
+		t.Fatalf("failed to create test binary: %v", err)
+	}
+
+	// Explicitly sync filesystem to ensure file is readable before execution.
+	// This prevents ETXTBSY ("text file busy") errors under parallel test load.
+	syscall.Sync()
+
+	return mockBinary
 }
