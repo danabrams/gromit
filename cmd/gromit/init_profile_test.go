@@ -90,6 +90,72 @@ func TestSelectProfileUsesExistingConfig(t *testing.T) {
 	}
 }
 
+func TestSelectInitProfilePrecedenceMatrix(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name          string
+		signals       []string
+		configProfile string
+		explicit      string
+		want          string
+	}{
+		{
+			name:          "explicit override beats detection and config",
+			signals:       []string{"go.mod", "package.json"},
+			configProfile: "node",
+			explicit:      "python",
+			want:          "python",
+		},
+		{
+			name:          "config profile beats detection",
+			signals:       []string{"go.mod"},
+			configProfile: "node",
+			want:          "node",
+		},
+		{
+			name:    "go detection with go.mod",
+			signals: []string{"go.mod"},
+			want:    "go",
+		},
+		{
+			name:    "node detection with package.json",
+			signals: []string{"package.json"},
+			want:    "node",
+		},
+		{
+			name:    "python detection with pyproject",
+			signals: []string{"pyproject.toml"},
+			want:    "python",
+		},
+		{
+			name: "custom when no signals",
+			want: "custom",
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dir := setupProfileSignals(t, tc.signals)
+			if tc.configProfile != "" {
+				writeProfileConfig(t, dir, tc.configProfile)
+			}
+			prevProfile := initProfile
+			initProfile = tc.explicit
+			defer func() { initProfile = prevProfile }()
+
+			profile, err := selectInitProfile(dir)
+			if err != nil {
+				t.Fatalf("selectInitProfile: %v", err)
+			}
+			if profile != tc.want {
+				t.Fatalf("selectInitProfile() = %q, want %q", profile, tc.want)
+			}
+		})
+	}
+}
+
 func TestInitWritesDetectedProfile(t *testing.T) {
 	setupDir := func(t *testing.T) string {
 		dir := t.TempDir()
