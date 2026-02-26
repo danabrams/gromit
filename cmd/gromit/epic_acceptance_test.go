@@ -12,7 +12,7 @@ import (
 
 // TestEpicStatusCommand_FlagExists verifies that epic command has status subcommand
 func TestEpicStatusCommand_FlagExists(t *testing.T) {
-	t.Parallel()
+	// Not parallel: runGromitCobra mutates rootCmd, os.Stdout, and os.Stderr.
 	stdout, stderr, exitCode := runGromitCobra(t, "epic", "status", "--help")
 
 	if exitCode != 0 {
@@ -26,7 +26,7 @@ func TestEpicStatusCommand_FlagExists(t *testing.T) {
 
 // TestEpicStatusCommand_RequiresEpicID verifies that status subcommand requires epic ID argument
 func TestEpicStatusCommand_RequiresEpicID(t *testing.T) {
-	t.Parallel()
+	// Not parallel: runGromitCobra mutates rootCmd, os.Stdout, and os.Stderr.
 	_, stderr, exitCode := runGromitCobra(t, "epic", "status")
 
 	if exitCode == 0 {
@@ -40,7 +40,7 @@ func TestEpicStatusCommand_RequiresEpicID(t *testing.T) {
 
 // TestEpicStatusCommand_DisplaysEpicTitle verifies that status displays epic title from epic document
 func TestEpicStatusCommand_DisplaysEpicTitle(t *testing.T) {
-	t.Parallel()
+	// Not parallel: runGromitCobra mutates rootCmd, os.Stdout, and os.Stderr.
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
 	if err := os.MkdirAll(epicsDir, 0755); err != nil {
@@ -122,7 +122,7 @@ func TestEpicStatusCommand_ShowsPipelineStages(t *testing.T) {
 
 // TestEpicStatusCommand_ShowsBeadProgress verifies that status displays bead progress for each spec
 func TestEpicStatusCommand_ShowsBeadProgress(t *testing.T) {
-	t.Parallel()
+	// Not parallel: runGromitCobra mutates rootCmd, os.Stdout, and os.Stderr.
 	tmpDir := t.TempDir()
 	prependFakeTools(t, tmpDir)
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
@@ -198,7 +198,7 @@ decomposed: true
 
 // TestEpicStatusCommand_DisplaysEpicStatus verifies that epic status (open/fully-specified/complete) is shown
 func TestEpicStatusCommand_DisplaysEpicStatus(t *testing.T) {
-	t.Parallel()
+	// Not parallel: runGromitCobra mutates rootCmd, os.Stdout, and os.Stderr.
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
 	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
@@ -249,7 +249,7 @@ created: 2026-02-08
 
 // TestEpicStatusCommand_ErrorWhenEpicNotFound verifies appropriate error for non-existent epic
 func TestEpicStatusCommand_ErrorWhenEpicNotFound(t *testing.T) {
-	t.Parallel()
+	// Not parallel: runGromitCobra mutates rootCmd, os.Stdout, and os.Stderr.
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
 	if err := os.MkdirAll(epicsDir, 0755); err != nil {
@@ -273,7 +273,7 @@ func TestEpicStatusCommand_ErrorWhenEpicNotFound(t *testing.T) {
 
 // TestEpicStatusCommand_HandlesEpicWithNoLinkedSpecs verifies display when epic has no linked specs
 func TestEpicStatusCommand_HandlesEpicWithNoLinkedSpecs(t *testing.T) {
-	t.Parallel()
+	// Not parallel: runGromitCobra mutates rootCmd, os.Stdout, and os.Stderr.
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
 	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
@@ -838,7 +838,7 @@ created: 2026-02-08
 
 // TestEpicStatusCommand_HandlesSpecsWithoutPlans verifies specs without plans show as unplanned
 func TestEpicStatusCommand_HandlesSpecsWithoutPlans(t *testing.T) {
-	t.Parallel()
+	// Not parallel: runGromitCobra mutates rootCmd, os.Stdout, and os.Stderr.
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
 	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
@@ -901,7 +901,7 @@ created: 2026-02-08
 
 // TestEpicStatusCommand_HandlesMissingSpecsDirectory verifies graceful handling when specs directory does not exist
 func TestEpicStatusCommand_HandlesMissingSpecsDirectory(t *testing.T) {
-	t.Parallel()
+	// Not parallel: runGromitCobra mutates rootCmd, os.Stdout, and os.Stderr.
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
 	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
@@ -955,7 +955,7 @@ This epic should handle missing specs directory gracefully.
 
 // TestEpicStatusCommand_HandlesMissingEpicsDirectory verifies clear error when epics directory does not exist
 func TestEpicStatusCommand_HandlesMissingEpicsDirectory(t *testing.T) {
-	t.Parallel()
+	// Not parallel: runGromitCobra mutates rootCmd, os.Stdout, and os.Stderr.
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
 
@@ -979,7 +979,7 @@ func TestEpicStatusCommand_HandlesMissingEpicsDirectory(t *testing.T) {
 
 // TestEpicStatusCommand_HandlesSpecWithInvalidFrontmatter verifies specs with invalid frontmatter are skipped
 func TestEpicStatusCommand_HandlesSpecWithInvalidFrontmatter(t *testing.T) {
-	t.Parallel()
+	// Not parallel: runGromitCobra mutates rootCmd, os.Stdout, and os.Stderr.
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
 	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
@@ -1054,7 +1054,7 @@ created: [this is invalid yaml
 
 // TestEpicStatusCommand_HandlesEmptyEpicDocument verifies handling of epic with empty body
 func TestEpicStatusCommand_HandlesEmptyEpicDocument(t *testing.T) {
-	t.Parallel()
+	// Not parallel: runGromitCobra mutates rootCmd, os.Stdout, and os.Stderr.
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
 	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
@@ -1097,7 +1097,7 @@ created: 2026-02-08
 
 // TestEpicStatusCommand_HandlesSpecWithMissingID verifies specs without id field are skipped
 func TestEpicStatusCommand_HandlesSpecWithMissingID(t *testing.T) {
-	t.Parallel()
+	// Not parallel: runGromitCobra mutates rootCmd, os.Stdout, and os.Stderr.
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
 	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
@@ -1174,7 +1174,7 @@ created: 2026-02-08
 
 // TestEpicStatusCommand_HandlesSpecWithNonStringID verifies specs with non-string id are skipped
 func TestEpicStatusCommand_HandlesSpecWithNonStringID(t *testing.T) {
-	t.Parallel()
+	// Not parallel: runGromitCobra mutates rootCmd, os.Stdout, and os.Stderr.
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
 	specsDir := filepath.Join(tmpDir, ".gromit", "specs")
@@ -1247,7 +1247,7 @@ created: 2026-02-08
 
 // TestEpicStatusCommand_HandlesSpecWithNoBeads verifies specs marked as decomposed but with no beads show appropriate message
 func TestEpicStatusCommand_HandlesSpecWithNoBeads(t *testing.T) {
-	t.Parallel()
+	// Not parallel: runGromitCobra mutates rootCmd, os.Stdout, and os.Stderr.
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
 	specsDir := filepath.Join(tmpDir, ".gromit", "specs")

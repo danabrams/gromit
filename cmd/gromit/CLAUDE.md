@@ -1,33 +1,28 @@
-# Your Project
+# Gromit
 
-<!-- Update this with your project's name and description -->
+A Go CLI tool that runs the Gromit loop correctly - with fresh context on each iteration.
 
-## Quick Start
+## Architecture
 
-```bash
-bd create "Task title" --priority 1
-gromit run                         # Run until no work
-gromit run -n 5 --time-budget 30   # Max 5 beads, 30-min budget
-gromit status                      # Show next bead + model
-```
+CLI commands live in `cmd/gromit/` — one file per subcommand. Run `gromit --help` for the full list.
 
-## Bead Sizing
+Internal packages live in `internal/` — each directory is a focused package. Key ones:
+- `runner/` — core loop orchestration
+- `config/` — YAML config loading
+- `bead/` — bd CLI integration
+- `claude/` — Claude CLI invocation
+- `prompt/` — prompt template rendering
+- `analyzer/` — failure analysis
+- `review/` — post-build code review
+- `learnings/`, `rules/`, `retro/` — self-improvement system
+- `preflight/` — environment checks before validation
+- `state/` — persistent state across runs
+- `logger/` — JSONL iteration logging
 
-- **One concern per bead** — a single file or two tightly coupled files
-- **1-3 acceptance criteria** — concrete, testable criteria only; split if more than 3
-- **Self-contained** — understandable without reading other beads
-- **No ambiguity** — The implementation agent executes without making design decisions
-- **Max 2 files touched** — if more, consider splitting the bead
-- **Clear definition of done** — each criterion has an obvious pass/fail test
+## Key Principles
 
-## Capturing Ideas vs Creating Beads
-
-When asked to add something to the backlog, use `gromit add "<idea>"` — not `bd create`. The backlog is for rough ideas that flow through the refine → plan → decompose pipeline. Only use `bd create` when you have a fully scoped, ready-to-implement task with clear acceptance criteria.
-
-## Rules
-
-See `.gromit/RULES.md` for project-specific constraints and best practices.
-
-## Learnings
-
-See `.gromit/LEARNINGS.md` for accumulated patterns and conventions from this project's iterations.
+1. **Fresh context each iteration** — each Claude invocation is a new process
+2. **State in files, not memory** — bd beads + git commits are the memory
+3. **Model selection by complexity** — P0→opus, P1→sonnet, P2→haiku
+4. **Escalation on failure** — haiku→sonnet→opus retry chain
+5. **Separate validation** — tests/lint run as separate haiku invocation

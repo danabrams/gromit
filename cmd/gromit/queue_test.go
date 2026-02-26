@@ -194,7 +194,7 @@ func TestEnrichReadyBeads_MergesLabelsFromOpenList(t *testing.T) {
 }
 
 func TestPrintQueueByStatus_BySpecGroupsStatusesWithinEachSpec(t *testing.T) {
-	t.Parallel()
+	// Not parallel: captureStdout mutates os.Stdout and statsCmd flags.
 	cfg := testQueueModelSelector{}
 	ready := []*bead.Bead{
 		{ID: "gromit-1", Priority: 0, Title: "Ready auth", Labels: []string{"spec:auth"}},
@@ -260,7 +260,7 @@ func TestPrintQueueByStatus_BySpecGroupsStatusesWithinEachSpec(t *testing.T) {
 }
 
 func TestPrintQueueByStatus_BySpecIncludesSpecsWithoutReadyBeads(t *testing.T) {
-	t.Parallel()
+	// Not parallel: captureStdout mutates os.Stdout and statsCmd flags.
 	cfg := testQueueModelSelector{}
 	ready := []*bead.Bead{
 		{ID: "gromit-1", Priority: 0, Title: "Ready auth", Labels: []string{"spec:auth"}},

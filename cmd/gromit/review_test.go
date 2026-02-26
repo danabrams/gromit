@@ -299,7 +299,7 @@ func TestRunReviewInteractive_ConflictHandoffPropagates(t *testing.T) {
 }
 
 func TestFindFirstCommitForBead_UsesInjectedGitWithFixedStrings(t *testing.T) {
-	t.Parallel()
+	// Not parallel: stubReviewGit mutates package-level reviewGitCommandFn and reviewGitOutputFn.
 	capture := stubReviewGit(t, []byte("newest\nmiddle\nearliest\n"), nil)
 
 	commit, err := findFirstCommitForBead("gromit-[abc]")
@@ -314,7 +314,7 @@ func TestFindFirstCommitForBead_UsesInjectedGitWithFixedStrings(t *testing.T) {
 }
 
 func TestFindFirstCommitForBead_GitErrorReturnsEmptyWithoutError(t *testing.T) {
-	t.Parallel()
+	// Not parallel: stubReviewGit mutates package-level reviewGitCommandFn and reviewGitOutputFn.
 	stubReviewGit(t, nil, errors.New("no commits"))
 
 	commit, err := findFirstCommitForBead("gromit-abc")
@@ -327,7 +327,7 @@ func TestFindFirstCommitForBead_GitErrorReturnsEmptyWithoutError(t *testing.T) {
 }
 
 func TestGetCommitTimestamp_UsesInjectedGit(t *testing.T) {
-	t.Parallel()
+	// Not parallel: stubReviewGit mutates package-level reviewGitCommandFn and reviewGitOutputFn.
 	capture := stubReviewGit(t, []byte("1700000000\n"), nil)
 
 	ts, err := getCommitTimestamp("abc123")
@@ -342,7 +342,7 @@ func TestGetCommitTimestamp_UsesInjectedGit(t *testing.T) {
 }
 
 func TestRunGitDiffForReview_UsesInjectedGit(t *testing.T) {
-	t.Parallel()
+	// Not parallel: stubReviewGit mutates package-level reviewGitCommandFn and reviewGitOutputFn.
 	capture := stubReviewGit(t, []byte("diff output\n"), nil)
 
 	diff, err := runGitDiffForReview("abc123", "git diff --stat", "--stat")
@@ -357,7 +357,7 @@ func TestRunGitDiffForReview_UsesInjectedGit(t *testing.T) {
 }
 
 func TestGetGitHeadForReview_UsesInjectedGit(t *testing.T) {
-	t.Parallel()
+	// Not parallel: stubReviewGit mutates package-level reviewGitCommandFn and reviewGitOutputFn.
 	capture := stubReviewGit(t, []byte("deadbeef\n"), nil)
 
 	head, err := getGitHeadForReview()
@@ -372,7 +372,7 @@ func TestGetGitHeadForReview_UsesInjectedGit(t *testing.T) {
 }
 
 func TestCliStateManagerSetLastReviewCommit_UsesHeadCommit(t *testing.T) {
-	t.Parallel()
+	// Not parallel: stubReviewGit mutates package-level reviewGitOutputFn.
 	stubReviewGit(t, []byte("deadbeef\n"), nil)
 
 	gromitDir := t.TempDir()
@@ -394,7 +394,7 @@ func TestCliStateManagerSetLastReviewCommit_UsesHeadCommit(t *testing.T) {
 }
 
 func TestCliStateManagerSetLastReviewCommit_FallsBackToProvidedCommit(t *testing.T) {
-	t.Parallel()
+	// Not parallel: stubReviewGit mutates package-level reviewGitOutputFn.
 	stubReviewGit(t, nil, errors.New("git failure"))
 
 	gromitDir := t.TempDir()
@@ -1056,7 +1056,7 @@ func TestReviewCommand_SpecFlagInHelpText(t *testing.T) {
 // TestReviewCommand_FlagMutualExclusivity verifies that --epic, --spec, and --since
 // flags are mutually exclusive on the review command
 func TestReviewCommand_FlagMutualExclusivity(t *testing.T) {
-	t.Parallel()
+	// Not parallel: saveReviewFlags mutates package-level reviewEpic, reviewSpec, reviewSince.
 	cfg := &config.Config{}
 	saveReviewFlags(t)
 
@@ -1132,7 +1132,7 @@ func TestReviewCommand_FlagMutualExclusivity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+			// Not parallel: subtests mutate package-level reviewEpic, reviewSpec, reviewSince.
 			reviewEpic = tt.epic
 			reviewSpec = tt.spec
 			reviewSince = tt.since
@@ -1158,7 +1158,7 @@ func TestReviewCommand_FlagMutualExclusivity(t *testing.T) {
 // TestReviewCommand_MutualExclusivityCheckedEarly verifies that mutual exclusivity
 // is checked before attempting to resolve specs or epics
 func TestReviewCommand_MutualExclusivityCheckedEarly(t *testing.T) {
-	t.Parallel()
+	// Not parallel: saveReviewFlags mutates package-level reviewEpic, reviewSpec, reviewSince.
 	cfg := &config.Config{}
 	saveReviewFlags(t)
 
@@ -1181,7 +1181,7 @@ func TestReviewCommand_MutualExclusivityCheckedEarly(t *testing.T) {
 // TestReviewCommand_MutualExclusivityWithWhitespace verifies that flags with
 // only whitespace are treated as empty and don't trigger mutual exclusivity
 func TestReviewCommand_MutualExclusivityWithWhitespace(t *testing.T) {
-	t.Parallel()
+	// Not parallel: saveReviewFlags mutates package-level reviewEpic, reviewSpec, reviewSince.
 	cfg := &config.Config{}
 	saveReviewFlags(t)
 
@@ -1231,7 +1231,7 @@ func TestReviewCommand_MutualExclusivityWithWhitespace(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+			// Not parallel: subtests mutate package-level reviewEpic, reviewSpec, reviewSince.
 			reviewEpic = tt.epic
 			reviewSpec = tt.spec
 			reviewSince = tt.since

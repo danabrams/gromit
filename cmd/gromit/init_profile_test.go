@@ -91,7 +91,6 @@ func TestSelectProfileUsesExistingConfig(t *testing.T) {
 }
 
 func TestInitWritesDetectedProfile(t *testing.T) {
-	t.Parallel()
 	setupDir := func(t *testing.T) string {
 		dir := t.TempDir()
 		if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte("{}"), 0644); err != nil {
@@ -143,7 +142,6 @@ func TestInitWritesDetectedProfile(t *testing.T) {
 }
 
 func TestInitRespectsProfileFlag(t *testing.T) {
-	t.Parallel()
 	dir := t.TempDir()
 	prevWd, err := os.Getwd()
 	if err != nil {
@@ -188,7 +186,6 @@ func TestInitRespectsProfileFlag(t *testing.T) {
 }
 
 func TestExplicitProfileOverrideNoImplicitInjection(t *testing.T) {
-	t.Parallel()
 	testCases := []struct {
 		name              string
 		explicitProfile   string
@@ -217,7 +214,6 @@ func TestExplicitProfileOverrideNoImplicitInjection(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 			dir := t.TempDir()
 			// Create multiple signal files to ensure we're using explicit override
 			if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test"), 0644); err != nil {

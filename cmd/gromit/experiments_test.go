@@ -9,7 +9,7 @@ import (
 )
 
 func TestExperimentsCmd_RegistrationAndFlags(t *testing.T) {
-	t.Parallel()
+	// Not parallel: reads rootCmd.Commands() which races with tests that mutate rootCmd.
 	found := false
 	for _, cmd := range rootCmd.Commands() {
 		if cmd.Use == "experiments" {

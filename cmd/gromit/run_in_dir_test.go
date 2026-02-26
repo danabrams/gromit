@@ -37,7 +37,7 @@ func TestRunInDir_NilCallback(t *testing.T) {
 }
 
 func TestRunInDir_EmptyDirRunsInCurrentDirectory(t *testing.T) {
-	t.Parallel()
+	// Not parallel: checks os.Getwd() which races with tests that call os.Chdir.
 	originalDir := currentDir(t)
 
 	called := false
@@ -61,7 +61,7 @@ func TestRunInDir_EmptyDirRunsInCurrentDirectory(t *testing.T) {
 }
 
 func TestRunInDir_NonexistentDirectory(t *testing.T) {
-	t.Parallel()
+	// Not parallel: runInDir calls os.Chdir.
 	originalDir := currentDir(t)
 
 	nonexistent := filepath.Join(t.TempDir(), "does-not-exist")
@@ -81,7 +81,7 @@ func TestRunInDir_NonexistentDirectory(t *testing.T) {
 }
 
 func TestRunInDir_PropagatesCallbackError(t *testing.T) {
-	t.Parallel()
+	// Not parallel: runInDir calls os.Chdir.
 	targetDir := t.TempDir()
 	wantErr := errors.New("callback failed")
 
@@ -94,7 +94,7 @@ func TestRunInDir_PropagatesCallbackError(t *testing.T) {
 }
 
 func TestRunInDir_RestoresOriginalDirectoryOnCallbackError(t *testing.T) {
-	t.Parallel()
+	// Not parallel: runInDir calls os.Chdir.
 	originalDir := currentDir(t)
 
 	targetDir := t.TempDir()

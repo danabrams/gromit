@@ -37,7 +37,7 @@ id: my-spec
 )
 
 func TestVerifySpecCmd_Registration(t *testing.T) {
-	t.Parallel()
+	// Not parallel: reads rootCmd.Commands() which races with tests that mutate rootCmd.
 	found := false
 	for _, cmd := range rootCmd.Commands() {
 		if cmd.Use == "verify-spec <spec>" {
@@ -64,7 +64,7 @@ func TestVerifySpecCmd_Flags(t *testing.T) {
 }
 
 func TestVerifySpecCmd_ArgParsing(t *testing.T) {
-	t.Parallel()
+	// Not parallel: runGromitCobra mutates rootCmd, os.Stdout, and os.Stderr.
 	_, stderr, exitCode := runGromitCobra(t, "verify-spec")
 	if exitCode != 1 {
 		t.Fatalf("exit code = %d, want 1", exitCode)

@@ -113,16 +113,25 @@ func getProjectRootFromTestFile(caller string) string {
 	// Start from the directory containing the caller's file
 	dir := filepath.Dir(callerFile)
 
-	// Walk up to find the project root
+	// Walk up to find the project root.
+	// Prefer gromit.yaml (repoConfigName) over .gromit/ (repoDirName) to match
+	// findProjectRoot behaviour: a nested .gromit/ directory inside cmd/gromit/
+	// must not shadow the real project root that contains gromit.yaml.
+	nearestGromitDir := ""
 	for {
 		if hasRepoMarker(dir, repoConfigName) {
 			return dir
 		}
 		if hasRepoMarker(dir, repoDirName) {
-			return dir
+			if nearestGromitDir == "" {
+				nearestGromitDir = dir
+			}
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
+			if nearestGromitDir != "" {
+				return nearestGromitDir
+			}
 			// Reached filesystem root without finding project root
 			// Fallback to using findProjectRoot
 			if root, err := findProjectRoot(); err == nil {
