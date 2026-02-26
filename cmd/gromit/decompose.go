@@ -172,13 +172,21 @@ func decomposeSinglePlan(planName string, cfg *config.Config) error {
 
 func runDecomposeReviewInSession(planName string, cfg *config.Config) error {
 	gromitDir := resolveGromitDir(cfg)
-	conflictSettings := sessionConflictSettingsFromConfig(cfg)
-	_, err := decomposeSessionLauncherFn(gromitDir, decomposeSessionCommand, conflictSettings, func(sessionDir string) error {
+	fallback := func() error {
+		return decomposeRunInDirFn("", func() error {
+			return decomposeSinglePlanInDirFn(planName, cfg)
+		})
+	}
+
+	if err := launchInSessionIfEnabled(cfg, gromitDir, decomposeSessionCommand, decomposeSessionLauncherFn, func(sessionDir string) error {
 		return decomposeRunInDirFn(sessionDir, func() error {
 			return decomposeSinglePlanInDirFn(planName, cfg)
 		})
-	})
-	return err
+	}, fallback); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func decomposeSinglePlanInCurrentDir(planName string, cfg *config.Config) error {

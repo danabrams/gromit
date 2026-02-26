@@ -195,19 +195,15 @@ func launchDebugSession(cfg *config.Config, gromitDir string, selectedAgent agen
 		return fmt.Errorf("resolving prompt path: %w", err)
 	}
 
-	if cfg != nil && !cfg.Worktree.IsEnabled() {
-		return selectedAgent.LaunchInDir(absPromptPath, launchDir)
-	}
-
-	conflictSettings := sessionConflictSettingsFromConfig(cfg)
-	_, err = debugSessionLauncherFn(gromitDir, debugSessionCommand, conflictSettings, func(sessionDir string) error {
+	return launchInSessionIfEnabled(cfg, gromitDir, debugSessionCommand, debugSessionLauncherFn, func(sessionDir string) error {
 		effectiveDir := sessionDir
 		if strings.TrimSpace(launchDir) != "" {
 			effectiveDir = launchDir
 		}
 		return selectedAgent.LaunchInDir(absPromptPath, effectiveDir)
+	}, func() error {
+		return selectedAgent.LaunchInDir(absPromptPath, launchDir)
 	})
-	return err
 }
 
 func shouldOverrideDebugModel(cmd *cobra.Command, selectedAgent agent.Agent) bool {

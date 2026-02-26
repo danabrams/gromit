@@ -259,15 +259,11 @@ func launchPlanSession(cfg *config.Config, gromitDir string, selectedAgent agent
 		return fmt.Errorf("resolving prompt path: %w", err)
 	}
 
-	if cfg != nil && !cfg.Worktree.IsEnabled() {
-		return selectedAgent.LaunchInDir(absPromptPath, "")
-	}
-
-	conflictSettings := sessionConflictSettingsFromConfig(cfg)
-	_, err = planSessionLauncherFn(gromitDir, planSessionCommand, conflictSettings, func(sessionDir string) error {
+	return launchInSessionIfEnabled(cfg, gromitDir, planSessionCommand, planSessionLauncherFn, func(sessionDir string) error {
 		return selectedAgent.LaunchInDir(absPromptPath, sessionDir)
+	}, func() error {
+		return selectedAgent.LaunchInDir(absPromptPath, "")
 	})
-	return err
 }
 
 // filterUnplannedSpecs returns only specs that don't have a corresponding plan file

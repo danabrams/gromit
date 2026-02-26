@@ -134,20 +134,20 @@ func runExploreInSession(
 		return nil, fmt.Errorf("pipeline is nil")
 	}
 
-	if cfg != nil && !cfg.Worktree.IsEnabled() {
-		return p.Explore(ctx, input)
+	var result *pipeline.ExploreResult
+	fallback := func() error {
+		var err error
+		result, err = p.Explore(ctx, input)
+		return err
 	}
 
-	conflictSettings := sessionConflictSettingsFromConfig(cfg)
-	var result *pipeline.ExploreResult
-	_, err := exploreSessionLauncherFn(gromitDir, exploreSessionCommand, conflictSettings, func(sessionDir string) error {
+	if err := launchInSessionIfEnabled(cfg, gromitDir, exploreSessionCommand, exploreSessionLauncherFn, func(sessionDir string) error {
 		return exploreRunInDirFn(sessionDir, func() error {
 			var runErr error
 			result, runErr = p.Explore(ctx, input)
 			return runErr
 		})
-	})
-	if err != nil {
+	}, fallback); err != nil {
 		return nil, err
 	}
 

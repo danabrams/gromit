@@ -90,20 +90,20 @@ func runRefineInSession(
 		return nil, fmt.Errorf("pipeline is nil")
 	}
 
-	if cfg != nil && !cfg.Worktree.IsEnabled() {
-		return p.Refine(ctx, input)
+	var result *pipeline.RefineResult
+	fallback := func() error {
+		var err error
+		result, err = p.Refine(ctx, input)
+		return err
 	}
 
-	conflictSettings := sessionConflictSettingsFromConfig(cfg)
-	var result *pipeline.RefineResult
-	_, err := refineSessionLauncherFn(gromitDir, refineSessionCommand, conflictSettings, func(sessionDir string) error {
+	if err := launchInSessionIfEnabled(cfg, gromitDir, refineSessionCommand, refineSessionLauncherFn, func(sessionDir string) error {
 		return refineRunInDirFn(sessionDir, func() error {
 			var runErr error
 			result, runErr = p.Refine(ctx, input)
 			return runErr
 		})
-	})
-	if err != nil {
+	}, fallback); err != nil {
 		return nil, err
 	}
 

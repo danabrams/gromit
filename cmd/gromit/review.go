@@ -373,12 +373,12 @@ func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) er
 	fmt.Printf("Launching interactive review session (from commit %s)...\n", shortCommit(fromCommit))
 
 	gromitDir := resolveGromitDir(cfg)
-	conflictSettings := sessionConflictSettingsFromConfig(cfg)
 
-	_, err := reviewInteractiveSessionLauncherFn(gromitDir, reviewSessionCommand, conflictSettings, func(sessionDir string) error {
+	if err := launchInSessionIfEnabled(cfg, gromitDir, reviewSessionCommand, reviewInteractiveSessionLauncherFn, func(sessionDir string) error {
 		return reviewInteractiveRunnerFn(cfg, fromCommit, diff, sessionDir)
-	})
-	if err != nil {
+	}, func() error {
+		return reviewInteractiveRunnerFn(cfg, fromCommit, diff, "")
+	}); err != nil {
 		return err
 	}
 
