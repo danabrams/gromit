@@ -1,8 +1,9 @@
 ---
+created: 2026-02-26T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-26T02:38:36Z"
 id: claude-cached-input-tokens
 source_spec: claude-cached-input-tokens
-created: 2026-02-26
-decomposed: false
 ---
 
 # Claude Cached Input Tokens Propagation Implementation Plan

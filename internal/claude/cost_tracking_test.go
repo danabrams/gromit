@@ -20,7 +20,7 @@ func TestProcessStreamJSONExtractsCost(t *testing.T) {
 
 	handler := func(line []byte) {}
 
-	resultText, costUSD, inputTokens, outputTokens := c.processStreamJSONWithCost(reader, &output, handler, nil)
+	resultText, costUSD, inputTokens, outputTokens, _ := c.processStreamJSONWithCost(reader, &output, handler, nil)
 
 	if resultText != "Done" {
 		t.Errorf("resultText = %q, want %q", resultText, "Done")
@@ -48,7 +48,7 @@ func TestProcessStreamJSONExtractsCostWithNilHandler(t *testing.T) {
 	reader := strings.NewReader(input)
 	var output strings.Builder
 
-	resultText, costUSD, inputTokens, outputTokens := c.processStreamJSONWithCost(reader, &output, nil, nil)
+	resultText, costUSD, inputTokens, outputTokens, _ := c.processStreamJSONWithCost(reader, &output, nil, nil)
 
 	if resultText != "Hello" {
 		t.Errorf("resultText = %q, want %q", resultText, "Hello")
@@ -73,7 +73,7 @@ func TestProcessStreamJSONExtractsCostFromNestedUsage(t *testing.T) {
 	reader := strings.NewReader(input)
 	var output strings.Builder
 
-	_, costUSD, inputTokens, outputTokens := c.processStreamJSONWithCost(reader, &output, nil, nil)
+	_, costUSD, inputTokens, outputTokens, _ := c.processStreamJSONWithCost(reader, &output, nil, nil)
 
 	if costUSD != 0.25 {
 		t.Errorf("costUSD = %f, want 0.25", costUSD)
@@ -100,7 +100,7 @@ func TestProcessStreamJSONFallsBackToAssistantText(t *testing.T) {
 	reader := strings.NewReader(input)
 	var output strings.Builder
 
-	resultText, costUSD, inputTokens, outputTokens := c.processStreamJSONWithCost(reader, &output, nil, nil)
+	resultText, costUSD, inputTokens, outputTokens, _ := c.processStreamJSONWithCost(reader, &output, nil, nil)
 
 	if resultText != "Part 1 Part 2" {
 		t.Errorf("resultText = %q, want %q", resultText, "Part 1 Part 2")
@@ -143,5 +143,24 @@ func TestResultHasCachedInputTokensField(t *testing.T) {
 
 	if r.CachedInputTokens != 2500 {
 		t.Errorf("CachedInputTokens = %d, want 2500", r.CachedInputTokens)
+	}
+}
+
+// TestProcessStreamJSONParsesCacheReadInputTokens verifies that cache_read_input_tokens
+// is extracted from stream JSON result events.
+func TestProcessStreamJSONParsesCacheReadInputTokens(t *testing.T) {
+	input := `{"type":"result","result":"OK","cache_read_input_tokens":2500}` + "\n"
+
+	c := &Client{timeout: 60}
+	reader := strings.NewReader(input)
+	var output strings.Builder
+
+	resultText, _, _, _, cachedInputTokens := c.processStreamJSONWithCost(reader, &output, nil, nil)
+
+	if resultText != "OK" {
+		t.Errorf("resultText = %q, want %q", resultText, "OK")
+	}
+	if cachedInputTokens != 2500 {
+		t.Errorf("cachedInputTokens = %d, want 2500", cachedInputTokens)
 	}
 }

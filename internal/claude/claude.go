@@ -357,18 +357,19 @@ func (c *Client) StreamRun(ctx context.Context, prompt string, model string, out
 	monitoredStdout := newStartupMonitor(stdout, startupWarn, output)
 
 	// Always parse stream-json for cost tracking; handler/onToolCall may be nil
-	resultText, costUSD, inputTokens, outputTokens := c.processStreamJSONWithCost(monitoredStdout, output, handler, onToolCall)
+	resultText, costUSD, inputTokens, outputTokens, cachedInputTokens := c.processStreamJSONWithCost(monitoredStdout, output, handler, onToolCall)
 
 	err = cmd.Wait()
 	duration := time.Since(start)
 
 	result := &Result{
-		Output:       resultText,
-		Duration:     duration,
-		Model:        model,
-		CostUSD:      costUSD,
-		InputTokens:  inputTokens,
-		OutputTokens: outputTokens,
+		Output:            resultText,
+		Duration:          duration,
+		Model:             model,
+		CostUSD:           costUSD,
+		InputTokens:       inputTokens,
+		OutputTokens:      outputTokens,
+		CachedInputTokens: cachedInputTokens,
 	}
 
 	if err != nil {
@@ -439,14 +440,14 @@ func (m *startupMonitor) Read(p []byte) (int, error) {
 // processStreamJSONWithCost reads stream-json lines, calls the handler for each,
 // extracts the final result text, cost, and token data from result events.
 // Handler and onToolCall may be nil.
-func (c *Client) processStreamJSONWithCost(stdout io.Reader, output io.Writer, handler EventHandler, onToolCall ToolCallHandler) (string, float64, int, int) {
+func (c *Client) processStreamJSONWithCost(stdout io.Reader, output io.Writer, handler EventHandler, onToolCall ToolCallHandler) (string, float64, int, int, int) {
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024) // 1MB buffer for large events
 
 	var resultText string
 	var lastChar byte
 	var costUSD float64
-	var inputTokens, outputTokens int
+	var inputTokens, outputTokens, cachedInputTokens int
 	var streamedText strings.Builder
 	var sawResultEvent bool
 
@@ -478,7 +479,8 @@ func (c *Client) processStreamJSONWithCost(stdout io.Reader, output io.Writer, h
 			Result       string  `json:"result,omitempty"`
 			TotalCostUSD float64 `json:"total_cost_usd,omitempty"`
 			InputTokens  int     `json:"input_tokens,omitempty"`
-			OutputTokens int     `json:"output_tokens,omitempty"`
+			OutputTokens           int     `json:"output_tokens,omitempty"`
+			CacheReadInputTokens   int     `json:"cache_read_input_tokens,omitempty"`
 			Usage        *struct {
 				TotalCostUSD float64 `json:"total_cost_usd,omitempty"`
 				InputTokens  int     `json:"input_tokens,omitempty"`
@@ -519,6 +521,7 @@ func (c *Client) processStreamJSONWithCost(stdout io.Reader, output io.Writer, h
 			inputTokens = event.InputTokens
 			outputTokens = event.OutputTokens
 			// Prefer nested usage if top-level fields are zero
+		cachedInputTokens = event.CacheReadInputTokens
 			if event.Usage != nil {
 				if costUSD == 0 && event.Usage.TotalCostUSD > 0 {
 					costUSD = event.Usage.TotalCostUSD
@@ -545,5 +548,5 @@ func (c *Client) processStreamJSONWithCost(stdout io.Reader, output io.Writer, h
 		resultText = streamedText.String()
 	}
 
-	return resultText, costUSD, inputTokens, outputTokens
+	return resultText, costUSD, inputTokens, outputTokens, cachedInputTokens
 }
