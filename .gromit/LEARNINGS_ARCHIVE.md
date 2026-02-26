@@ -1654,3 +1654,8 @@ When creating temporary executable files in Go tests, ensure execute permissions
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-26 | gromit-9g1x4 | patterns
+When moving tests to a new package in this codebase, verify test isolation and cleanup: ensure goroutines are terminated with defer/context cancellation, verify no infinite loops exist in test setup, and check that mocks properly bound. Timeout on short test runs suggests synchronization issues rather than slow logic.
+
+*Archived from new: filtered: generic engineering advice*
+

@@ -107,3 +107,30 @@ func (m *mockTrackerClient) AddComment(ctx context.Context, id, comment string) 
 func (m *mockTrackerClient) HasOpenChildren(ctx context.Context, parentID string) (bool, error) {
 	return false, nil
 }
+
+// TestTrackerClientAdapter_LabelsRoundtrip verifies that labels can be encoded and decoded correctly.
+func TestTrackerClientAdapter_LabelsRoundtrip(t *testing.T) {
+	t.Parallel()
+
+	mockClient := &mockTrackerClient{}
+	adapter := &trackerClientAdapter{Client: mockClient}
+
+	ctx := context.Background()
+
+	// Create a bead with labels
+	inputLabels := []string{"spec:test", "important", "review"}
+	created, err := adapter.Create(ctx, "Test Title", 1, inputLabels, nil)
+	if err != nil {
+		t.Fatalf("Create() error: %v", err)
+	}
+
+	// Verify the created bead has the labels
+	if len(created.Labels) != len(inputLabels) {
+		t.Errorf("Created bead labels mismatch: got %v, want %v", created.Labels, inputLabels)
+	}
+	for i, label := range inputLabels {
+		if i >= len(created.Labels) || created.Labels[i] != label {
+			t.Errorf("Label %d mismatch: got %q, want %q", i, created.Labels[i], label)
+		}
+	}
+}

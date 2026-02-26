@@ -199,11 +199,9 @@ If run health logic sets a persistent control-limit alert flag in `state.json`, 
 *Archived 2026-02-26: Marker-only consolidated stub; content preserved in Decomposition Contract-Field Parity Across Layers.*
 
 ### 2026-02-26 | gromit-10kg.3.1.1.1 | conventions
-
 *Archived 2026-02-26: Task-specific reminder, not a durable project rule.*
 
 ### 2026-02-26 | gromit-jmqps.1 | conventions
-
 *Archived 2026-02-26: Generic migration caution; too broad under anti-generic archival policy.*
 
 ### 2026-02-26 | Builder Pattern Pointer Receiver Mutation | gotchas
@@ -227,7 +225,6 @@ If run health logic sets a persistent control-limit alert flag in `state.json`, 
 *Archived 2026-02-26: Consolidated into Orchestrator Shared Path and Stage Wiring.*
 
 ### 2026-02-26 | gromit-sq2a3 | conventions
-
 *Archived 2026-02-26: Consolidated into Telemetry Integrity and Completeness Contract.*
 
 ### 2026-02-22 | Silent Error Swallowing in Render Builder Functions | gotchas
@@ -325,3 +322,9 @@ Tests in cmd/gromit (package main) that mutate package-level function variables 
 
 ### 2026-02-26 | review | gotchas
 cmd/gromit/ contains scaffold/template copies of CLAUDE.md, RULES.md, PROMPT_decompose.md, and SKILL.md under cmd/gromit/.gromit/. Tests using getProjectRootFromTestFile may resolve to cmd/gromit/ instead of the real project root if the function stops at the first .gromit/ directory. The function must prefer gromit.yaml as the definitive project root marker.
+
+### 2026-02-26 | gromit-9g1x4 | patterns
+When moving tests to a new package in this codebase, verify test isolation and cleanup: ensure goroutines are terminated with defer/context cancellation, verify no infinite loops exist in test setup, and check that mocks properly bound. Timeout on short test runs suggests synchronization issues rather than slow logic.
+
+*Archived from new: filtered: generic engineering advice*
+
