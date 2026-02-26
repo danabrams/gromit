@@ -12,6 +12,7 @@ import (
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/worktree"
+	"github.com/spf13/cobra"
 )
 
 // setupExploreTest creates a temp directory with the standard explore test
@@ -311,4 +312,52 @@ func TestHandleExploreOutput_RendersCreatedArtifacts(t *testing.T) {
 	if !strings.Contains(output, "Backlog items created: 3") {
 		t.Fatalf("output missing 'Backlog items created: 3', got: %q", output)
 	}
+}
+
+func TestExploreRunnerSeam_CanInjectMockRunner(t *testing.T) {
+	origRunnerFactory := exploreRunnerFactoryFn
+	t.Cleanup(func() { exploreRunnerFactoryFn = origRunnerFactory })
+
+	baseDir := t.TempDir()
+	t.Chdir(baseDir)
+	gromitDir := filepath.Join(baseDir, ".gromit")
+	specsDir := filepath.Join(gromitDir, "specs")
+	epicsDir := filepath.Join(gromitDir, "epics")
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("mkdir specs: %v", err)
+	}
+	if err := os.MkdirAll(epicsDir, 0o755); err != nil {
+		t.Fatalf("mkdir epics: %v", err)
+	}
+
+	mockRunnerCalled := false
+
+	exploreRunnerFactoryFn = func(cfg *config.Config) (exploreRunner, error) {
+		return &mockExploreRunner{
+			result: &pipeline.ExploreResult{CreatedEpics: []string{"mocked"}},
+			onExplore: func() {
+				mockRunnerCalled = true
+			},
+		}, nil
+	}
+
+	cmd := &cobra.Command{}
+	if err := runExplore(cmd, []string{}); err != nil {
+		t.Fatalf("runExplore() error = %v", err)
+	}
+	if !mockRunnerCalled {
+		t.Fatal("mock runner's Explore method was not called")
+	}
+}
+
+type mockExploreRunner struct {
+	result   *pipeline.ExploreResult
+	onExplore func()
+}
+
+func (m *mockExploreRunner) Explore(ctx context.Context, input pipeline.ExploreInput) (*pipeline.ExploreResult, error) {
+	if m.onExplore != nil {
+		m.onExplore()
+	}
+	return m.result, nil
 }

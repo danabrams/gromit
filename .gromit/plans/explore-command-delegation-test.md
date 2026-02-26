@@ -1,8 +1,9 @@
 ---
+created: 2026-02-26T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-26T09:18:03Z"
 id: explore-command-delegation-test
 source_spec: explore-command-delegation-test
-created: 2026-02-26
-decomposed: false
 ---
 
 # Explore Command Delegation Unit Test Implementation Plan
