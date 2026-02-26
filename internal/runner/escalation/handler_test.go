@@ -3116,3 +3116,61 @@ func TestExecuteWithRetry_MaxDepthAtomicEnforcement(t *testing.T) {
 		t.Errorf("Result.Escalated = %v, want true for max-depth bead reaching L1 limit", bc.Result.Escalated)
 	}
 }
+
+func TestExecuteWithRetry_InvocationErrorUsesAgentWording(t *testing.T) {
+	t.Parallel()
+	cfg := newTestConfig()
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := newTestBeadContext()
+
+	// Invoke function that returns an error (not a timeout)
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		return &runtypes.InvocationResult{Result: &claude.Result{}}, fmt.Errorf("network error")
+	}
+
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+	if success {
+		t.Fatal("expected failure when invocation returns error")
+	}
+	if bc.Result.Error == nil {
+		t.Fatal("expected error to be set")
+	}
+
+	errMsg := bc.Result.Error.Error()
+	if !strings.Contains(errMsg, "agent invocation") {
+		t.Fatalf("error message should contain 'agent invocation', got: %v", bc.Result.Error)
+	}
+	if strings.Contains(errMsg, "claude invocation") {
+		t.Fatalf("error message should not contain 'claude invocation', got: %v", bc.Result.Error)
+	}
+}
+
+func TestExecuteWithRetry_NilResultErrorUsesAgentWording(t *testing.T) {
+	t.Parallel()
+	cfg := newTestConfig()
+	h := NewHandler(cfg, &mockFailureAnalyzer{}, &mockBeadClient{}, nil, nil, nil, nil)
+
+	bc := newTestBeadContext()
+
+	// Invoke function that returns nil result (not a timeout)
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		return nil, nil
+	}
+
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+	if success {
+		t.Fatal("expected failure when invocation returns nil result")
+	}
+	if bc.Result.Error == nil {
+		t.Fatal("expected error to be set")
+	}
+
+	errMsg := bc.Result.Error.Error()
+	if !strings.Contains(errMsg, "agent returned nil result") {
+		t.Fatalf("error message should contain 'agent returned nil result', got: %v", bc.Result.Error)
+	}
+	if strings.Contains(errMsg, "claude returned nil result") {
+		t.Fatalf("error message should not contain 'claude returned nil result', got: %v", bc.Result.Error)
+	}
+}
