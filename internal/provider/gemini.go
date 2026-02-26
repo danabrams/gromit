@@ -97,7 +97,20 @@ func (gp *GeminiProvider) StreamRun(ctx context.Context, prompt string, tier str
 }
 
 func (gp *GeminiProvider) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*Result, error) {
-    return nil, fmt.Errorf("gemini validation not implemented")
+	if gp == nil {
+		return nil, fmt.Errorf("gemini provider is nil")
+	}
+
+	// Validate commands
+	if err := ValidateCommands(commands); err != nil {
+		return nil, err
+	}
+
+	// Build validation prompt
+	prompt := BuildValidationPrompt(commands, workDir)
+
+	// Run the validation prompt
+	return gp.Run(ctx, prompt, tier)
 }
 
 func (gp *GeminiProvider) IsUsageLimitError(result *Result, err error) bool {
