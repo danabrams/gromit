@@ -269,6 +269,12 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 			}
 
 		case "message.output_text.done":
+			if event.Text != "" {
+				emitStreamEvent(handler, map[string]interface{}{
+					"type": "EventContent",
+					"text": event.Text,
+				})
+			}
 			lastAgentText += event.Text
 			if output != nil && event.Text != "" {
 				_, _ = output.Write([]byte(event.Text))
