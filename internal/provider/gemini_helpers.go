@@ -113,3 +113,14 @@ func extractGeminiTokens(data map[string]interface{}) (int, int, int) {
 
 	return inputTokens, outputTokens, cachedTokens
 }
+
+// extractGeminiCost extracts the cost (in USD) from a Gemini JSON response.
+// Looks for the cost.total field in the response.
+func extractGeminiCost(data map[string]interface{}) float64 {
+	if cost, ok := data["cost"].(map[string]interface{}); ok {
+		if total, ok := cost["total"].(float64); ok {
+			return total
+		}
+	}
+	return 0.0
+}
