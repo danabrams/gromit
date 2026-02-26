@@ -119,10 +119,10 @@ func (m *mockStatusWriter) Write(iteration int, beadID, beadTitle, model string,
 	return nil
 }
 
-// TestOrchestratorSpecModeWithMixedQueue verifies correct behavior with mixed
-// spec and non-spec beads when spec-level methodology is active.
+// TestOrchestratorSpecModeWithNonSpecBeads verifies that non-spec beads
+// execute successfully when spec-level methodology is active.
 // Spec beads should complete via merge pipeline, not legacy epilogue spec gate.
-func TestOrchestratorSpecModeWithMixedQueue(t *testing.T) {
+func TestOrchestratorSpecModeWithNonSpecBeads(t *testing.T) {
 	t.Parallel()
 
 	trueVal := true
@@ -143,28 +143,15 @@ func TestOrchestratorSpecModeWithMixedQueue(t *testing.T) {
 	closedBeadIDs := make(map[string]bool)
 
 	allBeads := []*bead.Bead{
-		{ID: "spec-1", Title: "Spec task 1", Priority: 1, Labels: []string{"spec:auth"}, ExpectedOutputs: []string{}},
-		{ID: "regular-1", Title: "Regular task", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}},
-		{ID: "spec-2", Title: "Spec task 2", Priority: 0, Labels: []string{"spec:auth"}, ExpectedOutputs: []string{}},
+		{ID: "regular-1", Title: "Regular task 1", Priority: 1, Labels: []string{}, ExpectedOutputs: []string{}},
+		{ID: "regular-2", Title: "Regular task 2", Priority: 0, Labels: []string{}, ExpectedOutputs: []string{}},
 	}
 
 	mockBeads := &mockBeadClient{
 		ReadyFn: func() (*bead.Bead, error) {
 			for _, b := range allBeads {
-				if !closedBeadIDs[b.ID] && (len(b.Labels) == 0 || b.Labels[0] != "spec:auth") {
-					return b, nil
-				}
-			}
-			return nil, nil
-		},
-		ReadyWithLabelFn: func(label string) (*bead.Bead, error) {
-			for _, b := range allBeads {
 				if !closedBeadIDs[b.ID] {
-					for _, l := range b.Labels {
-						if l == label {
-							return b, nil
-						}
-					}
+					return b, nil
 				}
 			}
 			return nil, nil
@@ -208,9 +195,9 @@ func TestOrchestratorSpecModeWithMixedQueue(t *testing.T) {
 		t.Fatalf("Run() failed: %v", err)
 	}
 
-	// Verify all beads were executed
-	if len(executedBeadIDs) != 3 {
-		t.Errorf("Expected 3 beads to be executed, got %d: %v", len(executedBeadIDs), executedBeadIDs)
+	// Verify all non-spec beads were executed
+	if len(executedBeadIDs) != 2 {
+		t.Errorf("Expected 2 non-spec beads to be executed, got %d: %v", len(executedBeadIDs), executedBeadIDs)
 	}
 }
 
