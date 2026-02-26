@@ -85,6 +85,55 @@ func TestResolveCompatibilityContextExplicitSelectorsOverrideProfileDefaults(t *
 	}
 }
 
+func TestValidateCompatibilityAcceptsSupportedAdapters(t *testing.T) {
+	testCases := []struct {
+		name    string
+		adapter string
+		valid   bool
+	}{
+		{
+			name:    "go adapter is valid",
+			adapter: "go",
+			valid:   true,
+		},
+		{
+			name:    "passthrough adapter is valid",
+			adapter: "passthrough",
+			valid:   true,
+		},
+		{
+			name:    "empty adapter is valid",
+			adapter: "",
+			valid:   true,
+		},
+		{
+			name:    "invalid adapter is rejected",
+			adapter: "invalid",
+			valid:   false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := Config{
+				Methodology: MethodologyConfig{
+					Adapter: tc.adapter,
+				},
+			}
+			cfg.SetDefaults()
+			cfg.NormalizeNilFields()
+			err := cfg.Validate()
+
+			if tc.valid && err != nil {
+				t.Errorf("Validate() error = %v, want nil for adapter %q", err, tc.adapter)
+			}
+			if !tc.valid && err == nil {
+				t.Errorf("Validate() error = nil, want error for adapter %q", tc.adapter)
+			}
+		})
+	}
+}
+
 func TestValidateCompatibilityRejectsInvalidExplicitValuesOnly(t *testing.T) {
 	t.Run("legacy empty config is valid", func(t *testing.T) {
 		var cfg Config
