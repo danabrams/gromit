@@ -12,14 +12,14 @@ const (
 )
 
 var legacyModelToTier = map[string]string{
-	"opus":          tierHigh,
-	"sonnet":        tierMedium,
-	"haiku":         tierLow,
-	"o3":            tierHigh,
-	"gpt-4o":        tierMedium,
-	"gpt-4o-mini":   tierLow,
-	"gpt-5.3-codex": tierMedium,
-	"gpt-5.1-codex-mini":    tierLow,
+	"opus":               tierHigh,
+	"sonnet":             tierMedium,
+	"haiku":              tierLow,
+	"o3":                 tierHigh,
+	"gpt-4o":             tierMedium,
+	"gpt-4o-mini":        tierLow,
+	"gpt-5.3-codex":      tierMedium,
+	"gpt-5.1-codex-mini": tierLow,
 }
 
 func (f FallbackConfig) EnabledOrDefault(multiProvider bool) bool {
@@ -140,6 +140,23 @@ func (c *Config) SelectTier(priority int, labels []string) string {
 
 	// Auto-map legacy model names to tiers
 	return tierFromLegacyModel(value)
+}
+
+// BuildTierForStrategy returns the build tier for the configured routing strategy.
+// Priority-based strategy preserves legacy label and priority behavior, while
+// cost-optimized always routes through the configured cost_optimized.build_tier.
+func (c *Config) BuildTierForStrategy(priority int, labels []string) string {
+	if c == nil {
+		return tierMedium
+	}
+	if strings.EqualFold(strings.TrimSpace(c.Routing.Strategy), "cost_optimized") {
+		tier := normalizeConfiguredTier(c.Routing.CostOptimized.BuildTier)
+		if tier == "" {
+			tier = defaultCostOptimizedBuildTier
+		}
+		return tier
+	}
+	return c.SelectTier(priority, labels)
 }
 
 // SelectInitialTierForComplexity maps effective complexity to an initial tier.
