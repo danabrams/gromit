@@ -1039,6 +1039,34 @@ Iteration: {{.Iteration}}`
 	}
 }
 
+func TestRenderAcceptanceTests_ShapedContextNotes(t *testing.T) {
+	templatesDir := filepath.Join("..", "..", ".gromit", "templates")
+	r := &Renderer{templatesDir: templatesDir}
+
+	ctx := testMethodologyContext()
+	ctx.Rules = ""
+	ctx.ConfirmedLearnings = nil
+	ctx.RecentLearnings = nil
+	ctx.Spec = "Leading requirement snippet\n...[truncated]...\nTrailing requirement insight"
+	ctx.normalizeNilFields()
+
+	result, err := r.RenderAcceptanceTests(ctx)
+	if err != nil {
+		t.Fatalf("RenderAcceptanceTests() error = %v", err)
+	}
+
+	if strings.Contains(result, "## Rules (Non-Negotiable)") {
+		t.Error("expected Rules section to disappear when context shaping drops it")
+	}
+
+	if !strings.Contains(result, "Budget shaping may drop optional sections (Rules, Learnings)") {
+		t.Errorf("missing shaped-context guidance note; got:\n%s", result)
+	}
+	if !strings.Contains(result, "...[truncated]...") {
+		t.Errorf("missing explicit truncation marker when spec was trimmed; got:\n%s", result)
+	}
+}
+
 func TestRenderSpecAcceptance(t *testing.T) {
 	tmpDir := t.TempDir()
 	templatesDir := filepath.Join(tmpDir, "templates")
