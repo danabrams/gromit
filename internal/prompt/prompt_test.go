@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/learnings"
 )
 
@@ -449,6 +450,40 @@ func TestRenderDecomposeNilRenderer(t *testing.T) {
 	_, err := r.RenderDecompose(nil)
 	if err == nil {
 		t.Error("expected error for nil renderer in RenderDecompose")
+	}
+}
+
+func TestRenderDecomposePropagatesTarget(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	os.MkdirAll(templatesDir, 0755)
+
+	tmpl := "Target: {{.DecompositionTarget}}\n"
+	os.WriteFile(filepath.Join(templatesDir, "PROMPT_decompose.md"), []byte(tmpl), 0644)
+
+	r := &Renderer{templatesDir: templatesDir}
+
+	tests := []struct {
+		name   string
+		target config.DecompositionTarget
+	}{
+		{name: "single concern", target: config.DecompositionTargetSingleConcern},
+		{name: "narrow scope", target: config.DecompositionTargetNarrowScope},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r.SetDecomposeTarget(tt.target)
+			ctx := &DecomposeContext{
+				Bead: &bead.Bead{ID: "test-bead", Title: "Test"},
+			}
+			if _, err := r.RenderDecompose(ctx); err != nil {
+				t.Fatalf("RenderDecompose() error = %v", err)
+			}
+			if ctx.DecompositionTarget != tt.target {
+				t.Fatalf("ctx.DecompositionTarget = %q, want %q", ctx.DecompositionTarget, tt.target)
+			}
+		})
 	}
 }
 
