@@ -161,6 +161,9 @@ func isMergeConflict(output string, err error) bool {
 	if err == nil {
 		return false
 	}
-	// Check for typical merge conflict markers in output
-	return strings.Contains(output, "CONFLICT") || strings.Contains(output, "conflict") || strings.Contains(output, "Merge made by")
+	// Check for typical merge conflict markers and fast-forward failures
+	return strings.Contains(output, "CONFLICT") ||
+		strings.Contains(output, "conflict") ||
+		strings.Contains(output, "Merge made by") ||
+		strings.Contains(output, "Not possible to fast-forward")
 }
