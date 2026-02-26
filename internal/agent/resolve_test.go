@@ -117,8 +117,8 @@ func TestResolveCodexPreset(t *testing.T) {
 	}
 }
 
-// TestResolveGeminiPreset verifies gemini preset uses prompt_file_arg delivery with --prompt flag
-func TestResolveGeminiPreset(t *testing.T) {
+// TestResolveByName_GeminiPresetUsesStdin verifies the built-in gemini preset uses stdin delivery
+func TestResolveByName_GeminiPresetUsesStdin(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.SetDefaults()
 
@@ -144,12 +144,12 @@ func TestResolveGeminiPreset(t *testing.T) {
 		t.Errorf("gemini agent binary = %q, want %q", ca.binary, "gemini")
 	}
 
-	if ca.promptDelivery != PromptFileArg {
-		t.Errorf("gemini agent promptDelivery = %q, want %q", ca.promptDelivery, PromptFileArg)
+	if ca.promptDelivery != Stdin {
+		t.Errorf("gemini agent promptDelivery = %q, want %q", ca.promptDelivery, Stdin)
 	}
 
-	if ca.promptFlag != "--prompt" {
-		t.Errorf("gemini agent promptFlag = %q, want %q", ca.promptFlag, "--prompt")
+	if ca.promptFlag != "" {
+		t.Errorf("gemini agent promptFlag = %q, want empty string", ca.promptFlag)
 	}
 }
 
