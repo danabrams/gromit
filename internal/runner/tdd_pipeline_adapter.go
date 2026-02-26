@@ -58,7 +58,11 @@ func (a *TDDPipelineAdapter) RunCycles(ctx context.Context, b *bead.Bead, cfg *c
 	cycleErr := a.runner.tddOrchestrator.RunCycles(ctx, bc, coverageTracker, coverageCriteria)
 	durationMs := execute.DurationMsFromDuration(time.Since(startTime))
 
-	populateCoverageResult(bc, coverageTracker)
+	if a.runner != nil {
+		a.runner.reportCoverage(bc, coverageTracker)
+	} else {
+		populateCoverageResult(bc, coverageTracker)
+	}
 	aggregateTDDPhaseMetricsToResult(bc)
 	originalTier, actualTier := tddTierProvenance(bc.Result.PhaseMetrics)
 	// Fall back to bc-level tier when PhaseMetrics is empty (telemetry

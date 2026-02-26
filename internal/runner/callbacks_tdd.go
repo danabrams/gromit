@@ -22,19 +22,19 @@ import (
 
 // buildTDDCycleRunner creates a TDDCycleRunner adapter backed by a Runner with a
 // configured tddOrchestrator. Inject the result into execute.Build via WithTDDCycleRunner.
-func buildTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *provider.Router, output io.Writer, costDefs map[string]config.ProviderDef) execute.TDDCycleRunner {
+func buildTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *provider.Router, output io.Writer, beads BeadClient, costDefs map[string]config.ProviderDef) execute.TDDCycleRunner {
 	orch := tdd.NewCycleOrchestrator(cfg, output, tdd.CycleOrchestratorDeps{
-		RenderRedFn:    buildRenderRedFn(cfg, renderer),
-		RenderGreenFn:  buildRenderGreenFn(cfg, renderer),
-		InvokeFn:       buildInvokeFn(router, output),
-		ValidateFn:     buildValidateFn(cfg),
-		RunRefactorFn:  buildRunRefactorFn(cfg, renderer, router, output),
-		EscalateTierFn: func(currentTier string) string { return cfg.NextEscalationTier(currentTier) },
+		RenderRedFn:        buildRenderRedFn(cfg, renderer),
+		RenderGreenFn:      buildRenderGreenFn(cfg, renderer),
+		InvokeFn:           buildInvokeFn(router, output),
+		ValidateFn:         buildValidateFn(cfg),
+		RunRefactorFn:      buildRunRefactorFn(cfg, renderer, router, output),
+		EscalateTierFn:     func(currentTier string) string { return cfg.NextEscalationTier(currentTier) },
 		GetDiffFn:          func() (string, error) { return getGitDiff("HEAD") },
 		ReadFileFn:         readFileAsString,
 		GetGitHeadFn:       gitHeadCommit,
 		GitResetFn:         gitResetHard,
-		ListChangedFilesFn:  gitListChangedFiles,
+		ListChangedFilesFn: gitListChangedFiles,
 		RestoreTestFilesFn: gitRestoreFiles,
 		LogPhaseFn: func(cycle int, phase, detail string) {
 			_, _ = fmt.Fprintf(output, "  [tdd] cycle %d %s: %s\n", cycle, phase, detail)
@@ -87,6 +87,8 @@ func buildTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *
 				return orch.RunCycles(ctx, bc, state)
 			},
 		},
+		beads:  beads,
+		output: output,
 	}
 	return &TDDPipelineAdapter{runner: r}
 }
@@ -338,16 +340,15 @@ func gitListChangedFiles(sinceCommit string) ([]string, error) {
 // optionalTDDCycleRunner returns a TDDCycleRunner when FreshContextPerCycle is
 // enabled, or nil otherwise. The caller should inject the result into the Build
 // stage via WithTDDCycleRunner.
-func optionalTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *provider.Router, output io.Writer, costDefs map[string]config.ProviderDef) execute.TDDCycleRunner {
+func optionalTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *provider.Router, output io.Writer, beads BeadClient, costDefs map[string]config.ProviderDef) execute.TDDCycleRunner {
 	if cfg == nil || !cfg.Methodology.FreshContextPerCycle {
 		return nil
 	}
 	if cfg.ResolvedMethodologyAdapter().Value != "go" {
 		return nil
 	}
-	return buildTDDCycleRunner(cfg, renderer, router, output, costDefs)
+	return buildTDDCycleRunner(cfg, renderer, router, output, beads, costDefs)
 }
-
 
 func phaseUsageDelta(
 	result *runtypes.IterationResult,

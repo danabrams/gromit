@@ -5,8 +5,10 @@ import (
 	"io"
 
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/experiment"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
 // Runner holds shared infrastructure used by pipeline stage adapters.
@@ -16,6 +18,21 @@ type Runner struct {
 	cfg             *config.Config
 	tddOrchestrator *tddOrchestrator
 	experimentMgr   *experiment.Manager
+	beads           coverageCommentClient
+	output          io.Writer
+}
+
+type coverageCommentClient interface {
+	AddComment(id, comment string) error
+}
+
+func (r *Runner) reportCoverage(bc *runtypes.BeadContext, tracker *coverage.CoverageTracker) {
+	if bc == nil || bc.Result == nil {
+		return
+	}
+	populateCoverageResult(bc, tracker)
+	addCoverageCommentWithClient(bc, tracker, r.beads)
+	logCoverageSummary(r.output, tracker)
 }
 
 // Deps holds dependencies for constructing a Runner with Router-only support.

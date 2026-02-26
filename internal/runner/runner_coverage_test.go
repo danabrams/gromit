@@ -13,10 +13,9 @@ func TestRunnerReportCoverageAddsCommentAndLogsWhenCoverageIncomplete(t *testing
 	tracker := coverage.NewTracker([]coverage.Criterion{
 		{Number: 1, Text: "Criterion 1"},
 		{Number: 2, Text: "Criterion 2"},
-	}, 3)
+		{Number: 3, Text: "Criterion 3"},
+	}, 1)
 	tracker.MarkCovered(1)
-	tracker.RecordRejection(2)
-	tracker.RecordRejection(2)
 	tracker.RecordRejection(2)
 
 	var output bytes.Buffer
@@ -41,8 +40,8 @@ func TestRunnerReportCoverageAddsCommentAndLogsWhenCoverageIncomplete(t *testing
 
 	runner.reportCoverage(bc, tracker)
 
-	if bc.Result.CriteriaTotal != 2 {
-		t.Fatalf("CriteriaTotal = %d, want 2", bc.Result.CriteriaTotal)
+	if bc.Result.CriteriaTotal != 3 {
+		t.Fatalf("CriteriaTotal = %d, want 3", bc.Result.CriteriaTotal)
 	}
 	if bc.Result.CriteriaCovered != 1 {
 		t.Fatalf("CriteriaCovered = %d, want 1", bc.Result.CriteriaCovered)
@@ -52,6 +51,9 @@ func TestRunnerReportCoverageAddsCommentAndLogsWhenCoverageIncomplete(t *testing
 	}
 	if len(bc.Result.UncoveredCriteria) != 1 {
 		t.Fatalf("len(UncoveredCriteria) = %d, want 1", len(bc.Result.UncoveredCriteria))
+	}
+	if bc.Result.UncoveredCriteria[0] != "Criterion 3" {
+		t.Fatalf("UncoveredCriteria[0] = %q, want %q", bc.Result.UncoveredCriteria[0], "Criterion 3")
 	}
 	if loggedComment == "" {
 		t.Fatalf("expected bead comment, got none")
