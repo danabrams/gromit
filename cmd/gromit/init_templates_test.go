@@ -242,7 +242,7 @@ func TestInitWritesProfileAwareRules(t *testing.T) {
 // TestRunInitUsesProfileAwareRulesAndNextSteps verifies that the actual runInit command
 // uses profile-aware RULES.md and next-steps guidance (not defaultRules and generic steps)
 func TestRunInitUsesProfileAwareRulesAndNextSteps(t *testing.T) {
-	t.Parallel()
+	// Note: Not parallel because this test changes the working directory
 
 	tempDir := t.TempDir()
 	// Change to temp directory for init command
