@@ -233,3 +233,116 @@ func TestResolveCompatibilityContext_DeprecationMarkerTracksLegacyTrackerBackend
 		t.Fatalf("TrackerBackend.DeprecationMarker = %q, want %q", resolved.TrackerBackend.DeprecationMarker, CompatibilityDeprecationMarkerLegacyTrackerBackendFallback)
 	}
 }
+
+func TestResolveCompatibilityContext_FullPrecedenceMatrix(t *testing.T) {
+	testCases := []struct {
+		name      string
+		config    Config
+		wantProfs map[string]string // field -> (value,source,marker)
+	}{
+		{
+			name: "all legacy defaults",
+			config: Config{
+				Project:    ProjectConfig{},
+				Tracker:    TrackerConfig{},
+				Methodology: MethodologyConfig{},
+			},
+			wantProfs: map[string]string{
+				"profile.value": "go",
+				"profile.source": string(CompatibilitySourceLegacyFallback),
+				"profile.marker": CompatibilityDeprecationMarkerLegacyHardcodedDefaults,
+				"tracker.value": "bd",
+				"tracker.source": string(CompatibilitySourceLegacyFallback),
+				"tracker.marker": CompatibilityDeprecationMarkerLegacyTrackerBackendFallback,
+				"adapter.value": "go",
+				"adapter.source": string(CompatibilitySourceLegacyFallback),
+				"adapter.marker": CompatibilityDeprecationMarkerLegacyHardcodedDefaults,
+			},
+		},
+		{
+			name: "explicit profile only",
+			config: Config{
+				Project:    ProjectConfig{Profile: "python"},
+				Tracker:    TrackerConfig{},
+				Methodology: MethodologyConfig{},
+			},
+			wantProfs: map[string]string{
+				"profile.value": "python",
+				"profile.source": string(CompatibilitySourceExplicit),
+				"profile.marker": "",
+				"tracker.value": "bd",
+				"tracker.source": string(CompatibilitySourceProfileDefault),
+				"tracker.marker": CompatibilityDeprecationMarkerLegacyTrackerBackendFallback,
+				"adapter.value": "go",
+				"adapter.source": string(CompatibilitySourceProfileDefault),
+				"adapter.marker": CompatibilityDeprecationMarkerLegacyHardcodedDefaults,
+			},
+		},
+		{
+			name: "explicit profile and tracker",
+			config: Config{
+				Project:    ProjectConfig{Profile: "node"},
+				Tracker:    TrackerConfig{Backend: "linear"},
+				Methodology: MethodologyConfig{},
+			},
+			wantProfs: map[string]string{
+				"profile.value": "node",
+				"profile.source": string(CompatibilitySourceExplicit),
+				"profile.marker": "",
+				"tracker.value": "linear",
+				"tracker.source": string(CompatibilitySourceExplicit),
+				"tracker.marker": "",
+				"adapter.value": "go",
+				"adapter.source": string(CompatibilitySourceProfileDefault),
+				"adapter.marker": CompatibilityDeprecationMarkerLegacyHardcodedDefaults,
+			},
+		},
+		{
+			name: "all explicit",
+			config: Config{
+				Project:    ProjectConfig{Profile: "go"},
+				Tracker:    TrackerConfig{Backend: "bd"},
+				Methodology: MethodologyConfig{Adapter: "python"},
+			},
+			wantProfs: map[string]string{
+				"profile.value": "go",
+				"profile.source": string(CompatibilitySourceExplicit),
+				"profile.marker": "",
+				"tracker.value": "bd",
+				"tracker.source": string(CompatibilitySourceExplicit),
+				"tracker.marker": "",
+				"adapter.value": "python",
+				"adapter.source": string(CompatibilitySourceExplicit),
+				"adapter.marker": "",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			resolved := tc.config.ResolveCompatibilityContext()
+
+			checks := []struct {
+				path  string
+				got   string
+				want  string
+			}{
+				{"profile.value", resolved.Profile.Value, tc.wantProfs["profile.value"]},
+				{"profile.source", string(resolved.Profile.Source), tc.wantProfs["profile.source"]},
+				{"profile.marker", resolved.Profile.DeprecationMarker, tc.wantProfs["profile.marker"]},
+				{"tracker.value", resolved.TrackerBackend.Value, tc.wantProfs["tracker.value"]},
+				{"tracker.source", string(resolved.TrackerBackend.Source), tc.wantProfs["tracker.source"]},
+				{"tracker.marker", resolved.TrackerBackend.DeprecationMarker, tc.wantProfs["tracker.marker"]},
+				{"adapter.value", resolved.MethodologyAdapter.Value, tc.wantProfs["adapter.value"]},
+				{"adapter.source", string(resolved.MethodologyAdapter.Source), tc.wantProfs["adapter.source"]},
+				{"adapter.marker", resolved.MethodologyAdapter.DeprecationMarker, tc.wantProfs["adapter.marker"]},
+			}
+
+			for _, check := range checks {
+				if check.got != check.want {
+					t.Errorf("%s: got %q, want %q", check.path, check.got, check.want)
+				}
+			}
+		})
+	}
+}
