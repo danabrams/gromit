@@ -109,11 +109,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		return nil, err
 	}
 
-	// Unwrap the BDAdapter to get the underlying *bead.Client for internal use
-	beadsClient := bead.UnwrapBDAdapter(trackerClientInterface)
-	if beadsClient == nil {
-		return nil, fmt.Errorf("failed to unwrap tracker client to bead.Client")
-	}
+	beadsClient := newTrackerBeadClient(trackerClientInterface)
 
 	syncOut := newSyncWriter(output)
 
@@ -140,6 +136,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 	gateStage := prepare.New(syncOut)
 	gateStage.WithDecomposer(&decomposerAdapter{
 		tracker:     trackerClientInterface,
+		beads:       beadsClient,
 		router:      router,
 		maxSubBeads: cfg.Validation.RuntimeMaxSubBeadsValue(),
 	})
@@ -177,7 +174,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 	// Stage 4: Review (review.New with Invoker, BeadCreator, PromptRenderer, GitDiffFn)
 	reviewStage := review.New(
 		&reviewInvokerAdapter{router: router, syncOut: syncOut},
-		&beadCreatorAdapter{tracker: trackerClientInterface},
+		&beadCreatorAdapter{beads: beadsClient},
 		&reviewRendererAdapter{r: renderer},
 		gitDiffFn,
 		syncOut,
@@ -242,6 +239,9 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 	}
 
 	getBeadFn := func(ctx context.Context) (*bead.Bead, error) {
+		if beadsClient == nil {
+			return nil, fmt.Errorf("bead client is not configured")
+		}
 		if len(labels) > 0 {
 			return beadsClient.ReadyWithLabel(ctx, labels[0])
 		}
@@ -261,6 +261,9 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		Epilogue: epilogueStage,
 		GetBead:  getBeadFn,
 		GetBeadByID: func(ctx context.Context, beadID string) (*bead.Bead, error) {
+			if beadsClient == nil {
+				return nil, fmt.Errorf("bead client is not configured")
+			}
 			return beadsClient.Show(ctx, beadID)
 		},
 		Config:          cfg,
