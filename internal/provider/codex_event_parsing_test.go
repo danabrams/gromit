@@ -716,6 +716,46 @@ func TestProcessCodexStreamMapsMessageOutputTextDeltaToEventContent(t *testing.T
 	}
 }
 
+// TestProcessCodexStreamMapsMessageOutputTextDoneToEventContent verifies that
+// message.output_text.done events map to StreamEvent type "EventContent" with the completed text.
+func TestProcessCodexStreamMapsMessageOutputTextDoneToEventContent(t *testing.T) {
+	t.Parallel()
+	input := `{"type":"message.output_text.done","text":"done text"}` + "\n"
+	reader := strings.NewReader(input)
+	var output bytes.Buffer
+	var receivedEvents [][]byte
+
+	handler := func(line []byte) {
+		cp := make([]byte, len(line))
+		copy(cp, line)
+		receivedEvents = append(receivedEvents, cp)
+	}
+
+	_, _, _, err := processCodexStream(reader, &output, handler, nil)
+	if err != nil {
+		t.Fatalf("processCodexStream() error = %v", err)
+	}
+
+	if len(receivedEvents) == 0 {
+		t.Fatal("EventHandler was not called for message.output_text.done event")
+	}
+
+	var parsed struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(receivedEvents[0], &parsed); err != nil {
+		t.Fatalf("failed to parse emitted event: %v", err)
+	}
+
+	if parsed.Type != "EventContent" {
+		t.Errorf("message.output_text.done mapped to type %q, want %q", parsed.Type, "EventContent")
+	}
+	if parsed.Text != "done text" {
+		t.Errorf("text = %q, want %q", parsed.Text, "done text")
+	}
+}
+
 // TestProcessCodexStreamEmitsResultEventFromResultEvents verifies that result
 // events emit a result stream event with token usage, consistent with
 // turn.completed and response.completed handlers.
