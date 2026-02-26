@@ -9,6 +9,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/runner/specmerge"
 	"github.com/danabrams/gromit/internal/specgate"
+	"github.com/danabrams/gromit/internal/tracker"
 )
 
 type fakeBeadCreator struct {
@@ -166,6 +167,56 @@ func TestPipeline_IsSpecComplete_FalseWithOpenBead(t *testing.T) {
 	}
 }
 
+func TestTrackerBeadQueryConvertsTrackerItems(t *testing.T) {
+	t.Parallel()
+
+	client := &stubTrackerBeadQueryClient{
+		listFn: func(label string) ([]tracker.Item, error) {
+			if label != "spec:test" {
+				t.Fatalf("label = %q, want spec:test", label)
+			}
+			return []tracker.Item{
+				{
+					ID:     "b-1",
+					Title:  "Bead",
+					Status: tracker.StatusOpen,
+					Metadata: map[string]string{
+						"type":    "task",
+						"labels":  `["spec:test"]`,
+						"priority": "1",
+					},
+				},
+				{
+					ID:     "b-2",
+					Title:  "Closed",
+					Status: tracker.StatusClosed,
+					Metadata: map[string]string{
+						"type":    "task",
+						"labels":  `["spec:test"]`,
+						"priority": "2",
+					},
+				},
+			}, nil
+		},
+	}
+
+	query := specmerge.NewTrackerBeadQuery(client)
+	if query == nil {
+		t.Fatal("NewTrackerBeadQuery returned nil")
+	}
+
+	beads, err := query.ListWithLabel("spec:test")
+	if err != nil {
+		t.Fatalf("ListWithLabel returned error: %v", err)
+	}
+	if len(beads) != 2 {
+		t.Fatalf("len(beads) = %d, want 2", len(beads))
+	}
+	if beads[0].ID != "b-1" {
+		t.Fatalf("first bead ID = %s, want b-1", beads[0].ID)
+	}
+}
+
 type fakeBeadQuery struct {
 	listFn func(label string) ([]*bead.Bead, error)
 }
@@ -175,6 +226,50 @@ func (f *fakeBeadQuery) ListWithLabel(label string) ([]*bead.Bead, error) {
 		return nil, nil
 	}
 	return f.listFn(label)
+}
+
+type stubTrackerBeadQueryClient struct {
+	listFn func(label string) ([]tracker.Item, error)
+}
+
+func (s *stubTrackerBeadQueryClient) Ready(ctx context.Context) (*tracker.Item, error) {
+	return nil, nil
+}
+func (s *stubTrackerBeadQueryClient) List(ctx context.Context, q tracker.Query) ([]tracker.Item, error) {
+	return nil, nil
+}
+func (s *stubTrackerBeadQueryClient) Show(ctx context.Context, id string) (*tracker.Item, error) {
+	return nil, nil
+}
+func (s *stubTrackerBeadQueryClient) Search(ctx context.Context, q tracker.Query) ([]tracker.Item, error) {
+	return nil, nil
+}
+func (s *stubTrackerBeadQueryClient) Create(ctx context.Context, req tracker.CreateRequest) (*tracker.Item, error) {
+	return nil, nil
+}
+func (s *stubTrackerBeadQueryClient) CreateWithParent(ctx context.Context, req tracker.CreateRequest, parentID string) (*tracker.Item, error) {
+	return nil, nil
+}
+func (s *stubTrackerBeadQueryClient) Update(ctx context.Context, req tracker.UpdateRequest) (*tracker.Item, error) {
+	return nil, nil
+}
+func (s *stubTrackerBeadQueryClient) ListWithLabel(ctx context.Context, label string) ([]tracker.Item, error) {
+	if s.listFn == nil {
+		return nil, nil
+	}
+	return s.listFn(label)
+}
+func (s *stubTrackerBeadQueryClient) Close(ctx context.Context, id string) error {
+	return nil
+}
+func (s *stubTrackerBeadQueryClient) Sync(ctx context.Context) error {
+	return nil
+}
+func (s *stubTrackerBeadQueryClient) AddComment(ctx context.Context, id, comment string) error {
+	return nil
+}
+func (s *stubTrackerBeadQueryClient) HasOpenChildren(ctx context.Context, parentID string) (bool, error) {
+	return false, nil
 }
 
 func TestRunStage1Validation_FailsOnValidationCommandError(t *testing.T) {
