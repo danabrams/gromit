@@ -156,7 +156,14 @@ func (c *Config) BuildTierForStrategy(priority int, labels []string, complexity 
 		}
 		return tier
 	}
-	return c.SelectInitialTierForComplexity(complexity)
+
+	normalized := strings.ToLower(strings.TrimSpace(complexity))
+	switch normalized {
+	case tierLow, tierMedium, tierHigh:
+		return c.SelectInitialTierForComplexity(complexity)
+	default:
+		return c.SelectTier(priority, labels)
+	}
 }
 
 // SelectInitialTierForComplexity maps effective complexity to an initial tier.

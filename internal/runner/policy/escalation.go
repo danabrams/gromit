@@ -42,7 +42,7 @@ func NewConfigEscalationPolicy(cfg *config.Config) EscalationPolicy {
 
 // SelectInitialTier returns the initial tier for a bead based on priority/labels.
 func (p *ConfigEscalationPolicy) SelectInitialTier(priority int, labels []string) string {
-	return p.cfg.SelectTier(priority, labels)
+	return p.cfg.BuildTierForStrategy(priority, labels, "")
 }
 
 // SelectModel returns the model for a bead based on priority/labels.
