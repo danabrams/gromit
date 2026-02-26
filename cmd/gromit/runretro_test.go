@@ -4,7 +4,6 @@ import (
 	"errors"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -14,26 +13,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type retroTestAgent struct {
-	launchInDirFn func(promptPath, dir string) error
-}
-
-func (a *retroTestAgent) Name() string { return "retro-test-agent" }
-
-func (a *retroTestAgent) Launch(promptPath string) error {
-	return a.LaunchInDir(promptPath, "")
-}
-
-func (a *retroTestAgent) LaunchInDir(promptPath, dir string) error {
-	if a != nil && a.launchInDirFn != nil {
-		return a.launchInDirFn(promptPath, dir)
-	}
-	return nil
-}
-
-func (a *retroTestAgent) Command(promptPath string) (*exec.Cmd, error) {
-	return nil, errors.New("not implemented")
-}
+// retroTestAgent is now defined in session_test_agent_helper.go
+// using the shared sessionTestAgent test helper
+type retroTestAgent = sessionTestAgent
 
 var _ agent.Agent = (*retroTestAgent)(nil)
 
