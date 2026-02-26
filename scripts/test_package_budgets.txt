@@ -1,5 +1,11 @@
 # package max_seconds
-github.com/danabrams/gromit/cmd/gromit 60
-github.com/danabrams/gromit/internal/bead 90
-github.com/danabrams/gromit/internal/retro 120
-github.com/danabrams/gromit/internal/runner 60
+# Format: package:lane max_seconds (lane-specific) or package max_seconds (applies to all lanes)
+# Smoke lane budgets: 50% of default lane
+github.com/danabrams/gromit/cmd/gromit:default 60
+github.com/danabrams/gromit/cmd/gromit:smoke 30
+github.com/danabrams/gromit/internal/bead:default 90
+github.com/danabrams/gromit/internal/bead:smoke 45
+github.com/danabrams/gromit/internal/retro:default 120
+github.com/danabrams/gromit/internal/retro:smoke 60
+github.com/danabrams/gromit/internal/runner:default 60
+github.com/danabrams/gromit/internal/runner:smoke 30
