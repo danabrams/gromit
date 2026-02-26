@@ -1,8 +1,9 @@
 ---
+created: 2026-02-26T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-26T18:54:18Z"
 id: stats-merge-regression-tests
 source_spec: stats-merge-regression-tests
-created: 2026-02-26
-decomposed: false
 ---
 
 # Stats Merge Regression Tests Implementation Plan

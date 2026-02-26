@@ -1147,6 +1147,44 @@ func TestOrchestrator_CoverageTracker_TransitionsStatesAcrossTDDCycle(t *testing
 	}
 }
 
+// TestOrchestrator_MergesGlobalStatsPreservingExistingData_RefactoredWithSubtests verifies that when
+// GlobalStatsPath is configured, the orchestrator reads the existing stats file,
+// merges the new run stats into it, and updates the timestamp. Pre-existing
+// entries from prior runs are preserved (not overwritten).
+// This test uses t.Run subtests with shared setup helpers.
+func TestOrchestrator_MergesGlobalStatsPreservingExistingData_RefactoredWithSubtests(t *testing.T) {
+	t.Parallel()
+
+	// Setup helpers for common operations
+	setupMergeStatsTestDirs := func(t *testing.T) (dir, logsDir, statsPath string) {
+		return setupMergeStatsTestDirsImpl(t)
+	}
+
+	seedGlobalStats := func(t *testing.T, statsPath string) {
+		seedGlobalStatsImpl(t, statsPath)
+	}
+
+	createRunLogs := func(t *testing.T, logsDir, runID string, models []string) {
+		createRunLogsImpl(t, logsDir, runID, models)
+	}
+
+	invokeOrchestrator := func(t *testing.T, statsPath, logsDir, runID string) *logger.GlobalStats {
+		return invokeOrchestratorImpl(t, statsPath, logsDir, runID)
+	}
+
+	t.Run("baseline: merges with existing data", func(t *testing.T) {
+		_, logsDir, statsPath := setupMergeStatsTestDirs(t)
+		seedGlobalStats(t, statsPath)
+		createRunLogs(t, logsDir, "2026-02-25-001", []string{"opus", "haiku"})
+		mergedStats := invokeOrchestrator(t, statsPath, logsDir, "2026-02-25-001")
+
+		// Verify stats merged correctly
+		if len(mergedStats.Models) != 2 {
+			t.Errorf("Expected 2 models, got %d", len(mergedStats.Models))
+		}
+	})
+}
+
 // TestOrchestrator_MergesGlobalStatsPreservingExistingData verifies that when
 // GlobalStatsPath is configured, the orchestrator reads the existing stats file,
 // merges the new run stats into it, and updates the timestamp. Pre-existing
@@ -1746,4 +1784,111 @@ type fakeTrendUpdater struct {
 
 func (f *fakeTrendUpdater) Close() {
 	// no-op for testing
+}
+
+// setupMergeStatsTestDirsImpl creates temp directories for merge stats testing
+func setupMergeStatsTestDirsImpl(t *testing.T) (dir, logsDir, statsPath string) {
+	t.Helper()
+	dir = t.TempDir()
+	logsDir = filepath.Join(dir, "logs")
+	statsPath = filepath.Join(dir, "stats.json")
+
+	if err := os.MkdirAll(logsDir, 0755); err != nil {
+		t.Fatalf("Failed to create logs dir: %v", err)
+	}
+
+	return dir, logsDir, statsPath
+}
+
+// seedGlobalStatsImpl creates an existing global stats file with opus history
+func seedGlobalStatsImpl(t *testing.T, statsPath string) {
+	t.Helper()
+	existingStats := logger.GlobalStats{
+		Version: 1,
+		Updated: "2026-02-24T10:00:00Z",
+		Models: map[string]*logger.GlobalModelStats{
+			"opus": {
+				Iterations:      10,
+				Successes:       8,
+				Failures:        2,
+				TotalCostUSD:    20.00,
+				EscalationsFrom: 0,
+				EscalationsTo:   2,
+			},
+		},
+	}
+	existingData, _ := json.MarshalIndent(existingStats, "", "  ")
+	if err := os.WriteFile(statsPath, existingData, 0644); err != nil {
+		t.Fatalf("Failed to create existing stats file: %v", err)
+	}
+}
+
+// createRunLogsImpl creates iteration logs for the given models
+func createRunLogsImpl(t *testing.T, logsDir, runID string, models []string) {
+	t.Helper()
+	logEntries := []logger.IterationLog{
+		{
+			Timestamp:    time.Now(),
+			Iteration:    1,
+			BeadID:       "bead-1",
+			BeadTitle:    "Feature A",
+			Success:      true,
+			Model:        "opus",
+			CostUSD:      3.00,
+			InputTokens:  100,
+			OutputTokens: 50,
+			DurationMs:   1000,
+		},
+		{
+			Timestamp:    time.Now(),
+			Iteration:    2,
+			BeadID:       "bead-2",
+			BeadTitle:    "Feature B",
+			Success:      true,
+			Model:        "haiku",
+			CostUSD:      0.50,
+			InputTokens:  50,
+			OutputTokens: 25,
+			DurationMs:   500,
+		},
+	}
+	writeOrchestratorTestLogFile(t, logsDir, runID, logEntries)
+}
+
+// invokeOrchestratorImpl runs the orchestrator and returns the merged stats
+func invokeOrchestratorImpl(t *testing.T, statsPath, logsDir, runID string) *logger.GlobalStats {
+	t.Helper()
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		return nil, nil // No beads, so run completes immediately
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:            &fakeStage{},
+		Build:           &fakeStage{},
+		Validate:        &fakeStage{},
+		Epilogue:        &fakeStage{},
+		GetBead:         getBead,
+		Config:          &config.Config{},
+		Output:          io.Discard,
+		GlobalStatsPath: statsPath,
+		GetRunID: func() string {
+			return runID
+		},
+		LogsDir: logsDir,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	mergedStats, err := logger.ReadGlobalStats(statsPath)
+	if err != nil {
+		t.Fatalf("ReadGlobalStats failed: %v", err)
+	}
+
+	return mergedStats
 }
