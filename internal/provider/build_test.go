@@ -153,6 +153,40 @@ func TestBuildProvidersFromConfig_CodexBinaryPathEntry(t *testing.T) {
 	}
 }
 
+func TestBuildProvidersFromConfig_GeminiDefaults(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.ProviderDef{
+			"gemini": {
+				Binary: "gemini",
+			},
+		},
+	}
+
+	providers, err := provider.BuildProvidersFromConfig(cfg)
+	if err != nil {
+		t.Fatalf("BuildProvidersFromConfig() error = %v", err)
+	}
+
+	geminiProvider, ok := providers["gemini"]
+	if !ok {
+		t.Fatalf("providers missing %q entry", "gemini")
+	}
+
+	if got := geminiProvider.Name(); got != "gemini" {
+		t.Fatalf("provider name = %q, want %q", got, "gemini")
+	}
+
+	if got := geminiProvider.ModelForTier(provider.TierHigh); got != "gemini-3.1-pro" {
+		t.Fatalf("ModelForTier(%q) = %q, want %q", provider.TierHigh, got, "gemini-3.1-pro")
+	}
+	if got := geminiProvider.ModelForTier(provider.TierMedium); got != "gemini-3-flash" {
+		t.Fatalf("ModelForTier(%q) = %q, want %q", provider.TierMedium, got, "gemini-3-flash")
+	}
+	if got := geminiProvider.ModelForTier(provider.TierLow); got != "gemini-3-flash" {
+		t.Fatalf("ModelForTier(%q) = %q, want %q", provider.TierLow, got, "gemini-3-flash")
+	}
+}
+
 func TestBuildProvidersFromConfig_NilConfig(t *testing.T) {
 	providers, err := provider.BuildProvidersFromConfig(nil)
 	if err == nil {
