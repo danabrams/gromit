@@ -37,6 +37,7 @@ func (c *Config) applyPostLoadNormalization(matchBuildModelConfigured bool) {
 	c.Project.Profile = strings.ToLower(strings.TrimSpace(c.Project.Profile))
 	c.Tracker.Backend = strings.ToLower(strings.TrimSpace(c.Tracker.Backend))
 	c.Methodology.Adapter = strings.ToLower(strings.TrimSpace(c.Methodology.Adapter))
+	c.Learnings.Provider = strings.ToLower(strings.TrimSpace(c.Learnings.Provider))
 	c.Review.Tier = normalizeConfiguredTier(c.Review.Tier)
 	c.Review.Thorough.Tier = normalizeConfiguredTier(c.Review.Thorough.Tier)
 	c.TokenEfficiency.Routing.UtilityTier = normalizeConfiguredTier(c.TokenEfficiency.Routing.UtilityTier)
