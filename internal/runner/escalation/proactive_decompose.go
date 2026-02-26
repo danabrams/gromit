@@ -98,7 +98,7 @@ func (h *Handler) CheckProactiveDecomposition(ctx context.Context, bc *runtypes.
 	}
 
 	// Mark that we attempted proactive decomposition
-	now := time.Now()
+	now := time.Now().UTC()
 	bc.Result.TimeoutDecompositionAttempted = true
 	bc.Result.TimeoutDecompositionAttemptTime = now
 

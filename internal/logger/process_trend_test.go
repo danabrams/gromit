@@ -395,11 +395,12 @@ func TestSummarizeWindow_TimeoutDecompositionMetrics(t *testing.T) {
 
 func TestSummarizeWindow_TimeoutRetryBlockMetrics(t *testing.T) {
 	const blockMessage = "Same-scope retry blocked: timeout requires decomposition or escalation decision"
+	const partialMessage = "Partial/unsafe decomposition state: retry or escalate before continuing"
 	window := []IterationLog{
 		{Error: blockMessage},
 		{Error: "something else"},
 		{Error: blockMessage + " (wrapped)"},
-		{Error: blockMessage},
+		{Error: partialMessage},
 	}
 
 	summary := summarizeWindow(window)

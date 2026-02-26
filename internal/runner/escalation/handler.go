@@ -133,7 +133,7 @@ func (h *Handler) HandleInvocationTimeout(ctx context.Context, bc *runtypes.Bead
 	if bc == nil || bc.Result == nil {
 		return false
 	}
-	now := time.Now()
+	now := time.Now().UTC()
 	bc.Result.TimeoutDecompositionAttempted = true
 	bc.Result.TimeoutDecompositionAttemptTime = now
 
@@ -208,7 +208,7 @@ func (h *Handler) handleFirstTimeoutDecomposition(ctx context.Context, bc *runty
 		return firstTimeoutDecisionNone
 	}
 	if h.decomposeFn == nil {
-		now := time.Now()
+		now := time.Now().UTC()
 		bc.Result.TimeoutDecompositionAttempted = true
 		bc.Result.TimeoutDecompositionAttemptTime = now
 		bc.Result.TimeoutDecompositionOutcome = timeoutDecompositionOutcomeSkipped
@@ -216,7 +216,7 @@ func (h *Handler) handleFirstTimeoutDecomposition(ctx context.Context, bc *runty
 		return firstTimeoutDecisionEscalate
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 	bc.Result.TimeoutDecompositionAttempted = true
 	bc.Result.TimeoutDecompositionAttemptTime = now
 
