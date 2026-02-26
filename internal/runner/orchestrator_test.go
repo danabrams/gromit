@@ -18,6 +18,7 @@ import (
 	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/state"
 )
 
@@ -555,6 +556,10 @@ func TestOrchestrator_SetsComplexityFromPriority(t *testing.T) {
 	want := cfg.SelectTier(2, nil)
 	if captured.Complexity != want {
 		t.Fatalf("Input.Complexity = %q, want %q for priority 2", captured.Complexity, want)
+	}
+	tier := cfg.PhaseModelTier("build", cfg.SelectInitialTierForComplexity(captured.Complexity))
+	if tier != provider.TierLow {
+		t.Fatalf("build tier = %q, want %q", tier, provider.TierLow)
 	}
 }
 
