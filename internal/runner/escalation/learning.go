@@ -129,7 +129,16 @@ func ExtractSuccessLearning(ctx context.Context, bc *runtypes.BeadContext, cfg *
 	if err != nil {
 		return
 	}
-	if result == nil || !result.IsSuccess() {
+	if result == nil {
+		if logFn != nil {
+			logFn("Success learning extraction failed for %s: provider returned nil result", bc.Bead.ID)
+		}
+		return
+	}
+	if !result.IsSuccess() {
+		if logFn != nil {
+			logFn("Success learning extraction failed for %s: provider reported failure", bc.Bead.ID)
+		}
 		return
 	}
 
