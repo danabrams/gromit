@@ -9,12 +9,9 @@ import (
 )
 
 func TestTrackerItemToBead(t *testing.T) {
-	t.Parallel()
-
 	labelsJSON, _ := json.Marshal([]string{"spec:alpha", "build_strategy:medium"})
 	outputsJSON, _ := json.Marshal([]string{"file1.go", "file2.md"})
-	depsJSON, _ := json.Marshal([]tracker.Dependency{{ID: "dep-1", Title: "Dependency"}})
-	count := 2
+	depsJSON, _ := json.Marshal([]Dependency{{ID: "dep-1", Title: "Dependency"}})
 	item := &tracker.Item{
 		ID:          "bead-123",
 		Title:       "Feature work",
@@ -63,7 +60,7 @@ func TestTrackerItemToBead(t *testing.T) {
 	if bead.CloseReason != "done" {
 		t.Fatalf("close reason = %q, want done", bead.CloseReason)
 	}
-	if !reflect.DeepEqual(bead.Dependencies, []tracker.Dependency{{ID: "dep-1", Title: "Dependency"}}) {
+	if !reflect.DeepEqual(bead.Dependencies, []Dependency{{ID: "dep-1", Title: "Dependency"}}) {
 		t.Fatalf("dependencies = %+v", bead.Dependencies)
 	}
 	if bead.DependencyCount == nil || *bead.DependencyCount != 5 {
