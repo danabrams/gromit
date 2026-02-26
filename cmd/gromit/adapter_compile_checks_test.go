@@ -18,7 +18,7 @@ func TestAdapterCompileTimeChecks(t *testing.T) {
 	)
 
 	// Adapters in cmd/gromit/adapters.go
-	var _ pipeline.BeadClient = (*beadClientAdapter)(nil)
+	var _ pipeline.TrackerClient = (*trackerClientAdapter)(nil)
 
 	// Adapters in cmd/gromit/cli_adapters.go
 	var _ pipeline.ReviewRenderer = (*cliPromptRenderer)(nil)
