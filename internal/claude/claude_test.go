@@ -1596,3 +1596,23 @@ func TestFakeClaudeWithDelay_ReturnsValidBinaryPath(t *testing.T) {
 		t.Fatalf("fakeClaudeWithDelay() returned non-existent binary path: %v", err)
 	}
 }
+
+// fakeClaudeWithDelay returns a path to a fake Claude binary that sleeps for the specified
+// duration then exits. This allows tests to set up scenarios where the process duration can be
+// controlled relative to context deadlines, useful for testing parent-context-canceled scenarios
+// where the parent context expires before the invocation timeout.
+func fakeClaudeWithDelay(t *testing.T, delay time.Duration) string {
+	t.Helper()
+	tempDir := t.TempDir()
+	binary := filepath.Join(tempDir, "claude")
+	// Convert duration to seconds, rounding up to ensure we sleep at least as long as requested
+	delaySecs := int(delay.Seconds())
+	if delay.Nanoseconds()%int64(time.Second) > 0 {
+		delaySecs++ // Round up
+	}
+	script := fmt.Sprintf("#!/bin/sh\ncat /dev/null\nsleep %d\n", delaySecs)
+	if err := os.WriteFile(binary, []byte(script), 0755); err != nil {
+		t.Fatalf("failed to write fake claude delay binary: %v", err)
+	}
+	return binary
+}
