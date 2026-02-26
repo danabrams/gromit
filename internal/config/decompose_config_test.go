@@ -43,3 +43,12 @@ decompose:
 		t.Fatalf("Decompose.Target = %q, want %q", cfg.Decompose.Target, DecompositionTargetSingleConcern)
 	}
 }
+
+func TestValidateRejectsUnknownDecomposeTarget(t *testing.T) {
+	var cfg Config
+	cfg.SetDefaults()
+	cfg.Decompose.Target = DecompositionTarget("shell_shock")
+	if err := cfg.Validate(); err == nil {
+		t.Fatalf("expected validation error for invalid decompose target, got nil")
+	}
+}
