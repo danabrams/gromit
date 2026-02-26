@@ -335,7 +335,14 @@ func TestAutoHeal(t *testing.T) {
 
 	// Set up state with all fields populated
 	f.state.IterationsSinceReview = 5
-	f.state.LastRetro = time.Now().Add(-24 * time.Hour)
+	lastRetro := time.Now().Add(-24 * time.Hour)
+	f.state.LastRetro = lastRetro
+	f.state.CleanExit = true
+	f.state.ControlLimitAlertTriggered = true
+	f.state.FilteredLearningHashes = []string{"hash-filtered"}
+	f.state.ArchivedLearningHashes = []string{"hash-archived"}
+	updatedAt := time.Now().Add(-2 * time.Hour)
+	f.state.UpdatedAt = updatedAt
 	f.state.ProviderCounts = map[string]int{
 		"claude": 10,
 		"openai": 2,
@@ -353,8 +360,28 @@ func TestAutoHeal(t *testing.T) {
 	}
 
 	// Check that timestamps were preserved
-	if f.state.LastRetro.IsZero() {
-		t.Error("LastRetro should be preserved")
+	if !f.state.LastRetro.Equal(lastRetro) {
+		t.Errorf("LastRetro should be preserved, got %v", f.state.LastRetro)
+	}
+
+	if !f.state.CleanExit {
+		t.Error("CleanExit should not be modified by AutoHeal")
+	}
+
+	if !f.state.ControlLimitAlertTriggered {
+		t.Error("ControlLimitAlertTriggered should be preserved")
+	}
+
+	if !f.state.UpdatedAt.Equal(updatedAt) {
+		t.Errorf("UpdatedAt should be preserved, got %v", f.state.UpdatedAt)
+	}
+
+	if len(f.state.FilteredLearningHashes) != 1 || f.state.FilteredLearningHashes[0] != "hash-filtered" {
+		t.Errorf("FilteredLearningHashes should be preserved, got %v", f.state.FilteredLearningHashes)
+	}
+
+	if len(f.state.ArchivedLearningHashes) != 1 || f.state.ArchivedLearningHashes[0] != "hash-archived" {
+		t.Errorf("ArchivedLearningHashes should be preserved, got %v", f.state.ArchivedLearningHashes)
 	}
 
 	if len(f.state.ProviderCounts) != 0 {
