@@ -56,3 +56,21 @@ func TestPhaseTierForStrategyCostOptimized(t *testing.T) {
 		}
 	}
 }
+
+func TestPhaseTierForStrategyPriorityBasedFallsBackToPhaseModelTier(t *testing.T) {
+	cfg := &Config{
+		Routing: RoutingConfig{
+			Strategy: "priority_based",
+		},
+		Methodology: MethodologyConfig{
+			PhaseModels: PhaseModelsConfig{
+				Decompose: "low",
+			},
+		},
+	}
+
+	got := cfg.PhaseTierForStrategy("decompose", "high")
+	if got != "low" {
+		t.Fatalf("PhaseTierForStrategy(priority_based) = %q, want %q", got, "low")
+	}
+}
