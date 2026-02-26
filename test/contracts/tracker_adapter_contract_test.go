@@ -128,3 +128,8 @@ func requireBDCall(t *testing.T, env *testEnv, expected string) {
 
 	t.Fatalf("expected bd call %q not found; calls: %v", expected, calls)
 }
+
+func requireBDListCall(t *testing.T, env *testEnv, expected string) {
+	t.Helper()
+	requireBDCall(t, env, expected)
+}
