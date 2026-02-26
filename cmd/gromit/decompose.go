@@ -522,13 +522,13 @@ func filterUndecomposedPlans(plansDir string, force bool) ([]planInfo, error) {
 	return plans, nil
 }
 
-func listBeadsWithLabel(label string) ([]*bead.Bead, error) {
+func listBeadsWithLabel(ctx context.Context, label string) ([]*bead.Bead, error) {
 	beadClient, err := bead.NewClient()
 	if err != nil {
 		return nil, fmt.Errorf("creating bead client: %w", err)
 	}
 
-	beads, err := beadClient.ListWithLabel(context.Background(), label)
+	beads, err := beadClient.ListWithLabel(ctx, label)
 	if err != nil {
 		return nil, fmt.Errorf("listing beads with label %q: %w", label, err)
 	}
@@ -573,7 +573,7 @@ func reconcilePlanDecomposedState(planPath, planName string, force bool) (alread
 	}
 
 	label := fmt.Sprintf("spec:%s", planName)
-	beads, err := decomposeListWithLabelFn(label)
+	beads, err := decomposeListWithLabelFn(context.Background(), label)
 	if err != nil {
 		return false, false, err
 	}

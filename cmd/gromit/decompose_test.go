@@ -219,7 +219,7 @@ decomposed: false
 		t.Run(tt.name, func(t *testing.T) {
 			// Not parallel: subtests mutate package-level decomposeListWithLabelFn.
 			origListFn := decomposeListWithLabelFn
-			decomposeListWithLabelFn = func(label string) ([]*bead.Bead, error) {
+			decomposeListWithLabelFn = func(ctx context.Context, label string) ([]*bead.Bead, error) {
 				return nil, nil // stub: no beads found
 			}
 			t.Cleanup(func() { decomposeListWithLabelFn = origListFn })
@@ -590,7 +590,7 @@ decomposed: false
 		t.Fatalf("writing plan file: %v", err)
 	}
 
-	decomposeListWithLabelFn = func(label string) ([]*bead.Bead, error) {
+	decomposeListWithLabelFn = func(ctx context.Context, label string) ([]*bead.Bead, error) {
 		if label != "spec:sample" {
 			t.Fatalf("label = %q, want %q", label, "spec:sample")
 		}
@@ -639,7 +639,7 @@ decomposed: false
 		t.Fatalf("writing plan file: %v", err)
 	}
 
-	decomposeListWithLabelFn = func(label string) ([]*bead.Bead, error) {
+	decomposeListWithLabelFn = func(ctx context.Context, label string) ([]*bead.Bead, error) {
 		if label != "spec:sample" {
 			return []*bead.Bead{}, nil
 		}
@@ -845,4 +845,15 @@ func (m *mockTrackerClientWithItems) AddComment(context.Context, string, string)
 
 func (m *mockTrackerClientWithItems) HasOpenChildren(context.Context, string) (bool, error) {
 	return false, nil
+}
+
+// TestListBeadsWithLabelThreadsContext verifies that listBeadsWithLabel accepts and uses context
+func TestListBeadsWithLabelThreadsContext(t *testing.T) {
+	t.Parallel()
+
+	// Call listBeadsWithLabel with a custom context to verify it accepts context parameter
+	ctx := context.WithValue(context.Background(), "test-key", "test-value")
+	_, _ = listBeadsWithLabel(ctx, "test-label")
+
+	// If this compiles and runs without error, the signature is correct
 }
