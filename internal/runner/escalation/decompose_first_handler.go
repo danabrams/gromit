@@ -2,6 +2,7 @@ package escalation
 
 import (
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
 // DecomposeFirstHandler retries at a low tier before decomposing non-atomic failures.
@@ -38,4 +39,13 @@ func NewDecomposeFirstHandler(
 		showPartialProgressFn: showPartialProgressFn,
 		maxRetriesBeforeDecompose: maxRetriesBeforeDecompose,
 	}
+}
+
+// ShouldDecomposeBeforeEscalate determines if a bead should be decomposed before escalating.
+// Returns true if retries have been exhausted for the current tier.
+func (h *DecomposeFirstHandler) ShouldDecomposeBeforeEscalate(bc *runtypes.BeadContext) bool {
+	if bc == nil {
+		return false
+	}
+	return bc.RetriesThisModel >= h.maxRetriesBeforeDecompose
 }
