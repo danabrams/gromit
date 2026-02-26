@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+
+	"github.com/danabrams/gromit/internal/tracker"
 )
 
 func TestBDAdapterReadyReturnsNilWhenNoReadyBead(t *testing.T) {
@@ -121,5 +123,83 @@ func assertJSONListEqual(t *testing.T, encoded string, expected []string) {
 		if v != expected[i] {
 			t.Fatalf("entry[%d] = %q, want %q", i, v, expected[i])
 		}
+	}
+}
+
+func TestBDAdapterListFiltersItemsByLabels(t *testing.T) {
+	t.Parallel()
+
+	// Create beads: one with spec:foo, one with spec:bar, one with both
+	specFooBead := &Bead{
+		ID:     "bead-1",
+		Title:  "Spec Foo Task",
+		Status: "open",
+		Labels: []string{"spec:foo", "priority:high"},
+	}
+
+	specBarBead := &Bead{
+		ID:     "bead-2",
+		Title:  "Spec Bar Task",
+		Status: "open",
+		Labels: []string{"spec:bar"},
+	}
+
+	specBothBead := &Bead{
+		ID:     "bead-3",
+		Title:  "Both Spec Task",
+		Status: "open",
+		Labels: []string{"spec:foo", "spec:bar"},
+	}
+
+	client := &Client{
+		RunFn: func(args ...string) (string, error) {
+			// Return all beads when querying by status
+			beads := []*Bead{specFooBead, specBarBead, specBothBead}
+			data, _ := json.Marshal(beads)
+			return string(data), nil
+		},
+	}
+
+	adapter := NewBDAdapter(client)
+
+	// Query for items with spec:foo label
+	query := newTrackerQuery()
+	query.Filter.Labels = []string{"spec:foo"}
+
+	items, err := adapter.List(context.Background(), query)
+	if err != nil {
+		t.Fatalf("List() returned unexpected error: %v", err)
+	}
+
+	// Should return bead-1 and bead-3 (both have spec:foo label)
+	if len(items) != 2 {
+		t.Fatalf("List() returned %d items, expected 2", len(items))
+	}
+
+	foundBead1 := false
+	foundBead3 := false
+	for _, item := range items {
+		if item.ID == "bead-1" {
+			foundBead1 = true
+		}
+		if item.ID == "bead-3" {
+			foundBead3 = true
+		}
+	}
+
+	if !foundBead1 {
+		t.Fatalf("List() did not return bead-1 which has label spec:foo")
+	}
+	if !foundBead3 {
+		t.Fatalf("List() did not return bead-3 which has label spec:foo")
+	}
+}
+
+// Helper to create a minimal tracker.Query
+func newTrackerQuery() tracker.Query {
+	return tracker.Query{
+		Filter: tracker.Filter{
+			Statuses: []string{"open"},
+		},
 	}
 }

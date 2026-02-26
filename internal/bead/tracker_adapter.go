@@ -79,6 +79,10 @@ func (a *BDAdapter) List(ctx context.Context, query tracker.Query) ([]tracker.It
 			if _, ok := seen[b.ID]; ok {
 				continue
 			}
+			// Filter by labels if specified
+			if len(query.Filter.Labels) > 0 && !beadHasAllLabels(b, query.Filter.Labels) {
+				continue
+			}
 			seen[b.ID] = struct{}{}
 			if item := beadToItem(b); item != nil {
 				items = append(items, *item)
@@ -100,6 +104,21 @@ func (a *BDAdapter) List(ctx context.Context, query tracker.Query) ([]tracker.It
 	}
 
 	return items[start:end], nil
+}
+
+// beadHasAllLabels checks if a bead has at least one of the specified labels
+func beadHasAllLabels(b *Bead, requiredLabels []string) bool {
+	if b == nil || len(requiredLabels) == 0 {
+		return true
+	}
+	for _, required := range requiredLabels {
+		for _, beadLabel := range b.Labels {
+			if beadLabel == required {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (a *BDAdapter) Show(ctx context.Context, id string) (*tracker.Item, error) {
