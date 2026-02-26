@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 )
 
@@ -111,6 +112,39 @@ func FormatRecommendation(rec string) string {
 		}
 	}
 	return "Next action: " + rec + hint
+}
+
+// FormatModelPerformance formats per-model performance statistics for display.
+func FormatModelPerformance(stats map[string]logger.ModelStats) string {
+	lines := []string{"Model Performance:"}
+
+	if len(stats) == 0 {
+		return strings.Join(lines, "\n")
+	}
+
+	models := make([]string, 0, len(stats))
+	for m := range stats {
+		models = append(models, m)
+	}
+	sort.Strings(models)
+
+	for _, m := range models {
+		s := stats[m]
+		displayModel := m
+		if strings.TrimSpace(displayModel) == "" {
+			displayModel = "(unknown model)"
+		}
+		if s.Iterations == 0 {
+			lines = append(lines, fmt.Sprintf("  %s: no iterations", displayModel))
+			continue
+		}
+		pct := int(math.Round(s.SuccessRate() * 100))
+		costPerIter := s.TotalCostUSD / float64(s.Iterations)
+		lines = append(lines, fmt.Sprintf("  %s: %d%% (%d/%d) $%.2f/iter",
+			displayModel, pct, s.Successes, s.Iterations, costPerIter))
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 // formatItems formats a list of items, showing up to maxShow items and an overflow message
