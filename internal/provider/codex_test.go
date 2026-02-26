@@ -3,6 +3,7 @@ package provider
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -1209,6 +1210,44 @@ exit 1
 	}
 	if !strings.Contains(result.Stderr, "stream error") {
 		t.Errorf("StreamRun() stderr missing expected content, got: %q", result.Stderr)
+	}
+}
+
+func TestCodexProviderStreamRunUsageLimitErrorIncludesUsage(t *testing.T) {
+	t.Parallel()
+	tempDir := t.TempDir()
+
+	mockBinary := filepath.Join(tempDir, "codex")
+	mockScript := `#!/bin/bash
+cat > /dev/null
+echo '{"type":"item.completed","item":{"type":"agent_message","text":"done"}}'
+echo '{"type":"turn.completed","usage":{"input_tokens":210,"output_tokens":80,"total_cost_usd":0.015}}'
+echo '{"type":"turn.completed","status":"failed","error":{"type":"UsageLimitExceeded","message":"Limit hit"}}'
+exit 0
+`
+	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
+		t.Fatalf("failed to create mock codex binary: %v", err)
+	}
+
+	cp := NewCodexProvider(mockBinary, nil, map[string]string{TierMedium: "gpt-5.3-codex"})
+	ctx := context.Background()
+
+	result, err := cp.StreamRun(ctx, "prompt", TierMedium, nil, func([]byte) {}, nil)
+	if err == nil {
+		t.Fatalf("StreamRun() err = nil, want UsageLimitError")
+	}
+	var usageErr *UsageLimitError
+	if !errors.As(err, &usageErr) {
+		t.Fatalf("StreamRun() err = %v, want UsageLimitError", err)
+	}
+	if result == nil {
+		t.Fatal("StreamRun() returned nil result")
+	}
+	if result.InputTokens != 210 {
+		t.Fatalf("InputTokens = %d, want 210", result.InputTokens)
+	}
+	if result.OutputTokens != 80 {
+		t.Fatalf("OutputTokens = %d, want 80", result.OutputTokens)
 	}
 }
 
