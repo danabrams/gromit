@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"io"
 	"strings"
 	"time"
@@ -33,8 +34,8 @@ var legacyModelToTier = map[string]string{
 	"gpt-4o":      TierMedium,
 	"gpt-4o-mini": TierLow,
 	// Codex models
-	"gpt-5.3-codex": TierMedium,
-	"gpt-5.1-codex-mini":    TierLow,
+	"gpt-5.3-codex":      TierMedium,
+	"gpt-5.1-codex-mini": TierLow,
 	// Gemini models
 	"gemini-3.1-pro": TierHigh,
 	"gemini-3-pro":   TierHigh,
@@ -58,6 +59,9 @@ var modelToProvider = map[string]string{
 	"gpt-5.3-codex":      "codex",
 	"gpt-5.1-codex-mini": "codex",
 }
+
+// ErrStreamNotSupported signals that a provider cannot fulfill streaming requests.
+var ErrStreamNotSupported = errors.New("stream run not supported")
 
 // Result represents the outcome of a provider invocation
 type Result struct {

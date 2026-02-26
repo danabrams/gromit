@@ -2,6 +2,7 @@ package execution
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -203,7 +204,7 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 
 	providerResult, err := p.StreamRun(invocationCtx, invocationPrompt, tier, inv.output, providerHandler, providerToolHandler)
 
-	if err != nil && p.IsUsageLimitError(providerResult, err) {
+	if err != nil && (p.IsUsageLimitError(providerResult, err) || errors.Is(err, provider.ErrStreamNotSupported)) {
 		inv.router.MarkUnavailable(p.Name())
 
 		p2, modelName2 := inv.router.Select(phase, tier)

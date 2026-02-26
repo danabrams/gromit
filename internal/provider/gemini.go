@@ -1,14 +1,14 @@
 package provider
 
 import (
-    "bytes"
-    "context"
-    "encoding/json"
-    "errors"
-    "fmt"
-    "io"
-    "os/exec"
-    "time"
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os/exec"
+	"time"
 )
 
 const providerNameGemini = "gemini"
@@ -92,8 +92,8 @@ func (gp *GeminiProvider) Run(ctx context.Context, prompt string, tier string) (
 
 // StreamRun is not implemented yet and returns an error placeholder.
 func (gp *GeminiProvider) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer,
-    handler EventHandler, onToolCall ToolCallHandler) (*Result, error) {
-    return nil, fmt.Errorf("stream run not implemented")
+	handler EventHandler, onToolCall ToolCallHandler) (*Result, error) {
+	return nil, ErrStreamNotSupported
 }
 
 func (gp *GeminiProvider) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*Result, error) {
@@ -125,11 +125,11 @@ func (gp *GeminiProvider) IsUsageLimitError(result *Result, err error) bool {
 }
 
 func (gp *GeminiProvider) IsValidationPassed(result *Result) bool {
-    return IsValidationPassed(result)
+	return IsValidationPassed(result)
 }
 
 func (gp *GeminiProvider) IsScopeTooLarge(result *Result) (bool, string) {
-    return IsScopeTooLarge(result)
+	return IsScopeTooLarge(result)
 }
 
 func (gp *GeminiProvider) buildCommandArgs(model, outputFormat, prompt string) []string {
