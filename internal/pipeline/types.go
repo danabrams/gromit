@@ -194,8 +194,26 @@ type PlanSession struct {
 }
 
 // ReviewSession is a typed wrapper for interactive Review sessions.
+// It owns the lifecycle of the temp prompt file to support async mode.
 type ReviewSession struct {
 	Session
+	cleanup func()
+}
+
+// NewReviewSession creates a ReviewSession that owns the given cleanup function.
+func NewReviewSession(cleanup func()) *ReviewSession {
+	return &ReviewSession{
+		cleanup: cleanup,
+	}
+}
+
+// Cleanup removes the temp file associated with this session.
+// Safe to call multiple times - subsequent calls are no-ops.
+func (rs *ReviewSession) Cleanup() {
+	if rs.cleanup != nil {
+		rs.cleanup()
+		rs.cleanup = nil // Prevent double cleanup
+	}
 }
 
 // ExploreSession is a typed wrapper for interactive Explore sessions.
