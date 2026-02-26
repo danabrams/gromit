@@ -26,3 +26,9 @@ Internal packages live in `internal/` — each directory is a focused package. K
 3. **Model selection by complexity** — P0→opus, P1→sonnet, P2→haiku
 4. **Escalation on failure** — haiku→sonnet→opus retry chain
 5. **Separate validation** — tests/lint run as separate haiku invocation
+
+## Code Patterns
+
+### Nil-Field Normalization Visibility Convention
+
+Use **Exported `NormalizeNilFields()`** for types that cross package boundaries (e.g., `Config`, `State`, `InteractiveState`, `SubTask`). These are typically top-level structs loaded externally and called after instantiation. Use **unexported `normalizeNilFields()`** for types consumed only within their package (e.g., `Context`, `ReviewResult`, `Bead`, `Proposals`). These are typically internal data structures called right after deserialization or construction, before rendering or processing. Both ensure nil slices/maps become empty instances (preventing nil→"null" vs []→"[]" marshaling differences).
