@@ -429,6 +429,10 @@ func (o *Orchestrator) RunSequence(
 func (o *Orchestrator) buildInput(b *bead.Bead, iteration int, deadline time.Time, validationFailures, touchedPackages []string) pipeline.Input {
 	cfg := o.cfg.Config
 	escalationEnabled := cfg != nil && cfg.Escalation.Enabled
+	complexity := ""
+	if cfg != nil {
+		complexity = cfg.SelectTier(b.Priority, b.Labels)
+	}
 	return pipeline.Input{
 		Bead:               b,
 		Config:             cfg,
@@ -437,6 +441,9 @@ func (o *Orchestrator) buildInput(b *bead.Bead, iteration int, deadline time.Tim
 		ValidationFailures: validationFailures,
 		EscalationEnabled:  escalationEnabled,
 		TouchedPackages:    touchedPackages,
+		ComplexityRouting: pipeline.ComplexityRouting{
+			Complexity: complexity,
+		},
 	}
 }
 
