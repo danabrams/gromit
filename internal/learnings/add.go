@@ -2,6 +2,7 @@ package learnings
 
 import (
 	"fmt"
+	"os"
 )
 
 func (f *File) processNewLearning(learning Learning) (*Learning, error) {
@@ -13,6 +14,7 @@ func (f *File) processNewLearning(learning Learning) (*Learning, error) {
 	if f.filterFunc != nil {
 		isGeneric, err := f.filterFunc(learning.Content)
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "learnings filter failed: %v\n", err)
 			// Fall through to normal logic on filter error — don't block learning placement
 		} else if isGeneric {
 			archived := learning
