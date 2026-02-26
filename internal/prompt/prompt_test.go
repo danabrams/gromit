@@ -2443,3 +2443,99 @@ Not in ATDD subset.
 		t.Error("expected Reliability to be excluded from ATDD subset")
 	}
 }
+
+// TestRenderMethodsNormalizeNilFields verifies that render entry points
+// normalize nil slices/maps to empty values before rendering.
+func TestRenderMethodsNormalizeNilFields(t *testing.T) {
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	os.MkdirAll(templatesDir, 0755)
+
+	// Create minimal template files that access the fields to verify they're not nil
+	templates := map[string]string{
+		"PROMPT_review.md":           "Review: {{len .ValidationCommands}} commands",
+		"PROMPT_thorough_review.md":  "Thorough: {{len .CompletedBeads}} beads",
+		"PROMPT_tdd_red.md":          "Red: {{len .TestFileContents}} files",
+		"PROMPT_tdd_green.md":        "Green: {{len .ImplFileContents}} files",
+	}
+	for name, content := range templates {
+		os.WriteFile(filepath.Join(templatesDir, name), []byte(content), 0644)
+	}
+
+	r := &Renderer{templatesDir: templatesDir, budgetMaxChars: 4000}
+
+	// Test RenderReview normalizes nil ValidationCommands
+	t.Run("RenderReview normalizes nil ValidationCommands", func(t *testing.T) {
+		ctx := &ReviewContext{
+			Bead: &bead.Bead{ID: "test-1", Title: "Test"},
+			// ValidationCommands intentionally nil
+		}
+		if ctx.ValidationCommands != nil {
+			t.Fatal("context should have nil ValidationCommands before render")
+		}
+		result, err := r.RenderReview(ctx)
+		if err != nil {
+			t.Errorf("RenderReview failed: %v", err)
+		}
+		// After normalization, ValidationCommands should be empty slice, and len should be 0
+		if !strings.Contains(result, "0 commands") {
+			t.Errorf("expected template to show len=0 for normalized ValidationCommands, got: %s", result)
+		}
+	})
+
+	// Test RenderThoroughReview normalizes nil CompletedBeads
+	t.Run("RenderThoroughReview normalizes nil CompletedBeads", func(t *testing.T) {
+		ctx := &ThoroughReviewContext{
+			// CompletedBeads intentionally nil
+		}
+		if ctx.CompletedBeads != nil {
+			t.Fatal("context should have nil CompletedBeads before render")
+		}
+		result, err := r.RenderThoroughReview(ctx)
+		if err != nil {
+			t.Errorf("RenderThoroughReview failed: %v", err)
+		}
+		// After normalization, CompletedBeads should be empty slice, and len should be 0
+		if !strings.Contains(result, "0 beads") {
+			t.Errorf("expected template to show len=0 for normalized CompletedBeads, got: %s", result)
+		}
+	})
+
+	// Test RenderTDDRed normalizes nil TestFileContents
+	t.Run("RenderTDDRed normalizes nil TestFileContents", func(t *testing.T) {
+		ctx := &TDDRedContext{
+			BeadID: "test-1",
+			// TestFileContents intentionally nil
+		}
+		if ctx.TestFileContents != nil {
+			t.Fatal("context should have nil TestFileContents before render")
+		}
+		result, err := r.RenderTDDRed(ctx)
+		if err != nil {
+			t.Errorf("RenderTDDRed failed: %v", err)
+		}
+		// After normalization, TestFileContents should be empty map, and len should be 0
+		if !strings.Contains(result, "0 files") {
+			t.Errorf("expected template to show len=0 for normalized TestFileContents, got: %s", result)
+		}
+	})
+
+	// Test RenderTDDGreen normalizes nil ImplFileContents
+	t.Run("RenderTDDGreen normalizes nil ImplFileContents", func(t *testing.T) {
+		ctx := &TDDGreenContext{
+			BeadID: "test-1",
+			// ImplFileContents intentionally nil
+		}
+		if ctx.ImplFileContents != nil {
+			t.Fatal("context should have nil ImplFileContents before render")
+		}
+		result, err := r.RenderTDDGreen(ctx)
+		if err != nil {
+			t.Errorf("RenderTDDGreen failed: %v", err)
+		}
+		// After normalization, ImplFileContents should be empty map, and len should be 0
+		if !strings.Contains(result, "0 files") {
+			t.Errorf("expected template to show len=0 for normalized ImplFileContents, got: %s", result)
+		}
+	})
+}
