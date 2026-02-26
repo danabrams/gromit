@@ -342,21 +342,23 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 			mergedUsage, turnUsage := mergeCodexEventUsage(usage, event)
 			if turnUsage != nil {
 				usage = mergedUsage
-				emitStreamEvent(handler, map[string]interface{}{
-					"type":           "result",
-					"total_cost_usd": turnUsage.TotalCostUSD,
-					"input_tokens":   turnUsage.InputTokens,
-					"output_tokens":  turnUsage.OutputTokens,
-				})
+				if mergedUsage != nil {
+					emitStreamEvent(handler, map[string]interface{}{
+						"type":           "result",
+						"total_cost_usd": mergedUsage.TotalCostUSD,
+						"input_tokens":   mergedUsage.InputTokens,
+						"output_tokens":  mergedUsage.OutputTokens,
+					})
+					emitStreamEvent(handler, map[string]interface{}{
+						"type": "EventUsage",
+						"usage": map[string]interface{}{
+							"total_cost_usd": mergedUsage.TotalCostUSD,
+							"input_tokens":   mergedUsage.InputTokens,
+							"output_tokens":  mergedUsage.OutputTokens,
+						},
+					})
+				}
 				emitHighInputTokenWarningIfNeeded(handler, turnUsage)
-				emitStreamEvent(handler, map[string]interface{}{
-					"type": "EventUsage",
-					"usage": map[string]interface{}{
-						"total_cost_usd": turnUsage.TotalCostUSD,
-						"input_tokens":   turnUsage.InputTokens,
-						"output_tokens":  turnUsage.OutputTokens,
-					},
-				})
 			}
 
 			// Capture error info from failed turns.
