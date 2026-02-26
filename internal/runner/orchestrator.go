@@ -352,11 +352,11 @@ func inferBuildFailurePhase(err error) string {
 }
 
 // checkControlLimitAlerts verifies that first-pass success rate stays above 70%.
-// If rolling_first_pass_success_rate < 0.70 (with minimum 10 iterations in window),
+// If rolling_first_pass_success_rate < 0.70 (with minimum 30 iterations in window),
 // logs a warning and sets a flag in state to trigger retro on next run.
 func (o *Orchestrator) checkControlLimitAlerts() {
 	const firstPassSuccessThreshold = 0.70
-	const minimumWindowSize = 10
+	const minimumWindowSize = 30
 
 	// Need both LogsDir and StateSaver to perform this check
 	if o.cfg.LogsDir == "" || o.cfg.StateSaver == nil {
