@@ -3,13 +3,13 @@ package config
 import "path/filepath"
 
 const (
-	defaultPhaseAgent               = "claude"
-	defaultMethodologyBuildStrategy = "single_pass"
-	defaultRoutingStrategy          = "priority_based"
-	defaultCostOptimizedBuildTier   = "low"
-	defaultCostOptimizedDecomposeTier = "medium"
-	defaultCostOptimizedEscalationTier = "medium"
-	defaultCostOptimizedMaxDecompositionDepth = 10
+	defaultPhaseAgent                             = "claude"
+	defaultMethodologyBuildStrategy               = "single_pass"
+	defaultRoutingStrategy                        = "priority_based"
+	defaultCostOptimizedBuildTier                 = "low"
+	defaultCostOptimizedDecomposeTier             = "medium"
+	defaultCostOptimizedEscalationTier            = "medium"
+	defaultCostOptimizedMaxDecompositionDepth     = 10
 	defaultCostOptimizedMaxRetriesBeforeDecompose = 2
 )
 
@@ -290,7 +290,7 @@ func (c *Config) SetDefaults() {
 		c.Agents.Phases.Debug = defaultPhaseAgent
 	}
 
-// Routing defaults - only when providers are configured
+	// Routing defaults - only when providers are configured
 	if c.HasProviders() {
 		providerCount := len(c.Providers)
 
@@ -418,5 +418,8 @@ func (c *Config) SetDefaults() {
 	}
 	if c.Decompose.Tier == "" {
 		c.Decompose.Tier = "medium"
+	}
+	if c.Decompose.Target == "" {
+		c.Decompose.Target = DecompositionTargetNarrowScope
 	}
 }
