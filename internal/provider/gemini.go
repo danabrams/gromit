@@ -12,7 +12,7 @@ import (
 
 const (
 	providerNameGemini            = "gemini"
-	geminiShortPromptThreshold    = 256 // Use -p flag for prompts under this size
+	geminiShortPromptThreshold    = 8192 // Use -p flag for prompts under this size. ARG_MAX on Linux is ~2MB, so 8KB is a practical limit.
 )
 
 
