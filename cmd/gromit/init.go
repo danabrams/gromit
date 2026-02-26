@@ -39,10 +39,14 @@ Creates:
 	RunE: runInit,
 }
 
-var forceInit bool
+var (
+	forceInit  bool
+	initProfile string
+)
 
 func init() {
 	initCmd.Flags().BoolVarP(&forceInit, "force", "f", false, "Overwrite existing files")
+	initCmd.Flags().StringVar(&initProfile, "profile", "", "Explicit project profile (go|node|python|custom)")
 	rootCmd.AddCommand(initCmd)
 }
 
@@ -220,7 +224,7 @@ func detectProfile(dir string) string {
 			return "python"
 		}
 	}
-	return "custom"
+	return "go"
 }
 
 func appendToGitignore(path string) {
