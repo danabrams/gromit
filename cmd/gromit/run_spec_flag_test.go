@@ -57,6 +57,29 @@ func TestRunSpecTestEnvSeedsExplicitProfile(t *testing.T) {
 	}
 }
 
+func TestRunSpecTestEnvGoProfileValidationCommands(t *testing.T) {
+	_, cleanup := setupRunSpecTestEnv(t)
+	defer cleanup()
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("reading config fixture: %v", err)
+	}
+	cfg := string(data)
+	if !strings.Contains(cfg, "- \"go test\"") {
+		t.Fatalf("expected go test command in seeded config, got:\n%s", cfg)
+	}
+	if !strings.Contains(cfg, "- \"go build\"") {
+		t.Fatalf("expected go build command in seeded config, got:\n%s", cfg)
+	}
+	if !strings.Contains(cfg, "- \"go vet\"") {
+		t.Fatalf("expected go vet command in seeded config, got:\n%s", cfg)
+	}
+	if !strings.Contains(cfg, "compile_command: \"go build\"") {
+		t.Fatalf("expected go build compile command in seeded config, got:\n%s", cfg)
+	}
+}
+
 // TestRunCmd_ScopeFlagsRegistered verifies that --spec and --epic flags are registered.
 func TestRunCmd_ScopeFlagsRegistered(t *testing.T) {
 	tests := []struct {
