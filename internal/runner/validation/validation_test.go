@@ -1145,6 +1145,68 @@ func TestRunWithRecoveryForCommands_TruncatesLargeOutput(t *testing.T) {
 	}
 }
 
+// TestRunWithRecoveryForCommands_PassesEscalationFlagToExecuteFn verifies that
+// when RunWithRecoveryForCommandsWithEscalation is called with escalationEnabled=false,
+// this flag is stored in the runner and accessible to callers that need to use it.
+func TestRunWithRecoveryForCommands_PassesEscalationFlagToExecuteFn(t *testing.T) {
+	cfg := newTestConfig()
+
+	// Always fail validation
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return "", "validation failure", 1, nil
+	}
+
+	// Track if executeFn was called
+	executeFnCalled := false
+	executeFn := func(ctx context.Context, bc *runtypes.BeadContext) bool {
+		executeFnCalled = true
+		return true
+	}
+
+	r := NewRunner(cfg, cmdRunner, nil, executeFn)
+
+	bc := newTestBeadContext()
+	bc.StartCommit = "abc123"
+
+	// Call with escalationEnabled=false
+	// This should cause the runner to store escalationEnabled=false internally
+	_ = r.RunWithRecoveryForCommandsWithEscalation(context.Background(), bc, r.validationCommands(), "fast", false)
+
+	if !executeFnCalled {
+		t.Error("executeFn should have been called during validation recovery")
+	}
+	if r.escalationEnabled != false {
+		t.Errorf("escalationEnabled should be false, got %v", r.escalationEnabled)
+	}
+}
+
+// TestRunWithRecoveryForCommandsWithEscalation_EnabledTrue verifies that
+// when escalationEnabled=true is passed, the runner correctly stores it.
+func TestRunWithRecoveryForCommandsWithEscalation_EnabledTrue(t *testing.T) {
+	cfg := newTestConfig()
+
+	// Always fail validation
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		return "", "validation failure", 1, nil
+	}
+
+	executeFn := func(ctx context.Context, bc *runtypes.BeadContext) bool {
+		return true
+	}
+
+	r := NewRunner(cfg, cmdRunner, nil, executeFn)
+
+	bc := newTestBeadContext()
+	bc.StartCommit = "abc123"
+
+	// Call with escalationEnabled=true
+	_ = r.RunWithRecoveryForCommandsWithEscalation(context.Background(), bc, r.validationCommands(), "fast", true)
+
+	if r.escalationEnabled != true {
+		t.Errorf("escalationEnabled should be true, got %v", r.escalationEnabled)
+	}
+}
+
 // Ensure imports are used
 var (
 	_ = claude.Result{}

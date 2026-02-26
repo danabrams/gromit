@@ -27,13 +27,14 @@ type ExecuteFn func(ctx context.Context, bc *runtypes.BeadContext) bool
 
 // Runner handles direct validation command execution and recovery.
 type Runner struct {
-	cfg               *config.Config
-	cmdRunner         runtypes.CmdRunnerFn
-	autoFixFn         runtypes.AutoFixFn
-	executeFn         ExecuteFn
-	failures          []string // accumulated validation failure summaries
-	elapsed           time.Duration
-	lastFailureOutput string
+	cfg                 *config.Config
+	cmdRunner           runtypes.CmdRunnerFn
+	autoFixFn           runtypes.AutoFixFn
+	executeFn           ExecuteFn
+	failures            []string // accumulated validation failure summaries
+	elapsed             time.Duration
+	lastFailureOutput   string
+	escalationEnabled   bool // current invocation's escalation setting
 }
 
 type commandResult struct {
@@ -112,6 +113,15 @@ func (r *Runner) RunDirect(ctx context.Context, commands []string, workDir strin
 // then falls back to Claude-based fixes. Retry depth is capped by MaxValidationRetries.
 func (r *Runner) RunWithRecovery(ctx context.Context, bc *runtypes.BeadContext) error {
 	return r.RunWithRecoveryForCommands(ctx, bc, r.validationCommands(), "fast")
+}
+
+// RunWithRecoveryForCommandsWithEscalation runs validation with recovery, explicitly
+// specifying whether escalation is enabled for this invocation. The escalationEnabled
+// value is stored in the runner and made available to executeFn closures that may
+// need it when calling escalation.Handler.ExecuteWithRetryWithEscalation.
+func (r *Runner) RunWithRecoveryForCommandsWithEscalation(ctx context.Context, bc *runtypes.BeadContext, commands []string, mode string, escalationEnabled bool) error {
+	r.escalationEnabled = escalationEnabled
+	return r.RunWithRecoveryForCommands(ctx, bc, commands, mode)
 }
 
 func (r *Runner) RunWithRecoveryForCommands(ctx context.Context, bc *runtypes.BeadContext, commands []string, mode string) error {
