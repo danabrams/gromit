@@ -89,3 +89,22 @@ func TestEffectiveValidationCommandsProfileDefaults(t *testing.T) {
 		t.Errorf("EffectiveValidationCommands() = %v, want %v", effective, want)
 	}
 }
+
+func TestEffectivePreflightCompileCommandExplicitPrecedence(t *testing.T) {
+	cfg := Config{
+		Project: ProjectConfig{
+			Profile: "go",
+		},
+		Preflight: PreflightConfig{
+			CompileCommand: "custom compile",
+		},
+	}
+
+	effective := cfg.EffectivePreflightCompileCommand()
+
+	// Explicit compile command takes precedence over profile defaults
+	want := "custom compile"
+	if effective != want {
+		t.Errorf("EffectivePreflightCompileCommand() = %q, want %q", effective, want)
+	}
+}
