@@ -6,7 +6,7 @@ package bead
 // A bead is atomic if any of these conditions are true:
 // 1. The bead has the atomic:true label
 // 2. depth >= maxDepth (at or beyond max decomposition depth)
-// 3. The bead targets a single file/function (single-target heuristic)
+// 3. The bead targets a single file/function (single-target heuristic: exactly one expected output)
 func IsAtomic(bead *Bead, depth, maxDepth int) bool {
 	if bead == nil {
 		return false
@@ -19,6 +19,11 @@ func IsAtomic(bead *Bead, depth, maxDepth int) bool {
 
 	// Check if at or beyond max decomposition depth
 	if depth >= maxDepth {
+		return true
+	}
+
+	// Check single-target heuristic: exactly one expected output (single file)
+	if len(bead.ExpectedOutputs) == 1 {
 		return true
 	}
 
