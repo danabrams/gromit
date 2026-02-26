@@ -122,6 +122,95 @@ func createParamsFromRequest(req tracker.CreateRequest) (int, []string, []string
 	return priority, labels, expectedOutputs, parent, nil
 }
 
+// TrackerItemToBead converts a tracker.Item back into a bead, if possible.
+func TrackerItemToBead(item *tracker.Item) (*Bead, error) {
+	if item == nil {
+		return nil, nil
+	}
+
+	b := &Bead{
+		ID:          item.ID,
+		Title:       item.Title,
+		Description: item.Description,
+		Status:      item.Status,
+	}
+	if item.Metadata == nil {
+		item.Metadata = map[string]string{}
+	}
+
+	if priority, ok := parseInt(item.Metadata["priority"]); ok {
+		b.Priority = priority
+	}
+	if labels, err := parseStringList(item.Metadata["labels"]); err == nil && len(labels) > 0 {
+		b.Labels = labels
+	}
+	if outputs, err := parseStringList(item.Metadata["expected_outputs"]); err == nil && len(outputs) > 0 {
+		b.ExpectedOutputs = outputs
+	}
+	if parent := strings.TrimSpace(item.Metadata["parent"]); parent != "" {
+		b.Parent = parent
+	}
+	if typ := strings.TrimSpace(item.Metadata["type"]); typ != "" {
+		b.Type = typ
+	}
+	if owner := strings.TrimSpace(item.Metadata["owner"]); owner != "" {
+		b.Owner = owner
+	}
+	if close := strings.TrimSpace(item.Metadata["close_reason"]); close != "" {
+		b.CloseReason = close
+	}
+	if acceptance := strings.TrimSpace(item.Metadata["acceptance_criteria"]); acceptance != "" {
+		b.AcceptanceCriteria = acceptance
+	}
+	if deps, ok := parseDependencies(item.Metadata["dependencies"]); ok {
+		b.Dependencies = deps
+	}
+	if blocked, ok := parseDependencies(item.Metadata["blocked_by"]); ok {
+		b.BlockedBy = blocked
+	}
+	if depends, ok := parseDependencies(item.Metadata["depends_on"]); ok {
+		b.DependsOn = depends
+	}
+	if count, ok := parseInt(item.Metadata["dependency_count"]); ok {
+		b.DependencyCount = &count
+	}
+	if count, ok := parseInt(item.Metadata["dependent_count"]); ok {
+		b.DependentCount = &count
+	}
+
+	if err := prepareBeadForUse(b); err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+func parseInt(raw string) (int, bool) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return 0, false
+	}
+	val, err := strconv.Atoi(trimmed)
+	if err != nil {
+		return 0, false
+	}
+	return val, true
+}
+
+func parseDependencies(raw string) ([]Dependency, bool) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, false
+	}
+	var deps []Dependency
+	if err := json.Unmarshal([]byte(trimmed), &deps); err != nil {
+		return nil, false
+	}
+	if len(deps) == 0 {
+		return nil, false
+	}
+	return deps, true
+}
+
 func parseStringList(raw string) ([]string, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
