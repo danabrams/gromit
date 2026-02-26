@@ -36,7 +36,7 @@ func TestRunnerSmoke_WorktreeMergeModesEndToEnd(t *testing.T) {
 
 	beadReady := false
 	mockBeads := &mockBeadClient{
-		ReadyFn: func() (*bead.Bead, error) {
+		ReadyFn: func(ctx context.Context) (*bead.Bead, error) {
 			if beadReady {
 				return nil, nil
 			}
@@ -58,7 +58,7 @@ func TestRunnerSmoke_WorktreeMergeModesEndToEnd(t *testing.T) {
 		Validate: &noopStage{},
 		Epilogue: epilogueStage,
 		GetBead: func(ctx context.Context) (*bead.Bead, error) {
-			return mockBeads.Ready()
+			return mockBeads.Ready(ctx)
 		},
 		Config: cfg,
 		Output: io.Discard,

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -38,7 +39,7 @@ func runTriage(cmd *cobra.Command, args []string) error {
 	}
 
 	// List all open beads in priority order
-	beads, err := client.List()
+	beads, err := client.List(context.Background())
 	if err != nil {
 		return fmt.Errorf("listing beads: %w", err)
 	}
@@ -60,7 +61,7 @@ func runTriage(cmd *cobra.Command, args []string) error {
 		createdAt := ""
 		if b.ID != "" {
 			// Try to get full details to show created_at
-			if detailed, err := client.Show(b.ID); err == nil && detailed != nil {
+			if detailed, err := client.Show(context.Background(), b.ID); err == nil && detailed != nil {
 				b = detailed
 			}
 		}
@@ -110,7 +111,7 @@ func runTriage(cmd *cobra.Command, args []string) error {
 					continue
 				}
 
-				if err := client.UpdatePriority(b.ID, newPriority); err != nil {
+				if err := client.UpdatePriority(context.Background(), b.ID, newPriority); err != nil {
 					fmt.Printf("  Error updating priority: %v\n", err)
 					continue
 				}
@@ -128,12 +129,12 @@ func runTriage(cmd *cobra.Command, args []string) error {
 
 				if reason != "" {
 					// Add comment with reason before closing
-					if err := client.AddComment(b.ID, fmt.Sprintf("Closed during triage: %s", reason)); err != nil {
+					if err := client.AddComment(context.Background(), b.ID, fmt.Sprintf("Closed during triage: %s", reason)); err != nil {
 						fmt.Printf("  Warning: could not add comment: %v\n", err)
 					}
 				}
 
-				if err := client.Close(b.ID); err != nil {
+				if err := client.Close(context.Background(), b.ID); err != nil {
 					fmt.Printf("  Error closing bead: %v\n", err)
 					continue
 				}

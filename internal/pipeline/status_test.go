@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -20,7 +21,7 @@ type testBeadQueryClientStatus struct {
 	countByError map[string]error
 }
 
-func (m *testBeadQueryClientStatus) CountByStatus(status string) (int, error) {
+func (m *testBeadQueryClientStatus) CountByStatus(ctx context.Context, status string) (int, error) {
 	if m.countByError != nil {
 		if err, ok := m.countByError[status]; ok {
 			return 0, err
@@ -40,11 +41,11 @@ func (m *testBeadQueryClientStatus) CountByStatus(status string) (int, error) {
 	}
 }
 
-func (m *testBeadQueryClientStatus) ListReadyIDs() ([]string, error) {
+func (m *testBeadQueryClientStatus) ListReadyIDs(ctx context.Context) ([]string, error) {
 	return m.readyBeads, nil
 }
 
-func (m *testBeadQueryClientStatus) CountClosedAfter(since time.Time) (int, error) {
+func (m *testBeadQueryClientStatus) CountClosedAfter(ctx context.Context, since time.Time) (int, error) {
 	return m.closedAfter, nil
 }
 

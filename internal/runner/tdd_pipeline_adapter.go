@@ -142,8 +142,8 @@ func populateCoverageResult(bc *runtypes.BeadContext, tracker *coverage.Coverage
 
 // addCoverageCommentWithClient adds a bead comment with the coverage summary
 // when there are uncovered or untestable criteria.
-func addCoverageCommentWithClient(bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, beadsClient interface {
-	AddComment(id, comment string) error
+func addCoverageCommentWithClient(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, beadsClient interface {
+	AddComment(ctx context.Context, id, comment string) error
 }) {
 	if bc == nil || bc.Bead == nil || tracker == nil || beadsClient == nil {
 		return
@@ -157,7 +157,7 @@ func addCoverageCommentWithClient(bc *runtypes.BeadContext, tracker *coverage.Co
 	}
 
 	summary := tracker.Summary()
-	_ = beadsClient.AddComment(bc.Bead.ID, summary)
+	_ = beadsClient.AddComment(ctx, bc.Bead.ID, summary)
 }
 
 // logCoverageSummary logs the coverage summary to the provided writer when

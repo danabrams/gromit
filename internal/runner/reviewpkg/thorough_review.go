@@ -117,7 +117,7 @@ func (r *Reviewer) RunThorough(ctx context.Context, sa StateAccess, iteration in
 	}
 
 	r.log("Thorough review: %s", result.Summary)
-	beadsCreated, backlogCreated := r.ApplyResult(result)
+	beadsCreated, backlogCreated := r.ApplyResult(ctx, result)
 
 	// Log review
 	if r.logger != nil {

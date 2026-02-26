@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -146,7 +147,7 @@ func runPlan(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("creating bead client: %w", err)
 	}
-	openBeads, err := beadClient.List()
+	openBeads, err := beadClient.List(context.Background())
 	if err != nil {
 		return fmt.Errorf("listing open beads: %w", err)
 	}

@@ -35,7 +35,7 @@ func TestOrchestratorHelper_TDDPromptSelection(t *testing.T) {
 			}
 			beadReady := false
 			mockBeads := &mockBeadClient{
-				ReadyFn: func() (*bead.Bead, error) {
+				ReadyFn: func(ctx context.Context) (*bead.Bead, error) {
 					if beadReady {
 						return nil, nil
 					}
@@ -77,7 +77,7 @@ func TestOrchestratorHelper_ATDDSkippedForTestOnlyBead(t *testing.T) {
 			}
 			beadReady := false
 			mockBeads := &mockBeadClient{
-				ReadyFn: func() (*bead.Bead, error) {
+				ReadyFn: func(ctx context.Context) (*bead.Bead, error) {
 					if beadReady {
 						return nil, nil
 					}

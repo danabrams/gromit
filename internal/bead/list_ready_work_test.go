@@ -1,6 +1,9 @@
 package bead
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
 func TestListReadyWork_UsesReadyCommand(t *testing.T) {
 	t.Parallel()
@@ -19,7 +22,7 @@ func TestListReadyWork_UsesReadyCommand(t *testing.T) {
 		},
 	}
 
-	ready, err := c.ListReadyWork()
+	ready, err := c.ListReadyWork(context.Background())
 	if err != nil {
 		t.Fatalf("ListReadyWork() error = %v", err)
 	}

@@ -736,10 +736,17 @@ func (m *mockTrackerForDecompose) Show(context.Context, string) (*tracker.Item, 
 	return nil, nil
 }
 
+func (m *mockTrackerForDecompose) Search(context.Context, tracker.Query) ([]tracker.Item, error) {
+	return nil, nil
+}
+
 func (m *mockTrackerForDecompose) Create(context.Context, tracker.CreateRequest) (*tracker.Item, error) {
 	return nil, nil
 }
 func (m *mockTrackerForDecompose) CreateWithParent(context.Context, tracker.CreateRequest, string) (*tracker.Item, error) {
+	return nil, nil
+}
+func (m *mockTrackerForDecompose) Update(context.Context, tracker.UpdateRequest) (*tracker.Item, error) {
 	return nil, nil
 }
 func (m *mockTrackerForDecompose) ListWithLabel(context.Context, string) ([]tracker.Item, error) {
@@ -807,11 +814,18 @@ func (m *mockTrackerClientWithItems) Show(context.Context, string) (*tracker.Ite
 	return nil, nil
 }
 
+func (m *mockTrackerClientWithItems) Search(context.Context, tracker.Query) ([]tracker.Item, error) {
+	return m.returnItems, nil
+}
+
 func (m *mockTrackerClientWithItems) Create(context.Context, tracker.CreateRequest) (*tracker.Item, error) {
 	return nil, nil
 }
 func (m *mockTrackerClientWithItems) CreateWithParent(ctx context.Context, req tracker.CreateRequest, parentID string) (*tracker.Item, error) {
 	return m.Create(ctx, req)
+}
+func (m *mockTrackerClientWithItems) Update(context.Context, tracker.UpdateRequest) (*tracker.Item, error) {
+	return nil, nil
 }
 func (m *mockTrackerClientWithItems) ListWithLabel(context.Context, string) ([]tracker.Item, error) {
 	return m.returnItems, nil

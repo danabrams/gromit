@@ -82,7 +82,7 @@ func (c *Client) ReadyExcluding(ctx context.Context, excludeIDs map[string]bool)
 		return nil, fmt.Errorf("bead client is nil")
 	}
 	if len(excludeIDs) == 0 {
-		return c.Ready()
+		return c.Ready(ctx)
 	}
 
 	out, err := c.run("ready", "--json", "--limit", "10")
@@ -216,7 +216,7 @@ func (c *Client) ReadyWithLabel(ctx context.Context, label string) (*Bead, error
 
 	// Some bd versions omit labels from ready output; fetch full details when needed.
 	if !HasLabel(bead.Labels, label) {
-		full, err := c.Show(bead.ID)
+		full, err := c.Show(ctx, bead.ID)
 		if err != nil {
 			return nil, err
 		}

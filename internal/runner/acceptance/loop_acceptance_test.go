@@ -24,11 +24,11 @@ func TestOrchestrator_UsesLabelFiltersInLoop(t *testing.T) {
 	var queriedLabels []string
 	callCount := 0
 	mock := &mockBeadClient{
-		ReadyFn: func() (*bead.Bead, error) {
+		ReadyFn: func(ctx context.Context) (*bead.Bead, error) {
 			t.Error("Ready() should not be called when label filters are set")
 			return nil, nil
 		},
-		ReadyWithLabelFn: func(label string) (*bead.Bead, error) {
+		ReadyWithLabelFn: func(ctx context.Context, label string) (*bead.Bead, error) {
 			queriedLabels = append(queriedLabels, label)
 			callCount++
 			if callCount == 1 && label == "spec:auth" {
@@ -83,12 +83,12 @@ func TestOrchestratorScopedRun_FullLoopWithLabelFilters(t *testing.T) {
 	readyCalled := false
 
 	mockBeads := &mockBeadClient{
-		ReadyFn: func() (*bead.Bead, error) {
+		ReadyFn: func(ctx context.Context) (*bead.Bead, error) {
 			readyCalled = true
 			t.Error("Ready() should never be called when label filters are set")
 			return nil, nil
 		},
-		ReadyWithLabelFn: func(label string) (*bead.Bead, error) {
+		ReadyWithLabelFn: func(ctx context.Context, label string) (*bead.Bead, error) {
 			readyWithLabelCalls = append(readyWithLabelCalls, label)
 			b := selectNextBeadWithLabel(allBeads, returnedBeads, label)
 			if b != nil {

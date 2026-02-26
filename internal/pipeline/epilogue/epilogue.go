@@ -13,8 +13,8 @@ import (
 
 // BeadLifecycle handles bead close and sync operations after a successful iteration.
 type BeadLifecycle interface {
-	Close(id string) error
-	Sync() error
+	Close(ctx context.Context, id string) error
+	Sync(ctx context.Context) error
 }
 
 // StatusWriter writes execution status after each iteration.
@@ -53,7 +53,7 @@ type ThoroughReviewer interface {
 
 // EpicChecker checks whether a parent bead has remaining open child beads.
 type EpicChecker interface {
-	HasOpenChildren(parentID string) (bool, error)
+	HasOpenChildren(ctx context.Context, parentID string) (bool, error)
 }
 
 // FailureLearner extracts learnings from failed iterations.
@@ -160,10 +160,10 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 
 	// 1. Bead lifecycle: close and sync on success.
 	if in.BuildSucceeded {
-		if err := e.beads.Close(in.Bead.ID); err != nil {
+		if err := e.beads.Close(ctx, in.Bead.ID); err != nil {
 			fmt.Fprintf(w, "Warning: failed to close bead: %v\n", err)
 		}
-		if err := e.beads.Sync(); err != nil {
+		if err := e.beads.Sync(ctx); err != nil {
 			fmt.Fprintf(w, "Warning: failed to sync beads: %v\n", err)
 		}
 	}
@@ -251,7 +251,7 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 		}
 		if !shouldRun && in.BuildSucceeded && in.Bead != nil && in.Bead.Parent != "" &&
 			in.Config.Review.Thorough.ShouldRunOnEpicComplete() && e.epic != nil {
-			hasChildren, err := e.epic.HasOpenChildren(in.Bead.Parent)
+			hasChildren, err := e.epic.HasOpenChildren(ctx, in.Bead.Parent)
 			if err != nil {
 				fmt.Fprintf(w, "Warning: failed to check epic completion: %v\n", err)
 			} else if !hasChildren {

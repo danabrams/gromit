@@ -89,20 +89,20 @@ func (m *mockSpecGateRunner) Run(ctx context.Context, beadID string, labels []st
 
 // mockBeadLifecycle implements epilogue.BeadLifecycle for testing
 type mockBeadLifecycle struct {
-	CloseFn func(id string) error
-	SyncFn  func() error
+	CloseFn func(ctx context.Context, id string) error
+	SyncFn  func(ctx context.Context) error
 }
 
-func (m *mockBeadLifecycle) Close(id string) error {
+func (m *mockBeadLifecycle) Close(ctx context.Context, id string) error {
 	if m.CloseFn != nil {
-		return m.CloseFn(id)
+		return m.CloseFn(ctx, id)
 	}
 	return nil
 }
 
-func (m *mockBeadLifecycle) Sync() error {
+func (m *mockBeadLifecycle) Sync(ctx context.Context) error {
 	if m.SyncFn != nil {
-		return m.SyncFn()
+		return m.SyncFn(ctx)
 	}
 	return nil
 }
@@ -148,7 +148,7 @@ func TestOrchestratorSpecModeWithNonSpecBeads(t *testing.T) {
 	}
 
 	mockBeads := &mockBeadClient{
-		ReadyFn: func() (*bead.Bead, error) {
+		ReadyFn: func(ctx context.Context) (*bead.Bead, error) {
 			for _, b := range allBeads {
 				if !closedBeadIDs[b.ID] {
 					return b, nil
@@ -156,7 +156,7 @@ func TestOrchestratorSpecModeWithNonSpecBeads(t *testing.T) {
 			}
 			return nil, nil
 		},
-		CloseFn: func(id string) error {
+		CloseFn: func(ctx context.Context, id string) error {
 			closedBeadIDs[id] = true
 			return nil
 		},
@@ -178,12 +178,12 @@ func TestOrchestratorSpecModeWithNonSpecBeads(t *testing.T) {
 		Epilogue: &testEpilogueStage{
 			fn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
 				// Close the bead to allow the queue to progress
-				mockBeads.Close(in.Bead.ID)
+			mockBeads.Close(ctx, in.Bead.ID)
 				return pipeline.Output{Decision: pipeline.Proceed}, nil
 			},
 		},
 		GetBead: func(ctx context.Context) (*bead.Bead, error) {
-			return mockBeads.Ready()
+			return mockBeads.Ready(ctx)
 		},
 		Config: cfg,
 		Output: io.Discard,

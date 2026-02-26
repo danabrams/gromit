@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"context"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -14,7 +15,7 @@ func TestAddCoverageCommentWhenUncoveredExists(t *testing.T) {
 	t.Parallel()
 	var addedComments []string
 	beadsClient := &mockBeadsClient{
-		addCommentFn: func(id, comment string) error {
+		addCommentFn: func(ctx context.Context, id, comment string) error {
 			addedComments = append(addedComments, comment)
 			return nil
 		},
@@ -33,7 +34,7 @@ func TestAddCoverageCommentWhenUncoveredExists(t *testing.T) {
 	bc := &runtypes.BeadContext{Bead: b, Result: &runtypes.IterationResult{}}
 
 	// Call the function that should add the comment
-	addCoverageCommentWithClient(bc, tracker, beadsClient)
+	addCoverageCommentWithClient(context.Background(), bc, tracker, beadsClient)
 
 	// Verify a comment was added
 	if len(addedComments) != 1 {
@@ -53,7 +54,7 @@ func TestNoCommentWhenAllCovered(t *testing.T) {
 	t.Parallel()
 	var addedComments []string
 	beadsClient := &mockBeadsClient{
-		addCommentFn: func(id, comment string) error {
+		addCommentFn: func(ctx context.Context, id, comment string) error {
 			addedComments = append(addedComments, comment)
 			return nil
 		},
@@ -68,7 +69,7 @@ func TestNoCommentWhenAllCovered(t *testing.T) {
 	b := &bead.Bead{ID: "test-id", Title: "Test bead"}
 	bc := &runtypes.BeadContext{Bead: b, Result: &runtypes.IterationResult{}}
 
-	addCoverageCommentWithClient(bc, tracker, beadsClient)
+	addCoverageCommentWithClient(context.Background(), bc, tracker, beadsClient)
 
 	if len(addedComments) != 0 {
 		t.Errorf("want no comments when all criteria covered, got %d", len(addedComments))
@@ -77,14 +78,14 @@ func TestNoCommentWhenAllCovered(t *testing.T) {
 
 // mockBeadsClient is a test double for bead.Client
 type mockBeadsClient struct {
-	addCommentFn func(id, comment string) error
+	addCommentFn func(ctx context.Context, id, comment string) error
 }
 
-func (m *mockBeadsClient) AddComment(id, comment string) error {
+func (m *mockBeadsClient) AddComment(ctx context.Context, id, comment string) error {
 	if m.addCommentFn == nil {
 		return nil
 	}
-	return m.addCommentFn(id, comment)
+	return m.addCommentFn(ctx, id, comment)
 }
 
 // containsSubstring checks if haystack contains needle

@@ -23,19 +23,19 @@ import (
 // --- mockBeadClient ---
 
 type mockBeadClient struct {
-	ReadyFn                          func() (*bead.Bead, error)
-	ReadyExcludingFn                 func(excludeIDs map[string]bool) (*bead.Bead, error)
-	ReadyWithLabelFn                 func(label string) (*bead.Bead, error)
-	ListWithLabelFn                  func(label string) ([]*bead.Bead, error)
-	ShowFn                           func(id string) (*bead.Bead, error)
-	CloseFn                          func(id string) error
-	SyncFn                           func() error
-	AddCommentFn                     func(id, comment string) error
-	GetParentFn                      func(b *bead.Bead) (*bead.Bead, error)
-	CreateFn                         func(title string, priority int, labels []string, expectedOutputs []string) (*bead.Bead, error)
-	CreateWithParentFn               func(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error)
-	CreateWithParentAndDescriptionFn func(title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error)
-	HasOpenChildrenFn                func(parentID string) (bool, error)
+	ReadyFn                          func(ctx context.Context) (*bead.Bead, error)
+	ReadyExcludingFn                 func(ctx context.Context, excludeIDs map[string]bool) (*bead.Bead, error)
+	ReadyWithLabelFn                 func(ctx context.Context, label string) (*bead.Bead, error)
+	ListWithLabelFn                  func(ctx context.Context, label string) ([]*bead.Bead, error)
+	ShowFn                           func(ctx context.Context, id string) (*bead.Bead, error)
+	CloseFn                          func(ctx context.Context, id string) error
+	SyncFn                           func(ctx context.Context) error
+	AddCommentFn                     func(ctx context.Context, id, comment string) error
+	GetParentFn                      func(ctx context.Context, b *bead.Bead) (*bead.Bead, error)
+	CreateFn                         func(ctx context.Context, title string, priority int, labels []string, expectedOutputs []string) (*bead.Bead, error)
+	CreateWithParentFn               func(ctx context.Context, title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error)
+	CreateWithParentAndDescriptionFn func(ctx context.Context, title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error)
+	HasOpenChildrenFn                func(ctx context.Context, parentID string) (bool, error)
 
 	ClosedIDs []string
 	SyncCalls int
@@ -47,19 +47,19 @@ type mockComment struct {
 	Comment string
 }
 
-func (m *mockBeadClient) Ready() (*bead.Bead, error) {
+func (m *mockBeadClient) Ready(ctx context.Context) (*bead.Bead, error) {
 	if m.ReadyFn != nil {
-		return m.ReadyFn()
+		return m.ReadyFn(ctx)
 	}
 	return nil, nil
 }
 
-func (m *mockBeadClient) ReadyExcluding(excludeIDs map[string]bool) (*bead.Bead, error) {
+func (m *mockBeadClient) ReadyExcluding(ctx context.Context, excludeIDs map[string]bool) (*bead.Bead, error) {
 	if m.ReadyExcludingFn != nil {
-		return m.ReadyExcludingFn(excludeIDs)
+		return m.ReadyExcludingFn(ctx, excludeIDs)
 	}
 	if m.ReadyFn != nil {
-		b, err := m.ReadyFn()
+		b, err := m.ReadyFn(ctx)
 		if err != nil || b == nil {
 			return nil, err
 		}
@@ -71,82 +71,82 @@ func (m *mockBeadClient) ReadyExcluding(excludeIDs map[string]bool) (*bead.Bead,
 	return nil, nil
 }
 
-func (m *mockBeadClient) ReadyWithLabel(label string) (*bead.Bead, error) {
+func (m *mockBeadClient) ReadyWithLabel(ctx context.Context, label string) (*bead.Bead, error) {
 	if m.ReadyWithLabelFn != nil {
-		return m.ReadyWithLabelFn(label)
+		return m.ReadyWithLabelFn(ctx, label)
 	}
 	return nil, nil
 }
 
-func (m *mockBeadClient) ListWithLabel(label string) ([]*bead.Bead, error) {
+func (m *mockBeadClient) ListWithLabel(ctx context.Context, label string) ([]*bead.Bead, error) {
 	if m.ListWithLabelFn != nil {
-		return m.ListWithLabelFn(label)
+		return m.ListWithLabelFn(ctx, label)
 	}
 	return []*bead.Bead{}, nil
 }
 
-func (m *mockBeadClient) Show(id string) (*bead.Bead, error) {
+func (m *mockBeadClient) Show(ctx context.Context, id string) (*bead.Bead, error) {
 	if m.ShowFn != nil {
-		return m.ShowFn(id)
+		return m.ShowFn(ctx, id)
 	}
 	return nil, nil
 }
 
-func (m *mockBeadClient) Close(id string) error {
+func (m *mockBeadClient) Close(ctx context.Context, id string) error {
 	m.ClosedIDs = append(m.ClosedIDs, id)
 	if m.CloseFn != nil {
-		return m.CloseFn(id)
+		return m.CloseFn(ctx, id)
 	}
 	return nil
 }
 
-func (m *mockBeadClient) Sync() error {
+func (m *mockBeadClient) Sync(ctx context.Context) error {
 	m.SyncCalls++
 	if m.SyncFn != nil {
-		return m.SyncFn()
+		return m.SyncFn(ctx)
 	}
 	return nil
 }
 
-func (m *mockBeadClient) AddComment(id, comment string) error {
+func (m *mockBeadClient) AddComment(ctx context.Context, id, comment string) error {
 	m.Comments = append(m.Comments, mockComment{ID: id, Comment: comment})
 	if m.AddCommentFn != nil {
-		return m.AddCommentFn(id, comment)
+		return m.AddCommentFn(ctx, id, comment)
 	}
 	return nil
 }
 
-func (m *mockBeadClient) GetParent(b *bead.Bead) (*bead.Bead, error) {
+func (m *mockBeadClient) GetParent(ctx context.Context, b *bead.Bead) (*bead.Bead, error) {
 	if m.GetParentFn != nil {
-		return m.GetParentFn(b)
+		return m.GetParentFn(ctx, b)
 	}
 	return nil, nil
 }
 
-func (m *mockBeadClient) Create(title string, priority int, labels []string, expectedOutputs []string) (*bead.Bead, error) {
+func (m *mockBeadClient) Create(ctx context.Context, title string, priority int, labels []string, expectedOutputs []string) (*bead.Bead, error) {
 	if m.CreateFn != nil {
-		return m.CreateFn(title, priority, labels, expectedOutputs)
+		return m.CreateFn(ctx, title, priority, labels, expectedOutputs)
 	}
 	return &bead.Bead{ID: "mock-create-1", Title: title, Labels: []string{}, ExpectedOutputs: []string{}}, nil
 }
 
-func (m *mockBeadClient) CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error) {
+func (m *mockBeadClient) CreateWithParent(ctx context.Context, title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error) {
 	if m.CreateWithParentFn != nil {
-		return m.CreateWithParentFn(title, priority, labels, expectedOutputs, parentID)
+		return m.CreateWithParentFn(ctx, title, priority, labels, expectedOutputs, parentID)
 	}
 	return &bead.Bead{ID: "mock-sub-1", Title: title, Labels: []string{}, ExpectedOutputs: []string{}}, nil
 }
 
-func (m *mockBeadClient) CreateWithParentAndDescription(title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error) {
+func (m *mockBeadClient) CreateWithParentAndDescription(ctx context.Context, title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error) {
 	if m.CreateWithParentAndDescriptionFn != nil {
-		return m.CreateWithParentAndDescriptionFn(title, priority, labels, expectedOutputs, parentID, description)
+		return m.CreateWithParentAndDescriptionFn(ctx, title, priority, labels, expectedOutputs, parentID, description)
 	}
 	return &bead.Bead{ID: "mock-sub-1", Title: title, Description: description, Labels: []string{}, ExpectedOutputs: []string{}}, nil
 }
 
-func (m *mockBeadClient) HasOpenChildren(parentID string) (bool, error) {
+func (m *mockBeadClient) HasOpenChildren(ctx context.Context, parentID string) (bool, error) {
 	if m.HasOpenChildrenFn != nil {
-		return m.HasOpenChildrenFn(parentID)
+		return m.HasOpenChildrenFn(ctx, parentID)
 	}
 	return false, nil
 }

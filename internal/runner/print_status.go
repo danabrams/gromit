@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -154,7 +155,7 @@ func refreshScopedIterationTotal(status *Status, gromitDir string) {
 		return
 	}
 
-	total, err := estimateScopedIterationTotal(client, scopeLabel, status.Iteration)
+	total, err := estimateScopedIterationTotal(context.Background(), client, scopeLabel, status.Iteration)
 	if err != nil || total <= 0 {
 		return
 	}
@@ -171,7 +172,7 @@ func resolveScopedProgressLabel(status *Status, client *bead.Client) string {
 	if status.BeadID == "" {
 		return ""
 	}
-	b, err := client.Show(status.BeadID)
+	b, err := client.Show(context.Background(), status.BeadID)
 	if err != nil || b == nil {
 		return ""
 	}

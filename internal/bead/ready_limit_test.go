@@ -5,6 +5,7 @@
 package bead
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -68,7 +69,7 @@ func TestReadyUsesLimit3(t *testing.T) {
 				RunFn:  mockRun,
 			}
 
-			_, err := c.Ready()
+			_, err := c.Ready(context.Background())
 			if err != nil {
 				t.Fatalf("Ready() unexpected error: %v", err)
 			}
@@ -198,7 +199,7 @@ func TestReadyLimit3StillFiltersEpicsCorrectly(t *testing.T) {
 				RunFn:  mockRun,
 			}
 
-			got, err := c.Ready()
+			got, err := c.Ready(context.Background())
 			if err != nil {
 				t.Fatalf("Ready() unexpected error: %v", err)
 			}
@@ -243,7 +244,7 @@ func TestReadyAnyStillUsesLimit1(t *testing.T) {
 		RunFn:  mockRun,
 	}
 
-	_, err := c.ReadyAny()
+	_, err := c.ReadyAny(context.Background())
 	if err != nil {
 		t.Fatalf("ReadyAny() unexpected error: %v", err)
 	}
@@ -371,7 +372,7 @@ func TestReadyLimit3PerformanceCharacteristics(t *testing.T) {
 				RunFn:  mockRun,
 			}
 
-			got, err := c.Ready()
+			got, err := c.Ready(context.Background())
 			if err != nil {
 				t.Fatalf("Ready() unexpected error: %v", err)
 			}
@@ -433,7 +434,7 @@ func TestReadyBatchSizeReductionIntent(t *testing.T) {
 		RunFn:  mockRun,
 	}
 
-	_, err := c.Ready()
+	_, err := c.Ready(context.Background())
 	if err != nil {
 		t.Fatalf("Ready() unexpected error: %v", err)
 	}
@@ -472,7 +473,7 @@ func TestReadyLimitValueIsNumeric(t *testing.T) {
 		RunFn:  mockRun,
 	}
 
-	_, err := c.Ready()
+	_, err := c.Ready(context.Background())
 	if err != nil {
 		t.Fatalf("Ready() unexpected error: %v", err)
 	}
@@ -494,7 +495,7 @@ func TestReadyCommandStructureWithLimit3(t *testing.T) {
 		RunFn:  mockRun,
 	}
 
-	_, err := c.Ready()
+	_, err := c.Ready(context.Background())
 	if err != nil {
 		t.Fatalf("Ready() error = %v", err)
 	}
@@ -553,7 +554,7 @@ func TestReadyDoesNotUseLimit10Anymore(t *testing.T) {
 		RunFn:  mockRun,
 	}
 
-	_, err := c.Ready()
+	_, err := c.Ready(context.Background())
 	if err != nil {
 		t.Fatalf("Ready() error = %v", err)
 	}

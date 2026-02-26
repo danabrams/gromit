@@ -243,9 +243,9 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 
 	getBeadFn := func(ctx context.Context) (*bead.Bead, error) {
 		if len(labels) > 0 {
-			return beadsClient.ReadyWithLabel(labels[0])
+			return beadsClient.ReadyWithLabel(ctx, labels[0])
 		}
-		return beadsClient.Ready()
+		return beadsClient.Ready(ctx)
 	}
 
 	specProgressLabel := resolveSingleSpecProgressLabel(labels)
@@ -261,7 +261,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		Epilogue: epilogueStage,
 		GetBead:  getBeadFn,
 		GetBeadByID: func(ctx context.Context, beadID string) (*bead.Bead, error) {
-			return beadsClient.Show(beadID)
+			return beadsClient.Show(ctx, beadID)
 		},
 		Config:          cfg,
 		GlobalStatsPath: filepath.Join(gromitDir, "stats.json"),
@@ -272,8 +272,8 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		ExperimentMgr:   experimentMgr,
 		StatusWriter: func(iteration int, beadID, beadTitle string, dl time.Time) {
 			if statusWriter != nil {
-				if specProgressLabel != "" {
-					total, err := estimateScopedIterationTotal(beadsClient, specProgressLabel, iteration)
+			if specProgressLabel != "" {
+				total, err := estimateScopedIterationTotal(context.Background(), beadsClient, specProgressLabel, iteration)
 					if err == nil {
 						statusWriter.SetIterationTotal(total)
 					} else {
@@ -367,12 +367,12 @@ func resolveSingleSpecProgressLabel(labels []string) string {
 	return labels[0]
 }
 
-func estimateScopedIterationTotal(client *bead.Client, label string, iteration int) (int, error) {
+func estimateScopedIterationTotal(ctx context.Context, client *bead.Client, label string, iteration int) (int, error) {
 	if client == nil || label == "" || iteration <= 0 {
 		return 0, nil
 	}
 
-	beads, err := client.ListWithLabel(label)
+	beads, err := client.ListWithLabel(ctx, label)
 	if err != nil {
 		return 0, err
 	}

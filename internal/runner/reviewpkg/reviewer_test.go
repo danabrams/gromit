@@ -41,7 +41,7 @@ func (m *mockRouter) SelectCross(buildProvider, tier string) (provider.Provider,
 
 // mockBeadClient implements the BeadClient interface for reviewpkg tests.
 type mockBeadClient struct {
-	createFn func(title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error)
+	createFn func(ctx context.Context, title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error)
 	created  []createdBead
 }
 
@@ -53,10 +53,10 @@ type createdBead struct {
 	description string
 }
 
-func (m *mockBeadClient) CreateWithParentAndDescription(title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error) {
+func (m *mockBeadClient) CreateWithParentAndDescription(ctx context.Context, title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error) {
 	m.created = append(m.created, createdBead{title: title, priority: priority, labels: labels, parentID: parentID, description: description})
 	if m.createFn != nil {
-		return m.createFn(title, priority, labels, expectedOutputs, parentID, description)
+		return m.createFn(ctx, title, priority, labels, expectedOutputs, parentID, description)
 	}
 	return &bead.Bead{ID: fmt.Sprintf("created-%d", len(m.created)), Title: title}, nil
 }
@@ -479,7 +479,7 @@ func TestApplyResult_CreatesBeadsFromProposals(t *testing.T) {
 		BacklogItems: []review.BacklogItem{},
 	}
 
-	beadsCreated, backlogCreated := rev.ApplyResult(result)
+	beadsCreated, backlogCreated := rev.ApplyResult(context.Background(), result)
 
 	if beadsCreated != 2 {
 		t.Errorf("ApplyResult beadsCreated = %d, want 2", beadsCreated)
@@ -523,7 +523,7 @@ func TestApplyResult_CreatesBacklogItemsAsP2(t *testing.T) {
 		},
 	}
 
-	beadsCreated, backlogCreated := rev.ApplyResult(result)
+	beadsCreated, backlogCreated := rev.ApplyResult(context.Background(), result)
 
 	if beadsCreated != 0 {
 		t.Errorf("ApplyResult beadsCreated = %d, want 0", beadsCreated)
@@ -560,7 +560,7 @@ func TestApplyResult_NilResultReturnsZero(t *testing.T) {
 	cfg := newTestConfig()
 	rev := NewReviewer(cfg, nil, &mockBeadClient{}, nil, nil, nil)
 
-	beadsCreated, backlogCreated := rev.ApplyResult(nil)
+	beadsCreated, backlogCreated := rev.ApplyResult(context.Background(), nil)
 	if beadsCreated != 0 || backlogCreated != 0 {
 		t.Errorf("ApplyResult(nil) = (%d, %d), want (0, 0)", beadsCreated, backlogCreated)
 	}
@@ -584,7 +584,7 @@ func TestApplyResult_DeduplicatesFromReviewLabel(t *testing.T) {
 		},
 	}
 
-	rev.ApplyResult(result)
+	rev.ApplyResult(context.Background(), result)
 
 	if len(beadClient.created) != 1 {
 		t.Fatalf("beadClient.created has %d entries, want 1", len(beadClient.created))
@@ -610,7 +610,7 @@ func TestApplyResult_ContinuesOnCreateError(t *testing.T) {
 	cfg := newTestConfig()
 	callCount := 0
 	beadClient := &mockBeadClient{
-		createFn: func(title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error) {
+		createFn: func(ctx context.Context, title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error) {
 			callCount++
 			if callCount == 1 {
 				return nil, fmt.Errorf("creation failed")
@@ -628,7 +628,7 @@ func TestApplyResult_ContinuesOnCreateError(t *testing.T) {
 		},
 	}
 
-	beadsCreated, _ := rev.ApplyResult(result)
+	beadsCreated, _ := rev.ApplyResult(context.Background(), result)
 	if beadsCreated != 1 {
 		t.Errorf("ApplyResult beadsCreated = %d, want 1 (first should fail, second should succeed)", beadsCreated)
 	}

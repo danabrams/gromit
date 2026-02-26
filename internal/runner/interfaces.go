@@ -25,19 +25,19 @@ var (
 
 // BeadClient abstracts the bead (bd) CLI operations used by the runner.
 type BeadClient interface {
-	Ready() (*bead.Bead, error)
-	ReadyExcluding(excludeIDs map[string]bool) (*bead.Bead, error)
-	ReadyWithLabel(label string) (*bead.Bead, error)
-	ListWithLabel(label string) ([]*bead.Bead, error)
-	Show(id string) (*bead.Bead, error)
-	Close(id string) error
-	Sync() error
-	AddComment(id, comment string) error
-	GetParent(b *bead.Bead) (*bead.Bead, error)
-	Create(title string, priority int, labels []string, expectedOutputs []string) (*bead.Bead, error)
-	CreateWithParent(title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error)
-	CreateWithParentAndDescription(title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error)
-	HasOpenChildren(parentID string) (bool, error)
+	Ready(ctx context.Context) (*bead.Bead, error)
+	ReadyExcluding(ctx context.Context, excludeIDs map[string]bool) (*bead.Bead, error)
+	ReadyWithLabel(ctx context.Context, label string) (*bead.Bead, error)
+	ListWithLabel(ctx context.Context, label string) ([]*bead.Bead, error)
+	Show(ctx context.Context, id string) (*bead.Bead, error)
+	Close(ctx context.Context, id string) error
+	Sync(ctx context.Context) error
+	AddComment(ctx context.Context, id, comment string) error
+	GetParent(ctx context.Context, b *bead.Bead) (*bead.Bead, error)
+	Create(ctx context.Context, title string, priority int, labels []string, expectedOutputs []string) (*bead.Bead, error)
+	CreateWithParent(ctx context.Context, title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error)
+	CreateWithParentAndDescription(ctx context.Context, title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error)
+	HasOpenChildren(ctx context.Context, parentID string) (bool, error)
 }
 
 // FailureAnalyzer abstracts the failure analysis operations used by the runner.

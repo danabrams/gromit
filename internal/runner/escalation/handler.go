@@ -20,7 +20,7 @@ type FailureAnalyzer interface {
 
 // BeadClient is the narrow interface for bead operations needed by escalation.
 type BeadClient interface {
-	AddComment(id, comment string) error
+	AddComment(ctx context.Context, id, comment string) error
 }
 
 // DecomposeFn decomposes a bead into sub-tasks.
@@ -445,7 +445,7 @@ func (h *Handler) AnalyzeAndHandleFailure(ctx context.Context, bc *runtypes.Bead
 
 	if analysis.Category == analyzer.CategoryTaskTooComplex {
 		comment := fmt.Sprintf("Task too complex: %s\n\nThis task needs to be broken down into smaller, more manageable pieces.", analysis.RootCause)
-		_ = h.beadClient.AddComment(bc.Bead.ID, comment) // best-effort; failure doesn't block escalation
+		_ = h.beadClient.AddComment(ctx, bc.Bead.ID, comment) // best-effort; failure doesn't block escalation
 		bc.Result.Error = fmt.Errorf("task too complex: %s - needs breakdown", analysis.RootCause)
 		return false
 	}

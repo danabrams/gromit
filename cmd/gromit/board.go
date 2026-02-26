@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"sort"
 
@@ -26,7 +27,7 @@ func runBoard(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("creating bead client: %w", err)
 	}
-	open, closed, err := client.ListAll()
+	open, closed, err := client.ListAll(context.Background())
 	if err != nil {
 		return fmt.Errorf("listing beads: %w", err)
 	}

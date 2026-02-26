@@ -20,29 +20,29 @@ import (
 
 // fakeBeadLifecycle is a test double for epilogue.BeadLifecycle.
 type fakeBeadLifecycle struct {
-	closeFn     func(id string) error
-	syncFn      func() error
+	closeFn     func(ctx context.Context, id string) error
+	syncFn      func(ctx context.Context) error
 	closeCalled bool
 	syncCalled  bool
 	closeID     string
 	callOrder   []string
 }
 
-func (f *fakeBeadLifecycle) Close(id string) error {
+func (f *fakeBeadLifecycle) Close(ctx context.Context, id string) error {
 	f.closeCalled = true
 	f.closeID = id
 	f.callOrder = append(f.callOrder, "close")
 	if f.closeFn != nil {
-		return f.closeFn(id)
+		return f.closeFn(ctx, id)
 	}
 	return nil
 }
 
-func (f *fakeBeadLifecycle) Sync() error {
+func (f *fakeBeadLifecycle) Sync(ctx context.Context) error {
 	f.syncCalled = true
 	f.callOrder = append(f.callOrder, "sync")
 	if f.syncFn != nil {
-		return f.syncFn()
+		return f.syncFn(ctx)
 	}
 	return nil
 }

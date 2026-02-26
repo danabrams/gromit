@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -102,26 +103,27 @@ func ReadStatusWithDeps(gromitDir, specsDir, plansDir string, startedAt *time.Ti
 	if hasBeadsRepo(repoRoot) {
 		// Best-effort: if client creation or any command fails, counts remain at zero.
 		if beadQueryClient != nil {
-			status.ReadyBeads, status.ReadyBeadCount = listReadyBeads(beadQueryClient)
+			ctx := context.Background()
+			status.ReadyBeads, status.ReadyBeadCount = listReadyBeads(ctx, beadQueryClient)
 
 			// In-progress count
-			if count, err := beadQueryClient.CountByStatus("in_progress"); err == nil {
+			if count, err := beadQueryClient.CountByStatus(ctx, "in_progress"); err == nil {
 				status.InProgressCount = count
 			}
 
 			// Deferred count
-			if count, err := beadQueryClient.CountByStatus("deferred"); err == nil {
+			if count, err := beadQueryClient.CountByStatus(ctx, "deferred"); err == nil {
 				status.DeferredCount = count
 			}
 
 			// Closed count
-			if count, err := beadQueryClient.CountByStatus("closed"); err == nil {
+			if count, err := beadQueryClient.CountByStatus(ctx, "closed"); err == nil {
 				status.ClosedCount = count
 			}
 
 			// Blocked count = open - ready
 			// Open beads include both ready and blocked (those with unmet dependencies)
-			if openCount, err := beadQueryClient.CountByStatus("open"); err == nil {
+			if openCount, err := beadQueryClient.CountByStatus(ctx, "open"); err == nil {
 				status.BlockedCount = openCount - status.ReadyBeadCount
 				if status.BlockedCount < 0 {
 					status.BlockedCount = 0
@@ -130,7 +132,7 @@ func ReadStatusWithDeps(gromitDir, specsDir, plansDir string, startedAt *time.Ti
 
 			// If startedAt is provided, populate "closed this run" count.
 			if startedAt != nil {
-				if count, err := beadQueryClient.CountClosedAfter(*startedAt); err == nil {
+				if count, err := beadQueryClient.CountClosedAfter(ctx, *startedAt); err == nil {
 					status.ClosedThisRunCount = count
 				}
 			}
@@ -191,13 +193,13 @@ func findMarkdownFiles(dir string) ([]string, error) {
 }
 
 // listReadyBeads returns a list of ready bead IDs and the count
-func listReadyBeads(client BeadQueryClient) ([]string, int) {
+func listReadyBeads(ctx context.Context, client BeadQueryClient) ([]string, int) {
 	if client == nil {
 		return []string{}, 0
 	}
 
 	// Get ready bead IDs
-	ids, err := client.ListReadyIDs()
+	ids, err := client.ListReadyIDs(ctx)
 	if err != nil {
 		return []string{}, 0
 	}

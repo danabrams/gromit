@@ -1,6 +1,7 @@
 package bead
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -8,7 +9,7 @@ import (
 func TestListReadyNilClient(t *testing.T) {
 	t.Parallel()
 	var c *Client
-	_, err := c.ListReady()
+	_, err := c.ListReady(context.Background())
 	if err == nil {
 		t.Fatal("ListReady() expected error on nil client")
 	}
@@ -34,7 +35,7 @@ func TestListReadyParsesResults(t *testing.T) {
 		},
 	}
 
-	beads, err := c.ListReady()
+	beads, err := c.ListReady(context.Background())
 	if err != nil {
 		t.Fatalf("ListReady() error = %v", err)
 	}
@@ -54,7 +55,7 @@ func TestListReadyEmptyOutput(t *testing.T) {
 		},
 	}
 
-	beads, err := c.ListReady()
+	beads, err := c.ListReady(context.Background())
 	if err != nil {
 		t.Fatalf("ListReady() error = %v", err)
 	}

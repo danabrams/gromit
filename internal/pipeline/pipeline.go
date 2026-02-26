@@ -143,9 +143,9 @@ type TrackerClient interface {
 
 // BeadQueryClient abstracts bead query and status operations.
 type BeadQueryClient interface {
-	CountByStatus(status string) (int, error)
-	ListReadyIDs() ([]string, error)
-	CountClosedAfter(after time.Time) (int, error)
+	CountByStatus(ctx context.Context, status string) (int, error)
+	ListReadyIDs(ctx context.Context) ([]string, error)
+	CountClosedAfter(ctx context.Context, after time.Time) (int, error)
 }
 
 // BacklogClient abstracts backlog operations.
