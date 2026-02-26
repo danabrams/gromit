@@ -1689,3 +1689,16 @@ exit 0
 		t.Errorf("StreamRun() streamed output missing prompt, got: %s", streamOutputStr)
 	}
 }
+
+// TestCodexProviderMaxInputTokensConfig verifies that CodexProvider supports
+// a max_input_tokens configuration that limits input token usage.
+func TestCodexProviderMaxInputTokensConfig(t *testing.T) {
+	cp := NewCodexProvider("/usr/bin/codex", []string{}, map[string]string{TierMedium: "gpt-4o"})
+
+	// SetMaxInputTokens should allow configuration of max input token threshold
+	cp.SetMaxInputTokens(TierMedium, 2000000) // 2M token limit
+
+	if cp.MaxInputTokensForTier(TierMedium) != 2000000 {
+		t.Errorf("MaxInputTokensForTier() = %d, want 2000000", cp.MaxInputTokensForTier(TierMedium))
+	}
+}
