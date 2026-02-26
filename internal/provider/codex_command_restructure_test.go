@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -17,13 +18,8 @@ func TestCodexProviderBuildsExecCommand(t *testing.T) {
 	tempDir := t.TempDir()
 
 	mockBinary := filepath.Join(tempDir, "codex")
-	mockScript := `#!/bin/bash
-echo "ARGS: $@"
-exit 0
-`
-	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
-		t.Fatalf("failed to create mock binary: %v", err)
-	}
+	testCreateBinary(t, mockBinary, `echo "ARGS: $@"
+exit 0`)
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
 	flags := []string{"--cd", "/workspace"}
@@ -120,6 +116,7 @@ exit 0
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
 		t.Fatalf("failed to create mock binary: %v", err)
 	}
+	syscall.Sync() // Prevent ETXTBSY under parallel test load
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
 	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
@@ -158,6 +155,7 @@ exit 0
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
 		t.Fatalf("failed to create mock binary: %v", err)
 	}
+	syscall.Sync() // Prevent ETXTBSY under parallel test load
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
 	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
@@ -198,6 +196,7 @@ exit 0
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
 		t.Fatalf("failed to create mock binary: %v", err)
 	}
+	syscall.Sync() // Prevent ETXTBSY under parallel test load
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
 	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
@@ -240,6 +239,7 @@ exit 0
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
 		t.Fatalf("failed to create mock binary: %v", err)
 	}
+	syscall.Sync() // Prevent ETXTBSY under parallel test load
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
 	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
@@ -313,6 +313,7 @@ exit 0
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
 		t.Fatalf("failed to create mock binary: %v", err)
 	}
+	syscall.Sync() // Prevent ETXTBSY under parallel test load
 
 	userFlags := []string{"--cd", "/workspace", "--verbose"}
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
@@ -361,6 +362,7 @@ exit 0
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
 		t.Fatalf("failed to create mock binary: %v", err)
 	}
+	syscall.Sync() // Prevent ETXTBSY under parallel test load
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
 	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
@@ -569,6 +571,7 @@ exit 0
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
 		t.Fatalf("failed to create mock binary: %v", err)
 	}
+	syscall.Sync() // Prevent ETXTBSY under parallel test load
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
 	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
@@ -626,6 +629,7 @@ exit 1
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
 		t.Fatalf("failed to create mock binary: %v", err)
 	}
+	syscall.Sync() // Prevent ETXTBSY under parallel test load
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
 	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
@@ -664,6 +668,7 @@ exit 0
 	if err := os.WriteFile(mockBinary, []byte(mockScript), 0755); err != nil {
 		t.Fatalf("failed to create mock binary: %v", err)
 	}
+	syscall.Sync() // Prevent ETXTBSY under parallel test load
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
 	cp := NewCodexProvider(mockBinary, []string{}, tierMap)
@@ -713,4 +718,21 @@ func TestCodexProviderBuildCommandArgsSignatureDoesNotRequirePromptFile(t *testi
 	// This test verifies the new signature by not passing promptFile
 
 	_ = args // Use the result to avoid unused variable error
+}
+
+// testCreateBinary creates a temporary executable file with the given bash script.
+// It ensures the file is properly synced before returning to avoid ETXTBSY errors
+// under parallel test execution.
+func testCreateBinary(t *testing.T, path, bashScript string) {
+	t.Helper()
+	fullScript := "#!/bin/bash\n" + bashScript
+
+	if err := os.WriteFile(path, []byte(fullScript), 0755); err != nil {
+		t.Fatalf("failed to create test binary: %v", err)
+	}
+	syscall.Sync() // Prevent ETXTBSY under parallel test load
+
+	// Explicitly sync filesystem to ensure file is readable before execution.
+	// This prevents ETXTBSY ("text file busy") errors under parallel test load.
+	syscall.Sync()
 }
