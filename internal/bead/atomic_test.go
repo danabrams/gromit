@@ -2,6 +2,29 @@ package bead
 
 import "testing"
 
+// Contract: Heuristic Semantics for IsAtomic Classification
+//
+// IsAtomic(bead, depth, maxDepth) classifies beads using three independent criteria:
+//
+// 1. LABEL-BASED: Beads with "atomic:true" label are ALWAYS atomic, taking precedence
+//    over other factors. This allows explicit override for edge cases.
+//
+// 2. DEPTH-BASED: Beads at or beyond max decomposition depth (depth >= maxDepth) are
+//    classified as atomic to avoid infinite decomposition chains. This creates a hard
+//    boundary below which further decomposition is unsafe.
+//
+// 3. SINGLE-TARGET HEURISTIC: Beads targeting exactly one file (len(ExpectedOutputs)==1)
+//    are classified as atomic since they represent minimal, focused changes. Beads with
+//    zero or multiple targets do NOT trigger this heuristic.
+//
+// These criteria are ORed: a bead is atomic if ANY condition is true.
+//
+// Rationale:
+// - Label-based: Explicit control for complex beads that LOOK decomposable but should
+//   not be (e.g., cross-cutting refactors that touch many files but are semantically atomic).
+// - Depth-based: Prevents infinite decomposition chains and forces escalation at safe limits.
+// - Single-target: Minimal scope suggests the bead cannot be meaningfully decomposed further.
+
 func TestIsAtomic_AtomicTrueLabel(t *testing.T) {
 	t.Parallel()
 
