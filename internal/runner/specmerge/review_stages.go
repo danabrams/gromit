@@ -40,6 +40,11 @@ func RunStage3CodeQuality(ctx context.Context, deps ReviewStageDependencies, dif
 	return runBlockingReviewStage(ctx, deps, stageCodeQuality, diff, tier, "", false)
 }
 
+// RunStage4Architecture runs the architectural review stage on the full diff.
+func RunStage4Architecture(ctx context.Context, deps ReviewStageDependencies, diff, tier string) (*review.ReviewResult, *provider.Result, error) {
+	return runBlockingReviewStage(ctx, deps, stageArchitecture, diff, tier, "", false)
+}
+
 func runBlockingReviewStage(ctx context.Context, deps ReviewStageDependencies, phase, diff, tier, specName string, includeSpec bool) (*review.ReviewResult, *provider.Result, error) {
 	if deps.Router == nil {
 		return nil, nil, fmt.Errorf("router is nil")
