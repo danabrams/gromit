@@ -145,6 +145,24 @@ func profileGuidanceSnippet(profile string) string {
 	return b.String()
 }
 
+func seedProfileAwareCommandExamples(profile string, template string) string {
+	// Inject profile-aware guidance into command example sections
+	// For now, inject the guidance snippet into the template where commands are discussed
+	guidance := profileGuidanceSnippet(profile)
+	if guidance == "" {
+		return template
+	}
+
+	// Inject after "## Commands to Execute" section in validate template
+	target := "## Commands to Execute"
+	if strings.Contains(template, target) {
+		replacement := target + "\n\n" + guidance + "\n"
+		return strings.Replace(template, target, replacement, 1)
+	}
+
+	return template
+}
+
 const defaultBuildTemplate = `# Task Execution
 
 You are executing a single task from the work queue. Focus only on this task.
