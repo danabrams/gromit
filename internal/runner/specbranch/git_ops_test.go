@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/runner/specmerge"
@@ -198,6 +199,27 @@ func TestDeleteSpecBranch_DeletesSuccessfully(t *testing.T) {
 	cmd.Dir = fixture.Dir
 	if err := cmd.Run(); err == nil {
 		t.Error("branch should have been deleted but still exists")
+	}
+}
+
+func TestRebaseSpecOntoMain_UsesConfiguredBaseBranch(t *testing.T) {
+	t.Parallel()
+
+	fixture := helpers.NewDeterministicGitConflictFixture(t)
+	ops := NewGitOps(fixture.Dir, "nonexistent")
+
+	specBranchName := "gromit/spec-base-branch"
+
+	if err := ops.CreateOrCheckoutSpecBranch(context.Background(), specBranchName); err != nil {
+		t.Fatalf("CreateOrCheckoutSpecBranch() error = %v", err)
+	}
+
+	err := ops.RebaseSpecOntoMain(context.Background(), specBranchName)
+	if err == nil {
+		t.Fatalf("RebaseSpecOntoMain() expected error when base branch missing")
+	}
+	if !strings.Contains(err.Error(), "nonexistent") {
+		t.Fatalf("RebaseSpecOntoMain() error = %v, want mention of nonexistent", err)
 	}
 }
 
