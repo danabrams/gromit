@@ -210,7 +210,7 @@ agents:
   phases:
     refine: codex
     plan: codex
-    review: codex
+    review: claude
     explore: codex
     debug: codex
 
