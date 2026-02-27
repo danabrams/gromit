@@ -1,11 +1,13 @@
 package pipeline
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/frontmatter"
 )
 
@@ -63,4 +65,53 @@ func ListUndecomposedPlans(plansDir string) ([]string, error) {
 
 	sort.Strings(undecomposed)
 	return undecomposed, nil
+}
+
+// ActiveBeadClient defines the subset of bead client functionality needed by ListActiveBeads.
+type ActiveBeadClient interface {
+	List(ctx context.Context) ([]*bead.Bead, error)
+	ListByStatus(ctx context.Context, status string) ([]*bead.Bead, error)
+}
+
+// ListActiveBeads returns open and in-progress beads, filtering duplicates and invalid entries.
+func ListActiveBeads(ctx context.Context, client ActiveBeadClient) ([]*bead.Bead, error) {
+	if client == nil {
+		return nil, fmt.Errorf("active bead client is nil")
+	}
+
+	open, err := client.List(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("listing active beads: %w", err)
+	}
+
+	inProgress, err := client.ListByStatus(ctx, "in_progress")
+	if err != nil {
+		return nil, fmt.Errorf("listing active beads: %w", err)
+	}
+
+	combined := append(open, inProgress...)
+	result := make([]*bead.Bead, 0, len(combined))
+	seen := make(map[string]struct{}, len(combined))
+
+	for _, b := range combined {
+		if b == nil {
+			continue
+		}
+
+		id := strings.TrimSpace(b.ID)
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+
+		seen[id] = struct{}{}
+		result = append(result, b)
+	}
+
+	if len(result) == 0 {
+		return []*bead.Bead{}, nil
+	}
+	return result, nil
 }
