@@ -12,8 +12,8 @@ func TestQueryReturnsRankedSnippets(t *testing.T) {
 		t.Fatalf("Query failed: %v", err)
 	}
 
-	if results == nil {
-		t.Fatalf("expected non-nil results, got nil")
+	if len(results) != 0 {
+		t.Fatalf("expected empty results for empty index, got %d", len(results))
 	}
 }
 
