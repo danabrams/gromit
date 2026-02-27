@@ -1422,3 +1422,53 @@ func (m *mockReviewPipelineForDelegation) ResolveReviewScope(ctx context.Context
 	}
 	return "", fmt.Errorf("not implemented")
 }
+
+// TestCreateReviewPipeline_CreatesValidPipeline verifies createReviewPipeline creates a working pipeline
+// Expected: createReviewPipeline returns a non-nil pipeline
+func TestCreateReviewPipeline_CreatesValidPipeline(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		Claude: config.ClaudeConfig{
+			Binary:  "claude",
+			Timeout: 30,
+		},
+	}
+	gromitDir := t.TempDir()
+
+	p, err := createReviewPipeline(cfg, gromitDir)
+
+	if err != nil {
+		t.Errorf("createReviewPipeline() error = %v, want nil", err)
+	}
+
+	if p == nil {
+		t.Fatal("createReviewPipeline() returned nil pipeline")
+	}
+
+	// Verify pipeline can be used
+	ctx := context.Background()
+	commit, pipelineErr := p.ResolveReviewScope(ctx, "", "", "test-commit")
+
+	// When --since is provided, should return it
+	if pipelineErr != nil {
+		t.Errorf("Pipeline.ResolveReviewScope(since=test-commit) error = %v, want nil", pipelineErr)
+	}
+
+	if commit != "test-commit" {
+		t.Errorf("Pipeline.ResolveReviewScope(since=test-commit) returned %q, want 'test-commit'", commit)
+	}
+}
+
+// TestReviewThinWrapperPattern verifies the thin wrapper delegation pattern
+// Expected: review command uses Pipeline for core logic delegation
+func TestReviewThinWrapperPattern(t *testing.T) {
+	t.Parallel()
+
+	// Verify ReviewScopeResolver interface exists for dependency injection
+	var _ ReviewScopeResolver = &mockReviewPipelineForDelegation{}
+
+	// Verify *pipeline.Pipeline implements ReviewScopeResolver
+	var p *pipeline.Pipeline
+	var _ ReviewScopeResolver = p
+}
