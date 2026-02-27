@@ -242,10 +242,8 @@ func (a *trackerClientAdapter) Create(ctx context.Context, title string, priorit
 		labelsJSON, _ := json.Marshal(labels)
 		req.Metadata["labels"] = string(labelsJSON)
 	}
-	if len(outputs) > 0 {
-		if encoded := marshalJSONList(outputs); encoded != "" {
-			req.Metadata["expected_outputs"] = encoded
-		}
+	if encoded, ok := tracker.EncodeMetadataJSONList(outputs); ok {
+		req.Metadata["expected_outputs"] = encoded
 	}
 
 	item, err := a.Client.Create(ctx, req)
@@ -268,15 +266,11 @@ func (a *trackerClientAdapter) CreateWithDepsAndDescription(ctx context.Context,
 		labelsJSON, _ := json.Marshal(labels)
 		req.Metadata["labels"] = string(labelsJSON)
 	}
-	if len(criteria) > 0 {
-		if encoded := marshalJSONList(criteria); encoded != "" {
-			req.Metadata["acceptance_criteria"] = encoded
-		}
+	if encoded, ok := tracker.EncodeMetadataJSONList(criteria); ok {
+		req.Metadata["acceptance_criteria"] = encoded
 	}
-	if len(deps) > 0 {
-		if encoded := marshalJSONList(deps); encoded != "" {
-			req.Metadata["dependencies"] = encoded
-		}
+	if encoded, ok := tracker.EncodeMetadataJSONList(deps); ok {
+		req.Metadata["dependencies"] = encoded
 	}
 
 	item, err := a.Client.Create(ctx, req)
