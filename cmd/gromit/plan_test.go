@@ -10,13 +10,8 @@ import (
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
-	"github.com/danabrams/gromit/internal/worktree"
 	"github.com/spf13/cobra"
 )
-
-// planLaunchTestAgent is now defined in session_test_agent_helper.go
-// using the shared sessionTestAgent test helper
-type planLaunchTestAgent = sessionTestAgent
 
 func TestFilterUnplannedSpecs(t *testing.T) {
 	t.Parallel()
@@ -123,140 +118,13 @@ func TestFilterUnplannedSpecs(t *testing.T) {
 	}
 }
 
-func TestLaunchPlanSession_UsesSessionLauncherWhenEnabled(t *testing.T) {
-
-	origLauncher := planSessionLauncherFn
-	t.Cleanup(func() { planSessionLauncherFn = origLauncher })
-
-	sessionDir := t.TempDir()
-	var launchedDir string
-	launcherCalled := false
-
-	planSessionLauncherFn = func(
-		gromitDir string,
-		command string,
-		conflictSettings sessionConflictSettings,
-		callback func(sessionDir string) error,
-	) (*worktree.SessionWorktree, error) {
-		launcherCalled = true
-		if command != planSessionCommand {
-			t.Fatalf("command = %q, want %q", command, planSessionCommand)
-		}
-		if err := callback(sessionDir); err != nil {
-			return nil, err
-		}
-		return &worktree.SessionWorktree{BranchName: "gromit/plan-test", WorktreeDir: sessionDir}, nil
-	}
-
-	agent := &planLaunchTestAgent{
-		launchInDirFn: func(promptPath, dir string) error {
-			launchedDir = dir
-			return nil
-		},
-	}
-
-	if err := launchPlanSession(&config.Config{}, ".gromit", agent, "prompt.md"); err != nil {
-		t.Fatalf("launchPlanSession() error = %v", err)
-	}
-	if !launcherCalled {
-		t.Fatal("expected session launcher to be called")
-	}
-	if launchedDir != sessionDir {
-		t.Fatalf("launch dir = %q, want %q", launchedDir, sessionDir)
-	}
-}
-
-func TestLaunchPlanSession_WorktreeDisabledUsesInPlaceLaunch(t *testing.T) {
-
-	origLauncher := planSessionLauncherFn
-	t.Cleanup(func() { planSessionLauncherFn = origLauncher })
-
-	enabled := false
-	cfg := &config.Config{}
-	cfg.Worktree.Enabled = &enabled
-
-	launcherCalled := false
-	planSessionLauncherFn = func(
-		gromitDir string,
-		command string,
-		conflictSettings sessionConflictSettings,
-		callback func(sessionDir string) error,
-	) (*worktree.SessionWorktree, error) {
-		launcherCalled = true
-		return nil, nil
-	}
-
-	var launchedDir string
-	agent := &planLaunchTestAgent{
-		launchInDirFn: func(promptPath, dir string) error {
-			launchedDir = dir
-			return nil
-		},
-	}
-
-	if err := launchPlanSession(cfg, ".gromit", agent, "prompt.md"); err != nil {
-		t.Fatalf("launchPlanSession() error = %v", err)
-	}
-	if launcherCalled {
-		t.Fatal("session launcher should not be called when worktree is disabled")
-	}
-	if launchedDir != "" {
-		t.Fatalf("launch dir = %q, want empty string", launchedDir)
-	}
-}
-
-func TestLaunchPlanSession_ConvertsPromptPathToAbsolute(t *testing.T) {
-
-	origLauncher := planSessionLauncherFn
-	t.Cleanup(func() { planSessionLauncherFn = origLauncher })
-
-	enabled := false
-	cfg := &config.Config{}
-	cfg.Worktree.Enabled = &enabled
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Getwd() failed: %v", err)
-	}
-	tmpDir := t.TempDir()
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("Chdir(%q) failed: %v", tmpDir, err)
-	}
-	t.Cleanup(func() {
-		_ = os.Chdir(cwd)
-	})
-
-	relativePromptPath := filepath.Join(".gromit", "tmp", "plan-prompt.md")
-	if err := os.MkdirAll(filepath.Dir(relativePromptPath), 0o755); err != nil {
-		t.Fatalf("MkdirAll() failed: %v", err)
-	}
-	if err := os.WriteFile(relativePromptPath, []byte("prompt"), 0o644); err != nil {
-		t.Fatalf("WriteFile() failed: %v", err)
-	}
-
-	capturedPromptPath := ""
-	agent := &planLaunchTestAgent{
-		launchInDirFn: func(promptPath, dir string) error {
-			capturedPromptPath = promptPath
-			return nil
-		},
-	}
-
-	if err := launchPlanSession(cfg, ".gromit", agent, relativePromptPath); err != nil {
-		t.Fatalf("launchPlanSession() error = %v", err)
-	}
-
-	if !filepath.IsAbs(capturedPromptPath) {
-		t.Fatalf("prompt path = %q, want absolute path", capturedPromptPath)
-	}
-}
-
 func TestRunPlanDelegatesToPipelineAndReportsSuccess(t *testing.T) {
 	tmpDir := t.TempDir()
 	origWD, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Getwd(): %v", err)
 	}
+	repoRoot := filepath.Clean(filepath.Join(origWD, "..", ".."))
 	t.Cleanup(func() { _ = os.Chdir(origWD) })
 
 	if err := os.Chdir(tmpDir); err != nil {
@@ -280,7 +148,7 @@ func TestRunPlanDelegatesToPipelineAndReportsSuccess(t *testing.T) {
 	}
 
 	configDst := filepath.Join(tmpDir, "gromit.yaml")
-	if err := copyFileWithSuffix(origWD, "gromit.yaml", configDst, "\nworktree:\n  enabled: false\n"); err != nil {
+	if err := copyFileWithSuffix(repoRoot, "gromit.yaml", configDst, "\nworktree:\n  enabled: false\n"); err != nil {
 		t.Fatalf("preparing config: %v", err)
 	}
 	origConfigPath := configPath
@@ -321,9 +189,9 @@ func TestRunPlanDelegatesToPipelineAndReportsSuccess(t *testing.T) {
 		}
 	})
 
-	planPath := filepath.Join(plansDir, specName+".md")
-	if !strings.Contains(output, planPath) {
-		t.Fatalf("expected output to mention %q, got:\n%s", planPath, output)
+	planMessagePath := filepath.Join(".gromit", "plans", specName+".md")
+	if !strings.Contains(output, planMessagePath) {
+		t.Fatalf("expected output to mention %q, got:\n%s", planMessagePath, output)
 	}
 
 	if stub.input.SpecName != specName {

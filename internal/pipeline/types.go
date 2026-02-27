@@ -62,6 +62,9 @@ type PlanInput struct {
 	SpecName  string // Name of spec to plan
 	AgentName string // Optional agent override
 	Force     bool   // Re-plan even if already done
+
+	ChooseAgent bool   // Show interactive picker to choose agent
+	LaunchDir   string // Working directory for interactive agent launch
 }
 
 // PlanResult contains the output from the Plan workflow.

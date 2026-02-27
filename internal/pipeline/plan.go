@@ -70,14 +70,14 @@ func runPlanWorkflow(ctx context.Context, p *Pipeline, input PlanInput) (*PlanSe
 	}
 
 	// Resolve agent
-	agent, err := p.deps.AgentResolver.Resolve("plan", input.AgentName, false)
+	agent, err := p.deps.AgentResolver.Resolve("plan", input.AgentName, input.ChooseAgent)
 	if err != nil {
 		cleanup() // Clean up on error before returning
 		return nil, fmt.Errorf("resolving agent: %w", err)
 	}
 
 	// Launch agent
-	if err := agent.LaunchInDir(promptPath, ""); err != nil {
+	if err := agent.LaunchInDir(promptPath, input.LaunchDir); err != nil {
 		cleanup() // Clean up on error before returning
 		return nil, fmt.Errorf("launching agent: %w", err)
 	}

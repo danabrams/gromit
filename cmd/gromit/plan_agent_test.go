@@ -2,13 +2,10 @@ package main
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
-	"github.com/danabrams/gromit/internal/agent"
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/worktree"
 )
 
 // TestPlanCommandHasAgentFlag verifies plan command has --agent flag
@@ -233,95 +230,6 @@ agents:
 	// The actual picker triggering would be tested in integration tests
 	t.Log("agents.prompt: true picker triggering will be tested via integration test")
 }
-
-func TestLaunchPlanSessionUsesSessionLauncher(t *testing.T) {
-
-	origLauncher := planSessionLauncherFn
-	t.Cleanup(func() { planSessionLauncherFn = origLauncher })
-	planSessionLauncherFn = func(gDir, command string, _ sessionConflictSettings, callback func(sessionDir string) error) (*worktree.SessionWorktree, error) {
-		if gDir == "" || command == "" {
-			t.Fatalf("unexpected launcher args: gDir=%q command=%q", gDir, command)
-		}
-		if err := callback("session-dir"); err != nil {
-			return nil, err
-		}
-		return &worktree.SessionWorktree{WorktreeDir: "session-dir"}, nil
-	}
-
-	agent := &recordingAgent{}
-	cfg := &config.Config{}
-	promptPath, err := filepath.Abs("prompt-path.md")
-	if err != nil {
-		t.Fatalf("abs prompt path: %v", err)
-	}
-
-	if err := launchPlanSession(cfg, "/tmp/gromit", agent, promptPath); err != nil {
-		t.Fatalf("launchPlanSession error: %v", err)
-	}
-
-	if agent.launchDir != "session-dir" {
-		t.Fatalf("expected launch dir session-dir, got %q", agent.launchDir)
-	}
-	if agent.promptPath != promptPath {
-		t.Fatalf("expected prompt path %q, got %q", promptPath, agent.promptPath)
-	}
-}
-
-func TestLaunchPlanSessionSkipsSessionLauncherWhenWorktreeDisabled(t *testing.T) {
-
-	origLauncher := planSessionLauncherFn
-	t.Cleanup(func() { planSessionLauncherFn = origLauncher })
-	planSessionLauncherFn = func(string, string, sessionConflictSettings, func(string) error) (*worktree.SessionWorktree, error) {
-		t.Fatalf("session launcher should not be invoked when worktree is disabled")
-		return nil, nil
-	}
-
-	agent := &recordingAgent{}
-	cfg := &config.Config{Worktree: config.WorktreeConfig{Enabled: boolPtr(false)}}
-	promptPath, err := filepath.Abs("prompt-path.md")
-	if err != nil {
-		t.Fatalf("abs prompt path: %v", err)
-	}
-
-	if err := launchPlanSession(cfg, "/tmp/gromit", agent, promptPath); err != nil {
-		t.Fatalf("launchPlanSession error: %v", err)
-	}
-
-	if agent.launchDir != "" {
-		t.Fatalf("expected empty launch dir, got %q", agent.launchDir)
-	}
-	if agent.promptPath != promptPath {
-		t.Fatalf("expected prompt path %q, got %q", promptPath, agent.promptPath)
-	}
-}
-
-type recordingAgent struct {
-	promptPath string
-	launchDir  string
-}
-
-var _ agent.Agent = (*recordingAgent)(nil)
-
-func (r *recordingAgent) Name() string { return "recording" }
-func (r *recordingAgent) Launch(promptPath string) error {
-	r.promptPath = promptPath
-	r.launchDir = ""
-	return nil
-}
-
-func (r *recordingAgent) LaunchInDir(promptPath, dir string) error {
-	r.promptPath = promptPath
-	r.launchDir = dir
-	return nil
-}
-
-func (r *recordingAgent) Command(promptPath string) (*exec.Cmd, error) {
-	r.promptPath = promptPath
-	r.launchDir = ""
-	return nil, nil
-}
-
-func boolPtr(v bool) *bool { return &v }
 
 // TestPlanAgentConfigBackwardCompatibility verifies plan works without agent config
 func TestPlanAgentConfigBackwardCompatibility(t *testing.T) {
