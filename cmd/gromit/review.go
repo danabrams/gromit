@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/danabrams/gromit/internal/agent"
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
@@ -393,24 +392,24 @@ func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) er
 func runReviewInteractiveInDir(cfg *config.Config, fromCommit string, diff string, launchDir string) error {
 	gromitDir := resolveGromitDir(cfg)
 
+	// Construct pipeline dependencies using dependency injection
+	deps, err := NewPipelineDeps(cfg, gromitDir)
+	if err != nil {
+		return fmt.Errorf("constructing pipeline deps: %w", err)
+	}
+
+	// Create prompt renderer for interactive review
 	templatesDir, specsDir, claudeMDPath := resolveReviewRendererPaths(cfg)
 	renderer, err := prompt.NewRenderer(templatesDir, specsDir, claudeMDPath, gromitDir)
 	if err != nil {
 		return fmt.Errorf("creating renderer: %w", err)
 	}
 
-	// Create agent resolver adapter
-	agentResolver := agent.NewResolver(cfg)
-
-	// Create prompt renderer adapter that loads ClaudeMD and Rules
+	// Override review-specific renderer
 	promptRendererAdapter := &cliPromptRenderer{
 		renderer: renderer,
 	}
-
-	deps := &pipeline.Deps{
-		AgentResolver:  agentResolver,
-		ReviewRenderer: promptRendererAdapter,
-	}
+	deps.ReviewRenderer = promptRendererAdapter
 
 	paths := &pipeline.Paths{
 		GromitDir: gromitDir,
@@ -451,62 +450,44 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 	// Build pipeline and dependencies
 	gromitDir := resolveGromitDir(cfg)
 
+	// Construct pipeline dependencies using dependency injection
+	deps, err := NewPipelineDeps(cfg, gromitDir)
+	if err != nil {
+		return fmt.Errorf("constructing pipeline deps: %w", err)
+	}
+
+	// Override the LLM client to use review-specific configuration (providers, timeout)
+	llmClient, err := buildReviewNonInteractiveClient(cfg)
+	if err != nil {
+		return fmt.Errorf("creating review invoker: %w", err)
+	}
+	deps.LLMClient = llmClient
+	deps.ReviewInvoker = llmClient
+
+	// Create prompt renderer for diagnostics
 	templatesDir, specsDir, claudeMDPath := resolveReviewRendererPaths(cfg)
 	renderer, err := prompt.NewRenderer(templatesDir, specsDir, claudeMDPath, gromitDir)
 	if err != nil {
 		return fmt.Errorf("creating renderer: %w", err)
 	}
 
-	llmClient, err := buildReviewNonInteractiveClient(cfg)
-	if err != nil {
-		return fmt.Errorf("creating review invoker: %w", err)
-	}
-
-	beadsClient, err := bead.NewClient()
-	if err != nil {
-		return fmt.Errorf("creating bead client: %w", err)
-	}
-	trackerClient := bead.NewBDAdapter(beadsClient)
-
-	// Create adapters
+	// Override review-specific renderers and adapters
 	reviewRendererAdapter := &cliPromptRenderer{
 		renderer: renderer,
 	}
+	deps.ReviewRenderer = reviewRendererAdapter
 
-	trackerAdapter := &trackerClientAdapter{
-		Client: trackerClient,
-	}
+	// Inject diagnostics provider from renderer
+	SetDepsPromptDiagnosticsProvider(deps, func() *prompt.PromptDiagnostics {
+		return renderer.LastDiagnostics()
+	})
 
-	backlogAdapter := &cliBacklogClient{
-		beadClient: beadsClient,
-	}
-
-	learningsAdapter := &cliLearningsManager{
-		gromitDir: gromitDir,
-		runner: &pipelineLearningsRunnerAdapter{
+	// Update learnings runner with the review-specific LLM client
+	learningsAdapter, ok := deps.LearningsManager.(*cliLearningsManager)
+	if ok {
+		learningsAdapter.runner = &pipelineLearningsRunnerAdapter{
 			client: llmClient,
-		},
-	}
-
-	logAdapter := &cliLogWriter{
-		logsDir: cfg.Paths.Logs,
-		promptDiagnosticsProvider: func() *prompt.PromptDiagnostics {
-			return renderer.LastDiagnostics()
-		},
-	}
-
-	stateAdapter := &cliStateManager{
-		gromitDir: gromitDir,
-	}
-
-	deps := &pipeline.Deps{
-		ReviewRenderer:   reviewRendererAdapter,
-		ReviewInvoker:    llmClient,
-		TrackerClient:    trackerAdapter,
-		BacklogWriter:    backlogAdapter,
-		LearningsManager: learningsAdapter,
-		LogWriter:        logAdapter,
-		StateManager:     stateAdapter,
+		}
 	}
 
 	paths := &pipeline.Paths{

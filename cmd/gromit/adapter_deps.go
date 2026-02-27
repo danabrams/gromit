@@ -85,7 +85,7 @@ func NewPipelineDeps(cfg *config.Config, gromitDir string) (*pipeline.Deps, erro
 		promptDiagnosticsProvider: nil, // Will be injected by caller
 	}
 
-	return &pipeline.Deps{
+	deps := &pipeline.Deps{
 		AgentResolver:     agentResolver,
 		LLMClient:         claudeAdapter,
 		ReviewInvoker:     claudeAdapter,
@@ -100,5 +100,18 @@ func NewPipelineDeps(cfg *config.Config, gromitDir string) (*pipeline.Deps, erro
 		LearningsManager:  learningsManager,
 		StateManager:      stateManager,
 		LogWriter:         logWriter,
-	}, nil
+	}
+
+	return deps, nil
+}
+
+// SetDepsPromptDiagnosticsProvider updates the LogWriter's diagnostics provider.
+// This is used when a workflow needs to provide diagnostics from its renderer.
+func SetDepsPromptDiagnosticsProvider(deps *pipeline.Deps, provider func() *prompt.PromptDiagnostics) {
+	if deps == nil || deps.LogWriter == nil {
+		return
+	}
+	if logWriter, ok := deps.LogWriter.(*cliLogWriter); ok {
+		logWriter.promptDiagnosticsProvider = provider
+	}
 }
