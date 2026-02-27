@@ -361,6 +361,23 @@ func (c *Config) SetDefaults() {
 		c.TokenEfficiency.Routing.TaskOverrides = make(map[string]string)
 	}
 
+	// Retrieval experiment defaults: all disabled by default
+	if c.TokenEfficiency.Retrieval.Enabled {
+		// If enabled, ensure other fields have sensible minimums
+		if c.TokenEfficiency.Retrieval.TopK == 0 {
+			c.TokenEfficiency.Retrieval.TopK = 5
+		}
+		if c.TokenEfficiency.Retrieval.ConfidenceThreshold == 0 {
+			c.TokenEfficiency.Retrieval.ConfidenceThreshold = 0.5
+		}
+		if c.TokenEfficiency.Retrieval.StalenessPolicy == "" {
+			c.TokenEfficiency.Retrieval.StalenessPolicy = "max_age"
+		}
+		if c.TokenEfficiency.Retrieval.StalenessThresholdDays == 0 {
+			c.TokenEfficiency.Retrieval.StalenessThresholdDays = 7
+		}
+	}
+
 	if c.Routing.CircuitBreaker.Enabled {
 		if c.Routing.CircuitBreaker.WindowSize == 0 {
 			c.Routing.CircuitBreaker.WindowSize = 10
