@@ -772,6 +772,91 @@ func TestReviewNonInteractiveWorkflow_UsesExpectedOutputsOrTitle(t *testing.T) {
 	}
 }
 
+func TestReviewNonInteractive_BacklogWriterReceivesStructuredEntry(t *testing.T) {
+	t.Parallel()
+
+	mockRenderer := &reviewAcceptanceMockReviewRenderer{
+		renderThoroughReviewFunc: func(input *ThoroughReviewPromptInput) (string, error) {
+			return "# Review Prompt", nil
+		},
+	}
+
+	mockReviewInvoker := &reviewAcceptanceMockReviewInvoker{
+		runFunc: func(prompt string, model string, timeout time.Duration) (*LLMRunResult, error) {
+			jsonOutput := `{
+				"passed": true,
+				"fixes_applied": [],
+				"beads_to_create": [],
+				"backlog_items": [
+					{
+						"title": "Cache config",
+						"description": "Load once per run",
+						"reason": "performance",
+						"expected_outputs": null
+					}
+				],
+				"summary": "Backlog item from review"
+			}`
+			return &LLMRunResult{
+				Success: true,
+				Output:  jsonOutput,
+			}, nil
+		},
+	}
+
+	var capturedEntry *BacklogEntry
+	mockBacklog := &reviewAcceptanceMockBacklogWriter{
+		addFunc: func(entry *BacklogEntry) error {
+			capturedEntry = entry
+			return nil
+		},
+	}
+
+	deps := &Deps{
+		ReviewRenderer:   mockRenderer,
+		ReviewInvoker:    mockReviewInvoker,
+		TrackerClient:    &reviewAcceptanceMockBeadClient{},
+		BacklogWriter:    mockBacklog,
+		LearningsManager: &reviewAcceptanceMockLearningsManager{},
+		LogWriter:        &reviewAcceptanceMockLogWriter{},
+		StateManager:     &reviewAcceptanceMockStateManager{},
+	}
+	paths := &Paths{GromitDir: t.TempDir()}
+	p := New(deps, paths)
+
+	ctx := context.Background()
+	input := ReviewInput{
+		FromCommit: "abc123",
+		Diff:       "diff",
+		Model:      "opus",
+		Timeout:    60,
+	}
+
+	if _, err := p.ReviewNonInteractive(ctx, input); err != nil {
+		t.Fatalf("ReviewNonInteractive() error = %v", err)
+	}
+
+	if capturedEntry == nil {
+		t.Fatal("BacklogWriter.Add() was not called")
+	}
+
+	if capturedEntry.Title != "Cache config" {
+		t.Fatalf("entry title = %q, want %q", capturedEntry.Title, "Cache config")
+	}
+
+	if len(capturedEntry.Labels) != 2 || capturedEntry.Labels[0] != "from-review" || capturedEntry.Labels[1] != "backlog" {
+		t.Fatalf("entry labels = %v", capturedEntry.Labels)
+	}
+
+	if len(capturedEntry.ExpectedOutputs) != 1 || capturedEntry.ExpectedOutputs[0] != "Cache config" {
+		t.Fatalf("entry expected outputs = %v", capturedEntry.ExpectedOutputs)
+	}
+
+	if !strings.Contains(capturedEntry.Description, "Reason for backlog: performance") {
+		t.Fatalf("entry description = %q", capturedEntry.Description)
+	}
+}
+
 type reviewAcceptanceBeadRecord struct {
 	title    string
 	priority int
