@@ -298,49 +298,6 @@ func TestRunReviewInteractive_ConflictHandoffPropagates(t *testing.T) {
 	}
 }
 
-func TestFindFirstCommitForBead_UsesInjectedGitWithFixedStrings(t *testing.T) {
-	// Not parallel: stubReviewGit mutates package-level reviewGitCommandFn and reviewGitOutputFn.
-	capture := stubReviewGit(t, []byte("newest\nmiddle\nearliest\n"), nil)
-
-	commit, err := findFirstCommitForBead("gromit-[abc]")
-	if err != nil {
-		t.Fatalf("findFirstCommitForBead() error = %v", err)
-	}
-	if commit != "earliest" {
-		t.Fatalf("findFirstCommitForBead() = %q, want %q", commit, "earliest")
-	}
-	wantArgs := []string{"log", "--all", "--format=%H", "--grep", "gromit-[abc]", "--fixed-strings"}
-	assertGitCommand(t, capture, "git", wantArgs)
-}
-
-func TestFindFirstCommitForBead_GitErrorReturnsEmptyWithoutError(t *testing.T) {
-	// Not parallel: stubReviewGit mutates package-level reviewGitCommandFn and reviewGitOutputFn.
-	stubReviewGit(t, nil, errors.New("no commits"))
-
-	commit, err := findFirstCommitForBead("gromit-abc")
-	if err != nil {
-		t.Fatalf("findFirstCommitForBead() error = %v, want nil", err)
-	}
-	if commit != "" {
-		t.Fatalf("findFirstCommitForBead() = %q, want empty commit", commit)
-	}
-}
-
-func TestGetCommitTimestamp_UsesInjectedGit(t *testing.T) {
-	// Not parallel: stubReviewGit mutates package-level reviewGitCommandFn and reviewGitOutputFn.
-	capture := stubReviewGit(t, []byte("1700000000\n"), nil)
-
-	ts, err := getCommitTimestamp("abc123")
-	if err != nil {
-		t.Fatalf("getCommitTimestamp() error = %v", err)
-	}
-	if ts != 1700000000 {
-		t.Fatalf("getCommitTimestamp() = %d, want %d", ts, int64(1700000000))
-	}
-	wantArgs := []string{"log", "-1", "--format=%at", "abc123", "--"}
-	assertGitCommand(t, capture, "git", wantArgs)
-}
-
 func TestRunGitDiffForReview_UsesInjectedGit(t *testing.T) {
 	// Not parallel: stubReviewGit mutates package-level reviewGitCommandFn and reviewGitOutputFn.
 	capture := stubReviewGit(t, []byte("diff output\n"), nil)
@@ -756,8 +713,8 @@ func TestPrintReviewSummaryCounts_IncludesBacklogCount(t *testing.T) {
 	t.Parallel()
 	var buf strings.Builder
 	result := &pipeline.ReviewResult{
-		FixesApplied: 1,
-		BeadsCreated: 2,
+		FixesApplied:   1,
+		BeadsCreated:   2,
 		BacklogCreated: 3,
 	}
 	printReviewSummaryCounts(&buf, result)
@@ -880,32 +837,6 @@ func TestGetGitDiffForReview_RejectsFlagInjection(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "invalid commit ref") {
 		t.Errorf("error should mention 'invalid commit ref', got: %v", err)
-	}
-}
-
-// TestGetCommitTimestamp_RejectsFlagInjection verifies that getCommitTimestamp
-// rejects commit refs that look like git flags.
-func TestGetCommitTimestamp_RejectsFlagInjection(t *testing.T) {
-	t.Parallel()
-	_, err := getCommitTimestamp("--format=%H")
-	if err == nil {
-		t.Fatal("getCommitTimestamp should reject flag-like commit ref")
-	}
-	if !strings.Contains(err.Error(), "invalid commit ref") {
-		t.Errorf("error should mention 'invalid commit ref', got: %v", err)
-	}
-}
-
-// TestFindFirstCommitForBead_RejectsFlagInjection verifies that findFirstCommitForBead
-// rejects bead IDs that look like git flags.
-func TestFindFirstCommitForBead_RejectsFlagInjection(t *testing.T) {
-	t.Parallel()
-	_, err := findFirstCommitForBead("--all")
-	if err == nil {
-		t.Fatal("findFirstCommitForBead should reject flag-like bead ID")
-	}
-	if !strings.Contains(err.Error(), "invalid bead ID") {
-		t.Errorf("error should mention 'invalid bead ID', got: %v", err)
 	}
 }
 
@@ -1111,7 +1042,6 @@ func TestReviewCommand_SpecFlagInHelpText(t *testing.T) {
 // flags are mutually exclusive on the review command
 func TestReviewCommand_FlagMutualExclusivity(t *testing.T) {
 	// Not parallel: saveReviewFlags mutates package-level reviewEpic, reviewSpec, reviewSince.
-	cfg := &config.Config{}
 	saveReviewFlags(t)
 
 	tests := []struct {
@@ -1191,7 +1121,7 @@ func TestReviewCommand_FlagMutualExclusivity(t *testing.T) {
 			reviewSpec = tt.spec
 			reviewSince = tt.since
 
-			_, err := determineReviewScope(cfg)
+			err := validateReviewFlags()
 
 			if tt.wantErr {
 				if err == nil {
@@ -1213,7 +1143,6 @@ func TestReviewCommand_FlagMutualExclusivity(t *testing.T) {
 // is checked before attempting to resolve specs or epics
 func TestReviewCommand_MutualExclusivityCheckedEarly(t *testing.T) {
 	// Not parallel: saveReviewFlags mutates package-level reviewEpic, reviewSpec, reviewSince.
-	cfg := &config.Config{}
 	saveReviewFlags(t)
 
 	// Set two flags with invalid values that would fail resolution
@@ -1221,7 +1150,7 @@ func TestReviewCommand_MutualExclusivityCheckedEarly(t *testing.T) {
 	reviewSpec = "nonexistent-spec-123"
 	reviewSince = ""
 
-	_, err := determineReviewScope(cfg)
+	err := validateReviewFlags()
 	if err == nil {
 		t.Fatal("expected error when both --epic and --spec are set")
 	}
@@ -1236,7 +1165,6 @@ func TestReviewCommand_MutualExclusivityCheckedEarly(t *testing.T) {
 // only whitespace are treated as empty and don't trigger mutual exclusivity
 func TestReviewCommand_MutualExclusivityWithWhitespace(t *testing.T) {
 	// Not parallel: saveReviewFlags mutates package-level reviewEpic, reviewSpec, reviewSince.
-	cfg := &config.Config{}
 	saveReviewFlags(t)
 
 	tests := []struct {
@@ -1290,7 +1218,7 @@ func TestReviewCommand_MutualExclusivityWithWhitespace(t *testing.T) {
 			reviewSpec = tt.spec
 			reviewSince = tt.since
 
-			_, err := determineReviewScope(cfg)
+			err := validateReviewFlags()
 			if tt.wantErr {
 				if err == nil {
 					t.Fatalf("expected mutual exclusivity error for %s", tt.name)
@@ -1307,49 +1235,70 @@ func TestReviewCommand_MutualExclusivityWithWhitespace(t *testing.T) {
 	}
 }
 
-
 // TestRunReviewDelegatesStoPipelineResolveReviewScope verifies that runReview
 // delegates scope resolution to Pipeline.ResolveReviewScope
 // Expected failure: runReview does not yet call Pipeline.ResolveReviewScope
 func TestRunReviewDelegatesStoPipelineResolveReviewScope(t *testing.T) {
 	t.Parallel()
 
-	// Override global flag variables
-	origReviewSince := reviewSince
-	origReviewSpec := reviewSpec
-	origReviewEpic := reviewEpic
+	_, _, cfgPath := setupAgentConfig(t, `
+claude:
+  binary: "claude"
+  timeout: 30
+  flags: []
+`)
+	origConfigPath := configPath
+	configPath = cfgPath
+	t.Cleanup(func() { configPath = origConfigPath })
+
+	saveReviewFlags(t)
+	origDryRun := reviewDryRun
+	origNonInteractive := reviewNonInteractive
 	defer func() {
-		reviewSince = origReviewSince
-		reviewSpec = origReviewSpec
-		reviewEpic = origReviewEpic
+		reviewDryRun = origDryRun
+		reviewNonInteractive = origNonInteractive
 	}()
 
+	// Force dry-run so we don't execute the full review workflow.
+	reviewDryRun = true
+	reviewNonInteractive = false
 	reviewSince = "abc123def456"
 	reviewSpec = ""
 	reviewEpic = ""
 
-	// This test verifies that runReview would delegate to Pipeline.ResolveReviewScope
-	// when --since is provided, rather than calling determineReviewScope directly.
-	// For now, we just verify the interface exists and can be called.
-	
-	// Create a mock pipeline that tracks if ResolveReviewScope is called
+	origPipelineFn := createReviewPipeline
+	defer func() { createReviewPipeline = origPipelineFn }()
+
 	resolveCalled := false
-	
-	_ = &mockTestPipeline{
-		resolveReviewScopeFn: func(ctx context.Context, spec string, epic string, since string) (string, error) {
-			resolveCalled = true
-			if since != reviewSince {
-				t.Errorf("ResolveReviewScope called with since=%q, want %q", since, reviewSince)
-			}
-			return "resolved-commit", nil
-		},
+	createReviewPipeline = func(cfg *config.Config, gromitDir string) (ReviewScopeResolver, error) {
+		return &mockTestPipeline{
+			resolveReviewScopeFn: func(ctx context.Context, spec string, epic string, since string) (string, error) {
+				resolveCalled = true
+				if since != reviewSince {
+					t.Errorf("ResolveReviewScope called with since=%q, want %q", since, reviewSince)
+				}
+				if spec != reviewSpec {
+					t.Errorf("ResolveReviewScope called with spec=%q, want %q", spec, reviewSpec)
+				}
+				if epic != reviewEpic {
+					t.Errorf("ResolveReviewScope called with epic=%q, want %q", epic, reviewEpic)
+				}
+				return "resolved-commit", nil
+			},
+		}, nil
 	}
 
-	// This test is currently incomplete because it requires injecting the pipeline
-	// into the runReview function. This will be implemented in a follow-up commit.
-	if resolveCalled {
-		// This condition won't be true until we refactor runReview to use the pipeline
-		t.Log("Pipeline.ResolveReviewScope was called (expected in refactored version)")
+	origGitOutput := reviewGitOutputFn
+	t.Cleanup(func() { reviewGitOutputFn = origGitOutput })
+	reviewGitOutputFn = func(cmd *exec.Cmd) ([]byte, error) {
+		return []byte("diff"), nil
+	}
+
+	if err := runReview(nil, nil); err != nil {
+		t.Fatalf("runReview() error = %v", err)
+	}
+	if !resolveCalled {
+		t.Fatal("expected Pipeline.ResolveReviewScope to be called")
 	}
 }
 
@@ -1444,6 +1393,10 @@ func TestCreateReviewPipeline_CreatesValidPipeline(t *testing.T) {
 
 	if p == nil {
 		t.Fatal("createReviewPipeline() returned nil pipeline")
+	}
+
+	if _, ok := p.(*pipeline.Pipeline); !ok {
+		t.Fatalf("createReviewPipeline() returned %T, want *pipeline.Pipeline", p)
 	}
 
 	// Verify pipeline can be used
