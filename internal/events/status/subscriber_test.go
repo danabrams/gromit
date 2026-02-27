@@ -120,3 +120,56 @@ func TestStatusSubscriber_EmitterClosed_ExitsGracefully(t *testing.T) {
 		t.Fatalf("subscriber.Start() returned error: %v", err)
 	}
 }
+
+// TestStatusSubscriber_IgnoresUnknownEvents tests that unknown events are safely ignored without error.
+func TestStatusSubscriber_IgnoresUnknownEvents(t *testing.T) {
+	t.Parallel()
+
+	emitter := events.NewEmitter()
+	writer := newMockStatusWriter()
+	subscriber := NewStatusSubscriber(writer, emitter)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- subscriber.Start(ctx)
+	}()
+
+	time.Sleep(10 * time.Millisecond)
+
+	// Emit unknown event (mockEvent is not a recognized event type)
+	mockUnknownEvent := &mockUnknownEvent{}
+	emitter.Emit(mockUnknownEvent)
+
+	time.Sleep(10 * time.Millisecond)
+	cancel()
+	err := <-done
+
+	// Should not error, should handle gracefully
+	if err != nil {
+		t.Errorf("Expected no error for unknown event, got: %v", err)
+	}
+
+	// Verify that writer was never called for the unknown event
+	if len(writer.updates) > 0 {
+		t.Errorf("Expected no updates for unknown event, got %d updates", len(writer.updates))
+	}
+}
+
+// mockUnknownEvent is a test event type that is not handled by the subscriber.
+type mockUnknownEvent struct {
+	time time.Time
+}
+
+func (e *mockUnknownEvent) EventType() string {
+	return "unknown_event"
+}
+
+func (e *mockUnknownEvent) EventTime() time.Time {
+	if e.time.IsZero() {
+		return time.Now()
+	}
+	return e.time
+}
