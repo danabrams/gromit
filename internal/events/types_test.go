@@ -46,6 +46,18 @@ func TestAllEventTypesImplementEvent(t *testing.T) {
 	subBeadCreatedEvent := &SubBeadCreatedEvent{ParentBeadID: "b1", SubBeadID: "b1-1", SubBeadTitle: "Sub"}
 	decomposeCompleteEvent := &DecomposeCompleteEvent{BeadID: "b1", SubBeadsCreated: 1}
 
+	// Gate events
+	gateScopeEvent := &GateScopeEvent{BeadID: "b1", FileCount: 5, MaxFiles: 10, Action: "block"}
+	gateStuckEvent := &GateStuckEvent{BeadID: "b1", Reason: "timeout"}
+	gateSkipEvent := &GateSkipEvent{BeadID: "b1", Reason: "precheck_passed"}
+	gateBlockEvent := &GateBlockEvent{BeadID: "b1", Reason: "stuck"}
+
+	// Epilogue events
+	epilogueStartEvent := &EpilogueStartEvent{BeadID: "b1", Iteration: 1, Success: true}
+	epilogueCompleteEvent := &EpilogueCompleteEvent{BeadID: "b1", Success: true}
+	beadCloseEvent := &BeadCloseEvent{BeadID: "b1"}
+	beadCleanupEvent := &BeadCleanupEvent{BeadID: "b1", Action: "sync"}
+
 	// Collect all events to test
 	events := []Event{
 		runStartEvent, runCompleteEvent, iterStartEvent, iterCompleteEvent,
@@ -55,6 +67,8 @@ func TestAllEventTypesImplementEvent(t *testing.T) {
 		analysisStartEvent, analysisCompleteEvent, retroStartEvent, retroCompleteEvent,
 		heartbeatEvent, modelSelectedEvent, escalationEvent, stallDetectedEvent, scopeCheckEvent,
 		decomposeStartEvent, subBeadCreatedEvent, decomposeCompleteEvent,
+		gateScopeEvent, gateStuckEvent, gateSkipEvent, gateBlockEvent,
+		epilogueStartEvent, epilogueCompleteEvent, beadCloseEvent, beadCleanupEvent,
 	}
 
 	// Verify each event implements Event interface
@@ -109,11 +123,19 @@ func TestEventTypeStringsAreUnique(t *testing.T) {
 		(&DecomposeStartEvent{}).EventType():    true,
 		(&SubBeadCreatedEvent{}).EventType():    true,
 		(&DecomposeCompleteEvent{}).EventType(): true,
+		(&GateScopeEvent{}).EventType():         true,
+		(&GateStuckEvent{}).EventType():         true,
+		(&GateSkipEvent{}).EventType():          true,
+		(&GateBlockEvent{}).EventType():         true,
+		(&EpilogueStartEvent{}).EventType():     true,
+		(&EpilogueCompleteEvent{}).EventType():  true,
+		(&BeadCloseEvent{}).EventType():         true,
+		(&BeadCleanupEvent{}).EventType():       true,
 	}
 
 	// If we reach here, all EventType() strings are unique (map keys are unique)
-	if len(eventTypes) != 27 {
-		t.Errorf("Expected 27 unique event types, got %d", len(eventTypes))
+	if len(eventTypes) != 35 {
+		t.Errorf("Expected 35 unique event types, got %d", len(eventTypes))
 	}
 }
 
@@ -440,6 +462,80 @@ func specEventCases(ts time.Time) []eventSpec {
 				Level:   "info",
 				Message: "hello",
 				Time:    ts,
+			},
+		},
+		{
+			name:     "GateScopeEvent",
+			wantType: "gate_scope",
+			event: &GateScopeEvent{
+				BeadID:   "b1",
+				FileCount: 5,
+				MaxFiles: 10,
+				Action:   "block",
+				Time:     ts,
+			},
+		},
+		{
+			name:     "GateStuckEvent",
+			wantType: "gate_stuck",
+			event: &GateStuckEvent{
+				BeadID: "b1",
+				Reason: "timeout",
+				Time:   ts,
+			},
+		},
+		{
+			name:     "GateSkipEvent",
+			wantType: "gate_skip",
+			event: &GateSkipEvent{
+				BeadID: "b1",
+				Reason: "precheck_passed",
+				Time:   ts,
+			},
+		},
+		{
+			name:     "GateBlockEvent",
+			wantType: "gate_block",
+			event: &GateBlockEvent{
+				BeadID: "b1",
+				Reason: "stuck",
+				Time:   ts,
+			},
+		},
+		{
+			name:     "EpilogueStartEvent",
+			wantType: "epilogue_start",
+			event: &EpilogueStartEvent{
+				BeadID:    "b1",
+				Iteration: 1,
+				Success:   true,
+				Time:      ts,
+			},
+		},
+		{
+			name:     "EpilogueCompleteEvent",
+			wantType: "epilogue_complete",
+			event: &EpilogueCompleteEvent{
+				BeadID:  "b1",
+				Success: true,
+				Time:    ts,
+			},
+		},
+		{
+			name:     "BeadCloseEvent",
+			wantType: "bead_close",
+			event: &BeadCloseEvent{
+				BeadID: "b1",
+				Time:   ts,
+			},
+		},
+		{
+			name:     "BeadCleanupEvent",
+			wantType: "bead_cleanup",
+			event: &BeadCleanupEvent{
+				BeadID: "b1",
+				Action: "sync",
+				Time:   ts,
 			},
 		},
 	}
