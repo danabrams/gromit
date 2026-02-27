@@ -64,8 +64,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyCtrlC:
 			return m, tea.Quit
 		case tea.KeyRunes:
-			if len(msg.Runes) > 0 && msg.Runes[0] == 'q' {
-				return m, tea.Quit
+			if len(msg.Runes) > 0 {
+				switch msg.Runes[0] {
+				case 'q':
+					return m, tea.Quit
+				case '1':
+					m.SwitchView(ViewDashboard)
+					m.focusedPanel = 0 // Reset focus when switching views
+				case '2':
+					m.SwitchView(ViewQueue)
+					m.focusedPanel = 0 // Reset focus when switching views
+				}
 			}
 		}
 	}
