@@ -1671,3 +1671,36 @@ func TestBenchmarkPhase3ReportCommand_DispatchesWriter(t *testing.T) {
 		t.Fatalf("stderr = %q, want to contain %q", stderr, "sentinel")
 	}
 }
+
+func TestBenchmarkPhase4ReportCommand_DispatchesWriter(t *testing.T) {
+
+	called := false
+	orig := benchmarkWritePhase4MeasurementReportFn
+	t.Cleanup(func() { benchmarkWritePhase4MeasurementReportFn = orig })
+
+	benchmarkWritePhase4MeasurementReportFn = func(input benchpkg.Phase4ReportInput) (benchpkg.Phase4ReportPaths, error) {
+		called = true
+		if input.LogPath != "phase4.jsonl" {
+			t.Fatalf("log path = %q, want %q", input.LogPath, "phase4.jsonl")
+		}
+		if input.Timestamp != "20260224T124500Z" {
+			t.Fatalf("timestamp = %q, want %q", input.Timestamp, "20260224T124500Z")
+		}
+		return benchpkg.Phase4ReportPaths{}, errors.New("sentinel")
+	}
+
+	_, stderr, exitCode := runGromitCobra(t,
+		"benchmark", "phase4-report",
+		"--log", "phase4.jsonl",
+		"--output-ts", "20260224T124500Z",
+	)
+	if !called {
+		t.Fatal("expected benchmarkWritePhase4MeasurementReportFn to be called")
+	}
+	if exitCode == 0 {
+		t.Fatalf("exitCode = %d, want non-zero", exitCode)
+	}
+	if !strings.Contains(stderr, "sentinel") {
+		t.Fatalf("stderr = %q, want to contain %q", stderr, "sentinel")
+	}
+}
