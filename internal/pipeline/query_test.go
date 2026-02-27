@@ -1,11 +1,15 @@
 package pipeline
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/danabrams/gromit/internal/bead"
 )
 
 func TestListUnplannedSpecs(t *testing.T) {
@@ -124,4 +128,76 @@ func TestListUndecomposedPlans(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
+}
+
+func TestListActiveBeads(t *testing.T) {
+	t.Parallel()
+
+	t.Run("deduplicates active beads", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubActiveBeadClient{
+			open: []*bead.Bead{
+				{ID: "open-1"},
+				nil,
+				{ID: "dup"},
+			},
+			inProgress: []*bead.Bead{
+				{ID: "dup"},
+				{ID: "progress-1"},
+				{ID: ""},
+			},
+		}
+
+		got, err := ListActiveBeads(context.Background(), client)
+		if err != nil {
+			t.Fatalf("ListActiveBeads error: %v", err)
+		}
+
+		var ids []string
+		for _, b := range got {
+			ids = append(ids, b.ID)
+		}
+
+		want := []string{"open-1", "dup", "progress-1"}
+		if !reflect.DeepEqual(ids, want) {
+			t.Fatalf("ListActiveBeads ids = %#v, want %#v", ids, want)
+		}
+	})
+
+	t.Run("propagates listing errors", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubActiveBeadClient{
+			listErr: fmt.Errorf("boom"),
+		}
+
+		if _, err := ListActiveBeads(context.Background(), client); err == nil {
+			t.Fatalf("expected ListActiveBeads to return error")
+		}
+	})
+}
+
+type stubActiveBeadClient struct {
+	open            []*bead.Bead
+	inProgress      []*bead.Bead
+	listErr         error
+	listByStatusErr error
+}
+
+func (s *stubActiveBeadClient) List(ctx context.Context) ([]*bead.Bead, error) {
+	if s.listErr != nil {
+		return nil, s.listErr
+	}
+	return s.open, nil
+}
+
+func (s *stubActiveBeadClient) ListByStatus(ctx context.Context, status string) ([]*bead.Bead, error) {
+	if status != "in_progress" {
+		return nil, fmt.Errorf("unsupported status %q", status)
+	}
+	if s.listByStatusErr != nil {
+		return nil, s.listByStatusErr
+	}
+	return s.inProgress, nil
 }
