@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/events"
+	"github.com/danabrams/gromit/internal/runner/execution"
 )
 
 // TestCLISubscriber_ConsumesEvents tests that CLISubscriber consumes events and exits on context cancel.
@@ -186,4 +187,11 @@ func (m *mockOverwriteWriter) WriteOverwrite(p []byte) (int, error) {
 	m.overwriteCalled = true
 	m.overwriteData = append(m.overwriteData, p...)
 	return len(p), nil
+}
+
+// TestBasicWriterImplementsOverwriteWriter verifies BasicWriter presents an execution.OverwriteWriter.
+func TestBasicWriterImplementsOverwriteWriter(t *testing.T) {
+	t.Parallel()
+
+	var _ execution.OverwriteWriter = BasicWriter(&bytes.Buffer{})
 }
