@@ -284,3 +284,47 @@ type CountBeadsInput struct {
 type CountBeadsResult struct {
 	Count int `json:"count"`
 }
+
+// GetBoardInput contains parameters for assembling board data.
+type GetBoardInput struct {
+	// Placeholder for future filters if needed
+}
+
+// BoardData contains beads organized by status for display.
+// Use NewBoardData() to create instances with properly initialized slices.
+type BoardData struct {
+	Open   []BeadInfo `json:"open"`
+	Closed []BeadInfo `json:"closed"`
+}
+
+// NewBoardData creates a BoardData with initialized slices.
+func NewBoardData() BoardData {
+	return BoardData{
+		Open:   []BeadInfo{},
+		Closed: []BeadInfo{},
+	}
+}
+
+// GetQueueInput contains parameters for assembling queue data.
+type GetQueueInput struct {
+	ReadyBeads     []BeadInfo `json:"ready_beads"`
+	AllBeads       []BeadInfo `json:"all_beads"`
+	StuckThreshold int        `json:"stuck_threshold"`
+}
+
+// QueuePartition contains beads organized by processing status.
+// Use NewQueuePartition() to create instances with properly initialized slices.
+type QueuePartition struct {
+	Ready   []BeadInfo `json:"ready"`
+	Blocked []BeadInfo `json:"blocked"`
+	Stuck   []BeadInfo `json:"stuck"`
+}
+
+// NewQueuePartition creates a QueuePartition with initialized slices.
+func NewQueuePartition() QueuePartition {
+	return QueuePartition{
+		Ready:   []BeadInfo{},
+		Blocked: []BeadInfo{},
+		Stuck:   []BeadInfo{},
+	}
+}

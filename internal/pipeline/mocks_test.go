@@ -1,6 +1,9 @@
 package pipeline
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // These should compile if the interfaces are properly defined
 var _ Agent = (*testAgent)(nil)
@@ -8,6 +11,7 @@ var _ AgentResolver = (*testAgentResolver)(nil)
 var _ LLMClient = (*testLLMClient)(nil)
 var _ TrackerClient = (*testBeadClient)(nil)
 var _ BacklogClient = (*testBacklogClient)(nil)
+var _ BeadQueryClient = (*testBeadQueryClient)(nil)
 var _ RefineRenderer = (*testRefineRenderer)(nil)
 var _ PlanRenderer = (*testPlanRenderer)(nil)
 var _ DecomposeRenderer = (*testDecomposeRenderer)(nil)
@@ -141,4 +145,19 @@ type testLogWriter struct{}
 
 func (m *testLogWriter) Write(entry *LogEntry) error {
 	return nil
+}
+
+// testBeadQueryClient is a mock for unit tests
+type testBeadQueryClient struct{}
+
+func (m *testBeadQueryClient) CountByStatus(ctx context.Context, status string) (int, error) {
+	return 0, nil
+}
+
+func (m *testBeadQueryClient) ListReadyIDs(ctx context.Context) ([]string, error) {
+	return []string{}, nil
+}
+
+func (m *testBeadQueryClient) CountClosedAfter(ctx context.Context, after time.Time) (int, error) {
+	return 0, nil
 }
