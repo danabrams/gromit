@@ -1,7 +1,9 @@
 package procutil
 
 import (
+	"context"
 	"os/exec"
+	"strings"
 	"syscall"
 	"testing"
 )
@@ -40,4 +42,48 @@ func TestSetProcessGroupKillSysProcAttrValues(t *testing.T) {
 	if cmd.SysProcAttr.Setpgid != want.Setpgid {
 		t.Fatalf("SysProcAttr.Setpgid = %v, want %v", cmd.SysProcAttr.Setpgid, want.Setpgid)
 	}
+}
+
+func TestSubprocessEnvSetsGOMAXPROCS(t *testing.T) {
+	env := SubprocessEnv()
+	found := false
+	for _, kv := range env {
+		if strings.HasPrefix(kv, "GOMAXPROCS=") {
+			if kv != "GOMAXPROCS="+MaxGoParallelism {
+				t.Fatalf("GOMAXPROCS = %q, want %q", kv, "GOMAXPROCS="+MaxGoParallelism)
+			}
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("GOMAXPROCS not found in SubprocessEnv()")
+	}
+}
+
+func TestSubprocessEnvOverridesExistingGOMAXPROCS(t *testing.T) {
+	t.Setenv("GOMAXPROCS", "99")
+	env := SubprocessEnv()
+	for _, kv := range env {
+		if kv == "GOMAXPROCS=99" {
+			t.Fatal("SubprocessEnv() did not override existing GOMAXPROCS=99")
+		}
+	}
+}
+
+func TestReapProcessGroupNilProcess(t *testing.T) {
+	cmd := exec.Command("echo", "test")
+	// Should not panic when Process is nil
+	ReapProcessGroup(cmd)
+}
+
+func TestReapProcessGroupAfterExit(t *testing.T) {
+	ctx := context.Background()
+	cmd := exec.CommandContext(ctx, "true")
+	SetProcessGroupKill(cmd)
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	_ = cmd.Wait()
+	// Should not panic on already-exited process group (ESRCH expected)
+	ReapProcessGroup(cmd)
 }

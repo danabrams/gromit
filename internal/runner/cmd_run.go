@@ -24,7 +24,7 @@ const execFailureExitCode = -1
 func prepareCommand(cmd *exec.Cmd, workDir string) {
 	cmd.Dir = workDir
 	cmd.Stdin = bytes.NewReader(nil)
-	env := append(os.Environ(), nonInteractiveEnv...)
+	env := append(procutil.SubprocessEnv(), nonInteractiveEnv...)
 	env = append(env, validationGoCacheEnv(workDir)...)
 	cmd.Env = env
 }
@@ -59,7 +59,11 @@ func runCommand(cmd *exec.Cmd) (string, string, int, error) {
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	err := cmd.Run()
+	if err := cmd.Start(); err != nil {
+		return "", "", execFailureExitCode, err
+	}
+	defer procutil.ReapProcessGroup(cmd)
+	err := cmd.Wait()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			return stdout.String(), stderr.String(), exitErr.ExitCode(), nil

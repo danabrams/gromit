@@ -217,6 +217,7 @@ func (cp *CodexProvider) streamRunOnce(ctx context.Context, prompt string, tier 
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start codex command: %w", err)
 	}
+	defer reapProcessGroupFn(cmd)
 	codexDebugf(output, "provider debug: StreamRun cmd started pid=%d", cmd.Process.Pid)
 
 	// Write prompt to stdin in goroutine
@@ -350,6 +351,7 @@ func (cp *CodexProvider) runOnce(ctx context.Context, prompt, model string, args
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start codex command: %w", err)
 	}
+	defer reapProcessGroupFn(cmd)
 
 	go func() {
 		defer stdin.Close()

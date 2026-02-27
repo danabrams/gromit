@@ -12,3 +12,10 @@ var execCommandContext = func(ctx context.Context, name string, args ...string) 
 	procutil.SetProcessGroupKill(cmd)
 	return cmd
 }
+
+// subprocessEnvFn returns environment variables for LLM CLI subprocesses.
+// It includes GOMAXPROCS to limit Go toolchain parallelism in tool calls.
+var subprocessEnvFn = procutil.SubprocessEnv
+
+// reapProcessGroupFn cleans up orphaned child processes after a CLI exit.
+var reapProcessGroupFn = procutil.ReapProcessGroup

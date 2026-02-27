@@ -12,7 +12,7 @@ import (
 )
 
 func prepareCodexEnv() ([]string, string, error) {
-	env := os.Environ()
+	env := subprocessEnvFn()
 	// Don't leak harness CI mode into codex subprocesses. CI mode can suppress
 	// runtime usage telemetry, which breaks benchmark measurements.
 	env = removeEnvKey(env, "CODEX_CI")

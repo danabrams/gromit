@@ -75,6 +75,7 @@ func (c *Client) Run(ctx context.Context, prompt string, model string) (*Result,
 
 	cmd := execCommandContext(ctx, c.binary, args...)
 	cmd.WaitDelay = 100 * time.Millisecond
+	cmd.Env = subprocessEnvFn()
 
 	// Pipe prompt to stdin
 	stdin, err := cmd.StdinPipe()
@@ -91,6 +92,7 @@ func (c *Client) Run(ctx context.Context, prompt string, model string) (*Result,
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("starting claude: %w", err)
 	}
+	defer reapProcessGroupFn(cmd)
 
 	// Write prompt to stdin
 	go func() {
@@ -321,6 +323,7 @@ func (c *Client) StreamRun(ctx context.Context, prompt string, model string, out
 
 	cmd := execCommandContext(ctx, c.binary, args...)
 	cmd.WaitDelay = 100 * time.Millisecond
+	cmd.Env = subprocessEnvFn()
 	fmt.Fprintf(output, "  cmd: %s %s\n", c.binary, strings.Join(args, " "))
 	fmt.Fprintf(output, "  prompt length: %d bytes\n", len(prompt))
 
@@ -339,6 +342,7 @@ func (c *Client) StreamRun(ctx context.Context, prompt string, model string, out
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("starting claude: %w", err)
 	}
+	defer reapProcessGroupFn(cmd)
 
 	go func() {
 		defer stdin.Close()

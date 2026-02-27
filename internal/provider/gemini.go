@@ -294,6 +294,7 @@ func extractJSONPayload(data []byte) ([]byte, error) {
 func defaultGeminiRunFn(ctx context.Context, binary string, args []string, prompt string, workDir string) (*geminiRunResult, error) {
 	cmd := execCommandContext(ctx, binary, args...)
 	cmd.WaitDelay = 100 * time.Millisecond
+	cmd.Env = subprocessEnvFn()
 
 	// Set working directory if provided
 	if workDir != "" {
@@ -320,6 +321,7 @@ func defaultGeminiRunFn(ctx context.Context, binary string, args []string, promp
 		if err := cmd.Start(); err != nil {
 			return nil, fmt.Errorf("failed to start gemini command: %w", err)
 		}
+		defer reapProcessGroupFn(cmd)
 
 		// Write prompt to stdin in goroutine
 		go func() {
@@ -349,7 +351,11 @@ func defaultGeminiRunFn(ctx context.Context, binary string, args []string, promp
 	}
 
 	// Inline -p flag path: prompt is already in args, no stdin needed
-	err := cmd.Run()
+	if startErr := cmd.Start(); startErr != nil {
+		return nil, fmt.Errorf("failed to start gemini command: %w", startErr)
+	}
+	defer reapProcessGroupFn(cmd)
+	err := cmd.Wait()
 	duration := time.Since(start)
 
 	exitCode := 0
