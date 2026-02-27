@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"github.com/danabrams/gromit/internal/config"
 )
 
 // FinalizeDependencies holds the dependencies required by FinalizeSpecBranch.
@@ -45,8 +47,6 @@ func (e *ConflictError) Unwrap() error {
 	return e.Err
 }
 
-const defaultMainBranch = "main"
-
 // FinalizeSpecBranch rebases the spec branch onto main, merges it, and deletes it.
 func FinalizeSpecBranch(ctx context.Context, deps FinalizeDependencies, branch string) error {
 	if deps.Git == nil {
@@ -58,7 +58,7 @@ func FinalizeSpecBranch(ctx context.Context, deps FinalizeDependencies, branch s
 
 	mainBranch := deps.MainBranch
 	if mainBranch == "" {
-		mainBranch = defaultMainBranch
+		mainBranch = config.DefaultBaseBranch
 	}
 
 	if err := executeWithConflictResolution(ctx, deps, branch, func() error {
