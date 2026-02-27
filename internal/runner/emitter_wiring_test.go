@@ -1,8 +1,12 @@
 package runner
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -120,6 +124,90 @@ func TestSubscriberStartupAndTeardown(t *testing.T) {
 		Message: "after close",
 		Time:    time.Now(),
 	})
+}
+
+// TestStreamSubscriberWiredEnsuresStructuredEventFileStreams ensures the orchestrator
+// creates a structured event stream file when logs dir is configured.
+func TestStreamSubscriberWiredEnsuresStructuredEventFileStreams(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	cfg := OrchestratorConfig{
+		Gate:     &testStage{},
+		Build:    &testStage{},
+		Validate: &testStage{},
+		Review:   &testStage{},
+		Epilogue: &testStage{},
+		GetBead: func(ctx context.Context) (*bead.Bead, error) {
+			return nil, nil
+		},
+		Output:  io.Discard,
+		LogsDir: tmpDir,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if orch == nil {
+		t.Fatal("NewOrchestrator returned nil")
+	}
+
+	emitter := orch.GetEmitter()
+	if emitter == nil {
+		t.Fatal("GetEmitter() returned nil")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- orch.StartSubscribers(ctx)
+	}()
+
+	time.Sleep(150 * time.Millisecond)
+
+	testEvent := &events.LogEvent{Level: "test", Message: "stream subscriber event"}
+	emitter.Emit(testEvent)
+
+	cancel()
+	emitter.Close()
+
+	if err := <-done; err != nil && err != context.Canceled {
+		t.Fatalf("StartSubscribers returned error: %v", err)
+	}
+
+	files, err := os.ReadDir(tmpDir)
+	if err != nil {
+		t.Fatalf("read dir %s: %v", tmpDir, err)
+	}
+	var streamFile string
+	for _, entry := range files {
+		if strings.HasPrefix(entry.Name(), "events-") && strings.HasSuffix(entry.Name(), ".jsonl") {
+			streamFile = filepath.Join(tmpDir, entry.Name())
+			break
+		}
+	}
+	if streamFile == "" {
+		t.Fatal("structured event stream file not created")
+	}
+
+	data, err := os.ReadFile(streamFile)
+	if err != nil {
+		t.Fatalf("read structured file: %v", err)
+	}
+	if len(bytes.TrimSpace(data)) == 0 {
+		t.Fatal("structured file is empty")
+	}
+
+	var eventLine struct {
+		Type    string          `json:"type"`
+		Payload json.RawMessage `json:"payload"`
+	}
+	if err := json.Unmarshal(bytes.TrimSpace(data), &eventLine); err != nil {
+		t.Fatalf("parse stream record: %v", err)
+	}
+	if eventLine.Type != testEvent.EventType() {
+		t.Fatalf("structured type = %q, want %q", eventLine.Type, testEvent.EventType())
+	}
 }
 
 // TestCLISubscriberStartsAndReceivesEvents verifies that the CLI subscriber starts
