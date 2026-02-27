@@ -365,6 +365,45 @@ token_efficiency:
 	}
 }
 
+func TestRetrievalExperimentConfidenceThresholdValue(t *testing.T) {
+	tests := []struct {
+		name              string
+		confidenceThresh  float64
+		want              float64
+		minConfidence     float64
+		wantError         bool
+	}{
+		{
+			name:             "zero threshold uses min",
+			confidenceThresh: 0.0,
+			want:             0.5,
+			minConfidence:    0.5,
+		},
+		{
+			name:             "valid threshold",
+			confidenceThresh: 0.85,
+			want:             0.85,
+			minConfidence:    0.5,
+		},
+		{
+			name:             "below minimum becomes minimum",
+			confidenceThresh: 0.3,
+			want:             0.5,
+			minConfidence:    0.5,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := TokenEfficiencyRetrievalConfig{ConfidenceThreshold: tt.confidenceThresh}
+			got := cfg.ResolvedConfidenceThreshold(tt.minConfidence)
+			if got != tt.want {
+				t.Errorf("ResolvedConfidenceThreshold(%f) = %f, want %f", tt.minConfidence, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestRetrievalExperimentTopKValue(t *testing.T) {
 	tests := []struct {
 		name      string
