@@ -489,6 +489,14 @@ func hasOpenBeadsForLabelWithClient(ctx context.Context, label string, client in
 	return len(beads) > 0, nil
 }
 
+// hasOpenBeadsForLabelContextVersion is a version that accepts a context parameter
+// and threads it through to ListWithLabel.
+func hasOpenBeadsForLabelContextVersion(ctx context.Context, label string, client interface {
+	ListWithLabel(context.Context, string) ([]*bead.Bead, error)
+}) (bool, error) {
+	return hasOpenBeadsForLabelWithClient(ctx, label, client)
+}
+
 func hasOpenBeadsForLabel(label string) (bool, error) {
 	client, err := bead.NewClient()
 	if err != nil {
