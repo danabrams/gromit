@@ -2397,3 +2397,53 @@ func TestOrchestrator_DoesNotEmitBuildAndReviewEvents(t *testing.T) {
 	t.Logf("Found %d BuildStartEvent, %d BuildCompleteEvent, %d ReviewStartEvent, %d ReviewCompleteEvent",
 		buildStartCount, buildCompleteCount, reviewStartCount, reviewCompleteCount)
 }
+
+// TestOrchestrator_SkipsAlreadyProcessedBead verifies that when GetBead returns
+// the same bead ID on consecutive iterations (e.g. because bd ready keeps
+// returning it), the orchestrator processes it only once and skips subsequent
+// occurrences instead of looping indefinitely.
+func TestOrchestrator_SkipsAlreadyProcessedBead(t *testing.T) {
+	t.Parallel()
+
+	gateRunCount := 0
+	gate := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		gateRunCount++
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	buildRunCount := 0
+	build := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		buildRunCount++
+		return pipeline.Output{Decision: pipeline.Proceed, Model: "claude-sonnet-4-6"}, nil
+	}}
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		// Return the same bead 3 times, then nil to end the loop.
+		if beadCalls > 3 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "repeated-bead", Title: "Same bead every time"}, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     gate,
+		Build:    build,
+		Validate: &fakeStage{},
+		Epilogue: &fakeStage{},
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	// The bead should only be processed once despite being returned 3 times.
+	if buildRunCount != 1 {
+		t.Errorf("Build stage ran %d times, want 1 (bead should be skipped after first processing)", buildRunCount)
+	}
+}
