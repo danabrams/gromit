@@ -1112,6 +1112,71 @@ func countMessagesContaining(messages []string, substr string) int {
 	return count
 }
 
+// TestEpilog_EmitsBeadCleanupEventForMergeAction verifies BeadCleanupEvent with
+// action="merge" is emitted when worktree merge succeeds.
+func TestEpilog_EmitsBeadCleanupEventForMergeAction(t *testing.T) {
+	t.Parallel()
+
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	beads := &fakeBeadLifecycle{}
+	status := &fakeStatusWriter{}
+	merger := &fakeWorktreeMerger{
+		branches: []string{"interactive/branch-1"},
+	}
+	epi := epiloguepkg.New(beads, status, io.Discard).
+		WithWorktree(merger).
+		WithEmitter(emitter)
+
+	beadID := "bead-merge-test"
+	input := pipeline.Input{
+		Bead: &bead.Bead{
+			ID:    beadID,
+			Title: "test bead",
+		},
+		Iteration:      1,
+		BuildSucceeded: true,
+		Config:         &config.Config{},
+		Emitter:        emitter,
+	}
+
+	_, err := epi.Run(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Epilogue.Run() error = %v", err)
+	}
+
+	// Collect events
+	var emittedEvents []events.Event
+	timeout := time.After(100 * time.Millisecond)
+	for {
+		select {
+		case evt := <-ch:
+			emittedEvents = append(emittedEvents, evt)
+		case <-timeout:
+			goto checkEvents
+		}
+	}
+
+checkEvents:
+	// Verify we got BeadCleanupEvent with action="merge"
+	var mergeCleanupEvent *events.BeadCleanupEvent
+	for _, evt := range emittedEvents {
+		if ce, ok := evt.(*events.BeadCleanupEvent); ok && ce.Action == "merge" {
+			mergeCleanupEvent = ce
+		}
+	}
+
+	if mergeCleanupEvent == nil {
+		t.Fatal("expected BeadCleanupEvent with action=\"merge\" to be emitted on successful merge")
+	}
+	if mergeCleanupEvent.BeadID != beadID {
+		t.Errorf("BeadCleanupEvent.BeadID = %q, want %q", mergeCleanupEvent.BeadID, beadID)
+	}
+}
+
 // TestEpilog_EmitsBeadCleanupEventForSyncAction verifies BeadCleanupEvent with
 // action="sync" is emitted when sync succeeds.
 func TestEpilog_EmitsBeadCleanupEventForSyncAction(t *testing.T) {
