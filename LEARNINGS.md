@@ -2,21 +2,6 @@
 
 ## Confirmed Learnings
 
-### 2026-02-26 | profile_defaults_are_cross_cutting | ARCHITECTURE
-*Related to: gromit/review-1772071010321620531*
-
-Profile defaults now affect config resolution, init templates, validation policy, and the validation runner, so changes must be coordinated across these paths.
-
-### 2026-02-26 | timeout_retry_block_metrics_must_cover_all_gate_errors | RELIABILITY
-*Related to: gromit/review-1772066330959789077*
-
-Retry-block metrics currently depend on error-string matching, so new retry-gate errors (like partial decomposition state) must be included or the timeout retry-block rate will silently undercount.
-
-### 2026-02-25 | agent_test_setup_should_be_shared_helpers | TEST_QUALITY
-*Related to: gromit/review-1772054097495408438*
-
-When multiple agent-related tests need temporary config/backlog scaffolding, centralize the setup in shared helpers to avoid drift and simplify new acceptance tests.
-
 ### 2026-02-25 | thorough_review_logic_belongs_in_dedicated_package | ARCHITECTURE
 *Related to: gromit/review-1772054097495408438*
 
@@ -45,31 +30,21 @@ Tests named end-to-end should execute the CLI path and assert user-visible behav
 
 Session worktree + MergeBack must use one cleanup owner and typed conflict/failure classification based on git output and exit status, with defensive abort only for merge state created in the current operation. Classification combines git output signals and exit codes so true merge conflicts route to conflict handoff while non-conflict git failures follow cleanup + explicit error handling. Prefer explicit conflict probes over message-fragment matching for contention retry.
 
-### 2026-02-25 | runtime_path_parity_for_observability | ARCHITECTURE
-*Related to: gromit/review-1771929519774405451, gromit/review-1771938913730053167, gromit/review-1771893007120033611*
-*Consolidated from: token_efficiency_telemetry_requires_single_runtime_wiring_path + time_injection_only_helps_when_runtime_paths_consume_the_injected_clock + harness_requires_real_worktree_execution_and_log_wiring*
+### 2026-02-27 | observability_parity_telemetry_contract | ARCHITECTURE
+*Related to: gromit/review-1771929519774405451, gromit/review-1771938913730053167, gromit/review-1771893007120033611, gromit/review-1772059511071909600*
+*Consolidated from: runtime_path_parity_for_observability + efficiency_completeness_assertions_should_include_missing_row_diagnostics*
 
-Runtime path parity is mandatory for observability: injected clocks/harnesses/telemetry fields only matter if production execution paths consume them end-to-end, with log wiring validated by acceptance/contract tests.
+Observability parity must be enforced end-to-end: runtime execution, iteration metrics serialization, and completeness diagnostics must share one canonical contract so missing rows/attribution fail closed with actionable per-field errors.
 
 ### 2026-02-24 | token_efficiency_routing_needs_strict_category_and_tier_validation | RELIABILITY
 *Related to: gromit/review-1771929519774405451*
 
 `token_efficiency.routing` config must validate both override categories and tier values (`low|medium|high`) after normalization, otherwise invalid entries can silently bypass intended utility-routing guardrails.
 
-### 2026-02-24 | issue_ledger_normalization_should_be_isolated_from_semantic_edits | CODE_QUALITY
-*Related to: gromit/review-1771936368864075181*
-
-When issue-ledger normalization (ordering/canonical encoding) and semantic issue edits land in the same change, reviewability and merge safety degrade. Keep normalization-only rewrites separate from content changes and enforce that separation in automation.
-
 ### 2026-02-24 | cohort_validation_must_reject_nil_lookup_payloads_before_field_access | RELIABILITY
 *Related to: gromit/review-1771938913730053167*
 
 Cohort validation paths that call external lookups must treat a nil object as invalid input and return a typed error before dereferencing fields, preventing panic-class failures from malformed integration responses.
-
-### 2026-02-25 | efficiency_completeness_assertions_should_include_missing_row_diagnostics | RELIABILITY
-*Related to: gromit/review-1772059511071909600*
-
-Post-run efficiency completeness checks should diagnose both missing efficiency fields and missing iteration log rows so failures point directly to log wiring defects rather than generic completeness errors.
 
 ### 2026-02-25 | review_state_should_prefer_local_json_with_repo_scoped_tag_fallback | ARCHITECTURE
 *Related to: gromit/review-1772059511071909600*

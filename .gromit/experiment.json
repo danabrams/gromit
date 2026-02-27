@@ -5,7 +5,7 @@
   "change": "After rebuilding the binary with the existing wiring fix, add observability-only logging of all available complexity signals per bead (file count estimate, leaf status, test-only detection, low-complexity title match, label presence) to iteration logs. No routing changes.",
   "measurement": "Percentage of beads with non-default complexity classification; distribution of complexity_source values (scope_estimate vs label vs default); count of beads where 2+ low-complexity signals fire. Target: >60% non-default classification after binary rebuild.",
   "risk": "Minimal — observability-only change with no routing impact. The only risk is log volume increase from additional fields.",
-  "status": "plan",
+  "status": "act",
   "started_at": "2026-02-26T00:00:00Z",
   "baseline_metrics": {
     "pct_non_default_complexity": 0.0,
@@ -13,5 +13,8 @@
     "pct_label_source": 0.0,
     "pct_default_source": 100.0,
     "avg_low_complexity_signals_per_bead": 0.0
-  }
+  },
+  "study_summary": "Run-log data since 2026-02-26 shows 89/177 (50.3%) non-default complexity classification (scope_estimate), below the >60% target. Iteration-metrics telemetry is incomplete (missing attribution fields), and process trend shows Nelson Rule 2 elevation for cost/input/duration, reducing confidence in downstream experiment interpretation.",
+  "act_decision": "extend",
+  "act_date": "2026-02-27"
 }

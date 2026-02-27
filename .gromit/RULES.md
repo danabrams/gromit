@@ -60,13 +60,13 @@ These are non-negotiable constraints for this project.
 
 ## Process <!-- phases: build, retro -->
 
-- Post-run efficiency validation must fail closed on missing current-run rows or missing efficiency fields and include per-field diagnostics (missing row vs missing attribution vs missing numeric fields)
+- Post-run efficiency validation must fail closed on missing current-run rows or missing efficiency fields and include per-field diagnostics (missing row vs missing attribution vs missing numeric fields); keep/revert experiment decisions are blocked until at least one complete current-run dataset with non-empty model/provider attribution is recorded
 - RecordRetro() must clear one-shot control-limit alert flags in state so previously acknowledged alerts do not persist across subsequent healthy runs
 
 ## Build Process <!-- phases: build -->
 
 - Pipeline methods use typed input/output structs; validate deps first; keep pipeline tests next to command files
-- Config defaults live in `SetDefaults()`; mirror new `IterationResult` fields into `IterationLog` via `writeIterationLog()`
+- Config defaults live in `SetDefaults()`; mirror new `IterationResult` fields into `IterationLog` via `writeIterationLog()`, and add schema-parity contract tests that compare run logs, iteration metrics, and trend inputs so new observability fields cannot be dropped
 - Shared-package refactors rerun test suites after commits and verify each diff matches intent
 - Test-only bead detection: use `bead.IsTestOnlyBead()` (e.g., "Add tests for") alongside `IsMethodologyActive()`
 - On bead failure: add to `skippedBeads`. After 2 consecutive failures, create/link decomposition sub-beads with expected_outputs and bounded scope. Telemetry/usage children split: (1) event-merge, (2) completeness, (3) attribution. Block parent retries until a child lands; no retries on partial/non-idempotent decomposition; emit decomposition-attempt event; fail if skipped; skip escalation after 3+.
@@ -88,7 +88,7 @@ These are non-negotiable constraints for this project.
 - Never split natural units: Interface + implementation + mock updates, implementation + tests, companion methods, command flags+wiring, or template+registration
 - If scope is too broad, decompose instead of escalating tier. Decomposition must pass output-contract checks (bounded child count, non-empty titles/expected_outputs, no parent-echo, batch_size_min/max). These checks must run in the retry validation loop for all modes (including SkipValidation); silent truncation fallbacks are forbidden. At retry cap, return a contract error and do not proceed with dropped work. If apex tier times out/fails, split into sub-beads with idempotent creation semantics (rollback or deduped re-entry) before any retry
 - Pre-split broad work (titles containing infrastructure/E2E/consolidate/extract/shared/refactor/concurrent/conflict, or 3+ new types plus behavior). Require deterministic harness setup before timing-sensitive acceptance assertions. Decomposition orders: test infra (fixtures→helpers→tests), interface extraction (interface→mocks→callers), package extraction (create→move→wire→remove), helper extraction (pure→dependency-heavy→wiring)
-- Complexity classification cannot use estimated_files alone; use multi-signal scoring (scope keywords, type count, dependency indicators) or fail validation when required estimate fields are missing
+- Complexity classification cannot use estimated_files alone; use multi-signal scoring (scope keywords, type count, dependency indicators) or fail validation when required estimate fields are missing. Persist `complexity_source` and signal-count fields into iteration metrics for every run
 
 ## Retro Formatting <!-- phases: retro -->
 

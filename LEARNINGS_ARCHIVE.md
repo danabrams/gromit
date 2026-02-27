@@ -4,6 +4,30 @@
 
 ## Archived
 
+### 2026-02-26 | profile_defaults_are_cross_cutting | ARCHITECTURE
+*Related to: gromit/review-1772071010321620531*
+*Archived: 2026-02-27 — promoted to rule.*
+
+Profile defaults now affect config resolution, init templates, validation policy, and the validation runner, so changes must be coordinated across these paths.
+
+### 2026-02-26 | timeout_retry_block_metrics_must_cover_all_gate_errors | RELIABILITY
+*Related to: gromit/review-1772066330959789077*
+*Archived: 2026-02-27 — promoted to rule.*
+
+Retry-block metrics currently depend on error-string matching, so new retry-gate errors (like partial decomposition state) must be included or the timeout retry-block rate will silently undercount.
+
+### 2026-02-25 | agent_test_setup_should_be_shared_helpers | TEST_QUALITY
+*Related to: gromit/review-1772054097495408438*
+*Archived: 2026-02-27 — redundant with explicit Test Quality rules.*
+
+When multiple agent-related tests need temporary config/backlog scaffolding, centralize the setup in shared helpers to avoid drift and simplify new acceptance tests.
+
+### 2026-02-24 | issue_ledger_normalization_should_be_isolated_from_semantic_edits | CODE_QUALITY
+*Related to: gromit/review-1771936368864075181*
+*Archived: 2026-02-27 — promoted to rule.*
+
+When issue-ledger normalization (ordering/canonical encoding) and semantic issue edits land in the same change, reviewability and merge safety degrade. Keep normalization-only rewrites separate from content changes and enforce that separation in automation.
+
 ### 2026-02-24 | repo_hygiene_guards_should_run_in_local_and_ci_paths | PROCESS
 *Related to: gromit/review-1771906824758942325*
 

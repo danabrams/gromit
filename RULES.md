@@ -85,6 +85,21 @@ Acceptance tests must verify behavior through public API/CLI surfaces, not priva
 
 **Enforcement:** Code review on test naming; CI lint for tests named `end_to_end` that don't invoke CLI.
 
+### Profile-default changes must be coordinated across all consuming paths
+Profile-default changes are cross-cutting and incomplete unless config resolution, init templates, validation policy, and validation runner wiring are updated together with parity tests.
+
+**Enforcement:** Code review checklist on profile/default changes; CI parity tests for config resolution vs init templates vs validation policy.
+
+### Retry-block metrics must classify by typed error categories
+Retry-block metrics must classify by typed error categories, not string matching. Any new retry-gate error type must be registered in metrics classification before merge.
+
+**Enforcement:** Code review on retry-gate additions; CI gate requiring metrics classification coverage for all retry error types.
+
+### Issue-ledger normalization and semantic edits must be separate
+Issue-ledger normalization and semantic edits must be split into separate beads/commits; mixed changes are blocked.
+
+**Enforcement:** Code review on ledger changes; automation rejects commits mixing normalization-only and semantic edits.
+
 ### Fixture tests should assert schema and records, not prose tokens
 Use structured fixture assertions (parse JSON/JSONL and ledger rows) instead of broad markdown/log token matching. Real-provider probe fixtures are canonical and should drive parser/schema updates rather than forcing fixtures back to stale assumptions.
 
