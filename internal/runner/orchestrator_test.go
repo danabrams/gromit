@@ -10,12 +10,14 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/coverage"
+	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/provider"
@@ -2268,4 +2270,130 @@ func TestMergeTouchedPackages(t *testing.T) {
 			}
 		})
 	}
+}
+
+// RED: test that orchestrator does not emit BuildStart/Complete and ReviewStart/Complete events
+func TestOrchestrator_DoesNotEmitBuildAndReviewEvents(t *testing.T) {
+	t.Parallel()
+
+	buildCalled := false
+	build := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		buildCalled = true
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	reviewCalled := false
+	review := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		reviewCalled = true
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-1", Title: "Test bead"}, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     &fakeStage{},
+		Build:    build,
+		Validate: &fakeStage{},
+		Review:   review,
+		Epilogue: &fakeStage{},
+		GetBead:  getBead,
+		Config: &config.Config{
+			Review: config.ReviewConfig{Enabled: true},
+		},
+		Output: io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+
+	// Subscribe to events immediately
+	eventCh := orch.emitter.Subscribe()
+	eventList := []interface{}{}
+
+	// Create a context that will be cancelled when Run() completes
+	runCtx, cancel := context.WithCancel(context.Background())
+
+	// Collect events in a goroutine
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case evt := <-eventCh:
+				if evt == nil {
+					// Channel closed, emitter stopped
+					return
+				}
+				eventList = append(eventList, evt)
+			case <-runCtx.Done():
+				// Polling fallback in case context gets cancelled but channel is still open
+				select {
+				case evt := <-eventCh:
+					if evt != nil {
+						eventList = append(eventList, evt)
+					} else {
+						return
+					}
+				default:
+					return
+				}
+			}
+		}
+	}()
+
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	cancel()
+
+	// Wait for event collector to finish
+	wg.Wait()
+
+	// Verify stages were called
+	if !buildCalled {
+		t.Error("Build stage was not called")
+	}
+	if !reviewCalled {
+		t.Error("Review stage was not called")
+	}
+
+	// Debug: print event count
+	t.Logf("Collected %d events", len(eventList))
+	for i, evt := range eventList {
+		t.Logf("Event %d: %T", i, evt)
+	}
+
+	// Count specific event types
+	buildStartCount := 0
+	buildCompleteCount := 0
+	reviewStartCount := 0
+	reviewCompleteCount := 0
+
+	// Verify no BuildStartEvent, BuildCompleteEvent, ReviewStartEvent, ReviewCompleteEvent
+	for _, evt := range eventList {
+		switch evt.(type) {
+		case *events.BuildStartEvent:
+			buildStartCount++
+			t.Error("Orchestrator should not emit BuildStartEvent")
+		case *events.BuildCompleteEvent:
+			buildCompleteCount++
+			t.Error("Orchestrator should not emit BuildCompleteEvent")
+		case *events.ReviewStartEvent:
+			reviewStartCount++
+			t.Error("Orchestrator should not emit ReviewStartEvent")
+		case *events.ReviewCompleteEvent:
+			reviewCompleteCount++
+			t.Error("Orchestrator should not emit ReviewCompleteEvent")
+		}
+	}
+
+	t.Logf("Found %d BuildStartEvent, %d BuildCompleteEvent, %d ReviewStartEvent, %d ReviewCompleteEvent",
+		buildStartCount, buildCompleteCount, reviewStartCount, reviewCompleteCount)
 }
