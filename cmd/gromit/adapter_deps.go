@@ -18,6 +18,46 @@ import (
 // NewPipelineDeps constructs a complete pipeline.Deps with all adapters wired together.
 // This is the single dependency injection point for the entire pipeline.
 // It assembles all required adapters and returns a fully initialized Deps struct ready for use.
+//
+// === Adapter Wiring Contract ===
+//
+// Each adapter in pipeline.Deps:
+// - Implements exactly one pipeline.* interface
+// - Wraps exactly one internal dependency (wrapped field is primary state)
+// - Delegates to wrapped dependency methods, performing minimal type transformation
+// - Includes compile-time interface assertion (var _ interface = (*type)(nil))
+// - Contains no business orchestration logic or prompt building
+//
+// Adapter Organization:
+//
+// adapters.go (LLM providers and task tracking):
+//   LLMClient + ReviewInvoker implementations:
+//     - claudeClientAdapter: Wraps claude.Client, adds timeout context
+//     - llmRouterClientAdapter: Wraps provider.Router for multi-provider fallback
+//
+//   Task Tracking (bead/backlog management):
+//     - trackerClientAdapter: Wraps tracker.Client (bead.BDAdapter), implements TrackerClient
+//     - backlogClientAdapter: Wraps backlog.File, implements BacklogClient (read-only)
+//     - beadQueryClientAdapter: Wraps bead.Client, implements BeadQueryClient (status queries)
+//
+// cli_adapters.go (CLI-specific integrations):
+//   Prompt Rendering (all wrap prompt.Renderer):
+//     - refinePromptRenderer: Implements RefineRenderer
+//     - planPromptRenderer: Implements PlanRenderer
+//     - decomposePromptRenderer: Implements DecomposeRenderer
+//     - cliPromptRenderer: Implements ReviewRenderer (for thorough code review)
+//     - explorePromptRenderer: Implements ExploreRenderer
+//       NOTE: explorePromptRenderer currently contains business logic that should
+//       be moved to prompt.Renderer.RenderExplore or a service layer.
+//
+//   CLI State Management:
+//     - cliBacklogClient: Wraps bead.Client, implements BacklogWriter (write-only)
+//     - cliLearningsManager: Wraps learnings.File, implements LearningsManager
+//     - cliStateManager: Wraps state.File, implements StateManager
+//     - cliLogWriter: Wraps logger facilities, implements LogWriter
+//
+// All adapters are instantiated here in NewPipelineDeps and wired into the Deps struct.
+// Callers use NewPipelineDeps to get a complete, ready-to-use dependency container.
 func NewPipelineDeps(cfg *config.Config, gromitDir string) (*pipeline.Deps, error) {
 	// Create all required adapters
 
