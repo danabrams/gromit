@@ -3,6 +3,8 @@ package runner
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/tracker"
@@ -498,4 +500,20 @@ func (s *stubTrackerClient) AddComment(ctx context.Context, id, comment string) 
 }
 func (s *stubTrackerClient) HasOpenChildren(ctx context.Context, parentID string) (bool, error) {
 	return false, nil
+}
+
+func TestTrackerBeadClientRemoved_encodeJSONStringsNotUsed(t *testing.T) {
+	t.Parallel()
+
+	// Verify that encodeJSONStrings is not defined in tracker_bead_client.go
+	// This ensures we've consolidated to use tracker.EncodeMetadataJSONList
+	source, err := os.ReadFile("tracker_bead_client.go")
+	if err != nil {
+		t.Fatalf("failed to read tracker_bead_client.go: %v", err)
+	}
+
+	sourceStr := string(source)
+	if strings.Contains(sourceStr, "func encodeJSONStrings(") {
+		t.Fatal("encodeJSONStrings function should be removed - use tracker.EncodeMetadataJSONList instead")
+	}
 }
