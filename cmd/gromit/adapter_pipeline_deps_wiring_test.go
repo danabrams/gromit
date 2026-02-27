@@ -13,6 +13,10 @@ func TestPipelineDepsWiring_AllAdaptersImplementInterfaces(t *testing.T) {
 
 	// Verify each pipeline.Deps field can be satisfied by an adapter type.
 	// This confirms all adapters exist and implement their required interfaces.
+	// These blank identifier assignments compile-time verify interface compliance.
+
+	// AgentResolver - provided by agent.NewResolver from internal/agent package
+
 	var _ pipeline.LLMClient = (*claudeClientAdapter)(nil)
 	var _ pipeline.ReviewInvoker = (*claudeClientAdapter)(nil)
 	var _ pipeline.TrackerClient = (*trackerClientAdapter)(nil)
