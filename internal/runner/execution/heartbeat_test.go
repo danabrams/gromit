@@ -41,6 +41,24 @@ func (m *mockOverwriteWriter) WriteOverwrite(p []byte) (int, error) {
 // Compile-time interface check for mockOverwriteWriter
 var _ OverwriteWriter = (*mockOverwriteWriter)(nil)
 
+type mockHeartbeatSubscriber struct {
+	mu              sync.Mutex
+	heartbeatEvents []HeartbeatEvent
+	stallEvents     []StallDetectedEvent
+}
+
+func (m *mockHeartbeatSubscriber) HandleHeartbeat(event HeartbeatEvent) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.heartbeatEvents = append(m.heartbeatEvents, event)
+}
+
+func (m *mockHeartbeatSubscriber) HandleStall(event StallDetectedEvent) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.stallEvents = append(m.stallEvents, event)
+}
+
 // --- Heartbeat tests ---
 
 // Expected failure: StartHeartbeat function does not exist in execution/ package yet
@@ -89,8 +107,8 @@ func TestStartHeartbeat_StallDetectionFiresOnStall(t *testing.T) {
 // Expected failure: StartHeartbeat function does not exist in execution/ package yet
 func TestStartHeartbeat_TwoTierStallTimeout(t *testing.T) {
 	t.Parallel(
-	// Tests the two-tier stall detection: before tool activity, uses stallTimeout;
-	// after tool activity, uses stallTimeoutActive (longer).
+		// Tests the two-tier stall detection: before tool activity, uses stallTimeout;
+		// after tool activity, uses stallTimeoutActive (longer).
 	)
 
 	stats, err := logger.NewStreamStats()
@@ -132,6 +150,75 @@ func TestStartHeartbeat_TwoTierStallTimeout(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("stall detection did not fire within timeout")
+	}
+}
+
+func TestStartHeartbeat_EmitsProgressEventsAndCancelsOnStall(t *testing.T) {
+	t.Parallel(
+		// Ensures heartbeat produces HeartbeatEvent updates and emits StallDetectedEvent before cancelling.
+	)
+
+	stats, err := logger.NewStreamStats()
+	if err != nil {
+		t.Fatalf("failed to create StreamStats: %v", err)
+	}
+	stats.RecordEvent() // activate stall detection
+
+	cfg := HeartbeatConfig{
+		InitialDelay:   5 * time.Millisecond,
+		HeartbeatRate:  10 * time.Millisecond,
+		StallCheckRate: 5 * time.Millisecond,
+	}
+
+	subscriber := &mockHeartbeatSubscriber{}
+
+	stallFired := make(chan struct{}, 1)
+	stop := StartHeartbeatWithConfig(stats, 50*time.Millisecond, 0, func() {
+		select {
+		case stallFired <- struct{}{}:
+		default:
+		}
+	}, cfg, nil, subscriber)
+	defer stop()
+
+	waitForCondition(t, time.Second, 5*time.Millisecond, func() bool {
+		subscriber.mu.Lock()
+		defer subscriber.mu.Unlock()
+		return len(subscriber.heartbeatEvents) > 0
+	}, "expected at least one HeartbeatEvent")
+
+	subscriber.mu.Lock()
+	hb := subscriber.heartbeatEvents[0]
+	subscriber.mu.Unlock()
+
+	if hb.ToolCalls != 0 {
+		t.Errorf("heartbeat tool calls = %d, want 0", hb.ToolCalls)
+	}
+	if !hb.WaitingForResponse {
+		t.Errorf("heartbeat WaitingForResponse = false, want true")
+	}
+
+	waitForCondition(t, time.Second, 5*time.Millisecond, func() bool {
+		subscriber.mu.Lock()
+		defer subscriber.mu.Unlock()
+		return len(subscriber.stallEvents) > 0
+	}, "expected StallDetectedEvent")
+
+	select {
+	case <-stallFired:
+	default:
+		t.Fatal("onStall callback did not fire")
+	}
+
+	subscriber.mu.Lock()
+	stall := subscriber.stallEvents[0]
+	subscriber.mu.Unlock()
+
+	if stall.Threshold != 50*time.Millisecond {
+		t.Errorf("stall threshold = %v, want 50ms", stall.Threshold)
+	}
+	if stall.Elapsed < stall.Threshold {
+		t.Errorf("stall elapsed = %v, want >= %v", stall.Elapsed, stall.Threshold)
 	}
 }
 
