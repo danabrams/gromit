@@ -1112,6 +1112,65 @@ func countMessagesContaining(messages []string, substr string) int {
 	return count
 }
 
+// TestEpilog_EmitsBeadCleanupEventForSyncAction verifies BeadCleanupEvent with
+// action="sync" is emitted when sync succeeds.
+func TestEpilog_EmitsBeadCleanupEventForSyncAction(t *testing.T) {
+	t.Parallel()
+
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	beads := &fakeBeadLifecycle{}
+	status := &fakeStatusWriter{}
+	epi := epiloguepkg.New(beads, status, io.Discard).WithEmitter(emitter)
+
+	beadID := "bead-sync-test"
+	input := pipeline.Input{
+		Bead: &bead.Bead{
+			ID:    beadID,
+			Title: "test bead",
+		},
+		Iteration:      1,
+		BuildSucceeded: true,
+		Emitter:        emitter,
+	}
+
+	_, err := epi.Run(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Epilogue.Run() error = %v", err)
+	}
+
+	// Collect events
+	var emittedEvents []events.Event
+	timeout := time.After(100 * time.Millisecond)
+	for {
+		select {
+		case evt := <-ch:
+			emittedEvents = append(emittedEvents, evt)
+		case <-timeout:
+			goto checkEvents
+		}
+	}
+
+checkEvents:
+	// Verify we got BeadCleanupEvent with action="sync"
+	var syncCleanupEvent *events.BeadCleanupEvent
+	for _, evt := range emittedEvents {
+		if ce, ok := evt.(*events.BeadCleanupEvent); ok && ce.Action == "sync" {
+			syncCleanupEvent = ce
+		}
+	}
+
+	if syncCleanupEvent == nil {
+		t.Fatal("expected BeadCleanupEvent with action=\"sync\" to be emitted on successful sync")
+	}
+	if syncCleanupEvent.BeadID != beadID {
+		t.Errorf("BeadCleanupEvent.BeadID = %q, want %q", syncCleanupEvent.BeadID, beadID)
+	}
+}
+
 // TestEpilog_EmitsBeadCloseEventOnSuccessfulClose verifies BeadCloseEvent is emitted
 // when bead close succeeds.
 func TestEpilog_EmitsBeadCloseEventOnSuccessfulClose(t *testing.T) {
