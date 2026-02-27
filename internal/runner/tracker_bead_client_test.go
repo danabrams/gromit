@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/tracker"
@@ -40,6 +41,58 @@ func TestTrackerBeadClientReadyReturnsConvertedBead(t *testing.T) {
 	}
 	if bead.Status != trackerItem.Status {
 		t.Fatalf("bead status = %s, want %s", bead.Status, trackerItem.Status)
+	}
+}
+
+func TestTrackerBeadClientUpdatePropagatesError(t *testing.T) {
+	t.Parallel()
+
+	updateError := fmt.Errorf("update failed")
+	client := &stubTrackerClient{
+		updateFn: func(ctx context.Context, req tracker.UpdateRequest) (*tracker.Item, error) {
+			return nil, updateError
+		},
+	}
+
+	bc := &trackerBeadClient{client: client}
+	_, err := bc.Update(context.Background(), tracker.UpdateRequest{})
+	if err != updateError {
+		t.Fatalf("Update returned error %v, want %v", err, updateError)
+	}
+}
+
+func TestTrackerBeadClientUpdateReturnsConvertedBead(t *testing.T) {
+	t.Parallel()
+
+	updatedItem := &tracker.Item{
+		ID:          "bead-1",
+		Title:       "Updated Title",
+		Status:      "closed",
+		Description: "Updated Description",
+		Metadata: map[string]string{
+			"priority": "2",
+		},
+	}
+
+	client := &stubTrackerClient{
+		updateFn: func(ctx context.Context, req tracker.UpdateRequest) (*tracker.Item, error) {
+			return updatedItem, nil
+		},
+	}
+
+	bc := &trackerBeadClient{client: client}
+	result, err := bc.Update(context.Background(), tracker.UpdateRequest{})
+	if err != nil {
+		t.Fatalf("Update returned error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("Update returned nil")
+	}
+	if result.ID != "bead-1" {
+		t.Fatalf("updated bead ID = %s, want bead-1", result.ID)
+	}
+	if result.Title != "Updated Title" {
+		t.Fatalf("updated bead title = %s, want Updated Title", result.Title)
 	}
 }
 
@@ -316,6 +369,7 @@ type stubTrackerClient struct {
 	addCommentFn         func(ctx context.Context, id, comment string) error
 	closeFn              func(ctx context.Context, id string) error
 	syncFn               func(ctx context.Context) error
+	updateFn             func(ctx context.Context, req tracker.UpdateRequest) (*tracker.Item, error)
 }
 
 func (s *stubTrackerClient) Ready(ctx context.Context) (*tracker.Item, error) {
@@ -349,6 +403,9 @@ func (s *stubTrackerClient) CreateWithParent(ctx context.Context, req tracker.Cr
 	return nil, nil
 }
 func (s *stubTrackerClient) Update(ctx context.Context, req tracker.UpdateRequest) (*tracker.Item, error) {
+	if s.updateFn != nil {
+		return s.updateFn(ctx, req)
+	}
 	return nil, nil
 }
 func (s *stubTrackerClient) ListWithLabel(ctx context.Context, label string) ([]tracker.Item, error) {
