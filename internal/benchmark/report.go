@@ -268,5 +268,74 @@ type Phase4ReportPaths struct {
 }
 
 func WritePhase4MeasurementReport(input Phase4ReportInput) (Phase4ReportPaths, error) {
-	return Phase4ReportPaths{}, nil
+	ts := stdstrings.TrimSpace(input.Timestamp)
+	if ts == "" {
+		return Phase4ReportPaths{}, fmt.Errorf("timestamp is required")
+	}
+	logPath := stdstrings.TrimSpace(input.LogPath)
+	if logPath == "" {
+		return Phase4ReportPaths{}, fmt.Errorf("log path is required")
+	}
+
+	report, err := RunPhase4Measurement(logPath)
+	if err != nil {
+		return Phase4ReportPaths{}, err
+	}
+	decision := ComputePhase4AdoptionDecision(report.Gates)
+
+	reportsDir := filepath.Join(".gromit", "reports")
+	if err := os.MkdirAll(reportsDir, 0o755); err != nil {
+		return Phase4ReportPaths{}, fmt.Errorf("create reports dir: %w", err)
+	}
+
+	jsonPath := filepath.Join(reportsDir, "phase4-measurement-"+ts+".json")
+	mdPath := filepath.Join(reportsDir, "phase4-measurement-"+ts+".md")
+
+	payload := struct {
+		Timestamp string                  `json:"timestamp"`
+		Report    Phase4MeasurementReport `json:"report"`
+		Decision  Phase4AdoptionDecision  `json:"decision"`
+	}{
+		Timestamp: ts,
+		Report:    report,
+		Decision:  decision,
+	}
+	jsonBytes, err := stdjson.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		return Phase4ReportPaths{}, fmt.Errorf("marshal phase-4 report json: %w", err)
+	}
+	jsonBytes = append(jsonBytes, '\n')
+	if err := os.WriteFile(jsonPath, jsonBytes, 0o644); err != nil {
+		return Phase4ReportPaths{}, fmt.Errorf("write phase-4 report json: %w", err)
+	}
+
+	mdBuilder := stdstrings.Builder{}
+	mdBuilder.WriteString("# Phase-4 Adoption Report\n\n")
+	mdBuilder.WriteString("## Metrics\n\n")
+	mdBuilder.WriteString("| Metric | Baseline | Retrieval |\n")
+	mdBuilder.WriteString("| --- | ---: | ---: |\n")
+	mdBuilder.WriteString(fmt.Sprintf("| median_discovery_input_tokens | %d | %d |\n", report.Baseline.MedianDiscoveryInputTokens, report.Retrieval.MedianDiscoveryInputTokens))
+	mdBuilder.WriteString(fmt.Sprintf("| median_discovery_latency_ms | %d | %d |\n", report.Baseline.MedianDiscoveryLatencyMs, report.Retrieval.MedianDiscoveryLatencyMs))
+	mdBuilder.WriteString(fmt.Sprintf("| success_rate | %.2f | %.2f |\n", report.Baseline.SuccessRate, report.Retrieval.SuccessRate))
+	mdBuilder.WriteString(fmt.Sprintf("| wrong_file_rate | %s | %.2f |\n", "n/a", report.Retrieval.WrongFileRate))
+
+	mdBuilder.WriteString("\n## Gates\n\n")
+	mdBuilder.WriteString(fmt.Sprintf("- token_reduction_gate: %t\n", report.Gates.TokenReductionGate))
+	mdBuilder.WriteString(fmt.Sprintf("- latency_reduction_gate: %t\n", report.Gates.LatencyReductionGate))
+	mdBuilder.WriteString(fmt.Sprintf("- success_rate_parity_gate: %t\n", report.Gates.SuccessRateParityGate))
+	mdBuilder.WriteString(fmt.Sprintf("- wrong_file_rate_gate: %t\n", report.Gates.WrongFileRateGate))
+
+	mdBuilder.WriteString("\n## Adoption Decision\n\n")
+	mdBuilder.WriteString(fmt.Sprintf("- should_adopt: %t\n", decision.ShouldAdopt))
+	if len(decision.Reasons) == 0 {
+		mdBuilder.WriteString("- reasons: none\n")
+	} else {
+		mdBuilder.WriteString("- reasons: " + stdstrings.Join(decision.Reasons, ", ") + "\n")
+	}
+
+	if err := os.WriteFile(mdPath, []byte(mdBuilder.String()), 0o644); err != nil {
+		return Phase4ReportPaths{}, fmt.Errorf("write phase-4 report markdown: %w", err)
+	}
+
+	return Phase4ReportPaths{JSONPath: jsonPath, MarkdownPath: mdPath}, nil
 }

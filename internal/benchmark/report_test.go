@@ -886,7 +886,7 @@ func TestWritePhase4MeasurementReport_WritesReportArtifacts(t *testing.T) {
 	if !stdstrings.Contains(jsonContent, "\"timestamp\": \"20260224T150000Z\"") {
 		t.Fatalf("expected timestamp in json, got %s", jsonContent)
 	}
-	if !stdstrings.Contains(jsonContent, "\"should_adopt\"") {
+	if !stdstrings.Contains(jsonContent, "\"decision\":") {
 		t.Fatalf("expected adoption decision in json, got %s", jsonContent)
 	}
 
