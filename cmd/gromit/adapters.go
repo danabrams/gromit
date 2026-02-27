@@ -206,14 +206,6 @@ func trackerItemToBeadInfo(item *tracker.Item) *pipeline.BeadInfo {
 	}
 }
 
-func marshalJSONList(values []string) string {
-	if len(values) == 0 {
-		return ""
-	}
-	data, _ := json.Marshal(values)
-	return string(data)
-}
-
 func (a *trackerClientAdapter) Ready(ctx context.Context) (*pipeline.BeadInfo, error) {
 	item, err := a.Client.Ready(ctx)
 	if err != nil {
