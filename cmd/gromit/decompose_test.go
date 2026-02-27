@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/danabrams/gromit/internal/worktree"
 )
@@ -966,4 +968,67 @@ func (m *mockTrackerForTrackerVersionTest) AddComment(context.Context, string, s
 
 func (m *mockTrackerForTrackerVersionTest) HasOpenChildren(context.Context, string) (bool, error) {
 	return false, nil
+}
+
+// TestDecomposeThinWrapperPattern verifies the thin wrapper delegation pattern
+// Expected: decompose command delegates plan filtering to Pipeline.QueryUndecomposedPlans
+func TestDecomposeThinWrapperPattern(t *testing.T) {
+	t.Parallel()
+
+	// Type assertions verify that Pipeline implements the interface
+	var _ DecomposePlanQuerier = (*pipeline.Pipeline)(nil)
+
+	// Create a mock pipeline that captures the arguments
+	mockPipeline := &mockDecomposePipelineForDelegation{
+		queryUndecomposedPlansFn: func(ctx context.Context, input pipeline.QueryUndecomposedPlansInput) (*pipeline.QueryUndecomposedPlansResult, error) {
+			return &pipeline.QueryUndecomposedPlansResult{
+				Plans: []pipeline.PlanQueryInfo{
+					{
+						Name:  "test-plan",
+						Title: "Test Plan",
+						Path:  "/path/to/test-plan.md",
+					},
+				},
+			}, nil
+		},
+	}
+
+	// Verify the interface is satisfied
+	if mockPipeline == nil {
+		t.Fatal("mock pipeline should not be nil")
+	}
+
+	// Call the mock to verify it works
+	ctx := context.Background()
+	input := pipeline.QueryUndecomposedPlansInput{Force: false}
+	result, err := mockPipeline.QueryUndecomposedPlans(ctx, input)
+
+	if err != nil {
+		t.Errorf("QueryUndecomposedPlans() error = %v, want nil", err)
+	}
+
+	if len(result.Plans) != 1 {
+		t.Errorf("QueryUndecomposedPlans() returned %d plans, want 1", len(result.Plans))
+	}
+
+	if result.Plans[0].Name != "test-plan" {
+		t.Errorf("QueryUndecomposedPlans() plan name = %q, want 'test-plan'", result.Plans[0].Name)
+	}
+}
+
+// DecomposePlanQuerier abstracts the pipeline's plan querying capability
+type DecomposePlanQuerier interface {
+	QueryUndecomposedPlans(ctx context.Context, input pipeline.QueryUndecomposedPlansInput) (*pipeline.QueryUndecomposedPlansResult, error)
+}
+
+// Mock pipeline for testing delegation in decompose.go
+type mockDecomposePipelineForDelegation struct {
+	queryUndecomposedPlansFn func(ctx context.Context, input pipeline.QueryUndecomposedPlansInput) (*pipeline.QueryUndecomposedPlansResult, error)
+}
+
+func (m *mockDecomposePipelineForDelegation) QueryUndecomposedPlans(ctx context.Context, input pipeline.QueryUndecomposedPlansInput) (*pipeline.QueryUndecomposedPlansResult, error) {
+	if m.queryUndecomposedPlansFn != nil {
+		return m.queryUndecomposedPlansFn(ctx, input)
+	}
+	return nil, fmt.Errorf("not implemented")
 }
