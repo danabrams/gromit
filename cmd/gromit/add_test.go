@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -8,7 +9,54 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/backlog"
+	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/pipeline"
 )
+
+// TestAddCommand_UsesPipelineAdd verifies the CLI delegates idea creation to pipeline.Add.
+func TestAddCommand_UsesPipelineAdd(t *testing.T) {
+	originalHandler := addHandler
+	defer func() { addHandler = originalHandler }()
+
+	called := false
+	var captured pipeline.AddInput
+	addHandler = func(ctx context.Context, cfg *config.Config, gromitDir string, input pipeline.AddInput) (*pipeline.AddResult, error) {
+		called = true
+		captured = input
+		return &pipeline.AddResult{
+			Idea: &pipeline.Idea{
+				Text: "Test idea",
+				Type: "feature",
+			},
+			Type: "feature",
+		}, nil
+	}
+
+	stdout, stderr, exitCode := runGromitWithStdin(t, "\n", "add", "Test idea")
+	if exitCode != 0 {
+		t.Fatalf("gromit add exited with code %d\nstdout: %s\nstderr: %s", exitCode, stdout, stderr)
+	}
+
+	if !called {
+		t.Fatal("pipeline Add handler was not invoked")
+	}
+	if captured.Text != "Test idea" {
+		t.Fatalf("AddInput.Text = %q, want %q", captured.Text, "Test idea")
+	}
+	if captured.Context != "" {
+		t.Fatalf("AddInput.Context = %q, want empty", captured.Context)
+	}
+
+	if !strings.Contains(stdout, "Added to backlog (feature)") {
+		t.Fatalf("stdout missing confirmation message: %s", stdout)
+	}
+	if !strings.Contains(stdout, "Test idea") {
+		t.Fatalf("stdout missing idea text: %s", stdout)
+	}
+	if stderr != "" {
+		t.Fatalf("expected no stderr output, got %q", stderr)
+	}
+}
 
 // TestAddCommand_MultiWordContext verifies that multi-word context strings are captured in full
 func TestAddCommand_MultiWordContext(t *testing.T) {
