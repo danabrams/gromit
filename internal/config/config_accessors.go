@@ -460,6 +460,11 @@ func (r TokenEfficiencyRoutingConfig) IsEnabled() bool {
 	return r.Enabled
 }
 
+// IsEnabled returns whether retrieval experiment is enabled.
+func (r TokenEfficiencyRetrievalConfig) IsEnabled() bool {
+	return r.Enabled
+}
+
 // ResolvedMethodologyAdapter returns the resolved methodology adapter selector
 // and source metadata from compatibility resolution.
 func (c Config) ResolvedMethodologyAdapter() CompatibilityResolvedValue {
