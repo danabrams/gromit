@@ -771,6 +771,25 @@ func (a *decomposerAdapter) rememberCreatedChildKey(parentID, key string) {
 	a.createdChildKeys[parentID][key] = struct{}{}
 }
 
+// childWithDedupeLabelExistsContextVersion accepts a context parameter and threads it through to ListWithLabel.
+func (a *decomposerAdapter) childWithDedupeLabelExistsContextVersion(ctx context.Context, parentID, dedupeLabel string) (bool, error) {
+	beadClient := a.beads
+	if beadClient == nil {
+		return false, fmt.Errorf("bead client is nil")
+	}
+
+	matches, err := beadClient.ListWithLabel(ctx, dedupeLabel)
+	if err != nil {
+		return false, err
+	}
+	for _, existing := range matches {
+		if existing != nil && existing.Parent == parentID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (a *decomposerAdapter) childWithDedupeLabelExists(parentID, dedupeLabel string) (bool, error) {
 	beadClient := a.beads
 	if beadClient == nil {
