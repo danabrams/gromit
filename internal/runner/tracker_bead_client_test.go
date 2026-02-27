@@ -43,6 +43,56 @@ func TestTrackerBeadClientReadyReturnsConvertedBead(t *testing.T) {
 	}
 }
 
+func TestTrackerBeadClientListWithLabelConvertsItems(t *testing.T) {
+	t.Parallel()
+
+	items := []tracker.Item{
+		{
+			ID:          "bead-1",
+			Title:       "Bead 1",
+			Status:      "open",
+			Description: "Description 1",
+			Metadata: map[string]string{
+				"priority": "2",
+				"labels":   `["spec:test"]`,
+			},
+		},
+		{
+			ID:          "bead-2",
+			Title:       "Bead 2",
+			Status:      "open",
+			Description: "Description 2",
+			Metadata: map[string]string{
+				"priority": "3",
+			},
+		},
+	}
+
+	client := &stubTrackerClient{
+		listWithLabelFn: func(ctx context.Context, label string) ([]tracker.Item, error) {
+			return items, nil
+		},
+	}
+
+	beads := newTrackerBeadClient(client)
+	result, err := beads.ListWithLabel(context.Background(), "test-label")
+	if err != nil {
+		t.Fatalf("ListWithLabel returned error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("ListWithLabel returned nil")
+	}
+	if len(result) != 2 {
+		t.Fatalf("ListWithLabel returned %d beads, want 2", len(result))
+	}
+	if result[0].ID != "bead-1" {
+		t.Fatalf("first bead ID = %s, want bead-1", result[0].ID)
+	}
+	if result[1].ID != "bead-2" {
+		t.Fatalf("second bead ID = %s, want bead-2", result[1].ID)
+	}
+}
+
 func TestTrackerBeadClientReadyExcludingFiltersEpicsAndExcludedIDs(t *testing.T) {
 	t.Parallel()
 
@@ -93,8 +143,9 @@ func TestTrackerBeadClientReadyExcludingFiltersEpicsAndExcludedIDs(t *testing.T)
 }
 
 type stubTrackerClient struct {
-	readyFn func(ctx context.Context) (*tracker.Item, error)
-	listFn  func(ctx context.Context, q tracker.Query) ([]tracker.Item, error)
+	readyFn         func(ctx context.Context) (*tracker.Item, error)
+	listFn          func(ctx context.Context, q tracker.Query) ([]tracker.Item, error)
+	listWithLabelFn func(ctx context.Context, label string) ([]tracker.Item, error)
 }
 
 func (s *stubTrackerClient) Ready(ctx context.Context) (*tracker.Item, error) {
@@ -125,6 +176,9 @@ func (s *stubTrackerClient) Update(ctx context.Context, req tracker.UpdateReques
 	return nil, nil
 }
 func (s *stubTrackerClient) ListWithLabel(ctx context.Context, label string) ([]tracker.Item, error) {
+	if s.listWithLabelFn != nil {
+		return s.listWithLabelFn(ctx, label)
+	}
 	return nil, nil
 }
 func (s *stubTrackerClient) Close(ctx context.Context, id string) error {
