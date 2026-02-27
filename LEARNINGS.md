@@ -38,7 +38,20 @@ When tracking last-review commit, prefer workspace-local interactive state as th
 
 ## Provisional Learnings
 
-*(none)*
+### 2026-02-27 | emitter_logging_migration_must_preserve_fallback_path | RELIABILITY
+*Related to: gromit/review-1772199039639467769*
+
+When migrating from direct io.Writer logging to event-emitter-based logging, always preserve a fallback write path for diagnostics emitted before subscribers are started or during error paths where the emitter may not be wired — silent log loss masks operational failures.
+
+### 2026-02-27 | select_break_only_exits_select_not_enclosing_loop | CODE_QUALITY
+*Related to: gromit/review-1772199039639467769*
+
+Go's bare `break` inside a `select` block only exits the select, not an enclosing for loop. Use labeled breaks or flag variables for select-in-loop drain patterns to avoid infinite loops on timeout.
+
+### 2026-02-27 | emitter_wiring_boilerplate_suggests_embeddable_mixin | ARCHITECTURE
+*Related to: gromit/review-1772199039639467769*
+
+The WithEmitter/SetEmitter dual-method pattern (builder return vs void setter) appears across Gate, Build, Epilogue, and Review stages — this is a candidate for an embeddable mixin to reduce boilerplate and ensure consistent emitter wiring.
 
 ## Archived Learnings
 *Moved to LEARNINGS_ARCHIVE.md to reduce prompt context overhead.*

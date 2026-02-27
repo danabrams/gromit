@@ -148,13 +148,14 @@ func TestEmitter_ConcurrentEmit_IsSafe(t *testing.T) {
 
 	// Verify events were received (some may be dropped due to buffer full, but we should get some)
 	received := 0
+	deadline := time.After(1 * time.Second)
+drain:
 	for received < (numGoroutines * eventsPerGoroutine / 2) {
 		select {
 		case <-ch:
 			received++
-		case <-time.After(1 * time.Second):
-			// Done receiving
-			break
+		case <-deadline:
+			break drain
 		}
 	}
 
