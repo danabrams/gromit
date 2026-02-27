@@ -14,16 +14,30 @@ import (
 
 // SPC metric name constants used for ProcessTrend control limits.
 const (
-	spcMetricRollingSuccessRate   = "rolling_success_rate"
-	spcMetricRollingEscalateRate  = "rolling_escalation_rate"
-	spcMetricRollingQualityScore  = "rolling_quality_score"
-	spcMetricRollingAvgDurationMs = "rolling_avg_duration_ms"
-	spcMetricFirstPassSuccessRate = "rolling_first_pass_success_rate"
-	spcMetricRollingAvgCostUSD    = "rolling_avg_cost_usd"
-	spcMetricEWMASuccessRate      = "ewma_success_rate"
-	spcMetricEWMACostUSD          = "ewma_cost_usd"
-	spcMetricEWMADurationMs       = "ewma_duration_ms"
-	spcMetricEWMAInputTokens      = "ewma_input_tokens"
+	SPCMetricRollingSuccessRate   = "rolling_success_rate"
+	SPCMetricRollingEscalateRate  = "rolling_escalation_rate"
+	SPCMetricRollingQualityScore  = "rolling_quality_score"
+	SPCMetricRollingAvgDurationMs = "rolling_avg_duration_ms"
+	SPCMetricFirstPassSuccessRate = "rolling_first_pass_success_rate"
+	SPCMetricRollingAvgCostUSD    = "rolling_avg_cost_usd"
+	SPCMetricEWMASuccessRate      = "ewma_success_rate"
+	SPCMetricEWMACostUSD          = "ewma_cost_usd"
+	SPCMetricEWMADurationMs       = "ewma_duration_ms"
+	SPCMetricEWMAInputTokens      = "ewma_input_tokens"
+)
+
+// Unexported aliases for backward compatibility with local usage in this package
+const (
+	spcMetricRollingSuccessRate   = SPCMetricRollingSuccessRate
+	spcMetricRollingEscalateRate  = SPCMetricRollingEscalateRate
+	spcMetricRollingQualityScore  = SPCMetricRollingQualityScore
+	spcMetricRollingAvgDurationMs = SPCMetricRollingAvgDurationMs
+	spcMetricFirstPassSuccessRate = SPCMetricFirstPassSuccessRate
+	spcMetricRollingAvgCostUSD    = SPCMetricRollingAvgCostUSD
+	spcMetricEWMASuccessRate      = SPCMetricEWMASuccessRate
+	spcMetricEWMACostUSD          = SPCMetricEWMACostUSD
+	spcMetricEWMADurationMs       = SPCMetricEWMADurationMs
+	spcMetricEWMAInputTokens      = SPCMetricEWMAInputTokens
 )
 
 // FormatRun renders the current run state for display.

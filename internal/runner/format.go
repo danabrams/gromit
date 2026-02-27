@@ -13,18 +13,19 @@ import (
 	"github.com/danabrams/gromit/internal/runner/display"
 )
 
-// SPC metric name constants used for ProcessTrend control limits.
+// SPC metric constants are now defined in the display package.
+// Use the display package constants to avoid duplication.
 const (
-	spcMetricRollingSuccessRate   = "rolling_success_rate"
-	spcMetricRollingEscalateRate  = "rolling_escalation_rate"
-	spcMetricRollingQualityScore  = "rolling_quality_score"
-	spcMetricRollingAvgDurationMs = "rolling_avg_duration_ms"
-	spcMetricFirstPassSuccessRate = "rolling_first_pass_success_rate"
-	spcMetricRollingAvgCostUSD    = "rolling_avg_cost_usd"
-	spcMetricEWMASuccessRate      = "ewma_success_rate"
-	spcMetricEWMACostUSD          = "ewma_cost_usd"
-	spcMetricEWMADurationMs       = "ewma_duration_ms"
-	spcMetricEWMAInputTokens      = "ewma_input_tokens"
+	spcMetricRollingSuccessRate   = display.SPCMetricRollingSuccessRate
+	spcMetricRollingEscalateRate  = display.SPCMetricRollingEscalateRate
+	spcMetricRollingQualityScore  = display.SPCMetricRollingQualityScore
+	spcMetricRollingAvgDurationMs = display.SPCMetricRollingAvgDurationMs
+	spcMetricFirstPassSuccessRate = display.SPCMetricFirstPassSuccessRate
+	spcMetricRollingAvgCostUSD    = display.SPCMetricRollingAvgCostUSD
+	spcMetricEWMASuccessRate      = display.SPCMetricEWMASuccessRate
+	spcMetricEWMACostUSD          = display.SPCMetricEWMACostUSD
+	spcMetricEWMADurationMs       = display.SPCMetricEWMADurationMs
+	spcMetricEWMAInputTokens      = display.SPCMetricEWMAInputTokens
 )
 
 // formatDuration formats a duration as a human-readable string.
