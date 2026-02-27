@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -119,6 +120,79 @@ func TestSubscriberStartupAndTeardown(t *testing.T) {
 		Message: "after close",
 		Time:    time.Now(),
 	})
+}
+
+// TestCLISubscriberStartsAndReceivesEvents verifies that the CLI subscriber starts
+// in a goroutine and can receive events emitted by the orchestrator.
+func TestCLISubscriberStartsAndReceivesEvents(t *testing.T) {
+	t.Parallel()
+
+	output := &recordingWriter{}
+
+	cfg := OrchestratorConfig{
+		Gate:     &testStage{},
+		Build:    &testStage{},
+		Validate: &testStage{},
+		Review:   &testStage{},
+		Epilogue: &testStage{},
+		GetBead: func(ctx context.Context) (*bead.Bead, error) {
+			return nil, nil
+		},
+		Output: output,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if orch == nil {
+		t.Fatal("NewOrchestrator returned nil")
+	}
+
+	emitter := orch.GetEmitter()
+	if emitter == nil {
+		t.Fatal("GetEmitter() returned nil")
+	}
+
+	// Create a test context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	// Start subscribers
+	err := orch.StartSubscribers(ctx)
+	if err != nil {
+		t.Fatalf("StartSubscribers() returned error: %v", err)
+	}
+
+	// Emit a test event
+	testEvent := &events.LogEvent{
+		Level:   "test",
+		Message: "test message from CLI subscriber test",
+		Time:    time.Now(),
+	}
+
+	emitter.Emit(testEvent)
+
+	// Give the subscriber goroutine time to process the event
+	time.Sleep(100 * time.Millisecond)
+
+	// Verify that the CLI subscriber processed the event
+	if !output.hasContent() {
+		t.Fatal("CLI subscriber did not write any output after event emission")
+	}
+
+	// Cleanup
+	emitter.Close()
+}
+
+// recordingWriter captures output written to it
+type recordingWriter struct {
+	content strings.Builder
+}
+
+func (rw *recordingWriter) Write(p []byte) (n int, err error) {
+	return rw.content.Write(p)
+}
+
+func (rw *recordingWriter) hasContent() bool {
+	return rw.content.Len() > 0
 }
 
 // testStage is a minimal pipeline.Stage for testing
