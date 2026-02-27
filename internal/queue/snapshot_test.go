@@ -7,6 +7,26 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 )
 
+func TestFindStuckBeadIDs(t *testing.T) {
+	t.Parallel()
+	stats := map[string]logger.BeadStats{
+		"a": {BeadID: "a", Failures: 1},
+		"b": {BeadID: "b", Failures: 3},
+		"c": {BeadID: "c", Failures: 4},
+	}
+
+	stuck := FindStuckBeadIDs(stats, 3)
+	if len(stuck) != 2 {
+		t.Fatalf("len(stuck) = %d, want 2", len(stuck))
+	}
+	if !stuck["b"] || !stuck["c"] {
+		t.Fatalf("stuck map missing expected IDs: %v", stuck)
+	}
+	if stuck["a"] {
+		t.Fatalf("stuck map should not include a: %v", stuck)
+	}
+}
+
 func TestPartitionQueueBeads_SeparatesReadyBlockedAndStuck(t *testing.T) {
 	t.Parallel()
 	readyInput := []*bead.Bead{
