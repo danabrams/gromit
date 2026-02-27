@@ -327,6 +327,44 @@ func TestRetrievalExperimentConfigDefaults(t *testing.T) {
 	}
 }
 
+func TestRetrievalExperimentConfigEnabledDefaults(t *testing.T) {
+	yamlContent := `
+token_efficiency:
+  retrieval:
+    enabled: true
+    index_path: /my/index
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if !cfg.TokenEfficiency.Retrieval.Enabled {
+		t.Errorf("TokenEfficiency.Retrieval.Enabled = false, want true")
+	}
+	if cfg.TokenEfficiency.Retrieval.TopK != 5 {
+		t.Errorf("TokenEfficiency.Retrieval.TopK = %d, want 5 when enabled", cfg.TokenEfficiency.Retrieval.TopK)
+	}
+	if cfg.TokenEfficiency.Retrieval.ConfidenceThreshold != 0.5 {
+		t.Errorf("TokenEfficiency.Retrieval.ConfidenceThreshold = %f, want 0.5 when enabled", cfg.TokenEfficiency.Retrieval.ConfidenceThreshold)
+	}
+	if cfg.TokenEfficiency.Retrieval.StalenessPolicy != "max_age" {
+		t.Errorf("TokenEfficiency.Retrieval.StalenessPolicy = %q, want %q when enabled", cfg.TokenEfficiency.Retrieval.StalenessPolicy, "max_age")
+	}
+	if cfg.TokenEfficiency.Retrieval.StalenessThresholdDays != 7 {
+		t.Errorf("TokenEfficiency.Retrieval.StalenessThresholdDays = %d, want 7 when enabled", cfg.TokenEfficiency.Retrieval.StalenessThresholdDays)
+	}
+	if cfg.TokenEfficiency.Retrieval.IndexPath != "/my/index" {
+		t.Errorf("TokenEfficiency.Retrieval.IndexPath = %q, want %q", cfg.TokenEfficiency.Retrieval.IndexPath, "/my/index")
+	}
+}
+
 func containsAll(s string, parts ...string) bool {
 	for _, p := range parts {
 		if !strings.Contains(s, p) {
