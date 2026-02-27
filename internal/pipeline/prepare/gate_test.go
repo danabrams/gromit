@@ -363,6 +363,58 @@ func TestGateRunScopeGate(t *testing.T) {
 	}
 }
 
+func TestGateScopeEventEmittedOnBlock(t *testing.T) {
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	b := &bead.Bead{
+		ID:              "test-oversized",
+		ExpectedOutputs: []string{"f1", "f2", "f3", "f4", "f5", "f6"},
+	}
+	cfg := &config.Config{
+		ScopeCheck: config.ScopeCheckConfig{
+			Enabled:        true,
+			BlockOversized: &blockTrue,
+		},
+	}
+
+	gate := New(io.Discard).WithEmitter(emitter)
+	_, err := gate.Run(context.Background(), pipeline.Input{Bead: b, Config: cfg})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var scopeEvt *events.GateScopeEvent
+	deadline := time.After(100 * time.Millisecond)
+readLoop:
+	for {
+		select {
+		case evt := <-ch:
+			if se, ok := evt.(*events.GateScopeEvent); ok {
+				scopeEvt = se
+				break readLoop
+			}
+		case <-deadline:
+			t.Fatal("expected GateScopeEvent")
+		}
+	}
+
+	if scopeEvt.BeadID != b.ID {
+		t.Errorf("bead id = %q, want %q", scopeEvt.BeadID, b.ID)
+	}
+	if scopeEvt.FileCount != len(b.ExpectedOutputs) {
+		t.Errorf("file count = %d, want %d", scopeEvt.FileCount, len(b.ExpectedOutputs))
+	}
+	if scopeEvt.MaxFiles != maxScopeFiles {
+		t.Errorf("max files = %d, want %d", scopeEvt.MaxFiles, maxScopeFiles)
+	}
+	if scopeEvt.Action != "block" {
+		t.Errorf("action = %q, want %q", scopeEvt.Action, "block")
+	}
+}
+
 func TestGateRunDoesNotProactivelyDecomposeFromKeywords(t *testing.T) {
 	tests := []struct {
 		name         string
