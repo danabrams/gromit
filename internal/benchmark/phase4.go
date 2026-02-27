@@ -1,5 +1,24 @@
 package benchmark
 
+import (
+	"bufio"
+	"bytes"
+	stdjson "encoding/json"
+	"fmt"
+	"os"
+	stdstrings "strings"
+)
+
+type phase4PairedIterationRecord struct {
+	DiscoveryInputTokensBaseline  int   `json:"discovery_input_tokens_baseline"`
+	DiscoveryInputTokensRetrieval int   `json:"discovery_input_tokens_retrieval"`
+	DiscoveryLatencyMsBaseline    int   `json:"discovery_latency_ms_baseline"`
+	DiscoveryLatencyMsRetrieval   int   `json:"discovery_latency_ms_retrieval"`
+	SuccessBaseline               bool  `json:"success_baseline"`
+	SuccessRetrieval              bool  `json:"success_retrieval"`
+	WrongFileRetrieval            bool  `json:"wrong_file_retrieval"`
+}
+
 type Phase4RunMetrics struct {
 	MedianDiscoveryInputTokens int
 	MedianDiscoveryLatencyMs   int
@@ -36,4 +55,28 @@ func EvaluatePhase4AdoptionGates(baseline, retrieval Phase4RunMetrics) Phase4Ado
 	gates.CanAdopt = gates.TokenReductionGate && gates.LatencyReductionGate && gates.SuccessRateParityGate && gates.WrongFileRateGate
 
 	return gates
+}
+
+func readPhase4PairedIterationRecords(path string) ([]phase4PairedIterationRecord, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read phase-4 paired log %q: %w", path, err)
+	}
+	records := []phase4PairedIterationRecord{}
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	for scanner.Scan() {
+		line := stdstrings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var rec phase4PairedIterationRecord
+		if err := stdjson.Unmarshal([]byte(line), &rec); err != nil {
+			return nil, fmt.Errorf("decode phase-4 paired log line: %w", err)
+		}
+		records = append(records, rec)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("scan phase-4 paired log: %w", err)
+	}
+	return records, nil
 }
