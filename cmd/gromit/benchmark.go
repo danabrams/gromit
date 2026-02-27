@@ -28,6 +28,7 @@ var benchmarkValidateCohortFn = validateBenchmarkCohort
 var benchmarkRunHarnessFn = runBenchmarkHarness
 var benchmarkComputeMetricsFn = computeBenchmarkMetrics
 var benchmarkWritePhase3MeasurementReportFn = benchpkg.WritePhase3MeasurementReport
+var benchmarkWritePhase4MeasurementReportFn = benchpkg.WritePhase4MeasurementReport
 var benchmarkInternalLoadManifestFn = benchpkg.LoadManifest
 var benchmarkInternalResolveSelectedBeadsFn = benchpkg.ResolveSelectedBeads
 var benchmarkInternalValidateSelectedCohortFn = benchpkg.ValidateSelectedCohort
@@ -56,6 +57,8 @@ var benchmarkBeadCount int
 var benchmarkPhase3BaselineLog string
 var benchmarkPhase3OptimizedLog string
 var benchmarkPhase3OutputTS string
+var benchmarkPhase4Log string
+var benchmarkPhase4OutputTS string
 
 type benchmarkManifest struct {
 	ID              string   `yaml:"id"`
@@ -181,6 +184,19 @@ var benchmarkPhase3ReportCmd = &cobra.Command{
 	},
 }
 
+var benchmarkPhase4ReportCmd = &cobra.Command{
+	Use:          "phase4-report",
+	Short:        "Generate phase-4 adoption report",
+	SilenceUsage: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		_, err := benchmarkWritePhase4MeasurementReportFn(benchpkg.Phase4ReportInput{
+			Timestamp: benchmarkPhase4OutputTS,
+			LogPath:   benchmarkPhase4Log,
+		})
+		return err
+	},
+}
+
 func init() {
 	benchmarkRunCmd.Flags().StringVar(&benchmarkManifestPath, "manifest", "", "Path to benchmark manifest")
 	benchmarkRunCmd.Flags().StringVar(&benchmarkOutputTS, "output-ts", "", "Timestamp override for deterministic artifact names")
@@ -196,11 +212,14 @@ func init() {
 	_ = benchmarkPhase3ReportCmd.MarkFlagRequired("baseline-log")
 	_ = benchmarkPhase3ReportCmd.MarkFlagRequired("optimized-log")
 	_ = benchmarkPhase3ReportCmd.MarkFlagRequired("output-ts")
+	benchmarkPhase4ReportCmd.Flags().StringVar(&benchmarkPhase4Log, "log", "", "Path to paired phase-4 run log")
+	benchmarkPhase4ReportCmd.Flags().StringVar(&benchmarkPhase4OutputTS, "output-ts", "", "UTC timestamp for report artifact names")
 }
 
 func registerBenchmarkCommands(root *cobra.Command) {
 	benchmarkCmd.AddCommand(benchmarkRunCmd)
 	benchmarkCmd.AddCommand(benchmarkPhase3ReportCmd)
+	benchmarkCmd.AddCommand(benchmarkPhase4ReportCmd)
 	root.AddCommand(benchmarkCmd)
 }
 

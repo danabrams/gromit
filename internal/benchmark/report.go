@@ -256,3 +256,17 @@ func computeWinnerHints(modes []ModeSummary) WinnerHints {
 	}
 	return winners
 }
+
+type Phase4ReportInput struct {
+	Timestamp string
+	LogPath   string
+}
+
+type Phase4ReportPaths struct {
+	JSONPath     string
+	MarkdownPath string
+}
+
+func WritePhase4MeasurementReport(input Phase4ReportInput) (Phase4ReportPaths, error) {
+	return Phase4ReportPaths{}, nil
+}
