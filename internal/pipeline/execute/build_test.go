@@ -10,6 +10,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/pipeline/execute"
 	"github.com/danabrams/gromit/internal/provider"
@@ -1125,5 +1126,89 @@ func TestBuildRun_BuildStrategySinglePassLabel_SkipsTDDCycleRunner(t *testing.T)
 	}
 	if len(invoker.streamCalls) != 1 {
 		t.Errorf("StreamRun called %d times, want 1 on single-pass path", len(invoker.streamCalls))
+	}
+}
+
+// RED: test for Build stage emitting BuildStartEvent and BuildCompleteEvent
+func TestBuildRun_EmitsBuildStartAndCompleteEvents(t *testing.T) {
+	t.Parallel()
+
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	invoker := &fakeInvoker{
+		streamRunFn: func(_ context.Context, _, _ string, _ io.Writer, _ provider.EventHandler, _ provider.ToolCallHandler) (*provider.Result, error) {
+			return &provider.Result{
+				Success:      true,
+				Model:        "claude-opus-4-1",
+				Duration:     100 * time.Millisecond,
+				CostUSD:      0.01,
+				InputTokens:  100,
+				OutputTokens: 50,
+			}, nil
+		},
+	}
+
+	build := execute.New(invoker, &fakePromptRenderer{}, io.Discard)
+
+	beadID := "build-event-test"
+	cfg := defaultConfig()
+	input := makeInput(makeBead(beadID, "test bead"), cfg)
+	input.Emitter = emitter
+
+	_, err := build.Run(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Build.Run() error = %v", err)
+	}
+
+	// Collect events
+	var emittedEvents []events.Event
+	timeout := time.After(100 * time.Millisecond)
+	for {
+		select {
+		case evt := <-ch:
+			emittedEvents = append(emittedEvents, evt)
+		case <-timeout:
+			goto checkEvents
+		}
+	}
+
+checkEvents:
+	// Verify we got both BuildStartEvent and BuildCompleteEvent
+	var startEvent *events.BuildStartEvent
+	var completeEvent *events.BuildCompleteEvent
+
+	for _, evt := range emittedEvents {
+		if se, ok := evt.(*events.BuildStartEvent); ok {
+			startEvent = se
+		}
+		if ce, ok := evt.(*events.BuildCompleteEvent); ok {
+			completeEvent = ce
+		}
+	}
+
+	if startEvent == nil {
+		t.Fatal("expected BuildStartEvent to be emitted")
+	}
+	if completeEvent == nil {
+		t.Fatal("expected BuildCompleteEvent to be emitted")
+	}
+
+	if startEvent.BeadID != beadID {
+		t.Errorf("BuildStartEvent.BeadID = %q, want %q", startEvent.BeadID, beadID)
+	}
+	if completeEvent.BeadID != beadID {
+		t.Errorf("BuildCompleteEvent.BeadID = %q, want %q", completeEvent.BeadID, beadID)
+	}
+	if completeEvent.Cost != 0.01 {
+		t.Errorf("BuildCompleteEvent.Cost = %f, want 0.01", completeEvent.Cost)
+	}
+	if completeEvent.TokensIn != 100 {
+		t.Errorf("BuildCompleteEvent.TokensIn = %d, want 100", completeEvent.TokensIn)
+	}
+	if completeEvent.TokensOut != 50 {
+		t.Errorf("BuildCompleteEvent.TokensOut = %d, want 50", completeEvent.TokensOut)
 	}
 }

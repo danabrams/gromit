@@ -195,6 +195,16 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 		w = io.Discard
 	}
 
+	// Emit BuildStartEvent
+	if in.Emitter != nil {
+		in.Emitter.Emit(&events.BuildStartEvent{
+			BeadID:      in.Bead.ID,
+			Model:       tier,
+			Attempt:     1,
+			MaxAttempts: 3, // Placeholder for escalation attempts
+		})
+	}
+
 	result, err := b.invoker.StreamRun(ctx, prompt, tier, w, nil, nil)
 	invocationErr := streamRunResultError(result, err)
 	if invocationErr != nil && in.EscalationEnabled {
@@ -213,6 +223,18 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 	}
 	if invocationErr != nil {
 		return pipeline.Output{}, fmt.Errorf("build: LLM invocation: %w", invocationErr)
+	}
+
+	// Emit BuildCompleteEvent
+	if in.Emitter != nil && result != nil {
+		in.Emitter.Emit(&events.BuildCompleteEvent{
+			BeadID:    in.Bead.ID,
+			Success:   result.Success,
+			Duration:  result.Duration,
+			Cost:      result.CostUSD,
+			TokensIn:  result.InputTokens,
+			TokensOut: result.OutputTokens,
+		})
 	}
 
 	out := pipeline.Output{
