@@ -299,12 +299,22 @@ runLoop:
 				ComplexitySource:         baseIn.ComplexitySource,
 				ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 			}
-			// Emit BeadSkippedEvent
-			o.emitter.Emit(&events.BeadSkippedEvent{
-				BeadID: b.ID,
-				Reason: "gate stage returned non-proceed decision",
-				Time:   time.Now(),
-			})
+			switch gateOut.Decision {
+			case pipeline.Skip:
+				o.emitter.Emit(&events.BeadSkippedEvent{
+					BeadID: b.ID,
+					Reason: "gate stage returned skip decision",
+					Time:   time.Now(),
+				})
+			case pipeline.Block:
+				o.emitBeadStuckEvent(b, "gate stage returned block decision")
+			default:
+				o.emitter.Emit(&events.BeadSkippedEvent{
+					BeadID: b.ID,
+					Reason: "gate stage returned non-proceed decision",
+					Time:   time.Now(),
+				})
+			}
 			o.runEpilogue(ctx, baseIn, false)
 			// Emit IterationCompleteEvent
 			o.emitter.Emit(&events.IterationCompleteEvent{
@@ -343,6 +353,7 @@ runLoop:
 		if buildErr != nil {
 			o.logWarning("Warning: build failed for bead %s (iteration %d): %v", b.ID, iteration, buildErr)
 			failurePhase := inferBuildFailurePhase(buildErr)
+			o.emitBeadFailedEvent(b, buildErr.Error())
 			baseIn.Result = &logger.IterationLog{
 				Timestamp:                time.Now(),
 				Iteration:                iteration,
@@ -406,6 +417,16 @@ runLoop:
 				ComplexitySource:         baseIn.ComplexitySource,
 				ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 			}
+			failureReasons := make([]string, 0, len(validateOut.ValidationFailures)+1)
+			failureReasons = append(failureReasons, validateOut.ValidationFailures...)
+			if validateErr != nil {
+				failureReasons = append(failureReasons, validateErr.Error())
+			}
+			failureMessage := strings.Join(failureReasons, "; ")
+			if failureMessage == "" {
+				failureMessage = "validation failed"
+			}
+			o.emitBeadFailedEvent(b, failureMessage)
 			o.runEpilogue(ctx, baseIn, false)
 			// Emit IterationCompleteEvent
 			o.emitter.Emit(&events.IterationCompleteEvent{
@@ -833,4 +854,28 @@ func (o *Orchestrator) emitLog(level string, format string, args ...any) {
 		output = os.Stderr
 	}
 	fmt.Fprintf(output, "[%s] %s\n", level, fmt.Sprintf(format, args...))
+}
+
+func (o *Orchestrator) emitBeadFailedEvent(b *bead.Bead, errMsg string) {
+	if o.emitter == nil || b == nil {
+		return
+	}
+	o.emitter.Emit(&events.BeadFailedEvent{
+		BeadID:    b.ID,
+		BeadTitle: b.Title,
+		Error:     errMsg,
+		Time:      time.Now(),
+	})
+}
+
+func (o *Orchestrator) emitBeadStuckEvent(b *bead.Bead, reason string) {
+	if o.emitter == nil || b == nil {
+		return
+	}
+	o.emitter.Emit(&events.BeadStuckEvent{
+		BeadID:    b.ID,
+		BeadTitle: b.Title,
+		Reason:    reason,
+		Time:      time.Now(),
+	})
 }
