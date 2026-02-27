@@ -86,3 +86,40 @@ func TestEmitterLogger_Log_DoesNothingWhenEmitterNil(t *testing.T) {
 	// Should not panic
 	logger.Log("info", "test %s", "message")
 }
+
+// mockStageWithEmitterMixin is a test fixture that embeds EmitterMixin.
+type mockStageWithEmitterMixin struct {
+	EmitterMixin
+	name string
+}
+
+// TestEmitterMixin_WithEmitter_ReturnsParent tests that WithEmitter returns the parent struct.
+func TestEmitterMixin_WithEmitter_ReturnsParent(t *testing.T) {
+	t.Parallel()
+	emitter := NewEmitter()
+	defer emitter.Close()
+
+	stage := &mockStageWithEmitterMixin{name: "test"}
+	result := stage.WithEmitter(emitter)
+
+	if result != stage {
+		t.Errorf("WithEmitter should return the parent struct")
+	}
+	if stage.Emitter != emitter {
+		t.Errorf("Emitter field not set correctly")
+	}
+}
+
+// TestEmitterMixin_SetEmitter_SetsEmitter tests that SetEmitter sets the emitter field.
+func TestEmitterMixin_SetEmitter_SetsEmitter(t *testing.T) {
+	t.Parallel()
+	emitter := NewEmitter()
+	defer emitter.Close()
+
+	stage := &mockStageWithEmitterMixin{name: "test"}
+	stage.SetEmitter(emitter)
+
+	if stage.Emitter != emitter {
+		t.Errorf("Emitter field not set correctly by SetEmitter")
+	}
+}
