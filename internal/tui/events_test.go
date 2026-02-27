@@ -224,3 +224,55 @@ func TestOnValidationStart_UpdatesPhase(t *testing.T) {
 		t.Fatalf("Phase = %q, want %q", store.Dashboard.ActivePhase.Phase, "validation")
 	}
 }
+
+func TestOnHeartbeat_UpdatesHealthIndicator(t *testing.T) {
+	t.Parallel()
+
+	store := &Store{}
+	event := &events.HeartbeatEvent{
+		Elapsed:           5 * time.Second,
+		ToolCalls:         3,
+		FilesModified:     2,
+		RateLimitHits:     0,
+		WaitingForResponse: true,
+		Time:              time.Unix(5000, 0),
+	}
+
+	store.OnHeartbeat(event)
+
+	if store.Dashboard.HealthIndicator == nil {
+		t.Fatalf("expected HealthIndicator to be set")
+	}
+	if store.Dashboard.HealthIndicator.LastEventType != "heartbeat" {
+		t.Fatalf("LastEventType = %q, want %q", store.Dashboard.HealthIndicator.LastEventType, "heartbeat")
+	}
+	if store.Dashboard.HealthIndicator.IsHealthy != true {
+		t.Fatalf("IsHealthy = %v, want true", store.Dashboard.HealthIndicator.IsHealthy)
+	}
+}
+
+func TestOnStallDetected_MarkUnhealthy(t *testing.T) {
+	t.Parallel()
+
+	store := &Store{
+		Dashboard: DashboardState{
+			HealthIndicator: &HealthIndicator{
+				IsHealthy: true,
+			},
+		},
+	}
+	event := &events.StallDetectedEvent{
+		Elapsed:   15 * time.Second,
+		Threshold: 10 * time.Second,
+		Time:      time.Unix(6000, 0),
+	}
+
+	store.OnStallDetected(event)
+
+	if store.Dashboard.HealthIndicator.IsHealthy != false {
+		t.Fatalf("IsHealthy = %v, want false", store.Dashboard.HealthIndicator.IsHealthy)
+	}
+	if store.Dashboard.HealthIndicator.LastEventType != "stall_detected" {
+		t.Fatalf("LastEventType = %q, want %q", store.Dashboard.HealthIndicator.LastEventType, "stall_detected")
+	}
+}
