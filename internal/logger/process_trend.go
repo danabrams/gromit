@@ -70,6 +70,8 @@ type IterationMetric struct {
 	DefectOriginPhase            string                    `json:"defect_origin_phase,omitempty"`
 	FailureCategory              string                    `json:"failure_category,omitempty"`
 	FailureAttribution           string                    `json:"failure_attribution,omitempty"`
+	Complexity                   string                    `json:"complexity,omitempty"`
+	ComplexitySource             string                    `json:"complexity_source,omitempty"`
 	Success                      bool                      `json:"success"`
 	FirstPassSuccess             bool                      `json:"first_pass_success"`
 	Escalated                    bool                      `json:"escalated"`
@@ -79,6 +81,7 @@ type IterationMetric struct {
 	CostUSD                      float64                   `json:"cost_usd"`
 	InputTokens                  int                       `json:"input_tokens,omitempty"`
 	OutputTokens                 int                       `json:"output_tokens,omitempty"`
+	EstimatedFiles               int                       `json:"estimated_files,omitempty"`
 	MTTRProxyMs                  int64                     `json:"mttr_proxy_ms,omitempty"`
 	RollingSuccessRate           float64                   `json:"rolling_success_rate"`
 	RollingFailureRate           float64                   `json:"rolling_failure_rate"`
