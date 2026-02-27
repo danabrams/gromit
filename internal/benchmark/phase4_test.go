@@ -446,3 +446,63 @@ func TestPhase4FullEvaluation_NoAdoptWhenGatesFail(t *testing.T) {
 		}
 	}
 }
+
+func TestPhase4ReadPairedIterationRecords_HandlesEmptyAndMalformedFiles(t *testing.T) {
+	tests := []struct {
+		name        string
+		content     string
+		expectError bool
+		expectCount int
+	}{
+		{
+			name:        "empty file",
+			content:     "",
+			expectError: false,
+			expectCount: 0,
+		},
+		{
+			name:        "file with only whitespace",
+			content:     "\n\n  \n",
+			expectError: false,
+			expectCount: 0,
+		},
+		{
+			name:        "file with valid and empty lines",
+			content:     `{"discovery_input_tokens_baseline":100,"discovery_input_tokens_retrieval":70,"discovery_latency_ms_baseline":1000,"discovery_latency_ms_retrieval":800,"success_baseline":true,"success_retrieval":true,"wrong_file_retrieval":false}
+
+{"discovery_input_tokens_baseline":90,"discovery_input_tokens_retrieval":65,"discovery_latency_ms_baseline":950,"discovery_latency_ms_retrieval":780,"success_baseline":true,"success_retrieval":false,"wrong_file_retrieval":true}
+`,
+			expectError: false,
+			expectCount: 2,
+		},
+		{
+			name:        "file with truly invalid JSON",
+			content:     `{invalid json}`,
+			expectError: true,
+			expectCount: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			logPath := filepath.Join(tmpDir, "test.jsonl")
+			if err := os.WriteFile(logPath, []byte(tt.content), 0o644); err != nil {
+				t.Fatalf("write test log: %v", err)
+			}
+
+			records, err := readPhase4PairedIterationRecords(logPath)
+
+			if tt.expectError && err == nil {
+				t.Errorf("expected error for %s, got nil", tt.name)
+			}
+			if !tt.expectError && err != nil {
+				t.Errorf("unexpected error for %s: %v", tt.name, err)
+			}
+
+			if len(records) != tt.expectCount {
+				t.Errorf("expected %d records for %s, got %d", tt.expectCount, tt.name, len(records))
+			}
+		})
+	}
+}
