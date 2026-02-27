@@ -63,5 +63,15 @@ Refactor guardrail tests should parse and validate actual declarations (for exam
 
 ## Provisional Learnings
 
+### 2026-02-27 | json_encoding_helpers_should_consolidate_to_single_source | CODE_QUALITY
+*Related to: gromit/review-1772155497602965256*
+
+Consolidating duplicate JSON-encoding helpers (marshalJSONList, encodeJSONStrings) into a single canonical function (tracker.EncodeMetadataJSONList) eliminates behavioral drift between callers and simplifies metadata encoding across packages.
+
+### 2026-02-27 | schema_parity_contract_tests_catch_field_mapping_drift | TEST_QUALITY
+*Related to: gromit/review-1772155497602965256*
+
+Contract tests that compare field presence between IterationLog and IterationMetric (e.g., TestBuildIterationMetrics_FieldParityContractForAttributionFields) catch mapping omissions early and should be extended whenever new observability fields are added.
+
 ## Archived Learnings
 *Moved to LEARNINGS_ARCHIVE.md to reduce prompt context overhead.*
