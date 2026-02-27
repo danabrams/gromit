@@ -117,6 +117,24 @@ func TestEventTypeStringsAreUnique(t *testing.T) {
 	}
 }
 
+func TestEventTypesReportExpectedTypeAndTimestamp(t *testing.T) {
+	t.Parallel()
+	now := time.Unix(1234, 0)
+
+	for _, tc := range specEventCases(now) {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := tc.event.EventType(); got != tc.wantType {
+				t.Fatalf("EventType() = %q, want %q", got, tc.wantType)
+			}
+			if eventTime := tc.event.EventTime(); !eventTime.Equal(now) {
+				t.Fatalf("EventTime() = %v, want %v", eventTime, now)
+			}
+		})
+	}
+}
+
 // TestEventTimeReturnsValidTime tests that EventTime() returns a valid time.
 func TestEventTimeReturnsValidTime(t *testing.T) {
 	t.Parallel()
