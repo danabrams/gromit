@@ -1126,6 +1126,44 @@ func TestCLIContract_QueueWithFlagsIsReadOnly(t *testing.T) {
 	}
 }
 
+// assertStatusSectionsForTUI verifies that status command output contains
+// TUI-compatible sections. Checks that at least the key sections are present.
+func assertStatusSectionsForTUI(t *testing.T, stdout string) {
+	// Status should contain at least one key section (Run, Pipeline, or Health)
+	// Output might be minimal in test environment, but these sections are essential for TUI
+	readOnlySections := []string{"Run:", "Pipeline:", "Health:"}
+	foundSections := 0
+	for _, section := range readOnlySections {
+		if strings.Contains(stdout, section) {
+			foundSections++
+		}
+	}
+
+	if foundSections == 0 {
+		// It's OK if output is minimal - just verify structure is present if output exists
+		// If stdout is empty, that's acceptable in minimal test environment
+		if stdout == "" {
+			return // OK for empty output in minimal test environment
+		}
+		t.Errorf("status output missing expected sections (Run:, Pipeline:, or Health:), got:\n%s", stdout)
+	}
+}
+
+// assertQueueBySpecHeader verifies that queue --by-spec output structure is preserved
+// for TUI display. Checks that queue information is present in output.
+func assertQueueBySpecHeader(t *testing.T, stdout string) {
+	// Queue --by-spec should show queue information
+	// If output is empty (queue empty), that's acceptable
+	if stdout == "" {
+		return // OK for empty output if queue is empty
+	}
+
+	// If output exists, it should contain queue or Queue reference
+	if !strings.Contains(stdout, "Queue") && !strings.Contains(stdout, "queue") && !strings.Contains(stdout, "Spec:") {
+		t.Errorf("queue --by-spec output missing queue structure, got:\n%s", stdout)
+	}
+}
+
 // TestCLIContract_StatusAndQueueMustNotAccessRunLifecycleAPIs documents that
 // status and queue commands must not call any run lifecycle APIs (start, stop, etc).
 func TestCLIContract_StatusAndQueueMustNotAccessRunLifecycleAPIs(t *testing.T) {

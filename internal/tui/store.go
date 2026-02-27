@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"strings"
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -18,7 +19,7 @@ type Store struct {
 
 // DashboardState captures the fields needed to render the dashboard view.
 type DashboardState struct {
-	RunnerStatus       *runner.Status
+	RunnerStatus      *runner.Status
 	PipelineStatus    *pipeline.PipelineStatus
 	RunProgress       *RunProgress
 	ActivePhase       *ActivePhase
@@ -92,7 +93,17 @@ func (s *Store) OnRunComplete(event *events.RunCompleteEvent) {
 	if s.Dashboard.RunProgress == nil {
 		s.Dashboard.RunProgress = &RunProgress{}
 	}
-	s.Dashboard.RunProgress.Status = "completed"
+	s.Dashboard.RunProgress.Status = runCompletionStatus(event.Reason)
+}
+
+func runCompletionStatus(reason string) string {
+	normalized := strings.ToLower(strings.TrimSpace(reason))
+	switch normalized {
+	case "", "completed", "success":
+		return "completed"
+	default:
+		return "failed"
+	}
 }
 
 // OnIterationStart updates the store when an iteration starts.

@@ -63,6 +63,11 @@ Refactor guardrail tests should parse and validate actual declarations (for exam
 
 ## Provisional Learnings
 
+### 2026-02-27 | run_completion_status_should_reflect_failure_reason | RELIABILITY
+*Related to: gromit/review-1772191027352243303*
+
+Run completion UI state should map failure reasons to a failed status so dashboards do not report a running or completed state after an unsuccessful run.
+
 ### 2026-02-27 | json_encoding_helpers_should_consolidate_to_single_source | CODE_QUALITY
 *Related to: gromit/review-1772155497602965256*
 

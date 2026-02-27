@@ -59,6 +59,31 @@ func TestOnRunComplete_UpdatesRunProgress(t *testing.T) {
 	}
 }
 
+func TestOnRunComplete_MarksFailedOnFailureReason(t *testing.T) {
+	t.Parallel()
+
+	store := &Store{
+		Dashboard: DashboardState{
+			RunProgress: &RunProgress{
+				CurrentIteration: 2,
+				MaxIterations:    4,
+				Status:           "running",
+			},
+		},
+	}
+	event := &events.RunCompleteEvent{
+		IterationsCompleted: 2,
+		Reason:              "failed: build error",
+		Time:                time.Unix(3000, 0),
+	}
+
+	store.OnRunComplete(event)
+
+	if store.Dashboard.RunProgress.Status != "failed" {
+		t.Fatalf("Status = %q, want %q", store.Dashboard.RunProgress.Status, "failed")
+	}
+}
+
 func TestOnIterationStart_UpdatesActivePhase(t *testing.T) {
 	t.Parallel()
 
@@ -230,12 +255,12 @@ func TestOnHeartbeat_UpdatesHealthIndicator(t *testing.T) {
 
 	store := &Store{}
 	event := &events.HeartbeatEvent{
-		Elapsed:           5 * time.Second,
-		ToolCalls:         3,
-		FilesModified:     2,
-		RateLimitHits:     0,
+		Elapsed:            5 * time.Second,
+		ToolCalls:          3,
+		FilesModified:      2,
+		RateLimitHits:      0,
 		WaitingForResponse: true,
-		Time:              time.Unix(5000, 0),
+		Time:               time.Unix(5000, 0),
 	}
 
 	store.OnHeartbeat(event)
