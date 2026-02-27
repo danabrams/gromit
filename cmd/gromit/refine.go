@@ -127,12 +127,15 @@ func determineRefineInput(cmd *cobra.Command, args []string, gromitDir string) (
 			return nil, fmt.Errorf("loading backlog: %w", err)
 		}
 
-		// Filter to unrefined
+		// Filter to unrefined and non-closed items
 		var unrefined []*backlog.Idea
 		for _, idea := range ideas {
-			if idea.Status != "refined" {
-				unrefined = append(unrefined, idea)
+			status := strings.ToLower(strings.TrimSpace(idea.Status))
+			if status == "refined" || status == "closed" || status == "rejected" {
+				continue
 			}
+			// Any other status (or empty status) is eligible.
+			unrefined = append(unrefined, idea)
 		}
 
 		// Empty backlog: blank session
