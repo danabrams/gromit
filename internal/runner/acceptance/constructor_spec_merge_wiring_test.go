@@ -5,6 +5,9 @@ package acceptance_test
 import (
 	"context"
 	"io"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -105,4 +108,23 @@ func pipelineInputForSpecBead(buildSucceeded bool) pipeline.Input {
 			},
 		},
 	}
+}
+
+func TestRootHelpGoldenIncludesPRSCommand(t *testing.T) {
+	t.Parallel()
+
+	content := loadRootHelpGolden(t)
+	if !strings.Contains(content, "  prs           ") {
+		t.Fatalf("root help golden file missing prs entry:\n%s", content)
+	}
+}
+
+func loadRootHelpGolden(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join("..", "..", "..", "cmd", "gromit", "testdata", "golden", "root.help.txt")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read root help golden file %q: %v", path, err)
+	}
+	return string(data)
 }
