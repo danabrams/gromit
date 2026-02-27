@@ -58,3 +58,11 @@ func (s *Store) OnRunStart(event *events.RunStartEvent) {
 		Status:           "running",
 	}
 }
+
+// OnRunComplete updates the store when a run completes.
+func (s *Store) OnRunComplete(event *events.RunCompleteEvent) {
+	if s.Dashboard.RunProgress == nil {
+		s.Dashboard.RunProgress = &RunProgress{}
+	}
+	s.Dashboard.RunProgress.Status = "completed"
+}
