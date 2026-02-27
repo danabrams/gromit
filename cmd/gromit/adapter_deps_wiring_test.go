@@ -38,6 +38,7 @@ func TestNewPipelineDeps_WiresAllRequiredAdapters(t *testing.T) {
 		"LLMClient":         deps.LLMClient,
 		"ReviewInvoker":     deps.ReviewInvoker,
 		"TrackerClient":     deps.TrackerClient,
+		"BeadQueryClient":   deps.BeadQueryClient,
 		"BacklogClient":     deps.BacklogClient,
 		"BacklogWriter":     deps.BacklogWriter,
 		"RefineRenderer":    deps.RefineRenderer,
@@ -81,6 +82,7 @@ func TestNewPipelineDeps_AdaptersMatchInterfaceSignatures(t *testing.T) {
 	var _ pipeline.LLMClient = deps.LLMClient
 	var _ pipeline.ReviewInvoker = deps.ReviewInvoker
 	var _ pipeline.TrackerClient = deps.TrackerClient
+	var _ pipeline.BeadQueryClient = deps.BeadQueryClient
 	var _ pipeline.BacklogClient = deps.BacklogClient
 	var _ pipeline.BacklogWriter = deps.BacklogWriter
 	var _ pipeline.RefineRenderer = deps.RefineRenderer
@@ -117,4 +119,3 @@ func TestNewPipelineDeps_IsDocumentedAsSingleDIPoint(t *testing.T) {
 		t.Errorf("NewPipelineDeps should be documented as the single DI point")
 	}
 }
-
