@@ -334,3 +334,92 @@ func TestMapActivePhase_ExtractsPhaseState(t *testing.T) {
 		t.Fatalf("Phase = %q, want %q", result.Phase, "build")
 	}
 }
+
+func TestOnBeadStuck_TracksStuckCompletion(t *testing.T) {
+	t.Parallel()
+
+	store := &Store{}
+	event := &events.BeadStuckEvent{
+		BeadID:    "bead-789",
+		BeadTitle: "Stuck Feature",
+		Reason:    "timeout",
+		Time:      time.Unix(7000, 0),
+	}
+
+	store.OnBeadStuck(event)
+
+	if len(store.Dashboard.RecentCompletions) != 1 {
+		t.Fatalf("expected 1 recent completion, got %d", len(store.Dashboard.RecentCompletions))
+	}
+	if store.Dashboard.RecentCompletions[0].Status != "stuck" {
+		t.Fatalf("Status = %q, want %q", store.Dashboard.RecentCompletions[0].Status, "stuck")
+	}
+}
+
+func TestOnBuildComplete_UpdatesPhase(t *testing.T) {
+	t.Parallel()
+
+	store := &Store{
+		Dashboard: DashboardState{
+			ActivePhase: &ActivePhase{
+				Phase: "build",
+			},
+		},
+	}
+	event := &events.BuildCompleteEvent{
+		BeadID:    "bead-123",
+		Success:   true,
+		Duration:  10 * time.Second,
+		Cost:      0.001,
+		TokensIn:  1000,
+		TokensOut: 200,
+		Time:      time.Unix(8000, 0),
+	}
+
+	store.OnBuildComplete(event)
+
+	if store.Dashboard.ActivePhase.Phase != "build" {
+		t.Fatalf("Phase should still be build")
+	}
+}
+
+func TestMapHealth_ExtractsHealthState(t *testing.T) {
+	t.Parallel()
+
+	store := &Store{
+		Dashboard: DashboardState{
+			HealthIndicator: &HealthIndicator{
+				IsHealthy:       true,
+				LastEventType:   "heartbeat",
+				LastEventTime:   time.Unix(5000, 0),
+				HasStalledBeads: false,
+			},
+		},
+	}
+
+	result := MapHealth(store)
+
+	if result == nil {
+		t.Fatalf("expected non-nil result")
+	}
+	if !result.IsHealthy {
+		t.Fatalf("IsHealthy = %v, want true", result.IsHealthy)
+	}
+	if result.LastEventType != "heartbeat" {
+		t.Fatalf("LastEventType = %q, want %q", result.LastEventType, "heartbeat")
+	}
+}
+
+func TestMapRecentCompletions_ReturnsEmptySlice(t *testing.T) {
+	t.Parallel()
+
+	store := &Store{}
+	result := MapRecentCompletions(store)
+
+	if result == nil {
+		t.Fatalf("expected non-nil slice")
+	}
+	if len(result) != 0 {
+		t.Fatalf("expected empty slice, got %d items", len(result))
+	}
+}
