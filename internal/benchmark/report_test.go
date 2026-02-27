@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	stdstrings "strings"
 	"testing"
 )
 
@@ -193,12 +194,12 @@ func TestWriteReport_MarkdownRendersStableOrderedTables(t *testing.T) {
 
 	content := string(first)
 	for _, section := range []string{"## Per-Mode Summary", "## By-Tier Totals", "## By-Model Totals", "## Quality Metrics", "## Winner Hints"} {
-		if !strings.Contains(content, section) {
+		if !stdstrings.Contains(content, section) {
 			t.Fatalf("markdown missing section %q\n%s", section, content)
 		}
 	}
-	idxSingle := strings.Index(content, "| single_pass |")
-	idxShared := strings.Index(content, "| tdd_shared_context |")
+	idxSingle := stdstrings.Index(content, "| single_pass |")
+	idxShared := stdstrings.Index(content, "| tdd_shared_context |")
 	if idxSingle == -1 || idxShared == -1 {
 		t.Fatalf("mode rows missing from markdown\n%s", content)
 	}
@@ -846,8 +847,62 @@ func TestWritePhase3MeasurementReport_WritesReportAndRunArtifactsToReportsDir(t 
 		"## Cache Hit Rates By Prompt Class",
 		"## Kill-Switch Rollback Assessment",
 	} {
-		if !strings.Contains(content, section) {
+		if !stdstrings.Contains(content, section) {
 			t.Fatalf("missing markdown section %q\n%s", section, content)
+		}
+	}
+}
+
+func TestWritePhase4MeasurementReport_WritesReportArtifacts(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+
+	logPath := filepath.Join(tmpDir, "paired.jsonl")
+	logContent := `{"discovery_input_tokens_baseline":100,"discovery_input_tokens_retrieval":80,"discovery_latency_ms_baseline":1000,"discovery_latency_ms_retrieval":800,"success_baseline":true,"success_retrieval":true,"wrong_file_retrieval":false}` + "\n"
+	if err := os.WriteFile(logPath, []byte(logContent), 0o644); err != nil {
+		t.Fatalf("write phase-4 log: %v", err)
+	}
+
+	paths, err := WritePhase4MeasurementReport(Phase4ReportInput{
+		Timestamp: "20260224T150000Z",
+		LogPath:   logPath,
+	})
+	if err != nil {
+		t.Fatalf("WritePhase4MeasurementReport() error = %v", err)
+	}
+
+	if _, err := os.Stat(paths.JSONPath); err != nil {
+		t.Fatalf("json report missing: %v", err)
+	}
+	if _, err := os.Stat(paths.MarkdownPath); err != nil {
+		t.Fatalf("markdown report missing: %v", err)
+	}
+
+	jsonBytes, err := os.ReadFile(paths.JSONPath)
+	if err != nil {
+		t.Fatalf("read json report: %v", err)
+	}
+	jsonContent := string(jsonBytes)
+	if !stdstrings.Contains(jsonContent, "\"timestamp\": \"20260224T150000Z\"") {
+		t.Fatalf("expected timestamp in json, got %s", jsonContent)
+	}
+	if !stdstrings.Contains(jsonContent, "\"should_adopt\"") {
+		t.Fatalf("expected adoption decision in json, got %s", jsonContent)
+	}
+
+	mdBytes, err := os.ReadFile(paths.MarkdownPath)
+	if err != nil {
+		t.Fatalf("read markdown report: %v", err)
+	}
+	mdContent := string(mdBytes)
+	for _, section := range []string{
+		"# Phase-4 Adoption Report",
+		"## Metrics",
+		"## Gates",
+		"## Adoption Decision",
+	} {
+		if !stdstrings.Contains(mdContent, section) {
+			t.Fatalf("missing markdown section %q\n%s", section, mdContent)
 		}
 	}
 }
