@@ -34,10 +34,37 @@ type Phase4AdoptionGates struct {
 	CanAdopt               bool
 }
 
+type Phase4AdoptionDecision struct {
+	ShouldAdopt bool
+	Reasons     []string
+}
+
 type Phase4MeasurementReport struct {
 	Baseline  Phase4RunMetrics
 	Retrieval Phase4RunMetrics
 	Gates     Phase4AdoptionGates
+}
+
+func ComputePhase4AdoptionDecision(gates Phase4AdoptionGates) Phase4AdoptionDecision {
+	reasons := make([]string, 0)
+
+	if !gates.TokenReductionGate {
+		reasons = append(reasons, "median_discovery_token_reduction_below_20_percent")
+	}
+	if !gates.LatencyReductionGate {
+		reasons = append(reasons, "median_discovery_latency_reduction_below_15_percent")
+	}
+	if !gates.SuccessRateParityGate {
+		reasons = append(reasons, "success_rate_drop_exceeds_5_percent")
+	}
+	if !gates.WrongFileRateGate {
+		reasons = append(reasons, "wrong_file_rate_exceeds_5_percent")
+	}
+
+	return Phase4AdoptionDecision{
+		ShouldAdopt: gates.CanAdopt,
+		Reasons:     reasons,
+	}
 }
 
 func EvaluatePhase4AdoptionGates(baseline, retrieval Phase4RunMetrics) Phase4AdoptionGates {
