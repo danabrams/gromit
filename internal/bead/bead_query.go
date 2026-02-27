@@ -3,6 +3,7 @@ package bead
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -43,6 +44,7 @@ func parseBeadOutputExcluding(out string, excludeType string) (*Bead, error) {
 	if err := jsonutil.ExtractArray(out, &beads); err != nil {
 		return nil, fmt.Errorf("parsing bd output: %w", err)
 	}
+	sortReadyByPriorityThenCreated(beads)
 
 	for i := range beads {
 		if beads[i].Type == excludeType {
@@ -98,6 +100,7 @@ func (c *Client) ReadyExcluding(ctx context.Context, excludeIDs map[string]bool)
 	if err := jsonutil.ExtractArray(out, &beads); err != nil {
 		return nil, fmt.Errorf("parsing bd output: %w", err)
 	}
+	sortReadyByPriorityThenCreated(beads)
 
 	for i := range beads {
 		if beads[i].Type == "epic" || excludeIDs[beads[i].ID] {
@@ -113,6 +116,35 @@ func (c *Client) ReadyExcluding(ctx context.Context, excludeIDs map[string]bool)
 	}
 
 	return nil, nil
+}
+
+func sortReadyByPriorityThenCreated(beads []Bead) {
+	sort.SliceStable(beads, func(i, j int) bool {
+		if beads[i].Priority != beads[j].Priority {
+			return beads[i].Priority < beads[j].Priority
+		}
+
+		left, leftOK := parseCreatedAt(beads[i].CreatedAt)
+		right, rightOK := parseCreatedAt(beads[j].CreatedAt)
+		if leftOK && rightOK && !left.Equal(right) {
+			return left.Before(right)
+		}
+
+		// Keep original order when created_at is missing/unparseable for either item.
+		return false
+	})
+}
+
+func parseCreatedAt(raw string) (time.Time, bool) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return time.Time{}, false
+	}
+	t, err := time.Parse(time.RFC3339Nano, trimmed)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return t, true
 }
 
 // ReadyAny returns the next unblocked bead of any type (including epics)
