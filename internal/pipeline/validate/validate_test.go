@@ -5,8 +5,10 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
 )
@@ -63,6 +65,77 @@ func TestValidate_CleanPass_ReturnsProceed(t *testing.T) {
 	}
 	if len(out.ValidationFailures) != 0 {
 		t.Errorf("ValidationFailures = %v, want empty", out.ValidationFailures)
+	}
+}
+
+func TestValidate_EmitsValidationStartAndPassEvents(t *testing.T) {
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	runner := &fakeCommandRunner{
+		results: []commandRunResult{
+			{stdout: "", stderr: "", exitCode: 0, err: nil},
+		},
+	}
+	stage := New(runner, io.Discard)
+
+	beadID := "validate-event-success"
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled:  true,
+			Commands: []string{"go test ./..."},
+		},
+	}
+	in := pipeline.Input{
+		Bead:    &bead.Bead{ID: beadID, Title: "Event bead"},
+		Config:  cfg,
+		Emitter: emitter,
+	}
+
+	out, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if out.Decision != pipeline.Proceed {
+		t.Fatalf("Decision = %v, want Proceed", out.Decision)
+	}
+
+	emitted := drainEvents(t, ch)
+	var (
+		startIdx = -1
+		passIdx  = -1
+		startEvt *events.ValidationStartEvent
+		passEvt  *events.ValidationPassEvent
+	)
+	for idx, evt := range emitted {
+		switch e := evt.(type) {
+		case *events.ValidationStartEvent:
+			startIdx = idx
+			startEvt = e
+		case *events.ValidationPassEvent:
+			passIdx = idx
+			passEvt = e
+		}
+	}
+	if startEvt == nil {
+		t.Fatal("expected ValidationStartEvent to be emitted")
+	}
+	if passEvt == nil {
+		t.Fatal("expected ValidationPassEvent to be emitted")
+	}
+	if startIdx > passIdx {
+		t.Fatalf("ValidationPassEvent emitted before ValidationStartEvent (%d > %d)", passIdx, startIdx)
+	}
+	if startEvt.BeadID != beadID {
+		t.Fatalf("ValidationStartEvent.BeadID = %q, want %q", startEvt.BeadID, beadID)
+	}
+	if len(startEvt.Commands) != len(cfg.Validation.Commands) {
+		t.Fatalf("ValidationStartEvent.Commands = %v, want %v", startEvt.Commands, cfg.Validation.Commands)
+	}
+	if passEvt.Duration < 0 {
+		t.Fatalf("ValidationPassEvent.Duration = %v, want non-negative", passEvt.Duration)
 	}
 }
 
@@ -293,4 +366,18 @@ func TestValidate_CommandTimeout_ProducesBlockWithTimeoutMessage(t *testing.T) {
 // contains is a helper to check if a string contains a substring (case-insensitive).
 func contains(s, substr string) bool {
 	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
+}
+
+func drainEvents(t *testing.T, ch chan events.Event) []events.Event {
+	t.Helper()
+	var emitted []events.Event
+	timeout := time.After(25 * time.Millisecond)
+	for {
+		select {
+		case evt := <-ch:
+			emitted = append(emitted, evt)
+		case <-timeout:
+			return emitted
+		}
+	}
 }
