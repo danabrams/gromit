@@ -443,7 +443,7 @@ func (c *specGateBeadCreatorWithTrackerClient) Create(ctx context.Context, title
 	// Create metadata map with all the bead information
 	metadata := make(map[string]string)
 	metadata["priority"] = fmt.Sprintf("%d", priorityInt)
-	if encoded := marshalJSONList(labels); encoded != "" {
+	if encoded, ok := tracker.EncodeMetadataJSONList(labels); ok {
 		metadata["labels"] = encoded
 	}
 
