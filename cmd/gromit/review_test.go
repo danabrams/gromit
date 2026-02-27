@@ -771,9 +771,11 @@ func TestCliBacklogClient_ImplementsBacklogWriter(t *testing.T) {
 
 func TestCliBacklogClient_AddUsesTrimmedExpectedOutputs(t *testing.T) {
 	t.Parallel()
-	idea := &pipeline.Idea{
-		Text: "  backlog item  ",
-		Type: "review-finding",
+	entry := &pipeline.BacklogEntry{
+		Title:           "  backlog item  ",
+		Type:            "review-finding",
+		Priority:        2,
+		ExpectedOutputs: []string{"output1", "output2"},
 	}
 
 	var acceptedLabels []string
@@ -793,7 +795,7 @@ func TestCliBacklogClient_AddUsesTrimmedExpectedOutputs(t *testing.T) {
 	}
 
 	backlog := &cliBacklogClient{beadClient: client}
-	if err := backlog.Add(idea); err != nil {
+	if err := backlog.Add(entry); err != nil {
 		t.Fatalf("Add() error = %v", err)
 	}
 
