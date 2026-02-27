@@ -343,3 +343,20 @@ func TestPipeline_ListBeadsMethod(t *testing.T) {
 		t.Error("ListBeads() should error with nil dependencies")
 	}
 }
+
+// TestPipeline_QueryBeadsMethod verifies Pipeline has QueryBeads query method
+// with proper input/output types and nil dependency validation.
+func TestPipeline_QueryBeadsMethod(t *testing.T) {
+	deps := &Deps{}
+	paths := &Paths{}
+	p := New(deps, paths)
+
+	ctx := context.Background()
+	input := QueryBeadsInput{StatusFilter: "ready"}
+
+	// Should return error with nil dependencies
+	_, err := p.QueryBeads(ctx, input)
+	if err == nil {
+		t.Error("QueryBeads() should error with nil dependencies")
+	}
+}

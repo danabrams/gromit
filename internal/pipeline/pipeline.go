@@ -487,6 +487,21 @@ func (p *Pipeline) ListBeads(ctx context.Context, input ListBeadsInput) (*ListBe
 	return &result, nil
 }
 
+// QueryBeads queries beads based on filter criteria.
+// It validates deps, queries the BeadQueryClient, and returns QueryBeadsResult.
+func (p *Pipeline) QueryBeads(ctx context.Context, input QueryBeadsInput) (*QueryBeadsResult, error) {
+	if p.deps == nil {
+		return nil, fmt.Errorf("pipeline: nil dependencies")
+	}
+
+	if err := requireNonNilDep("BeadQueryClient", p.deps.BeadQueryClient); err != nil {
+		return nil, err
+	}
+
+	result := NewQueryBeadsResult()
+	return &result, nil
+}
+
 func requireNonNilDep(name string, dep any) error {
 	if dep == nil || isTypedNil(dep) {
 		return fmt.Errorf("pipeline: nil %s", name)

@@ -238,3 +238,21 @@ func NewListBeadsResult() ListBeadsResult {
 		BeadIDs: []string{},
 	}
 }
+
+// QueryBeadsInput contains parameters for querying beads.
+type QueryBeadsInput struct {
+	StatusFilter string // Filter beads by status
+}
+
+// QueryBeadsResult contains the output from querying beads.
+// Use NewQueryBeadsResult() to create instances with properly initialized slices.
+type QueryBeadsResult struct {
+	Beads []BeadInfo `json:"beads"`
+}
+
+// NewQueryBeadsResult creates a QueryBeadsResult with initialized slices.
+func NewQueryBeadsResult() QueryBeadsResult {
+	return QueryBeadsResult{
+		Beads: []BeadInfo{},
+	}
+}
