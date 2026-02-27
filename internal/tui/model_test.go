@@ -48,3 +48,25 @@ func TestModel_SwitchViewToDashboard(t *testing.T) {
 		t.Errorf("expected view to be Dashboard, got %v", m.currentView)
 	}
 }
+
+func TestModel_FocusMovement(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+
+	// Should start with focus on the first panel
+	if m.focusedPanel != 0 {
+		t.Errorf("expected initial focus to be 0, got %d", m.focusedPanel)
+	}
+
+	// Move focus forward
+	m.FocusNext()
+	if m.focusedPanel != 1 {
+		t.Errorf("expected focus to be 1 after FocusNext, got %d", m.focusedPanel)
+	}
+
+	// Move focus backward
+	m.FocusPrev()
+	if m.focusedPanel != 0 {
+		t.Errorf("expected focus to be 0 after FocusPrev, got %d", m.focusedPanel)
+	}
+}
