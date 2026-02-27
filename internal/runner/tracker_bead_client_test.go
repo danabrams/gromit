@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/tracker"
 )
 
@@ -359,6 +361,74 @@ func TestTrackerBeadClientReadyExcludingFiltersEpicsAndExcludedIDs(t *testing.T)
 	}
 	if bead.ID != "bead-1" {
 		t.Fatalf("bead ID = %s, want bead-1", bead.ID)
+	}
+}
+
+func TestTrackerBeadClientReadyWithLabelUsesBDReady(t *testing.T) {
+	t.Parallel()
+
+	var gotArgs []string
+	bdClient := &bead.Client{
+		RunFn: func(args ...string) (string, error) {
+			gotArgs = append([]string(nil), args...)
+			return `[{"id":"bead-1","title":"Ready bead","description":"desc","priority":1,"labels":["spec:test"],"issue_type":"task","status":"open"}]`, nil
+		},
+	}
+
+	client := &trackerBeadClient{client: bead.NewBDAdapter(bdClient)}
+	result, err := client.ReadyWithLabel(context.Background(), "spec:test")
+	if err != nil {
+		t.Fatalf("ReadyWithLabel returned error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("ReadyWithLabel returned nil bead")
+	}
+	if result.ID != "bead-1" {
+		t.Fatalf("bead ID = %s, want bead-1", result.ID)
+	}
+
+	wantArgs := []string{"ready", "--json", "--limit", "3", "--label", "spec:test"}
+	if !reflect.DeepEqual(gotArgs, wantArgs) {
+		t.Fatalf("bd args = %v, want %v", gotArgs, wantArgs)
+	}
+}
+
+func TestTrackerBeadClientReadyWithLabelFallsBackToListWithLabel(t *testing.T) {
+	t.Parallel()
+
+	client := &stubTrackerClient{
+		listWithLabelFn: func(ctx context.Context, label string) ([]tracker.Item, error) {
+			return []tracker.Item{
+				{
+					ID:     "bead-closed",
+					Title:  "Closed",
+					Status: tracker.StatusClosed,
+					Metadata: map[string]string{
+						"priority": "1",
+					},
+				},
+				{
+					ID:     "bead-open",
+					Title:  "Open",
+					Status: tracker.StatusOpen,
+					Metadata: map[string]string{
+						"priority": "2",
+					},
+				},
+			}, nil
+		},
+	}
+
+	beads := newTrackerBeadClient(client)
+	result, err := beads.ReadyWithLabel(context.Background(), "spec:test")
+	if err != nil {
+		t.Fatalf("ReadyWithLabel returned error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("ReadyWithLabel returned nil bead")
+	}
+	if result.ID != "bead-open" {
+		t.Fatalf("bead ID = %s, want bead-open", result.ID)
 	}
 }
 
