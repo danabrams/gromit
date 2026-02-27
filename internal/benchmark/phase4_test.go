@@ -151,3 +151,49 @@ func TestPhase4SummarizeRun_ComputesMediansAndRates(t *testing.T) {
 		t.Errorf("retrieval wrong file rate: expected %.2f, got %.2f", expectedWrongFileRate, retrievalMetrics.WrongFileRate)
 	}
 }
+
+func TestPhase4RunMeasurement_IntegratesPairedMetricsAndGates(t *testing.T) {
+	tmpDir := t.TempDir()
+	logPath := filepath.Join(tmpDir, "paired.jsonl")
+
+	logContent := `{"discovery_input_tokens_baseline":100,"discovery_input_tokens_retrieval":70,"discovery_latency_ms_baseline":1000,"discovery_latency_ms_retrieval":800,"success_baseline":true,"success_retrieval":true,"wrong_file_retrieval":false}
+{"discovery_input_tokens_baseline":90,"discovery_input_tokens_retrieval":65,"discovery_latency_ms_baseline":950,"discovery_latency_ms_retrieval":780,"success_baseline":true,"success_retrieval":true,"wrong_file_retrieval":false}
+{"discovery_input_tokens_baseline":110,"discovery_input_tokens_retrieval":75,"discovery_latency_ms_baseline":1050,"discovery_latency_ms_retrieval":820,"success_baseline":true,"success_retrieval":true,"wrong_file_retrieval":false}
+`
+
+	if err := os.WriteFile(logPath, []byte(logContent), 0o644); err != nil {
+		t.Fatalf("write test log: %v", err)
+	}
+
+	report, err := RunPhase4Measurement(logPath)
+	if err != nil {
+		t.Fatalf("RunPhase4Measurement failed: %v", err)
+	}
+
+	// Verify baseline metrics
+	if report.Baseline.MedianDiscoveryInputTokens != 100 {
+		t.Errorf("baseline median tokens: expected 100, got %d", report.Baseline.MedianDiscoveryInputTokens)
+	}
+
+	// Verify retrieval metrics
+	if report.Retrieval.MedianDiscoveryInputTokens != 70 {
+		t.Errorf("retrieval median tokens: expected 70, got %d", report.Retrieval.MedianDiscoveryInputTokens)
+	}
+
+	// Verify gates - all should pass with 30% token reduction and 20% latency reduction
+	if !report.Gates.TokenReductionGate {
+		t.Errorf("TokenReductionGate should pass")
+	}
+	if !report.Gates.LatencyReductionGate {
+		t.Errorf("LatencyReductionGate should pass")
+	}
+	if !report.Gates.SuccessRateParityGate {
+		t.Errorf("SuccessRateParityGate should pass")
+	}
+	if !report.Gates.WrongFileRateGate {
+		t.Errorf("WrongFileRateGate should pass")
+	}
+	if !report.Gates.CanAdopt {
+		t.Errorf("CanAdopt should be true when all gates pass")
+	}
+}
