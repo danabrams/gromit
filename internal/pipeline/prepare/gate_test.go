@@ -807,3 +807,40 @@ func TestConsolidatedMocks_DataQualityBlockerCanBeCreatedWithHelper(t *testing.T
 		t.Errorf("reason = %q, want %q", reason, "incomplete_data")
 	}
 }
+
+// RED: test for gate outcomes emitting typed events
+func TestGateRun_SkipEmitsGateSkipEvent(t *testing.T) {
+	t.Parallel()
+
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	gate := New(io.Discard).WithPrechecker(newMockPrechecker().WithCheck(true, nil))
+
+	beadID := "skip-test"
+	_, err := gate.Run(context.Background(), pipeline.Input{
+		Bead:    &bead.Bead{ID: beadID, Title: "test bead"},
+		Emitter: emitter,
+	})
+	if err != nil {
+		t.Fatalf("Gate.Run() error = %v", err)
+	}
+
+	select {
+	case evt := <-ch:
+		skipEvt, ok := evt.(*events.GateSkipEvent)
+		if !ok {
+			t.Fatalf("expected GateSkipEvent, got %T", evt)
+		}
+		if skipEvt.BeadID != beadID {
+			t.Errorf("BeadID = %q, want %q", skipEvt.BeadID, beadID)
+		}
+		if skipEvt.Reason != "precheck_passed" {
+			t.Errorf("Reason = %q, want %q", skipEvt.Reason, "precheck_passed")
+		}
+	case <-time.After(50 * time.Millisecond):
+		t.Fatal("expected GateSkipEvent to be emitted")
+	}
+}

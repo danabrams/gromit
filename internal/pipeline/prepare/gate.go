@@ -121,6 +121,12 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 		if err != nil {
 			g.Log("warning", "Warning: precheck failed for bead %s: %v", in.Bead.ID, err)
 		} else if done {
+			if in.Emitter != nil {
+				in.Emitter.Emit(&events.GateSkipEvent{
+					BeadID: in.Bead.ID,
+					Reason: "precheck_passed",
+				})
+			}
 			return pipeline.Output{
 				Decision:          pipeline.Skip,
 				ComplexityRouting: complexityRouting,
