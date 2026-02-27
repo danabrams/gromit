@@ -392,3 +392,57 @@ func TestPhase4AdoptionGates_EdgeCases(t *testing.T) {
 		})
 	}
 }
+
+func TestPhase4FullEvaluation_NoAdoptWhenGatesFail(t *testing.T) {
+	tmpDir := t.TempDir()
+	logPath := filepath.Join(tmpDir, "paired.jsonl")
+
+	// Create a scenario where retrieval performs worse than baseline
+	logContent := `{"discovery_input_tokens_baseline":100,"discovery_input_tokens_retrieval":95,"discovery_latency_ms_baseline":1000,"discovery_latency_ms_retrieval":980,"success_baseline":true,"success_retrieval":false,"wrong_file_retrieval":true}
+{"discovery_input_tokens_baseline":90,"discovery_input_tokens_retrieval":88,"discovery_latency_ms_baseline":950,"discovery_latency_ms_retrieval":940,"success_baseline":true,"success_retrieval":true,"wrong_file_retrieval":true}
+{"discovery_input_tokens_baseline":110,"discovery_input_tokens_retrieval":105,"discovery_latency_ms_baseline":1050,"discovery_latency_ms_retrieval":1030,"success_baseline":true,"success_retrieval":false,"wrong_file_retrieval":true}
+`
+
+	if err := os.WriteFile(logPath, []byte(logContent), 0o644); err != nil {
+		t.Fatalf("write test log: %v", err)
+	}
+
+	report, err := RunPhase4Measurement(logPath)
+	if err != nil {
+		t.Fatalf("RunPhase4Measurement failed: %v", err)
+	}
+
+	// Verify gates fail (minimal improvement doesn't meet thresholds)
+	if report.Gates.CanAdopt {
+		t.Errorf("CanAdopt should be false when gates fail")
+	}
+
+	// Verify specific gate failures
+	if report.Gates.TokenReductionGate {
+		t.Errorf("TokenReductionGate should fail (only 3%% reduction)")
+	}
+	if report.Gates.WrongFileRateGate {
+		t.Errorf("WrongFileRateGate should fail (67%% wrong-file rate)")
+	}
+	if report.Gates.SuccessRateParityGate {
+		t.Errorf("SuccessRateParityGate should fail (33%% success drop)")
+	}
+
+	// Verify adoption decision reflects failures
+	decision := ComputePhase4AdoptionDecision(report.Gates)
+	if decision.ShouldAdopt {
+		t.Errorf("adoption decision should be no-adopt")
+	}
+	if len(decision.Reasons) < 3 {
+		t.Errorf("should have at least 3 failure reasons, got %d", len(decision.Reasons))
+	}
+
+	// Verify all failure reasons are documented
+	reasonsStr := stdstrings.Join(decision.Reasons, ",")
+	requiredReasons := []string{"token", "wrong_file", "success_rate"}
+	for _, required := range requiredReasons {
+		if !stdstrings.Contains(reasonsStr, required) {
+			t.Errorf("expected reason containing '%s' in %v", required, decision.Reasons)
+		}
+	}
+}
