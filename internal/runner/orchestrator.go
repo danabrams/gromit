@@ -149,6 +149,14 @@ func (o *Orchestrator) Run(ctx context.Context, maxIterations int, deadline time
 	if stopCh == nil {
 		stopCh = make(chan struct{})
 	}
+
+	// Start subscribers before entering the main loop
+	if err := o.StartSubscribers(ctx); err != nil {
+		return fmt.Errorf("failed to start subscribers: %w", err)
+	}
+
+	// Ensure emitter is closed after the loop completes
+	defer o.emitter.Close()
 	if o.cfg.TrendUpdater != nil {
 		defer o.cfg.TrendUpdater.Close()
 	}
