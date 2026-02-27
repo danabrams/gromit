@@ -7,6 +7,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/queue"
 	"github.com/danabrams/gromit/internal/tracker"
 )
 
@@ -173,6 +174,43 @@ func TestPartitionQueueBeads_SeparatesReadyBlockedAndStuck(t *testing.T) {
 	}
 	if len(stuck) != 2 || stuck[0].ID != "stuck-ready" || stuck[1].ID != "stuck-blocked" {
 		t.Fatalf("stuck = %+v, want [stuck-ready stuck-blocked]", stuck)
+	}
+}
+
+// TestPartitionQueueBeads_RegressionAssertion_UsesQueuePackage verifies that
+// partitionQueueBeads uses the queue package implementation.
+func TestPartitionQueueBeads_RegressionAssertion_UsesQueuePackage(t *testing.T) {
+	t.Parallel()
+	readyInput := []*bead.Bead{
+		{ID: "ready-1", Priority: 1, Title: "Ready 1"},
+		{ID: "stuck-ready", Priority: 0, Title: "Stuck But Ready"},
+	}
+	all := []*bead.Bead{
+		{ID: "stuck-ready", Priority: 0, Title: "Stuck But Ready"},
+		{ID: "ready-1", Priority: 1, Title: "Ready 1"},
+		{ID: "blocked-1", Priority: 2, Title: "Blocked 1"},
+		{ID: "stuck-blocked", Priority: 2, Title: "Stuck Blocked"},
+	}
+	stats := map[string]logger.BeadStats{
+		"stuck-ready":   {BeadID: "stuck-ready", Failures: 3},
+		"stuck-blocked": {BeadID: "stuck-blocked", Failures: 4},
+	}
+
+	// Call the queue package function directly
+	readyPkg, blockedPkg, stuckPkg := queue.PartitionQueueBeads(readyInput, all, stats, 3)
+
+	// Call the cmd wrapper
+	readyCmd, blockedCmd, stuckCmd := partitionQueueBeads(readyInput, all, stats, 3)
+
+	// Both should produce identical results
+	if len(readyPkg) != len(readyCmd) || len(blockedPkg) != len(blockedCmd) || len(stuckPkg) != len(stuckCmd) {
+		t.Fatalf("queue package and cmd wrapper produced different results")
+	}
+
+	for i := range readyPkg {
+		if readyPkg[i].ID != readyCmd[i].ID {
+			t.Fatalf("ready[%d] mismatch: pkg=%v, cmd=%v", i, readyPkg[i].ID, readyCmd[i].ID)
+		}
 	}
 }
 
