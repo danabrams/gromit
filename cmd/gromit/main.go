@@ -477,6 +477,18 @@ func resolveLegacyRunSpecScope(cfg *config.Config, specsDir, specFlag string, or
 	return []string{label}, nil
 }
 
+// hasOpenBeadsForLabelWithClient is a testable version that accepts a bead client.
+// It threads the provided context through to ListWithLabel.
+func hasOpenBeadsForLabelWithClient(ctx context.Context, label string, client interface {
+	ListWithLabel(context.Context, string) ([]*bead.Bead, error)
+}) (bool, error) {
+	beads, err := client.ListWithLabel(ctx, label)
+	if err != nil {
+		return false, err
+	}
+	return len(beads) > 0, nil
+}
+
 func hasOpenBeadsForLabel(label string) (bool, error) {
 	client, err := bead.NewClient()
 	if err != nil {
