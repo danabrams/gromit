@@ -43,6 +43,74 @@ func TestTrackerBeadClientReadyReturnsConvertedBead(t *testing.T) {
 	}
 }
 
+func TestTrackerBeadClientAddCommentPassesThrough(t *testing.T) {
+	t.Parallel()
+
+	var capturedID string
+	var capturedComment string
+	client := &stubTrackerClient{
+		addCommentFn: func(ctx context.Context, id, comment string) error {
+			capturedID = id
+			capturedComment = comment
+			return nil
+		},
+	}
+
+	beads := newTrackerBeadClient(client)
+	err := beads.AddComment(context.Background(), "bead-1", "Test comment")
+	if err != nil {
+		t.Fatalf("AddComment returned error: %v", err)
+	}
+	if capturedID != "bead-1" {
+		t.Fatalf("captured ID = %s, want bead-1", capturedID)
+	}
+	if capturedComment != "Test comment" {
+		t.Fatalf("captured comment = %s, want Test comment", capturedComment)
+	}
+}
+
+func TestTrackerBeadClientClosePassesThrough(t *testing.T) {
+	t.Parallel()
+
+	var capturedID string
+	client := &stubTrackerClient{
+		closeFn: func(ctx context.Context, id string) error {
+			capturedID = id
+			return nil
+		},
+	}
+
+	beads := newTrackerBeadClient(client)
+	err := beads.Close(context.Background(), "bead-1")
+	if err != nil {
+		t.Fatalf("Close returned error: %v", err)
+	}
+	if capturedID != "bead-1" {
+		t.Fatalf("captured ID = %s, want bead-1", capturedID)
+	}
+}
+
+func TestTrackerBeadClientSyncPassesThrough(t *testing.T) {
+	t.Parallel()
+
+	syncCalled := false
+	client := &stubTrackerClient{
+		syncFn: func(ctx context.Context) error {
+			syncCalled = true
+			return nil
+		},
+	}
+
+	beads := newTrackerBeadClient(client)
+	err := beads.Sync(context.Background())
+	if err != nil {
+		t.Fatalf("Sync returned error: %v", err)
+	}
+	if !syncCalled {
+		t.Fatal("Sync was not called on the underlying client")
+	}
+}
+
 func TestTrackerBeadClientCreateEncodesMetadata(t *testing.T) {
 	t.Parallel()
 
@@ -245,6 +313,9 @@ type stubTrackerClient struct {
 	listWithLabelFn      func(ctx context.Context, label string) ([]tracker.Item, error)
 	createFn             func(ctx context.Context, req tracker.CreateRequest) (*tracker.Item, error)
 	createWithParentFn   func(ctx context.Context, req tracker.CreateRequest, parentID string) (*tracker.Item, error)
+	addCommentFn         func(ctx context.Context, id, comment string) error
+	closeFn              func(ctx context.Context, id string) error
+	syncFn               func(ctx context.Context) error
 }
 
 func (s *stubTrackerClient) Ready(ctx context.Context) (*tracker.Item, error) {
@@ -287,12 +358,21 @@ func (s *stubTrackerClient) ListWithLabel(ctx context.Context, label string) ([]
 	return nil, nil
 }
 func (s *stubTrackerClient) Close(ctx context.Context, id string) error {
+	if s.closeFn != nil {
+		return s.closeFn(ctx, id)
+	}
 	return nil
 }
 func (s *stubTrackerClient) Sync(ctx context.Context) error {
+	if s.syncFn != nil {
+		return s.syncFn(ctx)
+	}
 	return nil
 }
 func (s *stubTrackerClient) AddComment(ctx context.Context, id, comment string) error {
+	if s.addCommentFn != nil {
+		return s.addCommentFn(ctx, id, comment)
+	}
 	return nil
 }
 func (s *stubTrackerClient) HasOpenChildren(ctx context.Context, parentID string) (bool, error) {
