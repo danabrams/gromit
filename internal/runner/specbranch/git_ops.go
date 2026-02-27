@@ -6,17 +6,23 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/runner/specmerge"
 )
 
 // GitOps provides git operations for spec branch lifecycle.
 type GitOps struct {
-	repoDir string
+	repoDir    string
+	baseBranch string
 }
 
 // NewGitOps creates a GitOps instance for the given repository directory.
-func NewGitOps(repoDir string) *GitOps {
-	return &GitOps{repoDir: repoDir}
+func NewGitOps(repoDir, baseBranch string) *GitOps {
+	baseBranch = strings.TrimSpace(baseBranch)
+	if baseBranch == "" {
+		baseBranch = config.DefaultBaseBranch
+	}
+	return &GitOps{repoDir: repoDir, baseBranch: baseBranch}
 }
 
 // CreateOrCheckoutSpecBranch creates a new spec branch or checks out an existing one.
@@ -81,11 +87,11 @@ func (g *GitOps) RebaseOnto(ctx context.Context, branch, onto string) error {
 	return fmt.Errorf("failed to rebase branch %s onto %s: %w", branch, onto, err)
 }
 
-// RebaseSpecOntoMain rebases the spec branch onto the main branch.
+// RebaseSpecOntoMain rebases the spec branch onto the configured base branch.
 // Returns a ConflictError if a rebase conflict occurs.
-// Convenience method that calls RebaseOnto with main as the target.
+// Convenience method that calls RebaseOnto with the configured base branch as the target.
 func (g *GitOps) RebaseSpecOntoMain(ctx context.Context, specBranchName string) error {
-	return g.RebaseOnto(ctx, specBranchName, "main")
+	return g.RebaseOnto(ctx, specBranchName, g.baseBranchOrDefault())
 }
 
 // FastForwardMerge merges the branch into the current branch using fast-forward only.
@@ -116,16 +122,16 @@ func (g *GitOps) FastForwardMerge(ctx context.Context, branch string) error {
 	return fmt.Errorf("failed to fast-forward merge branch %s: %w", branch, err)
 }
 
-// FastForwardMergeToMain merges the spec branch into main using fast-forward only.
+// FastForwardMergeToMain merges the spec branch into the configured base branch using fast-forward only.
 // Returns a ConflictError if the merge would result in a conflict.
-// Convenience method that checks out main and calls FastForwardMerge.
+// Convenience method that checks out the configured base branch and calls FastForwardMerge.
 func (g *GitOps) FastForwardMergeToMain(ctx context.Context, specBranchName string) error {
 	if specBranchName == "" {
 		return fmt.Errorf("spec branch name cannot be empty")
 	}
 
 	// Check out main
-	cmd := exec.CommandContext(ctx, "git", "checkout", "main")
+	cmd := exec.CommandContext(ctx, "git", "checkout", g.baseBranchOrDefault())
 	cmd.Dir = g.repoDir
 	_, err := cmd.CombinedOutput()
 	if err != nil {
@@ -176,4 +182,11 @@ func isMergeConflict(output string, err error) bool {
 		strings.Contains(output, "conflict") ||
 		strings.Contains(output, "Merge made by") ||
 		strings.Contains(output, "Not possible to fast-forward")
+}
+
+func (g *GitOps) baseBranchOrDefault() string {
+	if g == nil || g.baseBranch == "" {
+		return config.DefaultBaseBranch
+	}
+	return g.baseBranch
 }

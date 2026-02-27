@@ -17,7 +17,7 @@ import (
 // creates a new spec branch when it doesn't exist.
 func TestCreateOrCheckoutSpecBranch_CreatesNewBranch(t *testing.T) {
 	fixture := helpers.NewDeterministicGitConflictFixture(t)
-	ops := NewGitOps(fixture.Dir)
+	ops := NewGitOps(fixture.Dir, fixture.BaseBranch)
 
 	specBranchName := "gromit/spec-test-feature"
 
@@ -50,7 +50,7 @@ func TestCreateOrCheckoutSpecBranch_CreatesNewBranch(t *testing.T) {
 // the spec branch onto main without conflicts.
 func TestRebaseSpecOntoMain_Rebases(t *testing.T) {
 	fixture := helpers.NewDeterministicGitConflictFixture(t)
-	ops := NewGitOps(fixture.Dir)
+	ops := NewGitOps(fixture.Dir, fixture.BaseBranch)
 
 	specBranchName := "gromit/spec-rebase-test"
 
@@ -112,7 +112,7 @@ func TestRebaseSpecOntoMain_Rebases(t *testing.T) {
 // successfully merges the spec branch into main.
 func TestFastForwardMergeToMain_MergesSuccessfully(t *testing.T) {
 	fixture := helpers.NewDeterministicGitConflictFixture(t)
-	ops := NewGitOps(fixture.Dir)
+	ops := NewGitOps(fixture.Dir, fixture.BaseBranch)
 
 	specBranchName := "gromit/spec-merge-test"
 
@@ -164,7 +164,7 @@ func TestFastForwardMergeToMain_MergesSuccessfully(t *testing.T) {
 // successfully deletes the spec branch.
 func TestDeleteSpecBranch_DeletesSuccessfully(t *testing.T) {
 	fixture := helpers.NewDeterministicGitConflictFixture(t)
-	ops := NewGitOps(fixture.Dir)
+	ops := NewGitOps(fixture.Dir, fixture.BaseBranch)
 
 	specBranchName := "gromit/spec-delete-test"
 
@@ -227,7 +227,7 @@ func TestRebaseSpecOntoMain_UsesConfiguredBaseBranch(t *testing.T) {
 // returns a ConflictError when rebase conflicts occur.
 func TestRebaseSpecOntoMain_ReturnsConflictError(t *testing.T) {
 	fixture := helpers.NewDeterministicGitConflictFixture(t)
-	ops := NewGitOps(fixture.Dir)
+	ops := NewGitOps(fixture.Dir, fixture.BaseBranch)
 
 	// Make a conflicting spec branch
 	specBranchName := "gromit/spec-conflict-test"
@@ -309,7 +309,7 @@ func TestRebaseSpecOntoMain_ReturnsConflictError(t *testing.T) {
 // returns a ConflictError when the branch cannot be fast-forward merged.
 func TestFastForwardMergeToMain_ReturnsConflictError(t *testing.T) {
 	fixture := helpers.NewDeterministicGitConflictFixture(t)
-	ops := NewGitOps(fixture.Dir)
+	ops := NewGitOps(fixture.Dir, fixture.BaseBranch)
 
 	// Create spec branch with changes
 	specBranchName := "gromit/spec-merge-conflict-test"
@@ -352,7 +352,7 @@ func TestFastForwardMergeToMain_ReturnsConflictError(t *testing.T) {
 // the specmerge.GitOps interface.
 func TestGitOpsImplementsSpecmergeInterface(t *testing.T) {
 	fixture := helpers.NewDeterministicGitConflictFixture(t)
-	ops := NewGitOps(fixture.Dir)
+	ops := NewGitOps(fixture.Dir, fixture.BaseBranch)
 
 	// Verify that GitOps implements specmerge.GitOps interface
 	var _ specmerge.GitOps = ops
