@@ -189,9 +189,13 @@ var benchmarkPhase4ReportCmd = &cobra.Command{
 	Short:        "Generate phase-4 adoption report",
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		logPath := strings.TrimSpace(benchmarkPhase4Log)
+		if logPath == "" {
+			return fmt.Errorf("--log must be a non-empty path")
+		}
 		_, err := benchmarkWritePhase4MeasurementReportFn(benchpkg.Phase4ReportInput{
 			Timestamp: benchmarkPhase4OutputTS,
-			LogPath:   benchmarkPhase4Log,
+			LogPath:   logPath,
 		})
 		return err
 	},
