@@ -257,6 +257,10 @@ func (m *mockBeadClientTyped) Close(ctx context.Context, id string) error {
 	return nil
 }
 
+func (m *mockBeadClientTyped) ListWithLabel(ctx context.Context, label string) ([]string, error) {
+	return nil, nil
+}
+
 // NOTE: mockPromptRendererTyped is commented out until the required types exist
 //
 // type mockPromptRendererTyped struct {

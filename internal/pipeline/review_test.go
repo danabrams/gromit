@@ -889,6 +889,11 @@ func (m *reviewAcceptanceMockBeadClient) Close(ctx context.Context, id string) e
 	return nil
 }
 
+func (m *reviewAcceptanceMockBeadClient) ListWithLabel(ctx context.Context, label string) ([]string, error) {
+	// Default implementation returns empty list
+	return []string{}, nil
+}
+
 type reviewAcceptanceMockBacklogWriter struct {
 	addFunc func(entry *BacklogEntry) error
 }

@@ -73,6 +73,10 @@ func (m *testBeadClient) Close(ctx context.Context, id string) error {
 	return nil
 }
 
+func (m *testBeadClient) ListWithLabel(ctx context.Context, label string) ([]string, error) {
+	return nil, nil
+}
+
 // testBacklogClient is a mock for unit tests
 type testBacklogClient struct{}
 

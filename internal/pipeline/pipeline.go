@@ -141,6 +141,7 @@ type TrackerClient interface {
 	Create(ctx context.Context, title string, priority int, labels []string, outputs []string) (*BeadInfo, error)
 	CreateWithDepsAndDescription(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error)
 	Close(ctx context.Context, id string) error
+	ListWithLabel(ctx context.Context, label string) ([]string, error) // Returns slice of bead IDs with the given label
 }
 
 // BeadQueryClient abstracts bead query and status operations.
@@ -411,22 +412,31 @@ func (p *Pipeline) validateReviewDeps() error {
 }
 
 // ResolveReviewScope resolves the starting commit for a review based on scope flags.
-// Priority: --since > --spec > --epic > state file (handled by caller)
-// This is a minimal implementation that handles --since; other flags are delegated to caller.
+// Priority: --since > --spec > --epic > (state file - handled by caller if no flags provided)
 func (p *Pipeline) ResolveReviewScope(ctx context.Context, spec string, epic string, since string) (string, error) {
 	// Priority: --since flag first
 	if since != "" {
 		return since, nil
 	}
 
-	// --spec and --epic flags require additional dependencies and git operations
-	// These are delegated to the caller (cmd/gromit/review.go) for now
-	if spec != "" || epic != "" {
-		return "", fmt.Errorf("Pipeline.ResolveReviewScope: spec and epic resolution delegated to caller")
+	// --spec flag: resolve from spec beads
+	if spec != "" {
+		if err := requireNonNilDep("TrackerClient", p.deps.TrackerClient); err != nil {
+			return "", err
+		}
+		return resolveSpecScope(ctx, spec, p.deps.TrackerClient)
 	}
 
-	// Neither flag provided - caller should use state file or other default
-	return "", fmt.Errorf("Pipeline.ResolveReviewScope: no scope specified")
+	// --epic flag: resolve from epic specs
+	if epic != "" {
+		if err := requireNonNilDep("TrackerClient", p.deps.TrackerClient); err != nil {
+			return "", err
+		}
+		return resolveEpicScope(ctx, epic, p.paths.SpecsDir, p.deps.TrackerClient)
+	}
+
+	// No flags provided - caller should use state file or other default
+	return "", fmt.Errorf("Pipeline.ResolveReviewScope: no scope specified, use --since, --spec, --epic, or check state file")
 }
 
 // ListBeads lists beads matching the given query criteria.

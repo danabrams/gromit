@@ -548,6 +548,10 @@ func (m *typedInterfacesBeadClient) Close(ctx context.Context, id string) error 
 	return fmt.Errorf("not implemented")
 }
 
+func (m *typedInterfacesBeadClient) ListWithLabel(ctx context.Context, label string) ([]string, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
 type typedInterfacesReviewRenderer struct {
 	renderThoroughReviewFn func(input *ThoroughReviewPromptInput) (string, error)
 }

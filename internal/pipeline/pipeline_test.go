@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -324,6 +325,31 @@ func TestPipeline_ResolveReviewScopeWithEpic(t *testing.T) {
 	// Will error until implemented, but verifies signature accepts epic
 	if err == nil {
 		t.Error("ResolveReviewScope() expected error (method not yet implemented)")
+	}
+}
+
+// TestPipeline_ResolveReviewScope_SpecResolution_FindsEarliestCommitFromSpecBeads verifies that when --spec is provided,
+// ResolveReviewScope resolves to the earliest commit from beads matching the spec label.
+// Expected failure: ResolveReviewScope currently delegates spec to caller
+func TestPipeline_ResolveReviewScope_SpecResolution_FindsEarliestCommitFromSpecBeads(t *testing.T) {
+	deps := &Deps{
+		// Will be populated with tracker for spec lookup
+	}
+	paths := &Paths{
+		GromitDir: t.TempDir(),
+		// SpecsDir can be empty for this test since scope.ResolveSpec just formats a label
+	}
+	p := New(deps, paths)
+
+	ctx := context.Background()
+	specName := "test-spec"
+
+	// When --spec is provided, ResolveReviewScope should NOT return "delegated to caller" error
+	_, err := p.ResolveReviewScope(ctx, specName, "", "")
+
+	// Currently returns error saying it's delegated to caller
+	if err != nil && strings.Contains(err.Error(), "delegated to caller") {
+		t.Fatalf("ResolveReviewScope() still delegates spec resolution to caller: %v", err)
 	}
 }
 

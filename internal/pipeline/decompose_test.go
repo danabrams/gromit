@@ -1756,6 +1756,10 @@ func (m *decomposeAcceptanceBeadClient) Close(ctx context.Context, id string) er
 	return nil
 }
 
+func (m *decomposeAcceptanceBeadClient) ListWithLabel(ctx context.Context, label string) ([]string, error) {
+	return nil, nil
+}
+
 // TestDecomposeWorkflow_UsesExpectedOutputsWhenNonEmpty verifies that when expected_outputs is non-empty,
 // it is passed to CreateWithDepsAndDescription instead of acceptance_criteria.
 func TestDecomposeWorkflow_UsesExpectedOutputsWhenNonEmpty(t *testing.T) {
