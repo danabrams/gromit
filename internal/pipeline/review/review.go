@@ -36,12 +36,12 @@ type GitDiffFn func() (string, error)
 // Review implements pipeline.Stage for Stage 4: optional LLM code review.
 // It is stateless across iterations; all state flows through Input and Output.
 type Review struct {
-	invoker  Invoker
-	beads    BeadCreator
-	renderer PromptRenderer
-	gitDiff  GitDiffFn
-	output   io.Writer
-	emitter  *events.Emitter
+	events.EmitterMixin // provides Emitter field and SetEmitter method
+	invoker             Invoker
+	beads               BeadCreator
+	renderer            PromptRenderer
+	gitDiff             GitDiffFn
+	output              io.Writer
 }
 
 // Compile-time check: *Review must implement pipeline.Stage.
@@ -61,13 +61,8 @@ func New(invoker Invoker, beads BeadCreator, renderer PromptRenderer, gitDiff Gi
 
 // WithEmitter attaches an EventEmitter for logging.
 func (r *Review) WithEmitter(emitter *events.Emitter) *Review {
-	r.emitter = emitter
+	r.EmitterMixin.SetEmitter(emitter)
 	return r
-}
-
-// SetEmitter is used by orchestrator wiring to attach an emitter.
-func (r *Review) SetEmitter(emitter *events.Emitter) {
-	r.emitter = emitter
 }
 
 // Run executes the review stage.
