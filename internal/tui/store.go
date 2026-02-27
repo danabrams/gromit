@@ -135,6 +135,16 @@ func (s *Store) OnBeadFailed(event *events.BeadFailedEvent) {
 	})
 }
 
+// OnBeadStuck updates the store when a bead is marked as stuck.
+func (s *Store) OnBeadStuck(event *events.BeadStuckEvent) {
+	s.addRecentCompletion(&Completion{
+		BeadID:    event.BeadID,
+		BeadTitle: event.BeadTitle,
+		Status:    "stuck",
+		Time:      event.EventTime(),
+	})
+}
+
 // addRecentCompletion adds a completion to the recent list, keeping only the 10 most recent.
 func (s *Store) addRecentCompletion(completion *Completion) {
 	s.Dashboard.RecentCompletions = append(s.Dashboard.RecentCompletions, completion)
@@ -150,6 +160,15 @@ func (s *Store) OnBuildStart(event *events.BuildStartEvent) {
 	}
 	s.Dashboard.ActivePhase.Phase = "build"
 	s.Dashboard.ActivePhase.StartTime = event.EventTime()
+}
+
+// OnBuildComplete updates the phase when build completes.
+func (s *Store) OnBuildComplete(event *events.BuildCompleteEvent) {
+	// Phase transitions are handled by the subsequent start events,
+	// so we just keep the current phase context
+	if s.Dashboard.ActivePhase != nil {
+		s.Dashboard.ActivePhase.StartTime = event.EventTime()
+	}
 }
 
 // OnValidationStart updates the phase when validation starts.
