@@ -10,6 +10,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
+	"github.com/danabrams/gromit/internal/events/eventtest"
 	"github.com/danabrams/gromit/internal/pipeline"
 	reviewstage "github.com/danabrams/gromit/internal/pipeline/review"
 	"github.com/danabrams/gromit/internal/prompt"
@@ -358,19 +359,8 @@ func TestReviewRun_EmitsReviewStartAndCompleteEvents(t *testing.T) {
 		t.Fatalf("Review.Run() error = %v", err)
 	}
 
-	// Collect events
-	var emittedEvents []events.Event
-	timeout := time.After(100 * time.Millisecond)
-	for {
-		select {
-		case evt := <-ch:
-			emittedEvents = append(emittedEvents, evt)
-		case <-timeout:
-			goto checkEvents
-		}
-	}
+	emittedEvents := eventtest.DrainEvents(t, ch, 100*time.Millisecond)
 
-checkEvents:
 	// Verify we got both ReviewStartEvent and ReviewCompleteEvent
 	var startEvent *events.ReviewStartEvent
 	var completeEvent *events.ReviewCompleteEvent
@@ -432,21 +422,15 @@ func TestReviewRun_ReviewStartEventHasTimeAndThoroughFields(t *testing.T) {
 		t.Fatalf("Review.Run() error = %v", err)
 	}
 
-	// Collect events
+	emittedEvents := eventtest.DrainEvents(t, ch, 100*time.Millisecond)
+
 	var startEvent *events.ReviewStartEvent
-	timeout := time.After(100 * time.Millisecond)
-	for {
-		select {
-		case evt := <-ch:
-			if se, ok := evt.(*events.ReviewStartEvent); ok {
-				startEvent = se
-			}
-		case <-timeout:
-			goto checkEvent
+	for _, evt := range emittedEvents {
+		if se, ok := evt.(*events.ReviewStartEvent); ok {
+			startEvent = se
 		}
 	}
 
-checkEvent:
 	if startEvent == nil {
 		t.Fatal("expected ReviewStartEvent to be emitted")
 	}
@@ -489,21 +473,15 @@ func TestReviewRun_ReviewCompleteEventHasTimeField(t *testing.T) {
 		t.Fatalf("Review.Run() error = %v", err)
 	}
 
-	// Collect events
+	emittedEvents := eventtest.DrainEvents(t, ch, 100*time.Millisecond)
+
 	var completeEvent *events.ReviewCompleteEvent
-	timeout := time.After(100 * time.Millisecond)
-	for {
-		select {
-		case evt := <-ch:
-			if ce, ok := evt.(*events.ReviewCompleteEvent); ok {
-				completeEvent = ce
-			}
-		case <-timeout:
-			goto checkEvent
+	for _, evt := range emittedEvents {
+		if ce, ok := evt.(*events.ReviewCompleteEvent); ok {
+			completeEvent = ce
 		}
 	}
 
-checkEvent:
 	if completeEvent == nil {
 		t.Fatal("expected ReviewCompleteEvent to be emitted")
 	}

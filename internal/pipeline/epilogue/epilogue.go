@@ -178,6 +178,7 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 			BeadID:    in.Bead.ID,
 			Iteration: in.Iteration,
 			Success:   in.BuildSucceeded,
+			Time:      time.Now(),
 		})
 	}
 
@@ -193,6 +194,7 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 			if in.Emitter != nil {
 				in.Emitter.Emit(&events.BeadCloseEvent{
 					BeadID: in.Bead.ID,
+					Time:   time.Now(),
 				})
 			}
 		}
@@ -207,6 +209,7 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 				in.Emitter.Emit(&events.BeadCleanupEvent{
 					BeadID: in.Bead.ID,
 					Action: "sync",
+					Time:   time.Now(),
 				})
 			}
 		}
@@ -250,6 +253,7 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 						in.Emitter.Emit(&events.BeadCleanupEvent{
 							BeadID: in.Bead.ID,
 							Action: "merge",
+							Time:   time.Now(),
 						})
 					}
 					// Remove orphaned session worktree after successful merge
@@ -263,6 +267,7 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 								in.Emitter.Emit(&events.BeadCleanupEvent{
 									BeadID: in.Bead.ID,
 									Action: "worktree_cleanup",
+									Time:   time.Now(),
 								})
 							}
 						}
@@ -345,6 +350,7 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 		in.Emitter.Emit(&events.EpilogueCompleteEvent{
 			BeadID:  in.Bead.ID,
 			Success: lifecycleFailure == pipeline.LifecycleFailureNone && !warningOccurred,
+			Time:    time.Now(),
 		})
 	}
 

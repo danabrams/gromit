@@ -13,6 +13,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
+	"github.com/danabrams/gromit/internal/events/eventtest"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 	epiloguepkg "github.com/danabrams/gromit/internal/pipeline/epilogue"
@@ -1151,19 +1152,8 @@ func TestEpilog_EmitsBeadCleanupEventForWorktreeCleanupAction(t *testing.T) {
 		t.Fatalf("Epilogue.Run() error = %v", err)
 	}
 
-	// Collect events
-	var emittedEvents []events.Event
-	timeout := time.After(100 * time.Millisecond)
-	for {
-		select {
-		case evt := <-ch:
-			emittedEvents = append(emittedEvents, evt)
-		case <-timeout:
-			goto checkEvents
-		}
-	}
+	emittedEvents := eventtest.DrainEvents(t, ch, 100*time.Millisecond)
 
-checkEvents:
 	// Verify we got BeadCleanupEvent with action="worktree_cleanup"
 	var cleanupEvent *events.BeadCleanupEvent
 	for _, evt := range emittedEvents {
@@ -1216,19 +1206,8 @@ func TestEpilog_EmitsBeadCleanupEventForMergeAction(t *testing.T) {
 		t.Fatalf("Epilogue.Run() error = %v", err)
 	}
 
-	// Collect events
-	var emittedEvents []events.Event
-	timeout := time.After(100 * time.Millisecond)
-	for {
-		select {
-		case evt := <-ch:
-			emittedEvents = append(emittedEvents, evt)
-		case <-timeout:
-			goto checkEvents
-		}
-	}
+	emittedEvents := eventtest.DrainEvents(t, ch, 100*time.Millisecond)
 
-checkEvents:
 	// Verify we got BeadCleanupEvent with action="merge"
 	var mergeCleanupEvent *events.BeadCleanupEvent
 	for _, evt := range emittedEvents {
@@ -1275,19 +1254,8 @@ func TestEpilog_EmitsBeadCleanupEventForSyncAction(t *testing.T) {
 		t.Fatalf("Epilogue.Run() error = %v", err)
 	}
 
-	// Collect events
-	var emittedEvents []events.Event
-	timeout := time.After(100 * time.Millisecond)
-	for {
-		select {
-		case evt := <-ch:
-			emittedEvents = append(emittedEvents, evt)
-		case <-timeout:
-			goto checkEvents
-		}
-	}
+	emittedEvents := eventtest.DrainEvents(t, ch, 100*time.Millisecond)
 
-checkEvents:
 	// Verify we got BeadCleanupEvent with action="sync"
 	var syncCleanupEvent *events.BeadCleanupEvent
 	for _, evt := range emittedEvents {
@@ -1334,19 +1302,8 @@ func TestEpilog_EmitsBeadCloseEventOnSuccessfulClose(t *testing.T) {
 		t.Fatalf("Epilogue.Run() error = %v", err)
 	}
 
-	// Collect events
-	var emittedEvents []events.Event
-	timeout := time.After(100 * time.Millisecond)
-	for {
-		select {
-		case evt := <-ch:
-			emittedEvents = append(emittedEvents, evt)
-		case <-timeout:
-			goto checkEvents
-		}
-	}
+	emittedEvents := eventtest.DrainEvents(t, ch, 100*time.Millisecond)
 
-checkEvents:
 	// Verify we got BeadCloseEvent
 	var closeEvent *events.BeadCloseEvent
 	for _, evt := range emittedEvents {
@@ -1390,19 +1347,8 @@ func TestEpilogueRun_EmitsEpilogueStartAndCompleteEvents(t *testing.T) {
 		t.Fatalf("Epilogue.Run() error = %v", err)
 	}
 
-	// Collect events
-	var emittedEvents []events.Event
-	timeout := time.After(100 * time.Millisecond)
-	for {
-		select {
-		case evt := <-ch:
-			emittedEvents = append(emittedEvents, evt)
-		case <-timeout:
-			goto checkEvents
-		}
-	}
+	emittedEvents := eventtest.DrainEvents(t, ch, 100*time.Millisecond)
 
-checkEvents:
 	// Verify we got both EpilogueStartEvent and EpilogueCompleteEvent
 	var startEvent *events.EpilogueStartEvent
 	var completeEvent *events.EpilogueCompleteEvent

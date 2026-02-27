@@ -11,6 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
+	"github.com/danabrams/gromit/internal/events/eventtest"
 	"github.com/danabrams/gromit/internal/pipeline"
 )
 
@@ -386,19 +387,16 @@ func TestGateScopeEventEmittedOnBlock(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
+	emittedEvents := eventtest.DrainEvents(t, ch, 100*time.Millisecond)
+
 	var scopeEvt *events.GateScopeEvent
-	deadline := time.After(100 * time.Millisecond)
-readLoop:
-	for {
-		select {
-		case evt := <-ch:
-			if se, ok := evt.(*events.GateScopeEvent); ok {
-				scopeEvt = se
-				break readLoop
-			}
-		case <-deadline:
-			t.Fatal("expected GateScopeEvent")
+	for _, evt := range emittedEvents {
+		if se, ok := evt.(*events.GateScopeEvent); ok {
+			scopeEvt = se
 		}
+	}
+	if scopeEvt == nil {
+		t.Fatal("expected GateScopeEvent")
 	}
 
 	if scopeEvt.BeadID != b.ID {
@@ -964,28 +962,21 @@ func TestGateRun_ScopeBlockEmitsGateBlockEvent(t *testing.T) {
 		t.Fatalf("Gate.Run() error = %v", err)
 	}
 
-	expectBlockEvent := func(evt events.Event) bool {
-		if blockEvt, ok := evt.(*events.GateBlockEvent); ok {
-			if blockEvt.BeadID != beadID {
-				t.Errorf("BeadID = %q, want %q", blockEvt.BeadID, beadID)
-			}
-			if blockEvt.Reason != "scope" {
-				t.Errorf("Reason = %q, want %q", blockEvt.Reason, "scope")
-			}
-			return true
-		}
-		return false
-	}
+	emittedEvents := eventtest.DrainEvents(t, ch)
 
-	deadline := time.After(50 * time.Millisecond)
-	for {
-		select {
-		case evt := <-ch:
-			if expectBlockEvent(evt) {
-				return
-			}
-		case <-deadline:
-			t.Fatal("expected GateBlockEvent to be emitted")
+	var blockEvt *events.GateBlockEvent
+	for _, evt := range emittedEvents {
+		if be, ok := evt.(*events.GateBlockEvent); ok {
+			blockEvt = be
 		}
+	}
+	if blockEvt == nil {
+		t.Fatal("expected GateBlockEvent to be emitted")
+	}
+	if blockEvt.BeadID != beadID {
+		t.Errorf("BeadID = %q, want %q", blockEvt.BeadID, beadID)
+	}
+	if blockEvt.Reason != "scope" {
+		t.Errorf("Reason = %q, want %q", blockEvt.Reason, "scope")
 	}
 }

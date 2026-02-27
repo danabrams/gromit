@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/events"
@@ -256,6 +257,7 @@ func (g *Gate) runScopeGate(ctx context.Context, in pipeline.Input) (*pipeline.O
 			FileCount: fileCount,
 			MaxFiles:  maxScopeFiles,
 			Action:    action,
+			Time:      time.Now(),
 		})
 	}
 

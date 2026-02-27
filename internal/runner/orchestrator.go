@@ -418,7 +418,7 @@ runLoop:
 		// Stage 4: Review — optional LLM code review.
 		if o.cfg.Review != nil && o.cfg.Config != nil && o.cfg.Config.Review.Enabled {
 			reviewOut, _ := o.cfg.Review.Run(ctx, baseIn)
-		_ = reviewOut
+			_ = reviewOut
 		}
 
 		// Stage 5: Epilogue — close bead, sync, write status, write iteration log,

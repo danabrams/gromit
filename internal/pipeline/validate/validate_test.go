@@ -5,11 +5,11 @@ import (
 	"io"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
-	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/events"
+	"github.com/danabrams/gromit/internal/events/eventtest"
 	"github.com/danabrams/gromit/internal/pipeline"
 )
 
@@ -102,7 +102,7 @@ func TestValidate_EmitsValidationStartAndPassEvents(t *testing.T) {
 		t.Fatalf("Decision = %v, want Proceed", out.Decision)
 	}
 
-	emitted := drainEvents(t, ch)
+	emitted := eventtest.DrainEvents(t, ch)
 	var (
 		startIdx = -1
 		passIdx  = -1
@@ -178,7 +178,7 @@ func TestValidate_EmitsValidationFailEventOnFailure(t *testing.T) {
 		t.Fatalf("Decision = %v, want Block on validation failure", out.Decision)
 	}
 
-	emitted := drainEvents(t, ch)
+	emitted := eventtest.DrainEvents(t, ch)
 	var (
 		startIdx = -1
 		failIdx  = -1
@@ -447,16 +447,3 @@ func contains(s, substr string) bool {
 	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
 }
 
-func drainEvents(t *testing.T, ch chan events.Event) []events.Event {
-	t.Helper()
-	var emitted []events.Event
-	timeout := time.After(25 * time.Millisecond)
-	for {
-		select {
-		case evt := <-ch:
-			emitted = append(emitted, evt)
-		case <-timeout:
-			return emitted
-		}
-	}
-}

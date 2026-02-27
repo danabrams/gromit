@@ -11,6 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
+	"github.com/danabrams/gromit/internal/events/eventtest"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/pipeline/execute"
 	"github.com/danabrams/gromit/internal/provider"
@@ -1163,19 +1164,8 @@ func TestBuildRun_EmitsBuildStartAndCompleteEvents(t *testing.T) {
 		t.Fatalf("Build.Run() error = %v", err)
 	}
 
-	// Collect events
-	var emittedEvents []events.Event
-	timeout := time.After(100 * time.Millisecond)
-	for {
-		select {
-		case evt := <-ch:
-			emittedEvents = append(emittedEvents, evt)
-		case <-timeout:
-			goto checkEvents
-		}
-	}
+	emittedEvents := eventtest.DrainEvents(t, ch, 100*time.Millisecond)
 
-checkEvents:
 	// Verify we got both BuildStartEvent and BuildCompleteEvent
 	var startEvent *events.BuildStartEvent
 	var completeEvent *events.BuildCompleteEvent
@@ -1239,21 +1229,15 @@ func TestBuildRun_BuildStartEventHasTimeField(t *testing.T) {
 		t.Fatalf("Build.Run() error = %v", err)
 	}
 
-	// Collect events
+	emittedEvents := eventtest.DrainEvents(t, ch, 100*time.Millisecond)
+
 	var startEvent *events.BuildStartEvent
-	timeout := time.After(100 * time.Millisecond)
-	for {
-		select {
-		case evt := <-ch:
-			if se, ok := evt.(*events.BuildStartEvent); ok {
-				startEvent = se
-			}
-		case <-timeout:
-			goto checkEvent
+	for _, evt := range emittedEvents {
+		if se, ok := evt.(*events.BuildStartEvent); ok {
+			startEvent = se
 		}
 	}
 
-checkEvent:
 	if startEvent == nil {
 		t.Fatal("expected BuildStartEvent to be emitted")
 	}
@@ -1288,21 +1272,15 @@ func TestBuildRun_BuildCompleteEventHasTimeField(t *testing.T) {
 		t.Fatalf("Build.Run() error = %v", err)
 	}
 
-	// Collect events
+	emittedEvents := eventtest.DrainEvents(t, ch, 100*time.Millisecond)
+
 	var completeEvent *events.BuildCompleteEvent
-	timeout := time.After(100 * time.Millisecond)
-	for {
-		select {
-		case evt := <-ch:
-			if ce, ok := evt.(*events.BuildCompleteEvent); ok {
-				completeEvent = ce
-			}
-		case <-timeout:
-			goto checkEvent
+	for _, evt := range emittedEvents {
+		if ce, ok := evt.(*events.BuildCompleteEvent); ok {
+			completeEvent = ce
 		}
 	}
 
-checkEvent:
 	if completeEvent == nil {
 		t.Fatal("expected BuildCompleteEvent to be emitted")
 	}
