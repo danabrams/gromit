@@ -151,3 +151,33 @@ func TestModel_ScrollHandlingNegativeBound(t *testing.T) {
 		t.Errorf("expected scrollOffset to be 0 (clamped), got %d", m.scrollOffset)
 	}
 }
+
+func TestModel_QuitWithQKey(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+
+	// Send 'q' key to quit
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}}
+	model, cmd := m.Update(msg)
+
+	// Check if the returned cmd is a tea.Quit()
+	if cmd == nil {
+		t.Error("expected quit command, got nil")
+	}
+	_ = model
+}
+
+func TestModel_QuitWithCtrlC(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+
+	// Send Ctrl+C to quit
+	msg := tea.KeyMsg{Type: tea.KeyCtrlC}
+	model, cmd := m.Update(msg)
+
+	// Check if the returned cmd is a tea.Quit()
+	if cmd == nil {
+		t.Error("expected quit command, got nil")
+	}
+	_ = model
+}
