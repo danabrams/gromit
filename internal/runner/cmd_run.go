@@ -62,7 +62,7 @@ func runCommand(cmd *exec.Cmd) (string, string, int, error) {
 	if err := cmd.Start(); err != nil {
 		return "", "", execFailureExitCode, err
 	}
-	defer procutil.ReapProcessGroup(cmd)
+	defer procutil.ReapProcessTree(cmd)
 	err := cmd.Wait()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
@@ -83,8 +83,9 @@ func defaultCmdRunner(ctx context.Context, command string, workDir string) (stri
 }
 
 // getGitDiff returns the full diff from fromCommit to the current working tree.
-func getGitDiff(fromCommit string) (string, error) {
-	cmd := exec.Command("git", "diff", fromCommit)
+func getGitDiff(ctx context.Context, fromCommit string) (string, error) {
+	cmd := exec.CommandContext(ctx, "git", "diff", fromCommit)
+	procutil.SetProcessGroupKill(cmd)
 	out, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("git diff: %w", err)

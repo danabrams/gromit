@@ -69,7 +69,7 @@ func (c *Client) Ready(ctx context.Context) (*Bead, error) {
 	}
 	// Fetch a batch and filter out epics client-side.
 	// bd doesn't handle multiple -t flags correctly, so we can't exclude epics server-side.
-	out, err := c.run("ready", "--json", "--limit", "3")
+	out, err := c.run(ctx, "ready", "--json", "--limit", "3")
 	if err != nil {
 		return nil, fmt.Errorf("bd ready: %w", err)
 	}
@@ -87,7 +87,7 @@ func (c *Client) ReadyExcluding(ctx context.Context, excludeIDs map[string]bool)
 		return c.Ready(ctx)
 	}
 
-	out, err := c.run("ready", "--json", "--limit", "10")
+	out, err := c.run(ctx, "ready", "--json", "--limit", "10")
 	if err != nil {
 		return nil, fmt.Errorf("bd ready: %w", err)
 	}
@@ -152,7 +152,7 @@ func (c *Client) ReadyAny(ctx context.Context) (*Bead, error) {
 	if c == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
-	out, err := c.run("ready", "--json", "--limit", "1")
+	out, err := c.run(ctx, "ready", "--json", "--limit", "1")
 	if err != nil {
 		return nil, fmt.Errorf("bd ready: %w", err)
 	}
@@ -161,12 +161,12 @@ func (c *Client) ReadyAny(ctx context.Context) (*Bead, error) {
 }
 
 // countBeads is a helper that runs a bd command and returns the count of beads in the result
-func (c *Client) countBeads(cmdName string, args ...string) (int, error) {
+func (c *Client) countBeads(ctx context.Context, cmdName string, args ...string) (int, error) {
 	if c == nil {
 		return 0, fmt.Errorf("bead client is nil")
 	}
 
-	out, err := c.run(args...)
+	out, err := c.run(ctx, args...)
 	if err != nil {
 		return 0, fmt.Errorf("bd %s: %w", cmdName, err)
 	}
@@ -185,18 +185,18 @@ func (c *Client) countBeads(cmdName string, args ...string) (int, error) {
 
 // CountReady returns the count of ready (unblocked) beads
 func (c *Client) CountReady(ctx context.Context) (int, error) {
-	return c.countBeads("ready", "ready", "--json", "--limit", "0")
+	return c.countBeads(ctx, "ready", "ready", "--json", "--limit", "0")
 }
 
 // CountByStatus returns the count of beads with the specified status
 func (c *Client) CountByStatus(ctx context.Context, status string) (int, error) {
-	return c.countBeads("list", "list", "--json", "--status", status, "--limit", "0")
+	return c.countBeads(ctx, "list", "list", "--json", "--status", status, "--limit", "0")
 }
 
 // CountClosedAfter returns the count of beads closed after the specified time
 func (c *Client) CountClosedAfter(ctx context.Context, after time.Time) (int, error) {
 	afterStr := after.Format(time.RFC3339)
-	return c.countBeads("list", "list", "--json", "--status", "closed", "--closed-after", afterStr, "--limit", "0")
+	return c.countBeads(ctx, "list", "list", "--json", "--status", "closed", "--closed-after", afterStr, "--limit", "0")
 }
 
 // ListReadyIDs returns a slice of ready bead IDs (from a batch of 10)
@@ -205,7 +205,7 @@ func (c *Client) ListReadyIDs(ctx context.Context) ([]string, error) {
 		return nil, fmt.Errorf("bead client is nil")
 	}
 	// Fetch a batch of ready beads
-	out, err := c.run("ready", "--json", "--limit", "10")
+	out, err := c.run(ctx, "ready", "--json", "--limit", "10")
 	if err != nil {
 		return nil, fmt.Errorf("bd ready: %w", err)
 	}
@@ -236,7 +236,7 @@ func (c *Client) ReadyWithLabel(ctx context.Context, label string) (*Bead, error
 	}
 
 	// Fetch a batch of beads with the specified label and filter out epics client-side
-	out, err := c.run("ready", "--json", "--limit", "3", "--label", label)
+	out, err := c.run(ctx, "ready", "--json", "--limit", "3", "--label", label)
 	if err != nil {
 		return nil, fmt.Errorf("bd ready: %w", err)
 	}
@@ -264,11 +264,11 @@ func (c *Client) ReadyWithLabel(ctx context.Context, label string) (*Bead, error
 	return bead, nil
 }
 
-func (c *Client) listByStatus(status string) ([]*Bead, error) {
+func (c *Client) listByStatus(ctx context.Context, status string) ([]*Bead, error) {
 	if c == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
-	out, err := c.run("list", "--json", "--status", status, "--sort", "priority", "--limit", "0")
+	out, err := c.run(ctx, "list", "--json", "--status", status, "--sort", "priority", "--limit", "0")
 	if err != nil {
 		return nil, fmt.Errorf("bd list (%s): %w", status, err)
 	}
@@ -296,7 +296,7 @@ func (c *Client) listByStatus(status string) ([]*Bead, error) {
 
 // List returns all open beads, sorted by priority (P0 first)
 func (c *Client) List(ctx context.Context) ([]*Bead, error) {
-	return c.listByStatus("open")
+	return c.listByStatus(ctx, "open")
 }
 
 // ListByStatus returns all beads with the given status, sorted by priority (P0 first).
@@ -304,7 +304,7 @@ func (c *Client) ListByStatus(ctx context.Context, status string) ([]*Bead, erro
 	if strings.TrimSpace(status) == "" {
 		return nil, fmt.Errorf("status cannot be empty")
 	}
-	return c.listByStatus(status)
+	return c.listByStatus(ctx, status)
 }
 
 // ListReady returns all ready (unblocked) beads, sorted by priority (P0 first).
@@ -312,7 +312,7 @@ func (c *Client) ListReady(ctx context.Context) ([]*Bead, error) {
 	if c == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
-	out, err := c.run("list", "--json", "--status", "ready", "--sort", "priority", "--limit", "0")
+	out, err := c.run(ctx, "list", "--json", "--status", "ready", "--sort", "priority", "--limit", "0")
 	if err != nil {
 		return nil, fmt.Errorf("bd list ready: %w", err)
 	}
@@ -342,7 +342,7 @@ func (c *Client) ListReadyWork(ctx context.Context) ([]*Bead, error) {
 	if c == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
-	out, err := c.run("ready", "--json", "--sort", "priority", "--limit", "0")
+	out, err := c.run(ctx, "ready", "--json", "--sort", "priority", "--limit", "0")
 	if err != nil {
 		return nil, fmt.Errorf("bd ready: %w", err)
 	}
@@ -378,7 +378,7 @@ func (c *Client) ListAll(ctx context.Context) (open []*Bead, closed []*Bead, err
 	closed = []*Bead{}
 
 	// Get open beads
-	out, err := c.run("list", "--json", "--status", "open")
+	out, err := c.run(ctx, "list", "--json", "--status", "open")
 	if err != nil {
 		return nil, nil, fmt.Errorf("bd list open: %w", err)
 	}
@@ -399,7 +399,7 @@ func (c *Client) ListAll(ctx context.Context) (open []*Bead, closed []*Bead, err
 	}
 
 	// Get closed beads
-	out, err = c.run("list", "--json", "--status", "closed")
+	out, err = c.run(ctx, "list", "--json", "--status", "closed")
 	if err != nil {
 		return nil, nil, fmt.Errorf("bd list closed: %w", err)
 	}
@@ -431,7 +431,7 @@ func (c *Client) ListWithLabel(ctx context.Context, label string) ([]*Bead, erro
 		return nil, err
 	}
 
-	out, err := c.run("list", "--json", "--label", label, "--sort", "priority", "--all", "--limit", "0")
+	out, err := c.run(ctx, "list", "--json", "--label", label, "--sort", "priority", "--all", "--limit", "0")
 	if err != nil {
 		return nil, fmt.Errorf("bd list: %w", err)
 	}

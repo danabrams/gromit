@@ -26,10 +26,11 @@ type TriageResult struct {
 }
 
 var (
-	missingToolPattern       = regexp.MustCompile(`exec: .+: executable file not found`)
-	goVersionMismatchPattern = regexp.MustCompile(`go: go\.mod requires go >=`)
-	noSpacePattern           = regexp.MustCompile(`no space left on device`)
-	permissionDeniedPattern  = regexp.MustCompile(`permission denied`)
+	missingToolPattern         = regexp.MustCompile(`exec: .+: executable file not found`)
+	goVersionMismatchPattern   = regexp.MustCompile(`go: go\.mod requires go >=`)
+	noSpacePattern             = regexp.MustCompile(`no space left on device`)
+	resourceUnavailablePattern = regexp.MustCompile(`resource temporarily unavailable`)
+	permissionDeniedPattern    = regexp.MustCompile(`permission denied`)
 )
 
 // Triage classifies invocation failures using a deterministic waterfall.
@@ -75,6 +76,8 @@ func triageEnvironment(result *provider.Result) *TriageResult {
 	case goVersionMismatchPattern.MatchString(detail):
 		return triageResult(LayerEnvironment, "version_mismatch", detail, false)
 	case noSpacePattern.MatchString(detail):
+		return triageResult(LayerEnvironment, "resource_exhausted", detail, false)
+	case resourceUnavailablePattern.MatchString(detail):
 		return triageResult(LayerEnvironment, "resource_exhausted", detail, false)
 	case permissionDeniedPattern.MatchString(detail):
 		return triageResult(LayerEnvironment, "permission", detail, false)

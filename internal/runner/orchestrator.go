@@ -19,6 +19,7 @@ import (
 	"github.com/danabrams/gromit/internal/experiment"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/procutil"
 	"github.com/danabrams/gromit/internal/runner/specmerge"
 )
 
@@ -252,6 +253,17 @@ runLoop:
 		// Check wall-clock deadline before starting a new iteration.
 		if !deadline.IsZero() && time.Now().After(deadline) {
 			break runLoop
+		}
+
+		// Check cgroup PID pressure before starting work.
+		if pidCur, pidMax, pidErr := procutil.PIDPressure(); pidErr == nil && pidCur > 0 && pidMax > 0 {
+			pct := pidCur * 100 / pidMax
+			if pct >= 90 {
+				return fmt.Errorf("cgroup PID usage at %d%% (%d/%d), stopping to prevent resource exhaustion", pct, pidCur, pidMax)
+			}
+			if pct >= 70 {
+				o.logWarning("PID pressure at %d%% (%d/%d)", pct, pidCur, pidMax)
+			}
 		}
 
 		// Get the next bead from the work queue.

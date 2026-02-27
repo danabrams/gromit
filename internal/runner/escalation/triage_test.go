@@ -101,6 +101,19 @@ func TestTriage(t *testing.T) {
 			},
 		},
 		{
+			name: "environment resource exhausted fork failure from stderr",
+			inv: &runtypes.InvocationResult{
+				ProviderResult: &provider.Result{Stderr: "fork/exec /usr/bin/git: resource temporarily unavailable"},
+			},
+			bc: validBC,
+			want: &TriageResult{
+				Layer:       LayerEnvironment,
+				SubCategory: "resource_exhausted",
+				Detail:      "fork/exec /usr/bin/git: resource temporarily unavailable",
+				Retryable:   false,
+			},
+		},
+		{
 			name: "environment permission from stderr",
 			inv: &runtypes.InvocationResult{
 				ProviderResult: &provider.Result{Stderr: "open /root/file: permission denied"},

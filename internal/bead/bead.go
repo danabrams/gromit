@@ -12,6 +12,7 @@ import (
 	"unicode"
 
 	"github.com/danabrams/gromit/internal/jsonutil"
+	"github.com/danabrams/gromit/internal/procutil"
 )
 
 // Bead represents an issue from the bd issue tracker
@@ -62,10 +63,14 @@ const (
 	labelMetaChars       = ";\n|$`&<>(){}[]'\"\\"
 )
 
+// DefaultCommandTimeout is the per-command timeout applied to bd subprocess
+// invocations when no explicit CommandTimeout is configured on the Client.
+const DefaultCommandTimeout = 30 * time.Second
+
 // normalizeNilFields ensures nil slices are replaced with empty slices.
 // This prevents issues with downstream code that may range over nil slices
-// (which is safe) vs code that checks len() or marshals to JSON (nil → "null"
-// vs [] → "[]").
+// (which is safe) vs code that checks len() or marshals to JSON (nil -> "null"
+// vs [] -> "[]").
 // See CLAUDE.md nil-field normalization visibility convention:
 // Bead lives in bead/, so the helper stays unexported.
 func (b *Bead) normalizeNilFields() {
@@ -201,11 +206,22 @@ type Client struct {
 	Dir    string // working directory for bd commands; if empty, uses current directory
 	// RunFn optionally overrides command execution (primarily for tests).
 	RunFn func(args ...string) (string, error)
+	// CommandTimeout is the maximum duration for a single bd subprocess
+	// invocation. Zero means use DefaultCommandTimeout.
+	CommandTimeout time.Duration
 }
 
 // NewClient creates a new bd client
 func NewClient() (*Client, error) {
 	return &Client{binary: defaultBDBinary}, nil
+}
+
+// commandTimeout returns the effective per-command timeout.
+func (c *Client) commandTimeout() time.Duration {
+	if c.CommandTimeout > 0 {
+		return c.CommandTimeout
+	}
+	return DefaultCommandTimeout
 }
 
 // Show returns full details for a bead
@@ -217,7 +233,7 @@ func (c *Client) Show(ctx context.Context, id string) (*Bead, error) {
 		return nil, fmt.Errorf("invalid bead ID %q", id)
 	}
 
-	out, err := c.run("show", id, "--json")
+	out, err := c.run(ctx, "show", id, "--json")
 	if err != nil {
 		return nil, fmt.Errorf("bd show %s: %w", id, err)
 	}
@@ -256,7 +272,7 @@ func (c *Client) Close(ctx context.Context, id string) error {
 		return fmt.Errorf("invalid bead ID %q", id)
 	}
 
-	out, err := c.run("close", id)
+	out, err := c.run(ctx, "close", id)
 	if err != nil {
 		return fmt.Errorf("bd close %s: %w", id, err)
 	}
@@ -274,7 +290,7 @@ func (c *Client) Sync(ctx context.Context) error {
 	if c == nil {
 		return fmt.Errorf("bead client is nil")
 	}
-	_, err := c.run("sync")
+	_, err := c.run(ctx, "sync")
 	if err != nil {
 		return fmt.Errorf("bd sync: %w", err)
 	}
@@ -296,7 +312,7 @@ func (c *Client) AddComment(ctx context.Context, id, comment string) error {
 	}
 	defer cleanup()
 
-	_, err = c.run("comments", "add", id, "--file", commentPath)
+	_, err = c.run(ctx, "comments", "add", id, "--file", commentPath)
 	if err != nil {
 		return fmt.Errorf("bd comments add: %w", err)
 	}
@@ -319,7 +335,7 @@ func (c *Client) GetComments(ctx context.Context, id string) ([]Comment, error) 
 		return nil, fmt.Errorf("invalid bead ID %q", id)
 	}
 
-	out, err := c.run("comments", id, "--json")
+	out, err := c.run(ctx, "comments", id, "--json")
 	if err != nil {
 		return nil, fmt.Errorf("bd comments %s: %w", id, err)
 	}
@@ -348,7 +364,7 @@ func (c *Client) UpdatePriority(ctx context.Context, id string, priority int) er
 		return fmt.Errorf("invalid priority %d (must be %d-%d)", priority, minPriority, maxPriority)
 	}
 
-	_, err := c.run("update", id, "--priority", fmt.Sprintf("%d", priority))
+	_, err := c.run(ctx, "update", id, "--priority", fmt.Sprintf("%d", priority))
 	if err != nil {
 		return fmt.Errorf("bd update priority: %w", err)
 	}
@@ -376,7 +392,7 @@ func (c *Client) HasOpenChildren(ctx context.Context, parentID string) (bool, er
 	}
 
 	// Use targeted query with --parent flag to filter server-side
-	out, err := c.run("list", "--json", "--status", "open", "--parent", parentID, "--limit", "1")
+	out, err := c.run(ctx, "list", "--json", "--status", "open", "--parent", parentID, "--limit", "1")
 	if err != nil {
 		return false, err
 	}
@@ -396,16 +412,16 @@ func (c *Client) HasOpenChildren(ctx context.Context, parentID string) (bool, er
 	return len(beads) > 0, nil
 }
 
-func (c *Client) run(args ...string) (string, error) {
+func (c *Client) run(ctx context.Context, args ...string) (string, error) {
 	if c.RunFn != nil {
 		return c.RunFn(args...)
 	}
-	out, err := c.runWithEnv(args, nil)
+	out, err := c.runWithEnv(ctx, args, nil)
 	if err == nil {
 		return out, nil
 	}
 	if shouldRetryWithNoDB(err) && !beadsNoDBAlreadyEnabled() {
-		retryOut, retryErr := c.runWithEnv(args, []string{"BEADS_NO_DB=true"})
+		retryOut, retryErr := c.runWithEnv(ctx, args, []string{"BEADS_NO_DB=true"})
 		if retryErr == nil {
 			return retryOut, nil
 		}
@@ -416,10 +432,10 @@ func (c *Client) run(args ...string) (string, error) {
 		if prefixErr != nil {
 			return "", fmt.Errorf("%w (derive issue_prefix: %v)", err, prefixErr)
 		}
-		if _, setErr := c.runWithEnv([]string{"config", "set", "issue_prefix", prefix}, nil); setErr != nil {
+		if _, setErr := c.runWithEnv(ctx, []string{"config", "set", "issue_prefix", prefix}, nil); setErr != nil {
 			return "", fmt.Errorf("%w (auto-set issue_prefix=%q failed: %v)", err, prefix, setErr)
 		}
-		retryOut, retryErr := c.runWithEnv(args, nil)
+		retryOut, retryErr := c.runWithEnv(ctx, args, nil)
 		if retryErr == nil {
 			return retryOut, nil
 		}
@@ -428,8 +444,12 @@ func (c *Client) run(args ...string) (string, error) {
 	return "", err
 }
 
-func (c *Client) runWithEnv(args []string, extraEnv []string) (string, error) {
-	cmd := exec.Command(c.binary, args...)
+func (c *Client) runWithEnv(ctx context.Context, args []string, extraEnv []string) (string, error) {
+	cmdCtx, cancel := context.WithTimeout(ctx, c.commandTimeout())
+	defer cancel()
+
+	cmd := exec.CommandContext(cmdCtx, c.binary, args...)
+	procutil.SetProcessGroupKill(cmd)
 	if c.Dir != "" {
 		cmd.Dir = c.Dir
 	}

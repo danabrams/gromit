@@ -541,7 +541,7 @@ func (a *specGateAdapter) Run(ctx context.Context, beadID string, labels []strin
 			return "", nil
 		},
 		GetDiff: func(ctx context.Context) (string, error) {
-			return getGitDiff("")
+			return getGitDiff(ctx, "")
 		},
 		RenderPrompt: func(ctx context.Context, specName, testOutput, diff string, criteria []string) (string, error) {
 			// Render the gate prompt using the renderer

@@ -18,4 +18,4 @@ var execCommandContext = func(ctx context.Context, name string, args ...string) 
 var subprocessEnvFn = procutil.SubprocessEnv
 
 // reapProcessGroupFn cleans up orphaned child processes after a CLI exit.
-var reapProcessGroupFn = procutil.ReapProcessGroup
+var reapProcessGroupFn = procutil.ReapProcessTree

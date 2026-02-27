@@ -170,7 +170,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 
 	// Wrapper for getGitDiff to match review.GitDiffFn signature
 	gitDiffFn := func() (string, error) {
-		return getGitDiff("")
+		return getGitDiff(context.Background(), "")
 	}
 
 	// Stage 4: Review (review.New with Invoker, BeadCreator, PromptRenderer, GitDiffFn)

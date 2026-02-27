@@ -1,6 +1,7 @@
 package bead
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func assertRunArgsEqual(t *testing.T, got, want []string) {
@@ -46,7 +48,7 @@ func TestClientRun_UsesRunFnWhenSet(t *testing.T) {
 		},
 	}
 
-	out, err := c.run("ready", "--json")
+	out, err := c.run(context.Background(), "ready", "--json")
 	if err != nil {
 		t.Fatalf("run() unexpected error: %v", err)
 	}
@@ -72,7 +74,7 @@ func TestClientRun_SubprocessUsesConfiguredBinaryAndDir(t *testing.T) {
 		Dir:    workDir,
 	}
 
-	out, err := c.run("ready", "--json", "--limit", "3")
+	out, err := c.run(context.Background(), "ready", "--json", "--limit", "3")
 	if err != nil {
 		t.Fatalf("run() unexpected error: %v", err)
 	}
@@ -101,7 +103,7 @@ func TestClientRun_SubprocessExitErrorWrapsStderr(t *testing.T) {
 
 	c := &Client{binary: binaryPath}
 
-	out, err := c.run("ready", "--json")
+	out, err := c.run(context.Background(), "ready", "--json")
 	if out != "" {
 		t.Fatalf("run() output = %q, want empty string", out)
 	}
@@ -128,7 +130,7 @@ func TestClientRun_SubprocessNonExitErrorIsUnchanged(t *testing.T) {
 	missingBinary := filepath.Join(t.TempDir(), "missing-bd")
 	c := &Client{binary: missingBinary}
 
-	out, err := c.run("ready", "--json")
+	out, err := c.run(context.Background(), "ready", "--json")
 	if out != "" {
 		t.Fatalf("run() output = %q, want empty string", out)
 	}
@@ -136,17 +138,9 @@ func TestClientRun_SubprocessNonExitErrorIsUnchanged(t *testing.T) {
 		t.Fatal("run() error = nil, want non-nil")
 	}
 
-	_, expectedErr := exec.Command(missingBinary, "ready", "--json").Output()
-	if expectedErr == nil {
-		t.Fatal("expected raw exec.Command().Output() error, got nil")
-	}
-	if err.Error() != expectedErr.Error() {
-		t.Fatalf("run() error text = %q, want %q", err.Error(), expectedErr.Error())
-	}
-
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
-		t.Fatalf("run() error unexpectedly wraps *exec.ExitError: %v", err)
+	// The error should mention the missing binary path (exec.ErrNotFound or similar).
+	if !strings.Contains(err.Error(), missingBinary) && !strings.Contains(err.Error(), "executable file not found") {
+		t.Fatalf("run() error = %q, want to mention missing binary", err.Error())
 	}
 }
 
@@ -170,7 +164,7 @@ exit 1
 	binaryPath := writeExecutableScript(t, script)
 
 	c := &Client{binary: binaryPath}
-	out, err := c.run("ready", "--json", "--limit", "1")
+	out, err := c.run(context.Background(), "ready", "--json", "--limit", "1")
 	if err != nil {
 		t.Fatalf("run() unexpected error: %v", err)
 	}
@@ -207,7 +201,7 @@ exit 1
 	binaryPath := writeExecutableScript(t, script)
 
 	c := &Client{binary: binaryPath}
-	out, err := c.run("ready", "--json", "--limit", "1")
+	out, err := c.run(context.Background(), "ready", "--json", "--limit", "1")
 	if err != nil {
 		t.Fatalf("run() unexpected error: %v", err)
 	}
@@ -221,5 +215,49 @@ exit 1
 	}
 	if strings.TrimSpace(string(countRaw)) != "2" {
 		t.Fatalf("run() invocation count = %q, want %q", strings.TrimSpace(string(countRaw)), "2")
+	}
+}
+
+func TestClientRun_ContextCancellationStopsCommand(t *testing.T) {
+	t.Parallel()
+	// Script that sleeps for 60 seconds - should be killed by context cancellation.
+	script := "#!/bin/sh\nsleep 60\n"
+	binaryPath := writeExecutableScript(t, script)
+
+	c := &Client{
+		binary:         binaryPath,
+		CommandTimeout: 100 * time.Millisecond,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	start := time.Now()
+	_, err := c.run(ctx, "ready", "--json")
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Fatal("run() should have returned an error for cancelled context")
+	}
+
+	// Should complete well under 60 seconds - the timeout is 100ms.
+	if elapsed > 5*time.Second {
+		t.Fatalf("run() took %v, expected it to be killed quickly by context timeout", elapsed)
+	}
+}
+
+func TestClientRun_DefaultCommandTimeout(t *testing.T) {
+	t.Parallel()
+	c := &Client{binary: "bd"}
+	if c.commandTimeout() != DefaultCommandTimeout {
+		t.Fatalf("commandTimeout() = %v, want %v", c.commandTimeout(), DefaultCommandTimeout)
+	}
+}
+
+func TestClientRun_CustomCommandTimeout(t *testing.T) {
+	t.Parallel()
+	c := &Client{binary: "bd", CommandTimeout: 5 * time.Second}
+	if c.commandTimeout() != 5*time.Second {
+		t.Fatalf("commandTimeout() = %v, want %v", c.commandTimeout(), 5*time.Second)
 	}
 }

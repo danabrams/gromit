@@ -40,7 +40,7 @@ func (c *Client) CreateWithParentAndDescription(ctx context.Context, title strin
 		extra = append(extra, "--parent", parentID)
 	}
 
-	return c.runCreate(title, priority, labels, expectedOutputs, description, extra)
+	return c.runCreate(ctx, title, priority, labels, expectedOutputs, description, extra)
 }
 
 // CreateWithDepsAndDescription creates a new bead with dependencies and description via the bd CLI.
@@ -62,12 +62,12 @@ func (c *Client) CreateWithDepsAndDescription(ctx context.Context, title string,
 		extra = append(extra, "--deps", strings.Join(dependencies, ","))
 	}
 
-	return c.runCreate(title, priority, labels, expectedOutputs, description, extra)
+	return c.runCreate(ctx, title, priority, labels, expectedOutputs, description, extra)
 }
 
 // runCreate builds args, writes description content to a temp file, invokes bd create, and parses the result.
 // extraArgs are inserted after acceptance (e.g. --parent or --deps flags).
-func (c *Client) runCreate(title string, priority int, labels []string, expectedOutputs []string, description string, extraArgs []string) (*Bead, error) {
+func (c *Client) runCreate(ctx context.Context, title string, priority int, labels []string, expectedOutputs []string, description string, extraArgs []string) (*Bead, error) {
 	args := []string{"create", title, "--priority", fmt.Sprintf("%d", priority), "--json"}
 
 	for _, label := range labels {
@@ -90,7 +90,7 @@ func (c *Client) runCreate(title string, priority int, labels []string, expected
 		args = append(args, "--body-file", descriptionPath)
 	}
 
-	out, err := c.run(args...)
+	out, err := c.run(ctx, args...)
 	if err != nil {
 		return nil, fmt.Errorf("bd create: %w", err)
 	}

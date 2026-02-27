@@ -30,7 +30,7 @@ func buildTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *
 		ValidateFn:         buildValidateFn(cfg),
 		RunRefactorFn:      buildRunRefactorFn(cfg, renderer, router, output),
 		EscalateTierFn:     func(currentTier string) string { return cfg.NextEscalationTier(currentTier) },
-		GetDiffFn:          func() (string, error) { return getGitDiff("HEAD") },
+		GetDiffFn:          func() (string, error) { return getGitDiff(context.Background(), "HEAD") },
 		ReadFileFn:         readFileAsString,
 		GetGitHeadFn:       gitHeadCommit,
 		GitResetFn:         gitResetHard,
