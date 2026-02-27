@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"os"
@@ -8,7 +9,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/pipeline"
 )
 
 func TestStatsCmd_Registration(t *testing.T) {
@@ -51,6 +54,53 @@ func TestStatsCmd_Flags(t *testing.T) {
 	}
 	if tddFlag != nil && tddFlag.Value.Type() != "bool" {
 		t.Errorf("--tdd flag should be bool, got %s", tddFlag.Value.Type())
+	}
+}
+
+func TestStatsCmd_UsesPipelineStats(t *testing.T) {
+	// This test ensures the stats command delegates to the pipeline stats helper,
+	// including honoring the --tdd flag.
+
+	originalFetcher := statsFetcher
+	defer func() { statsFetcher = originalFetcher }()
+	originalTDD := statsTDD
+	defer func() { statsTDD = originalTDD }()
+
+	statsTDD = true
+	called := false
+	stubSummary := &pipeline.StatsSummary{
+		ProjectStats: map[string]logger.ModelStats{
+			"test-model": {
+				Model:        "test-model",
+				Iterations:   1,
+				Successes:    1,
+				TotalCostUSD: 1.23,
+			},
+		},
+	}
+	statsFetcher = func(ctx context.Context, cfg *config.Config, gromitDir string, includeTDD bool) (*pipeline.StatsSummary, error) {
+		called = true
+		if gromitDir != ".gromit" {
+			t.Fatalf("gromitDir = %s, want .gromit", gromitDir)
+		}
+		if !includeTDD {
+			t.Fatalf("expected includeTDD flag to be true")
+		}
+		return stubSummary, nil
+	}
+
+	output := captureStdout(t, func() {
+		rootCmd.SetArgs([]string{"stats"})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("stats command failed: %v", err)
+		}
+	})
+
+	if !called {
+		t.Fatal("expected statsFetcher to be invoked")
+	}
+	if !strings.Contains(output, "test-model") {
+		t.Fatalf("output missing expected model: %s", output)
 	}
 }
 
