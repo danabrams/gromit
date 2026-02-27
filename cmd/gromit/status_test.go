@@ -232,3 +232,71 @@ func TestStatusCmd_SPCFlagWithStableOutput(t *testing.T) {
 		}
 	}
 }
+
+func TestStatusCmd_RegressionAssertion_OutputIsConsistent(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("failed to create gromit dir: %v", err)
+	}
+
+	// Create gromit.yaml config
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	configContent := `paths:
+  gromit_dir: .gromit
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	// Create status.json
+	status := runner.Status{
+		Running:   false,
+		Iteration: 5,
+		BeadID:    "test-bead-123",
+		BeadTitle: "Test Feature Implementation",
+		Model:     "sonnet",
+		StartedAt: time.Now().Add(-10 * time.Minute),
+		ElapsedS:  600,
+	}
+	statusData, err := json.Marshal(status)
+	if err != nil {
+		t.Fatalf("failed to marshal status: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gromitDir, "status.json"), statusData, 0644); err != nil {
+		t.Fatalf("failed to write status.json: %v", err)
+	}
+
+	t.Chdir(tmpDir)
+
+	// Run status command twice - should produce identical output
+	output1 := captureStdout(t, func() {
+		rootCmd.SetArgs([]string{"status"})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("status command failed: %v", err)
+		}
+	})
+
+	// Reset command state
+	rootCmd.ResetFlags()
+
+	output2 := captureStdout(t, func() {
+		rootCmd.SetArgs([]string{"status"})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("status command failed: %v", err)
+		}
+	})
+
+	// Both outputs should be identical (no state mutation)
+	if output1 != output2 {
+		t.Errorf("status command output is not consistent across invocations:\nFirst:\n%s\n\nSecond:\n%s", output1, output2)
+	}
+
+	// Output should contain expected sections
+	if !strings.Contains(output1, "Pipeline:") {
+		t.Errorf("status output missing 'Pipeline:' section, got:\n%s", output1)
+	}
+	if !strings.Contains(output1, "5 iterations completed") {
+		t.Errorf("status output missing iteration count, got:\n%s", output1)
+	}
+}
