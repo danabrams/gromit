@@ -195,6 +195,18 @@ func TestBDAdapterListFiltersItemsByLabels(t *testing.T) {
 	}
 }
 
+func TestBeadHasAnyLabel(t *testing.T) {
+	t.Parallel()
+
+	bead := &Bead{Labels: []string{"spec:foo", "spec:bar"}}
+	if !beadHasAnyLabel(bead, []string{"spec:bar"}) {
+		t.Fatalf("expected beadHasAnyLabel to return true when the bead has one of the required labels")
+	}
+	if beadHasAnyLabel(bead, []string{"spec:baz"}) {
+		t.Fatalf("expected beadHasAnyLabel to return false when none of the required labels are present")
+	}
+}
+
 // Helper to create a minimal tracker.Query
 func newTrackerQuery() tracker.Query {
 	return tracker.Query{
