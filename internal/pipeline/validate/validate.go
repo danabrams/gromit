@@ -75,6 +75,36 @@ func (v *Validate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 		})
 	}
 
+	emitPass := func() {
+		if in.Emitter == nil || startTime.IsZero() {
+			return
+		}
+		duration := time.Since(startTime)
+		if duration < 0 {
+			duration = 0
+		}
+		in.Emitter.Emit(&events.ValidationPassEvent{
+			BeadID:   in.Bead.ID,
+			Duration: duration,
+			Time:     time.Now(),
+		})
+	}
+	emitFail := func(output string) {
+		if in.Emitter == nil || startTime.IsZero() {
+			return
+		}
+		duration := time.Since(startTime)
+		if duration < 0 {
+			duration = 0
+		}
+		in.Emitter.Emit(&events.ValidationFailEvent{
+			BeadID:   in.Bead.ID,
+			Output:   output,
+			Duration: duration,
+			Time:     time.Now(),
+		})
+	}
+
 	// Run validation commands and collect failures.
 	for _, cmd := range commands {
 		stdout, stderr, exitCode, err := v.runner.Run(ctx, cmd, "")
@@ -82,6 +112,7 @@ func (v *Validate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 		// Handle timeout errors as validation failures.
 		if errors.Is(err, context.DeadlineExceeded) {
 			summary := formatTimeoutMessage(cmd)
+			emitFail(summary)
 			return pipeline.Output{
 				Decision:           pipeline.Block,
 				ValidationFailures: []string{summary},
@@ -97,6 +128,7 @@ func (v *Validate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 			// Format failure output using ExtractValidationSummary.
 			failureOutput := formatCommandFailure(cmd, exitCode, stdout, stderr)
 			summary := validation.ExtractValidationSummary(failureOutput)
+			emitFail(summary)
 			return pipeline.Output{
 				Decision:           pipeline.Block,
 				ValidationFailures: []string{summary},
@@ -104,18 +136,7 @@ func (v *Validate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 		}
 	}
 
-	if in.Emitter != nil && !startTime.IsZero() {
-		duration := time.Since(startTime)
-		if duration < 0 {
-			duration = 0
-		}
-		in.Emitter.Emit(&events.ValidationPassEvent{
-			BeadID:   in.Bead.ID,
-			Duration: duration,
-			Time:     time.Now(),
-		})
-	}
-
+	emitPass()
 	return pipeline.Output{Decision: pipeline.Proceed}, nil
 }
 

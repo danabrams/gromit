@@ -212,8 +212,9 @@ func TestValidate_EmitsValidationFailEventOnFailure(t *testing.T) {
 	if failEvt.BeadID != beadID {
 		t.Fatalf("ValidationFailEvent.BeadID = %q, want %q", failEvt.BeadID, beadID)
 	}
-	if !contains(failEvt.Output, "exit code") && !contains(failEvt.Output, "failed") {
-		t.Fatalf("ValidationFailEvent.Output = %q, want failure summary", failEvt.Output)
+	expectedOutput := strings.Join(out.ValidationFailures, "\n")
+	if failEvt.Output != expectedOutput {
+		t.Fatalf("ValidationFailEvent.Output = %q, want %q", failEvt.Output, expectedOutput)
 	}
 }
 

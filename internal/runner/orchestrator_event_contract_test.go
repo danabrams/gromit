@@ -34,6 +34,46 @@ func newCaptureSubscriber(emitter *events.Emitter) *captureSubscriber {
 	}
 }
 
+func emitValidationStartEvent(in pipeline.Input) {
+	if in.Emitter == nil || in.Bead == nil {
+		return
+	}
+	in.Emitter.Emit(&events.ValidationStartEvent{
+		BeadID:   in.Bead.ID,
+		Commands: []string{"fake-validation"},
+		Time:     time.Now(),
+	})
+}
+
+func emitValidationPassEvent(in pipeline.Input, duration time.Duration) {
+	if in.Emitter == nil || in.Bead == nil {
+		return
+	}
+	if duration < 0 {
+		duration = 0
+	}
+	in.Emitter.Emit(&events.ValidationPassEvent{
+		BeadID:   in.Bead.ID,
+		Duration: duration,
+		Time:     time.Now(),
+	})
+}
+
+func emitValidationFailEvent(in pipeline.Input, output string, duration time.Duration) {
+	if in.Emitter == nil || in.Bead == nil {
+		return
+	}
+	if duration < 0 {
+		duration = 0
+	}
+	in.Emitter.Emit(&events.ValidationFailEvent{
+		BeadID:   in.Bead.ID,
+		Output:   output,
+		Duration: duration,
+		Time:     time.Now(),
+	})
+}
+
 func (cs *captureSubscriber) start() {
 	defer close(cs.done)
 
@@ -58,10 +98,18 @@ func TestOrchestrator_SuccessPath_EmitsEventOrdering(t *testing.T) {
 		return &bead.Bead{ID: "test-bead-1", Title: "Test Task"}, nil
 	}
 
+	validateStage := &fakeStage{
+		runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+			emitValidationStartEvent(in)
+			emitValidationPassEvent(in, 0)
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		},
+	}
+
 	cfg := OrchestratorConfig{
 		Gate:     &fakeStage{},
 		Build:    &fakeStage{},
-		Validate: &fakeStage{},
+		Validate: validateStage,
 		Epilogue: &fakeStage{},
 		GetBead:  getBead,
 		Config:   &config.Config{},
@@ -308,13 +356,16 @@ func TestOrchestrator_FailurePath_EmitsEventOrdering(t *testing.T) {
 	validateAttempt := 0
 	validateStage := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
 		validateAttempt++
+		emitValidationStartEvent(in)
 		if validateAttempt == 1 {
+			emitValidationFailEvent(in, "validation error: test failed", 0)
 			// First attempt: fail validation
 			return pipeline.Output{
 				Decision:           pipeline.Block,
 				ValidationFailures: []string{"validation error: test failed"},
 			}, nil
 		}
+		emitValidationPassEvent(in, 0)
 		// Second attempt: pass validation
 		return pipeline.Output{
 			Decision: pipeline.Proceed,

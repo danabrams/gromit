@@ -388,21 +388,8 @@ runLoop:
 		if o.cfg.CoverageTracker != nil {
 			o.cfg.CoverageTracker.ToValidating()
 		}
-		// Emit ValidationStartEvent
-		o.emitter.Emit(&events.ValidationStartEvent{
-			BeadID:   b.ID,
-			Commands: nil, // Could populate from baseIn if available
-			Time:     time.Now(),
-		})
 		validateOut, validateErr := o.cfg.Validate.Run(ctx, baseIn)
 		if validateErr != nil || validateOut.Decision != pipeline.Proceed {
-			// Emit ValidationFailEvent
-			o.emitter.Emit(&events.ValidationFailEvent{
-				BeadID:   b.ID,
-				Output:   strings.Join(validateOut.ValidationFailures, "\n"),
-				Duration: 0, // TODO(review): thread real duration once TUI consumes this field
-				Time:     time.Now(),
-			})
 			// Accumulate failure summaries for the next Build invocation.
 			validationFailures = validateOut.ValidationFailures
 			baseIn.FailureOutput = strings.Join(validateOut.ValidationFailures, "\n")
@@ -441,13 +428,6 @@ runLoop:
 
 		// Validation passed: clear accumulated failures so the next bead starts clean.
 		validationFailures = nil
-
-		// Emit ValidationPassEvent
-		o.emitter.Emit(&events.ValidationPassEvent{
-			BeadID:   b.ID,
-			Duration: 0, // TODO(review): thread real duration once TUI consumes this field
-			Time:     time.Now(),
-		})
 
 		if o.cfg.CoverageTracker != nil {
 			o.cfg.CoverageTracker.ToComplete()
