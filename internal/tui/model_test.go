@@ -28,3 +28,23 @@ func TestModel_ImplementsTeaModel(t *testing.T) {
 	cmd := m.Init()
 	_ = cmd // cmd can be nil, that's fine
 }
+
+func TestModel_SwitchViewToDashboard(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+
+	// Initially should be on Dashboard
+	if m.currentView != ViewDashboard {
+		t.Errorf("expected initial view to be Dashboard, got %v", m.currentView)
+	}
+
+	m.SwitchView(ViewQueue)
+	if m.currentView != ViewQueue {
+		t.Errorf("expected view to be Queue, got %v", m.currentView)
+	}
+
+	m.SwitchView(ViewDashboard)
+	if m.currentView != ViewDashboard {
+		t.Errorf("expected view to be Dashboard, got %v", m.currentView)
+	}
+}
