@@ -228,10 +228,10 @@ func buildTrackerCreateRequest(title string, priority int, labels, outputs []str
 			"priority": fmt.Sprintf("%d", priority),
 		},
 	}
-	if encoded, ok := encodeJSONStrings(labels); ok {
+	if encoded, ok := tracker.EncodeMetadataJSONList(labels); ok {
 		req.Metadata["labels"] = encoded
 	}
-	if encoded, ok := encodeJSONStrings(outputs); ok {
+	if encoded, ok := tracker.EncodeMetadataJSONList(outputs); ok {
 		req.Metadata["expected_outputs"] = encoded
 	}
 	return req
