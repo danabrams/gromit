@@ -168,7 +168,7 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 	lifecycleFailure := pipeline.LifecycleFailureNone
 	warningOccurred := false
 	warnf := func(format string, args ...interface{}) {
-		e.log("warning", format, args...)
+		e.Log("warning", format, args...)
 		warningOccurred = true
 	}
 
@@ -342,7 +342,3 @@ func (e *Epilogue) clearMergeWarning(branch string) {
 	delete(e.mergeWarnings, branch)
 }
 
-func (e *Epilogue) log(level, format string, args ...interface{}) {
-	logger := &events.EmitterLogger{Emitter: e.Emitter}
-	logger.Log(level, format, args...)
-}
