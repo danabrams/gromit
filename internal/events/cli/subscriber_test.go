@@ -18,7 +18,7 @@ func TestCLISubscriber_ConsumesEvents(t *testing.T) {
 
 	emitter := events.NewEmitter()
 	output := &bytes.Buffer{}
-	subscriber := NewCLISubscriber(output, emitter)
+	subscriber := NewCLISubscriber(BasicWriter(output), emitter)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -63,7 +63,7 @@ func TestCLISubscriber_IgnoresUnknownEvents(t *testing.T) {
 
 	emitter := events.NewEmitter()
 	output := &bytes.Buffer{}
-	subscriber := NewCLISubscriber(output, emitter)
+	subscriber := NewCLISubscriber(BasicWriter(output), emitter)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -104,7 +104,7 @@ func TestCLISubscriber_EmitterClosed_ExitsGracefully(t *testing.T) {
 
 	emitter := events.NewEmitter()
 	output := &bytes.Buffer{}
-	subscriber := NewCLISubscriber(output, emitter)
+	subscriber := NewCLISubscriber(BasicWriter(output), emitter)
 
 	ctx := context.Background()
 

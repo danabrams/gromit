@@ -149,7 +149,7 @@ func (o *Orchestrator) StartSubscribers(ctx context.Context) error {
 		output = os.Stderr
 	}
 
-	cliSubscriber := cli.NewCLISubscriber(output, o.emitter)
+	cliSubscriber := cli.NewCLISubscriber(cli.BasicWriter(output), o.emitter)
 	go func() {
 		_ = cliSubscriber.Start(ctx)
 	}()

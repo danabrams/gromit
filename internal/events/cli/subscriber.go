@@ -18,22 +18,23 @@ type CLISubscriber struct {
 }
 
 // NewCLISubscriber creates a new CLI subscriber that writes to the given output writer.
-func NewCLISubscriber(output interface{}, emitter *events.Emitter) *CLISubscriber {
-	// Convert io.Writer to OverwriteWriter if needed
-	var ow execution.OverwriteWriter
-	switch w := output.(type) {
-	case execution.OverwriteWriter:
-		ow = w
-	case io.Writer:
-		ow = &basicWriter{w}
-	default:
-		ow = &basicWriter{io.Discard}
+func NewCLISubscriber(output execution.OverwriteWriter, emitter *events.Emitter) *CLISubscriber {
+	if output == nil {
+		output = BasicWriter(io.Discard)
 	}
 
 	return &CLISubscriber{
-		output:  ow,
+		output:  output,
 		emitter: emitter,
 	}
+}
+
+// BasicWriter wraps an io.Writer so it can be used where execution.OverwriteWriter is required.
+func BasicWriter(w io.Writer) execution.OverwriteWriter {
+	if w == nil {
+		w = io.Discard
+	}
+	return &basicWriter{w}
 }
 
 // basicWriter wraps an io.Writer to implement OverwriteWriter for backward compatibility.

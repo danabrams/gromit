@@ -177,7 +177,7 @@ func TestCLIOutputParity(t *testing.T) {
 	defer emitter.Close()
 
 	output := &bytes.Buffer{}
-	subscriber := cli.NewCLISubscriber(output, emitter)
+	subscriber := cli.NewCLISubscriber(cli.BasicWriter(output), emitter)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
