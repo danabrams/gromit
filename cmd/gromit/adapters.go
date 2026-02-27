@@ -307,6 +307,20 @@ func (a *trackerClientAdapter) Close(ctx context.Context, id string) error {
 	return a.Client.Close(ctx, id)
 }
 
+func (a *trackerClientAdapter) ListWithLabel(ctx context.Context, label string) ([]string, error) {
+	// Use tracker.Client.ListWithLabel to find items by label
+	items, err := a.Client.ListWithLabel(ctx, label)
+	if err != nil {
+		return nil, err
+	}
+	// Convert tracker.Item slice to string IDs
+	var ids []string
+	for _, item := range items {
+		ids = append(ids, item.ID)
+	}
+	return ids, nil
+}
+
 // backlogClientAdapter adapts backlog.File to pipeline.BacklogClient interface.
 type backlogClientAdapter struct {
 	file *backlog.File
