@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
+	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/runner/validation"
 )
@@ -63,6 +65,16 @@ func (v *Validate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 		return pipeline.Output{Decision: pipeline.Proceed}, nil
 	}
 
+	startTime := time.Time{}
+	if in.Emitter != nil {
+		startTime = time.Now()
+		in.Emitter.Emit(&events.ValidationStartEvent{
+			BeadID:   in.Bead.ID,
+			Commands: commands,
+			Time:     startTime,
+		})
+	}
+
 	// Run validation commands and collect failures.
 	for _, cmd := range commands {
 		stdout, stderr, exitCode, err := v.runner.Run(ctx, cmd, "")
@@ -90,6 +102,18 @@ func (v *Validate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 				ValidationFailures: []string{summary},
 			}, nil
 		}
+	}
+
+	if in.Emitter != nil && !startTime.IsZero() {
+		duration := time.Since(startTime)
+		if duration < 0 {
+			duration = 0
+		}
+		in.Emitter.Emit(&events.ValidationPassEvent{
+			BeadID:   in.Bead.ID,
+			Duration: duration,
+			Time:     time.Now(),
+		})
 	}
 
 	return pipeline.Output{Decision: pipeline.Proceed}, nil
