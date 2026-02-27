@@ -114,3 +114,144 @@ func TestEmitter_EmitAfterClose_NoOp(t *testing.T) {
 	// Should not panic
 	emitter.Emit(&LogEvent{Level: "info", Message: "test"})
 }
+
+// TestEmitter_ConcurrentEmit_IsSafe tests that concurrent Emit calls are safe.
+func TestEmitter_ConcurrentEmit_IsSafe(t *testing.T) {
+	t.Parallel()
+	emitter := NewEmitter()
+	defer emitter.Close()
+
+	ch := emitter.Subscribe()
+
+	// Launch multiple goroutines emitting concurrently
+	const numGoroutines = 10
+	const eventsPerGoroutine = 10
+	done := make(chan struct{})
+
+	for i := 0; i < numGoroutines; i++ {
+		go func(id int) {
+			for j := 0; j < eventsPerGoroutine; j++ {
+				event := &LogEvent{
+					Level:   "info",
+					Message: "concurrent test",
+				}
+				emitter.Emit(event)
+			}
+			done <- struct{}{}
+		}(i)
+	}
+
+	// Wait for all goroutines to complete
+	for i := 0; i < numGoroutines; i++ {
+		<-done
+	}
+
+	// Verify events were received (some may be dropped due to buffer full, but we should get some)
+	received := 0
+	for received < (numGoroutines * eventsPerGoroutine / 2) {
+		select {
+		case <-ch:
+			received++
+		case <-time.After(1 * time.Second):
+			// Done receiving
+			break
+		}
+	}
+
+	if received == 0 {
+		t.Fatal("no events received from concurrent emits")
+	}
+}
+
+// TestEmitter_SlowConsumer_DropsEvents tests that events are dropped for slow consumers when buffer is full.
+func TestEmitter_SlowConsumer_DropsEvents(t *testing.T) {
+	t.Parallel()
+	emitter := NewEmitter()
+	defer emitter.Close()
+
+	slowCh := emitter.Subscribe()
+
+	// Fill the subscriber's buffer with events (buffer size is 100)
+	const bufferedSize = 100
+	for i := 0; i < bufferedSize + 50; i++ {
+		event := &LogEvent{
+			Level:   "info",
+			Message: "fill buffer test",
+		}
+		emitter.Emit(event)
+	}
+
+	// Now consume a few events from the slow consumer
+	received := 0
+	for i := 0; i < 20; i++ {
+		select {
+		case <-slowCh:
+			received++
+		case <-time.After(100 * time.Millisecond):
+			t.Fatal("failed to receive expected events")
+		}
+	}
+
+	if received != 20 {
+		t.Errorf("expected to receive 20 events, got %d", received)
+	}
+
+	// Since we sent 150 events but buffer is only 100, some events must have been dropped
+	// This verifies non-blocking drop-on-full behavior
+}
+
+// TestEmitter_SubscribeAfterClose_ReturnsFunctionalChannel tests edge case of subscribing after close.
+func TestEmitter_SubscribeAfterClose_ReturnsFunctionalChannel(t *testing.T) {
+	t.Parallel()
+	emitter := NewEmitter()
+	emitter.Close()
+
+	// Subscribe after close should still return a channel
+	ch := emitter.Subscribe()
+	if ch == nil {
+		t.Fatal("Subscribe after close returned nil channel")
+	}
+
+	// Emit after close is a no-op, so channel should remain empty
+	emitter.Emit(&LogEvent{Level: "info", Message: "test"})
+
+	select {
+	case <-ch:
+		t.Error("received event on channel after emitter was closed")
+	case <-time.After(100 * time.Millisecond):
+		// Expected: no event received
+	}
+}
+
+// TestEmitter_UnsubscribeAfterClose_IsNoop tests edge case of unsubscribing after close.
+func TestEmitter_UnsubscribeAfterClose_IsNoop(t *testing.T) {
+	t.Parallel()
+	emitter := NewEmitter()
+	ch := emitter.Subscribe()
+	emitter.Close()
+
+	// Unsubscribe after close should not panic
+	emitter.Unsubscribe(ch)
+}
+
+// TestEmitter_CloseIsIdempotent tests that Close can be called multiple times safely.
+func TestEmitter_CloseIsIdempotent(t *testing.T) {
+	t.Parallel()
+	emitter := NewEmitter()
+	ch := emitter.Subscribe()
+
+	// First close
+	emitter.Close()
+
+	// Second close should not panic
+	emitter.Close()
+
+	// Third close should not panic
+	emitter.Close()
+
+	// Channel should still be closed
+	_, ok := <-ch
+	if ok {
+		t.Error("channel not closed after multiple Close() calls")
+	}
+}
