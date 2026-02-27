@@ -215,6 +215,7 @@ func (o *Orchestrator) Run(ctx context.Context, maxIterations int, deadline time
 	var validationFailures []string
 	var touchedPackages []string
 	processedBeads := make(map[string]bool)
+	consecutiveSkips := 0
 	iteration := 0
 
 	// Emit RunStartEvent
@@ -262,13 +263,20 @@ runLoop:
 			break runLoop
 		}
 
-		// Skip beads already processed this run. Without this check, bd
-		// returns the same bead repeatedly when it cannot transition to
-		// closed (e.g. open dependencies, gate/build failures).
+		// Skip beads already processed this run. bd returns the same
+		// bead repeatedly when it cannot transition to closed (e.g.
+		// open dependencies, gate/build failures). Break after
+		// len(processedBeads) consecutive skips — at that point every
+		// known bead has been re-offered and no new work is available.
 		if processedBeads[b.ID] {
-			o.logInfo("Skipping bead %s: already processed this run", b.ID)
+			consecutiveSkips++
+			if consecutiveSkips >= len(processedBeads) {
+				o.logInfo("No remaining work: all %d processed bead(s) re-offered by bd (likely uncloseable due to open dependencies)", len(processedBeads))
+				break runLoop
+			}
 			continue
 		}
+		consecutiveSkips = 0
 		processedBeads[b.ID] = true
 
 		// Iteration numbers are assigned monotonically, one per bead regardless

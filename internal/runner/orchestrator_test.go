@@ -2399,17 +2399,11 @@ func TestOrchestrator_DoesNotEmitBuildAndReviewEvents(t *testing.T) {
 }
 
 // TestOrchestrator_SkipsAlreadyProcessedBead verifies that when GetBead returns
-// the same bead ID on consecutive iterations (e.g. because bd ready keeps
-// returning it), the orchestrator processes it only once and skips subsequent
-// occurrences instead of looping indefinitely.
+// the same bead ID indefinitely (e.g. because bd ready keeps returning an
+// uncloseable bead), the orchestrator processes it once and then terminates
+// instead of looping forever.
 func TestOrchestrator_SkipsAlreadyProcessedBead(t *testing.T) {
 	t.Parallel()
-
-	gateRunCount := 0
-	gate := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
-		gateRunCount++
-		return pipeline.Output{Decision: pipeline.Proceed}, nil
-	}}
 
 	buildRunCount := 0
 	build := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
@@ -2420,15 +2414,13 @@ func TestOrchestrator_SkipsAlreadyProcessedBead(t *testing.T) {
 	beadCalls := 0
 	getBead := func(_ context.Context) (*bead.Bead, error) {
 		beadCalls++
-		// Return the same bead 3 times, then nil to end the loop.
-		if beadCalls > 3 {
-			return nil, nil
-		}
-		return &bead.Bead{ID: "repeated-bead", Title: "Same bead every time"}, nil
+		// Always return the same bead — never nil. This simulates bd
+		// returning an uncloseable bead indefinitely.
+		return &bead.Bead{ID: "stuck-bead", Title: "Cannot close"}, nil
 	}
 
 	cfg := OrchestratorConfig{
-		Gate:     gate,
+		Gate:     &fakeStage{},
 		Build:    build,
 		Validate: &fakeStage{},
 		Epilogue: &fakeStage{},
@@ -2438,12 +2430,15 @@ func TestOrchestrator_SkipsAlreadyProcessedBead(t *testing.T) {
 	}
 
 	orch := NewOrchestrator(cfg)
-	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+	if err := orch.Run(context.Background(), 0, time.Time{}, nil); err != nil {
 		t.Fatalf("Run() error = %v, want nil", err)
 	}
 
-	// The bead should only be processed once despite being returned 3 times.
 	if buildRunCount != 1 {
 		t.Errorf("Build stage ran %d times, want 1 (bead should be skipped after first processing)", buildRunCount)
+	}
+	// GetBead is called twice: once to process, once to detect the duplicate.
+	if beadCalls != 2 {
+		t.Errorf("GetBead called %d times, want 2", beadCalls)
 	}
 }
