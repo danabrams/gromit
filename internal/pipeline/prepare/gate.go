@@ -119,7 +119,7 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 	if g.precheck != nil {
 		done, err := g.precheck.Check(ctx, in.Bead)
 		if err != nil {
-			g.log("warning", "Warning: precheck failed for bead %s: %v", in.Bead.ID, err)
+			g.Log("warning", "Warning: precheck failed for bead %s: %v", in.Bead.ID, err)
 		} else if done {
 			return pipeline.Output{
 				Decision:          pipeline.Skip,
@@ -132,7 +132,7 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 	if g.stuck != nil {
 		stuck, err := g.stuck.IsStuck(ctx, in.Bead)
 		if err != nil {
-			g.log("warning", "Warning: stuck detection failed for bead %s: %v", in.Bead.ID, err)
+			g.Log("warning", "Warning: stuck detection failed for bead %s: %v", in.Bead.ID, err)
 		} else if stuck {
 			return pipeline.Output{
 				Decision:          pipeline.Block,
@@ -145,9 +145,9 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 	if g.dataQualityChecker != nil {
 		blocked, reason, err := g.dataQualityChecker.ShouldBlock(ctx, in.Bead)
 		if err != nil {
-			g.log("warning", "Warning: data quality check failed for bead %s: %v", in.Bead.ID, err)
+			g.Log("warning", "Warning: data quality check failed for bead %s: %v", in.Bead.ID, err)
 		} else if blocked {
-			g.log("warning", "Data quality block for bead %s: %s", in.Bead.ID, reason)
+			g.Log("warning", "Data quality block for bead %s: %s", in.Bead.ID, reason)
 			return pipeline.Output{
 				Decision:          pipeline.Block,
 				ComplexityRouting: complexityRouting,
@@ -238,23 +238,19 @@ func (g *Gate) runScopeGate(ctx context.Context, in pipeline.Input) (*pipeline.O
 	// Scope-based decomposition applies to child beads too: the finite
 	// expected-outputs count bounds recursion depth naturally.
 	if g.decomposer != nil {
-		g.log("info", "Scope gate: bead %s has %d expected outputs (max %d), attempting decomposition",
+		g.Log("info", "Scope gate: bead %s has %d expected outputs (max %d), attempting decomposition",
 			in.Bead.ID, fileCount, maxScopeFiles)
 		if err := g.decomposer.Decompose(ctx, in.Bead); err != nil {
-			g.log("warning", "Warning: decomposition failed for bead %s: %v, falling back to block", in.Bead.ID, err)
+			g.Log("warning", "Warning: decomposition failed for bead %s: %v, falling back to block", in.Bead.ID, err)
 			return &pipeline.Output{Decision: pipeline.Block}, nil
 		}
-		g.log("info", "Scope gate: decomposition succeeded for bead %s, skipping parent bead", in.Bead.ID)
+		g.Log("info", "Scope gate: decomposition succeeded for bead %s, skipping parent bead", in.Bead.ID)
 		return &pipeline.Output{Decision: pipeline.Skip}, nil
 	}
 
 	// Decomposition not available or bead is child: block.
-	g.log("warning", "Scope gate: bead %s has %d expected outputs (max %d), blocking",
+	g.Log("warning", "Scope gate: bead %s has %d expected outputs (max %d), blocking",
 		in.Bead.ID, fileCount, maxScopeFiles)
 	return &pipeline.Output{Decision: pipeline.Block}, nil
 }
 
-func (g *Gate) log(level, format string, args ...interface{}) {
-	logger := &events.EmitterLogger{Emitter: g.Emitter}
-	logger.Log(level, format, args...)
-}
