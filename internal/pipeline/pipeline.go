@@ -65,6 +65,8 @@ type ExplorePromptInput struct {
 type ThoroughReviewPromptInput struct {
 	FromCommit string
 	Diff       string
+	ClaudeMD   string
+	Rules      string
 }
 
 // LogEntry holds the fields for a log entry.
