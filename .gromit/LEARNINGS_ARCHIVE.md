@@ -1669,3 +1669,10 @@ When refactoring Go interfaces to add context.Context as a parameter, must updat
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-27 | review | patterns
+Context threading is now the norm across tracker and bead APIs; new call sites should avoid context.Background() unless explicitly intended.
+
+### 2026-02-27 | review | patterns
+Metadata for labels/outputs/criteria is stored as JSON arrays; keep encoding centralized to prevent drift.
+
+*Archived from new: filtered: generic engineering advice*
