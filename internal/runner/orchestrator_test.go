@@ -607,6 +607,50 @@ func TestOrchestrator_PropagatesGateComplexityRoutingToBuildInput(t *testing.T) 
 	}
 }
 
+func TestOrchestrator_AttachesEmitterToBuildInput(t *testing.T) {
+	t.Parallel()
+	var captured pipeline.Input
+
+	gate := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+	build := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		captured = in
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-emitter", Title: "Emitter bead"}, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     gate,
+		Build:    build,
+		Validate: &fakeStage{},
+		Epilogue: &fakeStage{},
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if captured.Emitter == nil {
+		t.Fatal("build input emitter nil; want orchestrator emitter")
+	}
+	if captured.Emitter != orch.GetEmitter() {
+		t.Fatalf("build input emitter = %p, want orchestrator emitter %p", captured.Emitter, orch.GetEmitter())
+	}
+}
+
 func TestOrchestrator_SetsComplexityFromPriority(t *testing.T) {
 	t.Parallel()
 	var captured pipeline.Input
