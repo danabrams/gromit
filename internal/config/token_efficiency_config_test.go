@@ -261,6 +261,30 @@ token_efficiency:
 	}
 }
 
+func TestRetrievalExperimentConfigDefaults(t *testing.T) {
+	cfg := &Config{}
+	cfg.SetDefaults()
+
+	if cfg.TokenEfficiency.Retrieval.Enabled {
+		t.Errorf("TokenEfficiency.Retrieval.Enabled = true, want false by default")
+	}
+	if cfg.TokenEfficiency.Retrieval.TopK != 0 {
+		t.Errorf("TokenEfficiency.Retrieval.TopK = %d, want 0 by default", cfg.TokenEfficiency.Retrieval.TopK)
+	}
+	if cfg.TokenEfficiency.Retrieval.ConfidenceThreshold != 0 {
+		t.Errorf("TokenEfficiency.Retrieval.ConfidenceThreshold = %f, want 0.0 by default", cfg.TokenEfficiency.Retrieval.ConfidenceThreshold)
+	}
+	if cfg.TokenEfficiency.Retrieval.StalenessPolicy != "" {
+		t.Errorf("TokenEfficiency.Retrieval.StalenessPolicy = %q, want empty string by default", cfg.TokenEfficiency.Retrieval.StalenessPolicy)
+	}
+	if cfg.TokenEfficiency.Retrieval.StalenessThresholdDays != 0 {
+		t.Errorf("TokenEfficiency.Retrieval.StalenessThresholdDays = %d, want 0 by default", cfg.TokenEfficiency.Retrieval.StalenessThresholdDays)
+	}
+	if cfg.TokenEfficiency.Retrieval.IndexPath != "" {
+		t.Errorf("TokenEfficiency.Retrieval.IndexPath = %q, want empty string by default", cfg.TokenEfficiency.Retrieval.IndexPath)
+	}
+}
+
 func containsAll(s string, parts ...string) bool {
 	for _, p := range parts {
 		if !strings.Contains(s, p) {
