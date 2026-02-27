@@ -1112,6 +1112,74 @@ func countMessagesContaining(messages []string, substr string) int {
 	return count
 }
 
+// TestEpilog_EmitsBeadCleanupEventForWorktreeCleanupAction verifies BeadCleanupEvent
+// with action="worktree_cleanup" is emitted when worktree removal succeeds.
+func TestEpilog_EmitsBeadCleanupEventForWorktreeCleanupAction(t *testing.T) {
+	t.Parallel()
+
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	beads := &fakeBeadLifecycle{}
+	status := &fakeStatusWriter{}
+	merger := &fakeWorktreeMerger{
+		branches: []string{"interactive/branch-1"},
+		derivedPaths: map[string]string{
+			"interactive/branch-1": "/repo-interactive-branch-1",
+		},
+	}
+	epi := epiloguepkg.New(beads, status, io.Discard).
+		WithWorktree(merger).
+		WithEmitter(emitter)
+
+	beadID := "bead-cleanup-test"
+	input := pipeline.Input{
+		Bead: &bead.Bead{
+			ID:    beadID,
+			Title: "test bead",
+		},
+		Iteration:      1,
+		BuildSucceeded: true,
+		Config:         &config.Config{},
+		Emitter:        emitter,
+	}
+
+	_, err := epi.Run(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Epilogue.Run() error = %v", err)
+	}
+
+	// Collect events
+	var emittedEvents []events.Event
+	timeout := time.After(100 * time.Millisecond)
+	for {
+		select {
+		case evt := <-ch:
+			emittedEvents = append(emittedEvents, evt)
+		case <-timeout:
+			goto checkEvents
+		}
+	}
+
+checkEvents:
+	// Verify we got BeadCleanupEvent with action="worktree_cleanup"
+	var cleanupEvent *events.BeadCleanupEvent
+	for _, evt := range emittedEvents {
+		if ce, ok := evt.(*events.BeadCleanupEvent); ok && ce.Action == "worktree_cleanup" {
+			cleanupEvent = ce
+		}
+	}
+
+	if cleanupEvent == nil {
+		t.Fatal("expected BeadCleanupEvent with action=\"worktree_cleanup\" to be emitted on successful worktree removal")
+	}
+	if cleanupEvent.BeadID != beadID {
+		t.Errorf("BeadCleanupEvent.BeadID = %q, want %q", cleanupEvent.BeadID, beadID)
+	}
+}
+
 // TestEpilog_EmitsBeadCleanupEventForMergeAction verifies BeadCleanupEvent with
 // action="merge" is emitted when worktree merge succeeds.
 func TestEpilog_EmitsBeadCleanupEventForMergeAction(t *testing.T) {
