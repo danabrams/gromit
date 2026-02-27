@@ -97,6 +97,12 @@ type IterationMetric struct {
 	RollingAvgInputTokens        float64                   `json:"rolling_avg_input_tokens"`
 	RollingAvgCostPerBeadUSD     float64                   `json:"rolling_avg_cost_per_bead_usd"`
 	RollingAvgMTTRProxyMs        float64                   `json:"rolling_avg_mttr_proxy_ms"`
+	RollingProviderName          string                    `json:"rolling_provider_name"`
+	RollingProviderInvocations   int                       `json:"rolling_provider_invocations"`
+	RollingProviderSuccesses     int                       `json:"rolling_provider_successes"`
+	RollingProviderSuccessRate   float64                   `json:"rolling_provider_success_rate"`
+	RollingProviderTransportFailures int                   `json:"rolling_provider_transport_failures"`
+	RollingProviderTransportFailureRate float64            `json:"rolling_provider_transport_failure_rate"`
 	RollingPreflightFailureRate  float64                   `json:"rolling_preflight_failure_rate"`
 	RollingBuildFailureRate      float64                   `json:"rolling_build_failure_rate"`
 	RollingValidationFailureRate float64                   `json:"rolling_validation_failure_rate"`

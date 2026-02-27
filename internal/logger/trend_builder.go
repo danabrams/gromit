@@ -60,7 +60,10 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 		prevInputZ    float64
 		hasPrevious   bool
 	)
+	resolvedProviders := make([]string, 0, len(entries))
 	for idx, entry := range entries {
+		providerName := resolveProviderName(entry.Provider, entry.Model)
+		resolvedProviders = append(resolvedProviders, providerName)
 		windowStart := idx - windowSize + 1
 		if windowStart < 0 {
 			windowStart = 0
@@ -85,6 +88,30 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 		prevDurationZ = durationEWMA.Z
 		prevInputZ = inputTokenEWMA.Z
 		hasPrevious = true
+
+		providerInvocations := 0
+		providerSuccesses := 0
+		providerTransportFailures := 0
+		for i := windowStart; i <= idx; i++ {
+			if resolvedProviders[i] != providerName {
+				continue
+			}
+			providerInvocations++
+			if entries[i].Success {
+				providerSuccesses++
+			}
+			if entries[i].FailureCategory == transportDisconnectFailure {
+				providerTransportFailures++
+			}
+		}
+		providerSuccessRate := 0.0
+		if providerInvocations > 0 {
+			providerSuccessRate = float64(providerSuccesses) / float64(providerInvocations)
+		}
+		providerTransportFailureRate := 0.0
+		if providerInvocations > 0 {
+			providerTransportFailureRate = float64(providerTransportFailures) / float64(providerInvocations)
+		}
 
 		metrics = append(metrics, IterationMetric{
 			Timestamp:         entry.Timestamp,
@@ -137,6 +164,12 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 			RollingAvgInputTokens:                  w.AvgInputTokens,
 			RollingAvgCostPerBeadUSD:               w.AvgCostPerBeadUSD,
 			RollingAvgMTTRProxyMs:                  w.AvgMTTRProxyMs,
+			RollingProviderName:                     providerName,
+			RollingProviderInvocations:              providerInvocations,
+			RollingProviderSuccesses:                providerSuccesses,
+			RollingProviderSuccessRate:              providerSuccessRate,
+			RollingProviderTransportFailures:        providerTransportFailures,
+			RollingProviderTransportFailureRate:      providerTransportFailureRate,
 			RollingPreflightFailureRate:            w.PreflightFailureRate,
 			RollingBuildFailureRate:                w.BuildFailureRate,
 			RollingValidationFailureRate:           w.ValidationFailureRate,
