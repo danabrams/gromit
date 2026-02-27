@@ -189,8 +189,26 @@ type RefineSession struct {
 }
 
 // PlanSession is a typed wrapper for interactive Plan sessions.
+// It owns the lifecycle of the temp prompt file to support async mode.
 type PlanSession struct {
 	Session
+	cleanup func()
+}
+
+// NewPlanSession creates a PlanSession that owns the given cleanup function.
+func NewPlanSession(cleanup func()) *PlanSession {
+	return &PlanSession{
+		cleanup: cleanup,
+	}
+}
+
+// Cleanup removes the temp file associated with this session.
+// Safe to call multiple times - subsequent calls are no-ops.
+func (ps *PlanSession) Cleanup() {
+	if ps.cleanup != nil {
+		ps.cleanup()
+		ps.cleanup = nil // Prevent double cleanup
+	}
 }
 
 // ReviewSession is a typed wrapper for interactive Review sessions.
