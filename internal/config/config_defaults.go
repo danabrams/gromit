@@ -263,6 +263,9 @@ func (c *Config) SetDefaults() {
 	if !c.Git.pushTimeoutSet && c.Git.PushTimeout == 0 {
 		c.Git.PushTimeout = 60
 	}
+	if c.Git.BaseBranch == "" {
+		c.Git.BaseBranch = DefaultBaseBranch
+	}
 	if c.State.StaleThreshold == 0 {
 		c.State.StaleThreshold = 60
 	}
