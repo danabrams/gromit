@@ -111,3 +111,67 @@ func TestOnIterationComplete_UpdatesProgressPercentage(t *testing.T) {
 		t.Fatalf("IterationPercent = %d, want 40", store.Dashboard.RunProgress.IterationPercent)
 	}
 }
+
+func TestOnBeadComplete_TracksRecentCompletion(t *testing.T) {
+	t.Parallel()
+
+	store := &Store{}
+	event := &events.BeadCompleteEvent{
+		BeadID:    "bead-123",
+		BeadTitle: "Test Feature",
+		Duration:  5 * time.Second,
+		Time:      time.Unix(3000, 0),
+	}
+
+	store.OnBeadComplete(event)
+
+	if len(store.Dashboard.RecentCompletions) != 1 {
+		t.Fatalf("expected 1 recent completion, got %d", len(store.Dashboard.RecentCompletions))
+	}
+	if store.Dashboard.RecentCompletions[0].BeadID != "bead-123" {
+		t.Fatalf("BeadID = %q, want %q", store.Dashboard.RecentCompletions[0].BeadID, "bead-123")
+	}
+	if store.Dashboard.RecentCompletions[0].Status != "completed" {
+		t.Fatalf("Status = %q, want %q", store.Dashboard.RecentCompletions[0].Status, "completed")
+	}
+}
+
+func TestOnBeadFailed_TracksRecentFailure(t *testing.T) {
+	t.Parallel()
+
+	store := &Store{}
+	event := &events.BeadFailedEvent{
+		BeadID:    "bead-456",
+		BeadTitle: "Failed Feature",
+		Error:     "test failed",
+		Time:      time.Unix(4000, 0),
+	}
+
+	store.OnBeadFailed(event)
+
+	if len(store.Dashboard.RecentCompletions) != 1 {
+		t.Fatalf("expected 1 recent completion, got %d", len(store.Dashboard.RecentCompletions))
+	}
+	if store.Dashboard.RecentCompletions[0].Status != "failed" {
+		t.Fatalf("Status = %q, want %q", store.Dashboard.RecentCompletions[0].Status, "failed")
+	}
+}
+
+func TestRecentCompletions_LimitsTo10(t *testing.T) {
+	t.Parallel()
+
+	store := &Store{}
+	for i := 0; i < 15; i++ {
+		event := &events.BeadCompleteEvent{
+			BeadID:    "bead-" + string(rune(i)),
+			BeadTitle: "Feature",
+			Duration:  time.Second,
+			Time:      time.Unix(int64(5000+i), 0),
+		}
+		store.OnBeadComplete(event)
+	}
+
+	if len(store.Dashboard.RecentCompletions) != 10 {
+		t.Fatalf("expected 10 recent completions, got %d", len(store.Dashboard.RecentCompletions))
+	}
+}
