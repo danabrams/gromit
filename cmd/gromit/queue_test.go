@@ -2,11 +2,14 @@ package main
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/queue"
 	"github.com/danabrams/gromit/internal/tracker"
 )
@@ -67,6 +70,65 @@ func TestColorizeLine(t *testing.T) {
 	plain := colorizeLine(line, ansiGreen, false)
 	if plain != line {
 		t.Fatalf("plain = %q, want %q", plain, line)
+	}
+}
+
+func TestShowQueue_DelegatesToPipeline(t *testing.T) {
+	t.Parallel()
+
+	origConfigPath := configPath
+	configPath = filepath.Join("..", "..", "gromit.yaml")
+	t.Cleanup(func() {
+		configPath = origConfigPath
+	})
+
+	now := queueBySpec
+	origCompletion := queueCompletionOrder
+	queueBySpec = false
+	queueCompletionOrder = false
+	t.Cleanup(func() {
+		queueBySpec = now
+		queueCompletionOrder = origCompletion
+	})
+
+	pipelineCalled := false
+	mockExecutor := &mockQueueExecutor{
+		queueFn: func(ctx context.Context, input pipeline.QueueInput) (*pipeline.QueueResult, error) {
+			pipelineCalled = true
+			return &pipeline.QueueResult{
+				Ready: []*bead.Bead{
+					{ID: "ready-1", Title: "Ready Task", Priority: 0},
+				},
+				Blocked: []*bead.Bead{
+					{ID: "blocked-1", Title: "Blocked Task", Priority: 1},
+				},
+				Stuck: []*bead.Bead{},
+				All: []*bead.Bead{
+					{ID: "ready-1"},
+					{ID: "blocked-1"},
+				},
+			}, nil
+		},
+	}
+
+	queuePipelineFactory = func(cfg *config.Config, gromitDir string) (queueExecutor, error) {
+		return mockExecutor, nil
+	}
+	t.Cleanup(func() {
+		queuePipelineFactory = createQueuePipeline
+	})
+
+	output := captureStdout(t, func() {
+		if err := showQueue(queueCmd, nil); err != nil {
+			t.Fatalf("showQueue returned error: %v", err)
+		}
+	})
+
+	if !pipelineCalled {
+		t.Fatal("expected pipeline.Queue to be called")
+	}
+	if !strings.Contains(output, "ready-1") || !strings.Contains(output, "blocked-1") {
+		t.Fatalf("unexpected queue output: %s", output)
 	}
 }
 
@@ -691,4 +753,15 @@ func (m *trackerMutationTracker) Search(ctx context.Context, q tracker.Query) ([
 
 func (m *trackerMutationTracker) HasOpenChildren(ctx context.Context, parentID string) (bool, error) {
 	return m.wrapped.HasOpenChildren(ctx, parentID)
+}
+
+type mockQueueExecutor struct {
+	queueFn func(context.Context, pipeline.QueueInput) (*pipeline.QueueResult, error)
+}
+
+func (m *mockQueueExecutor) Queue(ctx context.Context, input pipeline.QueueInput) (*pipeline.QueueResult, error) {
+	if m == nil || m.queueFn == nil {
+		return nil, nil
+	}
+	return m.queueFn(ctx, input)
 }
