@@ -1,8 +1,9 @@
 ---
+created: 2026-02-26T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-27T01:44:18Z"
 id: interactive-agent-model-overrides
 source_spec: interactive-agent-model-overrides
-created: 2026-02-26
-decomposed: false
 ---
 
 # Interactive Agent Model Overrides Implementation Plan

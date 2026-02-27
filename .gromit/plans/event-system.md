@@ -1,8 +1,9 @@
 ---
+created: 2026-02-26T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-27T01:51:11Z"
 id: event-system
 source_spec: event-system
-created: 2026-02-26
-decomposed: false
 ---
 
 # Structured Event System Implementation Plan
