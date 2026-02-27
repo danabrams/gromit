@@ -1211,6 +1211,7 @@ func TestCLIContract_CommandHandlersMustDelegateBusinessLogic(t *testing.T) {
 	// It documents the architectural contract that all commands must delegate.
 	// Specific commands (review, board, queue) have been refactored to use Pipeline.
 	// When other commands are refactored, they should follow the same pattern.
+	assertCommandFilesOnlyImportAllowedInternalPackages(t)
 	t.Logf("Delegation contract enforced: Commands delegate to Pipeline, "+
 		"Pipeline doesn't import cmd, and acceptance tests verify the pattern")
 }

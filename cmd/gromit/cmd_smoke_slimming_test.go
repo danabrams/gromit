@@ -298,6 +298,7 @@ func TestCmdAcceptanceTests_SmokeAnnotationsMatchMatrix(t *testing.T) {
 // internal APIs. This prevents business logic from leaking into the CLI layer.
 func TestCmdSmoke_AcceptanceTestsEnforceThinWrapperDelegation(t *testing.T) {
 	t.Parallel()
+	assertCommandFilesOnlyImportAllowedInternalPackages(t)
 
 	// Acceptance tests verify the thin wrapper pattern through integration:
 	// If a command violates the delegation boundary (e.g., calls bead.NewClient
