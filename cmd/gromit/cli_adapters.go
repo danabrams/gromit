@@ -16,6 +16,7 @@ type cliPromptRenderer struct {
 }
 
 var _ pipeline.ReviewRenderer = (*cliPromptRenderer)(nil)
+var _ pipeline.PlanRenderer = (*planPromptRenderer)(nil)
 
 func (r *cliPromptRenderer) RenderThoroughReview(input *pipeline.ThoroughReviewPromptInput) (string, error) {
 	// Build ThoroughReviewContext from pipeline input
@@ -175,4 +176,20 @@ func (r *explorePromptRenderer) LastDiagnostics() *prompt.PromptDiagnostics {
 		return nil
 	}
 	return r.lastDiagnostics
+}
+
+// planPromptRenderer adapts prompt.Renderer to pipeline.PlanRenderer
+type planPromptRenderer struct {
+	renderer *prompt.Renderer
+}
+
+func (r *planPromptRenderer) RenderPlan(input *pipeline.PlanPromptInput) (string, error) {
+	specName := ""
+	if input != nil {
+		specName = input.IdeaText
+	}
+	if specName == "" {
+		return "Plan prompt placeholder", nil
+	}
+	return fmt.Sprintf("Plan prompt placeholder for %s", specName), nil
 }
