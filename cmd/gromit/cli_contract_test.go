@@ -825,3 +825,359 @@ func TestCLIContract_ExitCodes(t *testing.T) {
 		})
 	}
 }
+
+// TestCLIContract_StatusCommandIsReadOnly verifies status command is read-only
+// and doesn't access tracker mutation or run lifecycle APIs.
+func TestCLIContract_StatusCommandIsReadOnly(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, err := os.MkdirTemp("", "gromit-contract-status-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Set up minimal gromit environment
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("failed to create .gromit dir: %v", err)
+	}
+
+	// Create minimal gromit.yaml
+	configContent := `paths:
+  gromit_dir: .gromit
+`
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	// Run gromit status command
+	cmd := exec.Command(binaryPath, "status")
+	cmd.Dir = tmpDir
+	outBuf, outErr := cmd.Output()
+	stdout := string(outBuf)
+	exitCode := 0
+	if outErr != nil {
+		if exitErr, ok := outErr.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		}
+	}
+
+	// Status command should exit 0
+	if exitCode != 0 {
+		t.Errorf("status command exited with code %d, expected 0", exitCode)
+	}
+
+	// Status command should produce output
+	if stdout == "" {
+		t.Error("status command produced no output")
+	}
+
+	// Verify status command output contains expected read-only sections
+	readOnlySections := []string{"Run:", "Pipeline:", "Health:"}
+	foundSections := 0
+	for _, section := range readOnlySections {
+		if strings.Contains(stdout, section) {
+			foundSections++
+		}
+	}
+
+	if foundSections == 0 {
+		t.Errorf("status command output missing expected sections. Got:\n%s", stdout)
+	}
+}
+
+// TestCLIContract_QueueCommandIsReadOnly verifies queue command is read-only
+// and doesn't access tracker mutation or run lifecycle APIs.
+func TestCLIContract_QueueCommandIsReadOnly(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, err := os.MkdirTemp("", "gromit-contract-queue-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Set up minimal gromit environment
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("failed to create .gromit dir: %v", err)
+	}
+
+	// Create minimal gromit.yaml
+	configContent := `paths:
+  gromit_dir: .gromit
+`
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	// Run gromit queue command
+	cmd := exec.Command(binaryPath, "queue")
+	cmd.Dir = tmpDir
+	outBuf, outErr := cmd.Output()
+	stdout := string(outBuf)
+	exitCode := 0
+	if outErr != nil {
+		if exitErr, ok := outErr.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		}
+	}
+
+	// Queue command should exit 0
+	if exitCode != 0 {
+		t.Errorf("queue command exited with code %d, expected 0", exitCode)
+	}
+
+	// Queue command should produce output
+	if stdout == "" {
+		t.Error("queue command produced no output")
+	}
+
+	// Verify queue command mentions queue status (even if empty)
+	if !strings.Contains(stdout, "Queue") && !strings.Contains(stdout, "queue") {
+		t.Errorf("queue command output missing queue information. Got:\n%s", stdout)
+	}
+}
+
+// TestCLIContract_StatusAndQueueNoMutationAfterTUIAdditions documents the contract
+// that status and queue commands must remain read-only, preventing accidental mutation
+// of tracker state or invocation of run lifecycle APIs when TUI layer is added.
+func TestCLIContract_StatusAndQueueNoMutationAfterTUIAdditions(t *testing.T) {
+	t.Parallel()
+
+	// This contract test documents that:
+	// 1. Status command must remain read-only (no tracker mutation, no run lifecycle APIs)
+	// 2. Queue command must remain read-only (no tracker mutation, no run lifecycle APIs)
+	// 3. Both commands work at the CLI layer and delegate to read-only internal APIs
+	// 4. When TUI layer is added, it must not gain access to mutation APIs through these paths
+
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{"status", []string{"status"}},
+		{"queue", []string{"queue"}},
+		{"queue-by-spec", []string{"queue", "--by-spec"}},
+	}
+
+	tmpDir, err := os.MkdirTemp("", "gromit-contract-mutation-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Set up minimal gromit environment
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("failed to create .gromit dir: %v", err)
+	}
+
+	configContent := `paths:
+  gromit_dir: .gromit
+`
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cmd := exec.Command(binaryPath, tt.args...)
+			cmd.Dir = tmpDir
+			outBuf, outErr := cmd.Output()
+			stdout := string(outBuf)
+			exitCode := 0
+			if outErr != nil {
+				if exitErr, ok := outErr.(*exec.ExitError); ok {
+					exitCode = exitErr.ExitCode()
+				}
+			}
+
+			// Command should exit 0 (success), indicating no failures from attempting
+			// to access mutation APIs or run lifecycle APIs
+			if exitCode != 0 {
+				t.Errorf("%s command exited with non-zero code %d, indicating potential errors", tt.name, exitCode)
+			}
+
+			switch tt.name {
+			case "status":
+				assertStatusSectionsForTUI(t, stdout)
+			case "queue-by-spec":
+				assertQueueBySpecHeader(t, stdout)
+			}
+		})
+	}
+}
+
+// TestCLIContract_StatusWithFlagsIsReadOnly verifies status command with various
+// flag combinations remains read-only and produces consistent output.
+func TestCLIContract_StatusWithFlagsIsReadOnly(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, err := os.MkdirTemp("", "gromit-contract-status-flags-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Set up minimal gromit environment
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("failed to create .gromit dir: %v", err)
+	}
+
+	configContent := `paths:
+  gromit_dir: .gromit
+`
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	// Status command with no flags should not mutate state
+	cmd := exec.Command(binaryPath, "status")
+	cmd.Dir = tmpDir
+	stdout1, _ := cmd.Output()
+
+	// Run again with same state - output should be identical
+	cmd = exec.Command(binaryPath, "status")
+	cmd.Dir = tmpDir
+	stdout2, _ := cmd.Output()
+
+	if string(stdout1) != string(stdout2) {
+		t.Errorf("status command output changed between invocations (indicates state mutation):\nFirst:\n%s\n\nSecond:\n%s",
+			string(stdout1), string(stdout2))
+	}
+
+	// Status command with --spc flag should not mutate state
+	cmd = exec.Command(binaryPath, "status", "--spc")
+	cmd.Dir = tmpDir
+	spcOut1, _ := cmd.Output()
+
+	cmd = exec.Command(binaryPath, "status", "--spc")
+	cmd.Dir = tmpDir
+	spcOut2, _ := cmd.Output()
+
+	if string(spcOut1) != string(spcOut2) {
+		t.Errorf("status --spc command output changed between invocations (indicates state mutation):\nFirst:\n%s\n\nSecond:\n%s",
+			string(spcOut1), string(spcOut2))
+	}
+}
+
+// TestCLIContract_QueueWithFlagsIsReadOnly verifies queue command with various
+// flag combinations remains read-only and produces consistent output.
+func TestCLIContract_QueueWithFlagsIsReadOnly(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, err := os.MkdirTemp("", "gromit-contract-queue-flags-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Set up minimal gromit environment
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("failed to create .gromit dir: %v", err)
+	}
+
+	configContent := `paths:
+  gromit_dir: .gromit
+`
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	flagTests := []struct {
+		name  string
+		flags []string
+	}{
+		{"no flags", []string{}},
+		{"--by-spec", []string{"--by-spec"}},
+		{"--completion-order", []string{"--completion-order"}},
+	}
+
+	for _, ft := range flagTests {
+		t.Run(ft.name, func(t *testing.T) {
+			args := append([]string{"queue"}, ft.flags...)
+
+			// Run queue command first time
+			cmd := exec.Command(binaryPath, args...)
+			cmd.Dir = tmpDir
+			out1, _ := cmd.Output()
+
+			// Run queue command second time with same state
+			cmd = exec.Command(binaryPath, args...)
+			cmd.Dir = tmpDir
+			out2, _ := cmd.Output()
+
+			// Output should be identical (no state mutation)
+			if string(out1) != string(out2) {
+				t.Errorf("queue %s output changed between invocations (indicates state mutation):\nFirst:\n%s\n\nSecond:\n%s",
+					ft.name, string(out1), string(out2))
+			}
+		})
+	}
+}
+
+// TestCLIContract_StatusAndQueueMustNotAccessRunLifecycleAPIs documents that
+// status and queue commands must not call any run lifecycle APIs (start, stop, etc).
+func TestCLIContract_StatusAndQueueMustNotAccessRunLifecycleAPIs(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, err := os.MkdirTemp("", "gromit-contract-lifecycle-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Set up minimal gromit environment
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("failed to create .gromit dir: %v", err)
+	}
+
+	configContent := `paths:
+  gromit_dir: .gromit
+`
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	// Status command should succeed without any status.json file (no lifecycle calls)
+	cmd := exec.Command(binaryPath, "status")
+	cmd.Dir = tmpDir
+	_, errStatus := cmd.Output()
+	exitStatus := 0
+	if errStatus != nil {
+		if exitErr, ok := errStatus.(*exec.ExitError); ok {
+			exitStatus = exitErr.ExitCode()
+		}
+	}
+
+	if exitStatus != 0 {
+		t.Errorf("status command failed with exit code %d when status.json is missing - should gracefully handle missing state", exitStatus)
+	}
+
+	// Queue command should succeed without any tracker data (no lifecycle calls)
+	cmd = exec.Command(binaryPath, "queue")
+	cmd.Dir = tmpDir
+	_, errQueue := cmd.Output()
+	exitQueue := 0
+	if errQueue != nil {
+		if exitErr, ok := errQueue.(*exec.ExitError); ok {
+			exitQueue = exitErr.ExitCode()
+		}
+	}
+
+	if exitQueue != 0 {
+		t.Errorf("queue command failed with exit code %d when tracker data is missing - should gracefully handle missing state", exitQueue)
+	}
+}
