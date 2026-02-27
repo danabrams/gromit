@@ -293,7 +293,7 @@ runLoop:
 		// Emit BuildStartEvent
 		o.emitter.Emit(&events.BuildStartEvent{
 			BeadID:      b.ID,
-			Model:       baseIn.Complexity, // Will be replaced with actual model in BuildCompleteEvent
+			Model:       baseIn.Complexity, // TODO(review): use actual model name once TUI consumes this field
 			Attempt:     1,
 			MaxAttempts: 3,
 			Time:        time.Now(),
@@ -358,7 +358,7 @@ runLoop:
 			o.emitter.Emit(&events.ValidationFailEvent{
 				BeadID:   b.ID,
 				Output:   strings.Join(validateOut.ValidationFailures, "\n"),
-				Duration: 0, // Could compute if timing available
+				Duration: 0, // TODO(review): thread real duration once TUI consumes this field
 				Time:     time.Now(),
 			})
 			// Accumulate failure summaries for the next Build invocation.
@@ -393,7 +393,7 @@ runLoop:
 		// Emit ValidationPassEvent
 		o.emitter.Emit(&events.ValidationPassEvent{
 			BeadID:   b.ID,
-			Duration: 0, // Could compute if timing available
+			Duration: 0, // TODO(review): thread real duration once TUI consumes this field
 			Time:     time.Now(),
 		})
 
@@ -466,7 +466,7 @@ runLoop:
 		o.emitter.Emit(&events.BeadCompleteEvent{
 			BeadID:    b.ID,
 			BeadTitle: b.Title,
-			Duration:  0, // Could compute from iteration start
+			Duration:  0, // TODO(review): thread real duration once TUI consumes this field
 			Time:      time.Now(),
 		})
 		o.maybeTriggerSpecMerge(ctx, b)
@@ -500,7 +500,7 @@ runLoop:
 	// Emit RunCompleteEvent
 	o.emitter.Emit(&events.RunCompleteEvent{
 		IterationsCompleted: iteration,
-		Reason:              "completed",
+		Reason:              "completed", // TODO(review): reflect actual failure reasons once TUI consumes this field
 		Time:                time.Now(),
 	})
 
