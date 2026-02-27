@@ -1016,11 +1016,6 @@ func TestDecomposeThinWrapperPattern(t *testing.T) {
 	}
 }
 
-// DecomposePlanQuerier abstracts the pipeline's plan querying capability
-type DecomposePlanQuerier interface {
-	QueryUndecomposedPlans(ctx context.Context, input pipeline.QueryUndecomposedPlansInput) (*pipeline.QueryUndecomposedPlansResult, error)
-}
-
 // Mock pipeline for testing delegation in decompose.go
 type mockDecomposePipelineForDelegation struct {
 	queryUndecomposedPlansFn func(ctx context.Context, input pipeline.QueryUndecomposedPlansInput) (*pipeline.QueryUndecomposedPlansResult, error)
@@ -1031,4 +1026,44 @@ func (m *mockDecomposePipelineForDelegation) QueryUndecomposedPlans(ctx context.
 		return m.queryUndecomposedPlansFn(ctx, input)
 	}
 	return nil, fmt.Errorf("not implemented")
+}
+
+// TestQueryDecomposePlansWithPipeline_ForceFlagPassthrough verifies --force flag is passed to Pipeline
+// Expected: createDecomposePipeline and queryDecomposePlansWithPipeline pass --force to Pipeline.QueryUndecomposedPlans
+func TestQueryDecomposePlansWithPipeline_ForceFlagPassthrough(t *testing.T) {
+	t.Parallel()
+
+	// Create a mock pipeline that captures the arguments
+	var capturedForce bool
+	mockPipeline := &mockDecomposePipelineForDelegation{
+		queryUndecomposedPlansFn: func(ctx context.Context, input pipeline.QueryUndecomposedPlansInput) (*pipeline.QueryUndecomposedPlansResult, error) {
+			capturedForce = input.Force
+			return &pipeline.QueryUndecomposedPlansResult{
+				Plans: []pipeline.PlanQueryInfo{},
+			}, nil
+		},
+	}
+
+	// Set the global flag
+	origDecomposeForce := decomposeForce
+	defer func() {
+		decomposeForce = origDecomposeForce
+	}()
+
+	decomposeForce = true
+
+	// Call the helper function
+	plans, err := queryDecomposePlansWithPipeline(mockPipeline)
+
+	if err != nil {
+		t.Errorf("queryDecomposePlansWithPipeline() error = %v, want nil", err)
+	}
+
+	if !capturedForce {
+		t.Errorf("Pipeline.QueryUndecomposedPlans received Force=%v, want true", capturedForce)
+	}
+
+	if plans == nil {
+		t.Errorf("queryDecomposePlansWithPipeline() returned nil, want non-nil slice")
+	}
 }

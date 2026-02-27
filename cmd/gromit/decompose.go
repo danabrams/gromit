@@ -35,6 +35,26 @@ var decomposeSinglePlanInDirFn = decomposeSinglePlanInCurrentDir
 var decomposeRunInDirFn = runInDir
 var decomposeListWithLabelFn = listBeadsWithLabel
 
+// createDecomposePipeline creates a minimal pipeline instance for plan querying.
+var createDecomposePipeline = func(cfg *config.Config, gromitDir string) (DecomposePlanQuerier, error) {
+	deps, err := NewPipelineDeps(cfg, gromitDir)
+	if err != nil {
+		return nil, fmt.Errorf("constructing pipeline deps: %w", err)
+	}
+
+	paths := &pipeline.Paths{
+		GromitDir: gromitDir,
+		PlansDir:  resolvePlansDir(cfg),
+	}
+
+	return pipeline.New(deps, paths), nil
+}
+
+// DecomposePlanQuerier abstracts the pipeline's plan querying capability
+type DecomposePlanQuerier interface {
+	QueryUndecomposedPlans(ctx context.Context, input pipeline.QueryUndecomposedPlansInput) (*pipeline.QueryUndecomposedPlansResult, error)
+}
+
 var decomposeCmd = &cobra.Command{
 	Use:   "decompose [plan-name]",
 	Short: "Decompose a plan into bd beads",
@@ -89,6 +109,28 @@ type planInfo struct {
 	Path  string
 }
 
+func queryDecomposePlansWithPipeline(querier DecomposePlanQuerier) ([]planInfo, error) {
+	ctx := context.Background()
+	input := pipeline.QueryUndecomposedPlansInput{Force: decomposeForce}
+
+	result, err := querier.QueryUndecomposedPlans(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert pipeline results to planInfo
+	plans := make([]planInfo, len(result.Plans))
+	for i, p := range result.Plans {
+		plans[i] = planInfo{
+			Name:  p.Name,
+			Title: p.Title,
+			Path:  p.Path,
+		}
+	}
+
+	return plans, nil
+}
+
 func runDecompose(cmd *cobra.Command, args []string) error {
 	// Load config
 	cfg, err := loadConfig()
@@ -106,10 +148,15 @@ func runDecompose(cmd *cobra.Command, args []string) error {
 	}
 
 	// No arguments - show picker
-	plansDir := resolvePlansDir(cfg)
-	plans, err := filterUndecomposedPlans(plansDir, decomposeForce)
+	gromitDir := resolveGromitDir(cfg)
+	p, err := createDecomposePipeline(cfg, gromitDir)
 	if err != nil {
-		return fmt.Errorf("scanning plans directory: %w", err)
+		return fmt.Errorf("creating pipeline for plan querying: %w", err)
+	}
+
+	plans, err := queryDecomposePlansWithPipeline(p)
+	if err != nil {
+		return fmt.Errorf("querying undecomposed plans: %w", err)
 	}
 
 	if len(plans) == 0 {
