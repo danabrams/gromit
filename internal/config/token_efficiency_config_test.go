@@ -365,6 +365,45 @@ token_efficiency:
 	}
 }
 
+func TestRetrievalExperimentTopKValue(t *testing.T) {
+	tests := []struct {
+		name      string
+		topK      int
+		want      int
+		minTopK   int
+		wantError bool
+	}{
+		{
+			name:    "zero top_k uses default",
+			topK:    0,
+			want:    1,
+			minTopK: 1,
+		},
+		{
+			name:    "positive top_k",
+			topK:    10,
+			want:    10,
+			minTopK: 1,
+		},
+		{
+			name:    "top_k below minimum becomes minimum",
+			topK:    1,
+			want:    5,
+			minTopK: 5,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := TokenEfficiencyRetrievalConfig{TopK: tt.topK}
+			got := cfg.ResolvedTopK(tt.minTopK)
+			if got != tt.want {
+				t.Errorf("ResolvedTopK(%d) = %d, want %d", tt.minTopK, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestRetrievalExperimentIsEnabled(t *testing.T) {
 	tests := []struct {
 		name    string
