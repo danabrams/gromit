@@ -139,6 +139,84 @@ func TestValidate_EmitsValidationStartAndPassEvents(t *testing.T) {
 	}
 }
 
+func TestValidate_EmitsValidationFailEventOnFailure(t *testing.T) {
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	runner := &fakeCommandRunner{
+		results: []commandRunResult{
+			{
+				stdout:   "should fail",
+				stderr:   "failure detail",
+				exitCode: 1,
+				err:      nil,
+			},
+		},
+	}
+	stage := New(runner, io.Discard)
+
+	beadID := "validate-event-fail"
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled:  true,
+			Commands: []string{"go test ./..."},
+		},
+	}
+	in := pipeline.Input{
+		Bead:    &bead.Bead{ID: beadID, Title: "Fail bead"},
+		Config:  cfg,
+		Emitter: emitter,
+	}
+
+	out, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if out.Decision != pipeline.Block {
+		t.Fatalf("Decision = %v, want Block on validation failure", out.Decision)
+	}
+
+	emitted := drainEvents(t, ch)
+	var (
+		startIdx = -1
+		failIdx  = -1
+		failEvt  *events.ValidationFailEvent
+		passEvt  *events.ValidationPassEvent
+	)
+	for idx, evt := range emitted {
+		switch e := evt.(type) {
+		case *events.ValidationStartEvent:
+			startIdx = idx
+		case *events.ValidationFailEvent:
+			failIdx = idx
+			failEvt = e
+		case *events.ValidationPassEvent:
+			passEvt = e
+		}
+	}
+
+	if startIdx == -1 {
+		t.Fatal("expected ValidationStartEvent to be emitted")
+	}
+	if failIdx == -1 {
+		t.Fatal("expected ValidationFailEvent to be emitted")
+	}
+	if startIdx > failIdx {
+		t.Fatalf("ValidationFailEvent emitted before ValidationStartEvent (%d < %d)", failIdx, startIdx)
+	}
+	if passEvt != nil {
+		t.Fatalf("unexpected ValidationPassEvent emitted on failure")
+	}
+	if failEvt.BeadID != beadID {
+		t.Fatalf("ValidationFailEvent.BeadID = %q, want %q", failEvt.BeadID, beadID)
+	}
+	if !contains(failEvt.Output, "exit code") && !contains(failEvt.Output, "failed") {
+		t.Fatalf("ValidationFailEvent.Output = %q, want failure summary", failEvt.Output)
+	}
+}
+
 // TestValidate_SingleCommandFailure_ReturnsBlockWithSummaries verifies that when any
 // command fails (exit code 1), the stage returns Block with ValidationFailures populated.
 func TestValidate_SingleCommandFailure_ReturnsBlockWithSummaries(t *testing.T) {
