@@ -68,12 +68,12 @@ type PromptRenderer interface {
 // It selects the methodology (TDD, refactor, standard), renders the appropriate
 // prompt, and invokes the provider via StreamRun only.
 type Build struct {
-	invoker        Invoker
-	renderer       PromptRenderer
-	output         io.Writer
-	tddCycleRunner TDDCycleRunner
-	experimentMgr  *experiment.Manager
-	emitter        *events.Emitter
+	events.EmitterMixin // provides Emitter field and SetEmitter method
+	invoker             Invoker
+	renderer            PromptRenderer
+	output              io.Writer
+	tddCycleRunner      TDDCycleRunner
+	experimentMgr       *experiment.Manager
 }
 
 // Compile-time check: *Build must implement pipeline.Stage.
@@ -105,13 +105,8 @@ func (b *Build) WithExperimentManager(mgr *experiment.Manager) *Build {
 
 // WithEmitter wires an EventEmitter for logging.
 func (b *Build) WithEmitter(emitter *events.Emitter) *Build {
-	b.emitter = emitter
+	b.EmitterMixin.SetEmitter(emitter)
 	return b
-}
-
-// SetEmitter is used by orchestrator wiring to attach an emitter.
-func (b *Build) SetEmitter(emitter *events.Emitter) {
-	b.emitter = emitter
 }
 
 // SelectMethodology determines the methodology for a bead based on its labels and config.
