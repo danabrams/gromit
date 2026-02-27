@@ -293,6 +293,7 @@ func extractJSONPayload(data []byte) ([]byte, error) {
 
 func defaultGeminiRunFn(ctx context.Context, binary string, args []string, prompt string, workDir string) (*geminiRunResult, error) {
 	cmd := execCommandContext(ctx, binary, args...)
+	cmd.WaitDelay = 100 * time.Millisecond
 
 	// Set working directory if provided
 	if workDir != "" {

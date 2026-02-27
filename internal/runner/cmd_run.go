@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/danabrams/gromit/internal/procutil"
 )
 
 var nonInteractiveEnv = []string{
@@ -71,6 +73,7 @@ func runCommand(cmd *exec.Cmd) (string, string, int, error) {
 // Non-zero exit codes are returned as exitCode (not as an error).
 func defaultCmdRunner(ctx context.Context, command string, workDir string) (string, string, int, error) {
 	cmd := exec.CommandContext(ctx, "sh", "-c", command)
+	procutil.SetProcessGroupKill(cmd)
 	prepareCommand(cmd, workDir)
 	return runCommand(cmd)
 }
