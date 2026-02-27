@@ -11,16 +11,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/danabrams/gromit/internal/agent"
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/learnings"
-	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
-	"github.com/danabrams/gromit/internal/review"
 	"github.com/danabrams/gromit/internal/scope"
 	"github.com/danabrams/gromit/internal/state"
 	"github.com/danabrams/gromit/internal/tracker"
@@ -396,24 +392,24 @@ func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) er
 func runReviewInteractiveInDir(cfg *config.Config, fromCommit string, diff string, launchDir string) error {
 	gromitDir := resolveGromitDir(cfg)
 
+	// Construct pipeline dependencies using dependency injection
+	deps, err := NewPipelineDeps(cfg, gromitDir)
+	if err != nil {
+		return fmt.Errorf("constructing pipeline deps: %w", err)
+	}
+
+	// Create prompt renderer for interactive review
 	templatesDir, specsDir, claudeMDPath := resolveReviewRendererPaths(cfg)
 	renderer, err := prompt.NewRenderer(templatesDir, specsDir, claudeMDPath, gromitDir)
 	if err != nil {
 		return fmt.Errorf("creating renderer: %w", err)
 	}
 
-	// Create agent resolver adapter
-	agentResolver := agent.NewResolver(cfg)
-
-	// Create prompt renderer adapter that loads ClaudeMD and Rules
+	// Override review-specific renderer
 	promptRendererAdapter := &cliPromptRenderer{
 		renderer: renderer,
 	}
-
-	deps := &pipeline.Deps{
-		AgentResolver:  agentResolver,
-		ReviewRenderer: promptRendererAdapter,
-	}
+	deps.ReviewRenderer = promptRendererAdapter
 
 	paths := &pipeline.Paths{
 		GromitDir: gromitDir,
@@ -454,63 +450,37 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 	// Build pipeline and dependencies
 	gromitDir := resolveGromitDir(cfg)
 
+	// Construct pipeline dependencies using dependency injection
+	deps, err := NewPipelineDeps(cfg, gromitDir)
+	if err != nil {
+		return fmt.Errorf("constructing pipeline deps: %w", err)
+	}
+
+	// Override the LLM client to use review-specific configuration (providers, timeout)
+	llmClient, err := buildReviewNonInteractiveClient(cfg)
+	if err != nil {
+		return fmt.Errorf("creating review invoker: %w", err)
+	}
+	deps.LLMClient = llmClient
+	deps.ReviewInvoker = llmClient
+
+	// Create prompt renderer for diagnostics
 	templatesDir, specsDir, claudeMDPath := resolveReviewRendererPaths(cfg)
 	renderer, err := prompt.NewRenderer(templatesDir, specsDir, claudeMDPath, gromitDir)
 	if err != nil {
 		return fmt.Errorf("creating renderer: %w", err)
 	}
 
-	llmClient, err := buildReviewNonInteractiveClient(cfg)
-	if err != nil {
-		return fmt.Errorf("creating review invoker: %w", err)
-	}
-
-	beadsClient, err := bead.NewClient()
-	if err != nil {
-		return fmt.Errorf("creating bead client: %w", err)
-	}
-	trackerClient := bead.NewBDAdapter(beadsClient)
-
-	// Create adapters
+	// Override review-specific renderers and adapters
 	reviewRendererAdapter := &cliPromptRenderer{
 		renderer: renderer,
 	}
+	deps.ReviewRenderer = reviewRendererAdapter
 
-	trackerAdapter := &trackerClientAdapter{
-		Client: trackerClient,
-	}
-
-	backlogAdapter := &cliBacklogClient{
-		beadClient: beadsClient,
-	}
-
-	learningsAdapter := &cliLearningsManager{
-		gromitDir: gromitDir,
-		runner: &pipelineLearningsRunnerAdapter{
-			client: llmClient,
-		},
-	}
-
-	logAdapter := &cliLogWriter{
-		logsDir: cfg.Paths.Logs,
-		promptDiagnosticsProvider: func() *prompt.PromptDiagnostics {
-			return renderer.LastDiagnostics()
-		},
-	}
-
-	stateAdapter := &cliStateManager{
-		gromitDir: gromitDir,
-	}
-
-	deps := &pipeline.Deps{
-		ReviewRenderer:   reviewRendererAdapter,
-		ReviewInvoker:    llmClient,
-		TrackerClient:    trackerAdapter,
-		BacklogWriter:    backlogAdapter,
-		LearningsManager: learningsAdapter,
-		LogWriter:        logAdapter,
-		StateManager:     stateAdapter,
-	}
+	// Inject diagnostics provider from renderer
+	SetDepsPromptDiagnosticsProvider(deps, func() *prompt.PromptDiagnostics {
+		return renderer.LastDiagnostics()
+	})
 
 	paths := &pipeline.Paths{
 		GromitDir: gromitDir,
@@ -620,173 +590,21 @@ func shortCommit(commit string) string {
 }
 
 func recordInteractiveReviewCompletion(gromitDir, fromCommit string) error {
+	sf, err := state.NewInteractiveFile(gromitDir)
+	if err != nil {
+		return fmt.Errorf("creating state file: %w", err)
+	}
+	if err := sf.Load(); err != nil {
+		return fmt.Errorf("loading state file: %w", err)
+	}
+
 	stateAdapter := &cliStateManager{
-		gromitDir: gromitDir,
+		stateFile: sf,
 	}
 	if err := stateAdapter.SetLastReviewCommit(fromCommit); err != nil {
 		return fmt.Errorf("recording review completion: %w", err)
 	}
 	return nil
-}
-
-// cliBacklogClient adapts bead operations to pipeline.BacklogWriter interface
-type cliBacklogClient struct {
-	beadClient *bead.Client
-}
-
-var _ pipeline.BacklogWriter = (*cliBacklogClient)(nil)
-
-func (c *cliBacklogClient) Add(item *pipeline.Idea) error {
-	// Create a backlog bead with P2 priority and backlog label
-	labels := []string{"from-review", "backlog"}
-	expectedOutputs := review.ExpectedOutputsOrTitle(nil, item.Text)
-	_, err := c.beadClient.Create(context.Background(), item.Text, 2, labels, expectedOutputs)
-	return err
-}
-
-func (c *cliBacklogClient) Update(id string, fn func(*pipeline.Idea)) error {
-	return fmt.Errorf("not implemented")
-}
-
-// cliLearningsManager adapts learnings operations to pipeline.LearningsManager interface
-type cliLearningsManager struct {
-	gromitDir string
-	runner    learnings.ClaudeRunner
-}
-
-var _ pipeline.LearningsManager = (*cliLearningsManager)(nil)
-
-func (m *cliLearningsManager) Add(content string) error {
-	learningsFile, err := learnings.NewFile(m.gromitDir)
-	if err != nil {
-		return err
-	}
-
-	// Wire filter into learnings file
-	if m.runner != nil {
-		learningsFile.SetFilter(learnings.NewLLMFilter(m.runner, "gromit", learnings.ProjectDescriptions.Gromit))
-	}
-
-	if err := learningsFile.Load(); err != nil {
-		return err
-	}
-
-	_, err = learningsFile.Add(reviewSessionCommand, content, learnings.CategoryPatterns)
-	return err
-}
-
-// pipelineLearningsRunnerAdapter implements learnings.ClaudeRunner using pipeline.LLMClient.
-type pipelineLearningsRunnerAdapter struct {
-	client pipeline.LLMClient
-}
-
-func (r *pipelineLearningsRunnerAdapter) Run(ctx context.Context, prompt string, model string) (*learnings.Result, error) {
-	_ = ctx // pipeline.LLMClient handles its own timeout/context.
-	if r == nil || r.client == nil {
-		return nil, fmt.Errorf("review invoker is nil")
-	}
-
-	runResult, err := r.client.Run(prompt, model)
-	if err != nil {
-		return nil, err
-	}
-
-	if runResult == nil {
-		return nil, fmt.Errorf("review invoker returned nil result")
-	}
-
-	// Convert invocation result to learnings.Result
-	return &learnings.Result{
-		Success: runResult.Success,
-		Output:  runResult.Output,
-	}, nil
-}
-
-// cliLogWriter adapts logger operations to pipeline.LogWriter interface
-type cliLogWriter struct {
-	logsDir                   string
-	promptDiagnosticsProvider func() *prompt.PromptDiagnostics
-}
-
-var _ pipeline.LogWriter = (*cliLogWriter)(nil)
-
-func (w *cliLogWriter) Write(entry *pipeline.LogEntry) error {
-	log, err := logger.NewLogger(w.logsDir)
-	if err != nil {
-		return err
-	}
-	defer log.Close()
-
-	// Use model from entry or default to opus
-	model := entry.Model
-	if model == "" {
-		model = reviewDefaultModel // Default for thorough reviews
-	}
-
-	reviewLog := &logger.ReviewLog{
-		Timestamp:      time.Now(),
-		Type:           reviewLogType,
-		ReviewType:     reviewLogReviewType,
-		Iteration:      0,
-		Model:          model,
-		Passed:         entry.Passed,
-		FixesApplied:   entry.FixesApplied,
-		BeadsCreated:   entry.BeadsCreated,
-		BacklogCreated: entry.BacklogCreated,
-		DurationMs:     0, // Duration tracked by caller if needed
-	}
-	if w.promptDiagnosticsProvider != nil {
-		reviewLog.PromptDiagnostics = w.promptDiagnosticsProvider()
-	}
-
-	return log.LogReview(reviewLog)
-}
-
-// cliStateManager adapts state operations to pipeline.StateManager interface
-type cliStateManager struct {
-	gromitDir string
-}
-
-var _ pipeline.StateManager = (*cliStateManager)(nil)
-var _ learnings.ClaudeRunner = (*pipelineLearningsRunnerAdapter)(nil)
-
-func (m *cliStateManager) GetLastReviewCommit() (string, error) {
-	// Prefer repo-global tags for continuity across worktrees/branches.
-	if tagCommit, err := state.LatestReviewTagCommitInRepo(reviewRepoDirFromGromitDir(m.gromitDir)); err == nil && tagCommit != "" {
-		return tagCommit, nil
-	}
-
-	// Fall back to interactive-state.json.
-	sf, err := state.NewInteractiveFile(m.gromitDir)
-	if err != nil {
-		return "", err
-	}
-
-	if err := sf.Load(); err != nil {
-		return "", err
-	}
-
-	return sf.LastReviewCommit(), nil
-}
-
-func (m *cliStateManager) SetLastReviewCommit(commit string) error {
-	sf, err := state.NewInteractiveFile(m.gromitDir)
-	if err != nil {
-		return err
-	}
-
-	if err := sf.Load(); err != nil {
-		return err
-	}
-
-	// Get current HEAD commit
-	currentCommit, err := getGitHeadForReview()
-	if err != nil {
-		currentCommit = commit // Fallback to input commit
-	}
-
-	// RecordReview saves to JSON and also creates a git tag.
-	return sf.RecordReview(currentCommit, 0)
 }
 
 func reviewRepoDirFromGromitDir(gromitDir string) string {

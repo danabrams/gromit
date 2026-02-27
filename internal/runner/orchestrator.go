@@ -214,6 +214,7 @@ func (o *Orchestrator) Run(ctx context.Context, maxIterations int, deadline time
 
 	var validationFailures []string
 	var touchedPackages []string
+	closeFailedBeads := make(map[string]bool)
 	iteration := 0
 
 	// Emit RunStartEvent
@@ -258,6 +259,14 @@ runLoop:
 			return fmt.Errorf("orchestrator: getting next bead: %w", err)
 		}
 		if b == nil {
+			break runLoop
+		}
+
+		// Skip beads whose close previously failed (e.g. blocked by open
+		// dependencies). Without this check, bd returns the same bead
+		// repeatedly since it never transitions to closed.
+		if closeFailedBeads[b.ID] {
+			o.logInfo("Skipping bead %s: close previously failed (dependencies still open)", b.ID)
 			break runLoop
 		}
 
@@ -453,6 +462,10 @@ runLoop:
 			CacheVersionMarker:       buildOut.CacheVersionMarker,
 		}
 		epilogueOut := o.runEpilogue(ctx, baseIn, true)
+		if epilogueOut.LifecycleFailure == pipeline.LifecycleFailureClose {
+			closeFailedBeads[b.ID] = true
+			o.logWarning("Bead %s: close failed (will skip on next iteration)", b.ID)
+		}
 		o.logInfo("Iteration %d: bead %s completed successfully", iteration, b.ID)
 		// Emit IterationCompleteEvent
 		o.emitter.Emit(&events.IterationCompleteEvent{

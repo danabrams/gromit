@@ -17,6 +17,8 @@ func TestPromptRendererAdapter_SingleWorkflowMethods(t *testing.T) {
 	var _ pipeline.ReviewRenderer = (*cliPromptRenderer)(nil)
 	var _ pipeline.ExploreRenderer = (*explorePromptRenderer)(nil)
 
+	var _ pipeline.PlanRenderer = (*planPromptRenderer)(nil)
+
 	reviewType := reflect.TypeOf((*cliPromptRenderer)(nil))
 	if _, ok := reviewType.MethodByName("RenderThoroughReview"); !ok {
 		t.Fatal("cliPromptRenderer must implement RenderThoroughReview")
@@ -37,6 +39,17 @@ func TestPromptRendererAdapter_SingleWorkflowMethods(t *testing.T) {
 	for _, methodName := range unexpectedExploreMethods {
 		if _, ok := exploreType.MethodByName(methodName); ok {
 			t.Errorf("explorePromptRenderer should not expose %s", methodName)
+		}
+	}
+
+	planType := reflect.TypeOf((*planPromptRenderer)(nil))
+	if _, ok := planType.MethodByName("RenderPlan"); !ok {
+		t.Fatal("planPromptRenderer must implement RenderPlan")
+	}
+	unexpectedPlanMethods := []string{"RenderRefine", "RenderDecompose", "RenderExplore", "RenderThoroughReview"}
+	for _, methodName := range unexpectedPlanMethods {
+		if _, ok := planType.MethodByName(methodName); ok {
+			t.Errorf("planPromptRenderer should not expose %s", methodName)
 		}
 	}
 }
@@ -160,6 +173,32 @@ func TestAdapters_NoMapConstructionForPrompts(t *testing.T) {
 	// Check for map construction in renderer section (not in other sections)
 	if strings.Contains(rendererSection, "map[string]interface{}{") {
 		t.Error("cliPromptRenderer should construct typed pipeline structs, not map[string]interface{}")
+	}
+}
+
+// TestCliAdapters_DefinitionsLocatedInAdapterFile ensures key adapters live in cli_adapters.go.
+func TestCliAdapters_DefinitionsLocatedInAdapterFile(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(".", "cli_adapters.go")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading cli_adapters.go: %v", err)
+	}
+	contentStr := string(content)
+
+	requiredTypes := []string{
+		"type cliBacklogClient struct",
+		"type cliLearningsManager struct",
+		"type pipelineLearningsRunnerAdapter struct",
+		"type cliLogWriter struct",
+		"type cliStateManager struct",
+	}
+
+	for _, typeDecl := range requiredTypes {
+		if !strings.Contains(contentStr, typeDecl) {
+			t.Errorf("cli_adapters.go should define %s", typeDecl)
+		}
 	}
 }
 

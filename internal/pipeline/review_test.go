@@ -150,8 +150,8 @@ func TestReviewNonInteractiveWorkflow_E2E(t *testing.T) {
 
 	backlogAdded := []string{}
 	mockBacklog := &reviewAcceptanceMockBacklogWriter{
-		addFunc: func(idea *Idea) error {
-			backlogAdded = append(backlogAdded, idea.Text)
+		addFunc: func(entry *BacklogEntry) error {
+			backlogAdded = append(backlogAdded, entry.Title)
 			return nil
 		},
 	}
@@ -186,7 +186,7 @@ func TestReviewNonInteractiveWorkflow_E2E(t *testing.T) {
 	deps := &Deps{
 		ReviewRenderer:   mockRenderer,
 		ReviewInvoker:    mockReviewInvoker,
-		TrackerClient:       mockBead,
+		TrackerClient:    mockBead,
 		BacklogWriter:    mockBacklog,
 		LearningsManager: mockLearnings,
 		LogWriter:        mockLog,
@@ -320,7 +320,7 @@ func TestReviewNonInteractiveWorkflow_CreatesBeadsWithFromReviewLabel(t *testing
 	deps := &Deps{
 		ReviewRenderer:   mockRenderer,
 		ReviewInvoker:    mockReviewInvoker,
-		TrackerClient:       mockBead,
+		TrackerClient:    mockBead,
 		BacklogWriter:    &reviewAcceptanceMockBacklogWriter{},
 		LearningsManager: &reviewAcceptanceMockLearningsManager{},
 		LogWriter:        &reviewAcceptanceMockLogWriter{},
@@ -396,10 +396,10 @@ func TestReviewNonInteractiveWorkflow_CreatesBacklogWithLabels(t *testing.T) {
 		},
 	}
 
-	var capturedBacklogIdea *Idea
+	var capturedBacklogEntry *BacklogEntry
 	mockBacklog := &reviewAcceptanceMockBacklogWriter{
-		addFunc: func(idea *Idea) error {
-			capturedBacklogIdea = idea
+		addFunc: func(entry *BacklogEntry) error {
+			capturedBacklogEntry = entry
 			return nil
 		},
 	}
@@ -407,7 +407,7 @@ func TestReviewNonInteractiveWorkflow_CreatesBacklogWithLabels(t *testing.T) {
 	deps := &Deps{
 		ReviewRenderer:   mockRenderer,
 		ReviewInvoker:    mockReviewInvoker,
-		TrackerClient:       &reviewAcceptanceMockBeadClient{},
+		TrackerClient:    &reviewAcceptanceMockBeadClient{},
 		BacklogWriter:    mockBacklog,
 		LearningsManager: &reviewAcceptanceMockLearningsManager{},
 		LogWriter:        &reviewAcceptanceMockLogWriter{},
@@ -432,15 +432,13 @@ func TestReviewNonInteractiveWorkflow_CreatesBacklogWithLabels(t *testing.T) {
 		t.Fatalf("ReviewNonInteractive() failed: %v", err)
 	}
 
-	if capturedBacklogIdea == nil {
+	if capturedBacklogEntry == nil {
 		t.Fatal("Backlog item was not created")
 	}
 
-	// Verify backlog idea contains from-review label
-	// Note: The actual implementation should add labels to the Idea struct
-	// For now, verify the idea was created with correct text
-	if capturedBacklogIdea.Text != "Consider adding metrics" {
-		t.Errorf("Backlog text = %q, want 'Consider adding metrics'", capturedBacklogIdea.Text)
+	// Verify backlog entry text is correct
+	if capturedBacklogEntry.Title != "Consider adding metrics" {
+		t.Errorf("Backlog title = %q, want 'Consider adding metrics'", capturedBacklogEntry.Title)
 	}
 }
 
@@ -467,7 +465,7 @@ func TestReviewNonInteractiveWorkflow_RespectsTimeout(t *testing.T) {
 	deps := &Deps{
 		ReviewRenderer:   mockRenderer,
 		ReviewInvoker:    mockReviewInvoker,
-		TrackerClient:       &reviewAcceptanceMockBeadClient{},
+		TrackerClient:    &reviewAcceptanceMockBeadClient{},
 		BacklogWriter:    &reviewAcceptanceMockBacklogWriter{},
 		LearningsManager: &reviewAcceptanceMockLearningsManager{},
 		LogWriter:        &reviewAcceptanceMockLogWriter{},
@@ -527,7 +525,7 @@ func TestPipeline_validateReviewDeps(t *testing.T) {
 		return &Deps{
 			ReviewInvoker:    &reviewAcceptanceMockReviewInvoker{},
 			ReviewRenderer:   &reviewAcceptanceMockReviewRenderer{},
-			TrackerClient:       &reviewAcceptanceMockBeadClient{},
+			TrackerClient:    &reviewAcceptanceMockBeadClient{},
 			BacklogWriter:    &reviewAcceptanceMockBacklogWriter{},
 			LearningsManager: &reviewAcceptanceMockLearningsManager{},
 			LogWriter:        &reviewAcceptanceMockLogWriter{},
@@ -729,7 +727,7 @@ func TestReviewNonInteractiveWorkflow_UsesExpectedOutputsOrTitle(t *testing.T) {
 	deps := &Deps{
 		ReviewRenderer:   mockRenderer,
 		ReviewInvoker:    mockReviewInvoker,
-		TrackerClient:       mockBead,
+		TrackerClient:    mockBead,
 		BacklogWriter:    &reviewAcceptanceMockBacklogWriter{},
 		LearningsManager: &reviewAcceptanceMockLearningsManager{},
 		LogWriter:        &reviewAcceptanceMockLogWriter{},
@@ -772,6 +770,91 @@ func TestReviewNonInteractiveWorkflow_UsesExpectedOutputsOrTitle(t *testing.T) {
 	}
 }
 
+func TestReviewNonInteractive_BacklogWriterReceivesStructuredEntry(t *testing.T) {
+	t.Parallel()
+
+	mockRenderer := &reviewAcceptanceMockReviewRenderer{
+		renderThoroughReviewFunc: func(input *ThoroughReviewPromptInput) (string, error) {
+			return "# Review Prompt", nil
+		},
+	}
+
+	mockReviewInvoker := &reviewAcceptanceMockReviewInvoker{
+		runFunc: func(prompt string, model string, timeout time.Duration) (*LLMRunResult, error) {
+			jsonOutput := `{
+				"passed": true,
+				"fixes_applied": [],
+				"beads_to_create": [],
+				"backlog_items": [
+					{
+						"title": "Cache config",
+						"description": "Load once per run",
+						"reason": "performance",
+						"expected_outputs": null
+					}
+				],
+				"summary": "Backlog item from review"
+			}`
+			return &LLMRunResult{
+				Success: true,
+				Output:  jsonOutput,
+			}, nil
+		},
+	}
+
+	var capturedEntry *BacklogEntry
+	mockBacklog := &reviewAcceptanceMockBacklogWriter{
+		addFunc: func(entry *BacklogEntry) error {
+			capturedEntry = entry
+			return nil
+		},
+	}
+
+	deps := &Deps{
+		ReviewRenderer:   mockRenderer,
+		ReviewInvoker:    mockReviewInvoker,
+		TrackerClient:    &reviewAcceptanceMockBeadClient{},
+		BacklogWriter:    mockBacklog,
+		LearningsManager: &reviewAcceptanceMockLearningsManager{},
+		LogWriter:        &reviewAcceptanceMockLogWriter{},
+		StateManager:     &reviewAcceptanceMockStateManager{},
+	}
+	paths := &Paths{GromitDir: t.TempDir()}
+	p := New(deps, paths)
+
+	ctx := context.Background()
+	input := ReviewInput{
+		FromCommit: "abc123",
+		Diff:       "diff",
+		Model:      "opus",
+		Timeout:    60,
+	}
+
+	if _, err := p.ReviewNonInteractive(ctx, input); err != nil {
+		t.Fatalf("ReviewNonInteractive() error = %v", err)
+	}
+
+	if capturedEntry == nil {
+		t.Fatal("BacklogWriter.Add() was not called")
+	}
+
+	if capturedEntry.Title != "Cache config" {
+		t.Fatalf("entry title = %q, want %q", capturedEntry.Title, "Cache config")
+	}
+
+	if len(capturedEntry.Labels) != 2 || capturedEntry.Labels[0] != "from-review" || capturedEntry.Labels[1] != "backlog" {
+		t.Fatalf("entry labels = %v", capturedEntry.Labels)
+	}
+
+	if len(capturedEntry.ExpectedOutputs) != 1 || capturedEntry.ExpectedOutputs[0] != "Cache config" {
+		t.Fatalf("entry expected outputs = %v", capturedEntry.ExpectedOutputs)
+	}
+
+	if !strings.Contains(capturedEntry.Description, "Reason for backlog: performance") {
+		t.Fatalf("entry description = %q", capturedEntry.Description)
+	}
+}
+
 type reviewAcceptanceBeadRecord struct {
 	title    string
 	priority int
@@ -807,12 +890,12 @@ func (m *reviewAcceptanceMockBeadClient) Close(ctx context.Context, id string) e
 }
 
 type reviewAcceptanceMockBacklogWriter struct {
-	addFunc func(idea *Idea) error
+	addFunc func(entry *BacklogEntry) error
 }
 
-func (m *reviewAcceptanceMockBacklogWriter) Add(item *Idea) error {
+func (m *reviewAcceptanceMockBacklogWriter) Add(entry *BacklogEntry) error {
 	if m.addFunc != nil {
-		return m.addFunc(item)
+		return m.addFunc(entry)
 	}
 	return nil
 }

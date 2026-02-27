@@ -14,6 +14,7 @@ import (
 const (
 	backlogTypeReviewFinding = "review-finding"
 	logTypeReview            = "review"
+	backlogPriorityDefault   = 2
 )
 
 // Paths contains filesystem paths used by the pipeline.
@@ -158,8 +159,18 @@ type BacklogClient interface {
 
 // BacklogWriter abstracts write-only backlog operations.
 type BacklogWriter interface {
-	Add(item *Idea) error
+	Add(entry *BacklogEntry) error
 	Update(id string, fn func(*Idea)) error
+}
+
+// BacklogEntry describes the data required to create a backlog item.
+type BacklogEntry struct {
+	Title           string
+	Type            string
+	Description     string
+	Priority        int
+	Labels          []string
+	ExpectedOutputs []string
 }
 
 // Idea is the canonical backlog idea type.
@@ -353,11 +364,23 @@ func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) 
 	// Create backlog items with from-review and backlog labels
 	backlogCreated := 0
 	for _, bi := range reviewResult.BacklogItems {
-		idea := &Idea{
-			Text: bi.Title,
-			Type: backlogTypeReviewFinding,
+		description := bi.Description
+		if bi.Reason != "" {
+			if description != "" {
+				description += "\n\n"
+			}
+			description += "Reason for backlog: " + bi.Reason
 		}
-		if err := p.deps.BacklogWriter.Add(idea); err != nil {
+
+		entry := &BacklogEntry{
+			Title:           bi.Title,
+			Type:            backlogTypeReviewFinding,
+			Description:     description,
+			Priority:        backlogPriorityDefault,
+			Labels:          review.BuildBacklogLabels(),
+			ExpectedOutputs: review.ExpectedOutputsOrTitle(bi.ExpectedOutputs, bi.Title),
+		}
+		if err := p.deps.BacklogWriter.Add(entry); err != nil {
 			return nil, fmt.Errorf("creating backlog item: %w", err)
 		}
 		backlogCreated++

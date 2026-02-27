@@ -1,10 +1,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
+	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/learnings"
+	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/prompt"
 )
@@ -16,6 +21,7 @@ type cliPromptRenderer struct {
 }
 
 var _ pipeline.ReviewRenderer = (*cliPromptRenderer)(nil)
+var _ pipeline.PlanRenderer = (*planPromptRenderer)(nil)
 
 func (r *cliPromptRenderer) RenderThoroughReview(input *pipeline.ThoroughReviewPromptInput) (string, error) {
 	// Build ThoroughReviewContext from pipeline input
@@ -109,11 +115,11 @@ func (r *explorePromptRenderer) RenderExplore(input *pipeline.ExplorePromptInput
 Start by understanding the topic, then alternate between discussing ideas and capturing them. End the session when the problem space feels well-mapped and the key ideas have been captured as artifacts.`
 	renderedInstructions := fmt.Sprintf(instructionsSection, specsDir, gromitDir)
 	sectionTokens := prompt.EstimateSectionTokens(map[string]string{
-		"topic":          topic,
-		prompt.SectionClaudeMD:     claudeMD,
-		prompt.SectionRules:        rules,
-		"learnings":      learningsSection,
-		"instructions":   renderedInstructions,
+		"topic":                topic,
+		prompt.SectionClaudeMD: claudeMD,
+		prompt.SectionRules:    rules,
+		"learnings":            learningsSection,
+		"instructions":         renderedInstructions,
 	})
 	r.lastDiagnostics = prompt.NewDiagnostics("explore", sectionTokens)
 
@@ -175,4 +181,189 @@ func (r *explorePromptRenderer) LastDiagnostics() *prompt.PromptDiagnostics {
 		return nil
 	}
 	return r.lastDiagnostics
+}
+
+// planPromptRenderer adapts prompt.Renderer to pipeline.PlanRenderer
+type planPromptRenderer struct {
+	renderer *prompt.Renderer
+}
+
+var _ pipeline.PlanRenderer = (*planPromptRenderer)(nil)
+
+func (r *planPromptRenderer) RenderPlan(input *pipeline.PlanPromptInput) (string, error) {
+	specName := ""
+	if input != nil {
+		specName = input.IdeaText
+	}
+	if specName == "" {
+		return "Plan prompt placeholder", nil
+	}
+	return fmt.Sprintf("Plan prompt placeholder for %s", specName), nil
+}
+
+// refinePromptRenderer adapts prompt.Renderer to pipeline.RefineRenderer interface
+type refinePromptRenderer struct {
+	renderer *prompt.Renderer
+}
+
+var _ pipeline.RefineRenderer = (*refinePromptRenderer)(nil)
+
+func (r *refinePromptRenderer) RenderRefine(input *pipeline.RefinePromptInput) (string, error) {
+	ideaText := ""
+	if input != nil {
+		ideaText = input.IdeaText
+	}
+	if ideaText == "" {
+		return "Refine prompt placeholder", nil
+	}
+	return fmt.Sprintf("Refine prompt placeholder for %s", ideaText), nil
+}
+
+// decomposePromptRenderer adapts prompt.Renderer to pipeline.DecomposeRenderer interface
+type decomposePromptRenderer struct {
+	renderer *prompt.Renderer
+}
+
+var _ pipeline.DecomposeRenderer = (*decomposePromptRenderer)(nil)
+
+func (r *decomposePromptRenderer) RenderDecompose(input *pipeline.DecomposePromptInput) (string, error) {
+	if input == nil || input.PlanName == "" {
+		return "Decompose prompt placeholder", nil
+	}
+	return fmt.Sprintf("Decompose prompt placeholder for %s", input.PlanName), nil
+}
+
+// cliBacklogClient adapts bead operations to pipeline.BacklogWriter interface
+type cliBacklogClient struct {
+	beadClient *bead.Client
+}
+
+var _ pipeline.BacklogWriter = (*cliBacklogClient)(nil)
+
+func (c *cliBacklogClient) Add(entry *pipeline.BacklogEntry) error {
+	if entry == nil {
+		return fmt.Errorf("backlog entry is nil")
+	}
+
+	_, err := c.beadClient.Create(context.Background(), entry.Title, entry.Priority, entry.Labels, entry.ExpectedOutputs)
+	return err
+}
+
+func (c *cliBacklogClient) Update(id string, fn func(*pipeline.Idea)) error {
+	return fmt.Errorf("not implemented")
+}
+
+// cliLearningsManager adapts learnings operations to pipeline.LearningsManager interface
+type cliLearningsManager struct {
+	file *learnings.File
+}
+
+var _ pipeline.LearningsManager = (*cliLearningsManager)(nil)
+
+func (m *cliLearningsManager) Add(content string) error {
+	if m == nil || m.file == nil {
+		return fmt.Errorf("learnings manager is not properly initialized")
+	}
+
+	_, err := m.file.Add(reviewSessionCommand, content, learnings.CategoryPatterns)
+	return err
+}
+
+// pipelineLearningsRunnerAdapter implements learnings.ClaudeRunner using pipeline.LLMClient.
+type pipelineLearningsRunnerAdapter struct {
+	client pipeline.LLMClient
+}
+
+func (r *pipelineLearningsRunnerAdapter) Run(ctx context.Context, prompt string, model string) (*learnings.Result, error) {
+	_ = ctx // pipeline.LLMClient handles its own timeout/context.
+	if r == nil || r.client == nil {
+		return nil, fmt.Errorf("review invoker is nil")
+	}
+
+	runResult, err := r.client.Run(prompt, model)
+	if err != nil {
+		return nil, err
+	}
+
+	if runResult == nil {
+		return nil, fmt.Errorf("review invoker returned nil result")
+	}
+
+	// Convert invocation result to learnings.Result
+	return &learnings.Result{
+		Success: runResult.Success,
+		Output:  runResult.Output,
+	}, nil
+}
+
+// cliLogWriter adapts logger operations to pipeline.LogWriter interface
+type cliLogWriter struct {
+	logsDir                   string
+	logType                   string
+	logReviewType             string
+	defaultModel              string
+	promptDiagnosticsProvider func() *prompt.PromptDiagnostics
+}
+
+var _ pipeline.LogWriter = (*cliLogWriter)(nil)
+
+func (w *cliLogWriter) Write(entry *pipeline.LogEntry) error {
+	log, err := logger.NewLogger(w.logsDir)
+	if err != nil {
+		return err
+	}
+	defer log.Close()
+
+	model := entry.Model
+	if model == "" {
+		model = w.defaultModel
+	}
+
+	reviewLog := &logger.ReviewLog{
+		Timestamp:      time.Now(),
+		Type:           w.logType,
+		ReviewType:     w.logReviewType,
+		Iteration:      0,
+		Model:          model,
+		Passed:         entry.Passed,
+		FixesApplied:   entry.FixesApplied,
+		BeadsCreated:   entry.BeadsCreated,
+		BacklogCreated: entry.BacklogCreated,
+		DurationMs:     0,
+	}
+	if w.promptDiagnosticsProvider != nil {
+		reviewLog.PromptDiagnostics = w.promptDiagnosticsProvider()
+	}
+
+	return log.LogReview(reviewLog)
+}
+
+// stateFileAdapter abstracts state.File operations for the adapter
+type stateFileAdapter interface {
+	LastReviewCommit() string
+	RecordReview(commit string, duration int) error
+}
+
+// cliStateManager adapts state operations to pipeline.StateManager interface
+type cliStateManager struct {
+	stateFile stateFileAdapter
+}
+
+var _ pipeline.StateManager = (*cliStateManager)(nil)
+var _ learnings.ClaudeRunner = (*pipelineLearningsRunnerAdapter)(nil)
+
+func (m *cliStateManager) GetLastReviewCommit() (string, error) {
+	if m == nil || m.stateFile == nil {
+		return "", fmt.Errorf("state manager is not properly initialized")
+	}
+
+	return m.stateFile.LastReviewCommit(), nil
+}
+
+func (m *cliStateManager) SetLastReviewCommit(commit string) error {
+	if m == nil || m.stateFile == nil {
+		return fmt.Errorf("state manager is not properly initialized")
+	}
+
+	return m.stateFile.RecordReview(commit, 0)
 }

@@ -256,9 +256,15 @@ func (c *Client) Close(ctx context.Context, id string) error {
 		return fmt.Errorf("invalid bead ID %q", id)
 	}
 
-	_, err := c.run("close", id)
+	out, err := c.run("close", id)
 	if err != nil {
 		return fmt.Errorf("bd close %s: %w", id, err)
+	}
+	// bd close exits 0 even when it cannot close (e.g. blocked by open
+	// dependencies). Detect this from the output so callers don't assume
+	// the bead was actually closed.
+	if strings.Contains(out, "cannot close") {
+		return fmt.Errorf("bd close %s: %s", id, strings.TrimSpace(out))
 	}
 	return nil
 }

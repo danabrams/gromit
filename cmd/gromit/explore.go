@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/danabrams/gromit/internal/agent"
 	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/learnings"
@@ -184,7 +183,13 @@ func buildExplorePipeline(cfg *config.Config) (*pipeline.Pipeline, error) {
 		return nil, fmt.Errorf("creating specs dir: %w", err)
 	}
 
-	// Create renderer
+	// Construct pipeline dependencies using dependency injection
+	deps, err := NewPipelineDeps(cfg, gromitDir)
+	if err != nil {
+		return nil, fmt.Errorf("constructing pipeline deps: %w", err)
+	}
+
+	// Create renderer for explore-specific rendering
 	renderer, err := prompt.NewRenderer(
 		templatesDir,
 		specsDir,
@@ -195,22 +200,17 @@ func buildExplorePipeline(cfg *config.Config) (*pipeline.Pipeline, error) {
 		return nil, fmt.Errorf("creating renderer: %w", err)
 	}
 
-	// Create backlog client
+	// Override explore-specific renderer
+	promptRenderer := &explorePromptRenderer{renderer: renderer}
+	deps.ExploreRenderer = promptRenderer
+
+	// Override backlog client with explore-specific implementation
 	backlogFile, err := backlog.NewFile(gromitDir)
 	if err != nil {
 		return nil, fmt.Errorf("creating backlog file: %w", err)
 	}
-
-	// Create adapters
-	agentResolver := agent.NewResolver(cfg)
-	promptRenderer := &explorePromptRenderer{renderer: renderer}
 	backlogClient := &exploreBacklogClient{file: backlogFile}
-
-	deps := &pipeline.Deps{
-		AgentResolver:   agentResolver,
-		ExploreRenderer: promptRenderer,
-		BacklogClient:   backlogClient,
-	}
+	deps.BacklogClient = backlogClient
 
 	paths := &pipeline.Paths{
 		GromitDir: gromitDir,

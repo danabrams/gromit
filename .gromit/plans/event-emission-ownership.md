@@ -1,8 +1,9 @@
 ---
+created: 2026-02-27T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-27T15:57:09Z"
 id: event-emission-ownership
 source_spec: event-emission-ownership
-created: 2026-02-27
-decomposed: false
 ---
 
 # Event Emission Ownership Implementation Plan
