@@ -132,3 +132,48 @@ func (s *Store) addRecentCompletion(completion *Completion) {
 		s.Dashboard.RecentCompletions = s.Dashboard.RecentCompletions[1:]
 	}
 }
+
+// OnBuildStart updates the phase when build starts.
+func (s *Store) OnBuildStart(event *events.BuildStartEvent) {
+	if s.Dashboard.ActivePhase == nil {
+		s.Dashboard.ActivePhase = &ActivePhase{}
+	}
+	s.Dashboard.ActivePhase.Phase = "build"
+	s.Dashboard.ActivePhase.StartTime = event.EventTime()
+}
+
+// OnValidationStart updates the phase when validation starts.
+func (s *Store) OnValidationStart(event *events.ValidationStartEvent) {
+	if s.Dashboard.ActivePhase == nil {
+		s.Dashboard.ActivePhase = &ActivePhase{}
+	}
+	s.Dashboard.ActivePhase.Phase = "validation"
+	s.Dashboard.ActivePhase.StartTime = event.EventTime()
+}
+
+// OnReviewStart updates the phase when review starts.
+func (s *Store) OnReviewStart(event *events.ReviewStartEvent) {
+	if s.Dashboard.ActivePhase == nil {
+		s.Dashboard.ActivePhase = &ActivePhase{}
+	}
+	s.Dashboard.ActivePhase.Phase = "review"
+	s.Dashboard.ActivePhase.StartTime = event.EventTime()
+}
+
+// OnAnalysisStart updates the phase when analysis starts.
+func (s *Store) OnAnalysisStart(event *events.AnalysisStartEvent) {
+	if s.Dashboard.ActivePhase == nil {
+		s.Dashboard.ActivePhase = &ActivePhase{}
+	}
+	s.Dashboard.ActivePhase.Phase = "analysis"
+	s.Dashboard.ActivePhase.StartTime = event.EventTime()
+}
+
+// OnRetroStart updates the phase when retrospective starts.
+func (s *Store) OnRetroStart(event *events.RetroStartEvent) {
+	if s.Dashboard.ActivePhase == nil {
+		s.Dashboard.ActivePhase = &ActivePhase{}
+	}
+	s.Dashboard.ActivePhase.Phase = "retro"
+	s.Dashboard.ActivePhase.StartTime = event.EventTime()
+}
