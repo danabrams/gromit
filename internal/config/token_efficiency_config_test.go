@@ -261,6 +261,48 @@ token_efficiency:
 	}
 }
 
+func TestRetrievalExperimentConfigYAMLDeserialization(t *testing.T) {
+	yamlContent := `
+token_efficiency:
+  retrieval:
+    enabled: true
+    top_k: 10
+    confidence_threshold: 0.85
+    staleness_policy: max_age
+    staleness_threshold_days: 30
+    index_path: /path/to/index
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if !cfg.TokenEfficiency.Retrieval.Enabled {
+		t.Errorf("TokenEfficiency.Retrieval.Enabled = false, want true")
+	}
+	if cfg.TokenEfficiency.Retrieval.TopK != 10 {
+		t.Errorf("TokenEfficiency.Retrieval.TopK = %d, want 10", cfg.TokenEfficiency.Retrieval.TopK)
+	}
+	if cfg.TokenEfficiency.Retrieval.ConfidenceThreshold != 0.85 {
+		t.Errorf("TokenEfficiency.Retrieval.ConfidenceThreshold = %f, want 0.85", cfg.TokenEfficiency.Retrieval.ConfidenceThreshold)
+	}
+	if cfg.TokenEfficiency.Retrieval.StalenessPolicy != "max_age" {
+		t.Errorf("TokenEfficiency.Retrieval.StalenessPolicy = %q, want %q", cfg.TokenEfficiency.Retrieval.StalenessPolicy, "max_age")
+	}
+	if cfg.TokenEfficiency.Retrieval.StalenessThresholdDays != 30 {
+		t.Errorf("TokenEfficiency.Retrieval.StalenessThresholdDays = %d, want 30", cfg.TokenEfficiency.Retrieval.StalenessThresholdDays)
+	}
+	if cfg.TokenEfficiency.Retrieval.IndexPath != "/path/to/index" {
+		t.Errorf("TokenEfficiency.Retrieval.IndexPath = %q, want %q", cfg.TokenEfficiency.Retrieval.IndexPath, "/path/to/index")
+	}
+}
+
 func TestRetrievalExperimentConfigDefaults(t *testing.T) {
 	cfg := &Config{}
 	cfg.SetDefaults()
