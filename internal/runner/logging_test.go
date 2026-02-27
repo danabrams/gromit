@@ -92,3 +92,32 @@ func TestResultToIterationLog_MapsTimeoutDecompositionAuditFields(t *testing.T) 
 		t.Errorf("TimeoutDecompositionReason = %q, want %q", log.TimeoutDecompositionReason, "high_complexity_timeout_exceeded")
 	}
 }
+
+// TestResultToIterationLog_MapsComplexityAndEstimatedFilesFields verifies that
+// ResultToIterationLog correctly maps Complexity, ComplexitySource, ComplexityFallbackReason,
+// and EstimatedFiles from IterationResult to IterationLog.
+func TestResultToIterationLog_MapsComplexityAndEstimatedFilesFields(t *testing.T) {
+	t.Parallel()
+	result := &runtypes.IterationResult{
+		BeadID:                   "test-bead",
+		Complexity:               "high",
+		ComplexitySource:         "scope_estimate",
+		ComplexityFallbackReason: "none",
+		EstimatedFiles:           15,
+	}
+
+	log := ResultToIterationLog(result)
+
+	if log.Complexity != "high" {
+		t.Errorf("Complexity = %q, want %q", log.Complexity, "high")
+	}
+	if log.ComplexitySource != "scope_estimate" {
+		t.Errorf("ComplexitySource = %q, want %q", log.ComplexitySource, "scope_estimate")
+	}
+	if log.ComplexityFallbackReason != "none" {
+		t.Errorf("ComplexityFallbackReason = %q, want %q", log.ComplexityFallbackReason, "none")
+	}
+	if log.EstimatedFiles != 15 {
+		t.Errorf("EstimatedFiles = %d, want %d", log.EstimatedFiles, 15)
+	}
+}

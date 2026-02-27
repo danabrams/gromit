@@ -74,6 +74,9 @@ type IterationResult struct {
 	EstimatedFiles          int
 	OriginalTier            string `json:"original_tier,omitempty"`
 	ActualTier              string `json:"actual_tier,omitempty"`
+	Complexity              string `json:"complexity,omitempty"`
+	ComplexitySource        string `json:"complexity_source,omitempty"`
+	ComplexityFallbackReason string `json:"complexity_fallback_reason,omitempty"`
 	Decomposed              bool
 	Output                  string
 	CostUSD                 float64
