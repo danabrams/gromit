@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/runner"
@@ -19,8 +20,17 @@ type Store struct {
 type DashboardState struct {
 	RunnerStatus   *runner.Status
 	PipelineStatus *pipeline.PipelineStatus
+	RunProgress    *RunProgress
 	LastHydration  time.Time
 	Warnings       []string
+}
+
+// RunProgress tracks the current progress through a run.
+type RunProgress struct {
+	CurrentIteration int
+	MaxIterations    int
+	IterationPercent int
+	Status           string // running, completed, failed
 }
 
 // QueueState tracks the queue snapshot visible in the queue view.
@@ -38,4 +48,13 @@ type QueueSnapshot struct {
 	All            []*bead.Bead
 	Stats          map[string]logger.BeadStats
 	StuckThreshold int
+}
+
+// OnRunStart updates the store when a run starts.
+func (s *Store) OnRunStart(event *events.RunStartEvent) {
+	s.Dashboard.RunProgress = &RunProgress{
+		CurrentIteration: 0,
+		MaxIterations:    event.MaxIterations,
+		Status:           "running",
+	}
 }
