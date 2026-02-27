@@ -3,6 +3,7 @@ package logger
 import (
 	"errors"
 	"testing"
+	"time"
 )
 
 func TestReadAllIterationLogsSorted_UsesListRunLogFiles(t *testing.T) {
@@ -191,6 +192,136 @@ func TestBuildIterationMetrics_AllComplexitySourceValues(t *testing.T) {
 			}
 			if m.EstimatedFiles != tc.estimatedFiles {
 				t.Errorf("EstimatedFiles = %d, want %d", m.EstimatedFiles, tc.estimatedFiles)
+			}
+		})
+	}
+}
+
+func TestBuildIterationMetrics_ProviderRollingStats(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name                     string
+		windowSize               int
+		metricIndex              int
+		entries                  []IterationLog
+		wantInvocations          int
+		wantSuccesses            int
+		wantSuccessRate          float64
+		wantTransportFailures    int
+		wantTransportFailureRate float64
+	}{
+		{
+			name:       "mixed provider window",
+			windowSize: 3,
+			metricIndex: 2,
+			entries: []IterationLog{
+				{
+					Timestamp:       time.Now(),
+					Iteration:       1,
+					Provider:        "openai",
+					Model:           "gpt-5",
+					Success:         true,
+				},
+				{
+					Timestamp:       time.Now().Add(time.Second),
+					Iteration:       2,
+					Provider:        "claude",
+					Model:           "claude-v1",
+					Success:         false,
+				},
+				{
+					Timestamp:       time.Now().Add(2 * time.Second),
+					Iteration:       3,
+					Provider:        "openai",
+					Model:           "gpt-5",
+					Success:         false,
+					FailureCategory: transportDisconnectFailure,
+				},
+			},
+			wantInvocations:          2,
+			wantSuccesses:            1,
+			wantSuccessRate:          0.5,
+			wantTransportFailures:    1,
+			wantTransportFailureRate: 0.5,
+		},
+		{
+			name:       "inference fallback",
+			windowSize: 3,
+			metricIndex: 1,
+			entries: []IterationLog{
+				{
+					Timestamp:       time.Now(),
+					Iteration:       1,
+					Provider:        "",
+					Model:           "gpt-5.3-codex",
+					Success:         true,
+				},
+				{
+					Timestamp:       time.Now().Add(time.Second),
+					Iteration:       2,
+					Provider:        "",
+					Model:           "gpt-5.3-codex",
+					Success:         false,
+					FailureCategory: transportDisconnectFailure,
+				},
+				{
+					Timestamp:       time.Now().Add(2 * time.Second),
+					Iteration:       3,
+					Provider:        "claude",
+					Model:           "claude-v1",
+					Success:         true,
+				},
+			},
+			wantInvocations:          2,
+			wantSuccesses:            1,
+			wantSuccessRate:          0.5,
+			wantTransportFailures:    1,
+			wantTransportFailureRate: 0.5,
+		},
+		{
+			name:       "transport-only failure",
+			windowSize: 1,
+			metricIndex: 0,
+			entries: []IterationLog{
+				{
+					Timestamp:       time.Now(),
+					Iteration:       1,
+					Provider:        "openai",
+					Model:           "gpt-5",
+					Success:         false,
+					FailureCategory: transportDisconnectFailure,
+				},
+			},
+			wantInvocations:          1,
+			wantSuccesses:            0,
+			wantSuccessRate:          0,
+			wantTransportFailures:    1,
+			wantTransportFailureRate: 1,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			metrics := buildIterationMetrics(tc.entries, tc.windowSize)
+			if len(metrics) <= tc.metricIndex {
+				t.Fatalf("expected at least %d metrics, got %d", tc.metricIndex+1, len(metrics))
+			}
+			metric := metrics[tc.metricIndex]
+			if metric.RollingProviderInvocations != tc.wantInvocations {
+				t.Fatalf("RollingProviderInvocations = %d, want %d", metric.RollingProviderInvocations, tc.wantInvocations)
+			}
+			if metric.RollingProviderSuccesses != tc.wantSuccesses {
+				t.Fatalf("RollingProviderSuccesses = %d, want %d", metric.RollingProviderSuccesses, tc.wantSuccesses)
+			}
+			if metric.RollingProviderSuccessRate != tc.wantSuccessRate {
+				t.Fatalf("RollingProviderSuccessRate = %v, want %v", metric.RollingProviderSuccessRate, tc.wantSuccessRate)
+			}
+			if metric.RollingProviderTransportFailures != tc.wantTransportFailures {
+				t.Fatalf("RollingProviderTransportFailures = %d, want %d", metric.RollingProviderTransportFailures, tc.wantTransportFailures)
+			}
+			if metric.RollingProviderTransportFailureRate != tc.wantTransportFailureRate {
+				t.Fatalf("RollingProviderTransportFailureRate = %v, want %v", metric.RollingProviderTransportFailureRate, tc.wantTransportFailureRate)
 			}
 		})
 	}
