@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/runner/specmerge"
 )
 
@@ -15,6 +16,11 @@ func TestFinalizeSpecBranch_RebaseBeforeMergeBeforeDelete(t *testing.T) {
 	ctx := context.Background()
 	branch := "gromit/spec-payments"
 	callLog := []string{}
+	originalBaseBranch := config.DefaultBaseBranch
+	config.DefaultBaseBranch = "test-main-branch"
+	defer func() {
+		config.DefaultBaseBranch = originalBaseBranch
+	}()
 
 	git := &fakeGitOps{
 		rebaseFn: func(_ context.Context, b, onto string) error {
@@ -40,7 +46,7 @@ func TestFinalizeSpecBranch_RebaseBeforeMergeBeforeDelete(t *testing.T) {
 	}
 
 	want := []string{
-		"rebase gromit/spec-payments main",
+		fmt.Sprintf("rebase %s %s", branch, config.DefaultBaseBranch),
 		"merge gromit/spec-payments",
 		"delete gromit/spec-payments",
 	}
@@ -107,9 +113,9 @@ func TestFinalizeSpecBranch_RebaseConflictTriggersResolver(t *testing.T) {
 	}
 
 	want := []string{
-		"rebase 1 main",
+		fmt.Sprintf("rebase 1 %s", config.DefaultBaseBranch),
 		"resolve",
-		"rebase 2 main",
+		fmt.Sprintf("rebase 2 %s", config.DefaultBaseBranch),
 		"merge gromit/spec-payments",
 		"delete gromit/spec-payments",
 	}
@@ -176,7 +182,7 @@ func TestFinalizeSpecBranch_MergeConflictTriggersResolver(t *testing.T) {
 	}
 
 	want := []string{
-		"rebase gromit/spec-payments main",
+		fmt.Sprintf("rebase %s %s", branch, config.DefaultBaseBranch),
 		"merge 1 gromit/spec-payments",
 		"resolve",
 		"merge 2 gromit/spec-payments",
@@ -295,9 +301,9 @@ func TestFinalizeSpecBranch_SpecbranchConflictErrorDetectedAfterConsolidation(t 
 	}
 
 	want := []string{
-		"rebase 1 main",
+		fmt.Sprintf("rebase 1 %s", config.DefaultBaseBranch),
 		"resolve",
-		"rebase 2 main",
+		fmt.Sprintf("rebase 2 %s", config.DefaultBaseBranch),
 		"merge gromit/spec-payments",
 		"delete gromit/spec-payments",
 	}

@@ -41,9 +41,9 @@ const (
 
 	MethodologyGranularityBead = "bead"
 	MethodologyGranularitySpec = "spec"
-
-	DefaultBaseBranch = "main"
 )
+
+var DefaultBaseBranch = "main"
 
 var defaultAndonBulkDeleteAllowlist = []string{
 	".gromit/logs/**",
