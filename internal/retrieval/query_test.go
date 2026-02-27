@@ -138,3 +138,40 @@ func TestQueryConfidenceBoundedness(t *testing.T) {
 		}
 	}
 }
+
+func TestQueryRespectsKLimit(t *testing.T) {
+	q := NewQuerier()
+
+	// Index 10 documents
+	docs := make([]DocumentWithAttribution, 10)
+	for i := 0; i < 10; i++ {
+		docs[i] = DocumentWithAttribution{
+			FilePath:  "file.go",
+			StartLine: i * 10,
+			EndLine:   i*10 + 5,
+			Content:   "content",
+		}
+	}
+
+	q.Index(docs)
+
+	// Query with K=3
+	results, err := q.Query("content", 3)
+	if err != nil {
+		t.Fatalf("Query failed: %v", err)
+	}
+
+	if len(results) != 3 {
+		t.Fatalf("expected 3 results, got %d", len(results))
+	}
+
+	// Query with K=20 (more than available)
+	results, err = q.Query("content", 20)
+	if err != nil {
+		t.Fatalf("Query failed: %v", err)
+	}
+
+	if len(results) != 10 {
+		t.Fatalf("expected 10 results (all available), got %d", len(results))
+	}
+}
