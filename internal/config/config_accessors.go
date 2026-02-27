@@ -476,6 +476,17 @@ func (r TokenEfficiencyRetrievalConfig) ResolvedTopK(minTopK int) int {
 	return r.TopK
 }
 
+// ResolvedConfidenceThreshold returns the configured ConfidenceThreshold, or minConfidence if configured value is zero or below minimum.
+func (r TokenEfficiencyRetrievalConfig) ResolvedConfidenceThreshold(minConfidence float64) float64 {
+	if r.ConfidenceThreshold == 0 {
+		return minConfidence
+	}
+	if r.ConfidenceThreshold < minConfidence {
+		return minConfidence
+	}
+	return r.ConfidenceThreshold
+}
+
 // ResolvedMethodologyAdapter returns the resolved methodology adapter selector
 // and source metadata from compatibility resolution.
 func (c Config) ResolvedMethodologyAdapter() CompatibilityResolvedValue {
