@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/danabrams/gromit/internal/config"
 )
 
 const (
@@ -14,13 +16,19 @@ const (
 var specNamePattern = regexp.MustCompile(`^[A-Za-z0-9._/\-]+$`)
 
 // Router maps bead labels to execution branch names.
-type Router struct{}
+type Router struct {
+	baseBranch string
+}
 
 const specLabelPrefix = "spec:"
 
 // NewRouter returns a Router with default branch naming rules.
-func NewRouter() *Router {
-	return &Router{}
+func NewRouter(baseBranch string) *Router {
+	baseBranch = strings.TrimSpace(baseBranch)
+	if baseBranch == "" {
+		baseBranch = config.DefaultBaseBranch
+	}
+	return &Router{baseBranch: baseBranch}
 }
 
 // BranchForLabels resolves the git branch that should be checked out for the
@@ -28,7 +36,7 @@ func NewRouter() *Router {
 func (r *Router) BranchForLabels(labels []string) (string, error) {
 	rawSpecName, found := findSpecLabel(labels)
 	if !found {
-		return defaultMainBranch, nil
+		return r.baseBranchOrDefault(), nil
 	}
 	specName := strings.TrimSpace(rawSpecName)
 	if specName == "" {
@@ -38,6 +46,13 @@ func (r *Router) BranchForLabels(labels []string) (string, error) {
 		return "", fmt.Errorf("invalid spec name %q", specName)
 	}
 	return defaultBranchPrefix + specName, nil
+}
+
+func (r *Router) baseBranchOrDefault() string {
+	if r == nil || r.baseBranch == "" {
+		return config.DefaultBaseBranch
+	}
+	return r.baseBranch
 }
 
 func findSpecLabel(labels []string) (string, bool) {
