@@ -360,6 +360,70 @@ func TestTrackerBeadClientReadyExcludingFiltersEpicsAndExcludedIDs(t *testing.T)
 	}
 }
 
+func TestBuildTrackerCreateRequestUsesTrackerEncodeMetadataJSONList(t *testing.T) {
+	t.Parallel()
+
+	// Test that buildTrackerCreateRequest produces identical output to tracker.EncodeMetadataJSONList
+	testCases := []struct {
+		name    string
+		labels  []string
+		outputs []string
+	}{
+		{
+			name:    "non-empty lists",
+			labels:  []string{"label1", "label2"},
+			outputs: []string{"output1"},
+		},
+		{
+			name:    "empty labels",
+			labels:  []string{},
+			outputs: []string{"output1"},
+		},
+		{
+			name:    "empty outputs",
+			labels:  []string{"label1"},
+			outputs: []string{},
+		},
+		{
+			name:    "all empty",
+			labels:  []string{},
+			outputs: []string{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := buildTrackerCreateRequest("title", 1, tc.labels, tc.outputs, "desc")
+
+			// Verify labels encoding matches tracker.EncodeMetadataJSONList
+			expectedLabels, labelsOk := tracker.EncodeMetadataJSONList(tc.labels)
+			actualLabels, labelsPresent := req.Metadata["labels"]
+			if labelsOk {
+				if !labelsPresent || actualLabels != expectedLabels {
+					t.Fatalf("labels mismatch: got %q, want %q", actualLabels, expectedLabels)
+				}
+			} else {
+				if labelsPresent {
+					t.Fatalf("labels should not be present when EncodeMetadataJSONList returns false")
+				}
+			}
+
+			// Verify outputs encoding matches tracker.EncodeMetadataJSONList
+			expectedOutputs, outputsOk := tracker.EncodeMetadataJSONList(tc.outputs)
+			actualOutputs, outputsPresent := req.Metadata["expected_outputs"]
+			if outputsOk {
+				if !outputsPresent || actualOutputs != expectedOutputs {
+					t.Fatalf("outputs mismatch: got %q, want %q", actualOutputs, expectedOutputs)
+				}
+			} else {
+				if outputsPresent {
+					t.Fatalf("outputs should not be present when EncodeMetadataJSONList returns false")
+				}
+			}
+		})
+	}
+}
+
 type stubTrackerClient struct {
 	readyFn              func(ctx context.Context) (*tracker.Item, error)
 	listFn               func(ctx context.Context, q tracker.Query) ([]tracker.Item, error)
