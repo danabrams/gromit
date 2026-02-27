@@ -113,6 +113,44 @@ func TestEmitterMixin_SetEmitter_SetsEmitter(t *testing.T) {
 	}
 }
 
+// TestEmitterMixin_Log_EmitsLogEvent tests that EmitterMixin.Log emits a LogEvent via the embedded Emitter.
+func TestEmitterMixin_Log_EmitsLogEvent(t *testing.T) {
+	t.Parallel()
+	emitter := NewEmitter()
+	defer emitter.Close()
+
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	mixin := &EmitterMixin{}
+	mixin.SetEmitter(emitter)
+	mixin.Log("info", "hello %s", "world")
+
+	select {
+	case evt := <-ch:
+		logEvent, ok := evt.(*LogEvent)
+		if !ok {
+			t.Fatalf("expected LogEvent, got %T", evt)
+		}
+		if logEvent.Level != "info" {
+			t.Errorf("Level = %q, want %q", logEvent.Level, "info")
+		}
+		if logEvent.Message != "hello world" {
+			t.Errorf("Message = %q, want %q", logEvent.Message, "hello world")
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timeout waiting for LogEvent")
+	}
+}
+
+// TestEmitterMixin_Log_DoesNothingWhenEmitterNil tests that Log is safe when embedded Emitter is nil.
+func TestEmitterMixin_Log_DoesNothingWhenEmitterNil(t *testing.T) {
+	t.Parallel()
+	mixin := &EmitterMixin{}
+	// Should not panic
+	mixin.Log("warning", "test %s", "message")
+}
+
 // TestEmitterMixin_EmbeddedWithEmitter_WorksWithParent tests that WithEmitter works on a stage that embeds EmitterMixin.
 func TestEmitterMixin_EmbeddedWithEmitter_WorksWithParent(t *testing.T) {
 	t.Parallel()
