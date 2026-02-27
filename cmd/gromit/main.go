@@ -432,19 +432,7 @@ func buildBeadFilter(ctx context.Context, labels []string) (map[string]bool, err
 		return nil, err
 	}
 
-	filter := make(map[string]bool)
-	for _, label := range labels {
-		beads, err := client.ListWithLabel(context.Background(), label)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, b := range beads {
-			filter[b.ID] = true
-		}
-	}
-
-	return filter, nil
+	return buildBeadFilterWithClient(ctx, labels, client)
 }
 
 // resolveScopeLabels validates and resolves spec/epic scope flags into bead labels.
