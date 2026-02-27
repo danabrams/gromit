@@ -2,7 +2,6 @@ package prepare
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"strings"
 
@@ -52,12 +51,12 @@ type DataQualityBlocker interface {
 // If data quality blocked, returns Block.
 // Otherwise returns Proceed.
 type Gate struct {
-	precheck           Prechecker         // optional; nil means skip precheck
-	stuck              StuckDetector      // optional; nil means skip stuck detection
-	decomposer         Decomposer         // optional; used only by scope-gate decomposition
-	dataQualityChecker DataQualityBlocker // optional; nil means skip data quality checks
-	output             io.Writer
-	emitter            *events.Emitter
+	events.EmitterMixin // provides Emitter field and SetEmitter method
+	precheck            Prechecker         // optional; nil means skip precheck
+	stuck               StuckDetector      // optional; nil means skip stuck detection
+	decomposer          Decomposer         // optional; used only by scope-gate decomposition
+	dataQualityChecker  DataQualityBlocker // optional; nil means skip data quality checks
+	output              io.Writer
 }
 
 // Compile-time check: *Gate must implement pipeline.Stage.
@@ -71,13 +70,8 @@ func New(output io.Writer) *Gate {
 
 // WithEmitter attaches an EventEmitter for log events.
 func (g *Gate) WithEmitter(emitter *events.Emitter) *Gate {
-	g.emitter = emitter
+	g.EmitterMixin.SetEmitter(emitter)
 	return g
-}
-
-// SetEmitter is used by orchestrator wiring to attach an emitter.
-func (g *Gate) SetEmitter(emitter *events.Emitter) {
-	g.emitter = emitter
 }
 
 // WithPrechecker configures an optional Prechecker for detecting already-completed work.
@@ -261,11 +255,6 @@ func (g *Gate) runScopeGate(ctx context.Context, in pipeline.Input) (*pipeline.O
 }
 
 func (g *Gate) log(level, format string, args ...interface{}) {
-	if g.emitter == nil {
-		return
-	}
-	g.emitter.Emit(&events.LogEvent{
-		Level:   level,
-		Message: fmt.Sprintf(format, args...),
-	})
+	logger := &events.EmitterLogger{Emitter: g.Emitter}
+	logger.Log(level, format, args...)
 }
