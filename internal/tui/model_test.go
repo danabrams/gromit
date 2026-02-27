@@ -70,3 +70,36 @@ func TestModel_FocusMovement(t *testing.T) {
 		t.Errorf("expected focus to be 0 after FocusPrev, got %d", m.focusedPanel)
 	}
 }
+
+func TestModel_KeyboardNavigationTab(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+
+	// Send Tab key to move focus
+	msg := tea.KeyMsg{Type: tea.KeyTab}
+	model, cmd := m.Update(msg)
+	m = model.(*Model)
+
+	// Focus should move to next panel
+	if m.focusedPanel != 1 {
+		t.Errorf("expected focus to be 1 after Tab, got %d", m.focusedPanel)
+	}
+	_ = cmd
+}
+
+func TestModel_KeyboardNavigationShiftTab(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+	m.FocusNext() // Move to panel 1
+
+	// Send Shift+Tab key to move focus backward
+	msg := tea.KeyMsg{Type: tea.KeyShiftTab}
+	model, cmd := m.Update(msg)
+	m = model.(*Model)
+
+	// Focus should move back to panel 0
+	if m.focusedPanel != 0 {
+		t.Errorf("expected focus to be 0 after Shift+Tab, got %d", m.focusedPanel)
+	}
+	_ = cmd
+}
