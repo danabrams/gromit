@@ -1112,6 +1112,65 @@ func countMessagesContaining(messages []string, substr string) int {
 	return count
 }
 
+// TestEpilog_EmitsBeadCloseEventOnSuccessfulClose verifies BeadCloseEvent is emitted
+// when bead close succeeds.
+func TestEpilog_EmitsBeadCloseEventOnSuccessfulClose(t *testing.T) {
+	t.Parallel()
+
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	beads := &fakeBeadLifecycle{}
+	status := &fakeStatusWriter{}
+	epi := epiloguepkg.New(beads, status, io.Discard).WithEmitter(emitter)
+
+	beadID := "bead-close-test"
+	input := pipeline.Input{
+		Bead: &bead.Bead{
+			ID:    beadID,
+			Title: "test bead",
+		},
+		Iteration:      1,
+		BuildSucceeded: true,
+		Emitter:        emitter,
+	}
+
+	_, err := epi.Run(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Epilogue.Run() error = %v", err)
+	}
+
+	// Collect events
+	var emittedEvents []events.Event
+	timeout := time.After(100 * time.Millisecond)
+	for {
+		select {
+		case evt := <-ch:
+			emittedEvents = append(emittedEvents, evt)
+		case <-timeout:
+			goto checkEvents
+		}
+	}
+
+checkEvents:
+	// Verify we got BeadCloseEvent
+	var closeEvent *events.BeadCloseEvent
+	for _, evt := range emittedEvents {
+		if ce, ok := evt.(*events.BeadCloseEvent); ok {
+			closeEvent = ce
+		}
+	}
+
+	if closeEvent == nil {
+		t.Fatal("expected BeadCloseEvent to be emitted on successful close")
+	}
+	if closeEvent.BeadID != beadID {
+		t.Errorf("BeadCloseEvent.BeadID = %q, want %q", closeEvent.BeadID, beadID)
+	}
+}
+
 // RED: test for Epilogue stage emitting EpilogueStartEvent and EpilogueCompleteEvent
 func TestEpilogueRun_EmitsEpilogueStartAndCompleteEvents(t *testing.T) {
 	t.Parallel()
