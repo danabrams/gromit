@@ -79,3 +79,75 @@ func TestPhase4ReadPairedIterationRecords_ParsesJSONL(t *testing.T) {
 		t.Errorf("second record wrong_file: expected true, got %v", records[1].WrongFileRetrieval)
 	}
 }
+
+func TestPhase4SummarizeRun_ComputesMediansAndRates(t *testing.T) {
+	records := []phase4PairedIterationRecord{
+		{
+			DiscoveryInputTokensBaseline:  100,
+			DiscoveryInputTokensRetrieval: 70,
+			DiscoveryLatencyMsBaseline:    1000,
+			DiscoveryLatencyMsRetrieval:   800,
+			SuccessBaseline:               true,
+			SuccessRetrieval:              true,
+			WrongFileRetrieval:            false,
+		},
+		{
+			DiscoveryInputTokensBaseline:  90,
+			DiscoveryInputTokensRetrieval: 65,
+			DiscoveryLatencyMsBaseline:    950,
+			DiscoveryLatencyMsRetrieval:   780,
+			SuccessBaseline:               true,
+			SuccessRetrieval:              false,
+			WrongFileRetrieval:            true,
+		},
+		{
+			DiscoveryInputTokensBaseline:  110,
+			DiscoveryInputTokensRetrieval: 75,
+			DiscoveryLatencyMsBaseline:    1050,
+			DiscoveryLatencyMsRetrieval:   820,
+			SuccessBaseline:               true,
+			SuccessRetrieval:              true,
+			WrongFileRetrieval:            false,
+		},
+	}
+
+	baselineMetrics := summarizePhase4BaselineRun(records)
+	retrievalMetrics := summarizePhase4RetrievalRun(records)
+
+	// Verify baseline medians
+	expectedBaselineTokens := 100
+	if baselineMetrics.MedianDiscoveryInputTokens != expectedBaselineTokens {
+		t.Errorf("baseline median tokens: expected %d, got %d", expectedBaselineTokens, baselineMetrics.MedianDiscoveryInputTokens)
+	}
+
+	expectedBaselineLatency := 1000
+	if baselineMetrics.MedianDiscoveryLatencyMs != expectedBaselineLatency {
+		t.Errorf("baseline median latency: expected %d, got %d", expectedBaselineLatency, baselineMetrics.MedianDiscoveryLatencyMs)
+	}
+
+	expectedBaselineSuccessRate := 1.0 // all 3 succeeded
+	if baselineMetrics.SuccessRate != expectedBaselineSuccessRate {
+		t.Errorf("baseline success rate: expected %.2f, got %.2f", expectedBaselineSuccessRate, baselineMetrics.SuccessRate)
+	}
+
+	// Verify retrieval medians
+	expectedRetrievalTokens := 70
+	if retrievalMetrics.MedianDiscoveryInputTokens != expectedRetrievalTokens {
+		t.Errorf("retrieval median tokens: expected %d, got %d", expectedRetrievalTokens, retrievalMetrics.MedianDiscoveryInputTokens)
+	}
+
+	expectedRetrievalLatency := 800
+	if retrievalMetrics.MedianDiscoveryLatencyMs != expectedRetrievalLatency {
+		t.Errorf("retrieval median latency: expected %d, got %d", expectedRetrievalLatency, retrievalMetrics.MedianDiscoveryLatencyMs)
+	}
+
+	expectedRetrievalSuccessRate := 2.0 / 3.0 // 2 out of 3 succeeded
+	if retrievalMetrics.SuccessRate != expectedRetrievalSuccessRate {
+		t.Errorf("retrieval success rate: expected %.2f, got %.2f", expectedRetrievalSuccessRate, retrievalMetrics.SuccessRate)
+	}
+
+	expectedWrongFileRate := 1.0 / 3.0 // 1 out of 3 had wrong file
+	if retrievalMetrics.WrongFileRate != expectedWrongFileRate {
+		t.Errorf("retrieval wrong file rate: expected %.2f, got %.2f", expectedWrongFileRate, retrievalMetrics.WrongFileRate)
+	}
+}
