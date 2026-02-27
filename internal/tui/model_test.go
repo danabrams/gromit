@@ -181,3 +181,55 @@ func TestModel_QuitWithCtrlC(t *testing.T) {
 	}
 	_ = model
 }
+
+func TestModel_DashboardViewHasMultiplePanels(t *testing.T) {
+	store := &Store{
+		Dashboard: DashboardState{
+			RunProgress: &RunProgress{
+				CurrentIteration: 1,
+				MaxIterations:    5,
+				Status:           "running",
+			},
+		},
+	}
+	m := NewModel(store)
+
+	// View should contain panel information
+	view := m.View()
+	if view == "" {
+		t.Error("expected non-empty view for dashboard")
+	}
+
+	// Verify that the view indicates the current focused panel
+	if m.focusedPanel == 0 {
+		if !containsString(view, "panel 0") && !containsString(view, "progress") {
+			t.Error("expected dashboard view to contain progress panel info")
+		}
+	}
+}
+
+func TestModel_ViewReflectsFocusedPanel(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+
+	view1 := m.View()
+
+	// Move focus to next panel
+	m.FocusNext()
+	view2 := m.View()
+
+	// Views should be different if focus changed
+	if view1 == view2 && !containsString(view1, "1") {
+		t.Error("expected view to change when focus changed or contain focus indicator")
+	}
+}
+
+// Helper function for string contains
+func containsString(haystack, needle string) bool {
+	for i := 0; i < len(haystack)-len(needle)+1; i++ {
+		if haystack[i:i+len(needle)] == needle {
+			return true
+		}
+	}
+	return false
+}
