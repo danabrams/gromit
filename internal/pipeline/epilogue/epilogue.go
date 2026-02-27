@@ -75,18 +75,18 @@ type IterationLogWriter interface {
 // status after every iteration, triggers thorough reviews, and runs the
 // between-iterations command.
 type Epilogue struct {
-	beads           BeadLifecycle
-	status          StatusWriter
-	output          io.Writer
-	worktree        WorktreeMerger      // optional; nil means skip worktree merge
-	branchRemover   PendingBranchRemover // optional; nil means skip branch removal from state
-	cmd             CommandRunner       // optional; nil means skip between-iterations command
-	specgate        SpecGateRunner      // optional; nil means skip spec gate
-	review          ThoroughReviewer    // optional; nil means skip thorough review
-	epic            EpicChecker         // optional; used with review for epic completion detection
-	failureLearner  FailureLearner      // optional; nil means skip failure-path learning
-	logWriter       IterationLogWriter  // optional; nil means skip iteration log write
-	mergeWarnings   map[string]string   // per-run de-duplication of merge warnings by branch
+	beads          BeadLifecycle
+	status         StatusWriter
+	output         io.Writer
+	worktree       WorktreeMerger       // optional; nil means skip worktree merge
+	branchRemover  PendingBranchRemover // optional; nil means skip branch removal from state
+	cmd            CommandRunner        // optional; nil means skip between-iterations command
+	specgate       SpecGateRunner       // optional; nil means skip spec gate
+	review         ThoroughReviewer     // optional; nil means skip thorough review
+	epic           EpicChecker          // optional; used with review for epic completion detection
+	failureLearner FailureLearner       // optional; nil means skip failure-path learning
+	logWriter      IterationLogWriter   // optional; nil means skip iteration log write
+	mergeWarnings  map[string]string    // per-run de-duplication of merge warnings by branch
 }
 
 // Compile-time check: *Epilogue must implement pipeline.Stage.
@@ -157,14 +157,21 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 	if w == nil {
 		w = io.Discard
 	}
+	lifecycleFailure := pipeline.LifecycleFailureNone
 
 	// 1. Bead lifecycle: close and sync on success.
 	if in.BuildSucceeded {
 		if err := e.beads.Close(ctx, in.Bead.ID); err != nil {
 			fmt.Fprintf(w, "Warning: failed to close bead: %v\n", err)
+			if lifecycleFailure == pipeline.LifecycleFailureNone {
+				lifecycleFailure = pipeline.LifecycleFailureClose
+			}
 		}
 		if err := e.beads.Sync(ctx); err != nil {
 			fmt.Fprintf(w, "Warning: failed to sync beads: %v\n", err)
+			if lifecycleFailure == pipeline.LifecycleFailureNone {
+				lifecycleFailure = pipeline.LifecycleFailureSync
+			}
 		}
 	}
 
@@ -282,8 +289,9 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 	}
 
 	return pipeline.Output{
-		Decision:        pipeline.Proceed,
-		TouchedPackages: in.TouchedPackages,
+		Decision:         pipeline.Proceed,
+		TouchedPackages:  in.TouchedPackages,
+		LifecycleFailure: lifecycleFailure,
 	}, nil
 }
 
