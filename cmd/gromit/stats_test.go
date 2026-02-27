@@ -63,10 +63,6 @@ func TestStatsCmd_UsesPipelineStats(t *testing.T) {
 
 	originalFetcher := statsFetcher
 	defer func() { statsFetcher = originalFetcher }()
-	originalTDD := statsTDD
-	defer func() { statsTDD = originalTDD }()
-
-	statsTDD = true
 	called := false
 	stubSummary := &pipeline.StatsSummary{
 		ProjectStats: map[string]logger.ModelStats{
@@ -90,7 +86,7 @@ func TestStatsCmd_UsesPipelineStats(t *testing.T) {
 	}
 
 	output := captureStdout(t, func() {
-		rootCmd.SetArgs([]string{"stats"})
+		rootCmd.SetArgs([]string{"stats", "--tdd"})
 		if err := rootCmd.Execute(); err != nil {
 			t.Fatalf("stats command failed: %v", err)
 		}

@@ -14,25 +14,32 @@ func TestPipelineStatsAggregatesIdeaTypes(t *testing.T) {
 	}
 
 	client := &fakeBacklogClient{ideas: ideas}
-	p := &Pipeline{deps: &Deps{BacklogClient: client}}
+	p := &Pipeline{
+		deps:  &Deps{BacklogClient: client},
+		paths: &Paths{GromitDir: t.TempDir()},
+	}
 
-	stats, err := p.Stats(ctx)
+	stats, err := p.Stats(ctx, nil, StatsOptions{})
 	if err != nil {
 		t.Fatalf("Stats() error = %v", err)
 	}
 
-	if stats.Total != len(ideas) {
-		t.Fatalf("Total = %d, want %d", stats.Total, len(ideas))
+	if stats.Backlog == nil {
+		t.Fatal("backlog summary missing")
 	}
 
-	if stats.ByType["feature"] != 1 {
-		t.Errorf("feature count = %d, want 1", stats.ByType["feature"])
+	if stats.Backlog.Total != len(ideas) {
+		t.Fatalf("Total = %d, want %d", stats.Backlog.Total, len(ideas))
 	}
-	if stats.ByType["bug"] != 1 {
-		t.Errorf("bug count = %d, want 1", stats.ByType["bug"])
+
+	if stats.Backlog.ByType["feature"] != 1 {
+		t.Errorf("feature count = %d, want 1", stats.Backlog.ByType["feature"])
 	}
-	if stats.ByType["chore"] != 1 {
-		t.Errorf("chore count = %d, want 1", stats.ByType["chore"])
+	if stats.Backlog.ByType["bug"] != 1 {
+		t.Errorf("bug count = %d, want 1", stats.Backlog.ByType["bug"])
+	}
+	if stats.Backlog.ByType["chore"] != 1 {
+		t.Errorf("chore count = %d, want 1", stats.Backlog.ByType["chore"])
 	}
 }
 

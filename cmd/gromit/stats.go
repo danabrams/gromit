@@ -1,15 +1,16 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/spf13/cobra"
 )
 
@@ -28,7 +29,7 @@ Examples:
 var statsJSON bool
 var statsTDD bool
 
-const defaultRoutingStrategy = "priority_based"
+var statsFetcher = defaultStatsFetcher
 
 func init() {
 	statsCmd.Flags().BoolVar(&statsJSON, "json", false, "Output stats as JSON")
@@ -46,129 +47,54 @@ func runStats(cmd *cobra.Command, args []string) error {
 		cfg = nil
 	}
 
-	statsData, err := loadStatsData(cfg)
+	gromitDir := resolveGromitDir(cfg)
+	summary, err := statsFetcher(cmd.Context(), cfg, gromitDir, statsTDD)
 	if err != nil {
 		return err
 	}
+
 	if statsJSON {
-		return outputJSON(statsData.projectStats, statsData.globalStats, statsData.costPerSpec, statsData.providerMetrics, statsData.tddMetrics, statsData.routingStrategy)
+		return outputJSON(summary)
 	}
 
-	return outputText(statsData.projectStats, statsData.globalStats, statsData.beadCosts, statsData.costPerSpec, statsData.providerMetrics, statsData.tddMetrics, statsData.routingStrategy)
+	return outputText(summary)
 }
 
-type statsData struct {
-	projectStats map[string]logger.ModelStats
-	globalStats  *logger.GlobalStats
-	beadCosts    map[string]float64
-	costPerSpec  map[string]logger.SpecCost
-	providerMetrics []logger.ProviderMetrics
-	routingStrategy string
-	tddMetrics   *logger.TDDStats
+func defaultStatsFetcher(ctx context.Context, cfg *config.Config, gromitDir string, includeTDD bool) (*pipeline.StatsSummary, error) {
+	p, err := newPipeline(cfg, gromitDir)
+	if err != nil {
+		return nil, fmt.Errorf("creating pipeline: %w", err)
+	}
+
+	return p.Stats(ctx, cfg, pipeline.StatsOptions{IncludeTDD: includeTDD})
 }
 
-func loadStatsData(cfg *config.Config) (*statsData, error) {
-	gromitDir := resolveGromitDir(cfg)
-	logsDir := filepath.Join(gromitDir, "logs")
-	metricsDir := filepath.Join(gromitDir, "metrics")
-
-	// Read project stats
-	projectStats, err := logger.ReadModelStats(logsDir)
+func newPipeline(cfg *config.Config, gromitDir string) (*pipeline.Pipeline, error) {
+	deps, err := NewPipelineDeps(cfg, gromitDir)
 	if err != nil {
-		return nil, fmt.Errorf("reading project stats: %w", err)
+		return nil, err
 	}
-
-	// Read cost per completed bead
-	beadCosts, err := logger.CostPerCompletedBead(logsDir)
-	if err != nil {
-		return nil, fmt.Errorf("computing cost per bead: %w", err)
-	}
-
-	// Read cost per spec
-	costPerSpec, err := logger.CostPerSpec(logsDir)
-	if err != nil {
-		return nil, fmt.Errorf("computing cost per spec: %w", err)
-	}
-	costPerSpec = filterSpecCosts(costPerSpec)
-
-	// Read provider metrics from process_trend
-	var providerMetrics []logger.ProviderMetrics
-	processTrendPath := filepath.Join(metricsDir, "process_trend.json")
-	processTrend, err := logger.ReadProcessTrend(processTrendPath)
-	if err != nil {
-		return nil, fmt.Errorf("reading process trend: %w", err)
-	}
-	if processTrend != nil {
-		providerMetrics = processTrend.ProviderMetrics
-	}
-
-	// Read global stats
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("getting home directory: %w", err)
-	}
-	globalStatsPath := filepath.Join(homeDir, ".gromit", "stats.json")
-	globalStats, err := logger.ReadGlobalStats(globalStatsPath)
-	if err != nil {
-		return nil, fmt.Errorf("reading global stats: %w", err)
-	}
-
-	var tddMetrics *logger.TDDStats
-	if statsTDD {
-		metrics, err := loadTDDMetrics(logsDir)
-		if err != nil {
-			return nil, err
-		}
-		tddMetrics = metrics
-	}
-
-	routingStrategy := defaultRoutingStrategy
-	if cfg != nil && cfg.Routing.Strategy != "" {
-		routingStrategy = cfg.Routing.Strategy
-	}
-
-	return &statsData{
-		projectStats: projectStats,
-		globalStats:  globalStats,
-		beadCosts:    beadCosts,
-		costPerSpec:  costPerSpec,
-		providerMetrics: providerMetrics,
-		routingStrategy: routingStrategy,
-		tddMetrics:   tddMetrics,
-	}, nil
-}
-
-func loadTDDMetrics(logsDir string) (*logger.TDDStats, error) {
-	if _, err := logger.ReadTDDPhaseRecords(logsDir); err != nil {
-		return nil, fmt.Errorf("reading tdd phase records: %w", err)
-	}
-	if _, err := logger.ReadTDDSummaries(logsDir); err != nil {
-		return nil, fmt.Errorf("reading tdd summaries: %w", err)
-	}
-	metrics, err := logger.AggregateTDDStats(logsDir)
-	if err != nil {
-		return nil, fmt.Errorf("aggregating tdd stats: %w", err)
-	}
-	return &metrics, nil
+	paths := &pipeline.Paths{GromitDir: gromitDir}
+	return pipeline.New(deps, paths), nil
 }
 
 type statsJSONOutput struct {
-	ProjectStats map[string]logger.ModelStats `json:"project_stats"`
-	GlobalStats  *logger.GlobalStats          `json:"global_stats"`
-	CostPerSpec  map[string]logger.SpecCost   `json:"cost_per_spec"`
-	RoutingStrategy string                     `json:"routing_strategy"`
-	ProviderMetrics []logger.ProviderMetrics  `json:"provider_metrics"`
-	TDDMetrics   *logger.TDDStats             `json:"tdd_metrics"`
+	ProjectStats    map[string]logger.ModelStats `json:"project_stats"`
+	GlobalStats     *logger.GlobalStats          `json:"global_stats"`
+	CostPerSpec     map[string]logger.SpecCost   `json:"cost_per_spec"`
+	RoutingStrategy string                       `json:"routing_strategy"`
+	ProviderMetrics []logger.ProviderMetrics     `json:"provider_metrics"`
+	TDDMetrics      *logger.TDDStats             `json:"tdd_metrics"`
 }
 
-func outputJSON(projectStats map[string]logger.ModelStats, globalStats *logger.GlobalStats, costPerSpec map[string]logger.SpecCost, providerMetrics []logger.ProviderMetrics, tddMetrics *logger.TDDStats, routingStrategy string) error {
+func outputJSON(summary *pipeline.StatsSummary) error {
 	output := statsJSONOutput{
-		ProjectStats: projectStats,
-		GlobalStats:  globalStats,
-		CostPerSpec:  costPerSpec,
-		ProviderMetrics: providerMetrics,
-		TDDMetrics:   tddMetrics,
-		RoutingStrategy: routingStrategy,
+		ProjectStats:    summary.ProjectStats,
+		GlobalStats:     summary.GlobalStats,
+		CostPerSpec:     summary.CostPerSpec,
+		ProviderMetrics: summary.ProviderMetrics,
+		TDDMetrics:      summary.TDDMetrics,
+		RoutingStrategy: summary.RoutingStrategy,
 	}
 
 	data, err := json.MarshalIndent(output, "", "  ")
@@ -180,25 +106,25 @@ func outputJSON(projectStats map[string]logger.ModelStats, globalStats *logger.G
 	return nil
 }
 
-func outputText(projectStats map[string]logger.ModelStats, globalStats *logger.GlobalStats, beadCosts map[string]float64, costPerSpec map[string]logger.SpecCost, providerMetrics []logger.ProviderMetrics, tddMetrics *logger.TDDStats, routingStrategy string) error {
+func outputText(summary *pipeline.StatsSummary) error {
 	fmt.Println("Project Model Performance (Escalation rates shown):")
 	fmt.Println()
-	printProjectModelStats(projectStats)
+	printProjectModelStats(summary.ProjectStats)
 	fmt.Println()
-	fmt.Printf("Routing strategy: %s\n", routingStrategy)
+	fmt.Printf("Routing strategy: %s\n", summary.RoutingStrategy)
 
-	if len(beadCosts) > 0 {
+	if len(summary.BeadCosts) > 0 {
 		fmt.Println()
 		fmt.Println("cost per completed bead (including retries):")
-		for beadID, cost := range beadCosts {
+		for beadID, cost := range summary.BeadCosts {
 			fmt.Printf("  %s: $%.2f\n", beadID, cost)
 		}
 	}
 
-	if len(costPerSpec) > 0 {
+	if len(summary.CostPerSpec) > 0 {
 		fmt.Println()
 		fmt.Println("Cost per spec:")
-		for _, entry := range sortedSpecCosts(costPerSpec) {
+		for _, entry := range sortedSpecCosts(summary.CostPerSpec) {
 			fmt.Printf("  %s: $%.2f  %d iter  %d beads  [%s]\n",
 				entry.specID, entry.cost.TotalCostUSD,
 				entry.cost.Iterations, entry.cost.Beads,
@@ -206,18 +132,18 @@ func outputText(projectStats map[string]logger.ModelStats, globalStats *logger.G
 		}
 	}
 
-	if globalStats != nil && len(globalStats.Models) > 0 {
+	if summary.GlobalStats != nil && len(summary.GlobalStats.Models) > 0 {
 		fmt.Println()
 		fmt.Println("Global Model Performance (all projects, global aggregate):")
 		fmt.Println()
-		printGlobalModelStats(globalStats.Models)
+		printGlobalModelStats(summary.GlobalStats.Models)
 	}
 
-	printProviderMetrics(providerMetrics)
+	printProviderMetrics(summary.ProviderMetrics)
 
-	if tddMetrics != nil {
+	if summary.TDDMetrics != nil {
 		fmt.Println()
-		printTDDMetrics(*tddMetrics)
+		printTDDMetrics(*summary.TDDMetrics)
 	}
 
 	return nil
@@ -240,17 +166,6 @@ func sortedSpecCosts(costs map[string]logger.SpecCost) []specCostEntry {
 		return entries[i].cost.TotalCostUSD > entries[j].cost.TotalCostUSD
 	})
 	return entries
-}
-
-func filterSpecCosts(costs map[string]logger.SpecCost) map[string]logger.SpecCost {
-	filtered := make(map[string]logger.SpecCost, len(costs))
-	for specID, cost := range costs {
-		if specID == logger.UnassignedSpecID {
-			continue
-		}
-		filtered[specID] = cost
-	}
-	return filtered
 }
 
 func printProjectModelStats(stats map[string]logger.ModelStats) {
