@@ -396,6 +396,30 @@ func runRetro(cmd *cobra.Command, args []string) error {
 	return launchRetroInteractiveSession(cfg, cmd, gromitDir, promptPath)
 }
 
+// buildBeadFilterWithClient is a testable version of buildBeadFilter that accepts a bead client.
+// It threads the provided context through to all ListWithLabel calls.
+func buildBeadFilterWithClient(ctx context.Context, labels []string, client interface {
+	ListWithLabel(context.Context, string) ([]*bead.Bead, error)
+}) (map[string]bool, error) {
+	if len(labels) == 0 {
+		return nil, nil
+	}
+
+	filter := make(map[string]bool)
+	for _, label := range labels {
+		beads, err := client.ListWithLabel(ctx, label)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, b := range beads {
+			filter[b.ID] = true
+		}
+	}
+
+	return filter, nil
+}
+
 // buildBeadFilter resolves labels to bead IDs and returns a filter map.
 // If labels is empty or nil, returns nil (no filtering).
 func buildBeadFilter(ctx context.Context, labels []string) (map[string]bool, error) {
