@@ -121,7 +121,7 @@ func TestBeadClientReady_ReturnsTypedResult(t *testing.T) {
 		},
 	}
 
-		result, err := mockBead.Ready(context.Background())
+	result, err := mockBead.Ready(context.Background())
 	if err != nil {
 		t.Fatalf("Ready() error = %v", err)
 	}
@@ -572,7 +572,7 @@ func (m *typedInterfacesLogWriter) Write(entry *LogEntry) error {
 
 type typedInterfacesBacklogWriter struct{}
 
-func (m *typedInterfacesBacklogWriter) Add(item *Idea) error {
+func (m *typedInterfacesBacklogWriter) Add(entry *BacklogEntry) error {
 	return nil
 }
 

@@ -242,10 +242,27 @@ type cliBacklogClient struct {
 
 var _ pipeline.BacklogWriter = (*cliBacklogClient)(nil)
 
-func (c *cliBacklogClient) Add(item *pipeline.Idea) error {
-	labels := []string{"from-review", "backlog"}
-	expectedOutputs := review.ExpectedOutputsOrTitle(nil, item.Text)
-	_, err := c.beadClient.Create(context.Background(), item.Text, 2, labels, expectedOutputs)
+func (c *cliBacklogClient) Add(entry *pipeline.BacklogEntry) error {
+	if entry == nil {
+		return fmt.Errorf("backlog entry is nil")
+	}
+
+	labels := entry.Labels
+	if len(labels) == 0 {
+		labels = review.BuildBacklogLabels()
+	}
+
+	expectedOutputs := entry.ExpectedOutputs
+	if expectedOutputs == nil {
+		expectedOutputs = []string{}
+	}
+
+	priority := entry.Priority
+	if priority == 0 {
+		priority = 2
+	}
+
+	_, err := c.beadClient.Create(context.Background(), entry.Title, priority, labels, expectedOutputs)
 	return err
 }
 
