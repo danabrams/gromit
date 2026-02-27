@@ -90,9 +90,7 @@ func TestStartHeartbeat_StallDetectionFiresOnStall(t *testing.T) {
 		StallCheckRate: 20 * time.Millisecond,
 	}
 
-	out := &mockOverwriteWriter{}
-
-	stop := StartHeartbeatWithConfig(stats, 50*time.Millisecond, 0, onStall, cfg, nil, out)
+	stop := StartHeartbeatWithConfig(stats, 50*time.Millisecond, 0, onStall, cfg, nil, nil)
 	defer stop()
 
 	// Wait for stall detection to fire (stall timeout is 50ms, check rate is 20ms)
@@ -107,8 +105,8 @@ func TestStartHeartbeat_StallDetectionFiresOnStall(t *testing.T) {
 // Expected failure: StartHeartbeat function does not exist in execution/ package yet
 func TestStartHeartbeat_TwoTierStallTimeout(t *testing.T) {
 	t.Parallel(
-		// Tests the two-tier stall detection: before tool activity, uses stallTimeout;
-		// after tool activity, uses stallTimeoutActive (longer).
+	// Tests the two-tier stall detection: before tool activity, uses stallTimeout;
+	// after tool activity, uses stallTimeoutActive (longer).
 	)
 
 	stats, err := logger.NewStreamStats()
@@ -134,11 +132,9 @@ func TestStartHeartbeat_TwoTierStallTimeout(t *testing.T) {
 		StallCheckRate: 10 * time.Millisecond,
 	}
 
-	out := &mockOverwriteWriter{}
-
 	// stallTimeout = 20ms (initial, unused since tool activity exists)
 	// stallTimeoutActive = 40ms (active, used since tool activity exists)
-	stop := StartHeartbeatWithConfig(stats, 20*time.Millisecond, 40*time.Millisecond, onStall, cfg, nil, out)
+	stop := StartHeartbeatWithConfig(stats, 20*time.Millisecond, 40*time.Millisecond, onStall, cfg, nil, nil)
 	defer stop()
 
 	select {
@@ -155,7 +151,7 @@ func TestStartHeartbeat_TwoTierStallTimeout(t *testing.T) {
 
 func TestStartHeartbeat_EmitsProgressEventsAndCancelsOnStall(t *testing.T) {
 	t.Parallel(
-		// Ensures heartbeat produces HeartbeatEvent updates and emits StallDetectedEvent before cancelling.
+	// Ensures heartbeat produces HeartbeatEvent updates and emits StallDetectedEvent before cancelling.
 	)
 
 	stats, err := logger.NewStreamStats()
@@ -283,9 +279,10 @@ func TestStartHeartbeat_ToolCallEventsUpdateDisplay(t *testing.T) {
 	}
 
 	out := &mockOverwriteWriter{}
+	renderer := newHeartbeatRenderer(out)
 	toolCallEvents := make(chan provider.ToolEvent, 10)
 
-	stop := StartHeartbeatWithConfig(stats, 0, 0, nil, cfg, toolCallEvents, out)
+	stop := StartHeartbeatWithConfig(stats, 0, 0, nil, cfg, toolCallEvents, renderer)
 
 	// Send tool call events
 	for i := 0; i < 3; i++ {
@@ -339,7 +336,8 @@ func TestStartHeartbeat_StopFunctionCleansUpGoroutine(t *testing.T) {
 	}
 
 	out := &mockOverwriteWriter{}
-	stop := StartHeartbeatWithConfig(stats, 0, 0, nil, cfg, nil, out)
+	renderer := newHeartbeatRenderer(out)
+	stop := StartHeartbeatWithConfig(stats, 0, 0, nil, cfg, nil, renderer)
 
 	waitForCondition(t, time.Second, 5*time.Millisecond, func() bool {
 		out.mu.Lock()
@@ -420,7 +418,7 @@ func TestPrintHeartbeat_WaitingMessageWhenNoToolCalls(t *testing.T) {
 
 func TestPrintHeartbeat_WaitingMessageUsesAgent(t *testing.T) {
 	t.Parallel(
-		// The waiting status should reference "agent" rather than a specific model.
+	// The waiting status should reference "agent" rather than a specific model.
 	)
 
 	stats, err := logger.NewStreamStats()
@@ -500,7 +498,7 @@ func TestStartHeartbeat_DefaultConfigUsedByWrapper(t *testing.T) {
 	}
 
 	out := &mockOverwriteWriter{}
-	stop := StartHeartbeat(stats, 0, 0, nil, nil, out)
+	stop := StartHeartbeat(stats, 0, 0, nil, nil, newHeartbeatRenderer(out))
 	// Should be callable and return a stop function
 	stop()
 }

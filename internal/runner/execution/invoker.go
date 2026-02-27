@@ -170,10 +170,11 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 		if inv.stallTimeoutFn != nil {
 			stallTimeout, stallTimeoutActive = inv.stallTimeoutFn(modelName)
 		}
+		renderer := newHeartbeatRenderer(inv.overwriteOut)
 		stopHeartbeat = StartHeartbeat(stats, stallTimeout, stallTimeoutActive, func() {
 			stallFired = true
 			invocationCancel()
-		}, toolCallEvents, inv.overwriteOut)
+		}, toolCallEvents, renderer)
 	}
 
 	// Default behavior installs a structured stream event handler so providers that
