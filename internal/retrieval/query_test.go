@@ -112,3 +112,29 @@ func TestQueryDeterministicRanking(t *testing.T) {
 		}
 	}
 }
+
+func TestQueryConfidenceBoundedness(t *testing.T) {
+	q := NewQuerier()
+
+	docs := []DocumentWithAttribution{
+		{
+			FilePath:  "test.go",
+			StartLine: 1,
+			EndLine:   10,
+			Content:   "test content",
+		},
+	}
+
+	q.Index(docs)
+
+	results, err := q.Query("test", 5)
+	if err != nil {
+		t.Fatalf("Query failed: %v", err)
+	}
+
+	for i, snippet := range results {
+		if snippet.ConfidenceScore < 0.0 || snippet.ConfidenceScore > 1.0 {
+			t.Fatalf("confidence score at index %d out of bounds: %f", i, snippet.ConfidenceScore)
+		}
+	}
+}
