@@ -61,6 +61,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case tea.KeyDown:
 			m.scrollOffset++
+		case tea.KeyCtrlC:
+			return m, tea.Quit
+		case tea.KeyRunes:
+			if len(msg.Runes) > 0 && msg.Runes[0] == 'q' {
+				return m, tea.Quit
+			}
 		}
 	}
 	return m, nil
