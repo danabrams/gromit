@@ -36,3 +36,30 @@ func TestPartitionQueueBeads_SeparatesReadyBlockedAndStuck(t *testing.T) {
 		t.Fatalf("stuck = %+v, want [stuck-ready stuck-blocked]", stuck)
 	}
 }
+
+func TestGetReason_FromDependencies(t *testing.T) {
+	t.Parallel()
+	b := &bead.Bead{
+		ID: "b1",
+		Dependencies: []bead.Dependency{
+			{ID: "dep-a"},
+			{ID: "dep-b"},
+		},
+	}
+	got := GetReason(b, nil)
+	want := "blocked by: dep-a, dep-b"
+	if got != want {
+		t.Fatalf("GetReason() = %q, want %q", got, want)
+	}
+}
+
+func TestGetReason_FromDependencyCount(t *testing.T) {
+	t.Parallel()
+	count := 3
+	b := &bead.Bead{ID: "b1", DependencyCount: &count}
+	got := GetReason(b, nil)
+	want := "blocked by 3 dependencies"
+	if got != want {
+		t.Fatalf("GetReason() = %q, want %q", got, want)
+	}
+}
