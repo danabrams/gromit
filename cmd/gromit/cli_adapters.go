@@ -183,6 +183,8 @@ type planPromptRenderer struct {
 	renderer *prompt.Renderer
 }
 
+var _ pipeline.PlanRenderer = (*planPromptRenderer)(nil)
+
 func (r *planPromptRenderer) RenderPlan(input *pipeline.PlanPromptInput) (string, error) {
 	specName := ""
 	if input != nil {
@@ -192,4 +194,36 @@ func (r *planPromptRenderer) RenderPlan(input *pipeline.PlanPromptInput) (string
 		return "Plan prompt placeholder", nil
 	}
 	return fmt.Sprintf("Plan prompt placeholder for %s", specName), nil
+}
+
+// refinePromptRenderer adapts prompt.Renderer to pipeline.RefineRenderer interface
+type refinePromptRenderer struct {
+	renderer *prompt.Renderer
+}
+
+var _ pipeline.RefineRenderer = (*refinePromptRenderer)(nil)
+
+func (r *refinePromptRenderer) RenderRefine(input *pipeline.RefinePromptInput) (string, error) {
+	ideaText := ""
+	if input != nil {
+		ideaText = input.IdeaText
+	}
+	if ideaText == "" {
+		return "Refine prompt placeholder", nil
+	}
+	return fmt.Sprintf("Refine prompt placeholder for %s", ideaText), nil
+}
+
+// decomposePromptRenderer adapts prompt.Renderer to pipeline.DecomposeRenderer interface
+type decomposePromptRenderer struct {
+	renderer *prompt.Renderer
+}
+
+var _ pipeline.DecomposeRenderer = (*decomposePromptRenderer)(nil)
+
+func (r *decomposePromptRenderer) RenderDecompose(input *pipeline.DecomposePromptInput) (string, error) {
+	if input == nil || input.PlanName == "" {
+		return "Decompose prompt placeholder", nil
+	}
+	return fmt.Sprintf("Decompose prompt placeholder for %s", input.PlanName), nil
 }

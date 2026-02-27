@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/agent"
+	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
@@ -274,4 +275,27 @@ func (a *trackerClientAdapter) CreateWithDepsAndDescription(ctx context.Context,
 
 func (a *trackerClientAdapter) Close(ctx context.Context, id string) error {
 	return a.Client.Close(ctx, id)
+}
+
+// backlogClientAdapter adapts backlog.File to pipeline.BacklogClient interface.
+type backlogClientAdapter struct {
+	file *backlog.File
+}
+
+var _ pipeline.BacklogClient = (*backlogClientAdapter)(nil)
+
+func (a *backlogClientAdapter) List() ([]*pipeline.Idea, error) {
+	return a.file.List()
+}
+
+func (a *backlogClientAdapter) Get(id string) (*pipeline.Idea, error) {
+	return a.file.Get(id)
+}
+
+func (a *backlogClientAdapter) Add(item *pipeline.Idea) error {
+	return a.file.Add(item)
+}
+
+func (a *backlogClientAdapter) Update(id string, fn func(*pipeline.Idea)) error {
+	return a.file.Update(id, fn)
 }

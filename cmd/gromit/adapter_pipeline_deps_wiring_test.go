@@ -16,7 +16,7 @@ func TestPipelineDepsWiring_AllAdaptersImplementInterfaces(t *testing.T) {
 	var _ pipeline.LLMClient = (*claudeClientAdapter)(nil)
 	var _ pipeline.ReviewInvoker = (*claudeClientAdapter)(nil)
 	var _ pipeline.TrackerClient = (*trackerClientAdapter)(nil)
-	var _ pipeline.BacklogClient = (*cliBacklogClient)(nil)
+	var _ pipeline.BacklogClient = (*backlogClientAdapter)(nil)
 	var _ pipeline.BacklogWriter = (*cliBacklogClient)(nil)
 	var _ pipeline.RefineRenderer = (*refinePromptRenderer)(nil)
 	var _ pipeline.PlanRenderer = (*planPromptRenderer)(nil)
