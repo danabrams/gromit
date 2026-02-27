@@ -215,7 +215,8 @@ func summarizePhase3Run(records []phase3IterationRecord) Phase3RunMetrics {
 	}
 }
 
-func medianInt(values []int) int {
+// MedianInt computes the median of a slice of integers.
+func MedianInt(values []int) int {
 	if len(values) == 0 {
 		return 0
 	}
@@ -226,6 +227,11 @@ func medianInt(values []int) int {
 		return cp[mid]
 	}
 	return int(math.Round(float64(cp[mid-1]+cp[mid]) / 2.0))
+}
+
+// Legacy alias for backwards compatibility
+func medianInt(values []int) int {
+	return MedianInt(values)
 }
 
 func medianFloat(values []float64) float64 {

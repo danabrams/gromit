@@ -80,3 +80,57 @@ func readPhase4PairedIterationRecords(path string) ([]phase4PairedIterationRecor
 	}
 	return records, nil
 }
+
+func summarizePhase4BaselineRun(records []phase4PairedIterationRecord) Phase4RunMetrics {
+	if len(records) == 0 {
+		return Phase4RunMetrics{}
+	}
+
+	tokens := make([]int, 0, len(records))
+	latencies := make([]int, 0, len(records))
+	successCount := 0
+
+	for _, rec := range records {
+		tokens = append(tokens, rec.DiscoveryInputTokensBaseline)
+		latencies = append(latencies, rec.DiscoveryLatencyMsBaseline)
+		if rec.SuccessBaseline {
+			successCount++
+		}
+	}
+
+	return Phase4RunMetrics{
+		MedianDiscoveryInputTokens: MedianInt(tokens),
+		MedianDiscoveryLatencyMs:   MedianInt(latencies),
+		SuccessRate:                float64(successCount) / float64(len(records)),
+		WrongFileRate:              0, // baseline doesn't track wrong-file rate
+	}
+}
+
+func summarizePhase4RetrievalRun(records []phase4PairedIterationRecord) Phase4RunMetrics {
+	if len(records) == 0 {
+		return Phase4RunMetrics{}
+	}
+
+	tokens := make([]int, 0, len(records))
+	latencies := make([]int, 0, len(records))
+	successCount := 0
+	wrongFileCount := 0
+
+	for _, rec := range records {
+		tokens = append(tokens, rec.DiscoveryInputTokensRetrieval)
+		latencies = append(latencies, rec.DiscoveryLatencyMsRetrieval)
+		if rec.SuccessRetrieval {
+			successCount++
+		}
+		if rec.WrongFileRetrieval {
+			wrongFileCount++
+		}
+	}
+
+	return Phase4RunMetrics{
+		MedianDiscoveryInputTokens: MedianInt(tokens),
+		MedianDiscoveryLatencyMs:   MedianInt(latencies),
+		SuccessRate:                float64(successCount) / float64(len(records)),
+		WrongFileRate:              float64(wrongFileCount) / float64(len(records)),
+	}
+}
