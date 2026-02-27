@@ -201,6 +201,14 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 			if lifecycleFailure == pipeline.LifecycleFailureNone {
 				lifecycleFailure = pipeline.LifecycleFailureSync
 			}
+		} else {
+			// Emit BeadCleanupEvent for sync action
+			if in.Emitter != nil {
+				in.Emitter.Emit(&events.BeadCleanupEvent{
+					BeadID: in.Bead.ID,
+					Action: "sync",
+				})
+			}
 		}
 	}
 
