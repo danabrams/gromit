@@ -389,7 +389,7 @@ func TestDecomposerAdapterChildWithDedupeLabelExistsUsesBeadClient(t *testing.T)
 	}
 }
 
-func TestDecomposerAdapterChildWithDedupeLabelExistsContextVersion_ThreadsProvidedContext(t *testing.T) {
+func TestDecomposerAdapterChildWithDedupeLabelExistsWithClient_ThreadsProvidedContext(t *testing.T) {
 	t.Parallel()
 
 	// Create a custom context with a value to verify it's threaded through
@@ -411,9 +411,9 @@ func TestDecomposerAdapterChildWithDedupeLabelExistsContextVersion_ThreadsProvid
 		},
 	}
 
-	exists, err := adapter.childWithDedupeLabelExistsContextVersion(customCtx, "parent-1", "scope_decomp:foo")
+	exists, err := adapter.childWithDedupeLabelExistsWithClient(customCtx, "parent-1", "scope_decomp:foo")
 	if err != nil {
-		t.Fatalf("childWithDedupeLabelExistsContextVersion returned error: %v", err)
+		t.Fatalf("childWithDedupeLabelExistsWithClient returned error: %v", err)
 	}
 	if !exists {
 		t.Fatalf("expected child to exist")
@@ -421,7 +421,7 @@ func TestDecomposerAdapterChildWithDedupeLabelExistsContextVersion_ThreadsProvid
 
 	// Verify the context was threaded through
 	if capturedCtx.Value("test-key") != testValue {
-		t.Fatal("context value not found in captured context - childWithDedupeLabelExistsContextVersion not threading context properly")
+		t.Fatal("context value not found in captured context - childWithDedupeLabelExistsWithClient not threading context properly")
 	}
 }
 
