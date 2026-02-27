@@ -8,10 +8,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 )
 
-const (
-	defaultMainBranch   = "main"
-	defaultBranchPrefix = "gromit/spec-"
-)
+const defaultBranchPrefix = "gromit/spec-"
 
 var specNamePattern = regexp.MustCompile(`^[A-Za-z0-9._/\-]+$`)
 
