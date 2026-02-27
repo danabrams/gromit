@@ -465,6 +465,17 @@ func (r TokenEfficiencyRetrievalConfig) IsEnabled() bool {
 	return r.Enabled
 }
 
+// ResolvedTopK returns the configured TopK value, or minTopK if configured value is zero or below minimum.
+func (r TokenEfficiencyRetrievalConfig) ResolvedTopK(minTopK int) int {
+	if r.TopK == 0 {
+		return minTopK
+	}
+	if r.TopK < minTopK {
+		return minTopK
+	}
+	return r.TopK
+}
+
 // ResolvedMethodologyAdapter returns the resolved methodology adapter selector
 // and source metadata from compatibility resolution.
 func (c Config) ResolvedMethodologyAdapter() CompatibilityResolvedValue {
