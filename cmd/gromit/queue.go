@@ -9,6 +9,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/queue"
 	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/spf13/cobra"
 )
@@ -503,72 +504,16 @@ func partitionQueueBeads(
 	beadStats map[string]logger.BeadStats,
 	stuckThreshold int,
 ) (ready []*bead.Bead, blocked []*bead.Bead, stuck []*bead.Bead) {
-	stuckMap := findStuckBeadIDs(beadStats, stuckThreshold)
-
-	readyMap := make(map[string]bool, len(readyBeads))
-	for _, b := range readyBeads {
-		readyMap[b.ID] = true
-		if !stuckMap[b.ID] {
-			ready = append(ready, b)
-		}
-	}
-
-	for _, b := range allBeads {
-		if stuckMap[b.ID] {
-			stuck = append(stuck, b)
-			continue
-		}
-		if !readyMap[b.ID] {
-			blocked = append(blocked, b)
-		}
-	}
-
-	return ready, blocked, stuck
+	return queue.PartitionQueueBeads(readyBeads, allBeads, beadStats, stuckThreshold)
 }
 
 func findStuckBeadIDs(beadStats map[string]logger.BeadStats, threshold int) map[string]bool {
-	stuck := make(map[string]bool)
-	if threshold <= 0 {
-		return stuck
-	}
-	for beadID, stats := range beadStats {
-		if stats.Failures >= threshold {
-			stuck[beadID] = true
-		}
-	}
-	return stuck
+	return queue.FindStuckBeadIDs(beadStats, threshold)
 }
 
 // getReason returns a human-readable reason why a bead is blocked
 func getReason(b *bead.Bead, allBeads []*bead.Bead) string {
-	if b == nil {
-		return "unknown"
-	}
-
-	if b.Parent != "" {
-		// Check if parent still exists in open beads
-		for _, openB := range allBeads {
-			if openB.ID == b.Parent {
-				return fmt.Sprintf("blocked by: %s", b.Parent)
-			}
-		}
-		return fmt.Sprintf("blocked by parent: %s", b.Parent)
-	}
-
-	if depIDs := dependencyIDs(b.BlockedBy); len(depIDs) > 0 {
-		return fmt.Sprintf("blocked by: %s", strings.Join(depIDs, ", "))
-	}
-	if depIDs := dependencyIDs(b.DependsOn); len(depIDs) > 0 {
-		return fmt.Sprintf("blocked by: %s", strings.Join(depIDs, ", "))
-	}
-	if depIDs := dependencyIDs(b.Dependencies); len(depIDs) > 0 {
-		return fmt.Sprintf("blocked by: %s", strings.Join(depIDs, ", "))
-	}
-	if b.DependencyCount != nil && *b.DependencyCount > 0 {
-		return fmt.Sprintf("blocked by %d dependencies", *b.DependencyCount)
-	}
-
-	return "dependencies unresolved"
+	return queue.GetReason(b, allBeads)
 }
 
 func dependencyIDs(deps []bead.Dependency) []string {
@@ -583,56 +528,7 @@ func dependencyIDs(deps []bead.Dependency) []string {
 }
 
 func enrichReadyBeads(readyBeads, allBeads []*bead.Bead) []*bead.Bead {
-	if len(readyBeads) == 0 {
-		return readyBeads
-	}
-	openByID := make(map[string]*bead.Bead, len(allBeads))
-	for _, b := range allBeads {
-		if b == nil || strings.TrimSpace(b.ID) == "" {
-			continue
-		}
-		openByID[b.ID] = b
-	}
-	enriched := make([]*bead.Bead, 0, len(readyBeads))
-	for _, b := range readyBeads {
-		if b == nil {
-			continue
-		}
-		if open, ok := openByID[b.ID]; ok && open != nil {
-			clone := *b
-			clone.Labels = mergeLabels(b.Labels, open.Labels)
-			if clone.Parent == "" {
-				clone.Parent = open.Parent
-			}
-			enriched = append(enriched, &clone)
-			continue
-		}
-		enriched = append(enriched, b)
-	}
-	return enriched
-}
-
-func mergeLabels(primary, secondary []string) []string {
-	if len(primary) == 0 && len(secondary) == 0 {
-		return []string{}
-	}
-	seen := make(map[string]bool, len(primary)+len(secondary))
-	out := make([]string, 0, len(primary)+len(secondary))
-	for _, label := range primary {
-		if strings.TrimSpace(label) == "" || seen[label] {
-			continue
-		}
-		out = append(out, label)
-		seen[label] = true
-	}
-	for _, label := range secondary {
-		if strings.TrimSpace(label) == "" || seen[label] {
-			continue
-		}
-		out = append(out, label)
-		seen[label] = true
-	}
-	return out
+	return queue.EnrichReadyBeads(readyBeads, allBeads)
 }
 
 // truncateTitle returns a title truncated to maxLen characters with ellipsis if needed
