@@ -172,6 +172,15 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 		warningOccurred = true
 	}
 
+	// Emit EpilogueStartEvent
+	if in.Emitter != nil {
+		in.Emitter.Emit(&events.EpilogueStartEvent{
+			BeadID:    in.Bead.ID,
+			Iteration: in.Iteration,
+			Success:   in.BuildSucceeded,
+		})
+	}
+
 	// 1. Bead lifecycle: close and sync on success.
 	if in.BuildSucceeded {
 		if err := e.beads.Close(ctx, in.Bead.ID); err != nil {
@@ -299,6 +308,14 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 				warnf("Warning: between-iterations command exited with code %d: %s\n", exitCode, strings.TrimSpace(stderr))
 			}
 		}
+	}
+
+	// Emit EpilogueCompleteEvent
+	if in.Emitter != nil {
+		in.Emitter.Emit(&events.EpilogueCompleteEvent{
+			BeadID:  in.Bead.ID,
+			Success: lifecycleFailure == pipeline.LifecycleFailureNone && !warningOccurred,
+		})
 	}
 
 	return pipeline.Output{

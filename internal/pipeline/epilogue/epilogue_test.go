@@ -1111,3 +1111,71 @@ func countMessagesContaining(messages []string, substr string) int {
 	}
 	return count
 }
+
+// RED: test for Epilogue stage emitting EpilogueStartEvent and EpilogueCompleteEvent
+func TestEpilogueRun_EmitsEpilogueStartAndCompleteEvents(t *testing.T) {
+	t.Parallel()
+
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	epi := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard)
+
+	beadID := "epilogue-event-test"
+	input := pipeline.Input{
+		Bead: &bead.Bead{
+			ID:    beadID,
+			Title: "test bead",
+		},
+		Iteration:      1,
+		BuildSucceeded: true,
+		Emitter:        emitter,
+	}
+
+	_, err := epi.Run(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Epilogue.Run() error = %v", err)
+	}
+
+	// Collect events
+	var emittedEvents []events.Event
+	timeout := time.After(100 * time.Millisecond)
+	for {
+		select {
+		case evt := <-ch:
+			emittedEvents = append(emittedEvents, evt)
+		case <-timeout:
+			goto checkEvents
+		}
+	}
+
+checkEvents:
+	// Verify we got both EpilogueStartEvent and EpilogueCompleteEvent
+	var startEvent *events.EpilogueStartEvent
+	var completeEvent *events.EpilogueCompleteEvent
+
+	for _, evt := range emittedEvents {
+		if se, ok := evt.(*events.EpilogueStartEvent); ok {
+			startEvent = se
+		}
+		if ce, ok := evt.(*events.EpilogueCompleteEvent); ok {
+			completeEvent = ce
+		}
+	}
+
+	if startEvent == nil {
+		t.Fatal("expected EpilogueStartEvent to be emitted")
+	}
+	if completeEvent == nil {
+		t.Fatal("expected EpilogueCompleteEvent to be emitted")
+	}
+
+	if startEvent.BeadID != beadID {
+		t.Errorf("EpilogueStartEvent.BeadID = %q, want %q", startEvent.BeadID, beadID)
+	}
+	if completeEvent.BeadID != beadID {
+		t.Errorf("EpilogueCompleteEvent.BeadID = %q, want %q", completeEvent.BeadID, beadID)
+	}
+}
