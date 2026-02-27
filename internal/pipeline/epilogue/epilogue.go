@@ -188,6 +188,13 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 			if lifecycleFailure == pipeline.LifecycleFailureNone {
 				lifecycleFailure = pipeline.LifecycleFailureClose
 			}
+		} else {
+			// Emit BeadCloseEvent on successful close
+			if in.Emitter != nil {
+				in.Emitter.Emit(&events.BeadCloseEvent{
+					BeadID: in.Bead.ID,
+				})
+			}
 		}
 		if err := e.beads.Sync(ctx); err != nil {
 			warnf("Warning: failed to sync beads: %v\n", err)
