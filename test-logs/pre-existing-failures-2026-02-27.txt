@@ -1,0 +1,26 @@
+Pre-Existing Failure Documentation
+===================================
+Date: 2026-02-27
+Validation: go test -vet=off -p 4 -parallel 4 ./..., go vet ./..., go build ./...
+
+FAILING TESTS (1):
+  github.com/danabrams/gromit/internal/prompt
+    - TestRulesPhaseCharBudgets/build
+      REASON: Build phase rules content is 9260 chars, exceeds budget of 9200 (60 chars over)
+      ORIGIN: Introduced by event emission feature additions (BuildStartEvent, ReviewStartEvent, EpilogueStartEvent)
+      COMMITS: 9129c2f0 (BuildStartEvent), d390a9c7 (ReviewStartEvent), fd6a9044 (EpilogueStartEvent)
+
+MENTIONED BUT NOT FAILING:
+  - test/testutil flaky test: Currently passing (cached) - no flakiness observed
+
+PASSING (all other packages):
+  - go vet: No issues
+  - go build: No compilation errors
+  - All other test packages: PASS
+
+TOTAL TEST RESULT: 1 FAILURE (pre-existing, not a regression from this task)
+
+NOTES:
+- The prompt budget test failure is a known issue from event emission work
+- This failure is independent from the "Full validation pass and pre-existing failure documentation" task
+- No new regressions introduced by current work
