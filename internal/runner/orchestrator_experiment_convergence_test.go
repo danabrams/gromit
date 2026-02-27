@@ -66,7 +66,10 @@ func collectLogMessages(t *testing.T, ch <-chan events.Event, timeout time.Durat
 	defer timer.Stop()
 	for {
 		select {
-		case evt := <-ch:
+		case evt, ok := <-ch:
+			if !ok {
+				return messages
+			}
 			if logEvt, ok := evt.(*events.LogEvent); ok {
 				messages = append(messages, logEvt.Message)
 			}

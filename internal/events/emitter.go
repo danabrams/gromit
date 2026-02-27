@@ -23,11 +23,17 @@ func NewEmitter() *Emitter {
 
 // Subscribe registers a new subscriber and returns a buffered channel for receiving events.
 // The channel is buffered with subscriberBufferSize capacity.
+// If the emitter is already closed, Subscribe returns a pre-closed channel so
+// callers ranging over it exit immediately.
 func (e *Emitter) Subscribe() chan Event {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
 	ch := make(chan Event, subscriberBufferSize)
+	if e.closed {
+		close(ch)
+		return ch
+	}
 	e.subscribers[ch] = true
 	return ch
 }

@@ -201,26 +201,27 @@ func TestEmitter_SlowConsumer_DropsEvents(t *testing.T) {
 	// This verifies non-blocking drop-on-full behavior
 }
 
-// TestEmitter_SubscribeAfterClose_ReturnsFunctionalChannel tests edge case of subscribing after close.
-func TestEmitter_SubscribeAfterClose_ReturnsFunctionalChannel(t *testing.T) {
+// TestEmitter_SubscribeAfterClose_ReturnsClosedChannel tests that subscribing after close
+// returns a pre-closed channel so callers exit immediately instead of blocking forever.
+func TestEmitter_SubscribeAfterClose_ReturnsClosedChannel(t *testing.T) {
 	t.Parallel()
 	emitter := NewEmitter()
 	emitter.Close()
 
-	// Subscribe after close should still return a channel
+	// Subscribe after close should return a pre-closed channel
 	ch := emitter.Subscribe()
 	if ch == nil {
 		t.Fatal("Subscribe after close returned nil channel")
 	}
 
-	// Emit after close is a no-op, so channel should remain empty
-	emitter.Emit(&LogEvent{Level: "info", Message: "test"})
-
+	// Reading from a pre-closed channel should return immediately with ok=false
 	select {
-	case <-ch:
-		t.Error("received event on channel after emitter was closed")
-	case <-time.After(100 * time.Millisecond):
-		// Expected: no event received
+	case _, ok := <-ch:
+		if ok {
+			t.Error("expected channel to be closed (ok=false), got ok=true")
+		}
+	case <-time.After(1 * time.Second):
+		t.Error("timeout: channel was not closed, subscriber would leak")
 	}
 }
 

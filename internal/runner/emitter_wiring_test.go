@@ -100,7 +100,7 @@ func TestSubscriberStartupAndTeardown(t *testing.T) {
 	defer cancel()
 
 	// Call startup to register and start subscribers
-	err := orch.StartSubscribers(ctx)
+	wg, err := orch.StartSubscribers(ctx)
 	if err != nil {
 		t.Fatalf("StartSubscribers() returned error: %v", err)
 	}
@@ -115,8 +115,9 @@ func TestSubscriberStartupAndTeardown(t *testing.T) {
 	// Emit event - should be received by subscriber channels
 	emitter.Emit(testEvent)
 
-	// Close the emitter to trigger teardown
+	// Close the emitter to trigger teardown, then wait for goroutines
 	emitter.Close()
+	wg.Wait()
 
 	// Verify that emitting after close is safe (no panic)
 	emitter.Emit(&events.LogEvent{
@@ -158,22 +159,20 @@ func TestStreamSubscriberWiredEnsuresStructuredEventFileStreams(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	done := make(chan error, 1)
-	go func() {
-		done <- orch.StartSubscribers(ctx)
-	}()
+	wg, err := orch.StartSubscribers(ctx)
+	if err != nil {
+		t.Fatalf("StartSubscribers returned error: %v", err)
+	}
 
 	time.Sleep(150 * time.Millisecond)
 
 	testEvent := &events.LogEvent{Level: "test", Message: "stream subscriber event"}
 	emitter.Emit(testEvent)
 
+	// Cancel context first so subscribers exit via ctx.Done(), then close emitter.
 	cancel()
 	emitter.Close()
-
-	if err := <-done; err != nil && err != context.Canceled {
-		t.Fatalf("StartSubscribers returned error: %v", err)
-	}
+	wg.Wait()
 
 	files, err := os.ReadDir(tmpDir)
 	if err != nil {
@@ -246,7 +245,7 @@ func TestCLISubscriberStartsAndReceivesEvents(t *testing.T) {
 	defer cancel()
 
 	// Start subscribers
-	err := orch.StartSubscribers(ctx)
+	wg, err := orch.StartSubscribers(ctx)
 	if err != nil {
 		t.Fatalf("StartSubscribers() returned error: %v", err)
 	}
@@ -271,8 +270,9 @@ func TestCLISubscriberStartsAndReceivesEvents(t *testing.T) {
 		t.Fatal("CLI subscriber did not write any output after event emission")
 	}
 
-	// Cleanup
+	// Cleanup: close emitter then wait for goroutines
 	emitter.Close()
+	wg.Wait()
 }
 
 // TestStatusAndTMUXSubscribersConditionalStartup verifies that status and tmux subscribers
@@ -310,7 +310,7 @@ func TestStatusAndTMUXSubscribersConditionalStartup(t *testing.T) {
 	defer cancel()
 
 	// Start subscribers
-	err := orch.StartSubscribers(ctx)
+	wg, err := orch.StartSubscribers(ctx)
 	if err != nil {
 		t.Fatalf("StartSubscribers() returned error: %v", err)
 	}
@@ -330,8 +330,9 @@ func TestStatusAndTMUXSubscribersConditionalStartup(t *testing.T) {
 	// Give the subscriber goroutines time to process the event
 	time.Sleep(200 * time.Millisecond)
 
-	// Cleanup
+	// Cleanup: close emitter then wait for goroutines
 	emitter.Close()
+	wg.Wait()
 
 	// At minimum, CLI subscriber should have output
 	if !output.hasContent() {

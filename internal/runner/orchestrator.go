@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -142,7 +143,10 @@ func (o *Orchestrator) GetEmitter() *events.Emitter {
 // StartSubscribers registers and starts all subscribers (CLI always, status/tmux conditionally).
 // It starts subscriber goroutines that consume events until the context is cancelled or the
 // emitter is closed. This should be called before Run() to ensure subscribers are active.
-func (o *Orchestrator) StartSubscribers(ctx context.Context) error {
+// The returned WaitGroup completes when all subscriber goroutines have exited.
+func (o *Orchestrator) StartSubscribers(ctx context.Context) (*sync.WaitGroup, error) {
+	var wg sync.WaitGroup
+
 	// CLI subscriber is always started
 	output := o.cfg.Output
 	if output == nil {
@@ -150,7 +154,9 @@ func (o *Orchestrator) StartSubscribers(ctx context.Context) error {
 	}
 
 	cliSubscriber := cli.NewCLISubscriber(cli.BasicWriter(output), o.emitter)
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		_ = cliSubscriber.Start(ctx)
 	}()
 
@@ -159,13 +165,15 @@ func (o *Orchestrator) StartSubscribers(ctx context.Context) error {
 		if err != nil {
 			o.logWarning("Warning: could not start stream subscriber: %v", err)
 		} else {
+			wg.Add(1)
 			go func() {
+				defer wg.Done()
 				_ = streamSubscriber.Start(ctx)
 			}()
 		}
 	}
 
-	return nil
+	return &wg, nil
 }
 
 // Run executes the Gromit pipeline loop until the bead queue is empty, maxIterations
@@ -181,12 +189,17 @@ func (o *Orchestrator) Run(ctx context.Context, maxIterations int, deadline time
 	}
 
 	// Start subscribers before entering the main loop
-	if err := o.StartSubscribers(ctx); err != nil {
+	subscriberWg, err := o.StartSubscribers(ctx)
+	if err != nil {
 		return fmt.Errorf("failed to start subscribers: %w", err)
 	}
 
-	// Ensure emitter is closed after the loop completes
-	defer o.emitter.Close()
+	// Cleanup ordering (defers run LIFO): close emitter first to unblock
+	// subscriber channel reads, then wait for subscriber goroutines to drain.
+	defer func() {
+		o.emitter.Close()
+		subscriberWg.Wait()
+	}()
 	if o.cfg.TrendUpdater != nil {
 		defer o.cfg.TrendUpdater.Close()
 	}
@@ -808,7 +821,6 @@ func (o *Orchestrator) logWarning(format string, args ...any) {
 }
 
 func (o *Orchestrator) emitLog(level string, format string, args ...any) {
-	msg := fmt.Sprintf(format, args...)
 	if o.emitter != nil && o.emitter.HasSubscribers() {
 		logger := &events.EmitterLogger{Emitter: o.emitter}
 		logger.Log(level, format, args...)
@@ -819,5 +831,5 @@ func (o *Orchestrator) emitLog(level string, format string, args ...any) {
 	if output == nil {
 		output = os.Stderr
 	}
-	fmt.Fprintf(output, "[%s] %s\n", level, msg)
+	fmt.Fprintf(output, "[%s] %s\n", level, fmt.Sprintf(format, args...))
 }
