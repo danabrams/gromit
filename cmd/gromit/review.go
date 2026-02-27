@@ -94,14 +94,62 @@ func init() {
 	rootCmd.AddCommand(reviewCmd)
 }
 
+// createReviewPipeline creates a minimal pipeline instance for scope resolution.
+// This pipeline only needs StateManager for fallback to state file.
+func createReviewPipeline(cfg *config.Config, gromitDir string) (*pipeline.Pipeline, error) {
+	deps, err := NewPipelineDeps(cfg, gromitDir)
+	if err != nil {
+		return nil, fmt.Errorf("constructing pipeline deps: %w", err)
+	}
+
+	paths := &pipeline.Paths{
+		GromitDir: gromitDir,
+	}
+
+	return pipeline.New(deps, paths), nil
+}
+
+// resolveReviewScopeWithPipeline resolves the review starting commit using Pipeline.ResolveReviewScope
+// with fallback to legacy determineReviewScope for spec/epic flags.
+func resolveReviewScopeWithPipeline(p *pipeline.Pipeline, cfg *config.Config) (string, error) {
+	ctx := context.Background()
+
+	// First try Pipeline.ResolveReviewScope for --since flag
+	commit, err := p.ResolveReviewScope(ctx, reviewSpec, reviewEpic, reviewSince)
+	if err == nil {
+		// Success - got commit via Pipeline
+		return commit, nil
+	}
+
+	// If Pipeline couldn't handle it (spec/epic), fall back to legacy logic
+	if reviewSince == "" && (reviewSpec != "" || reviewEpic != "") {
+		// Legacy spec/epic handling
+		return determineReviewScope(cfg)
+	}
+
+	// If --since was provided but Pipeline failed, that's an error
+	if reviewSince != "" {
+		return "", err
+	}
+
+	// No flags provided - use state file via legacy function
+	return determineReviewScope(cfg)
+}
+
 func runReview(cmd *cobra.Command, args []string) error {
 	cfg, err := loadConfig()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	// Determine scope (from commit)
-	fromCommit, err := determineReviewScope(cfg)
+	// Determine scope (from commit) using Pipeline
+	gromitDir := resolveGromitDir(cfg)
+	p, err := createReviewPipeline(cfg, gromitDir)
+	if err != nil {
+		return fmt.Errorf("creating pipeline for scope resolution: %w", err)
+	}
+
+	fromCommit, err := resolveReviewScopeWithPipeline(p, cfg)
 	if err != nil {
 		return fmt.Errorf("determining review scope: %w", err)
 	}
