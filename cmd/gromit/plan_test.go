@@ -1,12 +1,17 @@
 package main
 
 import (
+	"context"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/worktree"
+	"github.com/spf13/cobra"
 )
 
 // planLaunchTestAgent is now defined in session_test_agent_helper.go
@@ -244,4 +249,163 @@ func TestLaunchPlanSession_ConvertsPromptPathToAbsolute(t *testing.T) {
 	if !filepath.IsAbs(capturedPromptPath) {
 		t.Fatalf("prompt path = %q, want absolute path", capturedPromptPath)
 	}
+}
+
+func TestRunPlanDelegatesToPipelineAndReportsSuccess(t *testing.T) {
+	tmpDir := t.TempDir()
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd(): %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(origWD) })
+
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Chdir(%q) failed: %v", tmpDir, err)
+	}
+
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	specsDir := filepath.Join(gromitDir, "specs")
+	plansDir := filepath.Join(gromitDir, "plans")
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("creating specs dir: %v", err)
+	}
+	if err := os.MkdirAll(plansDir, 0o755); err != nil {
+		t.Fatalf("creating plans dir: %v", err)
+	}
+
+	specName := "sample-spec"
+	specPath := filepath.Join(specsDir, specName+".md")
+	if err := os.WriteFile(specPath, []byte("# Sample spec"), 0644); err != nil {
+		t.Fatalf("writing spec file: %v", err)
+	}
+
+	configDst := filepath.Join(tmpDir, "gromit.yaml")
+	if err := copyFileWithSuffix(origWD, "gromit.yaml", configDst, "\nworktree:\n  enabled: false\n"); err != nil {
+		t.Fatalf("preparing config: %v", err)
+	}
+	origConfigPath := configPath
+	configPath = configDst
+	t.Cleanup(func() { configPath = origConfigPath })
+
+	origPlanForce := planForce
+	planForce = true
+	t.Cleanup(func() { planForce = origPlanForce })
+
+	origPlanNoChain := planNoChain
+	planNoChain = true
+	t.Cleanup(func() { planNoChain = origPlanNoChain })
+
+	stub := &capturingPlanExecutor{
+		t:        t,
+		plansDir: plansDir,
+	}
+	origFactory := createPlanPipelineFn
+	createPlanPipelineFn = func(cfg *config.Config, gDir, specs string, plans string) (planExecutor, error) {
+		return stub, nil
+	}
+	t.Cleanup(func() { createPlanPipelineFn = origFactory })
+
+	cmd := &cobra.Command{}
+	cmd.Flags().String("agent", "", "")
+	cmd.Flags().Bool("choose-agent", false, "")
+	if err := cmd.Flags().Set("agent", "cli-agent"); err != nil {
+		t.Fatalf("setting agent flag: %v", err)
+	}
+	if err := cmd.Flags().Set("choose-agent", "true"); err != nil {
+		t.Fatalf("setting choose-agent flag: %v", err)
+	}
+
+	output := captureRunPlanStdout(t, func() {
+		if err := runPlan(cmd, []string{specName}); err != nil {
+			t.Fatalf("runPlan failed: %v", err)
+		}
+	})
+
+	planPath := filepath.Join(plansDir, specName+".md")
+	if !strings.Contains(output, planPath) {
+		t.Fatalf("expected output to mention %q, got:\n%s", planPath, output)
+	}
+
+	if stub.input.SpecName != specName {
+		t.Fatalf("PlanInput.SpecName = %q, want %q", stub.input.SpecName, specName)
+	}
+	if !stub.input.Force {
+		t.Fatalf("PlanInput.Force = false, want true")
+	}
+	if stub.input.AgentName != "cli-agent" {
+		t.Fatalf("PlanInput.AgentName = %q, want %q", stub.input.AgentName, "cli-agent")
+	}
+	if !stub.input.ChooseAgent {
+		t.Fatalf("PlanInput.ChooseAgent = false, want true")
+	}
+	if stub.input.LaunchDir != "" {
+		t.Fatalf("PlanInput.LaunchDir = %q, want empty", stub.input.LaunchDir)
+	}
+}
+
+type capturingPlanExecutor struct {
+	t        *testing.T
+	plansDir string
+	input    pipeline.PlanInput
+}
+
+func (c *capturingPlanExecutor) Plan(ctx context.Context, input pipeline.PlanInput) (*pipeline.PlanSession, error) {
+	c.input = input
+	planPath := filepath.Join(c.plansDir, input.SpecName+".md")
+	if err := os.WriteFile(planPath, []byte("# plan"), 0644); err != nil {
+		c.t.Fatalf("writing plan file: %v", err)
+	}
+	return pipeline.NewPlanSession(func() {}), nil
+}
+
+type captureResult struct {
+	output string
+	err    error
+}
+
+func captureRunPlanStdout(t *testing.T, fn func()) string {
+	t.Helper()
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("creating stdout pipe: %v", err)
+	}
+
+	origStdout := os.Stdout
+	os.Stdout = w
+	defer func() {
+		os.Stdout = origStdout
+	}()
+
+	done := make(chan captureResult, 1)
+	go func() {
+		var buf strings.Builder
+		_, copyErr := io.Copy(&buf, r)
+		done <- captureResult{output: buf.String(), err: copyErr}
+	}()
+
+	fn()
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("closing pipe writer: %v", err)
+	}
+
+	result := <-done
+	if result.err != nil {
+		t.Fatalf("capturing stdout: %v", result.err)
+	}
+
+	return result.output
+}
+
+func copyFileWithSuffix(srcDir, srcName, dstPath, suffix string) error {
+	srcPath := filepath.Join(srcDir, srcName)
+	data, err := os.ReadFile(srcPath)
+	if err != nil {
+		return err
+	}
+	if suffix != "" {
+		data = append(data, []byte(suffix)...)
+	}
+	return os.WriteFile(dstPath, data, 0644)
 }
