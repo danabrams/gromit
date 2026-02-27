@@ -103,3 +103,51 @@ func TestModel_KeyboardNavigationShiftTab(t *testing.T) {
 	}
 	_ = cmd
 }
+
+func TestModel_ScrollHandlingUp(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+	m.scrollOffset = 5
+
+	// Send Up key to scroll up
+	msg := tea.KeyMsg{Type: tea.KeyUp}
+	model, _ := m.Update(msg)
+	m = model.(*Model)
+
+	// Scroll offset should decrease
+	if m.scrollOffset != 4 {
+		t.Errorf("expected scrollOffset to be 4 after Up, got %d", m.scrollOffset)
+	}
+}
+
+func TestModel_ScrollHandlingDown(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+	m.scrollOffset = 0
+
+	// Send Down key to scroll down
+	msg := tea.KeyMsg{Type: tea.KeyDown}
+	model, _ := m.Update(msg)
+	m = model.(*Model)
+
+	// Scroll offset should increase
+	if m.scrollOffset != 1 {
+		t.Errorf("expected scrollOffset to be 1 after Down, got %d", m.scrollOffset)
+	}
+}
+
+func TestModel_ScrollHandlingNegativeBound(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+	m.scrollOffset = 0
+
+	// Send Up key - should not go below 0
+	msg := tea.KeyMsg{Type: tea.KeyUp}
+	model, _ := m.Update(msg)
+	m = model.(*Model)
+
+	// Scroll offset should stay at 0
+	if m.scrollOffset != 0 {
+		t.Errorf("expected scrollOffset to be 0 (clamped), got %d", m.scrollOffset)
+	}
+}
