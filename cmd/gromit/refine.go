@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/danabrams/gromit/internal/agent"
 	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
@@ -204,15 +203,18 @@ func showRefinePicker(unrefined []*backlog.Idea, reader io.Reader) int {
 }
 
 func createRefinePipeline(cfg *config.Config, gromitDir, specsDir, plansDir string) (*pipeline.Pipeline, error) {
-	bf, err := backlog.NewFile(gromitDir)
+	// Construct pipeline dependencies using dependency injection
+	deps, err := NewPipelineDeps(cfg, gromitDir)
 	if err != nil {
 		return nil, err
 	}
 
-	deps := &pipeline.Deps{
-		AgentResolver: agent.NewResolver(cfg),
-		BacklogClient: &backlogAdapter{file: bf},
+	// Override backlog client with refine-specific implementation
+	bf, err := backlog.NewFile(gromitDir)
+	if err != nil {
+		return nil, err
 	}
+	deps.BacklogClient = &backlogAdapter{file: bf}
 
 	paths := &pipeline.Paths{
 		GromitDir: gromitDir,

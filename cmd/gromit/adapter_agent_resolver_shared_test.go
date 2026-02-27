@@ -43,9 +43,12 @@ func TestSharedAgentResolver_UsedInRefine(t *testing.T) {
 		t.Fatal("refine.go should not have its own agentResolverAdapter - use shared agent.NewResolver")
 	}
 
-	// refine.go SHOULD use the shared agent.NewResolver
-	if !strings.Contains(sourceStr, "agent.NewResolver(cfg)") {
-		t.Fatal("refine.go should use agent.NewResolver(cfg)")
+	// refine.go SHOULD use NewPipelineDeps (which constructs the shared agent.NewResolver)
+	// OR use agent.NewResolver(cfg) directly
+	usesNewPipelineDeps := strings.Contains(sourceStr, "NewPipelineDeps(")
+	usesDirectResolver := strings.Contains(sourceStr, "agent.NewResolver(cfg)")
+	if !usesNewPipelineDeps && !usesDirectResolver {
+		t.Fatal("refine.go should use either NewPipelineDeps() or agent.NewResolver(cfg)")
 	}
 }
 
@@ -90,20 +93,9 @@ func TestSharedAgentResolver_IntegrationAcrossCommands(t *testing.T) {
 			t.Logf("Warning: %s should import config package", file)
 		}
 
-		// review.go and explore.go use NewPipelineDeps which handles agent resolver
-		// refine.go should import and use agent directly or NewPipelineDeps
-		if file == "review.go" || file == "explore.go" {
-			// These should use NewPipelineDeps for dependency injection
-			if !strings.Contains(sourceStr, forceNewPipelineDepsFn) {
-				t.Errorf("%s should use NewPipelineDeps() for dependency injection", file)
-			}
-		} else {
-			// refine.go should use either NewPipelineDeps or agent.NewResolver directly
-			usesNewPipelineDeps := strings.Contains(sourceStr, forceNewPipelineDepsFn)
-			usesDirectResolver := strings.Contains(sourceStr, "agent.NewResolver")
-			if !usesNewPipelineDeps && !usesDirectResolver {
-				t.Errorf("%s should use either NewPipelineDeps() or agent.NewResolver()", file)
-			}
+		// All files should use NewPipelineDeps for consistent dependency injection
+		if !strings.Contains(sourceStr, forceNewPipelineDepsFn) {
+			t.Errorf("%s should use NewPipelineDeps() for dependency injection", file)
 		}
 	}
 }
