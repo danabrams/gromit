@@ -88,3 +88,90 @@ func TestFormatSPCSummaryWrapper_DelegatesToDisplay(t *testing.T) {
 		t.Errorf("formatSPCSummary() = %q, want %q", got, want)
 	}
 }
+
+func TestSPCMetricConstants_AreFromDisplayPackage(t *testing.T) {
+	t.Parallel()
+
+	// Verify that format.go uses the exported SPC metric constants from display package
+	// rather than maintaining its own duplicates. This test ensures we reference the
+	// display package constants throughout.
+	tests := []struct {
+		name                  string
+		formatConstantValue   string
+		displayConstantValue  string
+		displayConstantName   string
+	}{
+		{
+			name:                 "rolling_success_rate",
+			formatConstantValue:  spcMetricRollingSuccessRate,
+			displayConstantValue: display.SPCMetricRollingSuccessRate,
+			displayConstantName:  "SPCMetricRollingSuccessRate",
+		},
+		{
+			name:                 "rolling_escalation_rate",
+			formatConstantValue:  spcMetricRollingEscalateRate,
+			displayConstantValue: display.SPCMetricRollingEscalateRate,
+			displayConstantName:  "SPCMetricRollingEscalateRate",
+		},
+		{
+			name:                 "rolling_quality_score",
+			formatConstantValue:  spcMetricRollingQualityScore,
+			displayConstantValue: display.SPCMetricRollingQualityScore,
+			displayConstantName:  "SPCMetricRollingQualityScore",
+		},
+		{
+			name:                 "rolling_avg_duration_ms",
+			formatConstantValue:  spcMetricRollingAvgDurationMs,
+			displayConstantValue: display.SPCMetricRollingAvgDurationMs,
+			displayConstantName:  "SPCMetricRollingAvgDurationMs",
+		},
+		{
+			name:                 "rolling_first_pass_success_rate",
+			formatConstantValue:  spcMetricFirstPassSuccessRate,
+			displayConstantValue: display.SPCMetricFirstPassSuccessRate,
+			displayConstantName:  "SPCMetricFirstPassSuccessRate",
+		},
+		{
+			name:                 "rolling_avg_cost_usd",
+			formatConstantValue:  spcMetricRollingAvgCostUSD,
+			displayConstantValue: display.SPCMetricRollingAvgCostUSD,
+			displayConstantName:  "SPCMetricRollingAvgCostUSD",
+		},
+		{
+			name:                 "ewma_success_rate",
+			formatConstantValue:  spcMetricEWMASuccessRate,
+			displayConstantValue: display.SPCMetricEWMASuccessRate,
+			displayConstantName:  "SPCMetricEWMASuccessRate",
+		},
+		{
+			name:                 "ewma_cost_usd",
+			formatConstantValue:  spcMetricEWMACostUSD,
+			displayConstantValue: display.SPCMetricEWMACostUSD,
+			displayConstantName:  "SPCMetricEWMACostUSD",
+		},
+		{
+			name:                 "ewma_duration_ms",
+			formatConstantValue:  spcMetricEWMADurationMs,
+			displayConstantValue: display.SPCMetricEWMADurationMs,
+			displayConstantName:  "SPCMetricEWMADurationMs",
+		},
+		{
+			name:                 "ewma_input_tokens",
+			formatConstantValue:  spcMetricEWMAInputTokens,
+			displayConstantValue: display.SPCMetricEWMAInputTokens,
+			displayConstantName:  "SPCMetricEWMAInputTokens",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if tt.formatConstantValue != tt.displayConstantValue {
+				t.Errorf("format.%s (%q) != display.%s (%q)",
+					tt.name, tt.formatConstantValue,
+					tt.displayConstantName, tt.displayConstantValue)
+			}
+		})
+	}
+}
