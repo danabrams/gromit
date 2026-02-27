@@ -57,3 +57,16 @@ func TestRouterBranchForLabels(t *testing.T) {
 		})
 	}
 }
+
+func TestRouterUsesConfiguredBaseBranch(t *testing.T) {
+	t.Parallel()
+
+	router := specbranch.NewRouter("develop")
+	branch, err := router.BranchForLabels(nil)
+	if err != nil {
+		t.Fatalf("BranchForLabels() error = %v", err)
+	}
+	if branch != "develop" {
+		t.Fatalf("BranchForLabels() = %q, want %q", branch, "develop")
+	}
+}
