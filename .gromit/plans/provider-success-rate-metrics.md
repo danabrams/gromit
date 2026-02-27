@@ -1,8 +1,9 @@
 ---
+created: 2026-02-27T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-27T02:43:58Z"
 id: provider-success-rate-metrics
 source_spec: provider-success-rate-metrics
-created: 2026-02-27
-decomposed: false
 ---
 
 # Provider Success Rate Metrics Implementation Plan
