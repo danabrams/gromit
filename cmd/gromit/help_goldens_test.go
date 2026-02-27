@@ -37,3 +37,12 @@ func assertHelpMatchesGolden(t *testing.T, path string, actual string) {
 		t.Fatalf("command help differs from golden %q\nexpected:\n%s\n\ngot:\n%s", path, expected, actual)
 	}
 }
+
+func TestRootHelpGoldenIncludesPRS(t *testing.T) {
+	t.Parallel()
+
+	content := loadGolden(t, "cmd/gromit/testdata/golden/root.help.txt")
+	if !strings.Contains(content, "  prs           ") {
+		t.Fatalf("root help golden output missing prs entry:\n%s", content)
+	}
+}
