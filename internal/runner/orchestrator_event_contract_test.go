@@ -19,34 +19,24 @@ type eventCapture struct {
 
 // captureSubscriber subscribes to an emitter and records events for testing.
 type captureSubscriber struct {
-	emitter *events.Emitter
+	ch      chan events.Event
 	capture *eventCapture
 	done    chan struct{}
 }
 
 func newCaptureSubscriber(emitter *events.Emitter) *captureSubscriber {
 	return &captureSubscriber{
-		emitter: emitter,
+		ch:      emitter.Subscribe(),
 		capture: &eventCapture{},
 		done:    make(chan struct{}),
 	}
 }
 
-func (cs *captureSubscriber) start(ctx context.Context) {
-	ch := cs.emitter.Subscribe()
-	defer cs.emitter.Unsubscribe(ch)
+func (cs *captureSubscriber) start() {
 	defer close(cs.done)
 
-	for {
-		select {
-		case evt, ok := <-ch:
-			if !ok {
-				return
-			}
-			cs.capture.events = append(cs.capture.events, evt)
-		case <-ctx.Done():
-			return
-		}
+	for evt := range cs.ch {
+		cs.capture.events = append(cs.capture.events, evt)
 	}
 }
 
@@ -78,20 +68,13 @@ func TestOrchestrator_SuccessPath_EmitsEventOrdering(t *testing.T) {
 
 	orch := NewOrchestrator(cfg)
 	capturer := newCaptureSubscriber(orch.GetEmitter())
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	go capturer.start()
 
-	go capturer.start(ctx)
-	time.Sleep(10 * time.Millisecond) // Ensure subscriber is ready
-
-	err := orch.Run(ctx, 1, time.Time{}, nil)
+	err := orch.Run(context.Background(), 1, time.Time{}, nil)
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
 
-	// Give the capturer a moment to process all events before canceling
-	time.Sleep(50 * time.Millisecond)
-	cancel()
 	<-capturer.done
 
 	// Print all received events for debugging
@@ -156,11 +139,7 @@ func TestOrchestrator_SuccessPath_RunStartEventContainsPayload(t *testing.T) {
 
 	orch := NewOrchestrator(cfg)
 	capturer := newCaptureSubscriber(orch.GetEmitter())
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	go capturer.start(ctx)
-	time.Sleep(10 * time.Millisecond)
+	go capturer.start()
 
 	maxIterations := 5
 	err := orch.Run(context.Background(), maxIterations, time.Time{}, nil)
@@ -168,7 +147,6 @@ func TestOrchestrator_SuccessPath_RunStartEventContainsPayload(t *testing.T) {
 		t.Fatalf("Run() error = %v", err)
 	}
 
-	cancel()
 	<-capturer.done
 
 	// Find RunStartEvent
@@ -218,18 +196,13 @@ func TestOrchestrator_SuccessPath_IterationStartEventContainsPayload(t *testing.
 
 	orch := NewOrchestrator(cfg)
 	capturer := newCaptureSubscriber(orch.GetEmitter())
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	go capturer.start(ctx)
-	time.Sleep(10 * time.Millisecond)
+	go capturer.start()
 
 	err := orch.Run(context.Background(), 1, time.Time{}, nil)
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
 
-	cancel()
 	<-capturer.done
 
 	// Find IterationStartEvent
@@ -302,18 +275,13 @@ func TestOrchestrator_FailurePath_EmitsEventOrdering(t *testing.T) {
 
 	orch := NewOrchestrator(cfg)
 	capturer := newCaptureSubscriber(orch.GetEmitter())
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	go capturer.start(ctx)
-	time.Sleep(10 * time.Millisecond)
+	go capturer.start()
 
 	err := orch.Run(context.Background(), 2, time.Time{}, nil)
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
 
-	cancel()
 	<-capturer.done
 
 	// Check that key events are present
@@ -370,18 +338,13 @@ func TestOrchestrator_SkipPath_EmitsBeadSkippedEvent(t *testing.T) {
 
 	orch := NewOrchestrator(cfg)
 	capturer := newCaptureSubscriber(orch.GetEmitter())
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	go capturer.start(ctx)
-	time.Sleep(10 * time.Millisecond)
+	go capturer.start()
 
 	err := orch.Run(context.Background(), 1, time.Time{}, nil)
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
 
-	cancel()
 	<-capturer.done
 
 	// Find BeadSkippedEvent
@@ -429,18 +392,13 @@ func TestOrchestrator_IterationCompleteEventContainsPayload(t *testing.T) {
 
 	orch := NewOrchestrator(cfg)
 	capturer := newCaptureSubscriber(orch.GetEmitter())
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	go capturer.start(ctx)
-	time.Sleep(10 * time.Millisecond)
+	go capturer.start()
 
 	err := orch.Run(context.Background(), 1, time.Time{}, nil)
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
 
-	cancel()
 	<-capturer.done
 
 	// Find IterationCompleteEvent
@@ -493,18 +451,13 @@ func TestOrchestrator_RunCompleteEventContainsPayload(t *testing.T) {
 
 	orch := NewOrchestrator(cfg)
 	capturer := newCaptureSubscriber(orch.GetEmitter())
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	go capturer.start(ctx)
-	time.Sleep(10 * time.Millisecond)
+	go capturer.start()
 
 	err := orch.Run(context.Background(), 2, time.Time{}, nil)
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
 
-	cancel()
 	<-capturer.done
 
 	// Find RunCompleteEvent
