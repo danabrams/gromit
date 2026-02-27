@@ -94,3 +94,58 @@ func dependencyIDs(deps []bead.Dependency) []string {
 	}
 	return ids
 }
+
+// EnrichReadyBeads merges labels and other fields from all beads into ready beads.
+func EnrichReadyBeads(readyBeads, allBeads []*bead.Bead) []*bead.Bead {
+	if len(readyBeads) == 0 {
+		return readyBeads
+	}
+	openByID := make(map[string]*bead.Bead, len(allBeads))
+	for _, b := range allBeads {
+		if b == nil || strings.TrimSpace(b.ID) == "" {
+			continue
+		}
+		openByID[b.ID] = b
+	}
+	enriched := make([]*bead.Bead, 0, len(readyBeads))
+	for _, b := range readyBeads {
+		if b == nil {
+			continue
+		}
+		if open, ok := openByID[b.ID]; ok && open != nil {
+			clone := *b
+			clone.Labels = mergeLabels(b.Labels, open.Labels)
+			if clone.Parent == "" {
+				clone.Parent = open.Parent
+			}
+			enriched = append(enriched, &clone)
+			continue
+		}
+		enriched = append(enriched, b)
+	}
+	return enriched
+}
+
+// mergeLabels combines two label lists, removing duplicates and empty strings.
+func mergeLabels(primary, secondary []string) []string {
+	if len(primary) == 0 && len(secondary) == 0 {
+		return []string{}
+	}
+	seen := make(map[string]bool, len(primary)+len(secondary))
+	out := make([]string, 0, len(primary)+len(secondary))
+	for _, label := range primary {
+		if strings.TrimSpace(label) == "" || seen[label] {
+			continue
+		}
+		out = append(out, label)
+		seen[label] = true
+	}
+	for _, label := range secondary {
+		if strings.TrimSpace(label) == "" || seen[label] {
+			continue
+		}
+		out = append(out, label)
+		seen[label] = true
+	}
+	return out
+}
