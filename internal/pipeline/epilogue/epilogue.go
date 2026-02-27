@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 )
@@ -78,6 +79,7 @@ type Epilogue struct {
 	beads          BeadLifecycle
 	status         StatusWriter
 	output         io.Writer
+	emitter        *events.Emitter
 	worktree       WorktreeMerger       // optional; nil means skip worktree merge
 	branchRemover  PendingBranchRemover // optional; nil means skip branch removal from state
 	cmd            CommandRunner        // optional; nil means skip between-iterations command
@@ -100,6 +102,17 @@ func New(beads BeadLifecycle, status StatusWriter, output io.Writer) *Epilogue {
 		status: status,
 		output: output,
 	}
+}
+
+// WithEmitter attaches an EventEmitter for log events.
+func (e *Epilogue) WithEmitter(emitter *events.Emitter) *Epilogue {
+	e.emitter = emitter
+	return e
+}
+
+// SetEmitter is used by orchestrator wiring to attach an emitter.
+func (e *Epilogue) SetEmitter(emitter *events.Emitter) {
+	e.emitter = emitter
 }
 
 // WithWorktree configures an optional WorktreeMerger for merging interactive branches.
@@ -160,7 +173,7 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 	lifecycleFailure := pipeline.LifecycleFailureNone
 	warningOccurred := false
 	warnf := func(format string, args ...interface{}) {
-		fmt.Fprintf(w, format, args...)
+		e.log("warning", format, args...)
 		warningOccurred = true
 	}
 
@@ -332,4 +345,14 @@ func (e *Epilogue) clearMergeWarning(branch string) {
 		return
 	}
 	delete(e.mergeWarnings, branch)
+}
+
+func (e *Epilogue) log(level, format string, args ...interface{}) {
+	if e.emitter == nil {
+		return
+	}
+	e.emitter.Emit(&events.LogEvent{
+		Level:   level,
+		Message: fmt.Sprintf(format, args...),
+	})
 }

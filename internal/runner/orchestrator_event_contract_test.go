@@ -83,6 +83,14 @@ func TestOrchestrator_SuccessPath_EmitsEventOrdering(t *testing.T) {
 		t.Logf("  Event %d: %s", i, evt.EventType())
 	}
 
+	filteredEvents := make([]events.Event, 0, len(capturer.capture.events))
+	for _, evt := range capturer.capture.events {
+		if evt.EventType() == "log" {
+			continue
+		}
+		filteredEvents = append(filteredEvents, evt)
+	}
+
 	// Verify event sequence
 	// Note: review_start and review_complete are only emitted if Review stage is configured and enabled
 	expectedTypes := []string{
@@ -97,16 +105,16 @@ func TestOrchestrator_SuccessPath_EmitsEventOrdering(t *testing.T) {
 		"run_complete",
 	}
 
-	if len(capturer.capture.events) < len(expectedTypes) {
-		t.Errorf("Expected at least %d events, got %d", len(expectedTypes), len(capturer.capture.events))
+	if len(filteredEvents) < len(expectedTypes) {
+		t.Errorf("Expected at least %d events (excluding log events), got %d", len(expectedTypes), len(filteredEvents))
 		return
 	}
 
 	for i, expected := range expectedTypes {
-		if i >= len(capturer.capture.events) {
+		if i >= len(filteredEvents) {
 			t.Fatalf("Event %d missing; expected %q", i, expected)
 		}
-		actual := capturer.capture.events[i].EventType()
+		actual := filteredEvents[i].EventType()
 		if actual != expected {
 			t.Errorf("Event %d: got %q, want %q", i, actual, expected)
 		}
@@ -244,7 +252,7 @@ func TestOrchestrator_FailurePath_EmitsEventOrdering(t *testing.T) {
 		if validateAttempt == 1 {
 			// First attempt: fail validation
 			return pipeline.Output{
-				Decision: pipeline.Block,
+				Decision:           pipeline.Block,
 				ValidationFailures: []string{"validation error: test failed"},
 			}, nil
 		}

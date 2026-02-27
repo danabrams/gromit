@@ -110,9 +110,27 @@ type Orchestrator struct {
 
 // NewOrchestrator returns an Orchestrator wired with the given configuration.
 func NewOrchestrator(cfg OrchestratorConfig) *Orchestrator {
-	return &Orchestrator{
+	o := &Orchestrator{
 		cfg:     cfg,
 		emitter: events.NewEmitter(),
+	}
+	o.attachEmitterToStage(cfg.Gate)
+	o.attachEmitterToStage(cfg.Build)
+	o.attachEmitterToStage(cfg.Validate)
+	o.attachEmitterToStage(cfg.Review)
+	o.attachEmitterToStage(cfg.Epilogue)
+	return o
+}
+
+func (o *Orchestrator) attachEmitterToStage(stage pipeline.Stage) {
+	if stage == nil {
+		return
+	}
+	type emitterSetter interface {
+		SetEmitter(*events.Emitter)
+	}
+	if setter, ok := stage.(emitterSetter); ok {
+		setter.SetEmitter(o.emitter)
 	}
 }
 
@@ -139,7 +157,7 @@ func (o *Orchestrator) StartSubscribers(ctx context.Context) error {
 	if o.cfg.LogsDir != "" {
 		streamSubscriber, err := stream.NewFileSubscriber(o.cfg.LogsDir, o.emitter)
 		if err != nil {
-			fmt.Fprintf(output, "Warning: could not start stream subscriber: %v\n", err)
+			o.logWarning("Warning: could not start stream subscriber: %v", err)
 		} else {
 			go func() {
 				_ = streamSubscriber.Start(ctx)
@@ -176,7 +194,7 @@ func (o *Orchestrator) Run(ctx context.Context, maxIterations int, deadline time
 		if setter, ok := o.cfg.StateSaver.(interface{ SetCleanExit(bool) }); ok {
 			setter.SetCleanExit(false)
 			if err := o.cfg.StateSaver.Save(); err != nil {
-				o.logf("Warning: could not mark state clean_exit=false: %v", err)
+				o.logWarning("Warning: could not mark state clean_exit=false: %v", err)
 			}
 		}
 	}
@@ -196,7 +214,7 @@ func (o *Orchestrator) Run(ctx context.Context, maxIterations int, deadline time
 	if o.cfg.ExperimentMgr != nil {
 		experiments := o.cfg.ExperimentMgr.ListExperiments()
 		for _, exp := range experiments {
-			o.logf("Experiment %s (%s): checking if converged", exp.ID, exp.Phase)
+			o.logInfo("Experiment %s (%s): checking if converged", exp.ID, exp.Phase)
 		}
 	}
 
@@ -233,7 +251,7 @@ runLoop:
 		// Iteration numbers are assigned monotonically, one per bead regardless
 		// of whether the bead proceeds through all stages or is blocked early.
 		iteration++
-		o.logf("Iteration %d: processing bead %s (%s)", iteration, b.ID, b.Title)
+		o.logInfo("Iteration %d: processing bead %s (%s)", iteration, b.ID, b.Title)
 
 		// Emit IterationStartEvent
 		o.emitter.Emit(&events.IterationStartEvent{
@@ -252,7 +270,7 @@ runLoop:
 		// Stage 1: Gate — precheck, stuck detection, scope gate, proactive decomposition.
 		gateOut, gateErr := o.cfg.Gate.Run(ctx, baseIn)
 		if gateErr != nil {
-			o.logf("Warning: gate error for bead %s (iteration %d): %v", b.ID, iteration, gateErr)
+			o.logWarning("Warning: gate error for bead %s (iteration %d): %v", b.ID, iteration, gateErr)
 		}
 		baseIn.ComplexityRouting = gateOut.ComplexityRouting
 		if gateOut.Decision != pipeline.Proceed {
@@ -310,7 +328,7 @@ runLoop:
 			Time:      time.Now(),
 		})
 		if buildErr != nil {
-			o.logf("Warning: build failed for bead %s (iteration %d): %v", b.ID, iteration, buildErr)
+			o.logWarning("Warning: build failed for bead %s (iteration %d): %v", b.ID, iteration, buildErr)
 			failurePhase := inferBuildFailurePhase(buildErr)
 			baseIn.Result = &logger.IterationLog{
 				Timestamp:                time.Now(),
@@ -453,7 +471,7 @@ runLoop:
 			CacheVersionMarker:       buildOut.CacheVersionMarker,
 		}
 		epilogueOut := o.runEpilogue(ctx, baseIn, true)
-		o.logf("Iteration %d: bead %s completed successfully", iteration, b.ID)
+		o.logInfo("Iteration %d: bead %s completed successfully", iteration, b.ID)
 		// Emit IterationCompleteEvent
 		o.emitter.Emit(&events.IterationCompleteEvent{
 			Iteration: iteration,
@@ -473,7 +491,7 @@ runLoop:
 		touchedPackages = mergeTouchedPackages(touchedPackages, epilogueOut.TouchedPackages)
 	}
 
-	o.logf("Gromit loop complete. Processed %d iterations.", iteration)
+	o.logInfo("Gromit loop complete. Processed %d iterations.", iteration)
 
 	// Merge per-run model stats into the global stats file without overwriting
 	// pre-existing entries from prior runs.
@@ -493,7 +511,7 @@ runLoop:
 			setter.SetCleanExit(true)
 		}
 		if err := o.cfg.StateSaver.Save(); err != nil {
-			o.logf("Warning: could not save provider state: %v", err)
+			o.logWarning("Warning: could not save provider state: %v", err)
 		}
 	}
 
@@ -542,7 +560,7 @@ func (o *Orchestrator) checkControlLimitAlerts() {
 	// Try to read the process trend
 	trend, err := logger.ReadProcessTrend(o.cfg.LogsDir)
 	if err != nil {
-		o.logf("Warning: could not read process trend for control limit check: %v", err)
+		o.logWarning("Warning: could not read process trend for control limit check: %v", err)
 		return
 	}
 
@@ -552,7 +570,7 @@ func (o *Orchestrator) checkControlLimitAlerts() {
 
 	// Check if window has enough data and first-pass success is below threshold
 	if trend.LatestWindow.FirstPassSuccess < firstPassSuccessThreshold && trend.WindowSize >= minimumWindowSize {
-		o.logf("Warning: first-pass success rate %.1f%% is below control limit of %.0f%% (window: %d iterations); review recent decomposition rule changes",
+		o.logWarning("Warning: first-pass success rate %.1f%% is below control limit of %.0f%% (window: %d iterations); review recent decomposition rule changes",
 			trend.LatestWindow.FirstPassSuccess*100, firstPassSuccessThreshold*100, trend.WindowSize)
 
 		// Set a persistent control-limit alert flag in state.
@@ -632,7 +650,7 @@ func (o *Orchestrator) runEpilogue(ctx context.Context, in pipeline.Input, build
 	in.BuildSucceeded = buildSucceeded
 	out, err := o.cfg.Epilogue.Run(ctx, in)
 	if err != nil {
-		o.logf("Warning: epilogue error for bead %s (iteration %d): %v", in.Bead.ID, in.Iteration, err)
+		o.logWarning("Warning: epilogue error for bead %s (iteration %d): %v", in.Bead.ID, in.Iteration, err)
 	}
 	return out
 }
@@ -660,17 +678,17 @@ func (o *Orchestrator) maybeTriggerSpecMerge(ctx context.Context, b *bead.Bead) 
 
 	complete, err := o.cfg.SpecMergeController.IsSpecComplete(specName)
 	if err != nil {
-		o.logf("Warning: could not check spec completion for %q: %v", specName, err)
+		o.logWarning("Warning: could not check spec completion for %q: %v", specName, err)
 		return
 	}
 	if !complete {
 		return
 	}
 	if err := o.cfg.SpecMergeController.Trigger(ctx, specName); err != nil {
-		o.logf("Warning: spec merge pipeline trigger for %q failed: %v", specName, err)
+		o.logWarning("Warning: spec merge pipeline trigger for %q failed: %v", specName, err)
 		return
 	}
-	o.logf("Spec %q ready for human review", specName)
+	o.logInfo("Spec %q ready for human review", specName)
 }
 
 func normalizeTouchedPackages(touchedPackages []string) []string {
@@ -712,11 +730,11 @@ func (o *Orchestrator) mergeGlobalStats() {
 	}
 	runStats, err := logger.ReadRunModelStats(o.cfg.LogsDir, runID)
 	if err != nil {
-		o.logf("Warning: could not read run stats for global merge: %v", err)
+		o.logWarning("Warning: could not read run stats for global merge: %v", err)
 		return
 	}
 	if err := logger.UpdateGlobalStats(o.cfg.GlobalStatsPath, runStats); err != nil {
-		o.logf("Warning: could not update global stats: %v", err)
+		o.logWarning("Warning: could not update global stats: %v", err)
 	}
 }
 
@@ -781,10 +799,20 @@ func (o *Orchestrator) assertEfficiencyCompleteness(totalIterations int) error {
 }
 
 // logf writes a formatted diagnostic message to the configured output.
-func (o *Orchestrator) logf(format string, args ...any) {
-	w := o.cfg.Output
-	if w == nil {
-		w = os.Stderr
+func (o *Orchestrator) logInfo(format string, args ...any) {
+	o.emitLog("info", format, args...)
+}
+
+func (o *Orchestrator) logWarning(format string, args ...any) {
+	o.emitLog("warning", format, args...)
+}
+
+func (o *Orchestrator) emitLog(level string, format string, args ...any) {
+	if o.emitter == nil {
+		return
 	}
-	_, _ = fmt.Fprintf(w, format+"\n", args...)
+	o.emitter.Emit(&events.LogEvent{
+		Level:   level,
+		Message: fmt.Sprintf(format, args...),
+	})
 }

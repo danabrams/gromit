@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/pipeline"
 )
 
@@ -51,11 +52,12 @@ type DataQualityBlocker interface {
 // If data quality blocked, returns Block.
 // Otherwise returns Proceed.
 type Gate struct {
-	precheck          Prechecker        // optional; nil means skip precheck
-	stuck             StuckDetector     // optional; nil means skip stuck detection
-	decomposer        Decomposer        // optional; used only by scope-gate decomposition
+	precheck           Prechecker         // optional; nil means skip precheck
+	stuck              StuckDetector      // optional; nil means skip stuck detection
+	decomposer         Decomposer         // optional; used only by scope-gate decomposition
 	dataQualityChecker DataQualityBlocker // optional; nil means skip data quality checks
-	output            io.Writer
+	output             io.Writer
+	emitter            *events.Emitter
 }
 
 // Compile-time check: *Gate must implement pipeline.Stage.
@@ -65,6 +67,17 @@ var _ pipeline.Stage = (*Gate)(nil)
 // output receives diagnostic messages; pass io.Discard to suppress.
 func New(output io.Writer) *Gate {
 	return &Gate{output: output}
+}
+
+// WithEmitter attaches an EventEmitter for log events.
+func (g *Gate) WithEmitter(emitter *events.Emitter) *Gate {
+	g.emitter = emitter
+	return g
+}
+
+// SetEmitter is used by orchestrator wiring to attach an emitter.
+func (g *Gate) SetEmitter(emitter *events.Emitter) {
+	g.emitter = emitter
 }
 
 // WithPrechecker configures an optional Prechecker for detecting already-completed work.
@@ -107,17 +120,12 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 
 	complexityRouting := resolveComplexityRouting(in)
 
-	out := g.output
-	if out == nil {
-		out = io.Discard
-	}
-
 	// Precheck: skip beads whose acceptance criteria are already satisfied.
 	// Runs before stuck detection so completed work is always closed promptly.
 	if g.precheck != nil {
 		done, err := g.precheck.Check(ctx, in.Bead)
 		if err != nil {
-			fmt.Fprintf(out, "Warning: precheck failed for bead %s: %v\n", in.Bead.ID, err)
+			g.log("warning", "Warning: precheck failed for bead %s: %v", in.Bead.ID, err)
 		} else if done {
 			return pipeline.Output{
 				Decision:          pipeline.Skip,
@@ -130,7 +138,7 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 	if g.stuck != nil {
 		stuck, err := g.stuck.IsStuck(ctx, in.Bead)
 		if err != nil {
-			fmt.Fprintf(out, "Warning: stuck detection failed for bead %s: %v\n", in.Bead.ID, err)
+			g.log("warning", "Warning: stuck detection failed for bead %s: %v", in.Bead.ID, err)
 		} else if stuck {
 			return pipeline.Output{
 				Decision:          pipeline.Block,
@@ -143,9 +151,9 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 	if g.dataQualityChecker != nil {
 		blocked, reason, err := g.dataQualityChecker.ShouldBlock(ctx, in.Bead)
 		if err != nil {
-			fmt.Fprintf(out, "Warning: data quality check failed for bead %s: %v\n", in.Bead.ID, err)
+			g.log("warning", "Warning: data quality check failed for bead %s: %v", in.Bead.ID, err)
 		} else if blocked {
-			fmt.Fprintf(out, "Data quality block for bead %s: %s\n", in.Bead.ID, reason)
+			g.log("warning", "Data quality block for bead %s: %s", in.Bead.ID, reason)
 			return pipeline.Output{
 				Decision:          pipeline.Block,
 				ComplexityRouting: complexityRouting,
@@ -154,7 +162,7 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 	}
 
 	// Scope gate: try to handle oversized beads via decomposition, fallback to block.
-	scopeGateDecision, scopeGateErr := g.runScopeGate(ctx, in, out)
+	scopeGateDecision, scopeGateErr := g.runScopeGate(ctx, in)
 	if scopeGateErr != nil {
 		return pipeline.Output{}, scopeGateErr
 	}
@@ -220,7 +228,7 @@ func complexityFromLabels(b *bead.Bead) (string, bool) {
 // runScopeGate evaluates scope gate rules and attempts decomposition if needed.
 // Returns a non-nil decision if scope gate blocks/skips; nil means scope gate allows progression.
 // Returns an error if decomposition fails.
-func (g *Gate) runScopeGate(ctx context.Context, in pipeline.Input, out io.Writer) (*pipeline.Output, error) {
+func (g *Gate) runScopeGate(ctx context.Context, in pipeline.Input) (*pipeline.Output, error) {
 	if in.Config == nil || !in.Config.ScopeCheck.Enabled {
 		return nil, nil
 	}
@@ -236,18 +244,28 @@ func (g *Gate) runScopeGate(ctx context.Context, in pipeline.Input, out io.Write
 	// Scope-based decomposition applies to child beads too: the finite
 	// expected-outputs count bounds recursion depth naturally.
 	if g.decomposer != nil {
-		fmt.Fprintf(out, "Scope gate: bead %s has %d expected outputs (max %d), attempting decomposition\n",
+		g.log("info", "Scope gate: bead %s has %d expected outputs (max %d), attempting decomposition",
 			in.Bead.ID, fileCount, maxScopeFiles)
 		if err := g.decomposer.Decompose(ctx, in.Bead); err != nil {
-			fmt.Fprintf(out, "Warning: decomposition failed for bead %s: %v, falling back to block\n", in.Bead.ID, err)
+			g.log("warning", "Warning: decomposition failed for bead %s: %v, falling back to block", in.Bead.ID, err)
 			return &pipeline.Output{Decision: pipeline.Block}, nil
 		}
-		fmt.Fprintf(out, "Scope gate: decomposition succeeded for bead %s, skipping parent bead\n", in.Bead.ID)
+		g.log("info", "Scope gate: decomposition succeeded for bead %s, skipping parent bead", in.Bead.ID)
 		return &pipeline.Output{Decision: pipeline.Skip}, nil
 	}
 
 	// Decomposition not available or bead is child: block.
-	fmt.Fprintf(out, "Scope gate: bead %s has %d expected outputs (max %d), blocking\n",
+	g.log("warning", "Scope gate: bead %s has %d expected outputs (max %d), blocking",
 		in.Bead.ID, fileCount, maxScopeFiles)
 	return &pipeline.Output{Decision: pipeline.Block}, nil
+}
+
+func (g *Gate) log(level, format string, args ...interface{}) {
+	if g.emitter == nil {
+		return
+	}
+	g.emitter.Emit(&events.LogEvent{
+		Level:   level,
+		Message: fmt.Sprintf(format, args...),
+	})
 }

@@ -8,6 +8,7 @@ import (
 
 	reviewpkg "github.com/danabrams/gromit/internal/review"
 
+	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/prompt"
 )
@@ -40,6 +41,7 @@ type Review struct {
 	renderer PromptRenderer
 	gitDiff  GitDiffFn
 	output   io.Writer
+	emitter  *events.Emitter
 }
 
 // Compile-time check: *Review must implement pipeline.Stage.
@@ -55,6 +57,17 @@ func New(invoker Invoker, beads BeadCreator, renderer PromptRenderer, gitDiff Gi
 		gitDiff:  gitDiff,
 		output:   output,
 	}
+}
+
+// WithEmitter attaches an EventEmitter for logging.
+func (r *Review) WithEmitter(emitter *events.Emitter) *Review {
+	r.emitter = emitter
+	return r
+}
+
+// SetEmitter is used by orchestrator wiring to attach an emitter.
+func (r *Review) SetEmitter(emitter *events.Emitter) {
+	r.emitter = emitter
 }
 
 // Run executes the review stage.

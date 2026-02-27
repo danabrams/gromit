@@ -9,6 +9,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/experiment"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/provider"
@@ -72,6 +73,7 @@ type Build struct {
 	output         io.Writer
 	tddCycleRunner TDDCycleRunner
 	experimentMgr  *experiment.Manager
+	emitter        *events.Emitter
 }
 
 // Compile-time check: *Build must implement pipeline.Stage.
@@ -99,6 +101,17 @@ func (b *Build) WithTDDCycleRunner(runner TDDCycleRunner) *Build {
 func (b *Build) WithExperimentManager(mgr *experiment.Manager) *Build {
 	b.experimentMgr = mgr
 	return b
+}
+
+// WithEmitter wires an EventEmitter for logging.
+func (b *Build) WithEmitter(emitter *events.Emitter) *Build {
+	b.emitter = emitter
+	return b
+}
+
+// SetEmitter is used by orchestrator wiring to attach an emitter.
+func (b *Build) SetEmitter(emitter *events.Emitter) {
+	b.emitter = emitter
 }
 
 // SelectMethodology determines the methodology for a bead based on its labels and config.

@@ -1,7 +1,6 @@
 package prepare
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -533,9 +532,13 @@ func TestGateRunScopeGateBehavior_WithSharedCaseHelperOnChildBead(t *testing.T) 
 }
 
 func TestGateRunScopeGateLogsWhenAttemptingDecomposition(t *testing.T) {
-	var output bytes.Buffer
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
 	d := &fakeDecomposer{}
-	gate := New(&output).WithDecomposer(d)
+	gate := New(io.Discard).WithDecomposer(d).WithEmitter(emitter)
 	b := &bead.Bead{
 		ID:              "bead-1",
 		ExpectedOutputs: []string{"f1", "f2", "f3", "f4", "f5", "f6"},
@@ -554,12 +557,43 @@ func TestGateRunScopeGateLogsWhenAttemptingDecomposition(t *testing.T) {
 	if out.Decision != pipeline.Skip {
 		t.Fatalf("decision = %v, want %v", out.Decision, pipeline.Skip)
 	}
-	if !strings.Contains(output.String(), "attempting decomposition") {
-		t.Fatalf("output %q does not include decomposition attempt log", output.String())
+	if !d.called {
+		t.Fatalf("decomposer called = false, want true")
 	}
-	if !strings.Contains(output.String(), "decomposition succeeded") {
-		t.Fatalf("output %q does not include decomposition success log", output.String())
+
+	messages := collectLogMessages(t, ch, 2)
+	if !anyContains(messages, "attempting decomposition") {
+		t.Fatalf("messages %q do not include decomposition attempt log", messages)
 	}
+	if !anyContains(messages, "decomposition succeeded") {
+		t.Fatalf("messages %q do not include decomposition success log", messages)
+	}
+}
+
+func collectLogMessages(t *testing.T, ch <-chan events.Event, count int) []string {
+	t.Helper()
+	messages := make([]string, 0, count)
+	deadline := time.After(100 * time.Millisecond)
+	for len(messages) < count {
+		select {
+		case evt := <-ch:
+			if logEvt, ok := evt.(*events.LogEvent); ok {
+				messages = append(messages, logEvt.Message)
+			}
+		case <-deadline:
+			t.Fatalf("expected %d LogEvent(s), got %d", count, len(messages))
+		}
+	}
+	return messages
+}
+
+func anyContains(messages []string, substr string) bool {
+	for _, msg := range messages {
+		if strings.Contains(msg, substr) {
+			return true
+		}
+	}
+	return false
 }
 
 // TestGateScopeDecompositionErrorFallsBackToBlock verifies that when the LLM-powered

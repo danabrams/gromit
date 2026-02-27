@@ -1,7 +1,6 @@
 package epilogue_test
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 	epiloguepkg "github.com/danabrams/gromit/internal/pipeline/epilogue"
@@ -430,12 +430,17 @@ func TestEpilogue_DeduplicatesPendingBranchesBeforeMerge(t *testing.T) {
 
 func TestEpilogue_DeduplicatesRepeatedMergeWarningsAcrossIterations(t *testing.T) {
 	merger := &fakeWorktreeMerger{
-		branches:   []string{"gromit/review-1"},
-		mergeErr:   errors.New("merge conflict for branch gromit/review-1"),
+		branches: []string{"gromit/review-1"},
+		mergeErr: errors.New("merge conflict for branch gromit/review-1"),
 	}
-	var out bytes.Buffer
-	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, &out).
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
 		WithWorktree(merger)
+	stage.WithEmitter(emitter)
 
 	in := makeInput("bead-1", "Test", true)
 	if _, err := stage.Run(context.Background(), in); err != nil {
@@ -445,9 +450,10 @@ func TestEpilogue_DeduplicatesRepeatedMergeWarningsAcrossIterations(t *testing.T
 		t.Fatalf("second Run() error = %v, want nil", err)
 	}
 
-	got := strings.Count(out.String(), "Warning: failed to merge branch gromit/review-1")
+	messages := drainLogMessages(t, ch, 100*time.Millisecond)
+	got := countMessagesContaining(messages, "Warning: failed to merge branch gromit/review-1")
 	if got != 1 {
-		t.Fatalf("warning count = %d, want 1; output:\n%s", got, out.String())
+		t.Fatalf("warning count = %d, want 1; messages:\n%v", got, messages)
 	}
 }
 
@@ -911,8 +917,8 @@ func TestEpilogue_RemovesOrphanedWorktreesAfterMerge(t *testing.T) {
 	merger := &fakeWorktreeMerger{
 		branches: []string{"gromit/review-1234567890", "gromit/debug-9876543210"},
 		derivedPaths: map[string]string{
-			"gromit/review-1234567890":    "/repo-gromit-review-1234567890",
-			"gromit/debug-9876543210":     "/repo-gromit-debug-9876543210",
+			"gromit/review-1234567890": "/repo-gromit-review-1234567890",
+			"gromit/debug-9876543210":  "/repo-gromit-debug-9876543210",
 		},
 	}
 	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
@@ -972,10 +978,15 @@ func TestEpilogue_WorktreeRemovalErrorIsNonFatal(t *testing.T) {
 		removeByPathErr: errors.New("failed to remove worktree"),
 	}
 	remover := &fakePendingBranchRemover{}
-	var out bytes.Buffer
-	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, &out).
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
 		WithWorktree(merger).
 		WithPendingBranchRemover(remover)
+	stage.WithEmitter(emitter)
 
 	in := makeInput("bead-1", "Test", true)
 
@@ -992,9 +1003,9 @@ func TestEpilogue_WorktreeRemovalErrorIsNonFatal(t *testing.T) {
 		t.Errorf("removed branches = %v, want 1 branch removed", remover.removedBranches)
 	}
 
-	// Warning should be emitted for the removal failure
-	if !strings.Contains(out.String(), "Warning: failed to remove worktree") {
-		t.Errorf("output should contain warning about worktree removal failure, got:\n%s", out.String())
+	messages := drainLogMessages(t, ch, 100*time.Millisecond)
+	if countMessagesContaining(messages, "Warning: failed to remove worktree") == 0 {
+		t.Errorf("messages should contain warning about worktree removal failure, got:\n%v", messages)
 	}
 }
 
@@ -1068,4 +1079,35 @@ func TestEpilogue_WorktreeRemovalCallOrderAfterMerge(t *testing.T) {
 			t.Errorf("call order[%d] = %q, want %q", i, merger.callOrder[i], expected)
 		}
 	}
+}
+
+func drainLogMessages(t *testing.T, ch <-chan events.Event, timeout time.Duration) []string {
+	t.Helper()
+	var messages []string
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	for {
+		select {
+		case evt := <-ch:
+			if logEvt, ok := evt.(*events.LogEvent); ok {
+				messages = append(messages, logEvt.Message)
+			}
+			if !timer.Stop() {
+				<-timer.C
+			}
+			timer.Reset(timeout)
+		case <-timer.C:
+			return messages
+		}
+	}
+}
+
+func countMessagesContaining(messages []string, substr string) int {
+	count := 0
+	for _, msg := range messages {
+		if strings.Contains(msg, substr) {
+			count++
+		}
+	}
+	return count
 }
