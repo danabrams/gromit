@@ -19,6 +19,7 @@ Available Commands:
   init          Initialize gromit in the current project
   install-skill Install the Gromit orchestrator skill for Claude Code
   plan          Create an implementation plan from a spec
+  prs           Manage spec PRs
   queue         Show processing queue with model assignments
   refine        Refine ideas into structured specs
   retro         Run retrospective analysis
