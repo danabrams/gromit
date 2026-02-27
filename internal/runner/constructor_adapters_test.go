@@ -389,6 +389,42 @@ func TestDecomposerAdapterChildWithDedupeLabelExistsUsesBeadClient(t *testing.T)
 	}
 }
 
+func TestDecomposerAdapterChildWithDedupeLabelExistsContextVersion_ThreadsProvidedContext(t *testing.T) {
+	t.Parallel()
+
+	// Create a custom context with a value to verify it's threaded through
+	testValue := "test-context-value"
+	customCtx := context.WithValue(context.Background(), "test-key", testValue)
+
+	var capturedCtx context.Context
+	adapter := &decomposerAdapter{
+		beads: &fakeBeadClient{
+			listFn: func(ctx context.Context, label string) ([]*bead.Bead, error) {
+				capturedCtx = ctx
+				if label != "scope_decomp:foo" {
+					t.Fatalf("label = %q, want scope_decomp:foo", label)
+				}
+				return []*bead.Bead{
+					{ID: "child-1", Parent: "parent-1", Labels: []string{label}},
+				}, nil
+			},
+		},
+	}
+
+	exists, err := adapter.childWithDedupeLabelExistsContextVersion(customCtx, "parent-1", "scope_decomp:foo")
+	if err != nil {
+		t.Fatalf("childWithDedupeLabelExistsContextVersion returned error: %v", err)
+	}
+	if !exists {
+		t.Fatalf("expected child to exist")
+	}
+
+	// Verify the context was threaded through
+	if capturedCtx.Value("test-key") != testValue {
+		t.Fatal("context value not found in captured context - childWithDedupeLabelExistsContextVersion not threading context properly")
+	}
+}
+
 type fakeBeadClient struct {
 	listFn func(ctx context.Context, label string) ([]*bead.Bead, error)
 }
