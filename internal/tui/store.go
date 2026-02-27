@@ -18,12 +18,13 @@ type Store struct {
 
 // DashboardState captures the fields needed to render the dashboard view.
 type DashboardState struct {
-	RunnerStatus   *runner.Status
-	PipelineStatus *pipeline.PipelineStatus
-	RunProgress    *RunProgress
-	ActivePhase    *ActivePhase
-	LastHydration  time.Time
-	Warnings       []string
+	RunnerStatus       *runner.Status
+	PipelineStatus    *pipeline.PipelineStatus
+	RunProgress       *RunProgress
+	ActivePhase       *ActivePhase
+	RecentCompletions []*Completion
+	LastHydration     time.Time
+	Warnings          []string
 }
 
 // RunProgress tracks the current progress through a run.
@@ -40,6 +41,14 @@ type ActivePhase struct {
 	BeadTitle string
 	Phase     string
 	StartTime time.Time
+}
+
+// Completion tracks a recently completed or failed bead.
+type Completion struct {
+	BeadID    string
+	BeadTitle string
+	Status    string // completed, failed, stuck
+	Time      time.Time
 }
 
 // QueueState tracks the queue snapshot visible in the queue view.
@@ -93,5 +102,33 @@ func (s *Store) OnIterationComplete(event *events.IterationCompleteEvent) {
 	s.Dashboard.RunProgress.CurrentIteration++
 	if s.Dashboard.RunProgress.MaxIterations > 0 {
 		s.Dashboard.RunProgress.IterationPercent = (s.Dashboard.RunProgress.CurrentIteration * 100) / s.Dashboard.RunProgress.MaxIterations
+	}
+}
+
+// OnBeadComplete updates the store when a bead completes successfully.
+func (s *Store) OnBeadComplete(event *events.BeadCompleteEvent) {
+	s.addRecentCompletion(&Completion{
+		BeadID:    event.BeadID,
+		BeadTitle: event.BeadTitle,
+		Status:    "completed",
+		Time:      event.EventTime(),
+	})
+}
+
+// OnBeadFailed updates the store when a bead fails.
+func (s *Store) OnBeadFailed(event *events.BeadFailedEvent) {
+	s.addRecentCompletion(&Completion{
+		BeadID:    event.BeadID,
+		BeadTitle: event.BeadTitle,
+		Status:    "failed",
+		Time:      event.EventTime(),
+	})
+}
+
+// addRecentCompletion adds a completion to the recent list, keeping only the 10 most recent.
+func (s *Store) addRecentCompletion(completion *Completion) {
+	s.Dashboard.RecentCompletions = append(s.Dashboard.RecentCompletions, completion)
+	if len(s.Dashboard.RecentCompletions) > 10 {
+		s.Dashboard.RecentCompletions = s.Dashboard.RecentCompletions[1:]
 	}
 }
