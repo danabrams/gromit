@@ -1,6 +1,9 @@
 package queue
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/logger"
 )
@@ -46,4 +49,48 @@ func FindStuckBeadIDs(beadStats map[string]logger.BeadStats, threshold int) map[
 		}
 	}
 	return stuck
+}
+
+// GetReason returns a human-readable reason why a bead is blocked.
+func GetReason(b *bead.Bead, allBeads []*bead.Bead) string {
+	if b == nil {
+		return "unknown"
+	}
+
+	if b.Parent != "" {
+		// Check if parent still exists in open beads
+		for _, openB := range allBeads {
+			if openB.ID == b.Parent {
+				return fmt.Sprintf("blocked by: %s", b.Parent)
+			}
+		}
+		return fmt.Sprintf("blocked by parent: %s", b.Parent)
+	}
+
+	if depIDs := dependencyIDs(b.BlockedBy); len(depIDs) > 0 {
+		return fmt.Sprintf("blocked by: %s", strings.Join(depIDs, ", "))
+	}
+	if depIDs := dependencyIDs(b.DependsOn); len(depIDs) > 0 {
+		return fmt.Sprintf("blocked by: %s", strings.Join(depIDs, ", "))
+	}
+	if depIDs := dependencyIDs(b.Dependencies); len(depIDs) > 0 {
+		return fmt.Sprintf("blocked by: %s", strings.Join(depIDs, ", "))
+	}
+	if b.DependencyCount != nil && *b.DependencyCount > 0 {
+		return fmt.Sprintf("blocked by %d dependencies", *b.DependencyCount)
+	}
+
+	return "dependencies unresolved"
+}
+
+// dependencyIDs extracts IDs from a list of dependencies.
+func dependencyIDs(deps []bead.Dependency) []string {
+	ids := make([]string, 0, len(deps))
+	for _, dep := range deps {
+		if strings.TrimSpace(dep.ID) == "" {
+			continue
+		}
+		ids = append(ids, dep.ID)
+	}
+	return ids
 }
