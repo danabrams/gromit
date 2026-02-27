@@ -32,14 +32,31 @@ func TestAddCommand_UsesPipelineAdd(t *testing.T) {
 		}, nil
 	}
 
-	stdout, stderr, exitCode := runGromitWithStdin(t, "\n", "add", "Test idea")
-	if exitCode != 0 {
-		t.Fatalf("gromit add exited with code %d\nstdout: %s\nstderr: %s", exitCode, stdout, stderr)
+	stdin := os.Stdin
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create pipe: %v", err)
 	}
+	if _, err := w.Write([]byte("\n")); err != nil {
+		t.Fatalf("failed to write to stdin pipe: %v", err)
+	}
+	w.Close()
+	os.Stdin = r
+	defer func() {
+		os.Stdin = stdin
+	}()
+
+	output := captureStdout(t, func() {
+		rootCmd.SetArgs([]string{"add", "Test idea"})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("gromit add failed: %v", err)
+		}
+	})
 
 	if !called {
 		t.Fatal("pipeline Add handler was not invoked")
 	}
+
 	if captured.Text != "Test idea" {
 		t.Fatalf("AddInput.Text = %q, want %q", captured.Text, "Test idea")
 	}
@@ -47,14 +64,11 @@ func TestAddCommand_UsesPipelineAdd(t *testing.T) {
 		t.Fatalf("AddInput.Context = %q, want empty", captured.Context)
 	}
 
-	if !strings.Contains(stdout, "Added to backlog (feature)") {
-		t.Fatalf("stdout missing confirmation message: %s", stdout)
+	if !strings.Contains(output, "Added to backlog (feature)") {
+		t.Fatalf("stdout missing confirmation message: %s", output)
 	}
-	if !strings.Contains(stdout, "Test idea") {
-		t.Fatalf("stdout missing idea text: %s", stdout)
-	}
-	if stderr != "" {
-		t.Fatalf("expected no stderr output, got %q", stderr)
+	if !strings.Contains(output, "Test idea") {
+		t.Fatalf("stdout missing idea text: %s", output)
 	}
 }
 

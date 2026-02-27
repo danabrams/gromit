@@ -2,13 +2,16 @@ package main
 
 import (
 	"bufio"
+	"context"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
-	"github.com/danabrams/gromit/internal/backlog"
+	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/spf13/cobra"
 )
 
@@ -32,81 +35,81 @@ func init() {
 	rootCmd.AddCommand(addCmd)
 }
 
+var addHandler = defaultAddHandler
+
 func runAdd(cmd *cobra.Command, args []string) error {
 	ideaText := args[0]
 
-	// Get .gromit directory from config or default
 	cfg, err := loadConfig()
 	if err != nil {
 		if !os.IsNotExist(err) {
-			// If config exists but can't be loaded, show error
 			return fmt.Errorf("loading config: %w", err)
 		}
-		// If config doesn't exist, use default .gromit
 		cfg = nil
 	}
 	gromitDir := resolveGromitDir(cfg)
 
-	// Auto-categorize
-	ideaType := backlog.CategorizeIdea(ideaText)
-
-	// If unknown, ask user
-	if ideaType == "unknown" {
-		fmt.Println("What type of idea is this?")
-		fmt.Println("  1. Feature - New functionality")
-		fmt.Println("  2. Bug - Something broken to fix")
-		fmt.Println("  3. Chore - Refactor, update, or maintenance")
-		fmt.Print("\nChoice [1-3]: ")
-
-		var choice string
-		fmt.Scanln(&choice)
-		choice = strings.TrimSpace(choice)
-
-		switch choice {
-		case "1":
-			ideaType = "feature"
-		case "2":
-			ideaType = "bug"
-		case "3":
-			ideaType = "chore"
-		default:
-			fmt.Println("Invalid choice, defaulting to 'feature'")
-			ideaType = "feature"
-		}
-	}
-
-	// Ask for optional context
 	fmt.Print("\nAny additional context? (optional, press Enter to skip): ")
 	scanner := bufio.NewScanner(os.Stdin)
-	var context string
+	var contextText string
 	if scanner.Scan() {
-		context = strings.TrimSpace(scanner.Text())
+		contextText = strings.TrimSpace(scanner.Text())
 	}
 
-	// Create idea
-	idea := &backlog.Idea{
-		ID:        backlog.GenerateID(),
-		Text:      ideaText,
-		Type:      ideaType,
-		Context:   context,
-		CreatedAt: time.Now(),
+	input := pipeline.AddInput{
+		Text:    ideaText,
+		Context: contextText,
 	}
 
-	// Save to backlog
-	bf, err := backlog.NewFile(gromitDir)
+	result, err := addHandler(cmd.Context(), cfg, gromitDir, input)
+	if errors.Is(err, pipeline.ErrUnknownIdeaType) {
+		input.Type = promptIdeaType(os.Stdin)
+		result, err = addHandler(cmd.Context(), cfg, gromitDir, input)
+	}
 	if err != nil {
-		return fmt.Errorf("creating backlog file: %w", err)
-	}
-	if err := bf.Add(idea); err != nil {
-		return fmt.Errorf("saving to backlog: %w", err)
+		return err
 	}
 
-	// Confirm
-	fmt.Printf("\n✓ Added to backlog (%s): %s\n", ideaType, ideaText)
-	if context != "" {
-		fmt.Printf("  Context: %s\n", context)
+	fmt.Printf("\n✓ Added to backlog (%s): %s\n", result.Type, result.Idea.Text)
+	if contextText != "" {
+		fmt.Printf("  Context: %s\n", contextText)
 	}
 	fmt.Printf("  Saved to: %s\n", filepath.Join(gromitDir, "backlog.jsonl"))
 
 	return nil
+}
+
+func promptIdeaType(reader io.Reader) string {
+	fmt.Println("What type of idea is this?")
+	fmt.Println("  1. Feature - New functionality")
+	fmt.Println("  2. Bug - Something broken to fix")
+	fmt.Println("  3. Chore - Refactor, update, or maintenance")
+	fmt.Print("\nChoice [1-3]: ")
+
+	lineReader := bufio.NewReader(reader)
+	choice, err := lineReader.ReadString('\n')
+	if err != nil {
+		fmt.Println("Invalid choice, defaulting to 'feature'")
+		return "feature"
+	}
+
+	switch strings.TrimSpace(choice) {
+	case "1":
+		return "feature"
+	case "2":
+		return "bug"
+	case "3":
+		return "chore"
+	default:
+		fmt.Println("Invalid choice, defaulting to 'feature'")
+		return "feature"
+	}
+}
+
+func defaultAddHandler(ctx context.Context, cfg *config.Config, gromitDir string, input pipeline.AddInput) (*pipeline.AddResult, error) {
+	p, err := newPipeline(cfg, gromitDir)
+	if err != nil {
+		return nil, fmt.Errorf("creating pipeline: %w", err)
+	}
+	return p.Add(ctx, input)
 }
