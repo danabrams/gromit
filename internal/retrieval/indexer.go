@@ -32,6 +32,15 @@ func (i *Indexer) Build(req BuildRequest) (BuildResponse, error) {
 	return BuildResponse{Metadata: metadata}, nil
 }
 
+// Refresh applies incremental updates to an existing index snapshot.
+func (i *Indexer) Refresh(req RefreshRequest) (BuildResponse, error) {
+	metadata := req.Metadata
+	metadata.DocumentCount += len(req.AddedDocuments)
+	metadata.Version++
+	metadata.LastUpdated = i.now()
+	return BuildResponse{Metadata: metadata}, nil
+}
+
 func computeID(documents []string) string {
 	sorted := append([]string(nil), documents...)
 	sort.Strings(sorted)

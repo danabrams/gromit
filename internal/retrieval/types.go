@@ -7,6 +7,12 @@ type BuildRequest struct {
 	Documents []string
 }
 
+// RefreshRequest represents incremental changes applied to an existing index.
+type RefreshRequest struct {
+	Metadata       IndexMetadata
+	AddedDocuments []string
+}
+
 // BuildResponse exposes metadata about a completed index build.
 type BuildResponse struct {
 	Metadata IndexMetadata
