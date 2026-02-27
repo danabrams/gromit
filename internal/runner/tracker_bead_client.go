@@ -2,7 +2,6 @@ package runner
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -235,19 +234,4 @@ func buildTrackerCreateRequest(title string, priority int, labels, outputs []str
 		req.Metadata["expected_outputs"] = encoded
 	}
 	return req
-}
-
-func encodeJSONStrings(values []string) (string, bool) {
-	if len(values) == 0 {
-		return "", false
-	}
-	data, err := json.Marshal(values)
-	if err != nil {
-		return "", false
-	}
-	trimmed := strings.TrimSpace(string(data))
-	if trimmed == "" || trimmed == "null" || trimmed == "[]" {
-		return "", false
-	}
-	return trimmed, true
 }
