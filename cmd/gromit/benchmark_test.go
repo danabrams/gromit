@@ -1717,3 +1717,17 @@ func TestBenchmarkPhase4ReportCommand_RequiresLogPath(t *testing.T) {
 		t.Fatalf("stderr = %q, want mention of --log", stderr)
 	}
 }
+
+func TestBenchmarkPhase4ReportCommand_RejectsInvalidTimestamp(t *testing.T) {
+	_, stderr, exitCode := runGromitCobra(t,
+		"benchmark", "phase4-report",
+		"--log", "phase4.jsonl",
+		"--output-ts", "not-a-ts",
+	)
+	if exitCode == 0 {
+		t.Fatalf("exitCode = %d, want non-zero", exitCode)
+	}
+	if !strings.Contains(stderr, "--output-ts") {
+		t.Fatalf("stderr = %q, want mention of --output-ts", stderr)
+	}
+}
