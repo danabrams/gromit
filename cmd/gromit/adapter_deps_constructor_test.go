@@ -4,15 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
-	"github.com/danabrams/gromit/internal/agent"
-	"github.com/danabrams/gromit/internal/backlog"
-	"github.com/danabrams/gromit/internal/bead"
-	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/pipeline"
-	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/pipeline" // Used in deps type inference and in t.Errorf message
 )
 
 // TestNewPipelineDeps_ConstructsCompleteConfig verifies that a dependency injection function
@@ -41,6 +35,7 @@ func TestNewPipelineDeps_ConstructsCompleteConfig(t *testing.T) {
 
 	// Verify all fields are non-nil
 	if deps == nil {
+		var _ *pipeline.Deps // Ensure pipeline package is imported
 		t.Fatal("NewPipelineDeps returned nil deps")
 	}
 
@@ -70,93 +65,4 @@ func TestNewPipelineDeps_ConstructsCompleteConfig(t *testing.T) {
 			t.Errorf("pipeline.Deps.%s is nil", tt.name)
 		}
 	}
-}
-
-// NewPipelineDeps constructs a complete pipeline.Deps with all adapters wired together.
-// This is the single dependency injection point for the entire pipeline.
-func NewPipelineDeps(cfg *config.Config, gromitDir string) (*pipeline.Deps, error) {
-	// Create all required adapters
-
-	// LLM clients
-	llmTimeoutSecs, _, _, _ := cfg.Claude.TimeoutsForModel("haiku")
-	claudeClient, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, llmTimeoutSecs)
-	if err != nil {
-		return nil, err
-	}
-	claudeAdapter := &claudeClientAdapter{
-		Client:  claudeClient,
-		Timeout: time.Duration(llmTimeoutSecs) * time.Second,
-	}
-
-	// Agent resolver
-	agentResolver := agent.NewResolver(cfg)
-
-	// Tracker client - wrap bead client with tracker adapter
-	beadClient, err := bead.NewClient()
-	if err != nil {
-		return nil, err
-	}
-	bdAdapter := bead.NewBDAdapter(beadClient)
-	trackerAdapter := &trackerClientAdapter{
-		Client: bdAdapter,
-	}
-
-	// Backlog client
-	backlogFile, err := backlog.NewFile(gromitDir)
-	if err != nil {
-		return nil, err
-	}
-	backlogClient := &backlogClientAdapter{
-		file: backlogFile,
-	}
-	backlogWriter := &cliBacklogClient{
-		beadClient: beadClient,
-	}
-
-	// Prompt renderers
-	templatesDir := filepath.Join(gromitDir, "templates")
-	specsDir := filepath.Join(gromitDir, "specs")
-	claudeMDPath := filepath.Join(gromitDir, "CLAUDE.md")
-	promptRenderer, err := prompt.NewRenderer(templatesDir, specsDir, claudeMDPath, gromitDir)
-	if err != nil {
-		return nil, err
-	}
-
-	refineRenderer := &refinePromptRenderer{renderer: promptRenderer}
-	planRenderer := &planPromptRenderer{renderer: promptRenderer}
-	decomposeRenderer := &decomposePromptRenderer{renderer: promptRenderer}
-	reviewRenderer := &cliPromptRenderer{renderer: promptRenderer}
-	exploreRenderer := &explorePromptRenderer{renderer: promptRenderer}
-
-	// Learning and state managers
-	learningsManager := &cliLearningsManager{
-		gromitDir: gromitDir,
-		runner:    nil, // Will be injected by caller
-	}
-	stateManager := &cliStateManager{
-		gromitDir: gromitDir,
-	}
-
-	// Log writer
-	logWriter := &cliLogWriter{
-		logsDir:                   filepath.Join(gromitDir, "logs"),
-		promptDiagnosticsProvider: nil, // Will be injected by caller
-	}
-
-	return &pipeline.Deps{
-		AgentResolver:     agentResolver,
-		LLMClient:         claudeAdapter,
-		ReviewInvoker:     claudeAdapter,
-		TrackerClient:     trackerAdapter,
-		BacklogClient:     backlogClient,
-		BacklogWriter:     backlogWriter,
-		RefineRenderer:    refineRenderer,
-		PlanRenderer:      planRenderer,
-		DecomposeRenderer: decomposeRenderer,
-		ReviewRenderer:    reviewRenderer,
-		ExploreRenderer:   exploreRenderer,
-		LearningsManager:  learningsManager,
-		StateManager:      stateManager,
-		LogWriter:         logWriter,
-	}, nil
 }
