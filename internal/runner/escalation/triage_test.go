@@ -110,7 +110,7 @@ func TestTriage(t *testing.T) {
 				Layer:       LayerEnvironment,
 				SubCategory: "resource_exhausted",
 				Detail:      "fork/exec /usr/bin/git: resource temporarily unavailable",
-				Retryable:   false,
+				Retryable:   true,
 			},
 		},
 		{

@@ -1998,6 +1998,51 @@ func TestExecuteWithRetry_TriageEnvironmentStopsWithActionableErrorWithoutAnalyz
 	}
 }
 
+func TestExecuteWithRetry_TriageRetryableEnvironmentRetriesWithoutAnalyzer(t *testing.T) {
+	t.Parallel()
+	mfa := &mockFailureAnalyzer{
+		analyzeFn: func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error) {
+			t.Fatal("analyzer should not run for retryable environment triage")
+			return nil, nil
+		},
+	}
+	cfg := newTestConfig()
+	h := NewHandler(cfg, mfa, &mockBeadClient{}, nil, nil, nil, nil)
+	h.sleepFn = func(context.Context, time.Duration) error { return nil }
+
+	bc := newTestBeadContext()
+	invokeCalls := 0
+	invokeFn := func(ctx context.Context, bc *runtypes.BeadContext, prompt string) (*runtypes.InvocationResult, error) {
+		invokeCalls++
+		if invokeCalls == 1 {
+			return &runtypes.InvocationResult{
+				Result: &claude.Result{Success: false, Output: "fork unavailable"},
+				ProviderResult: &provider.Result{
+					Stderr: "fork/exec /usr/bin/git: resource temporarily unavailable",
+				},
+			}, nil
+		}
+		return &runtypes.InvocationResult{
+			Result:         &claude.Result{Success: true, Output: "ok"},
+			ProviderResult: &provider.Result{Success: true, Output: "ok"},
+		}, nil
+	}
+
+	success := h.ExecuteWithRetry(context.Background(), bc, invokeFn)
+	if !success {
+		t.Fatal("expected retryable environment failure to retry and succeed")
+	}
+	if invokeCalls != 2 {
+		t.Fatalf("invoke calls=%d, want 2", invokeCalls)
+	}
+	if mfa.analyzeCalls != 0 {
+		t.Fatalf("Analyze calls=%d, want 0", mfa.analyzeCalls)
+	}
+	if bc.TotalRetriesThisBead != 1 {
+		t.Fatalf("TotalRetriesThisBead=%d, want 1", bc.TotalRetriesThisBead)
+	}
+}
+
 func TestExecuteWithRetry_TriageCodeLayerCallsAnalyzer(t *testing.T) {
 	t.Parallel()
 	mfa := &mockFailureAnalyzer{
@@ -3033,7 +3078,7 @@ func TestExecuteWithRetry_MaxDepthAtomicEnforcement(t *testing.T) {
 	t.Parallel()
 
 	cfg := newTestConfig()
-	cfg.Escalation.MaxRetriesPerModel = 2 // L1: 2 retries before escalation
+	cfg.Escalation.MaxRetriesPerModel = 2               // L1: 2 retries before escalation
 	cfg.Routing.CostOptimized.MaxDecompositionDepth = 1 // Set maxDepth=1 so parent (depth=1) is at limit
 
 	// Track calls

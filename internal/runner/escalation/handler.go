@@ -67,6 +67,7 @@ type Handler struct {
 	createSubFn           CreateSubFn
 	logFn                 LogFn
 	showPartialProgressFn ShowPartialProgressFn
+	sleepFn               func(context.Context, time.Duration) error
 }
 
 // NewHandler creates a Handler with narrow dependency interfaces.
@@ -79,6 +80,7 @@ func NewHandler(cfg *config.Config, analyzer FailureAnalyzer, beadClient BeadCli
 		createSubFn:           createSubFn,
 		logFn:                 logFn,
 		showPartialProgressFn: showPartialProgressFn,
+		sleepFn:               sleepWithContext,
 	}
 }
 
@@ -326,7 +328,7 @@ func (h *Handler) HandleBeadTimeout(bc *runtypes.BeadContext) (continueLoop bool
 	return continueLoop
 }
 
-func (h *Handler) handleTriageResult(bc *runtypes.BeadContext, triageResult *TriageResult) (continueLoop bool, handled bool) {
+func (h *Handler) handleTriageResult(ctx context.Context, bc *runtypes.BeadContext, triageResult *TriageResult) (continueLoop bool, handled bool) {
 	if triageResult == nil {
 		return false, false
 	}
@@ -335,6 +337,9 @@ func (h *Handler) handleTriageResult(bc *runtypes.BeadContext, triageResult *Tri
 	case LayerProviderTransport:
 		return h.handleProviderTransportTriage(bc, triageResult)
 	case LayerEnvironment:
+		if triageResult.Retryable {
+			return h.handleRetryableEnvironmentTriage(ctx, bc, triageResult)
+		}
 		bc.Result.Error = fmt.Errorf("environment error: %s", triageResult.Detail)
 		h.setBuildFailurePhase(bc)
 		return false, true
@@ -347,6 +352,45 @@ func (h *Handler) handleTriageResult(bc *runtypes.BeadContext, triageResult *Tri
 		return false, false
 	default:
 		return false, false
+	}
+}
+
+func (h *Handler) handleRetryableEnvironmentTriage(ctx context.Context, bc *runtypes.BeadContext, triageResult *TriageResult) (continueLoop bool, handled bool) {
+	if bc.MaxRetriesPerBead > 0 && bc.TotalRetriesThisBead >= bc.MaxRetriesPerBead {
+		bc.Result.Error = fmt.Errorf("environment error: exceeded max retries per bead (%d): %s", bc.MaxRetriesPerBead, triageResult.Detail)
+		h.setBuildFailurePhase(bc)
+		return false, true
+	}
+	bc.RetriesThisModel++
+	bc.TotalRetriesThisBead++
+	backoff := triageRetryBackoff(bc.TotalRetriesThisBead - 1)
+	if sleepErr := h.sleepFn(ctx, backoff); sleepErr != nil {
+		bc.Result.Error = fmt.Errorf("environment error: retry backoff interrupted: %w", sleepErr)
+		h.setBuildFailurePhase(bc)
+		return false, true
+	}
+	return true, true
+}
+
+func triageRetryBackoff(attempt int) time.Duration {
+	switch attempt {
+	case 0:
+		return 250 * time.Millisecond
+	case 1:
+		return 750 * time.Millisecond
+	default:
+		return 1500 * time.Millisecond
+	}
+}
+
+func sleepWithContext(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
 	}
 }
 
@@ -681,7 +725,7 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 		}
 
 		triageResult := Triage(invResult, bc)
-		if continueLoop, handled := h.handleTriageResult(bc, triageResult); handled {
+		if continueLoop, handled := h.handleTriageResult(ctx, bc, triageResult); handled {
 			if continueLoop {
 				continue
 			}

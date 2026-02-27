@@ -2,6 +2,7 @@ package procutil
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"strings"
@@ -176,4 +177,68 @@ func mustAtoi(t *testing.T, s string) int {
 		n = n*10 + int(c-'0')
 	}
 	return n
+}
+
+func TestParsePIDCount(t *testing.T) {
+	got, err := parsePIDCount("42\n")
+	if err != nil {
+		t.Fatalf("parsePIDCount() error = %v", err)
+	}
+	if got != 42 {
+		t.Fatalf("parsePIDCount() = %d, want 42", got)
+	}
+}
+
+func TestParsePIDLimitUnlimited(t *testing.T) {
+	got, unlimited, err := parsePIDLimit("max\n")
+	if err != nil {
+		t.Fatalf("parsePIDLimit() error = %v", err)
+	}
+	if !unlimited {
+		t.Fatal("parsePIDLimit() unlimited = false, want true")
+	}
+	if got != 0 {
+		t.Fatalf("parsePIDLimit() count = %d, want 0", got)
+	}
+}
+
+func TestParsePIDLimitNumeric(t *testing.T) {
+	got, unlimited, err := parsePIDLimit("12000")
+	if err != nil {
+		t.Fatalf("parsePIDLimit() error = %v", err)
+	}
+	if unlimited {
+		t.Fatal("parsePIDLimit() unlimited = true, want false")
+	}
+	if got != 12000 {
+		t.Fatalf("parsePIDLimit() count = %d, want 12000", got)
+	}
+}
+
+func TestWaitForProcessCapacityReturnsImmediatelyWhenNotPressured(t *testing.T) {
+	original := processCreationPressuredFn
+	processCreationPressuredFn = func() (bool, error) { return false, nil }
+	t.Cleanup(func() {
+		processCreationPressuredFn = original
+	})
+
+	if err := WaitForProcessCapacity(context.Background(), 50*time.Millisecond); err != nil {
+		t.Fatalf("WaitForProcessCapacity() error = %v, want nil", err)
+	}
+}
+
+func TestWaitForProcessCapacityHonorsContextCancel(t *testing.T) {
+	original := processCreationPressuredFn
+	processCreationPressuredFn = func() (bool, error) { return true, nil }
+	t.Cleanup(func() {
+		processCreationPressuredFn = original
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := WaitForProcessCapacity(ctx, 50*time.Millisecond)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("WaitForProcessCapacity() error = %v, want context.Canceled", err)
+	}
 }

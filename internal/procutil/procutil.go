@@ -1,6 +1,7 @@
 package procutil
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -8,12 +9,21 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 )
 
 // MaxGoParallelism controls the GOMAXPROCS value propagated to subprocesses.
 // This limits how many threads/processes tools like `go test`, `go build`,
 // and `go vet` spawn, preventing cgroup PID exhaustion during long runs.
 const MaxGoParallelism = "4"
+
+const (
+	processPressureThreshold      = 0.90
+	processPressurePollInterval   = 100 * time.Millisecond
+	defaultProcessCapacityMaxWait = 1500 * time.Millisecond
+)
+
+var processCreationPressuredFn = processCreationPressured
 
 // SetProcessGroupKill configures cmd to create a new process group and kill
 // the entire group on context cancellation. This prevents orphaned child
@@ -118,4 +128,113 @@ func SubprocessEnv() []string {
 		env = append(env, "GOMAXPROCS="+MaxGoParallelism)
 	}
 	return env
+}
+
+// WaitForProcessCapacity pauses briefly when the current cgroup is near its PID
+// limit, reducing fork/exec EAGAIN spikes during process bursts. Best effort:
+// if cgroup metrics are unavailable, it returns immediately.
+func WaitForProcessCapacity(ctx context.Context, maxWait time.Duration) error {
+	if maxWait <= 0 {
+		maxWait = defaultProcessCapacityMaxWait
+	}
+
+	deadline := time.Now().Add(maxWait)
+	for {
+		pressured, err := processCreationPressuredFn()
+		if err != nil || !pressured {
+			return nil
+		}
+
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return nil
+		}
+		wait := processPressurePollInterval
+		if remaining < wait {
+			wait = remaining
+		}
+
+		timer := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+}
+
+func processCreationPressured() (bool, error) {
+	current, max, err := readCgroupPIDUsage()
+	if err != nil {
+		return false, err
+	}
+	if max <= 0 || current < 0 {
+		return false, nil
+	}
+	return float64(current)/float64(max) >= processPressureThreshold, nil
+}
+
+func readCgroupPIDUsage() (current int, max int, err error) {
+	cgroupPath, err := currentCgroupPath()
+	if err != nil {
+		return 0, 0, err
+	}
+	root := filepath.Join("/sys/fs/cgroup", strings.TrimPrefix(filepath.Clean(cgroupPath), "/"))
+	currentBytes, err := os.ReadFile(filepath.Join(root, "pids.current"))
+	if err != nil {
+		return 0, 0, err
+	}
+	maxBytes, err := os.ReadFile(filepath.Join(root, "pids.max"))
+	if err != nil {
+		return 0, 0, err
+	}
+
+	current, err = parsePIDCount(string(currentBytes))
+	if err != nil {
+		return 0, 0, err
+	}
+	max, unlimited, err := parsePIDLimit(string(maxBytes))
+	if err != nil {
+		return 0, 0, err
+	}
+	if unlimited {
+		return current, 0, nil
+	}
+	return current, max, nil
+}
+
+func currentCgroupPath() (string, error) {
+	data, err := os.ReadFile("/proc/self/cgroup")
+	if err != nil {
+		return "", err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "::", 2)
+		if len(parts) == 2 {
+			return parts[1], nil
+		}
+	}
+	return "", fmt.Errorf("unable to determine cgroup path")
+}
+
+func parsePIDCount(raw string) (int, error) {
+	value := strings.TrimSpace(raw)
+	return strconv.Atoi(value)
+}
+
+func parsePIDLimit(raw string) (int, bool, error) {
+	value := strings.TrimSpace(raw)
+	if value == "max" {
+		return 0, true, nil
+	}
+	count, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, false, err
+	}
+	return count, false, nil
 }

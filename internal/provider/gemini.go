@@ -8,13 +8,15 @@ import (
 	"io"
 	"os/exec"
 	"time"
+
+	"github.com/danabrams/gromit/internal/procutil"
 )
 
 const (
-	providerNameGemini            = "gemini"
-	geminiShortPromptThreshold    = 8192 // Use -p flag for prompts under this size. ARG_MAX on Linux is ~2MB, so 8KB is a practical limit.
+	providerNameGemini         = "gemini"
+	geminiShortPromptThreshold = 8192 // Use -p flag for prompts under this size. ARG_MAX on Linux is ~2MB, so 8KB is a practical limit.
+	geminiProcessCapacityWait  = 1500 * time.Millisecond
 )
-
 
 // GeminiProvider wraps the Gemini CLI and implements the Provider interface
 // for JSON and streaming invocations.
@@ -318,6 +320,9 @@ func defaultGeminiRunFn(ctx context.Context, binary string, args []string, promp
 			return nil, fmt.Errorf("failed to create stdin pipe: %w", err)
 		}
 
+		if waitErr := procutil.WaitForProcessCapacity(ctx, geminiProcessCapacityWait); waitErr != nil {
+			return nil, fmt.Errorf("waiting for process capacity: %w", waitErr)
+		}
 		if err := cmd.Start(); err != nil {
 			return nil, fmt.Errorf("failed to start gemini command: %w", err)
 		}
@@ -351,6 +356,9 @@ func defaultGeminiRunFn(ctx context.Context, binary string, args []string, promp
 	}
 
 	// Inline -p flag path: prompt is already in args, no stdin needed
+	if waitErr := procutil.WaitForProcessCapacity(ctx, geminiProcessCapacityWait); waitErr != nil {
+		return nil, fmt.Errorf("waiting for process capacity: %w", waitErr)
+	}
 	if startErr := cmd.Start(); startErr != nil {
 		return nil, fmt.Errorf("failed to start gemini command: %w", startErr)
 	}
