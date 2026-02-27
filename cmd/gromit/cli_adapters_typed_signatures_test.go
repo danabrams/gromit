@@ -176,6 +176,32 @@ func TestAdapters_NoMapConstructionForPrompts(t *testing.T) {
 	}
 }
 
+// TestCliAdapters_DefinitionsLocatedInAdapterFile ensures key adapters live in cli_adapters.go.
+func TestCliAdapters_DefinitionsLocatedInAdapterFile(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(".", "cli_adapters.go")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading cli_adapters.go: %v", err)
+	}
+	contentStr := string(content)
+
+	requiredTypes := []string{
+		"type cliBacklogClient struct",
+		"type cliLearningsManager struct",
+		"type pipelineLearningsRunnerAdapter struct",
+		"type cliLogWriter struct",
+		"type cliStateManager struct",
+	}
+
+	for _, typeDecl := range requiredTypes {
+		if !strings.Contains(contentStr, typeDecl) {
+			t.Errorf("cli_adapters.go should define %s", typeDecl)
+		}
+	}
+}
+
 // TestDecomposeWorkflow_NoReflectImport verifies decompose.go doesn't import reflect package
 func TestDecomposeWorkflow_NoReflectImport(t *testing.T) {
 	t.Parallel()
