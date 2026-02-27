@@ -82,3 +82,32 @@ func TestOnIterationStart_UpdatesActivePhase(t *testing.T) {
 		t.Fatalf("BeadTitle = %q, want %q", store.Dashboard.ActivePhase.BeadTitle, "Test Feature")
 	}
 }
+
+func TestOnIterationComplete_UpdatesProgressPercentage(t *testing.T) {
+	t.Parallel()
+
+	store := &Store{
+		Dashboard: DashboardState{
+			RunProgress: &RunProgress{
+				CurrentIteration: 1,
+				MaxIterations:    5,
+			},
+		},
+	}
+	event := &events.IterationCompleteEvent{
+		Iteration: 1,
+		BeadID:    "bead-123",
+		Success:   true,
+		Duration:  5 * time.Second,
+		Time:      time.Unix(2000, 0),
+	}
+
+	store.OnIterationComplete(event)
+
+	if store.Dashboard.RunProgress.CurrentIteration != 2 {
+		t.Fatalf("CurrentIteration = %d, want 2", store.Dashboard.RunProgress.CurrentIteration)
+	}
+	if store.Dashboard.RunProgress.IterationPercent != 40 {
+		t.Fatalf("IterationPercent = %d, want 40", store.Dashboard.RunProgress.IterationPercent)
+	}
+}
