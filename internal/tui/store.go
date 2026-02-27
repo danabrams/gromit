@@ -21,6 +21,7 @@ type DashboardState struct {
 	RunnerStatus   *runner.Status
 	PipelineStatus *pipeline.PipelineStatus
 	RunProgress    *RunProgress
+	ActivePhase    *ActivePhase
 	LastHydration  time.Time
 	Warnings       []string
 }
@@ -31,6 +32,14 @@ type RunProgress struct {
 	MaxIterations    int
 	IterationPercent int
 	Status           string // running, completed, failed
+}
+
+// ActivePhase tracks the currently active bead and phase.
+type ActivePhase struct {
+	BeadID    string
+	BeadTitle string
+	Phase     string
+	StartTime time.Time
 }
 
 // QueueState tracks the queue snapshot visible in the queue view.
@@ -65,4 +74,13 @@ func (s *Store) OnRunComplete(event *events.RunCompleteEvent) {
 		s.Dashboard.RunProgress = &RunProgress{}
 	}
 	s.Dashboard.RunProgress.Status = "completed"
+}
+
+// OnIterationStart updates the store when an iteration starts.
+func (s *Store) OnIterationStart(event *events.IterationStartEvent) {
+	s.Dashboard.ActivePhase = &ActivePhase{
+		BeadID:    event.BeadID,
+		BeadTitle: event.BeadTitle,
+		StartTime: event.EventTime(),
+	}
 }
