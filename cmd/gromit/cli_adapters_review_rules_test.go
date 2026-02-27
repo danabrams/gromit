@@ -45,7 +45,16 @@ build-only
 	}
 	adapter := &cliPromptRenderer{renderer: renderer}
 
-	got, err := adapter.RenderThoroughReview(&pipeline.ThoroughReviewPromptInput{Diff: "diff"})
+	// Pipeline loads rules and passes them in the input (not adapter's responsibility)
+	rules, err := renderer.LoadRulesForPhase("thorough_review")
+	if err != nil {
+		t.Fatalf("LoadRulesForPhase: %v", err)
+	}
+
+	got, err := adapter.RenderThoroughReview(&pipeline.ThoroughReviewPromptInput{
+		Diff:  "diff",
+		Rules: rules,
+	})
 	if err != nil {
 		t.Fatalf("RenderThoroughReview: %v", err)
 	}
