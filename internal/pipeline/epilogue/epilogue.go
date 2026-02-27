@@ -257,6 +257,14 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 					if worktreePath != "" {
 						if err := e.worktree.RemoveByPath(worktreePath); err != nil {
 							warnf("Warning: failed to remove worktree at %s: %v\n", worktreePath, err)
+						} else {
+							// Emit BeadCleanupEvent for successful worktree removal
+							if in.Emitter != nil {
+								in.Emitter.Emit(&events.BeadCleanupEvent{
+									BeadID: in.Bead.ID,
+									Action: "worktree_cleanup",
+								})
+							}
 						}
 					}
 					// Remove successfully-merged branch from pending state
