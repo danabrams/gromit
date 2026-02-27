@@ -1,8 +1,9 @@
 ---
+created: 2026-02-27T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-27T02:39:10Z"
 id: epilogue-failure-classification
 source_spec: epilogue-failure-classification
-created: 2026-02-27
-decomposed: false
 ---
 
 # Epilogue Failure Classification Implementation Plan

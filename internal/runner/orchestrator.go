@@ -173,6 +173,13 @@ func (o *Orchestrator) Run(ctx context.Context, maxIterations int, deadline time
 	var touchedPackages []string
 	iteration := 0
 
+	// Emit RunStartEvent
+	o.emitter.Emit(&events.RunStartEvent{
+		MaxIterations: maxIterations,
+		DryRun:        false,
+		Time:          time.Now(),
+	})
+
 	// Check experiments for convergence and emit summary
 	if o.cfg.ExperimentMgr != nil {
 		experiments := o.cfg.ExperimentMgr.ListExperiments()
@@ -216,6 +223,14 @@ runLoop:
 		iteration++
 		o.logf("Iteration %d: processing bead %s (%s)", iteration, b.ID, b.Title)
 
+		// Emit IterationStartEvent
+		o.emitter.Emit(&events.IterationStartEvent{
+			Iteration: iteration,
+			BeadID:    b.ID,
+			BeadTitle: b.Title,
+			Time:      time.Now(),
+		})
+
 		if o.cfg.StatusWriter != nil {
 			o.cfg.StatusWriter(iteration, b.ID, b.Title, deadline)
 		}
@@ -241,7 +256,21 @@ runLoop:
 				ComplexitySource:         baseIn.ComplexitySource,
 				ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 			}
+			// Emit BeadSkippedEvent
+			o.emitter.Emit(&events.BeadSkippedEvent{
+				BeadID: b.ID,
+				Reason: "gate stage returned non-proceed decision",
+				Time:   time.Now(),
+			})
 			o.runEpilogue(ctx, baseIn, false)
+			// Emit IterationCompleteEvent
+			o.emitter.Emit(&events.IterationCompleteEvent{
+				Iteration: iteration,
+				BeadID:    b.ID,
+				Success:   false,
+				Duration:  0,
+				Time:      time.Now(),
+			})
 			continue
 		}
 
@@ -249,7 +278,25 @@ runLoop:
 		if o.cfg.CoverageTracker != nil {
 			o.cfg.CoverageTracker.ToCollecting()
 		}
+		// Emit BuildStartEvent
+		o.emitter.Emit(&events.BuildStartEvent{
+			BeadID:      b.ID,
+			Model:       baseIn.Complexity, // Will be replaced with actual model in BuildCompleteEvent
+			Attempt:     1,
+			MaxAttempts: 3,
+			Time:        time.Now(),
+		})
 		buildOut, buildErr := o.cfg.Build.Run(ctx, baseIn)
+		// Emit BuildCompleteEvent
+		o.emitter.Emit(&events.BuildCompleteEvent{
+			BeadID:    b.ID,
+			Success:   buildErr == nil,
+			Duration:  time.Duration(buildOut.DurationMs) * time.Millisecond,
+			Cost:      buildOut.CostUSD,
+			TokensIn:  buildOut.InputTokens,
+			TokensOut: buildOut.OutputTokens,
+			Time:      time.Now(),
+		})
 		if buildErr != nil {
 			o.logf("Warning: build failed for bead %s (iteration %d): %v", b.ID, iteration, buildErr)
 			failurePhase := inferBuildFailurePhase(buildErr)
@@ -272,6 +319,14 @@ runLoop:
 				ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 			}
 			o.runEpilogue(ctx, baseIn, false)
+			// Emit IterationCompleteEvent
+			o.emitter.Emit(&events.IterationCompleteEvent{
+				Iteration: iteration,
+				BeadID:    b.ID,
+				Success:   false,
+				Duration:  0,
+				Time:      time.Now(),
+			})
 			continue
 		}
 
@@ -279,8 +334,21 @@ runLoop:
 		if o.cfg.CoverageTracker != nil {
 			o.cfg.CoverageTracker.ToValidating()
 		}
+		// Emit ValidationStartEvent
+		o.emitter.Emit(&events.ValidationStartEvent{
+			BeadID:   b.ID,
+			Commands: nil, // Could populate from baseIn if available
+			Time:     time.Now(),
+		})
 		validateOut, validateErr := o.cfg.Validate.Run(ctx, baseIn)
 		if validateErr != nil || validateOut.Decision != pipeline.Proceed {
+			// Emit ValidationFailEvent
+			o.emitter.Emit(&events.ValidationFailEvent{
+				BeadID:   b.ID,
+				Output:   strings.Join(validateOut.ValidationFailures, "\n"),
+				Duration: 0, // Could compute if timing available
+				Time:     time.Now(),
+			})
 			// Accumulate failure summaries for the next Build invocation.
 			validationFailures = validateOut.ValidationFailures
 			baseIn.FailureOutput = strings.Join(validateOut.ValidationFailures, "\n")
@@ -296,11 +364,26 @@ runLoop:
 				ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 			}
 			o.runEpilogue(ctx, baseIn, false)
+			// Emit IterationCompleteEvent
+			o.emitter.Emit(&events.IterationCompleteEvent{
+				Iteration: iteration,
+				BeadID:    b.ID,
+				Success:   false,
+				Duration:  0,
+				Time:      time.Now(),
+			})
 			continue
 		}
 
 		// Validation passed: clear accumulated failures so the next bead starts clean.
 		validationFailures = nil
+
+		// Emit ValidationPassEvent
+		o.emitter.Emit(&events.ValidationPassEvent{
+			BeadID:   b.ID,
+			Duration: 0, // Could compute if timing available
+			Time:     time.Now(),
+		})
 
 		if o.cfg.CoverageTracker != nil {
 			o.cfg.CoverageTracker.ToComplete()
@@ -308,7 +391,22 @@ runLoop:
 
 		// Stage 4: Review — optional LLM code review.
 		if o.cfg.Review != nil && o.cfg.Config != nil && o.cfg.Config.Review.Enabled {
-			_, _ = o.cfg.Review.Run(ctx, baseIn)
+			// Emit ReviewStartEvent
+			o.emitter.Emit(&events.ReviewStartEvent{
+				BeadID:   b.ID,
+				Model:    buildOut.Model, // Use the actual model from the build
+				Thorough: false,
+				Time:     time.Now(),
+			})
+			reviewOut, _ := o.cfg.Review.Run(ctx, baseIn)
+			// Emit ReviewCompleteEvent
+			o.emitter.Emit(&events.ReviewCompleteEvent{
+				BeadID: b.ID,
+				Verdict: "pending",
+				Issues: nil,
+				Time:   time.Now(),
+			})
+			_ = reviewOut
 		}
 
 		// Stage 5: Epilogue — close bead, sync, write status, write iteration log,
@@ -344,6 +442,21 @@ runLoop:
 		}
 		epilogueOut := o.runEpilogue(ctx, baseIn, true)
 		o.logf("Iteration %d: bead %s completed successfully", iteration, b.ID)
+		// Emit IterationCompleteEvent
+		o.emitter.Emit(&events.IterationCompleteEvent{
+			Iteration: iteration,
+			BeadID:    b.ID,
+			Success:   true,
+			Duration:  time.Duration(buildOut.DurationMs) * time.Millisecond,
+			Time:      time.Now(),
+		})
+		// Emit BeadCompleteEvent
+		o.emitter.Emit(&events.BeadCompleteEvent{
+			BeadID:    b.ID,
+			BeadTitle: b.Title,
+			Duration:  0, // Could compute from iteration start
+			Time:      time.Now(),
+		})
 		o.maybeTriggerSpecMerge(ctx, b)
 		touchedPackages = mergeTouchedPackages(touchedPackages, epilogueOut.TouchedPackages)
 	}
@@ -371,6 +484,14 @@ runLoop:
 			o.logf("Warning: could not save provider state: %v", err)
 		}
 	}
+
+	// Emit RunCompleteEvent
+	o.emitter.Emit(&events.RunCompleteEvent{
+		IterationsCompleted: iteration,
+		Reason:              "completed",
+		Time:                time.Now(),
+	})
+
 	return nil
 }
 

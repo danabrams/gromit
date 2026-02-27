@@ -1,8 +1,9 @@
 ---
+created: 2026-02-27T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-27T02:23:14Z"
 id: explore-model-forwarding-non-claude
 source_spec: explore-model-forwarding-non-claude
-created: 2026-02-27
-decomposed: false
 ---
 
 # Explore Model Forwarding For Non-Claude Agents Implementation Plan

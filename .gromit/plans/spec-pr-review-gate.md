@@ -1,8 +1,9 @@
 ---
+created: 2026-02-27T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-27T02:15:45Z"
 id: spec-pr-review-gate
 source_spec: spec-pr-review-gate
-created: 2026-02-27
-decomposed: false
 ---
 
 # Spec PR Review Gate Implementation Plan
