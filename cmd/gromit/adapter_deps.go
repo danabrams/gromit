@@ -56,6 +56,11 @@ func NewPipelineDeps(cfg *config.Config, gromitDir string) (*pipeline.Deps, erro
 		Client: bdAdapter,
 	}
 
+	// Bead query client
+	beadQueryAdapter := &beadQueryClientAdapter{
+		Client: beadClient,
+	}
+
 	// Backlog client
 	backlogFile, err := backlog.NewFile(gromitDir)
 	if err != nil {
@@ -122,6 +127,7 @@ func NewPipelineDeps(cfg *config.Config, gromitDir string) (*pipeline.Deps, erro
 		LLMClient:         claudeAdapter,
 		ReviewInvoker:     claudeAdapter,
 		TrackerClient:     trackerAdapter,
+		BeadQueryClient:   beadQueryAdapter,
 		BacklogClient:     backlogClient,
 		BacklogWriter:     backlogWriter,
 		RefineRenderer:    refineRenderer,

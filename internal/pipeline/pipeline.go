@@ -84,6 +84,7 @@ type Deps struct {
 	LLMClient         LLMClient
 	ReviewInvoker     ReviewInvoker
 	TrackerClient     TrackerClient
+	BeadQueryClient   BeadQueryClient
 	BacklogClient     BacklogClient
 	BacklogWriter     BacklogWriter
 	RefineRenderer    RefineRenderer

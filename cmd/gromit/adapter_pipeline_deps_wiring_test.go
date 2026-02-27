@@ -20,6 +20,7 @@ func TestPipelineDepsWiring_AllAdaptersImplementInterfaces(t *testing.T) {
 	var _ pipeline.LLMClient = (*claudeClientAdapter)(nil)
 	var _ pipeline.ReviewInvoker = (*claudeClientAdapter)(nil)
 	var _ pipeline.TrackerClient = (*trackerClientAdapter)(nil)
+	var _ pipeline.BeadQueryClient = (*beadQueryClientAdapter)(nil)
 	var _ pipeline.BacklogClient = (*backlogClientAdapter)(nil)
 	var _ pipeline.BacklogWriter = (*cliBacklogClient)(nil)
 	var _ pipeline.RefineRenderer = (*refinePromptRenderer)(nil)
@@ -53,6 +54,10 @@ func TestAdapterMethodSignatures_MatchInterfaceContracts(t *testing.T) {
 	// TrackerClient interface: Ready, Show, Create, CreateWithDepsAndDescription, Close
 	var adapter3 pipeline.TrackerClient = (*trackerClientAdapter)(nil)
 	_ = adapter3
+
+	// BeadQueryClient interface: CountByStatus, ListReadyIDs, CountClosedAfter
+	var adapter3b pipeline.BeadQueryClient = (*beadQueryClientAdapter)(nil)
+	_ = adapter3b
 
 	// BacklogClient interface: List, Get, Add, Update
 	var adapter4 pipeline.BacklogClient = (*backlogClientAdapter)(nil)
@@ -112,21 +117,23 @@ func TestAdapterWiring_ImplementsCompletePipelineDepsContract(t *testing.T) {
 	// 2. LLMClient - claudeClientAdapter or llmRouterClientAdapter
 	// 3. ReviewInvoker - claudeClientAdapter or llmRouterClientAdapter
 	// 4. TrackerClient - trackerClientAdapter wrapping tracker.Client
-	// 5. BacklogClient - backlogClientAdapter wrapping backlog.File
-	// 6. BacklogWriter - cliBacklogClient wrapping bead.Client
-	// 7. RefineRenderer - refinePromptRenderer wrapping prompt.Renderer
-	// 8. PlanRenderer - planPromptRenderer wrapping prompt.Renderer
-	// 9. DecomposeRenderer - decomposePromptRenderer wrapping prompt.Renderer
-	// 10. ReviewRenderer - cliPromptRenderer wrapping prompt.Renderer
-	// 11. ExploreRenderer - explorePromptRenderer wrapping prompt.Renderer
-	// 12. LearningsManager - cliLearningsManager wrapping learnings operations
-	// 13. StateManager - cliStateManager wrapping state.File operations
-	// 14. LogWriter - cliLogWriter wrapping logger operations
+	// 5. BeadQueryClient - beadQueryClientAdapter wrapping bead.Client
+	// 6. BacklogClient - backlogClientAdapter wrapping backlog.File
+	// 7. BacklogWriter - cliBacklogClient wrapping bead.Client
+	// 8. RefineRenderer - refinePromptRenderer wrapping prompt.Renderer
+	// 9. PlanRenderer - planPromptRenderer wrapping prompt.Renderer
+	// 10. DecomposeRenderer - decomposePromptRenderer wrapping prompt.Renderer
+	// 11. ReviewRenderer - cliPromptRenderer wrapping prompt.Renderer
+	// 12. ExploreRenderer - explorePromptRenderer wrapping prompt.Renderer
+	// 13. LearningsManager - cliLearningsManager wrapping learnings operations
+	// 14. StateManager - cliStateManager wrapping state.File operations
+	// 15. LogWriter - cliLogWriter wrapping logger operations
 
 	// Verify adapters are available for all Deps fields through type assignments
 	var adapter1 pipeline.LLMClient = (*claudeClientAdapter)(nil)
 	var adapter2 pipeline.ReviewInvoker = (*claudeClientAdapter)(nil)
 	var adapter3 pipeline.TrackerClient = (*trackerClientAdapter)(nil)
+	var adapter3b pipeline.BeadQueryClient = (*beadQueryClientAdapter)(nil)
 	var adapter4 pipeline.BacklogClient = (*backlogClientAdapter)(nil)
 	var adapter5 pipeline.BacklogWriter = (*cliBacklogClient)(nil)
 	var adapter6 pipeline.RefineRenderer = (*refinePromptRenderer)(nil)
@@ -141,6 +148,7 @@ func TestAdapterWiring_ImplementsCompletePipelineDepsContract(t *testing.T) {
 	_ = adapter1
 	_ = adapter2
 	_ = adapter3
+	_ = adapter3b
 	_ = adapter4
 	_ = adapter5
 	_ = adapter6

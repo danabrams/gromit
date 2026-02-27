@@ -9,6 +9,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/agent"
 	"github.com/danabrams/gromit/internal/backlog"
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
@@ -298,4 +299,32 @@ func (a *backlogClientAdapter) Add(item *pipeline.Idea) error {
 
 func (a *backlogClientAdapter) Update(id string, fn func(*pipeline.Idea)) error {
 	return a.file.Update(id, fn)
+}
+
+// beadQueryClientAdapter adapts bead.Client to pipeline.BeadQueryClient interface.
+type beadQueryClientAdapter struct {
+	Client *bead.Client
+}
+
+var _ pipeline.BeadQueryClient = (*beadQueryClientAdapter)(nil)
+
+func (a *beadQueryClientAdapter) CountByStatus(ctx context.Context, status string) (int, error) {
+	if a == nil || a.Client == nil {
+		return 0, fmt.Errorf("bead query adapter is nil")
+	}
+	return a.Client.CountByStatus(ctx, status)
+}
+
+func (a *beadQueryClientAdapter) ListReadyIDs(ctx context.Context) ([]string, error) {
+	if a == nil || a.Client == nil {
+		return nil, fmt.Errorf("bead query adapter is nil")
+	}
+	return a.Client.ListReadyIDs(ctx)
+}
+
+func (a *beadQueryClientAdapter) CountClosedAfter(ctx context.Context, after time.Time) (int, error) {
+	if a == nil || a.Client == nil {
+		return 0, fmt.Errorf("bead query adapter is nil")
+	}
+	return a.Client.CountClosedAfter(ctx, after)
 }
