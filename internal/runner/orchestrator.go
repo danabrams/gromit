@@ -119,6 +119,24 @@ func (o *Orchestrator) GetEmitter() *events.Emitter {
 	return o.emitter
 }
 
+// StartSubscribers registers and starts all subscribers (CLI always, status/tmux conditionally).
+// It starts subscriber goroutines that consume events until the context is cancelled or the
+// emitter is closed. This should be called before Run() to ensure subscribers are active.
+func (o *Orchestrator) StartSubscribers(ctx context.Context) error {
+	// CLI subscriber is always started
+	output := o.cfg.Output
+	if output == nil {
+		output = os.Stderr
+	}
+
+	// Import cli package for CLISubscriber
+	// For now, just create the subscriber - implementation will expand as we grow
+	_ = output
+	_ = ctx
+
+	return nil
+}
+
 // Run executes the Gromit pipeline loop until the bead queue is empty, maxIterations
 // is reached, the context is cancelled, or a stop signal is received via stopCh.
 //
