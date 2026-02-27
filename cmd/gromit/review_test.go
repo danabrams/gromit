@@ -371,9 +371,10 @@ func TestGetGitHeadForReview_UsesInjectedGit(t *testing.T) {
 	assertGitCommand(t, capture, "git", wantArgs)
 }
 
-func TestCliStateManagerSetLastReviewCommit_UsesHeadCommit(t *testing.T) {
-	// Not parallel: stubReviewGit mutates package-level reviewGitOutputFn.
-	stubReviewGit(t, []byte("deadbeef\n"), nil)
+func TestCliStateManagerSetLastReviewCommit_PassesThroughCommit(t *testing.T) {
+	// The adapter now just passes through the commit parameter as-is
+	// (business logic to fetch git head moved to caller)
+	t.Parallel()
 
 	gromitDir := t.TempDir()
 	sf, err := state.NewInteractiveFile(gromitDir)
@@ -388,8 +389,8 @@ func TestCliStateManagerSetLastReviewCommit_UsesHeadCommit(t *testing.T) {
 	if err := manager.SetLastReviewCommit("from-commit"); err != nil {
 		t.Fatalf("SetLastReviewCommit() error = %v", err)
 	}
-	if sf.LastReviewCommit() != "deadbeef" {
-		t.Fatalf("LastReviewCommit() = %q, want %q", sf.LastReviewCommit(), "deadbeef")
+	if sf.LastReviewCommit() != "from-commit" {
+		t.Fatalf("LastReviewCommit() = %q, want %q", sf.LastReviewCommit(), "from-commit")
 	}
 }
 
@@ -777,25 +778,39 @@ func TestCliBacklogClient_ImplementsBacklogWriter(t *testing.T) {
 	var _ pipeline.BacklogWriter = (*cliBacklogClient)(nil)
 }
 
-func TestCliBacklogClient_AddUsesTrimmedExpectedOutputs(t *testing.T) {
+func TestCliBacklogClient_AddPassesThroughEntry(t *testing.T) {
 	t.Parallel()
+	// The adapter now just passes through the entry fields as-is
 	entry := &pipeline.BacklogEntry{
-		Title:           "  backlog item  ",
+		Title:           "backlog item",
 		Type:            "review-finding",
 		Priority:        2,
+		Labels:          []string{"from-review", "backlog"},
 		ExpectedOutputs: []string{"output1", "output2"},
 	}
 
-	var acceptedLabels []string
-	var acceptanceText string
+	var capturedTitle string
+	var capturedPriority int
+	var capturedLabels []string
+	var capturedOutputs []string
+
 	client := &bead.Client{
 		RunFn: func(args ...string) (string, error) {
+			// Capture the arguments passed to bead.Create
+			// The adapter calls: c.beadClient.Create(context.Background(), entry.Title, entry.Priority, entry.Labels, entry.ExpectedOutputs)
+			// So args will be like: ["create", "backlog item", "--priority", "2", "--label", "from-review", "--label", "backlog", "--acceptance", "output1\noutput2"]
 			for i := 0; i < len(args); i++ {
+				if args[i] == "create" && i+1 < len(args) {
+					capturedTitle = args[i+1]
+				}
+				if args[i] == "--priority" && i+1 < len(args) {
+					fmt.Sscanf(args[i+1], "%d", &capturedPriority)
+				}
 				if args[i] == "--label" && i+1 < len(args) {
-					acceptedLabels = append(acceptedLabels, args[i+1])
+					capturedLabels = append(capturedLabels, args[i+1])
 				}
 				if args[i] == "--acceptance" && i+1 < len(args) {
-					acceptanceText = args[i+1]
+					capturedOutputs = append(capturedOutputs, args[i+1])
 				}
 			}
 			return `{"id":"fake","title":"fake","description":"","status":"open","priority":2}`, nil
@@ -807,11 +822,14 @@ func TestCliBacklogClient_AddUsesTrimmedExpectedOutputs(t *testing.T) {
 		t.Fatalf("Add() error = %v", err)
 	}
 
-	if acceptanceText != "backlog item" {
-		t.Fatalf("expected trimmed text in acceptance, got %q", acceptanceText)
+	if capturedTitle != "backlog item" {
+		t.Fatalf("expected title to pass through, got %q", capturedTitle)
 	}
-	if !containsLabel(acceptedLabels, "from-review") || !containsLabel(acceptedLabels, "backlog") {
-		t.Fatalf("expected labels to include from-review/backlog, got %v", acceptedLabels)
+	if capturedPriority != 2 {
+		t.Fatalf("expected priority 2 to pass through, got %d", capturedPriority)
+	}
+	if !containsLabel(capturedLabels, "from-review") || !containsLabel(capturedLabels, "backlog") {
+		t.Fatalf("expected labels to include from-review/backlog, got %v", capturedLabels)
 	}
 }
 
