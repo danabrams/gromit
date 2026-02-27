@@ -412,7 +412,7 @@ func (p *Pipeline) validateReviewDeps() error {
 }
 
 // ResolveReviewScope resolves the starting commit for a review based on scope flags.
-// Priority: --since > --spec > --epic > (state file - handled by caller if no flags provided)
+// Priority: --since > --spec > --epic > state file
 func (p *Pipeline) ResolveReviewScope(ctx context.Context, spec string, epic string, since string) (string, error) {
 	// Priority: --since flag first
 	if since != "" {
@@ -435,8 +435,21 @@ func (p *Pipeline) ResolveReviewScope(ctx context.Context, spec string, epic str
 		return resolveEpicScope(ctx, epic, p.paths.SpecsDir, p.deps.TrackerClient)
 	}
 
-	// No flags provided - caller should use state file or other default
-	return "", fmt.Errorf("Pipeline.ResolveReviewScope: no scope specified, use --since, --spec, --epic, or check state file")
+	// No flags provided - fall back to state file via StateManager
+	if err := requireNonNilDep("StateManager", p.deps.StateManager); err != nil {
+		return "", err
+	}
+
+	commit, err := p.deps.StateManager.GetLastReviewCommit()
+	if err != nil {
+		return "", fmt.Errorf("getting last review commit from state: %w", err)
+	}
+
+	if commit == "" {
+		return "", fmt.Errorf("no previous review found - use --since to specify a commit")
+	}
+
+	return commit, nil
 }
 
 // ListBeads lists beads matching the given query criteria.

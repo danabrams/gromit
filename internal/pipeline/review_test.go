@@ -932,10 +932,14 @@ func (m *reviewAcceptanceMockLogWriter) Write(entry *LogEntry) error {
 }
 
 type reviewAcceptanceMockStateManager struct {
+	getLastReviewCommitFunc func() (string, error)
 	setLastReviewCommitFunc func(commit string) error
 }
 
 func (m *reviewAcceptanceMockStateManager) GetLastReviewCommit() (string, error) {
+	if m.getLastReviewCommitFunc != nil {
+		return m.getLastReviewCommitFunc()
+	}
 	return "", nil
 }
 
