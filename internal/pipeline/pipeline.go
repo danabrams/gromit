@@ -3,11 +3,15 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/danabrams/gromit/internal/backlog"
+	"github.com/danabrams/gromit/internal/frontmatter"
 	"github.com/danabrams/gromit/internal/review"
 )
 
@@ -528,9 +532,85 @@ func (p *Pipeline) QueryUndecomposedPlans(ctx context.Context, input QueryUndeco
 		return nil, err
 	}
 
-	// For now, return empty result - implementation will follow
 	result := NewQueryUndecomposedPlansResult()
+
+	plansDir := p.paths.PlansDir
+	if plansDir == "" {
+		return &result, nil
+	}
+
+	// Read directory
+	entries, err := os.ReadDir(plansDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &result, nil
+		}
+		return nil, fmt.Errorf("reading plans directory: %w", err)
+	}
+
+	var plans []PlanQueryInfo
+	for _, entry := range entries {
+		// Skip directories and non-.md files
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			continue
+		}
+
+		planPath := filepath.Join(plansDir, entry.Name())
+		planName := strings.TrimSuffix(entry.Name(), ".md")
+
+		// Read frontmatter to check decomposed status
+		planFrontmatter, _, err := frontmatter.ReadFile(planPath)
+		if err != nil {
+			// Skip files that can't be read
+			continue
+		}
+
+		// Filter by decomposed status (unless force is true)
+		if !input.Force {
+			if decomposed, ok := planFrontmatter["decomposed"].(bool); ok && decomposed {
+				continue
+			}
+		}
+
+		// Extract title from plan file
+		title := extractPlanTitle(planPath)
+		if title == "" {
+			title = planName // Fallback to name if no title found
+		}
+
+		plans = append(plans, PlanQueryInfo{
+			Name:  planName,
+			Title: title,
+			Path:  planPath,
+		})
+	}
+
+	// Sort by name for consistent ordering
+	sort.Slice(plans, func(i, j int) bool {
+		return plans[i].Name < plans[j].Name
+	})
+
+	result.Plans = plans
 	return &result, nil
+}
+
+// extractPlanTitle extracts the first H1 heading from a plan file.
+// Returns empty string if no heading found.
+func extractPlanTitle(planPath string) string {
+	content, err := os.ReadFile(planPath)
+	if err != nil {
+		return ""
+	}
+
+	lines := strings.Split(string(content), "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "# ") {
+			return strings.TrimSpace(strings.TrimPrefix(trimmed, "# "))
+		}
+	}
+
+	return ""
 }
 
 func requireNonNilDep(name string, dep any) error {

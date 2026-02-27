@@ -493,3 +493,105 @@ func TestPipeline_QueryUndecomposedPlansMethod(t *testing.T) {
 		t.Error("QueryUndecomposedPlans() should error with nil dependencies")
 	}
 }
+
+// TestPipeline_QueryUndecomposedPlans_FiltersUndecomposedPlans verifies that
+// QueryUndecomposedPlans returns undecomposed plans from the plans directory.
+// Expected: Returns list of plans with decomposed:false or missing decomposed field
+func TestPipeline_QueryUndecomposedPlans_FiltersUndecomposedPlans(t *testing.T) {
+	t.Parallel()
+
+	// Create temporary plans directory with test files
+	plansDir := t.TempDir()
+
+	// Create decomposed plan
+	decomposedContent := `---
+decomposed: true
+decomposed_at: "2024-01-15T10:00:00Z"
+---
+# Already Decomposed Plan
+Content here`
+	if err := os.WriteFile(filepath.Join(plansDir, "decomposed.md"), []byte(decomposedContent), 0644); err != nil {
+		t.Fatalf("failed to create decomposed plan: %v", err)
+	}
+
+	// Create undecomposed plan
+	undecomposedContent := `---
+decomposed: false
+---
+# Undecomposed Plan
+Content here`
+	if err := os.WriteFile(filepath.Join(plansDir, "undecomposed.md"), []byte(undecomposedContent), 0644); err != nil {
+		t.Fatalf("failed to create undecomposed plan: %v", err)
+	}
+
+	// Create plan with missing decomposed field (treated as undecomposed)
+	missingContent := `---
+created: "2024-01-15"
+---
+# Missing Decomposed Field
+Content here`
+	if err := os.WriteFile(filepath.Join(plansDir, "missing.md"), []byte(missingContent), 0644); err != nil {
+		t.Fatalf("failed to create plan with missing field: %v", err)
+	}
+
+	// Create pipeline with mock tracker
+	mockTracker := &testBeadClient{}
+	deps := &Deps{
+		TrackerClient: mockTracker,
+	}
+	paths := &Paths{
+		PlansDir: plansDir,
+	}
+	p := New(deps, paths)
+
+	ctx := context.Background()
+	input := QueryUndecomposedPlansInput{Force: false}
+
+	// Query for undecomposed plans
+	result, err := p.QueryUndecomposedPlans(ctx, input)
+	if err != nil {
+		t.Fatalf("QueryUndecomposedPlans() error = %v, want nil", err)
+	}
+
+	// Should return the undecomposed and missing plans, not the decomposed one
+	if len(result.Plans) == 0 {
+		t.Error("QueryUndecomposedPlans() returned 0 plans, want at least 1")
+	}
+
+	// Verify plan names
+	planNames := make([]string, len(result.Plans))
+	for i, plan := range result.Plans {
+		planNames[i] = plan.Name
+	}
+
+	// Should include undecomposed plans but not decomposed plan
+	if len(planNames) < 2 {
+		t.Errorf("QueryUndecomposedPlans() returned %d plans, want at least 2 (undecomposed and missing)", len(planNames))
+	}
+
+	hasUndecomposed := false
+	hasMissing := false
+	hasDecomposed := false
+
+	for _, name := range planNames {
+		if name == "undecomposed" {
+			hasUndecomposed = true
+		}
+		if name == "missing" {
+			hasMissing = true
+		}
+		if name == "decomposed" {
+			hasDecomposed = true
+		}
+	}
+
+	if !hasUndecomposed {
+		t.Error("QueryUndecomposedPlans() missing 'undecomposed' plan")
+	}
+	if !hasMissing {
+		t.Error("QueryUndecomposedPlans() missing 'missing' plan")
+	}
+	if hasDecomposed {
+		t.Error("QueryUndecomposedPlans() should not include 'decomposed' plan")
+	}
+}
