@@ -2,12 +2,14 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -168,6 +170,16 @@ func shouldRetryCodexAttempt(result *Result, attempt int) bool {
 		return false
 	}
 	return isTransientCodexFailure(result.FailureCategory)
+}
+
+func shouldRetryCodexStartError(err error, attempt int) bool {
+	if err == nil || attempt >= codexTransientRetryMax {
+		return false
+	}
+	if errors.Is(err, syscall.EAGAIN) {
+		return true
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "resource temporarily unavailable")
 }
 
 func codexRetryBackoff(attempt int) time.Duration {

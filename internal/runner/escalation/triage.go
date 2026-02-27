@@ -78,7 +78,7 @@ func triageEnvironment(result *provider.Result) *TriageResult {
 	case noSpacePattern.MatchString(detail):
 		return triageResult(LayerEnvironment, "resource_exhausted", detail, false)
 	case resourceUnavailablePattern.MatchString(detail):
-		return triageResult(LayerEnvironment, "resource_exhausted", detail, false)
+		return triageResult(LayerEnvironment, "resource_exhausted", detail, true)
 	case permissionDeniedPattern.MatchString(detail):
 		return triageResult(LayerEnvironment, "permission", detail, false)
 	default:

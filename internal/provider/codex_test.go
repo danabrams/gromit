@@ -377,6 +377,71 @@ exit 0`)
 	}
 }
 
+func TestCodexProvider_runWithRetry_RetriesRetryableStartError(t *testing.T) {
+	t.Parallel()
+	cp := NewCodexProvider("/bin/false", nil, map[string]string{})
+
+	attempts := 0
+	sleepCalls := 0
+	cp.sleepFn = func(context.Context, time.Duration) error {
+		sleepCalls++
+		return nil
+	}
+
+	expected := &Result{Success: true, Output: "ok"}
+	result, err := cp.runWithRetry(context.Background(), func() (*Result, error) {
+		attempts++
+		if attempts == 1 {
+			return nil, fmt.Errorf("failed to start codex command: %w", &os.PathError{Op: "fork/exec", Path: "/usr/bin/codex", Err: syscall.EAGAIN})
+		}
+		return expected, nil
+	})
+
+	if err != nil {
+		t.Fatalf("runWithRetry() err = %v, want nil", err)
+	}
+	if result != expected {
+		t.Fatalf("runWithRetry() returned unexpected result: %+v", result)
+	}
+	if attempts != 2 {
+		t.Fatalf("runWithRetry() attempts = %d, want 2", attempts)
+	}
+	if sleepCalls != 1 {
+		t.Fatalf("runWithRetry() sleep calls = %d, want 1", sleepCalls)
+	}
+}
+
+func TestCodexProvider_runWithRetry_DoesNotRetryNonRetryableStartError(t *testing.T) {
+	t.Parallel()
+	cp := NewCodexProvider("/bin/false", nil, map[string]string{})
+
+	attempts := 0
+	sleepCalls := 0
+	cp.sleepFn = func(context.Context, time.Duration) error {
+		sleepCalls++
+		return nil
+	}
+
+	startErr := errors.New("failed to start codex command: exec format error")
+	result, err := cp.runWithRetry(context.Background(), func() (*Result, error) {
+		attempts++
+		return nil, startErr
+	})
+
+	if !errors.Is(err, startErr) {
+		t.Fatalf("runWithRetry() err = %v, want %v", err, startErr)
+	}
+	if result != nil {
+		t.Fatalf("runWithRetry() result = %+v, want nil", result)
+	}
+	if attempts != 1 {
+		t.Fatalf("runWithRetry() attempts = %d, want 1", attempts)
+	}
+	if sleepCalls != 0 {
+		t.Fatalf("runWithRetry() sleep calls = %d, want 0", sleepCalls)
+	}
+}
+
 func TestCodexProviderRun_FailureIncludesDiagnostics(t *testing.T) {
 	t.Parallel()
 	mockBinary := newTestBinary(t, `echo "fatal transport issue" >&2

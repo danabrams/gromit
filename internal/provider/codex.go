@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/danabrams/gromit/internal/procutil"
 )
 
 const (
@@ -36,6 +38,7 @@ const (
 	codexRetryBackoffSecond  = 750 * time.Millisecond
 	codexRetryBackoffDefault = 1500 * time.Millisecond
 	codexCommandWaitDelay    = 100 * time.Millisecond
+	codexProcessCapacityWait = 1500 * time.Millisecond
 )
 
 // Compile-time check to verify CodexProvider implements Provider interface
@@ -214,6 +217,9 @@ func (cp *CodexProvider) streamRunOnce(ctx context.Context, prompt string, tier 
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
+	if waitErr := procutil.WaitForProcessCapacity(ctx, codexProcessCapacityWait); waitErr != nil {
+		return nil, fmt.Errorf("waiting for process capacity: %w", waitErr)
+	}
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start codex command: %w", err)
 	}
@@ -317,10 +323,16 @@ func (cp *CodexProvider) runWithRetry(ctx context.Context, run func() (*Result, 
 		result, err := run()
 		last = result
 		if err != nil {
-			return result, err
+			if !shouldRetryCodexStartError(err, attempt) {
+				return result, err
+			}
+			if sleepErr := cp.sleepFn(ctx, codexRetryBackoff(attempt)); sleepErr != nil {
+				return result, err
+			}
+			continue
 		}
 		if result == nil || result.Success {
-			return result, nil
+			return result, err
 		}
 		if !shouldRetryCodexAttempt(result, attempt) {
 			return result, nil
@@ -348,6 +360,9 @@ func (cp *CodexProvider) runOnce(ctx context.Context, prompt, model string, args
 	cmd.Stderr = &stderr
 	startTime := time.Now()
 
+	if waitErr := procutil.WaitForProcessCapacity(ctx, codexProcessCapacityWait); waitErr != nil {
+		return nil, fmt.Errorf("waiting for process capacity: %w", waitErr)
+	}
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start codex command: %w", err)
 	}

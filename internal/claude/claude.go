@@ -12,23 +12,27 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/danabrams/gromit/internal/procutil"
 )
 
 // ErrStallTimeout is returned when Claude CLI produces no output for longer than
 // the configured stall timeout. This is a recoverable error that should trigger a retry.
 var ErrStallTimeout = errors.New("stall timeout: no output from Claude CLI")
 
+const claudeProcessCapacityWait = 1500 * time.Millisecond
+
 // Result represents the outcome of a Claude invocation
 type Result struct {
-	Success            bool          `json:"success"`
-	Output             string        `json:"output"`
-	ExitCode           int           `json:"exit_code"`
-	Duration           time.Duration `json:"duration"`
-	Model              string        `json:"model"`
-	CostUSD            float64       `json:"cost_usd"`
-	InputTokens        int           `json:"input_tokens"`
-	OutputTokens       int           `json:"output_tokens"`
-	CachedInputTokens  int           `json:"cached_input_tokens"`
+	Success           bool          `json:"success"`
+	Output            string        `json:"output"`
+	ExitCode          int           `json:"exit_code"`
+	Duration          time.Duration `json:"duration"`
+	Model             string        `json:"model"`
+	CostUSD           float64       `json:"cost_usd"`
+	InputTokens       int           `json:"input_tokens"`
+	OutputTokens      int           `json:"output_tokens"`
+	CachedInputTokens int           `json:"cached_input_tokens"`
 }
 
 // ToolEvent represents a tool call event with metadata
@@ -89,6 +93,9 @@ func (c *Client) Run(ctx context.Context, prompt string, model string) (*Result,
 	cmd.Stderr = &stderr
 
 	// Start the command
+	if waitErr := procutil.WaitForProcessCapacity(ctx, claudeProcessCapacityWait); waitErr != nil {
+		return nil, fmt.Errorf("running claude: waiting for process capacity: %w", waitErr)
+	}
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("starting claude: %w", err)
 	}
@@ -339,6 +346,9 @@ func (c *Client) StreamRun(ctx context.Context, prompt string, model string, out
 
 	cmd.Stderr = os.Stderr
 
+	if waitErr := procutil.WaitForProcessCapacity(ctx, claudeProcessCapacityWait); waitErr != nil {
+		return nil, fmt.Errorf("running claude: waiting for process capacity: %w", waitErr)
+	}
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("starting claude: %w", err)
 	}
@@ -480,12 +490,12 @@ func (c *Client) processStreamJSONWithCost(stdout io.Reader, output io.Writer, h
 					Path string `json:"path,omitempty"`
 				} `json:"content"`
 			} `json:"message,omitempty"`
-			Result       string  `json:"result,omitempty"`
-			TotalCostUSD float64 `json:"total_cost_usd,omitempty"`
-			InputTokens  int     `json:"input_tokens,omitempty"`
-			OutputTokens           int     `json:"output_tokens,omitempty"`
-			CacheReadInputTokens   int     `json:"cache_read_input_tokens,omitempty"`
-			Usage        *struct {
+			Result               string  `json:"result,omitempty"`
+			TotalCostUSD         float64 `json:"total_cost_usd,omitempty"`
+			InputTokens          int     `json:"input_tokens,omitempty"`
+			OutputTokens         int     `json:"output_tokens,omitempty"`
+			CacheReadInputTokens int     `json:"cache_read_input_tokens,omitempty"`
+			Usage                *struct {
 				TotalCostUSD float64 `json:"total_cost_usd,omitempty"`
 				InputTokens  int     `json:"input_tokens,omitempty"`
 				OutputTokens int     `json:"output_tokens,omitempty"`
