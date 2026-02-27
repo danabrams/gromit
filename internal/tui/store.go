@@ -84,3 +84,14 @@ func (s *Store) OnIterationStart(event *events.IterationStartEvent) {
 		StartTime: event.EventTime(),
 	}
 }
+
+// OnIterationComplete updates the store when an iteration completes.
+func (s *Store) OnIterationComplete(event *events.IterationCompleteEvent) {
+	if s.Dashboard.RunProgress == nil {
+		s.Dashboard.RunProgress = &RunProgress{}
+	}
+	s.Dashboard.RunProgress.CurrentIteration++
+	if s.Dashboard.RunProgress.MaxIterations > 0 {
+		s.Dashboard.RunProgress.IterationPercent = (s.Dashboard.RunProgress.CurrentIteration * 100) / s.Dashboard.RunProgress.MaxIterations
+	}
+}
