@@ -326,3 +326,20 @@ func TestPipeline_ResolveReviewScopeWithEpic(t *testing.T) {
 		t.Error("ResolveReviewScope() expected error (method not yet implemented)")
 	}
 }
+
+// TestPipeline_ListBeadsMethod verifies Pipeline has ListBeads query method
+// with proper input/output types and nil dependency validation.
+func TestPipeline_ListBeadsMethod(t *testing.T) {
+	deps := &Deps{}
+	paths := &Paths{}
+	p := New(deps, paths)
+
+	ctx := context.Background()
+	input := ListBeadsInput{Status: "ready"}
+
+	// Should return error with nil dependencies
+	_, err := p.ListBeads(ctx, input)
+	if err == nil {
+		t.Error("ListBeads() should error with nil dependencies")
+	}
+}

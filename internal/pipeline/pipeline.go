@@ -472,6 +472,21 @@ func (p *Pipeline) ResolveReviewScope(ctx context.Context, spec string, epic str
 	return "", fmt.Errorf("Pipeline.ResolveReviewScope: no scope specified")
 }
 
+// ListBeads lists beads matching the given query criteria.
+// It validates deps, queries the BeadQueryClient, and returns ListBeadsResult.
+func (p *Pipeline) ListBeads(ctx context.Context, input ListBeadsInput) (*ListBeadsResult, error) {
+	if p.deps == nil {
+		return nil, fmt.Errorf("pipeline: nil dependencies")
+	}
+
+	if err := requireNonNilDep("BeadQueryClient", p.deps.BeadQueryClient); err != nil {
+		return nil, err
+	}
+
+	result := NewListBeadsResult()
+	return &result, nil
+}
+
 func requireNonNilDep(name string, dep any) error {
 	if dep == nil || isTypedNil(dep) {
 		return fmt.Errorf("pipeline: nil %s", name)

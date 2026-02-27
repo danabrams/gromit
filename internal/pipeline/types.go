@@ -220,3 +220,21 @@ func (rs *ReviewSession) Cleanup() {
 type ExploreSession struct {
 	Session
 }
+
+// ListBeadsInput contains parameters for listing beads.
+type ListBeadsInput struct {
+	Status string // Filter by bead status (e.g., "ready", "done")
+}
+
+// ListBeadsResult contains the output from listing beads.
+// Use NewListBeadsResult() to create instances with properly initialized slices.
+type ListBeadsResult struct {
+	BeadIDs []string `json:"bead_ids"`
+}
+
+// NewListBeadsResult creates a ListBeadsResult with initialized slices.
+func NewListBeadsResult() ListBeadsResult {
+	return ListBeadsResult{
+		BeadIDs: []string{},
+	}
+}
