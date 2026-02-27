@@ -13,6 +13,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/events"
+	"github.com/danabrams/gromit/internal/events/cli"
 	"github.com/danabrams/gromit/internal/experiment"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
@@ -129,10 +130,10 @@ func (o *Orchestrator) StartSubscribers(ctx context.Context) error {
 		output = os.Stderr
 	}
 
-	// Import cli package for CLISubscriber
-	// For now, just create the subscriber - implementation will expand as we grow
-	_ = output
-	_ = ctx
+	cliSubscriber := cli.NewCLISubscriber(output, o.emitter)
+	go func() {
+		_ = cliSubscriber.Start(ctx)
+	}()
 
 	return nil
 }
