@@ -7,9 +7,11 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/pipeline"
 )
 
@@ -256,6 +258,36 @@ func TestGateRun(t *testing.T) {
 				t.Errorf("decision = %v, want %v", out.Decision, tt.wantDecision)
 			}
 		})
+	}
+}
+
+func TestGateRun_PrecheckErrorEmitsLogEvent(t *testing.T) {
+	t.Parallel()
+
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	gate := New(io.Discard).WithPrechecker(newMockPrechecker().WithCheck(false, errors.New("boom")))
+	gate.WithEmitter(emitter)
+
+	_, err := gate.Run(context.Background(), pipeline.Input{Bead: &bead.Bead{ID: "log-test"}})
+	if err != nil {
+		t.Fatalf("Gate.Run() error = %v", err)
+	}
+
+	select {
+	case evt := <-ch:
+		logEvt, ok := evt.(*events.LogEvent)
+		if !ok {
+			t.Fatalf("expected LogEvent, got %T", evt)
+		}
+		if !strings.Contains(logEvt.Message, "precheck failed") {
+			t.Fatalf("unexpected log message %q", logEvt.Message)
+		}
+	case <-time.After(50 * time.Millisecond):
+		t.Fatal("expected LogEvent to be emitted")
 	}
 }
 
