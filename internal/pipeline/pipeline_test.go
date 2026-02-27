@@ -360,3 +360,20 @@ func TestPipeline_QueryBeadsMethod(t *testing.T) {
 		t.Error("QueryBeads() should error with nil dependencies")
 	}
 }
+
+// TestPipeline_CountBeadsMethod verifies Pipeline has CountBeads query method
+// with proper input/output types and nil dependency validation.
+func TestPipeline_CountBeadsMethod(t *testing.T) {
+	deps := &Deps{}
+	paths := &Paths{}
+	p := New(deps, paths)
+
+	ctx := context.Background()
+	input := CountBeadsInput{Status: "done"}
+
+	// Should return error with nil dependencies
+	_, err := p.CountBeads(ctx, input)
+	if err == nil {
+		t.Error("CountBeads() should error with nil dependencies")
+	}
+}

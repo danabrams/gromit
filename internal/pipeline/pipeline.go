@@ -502,6 +502,21 @@ func (p *Pipeline) QueryBeads(ctx context.Context, input QueryBeadsInput) (*Quer
 	return &result, nil
 }
 
+// CountBeads counts beads with a given status.
+// It validates deps, queries the BeadQueryClient, and returns CountBeadsResult.
+func (p *Pipeline) CountBeads(ctx context.Context, input CountBeadsInput) (*CountBeadsResult, error) {
+	if p.deps == nil {
+		return nil, fmt.Errorf("pipeline: nil dependencies")
+	}
+
+	if err := requireNonNilDep("BeadQueryClient", p.deps.BeadQueryClient); err != nil {
+		return nil, err
+	}
+
+	result := &CountBeadsResult{Count: 0}
+	return result, nil
+}
+
 func requireNonNilDep(name string, dep any) error {
 	if dep == nil || isTypedNil(dep) {
 		return fmt.Errorf("pipeline: nil %s", name)

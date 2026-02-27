@@ -256,3 +256,13 @@ func NewQueryBeadsResult() QueryBeadsResult {
 		Beads: []BeadInfo{},
 	}
 }
+
+// CountBeadsInput contains parameters for counting beads.
+type CountBeadsInput struct {
+	Status string // Status to count (e.g., "ready", "done")
+}
+
+// CountBeadsResult contains the output from counting beads.
+type CountBeadsResult struct {
+	Count int `json:"count"`
+}
