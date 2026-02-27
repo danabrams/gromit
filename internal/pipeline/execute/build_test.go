@@ -1212,3 +1212,101 @@ checkEvents:
 		t.Errorf("BuildCompleteEvent.TokensOut = %d, want 50", completeEvent.TokensOut)
 	}
 }
+
+// RED: test that BuildStartEvent has Time field
+func TestBuildRun_BuildStartEventHasTimeField(t *testing.T) {
+	t.Parallel()
+
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	invoker := &fakeInvoker{
+		streamRunFn: func(_ context.Context, _, _ string, _ io.Writer, _ provider.EventHandler, _ provider.ToolCallHandler) (*provider.Result, error) {
+			return &provider.Result{Success: true}, nil
+		},
+	}
+
+	build := execute.New(invoker, &fakePromptRenderer{}, io.Discard)
+
+	cfg := defaultConfig()
+	input := makeInput(makeBead("test-bead", "test bead"), cfg)
+	input.Emitter = emitter
+
+	_, err := build.Run(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Build.Run() error = %v", err)
+	}
+
+	// Collect events
+	var startEvent *events.BuildStartEvent
+	timeout := time.After(100 * time.Millisecond)
+	for {
+		select {
+		case evt := <-ch:
+			if se, ok := evt.(*events.BuildStartEvent); ok {
+				startEvent = se
+			}
+		case <-timeout:
+			goto checkEvent
+		}
+	}
+
+checkEvent:
+	if startEvent == nil {
+		t.Fatal("expected BuildStartEvent to be emitted")
+	}
+	if startEvent.Time.IsZero() {
+		t.Error("BuildStartEvent.Time is zero, want non-zero timestamp")
+	}
+}
+
+// RED: test that BuildCompleteEvent has Time field
+func TestBuildRun_BuildCompleteEventHasTimeField(t *testing.T) {
+	t.Parallel()
+
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	invoker := &fakeInvoker{
+		streamRunFn: func(_ context.Context, _, _ string, _ io.Writer, _ provider.EventHandler, _ provider.ToolCallHandler) (*provider.Result, error) {
+			return &provider.Result{Success: true}, nil
+		},
+	}
+
+	build := execute.New(invoker, &fakePromptRenderer{}, io.Discard)
+
+	cfg := defaultConfig()
+	input := makeInput(makeBead("test-bead", "test bead"), cfg)
+	input.Emitter = emitter
+
+	_, err := build.Run(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Build.Run() error = %v", err)
+	}
+
+	// Collect events
+	var completeEvent *events.BuildCompleteEvent
+	timeout := time.After(100 * time.Millisecond)
+	for {
+		select {
+		case evt := <-ch:
+			if ce, ok := evt.(*events.BuildCompleteEvent); ok {
+				completeEvent = ce
+			}
+		case <-timeout:
+			goto checkEvent
+		}
+	}
+
+checkEvent:
+	if completeEvent == nil {
+		t.Fatal("expected BuildCompleteEvent to be emitted")
+	}
+	if completeEvent.Time.IsZero() {
+		t.Error("BuildCompleteEvent.Time is zero, want non-zero timestamp")
+	}
+}
