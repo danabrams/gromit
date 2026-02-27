@@ -12,6 +12,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/coverage"
+	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/experiment"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
@@ -101,12 +102,21 @@ type StateSaver interface {
 // Structural guarantee: this file imports only internal/pipeline and internal/logger;
 // no stage sub-package is imported. Wire stages in constructor.go.
 type Orchestrator struct {
-	cfg OrchestratorConfig
+	cfg     OrchestratorConfig
+	emitter *events.Emitter
 }
 
 // NewOrchestrator returns an Orchestrator wired with the given configuration.
 func NewOrchestrator(cfg OrchestratorConfig) *Orchestrator {
-	return &Orchestrator{cfg: cfg}
+	return &Orchestrator{
+		cfg:     cfg,
+		emitter: events.NewEmitter(),
+	}
+}
+
+// GetEmitter returns the Emitter for this Orchestrator.
+func (o *Orchestrator) GetEmitter() *events.Emitter {
+	return o.emitter
 }
 
 // Run executes the Gromit pipeline loop until the bead queue is empty, maxIterations
