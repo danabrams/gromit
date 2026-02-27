@@ -76,19 +76,19 @@ type IterationLogWriter interface {
 // status after every iteration, triggers thorough reviews, and runs the
 // between-iterations command.
 type Epilogue struct {
-	beads          BeadLifecycle
-	status         StatusWriter
-	output         io.Writer
-	emitter        *events.Emitter
-	worktree       WorktreeMerger       // optional; nil means skip worktree merge
-	branchRemover  PendingBranchRemover // optional; nil means skip branch removal from state
-	cmd            CommandRunner        // optional; nil means skip between-iterations command
-	specgate       SpecGateRunner       // optional; nil means skip spec gate
-	review         ThoroughReviewer     // optional; nil means skip thorough review
-	epic           EpicChecker          // optional; used with review for epic completion detection
-	failureLearner FailureLearner       // optional; nil means skip failure-path learning
-	logWriter      IterationLogWriter   // optional; nil means skip iteration log write
-	mergeWarnings  map[string]string    // per-run de-duplication of merge warnings by branch
+	events.EmitterMixin // provides Emitter field and SetEmitter method
+	beads               BeadLifecycle
+	status              StatusWriter
+	output              io.Writer
+	worktree            WorktreeMerger       // optional; nil means skip worktree merge
+	branchRemover       PendingBranchRemover // optional; nil means skip branch removal from state
+	cmd                 CommandRunner        // optional; nil means skip between-iterations command
+	specgate            SpecGateRunner       // optional; nil means skip spec gate
+	review              ThoroughReviewer     // optional; nil means skip thorough review
+	epic                EpicChecker          // optional; used with review for epic completion detection
+	failureLearner      FailureLearner       // optional; nil means skip failure-path learning
+	logWriter           IterationLogWriter   // optional; nil means skip iteration log write
+	mergeWarnings       map[string]string    // per-run de-duplication of merge warnings by branch
 }
 
 // Compile-time check: *Epilogue must implement pipeline.Stage.
@@ -106,13 +106,8 @@ func New(beads BeadLifecycle, status StatusWriter, output io.Writer) *Epilogue {
 
 // WithEmitter attaches an EventEmitter for log events.
 func (e *Epilogue) WithEmitter(emitter *events.Emitter) *Epilogue {
-	e.emitter = emitter
+	e.EmitterMixin.SetEmitter(emitter)
 	return e
-}
-
-// SetEmitter is used by orchestrator wiring to attach an emitter.
-func (e *Epilogue) SetEmitter(emitter *events.Emitter) {
-	e.emitter = emitter
 }
 
 // WithWorktree configures an optional WorktreeMerger for merging interactive branches.
@@ -348,11 +343,6 @@ func (e *Epilogue) clearMergeWarning(branch string) {
 }
 
 func (e *Epilogue) log(level, format string, args ...interface{}) {
-	if e.emitter == nil {
-		return
-	}
-	e.emitter.Emit(&events.LogEvent{
-		Level:   level,
-		Message: fmt.Sprintf(format, args...),
-	})
+	logger := &events.EmitterLogger{Emitter: e.Emitter}
+	logger.Log(level, format, args...)
 }
