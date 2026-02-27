@@ -57,3 +57,58 @@ func TestQueryAttributionCorrectness(t *testing.T) {
 		}
 	}
 }
+
+func TestQueryDeterministicRanking(t *testing.T) {
+	// Create two queries with the same documents
+	q1 := NewQuerier()
+	q2 := NewQuerier()
+
+	docs := []DocumentWithAttribution{
+		{
+			FilePath:  "alpha.go",
+			StartLine: 1,
+			EndLine:   10,
+			Content:   "alpha content",
+		},
+		{
+			FilePath:  "beta.go",
+			StartLine: 20,
+			EndLine:   30,
+			Content:   "beta content",
+		},
+		{
+			FilePath:  "gamma.go",
+			StartLine: 40,
+			EndLine:   50,
+			Content:   "gamma content",
+		},
+	}
+
+	q1.Index(docs)
+	q2.Index(docs)
+
+	// Query both and verify results are in same order
+	results1, err := q1.Query("content", 3)
+	if err != nil {
+		t.Fatalf("q1.Query failed: %v", err)
+	}
+
+	results2, err := q2.Query("content", 3)
+	if err != nil {
+		t.Fatalf("q2.Query failed: %v", err)
+	}
+
+	if len(results1) != len(results2) {
+		t.Fatalf("result count mismatch: %d vs %d", len(results1), len(results2))
+	}
+
+	for i, r1 := range results1 {
+		r2 := results2[i]
+		if r1.FilePath != r2.FilePath {
+			t.Fatalf("ranking mismatch at index %d: %q vs %q", i, r1.FilePath, r2.FilePath)
+		}
+		if r1.StartLine != r2.StartLine || r1.EndLine != r2.EndLine {
+			t.Fatalf("line range mismatch at index %d", i)
+		}
+	}
+}
