@@ -18,12 +18,38 @@ import (
 // They transform pipeline.Deps interface types to CLI package types and vice versa.
 // The adapter pattern enables clean separation between pipeline logic and CLI orchestration:
 // - Each adapter wraps CLI-specific functionality (prompt rendering, learnings, state, logging)
-// - Each adapter implements one pipeline interface (ReviewRenderer, LearningsManager, StateManager, etc.)
+// - Each adapter implements exactly one pipeline interface per type
 // - Adapters are instantiated by NewPipelineDeps() in adapter_deps.go
+// - All adapters include compile-time interface assertions
+//
+// === CLI Adapter Categories ===
+//
+// Prompt Renderers (all wrap prompt.Renderer):
+// - refinePromptRenderer: Implements RefineRenderer
+// - planPromptRenderer: Implements PlanRenderer
+// - decomposePromptRenderer: Implements DecomposeRenderer
+// - cliPromptRenderer: Implements ReviewRenderer (thorough code review)
+// - explorePromptRenderer: Implements ExploreRenderer
+//   NOTE: Currently contains business logic (~130 lines) that should be refactored to pure delegation.
+//   See adapter_refactor_explore_test.go for refactoring documentation.
+//
+// State Management:
+// - cliBacklogClient: Wraps bead.Client, implements BacklogWriter
+// - cliLearningsManager: Wraps learnings.File, implements LearningsManager
+// - cliStateManager: Wraps state.File, implements StateManager
+// - cliLogWriter: Wraps logger facilities, implements LogWriter
+//
+// === Adapter Contract ===
+// Each adapter MUST:
+// 1. Wrap exactly one internal dependency (single primary field)
+// 2. Implement exactly one pipeline.* interface
+// 3. Delegate entirely to wrapped dependency - contain no business logic
+// 4. Include compile-time interface assertion
+// 5. Be instantiated in NewPipelineDeps()
 //
 // Naming conventions:
-// - CLI-specific adapters use "cli" prefix when wrapping CLI packages (e.g., cliLogWriter, cliStateManager)
-// - Prompt renderers use "PromptRenderer" suffix (e.g., cliPromptRenderer, explorePromptRenderer)
+// - CLI-specific adapters use "cli" prefix when wrapping CLI packages (cliLogWriter, cliStateManager)
+// - Prompt renderers use "PromptRenderer" suffix (refinePromptRenderer, cliPromptRenderer)
 // - All adapters delegate to their wrapped dependencies without business logic
 
 // cliPromptRenderer adapts prompt.Renderer to pipeline.ReviewRenderer interface

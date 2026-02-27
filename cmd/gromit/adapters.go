@@ -24,10 +24,28 @@ import (
 // - Each adapter implements one or more pipeline interfaces (e.g., LLMClient, TrackerClient)
 // - Adapters perform minimal type transformation and delegation to underlying dependencies
 // - New adapters are wired together in adapter_deps.go by NewPipelineDeps()
+// - All adapters include compile-time interface assertions (var _ Interface = (*Type)(nil))
+//
+// === Adapter Contract ===
+// Each adapter MUST:
+// 1. Wrap exactly one internal dependency (single primary field)
+// 2. Implement exactly one or more pipeline.* interfaces
+// 3. Delegate entirely to wrapped dependency - no business logic
+// 4. Include all required context/type handling for interface compatibility
+// 5. Be instantiated and wired in NewPipelineDeps()
 //
 // Adapter naming conventions:
-// - General adapters use "Adapter" suffix (e.g., claudeClientAdapter, trackerClientAdapter)
+// - LLM providers: *ClientAdapter (claudeClientAdapter, llmRouterClientAdapter)
+// - Task tracking: *Adapter (trackerClientAdapter, backlogClientAdapter, beadQueryClientAdapter)
+// - Prefix wrapping information in type names when relevant
 // - No business logic in adapters - they are pure type-transforming bridges
+//
+// When adding a new adapter:
+// 1. Define the adapter type that wraps the internal dependency
+// 2. Add compile-time interface assertion (var _ pipeline.Interface = (*type)(nil))
+// 3. Implement all required interface methods (delegation only)
+// 4. Wire the adapter in NewPipelineDeps()
+// 5. Add tests verifying interface implementation
 
 // claudeClientAdapter adapts claude.Client to pipeline invocation interfaces.
 type claudeClientAdapter struct {
