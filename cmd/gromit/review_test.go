@@ -376,17 +376,17 @@ func TestCliStateManagerSetLastReviewCommit_UsesHeadCommit(t *testing.T) {
 	stubReviewGit(t, []byte("deadbeef\n"), nil)
 
 	gromitDir := t.TempDir()
-	manager := &cliStateManager{gromitDir: gromitDir}
-	if err := manager.SetLastReviewCommit("from-commit"); err != nil {
-		t.Fatalf("SetLastReviewCommit() error = %v", err)
-	}
-
 	sf, err := state.NewInteractiveFile(gromitDir)
 	if err != nil {
 		t.Fatalf("NewInteractiveFile() error = %v", err)
 	}
 	if err := sf.Load(); err != nil {
 		t.Fatalf("Load() error = %v", err)
+	}
+
+	manager := &cliStateManager{stateFile: sf}
+	if err := manager.SetLastReviewCommit("from-commit"); err != nil {
+		t.Fatalf("SetLastReviewCommit() error = %v", err)
 	}
 	if sf.LastReviewCommit() != "deadbeef" {
 		t.Fatalf("LastReviewCommit() = %q, want %q", sf.LastReviewCommit(), "deadbeef")
@@ -398,11 +398,6 @@ func TestCliStateManagerSetLastReviewCommit_FallsBackToProvidedCommit(t *testing
 	stubReviewGit(t, nil, errors.New("git failure"))
 
 	gromitDir := t.TempDir()
-	manager := &cliStateManager{gromitDir: gromitDir}
-	if err := manager.SetLastReviewCommit("fallback-commit"); err != nil {
-		t.Fatalf("SetLastReviewCommit() error = %v", err)
-	}
-
 	sf, err := state.NewInteractiveFile(gromitDir)
 	if err != nil {
 		t.Fatalf("NewInteractiveFile() error = %v", err)
@@ -410,8 +405,21 @@ func TestCliStateManagerSetLastReviewCommit_FallsBackToProvidedCommit(t *testing
 	if err := sf.Load(); err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
-	if sf.LastReviewCommit() != "fallback-commit" {
-		t.Fatalf("LastReviewCommit() = %q, want %q", sf.LastReviewCommit(), "fallback-commit")
+
+	manager := &cliStateManager{stateFile: sf}
+	if err := manager.SetLastReviewCommit("fallback-commit"); err != nil {
+		t.Fatalf("SetLastReviewCommit() error = %v", err)
+	}
+
+	sf2, err := state.NewInteractiveFile(gromitDir)
+	if err != nil {
+		t.Fatalf("NewInteractiveFile() error = %v", err)
+	}
+	if err := sf2.Load(); err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if sf2.LastReviewCommit() != "fallback-commit" {
+		t.Fatalf("LastReviewCommit() = %q, want %q", sf2.LastReviewCommit(), "fallback-commit")
 	}
 }
 
@@ -426,7 +434,7 @@ func TestCliStateManagerGetLastReviewCommit_ReturnsStateCommit(t *testing.T) {
 		t.Fatalf("RecordReview() error = %v", err)
 	}
 
-	manager := &cliStateManager{gromitDir: gromitDir}
+	manager := &cliStateManager{stateFile: sf}
 	commit, err := manager.GetLastReviewCommit()
 	if err != nil {
 		t.Fatalf("GetLastReviewCommit() error = %v", err)

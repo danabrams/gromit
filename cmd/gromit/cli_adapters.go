@@ -12,8 +12,6 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/prompt"
-	"github.com/danabrams/gromit/internal/review"
-	"github.com/danabrams/gromit/internal/state"
 )
 
 // cliPromptRenderer adapts prompt.Renderer to pipeline.ReviewRenderer interface
@@ -247,22 +245,7 @@ func (c *cliBacklogClient) Add(entry *pipeline.BacklogEntry) error {
 		return fmt.Errorf("backlog entry is nil")
 	}
 
-	labels := entry.Labels
-	if len(labels) == 0 {
-		labels = review.BuildBacklogLabels()
-	}
-
-	expectedOutputs := entry.ExpectedOutputs
-	if expectedOutputs == nil {
-		expectedOutputs = []string{}
-	}
-
-	priority := entry.Priority
-	if priority == 0 {
-		priority = 2
-	}
-
-	_, err := c.beadClient.Create(context.Background(), entry.Title, priority, labels, expectedOutputs)
+	_, err := c.beadClient.Create(context.Background(), entry.Title, entry.Priority, entry.Labels, entry.ExpectedOutputs)
 	return err
 }
 
@@ -272,28 +255,17 @@ func (c *cliBacklogClient) Update(id string, fn func(*pipeline.Idea)) error {
 
 // cliLearningsManager adapts learnings operations to pipeline.LearningsManager interface
 type cliLearningsManager struct {
-	gromitDir string
-	runner    learnings.ClaudeRunner
+	file *learnings.File
 }
 
 var _ pipeline.LearningsManager = (*cliLearningsManager)(nil)
 
 func (m *cliLearningsManager) Add(content string) error {
-	learningsFile, err := learnings.NewFile(m.gromitDir)
-	if err != nil {
-		return err
+	if m == nil || m.file == nil {
+		return fmt.Errorf("learnings manager is not properly initialized")
 	}
 
-	// Wire filter into learnings file
-	if m.runner != nil {
-		learningsFile.SetFilter(learnings.NewLLMFilter(m.runner, "gromit", learnings.ProjectDescriptions.Gromit))
-	}
-
-	if err := learningsFile.Load(); err != nil {
-		return err
-	}
-
-	_, err = learningsFile.Add(reviewSessionCommand, content, learnings.CategoryPatterns)
+	_, err := m.file.Add(reviewSessionCommand, content, learnings.CategoryPatterns)
 	return err
 }
 
@@ -327,6 +299,9 @@ func (r *pipelineLearningsRunnerAdapter) Run(ctx context.Context, prompt string,
 // cliLogWriter adapts logger operations to pipeline.LogWriter interface
 type cliLogWriter struct {
 	logsDir                   string
+	logType                   string
+	logReviewType             string
+	defaultModel              string
 	promptDiagnosticsProvider func() *prompt.PromptDiagnostics
 }
 
@@ -341,13 +316,13 @@ func (w *cliLogWriter) Write(entry *pipeline.LogEntry) error {
 
 	model := entry.Model
 	if model == "" {
-		model = reviewDefaultModel
+		model = w.defaultModel
 	}
 
 	reviewLog := &logger.ReviewLog{
 		Timestamp:      time.Now(),
-		Type:           reviewLogType,
-		ReviewType:     reviewLogReviewType,
+		Type:           w.logType,
+		ReviewType:     w.logReviewType,
 		Iteration:      0,
 		Model:          model,
 		Passed:         entry.Passed,
@@ -363,45 +338,32 @@ func (w *cliLogWriter) Write(entry *pipeline.LogEntry) error {
 	return log.LogReview(reviewLog)
 }
 
+// stateFileAdapter abstracts state.File operations for the adapter
+type stateFileAdapter interface {
+	LastReviewCommit() string
+	RecordReview(commit string, duration int) error
+}
+
 // cliStateManager adapts state operations to pipeline.StateManager interface
 type cliStateManager struct {
-	gromitDir string
+	stateFile stateFileAdapter
 }
 
 var _ pipeline.StateManager = (*cliStateManager)(nil)
 var _ learnings.ClaudeRunner = (*pipelineLearningsRunnerAdapter)(nil)
 
 func (m *cliStateManager) GetLastReviewCommit() (string, error) {
-	if tagCommit, err := state.LatestReviewTagCommitInRepo(reviewRepoDirFromGromitDir(m.gromitDir)); err == nil && tagCommit != "" {
-		return tagCommit, nil
+	if m == nil || m.stateFile == nil {
+		return "", fmt.Errorf("state manager is not properly initialized")
 	}
 
-	sf, err := state.NewInteractiveFile(m.gromitDir)
-	if err != nil {
-		return "", err
-	}
-
-	if err := sf.Load(); err != nil {
-		return "", err
-	}
-
-	return sf.LastReviewCommit(), nil
+	return m.stateFile.LastReviewCommit(), nil
 }
 
 func (m *cliStateManager) SetLastReviewCommit(commit string) error {
-	sf, err := state.NewInteractiveFile(m.gromitDir)
-	if err != nil {
-		return err
+	if m == nil || m.stateFile == nil {
+		return fmt.Errorf("state manager is not properly initialized")
 	}
 
-	if err := sf.Load(); err != nil {
-		return err
-	}
-
-	currentCommit, err := getGitHeadForReview()
-	if err != nil {
-		currentCommit = commit
-	}
-
-	return sf.RecordReview(currentCommit, 0)
+	return m.stateFile.RecordReview(commit, 0)
 }

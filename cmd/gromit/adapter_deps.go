@@ -9,8 +9,10 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/state"
 )
 
 // NewPipelineDeps constructs a complete pipeline.Deps with all adapters wired together.
@@ -82,17 +84,36 @@ func NewPipelineDeps(cfg *config.Config, gromitDir string) (*pipeline.Deps, erro
 	exploreRenderer := &explorePromptRenderer{renderer: promptRenderer}
 
 	// Learning and state managers
-	learningsManager := &cliLearningsManager{
-		gromitDir: gromitDir,
-		runner:    nil, // Will be injected by caller
+	// Create and load learnings file with filter
+	learningsFile, err := learnings.NewFile(gromitDir)
+	if err != nil {
+		return nil, err
 	}
+	// Note: Filter will be configured by caller via SetDepsLearningsFilter if needed
+
+	learningsManager := &cliLearningsManager{
+		file: learningsFile,
+	}
+
+	// Create and load state file
+	stateFile, err := state.NewInteractiveFile(gromitDir)
+	if err != nil {
+		return nil, err
+	}
+	if err := stateFile.Load(); err != nil {
+		return nil, err
+	}
+
 	stateManager := &cliStateManager{
-		gromitDir: gromitDir,
+		stateFile: stateFile,
 	}
 
 	// Log writer
 	logWriter := &cliLogWriter{
 		logsDir:                   filepath.Join(gromitDir, "logs"),
+		logType:                   "review",
+		logReviewType:             "thorough-cli",
+		defaultModel:              "opus",
 		promptDiagnosticsProvider: nil, // Will be injected by caller
 	}
 

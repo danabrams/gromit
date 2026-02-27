@@ -482,14 +482,6 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 		return renderer.LastDiagnostics()
 	})
 
-	// Update learnings runner with the review-specific LLM client
-	learningsAdapter, ok := deps.LearningsManager.(*cliLearningsManager)
-	if ok {
-		learningsAdapter.runner = &pipelineLearningsRunnerAdapter{
-			client: llmClient,
-		}
-	}
-
 	paths := &pipeline.Paths{
 		GromitDir: gromitDir,
 	}
@@ -598,8 +590,16 @@ func shortCommit(commit string) string {
 }
 
 func recordInteractiveReviewCompletion(gromitDir, fromCommit string) error {
+	sf, err := state.NewInteractiveFile(gromitDir)
+	if err != nil {
+		return fmt.Errorf("creating state file: %w", err)
+	}
+	if err := sf.Load(); err != nil {
+		return fmt.Errorf("loading state file: %w", err)
+	}
+
 	stateAdapter := &cliStateManager{
-		gromitDir: gromitDir,
+		stateFile: sf,
 	}
 	if err := stateAdapter.SetLastReviewCommit(fromCommit); err != nil {
 		return fmt.Errorf("recording review completion: %w", err)
