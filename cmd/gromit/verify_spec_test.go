@@ -10,6 +10,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/specgate"
+	"github.com/danabrams/gromit/internal/tracker"
 )
 
 const (
@@ -353,6 +354,112 @@ func TestVerifySpec_LocalProviderConfigHelpersRemoved(t *testing.T) {
 			t.Fatalf("verify_spec.go contains obsolete local config/provider helper usage: %q", snippet)
 		}
 	}
+}
+
+func TestSpecGateBeadCreatorWithTrackerClient_EncodeLabelsWithTrackerFunction(t *testing.T) {
+	t.Parallel()
+
+	// Test that specGateBeadCreatorWithTrackerClient.Create encodes labels
+	// using the same function as tracker.EncodeMetadataJSONList
+	testCases := []struct {
+		name   string
+		labels []string
+	}{
+		{
+			name:   "non-empty labels",
+			labels: []string{"label1", "label2"},
+		},
+		{
+			name:   "empty labels",
+			labels: []string{},
+		},
+		{
+			name:   "single label",
+			labels: []string{"single"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a stub tracker client that captures the CreateRequest
+			var capturedReq tracker.CreateRequest
+			stubClient := &stubTrackerClient2{
+				createFn: func(ctx context.Context, req tracker.CreateRequest) (*tracker.Item, error) {
+					capturedReq = req
+					return &tracker.Item{
+						ID:    "test-id",
+						Title: req.Title,
+					}, nil
+				},
+			}
+
+			creator := &specGateBeadCreatorWithTrackerClient{
+				trackerClient: stubClient,
+			}
+
+			_, err := creator.Create(context.Background(), "Test Title", "Test Description", "P1", tc.labels)
+			if err != nil {
+				t.Fatalf("Create returned error: %v", err)
+			}
+
+			// Verify labels encoding matches tracker.EncodeMetadataJSONList
+			expectedLabels, labelsOk := tracker.EncodeMetadataJSONList(tc.labels)
+			actualLabels, labelsPresent := capturedReq.Metadata["labels"]
+			if labelsOk {
+				if !labelsPresent || actualLabels != expectedLabels {
+					t.Fatalf("labels mismatch: got %q, want %q", actualLabels, expectedLabels)
+				}
+			} else {
+				if labelsPresent {
+					t.Fatalf("labels should not be present when EncodeMetadataJSONList returns false")
+				}
+			}
+		})
+	}
+}
+
+type stubTrackerClient2 struct {
+	createFn func(ctx context.Context, req tracker.CreateRequest) (*tracker.Item, error)
+}
+
+func (s *stubTrackerClient2) Ready(ctx context.Context) (*tracker.Item, error) {
+	return nil, nil
+}
+func (s *stubTrackerClient2) List(ctx context.Context, q tracker.Query) ([]tracker.Item, error) {
+	return nil, nil
+}
+func (s *stubTrackerClient2) Show(ctx context.Context, id string) (*tracker.Item, error) {
+	return nil, nil
+}
+func (s *stubTrackerClient2) Search(ctx context.Context, q tracker.Query) ([]tracker.Item, error) {
+	return nil, nil
+}
+func (s *stubTrackerClient2) Create(ctx context.Context, req tracker.CreateRequest) (*tracker.Item, error) {
+	if s.createFn != nil {
+		return s.createFn(ctx, req)
+	}
+	return nil, nil
+}
+func (s *stubTrackerClient2) CreateWithParent(ctx context.Context, req tracker.CreateRequest, parentID string) (*tracker.Item, error) {
+	return nil, nil
+}
+func (s *stubTrackerClient2) Update(ctx context.Context, req tracker.UpdateRequest) (*tracker.Item, error) {
+	return nil, nil
+}
+func (s *stubTrackerClient2) ListWithLabel(ctx context.Context, label string) ([]tracker.Item, error) {
+	return nil, nil
+}
+func (s *stubTrackerClient2) Close(ctx context.Context, id string) error {
+	return nil
+}
+func (s *stubTrackerClient2) Sync(ctx context.Context) error {
+	return nil
+}
+func (s *stubTrackerClient2) AddComment(ctx context.Context, id, comment string) error {
+	return nil
+}
+func (s *stubTrackerClient2) HasOpenChildren(ctx context.Context, parentID string) (bool, error) {
+	return false, nil
 }
 
 func setupVerifySpecTest(t *testing.T, specName string, specContent string) {
