@@ -3768,6 +3768,27 @@ func TestGitConfigDefaultPushTimeout(t *testing.T) {
 	}
 }
 
+func TestGitConfigBaseBranchDefault(t *testing.T) {
+	cfg := &Config{}
+	cfg.SetDefaults()
+
+	if cfg.Git.BaseBranch != DefaultBaseBranch {
+		t.Errorf("expected default git base_branch=%q, got %q", DefaultBaseBranch, cfg.Git.BaseBranch)
+	}
+}
+
+func TestGitConfigBaseBranchFromYAML(t *testing.T) {
+	yaml := `git:
+  base_branch: develop
+`
+
+	cfg := loadConfigFromYAML(t, yaml)
+
+	if cfg.Git.BaseBranch != "develop" {
+		t.Errorf("expected git base_branch=develop, got %q", cfg.Git.BaseBranch)
+	}
+}
+
 func TestGitConfigPushTimeoutDurationFromYAML(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "gromit.yaml")
