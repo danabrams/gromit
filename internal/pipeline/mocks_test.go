@@ -3,6 +3,7 @@ package pipeline
 import "context"
 
 // These should compile if the interfaces are properly defined
+var _ Agent = (*testAgent)(nil)
 var _ AgentResolver = (*testAgentResolver)(nil)
 var _ LLMClient = (*testLLMClient)(nil)
 var _ TrackerClient = (*testBeadClient)(nil)
@@ -16,11 +17,26 @@ var _ LearningsManager = (*testLearningsManager)(nil)
 var _ StateManager = (*testStateManager)(nil)
 var _ LogWriter = (*testLogWriter)(nil)
 
+// testAgent is a mock for unit tests
+type testAgent struct{}
+
+func (m *testAgent) Name() string {
+	return "test-agent"
+}
+
+func (m *testAgent) Launch(promptPath string) error {
+	return nil
+}
+
+func (m *testAgent) LaunchInDir(promptPath, dir string) error {
+	return nil
+}
+
 // testAgentResolver is a mock for unit tests
 type testAgentResolver struct{}
 
 func (m *testAgentResolver) Resolve(phase string, flagOverride string, choosePicker bool) (Agent, error) {
-	return nil, nil
+	return &testAgent{}, nil
 }
 
 // testLLMClient is a mock for unit tests

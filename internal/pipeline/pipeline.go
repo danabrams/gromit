@@ -210,12 +210,52 @@ type LogWriter interface {
 }
 
 // Plan executes the plan workflow.
+// It validates deps, renders prompt, writes temp file, resolves agent, and returns PlanSession.
 func (p *Pipeline) Plan(ctx context.Context, input PlanInput) (*PlanSession, error) {
-	if p.deps == nil || p.deps.AgentResolver == nil {
+	if p.deps == nil {
 		return nil, fmt.Errorf("pipeline: nil dependencies")
 	}
-	// TODO: implement
-	return nil, fmt.Errorf("pipeline: Plan not yet implemented")
+
+	if err := validateRequiredDeps([]namedDependency{
+		{name: "AgentResolver", dep: p.deps.AgentResolver},
+		{name: "PlanRenderer", dep: p.deps.PlanRenderer},
+	}); err != nil {
+		return nil, err
+	}
+
+	// Render the plan prompt
+	promptInput := &PlanPromptInput{
+		IdeaText: input.SpecName,
+	}
+	renderedPrompt, err := p.deps.PlanRenderer.RenderPlan(promptInput)
+	if err != nil {
+		return nil, fmt.Errorf("rendering plan prompt: %w", err)
+	}
+
+	// Write temp file
+	tmpDir := filepath.Join(p.paths.GromitDir, "tmp")
+	promptPath, cleanup, err := writeTempPromptWithPattern(tmpDir, "plan-prompt-*.md", renderedPrompt)
+	if err != nil {
+		return nil, err
+	}
+
+	// Resolve agent
+	agent, err := p.deps.AgentResolver.Resolve("plan", input.AgentName, false)
+	if err != nil {
+		cleanup() // Clean up on error before returning
+		return nil, fmt.Errorf("resolving agent: %w", err)
+	}
+
+	// Launch agent and return session
+	// TODO: implement actual async session management
+	if err := agent.LaunchInDir(promptPath, "."); err != nil {
+		cleanup() // Clean up on error before returning
+		return nil, fmt.Errorf("launching agent: %w", err)
+	}
+
+	// Return session that may own the cleanup function in the future
+	// For now, just return an empty PlanSession
+	return &PlanSession{}, nil
 }
 
 // ReviewInteractive executes the interactive review workflow.
