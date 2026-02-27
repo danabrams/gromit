@@ -276,3 +276,61 @@ func TestOnStallDetected_MarkUnhealthy(t *testing.T) {
 		t.Fatalf("LastEventType = %q, want %q", store.Dashboard.HealthIndicator.LastEventType, "stall_detected")
 	}
 }
+
+func TestMapRunProgress_ExtractsProgressState(t *testing.T) {
+	t.Parallel()
+
+	store := &Store{
+		Dashboard: DashboardState{
+			RunProgress: &RunProgress{
+				CurrentIteration: 2,
+				MaxIterations:    5,
+				IterationPercent: 40,
+				Status:           "running",
+			},
+		},
+	}
+
+	result := MapRunProgress(store)
+
+	if result == nil {
+		t.Fatalf("expected non-nil result")
+	}
+	if result.CurrentIteration != 2 {
+		t.Fatalf("CurrentIteration = %d, want 2", result.CurrentIteration)
+	}
+	if result.MaxIterations != 5 {
+		t.Fatalf("MaxIterations = %d, want 5", result.MaxIterations)
+	}
+	if result.Percent != 40 {
+		t.Fatalf("Percent = %d, want 40", result.Percent)
+	}
+}
+
+func TestMapActivePhase_ExtractsPhaseState(t *testing.T) {
+	t.Parallel()
+
+	startTime := time.Unix(1000, 0)
+	store := &Store{
+		Dashboard: DashboardState{
+			ActivePhase: &ActivePhase{
+				BeadID:    "bead-123",
+				BeadTitle: "Test Feature",
+				Phase:     "build",
+				StartTime: startTime,
+			},
+		},
+	}
+
+	result := MapActivePhase(store)
+
+	if result == nil {
+		t.Fatalf("expected non-nil result")
+	}
+	if result.BeadID != "bead-123" {
+		t.Fatalf("BeadID = %q, want %q", result.BeadID, "bead-123")
+	}
+	if result.Phase != "build" {
+		t.Fatalf("Phase = %q, want %q", result.Phase, "build")
+	}
+}
