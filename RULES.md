@@ -37,9 +37,14 @@ Ephemeral `.-gromit-*` worktree paths must stay untracked in version control. Re
 **Enforcement:** Local pre-commit hooks and CI entry targets; audit gitlink entries in hook output.
 
 ### Bead failure decomposition must be enforced by preflight
-On bead failure: after 2 consecutive cross-run failures, preflight must verify decomposition children exist and parent is blocked before any retry is allowed. Missing child-bead links is a hard error (not warning), with idempotent child creation and explicit `discovered-from` linkage required.
+On bead failure: for broad/high-risk scope (cross-package, regression umbrella titles, or 6+ files), decompose after the first failure; otherwise decompose after 2 consecutive failures. Preflight must verify decomposition children exist and parent is blocked before any retry is allowed. Missing child-bead links is a hard error (not warning), with idempotent child creation and explicit `discovered-from` linkage required. Telemetry/usage children split: (1) event-merge, (2) completeness, (3) attribution. Block parent retries until a child lands.
 
-**Enforcement:** Preflight gate on bead retry; auditable decomposition-attempt event; block parent retries until child lands.
+**Enforcement:** Preflight gate on bead retry; auditable decomposition-attempt event; broad-scope detection at first failure; block parent retries until child lands.
+
+### Run status publication must derive from terminal failure classification
+Any non-nil failure reason sets failed state and suppresses running/completed success states. Run completion UI must not report a running or completed state after an unsuccessful run.
+
+**Enforcement:** Code review on run-status publication paths; CI test asserting failure-reason → failed-status mapping.
 
 ### On timeout risk, trigger decomposition earlier for high-risk scope
 Apply timeout-first decomposition at >=60% elapsed budget when complexity signals are high (broad title signals, multi-type scope, or prior retry), and forbid same-scope retry before decomposition or explicit escalation is recorded. This reduces timeout/rework loops by preventing late-stage surprises.
@@ -47,9 +52,9 @@ Apply timeout-first decomposition at >=60% elapsed budget when complexity signal
 **Enforcement:** Orchestrator/runner validates elapsed budget and complexity signals before allowing same-scope retry; telemetry gates on escalation recording.
 
 ### Usage accounting must use explicit snapshots and one canonical merge strategy
-Usage accounting must use explicit before/after snapshots for every phase and one canonical merge strategy for provider stream events. Treat any non-empty run with `model=unknown` or `provider=unknown` attribution as a data-quality failure: auto-create/link a blocking bead and block keep/revert experiment decisions until one complete current-run dataset with known attribution is recorded. Output must remain fail-closed (`insufficient_current_run_data`, deltas `N/A`).
+Usage accounting must use explicit before/after snapshots for every phase and one canonical merge strategy for provider stream events. Treat any non-empty run with `model=unknown` or `provider=unknown` attribution as a data-quality failure: mark the run as data-quality-failed, auto-create/link a blocking bead, and block keep/revert experiment decisions until one complete current-run dataset with known attribution is recorded. Fail the iteration when usage exists but model/provider attribution is unknown. Output must remain fail-closed (`insufficient_current_run_data`, deltas `N/A`).
 
-**Enforcement:** Runtime telemetry validator; experiment decision gate; unknown-attribution detector in post-run validation; experiment.json schema validator on keep/revert/extend.
+**Enforcement:** Runtime telemetry validator; experiment decision gate; unknown-attribution detector in post-run validation; iteration-level attribution guard; experiment.json schema validator on keep/revert/extend.
 
 ## Reliability
 
@@ -99,6 +104,11 @@ Retry-block metrics must classify by typed error categories, not string matching
 Issue-ledger normalization and semantic edits must be split into separate beads/commits; mixed changes are blocked.
 
 **Enforcement:** Code review on ledger changes; automation rejects commits mixing normalization-only and semantic edits.
+
+### Refactor guardrail tests must validate structural declarations
+Refactor guardrail tests must validate structural declarations (AST/compile-time contracts) instead of naming or string heuristics. For architecture guardrails, require AST- or type-level structural assertions when exported surface invariants are part of acceptance criteria. Source-reading tests (`os.ReadFile`+`strings.Contains` on `.go` files) break on refactoring and are insufficient.
+
+**Enforcement:** Code review on guardrail test changes; CI lint for source-reading test patterns in guardrail suites.
 
 ### Fixture tests should assert schema and records, not prose tokens
 Use structured fixture assertions (parse JSON/JSONL and ledger rows) instead of broad markdown/log token matching. Real-provider probe fixtures are canonical and should drive parser/schema updates rather than forcing fixtures back to stale assumptions.

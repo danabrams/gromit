@@ -70,6 +70,30 @@ Call-log assertions should match the first argv token (for example `codex`) afte
 
 *Archived: narrow implementation detail now subsumed by broader shared tool-call parsing rule; low incremental guidance value.*
 
+### 2026-02-25 | end_to_end_tests_must_assert_cli_surface_not_only_internal_calls | TEST_QUALITY
+*Related to: gromit-lqqvs*
+*Archived: 2026-02-27 — already captured by explicit test-quality rule requiring end-to-end CLI-surface assertions.*
+
+Tests named end-to-end should execute the CLI path and assert user-visible behavior (output/exit code/artifacts); parser- or model-state-only checks belong in focused unit tests.
+
+### 2026-02-24 | token_efficiency_routing_needs_strict_category_and_tier_validation | RELIABILITY
+*Related to: gromit/review-1771929519774405451*
+*Archived: 2026-02-27 — already codified in build-process validation rules for token_efficiency routing normalization.*
+
+`token_efficiency.routing` config must validate both override categories and tier values (`low|medium|high`) after normalization, otherwise invalid entries can silently bypass intended utility-routing guardrails.
+
+### 2026-02-25 | repo_boundary_governance_local_ci_and_runtime_artifacts | PROCESS
+*Related to: gromit/review-1771986309252130811, gromit/review-1771906824758942325, gromit/review-1771933220448456983, gromit/review-1771936368864075181*
+*Archived: 2026-02-27 — already covered by runtime-artifact and local+CI hygiene guard rules.*
+
+Repository boundary governance should be enforced as one policy: local+CI guards must block gitlinks/ephemeral runtime artifacts, and only deterministic curated fixtures are allowed in versioned paths.
+
+### 2026-02-27 | json_encoding_helpers_should_consolidate_to_single_source | CODE_QUALITY
+*Related to: gromit/review-1772155497602965256*
+*Archived: 2026-02-27 — implementation-specific refactor guidance; not a durable cross-bead rule.*
+
+Consolidating duplicate JSON-encoding helpers (marshalJSONList, encodeJSONStrings) into a single canonical function (tracker.EncodeMetadataJSONList) eliminates behavioral drift between callers and simplifies metadata encoding across packages.
+
 ## Promoted to Rules
 
 ### 2026-02-24 | benchmark_execution_and_reporting_require_single_source_truth_and_owner | ARCHITECTURE
@@ -100,3 +124,17 @@ Shared helper packages should avoid exposing mutable global maps because externa
 Any bead touching provider stream usage/event handling must add a stream-event matrix contract test and verify post-run completeness assertions.
 
 *Promoted to Process rule: directly targets repeated telemetry-attribution regressions and stuck-bead recurrence.*
+
+### 2026-02-27 | run_completion_status_should_reflect_failure_reason | RELIABILITY
+*Related to: gromit/review-1772191027352243303*
+
+Run completion UI state should map failure reasons to a failed status so dashboards do not report a running or completed state after an unsuccessful run.
+
+*Promoted to Process rule: incorrect success/running status corrupts operational dashboards and masks true failure rates.*
+
+### 2026-02-25 | refactor_guardrail_tests_should_validate_structure_directly | TEST_QUALITY
+*Related to: gromit/review-1772062103155608386*
+
+Refactor guardrail tests should parse and validate actual declarations (for example via AST) rather than rely on naming heuristics that can pass even when required exported surface drifts.
+
+*Promoted to Test Quality rule: heuristic tests have allowed surface drift; structural assertions are more stable under refactor.*
