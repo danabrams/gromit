@@ -82,33 +82,33 @@ func TestEventTypeStringsAreUnique(t *testing.T) {
 	t.Parallel()
 
 	eventTypes := map[string]bool{
-		(&RunStartEvent{}).EventType():           true,
-		(&RunCompleteEvent{}).EventType():        true,
-		(&IterationStartEvent{}).EventType():     true,
-		(&IterationCompleteEvent{}).EventType():  true,
-		(&BeadCompleteEvent{}).EventType():       true,
-		(&BeadFailedEvent{}).EventType():         true,
-		(&BeadStuckEvent{}).EventType():          true,
-		(&BeadSkippedEvent{}).EventType():        true,
-		(&BuildStartEvent{}).EventType():         true,
-		(&BuildCompleteEvent{}).EventType():      true,
-		(&ValidationStartEvent{}).EventType():    true,
-		(&ValidationPassEvent{}).EventType():     true,
-		(&ValidationFailEvent{}).EventType():     true,
-		(&ReviewStartEvent{}).EventType():        true,
-		(&ReviewCompleteEvent{}).EventType():     true,
-		(&AnalysisStartEvent{}).EventType():      true,
-		(&AnalysisCompleteEvent{}).EventType():   true,
-		(&RetroStartEvent{}).EventType():         true,
-		(&RetroCompleteEvent{}).EventType():      true,
-		(&HeartbeatEvent{}).EventType():          true,
-		(&ModelSelectedEvent{}).EventType():      true,
-		(&EscalationEvent{}).EventType():         true,
-		(&StallDetectedEvent{}).EventType():      true,
-		(&ScopeCheckEvent{}).EventType():         true,
-		(&DecomposeStartEvent{}).EventType():     true,
-		(&SubBeadCreatedEvent{}).EventType():     true,
-		(&DecomposeCompleteEvent{}).EventType():  true,
+		(&RunStartEvent{}).EventType():          true,
+		(&RunCompleteEvent{}).EventType():       true,
+		(&IterationStartEvent{}).EventType():    true,
+		(&IterationCompleteEvent{}).EventType(): true,
+		(&BeadCompleteEvent{}).EventType():      true,
+		(&BeadFailedEvent{}).EventType():        true,
+		(&BeadStuckEvent{}).EventType():         true,
+		(&BeadSkippedEvent{}).EventType():       true,
+		(&BuildStartEvent{}).EventType():        true,
+		(&BuildCompleteEvent{}).EventType():     true,
+		(&ValidationStartEvent{}).EventType():   true,
+		(&ValidationPassEvent{}).EventType():    true,
+		(&ValidationFailEvent{}).EventType():    true,
+		(&ReviewStartEvent{}).EventType():       true,
+		(&ReviewCompleteEvent{}).EventType():    true,
+		(&AnalysisStartEvent{}).EventType():     true,
+		(&AnalysisCompleteEvent{}).EventType():  true,
+		(&RetroStartEvent{}).EventType():        true,
+		(&RetroCompleteEvent{}).EventType():     true,
+		(&HeartbeatEvent{}).EventType():         true,
+		(&ModelSelectedEvent{}).EventType():     true,
+		(&EscalationEvent{}).EventType():        true,
+		(&StallDetectedEvent{}).EventType():     true,
+		(&ScopeCheckEvent{}).EventType():        true,
+		(&DecomposeStartEvent{}).EventType():    true,
+		(&SubBeadCreatedEvent{}).EventType():    true,
+		(&DecomposeCompleteEvent{}).EventType(): true,
 	}
 
 	// If we reach here, all EventType() strings are unique (map keys are unique)
@@ -151,5 +151,296 @@ func TestEventTimeReturnsValidTime(t *testing.T) {
 	now := time.Now()
 	if eventTime.After(now.Add(1 * time.Second)) {
 		t.Error("EventTime() is in the future")
+	}
+}
+
+type eventSpec struct {
+	name     string
+	wantType string
+	event    Event
+}
+
+func specEventCases(ts time.Time) []eventSpec {
+	return []eventSpec{
+		{
+			name:     "RunStartEvent",
+			wantType: "run_start",
+			event: &RunStartEvent{
+				MaxIterations: 1,
+				TimeBudget:    1 * time.Hour,
+				DryRun:        true,
+				Time:          ts,
+			},
+		},
+		{
+			name:     "RunCompleteEvent",
+			wantType: "run_complete",
+			event: &RunCompleteEvent{
+				IterationsCompleted: 1,
+				Reason:              "done",
+				Time:                ts,
+			},
+		},
+		{
+			name:     "IterationStartEvent",
+			wantType: "iteration_start",
+			event: &IterationStartEvent{
+				Iteration: 1,
+				BeadID:    "b1",
+				BeadTitle: "title",
+				Time:      ts,
+			},
+		},
+		{
+			name:     "IterationCompleteEvent",
+			wantType: "iteration_complete",
+			event: &IterationCompleteEvent{
+				Iteration: 1,
+				BeadID:    "b1",
+				Success:   true,
+				Duration:  1 * time.Second,
+				Time:      ts,
+			},
+		},
+		{
+			name:     "BeadCompleteEvent",
+			wantType: "bead_complete",
+			event: &BeadCompleteEvent{
+				BeadID:    "b1",
+				BeadTitle: "title",
+				Duration:  1 * time.Second,
+				Time:      ts,
+			},
+		},
+		{
+			name:     "BeadFailedEvent",
+			wantType: "bead_failed",
+			event: &BeadFailedEvent{
+				BeadID:    "b1",
+				BeadTitle: "title",
+				Error:     "boom",
+				Time:      ts,
+			},
+		},
+		{
+			name:     "BeadStuckEvent",
+			wantType: "bead_stuck",
+			event: &BeadStuckEvent{
+				BeadID:    "b1",
+				BeadTitle: "title",
+				Reason:    "stuck",
+				Time:      ts,
+			},
+		},
+		{
+			name:     "BeadSkippedEvent",
+			wantType: "bead_skipped",
+			event: &BeadSkippedEvent{
+				BeadID: "b1",
+				Reason: "skip",
+				Time:   ts,
+			},
+		},
+		{
+			name:     "BuildStartEvent",
+			wantType: "build_start",
+			event: &BuildStartEvent{
+				BeadID:      "b1",
+				Model:       "opus",
+				Attempt:     1,
+				MaxAttempts: 3,
+				Time:        ts,
+			},
+		},
+		{
+			name:     "BuildCompleteEvent",
+			wantType: "build_complete",
+			event: &BuildCompleteEvent{
+				BeadID:    "b1",
+				Success:   true,
+				Duration:  1 * time.Second,
+				Cost:      0.5,
+				TokensIn:  10,
+				TokensOut: 5,
+				Time:      ts,
+			},
+		},
+		{
+			name:     "ValidationStartEvent",
+			wantType: "validation_start",
+			event: &ValidationStartEvent{
+				BeadID:   "b1",
+				Model:    "haiku",
+				Commands: []string{"go test"},
+				Time:     ts,
+			},
+		},
+		{
+			name:     "ValidationPassEvent",
+			wantType: "validation_pass",
+			event: &ValidationPassEvent{
+				BeadID:   "b1",
+				Duration: 1 * time.Second,
+				Time:     ts,
+			},
+		},
+		{
+			name:     "ValidationFailEvent",
+			wantType: "validation_fail",
+			event: &ValidationFailEvent{
+				BeadID:   "b1",
+				Output:   "fail",
+				Duration: 1 * time.Second,
+				Time:     ts,
+			},
+		},
+		{
+			name:     "ReviewStartEvent",
+			wantType: "review_start",
+			event: &ReviewStartEvent{
+				BeadID:   "b1",
+				Model:    "opus",
+				Thorough: true,
+				Time:     ts,
+			},
+		},
+		{
+			name:     "ReviewCompleteEvent",
+			wantType: "review_complete",
+			event: &ReviewCompleteEvent{
+				BeadID:  "b1",
+				Verdict: "pass",
+				Issues:  []string{"issue"},
+				Time:    ts,
+			},
+		},
+		{
+			name:     "AnalysisStartEvent",
+			wantType: "analysis_start",
+			event: &AnalysisStartEvent{
+				BeadID: "b1",
+				Time:   ts,
+			},
+		},
+		{
+			name:     "AnalysisCompleteEvent",
+			wantType: "analysis_complete",
+			event: &AnalysisCompleteEvent{
+				BeadID:      "b1",
+				Category:    "logic",
+				Recoverable: true,
+				Suggestion:  "retry",
+				Time:        ts,
+			},
+		},
+		{
+			name:     "RetroStartEvent",
+			wantType: "retro_start",
+			event: &RetroStartEvent{
+				BeadID: "b1",
+				Time:   ts,
+			},
+		},
+		{
+			name:     "RetroCompleteEvent",
+			wantType: "retro_complete",
+			event: &RetroCompleteEvent{
+				BeadID:               "b1",
+				ProvisionalLearnings: 2,
+				RulesUpdated:         true,
+				Time:                 ts,
+			},
+		},
+		{
+			name:     "HeartbeatEvent",
+			wantType: "heartbeat",
+			event: &HeartbeatEvent{
+				Elapsed:            1 * time.Second,
+				ToolCalls:          1,
+				FilesModified:      0,
+				RateLimitHits:      0,
+				WaitingForResponse: true,
+				Time:               ts,
+			},
+		},
+		{
+			name:     "ModelSelectedEvent",
+			wantType: "model_selected",
+			event: &ModelSelectedEvent{
+				Model:  "opus",
+				Reason: "priority",
+				Time:   ts,
+			},
+		},
+		{
+			name:     "EscalationEvent",
+			wantType: "escalation",
+			event: &EscalationEvent{
+				FromModel: "haiku",
+				ToModel:   "opus",
+				Attempt:   2,
+				Reason:    "retry",
+				Time:      ts,
+			},
+		},
+		{
+			name:     "StallDetectedEvent",
+			wantType: "stall_detected",
+			event: &StallDetectedEvent{
+				Elapsed:   2 * time.Second,
+				Threshold: 5 * time.Second,
+				Time:      ts,
+			},
+		},
+		{
+			name:     "ScopeCheckEvent",
+			wantType: "scope_check",
+			event: &ScopeCheckEvent{
+				BeadID:     "b1",
+				Complexity: "medium",
+				Approved:   true,
+				Reason:     "ok",
+				Time:       ts,
+			},
+		},
+		{
+			name:     "DecomposeStartEvent",
+			wantType: "decompose_start",
+			event: &DecomposeStartEvent{
+				BeadID:    "b1",
+				BeadTitle: "title",
+				Time:      ts,
+			},
+		},
+		{
+			name:     "SubBeadCreatedEvent",
+			wantType: "subbead_created",
+			event: &SubBeadCreatedEvent{
+				ParentBeadID: "b1",
+				SubBeadID:    "b2",
+				SubBeadTitle: "sub",
+				Index:        1,
+				Total:        3,
+				Time:         ts,
+			},
+		},
+		{
+			name:     "DecomposeCompleteEvent",
+			wantType: "decompose_complete",
+			event: &DecomposeCompleteEvent{
+				BeadID:          "b1",
+				SubBeadsCreated: 3,
+				Time:            ts,
+			},
+		},
+		{
+			name:     "LogEvent",
+			wantType: "log",
+			event: &LogEvent{
+				Level:   "info",
+				Message: "hello",
+				Time:    ts,
+			},
+		},
 	}
 }
