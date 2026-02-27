@@ -7,21 +7,47 @@ import (
 	"sync"
 
 	"github.com/danabrams/gromit/internal/events"
+	"github.com/danabrams/gromit/internal/runner/execution"
 )
 
 // CLISubscriber consumes events and produces formatted terminal output.
 type CLISubscriber struct {
-	output  io.Writer
+	output  execution.OverwriteWriter
 	emitter *events.Emitter
 	mu      sync.Mutex
 }
 
 // NewCLISubscriber creates a new CLI subscriber that writes to the given output writer.
-func NewCLISubscriber(output io.Writer, emitter *events.Emitter) *CLISubscriber {
+func NewCLISubscriber(output interface{}, emitter *events.Emitter) *CLISubscriber {
+	// Convert io.Writer to OverwriteWriter if needed
+	var ow execution.OverwriteWriter
+	switch w := output.(type) {
+	case execution.OverwriteWriter:
+		ow = w
+	case io.Writer:
+		ow = &basicWriter{w}
+	default:
+		ow = &basicWriter{io.Discard}
+	}
+
 	return &CLISubscriber{
-		output:  output,
+		output:  ow,
 		emitter: emitter,
 	}
+}
+
+// basicWriter wraps an io.Writer to implement OverwriteWriter for backward compatibility.
+type basicWriter struct {
+	w io.Writer
+}
+
+func (bw *basicWriter) Write(p []byte) (int, error) {
+	return bw.w.Write(p)
+}
+
+func (bw *basicWriter) WriteOverwrite(p []byte) (int, error) {
+	// For basic writer, just write as-is
+	return bw.w.Write(p)
 }
 
 // Start consumes events from the emitter until the context is cancelled or the emitter is closed.
@@ -105,9 +131,9 @@ func (c *CLISubscriber) handleEvent(event events.Event) {
 	case *events.RetroCompleteEvent:
 		fmt.Fprintf(c.output, "    Retrospective complete: %d learnings, rules updated: %v\n", e.ProvisionalLearnings, e.RulesUpdated)
 	case *events.HeartbeatEvent:
-		// Heartbeat events should use carriage return overwrite for in-place updates
-		// For now, we just print them normally (a real implementation would use \r)
-		fmt.Fprintf(c.output, "      [%.1fs] %d tools, %d files, %d rate limits\r", e.Elapsed.Seconds(), e.ToolCalls, e.FilesModified, e.RateLimitHits)
+		// Heartbeat events use carriage return overwrite for in-place updates
+		heartbeatMsg := fmt.Sprintf("      [%.1fs] %d tools, %d files, %d rate limits\r", e.Elapsed.Seconds(), e.ToolCalls, e.FilesModified, e.RateLimitHits)
+		c.output.WriteOverwrite([]byte(heartbeatMsg))
 	case *events.ModelSelectedEvent:
 		fmt.Fprintf(c.output, "    Model: %s (%s)\n", e.Model, e.Reason)
 	case *events.EscalationEvent:
