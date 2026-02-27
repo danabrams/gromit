@@ -60,3 +60,10 @@ type EmitterMixin struct {
 func (em *EmitterMixin) SetEmitter(emitter *Emitter) {
 	em.Emitter = emitter
 }
+
+// Log emits a LogEvent with the given level and formatted message via the embedded Emitter.
+// It is safe to call when Emitter is nil (no-op).
+func (em *EmitterMixin) Log(level, format string, args ...interface{}) {
+	logger := &EmitterLogger{Emitter: em.Emitter}
+	logger.Log(level, format, args...)
+}
