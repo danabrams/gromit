@@ -7,11 +7,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
@@ -19,7 +17,6 @@ import (
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/scope"
 	"github.com/danabrams/gromit/internal/state"
-	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/spf13/cobra"
 )
 
@@ -96,7 +93,7 @@ func init() {
 
 // createReviewPipeline creates a minimal pipeline instance for scope resolution.
 // This pipeline only needs StateManager for fallback to state file.
-func createReviewPipeline(cfg *config.Config, gromitDir string) (*pipeline.Pipeline, error) {
+var createReviewPipeline = func(cfg *config.Config, gromitDir string) (ReviewScopeResolver, error) {
 	deps, err := NewPipelineDeps(cfg, gromitDir)
 	if err != nil {
 		return nil, fmt.Errorf("constructing pipeline deps: %w", err)
@@ -114,34 +111,27 @@ type ReviewScopeResolver interface {
 	ResolveReviewScope(ctx context.Context, spec string, epic string, since string) (string, error)
 }
 
-// resolveReviewScopeWithPipeline resolves the review starting commit using Pipeline.ResolveReviewScope
-// with fallback to legacy determineReviewScope for spec/epic flags.
 func resolveReviewScopeWithPipeline(resolver ReviewScopeResolver, cfg *config.Config) (string, error) {
 	ctx := context.Background()
 
 	// First try Pipeline.ResolveReviewScope for --since flag
 	commit, err := resolver.ResolveReviewScope(ctx, reviewSpec, reviewEpic, reviewSince)
-	if err == nil {
-		// Success - got commit via Pipeline
-		return commit, nil
-	}
-
-	// If Pipeline couldn't handle it (spec/epic), fall back to legacy logic
-	if reviewSince == "" && (reviewSpec != "" || reviewEpic != "") {
-		// Legacy spec/epic handling
-		return determineReviewScope(cfg)
-	}
-
-	// If --since was provided but Pipeline failed, that's an error
-	if reviewSince != "" {
+	if err != nil {
 		return "", err
 	}
 
-	// No flags provided - use state file via legacy function
-	return determineReviewScope(cfg)
+	return commit, nil
+}
+
+func validateReviewFlags() error {
+	return scope.ValidateFlags(reviewEpic, reviewSpec, reviewSince)
 }
 
 func runReview(cmd *cobra.Command, args []string) error {
+	if err := validateReviewFlags(); err != nil {
+		return err
+	}
+
 	cfg, err := loadConfig()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
@@ -203,201 +193,6 @@ func resolveReviewNonInteractiveTimeout(cfg *config.Config) int {
 		return defaultThoroughReviewTimeoutSeconds
 	}
 	return timeout
-}
-
-func determineReviewScope(cfg *config.Config) (string, error) {
-	return determineReviewScopeWithClient(cfg, nil)
-}
-
-func determineReviewScopeWithClient(cfg *config.Config, beadsClient *bead.Client) (string, error) {
-	// Validate mutual exclusivity of --epic, --spec, and --since
-	if err := scope.ValidateFlags(reviewEpic, reviewSpec, reviewSince); err != nil {
-		return "", err
-	}
-
-	// Priority: --since flag > --spec flag > --epic flag > state file
-	if reviewSince != "" {
-		return reviewSince, nil
-	}
-
-	if reviewSpec != "" {
-		// Find the earliest commit from beads in this spec
-		if beadsClient == nil {
-			var err error
-			beadsClient, err = bead.NewClient()
-			if err != nil {
-				return "", fmt.Errorf("creating bead client: %w", err)
-			}
-		}
-		return getSpecBaseCommit(beadsClient, reviewSpec, resolveSpecsDir(cfg))
-	}
-
-	if reviewEpic != "" {
-		// Find the earliest commit from beads in this epic
-		if beadsClient == nil {
-			var err error
-			beadsClient, err = bead.NewClient()
-			if err != nil {
-				return "", fmt.Errorf("creating bead client: %w", err)
-			}
-		}
-		return getEpicBaseCommit(beadsClient, reviewEpic, resolveSpecsDir(cfg))
-	}
-
-	// Default: use last review commit from state
-	gromitDir := resolveGromitDir(cfg)
-	repoDir := reviewRepoDirFromGromitDir(gromitDir)
-
-	// Prefer repo-global review tags for continuity across worktrees/branches.
-	if tagCommit, err := state.LatestReviewTagCommitInRepo(repoDir); err == nil && tagCommit != "" {
-		return tagCommit, nil
-	}
-
-	sf, err := state.NewInteractiveFile(gromitDir)
-	if err != nil {
-		return "", fmt.Errorf("creating state file: %w", err)
-	}
-
-	if err := sf.Load(); err != nil {
-		return "", fmt.Errorf("loading state: %w", err)
-	}
-
-	fromCommit := sf.LastReviewCommit()
-	if fromCommit == "" {
-		return "", fmt.Errorf("no previous review found - use --since to specify a commit")
-	}
-
-	return fromCommit, nil
-}
-
-func getSpecBaseCommit(beadsClient *bead.Client, specName string, specsDir string) (string, error) {
-	if beadsClient == nil {
-		return "", fmt.Errorf("bead client is nil")
-	}
-	// Validate spec file exists before attempting to resolve
-	if err := scope.ValidateSpec(specsDir, specName); err != nil {
-		return "", err
-	}
-
-	// Get the spec label
-	labels := scope.ResolveSpec(specName)
-	if len(labels) == 0 {
-		return "", fmt.Errorf("no label found for spec %q", specName)
-	}
-
-	// Get all beads with this label
-	beadsWithLabel, err := beadsClient.ListWithLabel(context.Background(), labels[0])
-	if err != nil {
-		return "", fmt.Errorf("listing beads with label %q: %w", labels[0], err)
-	}
-
-	if len(beadsWithLabel) == 0 {
-		return "", fmt.Errorf("no beads found for spec %q - try using --since to specify a commit", specName)
-	}
-
-	// Find the earliest commit from these beads
-	earliestCommit := findEarliestCommitFromBeads(beadsWithLabel)
-	if earliestCommit == "" {
-		return "", fmt.Errorf("no commits found for spec %q - try using --since to specify a commit", specName)
-	}
-
-	return earliestCommit, nil
-}
-
-func getEpicBaseCommit(beadsClient *bead.Client, epicID, specsDir string) (string, error) {
-	if beadsClient == nil {
-		return "", fmt.Errorf("bead client is nil")
-	}
-	// Use scope.ResolveEpic to get spec labels for this epic
-	specLabels, err := scope.ResolveEpic(epicID, specsDir)
-	if err != nil {
-		return "", fmt.Errorf("resolving epic %q: %w", epicID, err)
-	}
-
-	if len(specLabels) == 0 {
-		return "", fmt.Errorf("no specs found for epic %q - try using --since to specify a commit", epicID)
-	}
-
-	allBeads := make([]*bead.Bead, 0)
-	for _, label := range specLabels {
-		beadsWithLabel, err := beadsClient.ListWithLabel(context.Background(), label)
-		if err != nil {
-			return "", fmt.Errorf("listing beads with label %q: %w", label, err)
-		}
-		allBeads = append(allBeads, beadsWithLabel...)
-	}
-
-	if len(allBeads) == 0 {
-		return "", fmt.Errorf("no beads found for epic %q - try using --since to specify a commit", epicID)
-	}
-
-	// Find the earliest commit from these beads
-	earliestCommit := findEarliestCommitFromBeads(allBeads)
-	if earliestCommit == "" {
-		return "", fmt.Errorf("no commits found for epic %q - try using --since to specify a commit", epicID)
-	}
-
-	return earliestCommit, nil
-}
-
-func findFirstCommitForBead(beadID string) (string, error) {
-	if beadID == "" || strings.HasPrefix(beadID, "-") {
-		return "", fmt.Errorf("invalid bead ID %q: must not be empty or start with '-'", beadID)
-	}
-
-	// Keep beadID immediately after --grep so --fixed-strings is interpreted as a flag.
-	out, err := runReviewGitOutput("log", "--all", reviewGitHashFormatArg, "--grep", beadID, "--fixed-strings")
-	if err != nil {
-		return "", nil // No commits found - not an error, just no work yet
-	}
-
-	trimmedOutput := strings.TrimSpace(string(out))
-	if trimmedOutput == "" {
-		return "", nil
-	}
-
-	commitHashes := strings.Split(trimmedOutput, "\n")
-	// git log returns newest first, so the last line is the earliest commit.
-	return commitHashes[len(commitHashes)-1], nil
-}
-
-func isCommitEarlier(commit1, commit2 string) bool {
-	ts1, err1 := getCommitTimestamp(commit1)
-	ts2, err2 := getCommitTimestamp(commit2)
-	if err1 != nil || err2 != nil {
-		return false
-	}
-	return ts1 < ts2
-}
-
-func getCommitTimestamp(commit string) (int64, error) {
-	if err := validateCommitRef(commit); err != nil {
-		return 0, err
-	}
-	out, err := runReviewGitOutput("log", "-1", "--format=%at", commit, "--")
-	if err != nil {
-		return 0, err
-	}
-	return strconv.ParseInt(strings.TrimSpace(string(out)), 10, 64)
-}
-
-// findEarliestCommitFromBeads iterates through beads and returns the earliest commit found.
-// Returns empty string if no commits are found.
-func findEarliestCommitFromBeads(beads []*bead.Bead) string {
-	var earliestCommit string
-
-	for _, b := range beads {
-		commit, err := findFirstCommitForBead(b.ID)
-		if err != nil || commit == "" {
-			continue // Skip beads without commits
-		}
-
-		if earliestCommit == "" || isCommitEarlier(commit, earliestCommit) {
-			earliestCommit = commit
-		}
-	}
-
-	return earliestCommit
 }
 
 func getGitDiffForReview(fromCommit string) (string, error) {
@@ -666,123 +461,4 @@ func reviewRepoDirFromGromitDir(gromitDir string) string {
 		return filepath.Dir(clean)
 	}
 	return clean
-}
-
-// getSpecBaseCommitWithTrackerClient is the tracker.Client version of getSpecBaseCommit.
-// It uses tracker.Client to find beads with the spec label.
-func getSpecBaseCommitWithTrackerClient(specName string, specsDir string, trackerClient tracker.Client) (string, error) {
-	if trackerClient == nil {
-		return "", fmt.Errorf("tracker client is nil")
-	}
-
-	// Validate spec file exists before attempting to resolve
-	if err := scope.ValidateSpec(specsDir, specName); err != nil {
-		return "", err
-	}
-
-	// Get the spec label
-	labels := scope.ResolveSpec(specName)
-	if len(labels) == 0 {
-		return "", fmt.Errorf("no label found for spec %q", specName)
-	}
-
-	// Query for items with this label using tracker.Client
-	query := tracker.Query{
-		Filter: tracker.Filter{
-			Statuses: []string{"open"},
-			Labels:   []string{labels[0]},
-		},
-	}
-
-	items, err := trackerClient.List(context.Background(), query)
-	if err != nil {
-		return "", fmt.Errorf("listing items with label %q: %w", labels[0], err)
-	}
-
-	if len(items) == 0 {
-		return "", fmt.Errorf("no items found for spec %q - try using --since to specify a commit", specName)
-	}
-
-	// Extract IDs from items and find earliest commit
-	var beadIDs []string
-	for _, item := range items {
-		beadIDs = append(beadIDs, item.ID)
-	}
-
-	earliestCommit := ""
-	for _, id := range beadIDs {
-		commit, err := findFirstCommitForBead(id)
-		if err != nil || commit == "" {
-			continue
-		}
-		if earliestCommit == "" || isCommitEarlier(commit, earliestCommit) {
-			earliestCommit = commit
-		}
-	}
-
-	if earliestCommit == "" {
-		return "", fmt.Errorf("no commits found for spec %q - try using --since to specify a commit", specName)
-	}
-
-	return earliestCommit, nil
-}
-
-// getEpicBaseCommitWithTrackerClient is the tracker.Client version of getEpicBaseCommit.
-// It uses tracker.Client to find beads with the epic's spec labels.
-func getEpicBaseCommitWithTrackerClient(epicID, specsDir string, trackerClient tracker.Client) (string, error) {
-	if trackerClient == nil {
-		return "", fmt.Errorf("tracker client is nil")
-	}
-
-	// Use scope.ResolveEpic to get spec labels for this epic
-	specLabels, err := scope.ResolveEpic(epicID, specsDir)
-	if err != nil {
-		return "", fmt.Errorf("resolving epic %q: %w", epicID, err)
-	}
-
-	if len(specLabels) == 0 {
-		return "", fmt.Errorf("no specs found for epic %q - try using --since to specify a commit", epicID)
-	}
-
-	// Query for all items with any of the epic's spec labels
-	var allIDs []string
-	for _, label := range specLabels {
-		query := tracker.Query{
-			Filter: tracker.Filter{
-				Statuses: []string{"open"},
-				Labels:   []string{label},
-			},
-		}
-
-		items, err := trackerClient.List(context.Background(), query)
-		if err != nil {
-			return "", fmt.Errorf("listing items with label %q: %w", label, err)
-		}
-
-		for _, item := range items {
-			allIDs = append(allIDs, item.ID)
-		}
-	}
-
-	if len(allIDs) == 0 {
-		return "", fmt.Errorf("no items found for epic %q - try using --since to specify a commit", epicID)
-	}
-
-	// Find the earliest commit from all items
-	earliestCommit := ""
-	for _, id := range allIDs {
-		commit, err := findFirstCommitForBead(id)
-		if err != nil || commit == "" {
-			continue
-		}
-		if earliestCommit == "" || isCommitEarlier(commit, earliestCommit) {
-			earliestCommit = commit
-		}
-	}
-
-	if earliestCommit == "" {
-		return "", fmt.Errorf("no commits found for epic %q - try using --since to specify a commit", epicID)
-	}
-
-	return earliestCommit, nil
 }
