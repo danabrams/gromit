@@ -1731,3 +1731,170 @@ func TestBenchmarkPhase4ReportCommand_RejectsInvalidTimestamp(t *testing.T) {
 		t.Fatalf("stderr = %q, want mention of --output-ts", stderr)
 	}
 }
+
+func TestBenchmarkPhase4Report_DisabledRetrievalProducesFullReport(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+
+	// Create a phase4 log with disabled retrieval (metrics match baseline)
+	logPath := filepath.Join(tmpDir, "phase4.jsonl")
+	logContent := `{"discovery_input_tokens_baseline":100,"discovery_input_tokens_retrieval":100,"discovery_latency_ms_baseline":1000,"discovery_latency_ms_retrieval":1000,"success_baseline":true,"success_retrieval":true,"wrong_file_retrieval":false}
+{"discovery_input_tokens_baseline":90,"discovery_input_tokens_retrieval":90,"discovery_latency_ms_baseline":950,"discovery_latency_ms_retrieval":950,"success_baseline":true,"success_retrieval":true,"wrong_file_retrieval":false}
+`
+	if err := os.WriteFile(logPath, []byte(logContent), 0o644); err != nil {
+		t.Fatalf("write phase4 log: %v", err)
+	}
+
+	// Generate the report
+	_, _, exitCode := runGromitCobra(t,
+		"benchmark", "phase4-report",
+		"--log", logPath,
+		"--output-ts", "20260225T120000Z",
+	)
+
+	if exitCode != 0 {
+		t.Fatalf("phase4-report command failed with exit code %d", exitCode)
+	}
+
+	// Verify the JSON report was created
+	jsonPath := filepath.Join(".gromit", "reports", "phase4-measurement-20260225T120000Z.json")
+	jsonData, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("read phase4 JSON report: %v", err)
+	}
+
+	// Verify the report contains full evidence
+	var report struct {
+		Timestamp string `json:"timestamp"`
+		Report    struct {
+			Baseline struct {
+				MedianDiscoveryInputTokens int     `json:"MedianDiscoveryInputTokens"`
+				MedianDiscoveryLatencyMs   int     `json:"MedianDiscoveryLatencyMs"`
+				SuccessRate                float64 `json:"SuccessRate"`
+				WrongFileRate              float64 `json:"WrongFileRate"`
+			} `json:"Baseline"`
+			Retrieval struct {
+				MedianDiscoveryInputTokens int     `json:"MedianDiscoveryInputTokens"`
+				MedianDiscoveryLatencyMs   int     `json:"MedianDiscoveryLatencyMs"`
+				SuccessRate                float64 `json:"SuccessRate"`
+				WrongFileRate              float64 `json:"WrongFileRate"`
+			} `json:"Retrieval"`
+			Gates struct {
+				TokenReductionGate     bool `json:"TokenReductionGate"`
+				LatencyReductionGate   bool `json:"LatencyReductionGate"`
+				SuccessRateParityGate  bool `json:"SuccessRateParityGate"`
+				WrongFileRateGate      bool `json:"WrongFileRateGate"`
+				CanAdopt               bool `json:"CanAdopt"`
+			} `json:"Gates"`
+		} `json:"report"`
+		Decision struct {
+			ShouldAdopt bool     `json:"ShouldAdopt"`
+			Reasons     []string `json:"Reasons"`
+		} `json:"decision"`
+	}
+
+	if err := json.Unmarshal(jsonData, &report); err != nil {
+		t.Fatalf("unmarshal phase4 report: %v", err)
+	}
+
+	// Verify disabled retrieval is documented
+	if report.Report.Baseline.MedianDiscoveryInputTokens != report.Report.Retrieval.MedianDiscoveryInputTokens {
+		t.Errorf("expected matching tokens for disabled retrieval: baseline %d vs retrieval %d",
+			report.Report.Baseline.MedianDiscoveryInputTokens, report.Report.Retrieval.MedianDiscoveryInputTokens)
+	}
+
+	// Verify no-adopt decision with proper reasons
+	if report.Decision.ShouldAdopt {
+		t.Errorf("disabled retrieval should produce no-adopt decision")
+	}
+	if len(report.Decision.Reasons) == 0 {
+		t.Errorf("no-adopt decision should document reasons")
+	}
+
+	// Verify markdown report was also created
+	mdPath := filepath.Join(".gromit", "reports", "phase4-measurement-20260225T120000Z.md")
+	mdData, err := os.ReadFile(mdPath)
+	if err != nil {
+		t.Fatalf("read phase4 markdown report: %v", err)
+	}
+	if len(mdData) == 0 {
+		t.Errorf("markdown report is empty")
+	}
+}
+
+func TestBenchmarkPhase4Report_AllGatesPassProducesAdoptWithEvidence(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+
+	// Create a phase4 log with all gates passing
+	logPath := filepath.Join(tmpDir, "phase4.jsonl")
+	logContent := `{"discovery_input_tokens_baseline":100,"discovery_input_tokens_retrieval":70,"discovery_latency_ms_baseline":1000,"discovery_latency_ms_retrieval":800,"success_baseline":true,"success_retrieval":true,"wrong_file_retrieval":false}
+{"discovery_input_tokens_baseline":100,"discovery_input_tokens_retrieval":70,"discovery_latency_ms_baseline":1000,"discovery_latency_ms_retrieval":800,"success_baseline":true,"success_retrieval":true,"wrong_file_retrieval":false}
+`
+	if err := os.WriteFile(logPath, []byte(logContent), 0o644); err != nil {
+		t.Fatalf("write phase4 log: %v", err)
+	}
+
+	// Generate the report
+	_, _, exitCode := runGromitCobra(t,
+		"benchmark", "phase4-report",
+		"--log", logPath,
+		"--output-ts", "20260225T120000Z",
+	)
+
+	if exitCode != 0 {
+		t.Fatalf("phase4-report command failed with exit code %d", exitCode)
+	}
+
+	// Verify the JSON report contains adopt decision
+	jsonPath := filepath.Join(".gromit", "reports", "phase4-measurement-20260225T120000Z.json")
+	jsonData, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("read phase4 JSON report: %v", err)
+	}
+
+	var report struct {
+		Report struct {
+			Gates struct {
+				TokenReductionGate     bool `json:"TokenReductionGate"`
+				LatencyReductionGate   bool `json:"LatencyReductionGate"`
+				SuccessRateParityGate  bool `json:"SuccessRateParityGate"`
+				WrongFileRateGate      bool `json:"WrongFileRateGate"`
+				CanAdopt               bool `json:"CanAdopt"`
+			} `json:"Gates"`
+		} `json:"report"`
+		Decision struct {
+			ShouldAdopt bool     `json:"ShouldAdopt"`
+			Reasons     []string `json:"Reasons"`
+		} `json:"decision"`
+	}
+
+	if err := json.Unmarshal(jsonData, &report); err != nil {
+		t.Fatalf("unmarshal phase4 report: %v", err)
+	}
+
+	// Verify all gates pass
+	if !report.Report.Gates.TokenReductionGate {
+		t.Errorf("token reduction gate should pass for 30%% reduction")
+	}
+	if !report.Report.Gates.LatencyReductionGate {
+		t.Errorf("latency reduction gate should pass for 20%% reduction")
+	}
+	if !report.Report.Gates.SuccessRateParityGate {
+		t.Errorf("success rate parity gate should pass")
+	}
+	if !report.Report.Gates.WrongFileRateGate {
+		t.Errorf("wrong file rate gate should pass")
+	}
+	if !report.Report.Gates.CanAdopt {
+		t.Errorf("CanAdopt should be true when all gates pass")
+	}
+
+	// Verify adopt decision with no failure reasons
+	if !report.Decision.ShouldAdopt {
+		t.Errorf("decision should be adopt when all gates pass")
+	}
+	if len(report.Decision.Reasons) != 0 {
+		t.Errorf("adopt decision should have no reasons, got %v", report.Decision.Reasons)
+	}
+}
