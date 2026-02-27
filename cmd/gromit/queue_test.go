@@ -8,7 +8,6 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/queue"
 	"github.com/danabrams/gromit/internal/tracker"
@@ -132,36 +131,6 @@ func TestShowQueue_DelegatesToPipeline(t *testing.T) {
 	}
 }
 
-func TestGetReadyBeads_UsesReadyStatusFromBD(t *testing.T) {
-	t.Parallel()
-	c := &bead.Client{
-		RunFn: func(args ...string) (string, error) {
-			want := []string{"ready", "--json", "--sort", "priority", "--limit", "0"}
-			if len(args) != len(want) {
-				t.Fatalf("run args len = %d, want %d (%v)", len(args), len(want), args)
-			}
-			for i := range want {
-				if args[i] != want[i] {
-					t.Fatalf("run args[%d] = %q, want %q", i, args[i], want[i])
-				}
-			}
-			return `[{"id":"task-ready","title":"Ready","priority":1,"issue_type":"task","status":"open"}]`, nil
-		},
-	}
-
-	ctx := context.Background()
-	ready, err := getReadyBeads(ctx, c)
-	if err != nil {
-		t.Fatalf("getReadyBeads() error = %v", err)
-	}
-	if len(ready) != 1 {
-		t.Fatalf("len(ready) = %d, want 1", len(ready))
-	}
-	if ready[0].ID != "task-ready" {
-		t.Fatalf("ready[0].ID = %q, want task-ready", ready[0].ID)
-	}
-}
-
 func TestGetReason_FromDependencies(t *testing.T) {
 	t.Parallel()
 	b := &bead.Bead{
@@ -189,93 +158,6 @@ func TestGetReason_FromDependencyCount(t *testing.T) {
 	}
 }
 
-func TestFindStuckBeadIDs(t *testing.T) {
-	t.Parallel()
-	stats := map[string]logger.BeadStats{
-		"a": {BeadID: "a", Failures: 1},
-		"b": {BeadID: "b", Failures: 3},
-		"c": {BeadID: "c", Failures: 4},
-	}
-
-	stuck := findStuckBeadIDs(stats, 3)
-	if len(stuck) != 2 {
-		t.Fatalf("len(stuck) = %d, want 2", len(stuck))
-	}
-	if !stuck["b"] || !stuck["c"] {
-		t.Fatalf("stuck map missing expected IDs: %v", stuck)
-	}
-	if stuck["a"] {
-		t.Fatalf("stuck map should not include a: %v", stuck)
-	}
-}
-
-func TestPartitionQueueBeads_SeparatesReadyBlockedAndStuck(t *testing.T) {
-	t.Parallel()
-	readyInput := []*bead.Bead{
-		{ID: "ready-1", Priority: 1, Title: "Ready 1"},
-		{ID: "stuck-ready", Priority: 0, Title: "Stuck But Ready"},
-	}
-	all := []*bead.Bead{
-		{ID: "stuck-ready", Priority: 0, Title: "Stuck But Ready"},
-		{ID: "ready-1", Priority: 1, Title: "Ready 1"},
-		{ID: "blocked-1", Priority: 2, Title: "Blocked 1"},
-		{ID: "stuck-blocked", Priority: 2, Title: "Stuck Blocked"},
-	}
-	stats := map[string]logger.BeadStats{
-		"stuck-ready":   {BeadID: "stuck-ready", Failures: 3},
-		"stuck-blocked": {BeadID: "stuck-blocked", Failures: 4},
-	}
-
-	ready, blocked, stuck := partitionQueueBeads(readyInput, all, stats, 3)
-
-	if len(ready) != 1 || ready[0].ID != "ready-1" {
-		t.Fatalf("ready = %+v, want [ready-1]", ready)
-	}
-	if len(blocked) != 1 || blocked[0].ID != "blocked-1" {
-		t.Fatalf("blocked = %+v, want [blocked-1]", blocked)
-	}
-	if len(stuck) != 2 || stuck[0].ID != "stuck-ready" || stuck[1].ID != "stuck-blocked" {
-		t.Fatalf("stuck = %+v, want [stuck-ready stuck-blocked]", stuck)
-	}
-}
-
-// TestPartitionQueueBeads_RegressionAssertion_UsesQueuePackage verifies that
-// partitionQueueBeads uses the queue package implementation.
-func TestPartitionQueueBeads_RegressionAssertion_UsesQueuePackage(t *testing.T) {
-	t.Parallel()
-	readyInput := []*bead.Bead{
-		{ID: "ready-1", Priority: 1, Title: "Ready 1"},
-		{ID: "stuck-ready", Priority: 0, Title: "Stuck But Ready"},
-	}
-	all := []*bead.Bead{
-		{ID: "stuck-ready", Priority: 0, Title: "Stuck But Ready"},
-		{ID: "ready-1", Priority: 1, Title: "Ready 1"},
-		{ID: "blocked-1", Priority: 2, Title: "Blocked 1"},
-		{ID: "stuck-blocked", Priority: 2, Title: "Stuck Blocked"},
-	}
-	stats := map[string]logger.BeadStats{
-		"stuck-ready":   {BeadID: "stuck-ready", Failures: 3},
-		"stuck-blocked": {BeadID: "stuck-blocked", Failures: 4},
-	}
-
-	// Call the queue package function directly
-	readyPkg, blockedPkg, stuckPkg := queue.PartitionQueueBeads(readyInput, all, stats, 3)
-
-	// Call the cmd wrapper
-	readyCmd, blockedCmd, stuckCmd := partitionQueueBeads(readyInput, all, stats, 3)
-
-	// Both should produce identical results
-	if len(readyPkg) != len(readyCmd) || len(blockedPkg) != len(blockedCmd) || len(stuckPkg) != len(stuckCmd) {
-		t.Fatalf("queue package and cmd wrapper produced different results")
-	}
-
-	for i := range readyPkg {
-		if readyPkg[i].ID != readyCmd[i].ID {
-			t.Fatalf("ready[%d] mismatch: pkg=%v, cmd=%v", i, readyPkg[i].ID, readyCmd[i].ID)
-		}
-	}
-}
-
 // TestGetReason_RegressionAssertion_UsesQueuePackage verifies that getReason
 // uses the queue package implementation and produces consistent results.
 func TestGetReason_RegressionAssertion_UsesQueuePackage(t *testing.T) {
@@ -297,90 +179,6 @@ func TestGetReason_RegressionAssertion_UsesQueuePackage(t *testing.T) {
 	// Both should produce identical results
 	if reasonPkg != reasonCmd {
 		t.Fatalf("getReason mismatch: pkg=%q, cmd=%q", reasonPkg, reasonCmd)
-	}
-}
-
-// TestEnrichReadyBeads_RegressionAssertion_UsesQueuePackage verifies that
-// enrichReadyBeads uses the queue package implementation.
-func TestEnrichReadyBeads_RegressionAssertion_UsesQueuePackage(t *testing.T) {
-	t.Parallel()
-	ready := []*bead.Bead{
-		{ID: "r1", Labels: []string{"tdd:true"}},
-		{ID: "r2", Labels: nil},
-	}
-	open := []*bead.Bead{
-		{ID: "r1", Labels: []string{"spec:alpha", "backend"}},
-		{ID: "r2", Labels: []string{"spec:beta"}},
-	}
-
-	// Call the queue package function directly
-	enrichedPkg := queue.EnrichReadyBeads(ready, open)
-
-	// Call the cmd wrapper
-	enrichedCmd := enrichReadyBeads(ready, open)
-
-	// Both should produce identical results
-	if len(enrichedPkg) != len(enrichedCmd) {
-		t.Fatalf("enrichReadyBeads length mismatch: pkg=%d, cmd=%d", len(enrichedPkg), len(enrichedCmd))
-	}
-
-	for i := range enrichedPkg {
-		if enrichedPkg[i].ID != enrichedCmd[i].ID {
-			t.Fatalf("enrichReadyBeads[%d].ID mismatch: pkg=%v, cmd=%v", i, enrichedPkg[i].ID, enrichedCmd[i].ID)
-		}
-		pkgSpec := bead.FindSpecLabel(enrichedPkg[i].Labels)
-		cmdSpec := bead.FindSpecLabel(enrichedCmd[i].Labels)
-		if pkgSpec != cmdSpec {
-			t.Fatalf("enrichReadyBeads[%d] spec mismatch: pkg=%q, cmd=%q", i, pkgSpec, cmdSpec)
-		}
-	}
-}
-
-// TestFindStuckBeadIDs_RegressionAssertion_UsesQueuePackage verifies that
-// findStuckBeadIDs uses the queue package implementation.
-func TestFindStuckBeadIDs_RegressionAssertion_UsesQueuePackage(t *testing.T) {
-	t.Parallel()
-	stats := map[string]logger.BeadStats{
-		"a": {BeadID: "a", Failures: 1},
-		"b": {BeadID: "b", Failures: 3},
-		"c": {BeadID: "c", Failures: 4},
-	}
-
-	// Call the queue package function directly
-	stuckPkg := queue.FindStuckBeadIDs(stats, 3)
-
-	// Call the cmd wrapper
-	stuckCmd := findStuckBeadIDs(stats, 3)
-
-	// Both should produce identical results
-	if len(stuckPkg) != len(stuckCmd) {
-		t.Fatalf("findStuckBeadIDs length mismatch: pkg=%d, cmd=%d", len(stuckPkg), len(stuckCmd))
-	}
-
-	for id := range stuckPkg {
-		if !stuckCmd[id] {
-			t.Fatalf("findStuckBeadIDs mismatch: pkg has %q but cmd doesn't", id)
-		}
-	}
-}
-
-func TestEnrichReadyBeads_MergesLabelsFromOpenList(t *testing.T) {
-	t.Parallel()
-	ready := []*bead.Bead{
-		{ID: "r1", Labels: []string{"tdd:true"}},
-		{ID: "r2", Labels: nil},
-	}
-	open := []*bead.Bead{
-		{ID: "r1", Labels: []string{"spec:alpha", "backend"}},
-		{ID: "r2", Labels: []string{"spec:beta"}},
-	}
-
-	enriched := enrichReadyBeads(ready, open)
-	if bead.FindSpecLabel(enriched[0].Labels) != "alpha" {
-		t.Fatalf("r1 spec = %q, want alpha (labels=%v)", bead.FindSpecLabel(enriched[0].Labels), enriched[0].Labels)
-	}
-	if bead.FindSpecLabel(enriched[1].Labels) != "beta" {
-		t.Fatalf("r2 spec = %q, want beta (labels=%v)", bead.FindSpecLabel(enriched[1].Labels), enriched[1].Labels)
 	}
 }
 
@@ -475,50 +273,6 @@ func TestPrintQueueByStatus_BySpecIncludesSpecsWithoutReadyBeads(t *testing.T) {
 	}
 }
 
-// TestGetReadyBeadsWithTrackerClientUsesReadyStatus verifies that getReadyBeadsWithTrackerClient
-// queries for "ready" status instead of "open" status
-func TestGetReadyBeadsWithTrackerClientUsesReadyStatus(t *testing.T) {
-	t.Parallel()
-
-	// Create a mock tracker client that captures the query
-	capturedQuery := tracker.Query{}
-	mockTracker := &mockTrackerForReadyBeads{
-		onList: func(_ context.Context, q tracker.Query) ([]tracker.Item, error) {
-			capturedQuery = q
-			return []tracker.Item{{ID: "ready-1", Title: "Ready Task"}}, nil
-		},
-	}
-
-	// Call with context to verify it accepts context and queries for ready status
-	ctx := context.Background()
-	items, err := getReadyBeadsWithTrackerClient(ctx, mockTracker)
-
-	if err != nil {
-		t.Fatalf("getReadyBeadsWithTrackerClient returned error: %v", err)
-	}
-
-	if len(items) != 1 {
-		t.Fatalf("expected 1 item, got %d", len(items))
-	}
-
-	// Verify the query requested "ready" status, not "open"
-	if len(capturedQuery.Filter.Statuses) == 0 {
-		t.Fatalf("expected status filter in query, got none")
-	}
-
-	hasReadyStatus := false
-	for _, status := range capturedQuery.Filter.Statuses {
-		if status == "ready" {
-			hasReadyStatus = true
-			break
-		}
-	}
-
-	if !hasReadyStatus {
-		t.Fatalf("expected 'ready' status in query filter, got %v", capturedQuery.Filter.Statuses)
-	}
-}
-
 // mockTrackerForReadyBeads is a test double for tracker.Client
 type mockTrackerForReadyBeads struct {
 	onList func(context.Context, tracker.Query) ([]tracker.Item, error)
@@ -573,46 +327,6 @@ func (m *mockTrackerForReadyBeads) AddComment(context.Context, string, string) e
 
 func (m *mockTrackerForReadyBeads) HasOpenChildren(context.Context, string) (bool, error) {
 	return false, nil
-}
-
-// TestGetReadyBeadsThreadsContext verifies that getReadyBeads accepts context parameter
-func TestGetReadyBeadsThreadsContext(t *testing.T) {
-	t.Parallel()
-
-	// Create a real bead client with a stub RunFn
-	c := &bead.Client{
-		RunFn: func(args ...string) (string, error) {
-			return `[]`, nil
-		},
-	}
-
-	// Call getReadyBeads with context - should accept context parameter
-	ctx := context.WithValue(context.Background(), "test-key", "test-value")
-	_, err := getReadyBeads(ctx, c)
-
-	if err != nil {
-		t.Fatalf("getReadyBeads returned error: %v", err)
-	}
-}
-
-// TestGetActiveBeadsThreadsContext verifies that getActiveBeads accepts context parameter
-func TestGetActiveBeadsThreadsContext(t *testing.T) {
-	t.Parallel()
-
-	// Create a real bead client with a stub RunFn
-	c := &bead.Client{
-		RunFn: func(args ...string) (string, error) {
-			return `[]`, nil
-		},
-	}
-
-	// Call getActiveBeads with context - should accept context parameter
-	ctx := context.WithValue(context.Background(), "test-key", "test-value")
-	_, err := getActiveBeads(ctx, c)
-
-	if err != nil {
-		t.Fatalf("getActiveBeads returned error: %v", err)
-	}
 }
 
 // TestQueueCmd_RegressionAssertion_DoesNotMutateBeadState verifies that queue command

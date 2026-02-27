@@ -2,25 +2,98 @@ package pipeline
 
 import (
 	"context"
-	"strings"
+	"errors"
 	"testing"
+
+	"github.com/danabrams/gromit/internal/bead"
 )
 
-func TestPipeline_GetQueue_NilDependency(t *testing.T) {
-	deps := &Deps{
-		// BeadQueryClient is nil
-	}
-	paths := &Paths{
-		GromitDir: t.TempDir(),
+func TestPipeline_Queue_ClientCreationError(t *testing.T) {
+	t.Parallel()
+
+	origClient := newQueueClient
+	t.Cleanup(func() { newQueueClient = origClient })
+
+	newQueueClient = func() (queueClient, error) {
+		return nil, queueErrBoom
 	}
 
-	p := New(deps, paths)
+	p := New(&Deps{}, &Paths{})
+	if _, err := p.Queue(context.Background(), QueueInput{}); err == nil {
+		t.Fatal("expected error when bead client creation fails")
+	} else if !errors.Is(err, queueErrBoom) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
 
-	_, err := p.GetQueue(context.Background(), GetQueueInput{})
-	if err == nil {
-		t.Fatalf("GetQueue() should validate BeadQueryClient")
+func TestPipeline_Queue_ReturnsPartitionedData(t *testing.T) {
+	t.Parallel()
+
+	origClient := newQueueClient
+	t.Cleanup(func() { newQueueClient = origClient })
+
+	newQueueClient = func() (queueClient, error) {
+		return &fakeQueueClient{
+			listReadyWorkFn: func(context.Context) ([]*bead.Bead, error) {
+				return []*bead.Bead{
+					{ID: "ready", Priority: 0},
+				}, nil
+			},
+			listFn: func(context.Context) ([]*bead.Bead, error) {
+				return []*bead.Bead{
+					{ID: "ready", Priority: 0},
+					{ID: "in-progress", Priority: 1, Status: "in_progress"},
+				}, nil
+			},
+			listByStatusFn: func(context.Context, string) ([]*bead.Bead, error) {
+				return []*bead.Bead{
+					{ID: "in-progress", Priority: 1, Status: "in_progress"},
+				}, nil
+			},
+		}, nil
 	}
-	if !strings.Contains(err.Error(), "nil") {
-		t.Fatalf("unexpected error message: %v", err)
+
+	p := New(&Deps{}, &Paths{})
+	result, err := p.Queue(context.Background(), QueueInput{LogsDir: "nonexistent", StuckThreshold: 1})
+	if err != nil {
+		t.Fatalf("Queue() returned error: %v", err)
 	}
+	if len(result.Ready) != 1 || result.Ready[0].ID != "ready" {
+		t.Fatalf("unexpected ready beads: %+v", result.Ready)
+	}
+	if len(result.Blocked) != 1 || result.Blocked[0].ID != "in-progress" {
+		t.Fatalf("expected blocked bead in-progress, got %+v", result.Blocked)
+	}
+	if len(result.Stuck) != 0 {
+		t.Fatalf("expected no stuck beads, got %+v", result.Stuck)
+	}
+}
+
+var queueErrBoom = errors.New("queue boom")
+
+type fakeQueueClient struct {
+	listReadyWorkFn func(context.Context) ([]*bead.Bead, error)
+	listFn          func(context.Context) ([]*bead.Bead, error)
+	listByStatusFn  func(context.Context, string) ([]*bead.Bead, error)
+}
+
+func (f *fakeQueueClient) ListReadyWork(ctx context.Context) ([]*bead.Bead, error) {
+	if f.listReadyWorkFn == nil {
+		return nil, nil
+	}
+	return f.listReadyWorkFn(ctx)
+}
+
+func (f *fakeQueueClient) List(ctx context.Context) ([]*bead.Bead, error) {
+	if f.listFn == nil {
+		return nil, nil
+	}
+	return f.listFn(ctx)
+}
+
+func (f *fakeQueueClient) ListByStatus(ctx context.Context, status string) ([]*bead.Bead, error) {
+	if f.listByStatusFn == nil {
+		return nil, nil
+	}
+	return f.listByStatusFn(ctx, status)
 }

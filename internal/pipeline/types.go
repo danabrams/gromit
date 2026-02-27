@@ -308,30 +308,6 @@ func NewBoardData() BoardData {
 	}
 }
 
-// GetQueueInput contains parameters for assembling queue data.
-type GetQueueInput struct {
-	ReadyBeads     []BeadInfo `json:"ready_beads"`
-	AllBeads       []BeadInfo `json:"all_beads"`
-	StuckThreshold int        `json:"stuck_threshold"`
-}
-
-// QueuePartition contains beads organized by processing status.
-// Use NewQueuePartition() to create instances with properly initialized slices.
-type QueuePartition struct {
-	Ready   []BeadInfo `json:"ready"`
-	Blocked []BeadInfo `json:"blocked"`
-	Stuck   []BeadInfo `json:"stuck"`
-}
-
-// NewQueuePartition creates a QueuePartition with initialized slices.
-func NewQueuePartition() QueuePartition {
-	return QueuePartition{
-		Ready:   []BeadInfo{},
-		Blocked: []BeadInfo{},
-		Stuck:   []BeadInfo{},
-	}
-}
-
 // QueryUndecomposedPlansInput contains parameters for querying undecomposed plans.
 type QueryUndecomposedPlansInput struct {
 	Force bool // If true, return all plans; otherwise only undecomposed plans

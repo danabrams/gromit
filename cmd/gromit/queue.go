@@ -8,10 +8,9 @@ import (
 	"strings"
 
 	"github.com/danabrams/gromit/internal/bead"
-	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/queue"
-	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/spf13/cobra"
 )
 
@@ -47,50 +46,46 @@ func showQueue(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	bc, err := bead.NewClient()
+	gromitDir := resolveGromitDir(cfg)
+	executor, err := queuePipelineFactory(cfg, gromitDir)
 	if err != nil {
-		return fmt.Errorf("creating bead client: %w", err)
+		return fmt.Errorf("creating pipeline: %w", err)
 	}
 
-	ctx := context.Background()
-
-	// Get ready beads (unblocked, type=task to exclude epics)
-	readyBeads, err := getReadyBeads(ctx, bc)
-	if err != nil {
-		return fmt.Errorf("getting ready beads: %w", err)
+	input := pipeline.QueueInput{
+		LogsDir:        cfg.Paths.Logs,
+		StuckThreshold: cfg.Loop.StuckBeadThreshold,
 	}
 
-	// Get all active beads (open + in_progress) to identify blocked ones.
-	allBeads, err := getActiveBeads(ctx, bc)
+	result, err := executor.Queue(cmd.Context(), input)
 	if err != nil {
-		return fmt.Errorf("getting all beads: %w", err)
+		return err
 	}
-	readyBeads = enrichReadyBeads(readyBeads, allBeads)
+	if result == nil {
+		result = &pipeline.QueueResult{}
+	}
 
 	if queueCompletionOrder {
-		printCompletionOrder(cfg, readyBeads, allBeads)
+		printCompletionOrder(cfg, result.Ready, result.All)
 		return nil
 	}
 
-	var beadStats map[string]logger.BeadStats
-	beadStats, err = logger.ReadPerBeadStats(cfg.Paths.Logs)
-	if err != nil {
-		beadStats = map[string]logger.BeadStats{}
-	}
-
-	readyBeads, blockedBeads, stuckBeads := partitionQueueBeads(
-		readyBeads,
-		allBeads,
-		beadStats,
-		cfg.Loop.StuckBeadThreshold,
-	)
-
-	printQueueByStatus(cfg, readyBeads, blockedBeads, stuckBeads, allBeads, queueBySpec, isColorEnabled())
+	printQueueByStatus(cfg, result.Ready, result.Blocked, result.Stuck, result.All, queueBySpec, isColorEnabled())
 	return nil
 }
 
-func getActiveBeads(ctx context.Context, bc *bead.Client) ([]*bead.Bead, error) {
-	return pipeline.ListActiveBeads(ctx, bc)
+var queuePipelineFactory = createQueuePipeline
+
+func createQueuePipeline(cfg *config.Config, gromitDir string) (queueExecutor, error) {
+	p, err := newPipeline(cfg, gromitDir)
+	if err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
+type queueExecutor interface {
+	Queue(context.Context, pipeline.QueueInput) (*pipeline.QueueResult, error)
 }
 
 func printQueueByStatus(cfg queueModelSelector, readyBeads, blockedBeads, stuckBeads, allBeads []*bead.Bead, bySpec bool, useColor bool) {
@@ -466,31 +461,6 @@ func colorizeLine(line, color string, useColor bool) string {
 	return color + line + ansiReset
 }
 
-// getReadyBeads fetches ready beads using bd ready --json
-// This simulates getting multiple ready beads instead of just one
-func getReadyBeads(ctx context.Context, bc *bead.Client) ([]*bead.Bead, error) {
-	if bc == nil {
-		return nil, fmt.Errorf("bead client is nil")
-	}
-	readyBeads, err := bc.ListReadyWork(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("getting ready beads: %w", err)
-	}
-	return readyBeads, nil
-}
-
-func partitionQueueBeads(
-	readyBeads, allBeads []*bead.Bead,
-	beadStats map[string]logger.BeadStats,
-	stuckThreshold int,
-) (ready []*bead.Bead, blocked []*bead.Bead, stuck []*bead.Bead) {
-	return queue.PartitionQueueBeads(readyBeads, allBeads, beadStats, stuckThreshold)
-}
-
-func findStuckBeadIDs(beadStats map[string]logger.BeadStats, threshold int) map[string]bool {
-	return queue.FindStuckBeadIDs(beadStats, threshold)
-}
-
 // getReason returns a human-readable reason why a bead is blocked
 func getReason(b *bead.Bead, allBeads []*bead.Bead) string {
 	return queue.GetReason(b, allBeads)
@@ -507,10 +477,6 @@ func dependencyIDs(deps []bead.Dependency) []string {
 	return ids
 }
 
-func enrichReadyBeads(readyBeads, allBeads []*bead.Bead) []*bead.Bead {
-	return queue.EnrichReadyBeads(readyBeads, allBeads)
-}
-
 // truncateTitle returns a title truncated to maxLen characters with ellipsis if needed
 func truncateTitle(title string, maxLen int) string {
 	if len(title) <= maxLen {
@@ -520,61 +486,4 @@ func truncateTitle(title string, maxLen int) string {
 		return title[:maxLen]
 	}
 	return title[:maxLen-3] + "..."
-}
-
-// getActiveBeadsWithTrackerClient is the tracker.Client version of getActiveBeads.
-// It uses tracker.Client to query for open and in_progress items.
-func getActiveBeadsWithTrackerClient(ctx context.Context, trackerClient tracker.Client) ([]tracker.Item, error) {
-	if trackerClient == nil {
-		return nil, fmt.Errorf("tracker client is nil")
-	}
-
-	query := tracker.Query{
-		Filter: tracker.Filter{
-			Statuses: []string{"open", "in_progress"},
-		},
-	}
-
-	items, err := trackerClient.List(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-
-	// Deduplicate items
-	seen := make(map[string]struct{})
-	deduped := make([]tracker.Item, 0, len(items))
-	for _, item := range items {
-		if strings.TrimSpace(item.ID) == "" {
-			continue
-		}
-		if _, ok := seen[item.ID]; ok {
-			continue
-		}
-		seen[item.ID] = struct{}{}
-		deduped = append(deduped, item)
-	}
-
-	return deduped, nil
-}
-
-// getReadyBeadsWithTrackerClient is the tracker.Client version of getReadyBeads.
-// It uses tracker.Client to query for ready items.
-func getReadyBeadsWithTrackerClient(ctx context.Context, trackerClient tracker.Client) ([]tracker.Item, error) {
-	if trackerClient == nil {
-		return nil, fmt.Errorf("tracker client is nil")
-	}
-
-	// Query for items that are ready using the "ready" status
-	query := tracker.Query{
-		Filter: tracker.Filter{
-			Statuses: []string{"ready"},
-		},
-	}
-
-	items, err := trackerClient.List(ctx, query)
-	if err != nil {
-		return nil, fmt.Errorf("getting ready items: %w", err)
-	}
-
-	return items, nil
 }
