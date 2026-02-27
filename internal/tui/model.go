@@ -47,6 +47,15 @@ func (m *Model) Init() tea.Cmd {
 
 // Update handles messages and updates the model.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.Type {
+		case tea.KeyTab:
+			m.FocusNext()
+		case tea.KeyShiftTab:
+			m.FocusPrev()
+		}
+	}
 	return m, nil
 }
 
