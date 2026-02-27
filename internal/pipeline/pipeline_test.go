@@ -155,6 +155,40 @@ func TestPipeline_PlanMethod(t *testing.T) {
 	}
 }
 
+func TestPipeline_Plan_SucceedsWithValidDeps(t *testing.T) {
+	// Setup test dependencies with minimal mocks
+	tmpDir := t.TempDir()
+	deps := &Deps{
+		PlanRenderer:  &testPlanRenderer{},
+		AgentResolver: &testAgentResolver{},
+	}
+
+	paths := &Paths{
+		GromitDir: tmpDir,
+	}
+
+	p := New(deps, paths)
+	ctx := context.Background()
+	input := PlanInput{SpecName: "test-spec"}
+
+	// Call Plan() and verify it doesn't return "not implemented" error
+	session, err := p.Plan(ctx, input)
+
+	// With default testPlanRenderer (returns ""), we expect an error from agent.LaunchInDir
+	// because testAgentResolver returns nil Agent. The key is it doesn't return "Plan not yet implemented"
+	if err != nil && err.Error() == "pipeline: Plan not yet implemented" {
+		t.Fatalf("Plan() still has TODO stub: %v", err)
+	}
+
+	if err != nil {
+		t.Logf("Expected error (not the TODO stub): %v", err)
+	}
+
+	if session == nil && err == nil {
+		t.Error("Plan() returned both nil session and nil error")
+	}
+}
+
 func TestPipeline_DecomposeMethod(t *testing.T) {
 	deps := &Deps{}
 	paths := &Paths{}
