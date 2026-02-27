@@ -584,7 +584,7 @@ func (m *typedInterfacesLogWriter) Write(entry *LogEntry) error {
 
 type typedInterfacesBacklogWriter struct{}
 
-func (m *typedInterfacesBacklogWriter) Add(entry *BacklogEntry) error {
+func (m *typedInterfacesBacklogWriter) Add(ctx context.Context, entry *BacklogEntry) error {
 	return nil
 }
 

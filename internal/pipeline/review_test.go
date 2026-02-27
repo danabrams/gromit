@@ -150,7 +150,7 @@ func TestReviewNonInteractiveWorkflow_E2E(t *testing.T) {
 
 	backlogAdded := []string{}
 	mockBacklog := &reviewAcceptanceMockBacklogWriter{
-		addFunc: func(entry *BacklogEntry) error {
+		addFunc: func(ctx context.Context, entry *BacklogEntry) error {
 			backlogAdded = append(backlogAdded, entry.Title)
 			return nil
 		},
@@ -398,7 +398,7 @@ func TestReviewNonInteractiveWorkflow_CreatesBacklogWithLabels(t *testing.T) {
 
 	var capturedBacklogEntry *BacklogEntry
 	mockBacklog := &reviewAcceptanceMockBacklogWriter{
-		addFunc: func(entry *BacklogEntry) error {
+		addFunc: func(ctx context.Context, entry *BacklogEntry) error {
 			capturedBacklogEntry = entry
 			return nil
 		},
@@ -812,7 +812,7 @@ func TestReviewNonInteractive_BacklogWriterReceivesStructuredEntry(t *testing.T)
 
 	var capturedEntry *BacklogEntry
 	mockBacklog := &reviewAcceptanceMockBacklogWriter{
-		addFunc: func(entry *BacklogEntry) error {
+		addFunc: func(ctx context.Context, entry *BacklogEntry) error {
 			capturedEntry = entry
 			return nil
 		},
@@ -903,12 +903,12 @@ func (m *reviewAcceptanceMockBeadClient) ListWithLabel(ctx context.Context, labe
 }
 
 type reviewAcceptanceMockBacklogWriter struct {
-	addFunc func(entry *BacklogEntry) error
+	addFunc func(ctx context.Context, entry *BacklogEntry) error
 }
 
-func (m *reviewAcceptanceMockBacklogWriter) Add(entry *BacklogEntry) error {
+func (m *reviewAcceptanceMockBacklogWriter) Add(ctx context.Context, entry *BacklogEntry) error {
 	if m.addFunc != nil {
-		return m.addFunc(entry)
+		return m.addFunc(ctx, entry)
 	}
 	return nil
 }

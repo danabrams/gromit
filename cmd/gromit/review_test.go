@@ -775,7 +775,7 @@ func TestCliBacklogClient_AddPassesThroughEntry(t *testing.T) {
 	}
 
 	backlog := &cliBacklogClient{beadClient: client}
-	if err := backlog.Add(entry); err != nil {
+	if err := backlog.Add(context.Background(), entry); err != nil {
 		t.Fatalf("Add() error = %v", err)
 	}
 

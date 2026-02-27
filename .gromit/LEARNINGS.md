@@ -379,3 +379,15 @@ When multiple error conditions could occur, tests will catch cases where generic
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-27 | review | subprocess-management
+bead.Client.run() accepts context.Context and uses exec.CommandContext with procutil.SetProcessGroupKill — this is the established pattern for subprocess management with timeout and cancellation.
+
+### 2026-02-27 | review | escalation
+Triage for EAGAIN/fork failures is classified as retryable environment errors (resource_exhausted with Retryable=true), distinct from disk space (non-retryable). The escalation handler applies exponential backoff (250ms/750ms/1500ms) with max retry enforcement.
+
+### 2026-02-27 | review | procutil
+procutil has two PID pressure mechanisms: PIDPressure() (pidmon.go, hardcoded cgroup root paths) and readCgroupPIDUsage() (procutil.go, dynamic cgroup path via /proc/self/cgroup) — these should be consolidated to use the dynamic version.
+
+### 2026-02-27 | review | procutil
+ReapProcessTree recursively walks /proc/<pid>/task/*/children to kill escaped grandchildren, killing deepest-first to prevent respawning, then falls back to process group kill as a sweep.
+

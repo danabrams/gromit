@@ -167,7 +167,7 @@ type BacklogClient interface {
 
 // BacklogWriter abstracts write-only backlog operations.
 type BacklogWriter interface {
-	Add(entry *BacklogEntry) error
+	Add(ctx context.Context, entry *BacklogEntry) error
 	Update(id string, fn func(*Idea)) error
 }
 
@@ -347,7 +347,7 @@ func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) 
 			Labels:          review.BuildBacklogLabels(),
 			ExpectedOutputs: review.ExpectedOutputsOrTitle(bi.ExpectedOutputs, bi.Title),
 		}
-		if err := p.deps.BacklogWriter.Add(entry); err != nil {
+		if err := p.deps.BacklogWriter.Add(ctx, entry); err != nil {
 			return nil, fmt.Errorf("creating backlog item: %w", err)
 		}
 		backlogCreated++
@@ -488,6 +488,18 @@ func (p *Pipeline) ListBeads(ctx context.Context, input ListBeadsInput) (*ListBe
 	}
 
 	result := NewListBeadsResult()
+
+	// ListReadyIDs is the only list method available on BeadQueryClient.
+	// When status is "ready" (or empty, defaulting to ready), use it directly.
+	// For other statuses, return empty result since the interface doesn't support listing by arbitrary status.
+	if input.Status == "" || input.Status == "ready" {
+		ids, err := p.deps.BeadQueryClient.ListReadyIDs(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("listing ready beads: %w", err)
+		}
+		result.BeadIDs = ids
+	}
+
 	return &result, nil
 }
 
@@ -503,6 +515,22 @@ func (p *Pipeline) QueryBeads(ctx context.Context, input QueryBeadsInput) (*Quer
 	}
 
 	result := NewQueryBeadsResult()
+
+	// QueryBeads returns bead metadata. The BeadQueryClient only supports
+	// listing ready IDs, so we list ready IDs and return them as BeadInfo
+	// when the status filter matches (or is empty).
+	if input.StatusFilter == "" || input.StatusFilter == "ready" {
+		ids, err := p.deps.BeadQueryClient.ListReadyIDs(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("querying beads: %w", err)
+		}
+		beads := make([]BeadInfo, len(ids))
+		for i, id := range ids {
+			beads[i] = BeadInfo{ID: id}
+		}
+		result.Beads = beads
+	}
+
 	return &result, nil
 }
 
@@ -517,7 +545,12 @@ func (p *Pipeline) CountBeads(ctx context.Context, input CountBeadsInput) (*Coun
 		return nil, err
 	}
 
-	result := &CountBeadsResult{Count: 0}
+	count, err := p.deps.BeadQueryClient.CountByStatus(ctx, input.Status)
+	if err != nil {
+		return nil, fmt.Errorf("counting beads by status %q: %w", input.Status, err)
+	}
+
+	result := &CountBeadsResult{Count: count}
 	return result, nil
 }
 

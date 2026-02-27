@@ -278,12 +278,12 @@ type cliBacklogClient struct {
 
 var _ pipeline.BacklogWriter = (*cliBacklogClient)(nil)
 
-func (c *cliBacklogClient) Add(entry *pipeline.BacklogEntry) error {
+func (c *cliBacklogClient) Add(ctx context.Context, entry *pipeline.BacklogEntry) error {
 	if entry == nil {
 		return fmt.Errorf("backlog entry is nil")
 	}
 
-	_, err := c.beadClient.Create(context.Background(), entry.Title, entry.Priority, entry.Labels, entry.ExpectedOutputs)
+	_, err := c.beadClient.Create(ctx, entry.Title, entry.Priority, entry.Labels, entry.ExpectedOutputs)
 	return err
 }
 
