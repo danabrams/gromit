@@ -300,3 +300,36 @@ func TestStatusCmd_RegressionAssertion_OutputIsConsistent(t *testing.T) {
 		t.Errorf("status output missing iteration count, got:\n%s", output1)
 	}
 }
+
+// TestStatusCmd_RegressionAssertion_ModelPerformanceAlwaysVisible ensures the status
+// command prints the Model Performance section even when no stats exist, guarding
+// the TUI layout against missing sections.
+func TestStatusCmd_RegressionAssertion_ModelPerformanceAlwaysVisible(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("failed to create gromit dir: %v", err)
+	}
+
+	// Create minimal config
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	configContent := `paths:
+  gromit_dir: .gromit
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	t.Chdir(tmpDir)
+
+	output := captureStdout(t, func() {
+		rootCmd.SetArgs([]string{"status"})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("status command failed: %v", err)
+		}
+	})
+
+	if !strings.Contains(output, "Model Performance:") {
+		t.Fatalf("expected Model Performance section in status output, got:\n%s", output)
+	}
+}
