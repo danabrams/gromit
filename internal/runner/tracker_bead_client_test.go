@@ -43,6 +43,103 @@ func TestTrackerBeadClientReadyReturnsConvertedBead(t *testing.T) {
 	}
 }
 
+func TestTrackerBeadClientCreateEncodesMetadata(t *testing.T) {
+	t.Parallel()
+
+	createdItem := &tracker.Item{
+		ID:    "new-bead",
+		Title: "New Bead",
+		Status: "open",
+		Metadata: map[string]string{
+			"priority": "2",
+		},
+	}
+
+	var capturedReq tracker.CreateRequest
+	client := &stubTrackerClient{
+		createFn: func(ctx context.Context, req tracker.CreateRequest) (*tracker.Item, error) {
+			capturedReq = req
+			return createdItem, nil
+		},
+	}
+
+	beads := newTrackerBeadClient(client)
+	result, err := beads.Create(context.Background(), "Test Title", 2, []string{"label1"}, []string{"output1"})
+	if err != nil {
+		t.Fatalf("Create returned error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("Create returned nil")
+	}
+	if result.ID != "new-bead" {
+		t.Fatalf("created bead ID = %s, want new-bead", result.ID)
+	}
+
+	// Verify metadata encoding
+	if capturedReq.Title != "Test Title" {
+		t.Fatalf("captured request title = %s, want Test Title", capturedReq.Title)
+	}
+	if capturedReq.Metadata["priority"] != "2" {
+		t.Fatalf("captured priority = %s, want 2", capturedReq.Metadata["priority"])
+	}
+	if capturedReq.Metadata["labels"] != `["label1"]` {
+		t.Fatalf("captured labels = %s, want [\"label1\"]", capturedReq.Metadata["labels"])
+	}
+	if capturedReq.Metadata["expected_outputs"] != `["output1"]` {
+		t.Fatalf("captured expected_outputs = %s, want [\"output1\"]", capturedReq.Metadata["expected_outputs"])
+	}
+}
+
+func TestTrackerBeadClientCreateWithParentEncodesMetadata(t *testing.T) {
+	t.Parallel()
+
+	createdItem := &tracker.Item{
+		ID:    "new-child",
+		Title: "New Child",
+		Status: "open",
+		Metadata: map[string]string{
+			"priority": "2",
+			"parent":   "parent-id",
+		},
+	}
+
+	var capturedReq tracker.CreateRequest
+	var capturedParentID string
+	client := &stubTrackerClient{
+		createWithParentFn: func(ctx context.Context, req tracker.CreateRequest, parentID string) (*tracker.Item, error) {
+			capturedReq = req
+			capturedParentID = parentID
+			return createdItem, nil
+		},
+	}
+
+	beads := newTrackerBeadClient(client)
+	result, err := beads.CreateWithParent(context.Background(), "Test Title", 2, []string{"label1"}, []string{"output1"}, "parent-id")
+	if err != nil {
+		t.Fatalf("CreateWithParent returned error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("CreateWithParent returned nil")
+	}
+	if result.ID != "new-child" {
+		t.Fatalf("created bead ID = %s, want new-child", result.ID)
+	}
+	if capturedParentID != "parent-id" {
+		t.Fatalf("captured parent ID = %s, want parent-id", capturedParentID)
+	}
+
+	// Verify metadata encoding
+	if capturedReq.Title != "Test Title" {
+		t.Fatalf("captured request title = %s, want Test Title", capturedReq.Title)
+	}
+	if capturedReq.Metadata["priority"] != "2" {
+		t.Fatalf("captured priority = %s, want 2", capturedReq.Metadata["priority"])
+	}
+	if capturedReq.Metadata["labels"] != `["label1"]` {
+		t.Fatalf("captured labels = %s, want [\"label1\"]", capturedReq.Metadata["labels"])
+	}
+}
+
 func TestTrackerBeadClientListWithLabelConvertsItems(t *testing.T) {
 	t.Parallel()
 
@@ -143,9 +240,11 @@ func TestTrackerBeadClientReadyExcludingFiltersEpicsAndExcludedIDs(t *testing.T)
 }
 
 type stubTrackerClient struct {
-	readyFn         func(ctx context.Context) (*tracker.Item, error)
-	listFn          func(ctx context.Context, q tracker.Query) ([]tracker.Item, error)
-	listWithLabelFn func(ctx context.Context, label string) ([]tracker.Item, error)
+	readyFn              func(ctx context.Context) (*tracker.Item, error)
+	listFn               func(ctx context.Context, q tracker.Query) ([]tracker.Item, error)
+	listWithLabelFn      func(ctx context.Context, label string) ([]tracker.Item, error)
+	createFn             func(ctx context.Context, req tracker.CreateRequest) (*tracker.Item, error)
+	createWithParentFn   func(ctx context.Context, req tracker.CreateRequest, parentID string) (*tracker.Item, error)
 }
 
 func (s *stubTrackerClient) Ready(ctx context.Context) (*tracker.Item, error) {
@@ -167,9 +266,15 @@ func (s *stubTrackerClient) Search(ctx context.Context, q tracker.Query) ([]trac
 	return nil, nil
 }
 func (s *stubTrackerClient) Create(ctx context.Context, req tracker.CreateRequest) (*tracker.Item, error) {
+	if s.createFn != nil {
+		return s.createFn(ctx, req)
+	}
 	return nil, nil
 }
 func (s *stubTrackerClient) CreateWithParent(ctx context.Context, req tracker.CreateRequest, parentID string) (*tracker.Item, error) {
+	if s.createWithParentFn != nil {
+		return s.createWithParentFn(ctx, req, parentID)
+	}
 	return nil, nil
 }
 func (s *stubTrackerClient) Update(ctx context.Context, req tracker.UpdateRequest) (*tracker.Item, error) {
