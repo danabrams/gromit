@@ -19,9 +19,20 @@ import (
 func NewPipelineDeps(cfg *config.Config, gromitDir string) (*pipeline.Deps, error) {
 	// Create all required adapters
 
-	// LLM clients
-	llmTimeoutSecs, _, _, _ := cfg.Claude.TimeoutsForModel("haiku")
-	claudeClient, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, llmTimeoutSecs)
+	// LLM clients - use default timeout if config is nil
+	var llmTimeoutSecs int
+	var claudeBinary string
+	var claudeFlags []string
+	if cfg != nil {
+		llmTimeoutSecs, _, _, _ = cfg.Claude.TimeoutsForModel("haiku")
+		claudeBinary = cfg.Claude.Binary
+		claudeFlags = cfg.Claude.Flags
+	} else {
+		llmTimeoutSecs = 60 // default timeout
+		claudeBinary = "claude"
+		claudeFlags = []string{}
+	}
+	claudeClient, err := claude.NewClient(claudeBinary, claudeFlags, llmTimeoutSecs)
 	if err != nil {
 		return nil, err
 	}
