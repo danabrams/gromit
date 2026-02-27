@@ -63,3 +63,23 @@ func TestGetReason_FromDependencyCount(t *testing.T) {
 		t.Fatalf("GetReason() = %q, want %q", got, want)
 	}
 }
+
+func TestEnrichReadyBeads_MergesLabelsFromOpenList(t *testing.T) {
+	t.Parallel()
+	ready := []*bead.Bead{
+		{ID: "r1", Labels: []string{"tdd:true"}},
+		{ID: "r2", Labels: nil},
+	}
+	open := []*bead.Bead{
+		{ID: "r1", Labels: []string{"spec:alpha", "backend"}},
+		{ID: "r2", Labels: []string{"spec:beta"}},
+	}
+
+	enriched := EnrichReadyBeads(ready, open)
+	if bead.FindSpecLabel(enriched[0].Labels) != "alpha" {
+		t.Fatalf("r1 spec = %q, want alpha (labels=%v)", bead.FindSpecLabel(enriched[0].Labels), enriched[0].Labels)
+	}
+	if bead.FindSpecLabel(enriched[1].Labels) != "beta" {
+		t.Fatalf("r2 spec = %q, want beta (labels=%v)", bead.FindSpecLabel(enriched[1].Labels), enriched[1].Labels)
+	}
+}
