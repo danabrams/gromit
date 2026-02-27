@@ -9,6 +9,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/pipeline"
 	reviewstage "github.com/danabrams/gromit/internal/pipeline/review"
 	"github.com/danabrams/gromit/internal/prompt"
@@ -310,5 +311,93 @@ func TestReviewStage_Enabled_NoFindings_ReturnsProceedWithEmptyIDs(t *testing.T)
 	}
 	if len(out.ReviewBeadIDs) != 0 {
 		t.Errorf("ReviewBeadIDs = %v, want empty", out.ReviewBeadIDs)
+	}
+}
+
+// RED: test for Review stage emitting ReviewStartEvent and ReviewCompleteEvent
+func TestReviewRun_EmitsReviewStartAndCompleteEvents(t *testing.T) {
+	t.Parallel()
+
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	invoker := &fakeInvoker{
+		streamRunFn: func(_ context.Context, _, _ string, _ io.Writer) (string, error) {
+			return `{"passed": true, "verdict": "approved", "issues": [], "beads_to_create": [], "backlog_items": [], "summary": "looks good"}`, nil
+		},
+	}
+
+	beads := &fakeBeadCreator{}
+	renderer := &fakePromptRenderer{}
+
+	review := reviewstage.New(invoker, beads, renderer, func() (string, error) {
+		return "", nil
+	}, io.Discard)
+
+	beadID := "review-event-test"
+	cfg := &config.Config{
+		Review: config.ReviewConfig{
+			Enabled: true,
+			Tier:    "opus",
+		},
+	}
+
+	input := pipeline.Input{
+		Bead: &bead.Bead{
+			ID:    beadID,
+			Title: "test bead",
+		},
+		Config:  cfg,
+		Emitter: emitter,
+	}
+
+	_, err := review.Run(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Review.Run() error = %v", err)
+	}
+
+	// Collect events
+	var emittedEvents []events.Event
+	timeout := time.After(100 * time.Millisecond)
+	for {
+		select {
+		case evt := <-ch:
+			emittedEvents = append(emittedEvents, evt)
+		case <-timeout:
+			goto checkEvents
+		}
+	}
+
+checkEvents:
+	// Verify we got both ReviewStartEvent and ReviewCompleteEvent
+	var startEvent *events.ReviewStartEvent
+	var completeEvent *events.ReviewCompleteEvent
+
+	for _, evt := range emittedEvents {
+		if se, ok := evt.(*events.ReviewStartEvent); ok {
+			startEvent = se
+		}
+		if ce, ok := evt.(*events.ReviewCompleteEvent); ok {
+			completeEvent = ce
+		}
+	}
+
+	if startEvent == nil {
+		t.Fatal("expected ReviewStartEvent to be emitted")
+	}
+	if completeEvent == nil {
+		t.Fatal("expected ReviewCompleteEvent to be emitted")
+	}
+
+	if startEvent.BeadID != beadID {
+		t.Errorf("ReviewStartEvent.BeadID = %q, want %q", startEvent.BeadID, beadID)
+	}
+	if completeEvent.BeadID != beadID {
+		t.Errorf("ReviewCompleteEvent.BeadID = %q, want %q", completeEvent.BeadID, beadID)
+	}
+	if completeEvent.Verdict != "approved" {
+		t.Errorf("ReviewCompleteEvent.Verdict = %q, want %q", completeEvent.Verdict, "approved")
 	}
 }

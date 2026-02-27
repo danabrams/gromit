@@ -97,6 +97,14 @@ func (r *Review) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, e
 		w = io.Discard
 	}
 
+	// Emit ReviewStartEvent
+	if in.Emitter != nil {
+		in.Emitter.Emit(&events.ReviewStartEvent{
+			BeadID: in.Bead.ID,
+			Model:  in.Config.Review.Tier,
+		})
+	}
+
 	var sb strings.Builder
 	llmOutput, err := r.invoker.StreamRun(ctx, promptText, in.Config.Review.Tier, io.MultiWriter(w, &sb))
 	if err != nil {
@@ -106,6 +114,19 @@ func (r *Review) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, e
 	result, err := reviewpkg.ParseReviewResult(llmOutput)
 	if err != nil {
 		return pipeline.Output{}, fmt.Errorf("review: parsing result: %w", err)
+	}
+
+	// Emit ReviewCompleteEvent
+	if in.Emitter != nil {
+		verdict := "rejected"
+		if result.Passed {
+			verdict = "approved"
+		}
+		in.Emitter.Emit(&events.ReviewCompleteEvent{
+			BeadID:  in.Bead.ID,
+			Verdict: verdict,
+			Issues:  result.FixesApplied,
+		})
 	}
 
 	beadIDs := []string{}
