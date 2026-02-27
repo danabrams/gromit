@@ -175,3 +175,52 @@ func TestRecentCompletions_LimitsTo10(t *testing.T) {
 		t.Fatalf("expected 10 recent completions, got %d", len(store.Dashboard.RecentCompletions))
 	}
 }
+
+func TestOnBuildStart_UpdatesPhase(t *testing.T) {
+	t.Parallel()
+
+	store := &Store{
+		Dashboard: DashboardState{
+			ActivePhase: &ActivePhase{
+				BeadID: "bead-123",
+			},
+		},
+	}
+	event := &events.BuildStartEvent{
+		BeadID:      "bead-123",
+		Model:       "haiku",
+		Attempt:     1,
+		MaxAttempts: 3,
+		Time:        time.Unix(3000, 0),
+	}
+
+	store.OnBuildStart(event)
+
+	if store.Dashboard.ActivePhase.Phase != "build" {
+		t.Fatalf("Phase = %q, want %q", store.Dashboard.ActivePhase.Phase, "build")
+	}
+}
+
+func TestOnValidationStart_UpdatesPhase(t *testing.T) {
+	t.Parallel()
+
+	store := &Store{
+		Dashboard: DashboardState{
+			ActivePhase: &ActivePhase{
+				BeadID: "bead-123",
+				Phase:  "build",
+			},
+		},
+	}
+	event := &events.ValidationStartEvent{
+		BeadID:   "bead-123",
+		Commands: []string{"make test"},
+		Time:     time.Unix(4000, 0),
+	}
+
+	store.OnValidationStart(event)
+
+	if store.Dashboard.ActivePhase.Phase != "validation" {
+		t.Fatalf("Phase = %q, want %q", store.Dashboard.ActivePhase.Phase, "validation")
+	}
+}
