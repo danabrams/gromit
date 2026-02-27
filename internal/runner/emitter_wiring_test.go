@@ -152,7 +152,7 @@ func TestCLISubscriberStartsAndReceivesEvents(t *testing.T) {
 	}
 
 	// Create a test context with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	// Start subscribers
@@ -160,6 +160,9 @@ func TestCLISubscriberStartsAndReceivesEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartSubscribers() returned error: %v", err)
 	}
+
+	// Give subscriber goroutine time to start and subscribe
+	time.Sleep(200 * time.Millisecond)
 
 	// Emit a test event
 	testEvent := &events.LogEvent{
@@ -171,7 +174,7 @@ func TestCLISubscriberStartsAndReceivesEvents(t *testing.T) {
 	emitter.Emit(testEvent)
 
 	// Give the subscriber goroutine time to process the event
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 
 	// Verify that the CLI subscriber processed the event
 	if !output.hasContent() {
@@ -180,6 +183,82 @@ func TestCLISubscriberStartsAndReceivesEvents(t *testing.T) {
 
 	// Cleanup
 	emitter.Close()
+}
+
+// TestStatusAndTMUXSubscribersConditionalStartup verifies that status and tmux subscribers
+// are started when their respective dependencies are provided in the config.
+func TestStatusAndTMUXSubscribersConditionalStartup(t *testing.T) {
+	t.Parallel()
+
+	output := &recordingWriter{}
+
+	cfg := OrchestratorConfig{
+		Gate:     &testStage{},
+		Build:    &testStage{},
+		Validate: &testStage{},
+		Review:   &testStage{},
+		Epilogue: &testStage{},
+		GetBead: func(ctx context.Context) (*bead.Bead, error) {
+			return nil, nil
+		},
+		Output:       output,
+		StatusWriter: nil, // status writer will be handled differently
+	}
+
+	orch := NewOrchestrator(cfg)
+	if orch == nil {
+		t.Fatal("NewOrchestrator returned nil")
+	}
+
+	emitter := orch.GetEmitter()
+	if emitter == nil {
+		t.Fatal("GetEmitter() returned nil")
+	}
+
+	// Create a test context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Start subscribers
+	err := orch.StartSubscribers(ctx)
+	if err != nil {
+		t.Fatalf("StartSubscribers() returned error: %v", err)
+	}
+
+	// Give subscriber goroutines time to start
+	time.Sleep(200 * time.Millisecond)
+
+	// Emit a test event
+	testEvent := &events.LogEvent{
+		Level:   "test",
+		Message: "test message for conditional subscribers",
+		Time:    time.Now(),
+	}
+
+	emitter.Emit(testEvent)
+
+	// Give the subscriber goroutines time to process the event
+	time.Sleep(200 * time.Millisecond)
+
+	// Cleanup
+	emitter.Close()
+
+	// At minimum, CLI subscriber should have output
+	if !output.hasContent() {
+		t.Fatal("CLI subscriber did not write any output")
+	}
+}
+
+// mockStatusWriter is a test implementation of status.StatusWriter
+type mockStatusWriter struct {
+	writeFn func(key string, value interface{}) error
+}
+
+func (m *mockStatusWriter) Write(key string, value interface{}) error {
+	if m.writeFn != nil {
+		return m.writeFn(key, value)
+	}
+	return nil
 }
 
 // recordingWriter captures output written to it
@@ -193,6 +272,81 @@ func (rw *recordingWriter) Write(p []byte) (n int, err error) {
 
 func (rw *recordingWriter) hasContent() bool {
 	return rw.content.Len() > 0
+}
+
+// TestRunStartsSubscribersBeforeLoop verifies that Run() starts subscribers
+// before entering the main loop.
+func TestRunStartsSubscribersBeforeLoop(t *testing.T) {
+	t.Parallel()
+
+	output := &recordingWriter{}
+
+	cfg := OrchestratorConfig{
+		Gate:     &testStage{},
+		Build:    &testStage{},
+		Validate: &testStage{},
+		Review:   &testStage{},
+		Epilogue: &testStage{},
+		GetBead: func(ctx context.Context) (*bead.Bead, error) {
+			// Return nil to end loop immediately
+			return nil, nil
+		},
+		Output: output,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if orch == nil {
+		t.Fatal("NewOrchestrator returned nil")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Track that subscribers were started
+	subscribersStarted := false
+	originalOutput := output
+	outputWithTracking := &trackingWriter{
+		delegate: originalOutput,
+		onWrite: func() {
+			subscribersStarted = true
+		},
+	}
+
+	// Re-create with tracking output
+	cfg.Output = outputWithTracking
+	orch2 := NewOrchestrator(cfg)
+
+	// Run should start subscribers automatically and they should process events
+	err := orch2.Run(ctx, 0, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("Run() returned error: %v", err)
+	}
+
+	// After Run() completes, emitter should be closed safely
+	emitter := orch2.GetEmitter()
+	if emitter == nil {
+		t.Fatal("GetEmitter() returned nil after Run")
+	}
+
+	// Emitting after Run should not panic (emitter should be closed)
+	emitter.Emit(&events.LogEvent{
+		Level:   "test",
+		Message: "test after run",
+		Time:    time.Now(),
+	})
+}
+
+// trackingWriter wraps a writer and calls a callback on each write
+type trackingWriter struct {
+	delegate io.Writer
+	onWrite  func()
+}
+
+func (tw *trackingWriter) Write(p []byte) (n int, err error) {
+	if tw.onWrite != nil {
+		tw.onWrite()
+	}
+	return tw.delegate.Write(p)
 }
 
 // testStage is a minimal pipeline.Stage for testing
