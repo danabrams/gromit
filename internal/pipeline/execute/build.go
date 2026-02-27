@@ -202,6 +202,7 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 			Model:       tier,
 			Attempt:     1,
 			MaxAttempts: 3, // Placeholder for escalation attempts
+			Time:        time.Now(),
 		})
 	}
 
@@ -234,6 +235,7 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 			Cost:      result.CostUSD,
 			TokensIn:  result.InputTokens,
 			TokensOut: result.OutputTokens,
+			Time:      time.Now(),
 		})
 	}
 
