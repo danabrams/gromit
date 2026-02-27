@@ -331,25 +331,7 @@ runLoop:
 		if o.cfg.CoverageTracker != nil {
 			o.cfg.CoverageTracker.ToCollecting()
 		}
-		// Emit BuildStartEvent
-		o.emitter.Emit(&events.BuildStartEvent{
-			BeadID:      b.ID,
-			Model:       baseIn.Complexity, // TODO(review): use actual model name once TUI consumes this field
-			Attempt:     1,
-			MaxAttempts: 3,
-			Time:        time.Now(),
-		})
 		buildOut, buildErr := o.cfg.Build.Run(ctx, baseIn)
-		// Emit BuildCompleteEvent
-		o.emitter.Emit(&events.BuildCompleteEvent{
-			BeadID:    b.ID,
-			Success:   buildErr == nil,
-			Duration:  time.Duration(buildOut.DurationMs) * time.Millisecond,
-			Cost:      buildOut.CostUSD,
-			TokensIn:  buildOut.InputTokens,
-			TokensOut: buildOut.OutputTokens,
-			Time:      time.Now(),
-		})
 		if buildErr != nil {
 			o.logWarning("Warning: build failed for bead %s (iteration %d): %v", b.ID, iteration, buildErr)
 			failurePhase := inferBuildFailurePhase(buildErr)
@@ -435,22 +417,8 @@ runLoop:
 
 		// Stage 4: Review — optional LLM code review.
 		if o.cfg.Review != nil && o.cfg.Config != nil && o.cfg.Config.Review.Enabled {
-			// Emit ReviewStartEvent
-			o.emitter.Emit(&events.ReviewStartEvent{
-				BeadID:   b.ID,
-				Model:    buildOut.Model, // Use the actual model from the build
-				Thorough: false,
-				Time:     time.Now(),
-			})
 			reviewOut, _ := o.cfg.Review.Run(ctx, baseIn)
-			// Emit ReviewCompleteEvent
-			o.emitter.Emit(&events.ReviewCompleteEvent{
-				BeadID:  b.ID,
-				Verdict: "pending",
-				Issues:  nil,
-				Time:    time.Now(),
-			})
-			_ = reviewOut
+		_ = reviewOut
 		}
 
 		// Stage 5: Epilogue — close bead, sync, write status, write iteration log,

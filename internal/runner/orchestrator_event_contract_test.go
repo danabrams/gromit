@@ -142,12 +142,10 @@ func TestOrchestrator_SuccessPath_EmitsEventOrdering(t *testing.T) {
 	}
 
 	// Verify event sequence
-	// Note: review_start and review_complete are only emitted if Review stage is configured and enabled
+	// Note: Build and Review events are now emitted by their respective stages, not the orchestrator
 	expectedTypes := []string{
 		"run_start",
 		"iteration_start",
-		"build_start",
-		"build_complete",
 		"validation_start",
 		"validation_pass",
 		"iteration_complete",
@@ -411,8 +409,6 @@ func TestOrchestrator_FailurePath_EmitsEventOrdering(t *testing.T) {
 	requiredEvents := []string{
 		"run_start",
 		"iteration_start",
-		"build_start",
-		"build_complete",
 		"validation_start",
 		"validation_fail",
 		"iteration_complete",
