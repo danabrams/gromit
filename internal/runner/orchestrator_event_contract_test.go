@@ -2,7 +2,9 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -118,6 +120,63 @@ func TestOrchestrator_SuccessPath_EmitsEventOrdering(t *testing.T) {
 		if actual != expected {
 			t.Errorf("Event %d: got %q, want %q", i, actual, expected)
 		}
+	}
+}
+
+// TestOrchestrator_BeadFailedEventOnBuildFailure ensures a failing build emits BeadFailedEvent.
+func TestOrchestrator_BeadFailedEventOnBuildFailure(t *testing.T) {
+	t.Parallel()
+
+	build := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{}, errors.New("build failed")
+	}}
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "failed-bead", Title: "Failing Build"}, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     &fakeStage{},
+		Build:    build,
+		Validate: &fakeStage{},
+		Epilogue: &fakeStage{},
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	capturer := newCaptureSubscriber(orch.GetEmitter())
+	go capturer.start()
+
+	err := orch.Run(context.Background(), 1, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	<-capturer.done
+
+	var beadFailedEvent *events.BeadFailedEvent
+	for _, evt := range capturer.capture.events {
+		if bf, ok := evt.(*events.BeadFailedEvent); ok {
+			beadFailedEvent = bf
+			break
+		}
+	}
+
+	if beadFailedEvent == nil {
+		t.Fatal("BeadFailedEvent not emitted for build failure path")
+	}
+	if beadFailedEvent.BeadID != "failed-bead" {
+		t.Errorf("BeadFailedEvent.BeadID = %q, want %q", beadFailedEvent.BeadID, "failed-bead")
+	}
+	if !strings.Contains(beadFailedEvent.Error, "build failed") {
+		t.Errorf("BeadFailedEvent.Error = %q, want to contain build failure message", beadFailedEvent.Error)
 	}
 }
 
