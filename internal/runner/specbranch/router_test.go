@@ -9,7 +9,7 @@ import (
 func TestRouterBranchForLabels(t *testing.T) {
 	t.Parallel()
 
-	router := specbranch.NewRouter()
+	router := specbranch.NewRouter("")
 
 	tests := []struct {
 		name       string
