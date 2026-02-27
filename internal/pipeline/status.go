@@ -5,13 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/internal/bead"
-	"github.com/danabrams/gromit/internal/frontmatter"
 )
 
 // PipelineStatus represents the current state of the gromit pipeline
@@ -54,44 +51,16 @@ func ReadStatusWithDeps(gromitDir, specsDir, plansDir string, startedAt *time.Ti
 	}
 
 	// Scan specs directory for unplanned specs
-	specFiles, err := findMarkdownFiles(specsDir)
-	if err != nil && !os.IsNotExist(err) {
-		return nil, fmt.Errorf("reading specs directory: %w", err)
+	status.UnplannedSpecs, err = ListUnplannedSpecs(specsDir, plansDir)
+	if err != nil {
+		return nil, fmt.Errorf("listing unplanned specs: %w", err)
 	}
-
-	for _, specFile := range specFiles {
-		specName := strings.TrimSuffix(filepath.Base(specFile), ".md")
-		planFile := filepath.Join(plansDir, specName+".md")
-
-		// Check if corresponding plan exists
-		if _, err := os.Stat(planFile); os.IsNotExist(err) {
-			status.UnplannedSpecs = append(status.UnplannedSpecs, specName)
-		}
-	}
-	sort.Strings(status.UnplannedSpecs)
 
 	// Scan plans directory for undecomposed plans
-	planFiles, err := findMarkdownFiles(plansDir)
-	if err != nil && !os.IsNotExist(err) {
-		return nil, fmt.Errorf("reading plans directory: %w", err)
+	status.UndecomposedPlans, err = ListUndecomposedPlans(plansDir)
+	if err != nil {
+		return nil, fmt.Errorf("listing undecomposed plans: %w", err)
 	}
-
-	for _, planFile := range planFiles {
-		planName := strings.TrimSuffix(filepath.Base(planFile), ".md")
-
-		// Parse frontmatter to check decomposed field
-		fm, _, err := frontmatter.ReadFile(planFile)
-		if err != nil {
-			return nil, fmt.Errorf("reading plan frontmatter %s: %w", planName, err)
-		}
-
-		// Check if decomposed field is missing or false
-		decomposed, ok := fm["decomposed"].(bool)
-		if !ok || !decomposed {
-			status.UndecomposedPlans = append(status.UndecomposedPlans, planName)
-		}
-	}
-	sort.Strings(status.UndecomposedPlans)
 
 	if startedAt != nil {
 		status.HasRunInfo = true
@@ -175,23 +144,6 @@ func hasBeadsRepo(repoRoot string) bool {
 }
 
 // findMarkdownFiles returns all .md files in a directory
-func findMarkdownFiles(dir string) ([]string, error) {
-	var files []string
-
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
-			files = append(files, filepath.Join(dir, entry.Name()))
-		}
-	}
-
-	return files, nil
-}
-
 // listReadyBeads returns a list of ready bead IDs and the count
 func listReadyBeads(ctx context.Context, client BeadQueryClient) ([]string, int) {
 	if client == nil {

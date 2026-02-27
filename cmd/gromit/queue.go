@@ -9,6 +9,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/queue"
 	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/spf13/cobra"
@@ -89,28 +90,7 @@ func showQueue(cmd *cobra.Command, args []string) error {
 }
 
 func getActiveBeads(ctx context.Context, bc *bead.Client) ([]*bead.Bead, error) {
-	if bc == nil {
-		return nil, fmt.Errorf("bead client is nil")
-	}
-	openBeads, err := bc.List(ctx)
-	if err != nil {
-		return nil, err
-	}
-	inProgressBeads, err := bc.ListByStatus(ctx, "in_progress")
-	if err != nil {
-		return nil, err
-	}
-	all := append(openBeads, inProgressBeads...)
-	seen := make(map[string]bool, len(all))
-	deduped := make([]*bead.Bead, 0, len(all))
-	for _, b := range all {
-		if b == nil || strings.TrimSpace(b.ID) == "" || seen[b.ID] {
-			continue
-		}
-		seen[b.ID] = true
-		deduped = append(deduped, b)
-	}
-	return deduped, nil
+	return pipeline.ListActiveBeads(ctx, bc)
 }
 
 func printQueueByStatus(cfg queueModelSelector, readyBeads, blockedBeads, stuckBeads, allBeads []*bead.Bead, bySpec bool, useColor bool) {
