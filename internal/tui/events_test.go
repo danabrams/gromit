@@ -33,3 +33,28 @@ func TestOnRunStart_UpdatesRunProgress(t *testing.T) {
 		t.Fatalf("Status = %q, want %q", store.Dashboard.RunProgress.Status, "running")
 	}
 }
+
+func TestOnRunComplete_UpdatesRunProgress(t *testing.T) {
+	t.Parallel()
+
+	store := &Store{
+		Dashboard: DashboardState{
+			RunProgress: &RunProgress{
+				CurrentIteration: 3,
+				MaxIterations:    5,
+				Status:           "running",
+			},
+		},
+	}
+	event := &events.RunCompleteEvent{
+		IterationsCompleted: 3,
+		Reason:              "success",
+		Time:                time.Unix(2000, 0),
+	}
+
+	store.OnRunComplete(event)
+
+	if store.Dashboard.RunProgress.Status != "completed" {
+		t.Fatalf("Status = %q, want %q", store.Dashboard.RunProgress.Status, "completed")
+	}
+}
