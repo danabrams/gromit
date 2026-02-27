@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	codexStreamScannerMaxTokenSize   = 10 * 1024 * 1024
-	codexStreamWatchdogInterval      = 10 * time.Second
-	highInputTokenWarningThreshold   = 3000000 // 3M input tokens
+	codexStreamScannerMaxTokenSize = 10 * 1024 * 1024
+	codexStreamWatchdogInterval    = 10 * time.Second
+	highInputTokenWarningThreshold = 3000000 // 3M input tokens
 )
 
 // codexUsage represents token usage data from Codex turn.completed events.
@@ -37,6 +37,13 @@ type codexItem struct {
 	Command  string `json:"command"`
 	Path     string `json:"path"`
 	ToolName string `json:"tool_name"`
+}
+
+// codexToolCall represents a tool call from Codex tool_call.created or tool_call.output events.
+type codexToolCall struct {
+	ToolName string                 `json:"tool_name"`
+	Input    map[string]interface{} `json:"input,omitempty"`
+	Output   map[string]interface{} `json:"output,omitempty"`
 }
 
 // codexContentBlock represents content blocks in assistant-style events.
@@ -76,6 +83,7 @@ type codexEvent struct {
 	Status       string          `json:"status,omitempty"`
 	Usage        *codexUsage     `json:"usage,omitempty"`
 	Result       *codexResult    `json:"result,omitempty"`
+	ToolCall     *codexToolCall  `json:"tool_call,omitempty"`
 	ErrorInfo    *codexErrorInfo `json:"error,omitempty"`
 	TotalCostUSD float64         `json:"total_cost_usd,omitempty"`
 	InputTokens  int             `json:"input_tokens,omitempty"`
@@ -191,7 +199,48 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 		case "thread.started":
 			emitStreamEvent(handler, map[string]interface{}{"type": "system"})
 		case "message.created":
-			emitStreamEvent(handler, map[string]interface{}{"type": "system"})
+			emitStreamEvent(handler, map[string]interface{}{"type": "EventStart"})
+		case "message.output_text.delta":
+			if event.Text != "" {
+				emitStreamEvent(handler, map[string]interface{}{
+					"type": "EventContent",
+					"text": event.Text,
+				})
+			}
+		case "tool_call.created":
+			var payload map[string]interface{}
+			if err := json.Unmarshal(line, &payload); err != nil {
+				codexDebugf(output, "provider debug: failed to parse tool_call.created payload: %v", err)
+			}
+			emitStreamEvent(handler, map[string]interface{}{
+				"type":    "EventToolUse",
+				"payload": payload,
+			})
+
+			// Invoke toolHandler if tool_call has a tool_name
+			if event.ToolCall != nil && event.ToolCall.ToolName != "" && toolHandler != nil {
+				toolHandler(ToolEvent{
+					ToolName:  event.ToolCall.ToolName,
+					Timestamp: time.Now(),
+				})
+			}
+		case "tool_call.output":
+			var payload map[string]interface{}
+			if err := json.Unmarshal(line, &payload); err != nil {
+				codexDebugf(output, "provider debug: failed to parse tool_call.output payload: %v", err)
+			}
+			emitStreamEvent(handler, map[string]interface{}{
+				"type":    "EventToolResult",
+				"payload": payload,
+			})
+
+			// Invoke toolHandler if tool_call has a tool_name
+			if event.ToolCall != nil && event.ToolCall.ToolName != "" && toolHandler != nil {
+				toolHandler(ToolEvent{
+					ToolName:  event.ToolCall.ToolName,
+					Timestamp: time.Now(),
+				})
+			}
 
 		case "item.started":
 			if event.Item != nil && toolHandler != nil {
@@ -262,6 +311,12 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 			}
 
 		case "message.output_text.done":
+			if event.Text != "" {
+				emitStreamEvent(handler, map[string]interface{}{
+					"type": "EventContent",
+					"text": event.Text,
+				})
+			}
 			lastAgentText += event.Text
 			if output != nil && event.Text != "" {
 				_, _ = output.Write([]byte(event.Text))
@@ -287,12 +342,22 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 			mergedUsage, turnUsage := mergeCodexEventUsage(usage, event)
 			if turnUsage != nil {
 				usage = mergedUsage
-				emitStreamEvent(handler, map[string]interface{}{
-					"type":           "result",
-					"total_cost_usd": turnUsage.TotalCostUSD,
-					"input_tokens":   turnUsage.InputTokens,
-					"output_tokens":  turnUsage.OutputTokens,
-				})
+				if mergedUsage != nil {
+					emitStreamEvent(handler, map[string]interface{}{
+						"type":           "result",
+						"total_cost_usd": mergedUsage.TotalCostUSD,
+						"input_tokens":   mergedUsage.InputTokens,
+						"output_tokens":  mergedUsage.OutputTokens,
+					})
+					emitStreamEvent(handler, map[string]interface{}{
+						"type": "EventUsage",
+						"usage": map[string]interface{}{
+							"total_cost_usd": mergedUsage.TotalCostUSD,
+							"input_tokens":   mergedUsage.InputTokens,
+							"output_tokens":  mergedUsage.OutputTokens,
+						},
+					})
+				}
 				emitHighInputTokenWarningIfNeeded(handler, turnUsage)
 			}
 
@@ -335,6 +400,21 @@ func processCodexStream(reader io.Reader, output io.Writer, handler EventHandler
 					"message": errInfo.Message,
 				})
 			}
+		case "error":
+			var payload map[string]interface{}
+			if err := json.Unmarshal(line, &payload); err != nil {
+				codexDebugf(output, "provider debug: failed to parse error payload: %v", err)
+			}
+			errorInfo := map[string]interface{}{}
+			if event.ErrorInfo != nil {
+				errorInfo["type"] = event.ErrorInfo.Type
+				errorInfo["message"] = event.ErrorInfo.Message
+			}
+			emitStreamEvent(handler, map[string]interface{}{
+				"type":    "EventError",
+				"error":   errorInfo,
+				"payload": payload,
+			})
 		}
 	}
 
@@ -541,4 +621,11 @@ func mergeCodexUsage(existing *codexUsage, incoming *codexUsage) *codexUsage {
 		merged.TotalCostUSD = incoming.TotalCostUSD
 	}
 	return &merged
+}
+
+func isCodexUsageLimitError(errInfo *codexErrorInfo) bool {
+	if errInfo == nil {
+		return false
+	}
+	return errInfo.Type == "UsageLimitExceeded"
 }
