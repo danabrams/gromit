@@ -126,6 +126,28 @@ func TestEpilogue_SuccessPath_SyncsAfterClose(t *testing.T) {
 	}
 }
 
+// TestEpilogue_CloseFailureClassification ensures a failed Close is classified in the output.
+func TestEpilogue_CloseFailureClassification(t *testing.T) {
+	beads := &fakeBeadLifecycle{
+		closeFn: func(ctx context.Context, id string) error {
+			return errors.New("boom")
+		},
+	}
+	status := &fakeStatusWriter{}
+
+	stage := epiloguepkg.New(beads, status, io.Discard)
+	in := makeInput("bead-1", "Implement feature", true)
+
+	out, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if got := out.LifecycleFailure; got != pipeline.LifecycleFailureClose {
+		t.Fatalf("LifecycleFailure = %v, want %v", got, pipeline.LifecycleFailureClose)
+	}
+}
+
 // TestEpilogue_AlwaysWritesStatus verifies that status is written after each iteration.
 func TestEpilogue_AlwaysWritesStatus(t *testing.T) {
 	beads := &fakeBeadLifecycle{}
