@@ -56,3 +56,14 @@ func TestRulesPhaseCharBudgets(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildPhaseBudgetValue(t *testing.T) {
+	for _, budget := range rulesPhaseBudgetMatrix() {
+		if budget.phase != "build" {
+			continue
+		}
+		if budget.maxChars != 9260 {
+			t.Fatalf("build phase budget is %d; want 9260", budget.maxChars)
+		}
+	}
+}
