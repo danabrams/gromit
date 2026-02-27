@@ -34,6 +34,12 @@ type Phase4AdoptionGates struct {
 	CanAdopt               bool
 }
 
+type Phase4MeasurementReport struct {
+	Baseline  Phase4RunMetrics
+	Retrieval Phase4RunMetrics
+	Gates     Phase4AdoptionGates
+}
+
 func EvaluatePhase4AdoptionGates(baseline, retrieval Phase4RunMetrics) Phase4AdoptionGates {
 	gates := Phase4AdoptionGates{}
 
@@ -55,6 +61,23 @@ func EvaluatePhase4AdoptionGates(baseline, retrieval Phase4RunMetrics) Phase4Ado
 	gates.CanAdopt = gates.TokenReductionGate && gates.LatencyReductionGate && gates.SuccessRateParityGate && gates.WrongFileRateGate
 
 	return gates
+}
+
+func RunPhase4Measurement(logPath string) (Phase4MeasurementReport, error) {
+	records, err := readPhase4PairedIterationRecords(logPath)
+	if err != nil {
+		return Phase4MeasurementReport{}, err
+	}
+
+	baseline := summarizePhase4BaselineRun(records)
+	retrieval := summarizePhase4RetrievalRun(records)
+	gates := EvaluatePhase4AdoptionGates(baseline, retrieval)
+
+	return Phase4MeasurementReport{
+		Baseline:  baseline,
+		Retrieval: retrieval,
+		Gates:     gates,
+	}, nil
 }
 
 func readPhase4PairedIterationRecords(path string) ([]phase4PairedIterationRecord, error) {
