@@ -65,6 +65,13 @@ func (e *Emitter) Emit(event Event) {
 	}
 }
 
+// HasSubscribers reports whether there are active subscribers.
+func (e *Emitter) HasSubscribers() bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return !e.closed && len(e.subscribers) > 0
+}
+
 // Close shuts down the emitter and closes all subscriber channels.
 // It is safe to call multiple times.
 func (e *Emitter) Close() {

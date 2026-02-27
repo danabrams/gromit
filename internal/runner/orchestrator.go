@@ -808,11 +808,18 @@ func (o *Orchestrator) logWarning(format string, args ...any) {
 }
 
 func (o *Orchestrator) emitLog(level string, format string, args ...any) {
-	if o.emitter == nil {
+	msg := fmt.Sprintf(format, args...)
+	if o.emitter != nil && o.emitter.HasSubscribers() {
+		o.emitter.Emit(&events.LogEvent{
+			Level:   level,
+			Message: msg,
+		})
 		return
 	}
-	o.emitter.Emit(&events.LogEvent{
-		Level:   level,
-		Message: fmt.Sprintf(format, args...),
-	})
+
+	output := o.cfg.Output
+	if output == nil {
+		output = os.Stderr
+	}
+	fmt.Fprintf(output, "[%s] %s\n", level, msg)
 }
