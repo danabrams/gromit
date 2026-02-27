@@ -124,3 +124,74 @@ func TestBuildIterationMetrics_FieldParityContractForAttributionFields(t *testin
 		t.Error("Metric 2: EstimatedFiles zero when IterationLog.EstimatedFiles is non-zero")
 	}
 }
+
+// TestBuildIterationMetrics_AllComplexitySourceValues verifies that IterationMetric
+// correctly preserves all complexity source values from IterationLog.
+// This ensures complexity attribution is fully captured for retro analysis.
+func TestBuildIterationMetrics_AllComplexitySourceValues(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name                     string
+		complexity               string
+		complexitySource         string
+		complexityFallbackReason string
+		estimatedFiles           int
+	}{
+		{
+			name:                     "scope_estimate_source",
+			complexity:               "high",
+			complexitySource:         "scope_estimate",
+			complexityFallbackReason: "none",
+			estimatedFiles:           25,
+		},
+		{
+			name:                     "label_source",
+			complexity:               "low",
+			complexitySource:         "label",
+			complexityFallbackReason: "scope_unavailable",
+			estimatedFiles:           2,
+		},
+		{
+			name:                     "default_source",
+			complexity:               "medium",
+			complexitySource:         "default",
+			complexityFallbackReason: "scope_and_label_unavailable",
+			estimatedFiles:           12,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			entries := []IterationLog{
+				{
+					BeadID:                   "bead-test",
+					Iteration:                1,
+					Success:                  true,
+					DurationMs:               1000,
+					CostUSD:                  1.0,
+					InputTokens:              100,
+					Complexity:               tc.complexity,
+					ComplexitySource:         tc.complexitySource,
+					ComplexityFallbackReason: tc.complexityFallbackReason,
+					EstimatedFiles:           tc.estimatedFiles,
+				},
+			}
+			metrics := buildIterationMetrics(entries, 10)
+			if len(metrics) != 1 {
+				t.Fatalf("expected 1 metric, got %d", len(metrics))
+			}
+			m := metrics[0]
+			if m.Complexity != tc.complexity {
+				t.Errorf("Complexity = %q, want %q", m.Complexity, tc.complexity)
+			}
+			if m.ComplexitySource != tc.complexitySource {
+				t.Errorf("ComplexitySource = %q, want %q", m.ComplexitySource, tc.complexitySource)
+			}
+			if m.EstimatedFiles != tc.estimatedFiles {
+				t.Errorf("EstimatedFiles = %d, want %d", m.EstimatedFiles, tc.estimatedFiles)
+			}
+		})
+	}
+}
