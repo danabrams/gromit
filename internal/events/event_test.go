@@ -93,21 +93,10 @@ type mockStageWithEmitterMixin struct {
 	name string
 }
 
-// TestEmitterMixin_WithEmitter_ReturnsParent tests that WithEmitter returns the parent struct.
-func TestEmitterMixin_WithEmitter_ReturnsParent(t *testing.T) {
-	t.Parallel()
-	emitter := NewEmitter()
-	defer emitter.Close()
-
-	stage := &mockStageWithEmitterMixin{name: "test"}
-	result := stage.WithEmitter(emitter)
-
-	if result != stage {
-		t.Errorf("WithEmitter should return the parent struct")
-	}
-	if stage.Emitter != emitter {
-		t.Errorf("Emitter field not set correctly")
-	}
+// WithEmitter returns this stage for method chaining (required for embedded EmitterMixin).
+func (m *mockStageWithEmitterMixin) WithEmitter(emitter *Emitter) *mockStageWithEmitterMixin {
+	m.EmitterMixin.SetEmitter(emitter)
+	return m
 }
 
 // TestEmitterMixin_SetEmitter_SetsEmitter tests that SetEmitter sets the emitter field.
@@ -116,10 +105,27 @@ func TestEmitterMixin_SetEmitter_SetsEmitter(t *testing.T) {
 	emitter := NewEmitter()
 	defer emitter.Close()
 
-	stage := &mockStageWithEmitterMixin{name: "test"}
-	stage.SetEmitter(emitter)
+	mixin := &EmitterMixin{}
+	mixin.SetEmitter(emitter)
 
-	if stage.Emitter != emitter {
+	if mixin.Emitter != emitter {
 		t.Errorf("Emitter field not set correctly by SetEmitter")
+	}
+}
+
+// TestEmitterMixin_EmbeddedWithEmitter_WorksWithParent tests that WithEmitter works on a stage that embeds EmitterMixin.
+func TestEmitterMixin_EmbeddedWithEmitter_WorksWithParent(t *testing.T) {
+	t.Parallel()
+	emitter := NewEmitter()
+	defer emitter.Close()
+
+	stage := &mockStageWithEmitterMixin{name: "test"}
+	result := stage.WithEmitter(emitter)
+
+	if result != stage {
+		t.Errorf("WithEmitter should return the parent stage")
+	}
+	if stage.Emitter != emitter {
+		t.Errorf("Emitter field not set correctly through embedded mixin")
 	}
 }

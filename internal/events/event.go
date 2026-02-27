@@ -47,3 +47,16 @@ func (el *EmitterLogger) Log(level, format string, args ...interface{}) {
 		Message: fmt.Sprintf(format, args...),
 	})
 }
+
+// EmitterMixin is an embeddable struct that provides an Emitter field and SetEmitter method
+// for stages that need to accept an Emitter for event emission.
+// Parent types should implement their own WithEmitter method that returns the parent type
+// for proper method chaining.
+type EmitterMixin struct {
+	Emitter *Emitter
+}
+
+// SetEmitter is used by orchestrator wiring to attach an emitter without chaining support.
+func (em *EmitterMixin) SetEmitter(emitter *Emitter) {
+	em.Emitter = emitter
+}
