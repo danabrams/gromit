@@ -535,7 +535,9 @@ func (o *Orchestrator) maybeTriggerSpecMerge(ctx context.Context, b *bead.Bead) 
 	}
 	if err := o.cfg.SpecMergeController.Trigger(ctx, specName); err != nil {
 		o.logf("Warning: spec merge pipeline trigger for %q failed: %v", specName, err)
+		return
 	}
+	o.logf("Spec %q ready for human review", specName)
 }
 
 func normalizeTouchedPackages(touchedPackages []string) []string {
