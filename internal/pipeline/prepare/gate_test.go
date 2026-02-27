@@ -878,3 +878,53 @@ func TestGateRun_StuckEmitsGateStuckEvent(t *testing.T) {
 		t.Fatal("expected GateStuckEvent to be emitted")
 	}
 }
+
+// RED: test for GateBlockEvent when scope gate blocks oversized bead
+func TestGateRun_ScopeBlockEmitsGateBlockEvent(t *testing.T) {
+	t.Parallel()
+
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	gate := New(io.Discard)
+
+	beadID := "scope-block-test"
+	b := &bead.Bead{
+		ID:              beadID,
+		Title:           "oversized bead",
+		ExpectedOutputs: []string{"f1", "f2", "f3", "f4", "f5", "f6"}, // exceeds maxScopeFiles (5)
+	}
+	cfg := &config.Config{
+		ScopeCheck: config.ScopeCheckConfig{
+			Enabled:        true,
+			BlockOversized: &blockTrue,
+		},
+	}
+
+	_, err := gate.Run(context.Background(), pipeline.Input{
+		Bead:    b,
+		Config:  cfg,
+		Emitter: emitter,
+	})
+	if err != nil {
+		t.Fatalf("Gate.Run() error = %v", err)
+	}
+
+	select {
+	case evt := <-ch:
+		blockEvt, ok := evt.(*events.GateBlockEvent)
+		if !ok {
+			t.Fatalf("expected GateBlockEvent, got %T", evt)
+		}
+		if blockEvt.BeadID != beadID {
+			t.Errorf("BeadID = %q, want %q", blockEvt.BeadID, beadID)
+		}
+		if blockEvt.Reason != "scope" {
+			t.Errorf("Reason = %q, want %q", blockEvt.Reason, "scope")
+		}
+	case <-time.After(50 * time.Millisecond):
+		t.Fatal("expected GateBlockEvent to be emitted")
+	}
+}

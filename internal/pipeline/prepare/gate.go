@@ -254,6 +254,12 @@ func (g *Gate) runScopeGate(ctx context.Context, in pipeline.Input) (*pipeline.O
 			in.Bead.ID, fileCount, maxScopeFiles)
 		if err := g.decomposer.Decompose(ctx, in.Bead); err != nil {
 			g.Log("warning", "Warning: decomposition failed for bead %s: %v, falling back to block", in.Bead.ID, err)
+			if in.Emitter != nil {
+				in.Emitter.Emit(&events.GateBlockEvent{
+					BeadID: in.Bead.ID,
+					Reason: "scope",
+				})
+			}
 			return &pipeline.Output{Decision: pipeline.Block}, nil
 		}
 		g.Log("info", "Scope gate: decomposition succeeded for bead %s, skipping parent bead", in.Bead.ID)
@@ -263,6 +269,12 @@ func (g *Gate) runScopeGate(ctx context.Context, in pipeline.Input) (*pipeline.O
 	// Decomposition not available or bead is child: block.
 	g.Log("warning", "Scope gate: bead %s has %d expected outputs (max %d), blocking",
 		in.Bead.ID, fileCount, maxScopeFiles)
+	if in.Emitter != nil {
+		in.Emitter.Emit(&events.GateBlockEvent{
+			BeadID: in.Bead.ID,
+			Reason: "scope",
+		})
+	}
 	return &pipeline.Output{Decision: pipeline.Block}, nil
 }
 
