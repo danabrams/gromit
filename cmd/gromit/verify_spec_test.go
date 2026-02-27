@@ -356,6 +356,22 @@ func TestVerifySpec_LocalProviderConfigHelpersRemoved(t *testing.T) {
 	}
 }
 
+func TestAdapters_MarshalJSONListRemoved(t *testing.T) {
+	t.Parallel()
+
+	// Verify that marshalJSONList is not defined in adapters.go
+	// This ensures we've consolidated to use tracker.EncodeMetadataJSONList
+	source, err := os.ReadFile("adapters.go")
+	if err != nil {
+		t.Fatalf("failed to read adapters.go: %v", err)
+	}
+
+	sourceStr := string(source)
+	if strings.Contains(sourceStr, "func marshalJSONList(") {
+		t.Fatal("marshalJSONList function should be removed - use tracker.EncodeMetadataJSONList instead")
+	}
+}
+
 func TestSpecGateBeadCreatorWithTrackerClient_EncodeLabelsWithTrackerFunction(t *testing.T) {
 	t.Parallel()
 
