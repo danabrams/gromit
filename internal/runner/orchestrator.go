@@ -14,6 +14,7 @@ import (
 	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/events/cli"
+	"github.com/danabrams/gromit/internal/events/stream"
 	"github.com/danabrams/gromit/internal/experiment"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
@@ -134,6 +135,17 @@ func (o *Orchestrator) StartSubscribers(ctx context.Context) error {
 	go func() {
 		_ = cliSubscriber.Start(ctx)
 	}()
+
+	if o.cfg.LogsDir != "" {
+		streamSubscriber, err := stream.NewFileSubscriber(o.cfg.LogsDir, o.emitter)
+		if err != nil {
+			fmt.Fprintf(output, "Warning: could not start stream subscriber: %v\n", err)
+		} else {
+			go func() {
+				_ = streamSubscriber.Start(ctx)
+			}()
+		}
+	}
 
 	return nil
 }
@@ -401,10 +413,10 @@ runLoop:
 			reviewOut, _ := o.cfg.Review.Run(ctx, baseIn)
 			// Emit ReviewCompleteEvent
 			o.emitter.Emit(&events.ReviewCompleteEvent{
-				BeadID: b.ID,
+				BeadID:  b.ID,
 				Verdict: "pending",
-				Issues: nil,
-				Time:   time.Now(),
+				Issues:  nil,
+				Time:    time.Now(),
 			})
 			_ = reviewOut
 		}

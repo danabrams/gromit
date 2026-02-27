@@ -190,6 +190,8 @@ func TestStreamSubscriberWiredEnsuresStructuredEventFileStreams(t *testing.T) {
 		t.Fatal("structured event stream file not created")
 	}
 
+	waitForFileSize(t, streamFile, 1, time.Second)
+
 	data, err := os.ReadFile(streamFile)
 	if err != nil {
 		t.Fatalf("read structured file: %v", err)
@@ -360,6 +362,19 @@ func (rw *recordingWriter) Write(p []byte) (n int, err error) {
 
 func (rw *recordingWriter) hasContent() bool {
 	return rw.content.Len() > 0
+}
+
+func waitForFileSize(t *testing.T, path string, minSize int64, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		info, err := os.Stat(path)
+		if err == nil && info.Size() >= minSize {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("file %s did not reach %d bytes before timeout", path, minSize)
 }
 
 // TestRunStartsSubscribersBeforeLoop verifies that Run() starts subscribers
