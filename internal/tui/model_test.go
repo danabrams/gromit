@@ -233,3 +233,32 @@ func containsString(haystack, needle string) bool {
 	}
 	return false
 }
+
+func TestModel_SwitchViewWithNumberKey(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+
+	// Start with Dashboard view
+	if m.currentView != ViewDashboard {
+		t.Errorf("expected initial view to be Dashboard, got %v", m.currentView)
+	}
+
+	// Send number key '2' to switch to next view
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}}
+	model, _ := m.Update(msg)
+	m = model.(*Model)
+
+	// Should switch to Queue view
+	if m.currentView != ViewQueue {
+		t.Errorf("expected view to be Queue after '2' key, got %v", m.currentView)
+	}
+
+	// Send number key '1' to switch back to Dashboard
+	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'1'}}
+	model, _ = m.Update(msg)
+	m = model.(*Model)
+
+	if m.currentView != ViewDashboard {
+		t.Errorf("expected view to be Dashboard after '1' key, got %v", m.currentView)
+	}
+}
