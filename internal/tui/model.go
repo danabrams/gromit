@@ -74,5 +74,51 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the model to a string.
 func (m *Model) View() string {
-	return "Gromit TUI"
+	if m.currentView == ViewQueue {
+		return m.renderQueueView()
+	}
+	return m.renderDashboardView()
+}
+
+func (m *Model) renderDashboardView() string {
+	var output string
+
+	// Panel 0: Progress panel
+	progressFocus := ""
+	if m.focusedPanel == 0 {
+		progressFocus = " [FOCUSED]"
+	}
+	output += "=== Progress Panel" + progressFocus + " ===\n"
+	output += "panel 0\n"
+	if m.store != nil && m.store.Dashboard.RunProgress != nil {
+		progress := m.store.Dashboard.RunProgress
+		output += "progress: " + string(rune(progress.CurrentIteration)) + "/" + string(rune(progress.MaxIterations)) + "\n"
+	}
+	output += "\n"
+
+	// Panel 1: Status panel
+	statusFocus := ""
+	if m.focusedPanel == 1 {
+		statusFocus = " [FOCUSED]"
+	}
+	output += "=== Status Panel" + statusFocus + " ===\n"
+	output += "panel 1\n"
+	output += "Status information\n"
+
+	return output
+}
+
+func (m *Model) renderQueueView() string {
+	var output string
+
+	// Panel 0: Ready beads
+	readyFocus := ""
+	if m.focusedPanel == 0 {
+		readyFocus = " [FOCUSED]"
+	}
+	output += "=== Ready Beads" + readyFocus + " ===\n"
+	output += "panel 0\n"
+	output += "Queue beads\n"
+
+	return output
 }
