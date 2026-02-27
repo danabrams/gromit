@@ -14,6 +14,18 @@ import (
 	"github.com/danabrams/gromit/internal/prompt"
 )
 
+// Adapters in this file are CLI-specific and wrap internal CLI packages (learnings, logger, state, bead).
+// They transform pipeline.Deps interface types to CLI package types and vice versa.
+// The adapter pattern enables clean separation between pipeline logic and CLI orchestration:
+// - Each adapter wraps CLI-specific functionality (prompt rendering, learnings, state, logging)
+// - Each adapter implements one pipeline interface (ReviewRenderer, LearningsManager, StateManager, etc.)
+// - Adapters are instantiated by NewPipelineDeps() in adapter_deps.go
+//
+// Naming conventions:
+// - CLI-specific adapters use "cli" prefix when wrapping CLI packages (e.g., cliLogWriter, cliStateManager)
+// - Prompt renderers use "PromptRenderer" suffix (e.g., cliPromptRenderer, explorePromptRenderer)
+// - All adapters delegate to their wrapped dependencies without business logic
+
 // cliPromptRenderer adapts prompt.Renderer to pipeline.ReviewRenderer interface
 // It loads ClaudeMD and Rules before rendering
 type cliPromptRenderer struct {

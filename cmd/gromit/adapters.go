@@ -18,6 +18,17 @@ import (
 	"github.com/danabrams/gromit/internal/tracker"
 )
 
+// Adapters in this file transform internal package types to pipeline.Deps interface types.
+// The adapter pattern enables testability and loose coupling:
+// - Each adapter wraps a single internal dependency (e.g., claude.Client, bead.Client)
+// - Each adapter implements one or more pipeline interfaces (e.g., LLMClient, TrackerClient)
+// - Adapters perform minimal type transformation and delegation to underlying dependencies
+// - New adapters are wired together in adapter_deps.go by NewPipelineDeps()
+//
+// Adapter naming conventions:
+// - General adapters use "Adapter" suffix (e.g., claudeClientAdapter, trackerClientAdapter)
+// - No business logic in adapters - they are pure type-transforming bridges
+
 // claudeClientAdapter adapts claude.Client to pipeline invocation interfaces.
 type claudeClientAdapter struct {
 	Client  *claude.Client
