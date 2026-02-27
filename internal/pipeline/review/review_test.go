@@ -401,3 +401,113 @@ checkEvents:
 		t.Errorf("ReviewCompleteEvent.Verdict = %q, want %q", completeEvent.Verdict, "approved")
 	}
 }
+
+// RED: test that ReviewStartEvent has Time and Thorough fields
+func TestReviewRun_ReviewStartEventHasTimeAndThoroughFields(t *testing.T) {
+	t.Parallel()
+
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+
+	review := reviewstage.New(
+		&fakeInvoker{},
+		&fakeBeadCreator{},
+		&fakePromptRenderer{},
+		func() (string, error) { return "", nil },
+		io.Discard,
+	)
+
+	beadID := "test-review-bead"
+	cfg := makeConfig(true)
+	input := pipeline.Input{
+		Bead:   makeBead(beadID, "Test bead"),
+		Config: cfg,
+		Emitter: emitter,
+	}
+
+	review.WithEmitter(emitter)
+	_, err := review.Run(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Review.Run() error = %v", err)
+	}
+
+	// Collect events
+	var startEvent *events.ReviewStartEvent
+	timeout := time.After(100 * time.Millisecond)
+	for {
+		select {
+		case evt := <-ch:
+			if se, ok := evt.(*events.ReviewStartEvent); ok {
+				startEvent = se
+			}
+		case <-timeout:
+			goto checkEvent
+		}
+	}
+
+checkEvent:
+	if startEvent == nil {
+		t.Fatal("expected ReviewStartEvent to be emitted")
+	}
+	if startEvent.Time.IsZero() {
+		t.Error("ReviewStartEvent.Time is zero, want non-zero timestamp")
+	}
+	// Thorough field should exist (even if false)
+	if startEvent.Thorough != false {
+		t.Errorf("ReviewStartEvent.Thorough = %v, want false for standard review", startEvent.Thorough)
+	}
+}
+
+// RED: test that ReviewCompleteEvent has Time field
+func TestReviewRun_ReviewCompleteEventHasTimeField(t *testing.T) {
+	t.Parallel()
+
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+
+	review := reviewstage.New(
+		&fakeInvoker{},
+		&fakeBeadCreator{},
+		&fakePromptRenderer{},
+		func() (string, error) { return "", nil },
+		io.Discard,
+	)
+
+	beadID := "test-review-bead"
+	cfg := makeConfig(true)
+	input := pipeline.Input{
+		Bead:   makeBead(beadID, "Test bead"),
+		Config: cfg,
+		Emitter: emitter,
+	}
+
+	review.WithEmitter(emitter)
+	_, err := review.Run(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Review.Run() error = %v", err)
+	}
+
+	// Collect events
+	var completeEvent *events.ReviewCompleteEvent
+	timeout := time.After(100 * time.Millisecond)
+	for {
+		select {
+		case evt := <-ch:
+			if ce, ok := evt.(*events.ReviewCompleteEvent); ok {
+				completeEvent = ce
+			}
+		case <-timeout:
+			goto checkEvent
+		}
+	}
+
+checkEvent:
+	if completeEvent == nil {
+		t.Fatal("expected ReviewCompleteEvent to be emitted")
+	}
+	if completeEvent.Time.IsZero() {
+		t.Error("ReviewCompleteEvent.Time is zero, want non-zero timestamp")
+	}
+}
