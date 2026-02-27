@@ -526,8 +526,9 @@ type CostOptimizedRoutingConfig struct {
 }
 
 type TokenEfficiencyConfig struct {
-	Cache   TokenEfficiencyCacheConfig   `yaml:"cache"`
-	Routing TokenEfficiencyRoutingConfig `yaml:"routing"`
+	Cache     TokenEfficiencyCacheConfig    `yaml:"cache"`
+	Routing   TokenEfficiencyRoutingConfig  `yaml:"routing"`
+	Retrieval TokenEfficiencyRetrievalConfig `yaml:"retrieval"`
 }
 
 type TokenEfficiencyCacheConfig struct {
@@ -546,6 +547,15 @@ type TokenEfficiencyRoutingConfig struct {
 type TokenEfficiencyRoutingKillSwitchesConfig struct {
 	DisableUtilityRouting bool `yaml:"disable_utility_routing"`
 	DisableTaskOverrides  bool `yaml:"disable_task_overrides"`
+}
+
+type TokenEfficiencyRetrievalConfig struct {
+	Enabled                  bool    `yaml:"enabled"`
+	TopK                     int     `yaml:"top_k"`
+	ConfidenceThreshold      float64 `yaml:"confidence_threshold"`
+	StalenessPolicy          string  `yaml:"staleness_policy"`
+	StalenessThresholdDays   int     `yaml:"staleness_threshold_days"`
+	IndexPath                string  `yaml:"index_path"`
 }
 
 type FallbackConfig struct {
