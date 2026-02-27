@@ -506,3 +506,240 @@ func TestPhase4ReadPairedIterationRecords_HandlesEmptyAndMalformedFiles(t *testi
 		})
 	}
 }
+
+func TestPhase4DisabledRetrievalMatchesBaseline_ProducesNoAdoptDecision(t *testing.T) {
+	tmpDir := t.TempDir()
+	logPath := filepath.Join(tmpDir, "disabled_retrieval.jsonl")
+
+	// Scenario: Retrieval is disabled, so retrieval metrics exactly match baseline
+	logContent := `{"discovery_input_tokens_baseline":100,"discovery_input_tokens_retrieval":100,"discovery_latency_ms_baseline":1000,"discovery_latency_ms_retrieval":1000,"success_baseline":true,"success_retrieval":true,"wrong_file_retrieval":false}
+{"discovery_input_tokens_baseline":90,"discovery_input_tokens_retrieval":90,"discovery_latency_ms_baseline":950,"discovery_latency_ms_retrieval":950,"success_baseline":true,"success_retrieval":true,"wrong_file_retrieval":false}
+{"discovery_input_tokens_baseline":110,"discovery_input_tokens_retrieval":110,"discovery_latency_ms_baseline":1050,"discovery_latency_ms_retrieval":1050,"success_baseline":true,"success_retrieval":true,"wrong_file_retrieval":false}
+`
+
+	if err := os.WriteFile(logPath, []byte(logContent), 0o644); err != nil {
+		t.Fatalf("write test log: %v", err)
+	}
+
+	report, err := RunPhase4Measurement(logPath)
+	if err != nil {
+		t.Fatalf("RunPhase4Measurement failed: %v", err)
+	}
+
+	// Verify retrieval metrics match baseline exactly
+	if report.Baseline.MedianDiscoveryInputTokens != report.Retrieval.MedianDiscoveryInputTokens {
+		t.Errorf("disabled retrieval tokens should match baseline: baseline %d vs retrieval %d",
+			report.Baseline.MedianDiscoveryInputTokens, report.Retrieval.MedianDiscoveryInputTokens)
+	}
+	if report.Baseline.MedianDiscoveryLatencyMs != report.Retrieval.MedianDiscoveryLatencyMs {
+		t.Errorf("disabled retrieval latency should match baseline: baseline %d vs retrieval %d",
+			report.Baseline.MedianDiscoveryLatencyMs, report.Retrieval.MedianDiscoveryLatencyMs)
+	}
+
+	// When disabled (0% reduction), all gates should fail
+	if report.Gates.TokenReductionGate {
+		t.Errorf("TokenReductionGate should fail when retrieval is disabled (0%% reduction)")
+	}
+	if report.Gates.LatencyReductionGate {
+		t.Errorf("LatencyReductionGate should fail when retrieval is disabled (0%% reduction)")
+	}
+
+	// Verify no-adopt decision
+	decision := ComputePhase4AdoptionDecision(report.Gates)
+	if decision.ShouldAdopt {
+		t.Errorf("decision should be no-adopt when retrieval is disabled")
+	}
+	if len(decision.Reasons) < 2 {
+		t.Errorf("should have at least 2 failure reasons (token and latency), got %d", len(decision.Reasons))
+	}
+}
+
+func TestPhase4SingleGateFailure_EachGateFailureProducesNoAdopt(t *testing.T) {
+	tests := []struct {
+		name               string
+		baseline           Phase4RunMetrics
+		retrieval          Phase4RunMetrics
+		failingGate        string
+		expectedNotAdopt   bool
+	}{
+		{
+			name: "token_reduction_gate_failure_alone",
+			baseline: Phase4RunMetrics{
+				MedianDiscoveryInputTokens: 100,
+				MedianDiscoveryLatencyMs:   1000,
+				SuccessRate:                0.95,
+				WrongFileRate:              0.01,
+			},
+			retrieval: Phase4RunMetrics{
+				MedianDiscoveryInputTokens: 81,  // 19% reduction (below 20% threshold)
+				MedianDiscoveryLatencyMs:   800,  // 20% reduction (passes)
+				SuccessRate:                0.94, // 1% drop (passes)
+				WrongFileRate:              0.01, // passes
+			},
+			failingGate:      "token_reduction",
+			expectedNotAdopt: true,
+		},
+		{
+			name: "latency_reduction_gate_failure_alone",
+			baseline: Phase4RunMetrics{
+				MedianDiscoveryInputTokens: 100,
+				MedianDiscoveryLatencyMs:   1000,
+				SuccessRate:                0.95,
+				WrongFileRate:              0.01,
+			},
+			retrieval: Phase4RunMetrics{
+				MedianDiscoveryInputTokens: 70,  // 30% reduction (passes)
+				MedianDiscoveryLatencyMs:   860, // 14% reduction (below 15% threshold)
+				SuccessRate:                0.94, // 1% drop (passes)
+				WrongFileRate:              0.01, // passes
+			},
+			failingGate:      "latency_reduction",
+			expectedNotAdopt: true,
+		},
+		{
+			name: "success_rate_parity_gate_failure_alone",
+			baseline: Phase4RunMetrics{
+				MedianDiscoveryInputTokens: 100,
+				MedianDiscoveryLatencyMs:   1000,
+				SuccessRate:                0.95,
+				WrongFileRate:              0.01,
+			},
+			retrieval: Phase4RunMetrics{
+				MedianDiscoveryInputTokens: 70,  // 30% reduction (passes)
+				MedianDiscoveryLatencyMs:   800, // 20% reduction (passes)
+				SuccessRate:                0.89, // 6% drop (above 5% threshold)
+				WrongFileRate:              0.01, // passes
+			},
+			failingGate:      "success_rate_parity",
+			expectedNotAdopt: true,
+		},
+		{
+			name: "wrong_file_rate_gate_failure_alone",
+			baseline: Phase4RunMetrics{
+				MedianDiscoveryInputTokens: 100,
+				MedianDiscoveryLatencyMs:   1000,
+				SuccessRate:                0.95,
+				WrongFileRate:              0.01,
+			},
+			retrieval: Phase4RunMetrics{
+				MedianDiscoveryInputTokens: 70,   // 30% reduction (passes)
+				MedianDiscoveryLatencyMs:   800,  // 20% reduction (passes)
+				SuccessRate:                0.94, // 1% drop (passes)
+				WrongFileRate:              0.051, // above 5% threshold
+			},
+			failingGate:      "wrong_file_rate",
+			expectedNotAdopt: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gates := EvaluatePhase4AdoptionGates(tt.baseline, tt.retrieval)
+			decision := ComputePhase4AdoptionDecision(gates)
+
+			if !tt.expectedNotAdopt && decision.ShouldAdopt {
+				t.Fatalf("expected no-adopt for %s, but got adopt", tt.failingGate)
+			}
+			if tt.expectedNotAdopt && decision.ShouldAdopt {
+				t.Fatalf("single gate failure (%s) should produce no-adopt", tt.failingGate)
+			}
+
+			// Verify the failing gate is documented in reasons
+			reasonsStr := stdstrings.Join(decision.Reasons, ",")
+			failureFound := false
+			switch tt.failingGate {
+			case "token_reduction":
+				failureFound = stdstrings.Contains(reasonsStr, "token")
+			case "latency_reduction":
+				failureFound = stdstrings.Contains(reasonsStr, "latency")
+			case "success_rate_parity":
+				failureFound = stdstrings.Contains(reasonsStr, "success_rate")
+			case "wrong_file_rate":
+				failureFound = stdstrings.Contains(reasonsStr, "wrong_file")
+			}
+
+			if !failureFound {
+				t.Errorf("expected %s failure in reasons, got %v", tt.failingGate, decision.Reasons)
+			}
+		})
+	}
+}
+
+func TestPhase4AllGatesPass_ProducesAdoptWithFullEvidence(t *testing.T) {
+	tmpDir := t.TempDir()
+	logPath := filepath.Join(tmpDir, "all_passing.jsonl")
+
+	// Scenario: All gates pass with strong margins
+	logContent := `{"discovery_input_tokens_baseline":100,"discovery_input_tokens_retrieval":70,"discovery_latency_ms_baseline":1000,"discovery_latency_ms_retrieval":800,"success_baseline":true,"success_retrieval":true,"wrong_file_retrieval":false}
+{"discovery_input_tokens_baseline":100,"discovery_input_tokens_retrieval":70,"discovery_latency_ms_baseline":1000,"discovery_latency_ms_retrieval":800,"success_baseline":true,"success_retrieval":true,"wrong_file_retrieval":false}
+{"discovery_input_tokens_baseline":100,"discovery_input_tokens_retrieval":70,"discovery_latency_ms_baseline":1000,"discovery_latency_ms_retrieval":800,"success_baseline":true,"success_retrieval":true,"wrong_file_retrieval":false}
+`
+
+	if err := os.WriteFile(logPath, []byte(logContent), 0o644); err != nil {
+		t.Fatalf("write test log: %v", err)
+	}
+
+	report, err := RunPhase4Measurement(logPath)
+	if err != nil {
+		t.Fatalf("RunPhase4Measurement failed: %v", err)
+	}
+
+	// Verify all gates pass
+	if !report.Gates.TokenReductionGate {
+		t.Errorf("TokenReductionGate should pass")
+	}
+	if !report.Gates.LatencyReductionGate {
+		t.Errorf("LatencyReductionGate should pass")
+	}
+	if !report.Gates.SuccessRateParityGate {
+		t.Errorf("SuccessRateParityGate should pass")
+	}
+	if !report.Gates.WrongFileRateGate {
+		t.Errorf("WrongFileRateGate should pass")
+	}
+	if !report.Gates.CanAdopt {
+		t.Errorf("CanAdopt should be true when all gates pass")
+	}
+
+	// Verify adoption decision with full evidence
+	decision := ComputePhase4AdoptionDecision(report.Gates)
+	if !decision.ShouldAdopt {
+		t.Errorf("decision should be adopt when all gates pass")
+	}
+	if len(decision.Reasons) != 0 {
+		t.Errorf("adoption with all gates passing should have no reasons, got %v", decision.Reasons)
+	}
+
+	// Verify full evidence is captured in the report
+	if report.Baseline.MedianDiscoveryInputTokens == 0 {
+		t.Errorf("baseline token evidence missing")
+	}
+	if report.Retrieval.MedianDiscoveryInputTokens == 0 {
+		t.Errorf("retrieval token evidence missing")
+	}
+	if report.Baseline.MedianDiscoveryLatencyMs == 0 {
+		t.Errorf("baseline latency evidence missing")
+	}
+	if report.Retrieval.MedianDiscoveryLatencyMs == 0 {
+		t.Errorf("retrieval latency evidence missing")
+	}
+	if report.Baseline.SuccessRate == 0 {
+		t.Errorf("baseline success rate evidence missing")
+	}
+	if report.Retrieval.SuccessRate == 0 {
+		t.Errorf("retrieval success rate evidence missing")
+	}
+	if report.Retrieval.WrongFileRate < 0 {
+		t.Errorf("wrong file rate evidence missing")
+	}
+
+	// Verify metrics show actual improvements
+	if report.Baseline.MedianDiscoveryInputTokens <= report.Retrieval.MedianDiscoveryInputTokens {
+		t.Errorf("retrieval should have fewer tokens: baseline %d vs retrieval %d",
+			report.Baseline.MedianDiscoveryInputTokens, report.Retrieval.MedianDiscoveryInputTokens)
+	}
+	if report.Baseline.MedianDiscoveryLatencyMs <= report.Retrieval.MedianDiscoveryLatencyMs {
+		t.Errorf("retrieval should have lower latency: baseline %d vs retrieval %d",
+			report.Baseline.MedianDiscoveryLatencyMs, report.Retrieval.MedianDiscoveryLatencyMs)
+	}
+}

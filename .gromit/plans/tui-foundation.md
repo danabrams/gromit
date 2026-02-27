@@ -1,8 +1,9 @@
 ---
+created: 2026-02-27T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-27T03:04:36Z"
 id: tui-foundation
 source_spec: tui-foundation
-created: 2026-02-27
-decomposed: false
 ---
 
 # TUI Foundation Implementation Plan

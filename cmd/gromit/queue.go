@@ -172,11 +172,12 @@ func printQueueBySpec(cfg queueModelSelector, readyBeads, blockedBeads, stuckBea
 	blockedBySpec := groupBeadsBySpec(blockedBeads)
 	stuckBySpec := groupBeadsBySpec(stuckBeads)
 	specKeys := combinedSpecKeys(readyBySpec, blockedBySpec, stuckBySpec)
-	if len(specKeys) == 0 {
-		return
-	}
 
 	fmt.Println("Queue by spec:")
+	if len(specKeys) == 0 {
+		fmt.Println("  (no spec groups to display)")
+		return
+	}
 	readyIndex := 0
 	for i, spec := range specKeys {
 		if i > 0 {

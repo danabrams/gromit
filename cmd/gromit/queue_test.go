@@ -466,6 +466,47 @@ func TestQueueCmd_RegressionAssertion_DoesNotMutateBeadState(t *testing.T) {
 	}
 }
 
+// TestQueueCmd_RegressionAssertion_OutputIsStable verifies queue command produces
+// consistent output across multiple invocations (no state mutation side effects).
+func TestQueueCmd_RegressionAssertion_OutputIsStable(t *testing.T) {
+	t.Parallel()
+
+	// Simulate queue command display - run twice with same data
+	callCount := 0
+	var output1, output2 string
+
+	for i := 0; i < 2; i++ {
+		output := captureStdout(t, func() {
+			cfg := testQueueModelSelector{}
+			ready := []*bead.Bead{
+				{ID: "task-1", Title: "First Task", Priority: 1},
+				{ID: "task-2", Title: "Second Task", Priority: 2},
+			}
+			blocked := []*bead.Bead{}
+			stuck := []*bead.Bead{}
+
+			printQueueByStatus(cfg, ready, blocked, stuck, ready, true, false)
+			callCount++
+		})
+
+		if i == 0 {
+			output1 = output
+		} else {
+			output2 = output
+		}
+	}
+
+	// Outputs should be identical across invocations (no state mutation)
+	if output1 != output2 {
+		t.Errorf("queue command output is not stable (indicates state mutation):\nFirst:\n%s\n\nSecond:\n%s", output1, output2)
+	}
+
+	// Both invocations should have completed
+	if callCount != 2 {
+		t.Errorf("expected 2 invocations, got %d", callCount)
+	}
+}
+
 // trackerMutationTracker wraps a tracker.Client and calls onMutation when mutation methods are invoked
 type trackerMutationTracker struct {
 	wrapped    tracker.Client

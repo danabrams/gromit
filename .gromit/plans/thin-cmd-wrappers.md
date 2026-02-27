@@ -1,8 +1,9 @@
 ---
+created: 2026-02-27T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-27T02:56:30Z"
 id: thin-cmd-wrappers
 source_spec: thin-cmd-wrappers
-created: 2026-02-27
-decomposed: false
 ---
 
 # Thin CMD Wrappers Implementation Plan
