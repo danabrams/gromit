@@ -175,3 +175,41 @@ func TestQueryRespectsKLimit(t *testing.T) {
 		t.Fatalf("expected 10 results (all available), got %d", len(results))
 	}
 }
+
+func TestQueryAttributionIncludesExactLineRanges(t *testing.T) {
+	q := NewQuerier()
+
+	// Index a document with specific line range
+	docs := []DocumentWithAttribution{
+		{
+			FilePath:  "handler.go",
+			StartLine: 42,
+			EndLine:   67,
+			Content:   "func HandleRequest(w http.ResponseWriter, r *http.Request) { /* implementation */ }",
+		},
+	}
+
+	q.Index(docs)
+
+	results, err := q.Query("handler", 5)
+	if err != nil {
+		t.Fatalf("Query failed: %v", err)
+	}
+
+	if len(results) == 0 {
+		t.Fatalf("expected results, got none")
+	}
+
+	snippet := results[0]
+	if snippet.FilePath != "handler.go" {
+		t.Fatalf("expected FilePath 'handler.go', got %q", snippet.FilePath)
+	}
+
+	if snippet.StartLine != 42 {
+		t.Fatalf("expected StartLine 42, got %d", snippet.StartLine)
+	}
+
+	if snippet.EndLine != 67 {
+		t.Fatalf("expected EndLine 67, got %d", snippet.EndLine)
+	}
+}
