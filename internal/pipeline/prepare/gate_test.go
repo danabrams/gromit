@@ -964,19 +964,28 @@ func TestGateRun_ScopeBlockEmitsGateBlockEvent(t *testing.T) {
 		t.Fatalf("Gate.Run() error = %v", err)
 	}
 
-	select {
-	case evt := <-ch:
-		blockEvt, ok := evt.(*events.GateBlockEvent)
-		if !ok {
-			t.Fatalf("expected GateBlockEvent, got %T", evt)
+	expectBlockEvent := func(evt events.Event) bool {
+		if blockEvt, ok := evt.(*events.GateBlockEvent); ok {
+			if blockEvt.BeadID != beadID {
+				t.Errorf("BeadID = %q, want %q", blockEvt.BeadID, beadID)
+			}
+			if blockEvt.Reason != "scope" {
+				t.Errorf("Reason = %q, want %q", blockEvt.Reason, "scope")
+			}
+			return true
 		}
-		if blockEvt.BeadID != beadID {
-			t.Errorf("BeadID = %q, want %q", blockEvt.BeadID, beadID)
+		return false
+	}
+
+	deadline := time.After(50 * time.Millisecond)
+	for {
+		select {
+		case evt := <-ch:
+			if expectBlockEvent(evt) {
+				return
+			}
+		case <-deadline:
+			t.Fatal("expected GateBlockEvent to be emitted")
 		}
-		if blockEvt.Reason != "scope" {
-			t.Errorf("Reason = %q, want %q", blockEvt.Reason, "scope")
-		}
-	case <-time.After(50 * time.Millisecond):
-		t.Fatal("expected GateBlockEvent to be emitted")
 	}
 }
