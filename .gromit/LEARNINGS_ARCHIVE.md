@@ -1676,3 +1676,8 @@ Context threading is now the norm across tracker and bead APIs; new call sites s
 Metadata for labels/outputs/criteria is stored as JSON arrays; keep encoding centralized to prevent drift.
 
 *Archived from new: filtered: generic engineering advice*
+### 2026-02-27 | gromit-6g0 | patterns
+When multiple error conditions could occur, tests will catch cases where generic errors mask specific errors - implement specific error checks before generic fallbacks
+
+*Archived from new: filtered: generic engineering advice*
+

@@ -16,5 +16,12 @@ func runPlanWorkflow(ctx context.Context, p *Pipeline, input PlanInput) (*PlanSe
 		return nil, fmt.Errorf("checking spec %q: %w", input.SpecName, err)
 	}
 
+	if !input.Force {
+		planPath := filepath.Join(p.paths.PlansDir, input.SpecName+".md")
+		if _, err := os.Stat(planPath); err == nil {
+			return nil, fmt.Errorf("plan for spec %q already exists", input.SpecName)
+		}
+	}
+
 	return nil, fmt.Errorf("plan workflow not implemented")
 }
