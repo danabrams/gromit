@@ -4,11 +4,11 @@ import "time"
 
 // BuildStartEvent is emitted before invoking Claude for the build phase.
 type BuildStartEvent struct {
-	BeadID     string
-	Model      string
-	Attempt    int
+	BeadID      string
+	Model       string
+	Attempt     int
 	MaxAttempts int
-	Time       time.Time
+	Time        time.Time
 }
 
 func (e *BuildStartEvent) EventType() string {
@@ -47,6 +47,7 @@ func (e *BuildCompleteEvent) EventTime() time.Time {
 // ValidationStartEvent is emitted before running validation.
 type ValidationStartEvent struct {
 	BeadID   string
+	Model    string
 	Commands []string
 	Time     time.Time
 }
@@ -101,10 +102,10 @@ func (e *ValidationFailEvent) EventTime() time.Time {
 
 // ReviewStartEvent is emitted before running post-iteration review.
 type ReviewStartEvent struct {
-	BeadID    string
-	Model     string
-	Thorough  bool
-	Time      time.Time
+	BeadID   string
+	Model    string
+	Thorough bool
+	Time     time.Time
 }
 
 func (e *ReviewStartEvent) EventType() string {
@@ -120,10 +121,10 @@ func (e *ReviewStartEvent) EventTime() time.Time {
 
 // ReviewCompleteEvent is emitted after review finishes.
 type ReviewCompleteEvent struct {
-	BeadID string
+	BeadID  string
 	Verdict string
-	Issues []string
-	Time   time.Time
+	Issues  []string
+	Time    time.Time
 }
 
 func (e *ReviewCompleteEvent) EventType() string {
@@ -212,12 +213,12 @@ func (e *RetroCompleteEvent) EventTime() time.Time {
 
 // HeartbeatEvent is emitted periodically during Claude invocations.
 type HeartbeatEvent struct {
-	Elapsed           time.Duration
-	ToolCalls         int
-	FilesModified     int
-	RateLimitHits     int
+	Elapsed            time.Duration
+	ToolCalls          int
+	FilesModified      int
+	RateLimitHits      int
 	WaitingForResponse bool
-	Time              time.Time
+	Time               time.Time
 }
 
 func (e *HeartbeatEvent) EventType() string {
@@ -289,11 +290,11 @@ func (e *StallDetectedEvent) EventTime() time.Time {
 
 // ScopeCheckEvent is emitted after scope check completes.
 type ScopeCheckEvent struct {
-	BeadID    string
+	BeadID     string
 	Complexity string
-	Approved  bool
-	Reason    string
-	Time      time.Time
+	Approved   bool
+	Reason     string
+	Time       time.Time
 }
 
 func (e *ScopeCheckEvent) EventType() string {
