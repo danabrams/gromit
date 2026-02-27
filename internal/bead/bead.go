@@ -20,6 +20,7 @@ type Bead struct {
 	Title           string   `json:"title"`
 	Description     string   `json:"description"`
 	Priority        int      `json:"priority"`
+	CreatedAt       string   `json:"created_at,omitempty"`
 	Labels          []string `json:"labels"`
 	Parent          string   `json:"parent"`
 	Type            string   `json:"issue_type"` // bd uses issue_type
