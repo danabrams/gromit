@@ -365,6 +365,34 @@ token_efficiency:
 	}
 }
 
+func TestRetrievalExperimentIsEnabled(t *testing.T) {
+	tests := []struct {
+		name    string
+		enabled bool
+		want    bool
+	}{
+		{
+			name:    "disabled",
+			enabled: false,
+			want:    false,
+		},
+		{
+			name:    "enabled",
+			enabled: true,
+			want:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := TokenEfficiencyRetrievalConfig{Enabled: tt.enabled}
+			if got := cfg.IsEnabled(); got != tt.want {
+				t.Errorf("IsEnabled() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func containsAll(s string, parts ...string) bool {
 	for _, p := range parts {
 		if !strings.Contains(s, p) {
