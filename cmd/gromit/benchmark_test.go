@@ -1704,3 +1704,16 @@ func TestBenchmarkPhase4ReportCommand_DispatchesWriter(t *testing.T) {
 		t.Fatalf("stderr = %q, want to contain %q", stderr, "sentinel")
 	}
 }
+
+func TestBenchmarkPhase4ReportCommand_RequiresLogPath(t *testing.T) {
+	_, stderr, exitCode := runGromitCobra(t,
+		"benchmark", "phase4-report",
+		"--output-ts", "20260224T124500Z",
+	)
+	if exitCode == 0 {
+		t.Fatalf("exitCode = %d, want non-zero", exitCode)
+	}
+	if !strings.Contains(stderr, "--log") {
+		t.Fatalf("stderr = %q, want mention of --log", stderr)
+	}
+}
