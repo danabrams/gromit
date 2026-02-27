@@ -4,16 +4,29 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// View constants for the TUI
+const (
+	ViewDashboard = "dashboard"
+	ViewQueue     = "queue"
+)
+
 // Model implements the bubbletea.Model interface for the Gromit TUI.
 type Model struct {
-	store *Store
+	store       *Store
+	currentView string
 }
 
 // NewModel creates a new TUI model with the given store.
 func NewModel(store *Store) *Model {
 	return &Model{
-		store: store,
+		store:       store,
+		currentView: ViewDashboard,
 	}
+}
+
+// SwitchView switches the current view to the specified view.
+func (m *Model) SwitchView(view string) {
+	m.currentView = view
 }
 
 // Init initializes the model.
