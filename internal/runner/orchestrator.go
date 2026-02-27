@@ -643,6 +643,7 @@ func (o *Orchestrator) buildInput(b *bead.Bead, iteration int, deadline time.Tim
 	return pipeline.Input{
 		Bead:               b,
 		Config:             cfg,
+		Emitter:            o.emitter,
 		Iteration:          iteration,
 		Deadline:           deadline,
 		ValidationFailures: validationFailures,

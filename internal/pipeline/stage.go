@@ -9,6 +9,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/logger"
 )
 
@@ -46,6 +47,8 @@ type Input struct {
 	Iteration int
 	// Deadline is the wall-clock time by which the stage must complete.
 	Deadline time.Time
+	// Emitter is the shared event emitter for logging or telemetry.
+	Emitter *events.Emitter
 	// ValidationFailures holds summaries of recent validation failures
 	// from the previous validate stage, fed into the next execute stage.
 	ValidationFailures []string
