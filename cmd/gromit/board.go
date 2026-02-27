@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/spf13/cobra"
 )
 
@@ -23,26 +24,34 @@ func init() {
 }
 
 func runBoard(cmd *cobra.Command, args []string) error {
-	client, err := bead.NewClient()
+	cfg, err := loadConfig()
 	if err != nil {
-		return fmt.Errorf("creating bead client: %w", err)
-	}
-	open, closed, err := client.ListAll(context.Background())
-	if err != nil {
-		return fmt.Errorf("listing beads: %w", err)
+		return err
 	}
 
-	// Sort open beads by priority (lower number = higher priority)
-	sort.Slice(open, func(i, j int) bool {
-		return open[i].Priority < open[j].Priority
+	gromitDir := resolveGromitDir(cfg)
+	executor, err := boardPipelineFactory(cfg, gromitDir)
+	if err != nil {
+		return fmt.Errorf("creating pipeline: %w", err)
+	}
+
+	data, err := executor.Board(cmd.Context())
+	if err != nil {
+		return err
+	}
+	if data == nil {
+		data = &pipeline.BoardData{}
+	}
+
+	sort.Slice(data.Open, func(i, j int) bool {
+		return data.Open[i].Priority < data.Open[j].Priority
 	})
 
-	// Display open beads
-	fmt.Printf("Open (%d)\n", len(open))
-	if len(open) == 0 {
+	fmt.Printf("Open (%d)\n", len(data.Open))
+	if len(data.Open) == 0 {
 		fmt.Println("  (none)")
 	} else {
-		for _, b := range open {
+		for _, b := range data.Open {
 			priorityLabel := fmt.Sprintf("P%d", b.Priority)
 			fmt.Printf("  %-3s %-20s %s\n", priorityLabel, b.ID, b.Title)
 		}
@@ -50,15 +59,28 @@ func runBoard(cmd *cobra.Command, args []string) error {
 
 	fmt.Println()
 
-	// Display closed beads
-	fmt.Printf("Closed (%d)\n", len(closed))
-	if len(closed) == 0 {
+	fmt.Printf("Closed (%d)\n", len(data.Closed))
+	if len(data.Closed) == 0 {
 		fmt.Println("  (none)")
 	} else {
-		for _, b := range closed {
+		for _, b := range data.Closed {
 			fmt.Printf("  %-20s %s\n", b.ID, b.Title)
 		}
 	}
 
 	return nil
+}
+
+var boardPipelineFactory = createBoardPipeline
+
+func createBoardPipeline(cfg *config.Config, gromitDir string) (boardExecutor, error) {
+	p, err := newPipeline(cfg, gromitDir)
+	if err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
+type boardExecutor interface {
+	Board(context.Context) (*pipeline.BoardData, error)
 }
