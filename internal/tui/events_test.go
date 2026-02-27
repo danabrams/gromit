@@ -58,3 +58,27 @@ func TestOnRunComplete_UpdatesRunProgress(t *testing.T) {
 		t.Fatalf("Status = %q, want %q", store.Dashboard.RunProgress.Status, "completed")
 	}
 }
+
+func TestOnIterationStart_UpdatesActivePhase(t *testing.T) {
+	t.Parallel()
+
+	store := &Store{}
+	event := &events.IterationStartEvent{
+		Iteration: 1,
+		BeadID:    "bead-123",
+		BeadTitle: "Test Feature",
+		Time:      time.Unix(1000, 0),
+	}
+
+	store.OnIterationStart(event)
+
+	if store.Dashboard.ActivePhase == nil {
+		t.Fatalf("expected ActivePhase to be set")
+	}
+	if store.Dashboard.ActivePhase.BeadID != "bead-123" {
+		t.Fatalf("BeadID = %q, want %q", store.Dashboard.ActivePhase.BeadID, "bead-123")
+	}
+	if store.Dashboard.ActivePhase.BeadTitle != "Test Feature" {
+		t.Fatalf("BeadTitle = %q, want %q", store.Dashboard.ActivePhase.BeadTitle, "Test Feature")
+	}
+}
