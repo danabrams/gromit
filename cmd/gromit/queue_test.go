@@ -214,6 +214,94 @@ func TestPartitionQueueBeads_RegressionAssertion_UsesQueuePackage(t *testing.T) 
 	}
 }
 
+// TestGetReason_RegressionAssertion_UsesQueuePackage verifies that getReason
+// uses the queue package implementation and produces consistent results.
+func TestGetReason_RegressionAssertion_UsesQueuePackage(t *testing.T) {
+	t.Parallel()
+	b := &bead.Bead{
+		ID: "b1",
+		Dependencies: []bead.Dependency{
+			{ID: "dep-a"},
+			{ID: "dep-b"},
+		},
+	}
+
+	// Call the queue package function directly
+	reasonPkg := queue.GetReason(b, nil)
+
+	// Call the cmd wrapper
+	reasonCmd := getReason(b, nil)
+
+	// Both should produce identical results
+	if reasonPkg != reasonCmd {
+		t.Fatalf("getReason mismatch: pkg=%q, cmd=%q", reasonPkg, reasonCmd)
+	}
+}
+
+// TestEnrichReadyBeads_RegressionAssertion_UsesQueuePackage verifies that
+// enrichReadyBeads uses the queue package implementation.
+func TestEnrichReadyBeads_RegressionAssertion_UsesQueuePackage(t *testing.T) {
+	t.Parallel()
+	ready := []*bead.Bead{
+		{ID: "r1", Labels: []string{"tdd:true"}},
+		{ID: "r2", Labels: nil},
+	}
+	open := []*bead.Bead{
+		{ID: "r1", Labels: []string{"spec:alpha", "backend"}},
+		{ID: "r2", Labels: []string{"spec:beta"}},
+	}
+
+	// Call the queue package function directly
+	enrichedPkg := queue.EnrichReadyBeads(ready, open)
+
+	// Call the cmd wrapper
+	enrichedCmd := enrichReadyBeads(ready, open)
+
+	// Both should produce identical results
+	if len(enrichedPkg) != len(enrichedCmd) {
+		t.Fatalf("enrichReadyBeads length mismatch: pkg=%d, cmd=%d", len(enrichedPkg), len(enrichedCmd))
+	}
+
+	for i := range enrichedPkg {
+		if enrichedPkg[i].ID != enrichedCmd[i].ID {
+			t.Fatalf("enrichReadyBeads[%d].ID mismatch: pkg=%v, cmd=%v", i, enrichedPkg[i].ID, enrichedCmd[i].ID)
+		}
+		pkgSpec := bead.FindSpecLabel(enrichedPkg[i].Labels)
+		cmdSpec := bead.FindSpecLabel(enrichedCmd[i].Labels)
+		if pkgSpec != cmdSpec {
+			t.Fatalf("enrichReadyBeads[%d] spec mismatch: pkg=%q, cmd=%q", i, pkgSpec, cmdSpec)
+		}
+	}
+}
+
+// TestFindStuckBeadIDs_RegressionAssertion_UsesQueuePackage verifies that
+// findStuckBeadIDs uses the queue package implementation.
+func TestFindStuckBeadIDs_RegressionAssertion_UsesQueuePackage(t *testing.T) {
+	t.Parallel()
+	stats := map[string]logger.BeadStats{
+		"a": {BeadID: "a", Failures: 1},
+		"b": {BeadID: "b", Failures: 3},
+		"c": {BeadID: "c", Failures: 4},
+	}
+
+	// Call the queue package function directly
+	stuckPkg := queue.FindStuckBeadIDs(stats, 3)
+
+	// Call the cmd wrapper
+	stuckCmd := findStuckBeadIDs(stats, 3)
+
+	// Both should produce identical results
+	if len(stuckPkg) != len(stuckCmd) {
+		t.Fatalf("findStuckBeadIDs length mismatch: pkg=%d, cmd=%d", len(stuckPkg), len(stuckCmd))
+	}
+
+	for id := range stuckPkg {
+		if !stuckCmd[id] {
+			t.Fatalf("findStuckBeadIDs mismatch: pkg has %q but cmd doesn't", id)
+		}
+	}
+}
+
 func TestEnrichReadyBeads_MergesLabelsFromOpenList(t *testing.T) {
 	t.Parallel()
 	ready := []*bead.Bead{
