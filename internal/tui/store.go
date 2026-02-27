@@ -23,6 +23,7 @@ type DashboardState struct {
 	RunProgress       *RunProgress
 	ActivePhase       *ActivePhase
 	RecentCompletions []*Completion
+	HealthIndicator   *HealthIndicator
 	LastHydration     time.Time
 	Warnings          []string
 }
@@ -49,6 +50,15 @@ type Completion struct {
 	BeadTitle string
 	Status    string // completed, failed, stuck
 	Time      time.Time
+}
+
+// HealthIndicator tracks the health of the current run.
+type HealthIndicator struct {
+	LastEventType    string
+	LastEventTime    time.Time
+	IsHealthy        bool
+	HasStalledBeads  bool
+	WarningThreshold time.Duration
 }
 
 // QueueState tracks the queue snapshot visible in the queue view.
@@ -176,4 +186,24 @@ func (s *Store) OnRetroStart(event *events.RetroStartEvent) {
 	}
 	s.Dashboard.ActivePhase.Phase = "retro"
 	s.Dashboard.ActivePhase.StartTime = event.EventTime()
+}
+
+// OnHeartbeat updates health indicators when a heartbeat is received.
+func (s *Store) OnHeartbeat(event *events.HeartbeatEvent) {
+	if s.Dashboard.HealthIndicator == nil {
+		s.Dashboard.HealthIndicator = &HealthIndicator{}
+	}
+	s.Dashboard.HealthIndicator.LastEventType = "heartbeat"
+	s.Dashboard.HealthIndicator.LastEventTime = event.EventTime()
+	s.Dashboard.HealthIndicator.IsHealthy = true
+}
+
+// OnStallDetected updates health indicators when a stall is detected.
+func (s *Store) OnStallDetected(event *events.StallDetectedEvent) {
+	if s.Dashboard.HealthIndicator == nil {
+		s.Dashboard.HealthIndicator = &HealthIndicator{}
+	}
+	s.Dashboard.HealthIndicator.LastEventType = "stall_detected"
+	s.Dashboard.HealthIndicator.LastEventTime = event.EventTime()
+	s.Dashboard.HealthIndicator.IsHealthy = false
 }
