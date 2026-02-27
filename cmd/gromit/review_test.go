@@ -1364,3 +1364,61 @@ func (m *mockTestPipeline) ResolveReviewScope(ctx context.Context, spec string, 
 	}
 	return "", fmt.Errorf("not implemented")
 }
+
+// TestResolveReviewScopeWithPipeline_SinceFlagPassthrough verifies --since flag is passed to Pipeline
+// Expected: resolveReviewScopeWithPipeline passes --since directly to Pipeline.ResolveReviewScope
+func TestResolveReviewScopeWithPipeline_SinceFlagPassthrough(t *testing.T) {
+	t.Parallel()
+
+	// Create a mock pipeline that captures the arguments
+	var capturedSince string
+	mockPipeline := &mockReviewPipelineForDelegation{
+		resolveReviewScopeFn: func(ctx context.Context, spec string, epic string, since string) (string, error) {
+			capturedSince = since
+			return since, nil // Echo back the commit
+		},
+	}
+
+	// Set the global flag
+	origSince := reviewSince
+	origSpec := reviewSpec
+	origEpic := reviewEpic
+	defer func() {
+		reviewSince = origSince
+		reviewSpec = origSpec
+		reviewEpic = origEpic
+	}()
+
+	reviewSince = "test-commit-abc123"
+	reviewSpec = ""
+	reviewEpic = ""
+
+	cfg := &config.Config{}
+
+	// Call the helper function
+	commit, err := resolveReviewScopeWithPipeline(mockPipeline, cfg)
+
+	if err != nil {
+		t.Errorf("resolveReviewScopeWithPipeline() error = %v, want nil", err)
+	}
+
+	if commit != "test-commit-abc123" {
+		t.Errorf("resolveReviewScopeWithPipeline() returned %q, want 'test-commit-abc123'", commit)
+	}
+
+	if capturedSince != "test-commit-abc123" {
+		t.Errorf("Pipeline.ResolveReviewScope received since=%q, want 'test-commit-abc123'", capturedSince)
+	}
+}
+
+// Mock pipeline for testing delegation in review.go
+type mockReviewPipelineForDelegation struct {
+	resolveReviewScopeFn func(ctx context.Context, spec string, epic string, since string) (string, error)
+}
+
+func (m *mockReviewPipelineForDelegation) ResolveReviewScope(ctx context.Context, spec string, epic string, since string) (string, error) {
+	if m.resolveReviewScopeFn != nil {
+		return m.resolveReviewScopeFn(ctx, spec, epic, since)
+	}
+	return "", fmt.Errorf("not implemented")
+}

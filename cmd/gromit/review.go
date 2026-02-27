@@ -109,13 +109,18 @@ func createReviewPipeline(cfg *config.Config, gromitDir string) (*pipeline.Pipel
 	return pipeline.New(deps, paths), nil
 }
 
+// ReviewScopeResolver abstracts the pipeline's scope resolution capability
+type ReviewScopeResolver interface {
+	ResolveReviewScope(ctx context.Context, spec string, epic string, since string) (string, error)
+}
+
 // resolveReviewScopeWithPipeline resolves the review starting commit using Pipeline.ResolveReviewScope
 // with fallback to legacy determineReviewScope for spec/epic flags.
-func resolveReviewScopeWithPipeline(p *pipeline.Pipeline, cfg *config.Config) (string, error) {
+func resolveReviewScopeWithPipeline(resolver ReviewScopeResolver, cfg *config.Config) (string, error) {
 	ctx := context.Background()
 
 	// First try Pipeline.ResolveReviewScope for --since flag
-	commit, err := p.ResolveReviewScope(ctx, reviewSpec, reviewEpic, reviewSince)
+	commit, err := resolver.ResolveReviewScope(ctx, reviewSpec, reviewEpic, reviewSince)
 	if err == nil {
 		// Success - got commit via Pipeline
 		return commit, nil
