@@ -65,6 +65,18 @@ func TestAllEventTypesImplementEvent(t *testing.T) {
 	}
 }
 
+func TestValidationStartEventIncludesModel(t *testing.T) {
+	t.Parallel()
+
+	event := &ValidationStartEvent{
+		Model: "haiku",
+	}
+
+	if event.Model != "haiku" {
+		t.Fatalf("Model = %q, want %q", event.Model, "haiku")
+	}
+}
+
 // TestEventTypeStringsAreUnique tests that each event type has a unique EventType() string.
 func TestEventTypeStringsAreUnique(t *testing.T) {
 	t.Parallel()
