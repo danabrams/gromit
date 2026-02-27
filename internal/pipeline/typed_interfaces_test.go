@@ -563,6 +563,14 @@ func (m *typedInterfacesReviewRenderer) RenderThoroughReview(input *ThoroughRevi
 	return "", fmt.Errorf("not implemented")
 }
 
+func (m *typedInterfacesReviewRenderer) LoadClaudeMD() (string, error) {
+	return "", nil
+}
+
+func (m *typedInterfacesReviewRenderer) LoadRulesForPhase(phase string) (string, error) {
+	return "", nil
+}
+
 type typedInterfacesLogWriter struct {
 	writeFn func(entry *LogEntry) error
 }

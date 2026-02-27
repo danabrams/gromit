@@ -665,6 +665,14 @@ func (m *reviewAcceptanceMockReviewRenderer) RenderThoroughReview(input *Thoroug
 	return "", fmt.Errorf("not implemented")
 }
 
+func (m *reviewAcceptanceMockReviewRenderer) LoadClaudeMD() (string, error) {
+	return "", nil
+}
+
+func (m *reviewAcceptanceMockReviewRenderer) LoadRulesForPhase(phase string) (string, error) {
+	return "", nil
+}
+
 type reviewAcceptanceMockReviewInvoker struct {
 	runFunc func(prompt string, model string, timeout time.Duration) (*LLMRunResult, error)
 }

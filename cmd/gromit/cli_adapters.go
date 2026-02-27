@@ -53,7 +53,7 @@ import (
 // - All adapters delegate to their wrapped dependencies without business logic
 
 // cliPromptRenderer adapts prompt.Renderer to pipeline.ReviewRenderer interface
-// It loads ClaudeMD and Rules before rendering
+// Pure delegation adapter - all prompt context assembly happens in pipeline
 type cliPromptRenderer struct {
 	renderer *prompt.Renderer
 }
@@ -61,21 +61,21 @@ type cliPromptRenderer struct {
 var _ pipeline.ReviewRenderer = (*cliPromptRenderer)(nil)
 var _ pipeline.PlanRenderer = (*planPromptRenderer)(nil)
 
+func (r *cliPromptRenderer) LoadClaudeMD() (string, error) {
+	return r.renderer.LoadClaudeMD()
+}
+
+func (r *cliPromptRenderer) LoadRulesForPhase(phase string) (string, error) {
+	return r.renderer.LoadRulesForPhase(phase)
+}
+
 func (r *cliPromptRenderer) RenderThoroughReview(input *pipeline.ThoroughReviewPromptInput) (string, error) {
 	// Build ThoroughReviewContext from pipeline input
+	// Pipeline populates ClaudeMD and Rules, adapter just uses them
 	reviewCtx := &prompt.ThoroughReviewContext{
-		Diff: input.Diff,
-	}
-
-	// Load ClaudeMD and Rules (warnings only)
-	var err error
-	reviewCtx.ClaudeMD, err = r.renderer.LoadClaudeMD()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: could not load CLAUDE.md: %v\n", err)
-	}
-	reviewCtx.Rules, err = r.renderer.LoadRulesForPhase("thorough_review")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: could not load thorough_review rules: %v\n", err)
+		Diff:     input.Diff,
+		ClaudeMD: input.ClaudeMD,
+		Rules:    input.Rules,
 	}
 
 	return r.renderer.RenderThoroughReview(reviewCtx)

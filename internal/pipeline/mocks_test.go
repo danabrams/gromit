@@ -120,6 +120,14 @@ func (m *testReviewRenderer) RenderThoroughReview(input *ThoroughReviewPromptInp
 	return "", nil
 }
 
+func (m *testReviewRenderer) LoadClaudeMD() (string, error) {
+	return "", nil
+}
+
+func (m *testReviewRenderer) LoadRulesForPhase(phase string) (string, error) {
+	return "", nil
+}
+
 type testExploreRenderer struct{}
 
 func (m *testExploreRenderer) RenderExplore(input *ExplorePromptInput) (string, error) {

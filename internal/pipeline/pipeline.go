@@ -201,6 +201,8 @@ type DecomposeRenderer interface {
 // ReviewRenderer abstracts review prompt rendering operations.
 type ReviewRenderer interface {
 	RenderThoroughReview(input *ThoroughReviewPromptInput) (string, error)
+	LoadClaudeMD() (string, error)
+	LoadRulesForPhase(phase string) (string, error)
 }
 
 // ExploreRenderer abstracts explore prompt rendering operations.
@@ -384,9 +386,25 @@ func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) 
 }
 
 func (p *Pipeline) renderReviewPrompt(input ReviewInput) (string, error) {
+	// Load prompt context in pipeline layer (not in adapter)
+	claudeMD, err := p.deps.ReviewRenderer.LoadClaudeMD()
+	if err != nil {
+		// Log warning but continue - context is optional
+		claudeMD = ""
+	}
+
+	rules, err := p.deps.ReviewRenderer.LoadRulesForPhase("thorough_review")
+	if err != nil {
+		// Log warning but continue - context is optional
+		rules = ""
+	}
+
+	// Create input with all context populated by pipeline
 	reviewCtx := &ThoroughReviewPromptInput{
 		FromCommit: input.FromCommit,
 		Diff:       input.Diff,
+		ClaudeMD:   claudeMD,
+		Rules:      rules,
 	}
 
 	renderedPrompt, err := p.deps.ReviewRenderer.RenderThoroughReview(reviewCtx)
