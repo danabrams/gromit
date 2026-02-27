@@ -49,3 +49,40 @@ func TestLogEvent_EventType_AlwaysReturnsLog(t *testing.T) {
 		t.Errorf("EventType() = %s, want log", event.EventType())
 	}
 }
+
+// TestEmitterLogger_Log_EmitsLogEvent tests that EmitterLogger.Log emits a LogEvent with correct level and message.
+func TestEmitterLogger_Log_EmitsLogEvent(t *testing.T) {
+	t.Parallel()
+	emitter := NewEmitter()
+	defer emitter.Close()
+
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	logger := &EmitterLogger{Emitter: emitter}
+	logger.Log("warning", "test %s", "message")
+
+	select {
+	case evt := <-ch:
+		logEvent, ok := evt.(*LogEvent)
+		if !ok {
+			t.Fatalf("expected LogEvent, got %T", evt)
+		}
+		if logEvent.Level != "warning" {
+			t.Errorf("Level = %q, want %q", logEvent.Level, "warning")
+		}
+		if logEvent.Message != "test message" {
+			t.Errorf("Message = %q, want %q", logEvent.Message, "test message")
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timeout waiting for LogEvent")
+	}
+}
+
+// TestEmitterLogger_Log_DoesNothingWhenEmitterNil tests that Log is safe when emitter is nil.
+func TestEmitterLogger_Log_DoesNothingWhenEmitterNil(t *testing.T) {
+	t.Parallel()
+	logger := &EmitterLogger{Emitter: nil}
+	// Should not panic
+	logger.Log("info", "test %s", "message")
+}
