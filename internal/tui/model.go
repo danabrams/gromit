@@ -15,6 +15,7 @@ type Model struct {
 	store        *Store
 	currentView  string
 	focusedPanel int
+	scrollOffset int
 }
 
 // NewModel creates a new TUI model with the given store.
@@ -54,6 +55,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.FocusNext()
 		case tea.KeyShiftTab:
 			m.FocusPrev()
+		case tea.KeyUp:
+			if m.scrollOffset > 0 {
+				m.scrollOffset--
+			}
+		case tea.KeyDown:
+			m.scrollOffset++
 		}
 	}
 	return m, nil
