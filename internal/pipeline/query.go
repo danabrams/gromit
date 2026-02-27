@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/danabrams/gromit/internal/frontmatter"
 )
 
 // ListUnplannedSpecs returns spec names that do not have a corresponding plan file.
@@ -34,4 +36,31 @@ func ListUnplannedSpecs(specsDir, plansDir string) ([]string, error) {
 
 	sort.Strings(unplanned)
 	return unplanned, nil
+}
+
+// ListUndecomposedPlans returns plan names whose frontmatter does not declare decomposition.
+func ListUndecomposedPlans(plansDir string) ([]string, error) {
+	planFiles, err := ListMarkdownFiles(plansDir)
+	if err != nil {
+		return nil, fmt.Errorf("listing plans: %w", err)
+	}
+
+	undecomposed := make([]string, 0, len(planFiles))
+
+	for _, plan := range planFiles {
+		name := strings.TrimSuffix(filepath.Base(plan), ".md")
+
+		fm, _, err := frontmatter.ReadFile(plan)
+		if err != nil {
+			return nil, fmt.Errorf("reading plan frontmatter %s: %w", name, err)
+		}
+
+		decomposed, ok := fm["decomposed"].(bool)
+		if !ok || !decomposed {
+			undecomposed = append(undecomposed, name)
+		}
+	}
+
+	sort.Strings(undecomposed)
+	return undecomposed, nil
 }
