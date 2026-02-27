@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	reviewpkg "github.com/danabrams/gromit/internal/review"
 
@@ -100,8 +101,10 @@ func (r *Review) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, e
 	// Emit ReviewStartEvent
 	if in.Emitter != nil {
 		in.Emitter.Emit(&events.ReviewStartEvent{
-			BeadID: in.Bead.ID,
-			Model:  in.Config.Review.Tier,
+			BeadID:   in.Bead.ID,
+			Model:    in.Config.Review.Tier,
+			Thorough: false,
+			Time:     time.Now(),
 		})
 	}
 
@@ -126,6 +129,7 @@ func (r *Review) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, e
 			BeadID:  in.Bead.ID,
 			Verdict: verdict,
 			Issues:  result.FixesApplied,
+			Time:    time.Now(),
 		})
 	}
 
