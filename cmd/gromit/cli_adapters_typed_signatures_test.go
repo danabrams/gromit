@@ -17,6 +17,8 @@ func TestPromptRendererAdapter_SingleWorkflowMethods(t *testing.T) {
 	var _ pipeline.ReviewRenderer = (*cliPromptRenderer)(nil)
 	var _ pipeline.ExploreRenderer = (*explorePromptRenderer)(nil)
 
+	var _ pipeline.PlanRenderer = (*planPromptRenderer)(nil)
+
 	reviewType := reflect.TypeOf((*cliPromptRenderer)(nil))
 	if _, ok := reviewType.MethodByName("RenderThoroughReview"); !ok {
 		t.Fatal("cliPromptRenderer must implement RenderThoroughReview")
@@ -37,6 +39,17 @@ func TestPromptRendererAdapter_SingleWorkflowMethods(t *testing.T) {
 	for _, methodName := range unexpectedExploreMethods {
 		if _, ok := exploreType.MethodByName(methodName); ok {
 			t.Errorf("explorePromptRenderer should not expose %s", methodName)
+		}
+	}
+
+	planType := reflect.TypeOf((*planPromptRenderer)(nil))
+	if _, ok := planType.MethodByName("RenderPlan"); !ok {
+		t.Fatal("planPromptRenderer must implement RenderPlan")
+	}
+	unexpectedPlanMethods := []string{"RenderRefine", "RenderDecompose", "RenderExplore", "RenderThoroughReview"}
+	for _, methodName := range unexpectedPlanMethods {
+		if _, ok := planType.MethodByName(methodName); ok {
+			t.Errorf("planPromptRenderer should not expose %s", methodName)
 		}
 	}
 }
