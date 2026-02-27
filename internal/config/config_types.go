@@ -41,6 +41,8 @@ const (
 
 	MethodologyGranularityBead = "bead"
 	MethodologyGranularitySpec = "spec"
+
+	DefaultBaseBranch = "main"
 )
 
 var defaultAndonBulkDeleteAllowlist = []string{
@@ -391,6 +393,7 @@ type GitConfig struct {
 	AutoPush       *bool  `yaml:"auto_push"`
 	PushFailure    string `yaml:"push_failure"`
 	PushTimeout    int    `yaml:"push_timeout"`
+	BaseBranch     string `yaml:"base_branch"`
 	pushTimeoutSet bool
 }
 
@@ -399,6 +402,7 @@ func (g *GitConfig) UnmarshalYAML(value *yaml.Node) error {
 		AutoPush    *bool  `yaml:"auto_push"`
 		PushFailure string `yaml:"push_failure"`
 		PushTimeout *int   `yaml:"push_timeout"`
+		BaseBranch  *string `yaml:"base_branch"`
 	}
 
 	var decoded gitConfigDecode
@@ -408,6 +412,9 @@ func (g *GitConfig) UnmarshalYAML(value *yaml.Node) error {
 
 	g.AutoPush = decoded.AutoPush
 	g.PushFailure = decoded.PushFailure
+	if decoded.BaseBranch != nil {
+		g.BaseBranch = *decoded.BaseBranch
+	}
 	if decoded.PushTimeout != nil {
 		g.PushTimeout = *decoded.PushTimeout
 		g.pushTimeoutSet = true
