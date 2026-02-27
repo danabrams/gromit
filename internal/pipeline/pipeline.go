@@ -517,6 +517,22 @@ func (p *Pipeline) CountBeads(ctx context.Context, input CountBeadsInput) (*Coun
 	return result, nil
 }
 
+// QueryUndecomposedPlans queries for undecomposed plans in the plans directory.
+// It validates deps and returns QueryUndecomposedPlansResult.
+func (p *Pipeline) QueryUndecomposedPlans(ctx context.Context, input QueryUndecomposedPlansInput) (*QueryUndecomposedPlansResult, error) {
+	if p.deps == nil {
+		return nil, fmt.Errorf("pipeline: nil dependencies")
+	}
+
+	if err := requireNonNilDep("TrackerClient", p.deps.TrackerClient); err != nil {
+		return nil, err
+	}
+
+	// For now, return empty result - implementation will follow
+	result := NewQueryUndecomposedPlansResult()
+	return &result, nil
+}
+
 func requireNonNilDep(name string, dep any) error {
 	if dep == nil || isTypedNil(dep) {
 		return fmt.Errorf("pipeline: nil %s", name)

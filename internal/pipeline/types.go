@@ -331,3 +331,28 @@ func NewQueuePartition() QueuePartition {
 		Stuck:   []BeadInfo{},
 	}
 }
+
+// QueryUndecomposedPlansInput contains parameters for querying undecomposed plans.
+type QueryUndecomposedPlansInput struct {
+	Force bool // If true, return all plans; otherwise only undecomposed plans
+}
+
+// PlanQueryInfo holds metadata about a plan for display purposes.
+type PlanQueryInfo struct {
+	Name  string `json:"name"`
+	Title string `json:"title"`
+	Path  string `json:"path"`
+}
+
+// QueryUndecomposedPlansResult contains the output from querying undecomposed plans.
+// Use NewQueryUndecomposedPlansResult() to create instances with properly initialized slices.
+type QueryUndecomposedPlansResult struct {
+	Plans []PlanQueryInfo `json:"plans"`
+}
+
+// NewQueryUndecomposedPlansResult creates a QueryUndecomposedPlansResult with initialized slices.
+func NewQueryUndecomposedPlansResult() QueryUndecomposedPlansResult {
+	return QueryUndecomposedPlansResult{
+		Plans: []PlanQueryInfo{},
+	}
+}

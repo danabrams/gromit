@@ -476,3 +476,20 @@ func TestPipeline_CountBeadsMethod(t *testing.T) {
 		t.Error("CountBeads() should error with nil dependencies")
 	}
 }
+
+// TestPipeline_QueryUndecomposedPlansMethod verifies Pipeline has QueryUndecomposedPlans method
+// with proper input/output types and nil dependency validation.
+func TestPipeline_QueryUndecomposedPlansMethod(t *testing.T) {
+	deps := &Deps{}
+	paths := &Paths{}
+	p := New(deps, paths)
+
+	ctx := context.Background()
+	input := QueryUndecomposedPlansInput{Force: false}
+
+	// Should return error with nil dependencies
+	_, err := p.QueryUndecomposedPlans(ctx, input)
+	if err == nil {
+		t.Error("QueryUndecomposedPlans() should error with nil dependencies")
+	}
+}
