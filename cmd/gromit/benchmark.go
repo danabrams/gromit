@@ -193,8 +193,15 @@ var benchmarkPhase4ReportCmd = &cobra.Command{
 		if logPath == "" {
 			return fmt.Errorf("--log must be a non-empty path")
 		}
+		timestamp := strings.TrimSpace(benchmarkPhase4OutputTS)
+		if timestamp == "" {
+			return fmt.Errorf("--output-ts must be a non-empty UTC timestamp")
+		}
+		if _, err := time.Parse("20060102T150405Z", timestamp); err != nil {
+			return fmt.Errorf("--output-ts must be in UTC format YYYYMMDDTHHMMSSZ")
+		}
 		_, err := benchmarkWritePhase4MeasurementReportFn(benchpkg.Phase4ReportInput{
-			Timestamp: benchmarkPhase4OutputTS,
+			Timestamp: timestamp,
 			LogPath:   logPath,
 		})
 		return err
