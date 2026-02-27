@@ -158,17 +158,22 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 		w = io.Discard
 	}
 	lifecycleFailure := pipeline.LifecycleFailureNone
+	warningOccurred := false
+	warnf := func(format string, args ...interface{}) {
+		fmt.Fprintf(w, format, args...)
+		warningOccurred = true
+	}
 
 	// 1. Bead lifecycle: close and sync on success.
 	if in.BuildSucceeded {
 		if err := e.beads.Close(ctx, in.Bead.ID); err != nil {
-			fmt.Fprintf(w, "Warning: failed to close bead: %v\n", err)
+			warnf("Warning: failed to close bead: %v\n", err)
 			if lifecycleFailure == pipeline.LifecycleFailureNone {
 				lifecycleFailure = pipeline.LifecycleFailureClose
 			}
 		}
 		if err := e.beads.Sync(ctx); err != nil {
-			fmt.Fprintf(w, "Warning: failed to sync beads: %v\n", err)
+			warnf("Warning: failed to sync beads: %v\n", err)
 			if lifecycleFailure == pipeline.LifecycleFailureNone {
 				lifecycleFailure = pipeline.LifecycleFailureSync
 			}
@@ -179,7 +184,7 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 	// regardless of tier or package novelty.
 	if !in.BuildSucceeded && e.failureLearner != nil {
 		if err := e.failureLearner.ExtractFailureLearning(ctx, in.Bead.ID, in.Bead.Title, in.FailureOutput); err != nil {
-			fmt.Fprintf(w, "Warning: failed to extract failure learning: %v\n", err)
+			warnf("Warning: failed to extract failure learning: %v\n", err)
 		}
 	}
 
@@ -193,7 +198,7 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 		in.Config.Worktree.IsEnabled() && in.Config.Worktree.IsAutoMergeEnabled() {
 		branches, err := e.worktree.PendingBranches()
 		if err != nil {
-			fmt.Fprintf(w, "Warning: failed to list pending branches: %v\n", err)
+			warnf("Warning: failed to list pending branches: %v\n", err)
 		} else {
 			seen := make(map[string]struct{}, len(branches))
 			for _, branch := range branches {
@@ -204,7 +209,7 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 				if err := e.worktree.MergeBack(branch); err != nil {
 					errMsg := err.Error()
 					if e.shouldEmitMergeWarning(branch, errMsg) {
-						fmt.Fprintf(w, "Warning: failed to merge branch %s: %v\n", branch, err)
+						warnf("Warning: failed to merge branch %s: %v\n", branch, err)
 					}
 				} else {
 					e.clearMergeWarning(branch)
@@ -212,13 +217,13 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 					worktreePath := e.worktree.DeriveSessionWorktreePath(branch)
 					if worktreePath != "" {
 						if err := e.worktree.RemoveByPath(worktreePath); err != nil {
-							fmt.Fprintf(w, "Warning: failed to remove worktree at %s: %v\n", worktreePath, err)
+							warnf("Warning: failed to remove worktree at %s: %v\n", worktreePath, err)
 						}
 					}
 					// Remove successfully-merged branch from pending state
 					if e.branchRemover != nil {
 						if err := e.branchRemover.RemovePendingWorktreeBranch(branch); err != nil {
-							fmt.Fprintf(w, "Warning: failed to remove pending branch %s from state: %v\n", branch, err)
+							warnf("Warning: failed to remove pending branch %s from state: %v\n", branch, err)
 						}
 					}
 				}
@@ -238,14 +243,14 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 			model = in.Result.Model
 		}
 		if err := e.status.Write(in.Iteration, in.Bead.ID, in.Bead.Title, model, maxIter, tbm); err != nil {
-			fmt.Fprintf(w, "Warning: failed to write status: %v\n", err)
+			warnf("Warning: failed to write status: %v\n", err)
 		}
 	}
 
 	// 5. Iteration log: write when a result and writer are both present.
 	if e.logWriter != nil && in.Result != nil {
 		if err := e.logWriter.Write(in.Result); err != nil {
-			fmt.Fprintf(w, "Warning: failed to write iteration log: %v\n", err)
+			warnf("Warning: failed to write iteration log: %v\n", err)
 		}
 	}
 
@@ -260,14 +265,14 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 			in.Config.Review.Thorough.ShouldRunOnEpicComplete() && e.epic != nil {
 			hasChildren, err := e.epic.HasOpenChildren(ctx, in.Bead.Parent)
 			if err != nil {
-				fmt.Fprintf(w, "Warning: failed to check epic completion: %v\n", err)
+				warnf("Warning: failed to check epic completion: %v\n", err)
 			} else if !hasChildren {
 				shouldRun = true
 			}
 		}
 		if shouldRun {
 			if err := e.review.Run(ctx, in.Iteration); err != nil {
-				fmt.Fprintf(w, "Warning: thorough review failed: %v\n", err)
+				warnf("Warning: thorough review failed: %v\n", err)
 			}
 		}
 	}
@@ -281,9 +286,9 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 				fmt.Fprint(w, stdout)
 			}
 			if err != nil {
-				fmt.Fprintf(w, "Warning: between-iterations command failed: %v\n", err)
+				warnf("Warning: between-iterations command failed: %v\n", err)
 			} else if exitCode != 0 {
-				fmt.Fprintf(w, "Warning: between-iterations command exited with code %d: %s\n", exitCode, strings.TrimSpace(stderr))
+				warnf("Warning: between-iterations command exited with code %d: %s\n", exitCode, strings.TrimSpace(stderr))
 			}
 		}
 	}
@@ -292,6 +297,7 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 		Decision:         pipeline.Proceed,
 		TouchedPackages:  in.TouchedPackages,
 		LifecycleFailure: lifecycleFailure,
+		LifecycleWarning: warningOccurred,
 	}, nil
 }
 

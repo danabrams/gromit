@@ -24,6 +24,18 @@ const (
 	Block
 )
 
+// LifecycleFailure classifies failures that happen during the Epilogue stage.
+type LifecycleFailure string
+
+const (
+	// LifecycleFailureNone represents no lifecycle failure.
+	LifecycleFailureNone LifecycleFailure = ""
+	// LifecycleFailureClose indicates a Close error.
+	LifecycleFailureClose LifecycleFailure = "close"
+	// LifecycleFailureSync indicates a Sync error.
+	LifecycleFailureSync LifecycleFailure = "sync"
+)
+
 // Input is the data passed to every stage at the start of its execution.
 type Input struct {
 	// Bead is the work item being processed this iteration.
@@ -113,6 +125,10 @@ type Output struct {
 	CacheVersionMarker      string
 	// ComplexityRouting carries Gate-selected complexity metadata for downstream stages.
 	ComplexityRouting
+	// LifecycleFailure records any failure classification reported by the Epilogue stage.
+	LifecycleFailure LifecycleFailure
+	// LifecycleWarning is true when the Epilogue emitted warnings without failing.
+	LifecycleWarning bool
 }
 
 // Stage is the interface that each pipeline stage implements.
