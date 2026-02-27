@@ -245,6 +245,13 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 					}
 				} else {
 					e.clearMergeWarning(branch)
+					// Emit BeadCleanupEvent for successful merge
+					if in.Emitter != nil {
+						in.Emitter.Emit(&events.BeadCleanupEvent{
+							BeadID: in.Bead.ID,
+							Action: "merge",
+						})
+					}
 					// Remove orphaned session worktree after successful merge
 					worktreePath := e.worktree.DeriveSessionWorktreePath(branch)
 					if worktreePath != "" {
