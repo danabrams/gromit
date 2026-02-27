@@ -3,6 +3,7 @@ package benchmark
 import (
 	"os"
 	"path/filepath"
+	stdstrings "strings"
 	"testing"
 )
 
@@ -195,5 +196,64 @@ func TestPhase4RunMeasurement_IntegratesPairedMetricsAndGates(t *testing.T) {
 	}
 	if !report.Gates.CanAdopt {
 		t.Errorf("CanAdopt should be true when all gates pass")
+	}
+}
+
+func TestPhase4ComputeAdoptionDecision_IncludesReasonsForFailure(t *testing.T) {
+	// Scenario 1: All gates pass
+	passingGates := Phase4AdoptionGates{
+		TokenReductionGate:    true,
+		LatencyReductionGate:  true,
+		SuccessRateParityGate: true,
+		WrongFileRateGate:     true,
+		CanAdopt:              true,
+	}
+	decision := ComputePhase4AdoptionDecision(passingGates)
+	if !decision.ShouldAdopt {
+		t.Errorf("decision should be adopt when all gates pass")
+	}
+	if len(decision.Reasons) > 0 {
+		t.Errorf("decision should have no reasons when all gates pass, got %v", decision.Reasons)
+	}
+
+	// Scenario 2: Token reduction fails
+	tokenFailGates := Phase4AdoptionGates{
+		TokenReductionGate:    false,
+		LatencyReductionGate:  true,
+		SuccessRateParityGate: true,
+		WrongFileRateGate:     true,
+		CanAdopt:              false,
+	}
+	decision = ComputePhase4AdoptionDecision(tokenFailGates)
+	if decision.ShouldAdopt {
+		t.Errorf("decision should not adopt when token gate fails")
+	}
+	if len(decision.Reasons) == 0 {
+		t.Errorf("decision should have reasons when gates fail")
+	}
+	foundTokenReason := false
+	for _, reason := range decision.Reasons {
+		if stdstrings.Contains(reason, "token") {
+			foundTokenReason = true
+		}
+	}
+	if !foundTokenReason {
+		t.Errorf("decision reasons should mention token reduction, got %v", decision.Reasons)
+	}
+
+	// Scenario 3: Multiple gates fail
+	multiFailGates := Phase4AdoptionGates{
+		TokenReductionGate:    false,
+		LatencyReductionGate:  false,
+		SuccessRateParityGate: true,
+		WrongFileRateGate:     false,
+		CanAdopt:              false,
+	}
+	decision = ComputePhase4AdoptionDecision(multiFailGates)
+	if decision.ShouldAdopt {
+		t.Errorf("decision should not adopt when multiple gates fail")
+	}
+	if len(decision.Reasons) < 3 {
+		t.Errorf("decision should have at least 3 reasons, got %d", len(decision.Reasons))
 	}
 }
