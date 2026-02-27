@@ -244,3 +244,85 @@ func TestPipeline_ExploreMethod(t *testing.T) {
 		t.Error("Explore() should error with nil dependencies")
 	}
 }
+
+// TestPipeline_ResolveReviewScopeMethod verifies that Pipeline has ResolveReviewScope method
+// Expected failure: Method not yet fully implemented to delegate to command layer
+func TestPipeline_ResolveReviewScopeMethod(t *testing.T) {
+	deps := &Deps{}
+	paths := &Paths{}
+	p := New(deps, paths)
+
+	ctx := context.Background()
+	
+	// Method should exist and be callable
+	commit, err := p.ResolveReviewScope(ctx, "spec-name", "", "")
+	
+	// Currently returns error as placeholder - this will change when implemented
+	if err == nil {
+		t.Error("ResolveReviewScope() expected error (method not yet implemented)")
+	}
+	
+	if commit != "" {
+		t.Errorf("ResolveReviewScope() returned commit=%q, want empty string", commit)
+	}
+}
+
+// TestPipeline_ResolveReviewScopeWithSince verifies scope flag passthrough
+// Expected: ResolveReviewScope accepts --since flag and returns it correctly
+func TestPipeline_ResolveReviewScopeWithSince(t *testing.T) {
+	deps := &Deps{}
+	paths := &Paths{}
+	p := New(deps, paths)
+
+	ctx := context.Background()
+	sinceCommit := "abc123def456"
+
+	// When --since is provided, should return it directly
+	commit, err := p.ResolveReviewScope(ctx, "", "", sinceCommit)
+
+	if err != nil {
+		t.Errorf("ResolveReviewScope(since=%q) error = %v, want nil", sinceCommit, err)
+	}
+
+	if commit != sinceCommit {
+		t.Errorf("ResolveReviewScope(since=%q) returned %q, want %q", sinceCommit, commit, sinceCommit)
+	}
+}
+
+// TestPipeline_ResolveReviewScopeWithSpec verifies spec flag passthrough
+// Expected: ResolveReviewScope accepts --spec flag and passes it through correctly
+func TestPipeline_ResolveReviewScopeWithSpec(t *testing.T) {
+	deps := &Deps{}
+	paths := &Paths{}
+	p := New(deps, paths)
+
+	ctx := context.Background()
+	specName := "init-wizard"
+	
+	// When --spec is provided, should use it
+	_, err := p.ResolveReviewScope(ctx, specName, "", "")
+	
+	// Will error until implemented, but verifies signature accepts spec
+	if err == nil {
+		t.Error("ResolveReviewScope() expected error (method not yet implemented)")
+	}
+}
+
+// TestPipeline_ResolveReviewScopeWithEpic verifies epic flag passthrough
+// Expected: ResolveReviewScope accepts --epic flag and passes it through correctly
+func TestPipeline_ResolveReviewScopeWithEpic(t *testing.T) {
+	deps := &Deps{}
+	paths := &Paths{}
+	p := New(deps, paths)
+
+	ctx := context.Background()
+	epicID := "gromit-xyz"
+	
+	// When --epic is provided, should use it
+	_, err := p.ResolveReviewScope(ctx, "", epicID, "")
+	
+	// Will error until implemented, but verifies signature accepts epic
+	if err == nil {
+		t.Error("ResolveReviewScope() expected error (method not yet implemented)")
+	}
+}

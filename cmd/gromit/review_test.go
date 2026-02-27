@@ -1306,3 +1306,4 @@ func TestReviewCommand_MutualExclusivityWithWhitespace(t *testing.T) {
 		})
 	}
 }
+

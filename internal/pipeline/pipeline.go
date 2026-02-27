@@ -453,6 +453,25 @@ func (p *Pipeline) validateReviewDeps() error {
 	})
 }
 
+// ResolveReviewScope resolves the starting commit for a review based on scope flags.
+// Priority: --since > --spec > --epic > state file (handled by caller)
+// This is a minimal implementation that handles --since; other flags are delegated to caller.
+func (p *Pipeline) ResolveReviewScope(ctx context.Context, spec string, epic string, since string) (string, error) {
+	// Priority: --since flag first
+	if since != "" {
+		return since, nil
+	}
+
+	// --spec and --epic flags require additional dependencies and git operations
+	// These are delegated to the caller (cmd/gromit/review.go) for now
+	if spec != "" || epic != "" {
+		return "", fmt.Errorf("Pipeline.ResolveReviewScope: spec and epic resolution delegated to caller")
+	}
+
+	// Neither flag provided - caller should use state file or other default
+	return "", fmt.Errorf("Pipeline.ResolveReviewScope: no scope specified")
+}
+
 func requireNonNilDep(name string, dep any) error {
 	if dep == nil || isTypedNil(dep) {
 		return fmt.Errorf("pipeline: nil %s", name)
