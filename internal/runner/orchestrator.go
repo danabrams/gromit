@@ -810,10 +810,8 @@ func (o *Orchestrator) logWarning(format string, args ...any) {
 func (o *Orchestrator) emitLog(level string, format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
 	if o.emitter != nil && o.emitter.HasSubscribers() {
-		o.emitter.Emit(&events.LogEvent{
-			Level:   level,
-			Message: msg,
-		})
+		logger := &events.EmitterLogger{Emitter: o.emitter}
+		logger.Log(level, format, args...)
 		return
 	}
 
