@@ -148,6 +148,28 @@ func TestEpilogue_CloseFailureClassification(t *testing.T) {
 	}
 }
 
+// TestEpilogue_SyncFailureClassification ensures a failed Sync is classified in the output.
+func TestEpilogue_SyncFailureClassification(t *testing.T) {
+	beads := &fakeBeadLifecycle{
+		syncFn: func(ctx context.Context) error {
+			return errors.New("boom")
+		},
+	}
+	status := &fakeStatusWriter{}
+
+	stage := epiloguepkg.New(beads, status, io.Discard)
+	in := makeInput("bead-1", "Implement feature", true)
+
+	out, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if got := out.LifecycleFailure; got != pipeline.LifecycleFailureSync {
+		t.Fatalf("LifecycleFailure = %v, want %v", got, pipeline.LifecycleFailureSync)
+	}
+}
+
 // TestEpilogue_AlwaysWritesStatus verifies that status is written after each iteration.
 func TestEpilogue_AlwaysWritesStatus(t *testing.T) {
 	beads := &fakeBeadLifecycle{}
