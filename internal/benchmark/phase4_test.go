@@ -257,3 +257,138 @@ func TestPhase4ComputeAdoptionDecision_IncludesReasonsForFailure(t *testing.T) {
 		t.Errorf("decision should have at least 3 reasons, got %d", len(decision.Reasons))
 	}
 }
+
+func TestPhase4AdoptionGates_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name           string
+		baseline       Phase4RunMetrics
+		retrieval      Phase4RunMetrics
+		expectedPass   bool
+		gateToCheck    string
+	}{
+		{
+			name: "token_reduction_exactly_20_percent_passes",
+			baseline: Phase4RunMetrics{
+				MedianDiscoveryInputTokens: 100,
+				MedianDiscoveryLatencyMs:   1000,
+				SuccessRate:                0.95,
+				WrongFileRate:              0.01,
+			},
+			retrieval: Phase4RunMetrics{
+				MedianDiscoveryInputTokens: 80,  // exactly 20% reduction
+				MedianDiscoveryLatencyMs:   900,
+				SuccessRate:                0.94,
+				WrongFileRate:              0.01,
+			},
+			expectedPass: true,
+			gateToCheck:  "token",
+		},
+		{
+			name: "token_reduction_below_20_percent_fails",
+			baseline: Phase4RunMetrics{
+				MedianDiscoveryInputTokens: 100,
+				MedianDiscoveryLatencyMs:   1000,
+				SuccessRate:                0.95,
+				WrongFileRate:              0.01,
+			},
+			retrieval: Phase4RunMetrics{
+				MedianDiscoveryInputTokens: 81,  // 19% reduction
+				MedianDiscoveryLatencyMs:   900,
+				SuccessRate:                0.94,
+				WrongFileRate:              0.01,
+			},
+			expectedPass: false,
+			gateToCheck:  "token",
+		},
+		{
+			name: "latency_reduction_exactly_15_percent_passes",
+			baseline: Phase4RunMetrics{
+				MedianDiscoveryInputTokens: 100,
+				MedianDiscoveryLatencyMs:   1000,
+				SuccessRate:                0.95,
+				WrongFileRate:              0.01,
+			},
+			retrieval: Phase4RunMetrics{
+				MedianDiscoveryInputTokens: 70,
+				MedianDiscoveryLatencyMs:   850,  // exactly 15% reduction
+				SuccessRate:                0.94,
+				WrongFileRate:              0.01,
+			},
+			expectedPass: true,
+			gateToCheck:  "latency",
+		},
+		{
+			name: "success_rate_drop_exactly_5_percent_passes",
+			baseline: Phase4RunMetrics{
+				MedianDiscoveryInputTokens: 100,
+				MedianDiscoveryLatencyMs:   1000,
+				SuccessRate:                0.95,
+				WrongFileRate:              0.01,
+			},
+			retrieval: Phase4RunMetrics{
+				MedianDiscoveryInputTokens: 70,
+				MedianDiscoveryLatencyMs:   800,
+				SuccessRate:                0.90,  // exactly 5% drop
+				WrongFileRate:              0.01,
+			},
+			expectedPass: true,
+			gateToCheck:  "success",
+		},
+		{
+			name: "wrong_file_rate_exactly_5_percent_passes",
+			baseline: Phase4RunMetrics{
+				MedianDiscoveryInputTokens: 100,
+				MedianDiscoveryLatencyMs:   1000,
+				SuccessRate:                0.95,
+				WrongFileRate:              0.01,
+			},
+			retrieval: Phase4RunMetrics{
+				MedianDiscoveryInputTokens: 70,
+				MedianDiscoveryLatencyMs:   800,
+				SuccessRate:                0.94,
+				WrongFileRate:              0.05,  // exactly 5% threshold
+			},
+			expectedPass: true,
+			gateToCheck:  "wrong_file",
+		},
+		{
+			name: "wrong_file_rate_above_5_percent_fails",
+			baseline: Phase4RunMetrics{
+				MedianDiscoveryInputTokens: 100,
+				MedianDiscoveryLatencyMs:   1000,
+				SuccessRate:                0.95,
+				WrongFileRate:              0.01,
+			},
+			retrieval: Phase4RunMetrics{
+				MedianDiscoveryInputTokens: 70,
+				MedianDiscoveryLatencyMs:   800,
+				SuccessRate:                0.94,
+				WrongFileRate:              0.051,  // above 5% threshold
+			},
+			expectedPass: false,
+			gateToCheck:  "wrong_file",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gates := EvaluatePhase4AdoptionGates(tt.baseline, tt.retrieval)
+
+			var gateValue bool
+			switch tt.gateToCheck {
+			case "token":
+				gateValue = gates.TokenReductionGate
+			case "latency":
+				gateValue = gates.LatencyReductionGate
+			case "success":
+				gateValue = gates.SuccessRateParityGate
+			case "wrong_file":
+				gateValue = gates.WrongFileRateGate
+			}
+
+			if gateValue != tt.expectedPass {
+				t.Errorf("expected %v for %s gate, got %v", tt.expectedPass, tt.gateToCheck, gateValue)
+			}
+		})
+	}
+}
