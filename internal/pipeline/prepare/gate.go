@@ -140,6 +140,12 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 		if err != nil {
 			g.Log("warning", "Warning: stuck detection failed for bead %s: %v", in.Bead.ID, err)
 		} else if stuck {
+			if in.Emitter != nil {
+				in.Emitter.Emit(&events.GateStuckEvent{
+					BeadID: in.Bead.ID,
+					Reason: "failure_threshold_exceeded",
+				})
+			}
 			return pipeline.Output{
 				Decision:          pipeline.Block,
 				ComplexityRouting: complexityRouting,

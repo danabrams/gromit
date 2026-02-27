@@ -844,3 +844,37 @@ func TestGateRun_SkipEmitsGateSkipEvent(t *testing.T) {
 		t.Fatal("expected GateSkipEvent to be emitted")
 	}
 }
+
+// RED: test for GateStuckEvent when stuck detector identifies stuck bead
+func TestGateRun_StuckEmitsGateStuckEvent(t *testing.T) {
+	t.Parallel()
+
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	gate := New(io.Discard).WithStuckDetector(newMockStuckDetector().WithIsStuck(true, nil))
+
+	beadID := "stuck-test"
+	_, err := gate.Run(context.Background(), pipeline.Input{
+		Bead:    &bead.Bead{ID: beadID, Title: "stuck bead"},
+		Emitter: emitter,
+	})
+	if err != nil {
+		t.Fatalf("Gate.Run() error = %v", err)
+	}
+
+	select {
+	case evt := <-ch:
+		stuckEvt, ok := evt.(*events.GateStuckEvent)
+		if !ok {
+			t.Fatalf("expected GateStuckEvent, got %T", evt)
+		}
+		if stuckEvt.BeadID != beadID {
+			t.Errorf("BeadID = %q, want %q", stuckEvt.BeadID, beadID)
+		}
+	case <-time.After(50 * time.Millisecond):
+		t.Fatal("expected GateStuckEvent to be emitted")
+	}
+}
