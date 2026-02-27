@@ -380,8 +380,8 @@ func TestGateScopeEventEmittedOnBlock(t *testing.T) {
 		},
 	}
 
-	gate := New(io.Discard).WithEmitter(emitter)
-	_, err := gate.Run(context.Background(), pipeline.Input{Bead: b, Config: cfg})
+	gate := New(io.Discard)
+	_, err := gate.Run(context.Background(), pipeline.Input{Bead: b, Config: cfg, Emitter: emitter})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

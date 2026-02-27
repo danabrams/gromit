@@ -246,6 +246,19 @@ func (g *Gate) runScopeGate(ctx context.Context, in pipeline.Input) (*pipeline.O
 		return nil, nil
 	}
 
+	action := "block"
+	if g.decomposer != nil {
+		action = "decompose"
+	}
+	if in.Emitter != nil {
+		in.Emitter.Emit(&events.GateScopeEvent{
+			BeadID:    in.Bead.ID,
+			FileCount: fileCount,
+			MaxFiles:  maxScopeFiles,
+			Action:    action,
+		})
+	}
+
 	// Bead exceeds scope limit. Try decomposition if available.
 	// Scope-based decomposition applies to child beads too: the finite
 	// expected-outputs count bounds recursion depth naturally.
@@ -277,4 +290,3 @@ func (g *Gate) runScopeGate(ctx context.Context, in pipeline.Input) (*pipeline.O
 	}
 	return &pipeline.Output{Decision: pipeline.Block}, nil
 }
-
