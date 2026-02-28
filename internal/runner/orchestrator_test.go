@@ -20,6 +20,7 @@ import (
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
+	epiloguepkg "github.com/danabrams/gromit/internal/pipeline/epilogue"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/state"
 )
@@ -57,6 +58,50 @@ func (f *fakeSpecMergeController) Trigger(ctx context.Context, specName string) 
 	if f.triggerFn != nil {
 		return f.triggerFn(ctx, specName)
 	}
+	return nil
+}
+
+// fakeStatusWriter implements epiloguepkg.StatusWriter for tests.
+type fakeStatusWriter struct {
+	writeFn func(iteration int, beadID, beadTitle, model string, maxIterations, timeBudgetMinutes int) error
+}
+
+func (f *fakeStatusWriter) Write(iteration int, beadID, beadTitle, model string, maxIterations, timeBudgetMinutes int) error {
+	if f.writeFn != nil {
+		return f.writeFn(iteration, beadID, beadTitle, model, maxIterations, timeBudgetMinutes)
+	}
+	return nil
+}
+
+// fakeBeadLifecycle implements epiloguepkg.BeadLifecycle for tests.
+type fakeBeadLifecycle struct {
+	closeFn func(ctx context.Context, id string) error
+	syncFn  func(ctx context.Context) error
+}
+
+func (f *fakeBeadLifecycle) Close(ctx context.Context, id string) error {
+	if f.closeFn != nil {
+		return f.closeFn(ctx, id)
+	}
+	return nil
+}
+
+func (f *fakeBeadLifecycle) Sync(ctx context.Context) error {
+	if f.syncFn != nil {
+		return f.syncFn(ctx)
+	}
+	return nil
+}
+
+// capturingIterationLogWriter records the last log written for inspection.
+type capturingIterationLogWriter struct {
+	called  bool
+	lastLog *logger.IterationLog
+}
+
+func (c *capturingIterationLogWriter) Write(log *logger.IterationLog) error {
+	c.called = true
+	c.lastLog = log
 	return nil
 }
 
@@ -244,6 +289,62 @@ func TestOrchestrator_SuccessPath_CarriesBuildModelToIterationLog(t *testing.T) 
 	}
 	if capturedResult.Model != "claude-opus-4-6" {
 		t.Errorf("IterationLog.Model = %q, want %q", capturedResult.Model, "claude-opus-4-6")
+	}
+}
+
+// TestOrchestrator_SuccessPathLifecycleFailureRecordsFailureOutcome verifies that when
+// the Epilogue fails to close the bead, the persisted IterationLog marks the iteration as failed.
+func TestOrchestrator_SuccessPathLifecycleFailureRecordsFailureOutcome(t *testing.T) {
+	t.Parallel()
+
+	logWriter := &capturingIterationLogWriter{}
+	lifecycle := &fakeBeadLifecycle{
+		closeFn: func(ctx context.Context, id string) error {
+			return errors.New("close failure")
+		},
+	}
+	epilogueStage := epiloguepkg.New(lifecycle, &fakeStatusWriter{}, io.Discard).
+		WithIterationLogWriter(logWriter)
+
+	build := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{Decision: pipeline.Proceed, Model: "claude-opus-4-6"}, nil
+	}}
+	validate := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-lifecycle-failure", Title: "Lifecycle fail bead"}, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     &fakeStage{},
+		Build:    build,
+		Validate: validate,
+		Epilogue: epilogueStage,
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if !logWriter.called {
+		t.Fatal("IterationLogWriter was not invoked; want log entry written after epilogue")
+	}
+	if logWriter.lastLog == nil {
+		t.Fatal("IterationLogWriter last log is nil")
+	}
+	if logWriter.lastLog.Success {
+		t.Error("Iteration log success = true, want false when lifecycle close fails")
 	}
 }
 
