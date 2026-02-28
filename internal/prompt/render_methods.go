@@ -305,6 +305,27 @@ func (r *Renderer) RenderCoverageValidation(ctx *CoverageValidationContext) (str
 	return r.render(coverageValidationTemplate, ctx)
 }
 
+// RenderReadiness renders the readiness assessment prompt.
+func (r *Renderer) RenderReadiness(ctx *ReadinessContext) (string, error) {
+	const readinessTemplate = "PROMPT_readiness.md"
+	if r == nil {
+		return "", fmt.Errorf("renderer is nil")
+	}
+	if ctx == nil {
+		return "", fmt.Errorf("readiness context is nil")
+	}
+
+	taskIdentity := ""
+	if ctx.Bead != nil {
+		taskIdentity = formatBeadIdentity(ctx.Bead.ID, ctx.Bead.Title, "", "", 0)
+	}
+	r.lastDiagnostics = r.computeDiagnostics("readiness", map[string]string{
+		SectionTaskIdentity:   taskIdentity,
+		SectionTemplateStatic: readinessTemplate,
+	})
+	return r.render(readinessTemplate, ctx)
+}
+
 func (r *Renderer) renderBuildPrompt(promptType, templateName string, ctx *Context) (string, error) {
 	originalCtx := ctx
 	var shapeReport *ShapeReport
