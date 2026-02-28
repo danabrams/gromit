@@ -298,6 +298,84 @@ func TestRunWithSessionWorktreeQueuesReadyBranch(t *testing.T) {
 	}
 }
 
+func TestRunWithSessionWorktreeRecordsBlockedQueueEntryOnCommitFailure(t *testing.T) {
+	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "blocked")
+	session.BranchName = "gromit/blocked-123"
+
+	var recordedEntry *integrationqueue.Entry
+	cleanupStore := overrideQueueStore(func(entry integrationqueue.Entry) error {
+		recordedEntry = &entry
+		return nil
+	})
+	t.Cleanup(cleanupStore)
+
+	commitErr := errors.New("git commit failed")
+	cleanupGit := overrideGitRun(func(dir string, args ...string) (string, error) {
+		switch args[0] {
+		case "commit":
+			return "", commitErr
+		case "rev-parse":
+			if len(args) > 1 && args[1] == "HEAD" {
+				return "blocked-head", nil
+			}
+		case "status":
+			return " M cmd/gromit/blocked.go\n", nil
+		}
+		return "", nil
+	})
+	t.Cleanup(cleanupGit)
+
+	var pendingRecorded bool
+	withInteractiveWorktreeFactories(t, func(gotMainDir string) (sessionWorktreeCreator, error) {
+		if gotMainDir != mainDir {
+			t.Fatalf("mainDir = %q, want %q", gotMainDir, mainDir)
+		}
+		return &mockSessionWorktreeCreator{
+			CreateSessionWorktreeFn: func(string) (*worktree.SessionWorktree, error) {
+				return session, nil
+			},
+		}, nil
+	}, func(string) (pendingBranchRecorder, error) {
+		return &mockPendingBranchRecorder{
+			AddPendingWorktreeBranchFn: func(branch string) error {
+				if branch != session.BranchName {
+					t.Fatalf("AddPendingWorktreeBranch got %q, want %q", branch, session.BranchName)
+				}
+				pendingRecorded = true
+				return nil
+			},
+		}, nil
+	}, func(string, string) error {
+		return nil
+	})
+
+	_, err := runWithSessionWorktree(gromitDir, "blocked", func(string) error { return nil })
+	if err == nil {
+		t.Fatal("expected auto commit error, got nil")
+	}
+	if !strings.Contains(err.Error(), "auto-commit failed") {
+		t.Fatalf("error = %v, want auto-commit failure", err)
+	}
+	if !pendingRecorded {
+		t.Fatal("pending branch should be recorded on failure")
+	}
+	if recordedEntry == nil {
+		t.Fatal("expected blocked queue entry")
+	}
+	if recordedEntry.State != "conflict" {
+		t.Fatalf("entry state = %q, want conflict", recordedEntry.State)
+	}
+	if recordedEntry.LastErrorCode != "session_commit_failed" {
+		t.Fatalf("error code = %q, want session_commit_failed", recordedEntry.LastErrorCode)
+	}
+	if !strings.Contains(recordedEntry.LastErrorMessage, session.BranchName) {
+		t.Fatalf("last error message %q should mention branch %q", recordedEntry.LastErrorMessage, session.BranchName)
+	}
+	if len(recordedEntry.ChangedFiles) != 1 || recordedEntry.ChangedFiles[0] != "cmd/gromit/blocked.go" {
+		t.Fatalf("changed files = %v, want [cmd/gromit/blocked.go]", recordedEntry.ChangedFiles)
+	}
+}
+
 func TestRunWithSessionWorktreeRecordsPendingBranch(t *testing.T) {
 	// Not parallel: withInteractiveWorktreeFactories mutates package-level globals.
 	_, gromitDir, session := setupRunWithSessionWorktreeTest(t, "plan")
