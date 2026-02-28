@@ -647,6 +647,56 @@ func TestInteractiveFilePendingWorktreeBranchesBackwardCompatibility(t *testing.
 	}
 }
 
+// TestInteractiveFileCompatibilityBridgeSyncFromQueueEntries verifies that the
+// compatibility bridge can rebuild pending-branch list from queue entries during migration.
+func TestInteractiveFileCompatibilityBridgeSyncFromQueueEntries(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewInteractiveFile(dir)
+
+	// Create mock queue entries in draft and ready states
+	type queueEntry struct {
+		Branch string
+		State  string
+	}
+	queueEntries := []queueEntry{
+		{Branch: "feature/draft-1", State: "draft"},
+		{Branch: "feature/ready-1", State: "ready"},
+		{Branch: "feature/integrating", State: "integrating"},
+		{Branch: "feature/merged", State: "merged"}, // Terminal state, should not include
+	}
+
+	// Call the compatibility bridge method
+	// This test will fail initially since the method doesn't exist yet
+	err := f.SyncPendingBranchesFromQueueEntries(queueEntries)
+	if err != nil {
+		t.Fatalf("SyncPendingBranchesFromQueueEntries failed: %v", err)
+	}
+
+	// Verify pending-branch list was populated with non-terminal states
+	branches, err := f.ListPendingWorktreeBranches()
+	if err != nil {
+		t.Fatalf("ListPendingWorktreeBranches: %v", err)
+	}
+
+	branchSet := pendingBranchSet(branches)
+	if len(branchSet) != 3 {
+		t.Fatalf("expected 3 pending branches (draft, ready, integrating), got %d: %v", len(branchSet), branches)
+	}
+
+	if !branchSet["feature/draft-1"] {
+		t.Error("draft entry should be in pending branches")
+	}
+	if !branchSet["feature/ready-1"] {
+		t.Error("ready entry should be in pending branches")
+	}
+	if !branchSet["feature/integrating"] {
+		t.Error("integrating entry should be in pending branches")
+	}
+	if branchSet["feature/merged"] {
+		t.Error("merged (terminal) entry should NOT be in pending branches")
+	}
+}
+
 func TestInteractiveFilePendingWorktreeBranchesDeduplication(t *testing.T) {
 	dir := t.TempDir()
 	f, _ := NewInteractiveFile(dir)

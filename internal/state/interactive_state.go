@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"syscall"
 	"time"
@@ -234,6 +235,65 @@ func (f *InteractiveFile) ListPendingWorktreeBranches() ([]string, error) {
 		return nil, err
 	}
 	return branches, nil
+}
+
+// SyncPendingBranchesFromQueueEntries rebuilds the pending-branch list from active
+// queue entries (non-terminal states). This provides a compatibility bridge during
+// migration from queue-only to queue+state-file dual tracking.
+// Entries in terminal state (merged) are excluded; all others are included.
+func (f *InteractiveFile) SyncPendingBranchesFromQueueEntries(entries interface{}) error {
+	if err := f.ensureReceiver(); err != nil {
+		return err
+	}
+
+	var branchesToSync []string
+
+	// Use reflection to handle different entry types
+	entryVal := reflect.ValueOf(entries)
+	if entryVal.Kind() != reflect.Slice {
+		return fmt.Errorf("invalid queue entries type")
+	}
+
+	for i := 0; i < entryVal.Len(); i++ {
+		entry := entryVal.Index(i)
+		entryInterface := entry.Interface()
+
+		// Try to extract Branch and State fields
+		var branch, state string
+		switch v := entryInterface.(type) {
+		case map[string]interface{}:
+			// Handle map entries
+			if b, ok := v["Branch"].(string); ok {
+				branch = b
+			}
+			if s, ok := v["State"].(string); ok {
+				state = s
+			}
+		default:
+			// Try reflection to get fields
+			rv := reflect.ValueOf(v)
+			if rv.Kind() == reflect.Struct {
+				branchField := rv.FieldByName("Branch")
+				stateField := rv.FieldByName("State")
+				if branchField.IsValid() && branchField.Kind() == reflect.String {
+					branch = branchField.String()
+				}
+				if stateField.IsValid() && stateField.Kind() == reflect.String {
+					state = stateField.String()
+				}
+			}
+		}
+
+		// Include all non-terminal states
+		if branch != "" && state != "merged" {
+			branchesToSync = append(branchesToSync, branch)
+		}
+	}
+
+	// Persist the synced branches
+	return f.mutateAndSaveLocked(func(s *InteractiveState) {
+		s.PendingWorktreeBranches = branchesToSync
+	})
 }
 
 // NormalizeNilFields converts nil slices to empty slices.
