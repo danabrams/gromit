@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -345,5 +346,59 @@ func TestBenchmarkDecomposeCompare_FailsWithInvalidThreshold(t *testing.T) {
 	}
 	if !strings.Contains(stderr, "--threshold must be between 0 and 1") {
 		t.Fatalf("stderr = %q, want threshold error", stderr)
+	}
+}
+
+func TestBenchmarkDecomposeCompare_PassesOverridesToRunner(t *testing.T) {
+	specs := []string{"spec-A", "spec-B", "spec-C", "spec-D", "spec-E"}
+	var runnerOpts benchmarkDecomposeCompareRunnerOptions
+	runnerCalled := false
+
+	origSelector := benchmarkDecomposeCompareCohortSelectorFn
+	t.Cleanup(func() { benchmarkDecomposeCompareCohortSelectorFn = origSelector })
+	benchmarkDecomposeCompareCohortSelectorFn = func(opts benchmarkDecomposeCompareCohortSelectorOptions) ([]string, error) {
+		if !reflect.DeepEqual(opts.SpecOverrides, specs) {
+			t.Fatalf("SpecOverrides = %v, want %v", opts.SpecOverrides, specs)
+		}
+		return append([]string(nil), specs...), nil
+	}
+
+	origRunner := benchmarkDecomposeCompareRunnerFn
+	t.Cleanup(func() { benchmarkDecomposeCompareRunnerFn = origRunner })
+	benchmarkDecomposeCompareRunnerFn = func(opts benchmarkDecomposeCompareRunnerOptions) (interface{}, error) {
+		runnerCalled = true
+		runnerOpts = opts
+		return nil, nil
+	}
+
+	origWriter := benchmarkDecomposeCompareReportWriterFn
+	t.Cleanup(func() { benchmarkDecomposeCompareReportWriterFn = origWriter })
+	benchmarkDecomposeCompareReportWriterFn = func(opts benchmarkDecomposeCompareReportWriterOptions) error {
+		return nil
+	}
+
+	stdout, _, exitCode := runGromitCobra(t,
+		"benchmark", "decompose-compare",
+		"--manifest", "testdata/fixtures/benchmark/decompose.yaml",
+		"--specs", strings.Join(specs, ","),
+		"--threshold", "0.42",
+	)
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0", exitCode)
+	}
+	if !runnerCalled {
+		t.Fatal("runner was not called")
+	}
+	if !reflect.DeepEqual(runnerOpts.Specs, specs) {
+		t.Fatalf("runner specs = %v, want %v", runnerOpts.Specs, specs)
+	}
+	if !runnerOpts.FailureThresholdSet {
+		t.Fatal("runner should see threshold flag")
+	}
+	if runnerOpts.FailureThreshold != 0.42 {
+		t.Fatalf("runner threshold = %f, want 0.42", runnerOpts.FailureThreshold)
+	}
+	if !strings.Contains(stdout, ".gromit/benchmarks/results/decompose-haiku-vs-sonnet/") {
+		t.Fatalf("stdout = %q, want results mention", stdout)
 	}
 }
