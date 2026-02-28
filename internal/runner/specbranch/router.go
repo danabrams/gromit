@@ -45,6 +45,14 @@ func (r *Router) BranchForLabels(labels []string) (string, error) {
 	return defaultBranchPrefix + specName, nil
 }
 
+// Resolve maps bead labels to the target branch.
+// For beads with spec:<name> labels, it returns gromit/spec-<name>.
+// For non-spec beads, it returns the base branch.
+// Equivalent to BranchForLabels.
+func (r *Router) Resolve(labels []string) (string, error) {
+	return r.BranchForLabels(labels)
+}
+
 func (r *Router) baseBranchOrDefault() string {
 	if r == nil || r.baseBranch == "" {
 		return config.DefaultBaseBranch
