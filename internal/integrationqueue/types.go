@@ -20,6 +20,13 @@ const (
 // SchemaVersion is the current version of the integration queue schema.
 const SchemaVersion = 1
 
+// Queue represents the persisted integration queue data.
+type Queue struct {
+	SchemaVersion int       `json:"schema_version"`
+	UpdatedAt     time.Time `json:"updated_at"`
+	Entries       []Entry   `json:"entries"`
+}
+
 // State models the lifecycle of an integration queue entry.
 type State string
 
