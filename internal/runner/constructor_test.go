@@ -2445,3 +2445,36 @@ func TestBuildRouterAndLearningsProvider_DetectsAndHealsStaleState(t *testing.T)
 		t.Fatalf("expected provider counts to be reset, got: %v", counts)
 	}
 }
+
+// RED: test for PromptReadinessAssessor wired when ReadinessCheck enabled
+func TestNewRunnerImpl_GateStageHasPromptReadinessAssessorWhenEnabled(t *testing.T) {
+	t.Parallel()
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	_ = os.MkdirAll(filepath.Join(gromitDir, "templates"), 0o755)
+	_ = os.MkdirAll(filepath.Join(gromitDir, "specs"), 0o755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "logs"), 0o755)
+
+	cfg := &config.Config{}
+	cfg.Paths.Templates = filepath.Join(gromitDir, "templates")
+	cfg.Paths.Specs = filepath.Join(gromitDir, "specs")
+	cfg.Paths.Logs = filepath.Join(tmpDir, "logs")
+	cfg.ReadinessCheck.Enabled = true
+
+	orch, err := newRunnerImpl(cfg, io.Discard, nil)
+	if err != nil {
+		t.Fatalf("newRunnerImpl failed: %v", err)
+	}
+	if orch == nil {
+		t.Fatal("Orchestrator is nil")
+	}
+
+	gateStage, ok := orch.cfg.Gate.(*prepare.Gate)
+	if !ok {
+		t.Fatalf("Gate is not *prepare.Gate, got %T", orch.cfg.Gate)
+	}
+
+	if !gateStage.HasDataQualityBlocker() {
+		t.Fatal("Gate.HasDataQualityBlocker() returned false; want PromptReadinessAssessor wired when ReadinessCheck enabled")
+	}
+}
