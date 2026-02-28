@@ -109,7 +109,7 @@ func (c *ConversationController) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         return c, nil
     case tea.KeyMsg:
         c.handleKey(msg)
-        return c, nil
+        return c, c.watchSessionCmd()
     }
     return c, nil
 }
