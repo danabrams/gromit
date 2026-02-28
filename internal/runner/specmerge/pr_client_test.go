@@ -288,6 +288,107 @@ func TestFakePRClient_ReturnsErrorsForAllMethods(t *testing.T) {
 	}
 }
 
+func TestPRRef_StructFields(t *testing.T) {
+	t.Parallel()
+
+	ref := specmerge.PRRef{
+		Owner:  "octocat",
+		Repo:   "Hello-World",
+		Number: 1347,
+	}
+
+	if ref.Owner != "octocat" {
+		t.Errorf("PRRef.Owner = %q, want %q", ref.Owner, "octocat")
+	}
+	if ref.Repo != "Hello-World" {
+		t.Errorf("PRRef.Repo = %q, want %q", ref.Repo, "Hello-World")
+	}
+	if ref.Number != 1347 {
+		t.Errorf("PRRef.Number = %d, want %d", ref.Number, 1347)
+	}
+}
+
+func TestPRStatus_StructFields(t *testing.T) {
+	t.Parallel()
+
+	status := specmerge.PRStatus{
+		Number:    1,
+		Title:     "Amazing Feature",
+		State:     "open",
+		IsDraft:   true,
+		CreatedAt: "2025-01-01T00:00:00Z",
+		UpdatedAt: "2025-01-02T00:00:00Z",
+	}
+
+	if status.Number != 1 {
+		t.Errorf("PRStatus.Number = %d, want %d", status.Number, 1)
+	}
+	if status.Title != "Amazing Feature" {
+		t.Errorf("PRStatus.Title = %q, want %q", status.Title, "Amazing Feature")
+	}
+	if status.State != "open" {
+		t.Errorf("PRStatus.State = %q, want %q", status.State, "open")
+	}
+	if status.IsDraft != true {
+		t.Errorf("PRStatus.IsDraft = %v, want %v", status.IsDraft, true)
+	}
+}
+
+func TestCheckStatus_StructFields(t *testing.T) {
+	t.Parallel()
+
+	check := specmerge.CheckStatus{
+		Name:       "ci/lint",
+		Status:     "completed",
+		Conclusion: "success",
+		DetailsURL: "https://example.com/checks/1",
+	}
+
+	if check.Name != "ci/lint" {
+		t.Errorf("CheckStatus.Name = %q, want %q", check.Name, "ci/lint")
+	}
+	if check.Status != "completed" {
+		t.Errorf("CheckStatus.Status = %q, want %q", check.Status, "completed")
+	}
+	if check.Conclusion != "success" {
+		t.Errorf("CheckStatus.Conclusion = %q, want %q", check.Conclusion, "success")
+	}
+}
+
+func TestReviewPayload_WithComments(t *testing.T) {
+	t.Parallel()
+
+	payload := specmerge.ReviewPayload{
+		Event: "REQUEST_CHANGES",
+		Body:  "Please update the code",
+		Comments: []specmerge.ReviewComment{
+			{
+				Path: "main.go",
+				Line: 42,
+				Body: "This line has an issue",
+			},
+			{
+				Path: "main_test.go",
+				Line: 10,
+				Body: "Missing test case",
+			},
+		},
+	}
+
+	if payload.Event != "REQUEST_CHANGES" {
+		t.Errorf("ReviewPayload.Event = %q, want %q", payload.Event, "REQUEST_CHANGES")
+	}
+	if len(payload.Comments) != 2 {
+		t.Errorf("ReviewPayload.Comments length = %d, want 2", len(payload.Comments))
+	}
+	if payload.Comments[0].Path != "main.go" {
+		t.Errorf("First comment path = %q, want main.go", payload.Comments[0].Path)
+	}
+	if payload.Comments[0].Line != 42 {
+		t.Errorf("First comment line = %d, want 42", payload.Comments[0].Line)
+	}
+}
+
 // fakePRClient is a test implementation of PRClient interface.
 type fakePRClient struct {
 	nextPRNumber        int
