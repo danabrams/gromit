@@ -1,6 +1,7 @@
 package integrationqueue
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 )
@@ -54,6 +55,179 @@ func TestQueueStruct(t *testing.T) {
 	}
 	if queue.Entries == nil {
 		t.Fatal("Entries should not be nil")
+	}
+}
+
+func TestEntryJSONMarshalWithRequiredFields(t *testing.T) {
+	created := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
+	updated := created.Add(time.Hour)
+	entry := Entry{
+		Branch:           "gromit/test",
+		SessionID:        "session123",
+		OriginCommand:    "review",
+		State:            StateReady,
+		Lane:             "code_lane",
+		CreatedAt:        created,
+		UpdatedAt:        updated,
+		AttemptCount:     1,
+		RetryCount:       0,
+		FifoSeq:          5,
+		BaseRef:          "main",
+		HeadSHA:          "abc123def",
+		ChangedFilesHash: "sha256:hash",
+		LastErrorCode:    "",
+		LastErrorMessage: "",
+	}
+
+	data, err := json.Marshal(entry)
+	if err != nil {
+		t.Fatalf("json.Marshal failed: %v", err)
+	}
+
+	var unmarshaled Entry
+	if err := json.Unmarshal(data, &unmarshaled); err != nil {
+		t.Fatalf("json.Unmarshal failed: %v", err)
+	}
+
+	if unmarshaled.Branch != entry.Branch {
+		t.Errorf("branch mismatch: got %q, want %q", unmarshaled.Branch, entry.Branch)
+	}
+	if unmarshaled.State != entry.State {
+		t.Errorf("state mismatch: got %q, want %q", unmarshaled.State, entry.State)
+	}
+	if unmarshaled.Lane != entry.Lane {
+		t.Errorf("lane mismatch: got %q, want %q", unmarshaled.Lane, entry.Lane)
+	}
+}
+
+func TestEntryJSONMarshalWithChangedFiles(t *testing.T) {
+	created := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
+	updated := created.Add(time.Hour)
+	entry := Entry{
+		Branch:           "gromit/test",
+		SessionID:        "session123",
+		OriginCommand:    "review",
+		State:            StateReady,
+		Lane:             "code_lane",
+		CreatedAt:        created,
+		UpdatedAt:        updated,
+		AttemptCount:     1,
+		RetryCount:       0,
+		FifoSeq:          5,
+		BaseRef:          "main",
+		HeadSHA:          "abc123def",
+		ChangedFiles:     []string{"cmd/gromit/review.go", "internal/pipeline/review.go"},
+		ChangedFilesHash: "sha256:hash",
+		LastErrorCode:    "",
+		LastErrorMessage: "",
+	}
+
+	data, err := json.Marshal(entry)
+	if err != nil {
+		t.Fatalf("json.Marshal failed: %v", err)
+	}
+
+	var unmarshaled Entry
+	if err := json.Unmarshal(data, &unmarshaled); err != nil {
+		t.Fatalf("json.Unmarshal failed: %v", err)
+	}
+
+	if len(unmarshaled.ChangedFiles) != len(entry.ChangedFiles) {
+		t.Errorf("changed_files length: got %d, want %d", len(unmarshaled.ChangedFiles), len(entry.ChangedFiles))
+	}
+	for i, f := range entry.ChangedFiles {
+		if i >= len(unmarshaled.ChangedFiles) {
+			break
+		}
+		if unmarshaled.ChangedFiles[i] != f {
+			t.Errorf("changed_files[%d]: got %q, want %q", i, unmarshaled.ChangedFiles[i], f)
+		}
+	}
+}
+
+func TestEntryJSONMarshalChangedFilesOmitted(t *testing.T) {
+	created := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
+	updated := created.Add(time.Hour)
+	entry := Entry{
+		Branch:           "gromit/test",
+		SessionID:        "session123",
+		OriginCommand:    "review",
+		State:            StateReady,
+		Lane:             "code_lane",
+		CreatedAt:        created,
+		UpdatedAt:        updated,
+		AttemptCount:     1,
+		RetryCount:       0,
+		FifoSeq:          5,
+		BaseRef:          "main",
+		HeadSHA:          "abc123def",
+		ChangedFilesHash: "sha256:hash",
+		LastErrorCode:    "",
+		LastErrorMessage: "",
+	}
+
+	data, err := json.Marshal(entry)
+	if err != nil {
+		t.Fatalf("json.Marshal failed: %v", err)
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("json.Unmarshal to map failed: %v", err)
+	}
+
+	// changed_files should be omitted when empty (due to omitempty tag)
+	if _, exists := result["changed_files"]; exists && entry.ChangedFiles == nil {
+		t.Errorf("changed_files should be omitted when nil")
+	}
+}
+
+func TestQueueJSONMarshalUnmarshal(t *testing.T) {
+	created := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
+	updated := created.Add(time.Hour)
+	queue := Queue{
+		SchemaVersion: 1,
+		UpdatedAt:     updated,
+		Entries: []Entry{
+			{
+				Branch:           "gromit/test",
+				SessionID:        "session123",
+				OriginCommand:    "review",
+				State:            StateReady,
+				Lane:             "code_lane",
+				CreatedAt:        created,
+				UpdatedAt:        updated,
+				AttemptCount:     1,
+				RetryCount:       0,
+				FifoSeq:          5,
+				BaseRef:          "main",
+				HeadSHA:          "abc123def",
+				ChangedFiles:     []string{"cmd/gromit/review.go"},
+				ChangedFilesHash: "sha256:hash",
+				LastErrorCode:    "",
+				LastErrorMessage: "",
+			},
+		},
+	}
+
+	data, err := json.Marshal(queue)
+	if err != nil {
+		t.Fatalf("json.Marshal failed: %v", err)
+	}
+
+	var unmarshaled Queue
+	if err := json.Unmarshal(data, &unmarshaled); err != nil {
+		t.Fatalf("json.Unmarshal failed: %v", err)
+	}
+
+	if unmarshaled.SchemaVersion != queue.SchemaVersion {
+		t.Errorf("schema_version: got %d, want %d", unmarshaled.SchemaVersion, queue.SchemaVersion)
+	}
+	if len(unmarshaled.Entries) != len(queue.Entries) {
+		t.Errorf("entries count: got %d, want %d", len(unmarshaled.Entries), len(queue.Entries))
+	}
+	if len(unmarshaled.Entries) > 0 && unmarshaled.Entries[0].Branch != queue.Entries[0].Branch {
+		t.Errorf("entries[0].branch: got %q, want %q", unmarshaled.Entries[0].Branch, queue.Entries[0].Branch)
 	}
 }
 
