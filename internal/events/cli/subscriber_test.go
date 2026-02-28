@@ -94,14 +94,9 @@ func TestCLISubscriber_IgnoresUnknownEvents(t *testing.T) {
 	unknownEvent := &unknownEventType{}
 	emitter.Emit(unknownEvent)
 
-	// Wait a bit for event processing
-	processCtx, processCancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer processCancel()
-	_ = eventtest.WaitForCondition(processCtx, func() bool {
-		// Just wait a short time for any processing to complete
-		time.Sleep(5 * time.Millisecond)
-		return true
-	})
+	// For unknown events, we just verify no panic occurs during processing
+	// Give a small buffer for processing to complete
+	time.Sleep(10 * time.Millisecond)
 
 	cancel()
 	_ = <-done

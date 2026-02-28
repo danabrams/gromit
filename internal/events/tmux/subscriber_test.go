@@ -110,14 +110,8 @@ func TestTMUXSubscriber_ConsumesEvents(t *testing.T) {
 		TimeBudget:    1 * time.Hour,
 	})
 
-	// Wait a bit for event processing
-	processCtx, processCancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer processCancel()
-	_ = eventtest.WaitForCondition(processCtx, func() bool {
-		// Just wait a short time for any processing to complete
-		time.Sleep(5 * time.Millisecond)
-		return true
-	})
+	// Give a small buffer for processing to complete before canceling
+	time.Sleep(10 * time.Millisecond)
 
 	cancel()
 	_ = <-done
@@ -190,14 +184,8 @@ func TestTMUXSubscriber_IgnoresUnknownEvents(t *testing.T) {
 	mockUnknownEvent := &mockUnknownEvent{}
 	emitter.Emit(mockUnknownEvent)
 
-	// Wait a bit for event processing
-	processCtx, processCancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer processCancel()
-	_ = eventtest.WaitForCondition(processCtx, func() bool {
-		// Just wait a short time for any processing to complete
-		time.Sleep(5 * time.Millisecond)
-		return true
-	})
+	// Give a small buffer for processing to complete before canceling
+	time.Sleep(10 * time.Millisecond)
 
 	cancel()
 	err = <-done
