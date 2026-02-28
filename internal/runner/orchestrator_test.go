@@ -3251,3 +3251,81 @@ func TestOrchestrator_GateBlockDecision_WithEmptyReason(t *testing.T) {
 		t.Errorf("Expected GateBlockReason to be empty for Block with no explicit reason, got %q", log.GateBlockReason)
 	}
 }
+
+// RED: test for readiness-blocked bead not proceeding to build with reason code propagation
+func TestOrchestrator_ReadinessCheckBlocksPrecedingBuild(t *testing.T) {
+	t.Parallel()
+
+	var capturedLogs []*logger.IterationLog
+	buildCalled := false
+
+	gateStage := &fakeStage{
+		runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			return pipeline.Output{
+				Decision:         pipeline.Block,
+				GateBlockReason:  "criteria_missing",
+			}, nil
+		},
+	}
+
+	buildStage := &fakeStage{
+		runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			buildCalled = true
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		},
+	}
+
+	epilogueStage := &fakeStage{
+		runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+			if in.Result != nil {
+				capturedLogs = append(capturedLogs, in.Result)
+			}
+			return pipeline.Output{}, nil
+		},
+	}
+
+	beads := []*bead.Bead{
+		{ID: "bead-1", Title: "Readiness Blocked Bead"},
+	}
+	beadIdx := 0
+
+	getBead := func(ctx context.Context) (*bead.Bead, error) {
+		if beadIdx >= len(beads) {
+			return nil, nil
+		}
+		b := beads[beadIdx]
+		beadIdx++
+		return b, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     gateStage,
+		Build:    buildStage,
+		Validate: &fakeStage{},
+		Epilogue: epilogueStage,
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	err := orch.Run(context.Background(), 1, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("Orchestrator.Run() error = %v; expected nil", err)
+	}
+
+	// Verify build stage was never called
+	if buildCalled {
+		t.Fatal("Build stage should not be called when Gate blocks with readiness reason")
+	}
+
+	// Verify the reason is recorded in the iteration log
+	if len(capturedLogs) != 1 {
+		t.Fatalf("Expected 1 iteration log, got %d", len(capturedLogs))
+	}
+
+	log := capturedLogs[0]
+	if log.GateBlockReason != "criteria_missing" {
+		t.Errorf("Expected GateBlockReason = 'criteria_missing', got %q", log.GateBlockReason)
+	}
+}
