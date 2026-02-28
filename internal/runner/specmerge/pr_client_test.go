@@ -136,10 +136,60 @@ func TestFakePRClient_CanReturnErrors(t *testing.T) {
 	}
 }
 
+func TestFakePRClient_ListChecks_ReturnsConfiguredChecks(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	checks := []specmerge.CheckStatus{
+		{
+			Name:       "ci/test",
+			Status:     "completed",
+			Conclusion: "success",
+		},
+		{
+			Name:       "ci/lint",
+			Status:     "completed",
+			Conclusion: "failure",
+		},
+	}
+	fake := &fakePRClient{
+		checksToReturn: checks,
+	}
+
+	ref := specmerge.PRRef{Owner: "owner", Repo: "repo", Number: 1}
+	result, err := fake.ListChecks(ctx, ref)
+	if err != nil {
+		t.Fatalf("ListChecks returned error: %v", err)
+	}
+	if len(result) != len(checks) {
+		t.Errorf("ListChecks returned %d checks, want %d", len(result), len(checks))
+	}
+}
+
+func TestFakePRClient_GetPR_ReturnsStatus(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	fake := &fakePRClient{}
+
+	ref := specmerge.PRRef{Owner: "owner", Repo: "repo", Number: 1}
+	status, err := fake.GetPR(ctx, ref)
+	if err != nil {
+		t.Fatalf("GetPR returned error: %v", err)
+	}
+	if status.Number != ref.Number {
+		t.Errorf("GetPR returned number %d, want %d", status.Number, ref.Number)
+	}
+	if status.State == "" {
+		t.Error("GetPR should return a non-empty state")
+	}
+}
+
 // fakePRClient is a test implementation of PRClient interface.
 type fakePRClient struct {
 	nextPRNumber  int
 	createPRError error
+	checksToReturn []specmerge.CheckStatus
 }
 
 func (f *fakePRClient) CreatePR(ctx context.Context, title, body, head, base string) (specmerge.PRRef, error) {
@@ -166,6 +216,9 @@ func (f *fakePRClient) GetPR(ctx context.Context, ref specmerge.PRRef) (specmerg
 }
 
 func (f *fakePRClient) ListChecks(ctx context.Context, ref specmerge.PRRef) ([]specmerge.CheckStatus, error) {
+	if f.checksToReturn != nil {
+		return f.checksToReturn, nil
+	}
 	return []specmerge.CheckStatus{}, nil
 }
 
