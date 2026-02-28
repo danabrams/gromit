@@ -25,6 +25,12 @@ type IntegrationQueueEntryView struct {
 	LastErrorMessage string
 }
 
+var integrationQueueRecoveryInstructions = map[string]string{
+	"conflict":       `Resolve merge conflicts on the branch (e.g., git checkout <branch> && git rebase origin/main) and allow the coordinator to retry.`,
+	"failed_gates":   `Fix gate failures (see .gromit/logs) and rerun validation before the queue retries.`,
+	"lane_violation": `Adjust lane policy compliance (safe_lane vs code_lane) and requeue the session branch once aligned.`,
+}
+
 // FormatIntegrationQueue renders the queue summary and entries.
 func FormatIntegrationQueue(status *IntegrationQueueStatus) string {
 	if status == nil {
@@ -81,14 +87,5 @@ func formatIntegrationQueueEntry(entry *IntegrationQueueEntryView) string {
 }
 
 func integrationQueueBlockedRecoveryInstruction(state string) string {
-	switch state {
-	case "conflict":
-		return "Resolve merge conflicts on the branch (e.g., git checkout <branch> && git rebase origin/main) and allow the coordinator to retry."
-	case "failed_gates":
-		return "Fix gate failures (see .gromit/logs) and rerun validation before the queue retries."
-	case "lane_violation":
-		return "Adjust lane policy compliance (safe_lane vs code_lane) and requeue the session branch once aligned."
-	default:
-		return ""
-	}
+	return integrationQueueRecoveryInstructions[state]
 }
