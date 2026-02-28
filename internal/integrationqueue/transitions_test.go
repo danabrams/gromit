@@ -235,3 +235,28 @@ func TestApplyTransition_InvalidTransition_ReturnsErrorWithoutModifyingEntry(t *
 		t.Errorf("expected UpdatedAt to remain unchanged, got: %v", entry.UpdatedAt)
 	}
 }
+
+func TestCheckTransition_AllAllowedTransitions(t *testing.T) {
+	allowedCases := []struct {
+		from, to string
+	}{
+		{"draft", "ready"},
+		{"ready", "integrating"},
+		{"integrating", "merged"},
+		{"integrating", "conflict"},
+		{"integrating", "failed_gates"},
+		{"integrating", "lane_violation"},
+		{"conflict", "ready"},
+		{"failed_gates", "ready"},
+		{"lane_violation", "ready"},
+	}
+
+	for _, tc := range allowedCases {
+		t.Run(tc.from+"->"+tc.to, func(t *testing.T) {
+			err := CheckTransition(tc.from, tc.to)
+			if err != nil {
+				t.Errorf("expected %s->%s to be allowed, got error: %v", tc.from, tc.to, err)
+			}
+		})
+	}
+}
