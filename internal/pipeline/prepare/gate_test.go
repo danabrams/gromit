@@ -980,3 +980,53 @@ func TestGateRun_ScopeBlockEmitsGateBlockEvent(t *testing.T) {
 		t.Errorf("Reason = %q, want %q", blockEvt.Reason, "scope")
 	}
 }
+
+// RED: test for ReadinessBlocker blocking bead and emitting BlockEvent with reason code
+func TestGateRun_ReadinessBlockEmitsGateBlockEventWithReason(t *testing.T) {
+	t.Parallel()
+
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	gate := New(io.Discard).WithDataQualityBlocker(
+		newMockDataQualityBlocker().WithShouldBlock(true, "criteria_missing", nil),
+	)
+
+	beadID := "readiness-block-test"
+	b := &bead.Bead{
+		ID:    beadID,
+		Title: "test bead",
+	}
+
+	out, err := gate.Run(context.Background(), pipeline.Input{
+		Bead:    b,
+		Emitter: emitter,
+	})
+	if err != nil {
+		t.Fatalf("Gate.Run() error = %v", err)
+	}
+
+	if out.Decision != pipeline.Block {
+		t.Fatalf("decision = %v, want %v", out.Decision, pipeline.Block)
+	}
+
+	emittedEvents := eventtest.DrainEvents(t, ch)
+
+	var blockEvt *events.GateBlockEvent
+	for _, evt := range emittedEvents {
+		if be, ok := evt.(*events.GateBlockEvent); ok {
+			blockEvt = be
+		}
+	}
+	if blockEvt == nil {
+		t.Fatal("expected GateBlockEvent to be emitted")
+	}
+	if blockEvt.BeadID != beadID {
+		t.Errorf("BeadID = %q, want %q", blockEvt.BeadID, beadID)
+	}
+	if blockEvt.Reason != "criteria_missing" {
+		t.Errorf("Reason = %q, want %q", blockEvt.Reason, "criteria_missing")
+	}
+}
