@@ -22,21 +22,47 @@ type queueFile struct {
 
 // Store persists integration queue entries.
 type Store struct {
-	path string
+	path            string
+	validationHooks []ValidationHook
+}
+
+// StoreOption configures a Store.
+type StoreOption func(*Store)
+
+// ValidationHook runs custom validation before entries are persisted.
+type ValidationHook func(entry Entry) error
+
+// WithValidationHook registers a hook to run when Save is invoked.
+func WithValidationHook(h ValidationHook) StoreOption {
+	return func(s *Store) {
+		if h == nil {
+			return
+		}
+		s.validationHooks = append(s.validationHooks, h)
+	}
 }
 
 // NewStore constructs a Store targeting the queue file under the provided gromit directory.
-func NewStore(gromitDir string) (*Store, error) {
+func NewStore(gromitDir string, opts ...StoreOption) (*Store, error) {
 	if gromitDir == "" {
 		return nil, fmt.Errorf("gromitDir is empty")
 	}
-	return &Store{
+	store := &Store{
 		path: filepath.Join(gromitDir, queueFileName),
-	}, nil
+	}
+	for _, opt := range opts {
+		opt(store)
+	}
+	return store, nil
 }
 
 // Save persists the provided entry. If the branch already exists, the entry is replaced.
 func (s *Store) Save(entry Entry) error {
+	sort.Strings(entry.ChangedFiles)
+	if err := s.runValidationHooks(entry); err != nil {
+		return fmt.Errorf("validation failed: %w", err)
+	}
+
 	file, err := s.load()
 	if err != nil {
 		return fmt.Errorf("loading integration queue file: %w", err)
@@ -69,6 +95,18 @@ func (s *Store) findEntryIndex(entries []Entry, branch string) int {
 		}
 	}
 	return -1
+}
+
+func (s *Store) runValidationHooks(entry Entry) error {
+	if err := entry.Validate(); err != nil {
+		return err
+	}
+	for _, hook := range s.validationHooks {
+		if err := hook(entry); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Store) load() (*queueFile, error) {
