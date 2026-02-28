@@ -686,10 +686,9 @@ Build a simple feature with two components: frontend and backend.
 
 // TestEpicStatusCommand_GapAnalysisWithNoSpecs verifies analysis works when no specs exist
 func TestEpicStatusCommand_GapAnalysisWithNoSpecs(t *testing.T) {
-	t.Parallel(
 	// When an epic has no linked specs, gap analysis should identify that
 	// all areas of the epic are uncovered.
-	)
+	// Note: Cannot use t.Parallel() with t.Chdir() in Go 1.26+
 
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
@@ -746,12 +745,10 @@ This epic needs work in three areas:
 
 // TestEpicStatusCommand_UsesResolveEpic verifies that status uses scope.ResolveEpic for spec resolution
 func TestEpicStatusCommand_UsesResolveEpic(t *testing.T) {
-	t.Parallel(
 	// This test verifies the behavior that results from using scope.ResolveEpic:
 	// - Specs are found by scanning frontmatter for matching epic field
 	// - Only specs with valid frontmatter are included
 	// - Specs without epic field or with different epic are excluded
-	)
 
 	tmpDir := t.TempDir()
 	epicsDir := filepath.Join(tmpDir, ".gromit", "epics")
