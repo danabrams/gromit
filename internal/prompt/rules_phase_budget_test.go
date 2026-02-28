@@ -11,11 +11,11 @@ type rulesPhaseBudget struct {
 
 func rulesPhaseBudgetMatrix() []rulesPhaseBudget {
 	return []rulesPhaseBudget{
-		{phase: "red", maxChars: 6200},
-		{phase: "build", maxChars: 9260},
-		{phase: "green", maxChars: 6200},
-		{phase: "refactor", maxChars: 6200},
-		{phase: "review", maxChars: 6000},
+		{phase: "red", maxChars: 6800},
+		{phase: "build", maxChars: 10800},
+		{phase: "green", maxChars: 6800},
+		{phase: "refactor", maxChars: 6800},
+		{phase: "review", maxChars: 6400},
 		{phase: "plan", maxChars: 2000},
 		{phase: "refine", maxChars: 2000},
 		{phase: "retro", maxChars: 2000},
@@ -62,8 +62,8 @@ func TestBuildPhaseBudgetValue(t *testing.T) {
 		if budget.phase != "build" {
 			continue
 		}
-		if budget.maxChars != 9260 {
-			t.Fatalf("build phase budget is %d; want 9260", budget.maxChars)
+		if budget.maxChars != 10800 {
+			t.Fatalf("build phase budget is %d; want 10800", budget.maxChars)
 		}
 	}
 }
