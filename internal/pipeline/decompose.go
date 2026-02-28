@@ -238,6 +238,15 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 		for _, def := range beadDefs {
 			bead := newCreatedBeadFromDef(def, input.PlanName, "")
 			result.CreatedBeads = append(result.CreatedBeads, bead)
+
+			// Populate ProposedBeadDetail from bead definition
+			proposed := NewProposedBeadDetail()
+			proposed.Title = def.Title
+			proposed.Criteria = def.AcceptanceCriteria
+			proposed.ExpectedOutputs = def.ExpectedOutputs
+			proposed.EstimatedFiles = def.EstimatedFiles
+			// TODO: Populate Dependencies - currently not available from beadDef
+			result.ProposedBeads = append(result.ProposedBeads, proposed)
 		}
 		result.PlanUpdated = false
 		return &result, nil
