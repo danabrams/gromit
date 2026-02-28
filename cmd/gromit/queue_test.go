@@ -73,7 +73,7 @@ func TestColorizeLine(t *testing.T) {
 }
 
 func TestShowQueue_DelegatesToPipeline(t *testing.T) {
-	t.Parallel()
+	// Not parallel: mutates configPath/queue globals and captures os.Stdout.
 
 	origConfigPath := configPath
 	configPath = filepath.Join("..", "..", "gromit.yaml")
@@ -371,7 +371,7 @@ func TestQueueCmd_RegressionAssertion_DoesNotMutateBeadState(t *testing.T) {
 // TestQueueCmd_RegressionAssertion_OutputIsStable verifies queue command produces
 // consistent output across multiple invocations (no state mutation side effects).
 func TestQueueCmd_RegressionAssertion_OutputIsStable(t *testing.T) {
-	t.Parallel()
+	// Not parallel: captureStdout mutates os.Stdout and shared command flags.
 
 	// Simulate queue command display - run twice with same data
 	callCount := 0
@@ -410,7 +410,7 @@ func TestQueueCmd_RegressionAssertion_OutputIsStable(t *testing.T) {
 }
 
 func TestQueueCmd_RegressionAssertion_TUISectionsIntact(t *testing.T) {
-	t.Parallel()
+	// Not parallel: captureStdout mutates os.Stdout and shared command flags.
 
 	cfg := testQueueModelSelector{}
 	ready := []*bead.Bead{
