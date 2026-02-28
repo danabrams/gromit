@@ -10,6 +10,13 @@ const (
 	CodeLane Lane = "code_lane"
 )
 
+// ErrorCode represents error codes for integration queue entries.
+type ErrorCode string
+
+const (
+	ErrorCodeSessionCommitFailed ErrorCode = "session_commit_failed"
+)
+
 // State models the lifecycle of an integration queue entry.
 type State string
 
