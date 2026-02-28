@@ -275,6 +275,18 @@ func (f *failingReadinessRenderer) RenderReadiness(ctx *prompt.ReadinessContext)
 	return "", fmt.Errorf("rendering failed")
 }
 
+// trackingRouter records calls to Select for testing.
+type trackingRouter struct {
+	phase string
+	tier  string
+}
+
+func (t *trackingRouter) Select(phase, tier string) (provider.Provider, string) {
+	t.phase = phase
+	t.tier = tier
+	return nil, "model"
+}
+
 type dummyPromptRenderer struct {
 	renderCtx *prompt.ReviewContext
 }
@@ -547,6 +559,25 @@ func TestPromptRenderer_RenderReadinessMethodExists(t *testing.T) {
 	// If this fails at compile time, we need to add RenderReadiness method to Renderer
 	var r *prompt.Renderer
 	var _ readinessPromptRenderer = r
+}
+
+// TestReadinessAdapterWithLLM_AssessCallsRouterForProvider tests that Assess invokes router.Select.
+func TestReadinessAdapterWithLLM_AssessCallsRouterForProvider(t *testing.T) {
+	t.Parallel()
+	renderer := &dummyPromptRenderer{}
+	router := &trackingRouter{}
+	adapter := NewReadinessAdapterWithLLM(renderer, router)
+
+	ctx := context.Background()
+	b := &bead.Bead{ID: "test-bead", Title: "Test Task"}
+
+	_, err := adapter.Assess(ctx, b)
+	if err != nil {
+		t.Fatalf("Assess returned error: %v", err)
+	}
+	if router.phase == "" {
+		t.Fatal("Assess should have called router.Select with readiness phase")
+	}
 }
 
 // TestReadinessAdapterWithLLM_AssessHandlesFailedRenderingGracefully tests that Assess fails closed when rendering fails.
