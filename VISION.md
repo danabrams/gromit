@@ -90,6 +90,12 @@ Step 3: Record the alignment judgment, including anticipated metrics and verific
 2. Output over outcomes
 3. Local optimization over user value
 
+## Scope Boundaries
+
+Vision is not a playbook that prescribes the exact prompts, commands, or tools made available to the authoring agents.
+Vision is not an implementation plan that dictates every library, file layout, or commit structure; those are captured in specs or RULES.md.
+Vision does not cover daily operational details such as scheduling, runtime budgets, or incident triage; those are handled in the runbooks and automation policies that reference this vision.
+
 ## Revision Policy
 
 1. Vision owner: the creator only.
