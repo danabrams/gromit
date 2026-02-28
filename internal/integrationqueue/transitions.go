@@ -74,3 +74,13 @@ func NextAllowedStates(from string) []string {
 func IsTerminalState(state string) bool {
 	return state == "merged"
 }
+
+// IsBlockedState returns true if the state is a blocked state.
+func IsBlockedState(state string) bool {
+	switch state {
+	case "conflict", "failed_gates", "lane_violation":
+		return true
+	default:
+		return false
+	}
+}
