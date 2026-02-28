@@ -486,7 +486,11 @@ runLoop:
 		if epilogueOut.LifecycleFailure == pipeline.LifecycleFailureClose {
 			o.logWarning("Bead %s: close failed (already marked processed, will skip on next iteration)", b.ID)
 		}
-		o.logInfo("Iteration %d: bead %s completed successfully", iteration, b.ID)
+		// Only log success and trigger success-only follow-on paths if lifecycle succeeded.
+		if epilogueOut.LifecycleFailure == pipeline.LifecycleFailureNone {
+			o.logInfo("Iteration %d: bead %s completed successfully", iteration, b.ID)
+			o.maybeTriggerSpecMerge(ctx, b)
+		}
 		// Emit IterationCompleteEvent
 		o.emitter.Emit(&events.IterationCompleteEvent{
 			Iteration: iteration,
@@ -502,7 +506,6 @@ runLoop:
 			Duration:  0, // TODO(review): thread real duration once TUI consumes this field
 			Time:      time.Now(),
 		})
-		o.maybeTriggerSpecMerge(ctx, b)
 		touchedPackages = mergeTouchedPackages(touchedPackages, epilogueOut.TouchedPackages)
 	}
 
