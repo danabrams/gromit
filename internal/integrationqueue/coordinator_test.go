@@ -112,6 +112,72 @@ func (m *mockScopedGate) Run(ctx context.Context, entry Entry) error {
 	return nil
 }
 
+func TestCoordinatorIncrementsAttemptCount(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	entry := Entry{
+		Branch:               "feature/old",
+		SessionID:            "feature/old",
+		OriginCommand:        "test",
+		State:                StateReady,
+		Lane:                 "code_lane",
+		BaseRef:              "main",
+		HeadSHA:              "deadbeef",
+		ChangedFiles:         []string{"old.txt"},
+		ChangedFilesHash:     "hash",
+		AttemptCount:         0,
+		RetryCount:           0,
+		LastErrorCode:        "code",
+		LastErrorMessage:     "message",
+		LastTransitionReason: "entered queue",
+	}
+	if err := store.Save(entry); err != nil {
+		t.Fatalf("Save(entry) error = %v", err)
+	}
+
+	copyEntry := entry
+	copyEntry.Branch = "feature/new"
+	copyEntry.SessionID = "feature/new"
+	if err := store.Save(copyEntry); err != nil {
+		t.Fatalf("Save(copyEntry) error = %v", err)
+	}
+
+	gitops := &mockGitOps{}
+	gate := &mockScopedGate{}
+	coord := NewCoordinator(store, gitops, gate)
+
+	if err := coord.Coordinate(ctx); err != nil {
+		t.Fatalf("Coordinate() error = %v", err)
+	}
+
+	payload, err := store.load()
+	if err != nil {
+		t.Fatalf("load() error = %v", err)
+	}
+
+	processed := findEntry(payload.Entries, "feature/old")
+	if processed == nil {
+		t.Fatalf("missing processed entry")
+	}
+	if processed.AttemptCount != 1 {
+		t.Fatalf("processed.AttemptCount = %d, want 1", processed.AttemptCount)
+	}
+
+	remaining := findEntry(payload.Entries, "feature/new")
+	if remaining == nil {
+		t.Fatalf("missing remaining entry")
+	}
+	if remaining.AttemptCount != 0 {
+		t.Fatalf("remaining.AttemptCount = %d, want 0", remaining.AttemptCount)
+	}
+}
+
 func findEntry(entries []Entry, branch string) *Entry {
 	for i := range entries {
 		if entries[i].Branch == branch {
