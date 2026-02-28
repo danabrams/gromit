@@ -2,6 +2,7 @@ package tui
 
 import (
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -13,6 +14,7 @@ import (
 
 // Store holds the UI state for the TUI clients.
 type Store struct {
+	mu        sync.RWMutex
 	Dashboard DashboardState
 	Queue     QueueState
 }
@@ -81,6 +83,8 @@ type QueueSnapshot struct {
 
 // OnRunStart updates the store when a run starts.
 func (s *Store) OnRunStart(event *events.RunStartEvent) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.Dashboard.RunProgress = &RunProgress{
 		CurrentIteration: 0,
 		MaxIterations:    event.MaxIterations,
@@ -90,6 +94,8 @@ func (s *Store) OnRunStart(event *events.RunStartEvent) {
 
 // OnRunComplete updates the store when a run completes.
 func (s *Store) OnRunComplete(event *events.RunCompleteEvent) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.Dashboard.RunProgress == nil {
 		s.Dashboard.RunProgress = &RunProgress{}
 	}
@@ -108,6 +114,8 @@ func runCompletionStatus(reason string) string {
 
 // OnIterationStart updates the store when an iteration starts.
 func (s *Store) OnIterationStart(event *events.IterationStartEvent) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.Dashboard.ActivePhase = &ActivePhase{
 		BeadID:    event.BeadID,
 		BeadTitle: event.BeadTitle,
@@ -117,6 +125,8 @@ func (s *Store) OnIterationStart(event *events.IterationStartEvent) {
 
 // OnIterationComplete updates the store when an iteration completes.
 func (s *Store) OnIterationComplete(event *events.IterationCompleteEvent) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.Dashboard.RunProgress == nil {
 		s.Dashboard.RunProgress = &RunProgress{}
 	}
@@ -128,6 +138,8 @@ func (s *Store) OnIterationComplete(event *events.IterationCompleteEvent) {
 
 // OnBeadComplete updates the store when a bead completes successfully.
 func (s *Store) OnBeadComplete(event *events.BeadCompleteEvent) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.addRecentCompletion(&Completion{
 		BeadID:    event.BeadID,
 		BeadTitle: event.BeadTitle,
@@ -138,6 +150,8 @@ func (s *Store) OnBeadComplete(event *events.BeadCompleteEvent) {
 
 // OnBeadFailed updates the store when a bead fails.
 func (s *Store) OnBeadFailed(event *events.BeadFailedEvent) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.addRecentCompletion(&Completion{
 		BeadID:    event.BeadID,
 		BeadTitle: event.BeadTitle,
@@ -148,6 +162,8 @@ func (s *Store) OnBeadFailed(event *events.BeadFailedEvent) {
 
 // OnBeadStuck updates the store when a bead is marked as stuck.
 func (s *Store) OnBeadStuck(event *events.BeadStuckEvent) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.addRecentCompletion(&Completion{
 		BeadID:    event.BeadID,
 		BeadTitle: event.BeadTitle,
@@ -166,6 +182,8 @@ func (s *Store) addRecentCompletion(completion *Completion) {
 
 // OnBuildStart updates the phase when build starts.
 func (s *Store) OnBuildStart(event *events.BuildStartEvent) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.Dashboard.ActivePhase == nil {
 		s.Dashboard.ActivePhase = &ActivePhase{}
 	}
@@ -175,6 +193,8 @@ func (s *Store) OnBuildStart(event *events.BuildStartEvent) {
 
 // OnBuildComplete updates the phase when build completes.
 func (s *Store) OnBuildComplete(event *events.BuildCompleteEvent) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	// Phase transitions are handled by the subsequent start events,
 	// so we just keep the current phase context
 	if s.Dashboard.ActivePhase != nil {
@@ -184,6 +204,8 @@ func (s *Store) OnBuildComplete(event *events.BuildCompleteEvent) {
 
 // OnValidationStart updates the phase when validation starts.
 func (s *Store) OnValidationStart(event *events.ValidationStartEvent) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.Dashboard.ActivePhase == nil {
 		s.Dashboard.ActivePhase = &ActivePhase{}
 	}
@@ -193,6 +215,8 @@ func (s *Store) OnValidationStart(event *events.ValidationStartEvent) {
 
 // OnReviewStart updates the phase when review starts.
 func (s *Store) OnReviewStart(event *events.ReviewStartEvent) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.Dashboard.ActivePhase == nil {
 		s.Dashboard.ActivePhase = &ActivePhase{}
 	}
@@ -202,6 +226,8 @@ func (s *Store) OnReviewStart(event *events.ReviewStartEvent) {
 
 // OnAnalysisStart updates the phase when analysis starts.
 func (s *Store) OnAnalysisStart(event *events.AnalysisStartEvent) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.Dashboard.ActivePhase == nil {
 		s.Dashboard.ActivePhase = &ActivePhase{}
 	}
@@ -211,6 +237,8 @@ func (s *Store) OnAnalysisStart(event *events.AnalysisStartEvent) {
 
 // OnRetroStart updates the phase when retrospective starts.
 func (s *Store) OnRetroStart(event *events.RetroStartEvent) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.Dashboard.ActivePhase == nil {
 		s.Dashboard.ActivePhase = &ActivePhase{}
 	}
@@ -220,6 +248,8 @@ func (s *Store) OnRetroStart(event *events.RetroStartEvent) {
 
 // OnHeartbeat updates health indicators when a heartbeat is received.
 func (s *Store) OnHeartbeat(event *events.HeartbeatEvent) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.Dashboard.HealthIndicator == nil {
 		s.Dashboard.HealthIndicator = &HealthIndicator{}
 	}
@@ -230,6 +260,8 @@ func (s *Store) OnHeartbeat(event *events.HeartbeatEvent) {
 
 // OnStallDetected updates health indicators when a stall is detected.
 func (s *Store) OnStallDetected(event *events.StallDetectedEvent) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.Dashboard.HealthIndicator == nil {
 		s.Dashboard.HealthIndicator = &HealthIndicator{}
 	}

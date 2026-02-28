@@ -29,7 +29,12 @@ type HealthState struct {
 
 // MapRunProgress transforms the store's RunProgress into UI state.
 func MapRunProgress(store *Store) *RunProgressState {
-	if store == nil || store.Dashboard.RunProgress == nil {
+	if store == nil {
+		return nil
+	}
+	store.mu.RLock()
+	defer store.mu.RUnlock()
+	if store.Dashboard.RunProgress == nil {
 		return nil
 	}
 	return &RunProgressState{
@@ -42,36 +47,57 @@ func MapRunProgress(store *Store) *RunProgressState {
 
 // MapActivePhase transforms the store's ActivePhase into UI state.
 func MapActivePhase(store *Store) *ActivePhaseState {
-	if store == nil || store.Dashboard.ActivePhase == nil {
+	if store == nil {
 		return nil
 	}
-	elapsed := time.Since(store.Dashboard.ActivePhase.StartTime).Seconds()
-	return &ActivePhaseState{
-		BeadID:     store.Dashboard.ActivePhase.BeadID,
-		BeadTitle:  store.Dashboard.ActivePhase.BeadTitle,
-		Phase:      store.Dashboard.ActivePhase.Phase,
-		StartTime:  store.Dashboard.ActivePhase.StartTime,
+	store.mu.RLock()
+	if store.Dashboard.ActivePhase == nil {
+		store.mu.RUnlock()
+		return nil
+	}
+	phase := store.Dashboard.ActivePhase
+	elapsed := time.Since(phase.StartTime).Seconds()
+	state := &ActivePhaseState{
+		BeadID:     phase.BeadID,
+		BeadTitle:  phase.BeadTitle,
+		Phase:      phase.Phase,
+		StartTime:  phase.StartTime,
 		ElapsedSec: int64(elapsed),
 	}
+	store.mu.RUnlock()
+	return state
 }
 
 // MapHealth transforms the store's HealthIndicator into UI state.
 func MapHealth(store *Store) *HealthState {
-	if store == nil || store.Dashboard.HealthIndicator == nil {
+	if store == nil {
 		return &HealthState{IsHealthy: true}
 	}
-	return &HealthState{
-		IsHealthy:       store.Dashboard.HealthIndicator.IsHealthy,
-		LastEventType:   store.Dashboard.HealthIndicator.LastEventType,
-		LastEventTime:   store.Dashboard.HealthIndicator.LastEventTime,
-		HasStalledBeads: store.Dashboard.HealthIndicator.HasStalledBeads,
+	store.mu.RLock()
+	if store.Dashboard.HealthIndicator == nil {
+		store.mu.RUnlock()
+		return &HealthState{IsHealthy: true}
 	}
+	health := store.Dashboard.HealthIndicator
+	state := &HealthState{
+		IsHealthy:       health.IsHealthy,
+		LastEventType:   health.LastEventType,
+		LastEventTime:   health.LastEventTime,
+		HasStalledBeads: health.HasStalledBeads,
+	}
+	store.mu.RUnlock()
+	return state
 }
 
 // MapRecentCompletions transforms recent completions into a simple list.
 func MapRecentCompletions(store *Store) []*Completion {
-	if store == nil || len(store.Dashboard.RecentCompletions) == 0 {
+	if store == nil {
 		return []*Completion{}
 	}
-	return store.Dashboard.RecentCompletions
+	store.mu.RLock()
+	defer store.mu.RUnlock()
+	if len(store.Dashboard.RecentCompletions) == 0 {
+		return []*Completion{}
+	}
+	return append([]*Completion{}, store.Dashboard.RecentCompletions...)
 }

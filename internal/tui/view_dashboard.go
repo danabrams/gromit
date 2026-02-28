@@ -11,38 +11,69 @@ func RenderDashboardView(store *Store, focusedPanel int) string {
 		return ""
 	}
 
+	store.mu.RLock()
+	var (
+		progressCopy    *RunProgress
+		healthCopy      *HealthIndicator
+		completionsCopy []*Completion
+		ready           int
+		blocked         int
+		stuck           int
+	)
+	if progress := store.Dashboard.RunProgress; progress != nil {
+		progressCopy = &RunProgress{
+			CurrentIteration: progress.CurrentIteration,
+			MaxIterations:    progress.MaxIterations,
+			IterationPercent: progress.IterationPercent,
+			Status:           progress.Status,
+		}
+	}
+	ready, blocked, stuck = queueDepthCounts(store)
+	if health := store.Dashboard.HealthIndicator; health != nil {
+		healthCopy = &HealthIndicator{
+			LastEventType:    health.LastEventType,
+			LastEventTime:    health.LastEventTime,
+			IsHealthy:        health.IsHealthy,
+			HasStalledBeads:  health.HasStalledBeads,
+			WarningThreshold: health.WarningThreshold,
+		}
+	}
+	if len(store.Dashboard.RecentCompletions) > 0 {
+		completionsCopy = append([]*Completion{}, store.Dashboard.RecentCompletions...)
+	}
+	store.mu.RUnlock()
+
 	var b strings.Builder
 	b.WriteString("=== Progress Panel")
 	b.WriteString(panelFocus(focusedPanel, 0))
 	b.WriteString(" ===\n")
-	if progress := store.Dashboard.RunProgress; progress != nil {
-		fmt.Fprintf(&b, "Iteration %d/%d (status=%s)\n", progress.CurrentIteration, progress.MaxIterations, progress.Status)
-		fmt.Fprintf(&b, "Percent complete: %d%%\n", progress.IterationPercent)
+	if progressCopy != nil {
+		fmt.Fprintf(&b, "Iteration %d/%d (status=%s)\n", progressCopy.CurrentIteration, progressCopy.MaxIterations, progressCopy.Status)
+		fmt.Fprintf(&b, "Percent complete: %d%%\n", progressCopy.IterationPercent)
 	} else {
 		b.WriteString("Iteration data unavailable\n")
 	}
 	b.WriteString("\n")
 
-	ready, blocked, stuck := queueDepthCounts(store)
 	fmt.Fprintf(&b, "Queue depth: ready=%d blocked=%d stuck=%d\n", ready, blocked, stuck)
 	b.WriteString("\n")
 
 	b.WriteString("Recent completions:\n")
-	for _, completion := range store.Dashboard.RecentCompletions {
+	for _, completion := range completionsCopy {
 		fmt.Fprintf(&b, "[%s] %s\n", completion.Status, completion.BeadTitle)
 	}
 	b.WriteString("\n")
 
 	healthDesc := "unknown"
-	if hi := store.Dashboard.HealthIndicator; hi != nil {
-		if hi.IsHealthy {
+	if healthCopy != nil {
+		if healthCopy.IsHealthy {
 			healthDesc = "healthy"
 		} else {
 			healthDesc = "unhealthy"
 		}
 		fmt.Fprintf(&b, "Health: %s\n", healthDesc)
-		if hi.LastEventType != "" {
-			fmt.Fprintf(&b, "Last event: %s\n", hi.LastEventType)
+		if healthCopy.LastEventType != "" {
+			fmt.Fprintf(&b, "Last event: %s\n", healthCopy.LastEventType)
 		}
 	}
 
