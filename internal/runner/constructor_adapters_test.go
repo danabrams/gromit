@@ -623,3 +623,57 @@ func TestReadinessAdapterWithLLM_AssessShortCircuitsMissingCriteria(t *testing.T
 		t.Fatalf("router.Select called despite missing criteria: phase=%q", router.phase)
 	}
 }
+
+// TestReadinessAdapterWithLLM_AssessShortCircuitsZeroCriteriaCount tests short-circuit for 0 criteria.
+func TestReadinessAdapterWithLLM_AssessShortCircuitsZeroCriteriaCount(t *testing.T) {
+	t.Parallel()
+	renderer := &dummyPromptRenderer{}
+	router := &trackingRouter{}
+	adapter := NewReadinessAdapterWithLLM(renderer, router)
+
+	ctx := context.Background()
+	b := &bead.Bead{ID: "test-bead", Title: "Zero Criteria"}
+
+	assessment, err := adapter.Assess(ctx, b)
+	if err != nil {
+		t.Fatalf("Assess returned error: %v", err)
+	}
+	if assessment.Status != readiness.StatusNotReady {
+		t.Fatalf("Assess returned status %q, want %q", assessment.Status, readiness.StatusNotReady)
+	}
+	if assessment.Reason != "criteria_count" {
+		t.Fatalf("Assess returned reason %q, want %q", assessment.Reason, "criteria_count")
+	}
+	if router.phase != "" {
+		t.Fatalf("router.Select should not be called for criteria_count short-circuit: phase=%q", router.phase)
+	}
+}
+
+// TestReadinessAdapterWithLLM_AssessShortCircuitsTooManyCriteria tests short-circuit for > 3 criteria.
+func TestReadinessAdapterWithLLM_AssessShortCircuitsTooManyCriteria(t *testing.T) {
+	t.Parallel()
+	renderer := &dummyPromptRenderer{}
+	router := &trackingRouter{}
+	adapter := NewReadinessAdapterWithLLM(renderer, router)
+
+	ctx := context.Background()
+	b := &bead.Bead{
+		ID:    "test-bead",
+		Title: "Too Many Criteria",
+		ExpectedOutputs: []string{"output1", "output2", "output3", "output4"},
+	}
+
+	assessment, err := adapter.Assess(ctx, b)
+	if err != nil {
+		t.Fatalf("Assess returned error: %v", err)
+	}
+	if assessment.Status != readiness.StatusNotReady {
+		t.Fatalf("Assess returned status %q, want %q", assessment.Status, readiness.StatusNotReady)
+	}
+	if assessment.Reason != "criteria_count" {
+		t.Fatalf("Assess returned reason %q, want %q", assessment.Reason, "criteria_count")
+	}
+	if router.phase != "" {
+		t.Fatalf("router.Select should not be called for criteria_count short-circuit: phase=%q", router.phase)
+	}
+}

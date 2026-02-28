@@ -1,8 +1,9 @@
 ---
+created: 2026-02-28T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-28T16:35:31Z"
 id: prebuild-scope-and-criteria-readiness
 source_spec: prebuild-scope-and-criteria-readiness
-created: 2026-02-28
-decomposed: false
 ---
 
 # Pre-Build Scope and Criteria Readiness Implementation Plan
