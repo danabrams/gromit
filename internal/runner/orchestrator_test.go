@@ -3330,6 +3330,75 @@ func TestOrchestrator_ReadinessCheckBlocksPrecedingBuild(t *testing.T) {
 	}
 }
 
+// TestStampBuildAttribution_PopulatesAllFields verifies the shared helper copies all
+// 14 attribution fields from pipeline.Output onto a logger.IterationLog.
+func TestStampBuildAttribution_PopulatesAllFields(t *testing.T) {
+	t.Parallel()
+
+	out := pipeline.Output{
+		Model:                   "opus",
+		CostUSD:                 1.23,
+		InputTokens:             50000,
+		OutputTokens:            10000,
+		DurationMs:              45000,
+		OriginalTier:            "sonnet",
+		ActualTier:              "opus",
+		CacheHit:                true,
+		CacheMiss:               false,
+		CacheWrite:              true,
+		CacheClass:              "prompt",
+		CacheKey:                "abc123",
+		CacheInvalidationReason: "version_change",
+		CacheVersionMarker:      "v2",
+	}
+	log := &logger.IterationLog{}
+	stampBuildAttribution(log, out)
+
+	if log.Model != "opus" {
+		t.Errorf("Model = %q, want %q", log.Model, "opus")
+	}
+	if log.CostUSD != 1.23 {
+		t.Errorf("CostUSD = %v, want %v", log.CostUSD, 1.23)
+	}
+	if log.InputTokens != 50000 {
+		t.Errorf("InputTokens = %d, want %d", log.InputTokens, 50000)
+	}
+	if log.OutputTokens != 10000 {
+		t.Errorf("OutputTokens = %d, want %d", log.OutputTokens, 10000)
+	}
+	if log.DurationMs != 45000 {
+		t.Errorf("DurationMs = %d, want %d", log.DurationMs, 45000)
+	}
+	if log.OriginalTier != "sonnet" {
+		t.Errorf("OriginalTier = %q, want %q", log.OriginalTier, "sonnet")
+	}
+	if log.ActualTier != "opus" {
+		t.Errorf("ActualTier = %q, want %q", log.ActualTier, "opus")
+	}
+	if !log.CacheHit {
+		t.Error("CacheHit = false, want true")
+	}
+	if log.CacheClass != "prompt" {
+		t.Errorf("CacheClass = %q, want %q", log.CacheClass, "prompt")
+	}
+	if log.CacheKey != "abc123" {
+		t.Errorf("CacheKey = %q, want %q", log.CacheKey, "abc123")
+	}
+	if log.CacheInvalidationReason != "version_change" {
+		t.Errorf("CacheInvalidationReason = %q, want %q", log.CacheInvalidationReason, "version_change")
+	}
+	if log.CacheVersionMarker != "v2" {
+		t.Errorf("CacheVersionMarker = %q, want %q", log.CacheVersionMarker, "v2")
+	}
+}
+
+// TestStampBuildAttribution_NilLogIsNoOp verifies the helper is safe to call with nil.
+func TestStampBuildAttribution_NilLogIsNoOp(t *testing.T) {
+	t.Parallel()
+	// Should not panic
+	stampBuildAttribution(nil, pipeline.Output{Model: "opus"})
+}
+
 // TestOrchestrator_ValidationFailure_CarriesBuildAttributionToIterationLog verifies that
 // when the build stage succeeds but validation fails, the build's model/cost/token
 // attribution is preserved in the IterationLog. Previously, the validation-failure path
