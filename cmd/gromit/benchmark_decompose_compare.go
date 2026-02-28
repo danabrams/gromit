@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/danabrams/gromit/internal/bead"
 	benchpkg "github.com/danabrams/gromit/internal/benchmark"
 	"github.com/spf13/cobra"
 )
@@ -160,14 +162,24 @@ func runBenchmarkDecomposeCompare(opts benchmarkDecomposeCompareOptions) error {
 }
 
 func selectDecomposeCompareCohort(opts benchmarkDecomposeCompareCohortSelectorOptions) ([]string, error) {
+	selector, err := buildDecomposeCohortSelector()
+	if err != nil {
+		return nil, err
+	}
+
+	ctx := context.Background()
 	if len(opts.SpecOverrides) > 0 {
+		if err := selector.ValidateOverrides(ctx, opts.SpecOverrides); err != nil {
+			return nil, err
+		}
 		return append([]string(nil), opts.SpecOverrides...), nil
 	}
+
 	manifest, err := benchpkg.LoadManifest(opts.ManifestPath)
 	if err != nil {
 		return nil, err
 	}
-	return append([]string(nil), manifest.Beads...), nil
+	return selector.Select(ctx, manifest.Beads)
 }
 
 func runDecomposeCompare(opts benchmarkDecomposeCompareRunnerOptions) (interface{}, error) {
@@ -176,4 +188,13 @@ func runDecomposeCompare(opts benchmarkDecomposeCompareRunnerOptions) (interface
 
 func writeDecomposeCompareReport(opts benchmarkDecomposeCompareReportWriterOptions) error {
 	return fmt.Errorf("not implemented yet")
+}
+
+func buildDecomposeCohortSelector() (*benchpkg.DecomposeCohortSelector, error) {
+	client, err := bead.NewClient()
+	if err != nil {
+		return nil, fmt.Errorf("create bead client: %w", err)
+	}
+
+	return benchpkg.NewDecomposeCohortSelector(client, resolvePlansDir(nil)), nil
 }
