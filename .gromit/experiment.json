@@ -1,0 +1,24 @@
+{
+  "id": "stream-event-matrix-gate-2026-02-28",
+  "name": "Stream Event Matrix Gate Before Merge",
+  "hypothesis": "Mandatory pre-merge stream-event matrix tests will reduce telemetry attribution regressions and unknown-provider rows.",
+  "change": "For beads touching stream-event handling or provider usage paths, require matrix fixtures (turn/response/result, positive and negative attribution) before merge. Beads without matrix coverage on stream-event changes are blocked at review.",
+  "measurement": "Unknown attribution rate (model='' iterations / total), telemetry-related regressions, and post-run completeness failures. Target: unknown attribution rate drops below 5% (from 9.5% baseline).",
+  "risk": "Adds upfront test-writing time on stream-event beads specifically. Non-stream beads are unaffected.",
+  "status": "do",
+  "started_at": "2026-02-28T00:00:00Z",
+  "baseline_metrics": {
+    "avg_cost_per_bead": 0.7006,
+    "avg_duration_ms": 275975.25,
+    "avg_input_tokens": 2015708.27,
+    "avg_output_tokens": 22716.62,
+    "failure_rate": 0.0954
+  },
+  "previous_experiment": {
+    "id": "periodic-full-validation-gate-2026-02-27",
+    "name": "Periodic Full Validation Gate",
+    "act_decision": "revert",
+    "act_date": "2026-02-28",
+    "final_summary": "84 iterations since experiment start. All metrics regressed: failure rate 10.7% vs 9.3% baseline, avg cost/iteration $1.07 vs $0.63, avg duration 338s vs 264s. No evidence periodic gate caught regressions earlier. Data initially invisible due to worktree logs bug (gromit-r0x)."
+  }
+}
