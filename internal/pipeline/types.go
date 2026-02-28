@@ -49,6 +49,16 @@ type ComplexityRouting struct {
 	ComplexityFallbackReason string
 }
 
+// ConversationSession represents a streaming conversation with an AI assistant.
+type ConversationSession interface {
+	// Events returns the channel for receiving conversation events
+	Events() <-chan ConversationEvent
+	// SendInput sends follow-up input to the conversation
+	SendInput(text string) error
+	// Cancel terminates the conversation session
+	Cancel() error
+}
+
 // Session represents an interactive workflow session.
 type Session interface {
 	Events() <-chan Event
