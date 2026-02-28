@@ -11,6 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/failurephase"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/procutil"
 )
 
 // TestOrchestrator_GateBlock_SetsPrelaunchFailurePhase verifies that when the
@@ -105,4 +106,64 @@ type failingGitCheckout struct{}
 
 func (f *failingGitCheckout) CreateOrCheckoutSpecBranch(ctx context.Context, branch string) error {
 	return context.DeadlineExceeded
+}
+
+// TestOrchestrator_ProcessCapacityExhausted_SetsPrelaunchFailure verifies that
+// when WaitForProcessCapacity returns an error before Build, the iteration is
+// recorded as a prelaunch failure with GateBlockReason "process_capacity_exhausted".
+func TestOrchestrator_ProcessCapacityExhausted_SetsPrelaunchFailure(t *testing.T) {
+	t.Parallel()
+
+	// Inject a failing WaitForProcessCapacity function.
+	origFn := orchestratorWaitForProcessCapacityFn
+	orchestratorWaitForProcessCapacityFn = func(ctx context.Context, maxWait time.Duration) error {
+		return &procutil.ProcessCapacityError{Current: 950, Max: 1000, Waited: 3 * time.Second}
+	}
+	t.Cleanup(func() { orchestratorWaitForProcessCapacityFn = origFn })
+
+	var capturedResult *logger.IterationLog
+	buildCalled := false
+
+	beadCount := 0
+	cfg := OrchestratorConfig{
+		Gate: &fakeStage{runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		}},
+		Build: &fakeStage{runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			buildCalled = true
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		}},
+		Validate: &fakeStage{},
+		Epilogue: &fakeStage{runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			if in.Result != nil {
+				capturedResult = in.Result
+			}
+			return pipeline.Output{}, nil
+		}},
+		GetBead: func(ctx context.Context) (*bead.Bead, error) {
+			beadCount++
+			if beadCount == 1 {
+				return &bead.Bead{ID: "b-3", Title: "Capacity Test"}, nil
+			}
+			return nil, nil
+		},
+		Config: &config.Config{},
+		Output: io.Discard,
+	}
+
+	o := NewOrchestrator(cfg)
+	_ = o.Run(context.Background(), 1, time.Time{}, nil)
+
+	if buildCalled {
+		t.Error("Build stage was called; want it skipped when process capacity is exhausted")
+	}
+	if capturedResult == nil {
+		t.Fatal("epilogue was not called with a Result")
+	}
+	if capturedResult.FailurePhase != failurephase.Prelaunch {
+		t.Errorf("FailurePhase = %q, want %q", capturedResult.FailurePhase, failurephase.Prelaunch)
+	}
+	if capturedResult.GateBlockReason != "process_capacity_exhausted" {
+		t.Errorf("GateBlockReason = %q, want %q", capturedResult.GateBlockReason, "process_capacity_exhausted")
+	}
 }
