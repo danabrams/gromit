@@ -22,6 +22,21 @@ func TestLaneConstants(t *testing.T) {
 	}
 }
 
+func TestLaneEnumValidation(t *testing.T) {
+	if !SafeLane.Valid() {
+		t.Fatalf("SafeLane.Valid() = false, want true")
+	}
+	if !CodeLane.Valid() {
+		t.Fatalf("CodeLane.Valid() = false, want true")
+	}
+	if Lane("").Valid() {
+		t.Fatalf("empty Lane should not be valid")
+	}
+	if Lane("unknown_lane").Valid() {
+		t.Fatalf("unknown Lane should not be valid")
+	}
+}
+
 func TestErrorCodeConstants(t *testing.T) {
 	// Verify ErrorCode constants are defined
 	if ErrorCodeSessionCommitFailed == "" {
