@@ -3,6 +3,7 @@ package main
 import (
 	"testing"
 
+	"github.com/danabrams/gromit/internal/conversation"
 	"github.com/danabrams/gromit/internal/tui"
 	"github.com/spf13/cobra"
 )
@@ -38,4 +39,30 @@ func TestTuiCommandUsesRealModel(t *testing.T) {
 	cmd := model.Init()
 	// cmd can be nil, that's acceptable
 	_ = cmd
+}
+
+func TestModelAcceptsConversationController(t *testing.T) {
+	// Verify that the Model can accept and use a ConversationController
+	// This enables wiring conversation-capable sessions into the TUI
+
+	timeline := []conversation.FakeStep{
+		{Event: conversation.Event{Type: conversation.EventTypeStream}},
+	}
+	session := conversation.NewFakeSession(timeline)
+	controller := tui.NewConversationController(session)
+
+	store := &tui.Store{}
+	model := tui.NewModel(store)
+
+	// Model should accept the controller
+	model.SetConversationController(controller)
+
+	// Switch to conversation view
+	model.SwitchView(tui.ViewConversation)
+
+	// Verify the view reflects the conversation
+	view := model.View()
+	if view == "" {
+		t.Error("expected conversation view to be non-empty")
+	}
 }
