@@ -24,6 +24,7 @@ func ResultToIterationLog(result *runtypes.IterationResult) *logger.IterationLog
 		Provider:                  result.Provider,
 		FailurePhase:              result.FailurePhase,
 		FailureCategory:           result.FailureCategory,
+		GateBlockReason:           result.GateBlockReason,
 		Success:                   result.Success,
 		Validated:                 result.Validated,
 		Escalated:                 result.Escalated,

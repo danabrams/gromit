@@ -23,6 +23,7 @@ type IterationLog struct {
 	Provider                 string    `json:"provider,omitempty"`
 	FailurePhase             string    `json:"failure_phase,omitempty"`
 	FailureCategory          string    `json:"failure_category,omitempty"`
+	GateBlockReason          string    `json:"gate_block_reason,omitempty"`
 	Success                  bool      `json:"success"`
 	Validated                bool      `json:"validated"`
 	Escalated                bool      `json:"escalated"`
