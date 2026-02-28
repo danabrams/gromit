@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/agent"
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -54,6 +55,65 @@ func TestResolveInteractiveModel(t *testing.T) {
 			t.Fatalf("resolveInteractiveModel() = %q, want empty string", got)
 		}
 	})
+}
+
+func TestResolveEffectiveInteractiveModel(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name        string
+		flagChanged bool
+		flagValue   string
+		configValue string
+		want        string
+	}{
+		{
+			name:        "flag takes precedence",
+			flagChanged: true,
+			flagValue:   "haiku",
+			configValue: "sonnet",
+			want:        "haiku",
+		},
+		{
+			name:        "config used when flag unchanged",
+			flagChanged: false,
+			configValue: "sonnet",
+			want:        "sonnet",
+		},
+		{
+			name:        "empty when nothing configured",
+			flagChanged: false,
+			configValue: "",
+			want:        "",
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cmd := &cobra.Command{Use: "explore"}
+			cmd.Flags().String(exploreModelFlagName, "opus", "model override")
+			if tc.flagChanged {
+				if err := cmd.Flags().Set(exploreModelFlagName, tc.flagValue); err != nil {
+					t.Fatalf("setting model flag: %v", err)
+				}
+			}
+
+			cfg := &config.Config{
+				Agents: config.AgentsConfig{
+					InteractiveModels: &config.InteractiveModelsConfig{
+						Explore: tc.configValue,
+					},
+				},
+			}
+
+			if got := resolveEffectiveInteractiveModel(cmd, cfg, exploreSessionCommand, exploreModelFlagName); got != tc.want {
+				t.Fatalf("resolveEffectiveInteractiveModel() = %q, want %q", got, tc.want)
+			}
+		})
+	}
 }
 
 func TestTryOverrideModel(t *testing.T) {
