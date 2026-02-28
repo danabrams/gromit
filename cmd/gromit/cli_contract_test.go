@@ -1185,6 +1185,42 @@ func assertQueueBySpecHeader(t *testing.T, stdout string) {
 	}
 }
 
+func assertTUICommandIsolation(t *testing.T) {
+	source := readTUISource(t)
+	disallowed := []string{
+		"github.com/danabrams/gromit/internal/tracker",
+		"github.com/danabrams/gromit/internal/runner",
+		"tracker.",
+		"runner.",
+	}
+	for _, pattern := range disallowed {
+		if strings.Contains(source, pattern) {
+			t.Fatalf("tui command source references %q, violating isolation requirements", pattern)
+		}
+	}
+}
+
+func readTUISource(t *testing.T) string {
+	candidates := []string{
+		filepath.Join("cmd", "gromit", "tui.go"),
+		"tui.go",
+		filepath.Join("..", "cmd", "gromit", "tui.go"),
+		filepath.Join("..", "..", "cmd", "gromit", "tui.go"),
+	}
+	for _, candidate := range candidates {
+		data, err := os.ReadFile(candidate)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			t.Fatalf("failed to read %s: %v", candidate, err)
+		}
+		return string(data)
+	}
+	t.Fatalf("could not locate cmd/gromit/tui.go (checked %v)", candidates)
+	return ""
+}
+
 // TestCLIContract_CommandHandlersMustDelegateBusinessLogic verifies that
 // command handler functions delegate to Pipeline methods rather than directly
 // instantiating internal package APIs. This enforces the thin wrapper pattern.
