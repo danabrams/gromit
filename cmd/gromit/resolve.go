@@ -174,3 +174,20 @@ func prepareRetroWorktreeWithMainRepoLogs(worktreeGromitDir, mainGromitDir strin
 	// Otherwise, try to resolve via git
 	return resolveMainRepoLogsDir(worktreeGromitDir), nil
 }
+
+// setupRetroLogsForWorktree is a convenience function that sets up retro logs for a
+// worktree by calling prepareRetroWorktreeWithMainRepoLogs. If mainGromitDir is empty,
+// it uses resolveMainRepoLogsDir to find the main repo's logs directory.
+func setupRetroLogsForWorktree(worktreeGromitDir, mainGromitDir string) (string, error) {
+	if worktreeGromitDir == "" {
+		return "", nil
+	}
+
+	// If mainGromitDir is empty, try to resolve it using resolveMainRepoLogsDir
+	if mainGromitDir == "" {
+		return resolveMainRepoLogsDir(worktreeGromitDir), nil
+	}
+
+	// Otherwise, use prepareRetroWorktreeWithMainRepoLogs to set up symlink and get path
+	return prepareRetroWorktreeWithMainRepoLogs(worktreeGromitDir, mainGromitDir)
+}
