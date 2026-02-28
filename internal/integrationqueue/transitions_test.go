@@ -113,3 +113,28 @@ func TestCanTransition_LaneViolationToReady_Allowed(t *testing.T) {
 		t.Errorf("expected lane_violation->ready to be allowed, got false")
 	}
 }
+
+func TestNextAllowedStates_DraftReturnsReady(t *testing.T) {
+	states := NextAllowedStates("draft")
+	if len(states) != 1 || states[0] != "ready" {
+		t.Errorf("expected draft to transition only to ready, got %v", states)
+	}
+}
+
+func TestNextAllowedStates_IntegratingReturnsManyStates(t *testing.T) {
+	states := NextAllowedStates("integrating")
+	expected := map[string]bool{
+		"merged":        true,
+		"conflict":      true,
+		"failed_gates":  true,
+		"lane_violation": true,
+	}
+	if len(states) != len(expected) {
+		t.Errorf("expected %d allowed states from integrating, got %d: %v", len(expected), len(states), states)
+	}
+	for _, state := range states {
+		if !expected[state] {
+			t.Errorf("unexpected state %s in allowed states from integrating", state)
+		}
+	}
+}
