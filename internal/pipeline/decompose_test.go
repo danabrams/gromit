@@ -3091,6 +3091,91 @@ func TestDecomposeResult_HasProposedBeadsField(t *testing.T) {
 	}
 }
 
+func TestDecomposeReviewMode_PopulatesProposedBeads(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	planPath := filepath.Join(plansDir, "review-test.md")
+	planContent := `---
+spec: review-test
+created: 2026-02-11
+---
+
+# Review Test Plan
+
+### Task 1: First task
+This is the first task
+`
+	if err := os.WriteFile(planPath, []byte(planContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	mockClaude := &decomposeAcceptanceLLMClient{
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
+			jsonOutput := `[
+				{
+					"title": "Proposed bead 1",
+					"description": "First bead for review",
+					"priority": "P1",
+					"acceptance_criteria": ["criteria 1", "criteria 2"],
+					"expected_outputs": ["output 1", "output 2"],
+					"estimated_files": 3,
+					"covers_tasks": [1],
+					"depends_on_index": []
+				},
+				{
+					"title": "Proposed bead 2",
+					"description": "Second bead for review",
+					"priority": "P2",
+					"acceptance_criteria": ["criteria 3"],
+					"expected_outputs": ["output 3"],
+					"estimated_files": 2,
+					"covers_tasks": [1],
+					"depends_on_index": [0]
+				}
+			]`
+			return &LLMRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output:   jsonOutput,
+			}, nil
+		},
+	}
+
+	p := New(&Deps{LLMClient: mockClaude}, &Paths{PlansDir: plansDir})
+	result, err := p.Decompose(context.Background(), DecomposeInput{
+		PlanName: "review-test",
+		Review:   true,
+	})
+	if err != nil {
+		t.Fatalf("Decompose() failed: %v", err)
+	}
+
+	if result.ProposedBeads == nil {
+		t.Fatal("ProposedBeads = nil, want populated")
+	}
+	if len(result.ProposedBeads) != 2 {
+		t.Fatalf("ProposedBeads length = %d, want 2", len(result.ProposedBeads))
+	}
+
+	proposed := result.ProposedBeads[0]
+	if proposed.Title != "Proposed bead 1" {
+		t.Fatalf("ProposedBeads[0].Title = %q, want %q", proposed.Title, "Proposed bead 1")
+	}
+	if len(proposed.Criteria) != 2 {
+		t.Fatalf("ProposedBeads[0].Criteria length = %d, want 2", len(proposed.Criteria))
+	}
+	if len(proposed.ExpectedOutputs) != 2 {
+		t.Fatalf("ProposedBeads[0].ExpectedOutputs length = %d, want 2", len(proposed.ExpectedOutputs))
+	}
+	if proposed.EstimatedFiles != 3 {
+		t.Fatalf("ProposedBeads[0].EstimatedFiles = %d, want 3", proposed.EstimatedFiles)
+	}
+}
+
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
 	original := os.Stdout
