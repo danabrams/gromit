@@ -168,23 +168,21 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 	}
 
 	// Stuck detection: block beads that have exceeded the failure threshold.
-	if g.stuck != nil {
+	if g.stuck != nil && gateBlockReason == "" {
 		stuck, err := g.stuck.IsStuck(ctx, in.Bead)
 		if err != nil {
 			g.Log("warning", "Warning: stuck detection failed for bead %s: %v", in.Bead.ID, err)
 		} else if stuck {
-			if gateBlockReason == "" {
-				if in.Emitter != nil {
-					in.Emitter.Emit(&events.GateStuckEvent{
-						BeadID: in.Bead.ID,
-						Reason: "failure_threshold_exceeded",
-					})
-				}
-				return pipeline.Output{
-					Decision:          pipeline.Block,
-					ComplexityRouting: complexityRouting,
-				}, nil
+			if in.Emitter != nil {
+				in.Emitter.Emit(&events.GateStuckEvent{
+					BeadID: in.Bead.ID,
+					Reason: "failure_threshold_exceeded",
+				})
 			}
+			return pipeline.Output{
+				Decision:          pipeline.Block,
+				ComplexityRouting: complexityRouting,
+			}, nil
 		}
 	}
 	if gateBlockReason != "" {
