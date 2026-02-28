@@ -599,3 +599,27 @@ func TestReadinessAdapterWithLLM_AssessHandlesFailedRenderingGracefully(t *testi
 		t.Fatalf("Assess returned status %q, want %q for failing renderer", assessment.Status, readiness.StatusNotReady)
 	}
 }
+
+func TestReadinessAdapterWithLLM_AssessShortCircuitsMissingCriteria(t *testing.T) {
+	t.Parallel()
+	renderer := &dummyPromptRenderer{}
+	router := &trackingRouter{}
+	adapter := NewReadinessAdapterWithLLM(renderer, router)
+
+	ctx := context.Background()
+	b := &bead.Bead{ID: "test-bead", Title: "Missing Criteria"}
+
+	assessment, err := adapter.Assess(ctx, b)
+	if err != nil {
+		t.Fatalf("Assess returned error: %v", err)
+	}
+	if assessment.Status != readiness.StatusNotReady {
+		t.Fatalf("Assess returned status %q, want %q", assessment.Status, readiness.StatusNotReady)
+	}
+	if assessment.Reason != prepare.ReasonCriteriaMissing {
+		t.Fatalf("Assess returned reason %q, want %q", assessment.Reason, prepare.ReasonCriteriaMissing)
+	}
+	if router.phase != "" {
+		t.Fatalf("router.Select called despite missing criteria: phase=%q", router.phase)
+	}
+}
