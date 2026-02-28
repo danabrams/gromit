@@ -283,6 +283,10 @@ func (d *dummyPromptRenderer) LoadSpec(name string) (string, error) {
 	return "spec", nil
 }
 
+func (d *dummyPromptRenderer) RenderReadiness(ctx *prompt.ReadinessContext) (string, error) {
+	return "readiness_prompt", nil
+}
+
 // mockTrackerClient implements tracker.Client for testing
 type mockTrackerClient struct{}
 

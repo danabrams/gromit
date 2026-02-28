@@ -986,6 +986,35 @@ func toJSONList(items []string) string {
 	return string(data)
 }
 
+// readinessPromptRenderer abstracts the prompt rendering operations used by readiness assessment.
+type readinessPromptRenderer interface {
+	RenderReadiness(ctx *prompt.ReadinessContext) (string, error)
+}
+
+// readinessRouter abstracts provider routing for readiness LLM invocation.
+type readinessRouter interface {
+	Select(phase, tier string) (provider.Provider, string)
+}
+
+// readinessAdapterWithLLM wraps dependencies to perform structured readiness checks
+// and invoke an LLM classifier when structured checks pass.
+type readinessAdapterWithLLM struct {
+	renderer readinessPromptRenderer
+	router   readinessRouter
+}
+
+// NewReadinessAdapterWithLLM creates a readiness assessor that combines structured checks
+// with LLM-based classification. Returns nil if dependencies are not provided.
+func NewReadinessAdapterWithLLM(renderer readinessPromptRenderer, router readinessRouter) *readinessAdapterWithLLM {
+	if renderer == nil || router == nil {
+		return nil
+	}
+	return &readinessAdapterWithLLM{
+		renderer: renderer,
+		router:   router,
+	}
+}
+
 // Compile-time interface checks
 var _ execute.Invoker = (*invokerAdapter)(nil)
 var _ execute.PromptRenderer = (*renderAdapter)(nil)

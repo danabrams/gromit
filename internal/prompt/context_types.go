@@ -289,3 +289,9 @@ func (t *ThoroughReviewContext) normalizeNilFields() {
 		t.CompletedBeads = []CompletedBeadSummary{}
 	}
 }
+
+// ReadinessContext holds data for readiness assessment prompt template
+type ReadinessContext struct {
+	Bead       *bead.Bead
+	ParentBead *bead.Bead
+}
