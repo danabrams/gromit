@@ -2551,3 +2551,62 @@ func TestOrchestrator_SuppressesSuccessLoggingOnEpilogueLifecycleFailure(t *test
 		t.Fatalf("Log contains %q, want suppressed on lifecycle failure; full log: %s", successMsg, logText)
 	}
 }
+
+// TestOrchestrator_TriggersSpecMergeWhenLifecycleSucceeds verifies that when
+// the Epilogue stage returns LifecycleFailureNone (success), the orchestrator
+// DOES trigger the spec merge pipeline, ensuring the gating logic works correctly
+// in both directions (skip on failure, trigger on success).
+func TestOrchestrator_TriggersSpecMergeWhenLifecycleSucceeds(t *testing.T) {
+	t.Parallel()
+
+	specName := "payments"
+	b := &bead.Bead{ID: "spec-1", Title: "Spec bead", Labels: []string{"spec:" + specName}}
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return b, nil
+	}
+
+	epilogueStage := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		// Return success (LifecycleFailureNone)
+		return pipeline.Output{
+			Decision:         pipeline.Proceed,
+			LifecycleFailure: pipeline.LifecycleFailureNone,
+		}, nil
+	}}
+
+	triggerCalls := 0
+	specPipeline := &fakeSpecMergeController{
+		isCompleteFn: func(name string) (bool, error) {
+			// Always report spec as complete
+			return true, nil
+		},
+		triggerFn: func(ctx context.Context, name string) error {
+			triggerCalls++
+			return nil
+		},
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:                &fakeStage{},
+		Build:               &fakeStage{},
+		Validate:            &fakeStage{},
+		Epilogue:            epilogueStage,
+		GetBead:             getBead,
+		Config:              &config.Config{Methodology: config.MethodologyConfig{Granularity: config.MethodologyGranularitySpec}},
+		SpecMergeController: specPipeline,
+		Output:              io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	if triggerCalls != 1 {
+		t.Fatalf("SpecMerge.Trigger was called %d times, want 1 (should trigger on lifecycle success)", triggerCalls)
+	}
+}
