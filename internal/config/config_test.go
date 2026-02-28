@@ -5654,3 +5654,55 @@ func TestSpecPRConfigExists(t *testing.T) {
 	_ = specPRCfg.CITimeout
 	_ = specPRCfg.MaxOpenPRs
 }
+
+func TestSpecPRConfigDefaults(t *testing.T) {
+	cfg := &Config{}
+	cfg.SetDefaults()
+
+	// Test that Enabled defaults to true (following pattern of other configs)
+	if cfg.SpecPR.Enabled == nil {
+		t.Error("SpecPR.Enabled is nil, want non-nil boolean pointer")
+	} else if *cfg.SpecPR.Enabled != true {
+		t.Errorf("SpecPR.Enabled = %v, want true", *cfg.SpecPR.Enabled)
+	}
+
+	// Test that Reviewers initializes to empty slice, not nil
+	if cfg.SpecPR.Reviewers == nil {
+		t.Error("SpecPR.Reviewers is nil, want empty slice")
+	}
+
+	// Test that MergeMethod defaults to "squash"
+	if cfg.SpecPR.MergeMethod != "squash" {
+		t.Errorf("SpecPR.MergeMethod = %q, want %q", cfg.SpecPR.MergeMethod, "squash")
+	}
+
+	// Test that FixCycleCap defaults to 3
+	if cfg.SpecPR.FixCycleCap != 3 {
+		t.Errorf("SpecPR.FixCycleCap = %d, want 3", cfg.SpecPR.FixCycleCap)
+	}
+
+	// Test that AutoFixHumanComments defaults to true
+	if cfg.SpecPR.AutoFixHumanComments != true {
+		t.Errorf("SpecPR.AutoFixHumanComments = %v, want true", cfg.SpecPR.AutoFixHumanComments)
+	}
+
+	// Test that AutoMergeOnApproval defaults to false
+	if cfg.SpecPR.AutoMergeOnApproval != false {
+		t.Errorf("SpecPR.AutoMergeOnApproval = %v, want false", cfg.SpecPR.AutoMergeOnApproval)
+	}
+
+	// Test that CIPollInterval defaults to 30
+	if cfg.SpecPR.CIPollInterval != 30 {
+		t.Errorf("SpecPR.CIPollInterval = %d, want 30", cfg.SpecPR.CIPollInterval)
+	}
+
+	// Test that CITimeout defaults to 600
+	if cfg.SpecPR.CITimeout != 600 {
+		t.Errorf("SpecPR.CITimeout = %d, want 600", cfg.SpecPR.CITimeout)
+	}
+
+	// Test that MaxOpenPRs defaults to 3
+	if cfg.SpecPR.MaxOpenPRs != 3 {
+		t.Errorf("SpecPR.MaxOpenPRs = %d, want 3", cfg.SpecPR.MaxOpenPRs)
+	}
+}
