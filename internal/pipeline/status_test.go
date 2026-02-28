@@ -2,12 +2,14 @@ package pipeline
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/danabrams/gromit/internal/backlog"
+	"github.com/danabrams/gromit/internal/integrationqueue"
 )
 
 // testBeadQueryClientStatus is a mock BeadQueryClient for status tests
@@ -295,6 +297,104 @@ func TestReadStatus(t *testing.T) {
 				t.Errorf("Recommendation = %q, want %q", status.Recommendation, tt.wantRecommendation)
 			}
 		})
+	}
+}
+
+func TestReadStatus_IntegrationQueueProjection(t *testing.T) {
+	disableLiveBDForStatusTests(t)
+
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	specsDir := filepath.Join(gromitDir, "specs")
+	plansDir := filepath.Join(gromitDir, "plans")
+
+	os.MkdirAll(specsDir, 0755)
+	os.MkdirAll(plansDir, 0755)
+	os.MkdirAll(gromitDir, 0755)
+
+	snapshot := &integrationqueue.Snapshot{
+		SchemaVersion: 1,
+		Entries: []integrationqueue.Entry{
+			{
+				Branch:           "gromit/integrating",
+				State:            integrationqueue.StateIntegrating,
+				Lane:             "code_lane",
+				FifoSeq:          2,
+				LastErrorCode:    "",
+				LastErrorMessage: "",
+			},
+			{
+				Branch:  "gromit/ready",
+				State:   integrationqueue.StateReady,
+				Lane:    "code_lane",
+				FifoSeq: 1,
+			},
+			{
+				Branch:           "gromit/conflict",
+				State:            integrationqueue.StateConflict,
+				Lane:             "safe_lane",
+				FifoSeq:          3,
+				LastErrorCode:    "merge_conflict",
+				LastErrorMessage: "conflict in cmd/gromit/run.go",
+				UpdatedAt:        time.Unix(1677542400, 0),
+			},
+		},
+	}
+
+	data, err := json.Marshal(snapshot)
+	if err != nil {
+		t.Fatalf("json.Marshal snapshot: %v", err)
+	}
+
+	queuePath := filepath.Join(gromitDir, "integration-queue.json")
+	if err := os.WriteFile(queuePath, data, 0644); err != nil {
+		t.Fatalf("writing integration queue file: %v", err)
+	}
+
+	status, err := ReadStatus(gromitDir, specsDir, plansDir, nil)
+	if err != nil {
+		t.Fatalf("ReadStatus() error = %v", err)
+	}
+
+	if status.IntegrationQueueStatus == nil {
+		t.Fatalf("expected IntegrationQueueStatus to be populated")
+	}
+
+	queue := status.IntegrationQueueStatus
+	if queue.QueueLength != len(snapshot.Entries) {
+		t.Fatalf("QueueLength = %d, want %d", queue.QueueLength, len(snapshot.Entries))
+	}
+	if queue.ReadyCount != 1 {
+		t.Fatalf("ReadyCount = %d, want 1", queue.ReadyCount)
+	}
+	if queue.IntegratingCount != 1 {
+		t.Fatalf("IntegratingCount = %d, want 1", queue.IntegratingCount)
+	}
+	if queue.BlockedCount != 1 {
+		t.Fatalf("BlockedCount = %d, want 1", queue.BlockedCount)
+	}
+	if queue.MergedCount != 0 {
+		t.Fatalf("MergedCount = %d, want 0", queue.MergedCount)
+	}
+
+	if len(queue.Entries) != 3 {
+		t.Fatalf("Entries len = %d, want 3", len(queue.Entries))
+	}
+
+	if queue.Entries[0].Branch != "gromit/integrating" {
+		t.Fatalf("Entries[0] branch = %q, want integrating", queue.Entries[0].Branch)
+	}
+	if queue.Entries[1].Branch != "gromit/ready" {
+		t.Fatalf("Entries[1] branch = %q, want ready", queue.Entries[1].Branch)
+	}
+	if queue.Entries[1].ReadyPosition != 1 {
+		t.Fatalf("ready entry ReadyPosition = %d, want 1", queue.Entries[1].ReadyPosition)
+	}
+	if queue.Entries[2].Branch != "gromit/conflict" {
+		t.Fatalf("Entries[2] branch = %q, want conflict", queue.Entries[2].Branch)
+	}
+	if queue.Entries[2].LastErrorCode != "merge_conflict" {
+		t.Fatalf("Entries[2] error code = %q, want merge_conflict", queue.Entries[2].LastErrorCode)
 	}
 }
 
