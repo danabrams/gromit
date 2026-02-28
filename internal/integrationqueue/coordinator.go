@@ -42,7 +42,7 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 		return fmt.Errorf("loading integration queue: %w", err)
 	}
 
-	entry := findReadyEntry(queue.Entries)
+	entry := OldestReady(queue)
 	if entry == nil {
 		return nil
 	}
@@ -114,15 +114,6 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 		return fmt.Errorf("finalizing entry: %w", err)
 	}
 
-	return nil
-}
-
-func findReadyEntry(entries []Entry) *Entry {
-	for i := range entries {
-		if entries[i].State == StateReady {
-			return &entries[i]
-		}
-	}
 	return nil
 }
 
