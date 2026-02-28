@@ -1,7 +1,7 @@
 package main
 
 import (
-	"io/ioutil"
+	"os"
 	"strings"
 	"testing"
 )
@@ -13,7 +13,7 @@ func TestAdapters_NoBusinessLogicInCLIAdapters(t *testing.T) {
 	t.Parallel()
 
 	cliAdaptersPath := "cli_adapters.go"
-	content, err := ioutil.ReadFile(cliAdaptersPath)
+	content, err := os.ReadFile(cliAdaptersPath)
 	if err != nil {
 		t.Fatalf("Failed to read %s: %v", cliAdaptersPath, err)
 	}
@@ -53,7 +53,7 @@ func TestAdapters_AllInheritFromAdaptersGo(t *testing.T) {
 	t.Parallel()
 
 	adaptersPath := "adapters.go"
-	content, err := ioutil.ReadFile(adaptersPath)
+	content, err := os.ReadFile(adaptersPath)
 	if err != nil {
 		t.Fatalf("Failed to read %s: %v", adaptersPath, err)
 	}

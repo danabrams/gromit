@@ -1,7 +1,7 @@
 package main
 
 import (
-	"io/ioutil"
+	"os"
 	"strings"
 	"testing"
 )
@@ -21,7 +21,7 @@ func TestAdapterFormalization_NamingConventionsAligned(t *testing.T) {
 	// Test that cli_adapters.go exists and contains CLI-specific adapters
 	// Tests run from package directory, so we use local filenames
 	cliAdaptersPath := "cli_adapters.go"
-	content, err := ioutil.ReadFile(cliAdaptersPath)
+	content, err := os.ReadFile(cliAdaptersPath)
 	if err != nil {
 		t.Fatalf("Could not read %s: %v", cliAdaptersPath, err)
 	}
@@ -49,7 +49,7 @@ func TestAdapterFormalization_NamingConventionsAligned(t *testing.T) {
 
 	// Test that adapters.go exists and contains general adapters
 	adaptersPath := "adapters.go"
-	adapterContent, err := ioutil.ReadFile(adaptersPath)
+	adapterContent, err := os.ReadFile(adaptersPath)
 	if err != nil {
 		t.Fatalf("Could not read %s: %v", adaptersPath, err)
 	}
@@ -110,7 +110,7 @@ func TestAdapterFormalization_InterfaceAssertionsPresent(t *testing.T) {
 	}
 
 	for _, f := range files {
-		content, err := ioutil.ReadFile(f.path)
+		content, err := os.ReadFile(f.path)
 		if err != nil {
 			t.Fatalf("Could not read %s: %v", f.path, err)
 		}
