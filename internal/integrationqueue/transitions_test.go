@@ -138,3 +138,15 @@ func TestNextAllowedStates_IntegratingReturnsManyStates(t *testing.T) {
 		}
 	}
 }
+
+func TestIsTerminalState_MergedIsTerminal(t *testing.T) {
+	if !IsTerminalState("merged") {
+		t.Errorf("expected merged to be terminal state, got false")
+	}
+}
+
+func TestIsTerminalState_ReadyIsNotTerminal(t *testing.T) {
+	if IsTerminalState("ready") {
+		t.Errorf("expected ready to not be terminal state, got true")
+	}
+}
