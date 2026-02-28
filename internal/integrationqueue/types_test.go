@@ -197,6 +197,43 @@ func TestEntryJSONMarshalChangedFilesOmitted(t *testing.T) {
 	}
 }
 
+func TestEntryDiagnosticsOmittedWhenEmpty(t *testing.T) {
+	entry := Entry{
+		Branch:           "gromit/test",
+		SessionID:        "session123",
+		OriginCommand:    "review",
+		State:            StateReady,
+		Lane:             "code_lane",
+		CreatedAt:        time.Time{},
+		UpdatedAt:        time.Time{},
+		AttemptCount:     0,
+		RetryCount:       0,
+		FifoSeq:          1,
+		BaseRef:          "main",
+		HeadSHA:          "sha",
+		ChangedFilesHash: "sha256:hash",
+		LastErrorCode:    "",
+		LastErrorMessage: "",
+	}
+
+	data, err := json.Marshal(entry)
+	if err != nil {
+		t.Fatalf("json.Marshal failed: %v", err)
+	}
+
+	var payload map[string]interface{}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		t.Fatalf("json.Unmarshal failed: %v", err)
+	}
+
+	if _, exists := payload["last_error_code"]; exists {
+		t.Fatalf("last_error_code should be omitted when empty")
+	}
+	if _, exists := payload["last_error_message"]; exists {
+		t.Fatalf("last_error_message should be omitted when empty")
+	}
+}
+
 func TestQueueJSONMarshalUnmarshal(t *testing.T) {
 	created := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
 	updated := created.Add(time.Hour)
