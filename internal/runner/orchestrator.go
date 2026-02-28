@@ -107,6 +107,13 @@ type trendUpdaterCloser interface {
 
 var orchestratorNowFn = time.Now
 
+// orchestratorWaitForProcessCapacityFn is the pre-Build process capacity check.
+// It is a package-level variable so tests can inject a failing stub.
+var orchestratorWaitForProcessCapacityFn = procutil.WaitForProcessCapacity
+
+// orchestratorPreBuildCapacityWait is the timeout for the pre-Build capacity check.
+const orchestratorPreBuildCapacityWait = 3 * time.Second
+
 // StateSaver persists provider routing state (provider counts, availability) to disk.
 type StateSaver interface {
 	Save() error
@@ -429,6 +436,34 @@ runLoop:
 					continue
 				}
 			}
+		}
+
+		// Pre-Build diagnostic: verify subprocess capacity before launching the LLM process.
+		if capErr := orchestratorWaitForProcessCapacityFn(ctx, orchestratorPreBuildCapacityWait); capErr != nil {
+			o.logWarning("Pre-build capacity check failed for bead %s (iteration %d): %v", b.ID, iteration, capErr)
+			o.emitBeadFailedEvent(b, capErr.Error())
+			baseIn.Result = &logger.IterationLog{
+				Timestamp:                time.Now(),
+				Iteration:                iteration,
+				BeadID:                   b.ID,
+				BeadTitle:                b.Title,
+				Success:                  false,
+				Error:                    capErr.Error(),
+				FailurePhase:             failurephase.Prelaunch,
+				GateBlockReason:          "process_capacity_exhausted",
+				Complexity:               baseIn.Complexity,
+				ComplexitySource:         baseIn.ComplexitySource,
+				ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
+			}
+			o.runEpilogue(ctx, baseIn, false)
+			o.emitter.Emit(&events.IterationCompleteEvent{
+				Iteration: iteration,
+				BeadID:    b.ID,
+				Success:   false,
+				Duration:  0,
+				Time:      time.Now(),
+			})
+			continue
 		}
 
 		// Stage 2: Build — selects methodology, renders prompt, invokes LLM via StreamRun.
