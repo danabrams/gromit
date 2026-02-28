@@ -3,6 +3,7 @@ package integrationqueue
 import (
 	"context"
 	"fmt"
+	"strings"
 )
 
 const mergedTransitionReason = "coordinator: merged"
@@ -76,10 +77,18 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 	}
 
 	if err := c.gitops.MergeToMain(ctx, *entry); err != nil {
-		entry.State = StateConflict
-		entry.LastErrorCode = "merge_conflict"
-		entry.LastErrorMessage = err.Error()
-		entry.LastTransitionReason = "merge conflict detected"
+		// Check if this is a lane violation
+		if strings.Contains(strings.ToLower(err.Error()), "lane violation") {
+			entry.State = StateLaneViolation
+			entry.LastErrorCode = "lane_violation"
+			entry.LastErrorMessage = err.Error()
+			entry.LastTransitionReason = "lane violation detected"
+		} else {
+			entry.State = StateConflict
+			entry.LastErrorCode = "merge_conflict"
+			entry.LastErrorMessage = err.Error()
+			entry.LastTransitionReason = "merge conflict detected"
+		}
 		if saveErr := c.store.Save(*entry); saveErr != nil {
 			return fmt.Errorf("marking entry conflict: %w", saveErr)
 		}
