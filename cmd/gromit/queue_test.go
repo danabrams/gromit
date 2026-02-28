@@ -409,6 +409,28 @@ func TestQueueCmd_RegressionAssertion_OutputIsStable(t *testing.T) {
 	}
 }
 
+func TestQueueCmd_RegressionAssertion_TUISectionsIntact(t *testing.T) {
+	t.Parallel()
+
+	cfg := testQueueModelSelector{}
+	ready := []*bead.Bead{
+		{ID: "ready-task", Title: "Ready for Model", Priority: 0, Labels: []string{"spec:alpha"}},
+	}
+	blocked := []*bead.Bead{
+		{ID: "blocked-task", Title: "Waiting on Parent", Priority: 1, Labels: []string{"spec:alpha"}, Dependencies: []bead.Dependency{{ID: "pending"}}},
+	}
+	stuck := []*bead.Bead{
+		{ID: "stuck-task", Title: "Exceeded Retry", Priority: 2, Labels: []string{"spec:beta"}},
+	}
+	all := append(append(append([]*bead.Bead{}, ready...), blocked...), stuck...)
+
+	output := captureStdout(t, func() {
+		printQueueByStatus(cfg, ready, blocked, stuck, all, true, false)
+	})
+
+	assertQueueTUISections(t, output)
+}
+
 // trackerMutationTracker wraps a tracker.Client and calls onMutation when mutation methods are invoked
 type trackerMutationTracker struct {
 	wrapped    tracker.Client
