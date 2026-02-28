@@ -446,4 +446,30 @@ func (c *Config) SetDefaults() {
 	if c.MergePipeline.RetryCapDefault == 0 {
 		c.MergePipeline.RetryCapDefault = defaultMergePipelineRetryCapDefault
 	}
+
+	// SpecPR defaults
+	if c.SpecPR.Enabled == nil {
+		c.SpecPR.Enabled = boolPtr(true)
+	}
+	if c.SpecPR.Reviewers == nil {
+		c.SpecPR.Reviewers = []string{}
+	}
+	if c.SpecPR.MergeMethod == "" {
+		c.SpecPR.MergeMethod = "squash"
+	}
+	if c.SpecPR.FixCycleCap == 0 {
+		c.SpecPR.FixCycleCap = 3
+	}
+	if !c.SpecPR.AutoFixHumanComments {
+		c.SpecPR.AutoFixHumanComments = true
+	}
+	if c.SpecPR.CIPollInterval == 0 {
+		c.SpecPR.CIPollInterval = 30
+	}
+	if c.SpecPR.CITimeout == 0 {
+		c.SpecPR.CITimeout = 600
+	}
+	if c.SpecPR.MaxOpenPRs == 0 {
+		c.SpecPR.MaxOpenPRs = 3
+	}
 }
