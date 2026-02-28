@@ -3120,3 +3120,68 @@ func TestOrchestrator_GateBlockReason_PropagatedToIterationLog(t *testing.T) {
 		t.Errorf("Expected GateBlockReason = 'scope gate: open dependencies', got %q", log.GateBlockReason)
 	}
 }
+
+// TestOrchestrator_GateSkipDecision_DoesNotSetBlockReason verifies that when the gate
+// stage returns a Skip decision, the iteration log has an empty GateBlockReason field,
+// ensuring block reasons are only set for Block decisions.
+func TestOrchestrator_GateSkipDecision_DoesNotSetBlockReason(t *testing.T) {
+	t.Parallel()
+
+	var capturedLogs []*logger.IterationLog
+
+	gateStage := &fakeStage{
+		runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			return pipeline.Output{
+				Decision: pipeline.Skip,
+			}, nil
+		},
+	}
+
+	epilogueStage := &fakeStage{
+		runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+			if in.Result != nil {
+				capturedLogs = append(capturedLogs, in.Result)
+			}
+			return pipeline.Output{}, nil
+		},
+	}
+
+	beads := []*bead.Bead{
+		{ID: "bead-1", Title: "Test Bead"},
+	}
+	beadIdx := 0
+
+	getBead := func(ctx context.Context) (*bead.Bead, error) {
+		if beadIdx >= len(beads) {
+			return nil, nil
+		}
+		b := beads[beadIdx]
+		beadIdx++
+		return b, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     gateStage,
+		Build:    &fakeStage{},
+		Validate: &fakeStage{},
+		Epilogue: epilogueStage,
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	err := orch.Run(context.Background(), 1, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("Orchestrator.Run() error = %v; expected nil", err)
+	}
+
+	if len(capturedLogs) != 1 {
+		t.Fatalf("Expected 1 iteration log, got %d", len(capturedLogs))
+	}
+
+	log := capturedLogs[0]
+	if log.GateBlockReason != "" {
+		t.Errorf("Expected GateBlockReason to be empty for Skip decision, got %q", log.GateBlockReason)
+	}
+}
