@@ -76,6 +76,13 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 	}
 
 	if err := c.gitops.MergeToMain(ctx, *entry); err != nil {
+		entry.State = StateConflict
+		entry.LastErrorCode = "merge_conflict"
+		entry.LastErrorMessage = err.Error()
+		entry.LastTransitionReason = "merge conflict detected"
+		if saveErr := c.store.Save(*entry); saveErr != nil {
+			return fmt.Errorf("marking entry conflict: %w", saveErr)
+		}
 		return fmt.Errorf("merging branch: %w", err)
 	}
 
