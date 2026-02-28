@@ -144,3 +144,58 @@ func TestCoordinatorFailsAfterExhaustingGateRetries(t *testing.T) {
 		t.Fatalf("fetch count = %d, want 2", fetchCalls)
 	}
 }
+
+func TestCoordinatorGateRetryRecordsSingleRetry(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	entry := Entry{
+		Branch:           "feature/single-retry",
+		SessionID:        "feature/single-retry",
+		OriginCommand:    "test",
+		State:            StateReady,
+		Lane:             "code_lane",
+		BaseRef:          "main",
+		HeadSHA:          "deadbeef",
+		ChangedFilesHash: "hash",
+	}
+	if err := store.Save(entry); err != nil {
+		t.Fatalf("Save(entry) error = %v", err)
+	}
+
+	gitops := &mockGitOps{}
+	gate := &countingScopedGate{failures: 2}
+	coord := NewCoordinator(store, gitops, gate)
+
+	if err := coord.Coordinate(ctx); err == nil {
+		t.Fatalf("Coordinate() error = nil, want non-nil")
+	}
+
+	payload, err := store.load()
+	if err != nil {
+		t.Fatalf("load() error = %v", err)
+	}
+
+	processed := findEntry(payload.Entries, entry.Branch)
+	if processed == nil {
+		t.Fatalf("missing processed entry")
+	}
+	if processed.State != StateFailedGates {
+		t.Fatalf("State = %q, want %q", processed.State, StateFailedGates)
+	}
+	if processed.RetryCount != 1 {
+		t.Fatalf("RetryCount = %d, want 1", processed.RetryCount)
+	}
+	if gate.runCount != 2 {
+		t.Fatalf("gate run count = %d, want 2", gate.runCount)
+	}
+	fetchCalls := countPrefixCalls(gitops.calls, "fetch:")
+	if fetchCalls != 2 {
+		t.Fatalf("fetch count = %d, want 2", fetchCalls)
+	}
+}
