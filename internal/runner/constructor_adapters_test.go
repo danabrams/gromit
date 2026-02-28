@@ -17,6 +17,7 @@ import (
 	"github.com/danabrams/gromit/internal/pipeline/review"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/readiness"
 	"github.com/danabrams/gromit/internal/runner/specmerge"
 	"github.com/danabrams/gromit/internal/tracker"
 )
@@ -496,5 +497,23 @@ func TestReadinessAdapterWithLLM_CreatesInstanceWithDependencies(t *testing.T) {
 	assessor := NewReadinessAdapterWithLLM(renderer, router)
 	if assessor == nil {
 		t.Fatal("expected non-nil readiness adapter with LLM")
+	}
+}
+
+// TestReadinessAdapterWithLLM_AssessValidatesNilRenderer tests that Assess validates nil renderer dependency.
+func TestReadinessAdapterWithLLM_AssessValidatesNilRenderer(t *testing.T) {
+	t.Parallel()
+	a := &readinessAdapterWithLLM{
+		renderer: nil,
+		router:   &dummyRouter{},
+	}
+	ctx := context.Background()
+	b := &bead.Bead{ID: "test-bead"}
+	assessment, err := a.Assess(ctx, b)
+	if err != nil {
+		t.Fatalf("Assess returned error for nil renderer: %v", err)
+	}
+	if assessment.Status != readiness.StatusNotReady {
+		t.Fatalf("Assess returned status %q, want %q for nil renderer", assessment.Status, readiness.StatusNotReady)
 	}
 }
