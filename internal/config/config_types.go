@@ -459,6 +459,7 @@ type AgentsConfig struct {
 	Definitions map[string]AgentDefinition `yaml:"definitions"`
 	Phases      PhasesConfig               `yaml:"phases"`
 	Prompt      bool                       `yaml:"prompt"`
+	InteractiveModels *InteractiveModelsConfig `yaml:"interactive_models"`
 }
 
 type AgentDefinition struct {
@@ -474,6 +475,14 @@ type PhasesConfig struct {
 	Review  string `yaml:"review"`
 	Explore string `yaml:"explore"`
 	Debug   string `yaml:"debug"`
+}
+
+type InteractiveModelsConfig struct {
+	Refine  string `yaml:"refine"`
+	Plan    string `yaml:"plan"`
+	Explore string `yaml:"explore"`
+	Debug   string `yaml:"debug"`
+	Review  string `yaml:"review"`
 }
 
 // ModelCost holds per-model pricing overrides within a provider.
