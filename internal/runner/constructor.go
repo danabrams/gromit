@@ -141,7 +141,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		router:      router,
 		maxSubBeads: cfg.Validation.RuntimeMaxSubBeadsValue(),
 	})
-	if cfg.ReadinessCheck.Enabled {
+	if cfg.ReadinessCheck.IsEnabled() {
 		gateStage.WithReadinessAssessor(prompt.NewPromptReadinessAssessor())
 	}
 

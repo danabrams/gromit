@@ -2459,7 +2459,8 @@ func TestNewRunnerImpl_GateStageHasPromptReadinessAssessorWhenEnabled(t *testing
 	cfg.Paths.Templates = filepath.Join(gromitDir, "templates")
 	cfg.Paths.Specs = filepath.Join(gromitDir, "specs")
 	cfg.Paths.Logs = filepath.Join(tmpDir, "logs")
-	cfg.ReadinessCheck.Enabled = true
+	trueVal := true
+	cfg.ReadinessCheck.Enabled = &trueVal
 
 	orch, err := newRunnerImpl(cfg, io.Discard, nil)
 	if err != nil {
