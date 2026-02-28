@@ -345,6 +345,14 @@ func (p PrecheckConfig) IsEnabled() bool {
 	return *p.Enabled
 }
 
+// IsEnabled returns whether readiness_check should run (defaults to false).
+func (r ReadinessCheckConfig) IsEnabled() bool {
+	if r.Enabled == nil {
+		return false
+	}
+	return *r.Enabled
+}
+
 // IsAutoPushEnabled returns whether git auto-push should run after bead completion (defaults to true).
 func (g GitConfig) IsAutoPushEnabled() bool {
 	if g.AutoPush == nil {

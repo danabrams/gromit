@@ -235,7 +235,10 @@ type ScopeCheckConfig struct {
 }
 
 type ReadinessCheckConfig struct {
-	Enabled bool `yaml:"enabled"`
+	Enabled        *bool `yaml:"enabled"`
+	Model          string `yaml:"model"`
+	TimeoutSeconds int `yaml:"timeout_seconds"`
+	FailClosed     bool `yaml:"fail_closed"`
 }
 
 type PrecheckConfig struct {

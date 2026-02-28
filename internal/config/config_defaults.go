@@ -167,6 +167,12 @@ func (c *Config) SetDefaults() {
 	if c.Precheck.Verification.TimeoutSeconds == 0 {
 		c.Precheck.Verification.TimeoutSeconds = 120
 	}
+	if c.ReadinessCheck.Model == "" {
+		c.ReadinessCheck.Model = ModelHaiku
+	}
+	if c.ReadinessCheck.TimeoutSeconds == 0 {
+		c.ReadinessCheck.TimeoutSeconds = 120
+	}
 	if c.Loop.StuckBeadThreshold == 0 {
 		c.Loop.StuckBeadThreshold = 3
 	}
