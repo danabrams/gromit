@@ -13,6 +13,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/events"
+	"github.com/danabrams/gromit/internal/events/eventtest"
 	"github.com/danabrams/gromit/internal/pipeline"
 )
 
@@ -164,20 +165,44 @@ func TestStreamSubscriberWiredEnsuresStructuredEventFileStreams(t *testing.T) {
 		t.Fatalf("StartSubscribers returned error: %v", err)
 	}
 
-	time.Sleep(150 * time.Millisecond)
+	// Wait for subscriber to start using polling
+	startCtx, startCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer startCancel()
+	if err := eventtest.WaitForSubscriberReady(startCtx, emitter); err != nil {
+		t.Fatalf("WaitForSubscriberReady failed: %v", err)
+	}
+
+	// Give subscriber extra time to initialize file writing
+	time.Sleep(50 * time.Millisecond)
 
 	testEvent := &events.LogEvent{Level: "test", Message: "stream subscriber event"}
 	emitter.Emit(testEvent)
 
-	// Cancel context first so subscribers exit via ctx.Done(), then close emitter.
-	cancel()
-	emitter.Close()
-	wg.Wait()
-
-	files, err := os.ReadDir(tmpDir)
-	if err != nil {
-		t.Fatalf("read dir %s: %v", tmpDir, err)
+	// Wait for the stream file to be created and have content
+	// The file is created asynchronously by the stream subscriber
+	files := []os.DirEntry{}
+	fileWaitCtx, fileWaitCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer fileWaitCancel()
+	if err := eventtest.WaitForCondition(fileWaitCtx, func() bool {
+		var err error
+		files, err = os.ReadDir(tmpDir)
+		if err != nil {
+			return false
+		}
+		for _, entry := range files {
+			if strings.HasPrefix(entry.Name(), "events-") && strings.HasSuffix(entry.Name(), ".jsonl") {
+				info, err := entry.Info()
+				if err == nil && info.Size() >= 1 {
+					return true
+				}
+			}
+		}
+		return false
+	}); err != nil {
+		t.Fatalf("WaitForCondition failed waiting for stream file: %v", err)
 	}
+
+	// Find the stream file
 	var streamFile string
 	for _, entry := range files {
 		if strings.HasPrefix(entry.Name(), "events-") && strings.HasSuffix(entry.Name(), ".jsonl") {
@@ -189,7 +214,10 @@ func TestStreamSubscriberWiredEnsuresStructuredEventFileStreams(t *testing.T) {
 		t.Fatal("structured event stream file not created")
 	}
 
-	waitForFileSize(t, streamFile, 1, time.Second)
+	// Cancel context first so subscribers exit via ctx.Done(), then close emitter.
+	cancel()
+	emitter.Close()
+	wg.Wait()
 
 	data, err := os.ReadFile(streamFile)
 	if err != nil {
@@ -250,8 +278,12 @@ func TestCLISubscriberStartsAndReceivesEvents(t *testing.T) {
 		t.Fatalf("StartSubscribers() returned error: %v", err)
 	}
 
-	// Give subscriber goroutine time to start and subscribe
-	time.Sleep(200 * time.Millisecond)
+	// Wait for subscriber to start using polling
+	startCtx, startCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer startCancel()
+	if err := eventtest.WaitForSubscriberReady(startCtx, emitter); err != nil {
+		t.Fatalf("WaitForSubscriberReady failed: %v", err)
+	}
 
 	// Emit a test event
 	testEvent := &events.LogEvent{
@@ -262,12 +294,13 @@ func TestCLISubscriberStartsAndReceivesEvents(t *testing.T) {
 
 	emitter.Emit(testEvent)
 
-	// Give the subscriber goroutine time to process the event
-	time.Sleep(200 * time.Millisecond)
-
-	// Verify that the CLI subscriber processed the event
-	if !output.hasContent() {
-		t.Fatal("CLI subscriber did not write any output after event emission")
+	// Wait for the subscriber goroutine to process the event
+	processCtx, processCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer processCancel()
+	if err := eventtest.WaitForCondition(processCtx, func() bool {
+		return output.hasContent()
+	}); err != nil {
+		t.Fatalf("WaitForCondition failed: %v", err)
 	}
 
 	// Cleanup: close emitter then wait for goroutines
@@ -315,8 +348,12 @@ func TestStatusAndTMUXSubscribersConditionalStartup(t *testing.T) {
 		t.Fatalf("StartSubscribers() returned error: %v", err)
 	}
 
-	// Give subscriber goroutines time to start
-	time.Sleep(200 * time.Millisecond)
+	// Wait for subscriber goroutines to start
+	startCtx, startCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer startCancel()
+	if err := eventtest.WaitForSubscriberReady(startCtx, emitter); err != nil {
+		t.Fatalf("WaitForSubscriberReady failed: %v", err)
+	}
 
 	// Emit a test event
 	testEvent := &events.LogEvent{
@@ -327,8 +364,14 @@ func TestStatusAndTMUXSubscribersConditionalStartup(t *testing.T) {
 
 	emitter.Emit(testEvent)
 
-	// Give the subscriber goroutines time to process the event
-	time.Sleep(200 * time.Millisecond)
+	// Wait for the subscriber goroutines to process the event
+	processCtx, processCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer processCancel()
+	if err := eventtest.WaitForCondition(processCtx, func() bool {
+		return output.hasContent()
+	}); err != nil {
+		t.Fatalf("WaitForCondition failed: %v", err)
+	}
 
 	// Cleanup: close emitter then wait for goroutines
 	emitter.Close()
@@ -363,19 +406,6 @@ func (rw *recordingWriter) Write(p []byte) (n int, err error) {
 
 func (rw *recordingWriter) hasContent() bool {
 	return rw.content.Len() > 0
-}
-
-func waitForFileSize(t *testing.T, path string, minSize int64, timeout time.Duration) {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		info, err := os.Stat(path)
-		if err == nil && info.Size() >= minSize {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatalf("file %s did not reach %d bytes before timeout", path, minSize)
 }
 
 // TestRunStartsSubscribersBeforeLoop verifies that Run() starts subscribers
