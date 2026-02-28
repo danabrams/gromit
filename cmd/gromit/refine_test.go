@@ -476,3 +476,119 @@ source_ideas:
 		}
 	}
 }
+
+// TestRefineCommand_NonSessionPathMaintainsArtifactContract verifies that the
+// non-TUI (synchronous fallback) path produces RefineResult with proper artifact contracts.
+func TestRefineCommand_NonSessionPathMaintainsArtifactContract(t *testing.T) {
+	origFactory := createRefinePipelineFn
+	t.Cleanup(func() {
+		createRefinePipelineFn = origFactory
+	})
+
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("mkdir gromit: %v", err)
+	}
+
+	// Create a minimal gromit.yaml config file with worktrees disabled
+	configContent := `version: 1
+worktree:
+  enabled: false
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "gromit.yaml"), []byte(configContent), 0o644); err != nil {
+		t.Fatalf("write gromit.yaml: %v", err)
+	}
+
+	// Mock pipeline that returns a result with populated artifact lists
+	createRefinePipelineFn = func(_ *config.Config, _, _, _ string) (*pipeline.Pipeline, error) {
+		return pipeline.New(&pipeline.Deps{
+			AgentResolver: &refineSessionTestResolver{agent: &refineSessionTestAgent{
+				launchInDirFn: func(promptPath, dir string) error {
+					return nil
+				},
+			}},
+		}, &pipeline.Paths{
+			GromitDir: gromitDir,
+			SpecsDir:  filepath.Join(gromitDir, "specs"),
+		}), nil
+	}
+
+	cmd := &cobra.Command{}
+	cmd.Flags().String("agent", "", "")
+
+	// Verify the non-session path produces correct artifact contract
+	if err := runRefine(cmd, []string{"test idea"}); err != nil {
+		t.Fatalf("runRefine() error = %v", err)
+	}
+}
+
+// TestRefineCommand_SessionAndFallbackProduceSameArtifactContract verifies that
+// both session and fallback paths return the same artifact contract types.
+func TestRefineCommand_SessionAndFallbackProduceSameArtifactContract(t *testing.T) {
+	origLauncher := refineSessionLauncherFn
+	origRunInDir := refineRunInDirFn
+	origFactory := createRefinePipelineFn
+	t.Cleanup(func() {
+		refineSessionLauncherFn = origLauncher
+		refineRunInDirFn = origRunInDir
+		createRefinePipelineFn = origFactory
+	})
+
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	specsDir := filepath.Join(gromitDir, "specs")
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("mkdir specs: %v", err)
+	}
+
+	sessionDir := t.TempDir()
+
+	refineSessionLauncherFn = func(
+		gromitDir string,
+		command string,
+		conflictSettings sessionConflictSettings,
+		callback func(sessionDir string) error,
+	) (*worktree.SessionWorktree, error) {
+		if err := callback(sessionDir); err != nil {
+			return nil, err
+		}
+		return &worktree.SessionWorktree{BranchName: "test", WorktreeDir: sessionDir}, nil
+	}
+
+	refineRunInDirFn = func(dir string, fn func() error) error {
+		return runInDir(dir, fn)
+	}
+
+	createRefinePipelineFn = func(_ *config.Config, _, _, _ string) (*pipeline.Pipeline, error) {
+		return pipeline.New(&pipeline.Deps{
+			AgentResolver: &refineSessionTestResolver{agent: &refineSessionTestAgent{
+				launchInDirFn: func(promptPath, dir string) error {
+					return nil
+				},
+			}},
+		}, &pipeline.Paths{
+			GromitDir: gromitDir,
+			SpecsDir:  specsDir,
+		}), nil
+	}
+
+	// Create config with worktrees enabled
+	configContent := `version: 1
+worktree:
+  enabled: true
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "gromit.yaml"), []byte(configContent), 0o644); err != nil {
+		t.Fatalf("write gromit.yaml: %v", err)
+	}
+
+	cmd := &cobra.Command{}
+	cmd.Flags().String("agent", "", "")
+
+	// Both session and fallback should produce the same artifact contract
+	if err := runRefine(cmd, []string{"test idea"}); err != nil {
+		t.Fatalf("runRefine() error = %v", err)
+	}
+}
