@@ -295,6 +295,35 @@ func TestConversationAssistantOutputChunks(t *testing.T) {
 	}
 }
 
+func TestConversationEventSequenceValidation(t *testing.T) {
+	// Test that valid sequences pass validation
+	validSequence := []ConversationEvent{
+		{State: ConversationStateStarting},
+		{State: ConversationStateStreaming, Content: "part1"},
+		{State: ConversationStateStreaming, Content: "part2"},
+		{State: ConversationStateWaitingForTool, ToolName: "tool"},
+		{State: ConversationStateStreaming, ToolOutput: "result"},
+		{State: ConversationStateCompleted},
+	}
+
+	err := ValidateConversationEventSequence(validSequence)
+	if err != nil {
+		t.Fatalf("expected valid sequence to pass, got error: %v", err)
+	}
+
+	// Test that sequences with events after terminal state fail
+	invalidSequence := []ConversationEvent{
+		{State: ConversationStateStreaming, Content: "text"},
+		{State: ConversationStateCompleted},
+		{State: ConversationStateStreaming, Content: "more"}, // Invalid - after terminal state
+	}
+
+	err = ValidateConversationEventSequence(invalidSequence)
+	if err == nil {
+		t.Fatal("expected invalid sequence (events after terminal state) to fail validation")
+	}
+}
+
 type mockConversationSession struct {
 	events []ConversationEvent
 	sent   int
