@@ -97,13 +97,17 @@ func (h *Handler) EscalateTier(bc *runtypes.BeadContext, nextTier string) {
 	bc.Result.Escalated = true
 	bc.Tier = nextTier
 	bc.RetriesThisModel = 0
-	legacyModel := provider.TierToLegacyModel(nextTier)
+	legacyModel := escalationModelForTier(nextTier)
 	bc.Model = legacyModel
 	bc.Result.Model = legacyModel
 	bc.Result.EscalatedTo = legacyModel
 	if bc.PromptCtx != nil {
 		bc.PromptCtx.Model = legacyModel
 	}
+}
+
+func escalationModelForTier(tier string) string {
+	return provider.TierToLegacyModel(tier)
 }
 
 // HandleStallTimeout handles the case where a stall timeout was detected during execution.
