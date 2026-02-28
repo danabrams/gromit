@@ -699,6 +699,123 @@ func TestStatusCmd_JSONUsesSnakeCaseQueueFields(t *testing.T) {
 	}
 }
 
+// TestStatusCmd_JSONIncludesRetryAndFailureMetadata verifies that the status
+// JSON output remains deterministic even when queue entries omit optional
+// metadata and that the new retry/failure fields appear in a predictable order.
+func TestStatusCmd_JSONIncludesRetryAndFailureMetadata(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("failed to create gromit dir: %v", err)
+	}
+
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	configContent := `paths:
+  gromit_dir: .gromit
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	status := runner.Status{
+		Running:   false,
+		Iteration: 1,
+		BeadID:    "retry-json-bead",
+		BeadTitle: "Retry metadata test",
+		Model:     "haiku",
+		StartedAt: time.Now().Add(-time.Minute),
+		ElapsedS:  60,
+	}
+	statusData, err := json.Marshal(status)
+	if err != nil {
+		t.Fatalf("failed to marshal status: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gromitDir, "status.json"), statusData, 0o644); err != nil {
+		t.Fatalf("failed to write status.json: %v", err)
+	}
+
+	entries := []map[string]interface{}{
+		{
+			"branch":                 "feature/retry-entry",
+			"state":                  "failed_gates",
+			"fifo_seq":               5,
+			"retry_count":            2,
+			"last_transition_reason": "failed_gates_after_retry",
+			"last_error_code":        "failed_gates",
+		},
+	}
+	queueData := map[string]interface{}{
+		"schema_version": 1,
+		"updated_at":     "2026-02-28T00:00:00Z",
+		"entries":        entries,
+	}
+	queueBytes, err := json.Marshal(queueData)
+	if err != nil {
+		t.Fatalf("failed to marshal queue data: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gromitDir, "integration-queue.json"), queueBytes, 0o644); err != nil {
+		t.Fatalf("failed to write integration-queue.json: %v", err)
+	}
+
+	t.Chdir(tmpDir)
+
+	output := captureStdout(t, func() {
+		rootCmd.SetArgs([]string{"status", "--json"})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("status --json command failed: %v", err)
+		}
+	})
+
+	retryIdx := strings.Index(output, `"retry_attempt"`)
+	failIdx := strings.Index(output, `"failure_reason"`)
+	if retryIdx == -1 || failIdx == -1 {
+		t.Fatalf("status JSON missing retry/failure fields, got:\n%s", output)
+	}
+	if retryIdx > failIdx {
+		t.Fatalf("retry_attempt should appear before failure_reason, got:\n%s", output)
+	}
+
+	var statusJSON map[string]interface{}
+	if err := json.Unmarshal([]byte(output), &statusJSON); err != nil {
+		t.Fatalf("output is not valid JSON: %v\ngot: %s", err, output)
+	}
+
+	queueInterface, hasQueue := statusJSON["integration_queue"]
+	if !hasQueue {
+		t.Fatalf("JSON missing 'integration_queue' field")
+	}
+	queueObj, ok := queueInterface.(map[string]interface{})
+	if !ok {
+		t.Fatalf("integration_queue is not an object, got type: %T", queueInterface)
+	}
+
+	entriesInterface, hasEntries := queueObj["entries"]
+	if !hasEntries {
+		t.Fatalf("integration_queue missing 'entries' field")
+	}
+	entriesSlice, ok := entriesInterface.([]interface{})
+	if !ok || len(entriesSlice) == 0 {
+		t.Fatalf("entries is empty or not an array: %T", entriesInterface)
+	}
+	entry, ok := entriesSlice[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("entry is not an object, got type: %T", entriesSlice[0])
+	}
+
+	if _, ok := entry["lane"]; !ok {
+		t.Fatalf("expected lane field even when metadata missing")
+	}
+	if fifo, ok := entry["fifo_seq"].(float64); !ok || fifo != 5 {
+		t.Fatalf("expected fifo_seq=5, got %v", entry["fifo_seq"])
+	}
+	if retry, ok := entry["retry_attempt"].(float64); !ok || retry != 2 {
+		t.Fatalf("expected retry_attempt=2, got %v", entry["retry_attempt"])
+	}
+	if reason, ok := entry["failure_reason"].(string); !ok || reason != "failed_gates_after_retry" {
+		t.Fatalf("expected failure_reason=failed_gates_after_retry, got %v", entry["failure_reason"])
+	}
+}
+
 // captureStatusOutput is a helper for status command tests that captures stdout
 // and properly resets statusCmd flags before execution.
 func captureStatusOutput(t *testing.T, fn func()) string {
