@@ -84,3 +84,19 @@ func (s State) Valid() bool {
 	_, ok := validStates[s]
 	return ok
 }
+
+// EntryOrdering captures deterministic ordering metadata for an entry.
+type EntryOrdering struct {
+	Sequence  int
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// Ordering returns ordering metadata derived from the entry.
+func (e Entry) Ordering() EntryOrdering {
+	return EntryOrdering{
+		Sequence:  e.FifoSeq,
+		CreatedAt: e.CreatedAt,
+		UpdatedAt: e.UpdatedAt,
+	}
+}
