@@ -336,6 +336,43 @@ func TestModel_FocusConversationKeySwitchesToConversationView(t *testing.T) {
 	}
 }
 
+func TestModel_UsesKeymapForConversationActions(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+
+	timeline := []conversation.FakeStep{
+		{Event: conversation.Event{Type: conversation.EventTypeStream, Text: "test"}},
+		{Event: conversation.Event{Type: conversation.EventTypeDone}},
+	}
+	session := conversation.NewFakeSession(timeline)
+	controller := NewConversationController(session)
+	m.SetConversationController(controller)
+	m.SwitchView(ViewConversation)
+
+	// Get the keymap
+	keymap := DefaultKeymap()
+
+	// Test that CancelSession key (from keymap) is actually 'c'
+	if keymap.CancelSession != "c" {
+		t.Errorf("expected CancelSession to be 'c', got %q", keymap.CancelSession)
+	}
+
+	// Test that FocusConversation key (from keymap) is actually '3'
+	if keymap.FocusConversation != "3" {
+		t.Errorf("expected FocusConversation to be '3', got %q", keymap.FocusConversation)
+	}
+
+	// Test that model recognizes these keys
+	m.SwitchView(ViewDashboard)
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{rune(keymap.FocusConversation[0])}}
+	model, _ := m.Update(msg)
+	m = model.(*Model)
+
+	if m.currentView != ViewConversation {
+		t.Errorf("expected FocusConversation key to switch to conversation view, got %v", m.currentView)
+	}
+}
+
 func TestModel_AppliesConversationEventsToStore(t *testing.T) {
 	timeline := []conversation.FakeStep{
 		{Event: conversation.Event{Type: conversation.EventTypeStream, Text: "streamed text"}},
