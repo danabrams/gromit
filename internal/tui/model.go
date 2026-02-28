@@ -52,6 +52,9 @@ func (m *Model) FocusPrev() {
 
 // Init initializes the model.
 func (m *Model) Init() tea.Cmd {
+	if m.currentView == ViewConversation && m.conversation != nil {
+		return m.conversation.Init()
+	}
 	return nil
 }
 
@@ -59,8 +62,18 @@ func (m *Model) Init() tea.Cmd {
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// When in conversation view, forward messages to the conversation controller
 	if m.currentView == ViewConversation && m.conversation != nil {
-		switch msg.(type) {
+		switch msg := msg.(type) {
 		case tea.KeyMsg:
+			model, cmd := m.conversation.Update(msg)
+			if ctrl, ok := model.(*ConversationController); ok {
+				m.conversation = ctrl
+			}
+			return m, cmd
+		case conversationEventMsg:
+			// Apply conversation event to store
+			if m.store != nil {
+				m.store.ApplyConversationEvent(msg.Event)
+			}
 			model, cmd := m.conversation.Update(msg)
 			if ctrl, ok := model.(*ConversationController); ok {
 				m.conversation = ctrl

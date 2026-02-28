@@ -344,23 +344,23 @@ func TestModel_AppliesConversationEventsToStore(t *testing.T) {
 	session := conversation.NewFakeSession(timeline)
 	controller := NewConversationController(session)
 
-	// Manually pump events through the controller
-	cmd := controller.Init()
-	for cmd != nil {
-		msg := cmd()
-		model, next := controller.Update(msg)
-		var ok bool
-		controller, ok = model.(*ConversationController)
-		if !ok {
-			t.Fatalf("expected ConversationController, got %T", model)
-		}
-		cmd = next
-	}
-
 	store := &Store{}
 	m := NewModel(store)
 	m.SetConversationController(controller)
 	m.SwitchView(ViewConversation)
+
+	// Pump events through the model's Update method
+	cmd := m.Init()
+	for cmd != nil {
+		msg := cmd()
+		model, next := m.Update(msg)
+		var ok bool
+		m, ok = model.(*Model)
+		if !ok {
+			t.Fatalf("expected Model, got %T", model)
+		}
+		cmd = next
+	}
 
 	// Check that store has recorded conversation events
 	if store.Conversation.EventCount == 0 {
