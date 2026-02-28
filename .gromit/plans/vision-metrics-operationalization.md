@@ -1,8 +1,9 @@
 ---
+created: 2026-02-28T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-28T04:11:36Z"
 id: vision-metrics-operationalization
 source_spec: vision-metrics-operationalization
-created: 2026-02-28
-decomposed: false
 ---
 
 # Vision Metrics Operationalization Implementation Plan

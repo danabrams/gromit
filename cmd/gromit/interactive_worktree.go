@@ -155,10 +155,8 @@ func runWithSessionWorktreeWithConflictSettings(
 		return session, fmt.Errorf("removing session worktree for merged branch %q: %w", session.BranchName, err)
 	}
 
-	if err := attemptMergeWithConflictPolicy(manager, stateFile, session, conflictSettings); err != nil {
-		return session, err
-	}
-
+	// Single-writer policy: session enqueues branch for coordinator-mediated integration.
+	// Do not attempt merge in session path. Branch remains pending for orchestrator processing.
 	return session, nil
 }
 

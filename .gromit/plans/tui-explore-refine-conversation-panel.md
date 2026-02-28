@@ -1,8 +1,9 @@
 ---
+created: 2026-02-28T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-28T04:09:44Z"
 id: tui-explore-refine-conversation-panel
 source_spec: tui-explore-refine-conversation-panel
-created: 2026-02-28
-decomposed: false
 ---
 
 # TUI Explore/Refine Conversation Panel Implementation Plan

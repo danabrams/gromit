@@ -1,8 +1,9 @@
 ---
+created: 2026-02-28T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-28T04:06:49Z"
 id: single-writer-main-integration-coordinator
 source_spec: single-writer-main-integration-coordinator
-created: 2026-02-28
-decomposed: false
 ---
 
 # Single-Writer Main Integration Coordinator Implementation Plan

@@ -1,8 +1,9 @@
 ---
+created: 2026-02-28T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-28T04:03:46Z"
 id: precheck-verification-config-consistency
 source_spec: precheck-verification-config-consistency
-created: 2026-02-28
-decomposed: false
 ---
 
 # Precheck Verification Config Consistency Implementation Plan
