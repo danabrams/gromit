@@ -94,3 +94,42 @@ func findReadyEntry(entries []Entry) *Entry {
 	}
 	return nil
 }
+
+// RecoverFromCrash detects entries left in StateIntegrating and transitions
+// them back to StateReady. This is called during startup to handle entries
+// that were stranded mid-integration by a prior crash.
+func (c *Coordinator) RecoverFromCrash(ctx context.Context) error {
+	if c.store == nil {
+		return fmt.Errorf("store is required")
+	}
+
+	queue, err := c.store.load()
+	if err != nil {
+		return fmt.Errorf("loading integration queue for recovery: %w", err)
+	}
+
+	// Find and reset any entries in integrating state
+	recovered := false
+	for i := range queue.Entries {
+		if queue.Entries[i].State == StateIntegrating {
+			queue.Entries[i].State = StateReady
+			queue.Entries[i].LastErrorCode = "crash_recovery"
+			queue.Entries[i].LastErrorMessage = "recovered from crash: entry was in integrating state"
+			queue.Entries[i].LastTransitionReason = "crash recovery"
+			// Save each recovered entry
+			if err := c.store.Save(queue.Entries[i]); err != nil {
+				return fmt.Errorf("saving recovered entry %s: %w", queue.Entries[i].Branch, err)
+			}
+			recovered = true
+		}
+	}
+
+	// If no entries needed recovery, just return early
+	if !recovered {
+		return nil
+	}
+
+	return nil
+}
+
+const crashRecoveryErrorCode ErrorCode = "crash_recovery"

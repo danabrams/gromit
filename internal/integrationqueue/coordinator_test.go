@@ -186,3 +186,110 @@ func findEntry(entries []Entry, branch string) *Entry {
 	}
 	return nil
 }
+
+// TestCoordinator_RecoverFromCrash verifies that RecoverFromCrash() detects
+// entries left in StateIntegrating and transitions them back to StateReady.
+// This ensures that if gromit crashes mid-integration, entries aren't left
+// stranded in the integrating state.
+func TestCoordinator_RecoverFromCrash(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	// Create entries in various states, including some in integrating
+	readyEntry := Entry{
+		Branch:           "feature/ready",
+		SessionID:        "session1",
+		OriginCommand:    "refine",
+		State:            StateReady,
+		Lane:             string(CodeLane),
+		BaseRef:          "main",
+		HeadSHA:          "deadbeef",
+		ChangedFilesHash: "hash1",
+	}
+	if err := store.Save(readyEntry); err != nil {
+		t.Fatalf("Save(readyEntry) error = %v", err)
+	}
+
+	integratingEntry1 := Entry{
+		Branch:           "feature/integrating1",
+		SessionID:        "session2",
+		OriginCommand:    "refine",
+		State:            StateIntegrating,
+		Lane:             string(CodeLane),
+		BaseRef:          "main",
+		HeadSHA:          "cafebabe",
+		ChangedFilesHash: "hash2",
+	}
+	if err := store.Save(integratingEntry1); err != nil {
+		t.Fatalf("Save(integratingEntry1) error = %v", err)
+	}
+
+	integratingEntry2 := Entry{
+		Branch:           "feature/integrating2",
+		SessionID:        "session3",
+		OriginCommand:    "refine",
+		State:            StateIntegrating,
+		Lane:             string(CodeLane),
+		BaseRef:          "main",
+		HeadSHA:          "beefdead",
+		ChangedFilesHash: "hash3",
+	}
+	if err := store.Save(integratingEntry2); err != nil {
+		t.Fatalf("Save(integratingEntry2) error = %v", err)
+	}
+
+	coord := NewCoordinator(store, &mockGitOps{}, &mockScopedGate{})
+
+	// Recover from crash
+	err = coord.RecoverFromCrash(ctx)
+	if err != nil {
+		t.Fatalf("RecoverFromCrash() error = %v", err)
+	}
+
+	// Verify recovery results
+	payload, err := store.load()
+	if err != nil {
+		t.Fatalf("load() error = %v", err)
+	}
+
+	if len(payload.Entries) != 3 {
+		t.Fatalf("expected 3 entries, got %d", len(payload.Entries))
+	}
+
+	// Ready entry should remain unchanged
+	ready := findEntry(payload.Entries, "feature/ready")
+	if ready == nil {
+		t.Fatal("ready entry not found")
+	}
+	if ready.State != StateReady {
+		t.Fatalf("ready entry state = %s, want %s", ready.State, StateReady)
+	}
+
+	// Integrating entries should be reset to ready
+	integ1 := findEntry(payload.Entries, "feature/integrating1")
+	if integ1 == nil {
+		t.Fatal("integrating1 entry not found")
+	}
+	if integ1.State != StateReady {
+		t.Fatalf("integrating1 state = %s, want %s", integ1.State, StateReady)
+	}
+	if integ1.LastErrorCode != "crash_recovery" {
+		t.Fatalf("integrating1 error code = %s, want crash_recovery", integ1.LastErrorCode)
+	}
+
+	integ2 := findEntry(payload.Entries, "feature/integrating2")
+	if integ2 == nil {
+		t.Fatal("integrating2 entry not found")
+	}
+	if integ2.State != StateReady {
+		t.Fatalf("integrating2 state = %s, want %s", integ2.State, StateReady)
+	}
+	if integ2.LastErrorCode != "crash_recovery" {
+		t.Fatalf("integrating2 error code = %s, want crash_recovery", integ2.LastErrorCode)
+	}
+}
