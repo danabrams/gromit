@@ -19,6 +19,16 @@ Decomposition quality depends on contract parity across validator, mapping, prom
 
 Session worktree and mergeback behavior must follow a single ownership contract: deterministic lifecycle order (create→callback→record pending→merge attempt→cleanup or conflict handoff), typed retryable/non-retryable conflict classification using git output plus exit status, and merge-state safety that never aborts unrelated pre-existing merges. MergeBack cleanup may abort only merge state created by the current operation; pre-existing MERGE_HEAD must return a typed error and preserve the user's in-progress merge state.
 
+### 2026-02-28 | Retro Worktree Cannot See Runtime Logs, Causing Zero-Data Efficiency Reports | reliability
+*Related to: retro-1772302209902158129, gromit-r0x (previous experiment also hit this)*
+
+The retro efficiency report reads `.gromit/logs/run-*.jsonl` for cost/duration/token metrics, but these JSONL files are runtime artifacts (correctly gitignored). When retro runs in a session worktree, `.gromit/logs/` does not exist, so efficiency computation returns $0.0000 for all metrics. This is a recurring bug — the previous experiment ("Periodic Full Validation Gate") also had "data initially invisible due to worktree logs bug." The retro data collector must read logs from the main repo path, not the worktree-local path.
+
+### 2026-02-28 | Coordinator Stuck-State Causes Cascading Integration Queue Failures | reliability
+*Related to: 1bb40c0c, review-1772300695650836737, integration-queue conflict entries*
+
+Coordinator bugs in branch checkout sequencing and stuck-state handling can cause concurrent session commits to fail, leaving integration queue entries stuck in `conflict:session_commit_failed` with empty changed_files_hash. Beads still complete (work happens in session worktrees), but integration-to-main fails. The fix requires: (1) deterministic branch checkout with pre-checkout state validation, (2) epilogue signal propagation even on failure, and (3) subprocess safety (process group kill + stderr capture). Retro symptom: cost-per-bead metrics report $0.00 when the retro data collector can't see completed beads through the broken integration path — a data visibility bug, not actual zero output.
+
 ### 2026-02-26 | Orchestrator Shared Path and Stage Wiring | architecture
 *Related to: code-review, review-1771733992016921570, review-1771855648673321351, review-1771854448297640630, 9980dae8, gromit-22nrv, 8d85f5d7*
 
@@ -183,7 +193,7 @@ When close/sync fails in epilogue, the iteration is marked failed, success loggi
 Provider router (internal/provider/router.go) was a genuine data race — counts and unavailable maps accessed from multiple goroutines without locking. Now uses sync.Mutex on all read/write paths. New provider infrastructure must protect shared state similarly.
 
 ### 2026-02-28 | Integration Queue State Machine Has 7 States With Validated Transitions | architecture
-*Related to: review-1772280289214510883*
+*Related to: review-1772280289214510883, retro-1772302209902158129 (6 stuck conflict entries)*
 
 Integration queue uses states: draft/ready/integrating/merged/conflict/failed_gates/lane_violation. All coordinator state mutations must go through ApplyTransition — direct state assignment bypasses validation and silently diverges from the transition table. Error paths (push failure, rebase conflict) must persist state transitions before returning errors to avoid leaving entries stuck in StateIntegrating.
 

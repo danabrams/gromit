@@ -43,6 +43,7 @@ type Retro struct {
 	templatePath   string
 	experimentPath string
 	gromitDir      string
+	logsDir        string // override for logs directory; when empty, defaults to gromitDir/logs
 	promptBudget   int
 	diagnostics    *prompt.PromptDiagnostics
 }
@@ -107,6 +108,25 @@ func (r *Retro) SetPromptBudget(maxChars int) {
 		return
 	}
 	r.promptBudget = maxChars
+}
+
+// SetLogsDir overrides the directory used to read iteration log JSONL files.
+// This is necessary when retro runs from a session worktree where .gromit/logs/
+// does not exist because log files are gitignored runtime artifacts.
+// Pass the main repository's .gromit/logs path to read the real data.
+func (r *Retro) SetLogsDir(dir string) {
+	if r == nil {
+		return
+	}
+	r.logsDir = dir
+}
+
+// resolveLogsDir returns the effective logs directory, using the override if set.
+func (r *Retro) resolveLogsDir() string {
+	if r.logsDir != "" {
+		return r.logsDir
+	}
+	return filepath.Join(r.gromitDir, "logs")
 }
 
 // resultGetter is a common interface for extracting results from either provider or Claude
@@ -182,7 +202,7 @@ func (r *Retro) Run(ctx context.Context, beadFilter map[string]bool) (*Result, e
 	}
 
 	// Load run stats and per-bead stats (with optional filtering)
-	logsDir := filepath.Join(filepath.Dir(r.rulesPath), "logs")
+	logsDir := r.resolveLogsDir()
 	runStats, _ := logger.ReadAllLogsFiltered(logsDir, beadFilter)
 	allBeadStats, _ := logger.ReadPerBeadStatsFiltered(logsDir, beadFilter)
 

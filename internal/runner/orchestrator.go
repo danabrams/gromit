@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"os/exec"
+
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/coverage"
@@ -17,6 +19,7 @@ import (
 	"github.com/danabrams/gromit/internal/events/cli"
 	"github.com/danabrams/gromit/internal/events/stream"
 	"github.com/danabrams/gromit/internal/experiment"
+	"github.com/danabrams/gromit/internal/failurephase"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/procutil"
@@ -105,6 +108,23 @@ type trendUpdaterCloser interface {
 }
 
 var orchestratorNowFn = time.Now
+
+// orchestratorWaitForProcessCapacityFn is the pre-Build process capacity check.
+// It is a package-level variable so tests can inject a failing stub.
+var orchestratorWaitForProcessCapacityFn = procutil.WaitForProcessCapacity
+
+// orchestratorPreBuildCapacityWait is the timeout for the pre-Build capacity check.
+const orchestratorPreBuildCapacityWait = 3 * time.Second
+
+// orchestratorLookPathFn wraps exec.LookPath for testability.
+var orchestratorLookPathFn = exec.LookPath
+
+// orchestratorPrelaunchBackoffFn is called after a pre-launch failure to prevent
+// tight retry loops. It is a package-level variable so tests can inject a no-op.
+var orchestratorPrelaunchBackoffFn = func(d time.Duration) { time.Sleep(d) }
+
+// orchestratorPrelaunchBackoffDuration is the sleep duration after a pre-launch failure.
+const orchestratorPrelaunchBackoffDuration = 3 * time.Second
 
 // StateSaver persists provider routing state (provider counts, availability) to disk.
 type StateSaver interface {
@@ -362,6 +382,7 @@ runLoop:
 				BeadID:                   b.ID,
 				BeadTitle:                b.Title,
 				Success:                  false,
+				FailurePhase:             failurephase.Prelaunch,
 				Complexity:               baseIn.Complexity,
 				ComplexitySource:         baseIn.ComplexitySource,
 				ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
@@ -411,6 +432,7 @@ runLoop:
 						BeadTitle:                b.Title,
 						Success:                  false,
 						Error:                    fmt.Sprintf("branch checkout failed for %s: %v", branch, checkoutErr),
+						FailurePhase:             failurephase.Prelaunch,
 						Complexity:               baseIn.Complexity,
 						ComplexitySource:         baseIn.ComplexitySource,
 						ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
@@ -425,6 +447,76 @@ runLoop:
 					})
 					continue
 				}
+			}
+		}
+
+		// Pre-Build diagnostic: verify subprocess capacity before launching the LLM process.
+		if capErr := orchestratorWaitForProcessCapacityFn(ctx, orchestratorPreBuildCapacityWait); capErr != nil {
+			o.logWarning("Pre-build capacity check failed for bead %s (iteration %d): %v", b.ID, iteration, capErr)
+			o.emitBeadFailedEvent(b, capErr.Error())
+			baseIn.Result = &logger.IterationLog{
+				Timestamp:                time.Now(),
+				Iteration:                iteration,
+				BeadID:                   b.ID,
+				BeadTitle:                b.Title,
+				Success:                  false,
+				Error:                    capErr.Error(),
+				FailurePhase:             failurephase.Prelaunch,
+				GateBlockReason:          "process_capacity_exhausted",
+				Complexity:               baseIn.Complexity,
+				ComplexitySource:         baseIn.ComplexitySource,
+				ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
+			}
+			o.runEpilogue(ctx, baseIn, false)
+			o.emitter.Emit(&events.IterationCompleteEvent{
+				Iteration: iteration,
+				BeadID:    b.ID,
+				Success:   false,
+				Duration:  0,
+				Time:      time.Now(),
+			})
+			orchestratorPrelaunchBackoffFn(orchestratorPrelaunchBackoffDuration)
+			continue
+		}
+
+		// Pre-Build diagnostic: verify at least one configured provider binary exists on PATH.
+		if o.cfg.Config != nil && len(o.cfg.Config.Providers) > 0 {
+			anyFound := false
+			for _, pDef := range o.cfg.Config.Providers {
+				if pDef.Binary == "" {
+					continue
+				}
+				if _, lookErr := orchestratorLookPathFn(pDef.Binary); lookErr == nil {
+					anyFound = true
+					break
+				}
+			}
+			if !anyFound {
+				o.logWarning("Pre-build binary check failed for bead %s (iteration %d): no configured provider binary found on PATH", b.ID, iteration)
+				o.emitBeadFailedEvent(b, "no configured provider binary found on PATH")
+				baseIn.Result = &logger.IterationLog{
+					Timestamp:                time.Now(),
+					Iteration:                iteration,
+					BeadID:                   b.ID,
+					BeadTitle:                b.Title,
+					Success:                  false,
+					Error:                    "no configured provider binary found on PATH",
+					FailurePhase:             failurephase.Prelaunch,
+					GateBlockReason:          "provider_binary_missing",
+					Complexity:               baseIn.Complexity,
+					ComplexitySource:         baseIn.ComplexitySource,
+					ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
+				}
+				o.runEpilogue(ctx, baseIn, false)
+				o.emitter.Emit(&events.IterationCompleteEvent{
+					Iteration: iteration,
+					BeadID:    b.ID,
+					Success:   false,
+					Duration:  0,
+					Time:      time.Now(),
+				})
+				orchestratorPrelaunchBackoffFn(orchestratorPrelaunchBackoffDuration)
+				continue
 			}
 		}
 
