@@ -1045,15 +1045,30 @@ func (a *readinessAdapterWithLLM) Assess(ctx context.Context, b *bead.Bead) (rea
 	if a.router == nil {
 		return readiness.Assessment{Status: readiness.StatusNotReady}, nil
 	}
-	provider, _ := a.router.Select("readiness", "medium")
-	if provider == nil {
+	p, _ := a.router.Select("readiness", "medium")
+	if p == nil {
 		return readiness.Assessment{Status: readiness.StatusNotReady}, nil
 	}
 
-	// Fail closed: LLM invocation not yet implemented.
-	// Until the LLM call is wired, block beads to avoid false confidence.
-	_ = promptText
-	return readiness.Assessment{Status: readiness.StatusNotReady}, nil
+	// Invoke LLM with the rendered readiness prompt
+	result, err := p.Run(ctx, promptText, "medium")
+	if err != nil {
+		// Fail closed: provider errors return StatusNotReady
+		return readiness.Assessment{Status: readiness.StatusNotReady}, nil
+	}
+	if result == nil {
+		// Fail closed: nil result returns StatusNotReady
+		return readiness.Assessment{Status: readiness.StatusNotReady}, nil
+	}
+
+	// Parse the LLM response
+	assessment, err := parseReadinessResponse(result.Output)
+	if err != nil {
+		// Fail closed: malformed LLM output returns StatusNotReady
+		return readiness.Assessment{Status: readiness.StatusNotReady}, nil
+	}
+
+	return assessment, nil
 }
 
 func checkCriteriaMissing(b *bead.Bead) (readiness.Assessment, bool) {
@@ -1134,6 +1149,55 @@ func parseAcceptanceCriteria(text string) []string {
 		trimmed = append(trimmed, cleaned)
 	}
 	return trimmed
+}
+
+const (
+	readinessResponseReady                     = "READY"
+	readinessResponseNotReadyCriteriaPrefix    = "NOT_READY_CRITERIA_"
+	readinessResponseNotReadyScopePrefix       = "NOT_READY_SCOPE_"
+)
+
+var (
+	readinessCriteriaReasonMap = map[string]string{
+		"criteria_missing":  prepare.ReasonCriteriaMissing,
+		"criteria_ambiguous": prepare.ReasonCriteriaAmbiguous,
+	}
+	readinessScopeReasonMap = map[string]string{
+		"scope_too_broad": prepare.ReasonScopeTooBroad,
+	}
+)
+
+func parseReadinessResponse(output string) (readiness.Assessment, error) {
+	trimmed := strings.TrimSpace(output)
+	if trimmed == "" {
+		return readiness.Assessment{}, fmt.Errorf("readiness response is empty")
+	}
+	if trimmed == readinessResponseReady {
+		return readiness.Assessment{Status: readiness.StatusReady}, nil
+	}
+	if strings.HasPrefix(trimmed, readinessResponseNotReadyCriteriaPrefix) {
+		reasonSuffix := trimmed[len(readinessResponseNotReadyCriteriaPrefix):]
+		if reasonSuffix == "" {
+			return readiness.Assessment{}, fmt.Errorf("readiness criteria response missing reason: %q", output)
+		}
+		reason, ok := readinessCriteriaReasonMap[reasonSuffix]
+		if !ok {
+			return readiness.Assessment{}, fmt.Errorf("unknown readiness criteria reason: %q", reasonSuffix)
+		}
+		return readiness.Assessment{Status: readiness.StatusNotReady, Reason: reason}, nil
+	}
+	if strings.HasPrefix(trimmed, readinessResponseNotReadyScopePrefix) {
+		reasonSuffix := trimmed[len(readinessResponseNotReadyScopePrefix):]
+		if reasonSuffix == "" {
+			return readiness.Assessment{}, fmt.Errorf("readiness scope response missing reason: %q", output)
+		}
+		reason, ok := readinessScopeReasonMap[reasonSuffix]
+		if !ok {
+			return readiness.Assessment{}, fmt.Errorf("unknown readiness scope reason: %q", reasonSuffix)
+		}
+		return readiness.Assessment{Status: readiness.StatusNotReady, Reason: reason}, nil
+	}
+	return readiness.Assessment{}, fmt.Errorf("unexpected readiness response: %q", trimmed)
 }
 
 // Compile-time interface checks

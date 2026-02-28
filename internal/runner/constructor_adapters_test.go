@@ -497,6 +497,40 @@ func (f *fakeBeadClient) HasOpenChildren(ctx context.Context, parentID string) (
 	return false, nil
 }
 
+// trackingReadinessProvider records calls to Run() for testing.
+type trackingReadinessProvider struct {
+	runCalled      bool
+	capturedPrompt string
+	capturedTier   string
+}
+
+func (p *trackingReadinessProvider) Name() string                    { return "tracking" }
+func (p *trackingReadinessProvider) ModelForTier(tier string) string { return "sonnet" }
+func (p *trackingReadinessProvider) Run(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
+	p.runCalled = true
+	p.capturedPrompt = prompt
+	p.capturedTier = tier
+	return &provider.Result{Success: true, Output: "READY"}, nil
+}
+func (p *trackingReadinessProvider) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+	return &provider.Result{Success: true, Output: "READY"}, nil
+}
+func (p *trackingReadinessProvider) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*provider.Result, error) {
+	return &provider.Result{Success: true}, nil
+}
+func (p *trackingReadinessProvider) IsUsageLimitError(result *provider.Result, err error) bool { return false }
+func (p *trackingReadinessProvider) IsValidationPassed(result *provider.Result) bool           { return result.Success }
+func (p *trackingReadinessProvider) IsScopeTooLarge(result *provider.Result) (bool, string)    { return false, "" }
+
+// readinessTrackerRouter returns a tracked provider for testing.
+type readinessTrackerRouter struct {
+	provider provider.Provider
+}
+
+func (r *readinessTrackerRouter) Select(phase, tier string) (provider.Provider, string) {
+	return r.provider, "test-model"
+}
+
 type dummyGitOpsForSpec struct{}
 
 func (d *dummyGitOpsForSpec) RebaseOnto(ctx context.Context, branch, onto string) error { return nil }
@@ -675,5 +709,68 @@ func TestReadinessAdapterWithLLM_AssessShortCircuitsTooManyCriteria(t *testing.T
 	}
 	if router.phase != "" {
 		t.Fatalf("router.Select should not be called for criteria_count short-circuit: phase=%q", router.phase)
+	}
+}
+
+func TestParseReadinessResponse(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		input string
+		want readiness.Assessment
+	}{
+		{
+			name: "ready",
+			input: "READY",
+			want: readiness.Assessment{Status: readiness.StatusReady},
+		},
+		{
+			name: "criteria missing",
+			input: "NOT_READY_CRITERIA_criteria_missing",
+			want: readiness.Assessment{Status: readiness.StatusNotReady, Reason: prepare.ReasonCriteriaMissing},
+		},
+		{
+			name: "scope too broad",
+			input: "NOT_READY_SCOPE_scope_too_broad",
+			want: readiness.Assessment{Status: readiness.StatusNotReady, Reason: prepare.ReasonScopeTooBroad},
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := parseReadinessResponse(tc.input)
+			if err != nil {
+				t.Fatalf("parseReadinessResponse(%q) returned error: %v", tc.input, err)
+			}
+			if got != tc.want {
+				t.Fatalf("parseReadinessResponse(%q) = %+v, want %+v", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestReadinessAdapterWithLLM_AssessInvokesProviderWithRenderedPrompt verifies that Assess calls provider.Run() with the rendered prompt.
+func TestReadinessAdapterWithLLM_AssessInvokesProviderWithRenderedPrompt(t *testing.T) {
+	t.Parallel()
+	renderer := &dummyPromptRenderer{}
+	trackerProvider := &trackingReadinessProvider{}
+	router := &readinessTrackerRouter{provider: trackerProvider}
+	adapter := NewReadinessAdapterWithLLM(renderer, router)
+
+	ctx := context.Background()
+	b := &bead.Bead{ID: "test-bead", Title: "Test Task", ExpectedOutputs: []string{"deliverable"}}
+
+	_, err := adapter.Assess(ctx, b)
+	if err != nil {
+		t.Fatalf("Assess returned error: %v", err)
+	}
+
+	if !trackerProvider.runCalled {
+		t.Fatal("expected provider.Run() to be called")
+	}
+	if trackerProvider.capturedPrompt != "readiness_prompt" {
+		t.Fatalf("provider.Run() called with prompt %q, want %q", trackerProvider.capturedPrompt, "readiness_prompt")
 	}
 }
