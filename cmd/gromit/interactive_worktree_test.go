@@ -1092,8 +1092,7 @@ func TestConcurrentSessions_BothQueueWithoutConflict(t *testing.T) {
 }
 
 func TestRunWithSessionWorktreeQueuesReadyBranchWithLaneMetadata(t *testing.T) {
-	// RED: Test that verifies lane metadata is captured in ready queue entries.
-	// This test should fail if Lane field is not set or has wrong value.
+	// Test verifies lane metadata is captured in ready queue entries.
 	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "lane-metadata")
 	session.BranchName = "gromit/lane-metadata-ready"
 
@@ -1151,6 +1150,67 @@ func TestRunWithSessionWorktreeQueuesReadyBranchWithLaneMetadata(t *testing.T) {
 	}
 	if recordedEntry.State != "ready" {
 		t.Fatalf("entry state = %q, want ready", recordedEntry.State)
+	}
+}
+
+func TestRunWithSessionWorktreeQueuesBlockedBranchWithLaneMetadata(t *testing.T) {
+	// Test verifies lane metadata is captured in blocked queue entries on commit failure.
+	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "lane-blocked")
+	session.BranchName = "gromit/lane-blocked-entry"
+
+	var recordedEntry *integrationqueue.Entry
+	cleanupStore := overrideQueueStore(func(entry integrationqueue.Entry) error {
+		recordedEntry = &entry
+		return nil
+	})
+	t.Cleanup(cleanupStore)
+
+	commitErr := errors.New("git commit failed")
+	cleanupGit := overrideGitRun(func(dir string, args ...string) (string, error) {
+		switch args[0] {
+		case "commit":
+			return "", commitErr
+		case "rev-parse":
+			if len(args) > 1 && args[1] == "HEAD" {
+				return "blocked-head-sha", nil
+			}
+		case "status":
+			return " M blocked-file.go\n", nil
+		}
+		return "", nil
+	})
+	t.Cleanup(cleanupGit)
+
+	withInteractiveWorktreeFactories(t, func(gotMainDir string) (sessionWorktreeCreator, error) {
+		if gotMainDir != mainDir {
+			t.Fatalf("mainDir = %q, want %q", gotMainDir, mainDir)
+		}
+		return &mockSessionWorktreeCreator{
+			CreateSessionWorktreeFn: func(string) (*worktree.SessionWorktree, error) {
+				return session, nil
+			},
+		}, nil
+	}, func(string) (pendingBranchRecorder, error) {
+		return &mockPendingBranchRecorder{
+			AddPendingWorktreeBranchFn: func(string) error { return nil },
+		}, nil
+	}, func(string, string) error {
+		return nil
+	})
+
+	_, err := runWithSessionWorktree(gromitDir, "lane-blocked", func(string) error { return nil })
+	if err == nil {
+		t.Fatal("expected auto commit error, got nil")
+	}
+
+	if recordedEntry == nil {
+		t.Fatal("expected blocked queue entry to be recorded")
+	}
+	if recordedEntry.Lane != "code_lane" {
+		t.Fatalf("entry Lane = %q, want %q", recordedEntry.Lane, "code_lane")
+	}
+	if recordedEntry.State != "conflict" {
+		t.Fatalf("entry state = %q, want conflict", recordedEntry.State)
 	}
 }
 
