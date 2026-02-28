@@ -2,6 +2,7 @@ package bead
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -214,6 +215,15 @@ type Client struct {
 // NewClient creates a new bd client
 func NewClient() (*Client, error) {
 	return &Client{binary: defaultBDBinary}, nil
+}
+
+// NewClientWithBinary creates a bd client using the provided binary path.
+// The binary path must not be empty.
+func NewClientWithBinary(binary string) (*Client, error) {
+	if strings.TrimSpace(binary) == "" {
+		return nil, errors.New("bd binary path cannot be empty")
+	}
+	return &Client{binary: binary}, nil
 }
 
 // commandTimeout returns the effective per-command timeout.
