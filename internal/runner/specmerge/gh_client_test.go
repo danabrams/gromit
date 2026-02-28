@@ -261,6 +261,35 @@ func TestGhCLIClient_PostCommentCommandAndJSON(t *testing.T) {
 	}
 }
 
+func TestGhCLIClient_RequestReviewersCommandAndJSON(t *testing.T) {
+	t.Parallel()
+
+	runner := &fakeGHRunner{
+		stdout: `{"requested_reviewers": [{"login": "reviewer1"}, {"login": "reviewer2"}]}`,
+	}
+
+	client := specmerge.NewGhCLIClient(runner)
+	ctx := context.Background()
+	ref := specmerge.PRRef{Owner: "octocat", Repo: "hello-world", Number: 606}
+
+	if err := client.RequestReviewers(ctx, ref, []string{"reviewer1", "reviewer2"}); err != nil {
+		t.Fatalf("RequestReviewers returned error: %v", err)
+	}
+
+	gotArgs := runner.calls[0].args
+	wantArgs := []string{
+		"api",
+		"-X",
+		"POST",
+		"/repos/octocat/hello-world/pulls/606/requested_reviewers",
+		"-F",
+		"reviewers=[\"reviewer1\",\"reviewer2\"]",
+	}
+	if !reflect.DeepEqual(gotArgs, wantArgs) {
+		t.Fatalf("gh command args = %v, want %v", gotArgs, wantArgs)
+	}
+}
+
 // fakeGHRunner captures gh CLI commands for testing.
 type fakeGHRunner struct {
 	calls  []ghCall
