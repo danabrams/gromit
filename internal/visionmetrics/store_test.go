@@ -246,6 +246,14 @@ func TestLoadRecords_EmptyFile(t *testing.T) {
 	}
 }
 
+func TestLoadRecords_NonExistentFile(t *testing.T) {
+	// Try to load from a non-existent file
+	_, err := LoadRecords("/nonexistent/path/to/file.jsonl")
+	if err == nil {
+		t.Error("LoadRecords should return error for non-existent file")
+	}
+}
+
 func parseTime(s string) time.Time {
 	// Helper to parse RFC3339 timestamp
 	t, _ := time.Parse(time.RFC3339, s)
