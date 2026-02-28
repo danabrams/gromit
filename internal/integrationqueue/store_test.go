@@ -10,6 +10,24 @@ import (
 	"testing"
 )
 
+func TestLoadQueueReturnsDefaultWhenMissing(t *testing.T) {
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, queueFileName)
+	q, err := LoadQueue(path)
+	if err != nil {
+		t.Fatalf("LoadQueue() error = %v", err)
+	}
+	if q == nil {
+		t.Fatal("expected queue, got nil")
+	}
+	if q.SchemaVersion != SchemaVersion {
+		t.Fatalf("schema version = %d, want %d", q.SchemaVersion, SchemaVersion)
+	}
+	if len(q.Entries) != 0 {
+		t.Fatalf("entries = %d, want 0", len(q.Entries))
+	}
+}
+
 func TestStoreSaveCreatesAndUpdatesEntry(t *testing.T) {
 	tmpDir := t.TempDir()
 	store, err := NewStore(tmpDir)
