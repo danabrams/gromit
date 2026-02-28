@@ -67,6 +67,7 @@ func runCommand(ctx context.Context, cmd *exec.Cmd) (string, string, int, error)
 	if err := cmd.Start(); err != nil {
 		return "", "", execFailureExitCode, err
 	}
+	procutil.KillDescendantsOnCancel(ctx, cmd)
 	defer procutil.ReapProcessTree(cmd)
 	err := cmd.Wait()
 	if err != nil {
