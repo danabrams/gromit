@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"sync"
 	"time"
 )
 
@@ -14,6 +15,7 @@ type Router struct {
 	cooldown       time.Duration
 	stateFn        StateFile
 	circuitBreaker *CircuitBreaker
+	mu             sync.Mutex
 }
 
 // StateFile is the interface for persisting provider routing state
@@ -115,7 +117,10 @@ func (r *Router) isAvailable(name string) bool {
 		return false
 	}
 
-	// Check local unavailable map
+	// Check local unavailable map (under lock)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	if until, ok := r.unavailable[name]; ok {
 		if time.Now().Before(until) {
 			return false
@@ -136,9 +141,17 @@ func (r *Router) selectByRatio() string {
 		return ""
 	}
 
+	// Read counts under lock
+	r.mu.Lock()
+	countsSnapshot := make(map[string]int)
+	for k, v := range r.counts {
+		countsSnapshot[k] = v
+	}
+	r.mu.Unlock()
+
 	// Calculate total count across all providers
 	totalCount := 0
-	for _, count := range r.counts {
+	for _, count := range countsSnapshot {
 		totalCount += count
 	}
 
@@ -152,7 +165,7 @@ func (r *Router) selectByRatio() string {
 			continue
 		}
 
-		currentCount := r.counts[name]
+		currentCount := countsSnapshot[name]
 		var currentPercent float64
 		if totalCount > 0 {
 			currentPercent = float64(currentCount) / float64(totalCount) * 100.0
@@ -189,8 +202,11 @@ func (r *Router) selectProvider(name string, tier string) (Provider, string) {
 	// Get model name for the tier
 	modelName := provider.ModelForTier(tier)
 
-	// Increment count
+	// Increment count (under lock)
+	r.mu.Lock()
 	r.counts[name]++
+	r.mu.Unlock()
+
 	if r.stateFn != nil {
 		r.stateFn.IncrementProviderCount(name)
 	}
@@ -222,7 +238,10 @@ func (r *Router) SelectCross(buildProvider string, tier string) (Provider, strin
 // MarkUnavailable records current time plus cooldown for the specified provider
 func (r *Router) MarkUnavailable(name string) {
 	until := time.Now().Add(r.cooldown)
+
+	r.mu.Lock()
 	r.unavailable[name] = until
+	r.mu.Unlock()
 
 	if r.stateFn != nil {
 		r.stateFn.SetProviderUnavailable(name, until)
@@ -231,7 +250,9 @@ func (r *Router) MarkUnavailable(name string) {
 
 // RecordInvocation increments count and persists to state via stateFn
 func (r *Router) RecordInvocation(name string) {
+	r.mu.Lock()
 	r.counts[name]++
+	r.mu.Unlock()
 
 	if r.stateFn != nil {
 		r.stateFn.IncrementProviderCount(name)
