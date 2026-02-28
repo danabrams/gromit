@@ -83,6 +83,7 @@ type Config struct {
 	SpecGate        SpecGateConfig         `yaml:"spec_gate"`
 	Decompose       DecomposeConfig        `yaml:"decompose"`
 	MergePipeline   MergePipelineConfig    `yaml:"merge_pipeline"`
+	SpecPR          SpecPRConfig           `yaml:"spec_pr"`
 }
 
 type CompatibilityConfig struct {
@@ -621,6 +622,18 @@ type DecomposeConfig struct {
 
 type MergePipelineConfig struct {
 	RetryCapDefault int `yaml:"retry_cap_default"`
+}
+
+type SpecPRConfig struct {
+	Enabled                 *bool    `yaml:"enabled"`
+	Reviewers               []string `yaml:"reviewers"`
+	MergeMethod             string   `yaml:"merge_method"`
+	FixCycleCap             int      `yaml:"fix_cycle_cap"`
+	AutoFixHumanComments    bool     `yaml:"auto_fix_human_comments"`
+	AutoMergeOnApproval     bool     `yaml:"auto_merge_on_approval"`
+	CIPollInterval          int      `yaml:"ci_poll_interval"`
+	CITimeout               int      `yaml:"ci_timeout"`
+	MaxOpenPRs              int      `yaml:"max_open_prs"`
 }
 
 // ResolvePhaseTimeoutSeconds returns the configured timeout for a methodology
