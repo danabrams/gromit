@@ -238,6 +238,15 @@ func (p *Pipeline) StartExploreSession(ctx context.Context, input ExploreInput) 
 			return
 		}
 
+		// Forward model to agent if model is specified and ModelForwarder is available
+		if input.Model != "" && p.deps.ModelForwarder != nil {
+			forwardedAgent, warning := p.deps.ModelForwarder(agent, input.Model)
+			if warning != "" && p.deps.WarningWriter != nil {
+				p.deps.WarningWriter(warning)
+			}
+			agent = forwardedAgent
+		}
+
 		// Launch agent
 		if err := agent.LaunchInDir(promptPath, ""); err != nil {
 			select {
