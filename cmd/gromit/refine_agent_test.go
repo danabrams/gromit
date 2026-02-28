@@ -45,6 +45,20 @@ func TestRefineCommandHasChooseAgentFlag(t *testing.T) {
 	}
 }
 
+// TestRefineCommandHasModelFlag verifies refine command has --model flag
+func TestRefineCommandHasModelFlag(t *testing.T) {
+	t.Parallel()
+
+	flag := refineCmd.Flags().Lookup("model")
+	if flag == nil {
+		t.Error("refine command missing --model flag")
+	}
+
+	if flag != nil && flag.Value.Type() != "string" {
+		t.Errorf("--model flag type = %q, want %q", flag.Value.Type(), "string")
+	}
+}
+
 func TestSetupAgentConfigCreatesExpectedFiles(t *testing.T) {
 	t.Parallel()
 	_, gromitDir, configPath := setupAgentConfig(t, `
