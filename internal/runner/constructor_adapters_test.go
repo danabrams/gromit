@@ -451,7 +451,9 @@ func TestDecomposerAdapterChildWithDedupeLabelExistsWithClient_ThreadsProvidedCo
 }
 
 type fakeBeadClient struct {
-	listFn func(ctx context.Context, label string) ([]*bead.Bead, error)
+	listFn   func(ctx context.Context, label string) ([]*bead.Bead, error)
+	createFn func(ctx context.Context, title string, priority int, labels []string, outputs []string, parentID string) (*bead.Bead, error)
+	closeFn  func(ctx context.Context, id string) error
 }
 
 func (f *fakeBeadClient) Ready(ctx context.Context) (*bead.Bead, error) {
@@ -473,7 +475,10 @@ func (f *fakeBeadClient) Show(ctx context.Context, id string) (*bead.Bead, error
 	return nil, nil
 }
 func (f *fakeBeadClient) Close(ctx context.Context, id string) error {
-	return nil
+	if f.closeFn == nil {
+		return nil
+	}
+	return f.closeFn(ctx, id)
 }
 func (f *fakeBeadClient) Sync(ctx context.Context) error {
 	return nil
@@ -488,7 +493,10 @@ func (f *fakeBeadClient) Create(ctx context.Context, title string, priority int,
 	return nil, nil
 }
 func (f *fakeBeadClient) CreateWithParent(ctx context.Context, title string, priority int, labels []string, outputs []string, parentID string) (*bead.Bead, error) {
-	return nil, nil
+	if f.createFn == nil {
+		return nil, nil
+	}
+	return f.createFn(ctx, title, priority, labels, outputs, parentID)
 }
 func (f *fakeBeadClient) CreateWithParentAndDescription(ctx context.Context, title string, priority int, labels []string, outputs []string, parentID string, description string) (*bead.Bead, error) {
 	return nil, nil
@@ -675,5 +683,61 @@ func TestReadinessAdapterWithLLM_AssessShortCircuitsTooManyCriteria(t *testing.T
 	}
 	if router.phase != "" {
 		t.Fatalf("router.Select should not be called for criteria_count short-circuit: phase=%q", router.phase)
+	}
+}
+
+// TestDecomposerAdapter_Decompose_ThreadsContextToChildDuplicateCheck verifies that
+// Decompose uses the context-aware childWithDedupeLabelExistsWithClient method when
+// checking for existing child beads, threading the provided context through.
+func TestDecomposerAdapter_Decompose_ThreadsContextToChildDuplicateCheck(t *testing.T) {
+	t.Parallel()
+
+	// Create a custom context with a value to verify it's threaded through
+	testValue := "test-decompose-context"
+	customCtx := context.WithValue(context.Background(), "test-key", testValue)
+
+	var capturedCtx context.Context
+	adapter := &decomposerAdapter{
+		router: provider.NewSingleProviderRouter(&stubRunProvider{
+			name: "test-provider",
+			runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
+				return &provider.Result{
+					Success: true,
+					Output:  `[{"title":"Part 1","expected_outputs":["f1"]},{"title":"Part 2","expected_outputs":["f2"]}]`,
+				}, nil
+			},
+		}),
+		beads: &fakeBeadClient{
+			listFn: func(ctx context.Context, label string) ([]*bead.Bead, error) {
+				capturedCtx = ctx
+				// Return no existing children so the bead gets created
+				return nil, nil
+			},
+			createFn: func(ctx context.Context, title string, priority int, labels []string, outputs []string, parentID string) (*bead.Bead, error) {
+				return &bead.Bead{ID: "child-1", Title: title, Parent: parentID}, nil
+			},
+			closeFn: func(ctx context.Context, id string) error {
+				return nil
+			},
+		},
+	}
+
+	parent := &bead.Bead{
+		ID:       "parent-1",
+		Title:    "Oversized Feature",
+		Priority: 1,
+	}
+
+	err := adapter.Decompose(customCtx, parent)
+	if err != nil {
+		t.Fatalf("Decompose returned error: %v", err)
+	}
+
+	// Verify the context was threaded through to the duplicate check
+	if capturedCtx == nil {
+		t.Fatal("context was not captured by ListWithLabel - Decompose not threading context to childWithDedupeLabelExistsWithClient")
+	}
+	if capturedCtx.Value("test-key") != testValue {
+		t.Fatal("context value not found in captured context - context not properly threaded through duplicate check")
 	}
 }
