@@ -106,3 +106,10 @@ func TestCanTransition_FailedGatesToReady_Allowed(t *testing.T) {
 		t.Errorf("expected failed_gates->ready to be allowed, got false")
 	}
 }
+
+func TestCanTransition_LaneViolationToReady_Allowed(t *testing.T) {
+	result := CanTransition("lane_violation", "ready")
+	if !result {
+		t.Errorf("expected lane_violation->ready to be allowed, got false")
+	}
+}
