@@ -12,6 +12,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/events/eventtest"
+	"github.com/danabrams/gromit/internal/readiness"
 	"github.com/danabrams/gromit/internal/pipeline"
 )
 
@@ -162,6 +163,28 @@ func newMockDataQualityBlocker() *mockDataQualityBlocker {
 	return &mockDataQualityBlocker{}
 }
 
+// mockReadinessAssessor simulates readiness responses for gate tests.
+type mockReadinessAssessor struct {
+	status readiness.Status
+	reason string
+	err    error
+}
+
+func newMockReadinessAssessor() *mockReadinessAssessor {
+	return &mockReadinessAssessor{}
+}
+
+func (m *mockReadinessAssessor) WithAssessment(status readiness.Status, reason string, err error) *mockReadinessAssessor {
+	m.status = status
+	m.reason = reason
+	m.err = err
+	return m
+}
+
+func (m *mockReadinessAssessor) Assess(_ context.Context, _ *bead.Bead) (readiness.Assessment, error) {
+	return readiness.Assessment{Status: m.status, Reason: m.reason}, m.err
+}
+
 func (m *mockDataQualityBlocker) WithShouldBlock(blocked bool, reason string, err error) *mockDataQualityBlocker {
 	m.blocked = blocked
 	m.reason = reason
@@ -182,6 +205,33 @@ type fakeDataQualityBlocker struct {
 
 func (f *fakeDataQualityBlocker) ShouldBlock(_ context.Context, _ *bead.Bead) (bool, string, error) {
 	return f.blocked, f.reason, f.err
+}
+
+// RED: test for readiness assessor blocking bead with explicit reason code
+func TestGateRun_ReadinessAssessorBlocksWithReason(t *testing.T) {
+	t.Parallel()
+
+	gate := New(io.Discard).WithReadinessAssessor(
+		newMockReadinessAssessor().WithAssessment(readiness.StatusNotReady, "criteria_missing", nil),
+	)
+
+	beadID := "readiness-assessor-block"
+	b := &bead.Bead{
+		ID:    beadID,
+		Title: "test bead",
+	}
+
+	out, err := gate.Run(context.Background(), pipeline.Input{Bead: b})
+	if err != nil {
+		t.Fatalf("Gate.Run() error = %v", err)
+	}
+
+	if out.Decision != pipeline.Block {
+		t.Fatalf("decision = %v, want %v", out.Decision, pipeline.Block)
+	}
+	if out.GateBlockReason != "criteria_missing" {
+		t.Errorf("GateBlockReason = %q, want %q", out.GateBlockReason, "criteria_missing")
+	}
 }
 
 func TestGateRun(t *testing.T) {
