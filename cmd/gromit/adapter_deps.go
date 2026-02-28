@@ -207,10 +207,16 @@ func exploreModelForwarder() func(pipeline.Agent, string) (pipeline.Agent, strin
 		}
 		resolvedAgent, ok := pAgent.(agent.Agent)
 		if !ok {
-			return pAgent, "model forwarding not supported for agent " + pAgent.Name()
+			return pAgent, fmt.Sprintf("model override not supported for agent %q", pAgent.Name())
 		}
-		forwardedAgent, warning := agent.ForwardModelToAgent(resolvedAgent, model)
-		return forwardedAgent, warning
+		result := agent.TryOverrideModel(resolvedAgent, model)
+		if result.Agent != nil {
+			return result.Agent, ""
+		}
+		if result.Warning != "" {
+			return pAgent, result.Warning
+		}
+		return pAgent, ""
 	}
 }
 

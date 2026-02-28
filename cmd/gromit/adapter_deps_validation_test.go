@@ -270,15 +270,11 @@ func TestAdapterDeps_ModelForwardingWiring(t *testing.T) {
 		t.Fatalf("forwarded command missing --model args: %v", cmd.Args)
 	}
 
-	claudeAgent, err := agent.Resolve(nil, "explore", "claude", false, strings.NewReader(""), io.Discard)
-	if err != nil {
-		t.Fatalf("agent.Resolve(claude) failed: %v", err)
-	}
-
-	unsupportedWarning := "model forwarding not supported for agent claude"
-	_, warning = deps.ModelForwarder(claudeAgent, "sonnet")
+	unsupported := unsupportedPipelineAgent{}
+	unsupportedWarning := "model override not supported for agent \"custom\""
+	_, warning = deps.ModelForwarder(unsupported, "sonnet")
 	if warning != unsupportedWarning {
-		t.Fatalf("ModelForwarder(claude) warning = %q, want %q", warning, unsupportedWarning)
+		t.Fatalf("ModelForwarder(custom) warning = %q, want %q", warning, unsupportedWarning)
 	}
 
 	captureWarningOutput(t, deps.WarningWriter, warning)
@@ -359,3 +355,9 @@ func captureWarningOutput(t *testing.T, writer func(string), message string) {
 		t.Fatalf("warning output missing %q, got %q", message, string(data))
 	}
 }
+
+type unsupportedPipelineAgent struct{}
+
+func (unsupportedPipelineAgent) Name() string                     { return "custom" }
+func (unsupportedPipelineAgent) Launch(string) error              { return nil }
+func (unsupportedPipelineAgent) LaunchInDir(string, string) error { return nil }
