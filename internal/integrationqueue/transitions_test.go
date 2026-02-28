@@ -78,3 +78,10 @@ func TestRecordTransition_CapturesErrorCode(t *testing.T) {
 		t.Errorf("expected ErrorCode to be CONFLICT_DETECTED, got %s", record.ErrorCode)
 	}
 }
+
+func TestCanTransition_IntegratingToFailedGates_Allowed(t *testing.T) {
+	result := CanTransition("integrating", "failed_gates")
+	if !result {
+		t.Errorf("expected integrating->failed_gates to be allowed, got false")
+	}
+}
