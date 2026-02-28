@@ -1214,6 +1214,91 @@ func TestRunWithSessionWorktreeQueuesBlockedBranchWithLaneMetadata(t *testing.T)
 	}
 }
 
+func TestRunWithSessionWorktreeCapturesFullMetadataOnQueue(t *testing.T) {
+	// Test verifies complete metadata capture: BaseRef, HeadSHA, ChangedFilesHash, Lane, etc.
+	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "full-meta")
+	session.BranchName = "gromit/full-metadata-test"
+
+	var recordedEntry *integrationqueue.Entry
+	cleanupStore := overrideQueueStore(func(entry integrationqueue.Entry) error {
+		recordedEntry = &entry
+		return nil
+	})
+	t.Cleanup(cleanupStore)
+
+	const expectedHeadSHA = "abc1234567890def"
+	const expectedBaseRef = "def0987654321abc"
+	cleanupGit := overrideGitRun(func(dir string, args ...string) (string, error) {
+		switch args[0] {
+		case "add":
+			return "", nil
+		case "commit":
+			return "", nil
+		case "rev-parse":
+			if len(args) > 1 && args[1] == "HEAD" {
+				return expectedHeadSHA, nil
+			}
+			if len(args) > 1 && args[1] == "HEAD^" {
+				return expectedBaseRef, nil
+			}
+		case "diff":
+			return "src/module.go\nsrc/test.go\n", nil
+		}
+		return "", nil
+	})
+	t.Cleanup(cleanupGit)
+
+	withInteractiveWorktreeFactories(t, func(gotMainDir string) (sessionWorktreeCreator, error) {
+		if gotMainDir != mainDir {
+			t.Fatalf("mainDir = %q, want %q", gotMainDir, mainDir)
+		}
+		return &mockSessionWorktreeCreator{
+			CreateSessionWorktreeFn: func(string) (*worktree.SessionWorktree, error) {
+				return session, nil
+			},
+		}, nil
+	}, func(string) (pendingBranchRecorder, error) {
+		return &mockPendingBranchRecorder{AddPendingWorktreeBranchFn: func(string) error { return nil }}, nil
+	}, func(string, string) error {
+		return nil
+	})
+
+	_, err := runWithSessionWorktree(gromitDir, "full-meta", func(string) error { return nil })
+	if err != nil {
+		t.Fatalf("runWithSessionWorktree() error = %v", err)
+	}
+
+	if recordedEntry == nil {
+		t.Fatal("expected queue entry to be recorded")
+	}
+
+	// Verify complete metadata capture
+	if recordedEntry.HeadSHA != expectedHeadSHA {
+		t.Fatalf("entry HeadSHA = %q, want %q", recordedEntry.HeadSHA, expectedHeadSHA)
+	}
+	if recordedEntry.BaseRef != expectedBaseRef {
+		t.Fatalf("entry BaseRef = %q, want %q", recordedEntry.BaseRef, expectedBaseRef)
+	}
+	if recordedEntry.Lane != "code_lane" {
+		t.Fatalf("entry Lane = %q, want %q", recordedEntry.Lane, "code_lane")
+	}
+	if len(recordedEntry.ChangedFiles) != 2 || recordedEntry.ChangedFiles[0] != "src/module.go" || recordedEntry.ChangedFiles[1] != "src/test.go" {
+		t.Fatalf("changed files = %v, want [src/module.go src/test.go]", recordedEntry.ChangedFiles)
+	}
+	if recordedEntry.ChangedFilesHash == "" {
+		t.Fatalf("entry ChangedFilesHash is empty, expected hash")
+	}
+	if !strings.HasPrefix(recordedEntry.ChangedFilesHash, "sha256:") {
+		t.Fatalf("entry ChangedFilesHash = %q, should start with sha256:", recordedEntry.ChangedFilesHash)
+	}
+	if recordedEntry.State != "ready" {
+		t.Fatalf("entry State = %q, want ready", recordedEntry.State)
+	}
+	if recordedEntry.OriginCommand != "full-meta" {
+		t.Fatalf("entry OriginCommand = %q, want full-meta", recordedEntry.OriginCommand)
+	}
+}
+
 // NOTE: Conflict handoff and merge state cleanup tests are legacy and no longer applicable
 // in single-writer model where sessions never attempt merges. These helper functions remain
 // for compatibility but are not invoked from the session path. Coordinator-path tests will
