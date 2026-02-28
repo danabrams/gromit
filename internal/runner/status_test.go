@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,6 +45,93 @@ func TestPrintStatus_IncludesPipelineSection(t *testing.T) {
 	output := buf.String()
 	if !strings.Contains(output, "Pipeline:") {
 		t.Errorf("PrintStatus output missing Pipeline section; got:\n%s", output)
+	}
+}
+
+func TestPrintStatus_IncludesIntegrationQueueSummary(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	entries := []map[string]interface{}{
+		makeQueueEntry("gromit/ready-branch", "ready", "code_lane", 1, "", ""),
+		makeQueueEntry("gromit/integrating-branch", "integrating", "code_lane", 2, "", ""),
+		makeQueueEntry("gromit/conflict-branch", "conflict", "safe_lane", 3, "merge_conflict", "Conflict in cmd/gromit/run.go"),
+		makeQueueEntry("gromit/merged-branch", "merged", "code_lane", 4, "", ""),
+	}
+
+	queueData := map[string]interface{}{
+		"schema_version": 1,
+		"updated_at":     "2026-02-28T00:00:00Z",
+		"entries":        entries,
+	}
+	bytes, err := json.Marshal(queueData)
+	if err != nil {
+		t.Fatalf("json.Marshal queue data: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gromitDir, "integration-queue.json"), bytes, 0o644); err != nil {
+		t.Fatalf("WriteFile integration queue: %v", err)
+	}
+
+	cfg := &config.Config{}
+	cfg.Paths.Specs = filepath.Join(tmpDir, "specs")
+	cfg.Paths.Plans = filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(cfg.Paths.Specs, 0o755); err != nil {
+		t.Fatalf("MkdirAll specs: %v", err)
+	}
+	if err := os.MkdirAll(cfg.Paths.Plans, 0o755); err != nil {
+		t.Fatalf("MkdirAll plans: %v", err)
+	}
+
+	sw, err := NewStatusWriter(gromitDir)
+	if err != nil {
+		t.Fatalf("NewStatusWriter: %v", err)
+	}
+	if err := sw.Write(1, "bead-status", "Integration queue test", "haiku", true, 0, 0); err != nil {
+		t.Fatalf("StatusWriter.Write: %v", err)
+	}
+
+	var buf strings.Builder
+	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }, false); err != nil {
+		t.Fatalf("PrintStatus: %v", err)
+	}
+	output := buf.String()
+
+	want := []string{
+		"Integration Queue:",
+		"Queue length: 4",
+		"Ready: 1 | Integrating: 1 | Blocked: 1 | Merged: 1",
+		"gromit/ready-branch",
+	}
+	for _, substring := range want {
+		if !strings.Contains(output, substring) {
+			t.Errorf("PrintStatus output missing %q; got:\n%s", substring, output)
+		}
+	}
+}
+
+func makeQueueEntry(branch, state, lane string, fifo int, lastCode, lastMsg string) map[string]interface{} {
+	return map[string]interface{}{
+		"branch":                  branch,
+		"session_id":              branch + "-session",
+		"origin_command":          "review",
+		"state":                   state,
+		"lane":                    lane,
+		"created_at":              "2026-02-28T00:00:00Z",
+		"updated_at":              "2026-02-28T00:00:00Z",
+		"attempt_count":           1,
+		"retry_count":             0,
+		"fifo_seq":                fifo,
+		"base_ref":                "origin/main",
+		"head_sha":                "deadbeef",
+		"changed_files_hash":      "sha256:hash",
+		"last_error_code":         lastCode,
+		"last_error_message":      lastMsg,
+		"last_transition_reason":  "session_committed",
 	}
 }
 
