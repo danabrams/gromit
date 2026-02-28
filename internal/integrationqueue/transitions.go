@@ -37,6 +37,9 @@ func CanTransition(from, to string) bool {
 	if from == "failed_gates" && to == "ready" {
 		return true
 	}
+	if from == "lane_violation" && to == "ready" {
+		return true
+	}
 	return false
 }
 
