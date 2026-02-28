@@ -88,6 +88,7 @@ func init() {
 	reviewCmd.Flags().BoolVar(&reviewDryRun, "dry-run", false, "Preview what would be reviewed")
 	reviewCmd.Flags().StringVar(&reviewAgent, "agent", "", "Override the agent to use for interactive review")
 	reviewCmd.Flags().BoolVar(&reviewChooseAgent, "choose-agent", false, "Show picker to select agent for interactive review")
+	reviewCmd.Flags().String("model", "opus", "Model to use when the Claude agent is selected (opus, sonnet, haiku)")
 	rootCmd.AddCommand(reviewCmd)
 }
 
