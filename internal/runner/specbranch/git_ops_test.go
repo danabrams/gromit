@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/runner/specmerge"
 	"github.com/danabrams/gromit/test/helpers"
@@ -373,5 +374,69 @@ func TestGitOpsImplementsSpecmergeInterface(t *testing.T) {
 	// DeleteBranch should exist
 	if err := ops.DeleteBranch(ctx, fixture.OurBranch); err == nil {
 		// Error expected, but just verifying the method exists
+	}
+}
+
+// TestCreateOrCheckoutSpecBranch_WaitForProcessCapacity verifies that CreateOrCheckoutSpecBranch
+// calls WaitForProcessCapacity before forking subprocesses.
+func TestCreateOrCheckoutSpecBranch_WaitForProcessCapacity(t *testing.T) {
+	fixture := helpers.NewDeterministicGitConflictFixture(t)
+	ops := NewGitOps(fixture.Dir, fixture.BaseBranch)
+
+	specBranchName := "gromit/spec-capacity-test"
+
+	// Track if waitForProcessCapacityFn was called
+	var called bool
+	oldFn := waitForProcessCapacityFn
+	t.Cleanup(func() { waitForProcessCapacityFn = oldFn })
+	waitForProcessCapacityFn = func(ctx context.Context, maxWait time.Duration) error {
+		called = true
+		return nil
+	}
+
+	err := ops.CreateOrCheckoutSpecBranch(context.Background(), specBranchName)
+	if err != nil {
+		t.Fatalf("CreateOrCheckoutSpecBranch() error = %v, want nil", err)
+	}
+
+	if !called {
+		t.Error("WaitForProcessCapacity was not called")
+	}
+}
+
+// TestRebaseOnto_WaitForProcessCapacity verifies that RebaseOnto
+// calls WaitForProcessCapacity before forking subprocesses.
+func TestRebaseOnto_WaitForProcessCapacity(t *testing.T) {
+	fixture := helpers.NewDeterministicGitConflictFixture(t)
+	ops := NewGitOps(fixture.Dir, fixture.BaseBranch)
+
+	specBranchName := "gromit/spec-rebase-cap-test"
+	err := ops.CreateOrCheckoutSpecBranch(context.Background(), specBranchName)
+	if err != nil {
+		t.Fatalf("CreateOrCheckoutSpecBranch() error = %v", err)
+	}
+
+	cmd := exec.Command("git", "commit", "--allow-empty", "-m", "spec commit")
+	cmd.Dir = fixture.Dir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to create spec commit: %v", err)
+	}
+
+	// Track if waitForProcessCapacityFn was called
+	var called bool
+	oldFn := waitForProcessCapacityFn
+	t.Cleanup(func() { waitForProcessCapacityFn = oldFn })
+	waitForProcessCapacityFn = func(ctx context.Context, maxWait time.Duration) error {
+		called = true
+		return nil
+	}
+
+	err = ops.RebaseOnto(context.Background(), specBranchName, fixture.BaseBranch)
+	if err != nil {
+		t.Fatalf("RebaseOnto() error = %v, want nil", err)
+	}
+
+	if !called {
+		t.Error("WaitForProcessCapacity was not called in RebaseOnto")
 	}
 }
