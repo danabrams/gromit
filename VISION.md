@@ -4,7 +4,16 @@
 
 This system exists to automate code generation so humans can focus on high-level strategic product decisions.
 
-## Two-Year Outcome (By February 28, 2028)
+## Mission and Outcomes
+
+**Mission.** Enable dependable, human-aligned code synthesis so creators can stay focused on strategic outcomes while the system handles the execution details.
+
+**Outcomes.**
+- Humans remain in the loop for high-level judgments while tactical planning, decomposition, and implementation are automated with predictable handoffs.
+- Delivered code consistently matches the planned vision and acceptance criteria without accidental regressions.
+- The system builds trust by reliably interpreting and respecting the creator's intent, requiring minimal rework.
+
+## Two-Year Target State (By February 28, 2028)
 
 1. Human intervention in planning, decomposition, implementation, and code review is rare:
    - <=10% of tasks require human tactical intervention
