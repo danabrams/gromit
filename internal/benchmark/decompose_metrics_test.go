@@ -35,3 +35,35 @@ func TestComputeDecomposeMetrics_Validation(t *testing.T) {
         t.Fatalf("expected at least %d output_missing violations, got %d", len(candidates), outputMissing)
     }
 }
+
+func TestComputeDecomposeMetrics_Complexity(t *testing.T) {
+    candidates := []validate.BeadCandidate{
+        {
+            Title:          "Large Task",
+            EstimatedFiles: 8,
+            AcceptanceCriteria: []string{"done"},
+            ExpectedOutputs:  []string{"result"},
+        },
+    }
+
+    metrics := ComputeDecomposeMetrics(candidates, "", 5, nil)
+
+    if metrics.Complexity.HighCount != 1 {
+        t.Fatalf("Complexity.HighCount = %d, want 1", metrics.Complexity.HighCount)
+    }
+
+    if len(metrics.Complexity.Candidates) != 1 {
+        t.Fatalf("Complexity.Candidates count = %d, want 1", len(metrics.Complexity.Candidates))
+    }
+
+    candidate := metrics.Complexity.Candidates[0]
+    if candidate.Title != "Large Task" {
+        t.Fatalf("Complexity candidate title = %q, want Large Task", candidate.Title)
+    }
+    if len(candidate.Reasons) == 0 {
+        t.Fatalf("expected reasons for large task, got none")
+    }
+    if candidate.Reasons[0] != "estimated_files=8 crosses the high-complexity threshold" {
+        t.Fatalf("unexpected complexity reason = %q", candidate.Reasons[0])
+    }
+}
