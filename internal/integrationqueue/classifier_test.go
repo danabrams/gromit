@@ -76,3 +76,75 @@ func TestClassifyLane_IgnoresCommandOrigin(t *testing.T) {
 	}
 	// The function signature doesn't take command origin, confirming it's not used
 }
+
+func TestClassifyLane_CodeLaneForVariousBuildAndConfigFiles(t *testing.T) {
+	testCases := []struct {
+		name  string
+		files []string
+	}{
+		{
+			name:  "go.mod",
+			files: []string{"go.mod"},
+		},
+		{
+			name:  "go.sum",
+			files: []string{"go.sum"},
+		},
+		{
+			name:  "Makefile",
+			files: []string{"Makefile"},
+		},
+		{
+			name:  "Dockerfile",
+			files: []string{"Dockerfile"},
+		},
+		{
+			name:  "nested source",
+			files: []string{"pkg/util/helper.go"},
+		},
+		{
+			name:  "vendor directory",
+			files: []string{"vendor/github.com/some/lib/file.go"},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			lane := ClassifyLane(tc.files)
+			if lane != CodeLane {
+				t.Fatalf("ClassifyLane(%v) = %s, want %s", tc.files, lane, CodeLane)
+			}
+		})
+	}
+}
+
+func TestClassifyLane_SafeLaneForNestedMetadataPaths(t *testing.T) {
+	testCases := []struct {
+		name  string
+		files []string
+	}{
+		{
+			name:  "nested .gromit",
+			files: []string{".gromit/state/queue.json"},
+		},
+		{
+			name:  "nested docs",
+			files: []string{"docs/api/endpoints.md", "docs/guide/setup.md"},
+		},
+		{
+			name:  "nested specs",
+			files: []string{"specs/integration/flow.md", "specs/api/schema.md"},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			lane := ClassifyLane(tc.files)
+			if lane != SafeLane {
+				t.Fatalf("ClassifyLane(%v) = %s, want %s", tc.files, lane, SafeLane)
+			}
+		})
+	}
+}
