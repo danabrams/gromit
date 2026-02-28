@@ -70,3 +70,46 @@ func TestValidateSafety_DetectsProhibitedArtifacts(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateSafety_ViolationDetailsCorrect(t *testing.T) {
+	tests := []struct {
+		name             string
+		changedFiles     []string
+		wantViolatedFile string
+		wantViolationType string
+	}{
+		{
+			name:             "dolt violation",
+			changedFiles:     []string{".dolt/config"},
+			wantViolatedFile: ".dolt/config",
+			wantViolationType: "dolt_artifact",
+		},
+		{
+			name:             "beads_gromit violation",
+			changedFiles:     []string{"beads_gromit/file.json"},
+			wantViolatedFile: "beads_gromit/file.json",
+			wantViolationType: "beads_gromit_artifact",
+		},
+		{
+			name:             "lock file violation",
+			changedFiles:     []string{"package-lock.json"},
+			wantViolatedFile: "package-lock.json",
+			wantViolationType: "lock_file",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			diag := ValidateSafety(tt.changedFiles)
+			if diag == nil {
+				t.Fatalf("expected violation, got nil")
+			}
+			if diag.ViolatedFile != tt.wantViolatedFile {
+				t.Errorf("ViolatedFile = %q, want %q", diag.ViolatedFile, tt.wantViolatedFile)
+			}
+			if diag.ViolationType != tt.wantViolationType {
+				t.Errorf("ViolationType = %q, want %q", diag.ViolationType, tt.wantViolationType)
+			}
+		})
+	}
+}
