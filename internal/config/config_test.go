@@ -72,6 +72,56 @@ agents:
 	}
 }
 
+func TestAgentsInteractiveModelsUnmarshal(t *testing.T) {
+	yamlContent := `
+agents:
+  interactive_models:
+    refine: "sonnet"
+    plan: "haiku"
+    explore: "opus"
+    debug: "sonnet"
+    review: "haiku"
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.Agents.InteractiveModels == nil {
+		t.Fatal("Agents.InteractiveModels is nil, want non-nil struct")
+	}
+
+	expected := map[string]string{
+		"refine":  "sonnet",
+		"plan":    "haiku",
+		"explore": "opus",
+		"debug":   "sonnet",
+		"review":  "haiku",
+	}
+
+	if got := cfg.Agents.InteractiveModels.Refine; got != expected["refine"] {
+		t.Errorf("Refine model = %q, want %q", got, expected["refine"])
+	}
+	if got := cfg.Agents.InteractiveModels.Plan; got != expected["plan"] {
+		t.Errorf("Plan model = %q, want %q", got, expected["plan"])
+	}
+	if got := cfg.Agents.InteractiveModels.Explore; got != expected["explore"] {
+		t.Errorf("Explore model = %q, want %q", got, expected["explore"])
+	}
+	if got := cfg.Agents.InteractiveModels.Debug; got != expected["debug"] {
+		t.Errorf("Debug model = %q, want %q", got, expected["debug"])
+	}
+	if got := cfg.Agents.InteractiveModels.Review; got != expected["review"] {
+		t.Errorf("Review model = %q, want %q", got, expected["review"])
+	}
+}
+
 func TestNormalizeNilFieldsInitializesAgentFlags(t *testing.T) {
 	cfg := &Config{
 		Agents: AgentsConfig{
