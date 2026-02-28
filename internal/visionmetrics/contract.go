@@ -2,6 +2,17 @@ package visionmetrics
 
 import "time"
 
+// Field name constants for cycle records
+const (
+	FieldSpecID                     = "spec_id"
+	FieldCycleStartTriggerAt        = "cycle_start_trigger_at"
+	FieldCycleEndPresentedAt        = "cycle_end_presented_at"
+	FieldReviewOutcome              = "review_outcome"
+	FieldHumanTacticalIntervention  = "human_tactical_intervention"
+	FieldHumanDebuggingIntervention = "human_debugging_intervention"
+	FieldEscapedRegressionWithin7D  = "escaped_regression_within_7d"
+)
+
 // YesNo represents a boolean-like field that accepts only "yes" or "no" at the contract layer.
 type YesNo string
 
