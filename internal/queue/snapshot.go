@@ -67,13 +67,13 @@ func GetReason(b *bead.Bead, allBeads []*bead.Bead) string {
 		return fmt.Sprintf("blocked by parent: %s", b.Parent)
 	}
 
-	if depIDs := dependencyIDs(b.BlockedBy); len(depIDs) > 0 {
+	if depIDs := DependencyIDs(b.BlockedBy); len(depIDs) > 0 {
 		return fmt.Sprintf("blocked by: %s", strings.Join(depIDs, ", "))
 	}
-	if depIDs := dependencyIDs(b.DependsOn); len(depIDs) > 0 {
+	if depIDs := DependencyIDs(b.DependsOn); len(depIDs) > 0 {
 		return fmt.Sprintf("blocked by: %s", strings.Join(depIDs, ", "))
 	}
-	if depIDs := dependencyIDs(b.Dependencies); len(depIDs) > 0 {
+	if depIDs := DependencyIDs(b.Dependencies); len(depIDs) > 0 {
 		return fmt.Sprintf("blocked by: %s", strings.Join(depIDs, ", "))
 	}
 	if b.DependencyCount != nil && *b.DependencyCount > 0 {
@@ -83,8 +83,8 @@ func GetReason(b *bead.Bead, allBeads []*bead.Bead) string {
 	return "dependencies unresolved"
 }
 
-// dependencyIDs extracts IDs from a list of dependencies.
-func dependencyIDs(deps []bead.Dependency) []string {
+// DependencyIDs extracts IDs from a list of dependencies.
+func DependencyIDs(deps []bead.Dependency) []string {
 	ids := make([]string, 0, len(deps))
 	for _, dep := range deps {
 		if strings.TrimSpace(dep.ID) == "" {

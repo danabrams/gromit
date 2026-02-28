@@ -361,13 +361,13 @@ func unresolvedDepsCount(b *bead.Bead, remaining map[string]*bead.Bead) int {
 	if b.Parent != "" {
 		addDep(b.Parent)
 	}
-	for _, depID := range dependencyIDs(b.BlockedBy) {
+	for _, depID := range queue.DependencyIDs(b.BlockedBy) {
 		addDep(depID)
 	}
-	for _, depID := range dependencyIDs(b.DependsOn) {
+	for _, depID := range queue.DependencyIDs(b.DependsOn) {
 		addDep(depID)
 	}
-	for _, depID := range dependencyIDs(b.Dependencies) {
+	for _, depID := range queue.DependencyIDs(b.Dependencies) {
 		addDep(depID)
 	}
 
@@ -464,17 +464,6 @@ func colorizeLine(line, color string, useColor bool) string {
 // getReason returns a human-readable reason why a bead is blocked
 func getReason(b *bead.Bead, allBeads []*bead.Bead) string {
 	return queue.GetReason(b, allBeads)
-}
-
-func dependencyIDs(deps []bead.Dependency) []string {
-	ids := make([]string, 0, len(deps))
-	for _, dep := range deps {
-		if strings.TrimSpace(dep.ID) == "" {
-			continue
-		}
-		ids = append(ids, dep.ID)
-	}
-	return ids
 }
 
 // truncateTitle returns a title truncated to maxLen characters with ellipsis if needed
