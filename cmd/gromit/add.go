@@ -50,10 +50,10 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	gromitDir := resolveGromitDir(cfg)
 
 	fmt.Print("\nAny additional context? (optional, press Enter to skip): ")
-	scanner := bufio.NewScanner(os.Stdin)
 	var contextText string
-	if scanner.Scan() {
-		contextText = strings.TrimSpace(scanner.Text())
+	inputReader := bufio.NewReader(os.Stdin)
+	if line, err := inputReader.ReadString('\n'); err == nil || (err != nil && strings.TrimSpace(line) != "") {
+		contextText = strings.TrimSpace(line)
 	}
 
 	input := pipeline.AddInput{
@@ -63,7 +63,7 @@ func runAdd(cmd *cobra.Command, args []string) error {
 
 	result, err := addHandler(cmd.Context(), cfg, gromitDir, input)
 	if errors.Is(err, pipeline.ErrUnknownIdeaType) {
-		input.Type = promptIdeaType(os.Stdin)
+		input.Type = promptIdeaType(inputReader)
 		result, err = addHandler(cmd.Context(), cfg, gromitDir, input)
 	}
 	if err != nil {
@@ -86,7 +86,10 @@ func promptIdeaType(reader io.Reader) string {
 	fmt.Println("  3. Chore - Refactor, update, or maintenance")
 	fmt.Print("\nChoice [1-3]: ")
 
-	lineReader := bufio.NewReader(reader)
+	lineReader, ok := reader.(*bufio.Reader)
+	if !ok {
+		lineReader = bufio.NewReader(reader)
+	}
 	choice, err := lineReader.ReadString('\n')
 	if err != nil {
 		fmt.Println("Invalid choice, defaulting to 'feature'")

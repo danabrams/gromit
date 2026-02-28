@@ -192,6 +192,17 @@ func TestRunWithSessionWorktreeAutoCommitInvoked(t *testing.T) {
 	var commands []string
 	cleanupGit := overrideGitRun(func(dir string, args ...string) (string, error) {
 		commands = append(commands, strings.Join(args, " "))
+		switch args[0] {
+		case "rev-parse":
+			if len(args) > 1 && args[1] == "HEAD" {
+				return "headsha", nil
+			}
+			if len(args) > 1 && args[1] == "HEAD^" {
+				return "baseref", nil
+			}
+		case "diff":
+			return "cmd/gromit/example.go\n", nil
+		}
 		return "", nil
 	})
 	t.Cleanup(cleanupGit)
@@ -961,6 +972,11 @@ func TestSessionSuccessDoesNotDependOnConflictPolicy(t *testing.T) {
 // multiple concurrent sessions queue their branches independently without merge contention.
 func TestConcurrentSessions_BothQueueWithoutConflict(t *testing.T) {
 	// Not parallel: withInteractiveWorktreeFactories mutates package-level globals.
+	cleanupGit := overrideGitRun(defaultTestGitRun)
+	t.Cleanup(cleanupGit)
+	cleanupStore := overrideQueueStore(func(entry integrationqueue.Entry) error { return nil })
+	t.Cleanup(cleanupStore)
+
 	mainDir := t.TempDir()
 	gromitDir := filepath.Join(mainDir, ".gromit")
 	sessionA := &worktree.SessionWorktree{

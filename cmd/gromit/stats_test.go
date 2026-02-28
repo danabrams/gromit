@@ -60,6 +60,9 @@ func TestStatsCmd_Flags(t *testing.T) {
 func TestStatsCmd_UsesPipelineStats(t *testing.T) {
 	// This test ensures the stats command delegates to the pipeline stats helper,
 	// including honoring the --tdd flag.
+	origConfigPath := configPath
+	configPath = resolveProjectPath("t", "gromit.yaml")
+	defer func() { configPath = origConfigPath }()
 
 	originalFetcher := statsFetcher
 	defer func() { statsFetcher = originalFetcher }()
