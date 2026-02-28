@@ -60,6 +60,18 @@ func CheckTransition(from, to string) error {
 	return nil
 }
 
+// ApplyTransition validates the transition and updates the entry's state,
+// updated_at, and last_transition_reason on success. Returns ErrInvalidTransition if not allowed.
+func ApplyTransition(entry *Entry, toState string, reason string) error {
+	if err := CheckTransition(string(entry.State), toState); err != nil {
+		return err
+	}
+	entry.State = State(toState)
+	entry.LastTransitionReason = reason
+	entry.UpdatedAt = time.Now()
+	return nil
+}
+
 // RecordTransition creates a TransitionRecord with the given parameters and current timestamp.
 func RecordTransition(from, to, reason, errorCode string) *TransitionRecord {
 	return &TransitionRecord{

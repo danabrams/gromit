@@ -188,3 +188,25 @@ func TestCheckTransition_DraftToIntegrating_DisallowedReturnsError(t *testing.T)
 		t.Errorf("expected ErrInvalidTransition, got: %v", err)
 	}
 }
+
+func TestApplyTransition_ValidTransition_UpdatesEntryAndReturnsNil(t *testing.T) {
+	entry := &Entry{
+		State:     "draft",
+		UpdatedAt: time.Now().Add(-time.Hour),
+	}
+	oldTime := entry.UpdatedAt
+
+	err := ApplyTransition(entry, "ready", "manual transition")
+	if err != nil {
+		t.Errorf("expected nil error for valid transition, got: %v", err)
+	}
+	if entry.State != "ready" {
+		t.Errorf("expected state to be ready, got: %s", entry.State)
+	}
+	if entry.LastTransitionReason != "manual transition" {
+		t.Errorf("expected last_transition_reason to be 'manual transition', got: %s", entry.LastTransitionReason)
+	}
+	if entry.UpdatedAt.Before(oldTime) || entry.UpdatedAt.Equal(oldTime) {
+		t.Errorf("expected UpdatedAt to be updated, old: %v, new: %v", oldTime, entry.UpdatedAt)
+	}
+}
