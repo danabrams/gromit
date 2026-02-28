@@ -1,8 +1,9 @@
 ---
+created: 2026-02-28T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-28T03:54:36Z"
 id: conflict-avoidance-lanes-and-rebase-policy
 source_spec: conflict-avoidance-lanes-and-rebase-policy
-created: 2026-02-28
-decomposed: false
 ---
 
 # Conflict Avoidance Lanes And Rebase Policy Implementation Plan

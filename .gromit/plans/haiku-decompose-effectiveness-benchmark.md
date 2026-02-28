@@ -1,8 +1,9 @@
 ---
+created: 2026-02-28T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-28T03:56:01Z"
 id: haiku-decompose-effectiveness-benchmark
 source_spec: haiku-decompose-effectiveness-benchmark
-created: 2026-02-28
-decomposed: false
 ---
 
 # Haiku Decompose Effectiveness Benchmark Implementation Plan

@@ -1,8 +1,9 @@
 ---
+created: 2026-02-28T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-28T03:59:00Z"
 id: integration-queue-and-branch-lifecycle
 source_spec: integration-queue-and-branch-lifecycle
-created: 2026-02-28
-decomposed: false
 ---
 
 # Integration Queue And Branch Lifecycle Implementation Plan

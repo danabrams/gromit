@@ -1,8 +1,9 @@
 ---
+created: 2026-02-28T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-28T03:55:15Z"
 id: constancy-of-purpose-vision
 source_spec: constancy-of-purpose-vision
-created: 2026-02-28
-decomposed: false
 ---
 
 # Constancy of Purpose Vision Artifact Implementation Plan
