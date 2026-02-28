@@ -175,5 +175,4 @@ func (c *ConversationController) requestFollowUp() {
     }
     prompt := c.followUpProvider()
     c.session.FollowUp(prompt)
-    c.waitingForTool = false
 }
