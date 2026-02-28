@@ -82,6 +82,8 @@ func runPlanWorkflow(ctx context.Context, p *Pipeline, input PlanInput) (*PlanSe
 		return nil, fmt.Errorf("launching agent: %w", err)
 	}
 
-	// Return session — cleanup is a no-op after first call, so safe to pass
+	// Clean up temp prompt file now that agent has consumed it.
+	// cleanup is a no-op after first call, so safe to also pass to session.
+	cleanup()
 	return NewPlanSession(cleanup), nil
 }

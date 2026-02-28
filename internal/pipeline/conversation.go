@@ -51,6 +51,15 @@ func CollectConversation(session conversation.Session, followUpProvider func() s
     cancelled := false
 
     for {
+        // Check cancel first (non-blocking) to avoid select non-determinism
+        // when both cancel and events channels are ready simultaneously.
+        select {
+        case <-cancel:
+            cancelled = true
+            session.Cancel()
+        default:
+        }
+
         select {
         case <-cancel:
             cancelled = true

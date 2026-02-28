@@ -1023,6 +1023,14 @@ func TestConcurrentSessions_BothQueueWithoutConflict(t *testing.T) {
 		},
 	}
 
+	cleanupGit := overrideGitRun(defaultTestGitRun)
+	t.Cleanup(cleanupGit)
+
+	cleanupQueue := overrideQueueStore(func(entry integrationqueue.Entry) error {
+		return nil
+	})
+	t.Cleanup(cleanupQueue)
+
 	withInteractiveWorktreeFactories(t, func(gotMainDir string) (sessionWorktreeCreator, error) {
 		if gotMainDir != mainDir {
 			t.Fatalf("mainDir = %q, want %q", gotMainDir, mainDir)
