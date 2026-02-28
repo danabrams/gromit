@@ -99,3 +99,33 @@ func TestComputeDecomposeMetrics_CriteriaAndOverlap(t *testing.T) {
         t.Fatalf("expected sibling overlap violations, got %d", metrics.SiblingOverlapHits)
     }
 }
+
+func TestComputeDecomposeMetrics_RuntimeSignals(t *testing.T) {
+    candidates := []validate.BeadCandidate{
+        {
+            Title:              "Reliable Task",
+            AcceptanceCriteria: []string{"done"},
+            ExpectedOutputs:    []string{"result"},
+        },
+    }
+
+    withoutSignals := ComputeDecomposeMetrics(candidates, "", 5, nil)
+    if withoutSignals.Runtime != nil {
+        t.Fatalf("expected nil runtime signals, got %+v", withoutSignals.Runtime)
+    }
+
+    signals := &RuntimeSignals{
+        CostUSD:  1.23,
+        LatencyMs: 240,
+        TokenCount: 1024,
+    }
+    withSignals := ComputeDecomposeMetrics(candidates, "", 5, signals)
+    if withSignals.Runtime == nil {
+        t.Fatalf("expected runtime signals, got nil")
+    }
+    if withSignals.Runtime.CostUSD != signals.CostUSD ||
+        withSignals.Runtime.LatencyMs != signals.LatencyMs ||
+        withSignals.Runtime.TokenCount != signals.TokenCount {
+        t.Fatalf("runtime signals mismatch: %+v", withSignals.Runtime)
+    }
+}
