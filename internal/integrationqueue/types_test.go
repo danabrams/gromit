@@ -38,6 +38,25 @@ func TestSchemaVersionConstant(t *testing.T) {
 	}
 }
 
+func TestQueueStruct(t *testing.T) {
+	// Verify Queue struct exists with correct fields
+	created := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
+	queue := Queue{
+		SchemaVersion: 1,
+		UpdatedAt:     created,
+		Entries:       []Entry{},
+	}
+	if queue.SchemaVersion != 1 {
+		t.Fatalf("SchemaVersion = %d, want %d", queue.SchemaVersion, 1)
+	}
+	if !queue.UpdatedAt.Equal(created) {
+		t.Fatalf("UpdatedAt = %v, want %v", queue.UpdatedAt, created)
+	}
+	if queue.Entries == nil {
+		t.Fatal("Entries should not be nil")
+	}
+}
+
 func TestEntryOrderingMetadata(t *testing.T) {
 	created := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
 	updated := created.Add(time.Hour)
