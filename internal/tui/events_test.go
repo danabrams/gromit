@@ -496,3 +496,32 @@ func TestApplyConversationEvent_CombinesMultipleEvents(t *testing.T) {
 		t.Errorf("LastEvent.Text = %q, want %q", store.Conversation.LastEvent.Text, "second")
 	}
 }
+
+func TestMapConversationEventToMsg(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name  string
+		event conversation.Event
+	}{
+		{"stream", conversation.Event{Type: conversation.EventTypeStream, Text: "assistant"}},
+		{"tool_wait", conversation.Event{Type: conversation.EventTypeToolWait, Text: "waiting", ToolName: "formatter"}},
+		{"tool_result", conversation.Event{Type: conversation.EventTypeToolResult, Text: "result", ToolName: "formatter"}},
+		{"done", conversation.Event{Type: conversation.EventTypeDone, Text: "complete"}},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			msg := MapConversationEventToMsg(tc.event)
+			eventMsg, ok := msg.(conversationEventMsg)
+			if !ok {
+				t.Fatalf("expected conversationEventMsg, got %T", msg)
+			}
+			if eventMsg.Event != tc.event {
+				t.Fatalf("event mismatch: got %+v, want %+v", eventMsg.Event, tc.event)
+			}
+		})
+	}
+}
