@@ -73,6 +73,62 @@ func TestExplore_CallsModelForwarderWhenModelNonEmpty(t *testing.T) {
 	}
 }
 
+// TestExplore_SkipsModelForwarderWhenModelEmpty verifies that when ExploreInput.Model
+// is empty, ModelForwarder is not called.
+func TestExplore_SkipsModelForwarderWhenModelEmpty(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+
+	var modelForwarderCalled bool
+
+	mockAgent := &mockAgent{
+		NameFn: func() string {
+			return "codex"
+		},
+		LaunchInDirFn: func(promptPath, dir string) error {
+			return nil
+		},
+	}
+
+	mockAgentResolver := &mockAgentResolver{
+		ResolveFn: func(phase, flagOverride string, choosePicker bool) (Agent, error) {
+			return mockAgent, nil
+		},
+	}
+
+	deps := &Deps{
+		AgentResolver:   mockAgentResolver,
+		ExploreRenderer: &testExploreRenderer{},
+		BacklogClient:   &testBacklogClient{},
+		ModelForwarder: func(agent Agent, model string) (Agent, string) {
+			modelForwarderCalled = true
+			return agent, ""
+		},
+	}
+
+	paths := &Paths{
+		GromitDir: gromitDir,
+	}
+
+	p := New(deps, paths)
+	ctx := context.Background()
+
+	// Model is NOT set (empty string)
+	input := ExploreInput{
+		Topic: "test topic",
+		Model: "",
+	}
+
+	_, err := p.Explore(ctx, input)
+	if err != nil {
+		t.Fatalf("Explore() failed: %v", err)
+	}
+
+	if modelForwarderCalled {
+		t.Error("ModelForwarder should not be called when Model is empty")
+	}
+}
+
 // TestExplore_WritesWarningWhenModelForwardingUnsupported verifies that when
 // ExploreInput.Model is non-empty but model forwarding is unsupported,
 // Explore writes a warning via the WarningWriter and continues with original agent.
