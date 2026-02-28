@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/agent"
@@ -201,5 +202,23 @@ func TestApplyDebugModelOverrideAddsModelFlag(t *testing.T) {
 	}
 	if cmdStruct.Args[modelFlagIndex+1] != "sonnet" {
 		t.Fatalf("expected model value sonnet, got %q", cmdStruct.Args[modelFlagIndex+1])
+	}
+}
+
+func TestApplyDebugModelOverrideWarnsForUnsupportedAgent(t *testing.T) {
+	t.Parallel()
+
+	cmd := prepareDebugModelCmd(t, true, true)
+	stderr := &bytes.Buffer{}
+	customAgent := unsupportedAgent{}
+	overridden := applyDebugModelOverride(cmd, customAgent, nil, stderr)
+
+	if overridden != customAgent {
+		t.Fatalf("expected unsupported agent to be returned unchanged, got %T", overridden)
+	}
+
+	output := stderr.String()
+	if !strings.Contains(output, "model override not supported for agent \"custom\"") {
+		t.Fatalf("unexpected warning output: %s", output)
 	}
 }
