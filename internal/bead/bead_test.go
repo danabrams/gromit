@@ -3212,3 +3212,14 @@ func TestCountByStatusWithBeads(t *testing.T) {
 		})
 	}
 }
+
+func TestNewClientWithBinary_RejectsEmptyBinary(t *testing.T) {
+	t.Parallel()
+	_, err := NewClientWithBinary("")
+	if err == nil {
+		t.Fatal("expected error for empty binary")
+	}
+	if !strings.Contains(err.Error(), "cannot be empty") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
