@@ -97,6 +97,171 @@ func TestComputeRollup_FiltersInvalidRecords(t *testing.T) {
 	}
 }
 
+func TestComputeRollup_CarveOutScenarios(t *testing.T) {
+	now := time.Now()
+	tests := []struct {
+		name                string
+		records             []Record
+		wantAcceptNum       int
+		wantTotalDenom      int
+		wantAcceptDenom     int // excluding carve-outs
+		wantAcceptRate      float64
+	}{
+		{
+			name: "single vision change carve-out",
+			records: []Record{
+				{
+					SpecID:                     "spec-1",
+					CycleStartTriggerAt:        now,
+					CycleEndPresentedAt:        now.Add(time.Hour),
+					ReviewOutcome:              ReviewOutcomeVisionChange,
+					ReviewRationale:            "Product direction shifted",
+					HumanTacticalIntervention:  No,
+					HumanDebuggingIntervention: No,
+					EscapedRegressionWithin7D:  No,
+				},
+			},
+			wantAcceptNum:   0,
+			wantTotalDenom:  1,
+			wantAcceptDenom: 0, // carve-outs excluded from denominator
+			wantAcceptRate:  0.0,
+		},
+		{
+			name: "mix of accepted and carve-out records",
+			records: []Record{
+				{
+					SpecID:                     "spec-1",
+					CycleStartTriggerAt:        now,
+					CycleEndPresentedAt:        now.Add(time.Hour),
+					ReviewOutcome:              ReviewOutcomeAccepted,
+					HumanTacticalIntervention:  No,
+					HumanDebuggingIntervention: No,
+					EscapedRegressionWithin7D:  No,
+				},
+				{
+					SpecID:                     "spec-2",
+					CycleStartTriggerAt:        now,
+					CycleEndPresentedAt:        now.Add(time.Hour),
+					ReviewOutcome:              ReviewOutcomeVisionChange,
+					ReviewRationale:            "Market analysis required rethink",
+					HumanTacticalIntervention:  No,
+					HumanDebuggingIntervention: No,
+					EscapedRegressionWithin7D:  No,
+				},
+				{
+					SpecID:                     "spec-3",
+					CycleStartTriggerAt:        now,
+					CycleEndPresentedAt:        now.Add(time.Hour),
+					ReviewOutcome:              ReviewOutcomeAccepted,
+					HumanTacticalIntervention:  Yes,
+					HumanDebuggingIntervention: No,
+					EscapedRegressionWithin7D:  No,
+				},
+			},
+			wantAcceptNum:   2, // only accepted records
+			wantTotalDenom:  3, // all valid records
+			wantAcceptDenom: 2, // total - carve-outs
+			wantAcceptRate:  1.0, // 2/2
+		},
+		{
+			name: "multiple carve-outs",
+			records: []Record{
+				{
+					SpecID:                     "spec-1",
+					CycleStartTriggerAt:        now,
+					CycleEndPresentedAt:        now.Add(time.Hour),
+					ReviewOutcome:              ReviewOutcomeVisionChange,
+					ReviewRationale:            "First carve-out",
+					HumanTacticalIntervention:  No,
+					HumanDebuggingIntervention: No,
+					EscapedRegressionWithin7D:  No,
+				},
+				{
+					SpecID:                     "spec-2",
+					CycleStartTriggerAt:        now,
+					CycleEndPresentedAt:        now.Add(time.Hour),
+					ReviewOutcome:              ReviewOutcomeAccepted,
+					HumanTacticalIntervention:  No,
+					HumanDebuggingIntervention: No,
+					EscapedRegressionWithin7D:  No,
+				},
+				{
+					SpecID:                     "spec-3",
+					CycleStartTriggerAt:        now,
+					CycleEndPresentedAt:        now.Add(time.Hour),
+					ReviewOutcome:              ReviewOutcomeVisionChange,
+					ReviewRationale:            "Second carve-out",
+					HumanTacticalIntervention:  No,
+					HumanDebuggingIntervention: No,
+					EscapedRegressionWithin7D:  No,
+				},
+			},
+			wantAcceptNum:   1,
+			wantTotalDenom:  3,
+			wantAcceptDenom: 1, // 3 - 2 carve-outs
+			wantAcceptRate:  1.0,
+		},
+		{
+			name: "all records are carve-outs",
+			records: []Record{
+				{
+					SpecID:                     "spec-1",
+					CycleStartTriggerAt:        now,
+					CycleEndPresentedAt:        now.Add(time.Hour),
+					ReviewOutcome:              ReviewOutcomeVisionChange,
+					ReviewRationale:            "Carve-out",
+					HumanTacticalIntervention:  No,
+					HumanDebuggingIntervention: No,
+					EscapedRegressionWithin7D:  No,
+				},
+				{
+					SpecID:                     "spec-2",
+					CycleStartTriggerAt:        now,
+					CycleEndPresentedAt:        now.Add(time.Hour),
+					ReviewOutcome:              ReviewOutcomeVisionChange,
+					ReviewRationale:            "Another carve-out",
+					HumanTacticalIntervention:  No,
+					HumanDebuggingIntervention: No,
+					EscapedRegressionWithin7D:  No,
+				},
+			},
+			wantAcceptNum:   0,
+			wantTotalDenom:  2,
+			wantAcceptDenom: 0, // all are carve-outs
+			wantAcceptRate:  0.0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rollup := ComputeRollup(tt.records)
+
+			// Verify numerator count
+			if rollup.AcceptedWithoutReworkRate.Numerator != tt.wantAcceptNum {
+				t.Errorf("AcceptedWithoutReworkRate.Numerator = %d, want %d",
+					rollup.AcceptedWithoutReworkRate.Numerator, tt.wantAcceptNum)
+			}
+
+			// Verify denominator is total - carve-outs
+			if rollup.AcceptedWithoutReworkRate.Denominator != tt.wantAcceptDenom {
+				t.Errorf("AcceptedWithoutReworkRate.Denominator = %d, want %d",
+					rollup.AcceptedWithoutReworkRate.Denominator, tt.wantAcceptDenom)
+			}
+
+			// Verify rate calculation
+			if rollup.AcceptedWithoutReworkRate.Rate != tt.wantAcceptRate {
+				t.Errorf("AcceptedWithoutReworkRate.Rate = %f, want %f",
+					rollup.AcceptedWithoutReworkRate.Rate, tt.wantAcceptRate)
+			}
+
+			// Verify other metrics use total denominator
+			if rollup.HumanTacticalInterventionRate.Denominator != tt.wantTotalDenom {
+				t.Errorf("HumanTacticalInterventionRate.Denominator = %d, want %d",
+					rollup.HumanTacticalInterventionRate.Denominator, tt.wantTotalDenom)
+			}
+		})
+	}
+}
 func TestComputeRollup_EdgeCases(t *testing.T) {
 	now := time.Now()
 	tests := []struct {
