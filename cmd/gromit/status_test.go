@@ -377,3 +377,12 @@ func TestStatusCmd_RegressionAssertion_TUISectionsUnchanged(t *testing.T) {
 
 	assertStatusTUISections(t, output)
 }
+
+func assertStatusTUISections(t *testing.T, output string) {
+	requiredSections := []string{"Run:", "Pipeline:", "Health:", "Model Performance:"}
+	for _, section := range requiredSections {
+		if !strings.Contains(output, section) {
+			t.Fatalf("status output missing %q section, got:\n%s", section, output)
+		}
+	}
+}
