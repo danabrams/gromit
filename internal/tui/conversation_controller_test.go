@@ -202,13 +202,13 @@ func TestConversationControllerIgnoresLateEventsAfterCancel(t *testing.T) {
     }
 
     view := ctrl.View()
-    if !strings.Contains(view, "start") {
+    if !strings.Contains(view, "- stream: start") {
         t.Fatalf("expected start event, got %q", view)
     }
-    if strings.Contains(view, "mid") {
+    if strings.Contains(view, "- stream: mid") {
         t.Fatalf("expected mid event to be ignored after cancel, got %q", view)
     }
-    if strings.Contains(view, "late") {
+    if strings.Contains(view, "- stream: late") {
         t.Fatalf("expected late event to be ignored after cancel, got %q", view)
     }
     if !strings.Contains(view, "[ignored 2 late events]") {

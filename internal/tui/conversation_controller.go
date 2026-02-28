@@ -1,6 +1,7 @@
 package tui
 
 import (
+    "fmt"
     "strings"
 
     tea "github.com/charmbracelet/bubbletea"
@@ -57,6 +58,7 @@ type ConversationController struct {
     events           []ConversationEvent
     waitingForTool   bool
     cancelled        bool
+    ignoredLateEvents int
     followUpProvider func() string
 }
 
@@ -94,6 +96,7 @@ func (c *ConversationController) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
     switch msg := msg.(type) {
     case conversationEventMsg:
         if c.cancelled {
+            c.ignoredLateEvents++
             return c, c.watchSessionCmd()
         }
         c.events = append(c.events, msg.Event)
@@ -133,6 +136,13 @@ func (c *ConversationController) View() string {
     }
     if c.waitingForTool {
         b.WriteString("[waiting for tool]\n")
+    }
+    if c.ignoredLateEvents > 0 {
+        plural := "events"
+        if c.ignoredLateEvents == 1 {
+            plural = "event"
+        }
+        b.WriteString(fmt.Sprintf("[ignored %d late %s]\n", c.ignoredLateEvents, plural))
     }
     if c.cancelled {
         b.WriteString("[cancelled]\n")
