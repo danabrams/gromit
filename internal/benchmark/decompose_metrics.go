@@ -36,12 +36,12 @@ type AcceptanceMetrics struct {
 func ComputeDecomposeMetrics(candidates []validate.BeadCandidate, parentTitle string, maxSubBeads int, runtime *RuntimeSignals) DecomposeMetrics {
     metrics := DecomposeMetrics{
         BeadCount: len(candidates),
-        Runtime:   runtime,
         Complexity: ComplexityMetrics{
             Candidates: []ComplexityCandidate{},
         },
         Acceptance: AcceptanceMetrics{},
     }
+    metrics.Runtime = runtime
 
     if len(candidates) == 0 {
         return metrics
