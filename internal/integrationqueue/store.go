@@ -140,15 +140,7 @@ func (s *Store) write(snapshot *Snapshot) error {
 		return fmt.Errorf("creating queue file directory: %w", err)
 	}
 
-	for i := range snapshot.Entries {
-		sort.Strings(snapshot.Entries[i].ChangedFiles)
-	}
-	sort.SliceStable(snapshot.Entries, func(i, j int) bool {
-		if snapshot.Entries[i].FifoSeq != snapshot.Entries[j].FifoSeq {
-			return snapshot.Entries[i].FifoSeq < snapshot.Entries[j].FifoSeq
-		}
-		return snapshot.Entries[i].Branch < snapshot.Entries[j].Branch
-	})
+	prepareQueueForWrite(snapshot)
 
 	data, err := json.MarshalIndent(snapshot, "", "  ")
 	if err != nil {
@@ -192,6 +184,10 @@ func defaultQueue() *Queue {
 }
 
 func normalizeQueue(queue *Queue) error {
+	if queue == nil {
+		return fmt.Errorf("queue is nil")
+	}
+
 	switch queue.SchemaVersion {
 	case 0:
 		queue.SchemaVersion = SchemaVersion
@@ -206,4 +202,54 @@ func normalizeQueue(queue *Queue) error {
 		}
 	}
 	return nil
+}
+
+// SaveQueue writes the queue using atomic rename and updates the timestamp.
+func SaveQueue(path string, queue *Queue) error {
+	if queue == nil {
+		return fmt.Errorf("queue is nil")
+	}
+	if err := normalizeQueue(queue); err != nil {
+		return err
+	}
+
+	queue.UpdatedAt = time.Now().UTC()
+	queue.SchemaVersion = SchemaVersion
+	prepareQueueForWrite(queue)
+
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("creating queue file directory: %w", err)
+	}
+
+	data, err := json.MarshalIndent(queue, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshalling queue file: %w", err)
+	}
+
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0o644); err != nil {
+		return fmt.Errorf("writing queue file temp: %w", err)
+	}
+
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("renaming queue file temp: %w", err)
+	}
+	return nil
+}
+
+func prepareQueueForWrite(queue *Queue) {
+	if queue == nil {
+		return
+	}
+	for i := range queue.Entries {
+		sort.Strings(queue.Entries[i].ChangedFiles)
+	}
+	sort.SliceStable(queue.Entries, func(i, j int) bool {
+		if queue.Entries[i].FifoSeq != queue.Entries[j].FifoSeq {
+			return queue.Entries[i].FifoSeq < queue.Entries[j].FifoSeq
+		}
+		return queue.Entries[i].Branch < queue.Entries[j].Branch
+	})
 }
