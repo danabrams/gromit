@@ -237,15 +237,72 @@ func TestFakePRClient_TracksCalls(t *testing.T) {
 	}
 }
 
+func TestFakePRClient_ReturnsErrorsForAllMethods(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	testError := errors.New("API error")
+
+	tests := map[string]func(*fakePRClient) error{
+		"GetPR": func(f *fakePRClient) error {
+			_, err := f.GetPR(ctx, specmerge.PRRef{Number: 1})
+			return err
+		},
+		"ListChecks": func(f *fakePRClient) error {
+			_, err := f.ListChecks(ctx, specmerge.PRRef{Number: 1})
+			return err
+		},
+		"PostReview": func(f *fakePRClient) error {
+			return f.PostReview(ctx, specmerge.PRRef{Number: 1}, specmerge.ReviewPayload{})
+		},
+		"PostComment": func(f *fakePRClient) error {
+			return f.PostComment(ctx, specmerge.PRRef{Number: 1}, "body")
+		},
+		"RequestReviewers": func(f *fakePRClient) error {
+			return f.RequestReviewers(ctx, specmerge.PRRef{Number: 1}, []string{})
+		},
+		"MergePR": func(f *fakePRClient) error {
+			return f.MergePR(ctx, specmerge.PRRef{Number: 1}, "message")
+		},
+	}
+
+	for methodName, testFn := range tests {
+		t.Run(methodName, func(t *testing.T) {
+			fake := &fakePRClient{
+				getPRError:           testError,
+				listChecksError:      testError,
+				postReviewError:      testError,
+				postCommentError:     testError,
+				requestReviewersError: testError,
+				mergePRError:         testError,
+			}
+
+			err := testFn(fake)
+			if err == nil {
+				t.Errorf("%s should return configured error", methodName)
+			}
+			if err.Error() != testError.Error() {
+				t.Errorf("%s returned wrong error: %v", methodName, err)
+			}
+		})
+	}
+}
+
 // fakePRClient is a test implementation of PRClient interface.
 type fakePRClient struct {
-	nextPRNumber       int
-	createPRError      error
-	checksToReturn     []specmerge.CheckStatus
-	postReviewCalls    []specmerge.ReviewPayload
-	postCommentCalls   []string
+	nextPRNumber        int
+	createPRError       error
+	getPRError          error
+	listChecksError     error
+	postReviewError     error
+	postCommentError    error
+	requestReviewersError error
+	mergePRError        error
+	checksToReturn      []specmerge.CheckStatus
+	postReviewCalls     []specmerge.ReviewPayload
+	postCommentCalls    []string
 	requestReviewersCalls [][]string
-	mergePRCalls       []string
+	mergePRCalls        []string
 }
 
 func (f *fakePRClient) CreatePR(ctx context.Context, title, body, head, base string) (specmerge.PRRef, error) {
@@ -261,6 +318,9 @@ func (f *fakePRClient) CreatePR(ctx context.Context, title, body, head, base str
 }
 
 func (f *fakePRClient) GetPR(ctx context.Context, ref specmerge.PRRef) (specmerge.PRStatus, error) {
+	if f.getPRError != nil {
+		return specmerge.PRStatus{}, f.getPRError
+	}
 	return specmerge.PRStatus{
 		Number:    ref.Number,
 		Title:     "Test PR",
@@ -272,6 +332,9 @@ func (f *fakePRClient) GetPR(ctx context.Context, ref specmerge.PRRef) (specmerg
 }
 
 func (f *fakePRClient) ListChecks(ctx context.Context, ref specmerge.PRRef) ([]specmerge.CheckStatus, error) {
+	if f.listChecksError != nil {
+		return nil, f.listChecksError
+	}
 	if f.checksToReturn != nil {
 		return f.checksToReturn, nil
 	}
@@ -279,21 +342,33 @@ func (f *fakePRClient) ListChecks(ctx context.Context, ref specmerge.PRRef) ([]s
 }
 
 func (f *fakePRClient) PostReview(ctx context.Context, ref specmerge.PRRef, payload specmerge.ReviewPayload) error {
+	if f.postReviewError != nil {
+		return f.postReviewError
+	}
 	f.postReviewCalls = append(f.postReviewCalls, payload)
 	return nil
 }
 
 func (f *fakePRClient) PostComment(ctx context.Context, ref specmerge.PRRef, body string) error {
+	if f.postCommentError != nil {
+		return f.postCommentError
+	}
 	f.postCommentCalls = append(f.postCommentCalls, body)
 	return nil
 }
 
 func (f *fakePRClient) RequestReviewers(ctx context.Context, ref specmerge.PRRef, reviewers []string) error {
+	if f.requestReviewersError != nil {
+		return f.requestReviewersError
+	}
 	f.requestReviewersCalls = append(f.requestReviewersCalls, reviewers)
 	return nil
 }
 
 func (f *fakePRClient) MergePR(ctx context.Context, ref specmerge.PRRef, commitMessage string) error {
+	if f.mergePRError != nil {
+		return f.mergePRError
+	}
 	f.mergePRCalls = append(f.mergePRCalls, commitMessage)
 	return nil
 }
