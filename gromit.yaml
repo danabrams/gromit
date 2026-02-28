@@ -158,7 +158,7 @@ validation:
     - "go test -vet=off -p 4 -parallel 4 ./..."
     - "go vet ./..."
     - "go build ./..."
-  full_validation_every_n_successes: 0
+  full_validation_every_n_successes: 10
   commands:
     - "go test -vet=off -p 4 -parallel 4 ./..."
     - "go vet ./..."
