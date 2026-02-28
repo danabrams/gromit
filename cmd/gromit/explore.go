@@ -226,6 +226,9 @@ func buildExplorePipeline(cmd *cobra.Command, cfg *config.Config) (*pipeline.Pip
 }
 
 func exploreInteractiveModelForwarder(cmd *cobra.Command, cfg *config.Config, flagName string) func(pipeline.Agent, string) (pipeline.Agent, string) {
+	_ = cmd
+	_ = cfg
+	_ = flagName
 	return func(pAgent pipeline.Agent, model string) (pipeline.Agent, string) {
 		if model == "" {
 			return pAgent, ""
@@ -233,27 +236,19 @@ func exploreInteractiveModelForwarder(cmd *cobra.Command, cfg *config.Config, fl
 
 		resolvedAgent, ok := pAgent.(agent.Agent)
 		if !ok {
-			return pAgent, "model forwarding not supported for agent " + pAgent.Name()
+			return pAgent, fmt.Sprintf("model override not supported for agent %q", pAgent.Name())
 		}
 
-		flagChanged := cmd != nil && flagName != "" && cmd.Flags().Lookup(flagName) != nil && cmd.Flags().Changed(flagName)
-
-		if resolvedAgent.Name() == "claude" {
-			overridden := TryOverrideModel(cmd, resolvedAgent, model, cfg, flagName, true)
-			if overridden != nil && overridden != resolvedAgent {
-				return overridden, ""
+		result := agent.TryOverrideModel(resolvedAgent, model)
+		if result.Agent == nil {
+			warning := result.Warning
+			if warning == "" {
+				warning = fmt.Sprintf("model override not supported for agent %q", resolvedAgent.Name())
 			}
-			return resolvedAgent, ""
+			return resolvedAgent, warning
 		}
 
-		forwarded, warning := agent.ForwardModelToAgent(resolvedAgent, model)
-		if forwarded == nil {
-			forwarded = resolvedAgent
-		}
-		if flagChanged && (warning != "" || forwarded == resolvedAgent) {
-			warning = fmt.Sprintf("--model flag ignored for non-Claude agent %q", resolvedAgent.Name())
-		}
-		return forwarded, warning
+		return result.Agent, result.Warning
 	}
 }
 

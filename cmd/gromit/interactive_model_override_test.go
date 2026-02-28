@@ -242,7 +242,7 @@ func TestExploreInteractiveModelForwarderWarnsForUnsupportedAgent(t *testing.T) 
 	if returned != custom {
 		t.Fatalf("expected unsupported agent to be returned unchanged")
 	}
-	expected := "--model flag ignored for non-Claude agent \"custom\""
+	expected := "model override not supported for agent \"custom\""
 	if warning != expected {
 		t.Fatalf("warning = %q, want %q", warning, expected)
 	}
