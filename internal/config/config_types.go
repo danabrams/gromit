@@ -61,6 +61,7 @@ type Config struct {
 	Validation      ValidationConfig       `yaml:"validation"`
 	Refactor        RefactorConfig         `yaml:"refactor"`
 	ScopeCheck      ScopeCheckConfig       `yaml:"scope_check"`
+	ReadinessCheck  ReadinessCheckConfig   `yaml:"readiness_check"`
 	Precheck        PrecheckConfig         `yaml:"precheck"`
 	Preflight       PreflightConfig        `yaml:"preflight"`
 	Claude          ClaudeConfig           `yaml:"claude"`
@@ -231,6 +232,10 @@ type ScopeCheckConfig struct {
 	Enabled        bool   `yaml:"enabled"`
 	Model          string `yaml:"model"`
 	BlockOversized *bool  `yaml:"block_oversized"`
+}
+
+type ReadinessCheckConfig struct {
+	Enabled bool `yaml:"enabled"`
 }
 
 type PrecheckConfig struct {

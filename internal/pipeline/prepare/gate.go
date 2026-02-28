@@ -104,6 +104,11 @@ func (g *Gate) HasDecomposer() bool {
 	return g.decomposer != nil
 }
 
+// HasDataQualityBlocker returns true if a DataQualityBlocker is wired in, false otherwise.
+func (g *Gate) HasDataQualityBlocker() bool {
+	return g.dataQualityChecker != nil
+}
+
 // Run executes the gate stage.
 // It runs precheck (Skip if work already done), stuck detection (Block if threshold exceeded),
 // and scope gate (Block/Skip based on oversized decomposition outcome),
