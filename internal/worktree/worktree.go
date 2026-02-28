@@ -349,7 +349,7 @@ func (m *Manager) runGit(dir string, args ...string) (string, error) {
 	}
 
 	// Default implementation: run real git command
-	cmd := exec.Command("git", args...)
+	cmd := exec.CommandContext(context.Background(), "git", args...)
 	cmd.Dir = dir
 	procutil.SetProcessGroupKill(cmd)
 	cmd.Env = procutil.SubprocessEnv()
