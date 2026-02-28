@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/conversation"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
@@ -14,9 +15,10 @@ import (
 
 // Store holds the UI state for the TUI clients.
 type Store struct {
-	mu        sync.RWMutex
-	Dashboard DashboardState
-	Queue     QueueState
+	mu           sync.RWMutex
+	Dashboard    DashboardState
+	Queue        QueueState
+	Conversation ConversationState
 }
 
 // DashboardState captures the fields needed to render the dashboard view.
@@ -79,6 +81,12 @@ type QueueSnapshot struct {
 	All            []*bead.Bead
 	Stats          map[string]logger.BeadStats
 	StuckThreshold int
+}
+
+// ConversationState tracks conversation state.
+type ConversationState struct {
+	EventCount int
+	LastEvent  *conversation.Event
 }
 
 // OnRunStart updates the store when a run starts.
@@ -268,4 +276,12 @@ func (s *Store) OnStallDetected(event *events.StallDetectedEvent) {
 	s.Dashboard.HealthIndicator.LastEventType = "stall_detected"
 	s.Dashboard.HealthIndicator.LastEventTime = event.EventTime()
 	s.Dashboard.HealthIndicator.IsHealthy = false
+}
+
+// ApplyConversationEvent updates the store when a conversation event occurs.
+func (s *Store) ApplyConversationEvent(event conversation.Event) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Conversation.EventCount++
+	s.Conversation.LastEvent = &event
 }

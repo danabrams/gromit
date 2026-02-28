@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/danabrams/gromit/internal/conversation"
 	"github.com/danabrams/gromit/internal/events"
 )
 
@@ -446,5 +447,52 @@ func TestMapRecentCompletions_ReturnsEmptySlice(t *testing.T) {
 	}
 	if len(result) != 0 {
 		t.Fatalf("expected empty slice, got %d items", len(result))
+	}
+}
+
+func TestApplyConversationEvent_UpdatesConversationState(t *testing.T) {
+	t.Parallel()
+
+	store := &Store{}
+
+	event := conversation.Event{
+		Type: conversation.EventTypeStream,
+		Text: "hello",
+	}
+
+	store.ApplyConversationEvent(event)
+
+	if store.Conversation.EventCount != 1 {
+		t.Errorf("EventCount = %d, want 1", store.Conversation.EventCount)
+	}
+	if store.Conversation.LastEvent == nil {
+		t.Error("expected LastEvent to be set")
+	} else if store.Conversation.LastEvent.Text != "hello" {
+		t.Errorf("LastEvent.Text = %q, want %q", store.Conversation.LastEvent.Text, "hello")
+	}
+}
+
+func TestApplyConversationEvent_CombinesMultipleEvents(t *testing.T) {
+	t.Parallel()
+
+	store := &Store{}
+
+	event1 := conversation.Event{
+		Type: conversation.EventTypeStream,
+		Text: "first",
+	}
+	event2 := conversation.Event{
+		Type: conversation.EventTypeStream,
+		Text: "second",
+	}
+
+	store.ApplyConversationEvent(event1)
+	store.ApplyConversationEvent(event2)
+
+	if store.Conversation.EventCount != 2 {
+		t.Errorf("EventCount = %d, want 2", store.Conversation.EventCount)
+	}
+	if store.Conversation.LastEvent.Text != "second" {
+		t.Errorf("LastEvent.Text = %q, want %q", store.Conversation.LastEvent.Text, "second")
 	}
 }
