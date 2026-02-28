@@ -85,3 +85,10 @@ func TestCanTransition_IntegratingToFailedGates_Allowed(t *testing.T) {
 		t.Errorf("expected integrating->failed_gates to be allowed, got false")
 	}
 }
+
+func TestCanTransition_IntegratingToLaneViolation_Allowed(t *testing.T) {
+	result := CanTransition("integrating", "lane_violation")
+	if !result {
+		t.Errorf("expected integrating->lane_violation to be allowed, got false")
+	}
+}
