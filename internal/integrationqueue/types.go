@@ -1,10 +1,6 @@
 package integrationqueue
 
-import (
-	"fmt"
-	"strings"
-	"time"
-)
+import "time"
 
 // State models the lifecycle of an integration queue entry.
 type State string
@@ -48,35 +44,6 @@ type Entry struct {
 	LastErrorCode        string    `json:"last_error_code"`
 	LastErrorMessage     string    `json:"last_error_message"`
 	LastTransitionReason string    `json:"last_transition_reason"`
-}
-
-// Validate ensures the entry is well-formed before persistence.
-func (e Entry) Validate() error {
-	if strings.TrimSpace(e.Branch) == "" {
-		return fmt.Errorf("branch is required")
-	}
-	if strings.TrimSpace(e.SessionID) == "" {
-		return fmt.Errorf("session_id is required")
-	}
-	if strings.TrimSpace(e.OriginCommand) == "" {
-		return fmt.Errorf("origin_command is required")
-	}
-	if strings.TrimSpace(e.Lane) == "" {
-		return fmt.Errorf("lane is required")
-	}
-	if !e.State.Valid() {
-		return fmt.Errorf("state %q is not supported", e.State)
-	}
-	if strings.TrimSpace(e.BaseRef) == "" {
-		return fmt.Errorf("base_ref is required")
-	}
-	if strings.TrimSpace(e.HeadSHA) == "" {
-		return fmt.Errorf("head_sha is required")
-	}
-	if hasErrorCode := strings.TrimSpace(e.LastErrorCode) != ""; hasErrorCode != (strings.TrimSpace(e.LastErrorMessage) != "") {
-		return fmt.Errorf("last_error_code and last_error_message must both be set together")
-	}
-	return nil
 }
 
 // Valid returns true when the state is recognized.
