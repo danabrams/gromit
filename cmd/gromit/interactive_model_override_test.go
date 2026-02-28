@@ -247,3 +247,20 @@ func TestExploreInteractiveModelForwarderWarnsForUnsupportedAgent(t *testing.T) 
 		t.Fatalf("warning = %q, want %q", warning, expected)
 	}
 }
+
+func TestExploreInteractiveModelForwarderPropagatesAgentWarning(t *testing.T) {
+	t.Parallel()
+
+	cmd := &cobra.Command{Use: "explore"}
+	cmd.Flags().String("model", "opus", "model override")
+	if err := cmd.Flags().Set("model", "sonnet"); err != nil {
+		t.Fatalf("setting model flag: %v", err)
+	}
+
+	forwarder := exploreInteractiveModelForwarder(cmd, nil, "model")
+	custom := unsupportedAgent{}
+	_, warning := forwarder(custom, "sonnet")
+	if warning != "model override not supported for agent \"custom\"" {
+		t.Fatalf("warning = %q, want %q", warning, "model override not supported for agent \"custom\"")
+	}
+}
