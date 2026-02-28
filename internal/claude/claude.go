@@ -2,6 +2,7 @@ package claude
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -13,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/danabrams/gromit/internal/conversation"
 	"github.com/danabrams/gromit/internal/procutil"
 )
 
@@ -563,4 +565,232 @@ func (c *Client) processStreamJSONWithCost(stdout io.Reader, output io.Writer, h
 	}
 
 	return resultText, costUSD, inputTokens, outputTokens, cachedInputTokens
+}
+
+// StreamJSONConversationMapper converts Claude stream-json lines into conversation events.
+type StreamJSONConversationMapper struct {
+	lastToolName string
+}
+
+// NewStreamJSONConversationMapper creates a new mapper for stream-json to conversation events.
+func NewStreamJSONConversationMapper() *StreamJSONConversationMapper {
+	return &StreamJSONConversationMapper{}
+}
+
+// MapLine parses a single stream-json line and returns zero or more conversation events.
+func (m *StreamJSONConversationMapper) MapLine(line []byte) ([]conversation.Event, error) {
+	if m == nil {
+		return nil, fmt.Errorf("stream JSON conversation mapper is nil")
+	}
+	trimmed := bytes.TrimSpace(line)
+	if len(trimmed) == 0 || trimmed[0] == '#' {
+		return nil, nil
+	}
+
+	var event streamJSONConversationEvent
+	if err := json.Unmarshal(trimmed, &event); err != nil {
+		return nil, err
+	}
+
+	switch event.Type {
+	case "assistant":
+		return m.mapAssistant(event), nil
+	case "user":
+		if ev := m.mapToolResult(event); ev != nil {
+			return []conversation.Event{*ev}, nil
+		}
+	case "result":
+		text := decodeResultText(event.Result)
+		m.lastToolName = ""
+		return []conversation.Event{{Type: conversation.EventTypeDone, Text: text}}, nil
+	case "error":
+		m.lastToolName = ""
+		return []conversation.Event{{Type: conversation.EventTypeDone, Text: describeError(event)}}, nil
+	}
+
+	return nil, nil
+}
+
+func (m *StreamJSONConversationMapper) mapAssistant(event streamJSONConversationEvent) []conversation.Event {
+	if event.Message == nil {
+		return nil
+	}
+	var events []conversation.Event
+	for _, block := range event.Message.Content {
+		switch block.Type {
+		case "text":
+			if block.Text == "" {
+				continue
+			}
+			events = append(events, conversation.Event{
+				Type: conversation.EventTypeStream,
+				Text: block.Text,
+			})
+		case "tool_use":
+			text := describeToolCall(block)
+			if block.Name != "" {
+				m.lastToolName = block.Name
+			}
+			events = append(events, conversation.Event{
+				Type:     conversation.EventTypeToolWait,
+				ToolName: block.Name,
+				Text:     text,
+			})
+		}
+	}
+	return events
+}
+
+func (m *StreamJSONConversationMapper) mapToolResult(event streamJSONConversationEvent) *conversation.Event {
+	if event.ToolUseResult == nil {
+		return nil
+	}
+	toolName := m.lastToolName
+	if toolName == "" {
+		toolName = event.ToolUseResult.Type
+	}
+	text := describeToolResult(event.ToolUseResult)
+	m.lastToolName = ""
+	return &conversation.Event{
+		Type:     conversation.EventTypeToolResult,
+		ToolName: toolName,
+		Text:     text,
+	}
+}
+
+func describeToolCall(block streamJSONContentBlock) string {
+	if path := strings.TrimSpace(block.Path); path != "" {
+		return path
+	}
+	return describeToolInput(block.Input)
+}
+
+func describeToolInput(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var params struct {
+		FilePath     string `json:"file_path"`
+		Path         string `json:"path"`
+		NotebookPath string `json:"notebook_path"`
+		Command      string `json:"command"`
+	}
+	if err := json.Unmarshal(raw, &params); err != nil {
+		return ""
+	}
+	switch {
+	case params.FilePath != "":
+		return params.FilePath
+	case params.NotebookPath != "":
+		return params.NotebookPath
+	case params.Path != "":
+		return params.Path
+	case params.Command != "":
+		return params.Command
+	default:
+		return ""
+	}
+}
+
+func describeToolResult(result *streamJSONToolUseResult) string {
+	if result == nil {
+		return ""
+	}
+	if result.File != nil {
+		path := result.File.FilePath
+		if path == "" {
+			path = "file"
+		}
+		if result.File.NumLines > 0 {
+			return fmt.Sprintf("%d lines read from %s", result.File.NumLines, path)
+		}
+		return fmt.Sprintf("result from %s", path)
+	}
+	if text := strings.TrimSpace(result.Output); text != "" {
+		return text
+	}
+	if result.Type != "" {
+		return result.Type
+	}
+	return ""
+}
+
+func describeError(event streamJSONConversationEvent) string {
+	if event.Error != nil && event.Error.Message != "" {
+		return event.Error.Message
+	}
+	if event.Subtype != "" {
+		return event.Subtype
+	}
+	return "error"
+}
+
+func decodeResultText(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var text string
+	if err := json.Unmarshal(raw, &text); err == nil {
+		return text
+	}
+	var payload struct {
+		Message    string `json:"message,omitempty"`
+		Text       string `json:"text,omitempty"`
+		Status     string `json:"status,omitempty"`
+		StopReason string `json:"stop_reason,omitempty"`
+		Error      string `json:"error,omitempty"`
+	}
+	if err := json.Unmarshal(raw, &payload); err == nil {
+		if payload.Message != "" {
+			return payload.Message
+		}
+		if payload.Text != "" {
+			return payload.Text
+		}
+		if payload.Status != "" {
+			if payload.StopReason != "" {
+				return fmt.Sprintf("%s (%s)", payload.Status, payload.StopReason)
+			}
+			return payload.Status
+		}
+		if payload.Error != "" {
+			return payload.Error
+		}
+	}
+	return strings.TrimSpace(string(raw))
+}
+
+type streamJSONConversationEvent struct {
+	Type          string                   `json:"type"`
+	Subtype       string                   `json:"subtype,omitempty"`
+	Message       *streamJSONMessage       `json:"message,omitempty"`
+	ToolUseResult *streamJSONToolUseResult `json:"tool_use_result,omitempty"`
+	Result        json.RawMessage          `json:"result,omitempty"`
+	Error         *streamJSONError         `json:"error,omitempty"`
+}
+
+type streamJSONMessage struct {
+	Content []streamJSONContentBlock `json:"content"`
+}
+
+type streamJSONContentBlock struct {
+	Type  string          `json:"type"`
+	Text  string          `json:"text,omitempty"`
+	Name  string          `json:"name,omitempty"`
+	Path  string          `json:"path,omitempty"`
+	Input json.RawMessage `json:"input,omitempty"`
+}
+
+type streamJSONToolUseResult struct {
+	Type string `json:"type,omitempty"`
+	File *struct {
+		FilePath string `json:"filePath,omitempty"`
+		NumLines int    `json:"numLines,omitempty"`
+	} `json:"file,omitempty"`
+	Output string `json:"output,omitempty"`
+}
+
+type streamJSONError struct {
+	Message string `json:"message,omitempty"`
+	Type    string `json:"type,omitempty"`
 }

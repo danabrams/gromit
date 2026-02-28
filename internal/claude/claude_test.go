@@ -940,7 +940,7 @@ func TestStreamJSONMixedContent(t *testing.T) {
 }
 
 func TestStreamJSONConversationEventsMapping(t *testing.T) {
-	successLines := readStreamJSONFixtureLines(t, filepath.Join("test", "fixtures", "claude_stream_success.jsonl"))
+	successLines := readStreamJSONFixtureLines(t, filepath.Join("..", "..", "test", "fixtures", "claude_stream_success.jsonl"))
 
 	t.Run("assistant text and result event", func(t *testing.T) {
 		mapper := NewStreamJSONConversationMapper()
