@@ -63,6 +63,14 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 			return fmt.Errorf("fetch/rebase branch: %w", err)
 		}
 		if err := c.gate.Run(ctx, *entry); err != nil {
+			entry.RetryCount++
+			entry.State = StateFailedGates
+			entry.LastErrorCode = string(StateFailedGates)
+			entry.LastErrorMessage = err.Error()
+			entry.LastTransitionReason = string(StateFailedGates)
+			if saveErr := c.store.Save(*entry); saveErr != nil {
+				return fmt.Errorf("marking entry failed_gates: %w", saveErr)
+			}
 			return fmt.Errorf("running scoped gates: %w", err)
 		}
 	}
