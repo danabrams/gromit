@@ -10,6 +10,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/procutil"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
@@ -80,7 +81,7 @@ func NewHandler(cfg *config.Config, analyzer FailureAnalyzer, beadClient BeadCli
 		createSubFn:           createSubFn,
 		logFn:                 logFn,
 		showPartialProgressFn: showPartialProgressFn,
-		sleepFn:               sleepWithContext,
+		sleepFn:               procutil.SleepWithContext,
 	}
 }
 
@@ -384,17 +385,6 @@ func triageRetryBackoff(attempt int) time.Duration {
 		return 750 * time.Millisecond
 	default:
 		return 1500 * time.Millisecond
-	}
-}
-
-func sleepWithContext(ctx context.Context, d time.Duration) error {
-	timer := time.NewTimer(d)
-	defer timer.Stop()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-timer.C:
-		return nil
 	}
 }
 

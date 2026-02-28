@@ -1322,17 +1322,17 @@ exit 1
 }
 
 // TestCodexProvider_SleepFnDefaultsToSleepWithContext verifies that NewCodexProvider
-// sets sleepFn to a non-nil function (sleepWithContext) by default.
+// sets sleepFn to a non-nil function (procutil.SleepWithContext) by default.
 func TestCodexProvider_SleepFnDefaultsToSleepWithContext(t *testing.T) {
 	t.Parallel()
 	cp := NewCodexProvider("/bin/codex", nil, nil)
 	if cp.sleepFn == nil {
-		t.Error("NewCodexProvider() sleepFn should default to sleepWithContext, got nil")
+		t.Error("NewCodexProvider() sleepFn should default to procutil.SleepWithContext, got nil")
 	}
 }
 
 // TestCodexProvider_SleepFnCalledOnRetryInRun verifies that Run() uses p.sleepFn
-// for retry backoff instead of calling sleepWithContext directly, allowing tests
+// for retry backoff instead of calling procutil.SleepWithContext directly, allowing tests
 // to inject an instant-return stub.
 func TestCodexProvider_SleepFnCalledOnRetryInRun(t *testing.T) {
 	t.Parallel()

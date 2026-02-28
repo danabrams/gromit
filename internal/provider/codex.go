@@ -76,7 +76,7 @@ func NewCodexProvider(binaryPath string, flags []string, tierToModel map[string]
 		tierToModel:          tierToModel,
 		tierToReasoning:      map[string]string{},
 		tierToMaxInputTokens: map[string]int{},
-		sleepFn:              sleepWithContext,
+		sleepFn:              procutil.SleepWithContext,
 		cacheAdapter:         NewNoopCacheAdapter(),
 	}
 }

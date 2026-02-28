@@ -205,13 +205,21 @@ func WaitForProcessCapacity(ctx context.Context, maxWait time.Duration) error {
 			wait = remaining
 		}
 
-		timer := time.NewTimer(wait)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return ctx.Err()
-		case <-timer.C:
+		if err := SleepWithContext(ctx, wait); err != nil {
+			return err
 		}
+	}
+}
+
+// SleepWithContext pauses for the requested duration while honoring context cancellation.
+func SleepWithContext(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
 	}
 }
 
