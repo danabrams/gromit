@@ -319,3 +319,17 @@ func TestBenchmarkDecomposeCompare_AcceptsValidOutputTimestamp(t *testing.T) {
 		t.Fatalf("stdout = %q, want to contain provided timestamp", stdout)
 	}
 }
+
+func TestBenchmarkDecomposeCompare_FailsWithInvalidSpecOverrides(t *testing.T) {
+	_, stderr, exitCode := runGromitCobra(t,
+		"benchmark", "decompose-compare",
+		"--manifest", "testdata/fixtures/benchmark/decompose.yaml",
+		"--specs", "spec1,spec2",
+	)
+	if exitCode == 0 {
+		t.Fatalf("exitCode = %d, want non-zero", exitCode)
+	}
+	if !strings.Contains(stderr, "--specs must include exactly 5 spec ids") {
+		t.Fatalf("stderr = %q, want spec override error", stderr)
+	}
+}
