@@ -2,6 +2,8 @@ package integrationqueue
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -112,5 +114,32 @@ func TestStoreSaveSortsChangedFiles(t *testing.T) {
 	want := []string{"a.txt", "z.txt"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("changed files = %v, want %v", got, want)
+	}
+}
+
+func TestStoreSaveRunsValidationHooks(t *testing.T) {
+	tmpDir := t.TempDir()
+	customErr := fmt.Errorf("validation failure")
+	store, err := NewStore(tmpDir, WithValidationHook(func(entry Entry) error {
+		if entry.Branch == "reject" {
+			return customErr
+		}
+		return nil
+	}))
+	if err != nil {
+		t.Fatalf("NewStore: %v", err)
+	}
+
+	entry := Entry{
+		Branch:        "reject",
+		SessionID:     "session",
+		OriginCommand: "ready",
+		State:         "ready",
+		Lane:          "code_lane",
+		BaseRef:       "main",
+		HeadSHA:       "abc123",
+	}
+	if err := store.Save(entry); !errors.Is(err, customErr) {
+		t.Fatalf("Save() error = %v, want %v", err, customErr)
 	}
 }
