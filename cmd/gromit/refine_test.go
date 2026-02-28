@@ -417,7 +417,9 @@ source_ideas:
 			t.Fatalf("expected %q in result map", id)
 		}
 	}
-	if _, ok := ids["123"]; ok {
-		t.Fatal("did not expect numeric source_ideas entry to be captured")
+	for _, id := range []string{"123", "idea-123"} {
+		if _, ok := ids[id]; !ok {
+			t.Fatalf("expected %q in result map for numeric legacy source_ideas", id)
+		}
 	}
 }

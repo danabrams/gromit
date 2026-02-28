@@ -5,8 +5,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/danabrams/gromit/internal/backlog"
@@ -217,29 +219,73 @@ func addRefinedIdeaID(ids map[string]struct{}, raw interface{}) {
 
 	switch v := raw.(type) {
 	case string:
-		id := strings.TrimSpace(v)
-		if id != "" {
-			ids[id] = struct{}{}
+		recordRefinedIdeaID(ids, v)
+	case int:
+		recordRefinedIdeaID(ids, strconv.Itoa(v))
+	case int8:
+		recordRefinedIdeaID(ids, strconv.FormatInt(int64(v), 10))
+	case int16:
+		recordRefinedIdeaID(ids, strconv.FormatInt(int64(v), 10))
+	case int32:
+		recordRefinedIdeaID(ids, strconv.FormatInt(int64(v), 10))
+	case int64:
+		recordRefinedIdeaID(ids, strconv.FormatInt(v, 10))
+	case uint:
+		recordRefinedIdeaID(ids, strconv.FormatUint(uint64(v), 10))
+	case uint8:
+		recordRefinedIdeaID(ids, strconv.FormatUint(uint64(v), 10))
+	case uint16:
+		recordRefinedIdeaID(ids, strconv.FormatUint(uint64(v), 10))
+	case uint32:
+		recordRefinedIdeaID(ids, strconv.FormatUint(uint64(v), 10))
+	case uint64:
+		recordRefinedIdeaID(ids, strconv.FormatUint(v, 10))
+	case float64:
+		if !math.IsNaN(v) && !math.IsInf(v, 0) && math.Trunc(v) == v {
+			recordRefinedIdeaID(ids, strconv.FormatInt(int64(v), 10))
 		}
 	case []interface{}:
 		for _, item := range v {
-			id, ok := item.(string)
-			if !ok {
-				continue
-			}
-			id = strings.TrimSpace(id)
-			if id != "" {
-				ids[id] = struct{}{}
-			}
+			addRefinedIdeaID(ids, item)
 		}
 	case []string:
 		for _, id := range v {
-			id = strings.TrimSpace(id)
-			if id != "" {
-				ids[id] = struct{}{}
-			}
+			recordRefinedIdeaID(ids, id)
 		}
 	}
+}
+
+func recordRefinedIdeaID(ids map[string]struct{}, id string) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return
+	}
+
+	ids[id] = struct{}{}
+	if digitsOnly(id) {
+		ids["idea-"+id] = struct{}{}
+		return
+	}
+
+	const ideaPrefix = "idea-"
+	if strings.HasPrefix(id, ideaPrefix) {
+		suffix := strings.TrimPrefix(id, ideaPrefix)
+		if digitsOnly(suffix) {
+			ids[suffix] = struct{}{}
+		}
+	}
+}
+
+func digitsOnly(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func parseRefineChooseAgentFlag(cmd *cobra.Command) bool {
