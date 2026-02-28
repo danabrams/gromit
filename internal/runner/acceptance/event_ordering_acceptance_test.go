@@ -10,6 +10,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/events/cli"
+	"github.com/danabrams/gromit/internal/events/eventtest"
 	"github.com/danabrams/gromit/internal/events/status"
 	"github.com/danabrams/gromit/internal/events/tmux"
 )
@@ -56,7 +57,12 @@ func TestEventOrdering_SuccessPath(t *testing.T) {
 		_ = captureSubscriber.Start(ctx)
 	}()
 
-	time.Sleep(10 * time.Millisecond)
+	// Wait for subscriber to start using polling
+	startCtx, startCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer startCancel()
+	if err := eventtest.WaitForSubscriberReady(startCtx, emitter); err != nil {
+		t.Fatalf("WaitForSubscriberReady failed: %v", err)
+	}
 
 	// Emit success path events
 	emitter.Emit(&events.RunStartEvent{MaxIterations: 1})
@@ -71,7 +77,15 @@ func TestEventOrdering_SuccessPath(t *testing.T) {
 	emitter.Emit(&events.BeadCompleteEvent{BeadID: "b1", BeadTitle: "Test"})
 	emitter.Emit(&events.RunCompleteEvent{IterationsCompleted: 1, Reason: "success"})
 
-	time.Sleep(50 * time.Millisecond)
+	// Wait for events to be processed
+	processCtx, processCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer processCancel()
+	if err := eventtest.WaitForCondition(processCtx, func() bool {
+		return len(eventSequence) > 0
+	}); err != nil {
+		t.Fatalf("WaitForCondition failed: %v", err)
+	}
+
 	cancel()
 
 	// Verify event ordering
@@ -120,7 +134,12 @@ func TestEventOrdering_FailurePath(t *testing.T) {
 		_ = captureSubscriber.Start(ctx)
 	}()
 
-	time.Sleep(10 * time.Millisecond)
+	// Wait for subscriber to start using polling
+	startCtx, startCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer startCancel()
+	if err := eventtest.WaitForSubscriberReady(startCtx, emitter); err != nil {
+		t.Fatalf("WaitForSubscriberReady failed: %v", err)
+	}
 
 	// Emit failure path with escalation
 	emitter.Emit(&events.RunStartEvent{MaxIterations: 2})
@@ -137,7 +156,15 @@ func TestEventOrdering_FailurePath(t *testing.T) {
 	emitter.Emit(&events.IterationCompleteEvent{Iteration: 1, BeadID: "b1", Success: true})
 	emitter.Emit(&events.RunCompleteEvent{IterationsCompleted: 1, Reason: "success"})
 
-	time.Sleep(50 * time.Millisecond)
+	// Wait for events to be processed
+	processCtx2, processCancel2 := context.WithTimeout(context.Background(), 1*time.Second)
+	defer processCancel2()
+	if err := eventtest.WaitForCondition(processCtx2, func() bool {
+		return len(eventSequence) > 0
+	}); err != nil {
+		t.Fatalf("WaitForCondition failed: %v", err)
+	}
+
 	cancel()
 
 	// Verify key events in sequence
@@ -186,7 +213,12 @@ func TestCLIOutputParity(t *testing.T) {
 		_ = subscriber.Start(ctx)
 	}()
 
-	time.Sleep(10 * time.Millisecond)
+	// Wait for subscriber to start using polling
+	startCtx, startCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer startCancel()
+	if err := eventtest.WaitForSubscriberReady(startCtx, emitter); err != nil {
+		t.Fatalf("WaitForSubscriberReady failed: %v", err)
+	}
 
 	// Emit representative events
 	emitter.Emit(&events.IterationStartEvent{Iteration: 1, BeadID: "b1", BeadTitle: "Auth Task"})
@@ -195,7 +227,15 @@ func TestCLIOutputParity(t *testing.T) {
 	emitter.Emit(&events.ValidationStartEvent{BeadID: "b1"})
 	emitter.Emit(&events.ValidationPassEvent{BeadID: "b1", Duration: 2 * time.Second})
 
-	time.Sleep(50 * time.Millisecond)
+	// Wait for events to be processed
+	processCtx, processCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer processCancel()
+	if err := eventtest.WaitForCondition(processCtx, func() bool {
+		return len(output.String()) > 0
+	}); err != nil {
+		t.Fatalf("WaitForCondition failed: %v", err)
+	}
+
 	cancel()
 
 	outputStr := output.String()
@@ -234,11 +274,25 @@ func TestSubscriberDrivenStatusUpdates(t *testing.T) {
 		_ = subscriber.Start(ctx)
 	}()
 
-	time.Sleep(10 * time.Millisecond)
+	// Wait for subscriber to start using polling
+	startCtx, startCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer startCancel()
+	if err := eventtest.WaitForSubscriberReady(startCtx, emitter); err != nil {
+		t.Fatalf("WaitForSubscriberReady failed: %v", err)
+	}
 
 	// Emit events
 	emitter.Emit(&events.RunStartEvent{MaxIterations: 5})
-	time.Sleep(20 * time.Millisecond)
+
+	// Wait for status to be updated
+	processCtx, processCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer processCancel()
+	if err := eventtest.WaitForCondition(processCtx, func() bool {
+		_, ok := statusWriter.updates["running"]
+		return ok
+	}); err != nil {
+		t.Fatalf("WaitForCondition failed: %v", err)
+	}
 
 	// Verify status was updated by subscriber
 	if running, ok := statusWriter.updates["running"]; !ok || running != true {
@@ -251,7 +305,16 @@ func TestSubscriberDrivenStatusUpdates(t *testing.T) {
 
 	// Emit iteration event
 	emitter.Emit(&events.IterationStartEvent{Iteration: 1, BeadID: "b1", BeadTitle: "Test"})
-	time.Sleep(20 * time.Millisecond)
+
+	// Wait for iteration to be updated
+	processCtx2, processCancel2 := context.WithTimeout(context.Background(), 1*time.Second)
+	defer processCancel2()
+	if err := eventtest.WaitForCondition(processCtx2, func() bool {
+		_, ok := statusWriter.updates["iteration"]
+		return ok
+	}); err != nil {
+		t.Fatalf("WaitForCondition failed: %v", err)
+	}
 
 	if iter, ok := statusWriter.updates["iteration"]; !ok || iter != 1 {
 		t.Errorf("Expected iteration=1 in status, got %v", statusWriter.updates["iteration"])
@@ -284,11 +347,24 @@ func TestSubscriberDrivenTmuxUpdates(t *testing.T) {
 		_ = subscriber.Start(ctx)
 	}()
 
-	time.Sleep(10 * time.Millisecond)
+	// Wait for subscriber to start using polling
+	startCtx, startCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer startCancel()
+	if err := eventtest.WaitForSubscriberReady(startCtx, emitter); err != nil {
+		t.Fatalf("WaitForSubscriberReady failed: %v", err)
+	}
 
 	// Emit events
 	emitter.Emit(&events.RunStartEvent{MaxIterations: 1})
-	time.Sleep(20 * time.Millisecond)
+
+	// Wait for title to be updated
+	processCtx, processCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer processCancel()
+	if err := eventtest.WaitForCondition(processCtx, func() bool {
+		return len(tmuxManager.titles) > 0
+	}); err != nil {
+		t.Fatalf("WaitForCondition failed: %v", err)
+	}
 
 	// Verify tmux title was updated
 	if len(tmuxManager.titles) == 0 {
@@ -302,7 +378,16 @@ func TestSubscriberDrivenTmuxUpdates(t *testing.T) {
 
 	// Emit iteration event
 	emitter.Emit(&events.IterationStartEvent{Iteration: 2, BeadID: "b2", BeadTitle: "Checkout"})
-	time.Sleep(20 * time.Millisecond)
+
+	// Wait for title to be updated again
+	processCtx2, processCancel2 := context.WithTimeout(context.Background(), 1*time.Second)
+	defer processCancel2()
+	initialTitles := len(tmuxManager.titles)
+	if err := eventtest.WaitForCondition(processCtx2, func() bool {
+		return len(tmuxManager.titles) > initialTitles
+	}); err != nil {
+		t.Fatalf("WaitForCondition failed: %v", err)
+	}
 
 	// Verify title was updated with iteration info
 	latestTitle := tmuxManager.titles[len(tmuxManager.titles)-1]
@@ -333,7 +418,12 @@ func TestHeartbeatEventOrdering(t *testing.T) {
 		_ = captureSubscriber.Start(ctx)
 	}()
 
-	time.Sleep(10 * time.Millisecond)
+	// Wait for subscriber to start using polling
+	startCtx, startCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer startCancel()
+	if err := eventtest.WaitForSubscriberReady(startCtx, emitter); err != nil {
+		t.Fatalf("WaitForSubscriberReady failed: %v", err)
+	}
 
 	// Emit build with heartbeats
 	emitter.Emit(&events.IterationStartEvent{Iteration: 1, BeadID: "b1", BeadTitle: "Test"})
@@ -343,7 +433,15 @@ func TestHeartbeatEventOrdering(t *testing.T) {
 	emitter.Emit(&events.HeartbeatEvent{Elapsed: 3 * time.Second, ToolCalls: 3})
 	emitter.Emit(&events.BuildCompleteEvent{BeadID: "b1", Success: true})
 
-	time.Sleep(50 * time.Millisecond)
+	// Wait for events to be processed
+	processCtx, processCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer processCancel()
+	if err := eventtest.WaitForCondition(processCtx, func() bool {
+		return len(eventSequence) > 0
+	}); err != nil {
+		t.Fatalf("WaitForCondition failed: %v", err)
+	}
+
 	cancel()
 
 	// Verify heartbeats are interspersed between build events
