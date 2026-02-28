@@ -161,3 +161,57 @@ func TestConversationControllerFollowUpDuringToolWait(t *testing.T) {
         t.Fatalf("expected final result in view, got %q", finalView)
     }
 }
+
+func TestConversationControllerIgnoresLateEventsAfterCancel(t *testing.T) {
+    timeline := []fakeConversationStep{
+        {Event: ConversationEvent{Type: ConversationEventTypeStream, Text: "start"}},
+        {Event: ConversationEvent{Type: ConversationEventTypeStream, Text: "mid"}},
+        {Event: ConversationEvent{Type: ConversationEventTypeStream, Text: "late"}},
+    }
+    session := newFakeConversationSession(timeline)
+    controller := NewConversationController(session)
+
+    cmd := controller.Init()
+    if cmd == nil {
+        t.Fatal("expected watcher command from init")
+    }
+
+    msg := cmd()
+    model, cmd := controller.Update(msg)
+    ctrl, ok := model.(*ConversationController)
+    if !ok {
+        t.Fatalf("expected ConversationController, got %T", model)
+    }
+
+    model, cancelCmd := ctrl.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+    ctrl, ok = model.(*ConversationController)
+    if !ok {
+        t.Fatalf("expected ConversationController, got %T", model)
+    }
+    if cancelCmd == nil {
+        t.Fatal("expected cancel to continue watching the session")
+    }
+
+    for cancelCmd != nil {
+        msg = cancelCmd()
+        model, cancelCmd = ctrl.Update(msg)
+        ctrl, ok = model.(*ConversationController)
+        if !ok {
+            t.Fatalf("expected ConversationController, got %T", model)
+        }
+    }
+
+    view := ctrl.View()
+    if !strings.Contains(view, "start") {
+        t.Fatalf("expected start event, got %q", view)
+    }
+    if strings.Contains(view, "mid") {
+        t.Fatalf("expected mid event to be ignored after cancel, got %q", view)
+    }
+    if strings.Contains(view, "late") {
+        t.Fatalf("expected late event to be ignored after cancel, got %q", view)
+    }
+    if !strings.Contains(view, "[ignored 2 late events]") {
+        t.Fatalf("expected indicator about ignored late events, got %q", view)
+    }
+}
