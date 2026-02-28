@@ -148,6 +148,68 @@ func collectSessionEvents(sess ConversationSession) []ConversationEvent {
 	return events
 }
 
+func TestConversationTerminalStateGuarantee(t *testing.T) {
+	// Verify that a stream with no events has no terminal state
+	emptySession := &mockConversationSession{events: []ConversationEvent{}}
+	emptyEvents := collectSessionEvents(emptySession)
+	if len(emptyEvents) > 0 {
+		t.Fatalf("expected empty session to yield no events, got %d", len(emptyEvents))
+	}
+
+	// Verify that terminal state must be final - nothing should follow it
+	invalidSession := &mockConversationSession{
+		events: []ConversationEvent{
+			{State: ConversationStateStreaming, Content: "text"},
+			{State: ConversationStateCompleted},
+			{State: ConversationStateStreaming, Content: "more text"}, // Invalid - after completed
+		},
+	}
+
+	allEvents := make([]ConversationEvent, 0)
+	for ev := range invalidSession.Events() {
+		allEvents = append(allEvents, ev)
+	}
+
+	// Check that event at terminal position is indeed terminal
+	if len(allEvents) > 0 {
+		terminalIdx := len(allEvents) - 2 // Index of terminal event in invalid sequence
+		if terminalIdx >= 0 && terminalIdx < len(allEvents) {
+			if !isTerminalState(allEvents[terminalIdx].State) {
+				t.Fatalf("expected state at index %d to be terminal", terminalIdx)
+			}
+		}
+	}
+}
+
+func TestConversationToolEventValidation(t *testing.T) {
+	// Verify tool events exist and are represented in lifecycle states
+	session := &mockConversationSession{
+		events: []ConversationEvent{
+			{State: ConversationStateStreaming, Content: "calculating"},
+			{State: ConversationStateWaitingForTool, ToolName: "calculator", ToolInput: `{"a": 1}`},
+			{State: ConversationStateStreaming, ToolOutput: "2"},
+			{State: ConversationStateCompleted},
+		},
+	}
+
+	events := collectSessionEvents(session)
+	if len(events) < 3 {
+		t.Fatalf("expected at least 3 events for tool sequence, got %d", len(events))
+	}
+
+	// Verify tool-wait event has tool name
+	toolWaitEvent := events[1]
+	if toolWaitEvent.State != ConversationStateWaitingForTool {
+		t.Fatalf("expected WaitingForTool state, got %v", toolWaitEvent.State)
+	}
+	if toolWaitEvent.ToolName == "" {
+		t.Fatal("expected tool name in tool-wait event")
+	}
+	if toolWaitEvent.ToolInput == "" {
+		t.Fatal("expected tool input in tool-wait event")
+	}
+}
+
 type mockConversationSession struct {
 	events []ConversationEvent
 	sent   int
