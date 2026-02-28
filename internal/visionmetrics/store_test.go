@@ -428,6 +428,59 @@ func TestAppendRecord_PreservesAllYesNoValues(t *testing.T) {
 	}
 }
 
+func TestAppendRecord_PreservesAllReviewOutcomes(t *testing.T) {
+	// Create a temporary file
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "outcomes.jsonl")
+
+	// Test all ReviewOutcome values
+	testCases := []struct {
+		outcome   ReviewOutcome
+		rationale string
+	}{
+		{ReviewOutcomeAccepted, ""},
+		{ReviewOutcomeImplementationGap, ""},
+		{ReviewOutcomeVisionChange, "Scope has changed"},
+	}
+
+	for _, tc := range testCases {
+		record := Record{
+			SpecID:                     "outcome-" + string(tc.outcome),
+			CycleStartTriggerAt:        parseTime("2026-02-01T08:00:00Z"),
+			CycleEndPresentedAt:        parseTime("2026-02-01T10:00:00Z"),
+			ReviewOutcome:              tc.outcome,
+			ReviewRationale:            tc.rationale,
+			HumanTacticalIntervention:  No,
+			HumanDebuggingIntervention: No,
+			EscapedRegressionWithin7D:  No,
+		}
+
+		if err := AppendRecord(tmpFile, record); err != nil {
+			t.Fatalf("AppendRecord failed for %q: %v", tc.outcome, err)
+		}
+	}
+
+	// Read all records back
+	loaded, err := LoadRecords(tmpFile)
+	if err != nil {
+		t.Fatalf("LoadRecords failed: %v", err)
+	}
+
+	if len(loaded) != len(testCases) {
+		t.Fatalf("expected %d records, got %d", len(testCases), len(loaded))
+	}
+
+	// Verify each outcome is preserved
+	for i, tc := range testCases {
+		if loaded[i].ReviewOutcome != tc.outcome {
+			t.Errorf("record %d ReviewOutcome mismatch: got %q, want %q", i, loaded[i].ReviewOutcome, tc.outcome)
+		}
+		if loaded[i].ReviewRationale != tc.rationale {
+			t.Errorf("record %d ReviewRationale mismatch: got %q, want %q", i, loaded[i].ReviewRationale, tc.rationale)
+		}
+	}
+}
+
 func parseTime(s string) time.Time {
 	// Helper to parse RFC3339 timestamp
 	t, _ := time.Parse(time.RFC3339, s)
