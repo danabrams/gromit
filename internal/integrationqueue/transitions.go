@@ -11,5 +11,8 @@ func CanTransition(from, to string) bool {
 	if from == "integrating" && to == "merged" {
 		return true
 	}
+	if from == "integrating" && to == "conflict" {
+		return true
+	}
 	return false
 }
