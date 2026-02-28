@@ -197,7 +197,28 @@ func (c *ghClient) PostReview(ctx context.Context, ref PRRef, payload ReviewPayl
 }
 
 func (c *ghClient) PostComment(ctx context.Context, ref PRRef, body string) error {
-	return fmt.Errorf("PostComment not implemented")
+	args := []string{
+		"api",
+		"-X",
+		"POST",
+		fmt.Sprintf("/repos/%s/%s/issues/%d/comments", ref.Owner, ref.Repo, ref.Number),
+		"-F",
+		"body=" + body,
+	}
+
+	out, err := c.run(ctx, args...)
+	if err != nil {
+		return fmt.Errorf("post comment: %w", err)
+	}
+
+	var resp struct {
+		ID int `json:"id"`
+	}
+	if err := json.Unmarshal([]byte(out), &resp); err != nil {
+		return fmt.Errorf("parse post comment response: %w", err)
+	}
+
+	return nil
 }
 
 func (c *ghClient) RequestReviewers(ctx context.Context, ref PRRef, reviewers []string) error {
