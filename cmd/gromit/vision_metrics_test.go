@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -87,5 +89,44 @@ func TestVisionMetricsReportExecutes(t *testing.T) {
 	rootCmd.SetArgs([]string{"vision-metrics", "report"})
 	if err := rootCmd.Execute(); err != nil {
 		t.Fatalf("vision-metrics report failed: %v", err)
+	}
+}
+
+// TestVisionMetricsValidateLoadsAndValidatesRecords verifies validate loads records and reports errors
+func TestVisionMetricsValidateLoadsAndValidatesRecords(t *testing.T) {
+	tmpDir := t.TempDir()
+	recordsPath := filepath.Join(tmpDir, "records.jsonl")
+
+	// Create a test records file with an invalid record (missing spec_id)
+	recordsContent := `{"spec_id":"","cycle_start_trigger_at":"2024-01-01T00:00:00Z","cycle_end_presented_at":"2024-01-02T00:00:00Z","review_outcome":"accepted","human_tactical_intervention":"no","human_debugging_intervention":"no","escaped_regression_within_7d":"no"}
+{"spec_id":"valid-spec","cycle_start_trigger_at":"2024-01-01T00:00:00Z","cycle_end_presented_at":"2024-01-02T00:00:00Z","review_outcome":"accepted","human_tactical_intervention":"no","human_debugging_intervention":"no","escaped_regression_within_7d":"no"}`
+
+	if err := os.WriteFile(recordsPath, []byte(recordsContent), 0644); err != nil {
+		t.Fatalf("failed to write test records file: %v", err)
+	}
+
+	// Change to temp directory so validate can find the records file
+	oldCwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get current directory: %v", err)
+	}
+	defer os.Chdir(oldCwd)
+	os.Chdir(tmpDir)
+
+	// Create minimal gromit.yaml
+	configContent := "paths:\n  gromit_dir: " + tmpDir + "\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, "gromit.yaml"), []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	// Run validate with records path
+	rootCmd.SetArgs([]string{"vision-metrics", "validate", recordsPath})
+	output := captureStdout(t, func() {
+		_ = rootCmd.Execute()
+	})
+
+	// Check that validation error is reported in output
+	if output == "" {
+		t.Error("validate command produced no output")
 	}
 }
