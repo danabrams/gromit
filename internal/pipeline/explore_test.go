@@ -635,6 +635,154 @@ func TestPipeline_ExploreRespectsContext(t *testing.T) {
 	_ = err // Accept any outcome for now, just verify context parameter is used
 }
 
+func TestPipelineExplore_ModelForwardingLaunchesOrWarns(t *testing.T) {
+	type scenario struct {
+		name                  string
+		agentName             string
+		model                 string
+		expectModelForward    bool
+		expectForwardedLaunch bool
+		expectOriginalLaunch  bool
+		warningMsg            string
+	}
+
+	scenarios := []scenario{
+		{
+			name:                  "codex propagation uses forwarded agent",
+			agentName:             "codex",
+			model:                 "gpt-5.3-codex",
+			expectModelForward:    true,
+			expectForwardedLaunch: true,
+			expectOriginalLaunch:  false,
+		},
+		{
+			name:                  "gemini propagation uses forwarded agent",
+			agentName:             "gemini",
+			model:                 "gemini-2.5-pro",
+			expectModelForward:    true,
+			expectForwardedLaunch: true,
+			expectOriginalLaunch:  false,
+		},
+		{
+			name:                  "unsupported agent warns and continues",
+			agentName:             "claude",
+			model:                 "sonnet",
+			expectModelForward:    true,
+			expectForwardedLaunch: false,
+			expectOriginalLaunch:  true,
+			warningMsg:            "model forwarding not supported for agent claude",
+		},
+		{
+			name:                 "empty model does not forward",
+			agentName:            "codex",
+			model:                "",
+			expectModelForward:   false,
+			expectOriginalLaunch: true,
+		},
+	}
+
+	for _, tc := range scenarios {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			gromitDir := t.TempDir()
+			specsDir := filepath.Join(gromitDir, "specs")
+			epicsDir := filepath.Join(gromitDir, "epics")
+			if err := os.MkdirAll(specsDir, 0o755); err != nil {
+				t.Fatalf("failed to create specs dir: %v", err)
+			}
+			if err := os.MkdirAll(epicsDir, 0o755); err != nil {
+				t.Fatalf("failed to create epics dir: %v", err)
+			}
+
+			forwardedAgentLaunched := false
+			originalAgentLaunched := false
+			modelForwardCalled := 0
+			warningCaptured := ""
+
+			forwardedAgent := &mockAgent{
+				NameFn: func() string { return tc.agentName },
+				LaunchInDirFn: func(promptPath, dir string) error {
+					forwardedAgentLaunched = true
+					return nil
+				},
+			}
+			originalAgent := &mockAgent{
+				NameFn: func() string { return tc.agentName },
+				LaunchInDirFn: func(promptPath, dir string) error {
+					originalAgentLaunched = true
+					return nil
+				},
+			}
+
+			deps := &Deps{
+				AgentResolver: &mockAgentResolver{
+					ResolveFn: func(phase, flagOverride string, choosePicker bool) (Agent, error) {
+						return originalAgent, nil
+					},
+				},
+				ExploreRenderer: &mockExploreRenderer{
+					RenderExploreFn: func(input *ExplorePromptInput) (string, error) {
+						return "model forwarding prompt", nil
+					},
+				},
+				BacklogClient: &mockBacklogClient{
+					ListFn: func() ([]*Idea, error) {
+						return []*Idea{}, nil
+					},
+				},
+				ModelForwarder: func(agent Agent, model string) (Agent, string) {
+					modelForwardCalled++
+					if model != tc.model {
+						t.Fatalf("model = %q, want %q", model, tc.model)
+					}
+					if tc.warningMsg != "" {
+						return agent, tc.warningMsg
+					}
+					return forwardedAgent, ""
+				},
+				WarningWriter: func(message string) {
+					warningCaptured = message
+				},
+			}
+
+			paths := &Paths{
+				GromitDir: gromitDir,
+				SpecsDir:  specsDir,
+				EpicsDir:  epicsDir,
+			}
+
+			p := New(deps, paths)
+			result, err := p.Explore(context.Background(), ExploreInput{Topic: "topic", Model: tc.model})
+			if err != nil {
+				t.Fatalf("Explore() failed: %v", err)
+			}
+			if result == nil {
+				t.Fatal("Explore() returned nil result")
+			}
+
+			if tc.expectModelForward {
+				if modelForwardCalled == 0 {
+					t.Fatal("expected ModelForwarder to be called")
+				}
+			} else if modelForwardCalled != 0 {
+				t.Fatalf("ModelForwarder was called unexpectedly (%d times)", modelForwardCalled)
+			}
+
+			if forwardedAgentLaunched != tc.expectForwardedLaunch {
+				t.Fatalf("forwarded launch = %v, want %v", forwardedAgentLaunched, tc.expectForwardedLaunch)
+			}
+
+			if originalAgentLaunched != tc.expectOriginalLaunch {
+				t.Fatalf("original launch = %v, want %v", originalAgentLaunched, tc.expectOriginalLaunch)
+			}
+
+			if warningCaptured != tc.warningMsg {
+				t.Fatalf("warning captured = %q, want %q", warningCaptured, tc.warningMsg)
+			}
+		})
+	}
+}
+
 // Mock types for testing
 
 type mockAgentResolver struct {
