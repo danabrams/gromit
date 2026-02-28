@@ -245,11 +245,11 @@ func exploreInteractiveModelForwarder(cmd *cobra.Command, cfg *config.Config, fl
 		}
 
 		forwarded, warning := agent.ForwardModelToAgent(resolvedAgent, model)
-		if warning != "" {
-			warning = fmt.Sprintf("--model flag ignored for non-Claude agent %q", resolvedAgent.Name())
-		}
 		if forwarded == nil {
 			forwarded = resolvedAgent
+		}
+		if warning != "" || forwarded == resolvedAgent {
+			warning = fmt.Sprintf("--model flag ignored for non-Claude agent %q", resolvedAgent.Name())
 		}
 		return forwarded, warning
 	}
