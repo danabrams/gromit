@@ -97,3 +97,52 @@ func TestRenderConversationViewRendersInputArea(t *testing.T) {
 		t.Fatalf("expected input area (with '>' or 'Input:') in output, got %q", got)
 	}
 }
+
+func TestRenderConversationViewSeparatesTranscriptAndToolStatus(t *testing.T) {
+	store := &Store{
+		Conversation: ConversationState{
+			Lifecycle: ConversationLifecycleToolWait,
+			Transcript: []ConversationTranscriptRow{
+				{
+					Type: conversation.EventTypeStream,
+					Text: "First message",
+				},
+				{
+					Type: conversation.EventTypeStream,
+					Text: "Second message",
+				},
+			},
+			ToolIndicators: []ConversationToolIndicator{
+				{
+					ToolName: "Tool1",
+					Status:   "waiting",
+				},
+			},
+		},
+	}
+
+	got := RenderConversationView(store, 0)
+
+	// Find positions of transcript and tool status in output
+	firstMsgPos := strings.Index(got, "First message")
+	secondMsgPos := strings.Index(got, "Second message")
+	toolPos := strings.Index(got, "Tool1")
+
+	if firstMsgPos == -1 {
+		t.Fatalf("expected 'First message' in output, got %q", got)
+	}
+	if secondMsgPos == -1 {
+		t.Fatalf("expected 'Second message' in output, got %q", got)
+	}
+	if toolPos == -1 {
+		t.Fatalf("expected 'Tool1' in output, got %q", got)
+	}
+
+	// Verify order: first message < second message < tool status
+	if firstMsgPos > secondMsgPos {
+		t.Fatalf("expected 'First message' to appear before 'Second message', got %q", got)
+	}
+	if secondMsgPos > toolPos {
+		t.Fatalf("expected transcript messages to appear before tool indicators, got %q", got)
+	}
+}
