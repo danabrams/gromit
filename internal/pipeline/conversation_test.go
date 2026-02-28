@@ -210,6 +210,53 @@ func TestConversationToolEventValidation(t *testing.T) {
 	}
 }
 
+func TestConversationFailedStateWithErrorReason(t *testing.T) {
+	// Verify failed state can carry error reason
+	session := &mockConversationSession{
+		events: []ConversationEvent{
+			{State: ConversationStateStreaming, Content: "processing"},
+			{State: ConversationStateFailed, ErrorReason: "rate limit exceeded"},
+		},
+	}
+
+	events := collectSessionEvents(session)
+	if len(events) < 2 {
+		t.Fatalf("expected at least 2 events, got %d", len(events))
+	}
+
+	failEvent := events[1]
+	if failEvent.State != ConversationStateFailed {
+		t.Fatalf("expected Failed state, got %v", failEvent.State)
+	}
+	if failEvent.ErrorReason != "rate limit exceeded" {
+		t.Fatalf("expected error reason 'rate limit exceeded', got %q", failEvent.ErrorReason)
+	}
+}
+
+func TestConversationCancelledState(t *testing.T) {
+	// Verify cancelled state is properly represented as terminal
+	session := &mockConversationSession{
+		events: []ConversationEvent{
+			{State: ConversationStateStarting},
+			{State: ConversationStateStreaming, Content: "partial"},
+			{State: ConversationStateCancelled},
+		},
+	}
+
+	events := collectSessionEvents(session)
+	if len(events) < 3 {
+		t.Fatalf("expected at least 3 events, got %d", len(events))
+	}
+
+	lastEvent := events[len(events)-1]
+	if lastEvent.State != ConversationStateCancelled {
+		t.Fatalf("expected Cancelled state, got %v", lastEvent.State)
+	}
+	if !isTerminalState(lastEvent.State) {
+		t.Fatal("expected Cancelled state to be terminal")
+	}
+}
+
 type mockConversationSession struct {
 	events []ConversationEvent
 	sent   int
