@@ -114,6 +114,47 @@ func TestVisionMetricsValidateLoadsAndValidatesRecords(t *testing.T) {
 	}
 }
 
+func TestVisionMetricsValidateReturnsErrorOnInvalidRecords(t *testing.T) {
+	tmpDir := t.TempDir()
+	recordsPath := filepath.Join(tmpDir, "records.jsonl")
+
+	recordsContent := `{"spec_id":"","cycle_start_trigger_at":"2024-01-01T00:00:00Z","cycle_end_presented_at":"2024-01-02T00:00:00Z","review_outcome":"accepted","human_tactical_intervention":"no","human_debugging_intervention":"no","escaped_regression_within_7d":"no"}`
+
+	if err := os.WriteFile(recordsPath, []byte(recordsContent), 0644); err != nil {
+		t.Fatalf("failed to write test records file: %v", err)
+	}
+
+	originalCwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get current directory: %v", err)
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to change dir: %v", err)
+	}
+	defer os.Chdir(originalCwd)
+
+	configContent := "paths:\n  gromit_dir: " + tmpDir + "\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, "gromit.yaml"), []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	rootCmd.SetArgs([]string{"vision-metrics", "validate", recordsPath})
+	defer rootCmd.SetArgs(nil)
+
+	var execErr error
+	output := captureStdout(t, func() {
+		execErr = rootCmd.Execute()
+	})
+
+	if execErr == nil {
+		t.Fatal("expected validate command to fail when records are invalid")
+	}
+
+	if !contains(output, "Record 0") {
+		t.Fatalf("expected output to mention invalid record, got: %q", output)
+	}
+}
+
 // TestVisionMetricsReportOutputsKPIRollup verifies report outputs KPI metrics in text and JSON formats
 func TestVisionMetricsReportOutputsKPIRollup(t *testing.T) {
 	tmpDir := t.TempDir()
