@@ -7,7 +7,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	stdstrings "strings"
+	"time"
+
+	"github.com/danabrams/gromit/internal/procutil"
 )
+
+var waitForProcessCapacityFn = procutil.WaitForProcessCapacity
+
+const defaultProcessCapacityWaitTime = 1500 * time.Millisecond
 
 type HarnessManifest struct {
 	Provider        string
@@ -119,12 +126,19 @@ func RunModesInIsolatedWorktrees(ctx context.Context, input RunModesInput) ([]Mo
 }
 
 func ensureSelectedBeadsOpen(ctx context.Context, beadIDs []string) error {
+	if err := waitForProcessCapacityFn(ctx, defaultProcessCapacityWaitTime); err != nil {
+		return fmt.Errorf("waiting for process capacity: %w", err)
+	}
+
 	for _, rawID := range beadIDs {
 		id := stdstrings.TrimSpace(rawID)
 		if id == "" {
 			continue
 		}
 		cmd := exec.CommandContext(ctx, "bd", "update", id, "--status", "open", "--json")
+
+		procutil.SetProcessGroupKill(cmd)
+
 		if output, err := cmd.CombinedOutput(); err != nil {
 			msg := stdstrings.TrimSpace(string(output))
 			if msg == "" {
