@@ -433,6 +433,26 @@ func TestResolveReviewRendererPaths_Defaults(t *testing.T) {
 	}
 }
 
+func TestReviewNonInteractiveModel_PrefersThoroughConfig(t *testing.T) {
+	t.Parallel()
+	cfg := &config.Config{}
+	cfg.Review.Thorough.Model = "custom-model"
+
+	if got := reviewNonInteractiveModel(cfg); got != "custom-model" {
+		t.Fatalf("reviewNonInteractiveModel() = %q, want %q", got, "custom-model")
+	}
+}
+
+func TestReviewNonInteractiveModel_DefaultsToConfig(t *testing.T) {
+	t.Parallel()
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+
+	if got := reviewNonInteractiveModel(cfg); got != cfg.Review.Thorough.Model {
+		t.Fatalf("reviewNonInteractiveModel() = %q, want %q", got, cfg.Review.Thorough.Model)
+	}
+}
+
 func TestResolveReviewNonInteractiveTimeout_Defaults(t *testing.T) {
 	t.Parallel()
 	cfg := &config.Config{}
