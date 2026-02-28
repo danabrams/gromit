@@ -157,6 +157,26 @@ When extracting display/formatting logic to a new sub-package, ensure metric str
 
 parseGeminiStream, extractGeminiAssistantText/Tokens/Cost helpers are defined and tested but not called from any production code path. Scaffolded code without production callers creates maintenance burden and confusion about which parsing path is canonical.
 
+### 2026-02-28 | Centralized DI via NewPipelineDeps Is the Adapter Wiring Pattern | architecture
+*Related to: review-1772244209301323387*
+
+All CLI commands wire dependencies through NewPipelineDeps() in cmd/gromit/adapter_deps.go. New commands should use this single entry point rather than constructing adapters inline. Adapters are split: adapters.go (LLM/tracker) and cli_adapters.go (prompt renderers, state, logging).
+
+### 2026-02-28 | TUI Store Uses RWMutex With Copy-on-Read for Thread Safety | patterns
+*Related to: review-1772244209301323387*
+
+The TUI store (internal/tui/store.go) uses sync.RWMutex. All mutations hold the write lock; map function reads hold the read lock. View rendering uses copy-on-read to minimize lock duration.
+
+### 2026-02-28 | Process Capacity Gating Before Subprocess Start | patterns
+*Related to: review-1772244209301323387*
+
+procutil.WaitForProcessCapacity is called before cmd.Start() in claude, codex, and gemini providers to prevent EAGAIN fork failures under cgroup PID pressure. This is the established pattern for all new subprocess launch sites.
+
+### 2026-02-28 | Epilogue Lifecycle Failure Suppresses Success Signals | patterns
+*Related to: review-1772244209301323387*
+
+When close/sync fails in epilogue, the iteration is marked failed, success logging is suppressed, BeadCompleteEvent is not emitted, and spec merge triggering is skipped. This prevents downstream consumers from acting on incomplete state.
+
 ---
 
 ## Archived
