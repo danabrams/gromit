@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+
+	"github.com/danabrams/gromit/internal/conversation"
 )
 
 // Explore executes the explore workflow in non-interactive mode.
@@ -145,4 +147,95 @@ func (p *Pipeline) validateExploreDeps() error {
 		{name: "ExploreRenderer", dep: p.deps.ExploreRenderer},
 		{name: "BacklogClient", dep: p.deps.BacklogClient},
 	})
+}
+
+// StreamSession wraps a stream-json-backed conversation session for explore.
+type StreamSession struct {
+	events chan conversation.Event
+}
+
+// Events returns the channel of conversation events.
+func (s *StreamSession) Events() <-chan conversation.Event {
+	return s.events
+}
+
+// Cancel closes the event stream.
+func (s *StreamSession) Cancel() {
+	if s.events != nil {
+		close(s.events)
+	}
+}
+
+// FollowUp is a no-op for explore sessions (not used for follow-up prompts).
+func (s *StreamSession) FollowUp(prompt string) {
+	// Explore sessions don't support follow-up prompts
+}
+
+// StartExploreSession launches a stream-json-backed explore session that emits
+// ConversationEvents over a channel. The session is managed by the caller.
+func (p *Pipeline) StartExploreSession(ctx context.Context, input ExploreInput) (conversation.Session, error) {
+	if err := p.validateExploreDeps(); err != nil {
+		return nil, err
+	}
+
+	// Create a session with event channel
+	session := &StreamSession{
+		events: make(chan conversation.Event, 10),
+	}
+
+	// Start a goroutine to run the explore workflow and emit events
+	go func() {
+		defer close(session.events)
+
+		// Build explore prompt
+		exploreContext := &ExplorePromptInput{
+			Query: input.Topic,
+		}
+		renderedPrompt, err := p.deps.ExploreRenderer.RenderExplore(exploreContext)
+		if err != nil {
+			session.events <- conversation.Event{
+				Type: conversation.EventTypeStream,
+				Text: fmt.Sprintf("Error rendering explore prompt: %v", err),
+			}
+			return
+		}
+
+		// Write temp file
+		tmpDir := filepath.Join(p.paths.GromitDir, "tmp")
+		promptPath, cleanup, err := WriteTempPrompt(tmpDir, renderedPrompt)
+		if err != nil {
+			session.events <- conversation.Event{
+				Type: conversation.EventTypeStream,
+				Text: fmt.Sprintf("Error writing temp prompt: %v", err),
+			}
+			return
+		}
+		defer cleanup()
+
+		// Resolve agent
+		agent, err := p.deps.AgentResolver.Resolve("explore", input.AgentName, input.ChooseAgent)
+		if err != nil {
+			session.events <- conversation.Event{
+				Type: conversation.EventTypeStream,
+				Text: fmt.Sprintf("Error resolving agent: %v", err),
+			}
+			return
+		}
+
+		// Launch agent
+		if err := agent.LaunchInDir(promptPath, ""); err != nil {
+			session.events <- conversation.Event{
+				Type: conversation.EventTypeStream,
+				Text: fmt.Sprintf("Error launching agent: %v", err),
+			}
+			return
+		}
+
+		// Emit completion event
+		session.events <- conversation.Event{
+			Type: conversation.EventTypeDone,
+		}
+	}()
+
+	return session, nil
 }

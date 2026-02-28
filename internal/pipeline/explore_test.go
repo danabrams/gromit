@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/danabrams/gromit/internal/conversation"
 )
 
 // TestPipeline_ExploreValidatesDeps verifies that Explore returns an error when required dependencies are nil.
@@ -870,4 +872,36 @@ func (m *mockExploreRenderer) RenderExplore(input *ExplorePromptInput) (string, 
 		return m.RenderExploreFn(input)
 	}
 	return "explore prompt", nil
+}
+
+// TestPipeline_StartExploreSessionReturnsConversationSession verifies that StartExploreSession
+// returns a conversation.Session that can emit events over a channel.
+func TestPipeline_StartExploreSessionReturnsConversationSession(t *testing.T) {
+	// RED: StartExploreSession method does not exist yet
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+
+	p := New(&Deps{
+		AgentResolver:   &mockAgentResolver{},
+		ExploreRenderer: &mockExploreRenderer{},
+		BacklogClient:   &mockBacklogClient{},
+	}, &Paths{
+		GromitDir: gromitDir,
+	})
+
+	ctx := context.Background()
+	input := ExploreInput{Topic: "test topic"}
+
+	// This should not compile until StartExploreSession is implemented
+	session, err := p.StartExploreSession(ctx, input)
+	if err != nil {
+		t.Fatalf("StartExploreSession() failed: %v", err)
+	}
+
+	if session == nil {
+		t.Fatal("StartExploreSession() returned nil session")
+	}
+
+	// Verify session implements conversation.Session interface
+	var _ interface{ Events() <-chan conversation.Event; Cancel(); FollowUp(string) } = session
 }
