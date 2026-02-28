@@ -210,3 +210,28 @@ func TestApplyTransition_ValidTransition_UpdatesEntryAndReturnsNil(t *testing.T)
 		t.Errorf("expected UpdatedAt to be updated, old: %v, new: %v", oldTime, entry.UpdatedAt)
 	}
 }
+
+func TestApplyTransition_InvalidTransition_ReturnsErrorWithoutModifyingEntry(t *testing.T) {
+	entry := &Entry{
+		State:                 "draft",
+		UpdatedAt:             time.Now().Add(-time.Hour),
+		LastTransitionReason:  "old reason",
+	}
+	oldTime := entry.UpdatedAt
+	oldState := entry.State
+	oldReason := entry.LastTransitionReason
+
+	err := ApplyTransition(entry, "integrating", "invalid transition")
+	if err != ErrInvalidTransition {
+		t.Errorf("expected ErrInvalidTransition, got: %v", err)
+	}
+	if entry.State != oldState {
+		t.Errorf("expected state to remain unchanged, got: %s", entry.State)
+	}
+	if entry.LastTransitionReason != oldReason {
+		t.Errorf("expected reason to remain unchanged, got: %s", entry.LastTransitionReason)
+	}
+	if entry.UpdatedAt != oldTime {
+		t.Errorf("expected UpdatedAt to remain unchanged, got: %v", entry.UpdatedAt)
+	}
+}
