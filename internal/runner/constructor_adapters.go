@@ -1019,6 +1019,10 @@ func NewReadinessAdapterWithLLM(renderer readinessPromptRenderer, router readine
 // Assess determines whether a bead is ready using structured checks and LLM classification.
 // Fails closed: returns StatusNotReady if renderer is nil or other checks fail.
 func (a *readinessAdapterWithLLM) Assess(ctx context.Context, b *bead.Bead) (readiness.Assessment, error) {
+	if assessment, blocked := checkCriteriaCount(b); blocked {
+		return assessment, nil
+	}
+
 	if assessment, blocked := checkCriteriaMissing(b); blocked {
 		return assessment, nil
 	}
@@ -1074,6 +1078,62 @@ func checkCriteriaMissing(b *bead.Bead) (readiness.Assessment, bool) {
 		Status: readiness.StatusNotReady,
 		Reason: prepare.ReasonCriteriaMissing,
 	}, true
+}
+
+func checkCriteriaCount(b *bead.Bead) (readiness.Assessment, bool) {
+	if b == nil {
+		return readiness.Assessment{}, false
+	}
+
+	count := len(effectiveCriteria(b))
+	if count == 0 || count > 3 {
+		return readiness.Assessment{
+			Status: readiness.StatusNotReady,
+			Reason: "criteria_count",
+		}, true
+	}
+	return readiness.Assessment{}, false
+}
+
+func effectiveCriteria(b *bead.Bead) []string {
+	if b == nil {
+		return nil
+	}
+
+	outputs := sanitizeOutputs(b.ExpectedOutputs)
+	if len(outputs) > 0 {
+		return outputs
+	}
+
+	return parseAcceptanceCriteria(b.AcceptanceCriteria)
+}
+
+func sanitizeOutputs(outputs []string) []string {
+	cleaned := make([]string, 0, len(outputs))
+	for _, output := range outputs {
+		trimmed := strings.TrimSpace(output)
+		if trimmed == "" {
+			continue
+		}
+		cleaned = append(cleaned, trimmed)
+	}
+	return cleaned
+}
+
+func parseAcceptanceCriteria(text string) []string {
+	if strings.TrimSpace(text) == "" {
+		return nil
+	}
+	lines := strings.Split(text, "\n")
+	trimmed := make([]string, 0, len(lines))
+	for _, line := range lines {
+		cleaned := strings.TrimSpace(line)
+		if cleaned == "" {
+			continue
+		}
+		trimmed = append(trimmed, cleaned)
+	}
+	return trimmed
 }
 
 // Compile-time interface checks

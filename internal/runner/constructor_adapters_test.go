@@ -616,8 +616,8 @@ func TestReadinessAdapterWithLLM_AssessShortCircuitsMissingCriteria(t *testing.T
 	if assessment.Status != readiness.StatusNotReady {
 		t.Fatalf("Assess returned status %q, want %q", assessment.Status, readiness.StatusNotReady)
 	}
-	if assessment.Reason != prepare.ReasonCriteriaMissing {
-		t.Fatalf("Assess returned reason %q, want %q", assessment.Reason, prepare.ReasonCriteriaMissing)
+	if assessment.Reason != "criteria_count" {
+		t.Fatalf("Assess returned reason %q, want %q", assessment.Reason, "criteria_count")
 	}
 	if router.phase != "" {
 		t.Fatalf("router.Select called despite missing criteria: phase=%q", router.phase)
