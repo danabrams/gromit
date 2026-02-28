@@ -71,6 +71,16 @@ func PrintStatus(gromitDir string, cfg *config.Config, w io.Writer, processCheck
 		return fmt.Errorf("writing pipeline status: %w", err)
 	}
 
+	queueStatus, err := ReadIntegrationQueue(gromitDir)
+	if err != nil {
+		return fmt.Errorf("reading integration queue status: %w", err)
+	}
+	if queueStatus != nil {
+		if _, err := fmt.Fprintln(w, display.FormatIntegrationQueue(queueStatus)); err != nil {
+			return fmt.Errorf("writing integration queue status: %w", err)
+		}
+	}
+
 	// Next action recommendation
 	if rec := display.FormatRecommendation(ps.Recommendation); rec != "" {
 		if _, err := fmt.Fprintln(w, rec); err != nil {
