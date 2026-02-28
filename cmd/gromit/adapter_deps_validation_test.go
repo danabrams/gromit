@@ -284,6 +284,46 @@ func TestAdapterDeps_ModelForwardingWiring(t *testing.T) {
 	captureWarningOutput(t, deps.WarningWriter, warning)
 }
 
+func TestAdapterDeps_ModelForwarderOverridesClaudeModel(t *testing.T) {
+	t.Parallel()
+
+	deps, err := NewPipelineDeps(nil, t.TempDir())
+	if err != nil {
+		t.Fatalf("NewPipelineDeps failed: %v", err)
+	}
+
+	claudeAgent, err := agent.Resolve(nil, "explore", "claude", false, strings.NewReader(""), io.Discard)
+	if err != nil {
+		t.Fatalf("agent.Resolve(claude) failed: %v", err)
+	}
+
+	promptFile := filepath.Join(t.TempDir(), "claude-prompt.md")
+	if err := os.WriteFile(promptFile, []byte("prompt"), 0o644); err != nil {
+		t.Fatalf("failed to write prompt file: %v", err)
+	}
+
+	forwarded, warning := deps.ModelForwarder(claudeAgent, "sonnet")
+	if warning != "" {
+		t.Fatalf("ModelForwarder returned warning for claude: %q", warning)
+	}
+
+	commandProvider, ok := forwarded.(interface {
+		Command(string) (*exec.Cmd, error)
+	})
+	if !ok {
+		t.Fatal("forwarded agent does not expose Command()")
+	}
+
+	cmd, err := commandProvider.Command(promptFile)
+	if err != nil {
+		t.Fatalf("forwarded agent Command() failed: %v", err)
+	}
+
+	if !modelArgsInclude(cmd.Args, "--model", "sonnet") {
+		t.Fatalf("forwarded command missing --model args: %v", cmd.Args)
+	}
+}
+
 func modelArgsInclude(args []string, flag, value string) bool {
 	for i := 0; i < len(args)-1; i++ {
 		if args[i] == flag && args[i+1] == value {
