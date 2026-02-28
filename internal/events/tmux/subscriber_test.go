@@ -150,8 +150,19 @@ func TestTMUXSubscriber_IgnoresUnknownEvents(t *testing.T) {
 	}
 
 	// Verify that manager was never called for the unknown event
-	if len(manager.titles) > 0 {
-		t.Errorf("Expected no title updates for unknown event, got %d updates", len(manager.titles))
+	 if len(manager.titles) > 0 {
+	 	t.Errorf("Expected no title updates for unknown event, got %d updates", len(manager.titles))
+	 }
+}
+
+// TestNewTMUXSubscriber_InvalidManager ensures invalid managers produce an error instead of panicking.
+func TestNewTMUXSubscriber_InvalidManager(t *testing.T) {
+	t.Parallel()
+
+	emitter := events.NewEmitter()
+
+	if _, err := NewTMUXSubscriber("not-a-manager", emitter); err == nil {
+		t.Fatalf("expected an error when manager does not implement TMUXManager")
 	}
 }
 
