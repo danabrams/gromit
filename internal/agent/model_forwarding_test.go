@@ -27,3 +27,27 @@ func TestForwardModelToAgent_CodexPreset(t *testing.T) {
 		t.Errorf("Agent name = %q, want %q", resultAgent.Name(), "codex")
 	}
 }
+
+// TestForwardModelToAgent_GeminiPreset verifies model forwarding for gemini preset agent
+func TestForwardModelToAgent_GeminiPreset(t *testing.T) {
+	// Create a gemini agent (preset)
+	geminiAgent := resolveGeminiPreset()
+
+	// Forward model to gemini agent
+	resultAgent, warning := ForwardModelToAgent(geminiAgent, "gemini-2.5-pro")
+
+	// Should not have a warning for known preset
+	if warning != "" {
+		t.Errorf("ForwardModelToAgent(gemini, model) returned warning: %q, want empty", warning)
+	}
+
+	// Should return a non-nil agent
+	if resultAgent == nil {
+		t.Fatal("ForwardModelToAgent(gemini, model) returned nil agent")
+	}
+
+	// Agent should still be functional
+	if resultAgent.Name() != "gemini" {
+		t.Errorf("Agent name = %q, want %q", resultAgent.Name(), "gemini")
+	}
+}
