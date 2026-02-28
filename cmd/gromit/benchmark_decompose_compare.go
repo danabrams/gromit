@@ -32,6 +32,7 @@ var benchmarkDecomposeCompareReportWriterFn = writeDecomposeCompareReport
 var benchmarkDecomposeCompareManifestPath string
 var benchmarkDecomposeCompareOutputTS string
 var benchmarkDecomposeCompareSpecs string
+var benchmarkDecomposeCompareThreshold float64
 
 var benchmarkDecomposeCompareCmd = &cobra.Command{
 	Use:          "decompose-compare",
@@ -53,6 +54,12 @@ var benchmarkDecomposeCompareCmd = &cobra.Command{
 					return fmt.Errorf("--specs must not include duplicate spec ids")
 				}
 				seen[spec] = struct{}{}
+			}
+		}
+		thresholdSet := cmd.Flags().Changed("threshold")
+		if thresholdSet {
+			if benchmarkDecomposeCompareThreshold < 0 || benchmarkDecomposeCompareThreshold > 1 {
+				return fmt.Errorf("--threshold must be between 0 and 1")
 			}
 		}
 		if benchmarkDecomposeCompareOutputTS != "" {
@@ -86,6 +93,12 @@ func init() {
 		"specs",
 		"",
 		"Comma-separated list of 5 spec ids to compare (no duplicates)",
+	)
+	benchmarkDecomposeCompareCmd.Flags().Float64Var(
+		&benchmarkDecomposeCompareThreshold,
+		"threshold",
+		0,
+		"Failure threshold tuning (0 ≤ threshold ≤ 1)",
 	)
 }
 
