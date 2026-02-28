@@ -13,3 +13,11 @@ func TestBranchRouterInterface(t *testing.T) {
 	var _ BranchRouter = (*specbranch.Router)(nil)
 	t.Log("Router implements BranchRouter")
 }
+
+// TestGitCheckoutInterface verifies that GitOps implements GitCheckout interface.
+// This test will fail compilation if GitCheckout doesn't exist or GitOps doesn't implement it.
+func TestGitCheckoutInterface(t *testing.T) {
+	t.Parallel()
+	var _ GitCheckout = (*specbranch.GitOps)(nil)
+	t.Log("GitOps implements GitCheckout")
+}
