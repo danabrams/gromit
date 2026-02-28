@@ -108,6 +108,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 	if err != nil {
 		return nil, err
 	}
+	specMergeController := newSpecMergeController(cfg, trackerClientInterface)
 
 	beadsClient := newTrackerBeadClient(trackerClientInterface)
 
@@ -269,6 +270,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 			return beadsClient.Show(ctx, beadID)
 		},
 		Config:          cfg,
+		SpecMergeController: specMergeController,
 		GlobalStatsPath: filepath.Join(gromitDir, "stats.json"),
 		GetRunID:        getRunIDFn,
 		LogsDir:         cfg.Paths.Logs,

@@ -598,6 +598,20 @@ func (a *specGateAdapter) Run(ctx context.Context, beadID string, labels []strin
 	return nil
 }
 
+func newSpecMergeController(cfg *config.Config, client tracker.Client) specmerge.Controller {
+	if cfg == nil || client == nil {
+		return nil
+	}
+	if cfg.Methodology.Granularity != config.MethodologyGranularitySpec {
+		return nil
+	}
+	query := specmerge.NewTrackerBeadQuery(client)
+	if query == nil {
+		return nil
+	}
+	return specmerge.NewPipeline(query)
+}
+
 // extractSpecLabel returns the spec name from labels (format: "spec:name").
 func extractSpecLabel(labels []string) string {
 	const specPrefix = "spec:"
