@@ -2,8 +2,11 @@ package agent
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 )
 
 // PromptDelivery defines how an agent receives its prompt
@@ -107,7 +110,15 @@ func (a *cliAgent) Launch(promptPath string) error {
 // LaunchInDir executes the agent with the given prompt file path in the specified directory.
 // If dir is empty, behaves identically to Launch.
 func (a *cliAgent) LaunchInDir(promptPath, dir string) error {
-	args, err := a.buildCommandArgs(promptPath)
+	effectivePromptPath, cleanup, err := stagePromptForLaunchDir(promptPath, dir, a.promptDelivery)
+	if err != nil {
+		return err
+	}
+	if cleanup != nil {
+		defer cleanup()
+	}
+
+	args, err := a.buildCommandArgs(effectivePromptPath)
 	if err != nil {
 		return err
 	}
@@ -128,7 +139,7 @@ func (a *cliAgent) LaunchInDir(promptPath, dir string) error {
 
 	// For Stdin delivery, read prompt file and pipe to stdin
 	if a.promptDelivery == Stdin {
-		content, err := os.ReadFile(promptPath)
+		content, err := os.ReadFile(effectivePromptPath)
 		if err != nil {
 			return fmt.Errorf("failed to read prompt file: %w", err)
 		}
@@ -155,6 +166,68 @@ func (a *cliAgent) LaunchInDir(promptPath, dir string) error {
 	}
 
 	return err
+}
+
+func stagePromptForLaunchDir(promptPath, dir string, delivery PromptDelivery) (string, func(), error) {
+	if strings.TrimSpace(dir) == "" {
+		return promptPath, nil, nil
+	}
+
+	if delivery != FileRef && delivery != PromptFileArg {
+		return promptPath, nil, nil
+	}
+
+	info, err := os.Stat(dir)
+	if err != nil || !info.IsDir() {
+		return promptPath, nil, nil
+	}
+
+	relativePromptPath, err := filepath.Rel(dir, promptPath)
+	if err != nil {
+		return promptPath, nil, nil
+	}
+
+	if relativePromptPath == "." || (!strings.HasPrefix(relativePromptPath, ".."+string(filepath.Separator)) && relativePromptPath != "..") {
+		return promptPath, nil, nil
+	}
+
+	stageDir := filepath.Join(dir, ".gromit", "tmp")
+	if err := os.MkdirAll(stageDir, 0o755); err != nil {
+		return "", nil, fmt.Errorf("creating staged prompt directory: %w", err)
+	}
+
+	stagedPromptFile, err := os.CreateTemp(stageDir, "prompt-*.md")
+	if err != nil {
+		return "", nil, fmt.Errorf("creating staged prompt file: %w", err)
+	}
+
+	sourceFile, err := os.Open(promptPath)
+	if err != nil {
+		stagedPromptFile.Close()
+		os.Remove(stagedPromptFile.Name())
+		return "", nil, fmt.Errorf("opening prompt file for staging: %w", err)
+	}
+
+	if _, err := io.Copy(stagedPromptFile, sourceFile); err != nil {
+		sourceFile.Close()
+		stagedPromptFile.Close()
+		os.Remove(stagedPromptFile.Name())
+		return "", nil, fmt.Errorf("copying prompt file for staging: %w", err)
+	}
+
+	if err := sourceFile.Close(); err != nil {
+		stagedPromptFile.Close()
+		os.Remove(stagedPromptFile.Name())
+		return "", nil, fmt.Errorf("closing source prompt file: %w", err)
+	}
+	if err := stagedPromptFile.Close(); err != nil {
+		os.Remove(stagedPromptFile.Name())
+		return "", nil, fmt.Errorf("closing staged prompt file: %w", err)
+	}
+
+	return stagedPromptFile.Name(), func() {
+		_ = os.Remove(stagedPromptFile.Name())
+	}, nil
 }
 
 // Command builds a configured *exec.Cmd for the agent without starting it.

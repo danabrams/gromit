@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -209,5 +210,127 @@ func TestLaunchInDirMissingPromptFile(t *testing.T) {
 	err := agent.LaunchInDir("/nonexistent/prompt.txt", targetDir)
 	if err == nil {
 		t.Error("LaunchInDir() with nonexistent prompt file should return error, got nil")
+	}
+}
+
+func TestLaunchInDirStagesPromptFileForFileRefOutsideLaunchDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	launchDir := filepath.Join(tmpDir, "session")
+	if err := os.MkdirAll(launchDir, 0o755); err != nil {
+		t.Fatalf("mkdir launch dir: %v", err)
+	}
+
+	promptPath := filepath.Join(tmpDir, "prompt.md")
+	promptContent := "Read this prompt"
+	if err := os.WriteFile(promptPath, []byte(promptContent), 0o644); err != nil {
+		t.Fatalf("write prompt: %v", err)
+	}
+
+	agent := New("test", "echo", nil, FileRef, "", nil).(*cliAgent)
+	stagedPath := ""
+	agent.commandFn = func(name string, args ...string) *exec.Cmd {
+		cmdArgs := append([]string{name}, args...)
+		return &exec.Cmd{Path: name, Args: cmdArgs}
+	}
+	agent.runFn = func(cmd *exec.Cmd) error {
+		if cmd.Dir != launchDir {
+			t.Fatalf("cmd.Dir = %q, want %q", cmd.Dir, launchDir)
+		}
+
+		for _, arg := range cmd.Args {
+			if strings.HasPrefix(arg, "Read and follow instructions in ") {
+				stagedPath = strings.TrimPrefix(arg, "Read and follow instructions in ")
+				break
+			}
+		}
+		if stagedPath == "" {
+			t.Fatalf("file-ref argument missing from args: %v", cmd.Args)
+		}
+		if stagedPath == promptPath {
+			t.Fatalf("staged path should differ from original path: %q", stagedPath)
+		}
+		if !strings.HasPrefix(stagedPath, launchDir) {
+			t.Fatalf("staged path %q not under launch dir %q", stagedPath, launchDir)
+		}
+
+		content, err := os.ReadFile(stagedPath)
+		if err != nil {
+			t.Fatalf("reading staged prompt: %v", err)
+		}
+		if string(content) != promptContent {
+			t.Fatalf("staged prompt content = %q, want %q", string(content), promptContent)
+		}
+		return nil
+	}
+
+	if err := agent.LaunchInDir(promptPath, launchDir); err != nil {
+		t.Fatalf("LaunchInDir() error = %v", err)
+	}
+	if stagedPath == "" {
+		t.Fatal("expected staged path to be captured")
+	}
+	if _, err := os.Stat(stagedPath); !os.IsNotExist(err) {
+		t.Fatalf("staged prompt should be cleaned up, stat err = %v", err)
+	}
+}
+
+func TestLaunchInDirStagesPromptFileForPromptFlagOutsideLaunchDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	launchDir := filepath.Join(tmpDir, "session")
+	if err := os.MkdirAll(launchDir, 0o755); err != nil {
+		t.Fatalf("mkdir launch dir: %v", err)
+	}
+
+	promptPath := filepath.Join(tmpDir, "prompt.md")
+	promptContent := "Read this prompt"
+	if err := os.WriteFile(promptPath, []byte(promptContent), 0o644); err != nil {
+		t.Fatalf("write prompt: %v", err)
+	}
+
+	agent := New("test", "echo", nil, PromptFileArg, "--prompt", nil).(*cliAgent)
+	stagedPath := ""
+	agent.commandFn = func(name string, args ...string) *exec.Cmd {
+		cmdArgs := append([]string{name}, args...)
+		return &exec.Cmd{Path: name, Args: cmdArgs}
+	}
+	agent.runFn = func(cmd *exec.Cmd) error {
+		if cmd.Dir != launchDir {
+			t.Fatalf("cmd.Dir = %q, want %q", cmd.Dir, launchDir)
+		}
+
+		for i := 0; i < len(cmd.Args)-1; i++ {
+			if cmd.Args[i] == "--prompt" {
+				stagedPath = cmd.Args[i+1]
+				break
+			}
+		}
+		if stagedPath == "" {
+			t.Fatalf("prompt flag argument missing from args: %v", cmd.Args)
+		}
+		if stagedPath == promptPath {
+			t.Fatalf("staged path should differ from original path: %q", stagedPath)
+		}
+		if !strings.HasPrefix(stagedPath, launchDir) {
+			t.Fatalf("staged path %q not under launch dir %q", stagedPath, launchDir)
+		}
+
+		content, err := os.ReadFile(stagedPath)
+		if err != nil {
+			t.Fatalf("reading staged prompt: %v", err)
+		}
+		if string(content) != promptContent {
+			t.Fatalf("staged prompt content = %q, want %q", string(content), promptContent)
+		}
+		return nil
+	}
+
+	if err := agent.LaunchInDir(promptPath, launchDir); err != nil {
+		t.Fatalf("LaunchInDir() error = %v", err)
+	}
+	if stagedPath == "" {
+		t.Fatal("expected staged path to be captured")
+	}
+	if _, err := os.Stat(stagedPath); !os.IsNotExist(err) {
+		t.Fatalf("staged prompt should be cleaned up, stat err = %v", err)
 	}
 }
