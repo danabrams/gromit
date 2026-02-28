@@ -5802,3 +5802,22 @@ func TestSpecPRConfigDefaults(t *testing.T) {
 		t.Errorf("SpecPR.MaxOpenPRs = %d, want 3", cfg.SpecPR.MaxOpenPRs)
 	}
 }
+
+// Tests for ReadinessCheckConfig defaults
+func TestReadinessCheckConfigDefaults(t *testing.T) {
+	cfg := &Config{}
+	cfg.SetDefaults()
+
+	if cfg.ReadinessCheck.IsEnabled() {
+		t.Errorf("expected default readiness_check enabled=false")
+	}
+	if cfg.ReadinessCheck.Model != "haiku" {
+		t.Errorf("expected default readiness_check model='haiku', got %q", cfg.ReadinessCheck.Model)
+	}
+	if cfg.ReadinessCheck.TimeoutSeconds != 120 {
+		t.Errorf("expected default readiness_check timeout=120, got %d", cfg.ReadinessCheck.TimeoutSeconds)
+	}
+	if cfg.ReadinessCheck.FailClosed != false {
+		t.Errorf("expected default readiness_check fail_closed=false, got %v", cfg.ReadinessCheck.FailClosed)
+	}
+}
