@@ -28,6 +28,42 @@ func TestLoadQueueReturnsDefaultWhenMissing(t *testing.T) {
 	}
 }
 
+func TestSaveQueueUpdatesTimestampAndPersists(t *testing.T) {
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, queueFileName)
+
+	queue := &Queue{
+		Entries: []Entry{
+			{
+				Branch:        "gromit/ready",
+				SessionID:     "session",
+				OriginCommand: "refine",
+				State:         StateReady,
+				Lane:          string(CodeLane),
+				BaseRef:       "main",
+				HeadSHA:       "deadbeef",
+			},
+		},
+	}
+	if err := SaveQueue(path, queue); err != nil {
+		t.Fatalf("SaveQueue() error = %v", err)
+	}
+	if queue.UpdatedAt.IsZero() {
+		t.Fatalf("queue updated_at not set")
+	}
+
+	saved, err := LoadQueue(path)
+	if err != nil {
+		t.Fatalf("LoadQueue() error = %v", err)
+	}
+	if !saved.UpdatedAt.Equal(queue.UpdatedAt) {
+		t.Fatalf("saved updated_at = %v, want %v", saved.UpdatedAt, queue.UpdatedAt)
+	}
+	if len(saved.Entries) != 1 {
+		t.Fatalf("entries = %d, want 1", len(saved.Entries))
+	}
+}
+
 func TestStoreSaveCreatesAndUpdatesEntry(t *testing.T) {
 	tmpDir := t.TempDir()
 	store, err := NewStore(tmpDir)
