@@ -80,8 +80,8 @@ type Entry struct {
 	HeadSHA              string    `json:"head_sha"`
 	ChangedFiles         []string  `json:"changed_files,omitempty"`
 	ChangedFilesHash     string    `json:"changed_files_hash"`
-	LastErrorCode        string    `json:"last_error_code"`
-	LastErrorMessage     string    `json:"last_error_message"`
+	LastErrorCode        string    `json:"last_error_code,omitempty"`
+	LastErrorMessage     string    `json:"last_error_message,omitempty"`
 	LastTransitionReason string    `json:"last_transition_reason"`
 }
 
