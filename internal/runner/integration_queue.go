@@ -2,20 +2,11 @@ package runner
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/danabrams/gromit/internal/integrationqueue"
 	"github.com/danabrams/gromit/internal/runner/display"
 )
-
-const integrationQueueDisplayLimit = 10
-
-var blockedQueueStates = map[string]struct{}{
-	string(integrationqueue.StateConflict):      {},
-	string(integrationqueue.StateFailedGates):   {},
-	string(integrationqueue.StateLaneViolation): {},
-}
 
 type integrationQueueStore interface {
 	Snapshot() (*integrationqueue.Snapshot, error)
@@ -52,62 +43,26 @@ func ReadIntegrationQueue(gromitDir string) (*display.IntegrationQueueStatus, er
 }
 
 func buildIntegrationQueueStatus(snapshot *integrationqueue.Snapshot) *display.IntegrationQueueStatus {
-	if snapshot == nil {
+	projection := integrationqueue.ProjectStatus(snapshot)
+	if projection == nil {
 		return nil
 	}
 
-	var readyEntries []*integrationqueue.Entry
-	var integratingEntries []*integrationqueue.Entry
-	var blockedEntries []*integrationqueue.Entry
-
 	status := &display.IntegrationQueueStatus{
-		QueueLength: len(snapshot.Entries),
+		QueueLength:      projection.QueueLength,
+		ReadyCount:       projection.ReadyCount,
+		IntegratingCount: projection.IntegratingCount,
+		BlockedCount:     projection.BlockedCount,
+		MergedCount:      projection.MergedCount,
 	}
 
-	for i := range snapshot.Entries {
-		entry := &snapshot.Entries[i]
-		state := strings.ToLower(string(entry.State))
-		switch state {
-		case string(integrationqueue.StateReady):
-			readyEntries = append(readyEntries, entry)
-			status.ReadyCount++
-		case string(integrationqueue.StateIntegrating):
-			integratingEntries = append(integratingEntries, entry)
-			status.IntegratingCount++
-		case string(integrationqueue.StateMerged):
-			status.MergedCount++
-		default:
-			if _, ok := blockedQueueStates[state]; ok {
-				blockedEntries = append(blockedEntries, entry)
-				status.BlockedCount++
-			}
-		}
+	if len(projection.Entries) == 0 {
+		return status
 	}
 
-	sort.SliceStable(readyEntries, func(i, j int) bool {
-		return readyEntries[i].FifoSeq < readyEntries[j].FifoSeq
-	})
-
-	sort.SliceStable(blockedEntries, func(i, j int) bool {
-		if blockedEntries[i].UpdatedAt.Equal(blockedEntries[j].UpdatedAt) {
-			return blockedEntries[i].FifoSeq > blockedEntries[j].FifoSeq
-		}
-		return blockedEntries[i].UpdatedAt.After(blockedEntries[j].UpdatedAt)
-	})
-
-	views := make([]*display.IntegrationQueueEntryView, 0, len(snapshot.Entries))
-	for _, entry := range integratingEntries {
-		views = append(views, entryToView(entry, 0))
-	}
-	for idx, entry := range readyEntries {
-		views = append(views, entryToView(entry, idx+1))
-	}
-	for _, entry := range blockedEntries {
-		views = append(views, entryToView(entry, 0))
-	}
-
-	if len(views) > integrationQueueDisplayLimit {
-		views = views[:integrationQueueDisplayLimit]
+	views := make([]*display.IntegrationQueueEntryView, 0, len(projection.Entries))
+	for _, entry := range projection.Entries {
+		views = append(views, entryToView(entry.Entry, entry.ReadyPosition))
 	}
 
 	status.Entries = views
