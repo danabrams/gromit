@@ -34,6 +34,12 @@ func isConversationTerminal(state ConversationLifecycleState) bool {
 		state == ConversationStateCancelled
 }
 
+// IsTerminalState reports whether a state is a terminal state.
+// Terminal states (Completed, Failed, Cancelled) indicate end of conversation.
+func IsTerminalState(state ConversationLifecycleState) bool {
+	return isConversationTerminal(state)
+}
+
 // CollectConversation drains events from a conversation session while honoring follow-up prompts.
 func CollectConversation(session conversation.Session, followUpProvider func() string, cancel <-chan struct{}) ([]conversation.Event, int) {
     if session == nil {
