@@ -254,6 +254,48 @@ func TestLoadRecords_NonExistentFile(t *testing.T) {
 	}
 }
 
+func TestAppendRecord_PreservesTimestamps(t *testing.T) {
+	// Create a temporary file
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "timestamps.jsonl")
+
+	// Create a record with specific timestamps
+	startTime := parseTime("2026-02-15T14:30:45Z")
+	endTime := parseTime("2026-02-15T16:45:30Z")
+
+	record := Record{
+		SpecID:                     "timestamp-test",
+		CycleStartTriggerAt:        startTime,
+		CycleEndPresentedAt:        endTime,
+		ReviewOutcome:              ReviewOutcomeAccepted,
+		HumanTacticalIntervention:  No,
+		HumanDebuggingIntervention: No,
+		EscapedRegressionWithin7D:  No,
+	}
+
+	if err := AppendRecord(tmpFile, record); err != nil {
+		t.Fatalf("AppendRecord failed: %v", err)
+	}
+
+	// Read back and verify timestamps are preserved
+	loaded, err := LoadRecords(tmpFile)
+	if err != nil {
+		t.Fatalf("LoadRecords failed: %v", err)
+	}
+
+	if len(loaded) != 1 {
+		t.Fatalf("expected 1 record, got %d", len(loaded))
+	}
+
+	// Verify timestamps match exactly (including nanosecond precision)
+	if !loaded[0].CycleStartTriggerAt.Equal(startTime) {
+		t.Errorf("CycleStartTriggerAt mismatch: got %v, want %v", loaded[0].CycleStartTriggerAt, startTime)
+	}
+	if !loaded[0].CycleEndPresentedAt.Equal(endTime) {
+		t.Errorf("CycleEndPresentedAt mismatch: got %v, want %v", loaded[0].CycleEndPresentedAt, endTime)
+	}
+}
+
 func parseTime(s string) time.Time {
 	// Helper to parse RFC3339 timestamp
 	t, _ := time.Parse(time.RFC3339, s)
