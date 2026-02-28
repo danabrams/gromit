@@ -181,3 +181,10 @@ func TestCheckTransition_DraftToReady_AllowedReturnsNil(t *testing.T) {
 		t.Errorf("expected draft->ready to be allowed, got error: %v", err)
 	}
 }
+
+func TestCheckTransition_DraftToIntegrating_DisallowedReturnsError(t *testing.T) {
+	err := CheckTransition("draft", "integrating")
+	if err != ErrInvalidTransition {
+		t.Errorf("expected ErrInvalidTransition, got: %v", err)
+	}
+}
