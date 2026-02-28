@@ -26,6 +26,9 @@ func Validate(rec Record) []ValidationError {
 	if rec.CycleEndPresentedAt.IsZero() {
 		errs = append(errs, ValidationError{Field: "cycle_end_presented_at", Reason: "required"})
 	}
+	if !rec.CycleStartTriggerAt.IsZero() && !rec.CycleEndPresentedAt.IsZero() && rec.CycleEndPresentedAt.Before(rec.CycleStartTriggerAt) {
+		errs = append(errs, ValidationError{Field: FieldCycleEndPresentedAt, Reason: "must be after cycle start"})
+	}
 	if !rec.ReviewOutcome.Valid() {
 		errs = append(errs, ValidationError{Field: "review_outcome", Reason: "invalid"})
 	}
