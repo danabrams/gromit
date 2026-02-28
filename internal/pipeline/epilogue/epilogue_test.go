@@ -261,6 +261,35 @@ func TestEpilogue_WarningIsNonFatal(t *testing.T) {
 	}
 }
 
+func TestEpilogue_WarningPrintedToOutput(t *testing.T) {
+	beads := &fakeBeadLifecycle{}
+	status := &fakeStatusWriter{
+		writeFn: func(iteration int, beadID, beadTitle, model string, maxIterations, timeBudgetMinutes int) error {
+			return errors.New("status write failed")
+		},
+	}
+	var output strings.Builder
+
+	stage := epiloguepkg.New(beads, status, &output)
+	in := makeInput("bead-1", "Feature", true)
+
+	out, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if !out.LifecycleWarning {
+		t.Fatal("LifecycleWarning is false; want true when status writer errors")
+	}
+	if out.LifecycleFailure != pipeline.LifecycleFailureNone {
+		t.Fatalf("LifecycleFailure = %v, want LifecycleFailureNone for non-critical warning", out.LifecycleFailure)
+	}
+
+	if !strings.Contains(output.String(), "Warning: failed to write status") {
+		t.Fatalf("Expected warning output, got: %q", output.String())
+	}
+}
+
 // TestEpilogue_ReturnsProceed verifies that Epilogue always returns a Proceed decision.
 func TestEpilogue_ReturnsProceed(t *testing.T) {
 	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard)
