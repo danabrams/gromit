@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/agent"
@@ -104,4 +105,52 @@ func TestTryOverrideModel(t *testing.T) {
 			t.Fatal("expected original agent for non-Claude when flag changed")
 		}
 	})
+}
+
+func TestExploreInteractiveModelForwarderOverridesClaudeModel(t *testing.T) {
+	t.Parallel()
+
+	cmd := &cobra.Command{Use: "explore"}
+	cmd.Flags().String("model", "opus", "model override")
+	if err := cmd.Flags().Set("model", "sonnet"); err != nil {
+		t.Fatalf("setting model flag: %v", err)
+	}
+
+	forwarder := exploreInteractiveModelForwarder(cmd, nil, "model")
+	claudeAgent := agent.New("claude", "claude", nil, agent.FileRef, "", nil)
+	modified, warning := forwarder(claudeAgent, "sonnet")
+	if warning != "" {
+		t.Fatalf("expected no warning, got %q", warning)
+	}
+	if modified == claudeAgent {
+		t.Fatal("expected modified agent, got original")
+	}
+
+	promptFile, err := os.CreateTemp(t.TempDir(), "prompt-*.md")
+	if err != nil {
+		t.Fatalf("creating temp prompt file: %v", err)
+	}
+	promptPath := promptFile.Name()
+	promptFile.Close()
+	defer os.Remove(promptPath)
+
+	cmdStruct, err := modified.Command(promptPath)
+	if err != nil {
+		t.Fatalf("getting command for modified agent: %v", err)
+	}
+
+	args := cmdStruct.Args
+	modelFlagIndex := -1
+	for i, arg := range args {
+		if arg == "--model" {
+			modelFlagIndex = i
+			break
+		}
+	}
+	if modelFlagIndex == -1 || modelFlagIndex+1 >= len(args) {
+		t.Fatalf("expected --model flag in args, got %v", args)
+	}
+	if args[modelFlagIndex+1] != "sonnet" {
+		t.Fatalf("expected model value sonnet, got %q", args[modelFlagIndex+1])
+	}
 }
