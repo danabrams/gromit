@@ -41,8 +41,6 @@ Examples:
 	RunE: runDebug,
 }
 
-var debugModel string
-
 const (
 	debugModelFlag       = "model"
 	debugAgentFlag       = "agent"
@@ -64,10 +62,9 @@ type debugGitRunFn func(dir string, args ...string) (string, error)
 var debugGitRun debugGitRunFn = runDebugGit
 var debugConfirmPromptFn = confirmPrompt
 var debugSessionLauncherFn = runWithSessionWorktreeWithConflictSettings
-var debugWarnModelFn = maybeWarnModelFlagOnNonClaudeAgent
 
 func init() {
-	debugCmd.Flags().StringVar(&debugModel, debugModelFlag, "opus", "Model to use when the Claude agent is selected (opus, sonnet, haiku)")
+	debugCmd.Flags().String(debugModelFlag, "opus", "Model to use when the Claude agent is selected (opus, sonnet, haiku)")
 	debugCmd.Flags().String(debugAgentFlag, "", "Override the default agent for this debug session")
 	debugCmd.Flags().Bool(debugChooseAgentFlag, false, "Show interactive picker to choose agent")
 	debugCmd.Flags().Bool(debugRestoreFlag, false, "Restore selected runbook failure commit in a temporary worktree")
@@ -166,18 +163,7 @@ func runDebug(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("resolving agent: %w", err)
 	}
 
-	debugWarnModelFn(cmd, selectedAgent, os.Stderr)
-
-	if shouldOverrideDebugModel(cmd, selectedAgent) {
-		binary := claudeAgentName
-		var flags []string
-		if cfg != nil {
-			binary = cfg.Claude.Binary
-			flags = cfg.Claude.Flags
-		}
-		flags = append(append([]string{}, flags...), "--model", debugModel)
-		selectedAgent = agent.New(claudeAgentName, binary, flags, agent.FileRef, "", nil)
-	}
+	selectedAgent = applyDebugModelOverride(cmd, selectedAgent, cfg, os.Stderr)
 
 	if err := launchDebugSession(cfg, gromitDir, selectedAgent, promptPath, launchDir); err != nil {
 		return fmt.Errorf("launching agent: %w", err)
@@ -207,19 +193,6 @@ func launchDebugSession(cfg *config.Config, gromitDir string, selectedAgent agen
 	}, func() error {
 		return selectedAgent.LaunchInDir(absPromptPath, launchDir)
 	})
-}
-
-func shouldOverrideDebugModel(cmd *cobra.Command, selectedAgent agent.Agent) bool {
-	if cmd == nil || selectedAgent == nil || selectedAgent.Name() != claudeAgentName {
-		return false
-	}
-
-	modelFlag := cmd.Flags().Lookup(debugModelFlag)
-	if modelFlag == nil {
-		return false
-	}
-
-	return cmd.Flags().Changed(debugModelFlag)
 }
 
 func maybeWarnModelFlagOnNonClaudeAgent(cmd *cobra.Command, selectedAgent agent.Agent, stderr io.Writer) {
@@ -297,6 +270,16 @@ func maybeCleanupDebugRestoreWorktree(worktreeDir, mainDir string, input io.Read
 	if _, err := gitRun(mainDir, gitWorktreeCmd, gitWorktreeRemoveCmd, worktreeDir); err != nil {
 		fmt.Fprintf(stderr, "Warning: failed to remove debug worktree %s: %v\n", worktreeDir, err)
 	}
+}
+
+func applyDebugModelOverride(cmd *cobra.Command, selectedAgent agent.Agent, cfg *config.Config, stderr io.Writer) agent.Agent {
+	if selectedAgent == nil {
+		return nil
+	}
+	modelValue := resolveInteractiveModel(cmd, debugModelFlag)
+	overridden := TryOverrideModel(cmd, selectedAgent, modelValue, cfg, debugModelFlag)
+	maybeWarnModelFlagOnNonClaudeAgent(cmd, overridden, stderr)
+	return overridden
 }
 
 func sanitizeRunbookIDForPath(runbookID string) string {

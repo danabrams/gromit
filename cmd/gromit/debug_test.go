@@ -703,46 +703,30 @@ func TestDetectAndReportArtifactsUseSlicesContains(t *testing.T) {
 }
 
 func TestDebugModelFlag(t *testing.T) {
-	t.Parallel(
-	// Reset the debugModel variable to its default state before each subtest
-	)
+	t.Parallel()
 
-	originalModel := debugModel
-	defer func() { debugModel = originalModel }()
+	flag := debugCmd.Flags().Lookup(debugModelFlag)
+	if flag == nil {
+		t.Fatalf("debug command missing %s flag", debugModelFlag)
+	}
 
-	t.Run("default model is opus", func(t *testing.T) {
-		t.Parallel(
-		// The debugModel variable should have the default set by cobra
-		// when the command is initialized
-		)
+	if flag.DefValue != "opus" {
+		t.Fatalf("default model flag = %q, want %q", flag.DefValue, "opus")
+	}
 
-		debugModel = "" // Reset to empty
+	if err := debugCmd.Flags().Set(debugModelFlag, "sonnet"); err != nil {
+		t.Fatalf("setting model flag: %v", err)
+	}
+	if flag.Value.String() != "sonnet" {
+		t.Fatalf("model flag value = %q, want %q", flag.Value.String(), "sonnet")
+	}
 
-		// Simulate what cobra does during flag initialization
-		debugCmd.Flags().Lookup("model").DefValue = "opus"
-
-		// Verify the default value is set correctly
-		defaultValue := debugCmd.Flags().Lookup("model").DefValue
-		if defaultValue != "opus" {
-			t.Errorf("expected default model to be 'opus', got %q", defaultValue)
-		}
-	})
-
-	t.Run("model flag can be set", func(t *testing.T) {
-		t.Parallel(
-		// Test that the model variable can be changed
-		)
-
-		debugModel = "sonnet"
-		if debugModel != "sonnet" {
-			t.Errorf("expected debugModel to be 'sonnet', got %q", debugModel)
-		}
-
-		debugModel = "haiku"
-		if debugModel != "haiku" {
-			t.Errorf("expected debugModel to be 'haiku', got %q", debugModel)
-		}
-	})
+	if err := debugCmd.Flags().Set(debugModelFlag, "haiku"); err != nil {
+		t.Fatalf("setting model flag: %v", err)
+	}
+	if flag.Value.String() != "haiku" {
+		t.Fatalf("model flag value = %q, want %q", flag.Value.String(), "haiku")
+	}
 }
 
 // TestBuildDebugPromptWithRunbookEntry verifies that buildDebugPrompt injects a Failure Context
@@ -1267,4 +1251,3 @@ func TestMaybeCleanupDebugRestoreWorktreeKeepsWhenAccepted(t *testing.T) {
 		t.Fatal("expected git worktree remove not to be called when user keeps worktree")
 	}
 }
-

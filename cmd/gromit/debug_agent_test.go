@@ -127,25 +127,3 @@ func TestDebugPhaseConfigUsesAgent_Reclassified(t *testing.T) {
 		t.Fatalf("selected agent = %q, want %q", selectedAgent.Name(), "codex")
 	}
 }
-
-func TestShouldOverrideDebugModel_OnlyForClaudeWithChangedModelFlag(t *testing.T) {
-
-	cmd := debugCmd
-	_ = cmd.Flags().Set(debugModelFlag, "sonnet")
-	t.Cleanup(func() { _ = cmd.Flags().Set(debugModelFlag, "opus") })
-
-	cfg := &config.Config{}
-	cfg.Agents.Phases.Debug = "codex"
-	cfg.Agents.Definitions = map[string]config.AgentDefinition{
-		"codex": {Binary: "echo"},
-	}
-
-	selectedAgent, err := resolveDebugAgent(cfg, "codex", false)
-	if err != nil {
-		t.Fatalf("resolveDebugAgent() error = %v", err)
-	}
-
-	if shouldOverrideDebugModel(cmd, selectedAgent) {
-		t.Fatal("shouldOverrideDebugModel() = true, want false for non-claude agent")
-	}
-}
