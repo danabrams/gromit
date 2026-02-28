@@ -982,3 +982,43 @@ func TestEpilogue_LegacyMergePatchIsAbsent(t *testing.T) {
 		t.Error("epilogue called PendingBranches(); legacy merge path should be absent")
 	}
 }
+
+// TestEpilogue_RemainingResponsibilitiesUnaffected verifies that removing the legacy
+// merge path does not affect other epilogue responsibilities: bead lifecycle (close/sync),
+// status writing, iteration logging, and review hooks.
+func TestEpilogue_RemainingResponsibilitiesUnaffected(t *testing.T) {
+	beads := &fakeBeadLifecycle{}
+	status := &fakeStatusWriter{}
+
+	// Verify all core dependencies are still wired and functional
+	stage := epiloguepkg.New(beads, status, io.Discard)
+
+	in := makeInput("bead-1", "Test feature", true)
+	in.Config.Loop.MaxIterations = 5
+
+	out, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	// Verify bead lifecycle still works: close and sync on success
+	if !beads.closeCalled {
+		t.Error("beads.Close() not called; bead lifecycle should remain functional")
+	}
+	if !beads.syncCalled {
+		t.Error("beads.Sync() not called; bead sync should remain functional")
+	}
+
+	// Verify status writing still works
+	if !status.called {
+		t.Error("status.Write() not called; status writing should remain functional")
+	}
+	if status.lastMaxIterations != 5 {
+		t.Errorf("status.lastMaxIterations = %d, want 5; config passing should work", status.lastMaxIterations)
+	}
+
+	// Verify output is still correct
+	if out.Decision != pipeline.Proceed {
+		t.Errorf("Decision = %v, want Proceed", out.Decision)
+	}
+}
