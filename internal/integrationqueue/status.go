@@ -18,6 +18,8 @@ type StatusEntry struct {
 	ReadyPosition int
 }
 
+const displayLimit = 10
+
 var blockedStates = map[State]struct{}{
 	StateConflict:      {},
 	StateFailedGates:   {},
@@ -81,6 +83,9 @@ func ProjectStatus(snapshot *Snapshot) *Status {
 	}
 	for _, entry := range blockedEntries {
 		entries = append(entries, StatusEntry{Entry: entry})
+	}
+	if len(entries) > displayLimit {
+		entries = entries[:displayLimit]
 	}
 	status.Entries = entries
 	return status
