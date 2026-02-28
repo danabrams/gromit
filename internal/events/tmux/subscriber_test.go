@@ -32,7 +32,10 @@ func TestTMUXSubscriber_UpdatesOnIterationStart(t *testing.T) {
 
 	emitter := events.NewEmitter()
 	manager := newMockTmuxManager()
-	subscriber := NewTMUXSubscriber(manager, emitter)
+	subscriber, err := NewTMUXSubscriber(manager, emitter)
+	if err != nil {
+		t.Fatalf("failed to create tmux subscriber: %v", err)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -67,7 +70,10 @@ func TestTMUXSubscriber_ConsumesEvents(t *testing.T) {
 
 	emitter := events.NewEmitter()
 	manager := newMockTmuxManager()
-	subscriber := NewTMUXSubscriber(manager, emitter)
+	subscriber, err := NewTMUXSubscriber(manager, emitter)
+	if err != nil {
+		t.Fatalf("failed to create tmux subscriber: %v", err)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -97,7 +103,10 @@ func TestTMUXSubscriber_EmitterClosed_ExitsGracefully(t *testing.T) {
 
 	emitter := events.NewEmitter()
 	manager := newMockTmuxManager()
-	subscriber := NewTMUXSubscriber(manager, emitter)
+	subscriber, err := NewTMUXSubscriber(manager, emitter)
+	if err != nil {
+		t.Fatalf("failed to create tmux subscriber: %v", err)
+	}
 
 	ctx := context.Background()
 
@@ -112,7 +121,7 @@ func TestTMUXSubscriber_EmitterClosed_ExitsGracefully(t *testing.T) {
 	emitter.Close()
 
 	// Subscriber should exit
-	err := <-done
+	err = <-done
 	if err != nil {
 		t.Fatalf("subscriber.Start() returned error: %v", err)
 	}
@@ -124,7 +133,10 @@ func TestTMUXSubscriber_IgnoresUnknownEvents(t *testing.T) {
 
 	emitter := events.NewEmitter()
 	manager := newMockTmuxManager()
-	subscriber := NewTMUXSubscriber(manager, emitter)
+	subscriber, err := NewTMUXSubscriber(manager, emitter)
+	if err != nil {
+		t.Fatalf("failed to create tmux subscriber: %v", err)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -142,7 +154,7 @@ func TestTMUXSubscriber_IgnoresUnknownEvents(t *testing.T) {
 
 	time.Sleep(10 * time.Millisecond)
 	cancel()
-	err := <-done
+	err = <-done
 
 	// Should not error, should handle gracefully
 	if err != nil {
@@ -150,9 +162,9 @@ func TestTMUXSubscriber_IgnoresUnknownEvents(t *testing.T) {
 	}
 
 	// Verify that manager was never called for the unknown event
-	 if len(manager.titles) > 0 {
-	 	t.Errorf("Expected no title updates for unknown event, got %d updates", len(manager.titles))
-	 }
+	if len(manager.titles) > 0 {
+		t.Errorf("Expected no title updates for unknown event, got %d updates", len(manager.titles))
+	}
 }
 
 // TestNewTMUXSubscriber_InvalidManager ensures invalid managers produce an error instead of panicking.

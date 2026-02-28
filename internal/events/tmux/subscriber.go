@@ -21,11 +21,16 @@ type TMUXSubscriber struct {
 }
 
 // NewTMUXSubscriber creates a new TMUX subscriber.
-func NewTMUXSubscriber(manager interface{}, emitter *events.Emitter) *TMUXSubscriber {
-	return &TMUXSubscriber{
-		manager: manager.(TMUXManager),
-		emitter: emitter,
+func NewTMUXSubscriber(manager interface{}, emitter *events.Emitter) (*TMUXSubscriber, error) {
+	tmuxManager, ok := manager.(TMUXManager)
+	if !ok {
+		return nil, fmt.Errorf("tmux manager does not implement TMUXManager")
 	}
+
+	return &TMUXSubscriber{
+		manager: tmuxManager,
+		emitter: emitter,
+	}, nil
 }
 
 // Start consumes events from the emitter until the context is cancelled or the emitter is closed.

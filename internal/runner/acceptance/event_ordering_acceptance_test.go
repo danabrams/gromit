@@ -272,7 +272,10 @@ func TestSubscriberDrivenTmuxUpdates(t *testing.T) {
 	defer emitter.Close()
 
 	tmuxManager := &testTmuxManager{}
-	subscriber := tmux.NewTMUXSubscriber(tmuxManager, emitter)
+	subscriber, err := tmux.NewTMUXSubscriber(tmuxManager, emitter)
+	if err != nil {
+		t.Fatalf("failed to create tmux subscriber: %v", err)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
