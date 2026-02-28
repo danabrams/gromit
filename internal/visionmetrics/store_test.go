@@ -183,6 +183,45 @@ func TestAppendRecord_AppendsMultipleRecords(t *testing.T) {
 	}
 }
 
+func TestAppendRecord_CreatesFileIfNotExists(t *testing.T) {
+	// Create a temporary directory but don't create the file
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "nonexistent", "records.jsonl")
+
+	// Create the directory structure (this is what we're testing - that AppendRecord will create the file)
+	if err := os.MkdirAll(filepath.Dir(tmpFile), 0755); err != nil {
+		t.Fatalf("failed to create directory: %v", err)
+	}
+
+	// Append a record to a non-existent file
+	record := Record{
+		SpecID:                     "new-spec",
+		CycleStartTriggerAt:        parseTime("2026-02-01T08:00:00Z"),
+		CycleEndPresentedAt:        parseTime("2026-02-01T10:00:00Z"),
+		ReviewOutcome:              ReviewOutcomeAccepted,
+		HumanTacticalIntervention:  No,
+		HumanDebuggingIntervention: No,
+		EscapedRegressionWithin7D:  No,
+	}
+
+	if err := AppendRecord(tmpFile, record); err != nil {
+		t.Fatalf("AppendRecord failed: %v", err)
+	}
+
+	// Verify file exists and can be read
+	loaded, err := LoadRecords(tmpFile)
+	if err != nil {
+		t.Fatalf("LoadRecords failed: %v", err)
+	}
+
+	if len(loaded) != 1 {
+		t.Errorf("expected 1 record, got %d", len(loaded))
+	}
+	if loaded[0].SpecID != "new-spec" {
+		t.Errorf("SpecID mismatch: got %q, want %q", loaded[0].SpecID, "new-spec")
+	}
+}
+
 func parseTime(s string) time.Time {
 	// Helper to parse RFC3339 timestamp
 	t, _ := time.Parse(time.RFC3339, s)
