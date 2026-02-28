@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"math"
 	"path/filepath"
@@ -265,6 +266,13 @@ func (d *dummyRouter) Select(phase, tier string) (provider.Provider, string) {
 	d.phase = phase
 	d.tier = tier
 	return nil, "dummy-model"
+}
+
+// failingReadinessRenderer simulates a renderer that fails to render readiness prompts.
+type failingReadinessRenderer struct{}
+
+func (f *failingReadinessRenderer) RenderReadiness(ctx *prompt.ReadinessContext) (string, error) {
+	return "", fmt.Errorf("rendering failed")
 }
 
 type dummyPromptRenderer struct {
@@ -539,4 +547,24 @@ func TestPromptRenderer_RenderReadinessMethodExists(t *testing.T) {
 	// If this fails at compile time, we need to add RenderReadiness method to Renderer
 	var r *prompt.Renderer
 	var _ readinessPromptRenderer = r
+}
+
+// TestReadinessAdapterWithLLM_AssessHandlesFailedRenderingGracefully tests that Assess fails closed when rendering fails.
+func TestReadinessAdapterWithLLM_AssessHandlesFailedRenderingGracefully(t *testing.T) {
+	t.Parallel()
+	failingRenderer := &failingReadinessRenderer{}
+	router := &dummyRouter{}
+	adapter := NewReadinessAdapterWithLLM(failingRenderer, router)
+
+	ctx := context.Background()
+	b := &bead.Bead{ID: "test-bead", Title: "Test Task"}
+
+	assessment, err := adapter.Assess(ctx, b)
+	if err != nil {
+		t.Fatalf("Assess returned error: %v", err)
+	}
+	// Fail closed: when rendering fails, should return NotReady
+	if assessment.Status != readiness.StatusNotReady {
+		t.Fatalf("Assess returned status %q, want %q for failing renderer", assessment.Status, readiness.StatusNotReady)
+	}
 }
