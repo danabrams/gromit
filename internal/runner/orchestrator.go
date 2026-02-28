@@ -408,16 +408,11 @@ runLoop:
 				Success:                  false,
 				Error:                    buildErr.Error(),
 				FailurePhase:             failurePhase,
-				Model:                    buildOut.Model,
-				CostUSD:                  buildOut.CostUSD,
-				InputTokens:              buildOut.InputTokens,
-				OutputTokens:             buildOut.OutputTokens,
-				OriginalTier:             buildOut.OriginalTier,
-				ActualTier:               buildOut.ActualTier,
 				Complexity:               baseIn.Complexity,
 				ComplexitySource:         baseIn.ComplexitySource,
 				ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 			}
+			stampBuildAttribution(baseIn.Result, buildOut)
 			o.runEpilogue(ctx, baseIn, false)
 			// Emit IterationCompleteEvent
 			o.emitter.Emit(&events.IterationCompleteEvent{
@@ -450,6 +445,7 @@ runLoop:
 				ComplexitySource:         baseIn.ComplexitySource,
 				ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 			}
+			stampBuildAttribution(baseIn.Result, buildOut)
 			failureReasons := make([]string, 0, len(validateOut.ValidationFailures)+1)
 			failureReasons = append(failureReasons, validateOut.ValidationFailures...)
 			if validateErr != nil {
@@ -498,24 +494,11 @@ runLoop:
 			Validated:                true,
 			FirstPassSuccess:         !validationRetried && !escalated,
 			QualityScore:             logger.ComputeQualityScore(0, 0, validationRetried, false, escalated, 0),
-			Model:                    buildOut.Model,
-			OriginalTier:             buildOut.OriginalTier,
-			ActualTier:               buildOut.ActualTier,
 			Complexity:               baseIn.Complexity,
 			ComplexitySource:         baseIn.ComplexitySource,
 			ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
-			DurationMs:               buildOut.DurationMs,
-			CostUSD:                  buildOut.CostUSD,
-			InputTokens:              buildOut.InputTokens,
-			OutputTokens:             buildOut.OutputTokens,
-			CacheHit:                 buildOut.CacheHit,
-			CacheMiss:                buildOut.CacheMiss,
-			CacheWrite:               buildOut.CacheWrite,
-			CacheClass:               buildOut.CacheClass,
-			CacheKey:                 buildOut.CacheKey,
-			CacheInvalidationReason:  buildOut.CacheInvalidationReason,
-			CacheVersionMarker:       buildOut.CacheVersionMarker,
 		}
+		stampBuildAttribution(baseIn.Result, buildOut)
 		epilogueOut := o.runEpilogue(ctx, baseIn, true)
 		finalSuccess := epilogueOut.LifecycleFailure == pipeline.LifecycleFailureNone
 		if baseIn.Result != nil {
@@ -588,6 +571,30 @@ runLoop:
 	})
 
 	return nil
+}
+
+// stampBuildAttribution copies model, cost, token, duration, and tier data from the
+// build stage output onto the iteration log. This shared helper ensures every exit path
+// that follows a build invocation (build-fail, validation-fail, success) carries
+// consistent attribution, preventing empty model/provider fields in efficiency data.
+func stampBuildAttribution(log *logger.IterationLog, buildOut pipeline.Output) {
+	if log == nil {
+		return
+	}
+	log.Model = buildOut.Model
+	log.CostUSD = buildOut.CostUSD
+	log.InputTokens = buildOut.InputTokens
+	log.OutputTokens = buildOut.OutputTokens
+	log.DurationMs = buildOut.DurationMs
+	log.OriginalTier = buildOut.OriginalTier
+	log.ActualTier = buildOut.ActualTier
+	log.CacheHit = buildOut.CacheHit
+	log.CacheMiss = buildOut.CacheMiss
+	log.CacheWrite = buildOut.CacheWrite
+	log.CacheClass = buildOut.CacheClass
+	log.CacheKey = buildOut.CacheKey
+	log.CacheInvalidationReason = buildOut.CacheInvalidationReason
+	log.CacheVersionMarker = buildOut.CacheVersionMarker
 }
 
 func inferBuildFailurePhase(err error) string {
