@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/danabrams/gromit/internal/conversation"
 )
 
 // TestExploreInput_ChooseAgentFieldExists verifies ExploreInput includes ChooseAgent for picker wiring.
@@ -221,5 +223,181 @@ func TestPipelineExplore_ModelForwardingCases(t *testing.T) {
 				t.Fatalf("warning captured = %q, want %q", warningCaptured, tc.warningMsg)
 			}
 		})
+	}
+}
+
+// TestExplore_ModelReachesAgentLaunch verifies that ExploreInput.Model is propagated
+// through ModelForwarder to the actual agent.LaunchInDir call (regression test).
+func TestExplore_ModelReachesAgentLaunch(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	specsDir := filepath.Join(gromitDir, "specs")
+	epicsDir := filepath.Join(gromitDir, "epics")
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("failed to create specs dir: %v", err)
+	}
+	if err := os.MkdirAll(epicsDir, 0o755); err != nil {
+		t.Fatalf("failed to create epics dir: %v", err)
+	}
+
+	// Track which agent's LaunchInDir was called
+	originalAgentLaunched := false
+	forwardedAgentLaunched := false
+
+	originalAgent := &mockAgent{
+		NameFn: func() string { return "claude" },
+		LaunchInDirFn: func(promptPath, dir string) error {
+			originalAgentLaunched = true
+			return nil
+		},
+	}
+
+	forwardedAgent := &mockAgent{
+		NameFn: func() string { return "claude-with-model" },
+		LaunchInDirFn: func(promptPath, dir string) error {
+			forwardedAgentLaunched = true
+			return nil
+		},
+	}
+
+	deps := &Deps{
+		AgentResolver: &mockAgentResolver{
+			ResolveFn: func(phase, flagOverride string, choosePicker bool) (Agent, error) {
+				return originalAgent, nil
+			},
+		},
+		ExploreRenderer: &mockExploreRenderer{
+			RenderExploreFn: func(input *ExplorePromptInput) (string, error) {
+				return "explore prompt", nil
+			},
+		},
+		BacklogClient: &mockBacklogClient{
+			ListFn: func() ([]*Idea, error) {
+				return []*Idea{}, nil
+			},
+		},
+		// ModelForwarder returns a different agent to prove model is propagated
+		ModelForwarder: func(agent Agent, model string) (Agent, string) {
+			if model == "sonnet" {
+				return forwardedAgent, ""
+			}
+			return agent, ""
+		},
+	}
+
+	paths := &Paths{
+		GromitDir: gromitDir,
+		SpecsDir:  specsDir,
+		EpicsDir:  epicsDir,
+	}
+
+	p := New(deps, paths)
+	input := ExploreInput{
+		Topic: "test topic",
+		Model: "sonnet", // Non-empty model should reach the agent launch
+	}
+
+	if _, err := p.Explore(context.Background(), input); err != nil {
+		t.Fatalf("Explore() failed: %v", err)
+	}
+
+	// Verify that the forwarded agent (with model) was launched, not the original
+	if !forwardedAgentLaunched {
+		t.Fatalf("forwardedAgent.LaunchInDir was not called; model did not reach agent launch")
+	}
+	if originalAgentLaunched {
+		t.Fatalf("originalAgent.LaunchInDir was called; model was not properly forwarded")
+	}
+}
+
+// TestStartExploreSession_ModelReachesAgentLaunch verifies that ExploreInput.Model is propagated
+// through ModelForwarder to the actual agent.LaunchInDir call in StartExploreSession (regression test).
+func TestStartExploreSession_ModelReachesAgentLaunch(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	specsDir := filepath.Join(gromitDir, "specs")
+	epicsDir := filepath.Join(gromitDir, "epics")
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("failed to create specs dir: %v", err)
+	}
+	if err := os.MkdirAll(epicsDir, 0o755); err != nil {
+		t.Fatalf("failed to create epics dir: %v", err)
+	}
+
+	// Track which agent's LaunchInDir was called
+	originalAgentLaunched := false
+	forwardedAgentLaunched := false
+
+	originalAgent := &mockAgent{
+		NameFn: func() string { return "claude" },
+		LaunchInDirFn: func(promptPath, dir string) error {
+			originalAgentLaunched = true
+			return nil
+		},
+	}
+
+	forwardedAgent := &mockAgent{
+		NameFn: func() string { return "claude-with-model" },
+		LaunchInDirFn: func(promptPath, dir string) error {
+			forwardedAgentLaunched = true
+			return nil
+		},
+	}
+
+	deps := &Deps{
+		AgentResolver: &mockAgentResolver{
+			ResolveFn: func(phase, flagOverride string, choosePicker bool) (Agent, error) {
+				return originalAgent, nil
+			},
+		},
+		ExploreRenderer: &mockExploreRenderer{
+			RenderExploreFn: func(input *ExplorePromptInput) (string, error) {
+				return "explore prompt", nil
+			},
+		},
+		BacklogClient: &mockBacklogClient{
+			ListFn: func() ([]*Idea, error) {
+				return []*Idea{}, nil
+			},
+		},
+		// ModelForwarder returns a different agent to prove model is propagated
+		ModelForwarder: func(agent Agent, model string) (Agent, string) {
+			if model == "sonnet" {
+				return forwardedAgent, ""
+			}
+			return agent, ""
+		},
+	}
+
+	paths := &Paths{
+		GromitDir: gromitDir,
+		SpecsDir:  specsDir,
+		EpicsDir:  epicsDir,
+	}
+
+	p := New(deps, paths)
+	input := ExploreInput{
+		Topic: "test topic",
+		Model: "sonnet", // Non-empty model should reach the agent launch
+	}
+
+	session, err := p.StartExploreSession(context.Background(), input)
+	if err != nil {
+		t.Fatalf("StartExploreSession() failed: %v", err)
+	}
+
+	// Consume all events until completion
+	for event := range session.Events() {
+		if event.Type == conversation.EventTypeDone {
+			break
+		}
+	}
+
+	// Verify that the forwarded agent (with model) was launched, not the original
+	if !forwardedAgentLaunched {
+		t.Fatalf("forwardedAgent.LaunchInDir was not called; model did not reach agent launch in StartExploreSession")
+	}
+	if originalAgentLaunched {
+		t.Fatalf("originalAgent.LaunchInDir was called; model was not properly forwarded in StartExploreSession")
 	}
 }
