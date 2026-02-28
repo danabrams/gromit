@@ -1,0 +1,17 @@
+id: decompose-compare-manifest
+base_commit: abc123
+beads:
+  - decompose-1
+  - decompose-2
+  - decompose-3
+  - decompose-4
+  - decompose-5
+modes:
+  - single_pass
+  - tdd_shared_context
+  - tdd_fresh_context
+provider: openai
+model_family: gpt-5
+low_tier_model: gpt-5.1-codex-mini
+medium_tier_model: gpt-5.3-codex
+high_tier_model: gpt-5.3-codex
