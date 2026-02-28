@@ -116,3 +116,34 @@ func TestSetupRetroWorktreeLogsSymlink_CreatesSymlinkWhenSessionCreated(t *testi
 		t.Fatalf("cannot read from worktree logs: %v", err)
 	}
 }
+
+func TestEnsureRetroWorktreeLogsSetup_CallsSetupWhenNeeded(t *testing.T) {
+	// RED test: Verify that ensureRetroWorktreeLogsSetup is called to set up
+	// the logs symlink when retro runs in a session worktree.
+
+	tmpDir := t.TempDir()
+
+	// Create main repo structure with logs
+	mainGromitDir := filepath.Join(tmpDir, "main", ".gromit")
+	mainLogsDir := filepath.Join(mainGromitDir, "logs")
+	if err := os.MkdirAll(mainLogsDir, 0o755); err != nil {
+		t.Fatalf("creating main repo logs: %v", err)
+	}
+
+	// Create worktree structure without logs
+	worktreeGromitDir := filepath.Join(tmpDir, "worktree", ".gromit")
+	if err := os.MkdirAll(worktreeGromitDir, 0o755); err != nil {
+		t.Fatalf("creating worktree .gromit: %v", err)
+	}
+
+	// Call ensureRetroWorktreeLogsSetup to set up the symlink
+	if err := ensureRetroWorktreeLogsSetup(worktreeGromitDir, mainGromitDir); err != nil {
+		t.Fatalf("ensureRetroWorktreeLogsSetup failed: %v", err)
+	}
+
+	// Verify that worktree logs are now accessible
+	worktreeLogsPath := filepath.Join(worktreeGromitDir, "logs")
+	if _, err := os.Stat(worktreeLogsPath); err != nil {
+		t.Fatalf("worktree logs not accessible after setup: %v", err)
+	}
+}
