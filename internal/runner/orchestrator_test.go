@@ -3054,3 +3054,69 @@ func TestOrchestratorSkipsCoordinatorOnFailedIterations(t *testing.T) {
 		t.Fatalf("Expected coordinator to not be called (iteration failed), got %d calls", coordinatorCalls)
 	}
 }
+
+// TestOrchestrator_GateBlockReason_PropagatedToIterationLog verifies that when the gate
+// stage returns a Block decision with a GateBlockReason, the reason is written to the
+// iteration log so the orchestrator can track why beads were blocked.
+func TestOrchestrator_GateBlockReason_PropagatedToIterationLog(t *testing.T) {
+	t.Parallel()
+
+	var capturedLogs []*logger.IterationLog
+
+	gateStage := &fakeStage{
+		runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			return pipeline.Output{
+				Decision:         pipeline.Block,
+				GateBlockReason:  "scope gate: open dependencies",
+			}, nil
+		},
+	}
+
+	epilogueStage := &fakeStage{
+		runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+			if in.Result != nil {
+				capturedLogs = append(capturedLogs, in.Result)
+			}
+			return pipeline.Output{}, nil
+		},
+	}
+
+	beads := []*bead.Bead{
+		{ID: "bead-1", Title: "Test Bead"},
+	}
+	beadIdx := 0
+
+	getBead := func(ctx context.Context) (*bead.Bead, error) {
+		if beadIdx >= len(beads) {
+			return nil, nil
+		}
+		b := beads[beadIdx]
+		beadIdx++
+		return b, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     gateStage,
+		Build:    &fakeStage{},
+		Validate: &fakeStage{},
+		Epilogue: epilogueStage,
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	err := orch.Run(context.Background(), 1, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("Orchestrator.Run() error = %v; expected nil", err)
+	}
+
+	if len(capturedLogs) != 1 {
+		t.Fatalf("Expected 1 iteration log, got %d", len(capturedLogs))
+	}
+
+	log := capturedLogs[0]
+	if log.GateBlockReason != "scope gate: open dependencies" {
+		t.Errorf("Expected GateBlockReason = 'scope gate: open dependencies', got %q", log.GateBlockReason)
+	}
+}
