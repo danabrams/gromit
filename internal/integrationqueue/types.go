@@ -17,6 +17,9 @@ const (
 	ErrorCodeSessionCommitFailed ErrorCode = "session_commit_failed"
 )
 
+// SchemaVersion is the current version of the integration queue schema.
+const SchemaVersion = 1
+
 // State models the lifecycle of an integration queue entry.
 type State string
 
