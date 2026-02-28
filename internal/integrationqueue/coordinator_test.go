@@ -972,3 +972,56 @@ func TestCoordinator_DoesNotStallOnConflict(t *testing.T) {
 		t.Fatalf("second.State = %q, want %q", second.State, StateMerged)
 	}
 }
+
+// TestCoordinatorProcessNext verifies ProcessNext processes a single entry
+// and returns true when an entry was processed, false when none are ready.
+func TestCoordinatorProcessNext(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	entry := Entry{
+		Branch:           "feature/test",
+		SessionID:        "feature/test",
+		OriginCommand:    "test",
+		State:            StateReady,
+		Lane:             "code_lane",
+		BaseRef:          "main",
+		HeadSHA:          "deadbeef",
+		ChangedFiles:     []string{"test.txt"},
+		ChangedFilesHash: "hash",
+	}
+	if err := store.Save(entry); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	gitops := &mockGitOps{}
+	gate := &mockScopedGate{}
+	coord := NewCoordinator(store, gitops, gate)
+
+	// ProcessNext should process the single entry
+	processed, err := coord.ProcessNext(ctx)
+	if err != nil {
+		t.Fatalf("ProcessNext() error = %v", err)
+	}
+	if !processed {
+		t.Fatalf("ProcessNext() = %v, want true", processed)
+	}
+
+	// Entry should be merged after ProcessNext
+	payload, err := store.load()
+	if err != nil {
+		t.Fatalf("load() error = %v", err)
+	}
+	found := findEntry(payload.Entries, "feature/test")
+	if found == nil {
+		t.Fatalf("entry not found")
+	}
+	if found.State != StateMerged {
+		t.Fatalf("State = %q, want %q", found.State, StateMerged)
+	}
+}
