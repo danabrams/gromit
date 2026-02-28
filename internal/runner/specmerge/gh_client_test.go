@@ -2,6 +2,7 @@ package specmerge_test
 
 import (
 	"context"
+	"encoding/json"
 	"reflect"
 	"testing"
 
@@ -173,6 +174,51 @@ func TestGhCLIClient_ListChecksCommandAndJSON(t *testing.T) {
 		"octocat/hello-world",
 		"--json",
 		"name,state,bucket,link",
+	}
+	if !reflect.DeepEqual(gotArgs, wantArgs) {
+		t.Fatalf("gh command args = %v, want %v", gotArgs, wantArgs)
+	}
+}
+
+func TestGhCLIClient_PostReviewCommandAndJSON(t *testing.T) {
+	t.Parallel()
+
+	runner := &fakeGHRunner{
+		stdout: `{"id": 1, "state": "APPROVED"}`,
+	}
+
+	client := specmerge.NewGhCLIClient(runner)
+	ctx := context.Background()
+	ref := specmerge.PRRef{Owner: "octocat", Repo: "hello-world", Number: 404}
+	payload := specmerge.ReviewPayload{
+		Event: "APPROVE",
+		Body:  "LGTM",
+		Comments: []specmerge.ReviewComment{
+			{Path: "file.txt", Line: 10, Body: "Looks good"},
+		},
+	}
+
+	if err := client.PostReview(ctx, ref, payload); err != nil {
+		t.Fatalf("PostReview returned error: %v", err)
+	}
+
+	if len(runner.calls) != 1 {
+		t.Fatalf("runner.Run called %d times, want 1", len(runner.calls))
+	}
+
+	wantComments, _ := json.Marshal(payload.Comments)
+	gotArgs := runner.calls[0].args
+	wantArgs := []string{
+		"api",
+		"-X",
+		"POST",
+		"/repos/octocat/hello-world/pulls/404/reviews",
+		"-F",
+		"event=APPROVE",
+		"-F",
+		"body=LGTM",
+		"-F",
+		"comments=" + string(wantComments),
 	}
 	if !reflect.DeepEqual(gotArgs, wantArgs) {
 		t.Fatalf("gh command args = %v, want %v", gotArgs, wantArgs)
