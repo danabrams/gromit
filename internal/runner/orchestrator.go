@@ -138,7 +138,12 @@ type Coordinator interface {
 	// Coordinate processes the integration queue, attempting to integrate ready branches into main.
 	// It should not error out on failures from individual integrations; errors in one branch
 	// should be isolated and logged, allowing the run loop to continue.
+	// Deprecated: Use ProcessNext instead.
 	Coordinate(ctx context.Context) error
+	// ProcessNext processes one ready entry from the integration queue.
+	// Returns (true, nil) when an entry was processed, (false, nil) when no entries are ready
+	// or a terminal failure occurs, or (false, err) for non-terminal errors.
+	ProcessNext(ctx context.Context) (bool, error)
 	// RecoverFromCrash detects entries left in integrating state by a prior crash
 	// and transitions them back to a recoverable state (e.g., ready).
 	RecoverFromCrash(ctx context.Context) error
@@ -662,7 +667,7 @@ runLoop:
 
 		// Invoke coordinator between iterations to process integration queue.
 		if o.cfg.Coordinator != nil && finalSuccess {
-			if err := o.cfg.Coordinator.Coordinate(ctx); err != nil {
+			if _, err := o.cfg.Coordinator.ProcessNext(ctx); err != nil {
 				o.logWarning("Warning: coordinator error after iteration %d: %v", iteration, err)
 			}
 		}

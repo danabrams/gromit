@@ -69,6 +69,7 @@ func TestOrchestrator_RecoverFromCrashOnStartup(t *testing.T) {
 type mockCoordinatorWithRecovery struct {
 	RecoverFromCrashFn func(ctx context.Context) error
 	CoordinateFn       func(ctx context.Context) error
+	ProcessNextFn      func(ctx context.Context) (bool, error)
 }
 
 func (m *mockCoordinatorWithRecovery) RecoverFromCrash(ctx context.Context) error {
@@ -83,6 +84,13 @@ func (m *mockCoordinatorWithRecovery) Coordinate(ctx context.Context) error {
 		return m.CoordinateFn(ctx)
 	}
 	return nil
+}
+
+func (m *mockCoordinatorWithRecovery) ProcessNext(ctx context.Context) (bool, error) {
+	if m.ProcessNextFn != nil {
+		return m.ProcessNextFn(ctx)
+	}
+	return false, nil
 }
 
 // TestOrchestrator_RecoverFromMalformedQueueFile verifies that the orchestrator

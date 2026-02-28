@@ -2906,7 +2906,7 @@ func TestSingleWriterInvariant_OrchestratorIsCoordinatorForMainIntegration(t *te
 	}
 }
 
-// TestOrchestratorCallsCoordinatorBetweenIterations verifies that Coordinator.Coordinate
+// TestOrchestratorCallsCoordinatorBetweenIterations verifies that Coordinator.ProcessNext
 // is invoked between each iteration in the run loop.
 func TestOrchestratorCallsCoordinatorBetweenIterations(t *testing.T) {
 	t.Parallel()
@@ -2916,11 +2916,11 @@ func TestOrchestratorCallsCoordinatorBetweenIterations(t *testing.T) {
 	var mu sync.Mutex
 
 	coordinator := &fakeCoordinator{
-		coordinateFn: func(ctx context.Context) error {
+		processNextFn: func(ctx context.Context) (bool, error) {
 			mu.Lock()
 			coordinatorCalls = append(coordinatorCalls, len(coordinatorCalls))
 			mu.Unlock()
-			return nil
+			return false, nil
 		},
 	}
 
@@ -2958,9 +2958,9 @@ func TestOrchestratorCallsCoordinatorBetweenIterations(t *testing.T) {
 		t.Fatalf("Orchestrator.Run() error = %v; expected nil", err)
 	}
 
-	// Coordinator should be called after each of the 3 successful iterations
+	// ProcessNext should be called after each of the 3 successful iterations
 	if len(coordinatorCalls) != 3 {
-		t.Fatalf("Expected coordinator to be called 3 times (once per iteration), got %d calls", len(coordinatorCalls))
+		t.Fatalf("Expected ProcessNext to be called 3 times (once per iteration), got %d calls", len(coordinatorCalls))
 	}
 }
 
@@ -2969,15 +2969,15 @@ func TestOrchestratorCallsCoordinatorBetweenIterations(t *testing.T) {
 func TestOrchestratorCoordinatorErrorIsolation(t *testing.T) {
 	t.Parallel()
 
-	// Coordinator fails on first call, succeeds on second
+	// ProcessNext fails on first call, succeeds on second
 	coordinatorCallCount := 0
 	coordinator := &fakeCoordinator{
-		coordinateFn: func(ctx context.Context) error {
+		processNextFn: func(ctx context.Context) (bool, error) {
 			coordinatorCallCount++
 			if coordinatorCallCount == 1 {
-				return fmt.Errorf("coordination error")
+				return false, fmt.Errorf("coordination error")
 			}
-			return nil
+			return false, nil
 		},
 	}
 
