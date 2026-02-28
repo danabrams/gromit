@@ -222,7 +222,39 @@ func (c *ghClient) PostComment(ctx context.Context, ref PRRef, body string) erro
 }
 
 func (c *ghClient) RequestReviewers(ctx context.Context, ref PRRef, reviewers []string) error {
-	return fmt.Errorf("RequestReviewers not implemented")
+	if len(reviewers) == 0 {
+		return nil
+	}
+
+	encoded, err := json.Marshal(reviewers)
+	if err != nil {
+		return fmt.Errorf("marshal reviewers: %w", err)
+	}
+
+	args := []string{
+		"api",
+		"-X",
+		"POST",
+		fmt.Sprintf("/repos/%s/%s/pulls/%d/requested_reviewers", ref.Owner, ref.Repo, ref.Number),
+		"-F",
+		"reviewers=" + string(encoded),
+	}
+
+	out, err := c.run(ctx, args...)
+	if err != nil {
+		return fmt.Errorf("request reviewers: %w", err)
+	}
+
+	var resp struct {
+		RequestedReviewers []struct {
+			Login string `json:"login"`
+		} `json:"requested_reviewers"`
+	}
+	if err := json.Unmarshal([]byte(out), &resp); err != nil {
+		return fmt.Errorf("parse request reviewers response: %w", err)
+	}
+
+	return nil
 }
 
 func (c *ghClient) MergePR(ctx context.Context, ref PRRef, commitMessage string) error {
