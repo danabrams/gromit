@@ -1,5 +1,38 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-02-28T16:50:46.82951457Z",
-  "entries": []
+  "updated_at": "2026-02-28T23:07:35.722701435Z",
+  "entries": [
+    {
+      "branch": "gromit/debug-1772319234936812220",
+      "session_id": "gromit/debug-1772319234936812220",
+      "origin_command": "debug",
+      "state": "ready",
+      "lane": "code_lane",
+      "created_at": "2026-02-28T22:53:55.276271772Z",
+      "updated_at": "2026-02-28T23:07:18.62264242Z",
+      "attempt_count": 0,
+      "retry_count": 0,
+      "fifo_seq": 1,
+      "base_ref": "877cf03524776cd394c5cae4d60215d9e9d14a6f",
+      "head_sha": "18753a4106b482fe0e8e74087e816b64fd09bed0",
+      "changed_files_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "last_transition_reason": "session_committed"
+    },
+    {
+      "branch": "gromit/plan-1772320055414740567",
+      "session_id": "gromit/plan-1772320055414740567",
+      "origin_command": "plan",
+      "state": "draft",
+      "lane": "code_lane",
+      "created_at": "2026-02-28T23:07:35.722701435Z",
+      "updated_at": "2026-02-28T23:07:35.722701435Z",
+      "attempt_count": 0,
+      "retry_count": 0,
+      "fifo_seq": 2,
+      "base_ref": "d02e1e743f46229a1831f4a8621db6a5f368e310",
+      "head_sha": "d02e1e743f46229a1831f4a8621db6a5f368e310",
+      "changed_files_hash": "",
+      "last_transition_reason": ""
+    }
+  ]
 }

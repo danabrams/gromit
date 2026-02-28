@@ -2,7 +2,9 @@ package main
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -28,7 +30,28 @@ func setupDebugAgentTestProject(t *testing.T, configContent string) string {
 		t.Fatalf("failed to write gromit.yaml: %v", err)
 	}
 
+	initGitRepo(t, tmpDir)
+
 	return tmpDir
+}
+
+func initGitRepo(t *testing.T, dir string) {
+	t.Helper()
+	runGitCommand(t, dir, "init")
+	runGitCommand(t, dir, "config", "user.name", "Test User")
+	runGitCommand(t, dir, "config", "user.email", "test@example.com")
+	runGitCommand(t, dir, "add", ".")
+	runGitCommand(t, dir, "commit", "-m", "initial commit")
+}
+
+func runGitCommand(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	cmd.Env = os.Environ()
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %s failed: %v\n%s", strings.Join(args, " "), err, string(output))
+	}
 }
 
 func setupExploreAgentTestProject(t *testing.T, configContent string) string {

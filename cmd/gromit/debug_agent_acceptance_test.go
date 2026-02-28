@@ -13,7 +13,6 @@ import (
 
 // smoke-matrix: keep | rationale: Covers critical end-to-end agent override wiring from CLI flag through process launch. | destination: cmd/gromit/debug_agent_acceptance_test.go:TestCmdSmoke_DebugAgentResolutionEndToEnd
 func TestCmdSmoke_DebugAgentResolutionEndToEnd(t *testing.T) {
-	t.Parallel()
 	configContent := "paths:\n  gromit_dir: .gromit\nclaude:\n  binary: \"nonexistent-debug-claude\"\nagents:\n  definitions:\n    test-agent:\n      binary: \"echo\"\n      flags:\n        - \"--from-test\"\n"
 	tmpDir := setupDebugAgentTestProject(t, configContent)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

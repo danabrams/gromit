@@ -221,6 +221,9 @@ AcceptedWithoutReworkRate excludes rework_vision_change records from the denomin
 
 All subprocess launch sites must use procutil.SetProcessGroupKill + procutil.WaitForProcessCapacity + separate stderr capture. The specmerge/gh_client.go was missing all three, causing orphaned children on cancellation and lost error messages. This pattern now applies to gh CLI calls as well as LLM providers.
 
+### 2026-02-28 | gromit-crt | conventions
+Profile selection tests depend on ranking algorithm behavior and global initProfile state. Changes to ranking logic require coordinated updates to test expectations. Tests in init_profile_test.go cannot run in parallel due to global state modification.
+
 ---
 
 ## Archived
@@ -244,6 +247,11 @@ When implementing a new feature, verify that changes don't inadvertently affect 
 
 ### 2026-02-28 | gromit-8l9o | conventions
 When implementing features that touch core commands (add, review, run) or orchestration flows (worktree auto-commit), existing tests may break due to changed behavior or side effects. Always run the full test suite to verify no regressions, and understand whether behavior changes are intentional before updating tests.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-28 | gromit-zdru | conventions
+When refactoring packages like bead/ that are widely depended on, breaking API changes cascade to all callers. Go build failures in multiple packages often indicate a shared dependency was broken. Always verify all call sites after modifying public APIs or method signatures.
 
 *Archived from new: filtered: generic engineering advice*
 

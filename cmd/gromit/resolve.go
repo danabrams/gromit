@@ -79,9 +79,14 @@ func resolveMainRepoLogsDir(gromitDir string) string {
 		return localLogs // already in the main repo
 	}
 
+	absGitCommonDir, absErr := filepath.Abs(gitCommonDir)
+	if absErr != nil {
+		return localLogs
+	}
+
 	// gitCommonDir is something like /path/to/main-repo/.git
 	// The main repo root is the parent directory.
-	mainRepoRoot := filepath.Dir(gitCommonDir)
+	mainRepoRoot := filepath.Dir(absGitCommonDir)
 	mainLogsDir := filepath.Join(mainRepoRoot, ".gromit", "logs")
 
 	if info, err := os.Stat(mainLogsDir); err == nil && info.IsDir() {

@@ -2,6 +2,7 @@
 package eventtest
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -10,6 +11,9 @@ import (
 
 // DefaultDrainTimeout is the default timeout used when draining events.
 const DefaultDrainTimeout = 50 * time.Millisecond
+
+// DefaultSubscriberTimeout is the default timeout used when waiting for subscribers.
+const DefaultSubscriberTimeout = 1 * time.Second
 
 // DrainEvents reads all available events from ch until timeout elapses.
 // If timeout is zero or negative, DefaultDrainTimeout is used.
@@ -29,6 +33,26 @@ func DrainEvents(tb testing.TB, ch <-chan events.Event, timeout ...time.Duration
 			collected = append(collected, evt)
 		case <-deadline:
 			return collected
+		}
+	}
+}
+
+// WaitForSubscriberReady polls the emitter until a subscriber is detected or context expires.
+// This replaces time.Sleep for synchronizing with subscriber goroutines.
+func WaitForSubscriberReady(ctx context.Context, emitter *events.Emitter) error {
+	ticker := time.NewTicker(1 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		if emitter.HasSubscribers() {
+			return nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			// Continue polling
 		}
 	}
 }

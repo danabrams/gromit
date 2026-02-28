@@ -2,11 +2,11 @@
   "beads": [
     {
       "id": "test-bead-1",
-      "title": "Test bead",
+      "title": "Open task",
       "description": "",
       "priority": 1,
       "labels": [
-        "test-label"
+        "spec:all-open-spec"
       ],
       "parent": "",
       "issue_type": "task",
@@ -16,10 +16,12 @@
     },
     {
       "id": "test-bead-2",
-      "title": "--title",
+      "title": "Open task",
       "description": "",
       "priority": 1,
-      "labels": [],
+      "labels": [
+        "spec:all-open-spec"
+      ],
       "parent": "",
       "issue_type": "task",
       "status": "open",
@@ -28,10 +30,12 @@
     },
     {
       "id": "test-bead-3",
-      "title": "--title",
+      "title": "Open task 1",
       "description": "",
-      "priority": 2,
-      "labels": [],
+      "priority": 1,
+      "labels": [
+        "spec:test-epic-counts"
+      ],
       "parent": "",
       "issue_type": "task",
       "status": "open",
@@ -39,5 +43,5 @@
       "expected_outputs": []
     }
   ],
-  "next_id": 4
+  "next_id": 3
 }

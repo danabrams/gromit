@@ -1923,3 +1923,8 @@ When implementing features that touch core commands (add, review, run) or orches
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-28 | gromit-zdru | conventions
+When refactoring packages like bead/ that are widely depended on, breaking API changes cascade to all callers. Go build failures in multiple packages often indicate a shared dependency was broken. Always verify all call sites after modifying public APIs or method signatures.
+
+*Archived from new: filtered: generic engineering advice*
+

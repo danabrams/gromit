@@ -49,7 +49,7 @@ func TestStatusCmd_OutputIncludesPipelineSection(t *testing.T) {
 	t.Chdir(tmpDir)
 
 	// Execute status command and capture output
-	output := captureStdout(t, func() {
+	output := captureStatusOutput(t, func() {
 		rootCmd.SetArgs([]string{"status"})
 		if err := rootCmd.Execute(); err != nil {
 			t.Fatalf("status command failed: %v", err)
@@ -80,7 +80,7 @@ func TestStatusCmd_SPCFlagDisplaysNoData(t *testing.T) {
 
 	t.Chdir(tmpDir)
 
-	output := captureStdout(t, func() {
+	output := captureStatusOutput(t, func() {
 		rootCmd.SetArgs([]string{"status", "--spc"})
 		if err := rootCmd.Execute(); err != nil {
 			t.Fatalf("status --spc command failed: %v", err)
@@ -270,7 +270,7 @@ func TestStatusCmd_RegressionAssertion_OutputIsConsistent(t *testing.T) {
 	t.Chdir(tmpDir)
 
 	// Run status command twice - should produce identical output
-	output1 := captureStdout(t, func() {
+	output1 := captureStatusOutput(t, func() {
 		rootCmd.SetArgs([]string{"status"})
 		if err := rootCmd.Execute(); err != nil {
 			t.Fatalf("status command failed: %v", err)
@@ -280,7 +280,7 @@ func TestStatusCmd_RegressionAssertion_OutputIsConsistent(t *testing.T) {
 	// Reset command state
 	rootCmd.ResetFlags()
 
-	output2 := captureStdout(t, func() {
+	output2 := captureStatusOutput(t, func() {
 		rootCmd.SetArgs([]string{"status"})
 		if err := rootCmd.Execute(); err != nil {
 			t.Fatalf("status command failed: %v", err)
@@ -322,7 +322,7 @@ func TestStatusCmd_RegressionAssertion_ModelPerformanceAlwaysVisible(t *testing.
 
 	t.Chdir(tmpDir)
 
-	output := captureStdout(t, func() {
+	output := captureStatusOutput(t, func() {
 		rootCmd.SetArgs([]string{"status"})
 		if err := rootCmd.Execute(); err != nil {
 			t.Fatalf("status command failed: %v", err)
@@ -368,7 +368,7 @@ func TestStatusCmd_RegressionAssertion_TUISectionsUnchanged(t *testing.T) {
 
 	t.Chdir(tmpDir)
 
-	output := captureStdout(t, func() {
+	output := captureStatusOutput(t, func() {
 		rootCmd.SetArgs([]string{"status"})
 		if err := rootCmd.Execute(); err != nil {
 			t.Fatalf("status command failed: %v", err)
@@ -436,7 +436,7 @@ func TestStatusCmd_JSONFlagOutputsValidJSON(t *testing.T) {
 	t.Chdir(tmpDir)
 
 	// Execute status command with --json flag and capture output
-	output := captureStdout(t, func() {
+	output := captureStatusOutput(t, func() {
 		rootCmd.SetArgs([]string{"status", "--json", "--spc=false"})
 		if err := rootCmd.Execute(); err != nil {
 			t.Fatalf("status --json command failed: %v", err)
@@ -549,7 +549,7 @@ func TestStatusCmd_JSONIncludesIntegrationQueueData(t *testing.T) {
 	t.Chdir(tmpDir)
 
 	// Execute status command with --json flag
-	output := captureStdout(t, func() {
+	output := captureStatusOutput(t, func() {
 		rootCmd.SetArgs([]string{"status", "--json"})
 		if err := rootCmd.Execute(); err != nil {
 			t.Fatalf("status --json command failed: %v", err)
@@ -654,7 +654,7 @@ func TestStatusCmd_JSONUsesSnakeCaseQueueFields(t *testing.T) {
 
 	t.Chdir(tmpDir)
 
-	output := captureStdout(t, func() {
+	output := captureStatusOutput(t, func() {
 		rootCmd.SetArgs([]string{"status", "--json"})
 		if err := rootCmd.Execute(); err != nil {
 			t.Fatalf("status --json command failed: %v", err)
