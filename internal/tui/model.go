@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"strconv"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -101,7 +103,7 @@ func (m *Model) renderDashboardView() string {
 	output += "panel 0\n"
 	if m.store != nil && m.store.Dashboard.RunProgress != nil {
 		progress := m.store.Dashboard.RunProgress
-		output += "progress: " + string(rune(progress.CurrentIteration)) + "/" + string(rune(progress.MaxIterations)) + "\n"
+		output += "progress: " + strconv.Itoa(progress.CurrentIteration) + "/" + strconv.Itoa(progress.MaxIterations) + "\n"
 	}
 	output += "\n"
 
