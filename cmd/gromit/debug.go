@@ -195,27 +195,6 @@ func launchDebugSession(cfg *config.Config, gromitDir string, selectedAgent agen
 	})
 }
 
-func maybeWarnModelFlagOnNonClaudeAgent(cmd *cobra.Command, selectedAgent agent.Agent, stderr io.Writer) {
-	if cmd == nil || selectedAgent == nil {
-		return
-	}
-
-	if selectedAgent.Name() == claudeAgentName {
-		return
-	}
-
-	modelFlag := cmd.Flags().Lookup(debugModelFlag)
-	if modelFlag == nil {
-		return
-	}
-
-	if !cmd.Flags().Changed(debugModelFlag) {
-		return
-	}
-
-	fmt.Fprintf(stderr, "Warning: --model flag ignored for non-Claude agent %q\n", selectedAgent.Name())
-}
-
 func resolveDebugAgent(cfg *config.Config, agentFlag string, chooseAgent bool) (agent.Agent, error) {
 	return resolveCommandAgent(cfg, debugSessionCommand, agentFlag, chooseAgent)
 }
@@ -273,13 +252,33 @@ func maybeCleanupDebugRestoreWorktree(worktreeDir, mainDir string, input io.Read
 }
 
 func applyDebugModelOverride(cmd *cobra.Command, selectedAgent agent.Agent, cfg *config.Config, stderr io.Writer) agent.Agent {
-	if selectedAgent == nil {
-		return nil
+	if selectedAgent == nil || cmd == nil {
+		return selectedAgent
 	}
+
+	flag := cmd.Flags().Lookup(debugModelFlag)
+	if flag == nil || !cmd.Flags().Changed(debugModelFlag) {
+		return selectedAgent
+	}
+
 	modelValue := resolveInteractiveModel(cmd, debugModelFlag)
-	overridden := TryOverrideModel(cmd, selectedAgent, modelValue, cfg, debugModelFlag, false)
-	maybeWarnModelFlagOnNonClaudeAgent(cmd, overridden, stderr)
-	return overridden
+	if modelValue == "" {
+		return selectedAgent
+	}
+
+	result := agent.TryOverrideModel(selectedAgent, modelValue)
+	if result.Agent == nil {
+		if result.Warning != "" {
+			fmt.Fprintf(stderr, "Warning: %s\n", result.Warning)
+		}
+		return selectedAgent
+	}
+
+	if result.Warning != "" {
+		fmt.Fprintf(stderr, "Warning: %s\n", result.Warning)
+	}
+
+	return result.Agent
 }
 
 func sanitizeRunbookIDForPath(runbookID string) string {
