@@ -152,7 +152,48 @@ func (c *ghClient) ListChecks(ctx context.Context, ref PRRef) ([]CheckStatus, er
 }
 
 func (c *ghClient) PostReview(ctx context.Context, ref PRRef, payload ReviewPayload) error {
-	return fmt.Errorf("PostReview not implemented")
+	args := []string{
+		"api",
+		"-X",
+		"POST",
+		fmt.Sprintf("/repos/%s/%s/pulls/%d/reviews", ref.Owner, ref.Repo, ref.Number),
+		"-F",
+		"event=" + payload.Event,
+	}
+
+	if payload.Body != "" {
+		args = append(args, "-F", "body="+payload.Body)
+	}
+
+	if len(payload.Comments) > 0 {
+		mapped := make([]ghReviewComment, 0, len(payload.Comments))
+		for _, comment := range payload.Comments {
+			mapped = append(mapped, ghReviewComment{
+				Path: comment.Path,
+				Line: comment.Line,
+				Body: comment.Body,
+			})
+		}
+		encoded, err := json.Marshal(mapped)
+		if err != nil {
+			return fmt.Errorf("marshal review comments: %w", err)
+		}
+		args = append(args, "-F", "comments="+string(encoded))
+	}
+
+	out, err := c.run(ctx, args...)
+	if err != nil {
+		return fmt.Errorf("post review: %w", err)
+	}
+
+	var resp struct {
+		ID int `json:"id"`
+	}
+	if err := json.Unmarshal([]byte(out), &resp); err != nil {
+		return fmt.Errorf("parse post review response: %w", err)
+	}
+
+	return nil
 }
 
 func (c *ghClient) PostComment(ctx context.Context, ref PRRef, body string) error {
@@ -184,6 +225,12 @@ func conclusionFromBucket(bucket string) string {
 	default:
 		return bucket
 	}
+}
+
+type ghReviewComment struct {
+	Path string `json:"path"`
+	Line int    `json:"line"`
+	Body string `json:"body"`
 }
 
 func (c *ghClient) run(ctx context.Context, args ...string) (string, error) {

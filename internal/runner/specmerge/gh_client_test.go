@@ -206,7 +206,14 @@ func TestGhCLIClient_PostReviewCommandAndJSON(t *testing.T) {
 		t.Fatalf("runner.Run called %d times, want 1", len(runner.calls))
 	}
 
-	wantComments, _ := json.Marshal(payload.Comments)
+	type reviewJSONComment struct {
+		Path string `json:"path"`
+		Line int    `json:"line"`
+		Body string `json:"body"`
+	}
+	wantComments, _ := json.Marshal([]reviewJSONComment{
+		{Path: "file.txt", Line: 10, Body: "Looks good"},
+	})
 	gotArgs := runner.calls[0].args
 	wantArgs := []string{
 		"api",
