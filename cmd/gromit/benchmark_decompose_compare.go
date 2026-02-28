@@ -31,6 +31,7 @@ var benchmarkDecomposeCompareRunnerFn = runDecomposeCompare
 var benchmarkDecomposeCompareReportWriterFn = writeDecomposeCompareReport
 var benchmarkDecomposeCompareManifestPath string
 var benchmarkDecomposeCompareOutputTS string
+var benchmarkDecomposeCompareSpecs string
 
 var benchmarkDecomposeCompareCmd = &cobra.Command{
 	Use:          "decompose-compare",
@@ -40,6 +41,19 @@ var benchmarkDecomposeCompareCmd = &cobra.Command{
 		manifestPath := strings.TrimSpace(benchmarkDecomposeCompareManifestPath)
 		if manifestPath == "" {
 			return fmt.Errorf("--manifest must be a non-empty path")
+		}
+		specOverrides := parseCSV(benchmarkDecomposeCompareSpecs)
+		if len(specOverrides) > 0 {
+			if len(specOverrides) != 5 {
+				return fmt.Errorf("--specs must include exactly 5 spec ids")
+			}
+			seen := make(map[string]struct{}, len(specOverrides))
+			for _, spec := range specOverrides {
+				if _, duplicate := seen[spec]; duplicate {
+					return fmt.Errorf("--specs must not include duplicate spec ids")
+				}
+				seen[spec] = struct{}{}
+			}
 		}
 		if benchmarkDecomposeCompareOutputTS != "" {
 			if _, err := time.Parse("20060102T150405Z", benchmarkDecomposeCompareOutputTS); err != nil {
@@ -66,6 +80,12 @@ func init() {
 		"output-ts",
 		"",
 		"Timestamp override for deterministic artifact names",
+	)
+	benchmarkDecomposeCompareCmd.Flags().StringVar(
+		&benchmarkDecomposeCompareSpecs,
+		"specs",
+		"",
+		"Comma-separated list of 5 spec ids to compare (no duplicates)",
 	)
 }
 
