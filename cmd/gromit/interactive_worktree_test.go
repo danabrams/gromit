@@ -229,16 +229,19 @@ func TestRunWithSessionWorktreeAutoCommitInvoked(t *testing.T) {
 		t.Fatalf("runWithSessionWorktree() error = %v", err)
 	}
 
-	var sawAdd, sawCommit bool
+	var sawAdd, sawCommit, sawAllowEmpty bool
 	for _, cmd := range commands {
 		if strings.Contains(cmd, "add -A") {
 			sawAdd = true
 		}
-		if strings.Contains(cmd, "commit -m") {
+		if strings.Contains(cmd, "commit") && strings.Contains(cmd, "-m") {
 			sawCommit = true
 		}
+		if strings.Contains(cmd, "commit --allow-empty") {
+			sawAllowEmpty = true
+		}
 	}
-	if !sawAdd || !sawCommit {
+	if !sawAdd || !sawCommit || !sawAllowEmpty {
 		t.Fatalf("auto commit commands not run: %v", commands)
 	}
 }
