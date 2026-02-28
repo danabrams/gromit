@@ -101,6 +101,8 @@ type Deps struct {
 	LearningsManager  LearningsManager
 	StateManager      StateManager
 	LogWriter         LogWriter
+	ModelForwarder    func(agent Agent, model string) (Agent, string)
+	WarningWriter     func(warning string)
 }
 
 // Pipeline orchestrates workflow execution.

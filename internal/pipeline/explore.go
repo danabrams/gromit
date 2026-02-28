@@ -53,13 +53,22 @@ func (p *Pipeline) Explore(ctx context.Context, input ExploreInput) (*ExploreRes
 	defer cleanup()
 
 	// Resolve agent
-	agent, err := p.deps.AgentResolver.Resolve("explore", input.AgentName, input.ChooseAgent)
+	resolvedAgent, err := p.deps.AgentResolver.Resolve("explore", input.AgentName, input.ChooseAgent)
 	if err != nil {
 		return nil, fmt.Errorf("resolving agent: %w", err)
 	}
 
+	// Forward model to agent if model is specified and ModelForwarder is available
+	if input.Model != "" && p.deps.ModelForwarder != nil {
+		forwardedAgent, warning := p.deps.ModelForwarder(resolvedAgent, input.Model)
+		if warning != "" && p.deps.WarningWriter != nil {
+			p.deps.WarningWriter(warning)
+		}
+		resolvedAgent = forwardedAgent
+	}
+
 	// Launch agent
-	if err := agent.LaunchInDir(promptPath, ""); err != nil {
+	if err := resolvedAgent.LaunchInDir(promptPath, ""); err != nil {
 		return nil, fmt.Errorf("launching agent: %w", err)
 	}
 
