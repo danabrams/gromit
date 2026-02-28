@@ -8,5 +8,8 @@ func CanTransition(from, to string) bool {
 	if from == "ready" && to == "integrating" {
 		return true
 	}
+	if from == "integrating" && to == "merged" {
+		return true
+	}
 	return false
 }
