@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestLoadRecords_ReadsValidJSONLFile(t *testing.T) {
@@ -68,4 +69,54 @@ this is not valid json at all
 	if err == nil {
 		t.Error("LoadRecords should return error for malformed JSON")
 	}
+}
+
+func TestAppendRecord_WritesToJSONLFile(t *testing.T) {
+	// Create a temporary file
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "records.jsonl")
+
+	// Append a single record
+	record := Record{
+		SpecID:                     "test-spec",
+		CycleStartTriggerAt:        parseTime("2026-02-01T08:00:00Z"),
+		CycleEndPresentedAt:        parseTime("2026-02-01T10:00:00Z"),
+		ReviewOutcome:              ReviewOutcomeAccepted,
+		HumanTacticalIntervention:  Yes,
+		HumanDebuggingIntervention: No,
+		EscapedRegressionWithin7D:  No,
+	}
+
+	if err := AppendRecord(tmpFile, record); err != nil {
+		t.Fatalf("AppendRecord failed: %v", err)
+	}
+
+	// Read the file back
+	records, err := LoadRecords(tmpFile)
+	if err != nil {
+		t.Fatalf("LoadRecords failed: %v", err)
+	}
+
+	// Verify we got 1 record
+	if len(records) != 1 {
+		t.Errorf("expected 1 record, got %d", len(records))
+	}
+
+	// Verify the record matches
+	loaded := records[0]
+	if loaded.SpecID != record.SpecID {
+		t.Errorf("SpecID mismatch: got %q, want %q", loaded.SpecID, record.SpecID)
+	}
+	if loaded.ReviewOutcome != record.ReviewOutcome {
+		t.Errorf("ReviewOutcome mismatch: got %q, want %q", loaded.ReviewOutcome, record.ReviewOutcome)
+	}
+	if loaded.HumanTacticalIntervention != record.HumanTacticalIntervention {
+		t.Errorf("HumanTacticalIntervention mismatch: got %q, want %q", loaded.HumanTacticalIntervention, record.HumanTacticalIntervention)
+	}
+}
+
+func parseTime(s string) time.Time {
+	// Helper to parse RFC3339 timestamp
+	t, _ := time.Parse(time.RFC3339, s)
+	return t
 }
