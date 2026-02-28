@@ -66,6 +66,61 @@ func TestGhCLIClient_CreatePRCommandAndJSON(t *testing.T) {
 	}
 }
 
+func TestGhCLIClient_GetPRCommandAndJSON(t *testing.T) {
+	t.Parallel()
+
+	runner := &fakeGHRunner{
+		stdout: `{
+			"number": 202,
+			"title": "Update spec",
+			"state": "OPEN",
+			"isDraft": true,
+			"createdAt": "2026-02-01T12:00:00Z",
+			"updatedAt": "2026-02-02T12:00:00Z"
+		}`,
+	}
+
+	client := specmerge.NewGhCLIClient(runner)
+	ctx := context.Background()
+	ref := specmerge.PRRef{Owner: "octocat", Repo: "hello-world", Number: 202}
+
+	status, err := client.GetPR(ctx, ref)
+	if err != nil {
+		t.Fatalf("GetPR returned error: %v", err)
+	}
+
+	if status.Number != 202 {
+		t.Fatalf("status.Number = %d, want 202", status.Number)
+	}
+	if status.Title != "Update spec" {
+		t.Fatalf("status.Title = %q, want Update spec", status.Title)
+	}
+	if status.State != "OPEN" {
+		t.Fatalf("status.State = %q, want OPEN", status.State)
+	}
+	if !status.IsDraft {
+		t.Fatal("status.IsDraft should be true")
+	}
+
+	if len(runner.calls) != 1 {
+		t.Fatalf("runner.Run called %d times, want 1", len(runner.calls))
+	}
+
+	gotArgs := runner.calls[0].args
+	wantArgs := []string{
+		"pr",
+		"view",
+		"202",
+		"--repo",
+		"octocat/hello-world",
+		"--json",
+		"number,title,state,isDraft,createdAt,updatedAt",
+	}
+	if !reflect.DeepEqual(gotArgs, wantArgs) {
+		t.Fatalf("gh command args = %v, want %v", gotArgs, wantArgs)
+	}
+}
+
 // fakeGHRunner captures gh CLI commands for testing.
 type fakeGHRunner struct {
 	calls  []ghCall
