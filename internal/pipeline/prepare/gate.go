@@ -9,6 +9,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/readiness"
 )
 
 // maxScopeFiles is the file-count cap: beads with more than this many expected outputs
@@ -52,8 +53,9 @@ type DataQualityBlocker interface {
 // If data quality blocked, returns Block.
 // Otherwise returns Proceed.
 type Gate struct {
-	events.EmitterMixin // provides Emitter field and SetEmitter method
+	events.EmitterMixin                    // provides Emitter field and SetEmitter method
 	precheck            Prechecker         // optional; nil means skip precheck
+	readiness           readiness.Assessor // optional; nil means skip readiness assessment
 	stuck               StuckDetector      // optional; nil means skip stuck detection
 	decomposer          Decomposer         // optional; used only by scope-gate decomposition
 	dataQualityChecker  DataQualityBlocker // optional; nil means skip data quality checks
@@ -79,6 +81,17 @@ func (g *Gate) WithEmitter(emitter *events.Emitter) *Gate {
 func (g *Gate) WithPrechecker(p Prechecker) *Gate {
 	g.precheck = p
 	return g
+}
+
+// WithReadinessAssessor configures an optional ReadinessAssessor for readiness gating.
+func (g *Gate) WithReadinessAssessor(r readiness.Assessor) *Gate {
+	g.readiness = r
+	return g
+}
+
+// HasReadinessAssessor returns true if a ReadinessAssessor is wired in.
+func (g *Gate) HasReadinessAssessor() bool {
+	return g.readiness != nil
 }
 
 // WithStuckDetector configures an optional StuckDetector for detecting exceeded failure thresholds.
@@ -119,6 +132,7 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 	}
 
 	complexityRouting := resolveComplexityRouting(in)
+	gateBlockReason := ""
 
 	// Precheck: skip beads whose acceptance criteria are already satisfied.
 	// Runs before stuck detection so completed work is always closed promptly.
@@ -140,27 +154,49 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 		}
 	}
 
+	// Readiness check: block beads that are not ready before stuck detection.
+	if g.readiness != nil {
+		assessment, err := g.readiness.Assess(ctx, in.Bead)
+		if err != nil {
+			g.Log("warning", "Warning: readiness assessment failed for bead %s: %v", in.Bead.ID, err)
+		} else if assessment.Status == readiness.StatusNotReady {
+			gateBlockReason = assessment.Reason
+			if gateBlockReason == "" {
+				gateBlockReason = string(readiness.StatusNotReady)
+			}
+		}
+	}
+
 	// Stuck detection: block beads that have exceeded the failure threshold.
 	if g.stuck != nil {
 		stuck, err := g.stuck.IsStuck(ctx, in.Bead)
 		if err != nil {
 			g.Log("warning", "Warning: stuck detection failed for bead %s: %v", in.Bead.ID, err)
 		} else if stuck {
-			if in.Emitter != nil {
-				in.Emitter.Emit(&events.GateStuckEvent{
-					BeadID: in.Bead.ID,
-					Reason: "failure_threshold_exceeded",
-				})
+			if gateBlockReason == "" {
+				if in.Emitter != nil {
+					in.Emitter.Emit(&events.GateStuckEvent{
+						BeadID: in.Bead.ID,
+						Reason: "failure_threshold_exceeded",
+					})
+				}
+				return pipeline.Output{
+					Decision:          pipeline.Block,
+					ComplexityRouting: complexityRouting,
+				}, nil
 			}
-			return pipeline.Output{
-				Decision:          pipeline.Block,
-				ComplexityRouting: complexityRouting,
-			}, nil
 		}
+	}
+	if gateBlockReason != "" {
+		return pipeline.Output{
+			Decision:          pipeline.Block,
+			GateBlockReason:   gateBlockReason,
+			ComplexityRouting: complexityRouting,
+		}, nil
 	}
 
 	// Data quality check: block beads if data quality requirements are not met.
-	if g.dataQualityChecker != nil {
+	if gateBlockReason == "" && g.dataQualityChecker != nil {
 		blocked, reason, err := g.dataQualityChecker.ShouldBlock(ctx, in.Bead)
 		if err != nil {
 			g.Log("warning", "Warning: data quality check failed for bead %s: %v", in.Bead.ID, err)
@@ -181,13 +217,15 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 	}
 
 	// Scope gate: try to handle oversized beads via decomposition, fallback to block.
-	scopeGateDecision, scopeGateErr := g.runScopeGate(ctx, in)
-	if scopeGateErr != nil {
-		return pipeline.Output{}, scopeGateErr
-	}
-	if scopeGateDecision != nil {
-		scopeGateDecision.ComplexityRouting = complexityRouting
-		return *scopeGateDecision, nil
+	if gateBlockReason == "" {
+		scopeGateDecision, scopeGateErr := g.runScopeGate(ctx, in)
+		if scopeGateErr != nil {
+			return pipeline.Output{}, scopeGateErr
+		}
+		if scopeGateDecision != nil {
+			scopeGateDecision.ComplexityRouting = complexityRouting
+			return *scopeGateDecision, nil
+		}
 	}
 
 	return pipeline.Output{

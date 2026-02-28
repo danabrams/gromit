@@ -2474,7 +2474,7 @@ func TestNewRunnerImpl_GateStageHasPromptReadinessAssessorWhenEnabled(t *testing
 		t.Fatalf("Gate is not *prepare.Gate, got %T", orch.cfg.Gate)
 	}
 
-	if !gateStage.HasDataQualityBlocker() {
-		t.Fatal("Gate.HasDataQualityBlocker() returned false; want PromptReadinessAssessor wired when ReadinessCheck enabled")
+	if !gateStage.HasReadinessAssessor() {
+		t.Fatal("Gate.HasReadinessAssessor() returned false; want PromptReadinessAssessor wired when ReadinessCheck enabled")
 	}
 }

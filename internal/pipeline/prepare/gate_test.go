@@ -12,8 +12,8 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/events/eventtest"
-	"github.com/danabrams/gromit/internal/readiness"
 	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/readiness"
 )
 
 // Test constants to avoid repetition

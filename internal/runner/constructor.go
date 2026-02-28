@@ -142,7 +142,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		maxSubBeads: cfg.Validation.RuntimeMaxSubBeadsValue(),
 	})
 	if cfg.ReadinessCheck.Enabled {
-		gateStage.WithDataQualityBlocker(prompt.NewPromptReadinessAssessor())
+		gateStage.WithReadinessAssessor(prompt.NewPromptReadinessAssessor())
 	}
 
 	// Stage 2: Build (execute.New with Invoker and PromptRenderer)
@@ -272,14 +272,14 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 			}
 			return beadsClient.Show(ctx, beadID)
 		},
-		Config:          cfg,
+		Config:              cfg,
 		SpecMergeController: specMergeController,
-		GlobalStatsPath: filepath.Join(gromitDir, "stats.json"),
-		GetRunID:        getRunIDFn,
-		LogsDir:         cfg.Paths.Logs,
-		Output:          syncOut,
-		TrendUpdater:    trendUpdater,
-		ExperimentMgr:   experimentMgr,
+		GlobalStatsPath:     filepath.Join(gromitDir, "stats.json"),
+		GetRunID:            getRunIDFn,
+		LogsDir:             cfg.Paths.Logs,
+		Output:              syncOut,
+		TrendUpdater:        trendUpdater,
+		ExperimentMgr:       experimentMgr,
 		StatusWriter: func(iteration int, beadID, beadTitle string, dl time.Time) {
 			if statusWriter != nil {
 				if specProgressLabel != "" {
@@ -302,7 +302,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 			}
 		},
 		StateSaver:       sf,
-		ProviderCostDefs:     costDefs,
+		ProviderCostDefs: costDefs,
 		Coordinator:      NewIntegrationCoordinator(),
 	}
 
