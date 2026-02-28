@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -107,6 +108,45 @@ func pipelineInputForSpecBead(buildSucceeded bool) pipeline.Input {
 				Granularity: config.MethodologyGranularitySpec,
 			},
 		},
+	}
+}
+
+func TestConstructor_WiresSpecMergePipelineInSpecMode(t *testing.T) {
+	t.Parallel()
+
+	logsDir := t.TempDir()
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{
+			Granularity: config.MethodologyGranularitySpec,
+		},
+		Paths: config.PathsConfig{
+			GromitDir:       ".gromit",
+			Templates:       filepath.Join(".gromit", "templates"),
+			Specs:           filepath.Join(".gromit", "specs"),
+			Plans:           filepath.Join(".gromit", "plans"),
+			Logs:            logsDir,
+			ProjectClaudeMD: "CLAUDE.md",
+		},
+	}
+
+	orch, err := runner.NewRunner(cfg, io.Discard)
+	if err != nil {
+		t.Fatalf("NewRunner returned error: %v", err)
+	}
+	if orch == nil {
+		t.Fatal("NewRunner returned nil orchestrator")
+	}
+
+	orchCfg := reflect.ValueOf(orch).Elem().FieldByName("cfg")
+	if !orchCfg.IsValid() {
+		t.Fatal("orchestrator cfg field is missing")
+	}
+	specMergeField := orchCfg.FieldByName("SpecMergeController")
+	if !specMergeField.IsValid() {
+		t.Fatal("SpecMergeController field missing from orchestrator config")
+	}
+	if specMergeField.IsNil() {
+		t.Fatal("SpecMergeController should be wired for spec-level methodology")
 	}
 }
 
