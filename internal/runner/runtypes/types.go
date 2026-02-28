@@ -72,7 +72,7 @@ type IterationResult struct {
 	Error                   error
 	Escalated               bool
 	EscalatedTo             string
-	EstimatedFiles          int
+	EstimatedFiles          int      `json:"estimated_files,omitempty"`
 	OriginalTier            string `json:"original_tier,omitempty"`
 	ActualTier              string `json:"actual_tier,omitempty"`
 	Complexity              string `json:"complexity,omitempty"`
