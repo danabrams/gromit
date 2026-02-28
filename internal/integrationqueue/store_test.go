@@ -64,6 +64,57 @@ func TestSaveQueueUpdatesTimestampAndPersists(t *testing.T) {
 	}
 }
 
+func TestLoadQueueValidatesEntries(t *testing.T) {
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, queueFileName)
+
+	payload := `{
+  "schema_version": 1,
+  "entries": [
+    {
+      "branch": "",
+      "session_id": "session",
+      "origin_command": "refine",
+      "state": "ready",
+      "lane": "code_lane",
+      "base_ref": "main",
+      "head_sha": "deadbeef"
+    }
+  ]
+}`
+	if err := os.WriteFile(path, []byte(payload), 0o644); err != nil {
+		t.Fatalf("write invalid queue: %v", err)
+	}
+	if _, err := LoadQueue(path); err == nil {
+		t.Fatal("LoadQueue() succeeded for invalid queue")
+	}
+}
+
+func TestSaveQueueValidatesEntries(t *testing.T) {
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, queueFileName)
+
+	queue := &Queue{
+		Entries: []Entry{
+			{
+				Branch:        "",
+				SessionID:     "session",
+				OriginCommand: "refine",
+				State:         StateReady,
+				Lane:          string(CodeLane),
+				BaseRef:       "main",
+				HeadSHA:       "deadbeef",
+			},
+		},
+	}
+	if err := SaveQueue(path, queue); err == nil {
+		t.Fatal("SaveQueue() succeeded for invalid queue")
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("queue file exists after failed save: %v", err)
+	}
+}
+
 func TestStoreSaveCreatesAndUpdatesEntry(t *testing.T) {
 	tmpDir := t.TempDir()
 	store, err := NewStore(tmpDir)
