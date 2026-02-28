@@ -1908,3 +1908,8 @@ When multiple error conditions could occur, tests will catch cases where generic
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-28 | gromit-p2m | patterns
+When implementing CLI client wrappers for external tools (like gh CLI), ensure subprocess calls have proper timeout handling, context cancellation support, and cleanup. Avoid infinite retry loops without exponential backoff or max attempts.
+
+*Archived from new: filtered: generic engineering advice*
+

@@ -161,4 +161,15 @@ parseGeminiStream, extractGeminiAssistantText/Tokens/Cost helpers are defined an
 
 ## Archived
 
-*Moved to LEARNINGS_ARCHIVE.md to reduce prompt context overhead.*
+*Previously archived learnings.*
+
+### 2026-02-28 | gromit-9hw | conventions
+When adding regression coverage tests, verify test expectations match actual implementation behavior before running; avoid hardcoded absolute paths in tests—use temp files or environment-specific config paths instead
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-28 | gromit-p2m | patterns
+When implementing CLI client wrappers for external tools (like gh CLI), ensure subprocess calls have proper timeout handling, context cancellation support, and cleanup. Avoid infinite retry loops without exponential backoff or max attempts.
+
+*Archived from new: filtered: generic engineering advice*
+
