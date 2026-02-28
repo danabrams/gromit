@@ -1636,3 +1636,37 @@ func TestBuildProcessTrend_DetectsRollingSuccessRateBelow70Percent(t *testing.T)
 		t.Errorf("anomaly message should mention 70%% threshold, got: %s", anomaly.Message)
 	}
 }
+
+// TestIterationMetric_ProviderRollingFields verifies that provider rolling fields
+// are correctly unmarshaled from JSON and present in the IterationMetric struct.
+func TestIterationMetric_ProviderRollingFields(t *testing.T) {
+	jsonData := `{
+		"timestamp": "2024-01-01T00:00:00Z",
+		"iteration": 1,
+		"bead_id": "test-bead",
+		"model": "sonnet",
+		"provider": "anthropic",
+		"provider_rolling_success_rate": 0.95,
+		"provider_rolling_failure_rate": 0.05,
+		"provider_rolling_transport_failure_rate": 0.02,
+		"provider_rolling_invocations": 100
+	}`
+
+	var metric IterationMetric
+	if err := json.Unmarshal([]byte(jsonData), &metric); err != nil {
+		t.Fatalf("failed to unmarshal JSON: %v", err)
+	}
+
+	if metric.ProviderRollingSuccessRate != 0.95 {
+		t.Errorf("ProviderRollingSuccessRate = %v, want 0.95", metric.ProviderRollingSuccessRate)
+	}
+	if metric.ProviderRollingFailureRate != 0.05 {
+		t.Errorf("ProviderRollingFailureRate = %v, want 0.05", metric.ProviderRollingFailureRate)
+	}
+	if metric.ProviderRollingTransportFailureRate != 0.02 {
+		t.Errorf("ProviderRollingTransportFailureRate = %v, want 0.02", metric.ProviderRollingTransportFailureRate)
+	}
+	if metric.ProviderRollingInvocations != 100 {
+		t.Errorf("ProviderRollingInvocations = %v, want 100", metric.ProviderRollingInvocations)
+	}
+}
