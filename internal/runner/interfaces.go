@@ -23,6 +23,7 @@ var (
 	_ IterationLogger = (*logger.Logger)(nil)
 	_ WorktreeManager = (*worktree.Manager)(nil)
 	_ BranchRouter    = (*specbranch.Router)(nil)
+	_ GitCheckout     = (*specbranch.GitOps)(nil)
 )
 
 // BeadClient abstracts the bead (bd) CLI operations used by the runner.
@@ -99,6 +100,11 @@ type WorktreeManager interface {
 // BranchRouter abstracts branch selection based on bead labels.
 type BranchRouter interface {
 	BranchForLabels(labels []string) (string, error)
+}
+
+// GitCheckout abstracts git branch checkout operations.
+type GitCheckout interface {
+	CreateOrCheckoutSpecBranch(ctx context.Context, specBranchName string) error
 }
 
 // IterationResult captures the outcome of one loop iteration.
