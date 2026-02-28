@@ -104,6 +104,8 @@ type trendUpdaterCloser interface {
 	Close()
 }
 
+var orchestratorNowFn = time.Now
+
 // StateSaver persists provider routing state (provider counts, availability) to disk.
 type StateSaver interface {
 	Save() error
@@ -283,7 +285,7 @@ runLoop:
 		}
 
 		// Check wall-clock deadline before starting a new iteration.
-		if !deadline.IsZero() && time.Now().After(deadline) {
+		if !deadline.IsZero() && orchestratorNowFn().After(deadline) {
 			break runLoop
 		}
 
@@ -304,6 +306,9 @@ runLoop:
 			return fmt.Errorf("orchestrator: getting next bead: %w", err)
 		}
 		if b == nil {
+			break runLoop
+		}
+		if !deadline.IsZero() && orchestratorNowFn().After(deadline) {
 			break runLoop
 		}
 
@@ -390,23 +395,23 @@ runLoop:
 			continue
 		}
 
-	// Checkout branch if router and checkout are configured.
-	if o.cfg.BranchRouter != nil && o.cfg.GitCheckout != nil {
-		branch, err := o.cfg.BranchRouter.BranchForLabels(b.Labels)
-		if err != nil {
-			o.logWarning("Warning: branch resolution failed for bead %s: %v", b.ID, err)
-		} else if branch != "" {
-			if err := o.cfg.GitCheckout.CreateOrCheckoutSpecBranch(ctx, branch); err != nil {
-				o.logWarning("Warning: branch checkout failed for %s: %v", branch, err)
+		// Checkout branch if router and checkout are configured.
+		if o.cfg.BranchRouter != nil && o.cfg.GitCheckout != nil {
+			branch, err := o.cfg.BranchRouter.BranchForLabels(b.Labels)
+			if err != nil {
+				o.logWarning("Warning: branch resolution failed for bead %s: %v", b.ID, err)
+			} else if branch != "" {
+				if err := o.cfg.GitCheckout.CreateOrCheckoutSpecBranch(ctx, branch); err != nil {
+					o.logWarning("Warning: branch checkout failed for %s: %v", branch, err)
+				}
 			}
 		}
-	}
 
-	// Stage 2: Build — selects methodology, renders prompt, invokes LLM via StreamRun.
-	if o.cfg.CoverageTracker != nil {
-		o.cfg.CoverageTracker.ToCollecting()
-	}
-	buildOut, buildErr := o.cfg.Build.Run(ctx, baseIn)
+		// Stage 2: Build — selects methodology, renders prompt, invokes LLM via StreamRun.
+		if o.cfg.CoverageTracker != nil {
+			o.cfg.CoverageTracker.ToCollecting()
+		}
+		buildOut, buildErr := o.cfg.Build.Run(ctx, baseIn)
 		if buildErr != nil {
 			o.logWarning("Warning: build failed for bead %s (iteration %d): %v", b.ID, iteration, buildErr)
 			failurePhase := inferBuildFailurePhase(buildErr)

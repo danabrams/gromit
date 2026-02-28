@@ -107,8 +107,8 @@ func (c *capturingIterationLogWriter) Write(log *logger.IterationLog) error {
 
 // fakeCoordinator is a test double for Coordinator interface.
 type fakeCoordinator struct {
-	coordinateFn         func(ctx context.Context) error
-	recoverFromCrashFn   func(ctx context.Context) error
+	coordinateFn       func(ctx context.Context) error
+	recoverFromCrashFn func(ctx context.Context) error
 }
 
 func (f *fakeCoordinator) Coordinate(ctx context.Context) error {
@@ -1109,6 +1109,54 @@ func TestOrchestrator_StopsBeforeDeadline(t *testing.T) {
 	}
 	if beadCalls != 0 {
 		t.Fatalf("GetBead called %d times; want 0 when deadline already passed", beadCalls)
+	}
+}
+
+func TestOrchestrator_StopsWhenDeadlinePassesDuringGetBead(t *testing.T) {
+	deadline := time.Now().Add(1 * time.Minute)
+	originalNowFn := orchestratorNowFn
+	nowCalls := 0
+	orchestratorNowFn = func() time.Time {
+		nowCalls++
+		if nowCalls == 1 {
+			return deadline.Add(-1 * time.Millisecond)
+		}
+		return deadline.Add(1 * time.Millisecond)
+	}
+	defer func() { orchestratorNowFn = originalNowFn }()
+
+	gateCalls := 0
+	gate := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		gateCalls++
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	getBeadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		getBeadCalls++
+		return &bead.Bead{ID: "bead-1", Title: "Should not start after deadline"}, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     gate,
+		Build:    &fakeStage{},
+		Validate: &fakeStage{},
+		Epilogue: &fakeStage{},
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	err := orch.Run(context.Background(), 10, deadline, nil)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if getBeadCalls != 1 {
+		t.Fatalf("GetBead called %d times; want 1", getBeadCalls)
+	}
+	if gateCalls != 0 {
+		t.Fatalf("Gate called %d times; want 0 when deadline passes while fetching bead", gateCalls)
 	}
 }
 
@@ -3074,8 +3122,8 @@ func TestOrchestrator_GateBlockReason_PropagatedToIterationLog(t *testing.T) {
 	gateStage := &fakeStage{
 		runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
 			return pipeline.Output{
-				Decision:         pipeline.Block,
-				GateBlockReason:  "scope gate: open dependencies",
+				Decision:        pipeline.Block,
+				GateBlockReason: "scope gate: open dependencies",
 			}, nil
 		},
 	}
@@ -3270,8 +3318,8 @@ func TestOrchestrator_ReadinessCheckBlocksPrecedingBuild(t *testing.T) {
 	gateStage := &fakeStage{
 		runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
 			return pipeline.Output{
-				Decision:         pipeline.Block,
-				GateBlockReason:  "criteria_missing",
+				Decision:        pipeline.Block,
+				GateBlockReason: "criteria_missing",
 			}, nil
 		},
 	}
