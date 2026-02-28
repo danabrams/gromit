@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -202,4 +203,37 @@ func runGromitWithStdin(t *testing.T, stdin string, args ...string) (stdout, std
 	}
 
 	return stdout, stderr, exitCode
+}
+
+// runGromitInDir executes the gromit helper process in a specific directory.
+func runGromitInDir(t *testing.T, dir string, args ...string) (stdout, stderr string, exitCode int) {
+	t.Helper()
+	return runGromitInDirWithStdin(t, dir, "", args...)
+}
+
+// runGromitInDirWithStdin executes the gromit helper process in a specific
+// directory with optional stdin.
+func runGromitInDirWithStdin(t *testing.T, dir string, stdin string, args ...string) (stdout, stderr string, exitCode int) {
+	t.Helper()
+
+	helperArgs := append([]string{"-test.run=TestGromitHelperProcess", "--"}, args...)
+	cmd := exec.Command(binaryPath, helperArgs...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "GROMIT_TEST_HELPER_PROCESS=1")
+	cmd.Stdin = strings.NewReader(stdin)
+
+	var outBuf bytes.Buffer
+	var errBuf bytes.Buffer
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &errBuf
+
+	err := cmd.Run()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return outBuf.String(), errBuf.String(), exitErr.ExitCode()
+		}
+		t.Fatalf("Failed to run gromit %v in dir %q: %v", args, dir, err)
+	}
+
+	return outBuf.String(), errBuf.String(), 0
 }
