@@ -2,6 +2,10 @@
 
 These rules represent high-leverage control points that have either caused repeated failures or represent confirmed best practices. Rules are enforced through code review, automated checks, and process gates.
 
+## Strategic Alignment
+
+Before introducing or updating rules, learnings, or spec-related behavior, consult the **strategic alignment test** in [VISION.md](VISION.md) to verify the change improves long-term reliability, preserves intended outcomes, and maintains system evolvability. See the "Alignment Test (Soft Gate)" section for guidance.
+
 ## Architecture <!-- phases: red, build, green, refactor, review -->
 
 ### Benchmark runtime must treat manifest.modes as the sole execution source of truth
