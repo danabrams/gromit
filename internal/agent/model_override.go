@@ -1,5 +1,7 @@
 package agent
 
+import "fmt"
+
 // ModelOverrideResult carries the outcome of a model override attempt.
 type ModelOverrideResult struct {
 	Agent   Agent
@@ -12,12 +14,14 @@ func TryOverrideModel(a Agent, model string) ModelOverrideResult {
 		return ModelOverrideResult{}
 	}
 
-	if a.Name() != "claude" {
-		return ModelOverrideResult{}
-	}
-
 	cli, ok := a.(*cliAgent)
 	if !ok {
+		return ModelOverrideResult{
+			Warning: fmt.Sprintf("model override not supported for agent %q", a.Name()),
+		}
+	}
+
+	if a.Name() != "claude" {
 		return ModelOverrideResult{}
 	}
 
