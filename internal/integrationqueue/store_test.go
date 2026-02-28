@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -79,4 +80,37 @@ func readQueueFile(t *testing.T, gromitDir string) queueFile {
 		t.Fatalf("unmarshal queue file: %v", err)
 	}
 	return payload
+}
+
+func TestStoreSaveSortsChangedFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore: %v", err)
+	}
+
+	entry := Entry{
+		Branch:        "gromit/changed-files",
+		SessionID:     "session",
+		OriginCommand: "ready",
+		State:         "ready",
+		Lane:          "code_lane",
+		BaseRef:       "main",
+		HeadSHA:       "abc123",
+		ChangedFiles:  []string{"z.txt", "a.txt"},
+	}
+	if err := store.Save(entry); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	payload := readQueueFile(t, tmpDir)
+	if len(payload.Entries) != 1 {
+		t.Fatalf("entries = %d, want 1", len(payload.Entries))
+	}
+
+	got := payload.Entries[0].ChangedFiles
+	want := []string{"a.txt", "z.txt"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("changed files = %v, want %v", got, want)
+	}
 }
