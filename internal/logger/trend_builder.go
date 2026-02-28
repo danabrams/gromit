@@ -15,6 +15,12 @@ const (
 	partialDecompositionStateMessage = "Partial/unsafe decomposition state: retry or escalate before continuing"
 )
 
+var readinessBlockReasons = map[string]struct{}{
+	"criteria_missing":  {},
+	"criteria_ambiguous": {},
+	"scope_too_broad":   {},
+}
+
 func readAllIterationLogsSorted(logsDir string) ([]IterationLog, error) {
 	files, err := listRunLogFilesFn(logsDir)
 	if err != nil {
@@ -178,6 +184,8 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 			RollingTimeoutDecompositionSuccessRate: w.TimeoutDecompositionSuccessRate,
 			RollingTimeoutRetryBlockCount:          w.TimeoutRetryBlockCount,
 			RollingTimeoutRetryBlockRate:           w.TimeoutRetryBlockRate,
+			RollingReadinessBlockCount:             w.ReadinessBlockCount,
+			RollingReadinessBlockRate:              w.ReadinessBlockRate,
 			TimeoutType:                            entry.TimeoutType,
 			TimeoutDecompositionAttempted:          entry.TimeoutDecompositionAttempted,
 			TimeoutDecompositionSucceeded:          entry.TimeoutDecompositionSucceeded,
@@ -317,6 +325,7 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 		timeoutDecompositionAttempts                                          int
 		timeoutDecompositionSuccesses                                         int
 		timeoutRetryBlockCount                                                int
+		readinessBlockCount                                                   int
 	)
 	var durationTotal int64
 	var validationDurationTotal int64
@@ -386,6 +395,9 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 		if isSameScopeRetryBlocked(e.Error) {
 			timeoutRetryBlockCount++
 		}
+		if isReadinessBlockReason(e.GateBlockReason) {
+			readinessBlockCount++
+		}
 	}
 
 	totalIterations := len(window)
@@ -433,6 +445,8 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 		}(),
 		TimeoutRetryBlockCount: timeoutRetryBlockCount,
 		TimeoutRetryBlockRate:  float64(timeoutRetryBlockCount) / count,
+		ReadinessBlockCount:    readinessBlockCount,
+		ReadinessBlockRate:     float64(readinessBlockCount) / count,
 	}
 }
 
@@ -472,4 +486,14 @@ func averageCompletedBeadCost(beadCosts map[string]beadCostAccum) float64 {
 func isSameScopeRetryBlocked(err string) bool {
 	return strings.Contains(err, sameScopeRetryBlockedMessage) ||
 		strings.Contains(err, partialDecompositionStateMessage)
+}
+
+func isReadinessBlockReason(reason string) bool {
+	if reason == "" {
+		return false
+	}
+	if _, ok := readinessBlockReasons[reason]; ok {
+		return true
+	}
+	return strings.HasPrefix(reason, "readiness_")
 }

@@ -115,6 +115,8 @@ type IterationMetric struct {
 	RollingTimeoutDecompositionSuccessRate float64          `json:"rolling_timeout_decomposition_success_rate"`
 	RollingTimeoutRetryBlockCount int                       `json:"rolling_timeout_retry_block_count"`
 	RollingTimeoutRetryBlockRate float64                     `json:"rolling_timeout_retry_block_rate"`
+	RollingReadinessBlockCount     int                       `json:"rolling_readiness_block_count"`
+	RollingReadinessBlockRate      float64                   `json:"rolling_readiness_block_rate"`
 	TimeoutType                  string                    `json:"timeout_type,omitempty"`
 	TimeoutDecompositionAttempted bool                      `json:"timeout_decomposition_attempted,omitempty"`
 	TimeoutDecompositionSucceeded bool                      `json:"timeout_decomposition_succeeded,omitempty"`
@@ -192,6 +194,8 @@ type ProcessTrendWindow struct {
 	TimeoutDecompositionSuccessRate float64 `json:"timeout_decomposition_success_rate"`
 	TimeoutRetryBlockCount int     `json:"timeout_retry_block_count"`
 	TimeoutRetryBlockRate  float64 `json:"timeout_retry_block_rate"`
+	ReadinessBlockCount    int     `json:"readiness_block_count"`
+	ReadinessBlockRate     float64 `json:"readiness_block_rate"`
 }
 
 // TrendControlLimit captures control-limit boundaries for a process metric.
@@ -397,6 +401,8 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 		TimeoutDecompositionSuccessRate: latestMetric.RollingTimeoutDecompositionSuccessRate,
 		TimeoutRetryBlockCount: latestMetric.RollingTimeoutRetryBlockCount,
 		TimeoutRetryBlockRate:  latestMetric.RollingTimeoutRetryBlockRate,
+		ReadinessBlockCount:    latestMetric.RollingReadinessBlockCount,
+		ReadinessBlockRate:     latestMetric.RollingReadinessBlockRate,
 	}
 	trend.PromptTokenSummary = summarizePromptTokens(metrics, windowSize)
 	windowStart := len(metrics) - windowSize
