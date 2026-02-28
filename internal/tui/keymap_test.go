@@ -54,3 +54,28 @@ func TestKeymap_DefaultBindingsAreReasonable(t *testing.T) {
 		t.Errorf("expected FocusPrev to be 'shift+tab', got %q", km.FocusPrev)
 	}
 }
+
+func TestKeymap_HasConversationActionBindings(t *testing.T) {
+	km := DefaultKeymap()
+
+	// Conversation action bindings should be present
+	if km.StartExplore == "" {
+		t.Error("expected StartExplore binding to be non-empty")
+	}
+
+	if km.StartRefine == "" {
+		t.Error("expected StartRefine binding to be non-empty")
+	}
+
+	if km.SendFollowUp == "" {
+		t.Error("expected SendFollowUp binding to be non-empty")
+	}
+
+	if km.CancelSession == "" {
+		t.Error("expected CancelSession binding to be non-empty")
+	}
+
+	if km.FocusConversation == "" {
+		t.Error("expected FocusConversation binding to be non-empty")
+	}
+}
