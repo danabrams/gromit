@@ -11,6 +11,8 @@ import (
 
 var configWarningWriter io.Writer = os.Stderr
 
+const precheckVerificationConflictError = "precheck.enabled=false conflicts with precheck.verification.enabled=true"
+
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -114,6 +116,9 @@ func (c *Config) Validate() error {
 	if c.Validation.RuntimeMaxSubBeadsValue() <= 0 {
 		return fmt.Errorf("validation.runtime_max_sub_beads must be > 0 (got %d)", c.Validation.RuntimeMaxSubBeads)
 	}
+	if err := c.validatePrecheckVerificationConflict(); err != nil {
+		return err
+	}
 	if err := c.validateCompatibilitySelections(); err != nil {
 		return err
 	}
@@ -137,6 +142,16 @@ func (c *Config) Validate() error {
 	}
 	if err := c.validateDecomposeTarget(); err != nil {
 		return err
+	}
+	return nil
+}
+
+func (c *Config) validatePrecheckVerificationConflict() error {
+	if c.Precheck.Enabled == nil || c.Precheck.Verification.Enabled == nil {
+		return nil
+	}
+	if !*c.Precheck.Enabled && *c.Precheck.Verification.Enabled {
+		return fmt.Errorf(precheckVerificationConflictError)
 	}
 	return nil
 }

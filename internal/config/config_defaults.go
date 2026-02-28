@@ -158,17 +158,11 @@ func (c *Config) SetDefaults() {
 	if c.ScopeCheck.BlockOversized == nil {
 		c.ScopeCheck.BlockOversized = boolPtr(true)
 	}
-	if c.Precheck.Enabled == nil {
-		c.Precheck.Enabled = boolPtr(false)
-	}
 	if c.Precheck.Model == "" {
 		c.Precheck.Model = ModelHaiku
 	}
 	if c.Precheck.TimeoutSeconds == 0 {
 		c.Precheck.TimeoutSeconds = 120
-	}
-	if c.Precheck.Verification.Enabled == nil {
-		c.Precheck.Verification.Enabled = boolPtr(true)
 	}
 	if c.Precheck.Verification.TimeoutSeconds == 0 {
 		c.Precheck.Verification.TimeoutSeconds = 120

@@ -144,7 +144,7 @@ precheck:
   timeout_seconds: 120  # headroom for CLI startup + file reads + tool use
   # Subordinate verification pass: only runs when precheck.enabled=true and haiku result is PASSED
   verification:
-    enabled: true  # run sonnet verification when haiku says PASSED (requires precheck.enabled=true)
+    enabled: false  # verification must be disabled while precheck.enabled=false
     timeout_seconds: 120
 
 # Validation settings - customize for your project

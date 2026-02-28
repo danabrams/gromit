@@ -4310,11 +4310,11 @@ func TestPrecheckVerificationDefaults(t *testing.T) {
 	cfg := &Config{}
 	cfg.SetDefaults()
 
-	if cfg.Precheck.Verification.Enabled == nil {
-		t.Fatal("Verification.Enabled should not be nil after SetDefaults")
+	if cfg.Precheck.Verification.Enabled != nil {
+		t.Fatal("Verification.Enabled should stay nil when unset")
 	}
-	if !*cfg.Precheck.Verification.Enabled {
-		t.Error("Verification.Enabled should default to true")
+	if !cfg.Precheck.Verification.IsVerificationEnabled() {
+		t.Error("Verification.Enabled should default to true even without an explicit value")
 	}
 	if cfg.Precheck.Verification.TimeoutSeconds != 120 {
 		t.Errorf("Verification.TimeoutSeconds should default to 120, got %d", cfg.Precheck.Verification.TimeoutSeconds)
@@ -4402,99 +4402,99 @@ func TestPrecheckVerificationFromYAML(t *testing.T) {
 }
 
 func TestConfigValidatePrecheckVerificationConflict(t *testing.T) {
-    const conflictErr = "precheck.enabled=false conflicts with precheck.verification.enabled=true"
+	const conflictErr = "precheck.enabled=false conflicts with precheck.verification.enabled=true"
 
-    tests := []struct {
-        name                string
-        precheckEnabled     bool
-        verificationEnabled bool
-        expectErr           bool
-    }{
-        {
-            name:                "precheck disabled with verification enabled",
-            precheckEnabled:     false,
-            verificationEnabled: true,
-            expectErr:           true,
-        },
-        {
-            name:                "precheck disabled with verification disabled",
-            precheckEnabled:     false,
-            verificationEnabled: false,
-            expectErr:           false,
-        },
-        {
-            name:                "precheck enabled with verification enabled",
-            precheckEnabled:     true,
-            verificationEnabled: true,
-            expectErr:           false,
-        },
-        {
-            name:                "precheck enabled with verification disabled",
-            precheckEnabled:     true,
-            verificationEnabled: false,
-            expectErr:           false,
-        },
-    }
+	tests := []struct {
+		name                string
+		precheckEnabled     bool
+		verificationEnabled bool
+		expectErr           bool
+	}{
+		{
+			name:                "precheck disabled with verification enabled",
+			precheckEnabled:     false,
+			verificationEnabled: true,
+			expectErr:           true,
+		},
+		{
+			name:                "precheck disabled with verification disabled",
+			precheckEnabled:     false,
+			verificationEnabled: false,
+			expectErr:           false,
+		},
+		{
+			name:                "precheck enabled with verification enabled",
+			precheckEnabled:     true,
+			verificationEnabled: true,
+			expectErr:           false,
+		},
+		{
+			name:                "precheck enabled with verification disabled",
+			precheckEnabled:     true,
+			verificationEnabled: false,
+			expectErr:           false,
+		},
+	}
 
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            cfg := Config{
-                Validation: ValidationConfig{
-                    RuntimeMaxSubBeads: DefaultMaxSubBeads,
-                },
-                Methodology: MethodologyConfig{
-                    Granularity: MethodologyGranularityBead,
-                },
-                Experiment: ExperimentConfig{
-                    MinSampleSize:       1,
-                    ConfidenceThreshold: 0.5,
-                },
-                Precheck: PrecheckConfig{
-                    Enabled: boolPtr(tt.precheckEnabled),
-                    Verification: PrecheckVerificationConfig{
-                        Enabled: boolPtr(tt.verificationEnabled),
-                    },
-                },
-            }
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Config{
+				Validation: ValidationConfig{
+					RuntimeMaxSubBeads: DefaultMaxSubBeads,
+				},
+				Methodology: MethodologyConfig{
+					Granularity: MethodologyGranularityBead,
+				},
+				Experiment: ExperimentConfig{
+					MinSampleSize:       1,
+					ConfidenceThreshold: 0.5,
+				},
+				Precheck: PrecheckConfig{
+					Enabled: boolPtr(tt.precheckEnabled),
+					Verification: PrecheckVerificationConfig{
+						Enabled: boolPtr(tt.verificationEnabled),
+					},
+				},
+			}
 
-            err := cfg.Validate()
-            if tt.expectErr {
-                if err == nil {
-                    t.Fatalf("expected validation error for %s", tt.name)
-                }
-                if err.Error() != conflictErr {
-                    t.Fatalf("unexpected validation error, got=%q want=%q", err.Error(), conflictErr)
-                }
+			err := cfg.Validate()
+			if tt.expectErr {
+				if err == nil {
+					t.Fatalf("expected validation error for %s", tt.name)
+				}
+				if err.Error() != conflictErr {
+					t.Fatalf("unexpected validation error, got=%q want=%q", err.Error(), conflictErr)
+				}
 
-                dir := t.TempDir()
-                cfgPath := filepath.Join(dir, "gromit.yaml")
-                conflictYAML := `precheck:
+				dir := t.TempDir()
+				cfgPath := filepath.Join(dir, "gromit.yaml")
+				conflictYAML := `precheck:
   enabled: false
   verification:
     enabled: true
 `
-                if err := os.WriteFile(cfgPath, []byte(conflictYAML), 0644); err != nil {
-                    t.Fatalf("writing conflict config: %v", err)
-                }
+				if err := os.WriteFile(cfgPath, []byte(conflictYAML), 0644); err != nil {
+					t.Fatalf("writing conflict config: %v", err)
+				}
 
-                _, loadErr := Load(cfgPath)
-                if loadErr == nil {
-                    t.Fatalf("expected Load to fail for conflict config")
-                }
-                if !strings.HasPrefix(loadErr.Error(), "validating config: ") {
-                    t.Fatalf("Load error %q missing prefix", loadErr)
-                }
-                if !strings.Contains(loadErr.Error(), conflictErr) {
-                    t.Fatalf("Load error %q missing conflict message", loadErr)
-                }
-                return
-            }
+				_, loadErr := Load(cfgPath)
+				if loadErr == nil {
+					t.Fatalf("expected Load to fail for conflict config")
+				}
+				if !strings.HasPrefix(loadErr.Error(), "validating config: ") {
+					t.Fatalf("Load error %q missing prefix", loadErr)
+				}
+				if !strings.Contains(loadErr.Error(), conflictErr) {
+					t.Fatalf("Load error %q missing conflict message", loadErr)
+				}
+				return
+			}
 
-            if err != nil {
-                t.Fatalf("unexpected validation error for %s: %v", tt.name, err)
-            }
-        })
-    }
+			if err != nil {
+				t.Fatalf("unexpected validation error for %s: %v", tt.name, err)
+			}
+		})
+	}
 }
 
 func TestValidationConfig_FastCommandsFallback(t *testing.T) {
@@ -4971,21 +4971,21 @@ func TestProviderDefEstimateCostForModel(t *testing.T) {
 	def := ProviderDef{
 		CostPer1kInput:  0.00175,
 		CostPer1kOutput: 0.014,
-	ModelCosts: map[string]*ModelCost{
-		"gpt-5.3-codex": {
-			CostPer1kInput:  0.00875,
-			CostPer1kOutput: 0.070,
+		ModelCosts: map[string]*ModelCost{
+			"gpt-5.3-codex": {
+				CostPer1kInput:  0.00875,
+				CostPer1kOutput: 0.070,
+			},
+			"gpt-5.1-codex-mini": {
+				CostPer1kInput:  0.00025,
+				CostPer1kOutput: 0.0015,
+			},
+			"gpt-5.4-codex-zero": {
+				CostPer1kInput:  0,
+				CostPer1kOutput: 0,
+			},
 		},
-		"gpt-5.1-codex-mini": {
-			CostPer1kInput:  0.00025,
-			CostPer1kOutput: 0.0015,
-		},
-		"gpt-5.4-codex-zero": {
-			CostPer1kInput:  0,
-			CostPer1kOutput: 0,
-		},
-	},
-}
+	}
 
 	tests := []struct {
 		name         string
@@ -5592,8 +5592,8 @@ func TestLoadBackwardCompatibility_PartialConfigsLoadSuccessfully(t *testing.T) 
 
 func TestLoadBackwardCompatibility_PartialConfigsDoNotImplicitlyInject(t *testing.T) {
 	testCases := []struct {
-		name             string
-		yaml             string
+		name              string
+		yaml              string
 		shouldHaveProfile bool
 		shouldHaveTracker bool
 		shouldHaveAdapter bool
@@ -5706,19 +5706,19 @@ func TestMergePipelineConfigYAMLRoundTrip(t *testing.T) {
 
 func TestMergePipelineConfigRetryCapDefaultValue(t *testing.T) {
 	tests := []struct {
-		name     string
-		config   MergePipelineConfig
-		want     int
+		name   string
+		config MergePipelineConfig
+		want   int
 	}{
 		{
-			name:     "explicit value",
-			config:   MergePipelineConfig{RetryCapDefault: 7},
-			want:     7,
+			name:   "explicit value",
+			config: MergePipelineConfig{RetryCapDefault: 7},
+			want:   7,
 		},
 		{
-			name:     "zero value defaults",
-			config:   MergePipelineConfig{RetryCapDefault: 0},
-			want:     0,
+			name:   "zero value defaults",
+			config: MergePipelineConfig{RetryCapDefault: 0},
+			want:   0,
 		},
 	}
 
