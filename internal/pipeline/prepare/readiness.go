@@ -50,6 +50,14 @@ func CheckCriteriaCount(b *bead.Bead) (ReadinessOutcome, string) {
 	return ReadinessOutcomeReady, ""
 }
 
+// CheckExpectedOutputs ensures the bead's expected outputs fall within the scope gate limits.
+func CheckExpectedOutputs(b *bead.Bead) (ReadinessOutcome, string) {
+	if len(sanitizeOutputs(b.ExpectedOutputs)) > maxScopeFiles {
+		return ReadinessOutcomeNotReadyScope, ReasonScopeTooBroad
+	}
+	return ReadinessOutcomeReady, ""
+}
+
 func effectiveCriteria(b *bead.Bead) []string {
 	if b == nil {
 		return nil
