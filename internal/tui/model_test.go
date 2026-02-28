@@ -1,9 +1,10 @@
 package tui
 
 import (
-	"testing"
+    "testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+    "github.com/danabrams/gromit/internal/conversation"
+    tea "github.com/charmbracelet/bubbletea"
 )
 
 func TestModel_InitialViewRendersDashboard(t *testing.T) {
@@ -283,4 +284,34 @@ func TestModel_ProgressDisplaysIterationNumbersAsDecimalStrings(t *testing.T) {
 	if !containsString(view, "5/10") {
 		t.Errorf("expected dashboard view to contain '5/10', but got:\n%q", view)
 	}
+}
+
+func TestModelConversationViewRendersSession(t *testing.T) {
+    timeline := []conversation.FakeStep{
+        {Event: conversation.Event{Type: conversation.EventTypeStream, Text: "hello"}},
+        {Event: conversation.Event{Type: conversation.EventTypeDone}},
+    }
+    session := conversation.NewFakeSession(timeline)
+    controller := NewConversationController(session)
+
+    cmd := controller.Init()
+    for cmd != nil {
+        msg := cmd()
+        model, next := controller.Update(msg)
+        var ok bool
+        controller, ok = model.(*ConversationController)
+        if !ok {
+            t.Fatalf("expected ConversationController, got %T", model)
+        }
+        cmd = next
+    }
+
+    m := NewModel(&Store{})
+    m.SetConversationController(controller)
+    m.SwitchView(ViewConversation)
+
+    view := m.View()
+    if !containsString(view, "- stream: hello") {
+        t.Fatalf("expected conversation view to include streamed text, got %q", view)
+    }
 }
