@@ -315,3 +315,23 @@ func TestModelConversationViewRendersSession(t *testing.T) {
         t.Fatalf("expected conversation view to include streamed text, got %q", view)
     }
 }
+
+func TestModel_FocusConversationKeySwitchesToConversationView(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+
+	// Start in Dashboard view
+	if m.currentView != ViewDashboard {
+		t.Errorf("expected initial view to be Dashboard, got %v", m.currentView)
+	}
+
+	// Send FocusConversation key ('3')
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'3'}}
+	model, _ := m.Update(msg)
+	m = model.(*Model)
+
+	// Should switch to Conversation view
+	if m.currentView != ViewConversation {
+		t.Errorf("expected view to be Conversation after '3' key, got %v", m.currentView)
+	}
+}
