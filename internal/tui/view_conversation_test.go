@@ -83,3 +83,17 @@ func TestRenderConversationViewRendersToolIndicators(t *testing.T) {
 		t.Fatalf("expected tool name 'FileReader' in output, got %q", got)
 	}
 }
+
+func TestRenderConversationViewRendersInputArea(t *testing.T) {
+	store := &Store{
+		Conversation: ConversationState{
+			Lifecycle: ConversationLifecycleStreaming,
+		},
+	}
+
+	got := RenderConversationView(store, 0)
+
+	if !strings.Contains(got, ">") || !strings.Contains(got, "Input:") {
+		t.Fatalf("expected input area (with '>' or 'Input:') in output, got %q", got)
+	}
+}
