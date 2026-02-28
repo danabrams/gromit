@@ -263,3 +263,40 @@ func TestRetroSetupIntegration_EnsuresLogsAccessibleInWorktree(t *testing.T) {
 		}
 	}
 }
+
+func TestSetupRetroLogsForWorktree_CallsSymlinkSetupAndReturnsLogsPath(t *testing.T) {
+	// RED test: Verify that setupRetroLogsForWorktree function exists and properly
+	// sets up logs for retro in a worktree environment by calling the appropriate
+	// symlink or resolution logic, then returning the logs path for SetLogsDir.
+
+	tmpDir := t.TempDir()
+
+	// Create main repo
+	mainGromitDir := filepath.Join(tmpDir, "main", ".gromit")
+	mainLogsDir := filepath.Join(mainGromitDir, "logs")
+	if err := os.MkdirAll(mainLogsDir, 0o755); err != nil {
+		t.Fatalf("creating main logs: %v", err)
+	}
+
+	// Create worktree
+	worktreeGromitDir := filepath.Join(tmpDir, "worktree", ".gromit")
+	if err := os.MkdirAll(worktreeGromitDir, 0o755); err != nil {
+		t.Fatalf("creating worktree .gromit: %v", err)
+	}
+
+	// Call setupRetroLogsForWorktree
+	logsPath, err := setupRetroLogsForWorktree(worktreeGromitDir, mainGromitDir)
+	if err != nil {
+		t.Fatalf("setupRetroLogsForWorktree failed: %v", err)
+	}
+
+	// Should return a valid logs path
+	if logsPath == "" {
+		t.Fatal("setupRetroLogsForWorktree should return non-empty logs path")
+	}
+
+	// The path should be accessible
+	if _, err := os.Stat(logsPath); err != nil {
+		t.Fatalf("returned logs path not accessible: %v", err)
+	}
+}
