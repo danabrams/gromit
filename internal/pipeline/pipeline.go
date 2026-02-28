@@ -440,6 +440,10 @@ func (p *Pipeline) validateReviewDeps() error {
 // ResolveReviewScope resolves the starting commit for a review based on scope flags.
 // Priority: --since > --spec > --epic > state file
 func (p *Pipeline) ResolveReviewScope(ctx context.Context, spec string, epic string, since string) (string, error) {
+	if p.deps == nil {
+		return "", fmt.Errorf("pipeline: nil dependencies")
+	}
+
 	// Priority: --since flag first
 	if since != "" {
 		return since, nil

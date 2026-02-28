@@ -48,29 +48,41 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 	}
 
 	entry.AttemptCount++
-	entry.State = StateIntegrating
 	entry.RetryCount = 0
+	if err := ApplyTransition(entry, string(StateIntegrating), "coordinator: starting integration"); err != nil {
+		return fmt.Errorf("transitioning entry to integrating: %w", err)
+	}
 	if err := c.store.Save(*entry); err != nil {
 		return fmt.Errorf("marking entry integrating: %w", err)
 	}
 
 	if err := c.gitops.FetchAndRebase(ctx, *entry); err != nil {
+		entry.LastErrorCode = "rebase_conflict"
+		entry.LastErrorMessage = err.Error()
+		if transErr := ApplyTransition(entry, string(StateConflict), "rebase conflict during initial fetch"); transErr == nil {
+			_ = c.store.Save(*entry)
+		}
 		return fmt.Errorf("fetch/rebase branch: %w", err)
 	}
 
 	if err := c.gate.Run(ctx, *entry); err != nil {
 		entry.RetryCount = 1
 		if err := c.gitops.FetchAndRebase(ctx, *entry); err != nil {
+			entry.LastErrorCode = "rebase_conflict"
+			entry.LastErrorMessage = err.Error()
+			if transErr := ApplyTransition(entry, string(StateConflict), "rebase conflict during retry fetch"); transErr == nil {
+				_ = c.store.Save(*entry)
+			}
 			return fmt.Errorf("fetch/rebase branch: %w", err)
 		}
 		if err := c.gate.Run(ctx, *entry); err != nil {
 			entry.RetryCount++
-			entry.State = StateFailedGates
 			entry.LastErrorCode = string(StateFailedGates)
 			entry.LastErrorMessage = err.Error()
-			entry.LastTransitionReason = string(StateFailedGates)
-			if saveErr := c.store.Save(*entry); saveErr != nil {
-				return fmt.Errorf("marking entry failed_gates: %w", saveErr)
+			if transErr := ApplyTransition(entry, string(StateFailedGates), "scoped gates failed after retry"); transErr == nil {
+				if saveErr := c.store.Save(*entry); saveErr != nil {
+					return fmt.Errorf("marking entry failed_gates: %w", saveErr)
+				}
 			}
 			return fmt.Errorf("running scoped gates: %w", err)
 		}
@@ -79,15 +91,13 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 	if err := c.gitops.MergeToMain(ctx, *entry); err != nil {
 		// Check if this is a lane violation
 		if strings.Contains(strings.ToLower(err.Error()), "lane violation") {
-			entry.State = StateLaneViolation
 			entry.LastErrorCode = "lane_violation"
 			entry.LastErrorMessage = err.Error()
-			entry.LastTransitionReason = "lane violation detected"
+			_ = ApplyTransition(entry, string(StateLaneViolation), "lane violation detected")
 		} else {
-			entry.State = StateConflict
 			entry.LastErrorCode = "merge_conflict"
 			entry.LastErrorMessage = err.Error()
-			entry.LastTransitionReason = "merge conflict detected"
+			_ = ApplyTransition(entry, string(StateConflict), "merge conflict detected")
 		}
 		if saveErr := c.store.Save(*entry); saveErr != nil {
 			return fmt.Errorf("marking entry conflict: %w", saveErr)
@@ -96,22 +106,30 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 	}
 
 	if err := c.gitops.Push(ctx); err != nil {
+		entry.LastErrorCode = "push_failed"
+		entry.LastErrorMessage = err.Error()
+		if transErr := ApplyTransition(entry, string(StateFailedGates), "push to remote failed"); transErr == nil {
+			_ = c.store.Save(*entry)
+		}
 		return fmt.Errorf("pushing main: %w", err)
 	}
 
-	if err := c.gitops.Cleanup(ctx, *entry); err != nil {
-		return fmt.Errorf("cleaning up metadata: %w", err)
-	}
+	cleanupErr := c.gitops.Cleanup(ctx, *entry)
 
-	entry.State = StateMerged
 	entry.ChangedFiles = nil
 	entry.ChangedFilesHash = ""
 	entry.LastErrorCode = ""
 	entry.LastErrorMessage = ""
-	entry.LastTransitionReason = mergedTransitionReason
+	if transErr := ApplyTransition(entry, string(StateMerged), mergedTransitionReason); transErr != nil {
+		return fmt.Errorf("applying merged transition: %w", transErr)
+	}
 
 	if err := c.store.Save(*entry); err != nil {
 		return fmt.Errorf("finalizing entry: %w", err)
+	}
+
+	if cleanupErr != nil {
+		return fmt.Errorf("cleaning up metadata: %w", cleanupErr)
 	}
 
 	return nil
@@ -134,10 +152,11 @@ func (c *Coordinator) RecoverFromCrash(ctx context.Context) error {
 	recovered := false
 	for i := range queue.Entries {
 		if queue.Entries[i].State == StateIntegrating {
-			queue.Entries[i].State = StateReady
-			queue.Entries[i].LastErrorCode = "crash_recovery"
+			if err := ApplyTransition(&queue.Entries[i], string(StateReady), "crash recovery"); err != nil {
+				return fmt.Errorf("transitioning recovered entry %s: %w", queue.Entries[i].Branch, err)
+			}
+			queue.Entries[i].LastErrorCode = string(crashRecoveryErrorCode)
 			queue.Entries[i].LastErrorMessage = "recovered from crash: entry was in integrating state"
-			queue.Entries[i].LastTransitionReason = "crash recovery"
 			// Save each recovered entry
 			if err := c.store.Save(queue.Entries[i]); err != nil {
 				return fmt.Errorf("saving recovered entry %s: %w", queue.Entries[i].Branch, err)

@@ -185,7 +185,7 @@ Provider router (internal/provider/router.go) was a genuine data race — counts
 ### 2026-02-28 | Integration Queue State Machine Has 7 States With Validated Transitions | architecture
 *Related to: review-1772280289214510883*
 
-Integration queue uses states: draft/ready/integrating/merged/conflict/failed_gates/lane_violation. Transitions are validated via CanTransition matrix. Coordinator currently only handles the happy path (ready->integrating->merged) — error-path transitions exist in the matrix but are not wired in coordinator.go.
+Integration queue uses states: draft/ready/integrating/merged/conflict/failed_gates/lane_violation. All coordinator state mutations must go through ApplyTransition — direct state assignment bypasses validation and silently diverges from the transition table. Error paths (push failure, rebase conflict) must persist state transitions before returning errors to avoid leaving entries stuck in StateIntegrating.
 
 ### 2026-02-28 | gromit-m0fl | conventions
 When adding new CLI commands in cmd/gromit/, avoid modifying shared code paths, test fixtures, or helper functions that other commands depend on. The codebase has common category/context handling patterns that are tested across multiple commands - changes to these affect multiple test suites.
@@ -195,6 +195,21 @@ When modifying shared test data files or test fixtures (backlog.jsonl, .gromit/i
 
 ### 2026-02-28 | gromit-scfw | patterns
 Queue payload validation requires all fields (base_ref, session reference, etc.) to be set when creating records - check integration queue schema and ensure all required fields are initialized in test scenarios and concurrent session workflows
+
+### 2026-02-28 | ListBeads/QueryBeads Silently Return Empty for Unsupported Status | gotchas
+*Related to: review-1772300695650836737*
+
+Pipeline.ListBeads and QueryBeads only support status="" or status="ready". Any other status value (e.g., "closed") silently returns an empty result with no error. Callers should be aware of this limitation or the methods should be extended to support additional statuses.
+
+### 2026-02-28 | Vision Metrics Rollup Has Asymmetric Carve-Out Handling | patterns
+*Related to: review-1772300695650836737*
+
+AcceptedWithoutReworkRate excludes rework_vision_change records from the denominator (carve-outs), but FirstIntegrationPassRate includes them. Both are valid business definitions but the asymmetry is intentional and undocumented — new rollup metrics should document their carve-out policy explicitly.
+
+### 2026-02-28 | Subprocess Wrappers Must Follow procutil Pattern | conventions
+*Related to: review-1772300695650836737*
+
+All subprocess launch sites must use procutil.SetProcessGroupKill + procutil.WaitForProcessCapacity + separate stderr capture. The specmerge/gh_client.go was missing all three, causing orphaned children on cancellation and lost error messages. This pattern now applies to gh CLI calls as well as LLM providers.
 
 ---
 

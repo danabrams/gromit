@@ -30,6 +30,7 @@ var allowedTransitions = map[string]map[string]bool{
 		"conflict":       true,
 		"failed_gates":   true,
 		"lane_violation": true,
+		"ready":          true,
 	},
 	"conflict": {
 		"ready": true,
@@ -92,7 +93,7 @@ func NextAllowedStates(from string) []string {
 	case "ready":
 		states = append(states, "integrating")
 	case "integrating":
-		states = append(states, "merged", "conflict", "failed_gates", "lane_violation")
+		states = append(states, "merged", "conflict", "failed_gates", "lane_violation", "ready")
 	case "conflict", "failed_gates", "lane_violation":
 		states = append(states, "ready")
 	}

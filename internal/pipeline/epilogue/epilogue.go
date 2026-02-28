@@ -301,9 +301,10 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 	// Emit EpilogueCompleteEvent
 	if in.Emitter != nil {
 		in.Emitter.Emit(&events.EpilogueCompleteEvent{
-			BeadID:  in.Bead.ID,
-			Success: lifecycleFailure == pipeline.LifecycleFailureNone && !warningOccurred,
-			Time:    time.Now(),
+			BeadID:           in.Bead.ID,
+			Success:          lifecycleFailure == pipeline.LifecycleFailureNone,
+			WarningsOccurred: warningOccurred,
+			Time:             time.Now(),
 		})
 	}
 

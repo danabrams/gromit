@@ -397,12 +397,33 @@ runLoop:
 
 		// Checkout branch if router and checkout are configured.
 		if o.cfg.BranchRouter != nil && o.cfg.GitCheckout != nil {
-			branch, err := o.cfg.BranchRouter.BranchForLabels(b.Labels)
-			if err != nil {
-				o.logWarning("Warning: branch resolution failed for bead %s: %v", b.ID, err)
+			branch, branchErr := o.cfg.BranchRouter.BranchForLabels(b.Labels)
+			if branchErr != nil {
+				o.logWarning("Warning: branch resolution failed for bead %s: %v", b.ID, branchErr)
 			} else if branch != "" {
-				if err := o.cfg.GitCheckout.CreateOrCheckoutSpecBranch(ctx, branch); err != nil {
-					o.logWarning("Warning: branch checkout failed for %s: %v", branch, err)
+				if checkoutErr := o.cfg.GitCheckout.CreateOrCheckoutSpecBranch(ctx, branch); checkoutErr != nil {
+					o.logWarning("Branch checkout failed for %s: %v; marking bead %s as failed", branch, checkoutErr, b.ID)
+					o.emitBeadFailedEvent(b, fmt.Sprintf("branch checkout failed for %s: %v", branch, checkoutErr))
+					baseIn.Result = &logger.IterationLog{
+						Timestamp:                time.Now(),
+						Iteration:                iteration,
+						BeadID:                   b.ID,
+						BeadTitle:                b.Title,
+						Success:                  false,
+						Error:                    fmt.Sprintf("branch checkout failed for %s: %v", branch, checkoutErr),
+						Complexity:               baseIn.Complexity,
+						ComplexitySource:         baseIn.ComplexitySource,
+						ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
+					}
+					o.runEpilogue(ctx, baseIn, false)
+					o.emitter.Emit(&events.IterationCompleteEvent{
+						Iteration: iteration,
+						BeadID:    b.ID,
+						Success:   false,
+						Duration:  0,
+						Time:      time.Now(),
+					})
+					continue
 				}
 			}
 		}

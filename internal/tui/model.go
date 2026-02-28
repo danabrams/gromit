@@ -150,9 +150,10 @@ func (m *Model) renderDashboardView() string {
 	}
 	output += "=== Progress Panel" + progressFocus + " ===\n"
 	output += "panel 0\n"
-	if m.store != nil && m.store.Dashboard.RunProgress != nil {
-		progress := m.store.Dashboard.RunProgress
-		output += "progress: " + strconv.Itoa(progress.CurrentIteration) + "/" + strconv.Itoa(progress.MaxIterations) + "\n"
+	if m.store != nil {
+		if progress := m.store.RunProgressSnapshot(); progress != nil {
+			output += "progress: " + strconv.Itoa(progress.CurrentIteration) + "/" + strconv.Itoa(progress.MaxIterations) + "\n"
+		}
 	}
 	output += "\n"
 

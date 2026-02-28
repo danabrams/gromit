@@ -379,6 +379,22 @@ func (s *Store) appendConversationTranscript(text string) {
 	s.Conversation.Transcript[s.Conversation.activeTranscriptIndex].Text += text
 }
 
+// RunProgressSnapshot returns a copy of the current RunProgress under a read lock.
+// Returns nil if no progress is set.
+func (s *Store) RunProgressSnapshot() *RunProgress {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.Dashboard.RunProgress == nil {
+		return nil
+	}
+	return &RunProgress{
+		CurrentIteration: s.Dashboard.RunProgress.CurrentIteration,
+		MaxIterations:    s.Dashboard.RunProgress.MaxIterations,
+		IterationPercent: s.Dashboard.RunProgress.IterationPercent,
+		Status:           s.Dashboard.RunProgress.Status,
+	}
+}
+
 func (s *Store) recordConversationToolIndicator(toolName, status string) {
 	indicator := ConversationToolIndicator{
 		ToolName: toolName,

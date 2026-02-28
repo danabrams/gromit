@@ -124,10 +124,11 @@ func TestNextAllowedStates_DraftReturnsReady(t *testing.T) {
 func TestNextAllowedStates_IntegratingReturnsManyStates(t *testing.T) {
 	states := NextAllowedStates("integrating")
 	expected := map[string]bool{
-		"merged":        true,
-		"conflict":      true,
-		"failed_gates":  true,
+		"merged":         true,
+		"conflict":       true,
+		"failed_gates":   true,
 		"lane_violation": true,
+		"ready":          true,
 	}
 	if len(states) != len(expected) {
 		t.Errorf("expected %d allowed states from integrating, got %d: %v", len(expected), len(states), states)
@@ -276,7 +277,6 @@ func TestCheckTransition_AllDisallowedTransitions(t *testing.T) {
 		{"ready", "failed_gates"},
 		{"ready", "lane_violation"},
 		{"integrating", "draft"},
-		{"integrating", "ready"},
 		{"merged", "draft"},
 		{"merged", "ready"},
 		{"merged", "integrating"},

@@ -1,6 +1,7 @@
 package specmerge
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,6 +9,9 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/danabrams/gromit/internal/procutil"
 )
 
 const (
@@ -318,13 +322,28 @@ func (c *ghClient) run(ctx context.Context, args ...string) (string, error) {
 
 type defaultGHRunner struct{}
 
+const ghProcessCapacityWait = 1500 * time.Millisecond
+
 func (r *defaultGHRunner) Run(ctx context.Context, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "gh", args...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("gh %s: %w", strings.Join(args, " "), err)
+	procutil.SetProcessGroupKill(cmd)
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if waitErr := procutil.WaitForProcessCapacity(ctx, ghProcessCapacityWait); waitErr != nil {
+		return "", fmt.Errorf("waiting for process capacity: %w", waitErr)
 	}
-	return string(output), nil
+	if err := cmd.Start(); err != nil {
+		return "", fmt.Errorf("gh start: %w", err)
+	}
+	defer procutil.ReapProcessGroup(cmd)
+
+	if err := cmd.Wait(); err != nil {
+		return "", fmt.Errorf("gh %s: %s: %w", strings.Join(args, " "), strings.TrimSpace(stderr.String()), err)
+	}
+	return stdout.String(), nil
 }
 
 func parseRepoFromURL(raw string) (string, string, error) {
