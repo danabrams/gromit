@@ -1636,3 +1636,66 @@ func TestRenderPrompt_BudgetShapingDiagnostics(t *testing.T) {
 		t.Fatalf("SectionTokens[learnings] = %d, want %d", diagnostics.SectionTokens[prompt.SectionConfirmedLearnings], prompt.EstimateTokens(shapedLearnings))
 	}
 }
+
+func TestSetLogsDir_OverridesDefaultLogsPath(t *testing.T) {
+	// Create a "main repo" gromit dir with logs containing real data
+	mainGromitDir := t.TempDir()
+	mainLogsDir := filepath.Join(mainGromitDir, "logs")
+	if err := os.MkdirAll(mainLogsDir, 0o755); err != nil {
+		t.Fatalf("creating main logs dir: %v", err)
+	}
+
+	// Write a JSONL log entry in the main repo logs
+	entry := logger.IterationLog{
+		Iteration: 1,
+		BeadID:    "bead-1",
+		Model:     "sonnet",
+		CostUSD:   0.42,
+	}
+	entryJSON, _ := json.Marshal(entry)
+	logPath := filepath.Join(mainLogsDir, "run-20260228-120000.jsonl")
+	if err := os.WriteFile(logPath, entryJSON, 0o644); err != nil {
+		t.Fatalf("writing log file: %v", err)
+	}
+
+	// Create a "worktree" gromit dir WITHOUT logs
+	worktreeGromitDir := t.TempDir()
+	// No logs/ directory created here — simulating worktree
+
+	// Create Retro pointing to the worktree gromit dir (simulating the bug)
+	mockProvider := &mockProvider{}
+	r, err := NewRetroWithProviderAndBudget(mockProvider, worktreeGromitDir, 0)
+	if err != nil {
+		t.Fatalf("creating retro: %v", err)
+	}
+
+	// Override logs dir to point to the main repo's logs
+	r.SetLogsDir(mainLogsDir)
+
+	// Verify the logsDir field is set
+	if r.logsDir != mainLogsDir {
+		t.Fatalf("expected logsDir=%q, got %q", mainLogsDir, r.logsDir)
+	}
+
+	// Verify resolveLogsDir returns the overridden path
+	resolved := r.resolveLogsDir()
+	if resolved != mainLogsDir {
+		t.Fatalf("resolveLogsDir() = %q, want %q", resolved, mainLogsDir)
+	}
+}
+
+func TestResolveLogsDir_DefaultsToGromitDirLogs(t *testing.T) {
+	gromitDir := t.TempDir()
+	mockProvider := &mockProvider{}
+	r, err := NewRetroWithProviderAndBudget(mockProvider, gromitDir, 0)
+	if err != nil {
+		t.Fatalf("creating retro: %v", err)
+	}
+
+	// Without SetLogsDir, resolveLogsDir should return gromitDir/logs
+	expected := filepath.Join(gromitDir, "logs")
+	resolved := r.resolveLogsDir()
+	if resolved != expected {
+		t.Fatalf("resolveLogsDir() = %q, want %q", resolved, expected)
+	}
+}
