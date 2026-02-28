@@ -483,3 +483,14 @@ type dummyResolverForSpec struct{}
 func (d *dummyResolverForSpec) Resolve(ctx context.Context, branch string, cause error) error {
 	return nil
 }
+
+// TestReadinessAdapterWithLLM_CreatesInstanceWithDependencies verifies the adapter can be instantiated.
+func TestReadinessAdapterWithLLM_CreatesInstanceWithDependencies(t *testing.T) {
+	t.Parallel()
+	renderer := &dummyPromptRenderer{}
+	router := &dummyRouter{}
+	assessor := NewReadinessAdapterWithLLM(renderer, router)
+	if assessor == nil {
+		t.Fatal("expected non-nil readiness adapter with LLM")
+	}
+}
