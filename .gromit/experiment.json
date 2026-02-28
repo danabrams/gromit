@@ -5,7 +5,10 @@
   "change": "For beads touching stream-event handling or provider usage paths, require matrix fixtures (turn/response/result, positive and negative attribution) before merge. Beads without matrix coverage on stream-event changes are blocked at review.",
   "measurement": "Unknown attribution rate (model='' iterations / total), telemetry-related regressions, and post-run completeness failures. Target: unknown attribution rate drops below 5% (from 9.5% baseline).",
   "risk": "Adds upfront test-writing time on stream-event beads specifically. Non-stream beads are unaffected.",
-  "status": "do",
+  "status": "act",
+  "study_summary": "Hypothesis not confirmed yet. Latest process trend shows failure rate 16.7% and build-failure rate 6.7% in the rolling window, with stratified anomalies dominated by unknown-attribution rows and degenerate control limits. Experiment-window unknown attribution remains above target and completeness remains data-quality-constrained.",
+  "act_decision": "extend",
+  "act_date": "2026-02-28",
   "started_at": "2026-02-28T00:00:00Z",
   "baseline_metrics": {
     "avg_cost_per_bead": 0.7006,

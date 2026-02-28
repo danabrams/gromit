@@ -4,6 +4,18 @@
 
 ## Archived
 
+### 2026-02-27 | select_break_only_exits_select_not_enclosing_loop | CODE_QUALITY
+*Related to: gromit/review-1772199039639467769*
+*Archived: 2026-02-28 — generic language-level behavior; not project-specific under anti-generic archival policy.*
+
+Go's bare `break` inside a `select` block only exits the select, not an enclosing for loop. Use labeled breaks or flag variables for select-in-loop drain patterns to avoid infinite loops on timeout.
+
+### 2026-02-27 | emitter_wiring_boilerplate_suggests_embeddable_mixin | ARCHITECTURE
+*Related to: gromit/review-1772199039639467769*
+*Archived: 2026-02-28 — speculative refactor idea without repeated cross-bead evidence.*
+
+The WithEmitter/SetEmitter dual-method pattern (builder return vs void setter) appears across Gate, Build, Epilogue, and Review stages — this is a candidate for an embeddable mixin to reduce boilerplate and ensure consistent emitter wiring.
+
 ### 2026-02-26 | profile_defaults_are_cross_cutting | ARCHITECTURE
 *Related to: gromit/review-1772071010321620531*
 *Archived: 2026-02-27 — promoted to rule.*
@@ -93,6 +105,12 @@ Repository boundary governance should be enforced as one policy: local+CI guards
 *Archived: 2026-02-27 — implementation-specific refactor guidance; not a durable cross-bead rule.*
 
 Consolidating duplicate JSON-encoding helpers (marshalJSONList, encodeJSONStrings) into a single canonical function (tracker.EncodeMetadataJSONList) eliminates behavioral drift between callers and simplifies metadata encoding across packages.
+
+### 2026-02-27 | observability_contract_completeness | ARCHITECTURE
+*Related to: gromit/review-1771929519774405451, gromit/review-1771938913730053167, gromit/review-1771893007120033611, gromit/review-1772059511071909600, gromit/review-1772155497602965256*
+*Promoted to Architecture rule: repeated unknown-attribution failures block efficiency analysis and experiment decisions; systemic reliability issue.*
+
+Observability completeness is one contract: runtime attribution, iteration-row persistence, and IterationLog/IterationMetric field parity must fail closed together, with per-field diagnostics for missing row/attribution/numeric values.
 
 ## Promoted to Rules
 

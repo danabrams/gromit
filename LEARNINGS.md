@@ -2,11 +2,11 @@
 
 ## Confirmed Learnings
 
-### 2026-02-27 | large_module_decomposition_preserves_package_boundaries | ARCHITECTURE
-*Related to: gromit/review-1772054097495408438, gromit/review-1772062103155608386*
-*Consolidated from: thorough_review_logic_belongs_in_dedicated_package + process_trend_split_should_keep_same_package_boundaries*
+### 2026-02-28 | execution_boundary_ownership_contract | ARCHITECTURE
+*Related to: gromit/review-1772054097495408438, gromit/review-1772062103155608386, gromit-9948, gromit-9949, gromit-y7flm, gromit-z9z2k, gromit/review-1771861273153074810, gromit/review-1771878486437709843, gromit/review-1772059511071909600*
+*Consolidated from: large_module_decomposition_preserves_package_boundaries + worktree_mergeback_conflict_ownership_and_classification + review_state_should_prefer_local_json_with_repo_scoped_tag_fallback*
 
-Large runner modules should be decomposed by responsibility into dedicated packages/files while preserving package boundaries and API surfaces to reduce coupling and file-size risk.
+Execution-boundary ownership is one architecture contract: decompose by responsibility while preserving package boundaries, keep single mergeback cleanup ownership with typed conflict handling, and use workspace-local state as source of truth with repo-scoped fallback only.
 
 ### 2026-02-25 | provider_fixture_governance_schema_first_deterministic | TEST_QUALITY
 *Related to: gromit/review-1771886115282672489, gromit/review-1771908518510170783, gromit/review-1771929160626448252, gromit/review-1771897964548429202*
@@ -14,27 +14,10 @@ Large runner modules should be decomposed by responsibility into dedicated packa
 
 Provider fixture governance should be schema-first and deterministic: canonical real-probe fixtures with provenance metadata, explicit required artifacts, and structured assertions (never prose-token checks).
 
-### 2026-02-24 | worktree_mergeback_conflict_ownership_and_classification | ARCHITECTURE
-*Related to: gromit-9948, gromit-9949, gromit-y7flm, gromit-z9z2k, gromit/review-1771861273153074810, gromit/review-1771878486437709843*
-*Consolidated from: session_worktree_conflict_classification_and_cleanup_ownership + mergeback_requires_typed_failure_decision_and_defensive_abort*
-
-Session worktree + MergeBack must use one cleanup owner and typed conflict/failure classification based on git output and exit status, with defensive abort only for merge state created in the current operation. Classification combines git output signals and exit codes so true merge conflicts route to conflict handoff while non-conflict git failures follow cleanup + explicit error handling. Prefer explicit conflict probes over message-fragment matching for contention retry.
-
-### 2026-02-27 | observability_contract_completeness | ARCHITECTURE
-*Related to: gromit/review-1771929519774405451, gromit/review-1771938913730053167, gromit/review-1771893007120033611, gromit/review-1772059511071909600, gromit/review-1772155497602965256*
-*Consolidated from: observability_parity_telemetry_contract + schema_parity_contract_tests_catch_field_mapping_drift*
-
-Observability completeness is one contract: runtime attribution, iteration-row persistence, and IterationLog/IterationMetric field parity must fail closed together, with per-field diagnostics for missing row/attribution/numeric values.
-
 ### 2026-02-24 | cohort_validation_must_reject_nil_lookup_payloads_before_field_access | RELIABILITY
 *Related to: gromit/review-1771938913730053167*
 
 Cohort validation paths that call external lookups must treat a nil object as invalid input and return a typed error before dereferencing fields, preventing panic-class failures from malformed integration responses.
-
-### 2026-02-25 | review_state_should_prefer_local_json_with_repo_scoped_tag_fallback | ARCHITECTURE
-*Related to: gromit/review-1772059511071909600*
-
-When tracking last-review commit, prefer workspace-local interactive state as the authoritative value and use git tags only as repo-scoped fallback history markers to avoid stale cross-worktree state bleed.
 
 ## Provisional Learnings
 
@@ -42,16 +25,6 @@ When tracking last-review commit, prefer workspace-local interactive state as th
 *Related to: gromit/review-1772199039639467769*
 
 When migrating from direct io.Writer logging to event-emitter-based logging, always preserve a fallback write path for diagnostics emitted before subscribers are started or during error paths where the emitter may not be wired — silent log loss masks operational failures.
-
-### 2026-02-27 | select_break_only_exits_select_not_enclosing_loop | CODE_QUALITY
-*Related to: gromit/review-1772199039639467769*
-
-Go's bare `break` inside a `select` block only exits the select, not an enclosing for loop. Use labeled breaks or flag variables for select-in-loop drain patterns to avoid infinite loops on timeout.
-
-### 2026-02-27 | emitter_wiring_boilerplate_suggests_embeddable_mixin | ARCHITECTURE
-*Related to: gromit/review-1772199039639467769*
-
-The WithEmitter/SetEmitter dual-method pattern (builder return vs void setter) appears across Gate, Build, Epilogue, and Review stages — this is a candidate for an embeddable mixin to reduce boilerplate and ensure consistent emitter wiring.
 
 ## Archived Learnings
 *Moved to LEARNINGS_ARCHIVE.md to reduce prompt context overhead.*

@@ -37,7 +37,7 @@ Ephemeral `.-gromit-*` worktree paths must stay untracked in version control. Re
 **Enforcement:** Local pre-commit hooks and CI entry targets; audit gitlink entries in hook output.
 
 ### Bead failure decomposition must be enforced by preflight
-On bead failure: for broad/high-risk scope (cross-package, regression umbrella titles, or 6+ files), decompose after the first failure; otherwise decompose after 2 consecutive failures. Preflight must verify decomposition children exist and parent is blocked before any retry is allowed. Missing child-bead links is a hard error (not warning), with idempotent child creation and explicit `discovered-from` linkage required. Telemetry/usage children split: (1) event-merge, (2) completeness, (3) attribution. Block parent retries until a child lands.
+On bead failure: for broad/high-risk scope (cross-package, regression umbrella titles, or 6+ files), decompose after the first failure; otherwise decompose after 2 consecutive failures. If failure signature is invocation/pre-launch (duration_ms=0 and attribution unresolved), forbid same-scope retry and require immediate diagnostic decomposition. Preflight must verify decomposition children exist and parent is blocked before any retry is allowed. Missing child-bead links is a hard error (not warning), with idempotent child creation and explicit `discovered-from` linkage required. Telemetry/usage children split: (1) event-merge, (2) completeness, (3) attribution. Block parent retries until a child lands.
 
 **Enforcement:** Preflight gate on bead retry; auditable decomposition-attempt event; broad-scope detection at first failure; block parent retries until child lands.
 
@@ -52,9 +52,9 @@ Apply timeout-first decomposition at >=60% elapsed budget when complexity signal
 **Enforcement:** Orchestrator/runner validates elapsed budget and complexity signals before allowing same-scope retry; telemetry gates on escalation recording.
 
 ### Usage accounting must use explicit snapshots and one canonical merge strategy
-Usage accounting must use explicit before/after snapshots for every phase and one canonical merge strategy for provider stream events. Treat any non-empty run with `model=unknown` or `provider=unknown` attribution as a data-quality failure: mark the run as data-quality-failed, auto-create/link a blocking bead, and block keep/revert experiment decisions until one complete current-run dataset with known attribution is recorded. Fail the iteration when usage exists but model/provider attribution is unknown. Output must remain fail-closed (`insufficient_current_run_data`, deltas `N/A`).
+Usage accounting must use explicit before/after snapshots for every phase and one canonical merge strategy for provider stream events. Pre-launch/invocation failures must still emit non-empty attribution (or explicit sentinel attribution) and a typed failure reason; blank model/provider fields are forbidden on any iteration outcome. Treat any non-empty run with `model=unknown` or `provider=unknown` attribution as a data-quality failure: mark the run as data-quality-failed, auto-create/link a blocking bead, and block keep/revert experiment decisions until one complete current-run dataset with known attribution is recorded. Fail the iteration when usage exists but model/provider attribution is unknown. Output must remain fail-closed (`insufficient_current_run_data`, deltas `N/A`).
 
-**Enforcement:** Runtime telemetry validator; experiment decision gate; unknown-attribution detector in post-run validation; iteration-level attribution guard; experiment.json schema validator on keep/revert/extend.
+**Enforcement:** Runtime telemetry validator; experiment decision gate; unknown-attribution detector in post-run validation; iteration-level attribution guard; experiment.json schema validator on keep/revert/extend; pre-launch attribution contract tests.
 
 ## Reliability
 

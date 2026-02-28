@@ -52,7 +52,7 @@ These are non-negotiable constraints for this project.
 
 ## Architecture <!-- phases: red, build, green, refactor, review -->
 
-- Observability fields (cost/tokens/duration/model/provider/current_run_row attribution) must be produced through the same runtime execution path used in production; any alternate/test path must have parity contract tests proving identical field population semantics and non-empty current-run row generation
+- Observability fields (cost/tokens/duration/model/provider/current_run_row attribution) must be produced through the same runtime execution path used in production. Pre-launch/invocation failures must still emit non-empty attribution (or explicit sentinel attribution) and a typed failure reason. Any alternate/test path must have parity contract tests proving identical field population semantics and non-empty current-run row generation
 - Any bead touching provider stream usage/event handling must add a stream-event matrix contract test (turn/response/result paths) that covers both positive attribution (known model/provider) and negative completeness cases (missing current-run rows fail closed)
 - `internal/runner/*/` sub-packages must not import siblings **in production or test files**; cross-cutting types live in `runtypes/`. Parent `runner` package uses type aliases for backward compatibility. Production files: <550 lines; facade files: <1000 lines
 - Compatibility/deprecation markers are incomplete unless surfaced in user-visible status/debug output and covered by end-to-end behavior tests
@@ -62,7 +62,7 @@ These are non-negotiable constraints for this project.
 
 ## Process <!-- phases: build, retro -->
 
-- Post-run efficiency validation must fail closed on missing current-run rows or missing efficiency fields and include per-field diagnostics (missing row vs missing attribution vs missing numeric fields); keep/revert/extend experiment decisions are blocked until at least one complete current-run dataset with non-empty model/provider attribution is recorded and baseline metrics are non-null/non-zero where required
+- Post-run efficiency validation must fail closed on missing current-run rows or missing efficiency fields and include per-field diagnostics (missing row vs missing attribution vs missing numeric fields). Experiment Study/Act decisions are blocked unless a complete current-run dataset includes at least 10 post-change iterations with non-empty model/provider attribution and non-null/non-zero required baseline metrics
 - Retro/experiment Study-Act steps are blocked unless at least one current-run row has non-empty model/provider attribution and non-zero efficiency fields; otherwise emit a data-quality-blocked status
 - RecordRetro() must clear one-shot control-limit alert flags in state so previously acknowledged alerts do not persist across subsequent healthy runs
 
@@ -72,7 +72,7 @@ These are non-negotiable constraints for this project.
 - Config defaults live in `SetDefaults()`; mirror new `IterationResult` fields into `IterationLog` via `writeIterationLog()`, and add schema-parity contract tests that compare run logs, iteration metrics, and trend inputs so new observability fields cannot be dropped
 - Shared-package refactors rerun test suites after commits and verify each diff matches intent
 - Test-only bead detection: use `bead.IsTestOnlyBead()` (e.g., "Add tests for") alongside `IsMethodologyActive()`
-- On bead failure: add to `skippedBeads`. For broad/high-risk scope (cross-package, umbrella titles, or >=6 touched files), decompose after the first failure; otherwise decompose after 2 consecutive failures. Create/link decomposition sub-beads with expected_outputs and bounded scope. Block parent retries until at least one child lands and is linked; no retries on partial/non-idempotent decomposition; emit decomposition-attempt event; fail if skipped; skip escalation after 3+.
+- On bead failure: add to `skippedBeads`. For broad/high-risk scope (cross-package, umbrella titles, or >=6 touched files), decompose after the first failure; otherwise decompose after 2 consecutive failures. If failure signature is invocation/pre-launch (duration_ms=0 and attribution unresolved), forbid same-scope retry and require immediate diagnostic decomposition. Create/link decomposition sub-beads with expected_outputs and bounded scope. Block parent retries until at least one child lands and is linked; no retries on partial/non-idempotent decomposition; emit decomposition-attempt event; fail if skipped; skip escalation after 3+.
 - On timeout, if elapsed time exceeds 75% of budget apply timeout-first decomposition and forbid same-scope retries until decomposition or explicit escalation.
 - `Run()` order: validate → execute → persist state → between-iteration hooks → continue. No reordering; log timeout warnings (no early return); nil-safe receiver/config checks at method entry. Persist iteration metrics (including current-run row identity and attribution fields) before any timeout/failure return, and fail validation when comparative metrics would otherwise zero-fill
 - New config types/fields: update `gromit.yaml` to match — project-config tests validate the live file against the schema
