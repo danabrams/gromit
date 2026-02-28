@@ -3091,6 +3091,92 @@ func TestDecomposeResult_HasProposedBeadsField(t *testing.T) {
 	}
 }
 
+func TestDecomposeNormalMode_DoesNotPopulateProposedBeads(t *testing.T) {
+	tmpDir := t.TempDir()
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	planPath := filepath.Join(plansDir, "normal-test.md")
+	planContent := `---
+spec: normal-test
+created: 2026-02-11
+---
+
+# Normal Test Plan
+
+### Task 1: First task
+This is the first task
+`
+	if err := os.WriteFile(planPath, []byte(planContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	mockClaude := &decomposeAcceptanceLLMClient{
+		runFunc: func(prompt string, model string) (*LLMRunResult, error) {
+			jsonOutput := `[
+				{
+					"title": "Created bead 1",
+					"description": "First bead created",
+					"priority": "P1",
+					"acceptance_criteria": ["criteria 1", "criteria 2"],
+					"expected_outputs": ["output 1", "output 2"],
+					"estimated_files": 3,
+					"covers_tasks": [1],
+					"depends_on_index": []
+				},
+				{
+					"title": "Created bead 2",
+					"description": "Second bead created",
+					"priority": "P2",
+					"acceptance_criteria": ["criteria 3"],
+					"expected_outputs": ["output 3"],
+					"estimated_files": 2,
+					"covers_tasks": [1],
+					"depends_on_index": [0]
+				}
+			]`
+			return &LLMRunResult{
+				Success:  true,
+				ExitCode: 0,
+				Output:   jsonOutput,
+			}, nil
+		},
+	}
+
+	var createdBeads []*BeadInfo
+	mockBead := &decomposeAcceptanceBeadClient{
+		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+			bead := &BeadInfo{
+				ID:       fmt.Sprintf("bead-%d", len(createdBeads)+1),
+				Title:    title,
+				Priority: priority,
+				Labels:   labels,
+			}
+			createdBeads = append(createdBeads, bead)
+			return bead, nil
+		},
+	}
+
+	p := New(&Deps{LLMClient: mockClaude, TrackerClient: mockBead}, &Paths{PlansDir: plansDir})
+	result, err := p.Decompose(context.Background(), DecomposeInput{
+		PlanName: "normal-test",
+		Review:   false,
+	})
+	if err != nil {
+		t.Fatalf("Decompose() failed: %v", err)
+	}
+
+	// ProposedBeads should be empty in normal mode
+	if result.ProposedBeads == nil {
+		t.Fatal("ProposedBeads = nil, want empty slice")
+	}
+	if len(result.ProposedBeads) != 0 {
+		t.Fatalf("ProposedBeads length = %d, want 0 in normal mode", len(result.ProposedBeads))
+	}
+}
+
 func TestDecomposeReviewMode_PopulatesProposedBeads(t *testing.T) {
 	tmpDir := t.TempDir()
 	plansDir := filepath.Join(tmpDir, "plans")
