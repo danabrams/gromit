@@ -335,3 +335,39 @@ func TestModel_FocusConversationKeySwitchesToConversationView(t *testing.T) {
 		t.Errorf("expected view to be Conversation after '3' key, got %v", m.currentView)
 	}
 }
+
+func TestModel_ForwardsKeysToConversationControllerWhenInConversationView(t *testing.T) {
+	timeline := []conversation.FakeStep{
+		{Event: conversation.Event{Type: conversation.EventTypeStream, Text: "response"}},
+		{Event: conversation.Event{Type: conversation.EventTypeDone}},
+	}
+	session := conversation.NewFakeSession(timeline)
+	controller := NewConversationController(session)
+
+	cmd := controller.Init()
+	for cmd != nil {
+		msg := cmd()
+		model, next := controller.Update(msg)
+		var ok bool
+		controller, ok = model.(*ConversationController)
+		if !ok {
+			t.Fatalf("expected ConversationController, got %T", model)
+		}
+		cmd = next
+	}
+
+	store := &Store{}
+	m := NewModel(store)
+	m.SetConversationController(controller)
+	m.SwitchView(ViewConversation)
+
+	// Send a key to the model while in conversation view
+	keyMsg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}}
+	model, _ := m.Update(keyMsg)
+	m = model.(*Model)
+
+	// The conversation should now be marked as cancelled
+	if !m.conversation.cancelled {
+		t.Error("expected conversation to be cancelled after 'c' key")
+	}
+}
