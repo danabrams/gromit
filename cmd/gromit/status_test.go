@@ -333,3 +333,47 @@ func TestStatusCmd_RegressionAssertion_ModelPerformanceAlwaysVisible(t *testing.
 		t.Fatalf("expected Model Performance section in status output, got:\n%s", output)
 	}
 }
+
+func TestStatusCmd_RegressionAssertion_TUISectionsUnchanged(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("failed to create gromit dir: %v", err)
+	}
+
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	configContent := `paths:
+  gromit_dir: .gromit
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	status := runner.Status{
+		Running:   false,
+		Iteration: 7,
+		BeadID:    "gromit-xyz",
+		BeadTitle: "Ensure regression test",
+		Model:     "sonnet",
+		StartedAt: time.Now().Add(-20 * time.Minute),
+		ElapsedS:  1200,
+	}
+	statusData, err := json.Marshal(status)
+	if err != nil {
+		t.Fatalf("failed to marshal status: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gromitDir, "status.json"), statusData, 0644); err != nil {
+		t.Fatalf("failed to write status.json: %v", err)
+	}
+
+	t.Chdir(tmpDir)
+
+	output := captureStdout(t, func() {
+		rootCmd.SetArgs([]string{"status"})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("status command failed: %v", err)
+		}
+	})
+
+	assertStatusTUISections(t, output)
+}
