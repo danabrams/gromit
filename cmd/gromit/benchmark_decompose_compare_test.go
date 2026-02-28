@@ -333,3 +333,17 @@ func TestBenchmarkDecomposeCompare_FailsWithInvalidSpecOverrides(t *testing.T) {
 		t.Fatalf("stderr = %q, want spec override error", stderr)
 	}
 }
+
+func TestBenchmarkDecomposeCompare_FailsWithInvalidThreshold(t *testing.T) {
+	_, stderr, exitCode := runGromitCobra(t,
+		"benchmark", "decompose-compare",
+		"--manifest", "testdata/fixtures/benchmark/decompose.yaml",
+		"--threshold", "-0.1",
+	)
+	if exitCode == 0 {
+		t.Fatalf("exitCode = %d, want non-zero", exitCode)
+	}
+	if !strings.Contains(stderr, "--threshold must be between 0 and 1") {
+		t.Fatalf("stderr = %q, want threshold error", stderr)
+	}
+}
