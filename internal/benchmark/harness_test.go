@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestMain(m *testing.M) {
@@ -645,4 +646,32 @@ func (r *cleanupOnFailureModeRunner) RunMode(_ context.Context, req ModeWorktree
 			return nil
 		},
 	}, nil
+}
+
+// TestEnsureSelectedBeadsOpen_WaitForProcessCapacity verifies that ensureSelectedBeadsOpen
+// calls WaitForProcessCapacity before forking the bd subprocess.
+func TestEnsureSelectedBeadsOpen_WaitForProcessCapacity(t *testing.T) {
+	// Track if waitForProcessCapacityFn was called
+	var called bool
+	oldFn := waitForProcessCapacityFn
+	t.Cleanup(func() { waitForProcessCapacityFn = oldFn })
+	waitForProcessCapacityFn = func(ctx context.Context, maxWait time.Duration) error {
+		called = true
+		return nil
+	}
+
+	// Mock the bd command to do nothing
+	oldEnsureOpen := ensureBenchmarkBeadsOpenFn
+	t.Cleanup(func() { ensureBenchmarkBeadsOpenFn = oldEnsureOpen })
+	ensureBenchmarkBeadsOpenFn = func(ctx context.Context, beadIDs []string) error {
+		// Just verify it was called
+		return nil
+	}
+
+	// Just verify the function can be called; the actual bd execution is mocked
+	_ = ensureSelectedBeadsOpen(context.Background(), []string{"gromit-1"})
+
+	if !called {
+		t.Error("WaitForProcessCapacity was not called in ensureSelectedBeadsOpen")
+	}
 }
