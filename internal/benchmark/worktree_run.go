@@ -1,6 +1,7 @@
 package benchmark
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -14,9 +15,14 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/procutil"
 	"github.com/danabrams/gromit/internal/runner"
 	"github.com/danabrams/gromit/internal/worktree"
 )
+
+var gitRunnerWaitForProcessCapacityFn = procutil.WaitForProcessCapacity
+var checkoutWaitForProcessCapacityFn = procutil.WaitForProcessCapacity
+var removeWaitForProcessCapacityFn = procutil.WaitForProcessCapacity
 
 type BaseCommitResolver interface {
 	ResolveBaseCommit(ctx context.Context, baseCommitHint string) (string, error)
@@ -55,10 +61,26 @@ func (r *GitBaseCommitResolver) ResolveBaseCommit(ctx context.Context, baseCommi
 	return commit, nil
 }
 
-func defaultGitRunner(_ context.Context, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
-	out, err := cmd.CombinedOutput()
-	return string(out), err
+func defaultGitRunner(ctx context.Context, args ...string) (string, error) {
+	if err := gitRunnerWaitForProcessCapacityFn(ctx, defaultProcessCapacityWaitTime); err != nil {
+		return "", fmt.Errorf("waiting for process capacity: %w", err)
+	}
+
+	cmd := exec.CommandContext(ctx, "git", args...)
+	procutil.SetProcessGroupKill(cmd)
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Start(); err != nil {
+		return "", err
+	}
+	procutil.KillDescendantsOnCancel(ctx, cmd)
+	defer procutil.ReapProcessTree(cmd)
+
+	err := cmd.Wait()
+	return stdout.String() + stderr.String(), err
 }
 
 type ModeWorktreeRequest struct {
@@ -201,10 +223,26 @@ func (r *SessionModeWorktreeRunner) defaultRunModeInWorktree(ctx context.Context
 }
 
 func defaultCheckoutBaseCommitInWorktree(ctx context.Context, worktreeDir, baseCommit string) error {
+	if err := checkoutWaitForProcessCapacityFn(ctx, defaultProcessCapacityWaitTime); err != nil {
+		return fmt.Errorf("waiting for process capacity: %w", err)
+	}
+
 	cmd := exec.CommandContext(ctx, "git", "checkout", "--detach", baseCommit)
 	cmd.Dir = worktreeDir
-	if output, err := cmd.CombinedOutput(); err != nil {
-		msg := stdstrings.TrimSpace(string(output))
+	procutil.SetProcessGroupKill(cmd)
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	procutil.KillDescendantsOnCancel(ctx, cmd)
+	defer procutil.ReapProcessTree(cmd)
+
+	if err := cmd.Wait(); err != nil {
+		msg := stdstrings.TrimSpace(stdout.String() + stderr.String())
 		if msg == "" {
 			return fmt.Errorf("checkout base commit %q in %q: %w", baseCommit, worktreeDir, err)
 		}
@@ -250,10 +288,27 @@ func defaultSessionCleanup(mainDir, sessionDir string) error {
 }
 
 func removeSessionWorktree(mainDir, sessionDir string) error {
-	cmd := exec.Command("git", "worktree", "remove", "--force", sessionDir)
+	ctx := context.Background()
+	if err := removeWaitForProcessCapacityFn(ctx, defaultProcessCapacityWaitTime); err != nil {
+		return fmt.Errorf("waiting for process capacity: %w", err)
+	}
+
+	cmd := exec.CommandContext(ctx, "git", "worktree", "remove", "--force", sessionDir)
 	cmd.Dir = mainDir
-	if output, err := cmd.CombinedOutput(); err != nil {
-		msg := stdstrings.TrimSpace(string(output))
+	procutil.SetProcessGroupKill(cmd)
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	procutil.KillDescendantsOnCancel(ctx, cmd)
+	defer procutil.ReapProcessTree(cmd)
+
+	if err := cmd.Wait(); err != nil {
+		msg := stdstrings.TrimSpace(stdout.String() + stderr.String())
 		if msg == "" {
 			return fmt.Errorf("remove session worktree %q: %w", sessionDir, err)
 		}

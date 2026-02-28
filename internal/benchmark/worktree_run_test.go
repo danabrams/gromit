@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	stdstrings "strings"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/worktree"
@@ -500,5 +501,62 @@ func TestApplyBenchmarkOverlay_ManifestModelsReachProviderConstructor(t *testing
 	// Verify the existing provider fields survived the overlay.
 	if def.Binary != "codex" {
 		t.Fatalf("provider binary = %q, want %q", def.Binary, "codex")
+	}
+}
+
+// TestDefaultGitRunner_WaitForProcessCapacity verifies that defaultGitRunner
+// calls WaitForProcessCapacity before forking the git subprocess.
+func TestDefaultGitRunner_WaitForProcessCapacity(t *testing.T) {
+	// Track if gitRunnerWaitForProcessCapacityFn was called
+	var called bool
+	oldFn := gitRunnerWaitForProcessCapacityFn
+	t.Cleanup(func() { gitRunnerWaitForProcessCapacityFn = oldFn })
+	gitRunnerWaitForProcessCapacityFn = func(ctx context.Context, maxWait time.Duration) error {
+		called = true
+		return nil
+	}
+
+	_, _ = defaultGitRunner(context.Background(), "rev-parse", "HEAD")
+
+	if !called {
+		t.Error("WaitForProcessCapacity was not called in defaultGitRunner")
+	}
+}
+
+// TestDefaultCheckoutBaseCommitInWorktree_WaitForProcessCapacity verifies that defaultCheckoutBaseCommitInWorktree
+// calls WaitForProcessCapacity before forking the git subprocess.
+func TestDefaultCheckoutBaseCommitInWorktree_WaitForProcessCapacity(t *testing.T) {
+	// Track if checkoutWaitForProcessCapacityFn was called
+	var called bool
+	oldFn := checkoutWaitForProcessCapacityFn
+	t.Cleanup(func() { checkoutWaitForProcessCapacityFn = oldFn })
+	checkoutWaitForProcessCapacityFn = func(ctx context.Context, maxWait time.Duration) error {
+		called = true
+		return nil
+	}
+
+	_ = defaultCheckoutBaseCommitInWorktree(context.Background(), ".", "HEAD")
+
+	if !called {
+		t.Error("WaitForProcessCapacity was not called in defaultCheckoutBaseCommitInWorktree")
+	}
+}
+
+// TestRemoveSessionWorktree_WaitForProcessCapacity verifies that removeSessionWorktree
+// calls WaitForProcessCapacity before forking the git subprocess.
+func TestRemoveSessionWorktree_WaitForProcessCapacity(t *testing.T) {
+	// Track if removeWaitForProcessCapacityFn was called
+	var called bool
+	oldFn := removeWaitForProcessCapacityFn
+	t.Cleanup(func() { removeWaitForProcessCapacityFn = oldFn })
+	removeWaitForProcessCapacityFn = func(ctx context.Context, maxWait time.Duration) error {
+		called = true
+		return nil
+	}
+
+	_ = removeSessionWorktree(".", "nonexistent_worktree")
+
+	if !called {
+		t.Error("WaitForProcessCapacity was not called in removeSessionWorktree")
 	}
 }
