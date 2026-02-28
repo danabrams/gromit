@@ -10,3 +10,10 @@ func TestCanTransition_DraftToReady_Allowed(t *testing.T) {
 		t.Errorf("expected draft->ready to be allowed, got false")
 	}
 }
+
+func TestCanTransition_ReadyToIntegrating_Allowed(t *testing.T) {
+	result := CanTransition("ready", "integrating")
+	if !result {
+		t.Errorf("expected ready->integrating to be allowed, got false")
+	}
+}
