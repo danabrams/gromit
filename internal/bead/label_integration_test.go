@@ -95,7 +95,7 @@ func TestListWithLabel_IntegrationCallsBdWithLabelFlag(t *testing.T) {
 	}
 
 	// Call ListWithLabel - this should invoke bd list with --label flag
-	beads, err := c.ListWithLabel(testLabel)
+	beads, err := c.ListWithLabel(context.Background(), testLabel)
 	if err != nil {
 		t.Fatalf("ListWithLabel() error = %v", err)
 	}
@@ -134,7 +134,7 @@ func TestListWithLabel_IntegrationExcludesBeadsWithoutLabel(t *testing.T) {
 	}
 
 	// Request beads with labelA only
-	beads, err := c.ListWithLabel(labelA)
+	beads, err := c.ListWithLabel(context.Background(), labelA)
 	if err != nil {
 		t.Fatalf("ListWithLabel() error = %v", err)
 	}
@@ -179,7 +179,7 @@ func TestListWithLabel_IntegrationReturnsEmptySliceWhenNoMatch(t *testing.T) {
 
 	// Request a label that doesn't exist
 	nonExistentLabel := "spec:does-not-exist-abc"
-	beads, err := c.ListWithLabel(nonExistentLabel)
+	beads, err := c.ListWithLabel(context.Background(), nonExistentLabel)
 	if err != nil {
 		t.Fatalf("ListWithLabel() error = %v", err)
 	}
@@ -281,7 +281,7 @@ func TestListWithLabel_IntegrationCallsCorrectCommand(t *testing.T) {
 	}
 
 	// Now call ListWithLabel and verify it doesn't fail with unknown flag error
-	_, err = c.ListWithLabel(testLabel)
+	_, err = c.ListWithLabel(context.Background(), testLabel)
 	if err != nil {
 		if strings.Contains(err.Error(), "unknown flag") || strings.Contains(err.Error(), "flag provided but not defined") {
 			t.Errorf("ListWithLabel() appears to be calling bd with incorrect flags: %v", err)
@@ -365,7 +365,7 @@ func TestListWithLabel_IntegrationReturnsMultipleBeadsInOrder(t *testing.T) {
 	}
 
 	// List beads with the label
-	beads, err := c.ListWithLabel(testLabel)
+	beads, err := c.ListWithLabel(context.Background(), testLabel)
 	if err != nil {
 		t.Fatalf("ListWithLabel() error = %v", err)
 	}
@@ -403,7 +403,7 @@ func TestListWithLabel_IntegrationExcludesEpics(t *testing.T) {
 	}
 
 	// List beads with the label
-	beads, err := c.ListWithLabel(testLabel)
+	beads, err := c.ListWithLabel(context.Background(), testLabel)
 	if err != nil {
 		t.Fatalf("ListWithLabel() error = %v", err)
 	}
@@ -560,7 +560,7 @@ func TestListWithLabel_CommandContract(t *testing.T) {
 	}
 
 	// Now call ListWithLabel and verify it produces compatible results
-	beads, clientErr := c.ListWithLabel(testLabel)
+	beads, clientErr := c.ListWithLabel(context.Background(), testLabel)
 
 	// Both should succeed or both should fail
 	if (err == nil) != (clientErr == nil) {
