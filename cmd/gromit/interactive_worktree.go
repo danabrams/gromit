@@ -172,6 +172,11 @@ func runWithSessionWorktreeWithConflictSettings(
 		return nil, fmt.Errorf("creating session worktree: %w", err)
 	}
 
+	// Create a draft queue entry for the session at startup
+	if err := enqueueDraftBranch(gromitDir, command, session); err != nil {
+		return nil, fmt.Errorf("creating draft queue entry: %w", err)
+	}
+
 	if err := callback(session.WorktreeDir); err != nil {
 		return nil, fmt.Errorf("running session callback: %w", err)
 	}
@@ -365,6 +370,31 @@ func describeSessionCommit(sessionDir string) (*sessionCommitMetadata, error) {
 		changedFiles:     files,
 		changedFilesHash: computeChangedFilesHash(files),
 	}, nil
+}
+
+func enqueueDraftBranch(gromitDir, command string, session *worktree.SessionWorktree) error {
+	store, err := interactiveWorktreeNewQueueStoreFn(gromitDir)
+	if err != nil {
+		return fmt.Errorf("creating integration queue store: %w", err)
+	}
+
+	// Get current HEAD as the base reference for the draft entry
+	baseRef, err := runGitTrim(session.WorktreeDir, "rev-parse", "HEAD")
+	if err != nil {
+		// If we can't get HEAD yet (new worktree), use empty string and let validation handle it
+		baseRef = ""
+	}
+
+	entry := integrationqueue.Entry{
+		Branch:        session.BranchName,
+		SessionID:     session.BranchName,
+		OriginCommand: command,
+		State:         integrationqueue.StateDraft,
+		Lane:          sessionQueueLane,
+		BaseRef:       baseRef,
+		HeadSHA:       baseRef, // Same as base for draft; will be updated to actual HEAD after commit
+	}
+	return store.Save(entry)
 }
 
 func enqueueReadyBranch(gromitDir, command string, session *worktree.SessionWorktree, meta *sessionCommitMetadata) error {
