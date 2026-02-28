@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"io"
+	"sync"
 	"testing"
 	"time"
 )
@@ -732,9 +733,13 @@ type mockStateFile struct {
 	incrementCalled         bool
 	lastIncrementedProvider string
 	isAvailableCalled       bool
+	mu                      sync.Mutex
 }
 
 func (m *mockStateFile) IncrementProviderCount(provider string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.incrementCalled = true
 	m.lastIncrementedProvider = provider
 	if m.providerCounts == nil {
@@ -744,6 +749,9 @@ func (m *mockStateFile) IncrementProviderCount(provider string) {
 }
 
 func (m *mockStateFile) GetProviderCounts() map[string]int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if m.providerCounts == nil {
 		return make(map[string]int)
 	}
@@ -755,6 +763,9 @@ func (m *mockStateFile) GetProviderCounts() map[string]int {
 }
 
 func (m *mockStateFile) IsProviderAvailable(provider string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.isAvailableCalled = true
 	if m.unavailableProviders == nil {
 		return true
@@ -763,6 +774,9 @@ func (m *mockStateFile) IsProviderAvailable(provider string) bool {
 }
 
 func (m *mockStateFile) SetProviderUnavailable(provider string, until time.Time) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if m.unavailableProviders == nil {
 		m.unavailableProviders = make(map[string]bool)
 	}
