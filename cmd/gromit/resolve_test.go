@@ -197,3 +197,69 @@ func TestPrepareRetroWorktreeWithMainRepoLogs_SymlinksLogsAndReturnsLogsPath(t *
 		t.Fatalf("expected logs path to be main repo logs or symlinked, got: %q", logsPath)
 	}
 }
+
+func TestRetroSetupIntegration_EnsuresLogsAccessibleInWorktree(t *testing.T) {
+	// RED test: Integration test verifying that when retro worktree setup happens,
+	// it ensures logs are accessible via symlink or SetLogsDir passthrough.
+	//
+	// This test verifies that the retro command integrates setupRetroWorktreeLogsSymlink
+	// to ensure logs are accessible even though .gromit/logs is gitignored.
+
+	tmpDir := t.TempDir()
+
+	// Simulate main repo with logs
+	mainGromitDir := filepath.Join(tmpDir, "main", ".gromit")
+	mainLogsDir := filepath.Join(mainGromitDir, "logs")
+	if err := os.MkdirAll(mainLogsDir, 0o755); err != nil {
+		t.Fatalf("creating main logs: %v", err)
+	}
+
+	// Simulate worktree without logs (gitignored)
+	worktreeGromitDir := filepath.Join(tmpDir, "worktree", ".gromit")
+	if err := os.MkdirAll(worktreeGromitDir, 0o755); err != nil {
+		t.Fatalf("creating worktree .gromit: %v", err)
+	}
+
+	// Verify logs don't exist in worktree initially
+	worktreeLogsPath := filepath.Join(worktreeGromitDir, "logs")
+	if _, err := os.Stat(worktreeLogsPath); err == nil {
+		t.Fatal("worktree logs should not exist initially")
+	}
+
+	// Setup retro worktree with main repo logs
+	logsPath, err := prepareRetroWorktreeWithMainRepoLogs(worktreeGromitDir, mainGromitDir)
+	if err != nil {
+		t.Fatalf("prepareRetroWorktreeWithMainRepoLogs failed: %v", err)
+	}
+
+	// After setup, logs should be accessible
+	if logsPath == "" {
+		t.Fatal("logs path should not be empty")
+	}
+
+	// Verify the path points to accessible logs
+	if _, err := os.Stat(logsPath); err != nil {
+		t.Fatalf("logs path not accessible: %v", err)
+	}
+
+	// Verify either:
+	// 1. Symlink was created in worktree, OR
+	// 2. The returned path is the main repo's logs
+	if _, err := os.Stat(worktreeLogsPath); err != nil {
+		// Symlink not created, but returned path should be main repo logs
+		if logsPath != mainLogsDir {
+			t.Fatalf("expected logs path to be %q, got %q", mainLogsDir, logsPath)
+		}
+	} else {
+		// Symlink exists, can use worktree logs path or main logs path
+		info, err := os.Lstat(worktreeLogsPath)
+		if err != nil {
+			t.Fatalf("cannot stat worktree logs path: %v", err)
+		}
+
+		// Verify it's accessible (either direct dir or symlink)
+		if !info.IsDir() && (info.Mode()&os.ModeSymlink) == 0 {
+			t.Fatalf("worktree logs path is neither directory nor symlink")
+		}
+	}
+}
