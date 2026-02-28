@@ -361,13 +361,14 @@ func TestModel_ForwardsKeysToConversationControllerWhenInConversationView(t *tes
 	m.SetConversationController(controller)
 	m.SwitchView(ViewConversation)
 
-	// Send a key to the model while in conversation view
-	keyMsg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}}
+	// Send ctrl+c key to the model while in conversation view
+	keyMsg := tea.KeyMsg{Type: tea.KeyCtrlC}
 	model, _ := m.Update(keyMsg)
 	m = model.(*Model)
 
-	// The conversation should now be marked as cancelled
-	if !m.conversation.cancelled {
-		t.Error("expected conversation to be cancelled after 'c' key")
+	// The conversation view should contain "[cancelled]" after ctrl+c key
+	view := m.View()
+	if !containsString(view, "[cancelled]") {
+		t.Errorf("expected conversation view to contain '[cancelled]', got: %q", view)
 	}
 }

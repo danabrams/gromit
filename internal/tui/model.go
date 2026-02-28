@@ -57,6 +57,18 @@ func (m *Model) Init() tea.Cmd {
 
 // Update handles messages and updates the model.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// When in conversation view, forward messages to the conversation controller
+	if m.currentView == ViewConversation && m.conversation != nil {
+		switch msg.(type) {
+		case tea.KeyMsg:
+			model, cmd := m.conversation.Update(msg)
+			if ctrl, ok := model.(*ConversationController); ok {
+				m.conversation = ctrl
+			}
+			return m, cmd
+		}
+	}
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type {
