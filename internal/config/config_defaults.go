@@ -325,6 +325,9 @@ func (c *Config) SetDefaults() {
 	if c.Agents.Phases.Debug == "" {
 		c.Agents.Phases.Debug = defaultPhaseAgent
 	}
+	if c.Agents.InteractiveModels == nil {
+		c.Agents.InteractiveModels = &InteractiveModelsConfig{}
+	}
 
 	// Routing defaults - only when providers are configured
 	if c.HasProviders() {
