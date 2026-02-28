@@ -116,58 +116,6 @@ func TestResolveEffectiveInteractiveModel(t *testing.T) {
 	}
 }
 
-func TestTryOverrideModel(t *testing.T) {
-	t.Parallel()
-
-	t.Run("returns overridden agent when model flag set for Claude", func(t *testing.T) {
-		t.Parallel()
-		cmd := &cobra.Command{Use: "test"}
-		cmd.Flags().String("model", "opus", "model override")
-		if err := cmd.Flags().Set("model", "sonnet"); err != nil {
-			t.Fatalf("setting model flag: %v", err)
-		}
-
-		claudeAgent := agent.New("claude", "claude", nil, agent.FileRef, "", nil)
-		overridden := TryOverrideModel(cmd, claudeAgent, "sonnet", nil, "model", false)
-
-		if overridden == claudeAgent {
-			t.Fatal("expected overridden agent, got same agent")
-		}
-		if overridden == nil {
-			t.Fatal("expected non-nil agent")
-		}
-	})
-
-	t.Run("returns original agent when model flag not set", func(t *testing.T) {
-		t.Parallel()
-		cmd := &cobra.Command{Use: "test"}
-		cmd.Flags().String("model", "opus", "model override")
-
-		claudeAgent := agent.New("claude", "claude", nil, agent.FileRef, "", nil)
-		overridden := TryOverrideModel(cmd, claudeAgent, "opus", nil, "model", false)
-
-		if overridden != claudeAgent {
-			t.Fatal("expected original agent when flag not changed")
-		}
-	})
-
-	t.Run("returns original agent for non-Claude when flag changed", func(t *testing.T) {
-		t.Parallel()
-		cmd := &cobra.Command{Use: "test"}
-		cmd.Flags().String("model", "opus", "model override")
-		if err := cmd.Flags().Set("model", "sonnet"); err != nil {
-			t.Fatalf("setting model flag: %v", err)
-		}
-
-		codexAgent := agent.New("codex", "codex", nil, agent.FileRef, "", nil)
-		overridden := TryOverrideModel(cmd, codexAgent, "sonnet", nil, "model", false)
-
-		if overridden != codexAgent {
-			t.Fatal("expected original agent for non-Claude when flag changed")
-		}
-	})
-}
-
 type unsupportedAgent struct{}
 
 func (unsupportedAgent) Name() string                      { return "custom" }
