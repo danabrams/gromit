@@ -48,6 +48,7 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 
 	entry.AttemptCount++
 	entry.State = StateIntegrating
+	entry.RetryCount = 0
 	if err := c.store.Save(*entry); err != nil {
 		return fmt.Errorf("marking entry integrating: %w", err)
 	}
@@ -57,7 +58,13 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 	}
 
 	if err := c.gate.Run(ctx, *entry); err != nil {
-		return fmt.Errorf("running scoped gates: %w", err)
+		entry.RetryCount = 1
+		if err := c.gitops.FetchAndRebase(ctx, *entry); err != nil {
+			return fmt.Errorf("fetch/rebase branch: %w", err)
+		}
+		if err := c.gate.Run(ctx, *entry); err != nil {
+			return fmt.Errorf("running scoped gates: %w", err)
+		}
 	}
 
 	if err := c.gitops.MergeToMain(ctx, *entry); err != nil {
