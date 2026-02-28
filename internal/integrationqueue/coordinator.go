@@ -25,7 +25,9 @@ func NewCoordinator(store *Store, gitops GitOps, gate ScopedGate) *Coordinator {
 	return &Coordinator{store: store, gitops: gitops, gate: gate}
 }
 
-// Coordinate processes at most one ready branch in FIFO order.
+// Coordinate processes ready branches in FIFO order, skipping terminal failures.
+// Terminal failures (conflict, failed_gates, lane_violation) do not block
+// FIFO progression for subsequent ready entries.
 func (c *Coordinator) Coordinate(ctx context.Context) error {
 	if c.store == nil {
 		return fmt.Errorf("store is required")
@@ -42,18 +44,51 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 		return fmt.Errorf("loading integration queue: %w", err)
 	}
 
-	entry := OldestReady(queue)
-	if entry == nil {
+	// Process ready entries in FIFO order until one succeeds or all have terminal failures
+	for {
+		entry := OldestReady(queue)
+		if entry == nil {
+			return nil
+		}
+
+		// Try to process this entry
+		processed, err := c.processEntry(ctx, entry)
+		if err != nil {
+			// Check if this is a terminal failure that shouldn't block other entries
+			if isTerminalFailure(err) {
+				// Reload queue to get updated state and try next entry
+				queue, err = c.store.load()
+				if err != nil {
+					return fmt.Errorf("reloading queue after terminal failure: %w", err)
+				}
+				continue
+			}
+			// Non-terminal failure blocks processing
+			return err
+		}
+
+		// If we successfully processed an entry, return success
+		if processed {
+			return nil
+		}
+
+		// No more ready entries
 		return nil
 	}
+}
 
+// processEntry attempts to integrate a single entry. Returns (true, nil) on success,
+// (false, err) on terminal failures that don't block other entries, or (false, err)
+// on non-terminal failures. Terminal failures are returned as errors that
+// isTerminalFailure() will recognize.
+func (c *Coordinator) processEntry(ctx context.Context, entry *Entry) (bool, error) {
 	entry.AttemptCount++
 	entry.RetryCount = 0
 	if err := ApplyTransition(entry, string(StateIntegrating), "coordinator: starting integration"); err != nil {
-		return fmt.Errorf("transitioning entry to integrating: %w", err)
+		return false, fmt.Errorf("transitioning entry to integrating: %w", err)
 	}
 	if err := c.store.Save(*entry); err != nil {
-		return fmt.Errorf("marking entry integrating: %w", err)
+		return false, fmt.Errorf("marking entry integrating: %w", err)
 	}
 
 	if err := c.gitops.FetchAndRebase(ctx, *entry); err != nil {
@@ -62,11 +97,11 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 		if transErr := ApplyTransition(entry, string(StateConflict), "rebase conflict during initial fetch"); transErr == nil {
 			_ = c.store.Save(*entry)
 		}
-		return fmt.Errorf("fetch/rebase branch: %w", err)
+		return false, markTerminalFailure(fmt.Errorf("fetch/rebase branch: %w", err))
 	}
 
 	if err := c.runScopedGateWithRetry(ctx, entry); err != nil {
-		return err
+		return false, err
 	}
 
 	if err := c.gitops.MergeToMain(ctx, *entry); err != nil {
@@ -81,9 +116,9 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 			_ = ApplyTransition(entry, string(StateConflict), "merge conflict detected")
 		}
 		if saveErr := c.store.Save(*entry); saveErr != nil {
-			return fmt.Errorf("marking entry conflict: %w", saveErr)
+			return false, fmt.Errorf("marking entry conflict: %w", saveErr)
 		}
-		return fmt.Errorf("merging branch: %w", err)
+		return false, markTerminalFailure(fmt.Errorf("merging branch: %w", err))
 	}
 
 	if err := c.gitops.Push(ctx); err != nil {
@@ -92,7 +127,7 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 		if transErr := ApplyTransition(entry, string(StateFailedGates), "push to remote failed"); transErr == nil {
 			_ = c.store.Save(*entry)
 		}
-		return fmt.Errorf("pushing main: %w", err)
+		return false, fmt.Errorf("pushing main: %w", err)
 	}
 
 	cleanupErr := c.gitops.Cleanup(ctx, *entry)
@@ -102,18 +137,39 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 	entry.LastErrorCode = ""
 	entry.LastErrorMessage = ""
 	if transErr := ApplyTransition(entry, string(StateMerged), mergedTransitionReason); transErr != nil {
-		return fmt.Errorf("applying merged transition: %w", transErr)
+		return false, fmt.Errorf("applying merged transition: %w", transErr)
 	}
 
 	if err := c.store.Save(*entry); err != nil {
-		return fmt.Errorf("finalizing entry: %w", err)
+		return false, fmt.Errorf("finalizing entry: %w", err)
 	}
 
 	if cleanupErr != nil {
-		return fmt.Errorf("cleaning up metadata: %w", cleanupErr)
+		return false, fmt.Errorf("cleaning up metadata: %w", cleanupErr)
 	}
 
-	return nil
+	return true, nil
+}
+
+// terminalFailureMarker is a sentinel type to wrap errors that are terminal failures
+type terminalFailureMarker struct {
+	err error
+}
+
+// markTerminalFailure wraps an error to indicate it's a terminal failure
+func markTerminalFailure(err error) error {
+	return &terminalFailureMarker{err: err}
+}
+
+// isTerminalFailure checks if an error is a terminal failure that shouldn't block other entries
+func isTerminalFailure(err error) bool {
+	_, ok := err.(*terminalFailureMarker)
+	return ok
+}
+
+// Error implements the error interface for terminalFailureMarker
+func (t *terminalFailureMarker) Error() string {
+	return t.err.Error()
 }
 
 func (c *Coordinator) runScopedGateWithRetry(ctx context.Context, entry *Entry) error {
@@ -135,7 +191,7 @@ func (c *Coordinator) handleGateFailure(ctx context.Context, entry *Entry, track
 			if transErr := ApplyTransition(entry, string(StateConflict), "rebase conflict during retry fetch"); transErr == nil {
 				_ = c.store.Save(*entry)
 			}
-			return fmt.Errorf("fetch/rebase branch: %w", err)
+			return markTerminalFailure(fmt.Errorf("fetch/rebase branch: %w", err))
 		}
 		if err := c.gate.Run(ctx, *entry); err != nil {
 			return c.transitionToFailedGates(entry, err, "scoped gates failed after retry")
@@ -153,7 +209,7 @@ func (c *Coordinator) transitionToFailedGates(entry *Entry, err error, reason st
 			return fmt.Errorf("marking entry failed_gates: %w", saveErr)
 		}
 	}
-	return fmt.Errorf("running scoped gates: %w", err)
+	return markTerminalFailure(fmt.Errorf("running scoped gates: %w", err))
 }
 
 // RecoverFromCrash detects entries left in StateIntegrating and transitions

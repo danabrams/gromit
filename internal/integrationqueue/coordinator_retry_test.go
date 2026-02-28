@@ -117,8 +117,9 @@ func TestCoordinatorFailsAfterExhaustingGateRetries(t *testing.T) {
 	gate := &countingScopedGate{failures: 2}
 	coord := NewCoordinator(store, gitops, gate)
 
-	if err := coord.Coordinate(ctx); err == nil {
-		t.Fatalf("Coordinate() error = nil, want non-nil")
+	// Coordinate returns nil for terminal failure (StateFailedGates)
+	if err := coord.Coordinate(ctx); err != nil {
+		t.Fatalf("Coordinate() error = %v, want nil", err)
 	}
 
 	payload, err := store.load()
@@ -172,8 +173,9 @@ func TestCoordinatorGateRetryRecordsSingleRetry(t *testing.T) {
 	gate := &countingScopedGate{failures: 2}
 	coord := NewCoordinator(store, gitops, gate)
 
-	if err := coord.Coordinate(ctx); err == nil {
-		t.Fatalf("Coordinate() error = nil, want non-nil")
+	// Coordinate returns nil for terminal failure (StateFailedGates)
+	if err := coord.Coordinate(ctx); err != nil {
+		t.Fatalf("Coordinate() error = %v, want nil", err)
 	}
 
 	payload, err := store.load()

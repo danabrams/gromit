@@ -161,6 +161,34 @@ func (m *laneViolationMockGitOps) Cleanup(ctx context.Context, entry Entry) erro
 	return nil
 }
 
+type selectiveConflictMockGitOps struct {
+	calls []string
+}
+
+func (m *selectiveConflictMockGitOps) FetchAndRebase(ctx context.Context, entry Entry) error {
+	m.calls = append(m.calls, "fetch:"+entry.Branch)
+	return nil
+}
+
+func (m *selectiveConflictMockGitOps) MergeToMain(ctx context.Context, entry Entry) error {
+	m.calls = append(m.calls, "merge:"+entry.Branch)
+	// First entry conflicts, second succeeds
+	if entry.Branch == "feature/will-conflict" {
+		return fmt.Errorf("merge conflict")
+	}
+	return nil
+}
+
+func (m *selectiveConflictMockGitOps) Push(ctx context.Context) error {
+	m.calls = append(m.calls, "push")
+	return nil
+}
+
+func (m *selectiveConflictMockGitOps) Cleanup(ctx context.Context, entry Entry) error {
+	m.calls = append(m.calls, "cleanup:"+entry.Branch)
+	return nil
+}
+
 func TestCoordinatorIncrementsAttemptCount(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
@@ -370,10 +398,10 @@ func TestCoordinatorHandlesMergeConflict(t *testing.T) {
 	gate := &mockScopedGate{}
 	coord := NewCoordinator(store, gitops, gate)
 
-	// Coordinate should return an error when merge fails
+	// Coordinate should return nil for terminal failure (no blocking)
 	err = coord.Coordinate(ctx)
-	if err == nil {
-		t.Fatalf("Coordinate() error = nil, want non-nil")
+	if err != nil {
+		t.Fatalf("Coordinate() error = %v, want nil", err)
 	}
 
 	payload, err := store.load()
@@ -420,10 +448,10 @@ func TestCoordinatorHandlesLaneViolation(t *testing.T) {
 	gate := &mockScopedGate{}
 	coord := NewCoordinator(store, gitops, gate)
 
-	// Coordinate should return an error when lane violation is detected
+	// Coordinate should return nil for terminal failure (no blocking)
 	err = coord.Coordinate(ctx)
-	if err == nil {
-		t.Fatalf("Coordinate() error = nil, want non-nil")
+	if err != nil {
+		t.Fatalf("Coordinate() error = %v, want nil", err)
 	}
 
 	payload, err := store.load()
@@ -440,5 +468,81 @@ func TestCoordinatorHandlesLaneViolation(t *testing.T) {
 	}
 	if processed.LastErrorCode != "lane_violation" {
 		t.Fatalf("LastErrorCode = %q, want lane_violation", processed.LastErrorCode)
+	}
+}
+
+// TestCoordinator_DoesNotStallOnConflict verifies that when entry A conflicts,
+// entry B (next ready) is processed in the same Coordinate call instead of blocking.
+func TestCoordinator_DoesNotStallOnConflict(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	// First entry will conflict
+	conflictEntry := Entry{
+		Branch:           "feature/will-conflict",
+		SessionID:        "feature/will-conflict",
+		OriginCommand:    "test",
+		State:            StateReady,
+		Lane:             "code_lane",
+		BaseRef:          "main",
+		HeadSHA:          "deadbeef",
+		ChangedFilesHash: "hash1",
+	}
+	if err := store.Save(conflictEntry); err != nil {
+		t.Fatalf("Save(conflictEntry) error = %v", err)
+	}
+
+	// Second entry should be processed after first conflicts
+	succeedEntry := Entry{
+		Branch:           "feature/will-succeed",
+		SessionID:        "feature/will-succeed",
+		OriginCommand:    "test",
+		State:            StateReady,
+		Lane:             "code_lane",
+		BaseRef:          "main",
+		HeadSHA:          "cafebabe",
+		ChangedFilesHash: "hash2",
+	}
+	if err := store.Save(succeedEntry); err != nil {
+		t.Fatalf("Save(succeedEntry) error = %v", err)
+	}
+
+	// GitOps that conflicts on first call, succeeds on second
+	gitops := &selectiveConflictMockGitOps{}
+	gate := &mockScopedGate{}
+	coord := NewCoordinator(store, gitops, gate)
+
+	// Coordinate should process both entries (first conflicts, second succeeds)
+	err = coord.Coordinate(ctx)
+	if err != nil {
+		t.Fatalf("Coordinate() error = %v, want nil", err)
+	}
+
+	payload, err := store.load()
+	if err != nil {
+		t.Fatalf("load() error = %v", err)
+	}
+
+	// First entry should be in conflict state
+	first := findEntry(payload.Entries, "feature/will-conflict")
+	if first == nil {
+		t.Fatalf("missing first entry")
+	}
+	if first.State != StateConflict {
+		t.Fatalf("first.State = %q, want %q", first.State, StateConflict)
+	}
+
+	// Second entry should be merged (successfully processed)
+	second := findEntry(payload.Entries, "feature/will-succeed")
+	if second == nil {
+		t.Fatalf("missing second entry")
+	}
+	if second.State != StateMerged {
+		t.Fatalf("second.State = %q, want %q", second.State, StateMerged)
 	}
 }
