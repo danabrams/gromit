@@ -122,6 +122,46 @@ agents:
 	}
 }
 
+func TestAgentsInteractiveModelsBackwardCompatibility(t *testing.T) {
+	yamlContent := `
+agents:
+  definitions:
+    claude: {}
+  phases:
+    refine: claude
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.Agents.InteractiveModels == nil {
+		t.Fatal("Agents.InteractiveModels is nil after loading legacy config")
+	}
+
+	if cfg.Agents.InteractiveModels.Refine != "" {
+		t.Errorf("Refine model = %q, want empty string by default", cfg.Agents.InteractiveModels.Refine)
+	}
+	if cfg.Agents.InteractiveModels.Plan != "" {
+		t.Errorf("Plan model = %q, want empty string by default", cfg.Agents.InteractiveModels.Plan)
+	}
+	if cfg.Agents.InteractiveModels.Explore != "" {
+		t.Errorf("Explore model = %q, want empty string by default", cfg.Agents.InteractiveModels.Explore)
+	}
+	if cfg.Agents.InteractiveModels.Debug != "" {
+		t.Errorf("Debug model = %q, want empty string by default", cfg.Agents.InteractiveModels.Debug)
+	}
+	if cfg.Agents.InteractiveModels.Review != "" {
+		t.Errorf("Review model = %q, want empty string by default", cfg.Agents.InteractiveModels.Review)
+	}
+}
+
 func TestNormalizeNilFieldsInitializesAgentFlags(t *testing.T) {
 	cfg := &Config{
 		Agents: AgentsConfig{
