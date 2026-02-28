@@ -9,8 +9,9 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
-	"github.com/danabrams/gromit/internal/integrationqueue"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/integrationqueue"
+	"github.com/danabrams/gromit/internal/runner/display"
 )
 
 // TestPrintStatus_IncludesPipelineSection verifies that PrintStatus outputs
@@ -171,6 +172,48 @@ func TestPrintStatus_BlockerEntriesIncludeRecoveryInstructions(t *testing.T) {
 		if !strings.Contains(output, substring) {
 			t.Fatalf("expected %q in integration queue output; got:\n%s", substring, output)
 		}
+	}
+}
+
+func TestFormatIntegrationQueueEntry_IncludesQueueMetadata(t *testing.T) {
+	t.Parallel()
+
+	status := &display.IntegrationQueueStatus{
+		QueueLength:      1,
+		ReadyCount:       0,
+		IntegratingCount: 0,
+		BlockedCount:     1,
+		MergedCount:      0,
+		Entries: []*display.IntegrationQueueEntryView{
+			{
+				Branch:        "gromit/metadata",
+				State:         "failed_gates",
+				Lane:          "",
+				FifoSequence:  7,
+				RetryAttempt:  3,
+				FailureReason: "gate_retry_limit",
+				LastErrorCode: "failed_gates",
+			},
+		},
+	}
+
+	output := display.FormatIntegrationQueue(status)
+	laneIdx := strings.Index(output, "lane:")
+	fifoIdx := strings.Index(output, "fifo:")
+	retryIdx := strings.Index(output, "retry attempt:")
+	failureIdx := strings.Index(output, "failure reason:")
+
+	if laneIdx == -1 {
+		t.Fatalf("lane metadata missing from output:\n%s", output)
+	}
+	if fifoIdx == -1 || retryIdx == -1 || failureIdx == -1 {
+		t.Fatalf("expected fifo/retry/failure metadata in output:\n%s", output)
+	}
+	if !(laneIdx < fifoIdx && fifoIdx < retryIdx && retryIdx < failureIdx) {
+		t.Fatalf("metadata ordering is not deterministic, got output:\n%s", output)
+	}
+	if !strings.Contains(output, "lane: ") {
+		t.Fatalf("expected lane label even when metadata absent, got:\n%s", output)
 	}
 }
 
