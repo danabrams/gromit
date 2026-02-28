@@ -95,3 +95,36 @@ func resolveMainRepoLogsDir(gromitDir string) string {
 
 	return localLogs // fallback if main repo logs don't exist either
 }
+
+// setupRetroWorktreeLogsSymlink creates a symlink from worktree/.gromit/logs
+// to the main repo's .gromit/logs directory. This ensures that retro running
+// in a worktree (where .gromit/logs is gitignored and doesn't exist) can still
+// access the main repo's logs for experiment evaluations.
+func setupRetroWorktreeLogsSymlink(worktreeGromitDir, mainGromitDir string) error {
+	if worktreeGromitDir == "" || mainGromitDir == "" {
+		return nil // Skip if either path is empty
+	}
+
+	worktreeLogsPath := filepath.Join(worktreeGromitDir, "logs")
+	mainLogsPath := filepath.Join(mainGromitDir, "logs")
+
+	// Check if worktree logs already exist (skip if already set up)
+	if info, err := os.Stat(worktreeLogsPath); err == nil {
+		if info.IsDir() {
+			return nil // logs directory already exists
+		}
+		// If it's a symlink or other file, proceed to replace it
+		if err := os.Remove(worktreeLogsPath); err != nil {
+			return err
+		}
+	} else if !os.IsNotExist(err) {
+		return err // Some other error occurred
+	}
+
+	// Create symlink from worktree logs to main repo logs
+	if err := os.Symlink(mainLogsPath, worktreeLogsPath); err != nil {
+		return err
+	}
+
+	return nil
+}
