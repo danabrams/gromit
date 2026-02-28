@@ -5,20 +5,27 @@ import (
 	"strings"
 	"time"
 
+	benchpkg "github.com/danabrams/gromit/internal/benchmark"
 	"github.com/spf13/cobra"
 )
 
 type benchmarkDecomposeCompareOptions struct {
-	ManifestPath string
-	OutputTS     string
+	ManifestPath        string
+	SpecOverrides       []string
+	FailureThreshold    float64
+	FailureThresholdSet bool
+	OutputTS            string
 }
 
 type benchmarkDecomposeCompareCohortSelectorOptions struct {
-	ManifestPath string
+	ManifestPath  string
+	SpecOverrides []string
 }
 
 type benchmarkDecomposeCompareRunnerOptions struct {
-	Specs string
+	Specs               []string
+	FailureThreshold    float64
+	FailureThresholdSet bool
 }
 
 type benchmarkDecomposeCompareReportWriterOptions struct {
@@ -68,8 +75,11 @@ var benchmarkDecomposeCompareCmd = &cobra.Command{
 			}
 		}
 		return benchmarkRunDecomposeCompareFn(benchmarkDecomposeCompareOptions{
-			ManifestPath: manifestPath,
-			OutputTS:     benchmarkDecomposeCompareOutputTS,
+			ManifestPath:        manifestPath,
+			SpecOverrides:       specOverrides,
+			FailureThreshold:    benchmarkDecomposeCompareThreshold,
+			FailureThresholdSet: thresholdSet,
+			OutputTS:            benchmarkDecomposeCompareOutputTS,
 		})
 	},
 }
@@ -109,7 +119,8 @@ func registerBenchmarkDecomposeCompareCommand(root *cobra.Command) {
 func runBenchmarkDecomposeCompare(opts benchmarkDecomposeCompareOptions) error {
 	// Select cohort
 	cohort, err := benchmarkDecomposeCompareCohortSelectorFn(benchmarkDecomposeCompareCohortSelectorOptions{
-		ManifestPath: opts.ManifestPath,
+		ManifestPath:  opts.ManifestPath,
+		SpecOverrides: opts.SpecOverrides,
 	})
 	if err != nil {
 		return fmt.Errorf("select cohort: %w", err)
@@ -122,7 +133,9 @@ func runBenchmarkDecomposeCompare(opts benchmarkDecomposeCompareOptions) error {
 
 	// Run compare
 	_, err = benchmarkDecomposeCompareRunnerFn(benchmarkDecomposeCompareRunnerOptions{
-		Specs: strings.Join(cohort, ","),
+		Specs:               append([]string(nil), cohort...),
+		FailureThreshold:    opts.FailureThreshold,
+		FailureThresholdSet: opts.FailureThresholdSet,
 	})
 	if err != nil {
 		return fmt.Errorf("run compare: %w", err)
@@ -147,7 +160,14 @@ func runBenchmarkDecomposeCompare(opts benchmarkDecomposeCompareOptions) error {
 }
 
 func selectDecomposeCompareCohort(opts benchmarkDecomposeCompareCohortSelectorOptions) ([]string, error) {
-	return nil, fmt.Errorf("not implemented yet")
+	if len(opts.SpecOverrides) > 0 {
+		return append([]string(nil), opts.SpecOverrides...), nil
+	}
+	manifest, err := benchpkg.LoadManifest(opts.ManifestPath)
+	if err != nil {
+		return nil, err
+	}
+	return append([]string(nil), manifest.Beads...), nil
 }
 
 func runDecomposeCompare(opts benchmarkDecomposeCompareRunnerOptions) (interface{}, error) {
