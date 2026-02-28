@@ -243,6 +243,16 @@ func TestWaitForProcessCapacityHonorsContextCancel(t *testing.T) {
 	}
 }
 
+func TestSleepWithContextHonorsContextCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := SleepWithContext(ctx, 50*time.Millisecond)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("SleepWithContext() error = %v, want context.Canceled", err)
+	}
+}
+
 func TestKillDescendantsOnCancelNilProcess(t *testing.T) {
 	cmd := exec.Command("echo", "test")
 	// cmd.Process is nil before Start(); should not panic.
