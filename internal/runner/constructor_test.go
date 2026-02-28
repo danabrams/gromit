@@ -2446,6 +2446,88 @@ func TestBuildRouterAndLearningsProvider_DetectsAndHealsStaleState(t *testing.T)
 	}
 }
 
+type stubPipelineStage struct {
+	runFn func(ctx context.Context, in pipeline.Input) (pipeline.Output, error)
+}
+
+func (s *stubPipelineStage) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+	if s == nil {
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}
+	if s.runFn != nil {
+		return s.runFn(ctx, in)
+	}
+	return pipeline.Output{Decision: pipeline.Proceed}, nil
+}
+
+func TestRunBlocksReadinessAndSkipsBuild(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	for _, sub := range []string{
+		filepath.Join(gromitDir, "templates"),
+		filepath.Join(gromitDir, "specs"),
+		filepath.Join(tmpDir, "logs"),
+		filepath.Join(gromitDir, "plans"),
+	} {
+		if err := os.MkdirAll(sub, 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", sub, err)
+		}
+	}
+	claudeMD := filepath.Join(gromitDir, "CLAUDE.md")
+	if err := os.WriteFile(claudeMD, []byte(""), 0o644); err != nil {
+		t.Fatalf("write claude md: %v", err)
+	}
+
+	cfg := &config.Config{}
+	cfg.Paths.GromitDir = gromitDir
+	cfg.Paths.Templates = filepath.Join(gromitDir, "templates")
+	cfg.Paths.Specs = filepath.Join(gromitDir, "specs")
+	cfg.Paths.Logs = filepath.Join(tmpDir, "logs")
+	cfg.Paths.Plans = filepath.Join(gromitDir, "plans")
+	cfg.Paths.ProjectClaudeMD = claudeMD
+	trueVal := true
+	cfg.ReadinessCheck.Enabled = &trueVal
+
+	orch, err := newRunnerImpl(cfg, io.Discard, nil)
+	if err != nil {
+		t.Fatalf("newRunnerImpl failed: %v", err)
+	}
+	orch.cfg.LogsDir = ""
+	orch.cfg.StateSaver = nil
+	orch.cfg.TrendUpdater = nil
+
+	buildInvoked := false
+	orch.cfg.Build = &stubPipelineStage{
+		runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			buildInvoked = true
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		},
+	}
+	orch.cfg.Validate = &stubPipelineStage{}
+	orch.cfg.Epilogue = &stubPipelineStage{}
+
+	callCount := 0
+	orch.cfg.GetBead = func(ctx context.Context) (*bead.Bead, error) {
+		if callCount > 0 {
+			return nil, nil
+		}
+		callCount++
+		return &bead.Bead{
+			ID:    "blocked-readiness",
+			Title: "Should be blocked",
+		}, nil
+	}
+
+	if err := orch.Run(context.Background(), 1, time.Now().Add(time.Minute), nil); err != nil {
+		t.Fatalf("orchestrator.Run() error = %v", err)
+	}
+	if buildInvoked {
+		t.Fatal("build stage ran despite readiness block; want blocked beads to skip build")
+	}
+}
+
 // RED: test for PromptReadinessAssessor wired when ReadinessCheck enabled
 func TestNewRunnerImpl_GateStageHasPromptReadinessAssessorWhenEnabled(t *testing.T) {
 	t.Parallel()
