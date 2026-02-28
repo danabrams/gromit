@@ -346,3 +346,54 @@ func assertAllowedCrossProvider(t *testing.T, selected string, allowed []string)
 	}
 	t.Errorf("Selected provider %q is not in allowed set %v", selected, allowed)
 }
+
+// TestSelectCrossConcurrentAccess verifies that Router can handle concurrent
+// calls to SelectCross without data races when run with -race detector.
+func TestSelectCrossConcurrentAccess(t *testing.T) {
+	t.Parallel()
+	r := &Router{
+		providers: map[string]Provider{
+			"claude": &mockProviderWithModels{
+				name:   "claude",
+				models: map[string]string{TierMedium: "sonnet"},
+			},
+			"openai": &mockProviderWithModels{
+				name:   "openai",
+				models: map[string]string{TierMedium: "gpt-4o"},
+			},
+		},
+		preferences: map[string]string{"review": "cross"},
+		ratio:       map[string]int{"claude": 50, "openai": 50},
+		counts:      map[string]int{},
+		unavailable: map[string]time.Time{},
+		cooldown:    30 * time.Minute,
+		stateFn:     &mockStateFile{},
+	}
+
+	// Launch concurrent calls to SelectCross
+	const numConcurrent = 10
+	done := make(chan struct{}, numConcurrent)
+	for i := 0; i < numConcurrent; i++ {
+		go func(iteration int) {
+			defer func() { done <- struct{}{} }()
+			buildProvider := "claude"
+			if iteration%2 == 0 {
+				buildProvider = "openai"
+			}
+			p, modelName := r.SelectCross(buildProvider, TierMedium)
+			if p == nil {
+				t.Errorf("SelectCross() returned nil provider on iteration %d", iteration)
+				return
+			}
+			if modelName == "" {
+				t.Errorf("SelectCross() returned empty model name on iteration %d", iteration)
+			}
+		}(i)
+	}
+
+	// Wait for all concurrent calls to complete
+	for i := 0; i < numConcurrent; i++ {
+		<-done
+	}
+}
+
