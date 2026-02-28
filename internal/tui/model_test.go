@@ -1,10 +1,10 @@
 package tui
 
 import (
-    "testing"
+	"testing"
 
-    "github.com/danabrams/gromit/internal/conversation"
-    tea "github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/danabrams/gromit/internal/conversation"
 )
 
 func TestModel_InitialViewRendersDashboard(t *testing.T) {
@@ -287,33 +287,71 @@ func TestModel_ProgressDisplaysIterationNumbersAsDecimalStrings(t *testing.T) {
 }
 
 func TestModelConversationViewRendersSession(t *testing.T) {
-    timeline := []conversation.FakeStep{
-        {Event: conversation.Event{Type: conversation.EventTypeStream, Text: "hello"}},
-        {Event: conversation.Event{Type: conversation.EventTypeDone}},
-    }
-    session := conversation.NewFakeSession(timeline)
-    controller := NewConversationController(session)
+	timeline := []conversation.FakeStep{
+		{Event: conversation.Event{Type: conversation.EventTypeStream, Text: "hello"}},
+		{Event: conversation.Event{Type: conversation.EventTypeDone}},
+	}
+	session := conversation.NewFakeSession(timeline)
+	controller := NewConversationController(session)
 
-    cmd := controller.Init()
-    for cmd != nil {
-        msg := cmd()
-        model, next := controller.Update(msg)
-        var ok bool
-        controller, ok = model.(*ConversationController)
-        if !ok {
-            t.Fatalf("expected ConversationController, got %T", model)
-        }
-        cmd = next
-    }
+	cmd := controller.Init()
+	for cmd != nil {
+		msg := cmd()
+		model, next := controller.Update(msg)
+		var ok bool
+		controller, ok = model.(*ConversationController)
+		if !ok {
+			t.Fatalf("expected ConversationController, got %T", model)
+		}
+		cmd = next
+	}
 
-    m := NewModel(&Store{})
-    m.SetConversationController(controller)
-    m.SwitchView(ViewConversation)
+	m := NewModel(&Store{})
+	m.SetConversationController(controller)
+	m.SwitchView(ViewConversation)
 
-    view := m.View()
-    if !containsString(view, "- stream: hello") {
-        t.Fatalf("expected conversation view to include streamed text, got %q", view)
-    }
+	view := m.View()
+	if !containsString(view, "- stream: hello") {
+		t.Fatalf("expected conversation view to include streamed text, got %q", view)
+	}
+}
+
+func TestModelStartsConversationControllerWhenSwitchingToConversationView(t *testing.T) {
+	timeline := []conversation.FakeStep{
+		{Event: conversation.Event{Type: conversation.EventTypeStream, Text: "hello"}},
+		{Event: conversation.Event{Type: conversation.EventTypeDone}},
+	}
+	session := conversation.NewFakeSession(timeline)
+	controller := NewConversationController(session)
+
+	store := &Store{}
+	m := NewModel(store)
+	m.SetConversationController(controller)
+	if m.currentView == ViewConversation {
+		t.Fatalf("expected model to start in dashboard view, got %v", m.currentView)
+	}
+
+	focusMsg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'3'}}
+	model, cmd := m.Update(focusMsg)
+	m = model.(*Model)
+	if cmd == nil {
+		t.Fatal("expected conversation controller init command when focusing view")
+	}
+
+	for cmd != nil {
+		msg := cmd()
+		model, next := m.Update(msg)
+		var ok bool
+		m, ok = model.(*Model)
+		if !ok {
+			t.Fatalf("expected Model, got %T", model)
+		}
+		cmd = next
+	}
+
+	if store.Conversation.EventCount == 0 {
+		t.Fatal("expected conversation events to be recorded after switching views")
+	}
 }
 
 func TestModel_FocusConversationKeySwitchesToConversationView(t *testing.T) {
