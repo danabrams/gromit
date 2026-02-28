@@ -3,6 +3,7 @@
 package bead
 
 import (
+	"context"
 	"testing"
 )
 
@@ -19,7 +20,7 @@ func TestReady_UsesLimit3(t *testing.T) {
 		},
 	}
 
-	_, err := c.Ready()
+	_, err := c.Ready(context.Background())
 	if err != nil {
 		t.Fatalf("Ready() error: %v", err)
 	}
@@ -61,7 +62,7 @@ func TestReadyWithLabel_UsesLimit3(t *testing.T) {
 		},
 	}
 
-	_, err := c.ReadyWithLabel("spec:foo")
+	_, err := c.ReadyWithLabel(context.Background(), "spec:foo")
 	if err != nil {
 		t.Fatalf("ReadyWithLabel() error: %v", err)
 	}
@@ -141,7 +142,7 @@ func TestReady_StillFiltersEpicsCorrectly(t *testing.T) {
 				},
 			}
 
-			bead, err := c.Ready()
+			bead, err := c.Ready(context.Background())
 			if err != nil {
 				t.Fatalf("Ready() error: %v", err)
 			}
@@ -179,7 +180,7 @@ func TestListReadyIDs_NotAffectedByReadyOptimization(t *testing.T) {
 		},
 	}
 
-	ids, err := c.ListReadyIDs()
+	ids, err := c.ListReadyIDs(context.Background())
 	if err != nil {
 		t.Fatalf("ListReadyIDs() error: %v", err)
 	}

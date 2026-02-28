@@ -3,6 +3,7 @@
 package bead
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"strings"
