@@ -94,3 +94,85 @@ func TestQueuePosition_ComputesStableFIFORankForReadyEntry(t *testing.T) {
 		t.Errorf("expected position=3 for FifoSeq=3, got %d", pos3)
 	}
 }
+
+func TestSortedForDisplay_ProducesDeterministicOrdering(t *testing.T) {
+	now := time.Now().UTC()
+	later := now.Add(1 * time.Hour)
+
+	queue := &Queue{
+		Entries: []Entry{
+			{
+				Branch:    "ready-3",
+				State:     StateReady,
+				FifoSeq:   5,
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
+			{
+				Branch:    "integrating-1",
+				State:     StateIntegrating,
+				FifoSeq:   2,
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
+			{
+				Branch:    "blocked-1",
+				State:     StateConflict,
+				FifoSeq:   10,
+				CreatedAt: now,
+				UpdatedAt: later,
+			},
+			{
+				Branch:    "ready-1",
+				State:     StateReady,
+				FifoSeq:   3,
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
+			{
+				Branch:    "integrating-2",
+				State:     StateIntegrating,
+				FifoSeq:   4,
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
+			{
+				Branch:    "blocked-2",
+				State:     StateFailedGates,
+				FifoSeq:   1,
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
+			{
+				Branch:    "ready-2",
+				State:     StateReady,
+				FifoSeq:   6,
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
+		},
+	}
+
+	sorted := SortedForDisplay(queue)
+
+	// Expected order:
+	// 1. Integrating by FifoSeq asc: integrating-1 (2), integrating-2 (4)
+	// 2. Ready by FifoSeq asc: ready-1 (3), ready-3 (5), ready-2 (6)
+	// 3. Blocked by UpdatedAt desc, then FifoSeq desc: blocked-1 (10, later), blocked-2 (1, now)
+
+	expectedOrder := []string{
+		"integrating-1", "integrating-2",
+		"ready-1", "ready-3", "ready-2",
+		"blocked-1", "blocked-2",
+	}
+
+	if len(sorted) != len(expectedOrder) {
+		t.Errorf("expected %d entries, got %d", len(expectedOrder), len(sorted))
+	}
+
+	for i, entry := range sorted {
+		if entry.Branch != expectedOrder[i] {
+			t.Errorf("position %d: expected branch=%s, got %s", i, expectedOrder[i], entry.Branch)
+		}
+	}
+}
