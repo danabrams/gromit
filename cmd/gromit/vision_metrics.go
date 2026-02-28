@@ -24,10 +24,13 @@ var visionMetricsReportCmd = &cobra.Command{
 	RunE:  visionMetricsReport,
 }
 
+var visionMetricsReportJSON bool
+
 func init() {
 	rootCmd.AddCommand(visionMetricsCmd)
 	visionMetricsCmd.AddCommand(visionMetricsValidateCmd)
 	visionMetricsCmd.AddCommand(visionMetricsReportCmd)
+	visionMetricsReportCmd.Flags().BoolVar(&visionMetricsReportJSON, "json", false, "Output in JSON format")
 }
 
 func visionMetricsValidate(cmd *cobra.Command, args []string) error {
