@@ -121,6 +121,64 @@ func TestGhCLIClient_GetPRCommandAndJSON(t *testing.T) {
 	}
 }
 
+func TestGhCLIClient_ListChecksCommandAndJSON(t *testing.T) {
+	t.Parallel()
+
+	runner := &fakeGHRunner{
+		stdout: `[
+			{
+				"name": "ci/test",
+				"state": "completed",
+				"bucket": "pass",
+				"link": "https://example.com/checks/1"
+			},
+			{
+				"name": "ci/lint",
+				"state": "completed",
+				"bucket": "fail",
+				"link": "https://example.com/checks/2"
+			}
+		]`,
+	}
+
+	client := specmerge.NewGhCLIClient(runner)
+	ctx := context.Background()
+	ref := specmerge.PRRef{Owner: "octocat", Repo: "hello-world", Number: 303}
+
+	checks, err := client.ListChecks(ctx, ref)
+	if err != nil {
+		t.Fatalf("ListChecks returned error: %v", err)
+	}
+
+	if len(checks) != 2 {
+		t.Fatalf("ListChecks returned %d checks, want 2", len(checks))
+	}
+	if checks[0].Name != "ci/test" || checks[0].Status != "completed" || checks[0].Conclusion != "success" {
+		t.Fatalf("first check parsed incorrectly: %+v", checks[0])
+	}
+	if checks[1].Conclusion != "failure" {
+		t.Fatalf("second check conclusion = %q, want failure", checks[1].Conclusion)
+	}
+
+	if len(runner.calls) != 1 {
+		t.Fatalf("runner.Run called %d times, want 1", len(runner.calls))
+	}
+
+	gotArgs := runner.calls[0].args
+	wantArgs := []string{
+		"pr",
+		"checks",
+		"303",
+		"--repo",
+		"octocat/hello-world",
+		"--json",
+		"name,state,bucket,link",
+	}
+	if !reflect.DeepEqual(gotArgs, wantArgs) {
+		t.Fatalf("gh command args = %v, want %v", gotArgs, wantArgs)
+	}
+}
+
 // fakeGHRunner captures gh CLI commands for testing.
 type fakeGHRunner struct {
 	calls  []ghCall
