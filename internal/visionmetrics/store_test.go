@@ -481,6 +481,25 @@ func TestAppendRecord_PreservesAllReviewOutcomes(t *testing.T) {
 	}
 }
 
+func TestAppendRecord_ErrorOnNonExistentDirectory(t *testing.T) {
+	// Try to append to a file in a non-existent directory
+	record := Record{
+		SpecID:                     "test",
+		CycleStartTriggerAt:        parseTime("2026-02-01T08:00:00Z"),
+		CycleEndPresentedAt:        parseTime("2026-02-01T10:00:00Z"),
+		ReviewOutcome:              ReviewOutcomeAccepted,
+		HumanTacticalIntervention:  No,
+		HumanDebuggingIntervention: No,
+		EscapedRegressionWithin7D:  No,
+	}
+
+	// This should fail because the directory doesn't exist
+	err := AppendRecord("/nonexistent/path/to/file.jsonl", record)
+	if err == nil {
+		t.Error("AppendRecord should return error for non-existent directory")
+	}
+}
+
 func parseTime(s string) time.Time {
 	// Helper to parse RFC3339 timestamp
 	t, _ := time.Parse(time.RFC3339, s)
