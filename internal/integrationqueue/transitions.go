@@ -5,5 +5,8 @@ func CanTransition(from, to string) bool {
 	if from == "draft" && to == "ready" {
 		return true
 	}
+	if from == "ready" && to == "integrating" {
+		return true
+	}
 	return false
 }
