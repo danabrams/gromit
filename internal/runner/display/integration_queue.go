@@ -21,6 +21,9 @@ type IntegrationQueueEntryView struct {
 	State            string `json:"state"`
 	Lane             string `json:"lane"`
 	ReadyPosition    int    `json:"ready_position,omitempty"`
+	FifoSequence     int    `json:"fifo_seq,omitempty"`
+	RetryAttempt     int    `json:"retry_attempt,omitempty"`
+	FailureReason    string `json:"failure_reason,omitempty"`
 	LastErrorCode    string `json:"last_error_code,omitempty"`
 	LastErrorMessage string `json:"last_error_message,omitempty"`
 }

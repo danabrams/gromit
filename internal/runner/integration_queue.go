@@ -78,6 +78,9 @@ func entryToView(entry *integrationqueue.Entry, readyPos int) *display.Integrati
 		State:            strings.ToLower(string(entry.State)),
 		Lane:             entry.Lane,
 		ReadyPosition:    readyPos,
+		FifoSequence:     entry.FifoSeq,
+		RetryAttempt:     entry.RetryCount,
+		FailureReason:    entry.LastTransitionReason,
 		LastErrorCode:    entry.LastErrorCode,
 		LastErrorMessage: entry.LastErrorMessage,
 	}

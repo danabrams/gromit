@@ -46,6 +46,9 @@ type IntegrationQueueEntrySummary struct {
 	State            string
 	Lane             string
 	ReadyPosition    int
+	FifoSeq          int
+	RetryAttempt     int
+	FailureReason    string
 	LastErrorCode    string
 	LastErrorMessage string
 }
@@ -239,6 +242,9 @@ func projectIntegrationQueueStatus(snapshot *integrationqueue.Snapshot) *Integra
 			State:            string(entry.Entry.State),
 			Lane:             entry.Entry.Lane,
 			ReadyPosition:    entry.ReadyPosition,
+			FifoSeq:          entry.Entry.FifoSeq,
+			RetryAttempt:     entry.Entry.RetryCount,
+			FailureReason:    entry.Entry.LastTransitionReason,
 			LastErrorCode:    entry.Entry.LastErrorCode,
 			LastErrorMessage: entry.Entry.LastErrorMessage,
 		})
