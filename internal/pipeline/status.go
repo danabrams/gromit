@@ -9,23 +9,45 @@ import (
 
 	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/integrationqueue"
 )
 
 // PipelineStatus represents the current state of the gromit pipeline
 type PipelineStatus struct {
-	UnrefinedCount     int      // Number of backlog items not yet refined
-	UnrefinedIdeas     []string // Text of unrefined ideas
-	UnplannedSpecs     []string // Names of specs without corresponding plans
-	UndecomposedPlans  []string // Names of plans not yet decomposed
-	ReadyBeadCount     int      // Number of ready beads
-	ReadyBeads         []string // IDs of ready beads (up to 3 shown, rest summarized)
-	InProgressCount    int      // Number of beads currently in progress
-	BlockedCount       int      // Number of blocked beads (open but dependencies not met)
-	DeferredCount      int      // Number of deferred beads
-	ClosedCount        int      // Number of closed beads
-	ClosedThisRunCount int      // Number of beads closed during this run
-	HasRunInfo         bool     // Whether run start time is available (for "this run" counts)
-	Recommendation     string   // Suggested next action
+	UnrefinedCount         int      // Number of backlog items not yet refined
+	UnrefinedIdeas         []string // Text of unrefined ideas
+	UnplannedSpecs         []string // Names of specs without corresponding plans
+	UndecomposedPlans      []string // Names of plans not yet decomposed
+	ReadyBeadCount         int      // Number of ready beads
+	ReadyBeads             []string // IDs of ready beads (up to 3 shown, rest summarized)
+	InProgressCount        int      // Number of beads currently in progress
+	BlockedCount           int      // Number of blocked beads (open but dependencies not met)
+	DeferredCount          int      // Number of deferred beads
+	ClosedCount            int      // Number of closed beads
+	ClosedThisRunCount     int      // Number of beads closed during this run
+	HasRunInfo             bool     // Whether run start time is available (for "this run" counts)
+	Recommendation         string   // Suggested next action
+	IntegrationQueueStatus *IntegrationQueueStatus
+}
+
+// IntegrationQueueStatus captures projection data for the queue when available.
+type IntegrationQueueStatus struct {
+	QueueLength      int
+	ReadyCount       int
+	IntegratingCount int
+	BlockedCount     int
+	MergedCount      int
+	Entries          []*IntegrationQueueEntrySummary
+}
+
+// IntegrationQueueEntrySummary represents queue entry data surfaced in pipeline status.
+type IntegrationQueueEntrySummary struct {
+	Branch           string
+	State            string
+	Lane             string
+	ReadyPosition    int
+	LastErrorCode    string
+	LastErrorMessage string
 }
 
 // ReadStatusWithDeps reads pipeline state using dependency-injected clients
@@ -112,6 +134,10 @@ func ReadStatusWithDeps(gromitDir, specsDir, plansDir string, startedAt *time.Ti
 	// Generate recommendation based on priority
 	status.Recommendation = generateRecommendation(status)
 
+	if queueStatus, err := loadIntegrationQueueStatus(gromitDir); err == nil {
+		status.IntegrationQueueStatus = queueStatus
+	}
+
 	return status, nil
 }
 
@@ -157,6 +183,60 @@ func listReadyBeads(ctx context.Context, client BeadQueryClient) ([]string, int)
 	}
 
 	return ids, len(ids)
+}
+
+func loadIntegrationQueueStatus(gromitDir string) (*IntegrationQueueStatus, error) {
+	if gromitDir == "" {
+		return nil, nil
+	}
+
+	store, err := integrationqueue.NewStore(gromitDir)
+	if err != nil {
+		return nil, err
+	}
+
+	snapshot, err := store.Snapshot()
+	if err != nil {
+		return nil, err
+	}
+
+	return projectIntegrationQueueStatus(snapshot), nil
+}
+
+func projectIntegrationQueueStatus(snapshot *integrationqueue.Snapshot) *IntegrationQueueStatus {
+	projection := integrationqueue.ProjectStatus(snapshot)
+	if projection == nil {
+		return nil
+	}
+
+	status := &IntegrationQueueStatus{
+		QueueLength:      projection.QueueLength,
+		ReadyCount:       projection.ReadyCount,
+		IntegratingCount: projection.IntegratingCount,
+		BlockedCount:     projection.BlockedCount,
+		MergedCount:      projection.MergedCount,
+	}
+
+	if len(projection.Entries) == 0 {
+		return status
+	}
+
+	entries := make([]*IntegrationQueueEntrySummary, 0, len(projection.Entries))
+	for _, entry := range projection.Entries {
+		if entry.Entry == nil {
+			continue
+		}
+		entries = append(entries, &IntegrationQueueEntrySummary{
+			Branch:           entry.Entry.Branch,
+			State:            string(entry.Entry.State),
+			Lane:             entry.Entry.Lane,
+			ReadyPosition:    entry.ReadyPosition,
+			LastErrorCode:    entry.Entry.LastErrorCode,
+			LastErrorMessage: entry.Entry.LastErrorMessage,
+		})
+	}
+	status.Entries = entries
+	return status
 }
 
 // generateRecommendation returns the recommended next action based on pipeline state
