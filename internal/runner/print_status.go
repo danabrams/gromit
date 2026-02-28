@@ -23,6 +23,9 @@ var newBeadClientForStatus = bead.NewClient
 // processChecker, when non-nil, is used to verify whether the PID in status.json
 // is still alive; passing nil defaults to IsProcessAlive.
 func PrintStatus(gromitDir string, cfg *config.Config, w io.Writer, processChecker func(int) bool, spcOnly bool) error {
+	if cfg != nil {
+		cfg.SetDefaults()
+	}
 	if spcOnly {
 		trend := readProcessTrendForStatus(gromitDir, cfg)
 		if _, err := fmt.Fprintln(w, display.FormatSPCSummary(trend)); err != nil {
