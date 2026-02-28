@@ -40,6 +40,20 @@ func TestPlanCommandHasChooseAgentFlag(t *testing.T) {
 	}
 }
 
+// TestPlanCommandHasModelFlag verifies plan command has --model flag
+func TestPlanCommandHasModelFlag(t *testing.T) {
+	t.Parallel()
+
+	flag := planCmd.Flags().Lookup("model")
+	if flag == nil {
+		t.Error("plan command missing --model flag")
+	}
+
+	if flag != nil && flag.Value.Type() != "string" {
+		t.Errorf("--model flag type = %q, want %q", flag.Value.Type(), "string")
+	}
+}
+
 // TestPlanUsesAgentResolve verifies plan command integrates with agent.Resolve
 func TestPlanUsesAgentResolve(t *testing.T) {
 
