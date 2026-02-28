@@ -1,6 +1,11 @@
 package tui
 
-import "time"
+import (
+	"time"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/danabrams/gromit/internal/conversation"
+)
 
 // RunProgressState represents run progress in a format suitable for UI rendering.
 type RunProgressState struct {
@@ -100,4 +105,11 @@ func MapRecentCompletions(store *Store) []*Completion {
 		return []*Completion{}
 	}
 	return append([]*Completion{}, store.Dashboard.RecentCompletions...)
+}
+
+// MapConversationEventToMsg converts a pipeline conversation event into the Bubble Tea msg
+// that should be handed to the update loop. All pipeline events are represented as
+// conversationEventMsg so controllers can process the payload consistently.
+func MapConversationEventToMsg(event conversation.Event) tea.Msg {
+	return conversationEventMsg{Event: event}
 }
