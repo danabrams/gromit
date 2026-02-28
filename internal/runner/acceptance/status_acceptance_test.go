@@ -256,6 +256,151 @@ func TestOrchestratorHelper_StatusDeadPID(t *testing.T) {
 	}
 }
 
+// TestOrchestratorHelper_QueueDataSurvivesRestart verifies that integration queue data
+// persists across multiple status command invocations (simulating restart scenario).
+func TestOrchestratorHelper_QueueDataSurvivesRestart(t *testing.T) {
+	t.Parallel()
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("Failed to create gromit dir: %v", err)
+	}
+
+	cfg := &config.Config{
+		Paths: config.PathsConfig{
+			Specs: filepath.Join(gromitDir, "specs"),
+			Plans: filepath.Join(gromitDir, "plans"),
+		},
+	}
+
+	// Create an initial queue with some entries
+	queueData := map[string]interface{}{
+		"schema_version": 1,
+		"updated_at":     "2026-02-28T00:00:00Z",
+		"entries": []map[string]interface{}{
+			{
+				"branch":                 "gromit/test-branch",
+				"session_id":             "session-123",
+				"origin_command":         "review",
+				"state":                  "ready",
+				"lane":                   "code_lane",
+				"created_at":             "2026-02-28T00:00:00Z",
+				"updated_at":             "2026-02-28T00:00:00Z",
+				"attempt_count":          1,
+				"retry_count":            0,
+				"fifo_seq":               1,
+				"base_ref":               "origin/main",
+				"head_sha":               "deadbeef1234",
+				"changed_files_hash":     "sha256:hash",
+				"last_error_code":        "",
+				"last_error_message":     "",
+				"last_transition_reason": "session_committed",
+			},
+		},
+	}
+	queueBytes, err := json.Marshal(queueData)
+	if err != nil {
+		t.Fatalf("Failed to marshal queue data: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gromitDir, "integration-queue.json"), queueBytes, 0644); err != nil {
+		t.Fatalf("Failed to write queue file: %v", err)
+	}
+
+	// First status call
+	var buf1 strings.Builder
+	if err := runner.PrintStatus(gromitDir, cfg, &buf1, nil, false); err != nil {
+		t.Fatalf("PrintStatus first call failed: %v", err)
+	}
+	output1 := buf1.String()
+
+	// Verify queue data is present in first call
+	if !strings.Contains(output1, "gromit/test-branch") {
+		t.Errorf("First status call missing queue entry; got:\n%s", output1)
+	}
+
+	// Second status call (simulating restart) - should see same queue data
+	var buf2 strings.Builder
+	if err := runner.PrintStatus(gromitDir, cfg, &buf2, nil, false); err != nil {
+		t.Fatalf("PrintStatus second call failed: %v", err)
+	}
+	output2 := buf2.String()
+
+	// Verify queue data persists
+	if !strings.Contains(output2, "gromit/test-branch") {
+		t.Errorf("Second status call missing queue entry (data not persisted); got:\n%s", output2)
+	}
+
+	// Verify the queue file still exists unchanged
+	queuePath := filepath.Join(gromitDir, "integration-queue.json")
+	if _, err := os.Stat(queuePath); err != nil {
+		t.Errorf("Queue file should persist across calls: %v", err)
+	}
+}
+
+// TestOrchestratorHelper_QueueDataRemainsIntactAcrossStatusCalls ensures repeated
+// status invocations continue to surface the saved queue and do not mutate the
+// underlying integration queue file.
+func TestOrchestratorHelper_QueueDataRemainsIntactAcrossStatusCalls(t *testing.T) {
+	t.Parallel()
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("Failed to create gromit dir: %v", err)
+	}
+
+	cfg := &config.Config{
+		Paths: config.PathsConfig{
+			Specs: filepath.Join(gromitDir, "specs"),
+			Plans: filepath.Join(gromitDir, "plans"),
+		},
+	}
+
+	queueEntries := []map[string]interface{}{
+		{
+			"branch":                 "gromit/guard-branch",
+			"session_id":             "session-guard",
+			"origin_command":         "review",
+			"state":                  "ready",
+			"lane":                   "code_lane",
+			"created_at":             "2026-02-28T00:00:00Z",
+			"updated_at":             "2026-02-28T00:00:00Z",
+			"attempt_count":          1,
+			"retry_count":            0,
+			"fifo_seq":               1,
+			"base_ref":               "origin/main",
+			"head_sha":               "deadbeef1234",
+			"changed_files_hash":     "sha256:hash",
+			"last_error_code":        "",
+			"last_error_message":     "",
+			"last_transition_reason": "session_committed",
+		},
+	}
+	queueData := map[string]interface{}{
+		"schema_version": 1,
+		"updated_at":     "2026-02-28T00:00:00Z",
+		"entries":        queueEntries,
+	}
+	queueBytes, err := json.Marshal(queueData)
+	if err != nil {
+		t.Fatalf("Failed to marshal queue data: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gromitDir, "integration-queue.json"), queueBytes, 0644); err != nil {
+		t.Fatalf("Failed to write queue file: %v", err)
+	}
+
+	outputs := captureStatusOutputs(t, gromitDir, cfg, 2)
+	for idx, output := range outputs {
+		if !strings.Contains(output, "gromit/guard-branch") {
+			t.Errorf("status call %d missing queue entry; got:\n%s", idx+1, output)
+		}
+	}
+	firstContents := readIntegrationQueueContents(t, gromitDir)
+	secondContents := readIntegrationQueueContents(t, gromitDir)
+	if firstContents != secondContents {
+		t.Fatalf("integration queue file changed between calls\nfirst: %s\nsecond: %s", firstContents, secondContents)
+	}
+}
+
 // TestOrchestratorHelper_StatusIntegrationActiveRun tests full status output
 // with an active run, backlog, state, and interactive-state files.
 func TestOrchestratorHelper_StatusIntegrationActiveRun(t *testing.T) {
