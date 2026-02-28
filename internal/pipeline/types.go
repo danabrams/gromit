@@ -15,6 +15,28 @@ const (
 	ConversationStateCancelled
 )
 
+// ConversationLifecycleStateString returns the string representation of a lifecycle state.
+func ConversationLifecycleStateString(state ConversationLifecycleState) string {
+	switch state {
+	case ConversationStateIdle:
+		return "idle"
+	case ConversationStateStarting:
+		return "starting"
+	case ConversationStateStreaming:
+		return "streaming"
+	case ConversationStateWaitingForTool:
+		return "waiting_for_tool"
+	case ConversationStateCompleted:
+		return "completed"
+	case ConversationStateFailed:
+		return "failed"
+	case ConversationStateCancelled:
+		return "cancelled"
+	default:
+		return "unknown"
+	}
+}
+
 // ConversationEvent represents a discrete event emitted during conversation streaming.
 type ConversationEvent struct {
 	State       ConversationLifecycleState
