@@ -13,7 +13,22 @@ type benchmarkDecomposeCompareOptions struct {
 	OutputTS     string
 }
 
+type benchmarkDecomposeCompareCohortSelectorOptions struct {
+	ManifestPath string
+}
+
+type benchmarkDecomposeCompareRunnerOptions struct {
+	Specs string
+}
+
+type benchmarkDecomposeCompareReportWriterOptions struct {
+	OutputTS string
+}
+
 var benchmarkRunDecomposeCompareFn = runBenchmarkDecomposeCompare
+var benchmarkDecomposeCompareCohortSelectorFn = selectDecomposeCompareCohort
+var benchmarkDecomposeCompareRunnerFn = runDecomposeCompare
+var benchmarkDecomposeCompareReportWriterFn = writeDecomposeCompareReport
 var benchmarkDecomposeCompareManifestPath string
 var benchmarkDecomposeCompareOutputTS string
 
@@ -59,5 +74,44 @@ func registerBenchmarkDecomposeCompareCommand(root *cobra.Command) {
 }
 
 func runBenchmarkDecomposeCompare(opts benchmarkDecomposeCompareOptions) error {
+	// Select cohort
+	cohort, err := benchmarkDecomposeCompareCohortSelectorFn(benchmarkDecomposeCompareCohortSelectorOptions{
+		ManifestPath: opts.ManifestPath,
+	})
+	if err != nil {
+		return fmt.Errorf("select cohort: %w", err)
+	}
+
+	// Run compare
+	_, err = benchmarkDecomposeCompareRunnerFn(benchmarkDecomposeCompareRunnerOptions{
+		Specs: strings.Join(cohort, ","),
+	})
+	if err != nil {
+		return fmt.Errorf("run compare: %w", err)
+	}
+
+	// Write report
+	ts := opts.OutputTS
+	if ts == "" {
+		ts = time.Now().UTC().Format("20060102T150405Z")
+	}
+	if err := benchmarkDecomposeCompareReportWriterFn(benchmarkDecomposeCompareReportWriterOptions{
+		OutputTS: ts,
+	}); err != nil {
+		return fmt.Errorf("write report: %w", err)
+	}
+
+	return nil
+}
+
+func selectDecomposeCompareCohort(opts benchmarkDecomposeCompareCohortSelectorOptions) ([]string, error) {
+	return nil, fmt.Errorf("not implemented yet")
+}
+
+func runDecomposeCompare(opts benchmarkDecomposeCompareRunnerOptions) (interface{}, error) {
+	return nil, fmt.Errorf("not implemented yet")
+}
+
+func writeDecomposeCompareReport(opts benchmarkDecomposeCompareReportWriterOptions) error {
 	return fmt.Errorf("not implemented yet")
 }
