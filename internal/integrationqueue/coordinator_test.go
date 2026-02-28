@@ -189,6 +189,47 @@ func (m *selectiveConflictMockGitOps) Cleanup(ctx context.Context, entry Entry) 
 	return nil
 }
 
+type selectiveFailGateMockGate struct {
+	calls []string
+}
+
+func (m *selectiveFailGateMockGate) Run(ctx context.Context, entry Entry) error {
+	m.calls = append(m.calls, entry.Branch)
+	// First entry fails gates, second succeeds
+	if entry.Branch == "feature/will-fail-gates" {
+		return fmt.Errorf("gate validation failed")
+	}
+	return nil
+}
+
+type selectiveLaneViolationMockGitOps struct {
+	calls []string
+}
+
+func (m *selectiveLaneViolationMockGitOps) FetchAndRebase(ctx context.Context, entry Entry) error {
+	m.calls = append(m.calls, "fetch:"+entry.Branch)
+	return nil
+}
+
+func (m *selectiveLaneViolationMockGitOps) MergeToMain(ctx context.Context, entry Entry) error {
+	m.calls = append(m.calls, "merge:"+entry.Branch)
+	// First entry has lane violation, second succeeds
+	if entry.Branch == "feature/will-lane-violate" {
+		return fmt.Errorf("lane violation: cannot merge safe_lane with code changes")
+	}
+	return nil
+}
+
+func (m *selectiveLaneViolationMockGitOps) Push(ctx context.Context) error {
+	m.calls = append(m.calls, "push")
+	return nil
+}
+
+func (m *selectiveLaneViolationMockGitOps) Cleanup(ctx context.Context, entry Entry) error {
+	m.calls = append(m.calls, "cleanup:"+entry.Branch)
+	return nil
+}
+
 func TestCoordinatorIncrementsAttemptCount(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
@@ -468,6 +509,253 @@ func TestCoordinatorHandlesLaneViolation(t *testing.T) {
 	}
 	if processed.LastErrorCode != "lane_violation" {
 		t.Fatalf("LastErrorCode = %q, want lane_violation", processed.LastErrorCode)
+	}
+}
+
+// TestCoordinator_StallsOnNonTerminalFailure verifies that non-terminal failures
+// (like push failures) still block FIFO progression as they are not recoverable
+// in the same loop iteration.
+func TestCoordinator_StallsOnNonTerminalFailure(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	// Entry that will fail during push
+	pushFailEntry := Entry{
+		Branch:           "feature/push-fail",
+		SessionID:        "feature/push-fail",
+		OriginCommand:    "test",
+		State:            StateReady,
+		Lane:             "code_lane",
+		BaseRef:          "main",
+		HeadSHA:          "deadbeef",
+		ChangedFilesHash: "hash1",
+	}
+	if err := store.Save(pushFailEntry); err != nil {
+		t.Fatalf("Save(pushFailEntry) error = %v", err)
+	}
+
+	// Second entry should NOT be processed if first fails push
+	neverProcessed := Entry{
+		Branch:           "feature/never-process",
+		SessionID:        "feature/never-process",
+		OriginCommand:    "test",
+		State:            StateReady,
+		Lane:             "code_lane",
+		BaseRef:          "main",
+		HeadSHA:          "cafebabe",
+		ChangedFilesHash: "hash2",
+	}
+	if err := store.Save(neverProcessed); err != nil {
+		t.Fatalf("Save(neverProcessed) error = %v", err)
+	}
+
+	gitops := &pushFailureMockGitOps{}
+	gate := &mockScopedGate{}
+	coord := NewCoordinator(store, gitops, gate)
+
+	// Coordinate should return error for non-terminal failure
+	err = coord.Coordinate(ctx)
+	if err == nil {
+		t.Fatalf("Coordinate() error = nil, want non-nil")
+	}
+
+	payload, err := store.load()
+	if err != nil {
+		t.Fatalf("load() error = %v", err)
+	}
+
+	// First entry should be in integrating or have failed_gates (before push failed)
+	first := findEntry(payload.Entries, "feature/push-fail")
+	if first == nil {
+		t.Fatalf("missing first entry")
+	}
+
+	// Second entry should still be ready (not processed)
+	second := findEntry(payload.Entries, "feature/never-process")
+	if second == nil {
+		t.Fatalf("missing second entry")
+	}
+	if second.State != StateReady {
+		t.Fatalf("second.State = %q, want %q (should not have been processed)", second.State, StateReady)
+	}
+}
+
+type pushFailureMockGitOps struct {
+	calls []string
+}
+
+func (m *pushFailureMockGitOps) FetchAndRebase(ctx context.Context, entry Entry) error {
+	m.calls = append(m.calls, "fetch:"+entry.Branch)
+	return nil
+}
+
+func (m *pushFailureMockGitOps) MergeToMain(ctx context.Context, entry Entry) error {
+	m.calls = append(m.calls, "merge:"+entry.Branch)
+	return nil
+}
+
+func (m *pushFailureMockGitOps) Push(ctx context.Context) error {
+	m.calls = append(m.calls, "push")
+	return fmt.Errorf("push to remote failed: network timeout")
+}
+
+func (m *pushFailureMockGitOps) Cleanup(ctx context.Context, entry Entry) error {
+	m.calls = append(m.calls, "cleanup:"+entry.Branch)
+	return nil
+}
+
+// TestCoordinator_DoesNotStallOnLaneViolation verifies that when entry A has lane violation,
+// entry B (next ready) is processed in the same Coordinate call instead of blocking.
+func TestCoordinator_DoesNotStallOnLaneViolation(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	// First entry will have lane violation
+	laneViolationEntry := Entry{
+		Branch:           "feature/will-lane-violate",
+		SessionID:        "feature/will-lane-violate",
+		OriginCommand:    "test",
+		State:            StateReady,
+		Lane:             "safe_lane",
+		BaseRef:          "main",
+		HeadSHA:          "deadbeef",
+		ChangedFilesHash: "hash1",
+	}
+	if err := store.Save(laneViolationEntry); err != nil {
+		t.Fatalf("Save(laneViolationEntry) error = %v", err)
+	}
+
+	// Second entry should be processed after first has lane violation
+	succeedEntry := Entry{
+		Branch:           "feature/will-succeed",
+		SessionID:        "feature/will-succeed",
+		OriginCommand:    "test",
+		State:            StateReady,
+		Lane:             "code_lane",
+		BaseRef:          "main",
+		HeadSHA:          "cafebabe",
+		ChangedFilesHash: "hash2",
+	}
+	if err := store.Save(succeedEntry); err != nil {
+		t.Fatalf("Save(succeedEntry) error = %v", err)
+	}
+
+	gitops := &selectiveLaneViolationMockGitOps{}
+	gate := &mockScopedGate{}
+	coord := NewCoordinator(store, gitops, gate)
+
+	// Coordinate should process both entries (first has lane violation, second succeeds)
+	err = coord.Coordinate(ctx)
+	if err != nil {
+		t.Fatalf("Coordinate() error = %v, want nil", err)
+	}
+
+	payload, err := store.load()
+	if err != nil {
+		t.Fatalf("load() error = %v", err)
+	}
+
+	// First entry should be in lane_violation state
+	first := findEntry(payload.Entries, "feature/will-lane-violate")
+	if first == nil {
+		t.Fatalf("missing first entry")
+	}
+	if first.State != StateLaneViolation {
+		t.Fatalf("first.State = %q, want %q", first.State, StateLaneViolation)
+	}
+
+	// Second entry should be merged (successfully processed)
+	second := findEntry(payload.Entries, "feature/will-succeed")
+	if second == nil {
+		t.Fatalf("missing second entry")
+	}
+	if second.State != StateMerged {
+		t.Fatalf("second.State = %q, want %q", second.State, StateMerged)
+	}
+}
+
+// TestCoordinator_DoesNotStallOnFailedGates verifies that when entry A fails gates,
+// entry B (next ready) is processed in the same Coordinate call instead of blocking.
+func TestCoordinator_DoesNotStallOnFailedGates(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	// First entry will fail gates
+	failGatesEntry := Entry{
+		Branch:           "feature/will-fail-gates",
+		SessionID:        "feature/will-fail-gates",
+		OriginCommand:    "test",
+		State:            StateReady,
+		Lane:             "code_lane",
+		BaseRef:          "main",
+		HeadSHA:          "deadbeef",
+		ChangedFilesHash: "hash1",
+	}
+	if err := store.Save(failGatesEntry); err != nil {
+		t.Fatalf("Save(failGatesEntry) error = %v", err)
+	}
+
+	// Second entry should be processed after first fails gates
+	succeedEntry := Entry{
+		Branch:           "feature/will-succeed",
+		SessionID:        "feature/will-succeed",
+		OriginCommand:    "test",
+		State:            StateReady,
+		Lane:             "code_lane",
+		BaseRef:          "main",
+		HeadSHA:          "cafebabe",
+		ChangedFilesHash: "hash2",
+	}
+	if err := store.Save(succeedEntry); err != nil {
+		t.Fatalf("Save(succeedEntry) error = %v", err)
+	}
+
+	gitops := &mockGitOps{}
+	gate := &selectiveFailGateMockGate{}
+	coord := NewCoordinator(store, gitops, gate)
+
+	// Coordinate should process both entries (first fails gates, second succeeds)
+	err = coord.Coordinate(ctx)
+	if err != nil {
+		t.Fatalf("Coordinate() error = %v, want nil", err)
+	}
+
+	payload, err := store.load()
+	if err != nil {
+		t.Fatalf("load() error = %v", err)
+	}
+
+	// First entry should be in failed_gates state
+	first := findEntry(payload.Entries, "feature/will-fail-gates")
+	if first == nil {
+		t.Fatalf("missing first entry")
+	}
+	if first.State != StateFailedGates {
+		t.Fatalf("first.State = %q, want %q", first.State, StateFailedGates)
+	}
+
+	// Second entry should be merged (successfully processed)
+	second := findEntry(payload.Entries, "feature/will-succeed")
+	if second == nil {
+		t.Fatalf("missing second entry")
+	}
+	if second.State != StateMerged {
+		t.Fatalf("second.State = %q, want %q", second.State, StateMerged)
 	}
 }
 
