@@ -431,6 +431,21 @@ func TestQueueCmd_RegressionAssertion_TUISectionsIntact(t *testing.T) {
 	assertQueueTUISections(t, output)
 }
 
+func assertQueueTUISections(t *testing.T, output string) {
+	required := []string{
+		"Queue",
+		"Queue by spec",
+		"Spec: alpha",
+		"Blocked (1):",
+		"Stuck (1):",
+	}
+	for _, section := range required {
+		if !strings.Contains(output, section) {
+			t.Fatalf("queue output missing expected section %q, got:\n%s", section, output)
+		}
+	}
+}
+
 // trackerMutationTracker wraps a tracker.Client and calls onMutation when mutation methods are invoked
 type trackerMutationTracker struct {
 	wrapped    tracker.Client
