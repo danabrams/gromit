@@ -73,6 +73,20 @@ func TestGetReason_FromDependencies(t *testing.T) {
 	}
 }
 
+func TestDependencyIDs_TrimsAndSkipsEmpty(t *testing.T) {
+	t.Parallel()
+	input := []bead.Dependency{
+		{ID: "dep-1"},
+		{ID: "  "},
+		{ID: "dep-2"},
+		{ID: ""},
+		{ID: "dep-3"},
+	}
+	if got := DependencyIDs(input); len(got) != 3 || got[0] != "dep-1" || got[1] != "dep-2" || got[2] != "dep-3" {
+		t.Fatalf("DependencyIDs() = %v", got)
+	}
+}
+
 func TestGetReason_FromDependencyCount(t *testing.T) {
 	t.Parallel()
 	count := 3
