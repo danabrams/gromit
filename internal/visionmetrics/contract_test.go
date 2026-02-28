@@ -26,3 +26,46 @@ func TestContractFieldNameConstants(t *testing.T) {
 		t.Error("FieldEscapedRegressionWithin7D constant must be defined")
 	}
 }
+
+func TestReviewOutcomeDomainMembership(t *testing.T) {
+	// Test that all allowed ReviewOutcome values are defined
+	if ReviewOutcomeAccepted == "" {
+		t.Error("ReviewOutcomeAccepted must be defined")
+	}
+	if ReviewOutcomeImplementationGap == "" {
+		t.Error("ReviewOutcomeImplementationGap must be defined")
+	}
+	if ReviewOutcomeVisionChange == "" {
+		t.Error("ReviewOutcomeVisionChange must be defined")
+	}
+
+	// Test that allowed values are recognized as valid
+	tests := []ReviewOutcome{
+		ReviewOutcomeAccepted,
+		ReviewOutcomeImplementationGap,
+		ReviewOutcomeVisionChange,
+	}
+	for _, outcome := range tests {
+		if !outcome.Valid() {
+			t.Errorf("ReviewOutcome %q should be valid", outcome)
+		}
+	}
+}
+
+func TestInterventionDomainMembership(t *testing.T) {
+	// Test that all allowed YesNo (intervention) values are defined
+	if Yes == "" {
+		t.Error("Yes must be defined")
+	}
+	if No == "" {
+		t.Error("No must be defined")
+	}
+
+	// Test that allowed values are recognized as valid
+	tests := []YesNo{Yes, No}
+	for _, yn := range tests {
+		if !yn.Valid() {
+			t.Errorf("YesNo %q should be valid", yn)
+		}
+	}
+}
