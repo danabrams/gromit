@@ -1,98 +1,80 @@
 package runner
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
+	"github.com/danabrams/gromit/internal/integrationqueue"
 	"github.com/danabrams/gromit/internal/runner/display"
 )
 
-const integrationQueueFileName = "integration-queue.json"
 const integrationQueueDisplayLimit = 10
 
 var blockedQueueStates = map[string]struct{}{
-	"conflict":       {},
-	"failed_gates":   {},
-	"lane_violation": {},
+	string(integrationqueue.StateConflict):      {},
+	string(integrationqueue.StateFailedGates):   {},
+	string(integrationqueue.StateLaneViolation): {},
 }
 
+type integrationQueueStore interface {
+	Snapshot() (*integrationqueue.Snapshot, error)
+}
+
+type integrationQueueStoreFactory func(string) (integrationQueueStore, error)
+
+var newIntegrationQueueStore integrationQueueStoreFactory = func(gromitDir string) (integrationQueueStore, error) {
+	store, err := integrationqueue.NewStore(gromitDir)
+	if err != nil {
+		return nil, err
+	}
+	return store, nil
+}
+
+// ReadIntegrationQueue loads the latest queue snapshot and converts it to display
+// data. If the gromit directory is empty or initialization fails, it returns nil.
 func ReadIntegrationQueue(gromitDir string) (*display.IntegrationQueueStatus, error) {
 	if gromitDir == "" {
 		return nil, nil
 	}
 
-	path := filepath.Join(gromitDir, integrationQueueFileName)
-	data, err := os.ReadFile(path)
+	store, err := newIntegrationQueueStore(gromitDir)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("reading integration queue file: %w", err)
+		return nil, fmt.Errorf("initializing integration queue store: %w", err)
 	}
 
-	var payload integrationQueueFile
-	if err := json.Unmarshal(data, &payload); err != nil {
-		return nil, fmt.Errorf("parsing integration queue file: %w", err)
+	snapshot, err := store.Snapshot()
+	if err != nil {
+		return nil, fmt.Errorf("loading integration queue snapshot: %w", err)
 	}
 
-	return buildIntegrationQueueStatus(&payload), nil
+	return buildIntegrationQueueStatus(snapshot), nil
 }
 
-type integrationQueueFile struct {
-	SchemaVersion int                     `json:"schema_version"`
-	UpdatedAt     string                  `json:"updated_at"`
-	Entries       []integrationQueueEntry `json:"entries"`
-}
-
-type integrationQueueEntry struct {
-	Branch               string    `json:"branch"`
-	SessionID            string    `json:"session_id"`
-	OriginCommand        string    `json:"origin_command"`
-	State                string    `json:"state"`
-	Lane                 string    `json:"lane"`
-	CreatedAt            time.Time `json:"created_at"`
-	UpdatedAt            time.Time `json:"updated_at"`
-	AttemptCount         int       `json:"attempt_count"`
-	RetryCount           int       `json:"retry_count"`
-	FifoSeq              int       `json:"fifo_seq"`
-	BaseRef              string    `json:"base_ref"`
-	HeadSHA              string    `json:"head_sha"`
-	ChangedFiles         []string  `json:"changed_files"`
-	ChangedFilesHash     string    `json:"changed_files_hash"`
-	LastErrorCode        string    `json:"last_error_code"`
-	LastErrorMessage     string    `json:"last_error_message"`
-	LastTransitionReason string    `json:"last_transition_reason"`
-}
-
-func buildIntegrationQueueStatus(payload *integrationQueueFile) *display.IntegrationQueueStatus {
-	if payload == nil {
+func buildIntegrationQueueStatus(snapshot *integrationqueue.Snapshot) *display.IntegrationQueueStatus {
+	if snapshot == nil {
 		return nil
 	}
 
-	var readyEntries []*integrationQueueEntry
-	var integratingEntries []*integrationQueueEntry
-	var blockedEntries []*integrationQueueEntry
+	var readyEntries []*integrationqueue.Entry
+	var integratingEntries []*integrationqueue.Entry
+	var blockedEntries []*integrationqueue.Entry
 
 	status := &display.IntegrationQueueStatus{
-		QueueLength: len(payload.Entries),
+		QueueLength: len(snapshot.Entries),
 	}
 
-	for i := range payload.Entries {
-		entry := &payload.Entries[i]
-		state := strings.ToLower(entry.State)
+	for i := range snapshot.Entries {
+		entry := &snapshot.Entries[i]
+		state := strings.ToLower(string(entry.State))
 		switch state {
-		case "ready":
+		case string(integrationqueue.StateReady):
 			readyEntries = append(readyEntries, entry)
 			status.ReadyCount++
-		case "integrating":
+		case string(integrationqueue.StateIntegrating):
 			integratingEntries = append(integratingEntries, entry)
 			status.IntegratingCount++
-		case "merged":
+		case string(integrationqueue.StateMerged):
 			status.MergedCount++
 		default:
 			if _, ok := blockedQueueStates[state]; ok {
@@ -113,7 +95,7 @@ func buildIntegrationQueueStatus(payload *integrationQueueFile) *display.Integra
 		return blockedEntries[i].UpdatedAt.After(blockedEntries[j].UpdatedAt)
 	})
 
-	views := make([]*display.IntegrationQueueEntryView, 0, len(payload.Entries))
+	views := make([]*display.IntegrationQueueEntryView, 0, len(snapshot.Entries))
 	for _, entry := range integratingEntries {
 		views = append(views, entryToView(entry, 0))
 	}
@@ -132,13 +114,13 @@ func buildIntegrationQueueStatus(payload *integrationQueueFile) *display.Integra
 	return status
 }
 
-func entryToView(entry *integrationQueueEntry, readyPos int) *display.IntegrationQueueEntryView {
+func entryToView(entry *integrationqueue.Entry, readyPos int) *display.IntegrationQueueEntryView {
 	if entry == nil {
 		return nil
 	}
 	return &display.IntegrationQueueEntryView{
 		Branch:           entry.Branch,
-		State:            strings.ToLower(entry.State),
+		State:            strings.ToLower(string(entry.State)),
 		Lane:             entry.Lane,
 		ReadyPosition:    readyPos,
 		LastErrorCode:    entry.LastErrorCode,

@@ -14,7 +14,8 @@ const (
 	schemaVersionV = 1
 )
 
-type queueFile struct {
+// Snapshot represents the persisted integration queue data.
+type Snapshot struct {
 	SchemaVersion int       `json:"schema_version"`
 	UpdatedAt     time.Time `json:"updated_at"`
 	Entries       []Entry   `json:"entries"`
@@ -63,29 +64,29 @@ func (s *Store) Save(entry Entry) error {
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
-	file, err := s.load()
+	snapshot, err := s.load()
 	if err != nil {
-		return fmt.Errorf("loading integration queue file: %w", err)
+		return fmt.Errorf("loading integration queue snapshot: %w", err)
 	}
 
 	now := time.Now().UTC()
 	entry.UpdatedAt = now
 	sort.Strings(entry.ChangedFiles)
 
-	existingIdx := s.findEntryIndex(file.Entries, entry.Branch)
+	existingIdx := s.findEntryIndex(snapshot.Entries, entry.Branch)
 	if existingIdx == -1 {
-		entry.FifoSeq = len(file.Entries) + 1
+		entry.FifoSeq = len(snapshot.Entries) + 1
 		entry.CreatedAt = now
-		file.Entries = append(file.Entries, entry)
+		snapshot.Entries = append(snapshot.Entries, entry)
 	} else {
-		entry.FifoSeq = file.Entries[existingIdx].FifoSeq
-		entry.CreatedAt = file.Entries[existingIdx].CreatedAt
-		file.Entries[existingIdx] = entry
+		entry.FifoSeq = snapshot.Entries[existingIdx].FifoSeq
+		entry.CreatedAt = snapshot.Entries[existingIdx].CreatedAt
+		snapshot.Entries[existingIdx] = entry
 	}
 
-	file.SchemaVersion = schemaVersionV
-	file.UpdatedAt = now
-	return s.write(file)
+	snapshot.SchemaVersion = schemaVersionV
+	snapshot.UpdatedAt = now
+	return s.write(snapshot)
 }
 
 func (s *Store) findEntryIndex(entries []Entry, branch string) int {
@@ -109,42 +110,47 @@ func (s *Store) runValidationHooks(entry Entry) error {
 	return nil
 }
 
-func (s *Store) load() (*queueFile, error) {
+// Snapshot loads the current queue snapshot.
+func (s *Store) Snapshot() (*Snapshot, error) {
+	return s.load()
+}
+
+func (s *Store) load() (*Snapshot, error) {
 	data, err := os.ReadFile(s.path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return &queueFile{SchemaVersion: schemaVersionV}, nil
+			return &Snapshot{SchemaVersion: schemaVersionV}, nil
 		}
 		return nil, err
 	}
 
-	var file queueFile
-	if err := json.Unmarshal(data, &file); err != nil {
+	var snapshot Snapshot
+	if err := json.Unmarshal(data, &snapshot); err != nil {
 		return nil, err
 	}
-	if file.SchemaVersion == 0 {
-		file.SchemaVersion = schemaVersionV
+	if snapshot.SchemaVersion == 0 {
+		snapshot.SchemaVersion = schemaVersionV
 	}
-	return &file, nil
+	return &snapshot, nil
 }
 
-func (s *Store) write(file *queueFile) error {
+func (s *Store) write(snapshot *Snapshot) error {
 	dir := filepath.Dir(s.path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("creating queue file directory: %w", err)
 	}
 
-	for i := range file.Entries {
-		sort.Strings(file.Entries[i].ChangedFiles)
+	for i := range snapshot.Entries {
+		sort.Strings(snapshot.Entries[i].ChangedFiles)
 	}
-	sort.SliceStable(file.Entries, func(i, j int) bool {
-		if file.Entries[i].FifoSeq != file.Entries[j].FifoSeq {
-			return file.Entries[i].FifoSeq < file.Entries[j].FifoSeq
+	sort.SliceStable(snapshot.Entries, func(i, j int) bool {
+		if snapshot.Entries[i].FifoSeq != snapshot.Entries[j].FifoSeq {
+			return snapshot.Entries[i].FifoSeq < snapshot.Entries[j].FifoSeq
 		}
-		return file.Entries[i].Branch < file.Entries[j].Branch
+		return snapshot.Entries[i].Branch < snapshot.Entries[j].Branch
 	})
 
-	data, err := json.MarshalIndent(file, "", "  ")
+	data, err := json.MarshalIndent(snapshot, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshalling queue file: %w", err)
 	}

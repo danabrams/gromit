@@ -33,7 +33,7 @@ func TestStoreSaveCreatesAndUpdatesEntry(t *testing.T) {
 		t.Fatalf("initial save: %v", err)
 	}
 
-	first := readQueueFile(t, tmpDir)
+	first := readQueueSnapshot(t, tmpDir)
 	if first.SchemaVersion != schemaVersionV {
 		t.Fatalf("schema version = %d, want %d", first.SchemaVersion, schemaVersionV)
 	}
@@ -55,7 +55,7 @@ func TestStoreSaveCreatesAndUpdatesEntry(t *testing.T) {
 		t.Fatalf("update save: %v", err)
 	}
 
-	updated := readQueueFile(t, tmpDir)
+	updated := readQueueSnapshot(t, tmpDir)
 	if len(updated.Entries) != 1 {
 		t.Fatalf("entry count after update = %d, want 1", len(updated.Entries))
 	}
@@ -70,14 +70,14 @@ func TestStoreSaveCreatesAndUpdatesEntry(t *testing.T) {
 	}
 }
 
-func readQueueFile(t *testing.T, gromitDir string) queueFile {
+func readQueueSnapshot(t *testing.T, gromitDir string) Snapshot {
 	t.Helper()
 	path := filepath.Join(gromitDir, queueFileName)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read queue file: %v", err)
 	}
-	var payload queueFile
+	var payload Snapshot
 	if err := json.Unmarshal(data, &payload); err != nil {
 		t.Fatalf("unmarshal queue file: %v", err)
 	}
@@ -105,7 +105,7 @@ func TestStoreSaveSortsChangedFiles(t *testing.T) {
 		t.Fatalf("Save: %v", err)
 	}
 
-	payload := readQueueFile(t, tmpDir)
+	payload := readQueueSnapshot(t, tmpDir)
 	if len(payload.Entries) != 1 {
 		t.Fatalf("entries = %d, want 1", len(payload.Entries))
 	}
