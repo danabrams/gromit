@@ -16,8 +16,16 @@ type Rollup struct {
 	AcceptedWithoutReworkRate      MetricRate `json:"accepted_without_rework_rate"`
 }
 
-// ComputeRollup calculates KPI rates from the provided validated records.
+// ComputeRollup calculates KPI rates from the provided records, validating and filtering them internally.
 func ComputeRollup(records []Record) Rollup {
+	// Partition records into valid and invalid
+	var valid []Record
+	for _, rec := range records {
+		if len(Validate(rec)) == 0 {
+			valid = append(valid, rec)
+		}
+	}
+
 	var (
 		tactical  int
 		debugging int
@@ -26,7 +34,7 @@ func ComputeRollup(records []Record) Rollup {
 		carveOuts int
 	)
 
-	for _, rec := range records {
+	for _, rec := range valid {
 		if rec.HumanTacticalIntervention == Yes {
 			tactical++
 		}
@@ -45,7 +53,7 @@ func ComputeRollup(records []Record) Rollup {
 	}
 
 	firstPass := accepted
-	total := len(records)
+	total := len(valid)
 	acceptedDenom := total - carveOuts
 	if acceptedDenom < 0 {
 		acceptedDenom = 0
