@@ -173,10 +173,30 @@ type ValidationStats struct {
 	ProceededWithHighComplexityWarning bool `json:"proceeded_with_high_complexity_warning"` // True when loop exits with remaining high-complexity beads
 }
 
+// ProposedBeadDetail contains proposed bead details for review mode.
+// Use NewProposedBeadDetail() to create instances with properly initialized slices.
+type ProposedBeadDetail struct {
+	Title           string   `json:"title"`
+	Criteria        []string `json:"criteria"`
+	ExpectedOutputs []string `json:"expected_outputs"`
+	Dependencies    []string `json:"dependencies"`
+	EstimatedFiles  int      `json:"estimated_files"`
+}
+
+// NewProposedBeadDetail creates a ProposedBeadDetail with initialized slices.
+func NewProposedBeadDetail() ProposedBeadDetail {
+	return ProposedBeadDetail{
+		Criteria:        []string{},
+		ExpectedOutputs: []string{},
+		Dependencies:    []string{},
+	}
+}
+
 // DecomposeResult contains the output from the Decompose workflow.
 // Use NewDecomposeResult() to create instances with properly initialized slices.
 type DecomposeResult struct {
 	CreatedBeads      []CreatedBead             `json:"created_beads"`
+	ProposedBeads     []ProposedBeadDetail      `json:"proposed_beads"`
 	PlanUpdated       bool                      `json:"plan_updated"`
 	PromptDiagnostics *prompt.PromptDiagnostics `json:"prompt_diagnostics,omitempty"`
 	ValidationStats   *ValidationStats          `json:"validation_stats,omitempty"`
@@ -185,7 +205,8 @@ type DecomposeResult struct {
 // NewDecomposeResult creates a DecomposeResult with initialized slices.
 func NewDecomposeResult() DecomposeResult {
 	return DecomposeResult{
-		CreatedBeads: []CreatedBead{},
+		CreatedBeads:  []CreatedBead{},
+		ProposedBeads: []ProposedBeadDetail{},
 	}
 }
 
