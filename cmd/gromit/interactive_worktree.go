@@ -55,8 +55,8 @@ var interactiveWorktreeCleanupSessionFn = func(mainDir, sessionDir string) error
 
 const (
 	sessionQueueLane               = "code_lane"
-	sessionQueueReadyState         = "ready"
-	sessionQueueBlockedState       = "conflict"
+	sessionQueueReadyState         = integrationqueue.StateReady
+	sessionQueueBlockedState       = integrationqueue.StateConflict
 	sessionQueueCommittedReason    = "session_committed"
 	sessionQueueCommitFailedReason = "session_commit_failed"
 	sessionQueueCommitFailedCode   = "session_commit_failed"
