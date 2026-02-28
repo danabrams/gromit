@@ -503,13 +503,15 @@ runLoop:
 			Duration:  time.Duration(buildOut.DurationMs) * time.Millisecond,
 			Time:      time.Now(),
 		})
-		// Emit BeadCompleteEvent
-		o.emitter.Emit(&events.BeadCompleteEvent{
-			BeadID:    b.ID,
-			BeadTitle: b.Title,
-			Duration:  0, // TODO(review): thread real duration once TUI consumes this field
-			Time:      time.Now(),
-		})
+		if finalSuccess {
+			// Emit BeadCompleteEvent only for successful lifecycle iterations
+			o.emitter.Emit(&events.BeadCompleteEvent{
+				BeadID:    b.ID,
+				BeadTitle: b.Title,
+				Duration:  0, // TODO(review): thread real duration once TUI consumes this field
+				Time:      time.Now(),
+			})
+		}
 		touchedPackages = mergeTouchedPackages(touchedPackages, epilogueOut.TouchedPackages)
 	}
 
