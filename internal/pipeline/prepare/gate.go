@@ -166,6 +166,13 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 			g.Log("warning", "Warning: data quality check failed for bead %s: %v", in.Bead.ID, err)
 		} else if blocked {
 			g.Log("warning", "Data quality block for bead %s: %s", in.Bead.ID, reason)
+			if in.Emitter != nil {
+				in.Emitter.Emit(&events.GateBlockEvent{
+					BeadID: in.Bead.ID,
+					Reason: reason,
+					Time:   time.Now(),
+				})
+			}
 			return pipeline.Output{
 				Decision:          pipeline.Block,
 				ComplexityRouting: complexityRouting,
