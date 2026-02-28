@@ -443,12 +443,11 @@ func parseStatusFiles(output string) []string {
 		if trimmed == "" {
 			continue
 		}
-		var path string
-		if len(trimmed) > 3 {
-			path = strings.TrimSpace(trimmed[3:])
-		} else {
-			path = trimmed
+		fields := strings.Fields(trimmed)
+		if len(fields) == 0 {
+			continue
 		}
+		path := fields[len(fields)-1]
 		if idx := strings.Index(path, "->"); idx != -1 {
 			path = strings.TrimSpace(path[idx+2:])
 		}
