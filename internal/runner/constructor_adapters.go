@@ -610,7 +610,7 @@ func newSpecMergeController(cfg *config.Config, client tracker.Client) specmerge
 	if query == nil {
 		return nil
 	}
-	return specmerge.NewPipeline(query)
+	return specmerge.NewPipeline(query, nil)
 }
 
 // extractSpecLabel returns the spec name from labels (format: "spec:name").

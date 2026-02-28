@@ -157,7 +157,7 @@ func TestPipeline_IsSpecComplete_FalseWithOpenBead(t *testing.T) {
 		},
 	}
 
-	p := specmerge.NewPipeline(client)
+	p := specmerge.NewPipeline(client, nil)
 	complete, err := p.IsSpecComplete(specName)
 	if err != nil {
 		t.Fatalf("IsSpecComplete returned error: %v", err)
