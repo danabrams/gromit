@@ -1405,3 +1405,34 @@ func TestEpilogueRun_EmitsEpilogueStartAndCompleteEvents(t *testing.T) {
 		t.Errorf("EpilogueCompleteEvent.BeadID = %q, want %q", completeEvent.BeadID, beadID)
 	}
 }
+
+// TestSingleWriterInvariant_EpilogueDoesNotMergeWhenAutoMergeDisabled is a regression guard
+// asserting that epilogue respects single-writer semantics when auto-merge is disabled.
+// Pending branches remain queued for coordinator-mediated integration when auto-merge is off.
+func TestSingleWriterInvariant_EpilogueDoesNotMergeWhenAutoMergeDisabled(t *testing.T) {
+	merger := &fakeWorktreeMerger{
+		branches: []string{"gromit/pending-branch"},
+	}
+
+	// Create epilogue with worktree merger
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
+		WithWorktree(merger)
+
+	// Create input with worktree enabled but auto-merge disabled
+	// Under single-writer, auto-merge should be OFF, leaving coordinator responsible for merges
+	in := makeInput("bead-1", "Test feature", true)
+	in.Config.Worktree.Enabled = boolPtr(true)     // Worktree is enabled
+	in.Config.Worktree.AutoMerge = boolPtr(false)  // But auto-merge is DISABLED (single-writer policy)
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	// REGRESSION GUARD: Verify epilogue did not attempt merge since auto-merge is disabled.
+	// Under single-writer, merges should only happen via coordinator, not epilogue.
+	if len(merger.mergedBranches) > 0 {
+		t.Fatalf("regression: epilogue attempted to merge branches %v with auto-merge disabled; "+
+			"single-writer requires coordinator-mediated integration", merger.mergedBranches)
+	}
+}
