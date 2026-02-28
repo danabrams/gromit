@@ -16,7 +16,7 @@ func LoadRecords(path string) ([]Record, error) {
 	}
 	defer file.Close()
 
-	var records []Record
+	records := make([]Record, 0)
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Bytes()
