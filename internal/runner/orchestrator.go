@@ -86,6 +86,14 @@ type OrchestratorConfig struct {
 	// ExperimentMgr manages experiments and variant selection.
 	// Optional: nil means experiments are disabled.
 	ExperimentMgr *experiment.Manager
+
+	// BranchRouter maps bead labels to git branch names.
+	// Optional: nil means branch checkout is skipped.
+	BranchRouter BranchRouter
+
+	// GitCheckout performs git branch checkout operations.
+	// Optional: nil means branch checkout is skipped.
+	GitCheckout GitCheckout
 }
 
 type trendUpdaterCloser interface {
