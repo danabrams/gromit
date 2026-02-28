@@ -517,3 +517,26 @@ func TestReadinessAdapterWithLLM_AssessValidatesNilRenderer(t *testing.T) {
 		t.Fatalf("Assess returned status %q, want %q for nil renderer", assessment.Status, readiness.StatusNotReady)
 	}
 }
+
+// TestReadinessAdapterWithLLM_ImplementsAssessor verifies the adapter implements readiness.Assessor.
+func TestReadinessAdapterWithLLM_ImplementsAssessor(t *testing.T) {
+	t.Parallel()
+	renderer := &dummyPromptRenderer{}
+	router := &dummyRouter{}
+	adapter := NewReadinessAdapterWithLLM(renderer, router)
+	if adapter == nil {
+		t.Fatal("adapter should not be nil")
+	}
+	// This test verifies that *readinessAdapterWithLLM can be used where readiness.Assessor is expected.
+	// This is a compile-time check that the Assess method exists and has the right signature.
+	var _ readiness.Assessor = adapter
+}
+
+// TestPromptRenderer_RenderReadinessMethodExists tests that Renderer has RenderReadiness method.
+func TestPromptRenderer_RenderReadinessMethodExists(t *testing.T) {
+	t.Parallel()
+	// This test verifies that prompt.Renderer can be used as readinessPromptRenderer
+	// If this fails at compile time, we need to add RenderReadiness method to Renderer
+	var r *prompt.Renderer
+	var _ readinessPromptRenderer = r
+}
