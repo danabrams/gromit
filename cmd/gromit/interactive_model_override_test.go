@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"os/exec"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/agent"
@@ -107,6 +108,13 @@ func TestTryOverrideModel(t *testing.T) {
 	})
 }
 
+type unsupportedAgent struct{}
+
+func (unsupportedAgent) Name() string                      { return "custom" }
+func (unsupportedAgent) Launch(string) error               { return nil }
+func (unsupportedAgent) LaunchInDir(string, string) error  { return nil }
+func (unsupportedAgent) Command(string) (*exec.Cmd, error) { return nil, nil }
+
 func TestExploreInteractiveModelForwarderOverridesClaudeModel(t *testing.T) {
 	t.Parallel()
 
@@ -156,5 +164,26 @@ func TestExploreInteractiveModelForwarderOverridesClaudeModel(t *testing.T) {
 	}
 	if args[modelFlagIndex+1] != "sonnet" {
 		t.Fatalf("expected model value sonnet, got %q", args[modelFlagIndex+1])
+	}
+}
+
+func TestExploreInteractiveModelForwarderWarnsForUnsupportedAgent(t *testing.T) {
+	t.Parallel()
+
+	cmd := &cobra.Command{Use: "explore"}
+	cmd.Flags().String("model", "opus", "model override")
+	if err := cmd.Flags().Set("model", "sonnet"); err != nil {
+		t.Fatalf("setting model flag: %v", err)
+	}
+
+	forwarder := exploreInteractiveModelForwarder(cmd, nil, "model")
+	custom := unsupportedAgent{}
+	returned, warning := forwarder(custom, "sonnet")
+	if returned != custom {
+		t.Fatalf("expected unsupported agent to be returned unchanged")
+	}
+	expected := "--model flag ignored for non-Claude agent \"custom\""
+	if warning != expected {
+		t.Fatalf("warning = %q, want %q", warning, expected)
 	}
 }
