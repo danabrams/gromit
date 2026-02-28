@@ -512,6 +512,144 @@ func TestCoordinatorHandlesLaneViolation(t *testing.T) {
 	}
 }
 
+// TestCoordinator_PreservesBranchStateOnMultipleTerminalFailures verifies that
+// when multiple ready entries experience terminal failures, each branch is
+// properly transitioned to its correct terminal state without corruption.
+func TestCoordinator_PreservesBranchStateOnMultipleTerminalFailures(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	// Three entries with different terminal failures
+	conflictEntry := Entry{
+		Branch:           "feature/conflict",
+		SessionID:        "session-conflict",
+		OriginCommand:    "test",
+		State:            StateReady,
+		Lane:             "code_lane",
+		BaseRef:          "main",
+		HeadSHA:          "deadbeef",
+		ChangedFilesHash: "hash1",
+	}
+	if err := store.Save(conflictEntry); err != nil {
+		t.Fatalf("Save(conflictEntry) error = %v", err)
+	}
+
+	laneViolationEntry := Entry{
+		Branch:           "feature/lane-violation",
+		SessionID:        "session-lane-viol",
+		OriginCommand:    "test",
+		State:            StateReady,
+		Lane:             "safe_lane",
+		BaseRef:          "main",
+		HeadSHA:          "cafebabe",
+		ChangedFilesHash: "hash2",
+	}
+	if err := store.Save(laneViolationEntry); err != nil {
+		t.Fatalf("Save(laneViolationEntry) error = %v", err)
+	}
+
+	failGatesEntry := Entry{
+		Branch:           "feature/fail-gates",
+		SessionID:        "session-fail-gates",
+		OriginCommand:    "test",
+		State:            StateReady,
+		Lane:             "code_lane",
+		BaseRef:          "main",
+		HeadSHA:          "beefdead",
+		ChangedFilesHash: "hash3",
+	}
+	if err := store.Save(failGatesEntry); err != nil {
+		t.Fatalf("Save(failGatesEntry) error = %v", err)
+	}
+
+	gitops := &multiTerminalMockGitOps{}
+	gate := &multiTerminalMockGate{}
+	coord := NewCoordinator(store, gitops, gate)
+
+	// All three should be processed in one loop
+	err = coord.Coordinate(ctx)
+	if err != nil {
+		t.Fatalf("Coordinate() error = %v, want nil", err)
+	}
+
+	payload, err := store.load()
+	if err != nil {
+		t.Fatalf("load() error = %v", err)
+	}
+
+	// Verify each entry is in correct terminal state
+	conflict := findEntry(payload.Entries, "feature/conflict")
+	if conflict == nil {
+		t.Fatal("conflict entry not found")
+	}
+	if conflict.State != StateConflict {
+		t.Fatalf("conflict.State = %q, want %q", conflict.State, StateConflict)
+	}
+	if conflict.LastErrorCode != "merge_conflict" {
+		t.Fatalf("conflict.LastErrorCode = %q, want merge_conflict", conflict.LastErrorCode)
+	}
+
+	laneViol := findEntry(payload.Entries, "feature/lane-violation")
+	if laneViol == nil {
+		t.Fatal("lane violation entry not found")
+	}
+	if laneViol.State != StateLaneViolation {
+		t.Fatalf("laneViol.State = %q, want %q", laneViol.State, StateLaneViolation)
+	}
+	if laneViol.LastErrorCode != "lane_violation" {
+		t.Fatalf("laneViol.LastErrorCode = %q, want lane_violation", laneViol.LastErrorCode)
+	}
+
+	failGates := findEntry(payload.Entries, "feature/fail-gates")
+	if failGates == nil {
+		t.Fatal("fail gates entry not found")
+	}
+	if failGates.State != StateFailedGates {
+		t.Fatalf("failGates.State = %q, want %q", failGates.State, StateFailedGates)
+	}
+	if failGates.LastErrorCode != "failed_gates" {
+		t.Fatalf("failGates.LastErrorCode = %q, want failed_gates", failGates.LastErrorCode)
+	}
+}
+
+type multiTerminalMockGitOps struct{}
+
+func (m *multiTerminalMockGitOps) FetchAndRebase(ctx context.Context, entry Entry) error {
+	return nil
+}
+
+func (m *multiTerminalMockGitOps) MergeToMain(ctx context.Context, entry Entry) error {
+	if entry.Branch == "feature/conflict" {
+		return fmt.Errorf("merge conflict")
+	}
+	if entry.Branch == "feature/lane-violation" {
+		return fmt.Errorf("lane violation: cannot merge safe_lane with code changes")
+	}
+	return nil
+}
+
+func (m *multiTerminalMockGitOps) Push(ctx context.Context) error {
+	return nil
+}
+
+func (m *multiTerminalMockGitOps) Cleanup(ctx context.Context, entry Entry) error {
+	return nil
+}
+
+type multiTerminalMockGate struct{}
+
+func (g *multiTerminalMockGate) Run(ctx context.Context, entry Entry) error {
+	if entry.Branch == "feature/fail-gates" {
+		return fmt.Errorf("gate validation failed")
+	}
+	return nil
+}
+
 // TestCoordinator_StallsOnNonTerminalFailure verifies that non-terminal failures
 // (like push failures) still block FIFO progression as they are not recoverable
 // in the same loop iteration.
