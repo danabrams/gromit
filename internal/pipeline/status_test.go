@@ -398,6 +398,27 @@ func TestReadStatus_IntegrationQueueProjection(t *testing.T) {
 	}
 }
 
+func TestReadStatus_MissingIntegrationQueueFile(t *testing.T) {
+	disableLiveBDForStatusTests(t)
+
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	specsDir := filepath.Join(gromitDir, "specs")
+	plansDir := filepath.Join(gromitDir, "plans")
+
+	os.MkdirAll(specsDir, 0755)
+	os.MkdirAll(plansDir, 0755)
+
+	status, err := ReadStatus(gromitDir, specsDir, plansDir, nil)
+	if err != nil {
+		t.Fatalf("ReadStatus() error = %v", err)
+	}
+
+	if status.IntegrationQueueStatus != nil {
+		t.Fatalf("IntegrationQueueStatus = %#v, want nil when queue file missing", status.IntegrationQueueStatus)
+	}
+}
+
 func TestReadStatus_MissingDirectories(t *testing.T) {
 	disableLiveBDForStatusTests(t)
 
