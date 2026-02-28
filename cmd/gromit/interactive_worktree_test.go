@@ -88,6 +88,14 @@ func withInteractiveWorktreeFactories(
 	})
 }
 
+func overrideGitRun(fn func(dir string, args ...string) (string, error)) func() {
+	original := interactiveWorktreeGitRunFn
+	interactiveWorktreeGitRunFn = fn
+	return func() {
+		interactiveWorktreeGitRunFn = original
+	}
+}
+
 func TestRunWithSessionWorktreeExecutesCallbackInSessionDir(t *testing.T) {
 	// Not parallel: withInteractiveWorktreeFactories mutates package-level globals.
 	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "refine")
@@ -130,6 +138,52 @@ func TestRunWithSessionWorktreeExecutesCallbackInSessionDir(t *testing.T) {
 	}
 	if result.BranchName != session.BranchName {
 		t.Fatalf("result.BranchName = %q, want %q", result.BranchName, session.BranchName)
+	}
+}
+
+func TestRunWithSessionWorktreeAutoCommitInvoked(t *testing.T) {
+	// Not parallel: withInteractiveWorktreeFactories mutates package-level globals.
+	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "auto")
+	session.BranchName = "gromit/auto-456"
+
+	var commands []string
+	cleanupGit := overrideGitRun(func(dir string, args ...string) (string, error) {
+		commands = append(commands, strings.Join(args, " "))
+		return "", nil
+	})
+	t.Cleanup(cleanupGit)
+
+	withInteractiveWorktreeFactories(t, func(gotMainDir string) (sessionWorktreeCreator, error) {
+		if gotMainDir != mainDir {
+			t.Fatalf("mainDir = %q, want %q", gotMainDir, mainDir)
+		}
+		return &mockSessionWorktreeCreator{
+			CreateSessionWorktreeFn: func(string) (*worktree.SessionWorktree, error) {
+				return session, nil
+			},
+		}, nil
+	}, func(string) (pendingBranchRecorder, error) {
+		return &mockPendingBranchRecorder{AddPendingWorktreeBranchFn: func(string) error { return nil }}, nil
+	}, func(string, string) error {
+		return nil
+	})
+
+	_, err := runWithSessionWorktree(gromitDir, "auto", func(string) error { return nil })
+	if err != nil {
+		t.Fatalf("runWithSessionWorktree() error = %v", err)
+	}
+
+	var sawAdd, sawCommit bool
+	for _, cmd := range commands {
+		if strings.Contains(cmd, "add -A") {
+			sawAdd = true
+		}
+		if strings.Contains(cmd, "commit -m") {
+			sawCommit = true
+		}
+	}
+	if !sawAdd || !sawCommit {
+		t.Fatalf("auto commit commands not run: %v", commands)
 	}
 }
 
