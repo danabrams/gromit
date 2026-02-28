@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"sync"
 
 	"github.com/danabrams/gromit/internal/conversation"
 )
@@ -151,7 +152,9 @@ func (p *Pipeline) validateExploreDeps() error {
 
 // StreamSession wraps a stream-json-backed conversation session for explore.
 type StreamSession struct {
-	events chan conversation.Event
+	events    chan conversation.Event
+	cancel    chan struct{}
+	closeOnce sync.Once
 }
 
 // Events returns the channel of conversation events.
@@ -159,11 +162,11 @@ func (s *StreamSession) Events() <-chan conversation.Event {
 	return s.events
 }
 
-// Cancel closes the event stream.
+// Cancel signals the stream to stop and closes the event channel.
 func (s *StreamSession) Cancel() {
-	if s.events != nil {
-		close(s.events)
-	}
+	s.closeOnce.Do(func() {
+		close(s.cancel)
+	})
 }
 
 // FollowUp is a no-op for explore sessions (not used for follow-up prompts).
@@ -178,9 +181,10 @@ func (p *Pipeline) StartExploreSession(ctx context.Context, input ExploreInput) 
 		return nil, err
 	}
 
-	// Create a session with event channel
+	// Create a session with event channel and cancel signal
 	session := &StreamSession{
 		events: make(chan conversation.Event, 10),
+		cancel: make(chan struct{}),
 	}
 
 	// Start a goroutine to run the explore workflow and emit events
@@ -193,9 +197,13 @@ func (p *Pipeline) StartExploreSession(ctx context.Context, input ExploreInput) 
 		}
 		renderedPrompt, err := p.deps.ExploreRenderer.RenderExplore(exploreContext)
 		if err != nil {
-			session.events <- conversation.Event{
+			select {
+			case session.events <- conversation.Event{
 				Type: conversation.EventTypeStream,
 				Text: fmt.Sprintf("Error rendering explore prompt: %v", err),
+			}:
+			case <-session.cancel:
+				return
 			}
 			return
 		}
@@ -204,9 +212,13 @@ func (p *Pipeline) StartExploreSession(ctx context.Context, input ExploreInput) 
 		tmpDir := filepath.Join(p.paths.GromitDir, "tmp")
 		promptPath, cleanup, err := WriteTempPrompt(tmpDir, renderedPrompt)
 		if err != nil {
-			session.events <- conversation.Event{
+			select {
+			case session.events <- conversation.Event{
 				Type: conversation.EventTypeStream,
 				Text: fmt.Sprintf("Error writing temp prompt: %v", err),
+			}:
+			case <-session.cancel:
+				return
 			}
 			return
 		}
@@ -215,25 +227,37 @@ func (p *Pipeline) StartExploreSession(ctx context.Context, input ExploreInput) 
 		// Resolve agent
 		agent, err := p.deps.AgentResolver.Resolve("explore", input.AgentName, input.ChooseAgent)
 		if err != nil {
-			session.events <- conversation.Event{
+			select {
+			case session.events <- conversation.Event{
 				Type: conversation.EventTypeStream,
 				Text: fmt.Sprintf("Error resolving agent: %v", err),
+			}:
+			case <-session.cancel:
+				return
 			}
 			return
 		}
 
 		// Launch agent
 		if err := agent.LaunchInDir(promptPath, ""); err != nil {
-			session.events <- conversation.Event{
+			select {
+			case session.events <- conversation.Event{
 				Type: conversation.EventTypeStream,
 				Text: fmt.Sprintf("Error launching agent: %v", err),
+			}:
+			case <-session.cancel:
+				return
 			}
 			return
 		}
 
-		// Emit completion event
-		session.events <- conversation.Event{
+		// Emit completion event (unless cancelled)
+		select {
+		case session.events <- conversation.Event{
 			Type: conversation.EventTypeDone,
+		}:
+		case <-session.cancel:
+			return
 		}
 	}()
 

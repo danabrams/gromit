@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/conversation"
 )
@@ -877,12 +878,23 @@ func (m *mockExploreRenderer) RenderExplore(input *ExplorePromptInput) (string, 
 // TestPipeline_StartExploreSessionReturnsConversationSession verifies that StartExploreSession
 // returns a conversation.Session that can emit events over a channel.
 func TestPipeline_StartExploreSessionReturnsConversationSession(t *testing.T) {
-	// RED: StartExploreSession method does not exist yet
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 
+	mockAgent := &mockAgent{
+		LaunchInDirFn: func(promptPath, dir string) error {
+			return nil
+		},
+	}
+
+	mockAgentResolver := &mockAgentResolver{
+		ResolveFn: func(phase, flagOverride string, choosePicker bool) (Agent, error) {
+			return mockAgent, nil
+		},
+	}
+
 	p := New(&Deps{
-		AgentResolver:   &mockAgentResolver{},
+		AgentResolver:   mockAgentResolver,
 		ExploreRenderer: &mockExploreRenderer{},
 		BacklogClient:   &mockBacklogClient{},
 	}, &Paths{
@@ -892,7 +904,6 @@ func TestPipeline_StartExploreSessionReturnsConversationSession(t *testing.T) {
 	ctx := context.Background()
 	input := ExploreInput{Topic: "test topic"}
 
-	// This should not compile until StartExploreSession is implemented
 	session, err := p.StartExploreSession(ctx, input)
 	if err != nil {
 		t.Fatalf("StartExploreSession() failed: %v", err)
@@ -904,6 +915,10 @@ func TestPipeline_StartExploreSessionReturnsConversationSession(t *testing.T) {
 
 	// Verify session implements conversation.Session interface
 	var _ interface{ Events() <-chan conversation.Event; Cancel(); FollowUp(string) } = session
+
+	// Drain events to allow goroutine to complete
+	for range session.Events() {
+	}
 }
 
 // TestPipeline_StartExploreSessionEmitsEvents verifies that the session emits
@@ -963,5 +978,87 @@ func TestPipeline_StartExploreSessionEmitsEvents(t *testing.T) {
 	lastEvent := events[len(events)-1]
 	if lastEvent.Type != conversation.EventTypeDone {
 		t.Errorf("last event type = %v, want EventTypeDone", lastEvent.Type)
+	}
+}
+
+// TestPipeline_StartExploreSessionCancelClosesEventChannel verifies that Cancel
+// properly closes the event channel.
+func TestPipeline_StartExploreSessionCancelClosesEventChannel(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+
+	// Create a mock agent that runs indefinitely until cancelled
+	agentStarted := make(chan struct{})
+	agentCancel := make(chan struct{})
+
+	mockAgent := &mockAgent{
+		LaunchInDirFn: func(promptPath, dir string) error {
+			close(agentStarted)
+			<-agentCancel // Wait forever until test closes the channel
+			return nil
+		},
+	}
+
+	mockAgentResolver := &mockAgentResolver{
+		ResolveFn: func(phase, flagOverride string, choosePicker bool) (Agent, error) {
+			return mockAgent, nil
+		},
+	}
+
+	mockRenderer := &mockExploreRenderer{
+		RenderExploreFn: func(input *ExplorePromptInput) (string, error) {
+			return "explore prompt", nil
+		},
+	}
+
+	p := New(&Deps{
+		AgentResolver:   mockAgentResolver,
+		ExploreRenderer: mockRenderer,
+		BacklogClient:   &mockBacklogClient{},
+	}, &Paths{
+		GromitDir: gromitDir,
+	})
+
+	ctx := context.Background()
+	input := ExploreInput{Topic: "test"}
+
+	session, err := p.StartExploreSession(ctx, input)
+	if err != nil {
+		t.Fatalf("StartExploreSession() failed: %v", err)
+	}
+
+	// Wait for agent to start
+	<-agentStarted
+
+	// Cancel the session
+	session.Cancel()
+
+	// Unblock the agent
+	close(agentCancel)
+
+	// Verify that the event channel closes after Cancel
+	eventsChan := session.Events()
+	timeout := make(chan struct{})
+	go func() {
+		<-time.After(2 * time.Second)
+		close(timeout)
+	}()
+
+	for {
+		select {
+		case <-eventsChan:
+			// Events arriving is fine
+		case <-timeout:
+			// Timeout means channel didn't close in time
+			t.Fatal("event channel did not close after Cancel")
+		default:
+			// Channel closed (no data available)
+			// Try to read once more - reading from closed channel returns zero value
+			_, ok := <-eventsChan
+			if !ok {
+				// Good - channel is closed
+				return
+			}
+		}
 	}
 }
