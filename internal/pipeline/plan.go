@@ -82,10 +82,6 @@ func runPlanWorkflow(ctx context.Context, p *Pipeline, input PlanInput) (*PlanSe
 		return nil, fmt.Errorf("launching agent: %w", err)
 	}
 
-	// Clean up the temp file now that agent has launched
-	cleanup()
-
-	// Return session that owns the cleanup function
-	// Caller must call session.Cleanup() to remove the temp file
+	// Return session — cleanup is a no-op after first call, so safe to pass
 	return NewPlanSession(cleanup), nil
 }

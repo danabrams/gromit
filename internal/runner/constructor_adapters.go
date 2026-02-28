@@ -1042,9 +1042,10 @@ func (a *readinessAdapterWithLLM) Assess(ctx context.Context, b *bead.Bead) (rea
 		return readiness.Assessment{Status: readiness.StatusNotReady}, nil
 	}
 
-	// Stub: will invoke LLM with provider in next phase
+	// Fail closed: LLM invocation not yet implemented.
+	// Until the LLM call is wired, block beads to avoid false confidence.
 	_ = promptText
-	return readiness.Assessment{Status: readiness.StatusReady}, nil
+	return readiness.Assessment{Status: readiness.StatusNotReady}, nil
 }
 
 // Compile-time interface checks
