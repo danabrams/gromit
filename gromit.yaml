@@ -137,12 +137,14 @@ scope_check:
   block_oversized: true  # block over-scoped beads before spending compute
 
 # Pre-check - verify if acceptance criteria are already met before starting work
+# Note: verification is subordinate to precheck; when precheck.enabled is false, verification is skipped regardless of its enabled setting
 precheck:
   enabled: false  # disabled to avoid auto-closing on acceptance-criteria precheck
   model: haiku  # fast check with haiku
   timeout_seconds: 120  # headroom for CLI startup + file reads + tool use
+  # Subordinate verification pass: only runs when precheck.enabled=true and haiku result is PASSED
   verification:
-    enabled: true  # run sonnet verification when haiku says PASSED
+    enabled: true  # run sonnet verification when haiku says PASSED (requires precheck.enabled=true)
     timeout_seconds: 120
 
 # Validation settings - customize for your project
