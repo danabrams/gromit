@@ -61,3 +61,20 @@ func TestRecordTransition_CapturesReasonAndErrorCode(t *testing.T) {
 		t.Errorf("expected Timestamp to be set to now, got %v", record.Timestamp)
 	}
 }
+
+func TestRecordTransition_CapturesErrorCode(t *testing.T) {
+	record := RecordTransition("integrating", "conflict", "merge conflict detected", "CONFLICT_DETECTED")
+
+	if record.FromState != "integrating" {
+		t.Errorf("expected FromState to be integrating, got %s", record.FromState)
+	}
+	if record.ToState != "conflict" {
+		t.Errorf("expected ToState to be conflict, got %s", record.ToState)
+	}
+	if record.Reason != "merge conflict detected" {
+		t.Errorf("expected Reason to be 'merge conflict detected', got %s", record.Reason)
+	}
+	if record.ErrorCode != "CONFLICT_DETECTED" {
+		t.Errorf("expected ErrorCode to be CONFLICT_DETECTED, got %s", record.ErrorCode)
+	}
+}
