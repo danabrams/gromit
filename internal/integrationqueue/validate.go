@@ -19,8 +19,8 @@ func validateEntry(entry Entry) error {
 	if err := requireField(entry.OriginCommand, "origin_command"); err != nil {
 		return err
 	}
-	if err := requireField(entry.Lane, "lane"); err != nil {
-		return err
+	if !Lane(entry.Lane).Valid() {
+		return fmt.Errorf("lane %q is not supported", entry.Lane)
 	}
 	if err := requireField(entry.BaseRef, "base_ref"); err != nil {
 		return err

@@ -10,6 +10,20 @@ const (
 	CodeLane Lane = "code_lane"
 )
 
+var validLanes = map[Lane]struct{}{
+	SafeLane: {},
+	CodeLane: {},
+}
+
+// Valid returns true if the lane is recognized.
+func (l Lane) Valid() bool {
+	if l == "" {
+		return false
+	}
+	_, ok := validLanes[l]
+	return ok
+}
+
 // ErrorCode represents error codes for integration queue entries.
 type ErrorCode string
 
