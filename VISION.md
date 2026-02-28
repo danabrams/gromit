@@ -46,11 +46,13 @@ This system exists to automate code generation so humans can focus on high-level
 
 ## Non-Negotiable Guardrails
 
-1. Safety
-2. Matching intent
-3. Ability to continue evolving the system
-4. Cost efficiency
-5. Documented verifiability
+Every decision that steers this system must honor the following guardrails. They are non-negotiable boundaries rather than optimization targets.
+
+1. Non-negotiable guardrail: Safety - We never automate or approve flows that could harm people, confidential data, or the ecosystem we operate within.
+2. Non-negotiable guardrail: Matching intent - Outputs must credibly reflect the stakeholders' expressed goals before being accepted.
+3. Non-negotiable guardrail: Ability to continue evolving the system - Changes must remain reversible, traceable, and maintainable so future adjustments remain viable.
+4. Non-negotiable guardrail: Cost efficiency - Resource usage and human oversight costs must stay within the budgets that keep the system sustainable.
+5. Non-negotiable guardrail: Documented verifiability - Evidence (tests, acceptance checks, reviews) is required before any work is considered complete.
 
 ## Design Principles
 
