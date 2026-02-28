@@ -25,6 +25,10 @@ const (
 	ReasonScopeTooBroad     = "scope_too_broad"
 )
 
+const (
+	maxCriteriaCount = 3
+)
+
 // ReadinessAssessor evaluates whether a bead satisfies structured readiness requirements.
 type ReadinessAssessor interface {
 	AssessStructured(ctx context.Context, b *bead.Bead) (ReadinessOutcome, string)
@@ -34,6 +38,14 @@ type ReadinessAssessor interface {
 func CheckCriteriaPresence(b *bead.Bead) (ReadinessOutcome, string) {
 	if len(effectiveCriteria(b)) == 0 {
 		return ReadinessOutcomeNotReadyCriteria, ReasonCriteriaMissing
+	}
+	return ReadinessOutcomeReady, ""
+}
+
+// CheckCriteriaCount ensures acceptance criteria do not exceed the configured upper bound.
+func CheckCriteriaCount(b *bead.Bead) (ReadinessOutcome, string) {
+	if len(effectiveCriteria(b)) > maxCriteriaCount {
+		return ReadinessOutcomeNotReadyCriteria, ReasonCriteriaAmbiguous
 	}
 	return ReadinessOutcomeReady, ""
 }
