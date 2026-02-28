@@ -216,3 +216,43 @@ func TestGromitYamlDocumentsWorktreeConfig(t *testing.T) {
 		}
 	})
 }
+
+// TestGromitYamlDocumentsPrecheckVerificationContract verifies that the reference
+// gromit.yaml includes comments clearly explaining that verification is subordinate
+// to precheck and cannot run when precheck.enabled is false.
+func TestGromitYamlDocumentsPrecheckVerificationContract(t *testing.T) {
+	content, err := os.ReadFile("../../gromit.yaml")
+	if err != nil {
+		t.Fatalf("failed to read gromit.yaml: %v", err)
+	}
+
+	text := string(content)
+
+	t.Run("precheck_section_documents_verification_subordination", func(t *testing.T) {
+		// Expected failure: gromit.yaml does not have comment explaining verification subordination
+		if !strings.Contains(text, "precheck:") {
+			t.Fatal("gromit.yaml missing precheck section")
+		}
+
+		// Look for a comment that explains verification is subordinate to precheck
+		// The comment should indicate that verification depends on precheck being enabled
+		if !strings.Contains(text, "verification") || !strings.Contains(text, "subordinate") {
+			t.Error("gromit.yaml precheck section missing comment explaining verification subordination")
+		}
+	})
+
+	t.Run("verification_section_documents_precheck_dependency", func(t *testing.T) {
+		// Expected failure: verification section does not document precheck.enabled requirement
+		// Look for verification subsection with explicit comment about precheck dependency
+		verificationIdx := strings.Index(text, "verification:")
+		if verificationIdx == -1 {
+			t.Fatal("gromit.yaml missing verification subsection")
+		}
+
+		// Extract the verification section context (next ~100 chars should contain comments)
+		verificationContext := text[verificationIdx : verificationIdx+500]
+		if !strings.Contains(verificationContext, "precheck.enabled") && !strings.Contains(verificationContext, "precheck") {
+			t.Error("gromit.yaml verification section missing comment about precheck.enabled requirement")
+		}
+	})
+}
