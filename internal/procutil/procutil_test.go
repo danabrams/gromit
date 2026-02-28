@@ -243,6 +243,40 @@ func TestWaitForProcessCapacityHonorsContextCancel(t *testing.T) {
 	}
 }
 
+func TestKillDescendantsOnCancelNilProcess(t *testing.T) {
+	cmd := exec.Command("echo", "test")
+	// cmd.Process is nil before Start(); should not panic.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	KillDescendantsOnCancel(ctx, cmd)
+}
+
+func TestKillDescendantsOnCancelGoroutineExits(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cmd := exec.CommandContext(ctx, "sleep", "300")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+
+	KillDescendantsOnCancel(ctx, cmd)
+
+	// Cancel the context; the goroutine should fire and kill the process.
+	cancel()
+
+	// Wait for the process to exit (killed by context or goroutine).
+	_ = cmd.Wait()
+
+	// Give the kernel a moment to deliver signals.
+	time.Sleep(50 * time.Millisecond)
+
+	// The process should be dead.
+	if err := cmd.Process.Signal(syscall.Signal(0)); err == nil {
+		t.Error("process still alive after KillDescendantsOnCancel fired")
+		_ = cmd.Process.Kill()
+	}
+}
+
 func TestWaitForProcessCapacityReturnsErrorWhenStillPressured(t *testing.T) {
 	originalPressured := processCreationPressuredFn
 	originalPressure := pidPressureFn

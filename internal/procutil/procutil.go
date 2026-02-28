@@ -103,6 +103,31 @@ func ReapProcessTree(cmd *exec.Cmd) {
 	_ = syscall.Kill(-pid, syscall.SIGKILL)
 }
 
+// KillDescendantsOnCancel starts a goroutine that waits for ctx to be
+// cancelled, then snapshots the live descendant tree of cmd's process and
+// kills them deepest-first. This solves a timing race: if we wait until
+// after cmd.Wait() returns, the parent's /proc entry is gone and
+// collectDescendants can't find grandchildren. By listening on ctx.Done()
+// we catch the cancellation while the process tree is still visible.
+//
+// Usage: call immediately after cmd.Start() succeeds.
+func KillDescendantsOnCancel(ctx context.Context, cmd *exec.Cmd) {
+	if cmd.Process == nil {
+		return
+	}
+	pid := cmd.Process.Pid
+	go func() {
+		<-ctx.Done()
+		descendants := collectDescendants(pid)
+		// Kill deepest descendants first so parents don't respawn children.
+		for i := len(descendants) - 1; i >= 0; i-- {
+			_ = syscall.Kill(descendants[i], syscall.SIGKILL)
+		}
+		// Process-group sweep as fallback.
+		_ = syscall.Kill(-pid, syscall.SIGKILL)
+	}()
+}
+
 // collectDescendants recursively walks /proc/<pid>/task/*/children to
 // discover all descendant PIDs of the given process.
 func collectDescendants(pid int) []int {

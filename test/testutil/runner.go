@@ -49,10 +49,17 @@ func runWithStdin(ctx context.Context, binary, dir string, environ []string, std
 		cmd.Dir = dir
 	}
 
-	// Only set Env if non-nil
+	// Set Env from caller or inherit parent environment explicitly so we
+	// can append GOMAXPROCS below.
 	if environ != nil {
 		cmd.Env = environ
+	} else {
+		cmd.Env = os.Environ()
 	}
+
+	// Limit child process parallelism — subprocess helpers only test CLI
+	// flag parsing and don't need the parent's GOMAXPROCS.
+	cmd.Env = ReplaceOrAppend(cmd.Env, "GOMAXPROCS", "1")
 
 	var outBuf, errBuf strings.Builder
 	cmd.Stdout = &outBuf

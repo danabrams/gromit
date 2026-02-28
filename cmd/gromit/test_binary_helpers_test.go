@@ -219,7 +219,7 @@ func runGromitInDirWithStdin(t *testing.T, dir string, stdin string, args ...str
 	helperArgs := append([]string{"-test.run=TestGromitHelperProcess", "--"}, args...)
 	cmd := exec.Command(binaryPath, helperArgs...)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "GROMIT_TEST_HELPER_PROCESS=1")
+	cmd.Env = append(os.Environ(), "GROMIT_TEST_HELPER_PROCESS=1", "GOMAXPROCS=1")
 	cmd.Stdin = strings.NewReader(stdin)
 
 	var outBuf bytes.Buffer
