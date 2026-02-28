@@ -2501,3 +2501,53 @@ func TestOrchestrator_SkipsSpecMergeTriggerOnEpilogueLifecycleFailure(t *testing
 		t.Fatalf("SpecMerge.Trigger was called %d times, want 0 (should skip on lifecycle failure)", triggerCalls)
 	}
 }
+
+// TestOrchestrator_SuppressesSuccessLoggingOnEpilogueLifecycleFailure verifies that
+// when the Epilogue stage returns a lifecycle failure (LifecycleFailureClose or
+// LifecycleFailureSync), the orchestrator does NOT emit the "completed successfully"
+// log message, even though the bead was successfully built and validated.
+func TestOrchestrator_SuppressesSuccessLoggingOnEpilogueLifecycleFailure(t *testing.T) {
+	t.Parallel()
+
+	var logOutput strings.Builder
+	beadID := "bead-1"
+	beadTitle := "Test bead"
+	b := &bead.Bead{ID: beadID, Title: beadTitle}
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return b, nil
+	}
+
+	epilogueStage := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		// Simulate a lifecycle failure (e.g. bead sync failed)
+		return pipeline.Output{
+			Decision:         pipeline.Proceed,
+			LifecycleFailure: pipeline.LifecycleFailureSync,
+		}, nil
+	}}
+
+	cfg := OrchestratorConfig{
+		Gate:     &fakeStage{},
+		Build:    &fakeStage{},
+		Validate: &fakeStage{},
+		Epilogue: epilogueStage,
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   &logOutput,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	logText := logOutput.String()
+	successMsg := "completed successfully"
+	if strings.Contains(logText, successMsg) {
+		t.Fatalf("Log contains %q, want suppressed on lifecycle failure; full log: %s", successMsg, logText)
+	}
+}
