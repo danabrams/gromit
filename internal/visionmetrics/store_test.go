@@ -367,6 +367,67 @@ func TestAppendRecord_PreservesOptionalFields(t *testing.T) {
 	}
 }
 
+func TestAppendRecord_PreservesAllYesNoValues(t *testing.T) {
+	// Create a temporary file
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "yesno.jsonl")
+
+	// Test all combinations of YesNo values
+	testCases := []struct {
+		tactical   YesNo
+		debugging  YesNo
+		regression YesNo
+	}{
+		{Yes, Yes, Yes},
+		{Yes, Yes, No},
+		{Yes, No, Yes},
+		{Yes, No, No},
+		{No, Yes, Yes},
+		{No, Yes, No},
+		{No, No, Yes},
+		{No, No, No},
+	}
+
+	for i, tc := range testCases {
+		record := Record{
+			SpecID:                     "test-" + string(rune(i)),
+			CycleStartTriggerAt:        parseTime("2026-02-01T08:00:00Z"),
+			CycleEndPresentedAt:        parseTime("2026-02-01T10:00:00Z"),
+			ReviewOutcome:              ReviewOutcomeAccepted,
+			HumanTacticalIntervention:  tc.tactical,
+			HumanDebuggingIntervention: tc.debugging,
+			EscapedRegressionWithin7D:  tc.regression,
+		}
+
+		if err := AppendRecord(tmpFile, record); err != nil {
+			t.Fatalf("AppendRecord failed at case %d: %v", i, err)
+		}
+	}
+
+	// Read all records back
+	loaded, err := LoadRecords(tmpFile)
+	if err != nil {
+		t.Fatalf("LoadRecords failed: %v", err)
+	}
+
+	if len(loaded) != len(testCases) {
+		t.Fatalf("expected %d records, got %d", len(testCases), len(loaded))
+	}
+
+	// Verify each combination is preserved
+	for i, tc := range testCases {
+		if loaded[i].HumanTacticalIntervention != tc.tactical {
+			t.Errorf("record %d tactical mismatch: got %q, want %q", i, loaded[i].HumanTacticalIntervention, tc.tactical)
+		}
+		if loaded[i].HumanDebuggingIntervention != tc.debugging {
+			t.Errorf("record %d debugging mismatch: got %q, want %q", i, loaded[i].HumanDebuggingIntervention, tc.debugging)
+		}
+		if loaded[i].EscapedRegressionWithin7D != tc.regression {
+			t.Errorf("record %d regression mismatch: got %q, want %q", i, loaded[i].EscapedRegressionWithin7D, tc.regression)
+		}
+	}
+}
+
 func parseTime(s string) time.Time {
 	// Helper to parse RFC3339 timestamp
 	t, _ := time.Parse(time.RFC3339, s)
