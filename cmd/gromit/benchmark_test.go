@@ -1898,3 +1898,13 @@ func TestBenchmarkPhase4Report_AllGatesPassProducesAdoptWithEvidence(t *testing.
 		t.Errorf("adopt decision should have no reasons, got %v", report.Decision.Reasons)
 	}
 }
+
+func TestRegisterBenchmarkCommands_RegistersDecomposeCompare(t *testing.T) {
+	// RED: Test that decompose-compare command is registered
+	if benchmarkDecomposeCompareCmd == nil {
+		t.Fatal("benchmarkDecomposeCompareCmd must be registered")
+	}
+	if benchmarkDecomposeCompareCmd.Use != "decompose-compare" {
+		t.Fatalf("expected command Use = 'decompose-compare', got %q", benchmarkDecomposeCompareCmd.Use)
+	}
+}
