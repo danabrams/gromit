@@ -562,7 +562,7 @@ func TestStatusCmd_JSONIncludesIntegrationQueueData(t *testing.T) {
 		t.Fatalf("output is not valid JSON: %v\ngot: %s", err, output)
 	}
 
-	// Verify integration_queue field exists and has QueueLength
+	// Verify integration_queue field exists and has queue_length
 	queueInterface, hasQueue := statusJSON["integration_queue"]
 	if !hasQueue {
 		t.Fatalf("JSON missing 'integration_queue' field")
@@ -573,23 +573,23 @@ func TestStatusCmd_JSONIncludesIntegrationQueueData(t *testing.T) {
 		t.Fatalf("integration_queue is not an object, got type: %T", queueInterface)
 	}
 
-	// Verify QueueLength field
-	queueLength, hasLength := queueObj["QueueLength"]
+	// Verify queue_length field
+	queueLength, hasLength := queueObj["queue_length"]
 	if !hasLength {
-		t.Errorf("integration_queue missing 'QueueLength' field, got keys: %v", getKeys(queueObj))
+		t.Errorf("integration_queue missing 'queue_length' field, got keys: %v", getKeys(queueObj))
 	}
 	if queueLengthVal, ok := queueLength.(float64); ok {
 		if queueLengthVal != 2.0 {
-			t.Errorf("expected QueueLength=2, got %v", queueLengthVal)
+			t.Errorf("expected queue_length=2, got %v", queueLengthVal)
 		}
 	} else {
-		t.Errorf("QueueLength is not a number, got type: %T", queueLength)
+		t.Errorf("queue_length is not a number, got type: %T", queueLength)
 	}
 
 	// Verify Entries field
-	_, hasEntries := queueObj["Entries"]
+	_, hasEntries := queueObj["entries"]
 	if !hasEntries {
-		t.Errorf("integration_queue missing 'Entries' field")
+		t.Errorf("integration_queue missing 'entries' field")
 	}
 }
 

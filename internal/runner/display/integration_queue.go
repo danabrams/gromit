@@ -7,22 +7,22 @@ import (
 
 // IntegrationQueueStatus holds queue summary for display purposes.
 type IntegrationQueueStatus struct {
-	QueueLength      int
-	ReadyCount       int
-	IntegratingCount int
-	BlockedCount     int
-	MergedCount      int
-	Entries          []*IntegrationQueueEntryView
+	QueueLength      int                         `json:"queue_length"`
+	ReadyCount       int                         `json:"ready_count"`
+	IntegratingCount int                         `json:"integrating_count"`
+	BlockedCount     int                         `json:"blocked_count"`
+	MergedCount      int                         `json:"merged_count"`
+	Entries          []*IntegrationQueueEntryView `json:"entries"`
 }
 
 // IntegrationQueueEntryView captures the display fields for a queue entry.
 type IntegrationQueueEntryView struct {
-	Branch           string
-	State            string
-	Lane             string
-	ReadyPosition    int
-	LastErrorCode    string
-	LastErrorMessage string
+	Branch           string `json:"branch"`
+	State            string `json:"state"`
+	Lane             string `json:"lane"`
+	ReadyPosition    int    `json:"ready_position,omitempty"`
+	LastErrorCode    string `json:"last_error_code,omitempty"`
+	LastErrorMessage string `json:"last_error_message,omitempty"`
 }
 
 var integrationQueueRecoveryInstructions = map[string]string{
