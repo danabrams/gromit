@@ -71,3 +71,21 @@ func TestVisionMetricsReportHasJSONFlag(t *testing.T) {
 		t.Fatal("--json flag not found on report subcommand")
 	}
 }
+
+// TestVisionMetricsValidateExecutes verifies the validate subcommand can be executed
+func TestVisionMetricsValidateExecutes(t *testing.T) {
+	t.Parallel()
+	rootCmd.SetArgs([]string{"vision-metrics", "validate"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("vision-metrics validate failed: %v", err)
+	}
+}
+
+// TestVisionMetricsReportExecutes verifies the report subcommand can be executed
+func TestVisionMetricsReportExecutes(t *testing.T) {
+	t.Parallel()
+	rootCmd.SetArgs([]string{"vision-metrics", "report"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("vision-metrics report failed: %v", err)
+	}
+}
