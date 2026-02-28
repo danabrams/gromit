@@ -239,7 +239,7 @@ func TestBenchmarkDecomposeCompare_FailsWithWriteError(t *testing.T) {
 }
 
 func TestBenchmarkDecomposeCompare_FailsWithCohortSelectorError(t *testing.T) {
-	// RED: Test error handling when cohort selector fails
+	// Test error handling when cohort selector fails
 	origCohort := benchmarkDecomposeCompareCohortSelectorFn
 	t.Cleanup(func() { benchmarkDecomposeCompareCohortSelectorFn = origCohort })
 
@@ -256,5 +256,66 @@ func TestBenchmarkDecomposeCompare_FailsWithCohortSelectorError(t *testing.T) {
 	}
 	if !strings.Contains(stderr, "select cohort") && !strings.Contains(stderr, "tracker unavailable") {
 		t.Fatalf("stderr = %q, want to contain cohort selector error", stderr)
+	}
+}
+
+func TestBenchmarkDecomposeCompare_ValidatesOutputTimestampFormat(t *testing.T) {
+	// RED: Test that invalid timestamp is rejected
+	_, stderr, exitCode := runGromitCobra(t,
+		"benchmark", "decompose-compare",
+		"--manifest", "testdata/fixtures/benchmark/decompose.yaml",
+		"--output-ts", "invalid-timestamp",
+	)
+	if exitCode == 0 {
+		t.Fatalf("exitCode = %d, want non-zero", exitCode)
+	}
+	if !strings.Contains(stderr, "must be in UTC format") {
+		t.Fatalf("stderr = %q, want to contain timestamp format error", stderr)
+	}
+}
+
+func TestBenchmarkDecomposeCompare_AcceptsValidOutputTimestamp(t *testing.T) {
+	// Test that valid timestamp is accepted and used
+	origCohort := benchmarkDecomposeCompareCohortSelectorFn
+	t.Cleanup(func() { benchmarkDecomposeCompareCohortSelectorFn = origCohort })
+
+	benchmarkDecomposeCompareCohortSelectorFn = func(opts benchmarkDecomposeCompareCohortSelectorOptions) ([]string, error) {
+		return []string{"spec1", "spec2", "spec3", "spec4", "spec5"}, nil
+	}
+
+	origRunner := benchmarkDecomposeCompareRunnerFn
+	t.Cleanup(func() { benchmarkDecomposeCompareRunnerFn = origRunner })
+
+	benchmarkDecomposeCompareRunnerFn = func(opts benchmarkDecomposeCompareRunnerOptions) (interface{}, error) {
+		return nil, nil
+	}
+
+	origWriter := benchmarkDecomposeCompareReportWriterFn
+	t.Cleanup(func() { benchmarkDecomposeCompareReportWriterFn = origWriter })
+
+	writerCalled := false
+	writtenTS := ""
+	benchmarkDecomposeCompareReportWriterFn = func(opts benchmarkDecomposeCompareReportWriterOptions) error {
+		writerCalled = true
+		writtenTS = opts.OutputTS
+		return nil
+	}
+
+	stdout, _, exitCode := runGromitCobra(t,
+		"benchmark", "decompose-compare",
+		"--manifest", "testdata/fixtures/benchmark/decompose.yaml",
+		"--output-ts", "20260225T123456Z",
+	)
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0", exitCode)
+	}
+	if !writerCalled {
+		t.Fatal("report writer must be called")
+	}
+	if writtenTS != "20260225T123456Z" {
+		t.Fatalf("writer called with ts = %q, want %q", writtenTS, "20260225T123456Z")
+	}
+	if !strings.Contains(stdout, "20260225T123456Z") {
+		t.Fatalf("stdout = %q, want to contain provided timestamp", stdout)
 	}
 }
