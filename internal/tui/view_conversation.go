@@ -14,6 +14,7 @@ func RenderConversationView(store *Store, focusedPanel int) string {
 	store.mu.RLock()
 	lifecycleCopy := store.Conversation.Lifecycle
 	transcriptCopy := append([]ConversationTranscriptRow{}, store.Conversation.Transcript...)
+	toolIndicatorsCopy := append([]ConversationToolIndicator{}, store.Conversation.ToolIndicators...)
 	store.mu.RUnlock()
 
 	var b strings.Builder
@@ -24,6 +25,10 @@ func RenderConversationView(store *Store, focusedPanel int) string {
 		if row.Text != "" {
 			fmt.Fprintf(&b, "%s\n", row.Text)
 		}
+	}
+
+	for _, indicator := range toolIndicatorsCopy {
+		fmt.Fprintf(&b, "[%s] %s\n", indicator.ToolName, indicator.Status)
 	}
 
 	return b.String()
