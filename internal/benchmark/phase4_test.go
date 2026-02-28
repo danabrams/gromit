@@ -743,3 +743,45 @@ func TestPhase4AllGatesPass_ProducesAdoptWithFullEvidence(t *testing.T) {
 			report.Baseline.MedianDiscoveryLatencyMs, report.Retrieval.MedianDiscoveryLatencyMs)
 	}
 }
+
+func TestPhase4EvaluateAdoptionGates_ZeroBaselineTokens_FailsTokenGate(t *testing.T) {
+	baseline := Phase4RunMetrics{
+		MedianDiscoveryInputTokens: 0, // zero denominator
+		MedianDiscoveryLatencyMs:   1000,
+		SuccessRate:                0.95,
+		WrongFileRate:              0.01,
+	}
+	retrieval := Phase4RunMetrics{
+		MedianDiscoveryInputTokens: 70,
+		MedianDiscoveryLatencyMs:   800,
+		SuccessRate:                0.94,
+		WrongFileRate:              0.01,
+	}
+
+	gates := EvaluatePhase4AdoptionGates(baseline, retrieval)
+
+	if gates.TokenReductionGate {
+		t.Errorf("TokenReductionGate should fail when baseline tokens are zero")
+	}
+}
+
+func TestPhase4EvaluateAdoptionGates_ZeroBaselineLatency_FailsLatencyGate(t *testing.T) {
+	baseline := Phase4RunMetrics{
+		MedianDiscoveryInputTokens: 100,
+		MedianDiscoveryLatencyMs:   0, // zero denominator
+		SuccessRate:                0.95,
+		WrongFileRate:              0.01,
+	}
+	retrieval := Phase4RunMetrics{
+		MedianDiscoveryInputTokens: 70,
+		MedianDiscoveryLatencyMs:   800,
+		SuccessRate:                0.94,
+		WrongFileRate:              0.01,
+	}
+
+	gates := EvaluatePhase4AdoptionGates(baseline, retrieval)
+
+	if gates.LatencyReductionGate {
+		t.Errorf("LatencyReductionGate should fail when baseline latency is zero")
+	}
+}
