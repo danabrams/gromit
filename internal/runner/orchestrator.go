@@ -110,12 +110,16 @@ type StateSaver interface {
 }
 
 // Coordinator performs integration of queued session branches into main.
-// It is invoked between iterations in the run loop to process ready branches.
+// It is invoked between iterations in the run loop to process ready branches,
+// and during startup to recover from crashes.
 type Coordinator interface {
 	// Coordinate processes the integration queue, attempting to integrate ready branches into main.
 	// It should not error out on failures from individual integrations; errors in one branch
 	// should be isolated and logged, allowing the run loop to continue.
 	Coordinate(ctx context.Context) error
+	// RecoverFromCrash detects entries left in integrating state by a prior crash
+	// and transitions them back to a recoverable state (e.g., ready).
+	RecoverFromCrash(ctx context.Context) error
 }
 
 // Orchestrator sequences the 5-stage pipeline (Gate → Build → Validate → Review →
@@ -239,6 +243,13 @@ func (o *Orchestrator) Run(ctx context.Context, maxIterations int, deadline time
 	processedBeads := make(map[string]bool)
 	consecutiveSkips := 0
 	iteration := 0
+
+	// Recover from any crash that may have left entries in integrating state
+	if o.cfg.Coordinator != nil {
+		if err := o.cfg.Coordinator.RecoverFromCrash(ctx); err != nil {
+			o.logWarning("Warning: coordinator crash recovery failed: %v", err)
+		}
+	}
 
 	// Emit RunStartEvent
 	o.emitter.Emit(&events.RunStartEvent{

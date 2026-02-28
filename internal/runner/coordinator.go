@@ -19,3 +19,11 @@ func (c *IntegrationCoordinator) Coordinate(ctx context.Context) error {
 	// This is a stub implementation that will be expanded in future tasks.
 	return nil
 }
+
+// RecoverFromCrash detects entries left in integrating state by a prior crash
+// and transitions them back to a recoverable state (e.g., ready).
+func (c *IntegrationCoordinator) RecoverFromCrash(ctx context.Context) error {
+	// TODO: Implement crash recovery for integration queue.
+	// This is a stub implementation that will be expanded in future tasks.
+	return nil
+}

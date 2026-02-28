@@ -107,12 +107,20 @@ func (c *capturingIterationLogWriter) Write(log *logger.IterationLog) error {
 
 // fakeCoordinator is a test double for Coordinator interface.
 type fakeCoordinator struct {
-	coordinateFn func(ctx context.Context) error
+	coordinateFn         func(ctx context.Context) error
+	recoverFromCrashFn   func(ctx context.Context) error
 }
 
 func (f *fakeCoordinator) Coordinate(ctx context.Context) error {
 	if f.coordinateFn != nil {
 		return f.coordinateFn(ctx)
+	}
+	return nil
+}
+
+func (f *fakeCoordinator) RecoverFromCrash(ctx context.Context) error {
+	if f.recoverFromCrashFn != nil {
+		return f.recoverFromCrashFn(ctx)
 	}
 	return nil
 }
