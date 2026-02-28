@@ -102,6 +102,55 @@ func TestOrchestrator_BranchCheckoutFailure_SetsPrelaunchFailurePhase(t *testing
 	}
 }
 
+// TestOrchestrator_PrelaunchFailure_BacksOff verifies that when a pre-launch
+// failure occurs (capacity or binary), the orchestrator sleeps briefly before
+// continuing to prevent tight retry loops.
+func TestOrchestrator_PrelaunchFailure_BacksOff(t *testing.T) {
+	// Not parallel: modifies package-level orchestratorWaitForProcessCapacityFn and orchestratorPrelaunchBackoffFn.
+
+	// Inject a failing capacity check.
+	origCapFn := orchestratorWaitForProcessCapacityFn
+	orchestratorWaitForProcessCapacityFn = func(ctx context.Context, maxWait time.Duration) error {
+		return &procutil.ProcessCapacityError{Current: 950, Max: 1000, Waited: 3 * time.Second}
+	}
+	t.Cleanup(func() { orchestratorWaitForProcessCapacityFn = origCapFn })
+
+	// Track backoff calls.
+	backoffCalled := false
+	origBackoffFn := orchestratorPrelaunchBackoffFn
+	orchestratorPrelaunchBackoffFn = func(d time.Duration) {
+		backoffCalled = true
+		// Don't actually sleep in tests.
+	}
+	t.Cleanup(func() { orchestratorPrelaunchBackoffFn = origBackoffFn })
+
+	beadCount := 0
+	cfg := OrchestratorConfig{
+		Gate: &fakeStage{runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		}},
+		Build:    &fakeStage{},
+		Validate: &fakeStage{},
+		Epilogue: &fakeStage{},
+		GetBead: func(ctx context.Context) (*bead.Bead, error) {
+			beadCount++
+			if beadCount == 1 {
+				return &bead.Bead{ID: "b-6", Title: "Backoff Test"}, nil
+			}
+			return nil, nil
+		},
+		Config: &config.Config{},
+		Output: io.Discard,
+	}
+
+	o := NewOrchestrator(cfg)
+	_ = o.Run(context.Background(), 1, time.Time{}, nil)
+
+	if !backoffCalled {
+		t.Error("prelaunch backoff was not called; want brief sleep after pre-launch failure")
+	}
+}
+
 // failingGitCheckout always returns an error.
 type failingGitCheckout struct{}
 
