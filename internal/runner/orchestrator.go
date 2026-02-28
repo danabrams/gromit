@@ -546,6 +546,13 @@ runLoop:
 			})
 		}
 		touchedPackages = mergeTouchedPackages(touchedPackages, epilogueOut.TouchedPackages)
+
+		// Invoke coordinator between iterations to process integration queue.
+		if o.cfg.Coordinator != nil && finalSuccess {
+			if err := o.cfg.Coordinator.Coordinate(ctx); err != nil {
+				o.logWarning("Warning: coordinator error after iteration %d: %v", iteration, err)
+			}
+		}
 	}
 
 	o.logInfo("Gromit loop complete. Processed %d iterations.", iteration)
