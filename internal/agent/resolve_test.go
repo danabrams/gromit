@@ -204,6 +204,72 @@ func TestResolveCustomAgent(t *testing.T) {
 	}
 }
 
+func TestResolveCustomAgentPromptDeliveryOverrides(t *testing.T) {
+	cfg := &config.Config{
+		Agents: config.AgentsConfig{
+			Definitions: map[string]config.AgentDefinition{
+				"gemini": {
+					Binary:         "/custom/gemini",
+					Flags:          []string{"--wrapper"},
+					PromptDelivery: "stdin",
+				},
+			},
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	agent, err := resolveByName("gemini", cfg)
+	if err != nil {
+		t.Fatalf("Resolve(gemini) error = %v, want nil", err)
+	}
+
+	ca, ok := agent.(*cliAgent)
+	if !ok {
+		t.Fatal("Resolve(gemini) should return *cliAgent")
+	}
+
+	if ca.promptDelivery != Stdin {
+		t.Errorf("gemini custom agent promptDelivery = %q, want %q", ca.promptDelivery, Stdin)
+	}
+	if ca.promptFlag != "" {
+		t.Errorf("gemini custom agent promptFlag = %q, want empty string for stdin mode", ca.promptFlag)
+	}
+}
+
+func TestResolveCustomAgentPromptFlagOverride(t *testing.T) {
+	cfg := &config.Config{
+		Agents: config.AgentsConfig{
+			Definitions: map[string]config.AgentDefinition{
+				"custom": {
+					Binary:         "/custom/cli",
+					PromptDelivery: "prompt_file_arg",
+					PromptFlag:     "--prompt-file",
+				},
+			},
+		},
+	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	agent, err := resolveByName("custom", cfg)
+	if err != nil {
+		t.Fatalf("Resolve(custom) error = %v, want nil", err)
+	}
+
+	ca, ok := agent.(*cliAgent)
+	if !ok {
+		t.Fatal("Resolve(custom) should return *cliAgent")
+	}
+
+	if ca.promptDelivery != PromptFileArg {
+		t.Errorf("custom agent promptDelivery = %q, want %q", ca.promptDelivery, PromptFileArg)
+	}
+	if ca.promptFlag != "--prompt-file" {
+		t.Errorf("custom agent promptFlag = %q, want %q", ca.promptFlag, "--prompt-file")
+	}
+}
+
 // TestResolveByName_GeminiCustomAgentOverridePreserved ensures custom gemini definitions keep prompt_file_arg delivery
 func TestResolveByName_GeminiCustomAgentOverridePreserved(t *testing.T) {
 	cfg := &config.Config{

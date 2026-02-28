@@ -18,6 +18,7 @@ agents:
     custom:
       binary: "my-agent"
       flags: ["--flag1"]
+      prompt_delivery: "stdin"
   phases:
     refine: claude
     plan: custom
@@ -57,6 +58,9 @@ agents:
 	}
 	if len(customDef.Flags) != 1 || customDef.Flags[0] != "--flag1" {
 		t.Errorf("custom.Flags = %v, want [--flag1]", customDef.Flags)
+	}
+	if customDef.PromptDelivery != "stdin" {
+		t.Errorf("custom.PromptDelivery = %q, want %q", customDef.PromptDelivery, "stdin")
 	}
 
 	if cfg.Agents.Phases.Refine != "claude" {
