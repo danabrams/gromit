@@ -386,3 +386,209 @@ func assertStatusTUISections(t *testing.T, output string) {
 		}
 	}
 }
+
+// getKeys is a helper to extract keys from a map for debugging
+func getKeys(m map[string]interface{}) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+// TestStatusCmd_JSONFlagOutputsValidJSON verifies that --json flag produces
+// valid JSON with the expected StatusJSON structure including Run, Pipeline,
+// and IntegrationQueue sections.
+func TestStatusCmd_JSONFlagOutputsValidJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("failed to create gromit dir: %v", err)
+	}
+
+	// Create gromit.yaml config
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	configContent := `paths:
+  gromit_dir: .gromit
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	// Create status.json with test data
+	status := runner.Status{
+		Running:   false,
+		Iteration: 2,
+		BeadID:    "test-bead-123",
+		BeadTitle: "Test Feature",
+		Model:     "haiku",
+		StartedAt: time.Now().Add(-5 * time.Minute),
+		ElapsedS:  300,
+	}
+	statusData, err := json.Marshal(status)
+	if err != nil {
+		t.Fatalf("failed to marshal status: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gromitDir, "status.json"), statusData, 0644); err != nil {
+		t.Fatalf("failed to write status.json: %v", err)
+	}
+
+	t.Chdir(tmpDir)
+
+	// Execute status command with --json flag and capture output
+	output := captureStdout(t, func() {
+		rootCmd.SetArgs([]string{"status", "--json"})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("status --json command failed: %v", err)
+		}
+	})
+
+	// Parse and validate JSON structure
+	var statusJSON map[string]interface{}
+	if err := json.Unmarshal([]byte(output), &statusJSON); err != nil {
+		t.Fatalf("output is not valid JSON: %v\ngot: %s", err, output)
+	}
+
+	// Verify expected fields exist
+	if _, hasRun := statusJSON["run"]; !hasRun {
+		t.Errorf("JSON missing 'run' field, got: %v", statusJSON)
+	}
+	if _, hasPipeline := statusJSON["pipeline"]; !hasPipeline {
+		t.Errorf("JSON missing 'pipeline' field, got: %v", statusJSON)
+	}
+	if _, hasQueue := statusJSON["integration_queue"]; !hasQueue {
+		t.Errorf("JSON missing 'integration_queue' field, got: %v", statusJSON)
+	}
+}
+
+// TestStatusCmd_JSONAndSPCFlagsAreMutuallyExclusive verifies that using both
+// --json and --spc flags together produces an error.
+func TestStatusCmd_JSONAndSPCFlagsAreMutuallyExclusive(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("failed to create gromit dir: %v", err)
+	}
+
+	// Create gromit.yaml config
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	configContent := `paths:
+  gromit_dir: .gromit
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	t.Chdir(tmpDir)
+
+	// Execute status command with both --json and --spc flags
+	stdout, stderr, exitCode := runGromitCobra(t, "status", "--json", "--spc")
+
+	// Should fail with non-zero exit code
+	if exitCode == 0 {
+		t.Fatalf("status --json --spc should fail, but succeeded with exit code 0")
+	}
+
+	// Error message (in either stdout or stderr) should mention mutually exclusive flags
+	combinedOutput := stdout + stderr
+	if !strings.Contains(combinedOutput, "mutually exclusive") {
+		t.Errorf("expected error mentioning 'mutually exclusive', got stdout: %s\nstderr: %s", stdout, stderr)
+	}
+}
+
+// TestStatusCmd_JSONIncludesIntegrationQueueData verifies that the JSON output
+// includes integration queue data when queue entries exist.
+func TestStatusCmd_JSONIncludesIntegrationQueueData(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("failed to create gromit dir: %v", err)
+	}
+
+	// Create gromit.yaml config
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	configContent := `paths:
+  gromit_dir: .gromit
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	// Create integration queue with test entries
+	entries := []map[string]interface{}{
+		map[string]interface{}{
+			"branch":    "feature/test-1",
+			"state":     "ready",
+			"lane":      "code_lane",
+			"fifo_seq":  1,
+			"created_at": "2026-02-28T00:00:00Z",
+			"updated_at": "2026-02-28T00:01:00Z",
+		},
+		map[string]interface{}{
+			"branch":    "feature/test-2",
+			"state":     "integrating",
+			"lane":      "code_lane",
+			"fifo_seq":  2,
+			"created_at": "2026-02-28T00:02:00Z",
+			"updated_at": "2026-02-28T00:03:00Z",
+		},
+	}
+	queueData := map[string]interface{}{
+		"schema_version": 1,
+		"updated_at":     "2026-02-28T00:00:00Z",
+		"entries":        entries,
+	}
+	queueBytes, err := json.Marshal(queueData)
+	if err != nil {
+		t.Fatalf("failed to marshal queue data: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gromitDir, "integration-queue.json"), queueBytes, 0644); err != nil {
+		t.Fatalf("failed to write integration-queue.json: %v", err)
+	}
+
+	t.Chdir(tmpDir)
+
+	// Execute status command with --json flag
+	output := captureStdout(t, func() {
+		rootCmd.SetArgs([]string{"status", "--json"})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("status --json command failed: %v", err)
+		}
+	})
+
+	// Parse JSON output
+	var statusJSON map[string]interface{}
+	if err := json.Unmarshal([]byte(output), &statusJSON); err != nil {
+		t.Fatalf("output is not valid JSON: %v\ngot: %s", err, output)
+	}
+
+	// Verify integration_queue field exists and has QueueLength
+	queueInterface, hasQueue := statusJSON["integration_queue"]
+	if !hasQueue {
+		t.Fatalf("JSON missing 'integration_queue' field")
+	}
+
+	queueObj, ok := queueInterface.(map[string]interface{})
+	if !ok {
+		t.Fatalf("integration_queue is not an object, got type: %T", queueInterface)
+	}
+
+	// Verify QueueLength field
+	queueLength, hasLength := queueObj["QueueLength"]
+	if !hasLength {
+		t.Errorf("integration_queue missing 'QueueLength' field, got keys: %v", getKeys(queueObj))
+	}
+	if queueLengthVal, ok := queueLength.(float64); ok {
+		if queueLengthVal != 2.0 {
+			t.Errorf("expected QueueLength=2, got %v", queueLengthVal)
+		}
+	} else {
+		t.Errorf("QueueLength is not a number, got type: %T", queueLength)
+	}
+
+	// Verify Entries field
+	_, hasEntries := queueObj["Entries"]
+	if !hasEntries {
+		t.Errorf("integration_queue missing 'Entries' field")
+	}
+}
