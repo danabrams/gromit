@@ -1,14 +1,50 @@
 package specbranch
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/procutil"
 	"github.com/danabrams/gromit/internal/runner/specmerge"
 )
+
+var waitForProcessCapacityFn = procutil.WaitForProcessCapacity
+
+const defaultProcessCapacityWaitTime = 1500 * time.Millisecond
+
+// runGitCommand executes a git command with process capacity waiting and lifecycle handling.
+func runGitCommand(ctx context.Context, repoDir string, args ...string) (string, error) {
+	if err := waitForProcessCapacityFn(ctx, defaultProcessCapacityWaitTime); err != nil {
+		return "", fmt.Errorf("waiting for process capacity: %w", err)
+	}
+
+	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.Dir = repoDir
+
+	procutil.SetProcessGroupKill(cmd)
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Start(); err != nil {
+		return "", err
+	}
+
+	procutil.KillDescendantsOnCancel(ctx, cmd)
+	defer procutil.ReapProcessTree(cmd)
+
+	if err := cmd.Wait(); err != nil {
+		return stdout.String() + "\n" + stderr.String(), err
+	}
+
+	return stdout.String(), nil
+}
 
 // GitOps provides git operations for spec branch lifecycle.
 type GitOps struct {
@@ -33,18 +69,14 @@ func (g *GitOps) CreateOrCheckoutSpecBranch(ctx context.Context, specBranchName 
 	}
 
 	// Try to create the branch first
-	cmd := exec.CommandContext(ctx, "git", "checkout", "-b", specBranchName)
-	cmd.Dir = g.repoDir
-	_, err := cmd.CombinedOutput()
+	_, err := runGitCommand(ctx, g.repoDir, "checkout", "-b", specBranchName)
 
 	if err == nil {
 		return nil
 	}
 
 	// If branch exists, just checkout
-	cmd = exec.CommandContext(ctx, "git", "checkout", specBranchName)
-	cmd.Dir = g.repoDir
-	_, err = cmd.CombinedOutput()
+	_, err = runGitCommand(ctx, g.repoDir, "checkout", specBranchName)
 	if err != nil {
 		return fmt.Errorf("failed to create or checkout spec branch %s: %w", specBranchName, err)
 	}
@@ -63,20 +95,16 @@ func (g *GitOps) RebaseOnto(ctx context.Context, branch, onto string) error {
 		return fmt.Errorf("target branch cannot be empty")
 	}
 
-	cmd := exec.CommandContext(ctx, "git", "rebase", onto, branch)
-	cmd.Dir = g.repoDir
-	output, err := cmd.CombinedOutput()
+	output, err := runGitCommand(ctx, g.repoDir, "rebase", onto, branch)
 
 	if err == nil {
 		return nil
 	}
 
 	// Check if this is a rebase conflict
-	if isRebaseConflict(string(output), err) {
+	if isRebaseConflict(output, err) {
 		// Abort the rebase to clean up state
-		abortCmd := exec.CommandContext(ctx, "git", "rebase", "--abort")
-		abortCmd.Dir = g.repoDir
-		_ = abortCmd.Run()
+		_, _ = runGitCommand(ctx, g.repoDir, "rebase", "--abort")
 
 		return &specmerge.ConflictError{
 			Operation: "rebase",
@@ -103,16 +131,14 @@ func (g *GitOps) FastForwardMerge(ctx context.Context, branch string) error {
 	}
 
 	// Merge with --ff-only
-	cmd := exec.CommandContext(ctx, "git", "merge", "--ff-only", branch)
-	cmd.Dir = g.repoDir
-	output, err := cmd.CombinedOutput()
+	output, err := runGitCommand(ctx, g.repoDir, "merge", "--ff-only", branch)
 
 	if err == nil {
 		return nil
 	}
 
 	// Check if this is a merge conflict
-	if isMergeConflict(string(output), err) {
+	if isMergeConflict(output, err) {
 		return &specmerge.ConflictError{
 			Operation: "merge",
 			Err:       err,
@@ -131,9 +157,7 @@ func (g *GitOps) FastForwardMergeToMain(ctx context.Context, specBranchName stri
 	}
 
 	// Check out main
-	cmd := exec.CommandContext(ctx, "git", "checkout", g.baseBranchOrDefault())
-	cmd.Dir = g.repoDir
-	_, err := cmd.CombinedOutput()
+	_, err := runGitCommand(ctx, g.repoDir, "checkout", g.baseBranchOrDefault())
 	if err != nil {
 		return fmt.Errorf("failed to checkout main: %w", err)
 	}
@@ -148,9 +172,7 @@ func (g *GitOps) DeleteBranch(ctx context.Context, branch string) error {
 		return fmt.Errorf("branch name cannot be empty")
 	}
 
-	cmd := exec.CommandContext(ctx, "git", "branch", "-d", branch)
-	cmd.Dir = g.repoDir
-	_, err := cmd.CombinedOutput()
+	_, err := runGitCommand(ctx, g.repoDir, "branch", "-d", branch)
 
 	if err != nil {
 		return fmt.Errorf("failed to delete branch %s: %w", branch, err)
