@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/events"
+	"github.com/danabrams/gromit/internal/events/eventtest"
 	"github.com/danabrams/gromit/internal/events/stream"
 )
 
@@ -30,12 +31,22 @@ func TestStreamSubscriberSerializesEvents(t *testing.T) {
 		_ = subscriber.Start(ctx)
 	}()
 
-	time.Sleep(25 * time.Millisecond)
+	// Wait for subscriber to start using polling
+	startCtx, startCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer startCancel()
+	if err := eventtest.WaitForSubscriberReady(startCtx, emitter); err != nil {
+		t.Fatalf("WaitForSubscriberReady failed: %v", err)
+	}
 
 	testEvent := &events.LogEvent{Level: "info", Message: "hello"}
 	emitter.Emit(testEvent)
 
-	waitForCondition(t, func() bool { return buf.Len() > 0 }, time.Second)
+	// Wait for event to be serialized
+	processCtx, processCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer processCancel()
+	if err := eventtest.WaitForCondition(processCtx, func() bool { return buf.Len() > 0 }); err != nil {
+		t.Fatalf("WaitForCondition failed: %v", err)
+	}
 
 	cancel()
 	<-done
@@ -64,17 +75,6 @@ func TestStreamSubscriberSerializesEvents(t *testing.T) {
 	if payload["Message"] != testEvent.Message {
 		t.Fatalf("payload Message = %v, want %v", payload["Message"], testEvent.Message)
 	}
-}
-
-func waitForCondition(t *testing.T, cond func() bool, timeout time.Duration) {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if cond() {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatalf("condition not met before timeout")
 }
 
 type testWriteCloser struct {
