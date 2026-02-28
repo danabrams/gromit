@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
@@ -27,12 +28,19 @@ type Controller interface {
 
 // Pipeline runs spec merge orchestration helpers.
 type Pipeline struct {
-	query beadQuery
+	query   beadQuery
+	emitter CycleRecordEmitter
 }
 
 // NewPipeline constructs a Pipeline with the provided bead query dependencies.
-func NewPipeline(query beadQuery) *Pipeline {
-	return &Pipeline{query: query}
+func NewPipeline(query beadQuery, emitter CycleRecordEmitter) *Pipeline {
+	if emitter == nil {
+		emitter = NoopCycleRecordEmitter()
+	}
+	return &Pipeline{
+		query:   query,
+		emitter: emitter,
+	}
 }
 
 // IsSpecComplete returns true when no open beads remain for the given spec.
@@ -70,8 +78,7 @@ func (p *Pipeline) Trigger(ctx context.Context, specName string) error {
 	if p == nil {
 		return fmt.Errorf("pipeline is nil")
 	}
-	_ = ctx
-	_ = specName
+	p.captureCycleRecord(ctx, specName)
 	return nil
 }
 
@@ -215,4 +222,19 @@ func formatCommandEvidence(command string, exitCode int, stdout, stderr string) 
 	}
 
 	return b.String()
+}
+
+func (p *Pipeline) captureCycleRecord(ctx context.Context, specName string) {
+	if p == nil || p.emitter == nil {
+		return
+	}
+	specID := strings.TrimSpace(specName)
+	if specID == "" {
+		return
+	}
+	record := CycleRecord{
+		SpecID:              specID,
+		CycleEndPresentedAt: time.Now(),
+	}
+	_ = p.emitter.CaptureCycleRecord(ctx, record)
 }

@@ -142,10 +142,10 @@ func contains(s, substr string) bool {
 }
 
 func TestPipeline_IsSpecComplete_FalseWithOpenBead(t *testing.T) {
-	t.Parallel()
+	 t.Parallel()
 
-	const specName = "payments"
-	client := &fakeBeadQuery{
+	 const specName = "payments"
+	 client := &fakeBeadQuery{
 		listFn: func(label string) ([]*bead.Bead, error) {
 			if label != "spec:"+specName {
 				t.Fatalf("label = %q, want spec:%s", label, specName)
@@ -157,7 +157,7 @@ func TestPipeline_IsSpecComplete_FalseWithOpenBead(t *testing.T) {
 		},
 	}
 
-	p := specmerge.NewPipeline(client)
+	p := specmerge.NewPipeline(client, nil)
 	complete, err := p.IsSpecComplete(specName)
 	if err != nil {
 		t.Fatalf("IsSpecComplete returned error: %v", err)
@@ -165,6 +165,44 @@ func TestPipeline_IsSpecComplete_FalseWithOpenBead(t *testing.T) {
 	if complete {
 		t.Fatal("IsSpecComplete returned true despite open bead")
 	}
+}
+
+func TestPipeline_TriggerCapturesCycleRecord(t *testing.T) {
+	 t.Parallel()
+
+	 specName := "payments"
+	 query := &fakeBeadQuery{listFn: func(_ string) ([]*bead.Bead, error) {
+		 return nil, nil
+	 }}
+
+	 t.Run("emitter configured", func(t *testing.T) {
+		 t.Parallel()
+		 var captured specmerge.CycleRecord
+		 emitter := &fakeCycleRecordEmitter{
+			 captureFn: func(_ context.Context, record specmerge.CycleRecord) error {
+				 captured = record
+				 return nil
+			 },
+		 }
+		 p := specmerge.NewPipeline(query, emitter)
+		 if err := p.Trigger(context.Background(), specName); err != nil {
+			 t.Fatalf("Trigger() error = %v", err)
+		 }
+		 if captured.SpecID != specName {
+			 t.Fatalf("captured spec = %q, want %q", captured.SpecID, specName)
+		 }
+		 if captured.CycleEndPresentedAt.IsZero() {
+			 t.Fatalf("captured presented time zero, want non-zero")
+		 }
+	 })
+
+	 t.Run("emitter disabled", func(t *testing.T) {
+		 t.Parallel()
+		 p := specmerge.NewPipeline(query, nil)
+		 if err := p.Trigger(context.Background(), specName); err != nil {
+			 t.Fatalf("Trigger() error = %v", err)
+		 }
+	 })
 }
 
 func TestTrackerBeadQueryConvertsTrackerItems(t *testing.T) {
@@ -226,6 +264,17 @@ func (f *fakeBeadQuery) ListWithLabel(label string) ([]*bead.Bead, error) {
 		return nil, nil
 	}
 	return f.listFn(label)
+}
+
+type fakeCycleRecordEmitter struct {
+	captureFn func(context.Context, specmerge.CycleRecord) error
+}
+
+func (f *fakeCycleRecordEmitter) CaptureCycleRecord(ctx context.Context, record specmerge.CycleRecord) error {
+	if f == nil || f.captureFn == nil {
+		return nil
+	}
+	return f.captureFn(ctx, record)
 }
 
 type stubTrackerBeadQueryClient struct {
