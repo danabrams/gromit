@@ -177,6 +177,16 @@ procutil.WaitForProcessCapacity is called before cmd.Start() in claude, codex, a
 
 When close/sync fails in epilogue, the iteration is marked failed, success logging is suppressed, BeadCompleteEvent is not emitted, and spec merge triggering is skipped. This prevents downstream consumers from acting on incomplete state.
 
+### 2026-02-28 | Provider Router Requires Mutex for Concurrent Access | patterns
+*Related to: review-1772280289214510883*
+
+Provider router (internal/provider/router.go) was a genuine data race — counts and unavailable maps accessed from multiple goroutines without locking. Now uses sync.Mutex on all read/write paths. New provider infrastructure must protect shared state similarly.
+
+### 2026-02-28 | Integration Queue State Machine Has 7 States With Validated Transitions | architecture
+*Related to: review-1772280289214510883*
+
+Integration queue uses states: draft/ready/integrating/merged/conflict/failed_gates/lane_violation. Transitions are validated via CanTransition matrix. Coordinator currently only handles the happy path (ready->integrating->merged) — error-path transitions exist in the matrix but are not wired in coordinator.go.
+
 ---
 
 ## Archived
@@ -190,6 +200,11 @@ When adding regression coverage tests, verify test expectations match actual imp
 
 ### 2026-02-28 | gromit-p2m | patterns
 When implementing CLI client wrappers for external tools (like gh CLI), ensure subprocess calls have proper timeout handling, context cancellation support, and cleanup. Avoid infinite retry loops without exponential backoff or max attempts.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-28 | gromit-m0fl | conventions
+When implementing a new feature, verify that changes don't inadvertently affect other commands or flows. Run the full test suite before considering a task complete, not just the tests for the new feature. Git status snapshots may not show all modified files—check git diff for the complete picture.
 
 *Archived from new: filtered: generic engineering advice*
 
