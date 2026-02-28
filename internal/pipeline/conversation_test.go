@@ -257,6 +257,44 @@ func TestConversationCancelledState(t *testing.T) {
 	}
 }
 
+func TestConversationAssistantOutputChunks(t *testing.T) {
+	// Verify that streaming state can carry multiple content chunks
+	session := &mockConversationSession{
+		events: []ConversationEvent{
+			{State: ConversationStateStreaming, Content: "Hello "},
+			{State: ConversationStateStreaming, Content: "world"},
+			{State: ConversationStateStreaming, Content: "!"},
+			{State: ConversationStateCompleted},
+		},
+	}
+
+	events := collectSessionEvents(session)
+	if len(events) < 4 {
+		t.Fatalf("expected at least 4 events, got %d", len(events))
+	}
+
+	// Collect all streaming content chunks
+	chunks := []string{}
+	for _, ev := range events {
+		if ev.State == ConversationStateStreaming && ev.Content != "" {
+			chunks = append(chunks, ev.Content)
+		}
+	}
+
+	if len(chunks) != 3 {
+		t.Fatalf("expected 3 content chunks, got %d", len(chunks))
+	}
+
+	// Verify chunks can be concatenated to form complete output
+	fullOutput := ""
+	for _, chunk := range chunks {
+		fullOutput += chunk
+	}
+	if fullOutput != "Hello world!" {
+		t.Fatalf("expected 'Hello world!', got %q", fullOutput)
+	}
+}
+
 type mockConversationSession struct {
 	events []ConversationEvent
 	sent   int
