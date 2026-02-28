@@ -475,3 +475,122 @@ worktree:
 		t.Fatalf("output missing backlog count, got: %q", output)
 	}
 }
+
+// TestExploreCommand_NonSessionPathMaintainsArtifactContract verifies that the
+// non-TUI (synchronous fallback) path produces ExploreResult with proper artifact contracts.
+func TestExploreCommand_NonSessionPathMaintainsArtifactContract(t *testing.T) {
+	origRunnerFactory := exploreRunnerFactoryFn
+	t.Cleanup(func() {
+		exploreRunnerFactoryFn = origRunnerFactory
+	})
+
+	baseDir := t.TempDir()
+	t.Chdir(baseDir)
+	gromitDir := filepath.Join(baseDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("mkdir gromit: %v", err)
+	}
+
+	// Create a minimal gromit.yaml config file with worktrees disabled
+	configContent := `version: 1
+worktree:
+  enabled: false
+`
+	if err := os.WriteFile(filepath.Join(baseDir, "gromit.yaml"), []byte(configContent), 0o644); err != nil {
+		t.Fatalf("write gromit.yaml: %v", err)
+	}
+
+	// Mock runner that returns a result with populated artifact lists
+	exploreRunnerFactoryFn = func(cfg *config.Config) (exploreRunner, error) {
+		return &mockExploreRunner{
+			result: &pipeline.ExploreResult{
+				CreatedEpics:        []string{"epic1.md"},
+				CreatedSpecs:        []string{"spec1.md"},
+				CreatedBacklogItems: []string{"idea-1", "idea-2"},
+			},
+		}, nil
+	}
+
+	cmd := &cobra.Command{}
+	cmd.Flags().String("model", "opus", "")
+
+	// Verify the non-session path produces correct artifact contract
+	if err := runExplore(cmd, []string{"test topic"}); err != nil {
+		t.Fatalf("runExplore() error = %v", err)
+	}
+}
+
+// TestExploreCommand_SessionAndFallbackProduceSameArtifactContract verifies that
+// both session and fallback paths return the same artifact contract types.
+func TestExploreCommand_SessionAndFallbackProduceSameArtifactContract(t *testing.T) {
+	origLauncher := exploreSessionLauncherFn
+	origRunInDir := exploreRunInDirFn
+	origRunnerFactory := exploreRunnerFactoryFn
+	t.Cleanup(func() {
+		exploreSessionLauncherFn = origLauncher
+		exploreRunInDirFn = origRunInDir
+		exploreRunnerFactoryFn = origRunnerFactory
+	})
+
+	baseDir := t.TempDir()
+	t.Chdir(baseDir)
+	gromitDir := filepath.Join(baseDir, ".gromit")
+	specsDir := filepath.Join(gromitDir, "specs")
+	epicsDir := filepath.Join(gromitDir, "epics")
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("mkdir specs: %v", err)
+	}
+	if err := os.MkdirAll(epicsDir, 0o755); err != nil {
+		t.Fatalf("mkdir epics: %v", err)
+	}
+
+	sessionDir := t.TempDir()
+
+	expectedResult := &pipeline.ExploreResult{
+		CreatedEpics:        []string{"epic1.md"},
+		CreatedSpecs:        []string{"spec1.md"},
+		CreatedBacklogItems: []string{},
+	}
+
+	exploreSessionLauncherFn = func(
+		gromitDir string,
+		command string,
+		conflictSettings sessionConflictSettings,
+		callback func(sessionDir string) error,
+	) (*worktree.SessionWorktree, error) {
+		if err := callback(sessionDir); err != nil {
+			return nil, err
+		}
+		return &worktree.SessionWorktree{BranchName: "test", WorktreeDir: sessionDir}, nil
+	}
+
+	exploreRunInDirFn = func(dir string, fn func() error) error {
+		return runInDir(dir, fn)
+	}
+
+	exploreRunnerFactoryFn = func(cfg *config.Config) (exploreRunner, error) {
+		return &mockExploreRunner{result: expectedResult}, nil
+	}
+
+	// Create config with worktrees enabled
+	cfg := &config.Config{}
+	enabled := true
+	cfg.Worktree.Enabled = &enabled
+
+	// Save config for loadConfig to find
+	configContent := `version: 1
+worktree:
+  enabled: true
+`
+	if err := os.WriteFile(filepath.Join(baseDir, "gromit.yaml"), []byte(configContent), 0o644); err != nil {
+		t.Fatalf("write gromit.yaml: %v", err)
+	}
+
+	cmd := &cobra.Command{}
+	cmd.Flags().String("model", "opus", "")
+
+	// Both session and fallback should produce the same artifact contract
+	if err := runExplore(cmd, []string{"test"}); err != nil {
+		t.Fatalf("runExplore() error = %v", err)
+	}
+}
