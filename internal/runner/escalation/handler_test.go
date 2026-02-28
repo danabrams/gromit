@@ -776,6 +776,31 @@ func TestEscalateTier_UpdatesBeadContextFields(t *testing.T) {
 	}
 }
 
+func TestEscalationModelForTier_DefaultMapping(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		tier string
+		want string
+	}{
+		{name: "low tier", tier: provider.TierLow, want: "haiku"},
+		{name: "medium tier", tier: provider.TierMedium, want: "sonnet"},
+		{name: "high tier", tier: provider.TierHigh, want: "opus"},
+		{name: "unknown tier", tier: "custom-tier", want: "custom-tier"},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := escalationModelForTier(tc.tier); got != tc.want {
+				t.Fatalf("escalationModelForTier(%q) = %q, want %q", tc.tier, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestExecuteWithRetry_SuccessOnFirstAttempt(t *testing.T) {
 	t.Parallel(
 	// When the InvokeFn succeeds on the first attempt, ExecuteWithRetry should
