@@ -11,6 +11,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/frontmatter"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/spf13/cobra"
 )
@@ -58,7 +59,7 @@ func runRefine(cmd *cobra.Command, args []string) error {
 	plansDir := resolvePlansDir(cfg)
 
 	// Determine input mode
-	input, err := determineRefineInput(cmd, args, gromitDir)
+	input, err := determineRefineInput(cmd, args, gromitDir, specsDir)
 	if err != nil {
 		return err
 	}
@@ -110,7 +111,7 @@ func runRefineInSession(
 	return result, nil
 }
 
-func determineRefineInput(cmd *cobra.Command, args []string, gromitDir string) (*pipeline.RefineInput, error) {
+func determineRefineInput(cmd *cobra.Command, args []string, gromitDir, specsDir string) (*pipeline.RefineInput, error) {
 	agentFlag, _ := cmd.Flags().GetString("agent")
 	chooseAgent := parseRefineChooseAgentFlag(cmd)
 
@@ -126,16 +127,11 @@ func determineRefineInput(cmd *cobra.Command, args []string, gromitDir string) (
 			return nil, fmt.Errorf("loading backlog: %w", err)
 		}
 
-		// Filter to unrefined and non-closed items
-		var unrefined []*backlog.Idea
-		for _, idea := range ideas {
-			status := strings.ToLower(strings.TrimSpace(idea.Status))
-			if status == "refined" || status == "closed" || status == "rejected" {
-				continue
-			}
-			// Any other status (or empty status) is eligible.
-			unrefined = append(unrefined, idea)
+		refinedFromSpecs, err := loadRefinedIdeaIDsFromSpecs(specsDir)
+		if err != nil {
+			return nil, fmt.Errorf("loading refined source_ideas from specs: %w", err)
 		}
+		unrefined := filterRefineCandidates(ideas, refinedFromSpecs)
 
 		// Empty backlog: blank session
 		if len(unrefined) == 0 {
@@ -165,6 +161,85 @@ func determineRefineInput(cmd *cobra.Command, args []string, gromitDir string) (
 		return &pipeline.RefineInput{IdeaID: arg, AgentName: agentFlag, ChooseAgent: chooseAgent}, nil
 	}
 	return &pipeline.RefineInput{IdeaText: arg, AgentName: agentFlag, ChooseAgent: chooseAgent}, nil
+}
+
+func filterRefineCandidates(ideas []*backlog.Idea, refinedBySpec map[string]struct{}) []*backlog.Idea {
+	unrefined := make([]*backlog.Idea, 0, len(ideas))
+	for _, idea := range ideas {
+		if idea == nil {
+			continue
+		}
+
+		status := strings.ToLower(strings.TrimSpace(idea.Status))
+		if status == "refined" || status == "closed" || status == "rejected" {
+			continue
+		}
+		if strings.TrimSpace(idea.SpecName) != "" {
+			continue
+		}
+		if _, ok := refinedBySpec[strings.TrimSpace(idea.ID)]; ok {
+			continue
+		}
+
+		// Any other status (or empty status) is eligible.
+		unrefined = append(unrefined, idea)
+	}
+	return unrefined
+}
+
+func loadRefinedIdeaIDsFromSpecs(specsDir string) (map[string]struct{}, error) {
+	result := make(map[string]struct{})
+	specFiles, err := getSpecFiles(specsDir)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, specPath := range specFiles {
+		fm, _, err := frontmatter.ReadFile(specPath)
+		if err != nil {
+			continue
+		}
+		raw, ok := fm["source_ideas"]
+		if !ok {
+			continue
+		}
+
+		addRefinedIdeaID(result, raw)
+	}
+
+	return result, nil
+}
+
+func addRefinedIdeaID(ids map[string]struct{}, raw interface{}) {
+	if ids == nil {
+		return
+	}
+
+	switch v := raw.(type) {
+	case string:
+		id := strings.TrimSpace(v)
+		if id != "" {
+			ids[id] = struct{}{}
+		}
+	case []interface{}:
+		for _, item := range v {
+			id, ok := item.(string)
+			if !ok {
+				continue
+			}
+			id = strings.TrimSpace(id)
+			if id != "" {
+				ids[id] = struct{}{}
+			}
+		}
+	case []string:
+		for _, id := range v {
+			id = strings.TrimSpace(id)
+			if id != "" {
+				ids[id] = struct{}{}
+			}
+		}
+	}
 }
 
 func parseRefineChooseAgentFlag(cmd *cobra.Command) bool {

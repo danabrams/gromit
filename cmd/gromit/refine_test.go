@@ -303,7 +303,7 @@ func TestDetermineRefineInput_ChooseAgentWithIdeaID(t *testing.T) {
 	cmd.Flag("choose-agent").Value.Set("true")
 
 	// Test with backlog ID argument
-	input, err := determineRefineInput(cmd, []string{"idea-123"}, gromitDir)
+	input, err := determineRefineInput(cmd, []string{"idea-123"}, gromitDir, filepath.Join(gromitDir, "specs"))
 	if err != nil {
 		t.Fatalf("determineRefineInput() error = %v", err)
 	}
@@ -327,7 +327,7 @@ func TestDetermineRefineInput_ChooseAgentWithIdeaText(t *testing.T) {
 		t.Fatalf("set choose-agent flag: %v", err)
 	}
 
-	input, err := determineRefineInput(cmd, []string{"an ad-hoc idea"}, "")
+	input, err := determineRefineInput(cmd, []string{"an ad-hoc idea"}, "", "")
 	if err != nil {
 		t.Fatalf("determineRefineInput() error = %v", err)
 	}
@@ -338,5 +338,86 @@ func TestDetermineRefineInput_ChooseAgentWithIdeaText(t *testing.T) {
 
 	if input.IdeaText != "an ad-hoc idea" {
 		t.Errorf("IdeaText = %q, want %q", input.IdeaText, "an ad-hoc idea")
+	}
+}
+
+func TestFilterRefineCandidates_ExcludesTerminalAndSpecLinkedIdeas(t *testing.T) {
+	t.Parallel()
+
+	ideas := []*backlog.Idea{
+		{ID: "idea-open", Text: "open"},
+		{ID: "idea-refined", Text: "refined", Status: "refined"},
+		{ID: "idea-closed", Text: "closed", Status: "closed"},
+		{ID: "idea-rejected", Text: "rejected", Status: "rejected"},
+		{ID: "idea-specname", Text: "specname", SpecName: "already-linked"},
+		{ID: "idea-source", Text: "source-linked"},
+		nil,
+	}
+
+	refinedBySpec := map[string]struct{}{
+		"idea-source": {},
+	}
+
+	got := filterRefineCandidates(ideas, refinedBySpec)
+	if len(got) != 1 {
+		t.Fatalf("len(filterRefineCandidates()) = %d, want 1", len(got))
+	}
+	if got[0].ID != "idea-open" {
+		t.Fatalf("filterRefineCandidates()[0].ID = %q, want %q", got[0].ID, "idea-open")
+	}
+}
+
+func TestLoadRefinedIdeaIDsFromSpecs_ParsesSourceIdeasFrontmatter(t *testing.T) {
+	t.Parallel()
+
+	specsDir := t.TempDir()
+	spec1 := filepath.Join(specsDir, "one.md")
+	spec2 := filepath.Join(specsDir, "two.md")
+	spec3 := filepath.Join(specsDir, "three.md")
+
+	spec1Content := `---
+id: one
+source_ideas:
+  - idea-100
+  - idea-200
+---
+# One
+`
+	spec2Content := `---
+id: two
+source_ideas: idea-300
+---
+# Two
+`
+	spec3Content := `---
+id: three
+source_ideas:
+  - 123
+---
+# Three
+`
+
+	if err := os.WriteFile(spec1, []byte(spec1Content), 0o644); err != nil {
+		t.Fatalf("write spec1: %v", err)
+	}
+	if err := os.WriteFile(spec2, []byte(spec2Content), 0o644); err != nil {
+		t.Fatalf("write spec2: %v", err)
+	}
+	if err := os.WriteFile(spec3, []byte(spec3Content), 0o644); err != nil {
+		t.Fatalf("write spec3: %v", err)
+	}
+
+	ids, err := loadRefinedIdeaIDsFromSpecs(specsDir)
+	if err != nil {
+		t.Fatalf("loadRefinedIdeaIDsFromSpecs() error = %v", err)
+	}
+
+	for _, id := range []string{"idea-100", "idea-200", "idea-300"} {
+		if _, ok := ids[id]; !ok {
+			t.Fatalf("expected %q in result map", id)
+		}
+	}
+	if _, ok := ids["123"]; ok {
+		t.Fatal("did not expect numeric source_ideas entry to be captured")
 	}
 }
