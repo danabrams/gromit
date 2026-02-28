@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"os"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/agent"
@@ -228,5 +229,51 @@ func TestMaybeWarnModelFlagOnNonClaudeAgentTableDriven(t *testing.T) {
 				t.Fatalf("expected no warning for %s, got: %s", tc.name, output)
 			}
 		})
+	}
+}
+
+func TestApplyDebugModelOverrideAddsModelFlag(t *testing.T) {
+	t.Parallel()
+
+	cmd := prepareDebugModelCmd(t, true, true)
+	selectedAgent := agent.New("claude", "claude", nil, agent.FileRef, "", nil)
+	stderr := &bytes.Buffer{}
+	overridden := applyDebugModelOverride(cmd, selectedAgent, nil, stderr)
+	if stderr.Len() != 0 {
+		t.Fatalf("unexpected warning to stderr: %s", stderr.String())
+	}
+	if overridden == selectedAgent {
+		t.Fatal("expected agent override to occur")
+	}
+
+	agentWithModel, ok := overridden.(agent.Agent)
+	if !ok {
+		t.Fatalf("overridden agent is not agent.Agent, got %T", overridden)
+	}
+
+	promptFile, err := os.CreateTemp(t.TempDir(), "debug-prompt-*.md")
+	if err != nil {
+		t.Fatalf("creating temp prompt file: %v", err)
+	}
+	promptPath := promptFile.Name()
+	promptFile.Close()
+	defer os.Remove(promptPath)
+
+	cmdStruct, err := agentWithModel.Command(promptPath)
+	if err != nil {
+		t.Fatalf("command build failed: %v", err)
+	}
+	modelFlagIndex := -1
+	for i, arg := range cmdStruct.Args {
+		if arg == "--model" {
+			modelFlagIndex = i
+			break
+		}
+	}
+	if modelFlagIndex == -1 || modelFlagIndex+1 >= len(cmdStruct.Args) {
+		t.Fatalf("expected --model flag, got args %v", cmdStruct.Args)
+	}
+	if cmdStruct.Args[modelFlagIndex+1] != "sonnet" {
+		t.Fatalf("expected model value sonnet, got %q", cmdStruct.Args[modelFlagIndex+1])
 	}
 }
