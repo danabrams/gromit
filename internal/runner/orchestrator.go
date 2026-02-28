@@ -94,6 +94,10 @@ type OrchestratorConfig struct {
 	// GitCheckout performs git branch checkout operations.
 	// Optional: nil means branch checkout is skipped.
 	GitCheckout GitCheckout
+
+	// Coordinator performs integration of queued session branches into main between iterations.
+	// Optional: nil means coordinator is disabled.
+	Coordinator Coordinator
 }
 
 type trendUpdaterCloser interface {
@@ -103,6 +107,15 @@ type trendUpdaterCloser interface {
 // StateSaver persists provider routing state (provider counts, availability) to disk.
 type StateSaver interface {
 	Save() error
+}
+
+// Coordinator performs integration of queued session branches into main.
+// It is invoked between iterations in the run loop to process ready branches.
+type Coordinator interface {
+	// Coordinate processes the integration queue, attempting to integrate ready branches into main.
+	// It should not error out on failures from individual integrations; errors in one branch
+	// should be isolated and logged, allowing the run loop to continue.
+	Coordinate(ctx context.Context) error
 }
 
 // Orchestrator sequences the 5-stage pipeline (Gate → Build → Validate → Review →

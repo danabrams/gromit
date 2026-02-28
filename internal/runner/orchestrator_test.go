@@ -105,6 +105,18 @@ func (c *capturingIterationLogWriter) Write(log *logger.IterationLog) error {
 	return nil
 }
 
+// fakeCoordinator is a test double for Coordinator interface.
+type fakeCoordinator struct {
+	coordinateFn func(ctx context.Context) error
+}
+
+func (f *fakeCoordinator) Coordinate(ctx context.Context) error {
+	if f.coordinateFn != nil {
+		return f.coordinateFn(ctx)
+	}
+	return nil
+}
+
 // TestOrchestrator_CallsStateSaverAfterRun verifies that when StateSaver is set
 // in the config, it is called once after the orchestrator loop completes,
 // so provider routing state is persisted across runs.
@@ -2827,5 +2839,63 @@ func TestSingleWriterInvariant_OrchestratorIsCoordinatorForMainIntegration(t *te
 	err := orch.Run(context.Background(), 1, time.Time{}, nil)
 	if err != nil {
 		t.Fatalf("Orchestrator.Run() error = %v; expected nil (coordinator must be operational)", err)
+	}
+}
+
+// TestOrchestratorCallsCoordinatorBetweenIterations verifies that Coordinator.Coordinate
+// is invoked between each iteration in the run loop.
+func TestOrchestratorCallsCoordinatorBetweenIterations(t *testing.T) {
+	t.Parallel()
+
+	// Track coordinator invocations
+	var coordinatorCalls []int
+	var mu sync.Mutex
+
+	coordinator := &fakeCoordinator{
+		coordinateFn: func(ctx context.Context) error {
+			mu.Lock()
+			coordinatorCalls = append(coordinatorCalls, len(coordinatorCalls))
+			mu.Unlock()
+			return nil
+		},
+	}
+
+	// Create beads to process in 3 iterations
+	beads := []*bead.Bead{
+		{ID: "bead1", Title: "Task 1"},
+		{ID: "bead2", Title: "Task 2"},
+		{ID: "bead3", Title: "Task 3"},
+	}
+	beadIdx := 0
+
+	getBead := func(ctx context.Context) (*bead.Bead, error) {
+		if beadIdx >= len(beads) {
+			return nil, nil
+		}
+		b := beads[beadIdx]
+		beadIdx++
+		return b, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:        &fakeStage{},
+		Build:       &fakeStage{},
+		Validate:    &fakeStage{},
+		Epilogue:    &fakeStage{},
+		GetBead:     getBead,
+		Coordinator: coordinator,
+		Config:      &config.Config{},
+		Output:      io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	err := orch.Run(context.Background(), 3, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("Orchestrator.Run() error = %v; expected nil", err)
+	}
+
+	// Coordinator should be called after each of the 3 successful iterations
+	if len(coordinatorCalls) != 3 {
+		t.Fatalf("Expected coordinator to be called 3 times (once per iteration), got %d calls", len(coordinatorCalls))
 	}
 }
