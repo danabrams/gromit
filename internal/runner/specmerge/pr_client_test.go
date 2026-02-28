@@ -185,11 +185,67 @@ func TestFakePRClient_GetPR_ReturnsStatus(t *testing.T) {
 	}
 }
 
+func TestFakePRClient_TracksCalls(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	fake := &fakePRClient{}
+
+	ref := specmerge.PRRef{Owner: "owner", Repo: "repo", Number: 1}
+
+	// Verify PostReview call is tracked
+	payload := specmerge.ReviewPayload{Event: "APPROVE", Body: "looks good"}
+	err := fake.PostReview(ctx, ref, payload)
+	if err != nil {
+		t.Fatalf("PostReview returned error: %v", err)
+	}
+	if len(fake.postReviewCalls) == 0 {
+		t.Error("PostReview should track calls")
+	}
+	if len(fake.postReviewCalls) > 0 && fake.postReviewCalls[0].Event != "APPROVE" {
+		t.Errorf("PostReview call event was %q, want APPROVE", fake.postReviewCalls[0].Event)
+	}
+
+	// Verify PostComment call is tracked
+	err = fake.PostComment(ctx, ref, "comment body")
+	if err != nil {
+		t.Fatalf("PostComment returned error: %v", err)
+	}
+	if len(fake.postCommentCalls) == 0 {
+		t.Error("PostComment should track calls")
+	}
+
+	// Verify RequestReviewers call is tracked
+	err = fake.RequestReviewers(ctx, ref, []string{"reviewer1", "reviewer2"})
+	if err != nil {
+		t.Fatalf("RequestReviewers returned error: %v", err)
+	}
+	if len(fake.requestReviewersCalls) == 0 {
+		t.Error("RequestReviewers should track calls")
+	}
+	if len(fake.requestReviewersCalls) > 0 && len(fake.requestReviewersCalls[0]) != 2 {
+		t.Errorf("RequestReviewers tracked %d reviewers, want 2", len(fake.requestReviewersCalls[0]))
+	}
+
+	// Verify MergePR call is tracked
+	err = fake.MergePR(ctx, ref, "merge message")
+	if err != nil {
+		t.Fatalf("MergePR returned error: %v", err)
+	}
+	if len(fake.mergePRCalls) == 0 {
+		t.Error("MergePR should track calls")
+	}
+}
+
 // fakePRClient is a test implementation of PRClient interface.
 type fakePRClient struct {
-	nextPRNumber  int
-	createPRError error
-	checksToReturn []specmerge.CheckStatus
+	nextPRNumber       int
+	createPRError      error
+	checksToReturn     []specmerge.CheckStatus
+	postReviewCalls    []specmerge.ReviewPayload
+	postCommentCalls   []string
+	requestReviewersCalls [][]string
+	mergePRCalls       []string
 }
 
 func (f *fakePRClient) CreatePR(ctx context.Context, title, body, head, base string) (specmerge.PRRef, error) {
@@ -223,17 +279,21 @@ func (f *fakePRClient) ListChecks(ctx context.Context, ref specmerge.PRRef) ([]s
 }
 
 func (f *fakePRClient) PostReview(ctx context.Context, ref specmerge.PRRef, payload specmerge.ReviewPayload) error {
+	f.postReviewCalls = append(f.postReviewCalls, payload)
 	return nil
 }
 
 func (f *fakePRClient) PostComment(ctx context.Context, ref specmerge.PRRef, body string) error {
+	f.postCommentCalls = append(f.postCommentCalls, body)
 	return nil
 }
 
 func (f *fakePRClient) RequestReviewers(ctx context.Context, ref specmerge.PRRef, reviewers []string) error {
+	f.requestReviewersCalls = append(f.requestReviewersCalls, reviewers)
 	return nil
 }
 
 func (f *fakePRClient) MergePR(ctx context.Context, ref specmerge.PRRef, commitMessage string) error {
+	f.mergePRCalls = append(f.mergePRCalls, commitMessage)
 	return nil
 }
