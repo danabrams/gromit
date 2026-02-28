@@ -146,7 +146,6 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 			gateStage.WithReadinessAssessor(readinessAdapter)
 		}
 	}
-
 	// Stage 2: Build (execute.New with Invoker and PromptRenderer)
 	buildExecInvoker := execution.NewInvoker(&executionRouterAdapter{router: router}, syncOut, streamLogger)
 	buildStage := execute.New(
@@ -170,7 +169,6 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 	if experimentMgr != nil {
 		buildStage.WithExperimentManager(experimentMgr)
 	}
-
 	// Stage 3: Validate (validate.New with CommandRunner)
 	validateStage := validate.New(&cmdRunnerAdapter{runner: defaultCmdRunner}, syncOut)
 
