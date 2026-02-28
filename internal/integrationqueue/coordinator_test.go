@@ -1025,3 +1025,65 @@ func TestCoordinatorProcessNext(t *testing.T) {
 		t.Fatalf("State = %q, want %q", found.State, StateMerged)
 	}
 }
+
+// TestCoordinatorProcessNext_RunsSafetyValidation verifies that ProcessNext
+// runs safety validation first and fails the entry on violation.
+func TestCoordinatorProcessNext_RunsSafetyValidation(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	// Create entry with prohibited artifact (lock file)
+	entry := Entry{
+		Branch:           "feature/unsafe",
+		SessionID:        "feature/unsafe",
+		OriginCommand:    "test",
+		State:            StateReady,
+		Lane:             "code_lane",
+		BaseRef:          "main",
+		HeadSHA:          "deadbeef",
+		ChangedFiles:     []string{"go.sum"},  // Lock file - safety violation
+		ChangedFilesHash: "hash",
+	}
+	if err := store.Save(entry); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	gitops := &mockGitOps{}
+	gate := &mockScopedGate{}
+	coord := NewCoordinator(store, gitops, gate)
+
+	// ProcessNext should fail due to safety violation
+	processed, err := coord.ProcessNext(ctx)
+	if err == nil {
+		t.Fatalf("ProcessNext() error = nil, want safety violation error")
+	}
+	if processed {
+		t.Fatalf("ProcessNext() = %v, want false (safety violation)", processed)
+	}
+
+	// Entry should be transitioned to conflict state on safety violation
+	payload, err := store.load()
+	if err != nil {
+		t.Fatalf("load() error = %v", err)
+	}
+	found := findEntry(payload.Entries, "feature/unsafe")
+	if found == nil {
+		t.Fatalf("entry not found")
+	}
+	if found.State != StateConflict {
+		t.Fatalf("State = %q, want %q (safety violations are terminal)", found.State, StateConflict)
+	}
+	if found.LastErrorCode == "" {
+		t.Fatalf("LastErrorCode should be set for safety violation")
+	}
+
+	// GitOps should NOT have been called (safety validation runs first)
+	if len(gitops.calls) != 0 {
+		t.Fatalf("gitops.calls = %v, want [] (safety check should prevent gitops calls)", gitops.calls)
+	}
+}
