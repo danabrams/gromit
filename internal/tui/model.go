@@ -83,6 +83,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				case '2':
 					m.SwitchView(ViewQueue)
 					m.focusedPanel = 0 // Reset focus when switching views
+				case '3':
+					m.SwitchView(ViewConversation)
+					m.focusedPanel = 0 // Reset focus when switching views
 				}
 			}
 		}
