@@ -192,6 +192,19 @@ func TestRunWithSessionWorktreeAutoCommitInvoked(t *testing.T) {
 	var commands []string
 	cleanupGit := overrideGitRun(func(dir string, args ...string) (string, error) {
 		commands = append(commands, strings.Join(args, " "))
+		if len(args) > 0 {
+			switch args[0] {
+			case "rev-parse":
+				if len(args) > 1 && args[1] == "HEAD" {
+					return "headsha", nil
+				}
+				if len(args) > 1 && args[1] == "HEAD^" {
+					return "baseref", nil
+				}
+			case "diff":
+				return "cmd/gromit/example.go\n", nil
+			}
+		}
 		return "", nil
 	})
 	t.Cleanup(cleanupGit)

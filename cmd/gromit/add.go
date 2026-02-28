@@ -3,13 +3,12 @@ package main
 import (
 	"bufio"
 	"context"
-	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/spf13/cobra"
@@ -49,23 +48,28 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	}
 	gromitDir := resolveGromitDir(cfg)
 
-	fmt.Print("\nAny additional context? (optional, press Enter to skip): ")
+	// Use a single scanner for all stdin reads to avoid bufio buffering
+	// consuming bytes intended for later prompts.
 	scanner := bufio.NewScanner(os.Stdin)
+
+	input := pipeline.AddInput{
+		Text: ideaText,
+	}
+
+	// Determine category before prompting for context so stdin is consumed
+	// in the correct order: category choice (if needed) then context.
+	if backlog.CategorizeIdea(ideaText) == "unknown" {
+		input.Type = promptIdeaType(scanner)
+	}
+
+	fmt.Print("\nAny additional context? (optional, press Enter to skip): ")
 	var contextText string
 	if scanner.Scan() {
 		contextText = strings.TrimSpace(scanner.Text())
 	}
-
-	input := pipeline.AddInput{
-		Text:    ideaText,
-		Context: contextText,
-	}
+	input.Context = contextText
 
 	result, err := addHandler(cmd.Context(), cfg, gromitDir, input)
-	if errors.Is(err, pipeline.ErrUnknownIdeaType) {
-		input.Type = promptIdeaType(os.Stdin)
-		result, err = addHandler(cmd.Context(), cfg, gromitDir, input)
-	}
 	if err != nil {
 		return err
 	}
@@ -79,21 +83,20 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func promptIdeaType(reader io.Reader) string {
+func promptIdeaType(scanner *bufio.Scanner) string {
 	fmt.Println("What type of idea is this?")
 	fmt.Println("  1. Feature - New functionality")
 	fmt.Println("  2. Bug - Something broken to fix")
 	fmt.Println("  3. Chore - Refactor, update, or maintenance")
 	fmt.Print("\nChoice [1-3]: ")
 
-	lineReader := bufio.NewReader(reader)
-	choice, err := lineReader.ReadString('\n')
-	if err != nil {
+	if !scanner.Scan() {
 		fmt.Println("Invalid choice, defaulting to 'feature'")
 		return "feature"
 	}
+	choice := strings.TrimSpace(scanner.Text())
 
-	switch strings.TrimSpace(choice) {
+	switch choice {
 	case "1":
 		return "feature"
 	case "2":
