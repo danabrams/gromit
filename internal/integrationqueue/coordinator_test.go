@@ -137,6 +137,30 @@ func (m *conflictMockGitOps) Cleanup(ctx context.Context, entry Entry) error {
 	return nil
 }
 
+type laneViolationMockGitOps struct {
+	calls []string
+}
+
+func (m *laneViolationMockGitOps) FetchAndRebase(ctx context.Context, entry Entry) error {
+	m.calls = append(m.calls, "fetch:"+entry.Branch)
+	return nil
+}
+
+func (m *laneViolationMockGitOps) MergeToMain(ctx context.Context, entry Entry) error {
+	m.calls = append(m.calls, "merge:"+entry.Branch)
+	return fmt.Errorf("lane violation: cannot merge safe_lane with code changes")
+}
+
+func (m *laneViolationMockGitOps) Push(ctx context.Context) error {
+	m.calls = append(m.calls, "push")
+	return nil
+}
+
+func (m *laneViolationMockGitOps) Cleanup(ctx context.Context, entry Entry) error {
+	m.calls = append(m.calls, "cleanup:"+entry.Branch)
+	return nil
+}
+
 func TestCoordinatorIncrementsAttemptCount(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
@@ -366,5 +390,55 @@ func TestCoordinatorHandlesMergeConflict(t *testing.T) {
 	}
 	if processed.LastErrorCode != "merge_conflict" {
 		t.Fatalf("LastErrorCode = %q, want merge_conflict", processed.LastErrorCode)
+	}
+}
+
+func TestCoordinatorHandlesLaneViolation(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	entry := Entry{
+		Branch:           "feature/lane-violation",
+		SessionID:        "feature/lane-violation",
+		OriginCommand:    "test",
+		State:            StateReady,
+		Lane:             "safe_lane",
+		BaseRef:          "main",
+		HeadSHA:          "deadbeef",
+		ChangedFilesHash: "hash",
+	}
+	if err := store.Save(entry); err != nil {
+		t.Fatalf("Save(entry) error = %v", err)
+	}
+
+	gitops := &laneViolationMockGitOps{}
+	gate := &mockScopedGate{}
+	coord := NewCoordinator(store, gitops, gate)
+
+	// Coordinate should return an error when lane violation is detected
+	err = coord.Coordinate(ctx)
+	if err == nil {
+		t.Fatalf("Coordinate() error = nil, want non-nil")
+	}
+
+	payload, err := store.load()
+	if err != nil {
+		t.Fatalf("load() error = %v", err)
+	}
+
+	processed := findEntry(payload.Entries, "feature/lane-violation")
+	if processed == nil {
+		t.Fatalf("missing processed entry")
+	}
+	if processed.State != StateLaneViolation {
+		t.Fatalf("State = %q, want %q", processed.State, StateLaneViolation)
+	}
+	if processed.LastErrorCode != "lane_violation" {
+		t.Fatalf("LastErrorCode = %q, want lane_violation", processed.LastErrorCode)
 	}
 }
