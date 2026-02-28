@@ -1022,7 +1022,19 @@ func (a *readinessAdapterWithLLM) Assess(ctx context.Context, b *bead.Bead) (rea
 	if a.renderer == nil {
 		return readiness.Assessment{Status: readiness.StatusNotReady}, nil
 	}
-	// Stub implementation: pass all beads for now
+
+	// Render the readiness assessment prompt
+	renderCtx := &prompt.ReadinessContext{
+		Bead: b,
+	}
+	promptText, err := a.renderer.RenderReadiness(renderCtx)
+	if err != nil {
+		// Fail closed: when rendering fails, consider bead not ready
+		return readiness.Assessment{Status: readiness.StatusNotReady}, nil
+	}
+
+	// Stub: will invoke LLM in next phase
+	_ = promptText
 	return readiness.Assessment{Status: readiness.StatusReady}, nil
 }
 
