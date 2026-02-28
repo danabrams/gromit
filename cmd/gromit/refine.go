@@ -59,6 +59,15 @@ func runRefine(cmd *cobra.Command, args []string) error {
 	gromitDir := resolveGromitDir(cfg)
 	specsDir := resolveSpecsDir(cfg)
 	plansDir := resolvePlansDir(cfg)
+	if gromitDir, err = absPath(gromitDir, "gromit directory"); err != nil {
+		return err
+	}
+	if specsDir, err = absPath(specsDir, "specs directory"); err != nil {
+		return err
+	}
+	if plansDir, err = absPath(plansDir, "plans directory"); err != nil {
+		return err
+	}
 
 	// Determine input mode
 	input, err := determineRefineInput(cmd, args, gromitDir, specsDir)

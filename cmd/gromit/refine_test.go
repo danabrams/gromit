@@ -148,6 +148,59 @@ func TestRunRefineReturnsErrorWhenPipelineCreationFails(t *testing.T) {
 	}
 }
 
+func TestRunRefinePassesAbsolutePathsToPipelineFactory(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+
+	configFile := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(configFile, []byte("loop:\n  max_iterations: 1\n"), 0644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	origConfigPath := configPath
+	configPath = configFile
+	t.Cleanup(func() {
+		configPath = origConfigPath
+	})
+
+	origFactory := createRefinePipelineFn
+	var gotGromitDir, gotSpecsDir, gotPlansDir string
+	createRefinePipelineFn = func(_ *config.Config, gromitDir, specsDir, plansDir string) (*pipeline.Pipeline, error) {
+		gotGromitDir = gromitDir
+		gotSpecsDir = specsDir
+		gotPlansDir = plansDir
+		return nil, errors.New("stop after capture")
+	}
+	t.Cleanup(func() {
+		createRefinePipelineFn = origFactory
+	})
+
+	cmd := &cobra.Command{}
+	cmd.Flags().String("agent", "", "")
+
+	err := runRefine(cmd, []string{"ad-hoc idea"})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "stop after capture") {
+		t.Fatalf("expected capture sentinel error, got %v", err)
+	}
+
+	expectedGromit := filepath.Join(tmpDir, ".gromit")
+	expectedSpecs := filepath.Join(tmpDir, ".gromit", "specs")
+	expectedPlans := filepath.Join(tmpDir, ".gromit", "plans")
+
+	if gotGromitDir != expectedGromit {
+		t.Fatalf("gromitDir = %q, want %q", gotGromitDir, expectedGromit)
+	}
+	if gotSpecsDir != expectedSpecs {
+		t.Fatalf("specsDir = %q, want %q", gotSpecsDir, expectedSpecs)
+	}
+	if gotPlansDir != expectedPlans {
+		t.Fatalf("plansDir = %q, want %q", gotPlansDir, expectedPlans)
+	}
+}
+
 // refineSessionTestAgent is now defined in session_test_agent_helper.go
 // using the shared sessionTestAgent test helper
 type refineSessionTestAgent = sessionTestAgent
