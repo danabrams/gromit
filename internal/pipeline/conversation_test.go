@@ -324,6 +324,34 @@ func TestConversationEventSequenceValidation(t *testing.T) {
 	}
 }
 
+func TestIsTerminalStateFunction(t *testing.T) {
+	// Test IsTerminalState helper function
+	terminalStates := []ConversationLifecycleState{
+		ConversationStateCompleted,
+		ConversationStateFailed,
+		ConversationStateCancelled,
+	}
+
+	nonTerminalStates := []ConversationLifecycleState{
+		ConversationStateIdle,
+		ConversationStateStarting,
+		ConversationStateStreaming,
+		ConversationStateWaitingForTool,
+	}
+
+	for _, state := range terminalStates {
+		if !IsTerminalState(state) {
+			t.Fatalf("expected %v to be terminal", state)
+		}
+	}
+
+	for _, state := range nonTerminalStates {
+		if IsTerminalState(state) {
+			t.Fatalf("expected %v to not be terminal", state)
+		}
+	}
+}
+
 func TestConversationStateTransitions(t *testing.T) {
 	// Test multiple valid state transitions
 	tests := []struct {
