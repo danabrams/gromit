@@ -296,6 +296,77 @@ func TestAppendRecord_PreservesTimestamps(t *testing.T) {
 	}
 }
 
+func TestAppendRecord_PreservesOptionalFields(t *testing.T) {
+	// Create a temporary file
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "optional.jsonl")
+
+	// Create a record with optional ReviewRationale
+	record := Record{
+		SpecID:                     "rationale-test",
+		CycleStartTriggerAt:        parseTime("2026-02-01T08:00:00Z"),
+		CycleEndPresentedAt:        parseTime("2026-02-01T10:00:00Z"),
+		ReviewOutcome:              ReviewOutcomeVisionChange,
+		ReviewRationale:            "Business priorities shifted due to market analysis",
+		HumanTacticalIntervention:  Yes,
+		HumanDebuggingIntervention: No,
+		EscapedRegressionWithin7D:  No,
+	}
+
+	if err := AppendRecord(tmpFile, record); err != nil {
+		t.Fatalf("AppendRecord failed: %v", err)
+	}
+
+	// Read back and verify optional fields are preserved
+	loaded, err := LoadRecords(tmpFile)
+	if err != nil {
+		t.Fatalf("LoadRecords failed: %v", err)
+	}
+
+	if len(loaded) != 1 {
+		t.Fatalf("expected 1 record, got %d", len(loaded))
+	}
+
+	if loaded[0].ReviewRationale != record.ReviewRationale {
+		t.Errorf("ReviewRationale mismatch: got %q, want %q", loaded[0].ReviewRationale, record.ReviewRationale)
+	}
+
+	// Create and append record without ReviewRationale
+	recordNoRationale := Record{
+		SpecID:                     "no-rationale-test",
+		CycleStartTriggerAt:        parseTime("2026-02-02T08:00:00Z"),
+		CycleEndPresentedAt:        parseTime("2026-02-02T10:00:00Z"),
+		ReviewOutcome:              ReviewOutcomeAccepted,
+		HumanTacticalIntervention:  No,
+		HumanDebuggingIntervention: No,
+		EscapedRegressionWithin7D:  No,
+	}
+
+	if err := AppendRecord(tmpFile, recordNoRationale); err != nil {
+		t.Fatalf("AppendRecord failed: %v", err)
+	}
+
+	// Reload and verify both records
+	loaded, err = LoadRecords(tmpFile)
+	if err != nil {
+		t.Fatalf("LoadRecords failed: %v", err)
+	}
+
+	if len(loaded) != 2 {
+		t.Fatalf("expected 2 records, got %d", len(loaded))
+	}
+
+	// Verify first record has rationale
+	if loaded[0].ReviewRationale != "Business priorities shifted due to market analysis" {
+		t.Errorf("first record ReviewRationale mismatch: got %q", loaded[0].ReviewRationale)
+	}
+
+	// Verify second record has no rationale
+	if loaded[1].ReviewRationale != "" {
+		t.Errorf("second record ReviewRationale should be empty, got %q", loaded[1].ReviewRationale)
+	}
+}
+
 func parseTime(s string) time.Time {
 	// Helper to parse RFC3339 timestamp
 	t, _ := time.Parse(time.RFC3339, s)
