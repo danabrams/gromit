@@ -168,6 +168,7 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 	lifecycleFailure := pipeline.LifecycleFailureNone
 	warningOccurred := false
 	warnf := func(format string, args ...interface{}) {
+		fmt.Fprintf(w, format, args...)
 		e.Log("warning", format, args...)
 		warningOccurred = true
 	}
