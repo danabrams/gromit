@@ -2,7 +2,9 @@ package preflight
 
 import (
 	"bytes"
+	"context"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/config"
 )
@@ -157,5 +159,49 @@ func TestCheckNoMissingTools(t *testing.T) {
 	// (go likely exists in the test environment)
 	if err != nil && !bytes.Contains([]byte(err.Error()), []byte("missing")) {
 		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+// TestToolExists_WaitForProcessCapacity verifies that toolExists
+// calls WaitForProcessCapacity before forking the which subprocess.
+func TestToolExists_WaitForProcessCapacity(t *testing.T) {
+	out := &bytes.Buffer{}
+	checker := &Checker{out: out}
+
+	// Track if waitForProcessCapacityFn was called
+	var called bool
+	oldFn := waitForProcessCapacityFn
+	t.Cleanup(func() { waitForProcessCapacityFn = oldFn })
+	waitForProcessCapacityFn = func(ctx context.Context, maxWait time.Duration) error {
+		called = true
+		return nil
+	}
+
+	_ = checker.toolExists("go")
+
+	if !called {
+		t.Error("WaitForProcessCapacity was not called in toolExists")
+	}
+}
+
+// TestRunCmd_WaitForProcessCapacity verifies that runCmd
+// calls WaitForProcessCapacity before forking subprocesses.
+func TestRunCmd_WaitForProcessCapacity(t *testing.T) {
+	out := &bytes.Buffer{}
+	checker := &Checker{out: out}
+
+	// Track if waitForProcessCapacityFn was called
+	var called bool
+	oldFn := waitForProcessCapacityFn
+	t.Cleanup(func() { waitForProcessCapacityFn = oldFn })
+	waitForProcessCapacityFn = func(ctx context.Context, maxWait time.Duration) error {
+		called = true
+		return nil
+	}
+
+	_ = checker.runCmd("echo", "hello")
+
+	if !called {
+		t.Error("WaitForProcessCapacity was not called in runCmd")
 	}
 }
