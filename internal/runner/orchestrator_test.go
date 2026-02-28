@@ -2899,3 +2899,101 @@ func TestOrchestratorCallsCoordinatorBetweenIterations(t *testing.T) {
 		t.Fatalf("Expected coordinator to be called 3 times (once per iteration), got %d calls", len(coordinatorCalls))
 	}
 }
+
+// TestOrchestratorCoordinatorErrorIsolation verifies that errors from the coordinator
+// do not terminate the run loop; subsequent iterations continue normally.
+func TestOrchestratorCoordinatorErrorIsolation(t *testing.T) {
+	t.Parallel()
+
+	// Coordinator fails on first call, succeeds on second
+	coordinatorCallCount := 0
+	coordinator := &fakeCoordinator{
+		coordinateFn: func(ctx context.Context) error {
+			coordinatorCallCount++
+			if coordinatorCallCount == 1 {
+				return fmt.Errorf("coordination error")
+			}
+			return nil
+		},
+	}
+
+	beads := []*bead.Bead{
+		{ID: "bead1", Title: "Task 1"},
+		{ID: "bead2", Title: "Task 2"},
+	}
+	beadIdx := 0
+
+	getBead := func(ctx context.Context) (*bead.Bead, error) {
+		if beadIdx >= len(beads) {
+			return nil, nil
+		}
+		b := beads[beadIdx]
+		beadIdx++
+		return b, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:        &fakeStage{},
+		Build:       &fakeStage{},
+		Validate:    &fakeStage{},
+		Epilogue:    &fakeStage{},
+		GetBead:     getBead,
+		Coordinator: coordinator,
+		Config:      &config.Config{},
+		Output:      io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	err := orch.Run(context.Background(), 2, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("Orchestrator.Run() error = %v; expected nil (error in coordinator should be isolated)", err)
+	}
+
+	// Coordinator should be called twice (once per iteration)
+	if coordinatorCallCount != 2 {
+		t.Fatalf("Expected coordinator to be called 2 times, got %d calls", coordinatorCallCount)
+	}
+}
+
+// TestConstructorWiresCoordinatorAndQueueStore verifies that the OrchestratorConfig
+// created by the constructor includes a Coordinator for handling integration queue.
+func TestConstructorWiresCoordinatorAndQueueStore(t *testing.T) {
+	t.Parallel()
+
+	// Create a minimal config for testing
+	tempDir := t.TempDir()
+	templatesDir := filepath.Join(tempDir, "templates")
+	logsDir := filepath.Join(tempDir, "logs")
+	claudePath := filepath.Join(tempDir, "CLAUDE.md")
+
+	os.MkdirAll(templatesDir, 0755)
+	os.MkdirAll(logsDir, 0755)
+	os.WriteFile(filepath.Join(templatesDir, "PROMPT_build.md"), []byte("test"), 0644)
+	os.WriteFile(filepath.Join(templatesDir, "PROMPT_tdd_build.md"), []byte("test"), 0644)
+	os.WriteFile(filepath.Join(templatesDir, "PROMPT_refactor_build.md"), []byte("test"), 0644)
+	os.WriteFile(claudePath, []byte("test"), 0644)
+
+	cfg := &config.Config{
+		Paths: config.PathsConfig{
+			Templates:       templatesDir,
+			Specs:           filepath.Join(tempDir, "specs"),
+			ProjectClaudeMD: claudePath,
+			Logs:            logsDir,
+		},
+	}
+
+	output := &strings.Builder{}
+	orch, err := newRunnerImpl(cfg, output, nil)
+	if err != nil {
+		t.Fatalf("newRunnerImpl error = %v; expected nil", err)
+	}
+
+	if orch == nil {
+		t.Fatal("newRunnerImpl returned nil orchestrator")
+	}
+
+	// Verify Coordinator is wired
+	if orch.cfg.Coordinator == nil {
+		t.Fatal("Orchestrator missing Coordinator dependency; constructor should wire integration coordinator")
+	}
+}

@@ -300,6 +300,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		},
 		StateSaver:       sf,
 		ProviderCostDefs:     costDefs,
+		Coordinator:      NewIntegrationCoordinator(),
 	}
 
 	return NewOrchestrator(orchCfg), nil
