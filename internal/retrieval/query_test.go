@@ -23,16 +23,16 @@ func TestQueryAttributionCorrectness(t *testing.T) {
 	// Index some documents with line information
 	docs := []DocumentWithAttribution{
 		{
-			FilePath: "file1.go",
+			FilePath:  "file1.go",
 			StartLine: 10,
-			EndLine: 20,
-			Content: "func TestQuery(t *testing.T) { /* test content */ }",
+			EndLine:   20,
+			Content:   "func TestQuery(t *testing.T) { /* test content */ }",
 		},
 		{
-			FilePath: "file2.go",
+			FilePath:  "file2.go",
 			StartLine: 1,
-			EndLine: 5,
-			Content: "package main",
+			EndLine:   5,
+			Content:   "package main",
 		},
 	}
 
@@ -211,5 +211,55 @@ func TestQueryAttributionIncludesExactLineRanges(t *testing.T) {
 
 	if snippet.EndLine != 67 {
 		t.Fatalf("expected EndLine 67, got %d", snippet.EndLine)
+	}
+}
+
+func TestQueryRanksByRelevance(t *testing.T) {
+	q := NewQuerier()
+
+	docs := []DocumentWithAttribution{
+		{
+			FilePath:  "relevant.go",
+			StartLine: 1,
+			EndLine:   5,
+			Content:   "topic query topic keyword",
+		},
+		{
+			FilePath:  "less_relevant.go",
+			StartLine: 1,
+			EndLine:   5,
+			Content:   "topic keyword",
+		},
+		{
+			FilePath:  "irrelevant.go",
+			StartLine: 1,
+			EndLine:   5,
+			Content:   "unrelated content",
+		},
+	}
+
+	if err := q.Index(docs); err != nil {
+		t.Fatalf("Index failed: %v", err)
+	}
+
+	results, err := q.Query("topic keyword", 3)
+	if err != nil {
+		t.Fatalf("Query failed: %v", err)
+	}
+
+	if len(results) != 3 {
+		t.Fatalf("expected 3 results, got %d", len(results))
+	}
+
+	if results[0].FilePath != "relevant.go" {
+		t.Fatalf("expected most relevant doc first, got %s", results[0].FilePath)
+	}
+
+	if !(results[0].ConfidenceScore > results[1].ConfidenceScore) {
+		t.Fatalf("expected first confidence > second, got %f vs %f", results[0].ConfidenceScore, results[1].ConfidenceScore)
+	}
+
+	if !(results[1].ConfidenceScore > results[2].ConfidenceScore) {
+		t.Fatalf("expected second confidence > third, got %f vs %f", results[1].ConfidenceScore, results[2].ConfidenceScore)
 	}
 }
