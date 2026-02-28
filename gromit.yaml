@@ -142,6 +142,16 @@ precheck:
   enabled: false  # disabled to avoid auto-closing on acceptance-criteria precheck
   model: haiku  # fast check with haiku
   timeout_seconds: 120  # headroom for CLI startup + file reads + tool use
+  bypass_issue_types:  # skip precheck for intent-preserving work by issue type
+    - "task"
+    - "chore"
+  bypass_labels:  # skip precheck for intent-preserving work by label value or suffix (e.g. kind:tests)
+    - "refactor"
+    - "test"
+    - "tests"
+    - "testing"
+    - "cleanup"
+    - "clean-up"
   # Subordinate verification pass: only runs when precheck.enabled=true and haiku result is PASSED
   verification:
     enabled: false  # verification must be disabled while precheck.enabled=false

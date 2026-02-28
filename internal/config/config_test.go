@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -3053,6 +3054,12 @@ func TestPrecheckConfigDefaults(t *testing.T) {
 	if cfg.Precheck.TimeoutSeconds != 120 {
 		t.Errorf("expected default precheck timeout=120, got %d", cfg.Precheck.TimeoutSeconds)
 	}
+	if !reflect.DeepEqual(cfg.Precheck.BypassIssueTypes, []string{"task", "chore"}) {
+		t.Errorf("expected default bypass_issue_types=[task chore], got %v", cfg.Precheck.BypassIssueTypes)
+	}
+	if !reflect.DeepEqual(cfg.Precheck.BypassLabels, []string{"refactor", "test", "tests", "testing", "cleanup", "clean-up"}) {
+		t.Errorf("expected default bypass_labels list, got %v", cfg.Precheck.BypassLabels)
+	}
 }
 
 func TestPrecheckConfigFromYAML(t *testing.T) {
@@ -3069,6 +3076,8 @@ func TestPrecheckConfigFromYAML(t *testing.T) {
   enabled: true
   model: sonnet
   timeout_seconds: 60
+  bypass_issue_types: ["task", "ops-task"]
+  bypass_labels: ["refactor", "docs-only"]
 `,
 			expectEnabled: true,
 			expectModel:   "sonnet",
@@ -3131,6 +3140,14 @@ func TestPrecheckConfigFromYAML(t *testing.T) {
 			}
 			if cfg.Precheck.TimeoutSeconds != tt.expectTimeout {
 				t.Errorf("expected timeout=%d, got %d", tt.expectTimeout, cfg.Precheck.TimeoutSeconds)
+			}
+			if tt.name == "All fields explicit" {
+				if !reflect.DeepEqual(cfg.Precheck.BypassIssueTypes, []string{"task", "ops-task"}) {
+					t.Errorf("expected bypass_issue_types override, got %v", cfg.Precheck.BypassIssueTypes)
+				}
+				if !reflect.DeepEqual(cfg.Precheck.BypassLabels, []string{"refactor", "docs-only"}) {
+					t.Errorf("expected bypass_labels override, got %v", cfg.Precheck.BypassLabels)
+				}
 			}
 		})
 	}
@@ -3242,6 +3259,31 @@ func TestPrecheckConfigEmptyModel(t *testing.T) {
 	if cfg.Precheck.Model != "haiku" {
 		t.Errorf("expected default model='haiku', got %q", cfg.Precheck.Model)
 	}
+}
+
+func TestPrecheckEffectiveBypassSettings(t *testing.T) {
+	t.Run("uses defaults when unset", func(t *testing.T) {
+		cfg := PrecheckConfig{}
+		if !reflect.DeepEqual(cfg.EffectiveBypassIssueTypes(), []string{"task", "chore"}) {
+			t.Fatalf("unexpected issue type defaults: %v", cfg.EffectiveBypassIssueTypes())
+		}
+		if !reflect.DeepEqual(cfg.EffectiveBypassLabels(), []string{"refactor", "test", "tests", "testing", "cleanup", "clean-up"}) {
+			t.Fatalf("unexpected label defaults: %v", cfg.EffectiveBypassLabels())
+		}
+	})
+
+	t.Run("honors explicit empty allowlists", func(t *testing.T) {
+		cfg := PrecheckConfig{
+			BypassIssueTypes: []string{},
+			BypassLabels:     []string{},
+		}
+		if got := cfg.EffectiveBypassIssueTypes(); len(got) != 0 {
+			t.Fatalf("expected empty issue type allowlist, got %v", got)
+		}
+		if got := cfg.EffectiveBypassLabels(); len(got) != 0 {
+			t.Fatalf("expected empty label allowlist, got %v", got)
+		}
+	})
 }
 
 // Tests for MethodologyConfig parsing

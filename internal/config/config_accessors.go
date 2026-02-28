@@ -345,6 +345,28 @@ func (p PrecheckConfig) IsEnabled() bool {
 	return *p.Enabled
 }
 
+// EffectiveBypassIssueTypes returns configured precheck bypass issue types.
+// When unset, defaults are applied.
+func (p PrecheckConfig) EffectiveBypassIssueTypes() []string {
+	if p.BypassIssueTypes == nil {
+		return copyDefaultPrecheckBypassIssueTypes()
+	}
+	out := make([]string, len(p.BypassIssueTypes))
+	copy(out, p.BypassIssueTypes)
+	return out
+}
+
+// EffectiveBypassLabels returns configured precheck bypass labels.
+// When unset, defaults are applied.
+func (p PrecheckConfig) EffectiveBypassLabels() []string {
+	if p.BypassLabels == nil {
+		return copyDefaultPrecheckBypassLabels()
+	}
+	out := make([]string, len(p.BypassLabels))
+	copy(out, p.BypassLabels)
+	return out
+}
+
 // IsEnabled returns whether readiness_check should run (defaults to false).
 func (r ReadinessCheckConfig) IsEnabled() bool {
 	if r.Enabled == nil {

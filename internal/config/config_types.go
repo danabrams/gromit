@@ -235,17 +235,19 @@ type ScopeCheckConfig struct {
 }
 
 type ReadinessCheckConfig struct {
-	Enabled        *bool `yaml:"enabled"`
+	Enabled        *bool  `yaml:"enabled"`
 	Model          string `yaml:"model"`
-	TimeoutSeconds int `yaml:"timeout_seconds"`
-	FailClosed     bool `yaml:"fail_closed"`
+	TimeoutSeconds int    `yaml:"timeout_seconds"`
+	FailClosed     bool   `yaml:"fail_closed"`
 }
 
 type PrecheckConfig struct {
-	Enabled        *bool                      `yaml:"enabled"`
-	Model          string                     `yaml:"model"`
-	TimeoutSeconds int                        `yaml:"timeout_seconds"`
-	Verification   PrecheckVerificationConfig `yaml:"verification"`
+	Enabled          *bool                      `yaml:"enabled"`
+	Model            string                     `yaml:"model"`
+	TimeoutSeconds   int                        `yaml:"timeout_seconds"`
+	BypassIssueTypes []string                   `yaml:"bypass_issue_types"`
+	BypassLabels     []string                   `yaml:"bypass_labels"`
+	Verification     PrecheckVerificationConfig `yaml:"verification"`
 }
 
 type PrecheckVerificationConfig struct {
@@ -408,9 +410,9 @@ type GitConfig struct {
 
 func (g *GitConfig) UnmarshalYAML(value *yaml.Node) error {
 	type gitConfigDecode struct {
-		AutoPush    *bool  `yaml:"auto_push"`
-		PushFailure string `yaml:"push_failure"`
-		PushTimeout *int   `yaml:"push_timeout"`
+		AutoPush    *bool   `yaml:"auto_push"`
+		PushFailure string  `yaml:"push_failure"`
+		PushTimeout *int    `yaml:"push_timeout"`
 		BaseBranch  *string `yaml:"base_branch"`
 	}
 
@@ -537,8 +539,8 @@ type CostOptimizedRoutingConfig struct {
 }
 
 type TokenEfficiencyConfig struct {
-	Cache     TokenEfficiencyCacheConfig    `yaml:"cache"`
-	Routing   TokenEfficiencyRoutingConfig  `yaml:"routing"`
+	Cache     TokenEfficiencyCacheConfig     `yaml:"cache"`
+	Routing   TokenEfficiencyRoutingConfig   `yaml:"routing"`
 	Retrieval TokenEfficiencyRetrievalConfig `yaml:"retrieval"`
 }
 
@@ -561,12 +563,12 @@ type TokenEfficiencyRoutingKillSwitchesConfig struct {
 }
 
 type TokenEfficiencyRetrievalConfig struct {
-	Enabled                  bool    `yaml:"enabled"`
-	TopK                     int     `yaml:"top_k"`
-	ConfidenceThreshold      float64 `yaml:"confidence_threshold"`
-	StalenessPolicy          string  `yaml:"staleness_policy"`
-	StalenessThresholdDays   int     `yaml:"staleness_threshold_days"`
-	IndexPath                string  `yaml:"index_path"`
+	Enabled                bool    `yaml:"enabled"`
+	TopK                   int     `yaml:"top_k"`
+	ConfidenceThreshold    float64 `yaml:"confidence_threshold"`
+	StalenessPolicy        string  `yaml:"staleness_policy"`
+	StalenessThresholdDays int     `yaml:"staleness_threshold_days"`
+	IndexPath              string  `yaml:"index_path"`
 }
 
 type FallbackConfig struct {
@@ -633,15 +635,15 @@ type MergePipelineConfig struct {
 }
 
 type SpecPRConfig struct {
-	Enabled                 *bool    `yaml:"enabled"`
-	Reviewers               []string `yaml:"reviewers"`
-	MergeMethod             string   `yaml:"merge_method"`
-	FixCycleCap             int      `yaml:"fix_cycle_cap"`
-	AutoFixHumanComments    bool     `yaml:"auto_fix_human_comments"`
-	AutoMergeOnApproval     bool     `yaml:"auto_merge_on_approval"`
-	CIPollInterval          int      `yaml:"ci_poll_interval"`
-	CITimeout               int      `yaml:"ci_timeout"`
-	MaxOpenPRs              int      `yaml:"max_open_prs"`
+	Enabled              *bool    `yaml:"enabled"`
+	Reviewers            []string `yaml:"reviewers"`
+	MergeMethod          string   `yaml:"merge_method"`
+	FixCycleCap          int      `yaml:"fix_cycle_cap"`
+	AutoFixHumanComments bool     `yaml:"auto_fix_human_comments"`
+	AutoMergeOnApproval  bool     `yaml:"auto_merge_on_approval"`
+	CIPollInterval       int      `yaml:"ci_poll_interval"`
+	CITimeout            int      `yaml:"ci_timeout"`
+	MaxOpenPRs           int      `yaml:"max_open_prs"`
 }
 
 // ResolvePhaseTimeoutSeconds returns the configured timeout for a methodology

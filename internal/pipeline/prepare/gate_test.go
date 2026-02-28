@@ -57,8 +57,9 @@ func runScopeGateCase(t *testing.T, tc scopeGateCase) pipeline.Output {
 }
 
 type mockPrechecker struct {
-	done bool
-	err  error
+	done   bool
+	err    error
+	called bool
 }
 
 func newMockPrechecker() *mockPrechecker {
@@ -72,7 +73,12 @@ func (m *mockPrechecker) WithCheck(done bool, err error) *mockPrechecker {
 }
 
 func (m *mockPrechecker) Check(_ context.Context, _ *bead.Bead) (bool, error) {
+	m.called = true
 	return m.done, m.err
+}
+
+func (m *mockPrechecker) WasCalled() bool {
+	return m.called
 }
 
 // Deprecated: use newMockPrechecker() instead
@@ -86,8 +92,8 @@ func (f *fakePrechecker) Check(_ context.Context, _ *bead.Bead) (bool, error) {
 }
 
 type mockStuckDetector struct {
-	stuck bool
-	err   error
+	stuck  bool
+	err    error
 	called bool
 }
 
@@ -394,6 +400,138 @@ func TestGateRun(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGateRun_PrecheckBypassForIntentPreservingWork(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		bead *bead.Bead
+	}{
+		{
+			name: "task type bypasses precheck",
+			bead: &bead.Bead{ID: "bypass-task", Type: "task"},
+		},
+		{
+			name: "chore type bypasses precheck",
+			bead: &bead.Bead{ID: "bypass-chore", Type: "chore"},
+		},
+		{
+			name: "refactor label bypasses precheck",
+			bead: &bead.Bead{ID: "bypass-refactor", Labels: []string{"refactor"}},
+		},
+		{
+			name: "tests label bypasses precheck",
+			bead: &bead.Bead{ID: "bypass-tests", Labels: []string{"kind:tests"}},
+		},
+		{
+			name: "cleanup label bypasses precheck",
+			bead: &bead.Bead{ID: "bypass-cleanup", Labels: []string{"work:cleanup"}},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			precheck := newMockPrechecker().WithCheck(true, nil)
+			gate := New(io.Discard).WithPrechecker(precheck)
+
+			out, err := gate.Run(context.Background(), pipeline.Input{Bead: tc.bead})
+			if err != nil {
+				t.Fatalf("Gate.Run() error = %v", err)
+			}
+			if out.Decision != pipeline.Proceed {
+				t.Fatalf("decision = %v, want %v (precheck bypass)", out.Decision, pipeline.Proceed)
+			}
+			if precheck.WasCalled() {
+				t.Fatal("precheck was called for intent-preserving bead, want bypass")
+			}
+		})
+	}
+}
+
+func TestGateRun_PrecheckStillRunsForNonBypassWork(t *testing.T) {
+	t.Parallel()
+
+	precheck := newMockPrechecker().WithCheck(true, nil)
+	gate := New(io.Discard).WithPrechecker(precheck)
+
+	out, err := gate.Run(context.Background(), pipeline.Input{
+		Bead: &bead.Bead{
+			ID:     "non-bypass",
+			Type:   "bug",
+			Labels: []string{"priority:p1"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Gate.Run() error = %v", err)
+	}
+	if out.Decision != pipeline.Skip {
+		t.Fatalf("decision = %v, want %v", out.Decision, pipeline.Skip)
+	}
+	if !precheck.WasCalled() {
+		t.Fatal("precheck was not called for non-bypass bead")
+	}
+}
+
+func TestGateRun_PrecheckBypassConfigOverride(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty allowlists disable bypass", func(t *testing.T) {
+		precheck := newMockPrechecker().WithCheck(true, nil)
+		gate := New(io.Discard).WithPrechecker(precheck)
+
+		out, err := gate.Run(context.Background(), pipeline.Input{
+			Bead: &bead.Bead{
+				ID:     "task-no-bypass",
+				Type:   "task",
+				Labels: []string{"refactor"},
+			},
+			Config: &config.Config{
+				Precheck: config.PrecheckConfig{
+					BypassIssueTypes: []string{},
+					BypassLabels:     []string{},
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Gate.Run() error = %v", err)
+		}
+		if out.Decision != pipeline.Skip {
+			t.Fatalf("decision = %v, want %v", out.Decision, pipeline.Skip)
+		}
+		if !precheck.WasCalled() {
+			t.Fatal("precheck was not called with empty bypass allowlists")
+		}
+	})
+
+	t.Run("custom allowlists are honored", func(t *testing.T) {
+		precheck := newMockPrechecker().WithCheck(true, nil)
+		gate := New(io.Discard).WithPrechecker(precheck)
+
+		out, err := gate.Run(context.Background(), pipeline.Input{
+			Bead: &bead.Bead{
+				ID:     "custom-label-bypass",
+				Type:   "bug",
+				Labels: []string{"workflow:docs-only"},
+			},
+			Config: &config.Config{
+				Precheck: config.PrecheckConfig{
+					BypassIssueTypes: []string{"ops-task"},
+					BypassLabels:     []string{"docs-only"},
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Gate.Run() error = %v", err)
+		}
+		if out.Decision != pipeline.Proceed {
+			t.Fatalf("decision = %v, want %v (custom bypass)", out.Decision, pipeline.Proceed)
+		}
+		if precheck.WasCalled() {
+			t.Fatal("precheck was called despite custom bypass label")
+		}
+	})
 }
 
 func TestGateRun_PrecheckErrorEmitsLogEvent(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/readiness"
@@ -136,7 +137,7 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 
 	// Precheck: skip beads whose acceptance criteria are already satisfied.
 	// Runs before stuck detection so completed work is always closed promptly.
-	if g.precheck != nil {
+	if g.precheck != nil && !shouldBypassPrecheck(in.Bead, in.Config) {
 		done, err := g.precheck.Check(ctx, in.Bead)
 		if err != nil {
 			g.Log("warning", "Warning: precheck failed for bead %s: %v", in.Bead.ID, err)
@@ -237,6 +238,74 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 		Decision:          pipeline.Proceed,
 		ComplexityRouting: complexityRouting,
 	}, nil
+}
+
+func shouldBypassPrecheck(b *bead.Bead, cfg *config.Config) bool {
+	if b == nil {
+		return false
+	}
+
+	issueTypes := precheckBypassIssueTypes(cfg)
+	labelValues := precheckBypassLabelValues(cfg)
+
+	normalizedType := strings.ToLower(strings.TrimSpace(b.Type))
+	if _, ok := issueTypes[normalizedType]; ok {
+		return true
+	}
+
+	for _, label := range b.Labels {
+		if shouldBypassPrecheckLabel(label, labelValues) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func shouldBypassPrecheckLabel(label string, allowlist map[string]struct{}) bool {
+	normalized := strings.ToLower(strings.TrimSpace(label))
+	if normalized == "" {
+		return false
+	}
+	if _, ok := allowlist[normalized]; ok {
+		return true
+	}
+
+	parts := strings.Split(normalized, ":")
+	if len(parts) < 2 {
+		return false
+	}
+	last := strings.TrimSpace(parts[len(parts)-1])
+	_, ok := allowlist[last]
+	return ok
+}
+
+func precheckBypassIssueTypes(cfg *config.Config) map[string]struct{} {
+	values := config.PrecheckConfig{}.EffectiveBypassIssueTypes()
+	if cfg != nil {
+		values = cfg.Precheck.EffectiveBypassIssueTypes()
+	}
+	return normalizePrecheckBypassValues(values)
+}
+
+func precheckBypassLabelValues(cfg *config.Config) map[string]struct{} {
+	values := config.PrecheckConfig{}.EffectiveBypassLabels()
+	if cfg != nil {
+		values = cfg.Precheck.EffectiveBypassLabels()
+	}
+	return normalizePrecheckBypassValues(values)
+}
+
+func normalizePrecheckBypassValues(values []string) map[string]struct{} {
+	out := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		normalized := strings.ToLower(strings.TrimSpace(value))
+		if normalized == "" {
+			continue
+		}
+		out[normalized] = struct{}{}
+	}
+	return out
 }
 
 func resolveComplexityRouting(in pipeline.Input) pipeline.ComplexityRouting {

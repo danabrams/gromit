@@ -14,6 +14,32 @@ const (
 	defaultMergePipelineRetryCapDefault           = 3
 )
 
+var defaultPrecheckBypassIssueTypes = []string{
+	"task",
+	"chore",
+}
+
+var defaultPrecheckBypassLabels = []string{
+	"refactor",
+	"test",
+	"tests",
+	"testing",
+	"cleanup",
+	"clean-up",
+}
+
+func copyDefaultPrecheckBypassIssueTypes() []string {
+	out := make([]string, len(defaultPrecheckBypassIssueTypes))
+	copy(out, defaultPrecheckBypassIssueTypes)
+	return out
+}
+
+func copyDefaultPrecheckBypassLabels() []string {
+	out := make([]string, len(defaultPrecheckBypassLabels))
+	copy(out, defaultPrecheckBypassLabels)
+	return out
+}
+
 func boolPtr(value bool) *bool {
 	return &value
 }
@@ -163,6 +189,12 @@ func (c *Config) SetDefaults() {
 	}
 	if c.Precheck.TimeoutSeconds == 0 {
 		c.Precheck.TimeoutSeconds = 120
+	}
+	if c.Precheck.BypassIssueTypes == nil {
+		c.Precheck.BypassIssueTypes = copyDefaultPrecheckBypassIssueTypes()
+	}
+	if c.Precheck.BypassLabels == nil {
+		c.Precheck.BypassLabels = copyDefaultPrecheckBypassLabels()
 	}
 	if c.Precheck.Verification.TimeoutSeconds == 0 {
 		c.Precheck.Verification.TimeoutSeconds = 120
