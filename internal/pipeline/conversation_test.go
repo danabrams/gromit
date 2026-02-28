@@ -324,6 +324,87 @@ func TestConversationEventSequenceValidation(t *testing.T) {
 	}
 }
 
+func TestConversationStateTransitions(t *testing.T) {
+	// Test multiple valid state transitions
+	tests := []struct {
+		name   string
+		events []ConversationEvent
+		valid  bool
+	}{
+		{
+			name: "empty sequence",
+			events: []ConversationEvent{},
+			valid: true,
+		},
+		{
+			name: "simple completion",
+			events: []ConversationEvent{
+				{State: ConversationStateStarting},
+				{State: ConversationStateStreaming, Content: "hello"},
+				{State: ConversationStateCompleted},
+			},
+			valid: true,
+		},
+		{
+			name: "with tool call",
+			events: []ConversationEvent{
+				{State: ConversationStateStarting},
+				{State: ConversationStateStreaming, Content: "calculating"},
+				{State: ConversationStateWaitingForTool, ToolName: "calculator", ToolInput: "2+2"},
+				{State: ConversationStateStreaming, ToolOutput: "4"},
+				{State: ConversationStateCompleted},
+			},
+			valid: true,
+		},
+		{
+			name: "failed with error reason",
+			events: []ConversationEvent{
+				{State: ConversationStateStarting},
+				{State: ConversationStateStreaming, Content: "processing"},
+				{State: ConversationStateFailed, ErrorReason: "timeout"},
+			},
+			valid: true,
+		},
+		{
+			name: "cancelled",
+			events: []ConversationEvent{
+				{State: ConversationStateStarting},
+				{State: ConversationStateStreaming, Content: "partial"},
+				{State: ConversationStateCancelled},
+			},
+			valid: true,
+		},
+		{
+			name: "events after completed",
+			events: []ConversationEvent{
+				{State: ConversationStateCompleted},
+				{State: ConversationStateStreaming, Content: "unexpected"},
+			},
+			valid: false,
+		},
+		{
+			name: "events after failed",
+			events: []ConversationEvent{
+				{State: ConversationStateFailed, ErrorReason: "error"},
+				{State: ConversationStateStreaming, Content: "unexpected"},
+			},
+			valid: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateConversationEventSequence(tt.events)
+			if tt.valid && err != nil {
+				t.Fatalf("expected valid sequence, got error: %v", err)
+			}
+			if !tt.valid && err == nil {
+				t.Fatal("expected invalid sequence, but validation passed")
+			}
+		})
+	}
+}
+
 type mockConversationSession struct {
 	events []ConversationEvent
 	sent   int
