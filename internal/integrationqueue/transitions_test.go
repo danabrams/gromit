@@ -31,3 +31,10 @@ func TestCanTransition_IntegratingToConflict_Allowed(t *testing.T) {
 		t.Errorf("expected integrating->conflict to be allowed, got false")
 	}
 }
+
+func TestCanTransition_DraftToIntegrating_Disallowed(t *testing.T) {
+	result := CanTransition("draft", "integrating")
+	if result {
+		t.Errorf("expected draft->integrating to be disallowed, got true")
+	}
+}
