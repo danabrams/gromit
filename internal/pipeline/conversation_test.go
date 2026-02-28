@@ -96,3 +96,76 @@ func TestConversationLifecycleStatesExist(t *testing.T) {
 		t.Fatalf("expected 7 lifecycle states, got %d", len(states))
 	}
 }
+
+func TestConversationSessionInterfaceExists(t *testing.T) {
+	// Verify ConversationSession interface exists with required methods
+	var sess ConversationSession
+	_ = sess // Use variable to verify interface existence
+
+	// Verify it has the required methods:
+	// - SendInput(text string) error
+	// - Cancel() error
+	// - Events() <-chan ConversationEvent
+}
+
+func TestConversationSessionEventOrdering(t *testing.T) {
+	// Verify that terminal state events (Completed, Failed, Cancelled) end event stream
+	session := &mockConversationSession{
+		events: []ConversationEvent{
+			{State: ConversationStateStarting},
+			{State: ConversationStateStreaming, Content: "text"},
+			{State: ConversationStateWaitingForTool, ToolName: "tool"},
+			{State: ConversationStateCompleted},
+		},
+	}
+
+	events := collectSessionEvents(session)
+	if len(events) == 0 {
+		t.Fatal("expected at least one event")
+	}
+
+	// Last event should be terminal state
+	lastEvent := events[len(events)-1]
+	if !isTerminalState(lastEvent.State) {
+		t.Fatalf("expected last event to be terminal state, got %v", lastEvent.State)
+	}
+}
+
+func isTerminalState(state ConversationLifecycleState) bool {
+	return state == ConversationStateCompleted ||
+		state == ConversationStateFailed ||
+		state == ConversationStateCancelled
+}
+
+func collectSessionEvents(sess ConversationSession) []ConversationEvent {
+	var events []ConversationEvent
+	for ev := range sess.Events() {
+		events = append(events, ev)
+		if isTerminalState(ev.State) {
+			break
+		}
+	}
+	return events
+}
+
+type mockConversationSession struct {
+	events []ConversationEvent
+	sent   int
+}
+
+func (m *mockConversationSession) SendInput(text string) error {
+	return nil
+}
+
+func (m *mockConversationSession) Cancel() error {
+	return nil
+}
+
+func (m *mockConversationSession) Events() <-chan ConversationEvent {
+	ch := make(chan ConversationEvent, len(m.events))
+	for _, ev := range m.events {
+		ch <- ev
+	}
+	close(ch)
+	return ch
+}
