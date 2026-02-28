@@ -54,3 +54,20 @@ func TestVisionMetricsReportSubcommand(t *testing.T) {
 		t.Fatal("report subcommand not registered to vision-metrics")
 	}
 }
+
+// TestVisionMetricsReportHasJSONFlag verifies the report subcommand has --json flag
+func TestVisionMetricsReportHasJSONFlag(t *testing.T) {
+	t.Parallel()
+	reportCmd, _, err := rootCmd.Find([]string{"vision-metrics", "report"})
+	if err != nil {
+		t.Fatalf("failed to find report command: %v", err)
+	}
+	if reportCmd == nil {
+		t.Fatal("report command not found")
+	}
+
+	jsonFlag := reportCmd.Flags().Lookup("json")
+	if jsonFlag == nil {
+		t.Fatal("--json flag not found on report subcommand")
+	}
+}
