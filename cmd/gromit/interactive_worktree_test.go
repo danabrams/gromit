@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/integrationqueue"
 	"github.com/danabrams/gromit/internal/worktree"
 )
 
@@ -45,6 +46,17 @@ func (m *mockPendingBranchRecorder) AddPendingWorktreeBranch(branch string) erro
 func (m *mockPendingBranchRecorder) RemovePendingWorktreeBranch(branch string) error {
 	if m != nil && m.RemovePendingWorktreeBranchFn != nil {
 		return m.RemovePendingWorktreeBranchFn(branch)
+	}
+	return nil
+}
+
+type mockQueueStore struct {
+	SaveFn func(entry integrationqueue.Entry) error
+}
+
+func (m *mockQueueStore) Save(entry integrationqueue.Entry) error {
+	if m != nil && m.SaveFn != nil {
+		return m.SaveFn(entry)
 	}
 	return nil
 }
@@ -93,6 +105,16 @@ func overrideGitRun(fn func(dir string, args ...string) (string, error)) func() 
 	interactiveWorktreeGitRunFn = fn
 	return func() {
 		interactiveWorktreeGitRunFn = original
+	}
+}
+
+func overrideQueueStore(saveFn func(entry integrationqueue.Entry) error) func() {
+	original := interactiveWorktreeNewQueueStoreFn
+	interactiveWorktreeNewQueueStoreFn = func(gromitDir string) (sessionQueueStore, error) {
+		return &mockQueueStore{SaveFn: saveFn}, nil
+	}
+	return func() {
+		interactiveWorktreeNewQueueStoreFn = original
 	}
 }
 
@@ -184,6 +206,74 @@ func TestRunWithSessionWorktreeAutoCommitInvoked(t *testing.T) {
 	}
 	if !sawAdd || !sawCommit {
 		t.Fatalf("auto commit commands not run: %v", commands)
+	}
+}
+
+func TestRunWithSessionWorktreeQueuesReadyBranch(t *testing.T) {
+	// Not parallel: withInteractiveWorktreeFactories mutates package-level globals.
+	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "ready-queue")
+	session.BranchName = "gromit/ready-123"
+
+	var recordedEntry *integrationqueue.Entry
+	cleanupStore := overrideQueueStore(func(entry integrationqueue.Entry) error {
+		recordedEntry = &entry
+		return nil
+	})
+	t.Cleanup(cleanupStore)
+
+	cleanupGit := overrideGitRun(func(dir string, args ...string) (string, error) {
+		switch args[0] {
+		case "add":
+			return "", nil
+		case "commit":
+			return "", nil
+		case "rev-parse":
+			if len(args) > 1 && args[1] == "HEAD" {
+				return "headsha", nil
+			}
+			if len(args) > 1 && args[1] == "HEAD^" {
+				return "baseref", nil
+			}
+		case "diff":
+			return "cmd/gromit/example.go\n", nil
+		}
+		return "", nil
+	})
+	t.Cleanup(cleanupGit)
+
+	withInteractiveWorktreeFactories(t, func(gotMainDir string) (sessionWorktreeCreator, error) {
+		if gotMainDir != mainDir {
+			t.Fatalf("mainDir = %q, want %q", gotMainDir, mainDir)
+		}
+		return &mockSessionWorktreeCreator{
+			CreateSessionWorktreeFn: func(string) (*worktree.SessionWorktree, error) {
+				return session, nil
+			},
+		}, nil
+	}, func(string) (pendingBranchRecorder, error) {
+		return &mockPendingBranchRecorder{AddPendingWorktreeBranchFn: func(string) error { return nil }}, nil
+	}, func(string, string) error {
+		return nil
+	})
+
+	_, err := runWithSessionWorktree(gromitDir, "ready-queue", func(string) error { return nil })
+	if err != nil {
+		t.Fatalf("runWithSessionWorktree() error = %v", err)
+	}
+	if recordedEntry == nil {
+		t.Fatal("expected queue entry to be recorded")
+	}
+	if recordedEntry.State != "ready" {
+		t.Fatalf("entry state = %q, want ready", recordedEntry.State)
+	}
+	if recordedEntry.Branch != session.BranchName {
+		t.Fatalf("entry branch = %q, want %q", recordedEntry.Branch, session.BranchName)
+	}
+	if recordedEntry.OriginCommand != "ready-queue" {
+		t.Fatalf("entry origin command = %q, want %q", recordedEntry.OriginCommand, "ready-queue")
+	}
+	if len(recordedEntry.ChangedFiles) != 1 || recordedEntry.ChangedFiles[0] != "cmd/gromit/example.go" {
+		t.Fatalf("changed files = %v, want [cmd/gromit/example.go]", recordedEntry.ChangedFiles)
 	}
 }
 
