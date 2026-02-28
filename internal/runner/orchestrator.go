@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"os/exec"
+
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/coverage"
@@ -113,6 +115,9 @@ var orchestratorWaitForProcessCapacityFn = procutil.WaitForProcessCapacity
 
 // orchestratorPreBuildCapacityWait is the timeout for the pre-Build capacity check.
 const orchestratorPreBuildCapacityWait = 3 * time.Second
+
+// orchestratorLookPathFn wraps exec.LookPath for testability.
+var orchestratorLookPathFn = exec.LookPath
 
 // StateSaver persists provider routing state (provider counts, availability) to disk.
 type StateSaver interface {
@@ -464,6 +469,46 @@ runLoop:
 				Time:      time.Now(),
 			})
 			continue
+		}
+
+		// Pre-Build diagnostic: verify at least one configured provider binary exists on PATH.
+		if o.cfg.Config != nil && len(o.cfg.Config.Providers) > 0 {
+			anyFound := false
+			for _, pDef := range o.cfg.Config.Providers {
+				if pDef.Binary == "" {
+					continue
+				}
+				if _, lookErr := orchestratorLookPathFn(pDef.Binary); lookErr == nil {
+					anyFound = true
+					break
+				}
+			}
+			if !anyFound {
+				o.logWarning("Pre-build binary check failed for bead %s (iteration %d): no configured provider binary found on PATH", b.ID, iteration)
+				o.emitBeadFailedEvent(b, "no configured provider binary found on PATH")
+				baseIn.Result = &logger.IterationLog{
+					Timestamp:                time.Now(),
+					Iteration:                iteration,
+					BeadID:                   b.ID,
+					BeadTitle:                b.Title,
+					Success:                  false,
+					Error:                    "no configured provider binary found on PATH",
+					FailurePhase:             failurephase.Prelaunch,
+					GateBlockReason:          "provider_binary_missing",
+					Complexity:               baseIn.Complexity,
+					ComplexitySource:         baseIn.ComplexitySource,
+					ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
+				}
+				o.runEpilogue(ctx, baseIn, false)
+				o.emitter.Emit(&events.IterationCompleteEvent{
+					Iteration: iteration,
+					BeadID:    b.ID,
+					Success:   false,
+					Duration:  0,
+					Time:      time.Now(),
+				})
+				continue
+			}
 		}
 
 		// Stage 2: Build — selects methodology, renders prompt, invokes LLM via StreamRun.

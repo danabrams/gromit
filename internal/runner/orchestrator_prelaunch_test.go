@@ -113,7 +113,7 @@ func (f *failingGitCheckout) CreateOrCheckoutSpecBranch(ctx context.Context, bra
 // no configured provider binary exists on PATH, the iteration is recorded as a
 // prelaunch failure with GateBlockReason "provider_binary_missing".
 func TestOrchestrator_ProviderBinaryMissing_SetsPrelaunchFailure(t *testing.T) {
-	t.Parallel()
+	// Not parallel: modifies package-level orchestratorLookPathFn.
 
 	// Inject a LookPath that always fails.
 	origFn := orchestratorLookPathFn
@@ -176,7 +176,7 @@ func TestOrchestrator_ProviderBinaryMissing_SetsPrelaunchFailure(t *testing.T) {
 // TestOrchestrator_ProviderBinaryExists_ProceedsTouild verifies that when the
 // provider binary exists on PATH, the Build stage runs normally.
 func TestOrchestrator_ProviderBinaryExists_ProceedsToBuild(t *testing.T) {
-	t.Parallel()
+	// Not parallel: modifies package-level orchestratorLookPathFn.
 
 	// Inject a LookPath that always succeeds.
 	origFn := orchestratorLookPathFn
@@ -225,7 +225,7 @@ func TestOrchestrator_ProviderBinaryExists_ProceedsToBuild(t *testing.T) {
 // when WaitForProcessCapacity returns an error before Build, the iteration is
 // recorded as a prelaunch failure with GateBlockReason "process_capacity_exhausted".
 func TestOrchestrator_ProcessCapacityExhausted_SetsPrelaunchFailure(t *testing.T) {
-	t.Parallel()
+	// Not parallel: modifies package-level orchestratorWaitForProcessCapacityFn.
 
 	// Inject a failing WaitForProcessCapacity function.
 	origFn := orchestratorWaitForProcessCapacityFn
