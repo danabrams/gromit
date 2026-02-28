@@ -92,3 +92,10 @@ func TestCanTransition_IntegratingToLaneViolation_Allowed(t *testing.T) {
 		t.Errorf("expected integrating->lane_violation to be allowed, got false")
 	}
 }
+
+func TestCanTransition_ConflictToReady_Allowed(t *testing.T) {
+	result := CanTransition("conflict", "ready")
+	if !result {
+		t.Errorf("expected conflict->ready to be allowed, got false")
+	}
+}
