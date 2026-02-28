@@ -119,6 +119,13 @@ const orchestratorPreBuildCapacityWait = 3 * time.Second
 // orchestratorLookPathFn wraps exec.LookPath for testability.
 var orchestratorLookPathFn = exec.LookPath
 
+// orchestratorPrelaunchBackoffFn is called after a pre-launch failure to prevent
+// tight retry loops. It is a package-level variable so tests can inject a no-op.
+var orchestratorPrelaunchBackoffFn = func(d time.Duration) { time.Sleep(d) }
+
+// orchestratorPrelaunchBackoffDuration is the sleep duration after a pre-launch failure.
+const orchestratorPrelaunchBackoffDuration = 3 * time.Second
+
 // StateSaver persists provider routing state (provider counts, availability) to disk.
 type StateSaver interface {
 	Save() error
@@ -468,6 +475,7 @@ runLoop:
 				Duration:  0,
 				Time:      time.Now(),
 			})
+			orchestratorPrelaunchBackoffFn(orchestratorPrelaunchBackoffDuration)
 			continue
 		}
 
@@ -507,6 +515,7 @@ runLoop:
 					Duration:  0,
 					Time:      time.Now(),
 				})
+				orchestratorPrelaunchBackoffFn(orchestratorPrelaunchBackoffDuration)
 				continue
 			}
 		}
