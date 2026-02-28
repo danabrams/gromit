@@ -365,6 +365,10 @@ func runRetro(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create retro analyzer: %w", err)
 	}
 
+	// Resolve the logs directory, falling back to the main repo's logs when
+	// running from a session worktree where .gromit/logs/ doesn't exist.
+	r.SetLogsDir(resolveMainRepoLogsDirFn(gromitDir))
+
 	result, err := r.Run(ctx, beadFilter)
 	if err != nil {
 		return fmt.Errorf("running retro: %w", err)
