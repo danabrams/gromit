@@ -115,6 +115,74 @@ func TestAppendRecord_WritesToJSONLFile(t *testing.T) {
 	}
 }
 
+func TestAppendRecord_AppendsMultipleRecords(t *testing.T) {
+	// Create a temporary file
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "records.jsonl")
+
+	// Append multiple records sequentially
+	records := []Record{
+		{
+			SpecID:                     "spec-1",
+			CycleStartTriggerAt:        parseTime("2026-02-01T08:00:00Z"),
+			CycleEndPresentedAt:        parseTime("2026-02-01T10:00:00Z"),
+			ReviewOutcome:              ReviewOutcomeAccepted,
+			HumanTacticalIntervention:  Yes,
+			HumanDebuggingIntervention: No,
+			EscapedRegressionWithin7D:  No,
+		},
+		{
+			SpecID:                     "spec-2",
+			CycleStartTriggerAt:        parseTime("2026-02-02T09:00:00Z"),
+			CycleEndPresentedAt:        parseTime("2026-02-02T11:00:00Z"),
+			ReviewOutcome:              ReviewOutcomeImplementationGap,
+			HumanTacticalIntervention:  No,
+			HumanDebuggingIntervention: Yes,
+			EscapedRegressionWithin7D:  No,
+		},
+		{
+			SpecID:                     "spec-3",
+			CycleStartTriggerAt:        parseTime("2026-02-03T07:00:00Z"),
+			CycleEndPresentedAt:        parseTime("2026-02-03T09:00:00Z"),
+			ReviewOutcome:              ReviewOutcomeVisionChange,
+			ReviewRationale:            "Strategy adjusted",
+			HumanTacticalIntervention:  No,
+			HumanDebuggingIntervention: No,
+			EscapedRegressionWithin7D:  Yes,
+		},
+	}
+
+	for _, record := range records {
+		if err := AppendRecord(tmpFile, record); err != nil {
+			t.Fatalf("AppendRecord failed: %v", err)
+		}
+	}
+
+	// Read all records back
+	loaded, err := LoadRecords(tmpFile)
+	if err != nil {
+		t.Fatalf("LoadRecords failed: %v", err)
+	}
+
+	// Verify we got all 3 records
+	if len(loaded) != len(records) {
+		t.Errorf("expected %d records, got %d", len(records), len(loaded))
+	}
+
+	// Verify each record matches
+	for i := range records {
+		if loaded[i].SpecID != records[i].SpecID {
+			t.Errorf("record %d SpecID mismatch: got %q, want %q", i, loaded[i].SpecID, records[i].SpecID)
+		}
+		if loaded[i].ReviewOutcome != records[i].ReviewOutcome {
+			t.Errorf("record %d ReviewOutcome mismatch: got %q, want %q", i, loaded[i].ReviewOutcome, records[i].ReviewOutcome)
+		}
+		if loaded[i].ReviewRationale != records[i].ReviewRationale {
+			t.Errorf("record %d ReviewRationale mismatch: got %q, want %q", i, loaded[i].ReviewRationale, records[i].ReviewRationale)
+		}
+	}
+}
+
 func parseTime(s string) time.Time {
 	// Helper to parse RFC3339 timestamp
 	t, _ := time.Parse(time.RFC3339, s)
