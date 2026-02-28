@@ -31,6 +31,9 @@ func CanTransition(from, to string) bool {
 	if from == "integrating" && to == "lane_violation" {
 		return true
 	}
+	if from == "conflict" && to == "ready" {
+		return true
+	}
 	return false
 }
 
