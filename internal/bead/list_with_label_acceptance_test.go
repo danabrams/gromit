@@ -3,6 +3,7 @@
 package bead
 
 import (
+	"context"
 	"fmt"
 	"testing"
 )
@@ -16,13 +17,13 @@ func TestListWithLabel_ReturnsUnlimitedResults(t *testing.T) {
 	const beadCount = 51
 	const testLabel = "spec:unlimited-test"
 	for i := 0; i < beadCount; i++ {
-		_, err := c.Create(fmt.Sprintf("Unlimited bead %02d", i), 1, []string{testLabel}, []string{})
+		_, err := c.Create(context.Background(), fmt.Sprintf("Unlimited bead %02d", i), 1, []string{testLabel}, []string{})
 		if err != nil {
 			t.Fatalf("Cannot create test bead %d: %v", i, err)
 		}
 	}
 
-	beads, err := c.ListWithLabel(testLabel)
+	beads, err := c.ListWithLabel(context.Background(), testLabel)
 	if err != nil {
 		t.Fatalf("ListWithLabel() error = %v", err)
 	}

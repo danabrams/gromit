@@ -77,7 +77,7 @@ func TestOrchestratorHelper_StatusWithLiveRun(t *testing.T) {
 				}
 				return writeStatusFile(gromitDir, status)
 			},
-			expectedOutput:    []string{"Warning: stale run detected", "Bead: bead-456 - Old bead", "Removing stale status file", "Pipeline:", "Run: not running"},
+			expectedOutput:    []string{"Warning: stale run detected", "Bead: bead-456 — Old bead", "Removing stale status file", "Pipeline:", "Run: not running"},
 			notExpected:       []string{"Run: iteration"},
 			expectFileDeleted: true,
 		},

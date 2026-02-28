@@ -914,7 +914,11 @@ func TestPipeline_StartExploreSessionReturnsConversationSession(t *testing.T) {
 	}
 
 	// Verify session implements conversation.Session interface
-	var _ interface{ Events() <-chan conversation.Event; Cancel(); FollowUp(string) } = session
+	var _ interface {
+		Events() <-chan conversation.Event
+		Cancel()
+		FollowUp(string)
+	} = session
 
 	// Drain events to allow goroutine to complete
 	for range session.Events() {
@@ -1046,19 +1050,15 @@ func TestPipeline_StartExploreSessionCancelClosesEventChannel(t *testing.T) {
 
 	for {
 		select {
-		case <-eventsChan:
-			// Events arriving is fine
-		case <-timeout:
-			// Timeout means channel didn't close in time
-			t.Fatal("event channel did not close after Cancel")
-		default:
-			// Channel closed (no data available)
-			// Try to read once more - reading from closed channel returns zero value
-			_, ok := <-eventsChan
+		case _, ok := <-eventsChan:
 			if !ok {
 				// Good - channel is closed
 				return
 			}
+			// Events arriving before close are fine.
+		case <-timeout:
+			// Timeout means channel didn't close in time
+			t.Fatal("event channel did not close after Cancel")
 		}
 	}
 }

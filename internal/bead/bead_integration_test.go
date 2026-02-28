@@ -3,6 +3,7 @@
 package bead
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -84,7 +85,7 @@ func TestClientCreate(t *testing.T) {
 				},
 			}
 
-			_, err := c.Create(tt.title, tt.priority, tt.labels, tt.expectedOutputs)
+			_, err := c.Create(context.Background(), tt.title, tt.priority, tt.labels, tt.expectedOutputs)
 			if err != nil {
 				t.Fatalf("Create() unexpected error: %v", err)
 			}
@@ -171,7 +172,7 @@ func TestClientCreateWithParent(t *testing.T) {
 					return `{"id":"task-001","title":"` + tt.title + `","priority":` + fmt.Sprintf("%d", tt.priority) + `,"issue_type":"task","status":"open"}`, nil
 				},
 			}
-			_, err := c.CreateWithParent(tt.title, tt.priority, tt.labels, tt.expectedOutputs, tt.parentID)
+			_, err := c.CreateWithParent(context.Background(), tt.title, tt.priority, tt.labels, tt.expectedOutputs, tt.parentID)
 
 			if tt.shouldValidateFail {
 				if err == nil {
@@ -211,8 +212,8 @@ func TestClientCreateInheritsCreateWithParent(t *testing.T) {
 		},
 	}
 
-	_, err1 := createClient.Create("Test", 1, []string{}, []string{})
-	_, err2 := parentClient.CreateWithParent("Test", 1, []string{}, []string{}, "")
+	_, err1 := createClient.Create(context.Background(), "Test", 1, []string{}, []string{})
+	_, err2 := parentClient.CreateWithParent(context.Background(), "Test", 1, []string{}, []string{}, "")
 	if err1 != nil || err2 != nil {
 		t.Fatalf("Create() / CreateWithParent(\"\") unexpected errors: %v / %v", err1, err2)
 	}
@@ -298,7 +299,7 @@ func TestClientCreateWithDeps(t *testing.T) {
 					return `{"id":"task-001","title":"` + tt.title + `","priority":` + fmt.Sprintf("%d", tt.priority) + `,"issue_type":"task","status":"open"}`, nil
 				},
 			}
-			_, err := c.CreateWithDepsAndDescription(tt.title, tt.priority, tt.labels, tt.expectedOutputs, tt.dependencies, tt.description)
+			_, err := c.CreateWithDepsAndDescription(context.Background(), tt.title, tt.priority, tt.labels, tt.expectedOutputs, tt.dependencies, tt.description)
 
 			if tt.shouldValidateFail {
 				if err == nil {

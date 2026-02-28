@@ -46,6 +46,8 @@ cmd/gromit/stats_test.go:os.Setenv(
 cmd/gromit/stats_test.go:os.Setenv(
 cmd/gromit/stats_test.go:os.Setenv(
 cmd/gromit/stats_test.go:os.Setenv(
+cmd/gromit/test_binary_helpers_test.go:os.Chdir(
+cmd/gromit/test_binary_helpers_test.go:os.Chdir(
 cmd/gromit/verify_spec_test.go:os.Chdir(
 cmd/gromit/verify_spec_test.go:os.Chdir(
 internal/runner/globalstats_integration_test.go:os.Setenv(

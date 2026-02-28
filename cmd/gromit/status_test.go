@@ -437,7 +437,7 @@ func TestStatusCmd_JSONFlagOutputsValidJSON(t *testing.T) {
 
 	// Execute status command with --json flag and capture output
 	output := captureStdout(t, func() {
-		rootCmd.SetArgs([]string{"status", "--json"})
+		rootCmd.SetArgs([]string{"status", "--json", "--spc=false"})
 		if err := rootCmd.Execute(); err != nil {
 			t.Fatalf("status --json command failed: %v", err)
 		}
@@ -517,18 +517,18 @@ func TestStatusCmd_JSONIncludesIntegrationQueueData(t *testing.T) {
 	// Create integration queue with test entries
 	entries := []map[string]interface{}{
 		map[string]interface{}{
-			"branch":    "feature/test-1",
-			"state":     "ready",
-			"lane":      "code_lane",
-			"fifo_seq":  1,
+			"branch":     "feature/test-1",
+			"state":      "ready",
+			"lane":       "code_lane",
+			"fifo_seq":   1,
 			"created_at": "2026-02-28T00:00:00Z",
 			"updated_at": "2026-02-28T00:01:00Z",
 		},
 		map[string]interface{}{
-			"branch":    "feature/test-2",
-			"state":     "integrating",
-			"lane":      "code_lane",
-			"fifo_seq":  2,
+			"branch":     "feature/test-2",
+			"state":      "integrating",
+			"lane":       "code_lane",
+			"fifo_seq":   2,
 			"created_at": "2026-02-28T00:02:00Z",
 			"updated_at": "2026-02-28T00:03:00Z",
 		},

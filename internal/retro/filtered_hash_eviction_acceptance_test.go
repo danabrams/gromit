@@ -28,6 +28,14 @@ func setupHashEviction(t *testing.T, learningsContent string) hashEvictionEnv {
 	t.Helper()
 
 	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	if err := os.MkdirAll(templatesDir, 0755); err != nil {
+		t.Fatalf("creating templates dir: %v", err)
+	}
+	templatePath := filepath.Join(templatesDir, "PROMPT_retro.md")
+	if err := os.WriteFile(templatePath, []byte("{{.Learnings}}"), 0644); err != nil {
+		t.Fatalf("writing retro template: %v", err)
+	}
 
 	var provisionals []learnings.Learning
 

@@ -6,17 +6,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/danabrams/gromit/test/testutil"
 )
 
 func TestCodexStreamingAcceptanceFakeBinaryAvailable(t *testing.T) {
-	t.Parallel()
 	_ = fakeCodexBinaryPath(t)
 }
 
@@ -67,7 +65,6 @@ func TestCodexProviderStreamRunWithJSONFlag(t *testing.T) {
 // TestCodexProviderStreamRunNilHandlerStillUsesJSONFlag verifies that StreamRun()
 // still adds --json when EventHandler is nil, so usage/cost events are available.
 func TestCodexProviderStreamRunNilHandlerStillUsesJSONFlag(t *testing.T) {
-	t.Parallel()
 	callLog := setupCodexStreamingFixtureEnv(t, "codex_stream_json_flag.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
@@ -102,7 +99,6 @@ func TestCodexProviderStreamRunNilHandlerStillUsesJSONFlag(t *testing.T) {
 // TestCodexProviderParsesThreadStartedEvent verifies that processCodexStream
 // converts thread.started events to StreamEvent with type "system".
 func TestCodexProviderParsesThreadStartedEvent(t *testing.T) {
-	t.Parallel()
 	setupCodexStreamingFixtureEnv(t, "codex_stream_thread_started.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
@@ -140,7 +136,6 @@ func TestCodexProviderParsesThreadStartedEvent(t *testing.T) {
 // TestCodexProviderParsesAgentMessageEvent verifies that item.completed events
 // with type "agent_message" are converted to StreamEvent type "assistant".
 func TestCodexProviderParsesAgentMessageEvent(t *testing.T) {
-	t.Parallel()
 	setupCodexStreamingFixtureEnv(t, "codex_stream_agent_message.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
@@ -196,7 +191,6 @@ func TestCodexProviderParsesAgentMessageEvent(t *testing.T) {
 // TestCodexProviderInvokesToolCallHandlerForCommandExecution verifies that
 // item.started events with type "command_execution" trigger ToolCallHandler.
 func TestCodexProviderInvokesToolCallHandlerForCommandExecution(t *testing.T) {
-	t.Parallel()
 	setupCodexStreamingFixtureEnv(t, "codex_stream_command_execution.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
@@ -232,7 +226,6 @@ func TestCodexProviderInvokesToolCallHandlerForCommandExecution(t *testing.T) {
 // TestCodexProviderInvokesToolCallHandlerForFileChange verifies that
 // item.started events with type "file_change" trigger ToolCallHandler with "Write".
 func TestCodexProviderInvokesToolCallHandlerForFileChange(t *testing.T) {
-	t.Parallel()
 	setupCodexStreamingFixtureEnv(t, "codex_stream_file_change.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
@@ -268,7 +261,6 @@ func TestCodexProviderInvokesToolCallHandlerForFileChange(t *testing.T) {
 // TestCodexProviderInvokesToolCallHandlerForMCPTool verifies that
 // item.started events with type "mcp_tool_call" trigger ToolCallHandler.
 func TestCodexProviderInvokesToolCallHandlerForMCPTool(t *testing.T) {
-	t.Parallel()
 	setupCodexStreamingFixtureEnv(t, "codex_stream_mcp_tool_call.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
@@ -300,7 +292,6 @@ func TestCodexProviderInvokesToolCallHandlerForMCPTool(t *testing.T) {
 // TestCodexProviderExtractsTokenUsageFromTurnCompleted verifies that
 // turn.completed events with usage data populate Result's token fields.
 func TestCodexProviderExtractsTokenUsageFromTurnCompleted(t *testing.T) {
-	t.Parallel()
 	setupCodexStreamingFixtureEnv(t, "codex_stream_turn_completed_usage.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
@@ -351,7 +342,6 @@ func TestCodexProviderExtractsTokenUsageFromTurnCompleted(t *testing.T) {
 // TestCodexProviderExtractsAgentTextFromItemCompleted verifies that
 // Result.Output contains the text from item.completed agent_message events.
 func TestCodexProviderExtractsAgentTextFromItemCompleted(t *testing.T) {
-	t.Parallel()
 	setupCodexStreamingFixtureEnv(t, "codex_stream_multiple_agent_messages.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
@@ -373,7 +363,6 @@ func TestCodexProviderExtractsAgentTextFromItemCompleted(t *testing.T) {
 // TestCodexProviderStreamsAgentTextToWriter verifies that agent message text
 // is written to the output writer in real-time as events arrive.
 func TestCodexProviderStreamsAgentTextToWriter(t *testing.T) {
-	t.Parallel()
 	setupCodexStreamingFixtureEnv(t, "codex_stream_agent_deltas.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
@@ -399,7 +388,6 @@ func TestCodexProviderStreamsAgentTextToWriter(t *testing.T) {
 // TestCodexProviderHandlesMultipleEventTypes verifies that processCodexStream
 // correctly handles a mix of different Codex event types in a single stream.
 func TestCodexProviderHandlesMultipleEventTypes(t *testing.T) {
-	t.Parallel()
 	setupCodexStreamingFixtureEnv(t, "codex_stream_multiple_event_types.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
@@ -439,7 +427,6 @@ func TestCodexProviderHandlesMultipleEventTypes(t *testing.T) {
 // TestCodexProviderStreamRunCreatesTimestampedToolEvents verifies that
 // ToolEvent structs created from Codex events have a Timestamp field populated.
 func TestCodexProviderStreamRunCreatesTimestampedToolEvents(t *testing.T) {
-	t.Parallel()
 	setupCodexStreamingFixtureEnv(t, "codex_stream_timestamp_tool_event.jsonl")
 
 	tierMap := map[string]string{TierMedium: "gpt-4o"}
@@ -485,12 +472,12 @@ func fakeCodexBinaryPath(t *testing.T) string {
 		t.Fatalf("getting working directory: %v", err)
 	}
 
-	ctx, err := testutil.ResolveTaggedHarnessContext(wd)
+	fakesDir, _, err := resolveTaggedHarnessPaths(wd)
 	if err != nil {
-		t.Fatalf("resolve tagged harness context: %v", err)
+		t.Fatalf("resolve harness paths: %v", err)
 	}
 
-	path := filepath.Join(ctx.FakesDir, "codex")
+	path := filepath.Join(fakesDir, "codex")
 	info, err := os.Stat(path)
 	if err != nil {
 		t.Fatalf("stat fake Codex binary %q: %v", path, err)
@@ -513,12 +500,12 @@ func codexFixturePath(t *testing.T, fixtureName string) string {
 		t.Fatalf("getting working directory: %v", err)
 	}
 
-	ctx, err := testutil.ResolveTaggedHarnessContext(wd)
+	_, fixturesDir, err := resolveTaggedHarnessPaths(wd)
 	if err != nil {
-		t.Fatalf("resolve tagged harness context: %v", err)
+		t.Fatalf("resolve harness paths: %v", err)
 	}
 
-	fixturePath := filepath.Join(ctx.FixturesDir, fixtureName)
+	fixturePath := filepath.Join(fixturesDir, fixtureName)
 	if _, err := os.Stat(fixturePath); err != nil {
 		t.Fatalf("fixture %s not found: %v", fixturePath, err)
 	}
@@ -537,4 +524,29 @@ func setupCodexStreamingFixtureEnv(t *testing.T, fixtureName string) string {
 	t.Setenv("TEST_CALL_LOG", callLog)
 
 	return callLog
+}
+
+func resolveTaggedHarnessPaths(startDir string) (fakesDir string, fixturesDir string, err error) {
+	const maxDepth = 12
+
+	dir := startDir
+	for i := 0; i < maxDepth; i++ {
+		candidateFakes := filepath.Join(dir, "test", "fakes")
+		candidateFixtures := filepath.Join(dir, "test", "fixtures")
+		if dirExists(candidateFakes) && dirExists(candidateFixtures) {
+			return candidateFakes, candidateFixtures, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+
+	return "", "", fmt.Errorf("unable to locate test/fakes and test/fixtures from %q", startDir)
+}
+
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
 }
