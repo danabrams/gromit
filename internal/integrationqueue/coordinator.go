@@ -49,7 +49,28 @@ func (c *Coordinator) ProcessNext(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 
-	// Try to process this entry
+	// Run safety validation first (before any state transitions or git operations)
+	if violation := ValidateSafety(entry.ChangedFiles); violation != nil {
+		// Safety violation - transition to integrating first (required by state machine)
+		entry.AttemptCount++
+		entry.RetryCount = 0
+		if err := ApplyTransition(entry, string(StateIntegrating), "coordinator: starting integration"); err != nil {
+			return false, fmt.Errorf("transitioning entry to integrating: %w", err)
+		}
+		if err := c.store.Save(*entry); err != nil {
+			return false, fmt.Errorf("marking entry integrating: %w", err)
+		}
+
+		// Now transition to conflict with safety violation error
+		entry.LastErrorCode = "safety_violation"
+		entry.LastErrorMessage = fmt.Sprintf("prohibited artifact: %s (%s)", violation.ViolatedFile, violation.ViolationType)
+		if transErr := ApplyTransition(entry, string(StateConflict), "safety validation failed"); transErr == nil {
+			_ = c.store.Save(*entry)
+		}
+		return false, markTerminalFailure(fmt.Errorf("safety violation: %s", violation.ViolatedFile))
+	}
+
+	// Safety check passed, process the entry normally
 	processed, err := c.processEntry(ctx, entry)
 	if err != nil {
 		// Check if this is a terminal failure that shouldn't block other entries
