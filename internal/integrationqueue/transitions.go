@@ -28,6 +28,9 @@ func CanTransition(from, to string) bool {
 	if from == "integrating" && to == "failed_gates" {
 		return true
 	}
+	if from == "integrating" && to == "lane_violation" {
+		return true
+	}
 	return false
 }
 
