@@ -3079,6 +3079,18 @@ func TestDecomposeWorkflow_RetryLoopNonImprovingPathSetsValidationFlag(t *testin
 	}
 }
 
+func TestDecomposeResult_HasProposedBeadsField(t *testing.T) {
+	result := NewDecomposeResult()
+	// This test verifies that DecomposeResult has a ProposedBeads field
+	// The field should be a slice initialized (not nil)
+	if result.ProposedBeads == nil {
+		t.Fatal("ProposedBeads = nil, want initialized slice")
+	}
+	if len(result.ProposedBeads) != 0 {
+		t.Fatal("ProposedBeads should start empty")
+	}
+}
+
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
 	original := os.Stdout
