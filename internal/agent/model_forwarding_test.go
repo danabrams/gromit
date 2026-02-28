@@ -75,3 +75,22 @@ func TestForwardModelToAgent_CustomAgent(t *testing.T) {
 		t.Errorf("Agent name = %q, want %q", resultAgent.Name(), "my-custom-agent")
 	}
 }
+
+// TestForwardModelToAgent_EmptyModel verifies no forwarding when model is empty
+func TestForwardModelToAgent_EmptyModel(t *testing.T) {
+	// Create a codex agent
+	codexAgent := resolveCodexPreset()
+
+	// Forward empty model string
+	resultAgent, warning := ForwardModelToAgent(codexAgent, "")
+
+	// Should not have a warning when model is empty
+	if warning != "" {
+		t.Errorf("ForwardModelToAgent(codex, \"\") returned warning: %q, want empty", warning)
+	}
+
+	// Should return the original agent unchanged
+	if resultAgent != codexAgent {
+		t.Error("ForwardModelToAgent(codex, \"\") returned different agent, want original")
+	}
+}
