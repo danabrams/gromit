@@ -232,6 +232,35 @@ func TestGhCLIClient_PostReviewCommandAndJSON(t *testing.T) {
 	}
 }
 
+func TestGhCLIClient_PostCommentCommandAndJSON(t *testing.T) {
+	t.Parallel()
+
+	runner := &fakeGHRunner{
+		stdout: `{"id": 2}`,
+	}
+
+	client := specmerge.NewGhCLIClient(runner)
+	ctx := context.Background()
+	ref := specmerge.PRRef{Owner: "octocat", Repo: "hello-world", Number: 505}
+
+	if err := client.PostComment(ctx, ref, "Nice work!"); err != nil {
+		t.Fatalf("PostComment returned error: %v", err)
+	}
+
+	gotArgs := runner.calls[0].args
+	wantArgs := []string{
+		"api",
+		"-X",
+		"POST",
+		"/repos/octocat/hello-world/issues/505/comments",
+		"-F",
+		"body=Nice work!",
+	}
+	if !reflect.DeepEqual(gotArgs, wantArgs) {
+		t.Fatalf("gh command args = %v, want %v", gotArgs, wantArgs)
+	}
+}
+
 // fakeGHRunner captures gh CLI commands for testing.
 type fakeGHRunner struct {
 	calls  []ghCall
