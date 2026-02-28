@@ -67,3 +67,35 @@ func TestComputeDecomposeMetrics_Complexity(t *testing.T) {
         t.Fatalf("unexpected complexity reason = %q", candidate.Reasons[0])
     }
 }
+
+func TestComputeDecomposeMetrics_CriteriaAndOverlap(t *testing.T) {
+    overlap := "Ensure the telemetry pipeline records all errors quickly."
+    candidates := []validate.BeadCandidate{
+        {
+            Title:              "Task A",
+            AcceptanceCriteria: []string{overlap, "Perform cleanup"},
+            ExpectedOutputs:    []string{"result-a"},
+        },
+        {
+            Title:              "Task B",
+            AcceptanceCriteria: []string{overlap + " even when scaling"},
+            ExpectedOutputs:    []string{"result-b"},
+        },
+    }
+
+    metrics := ComputeDecomposeMetrics(candidates, "", 5, nil)
+
+    expectedTotal := 3
+    if metrics.Acceptance.Total != expectedTotal {
+        t.Fatalf("Acceptance.Total = %d, want %d", metrics.Acceptance.Total, expectedTotal)
+    }
+
+    expectedMean := 1.5
+    if metrics.Acceptance.MeanPerBead != expectedMean {
+        t.Fatalf("Acceptance.MeanPerBead = %f, want %f", metrics.Acceptance.MeanPerBead, expectedMean)
+    }
+
+    if metrics.SiblingOverlapHits == 0 {
+        t.Fatalf("expected sibling overlap violations, got %d", metrics.SiblingOverlapHits)
+    }
+}
