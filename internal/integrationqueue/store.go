@@ -1,6 +1,7 @@
 package integrationqueue
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -253,3 +254,29 @@ func prepareQueueForWrite(queue *Queue) {
 		return queue.Entries[i].Branch < queue.Entries[j].Branch
 	})
 }
+
+// RecoverFromMalformedQueue handles recovery when the queue file has schema errors.
+// It loads the queue, resets any integrating entries to draft state with error code,
+// and returns the recovered queue. This allows the system to recover from crashes
+// that left entries in the integrating state.
+func RecoverFromMalformedQueue(ctx context.Context, path string) (*Queue, error) {
+	queue, err := LoadQueue(path)
+	if err != nil {
+		return nil, fmt.Errorf("loading queue during recovery: %w", err)
+	}
+
+	// Reset any integrating entries to draft state
+	for i := range queue.Entries {
+		if queue.Entries[i].State == StateIntegrating {
+			queue.Entries[i].State = StateDraft
+			queue.Entries[i].LastErrorCode = string(ErrorCodeSchemaInvalid)
+			queue.Entries[i].LastErrorMessage = "recovered from schema error: entry was in integrating state"
+			queue.Entries[i].UpdatedAt = time.Now()
+		}
+	}
+
+	return queue, nil
+}
+
+// ErrorCodeSchemaInvalid represents a schema validation error in the queue.
+const ErrorCodeSchemaInvalid ErrorCode = "queue_schema_invalid"

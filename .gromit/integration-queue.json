@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-02-28T15:43:38.083908162Z",
+  "updated_at": "2026-02-28T16:09:20.517758003Z",
   "entries": [
     {
       "branch": "gromit/debug-1772290771043464528",
@@ -36,6 +36,42 @@
       "changed_files_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "last_error_code": "session_commit_failed",
       "last_error_message": "Auto-commit failed for branch \"gromit/refine-1772289167779476967\" (committing session branch gromit/refine-1772289167779476967: exit status 1); checkout gromit/refine-1772289167779476967, resolve issues, run `git add -A` and `git commit`, then requeue.",
+      "last_transition_reason": "session_commit_failed"
+    },
+    {
+      "branch": "gromit/refine-1772293460675344307",
+      "session_id": "gromit/refine-1772293460675344307",
+      "origin_command": "refine",
+      "state": "conflict",
+      "lane": "code_lane",
+      "created_at": "2026-02-28T16:04:30.249041651Z",
+      "updated_at": "2026-02-28T16:04:30.249041651Z",
+      "attempt_count": 0,
+      "retry_count": 0,
+      "fifo_seq": 3,
+      "base_ref": "f5f803c8e9f9b0b2d96f43261c841359e6fcf316",
+      "head_sha": "f5f803c8e9f9b0b2d96f43261c841359e6fcf316",
+      "changed_files_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "last_error_code": "session_commit_failed",
+      "last_error_message": "Auto-commit failed for branch \"gromit/refine-1772293460675344307\" (committing session branch gromit/refine-1772293460675344307: exit status 1); checkout gromit/refine-1772293460675344307, resolve issues, run `git add -A` and `git commit`, then requeue.",
+      "last_transition_reason": "session_commit_failed"
+    },
+    {
+      "branch": "gromit/refine-1772294892931636159",
+      "session_id": "gromit/refine-1772294892931636159",
+      "origin_command": "refine",
+      "state": "conflict",
+      "lane": "code_lane",
+      "created_at": "2026-02-28T16:09:20.517758003Z",
+      "updated_at": "2026-02-28T16:09:20.517758003Z",
+      "attempt_count": 0,
+      "retry_count": 0,
+      "fifo_seq": 4,
+      "base_ref": "d9fadac2bf759b5250027b43b1d25e3ed6c8088a",
+      "head_sha": "d9fadac2bf759b5250027b43b1d25e3ed6c8088a",
+      "changed_files_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "last_error_code": "session_commit_failed",
+      "last_error_message": "Auto-commit failed for branch \"gromit/refine-1772294892931636159\" (committing session branch gromit/refine-1772294892931636159: exit status 1); checkout gromit/refine-1772294892931636159, resolve issues, run `git add -A` and `git commit`, then requeue.",
       "last_transition_reason": "session_commit_failed"
     }
   ]
