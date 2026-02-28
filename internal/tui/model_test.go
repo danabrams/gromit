@@ -262,3 +262,25 @@ func TestModel_SwitchViewWithNumberKey(t *testing.T) {
 		t.Errorf("expected view to be Dashboard after '1' key, got %v", m.currentView)
 	}
 }
+
+func TestModel_ProgressDisplaysIterationNumbersAsDecimalStrings(t *testing.T) {
+	store := &Store{
+		Dashboard: DashboardState{
+			RunProgress: &RunProgress{
+				CurrentIteration: 5,
+				MaxIterations:    10,
+				Status:           "running",
+			},
+		},
+	}
+	m := NewModel(store)
+
+	// Render the dashboard view
+	view := m.View()
+
+	// The view should contain "5/10" as a decimal string representation
+	// not as Unicode control characters U+0005 and U+000A
+	if !containsString(view, "5/10") {
+		t.Errorf("expected dashboard view to contain '5/10', but got:\n%q", view)
+	}
+}
