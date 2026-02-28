@@ -187,6 +187,15 @@ Provider router (internal/provider/router.go) was a genuine data race — counts
 
 Integration queue uses states: draft/ready/integrating/merged/conflict/failed_gates/lane_violation. Transitions are validated via CanTransition matrix. Coordinator currently only handles the happy path (ready->integrating->merged) — error-path transitions exist in the matrix but are not wired in coordinator.go.
 
+### 2026-02-28 | gromit-m0fl | conventions
+When adding new CLI commands in cmd/gromit/, avoid modifying shared code paths, test fixtures, or helper functions that other commands depend on. The codebase has common category/context handling patterns that are tested across multiple commands - changes to these affect multiple test suites.
+
+### 2026-02-28 | gromit-scfw | conventions
+When modifying shared test data files or test fixtures (backlog.jsonl, .gromit/integration-queue.json), verify that changes don't break other test suites that depend on those files. Test data changes can have cascading effects across multiple test packages.
+
+### 2026-02-28 | gromit-scfw | patterns
+Queue payload validation requires all fields (base_ref, session reference, etc.) to be set when creating records - check integration queue schema and ensure all required fields are initialized in test scenarios and concurrent session workflows
+
 ---
 
 ## Archived
@@ -205,6 +214,11 @@ When implementing CLI client wrappers for external tools (like gh CLI), ensure s
 
 ### 2026-02-28 | gromit-m0fl | conventions
 When implementing a new feature, verify that changes don't inadvertently affect other commands or flows. Run the full test suite before considering a task complete, not just the tests for the new feature. Git status snapshots may not show all modified files—check git diff for the complete picture.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-28 | gromit-8l9o | conventions
+When implementing features that touch core commands (add, review, run) or orchestration flows (worktree auto-commit), existing tests may break due to changed behavior or side effects. Always run the full test suite to verify no regressions, and understand whether behavior changes are intentional before updating tests.
 
 *Archived from new: filtered: generic engineering advice*
 

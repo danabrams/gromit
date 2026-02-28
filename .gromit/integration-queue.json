@@ -1,5 +1,42 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-02-28T15:40:00.000000000Z",
-  "entries": []
+  "updated_at": "2026-02-28T15:43:38.083908162Z",
+  "entries": [
+    {
+      "branch": "gromit/debug-1772290771043464528",
+      "session_id": "gromit/debug-1772290771043464528",
+      "origin_command": "debug",
+      "state": "conflict",
+      "lane": "code_lane",
+      "created_at": "2026-02-28T15:42:49.01823553Z",
+      "updated_at": "2026-02-28T15:42:49.01823553Z",
+      "attempt_count": 0,
+      "retry_count": 0,
+      "fifo_seq": 1,
+      "base_ref": "942ad916b10dae9ea39ea028ce8f7980fe1d1319",
+      "head_sha": "942ad916b10dae9ea39ea028ce8f7980fe1d1319",
+      "changed_files_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "last_error_code": "session_commit_failed",
+      "last_error_message": "Auto-commit failed for branch \"gromit/debug-1772290771043464528\" (committing session branch gromit/debug-1772290771043464528: exit status 1); checkout gromit/debug-1772290771043464528, resolve issues, run `git add -A` and `git commit`, then requeue.",
+      "last_transition_reason": "session_commit_failed"
+    },
+    {
+      "branch": "gromit/refine-1772289167779476967",
+      "session_id": "gromit/refine-1772289167779476967",
+      "origin_command": "refine",
+      "state": "conflict",
+      "lane": "code_lane",
+      "created_at": "2026-02-28T15:43:38.083908162Z",
+      "updated_at": "2026-02-28T15:43:38.083908162Z",
+      "attempt_count": 0,
+      "retry_count": 0,
+      "fifo_seq": 2,
+      "base_ref": "5e5c123dcd096a600c6c03c844d89a221fbe28c2",
+      "head_sha": "5e5c123dcd096a600c6c03c844d89a221fbe28c2",
+      "changed_files_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "last_error_code": "session_commit_failed",
+      "last_error_message": "Auto-commit failed for branch \"gromit/refine-1772289167779476967\" (committing session branch gromit/refine-1772289167779476967: exit status 1); checkout gromit/refine-1772289167779476967, resolve issues, run `git add -A` and `git commit`, then requeue.",
+      "last_transition_reason": "session_commit_failed"
+    }
+  ]
 }

@@ -5,6 +5,22 @@ import (
 	"time"
 )
 
+func TestLaneConstants(t *testing.T) {
+	// Verify Lane constants are defined
+	if SafeLane == "" {
+		t.Fatal("SafeLane constant is not defined")
+	}
+	if CodeLane == "" {
+		t.Fatal("CodeLane constant is not defined")
+	}
+	if SafeLane != "safe_lane" {
+		t.Fatalf("SafeLane = %q, want %q", SafeLane, "safe_lane")
+	}
+	if CodeLane != "code_lane" {
+		t.Fatalf("CodeLane = %q, want %q", CodeLane, "code_lane")
+	}
+}
+
 func TestEntryOrderingMetadata(t *testing.T) {
 	created := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
 	updated := created.Add(time.Hour)

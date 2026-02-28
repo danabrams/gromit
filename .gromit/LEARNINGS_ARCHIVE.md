@@ -1913,3 +1913,13 @@ When implementing CLI client wrappers for external tools (like gh CLI), ensure s
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-02-28 | gromit-m0fl | conventions
+When implementing a new feature, verify that changes don't inadvertently affect other commands or flows. Run the full test suite before considering a task complete, not just the tests for the new feature. Git status snapshots may not show all modified files—check git diff for the complete picture.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-02-28 | gromit-8l9o | conventions
+When implementing features that touch core commands (add, review, run) or orchestration flows (worktree auto-commit), existing tests may break due to changed behavior or side effects. Always run the full test suite to verify no regressions, and understand whether behavior changes are intentional before updating tests.
+
+*Archived from new: filtered: generic engineering advice*
+
