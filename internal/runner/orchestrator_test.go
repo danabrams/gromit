@@ -2997,3 +2997,60 @@ func TestConstructorWiresCoordinatorAndQueueStore(t *testing.T) {
 		t.Fatal("Orchestrator missing Coordinator dependency; constructor should wire integration coordinator")
 	}
 }
+
+// TestOrchestratorSkipsCoordinatorOnFailedIterations verifies that the coordinator
+// is only invoked after successful iterations, not after gate/build/validate failures.
+func TestOrchestratorSkipsCoordinatorOnFailedIterations(t *testing.T) {
+	t.Parallel()
+
+	coordinatorCalls := 0
+	coordinator := &fakeCoordinator{
+		coordinateFn: func(ctx context.Context) error {
+			coordinatorCalls++
+			return nil
+		},
+	}
+
+	// Create a stage that returns Skip decision
+	gateStage := &fakeStage{
+		runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			return pipeline.Output{Decision: pipeline.Skip}, nil
+		},
+	}
+
+	beads := []*bead.Bead{
+		{ID: "bead1", Title: "Task 1"},
+	}
+	beadIdx := 0
+
+	getBead := func(ctx context.Context) (*bead.Bead, error) {
+		if beadIdx >= len(beads) {
+			return nil, nil
+		}
+		b := beads[beadIdx]
+		beadIdx++
+		return b, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:        gateStage,
+		Build:       &fakeStage{},
+		Validate:    &fakeStage{},
+		Epilogue:    &fakeStage{},
+		GetBead:     getBead,
+		Coordinator: coordinator,
+		Config:      &config.Config{},
+		Output:      io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	err := orch.Run(context.Background(), 1, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("Orchestrator.Run() error = %v; expected nil", err)
+	}
+
+	// Coordinator should NOT be called for failed/skipped iterations
+	if coordinatorCalls != 0 {
+		t.Fatalf("Expected coordinator to not be called (iteration failed), got %d calls", coordinatorCalls)
+	}
+}
