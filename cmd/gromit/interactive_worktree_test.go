@@ -76,7 +76,28 @@ func setupRunWithSessionWorktreeTest(t *testing.T, command string) (mainDir stri
 		WorktreeDir: filepath.Join(mainDir, "session-"+command),
 	}
 
+	cleanupGit := overrideGitRun(defaultTestGitRun)
+	t.Cleanup(cleanupGit)
+
 	return mainDir, gromitDir, session
+}
+
+func defaultTestGitRun(dir string, args ...string) (string, error) {
+	if len(args) == 0 {
+		return "", nil
+	}
+	switch args[0] {
+	case "rev-parse":
+		if len(args) > 1 && args[1] == "HEAD" {
+			return "default-head", nil
+		}
+		if len(args) > 1 && args[1] == "HEAD^" {
+			return "default-base", nil
+		}
+	case "diff":
+		return "cmd/gromit/default.go\n", nil
+	}
+	return "", nil
 }
 
 func withInteractiveWorktreeFactories(
