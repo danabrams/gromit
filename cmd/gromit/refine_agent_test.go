@@ -226,16 +226,7 @@ agents:
 		configPath = origConfigPath
 	})
 
-	origWD, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
-	t.Cleanup(func() {
-		_ = os.Chdir(origWD)
-	})
+	t.Chdir(tmpDir)
 
 	capturedChoose := false
 	resolver := &testChooseAgentResolver{

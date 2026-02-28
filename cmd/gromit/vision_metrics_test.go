@@ -89,12 +89,7 @@ func TestVisionMetricsValidateLoadsAndValidatesRecords(t *testing.T) {
 	}
 
 	// Change to temp directory so validate can find the records file
-	oldCwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get current directory: %v", err)
-	}
-	defer os.Chdir(oldCwd)
-	os.Chdir(tmpDir)
+	t.Chdir(tmpDir)
 
 	// Create minimal gromit.yaml
 	configContent := "paths:\n  gromit_dir: " + tmpDir + "\n"
@@ -124,14 +119,7 @@ func TestVisionMetricsValidateReturnsErrorOnInvalidRecords(t *testing.T) {
 		t.Fatalf("failed to write test records file: %v", err)
 	}
 
-	originalCwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get current directory: %v", err)
-	}
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change dir: %v", err)
-	}
-	defer os.Chdir(originalCwd)
+	t.Chdir(tmpDir)
 
 	configContent := "paths:\n  gromit_dir: " + tmpDir + "\n"
 	if err := os.WriteFile(filepath.Join(tmpDir, "gromit.yaml"), []byte(configContent), 0644); err != nil {
@@ -169,12 +157,7 @@ func TestVisionMetricsReportOutputsKPIRollup(t *testing.T) {
 	}
 
 	// Change to temp directory
-	oldCwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get current directory: %v", err)
-	}
-	defer os.Chdir(oldCwd)
-	os.Chdir(tmpDir)
+	t.Chdir(tmpDir)
 
 	// Create minimal gromit.yaml
 	configContent := "paths:\n  gromit_dir: " + tmpDir + "\n"

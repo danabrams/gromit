@@ -32,6 +32,11 @@ func TestAddCommand_UsesPipelineAdd(t *testing.T) {
 		}, nil
 	}
 
+	tmpDir := t.TempDir()
+	os.WriteFile(filepath.Join(tmpDir, "gromit.yaml"), []byte(""), 0644)
+	os.MkdirAll(filepath.Join(tmpDir, ".gromit"), 0755)
+	t.Chdir(tmpDir)
+
 	stdin := os.Stdin
 	r, w, err := os.Pipe()
 	if err != nil {

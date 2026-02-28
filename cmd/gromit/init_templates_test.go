@@ -362,16 +362,7 @@ func TestRunInitUsesProfileAwareRulesAndNextSteps(t *testing.T) {
 	// Note: Not parallel because this test changes the working directory
 
 	tempDir := t.TempDir()
-	// Change to temp directory for init command
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get current working directory: %v", err)
-	}
-	defer func() { os.Chdir(cwd) }()
-
-	if err := os.Chdir(tempDir); err != nil {
-		t.Fatalf("failed to change to temp directory: %v", err)
-	}
+	t.Chdir(tempDir)
 
 	// Write a gromit.yaml with go profile
 	configContent := `project:
@@ -413,14 +404,7 @@ func runInitProfileMatrix(t *testing.T, profile string, signals []string) (strin
 
 	dir := setupProfileSignals(t, signals)
 
-	prevWd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("get wd: %v", err)
-	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
-	defer os.Chdir(prevWd)
+	t.Chdir(dir)
 
 	prevForce := forceInit
 	prevProfile := initProfile

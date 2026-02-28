@@ -166,14 +166,7 @@ func TestInitWritesDetectedProfile(t *testing.T) {
 	}
 
 	dir := setupDir(t)
-	prevWd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("get wd: %v", err)
-	}
-	defer os.Chdir(prevWd)
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
+	t.Chdir(dir)
 
 	prevForce := forceInit
 	prevProfile := initProfile
@@ -213,14 +206,7 @@ func TestInitWritesGoProfile(t *testing.T) {
 		t.Fatalf("write go.mod: %v", err)
 	}
 
-	prevWd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("get wd: %v", err)
-	}
-	defer os.Chdir(prevWd)
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
+	t.Chdir(dir)
 
 	prevForce := forceInit
 	prevProfile := initProfile
@@ -259,14 +245,7 @@ func TestInitWritesGoProfile(t *testing.T) {
 
 func TestInitRespectsProfileFlag(t *testing.T) {
 	dir := t.TempDir()
-	prevWd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("get wd: %v", err)
-	}
-	defer os.Chdir(prevWd)
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
+	t.Chdir(dir)
 
 	if err := os.WriteFile("go.mod", []byte("module example"), 0644); err != nil {
 		t.Fatalf("write go.mod: %v", err)
@@ -339,14 +318,7 @@ func TestExplicitProfileOverrideNoImplicitInjection(t *testing.T) {
 				t.Fatalf("write pyproject.toml: %v", err)
 			}
 
-			prevWd, err := os.Getwd()
-			if err != nil {
-				t.Fatalf("get wd: %v", err)
-			}
-			defer os.Chdir(prevWd)
-			if err := os.Chdir(dir); err != nil {
-				t.Fatalf("chdir: %v", err)
-			}
+			t.Chdir(dir)
 
 			prevForce := forceInit
 			prevProfile := initProfile
@@ -448,14 +420,7 @@ func TestInitWritesGoProfileRules(t *testing.T) {
 		t.Fatalf("write go.mod: %v", err)
 	}
 
-	prevWd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("get wd: %v", err)
-	}
-	defer os.Chdir(prevWd)
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
+	t.Chdir(dir)
 
 	prevForce := forceInit
 	prevProfile := initProfile

@@ -11,10 +11,12 @@ import (
 	"strconv"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/frontmatter"
+	"github.com/danabrams/gromit/internal/procutil"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/review"
@@ -248,6 +250,7 @@ const (
 	specGateDiffCommand = "git diff"
 	specGateStatusPass  = "PASS"
 	specGateStatusFail  = "FAIL"
+	verifySpecProcessCapacityWait = 1500 * time.Millisecond
 )
 
 func runSpecGateTests(ctx context.Context, workDir string) (string, error) {
@@ -394,10 +397,11 @@ func parseBeadPriority(priority string) (int, error) {
 
 func defaultVerifySpecCmdRunner(ctx context.Context, command string, workDir string) (string, string, int, error) {
 	cmd := exec.CommandContext(ctx, "sh", "-c", command)
+	procutil.SetProcessGroupKill(cmd)
 	cmd.Dir = workDir
 	cmd.Stdin = strings.NewReader("")
 	cmd.Env = append(
-		os.Environ(),
+		procutil.SubprocessEnv(),
 		"GIT_TERMINAL_PROMPT=0",
 		"CI=1",
 		"NONINTERACTIVE=1",
@@ -406,7 +410,17 @@ func defaultVerifySpecCmdRunner(ctx context.Context, command string, workDir str
 	var stdout, stderr strings.Builder
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
+	if waitErr := procutil.WaitForProcessCapacity(ctx, verifySpecProcessCapacityWait); waitErr != nil {
+		return "", "", -1, fmt.Errorf("waiting for process capacity: %w", waitErr)
+	}
+	if err := cmd.Start(); err != nil {
+		return "", "", -1, err
+	}
+	defer procutil.ReapProcessTree(cmd)
+	if err := cmd.Wait(); err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return stdout.String(), stderr.String(), -1, ctxErr
+		}
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			return stdout.String(), stderr.String(), exitErr.ExitCode(), nil
 		}

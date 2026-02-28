@@ -125,11 +125,7 @@ func TestRunPlanDelegatesToPipelineAndReportsSuccess(t *testing.T) {
 		t.Fatalf("Getwd(): %v", err)
 	}
 	repoRoot := filepath.Clean(filepath.Join(origWD, "..", ".."))
-	t.Cleanup(func() { _ = os.Chdir(origWD) })
-
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("Chdir(%q) failed: %v", tmpDir, err)
-	}
+	t.Chdir(tmpDir)
 
 	gromitDir := filepath.Join(tmpDir, ".gromit")
 	specsDir := filepath.Join(gromitDir, "specs")

@@ -85,6 +85,11 @@ Tool-call log parsing in tests must use shared helpers (for example `test/toolca
 
 **Enforcement:** Code review on test helper changes; grep for duplicated call-log parsing outside shared helpers.
 
+### Tests must use t.Chdir(), never os.Chdir()
+Tests that need to change the working directory must use `t.Chdir()` (Go 1.24+), never raw `os.Chdir()`. `t.Chdir()` auto-restores on test cleanup and panics if called from a parallel test, preventing cross-test directory pollution. Raw `os.Chdir()` in tests is a process-wide mutation that causes cascading failures when cleanup is missed or races with parallel tests.
+
+**Enforcement:** `grep -rn 'os\.Chdir' cmd/ internal/ --include='*_test.go'` must return zero hits outside of production code.
+
 ### Shared helper APIs must not expose mutable global maps or slices
 Shared helper packages (especially test helpers) must not expose mutable global maps/slices. Keep mutable sources unexported and provide copy/accessor functions. This prevents order-dependent tests and hidden cross-suite coupling.
 

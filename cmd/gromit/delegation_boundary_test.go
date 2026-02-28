@@ -29,6 +29,7 @@ var allowedCommandInternalImports = map[string]struct{}{
 	"github.com/danabrams/gromit/internal/logger":           {},
 	"github.com/danabrams/gromit/internal/integrationqueue": {},
 	"github.com/danabrams/gromit/internal/pipeline":         {},
+	"github.com/danabrams/gromit/internal/procutil":         {},
 	"github.com/danabrams/gromit/internal/prompt":           {},
 	"github.com/danabrams/gromit/internal/provider":         {},
 	"github.com/danabrams/gromit/internal/queue":            {},

@@ -345,14 +345,7 @@ func TestRunBenchmarkPipeline_WritesDeterministicArtifacts(t *testing.T) {
 func TestRunBenchmarkPipeline_ReportArtifactsMatchInternalWriter(t *testing.T) {
 
 	tmpDir := t.TempDir()
-	origWD, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("get cwd: %v", err)
-	}
-	t.Cleanup(func() { os.Chdir(origWD) })
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("chdir tmp dir: %v", err)
-	}
+	t.Chdir(tmpDir)
 
 	origLoad := benchmarkInternalLoadManifestFn
 	origSelect := benchmarkSelectCohortFn
@@ -631,15 +624,12 @@ func TestRunBenchmarkPipeline_SingleSchemaOwner_EnforcesOnlyInternalWriterIsUsed
 
 func TestRunBenchmarkPipeline_ReportArtifactsMatchCuratedFixture(t *testing.T) {
 
-	tmpDir := t.TempDir()
 	origWD, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("get cwd: %v", err)
 	}
-	t.Cleanup(func() { os.Chdir(origWD) })
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("chdir tmp dir: %v", err)
-	}
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
 
 	repoRoot := repoRootFrom(t, origWD)
 	fixtureDir := filepath.Join(repoRoot, ".gromit", "reports", "curated", "benchmark-report")
@@ -733,14 +723,7 @@ func TestRunBenchmarkPipeline_ReportArtifactsMatchCuratedFixture(t *testing.T) {
 func TestBenchmarkRunCommand_ReportInputMatchesCanonicalBuilder(t *testing.T) {
 
 	tmpDir := t.TempDir()
-	origWD, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("get cwd: %v", err)
-	}
-	t.Cleanup(func() { os.Chdir(origWD) })
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("chdir tmp dir: %v", err)
-	}
+	t.Chdir(tmpDir)
 
 	origLoad := benchmarkInternalLoadManifestFn
 	origSelect := benchmarkSelectCohortFn
@@ -870,14 +853,7 @@ func TestBenchmarkRunCommand_ReportInputMatchesCanonicalBuilder(t *testing.T) {
 func TestRunBenchmarkPipeline_DelegatesReportInputBuildingToBenchpkg(t *testing.T) {
 
 	tmpDir := t.TempDir()
-	origWD, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("get cwd: %v", err)
-	}
-	t.Cleanup(func() { os.Chdir(origWD) })
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("chdir tmp dir: %v", err)
-	}
+	t.Chdir(tmpDir)
 
 	origLoad := benchmarkInternalLoadManifestFn
 	origSelect := benchmarkSelectCohortFn
@@ -959,18 +935,7 @@ func renderInternalBenchmarkReport(t *testing.T, input benchpkg.ReportInput) ([]
 	t.Helper()
 
 	tmpDir := t.TempDir()
-	origWD, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("get cwd: %v", err)
-	}
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("chdir expected dir: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir(origWD); err != nil {
-			t.Fatalf("restore cwd: %v", err)
-		}
-	}()
+	t.Chdir(tmpDir)
 
 	if _, err := benchpkg.WriteReport(input); err != nil {
 		t.Fatalf("render internal report: %v", err)

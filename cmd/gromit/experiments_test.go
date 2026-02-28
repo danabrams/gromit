@@ -46,16 +46,7 @@ func TestExperimentsCmd_ShowsNoExperimentsMessage(t *testing.T) {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	origDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get cwd: %v", err)
-	}
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to chdir: %v", err)
-	}
-	t.Cleanup(func() {
-		os.Chdir(origDir)
-	})
+	t.Chdir(tmpDir)
 
 	restore := configPath
 	defer func() { configPath = restore }()

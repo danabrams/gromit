@@ -2,10 +2,14 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/provider"
@@ -476,6 +480,49 @@ func (s *stubTrackerClient2) AddComment(ctx context.Context, id, comment string)
 }
 func (s *stubTrackerClient2) HasOpenChildren(ctx context.Context, parentID string) (bool, error) {
 	return false, nil
+}
+
+func TestDefaultVerifySpecCmdRunner_CanceledContextReapsChildren(t *testing.T) {
+	t.Parallel()
+
+	pidFile := filepath.Join(t.TempDir(), "child.pid")
+	command := fmt.Sprintf("sleep 30 & echo $! > %q; wait", pidFile)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	_, _, _, err := defaultVerifySpecCmdRunner(ctx, command, "")
+	if err == nil {
+		t.Fatal("expected context cancellation error")
+	}
+
+	var childPID int
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		pidBytes, readErr := os.ReadFile(pidFile)
+		if readErr == nil {
+			parsedPID, parseErr := strconv.Atoi(strings.TrimSpace(string(pidBytes)))
+			if parseErr != nil {
+				t.Fatalf("parsing child pid: %v", parseErr)
+			}
+			childPID = parsedPID
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	if childPID <= 0 {
+		t.Fatal("did not capture child pid before timeout")
+	}
+
+	deadline = time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if err := syscall.Kill(childPID, 0); err != nil {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("child process still alive after canceled verify-spec command, pid=%d", childPID)
 }
 
 func setupVerifySpecTest(t *testing.T, specName string, specContent string) {
