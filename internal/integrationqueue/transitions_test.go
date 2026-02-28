@@ -174,3 +174,10 @@ func TestIsBlockedState_ReadyIsNotBlocked(t *testing.T) {
 		t.Errorf("expected ready to not be blocked state, got true")
 	}
 }
+
+func TestCheckTransition_DraftToReady_AllowedReturnsNil(t *testing.T) {
+	err := CheckTransition("draft", "ready")
+	if err != nil {
+		t.Errorf("expected draft->ready to be allowed, got error: %v", err)
+	}
+}

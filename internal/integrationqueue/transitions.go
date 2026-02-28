@@ -1,6 +1,12 @@
 package integrationqueue
 
-import "time"
+import (
+	"errors"
+	"time"
+)
+
+// ErrInvalidTransition is returned when a state transition is not allowed.
+var ErrInvalidTransition = errors.New("invalid_transition")
 
 // TransitionRecord captures metadata about a state transition.
 type TransitionRecord struct {
@@ -11,36 +17,47 @@ type TransitionRecord struct {
 	Timestamp time.Time
 }
 
+// allowedTransitions is the table-driven transition matrix.
+var allowedTransitions = map[string]map[string]bool{
+	"draft": {
+		"ready": true,
+	},
+	"ready": {
+		"integrating": true,
+	},
+	"integrating": {
+		"merged":         true,
+		"conflict":       true,
+		"failed_gates":   true,
+		"lane_violation": true,
+	},
+	"conflict": {
+		"ready": true,
+	},
+	"failed_gates": {
+		"ready": true,
+	},
+	"lane_violation": {
+		"ready": true,
+	},
+}
+
 // CanTransition checks if a transition from one state to another is allowed.
 func CanTransition(from, to string) bool {
-	if from == "draft" && to == "ready" {
-		return true
+	fromTransitions, ok := allowedTransitions[from]
+	if !ok {
+		return false
 	}
-	if from == "ready" && to == "integrating" {
-		return true
+	return fromTransitions[to]
+}
+
+// CheckTransition checks if a transition from one state to another is allowed,
+// returning ErrInvalidTransition if not.
+func CheckTransition(from, to string) error {
+	if !CanTransition(from, to) {
+		return ErrInvalidTransition
 	}
-	if from == "integrating" && to == "merged" {
-		return true
-	}
-	if from == "integrating" && to == "conflict" {
-		return true
-	}
-	if from == "integrating" && to == "failed_gates" {
-		return true
-	}
-	if from == "integrating" && to == "lane_violation" {
-		return true
-	}
-	if from == "conflict" && to == "ready" {
-		return true
-	}
-	if from == "failed_gates" && to == "ready" {
-		return true
-	}
-	if from == "lane_violation" && to == "ready" {
-		return true
-	}
-	return false
+	return nil
 }
 
 // RecordTransition creates a TransitionRecord with the given parameters and current timestamp.
