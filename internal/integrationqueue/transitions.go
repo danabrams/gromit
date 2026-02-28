@@ -69,3 +69,8 @@ func NextAllowedStates(from string) []string {
 	}
 	return states
 }
+
+// IsTerminalState returns true if the state is a terminal state (has no transitions out).
+func IsTerminalState(state string) bool {
+	return state == "merged"
+}
