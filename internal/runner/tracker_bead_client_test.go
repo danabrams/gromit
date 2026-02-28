@@ -10,6 +10,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/tracker"
+	"github.com/danabrams/gromit/internal/tracker/trackertest"
 )
 
 func TestTrackerBeadClientReadyReturnsConvertedBead(t *testing.T) {
@@ -26,8 +27,8 @@ func TestTrackerBeadClientReadyReturnsConvertedBead(t *testing.T) {
 			"labels":   `["spec:test"]`,
 		},
 	}
-	client := &stubTrackerClient{
-		readyFn: func(ctx context.Context) (*tracker.Item, error) {
+	client := &trackertest.StubTrackerClient{
+		ReadyFn: func(ctx context.Context) (*tracker.Item, error) {
 			return trackerItem, nil
 		},
 	}
@@ -52,8 +53,8 @@ func TestTrackerBeadClientUpdatePropagatesError(t *testing.T) {
 	t.Parallel()
 
 	updateError := fmt.Errorf("update failed")
-	client := &stubTrackerClient{
-		updateFn: func(ctx context.Context, req tracker.UpdateRequest) (*tracker.Item, error) {
+	client := &trackertest.StubTrackerClient{
+		UpdateFn: func(ctx context.Context, req tracker.UpdateRequest) (*tracker.Item, error) {
 			return nil, updateError
 		},
 	}
@@ -78,8 +79,8 @@ func TestTrackerBeadClientUpdateReturnsConvertedBead(t *testing.T) {
 		},
 	}
 
-	client := &stubTrackerClient{
-		updateFn: func(ctx context.Context, req tracker.UpdateRequest) (*tracker.Item, error) {
+	client := &trackertest.StubTrackerClient{
+		UpdateFn: func(ctx context.Context, req tracker.UpdateRequest) (*tracker.Item, error) {
 			return updatedItem, nil
 		},
 	}
@@ -105,8 +106,8 @@ func TestTrackerBeadClientAddCommentPassesThrough(t *testing.T) {
 
 	var capturedID string
 	var capturedComment string
-	client := &stubTrackerClient{
-		addCommentFn: func(ctx context.Context, id, comment string) error {
+	client := &trackertest.StubTrackerClient{
+		AddCommentFn: func(ctx context.Context, id, comment string) error {
 			capturedID = id
 			capturedComment = comment
 			return nil
@@ -130,8 +131,8 @@ func TestTrackerBeadClientClosePassesThrough(t *testing.T) {
 	t.Parallel()
 
 	var capturedID string
-	client := &stubTrackerClient{
-		closeFn: func(ctx context.Context, id string) error {
+	client := &trackertest.StubTrackerClient{
+		CloseFn: func(ctx context.Context, id string) error {
 			capturedID = id
 			return nil
 		},
@@ -151,8 +152,8 @@ func TestTrackerBeadClientSyncPassesThrough(t *testing.T) {
 	t.Parallel()
 
 	syncCalled := false
-	client := &stubTrackerClient{
-		syncFn: func(ctx context.Context) error {
+	client := &trackertest.StubTrackerClient{
+		SyncFn: func(ctx context.Context) error {
 			syncCalled = true
 			return nil
 		},
@@ -172,8 +173,8 @@ func TestTrackerBeadClientCreateEncodesMetadata(t *testing.T) {
 	t.Parallel()
 
 	createdItem := &tracker.Item{
-		ID:    "new-bead",
-		Title: "New Bead",
+		ID:     "new-bead",
+		Title:  "New Bead",
 		Status: "open",
 		Metadata: map[string]string{
 			"priority": "2",
@@ -181,8 +182,8 @@ func TestTrackerBeadClientCreateEncodesMetadata(t *testing.T) {
 	}
 
 	var capturedReq tracker.CreateRequest
-	client := &stubTrackerClient{
-		createFn: func(ctx context.Context, req tracker.CreateRequest) (*tracker.Item, error) {
+	client := &trackertest.StubTrackerClient{
+		CreateFn: func(ctx context.Context, req tracker.CreateRequest) (*tracker.Item, error) {
 			capturedReq = req
 			return createdItem, nil
 		},
@@ -219,8 +220,8 @@ func TestTrackerBeadClientCreateWithParentEncodesMetadata(t *testing.T) {
 	t.Parallel()
 
 	createdItem := &tracker.Item{
-		ID:    "new-child",
-		Title: "New Child",
+		ID:     "new-child",
+		Title:  "New Child",
 		Status: "open",
 		Metadata: map[string]string{
 			"priority": "2",
@@ -230,8 +231,8 @@ func TestTrackerBeadClientCreateWithParentEncodesMetadata(t *testing.T) {
 
 	var capturedReq tracker.CreateRequest
 	var capturedParentID string
-	client := &stubTrackerClient{
-		createWithParentFn: func(ctx context.Context, req tracker.CreateRequest, parentID string) (*tracker.Item, error) {
+	client := &trackertest.StubTrackerClient{
+		CreateWithParentFn: func(ctx context.Context, req tracker.CreateRequest, parentID string) (*tracker.Item, error) {
 			capturedReq = req
 			capturedParentID = parentID
 			return createdItem, nil
@@ -290,8 +291,8 @@ func TestTrackerBeadClientListWithLabelConvertsItems(t *testing.T) {
 		},
 	}
 
-	client := &stubTrackerClient{
-		listWithLabelFn: func(ctx context.Context, label string) ([]tracker.Item, error) {
+	client := &trackertest.StubTrackerClient{
+		ListWithLabelFn: func(ctx context.Context, label string) ([]tracker.Item, error) {
 			return items, nil
 		},
 	}
@@ -345,8 +346,8 @@ func TestTrackerBeadClientReadyExcludingFiltersEpicsAndExcludedIDs(t *testing.T)
 		},
 	}
 
-	client := &stubTrackerClient{
-		listFn: func(ctx context.Context, q tracker.Query) ([]tracker.Item, error) {
+	client := &trackertest.StubTrackerClient{
+		ListFn: func(ctx context.Context, q tracker.Query) ([]tracker.Item, error) {
 			return items, nil
 		},
 	}
@@ -396,8 +397,8 @@ func TestTrackerBeadClientReadyWithLabelUsesBDReady(t *testing.T) {
 func TestTrackerBeadClientReadyWithLabelFallsBackToListWithLabel(t *testing.T) {
 	t.Parallel()
 
-	client := &stubTrackerClient{
-		listWithLabelFn: func(ctx context.Context, label string) ([]tracker.Item, error) {
+	client := &trackertest.StubTrackerClient{
+		ListWithLabelFn: func(ctx context.Context, label string) ([]tracker.Item, error) {
 			return []tracker.Item{
 				{
 					ID:     "bead-closed",
@@ -494,82 +495,6 @@ func TestBuildTrackerCreateRequestUsesTrackerEncodeMetadataJSONList(t *testing.T
 			}
 		})
 	}
-}
-
-type stubTrackerClient struct {
-	readyFn              func(ctx context.Context) (*tracker.Item, error)
-	listFn               func(ctx context.Context, q tracker.Query) ([]tracker.Item, error)
-	listWithLabelFn      func(ctx context.Context, label string) ([]tracker.Item, error)
-	createFn             func(ctx context.Context, req tracker.CreateRequest) (*tracker.Item, error)
-	createWithParentFn   func(ctx context.Context, req tracker.CreateRequest, parentID string) (*tracker.Item, error)
-	addCommentFn         func(ctx context.Context, id, comment string) error
-	closeFn              func(ctx context.Context, id string) error
-	syncFn               func(ctx context.Context) error
-	updateFn             func(ctx context.Context, req tracker.UpdateRequest) (*tracker.Item, error)
-}
-
-func (s *stubTrackerClient) Ready(ctx context.Context) (*tracker.Item, error) {
-	if s.readyFn != nil {
-		return s.readyFn(ctx)
-	}
-	return nil, nil
-}
-func (s *stubTrackerClient) List(ctx context.Context, q tracker.Query) ([]tracker.Item, error) {
-	if s.listFn != nil {
-		return s.listFn(ctx, q)
-	}
-	return nil, nil
-}
-func (s *stubTrackerClient) Show(ctx context.Context, id string) (*tracker.Item, error) {
-	return nil, nil
-}
-func (s *stubTrackerClient) Search(ctx context.Context, q tracker.Query) ([]tracker.Item, error) {
-	return nil, nil
-}
-func (s *stubTrackerClient) Create(ctx context.Context, req tracker.CreateRequest) (*tracker.Item, error) {
-	if s.createFn != nil {
-		return s.createFn(ctx, req)
-	}
-	return nil, nil
-}
-func (s *stubTrackerClient) CreateWithParent(ctx context.Context, req tracker.CreateRequest, parentID string) (*tracker.Item, error) {
-	if s.createWithParentFn != nil {
-		return s.createWithParentFn(ctx, req, parentID)
-	}
-	return nil, nil
-}
-func (s *stubTrackerClient) Update(ctx context.Context, req tracker.UpdateRequest) (*tracker.Item, error) {
-	if s.updateFn != nil {
-		return s.updateFn(ctx, req)
-	}
-	return nil, nil
-}
-func (s *stubTrackerClient) ListWithLabel(ctx context.Context, label string) ([]tracker.Item, error) {
-	if s.listWithLabelFn != nil {
-		return s.listWithLabelFn(ctx, label)
-	}
-	return nil, nil
-}
-func (s *stubTrackerClient) Close(ctx context.Context, id string) error {
-	if s.closeFn != nil {
-		return s.closeFn(ctx, id)
-	}
-	return nil
-}
-func (s *stubTrackerClient) Sync(ctx context.Context) error {
-	if s.syncFn != nil {
-		return s.syncFn(ctx)
-	}
-	return nil
-}
-func (s *stubTrackerClient) AddComment(ctx context.Context, id, comment string) error {
-	if s.addCommentFn != nil {
-		return s.addCommentFn(ctx, id, comment)
-	}
-	return nil
-}
-func (s *stubTrackerClient) HasOpenChildren(ctx context.Context, parentID string) (bool, error) {
-	return false, nil
 }
 
 func TestTrackerBeadClientRemoved_encodeJSONStringsNotUsed(t *testing.T) {

@@ -15,6 +15,7 @@ import (
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/specgate"
 	"github.com/danabrams/gromit/internal/tracker"
+	"github.com/danabrams/gromit/internal/tracker/trackertest"
 )
 
 const (
@@ -403,8 +404,8 @@ func TestSpecGateBeadCreatorWithTrackerClient_EncodeLabelsWithTrackerFunction(t 
 		t.Run(tc.name, func(t *testing.T) {
 			// Create a stub tracker client that captures the CreateRequest
 			var capturedReq tracker.CreateRequest
-			stubClient := &stubTrackerClient2{
-				createFn: func(ctx context.Context, req tracker.CreateRequest) (*tracker.Item, error) {
+			stubClient := &trackertest.StubTrackerClient{
+				CreateFn: func(ctx context.Context, req tracker.CreateRequest) (*tracker.Item, error) {
 					capturedReq = req
 					return &tracker.Item{
 						ID:    "test-id",
@@ -436,50 +437,6 @@ func TestSpecGateBeadCreatorWithTrackerClient_EncodeLabelsWithTrackerFunction(t 
 			}
 		})
 	}
-}
-
-type stubTrackerClient2 struct {
-	createFn func(ctx context.Context, req tracker.CreateRequest) (*tracker.Item, error)
-}
-
-func (s *stubTrackerClient2) Ready(ctx context.Context) (*tracker.Item, error) {
-	return nil, nil
-}
-func (s *stubTrackerClient2) List(ctx context.Context, q tracker.Query) ([]tracker.Item, error) {
-	return nil, nil
-}
-func (s *stubTrackerClient2) Show(ctx context.Context, id string) (*tracker.Item, error) {
-	return nil, nil
-}
-func (s *stubTrackerClient2) Search(ctx context.Context, q tracker.Query) ([]tracker.Item, error) {
-	return nil, nil
-}
-func (s *stubTrackerClient2) Create(ctx context.Context, req tracker.CreateRequest) (*tracker.Item, error) {
-	if s.createFn != nil {
-		return s.createFn(ctx, req)
-	}
-	return nil, nil
-}
-func (s *stubTrackerClient2) CreateWithParent(ctx context.Context, req tracker.CreateRequest, parentID string) (*tracker.Item, error) {
-	return nil, nil
-}
-func (s *stubTrackerClient2) Update(ctx context.Context, req tracker.UpdateRequest) (*tracker.Item, error) {
-	return nil, nil
-}
-func (s *stubTrackerClient2) ListWithLabel(ctx context.Context, label string) ([]tracker.Item, error) {
-	return nil, nil
-}
-func (s *stubTrackerClient2) Close(ctx context.Context, id string) error {
-	return nil
-}
-func (s *stubTrackerClient2) Sync(ctx context.Context) error {
-	return nil
-}
-func (s *stubTrackerClient2) AddComment(ctx context.Context, id, comment string) error {
-	return nil
-}
-func (s *stubTrackerClient2) HasOpenChildren(ctx context.Context, parentID string) (bool, error) {
-	return false, nil
 }
 
 func TestDefaultVerifySpecCmdRunner_CanceledContextReapsChildren(t *testing.T) {
