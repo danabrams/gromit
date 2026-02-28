@@ -17,6 +17,7 @@ import (
 	"github.com/danabrams/gromit/internal/events/cli"
 	"github.com/danabrams/gromit/internal/events/stream"
 	"github.com/danabrams/gromit/internal/experiment"
+	"github.com/danabrams/gromit/internal/failurephase"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/procutil"
@@ -362,6 +363,7 @@ runLoop:
 				BeadID:                   b.ID,
 				BeadTitle:                b.Title,
 				Success:                  false,
+				FailurePhase:             failurephase.Prelaunch,
 				Complexity:               baseIn.Complexity,
 				ComplexitySource:         baseIn.ComplexitySource,
 				ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
@@ -411,6 +413,7 @@ runLoop:
 						BeadTitle:                b.Title,
 						Success:                  false,
 						Error:                    fmt.Sprintf("branch checkout failed for %s: %v", branch, checkoutErr),
+						FailurePhase:             failurephase.Prelaunch,
 						Complexity:               baseIn.Complexity,
 						ComplexitySource:         baseIn.ComplexitySource,
 						ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
