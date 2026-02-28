@@ -2,15 +2,22 @@ package preflight
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/procutil"
 )
+
+var waitForProcessCapacityFn = procutil.WaitForProcessCapacity
+
+const defaultProcessCapacityWaitTime = 1500 * time.Millisecond
 
 // Checker handles tool availability checks and installation
 type Checker struct {
@@ -102,8 +109,21 @@ func (c *Checker) checkAvailability(tools map[string]bool) []string {
 
 // toolExists checks if a tool is available in PATH
 func (c *Checker) toolExists(tool string) bool {
-	cmd := exec.Command("which", tool)
-	return cmd.Run() == nil
+	ctx := context.Background()
+	if err := waitForProcessCapacityFn(ctx, defaultProcessCapacityWaitTime); err != nil {
+		return false
+	}
+
+	cmd := exec.CommandContext(ctx, "which", tool)
+	procutil.SetProcessGroupKill(cmd)
+
+	if err := cmd.Start(); err != nil {
+		return false
+	}
+	procutil.KillDescendantsOnCancel(ctx, cmd)
+	defer procutil.ReapProcessTree(cmd)
+
+	return cmd.Wait() == nil
 }
 
 // printStatus displays the pre-flight check results
@@ -254,11 +274,25 @@ func (c *Checker) prompt(msg string) string {
 
 // runCmd executes a command and returns any error
 func (c *Checker) runCmd(name string, args ...string) error {
-	cmd := exec.Command(name, args...)
+	ctx := context.Background()
+	if err := waitForProcessCapacityFn(ctx, defaultProcessCapacityWaitTime); err != nil {
+		return fmt.Errorf("waiting for process capacity: %w", err)
+	}
+
+	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Stdout = c.out
 	cmd.Stderr = c.out
 	cmd.Stdin = os.Stdin
-	return cmd.Run()
+
+	procutil.SetProcessGroupKill(cmd)
+
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	procutil.KillDescendantsOnCancel(ctx, cmd)
+	defer procutil.ReapProcessTree(cmd)
+
+	return cmd.Wait()
 }
 
 // fileExists checks if a file exists
