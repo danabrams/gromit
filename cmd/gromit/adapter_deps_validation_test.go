@@ -1,8 +1,14 @@
 package main
 
 import (
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/agent"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
 )
@@ -213,4 +219,103 @@ func TestAdapterDeps_DepsContractSignature(t *testing.T) {
 	}
 
 	t.Log("pipeline.Deps structure is properly formalized")
+}
+
+// TestAdapterDeps_ModelForwardingWiring verifies the explore pipeline wiring adds
+// the model forwarder and warning writer so non-Claude model overrides behave.
+func TestAdapterDeps_ModelForwardingWiring(t *testing.T) {
+	t.Parallel()
+
+	deps, err := NewPipelineDeps(nil, t.TempDir())
+	if err != nil {
+		t.Fatalf("NewPipelineDeps failed: %v", err)
+	}
+
+	if deps.ModelForwarder == nil {
+		t.Fatal("NewPipelineDeps should wire ModelForwarder")
+	}
+
+	if deps.WarningWriter == nil {
+		t.Fatal("NewPipelineDeps should wire WarningWriter")
+	}
+
+	promptFile := filepath.Join(t.TempDir(), "explore-prompt.md")
+	if err := os.WriteFile(promptFile, []byte("prompt"), 0o644); err != nil {
+		t.Fatalf("failed to write prompt file: %v", err)
+	}
+
+	codexAgent, err := agent.Resolve(nil, "explore", "codex", false, strings.NewReader(""), io.Discard)
+	if err != nil {
+		t.Fatalf("agent.Resolve(codex) failed: %v", err)
+	}
+
+	forwarded, warning := deps.ModelForwarder(codexAgent, "gpt-5.3-codex")
+	if warning != "" {
+		t.Fatalf("ModelForwarder returned warning for codex: %q", warning)
+	}
+
+	commandProvider, ok := forwarded.(interface {
+		Command(string) (*exec.Cmd, error)
+	})
+	if !ok {
+		t.Fatal("forwarded agent does not expose Command()")
+	}
+
+	cmd, err := commandProvider.Command(promptFile)
+	if err != nil {
+		t.Fatalf("forwarded agent Command() failed: %v", err)
+	}
+
+	if !modelArgsInclude(cmd.Args, "--model", "gpt-5.3-codex") {
+		t.Fatalf("forwarded command missing --model args: %v", cmd.Args)
+	}
+
+	claudeAgent, err := agent.Resolve(nil, "explore", "claude", false, strings.NewReader(""), io.Discard)
+	if err != nil {
+		t.Fatalf("agent.Resolve(claude) failed: %v", err)
+	}
+
+	unsupportedWarning := "model forwarding not supported for agent claude"
+	_, warning = deps.ModelForwarder(claudeAgent, "sonnet")
+	if warning != unsupportedWarning {
+		t.Fatalf("ModelForwarder(claude) warning = %q, want %q", warning, unsupportedWarning)
+	}
+
+	captureWarningOutput(t, deps.WarningWriter, warning)
+}
+
+func modelArgsInclude(args []string, flag, value string) bool {
+	for i := 0; i < len(args)-1; i++ {
+		if args[i] == flag && args[i+1] == value {
+			return true
+		}
+	}
+	return false
+}
+
+func captureWarningOutput(t *testing.T, writer func(string), message string) {
+	t.Helper()
+	if writer == nil {
+		t.Fatal("warning writer is nil")
+	}
+
+	old := os.Stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to capture stderr: %v", err)
+	}
+	defer r.Close()
+	os.Stderr = w
+
+	writer(message)
+	_ = w.Close()
+	os.Stderr = old
+
+	data, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("failed to read warning output: %v", err)
+	}
+	if !strings.Contains(string(data), message) {
+		t.Fatalf("warning output missing %q, got %q", message, string(data))
+	}
 }
