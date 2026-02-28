@@ -6,13 +6,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/danabrams/gromit/test/testutil"
 )
 
 func TestCodexStreamingAcceptanceFakeBinaryAvailable(t *testing.T) {
@@ -485,12 +484,13 @@ func fakeCodexBinaryPath(t *testing.T) string {
 		t.Fatalf("getting working directory: %v", err)
 	}
 
-	ctx, err := testutil.ResolveTaggedHarnessContext(wd)
+	repoRoot, err := resolveRepoRoot(wd)
 	if err != nil {
-		t.Fatalf("resolve tagged harness context: %v", err)
+		t.Fatalf("resolve repo root: %v", err)
 	}
 
-	path := filepath.Join(ctx.FakesDir, "codex")
+	fakesDir := filepath.Join(repoRoot, "test", "fakes")
+	path := filepath.Join(fakesDir, "codex")
 	info, err := os.Stat(path)
 	if err != nil {
 		t.Fatalf("stat fake Codex binary %q: %v", path, err)
@@ -513,17 +513,63 @@ func codexFixturePath(t *testing.T, fixtureName string) string {
 		t.Fatalf("getting working directory: %v", err)
 	}
 
-	ctx, err := testutil.ResolveTaggedHarnessContext(wd)
+	repoRoot, err := resolveRepoRoot(wd)
 	if err != nil {
-		t.Fatalf("resolve tagged harness context: %v", err)
+		t.Fatalf("resolve repo root: %v", err)
 	}
 
-	fixturePath := filepath.Join(ctx.FixturesDir, fixtureName)
+	fixturesDir := filepath.Join(repoRoot, "test", "fixtures")
+	fixturePath := filepath.Join(fixturesDir, fixtureName)
 	if _, err := os.Stat(fixturePath); err != nil {
 		t.Fatalf("fixture %s not found: %v", fixturePath, err)
 	}
 
 	return fixturePath
+}
+
+// resolveRepoRoot finds the repository root by walking up the directory tree
+// looking for test/fakes, test/fixtures, test/contracts, and test/e2e directories.
+func resolveRepoRoot(workingDir string) (string, error) {
+	root := filepath.Clean(workingDir)
+	var attempted []string
+
+	for {
+		attempted = append(attempted, root)
+		if isTaggedHarnessLayout(root) {
+			return root, nil
+		}
+
+		parent := filepath.Dir(root)
+		if parent == root {
+			break
+		}
+		root = parent
+	}
+
+	return "", fmt.Errorf(
+		"unable to resolve repo root from %q (attempted: %s)",
+		workingDir,
+		strings.Join(attempted, ", "),
+	)
+}
+
+// isTaggedHarnessLayout checks if the directory has the expected test layout.
+func isTaggedHarnessLayout(root string) bool {
+	testDir := filepath.Join(root, "test")
+	requiredDirs := []string{
+		filepath.Join(testDir, "contracts"),
+		filepath.Join(testDir, "e2e"),
+		filepath.Join(testDir, "fakes"),
+		filepath.Join(testDir, "fixtures"),
+		filepath.Join(root, "cmd", "gromit"),
+	}
+	for _, dir := range requiredDirs {
+		info, err := os.Stat(dir)
+		if err != nil || !info.IsDir() {
+			return false
+		}
+	}
+	return true
 }
 
 func setupCodexStreamingFixtureEnv(t *testing.T, fixtureName string) string {
