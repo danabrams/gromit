@@ -234,6 +234,56 @@ func TestGateRun_ReadinessAssessorBlocksWithReason(t *testing.T) {
 	}
 }
 
+// RED: test for GateReadinessBlockEvent emission when readiness assessment blocks.
+func TestGateRun_ReadinessBlockEmitsGateReadinessBlockEvent(t *testing.T) {
+	t.Parallel()
+
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	gate := New(io.Discard).WithReadinessAssessor(
+		newMockReadinessAssessor().WithAssessment(readiness.StatusNotReady, "criteria_missing", nil),
+	)
+
+	beadID := "readiness-event-test"
+	b := &bead.Bead{
+		ID:    beadID,
+		Title: "readiness event bead",
+	}
+
+	out, err := gate.Run(context.Background(), pipeline.Input{
+		Bead:    b,
+		Emitter: emitter,
+	})
+	if err != nil {
+		t.Fatalf("Gate.Run() error = %v", err)
+	}
+
+	if out.Decision != pipeline.Block {
+		t.Fatalf("decision = %v, want %v", out.Decision, pipeline.Block)
+	}
+
+	emittedEvents := eventtest.DrainEvents(t, ch)
+
+	var blockEvt *events.GateReadinessBlockEvent
+	for _, evt := range emittedEvents {
+		if be, ok := evt.(*events.GateReadinessBlockEvent); ok {
+			blockEvt = be
+		}
+	}
+	if blockEvt == nil {
+		t.Fatal("expected GateReadinessBlockEvent to be emitted")
+	}
+	if blockEvt.BeadID != beadID {
+		t.Errorf("BeadID = %q, want %q", blockEvt.BeadID, beadID)
+	}
+	if blockEvt.Reason != "criteria_missing" {
+		t.Errorf("Reason = %q, want %q", blockEvt.Reason, "criteria_missing")
+	}
+}
+
 func TestGateRun(t *testing.T) {
 	b := &bead.Bead{ID: "test-1", Title: "test bead"}
 
