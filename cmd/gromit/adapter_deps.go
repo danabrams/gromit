@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -31,30 +33,32 @@ import (
 // Adapter Organization:
 //
 // adapters.go (LLM providers and task tracking):
-//   LLMClient + ReviewInvoker implementations:
-//     - claudeClientAdapter: Wraps claude.Client, adds timeout context
-//     - llmRouterClientAdapter: Wraps provider.Router for multi-provider fallback
 //
-//   Task Tracking (bead/backlog management):
-//     - trackerClientAdapter: Wraps tracker.Client (bead.BDAdapter), implements TrackerClient
-//     - backlogClientAdapter: Wraps backlog.File, implements BacklogClient (read-only)
-//     - beadQueryClientAdapter: Wraps bead.Client, implements BeadQueryClient (status queries)
+//	LLMClient + ReviewInvoker implementations:
+//	  - claudeClientAdapter: Wraps claude.Client, adds timeout context
+//	  - llmRouterClientAdapter: Wraps provider.Router for multi-provider fallback
+//
+//	Task Tracking (bead/backlog management):
+//	  - trackerClientAdapter: Wraps tracker.Client (bead.BDAdapter), implements TrackerClient
+//	  - backlogClientAdapter: Wraps backlog.File, implements BacklogClient (read-only)
+//	  - beadQueryClientAdapter: Wraps bead.Client, implements BeadQueryClient (status queries)
 //
 // cli_adapters.go (CLI-specific integrations):
-//   Prompt Rendering (all wrap prompt.Renderer):
-//     - refinePromptRenderer: Implements RefineRenderer
-//     - planPromptRenderer: Implements PlanRenderer
-//     - decomposePromptRenderer: Implements DecomposeRenderer
-//     - cliPromptRenderer: Implements ReviewRenderer (for thorough code review)
-//     - explorePromptRenderer: Implements ExploreRenderer
-//       NOTE: explorePromptRenderer currently contains business logic that should
-//       be moved to prompt.Renderer.RenderExplore or a service layer.
 //
-//   CLI State Management:
-//     - cliBacklogClient: Wraps bead.Client, implements BacklogWriter (write-only)
-//     - cliLearningsManager: Wraps learnings.File, implements LearningsManager
-//     - cliStateManager: Wraps state.File, implements StateManager
-//     - cliLogWriter: Wraps logger facilities, implements LogWriter
+//	Prompt Rendering (all wrap prompt.Renderer):
+//	  - refinePromptRenderer: Implements RefineRenderer
+//	  - planPromptRenderer: Implements PlanRenderer
+//	  - decomposePromptRenderer: Implements DecomposeRenderer
+//	  - cliPromptRenderer: Implements ReviewRenderer (for thorough code review)
+//	  - explorePromptRenderer: Implements ExploreRenderer
+//	    NOTE: explorePromptRenderer currently contains business logic that should
+//	    be moved to prompt.Renderer.RenderExplore or a service layer.
+//
+//	CLI State Management:
+//	  - cliBacklogClient: Wraps bead.Client, implements BacklogWriter (write-only)
+//	  - cliLearningsManager: Wraps learnings.File, implements LearningsManager
+//	  - cliStateManager: Wraps state.File, implements StateManager
+//	  - cliLogWriter: Wraps logger facilities, implements LogWriter
 //
 // All adapters are instantiated here in NewPipelineDeps and wired into the Deps struct.
 // Callers use NewPipelineDeps to get a complete, ready-to-use dependency container.
@@ -178,6 +182,8 @@ func NewPipelineDeps(cfg *config.Config, gromitDir string) (*pipeline.Deps, erro
 		LearningsManager:  learningsManager,
 		StateManager:      stateManager,
 		LogWriter:         logWriter,
+		ModelForwarder:    exploreModelForwarder(),
+		WarningWriter:     exploreWarningWriter(),
 	}
 
 	return deps, nil
@@ -191,5 +197,28 @@ func SetDepsPromptDiagnosticsProvider(deps *pipeline.Deps, provider func() *prom
 	}
 	if logWriter, ok := deps.LogWriter.(*cliLogWriter); ok {
 		logWriter.promptDiagnosticsProvider = provider
+	}
+}
+
+func exploreModelForwarder() func(pipeline.Agent, string) (pipeline.Agent, string) {
+	return func(pAgent pipeline.Agent, model string) (pipeline.Agent, string) {
+		if model == "" {
+			return pAgent, ""
+		}
+		resolvedAgent, ok := pAgent.(agent.Agent)
+		if !ok {
+			return pAgent, "model forwarding not supported for agent " + pAgent.Name()
+		}
+		forwardedAgent, warning := agent.ForwardModelToAgent(resolvedAgent, model)
+		return forwardedAgent, warning
+	}
+}
+
+func exploreWarningWriter() func(string) {
+	return func(message string) {
+		if message == "" {
+			return
+		}
+		fmt.Fprintf(os.Stderr, "Warning: %s\n", message)
 	}
 }
