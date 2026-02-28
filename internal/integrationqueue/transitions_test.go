@@ -99,3 +99,10 @@ func TestCanTransition_ConflictToReady_Allowed(t *testing.T) {
 		t.Errorf("expected conflict->ready to be allowed, got false")
 	}
 }
+
+func TestCanTransition_FailedGatesToReady_Allowed(t *testing.T) {
+	result := CanTransition("failed_gates", "ready")
+	if !result {
+		t.Errorf("expected failed_gates->ready to be allowed, got false")
+	}
+}
