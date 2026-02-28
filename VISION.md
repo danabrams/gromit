@@ -76,6 +76,14 @@ When adding or changing `RULES.md`, `LEARNINGS.md`, or specs, evaluate against t
 
 This is a soft gate. If any check fails, work may proceed only with explicit written justification.
 
+## Alignment Assessment Method
+
+Alignment assessment method for rules, learnings, or spec changes codifies how to defend the alignment decisions that reshape our living guidance. Before touching `RULES.md`, `LEARNINGS.md`, or any spec-related behavior, follow these steps:
+
+Step 1: Document the proposed change, the expected strategic outcome, and how it answers the soft-gate checklist above.
+Step 2: Evaluate the change against every non-negotiable guardrail (Safety, Matching intent, Evolvability, Cost efficiency, Documented verifiability) and either ensure the guardrail is preserved or capture the mitigation that keeps the system safe.
+Step 3: Record the alignment judgment, including anticipated metrics and verification signals, and only proceed after reviewers confirm that the documented reasoning meets the acceptance bar.
+
 ## Anti-Goals
 
 1. Brittle automation failure
