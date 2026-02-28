@@ -108,6 +108,7 @@ func (c *capturingIterationLogWriter) Write(log *logger.IterationLog) error {
 // fakeCoordinator is a test double for Coordinator interface.
 type fakeCoordinator struct {
 	coordinateFn       func(ctx context.Context) error
+	processNextFn      func(ctx context.Context) (bool, error)
 	recoverFromCrashFn func(ctx context.Context) error
 }
 
@@ -116,6 +117,13 @@ func (f *fakeCoordinator) Coordinate(ctx context.Context) error {
 		return f.coordinateFn(ctx)
 	}
 	return nil
+}
+
+func (f *fakeCoordinator) ProcessNext(ctx context.Context) (bool, error) {
+	if f.processNextFn != nil {
+		return f.processNextFn(ctx)
+	}
+	return false, nil
 }
 
 func (f *fakeCoordinator) RecoverFromCrash(ctx context.Context) error {
@@ -3641,5 +3649,63 @@ func TestOrchestrator_AllExitPaths_InvokeEpilogue(t *testing.T) {
 				t.Errorf("exit path %q did not invoke epilogue", tc.name)
 			}
 		})
+	}
+}
+
+// TestOrchestratorCallsCoordinatorProcessNext verifies that Coordinator.ProcessNext
+// is called between each iteration in the run loop.
+func TestOrchestratorCallsCoordinatorProcessNext(t *testing.T) {
+	t.Parallel()
+
+	// Track ProcessNext invocations
+	var processNextCalls []int
+	var mu sync.Mutex
+
+	coordinator := &fakeCoordinator{
+		processNextFn: func(ctx context.Context) (bool, error) {
+			mu.Lock()
+			processNextCalls = append(processNextCalls, len(processNextCalls))
+			mu.Unlock()
+			return false, nil // No entry processed
+		},
+	}
+
+	// Create beads to process in 3 iterations
+	beads := []*bead.Bead{
+		{ID: "bead1", Title: "Task 1"},
+		{ID: "bead2", Title: "Task 2"},
+		{ID: "bead3", Title: "Task 3"},
+	}
+	beadIdx := 0
+
+	getBead := func(ctx context.Context) (*bead.Bead, error) {
+		if beadIdx >= len(beads) {
+			return nil, nil
+		}
+		b := beads[beadIdx]
+		beadIdx++
+		return b, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:        &fakeStage{},
+		Build:       &fakeStage{},
+		Validate:    &fakeStage{},
+		Epilogue:    &fakeStage{},
+		GetBead:     getBead,
+		Coordinator: coordinator,
+		Config:      &config.Config{},
+		Output:      io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	err := orch.Run(context.Background(), 3, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("Orchestrator.Run() error = %v; expected nil", err)
+	}
+
+	// ProcessNext should be called after each of the 3 successful iterations
+	if len(processNextCalls) != 3 {
+		t.Fatalf("Expected ProcessNext to be called 3 times (once per iteration), got %d calls", len(processNextCalls))
 	}
 }
