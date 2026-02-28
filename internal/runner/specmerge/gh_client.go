@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"net/url"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
 const (
 	ghCreateFields = "number,title,state,isDraft,createdAt,updatedAt,url"
+	ghViewFields   = "number,title,state,isDraft,createdAt,updatedAt"
 )
 
 type ghCommandRunner interface {
@@ -72,7 +74,41 @@ func (c *ghClient) CreatePR(ctx context.Context, title, body, head, base string)
 }
 
 func (c *ghClient) GetPR(ctx context.Context, ref PRRef) (PRStatus, error) {
-	return PRStatus{}, fmt.Errorf("GetPR not implemented")
+	args := []string{
+		"pr",
+		"view",
+		strconv.Itoa(ref.Number),
+		"--repo",
+		fmt.Sprintf("%s/%s", ref.Owner, ref.Repo),
+		"--json",
+		ghViewFields,
+	}
+
+	out, err := c.run(ctx, args...)
+	if err != nil {
+		return PRStatus{}, fmt.Errorf("get pr: %w", err)
+	}
+
+	var resp struct {
+		Number    int    `json:"number"`
+		Title     string `json:"title"`
+		State     string `json:"state"`
+		IsDraft   bool   `json:"isDraft"`
+		CreatedAt string `json:"createdAt"`
+		UpdatedAt string `json:"updatedAt"`
+	}
+	if err := json.Unmarshal([]byte(out), &resp); err != nil {
+		return PRStatus{}, fmt.Errorf("parse get pr response: %w", err)
+	}
+
+	return PRStatus{
+		Number:    resp.Number,
+		Title:     resp.Title,
+		State:     resp.State,
+		IsDraft:   resp.IsDraft,
+		CreatedAt: resp.CreatedAt,
+		UpdatedAt: resp.UpdatedAt,
+	}, nil
 }
 
 func (c *ghClient) ListChecks(ctx context.Context, ref PRRef) ([]CheckStatus, error) {
