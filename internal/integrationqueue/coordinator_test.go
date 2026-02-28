@@ -2,6 +2,7 @@ package integrationqueue
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -109,6 +110,30 @@ type mockScopedGate struct {
 
 func (m *mockScopedGate) Run(ctx context.Context, entry Entry) error {
 	m.calls = append(m.calls, entry.Branch)
+	return nil
+}
+
+type conflictMockGitOps struct {
+	calls []string
+}
+
+func (m *conflictMockGitOps) FetchAndRebase(ctx context.Context, entry Entry) error {
+	m.calls = append(m.calls, "fetch:"+entry.Branch)
+	return nil
+}
+
+func (m *conflictMockGitOps) MergeToMain(ctx context.Context, entry Entry) error {
+	m.calls = append(m.calls, "merge:"+entry.Branch)
+	return fmt.Errorf("merge conflict")
+}
+
+func (m *conflictMockGitOps) Push(ctx context.Context) error {
+	m.calls = append(m.calls, "push")
+	return nil
+}
+
+func (m *conflictMockGitOps) Cleanup(ctx context.Context, entry Entry) error {
+	m.calls = append(m.calls, "cleanup:"+entry.Branch)
 	return nil
 }
 
@@ -291,5 +316,55 @@ func TestCoordinator_RecoverFromCrash(t *testing.T) {
 	}
 	if integ2.LastErrorCode != "crash_recovery" {
 		t.Fatalf("integrating2 error code = %s, want crash_recovery", integ2.LastErrorCode)
+	}
+}
+
+func TestCoordinatorHandlesMergeConflict(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	entry := Entry{
+		Branch:           "feature/conflict",
+		SessionID:        "feature/conflict",
+		OriginCommand:    "test",
+		State:            StateReady,
+		Lane:             "code_lane",
+		BaseRef:          "main",
+		HeadSHA:          "deadbeef",
+		ChangedFilesHash: "hash",
+	}
+	if err := store.Save(entry); err != nil {
+		t.Fatalf("Save(entry) error = %v", err)
+	}
+
+	gitops := &conflictMockGitOps{}
+	gate := &mockScopedGate{}
+	coord := NewCoordinator(store, gitops, gate)
+
+	// Coordinate should return an error when merge fails
+	err = coord.Coordinate(ctx)
+	if err == nil {
+		t.Fatalf("Coordinate() error = nil, want non-nil")
+	}
+
+	payload, err := store.load()
+	if err != nil {
+		t.Fatalf("load() error = %v", err)
+	}
+
+	processed := findEntry(payload.Entries, "feature/conflict")
+	if processed == nil {
+		t.Fatalf("missing processed entry")
+	}
+	if processed.State != StateConflict {
+		t.Fatalf("State = %q, want %q", processed.State, StateConflict)
+	}
+	if processed.LastErrorCode != "merge_conflict" {
+		t.Fatalf("LastErrorCode = %q, want merge_conflict", processed.LastErrorCode)
 	}
 }
