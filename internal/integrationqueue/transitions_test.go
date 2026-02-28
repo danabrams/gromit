@@ -17,3 +17,10 @@ func TestCanTransition_ReadyToIntegrating_Allowed(t *testing.T) {
 		t.Errorf("expected ready->integrating to be allowed, got false")
 	}
 }
+
+func TestCanTransition_IntegratingToMerged_Allowed(t *testing.T) {
+	result := CanTransition("integrating", "merged")
+	if !result {
+		t.Errorf("expected integrating->merged to be allowed, got false")
+	}
+}
