@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 )
 
@@ -43,6 +44,7 @@ func (s *Store) Save(entry Entry) error {
 
 	now := time.Now().UTC()
 	entry.UpdatedAt = now
+	sort.Strings(entry.ChangedFiles)
 
 	existingIdx := s.findEntryIndex(file.Entries, entry.Branch)
 	if existingIdx == -1 {
@@ -93,6 +95,16 @@ func (s *Store) write(file *queueFile) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("creating queue file directory: %w", err)
 	}
+
+	for i := range file.Entries {
+		sort.Strings(file.Entries[i].ChangedFiles)
+	}
+	sort.SliceStable(file.Entries, func(i, j int) bool {
+		if file.Entries[i].FifoSeq != file.Entries[j].FifoSeq {
+			return file.Entries[i].FifoSeq < file.Entries[j].FifoSeq
+		}
+		return file.Entries[i].Branch < file.Entries[j].Branch
+	})
 
 	data, err := json.MarshalIndent(file, "", "  ")
 	if err != nil {
