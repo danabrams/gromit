@@ -85,6 +85,48 @@ func (s *DecomposeCohortSelector) Select(ctx context.Context, candidates []strin
 	return selected, nil
 }
 
+// ValidateOverrides ensures an explicit spec list satisfies the eligibility checks.
+func (s *DecomposeCohortSelector) ValidateOverrides(ctx context.Context, overrides []string) error {
+	if s == nil {
+		return fmt.Errorf("selector is nil")
+	}
+	if s.store == nil {
+		return fmt.Errorf("spec bead store is nil")
+	}
+
+	if len(overrides) != requiredCohortSize {
+		return fmt.Errorf("--specs must include exactly %d spec ids", requiredCohortSize)
+	}
+
+	seen := make(map[string]struct{}, len(overrides))
+	for _, raw := range overrides {
+		spec := stdstrings.TrimSpace(raw)
+		if spec == "" {
+			return fmt.Errorf("spec ids cannot be empty")
+		}
+		if _, dup := seen[spec]; dup {
+			return fmt.Errorf("--specs must not include duplicate spec ids")
+		}
+
+		if err := ensurePlanFile(s.planDir(), spec); err != nil {
+			return err
+		}
+		closed, open, err := s.countBeads(ctx, spec)
+		if err != nil {
+			return err
+		}
+		if open > 0 {
+			return fmt.Errorf("spec %q has %d unclosed beads", spec, open)
+		}
+		if closed == 0 {
+			return fmt.Errorf("spec %q must have at least one closed bead", spec)
+		}
+		seen[spec] = struct{}{}
+	}
+
+	return nil
+}
+
 func (s *DecomposeCohortSelector) planDir() string {
 	if s.plansDir != "" {
 		return s.plansDir
