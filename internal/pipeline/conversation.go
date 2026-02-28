@@ -16,6 +16,7 @@ func CollectConversation(session conversation.Session, followUpProvider func() s
         select {
         case <-cancel:
             cancelled = true
+            session.Cancel()
         case ev, ok := <-session.Events():
             if !ok {
                 return events, ignored
