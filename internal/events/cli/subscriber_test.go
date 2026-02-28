@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/events"
+	"github.com/danabrams/gromit/internal/events/eventtest"
 	"github.com/danabrams/gromit/internal/runner/execution"
 )
 
@@ -28,8 +29,12 @@ func TestCLISubscriber_ConsumesEvents(t *testing.T) {
 		done <- subscriber.Start(ctx)
 	}()
 
-	// Give subscriber time to start
-	time.Sleep(10 * time.Millisecond)
+	// Wait for subscriber to start using polling
+	startCtx, startCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer startCancel()
+	if err := eventtest.WaitForSubscriberReady(startCtx, emitter); err != nil {
+		t.Fatalf("WaitForSubscriberReady failed: %v", err)
+	}
 
 	// Emit an event
 	emitter.Emit(&events.IterationStartEvent{
@@ -38,8 +43,14 @@ func TestCLISubscriber_ConsumesEvents(t *testing.T) {
 		BeadTitle:  "Test Bead",
 	})
 
-	// Give subscriber time to process
-	time.Sleep(10 * time.Millisecond)
+	// Wait for subscriber to process using polling
+	processCtx, processCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer processCancel()
+	if err := eventtest.WaitForCondition(processCtx, func() bool {
+		return len(output.String()) > 0
+	}); err != nil {
+		t.Fatalf("WaitForCondition failed: %v", err)
+	}
 
 	// Cancel context to stop subscriber
 	cancel()
@@ -72,13 +83,25 @@ func TestCLISubscriber_IgnoresUnknownEvents(t *testing.T) {
 		done <- subscriber.Start(ctx)
 	}()
 
-	time.Sleep(10 * time.Millisecond)
+	// Wait for subscriber to start using polling
+	startCtx, startCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer startCancel()
+	if err := eventtest.WaitForSubscriberReady(startCtx, emitter); err != nil {
+		t.Fatalf("WaitForSubscriberReady failed: %v", err)
+	}
 
 	// Emit an unknown event type (one that CLISubscriber doesn't handle)
 	unknownEvent := &unknownEventType{}
 	emitter.Emit(unknownEvent)
 
-	time.Sleep(10 * time.Millisecond)
+	// Wait a bit for event processing
+	processCtx, processCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer processCancel()
+	_ = eventtest.WaitForCondition(processCtx, func() bool {
+		// Just wait a short time for any processing to complete
+		time.Sleep(5 * time.Millisecond)
+		return true
+	})
 
 	cancel()
 	_ = <-done
@@ -113,7 +136,12 @@ func TestCLISubscriber_EmitterClosed_ExitsGracefully(t *testing.T) {
 		done <- subscriber.Start(ctx)
 	}()
 
-	time.Sleep(10 * time.Millisecond)
+	// Wait for subscriber to start using polling
+	startCtx, startCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer startCancel()
+	if err := eventtest.WaitForSubscriberReady(startCtx, emitter); err != nil {
+		t.Fatalf("WaitForSubscriberReady failed: %v", err)
+	}
 
 	// Close the emitter
 	emitter.Close()
@@ -140,7 +168,12 @@ func TestCLISubscriber_HeartbeatUsesWriteOverwrite(t *testing.T) {
 		done <- subscriber.Start(ctx)
 	}()
 
-	time.Sleep(10 * time.Millisecond)
+	// Wait for subscriber to start using polling
+	startCtx, startCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer startCancel()
+	if err := eventtest.WaitForSubscriberReady(startCtx, emitter); err != nil {
+		t.Fatalf("WaitForSubscriberReady failed: %v", err)
+	}
 
 	// Emit a heartbeat event
 	emitter.Emit(&events.HeartbeatEvent{
@@ -150,7 +183,14 @@ func TestCLISubscriber_HeartbeatUsesWriteOverwrite(t *testing.T) {
 		RateLimitHits: 0,
 	})
 
-	time.Sleep(10 * time.Millisecond)
+	// Wait for subscriber to process
+	processCtx, processCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer processCancel()
+	if err := eventtest.WaitForCondition(processCtx, func() bool {
+		return mockWriter.overwriteCalled
+	}); err != nil {
+		t.Fatalf("WaitForCondition failed: %v", err)
+	}
 
 	cancel()
 	err := <-done
