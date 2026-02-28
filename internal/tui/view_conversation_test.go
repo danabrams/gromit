@@ -47,3 +47,39 @@ func TestRenderConversationViewRendersTranscriptRows(t *testing.T) {
 		t.Fatalf("expected second transcript text in output, got %q", got)
 	}
 }
+
+func TestRenderConversationViewRendersToolIndicators(t *testing.T) {
+	store := &Store{
+		Conversation: ConversationState{
+			Lifecycle: ConversationLifecycleToolWait,
+			Transcript: []ConversationTranscriptRow{
+				{
+					Type: conversation.EventTypeStream,
+					Text: "I'm processing your request",
+				},
+			},
+			ToolIndicators: []ConversationToolIndicator{
+				{
+					ToolName: "CodeAnalyzer",
+					Status:   "waiting",
+				},
+				{
+					ToolName: "FileReader",
+					Status:   "waiting",
+				},
+			},
+		},
+	}
+
+	got := RenderConversationView(store, 0)
+
+	if !strings.Contains(got, "CodeAnalyzer") {
+		t.Fatalf("expected tool name 'CodeAnalyzer' in output, got %q", got)
+	}
+	if !strings.Contains(got, "waiting") {
+		t.Fatalf("expected tool status 'waiting' in output, got %q", got)
+	}
+	if !strings.Contains(got, "FileReader") {
+		t.Fatalf("expected tool name 'FileReader' in output, got %q", got)
+	}
+}
