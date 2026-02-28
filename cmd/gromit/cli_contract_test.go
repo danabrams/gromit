@@ -1030,6 +1030,11 @@ func TestCLIContract_StatusAndQueueNoMutationAfterTUIAdditions(t *testing.T) {
 	}
 }
 
+func TestCLIContract_TUICommandHasNoTrackerOrRunnerAccess(t *testing.T) {
+	t.Parallel()
+	assertTUICommandIsolation(t)
+}
+
 // TestCLIContract_StatusWithFlagsIsReadOnly verifies status command with various
 // flag combinations remains read-only and produces consistent output.
 func TestCLIContract_StatusWithFlagsIsReadOnly(t *testing.T) {
