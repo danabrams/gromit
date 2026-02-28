@@ -87,6 +87,60 @@ type QueueSnapshot struct {
 type ConversationState struct {
 	EventCount int
 	LastEvent  *conversation.Event
+
+	Transcript     []ConversationTranscriptRow
+	Lifecycle      ConversationLifecycle
+	ToolIndicators []ConversationToolIndicator
+	Session        ConversationSessionMetadata
+
+	activeTranscriptIndex int
+	hasActiveTranscript   bool
+}
+
+// ConversationLifecycle describes the current state of the conversation stream.
+type ConversationLifecycle int
+
+const (
+	ConversationLifecycleIdle ConversationLifecycle = iota
+	ConversationLifecycleStreaming
+	ConversationLifecycleToolWait
+	ConversationLifecycleToolResult
+	ConversationLifecycleDone
+)
+
+func (l ConversationLifecycle) String() string {
+	switch l {
+	case ConversationLifecycleStreaming:
+		return "streaming"
+	case ConversationLifecycleToolWait:
+		return "tool_wait"
+	case ConversationLifecycleToolResult:
+		return "tool_result"
+	case ConversationLifecycleDone:
+		return "done"
+	default:
+		return "idle"
+	}
+}
+
+// ConversationTranscriptRow represents a single row in the transcript.
+type ConversationTranscriptRow struct {
+	Type conversation.EventType
+	Text string
+}
+
+// ConversationToolIndicator captures tool activity separate from the transcript.
+type ConversationToolIndicator struct {
+	ToolName string
+	Status   string
+}
+
+// ConversationSessionMetadata summarizes session-level activity.
+type ConversationSessionMetadata struct {
+	Started         bool
+	Completed       bool
+	ToolWaitCount   int
+	ToolResultCount int
 }
 
 // OnRunStart updates the store when a run starts.
@@ -284,4 +338,51 @@ func (s *Store) ApplyConversationEvent(event conversation.Event) {
 	defer s.mu.Unlock()
 	s.Conversation.EventCount++
 	s.Conversation.LastEvent = &event
+	if !s.Conversation.Session.Started {
+		s.Conversation.Session.Started = true
+	}
+	switch event.Type {
+	case conversation.EventTypeStream:
+		s.Conversation.Lifecycle = ConversationLifecycleStreaming
+		s.appendConversationTranscript(event.Text)
+	case conversation.EventTypeToolWait:
+		s.Conversation.Lifecycle = ConversationLifecycleToolWait
+		s.recordConversationToolIndicator(event.ToolName, "waiting")
+		s.Conversation.Session.ToolWaitCount++
+	case conversation.EventTypeToolResult:
+		s.Conversation.Lifecycle = ConversationLifecycleToolResult
+		s.recordConversationToolIndicator(event.ToolName, "result")
+		s.Conversation.Session.ToolResultCount++
+	case conversation.EventTypeDone:
+		s.Conversation.Lifecycle = ConversationLifecycleDone
+		s.appendConversationTranscript(event.Text)
+		s.Conversation.Session.Completed = true
+	default:
+		s.Conversation.Lifecycle = ConversationLifecycleIdle
+	}
+}
+
+func (s *Store) appendConversationTranscript(text string) {
+	if text == "" {
+		return
+	}
+	if !s.Conversation.hasActiveTranscript || s.Conversation.activeTranscriptIndex >= len(s.Conversation.Transcript) {
+		row := ConversationTranscriptRow{
+			Type: conversation.EventTypeStream,
+			Text: text,
+		}
+		s.Conversation.Transcript = append(s.Conversation.Transcript, row)
+		s.Conversation.activeTranscriptIndex = len(s.Conversation.Transcript) - 1
+		s.Conversation.hasActiveTranscript = true
+		return
+	}
+	s.Conversation.Transcript[s.Conversation.activeTranscriptIndex].Text += text
+}
+
+func (s *Store) recordConversationToolIndicator(toolName, status string) {
+	indicator := ConversationToolIndicator{
+		ToolName: toolName,
+		Status:   status,
+	}
+	s.Conversation.ToolIndicators = append(s.Conversation.ToolIndicators, indicator)
 }
