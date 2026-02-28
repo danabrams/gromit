@@ -128,7 +128,7 @@ func TestTryOverrideModel(t *testing.T) {
 		}
 
 		claudeAgent := agent.New("claude", "claude", nil, agent.FileRef, "", nil)
-		overridden := TryOverrideModel(cmd, claudeAgent, "sonnet", nil, "model")
+		overridden := TryOverrideModel(cmd, claudeAgent, "sonnet", nil, "model", false)
 
 		if overridden == claudeAgent {
 			t.Fatal("expected overridden agent, got same agent")
@@ -144,7 +144,7 @@ func TestTryOverrideModel(t *testing.T) {
 		cmd.Flags().String("model", "opus", "model override")
 
 		claudeAgent := agent.New("claude", "claude", nil, agent.FileRef, "", nil)
-		overridden := TryOverrideModel(cmd, claudeAgent, "opus", nil, "model")
+		overridden := TryOverrideModel(cmd, claudeAgent, "opus", nil, "model", false)
 
 		if overridden != claudeAgent {
 			t.Fatal("expected original agent when flag not changed")
@@ -160,7 +160,7 @@ func TestTryOverrideModel(t *testing.T) {
 		}
 
 		codexAgent := agent.New("codex", "codex", nil, agent.FileRef, "", nil)
-		overridden := TryOverrideModel(cmd, codexAgent, "sonnet", nil, "model")
+		overridden := TryOverrideModel(cmd, codexAgent, "sonnet", nil, "model", false)
 
 		if overridden != codexAgent {
 			t.Fatal("expected original agent for non-Claude when flag changed")

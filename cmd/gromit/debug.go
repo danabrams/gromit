@@ -277,7 +277,7 @@ func applyDebugModelOverride(cmd *cobra.Command, selectedAgent agent.Agent, cfg 
 		return nil
 	}
 	modelValue := resolveInteractiveModel(cmd, debugModelFlag)
-	overridden := TryOverrideModel(cmd, selectedAgent, modelValue, cfg, debugModelFlag)
+	overridden := TryOverrideModel(cmd, selectedAgent, modelValue, cfg, debugModelFlag, false)
 	maybeWarnModelFlagOnNonClaudeAgent(cmd, overridden, stderr)
 	return overridden
 }

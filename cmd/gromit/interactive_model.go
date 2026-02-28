@@ -22,26 +22,26 @@ func resolveInteractiveModel(cmd *cobra.Command, flagName string) string {
 	return value
 }
 
-// TryOverrideModel attempts to override an agent's model if:
-// 1. The model flag was explicitly set (changed)
-// 2. The selected agent is Claude
-// If both conditions are true, returns a new agent with the model flag added.
-// Otherwise returns the original agent unchanged.
-// If a non-Claude agent has the flag changed, returns the original agent
-// (warning should be issued separately if desired).
-func TryOverrideModel(cmd *cobra.Command, selectedAgent agent.Agent, modelValue string, cfg *config.Config, flagName string) agent.Agent {
-	if cmd == nil || selectedAgent == nil {
+// TryOverrideModel attempts to override a Claude agent's model when requested.
+// If force is false, the override only happens when the CLI flag was changed.
+// Setting force to true allows caller-managed overrides (e.g., config defaults).
+func TryOverrideModel(cmd *cobra.Command, selectedAgent agent.Agent, modelValue string, cfg *config.Config, flagName string, force bool) agent.Agent {
+	if selectedAgent == nil || modelValue == "" {
 		return selectedAgent
 	}
 
-	// Check if agent is Claude
 	if selectedAgent.Name() != "claude" {
 		return selectedAgent
 	}
 
-	// Check if the model flag was actually changed
-	if !cmd.Flags().Changed(flagName) {
-		return selectedAgent
+	if !force {
+		if cmd == nil {
+			return selectedAgent
+		}
+		flag := cmd.Flags().Lookup(flagName)
+		if flag == nil || !cmd.Flags().Changed(flagName) {
+			return selectedAgent
+		}
 	}
 
 	// Override the agent with the new model flag

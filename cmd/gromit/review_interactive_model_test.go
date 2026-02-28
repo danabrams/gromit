@@ -7,56 +7,43 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func TestResolveEffectiveModel_UsesConfigWhenFlagNotChanged(t *testing.T) {
+func TestResolveEffectiveReviewModelUsesConfig(t *testing.T) {
 	t.Parallel()
 
+	cmd := &cobra.Command{Use: "review"}
+	cmd.Flags().String(reviewModelFlagName, "opus", "model override")
+
 	cfg := &config.Config{
-		Review: config.ReviewConfig{
-			Thorough: config.ThoroughReviewConfig{
-				Model: "sonnet",
+		Agents: config.AgentsConfig{
+			InteractiveModels: &config.InteractiveModelsConfig{
+				Review: "sonnet",
 			},
 		},
 	}
 
-	cmd := &cobra.Command{Use: "review"}
-	cmd.Flags().String("model", "opus", "model override")
-	// Don't change the flag, so Flag.Changed("model") returns false
-
-	// Determine effective model: use config if flag not changed
-	effectiveModel := cfg.Review.Thorough.Model // fallback
-	if cmd.Flags().Changed("model") {
-		effectiveModel = resolveInteractiveModel(cmd, "model")
-	}
-
-	if effectiveModel != "sonnet" {
-		t.Errorf("effective model = %q, want %q", effectiveModel, "sonnet")
+	if got := resolveEffectiveInteractiveModel(cmd, cfg, reviewSessionCommand, reviewModelFlagName); got != "sonnet" {
+		t.Fatalf("resolveEffectiveInteractiveModel() = %q, want %q", got, "sonnet")
 	}
 }
 
-func TestResolveEffectiveModel_UsesFlagWhenChanged(t *testing.T) {
+func TestResolveEffectiveReviewModelUsesFlag(t *testing.T) {
 	t.Parallel()
 
+	cmd := &cobra.Command{Use: "review"}
+	cmd.Flags().String(reviewModelFlagName, "opus", "model override")
+	if err := cmd.Flags().Set(reviewModelFlagName, "haiku"); err != nil {
+		t.Fatalf("setting model flag: %v", err)
+	}
+
 	cfg := &config.Config{
-		Review: config.ReviewConfig{
-			Thorough: config.ThoroughReviewConfig{
-				Model: "sonnet",
+		Agents: config.AgentsConfig{
+			InteractiveModels: &config.InteractiveModelsConfig{
+				Review: "sonnet",
 			},
 		},
 	}
 
-	cmd := &cobra.Command{Use: "review"}
-	cmd.Flags().String("model", "opus", "model override")
-	if err := cmd.Flags().Set("model", "haiku"); err != nil {
-		t.Fatalf("setting model flag: %v", err)
-	}
-
-	// Determine effective model: use flag if changed
-	effectiveModel := cfg.Review.Thorough.Model // fallback
-	if cmd.Flags().Changed("model") {
-		effectiveModel = resolveInteractiveModel(cmd, "model")
-	}
-
-	if effectiveModel != "haiku" {
-		t.Errorf("effective model = %q, want %q", effectiveModel, "haiku")
+	if got := resolveEffectiveInteractiveModel(cmd, cfg, reviewSessionCommand, reviewModelFlagName); got != "haiku" {
+		t.Fatalf("resolveEffectiveInteractiveModel() = %q, want %q", got, "haiku")
 	}
 }

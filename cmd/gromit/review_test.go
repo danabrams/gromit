@@ -229,7 +229,7 @@ func TestRunReviewInteractive_UsesSessionWorktreeLaunchDir(t *testing.T) {
 		}
 		return &worktree.SessionWorktree{BranchName: "gromit/review-test", WorktreeDir: wantSessionDir}, nil
 	}
-	reviewInteractiveRunnerFn = func(cfg *config.Config, fromCommit, diff, launchDir string) error {
+	reviewInteractiveRunnerFn = func(cfg *config.Config, fromCommit, diff, model, launchDir string) error {
 		gotLaunchDir = launchDir
 		return nil
 	}
@@ -238,7 +238,7 @@ func TestRunReviewInteractive_UsesSessionWorktreeLaunchDir(t *testing.T) {
 		return nil
 	}
 
-	if err := runReviewInteractive(cfg, "abc123", "diff --git a b"); err != nil {
+	if err := runReviewInteractive(cfg, "abc123", "diff --git a b", ""); err != nil {
 		t.Fatalf("runReviewInteractive() error = %v", err)
 	}
 	if gotLaunchDir != wantSessionDir {
@@ -262,7 +262,7 @@ func TestRunReviewInteractive_ConflictHandoffPropagates(t *testing.T) {
 
 	cfg := &config.Config{}
 	recordCalled := false
-	reviewInteractiveRunnerFn = func(cfg *config.Config, fromCommit, diff, launchDir string) error {
+	reviewInteractiveRunnerFn = func(cfg *config.Config, fromCommit, diff, model, launchDir string) error {
 		return nil
 	}
 	recordInteractiveReviewCompletionFn = func(gromitDir, fromCommit string) error {
@@ -286,7 +286,7 @@ func TestRunReviewInteractive_ConflictHandoffPropagates(t *testing.T) {
 			}
 	}
 
-	err := runReviewInteractive(cfg, "abc123", "diff --git a b")
+	err := runReviewInteractive(cfg, "abc123", "diff --git a b", "")
 	if err == nil {
 		t.Fatal("expected conflict handoff error, got nil")
 	}

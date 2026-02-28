@@ -43,6 +43,7 @@ var reviewGitOutputFn = func(cmd *exec.Cmd) ([]byte, error) {
 const defaultThoroughReviewTimeoutSeconds = 900
 const (
 	reviewSessionCommand       = "review"
+	reviewModelFlagName        = "model"
 	reviewGitDiffErrPrefix     = "git diff"
 	reviewGitDiffStatErrPrefix = "git diff --stat"
 	reviewGitHeadErrPrefix     = "git rev-parse HEAD"
@@ -137,6 +138,7 @@ func runReview(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
+	interactiveModel := resolveEffectiveInteractiveModel(cmd, cfg, reviewSessionCommand, reviewModelFlagName)
 
 	// Determine scope (from commit) using Pipeline
 	gromitDir := resolveGromitDir(cfg)
@@ -174,7 +176,7 @@ func runReview(cmd *cobra.Command, args []string) error {
 
 	// Interactive mode (default)
 	if !reviewNonInteractive {
-		return runReviewInteractive(cfg, fromCommit, diff)
+		return runReviewInteractive(cfg, fromCommit, diff, interactiveModel)
 	}
 
 	// Non-interactive mode
@@ -217,16 +219,16 @@ func runGitDiffForReview(fromCommit string, errPrefix string, args ...string) (s
 	return string(out), nil
 }
 
-func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) error {
+func runReviewInteractive(cfg *config.Config, fromCommit string, diff string, model string) error {
 	// Print status message
 	fmt.Printf("Launching interactive review session (from commit %s)...\n", shortCommit(fromCommit))
 
 	gromitDir := resolveGromitDir(cfg)
 
 	if err := launchInSessionIfEnabled(cfg, gromitDir, reviewSessionCommand, reviewInteractiveSessionLauncherFn, func(sessionDir string) error {
-		return reviewInteractiveRunnerFn(cfg, fromCommit, diff, sessionDir)
+		return reviewInteractiveRunnerFn(cfg, fromCommit, diff, model, sessionDir)
 	}, func() error {
-		return reviewInteractiveRunnerFn(cfg, fromCommit, diff, "")
+		return reviewInteractiveRunnerFn(cfg, fromCommit, diff, model, "")
 	}); err != nil {
 		return err
 	}
@@ -238,7 +240,7 @@ func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) er
 	return nil
 }
 
-func runReviewInteractiveInDir(cfg *config.Config, fromCommit string, diff string, launchDir string) error {
+func runReviewInteractiveInDir(cfg *config.Config, fromCommit string, diff string, model string, launchDir string) error {
 	gromitDir := resolveGromitDir(cfg)
 
 	// Construct pipeline dependencies using dependency injection
@@ -270,7 +272,7 @@ func runReviewInteractiveInDir(cfg *config.Config, fromCommit string, diff strin
 	input := pipeline.ReviewInput{
 		FromCommit: fromCommit,
 		Diff:       diff,
-		Model:      cfg.Review.Thorough.Model,
+		Model:      model,
 		AgentName:  reviewAgent,
 		LaunchDir:  launchDir,
 	}
