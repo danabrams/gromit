@@ -5635,3 +5635,22 @@ func TestMergePipelineConfigRetryCapDefaultValue(t *testing.T) {
 		})
 	}
 }
+
+func TestSpecPRConfigExists(t *testing.T) {
+	cfg := &Config{}
+
+	// Test that SpecPR field exists and is accessible
+	_ = cfg.SpecPR
+
+	// Test that SpecPRConfig has all required fields
+	specPRCfg := cfg.SpecPR
+	_ = specPRCfg.Enabled
+	_ = specPRCfg.Reviewers
+	_ = specPRCfg.MergeMethod
+	_ = specPRCfg.FixCycleCap
+	_ = specPRCfg.AutoFixHumanComments
+	_ = specPRCfg.AutoMergeOnApproval
+	_ = specPRCfg.CIPollInterval
+	_ = specPRCfg.CITimeout
+	_ = specPRCfg.MaxOpenPRs
+}
