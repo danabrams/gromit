@@ -698,3 +698,156 @@ func TestStatusCmd_JSONUsesSnakeCaseQueueFields(t *testing.T) {
 		t.Fatalf("entry missing 'branch' field, got keys: %v", getKeys(firstEntry))
 	}
 }
+
+// captureStatusOutput is a helper for status command tests that captures stdout
+// and properly resets statusCmd flags before execution.
+func captureStatusOutput(t *testing.T, fn func()) string {
+	t.Helper()
+
+	// Reset statusCmd flags before execution
+	if err := statusCmd.Flags().Set("spc", "false"); err != nil {
+		t.Fatalf("failed to reset --spc flag: %v", err)
+	}
+	if err := statusCmd.Flags().Set("json", "false"); err != nil {
+		t.Fatalf("failed to reset --json flag: %v", err)
+	}
+
+	// Use captureStdout from stats_test.go to handle stdout redirection
+	return captureStdout(t, fn)
+}
+
+// TestStatusCmd_OutputIncludesIntegrationQueueSection verifies that the status
+// command text output includes the Integration Queue section with queue length,
+// per-state counts, and entry details.
+func TestStatusCmd_OutputIncludesIntegrationQueueSection(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("failed to create gromit dir: %v", err)
+	}
+
+	// Create gromit.yaml config
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	configContent := `paths:
+  gromit_dir: .gromit
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	// Create status.json with a stopped run
+	status := runner.Status{
+		Running:   false,
+		Iteration: 2,
+		BeadID:    "cmd-status-test",
+		BeadTitle: "Integration queue section test",
+		Model:     "haiku",
+		StartedAt: time.Now().Add(-10 * time.Minute),
+		ElapsedS:  600,
+	}
+	statusData, err := json.Marshal(status)
+	if err != nil {
+		t.Fatalf("failed to marshal status: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gromitDir, "status.json"), statusData, 0644); err != nil {
+		t.Fatalf("failed to write status.json: %v", err)
+	}
+
+	// Create integration queue with multiple entries in different states
+	entries := []map[string]interface{}{
+		{
+			"branch":                 "gromit/ready-feature",
+			"state":                  "ready",
+			"lane":                   "code_lane",
+			"fifo_seq":               1,
+			"created_at":             "2026-02-28T00:00:00Z",
+			"updated_at":             "2026-02-28T00:01:00Z",
+			"session_id":             "session-1",
+			"origin_command":         "review",
+			"base_ref":               "main",
+			"head_sha":               "deadbeef",
+			"changed_files_hash":     "sha256:abc",
+			"last_error_code":        "",
+			"last_error_message":     "",
+			"last_transition_reason": "session_committed",
+		},
+		{
+			"branch":                 "gromit/integrating-feature",
+			"state":                  "integrating",
+			"lane":                   "code_lane",
+			"fifo_seq":               2,
+			"created_at":             "2026-02-28T00:00:00Z",
+			"updated_at":             "2026-02-28T00:02:00Z",
+			"session_id":             "session-2",
+			"origin_command":         "review",
+			"base_ref":               "main",
+			"head_sha":               "deadbeef2",
+			"changed_files_hash":     "sha256:def",
+			"last_error_code":        "",
+			"last_error_message":     "",
+			"last_transition_reason": "integration_started",
+		},
+		{
+			"branch":                 "gromit/conflict-feature",
+			"state":                  "conflict",
+			"lane":                   "safe_lane",
+			"fifo_seq":               3,
+			"created_at":             "2026-02-28T00:00:00Z",
+			"updated_at":             "2026-02-28T00:03:00Z",
+			"session_id":             "session-3",
+			"origin_command":         "review",
+			"base_ref":               "main",
+			"head_sha":               "deadbeef3",
+			"changed_files_hash":     "sha256:ghi",
+			"last_error_code":        "merge_conflict",
+			"last_error_message":     "Conflict in main.go",
+			"last_transition_reason": "merge_conflict_detected",
+		},
+	}
+	queueData := map[string]interface{}{
+		"schema_version": 1,
+		"updated_at":     "2026-02-28T00:03:00Z",
+		"entries":        entries,
+	}
+	queueBytes, err := json.Marshal(queueData)
+	if err != nil {
+		t.Fatalf("failed to marshal queue data: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gromitDir, "integration-queue.json"), queueBytes, 0644); err != nil {
+		t.Fatalf("failed to write integration-queue.json: %v", err)
+	}
+
+	t.Chdir(tmpDir)
+
+	// Run status command without --json flag
+	output := captureStatusOutput(t, func() {
+		rootCmd.SetArgs([]string{"status"})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("status command failed: %v", err)
+		}
+	})
+
+	if len(strings.TrimSpace(output)) == 0 {
+		t.Fatalf("status command produced empty output")
+	}
+
+	// Verify Integration Queue section exists
+	requiredStrings := []string{
+		"Integration Queue:",
+		"Queue length: 3",
+		"Ready: 1",
+		"Integrating: 1",
+		"Blocked: 1",
+		"gromit/ready-feature",
+		"gromit/integrating-feature",
+		"gromit/conflict-feature",
+		"Error: merge_conflict",
+		"Conflict in main.go",
+	}
+
+	for _, required := range requiredStrings {
+		if !strings.Contains(output, required) {
+			t.Errorf("status command output missing %q; got:\n%s", required, output)
+		}
+	}
+}
