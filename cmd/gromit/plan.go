@@ -55,6 +55,7 @@ func init() {
 	planCmd.Flags().MarkHidden("no-chain")
 	planCmd.Flags().String("agent", "", "Override the default agent for this plan session")
 	planCmd.Flags().Bool("choose-agent", false, "Show interactive picker to choose agent")
+	planCmd.Flags().String("model", "opus", "Model to use when the Claude agent is selected (opus, sonnet, haiku)")
 	rootCmd.AddCommand(planCmd)
 }
 
