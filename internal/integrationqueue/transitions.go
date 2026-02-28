@@ -53,3 +53,19 @@ func RecordTransition(from, to, reason, errorCode string) *TransitionRecord {
 		Timestamp: time.Now(),
 	}
 }
+
+// NextAllowedStates returns a list of all allowed next states from the given state.
+func NextAllowedStates(from string) []string {
+	var states []string
+	switch from {
+	case "draft":
+		states = append(states, "ready")
+	case "ready":
+		states = append(states, "integrating")
+	case "integrating":
+		states = append(states, "merged", "conflict", "failed_gates", "lane_violation")
+	case "conflict", "failed_gates", "lane_violation":
+		states = append(states, "ready")
+	}
+	return states
+}
