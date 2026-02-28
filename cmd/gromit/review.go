@@ -345,7 +345,7 @@ func runReviewNonInteractive(cfg *config.Config, fromCommit string, diff string)
 	input := pipeline.ReviewInput{
 		FromCommit: fromCommit,
 		Diff:       diff,
-		Model:      cfg.Review.Thorough.Model,
+		Model:      reviewNonInteractiveModel(cfg),
 		Timeout:    timeoutSeconds,
 	}
 
@@ -461,4 +461,15 @@ func reviewRepoDirFromGromitDir(gromitDir string) string {
 		return filepath.Dir(clean)
 	}
 	return clean
+}
+
+func reviewNonInteractiveModel(cfg *config.Config) string {
+	if cfg == nil {
+		return reviewDefaultModel
+	}
+	model := strings.TrimSpace(cfg.Review.Thorough.Model)
+	if model == "" {
+		return reviewDefaultModel
+	}
+	return model
 }
