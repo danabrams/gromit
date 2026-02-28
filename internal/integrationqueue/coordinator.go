@@ -25,6 +25,44 @@ func NewCoordinator(store *Store, gitops GitOps, gate ScopedGate) *Coordinator {
 	return &Coordinator{store: store, gitops: gitops, gate: gate}
 }
 
+// ProcessNext processes one ready entry from the queue. Returns (true, nil) when
+// an entry was processed, (false, nil) when no entries are ready or a terminal
+// failure occurs, or (false, err) for non-terminal errors.
+func (c *Coordinator) ProcessNext(ctx context.Context) (bool, error) {
+	if c.store == nil {
+		return false, fmt.Errorf("store is required")
+	}
+	if c.gitops == nil {
+		return false, fmt.Errorf("gitops adapter is required")
+	}
+	if c.gate == nil {
+		return false, fmt.Errorf("scoped gate runner is required")
+	}
+
+	queue, err := c.store.load()
+	if err != nil {
+		return false, fmt.Errorf("loading integration queue: %w", err)
+	}
+
+	entry := OldestReady(queue)
+	if entry == nil {
+		return false, nil
+	}
+
+	// Try to process this entry
+	processed, err := c.processEntry(ctx, entry)
+	if err != nil {
+		// Check if this is a terminal failure that shouldn't block other entries
+		if isTerminalFailure(err) {
+			return false, nil
+		}
+		// Non-terminal failure blocks processing
+		return false, err
+	}
+
+	return processed, nil
+}
+
 // Coordinate processes ready branches in FIFO order, skipping terminal failures.
 // Terminal failures (conflict, failed_gates, lane_violation) do not block
 // FIFO progression for subsequent ready entries.
