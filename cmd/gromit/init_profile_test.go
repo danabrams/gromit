@@ -136,7 +136,6 @@ func TestSelectInitProfilePrecedenceMatrix(t *testing.T) {
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 			dir := setupProfileSignals(t, tc.signals)
 			if tc.configProfile != "" {
 				writeProfileConfig(t, dir, tc.configProfile)
