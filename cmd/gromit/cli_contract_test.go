@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/danabrams/gromit/test/testutil"
 )
 
 // assertNoDelegationBypassInCommand verifies that a command handler delegates to the
@@ -617,18 +616,12 @@ func TestCLIContract_AddContextCapture(t *testing.T) {
 			if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
 				t.Fatalf("failed to write config: %v", err)
 			}
-
-			// Run gromit add with context input via stdin
-			stdout, stderr, exitCode, err := testutil.RunGromitWithStdin(
-				binaryPath,
-				tmpDir,
-				nil,
-				tt.stdin,
-				"add", tt.ideaText,
-			)
-			if err != nil {
-				t.Fatalf("failed to run gromit add: %v", err)
+			if err := os.MkdirAll(filepath.Join(tmpDir, ".gromit"), 0o755); err != nil {
+				t.Fatalf("failed to create .gromit dir: %v", err)
 			}
+
+			// Run through helper process to avoid recursively re-running the test binary.
+			stdout, stderr, exitCode := runGromitInDirWithStdin(t, tmpDir, tt.stdin, "add", tt.ideaText)
 
 			// Command should exit 0
 			if exitCode != 0 {
