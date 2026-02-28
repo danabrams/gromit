@@ -4,16 +4,17 @@ import (
     "strings"
     "testing"
 
+    "github.com/danabrams/gromit/internal/conversation"
     tea "github.com/charmbracelet/bubbletea"
 )
 
 func TestConversationControllerStreamsEvents(t *testing.T) {
-    timeline := []fakeConversationStep{
-        {Event: ConversationEvent{Type: ConversationEventTypeStream, Text: "hello"}},
-        {Event: ConversationEvent{Type: ConversationEventTypeStream, Text: " world"}},
-        {Event: ConversationEvent{Type: ConversationEventTypeDone, Text: "complete"}},
+    timeline := []conversation.FakeStep{
+        {Event: conversation.Event{Type: conversation.EventTypeStream, Text: "hello"}},
+        {Event: conversation.Event{Type: conversation.EventTypeStream, Text: " world"}},
+        {Event: conversation.Event{Type: conversation.EventTypeDone, Text: "complete"}},
     }
-    session := newFakeConversationSession(timeline)
+    session := conversation.NewFakeSession(timeline)
     controller := NewConversationController(session)
 
     cmd := controller.Init()
@@ -35,11 +36,11 @@ func TestConversationControllerStreamsEvents(t *testing.T) {
 }
 
 func TestConversationControllerCancelsDuringStream(t *testing.T) {
-    timeline := []fakeConversationStep{
-        {Event: ConversationEvent{Type: ConversationEventTypeStream, Text: "hello"}},
-        {Event: ConversationEvent{Type: ConversationEventTypeStream, Text: "world"}},
+    timeline := []conversation.FakeStep{
+        {Event: conversation.Event{Type: conversation.EventTypeStream, Text: "hello"}},
+        {Event: conversation.Event{Type: conversation.EventTypeStream, Text: "world"}},
     }
-    session := newFakeConversationSession(timeline)
+    session := conversation.NewFakeSession(timeline)
     controller := NewConversationController(session)
 
     cmd := controller.Init()
@@ -90,12 +91,12 @@ func TestConversationControllerCancelsDuringStream(t *testing.T) {
 
 func TestConversationControllerFollowUpDuringToolWait(t *testing.T) {
     toolResultRelease := make(chan struct{})
-    timeline := []fakeConversationStep{
-        {Event: ConversationEvent{Type: ConversationEventTypeStream, Text: "greeting"}},
-        {Event: ConversationEvent{Type: ConversationEventTypeToolWait, Text: "waiting", ToolName: "formatter"}},
-        {Event: ConversationEvent{Type: ConversationEventTypeToolResult, Text: "done"}, BlockUntil: toolResultRelease},
+    timeline := []conversation.FakeStep{
+        {Event: conversation.Event{Type: conversation.EventTypeStream, Text: "greeting"}},
+        {Event: conversation.Event{Type: conversation.EventTypeToolWait, Text: "waiting", ToolName: "formatter"}},
+        {Event: conversation.Event{Type: conversation.EventTypeToolResult, Text: "done"}, BlockUntil: toolResultRelease},
     }
-    session := newFakeConversationSession(timeline)
+    session := conversation.NewFakeSession(timeline)
     prompt := "please follow up"
     controller := NewConversationController(session, WithFollowUpProvider(func() string { return prompt }))
 
@@ -163,12 +164,12 @@ func TestConversationControllerFollowUpDuringToolWait(t *testing.T) {
 }
 
 func TestConversationControllerIgnoresLateEventsAfterCancel(t *testing.T) {
-    timeline := []fakeConversationStep{
-        {Event: ConversationEvent{Type: ConversationEventTypeStream, Text: "start"}},
-        {Event: ConversationEvent{Type: ConversationEventTypeStream, Text: "mid"}},
-        {Event: ConversationEvent{Type: ConversationEventTypeStream, Text: "late"}},
+    timeline := []conversation.FakeStep{
+        {Event: conversation.Event{Type: conversation.EventTypeStream, Text: "start"}},
+        {Event: conversation.Event{Type: conversation.EventTypeStream, Text: "mid"}},
+        {Event: conversation.Event{Type: conversation.EventTypeStream, Text: "late"}},
     }
-    session := newFakeConversationSession(timeline)
+    session := conversation.NewFakeSession(timeline)
     controller := NewConversationController(session)
 
     cmd := controller.Init()

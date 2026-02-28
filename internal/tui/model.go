@@ -8,24 +8,31 @@ import (
 
 // View constants for the TUI
 const (
-	ViewDashboard = "dashboard"
-	ViewQueue     = "queue"
+    ViewDashboard   = "dashboard"
+    ViewQueue       = "queue"
+    ViewConversation = "conversation"
 )
 
 // Model implements the bubbletea.Model interface for the Gromit TUI.
 type Model struct {
-	store        *Store
-	currentView  string
-	focusedPanel int
-	scrollOffset int
+    store        *Store
+    currentView  string
+    focusedPanel int
+    scrollOffset int
+    conversation *ConversationController
 }
 
 // NewModel creates a new TUI model with the given store.
 func NewModel(store *Store) *Model {
-	return &Model{
-		store:       store,
-		currentView: ViewDashboard,
-	}
+    return &Model{
+        store:       store,
+        currentView: ViewDashboard,
+    }
+}
+
+// SetConversationController attaches a controller whose view is shown in the conversation panel.
+func (m *Model) SetConversationController(ctrl *ConversationController) {
+    m.conversation = ctrl
 }
 
 // SwitchView switches the current view to the specified view.
@@ -85,10 +92,21 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the model to a string.
 func (m *Model) View() string {
-	if m.currentView == ViewQueue {
-		return m.renderQueueView()
-	}
-	return m.renderDashboardView()
+    switch m.currentView {
+    case ViewQueue:
+        return m.renderQueueView()
+    case ViewConversation:
+        return m.renderConversationView()
+    default:
+        return m.renderDashboardView()
+    }
+}
+
+func (m *Model) renderConversationView() string {
+    if m.conversation == nil {
+        return "(no conversation data)\n"
+    }
+    return m.conversation.View()
 }
 
 func (m *Model) renderDashboardView() string {

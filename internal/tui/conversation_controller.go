@@ -4,62 +4,24 @@ import (
     "fmt"
     "strings"
 
+    "github.com/danabrams/gromit/internal/conversation"
     tea "github.com/charmbracelet/bubbletea"
 )
 
-// ConversationEventType describes the kind of data emitted by a conversation session.
-type ConversationEventType int
-
-const (
-    ConversationEventTypeStream ConversationEventType = iota
-    ConversationEventTypeToolWait
-    ConversationEventTypeToolResult
-    ConversationEventTypeDone
-)
-
-func (t ConversationEventType) String() string {
-    switch t {
-    case ConversationEventTypeStream:
-        return "stream"
-    case ConversationEventTypeToolWait:
-        return "tool wait"
-    case ConversationEventTypeToolResult:
-        return "tool result"
-    case ConversationEventTypeDone:
-        return "done"
-    default:
-        return "unknown"
-    }
-}
-
-// ConversationEvent represents a discrete update emitted by a conversation session.
-type ConversationEvent struct {
-    Type     ConversationEventType
-    Text     string
-    ToolName string
-}
-
-// ConversationSession abstracts the streaming interface used by the UI.
-type ConversationSession interface {
-    Events() <-chan ConversationEvent
-    Cancel()
-    FollowUp(prompt string)
-}
-
 type conversationEventMsg struct {
-    Event ConversationEvent
+    Event conversation.Event
 }
 
 type conversationDoneMsg struct{}
 
 // ConversationController renders a Bubble Tea model for streaming conversation state.
 type ConversationController struct {
-    session          ConversationSession
-    events           []ConversationEvent
-    waitingForTool   bool
-    cancelled        bool
+    session           conversation.Session
+    events            []conversation.Event
+    waitingForTool    bool
+    cancelled         bool
     ignoredLateEvents int
-    followUpProvider func() string
+    followUpProvider  func() string
 }
 
 // ConversationControllerOption customizes controller behavior.
@@ -75,7 +37,7 @@ func WithFollowUpProvider(provider func() string) ConversationControllerOption {
 }
 
 // NewConversationController builds a controller wired to the provided session.
-func NewConversationController(session ConversationSession, opts ...ConversationControllerOption) *ConversationController {
+func NewConversationController(session conversation.Session, opts ...ConversationControllerOption) *ConversationController {
     ctrl := &ConversationController{
         session:          session,
         followUpProvider: defaultFollowUpProvider,
@@ -100,11 +62,11 @@ func (c *ConversationController) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
             return c, c.watchSessionCmd()
         }
         c.events = append(c.events, msg.Event)
-        c.waitingForTool = msg.Event.Type == ConversationEventTypeToolWait
-        if msg.Event.Type == ConversationEventTypeToolResult || msg.Event.Type == ConversationEventTypeDone {
+        c.waitingForTool = msg.Event.Type == conversation.EventTypeToolWait
+        if msg.Event.Type == conversation.EventTypeToolResult || msg.Event.Type == conversation.EventTypeDone {
             c.waitingForTool = false
         }
-        if msg.Event.Type == ConversationEventTypeDone {
+        if msg.Event.Type == conversation.EventTypeDone {
             return c, nil
         }
         return c, c.watchSessionCmd()
