@@ -2711,3 +2711,84 @@ func TestOrchestrator_TriggersSpecMergeWhenLifecycleSucceeds(t *testing.T) {
 		t.Fatalf("SpecMerge.Trigger was called %d times, want 1 (should trigger on lifecycle success)", triggerCalls)
 	}
 }
+
+func TestOrchestrator_LifecycleFailureSuppressesSuccessEvents(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		closeErr error
+		syncErr  error
+	}{
+		{name: "close failure", closeErr: errors.New("close boom")},
+		{name: "sync failure", syncErr: errors.New("sync boom")},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			beads := &fakeBeadLifecycle{
+				closeFn: func(ctx context.Context, id string) error {
+					return tc.closeErr
+				},
+				syncFn: func(ctx context.Context) error {
+					return tc.syncErr
+				},
+			}
+			status := &fakeStatusWriter{}
+			epilogue := epiloguepkg.New(beads, status, io.Discard)
+
+			beadCalls := 0
+			getBead := func(_ context.Context) (*bead.Bead, error) {
+				beadCalls++
+				if beadCalls > 1 {
+					return nil, nil
+				}
+				return &bead.Bead{ID: "failure-bead", Title: "Lifecycle failure"}, nil
+			}
+
+			cfg := OrchestratorConfig{
+				Gate:     &fakeStage{},
+				Build:    &fakeStage{},
+				Validate: &fakeStage{},
+				Epilogue: epilogue,
+				GetBead:  getBead,
+				Config:   &config.Config{},
+				Output:   io.Discard,
+			}
+
+			orch := NewOrchestrator(cfg)
+			capturer := newCaptureSubscriber(orch.GetEmitter())
+			go capturer.start()
+
+			if err := orch.Run(context.Background(), 1, time.Time{}, nil); err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+
+			<-capturer.done
+
+			var iterComplete *events.IterationCompleteEvent
+			for _, evt := range capturer.capture.events {
+				switch e := evt.(type) {
+				case *events.IterationCompleteEvent:
+					iterComplete = e
+				case *events.BeadCompleteEvent:
+					t.Fatalf("BeadCompleteEvent emitted on lifecycle failure path: %#v", e)
+				case *events.LogEvent:
+					if strings.Contains(e.Message, "completed successfully") {
+						t.Fatalf("Found success log during lifecycle failure: %s", e.Message)
+					}
+				}
+			}
+
+			if iterComplete == nil {
+				t.Fatal("IterationCompleteEvent not emitted")
+			}
+			if iterComplete.Success {
+				t.Fatalf("IterationCompleteEvent.Success = true, want false for lifecycle failure: %+v", iterComplete)
+			}
+		})
+	}
+}
