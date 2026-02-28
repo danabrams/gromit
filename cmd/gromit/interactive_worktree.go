@@ -338,7 +338,7 @@ func autoCommitSessionWorktree(sessionDir, branch string) (*sessionCommitMetadat
 	}
 
 	commitMsg := fmt.Sprintf("%s %s", sessionAutoCommitMessage, branch)
-	if _, err := interactiveWorktreeGitRunFn(sessionDir, "commit", "-m", commitMsg); err != nil {
+	if _, err := interactiveWorktreeGitRunFn(sessionDir, "commit", "--allow-empty", "-m", commitMsg); err != nil {
 		return nil, fmt.Errorf("committing session branch %s: %w", branch, err)
 	}
 
