@@ -11,20 +11,15 @@ import (
 )
 
 const (
-	queueFileName  = "integration-queue.json"
-	schemaVersionV = 1
+	queueFileName = "integration-queue.json"
 )
+
+// Snapshot maintains backwards compatibility for the old persisted snapshot type.
+type Snapshot = Queue
 
 // ErrSchemaInvalid indicates the persisted queue file is malformed or has
 // invalid schema data that cannot be parsed into a Snapshot.
 var ErrSchemaInvalid = errors.New("queue_schema_invalid")
-
-// Snapshot represents the persisted integration queue data.
-type Snapshot struct {
-	SchemaVersion int       `json:"schema_version"`
-	UpdatedAt     time.Time `json:"updated_at"`
-	Entries       []Entry   `json:"entries"`
-}
 
 // Store persists integration queue entries.
 type Store struct {
@@ -89,7 +84,7 @@ func (s *Store) Save(entry Entry) error {
 		snapshot.Entries[existingIdx] = entry
 	}
 
-	snapshot.SchemaVersion = schemaVersionV
+	snapshot.SchemaVersion = SchemaVersion
 	snapshot.UpdatedAt = now
 	return s.write(snapshot)
 }
@@ -124,7 +119,7 @@ func (s *Store) load() (*Snapshot, error) {
 	data, err := os.ReadFile(s.path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return &Snapshot{SchemaVersion: schemaVersionV}, nil
+			return &Snapshot{SchemaVersion: SchemaVersion}, nil
 		}
 		return nil, err
 	}
@@ -134,7 +129,7 @@ func (s *Store) load() (*Snapshot, error) {
 		return nil, fmt.Errorf("%w: %v", ErrSchemaInvalid, err)
 	}
 	if snapshot.SchemaVersion == 0 {
-		snapshot.SchemaVersion = schemaVersionV
+		snapshot.SchemaVersion = SchemaVersion
 	}
 	return &snapshot, nil
 }
@@ -168,6 +163,47 @@ func (s *Store) write(snapshot *Snapshot) error {
 	if err := os.Rename(tmpPath, s.path); err != nil {
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("renaming queue file temp: %w", err)
+	}
+	return nil
+}
+
+// LoadQueue reads the queue file at path using validation and returns the parsed queue.
+func LoadQueue(path string) (*Queue, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return defaultQueue(), nil
+		}
+		return nil, err
+	}
+
+	var queue Queue
+	if err := json.Unmarshal(data, &queue); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrSchemaInvalid, err)
+	}
+	if err := normalizeQueue(&queue); err != nil {
+		return nil, err
+	}
+	return &queue, nil
+}
+
+func defaultQueue() *Queue {
+	return &Queue{SchemaVersion: SchemaVersion}
+}
+
+func normalizeQueue(queue *Queue) error {
+	switch queue.SchemaVersion {
+	case 0:
+		queue.SchemaVersion = SchemaVersion
+	case SchemaVersion:
+	default:
+		return fmt.Errorf("unsupported schema version %d", queue.SchemaVersion)
+	}
+
+	for i := range queue.Entries {
+		if err := queue.Entries[i].Validate(); err != nil {
+			return fmt.Errorf("entry %d validation failed: %w", i, err)
+		}
 	}
 	return nil
 }

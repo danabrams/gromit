@@ -52,8 +52,8 @@ func TestStoreSaveCreatesAndUpdatesEntry(t *testing.T) {
 	}
 
 	first := readQueueSnapshot(t, tmpDir)
-	if first.SchemaVersion != schemaVersionV {
-		t.Fatalf("schema version = %d, want %d", first.SchemaVersion, schemaVersionV)
+	if first.SchemaVersion != SchemaVersion {
+		t.Fatalf("schema version = %d, want %d", first.SchemaVersion, SchemaVersion)
 	}
 	if len(first.Entries) != 1 {
 		t.Fatalf("entry count = %d, want 1", len(first.Entries))
