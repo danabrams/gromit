@@ -528,6 +528,31 @@ func TestIterationResult_SpecIDJSONTag(t *testing.T) {
 	}
 }
 
+func TestIterationResult_EstimatedFilesJSONTag(t *testing.T) {
+	t.Parallel()
+	result := IterationResult{
+		BeadID:        "bead-1",
+		EstimatedFiles: 5,
+	}
+
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal result: %v", err)
+	}
+	s := string(data)
+	if !strings.Contains(s, "\"estimated_files\":5") {
+		t.Fatalf("expected estimated_files in JSON, got %s", s)
+	}
+
+	emptyData, err := json.Marshal(IterationResult{})
+	if err != nil {
+		t.Fatalf("marshal empty result: %v", err)
+	}
+	if strings.Contains(string(emptyData), "estimated_files") {
+		t.Fatalf("expected estimated_files to be omitted, got %s", string(emptyData))
+	}
+}
+
 // TestIterationResult_CoverageFields verifies that IterationResult has the four
 // coverage result fields required by the coverage tracker feature.
 func TestIterationResult_CoverageFields(t *testing.T) {
