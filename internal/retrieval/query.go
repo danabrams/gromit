@@ -1,5 +1,10 @@
 package retrieval
 
+import (
+	"sort"
+	"strings"
+)
+
 // Querier handles top-K queries over indexed documents with attribution.
 type Querier struct {
 	documents []DocumentWithAttribution
@@ -28,24 +33,86 @@ func (q *Querier) Index(docs []DocumentWithAttribution) error {
 
 // Query performs a top-K retrieval query.
 func (q *Querier) Query(query string, k int) ([]Snippet, error) {
-	var results []Snippet
+	queryTokens := tokenize(query)
 
-	// Return indexed documents as snippets
-	for _, doc := range q.documents {
-		snippet := Snippet{
-			Text:            doc.Content,
-			FilePath:        doc.FilePath,
-			StartLine:       doc.StartLine,
-			EndLine:         doc.EndLine,
-			ConfidenceScore: 1.0,
+	type scored struct {
+		snippet Snippet
+		score   float64
+		index   int
+	}
+
+	var scoredDocs []scored
+	maxScore := 0.0
+
+	for idx, doc := range q.documents {
+		score := documentScore(doc.Content, queryTokens)
+		if score > maxScore {
+			maxScore = score
 		}
-		results = append(results, snippet)
+
+		scoredDocs = append(scoredDocs, scored{
+			snippet: Snippet{
+				Text:            doc.Content,
+				FilePath:        doc.FilePath,
+				StartLine:       doc.StartLine,
+				EndLine:         doc.EndLine,
+				ConfidenceScore: 0.0,
+			},
+			score: score,
+			index: idx,
+		})
+	}
+
+	sort.SliceStable(scoredDocs, func(i, j int) bool {
+		if scoredDocs[i].score == scoredDocs[j].score {
+			return scoredDocs[i].index < scoredDocs[j].index
+		}
+		return scoredDocs[i].score > scoredDocs[j].score
+	})
+
+	var results []Snippet
+	for _, scoredDoc := range scoredDocs {
 		if len(results) >= k {
 			break
 		}
+
+		confidence := 0.0
+		if maxScore > 0 {
+			confidence = scoredDoc.score / maxScore
+		}
+
+		scoredDoc.snippet.ConfidenceScore = confidence
+		results = append(results, scoredDoc.snippet)
 	}
 
 	return results, nil
+}
+
+func tokenize(text string) []string {
+	var tokens []string
+	for _, token := range strings.Fields(strings.ToLower(text)) {
+		if token == "" {
+			continue
+		}
+		tokens = append(tokens, token)
+	}
+	return tokens
+}
+
+func documentScore(text string, tokens []string) float64 {
+	if len(tokens) == 0 {
+		return 0
+	}
+
+	lower := strings.ToLower(text)
+	score := 0.0
+	for _, token := range tokens {
+		if token == "" {
+			continue
+		}
+		score += float64(strings.Count(lower, token))
+	}
+	return score
 }
 
 // Snippet represents a ranked snippet with attribution.
