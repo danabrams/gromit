@@ -531,6 +531,42 @@ func (r *readinessTrackerRouter) Select(phase, tier string) (provider.Provider, 
 	return r.provider, "test-model"
 }
 
+// malformedReadinessProvider returns malformed LLM output for testing.
+type malformedReadinessProvider struct{}
+
+func (p *malformedReadinessProvider) Name() string                    { return "malformed" }
+func (p *malformedReadinessProvider) ModelForTier(tier string) string { return "sonnet" }
+func (p *malformedReadinessProvider) Run(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
+	return &provider.Result{Success: true, Output: "COMPLETELY_INVALID_OUTPUT"}, nil
+}
+func (p *malformedReadinessProvider) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+	return &provider.Result{Success: true, Output: "COMPLETELY_INVALID_OUTPUT"}, nil
+}
+func (p *malformedReadinessProvider) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*provider.Result, error) {
+	return &provider.Result{Success: true}, nil
+}
+func (p *malformedReadinessProvider) IsUsageLimitError(result *provider.Result, err error) bool { return false }
+func (p *malformedReadinessProvider) IsValidationPassed(result *provider.Result) bool           { return result.Success }
+func (p *malformedReadinessProvider) IsScopeTooLarge(result *provider.Result) (bool, string)    { return false, "" }
+
+// errorReadinessProvider returns an error from Run() for testing.
+type errorReadinessProvider struct{}
+
+func (p *errorReadinessProvider) Name() string                    { return "error" }
+func (p *errorReadinessProvider) ModelForTier(tier string) string { return "sonnet" }
+func (p *errorReadinessProvider) Run(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
+	return nil, fmt.Errorf("provider invocation failed")
+}
+func (p *errorReadinessProvider) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+	return nil, fmt.Errorf("provider invocation failed")
+}
+func (p *errorReadinessProvider) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*provider.Result, error) {
+	return &provider.Result{Success: true}, nil
+}
+func (p *errorReadinessProvider) IsUsageLimitError(result *provider.Result, err error) bool { return false }
+func (p *errorReadinessProvider) IsValidationPassed(result *provider.Result) bool           { return result.Success }
+func (p *errorReadinessProvider) IsScopeTooLarge(result *provider.Result) (bool, string)    { return false, "" }
+
 type dummyGitOpsForSpec struct{}
 
 func (d *dummyGitOpsForSpec) RebaseOnto(ctx context.Context, branch, onto string) error { return nil }
@@ -772,5 +808,45 @@ func TestReadinessAdapterWithLLM_AssessInvokesProviderWithRenderedPrompt(t *test
 	}
 	if trackerProvider.capturedPrompt != "readiness_prompt" {
 		t.Fatalf("provider.Run() called with prompt %q, want %q", trackerProvider.capturedPrompt, "readiness_prompt")
+	}
+}
+
+// TestReadinessAdapterWithLLM_AssessMalformedLLMOutputReturnNotReady verifies malformed LLM output returns StatusNotReady.
+func TestReadinessAdapterWithLLM_AssessMalformedLLMOutputReturnNotReady(t *testing.T) {
+	t.Parallel()
+	renderer := &dummyPromptRenderer{}
+	malformedProvider := &malformedReadinessProvider{}
+	router := &readinessTrackerRouter{provider: malformedProvider}
+	adapter := NewReadinessAdapterWithLLM(renderer, router)
+
+	ctx := context.Background()
+	b := &bead.Bead{ID: "test-bead", Title: "Test Task", ExpectedOutputs: []string{"deliverable"}}
+
+	assessment, err := adapter.Assess(ctx, b)
+	if err != nil {
+		t.Fatalf("Assess returned error: %v", err)
+	}
+	if assessment.Status != readiness.StatusNotReady {
+		t.Fatalf("Assess returned status %q, want %q for malformed output", assessment.Status, readiness.StatusNotReady)
+	}
+}
+
+// TestReadinessAdapterWithLLM_AssessProviderErrorReturnsNotReady verifies provider errors return StatusNotReady.
+func TestReadinessAdapterWithLLM_AssessProviderErrorReturnsNotReady(t *testing.T) {
+	t.Parallel()
+	renderer := &dummyPromptRenderer{}
+	errorProvider := &errorReadinessProvider{}
+	router := &readinessTrackerRouter{provider: errorProvider}
+	adapter := NewReadinessAdapterWithLLM(renderer, router)
+
+	ctx := context.Background()
+	b := &bead.Bead{ID: "test-bead", Title: "Test Task", ExpectedOutputs: []string{"deliverable"}}
+
+	assessment, err := adapter.Assess(ctx, b)
+	if err != nil {
+		t.Fatalf("Assess returned error: %v", err)
+	}
+	if assessment.Status != readiness.StatusNotReady {
+		t.Fatalf("Assess returned status %q, want %q for provider error", assessment.Status, readiness.StatusNotReady)
 	}
 }
