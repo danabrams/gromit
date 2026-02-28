@@ -222,6 +222,30 @@ func TestAppendRecord_CreatesFileIfNotExists(t *testing.T) {
 	}
 }
 
+func TestLoadRecords_EmptyFile(t *testing.T) {
+	// Create an empty temporary file
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "empty.jsonl")
+
+	if err := os.WriteFile(tmpFile, []byte(""), 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	// Load from empty file
+	records, err := LoadRecords(tmpFile)
+	if err != nil {
+		t.Fatalf("LoadRecords failed: %v", err)
+	}
+
+	// Should return empty slice, not nil
+	if records == nil {
+		t.Error("expected empty slice, got nil")
+	}
+	if len(records) != 0 {
+		t.Errorf("expected 0 records, got %d", len(records))
+	}
+}
+
 func parseTime(s string) time.Time {
 	// Helper to parse RFC3339 timestamp
 	t, _ := time.Parse(time.RFC3339, s)
