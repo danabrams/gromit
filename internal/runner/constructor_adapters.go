@@ -1033,7 +1033,16 @@ func (a *readinessAdapterWithLLM) Assess(ctx context.Context, b *bead.Bead) (rea
 		return readiness.Assessment{Status: readiness.StatusNotReady}, nil
 	}
 
-	// Stub: will invoke LLM in next phase
+	// Get LLM provider for classification
+	if a.router == nil {
+		return readiness.Assessment{Status: readiness.StatusNotReady}, nil
+	}
+	provider, _ := a.router.Select("readiness", "medium")
+	if provider == nil {
+		return readiness.Assessment{Status: readiness.StatusNotReady}, nil
+	}
+
+	// Stub: will invoke LLM with provider in next phase
 	_ = promptText
 	return readiness.Assessment{Status: readiness.StatusReady}, nil
 }
