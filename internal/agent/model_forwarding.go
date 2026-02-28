@@ -1,5 +1,16 @@
 package agent
 
+import "strings"
+
+var legacyToGeminiModel = map[string]string{
+	"high":   "gemini-3.1-pro",
+	"medium": "gemini-3-flash",
+	"low":    "gemini-3-flash",
+	"opus":   "gemini-3.1-pro",
+	"sonnet": "gemini-3-flash",
+	"haiku":  "gemini-3-flash",
+}
+
 // ForwardModelToAgent accepts a resolved agent and a requested model string.
 // It returns either an overridden agent with model args injected (for known presets)
 // or the original agent with a warning message (for unsupported agents).
@@ -66,11 +77,13 @@ func forwardModelToGemini(agent Agent, model string) (Agent, string) {
 		return agent, "unable to forward model to " + agent.Name()
 	}
 
+	resolvedModel := resolveGeminiForwardedModel(model)
+
 	// Clone the agent with additional model args
 	newExtraArgs := make([]string, len(a.extraArgs)+2)
 	copy(newExtraArgs, a.extraArgs)
 	newExtraArgs[len(a.extraArgs)] = "--model"
-	newExtraArgs[len(a.extraArgs)+1] = model
+	newExtraArgs[len(a.extraArgs)+1] = resolvedModel
 
 	// Create new agent with modified extraArgs
 	modifiedAgent := &cliAgent{
@@ -85,4 +98,15 @@ func forwardModelToGemini(agent Agent, model string) (Agent, string) {
 	}
 
 	return modifiedAgent, ""
+}
+
+func resolveGeminiForwardedModel(model string) string {
+	normalized := strings.ToLower(strings.TrimSpace(model))
+	if normalized == "" {
+		return model
+	}
+	if mapped, ok := legacyToGeminiModel[normalized]; ok {
+		return mapped
+	}
+	return model
 }

@@ -154,3 +154,49 @@ func TestForwardModelToAgent_CodexIncludesModelInCommand(t *testing.T) {
 		t.Error("Command args missing model value 'gpt-4-turbo'")
 	}
 }
+
+func TestForwardModelToAgent_GeminiMapsLegacyModelAlias(t *testing.T) {
+	geminiAgent := resolveGeminiPreset()
+	modifiedAgent, warning := ForwardModelToAgent(geminiAgent, "opus")
+	if warning != "" {
+		t.Fatalf("ForwardModelToAgent(gemini, opus) warning = %q, want empty", warning)
+	}
+
+	tmpDir := t.TempDir()
+	promptPath := filepath.Join(tmpDir, "prompt.txt")
+	if err := os.WriteFile(promptPath, []byte("test prompt"), 0o644); err != nil {
+		t.Fatalf("failed to create temp prompt: %v", err)
+	}
+
+	cmd, err := modifiedAgent.Command(promptPath)
+	if err != nil {
+		t.Fatalf("Command() failed: %v", err)
+	}
+	args := strings.Join(cmd.Args, " ")
+	if !strings.Contains(args, "--model gemini-3.1-pro") {
+		t.Fatalf("Gemini command args = %q, want mapped model gemini-3.1-pro", args)
+	}
+}
+
+func TestForwardModelToAgent_GeminiPassesThroughExplicitGeminiModel(t *testing.T) {
+	geminiAgent := resolveGeminiPreset()
+	modifiedAgent, warning := ForwardModelToAgent(geminiAgent, "gemini-2.5-pro")
+	if warning != "" {
+		t.Fatalf("ForwardModelToAgent(gemini, explicit model) warning = %q, want empty", warning)
+	}
+
+	tmpDir := t.TempDir()
+	promptPath := filepath.Join(tmpDir, "prompt.txt")
+	if err := os.WriteFile(promptPath, []byte("test prompt"), 0o644); err != nil {
+		t.Fatalf("failed to create temp prompt: %v", err)
+	}
+
+	cmd, err := modifiedAgent.Command(promptPath)
+	if err != nil {
+		t.Fatalf("Command() failed: %v", err)
+	}
+	args := strings.Join(cmd.Args, " ")
+	if !strings.Contains(args, "--model gemini-2.5-pro") {
+		t.Fatalf("Gemini command args = %q, want explicit model gemini-2.5-pro", args)
+	}
+}

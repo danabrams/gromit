@@ -97,7 +97,7 @@ func runExplore(cmd *cobra.Command, args []string) error {
 		Topic:       topic,
 		AgentName:   agentFlag,
 		ChooseAgent: chooseAgent,
-		Model:       exploreModel,
+		Model:       resolveExploreModelOverride(cmd),
 	}
 
 	result, err := runExploreInSession(ctx, cfg, resolveGromitDir(cfg), runner, input)
@@ -109,6 +109,18 @@ func runExplore(cmd *cobra.Command, args []string) error {
 	handleExploreOutput(result)
 
 	return nil
+}
+
+func resolveExploreModelOverride(cmd *cobra.Command) string {
+	if cmd == nil {
+		return ""
+	}
+	modelFlag := cmd.Flags().Lookup("model")
+	if modelFlag == nil || !cmd.Flags().Changed("model") {
+		return ""
+	}
+	model, _ := cmd.Flags().GetString("model")
+	return model
 }
 
 func handleExploreOutput(result *pipeline.ExploreResult) {
