@@ -47,3 +47,48 @@ func TestCheckCriteriaPresence(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckCriteriaCount(t *testing.T) {
+	tests := []struct {
+		name        string
+		bead        *bead.Bead
+		wantOutcome ReadinessOutcome
+		wantReason  string
+	}{
+		{
+			name: "too many outputs",
+			bead: &bead.Bead{
+				ExpectedOutputs: []string{"a", "b", "c", "d"},
+			},
+			wantOutcome: ReadinessOutcomeNotReadyCriteria,
+			wantReason:  ReasonCriteriaAmbiguous,
+		},
+		{
+			name: "within limit",
+			bead: &bead.Bead{
+				ExpectedOutputs: []string{"alpha", "beta", "gamma"},
+			},
+			wantOutcome: ReadinessOutcomeReady,
+		},
+		{
+			name: "acceptance criteria fallback",
+			bead: &bead.Bead{
+				AcceptanceCriteria: "one\ntwo\nthree\nfour",
+			},
+			wantOutcome: ReadinessOutcomeNotReadyCriteria,
+			wantReason:  ReasonCriteriaAmbiguous,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			outcome, reason := CheckCriteriaCount(tt.bead)
+			if outcome != tt.wantOutcome {
+				t.Fatalf("outcome = %v, want %v", outcome, tt.wantOutcome)
+			}
+			if reason != tt.wantReason {
+				t.Fatalf("reason = %q, want %q", reason, tt.wantReason)
+			}
+		})
+	}
+}
