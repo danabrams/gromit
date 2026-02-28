@@ -113,3 +113,67 @@ func TestVisionMetricsValidateLoadsAndValidatesRecords(t *testing.T) {
 		t.Error("validate command produced no output")
 	}
 }
+
+// TestVisionMetricsReportOutputsKPIRollup verifies report outputs KPI metrics in text and JSON formats
+func TestVisionMetricsReportOutputsKPIRollup(t *testing.T) {
+	tmpDir := t.TempDir()
+	recordsPath := filepath.Join(tmpDir, "records.jsonl")
+
+	// Create a test records file with valid records
+	recordsContent := `{"spec_id":"spec1","cycle_start_trigger_at":"2024-01-01T00:00:00Z","cycle_end_presented_at":"2024-01-02T00:00:00Z","review_outcome":"accepted","human_tactical_intervention":"no","human_debugging_intervention":"no","escaped_regression_within_7d":"no"}
+{"spec_id":"spec2","cycle_start_trigger_at":"2024-01-03T00:00:00Z","cycle_end_presented_at":"2024-01-04T00:00:00Z","review_outcome":"accepted","human_tactical_intervention":"yes","human_debugging_intervention":"no","escaped_regression_within_7d":"no"}`
+
+	if err := os.WriteFile(recordsPath, []byte(recordsContent), 0644); err != nil {
+		t.Fatalf("failed to write test records file: %v", err)
+	}
+
+	// Change to temp directory
+	oldCwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get current directory: %v", err)
+	}
+	defer os.Chdir(oldCwd)
+	os.Chdir(tmpDir)
+
+	// Create minimal gromit.yaml
+	configContent := "paths:\n  gromit_dir: " + tmpDir + "\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, "gromit.yaml"), []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	// Run report in text format
+	rootCmd.SetArgs([]string{"vision-metrics", "report", recordsPath})
+	textOutput := captureStdout(t, func() {
+		_ = rootCmd.Execute()
+	})
+
+	// Verify text output contains KPI header
+	if !contains(textOutput, "Vision Metrics KPI Rollup") {
+		t.Errorf("text output missing KPI header, got: %s", textOutput)
+	}
+
+	// Verify text output contains rate metrics
+	if !contains(textOutput, "Pass Rate") && !contains(textOutput, "Integration") {
+		t.Errorf("text output missing rate metrics, got: %s", textOutput)
+	}
+
+	// Run report in JSON format
+	rootCmd.SetArgs([]string{"vision-metrics", "report", recordsPath, "--json"})
+	jsonOutput := captureStdout(t, func() {
+		_ = rootCmd.Execute()
+	})
+
+	// Verify JSON output contains expected fields
+	if !contains(jsonOutput, "human_tactical_intervention_rate") {
+		t.Errorf("JSON output missing human_tactical_intervention_rate, got: %s", jsonOutput)
+	}
+}
+
+func contains(haystack, needle string) bool {
+	for i := 0; i < len(haystack); i++ {
+		if haystack[i] == needle[0] && i+len(needle) <= len(haystack) && haystack[i:i+len(needle)] == needle {
+			return true
+		}
+	}
+	return false
+}
