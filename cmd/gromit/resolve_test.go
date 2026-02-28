@@ -60,3 +60,59 @@ func TestResolveMainRepoLogsDirFn_IsInjectable(t *testing.T) {
 		t.Fatalf("expected /override/logs, got %q", result)
 	}
 }
+
+func TestSetupRetroWorktreeLogsSymlink_CreatesSymlinkWhenSessionCreated(t *testing.T) {
+	// RED test: Verify that when a retro worktree is created via CreateSessionWorktree,
+	// the worktree's .gromit/logs directory is symlinked or pass-through from main repo's logs.
+	//
+	// Scenario: A retro command creates a session worktree. The worktree has a .gromit
+	// directory created, but .gromit/logs is gitignored and doesn't exist. This function
+	// should set up a symlink from worktree/.gromit/logs to the main repo's .gromit/logs.
+
+	tmpDir := t.TempDir()
+
+	// Create main repo structure with logs
+	mainRepoRoot := filepath.Join(tmpDir, "main-repo")
+	mainGromitDir := filepath.Join(mainRepoRoot, ".gromit")
+	mainLogsDir := filepath.Join(mainGromitDir, "logs")
+	if err := os.MkdirAll(mainLogsDir, 0o755); err != nil {
+		t.Fatalf("creating main repo logs: %v", err)
+	}
+
+	// Create a worktree directory with .gromit but no logs
+	// (simulating what git worktree add creates - .gromit exists but logs don't)
+	worktreeRoot := filepath.Join(tmpDir, "worktree")
+	worktreeGromitDir := filepath.Join(worktreeRoot, ".gromit")
+	if err := os.MkdirAll(worktreeGromitDir, 0o755); err != nil {
+		t.Fatalf("creating worktree .gromit: %v", err)
+	}
+
+	worktreeLogsPath := filepath.Join(worktreeGromitDir, "logs")
+
+	// Before calling setupRetroWorktreeLogsSymlink, logs shouldn't exist in worktree
+	if _, err := os.Stat(worktreeLogsPath); err == nil {
+		t.Fatal("worktree logs should not exist initially")
+	}
+
+	// Call the setup function to create symlink
+	// This function doesn't exist yet - we're testing the spec
+	if err := setupRetroWorktreeLogsSymlink(worktreeGromitDir, mainGromitDir); err != nil {
+		t.Fatalf("setupRetroWorktreeLogsSymlink failed: %v", err)
+	}
+
+	// After calling setupRetroWorktreeLogsSymlink, worktree logs should be accessible
+	info, err := os.Stat(worktreeLogsPath)
+	if err != nil {
+		t.Fatalf("worktree logs not accessible after setup: %v", err)
+	}
+
+	// It should be a symlink or accessible directory pointing to main repo logs
+	if !info.IsDir() {
+		t.Fatalf("worktree logs path is not a directory: %v", info)
+	}
+
+	// Verify we can read from the symlinked logs directory
+	if _, err := os.ReadDir(worktreeLogsPath); err != nil {
+		t.Fatalf("cannot read from worktree logs: %v", err)
+	}
+}
