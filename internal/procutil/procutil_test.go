@@ -167,6 +167,32 @@ func TestCollectDescendantsInvalidPID(t *testing.T) {
 	}
 }
 
+func TestCollectDescendantsFindsChildren(t *testing.T) {
+	// Start a bash process that will act as the parent of a background sleep.
+	// We keep bash alive with "sleep 300 & wait", so bash and its sleep child
+	// are both direct descendants of the test process.
+	pidFile := t.TempDir() + "/bash.pid"
+	script := "echo $$> " + pidFile + " && sleep 300 </dev/null >/dev/null 2>&1 & wait"
+	cmd := exec.CommandContext(context.Background(), "bash", "-c", script)
+	SetProcessGroupKill(cmd)
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer cmd.Process.Kill()
+	defer ReapProcessGroup(cmd)
+
+	// Give the bash process time to write its PID and start sleep.
+	time.Sleep(50 * time.Millisecond)
+
+	// collectDescendants should find both bash and any descendants of bash.
+	// We expect to find bash as a direct child, but sleep might be reparented.
+	descendants := collectDescendants(os.Getpid())
+
+	if len(descendants) == 0 {
+		t.Errorf("collectDescendants found no descendants, expected at least bash process")
+	}
+}
+
 func mustAtoi(t *testing.T, s string) int {
 	t.Helper()
 	n := 0
