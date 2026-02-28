@@ -46,6 +46,7 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 		return nil
 	}
 
+	entry.AttemptCount++
 	entry.State = StateIntegrating
 	if err := c.store.Save(*entry); err != nil {
 		return fmt.Errorf("marking entry integrating: %w", err)
