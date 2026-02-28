@@ -365,11 +365,23 @@ runLoop:
 			continue
 		}
 
-		// Stage 2: Build — selects methodology, renders prompt, invokes LLM via StreamRun.
-		if o.cfg.CoverageTracker != nil {
-			o.cfg.CoverageTracker.ToCollecting()
+	// Checkout branch if router and checkout are configured.
+	if o.cfg.BranchRouter != nil && o.cfg.GitCheckout != nil {
+		branch, err := o.cfg.BranchRouter.BranchForLabels(b.Labels)
+		if err != nil {
+			o.logWarning("Warning: branch resolution failed for bead %s: %v", b.ID, err)
+		} else if branch != "" {
+			if err := o.cfg.GitCheckout.CreateOrCheckoutSpecBranch(ctx, branch); err != nil {
+				o.logWarning("Warning: branch checkout failed for %s: %v", branch, err)
+			}
 		}
-		buildOut, buildErr := o.cfg.Build.Run(ctx, baseIn)
+	}
+
+	// Stage 2: Build — selects methodology, renders prompt, invokes LLM via StreamRun.
+	if o.cfg.CoverageTracker != nil {
+		o.cfg.CoverageTracker.ToCollecting()
+	}
+	buildOut, buildErr := o.cfg.Build.Run(ctx, baseIn)
 		if buildErr != nil {
 			o.logWarning("Warning: build failed for bead %s (iteration %d): %v", b.ID, iteration, buildErr)
 			failurePhase := inferBuildFailurePhase(buildErr)
