@@ -4401,6 +4401,102 @@ func TestPrecheckVerificationFromYAML(t *testing.T) {
 	}
 }
 
+func TestConfigValidatePrecheckVerificationConflict(t *testing.T) {
+    const conflictErr = "precheck.enabled=false conflicts with precheck.verification.enabled=true"
+
+    tests := []struct {
+        name                string
+        precheckEnabled     bool
+        verificationEnabled bool
+        expectErr           bool
+    }{
+        {
+            name:                "precheck disabled with verification enabled",
+            precheckEnabled:     false,
+            verificationEnabled: true,
+            expectErr:           true,
+        },
+        {
+            name:                "precheck disabled with verification disabled",
+            precheckEnabled:     false,
+            verificationEnabled: false,
+            expectErr:           false,
+        },
+        {
+            name:                "precheck enabled with verification enabled",
+            precheckEnabled:     true,
+            verificationEnabled: true,
+            expectErr:           false,
+        },
+        {
+            name:                "precheck enabled with verification disabled",
+            precheckEnabled:     true,
+            verificationEnabled: false,
+            expectErr:           false,
+        },
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            cfg := Config{
+                Validation: ValidationConfig{
+                    RuntimeMaxSubBeads: DefaultMaxSubBeads,
+                },
+                Methodology: MethodologyConfig{
+                    Granularity: MethodologyGranularityBead,
+                },
+                Experiment: ExperimentConfig{
+                    MinSampleSize:       1,
+                    ConfidenceThreshold: 0.5,
+                },
+                Precheck: PrecheckConfig{
+                    Enabled: boolPtr(tt.precheckEnabled),
+                    Verification: PrecheckVerificationConfig{
+                        Enabled: boolPtr(tt.verificationEnabled),
+                    },
+                },
+            }
+
+            err := cfg.Validate()
+            if tt.expectErr {
+                if err == nil {
+                    t.Fatalf("expected validation error for %s", tt.name)
+                }
+                if err.Error() != conflictErr {
+                    t.Fatalf("unexpected validation error, got=%q want=%q", err.Error(), conflictErr)
+                }
+
+                dir := t.TempDir()
+                cfgPath := filepath.Join(dir, "gromit.yaml")
+                conflictYAML := `precheck:
+  enabled: false
+  verification:
+    enabled: true
+`
+                if err := os.WriteFile(cfgPath, []byte(conflictYAML), 0644); err != nil {
+                    t.Fatalf("writing conflict config: %v", err)
+                }
+
+                _, loadErr := Load(cfgPath)
+                if loadErr == nil {
+                    t.Fatalf("expected Load to fail for conflict config")
+                }
+                if !strings.HasPrefix(loadErr.Error(), "validating config: ") {
+                    t.Fatalf("Load error %q missing prefix", loadErr)
+                }
+                if !strings.Contains(loadErr.Error(), conflictErr) {
+                    t.Fatalf("Load error %q missing conflict message", loadErr)
+                }
+                return
+            }
+
+            if err != nil {
+                t.Fatalf("unexpected validation error for %s: %v", tt.name, err)
+            }
+        })
+    }
+}
+
 func TestValidationConfig_FastCommandsFallback(t *testing.T) {
 	cfg := &Config{
 		Validation: ValidationConfig{
