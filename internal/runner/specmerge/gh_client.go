@@ -258,7 +258,33 @@ func (c *ghClient) RequestReviewers(ctx context.Context, ref PRRef, reviewers []
 }
 
 func (c *ghClient) MergePR(ctx context.Context, ref PRRef, commitMessage string) error {
-	return fmt.Errorf("MergePR not implemented")
+	args := []string{
+		"api",
+		"-X",
+		"PUT",
+		fmt.Sprintf("/repos/%s/%s/pulls/%d/merge", ref.Owner, ref.Repo, ref.Number),
+		"-F",
+		"commit_message=" + commitMessage,
+	}
+
+	out, err := c.run(ctx, args...)
+	if err != nil {
+		return fmt.Errorf("merge pr: %w", err)
+	}
+
+	var resp struct {
+		Merged  bool   `json:"merged"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal([]byte(out), &resp); err != nil {
+		return fmt.Errorf("parse merge response: %w", err)
+	}
+
+	if !resp.Merged {
+		return fmt.Errorf("merge pr failed: %s", resp.Message)
+	}
+
+	return nil
 }
 
 func conclusionFromBucket(bucket string) string {
