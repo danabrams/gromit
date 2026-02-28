@@ -676,7 +676,7 @@ func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 		if a.hasCreatedChildKey(b.ID, dedupeLabel) {
 			continue
 		}
-		exists, err := a.childWithDedupeLabelExists(b.ID, dedupeLabel)
+		exists, err := a.childWithDedupeLabelExistsWithClient(ctx, b.ID, dedupeLabel)
 		if err != nil {
 			return fmt.Errorf("decomposerAdapter: checking existing child bead %q: %w", sb.Title, err)
 		}
