@@ -1062,3 +1062,53 @@ func TestPipeline_StartExploreSessionCancelClosesEventChannel(t *testing.T) {
 		}
 	}
 }
+
+// TestPipeline_StartExploreSessionEmitsErrorOnRenderFailure verifies that errors
+// during prompt rendering are emitted as stream events.
+func TestPipeline_StartExploreSessionEmitsErrorOnRenderFailure(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+
+	mockRenderer := &mockExploreRenderer{
+		RenderExploreFn: func(input *ExplorePromptInput) (string, error) {
+			return "", fmt.Errorf("render failed: test error")
+		},
+	}
+
+	p := New(&Deps{
+		AgentResolver:   &mockAgentResolver{},
+		ExploreRenderer: mockRenderer,
+		BacklogClient:   &mockBacklogClient{},
+	}, &Paths{
+		GromitDir: gromitDir,
+	})
+
+	ctx := context.Background()
+	input := ExploreInput{Topic: "test"}
+
+	session, err := p.StartExploreSession(ctx, input)
+	if err != nil {
+		t.Fatalf("StartExploreSession() failed: %v", err)
+	}
+
+	// Collect events
+	eventsChan := session.Events()
+	var events []conversation.Event
+	for ev := range eventsChan {
+		events = append(events, ev)
+	}
+
+	// Verify we got an error event with the render error
+	if len(events) == 0 {
+		t.Fatal("expected events, got none")
+	}
+
+	firstEvent := events[0]
+	if firstEvent.Type != conversation.EventTypeStream {
+		t.Errorf("first event type = %v, want EventTypeStream", firstEvent.Type)
+	}
+
+	if !strings.Contains(firstEvent.Text, "render failed") {
+		t.Errorf("event text = %q, want to contain 'render failed'", firstEvent.Text)
+	}
+}
