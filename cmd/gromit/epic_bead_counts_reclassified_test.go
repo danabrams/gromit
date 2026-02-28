@@ -6,10 +6,30 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
 )
+
+func init() {
+	addFakeBDToPath()
+}
+
+func addFakeBDToPath() {
+	projectRoot, err := findProjectRoot()
+	if err != nil {
+		return
+	}
+	fakeBDDir := filepath.Join(projectRoot, "test", "fakes")
+	pathEnv := os.Getenv("PATH")
+	if !strings.Contains(pathEnv, fakeBDDir) {
+		os.Setenv("PATH", fakeBDDir+string(os.PathListSeparator)+pathEnv)
+	}
+	testDir := filepath.Join(projectRoot, ".fake_bd_state")
+	_ = os.MkdirAll(testDir, 0755)
+	os.Setenv("TEST_DIR", testDir)
+}
 
 // setupTestBeadClient creates a bead client in a temporary directory for testing.
 // This helper is extracted because multiple test functions need the same setup.
@@ -21,9 +41,11 @@ func setupTestBeadClient(t *testing.T) *bead.Client {
 	}
 
 	// Initialize bd in the temp directory
-	client := &bead.Client{
-		Dir: tmpDir,
+	client, err := bead.NewClient()
+	if err != nil {
+		t.Fatalf("failed to create bead client: %v", err)
 	}
+	client.Dir = tmpDir
 
 	return client
 }
