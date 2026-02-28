@@ -114,6 +114,65 @@ func TestPrintStatus_IncludesIntegrationQueueSummary(t *testing.T) {
 	}
 }
 
+func TestPrintStatus_BlockerEntriesIncludeRecoveryInstructions(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	entry := makeQueueEntry("gromit/conflict-branch", "conflict", "safe_lane", 1, "merge_conflict", "Conflict in cmd/gromit/run.go")
+	queueData := map[string]interface{}{
+		"schema_version": 1,
+		"updated_at":     "2026-02-28T00:00:00Z",
+		"entries":        []map[string]interface{}{entry},
+	}
+	data, err := json.Marshal(queueData)
+	if err != nil {
+		t.Fatalf("json.Marshal queue data: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gromitDir, "integration-queue.json"), data, 0o644); err != nil {
+		t.Fatalf("WriteFile integration queue: %v", err)
+	}
+
+	cfg := &config.Config{}
+	cfg.Paths.Specs = filepath.Join(tmpDir, "specs")
+	cfg.Paths.Plans = filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(cfg.Paths.Specs, 0o755); err != nil {
+		t.Fatalf("MkdirAll specs: %v", err)
+	}
+	if err := os.MkdirAll(cfg.Paths.Plans, 0o755); err != nil {
+		t.Fatalf("MkdirAll plans: %v", err)
+	}
+
+	sw, err := NewStatusWriter(gromitDir)
+	if err != nil {
+		t.Fatalf("NewStatusWriter: %v", err)
+	}
+	if err := sw.Write(1, "bead-status", "Blocked queue test", "haiku", true, 0, 0); err != nil {
+		t.Fatalf("StatusWriter.Write: %v", err)
+	}
+
+	var buf strings.Builder
+	if err := PrintStatus(gromitDir, cfg, &buf, func(int) bool { return true }, false); err != nil {
+		t.Fatalf("PrintStatus: %v", err)
+	}
+	output := buf.String()
+
+	want := []string{
+		"Error: merge_conflict",
+		"Conflict in cmd/gromit/run.go",
+		"Recovery: Resolve merge conflicts on the branch",
+	}
+	for _, substring := range want {
+		if !strings.Contains(output, substring) {
+			t.Fatalf("expected %q in integration queue output; got:\n%s", substring, output)
+		}
+	}
+}
+
 func makeQueueEntry(branch, state, lane string, fifo int, lastCode, lastMsg string) map[string]interface{} {
 	return map[string]interface{}{
 		"branch":                  branch,
