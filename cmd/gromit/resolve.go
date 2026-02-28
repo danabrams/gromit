@@ -128,3 +128,24 @@ func setupRetroWorktreeLogsSymlink(worktreeGromitDir, mainGromitDir string) erro
 
 	return nil
 }
+
+// ensureRetroWorktreeLogsSetup ensures that retro can access logs in a session worktree.
+// It attempts to symlink the main repo's logs into the worktree, or determines
+// the main repo logs path for use with retro.SetLogsDir.
+// If worktreeGromitDir and mainGromitDir are provided, it creates a symlink.
+// If mainGromitDir is empty, it tries to resolve the main repo via git.
+func ensureRetroWorktreeLogsSetup(worktreeGromitDir, mainGromitDir string) error {
+	if worktreeGromitDir == "" {
+		return nil
+	}
+
+	// If main gromit dir is provided, try to symlink
+	if mainGromitDir != "" {
+		return setupRetroWorktreeLogsSymlink(worktreeGromitDir, mainGromitDir)
+	}
+
+	// If main gromit dir is not provided, try to resolve it via git
+	// This attempts to find and prepare main repo logs path
+	_ = resolveMainRepoLogsDir(worktreeGromitDir)
+	return nil
+}
