@@ -21,6 +21,16 @@ func TestLaneConstants(t *testing.T) {
 	}
 }
 
+func TestErrorCodeConstants(t *testing.T) {
+	// Verify ErrorCode constants are defined
+	if ErrorCodeSessionCommitFailed == "" {
+		t.Fatal("ErrorCodeSessionCommitFailed constant is not defined")
+	}
+	if ErrorCodeSessionCommitFailed != "session_commit_failed" {
+		t.Fatalf("ErrorCodeSessionCommitFailed = %q, want %q", ErrorCodeSessionCommitFailed, "session_commit_failed")
+	}
+}
+
 func TestEntryOrderingMetadata(t *testing.T) {
 	created := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
 	updated := created.Add(time.Hour)
