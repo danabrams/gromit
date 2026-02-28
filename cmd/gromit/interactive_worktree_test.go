@@ -1091,6 +1091,69 @@ func TestConcurrentSessions_BothQueueWithoutConflict(t *testing.T) {
 	recordMu.Unlock()
 }
 
+func TestRunWithSessionWorktreeQueuesReadyBranchWithLaneMetadata(t *testing.T) {
+	// RED: Test that verifies lane metadata is captured in ready queue entries.
+	// This test should fail if Lane field is not set or has wrong value.
+	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "lane-metadata")
+	session.BranchName = "gromit/lane-metadata-ready"
+
+	var recordedEntry *integrationqueue.Entry
+	cleanupStore := overrideQueueStore(func(entry integrationqueue.Entry) error {
+		recordedEntry = &entry
+		return nil
+	})
+	t.Cleanup(cleanupStore)
+
+	cleanupGit := overrideGitRun(func(dir string, args ...string) (string, error) {
+		switch args[0] {
+		case "add":
+			return "", nil
+		case "commit":
+			return "", nil
+		case "rev-parse":
+			if len(args) > 1 && args[1] == "HEAD" {
+				return "test-head-sha", nil
+			}
+			if len(args) > 1 && args[1] == "HEAD^" {
+				return "test-base-ref", nil
+			}
+		case "diff":
+			return "test-file.go\n", nil
+		}
+		return "", nil
+	})
+	t.Cleanup(cleanupGit)
+
+	withInteractiveWorktreeFactories(t, func(gotMainDir string) (sessionWorktreeCreator, error) {
+		if gotMainDir != mainDir {
+			t.Fatalf("mainDir = %q, want %q", gotMainDir, mainDir)
+		}
+		return &mockSessionWorktreeCreator{
+			CreateSessionWorktreeFn: func(string) (*worktree.SessionWorktree, error) {
+				return session, nil
+			},
+		}, nil
+	}, func(string) (pendingBranchRecorder, error) {
+		return &mockPendingBranchRecorder{AddPendingWorktreeBranchFn: func(string) error { return nil }}, nil
+	}, func(string, string) error {
+		return nil
+	})
+
+	_, err := runWithSessionWorktree(gromitDir, "lane-metadata", func(string) error { return nil })
+	if err != nil {
+		t.Fatalf("runWithSessionWorktree() error = %v", err)
+	}
+	if recordedEntry == nil {
+		t.Fatal("expected queue entry to be recorded")
+	}
+	if recordedEntry.Lane != "code_lane" {
+		t.Fatalf("entry Lane = %q, want %q", recordedEntry.Lane, "code_lane")
+	}
+	if recordedEntry.State != "ready" {
+		t.Fatalf("entry state = %q, want ready", recordedEntry.State)
+	}
+}
+
 // NOTE: Conflict handoff and merge state cleanup tests are legacy and no longer applicable
 // in single-writer model where sessions never attempt merges. These helper functions remain
 // for compatibility but are not invoked from the session path. Coordinator-path tests will
