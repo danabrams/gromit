@@ -905,3 +905,63 @@ func TestPipeline_StartExploreSessionReturnsConversationSession(t *testing.T) {
 	// Verify session implements conversation.Session interface
 	var _ interface{ Events() <-chan conversation.Event; Cancel(); FollowUp(string) } = session
 }
+
+// TestPipeline_StartExploreSessionEmitsEvents verifies that the session emits
+// conversation events through its event channel as explore executes.
+func TestPipeline_StartExploreSessionEmitsEvents(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+
+	mockAgent := &mockAgent{
+		LaunchInDirFn: func(promptPath, dir string) error {
+			return nil
+		},
+	}
+
+	mockAgentResolver := &mockAgentResolver{
+		ResolveFn: func(phase, flagOverride string, choosePicker bool) (Agent, error) {
+			return mockAgent, nil
+		},
+	}
+
+	mockRenderer := &mockExploreRenderer{
+		RenderExploreFn: func(input *ExplorePromptInput) (string, error) {
+			return "explore prompt content", nil
+		},
+	}
+
+	p := New(&Deps{
+		AgentResolver:   mockAgentResolver,
+		ExploreRenderer: mockRenderer,
+		BacklogClient:   &mockBacklogClient{},
+	}, &Paths{
+		GromitDir: gromitDir,
+	})
+
+	ctx := context.Background()
+	input := ExploreInput{Topic: "test topic"}
+
+	session, err := p.StartExploreSession(ctx, input)
+	if err != nil {
+		t.Fatalf("StartExploreSession() failed: %v", err)
+	}
+
+	// Collect events from the session
+	eventsChan := session.Events()
+	var events []conversation.Event
+
+	// Read all events from the channel
+	for ev := range eventsChan {
+		events = append(events, ev)
+	}
+
+	// Verify we got events and the last one is a Done event
+	if len(events) == 0 {
+		t.Fatal("expected at least one event, got none")
+	}
+
+	lastEvent := events[len(events)-1]
+	if lastEvent.Type != conversation.EventTypeDone {
+		t.Errorf("last event type = %v, want EventTypeDone", lastEvent.Type)
+	}
+}
