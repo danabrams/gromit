@@ -51,3 +51,27 @@ func TestForwardModelToAgent_GeminiPreset(t *testing.T) {
 		t.Errorf("Agent name = %q, want %q", resultAgent.Name(), "gemini")
 	}
 }
+
+// TestForwardModelToAgent_CustomAgent verifies warning fallback for custom agents
+func TestForwardModelToAgent_CustomAgent(t *testing.T) {
+	// Create a custom agent
+	customAgent := New("my-custom-agent", "my-binary", nil, FileRef, "", nil)
+
+	// Forward model to custom agent
+	resultAgent, warning := ForwardModelToAgent(customAgent, "some-model")
+
+	// Should return warning for custom agents
+	if warning == "" {
+		t.Error("ForwardModelToAgent(custom, model) returned empty warning, want non-empty")
+	}
+
+	// Should return the original agent unchanged
+	if resultAgent != customAgent {
+		t.Error("ForwardModelToAgent(custom, model) returned different agent, want original")
+	}
+
+	// Agent should still be functional
+	if resultAgent.Name() != "my-custom-agent" {
+		t.Errorf("Agent name = %q, want %q", resultAgent.Name(), "my-custom-agent")
+	}
+}
