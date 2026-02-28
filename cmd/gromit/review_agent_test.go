@@ -54,6 +54,20 @@ func TestReviewCommandHasChooseAgentFlag(t *testing.T) {
 	}
 }
 
+// TestReviewCommandHasModelFlag verifies review command has --model flag
+func TestReviewCommandHasModelFlag(t *testing.T) {
+	t.Parallel()
+
+	flag := reviewCmd.Flags().Lookup("model")
+	if flag == nil {
+		t.Error("review command missing --model flag")
+	}
+
+	if flag != nil && flag.Value.Type() != "string" {
+		t.Errorf("--model flag type = %q, want %q", flag.Value.Type(), "string")
+	}
+}
+
 // TestReviewUsesAgentResolve verifies review command integrates with agent.Resolve
 func TestReviewUsesAgentResolve(t *testing.T) {
 
