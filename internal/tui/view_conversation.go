@@ -31,5 +31,8 @@ func RenderConversationView(store *Store, focusedPanel int) string {
 		fmt.Fprintf(&b, "[%s] %s\n", indicator.ToolName, indicator.Status)
 	}
 
+	b.WriteString("\nInput:\n")
+	b.WriteString("> ")
+
 	return b.String()
 }
