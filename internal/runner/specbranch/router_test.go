@@ -70,3 +70,55 @@ func TestRouterUsesConfiguredBaseBranch(t *testing.T) {
 		t.Fatalf("BranchForLabels() = %q, want %q", branch, "develop")
 	}
 }
+
+func TestRouterResolve(t *testing.T) {
+	t.Parallel()
+
+	router := specbranch.NewRouter("main")
+
+	tests := []struct {
+		name       string
+		labels     []string
+		wantBranch string
+		wantErr    bool
+	}{
+		{
+			name:       "non-spec defaults to main",
+			labels:     nil,
+			wantBranch: "main",
+		},
+		{
+			name:       "spec branch",
+			labels:     []string{"spec:auth"},
+			wantBranch: "gromit/spec-auth",
+		},
+		{
+			name:    "empty spec label",
+			labels:  []string{"spec:"},
+			wantErr: true,
+		},
+		{
+			name:    "invalid spec name",
+			labels:  []string{"spec:bad name"},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			branch, err := router.Resolve(tt.labels)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("Resolve() = %q, want error", branch)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Resolve() error = %v", err)
+			}
+			if branch != tt.wantBranch {
+				t.Fatalf("Resolve() = %q, want %q", branch, tt.wantBranch)
+			}
+		})
+	}
+}
