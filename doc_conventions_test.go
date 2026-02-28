@@ -30,3 +30,18 @@ func TestCLAUDEMDDocumentsNilFieldNormalizationConvention(t *testing.T) {
 		t.Error("CLAUDE.md missing visibility distinction in nil-field documentation")
 	}
 }
+
+func TestReadmeDocumentsCanonicalCycleRecordContract(t *testing.T) {
+	data, err := os.ReadFile("README.md")
+	if err != nil {
+		t.Fatalf("failed to read README.md: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, "canonical cycle record contract") {
+		t.Error("README.md must describe the canonical cycle record contract")
+	}
+	if !strings.Contains(content, "internal/visionmetrics/contract.go") {
+		t.Error("README.md must reference internal/visionmetrics/contract.go as the canonical contract")
+	}
+}
