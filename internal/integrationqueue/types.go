@@ -73,6 +73,9 @@ func (e Entry) Validate() error {
 	if strings.TrimSpace(e.HeadSHA) == "" {
 		return fmt.Errorf("head_sha is required")
 	}
+	if hasErrorCode := strings.TrimSpace(e.LastErrorCode) != ""; hasErrorCode != (strings.TrimSpace(e.LastErrorMessage) != "") {
+		return fmt.Errorf("last_error_code and last_error_message must both be set together")
+	}
 	return nil
 }
 
