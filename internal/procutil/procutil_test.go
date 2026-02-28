@@ -242,3 +242,27 @@ func TestWaitForProcessCapacityHonorsContextCancel(t *testing.T) {
 		t.Fatalf("WaitForProcessCapacity() error = %v, want context.Canceled", err)
 	}
 }
+
+func TestWaitForProcessCapacityReturnsErrorWhenStillPressured(t *testing.T) {
+	originalPressured := processCreationPressuredFn
+	originalPressure := pidPressureFn
+	processCreationPressuredFn = func() (bool, error) { return true, nil }
+	pidPressureFn = func() (int, int, error) { return 90, 100, nil }
+	t.Cleanup(func() {
+		processCreationPressuredFn = originalPressured
+		pidPressureFn = originalPressure
+	})
+
+	err := WaitForProcessCapacity(context.Background(), 1*time.Millisecond)
+	if err == nil {
+		t.Fatal("WaitForProcessCapacity() error = nil, want non-nil")
+	}
+
+	var capacityErr *ProcessCapacityError
+	if !errors.As(err, &capacityErr) {
+		t.Fatalf("WaitForProcessCapacity() error type = %T, want *ProcessCapacityError", err)
+	}
+	if capacityErr.Current != 90 || capacityErr.Max != 100 {
+		t.Fatalf("ProcessCapacityError = (%d/%d), want (90/100)", capacityErr.Current, capacityErr.Max)
+	}
+}

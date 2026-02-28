@@ -24,6 +24,26 @@ const (
 )
 
 var processCreationPressuredFn = processCreationPressured
+var pidPressureFn = PIDPressure
+
+// ProcessCapacityError indicates subprocess creation stayed PID-pressured
+// for the full wait window.
+type ProcessCapacityError struct {
+	Current int
+	Max     int
+	Waited  time.Duration
+}
+
+func (e *ProcessCapacityError) Error() string {
+	if e == nil {
+		return "process capacity unavailable"
+	}
+	if e.Current > 0 && e.Max > 0 {
+		pct := e.Current * 100 / e.Max
+		return fmt.Sprintf("process capacity unavailable after %v: cgroup PID usage at %d%% (%d/%d)", e.Waited.Round(time.Millisecond), pct, e.Current, e.Max)
+	}
+	return fmt.Sprintf("process capacity unavailable after %v", e.Waited.Round(time.Millisecond))
+}
 
 // SetProcessGroupKill configures cmd to create a new process group and kill
 // the entire group on context cancellation. This prevents orphaned child
@@ -138,6 +158,7 @@ func WaitForProcessCapacity(ctx context.Context, maxWait time.Duration) error {
 		maxWait = defaultProcessCapacityMaxWait
 	}
 
+	start := time.Now()
 	deadline := time.Now().Add(maxWait)
 	for {
 		pressured, err := processCreationPressuredFn()
@@ -147,7 +168,12 @@ func WaitForProcessCapacity(ctx context.Context, maxWait time.Duration) error {
 
 		remaining := time.Until(deadline)
 		if remaining <= 0 {
-			return nil
+			current, max, _ := pidPressureFn()
+			return &ProcessCapacityError{
+				Current: current,
+				Max:     max,
+				Waited:  time.Since(start),
+			}
 		}
 		wait := processPressurePollInterval
 		if remaining < wait {

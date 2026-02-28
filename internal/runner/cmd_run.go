@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/danabrams/gromit/internal/procutil"
 )
@@ -20,6 +21,7 @@ var nonInteractiveEnv = []string{
 }
 
 const execFailureExitCode = -1
+const runnerProcessCapacityWait = 1500 * time.Millisecond
 
 func prepareCommand(cmd *exec.Cmd, workDir string) {
 	cmd.Dir = workDir
@@ -55,10 +57,13 @@ func validationGoCacheEnv(workDir string) []string {
 	}
 }
 
-func runCommand(cmd *exec.Cmd) (string, string, int, error) {
+func runCommand(ctx context.Context, cmd *exec.Cmd) (string, string, int, error) {
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
+	if waitErr := procutil.WaitForProcessCapacity(ctx, runnerProcessCapacityWait); waitErr != nil {
+		return "", "", execFailureExitCode, fmt.Errorf("waiting for process capacity: %w", waitErr)
+	}
 	if err := cmd.Start(); err != nil {
 		return "", "", execFailureExitCode, err
 	}
@@ -79,16 +84,19 @@ func defaultCmdRunner(ctx context.Context, command string, workDir string) (stri
 	cmd := exec.CommandContext(ctx, "sh", "-c", command)
 	procutil.SetProcessGroupKill(cmd)
 	prepareCommand(cmd, workDir)
-	return runCommand(cmd)
+	return runCommand(ctx, cmd)
 }
 
 // getGitDiff returns the full diff from fromCommit to the current working tree.
 func getGitDiff(ctx context.Context, fromCommit string) (string, error) {
 	cmd := exec.CommandContext(ctx, "git", "diff", fromCommit)
 	procutil.SetProcessGroupKill(cmd)
-	out, err := cmd.Output()
+	stdout, stderr, exitCode, err := runCommand(ctx, cmd)
 	if err != nil {
 		return "", fmt.Errorf("git diff: %w", err)
 	}
-	return string(out), nil
+	if exitCode != 0 {
+		return "", fmt.Errorf("git diff: exit code %d: %s", exitCode, strings.TrimSpace(stderr))
+	}
+	return stdout, nil
 }

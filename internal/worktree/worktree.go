@@ -1,11 +1,15 @@
 package worktree
 
 import (
+	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/danabrams/gromit/internal/procutil"
 )
 
 const (
@@ -13,6 +17,7 @@ const (
 	interactiveWorktreeSufx = "-gromit-interactive"
 	branchPrefix            = "gromit/"
 	maxSessionCreateRetries = 5
+	worktreeProcessCapacity = 1500 * time.Millisecond
 )
 
 var sessionTimestampFn = func() int64 {
@@ -346,8 +351,28 @@ func (m *Manager) runGit(dir string, args ...string) (string, error) {
 	// Default implementation: run real git command
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
-	output, err := cmd.CombinedOutput()
-	return string(output), err
+	procutil.SetProcessGroupKill(cmd)
+	cmd.Env = procutil.SubprocessEnv()
+
+	if waitErr := procutil.WaitForProcessCapacity(context.Background(), worktreeProcessCapacity); waitErr != nil {
+		return "", fmt.Errorf("waiting for process capacity: %w", waitErr)
+	}
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Start(); err != nil {
+		return "", err
+	}
+	defer procutil.ReapProcessTree(cmd)
+	if err := cmd.Wait(); err != nil {
+		out := strings.TrimSpace(stdout.String() + "\n" + stderr.String())
+		if out == "" {
+			return "", err
+		}
+		return out, err
+	}
+	return stdout.String(), nil
 }
 
 func sessionBranchName(command string, timestamp int64) string {
