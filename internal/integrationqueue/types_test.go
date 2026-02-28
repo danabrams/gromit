@@ -31,6 +31,13 @@ func TestErrorCodeConstants(t *testing.T) {
 	}
 }
 
+func TestSchemaVersionConstant(t *testing.T) {
+	// Verify SchemaVersion constant is defined
+	if SchemaVersion != 1 {
+		t.Fatalf("SchemaVersion = %d, want %d", SchemaVersion, 1)
+	}
+}
+
 func TestEntryOrderingMetadata(t *testing.T) {
 	created := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
 	updated := created.Add(time.Hour)
