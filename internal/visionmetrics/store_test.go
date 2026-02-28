@@ -49,3 +49,23 @@ func TestLoadRecords_ReadsValidJSONLFile(t *testing.T) {
 		t.Errorf("second record ReviewOutcome: got %q, want %q", records[1].ReviewOutcome, ReviewOutcomeImplementationGap)
 	}
 }
+
+func TestLoadRecords_ErrorOnMalformedJSON(t *testing.T) {
+	// Create a temporary file with malformed JSON
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "records.jsonl")
+
+	// Write malformed JSON
+	content := `{"spec_id":"spec-1","cycle_start_trigger_at":"2026-02-01T08:00:00Z"
+this is not valid json at all
+`
+	if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	// LoadRecords should return an error
+	_, err := LoadRecords(tmpFile)
+	if err == nil {
+		t.Error("LoadRecords should return error for malformed JSON")
+	}
+}
