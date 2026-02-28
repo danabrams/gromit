@@ -52,11 +52,11 @@ func visionMetricsValidate(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	hasErrors := false
+	invalidCount := 0
 	for i, rec := range records {
 		errs := visionmetrics.Validate(rec)
 		if len(errs) > 0 {
-			hasErrors = true
+			invalidCount++
 			fmt.Printf("Record %d (spec_id=%q):\n", i, rec.SpecID)
 			for _, err := range errs {
 				fmt.Printf("  - %s\n", err.Error())
@@ -64,8 +64,9 @@ func visionMetricsValidate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if hasErrors {
-		fmt.Printf("\nValidation completed with %d record(s) containing errors\n", len(records))
+	if invalidCount > 0 {
+		fmt.Printf("\nValidation completed with %d record(s) containing errors\n", invalidCount)
+		return fmt.Errorf("validation failed for %d record(s)", invalidCount)
 	} else {
 		fmt.Printf("All %d record(s) are valid\n", len(records))
 	}
