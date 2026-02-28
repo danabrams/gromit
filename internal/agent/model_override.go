@@ -1,6 +1,8 @@
 package agent
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // ModelOverrideResult carries the outcome of a model override attempt.
 type ModelOverrideResult struct {
@@ -21,23 +23,28 @@ func TryOverrideModel(a Agent, model string) ModelOverrideResult {
 		}
 	}
 
-	if a.Name() != "claude" {
-		return ModelOverrideResult{}
+	if a.Name() == "claude" {
+		newFlags := append([]string{}, cli.flags...)
+		newFlags = append(newFlags, "--model", model)
+		return ModelOverrideResult{Agent: cloneCliAgent(cli, newFlags, cli.extraArgs)}
 	}
 
-	newFlags := append([]string{}, cli.flags...)
-	newFlags = append(newFlags, "--model", model)
+	newExtraArgs := append([]string{}, cli.extraArgs...)
+	newExtraArgs = append(newExtraArgs, "--model", model)
+	return ModelOverrideResult{Agent: cloneCliAgent(cli, cli.flags, newExtraArgs)}
+}
 
-	return ModelOverrideResult{
-		Agent: &cliAgent{
-			name:           cli.name,
-			binary:         cli.binary,
-			flags:          newFlags,
-			promptDelivery: cli.promptDelivery,
-			promptFlag:     cli.promptFlag,
-			extraArgs:      append([]string{}, cli.extraArgs...),
-			commandFn:      cli.commandFn,
-			runFn:          cli.runFn,
-		},
+func cloneCliAgent(base *cliAgent, flags, extraArgs []string) *cliAgent {
+	clonedFlags := append([]string{}, flags...)
+	clonedExtra := append([]string{}, extraArgs...)
+	return &cliAgent{
+		name:           base.name,
+		binary:         base.binary,
+		flags:          clonedFlags,
+		promptDelivery: base.promptDelivery,
+		promptFlag:     base.promptFlag,
+		extraArgs:      clonedExtra,
+		commandFn:      base.commandFn,
+		runFn:          base.runFn,
 	}
 }
