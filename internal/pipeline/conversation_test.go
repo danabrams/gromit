@@ -28,3 +28,32 @@ func TestCollectConversationHandlesFollowUpDuringToolWait(t *testing.T) {
         t.Fatalf("expected follow-up prompt %q, got %v", prompt, calls)
     }
 }
+
+func TestCollectConversationIgnoresLateEventsAfterCancel(t *testing.T) {
+    midEmitted := make(chan struct{})
+    lateRelease := make(chan struct{})
+    timeline := []conversation.FakeStep{
+        {Event: conversation.Event{Type: conversation.EventTypeStream, Text: "start"}},
+        {Event: conversation.Event{Type: conversation.EventTypeStream, Text: "mid"}, AfterEmit: midEmitted},
+        {Event: conversation.Event{Type: conversation.EventTypeStream, Text: "late"}, BlockUntil: lateRelease},
+    }
+    session := conversation.NewFakeSession(timeline)
+    cancelCh := make(chan struct{})
+
+    go func() {
+        <-midEmitted
+        close(cancelCh)
+        close(lateRelease)
+    }()
+
+    events, ignored := CollectConversation(session, nil, cancelCh)
+    if len(events) != 2 {
+        t.Fatalf("expected two captured events before cancel, got %d", len(events))
+    }
+    if ignored != 1 {
+        t.Fatalf("expected one ignored event after cancel, got %d", ignored)
+    }
+    if !session.WasCancelled() {
+        t.Fatal("expected session to see cancellation")
+    }
+}
