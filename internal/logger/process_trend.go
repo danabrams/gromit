@@ -103,6 +103,10 @@ type IterationMetric struct {
 	RollingProviderSuccessRate   float64                   `json:"rolling_provider_success_rate"`
 	RollingProviderTransportFailures int                   `json:"rolling_provider_transport_failures"`
 	RollingProviderTransportFailureRate float64            `json:"rolling_provider_transport_failure_rate"`
+	ProviderRollingSuccessRate   float64                   `json:"provider_rolling_success_rate"`
+	ProviderRollingFailureRate   float64                   `json:"provider_rolling_failure_rate"`
+	ProviderRollingTransportFailureRate float64            `json:"provider_rolling_transport_failure_rate"`
+	ProviderRollingInvocations   int                       `json:"provider_rolling_invocations"`
 	RollingPreflightFailureRate  float64                   `json:"rolling_preflight_failure_rate"`
 	RollingBuildFailureRate      float64                   `json:"rolling_build_failure_rate"`
 	RollingValidationFailureRate float64                   `json:"rolling_validation_failure_rate"`
