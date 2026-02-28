@@ -1112,3 +1112,54 @@ func TestPipeline_StartExploreSessionEmitsErrorOnRenderFailure(t *testing.T) {
 		t.Errorf("event text = %q, want to contain 'render failed'", firstEvent.Text)
 	}
 }
+
+// TestPipeline_StartExploreSessionValidatesDeps verifies that StartExploreSession
+// returns an error when required dependencies are missing.
+func TestPipeline_StartExploreSessionValidatesDeps(t *testing.T) {
+	tests := []struct {
+		name    string
+		deps    *Deps
+		wantErr string
+	}{
+		{
+			name:    "nil dependencies",
+			deps:    nil,
+			wantErr: "nil dependencies",
+		},
+		{
+			name: "nil AgentResolver",
+			deps: &Deps{
+				AgentResolver:   nil,
+				ExploreRenderer: &mockExploreRenderer{},
+				BacklogClient:   &mockBacklogClient{},
+			},
+			wantErr: "nil AgentResolver",
+		},
+		{
+			name: "nil ExploreRenderer",
+			deps: &Deps{
+				AgentResolver:   &mockAgentResolver{},
+				ExploreRenderer: nil,
+				BacklogClient:   &mockBacklogClient{},
+			},
+			wantErr: "nil ExploreRenderer",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			p := New(tc.deps, &Paths{})
+			ctx := context.Background()
+			input := ExploreInput{Topic: "test"}
+
+			_, err := p.StartExploreSession(ctx, input)
+			if err == nil {
+				t.Fatal("StartExploreSession() should return error with invalid dependencies")
+			}
+
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Errorf("error = %q, want substring %q", err.Error(), tc.wantErr)
+			}
+		})
+	}
+}
