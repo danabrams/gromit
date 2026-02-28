@@ -88,6 +88,7 @@ func (f *fakePrechecker) Check(_ context.Context, _ *bead.Bead) (bool, error) {
 type mockStuckDetector struct {
 	stuck bool
 	err   error
+	called bool
 }
 
 func newMockStuckDetector() *mockStuckDetector {
@@ -101,7 +102,13 @@ func (m *mockStuckDetector) WithIsStuck(stuck bool, err error) *mockStuckDetecto
 }
 
 func (m *mockStuckDetector) IsStuck(_ context.Context, _ *bead.Bead) (bool, error) {
+	m.called = true
 	return m.stuck, m.err
+}
+
+// WasCalled reports whether IsStuck has been invoked.
+func (m *mockStuckDetector) WasCalled() bool {
+	return m.called
 }
 
 // Deprecated: use newMockStuckDetector() instead
@@ -281,6 +288,34 @@ func TestGateRun_ReadinessBlockEmitsGateReadinessBlockEvent(t *testing.T) {
 	}
 	if blockEvt.Reason != "criteria_missing" {
 		t.Errorf("Reason = %q, want %q", blockEvt.Reason, "criteria_missing")
+	}
+}
+
+// RED: test that readiness blocking happens before stuck detection.
+func TestGateRun_ReadinessPrecedesStuckDetection(t *testing.T) {
+	t.Parallel()
+
+	stuckDetector := newMockStuckDetector().WithIsStuck(true, nil)
+
+	gate := New(io.Discard).
+		WithReadinessAssessor(
+			newMockReadinessAssessor().WithAssessment(readiness.StatusNotReady, "criteria_missing", nil),
+		).
+		WithStuckDetector(stuckDetector)
+
+	out, err := gate.Run(context.Background(), pipeline.Input{
+		Bead: &bead.Bead{ID: "readiness-precedes-stuck", Title: "test"},
+	})
+	if err != nil {
+		t.Fatalf("Gate.Run() error = %v", err)
+	}
+
+	if out.Decision != pipeline.Block {
+		t.Fatalf("decision = %v, want %v", out.Decision, pipeline.Block)
+	}
+
+	if stuckDetector.WasCalled() {
+		t.Fatalf("stuck detector was invoked despite readiness block")
 	}
 }
 
