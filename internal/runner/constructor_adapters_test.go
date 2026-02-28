@@ -569,7 +569,7 @@ func TestReadinessAdapterWithLLM_AssessCallsRouterForProvider(t *testing.T) {
 	adapter := NewReadinessAdapterWithLLM(renderer, router)
 
 	ctx := context.Background()
-	b := &bead.Bead{ID: "test-bead", Title: "Test Task"}
+	b := &bead.Bead{ID: "test-bead", Title: "Test Task", ExpectedOutputs: []string{"deliverable"}}
 
 	_, err := adapter.Assess(ctx, b)
 	if err != nil {

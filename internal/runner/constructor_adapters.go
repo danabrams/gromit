@@ -1019,6 +1019,10 @@ func NewReadinessAdapterWithLLM(renderer readinessPromptRenderer, router readine
 // Assess determines whether a bead is ready using structured checks and LLM classification.
 // Fails closed: returns StatusNotReady if renderer is nil or other checks fail.
 func (a *readinessAdapterWithLLM) Assess(ctx context.Context, b *bead.Bead) (readiness.Assessment, error) {
+	if assessment, blocked := checkCriteriaMissing(b); blocked {
+		return assessment, nil
+	}
+
 	if a.renderer == nil {
 		return readiness.Assessment{Status: readiness.StatusNotReady}, nil
 	}
@@ -1046,6 +1050,30 @@ func (a *readinessAdapterWithLLM) Assess(ctx context.Context, b *bead.Bead) (rea
 	// Until the LLM call is wired, block beads to avoid false confidence.
 	_ = promptText
 	return readiness.Assessment{Status: readiness.StatusNotReady}, nil
+}
+
+func checkCriteriaMissing(b *bead.Bead) (readiness.Assessment, bool) {
+	if b == nil {
+		return readiness.Assessment{
+			Status: readiness.StatusNotReady,
+			Reason: prepare.ReasonCriteriaMissing,
+		}, true
+	}
+
+	for _, output := range b.ExpectedOutputs {
+		if strings.TrimSpace(output) != "" {
+			return readiness.Assessment{}, false
+		}
+	}
+
+	if strings.TrimSpace(b.AcceptanceCriteria) != "" {
+		return readiness.Assessment{}, false
+	}
+
+	return readiness.Assessment{
+		Status: readiness.StatusNotReady,
+		Reason: prepare.ReasonCriteriaMissing,
+	}, true
 }
 
 // Compile-time interface checks
