@@ -483,11 +483,15 @@ runLoop:
 			CacheVersionMarker:       buildOut.CacheVersionMarker,
 		}
 		epilogueOut := o.runEpilogue(ctx, baseIn, true)
+		finalSuccess := epilogueOut.LifecycleFailure == pipeline.LifecycleFailureNone
+		if baseIn.Result != nil {
+			baseIn.Result.Success = finalSuccess
+		}
 		if epilogueOut.LifecycleFailure == pipeline.LifecycleFailureClose {
 			o.logWarning("Bead %s: close failed (already marked processed, will skip on next iteration)", b.ID)
 		}
 		// Only log success and trigger success-only follow-on paths if lifecycle succeeded.
-		if epilogueOut.LifecycleFailure == pipeline.LifecycleFailureNone {
+		if finalSuccess {
 			o.logInfo("Iteration %d: bead %s completed successfully", iteration, b.ID)
 			o.maybeTriggerSpecMerge(ctx, b)
 		}
@@ -495,7 +499,7 @@ runLoop:
 		o.emitter.Emit(&events.IterationCompleteEvent{
 			Iteration: iteration,
 			BeadID:    b.ID,
-			Success:   true,
+			Success:   finalSuccess,
 			Duration:  time.Duration(buildOut.DurationMs) * time.Millisecond,
 			Time:      time.Now(),
 		})

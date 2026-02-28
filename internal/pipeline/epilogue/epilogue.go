@@ -301,6 +301,9 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 
 	// 5. Iteration log: write when a result and writer are both present.
 	if e.logWriter != nil && in.Result != nil {
+		if lifecycleFailure != pipeline.LifecycleFailureNone {
+			in.Result.Success = false
+		}
 		if err := e.logWriter.Write(in.Result); err != nil {
 			warnf("Warning: failed to write iteration log: %v\n", err)
 		}
@@ -394,4 +397,3 @@ func (e *Epilogue) clearMergeWarning(branch string) {
 	}
 	delete(e.mergeWarnings, branch)
 }
-
