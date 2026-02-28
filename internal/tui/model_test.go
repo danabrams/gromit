@@ -336,6 +336,41 @@ func TestModel_FocusConversationKeySwitchesToConversationView(t *testing.T) {
 	}
 }
 
+func TestModel_AppliesConversationEventsToStore(t *testing.T) {
+	timeline := []conversation.FakeStep{
+		{Event: conversation.Event{Type: conversation.EventTypeStream, Text: "streamed text"}},
+		{Event: conversation.Event{Type: conversation.EventTypeDone}},
+	}
+	session := conversation.NewFakeSession(timeline)
+	controller := NewConversationController(session)
+
+	// Manually pump events through the controller
+	cmd := controller.Init()
+	for cmd != nil {
+		msg := cmd()
+		model, next := controller.Update(msg)
+		var ok bool
+		controller, ok = model.(*ConversationController)
+		if !ok {
+			t.Fatalf("expected ConversationController, got %T", model)
+		}
+		cmd = next
+	}
+
+	store := &Store{}
+	m := NewModel(store)
+	m.SetConversationController(controller)
+	m.SwitchView(ViewConversation)
+
+	// Check that store has recorded conversation events
+	if store.Conversation.EventCount == 0 {
+		t.Error("expected store to record conversation events")
+	}
+	if store.Conversation.LastEvent == nil {
+		t.Error("expected LastEvent to be recorded")
+	}
+}
+
 func TestModel_ForwardsKeysToConversationControllerWhenInConversationView(t *testing.T) {
 	timeline := []conversation.FakeStep{
 		{Event: conversation.Event{Type: conversation.EventTypeStream, Text: "response"}},
