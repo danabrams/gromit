@@ -9,6 +9,7 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
+	"github.com/danabrams/gromit/internal/runner/specbranch"
 	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/danabrams/gromit/internal/worktree"
 )
@@ -21,6 +22,7 @@ var (
 	_ PromptRenderer  = (*prompt.Renderer)(nil)
 	_ IterationLogger = (*logger.Logger)(nil)
 	_ WorktreeManager = (*worktree.Manager)(nil)
+	_ BranchRouter    = (*specbranch.Router)(nil)
 )
 
 // BeadClient abstracts the bead (bd) CLI operations used by the runner.
@@ -92,6 +94,11 @@ type WorktreeManager interface {
 	MergeBack(branch string) error
 	PendingBranches() ([]string, error)
 	Cleanup() error
+}
+
+// BranchRouter abstracts branch selection based on bead labels.
+type BranchRouter interface {
+	BranchForLabels(labels []string) (string, error)
 }
 
 // IterationResult captures the outcome of one loop iteration.
