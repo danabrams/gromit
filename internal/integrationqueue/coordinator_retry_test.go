@@ -133,8 +133,8 @@ func TestCoordinatorFailsAfterExhaustingGateRetries(t *testing.T) {
 	if processed.State != StateFailedGates {
 		t.Fatalf("State = %q, want %q", processed.State, StateFailedGates)
 	}
-	if processed.RetryCount != 2 {
-		t.Fatalf("RetryCount = %d, want 2", processed.RetryCount)
+	if processed.RetryCount != 1 {
+		t.Fatalf("RetryCount = %d, want 1", processed.RetryCount)
 	}
 	if gate.runCount != 2 {
 		t.Fatalf("gate run count = %d, want 2", gate.runCount)

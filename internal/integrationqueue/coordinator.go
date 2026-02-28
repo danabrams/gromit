@@ -65,27 +65,8 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 		return fmt.Errorf("fetch/rebase branch: %w", err)
 	}
 
-	if err := c.gate.Run(ctx, *entry); err != nil {
-		entry.RetryCount = 1
-		if err := c.gitops.FetchAndRebase(ctx, *entry); err != nil {
-			entry.LastErrorCode = "rebase_conflict"
-			entry.LastErrorMessage = err.Error()
-			if transErr := ApplyTransition(entry, string(StateConflict), "rebase conflict during retry fetch"); transErr == nil {
-				_ = c.store.Save(*entry)
-			}
-			return fmt.Errorf("fetch/rebase branch: %w", err)
-		}
-		if err := c.gate.Run(ctx, *entry); err != nil {
-			entry.RetryCount++
-			entry.LastErrorCode = string(StateFailedGates)
-			entry.LastErrorMessage = err.Error()
-			if transErr := ApplyTransition(entry, string(StateFailedGates), "scoped gates failed after retry"); transErr == nil {
-				if saveErr := c.store.Save(*entry); saveErr != nil {
-					return fmt.Errorf("marking entry failed_gates: %w", saveErr)
-				}
-			}
-			return fmt.Errorf("running scoped gates: %w", err)
-		}
+	if err := c.runScopedGateWithRetry(ctx, entry); err != nil {
+		return err
 	}
 
 	if err := c.gitops.MergeToMain(ctx, *entry); err != nil {
@@ -133,6 +114,46 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (c *Coordinator) runScopedGateWithRetry(ctx context.Context, entry *Entry) error {
+	tracker := newGateRetryTracker(Lane(entry.Lane))
+
+	if err := c.gate.Run(ctx, *entry); err != nil {
+		return c.handleGateFailure(ctx, entry, &tracker, err)
+	}
+
+	return nil
+}
+
+func (c *Coordinator) handleGateFailure(ctx context.Context, entry *Entry, tracker *gateRetryTracker, err error) error {
+	if tracker.CanRetry() {
+		tracker.RecordRetry(entry)
+		if err := c.gitops.FetchAndRebase(ctx, *entry); err != nil {
+			entry.LastErrorCode = "rebase_conflict"
+			entry.LastErrorMessage = err.Error()
+			if transErr := ApplyTransition(entry, string(StateConflict), "rebase conflict during retry fetch"); transErr == nil {
+				_ = c.store.Save(*entry)
+			}
+			return fmt.Errorf("fetch/rebase branch: %w", err)
+		}
+		if err := c.gate.Run(ctx, *entry); err != nil {
+			return c.transitionToFailedGates(entry, err, "scoped gates failed after retry")
+		}
+		return nil
+	}
+	return c.transitionToFailedGates(entry, err, "scoped gates failed")
+}
+
+func (c *Coordinator) transitionToFailedGates(entry *Entry, err error, reason string) error {
+	entry.LastErrorCode = string(StateFailedGates)
+	entry.LastErrorMessage = err.Error()
+	if transErr := ApplyTransition(entry, string(StateFailedGates), reason); transErr == nil {
+		if saveErr := c.store.Save(*entry); saveErr != nil {
+			return fmt.Errorf("marking entry failed_gates: %w", saveErr)
+		}
+	}
+	return fmt.Errorf("running scoped gates: %w", err)
 }
 
 // RecoverFromCrash detects entries left in StateIntegrating and transitions
