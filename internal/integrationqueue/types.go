@@ -2,6 +2,14 @@ package integrationqueue
 
 import "time"
 
+// Lane models the execution lane for an integration queue entry.
+type Lane string
+
+const (
+	SafeLane Lane = "safe_lane"
+	CodeLane Lane = "code_lane"
+)
+
 // State models the lifecycle of an integration queue entry.
 type State string
 
