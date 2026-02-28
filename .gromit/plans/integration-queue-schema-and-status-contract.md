@@ -1,8 +1,9 @@
 ---
+created: 2026-02-28T00:00:00Z
+decomposed: true
+decomposed_at: "2026-02-28T04:01:13Z"
 id: integration-queue-schema-and-status-contract
 source_spec: integration-queue-schema-and-status-contract
-created: 2026-02-28
-decomposed: false
 ---
 
 # Integration Queue Schema And Status Contract Implementation Plan

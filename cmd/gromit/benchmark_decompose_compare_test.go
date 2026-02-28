@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -143,5 +144,61 @@ func TestBenchmarkDecomposeCompare_WiresReportWriter(t *testing.T) {
 	}
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0", exitCode)
+	}
+}
+
+func TestBenchmarkDecomposeCompare_PrintsArtifactPathsOnStdout(t *testing.T) {
+	// RED: Test that artifact paths are printed on stdout
+	origWriter := benchmarkDecomposeCompareReportWriterFn
+	t.Cleanup(func() { benchmarkDecomposeCompareReportWriterFn = origWriter })
+
+	benchmarkDecomposeCompareReportWriterFn = func(opts benchmarkDecomposeCompareReportWriterOptions) error {
+		return nil
+	}
+
+	origRunner := benchmarkDecomposeCompareRunnerFn
+	t.Cleanup(func() { benchmarkDecomposeCompareRunnerFn = origRunner })
+
+	benchmarkDecomposeCompareRunnerFn = func(opts benchmarkDecomposeCompareRunnerOptions) (interface{}, error) {
+		return nil, nil
+	}
+
+	origCohort := benchmarkDecomposeCompareCohortSelectorFn
+	t.Cleanup(func() { benchmarkDecomposeCompareCohortSelectorFn = origCohort })
+
+	benchmarkDecomposeCompareCohortSelectorFn = func(opts benchmarkDecomposeCompareCohortSelectorOptions) ([]string, error) {
+		return []string{"spec1", "spec2", "spec3", "spec4", "spec5"}, nil
+	}
+
+	stdout, _, exitCode := runGromitCobra(t,
+		"benchmark", "decompose-compare",
+		"--manifest", "testdata/fixtures/benchmark/decompose.yaml",
+	)
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0", exitCode)
+	}
+	if !strings.Contains(stdout, ".gromit/benchmarks/results") {
+		t.Fatalf("stdout = %q, want to contain benchmark results path", stdout)
+	}
+}
+
+func TestBenchmarkDecomposeCompare_FailsWithInsufficientCohort(t *testing.T) {
+	// RED: Test error handling when cohort selector returns too few specs
+	origCohort := benchmarkDecomposeCompareCohortSelectorFn
+	t.Cleanup(func() { benchmarkDecomposeCompareCohortSelectorFn = origCohort })
+
+	benchmarkDecomposeCompareCohortSelectorFn = func(opts benchmarkDecomposeCompareCohortSelectorOptions) ([]string, error) {
+		return []string{"spec1", "spec2", "spec3"}, nil // Only 3 instead of 5
+	}
+
+	_, stderr, exitCode := runGromitCobra(t,
+		"benchmark", "decompose-compare",
+		"--manifest", "testdata/fixtures/benchmark/decompose.yaml",
+	)
+	if exitCode == 0 {
+		t.Fatalf("exitCode = %d, want non-zero", exitCode)
+	}
+	if !strings.Contains(stderr, "insufficient") && !strings.Contains(stderr, "exactly 5") {
+		t.Fatalf("stderr = %q, want to contain error about cohort size", stderr)
 	}
 }

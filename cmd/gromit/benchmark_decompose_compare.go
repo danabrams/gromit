@@ -82,6 +82,11 @@ func runBenchmarkDecomposeCompare(opts benchmarkDecomposeCompareOptions) error {
 		return fmt.Errorf("select cohort: %w", err)
 	}
 
+	// Validate cohort size - must be exactly 5 specs
+	if len(cohort) != 5 {
+		return fmt.Errorf("insufficient cohort: got %d specs, require exactly 5", len(cohort))
+	}
+
 	// Run compare
 	_, err = benchmarkDecomposeCompareRunnerFn(benchmarkDecomposeCompareRunnerOptions{
 		Specs: strings.Join(cohort, ","),
@@ -100,6 +105,10 @@ func runBenchmarkDecomposeCompare(opts benchmarkDecomposeCompareOptions) error {
 	}); err != nil {
 		return fmt.Errorf("write report: %w", err)
 	}
+
+	// Print artifact paths
+	fmt.Printf(".gromit/benchmarks/results/decompose-haiku-vs-sonnet/%s/raw.json\n", ts)
+	fmt.Printf(".gromit/benchmarks/results/decompose-haiku-vs-sonnet/%s/summary.md\n", ts)
 
 	return nil
 }
