@@ -88,7 +88,6 @@ type Epilogue struct {
 	epic                EpicChecker          // optional; used with review for epic completion detection
 	failureLearner      FailureLearner       // optional; nil means skip failure-path learning
 	logWriter           IterationLogWriter   // optional; nil means skip iteration log write
-	mergeWarnings       map[string]string    // per-run de-duplication of merge warnings by branch
 }
 
 // Compile-time check: *Epilogue must implement pipeline.Stage.
@@ -229,60 +228,10 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 	// The spec gate runner is kept wired for backward compatibility but no longer invoked.
 	_ = e.specgate
 
-	// 3. Worktree merge: merge pending interactive branches when enabled.
-	if e.worktree != nil && in.Config != nil &&
-		in.Config.Worktree.IsEnabled() && in.Config.Worktree.IsAutoMergeEnabled() {
-		branches, err := e.worktree.PendingBranches()
-		if err != nil {
-			warnf("Warning: failed to list pending branches: %v\n", err)
-		} else {
-			seen := make(map[string]struct{}, len(branches))
-			for _, branch := range branches {
-				if _, ok := seen[branch]; ok {
-					continue
-				}
-				seen[branch] = struct{}{}
-				if err := e.worktree.MergeBack(branch); err != nil {
-					errMsg := err.Error()
-					if e.shouldEmitMergeWarning(branch, errMsg) {
-						warnf("Warning: failed to merge branch %s: %v\n", branch, err)
-					}
-				} else {
-					e.clearMergeWarning(branch)
-					// Emit BeadCleanupEvent for successful merge
-					if in.Emitter != nil {
-						in.Emitter.Emit(&events.BeadCleanupEvent{
-							BeadID: in.Bead.ID,
-							Action: "merge",
-							Time:   time.Now(),
-						})
-					}
-					// Remove orphaned session worktree after successful merge
-					worktreePath := e.worktree.DeriveSessionWorktreePath(branch)
-					if worktreePath != "" {
-						if err := e.worktree.RemoveByPath(worktreePath); err != nil {
-							warnf("Warning: failed to remove worktree at %s: %v\n", worktreePath, err)
-						} else {
-							// Emit BeadCleanupEvent for successful worktree removal
-							if in.Emitter != nil {
-								in.Emitter.Emit(&events.BeadCleanupEvent{
-									BeadID: in.Bead.ID,
-									Action: "worktree_cleanup",
-									Time:   time.Now(),
-								})
-							}
-						}
-					}
-					// Remove successfully-merged branch from pending state
-					if e.branchRemover != nil {
-						if err := e.branchRemover.RemovePendingWorktreeBranch(branch); err != nil {
-							warnf("Warning: failed to remove pending branch %s from state: %v\n", branch, err)
-						}
-					}
-				}
-			}
-		}
-	}
+	// 3. Worktree merge: REMOVED - merge responsibility now belongs exclusively to
+	// the coordinator. The epilogue no longer owns merging branches to main.
+	_ = e.worktree
+	_ = e.branchRemover
 
 	// 4. Status: always write after each iteration.
 	if e.status != nil {
@@ -375,26 +324,4 @@ func computeTimeBudgetMinutes(deadline time.Time) int {
 		return 0
 	}
 	return m
-}
-
-func (e *Epilogue) shouldEmitMergeWarning(branch, errMsg string) bool {
-	if e == nil {
-		return true
-	}
-	if e.mergeWarnings == nil {
-		e.mergeWarnings = make(map[string]string)
-	}
-	last, exists := e.mergeWarnings[branch]
-	if exists && last == errMsg {
-		return false
-	}
-	e.mergeWarnings[branch] = errMsg
-	return true
-}
-
-func (e *Epilogue) clearMergeWarning(branch string) {
-	if e == nil || e.mergeWarnings == nil {
-		return
-	}
-	delete(e.mergeWarnings, branch)
 }
