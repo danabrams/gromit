@@ -94,3 +94,27 @@ func TestForwardModelToAgent_EmptyModel(t *testing.T) {
 		t.Error("ForwardModelToAgent(codex, \"\") returned different agent, want original")
 	}
 }
+
+// TestForwardModelToAgent_ClaudePreset verifies warning for claude preset agent
+func TestForwardModelToAgent_ClaudePreset(t *testing.T) {
+	// Create a claude agent (preset)
+	claudeAgent := resolveClaudePreset(nil)
+
+	// Forward model to claude agent
+	resultAgent, warning := ForwardModelToAgent(claudeAgent, "opus-4.6")
+
+	// Should return warning for claude (model is handled elsewhere)
+	if warning == "" {
+		t.Error("ForwardModelToAgent(claude, model) returned empty warning, want non-empty")
+	}
+
+	// Should return the original agent unchanged
+	if resultAgent != claudeAgent {
+		t.Error("ForwardModelToAgent(claude, model) returned different agent, want original")
+	}
+
+	// Agent should still be functional
+	if resultAgent.Name() != "claude" {
+		t.Errorf("Agent name = %q, want %q", resultAgent.Name(), "claude")
+	}
+}
