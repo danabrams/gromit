@@ -1087,3 +1087,105 @@ func TestCoordinatorProcessNext_RunsSafetyValidation(t *testing.T) {
 		t.Fatalf("gitops.calls = %v, want [] (safety check should prevent gitops calls)", gitops.calls)
 	}
 }
+
+// TestCoordinatorProcessNext_SafeLaneFastPath verifies that ProcessNext uses
+// a fast-path for safe_lane entries (skips gate checks).
+func TestCoordinatorProcessNext_SafeLaneFastPath(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	// Create safe_lane entry (metadata only)
+	entry := Entry{
+		Branch:           "feature/docs",
+		SessionID:        "feature/docs",
+		OriginCommand:    "test",
+		State:            StateReady,
+		Lane:             "safe_lane",
+		BaseRef:          "main",
+		HeadSHA:          "deadbeef",
+		ChangedFiles:     []string{".gromit/metadata.json"},  // Metadata file
+		ChangedFilesHash: "hash",
+	}
+	if err := store.Save(entry); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	gitops := &mockGitOps{}
+	gate := &mockScopedGate{}
+	coord := NewCoordinator(store, gitops, gate)
+
+	// ProcessNext should succeed for safe_lane
+	processed, err := coord.ProcessNext(ctx)
+	if err != nil {
+		t.Fatalf("ProcessNext() error = %v", err)
+	}
+	if !processed {
+		t.Fatalf("ProcessNext() = %v, want true", processed)
+	}
+
+	// For safe_lane, gate should NOT be called (fast-path)
+	if len(gate.calls) != 0 {
+		t.Fatalf("gate.calls = %v, want [] (safe_lane should skip gates)", gate.calls)
+	}
+
+	// But gitops operations should still occur
+	if len(gitops.calls) == 0 {
+		t.Fatalf("gitops.calls = %v, want non-empty", gitops.calls)
+	}
+}
+
+// TestCoordinatorProcessNext_CodeLaneFull verifies that ProcessNext uses
+// full processing for code_lane entries (includes gate checks).
+func TestCoordinatorProcessNext_CodeLaneFull(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	// Create code_lane entry
+	entry := Entry{
+		Branch:           "feature/code",
+		SessionID:        "feature/code",
+		OriginCommand:    "test",
+		State:            StateReady,
+		Lane:             "code_lane",
+		BaseRef:          "main",
+		HeadSHA:          "deadbeef",
+		ChangedFiles:     []string{"src/main.go"},  // Source file
+		ChangedFilesHash: "hash",
+	}
+	if err := store.Save(entry); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	gitops := &mockGitOps{}
+	gate := &mockScopedGate{}
+	coord := NewCoordinator(store, gitops, gate)
+
+	// ProcessNext should succeed for code_lane
+	processed, err := coord.ProcessNext(ctx)
+	if err != nil {
+		t.Fatalf("ProcessNext() error = %v", err)
+	}
+	if !processed {
+		t.Fatalf("ProcessNext() = %v, want true", processed)
+	}
+
+	// For code_lane, gate SHOULD be called (full validation)
+	if len(gate.calls) != 1 || gate.calls[0] != "feature/code" {
+		t.Fatalf("gate.calls = %v, want [\"feature/code\"]", gate.calls)
+	}
+
+	// And gitops operations should occur
+	if len(gitops.calls) == 0 {
+		t.Fatalf("gitops.calls = %v, want non-empty", gitops.calls)
+	}
+}
