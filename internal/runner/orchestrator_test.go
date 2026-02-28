@@ -3329,3 +3329,192 @@ func TestOrchestrator_ReadinessCheckBlocksPrecedingBuild(t *testing.T) {
 		t.Errorf("Expected GateBlockReason = 'criteria_missing', got %q", log.GateBlockReason)
 	}
 }
+
+// TestOrchestrator_ValidationFailure_CarriesBuildAttributionToIterationLog verifies that
+// when the build stage succeeds but validation fails, the build's model/cost/token
+// attribution is preserved in the IterationLog. Previously, the validation-failure path
+// dropped this data, causing empty model/provider fields in current-run efficiency data.
+func TestOrchestrator_ValidationFailure_CarriesBuildAttributionToIterationLog(t *testing.T) {
+	t.Parallel()
+	var capturedResult *logger.IterationLog
+
+	build := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{
+			Decision:     pipeline.Proceed,
+			Model:        "sonnet",
+			CostUSD:      0.042,
+			InputTokens:  15000,
+			OutputTokens: 3000,
+			DurationMs:   8500,
+			OriginalTier: "haiku",
+			ActualTier:   "sonnet",
+		}, nil
+	}}
+	validate := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{
+			Decision:           pipeline.Block,
+			ValidationFailures: []string{"lint: unused import"},
+		}, nil
+	}}
+	epilogueStage := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		capturedResult = in.Result
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-val-attr", Title: "Validation attribution test bead"}, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     &fakeStage{},
+		Build:    build,
+		Validate: validate,
+		Epilogue: epilogueStage,
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if capturedResult == nil {
+		t.Fatal("Epilogue Result is nil; want IterationLog populated on validation failure path")
+	}
+	if capturedResult.Model != "sonnet" {
+		t.Errorf("IterationLog.Model = %q, want %q", capturedResult.Model, "sonnet")
+	}
+	if capturedResult.CostUSD != 0.042 {
+		t.Errorf("IterationLog.CostUSD = %v, want %v", capturedResult.CostUSD, 0.042)
+	}
+	if capturedResult.InputTokens != 15000 {
+		t.Errorf("IterationLog.InputTokens = %d, want %d", capturedResult.InputTokens, 15000)
+	}
+	if capturedResult.OutputTokens != 3000 {
+		t.Errorf("IterationLog.OutputTokens = %d, want %d", capturedResult.OutputTokens, 3000)
+	}
+	if capturedResult.DurationMs != 8500 {
+		t.Errorf("IterationLog.DurationMs = %d, want %d", capturedResult.DurationMs, 8500)
+	}
+	if capturedResult.OriginalTier != "haiku" {
+		t.Errorf("IterationLog.OriginalTier = %q, want %q", capturedResult.OriginalTier, "haiku")
+	}
+	if capturedResult.ActualTier != "sonnet" {
+		t.Errorf("IterationLog.ActualTier = %q, want %q", capturedResult.ActualTier, "sonnet")
+	}
+}
+
+// TestOrchestrator_AllExitPaths_InvokeEpilogue verifies that every exit path that
+// processes a bead invokes the epilogue stage. This is a structural test that
+// enumerates: gate-blocked, build-fail, validation-fail, and success paths.
+func TestOrchestrator_AllExitPaths_InvokeEpilogue(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		gate     func(context.Context, pipeline.Input) (pipeline.Output, error)
+		build    func(context.Context, pipeline.Input) (pipeline.Output, error)
+		validate func(context.Context, pipeline.Input) (pipeline.Output, error)
+	}{
+		{
+			name: "gate-blocked",
+			gate: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+				return pipeline.Output{Decision: pipeline.Block, GateBlockReason: "test"}, nil
+			},
+			build:    nil, // should not be called
+			validate: nil, // should not be called
+		},
+		{
+			name: "build-fail",
+			gate: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+				return pipeline.Output{Decision: pipeline.Proceed}, nil
+			},
+			build: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+				return pipeline.Output{Model: "haiku"}, fmt.Errorf("build error")
+			},
+			validate: nil, // should not be called
+		},
+		{
+			name: "validation-fail",
+			gate: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+				return pipeline.Output{Decision: pipeline.Proceed}, nil
+			},
+			build: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+				return pipeline.Output{Decision: pipeline.Proceed, Model: "sonnet"}, nil
+			},
+			validate: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+				return pipeline.Output{Decision: pipeline.Block, ValidationFailures: []string{"fail"}}, nil
+			},
+		},
+		{
+			name: "success",
+			gate: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+				return pipeline.Output{Decision: pipeline.Proceed}, nil
+			},
+			build: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+				return pipeline.Output{Decision: pipeline.Proceed, Model: "opus"}, nil
+			},
+			validate: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+				return pipeline.Output{Decision: pipeline.Proceed}, nil
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			epilogueCalled := false
+			epilogueStage := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+				epilogueCalled = true
+				return pipeline.Output{Decision: pipeline.Proceed}, nil
+			}}
+
+			beadCalls := 0
+			getBead := func(_ context.Context) (*bead.Bead, error) {
+				beadCalls++
+				if beadCalls > 1 {
+					return nil, nil
+				}
+				return &bead.Bead{ID: "bead-exit-" + tc.name, Title: "Exit path test"}, nil
+			}
+
+			gateStage := &fakeStage{}
+			if tc.gate != nil {
+				gateStage.runFn = tc.gate
+			}
+			buildStage := &fakeStage{}
+			if tc.build != nil {
+				buildStage.runFn = tc.build
+			}
+			validateStage := &fakeStage{}
+			if tc.validate != nil {
+				validateStage.runFn = tc.validate
+			}
+
+			cfg := OrchestratorConfig{
+				Gate:     gateStage,
+				Build:    buildStage,
+				Validate: validateStage,
+				Epilogue: epilogueStage,
+				GetBead:  getBead,
+				Config:   &config.Config{},
+				Output:   io.Discard,
+			}
+
+			orch := NewOrchestrator(cfg)
+			_ = orch.Run(context.Background(), 10, time.Time{}, nil)
+
+			if !epilogueCalled {
+				t.Errorf("exit path %q did not invoke epilogue", tc.name)
+			}
+		})
+	}
+}
