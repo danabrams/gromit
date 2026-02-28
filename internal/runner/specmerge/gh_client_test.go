@@ -290,6 +290,35 @@ func TestGhCLIClient_RequestReviewersCommandAndJSON(t *testing.T) {
 	}
 }
 
+func TestGhCLIClient_MergeCommandAndJSON(t *testing.T) {
+	t.Parallel()
+
+	runner := &fakeGHRunner{
+		stdout: `{"merged": true, "message": "Merged"}`,
+	}
+
+	client := specmerge.NewGhCLIClient(runner)
+	ctx := context.Background()
+	ref := specmerge.PRRef{Owner: "octocat", Repo: "hello-world", Number: 707}
+
+	if err := client.MergePR(ctx, ref, "Merge feature"); err != nil {
+		t.Fatalf("MergePR returned error: %v", err)
+	}
+
+	gotArgs := runner.calls[0].args
+	wantArgs := []string{
+		"api",
+		"-X",
+		"PUT",
+		"/repos/octocat/hello-world/pulls/707/merge",
+		"-F",
+		"commit_message=Merge feature",
+	}
+	if !reflect.DeepEqual(gotArgs, wantArgs) {
+		t.Fatalf("gh command args = %v, want %v", gotArgs, wantArgs)
+	}
+}
+
 // fakeGHRunner captures gh CLI commands for testing.
 type fakeGHRunner struct {
 	calls  []ghCall
