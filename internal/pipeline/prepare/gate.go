@@ -188,6 +188,13 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 		}
 	}
 	if gateBlockReason != "" {
+		if in.Emitter != nil {
+			in.Emitter.Emit(&events.GateReadinessBlockEvent{
+				BeadID: in.Bead.ID,
+				Reason: gateBlockReason,
+				Time:   time.Now(),
+			})
+		}
 		return pipeline.Output{
 			Decision:          pipeline.Block,
 			GateBlockReason:   gateBlockReason,

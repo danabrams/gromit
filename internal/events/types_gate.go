@@ -4,11 +4,11 @@ import "time"
 
 // GateScopeEvent is emitted when the gate detects a scope issue.
 type GateScopeEvent struct {
-	BeadID  string
+	BeadID    string
 	FileCount int
-	MaxFiles int
-	Action  string // "block" or "decompose"
-	Time    time.Time
+	MaxFiles  int
+	Action    string // "block" or "decompose"
+	Time      time.Time
 }
 
 func (e *GateScopeEvent) EventType() string {
@@ -70,6 +70,24 @@ func (e *GateBlockEvent) EventType() string {
 }
 
 func (e *GateBlockEvent) EventTime() time.Time {
+	if e.Time.IsZero() {
+		return time.Now()
+	}
+	return e.Time
+}
+
+// GateReadinessBlockEvent is emitted when the gate blocks a bead for readiness reasons.
+type GateReadinessBlockEvent struct {
+	BeadID string
+	Reason string
+	Time   time.Time
+}
+
+func (e *GateReadinessBlockEvent) EventType() string {
+	return "gate_readiness_block"
+}
+
+func (e *GateReadinessBlockEvent) EventTime() time.Time {
 	if e.Time.IsZero() {
 		return time.Now()
 	}
