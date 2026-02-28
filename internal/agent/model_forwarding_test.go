@@ -1,6 +1,9 @@
 package agent
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -116,5 +119,38 @@ func TestForwardModelToAgent_ClaudePreset(t *testing.T) {
 	// Agent should still be functional
 	if resultAgent.Name() != "claude" {
 		t.Errorf("Agent name = %q, want %q", resultAgent.Name(), "claude")
+	}
+}
+
+// TestForwardModelToAgent_CodexIncludesModelInCommand verifies model flag in command args
+func TestForwardModelToAgent_CodexIncludesModelInCommand(t *testing.T) {
+	// Create codex agent and forward model
+	codexAgent := resolveCodexPreset()
+	modifiedAgent, warning := ForwardModelToAgent(codexAgent, "gpt-4-turbo")
+
+	if warning != "" {
+		t.Fatalf("ForwardModelToAgent failed: %v", warning)
+	}
+
+	// Create temp prompt file
+	tmpDir := t.TempDir()
+	promptPath := filepath.Join(tmpDir, "prompt.txt")
+	if err := os.WriteFile(promptPath, []byte("test prompt"), 0644); err != nil {
+		t.Fatalf("Failed to create temp prompt file: %v", err)
+	}
+
+	// Build command from modified agent
+	cmd, err := modifiedAgent.Command(promptPath)
+	if err != nil {
+		t.Fatalf("Command() failed: %v", err)
+	}
+
+	// Verify --model flag and value are in args
+	args := strings.Join(cmd.Args, " ")
+	if !strings.Contains(args, "--model") {
+		t.Error("Command args missing --model flag")
+	}
+	if !strings.Contains(args, "gpt-4-turbo") {
+		t.Error("Command args missing model value 'gpt-4-turbo'")
 	}
 }
