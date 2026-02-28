@@ -173,6 +173,18 @@ Gromit separates **planning** (human-guided) from **execution** (autonomous):
 
 For simple projects, you can also manage tasks directly and skip straight to `gromit run`.
 
+## Vision Metrics Workflow
+
+Vision metrics revolve around the canonical cycle record contract path located at `internal/visionmetrics/contract.go`. That contract defines the required fields—`spec_id`, cycle start/end timestamps, review outcome, and the tactical/debugging flags—and serves as the single source of truth for every cycle record you capture.
+
+### Step 1: Validate cycle records
+
+Parse each cycle record as a `visionmetrics.Record` and pass it through `visionmetrics.Validate` (see `internal/visionmetrics/validate.go`). To exercise the validation contract against real data, run `go test ./internal/visionmetrics -run TestVisionMetricsAcceptanceRollup`; the acceptance fixture at `internal/visionmetrics/testdata/vision_records.jsonl` shows the expected JSONL format. Invalid records are excluded from KPI rollups, so validation must run before aggregation.
+
+### Step 2: Generate KPI rollups
+
+Feed the validated records into `visionmetrics.ComputeRollup` (see `internal/visionmetrics/rollup.go`) to compute the human tactical intervention, human debugging intervention, first-integration pass, escaped regression, and accepted-without-rework rates. The rollup helpers accept slices of `visionmetrics.Record`, so you can wire them directly into whatever store you use for cycle data (newline-delimited JSON, a database snapshot, etc.), and persist the resulting KPIs alongside the records to chart trends over time.
+
 ### Interactive Agent Selection
 
 Interactive commands (`refine`, `plan`, `review`, `explore`, `debug`) support agent selection by CLI flag or config phase defaults.
