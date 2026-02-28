@@ -13,27 +13,6 @@ const (
 	schemaVersionV = 1
 )
 
-// Entry represents a queue entry persisted under .gromit/integration-queue.json.
-type Entry struct {
-	Branch               string    `json:"branch"`
-	SessionID            string    `json:"session_id"`
-	OriginCommand        string    `json:"origin_command"`
-	State                string    `json:"state"`
-	Lane                 string    `json:"lane"`
-	CreatedAt            time.Time `json:"created_at"`
-	UpdatedAt            time.Time `json:"updated_at"`
-	AttemptCount         int       `json:"attempt_count"`
-	RetryCount           int       `json:"retry_count"`
-	FifoSeq              int       `json:"fifo_seq"`
-	BaseRef              string    `json:"base_ref"`
-	HeadSHA              string    `json:"head_sha"`
-	ChangedFiles         []string  `json:"changed_files,omitempty"`
-	ChangedFilesHash     string    `json:"changed_files_hash"`
-	LastErrorCode        string    `json:"last_error_code"`
-	LastErrorMessage     string    `json:"last_error_message"`
-	LastTransitionReason string    `json:"last_transition_reason"`
-}
-
 type queueFile struct {
 	SchemaVersion int       `json:"schema_version"`
 	UpdatedAt     time.Time `json:"updated_at"`
