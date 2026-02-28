@@ -57,7 +57,7 @@ func TestBuildExplorePipeline_NilConfigUsesResolvedDefaults(t *testing.T) {
 		}
 	}()
 
-	p, err := buildExplorePipeline(nil)
+	p, err := buildExplorePipeline(nil, nil)
 	if err != nil {
 		t.Fatalf("buildExplorePipeline(nil) returned error: %v", err)
 	}
@@ -338,7 +338,7 @@ worktree:
 
 	mockRunnerCalled := false
 
-	exploreRunnerFactoryFn = func(cfg *config.Config) (exploreRunner, error) {
+	exploreRunnerFactoryFn = func(_ *cobra.Command, cfg *config.Config) (exploreRunner, error) {
 		return &mockExploreRunner{
 			result: &pipeline.ExploreResult{CreatedEpics: []string{"mocked"}},
 			onExplore: func() {
@@ -357,7 +357,7 @@ worktree:
 }
 
 type mockExploreRunner struct {
-	result   *pipeline.ExploreResult
+	result    *pipeline.ExploreResult
 	onExplore func()
 }
 
@@ -406,7 +406,7 @@ worktree:
 	var capturedInput pipeline.ExploreInput
 	delegationCallCount := 0
 
-	exploreRunnerFactoryFn = func(cfg *config.Config) (exploreRunner, error) {
+	exploreRunnerFactoryFn = func(_ *cobra.Command, cfg *config.Config) (exploreRunner, error) {
 		return &capturingMockExploreRunner{
 			result: &pipeline.ExploreResult{
 				CreatedEpics:        []string{"epic1.md"},
@@ -501,7 +501,7 @@ worktree:
 	}
 
 	// Mock runner that returns a result with populated artifact lists
-	exploreRunnerFactoryFn = func(cfg *config.Config) (exploreRunner, error) {
+	exploreRunnerFactoryFn = func(_ *cobra.Command, cfg *config.Config) (exploreRunner, error) {
 		return &mockExploreRunner{
 			result: &pipeline.ExploreResult{
 				CreatedEpics:        []string{"epic1.md"},
@@ -568,7 +568,7 @@ func TestExploreCommand_SessionAndFallbackProduceSameArtifactContract(t *testing
 		return runInDir(dir, fn)
 	}
 
-	exploreRunnerFactoryFn = func(cfg *config.Config) (exploreRunner, error) {
+	exploreRunnerFactoryFn = func(_ *cobra.Command, cfg *config.Config) (exploreRunner, error) {
 		return &mockExploreRunner{result: expectedResult}, nil
 	}
 

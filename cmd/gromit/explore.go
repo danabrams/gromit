@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/agent"
 	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/learnings"
@@ -36,7 +37,6 @@ Examples:
 	RunE: runExplore,
 }
 
-var exploreModel string
 var exploreSessionLauncherFn = runWithSessionWorktreeWithConflictSettings
 var exploreRunInDirFn = runInDir
 
@@ -47,6 +47,8 @@ type exploreRunner interface {
 
 // exploreRunnerFactoryFn is a package-level seam for dependency injection
 var exploreRunnerFactoryFn = buildExploreRunner
+
+const exploreModelFlagName = "model"
 
 const exploreCodexHelpExample = `  gromit explore --agent codex "Audit onboarding flow" # Use Codex for the session`
 const exploreChooseAgentHelpExample = `  gromit explore --choose-agent "Audit onboarding flow" # Pick an agent interactively`
@@ -61,7 +63,7 @@ const (
 )
 
 func init() {
-	exploreCmd.Flags().StringVar(&exploreModel, "model", "opus", "Model to use when the Claude agent is selected (opus, sonnet, haiku)")
+	exploreCmd.Flags().String(exploreModelFlagName, "opus", "Model to use when the Claude agent is selected (opus, sonnet, haiku)")
 	exploreCmd.Flags().String(exploreAgentFlagName, "", "Override the default agent for this explore session")
 	exploreCmd.Flags().Bool(exploreChooseAgentFlagName, false, "Show interactive picker to choose agent")
 	rootCmd.AddCommand(exploreCmd)
@@ -84,7 +86,7 @@ func runExplore(cmd *cobra.Command, args []string) error {
 	}
 
 	// Build runner via factory seam
-	runner, err := exploreRunnerFactoryFn(cfg)
+	runner, err := exploreRunnerFactoryFn(cmd, cfg)
 	if err != nil {
 		return fmt.Errorf("building runner: %w", err)
 	}
@@ -97,7 +99,7 @@ func runExplore(cmd *cobra.Command, args []string) error {
 		Topic:       topic,
 		AgentName:   agentFlag,
 		ChooseAgent: chooseAgent,
-		Model:       exploreModel,
+		Model:       resolveInteractiveModel(cmd, exploreModelFlagName),
 	}
 
 	result, err := runExploreInSession(ctx, cfg, resolveGromitDir(cfg), runner, input)
@@ -163,12 +165,12 @@ func runExploreInSession(
 }
 
 // buildExploreRunner creates an exploreRunner by building a pipeline
-func buildExploreRunner(cfg *config.Config) (exploreRunner, error) {
-	return buildExplorePipeline(cfg)
+func buildExploreRunner(cmd *cobra.Command, cfg *config.Config) (exploreRunner, error) {
+	return buildExplorePipeline(cmd, cfg)
 }
 
 // buildExplorePipeline constructs a Pipeline configured for the explore workflow
-func buildExplorePipeline(cfg *config.Config) (*pipeline.Pipeline, error) {
+func buildExplorePipeline(cmd *cobra.Command, cfg *config.Config) (*pipeline.Pipeline, error) {
 	gromitDir := resolveGromitDir(cfg)
 	epicsDir := filepath.Join(gromitDir, "epics")
 	specsDir := resolveSpecsDir(cfg)
@@ -218,7 +220,39 @@ func buildExplorePipeline(cfg *config.Config) (*pipeline.Pipeline, error) {
 		EpicsDir:  epicsDir,
 	}
 
+	deps.ModelForwarder = exploreInteractiveModelForwarder(cmd, cfg, exploreModelFlagName)
+
 	return pipeline.New(deps, paths), nil
+}
+
+func exploreInteractiveModelForwarder(cmd *cobra.Command, cfg *config.Config, flagName string) func(pipeline.Agent, string) (pipeline.Agent, string) {
+	return func(pAgent pipeline.Agent, model string) (pipeline.Agent, string) {
+		if model == "" || cmd == nil || !cmd.Flags().Changed(flagName) {
+			return pAgent, ""
+		}
+
+		resolvedAgent, ok := pAgent.(agent.Agent)
+		if !ok {
+			return pAgent, "model forwarding not supported for agent " + pAgent.Name()
+		}
+
+		if resolvedAgent.Name() == "claude" {
+			overridden := TryOverrideModel(cmd, resolvedAgent, model, cfg, flagName)
+			if overridden != nil && overridden != resolvedAgent {
+				return overridden, ""
+			}
+			return resolvedAgent, ""
+		}
+
+		forwarded, warning := agent.ForwardModelToAgent(resolvedAgent, model)
+		if warning != "" {
+			warning = fmt.Sprintf("--model flag ignored for non-Claude agent %q", resolvedAgent.Name())
+		}
+		if forwarded == nil {
+			forwarded = resolvedAgent
+		}
+		return forwarded, warning
+	}
 }
 
 // Adapter types

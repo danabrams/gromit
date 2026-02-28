@@ -134,7 +134,11 @@ func TestExploreInteractiveModelForwarderOverridesClaudeModel(t *testing.T) {
 	promptFile.Close()
 	defer os.Remove(promptPath)
 
-	cmdStruct, err := modified.Command(promptPath)
+	resolvableAgent, ok := modified.(agent.Agent)
+	if !ok {
+		t.Fatalf("modified agent is not agent.Agent, got %T", modified)
+	}
+	cmdStruct, err := resolvableAgent.Command(promptPath)
 	if err != nil {
 		t.Fatalf("getting command for modified agent: %v", err)
 	}
