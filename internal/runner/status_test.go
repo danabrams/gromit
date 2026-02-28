@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/integrationqueue"
 	"github.com/danabrams/gromit/internal/config"
 )
 
@@ -173,6 +174,48 @@ func TestPrintStatus_BlockerEntriesIncludeRecoveryInstructions(t *testing.T) {
 	}
 }
 
+func TestReadIntegrationQueue_UsesStoreSnapshot(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+
+	testSnapshot := &integrationqueue.Snapshot{
+		SchemaVersion: 1,
+		Entries: []integrationqueue.Entry{
+			{Branch: "gromit/ready-branch", State: integrationqueue.StateReady, Lane: "code_lane"},
+			{Branch: "gromit/conflict-branch", State: integrationqueue.StateConflict, Lane: "safe_lane", LastErrorCode: "merge_conflict"},
+		},
+	}
+
+	fakeStore := &fakeIntegrationQueueStore{snapshot: testSnapshot}
+	savedFactory := newIntegrationQueueStore
+	t.Cleanup(func() { newIntegrationQueueStore = savedFactory })
+	newIntegrationQueueStore = func(dir string) (integrationQueueStore, error) {
+		if dir != gromitDir {
+			t.Fatalf("newIntegrationQueueStore called with %q, want %q", dir, gromitDir)
+		}
+		return fakeStore, nil
+	}
+
+	status, err := ReadIntegrationQueue(gromitDir)
+	if err != nil {
+		t.Fatalf("ReadIntegrationQueue: %v", err)
+	}
+	if status == nil {
+		t.Fatalf("ReadIntegrationQueue returned nil status")
+	}
+	if status.QueueLength != len(testSnapshot.Entries) {
+		t.Fatalf("QueueLength = %d, want %d", status.QueueLength, len(testSnapshot.Entries))
+	}
+	if status.ReadyCount != 1 {
+		t.Fatalf("ReadyCount = %d, want 1", status.ReadyCount)
+	}
+	if status.BlockedCount != 1 {
+		t.Fatalf("BlockedCount = %d, want 1", status.BlockedCount)
+	}
+}
+
 func makeQueueEntry(branch, state, lane string, fifo int, lastCode, lastMsg string) map[string]interface{} {
 	return map[string]interface{}{
 		"branch":                  branch,
@@ -192,6 +235,15 @@ func makeQueueEntry(branch, state, lane string, fifo int, lastCode, lastMsg stri
 		"last_error_message":      lastMsg,
 		"last_transition_reason":  "session_committed",
 	}
+}
+
+type fakeIntegrationQueueStore struct {
+	snapshot *integrationqueue.Snapshot
+	err      error
+}
+
+func (f *fakeIntegrationQueueStore) Snapshot() (*integrationqueue.Snapshot, error) {
+	return f.snapshot, f.err
 }
 
 func TestPrintStatus_IncludesCompatibilityDiagnostics(t *testing.T) {
