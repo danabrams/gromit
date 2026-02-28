@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"io"
+	"os/exec"
 	"testing"
 	"time"
 
@@ -106,6 +107,118 @@ type failingGitCheckout struct{}
 
 func (f *failingGitCheckout) CreateOrCheckoutSpecBranch(ctx context.Context, branch string) error {
 	return context.DeadlineExceeded
+}
+
+// TestOrchestrator_ProviderBinaryMissing_SetsPrelaunchFailure verifies that when
+// no configured provider binary exists on PATH, the iteration is recorded as a
+// prelaunch failure with GateBlockReason "provider_binary_missing".
+func TestOrchestrator_ProviderBinaryMissing_SetsPrelaunchFailure(t *testing.T) {
+	t.Parallel()
+
+	// Inject a LookPath that always fails.
+	origFn := orchestratorLookPathFn
+	orchestratorLookPathFn = func(file string) (string, error) {
+		return "", &exec.Error{Name: file, Err: exec.ErrNotFound}
+	}
+	t.Cleanup(func() { orchestratorLookPathFn = origFn })
+
+	var capturedResult *logger.IterationLog
+	buildCalled := false
+
+	beadCount := 0
+	cfg := OrchestratorConfig{
+		Gate: &fakeStage{runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		}},
+		Build: &fakeStage{runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			buildCalled = true
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		}},
+		Validate: &fakeStage{},
+		Epilogue: &fakeStage{runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			if in.Result != nil {
+				capturedResult = in.Result
+			}
+			return pipeline.Output{}, nil
+		}},
+		GetBead: func(ctx context.Context) (*bead.Bead, error) {
+			beadCount++
+			if beadCount == 1 {
+				return &bead.Bead{ID: "b-4", Title: "Binary Test"}, nil
+			}
+			return nil, nil
+		},
+		Config: &config.Config{
+			Providers: map[string]config.ProviderDef{
+				"claude": {Binary: "nonexistent-claude-binary-xyz"},
+			},
+		},
+		Output: io.Discard,
+	}
+
+	o := NewOrchestrator(cfg)
+	_ = o.Run(context.Background(), 1, time.Time{}, nil)
+
+	if buildCalled {
+		t.Error("Build stage was called; want it skipped when provider binary is missing")
+	}
+	if capturedResult == nil {
+		t.Fatal("epilogue was not called with a Result")
+	}
+	if capturedResult.FailurePhase != failurephase.Prelaunch {
+		t.Errorf("FailurePhase = %q, want %q", capturedResult.FailurePhase, failurephase.Prelaunch)
+	}
+	if capturedResult.GateBlockReason != "provider_binary_missing" {
+		t.Errorf("GateBlockReason = %q, want %q", capturedResult.GateBlockReason, "provider_binary_missing")
+	}
+}
+
+// TestOrchestrator_ProviderBinaryExists_ProceedsTouild verifies that when the
+// provider binary exists on PATH, the Build stage runs normally.
+func TestOrchestrator_ProviderBinaryExists_ProceedsToBuild(t *testing.T) {
+	t.Parallel()
+
+	// Inject a LookPath that always succeeds.
+	origFn := orchestratorLookPathFn
+	orchestratorLookPathFn = func(file string) (string, error) {
+		return "/usr/bin/" + file, nil
+	}
+	t.Cleanup(func() { orchestratorLookPathFn = origFn })
+
+	buildCalled := false
+
+	beadCount := 0
+	cfg := OrchestratorConfig{
+		Gate: &fakeStage{runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		}},
+		Build: &fakeStage{runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			buildCalled = true
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		}},
+		Validate: &fakeStage{},
+		Epilogue: &fakeStage{},
+		GetBead: func(ctx context.Context) (*bead.Bead, error) {
+			beadCount++
+			if beadCount == 1 {
+				return &bead.Bead{ID: "b-5", Title: "Binary Exists Test"}, nil
+			}
+			return nil, nil
+		},
+		Config: &config.Config{
+			Providers: map[string]config.ProviderDef{
+				"claude": {Binary: "some-binary"},
+			},
+		},
+		Output: io.Discard,
+	}
+
+	o := NewOrchestrator(cfg)
+	_ = o.Run(context.Background(), 1, time.Time{}, nil)
+
+	if !buildCalled {
+		t.Error("Build stage was not called; want it to proceed when provider binary exists")
+	}
 }
 
 // TestOrchestrator_ProcessCapacityExhausted_SetsPrelaunchFailure verifies that
