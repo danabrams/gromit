@@ -451,8 +451,10 @@ type AgentsConfig struct {
 }
 
 type AgentDefinition struct {
-	Binary string   `yaml:"binary"`
-	Flags  []string `yaml:"flags"`
+	Binary         string   `yaml:"binary"`
+	Flags          []string `yaml:"flags"`
+	PromptDelivery string   `yaml:"prompt_delivery"`
+	PromptFlag     string   `yaml:"prompt_flag"`
 }
 
 type PhasesConfig struct {

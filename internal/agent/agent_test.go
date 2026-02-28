@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -220,6 +221,27 @@ func TestLaunchNonexistentPromptFile(t *testing.T) {
 	err := agent.Launch("/nonexistent/path/to/prompt.txt")
 	if err == nil {
 		t.Error("Launch() with nonexistent prompt file should return error, got nil")
+	}
+}
+
+func TestLaunchMissingAgentBinary(t *testing.T) {
+	tmpDir := t.TempDir()
+	promptPath := filepath.Join(tmpDir, "prompt.txt")
+	if err := os.WriteFile(promptPath, []byte("test"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	agent := New("gemini", "definitely-not-a-real-binary-12345", nil, FileRef, "", nil)
+
+	err := agent.Launch(promptPath)
+	if err == nil {
+		t.Fatal("Launch() with missing agent binary should return error, got nil")
+	}
+	if !strings.Contains(err.Error(), "not found in PATH") {
+		t.Fatalf("Launch() error = %q, want message containing %q", err.Error(), "not found in PATH")
+	}
+	if !strings.Contains(err.Error(), "agents.definitions.gemini.binary") {
+		t.Fatalf("Launch() error = %q, want configuration hint for agents.definitions.gemini.binary", err.Error())
 	}
 }
 

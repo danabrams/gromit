@@ -112,6 +112,10 @@ func (a *cliAgent) LaunchInDir(promptPath, dir string) error {
 		return err
 	}
 
+	if _, err := exec.LookPath(a.binary); err != nil {
+		return fmt.Errorf("agent binary %q not found in PATH; install it or configure agents.definitions.%s.binary in gromit.yaml", a.binary, a.name)
+	}
+
 	// Create command
 	cmd := a.makeCommand(a.binary, args...)
 	cmd.Stdout = os.Stdout
