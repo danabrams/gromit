@@ -14,6 +14,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/danabrams/gromit/internal/conversation"
 )
 
 func TestValidateCommands(t *testing.T) {
@@ -937,6 +939,90 @@ func TestStreamJSONMixedContent(t *testing.T) {
 	}
 }
 
+func TestStreamJSONConversationEventsMapping(t *testing.T) {
+	successLines := readStreamJSONFixtureLines(t, filepath.Join("test", "fixtures", "claude_stream_success.jsonl"))
+
+	t.Run("assistant text and result event", func(t *testing.T) {
+		mapper := NewStreamJSONConversationMapper()
+		got := collectConversationEvents(t, mapper, successLines)
+
+		want := []conversation.Event{
+			{Type: conversation.EventTypeStream, Text: "Completed implementation and updated tests."},
+			{Type: conversation.EventTypeDone, Text: "success (end_turn)"},
+		}
+
+		compareConversationEvents(t, got, want)
+	})
+
+	t.Run("tool_use lifecycle", func(t *testing.T) {
+		lines := []string{
+			`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","path":"/tmp/app.go"}]}}`,
+			`{"type":"user","tool_use_result":{"type":"text","file":{"filePath":"/tmp/app.go","numLines":42}}}`,
+		}
+		mapper := NewStreamJSONConversationMapper()
+		got := collectConversationEvents(t, mapper, lines)
+
+		want := []conversation.Event{
+			{Type: conversation.EventTypeToolWait, ToolName: "Read", Text: "/tmp/app.go"},
+			{Type: conversation.EventTypeToolResult, ToolName: "Read", Text: "42 lines read from /tmp/app.go"},
+		}
+
+		compareConversationEvents(t, got, want)
+	})
+
+	t.Run("terminal error event", func(t *testing.T) {
+		lines := []string{
+			`{"type":"error","subtype":"invalid_request","error":{"message":"bad request"}}`,
+		}
+		mapper := NewStreamJSONConversationMapper()
+		got := collectConversationEvents(t, mapper, lines)
+
+		want := []conversation.Event{
+			{Type: conversation.EventTypeDone, Text: "bad request"},
+		}
+
+		compareConversationEvents(t, got, want)
+	})
+}
+
+func collectConversationEvents(t *testing.T, mapper *StreamJSONConversationMapper, lines []string) []conversation.Event {
+	t.Helper()
+	var events []conversation.Event
+	for _, raw := range lines {
+		line := strings.TrimSpace(raw)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		mapped, err := mapper.MapLine([]byte(line))
+		if err != nil {
+			t.Fatalf("MapLine(%q) failed: %v", line, err)
+		}
+		events = append(events, mapped...)
+	}
+	return events
+}
+
+func compareConversationEvents(t *testing.T, got, want []conversation.Event) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("events length = %d, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("event[%d] = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
+
+func readStreamJSONFixtureLines(t *testing.T, path string) []string {
+	t.Helper()
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading fixture %s: %v", path, err)
+	}
+	return strings.Split(strings.ReplaceAll(string(content), "\r\n", "\n"), "\n")
+}
+
 func TestClientTimeout(t *testing.T) {
 	// Test that timeout is properly set in client
 	timeouts := []int{0, 1, 60, 600, 3600}
@@ -1616,4 +1702,3 @@ func fakeClaudeWithDelay(t *testing.T, delay time.Duration) string {
 	}
 	return binary
 }
-
