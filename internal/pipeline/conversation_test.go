@@ -352,6 +352,26 @@ func TestIsTerminalStateFunction(t *testing.T) {
 	}
 }
 
+func TestConversationLifecycleStateString(t *testing.T) {
+	// Test string representations of lifecycle states
+	tests := map[ConversationLifecycleState]string{
+		ConversationStateIdle:            "idle",
+		ConversationStateStarting:        "starting",
+		ConversationStateStreaming:       "streaming",
+		ConversationStateWaitingForTool:  "waiting_for_tool",
+		ConversationStateCompleted:       "completed",
+		ConversationStateFailed:          "failed",
+		ConversationStateCancelled:       "cancelled",
+	}
+
+	for state, expected := range tests {
+		result := ConversationLifecycleStateString(state)
+		if result != expected {
+			t.Fatalf("expected %q for state %v, got %q", expected, state, result)
+		}
+	}
+}
+
 func TestConversationStateTransitions(t *testing.T) {
 	// Test multiple valid state transitions
 	tests := []struct {
