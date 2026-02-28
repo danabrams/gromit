@@ -13,6 +13,7 @@ import (
 const (
 	ghCreateFields = "number,title,state,isDraft,createdAt,updatedAt,url"
 	ghViewFields   = "number,title,state,isDraft,createdAt,updatedAt"
+	ghChecksFields = "name,state,bucket,link"
 )
 
 type ghCommandRunner interface {
@@ -112,7 +113,42 @@ func (c *ghClient) GetPR(ctx context.Context, ref PRRef) (PRStatus, error) {
 }
 
 func (c *ghClient) ListChecks(ctx context.Context, ref PRRef) ([]CheckStatus, error) {
-	return nil, fmt.Errorf("ListChecks not implemented")
+	args := []string{
+		"pr",
+		"checks",
+		strconv.Itoa(ref.Number),
+		"--repo",
+		fmt.Sprintf("%s/%s", ref.Owner, ref.Repo),
+		"--json",
+		ghChecksFields,
+	}
+
+	out, err := c.run(ctx, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list checks: %w", err)
+	}
+
+	var resp []struct {
+		Name   string `json:"name"`
+		State  string `json:"state"`
+		Bucket string `json:"bucket"`
+		Link   string `json:"link"`
+	}
+	if err := json.Unmarshal([]byte(out), &resp); err != nil {
+		return nil, fmt.Errorf("parse checks response: %w", err)
+	}
+
+	checks := make([]CheckStatus, len(resp))
+	for i, check := range resp {
+		checks[i] = CheckStatus{
+			Name:       check.Name,
+			Status:     check.State,
+			Conclusion: conclusionFromBucket(check.Bucket),
+			DetailsURL: check.Link,
+		}
+	}
+
+	return checks, nil
 }
 
 func (c *ghClient) PostReview(ctx context.Context, ref PRRef, payload ReviewPayload) error {
@@ -129,6 +165,25 @@ func (c *ghClient) RequestReviewers(ctx context.Context, ref PRRef, reviewers []
 
 func (c *ghClient) MergePR(ctx context.Context, ref PRRef, commitMessage string) error {
 	return fmt.Errorf("MergePR not implemented")
+}
+
+func conclusionFromBucket(bucket string) string {
+	switch strings.ToLower(strings.TrimSpace(bucket)) {
+	case "pass":
+		return "success"
+	case "fail":
+		return "failure"
+	case "cancel":
+		return "cancelled"
+	case "neutral":
+		return "neutral"
+	case "pending":
+		return "pending"
+	case "skipped":
+		return "skipped"
+	default:
+		return bucket
+	}
 }
 
 func (c *ghClient) run(ctx context.Context, args ...string) (string, error) {
