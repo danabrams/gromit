@@ -232,6 +232,28 @@ func formatItems(items []string, maxShow int) []string {
 	return lines
 }
 
+func buildIntegrationQueueEntryComponents(entry *IntegrationQueueEntryView) []string {
+	if entry == nil {
+		return nil
+	}
+
+	components := []string{fmt.Sprintf("%s (state: %s, lane: %s", entry.Branch, entry.State, entry.Lane)}
+	if entry.ReadyPosition > 0 {
+		components = append(components, fmt.Sprintf("position: %d", entry.ReadyPosition))
+	}
+	if entry.FifoSequence > 0 {
+		components = append(components, fmt.Sprintf("fifo: %d", entry.FifoSequence))
+	}
+	if entry.RetryAttempt > 0 {
+		components = append(components, fmt.Sprintf("retry attempt: %d", entry.RetryAttempt))
+	}
+	if entry.FailureReason != "" {
+		components = append(components, fmt.Sprintf("failure reason: %s", entry.FailureReason))
+	}
+
+	return components
+}
+
 func min(a, b int) int {
 	if a < b {
 		return a

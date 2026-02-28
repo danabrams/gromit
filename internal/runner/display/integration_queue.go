@@ -67,9 +67,9 @@ func formatIntegrationQueueEntry(entry *IntegrationQueueEntryView) string {
 		return ""
 	}
 
-	components := []string{fmt.Sprintf("%s (state: %s, lane: %s", entry.Branch, entry.State, entry.Lane)}
-	if entry.ReadyPosition > 0 {
-		components = append(components, fmt.Sprintf("position: %d", entry.ReadyPosition))
+	components := buildIntegrationQueueEntryComponents(entry)
+	if len(components) == 0 {
+		return ""
 	}
 
 	line := strings.Join(components, ", ") + ")"
