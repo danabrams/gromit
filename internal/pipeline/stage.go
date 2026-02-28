@@ -92,6 +92,9 @@ type Output struct {
 	// Decision tells the orchestrator how to proceed.
 	// A zero-value Output has Decision==Proceed.
 	Decision Decision
+	// GateBlockReason is an optional string explaining why a bead was blocked by the Gate stage.
+	// Only populated when Decision is Block. Written to iteration log for traceability.
+	GateBlockReason string
 	// ValidationFailures holds failure summaries produced by the validate stage
 	// to be fed into the next execute stage Input.
 	ValidationFailures []string

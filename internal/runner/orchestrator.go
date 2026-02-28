@@ -358,6 +358,7 @@ runLoop:
 					Time:   time.Now(),
 				})
 			case pipeline.Block:
+				baseIn.Result.GateBlockReason = gateOut.GateBlockReason
 				o.emitBeadStuckEvent(b, "gate stage returned block decision")
 			default:
 				o.emitter.Emit(&events.BeadSkippedEvent{
