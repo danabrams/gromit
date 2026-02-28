@@ -190,6 +190,14 @@ func loadIntegrationQueueStatus(gromitDir string) (*IntegrationQueueStatus, erro
 		return nil, nil
 	}
 
+	queuePath := filepath.Join(gromitDir, "integration-queue.json")
+	if _, err := os.Stat(queuePath); err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
 	store, err := integrationqueue.NewStore(gromitDir)
 	if err != nil {
 		return nil, err
