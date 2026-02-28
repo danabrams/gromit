@@ -8,6 +8,7 @@ These are non-negotiable constraints for this project.
 - Use `error` returns, not panics, for recoverable failures. Exception: test helpers and init()
 - After unmarshaling or file loading, call `normalizeNilFields()` to convert nil slices to empty slices. Keep it as a pure nil→empty converter; field mapping belongs in a separate resolution step
 - Keep packages focused: one package should not reach into another package's internal types
+- Error types used in cross-package `errors.As` checks must be defined once in a shared package; duplicate same-name error structs across packages are forbidden
 - `bead.Client`: `Ready()`/`CountReady()` return unblocked beads only (`bd ready`); `List()` returns all open beads (`bd list --status open`)
 - Functions that run subprocesses or prompts must inject those dependencies for testability
 - JSON tags must be snake_case and explicit (e.g. `input_tokens`, `cost_usd`); use `omitempty` only for truly optional fields
@@ -57,10 +58,12 @@ These are non-negotiable constraints for this project.
 - Compatibility/deprecation markers are incomplete unless surfaced in user-visible status/debug output and covered by end-to-end behavior tests
 - Interactive commands use the session worktree lifecycle with a single merge/cleanup owner and typed conflict classification from git output + exit status. Do not classify conflicts by message fragments alone. Merge-back cleanup may abort only merge state created by the current operation; pre-existing `MERGE_HEAD` must return a typed non-destructive error.
 - All decomposition entry points must call the same shared validator. Required-field rules (non-empty title, expected_outputs contract, dependency-field validity) must not live in call-site-only checks. Any field required by validation must be present in candidate mapping and reprompt context; prompt/schema/fixture changes for those fields must ship together.
+- Tracker adapters must not downcast `tracker.Client` via `UnwrapBDAdapter` in production paths. If a capability is needed (e.g., `CreateWithParent`/`ListWithLabel`), add it to tracker interfaces (or a typed sub-interface) and update mocks in the same bead
 
 ## Process <!-- phases: build, retro -->
 
-- Post-run efficiency validation must fail closed on missing current-run rows or missing efficiency fields and include per-field diagnostics (missing row vs missing attribution vs missing numeric fields); keep/revert experiment decisions are blocked until at least one complete current-run dataset with non-empty model/provider attribution is recorded
+- Post-run efficiency validation must fail closed on missing current-run rows or missing efficiency fields and include per-field diagnostics (missing row vs missing attribution vs missing numeric fields); keep/revert/extend experiment decisions are blocked until at least one complete current-run dataset with non-empty model/provider attribution is recorded and baseline metrics are non-null/non-zero where required
+- Retro/experiment Study-Act steps are blocked unless at least one current-run row has non-empty model/provider attribution and non-zero efficiency fields; otherwise emit a data-quality-blocked status
 - RecordRetro() must clear one-shot control-limit alert flags in state so previously acknowledged alerts do not persist across subsequent healthy runs
 
 ## Build Process <!-- phases: build -->
@@ -69,7 +72,7 @@ These are non-negotiable constraints for this project.
 - Config defaults live in `SetDefaults()`; mirror new `IterationResult` fields into `IterationLog` via `writeIterationLog()`, and add schema-parity contract tests that compare run logs, iteration metrics, and trend inputs so new observability fields cannot be dropped
 - Shared-package refactors rerun test suites after commits and verify each diff matches intent
 - Test-only bead detection: use `bead.IsTestOnlyBead()` (e.g., "Add tests for") alongside `IsMethodologyActive()`
-- On bead failure: add to `skippedBeads`. After 2 consecutive failures, create/link decomposition sub-beads with expected_outputs and bounded scope. Telemetry/usage children split: (1) event-merge, (2) completeness, (3) attribution. Block parent retries until a child lands; no retries on partial/non-idempotent decomposition; emit decomposition-attempt event; fail if skipped; skip escalation after 3+.
+- On bead failure: add to `skippedBeads`. For broad/high-risk scope (cross-package, umbrella titles, or >=6 touched files), decompose after the first failure; otherwise decompose after 2 consecutive failures. Create/link decomposition sub-beads with expected_outputs and bounded scope. Block parent retries until at least one child lands and is linked; no retries on partial/non-idempotent decomposition; emit decomposition-attempt event; fail if skipped; skip escalation after 3+.
 - On timeout, if elapsed time exceeds 75% of budget apply timeout-first decomposition and forbid same-scope retries until decomposition or explicit escalation.
 - `Run()` order: validate → execute → persist state → between-iteration hooks → continue. No reordering; log timeout warnings (no early return); nil-safe receiver/config checks at method entry. Persist iteration metrics (including current-run row identity and attribution fields) before any timeout/failure return, and fail validation when comparative metrics would otherwise zero-fill
 - New config types/fields: update `gromit.yaml` to match — project-config tests validate the live file against the schema
@@ -77,7 +80,7 @@ These are non-negotiable constraints for this project.
 - `test/contracts/` contract tests verify git call order (`rev-parse` before `git diff --stat`) and keep harness init and sequencing intact
 - Validation commands in gromit.yaml must match the build system (go test/vet/build); never pnpm/npm. API/lifecycle/orchestrator deletions or migrations must add compile gate `go test -tags acceptance -run '^$' ./...`.
 - When deleting exported APIs or large orchestration files, run `go test -tags acceptance -run '^$' ./...` as a compile gate before merge; blocked build-tagged references must be resolved in the same bead
-- Build phases run `go test`/`go vet` on touched packages only; full validation runs `go test ./...`, `go vet ./...`, `go build ./...`
+- Build phases run `go test`/`go vet` on touched packages only. Trigger full validation when either (a) every N successes OR (b) risk signal fires (cross-package touch, architecture/runner/provider paths, or control-limit build-failure signal)
 - `test_touched.sh` tests branch-modified packages; existing failures in those packages block new beads, so verify they pass before starting dependent work
 - Benchmark run outputs are ephemeral and must write to ignored artifact paths; committed benchmark/test artifacts must be deterministic curated fixtures (under `test/fixtures/`)
 - Validate `token_efficiency.routing` overrides after normalization: unknown categories or non-`low|medium|high` tier values are hard validation errors

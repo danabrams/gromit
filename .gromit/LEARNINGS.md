@@ -54,22 +54,17 @@ Prompt templates in .gromit/templates/ use explicit section headers (##) and pre
 
 *Seen once - may be specific to one task.*
 
-### 2026-02-25 | Goroutine-Safe Test Failures Require Error-Returning Helpers | TEST_QUALITY
-*Related to: review-1772029155449854699*
-
-When a helper may run inside worker goroutines, it must not call `t.Fatalf`/`FailNow` internally. Return `(value, error)` from the helper and aggregate/report failures from the parent test goroutine after synchronization.
-
 ### 2026-02-25 | Scanner-Based Call Log Parsers Need Explicit Buffer Limits | PATTERNS
 *Related to: review-1772029155449854699*
 
 `bufio.Scanner` defaults can fail on long CLI invocation lines; call-log utilities should set an explicit scanner buffer and test oversized-line behavior to avoid latent parsing failures in CI logs.
 
-### 2026-02-26 | Telemetry Integrity and Completeness Contract | gotchas
-*Related to: code-review, review-1771855648673321351, review-1771854448297640630, gromit-8w81a, gromit-sq2a3*
+### 2026-02-26 | Shared Path Ownership Includes Telemetry Completeness | architecture
+*Related to: code-review, review-1771855648673321351, review-1771854448297640630, gromit-8w81a, gromit-sq2a3, review-1771733992016921570, review-1771880675971102580*
 
-Telemetry integrity requires both runtime-path parity and post-run completeness assertions that explicitly fail closed on missing rows/fields and report actionable diagnostics.
+Shared orchestrator/runtime path ownership must include telemetry completeness enforcement (row presence + attribution + numeric fields) as one contract. Runtime-path parity and post-run completeness assertions must fail closed on missing rows/fields and report actionable diagnostics.
 
-*Consolidated from: Telemetry Integrity Contract + Post-Run Completeness Assertions for Efficiency Metrics*
+*Consolidated from: Telemetry Integrity Contract + Post-Run Completeness Assertions + Orchestrator Shared Path Parity*
 
 
 ## Emerging
@@ -77,14 +72,14 @@ Telemetry integrity requires both runtime-path parity and post-run completeness 
 *Newly observed — needs validation across more tasks.*
 
 ### 2026-02-26 | Tracker Adapter Metadata Serialization Must Use JSON | gotchas
-*Related to: code-review, review-1772124256835385050, gromit-qdjqk*
+*Related to: code-review, review-1772124256835385050, gromit-qdjqk, review-1772143302280772186*
 
-tracker.Client adapters use metadata map[string]string as the extension mechanism for backend-specific fields (priority, labels, expected_outputs). All adapter entry points must use JSON encoding consistently — internal/bead/tracker_convert.go establishes the canonical pattern with encodeJSONIfNonEmpty. Using fmt.Sprintf("%v") or comma concatenation creates incompatible formats that silently corrupt labels on roundtrip.
+Tracker adapter metadata must use one canonical JSON encoder (encodeJSONIfNonEmpty) for labels/expected_outputs/criteria across all adapter entry points; fmt.Sprintf/comma formats are forbidden because they break roundtrip parsing.
 
 ### 2026-02-26 | Session Worktree Cleanup-Before-Merge Lifecycle | patterns
-*Related to: code-review, review-1772124256835385050*
+*Related to: code-review, review-1772124256835385050, review-1772143302280772186*
 
-Session worktree lifecycle was reordered from add→merge→remove→cleanup to add→cleanup→merge→remove. Removing the worktree directory before attempting branch merge/delete eliminates the "cannot delete branch checked out at" error entirely, removing the need for the isCheckedOutBranchDeleteError recovery path.
+Session worktree lifecycle should run add → cleanup → merge → remove to avoid checked-out-branch deletion failures, while preserving merge-state safety guarantees.
 
 ### 2026-02-26 | Profile-Aware Init Three-Function Pattern | patterns
 *Related to: code-review, review-1772124256835385050*
@@ -115,16 +110,6 @@ Requirement extraction uses a 3-layer fallback: Layer 1 (ExpectedOutputs field f
 *Related to: review-1771784092725425988*
 
 Including expected_outputs in the decompose prompt template is high-leverage: decomposition quality determines downstream TDD cycle granularity (one red-green cycle per expected output). When the LLM doesn't produce expected_outputs, the system falls back to acceptance_criteria parsing, which may be coarser-grained. Explicitly instructing "list each individual deliverable as a separate entry — these drive TDD RED-GREEN cycles" produces fine-grained outputs that match the system's mechanical needs.
-
-### 2026-02-22 | SCOPE_GATE_ERROR_PROPAGATION_CHANGE | ARCHITECTURE
-*Related to: review-1771788120407657627*
-
-runScopeGate in gate.go now propagates decomposition failures as errors instead of falling through to Block decision. This is a deliberate semantic shift — transient decomposition failures (network, bd CLI) will error the gate rather than blocking the bead for retry. Callers should handle gate errors accordingly.
-
-### 2026-02-22 | DECOMPOSER_ADAPTER_MINIMAL_DECOMPOSITION | ARCHITECTURE
-*Related to: review-1771788120407657627*
-
-The decomposerAdapter implementation creates a single child bead with title "(decomposed)" suffix and closes the parent. This is a minimal decomposition — it doesn't split work into multiple sub-beads based on expected outputs. Real decomposition intelligence comes from the pipeline.Decompose() path (provider-parity-decompose-retro spec).
 
 ### 2026-02-22 | SCOPE_GATE_DECOMPOSITION_NEEDS_STATE_SAFETY | ARCHITECTURE
 *Related to: review-1771797265171555605*
@@ -157,14 +142,6 @@ When wiring CLI adapters for thorough review prompt rendering, load rules via `L
 ### 2026-02-25 | Record Retro Should Clear Pending Control Alerts | patterns
 If run health logic sets a persistent control-limit alert flag in `state.json`, clear that flag as part of `RecordRetro()` so the alert lifecycle is one-shot and does not remain stale after a retro is completed.
 
-### 2026-02-26 | gromit-9mo | patterns
-When implementing retry/loop bounds (especially in escalation chains like haiku→sonnet→opus), verify the retry cap is checked BEFORE entering loops, not just at exit conditions, to prevent infinite retry cycles.
-
-### 2026-02-26 | Tracker Adapter Metadata Must Use JSON Not Sprintf | gotchas
-*Related to: code-review, review-1772143302280772186*
-
-fmt.Sprintf("%v", slice) for tracker metadata produces Go's [a b c] syntax which is not parseable back into a slice. All adapter entry points must use JSON encoding consistently — internal/bead/tracker_convert.go establishes the canonical pattern with encodeJSONIfNonEmpty. Using fmt.Sprintf or comma concatenation creates incompatible formats that silently corrupt on roundtrip.
-
 ### 2026-02-26 | Duplicate Error Types Across Packages Break errors.As | gotchas
 *Related to: code-review, review-1772143302280772186*
 
@@ -174,11 +151,6 @@ Identical error types defined in separate packages (e.g. specbranch.ConflictErro
 *Related to: code-review, review-1772143302280772186*
 
 When extracting display/formatting logic to a new sub-package, ensure metric string constants are defined in one place only. The display package extracted from runner/format.go left duplicate constant sets — changes to metric names must now be updated in two files with no compile-time safety net.
-
-### 2026-02-26 | Worktree Cleanup-Before-Merge Eliminates Checked-Out-Branch Error | patterns
-*Related to: code-review, review-1772143302280772186*
-
-Session worktree lifecycle reordered from add→merge→remove→cleanup to add→cleanup→merge→remove. Removing the worktree directory before branch merge/delete eliminates the "cannot delete branch checked out at" error entirely but removes the recovery path for in-merge cleanup needs.
 
 ### 2026-02-26 | Dead Code Accumulation in Gemini Provider Stream/Helper Functions | tech_debt
 *Related to: code-review, review-1772143302280772186*

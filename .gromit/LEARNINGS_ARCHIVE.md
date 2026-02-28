@@ -7,6 +7,29 @@ Archived learnings moved from LEARNINGS.md. Last moved: 2026-02-28.
 
 *Previously archived learnings.*
 
+### 2026-02-25 | Goroutine-Safe Test Failures Require Error-Returning Helpers | TEST_QUALITY
+*Related to: review-1772029155449854699*
+*Archived 2026-02-28: Mostly generic goroutine test advice.*
+
+When a helper may run inside worker goroutines, it must not call `t.Fatalf`/`FailNow` internally. Return `(value, error)` from the helper and aggregate/report failures from the parent test goroutine after synchronization.
+
+### 2026-02-22 | SCOPE_GATE_ERROR_PROPAGATION_CHANGE | ARCHITECTURE
+*Related to: review-1771788120407657627*
+*Archived 2026-02-28: One-time semantic change record; behavior is now embodied in code/tests.*
+
+runScopeGate in gate.go now propagates decomposition failures as errors instead of falling through to Block decision. This is a deliberate semantic shift — transient decomposition failures (network, bd CLI) will error the gate rather than blocking the bead for retry. Callers should handle gate errors accordingly.
+
+### 2026-02-22 | DECOMPOSER_ADAPTER_MINIMAL_DECOMPOSITION | ARCHITECTURE
+*Related to: review-1771788120407657627*
+*Archived 2026-02-28: Transitional migration note tied to old decomposer adapter behavior; now stale.*
+
+The decomposerAdapter implementation creates a single child bead with title "(decomposed)" suffix and closes the parent. This is a minimal decomposition — it doesn't split work into multiple sub-beads based on expected outputs. Real decomposition intelligence comes from the pipeline.Decompose() path (provider-parity-decompose-retro spec).
+
+### 2026-02-26 | gromit-9mo | patterns
+*Archived 2026-02-28: Task-ID-only reminder; not a durable project learning.*
+
+When implementing retry/loop bounds (especially in escalation chains like haiku→sonnet→opus), verify the retry cap is checked BEFORE entering loops, not just at exit conditions, to prevent infinite retry cycles.
+
 ### 2026-02-26 | Provider Contract Fixtures | patterns
 *Related to: gromit-d7j9*
 
