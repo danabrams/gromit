@@ -1,9 +1,9 @@
 package pipeline
 
 import (
-    "testing"
+	"testing"
 
-    "github.com/danabrams/gromit/internal/conversation"
+	"github.com/danabrams/gromit/internal/conversation"
 )
 
 func TestCollectConversationHandlesFollowUpDuringToolWait(t *testing.T) {
@@ -61,4 +61,38 @@ func TestCollectConversationIgnoresLateEventsAfterCancel(t *testing.T) {
             t.Fatalf("did not expect late event to appear in results, got %v", ev)
         }
     }
+}
+
+func TestConversationEventTypeExists(t *testing.T) {
+	// Verify ConversationEvent type exists and has required fields
+	event := ConversationEvent{
+		State:       ConversationStateStreaming,
+		Content:     "assistant output",
+		ToolName:    "tool1",
+		ToolInput:   `{"key":"value"}`,
+		ToolOutput:  "result",
+		ErrorReason: "",
+	}
+	if event.State != ConversationStateStreaming {
+		t.Fatalf("expected ConversationStateStreaming, got %v", event.State)
+	}
+	if event.Content != "assistant output" {
+		t.Fatalf("expected Content to be 'assistant output', got %q", event.Content)
+	}
+}
+
+func TestConversationLifecycleStatesExist(t *testing.T) {
+	// Verify all lifecycle state constants are defined
+	states := []ConversationLifecycleState{
+		ConversationStateIdle,
+		ConversationStateStarting,
+		ConversationStateStreaming,
+		ConversationStateWaitingForTool,
+		ConversationStateCompleted,
+		ConversationStateFailed,
+		ConversationStateCancelled,
+	}
+	if len(states) != 7 {
+		t.Fatalf("expected 7 lifecycle states, got %d", len(states))
+	}
 }
