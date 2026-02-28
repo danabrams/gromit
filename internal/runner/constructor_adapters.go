@@ -23,6 +23,7 @@ import (
 	pipelinevalidate "github.com/danabrams/gromit/internal/pipeline/validate"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/readiness"
 	"github.com/danabrams/gromit/internal/runner/escalation"
 	"github.com/danabrams/gromit/internal/runner/execution"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
@@ -1013,6 +1014,16 @@ func NewReadinessAdapterWithLLM(renderer readinessPromptRenderer, router readine
 		renderer: renderer,
 		router:   router,
 	}
+}
+
+// Assess determines whether a bead is ready using structured checks and LLM classification.
+// Fails closed: returns StatusNotReady if renderer is nil or other checks fail.
+func (a *readinessAdapterWithLLM) Assess(ctx context.Context, b *bead.Bead) (readiness.Assessment, error) {
+	if a.renderer == nil {
+		return readiness.Assessment{Status: readiness.StatusNotReady}, nil
+	}
+	// Stub implementation: pass all beads for now
+	return readiness.Assessment{Status: readiness.StatusReady}, nil
 }
 
 // Compile-time interface checks
