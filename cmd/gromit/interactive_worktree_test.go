@@ -974,6 +974,11 @@ func TestSessionSuccessDoesNotDependOnConflictPolicy(t *testing.T) {
 // multiple concurrent sessions queue their branches independently without merge contention.
 func TestConcurrentSessions_BothQueueWithoutConflict(t *testing.T) {
 	// Not parallel: withInteractiveWorktreeFactories mutates package-level globals.
+	cleanupGit := overrideGitRun(defaultTestGitRun)
+	t.Cleanup(cleanupGit)
+	cleanupStore := overrideQueueStore(func(entry integrationqueue.Entry) error { return nil })
+	t.Cleanup(cleanupStore)
+
 	mainDir := t.TempDir()
 	gromitDir := filepath.Join(mainDir, ".gromit")
 	sessionA := &worktree.SessionWorktree{
@@ -1022,14 +1027,6 @@ func TestConcurrentSessions_BothQueueWithoutConflict(t *testing.T) {
 			return nil
 		},
 	}
-
-	cleanupGit := overrideGitRun(defaultTestGitRun)
-	t.Cleanup(cleanupGit)
-
-	cleanupQueue := overrideQueueStore(func(entry integrationqueue.Entry) error {
-		return nil
-	})
-	t.Cleanup(cleanupQueue)
 
 	withInteractiveWorktreeFactories(t, func(gotMainDir string) (sessionWorktreeCreator, error) {
 		if gotMainDir != mainDir {

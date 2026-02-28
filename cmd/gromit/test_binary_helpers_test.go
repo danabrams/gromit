@@ -30,6 +30,20 @@ func TestMain(m *testing.M) {
 
 	binaryPath = exe
 
+	if rootCmd.PersistentPreRunE != nil {
+		originalPreRun := rootCmd.PersistentPreRunE
+		rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			defer func() {
+				_ = os.Chdir(cwd)
+			}()
+			return originalPreRun(cmd, args)
+		}
+	}
+
 	exitCode := m.Run()
 	os.Exit(exitCode)
 }
@@ -100,6 +114,14 @@ func TestRunGromitCobra_ResetsHelpFlag(t *testing.T) {
 // runGromitCobra executes the cobra command directly and returns stdout, stderr, and exit code.
 func runGromitCobra(t *testing.T, args ...string) (stdout, stderr string, exitCode int) {
 	t.Helper()
+
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(origWD)
+	})
 
 	var stdoutBuf bytes.Buffer
 	var stderrBuf bytes.Buffer
