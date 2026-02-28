@@ -1436,3 +1436,38 @@ func TestSingleWriterInvariant_EpilogueDoesNotMergeWhenAutoMergeDisabled(t *test
 			"single-writer requires coordinator-mediated integration", merger.mergedBranches)
 	}
 }
+
+// TestEpilogue_LegacyMergePatchIsAbsent verifies that the legacy worktree merge-to-main
+// path is completely removed and epilogue never calls WorktreeMerger.MergeBack().
+// The merge responsibility now belongs exclusively to the coordinator.
+func TestEpilogue_LegacyMergePatchIsAbsent(t *testing.T) {
+	merger := &fakeWorktreeMerger{
+		branches: []string{"gromit/pending-branch-1", "gromit/pending-branch-2"},
+	}
+
+	// Create epilogue with all merge-related dependencies configured
+	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
+		WithWorktree(merger)
+
+	// Create input with worktree enabled AND auto-merge explicitly enabled
+	// (the most permissive configuration)
+	in := makeInput("bead-1", "Test feature", true)
+	in.Config.Worktree.Enabled = boolPtr(true)
+	in.Config.Worktree.AutoMerge = boolPtr(true)
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	// ASSERT: WorktreeMerger.MergeBack is NEVER called, even with auto-merge enabled.
+	// The legacy merge-to-main path is gone; coordinator now owns merges.
+	if len(merger.mergedBranches) > 0 {
+		t.Errorf("epilogue called MergeBack for branches %v; legacy merge path should be absent", merger.mergedBranches)
+	}
+
+	// ASSERT: WorktreeMerger.PendingBranches is NEVER called.
+	if merger.pendingCalled {
+		t.Error("epilogue called PendingBranches(); legacy merge path should be absent")
+	}
+}
