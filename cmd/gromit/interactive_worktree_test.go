@@ -1052,3 +1052,44 @@ func (b *syncBarrier) Wait() {
 	b.mu.Unlock()
 	<-release
 }
+
+// TestSingleWriterInvariant_SessionsDoNotMergeToMainDirectly is a regression guard asserting
+// that interactive sessions do NOT directly merge branches to main. Sessions must instead
+// queue branches for coordinator-mediated integration. This enforces single-writer semantics
+// where only the Orchestrator/coordinator path can mutate main.
+func TestSingleWriterInvariant_SessionsDoNotMergeToMainDirectly(t *testing.T) {
+	// Not parallel: withInteractiveWorktreeFactories mutates package-level globals.
+	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "session-no-merge")
+	session.BranchName = "gromit/session-no-merge"
+
+	withInteractiveWorktreeFactories(t, func(gotMainDir string) (sessionWorktreeCreator, error) {
+		if gotMainDir != mainDir {
+			t.Fatalf("mainDir = %q, want %q", gotMainDir, mainDir)
+		}
+		return &mockSessionWorktreeCreator{
+			CreateSessionWorktreeFn: func(string) (*worktree.SessionWorktree, error) {
+				return session, nil
+			},
+			MergeBackFn: func(branch string) error {
+				// REGRESSION GUARD: Sessions should NOT be able to merge branches to main.
+				// This merge attempt indicates a violation of single-writer semantics.
+				// Only coordinator path should perform main integration.
+				t.Fatalf("regression: session attempted direct merge to main for branch %q; "+
+					"single-writer policy requires coordinator-mediated integration", branch)
+				return nil
+			},
+		}, nil
+	}, func(string) (pendingBranchRecorder, error) {
+		return &mockPendingBranchRecorder{
+			AddPendingWorktreeBranchFn: func(branch string) error {
+				// Branches should be recorded for later coordinator processing
+				return nil
+			},
+		}, nil
+	}, func(string, string) error { return nil })
+
+	// When coordinator pattern is fully implemented, sessions should NOT attempt merge.
+	// This test will fail if the session path still calls MergeBack.
+	// For now, runWithSessionWorktree will trigger the t.Fatalf above if merge is attempted.
+	_, _ = runWithSessionWorktree(gromitDir, "session-no-merge", func(string) error { return nil })
+}
