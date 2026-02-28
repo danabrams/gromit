@@ -2,6 +2,29 @@ package pipeline
 
 import "github.com/danabrams/gromit/internal/prompt"
 
+// ConversationLifecycleState represents the lifecycle state of a conversation session.
+type ConversationLifecycleState int
+
+const (
+	ConversationStateIdle ConversationLifecycleState = iota
+	ConversationStateStarting
+	ConversationStateStreaming
+	ConversationStateWaitingForTool
+	ConversationStateCompleted
+	ConversationStateFailed
+	ConversationStateCancelled
+)
+
+// ConversationEvent represents a discrete event emitted during conversation streaming.
+type ConversationEvent struct {
+	State       ConversationLifecycleState
+	Content     string // Assistant output text
+	ToolName    string // Name of tool being called (for tool-related events)
+	ToolInput   string // Input passed to tool
+	ToolOutput  string // Output returned from tool
+	ErrorReason string // Error description (for failed state)
+}
+
 // EventType represents the type of event in an interactive session.
 type EventType int
 
