@@ -260,3 +260,55 @@ func TestCheckTransition_AllAllowedTransitions(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckTransition_AllDisallowedTransitions(t *testing.T) {
+	disallowedCases := []struct {
+		from, to string
+	}{
+		{"draft", "integrating"},
+		{"draft", "merged"},
+		{"draft", "conflict"},
+		{"draft", "failed_gates"},
+		{"draft", "lane_violation"},
+		{"ready", "draft"},
+		{"ready", "merged"},
+		{"ready", "conflict"},
+		{"ready", "failed_gates"},
+		{"ready", "lane_violation"},
+		{"integrating", "draft"},
+		{"integrating", "ready"},
+		{"merged", "draft"},
+		{"merged", "ready"},
+		{"merged", "integrating"},
+		{"merged", "conflict"},
+		{"merged", "failed_gates"},
+		{"merged", "lane_violation"},
+		{"conflict", "draft"},
+		{"conflict", "integrating"},
+		{"conflict", "merged"},
+		{"conflict", "conflict"},
+		{"conflict", "failed_gates"},
+		{"conflict", "lane_violation"},
+		{"failed_gates", "draft"},
+		{"failed_gates", "integrating"},
+		{"failed_gates", "merged"},
+		{"failed_gates", "conflict"},
+		{"failed_gates", "failed_gates"},
+		{"failed_gates", "lane_violation"},
+		{"lane_violation", "draft"},
+		{"lane_violation", "integrating"},
+		{"lane_violation", "merged"},
+		{"lane_violation", "conflict"},
+		{"lane_violation", "failed_gates"},
+		{"lane_violation", "lane_violation"},
+	}
+
+	for _, tc := range disallowedCases {
+		t.Run(tc.from+"->"+tc.to, func(t *testing.T) {
+			err := CheckTransition(tc.from, tc.to)
+			if err != ErrInvalidTransition {
+				t.Errorf("expected %s->%s to be disallowed with ErrInvalidTransition, got: %v", tc.from, tc.to, err)
+			}
+		})
+	}
+}
