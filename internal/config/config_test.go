@@ -5821,3 +5821,216 @@ func TestReadinessCheckConfigDefaults(t *testing.T) {
 		t.Errorf("expected default readiness_check fail_closed=false, got %v", cfg.ReadinessCheck.FailClosed)
 	}
 }
+
+func TestReadinessCheckConfigFromYAML(t *testing.T) {
+	tests := []struct {
+		name             string
+		yaml             string
+		expectEnabled    bool
+		expectModel      string
+		expectTimeout    int
+		expectFailClosed bool
+	}{
+		{
+			name: "All fields explicit",
+			yaml: `readiness_check:
+  enabled: true
+  model: sonnet
+  timeout_seconds: 60
+  fail_closed: true
+`,
+			expectEnabled:    true,
+			expectModel:      "sonnet",
+			expectTimeout:    60,
+			expectFailClosed: true,
+		},
+		{
+			name: "Disabled explicitly",
+			yaml: `readiness_check:
+  enabled: false
+`,
+			expectEnabled:    false,
+			expectModel:      "haiku",
+			expectTimeout:    120,
+			expectFailClosed: false,
+		},
+		{
+			name: "Custom model only",
+			yaml: `readiness_check:
+  model: opus
+`,
+			expectEnabled:    false,
+			expectModel:      "opus",
+			expectTimeout:    120,
+			expectFailClosed: false,
+		},
+		{
+			name: "Custom timeout only",
+			yaml: `readiness_check:
+  timeout_seconds: 90
+`,
+			expectEnabled:    false,
+			expectModel:      "haiku",
+			expectTimeout:    90,
+			expectFailClosed: false,
+		},
+		{
+			name: "Fail closed only",
+			yaml: `readiness_check:
+  fail_closed: true
+`,
+			expectEnabled:    false,
+			expectModel:      "haiku",
+			expectTimeout:    120,
+			expectFailClosed: true,
+		},
+		{
+			name:             "Empty config uses defaults",
+			yaml:             "",
+			expectEnabled:    false,
+			expectModel:      "haiku",
+			expectTimeout:    120,
+			expectFailClosed: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			cfgPath := filepath.Join(dir, "gromit.yaml")
+			if err := os.WriteFile(cfgPath, []byte(tt.yaml), 0644); err != nil {
+				t.Fatalf("writing config: %v", err)
+			}
+
+			cfg, err := Load(cfgPath)
+			if err != nil {
+				t.Fatalf("loading config: %v", err)
+			}
+
+			if cfg.ReadinessCheck.IsEnabled() != tt.expectEnabled {
+				t.Errorf("expected enabled=%v, got %v", tt.expectEnabled, cfg.ReadinessCheck.IsEnabled())
+			}
+			if cfg.ReadinessCheck.Model != tt.expectModel {
+				t.Errorf("expected model=%q, got %q", tt.expectModel, cfg.ReadinessCheck.Model)
+			}
+			if cfg.ReadinessCheck.TimeoutSeconds != tt.expectTimeout {
+				t.Errorf("expected timeout=%d, got %d", tt.expectTimeout, cfg.ReadinessCheck.TimeoutSeconds)
+			}
+			if cfg.ReadinessCheck.FailClosed != tt.expectFailClosed {
+				t.Errorf("expected fail_closed=%v, got %v", tt.expectFailClosed, cfg.ReadinessCheck.FailClosed)
+			}
+		})
+	}
+}
+
+func TestReadinessCheckIsEnabledNilPointer(t *testing.T) {
+	cfg := ReadinessCheckConfig{}
+	if cfg.IsEnabled() {
+		t.Errorf("expected IsEnabled() to return false for nil pointer (default-off)")
+	}
+}
+
+func TestReadinessCheckIsEnabledExplicitTrue(t *testing.T) {
+	trueVal := true
+	cfg := ReadinessCheckConfig{Enabled: &trueVal}
+	if !cfg.IsEnabled() {
+		t.Errorf("expected IsEnabled() to return true for explicit true")
+	}
+}
+
+func TestReadinessCheckIsEnabledExplicitFalse(t *testing.T) {
+	falseVal := false
+	cfg := ReadinessCheckConfig{Enabled: &falseVal}
+	if cfg.IsEnabled() {
+		t.Errorf("expected IsEnabled() to return false for explicit false")
+	}
+}
+
+func TestReadinessCheckConfigZeroTimeout(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	yaml := `readiness_check:
+  timeout_seconds: 0
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	// Zero timeout should be replaced with default
+	if cfg.ReadinessCheck.TimeoutSeconds != 120 {
+		t.Errorf("expected default timeout=120, got %d", cfg.ReadinessCheck.TimeoutSeconds)
+	}
+}
+
+func TestReadinessCheckConfigEmptyModel(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	yaml := `readiness_check:
+  model: ""
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	// Empty model should be replaced with default
+	if cfg.ReadinessCheck.Model != "haiku" {
+		t.Errorf("expected default model='haiku', got %q", cfg.ReadinessCheck.Model)
+	}
+}
+
+func TestReadinessCheckConfigInFullConfig(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "gromit.yaml")
+	yaml := `models:
+  p0: opus
+  p1: sonnet
+  p2: haiku
+readiness_check:
+  enabled: true
+  model: sonnet
+  timeout_seconds: 45
+  fail_closed: true
+validation:
+  enabled: true
+  commands: ["go test ./..."]
+claude:
+  timeout: 600
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	// Check other sections still work
+	if cfg.Models.P0 != "opus" {
+		t.Errorf("expected P0='opus', got %q", cfg.Models.P0)
+	}
+
+	// Check readiness_check section
+	if !cfg.ReadinessCheck.IsEnabled() {
+		t.Errorf("expected readiness_check enabled=true")
+	}
+	if cfg.ReadinessCheck.Model != "sonnet" {
+		t.Errorf("expected readiness_check model='sonnet', got %q", cfg.ReadinessCheck.Model)
+	}
+	if cfg.ReadinessCheck.TimeoutSeconds != 45 {
+		t.Errorf("expected readiness_check timeout=45, got %d", cfg.ReadinessCheck.TimeoutSeconds)
+	}
+	if !cfg.ReadinessCheck.FailClosed {
+		t.Errorf("expected readiness_check fail_closed=true, got %v", cfg.ReadinessCheck.FailClosed)
+	}
+}
