@@ -56,3 +56,23 @@ func WaitForSubscriberReady(ctx context.Context, emitter *events.Emitter) error 
 		}
 	}
 }
+
+// WaitForCondition polls a condition function until it returns true or context expires.
+// This is a generic replacement for time.Sleep when waiting for events to be processed.
+func WaitForCondition(ctx context.Context, condition func() bool) error {
+	ticker := time.NewTicker(1 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		if condition() {
+			return nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			// Continue polling
+		}
+	}
+}
