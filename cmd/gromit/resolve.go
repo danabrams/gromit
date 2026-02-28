@@ -149,3 +149,28 @@ func ensureRetroWorktreeLogsSetup(worktreeGromitDir, mainGromitDir string) error
 	_ = resolveMainRepoLogsDir(worktreeGromitDir)
 	return nil
 }
+
+// prepareRetroWorktreeWithMainRepoLogs prepares retro to work in a session worktree
+// by either symlinking the main repo's logs or determining the main repo logs path.
+// It returns the logs directory path that should be used with retro.SetLogsDir.
+func prepareRetroWorktreeWithMainRepoLogs(worktreeGromitDir, mainGromitDir string) (string, error) {
+	if worktreeGromitDir == "" {
+		return "", nil
+	}
+
+	// First, ensure symlink is set up
+	err := ensureRetroWorktreeLogsSetup(worktreeGromitDir, mainGromitDir)
+	if err != nil {
+		return "", err
+	}
+
+	// Return the main repo logs path (which may now be symlinked or available via git resolution)
+	mainLogsPath := filepath.Join(mainGromitDir, "logs")
+	if mainGromitDir != "" {
+		// If main gromit dir is provided, return its logs path
+		return mainLogsPath, nil
+	}
+
+	// Otherwise, try to resolve via git
+	return resolveMainRepoLogsDir(worktreeGromitDir), nil
+}
