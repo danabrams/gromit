@@ -150,3 +150,27 @@ func TestIsTerminalState_ReadyIsNotTerminal(t *testing.T) {
 		t.Errorf("expected ready to not be terminal state, got true")
 	}
 }
+
+func TestIsBlockedState_ConflictIsBlocked(t *testing.T) {
+	if !IsBlockedState("conflict") {
+		t.Errorf("expected conflict to be blocked state, got false")
+	}
+}
+
+func TestIsBlockedState_FailedGatesIsBlocked(t *testing.T) {
+	if !IsBlockedState("failed_gates") {
+		t.Errorf("expected failed_gates to be blocked state, got false")
+	}
+}
+
+func TestIsBlockedState_LaneViolationIsBlocked(t *testing.T) {
+	if !IsBlockedState("lane_violation") {
+		t.Errorf("expected lane_violation to be blocked state, got false")
+	}
+}
+
+func TestIsBlockedState_ReadyIsNotBlocked(t *testing.T) {
+	if IsBlockedState("ready") {
+		t.Errorf("expected ready to not be blocked state, got true")
+	}
+}
