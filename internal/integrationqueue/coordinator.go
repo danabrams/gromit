@@ -70,15 +70,24 @@ func (c *Coordinator) ProcessNext(ctx context.Context) (bool, error) {
 		return false, markTerminalFailure(fmt.Errorf("safety violation: %s", violation.ViolatedFile))
 	}
 
-	// Safety check passed, process the entry normally
-	processed, err := c.processEntry(ctx, entry)
-	if err != nil {
+	// Safety check passed, dispatch to appropriate lane handler
+	var processed bool
+	var procErr error
+	if Lane(entry.Lane) == SafeLane {
+		// Safe-lane fast path: skip gate checks
+		processed, procErr = c.processEntrySafeLane(ctx, entry)
+	} else {
+		// Code-lane full path: include gate checks
+		processed, procErr = c.processEntry(ctx, entry)
+	}
+
+	if procErr != nil {
 		// Check if this is a terminal failure that shouldn't block other entries
-		if isTerminalFailure(err) {
+		if isTerminalFailure(procErr) {
 			return false, nil
 		}
 		// Non-terminal failure blocks processing
-		return false, err
+		return false, procErr
 	}
 
 	return processed, nil
@@ -180,6 +189,79 @@ func (c *Coordinator) processEntry(ctx context.Context, entry *Entry) (bool, err
 		return false, markTerminalFailure(fmt.Errorf("merging branch: %w", err))
 	}
 
+	if err := c.gitops.Push(ctx); err != nil {
+		entry.LastErrorCode = "push_failed"
+		entry.LastErrorMessage = err.Error()
+		if transErr := ApplyTransition(entry, string(StateFailedGates), "push to remote failed"); transErr == nil {
+			_ = c.store.Save(*entry)
+		}
+		return false, fmt.Errorf("pushing main: %w", err)
+	}
+
+	cleanupErr := c.gitops.Cleanup(ctx, *entry)
+
+	entry.ChangedFiles = nil
+	entry.ChangedFilesHash = ""
+	entry.LastErrorCode = ""
+	entry.LastErrorMessage = ""
+	if transErr := ApplyTransition(entry, string(StateMerged), mergedTransitionReason); transErr != nil {
+		return false, fmt.Errorf("applying merged transition: %w", transErr)
+	}
+
+	if err := c.store.Save(*entry); err != nil {
+		return false, fmt.Errorf("finalizing entry: %w", err)
+	}
+
+	if cleanupErr != nil {
+		return false, fmt.Errorf("cleaning up metadata: %w", cleanupErr)
+	}
+
+	return true, nil
+}
+
+// processEntrySafeLane processes a safe_lane entry with fast-path (no gate checks).
+// Safe-lane entries contain only metadata changes and skip scoped gate validation.
+func (c *Coordinator) processEntrySafeLane(ctx context.Context, entry *Entry) (bool, error) {
+	entry.AttemptCount++
+	entry.RetryCount = 0
+	if err := ApplyTransition(entry, string(StateIntegrating), "coordinator: starting integration"); err != nil {
+		return false, fmt.Errorf("transitioning entry to integrating: %w", err)
+	}
+	if err := c.store.Save(*entry); err != nil {
+		return false, fmt.Errorf("marking entry integrating: %w", err)
+	}
+
+	// Fetch and rebase (same as code_lane)
+	if err := c.gitops.FetchAndRebase(ctx, *entry); err != nil {
+		entry.LastErrorCode = "rebase_conflict"
+		entry.LastErrorMessage = err.Error()
+		if transErr := ApplyTransition(entry, string(StateConflict), "rebase conflict during initial fetch"); transErr == nil {
+			_ = c.store.Save(*entry)
+		}
+		return false, markTerminalFailure(fmt.Errorf("fetch/rebase branch: %w", err))
+	}
+
+	// Skip gate check for safe_lane (fast-path)
+
+	// Merge to main (same as code_lane)
+	if err := c.gitops.MergeToMain(ctx, *entry); err != nil {
+		// Check if this is a lane violation
+		if strings.Contains(strings.ToLower(err.Error()), "lane violation") {
+			entry.LastErrorCode = "lane_violation"
+			entry.LastErrorMessage = err.Error()
+			_ = ApplyTransition(entry, string(StateLaneViolation), "lane violation detected")
+		} else {
+			entry.LastErrorCode = "merge_conflict"
+			entry.LastErrorMessage = err.Error()
+			_ = ApplyTransition(entry, string(StateConflict), "merge conflict detected")
+		}
+		if saveErr := c.store.Save(*entry); saveErr != nil {
+			return false, fmt.Errorf("marking entry conflict: %w", saveErr)
+		}
+		return false, markTerminalFailure(fmt.Errorf("merging branch: %w", err))
+	}
+
+	// Push (same as code_lane)
 	if err := c.gitops.Push(ctx); err != nil {
 		entry.LastErrorCode = "push_failed"
 		entry.LastErrorMessage = err.Error()
