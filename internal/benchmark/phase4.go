@@ -71,12 +71,20 @@ func EvaluatePhase4AdoptionGates(baseline, retrieval Phase4RunMetrics) Phase4Ado
 	gates := Phase4AdoptionGates{}
 
 	// Token reduction gate: median discovery input tokens reduced by >= 20%
-	tokenDelta := float64(baseline.MedianDiscoveryInputTokens-retrieval.MedianDiscoveryInputTokens) / float64(baseline.MedianDiscoveryInputTokens)
-	gates.TokenReductionGate = tokenDelta >= 0.20
+	if baseline.MedianDiscoveryInputTokens == 0 {
+		gates.TokenReductionGate = false // fail gate if baseline is zero
+	} else {
+		tokenDelta := float64(baseline.MedianDiscoveryInputTokens-retrieval.MedianDiscoveryInputTokens) / float64(baseline.MedianDiscoveryInputTokens)
+		gates.TokenReductionGate = tokenDelta >= 0.20
+	}
 
 	// Latency reduction gate: median discovery latency reduced by >= 15%
-	latencyDelta := float64(baseline.MedianDiscoveryLatencyMs-retrieval.MedianDiscoveryLatencyMs) / float64(baseline.MedianDiscoveryLatencyMs)
-	gates.LatencyReductionGate = latencyDelta >= 0.15
+	if baseline.MedianDiscoveryLatencyMs == 0 {
+		gates.LatencyReductionGate = false // fail gate if baseline is zero
+	} else {
+		latencyDelta := float64(baseline.MedianDiscoveryLatencyMs-retrieval.MedianDiscoveryLatencyMs) / float64(baseline.MedianDiscoveryLatencyMs)
+		gates.LatencyReductionGate = latencyDelta >= 0.15
+	}
 
 	// Success rate parity gate: no more than 5% drop in success rate
 	gates.SuccessRateParityGate = baseline.SuccessRate-retrieval.SuccessRate <= 0.05
