@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -35,6 +36,7 @@ var (
 	runSpecFlag       string
 	runEpicFlag       string
 	statusSPC         bool
+	statusJSON        bool
 )
 
 var runHasOpenBeadsForLabelFn = hasOpenBeadsForLabel
@@ -144,6 +146,7 @@ func init() {
 	runCmd.Flags().StringVar(&runEpicFlag, "epic", "", "Filter to beads for a specific epic")
 
 	statusCmd.Flags().BoolVar(&statusSPC, "spc", false, "Show SPC dashboard status only")
+	statusCmd.Flags().BoolVar(&statusJSON, "json", false, "Show status output as JSON")
 
 	retroCmd.Flags().BoolVar(&nonInteractive, "non-interactive", false, "Skip interactive session and write analysis to .gromit/RETRO_PROPOSED_CHANGES.md")
 	retroCmd.Flags().StringVar(&retroSpecFlag, "spec", "", "Scope retro to a specific spec")
@@ -280,12 +283,28 @@ func handleRunSignals(sigCh <-chan os.Signal, stopCh chan<- struct{}, cancel con
 }
 
 func showStatus(cmd *cobra.Command, args []string) error {
+	if statusJSON && statusSPC {
+		return fmt.Errorf("--json and --spc flags are mutually exclusive")
+	}
 	cfg, err := loadConfig()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
 	gromitDir := resolveGromitDir(cfg)
+
+	if statusJSON {
+		statusJSONOutput, err := runner.BuildStatusJSON(gromitDir, cfg)
+		if err != nil {
+			return fmt.Errorf("building status JSON: %w", err)
+		}
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(statusJSONOutput); err != nil {
+			return fmt.Errorf("encoding status JSON: %w", err)
+		}
+		return nil
+	}
 
 	return runner.PrintStatus(gromitDir, cfg, os.Stdout, nil, statusSPC)
 }

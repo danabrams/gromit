@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/integrationqueue"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/runner/display"
@@ -71,13 +73,18 @@ func PrintStatus(gromitDir string, cfg *config.Config, w io.Writer, processCheck
 		return fmt.Errorf("writing pipeline status: %w", err)
 	}
 
-	queueStatus, err := ReadIntegrationQueue(gromitDir)
-	if err != nil {
-		return fmt.Errorf("reading integration queue status: %w", err)
+	queueStatus, queueErr := ReadIntegrationQueue(gromitDir)
+	queueSchemaInvalid := errors.Is(queueErr, integrationqueue.ErrSchemaInvalid)
+	if queueErr != nil && !queueSchemaInvalid {
+		return fmt.Errorf("reading integration queue status: %w", queueErr)
 	}
 	if queueStatus != nil {
 		if _, err := fmt.Fprintln(w, display.FormatIntegrationQueue(queueStatus)); err != nil {
 			return fmt.Errorf("writing integration queue status: %w", err)
+		}
+	} else if queueSchemaInvalid {
+		if _, err := fmt.Fprintln(w, display.FormatIntegrationQueueError("queue_schema_invalid", queueErr.Error())); err != nil {
+			return fmt.Errorf("writing integration queue error: %w", err)
 		}
 	}
 

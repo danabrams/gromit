@@ -2,6 +2,7 @@ package integrationqueue
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +14,10 @@ const (
 	queueFileName  = "integration-queue.json"
 	schemaVersionV = 1
 )
+
+// ErrSchemaInvalid indicates the persisted queue file is malformed or has
+// invalid schema data that cannot be parsed into a Snapshot.
+var ErrSchemaInvalid = errors.New("queue_schema_invalid")
 
 // Snapshot represents the persisted integration queue data.
 type Snapshot struct {
@@ -126,7 +131,7 @@ func (s *Store) load() (*Snapshot, error) {
 
 	var snapshot Snapshot
 	if err := json.Unmarshal(data, &snapshot); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", ErrSchemaInvalid, err)
 	}
 	if snapshot.SchemaVersion == 0 {
 		snapshot.SchemaVersion = schemaVersionV

@@ -89,3 +89,16 @@ func formatIntegrationQueueEntry(entry *IntegrationQueueEntryView) string {
 func integrationQueueBlockedRecoveryInstruction(state string) string {
 	return integrationQueueRecoveryInstructions[state]
 }
+
+// FormatIntegrationQueueError renders a short error block when the queue
+// cannot be loaded.
+func FormatIntegrationQueueError(code, detail string) string {
+	lines := []string{
+		"Integration Queue:",
+		fmt.Sprintf("  Error: %s", code),
+	}
+	if detail != "" {
+		lines = append(lines, fmt.Sprintf("  Details: %s", detail))
+	}
+	return strings.Join(lines, "\n")
+}
