@@ -280,9 +280,6 @@ func (c *Config) SetDefaults() {
 	if !c.Methodology.ATDDPrompt.maxConfirmedLearningCharsSet {
 		c.Methodology.ATDDPrompt.MaxConfirmedLearningChars = 2000
 	}
-	if c.Methodology.MaxTDDCycles == 0 {
-		c.Methodology.MaxTDDCycles = DefaultMaxTDDCycles
-	}
 	if c.Methodology.SpecGateMaxRetries == 0 {
 		c.Methodology.SpecGateMaxRetries = DefaultSpecGateMaxRetries
 	}

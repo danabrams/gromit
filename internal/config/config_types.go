@@ -326,6 +326,8 @@ type MethodologyConfig struct {
 	TDD                  bool                    `yaml:"tdd"`
 	BuildStrategy        string                  `yaml:"build_strategy"`
 	PhaseModels          PhaseModelsConfig       `yaml:"phase_models"`
+	// Deprecated: max_tdd_cycles is parsed for compatibility but ignored by runtime.
+	// Use Config.TDDMaxCycles() if you need to inspect the fixed loop cap.
 	MaxTDDCycles         int                     `yaml:"max_tdd_cycles"`
 	SpecGateMaxRetries   int                     `yaml:"spec_gate_max_retries"`
 	ATDDPrompt           ATDDPromptConfig        `yaml:"atdd_prompt"`
