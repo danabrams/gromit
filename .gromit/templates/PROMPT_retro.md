@@ -393,6 +393,8 @@ For each friction area above, generate 2-4 options per friction area. Each optio
 - **Risk**: downside if the option is deferred or fails to deliver.
 
 Store the options in the `workmanship` section of the structured JSON so that each area points to its options. Highlight whether an option addresses a new versus persisting friction cluster and call out resolved areas before proposing new work.
+{{- else }}
+The codebase appears healthy; no friction clusters detected. Summaries above may still be valuable, but no Workmanship Report options are necessary unless new friction is identified later.
 {{- end }}
 
 ## Output Format
