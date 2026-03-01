@@ -1190,3 +1190,29 @@ func (a *integrationQueueGitOpsAdapter) FetchAndRebase(ctx context.Context, entr
 	}
 	return nil
 }
+
+func (a *integrationQueueGitOpsAdapter) MergeToMain(ctx context.Context, entry integrationqueue.Entry) error {
+	if a == nil {
+		return fmt.Errorf("gitops adapter is not configured")
+	}
+	if strings.TrimSpace(entry.Branch) == "" {
+		return fmt.Errorf("entry branch is empty")
+	}
+	if a.runGitCommand == nil {
+		return fmt.Errorf("git runner is not configured")
+	}
+
+	base := strings.TrimSpace(a.baseBranch)
+	if base == "" {
+		base = config.DefaultBaseBranch
+	}
+
+	if _, err := a.runGitCommand(ctx, a.repoDir, "checkout", base); err != nil {
+		return fmt.Errorf("checkout %s: %w", base, err)
+	}
+	if _, err := a.runGitCommand(ctx, a.repoDir, "merge", "--ff-only", entry.Branch); err != nil {
+		return fmt.Errorf("merging branch %s: %w", entry.Branch, err)
+	}
+
+	return nil
+}
