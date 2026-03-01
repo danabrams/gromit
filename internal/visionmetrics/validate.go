@@ -38,8 +38,8 @@ func Validate(rec Record) []ValidationError {
 	if !rec.HumanDebuggingIntervention.Valid() {
 		errs = append(errs, ValidationError{Field: "human_debugging_intervention", Reason: "must be yes or no"})
 	}
-	if !rec.EscapedRegressionWithin7D.Valid() {
-		errs = append(errs, ValidationError{Field: "escaped_regression_within_7d", Reason: "must be yes or no"})
+	if !isValidEscapedRegressionStatus(rec.EscapedRegressionWithin7D) {
+		errs = append(errs, ValidationError{Field: FieldEscapedRegressionWithin7D, Reason: "must be yes, no, or pending"})
 	}
 	if rec.HumanDebuggingIntervention == Yes && rec.HumanTacticalIntervention != Yes {
 		errs = append(errs, ValidationError{Field: "human_debugging_intervention", Reason: "requires tactical intervention"})
@@ -49,4 +49,13 @@ func Validate(rec Record) []ValidationError {
 	}
 
 	return errs
+}
+
+func isValidEscapedRegressionStatus(val YesNo) bool {
+	switch val {
+	case Yes, No, EscapedRegressionPending:
+		return true
+	default:
+		return false
+	}
 }

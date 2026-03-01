@@ -21,6 +21,9 @@ const (
 	No  YesNo = "no"
 )
 
+// EscapedRegressionPending marks the escaped-regression status as pending.
+const EscapedRegressionPending YesNo = "pending"
+
 func (y YesNo) Valid() bool {
 	return y == Yes || y == No
 }
