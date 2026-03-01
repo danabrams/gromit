@@ -136,3 +136,55 @@ func TestRecoverFromMalformedQueue(t *testing.T) {
 		t.Fatalf("persisted entry 2: expected state %s, got %s", StateReady, persisted.Entries[2].State)
 	}
 }
+
+func TestRecoverFromMalformedQueue_UnsupportedSchemaVersion(t *testing.T) {
+	tmpDir := t.TempDir()
+	queuePath := filepath.Join(tmpDir, queueFileName)
+
+	legacy := `{
+	  "schema_version": 999,
+	  "entries": [
+	    {
+	      "branch": "feature/recover-me",
+	      "session_id": "session1",
+	      "origin_command": "refine",
+	      "state": "integrating",
+	      "lane": "code_lane",
+	      "base_ref": "main",
+	      "head_sha": "deadbeef",
+	      "fifo_seq": 1
+	    }
+	  ]
+	}`
+	if err := os.WriteFile(queuePath, []byte(legacy), 0o644); err != nil {
+		t.Fatalf("write legacy queue: %v", err)
+	}
+
+	recovered, err := RecoverFromMalformedQueue(context.Background(), queuePath)
+	if err != nil {
+		t.Fatalf("RecoverFromMalformedQueue: %v", err)
+	}
+	if recovered == nil {
+		t.Fatal("expected recovered queue, got nil")
+	}
+	if recovered.SchemaVersion != SchemaVersion {
+		t.Fatalf("expected schema version %d, got %d", SchemaVersion, recovered.SchemaVersion)
+	}
+	if len(recovered.Entries) != 1 {
+		t.Fatalf("expected 1 recovered entry, got %d", len(recovered.Entries))
+	}
+	if recovered.Entries[0].State != StateReady {
+		t.Fatalf("expected recovered state %s, got %s", StateReady, recovered.Entries[0].State)
+	}
+
+	persisted, err := LoadQueue(queuePath)
+	if err != nil {
+		t.Fatalf("LoadQueue(persisted): %v", err)
+	}
+	if persisted.SchemaVersion != SchemaVersion {
+		t.Fatalf("persisted schema version: expected %d, got %d", SchemaVersion, persisted.SchemaVersion)
+	}
+	if persisted.Entries[0].State != StateReady {
+		t.Fatalf("persisted state: expected %s, got %s", StateReady, persisted.Entries[0].State)
+	}
+}

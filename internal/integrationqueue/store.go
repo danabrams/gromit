@@ -290,13 +290,14 @@ func prepareQueueForWrite(queue *Queue) {
 // It loads the queue, transitions any integrating entries to ready with error code,
 // persists the recovered queue, and returns it.
 func RecoverFromMalformedQueue(ctx context.Context, path string) (*Queue, error) {
-	queue, err := LoadQueue(path)
+	queue, err := loadQueueForRecovery(path)
 	if err != nil {
 		return nil, fmt.Errorf("loading queue during recovery: %w", err)
 	}
 
 	_ = ctx
-	updated := false
+	updated := queue.SchemaVersion != SchemaVersion
+	queue.SchemaVersion = SchemaVersion
 	for i := range queue.Entries {
 		if queue.Entries[i].State == StateIntegrating {
 			if err := ApplyTransition(&queue.Entries[i], string(StateReady), "schema recovery"); err != nil {
@@ -315,6 +316,23 @@ func RecoverFromMalformedQueue(ctx context.Context, path string) (*Queue, error)
 	}
 
 	return queue, nil
+}
+
+func loadQueueForRecovery(path string) (*Queue, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return defaultQueue(), nil
+		}
+		return nil, err
+	}
+
+	data = trimJSONPrefix(data)
+	var queue Queue
+	if err := json.Unmarshal(data, &queue); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrSchemaInvalid, err)
+	}
+	return &queue, nil
 }
 
 // ErrorCodeSchemaInvalid represents a schema validation error in the queue.
