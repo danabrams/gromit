@@ -205,6 +205,37 @@ func TestSPCAutoTriage_SetsIssueTypeMapping(t *testing.T) {
     }
 }
 
+func TestSPCAutoTriage_RequiresPersistenceGate(t *testing.T) {
+    ctx := context.Background()
+    now := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
+
+    trackerClient := trackertest.NewStubTrackerClient()
+    var created []tracker.CreateRequest
+    trackerClient.CreateFn = func(ctx context.Context, req tracker.CreateRequest) (*tracker.Item, error) {
+        created = append(created, req)
+        return &tracker.Item{ID: fmt.Sprintf("pg-%d", len(created)), Status: tracker.StatusOpen}, nil
+    }
+    trackerClient.ListWithLabelFn = func(ctx context.Context, label string) ([]tracker.Item, error) {
+        return nil, nil
+    }
+
+    store := newTestCooldownStore()
+    triager := NewSPCAutoTriager(trackerClient, store, WithNowFunc(func() time.Time { return now }))
+
+    records := []SPCCauseRecord{
+        {Metric: "c1", Stratum: "global", Class: CauseClassSpecial, PersistenceWindowCount: 1, Latest: 10, DetectedAt: now.Add(-time.Hour)},
+        {Metric: "c2", Stratum: "provider:foo", Class: CauseClassSpecial, PersistenceWindowCount: 2, Latest: 20, DetectedAt: now.Add(-time.Hour)},
+    }
+
+    _, err := triager.Process(ctx, records)
+    if err != nil {
+        t.Fatalf("Process() returned error: %v", err)
+    }
+    if len(created) != 1 {
+        t.Fatalf("expected 1 create request, got %d", len(created))
+    }
+}
+
 type testCooldownStore struct {
     values map[string]time.Time
 }
