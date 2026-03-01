@@ -21,6 +21,7 @@ import (
 	"github.com/danabrams/gromit/internal/readiness"
 	"github.com/danabrams/gromit/internal/runner/specmerge"
 	"github.com/danabrams/gromit/internal/tracker"
+	"github.com/danabrams/gromit/internal/integrationqueue"
 )
 
 func TestWorktreeMergerAdapterPendingBranches_NilManagerReturnsError(t *testing.T) {
@@ -739,5 +740,37 @@ func TestDecomposerAdapter_Decompose_ThreadsContextToChildDuplicateCheck(t *test
 	}
 	if capturedCtx.Value("test-key") != testValue {
 		t.Fatal("context value not found in captured context - context not properly threaded through duplicate check")
+	}
+}
+
+func TestIntegrationQueueGitOpsAdapter_FetchAndRebaseCommands(t *testing.T) {
+	t.Parallel()
+
+	repoDir := "/repo"
+	calls := make([]string, 0, 3)
+	adapter := &integrationQueueGitOpsAdapter{
+		repoDir:    repoDir,
+		baseBranch: "main",
+		runGitCommand: func(ctx context.Context, dir string, args ...string) (string, error) {
+			if dir != repoDir {
+				t.Fatalf("dir = %q, want %q", dir, repoDir)
+			}
+			calls = append(calls, strings.Join(args, " "))
+			return "", nil
+		},
+	}
+
+	entry := integrationqueue.Entry{Branch: "feature/fetch"}
+	if err := adapter.FetchAndRebase(context.Background(), entry); err != nil {
+		t.Fatalf("FetchAndRebase returned error: %v", err)
+	}
+
+	want := []string{
+		"fetch origin main",
+		"checkout feature/fetch",
+		"rebase main",
+	}
+	if !reflect.DeepEqual(calls, want) {
+		t.Fatalf("commands = %v, want %v", calls, want)
 	}
 }
