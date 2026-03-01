@@ -268,6 +268,54 @@ func TestRunVerifySpec_DoesNotCreateBeadsWithoutFlag(t *testing.T) {
 	}
 }
 
+func TestRunLocalSpecGate_CreatesFixBeadsOnFailure(t *testing.T) {
+	setupVerifySpecTest(t, "my-spec", verifySpecSingleCriterionSpec)
+
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig() error = %v", err)
+	}
+
+	prevRunner := verifySpecGateRunner
+	prevCreate := verifySpecFixBeadsFn
+	called := false
+	verifySpecGateRunner = func(ctx context.Context, cfg *config.Config, specName string, criteria []string, block string, body string) (*specgate.GateVerdict, error) {
+		return &specgate.GateVerdict{
+			Passed:  false,
+			Results: []specgate.CriterionResult{{Criterion: "First criterion", Passed: false, Evidence: "missing"}},
+		}, nil
+	}
+	verifySpecFixBeadsFn = func(ctx context.Context, specName string, verdict *specgate.GateVerdict) ([]string, error) {
+		called = true
+		if specName != "my-spec" {
+			t.Fatalf("specName = %q, want %q", specName, "my-spec")
+		}
+		if verdict == nil {
+			t.Fatal("verdict is nil")
+		}
+		return []string{"bead-1"}, nil
+	}
+
+	t.Cleanup(func() {
+		verifySpecGateRunner = prevRunner
+		verifySpecFixBeadsFn = prevCreate
+	})
+
+	verdict, err := RunLocalSpecGate(context.Background(), cfg, "my-spec")
+	if err != nil {
+		t.Fatalf("RunLocalSpecGate() error = %v", err)
+	}
+	if verdict == nil {
+		t.Fatal("RunLocalSpecGate returned nil verdict")
+	}
+	if verdict.Passed {
+		t.Fatal("expected verdict to indicate failure")
+	}
+	if !called {
+		t.Fatal("expected spec gate fix beads to be created on failure")
+	}
+}
+
 func TestVerifySpecCmd_CreateBeadsPrintsIDs(t *testing.T) {
 	setupVerifySpecTest(t, "my-spec", verifySpecSingleCriterionSpec)
 
