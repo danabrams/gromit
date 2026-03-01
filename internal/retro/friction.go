@@ -98,6 +98,7 @@ func clusterByArea(learnings []learnings.Learning, minClusterSize int) []Frictio
 }
 
 func extractArea(content string) string {
+	content = strings.ReplaceAll(content, "\\", "/")
 	matches := areaPattern.FindAllString(content, -1)
 	if len(matches) == 0 {
 		return crossCuttingArea
