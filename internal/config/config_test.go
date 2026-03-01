@@ -5893,6 +5893,15 @@ func TestReadinessCheckConfigDefaults(t *testing.T) {
 	}
 }
 
+func TestReadinessCheckMandatoryByDefault(t *testing.T) {
+	cfg := &Config{}
+	cfg.SetDefaults()
+
+	if !cfg.ReadinessCheck.IsEnabled() {
+		t.Fatalf("expected readiness gate to be enabled after defaults")
+	}
+}
+
 func TestReadinessCheckConfigFromYAML(t *testing.T) {
 	tests := []struct {
 		name             string
