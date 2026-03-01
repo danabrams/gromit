@@ -1,0 +1,18 @@
+# Vision Metrics
+spec_id: pending-spec-queued
+cycle_start_trigger_at: 2026-02-22T10:00:00Z
+cycle_end_presented_at: 2026-02-22T11:30:00Z
+review_outcome: accepted
+human_tactical_intervention: yes
+human_debugging_intervention: no
+escaped_regression_within_7d: pending
+
+---
+# Vision Metrics
+spec_id: pending-spec-resolved
+cycle_start_trigger_at: 2026-02-23T09:00:00Z
+cycle_end_presented_at: 2026-02-23T10:45:00Z
+review_outcome: accepted
+human_tactical_intervention: no
+human_debugging_intervention: no
+escaped_regression_within_7d: yes
