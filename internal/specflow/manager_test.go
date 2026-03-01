@@ -2,6 +2,7 @@ package specflow
 
 import (
     "context"
+    "errors"
     "testing"
 )
 
@@ -28,6 +29,25 @@ func TestManagerResumeIdempotent(t *testing.T) {
 
     if store.storeCalls != 0 {
         t.Fatalf("resume should not have persisted stage, storeCalls=%d", store.storeCalls)
+    }
+}
+
+func TestManagerAdvanceInvalidTransition(t *testing.T) {
+    ctx := context.Background()
+    store := &fakeSpecStore{stage: StagePlanning}
+    mgr := NewManager(store)
+
+    if err := mgr.Advance(ctx, "spec-2", StageReview); err == nil {
+        t.Fatal("expected invalid transition error")
+    } else if !errors.Is(err, ErrInvalidTransition) {
+        t.Fatalf("expected ErrInvalidTransition, got %v", err)
+    }
+
+    if store.stage != StagePlanning {
+        t.Fatalf("store stage changed unexpectedly: %s", store.stage)
+    }
+    if store.storeCalls != 0 {
+        t.Fatalf("advance should not persist invalid transition, storeCalls=%d", store.storeCalls)
     }
 }
 
