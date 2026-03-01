@@ -65,7 +65,10 @@ func newIntegrationQueueCoordinator(cfg *config.Config, gromitDir string) (Coord
 		return nil, fmt.Errorf("initializing integration queue gitops adapter: %w", err)
 	}
 
-	gateAdapter, _ := newIntegrationQueueScopedGateAdapterFn()
+	gateAdapter, err := newIntegrationQueueScopedGateAdapterFn()
+	if err != nil {
+		return nil, fmt.Errorf("initializing integration queue scoped gate adapter: %w", err)
+	}
 	if gateAdapter == nil {
 		gateAdapter = &integrationQueueScopedGateAdapter{}
 	}
