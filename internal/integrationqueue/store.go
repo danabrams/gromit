@@ -105,7 +105,7 @@ func (s *Store) Save(entry Entry) error {
 	}
 
 	return withQueueFileLock(s.path, func() error {
-		snapshot, err := s.load()
+		snapshot, err := s.loadUnlocked()
 		if err != nil {
 			return fmt.Errorf("loading integration queue snapshot: %w", err)
 		}
@@ -154,16 +154,20 @@ func (s *Store) runValidationHooks(entry Entry) error {
 
 // Snapshot loads the current queue snapshot.
 func (s *Store) Snapshot() (*Snapshot, error) {
-	var snap *Snapshot
-	err := withQueueFileLock(s.path, func() error {
-		var loadErr error
-		snap, loadErr = s.load()
-		return loadErr
-	})
-	return snap, err
+	return s.load()
 }
 
 func (s *Store) load() (*Snapshot, error) {
+	var snapshot *Snapshot
+	err := withQueueFileLock(s.path, func() error {
+		var loadErr error
+		snapshot, loadErr = s.loadUnlocked()
+		return loadErr
+	})
+	return snapshot, err
+}
+
+func (s *Store) loadUnlocked() (*Snapshot, error) {
 	data, err := os.ReadFile(s.path)
 	if err != nil {
 		if os.IsNotExist(err) {
