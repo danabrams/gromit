@@ -5845,6 +5845,22 @@ func TestSpecPRConfigDefaults(t *testing.T) {
 	}
 }
 
+func TestSpecPRConfigAutoFixHumanCommentsExplicitFalse(t *testing.T) {
+	yamlContent := `
+spec_pr:
+  auto_fix_human_comments: false
+`
+	var cfg Config
+	if err := yaml.Unmarshal([]byte(yamlContent), &cfg); err != nil {
+		t.Fatalf("yaml.Unmarshal() error = %v", err)
+	}
+	cfg.SetDefaults()
+
+	if cfg.SpecPR.AutoFixHumanComments != false {
+		t.Fatalf("SpecPR.AutoFixHumanComments = %v, want false", cfg.SpecPR.AutoFixHumanComments)
+	}
+}
+
 // Tests for ReadinessCheckConfig defaults
 func TestReadinessCheckConfigDefaults(t *testing.T) {
 	cfg := &Config{}
