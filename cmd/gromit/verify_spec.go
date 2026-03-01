@@ -226,6 +226,29 @@ func runSpecGate(ctx context.Context, cfg *config.Config, specName string, crite
 	return gate.Run(ctx, specName, criteria)
 }
 
+// RunLocalSpecGate evaluates a single spec's acceptance criteria and creates fix
+// beads (via specgate.SynthesizeFixBeads) when the verdict fails.
+func RunLocalSpecGate(ctx context.Context, cfg *config.Config, specName string) (*specgate.GateVerdict, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config is nil")
+	}
+	specsDir := resolveSpecsDir(cfg)
+	criteria, criteriaBlock, specBody, err := loadSpecGateInputs(specsDir, specName)
+	if err != nil {
+		return nil, err
+	}
+	verdict, err := verifySpecGateRunner(ctx, cfg, specName, criteria, criteriaBlock, specBody)
+	if err != nil {
+		return verdict, err
+	}
+	if verdict != nil && !verdict.Passed {
+		if _, createErr := verifySpecFixBeadsFn(ctx, specName, verdict); createErr != nil {
+			return verdict, fmt.Errorf("creating fix beads: %w", createErr)
+		}
+	}
+	return verdict, nil
+}
+
 func newSpecGateRenderer(cfg *config.Config) (*prompt.Renderer, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config is nil")
