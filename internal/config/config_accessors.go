@@ -370,7 +370,7 @@ func (p PrecheckConfig) EffectiveBypassLabels() []string {
 // IsEnabled returns whether readiness_check should run (defaults to false).
 func (r ReadinessCheckConfig) IsEnabled() bool {
 	if r.Enabled == nil {
-		return false
+		return true
 	}
 	return *r.Enabled
 }

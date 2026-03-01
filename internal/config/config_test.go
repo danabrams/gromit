@@ -5879,8 +5879,8 @@ func TestReadinessCheckConfigDefaults(t *testing.T) {
 	cfg := &Config{}
 	cfg.SetDefaults()
 
-	if cfg.ReadinessCheck.IsEnabled() {
-		t.Errorf("expected default readiness_check enabled=false")
+	if !cfg.ReadinessCheck.IsEnabled() {
+		t.Errorf("expected default readiness_check enabled=true")
 	}
 	if cfg.ReadinessCheck.Model != "haiku" {
 		t.Errorf("expected default readiness_check model='haiku', got %q", cfg.ReadinessCheck.Model)
@@ -5939,7 +5939,7 @@ func TestReadinessCheckConfigFromYAML(t *testing.T) {
 			yaml: `readiness_check:
   model: opus
 `,
-			expectEnabled:    false,
+			expectEnabled:    true,
 			expectModel:      "opus",
 			expectTimeout:    120,
 			expectFailClosed: false,
@@ -5949,7 +5949,7 @@ func TestReadinessCheckConfigFromYAML(t *testing.T) {
 			yaml: `readiness_check:
   timeout_seconds: 90
 `,
-			expectEnabled:    false,
+			expectEnabled:    true,
 			expectModel:      "haiku",
 			expectTimeout:    90,
 			expectFailClosed: false,
@@ -5959,7 +5959,7 @@ func TestReadinessCheckConfigFromYAML(t *testing.T) {
 			yaml: `readiness_check:
   fail_closed: true
 `,
-			expectEnabled:    false,
+			expectEnabled:    true,
 			expectModel:      "haiku",
 			expectTimeout:    120,
 			expectFailClosed: true,
@@ -5967,7 +5967,7 @@ func TestReadinessCheckConfigFromYAML(t *testing.T) {
 		{
 			name:             "Empty config uses defaults",
 			yaml:             "",
-			expectEnabled:    false,
+			expectEnabled:    true,
 			expectModel:      "haiku",
 			expectTimeout:    120,
 			expectFailClosed: false,
@@ -6005,8 +6005,8 @@ func TestReadinessCheckConfigFromYAML(t *testing.T) {
 
 func TestReadinessCheckIsEnabledNilPointer(t *testing.T) {
 	cfg := ReadinessCheckConfig{}
-	if cfg.IsEnabled() {
-		t.Errorf("expected IsEnabled() to return false for nil pointer (default-off)")
+	if !cfg.IsEnabled() {
+		t.Errorf("expected IsEnabled() to return true for nil pointer (default-on)")
 	}
 }
 
