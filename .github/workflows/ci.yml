@@ -20,6 +20,25 @@ on:
         type: boolean
 
 jobs:
+  validate_pr_metadata:
+    name: Validate PR Metadata
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Validate PR metadata compliance
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: go run ./cmd/gromit validate-pr-metadata
+
   test:
     name: Unit + Acceptance
     runs-on: ubuntu-latest
