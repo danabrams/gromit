@@ -25,6 +25,7 @@ const (
 	retroAnalysisTier    = "high"
 	sectionEfficiency    = "efficiency"
 	sectionProcessTrend  = "process_trend"
+	sectionWorkmanship   = "workmanship"
 )
 
 // ProviderRunner is an interface for running LLM prompts.
@@ -50,15 +51,17 @@ type Retro struct {
 
 // TemplateContext holds data for retro prompt template
 type TemplateContext struct {
-	Rules             string
-	Learnings         string
-	RunStats          logger.RunStats
-	BeadStats         map[string]logger.BeadStats
-	Efficiency        *logger.EfficiencyReport
-	ProcessTrend      *logger.ProcessTrend
+	Rules               string
+	Learnings           string
+	RunStats            logger.RunStats
+	BeadStats           map[string]logger.BeadStats
+	Efficiency          *logger.EfficiencyReport
+	ProcessTrend        *logger.ProcessTrend
 	MaintenanceWarnings []string
-	Experiment        *Experiment
-	ExperimentMetrics *ExperimentMetrics
+	Experiment          *Experiment
+	ExperimentMetrics   *ExperimentMetrics
+	FrictionClusters    []FrictionCluster
+	FrictionResolutions []FrictionResolution
 }
 
 // ExperimentMetrics holds current efficiency metrics for an experiment's provider family.
@@ -237,7 +240,7 @@ func (r *Retro) Run(ctx context.Context, beadFilter map[string]bool) (*Result, e
 	}
 
 	// Render prompt
-	prompt, err := r.renderPrompt(rules, learningsText, runStats, filteredBeadStats, efficiencyReport, experiment)
+	prompt, err := r.renderPrompt(rules, learningsText, runStats, filteredBeadStats, efficiencyReport, experiment, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("rendering prompt: %w", err)
 	}
@@ -423,7 +426,7 @@ func (r *Retro) formatLearnings() string {
 }
 
 // renderPrompt renders the retro prompt template
-func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, beadStats map[string]logger.BeadStats, efficiency *logger.EfficiencyReport, experiment *Experiment) (string, error) {
+func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, beadStats map[string]logger.BeadStats, efficiency *logger.EfficiencyReport, experiment *Experiment, frictionClusters []FrictionCluster, frictionResolutions []FrictionResolution) (string, error) {
 	tmplContent, err := os.ReadFile(r.templatePath)
 	if err != nil {
 		return "", fmt.Errorf("reading template: %w", err)
@@ -439,7 +442,7 @@ func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, 
 		postShapeTokens = prompt.EstimateTokens(rules) + prompt.EstimateTokens(learnings)
 	}
 
-	sectionTokens := buildRetroSectionTokens(rules, learnings, runStats, beadStats, efficiency, processTrend)
+	sectionTokens := buildRetroSectionTokens(rules, learnings, runStats, beadStats, efficiency, processTrend, frictionClusters, frictionResolutions)
 	diagnostics := prompt.NewDiagnostics("retro", sectionTokens)
 	if r.promptBudget > 0 {
 		diagnostics.BudgetMaxChars = r.promptBudget
@@ -489,15 +492,17 @@ func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, 
 	}
 
 	ctx := TemplateContext{
-		Rules:             rules,
-		Learnings:         learnings,
-		RunStats:          runStats,
-		BeadStats:         beadStats,
-		Efficiency:        efficiency,
-		ProcessTrend:      processTrend,
+		Rules:               rules,
+		Learnings:           learnings,
+		RunStats:            runStats,
+		BeadStats:           beadStats,
+		Efficiency:          efficiency,
+		ProcessTrend:        processTrend,
 		MaintenanceWarnings: buildMaintenanceWarnings(processTrend),
-		Experiment:        experiment,
-		ExperimentMetrics: selectExperimentMetrics(experiment, efficiency),
+		Experiment:          experiment,
+		ExperimentMetrics:   selectExperimentMetrics(experiment, efficiency),
+		FrictionClusters:    frictionClusters,
+		FrictionResolutions: frictionResolutions,
 	}
 
 	var sb strings.Builder

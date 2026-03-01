@@ -365,6 +365,36 @@ Analyze the learnings above and provide:
    - Provide an implementation-ready summary that can be persisted back into `experiment.json`
 {{- end }}
 
+## Section 8: Workmanship Report
+
+{{- if .FrictionClusters }}
+The friction clusters below describe areas where multiple learnings converge on a workmanship concern. Use the details to drive the Workmanship Report portion of your analysis.
+
+{{- range .FrictionClusters }}
+### Friction area: {{ .Area }}
+- Learning count: {{ .LearningCount }}
+- Time span: {{ .EarliestDate.Format "2006-01-02" }} → {{ .LatestDate.Format "2006-01-02" }}
+- Category evidence:
+{{- range $category, $count := .Categories }}
+  - {{ $category }}: {{ $count }} learning(s)
+{{- end }}
+{{- end }}
+
+{{- if .FrictionResolutions }}
+#### Previous friction follow-up
+{{- range .FrictionResolutions }}
+- {{ .Area }}: {{ .Status }} (previously {{ .PreviousCount }}, currently {{ .CurrentCount }})
+{{- end }}
+{{- end }}
+
+For each friction area above, generate 2-4 options per friction area. Each option must describe:
+- **Investment**: resources, time, tooling, or organizational attention required to execute the option.
+- **Impact**: expected benefit, risk reduction, or durability gained from the option.
+- **Risk**: downside if the option is deferred or fails to deliver.
+
+Store the options in the `workmanship` section of the structured JSON so that each area points to its options. Highlight whether an option addresses a new versus persisting friction cluster and call out resolved areas before proposing new work.
+{{- end }}
+
 ## Output Format
 
 Provide your analysis in two parts:

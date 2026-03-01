@@ -322,7 +322,7 @@ func TestRenderPromptWithPopulatedExperiment(t *testing.T) {
 	}
 
 	// Call renderPrompt with all fields populated
-	prompt, err := r.renderPrompt("", "", ctx.RunStats, ctx.BeadStats, ctx.Efficiency, ctx.Experiment)
+	prompt, err := r.renderPrompt("", "", ctx.RunStats, ctx.BeadStats, ctx.Efficiency, ctx.Experiment, nil, nil)
 
 	// Test 1: renderPrompt should not error
 	if err != nil {
@@ -391,7 +391,7 @@ Cost: ${{ printf "%.2f" .ExperimentMetrics.CurrentAvgCostPerBead }}
 	}
 	experiment := &Experiment{PrimaryConcern: "codex"}
 
-	prompt, err := r.renderPrompt("", "", logger.RunStats{}, nil, efficiency, experiment)
+	prompt, err := r.renderPrompt("", "", logger.RunStats{}, nil, efficiency, experiment, nil, nil)
 	if err != nil {
 		t.Fatalf("renderPrompt failed: %v", err)
 	}
@@ -437,7 +437,7 @@ func TestRenderPromptWithoutExperiment(t *testing.T) {
 	// Call renderPrompt with nil Experiment
 	prompt, err := r.renderPrompt("", "", logger.RunStats{Total: 5}, nil, &logger.EfficiencyReport{
 		CurrentAvgCostPerBead: 0.35,
-	}, nil)
+	}, nil, nil, nil)
 
 	if err != nil {
 		t.Fatalf("renderPrompt with nil Experiment failed: %v", err)
@@ -534,7 +534,7 @@ func TestRenderPromptTemplateExpressionsWithFloatTypes(t *testing.T) {
 	}
 
 	// Call renderPrompt with populated Experiment
-	prompt, err := r.renderPrompt("", "", logger.RunStats{}, nil, efficiency, experiment)
+	prompt, err := r.renderPrompt("", "", logger.RunStats{}, nil, efficiency, experiment, nil, nil)
 
 	// Verify no error occurred (template functions received correct float64 types)
 	if err != nil {
@@ -1071,7 +1071,7 @@ func TestRenderPromptWithNilExperimentAndEfficiency(t *testing.T) {
 	r.templatePath = templatePath
 
 	// Call renderPrompt with all nil/zero values
-	prompt, err := r.renderPrompt("", "", logger.RunStats{}, nil, nil, nil)
+	prompt, err := r.renderPrompt("", "", logger.RunStats{}, nil, nil, nil, nil, nil)
 
 	// Test 1: renderPrompt should not error with nil Experiment and nil Efficiency
 	if err != nil {
@@ -1207,7 +1207,7 @@ func TestRenderPromptWithNilExperimentAndEfficiencyUsingRealTemplate(t *testing.
 	r.templatePath = templatePath
 
 	// Call renderPrompt with nil Experiment, nil Efficiency, and zero RunStats
-	prompt, err := r.renderPrompt("# Test Rules", "# Test Learnings", logger.RunStats{}, nil, nil, nil)
+	prompt, err := r.renderPrompt("# Test Rules", "# Test Learnings", logger.RunStats{}, nil, nil, nil, nil, nil)
 
 	// Test 1: renderPrompt should not error
 	if err != nil {
@@ -1266,7 +1266,7 @@ func TestRenderPromptWithProviderFamiliesInRealTemplate(t *testing.T) {
 		MixedProviderFamilies: true,
 	}
 
-	prompt, err := r.renderPrompt("# Test Rules", "# Test Learnings", logger.RunStats{Total: 1}, nil, efficiency, nil)
+	prompt, err := r.renderPrompt("# Test Rules", "# Test Learnings", logger.RunStats{Total: 1}, nil, efficiency, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("renderPrompt with provider families failed: %v", err)
 	}
@@ -1316,7 +1316,7 @@ func TestRenderPromptWithProviderFamiliesIncludesMixedAggregateRow(t *testing.T)
 		MixedProviderFamilies: true,
 	}
 
-	prompt, err := r.renderPrompt("# Rules", "# Learnings", logger.RunStats{Total: 2}, nil, efficiency, nil)
+	prompt, err := r.renderPrompt("# Rules", "# Learnings", logger.RunStats{Total: 2}, nil, efficiency, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("renderPrompt with provider families failed: %v", err)
 	}
@@ -1362,7 +1362,7 @@ func TestRenderPromptWithProviderFamiliesEmitsMixedProviderAggregateLabel(t *tes
 		MixedProviderFamilies: true,
 	}
 
-	prompt, err := r.renderPrompt("# Test Rules", "# Test Learnings", logger.RunStats{Total: 1}, nil, efficiency, nil)
+	prompt, err := r.renderPrompt("# Test Rules", "# Test Learnings", logger.RunStats{Total: 1}, nil, efficiency, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("renderPrompt with provider families failed: %v", err)
 	}
@@ -1400,7 +1400,7 @@ func TestRenderPromptEmitsMixedProviderFamilyLabel(t *testing.T) {
 		CurrentAvgDurationPerBead: 2 * time.Second,
 	}
 
-	prompt, err := r.renderPrompt("# Rules", "# Learnings", logger.RunStats{Total: 1}, nil, efficiency, experiment)
+	prompt, err := r.renderPrompt("# Rules", "# Learnings", logger.RunStats{Total: 1}, nil, efficiency, experiment, nil, nil)
 	if err != nil {
 		t.Fatalf("renderPrompt failed: %v", err)
 	}
@@ -1490,7 +1490,7 @@ func TestRenderPromptWithProcessTrendFailureBreakdownInRealTemplate(t *testing.T
 	}
 	r.templatePath = templatePath
 
-	prompt, err := r.renderPrompt("# Test Rules", "# Test Learnings", logger.RunStats{Total: 1}, nil, nil, nil)
+	prompt, err := r.renderPrompt("# Test Rules", "# Test Learnings", logger.RunStats{Total: 1}, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("renderPrompt with process trend failed: %v", err)
 	}
@@ -1581,7 +1581,7 @@ func TestRenderPromptIncludesCauseClassificationSection(t *testing.T) {
 	}
 	r.templatePath = templatePath
 
-	prompt, err := r.renderPrompt("# Rules", "# Learnings", logger.RunStats{Total: 1}, nil, nil, nil)
+	prompt, err := r.renderPrompt("# Rules", "# Learnings", logger.RunStats{Total: 1}, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("renderPrompt with classification data failed: %v", err)
 	}
@@ -1653,7 +1653,7 @@ func TestRenderPromptIncludesSpecMaintenanceWarning(t *testing.T) {
 	}
 	r.templatePath = templatePath
 
-	prompt, err := r.renderPrompt("rules", "learnings", logger.RunStats{Total: 1}, nil, nil, nil)
+	prompt, err := r.renderPrompt("rules", "learnings", logger.RunStats{Total: 1}, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("renderPrompt failed: %v", err)
 	}
@@ -1709,7 +1709,7 @@ func TestRenderPromptIncludesHighMaintenanceCostSection(t *testing.T) {
 	}
 	r.templatePath = templatePath
 
-	prompt, err := r.renderPrompt("rules", "learnings", logger.RunStats{Total: 1}, nil, nil, nil)
+	prompt, err := r.renderPrompt("rules", "learnings", logger.RunStats{Total: 1}, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("renderPrompt failed: %v", err)
 	}
@@ -1736,7 +1736,7 @@ func TestRenderPrompt_ShapesRulesAndLearningsWhenBudgetConfigured(t *testing.T) 
 	rules := strings.Repeat("r", 30)
 	learnings := strings.Repeat("l", 40)
 
-	prompt, err := r.renderPrompt(rules, learnings, logger.RunStats{}, nil, nil, nil)
+	prompt, err := r.renderPrompt(rules, learnings, logger.RunStats{}, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("renderPrompt returned error: %v", err)
 	}
@@ -1770,7 +1770,7 @@ func TestRenderPrompt_BuildsPromptDiagnostics(t *testing.T) {
 	}
 	runStats := logger.RunStats{Total: 1}
 
-	if _, err := r.renderPrompt("rules content", "confirmed learnings", runStats, beadStats, efficiency, nil); err != nil {
+	if _, err := r.renderPrompt("rules content", "confirmed learnings", runStats, beadStats, efficiency, nil, nil, nil); err != nil {
 		t.Fatalf("renderPrompt returned error: %v", err)
 	}
 
@@ -1789,6 +1789,10 @@ func TestRenderPrompt_BuildsPromptDiagnostics(t *testing.T) {
 		prompt.SectionBeadStats:          prompt.EstimateTokens(diagnosticJSON(beadStats)),
 		"efficiency":                     prompt.EstimateTokens(diagnosticJSON(efficiency)),
 		"process_trend":                  prompt.EstimateTokens(diagnosticJSON(r.loadProcessTrend())),
+		sectionWorkmanship: prompt.EstimateTokens(diagnosticJSON(map[string]any{
+			"friction_clusters":    nil,
+			"friction_resolutions": nil,
+		})),
 	}
 	expectedSum := 0
 	for key, expectedValue := range expected {
@@ -1821,7 +1825,7 @@ func TestRenderPrompt_BudgetShapingDiagnostics(t *testing.T) {
 	rules := strings.Repeat("r", 30)
 	learnings := strings.Repeat("l", 60)
 	shapedRules, shapedLearnings, shapeReport := prompt.ShapeRetroForBudget(rules, learnings, 40)
-	if _, err := r.renderPrompt(rules, learnings, logger.RunStats{}, nil, nil, nil); err != nil {
+	if _, err := r.renderPrompt(rules, learnings, logger.RunStats{}, nil, nil, nil, nil, nil); err != nil {
 		t.Fatalf("renderPrompt returned error: %v", err)
 	}
 

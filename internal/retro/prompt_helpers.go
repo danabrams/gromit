@@ -23,6 +23,8 @@ func buildRetroSectionTokens(
 	beadStats map[string]logger.BeadStats,
 	efficiency *logger.EfficiencyReport,
 	processTrend *logger.ProcessTrend,
+	frictionClusters []FrictionCluster,
+	frictionResolutions []FrictionResolution,
 ) map[string]int {
 	return map[string]int{
 		prompt.SectionRules:              prompt.EstimateTokens(rules),
@@ -31,6 +33,10 @@ func buildRetroSectionTokens(
 		prompt.SectionBeadStats:          prompt.EstimateTokens(diagnosticJSON(beadStats)),
 		sectionEfficiency:                prompt.EstimateTokens(diagnosticJSON(efficiency)),
 		sectionProcessTrend:              prompt.EstimateTokens(diagnosticJSON(processTrend)),
+		sectionWorkmanship: prompt.EstimateTokens(diagnosticJSON(map[string]any{
+			"friction_clusters":    frictionClusters,
+			"friction_resolutions": frictionResolutions,
+		})),
 	}
 }
 
