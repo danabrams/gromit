@@ -197,6 +197,39 @@ func TestBuildIterationMetrics_AllComplexitySourceValues(t *testing.T) {
 	}
 }
 
+func TestDetectPackageMaintenanceCosts_FlagsAfterThreeBreaches(t *testing.T) {
+	metrics := []IterationMetric{
+		{RollingAvgValidationMs: 10, TouchedPackages: []string{"internal/pkg"}, Timestamp: time.Unix(1, 0)},
+		{RollingAvgValidationMs: 200, TouchedPackages: []string{"internal/pkg"}, Timestamp: time.Unix(2, 0)},
+		{RollingAvgValidationMs: 210, TouchedPackages: []string{"internal/pkg"}, Timestamp: time.Unix(3, 0)},
+		{RollingAvgValidationMs: 220, TouchedPackages: []string{"internal/pkg"}, Timestamp: time.Unix(4, 0)},
+	}
+	limit := TrendControlLimit{
+		Metric: metricRollingAvgValidationMs,
+		UCL:    150,
+	}
+
+	costs := detectPackageMaintenanceCosts(metrics, limit)
+	if len(costs) != 1 {
+		t.Fatalf("expected 1 flagged package, got %d", len(costs))
+	}
+	if costs[0].Package != "internal/pkg" {
+		t.Fatalf("unexpected package %q", costs[0].Package)
+	}
+	if costs[0].ConsecutiveBreaches < 3 {
+		t.Fatalf("expected at least 3 consecutive breaches, got %d", costs[0].ConsecutiveBreaches)
+	}
+	if costs[0].LatestValue != 220 {
+		t.Fatalf("unexpected latest value %.0f", costs[0].LatestValue)
+	}
+	if costs[0].Severity != anomalySeverityHigh {
+		t.Fatalf("expected high severity, got %q", costs[0].Severity)
+	}
+	if !costs[0].DetectedAt.Equal(time.Unix(4, 0)) {
+		t.Fatalf("unexpected detected at %v", costs[0].DetectedAt)
+	}
+}
+
 func TestBuildIterationMetrics_ProviderRollingStats(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
