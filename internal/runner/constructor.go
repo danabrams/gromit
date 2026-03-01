@@ -485,14 +485,12 @@ func applyStateStalenessRecovery(sf *state.File, cfg *config.Config, output io.W
 		}
 	}
 }
-
 func resolveTrackerBackend(cfg *config.Config) string {
 	if cfg == nil {
 		return "bd"
 	}
 	return cfg.ResolveCompatibilityContext().TrackerBackend.Value
 }
-
 func resolveTrackerBackendDeprecationMarker(cfg *config.Config) string {
 	if cfg == nil {
 		return RunnerDeprecationMarkerLegacyTrackerBackendFallback
@@ -503,7 +501,6 @@ func resolveTrackerBackendDeprecationMarker(cfg *config.Config) string {
 	}
 	return RunnerDeprecationMarkerLegacyTrackerBackendFallback
 }
-
 func newTrackerClient(backend string) (tracker.Client, error) {
 	switch backend {
 	case "bd":
@@ -516,7 +513,6 @@ func newTrackerClient(backend string) (tracker.Client, error) {
 		return nil, fmt.Errorf("unsupported tracker backend: %s", backend)
 	}
 }
-
 func wireLearningsFilter(renderer PromptRenderer, learningsProvider provider.Provider) {
 	if renderer == nil || learningsProvider == nil {
 		return
@@ -529,7 +525,6 @@ func wireLearningsFilter(renderer PromptRenderer, learningsProvider provider.Pro
 	providerRunnerAdapter := learnings.NewProviderRunnerAdapter(learningsProvider)
 	lf.SetFilter(learnings.NewLLMFilter(providerRunnerAdapter, "gromit", learnings.ProjectDescriptions.Gromit))
 }
-
 func wireSiblingEnrichmentResolver(renderer PromptRenderer, logsDir string) {
 	if renderer == nil {
 		return

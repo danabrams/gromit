@@ -6,4 +6,5 @@ const (
 	Build      = "build"
 	Validation = "validation"
 	Timeout    = "timeout"
+	LocalGate  = "local_gate"
 )

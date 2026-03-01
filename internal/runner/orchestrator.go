@@ -35,6 +35,8 @@ type OrchestratorConfig struct {
 	Build pipeline.Stage
 	// Validate is Stage 3: runs programmatic checks.
 	Validate pipeline.Stage
+	// LocalGate runs spec-only acceptance checks after implementation succeeds.
+	LocalGate pipeline.Stage
 	// Review is Stage 4: optional LLM code review. Nil means skip.
 	Review pipeline.Stage
 	// Epilogue is Stage 5: bead lifecycle and cleanup.
@@ -167,6 +169,7 @@ func NewOrchestrator(cfg OrchestratorConfig) *Orchestrator {
 	o.attachEmitterToStage(cfg.Gate)
 	o.attachEmitterToStage(cfg.Build)
 	o.attachEmitterToStage(cfg.Validate)
+	o.attachEmitterToStage(cfg.LocalGate)
 	o.attachEmitterToStage(cfg.Review)
 	o.attachEmitterToStage(cfg.Epilogue)
 	return o
@@ -603,6 +606,50 @@ runLoop:
 
 		if o.cfg.CoverageTracker != nil {
 			o.cfg.CoverageTracker.ToComplete()
+		}
+
+		if o.cfg.LocalGate != nil {
+			localGateOut, localGateErr := o.cfg.LocalGate.Run(ctx, baseIn)
+			if localGateErr != nil || localGateOut.Decision != pipeline.Proceed {
+				failureReasons := append([]string(nil), localGateOut.ValidationFailures...)
+				if localGateErr != nil {
+					failureReasons = append(failureReasons, localGateErr.Error())
+				}
+				failureMessage := strings.Join(failureReasons, "; ")
+				if failureMessage == "" {
+					failureMessage = "local gate failed"
+				}
+				if localGateErr != nil {
+					o.logWarning("Warning: local gate error for bead %s (iteration %d): %v", b.ID, iteration, localGateErr)
+				} else {
+					o.logWarning("Warning: local gate failed for bead %s (iteration %d)", b.ID, iteration)
+				}
+				baseIn.Result = &logger.IterationLog{
+					Timestamp:                time.Now(),
+					Iteration:                iteration,
+					BeadID:                   b.ID,
+					BeadTitle:                b.Title,
+					Success:                  false,
+					FailurePhase:             failurephase.LocalGate,
+					ValidationFailures:       localGateOut.ValidationFailures,
+					Error:                    failureMessage,
+					Complexity:               baseIn.Complexity,
+					ComplexitySource:         baseIn.ComplexitySource,
+					ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
+				}
+				baseIn.FailureOutput = strings.Join(localGateOut.ValidationFailures, "\n")
+				stampBuildAttribution(baseIn.Result, buildOut)
+				o.emitBeadFailedEvent(b, failureMessage)
+				o.runEpilogue(ctx, baseIn, false)
+				o.emitter.Emit(&events.IterationCompleteEvent{
+					Iteration: iteration,
+					BeadID:    b.ID,
+					Success:   false,
+					Duration:  time.Duration(buildOut.DurationMs) * time.Millisecond,
+					Time:      time.Now(),
+				})
+				continue
+			}
 		}
 
 		// Stage 4: Review — optional LLM code review.
