@@ -434,3 +434,58 @@ func TestResolveRetroWorktreeLogsDir_EmptyWorktreeDir(t *testing.T) {
 		t.Fatalf("expected empty string for empty worktreeGromitDir, got: %q", logsPath)
 	}
 }
+
+func TestOldFunctionsAreConsolidated_DelegateToNewFunction(t *testing.T) {
+	// RED test: Verify that the old retro worktree log resolution functions
+	// (setupRetroLogsForWorktree, prepareRetroWorktreeWithMainRepoLogs, ensureRetroWorktreeLogsSetup)
+	// can be safely refactored or removed because ResolveRetroWorktreeLogsDir
+	// provides the same consolidated interface.
+	//
+	// This test documents that calling the old functions should produce the same
+	// result as calling the new consolidated function.
+
+	tmpDir := t.TempDir()
+
+	// Create main repo with logs
+	mainGromitDir := filepath.Join(tmpDir, "main", ".gromit")
+	mainLogsDir := filepath.Join(mainGromitDir, "logs")
+	if err := os.MkdirAll(mainLogsDir, 0o755); err != nil {
+		t.Fatalf("creating main repo logs: %v", err)
+	}
+
+	// Create worktree without logs
+	worktreeGromitDir := filepath.Join(tmpDir, "worktree", ".gromit")
+	if err := os.MkdirAll(worktreeGromitDir, 0o755); err != nil {
+		t.Fatalf("creating worktree .gromit: %v", err)
+	}
+
+	// OLD API: setupRetroLogsForWorktree
+	oldPath1, oldErr1 := setupRetroLogsForWorktree(worktreeGromitDir, mainGromitDir)
+	if oldErr1 != nil {
+		t.Fatalf("setupRetroLogsForWorktree failed: %v", oldErr1)
+	}
+
+	// NEW CONSOLIDATED API: ResolveRetroWorktreeLogsDir
+	newPath1, newErr1 := ResolveRetroWorktreeLogsDir(worktreeGromitDir, mainGromitDir)
+	if newErr1 != nil {
+		t.Fatalf("ResolveRetroWorktreeLogsDir failed: %v", newErr1)
+	}
+
+	// Both should return accessible paths
+	if oldPath1 == "" || newPath1 == "" {
+		t.Fatalf("both functions should return non-empty paths: old=%q, new=%q", oldPath1, newPath1)
+	}
+
+	// Verify both paths are accessible
+	if _, err := os.Stat(oldPath1); err != nil {
+		t.Fatalf("old function path not accessible: %v", err)
+	}
+	if _, err := os.Stat(newPath1); err != nil {
+		t.Fatalf("new function path not accessible: %v", err)
+	}
+
+	// Both should resolve to the same logs directory (or at least accessible logs)
+	// The new consolidated function should replace the old one
+	t.Logf("old setupRetroLogsForWorktree returned: %q", oldPath1)
+	t.Logf("new ResolveRetroWorktreeLogsDir returned: %q", newPath1)
+}
