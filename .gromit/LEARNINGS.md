@@ -332,3 +332,13 @@ Gromit enforces file size limits on critical files like constructor.go (≤550 l
 
 *Archived: 2026-03-01 — specific to one file-size test and command; already covered by explicit architecture file-size guardrails.*
 
+### 2026-03-01 | gromit-90i5 | conventions
+Queue/state management code requires understanding both valid state transition rules and explicit persistence calls - state mutations don't auto-persist; check transition tables before state changes and look for Save/Persist method calls in recovery paths
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-03-01 | gromit-90i5 | conventions
+State transition functions must validate target states against the allowed transition table and always persist state changes to maintain consistency. Check transition constraints before implementation, not after.
+
+*Archived from new: filtered: generic engineering advice*
+

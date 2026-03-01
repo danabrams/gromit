@@ -1,8 +1,10 @@
 package visionmetrics
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
@@ -497,6 +499,76 @@ func TestAppendRecord_ErrorOnNonExistentDirectory(t *testing.T) {
 	err := AppendRecord("/nonexistent/path/to/file.jsonl", record)
 	if err == nil {
 		t.Error("AppendRecord should return error for non-existent directory")
+	}
+}
+
+func TestAppendRecord_AtomicWriteUnderConcurrentAccess(t *testing.T) {
+	// Create a temporary file
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "concurrent.jsonl")
+
+	// Number of concurrent goroutines
+	const numGoroutines = 10
+	const recordsPerGoroutine = 5
+
+	// Create a wait group to coordinate goroutines
+	var wg sync.WaitGroup
+	errChan := make(chan error, numGoroutines)
+
+	// Launch concurrent appends
+	for g := 0; g < numGoroutines; g++ {
+		wg.Add(1)
+		go func(goroutineID int) {
+			defer wg.Done()
+			for i := 0; i < recordsPerGoroutine; i++ {
+				record := Record{
+					SpecID:                     fmt.Sprintf("goroutine-%d-record-%d", goroutineID, i),
+					CycleStartTriggerAt:        parseTime("2026-02-01T08:00:00Z"),
+					CycleEndPresentedAt:        parseTime("2026-02-01T10:00:00Z"),
+					ReviewOutcome:              ReviewOutcomeAccepted,
+					HumanTacticalIntervention:  No,
+					HumanDebuggingIntervention: No,
+					EscapedRegressionWithin7D:  No,
+				}
+				if err := AppendRecord(tmpFile, record); err != nil {
+					errChan <- err
+					return
+				}
+			}
+		}(g)
+	}
+
+	// Wait for all goroutines to complete
+	wg.Wait()
+	close(errChan)
+
+	// Check for any errors
+	for err := range errChan {
+		if err != nil {
+			t.Fatalf("AppendRecord failed: %v", err)
+		}
+	}
+
+	// Read the file back and verify no interleaving occurred
+	// If lines were interleaved, LoadRecords would fail with JSON parse errors
+	loaded, err := LoadRecords(tmpFile)
+	if err != nil {
+		t.Fatalf("LoadRecords failed (possible interleaving): %v", err)
+	}
+
+	// Verify we got all records
+	expectedCount := numGoroutines * recordsPerGoroutine
+	if len(loaded) != expectedCount {
+		t.Errorf("expected %d records, got %d", expectedCount, len(loaded))
+	}
+
+	// Verify all SpecIDs are properly formatted (would be corrupted if interleaved)
+	seenIDs := make(map[string]bool)
+	for _, record := range loaded {
+		if seenIDs[record.SpecID] {
+			t.Errorf("duplicate SpecID: %q", record.SpecID)
+		}
+		seenIDs[record.SpecID] = true
 	}
 }
 
