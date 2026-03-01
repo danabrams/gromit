@@ -303,6 +303,56 @@ func TestSPCAutoTriage_EnforcesCooldownBoundary(t *testing.T) {
     }
 }
 
+func TestSPCAutoTriage_IncludesEvidencePayload(t *testing.T) {
+    ctx := context.Background()
+    now := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
+
+    trackerClient := trackertest.NewStubTrackerClient()
+    var created []tracker.CreateRequest
+    trackerClient.CreateFn = func(ctx context.Context, req tracker.CreateRequest) (*tracker.Item, error) {
+        created = append(created, req)
+        return &tracker.Item{ID: "evidence-1", Status: tracker.StatusOpen}, nil
+    }
+    trackerClient.ListWithLabelFn = func(ctx context.Context, label string) ([]tracker.Item, error) {
+        return nil, nil
+    }
+
+    store := newTestCooldownStore()
+    triager := NewSPCAutoTriager(trackerClient, store, WithNowFunc(func() time.Time { return now }))
+
+    rec := SPCCauseRecord{
+        Metric:                 "metric",
+        Stratum:                "global",
+        Class:                  CauseClassSpecial,
+        PersistenceWindowCount: 2,
+        Latest:                 42,
+        Drift:                  3.14,
+        DetectedAt:             now.Add(-time.Hour),
+        Limit: &TrendControlLimit{
+            Metric: "metric",
+            Latest: 42,
+            Mean:   40,
+            LCL:    30,
+            UCL:    50,
+        },
+    }
+
+    _, err := triager.Process(ctx, []SPCCauseRecord{rec})
+    if err != nil {
+        t.Fatalf("Process() returned error: %v", err)
+    }
+    if len(created) != 1 {
+        t.Fatalf("expected one creation, got %d", len(created))
+    }
+    desc := created[0].Description
+    want := []string{"Metric: metric", "Classification: special_cause", "Latest: 42.00", "Control limits:", "Drift vs center: 3.14", "First detected:", "Guidance:"}
+    for _, substring := range want {
+        if !strings.Contains(desc, substring) {
+            t.Errorf("description missing %q: %s", substring, desc)
+        }
+    }
+}
+
 type testCooldownStore struct {
     values map[string]time.Time
 }
