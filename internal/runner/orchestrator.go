@@ -584,6 +584,7 @@ runLoop:
 				BeadID:                   b.ID,
 				BeadTitle:                b.Title,
 				Success:                  false,
+				FailurePhase:             failurephase.Validation,
 				ValidationFailures:       validateOut.ValidationFailures,
 				Complexity:               baseIn.Complexity,
 				ComplexitySource:         baseIn.ComplexitySource,
