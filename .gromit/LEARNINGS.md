@@ -177,31 +177,28 @@ All CLI commands wire dependencies through NewPipelineDeps() in cmd/gromit/adapt
 
 The TUI store (internal/tui/store.go) uses sync.RWMutex. All mutations hold the write lock; map function reads hold the read lock. View rendering uses copy-on-read to minimize lock duration.
 
-### 2026-02-28 | Process Capacity Gating Before Subprocess Start | patterns
-*Related to: review-1772244209301323387*
+### 2026-02-28 | All Subprocess Launch Sites Must Follow Full procutil Lifecycle | conventions
+*Related to: review-1772244209301323387, review-1772300695650836737, review-1772322141608097349, review-1772366501939692738*
+*Consolidated from: Process Capacity Gating Before Subprocess Start + Subprocess Wrappers Must Follow procutil Pattern + Subprocess Launch Must Use Full procutil Pattern Including ReapProcessTree*
 
-procutil.WaitForProcessCapacity is called before cmd.Start() in claude, codex, and gemini providers to prevent EAGAIN fork failures under cgroup PID pressure. This is the established pattern for all new subprocess launch sites.
+All subprocess launch sites must follow the full procutil lifecycle pattern: process-group setup (`SetProcessGroupKill`), capacity gating (`WaitForProcessCapacity`), cancellation descendant kill (`KillDescendantsOnCancel`), stderr capture, and process-tree reap (`ReapProcessTree`, not the shallower `ReapProcessGroup`).
 
-### 2026-02-28 | Epilogue Lifecycle Failure Suppresses Success Signals | patterns
-*Related to: review-1772244209301323387*
+### 2026-02-28 | Epilogue Close/Sync Failures Must Suppress All Success Signals | patterns
+*Related to: review-1772244209301323387, review-1772322141608097349*
+*Consolidated from: Epilogue Lifecycle Failure Suppresses Success Signals + Epilogue Lifecycle Failure Suppresses All Success Signals*
 
-When close/sync fails in epilogue, the iteration is marked failed, success logging is suppressed, BeadCompleteEvent is not emitted, and spec merge triggering is skipped. This prevents downstream consumers from acting on incomplete state.
+Epilogue close/sync failures must suppress all success signals (events, logs, merge triggers) and publish a failed lifecycle outcome. When close/sync fails, BeadCompleteEvent is not emitted and spec merge triggering is skipped to prevent downstream consumers from acting on incomplete state.
 
 ### 2026-02-28 | Provider Router Requires Mutex for Concurrent Access | patterns
 *Related to: review-1772280289214510883*
 
 Provider router (internal/provider/router.go) was a genuine data race — counts and unavailable maps accessed from multiple goroutines without locking. Now uses sync.Mutex on all read/write paths. New provider infrastructure must protect shared state similarly.
 
-### 2026-02-28 | Integration Queue State Machine Has 7 States With Validated Transitions | architecture
-*Related to: review-1772280289214510883, retro-1772302209902158129 (6 stuck conflict entries)*
+### 2026-02-28 | Integration Queue Lifecycle Is Table-Driven via ApplyTransition With Mandatory Persistence | architecture
+*Related to: review-1772280289214510883, retro-1772302209902158129, review-1772322141608097349*
+*Consolidated from: Integration Queue State Machine Has 7 States With Validated Transitions + Integration Queue State Machine Is Table-Driven via ApplyTransition*
 
-Integration queue uses states: draft/ready/integrating/merged/conflict/failed_gates/lane_violation. All coordinator state mutations must go through ApplyTransition — direct state assignment bypasses validation and silently diverges from the transition table. Error paths (push failure, rebase conflict) must persist state transitions before returning errors to avoid leaving entries stuck in StateIntegrating.
-
-### 2026-02-28 | gromit-m0fl | conventions
-When adding new CLI commands in cmd/gromit/, avoid modifying shared code paths, test fixtures, or helper functions that other commands depend on. The codebase has common category/context handling patterns that are tested across multiple commands - changes to these affect multiple test suites.
-
-### 2026-02-28 | gromit-scfw | conventions
-When modifying shared test data files or test fixtures (backlog.jsonl, .gromit/integration-queue.json), verify that changes don't break other test suites that depend on those files. Test data changes can have cascading effects across multiple test packages.
+Integration queue lifecycle is table-driven (7 states: draft/ready/integrating/merged/conflict/failed_gates/lane_violation) and must mutate state only through `ApplyTransition`, with every error-path transition persisted before return; direct assignment is forbidden. Error paths (push failure, rebase conflict) must persist state transitions before returning errors to avoid leaving entries stuck in `StateIntegrating`.
 
 ### 2026-02-28 | gromit-scfw | patterns
 Queue payload validation requires all fields (base_ref, session reference, etc.) to be set when creating records - check integration queue schema and ensure all required fields are initialized in test scenarios and concurrent session workflows
@@ -211,38 +208,19 @@ Queue payload validation requires all fields (base_ref, session reference, etc.)
 
 Pipeline.ListBeads and QueryBeads only support status="" or status="ready". Any other status value (e.g., "closed") silently returns an empty result with no error. Callers should be aware of this limitation or the methods should be extended to support additional statuses.
 
-### 2026-02-28 | Vision Metrics Rollup Has Asymmetric Carve-Out Handling | patterns
-*Related to: review-1772300695650836737*
+### 2026-02-28 | Vision Metrics Rollups May Use Asymmetric Carve-Out Denominators | patterns
+*Related to: review-1772300695650836737, review-1772322141608097349*
+*Consolidated from: Vision Metrics Rollup Has Asymmetric Carve-Out Handling + Vision Metrics Rollup Has Intentional Asymmetric Carve-Outs*
 
-AcceptedWithoutReworkRate excludes rework_vision_change records from the denominator (carve-outs), but FirstIntegrationPassRate includes them. Both are valid business definitions but the asymmetry is intentional and undocumented — new rollup metrics should document their carve-out policy explicitly.
+Vision metrics rollups may intentionally use asymmetric carve-out denominators (e.g., AcceptedWithoutReworkRate excludes rework_vision_change from denominator but FirstIntegrationPassRate includes them), but each metric must document carve-out policy explicitly.
 
-### 2026-02-28 | Subprocess Wrappers Must Follow procutil Pattern | conventions
-*Related to: review-1772300695650836737*
 
-All subprocess launch sites must use procutil.SetProcessGroupKill + procutil.WaitForProcessCapacity + separate stderr capture. The specmerge/gh_client.go was missing all three, causing orphaned children on cancellation and lost error messages. This pattern now applies to gh CLI calls as well as LLM providers.
 
-### 2026-02-28 | gromit-crt | conventions
-Profile selection tests depend on ranking algorithm behavior and global initProfile state. Changes to ranking logic require coordinated updates to test expectations. Tests in init_profile_test.go cannot run in parallel due to global state modification.
+### 2026-02-28 | Queue/Board Pipeline Methods Must Use NewPipelineDeps, Not Package-Level Factories | tech_debt
+*Related to: review-1772322141608097349, review-1772366501939692738*
+*Consolidated from: Board and Queue Commands Bypass Deps DI Pattern + Queue and Board Pipeline Methods Bypass Centralized DI Pattern*
 
-### 2026-02-28 | Integration Queue State Machine Is Table-Driven via ApplyTransition | architecture
-*Related to: review-1772322141608097349*
-
-Integration queue state machine (7 states, table-driven transitions via ApplyTransition) is the established pattern for queue lifecycle; direct state assignment is forbidden.
-
-### 2026-02-28 | Subprocess Launch Must Use Full procutil Pattern Including ReapProcessTree | conventions
-*Related to: review-1772322141608097349*
-
-All subprocess launch sites must use procutil.SetProcessGroupKill + WaitForProcessCapacity + KillDescendantsOnCancel + ReapProcessTree (not the shallower ReapProcessGroup). gh CLI calls in specmerge are the one remaining inconsistent site.
-
-### 2026-02-28 | Epilogue Lifecycle Failure Suppresses All Success Signals | patterns
-*Related to: review-1772322141608097349*
-
-Epilogue lifecycle failure (close/sync) now suppresses success signals (BeadCompleteEvent, spec merge triggering) to prevent downstream consumers from acting on incomplete state.
-
-### 2026-02-28 | Board and Queue Commands Bypass Deps DI Pattern | tech_debt
-*Related to: review-1772322141608097349*
-
-board.go and queue.go bypass NewPipelineDeps centralized DI by using package-level factory vars to create concrete bead.Client instances. All other Pipeline methods receive clients through p.deps.
+Queue/board pipeline methods must consume dependencies through `NewPipelineDeps` (no package-level concrete client factories). Currently board.go and queue.go bypass centralized DI using package-level factory vars — this means these methods cannot be tested with mock dependencies.
 
 ### 2026-02-28 | TUI Store Copy-on-Read Returns Shallow Pointer Copies | gotchas
 *Related to: review-1772322141608097349*
@@ -258,11 +236,6 @@ Config types must use *bool for boolean fields with non-zero defaults to disting
 *Related to: review-1772322141608097349*
 
 Session worktree lifecycle now uses enqueue-to-integration-queue instead of direct merge, following the single-writer coordinator pattern.
-
-### 2026-02-28 | Vision Metrics Rollup Has Intentional Asymmetric Carve-Outs | patterns
-*Related to: review-1772322141608097349*
-
-AcceptedWithoutReworkRate excludes rework_vision_change from denominator but FirstIntegrationPassRate includes them. Both are valid business definitions but the asymmetry is intentional — new rollup metrics should document their carve-out policy explicitly.
 
 ### 2026-03-01 | Integration Queue Store Lacks File Locking for Concurrent Access | reliability
 *Related to: review-1772366501939692738*
@@ -294,13 +267,6 @@ Provider router Select() has a TOCTOU race between isAvailable() and selectProvi
 
 specmerge/gh_client.go is missing KillDescendantsOnCancel after cmd.Start() and uses ReapProcessGroup instead of ReapProcessTree. All other subprocess launch sites (cmd_run.go, specbranch/git_ops.go, benchmark/worktree_run.go, preflight.go, integrationqueue_constructor.go) follow the full pattern.
 
-### 2026-03-01 | Queue and Board Pipeline Methods Bypass Centralized DI Pattern | tech_debt
-*Related to: review-1772366501939692738, review-1772322141608097349*
-
-Queue and Board pipeline methods use package-level factory vars (newQueueClient/newBoardClient) instead of injected p.deps dependencies. This bypasses NewPipelineDeps centralized DI and means these methods cannot be tested with mock dependencies.
-
-### 2026-03-01 | gromit-k85o | conventions
-Gromit enforces file size limits on critical files like constructor.go (≤550 lines) via TestConstructorFileSizeLimit. When adding code, extract adapter types and related definitions into constructor_adapters.go. This pattern prevents constructor.go bloat and is actively tested.
 
 ---
 
@@ -337,4 +303,24 @@ When refactoring packages like bead/ that are widely depended on, breaking API c
 When modifying YAML config files parsed by Go code, changes to field names or structure require corresponding updates to the parsing/validation code and tests. Always run the build immediately after config changes to catch parser/validator mismatches early.
 
 *Archived from new: filtered: generic engineering advice*
+
+### 2026-02-28 | gromit-m0fl | conventions
+When adding new CLI commands in cmd/gromit/, avoid modifying shared code paths, test fixtures, or helper functions that other commands depend on. The codebase has common category/context handling patterns that are tested across multiple commands - changes to these affect multiple test suites.
+
+*Archived: 2026-03-01 — task-specific generic caution; not a durable project-specific pattern.*
+
+### 2026-02-28 | gromit-scfw | conventions
+When modifying shared test data files or test fixtures (backlog.jsonl, .gromit/integration-queue.json), verify that changes don't break other test suites that depend on those files. Test data changes can have cascading effects across multiple test packages.
+
+*Archived: 2026-03-01 — generic fixture-change caution; duplicates broader existing fixture governance rules.*
+
+### 2026-02-28 | gromit-crt | conventions
+Profile selection tests depend on ranking algorithm behavior and global initProfile state. Changes to ranking logic require coordinated updates to test expectations. Tests in init_profile_test.go cannot run in parallel due to global state modification.
+
+*Archived: 2026-03-01 — narrow test-local reminder tied to one ranking/global-state area; low reuse value.*
+
+### 2026-03-01 | gromit-k85o | conventions
+Gromit enforces file size limits on critical files like constructor.go (≤550 lines) via TestConstructorFileSizeLimit. When adding code, extract adapter types and related definitions into constructor_adapters.go. This pattern prevents constructor.go bloat and is actively tested.
+
+*Archived: 2026-03-01 — specific to one file-size test and command; already covered by explicit architecture file-size guardrails.*
 

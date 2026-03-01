@@ -1,15 +1,15 @@
 {
-  "id": "prelaunch-diagnostic-gate-2026-02-28",
-  "name": "Pre-Launch Diagnostic Gate",
-  "hypothesis": "A pre-launch diagnostic gate that validates subprocess readiness before each iteration will reduce pre-launch failures below 2% and overall failure rate below 3%.",
-  "change": "In the orchestrator iteration path (orchestrator.go), before the Build stage is invoked, run a lightweight preflight diagnostic: (1) procutil.WaitForProcessCapacity with increased timeout, (2) provider binary existence check, (3) config/prompt render dry-run. If preflight fails, emit a typed 'prelaunch_blocked' reason with diagnostic details and skip the iteration with a short backoff, rather than recording a zero-attribution failure row.",
-  "measurement": "Pre-launch failure rate (model='' AND duration_ms=0 iterations / total). Target: <2% (from 9.7% baseline). Secondary: overall failure rate target <3% (from 10.4% baseline), unknown-attribution rate target <2%.",
-  "risk": "Adds ~100-200ms per iteration for preflight checks. Could mask real failures if diagnostic gate is too permissive. Backoff delays could slow throughput on transient capacity issues.",
+  "id": "worktree-agnostic-retro-ingestion-2026-03-01",
+  "name": "Worktree-Agnostic Retro Ingestion",
+  "hypothesis": "If retro reads canonical repo-root metrics (with fallback), insufficient_current_run_data drops to near-zero and Study/Act can run consistently.",
+  "change": "Add source-resolution logic: main-repo logs first, then persisted iteration metrics; add explicit diagnostics for missing sources.",
+  "measurement": "Rate of retros with complete current-run data; count of data-quality-blocked retros. Target: >=95% retros with complete current-run dataset.",
+  "risk": "Path resolution bugs could read stale or wrong run artifacts if repo-root detection is incorrect.",
   "status": "doing",
   "study_summary": "",
   "act_decision": "",
   "act_date": "",
-  "started_at": "2026-02-28T00:00:00Z",
+  "started_at": "2026-03-01T00:00:00Z",
   "baseline_metrics": {
     "avg_cost_per_bead": 0.7199,
     "avg_duration_ms": 273199.62,
@@ -18,10 +18,10 @@
     "failure_rate": 0.1036
   },
   "previous_experiment": {
-    "id": "stream-event-matrix-gate-2026-02-28",
-    "name": "Stream Event Matrix Gate Before Merge",
+    "id": "prelaunch-diagnostic-gate-2026-02-28",
+    "name": "Pre-Launch Diagnostic Gate",
     "act_decision": "revert",
-    "act_date": "2026-02-28",
-    "final_summary": "Hypothesis not confirmed. 94 iterations: unknown attribution 10.6% (target <5%). All unknown-attribution rows were pre-launch invocation failures (model='', cost=$0, duration=0ms), not stream-event parsing failures. Attributed iterations showed 4.8% failure rate (better than baseline). Experiment targeted wrong root cause."
+    "act_date": "2026-03-01",
+    "final_summary": "Cannot evaluate hypothesis: efficiency data consistently blocked by insufficient_current_run_data due to worktree path issues. Pre-launch diagnostic gate was not implemented during experiment window. Root cause is retro ingestion architecture (worktree-relative log paths), not pre-launch readiness."
   }
 }

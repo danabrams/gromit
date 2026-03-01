@@ -26,8 +26,8 @@ These are non-negotiable constraints for this project.
 - Never delete data without explicit confirmation in the spec
 - Pass large strings to Claude CLI via temp files, not CLI arguments (avoids ARG_MAX)
 - Shell scripts with user content: use quoted <<'EOF' heredocs; pass dynamic values as arguments, not string interpolation
-- Go subprocesses with user-influenced args (bead IDs, refs, branch names) must use `runArgv`, not `runCmd`, to prevent shell/flag injection
-- Runtime/local state artifacts (`.dolt/`, `.doltcfg/`, `beads_gromit/`, lock files, `.gromit/state.json`, `.gromit/stats.json`, `.gromit/interactive-state.json`) and timestamped benchmark/report outputs must not be committed. Raw run outputs belong in ignored paths (for example `.gromit/reports/runs/`); only deterministic curated fixtures/artifacts in approved paths (for example `test/fixtures/`, `.gromit/reports/curated/`) may be versioned
+- Go subprocesses with user-influenced args (bead IDs, refs, branch names) must use `runArgv`, not `runCmd`, to prevent shell/flag injection, and follow the full procutil lifecycle (`SetProcessGroupKill`, capacity gating, descendant kill on cancel, stderr capture, process-tree reap)
+- Runtime/local state artifacts (`.dolt/`, `.doltcfg/`, `beads_gromit/`, lock files, `.gromit/state.json`, `.gromit/stats.json`, `.gromit/interactive-state.json`) and timestamped benchmark/report outputs must not be committed. Raw run outputs belong in ignored paths (for example `.gromit/reports/runs/`); only deterministic curated fixtures/artifacts in approved paths (for example `test/fixtures/`, `.gromit/reports/curated/`) may be versioned. Retro/analytics readers must consume runtime artifacts from canonical repo-root locations (or persisted normalized metrics), never from session-worktree-relative paths
 - Provider capture fixtures must be stored under test/fixtures/gemini/.
 - .gromit/plans/fixtures/ is not an approved deterministic fixture path.
 
@@ -48,7 +48,7 @@ These are non-negotiable constraints for this project.
 ## Architecture Guardrails <!-- phases: red, green, refactor -->
 
 - Keep `internal/runner/` packages independent, expose shared contracts via `runtypes/`, enforce production file limits (≤550 lines, facades ≤1000), and reuse shared state/metrics/persistence paths with parity tests during migrations.
-- Interactive commands keep a single merge/cleanup owner, use typed conflict classifiers, and never abort pre-existing `MERGE_HEAD`; decomposition entry points call the shared validator with all required fields.
+- Interactive commands keep a single merge/cleanup owner, use typed conflict classifiers, and never abort pre-existing `MERGE_HEAD`; decomposition entry points call the shared validator with all required fields. All integration queue state changes route through `ApplyTransition` with error-path persistence; direct state assignment is forbidden.
 
 ## Architecture <!-- phases: red, build, green, refactor, review -->
 
@@ -63,7 +63,7 @@ These are non-negotiable constraints for this project.
 ## Process <!-- phases: build, retro -->
 
 - Post-run efficiency validation must fail closed on missing current-run rows or missing efficiency fields and include per-field diagnostics (missing row vs missing attribution vs missing numeric fields). Experiment Study/Act decisions are blocked unless a complete current-run dataset includes at least 10 post-change iterations with non-empty model/provider attribution and non-null/non-zero required baseline metrics
-- Retro/experiment Study-Act steps are blocked unless at least one current-run row has non-empty model/provider attribution and non-zero efficiency fields; otherwise emit a data-quality-blocked status
+- Retro/experiment Study-Act steps are blocked unless the current-run dataset has >=10 post-change iterations with non-empty model/provider attribution and non-zero required efficiency fields; on failure, emit `data_quality_blocked` with per-field diagnostics and suppress anomaly classification
 - RecordRetro() must clear one-shot control-limit alert flags in state so previously acknowledged alerts do not persist across subsequent healthy runs
 
 ## Build Process <!-- phases: build -->
