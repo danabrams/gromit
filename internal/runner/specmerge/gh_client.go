@@ -322,6 +322,8 @@ func (c *ghClient) run(ctx context.Context, args ...string) (string, error) {
 
 type defaultGHRunner struct{}
 
+var defaultGHReaper = procutil.ReapProcessGroup
+
 const ghProcessCapacityWait = 1500 * time.Millisecond
 
 func (r *defaultGHRunner) Run(ctx context.Context, args ...string) (string, error) {
@@ -338,7 +340,7 @@ func (r *defaultGHRunner) Run(ctx context.Context, args ...string) (string, erro
 	if err := cmd.Start(); err != nil {
 		return "", fmt.Errorf("gh start: %w", err)
 	}
-	defer procutil.ReapProcessGroup(cmd)
+	defer defaultGHReaper(cmd)
 
 	if err := cmd.Wait(); err != nil {
 		return "", fmt.Errorf("gh %s: %s: %w", strings.Join(args, " "), strings.TrimSpace(stderr.String()), err)
