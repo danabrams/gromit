@@ -7,7 +7,6 @@ import (
     "testing"
     "time"
 
-    "github.com/danabrams/gromit/internal/logger"
     "github.com/danabrams/gromit/internal/tracker"
     "github.com/danabrams/gromit/internal/tracker/trackertest"
 )
@@ -29,23 +28,29 @@ func TestSPCAutoTriage_CreatesIssuesForClassificationPermutations(t *testing.T) 
     cooldownStore := newTestCooldownStore()
     triager := NewSPCAutoTriager(trackerClient, cooldownStore, WithNowFunc(func() time.Time { return now }))
 
+    const (
+        metricCost        = "rolling_avg_cost_usd"
+        metricDuration    = "rolling_avg_duration_ms"
+        metricInputTokens = "rolling_avg_input_tokens"
+    )
+
     records := []SPCCauseRecord{
         {
-            Metric:                 logger.MetricRollingAvgCostUSD,
+            Metric:                 metricCost,
             Stratum:                "",
             Class:                  CauseClassSpecial,
             PersistenceWindowCount: 2,
             Latest:                 123.4,
             DetectedAt:             now.Add(-2 * time.Hour),
             Limit: &TrendControlLimit{
-                Metric: logger.MetricRollingAvgCostUSD,
+                Metric: metricCost,
                 Latest: 123.4,
                 LCL:    100,
                 UCL:    200,
             },
         },
         {
-            Metric:                 logger.MetricRollingAvgDurationMs,
+            Metric:                 metricDuration,
             Stratum:                "provider:claude",
             Class:                  CauseClassCommon,
             PersistenceWindowCount: 2,
@@ -54,7 +59,7 @@ func TestSPCAutoTriage_CreatesIssuesForClassificationPermutations(t *testing.T) 
             DetectedAt:             now.Add(-30 * time.Minute),
         },
         {
-            Metric:                 logger.MetricRollingAvgInputTokens,
+            Metric:                 metricInputTokens,
             Stratum:                "model:ultra",
             Class:                  CauseClassStable,
             PersistenceWindowCount: 4,
@@ -95,4 +100,26 @@ func TestSPCAutoTriage_CreatesIssuesForClassificationPermutations(t *testing.T) 
     if !seenSpecial || !seenCommon {
         t.Fatalf("expected both special and common triage actions, got special=%v common=%v", seenSpecial, seenCommon)
     }
+}
+
+type testCooldownStore struct {
+    values map[string]time.Time
+}
+
+func newTestCooldownStore() *testCooldownStore {
+    return &testCooldownStore{values: map[string]time.Time{}}
+}
+
+func (s *testCooldownStore) Get(identity string) time.Time {
+    if s == nil {
+        return time.Time{}
+    }
+    return s.values[identity]
+}
+
+func (s *testCooldownStore) Set(identity string, when time.Time) {
+    if s == nil {
+        return
+    }
+    s.values[identity] = when
 }
