@@ -150,6 +150,7 @@ type IterationResult struct {
 
 	// TDD phase metrics (nil when TDD methodology is inactive)
 	PhaseMetrics []PhaseMetric `json:"phase_metrics,omitempty"`
+	CycleSnapshots []CycleSnapshot `json:"cycle_snapshots,omitempty"`
 	// Prompt diagnostics for token attribution and shaping decisions.
 	PromptDiagnostics *prompt.PromptDiagnostics `json:"prompt_diagnostics,omitempty"`
 
@@ -175,6 +176,14 @@ type PhaseMetric struct {
 	CriteriaTotal      int     `json:"criteria_total,omitempty"`
 	CriteriaCovered    int     `json:"criteria_covered,omitempty"`
 	CriteriaUntestable int     `json:"criteria_untestable,omitempty"`
+}
+
+// CycleSnapshot records the state of a TDD cycle for convergence analysis.
+type CycleSnapshot struct {
+	CycleNumber  int      `json:"cycle_number"`
+	CoveredSoFar []string `json:"covered_so_far,omitempty"`
+	Remaining    []string `json:"remaining,omitempty"`
+	TouchedFiles []string `json:"touched_files,omitempty"`
 }
 
 // HardStopApprovalState captures explicit approval for hard-stop actions.

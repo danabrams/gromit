@@ -243,6 +243,7 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 		// AssembleCycleState sets Done=true when Remaining is empty.
 		o.logPhase(state.CycleNumber+1, "red-skip", "criterion already passing, advancing")
 		*state = AssembleCycleState(*state, "")
+		o.recordCycleSnapshot(bc, *state)
 		return nil
 	}
 
@@ -283,6 +284,7 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 
 	// Advance state
 	*state = AssembleCycleState(*state, "")
+	o.recordCycleSnapshot(bc, *state)
 	return nil
 }
 
@@ -481,4 +483,25 @@ func (o *CycleOrchestrator) ensureValidateFn() error {
 		return errValidateFnNotConfigured
 	}
 	return nil
+}
+
+func (o *CycleOrchestrator) recordCycleSnapshot(bc *runtypes.BeadContext, state CycleState) {
+	if bc == nil || bc.Result == nil {
+		return
+	}
+	bc.Result.CycleSnapshots = append(bc.Result.CycleSnapshots, runtypes.CycleSnapshot{
+		CycleNumber:  state.CycleNumber,
+		CoveredSoFar: cloneStringSlice(state.CoveredSoFar),
+		Remaining:    cloneStringSlice(state.Remaining),
+		TouchedFiles: cloneStringSlice(state.TouchedFiles),
+	})
+}
+
+func cloneStringSlice(src []string) []string {
+	if len(src) == 0 {
+		return nil
+	}
+	cp := make([]string, len(src))
+	copy(cp, src)
+	return cp
 }
