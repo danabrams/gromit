@@ -1257,6 +1257,166 @@ func TestGate_WithSpecSPCBlocker_WiresBlocker(t *testing.T) {
 	}
 }
 
+// RED: test for HasSpecSPCBlocker returns correct value
+func TestGate_HasSpecSPCBlocker(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns false when not wired", func(t *testing.T) {
+		gate := New(io.Discard)
+		if gate.HasSpecSPCBlocker() {
+			t.Fatalf("HasSpecSPCBlocker() = true, want false")
+		}
+	})
+
+	t.Run("returns true when wired", func(t *testing.T) {
+		blocker := NewSpecSPCBlocker([]logger.CauseClassificationRecord{})
+		gate := New(io.Discard).WithSpecSPCBlocker(blocker)
+		if !gate.HasSpecSPCBlocker() {
+			t.Fatalf("HasSpecSPCBlocker() = false, want true")
+		}
+	})
+}
+
+// RED: test that spec SPC blocking happens after data quality check
+func TestGateRun_SpecSPCBlockingPrecedence(t *testing.T) {
+	t.Parallel()
+
+	spec := "auth"
+	spcRecords := []logger.CauseClassificationRecord{
+		{
+			Metric:             "rolling_avg_validation_ms",
+			Stratum:            "spec:" + spec,
+			Class:              logger.CauseClassSpecial,
+			Latest:             1500,
+			PersistenceWindows: 3,
+			Severity:           "high",
+		},
+	}
+
+	// Create blockers that will block independently
+	spcBlocker := NewSpecSPCBlocker(spcRecords)
+	dataQualityBlocker := newMockDataQualityBlocker().WithShouldBlock(true, "incomplete_data", nil)
+
+	gate := New(io.Discard).
+		WithDataQualityBlocker(dataQualityBlocker).
+		WithSpecSPCBlocker(spcBlocker)
+
+	b := &bead.Bead{
+		ID:     "test-precedence",
+		Title:  "test bead",
+		Labels: []string{"spec:" + spec},
+	}
+
+	out, err := gate.Run(context.Background(), pipeline.Input{Bead: b})
+	if err != nil {
+		t.Fatalf("Gate.Run() error = %v", err)
+	}
+
+	// Both would block, but data quality should be checked first
+	if out.Decision != pipeline.Block {
+		t.Fatalf("decision = %v, want Block", out.Decision)
+	}
+}
+
+// RED: test that spec SPC blocker doesn't block beads without matching anomalies
+func TestGateRun_SpecSPCBlocker_AllowsHealthySpecs(t *testing.T) {
+	t.Parallel()
+
+	records := []logger.CauseClassificationRecord{
+		{
+			Metric:             "rolling_avg_validation_ms",
+			Stratum:            "spec:auth",
+			Class:              logger.CauseClassSpecial,
+			Latest:             1500,
+			PersistenceWindows: 3,
+			Severity:           "high",
+		},
+	}
+	blocker := NewSpecSPCBlocker(records)
+
+	gate := New(io.Discard).WithSpecSPCBlocker(blocker)
+
+	// Bead with different spec that has no anomaly
+	b := &bead.Bead{
+		ID:     "test-healthy-spec",
+		Title:  "test bead",
+		Labels: []string{"spec:payments"}, // Different spec, should proceed
+	}
+
+	out, err := gate.Run(context.Background(), pipeline.Input{Bead: b})
+	if err != nil {
+		t.Fatalf("Gate.Run() error = %v", err)
+	}
+
+	if out.Decision != pipeline.Proceed {
+		t.Fatalf("decision = %v, want Proceed", out.Decision)
+	}
+}
+
+// RED: test that spec SPC blocker emits GateBlockEvent with proper reason
+func TestGateRun_SpecSPCBlocker_EmitsGateBlockEvent(t *testing.T) {
+	t.Parallel()
+
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	spec := "database"
+	records := []logger.CauseClassificationRecord{
+		{
+			Metric:             "rolling_avg_validation_ms",
+			Stratum:            "spec:" + spec,
+			Class:              logger.CauseClassSpecial,
+			Latest:             2000,
+			PersistenceWindows: 5,
+			Severity:           "high",
+		},
+	}
+	blocker := NewSpecSPCBlocker(records)
+
+	gate := New(io.Discard).WithSpecSPCBlocker(blocker)
+
+	beadID := "spc-block-event-test"
+	b := &bead.Bead{
+		ID:     beadID,
+		Title:  "maintenance heavy task",
+		Labels: []string{"spec:" + spec},
+	}
+
+	out, err := gate.Run(context.Background(), pipeline.Input{
+		Bead:    b,
+		Emitter: emitter,
+	})
+	if err != nil {
+		t.Fatalf("Gate.Run() error = %v", err)
+	}
+
+	if out.Decision != pipeline.Block {
+		t.Fatalf("decision = %v, want Block", out.Decision)
+	}
+
+	emittedEvents := eventtest.DrainEvents(t, ch)
+
+	var blockEvt *events.GateBlockEvent
+	for _, evt := range emittedEvents {
+		if be, ok := evt.(*events.GateBlockEvent); ok {
+			blockEvt = be
+		}
+	}
+
+	if blockEvt == nil {
+		t.Fatal("expected GateBlockEvent to be emitted")
+	}
+	if blockEvt.BeadID != beadID {
+		t.Errorf("BeadID = %q, want %q", blockEvt.BeadID, beadID)
+	}
+	expectedReason := "spec:" + spec + " maintenance warning"
+	if blockEvt.Reason != expectedReason {
+		t.Errorf("Reason = %q, want %q", blockEvt.Reason, expectedReason)
+	}
+}
+
 // RED: test for gate outcomes emitting typed events
 func TestGateRun_SkipEmitsGateSkipEvent(t *testing.T) {
 	t.Parallel()
