@@ -114,7 +114,7 @@ func TestEnsureWorktree_CreatesWorktreeWhenMissing(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	worktreePath, err := m.EnsureWorktree()
+	worktreePath, err := m.EnsureWorktree(context.Background())
 	if err != nil {
 		t.Fatalf("EnsureWorktree() error = %v, want nil", err)
 	}
@@ -167,7 +167,7 @@ func TestEnsureWorktree_ReusesExistingWorktree(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	worktreePath, err := m.EnsureWorktree()
+	worktreePath, err := m.EnsureWorktree(context.Background())
 	if err != nil {
 		t.Fatalf("EnsureWorktree() error = %v, want nil", err)
 	}
@@ -354,7 +354,7 @@ func TestCleanup_HandlesNonexistentWorktree(t *testing.T) {
 func TestManager_NilReceiver(t *testing.T) {
 	var m *Manager
 
-	_, err := m.EnsureWorktree()
+	_, err := m.EnsureWorktree(context.Background())
 	if err == nil {
 		t.Error("EnsureWorktree() on nil receiver should return error")
 	}
@@ -419,7 +419,7 @@ func TestEnsureWorktree_GitRunFnCalledWithCorrectDir(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	_, err = m.EnsureWorktree()
+	_, err = m.EnsureWorktree(context.Background())
 	if err != nil {
 		t.Fatalf("EnsureWorktree() error = %v, want nil", err)
 	}
@@ -633,7 +633,7 @@ func TestEnsureWorktree_UsesHelperMock(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	path, err := m.EnsureWorktree()
+	path, err := m.EnsureWorktree(context.Background())
 	if err != nil {
 		t.Fatalf("EnsureWorktree() error = %v, want nil", err)
 	}

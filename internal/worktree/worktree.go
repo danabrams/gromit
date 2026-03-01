@@ -39,6 +39,7 @@ type Manager struct {
 	MainDir     string   // path to main worktree (project root)
 	WorktreeDir string   // path to interactive worktree
 	gitRunFn    GitRunFn // function to run git commands (for testing)
+	ctx         context.Context
 }
 
 // Option is a function that configures a Manager.
@@ -48,6 +49,16 @@ type Option func(*Manager)
 func WithGitRunFn(fn GitRunFn) Option {
 	return func(m *Manager) {
 		m.gitRunFn = fn
+	}
+}
+
+// WithContext sets the context used by git commands run by the Manager.
+// If nil, context.Background() is used.
+func WithContext(ctx context.Context) Option {
+	return func(m *Manager) {
+		if ctx != nil {
+			m.ctx = ctx
+		}
 	}
 }
 
@@ -71,16 +82,32 @@ func NewManager(mainDir string, opts ...Option) (*Manager, error) {
 	return m, nil
 }
 
+func (m *Manager) gitContext() context.Context {
+	if m == nil || m.ctx == nil {
+		return context.Background()
+	}
+	return m.ctx
+}
+
+func (m *Manager) contextFor(ctx context.Context) context.Context {
+	if ctx != nil {
+		return ctx
+	}
+	return m.gitContext()
+}
+
 // EnsureWorktree creates the worktree if it doesn't exist, or verifies it's
 // healthy if it does. Returns the worktree path.
-func (m *Manager) EnsureWorktree() (string, error) {
+func (m *Manager) EnsureWorktree(ctx context.Context) (string, error) {
 	if m == nil {
 		return "", errors.New("nil Manager receiver")
 	}
 
+	ctx = m.contextFor(ctx)
+
 	// Check if our specific worktree already exists by listing all worktrees
 	// and checking if ours is in the list
-	output, err := m.runGit(m.MainDir, "worktree", "list")
+	output, err := m.runGit(ctx, m.MainDir, "worktree", "list")
 	if err == nil {
 		// Parse the worktree list to see if our worktree exists
 		// git worktree list outputs one worktree per line with the path as the first column
@@ -90,11 +117,11 @@ func (m *Manager) EnsureWorktree() (string, error) {
 	}
 
 	// Create the worktree with a new branch
-	_, err = m.runGit(m.MainDir, "worktree", "add", m.WorktreeDir, "-b", interactiveBranchName)
+	_, err = m.runGit(ctx, m.MainDir, "worktree", "add", m.WorktreeDir, "-b", interactiveBranchName)
 	if err != nil {
 		// Branch may already exist from a previous worktree that was removed.
 		// Retry without -b to checkout the existing branch.
-		_, err = m.runGit(m.MainDir, "worktree", "add", m.WorktreeDir, interactiveBranchName)
+		_, err = m.runGit(ctx, m.MainDir, "worktree", "add", m.WorktreeDir, interactiveBranchName)
 		if err != nil {
 			return "", fmt.Errorf("failed to create worktree: %w", err)
 		}
@@ -124,12 +151,14 @@ func (m *Manager) CreateBranch(command string) (string, error) {
 		return "", errors.New("command cannot be empty")
 	}
 
+	ctx := m.gitContext()
+
 	// Generate branch name with timestamp
 	timestamp := time.Now().Unix()
 	branchName := sessionBranchName(command, timestamp)
 
 	// Create and checkout the branch in the worktree directory
-	_, err := m.runGit(m.WorktreeDir, "checkout", "-b", branchName)
+	_, err := m.runGit(ctx, m.WorktreeDir, "checkout", "-b", branchName)
 	if err != nil {
 		return "", fmt.Errorf("failed to create branch %s: %w", branchName, err)
 	}
@@ -147,6 +176,8 @@ func (m *Manager) CreateSessionWorktree(command string) (*SessionWorktree, error
 		return nil, errors.New("command cannot be empty")
 	}
 
+	ctx := m.gitContext()
+
 	baseTimestamp := sessionTimestampFn()
 	var lastErr error
 	for attempt := int64(0); attempt < maxSessionCreateRetries; attempt++ {
@@ -154,7 +185,7 @@ func (m *Manager) CreateSessionWorktree(command string) (*SessionWorktree, error
 		branchName := sessionBranchName(command, timestamp)
 		worktreeDir := sessionWorktreeDir(m.MainDir, command, timestamp)
 
-		output, err := m.runGit(m.MainDir, "worktree", "add", worktreeDir, "-b", branchName)
+		output, err := m.runGit(ctx, m.MainDir, "worktree", "add", worktreeDir, "-b", branchName)
 		if err == nil {
 			return &SessionWorktree{
 				BranchName:  branchName,
@@ -194,7 +225,8 @@ func (m *Manager) PendingBranches() ([]string, error) {
 	checkedOut := m.checkedOutBranchesByWorktree()
 
 	// List all branches matching gromit/* pattern
-	output, err := m.runGit(m.MainDir, "for-each-ref", "--format=%(refname)", "refs/heads/gromit/")
+	ctx := m.gitContext()
+	output, err := m.runGit(ctx, m.MainDir, "for-each-ref", "--format=%(refname)", "refs/heads/gromit/")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list branches: %w", err)
 	}
@@ -226,7 +258,8 @@ func (m *Manager) PendingBranches() ([]string, error) {
 }
 
 func (m *Manager) checkedOutBranchesByWorktree() map[string]struct{} {
-	output, err := m.runGit(m.MainDir, "worktree", "list", "--porcelain")
+	ctx := m.gitContext()
+	output, err := m.runGit(ctx, m.MainDir, "worktree", "list", "--porcelain")
 	if err != nil || strings.TrimSpace(output) == "" {
 		return map[string]struct{}{}
 	}
@@ -258,11 +291,13 @@ func (m *Manager) MergeBack(branch string) error {
 		return errors.New("branch name cannot be empty")
 	}
 
+	ctx := m.gitContext()
+
 	// Try fast-forward merge first
-	_, err := m.runGit(m.MainDir, "merge", "--ff-only", branch)
+	_, err := m.runGit(ctx, m.MainDir, "merge", "--ff-only", branch)
 	if err == nil {
 		// Fast-forward successful, delete the branch
-		if _, deleteErr := m.runGit(m.MainDir, "branch", "-d", branch); deleteErr != nil {
+		if _, deleteErr := m.runGit(ctx, m.MainDir, "branch", "-d", branch); deleteErr != nil {
 			return fmt.Errorf("delete merged branch %s: %w", branch, deleteErr)
 		}
 		return nil
@@ -270,7 +305,7 @@ func (m *Manager) MergeBack(branch string) error {
 
 	// Fast-forward failed, try regular merge
 	mergeInProgressBefore := m.mergeInProgress()
-	output, err := m.runGit(m.MainDir, "merge", branch)
+	output, err := m.runGit(ctx, m.MainDir, "merge", branch)
 	if err != nil {
 		mergeInProgressAfter := m.mergeInProgress()
 		decision := classifyMergeFailure(mergeFailureInput{
@@ -280,7 +315,7 @@ func (m *Manager) MergeBack(branch string) error {
 		})
 		if decision.Class == mergeFailureConflict {
 			// Merge failed with conflict, abort merge state.
-			_, _ = m.runGit(m.MainDir, "merge", "--abort")
+			_, _ = m.runGit(ctx, m.MainDir, "merge", "--abort")
 			return fmt.Errorf("merge conflict for branch %s: %w", branch, err)
 		}
 		if decision.ExitCodeKnown {
@@ -290,7 +325,7 @@ func (m *Manager) MergeBack(branch string) error {
 	}
 
 	// Regular merge successful, delete the branch
-	if _, deleteErr := m.runGit(m.MainDir, "branch", "-d", branch); deleteErr != nil {
+	if _, deleteErr := m.runGit(ctx, m.MainDir, "branch", "-d", branch); deleteErr != nil {
 		return fmt.Errorf("delete merged branch %s: %w", branch, deleteErr)
 	}
 	return nil
@@ -303,10 +338,12 @@ func (m *Manager) Cleanup() error {
 		return errors.New("nil Manager receiver")
 	}
 
+	ctx := m.gitContext()
+
 	// Remove the worktree. Ignore errors since worktree may not exist.
 	// This is intentionally lenient - cleanup should not fail if there's
 	// nothing to clean up.
-	_, _ = m.runGit(m.MainDir, "worktree", "remove", m.WorktreeDir)
+	_, _ = m.runGit(ctx, m.MainDir, "worktree", "remove", m.WorktreeDir)
 
 	return nil
 }
@@ -322,8 +359,10 @@ func (m *Manager) RemoveByPath(path string) error {
 		return errors.New("path cannot be empty")
 	}
 
+	ctx := m.gitContext()
+
 	// Verify the path is registered in the worktree list
-	output, err := m.runGit(m.MainDir, "worktree", "list", "--porcelain")
+	output, err := m.runGit(ctx, m.MainDir, "worktree", "list", "--porcelain")
 	if err != nil {
 		return fmt.Errorf("failed to list worktrees: %w", err)
 	}
@@ -334,7 +373,7 @@ func (m *Manager) RemoveByPath(path string) error {
 	}
 
 	// Remove the worktree
-	_, err = m.runGit(m.MainDir, "worktree", "remove", path)
+	_, err = m.runGit(ctx, m.MainDir, "worktree", "remove", path)
 	if err != nil {
 		return fmt.Errorf("failed to remove worktree at %s: %w", path, err)
 	}
@@ -343,18 +382,22 @@ func (m *Manager) RemoveByPath(path string) error {
 }
 
 // runGit executes a git command in the specified directory.
-func (m *Manager) runGit(dir string, args ...string) (string, error) {
+func (m *Manager) runGit(ctx context.Context, dir string, args ...string) (string, error) {
 	if m.gitRunFn != nil {
 		return m.gitRunFn(dir, args...)
 	}
 
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	// Default implementation: run real git command
-	cmd := exec.CommandContext(context.Background(), "git", args...)
+	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir
 	procutil.SetProcessGroupKill(cmd)
 	cmd.Env = procutil.SubprocessEnv()
 
-	if waitErr := procutil.WaitForProcessCapacity(context.Background(), worktreeProcessCapacity); waitErr != nil {
+	if waitErr := procutil.WaitForProcessCapacity(ctx, worktreeProcessCapacity); waitErr != nil {
 		return "", fmt.Errorf("waiting for process capacity: %w", waitErr)
 	}
 
@@ -385,12 +428,14 @@ func sessionWorktreeDir(mainDir, command string, timestamp int64) string {
 
 func (m *Manager) sessionBranchExists(branchName string) bool {
 	ref := "refs/heads/" + branchName
-	_, err := m.runGit(m.MainDir, "show-ref", "--verify", "--quiet", ref, "--")
+	ctx := m.gitContext()
+	_, err := m.runGit(ctx, m.MainDir, "show-ref", "--verify", "--quiet", ref, "--")
 	return err == nil
 }
 
 func (m *Manager) sessionWorktreeRegistered(worktreeDir string) bool {
-	output, err := m.runGit(m.MainDir, "worktree", "list", "--porcelain")
+	ctx := m.gitContext()
+	output, err := m.runGit(ctx, m.MainDir, "worktree", "list", "--porcelain")
 	if err != nil {
 		return false
 	}
@@ -399,7 +444,8 @@ func (m *Manager) sessionWorktreeRegistered(worktreeDir string) bool {
 }
 
 func (m *Manager) mergeInProgress() bool {
-	output, err := m.runGit(m.MainDir, "rev-parse", "--verify", "MERGE_HEAD")
+	ctx := m.gitContext()
+	output, err := m.runGit(ctx, m.MainDir, "rev-parse", "--verify", "MERGE_HEAD")
 	if err != nil {
 		return false
 	}
