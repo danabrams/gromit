@@ -200,6 +200,15 @@ func loadHistoricalPhaseMetricsFixture(t *testing.T) []historicalPhaseMetricsFix
 	return fixtures
 }
 
+func TestNewTDDCycleStateUsesFixedLimit(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Methodology.MaxTDDCycles = 1
+	state := newTDDCycleState(cfg, []string{"req"})
+	if state.MaxCycles != config.DefaultMaxTDDCycles {
+		t.Fatalf("expected default max cycles %d, got %d", config.DefaultMaxTDDCycles, state.MaxCycles)
+	}
+}
+
 func TestBuildRenderRedFn_UsesRedPhaseTierOverride(t *testing.T) {
 	t.Parallel()
 	tmpDir := t.TempDir()
