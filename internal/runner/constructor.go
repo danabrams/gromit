@@ -142,9 +142,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		maxSubBeads: cfg.Validation.RuntimeMaxSubBeadsValue(),
 	})
 	if cfg.ReadinessCheck.IsEnabled() {
-		if readinessAdapter := NewReadinessAdapterWithLLM(renderer, router); readinessAdapter != nil {
-			gateStage.WithReadinessAssessor(readinessAdapter)
-		}
+		gateStage.WithReadinessAssessor(NewDeterministicReadinessAssessor())
 	}
 	// Stage 2: Build (execute.New with Invoker and PromptRenderer)
 	buildExecInvoker := execution.NewInvoker(&executionRouterAdapter{router: router}, syncOut, streamLogger)

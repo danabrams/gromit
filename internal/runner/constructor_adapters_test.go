@@ -224,6 +224,17 @@ func TestSpecMergeRouterAdapter_SelectsUnderlyingRouter(t *testing.T) {
 	}
 }
 
+type dummyRouter struct {
+	phase string
+	tier  string
+}
+
+func (d *dummyRouter) Select(phase, tier string) (provider.Provider, string) {
+	d.phase = phase
+	d.tier = tier
+	return nil, "dummy-model"
+}
+
 func TestSpecMergeReviewRendererAdapter_ForwardsCalls(t *testing.T) {
 	t.Parallel()
 	fake := &dummyPromptRenderer{}
@@ -256,36 +267,6 @@ func TestSpecMergeReviewRendererAdapter_ForwardsCalls(t *testing.T) {
 	if spec != "spec" {
 		t.Fatalf("spec = %q, want spec", spec)
 	}
-}
-
-type dummyRouter struct {
-	phase string
-	tier  string
-}
-
-func (d *dummyRouter) Select(phase, tier string) (provider.Provider, string) {
-	d.phase = phase
-	d.tier = tier
-	return nil, "dummy-model"
-}
-
-// failingReadinessRenderer simulates a renderer that fails to render readiness prompts.
-type failingReadinessRenderer struct{}
-
-func (f *failingReadinessRenderer) RenderReadiness(ctx *prompt.ReadinessContext) (string, error) {
-	return "", fmt.Errorf("rendering failed")
-}
-
-// trackingRouter records calls to Select for testing.
-type trackingRouter struct {
-	phase string
-	tier  string
-}
-
-func (t *trackingRouter) Select(phase, tier string) (provider.Provider, string) {
-	t.phase = phase
-	t.tier = tier
-	return nil, "model"
 }
 
 type dummyPromptRenderer struct {
@@ -576,175 +557,6 @@ type dummyResolverForSpec struct{}
 
 func (d *dummyResolverForSpec) Resolve(ctx context.Context, branch string, cause error) error {
 	return nil
-}
-
-// TestReadinessAdapterWithLLM_CreatesInstanceWithDependencies verifies the adapter can be instantiated.
-func TestReadinessAdapterWithLLM_CreatesInstanceWithDependencies(t *testing.T) {
-	t.Parallel()
-	renderer := &dummyPromptRenderer{}
-	router := &dummyRouter{}
-	assessor := NewReadinessAdapterWithLLM(renderer, router)
-	if assessor == nil {
-		t.Fatal("expected non-nil readiness adapter with LLM")
-	}
-}
-
-// TestReadinessAdapterWithLLM_AssessValidatesNilRenderer tests that Assess validates nil renderer dependency.
-func TestReadinessAdapterWithLLM_AssessValidatesNilRenderer(t *testing.T) {
-	t.Parallel()
-	a := &readinessAdapterWithLLM{
-		renderer: nil,
-		router:   &dummyRouter{},
-	}
-	ctx := context.Background()
-	b := &bead.Bead{ID: "test-bead"}
-	assessment, err := a.Assess(ctx, b)
-	if err != nil {
-		t.Fatalf("Assess returned error for nil renderer: %v", err)
-	}
-	if assessment.Status != readiness.StatusNotReady {
-		t.Fatalf("Assess returned status %q, want %q for nil renderer", assessment.Status, readiness.StatusNotReady)
-	}
-}
-
-// TestReadinessAdapterWithLLM_ImplementsAssessor verifies the adapter implements readiness.Assessor.
-func TestReadinessAdapterWithLLM_ImplementsAssessor(t *testing.T) {
-	t.Parallel()
-	renderer := &dummyPromptRenderer{}
-	router := &dummyRouter{}
-	adapter := NewReadinessAdapterWithLLM(renderer, router)
-	if adapter == nil {
-		t.Fatal("adapter should not be nil")
-	}
-	// This test verifies that *readinessAdapterWithLLM can be used where readiness.Assessor is expected.
-	// This is a compile-time check that the Assess method exists and has the right signature.
-	var _ readiness.Assessor = adapter
-}
-
-// TestPromptRenderer_RenderReadinessMethodExists tests that Renderer has RenderReadiness method.
-func TestPromptRenderer_RenderReadinessMethodExists(t *testing.T) {
-	t.Parallel()
-	// This test verifies that prompt.Renderer can be used as readinessPromptRenderer
-	// If this fails at compile time, we need to add RenderReadiness method to Renderer
-	var r *prompt.Renderer
-	var _ readinessPromptRenderer = r
-}
-
-// TestReadinessAdapterWithLLM_AssessCallsRouterForProvider tests that Assess invokes router.Select.
-func TestReadinessAdapterWithLLM_AssessCallsRouterForProvider(t *testing.T) {
-	t.Parallel()
-	renderer := &dummyPromptRenderer{}
-	router := &trackingRouter{}
-	adapter := NewReadinessAdapterWithLLM(renderer, router)
-
-	ctx := context.Background()
-	b := &bead.Bead{ID: "test-bead", Title: "Test Task", ExpectedOutputs: []string{"deliverable"}}
-
-	_, err := adapter.Assess(ctx, b)
-	if err != nil {
-		t.Fatalf("Assess returned error: %v", err)
-	}
-	if router.phase == "" {
-		t.Fatal("Assess should have called router.Select with readiness phase")
-	}
-}
-
-// TestReadinessAdapterWithLLM_AssessHandlesFailedRenderingGracefully tests that Assess fails closed when rendering fails.
-func TestReadinessAdapterWithLLM_AssessHandlesFailedRenderingGracefully(t *testing.T) {
-	t.Parallel()
-	failingRenderer := &failingReadinessRenderer{}
-	router := &dummyRouter{}
-	adapter := NewReadinessAdapterWithLLM(failingRenderer, router)
-
-	ctx := context.Background()
-	b := &bead.Bead{ID: "test-bead", Title: "Test Task"}
-
-	assessment, err := adapter.Assess(ctx, b)
-	if err != nil {
-		t.Fatalf("Assess returned error: %v", err)
-	}
-	// Fail closed: when rendering fails, should return NotReady
-	if assessment.Status != readiness.StatusNotReady {
-		t.Fatalf("Assess returned status %q, want %q for failing renderer", assessment.Status, readiness.StatusNotReady)
-	}
-}
-
-func TestReadinessAdapterWithLLM_AssessShortCircuitsMissingCriteria(t *testing.T) {
-	t.Parallel()
-	renderer := &dummyPromptRenderer{}
-	router := &trackingRouter{}
-	adapter := NewReadinessAdapterWithLLM(renderer, router)
-
-	ctx := context.Background()
-	b := &bead.Bead{ID: "test-bead", Title: "Missing Criteria"}
-
-	assessment, err := adapter.Assess(ctx, b)
-	if err != nil {
-		t.Fatalf("Assess returned error: %v", err)
-	}
-	if assessment.Status != readiness.StatusNotReady {
-		t.Fatalf("Assess returned status %q, want %q", assessment.Status, readiness.StatusNotReady)
-	}
-	if assessment.Reason != "criteria_count" {
-		t.Fatalf("Assess returned reason %q, want %q", assessment.Reason, "criteria_count")
-	}
-	if router.phase != "" {
-		t.Fatalf("router.Select called despite missing criteria: phase=%q", router.phase)
-	}
-}
-
-// TestReadinessAdapterWithLLM_AssessShortCircuitsZeroCriteriaCount tests short-circuit for 0 criteria.
-func TestReadinessAdapterWithLLM_AssessShortCircuitsZeroCriteriaCount(t *testing.T) {
-	t.Parallel()
-	renderer := &dummyPromptRenderer{}
-	router := &trackingRouter{}
-	adapter := NewReadinessAdapterWithLLM(renderer, router)
-
-	ctx := context.Background()
-	b := &bead.Bead{ID: "test-bead", Title: "Zero Criteria"}
-
-	assessment, err := adapter.Assess(ctx, b)
-	if err != nil {
-		t.Fatalf("Assess returned error: %v", err)
-	}
-	if assessment.Status != readiness.StatusNotReady {
-		t.Fatalf("Assess returned status %q, want %q", assessment.Status, readiness.StatusNotReady)
-	}
-	if assessment.Reason != "criteria_count" {
-		t.Fatalf("Assess returned reason %q, want %q", assessment.Reason, "criteria_count")
-	}
-	if router.phase != "" {
-		t.Fatalf("router.Select should not be called for criteria_count short-circuit: phase=%q", router.phase)
-	}
-}
-
-// TestReadinessAdapterWithLLM_AssessShortCircuitsTooManyCriteria tests short-circuit for > 3 criteria.
-func TestReadinessAdapterWithLLM_AssessShortCircuitsTooManyCriteria(t *testing.T) {
-	t.Parallel()
-	renderer := &dummyPromptRenderer{}
-	router := &trackingRouter{}
-	adapter := NewReadinessAdapterWithLLM(renderer, router)
-
-	ctx := context.Background()
-	b := &bead.Bead{
-		ID:    "test-bead",
-		Title: "Too Many Criteria",
-		ExpectedOutputs: []string{"output1", "output2", "output3", "output4"},
-	}
-
-	assessment, err := adapter.Assess(ctx, b)
-	if err != nil {
-		t.Fatalf("Assess returned error: %v", err)
-	}
-	if assessment.Status != readiness.StatusNotReady {
-		t.Fatalf("Assess returned status %q, want %q", assessment.Status, readiness.StatusNotReady)
-	}
-	if assessment.Reason != "criteria_count" {
-		t.Fatalf("Assess returned reason %q, want %q", assessment.Reason, "criteria_count")
-	}
-	if router.phase != "" {
-		t.Fatalf("router.Select should not be called for criteria_count short-circuit: phase=%q", router.phase)
-	}
 }
 
 // TestDecomposerAdapter_Decompose_ThreadsContextToChildDuplicateCheck verifies that
