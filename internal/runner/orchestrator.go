@@ -789,7 +789,9 @@ func (o *Orchestrator) runAutoTriage(ctx context.Context) {
 	if o.cfg.AutoTriageService == nil {
 		return
 	}
-	_ = o.cfg.AutoTriageService.EvaluateAndTriage(ctx)
+	if err := o.cfg.AutoTriageService.EvaluateAndTriage(ctx); err != nil {
+		o.logWarning("Warning: auto-triage evaluation failed: %v", err)
+	}
 }
 
 // RunSequence executes the pipeline for an explicit, caller-provided bead ID sequence.
