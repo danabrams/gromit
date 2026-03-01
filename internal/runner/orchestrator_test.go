@@ -160,6 +160,31 @@ func TestOrchestrator_CallsStateSaverAfterRun(t *testing.T) {
 	}
 }
 
+func TestOrchestrator_RunInvokesAutoTriageServiceAfterRun(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeAutoTriageService{}
+	cfg := OrchestratorConfig{
+		Gate:      &fakeStage{},
+		Build:     &fakeStage{},
+		Validate:  &fakeStage{},
+		Epilogue:  &fakeStage{},
+		GetBead:   func(_ context.Context) (*bead.Bead, error) { return nil, nil },
+		Config:    &config.Config{},
+		Output:    io.Discard,
+		AutoTriageService: service,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 1, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if service.calls != 1 {
+		t.Fatalf("Auto-triage service called %d times, want 1", service.calls)
+	}
+}
+
 // fakeStateSaver is a test double for StateSaver.
 type fakeStateSaver struct {
 	saveFn func() error
@@ -168,6 +193,19 @@ type fakeStateSaver struct {
 func (f *fakeStateSaver) Save() error {
 	if f.saveFn != nil {
 		return f.saveFn()
+	}
+	return nil
+}
+
+type fakeAutoTriageService struct {
+	evaluateFn func(context.Context) error
+	calls      int
+}
+
+func (f *fakeAutoTriageService) EvaluateAndTriage(ctx context.Context) error {
+	f.calls++
+	if f.evaluateFn != nil {
+		return f.evaluateFn(ctx)
 	}
 	return nil
 }
