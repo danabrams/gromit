@@ -2803,6 +2803,32 @@ func TestOrchestrator_SkipsAlreadyProcessedBead(t *testing.T) {
 	}
 }
 
+func TestSkipTrackerCountsInterleavedSkips(t *testing.T) {
+	t.Parallel()
+
+	tracker := newSkipTracker()
+	tracker.markProcessed("skipped-a")
+	tracker.markProcessed("skipped-b")
+
+	if tracker.recordSkip("skipped-a") {
+		t.Fatalf("expected no break after the first skip")
+	}
+	if !tracker.recordSkip("skipped-b") {
+		t.Fatalf("expected break after accumulating 2 skips")
+	}
+
+	tracker.markProcessed("skipped-c")
+	if tracker.recordSkip("skipped-a") {
+		t.Fatalf("skip counter should restart after processing a new bead")
+	}
+	if tracker.recordSkip("skipped-b") {
+		t.Fatalf("still waiting for 3 total skips before breaking")
+	}
+	if !tracker.recordSkip("skipped-c") {
+		t.Fatalf("expected break after accumulating 3 skips")
+	}
+}
+
 // TestOrchestrator_SkipsSpecMergeTriggerOnEpilogueLifecycleFailure verifies that
 // when the Epilogue stage returns a lifecycle failure (LifecycleFailureClose or
 // LifecycleFailureSync), the orchestrator does NOT trigger the spec merge pipeline,
