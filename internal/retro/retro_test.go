@@ -1581,6 +1581,69 @@ func TestRenderPromptIncludesCauseClassificationSection(t *testing.T) {
 	}
 }
 
+func TestRenderPromptIncludesSpecMaintenanceWarning(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	realTemplatePath := "../../.gromit/templates/PROMPT_retro.md"
+	templateContent, err := os.ReadFile(realTemplatePath)
+	if err != nil {
+		t.Fatalf("failed to read real template: %v", err)
+	}
+
+	templatePath := filepath.Join(tmpDir, "PROMPT_retro.md")
+	if err := os.WriteFile(templatePath, templateContent, 0644); err != nil {
+		t.Fatalf("failed to write template: %v", err)
+	}
+
+	tmpGromitDir := t.TempDir()
+	metricsDir := filepath.Join(tmpGromitDir, "metrics")
+	if err := os.MkdirAll(metricsDir, 0755); err != nil {
+		t.Fatalf("failed to create metrics dir: %v", err)
+	}
+
+	trend := logger.ProcessTrend{
+		GeneratedAt:     time.Now(),
+		TotalIterations: 1,
+		WindowSize:      1,
+		CauseClassifications: []logger.CauseClassificationRecord{
+			{
+				Metric:             "rolling_avg_validation_ms",
+				Class:              logger.CauseClassSpecial,
+				Stratum:            "spec:auth",
+				Latest:             1500,
+				PersistenceWindows: 2,
+				Severity:           "high",
+			},
+		},
+	}
+
+	data, err := json.Marshal(trend)
+	if err != nil {
+		t.Fatalf("failed to marshal process trend: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(metricsDir, "process_trend.json"), data, 0644); err != nil {
+		t.Fatalf("failed to write process trend: %v", err)
+	}
+
+	mockProvider := &mockProvider{}
+	r, err := NewRetroWithProvider(mockProvider, tmpGromitDir)
+	if err != nil {
+		t.Fatalf("failed to create Retro: %v", err)
+	}
+	r.templatePath = templatePath
+
+	prompt, err := r.renderPrompt("rules", "learnings", logger.RunStats{Total: 1}, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("renderPrompt failed: %v", err)
+	}
+
+	for _, want := range []string{"High Maintenance Warning", "spec:auth", "Cause Classification"} {
+		if !strings.Contains(prompt, want) {
+			t.Errorf("rendered prompt missing expected text: %q", want)
+		}
+	}
+}
+
 func TestRenderPrompt_ShapesRulesAndLearningsWhenBudgetConfigured(t *testing.T) {
 	tmpDir := t.TempDir()
 	templatePath := filepath.Join(tmpDir, "PROMPT_retro.md")
