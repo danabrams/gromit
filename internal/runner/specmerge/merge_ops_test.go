@@ -231,6 +231,17 @@ func (f *fakeResolver) Resolve(ctx context.Context, branch string, cause error) 
 	return f.resolveFn(ctx, branch, cause)
 }
 
+type fakeManager struct {
+	advanceFn func(ctx context.Context, branch, stage string) error
+}
+
+func (f *fakeManager) Advance(ctx context.Context, branch, stage string) error {
+	if f.advanceFn == nil {
+		return nil
+	}
+	return f.advanceFn(ctx, branch, stage)
+}
+
 // TestFinalizeSpecBranch_SpecbranchConflictErrorDetectedAfterConsolidation verifies that
 // when specbranch.GitOps returns a ConflictError, specmerge's FinalizeSpecBranch
 // properly detects it and calls the resolver. After ConflictError is consolidated
@@ -309,5 +320,87 @@ func TestFinalizeSpecBranch_SpecbranchConflictErrorDetectedAfterConsolidation(t 
 	}
 	if !reflect.DeepEqual(callLog, want) {
 		t.Fatalf("call order = %v, want %v", callLog, want)
+	}
+}
+
+func TestFinalizeSpecBranch_ManagerAdvanceOnSuccess(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	branch := "gromit/spec-manager-advance-success"
+	callLog := []string{}
+
+	git := &fakeGitOps{
+		rebaseFn: func(_ context.Context, b, onto string) error {
+			callLog = append(callLog, fmt.Sprintf("rebase %s %s", b, onto))
+			return nil
+		},
+		mergeFn: func(_ context.Context, b string) error {
+			callLog = append(callLog, fmt.Sprintf("merge %s", b))
+			return nil
+		},
+		deleteFn: func(_ context.Context, b string) error {
+			callLog = append(callLog, fmt.Sprintf("delete %s", b))
+			return nil
+		},
+	}
+
+	manager := &fakeManager{
+		advanceFn: func(_ context.Context, b, stage string) error {
+			callLog = append(callLog, fmt.Sprintf("advance %s %s", b, stage))
+			if b != branch {
+				t.Fatalf("advance branch = %q, want %q", b, branch)
+			}
+			if stage != specmerge.StageDone {
+				t.Fatalf("advance stage = %q, want %q", stage, specmerge.StageDone)
+			}
+			return nil
+		},
+	}
+
+	deps := specmerge.FinalizeDependencies{
+		Git:     git,
+		Manager: manager,
+	}
+
+	if err := specmerge.FinalizeSpecBranch(ctx, deps, branch); err != nil {
+		t.Fatalf("FinalizeSpecBranch returned %v", err)
+	}
+
+	want := []string{
+		fmt.Sprintf("rebase %s %s", branch, config.DefaultBaseBranch),
+		fmt.Sprintf("merge %s", branch),
+		fmt.Sprintf("delete %s", branch),
+		fmt.Sprintf("advance %s %s", branch, specmerge.StageDone),
+	}
+	if !reflect.DeepEqual(callLog, want) {
+		t.Fatalf("call order = %v, want %v", callLog, want)
+	}
+}
+
+func TestFinalizeSpecBranch_ManagerNotAdvancedOnError(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	branch := "gromit/spec-manager-advance-error"
+
+	git := &fakeGitOps{
+		rebaseFn: func(_ context.Context, b, onto string) error {
+			return fmt.Errorf("rebase err %s", onto)
+		},
+	}
+
+	manager := &fakeManager{
+		advanceFn: func(_ context.Context, b, stage string) error {
+			t.Fatalf("advance should not be called, but got %q %q", b, stage)
+			return nil
+		},
+	}
+
+	deps := specmerge.FinalizeDependencies{
+		Git:     git,
+		Manager: manager,
+	}
+
+	if err := specmerge.FinalizeSpecBranch(ctx, deps, branch); err == nil {
+		t.Fatal("FinalizeSpecBranch expected error")
 	}
 }
