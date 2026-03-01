@@ -832,3 +832,30 @@ func TestIntegrationQueueGitOpsAdapter_PushCommands(t *testing.T) {
 		t.Fatalf("commands = %v, want %v", calls, want)
 	}
 }
+
+func TestIntegrationQueueGitOpsAdapter_CleanupCommands(t *testing.T) {
+	t.Parallel()
+
+	repoDir := "/repo"
+	var calls []string
+	adapter := &integrationQueueGitOpsAdapter{
+		repoDir:    repoDir,
+		runGitCommand: func(ctx context.Context, dir string, args ...string) (string, error) {
+			if dir != repoDir {
+				t.Fatalf("dir = %q, want %q", dir, repoDir)
+			}
+			calls = append(calls, strings.Join(args, " "))
+			return "", nil
+		},
+	}
+
+	entry := integrationqueue.Entry{Branch: "feature/cleanup"}
+	if err := adapter.Cleanup(context.Background(), entry); err != nil {
+		t.Fatalf("Cleanup returned error: %v", err)
+	}
+
+	want := []string{"branch -D feature/cleanup"}
+	if !reflect.DeepEqual(calls, want) {
+		t.Fatalf("commands = %v, want %v", calls, want)
+	}
+}
