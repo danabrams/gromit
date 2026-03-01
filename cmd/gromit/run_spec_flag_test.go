@@ -118,6 +118,15 @@ func TestRunLoop_SpecFlagFreshStartBootstrapsStageAndBranch(t *testing.T) {
 	runSpecFlag = "auth"
 	runEpicFlag = ""
 
+	if err := os.WriteFile(filepath.Join(".gromit", "specs", "auth.md"), []byte("# auth spec"), 0644); err != nil {
+		t.Fatalf("Failed to write spec file for resume test: %v", err)
+	}
+	if info, err := os.Stat(filepath.Join(".gromit", "specs", "auth.md")); err != nil {
+		t.Fatalf("spec file missing after creation: %v", err)
+	} else if info.IsDir() {
+		t.Fatalf("spec path is a directory, expected file")
+	}
+
 	specPath := filepath.Join(".gromit", "specs", "auth.md")
 	if err := os.WriteFile(specPath, []byte("# auth spec"), 0644); err != nil {
 		t.Fatalf("Failed to write spec file: %v", err)
@@ -341,6 +350,62 @@ func TestRunLoop_NoSpecFlagSkipsSpecflowBootstrapping(t *testing.T) {
 	}
 	if len(branches) != 0 {
 		t.Fatalf("expected no branch creation for non-spec run, got %d", len(branches))
+	}
+}
+
+func TestRunLoop_SpecFlagResumeChecksOutBranch(t *testing.T) {
+	_, cleanup := setupRunSpecTestEnv(t)
+	defer cleanup()
+
+	fakeStore := &fakeSpecflowStore{stage: specflow.StageDrafting}
+	origStoreFactory := runner.SpecflowStoreFactory
+	runner.SpecflowStoreFactory = func(gromitDir string) (specflow.SpecStore, error) {
+		return fakeStore, nil
+	}
+	defer func() { runner.SpecflowStoreFactory = origStoreFactory }()
+
+	var capturedStageCtx *runner.StageContext
+	origRunnerFn := newRunnerWithStageContextFn
+	newRunnerWithStageContextFn = func(cfg *config.Config, output io.Writer, stageCtx *runner.StageContext, labels ...string) (*runner.Orchestrator, error) {
+		capturedStageCtx = stageCtx
+		return nil, fmt.Errorf("runner stub")
+	}
+	defer func() { newRunnerWithStageContextFn = origRunnerFn }()
+
+	var branches []string
+	origBranchFactory := runner.SpecBranchCreatorFactory
+	runner.SpecBranchCreatorFactory = func(repoDir string, cfg *config.Config) (runner.SpecBranchCreator, error) {
+		return &fakeBranchCreator{branches: &branches}, nil
+	}
+	defer func() { runner.SpecBranchCreatorFactory = origBranchFactory }()
+
+	runSpecFlag = "auth"
+	runEpicFlag = ""
+
+	if err := os.WriteFile(filepath.Join(".gromit", "specs", "auth.md"), []byte("# auth spec"), 0644); err != nil {
+		t.Fatalf("Failed to write spec file for resume test: %v", err)
+	}
+	if info, err := os.Stat(filepath.Join(".gromit", "specs", "auth.md")); err != nil {
+		t.Fatalf("spec file missing after creation: %v", err)
+	} else if info.IsDir() {
+		t.Fatalf("spec path is a directory, expected file")
+	}
+
+	err := runLoop(runCmd, []string{})
+	if err == nil || !strings.Contains(err.Error(), "runner stub") {
+		t.Fatalf("expected runner stub error, got %v", err)
+	}
+	if capturedStageCtx == nil {
+		t.Fatal("expected stage context for resumed spec run")
+	}
+	if capturedStageCtx.FreshStart {
+		t.Fatalf("expected resumed stage context, got fresh start: %+v", capturedStageCtx)
+	}
+	if len(branches) != 1 {
+		t.Fatalf("expected branch checkout once for resume, got %d", len(branches))
+	}
+	if branches[0] != "gromit/spec-auth" {
+		t.Fatalf("unexpected branch: %s", branches[0])
 	}
 }
 
