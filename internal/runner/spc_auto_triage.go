@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -130,6 +131,7 @@ func NewSPCAutoTriager(client tracker.Client, store SPCCooldownStore, opts ...SP
 func (s *SPCAutoTriager) Process(ctx context.Context, records []SPCCauseRecord) ([]SPCTriageResult, error) {
 	var results []SPCTriageResult
 	now := s.now()
+	var errs []error
 	for _, rec := range records {
 		if rec.Class == CauseClassStable {
 			continue
@@ -163,10 +165,14 @@ func (s *SPCAutoTriager) Process(ctx context.Context, records []SPCCauseRecord) 
 		}
 		item, err := s.client.Create(ctx, req)
 		if err != nil {
-			return nil, fmt.Errorf("creating tracker issue: %w", err)
+			errs = append(errs, fmt.Errorf("creating tracker issue for %s: %w", identity, err))
+			continue
 		}
 		s.store.Set(identity, now)
 		results = append(results, SPCTriageResult{Record: rec, IssueID: item.ID})
+	}
+	if len(errs) > 0 {
+		return results, errors.Join(errs...)
 	}
 	return results, nil
 }
