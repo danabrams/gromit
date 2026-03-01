@@ -2614,3 +2614,14 @@ func TestNewRunnerImpl_GateStageHasReadinessAdapterByDefault(t *testing.T) {
 
 	ensureGateHasReadinessAssessor(t, orch)
 }
+
+func ensureGateHasReadinessAssessor(t *testing.T, orch *Orchestrator) {
+	t.Helper()
+	gateStage, ok := orch.cfg.Gate.(*prepare.Gate)
+	if !ok {
+		t.Fatalf("Gate is not *prepare.Gate, got %T", orch.cfg.Gate)
+	}
+	if !gateStage.HasReadinessAssessor() {
+		t.Fatal("Gate.HasReadinessAssessor() returned false; want readiness adapter wired by default")
+	}
+}
