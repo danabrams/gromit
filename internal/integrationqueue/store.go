@@ -116,7 +116,7 @@ func (s *Store) Save(entry Entry) error {
 
 		existingIdx := s.findEntryIndex(snapshot.Entries, entry.Branch)
 		if existingIdx == -1 {
-			entry.FifoSeq = len(snapshot.Entries) + 1
+			entry.FifoSeq = maxFifoSeq(snapshot.Entries) + 1
 			entry.CreatedAt = now
 			snapshot.Entries = append(snapshot.Entries, entry)
 		} else {
@@ -138,6 +138,16 @@ func (s *Store) findEntryIndex(entries []Entry, branch string) int {
 		}
 	}
 	return -1
+}
+
+func maxFifoSeq(entries []Entry) int {
+	max := 0
+	for _, entry := range entries {
+		if entry.FifoSeq > max {
+			max = entry.FifoSeq
+		}
+	}
+	return max
 }
 
 func (s *Store) runValidationHooks(entry Entry) error {
