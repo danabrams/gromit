@@ -126,3 +126,39 @@ func TestThresholdStuckPolicy_IsStuck_MissingStats(t *testing.T) {
 		})
 	}
 }
+
+func TestThresholdStuckPolicy_IsStuck_AlternatingMultiBeadCycles(t *testing.T) {
+	t.Parallel()
+
+	// In an alternating multi-bead cycle, a bead with high failure rate
+	// should be marked stuck, but one with moderate failure rate should not.
+	cases := []struct {
+		name     string
+		failures int
+		total    int
+		threshold int
+		want     bool
+	}{
+		{"100% failure rate (all attempts failed)", 3, 3, 2, true},
+		{"100% failure rate with high threshold", 2, 2, 1, true},
+		{"partial failure (low rate)", 1, 5, 2, false},
+		{"exactly 50% failure rate", 2, 4, 2, false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			b := &bead.Bead{ID: "multi-cycle-bead"}
+			p := policy.NewThresholdStuckPolicy(tc.threshold)
+			stats := map[string]logger.BeadStats{
+				b.ID: {
+					Failures:  tc.failures,
+					TotalRuns: tc.total,
+				},
+			}
+			if got := p.IsStuck(b, stats); got != tc.want {
+				t.Errorf("IsStuck() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
