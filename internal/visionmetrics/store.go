@@ -52,15 +52,7 @@ func AppendRecord(path string, record Record) error {
 		return err
 	}
 
-	writer := bufio.NewWriter(file)
-	_, err = writer.Write(data)
-	if err != nil {
-		return err
-	}
-	_, err = writer.WriteString("\n")
-	if err != nil {
-		return err
-	}
-
-	return writer.Flush()
+	// Write JSON and newline in a single WriteString call for atomicity
+	_, err = file.WriteString(string(data) + "\n")
+	return err
 }
