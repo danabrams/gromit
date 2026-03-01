@@ -28,6 +28,7 @@ var (
 	configPath        string
 	maxIterations     int
 	dryRun            bool
+	readinessEmergencyOverride bool
 	nonInteractive    bool
 	timeBudgetMinutes int
 	timeBudgetHours   int
@@ -144,6 +145,7 @@ func init() {
 	runCmd.Flags().IntVarP(&timeBudgetHours, "time-budget-hours", "H", 0, "Time budget in hours (0 = unlimited)")
 	runCmd.Flags().StringVar(&runSpecFlag, "spec", "", "Filter to beads for a specific spec")
 	runCmd.Flags().StringVar(&runEpicFlag, "epic", "", "Filter to beads for a specific epic")
+	runCmd.Flags().BoolVar(&readinessEmergencyOverride, "readiness-emergency-override", false, "Allow bypass of the readiness gate in emergencies")
 
 	statusCmd.Flags().BoolVar(&statusSPC, "spc", false, "Show SPC dashboard status only")
 	statusCmd.Flags().BoolVar(&statusJSON, "json", false, "Show status output as JSON")
@@ -242,6 +244,8 @@ func runLoop(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
+	applyReadinessEmergencyOverrideFlag(cfg)
+
 	// Set up context with signal handling
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -280,6 +284,13 @@ func runLoop(cmd *cobra.Command, args []string) error {
 	}
 	_ = dryRun
 	return r.Run(ctx, cfg.Loop.MaxIterations, deadline, stopCh)
+}
+
+func applyReadinessEmergencyOverrideFlag(cfg *config.Config) {
+	if !readinessEmergencyOverride || cfg == nil {
+		return
+	}
+	cfg.ReadinessEmergencyOverride = true
 }
 
 func handleRunSignals(sigCh <-chan os.Signal, stopCh chan<- struct{}, cancel context.CancelFunc, stderr io.Writer) {
