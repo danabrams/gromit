@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/pipeline/prepare"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
@@ -234,6 +235,110 @@ func TestRunCycles_AppendsCycleSnapshots(t *testing.T) {
 	}
 	if len(snap.CoveredSoFar) != 1 || snap.CoveredSoFar[0] != "implement feature X" {
 		t.Fatalf("unexpected covered list: %v", snap.CoveredSoFar)
+	}
+}
+
+func TestRunCycles_DeadlockStopsWithReadinessReason(t *testing.T) {
+	t.Parallel()
+	orch := newTestOrchestrator()
+
+	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "red", nil
+	}
+	orch.renderGreenFn = func(handoff *GreenHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "green", nil
+	}
+	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
+		return nil
+	}
+	validateCalls := 0
+	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
+		validateCalls++
+		if validateCalls == 1 {
+			return "FAIL", false, nil
+		}
+		return "PASS", true, nil
+	}
+	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
+		return nil
+	}
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{
+			CycleSnapshots: []runtypes.CycleSnapshot{
+				{CycleNumber: 2, Remaining: []string{"implement feature Y"}},
+			},
+		},
+	}
+
+	state := CycleState{
+		Remaining: []string{"implement feature X", "implement feature Y"},
+	}
+	if err := orch.RunCycles(context.Background(), bc, state); err != nil {
+		t.Fatalf("unexpected RunCycles error: %v", err)
+	}
+
+	if bc.Result.ReadinessStopReason != string(prepare.ReadinessOutcomeNotReadyCriteria) {
+		t.Fatalf("unexpected readiness stop reason: %q", bc.Result.ReadinessStopReason)
+	}
+	if bc.Result.ConvergenceInstability != runtypes.InstabilityDeadlock {
+		t.Fatalf("unexpected convergence instability: %v", bc.Result.ConvergenceInstability)
+	}
+	if len(bc.Result.CycleSnapshots) == 0 {
+		t.Fatalf("expected cycle snapshots recorded")
+	}
+	last := bc.Result.CycleSnapshots[len(bc.Result.CycleSnapshots)-1]
+	if len(last.Remaining) != 1 || last.Remaining[0] != "implement feature Y" {
+		t.Fatalf("expected repeated remaining list, got %v", last.Remaining)
+	}
+}
+
+func TestRunCycles_OscillationStopsWithScopeReason(t *testing.T) {
+	t.Parallel()
+	orch := newTestOrchestrator()
+
+	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "red", nil
+	}
+	orch.renderGreenFn = func(handoff *GreenHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "green", nil
+	}
+	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
+		return nil
+	}
+	validateCalls := 0
+	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
+		validateCalls++
+		if validateCalls == 1 {
+			return "FAIL", false, nil
+		}
+		return "PASS", true, nil
+	}
+	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
+		return nil
+	}
+
+	bc := &runtypes.BeadContext{
+		Result: &runtypes.IterationResult{
+			CycleSnapshots: []runtypes.CycleSnapshot{
+				{CycleNumber: 1, Remaining: []string{"implement feature Y"}},
+				{CycleNumber: 2, Remaining: []string{"implement feature X", "implement feature Y"}},
+			},
+		},
+	}
+
+	state := CycleState{
+		Remaining: []string{"implement feature X", "implement feature Y"},
+	}
+	if err := orch.RunCycles(context.Background(), bc, state); err != nil {
+		t.Fatalf("unexpected RunCycles error: %v", err)
+	}
+
+	if bc.Result.ReadinessStopReason != string(prepare.ReadinessOutcomeNotReadyScope) {
+		t.Fatalf("unexpected readiness stop reason: %q", bc.Result.ReadinessStopReason)
+	}
+	if bc.Result.ConvergenceInstability != runtypes.InstabilityOscillation {
+		t.Fatalf("unexpected convergence instability: %v", bc.Result.ConvergenceInstability)
 	}
 }
 
