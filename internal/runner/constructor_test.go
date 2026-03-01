@@ -2577,6 +2577,8 @@ func TestNewRunnerImpl_GateStageLeavesReadinessDisabledWhenFeatureOff(t *testing
 	cfg.Paths.Templates = filepath.Join(gromitDir, "templates")
 	cfg.Paths.Specs = filepath.Join(gromitDir, "specs")
 	cfg.Paths.Logs = filepath.Join(tmpDir, "logs")
+	falseVal := false
+	cfg.ReadinessCheck.Enabled = &falseVal
 
 	orch, err := newRunnerImpl(cfg, io.Discard, nil)
 	if err != nil {
