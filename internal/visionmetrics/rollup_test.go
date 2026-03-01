@@ -524,3 +524,46 @@ func TestComputeRollup_NormalScenarios(t *testing.T) {
 		})
 	}
 }
+
+func TestComputeRollup_EscapedRegressionPendingExclusion(t *testing.T) {
+	now := time.Now()
+	records := []Record{
+		{
+			SpecID:                     "spec-yes",
+			CycleStartTriggerAt:        now,
+			CycleEndPresentedAt:        now.Add(time.Hour),
+			ReviewOutcome:              ReviewOutcomeAccepted,
+			HumanTacticalIntervention:  No,
+			HumanDebuggingIntervention: No,
+			EscapedRegressionWithin7D:  Yes,
+		},
+		{
+			SpecID:                     "spec-pending",
+			CycleStartTriggerAt:        now,
+			CycleEndPresentedAt:        now.Add(time.Hour),
+			ReviewOutcome:              ReviewOutcomeAccepted,
+			HumanTacticalIntervention:  No,
+			HumanDebuggingIntervention: No,
+			EscapedRegressionWithin7D:  EscapedRegressionPending,
+		},
+		{
+			SpecID:                     "spec-no",
+			CycleStartTriggerAt:        now,
+			CycleEndPresentedAt:        now.Add(time.Hour),
+			ReviewOutcome:              ReviewOutcomeAccepted,
+			HumanTacticalIntervention:  No,
+			HumanDebuggingIntervention: No,
+			EscapedRegressionWithin7D:  No,
+		},
+	}
+
+	rollup := ComputeRollup(records)
+
+	if rollup.EscapedRegressionRate.Numerator != 1 {
+		t.Fatalf("EscapedRegressionRate.Numerator = %d, want 1", rollup.EscapedRegressionRate.Numerator)
+	}
+
+	if rollup.EscapedRegressionRate.Denominator != 2 {
+		t.Fatalf("EscapedRegressionRate.Denominator = %d, want 2", rollup.EscapedRegressionRate.Denominator)
+	}
+}
