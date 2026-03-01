@@ -1712,3 +1712,50 @@ func TestIterationMetric_ProviderRollingFields(t *testing.T) {
 		t.Errorf("ProviderRollingInvocations = %v, want 100", metric.ProviderRollingInvocations)
 	}
 }
+
+func TestBuildProcessTrend_PopulatesCauseClassifications(t *testing.T) {
+	// Create a set of metrics with at least some data variation
+	now := time.Now()
+	metrics := []IterationMetric{
+		{
+			Timestamp:                time.Time{},
+			Iteration:                1,
+			RollingAvgInputTokens:    1000,
+			RollingAvgCostUSD:        1.0,
+			RollingAvgDurationMs:     1000,
+			RollingAvgValidationMs:   100,
+			RollingSuccessRate:       0.9,
+			RollingFailureRate:       0.1,
+		},
+		{
+			Timestamp:                now,
+			Iteration:                2,
+			RollingAvgInputTokens:    1100,
+			RollingAvgCostUSD:        1.1,
+			RollingAvgDurationMs:     1100,
+			RollingAvgValidationMs:   110,
+			RollingSuccessRate:       0.9,
+			RollingFailureRate:       0.1,
+		},
+	}
+
+	trend := buildProcessTrend(metrics, 10)
+
+	// Verify that CauseClassifications is not empty
+	if trend.CauseClassifications == nil {
+		t.Error("CauseClassifications is nil, want non-nil")
+	}
+	if len(trend.CauseClassifications) == 0 {
+		t.Error("CauseClassifications is empty, want populated")
+	}
+
+	// Verify that each classification record has expected fields
+	for _, record := range trend.CauseClassifications {
+		if record.Metric == "" {
+			t.Error("Classification record has empty Metric")
+		}
+		if record.Class == "" {
+			t.Error("Classification record has empty Class")
+		}
+	}
+}
