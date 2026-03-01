@@ -291,7 +291,7 @@ func runLoop(cmd *cobra.Command, args []string) error {
 		if stageCtxErr != nil {
 			return fmt.Errorf("initializing specflow stage: %w", stageCtxErr)
 		}
-		if stageCtx != nil && stageCtx.SpecName != "" && stageCtx.FreshStart {
+		if stageCtx != nil && stageCtx.SpecName != "" {
 			repoDir, err := os.Getwd()
 			if err != nil {
 				return fmt.Errorf("determining repo dir: %w", err)
