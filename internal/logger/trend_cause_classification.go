@@ -1,6 +1,9 @@
 package logger
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // CauseClass enumerates the SPC cause classification assigned to a metric.
 type CauseClass string
@@ -22,4 +25,12 @@ type CauseClassificationRecord struct {
 	PersistenceWindows int                `json:"persistence_windows"`
 	DetectedAt         time.Time          `json:"detected_at,omitempty"`
 	Severity           string             `json:"severity,omitempty"`
+}
+
+func (r CauseClassificationRecord) Identity() string {
+	stratum := r.Stratum
+	if stratum == "" {
+		stratum = "global"
+	}
+	return fmt.Sprintf("%s|%s|%s", r.Metric, stratum, r.Class)
 }
