@@ -256,3 +256,25 @@ func TestGromitYamlDocumentsPrecheckVerificationContract(t *testing.T) {
 		}
 	})
 }
+
+func TestGromitYamlAvoidsLocalPathsAndYoloApproval(t *testing.T) {
+	content, err := os.ReadFile("../../gromit.yaml")
+	if err != nil {
+		t.Fatalf("failed to read gromit.yaml: %v", err)
+	}
+
+	text := string(content)
+	forbidden := []struct {
+		desc  string
+		value string
+	}{
+		{"developer path", "/home/dabrams"},
+		{"yolo approval mode", "yolo"},
+	}
+
+	for _, entry := range forbidden {
+		if strings.Contains(text, entry.value) {
+			t.Fatalf("gromit.yaml should not contain %s (%q)", entry.desc, entry.value)
+		}
+	}
+}
