@@ -1292,6 +1292,70 @@ func TestOrchestrator_ValidationFailure_SetsFailureOutput(t *testing.T) {
 	}
 }
 
+func TestOrchestrator_LocalGateFailureSkipsReview(t *testing.T) {
+	t.Parallel()
+	var capturedResult *logger.IterationLog
+	reviewCalled := false
+	localGateCalled := 0
+
+	localGateStage := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		localGateCalled++
+		return pipeline.Output{
+			Decision:           pipeline.Block,
+			ValidationFailures: []string{"local gate failure"},
+		}, nil
+	}}
+	reviewStage := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		reviewCalled = true
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+	backstopEpilogue := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		capturedResult = in.Result
+		return pipeline.Output{}, nil
+	}}
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "local-gate-bead", Title: "Spec work"}, nil
+	}
+
+	orch := NewOrchestrator(OrchestratorConfig{
+		Gate:      &fakeStage{},
+		Build:     &fakeStage{},
+		Validate:  &fakeStage{},
+		LocalGate: localGateStage,
+		Review:    reviewStage,
+		Epilogue:  backstopEpilogue,
+		GetBead:   getBead,
+		Config:    &config.Config{},
+		Output:    io.Discard,
+	})
+
+	if err := orch.Run(context.Background(), 5, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if localGateCalled != 1 {
+		t.Fatalf("local gate stage executed %d times, want 1", localGateCalled)
+	}
+	if reviewCalled {
+		t.Fatal("review stage should not run when local gate fails")
+	}
+	if capturedResult == nil {
+		t.Fatal("expected iteration log to be set on failure")
+	}
+	if capturedResult.FailurePhase != failurephase.LocalGate {
+		t.Fatalf("FailurePhase = %q, want %q", capturedResult.FailurePhase, failurephase.LocalGate)
+	}
+	if !strings.Contains(capturedResult.Error, "local gate failure") {
+		t.Fatalf("IterationLog.Error = %q, want it to mention local gate, got %q", capturedResult.Error, capturedResult.Error)
+	}
+}
+
 // TestOrchestrator_RunSequence_UsesCallerProvidedOrder verifies that RunSequence
 // resolves bead IDs via GetBeadByID and executes them in the exact caller-provided
 // order, independent of queue ordering.
