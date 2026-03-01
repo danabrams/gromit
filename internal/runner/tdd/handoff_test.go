@@ -6,7 +6,6 @@ func TestCycleStateIsCompleteWhenDone(t *testing.T) {
 	t.Parallel()
 	state := CycleState{
 		CycleNumber: 1,
-		MaxCycles:   3,
 		Done:        true,
 	}
 
@@ -15,24 +14,10 @@ func TestCycleStateIsCompleteWhenDone(t *testing.T) {
 	}
 }
 
-func TestCycleStateIsCompleteWhenCycleReachesMax(t *testing.T) {
-	t.Parallel()
-	state := CycleState{
-		CycleNumber: 3,
-		MaxCycles:   3,
-		Done:        false,
-	}
-
-	if !state.IsComplete() {
-		t.Fatalf("expected IsComplete to be true when cycle number reaches max cycles")
-	}
-}
-
 func TestCycleStateIsNotCompleteWhenZeroCyclesAndEmptyRemaining(t *testing.T) {
 	t.Parallel()
 	state := CycleState{
 		CycleNumber: 0,
-		MaxCycles:   3,
 		Done:        false,
 		Remaining:   []string{},
 	}
@@ -46,7 +31,6 @@ func TestCycleStateIsCompleteWhenOneCycleAndEmptyRemaining(t *testing.T) {
 	t.Parallel()
 	state := CycleState{
 		CycleNumber: 1,
-		MaxCycles:   3,
 		Done:        false,
 		Remaining:   []string{},
 	}
@@ -60,7 +44,6 @@ func TestCycleStateIsCompleteWhenDoneRegardlessOfState(t *testing.T) {
 	t.Parallel()
 	state := CycleState{
 		CycleNumber: 0,
-		MaxCycles:   5,
 		Done:        true,
 		Remaining:   []string{"something"},
 	}
@@ -74,7 +57,6 @@ func TestCycleStateIsNotCompleteWhenZeroCyclesWithRemaining(t *testing.T) {
 	t.Parallel()
 	state := CycleState{
 		CycleNumber: 0,
-		MaxCycles:   3,
 		Done:        false,
 		Remaining:   []string{"implement feature X"},
 	}

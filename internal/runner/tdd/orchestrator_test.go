@@ -32,7 +32,6 @@ func newTestOrchestrator() *CycleOrchestrator {
 func singleRequirementState() CycleState {
 	return CycleState{
 		CycleNumber: 0,
-		MaxCycles:   10,
 		Remaining:   []string{"implement feature X"},
 	}
 }
@@ -54,7 +53,6 @@ func TestRunCycles_ReturnsNilWhenStateAlreadyComplete(t *testing.T) {
 	// State is already complete when Done=true
 	state := CycleState{
 		CycleNumber: 1,
-		MaxCycles:   10,
 		Done:        true,
 	}
 
@@ -272,7 +270,6 @@ func TestRunCycles_DeadlockStopsWithReadinessReason(t *testing.T) {
 	}
 
 	state := CycleState{
-		MaxCycles: 10,
 		Remaining: []string{"implement feature X", "implement feature Y"},
 	}
 	if err := orch.RunCycles(context.Background(), bc, state); err != nil {
@@ -329,7 +326,6 @@ func TestRunCycles_OscillationStopsWithScopeReason(t *testing.T) {
 	}
 
 	state := CycleState{
-		MaxCycles: 10,
 		Remaining: []string{"implement feature X", "implement feature Y"},
 	}
 	if err := orch.RunCycles(context.Background(), bc, state); err != nil {
@@ -386,7 +382,6 @@ func TestRunCycles_MultipleCycles_LoopsThroughRequirements(t *testing.T) {
 
 	state := CycleState{
 		CycleNumber: 0,
-		MaxCycles:   10,
 		Remaining:   []string{"req A", "req B", "req C"},
 	}
 
@@ -397,58 +392,6 @@ func TestRunCycles_MultipleCycles_LoopsThroughRequirements(t *testing.T) {
 
 	if cycleCount != 3 {
 		t.Fatalf("expected 3 cycles (one per requirement), got %d", cycleCount)
-	}
-}
-
-func TestRunCycles_TerminatesAtMaxCycles(t *testing.T) {
-	t.Parallel()
-	orch := newTestOrchestrator()
-
-	cycleCount := 0
-
-	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
-		return "red", nil
-	}
-	orch.renderGreenFn = func(handoff *GreenHandoff, bc *runtypes.BeadContext) (string, error) {
-		return "green", nil
-	}
-	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
-		if prompt == "red" {
-			cycleCount++
-		}
-		return nil
-	}
-	validateCall := 0
-	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
-		validateCall++
-		switch validateCall % 2 {
-		case 1:
-			return "FAIL", false, nil
-		default:
-			return "PASS", true, nil
-		}
-	}
-	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error { return nil }
-
-	bc := &runtypes.BeadContext{
-		Result: &runtypes.IterationResult{},
-		Tier:   "medium",
-	}
-
-	// MaxCycles=2 but 5 requirements: should stop after 2 cycles
-	state := CycleState{
-		CycleNumber: 0,
-		MaxCycles:   2,
-		Remaining:   []string{"req A", "req B", "req C", "req D", "req E"},
-	}
-
-	err := orch.RunCycles(context.Background(), bc, state)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if cycleCount != 2 {
-		t.Fatalf("expected 2 cycles (max), got %d", cycleCount)
 	}
 }
 
@@ -491,7 +434,6 @@ func TestRunCycles_CoverageDone_TestsPassUnexpectedlyInRedPhase(t *testing.T) {
 
 	state := CycleState{
 		CycleNumber: 0,
-		MaxCycles:   10,
 		Remaining:   []string{"req A", "req B"},
 	}
 
@@ -588,7 +530,6 @@ func TestRunCycles_EarlyGreen_AdvancesAllRemaining(t *testing.T) {
 	}
 	state := CycleState{
 		CycleNumber: 0,
-		MaxCycles:   10,
 		Remaining:   []string{"req A", "req B", "req C"},
 	}
 
@@ -1100,7 +1041,6 @@ func TestRunCycles_RedPass_MixedWithFullCycles(t *testing.T) {
 	}
 	state := CycleState{
 		CycleNumber: 0,
-		MaxCycles:   10,
 		Remaining:   []string{"req A (pass)", "req B (fail)", "req C (pass)"},
 	}
 
@@ -1391,7 +1331,6 @@ func TestRunCycles_RefactorValidationFailure_RevertContinue_AdvancesToNextCycle(
 	}
 	state := CycleState{
 		CycleNumber: 0,
-		MaxCycles:   10,
 		Remaining:   []string{"req A", "req B"},
 	}
 
@@ -1470,7 +1409,6 @@ func TestRunCycles_RedPass_ContinuesToNextCriterion(t *testing.T) {
 	}
 	state := CycleState{
 		CycleNumber: 0,
-		MaxCycles:   10,
 		Remaining:   []string{"criterion 1", "criterion 2", "criterion 3", "criterion 4"},
 	}
 
@@ -1490,48 +1428,6 @@ func TestRunCycles_RedPass_ContinuesToNextCriterion(t *testing.T) {
 		if specExcerpts[i] != want {
 			t.Fatalf("specExcerpts[%d] = %q, want %q", i, specExcerpts[i], want)
 		}
-	}
-}
-
-func TestRunCycles_RedPass_RespectsMaxCycles(t *testing.T) {
-	t.Parallel(
-	// Even when red passes, MaxCycles is still respected.
-	)
-
-	orch := newTestOrchestrator()
-
-	redInvocations := 0
-
-	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
-		return "red", nil
-	}
-	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
-		if prompt == "red" {
-			redInvocations++
-		}
-		return nil
-	}
-	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
-		return "PASS", true, nil
-	}
-
-	bc := &runtypes.BeadContext{
-		Result: &runtypes.IterationResult{},
-		Tier:   "medium",
-	}
-	state := CycleState{
-		CycleNumber: 0,
-		MaxCycles:   2,
-		Remaining:   []string{"req A", "req B", "req C", "req D", "req E"},
-	}
-
-	err := orch.RunCycles(context.Background(), bc, state)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if redInvocations != 2 {
-		t.Fatalf("expected 2 red invocations (max cycles), got %d", redInvocations)
 	}
 }
 

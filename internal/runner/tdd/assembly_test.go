@@ -53,7 +53,6 @@ func TestAssembleRedHandoffFirstCycleReturnsEmptyMapsAndSpecExcerpt(t *testing.T
 	t.Parallel()
 	state := CycleState{
 		CycleNumber:  1,
-		MaxCycles:    10,
 		Remaining:    []string{"users can log in with valid credentials"},
 		TouchedFiles: []string{},
 	}
@@ -81,7 +80,6 @@ func TestAssembleRedHandoffReadsExistingFilesOnSubsequentCycles(t *testing.T) {
 	t.Parallel()
 	state := CycleState{
 		CycleNumber: 2,
-		MaxCycles:   10,
 		Remaining:   []string{"users can reset password"},
 		TouchedFiles: []string{
 			"internal/auth/login_test.go",
@@ -189,7 +187,6 @@ func TestAssembleCycleStateIncrementsCycleAndMovesFirstRemainingToCovered(t *tes
 	t.Parallel()
 	prev := CycleState{
 		CycleNumber:  1,
-		MaxCycles:    10,
 		CoveredSoFar: []string{},
 		Remaining:    []string{"req A", "req B", "req C"},
 		TouchedFiles: []string{"a.go"},
@@ -199,9 +196,6 @@ func TestAssembleCycleStateIncrementsCycleAndMovesFirstRemainingToCovered(t *tes
 
 	if next.CycleNumber != 2 {
 		t.Fatalf("expected CycleNumber 2, got %d", next.CycleNumber)
-	}
-	if next.MaxCycles != 10 {
-		t.Fatalf("expected MaxCycles preserved at 10, got %d", next.MaxCycles)
 	}
 	if len(next.CoveredSoFar) != 1 || next.CoveredSoFar[0] != "req A" {
 		t.Fatalf("expected CoveredSoFar to contain 'req A', got %v", next.CoveredSoFar)
@@ -218,7 +212,6 @@ func TestAssembleCycleStateSetsDoneWhenLastRemainingConsumed(t *testing.T) {
 	t.Parallel()
 	prev := CycleState{
 		CycleNumber:  3,
-		MaxCycles:    10,
 		CoveredSoFar: []string{"req A", "req B"},
 		Remaining:    []string{"req C"},
 		TouchedFiles: []string{"a.go"},
@@ -241,7 +234,6 @@ func TestAssembleRedHandoffCycleSummaryIncludesTouchedFiles(t *testing.T) {
 	t.Parallel()
 	state := CycleState{
 		CycleNumber:  2,
-		MaxCycles:    3,
 		CoveredSoFar: []string{"users can log in"},
 		Remaining:    []string{"users can log out"},
 		TouchedFiles: []string{"internal/auth/login_test.go", "internal/auth/login.go"},
@@ -270,7 +262,6 @@ func TestAssembleRedHandoffPopulatesAPISurfaceWithFunctionSignatures(t *testing.
 	t.Parallel()
 	state := CycleState{
 		CycleNumber: 2,
-		MaxCycles:   10,
 		Remaining:   []string{"users can reset password"},
 		TouchedFiles: []string{
 			"internal/auth/login.go",
@@ -296,7 +287,6 @@ func TestAssembleRedHandoffAPISurfaceIncludesTypeDeclarations(t *testing.T) {
 	t.Parallel()
 	state := CycleState{
 		CycleNumber: 2,
-		MaxCycles:   10,
 		Remaining:   []string{"users can reset password"},
 		TouchedFiles: []string{
 			"internal/auth/types.go",
@@ -322,7 +312,6 @@ func TestAssembleRedHandoffPopulatesCycleSummaryWithCompletedRequirements(t *tes
 	t.Parallel()
 	state := CycleState{
 		CycleNumber:  2,
-		MaxCycles:    5,
 		CoveredSoFar: []string{"users can log in with valid credentials"},
 		Remaining:    []string{"users can reset password"},
 		TouchedFiles: []string{},

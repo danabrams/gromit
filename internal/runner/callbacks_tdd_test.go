@@ -170,20 +170,20 @@ func TestAppendTDDPhaseMetric_HistoricalFixtureParity(t *testing.T) {
 }
 
 type historicalPhaseMetricsFixture struct {
-	Phase       string      `json:"phase"`
-	CycleNumber int         `json:"cycle_number"`
-	BeadID      string      `json:"bead_id"`
-	Model       string      `json:"model"`
-	Tier        string      `json:"tier"`
-	Before      phaseUsage  `json:"before"`
-	After       phaseUsage  `json:"after"`
-	Expected    phaseUsage  `json:"expected"`
+	Phase       string     `json:"phase"`
+	CycleNumber int        `json:"cycle_number"`
+	BeadID      string     `json:"bead_id"`
+	Model       string     `json:"model"`
+	Tier        string     `json:"tier"`
+	Before      phaseUsage `json:"before"`
+	After       phaseUsage `json:"after"`
+	Expected    phaseUsage `json:"expected"`
 }
 
 type phaseUsage struct {
-	CostUSD     float64 `json:"cost_usd"`
-	InputTokens int     `json:"input_tokens"`
-	OutputTokens int    `json:"output_tokens"`
+	CostUSD      float64 `json:"cost_usd"`
+	InputTokens  int     `json:"input_tokens"`
+	OutputTokens int     `json:"output_tokens"`
 }
 
 func loadHistoricalPhaseMetricsFixture(t *testing.T) []historicalPhaseMetricsFixture {
@@ -200,12 +200,12 @@ func loadHistoricalPhaseMetricsFixture(t *testing.T) []historicalPhaseMetricsFix
 	return fixtures
 }
 
-func TestNewTDDCycleStateUsesFixedLimit(t *testing.T) {
+func TestNewTDDCycleStateLeavesMaxCyclesUnset(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Methodology.MaxTDDCycles = 1
 	state := newTDDCycleState(cfg, []string{"req"})
-	if state.MaxCycles != config.DefaultMaxTDDCycles {
-		t.Fatalf("expected default max cycles %d, got %d", config.DefaultMaxTDDCycles, state.MaxCycles)
+	if state.MaxCycles != 0 {
+		t.Fatalf("expected MaxCycles to remain unset, got %d", state.MaxCycles)
 	}
 }
 
