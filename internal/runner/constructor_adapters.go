@@ -29,6 +29,7 @@ import (
 	"github.com/danabrams/gromit/internal/runner/execution"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/runner/specmerge"
+	"github.com/danabrams/gromit/internal/specflow"
 	"github.com/danabrams/gromit/internal/specgate"
 	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/danabrams/gromit/internal/validate"
@@ -633,6 +634,16 @@ func newSpecMergeController(cfg *config.Config, client tracker.Client, router pr
 	return specmerge.NewPipeline(query, nil, flow, fixDeps, retryCap)
 }
 
+func newStageAwarePreImplementationHook(stageCtx *StageContext) func(context.Context) error {
+	if stageCtx == nil || stageCtx.SpecName == "" || stageCtx.Stage != specflow.StageAcceptanceTests {
+		return nil
+	}
+	return func(ctx context.Context) error {
+		// TODO: orchestrate acceptance-test authoring beads for stageCtx.SpecName before implementation starts.
+		return nil
+	}
+}
+
 // extractSpecLabel returns the spec name from labels (format: "spec:name").
 func extractSpecLabel(labels []string) string {
 	const specPrefix = "spec:"
@@ -1109,7 +1120,6 @@ var _ epilogue.SpecGateRunner = (*specGateAdapter)(nil)
 var _ prepare.Decomposer = (*decomposerAdapter)(nil)
 var _ epilogue.FailureLearner = (*failureLearnerAdapter)(nil)
 var _ execution.Router = (*executionRouterAdapter)(nil)
-var _ Coordinator = (*IntegrationCoordinator)(nil)
 var _ integrationqueue.GitOps = (*integrationQueueGitOpsAdapter)(nil)
 var _ integrationqueue.ScopedGate = (*integrationQueueScopedGateAdapter)(nil)
 
