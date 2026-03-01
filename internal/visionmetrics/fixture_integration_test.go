@@ -32,6 +32,49 @@ func TestVisionMetricsFixtureValidScenario(t *testing.T) {
 	expectRate(t, rollup.AcceptedWithoutReworkRate, 2, 2, 1.0)
 }
 
+func TestVisionMetricsFixtureInvalidScenario(t *testing.T) {
+	fixtures := loadIntegrationFixtureRecords(t, "invalid.fixture")
+	if len(fixtures) != 2 {
+		t.Fatalf("expected 2 fixture records, got %d", len(fixtures))
+	}
+
+	var validRecords []Record
+	var invalidRecords []integrationFixtureRecord
+	for _, entry := range fixtures {
+		if len(entry.Errors) == 0 {
+			validRecords = append(validRecords, entry.Record)
+			continue
+		}
+		invalidRecords = append(invalidRecords, entry)
+	}
+
+	if len(invalidRecords) != 1 {
+		t.Fatalf("expected 1 invalid record, got %d", len(invalidRecords))
+	}
+
+	validationError := invalidRecords[0].Errors[0]
+	if validationError.Field != FieldHumanDebuggingIntervention {
+		t.Fatalf("expected debugging field err, got %s", validationError.Field)
+	}
+	if validationError.Reason != "requires tactical intervention" {
+		t.Fatalf("expected debugging requirement error, got %s", validationError.Reason)
+	}
+
+	if len(validRecords) != 1 {
+		t.Fatalf("expected 1 valid record, got %d", len(validRecords))
+	}
+
+	rollup := ComputeRollup(validRecords)
+	expectRate(t, rollup.HumanTacticalInterventionRate, 0, 1, 0.0)
+	expectRate(t, rollup.HumanDebuggingInterventionRate, 0, 1, 0.0)
+	expectRate(t, rollup.FirstIntegrationPassRate, 1, 1, 1.0)
+	expectRate(t, rollup.EscapedRegressionRate, 0, 1, 0.0)
+	if rollup.EscapedRegressionPendingCount != 0 {
+		t.Fatalf("expected no pending escapes, got %d", rollup.EscapedRegressionPendingCount)
+	}
+	expectRate(t, rollup.AcceptedWithoutReworkRate, 1, 1, 1.0)
+}
+
 type integrationFixtureRecord struct {
 	Record Record
 	Errors []ValidationError
