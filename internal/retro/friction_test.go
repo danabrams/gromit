@@ -135,3 +135,10 @@ func TestClusterByAreaFiltersMinClusterSize(t *testing.T) {
 		t.Fatalf("expected nil when no clusters meet min size, got %v", clusters)
 	}
 }
+
+func TestExtractAreaHandlesWindowsPaths(t *testing.T) {
+	content := "Breaking changes happened at internal\\retro\\friction.go and internal\\retro\\prompt.go"
+	if got := extractArea(content); got != "internal/retro" {
+		t.Fatalf("expected internal/retro, got %q", got)
+	}
+}
