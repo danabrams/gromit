@@ -19,6 +19,7 @@ const (
 	backlogTypeReviewFinding = "review-finding"
 	logTypeReview            = "review"
 	backlogPriorityDefault   = 2
+	thoroughReviewPhase      = "thorough_review"
 )
 
 // Paths contains filesystem paths used by the pipeline.
@@ -71,6 +72,30 @@ type ThoroughReviewPromptInput struct {
 	Diff       string
 	ClaudeMD   string
 	Rules      string
+}
+
+type promptContextLoader interface {
+	LoadClaudeMD() (string, error)
+	LoadRulesForPhase(phase string) (string, error)
+}
+
+func NewThoroughReviewPromptInput(loader promptContextLoader, phase, fromCommit, diff string) *ThoroughReviewPromptInput {
+	claudeMD, err := loader.LoadClaudeMD()
+	if err != nil {
+		claudeMD = ""
+	}
+
+	rules, err := loader.LoadRulesForPhase(phase)
+	if err != nil {
+		rules = ""
+	}
+
+	return &ThoroughReviewPromptInput{
+		FromCommit: fromCommit,
+		Diff:       diff,
+		ClaudeMD:   claudeMD,
+		Rules:      rules,
+	}
 }
 
 // LogEntry holds the fields for a log entry.
@@ -392,26 +417,7 @@ func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) 
 }
 
 func (p *Pipeline) renderReviewPrompt(input ReviewInput) (string, error) {
-	// Load prompt context in pipeline layer (not in adapter)
-	claudeMD, err := p.deps.ReviewRenderer.LoadClaudeMD()
-	if err != nil {
-		// Log warning but continue - context is optional
-		claudeMD = ""
-	}
-
-	rules, err := p.deps.ReviewRenderer.LoadRulesForPhase("thorough_review")
-	if err != nil {
-		// Log warning but continue - context is optional
-		rules = ""
-	}
-
-	// Create input with all context populated by pipeline
-	reviewCtx := &ThoroughReviewPromptInput{
-		FromCommit: input.FromCommit,
-		Diff:       input.Diff,
-		ClaudeMD:   claudeMD,
-		Rules:      rules,
-	}
+	reviewCtx := NewThoroughReviewPromptInput(p.deps.ReviewRenderer, thoroughReviewPhase, input.FromCommit, input.Diff)
 
 	renderedPrompt, err := p.deps.ReviewRenderer.RenderThoroughReview(reviewCtx)
 	if err != nil {
