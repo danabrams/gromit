@@ -128,7 +128,7 @@ loop:
   max_cross_run_failures: 5  # Skip bead if it has 5+ consecutive failures across runs
   learn_from_success: true  # Extract learnings from successful iterations (default: true)
   between_iterations_command: ""  # Disabled: avoid rebuilding between iterations
-  end_of_loop_command: ""  # Disabled: no command run when the loop exits
+  end_of_loop_command: "make"  # Disabled: no command run when the loop exits
 
 # Scope checking - estimate task complexity before work
 scope_check:
@@ -220,10 +220,10 @@ claude:
 agents:
   prompt: false
   phases:
-    refine: codex
-    plan: codex
+    refine: claude
+    plan: claude
     review: claude
-    explore: codex
+    explore: gemini
     debug: codex
 
 # Review settings
@@ -238,7 +238,7 @@ git:
 
 # Worktree - enable concurrent interactive sessions via git worktrees
 # worktree:
-#   enabled: true  # Enable worktree isolation for interactive commands (default: true)
+#   enabled: true  C# Enable worktree isolation for interactive commands (default: true)
 #   auto_merge: true  # Merge interactive branches between iterations (default: true)
 #   merge_failure: "warn"  # What to do on merge conflict: "warn" | "stop" (default: "warn")
 
@@ -314,8 +314,8 @@ session:
 #   auto_trigger: true         # Trigger spec gate automatically before work (default: true)
 
 # Experiments - A/B testing configuration for variant selection
-# experiment:
-#   enabled: false             # Enable experiments (default: false)
+experiment:
+  enabled: false             # Enable experiments (default: false)
 #   min_sample_size: 20        # Minimum samples before convergence analysis (default: 20)
 #   confidence_threshold: 0.95 # Confidence threshold for declaring convergence (0-1, default: 0.95)
 #   experiments_dir: ".gromit/experiments"  # Directory containing experiment definitions
