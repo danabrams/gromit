@@ -16,9 +16,9 @@ const (
 )
 
 var readinessBlockReasons = map[string]struct{}{
-	"criteria_missing":  {},
+	"criteria_missing":   {},
 	"criteria_ambiguous": {},
-	"scope_too_broad":   {},
+	"scope_too_broad":    {},
 }
 
 func readAllIterationLogsSorted(logsDir string) ([]IterationLog, error) {
@@ -155,6 +155,8 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 			EstimatedFiles:                         entry.EstimatedFiles,
 			MTTRProxyMs:                            entry.MTTRProxyMs,
 			FilesTouched:                           entry.FilesTouched,
+			TouchedPackages:                        append([]string(nil), entry.TouchedPackages...),
+			ConvergenceInstability:                 entry.ConvergenceInstability,
 			PromptDiagnostics:                      entry.PromptDiagnostics,
 			RollingSuccessRate:                     w.SuccessRate,
 			RollingFailureRate:                     w.FailureRate,
@@ -170,12 +172,12 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 			RollingAvgInputTokens:                  w.AvgInputTokens,
 			RollingAvgCostPerBeadUSD:               w.AvgCostPerBeadUSD,
 			RollingAvgMTTRProxyMs:                  w.AvgMTTRProxyMs,
-			RollingProviderName:                     providerName,
-			RollingProviderInvocations:              providerInvocations,
-			RollingProviderSuccesses:                providerSuccesses,
-			RollingProviderSuccessRate:              providerSuccessRate,
-			RollingProviderTransportFailures:        providerTransportFailures,
-			RollingProviderTransportFailureRate:      providerTransportFailureRate,
+			RollingProviderName:                    providerName,
+			RollingProviderInvocations:             providerInvocations,
+			RollingProviderSuccesses:               providerSuccesses,
+			RollingProviderSuccessRate:             providerSuccessRate,
+			RollingProviderTransportFailures:       providerTransportFailures,
+			RollingProviderTransportFailureRate:    providerTransportFailureRate,
 			RollingPreflightFailureRate:            w.PreflightFailureRate,
 			RollingBuildFailureRate:                w.BuildFailureRate,
 			RollingValidationFailureRate:           w.ValidationFailureRate,

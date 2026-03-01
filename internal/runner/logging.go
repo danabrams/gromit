@@ -83,6 +83,7 @@ func ResultToIterationLog(result *runtypes.IterationResult) *logger.IterationLog
 		FirstPassSuccess:                result.FirstPassSuccess,
 		FilesTouched:                    result.FilesTouched,
 		TouchedPackages:                 result.TouchedPackages,
+		ConvergenceInstability:          string(result.ConvergenceInstability),
 		MTTRProxyMs:                     result.MTTRProxyMs,
 		EscalationClass:                 result.EscalationClass,
 		RecurrenceCount:                 result.RecurrenceCount,

@@ -127,6 +127,8 @@ type IterationMetric struct {
 	EWMADurationMs                         EWMAMetricState           `json:"ewma_duration_ms"`
 	EWMAInputTokens                        EWMAMetricState           `json:"ewma_input_tokens"`
 	FilesTouched                           int                       `json:"files_touched,omitempty"`
+	TouchedPackages                        []string                  `json:"touched_packages,omitempty"`
+	ConvergenceInstability                 string                    `json:"convergence_instability,omitempty"`
 	PromptDiagnostics                      *prompt.PromptDiagnostics `json:"prompt_diagnostics,omitempty"`
 }
 
@@ -258,6 +260,7 @@ type ProcessTrend struct {
 	TotalIterations         int                            `json:"total_iterations"`
 	WindowSize              int                            `json:"window_size"`
 	LatestWindow            ProcessTrendWindow             `json:"latest_window"`
+	ConvergenceSummary      ConvergenceSummary             `json:"convergence_summary"`
 	PromptTokenSummary      PromptTokenSummary             `json:"prompt_token_summary"`
 	ProviderMetrics         []ProviderMetrics              `json:"provider_metrics"`
 	ControlLimits           []TrendControlLimit            `json:"control_limits"`
@@ -267,6 +270,7 @@ type ProcessTrend struct {
 	EWMAAnomalies           []TrendAnomaly                 `json:"ewma_anomalies"`
 	PatternViolations       []PatternViolation             `json:"pattern_violations"`
 	CauseClassifications    []CauseClassificationRecord    `json:"cause_classifications"`
+	PackageMaintenanceCosts []PackageMaintenanceCost       `json:"package_maintenance_costs"`
 	FlaggedPackages         []FlaggedPackage               `json:"flagged_packages"`
 }
 
@@ -353,6 +357,9 @@ func (t *ProcessTrend) normalizeNilFields() {
 	if t.FlaggedPackages == nil {
 		t.FlaggedPackages = []FlaggedPackage{}
 	}
+	if t.PackageMaintenanceCosts == nil {
+		t.PackageMaintenanceCosts = []PackageMaintenanceCost{}
+	}
 	if t.PromptTokenSummary.ByPromptType == nil {
 		t.PromptTokenSummary.ByPromptType = []PromptTypeSummary{}
 	}
@@ -362,7 +369,6 @@ func (t *ProcessTrend) normalizeNilFields() {
 	if t.PromptTokenSummary.BudgetActionFrequency == nil {
 		t.PromptTokenSummary.BudgetActionFrequency = map[string]int{}
 	}
-
 	for key, limits := range t.StratifiedControlLimits {
 		if limits == nil {
 			t.StratifiedControlLimits[key] = []TrendControlLimit{}
@@ -374,7 +380,6 @@ func (t *ProcessTrend) normalizeNilFields() {
 		}
 	}
 }
-
 func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend {
 	trend := &ProcessTrend{
 		GeneratedAt:             time.Now().UTC(),
@@ -395,7 +400,7 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 	if len(metrics) == 0 {
 		return trend
 	}
-
+	var validationLimit *TrendControlLimit
 	latestMetric := metrics[len(metrics)-1]
 	trend.LatestWindow = ProcessTrendWindow{
 		SuccessRate:                     latestMetric.RollingSuccessRate,
@@ -435,6 +440,10 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 		latestValue := metric.latestSample(latestMetric)
 		historyValues := extractMetric(metrics, metric.historySample)
 		limit := computeControlLimit(metric.name, latestValue, historyValues)
+		if metric.name == metricRollingAvgValidationMs {
+			limitCopy := limit
+			validationLimit = &limitCopy
+		}
 		trend.ControlLimits = append(trend.ControlLimits, limit)
 		if anomaly, ok := detectAnomaly(limit); ok {
 			trend.Anomalies = append(trend.Anomalies, anomaly)
@@ -456,6 +465,9 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 	if anomaly, ok := detectSuccessRateRegression(latestMetric); ok {
 		trend.Anomalies = append(trend.Anomalies, anomaly)
 	}
+	if validationLimit != nil {
+		applyPackageMaintenanceCosts(trend, metrics, validationLimit)
+	}
 
 	sort.Slice(trend.ControlLimits, func(i, j int) bool { return trend.ControlLimits[i].Metric < trend.ControlLimits[j].Metric })
 	sort.Slice(trend.Anomalies, func(i, j int) bool { return trend.Anomalies[i].Metric < trend.Anomalies[j].Metric })
@@ -466,7 +478,6 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 		}
 		return trend.PatternViolations[i].Metric < trend.PatternViolations[j].Metric
 	})
-
 	// Evaluate cause classifications using all computed anomalies and patterns
 	classificationCtx := CauseClassificationContext{
 		Metrics:                 metrics,
