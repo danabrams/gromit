@@ -57,72 +57,72 @@ type BeadContext struct {
 
 // IterationResult captures the outcome of one loop iteration.
 type IterationResult struct {
-	BeadID                  string
-	BeadTitle               string
-	SpecID                  string `json:"spec_id,omitempty"`
-	Model                   string
-	ReasoningEffort         string
-	Provider                string `json:"provider,omitempty"`
-	FailurePhase            string `json:"failure_phase,omitempty"`
-	FailureCategory         string `json:"failure_category,omitempty"`
-	GateBlockReason         string `json:"gate_block_reason,omitempty"`
-	Success                 bool
-	Validated               bool
-	Duration                time.Duration
-	Error                   error
-	Escalated               bool
-	EscalatedTo             string
-	EstimatedFiles          int      `json:"estimated_files,omitempty"`
-	OriginalTier            string `json:"original_tier,omitempty"`
-	ActualTier              string `json:"actual_tier,omitempty"`
-	Complexity              string `json:"complexity,omitempty"`
-	ComplexitySource        string `json:"complexity_source,omitempty"`
-	ComplexityFallbackReason string `json:"complexity_fallback_reason,omitempty"`
-	Decomposed              bool
-	Output                  string
-	CostUSD                 float64
-	InputTokens             int
-	OutputTokens            int
-	ReviewBrokeValidation   bool   // true when review fixes broke previously-passing validation
-	ReviewFixesNeeded       int    // number of review fixes required in post-success review
-	AlreadyDone             bool   // true when ATDD detected work was already complete
-	ValidationRetried       bool   // true when validation recovery was attempted
-	TrivialAutoFixed        bool   // true when auto-fix resolved validation without Claude
-	UsageLimited            bool   // true when invocation failed due to usage/rate limit
-	ValidationMode          string // "direct" when validation ran via shell commands
-	ValidationDurationMs    int64  // time spent in validation in milliseconds
-	ValidationTimeouts      int    // count of validation command timeouts/cancellations
-	CompilationErrors       bool   // true when pre-build compilation check found errors
-	TimeoutDecompositionAttempted bool `json:"timeout_decomposition_attempted,omitempty"`
-	TimeoutDecompositionSucceeded bool `json:"timeout_decomposition_succeeded,omitempty"`
+	BeadID                          string
+	BeadTitle                       string
+	SpecID                          string `json:"spec_id,omitempty"`
+	Model                           string
+	ReasoningEffort                 string
+	Provider                        string `json:"provider,omitempty"`
+	FailurePhase                    string `json:"failure_phase,omitempty"`
+	FailureCategory                 string `json:"failure_category,omitempty"`
+	GateBlockReason                 string `json:"gate_block_reason,omitempty"`
+	Success                         bool
+	Validated                       bool
+	Duration                        time.Duration
+	Error                           error
+	Escalated                       bool
+	EscalatedTo                     string
+	EstimatedFiles                  int    `json:"estimated_files,omitempty"`
+	OriginalTier                    string `json:"original_tier,omitempty"`
+	ActualTier                      string `json:"actual_tier,omitempty"`
+	Complexity                      string `json:"complexity,omitempty"`
+	ComplexitySource                string `json:"complexity_source,omitempty"`
+	ComplexityFallbackReason        string `json:"complexity_fallback_reason,omitempty"`
+	Decomposed                      bool
+	Output                          string
+	CostUSD                         float64
+	InputTokens                     int
+	OutputTokens                    int
+	ReviewBrokeValidation           bool      // true when review fixes broke previously-passing validation
+	ReviewFixesNeeded               int       // number of review fixes required in post-success review
+	AlreadyDone                     bool      // true when ATDD detected work was already complete
+	ValidationRetried               bool      // true when validation recovery was attempted
+	TrivialAutoFixed                bool      // true when auto-fix resolved validation without Claude
+	UsageLimited                    bool      // true when invocation failed due to usage/rate limit
+	ValidationMode                  string    // "direct" when validation ran via shell commands
+	ValidationDurationMs            int64     // time spent in validation in milliseconds
+	ValidationTimeouts              int       // count of validation command timeouts/cancellations
+	CompilationErrors               bool      // true when pre-build compilation check found errors
+	TimeoutDecompositionAttempted   bool      `json:"timeout_decomposition_attempted,omitempty"`
+	TimeoutDecompositionSucceeded   bool      `json:"timeout_decomposition_succeeded,omitempty"`
 	TimeoutDecompositionAttemptTime time.Time `json:"timeout_decomposition_attempt_time,omitempty"`
-	TimeoutDecompositionOutcome string `json:"timeout_decomposition_outcome,omitempty"`
-	TimeoutDecompositionReason string `json:"timeout_decomposition_reason,omitempty"`
-	HardStopPendingApproval bool   // true when hard-stop action requires explicit human approval
+	TimeoutDecompositionOutcome     string    `json:"timeout_decomposition_outcome,omitempty"`
+	TimeoutDecompositionReason      string    `json:"timeout_decomposition_reason,omitempty"`
+	HardStopPendingApproval         bool      // true when hard-stop action requires explicit human approval
 
 	// Diagnostic fields for timeout investigation
-	TimeoutType         string // "stall", "bead", "invocation", ""
-	TimeoutPhase        string // phase active when timeout/cancel occurred (e.g. "red", "green", "refactor", "validation")
-	TimeToFirstEventMs  int64
-	ToolCallCount       int
-	StallCount          int
-	StallTier           string // "initial" or "active"
-	RateLimitHits       int
-	RateLimitRecoveryMs int64  // ms to recover from most recent rate limit
-	CacheHit            bool   `json:"cache_hit,omitempty"`
-	CacheMiss           bool   `json:"cache_miss,omitempty"`
-	CacheWrite          bool   `json:"cache_write,omitempty"`
-	CacheClass          string `json:"cache_class,omitempty"`
-	CacheKey            string `json:"cache_key,omitempty"`
+	TimeoutType             string // "stall", "bead", "invocation", ""
+	TimeoutPhase            string // phase active when timeout/cancel occurred (e.g. "red", "green", "refactor", "validation")
+	TimeToFirstEventMs      int64
+	ToolCallCount           int
+	StallCount              int
+	StallTier               string // "initial" or "active"
+	RateLimitHits           int
+	RateLimitRecoveryMs     int64  // ms to recover from most recent rate limit
+	CacheHit                bool   `json:"cache_hit,omitempty"`
+	CacheMiss               bool   `json:"cache_miss,omitempty"`
+	CacheWrite              bool   `json:"cache_write,omitempty"`
+	CacheClass              string `json:"cache_class,omitempty"`
+	CacheKey                string `json:"cache_key,omitempty"`
 	CacheInvalidationReason string `json:"cache_invalidation_reason,omitempty"`
-	CacheVersionMarker  string `json:"cache_version_marker,omitempty"`
-	UtilityRoutingCategory string `json:"utility_routing_category,omitempty"`
-	UtilityRoutingTier string `json:"utility_routing_tier,omitempty"`
-	FallbackAttempts    int    // number of fallback attempts triggered this iteration
-	FallbackSuccesses   int    // successful fallback outcomes this iteration
-	FallbackFailures    int    // failed fallback outcomes this iteration
-	FailureLayer        string // top-level failure taxonomy bucket (e.g. execution, validation)
-	FailureSubCat       string // lower-level failure taxonomy value within FailureLayer
+	CacheVersionMarker      string `json:"cache_version_marker,omitempty"`
+	UtilityRoutingCategory  string `json:"utility_routing_category,omitempty"`
+	UtilityRoutingTier      string `json:"utility_routing_tier,omitempty"`
+	FallbackAttempts        int    // number of fallback attempts triggered this iteration
+	FallbackSuccesses       int    // successful fallback outcomes this iteration
+	FallbackFailures        int    // failed fallback outcomes this iteration
+	FailureLayer            string // top-level failure taxonomy bucket (e.g. execution, validation)
+	FailureSubCat           string // lower-level failure taxonomy value within FailureLayer
 
 	AcceptanceFailureSummary  string // short summary for JSONL
 	AcceptanceFailureOutput   string // captured validation output from failed acceptance verification
@@ -149,8 +149,10 @@ type IterationResult struct {
 	UncoveredCriteria  []string
 
 	// TDD phase metrics (nil when TDD methodology is inactive)
-	PhaseMetrics []PhaseMetric `json:"phase_metrics,omitempty"`
-	CycleSnapshots []CycleSnapshot `json:"cycle_snapshots,omitempty"`
+	PhaseMetrics           []PhaseMetric   `json:"phase_metrics,omitempty"`
+	CycleSnapshots         []CycleSnapshot `json:"cycle_snapshots,omitempty"`
+	ConvergenceInstability InstabilityType `json:"convergence_instability,omitempty"`
+	ReadinessStopReason    string          `json:"readiness_stop_reason,omitempty"`
 	// Prompt diagnostics for token attribution and shaping decisions.
 	PromptDiagnostics *prompt.PromptDiagnostics `json:"prompt_diagnostics,omitempty"`
 
@@ -185,6 +187,19 @@ type CycleSnapshot struct {
 	Remaining    []string `json:"remaining,omitempty"`
 	TouchedFiles []string `json:"touched_files,omitempty"`
 }
+
+// InstabilityType describes the type of convergence failure detected during TDD.
+type InstabilityType string
+
+const (
+	// InstabilityNone indicates no instability detected.
+	InstabilityNone InstabilityType = ""
+	// InstabilityDeadlock indicates the cycle repeated a state without progress.
+	InstabilityDeadlock InstabilityType = "deadlock"
+	// InstabilityOscillation indicates the cycle looped back to a previously
+	// visited state after visiting another state.
+	InstabilityOscillation InstabilityType = "oscillation"
+)
 
 // HardStopApprovalState captures explicit approval for hard-stop actions.
 type HardStopApprovalState struct {

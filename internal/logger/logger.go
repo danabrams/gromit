@@ -24,6 +24,7 @@ type IterationLog struct {
 	FailurePhase             string    `json:"failure_phase,omitempty"`
 	FailureCategory          string    `json:"failure_category,omitempty"`
 	GateBlockReason          string    `json:"gate_block_reason,omitempty"`
+	ReadinessStopReason      string    `json:"readiness_stop_reason,omitempty"`
 	Success                  bool      `json:"success"`
 	Validated                bool      `json:"validated"`
 	Escalated                bool      `json:"escalated"`
@@ -53,33 +54,33 @@ type IterationLog struct {
 	HardStopPendingApproval  bool      `json:"hard_stop_pending_approval,omitempty"`
 
 	// Diagnostic fields for timeout investigation
-	TimeoutType         string `json:"timeout_type,omitempty"`           // "stall", "bead", "invocation", ""
-	TimeoutPhase        string `json:"timeout_phase,omitempty"`          // phase active when timeout/cancel occurred
-	TimeoutDecompositionAttempted bool `json:"timeout_decomposition_attempted,omitempty"` // timeout triggered decomposition attempt
-	TimeoutDecompositionSucceeded bool `json:"timeout_decomposition_succeeded,omitempty"` // timeout decomposition completed successfully
+	TimeoutType                     string    `json:"timeout_type,omitempty"`                       // "stall", "bead", "invocation", ""
+	TimeoutPhase                    string    `json:"timeout_phase,omitempty"`                      // phase active when timeout/cancel occurred
+	TimeoutDecompositionAttempted   bool      `json:"timeout_decomposition_attempted,omitempty"`    // timeout triggered decomposition attempt
+	TimeoutDecompositionSucceeded   bool      `json:"timeout_decomposition_succeeded,omitempty"`    // timeout decomposition completed successfully
 	TimeoutDecompositionAttemptTime time.Time `json:"timeout_decomposition_attempt_time,omitempty"` // timestamp of decomposition attempt
-	TimeoutDecompositionOutcome string `json:"timeout_decomposition_outcome,omitempty"` // outcome of decomposition attempt
-	TimeoutDecompositionReason string `json:"timeout_decomposition_reason,omitempty"` // reason/decision marker for decomposition
-	TimeToFirstEventMs  int64  `json:"time_to_first_event_ms,omitempty"` // ms from start to first stream event
-	ToolCallCount       int    `json:"tool_call_count,omitempty"`        // tool calls before completion/timeout
-	StallCount          int    `json:"stall_count,omitempty"`            // number of stall detections
-	StallTier           string `json:"stall_tier,omitempty"`             // "initial" or "active"
-	RateLimitHits       int    `json:"rate_limit_hits,omitempty"`        // rate limit events detected
-	RateLimitRecoveryMs int64  `json:"rate_limit_recovery_ms,omitempty"` // ms to recover from most recent rate limit
-	CacheHit            bool   `json:"cache_hit,omitempty"`
-	CacheMiss           bool   `json:"cache_miss,omitempty"`
-	CacheWrite          bool   `json:"cache_write,omitempty"`
-	CacheClass          string `json:"cache_class,omitempty"`
-	CacheKey            string `json:"cache_key,omitempty"`
-	CacheInvalidationReason string `json:"cache_invalidation_reason,omitempty"`
-	CacheVersionMarker  string `json:"cache_version_marker,omitempty"`
-	UtilityRoutingCategory string `json:"utility_routing_category,omitempty"`
-	UtilityRoutingTier string `json:"utility_routing_tier,omitempty"`
-	FallbackAttempts    int    `json:"fallback_attempts,omitempty"`      // fallback attempts in this iteration
-	FallbackSuccesses   int    `json:"fallback_successes,omitempty"`     // successful fallback outcomes
-	FallbackFailures    int    `json:"fallback_failures,omitempty"`      // failed fallback outcomes
-	FailureLayer        string `json:"failure_layer,omitempty"`          // top-level failure taxonomy bucket
-	FailureSubCat       string `json:"failure_sub_cat,omitempty"`        // lower-level failure taxonomy value
+	TimeoutDecompositionOutcome     string    `json:"timeout_decomposition_outcome,omitempty"`      // outcome of decomposition attempt
+	TimeoutDecompositionReason      string    `json:"timeout_decomposition_reason,omitempty"`       // reason/decision marker for decomposition
+	TimeToFirstEventMs              int64     `json:"time_to_first_event_ms,omitempty"`             // ms from start to first stream event
+	ToolCallCount                   int       `json:"tool_call_count,omitempty"`                    // tool calls before completion/timeout
+	StallCount                      int       `json:"stall_count,omitempty"`                        // number of stall detections
+	StallTier                       string    `json:"stall_tier,omitempty"`                         // "initial" or "active"
+	RateLimitHits                   int       `json:"rate_limit_hits,omitempty"`                    // rate limit events detected
+	RateLimitRecoveryMs             int64     `json:"rate_limit_recovery_ms,omitempty"`             // ms to recover from most recent rate limit
+	CacheHit                        bool      `json:"cache_hit,omitempty"`
+	CacheMiss                       bool      `json:"cache_miss,omitempty"`
+	CacheWrite                      bool      `json:"cache_write,omitempty"`
+	CacheClass                      string    `json:"cache_class,omitempty"`
+	CacheKey                        string    `json:"cache_key,omitempty"`
+	CacheInvalidationReason         string    `json:"cache_invalidation_reason,omitempty"`
+	CacheVersionMarker              string    `json:"cache_version_marker,omitempty"`
+	UtilityRoutingCategory          string    `json:"utility_routing_category,omitempty"`
+	UtilityRoutingTier              string    `json:"utility_routing_tier,omitempty"`
+	FallbackAttempts                int       `json:"fallback_attempts,omitempty"`  // fallback attempts in this iteration
+	FallbackSuccesses               int       `json:"fallback_successes,omitempty"` // successful fallback outcomes
+	FallbackFailures                int       `json:"fallback_failures,omitempty"`  // failed fallback outcomes
+	FailureLayer                    string    `json:"failure_layer,omitempty"`      // top-level failure taxonomy bucket
+	FailureSubCat                   string    `json:"failure_sub_cat,omitempty"`    // lower-level failure taxonomy value
 
 	AcceptanceFailureSummary  string `json:"acceptance_failure_summary,omitempty"`
 	AcceptanceFailureOutput   string `json:"acceptance_failure_output,omitempty"`
@@ -263,9 +264,9 @@ func (l *Logger) FilePath() string {
 
 // RunStats holds aggregate statistics from log files
 type RunStats struct {
-	Total     int
-	Failed    int
-	Succeeded int
+	Total        int
+	Failed       int
+	Succeeded    int
 	UsageLimited int
 }
 
@@ -279,15 +280,15 @@ func (s RunStats) FailureRate() float64 {
 
 // BeadStats holds per-bead statistics
 type BeadStats struct {
-	BeadID      string
-	BeadTitle   string
-	TotalRuns   int
-	Failures    int
-	Successes   int
-	LastAttempt time.Time
-	Status      string
-	CloseReason string
-	Comments    []string
+	BeadID               string
+	BeadTitle            string
+	TotalRuns            int
+	Failures             int
+	Successes            int
+	LastAttempt          time.Time
+	Status               string
+	CloseReason          string
+	Comments             []string
 	UsageLimitedFailures int
 }
 
@@ -331,22 +332,22 @@ func ReadAllLogsFiltered(logsDir string, beadFilter map[string]bool) (RunStats, 
 		if err != nil {
 			continue // Skip unreadable files
 		}
-	for _, entry := range entries {
-		// Apply filter if provided
-		if len(beadFilter) > 0 && !beadFilter[entry.BeadID] {
-			continue
-		}
+		for _, entry := range entries {
+			// Apply filter if provided
+			if len(beadFilter) > 0 && !beadFilter[entry.BeadID] {
+				continue
+			}
 
-		stats.Total++
-		if entry.UsageLimited {
-			stats.UsageLimited++
+			stats.Total++
+			if entry.UsageLimited {
+				stats.UsageLimited++
+			}
+			if entry.Success {
+				stats.Succeeded++
+			} else {
+				stats.Failed++
+			}
 		}
-		if entry.Success {
-			stats.Succeeded++
-		} else {
-			stats.Failed++
-		}
-	}
 	}
 
 	return stats, nil
@@ -386,14 +387,14 @@ func ReadPerBeadStatsFiltered(logsDir string, beadFilter map[string]bool) (map[s
 				stats.BeadTitle = entry.BeadTitle
 			}
 
-		stats.TotalRuns++
-		if entry.UsageLimited {
-			stats.UsageLimitedFailures++
-		}
-		if entry.Success {
-			stats.Successes++
-		} else {
-			stats.Failures++
+			stats.TotalRuns++
+			if entry.UsageLimited {
+				stats.UsageLimitedFailures++
+			}
+			if entry.Success {
+				stats.Successes++
+			} else {
+				stats.Failures++
 			}
 
 			// Update last attempt time if this entry is more recent

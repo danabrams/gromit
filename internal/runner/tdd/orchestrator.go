@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/pipeline/prepare"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
@@ -70,61 +71,61 @@ func isSupportedRefactorOutcome(outcome refactorOutcome) bool {
 
 // CycleOrchestrator runs TDD red-green-refactor cycles with fresh context per phase.
 type CycleOrchestrator struct {
-	renderRedFn          RenderRedFn
-	renderGreenFn        RenderGreenFn
-	invokeFn             InvokeFn
-	validateFn           ValidateFn
-	runRefactorFn        RunRefactorFn
-	escalateTierFn       EscalateTierFn
-	getDiffFn            GetDiffFn
-	readFileFn           ReadFileFn
-	getGitHeadFn         GetGitHeadFn
-	gitResetFn           GitResetFn
-	listChangedFilesFn   ListChangedFilesFn
-	restoreTestFilesFn   RestoreTestFilesFn
-	logPhaseFn           LogPhaseFn
-	recordPhaseMetricFn  RecordPhaseMetricFn
-	output               io.Writer
-	cfg                  *config.Config
+	renderRedFn         RenderRedFn
+	renderGreenFn       RenderGreenFn
+	invokeFn            InvokeFn
+	validateFn          ValidateFn
+	runRefactorFn       RunRefactorFn
+	escalateTierFn      EscalateTierFn
+	getDiffFn           GetDiffFn
+	readFileFn          ReadFileFn
+	getGitHeadFn        GetGitHeadFn
+	gitResetFn          GitResetFn
+	listChangedFilesFn  ListChangedFilesFn
+	restoreTestFilesFn  RestoreTestFilesFn
+	logPhaseFn          LogPhaseFn
+	recordPhaseMetricFn RecordPhaseMetricFn
+	output              io.Writer
+	cfg                 *config.Config
 }
 
 // CycleOrchestratorDeps holds callback dependencies for building a CycleOrchestrator.
 type CycleOrchestratorDeps struct {
-	RenderRedFn          RenderRedFn
-	RenderGreenFn        RenderGreenFn
-	InvokeFn             InvokeFn
-	ValidateFn           ValidateFn
-	RunRefactorFn        RunRefactorFn
-	EscalateTierFn       EscalateTierFn
-	GetDiffFn            GetDiffFn
-	ReadFileFn           ReadFileFn
-	GetGitHeadFn         GetGitHeadFn
-	GitResetFn           GitResetFn
-	ListChangedFilesFn   ListChangedFilesFn
-	RestoreTestFilesFn   RestoreTestFilesFn
-	LogPhaseFn           LogPhaseFn
-	RecordPhaseMetricFn  RecordPhaseMetricFn
+	RenderRedFn         RenderRedFn
+	RenderGreenFn       RenderGreenFn
+	InvokeFn            InvokeFn
+	ValidateFn          ValidateFn
+	RunRefactorFn       RunRefactorFn
+	EscalateTierFn      EscalateTierFn
+	GetDiffFn           GetDiffFn
+	ReadFileFn          ReadFileFn
+	GetGitHeadFn        GetGitHeadFn
+	GitResetFn          GitResetFn
+	ListChangedFilesFn  ListChangedFilesFn
+	RestoreTestFilesFn  RestoreTestFilesFn
+	LogPhaseFn          LogPhaseFn
+	RecordPhaseMetricFn RecordPhaseMetricFn
 }
 
 // NewCycleOrchestrator creates a TDD cycle orchestrator with injected callbacks.
 func NewCycleOrchestrator(cfg *config.Config, output io.Writer, deps CycleOrchestratorDeps) *CycleOrchestrator {
 	return &CycleOrchestrator{
-		renderRedFn:          deps.RenderRedFn,
-		renderGreenFn:        deps.RenderGreenFn,
-		invokeFn:             deps.InvokeFn,
-		validateFn:           deps.ValidateFn,
-		runRefactorFn:        deps.RunRefactorFn,
-		escalateTierFn:       deps.EscalateTierFn,
-		getDiffFn:            deps.GetDiffFn,
-		readFileFn:           deps.ReadFileFn,
-		getGitHeadFn:         deps.GetGitHeadFn,
-		gitResetFn:           deps.GitResetFn,
-		listChangedFilesFn:   deps.ListChangedFilesFn,
-		restoreTestFilesFn:   deps.RestoreTestFilesFn,
-		logPhaseFn:           deps.LogPhaseFn,
-		recordPhaseMetricFn:  deps.RecordPhaseMetricFn,
-		output:               output,
-		cfg:                  cfg,
+		renderRedFn:         deps.RenderRedFn,
+		renderGreenFn:       deps.RenderGreenFn,
+		invokeFn:            deps.InvokeFn,
+		validateFn:          deps.ValidateFn,
+		runRefactorFn:       deps.RunRefactorFn,
+		escalateTierFn:      deps.EscalateTierFn,
+		getDiffFn:           deps.GetDiffFn,
+		readFileFn:          deps.ReadFileFn,
+		getGitHeadFn:        deps.GetGitHeadFn,
+		gitResetFn:          deps.GitResetFn,
+		listChangedFilesFn:  deps.ListChangedFilesFn,
+		restoreTestFilesFn:  deps.RestoreTestFilesFn,
+		logPhaseFn:          deps.LogPhaseFn,
+		recordPhaseMetricFn: deps.RecordPhaseMetricFn,
+		output:              output,
+		cfg:                 cfg,
 	}
 }
 
@@ -243,7 +244,9 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 		// AssembleCycleState sets Done=true when Remaining is empty.
 		o.logPhase(state.CycleNumber+1, "red-skip", "criterion already passing, advancing")
 		*state = AssembleCycleState(*state, "")
-		o.recordCycleSnapshot(bc, *state)
+		if inst := o.recordCycleSnapshot(bc, *state); inst != runtypes.InstabilityNone {
+			o.applyCycleInstability(bc, inst, state)
+		}
 		return nil
 	}
 
@@ -284,7 +287,9 @@ func (o *CycleOrchestrator) runOneCycle(ctx context.Context, bc *runtypes.BeadCo
 
 	// Advance state
 	*state = AssembleCycleState(*state, "")
-	o.recordCycleSnapshot(bc, *state)
+	if inst := o.recordCycleSnapshot(bc, *state); inst != runtypes.InstabilityNone {
+		o.applyCycleInstability(bc, inst, state)
+	}
 	return nil
 }
 
@@ -470,7 +475,6 @@ func (o *CycleOrchestrator) runFinalValidation(ctx context.Context) error {
 	return nil
 }
 
-
 // recordPhaseMetric records a phase metric with snapshot-based deltas.
 func (o *CycleOrchestrator) recordPhaseMetric(bc *runtypes.BeadContext, phase string, cycleNumber int, beforeCostUSD float64, beforeInputTokens int, beforeOutputTokens int, startTime time.Time) {
 	if o.recordPhaseMetricFn != nil {
@@ -485,16 +489,79 @@ func (o *CycleOrchestrator) ensureValidateFn() error {
 	return nil
 }
 
-func (o *CycleOrchestrator) recordCycleSnapshot(bc *runtypes.BeadContext, state CycleState) {
+func (o *CycleOrchestrator) recordCycleSnapshot(bc *runtypes.BeadContext, state CycleState) runtypes.InstabilityType {
 	if bc == nil || bc.Result == nil {
-		return
+		return runtypes.InstabilityNone
 	}
-	bc.Result.CycleSnapshots = append(bc.Result.CycleSnapshots, runtypes.CycleSnapshot{
+	snapshot := runtypes.CycleSnapshot{
 		CycleNumber:  state.CycleNumber,
 		CoveredSoFar: cloneStringSlice(state.CoveredSoFar),
 		Remaining:    cloneStringSlice(state.Remaining),
 		TouchedFiles: cloneStringSlice(state.TouchedFiles),
-	})
+	}
+	bc.Result.CycleSnapshots = append(bc.Result.CycleSnapshots, snapshot)
+	return detectCycleInstability(bc.Result.CycleSnapshots)
+}
+
+func detectCycleInstability(snapshots []runtypes.CycleSnapshot) runtypes.InstabilityType {
+	n := len(snapshots)
+	if n < 2 {
+		return runtypes.InstabilityNone
+	}
+	latest := snapshots[n-1]
+	if len(latest.Remaining) == 0 {
+		return runtypes.InstabilityNone
+	}
+	prev := snapshots[n-2]
+	if len(prev.Remaining) > 0 && equalStringSlices(latest.Remaining, prev.Remaining) {
+		return runtypes.InstabilityDeadlock
+	}
+	for i := n - 3; i >= 0; i-- {
+		if len(snapshots[i].Remaining) == 0 {
+			continue
+		}
+		if equalStringSlices(latest.Remaining, snapshots[i].Remaining) {
+			return runtypes.InstabilityOscillation
+		}
+	}
+	return runtypes.InstabilityNone
+}
+
+func (o *CycleOrchestrator) applyCycleInstability(bc *runtypes.BeadContext, inst runtypes.InstabilityType, state *CycleState) {
+	if bc == nil || bc.Result == nil || inst == runtypes.InstabilityNone {
+		return
+	}
+	bc.Result.ConvergenceInstability = inst
+	bc.Result.ReadinessStopReason = readinessReasonForInstability(inst)
+	detail := fmt.Sprintf("instability detected (%s)", inst)
+	if reason := bc.Result.ReadinessStopReason; reason != "" {
+		detail = fmt.Sprintf("%s -> %s", detail, reason)
+	}
+	o.logPhase(state.CycleNumber, "convergence", detail)
+	state.Done = true
+}
+
+func readinessReasonForInstability(inst runtypes.InstabilityType) string {
+	switch inst {
+	case runtypes.InstabilityDeadlock:
+		return string(prepare.ReadinessOutcomeNotReadyCriteria)
+	case runtypes.InstabilityOscillation:
+		return string(prepare.ReadinessOutcomeNotReadyScope)
+	default:
+		return ""
+	}
+}
+
+func equalStringSlices(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func cloneStringSlice(src []string) []string {

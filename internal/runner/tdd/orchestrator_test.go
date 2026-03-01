@@ -272,20 +272,21 @@ func TestRunCycles_DeadlockStopsWithReadinessReason(t *testing.T) {
 	}
 
 	state := CycleState{
+		MaxCycles: 10,
 		Remaining: []string{"implement feature X", "implement feature Y"},
 	}
 	if err := orch.RunCycles(context.Background(), bc, state); err != nil {
 		t.Fatalf("unexpected RunCycles error: %v", err)
 	}
 
+	if bc.Result.ConvergenceInstability != runtypes.InstabilityDeadlock {
+		t.Fatalf("unexpected convergence instability: %v (snapshots=%v)", bc.Result.ConvergenceInstability, bc.Result.CycleSnapshots)
+	}
 	if bc.Result.ReadinessStopReason != string(prepare.ReadinessOutcomeNotReadyCriteria) {
 		t.Fatalf("unexpected readiness stop reason: %q", bc.Result.ReadinessStopReason)
 	}
-	if bc.Result.ConvergenceInstability != runtypes.InstabilityDeadlock {
-		t.Fatalf("unexpected convergence instability: %v", bc.Result.ConvergenceInstability)
-	}
-	if len(bc.Result.CycleSnapshots) == 0 {
-		t.Fatalf("expected cycle snapshots recorded")
+	if len(bc.Result.CycleSnapshots) != 2 {
+		t.Fatalf("expected 2 cycle snapshots, got %d", len(bc.Result.CycleSnapshots))
 	}
 	last := bc.Result.CycleSnapshots[len(bc.Result.CycleSnapshots)-1]
 	if len(last.Remaining) != 1 || last.Remaining[0] != "implement feature Y" {
@@ -328,17 +329,21 @@ func TestRunCycles_OscillationStopsWithScopeReason(t *testing.T) {
 	}
 
 	state := CycleState{
+		MaxCycles: 10,
 		Remaining: []string{"implement feature X", "implement feature Y"},
 	}
 	if err := orch.RunCycles(context.Background(), bc, state); err != nil {
 		t.Fatalf("unexpected RunCycles error: %v", err)
 	}
 
+	if bc.Result.ConvergenceInstability != runtypes.InstabilityOscillation {
+		t.Fatalf("unexpected convergence instability: %v (snapshots=%v)", bc.Result.ConvergenceInstability, bc.Result.CycleSnapshots)
+	}
+	if len(bc.Result.CycleSnapshots) != 3 {
+		t.Fatalf("expected 3 cycle snapshots, got %d", len(bc.Result.CycleSnapshots))
+	}
 	if bc.Result.ReadinessStopReason != string(prepare.ReadinessOutcomeNotReadyScope) {
 		t.Fatalf("unexpected readiness stop reason: %q", bc.Result.ReadinessStopReason)
-	}
-	if bc.Result.ConvergenceInstability != runtypes.InstabilityOscillation {
-		t.Fatalf("unexpected convergence instability: %v", bc.Result.ConvergenceInstability)
 	}
 }
 
