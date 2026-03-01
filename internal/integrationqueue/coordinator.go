@@ -151,15 +151,31 @@ func (c *Coordinator) RecoverFromCrash(ctx context.Context) error {
 	// Find and reset any entries in integrating state
 	recovered := false
 	for i := range queue.Entries {
-		if queue.Entries[i].State == StateIntegrating {
-			if err := ApplyTransition(&queue.Entries[i], string(StateReady), "crash recovery"); err != nil {
-				return fmt.Errorf("transitioning recovered entry %s: %w", queue.Entries[i].Branch, err)
+		entry := &queue.Entries[i]
+		if entry.State == StateIntegrating {
+			targetState := StateReady
+			reason := "crash recovery"
+			clearError := true
+
+			switch entry.LastErrorCode {
+			case string(StateFailedGates):
+				targetState = StateFailedGates
+				reason = "crash recovery: failed gates"
+				clearError = false
 			}
-			queue.Entries[i].LastErrorCode = string(crashRecoveryErrorCode)
-			queue.Entries[i].LastErrorMessage = "recovered from crash: entry was in integrating state"
+
+			if err := ApplyTransition(entry, string(targetState), reason); err != nil {
+				return fmt.Errorf("transitioning recovered entry %s: %w", entry.Branch, err)
+			}
+
+			if clearError {
+				entry.LastErrorCode = string(crashRecoveryErrorCode)
+				entry.LastErrorMessage = "recovered from crash: entry was in integrating state"
+			}
+
 			// Save each recovered entry
-			if err := c.store.Save(queue.Entries[i]); err != nil {
-				return fmt.Errorf("saving recovered entry %s: %w", queue.Entries[i].Branch, err)
+			if err := c.store.Save(*entry); err != nil {
+				return fmt.Errorf("saving recovered entry %s: %w", entry.Branch, err)
 			}
 			recovered = true
 		}
