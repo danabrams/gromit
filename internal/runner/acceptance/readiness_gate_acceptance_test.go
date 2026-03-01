@@ -35,6 +35,29 @@ func TestReadinessGateBlocksUnlabeledBead(t *testing.T) {
 	}
 }
 
+func TestReadinessGateBlocksSpecLabeledBead(t *testing.T) {
+	t.Parallel()
+
+	result := runReadinessGateAcceptanceTest(t, readinessGateAcceptanceOptions{
+		Bead: &bead.Bead{
+			ID:     "spec-1",
+			Title:  "Spec bead",
+			Labels: []string{"spec:payments"},
+		},
+		Assessment: readiness.Assessment{
+			Status: readiness.StatusNotReady,
+			Reason: "criteria_missing",
+		},
+	})
+
+	if !result.Blocked {
+		t.Fatalf("expected spec bead to be blocked by readiness gate")
+	}
+	if result.GateBlockReason != "criteria_missing" {
+		t.Fatalf("GateBlockReason = %q, want %q", result.GateBlockReason, "criteria_missing")
+	}
+}
+
 type readinessGateAcceptanceOptions struct {
 	Bead       *bead.Bead
 	Assessment readiness.Assessment
