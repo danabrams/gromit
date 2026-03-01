@@ -83,6 +83,10 @@ func clusterByArea(learnings []learnings.Learning, minClusterSize int) []Frictio
 		result = append(result, *cluster)
 	}
 
+	if len(result) == 0 {
+		return nil
+	}
+
 	sort.Slice(result, func(i, j int) bool {
 		if result[i].LearningCount != result[j].LearningCount {
 			return result[i].LearningCount > result[j].LearningCount
