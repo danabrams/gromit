@@ -51,6 +51,22 @@ func TestManagerAdvanceInvalidTransition(t *testing.T) {
     }
 }
 
+func TestManagerGuard(t *testing.T) {
+    ctx := context.Background()
+    store := &fakeSpecStore{stage: StageReview}
+    mgr := NewManager(store)
+
+    if err := mgr.Guard(ctx, "spec-3", StageReview); err != nil {
+        t.Fatalf("unexpected guard failure: %v", err)
+    }
+
+    if err := mgr.Guard(ctx, "spec-3", StagePlanning); err == nil {
+        t.Fatal("expected guard to report mismatch")
+    } else if !errors.Is(err, ErrStageMismatch) {
+        t.Fatalf("expected ErrStageMismatch, got %v", err)
+    }
+}
+
 type fakeSpecStore struct {
     stage      Stage
     stageErr   error
