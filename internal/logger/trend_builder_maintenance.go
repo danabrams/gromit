@@ -74,3 +74,23 @@ func uniquePackages(packages []string) []string {
 	}
 	return out
 }
+
+func summarizeConvergence(metrics []IterationMetric) ConvergenceSummary {
+	summary := ConvergenceSummary{}
+	for _, metric := range metrics {
+		inst := metric.ConvergenceInstability
+		if inst == "" {
+			continue
+		}
+		summary.LatestInstability = inst
+		summary.LatestIteration = metric.Iteration
+		summary.LatestTimestamp = metric.Timestamp
+		switch inst {
+		case "deadlock":
+			summary.DeadlockCount++
+		case "oscillation":
+			summary.OscillationCount++
+		}
+	}
+	return summary
+}

@@ -428,6 +428,7 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 		ReadinessBlockCount:             latestMetric.RollingReadinessBlockCount,
 		ReadinessBlockRate:              latestMetric.RollingReadinessBlockRate,
 	}
+	trend.ConvergenceSummary = summarizeConvergence(metrics)
 	trend.PromptTokenSummary = summarizePromptTokens(metrics, windowSize)
 	windowStart := len(metrics) - windowSize
 	if windowStart < 0 {
@@ -435,7 +436,6 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 	}
 	windowEntries := metrics[windowStart:]
 	trend.ProviderMetrics = computeProviderMetrics(windowEntries)
-
 	for _, metric := range trendControlLimitSeries {
 		latestValue := metric.latestSample(latestMetric)
 		historyValues := extractMetric(metrics, metric.historySample)
