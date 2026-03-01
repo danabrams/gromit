@@ -5941,6 +5941,16 @@ func TestReadinessEmergencyOverrideAccessor(t *testing.T) {
 	}
 }
 
+func TestReadinessEmergencyOverrideDefaultAfterSetDefaults(t *testing.T) {
+	cfg := &Config{}
+	cfg.SetDefaults()
+
+	// Verify default is false and accessor returns false
+	if got := cfg.IsReadinessEmergencyOverrideEnabled(); got {
+		t.Errorf("IsReadinessEmergencyOverrideEnabled() after SetDefaults() = %v, want false", got)
+	}
+}
+
 func TestReadinessCheckConfigFromYAML(t *testing.T) {
 	tests := []struct {
 		name             string
