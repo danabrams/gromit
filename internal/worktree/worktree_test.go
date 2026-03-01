@@ -268,6 +268,51 @@ func TestCreateBranch_DifferentCommands(t *testing.T) {
 	}
 }
 
+// TestCreateBranchCancelsWhenContextDone verifies CreateBranch honors the caller
+// context so that long-running git commands can be interrupted.
+func TestCreateBranchCancelsWhenContextDone(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "repo")
+	if err := os.MkdirAll(mainDir, 0o755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+	worktreeDir := mainDir + "-gromit-interactive"
+	if err := os.MkdirAll(worktreeDir, 0o755); err != nil {
+		t.Fatalf("failed to create worktree dir: %v", err)
+	}
+
+	fakeGitDir := t.TempDir()
+	fakeGit := filepath.Join(fakeGitDir, "git")
+	script := "#!/bin/sh\nsleep 5\n"
+	if err := os.WriteFile(fakeGit, []byte(script), 0o755); err != nil {
+		t.Fatalf("failed to write fake git: %v", err)
+	}
+
+	origPath := os.Getenv("PATH")
+	if err := os.Setenv("PATH", fakeGitDir+string(os.PathListSeparator)+origPath); err != nil {
+		t.Fatalf("failed to update PATH: %v", err)
+	}
+	t.Cleanup(func() { os.Setenv("PATH", origPath) })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+
+	m, err := NewManager(mainDir)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	if _, err := m.CreateBranch(ctx, "sync"); err == nil {
+		t.Fatal("CreateBranch() should return an error when context is canceled")
+	} else if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) && !strings.Contains(err.Error(), "signal: killed") {
+		t.Fatalf("CreateBranch() returned %v, want context cancellation error", err)
+	}
+}
+
 // TestCleanup_RemovesWorktree verifies that Cleanup removes the worktree
 // directory and cleans up git worktree state.
 func TestCleanup_RemovesWorktree(t *testing.T) {
