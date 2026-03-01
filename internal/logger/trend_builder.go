@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/danabrams/gromit/internal/failurephase"
+	"github.com/danabrams/gromit/internal/readiness"
 )
 
 const (
@@ -494,8 +495,15 @@ func isReadinessBlockReason(reason string) bool {
 	if reason == "" {
 		return false
 	}
-	if _, ok := readinessBlockReasons[reason]; ok {
+	normalized, override := readiness.NormalizeReason(reason)
+	if normalized == "" {
+		return false
+	}
+	if override {
+		return false
+	}
+	if _, ok := readinessBlockReasons[normalized]; ok {
 		return true
 	}
-	return strings.HasPrefix(reason, "readiness_")
+	return strings.HasPrefix(normalized, "readiness_")
 }
