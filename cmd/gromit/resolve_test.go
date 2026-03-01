@@ -371,3 +371,66 @@ func TestRetroWorktreeLogsSetupEndToEnd_SymlinkAndPassthrough(t *testing.T) {
 		}
 	}
 }
+
+func TestResolveRetroWorktreeLogsDir_ConsolidatedFunction(t *testing.T) {
+	// RED test: Consolidated function for retro worktree logs resolution.
+	// This replaces setupRetroLogsForWorktree, prepareRetroWorktreeWithMainRepoLogs,
+	// and ensureRetroWorktreeLogsSetup with a single, clear function.
+	//
+	// The function should:
+	// 1. Return empty string and nil error if worktreeGromitDir is empty
+	// 2. Try to create a symlink from worktree logs to main repo logs
+	// 3. If that fails, resolve the main repo logs path via git
+	// 4. Return the accessible logs path
+
+	tmpDir := t.TempDir()
+
+	// Create main repo with logs
+	mainGromitDir := filepath.Join(tmpDir, "main", ".gromit")
+	mainLogsDir := filepath.Join(mainGromitDir, "logs")
+	if err := os.MkdirAll(mainLogsDir, 0o755); err != nil {
+		t.Fatalf("creating main repo logs: %v", err)
+	}
+
+	// Create worktree without logs
+	worktreeGromitDir := filepath.Join(tmpDir, "worktree", ".gromit")
+	if err := os.MkdirAll(worktreeGromitDir, 0o755); err != nil {
+		t.Fatalf("creating worktree .gromit: %v", err)
+	}
+
+	// Call the consolidated function
+	logsPath, err := ResolveRetroWorktreeLogsDir(worktreeGromitDir, mainGromitDir)
+	if err != nil {
+		t.Fatalf("ResolveRetroWorktreeLogsDir failed: %v", err)
+	}
+
+	// Verify it returned a non-empty logs path
+	if logsPath == "" {
+		t.Fatal("ResolveRetroWorktreeLogsDir should return non-empty path")
+	}
+
+	// Verify the path is accessible
+	if _, err := os.Stat(logsPath); err != nil {
+		t.Fatalf("returned logs path not accessible: %v", err)
+	}
+
+	// Verify worktree can access logs either via symlink or via returned path
+	worktreeLogsPath := filepath.Join(worktreeGromitDir, "logs")
+	if _, err := os.Stat(worktreeLogsPath); err != nil {
+		// Symlink not created, but returned path should be usable
+		if logsPath != mainLogsDir {
+			t.Logf("symlink not created, but resolved path is %q", logsPath)
+		}
+	}
+}
+
+func TestResolveRetroWorktreeLogsDir_EmptyWorktreeDir(t *testing.T) {
+	// RED test: Consolidated function should handle empty worktreeGromitDir gracefully
+	logsPath, err := ResolveRetroWorktreeLogsDir("", "main/.gromit")
+	if err != nil {
+		t.Fatalf("expected no error for empty worktreeGromitDir, got: %v", err)
+	}
+	if logsPath != "" {
+		t.Fatalf("expected empty string for empty worktreeGromitDir, got: %q", logsPath)
+	}
+}
