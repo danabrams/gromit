@@ -80,7 +80,7 @@ func buildTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *
 						remaining = extracted
 					}
 				}
-			state := newTDDCycleState(cfg, remaining)
+				state := newTDDCycleState(cfg, remaining)
 				return orch.RunCycles(ctx, bc, state)
 			},
 		},
@@ -92,7 +92,6 @@ func buildTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *
 
 func newTDDCycleState(cfg *config.Config, remaining []string) tdd.CycleState {
 	return tdd.CycleState{
-		MaxCycles: cfg.TDDMaxCycles(),
 		Remaining: remaining,
 	}
 }

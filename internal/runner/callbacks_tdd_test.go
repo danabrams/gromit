@@ -200,12 +200,12 @@ func loadHistoricalPhaseMetricsFixture(t *testing.T) []historicalPhaseMetricsFix
 	return fixtures
 }
 
-func TestNewTDDCycleStateLeavesMaxCyclesUnset(t *testing.T) {
+func TestNewTDDCycleStateSetsRemaining(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Methodology.MaxTDDCycles = 1
 	state := newTDDCycleState(cfg, []string{"req"})
-	if state.MaxCycles != 0 {
-		t.Fatalf("expected MaxCycles to remain unset, got %d", state.MaxCycles)
+	if len(state.Remaining) != 1 || state.Remaining[0] != "req" {
+		t.Fatalf("expected remaining to contain 'req', got %v", state.Remaining)
 	}
 }
 

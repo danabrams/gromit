@@ -214,7 +214,6 @@ func AssembleCycleState(prevState CycleState, redOutput string) CycleState {
 
 	next := CycleState{
 		CycleNumber:  prevState.CycleNumber + 1,
-		MaxCycles:    prevState.MaxCycles,
 		TouchedFiles: prevState.TouchedFiles,
 		Done:         prevState.Done,
 	}
