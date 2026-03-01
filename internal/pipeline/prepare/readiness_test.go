@@ -142,3 +142,17 @@ func TestCheckExpectedOutputs_IgnoresWhitespaceOutputs(t *testing.T) {
 		t.Fatalf("reason = %q, want empty", reason)
 	}
 }
+
+func newWhitespaceOutputBead() *bead.Bead {
+	return &bead.Bead{
+		ID: "whitespace-outputs",
+		ExpectedOutputs: []string{
+			"artifact.yml",
+			" ",
+			"README.md",
+			"\n",
+			"diagrams.png",
+			"\t",
+		},
+	}
+}
