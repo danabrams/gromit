@@ -184,6 +184,73 @@ func TestStoreSaveCreatesAndUpdatesEntry(t *testing.T) {
 	}
 }
 
+func TestStoreSaveAssignsFifoSeqFromMaxExisting(t *testing.T) {
+	tmpDir := t.TempDir()
+	initial := Snapshot{
+		SchemaVersion: SchemaVersion,
+		Entries: []Entry{
+			{
+				Branch:        "feature/old",
+				SessionID:     "session-old",
+				OriginCommand: "refine",
+				State:         StateReady,
+				Lane:          string(CodeLane),
+				BaseRef:       "main",
+				HeadSHA:       "sha-old",
+				CreatedAt:     time.Now().Add(-time.Hour),
+				UpdatedAt:     time.Now().Add(-time.Hour),
+				FifoSeq:       5,
+			},
+			{
+				Branch:        "feature/recent",
+				SessionID:     "session-recent",
+				OriginCommand: "refine",
+				State:         StateReady,
+				Lane:          string(CodeLane),
+				BaseRef:       "main",
+				HeadSHA:       "sha-recent",
+				CreatedAt:     time.Now(),
+				UpdatedAt:     time.Now(),
+				FifoSeq:       10,
+			},
+		},
+	}
+	writeQueueSnapshot(t, tmpDir, initial)
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore: %v", err)
+	}
+
+	entry := Entry{
+		Branch:        "feature/new",
+		SessionID:     "session-new",
+		OriginCommand: "refine",
+		State:         StateReady,
+		Lane:          string(CodeLane),
+		BaseRef:       "main",
+		HeadSHA:       "sha-new",
+	}
+	if err := store.Save(entry); err != nil {
+		t.Fatalf("store.Save: %v", err)
+	}
+
+	updated := readQueueSnapshot(t, tmpDir)
+	var newEntry *Entry
+	for i := range updated.Entries {
+		if updated.Entries[i].Branch == entry.Branch {
+			newEntry = &updated.Entries[i]
+			break
+		}
+	}
+	if newEntry == nil {
+		t.Fatalf("new entry not found")
+	}
+	if newEntry.FifoSeq != 11 {
+		t.Fatalf("fifo_seq = %d, want 11", newEntry.FifoSeq)
+	}
+}
+
 func readQueueSnapshot(t *testing.T, gromitDir string) Snapshot {
 	t.Helper()
 	path := filepath.Join(gromitDir, queueFileName)
@@ -196,6 +263,19 @@ func readQueueSnapshot(t *testing.T, gromitDir string) Snapshot {
 		t.Fatalf("unmarshal queue file: %v", err)
 	}
 	return payload
+}
+
+func writeQueueSnapshot(t *testing.T, gromitDir string, snapshot Snapshot) {
+	t.Helper()
+	snapshot.SchemaVersion = SchemaVersion
+	path := filepath.Join(gromitDir, queueFileName)
+	data, err := json.MarshalIndent(snapshot, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal snapshot: %v", err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatalf("write queue snapshot: %v", err)
+	}
 }
 
 func TestStoreSaveSortsChangedFiles(t *testing.T) {
