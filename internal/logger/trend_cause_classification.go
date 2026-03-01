@@ -79,8 +79,9 @@ func EvaluateCauseClassifications(ctx CauseClassificationContext) []CauseClassif
 	ewmaAnomalies := buildAnomalyMap(ctx.EWMAAnomalies)
 	stratifiedAnomalies := buildStratifiedAnomalyMap(ctx.StratifiedAnomalies)
 
-	strata := partitionMetricsByStratum(ctx.Metrics)
-	strata[""] = ctx.Metrics
+	strata := map[string][]IterationMetric{
+		"": ctx.Metrics,
+	}
 
 	records := make([]CauseClassificationRecord, 0, len(strata)*len(causeMetrics))
 	for stratum, metrics := range strata {

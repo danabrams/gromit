@@ -206,6 +206,59 @@ func TestEvaluateCauseClassifications_SpecialCauseFromPatternViolation(t *testin
 	}
 }
 
+func TestEvaluateCauseClassifications_ProviderStratumSpecialCause(t *testing.T) {
+	baseTime := time.Date(2026, time.March, 4, 0, 0, 0, 0, time.UTC)
+	metrics := []IterationMetric{
+		{
+			Timestamp:            baseTime.Add(-time.Minute),
+			RollingAvgCostUSD:    180,
+			Provider:             "claude",
+			RollingAvgDurationMs: 0,
+		},
+		{
+			Timestamp:            baseTime,
+			RollingAvgCostUSD:    195,
+			Provider:             "claude",
+			RollingAvgDurationMs: 0,
+		},
+	}
+
+	ctx := CauseClassificationContext{
+		Metrics: metrics,
+		StratifiedControlLimits: map[string][]TrendControlLimit{
+			"provider:claude": {
+				{
+					Metric: metricRollingAvgCostUSD,
+					Mean:   150,
+					UCL:    175,
+					LCL:    120,
+				},
+			},
+		},
+		StratifiedAnomalies: map[string][]TrendAnomaly{
+			"provider:claude": {
+				{
+					Metric:   metricRollingAvgCostUSD,
+					Severity: anomalySeverityHigh,
+				},
+			},
+		},
+	}
+
+	recs := EvaluateCauseClassifications(ctx)
+	rec := findClassificationRecord(t, recs, metricRollingAvgCostUSD, "provider:claude")
+
+	if rec.Class != CauseClassSpecial {
+		t.Fatalf("class = %s, want %s", rec.Class, CauseClassSpecial)
+	}
+	if rec.Stratum != "provider:claude" {
+		t.Fatalf("stratum = %s, want provider:claude", rec.Stratum)
+	}
+	if identity := rec.Identity(); identity != "rolling_avg_cost_usd|provider:claude|special_cause" {
+		t.Fatalf("identity = %s, want %s", identity, "rolling_avg_cost_usd|provider:claude|special_cause")
+	}
+}
+
 func findClassificationRecord(t *testing.T, records []CauseClassificationRecord, metric, stratum string) *CauseClassificationRecord {
     for _, rec := range records {
         if rec.Metric == metric && rec.Stratum == stratum {
