@@ -1,8 +1,9 @@
 ---
+created: 2026-02-28T00:00:00Z
+decomposed: true
+decomposed_at: "2026-03-01T02:29:50Z"
 id: spc-special-vs-common-cause-action-policy
 source_spec: spc-special-vs-common-cause-action-policy
-created: 2026-02-28
-decomposed: false
 ---
 
 # SPC Special-vs-Common Cause Action Policy Implementation Plan

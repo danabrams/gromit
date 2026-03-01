@@ -1,8 +1,9 @@
 ---
+created: 2026-02-28T00:00:00Z
+decomposed: true
+decomposed_at: "2026-03-01T02:31:09Z"
 id: vision-metrics-pr-template-and-ci-enforcement
 source_spec: vision-metrics-pr-template-and-ci-enforcement
-created: 2026-02-28
-decomposed: false
 ---
 
 # Vision Metrics PR Template and CI Enforcement Implementation Plan

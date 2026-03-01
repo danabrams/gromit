@@ -1,8 +1,9 @@
 ---
+created: 2026-02-28T00:00:00Z
+decomposed: true
+decomposed_at: "2026-03-01T02:15:57Z"
 id: branch-per-spec
 source_spec: branch-per-spec
-created: 2026-02-28
-decomposed: false
 ---
 
 # Branch Per Spec ATDD Workflow Implementation Plan

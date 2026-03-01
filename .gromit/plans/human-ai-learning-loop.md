@@ -1,8 +1,9 @@
 ---
+created: 2026-03-01T00:00:00Z
+decomposed: true
+decomposed_at: "2026-03-01T02:20:12Z"
 id: human-ai-learning-loop
 source_spec: human-ai-learning-loop
-created: 2026-03-01
-decomposed: false
 ---
 
 # Human-AI Learning Loop Implementation Plan

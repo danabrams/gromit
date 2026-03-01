@@ -139,6 +139,35 @@ func TestValidate(t *testing.T) {
 	}
 }
 
+func TestParseFromPRBody_ValidMetadata(t *testing.T) {
+	prBody := `# PR Description
+
+## Vision Metrics
+
+spec_id: test-spec-001
+cycle_start_trigger_at: 2026-02-25T10:00:00Z
+cycle_end_presented_at: 2026-02-28T14:30:00Z
+review_outcome: accepted
+human_tactical_intervention: no
+human_debugging_intervention: no
+escaped_regression_within_7d: no
+
+Other PR content...
+`
+
+	rec, err := ParseFromPRBody(prBody)
+	if err != nil {
+		t.Fatalf("ParseFromPRBody failed: %v", err)
+	}
+
+	if rec.SpecID != "test-spec-001" {
+		t.Fatalf("expected SpecID 'test-spec-001', got '%s'", rec.SpecID)
+	}
+	if rec.ReviewOutcome != ReviewOutcomeAccepted {
+		t.Fatalf("expected ReviewOutcome 'accepted', got '%s'", rec.ReviewOutcome)
+	}
+}
+
 func validRecord() Record {
 	start := time.Date(2026, 2, 27, 8, 0, 0, 0, time.UTC)
 	return Record{

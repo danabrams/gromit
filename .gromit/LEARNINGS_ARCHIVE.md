@@ -1928,3 +1928,8 @@ When refactoring packages like bead/ that are widely depended on, breaking API c
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-03-01 | gromit-1n3m | conventions
+When modifying YAML config files parsed by Go code, changes to field names or structure require corresponding updates to the parsing/validation code and tests. Always run the build immediately after config changes to catch parser/validator mismatches early.
+
+*Archived from new: filtered: generic engineering advice*
+

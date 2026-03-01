@@ -1,8 +1,9 @@
 ---
+created: 2026-02-28T00:00:00Z
+decomposed: true
+decomposed_at: "2026-03-01T02:26:13Z"
 id: process-stability-governance
 source_spec: process-stability-governance
-created: 2026-02-28
-decomposed: false
 ---
 
 # Process Stability Governance Implementation Plan

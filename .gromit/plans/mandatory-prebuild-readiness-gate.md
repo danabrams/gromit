@@ -1,8 +1,9 @@
 ---
+created: 2026-02-28T00:00:00Z
+decomposed: true
+decomposed_at: "2026-03-01T02:22:16Z"
 id: mandatory-prebuild-readiness-gate
 source_spec: mandatory-prebuild-readiness-gate
-created: 2026-02-28
-decomposed: false
 ---
 
 # Mandatory Pre-Build Readiness Gate Implementation Plan
