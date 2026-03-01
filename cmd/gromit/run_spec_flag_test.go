@@ -1,10 +1,16 @@
 package main
 
 import (
+	"context"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/danabrams/gromit/internal/runner"
+	"github.com/danabrams/gromit/internal/specflow"
 )
 
 // setupRunSpecTestEnv creates a minimal test environment for run command spec flag tests.
@@ -77,6 +83,58 @@ func TestRunSpecTestEnvGoProfileValidationCommands(t *testing.T) {
 	}
 	if !strings.Contains(cfg, "compile_command: \"go build\"") {
 		t.Fatalf("expected go build compile command in seeded config, got:\n%s", cfg)
+	}
+}
+
+// RED: When --spec is provided for the first time, the run-loop should bootstrap
+// specflow stage context, branch creation, and pass the context into the runner.
+func TestRunLoop_SpecFlagFreshStartBootstrapsStageAndBranch(t *testing.T) {
+	_, cleanup := setupRunSpecTestEnv(t)
+	defer cleanup()
+
+	fakeStore := &fakeSpecflowStore{stageErr: specflow.ErrStageNotFound}
+	origStoreFn := newSpecflowStoreFn
+	newSpecflowStoreFn = func(gromitDir string) (specflow.SpecStore, error) {
+		return fakeStore, nil
+	}
+	defer func() { newSpecflowStoreFn = origStoreFn }()
+
+	var capturedStageCtx *runner.StageContext
+	origRunnerFn := newRunnerWithStageContextFn
+	newRunnerWithStageContextFn = func(cfg *config.Config, output io.Writer, stageCtx *runner.StageContext, labels ...string) (*runner.Orchestrator, error) {
+		capturedStageCtx = stageCtx
+		return nil, fmt.Errorf("runner stub")
+	}
+	defer func() { newRunnerWithStageContextFn = origRunnerFn }()
+
+	var branches []string
+	origBranchFn := newSpecBranchCreatorFn
+	newSpecBranchCreatorFn = func(repoDir string, cfg *config.Config) (specBranchCreator, error) {
+		return &fakeBranchCreator{branches: &branches}, nil
+	}
+	defer func() { newSpecBranchCreatorFn = origBranchFn }()
+
+	runSpecFlag = "auth"
+	runEpicFlag = ""
+
+	err := runLoop(runCmd, []string{})
+	if err == nil || !strings.Contains(err.Error(), "runner stub") {
+		t.Fatalf("expected runner stub error, got %v", err)
+	}
+	if capturedStageCtx == nil {
+		t.Fatal("expected stage context passed to runner")
+	}
+	if !capturedStageCtx.FreshStart {
+		t.Fatalf("expected fresh start stage context, got %+v", capturedStageCtx)
+	}
+	if capturedStageCtx.SpecName != "auth" {
+		t.Fatalf("expected spec name auth, got %q", capturedStageCtx.SpecName)
+	}
+	if len(branches) != 1 {
+		t.Fatalf("expected branch creation once, got %d", len(branches))
+	}
+	if branches[0] != "gromit/spec-auth" {
+		t.Fatalf("unexpected branch: %s", branches[0])
 	}
 }
 
@@ -278,4 +336,39 @@ epic: gromit-123
 	if err != nil && strings.Contains(err.Error(), "resolving epic scope:") {
 		t.Fatalf("runLoop should not fail epic scope resolution for a valid epic: %v", err)
 	}
+}
+
+type fakeSpecflowStore struct {
+	stage    specflow.Stage
+	stageErr error
+}
+
+func (f *fakeSpecflowStore) Stage(_ context.Context, _ string) (specflow.Stage, error) {
+	if f == nil {
+		return "", specflow.ErrStageNotFound
+	}
+	if f.stageErr != nil {
+		return "", f.stageErr
+	}
+	return f.stage, nil
+}
+
+func (f *fakeSpecflowStore) StoreStage(_ context.Context, _ string, stage specflow.Stage) error {
+	if f == nil {
+		return fmt.Errorf("fake store nil")
+	}
+	f.stage = stage
+	return nil
+}
+
+type fakeBranchCreator struct {
+	branches *[]string
+}
+
+func (f *fakeBranchCreator) CreateOrCheckoutSpecBranch(_ context.Context, specBranchName string) error {
+	if f == nil || f.branches == nil {
+		return fmt.Errorf("fake branch creator not initialized")
+	}
+	*f.branches = append(*f.branches, specBranchName)
+	return nil
 }
