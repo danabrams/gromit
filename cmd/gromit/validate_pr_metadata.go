@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/danabrams/gromit/internal/visionmetrics"
+	"github.com/spf13/cobra"
 )
 
 // ValidatePRMetadata parses and validates PR metadata from PR body.
@@ -43,4 +44,21 @@ func runValidatePRMetadataCommand() int {
 
 	fmt.Printf("PR metadata validation passed\n")
 	return 0
+}
+
+var validatePRMetadataCmd = &cobra.Command{
+	Use:          "validate-pr-metadata",
+	Short:        "Validate PR metadata compliance",
+	SilenceUsage: true,
+	Long: `Validate PR metadata fields for compliance with vision metrics contract.
+
+Reads PR body from PR_BODY environment variable and validates required fields,
+enum values, and conditional rules. Reports field-specific errors on failure.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		exitCode := runValidatePRMetadataCommand()
+		if exitCode != 0 {
+			return fmt.Errorf("validation failed")
+		}
+		return nil
+	},
 }

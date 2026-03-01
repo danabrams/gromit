@@ -162,6 +162,7 @@ func registerRootCommands(root *cobra.Command) {
 	root.AddCommand(statusCmd)
 	root.AddCommand(retroCmd)
 	root.AddCommand(tuiCmd)
+	root.AddCommand(validatePRMetadataCmd)
 	registerBenchmarkCommands(root)
 }
 
@@ -172,7 +173,26 @@ func commandRequiresRepoRoot(cmd *cobra.Command) bool {
 	if isBenchmarkCommand(cmd) {
 		return false
 	}
+	if isValidatePRMetadataCommand(cmd) {
+		return false
+	}
 	return true
+}
+
+func isValidatePRMetadataCommand(cmd *cobra.Command) bool {
+	if cmd == nil {
+		return false
+	}
+	if cmd == validatePRMetadataCmd {
+		return true
+	}
+	if cmd.Name() == validatePRMetadataCmd.Name() {
+		return true
+	}
+	if cmd.Use == validatePRMetadataCmd.Use {
+		return true
+	}
+	return false
 }
 
 func isInitCommand(cmd *cobra.Command) bool {
