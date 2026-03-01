@@ -94,6 +94,7 @@ type WorktreeManager interface {
 	CreateBranch(ctx context.Context, command string) (string, error)
 	MergeBack(ctx context.Context, branch string) error
 	PendingBranches(ctx context.Context) ([]string, error)
+	RemoveByPath(ctx context.Context, path string) error
 	Cleanup(ctx context.Context) error
 }
 
