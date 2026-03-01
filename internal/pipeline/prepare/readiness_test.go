@@ -129,3 +129,16 @@ func TestCheckExpectedOutputs(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckExpectedOutputs_IgnoresWhitespaceOutputs(t *testing.T) {
+	t.Parallel()
+
+	b := newWhitespaceOutputBead()
+	outcome, reason := CheckExpectedOutputs(b)
+	if outcome != ReadinessOutcomeReady {
+		t.Fatalf("outcome = %v, want %v", outcome, ReadinessOutcomeReady)
+	}
+	if reason != "" {
+		t.Fatalf("reason = %q, want empty", reason)
+	}
+}
