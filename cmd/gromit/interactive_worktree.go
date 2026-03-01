@@ -343,6 +343,16 @@ type sessionCommitMetadata struct {
 	changedFilesHash string
 }
 
+func baseRefFromMeta(meta *sessionCommitMetadata) string {
+	if meta == nil {
+		return ""
+	}
+	if trimmed := strings.TrimSpace(meta.baseRef); trimmed != "" {
+		return trimmed
+	}
+	return strings.TrimSpace(meta.headSHA)
+}
+
 func autoCommitSessionWorktree(sessionDir, branch string) (*sessionCommitMetadata, error) {
 	if _, err := interactiveWorktreeGitRunFn(sessionDir, "add", "-A"); err != nil {
 		return nil, fmt.Errorf("staging session changes: %w", err)
@@ -446,7 +456,7 @@ func enqueueReadyBranch(gromitDir, command string, session *worktree.SessionWork
 		Lane:                 sessionQueueLane,
 		AttemptCount:         0,
 		RetryCount:           0,
-		BaseRef:              meta.baseRef,
+		BaseRef:              baseRefFromMeta(meta),
 		HeadSHA:              meta.headSHA,
 		ChangedFiles:         meta.changedFiles,
 		ChangedFilesHash:     meta.changedFilesHash,
@@ -472,7 +482,7 @@ func enqueueBlockedBranch(gromitDir, command string, session *worktree.SessionWo
 		Lane:                 sessionQueueLane,
 		AttemptCount:         0,
 		RetryCount:           0,
-		BaseRef:              meta.baseRef,
+		BaseRef:              baseRefFromMeta(meta),
 		HeadSHA:              meta.headSHA,
 		ChangedFiles:         meta.changedFiles,
 		ChangedFilesHash:     meta.changedFilesHash,
