@@ -89,16 +89,21 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 	}
 
 	if err := c.gitops.MergeToMain(ctx, *entry); err != nil {
-		// Check if this is a lane violation
+		targetState := StateConflict
+		reason := "merge conflict detected"
 		if strings.Contains(strings.ToLower(err.Error()), "lane violation") {
+			targetState = StateLaneViolation
+			reason = "lane violation detected"
 			entry.LastErrorCode = "lane_violation"
-			entry.LastErrorMessage = err.Error()
-			_ = ApplyTransition(entry, string(StateLaneViolation), "lane violation detected")
 		} else {
 			entry.LastErrorCode = "merge_conflict"
-			entry.LastErrorMessage = err.Error()
-			_ = ApplyTransition(entry, string(StateConflict), "merge conflict detected")
 		}
+		entry.LastErrorMessage = err.Error()
+
+		if transErr := ApplyTransition(entry, string(targetState), reason); transErr != nil {
+			return fmt.Errorf("transitioning entry to %s: %w", targetState, transErr)
+		}
+
 		if saveErr := c.store.Save(*entry); saveErr != nil {
 			return fmt.Errorf("marking entry conflict: %w", saveErr)
 		}
@@ -108,8 +113,11 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 	if err := c.gitops.Push(ctx); err != nil {
 		entry.LastErrorCode = "push_failed"
 		entry.LastErrorMessage = err.Error()
-		if transErr := ApplyTransition(entry, string(StatePushFailure), "push to remote failed"); transErr == nil {
-			_ = c.store.Save(*entry)
+		if transErr := ApplyTransition(entry, string(StatePushFailure), "push to remote failed"); transErr != nil {
+			return fmt.Errorf("transitioning entry to push failure: %w", transErr)
+		}
+		if saveErr := c.store.Save(*entry); saveErr != nil {
+			return fmt.Errorf("marking entry push failure: %w", saveErr)
 		}
 		return fmt.Errorf("pushing main: %w", err)
 	}
