@@ -254,7 +254,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		statusWriter.SetScopeLabel(specProgressLabel)
 	}
 
-	coordinator, err := NewIntegrationCoordinator(gromitDir)
+	coordinator, err := newIntegrationQueueCoordinator(cfg, gromitDir)
 	if err != nil {
 		return nil, err
 	}
