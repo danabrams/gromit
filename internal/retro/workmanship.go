@@ -1,10 +1,66 @@
 package retro
 
-import "sort"
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+)
 
 // WorkmanshipReport summarizes the last stored friction findings.
 type WorkmanshipReport struct {
 	FrictionClusters []FrictionCluster `json:"friction_clusters,omitempty"`
+}
+
+// WorkmanshipHistory persists the latest workmanship report for future retros.
+type WorkmanshipHistory struct {
+	Report WorkmanshipReport `json:"report"`
+}
+
+// FindPreviousFriction returns the stored friction cluster for area, if any.
+func (h *WorkmanshipHistory) FindPreviousFriction(area string) *FrictionCluster {
+	if h == nil {
+		return nil
+	}
+	for i := range h.Report.FrictionClusters {
+		cluster := &h.Report.FrictionClusters[i]
+		if cluster.Area == area {
+			return cluster
+		}
+	}
+	return nil
+}
+
+// LoadWorkmanshipHistory reads the history at path.
+func LoadWorkmanshipHistory(path string) (*WorkmanshipHistory, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read workmanship history: %w", err)
+	}
+	var history WorkmanshipHistory
+	if err := json.Unmarshal(data, &history); err != nil {
+		return nil, fmt.Errorf("parse workmanship history: %w", err)
+	}
+	return &history, nil
+}
+
+// SaveWorkmanshipHistory writes history to path in JSON format.
+func SaveWorkmanshipHistory(path string, history *WorkmanshipHistory) error {
+	if history == nil {
+		history = &WorkmanshipHistory{}
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("create history directory: %w", err)
+	}
+	data, err := json.MarshalIndent(history, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encode workmanship history: %w", err)
+	}
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return fmt.Errorf("write workmanship history: %w", err)
+	}
+	return nil
 }
 
 const (
