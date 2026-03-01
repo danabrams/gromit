@@ -367,7 +367,7 @@ func TestGhCLIClient_MergeCommandAndJSON(t *testing.T) {
 		"-X",
 		"PUT",
 		"/repos/octocat/hello-world/pulls/707/merge",
-		"-F",
+		"-f",
 		"commit_message=Merge feature",
 	}
 	if !reflect.DeepEqual(gotArgs, wantArgs) {
