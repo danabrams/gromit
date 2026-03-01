@@ -774,3 +774,34 @@ func TestIntegrationQueueGitOpsAdapter_FetchAndRebaseCommands(t *testing.T) {
 		t.Fatalf("commands = %v, want %v", calls, want)
 	}
 }
+
+func TestIntegrationQueueGitOpsAdapter_MergeToMainCommands(t *testing.T) {
+	t.Parallel()
+
+	repoDir := "/repo"
+	calls := make([]string, 0, 2)
+	adapter := &integrationQueueGitOpsAdapter{
+		repoDir:    repoDir,
+		baseBranch: "main",
+		runGitCommand: func(ctx context.Context, dir string, args ...string) (string, error) {
+			if dir != repoDir {
+				t.Fatalf("dir = %q, want %q", dir, repoDir)
+			}
+			calls = append(calls, strings.Join(args, " "))
+			return "", nil
+		},
+	}
+
+	entry := integrationqueue.Entry{Branch: "feature/merge"}
+	if err := adapter.MergeToMain(context.Background(), entry); err != nil {
+		t.Fatalf("MergeToMain returned error: %v", err)
+	}
+
+	want := []string{
+		"checkout main",
+		"merge --ff-only feature/merge",
+	}
+	if !reflect.DeepEqual(calls, want) {
+		t.Fatalf("commands = %v, want %v", calls, want)
+	}
+}
