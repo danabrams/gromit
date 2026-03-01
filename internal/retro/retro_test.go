@@ -1230,6 +1230,38 @@ func TestRenderPromptWithNilExperimentAndEfficiencyUsingRealTemplate(t *testing.
 	}
 }
 
+func TestRenderPromptHealthyWorkmanshipMessage(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	realTemplatePath := "../../.gromit/templates/PROMPT_retro.md"
+	templateContent, err := os.ReadFile(realTemplatePath)
+	if err != nil {
+		t.Fatalf("failed to read real template: %v", err)
+	}
+
+	templatePath := filepath.Join(tmpDir, "PROMPT_retro.md")
+	if err := os.WriteFile(templatePath, templateContent, 0644); err != nil {
+		t.Fatalf("failed to write template: %v", err)
+	}
+
+	tmpGromitDir := t.TempDir()
+	mockProvider := &mockProvider{}
+	r, err := NewRetroWithProvider(mockProvider, tmpGromitDir)
+	if err != nil {
+		t.Fatalf("failed to create Retro: %v", err)
+	}
+	r.templatePath = templatePath
+
+	prompt, err := r.renderPrompt("# Test Rules", "# Test Learnings", logger.RunStats{}, nil, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("renderPrompt returned error: %v", err)
+	}
+
+	if !strings.Contains(prompt, "codebase appears healthy") {
+		t.Fatalf("expected healthy Workmanship message, got: %q", prompt)
+	}
+}
+
 func TestRenderPromptWithProviderFamiliesInRealTemplate(t *testing.T) {
 	tmpDir := t.TempDir()
 
