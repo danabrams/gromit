@@ -240,7 +240,7 @@ func (c *ghClient) RequestReviewers(ctx context.Context, ref PRRef, reviewers []
 		"-X",
 		"POST",
 		fmt.Sprintf("/repos/%s/%s/pulls/%d/requested_reviewers", ref.Owner, ref.Repo, ref.Number),
-		"-F",
+		"-f",
 		"reviewers=" + string(encoded),
 	}
 
