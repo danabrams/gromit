@@ -134,6 +134,9 @@ func (s *SPCAutoTriager) Process(ctx context.Context, records []SPCCauseRecord) 
         if rec.Class == CauseClassStable {
             continue
         }
+        if rec.PersistenceWindowCount < s.config.PersistenceGate {
+            continue
+        }
         identity := rec.Identity()
         label := dedupeLabelForIdentity(identity)
         if openExists(ctx, s.client, label) {
