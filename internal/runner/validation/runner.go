@@ -145,13 +145,6 @@ func (r *Runner) runWithRecoveryForCommands(ctx context.Context, bc *runtypes.Be
 	if maxRetries <= 0 {
 		return err
 	}
-	// Keep validation recovery bounded to one fix loop to avoid repeated
-	// low-signal retries in unattended runs.
-	if maxRetries > 1 {
-		maxRetries = 1
-	}
-
-	lastFailure := r.lastFailureOutput
 
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		if ctxErr := ctx.Err(); ctxErr != nil {
@@ -169,8 +162,6 @@ func (r *Runner) runWithRecoveryForCommands(ctx context.Context, bc *runtypes.Be
 				return nil
 			} else if !errors.Is(valErr, ErrValidationFailed) {
 				return valErr
-			} else {
-				lastFailure = r.lastFailureOutput
 			}
 		}
 
@@ -190,10 +181,6 @@ func (r *Runner) runWithRecoveryForCommands(ctx context.Context, bc *runtypes.Be
 				return nil
 			} else if !errors.Is(valErr, ErrValidationFailed) {
 				return valErr
-			} else if r.lastFailureOutput == lastFailure {
-				return valErr
-			} else {
-				lastFailure = r.lastFailureOutput
 			}
 		}
 	}

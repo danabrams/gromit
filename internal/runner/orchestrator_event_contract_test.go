@@ -227,7 +227,7 @@ func TestOrchestrator_BeadFailedEventOnBuildFailure(t *testing.T) {
 }
 
 // TestOrchestrator_SuccessPath_RunStartEventContainsPayload verifies that RunStartEvent
-// contains correct metadata (MaxIterations, DryRun status).
+// contains correct metadata (MaxIterations, DryRun status, and TimeBudget when deadline is set).
 func TestOrchestrator_SuccessPath_RunStartEventContainsPayload(t *testing.T) {
 	t.Parallel()
 
@@ -255,7 +255,8 @@ func TestOrchestrator_SuccessPath_RunStartEventContainsPayload(t *testing.T) {
 	go capturer.start()
 
 	maxIterations := 5
-	err := orch.Run(context.Background(), maxIterations, time.Time{}, nil)
+	deadline := time.Now().Add(30 * time.Minute)
+	err := orch.Run(context.Background(), maxIterations, deadline, nil)
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
@@ -277,6 +278,12 @@ func TestOrchestrator_SuccessPath_RunStartEventContainsPayload(t *testing.T) {
 
 	if runStartEvent.MaxIterations != maxIterations {
 		t.Errorf("RunStartEvent.MaxIterations = %d, want %d", runStartEvent.MaxIterations, maxIterations)
+	}
+	if runStartEvent.TimeBudget <= 0 {
+		t.Fatalf("RunStartEvent.TimeBudget = %v, want positive duration", runStartEvent.TimeBudget)
+	}
+	if runStartEvent.TimeBudget > 30*time.Minute {
+		t.Fatalf("RunStartEvent.TimeBudget = %v, want <= 30m", runStartEvent.TimeBudget)
 	}
 }
 

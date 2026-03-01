@@ -468,9 +468,9 @@ func TestRunWithRecovery_ExecuteFnCalledWhenAutoFixFails(t *testing.T) {
 }
 
 // Expected failure: validation.Runner type and RunWithRecovery method do not exist yet
-func TestRunWithRecovery_RespectsSingleRecoveryCap(t *testing.T) {
+func TestRunWithRecovery_RespectsConfiguredRecoveryCap(t *testing.T) {
 	t.Parallel(
-	// RunWithRecovery caps recovery to one attempt, even if configured higher.
+	// RunWithRecovery should honor MaxValidationRetries.
 	)
 
 	cfg := newTestConfig()
@@ -493,8 +493,8 @@ func TestRunWithRecovery_RespectsSingleRecoveryCap(t *testing.T) {
 	if err == nil {
 		t.Error("RunWithRecovery should return error when all retries exhausted")
 	}
-	if executeFnCallCount > 1 {
-		t.Errorf("ExecuteFn called %d times, want <= 1 (single recovery cap)", executeFnCallCount)
+	if executeFnCallCount != 2 {
+		t.Errorf("ExecuteFn called %d times, want 2 (max retries)", executeFnCallCount)
 	}
 }
 
@@ -902,7 +902,7 @@ func TestValidate_FailsAndAccumulatesFailures(t *testing.T) {
 	}
 }
 
-func TestRunWithRecovery_CapsToSingleRecoveryAttempt(t *testing.T) {
+func TestRunWithRecovery_RetriesUpToConfiguredCap(t *testing.T) {
 	t.Parallel()
 	cfg := newTestConfig()
 	cfg.Validation.MaxValidationRetries = 5
@@ -932,15 +932,15 @@ func TestRunWithRecovery_CapsToSingleRecoveryAttempt(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected validation failure")
 	}
-	if autoFixCalls > 1 {
-		t.Fatalf("autoFix called %d times, want <= 1", autoFixCalls)
+	if autoFixCalls != 5 {
+		t.Fatalf("autoFix called %d times, want 5", autoFixCalls)
 	}
-	if execCalls > 1 {
-		t.Fatalf("executeFn called %d times, want <= 1", execCalls)
+	if execCalls != 5 {
+		t.Fatalf("executeFn called %d times, want 5", execCalls)
 	}
-	// Initial failure + one re-validation after auto-fix + one after executeFn.
-	if cmdCalls > 6 {
-		t.Fatalf("validation commands executed too many times: %d", cmdCalls)
+	// Initial failure + 2 validations per retry (after auto-fix and executeFn).
+	if cmdCalls != 11 {
+		t.Fatalf("validation commands executed %d times, want 11", cmdCalls)
 	}
 }
 

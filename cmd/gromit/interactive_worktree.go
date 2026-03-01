@@ -202,6 +202,12 @@ func runWithSessionWorktreeWithConflictSettings(
 		}
 		return session, finalErr
 	}
+	if commitMeta == nil {
+		if err := interactiveWorktreeCleanupSessionFn(mainDir, session.WorktreeDir); err != nil {
+			return session, fmt.Errorf("removing session worktree for no-op branch %q: %w", session.BranchName, err)
+		}
+		return session, nil
+	}
 
 	if err := enqueueReadyBranch(gromitDir, command, session, commitMeta); err != nil {
 		return session, fmt.Errorf("queueing session branch %q: %w", session.BranchName, err)
@@ -341,6 +347,13 @@ func autoCommitSessionWorktree(sessionDir, branch string) (*sessionCommitMetadat
 	if _, err := interactiveWorktreeGitRunFn(sessionDir, "add", "-A"); err != nil {
 		return nil, fmt.Errorf("staging session changes: %w", err)
 	}
+	hasChanges, err := sessionWorktreeHasStagedChanges(sessionDir)
+	if err != nil {
+		return nil, err
+	}
+	if !hasChanges {
+		return nil, nil
+	}
 
 	commitMsg := fmt.Sprintf("%s %s", sessionAutoCommitMessage, branch)
 	if _, err := interactiveWorktreeGitRunFn(sessionDir, "commit", "--allow-empty", "-m", commitMsg); err != nil {
@@ -348,6 +361,29 @@ func autoCommitSessionWorktree(sessionDir, branch string) (*sessionCommitMetadat
 	}
 
 	return describeSessionCommit(sessionDir)
+}
+
+func sessionWorktreeHasStagedChanges(sessionDir string) (bool, error) {
+	output, err := interactiveWorktreeGitRunFn(sessionDir, "diff", "--cached", "--quiet")
+	if err == nil {
+		// Test doubles may return file names for this invocation; treat that as
+		// staged changes even though real git --quiet output is empty.
+		if strings.TrimSpace(output) != "" {
+			return true, nil
+		}
+		porcelain, statusErr := interactiveWorktreeGitRunFn(sessionDir, "status", "--porcelain")
+		if statusErr != nil {
+			return false, fmt.Errorf("checking staged changes via status: %w", statusErr)
+		}
+		return strings.TrimSpace(porcelain) != "", nil
+	}
+
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+		return true, nil
+	}
+
+	return false, fmt.Errorf("checking staged changes: %w", err)
 }
 
 func describeSessionCommit(sessionDir string) (*sessionCommitMetadata, error) {

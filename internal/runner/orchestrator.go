@@ -281,9 +281,17 @@ func (o *Orchestrator) Run(ctx context.Context, maxIterations int, deadline time
 	}
 
 	// Emit RunStartEvent
+	timeBudget := time.Duration(0)
+	if !deadline.IsZero() {
+		timeBudget = time.Until(deadline)
+		if timeBudget < 0 {
+			timeBudget = 0
+		}
+	}
 	o.emitter.Emit(&events.RunStartEvent{
 		MaxIterations: maxIterations,
 		DryRun:        false,
+		TimeBudget:    timeBudget,
 		Time:          time.Now(),
 	})
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"time"
 
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/runner/execution"
@@ -83,7 +84,12 @@ func (c *CLISubscriber) handleEvent(event events.Event) {
 
 	switch e := event.(type) {
 	case *events.RunStartEvent:
-		fmt.Fprintf(c.output, "=== Starting run (max %d iterations, %v budget) ===\n", e.MaxIterations, e.TimeBudget)
+		fmt.Fprintf(
+			c.output,
+			"=== Starting run (max %s iterations, %s budget) ===\n",
+			formatRunLimit(e.MaxIterations),
+			formatTimeBudget(e.TimeBudget),
+		)
 	case *events.RunCompleteEvent:
 		fmt.Fprintf(c.output, "=== Run complete: %s (%d iterations) ===\n", e.Reason, e.IterationsCompleted)
 	case *events.IterationStartEvent:
@@ -159,6 +165,20 @@ func (c *CLISubscriber) handleEvent(event events.Event) {
 	default:
 		// Unknown event type, silently ignore
 	}
+}
+
+func formatRunLimit(maxIterations int) string {
+	if maxIterations <= 0 {
+		return "unlimited"
+	}
+	return fmt.Sprintf("%d", maxIterations)
+}
+
+func formatTimeBudget(budget time.Duration) string {
+	if budget <= 0 {
+		return "unlimited"
+	}
+	return budget.String()
 }
 
 func thoroughSuffix(thorough bool) string {

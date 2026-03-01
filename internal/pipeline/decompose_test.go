@@ -105,7 +105,7 @@ created: 2026-02-11
 	}
 
 	deps := &Deps{
-		LLMClient:  mockClaude,
+		LLMClient:     mockClaude,
 		TrackerClient: mockBead,
 	}
 	paths := &Paths{
@@ -251,7 +251,7 @@ created: 2026-02-01
 
 	p := New(
 		&Deps{
-			LLMClient:  mockClaude,
+			LLMClient:     mockClaude,
 			TrackerClient: &testBeadClient{},
 		},
 		&Paths{
@@ -345,7 +345,7 @@ id: coverage-gap
 	}
 
 	p := New(&Deps{
-		LLMClient:  mockClaude,
+		LLMClient:     mockClaude,
 		TrackerClient: mockBead,
 	}, &Paths{
 		GromitDir: tmpDir,
@@ -433,7 +433,7 @@ id: explicit-coverage
 	}
 
 	p := New(&Deps{
-		LLMClient:  mockClaude,
+		LLMClient:     mockClaude,
 		TrackerClient: mockBead,
 	}, &Paths{
 		GromitDir: tmpDir,
@@ -938,7 +938,7 @@ func TestDecomposeWorkflow_CreatesBeadsWithCorrectLabels(t *testing.T) {
 	}
 
 	deps := &Deps{
-		LLMClient:  mockClaude,
+		LLMClient:     mockClaude,
 		TrackerClient: mockBead,
 	}
 	paths := &Paths{
@@ -1034,7 +1034,7 @@ func TestDecomposeWorkflow_HandlesDependencyMapping(t *testing.T) {
 	}
 
 	deps := &Deps{
-		LLMClient:  mockClaude,
+		LLMClient:     mockClaude,
 		TrackerClient: mockBead,
 	}
 	paths := &Paths{
@@ -1127,7 +1127,7 @@ func TestDecomposeWorkflow_SkipsSelfDependencies(t *testing.T) {
 	}
 
 	deps := &Deps{
-		LLMClient:  mockClaude,
+		LLMClient:     mockClaude,
 		TrackerClient: mockBead,
 	}
 	paths := &Paths{
@@ -1206,7 +1206,7 @@ func TestDecomposeWorkflow_SkipsOutOfRangeDependencies(t *testing.T) {
 	}
 
 	deps := &Deps{
-		LLMClient:  mockClaude,
+		LLMClient:     mockClaude,
 		TrackerClient: mockBead,
 	}
 	paths := &Paths{
@@ -1284,7 +1284,7 @@ func TestDecomposeWorkflow_ReviewModeReturnsProposedBeads(t *testing.T) {
 	}
 
 	deps := &Deps{
-		LLMClient:  mockClaude,
+		LLMClient:     mockClaude,
 		TrackerClient: mockBead,
 	}
 	paths := &Paths{
@@ -1380,7 +1380,7 @@ Already decomposed
 	}
 
 	deps := &Deps{
-		LLMClient:  mockClaude,
+		LLMClient:     mockClaude,
 		TrackerClient: mockBead,
 	}
 	paths := &Paths{
@@ -1433,7 +1433,7 @@ func TestDecomposeWorkflow_PlanNotFoundError(t *testing.T) {
 	}
 
 	deps := &Deps{
-		LLMClient:  &decomposeAcceptanceLLMClient{},
+		LLMClient:     &decomposeAcceptanceLLMClient{},
 		TrackerClient: &decomposeAcceptanceBeadClient{},
 	}
 	paths := &Paths{
@@ -1504,7 +1504,7 @@ func TestDecomposeWorkflow_UpdatesPlanFrontmatterTimestamp(t *testing.T) {
 	}
 
 	deps := &Deps{
-		LLMClient:  mockClaude,
+		LLMClient:     mockClaude,
 		TrackerClient: mockBead,
 	}
 	paths := &Paths{
@@ -1539,14 +1539,26 @@ func TestDecomposeWorkflow_UpdatesPlanFrontmatterTimestamp(t *testing.T) {
 	}
 
 	// Verify timestamp is in reasonable range (between before and after)
-	// This is a basic check - just verify the field exists and looks like a timestamp
-	if !strings.Contains(planStr, "2026-02-") {
-		t.Error("decomposed_at timestamp does not appear to be current date")
+	var tsLine string
+	for _, line := range strings.Split(planStr, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "decomposed_at:") {
+			tsLine = line
+			break
+		}
+	}
+	if tsLine == "" {
+		t.Fatal("decomposed_at line not found in frontmatter")
 	}
 
-	// More rigorous: could parse the timestamp and verify it's within range
-	_ = beforeTime
-	_ = afterTime
+	tsValue := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(tsLine), "decomposed_at:"))
+	tsValue = strings.Trim(tsValue, "\"'")
+	decomposedAt, parseErr := time.Parse(time.RFC3339, tsValue)
+	if parseErr != nil {
+		t.Fatalf("decomposed_at is not RFC3339: %q (%v)", tsValue, parseErr)
+	}
+	if decomposedAt.Before(beforeTime.Add(-1*time.Second)) || decomposedAt.After(afterTime.Add(1*time.Second)) {
+		t.Fatalf("decomposed_at=%s outside expected range [%s, %s]", decomposedAt.Format(time.RFC3339), beforeTime.Format(time.RFC3339), afterTime.Format(time.RFC3339))
+	}
 }
 
 // TestDecomposeWorkflow_ParsesPriorityCorrectly verifies priority string to int conversion
@@ -1609,7 +1621,7 @@ func TestDecomposeWorkflow_ParsesPriorityCorrectly(t *testing.T) {
 	}
 
 	deps := &Deps{
-		LLMClient:  mockClaude,
+		LLMClient:     mockClaude,
 		TrackerClient: mockBead,
 	}
 	paths := &Paths{

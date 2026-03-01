@@ -5,6 +5,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -38,9 +39,9 @@ func TestCLISubscriber_ConsumesEvents(t *testing.T) {
 
 	// Emit an event
 	emitter.Emit(&events.IterationStartEvent{
-		Iteration:  1,
-		BeadID:     "test-1",
-		BeadTitle:  "Test Bead",
+		Iteration: 1,
+		BeadID:    "test-1",
+		BeadTitle: "Test Bead",
 	})
 
 	// Wait for subscriber to process using polling
@@ -206,10 +207,10 @@ func TestCLISubscriber_HeartbeatUsesWriteOverwrite(t *testing.T) {
 
 // mockOverwriteWriter is a test mock that implements execution.OverwriteWriter.
 type mockOverwriteWriter struct {
-	writeCalled      bool
-	overwriteCalled  bool
-	writeData        []byte
-	overwriteData    []byte
+	writeCalled     bool
+	overwriteCalled bool
+	writeData       []byte
+	overwriteData   []byte
 }
 
 func (m *mockOverwriteWriter) Write(p []byte) (int, error) {
@@ -229,4 +230,49 @@ func TestBasicWriterImplementsOverwriteWriter(t *testing.T) {
 	t.Parallel()
 
 	var _ execution.OverwriteWriter = BasicWriter(&bytes.Buffer{})
+}
+
+func TestCLISubscriber_RunStartEventFormatsUnlimitedValues(t *testing.T) {
+	t.Parallel()
+
+	emitter := events.NewEmitter()
+	output := &bytes.Buffer{}
+	subscriber := NewCLISubscriber(BasicWriter(output), emitter)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- subscriber.Start(ctx)
+	}()
+
+	startCtx, startCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer startCancel()
+	if err := eventtest.WaitForSubscriberReady(startCtx, emitter); err != nil {
+		t.Fatalf("WaitForSubscriberReady failed: %v", err)
+	}
+
+	emitter.Emit(&events.RunStartEvent{
+		MaxIterations: 0,
+		TimeBudget:    0,
+		Time:          time.Now(),
+	})
+
+	processCtx, processCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer processCancel()
+	if err := eventtest.WaitForCondition(processCtx, func() bool {
+		return strings.Contains(output.String(), "Starting run")
+	}); err != nil {
+		t.Fatalf("WaitForCondition failed: %v", err)
+	}
+
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatalf("subscriber.Start() returned error: %v", err)
+	}
+
+	got := output.String()
+	want := "=== Starting run (max unlimited iterations, unlimited budget) ===\n"
+	if !strings.Contains(got, want) {
+		t.Fatalf("run start output = %q, want to contain %q", got, want)
+	}
 }
