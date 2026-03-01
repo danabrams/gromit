@@ -662,6 +662,92 @@ type decomposerAdapter struct {
 	createdChildKeys map[string]map[string]struct{}
 }
 
+// DecomposeToSubTasks invokes the LLM to decompose a bead into sub-tasks,
+// returning them as runtypes.SubTask structs without creating child beads.
+func (a *decomposerAdapter) DecomposeToSubTasks(ctx context.Context, b *bead.Bead) ([]runtypes.SubTask, error) {
+	if a.router == nil {
+		return nil, fmt.Errorf("decomposerAdapter: no router configured for LLM decomposition")
+	}
+
+	p, _ := a.router.Select("decompose", provider.TierMedium)
+	if p == nil {
+		return nil, fmt.Errorf("decomposerAdapter: no provider available for decomposition")
+	}
+
+	promptText := buildScopeGateDecomposePrompt(b)
+	result, err := p.Run(ctx, promptText, provider.TierMedium)
+	if err != nil {
+		return nil, fmt.Errorf("decomposerAdapter: LLM invocation failed: %w", err)
+	}
+	if !result.Success {
+		return nil, fmt.Errorf("decomposerAdapter: LLM returned failure (exit %d)", result.ExitCode)
+	}
+
+	var subBeads []scopeGateSubBead
+	if err := jsonutil.ExtractJSON(strings.TrimSpace(result.Output), &subBeads); err != nil {
+		return nil, fmt.Errorf("decomposerAdapter: parsing LLM output: %w", err)
+	}
+	if err := validateRuntimeScopeGateDecomposeOutput(subBeads, b.Title, a.maxSubBeads); err != nil {
+		return nil, err
+	}
+
+	tasks := make([]runtypes.SubTask, 0, len(subBeads))
+	for _, sb := range subBeads {
+		tasks = append(tasks, runtypes.SubTask{
+			Title:              sb.Title,
+			AcceptanceCriteria: sb.ExpectedOutputs,
+		})
+	}
+	return tasks, nil
+}
+
+// CreateSubBeads creates child beads from sub-tasks and closes the parent bead.
+func (a *decomposerAdapter) CreateSubBeads(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error {
+	labels := a.resolveInheritedLabels(b)
+	successfullyCreatedCount := 0
+	for _, task := range tasks {
+		sb := scopeGateSubBead{
+			Title:           task.Title,
+			ExpectedOutputs: task.AcceptanceCriteria,
+		}
+		dedupeLabel := scopeGateChildDedupeLabel(b.ID, sb)
+		if a.hasCreatedChildKey(b.ID, dedupeLabel) {
+			continue
+		}
+		exists, err := a.childWithDedupeLabelExistsWithClient(ctx, b.ID, dedupeLabel)
+		if err != nil {
+			return fmt.Errorf("decomposerAdapter: checking existing child bead %q: %w", task.Title, err)
+		}
+		if exists {
+			a.rememberCreatedChildKey(b.ID, dedupeLabel)
+			continue
+		}
+
+		childLabels := append(append([]string(nil), labels...), dedupeLabel)
+		beadClient := a.beads
+		if beadClient == nil {
+			return fmt.Errorf("decomposerAdapter: unable to access bead client")
+		}
+		if _, err := beadClient.CreateWithParent(context.Background(), task.Title, b.Priority, childLabels, task.AcceptanceCriteria, b.ID); err != nil {
+			if successfullyCreatedCount > 0 {
+				return fmt.Errorf("decomposerAdapter: partial decomposition state: %w", escalation.ErrPartialDecompositionState)
+			}
+			return fmt.Errorf("decomposerAdapter: creating child bead %q: %w", task.Title, err)
+		}
+		a.rememberCreatedChildKey(b.ID, dedupeLabel)
+		successfullyCreatedCount++
+	}
+
+	beadClient := a.beads
+	if beadClient == nil {
+		return fmt.Errorf("decomposerAdapter: unable to access bead client for closing")
+	}
+	if err := beadClient.Close(context.Background(), b.ID); err != nil {
+		return fmt.Errorf("decomposerAdapter: closing parent bead: %w", err)
+	}
+	return nil
+}
+
 func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 	if a.router == nil {
 		return fmt.Errorf("decomposerAdapter: no router configured for LLM decomposition")

@@ -11,11 +11,11 @@ const (
 	// preExecutionScopeThreshold is the maximum number of files that can be
 	// handled in a single invocation. If estimated file count exceeds this,
 	// the task should be decomposed before attempting the first invocation.
-	preExecutionScopeThreshold = 2
+	preExecutionScopeThreshold = 3
 )
 
 // ShouldTriggerPreExecutionScopeDecomposition determines if a bead's estimated
-// file count exceeds the pre-execution scope threshold (>2 files).
+// file count exceeds the pre-execution scope threshold (>3 files).
 // Returns true if decomposition should be triggered before first invocation.
 func ShouldTriggerPreExecutionScopeDecomposition(bc *runtypes.BeadContext) bool {
 	if bc == nil || bc.Bead == nil {

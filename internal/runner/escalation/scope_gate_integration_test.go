@@ -12,7 +12,7 @@ import (
 
 // TestExecuteWithRetry_TriggersPreExecutionScopeGate verifies that
 // ExecuteWithRetry calls CheckPreExecutionScopeGate before attempting
-// the first invocation, and decomposes if file count > 2.
+// the first invocation, and decomposes if file count > 3.
 func TestExecuteWithRetry_TriggersPreExecutionScopeGate(t *testing.T) {
 	t.Parallel()
 
@@ -27,8 +27,13 @@ func TestExecuteWithRetry_TriggersPreExecutionScopeGate(t *testing.T) {
 			wantDecomposed:  false,
 		},
 		{
-			name:            "scope gate triggered (3 files)",
+			name:            "no scope gate needed (3 files, at threshold)",
 			expectedOutputs: []string{"main.go", "main_test.go", "helper.go"},
+			wantDecomposed:  false,
+		},
+		{
+			name:            "scope gate triggered (4 files)",
+			expectedOutputs: []string{"main.go", "main_test.go", "helper.go", "util.go"},
 			wantDecomposed:  true,
 		},
 	}

@@ -150,6 +150,8 @@ func newEscalationBuildStage(
 	cfg *config.Config,
 	analyzer escalation.FailureAnalyzer,
 	beadClient escalation.BeadClient,
+	decomposeFn escalation.DecomposeFn,
+	createSubFn escalation.CreateSubFn,
 	execInvoker *execution.Invoker,
 	renderer *prompt.Renderer,
 	fallback pipeline.Stage,
@@ -160,7 +162,7 @@ func newEscalationBuildStage(
 ) *escalationBuildStage {
 	handler := escalation.NewHandler(
 		cfg, analyzer, beadClient,
-		nil, nil, // decompose/createSub nil — wired in follow-up
+		decomposeFn, createSubFn,
 		func(format string, args ...interface{}) { _, _ = fmt.Fprintf(output, format+"\n", args...) },
 		nil,
 	)

@@ -145,13 +145,14 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 	buildCacheVersionKey := resolveBuildCacheVersionKey(cfg, gromitDir)
 
 	// Stage 1: Gate (prepare.New with optional Prechecker, StuckDetector, Decomposer)
-	gateStage := prepare.New(syncOut)
-	gateStage.WithDecomposer(&decomposerAdapter{
+	decomposer := &decomposerAdapter{
 		tracker:     trackerClientInterface,
 		beads:       beadsClient,
 		router:      router,
 		maxSubBeads: cfg.Validation.RuntimeMaxSubBeadsValue(),
-	})
+	}
+	gateStage := prepare.New(syncOut)
+	gateStage.WithDecomposer(decomposer)
 	gateStage.WithReadinessAssessor(NewDeterministicReadinessAssessor())
 	// Stage 2: Build (execute.New with Invoker and PromptRenderer)
 	buildExecInvoker := execution.NewInvoker(&executionRouterAdapter{router: router}, syncOut, streamLogger)
@@ -182,7 +183,9 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 	var buildPipelineStage pipeline.Stage = buildStage
 	if cfg.Escalation.Enabled {
 		buildPipelineStage = newEscalationBuildStage(
-			cfg, analyzerObj, beadsClient, buildExecInvoker, renderer,
+			cfg, analyzerObj, beadsClient,
+			decomposer.DecomposeToSubTasks, decomposer.CreateSubBeads,
+			buildExecInvoker, renderer,
 			buildStage, buildPromptRegistry, buildCacheVersionKey, costDefs, syncOut,
 		)
 	}

@@ -10,7 +10,7 @@ import (
 
 // TestShouldTriggerPreExecutionScopeDecomposition verifies that
 // ShouldTriggerPreExecutionScopeDecomposition returns true when
-// estimated file count > 2.
+// estimated file count > 3.
 func TestShouldTriggerPreExecutionScopeDecomposition(t *testing.T) {
 	t.Parallel()
 
@@ -35,8 +35,13 @@ func TestShouldTriggerPreExecutionScopeDecomposition(t *testing.T) {
 			wantDecompose:   false,
 		},
 		{
-			name:            "3 expected outputs (3 files) - exceeds threshold",
+			name:            "3 expected outputs (3 files) - at threshold",
 			expectedOutputs: []string{"main.go", "main_test.go", "helper.go"},
+			wantDecompose:   false,
+		},
+		{
+			name:            "4 expected outputs (4 files) - exceeds threshold",
+			expectedOutputs: []string{"main.go", "main_test.go", "helper.go", "util.go"},
 			wantDecompose:   true,
 		},
 		{
@@ -69,7 +74,7 @@ func TestShouldTriggerPreExecutionScopeDecomposition(t *testing.T) {
 }
 
 // TestCheckPreExecutionScopeGate verifies that CheckPreExecutionScopeGate
-// returns false and attempts decomposition when file count > 2.
+// returns false and attempts decomposition when file count > 3.
 func TestCheckPreExecutionScopeGate(t *testing.T) {
 	t.Parallel()
 
@@ -86,8 +91,14 @@ func TestCheckPreExecutionScopeGate(t *testing.T) {
 			wantDecomposed:  false,
 		},
 		{
-			name:            "decomposition triggered (3 files)",
+			name:            "no decomposition needed (3 files, at threshold)",
 			expectedOutputs: []string{"main.go", "main_test.go", "helper.go"},
+			wantContinue:    true,
+			wantDecomposed:  false,
+		},
+		{
+			name:            "decomposition triggered (4 files)",
+			expectedOutputs: []string{"main.go", "main_test.go", "helper.go", "util.go"},
 			wantContinue:    false,
 			wantDecomposed:  true,
 		},
