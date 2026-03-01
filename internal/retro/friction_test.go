@@ -122,3 +122,16 @@ func TestClusterByAreaComputesTimespanAndEvidence(t *testing.T) {
 		t.Fatalf("expected 1 patterns, got %d", got)
 	}
 }
+
+func TestClusterByAreaFiltersMinClusterSize(t *testing.T) {
+	entries := []learnings.Learning{
+		{
+			Content: "pkg/solo/module.go",
+			Date:    time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC),
+		},
+	}
+	clusters := clusterByArea(entries, 2)
+	if clusters != nil {
+		t.Fatalf("expected nil when no clusters meet min size, got %v", clusters)
+	}
+}
