@@ -32,3 +32,25 @@ func TestPRTemplateIncludesRequiredVisionMetricsFields(t *testing.T) {
         }
     }
 }
+
+func TestPRTemplateDocumentsAllowedValues(t *testing.T) {
+    path := filepath.Join("..", "..", ".github", "pull_request_template.md")
+    data, err := os.ReadFile(path)
+    if err != nil {
+        t.Fatalf("unable to read template: %v", err)
+    }
+
+    content := string(data)
+    allowed := []string{
+        "review_outcome: accepted | rework_implementation_gap | rework_vision_change",
+        "human_tactical_intervention: yes | no",
+        "human_debugging_intervention: yes | no",
+        "escaped_regression_within_7d: yes | no | pending",
+    }
+
+    for _, line := range allowed {
+        if !strings.Contains(content, line) {
+            t.Fatalf("template missing allowed value guidance %q", line)
+        }
+    }
+}
