@@ -2,6 +2,7 @@ package specmerge_test
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -130,6 +131,102 @@ func TestEmitRetryCapReachedAlert_ReturnsAlert(t *testing.T) {
 
 	if !contains(alert, "3") {
 		t.Fatalf("alert = %q, want to contain retry cap 3", alert)
+	}
+}
+
+func TestPipeline_Trigger_PushesBranchAndCreatesPR(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	const specName = "payments"
+	const expectedBranch = "gromit/spec-payments"
+	diffCalls := 0
+	const testDiff = "diff --git a/foo.go b/foo.go"
+	optsDiff := func(ctx context.Context) (string, error) {
+		diffCalls++
+		return testDiff, nil
+	}
+	summaryInputs := []specmerge.PRSummaryInput{}
+	summaryBuilder := &fakeSummaryBuilder{
+		buildFn: func(ctx context.Context, input specmerge.PRSummaryInput) (string, error) {
+			summaryInputs = append(summaryInputs, input)
+			return "summary", nil
+		},
+	}
+	branchPusher := &fakeBranchPusher{}
+	branchNamer := func(name string) (string, error) {
+		if name != specName {
+			return "", fmt.Errorf("unexpected spec name %q", name)
+		}
+		return expectedBranch, nil
+	}
+	prCalls := []createPRCall{}
+	prClient := &fakePRClientForTrigger{
+		createPRFn: func(ctx context.Context, title, body, head, base string) (specmerge.PRRef, error) {
+			prCalls = append(prCalls, createPRCall{title: title, body: body, head: head, base: base})
+			return specmerge.PRRef{Owner: "owner", Repo: "repo", Number: 1}, nil
+		},
+	}
+	flow := &fakeFlowExecutor{
+		runFn: func(ctx context.Context, name string) (*specmerge.FlowResult, error) {
+			if name != specName {
+				t.Fatalf("unexpected spec %q", name)
+			}
+			return &specmerge.FlowResult{}, nil
+		},
+	}
+	query := &fakeBeadQuery{}
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+	cfg.Validation.Enabled = false
+	cfg.Methodology.ATDD = false
+	opts := specmerge.PipelineOptions{
+		Query:          query,
+		Emitter:        nil,
+		Flow:           flow,
+		FixDeps:        specmerge.FixBeadDependencies{},
+		RetryCap:       3,
+		PRClient:       prClient,
+		SummaryBuilder: summaryBuilder,
+		BranchPusher:   branchPusher,
+		BranchNamer:    branchNamer,
+		SpecLoader: func(ctx context.Context, name string) (string, error) {
+			if name != specName {
+				return "", fmt.Errorf("unexpected spec loader call for %q", name)
+			}
+			return "spec text", nil
+		},
+		DiffProvider: optsDiff,
+		CmdRunner: func(ctx context.Context, command, workDir string) (string, string, int, error) {
+			return "", "", 0, nil
+		},
+		RepoDir:    "/repo",
+		BaseBranch: cfg.Git.BaseBranch,
+		Config:     cfg,
+		ATDDActive: cfg.Methodology.ATDD,
+	}
+	pipeline := specmerge.NewPipeline(opts)
+
+	if err := pipeline.Trigger(ctx, specName); err != nil {
+		t.Fatalf("Trigger() returned error: %v", err)
+	}
+
+	if diffCalls == 0 {
+		t.Fatalf("expected diff provider to be called")
+	}
+	if len(branchPusher.pushed) != 1 || branchPusher.pushed[0] != expectedBranch {
+		t.Fatalf("branch pushed = %v, want [%s]", branchPusher.pushed, expectedBranch)
+	}
+	if len(summaryInputs) != 1 || summaryInputs[0].Diff != testDiff {
+		t.Fatalf("summary inputs = %v", summaryInputs)
+	}
+	if len(prCalls) != 1 {
+		t.Fatalf("pr create calls = %d", len(prCalls))
+	}
+	if prCalls[0].head != expectedBranch {
+		t.Fatalf("PR head = %s", prCalls[0].head)
+	}
+	if prCalls[0].base != cfg.Git.BaseBranch {
+		t.Fatalf("PR base = %s", prCalls[0].base)
 	}
 }
 
