@@ -200,9 +200,13 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 	}
 	if gateBlockReason != "" {
 		if in.Emitter != nil {
+			eventReason, _ := readiness.NormalizeReason(gateBlockReason)
+			if eventReason == "" {
+				eventReason = gateBlockReason
+			}
 			in.Emitter.Emit(&events.GateReadinessBlockEvent{
 				BeadID: in.Bead.ID,
-				Reason: gateBlockReason,
+				Reason: eventReason,
 				Time:   time.Now(),
 			})
 		}
