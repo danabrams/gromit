@@ -114,7 +114,7 @@ func IsTerminalState(state string) bool {
 // IsBlockedState returns true if the state is a blocked state.
 func IsBlockedState(state string) bool {
 	switch state {
-	case "conflict", "failed_gates", "lane_violation":
+	case "conflict", "failed_gates", "lane_violation", "push_failure":
 		return true
 	default:
 		return false
