@@ -283,7 +283,7 @@ func (m *Manager) checkedOutBranchesByWorktree(ctx context.Context) map[string]s
 // branch of the main worktree. Attempts fast-forward first, falls back
 // to merge commit if needed. Aborts on conflict and returns error.
 // Deletes the branch on successful merge.
-func (m *Manager) MergeBack(branch string) error {
+func (m *Manager) MergeBack(ctx context.Context, branch string) error {
 	if m == nil {
 		return errors.New("nil Manager receiver")
 	}
@@ -291,7 +291,7 @@ func (m *Manager) MergeBack(branch string) error {
 		return errors.New("branch name cannot be empty")
 	}
 
-	ctx := m.gitContext()
+	ctx = m.contextFor(ctx)
 
 	// Try fast-forward merge first
 	_, err := m.runGit(ctx, m.MainDir, "merge", "--ff-only", branch)
@@ -304,10 +304,10 @@ func (m *Manager) MergeBack(branch string) error {
 	}
 
 	// Fast-forward failed, try regular merge
-	mergeInProgressBefore := m.mergeInProgress()
+	mergeInProgressBefore := m.mergeInProgress(ctx)
 	output, err := m.runGit(ctx, m.MainDir, "merge", branch)
 	if err != nil {
-		mergeInProgressAfter := m.mergeInProgress()
+		mergeInProgressAfter := m.mergeInProgress(ctx)
 		decision := classifyMergeFailure(mergeFailureInput{
 			Output:          output,
 			Err:             err,
@@ -443,8 +443,8 @@ func (m *Manager) sessionWorktreeRegistered(ctx context.Context, worktreeDir str
 		strings.HasPrefix(output, "worktree "+worktreeDir+"\n")
 }
 
-func (m *Manager) mergeInProgress() bool {
-	ctx := m.gitContext()
+func (m *Manager) mergeInProgress(ctx context.Context) bool {
+	ctx = m.contextFor(ctx)
 	output, err := m.runGit(ctx, m.MainDir, "rev-parse", "--verify", "MERGE_HEAD")
 	if err != nil {
 		return false

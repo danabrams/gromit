@@ -1018,7 +1018,7 @@ func TestMergeBack_FastForwardSuccess(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	err = m.MergeBack("gromit/retro-1234567890")
+	err = m.MergeBack(context.Background(), "gromit/retro-1234567890")
 	if err != nil {
 		t.Fatalf("MergeBack() error = %v, want nil", err)
 	}
@@ -1080,7 +1080,7 @@ func TestMergeBack_FallbackToMergeCommit(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	err = m.MergeBack("gromit/review-1234567890")
+	err = m.MergeBack(context.Background(), "gromit/review-1234567890")
 	if err != nil {
 		t.Fatalf("MergeBack() error = %v, want nil (should succeed with merge commit)", err)
 	}
@@ -1148,7 +1148,7 @@ func TestMergeBack_ConflictReturnsError(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	err = m.MergeBack("gromit/review-1234567890")
+	err = m.MergeBack(context.Background(), "gromit/review-1234567890")
 	if err == nil {
 		t.Fatal("MergeBack() should return error on merge conflict, got nil")
 	}
@@ -1210,7 +1210,7 @@ func TestMergeBack_ConflictDetectedFromOutputWithGenericError(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	err = m.MergeBack("gromit/review-1234567890")
+	err = m.MergeBack(context.Background(), "gromit/review-1234567890")
 	if err == nil {
 		t.Fatal("MergeBack() should return error on merge conflict, got nil")
 	}
@@ -1259,7 +1259,7 @@ func TestMergeBack_ConflictDetectedFromAutomaticMergeFailedWithoutSemicolon(t *t
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	err = m.MergeBack("gromit/review-1234567890")
+	err = m.MergeBack(context.Background(), "gromit/review-1234567890")
 	if err == nil {
 		t.Fatal("MergeBack() should return error on merge conflict, got nil")
 	}
@@ -1307,7 +1307,7 @@ func TestMergeBack_NonConflictMergeFailureReturnsError(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	err = m.MergeBack("gromit/review-1234567890")
+	err = m.MergeBack(context.Background(), "gromit/review-1234567890")
 	if err == nil {
 		t.Fatal("MergeBack() should return error on non-conflict merge failure, got nil")
 	}
@@ -1362,7 +1362,7 @@ func TestMergeBack_MergeStatePresentClassifiesAsConflict(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	err = m.MergeBack("gromit/review-1234567890")
+	err = m.MergeBack(context.Background(), "gromit/review-1234567890")
 	if err == nil {
 		t.Fatal("MergeBack() should return error on merge failure, got nil")
 	}
@@ -1415,7 +1415,7 @@ func TestMergeBack_PreExistingMergeStateIsNotAbortedOnNonConflictFailure(t *test
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	err = m.MergeBack("gromit/review-1234567890")
+	err = m.MergeBack(context.Background(), "gromit/review-1234567890")
 	if err == nil {
 		t.Fatal("MergeBack() should return error on merge failure, got nil")
 	}
@@ -1457,7 +1457,7 @@ func TestMergeBack_NonConflictErrorContainingConflictInBranchName(t *testing.T) 
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	err = m.MergeBack(branch)
+	err = m.MergeBack(context.Background(), branch)
 	if err == nil {
 		t.Fatal("MergeBack() should return error on non-conflict merge failure, got nil")
 	}
@@ -1493,7 +1493,7 @@ func TestMergeBack_InvalidBranchName(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	err = m.MergeBack("")
+	err = m.MergeBack(context.Background(), "")
 	if err == nil {
 		t.Error("MergeBack(\"\") should return error for empty branch name")
 	}
@@ -1503,7 +1503,7 @@ func TestMergeBack_InvalidBranchName(t *testing.T) {
 func TestMergeBack_NilReceiver(t *testing.T) {
 	var m *Manager
 
-	err := m.MergeBack("gromit/retro-123")
+	err := m.MergeBack(context.Background(), "gromit/retro-123")
 	if err == nil {
 		t.Error("MergeBack() on nil receiver should return error")
 	}
@@ -1553,7 +1553,7 @@ func TestMergeBack_GitRunFnCalledInMainDir(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	err = m.MergeBack("gromit/retro-123")
+	err = m.MergeBack(context.Background(), "gromit/retro-123")
 	if err != nil {
 		t.Fatalf("MergeBack() error = %v, want nil", err)
 	}
@@ -1626,7 +1626,7 @@ func TestMergeBack_DeletesBranchOnlyAfterSuccessfulMerge(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	err = m.MergeBack("gromit/retro-123")
+	err = m.MergeBack(context.Background(), "gromit/retro-123")
 	if err != nil {
 		t.Fatalf("MergeBack() error = %v, want nil", err)
 	}
@@ -1681,7 +1681,7 @@ func TestMergeBack_FastForwardSuccess_DoesNotRemoveDerivedSessionWorktree(t *tes
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	err = m.MergeBack("gromit/review-123")
+	err = m.MergeBack(context.Background(), "gromit/review-123")
 	if err != nil {
 		t.Fatalf("MergeBack() error = %v, want nil", err)
 	}
@@ -1721,7 +1721,7 @@ func TestMergeBack_FallbackToMergeCommit_DoesNotRemoveDerivedSessionWorktree(t *
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	err = m.MergeBack("gromit/review-123")
+	err = m.MergeBack(context.Background(), "gromit/review-123")
 	if err != nil {
 		t.Fatalf("MergeBack() error = %v, want nil", err)
 	}
@@ -1753,7 +1753,7 @@ func TestMergeBack_BranchDeleteErrorReturnsFailure(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	err = m.MergeBack("gromit/review-123")
+	err = m.MergeBack(context.Background(), "gromit/review-123")
 	if err != nil {
 		if !strings.Contains(err.Error(), "delete failed") {
 			t.Fatalf("MergeBack() error = %v, want delete failure context", err)
@@ -2311,7 +2311,7 @@ func TestMergeBack_ConflictDetectionWithDeterministicFixture(t *testing.T) {
 	}
 
 	// Attempt to merge the "theirs" branch, which will conflict
-	err = m.MergeBack(fixture.TheirBranch)
+	err = m.MergeBack(context.Background(), fixture.TheirBranch)
 
 	// Verify that MergeBack correctly detected and reported the conflict
 	if err == nil {
