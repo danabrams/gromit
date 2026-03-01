@@ -24,6 +24,7 @@ import (
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/procutil"
 	"github.com/danabrams/gromit/internal/runner/specmerge"
+	"github.com/danabrams/gromit/internal/specflow"
 )
 
 // OrchestratorConfig holds the wired dependencies for an Orchestrator.
@@ -100,6 +101,9 @@ type OrchestratorConfig struct {
 	// StageContext carries specflow metadata for spec-scoped runs, if any.
 	StageContext *StageContext
 
+	// PreImplementationHook orchestrates acceptance-test authoring beads before implementation.
+	PreImplementationHook func(ctx context.Context) error
+
 	// GitCheckout performs git branch checkout operations.
 	// Optional: nil means branch checkout is skipped.
 	GitCheckout GitCheckout
@@ -159,8 +163,9 @@ type Coordinator interface {
 // Structural guarantee: this file imports only internal/pipeline and internal/logger;
 // no stage sub-package is imported. Wire stages in constructor.go.
 type Orchestrator struct {
-	cfg     OrchestratorConfig
-	emitter *events.Emitter
+	cfg                      OrchestratorConfig
+	emitter                  *events.Emitter
+	preImplementationHookRan bool
 }
 
 // skipTracker records how many processed beads have been skipped since the
@@ -335,6 +340,10 @@ func (o *Orchestrator) Run(ctx context.Context, maxIterations int, deadline time
 		for _, exp := range experiments {
 			o.logInfo("Experiment %s (%s): checking if converged", exp.ID, exp.Phase)
 		}
+	}
+
+	if err := o.runPreImplementationHook(ctx); err != nil {
+		return err
 	}
 
 runLoop:
@@ -606,10 +615,68 @@ runLoop:
 			o.cfg.CoverageTracker.ToValidating()
 		}
 		validateOut, validateErr := o.cfg.Validate.Run(ctx, baseIn)
-		if validateErr != nil || validateOut.Decision != pipeline.Proceed {
+		validationPassed := validateErr == nil && validateOut.Decision == pipeline.Proceed
+		if !validationPassed {
+			validationFailures = append([]string(nil), validateOut.ValidationFailures...)
+			maxValidationRetries := 0
+			if o.cfg.Config != nil {
+				maxValidationRetries = o.cfg.Config.Validation.MaxValidationRetries
+			}
+			for attempt := 1; attempt <= maxValidationRetries && !validationPassed; attempt++ {
+				// Non-validation execution errors from Validate stage are not recoverable.
+				if validateErr != nil {
+					break
+				}
+				o.logWarning("Warning: validation failed for bead %s (iteration %d), attempting recovery build %d/%d", b.ID, iteration, attempt, maxValidationRetries)
+				retryIn := baseIn
+				retryIn.ValidationFailures = append([]string(nil), validationFailures...)
+
+				retryBuildOut, retryBuildErr := o.cfg.Build.Run(ctx, retryIn)
+				buildOut = retryBuildOut
+				if retryBuildErr != nil {
+					buildErr = retryBuildErr
+					break
+				}
+
+				validateOut, validateErr = o.cfg.Validate.Run(ctx, retryIn)
+				validationPassed = validateErr == nil && validateOut.Decision == pipeline.Proceed
+				if !validationPassed {
+					validationFailures = append([]string(nil), validateOut.ValidationFailures...)
+				}
+			}
+		}
+		if buildErr != nil {
+			o.logWarning("Warning: build failed for bead %s (iteration %d): %v", b.ID, iteration, buildErr)
+			failurePhase := inferBuildFailurePhase(buildErr)
+			o.emitBeadFailedEvent(b, buildErr.Error())
+			baseIn.Result = &logger.IterationLog{
+				Timestamp:                time.Now(),
+				Iteration:                iteration,
+				BeadID:                   b.ID,
+				BeadTitle:                b.Title,
+				Success:                  false,
+				Error:                    buildErr.Error(),
+				FailurePhase:             failurePhase,
+				Complexity:               baseIn.Complexity,
+				ComplexitySource:         baseIn.ComplexitySource,
+				ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
+			}
+			stampBuildAttribution(baseIn.Result, buildOut)
+			o.runEpilogue(ctx, baseIn, false)
+			// Emit IterationCompleteEvent
+			o.emitter.Emit(&events.IterationCompleteEvent{
+				Iteration: iteration,
+				BeadID:    b.ID,
+				Success:   false,
+				Duration:  0,
+				Time:      time.Now(),
+			})
+			continue
+		}
+		if !validationPassed {
 			// Accumulate failure summaries for the next Build invocation.
-			validationFailures = validateOut.ValidationFailures
-			baseIn.FailureOutput = strings.Join(validateOut.ValidationFailures, "\n")
+			validationFailures = append([]string(nil), validateOut.ValidationFailures...)
+			baseIn.FailureOutput = strings.Join(validationFailures, "\n")
 			baseIn.Result = &logger.IterationLog{
 				Timestamp:                time.Now(),
 				Iteration:                iteration,
@@ -617,14 +684,14 @@ runLoop:
 				BeadTitle:                b.Title,
 				Success:                  false,
 				FailurePhase:             failurephase.Validation,
-				ValidationFailures:       validateOut.ValidationFailures,
+				ValidationFailures:       validationFailures,
 				Complexity:               baseIn.Complexity,
 				ComplexitySource:         baseIn.ComplexitySource,
 				ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 			}
 			stampBuildAttribution(baseIn.Result, buildOut)
-			failureReasons := make([]string, 0, len(validateOut.ValidationFailures)+1)
-			failureReasons = append(failureReasons, validateOut.ValidationFailures...)
+			failureReasons := make([]string, 0, len(validationFailures)+1)
+			failureReasons = append(failureReasons, validationFailures...)
 			if validateErr != nil {
 				failureReasons = append(failureReasons, validateErr.Error())
 			}
@@ -793,6 +860,30 @@ runLoop:
 		Time:                time.Now(),
 	})
 
+	return nil
+}
+
+func (o *Orchestrator) runPreImplementationHook(ctx context.Context) error {
+	if o == nil || o.cfg.StageContext == nil || o.cfg.StageContext.Stage != specflow.StageAcceptanceTests {
+		return nil
+	}
+	if o.cfg.PreImplementationHook == nil {
+		return fmt.Errorf("pre-implementation hook required for %s stage", specflow.StageAcceptanceTests)
+	}
+	if o.preImplementationHookRan {
+		return nil
+	}
+	if err := o.cfg.PreImplementationHook(ctx); err != nil {
+		return err
+	}
+	o.preImplementationHookRan = true
+	stageCtx := o.cfg.StageContext
+	if stageCtx.Manager != nil && stageCtx.SpecName != "" {
+		if err := stageCtx.Manager.Advance(ctx, stageCtx.SpecName, specflow.StageImplementation); err != nil {
+			return fmt.Errorf("advancing spec stage to implementation: %w", err)
+		}
+	}
+	stageCtx.Stage = specflow.StageImplementation
 	return nil
 }
 

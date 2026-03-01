@@ -181,7 +181,9 @@ func TestFinalizeSpecBranch_PerformsRebaseMergeAndDeletion(t *testing.T) {
 		t.Fatalf("failed to create spec commit: %v", err)
 	}
 
-	commitOutput, err := exec.Command("git", "rev-parse", "HEAD").CombinedOutput()
+	cmd = exec.Command("git", "rev-parse", "HEAD")
+	cmd.Dir = fixture.Dir
+	commitOutput, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("rev-parse HEAD failed: %v", err)
 	}
@@ -191,7 +193,9 @@ func TestFinalizeSpecBranch_PerformsRebaseMergeAndDeletion(t *testing.T) {
 		t.Fatalf("FinalizeSpecBranch() error = %v", err)
 	}
 
-	mainCommitBytes, err := exec.Command("git", "rev-parse", fixture.BaseBranch).CombinedOutput()
+	cmd = exec.Command("git", "rev-parse", fixture.BaseBranch)
+	cmd.Dir = fixture.Dir
+	mainCommitBytes, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("rev-parse base branch failed: %v", err)
 	}

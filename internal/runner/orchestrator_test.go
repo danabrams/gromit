@@ -1436,6 +1436,88 @@ func TestOrchestrator_ValidationFailure_SetsFailurePhase(t *testing.T) {
 	}
 }
 
+func TestOrchestrator_ValidationFailure_AttemptsRecoveryBuildUpToConfiguredRetries(t *testing.T) {
+	t.Parallel()
+
+	buildCalls := 0
+	var buildInputs []pipeline.Input
+	build := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		buildCalls++
+		buildInputs = append(buildInputs, in)
+		return pipeline.Output{
+			Decision:     pipeline.Proceed,
+			OriginalTier: "low",
+			ActualTier:   "medium",
+			Model:        "test-model",
+		}, nil
+	}}
+
+	validateCalls := 0
+	validate := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		validateCalls++
+		if validateCalls == 1 {
+			return pipeline.Output{
+				Decision:           pipeline.Block,
+				ValidationFailures: []string{"first validation failure"},
+			}, nil
+		}
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	var capturedResult *logger.IterationLog
+	epilogue := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		capturedResult = in.Result
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-1", Title: "Validation recovery"}, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     &fakeStage{},
+		Build:    build,
+		Validate: validate,
+		Epilogue: epilogue,
+		GetBead:  getBead,
+		Config: &config.Config{
+			Validation: config.ValidationConfig{
+				MaxValidationRetries: 2,
+			},
+		},
+		Output: io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if buildCalls != 2 {
+		t.Fatalf("build stage calls = %d, want 2 (initial + recovery)", buildCalls)
+	}
+	if validateCalls != 2 {
+		t.Fatalf("validate stage calls = %d, want 2 (initial fail + recovery pass)", validateCalls)
+	}
+	if len(buildInputs) < 2 {
+		t.Fatalf("captured build inputs = %d, want at least 2", len(buildInputs))
+	}
+	if len(buildInputs[1].ValidationFailures) != 1 || buildInputs[1].ValidationFailures[0] != "first validation failure" {
+		t.Fatalf("recovery build validation failures = %#v, want first failure summary", buildInputs[1].ValidationFailures)
+	}
+	if capturedResult == nil {
+		t.Fatal("expected success result to reach epilogue after recovery")
+	}
+	if !capturedResult.Success {
+		t.Fatalf("captured result success = false, want true after recovery")
+	}
+}
+
 func TestOrchestrator_LocalGateFailureSkipsReview(t *testing.T) {
 	t.Parallel()
 	var capturedResult *logger.IterationLog
