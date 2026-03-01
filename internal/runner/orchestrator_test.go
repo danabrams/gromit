@@ -25,6 +25,7 @@ import (
 	"github.com/danabrams/gromit/internal/pipeline"
 	epiloguepkg "github.com/danabrams/gromit/internal/pipeline/epilogue"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/specflow"
 	"github.com/danabrams/gromit/internal/state"
 )
 
@@ -61,6 +62,21 @@ func (f *fakeSpecMergeController) Trigger(ctx context.Context, specName string) 
 	if f.triggerFn != nil {
 		return f.triggerFn(ctx, specName)
 	}
+	return nil
+}
+
+type specStageStore struct {
+	stage      specflow.Stage
+	storeCalls []specflow.Stage
+}
+
+func (s *specStageStore) Stage(_ context.Context, _ string) (specflow.Stage, error) {
+	return s.stage, nil
+}
+
+func (s *specStageStore) StoreStage(_ context.Context, _ string, stage specflow.Stage) error {
+	s.storeCalls = append(s.storeCalls, stage)
+	s.stage = stage
 	return nil
 }
 
@@ -160,6 +176,86 @@ func TestOrchestrator_CallsStateSaverAfterRun(t *testing.T) {
 
 	if !saveCalled {
 		t.Error("StateSaver.Save() was not called; want provider state persisted after loop completes")
+	}
+}
+
+func TestOrchestratorRunsPreImplementationHook(t *testing.T) {
+	t.Parallel()
+
+	store := &specStageStore{stage: specflow.StageAcceptanceTests}
+	stageCtx := &StageContext{
+		SpecName: "spec-foo",
+		Stage:    specflow.StageAcceptanceTests,
+		Manager:  specflow.NewManager(store),
+	}
+	hookCalls := 0
+	cfg := OrchestratorConfig{
+		Gate:         &fakeStage{},
+		Build:        &fakeStage{},
+		Validate:     &fakeStage{},
+		Epilogue:     &fakeStage{},
+		GetBead:      func(context.Context) (*bead.Bead, error) { return nil, nil },
+		Config:       &config.Config{},
+		StageContext: stageCtx,
+		PreImplementationHook: func(ctx context.Context) error {
+			hookCalls++
+			return nil
+		},
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 0, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if hookCalls != 1 {
+		t.Fatalf("pre-implementation hook called %d times, want 1", hookCalls)
+	}
+	if stageCtx.Stage != specflow.StageImplementation {
+		t.Fatalf("stage context stage = %s, want %s", stageCtx.Stage, specflow.StageImplementation)
+	}
+	if store.stage != specflow.StageImplementation {
+		t.Fatalf("store stage = %s, want %s", store.stage, specflow.StageImplementation)
+	}
+	if len(store.storeCalls) != 1 || store.storeCalls[0] != specflow.StageImplementation {
+		t.Fatalf("store calls = %v, want [%s]", store.storeCalls, specflow.StageImplementation)
+	}
+}
+
+func TestOrchestratorPreImplementationHookError(t *testing.T) {
+	t.Parallel()
+
+	store := &specStageStore{stage: specflow.StageAcceptanceTests}
+	stageCtx := &StageContext{
+		SpecName: "spec-foo",
+		Stage:    specflow.StageAcceptanceTests,
+		Manager:  specflow.NewManager(store),
+	}
+	hookErr := errors.New("hook failed")
+	cfg := OrchestratorConfig{
+		Gate:         &fakeStage{},
+		Build:        &fakeStage{},
+		Validate:     &fakeStage{},
+		Epilogue:     &fakeStage{},
+		GetBead:      func(context.Context) (*bead.Bead, error) { return nil, nil },
+		Config:       &config.Config{},
+		StageContext: stageCtx,
+		PreImplementationHook: func(ctx context.Context) error {
+			return hookErr
+		},
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 0, time.Time{}, nil); err == nil || !errors.Is(err, hookErr) {
+		t.Fatalf("Run() error = %v, want %v", err, hookErr)
+	}
+	if stageCtx.Stage != specflow.StageAcceptanceTests {
+		t.Fatalf("stage context stage = %s, want %s", stageCtx.Stage, specflow.StageAcceptanceTests)
+	}
+	if store.stage != specflow.StageAcceptanceTests {
+		t.Fatalf("store stage = %s, want %s", store.stage, specflow.StageAcceptanceTests)
+	}
+	if len(store.storeCalls) != 0 {
+		t.Fatalf("store calls = %v, want []", store.storeCalls)
 	}
 }
 
@@ -3274,8 +3370,6 @@ func TestConstructorWiresCoordinatorAndQueueStore(t *testing.T) {
 // TestOrchestrator_CoordinatorDrainsReadyEntry ensures a ready integration queue entry
 // is moved to a terminal non-ready state after the orchestration loop invokes the coordinator.
 func TestOrchestrator_CoordinatorDrainsReadyEntry(t *testing.T) {
-	t.Parallel()
-
 	tmpDir := t.TempDir()
 	store, err := integrationqueue.NewStore(tmpDir)
 	if err != nil {
@@ -3285,6 +3379,29 @@ func TestOrchestrator_CoordinatorDrainsReadyEntry(t *testing.T) {
 	entry := testQueueEntry("feature/drain-ready", integrationqueue.StateReady)
 	if err := store.Save(entry); err != nil {
 		t.Fatalf("Save(entry) error = %v", err)
+	}
+
+	prevGitOpsFn := newIntegrationQueueGitOpsAdapterFn
+	prevGateFn := newIntegrationQueueScopedGateAdapterFn
+	defer func() {
+		newIntegrationQueueGitOpsAdapterFn = prevGitOpsFn
+		newIntegrationQueueScopedGateAdapterFn = prevGateFn
+	}()
+	newIntegrationQueueGitOpsAdapterFn = func(repoDir string, cfg *config.Config) (*integrationQueueGitOpsAdapter, error) {
+		return &integrationQueueGitOpsAdapter{
+			repoDir:    repoDir,
+			baseBranch: "main",
+			runGitCommand: func(ctx context.Context, dir string, args ...string) (string, error) {
+				return "", nil
+			},
+		}, nil
+	}
+	newIntegrationQueueScopedGateAdapterFn = func() (*integrationQueueScopedGateAdapter, error) {
+		return &integrationQueueScopedGateAdapter{
+			evaluator: func(ctx context.Context, entry integrationqueue.Entry) error {
+				return nil
+			},
+		}, nil
 	}
 
 	coord, err := NewIntegrationCoordinator(tmpDir)
@@ -3325,8 +3442,11 @@ func TestOrchestrator_CoordinatorDrainsReadyEntry(t *testing.T) {
 	if processed == nil {
 		t.Fatalf("entry %s missing after run", entry.Branch)
 	}
-	if processed.State != integrationqueue.StateConflict {
-		t.Fatalf("entry state = %s, want %s", processed.State, integrationqueue.StateConflict)
+	if processed.State != integrationqueue.StateMerged {
+		t.Fatalf("entry state = %s, want %s", processed.State, integrationqueue.StateMerged)
+	}
+	if processed.LastErrorCode != "" {
+		t.Fatalf("LastErrorCode = %q, want empty", processed.LastErrorCode)
 	}
 }
 
