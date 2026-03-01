@@ -232,6 +232,62 @@ func TestGhCLIClient_PostReviewCommandAndJSON(t *testing.T) {
 	}
 }
 
+func TestGhCLIClient_PostReviewUsesRawFieldFlag(t *testing.T) {
+	t.Parallel()
+
+	runner := &fakeGHRunner{
+		stdout: `{"id": 1}`,
+	}
+
+	client := specmerge.NewGhCLIClient(runner)
+	ctx := context.Background()
+	ref := specmerge.PRRef{Owner: "octocat", Repo: "hello-world", Number: 404}
+	payload := specmerge.ReviewPayload{
+		Event: "REQUEST_CHANGES",
+		Body:  "Needs more tests",
+		Comments: []specmerge.ReviewComment{
+			{Path: "file.go", Line: 20, Body: "Please add coverage"},
+		},
+	}
+
+	if err := client.PostReview(ctx, ref, payload); err != nil {
+		t.Fatalf("PostReview returned error: %v", err)
+	}
+
+	reviewJSONComment := struct {
+		Path string `json:"path"`
+		Line int    `json:"line"`
+		Body string `json:"body"`
+	}{
+		Path: "file.go",
+		Line: 20,
+		Body: "Please add coverage",
+	}
+	wantComments, _ := json.Marshal([]interface{}{reviewJSONComment})
+
+	gotArgs := runner.calls[0].args
+	flagPairs := [][2]string{
+		{"-f", "event=REQUEST_CHANGES"},
+		{"-f", "body=Needs more tests"},
+		{"-f", "comments=" + string(wantComments)},
+	}
+
+	containsPair := func(flag, value string) bool {
+		for i := 0; i < len(gotArgs)-1; i++ {
+			if gotArgs[i] == flag && gotArgs[i+1] == value {
+				return true
+			}
+		}
+		return false
+	}
+
+	for _, pair := range flagPairs {
+		if !containsPair(pair[0], pair[1]) {
+			t.Fatalf("missing raw field flag pair %v in args %v", pair, gotArgs)
+		}
+	}
+}
+
 func TestGhCLIClient_PostCommentCommandAndJSON(t *testing.T) {
 	t.Parallel()
 
