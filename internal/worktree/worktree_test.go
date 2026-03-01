@@ -2332,6 +2332,52 @@ func TestMergeBack_ConflictDetectionWithDeterministicFixture(t *testing.T) {
 	}
 }
 
+// TestRemoveByPathCancelsWhenContextDone verifies RemoveByPath honors the caller
+// context so git commands can be interrupted.
+func TestRemoveByPathCancelsWhenContextDone(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "repo")
+	worktreePath := mainDir + "-gromit-interactive"
+
+	if err := os.MkdirAll(mainDir, 0o755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+	if err := os.MkdirAll(worktreePath, 0o755); err != nil {
+		t.Fatalf("failed to create worktree dir: %v", err)
+	}
+
+	fakeGitDir := t.TempDir()
+	fakeGit := filepath.Join(fakeGitDir, "git")
+	script := "#!/bin/sh\nsleep 5\n"
+	if err := os.WriteFile(fakeGit, []byte(script), 0o755); err != nil {
+		t.Fatalf("failed to write fake git: %v", err)
+	}
+
+	origPath := os.Getenv("PATH")
+	if err := os.Setenv("PATH", fakeGitDir+string(os.PathListSeparator)+origPath); err != nil {
+		t.Fatalf("failed to update PATH: %v", err)
+	}
+	t.Cleanup(func() { os.Setenv("PATH", origPath) })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+
+	m, err := NewManager(mainDir)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	if err := m.RemoveByPath(ctx, worktreePath); err == nil {
+		t.Fatal("RemoveByPath() should return an error when context is canceled")
+	} else if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) && !strings.Contains(err.Error(), "signal: killed") {
+		t.Fatalf("RemoveByPath() returned %v, want context cancellation error", err)
+	}
+}
+
 // TestRemoveByPath_RemovesRegisteredWorktree verifies that RemoveByPath removes
 // a worktree when its path is registered in the worktree list.
 func TestRemoveByPath_RemovesRegisteredWorktree(t *testing.T) {
