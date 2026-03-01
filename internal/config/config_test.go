@@ -3411,12 +3411,12 @@ func TestMethodologyGranularityDefaultsToBead(t *testing.T) {
 	}
 }
 
-func TestMethodologyMaxTDDCyclesDefaultsToTen(t *testing.T) {
+func TestMethodologyMaxTDDCyclesNotSetByDefaults(t *testing.T) {
 	cfg := &Config{}
 	cfg.SetDefaults()
 
-	if cfg.Methodology.MaxTDDCycles != DefaultMaxTDDCycles {
-		t.Errorf("expected max_tdd_cycles=%d, got %d", DefaultMaxTDDCycles, cfg.Methodology.MaxTDDCycles)
+	if cfg.Methodology.MaxTDDCycles != 0 {
+		t.Errorf("expected max_tdd_cycles to remain unset, got %d", cfg.Methodology.MaxTDDCycles)
 	}
 }
 
