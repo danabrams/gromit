@@ -944,6 +944,52 @@ func TestPendingBranches_WorktreeProbeFailureFallsBackToBranchList(t *testing.T)
 	}
 }
 
+// TestMergeBackCancelsWhenContextDone verifies MergeBack honors the caller
+// context so git commands respond to cancellation.
+func TestMergeBackCancelsWhenContextDone(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainDir := filepath.Join(tmpDir, "repo")
+	worktreeDir := mainDir + "-gromit-interactive"
+
+	if err := os.MkdirAll(mainDir, 0o755); err != nil {
+		t.Fatalf("failed to create main dir: %v", err)
+	}
+	if err := os.MkdirAll(worktreeDir, 0o755); err != nil {
+		t.Fatalf("failed to create worktree dir: %v", err)
+	}
+
+	fakeGitDir := t.TempDir()
+	fakeGit := filepath.Join(fakeGitDir, "git")
+	script := "#!/bin/sh\nsleep 5\n"
+	if err := os.WriteFile(fakeGit, []byte(script), 0o755); err != nil {
+		t.Fatalf("failed to write fake git: %v", err)
+	}
+
+	origPath := os.Getenv("PATH")
+	if err := os.Setenv("PATH", fakeGitDir+string(os.PathListSeparator)+origPath); err != nil {
+		t.Fatalf("failed to update PATH: %v", err)
+	}
+	t.Cleanup(func() { os.Setenv("PATH", origPath) })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+
+	m, err := NewManager(mainDir)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	if err := m.MergeBack(ctx, "gromit/test"); err == nil {
+		t.Fatal("MergeBack() should return an error when context is canceled")
+	} else if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) && !strings.Contains(err.Error(), "signal: killed") {
+		t.Fatalf("MergeBack() returned %v, want context cancellation error", err)
+	}
+}
+
 // TestMergeBack_FastForwardSuccess verifies that MergeBack performs a
 // fast-forward merge when possible and deletes the branch on success.
 func TestMergeBack_FastForwardSuccess(t *testing.T) {
