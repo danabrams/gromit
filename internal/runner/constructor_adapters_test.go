@@ -805,3 +805,30 @@ func TestIntegrationQueueGitOpsAdapter_MergeToMainCommands(t *testing.T) {
 		t.Fatalf("commands = %v, want %v", calls, want)
 	}
 }
+
+func TestIntegrationQueueGitOpsAdapter_PushCommands(t *testing.T) {
+	t.Parallel()
+
+	repoDir := "/repo"
+	calls := make([]string, 0, 1)
+	adapter := &integrationQueueGitOpsAdapter{
+		repoDir:    repoDir,
+		baseBranch: "main",
+		runGitCommand: func(ctx context.Context, dir string, args ...string) (string, error) {
+			if dir != repoDir {
+				t.Fatalf("dir = %q, want %q", dir, repoDir)
+			}
+			calls = append(calls, strings.Join(args, " "))
+			return "", nil
+		},
+	}
+
+	if err := adapter.Push(context.Background()); err != nil {
+		t.Fatalf("Push returned error: %v", err)
+	}
+
+	want := []string{"push origin main"}
+	if !reflect.DeepEqual(calls, want) {
+		t.Fatalf("commands = %v, want %v", calls, want)
+	}
+}
