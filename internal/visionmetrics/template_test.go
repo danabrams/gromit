@@ -54,3 +54,24 @@ func TestPRTemplateDocumentsAllowedValues(t *testing.T) {
         }
     }
 }
+
+func TestPRTemplateDocumentsRationaleRequirementAndExample(t *testing.T) {
+    path := filepath.Join("..", "..", ".github", "pull_request_template.md")
+    data, err := os.ReadFile(path)
+    if err != nil {
+        t.Fatalf("unable to read template: %v", err)
+    }
+
+    content := string(data)
+    requirements := []string{
+        "review_rationale is required when review_outcome is rework_vision_change",
+        "### Known-good Vision Metrics example (LLM copy-edit safe)",
+        "review_rationale: Product owner shifted direction after the first presentation.",
+    }
+
+    for _, requirement := range requirements {
+        if !strings.Contains(content, requirement) {
+            t.Fatalf("template missing rationale/example guidance %q", requirement)
+        }
+    }
+}
