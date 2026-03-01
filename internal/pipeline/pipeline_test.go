@@ -505,6 +505,20 @@ func TestPipeline_CountBeadsMethod(t *testing.T) {
 	}
 }
 
+func TestPipeline_CountBeadsUnsupportedStatus(t *testing.T) {
+	deps := &Deps{BeadQueryClient: &testBeadQueryClient{}}
+	paths := &Paths{}
+	p := New(deps, paths)
+
+	ctx := context.Background()
+	input := CountBeadsInput{Status: "done"}
+
+	_, err := p.CountBeads(ctx, input)
+	if err == nil {
+		t.Error("CountBeads() should error when given an unsupported status filter")
+	}
+}
+
 // TestPipeline_QueryUndecomposedPlansMethod verifies Pipeline has QueryUndecomposedPlans method
 // with proper input/output types and nil dependency validation.
 func TestPipeline_QueryUndecomposedPlansMethod(t *testing.T) {
