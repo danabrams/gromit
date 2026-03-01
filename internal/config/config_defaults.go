@@ -492,7 +492,7 @@ func (c *Config) SetDefaults() {
 	if c.SpecPR.FixCycleCap == 0 {
 		c.SpecPR.FixCycleCap = 3
 	}
-	if !c.SpecPR.AutoFixHumanComments {
+	if !c.SpecPR.autoFixHumanCommentsSet && !c.SpecPR.AutoFixHumanComments {
 		c.SpecPR.AutoFixHumanComments = true
 	}
 	if c.SpecPR.CIPollInterval == 0 {

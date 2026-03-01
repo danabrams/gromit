@@ -640,10 +640,43 @@ type SpecPRConfig struct {
 	MergeMethod          string   `yaml:"merge_method"`
 	FixCycleCap          int      `yaml:"fix_cycle_cap"`
 	AutoFixHumanComments bool     `yaml:"auto_fix_human_comments"`
+	autoFixHumanCommentsSet bool `yaml:"-"`
 	AutoMergeOnApproval  bool     `yaml:"auto_merge_on_approval"`
 	CIPollInterval       int      `yaml:"ci_poll_interval"`
 	CITimeout            int      `yaml:"ci_timeout"`
 	MaxOpenPRs           int      `yaml:"max_open_prs"`
+}
+
+type specPRConfigAlias SpecPRConfig
+
+func (c *SpecPRConfig) UnmarshalYAML(value *yaml.Node) error {
+	if value == nil {
+		return nil
+	}
+
+	var decoded specPRConfigAlias
+	if err := value.Decode(&decoded); err != nil {
+		return err
+	}
+
+	*c = SpecPRConfig(decoded)
+	if yamlMappingHasKey(value, "auto_fix_human_comments") {
+		c.autoFixHumanCommentsSet = true
+	}
+	return nil
+}
+
+func yamlMappingHasKey(node *yaml.Node, key string) bool {
+	if node == nil || node.Kind != yaml.MappingNode {
+		return false
+	}
+
+	for i := 0; i < len(node.Content); i += 2 {
+		if node.Content[i].Value == key {
+			return true
+		}
+	}
+	return false
 }
 
 // ResolvePhaseTimeoutSeconds returns the configured timeout for a methodology
