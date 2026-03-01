@@ -73,6 +73,13 @@ func TestValidate(t *testing.T) {
 			wantFields: []string{FieldEscapedRegressionWithin7D},
 		},
 		{
+			name: "escaped regression pending allowed",
+			modify: func(rec *Record) {
+				rec.EscapedRegressionWithin7D = YesNo("pending")
+			},
+			wantErr: false,
+		},
+		{
 			name: "debugging requires tactical",
 			modify: func(rec *Record) {
 				rec.HumanDebuggingIntervention = Yes
