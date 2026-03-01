@@ -265,3 +265,46 @@ func TestOrchestratorHelper_IntegrationQueueSectionDeterministic(t *testing.T) {
 	outputs := captureStatusOutputs(t, gromitDir, cfg, 3)
 	assertIntegrationQueueSectionStable(t, outputs)
 }
+
+// TestOrchestratorHelper_InvalidQueueSchemaInJSONOutput verifies that an invalid
+// integration-queue.json schema surfaces queue_schema_invalid error in JSON output
+// from the status command.
+func TestOrchestratorHelper_InvalidQueueSchemaInJSONOutput(t *testing.T) {
+	t.Parallel()
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("Failed to create gromit dir: %v", err)
+	}
+
+	cfg := &config.Config{
+		Paths: config.PathsConfig{
+			Specs: filepath.Join(gromitDir, "specs"),
+			Plans: filepath.Join(gromitDir, "plans"),
+		},
+	}
+
+	// Create invalid integration-queue.json (corrupt/incomplete JSON)
+	invalidQueueContent := `{"schema_version": 1, "entries": [{"branch": "invalid"`
+	if err := os.WriteFile(filepath.Join(gromitDir, "integration-queue.json"), []byte(invalidQueueContent), 0644); err != nil {
+		t.Fatalf("Failed to write invalid queue: %v", err)
+	}
+
+	// Build status JSON to check for queue_schema_invalid error
+	statusJSON, err := runner.BuildStatusJSON(gromitDir, cfg)
+	if err != nil {
+		t.Fatalf("BuildStatusJSON() failed: %v", err)
+	}
+
+	// Verify queue_schema_invalid error is in the Errors array
+	found := false
+	for _, errCode := range statusJSON.Errors {
+		if errCode == "queue_schema_invalid" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("Expected 'queue_schema_invalid' in JSON errors, got: %v", statusJSON.Errors)
+	}
+}
