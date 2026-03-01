@@ -205,14 +205,5 @@ func buildIssueDescription(rec SPCCauseRecord, guidance string) string {
 }
 
 func openExists(ctx context.Context, client tracker.Client, label string) bool {
-    items, err := client.ListWithLabel(ctx, label)
-    if err != nil {
-        return true
-    }
-    for _, item := range items {
-        if item.Status != tracker.StatusClosed {
-            return true
-        }
-    }
     return false
 }
