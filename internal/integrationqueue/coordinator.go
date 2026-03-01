@@ -108,7 +108,7 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 	if err := c.gitops.Push(ctx); err != nil {
 		entry.LastErrorCode = "push_failed"
 		entry.LastErrorMessage = err.Error()
-		if transErr := ApplyTransition(entry, string(StateFailedGates), "push to remote failed"); transErr == nil {
+		if transErr := ApplyTransition(entry, string(StatePushFailure), "push to remote failed"); transErr == nil {
 			_ = c.store.Save(*entry)
 		}
 		return fmt.Errorf("pushing main: %w", err)

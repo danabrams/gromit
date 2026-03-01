@@ -38,6 +38,7 @@ const (
 	StateConflict      State = "conflict"
 	StateFailedGates   State = "failed_gates"
 	StateLaneViolation State = "lane_violation"
+	StatePushFailure   State = "push_failure"
 )
 
 var validStates = map[State]struct{}{
@@ -48,6 +49,7 @@ var validStates = map[State]struct{}{
 	StateConflict:      {},
 	StateFailedGates:   {},
 	StateLaneViolation: {},
+	StatePushFailure:   {},
 }
 
 // Entry represents a persisted integration queue record.

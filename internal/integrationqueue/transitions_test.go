@@ -128,6 +128,7 @@ func TestNextAllowedStates_IntegratingReturnsManyStates(t *testing.T) {
 		"conflict":       true,
 		"failed_gates":   true,
 		"lane_violation": true,
+		"push_failure":   true,
 		"ready":          true,
 	}
 	if len(states) != len(expected) {
@@ -247,9 +248,11 @@ func TestCheckTransition_AllAllowedTransitions(t *testing.T) {
 		{"integrating", "conflict"},
 		{"integrating", "failed_gates"},
 		{"integrating", "lane_violation"},
+		{"integrating", "push_failure"},
 		{"conflict", "ready"},
 		{"failed_gates", "ready"},
 		{"lane_violation", "ready"},
+		{"push_failure", "ready"},
 	}
 
 	for _, tc := range allowedCases {
@@ -301,6 +304,13 @@ func TestCheckTransition_AllDisallowedTransitions(t *testing.T) {
 		{"lane_violation", "conflict"},
 		{"lane_violation", "failed_gates"},
 		{"lane_violation", "lane_violation"},
+		{"push_failure", "draft"},
+		{"push_failure", "integrating"},
+		{"push_failure", "merged"},
+		{"push_failure", "conflict"},
+		{"push_failure", "failed_gates"},
+		{"push_failure", "lane_violation"},
+		{"push_failure", "push_failure"},
 	}
 
 	for _, tc := range disallowedCases {
