@@ -106,6 +106,46 @@ func TestSPCAutoTriage_CreatesIssuesForClassificationPermutations(t *testing.T) 
 	}
 }
 
+func TestSPCAutoTriage_ContinuesAfterCreateFailure(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
+
+	trackerClient := trackertest.NewStubTrackerClient()
+	var createCount int
+	trackerClient.CreateFn = func(ctx context.Context, req tracker.CreateRequest) (*tracker.Item, error) {
+		createCount++
+		if createCount == 1 {
+			return nil, fmt.Errorf("transient tracker failure")
+		}
+		return &tracker.Item{ID: fmt.Sprintf("issue-%d", createCount), Status: tracker.StatusOpen}, nil
+	}
+	trackerClient.ListWithLabelFn = func(ctx context.Context, label string) ([]tracker.Item, error) {
+		return nil, nil
+	}
+
+	store := newTestCooldownStore()
+	triager := NewSPCAutoTriager(trackerClient, store, WithNowFunc(func() time.Time { return now }))
+
+	records := []SPCCauseRecord{
+		{Metric: "m1", Stratum: "global", Class: CauseClassSpecial, PersistenceWindowCount: 2, Latest: 1, DetectedAt: now.Add(-time.Hour)},
+		{Metric: "m2", Stratum: "global", Class: CauseClassCommon, PersistenceWindowCount: 2, Latest: 2, DetectedAt: now.Add(-time.Hour)},
+	}
+
+	results, err := triager.Process(ctx, records)
+	if err == nil {
+		t.Fatalf("expected Process() to report tracker failure")
+	}
+	if createCount != 2 {
+		t.Fatalf("expected tracker.Create to be invoked twice, got %d", createCount)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected one successful triage result, got %d", len(results))
+	}
+	if results[0].Record.Metric != "m2" {
+		t.Fatalf("expected successful result for m2, got %s", results[0].Record.Metric)
+	}
+}
+
 func TestSPCAutoTriage_IncludesGuidanceForEachCauseClass(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
