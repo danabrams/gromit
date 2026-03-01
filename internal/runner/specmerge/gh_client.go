@@ -206,7 +206,7 @@ func (c *ghClient) PostComment(ctx context.Context, ref PRRef, body string) erro
 		"-X",
 		"POST",
 		fmt.Sprintf("/repos/%s/%s/issues/%d/comments", ref.Owner, ref.Repo, ref.Number),
-		"-F",
+		"-f",
 		"body=" + body,
 	}
 
