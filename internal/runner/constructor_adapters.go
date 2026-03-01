@@ -600,9 +600,12 @@ func (a *specGateAdapter) Run(ctx context.Context, beadID string, labels []strin
 	return nil
 }
 
-func newSpecMergeController(cfg *config.Config, client tracker.Client, router providerRouter, renderer reviewPromptRenderer) specmerge.Controller {
+func newSpecMergeController(cfg *config.Config, client tracker.Client, router providerRouter, renderer reviewPromptRenderer, stageCtx *StageContext) specmerge.Controller {
 	if cfg == nil || client == nil {
 		return nil
+	}
+	if stageCtx != nil {
+		_ = stageCtx
 	}
 	if cfg.Methodology.Granularity != config.MethodologyGranularitySpec {
 		return nil

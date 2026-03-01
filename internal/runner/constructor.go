@@ -47,6 +47,10 @@ const (
 )
 
 func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orchestrator, error) {
+	return newRunnerImplWithStageContext(cfg, output, labels, nil)
+}
+
+func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels []string, stageCtx *StageContext) (*Orchestrator, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config is nil")
 	}
@@ -125,6 +129,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		trackerClientInterface,
 		&specMergeRouterAdapter{router: router},
 		&specMergeReviewRendererAdapter{renderer: renderer},
+		stageCtx,
 	)
 
 	analyzerObj, err := analyzer.NewAnalyzer(learningsProvider, cfg.Models.Validation, renderer)
@@ -309,6 +314,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		StateSaver:       sf,
 		ProviderCostDefs: costDefs,
 		Coordinator:      coordinator,
+		StageContext:     stageCtx,
 	}
 
 	return NewOrchestrator(orchCfg), nil

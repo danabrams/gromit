@@ -43,7 +43,13 @@ type Deps struct {
 
 // NewRunner creates a new Orchestrator that sequences the 5-stage pipeline.
 func NewRunner(cfg *config.Config, output io.Writer, labels ...string) (*Orchestrator, error) {
-	return newRunnerImpl(cfg, output, labels)
+	return newRunnerImplWithStageContext(cfg, output, labels, nil)
+}
+
+// NewRunnerWithStageContext allows callers to supply specflow stage metadata that
+// should be forwarded to downstream dependencies.
+func NewRunnerWithStageContext(cfg *config.Config, output io.Writer, stageCtx *StageContext, labels ...string) (*Orchestrator, error) {
+	return newRunnerImplWithStageContext(cfg, output, labels, stageCtx)
 }
 
 // NewRunnerWithDeps creates an Orchestrator using only Router dependencies,

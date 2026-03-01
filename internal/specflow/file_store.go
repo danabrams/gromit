@@ -1,0 +1,102 @@
+package specflow
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+)
+
+// NewFileStore creates a file-backed SpecStore inside the given gromit directory.
+func NewFileStore(gromitDir string) (SpecStore, error) {
+	gromitDir = strings.TrimSpace(gromitDir)
+	if gromitDir == "" {
+		gromitDir = ".gromit"
+	}
+	store := &fileStore{
+		path:   filepath.Join(gromitDir, "specflow.json"),
+		stages: make(map[string]Stage),
+	}
+	if err := store.load(); err != nil {
+		return nil, err
+	}
+	return store, nil
+}
+
+type fileStore struct {
+	mu     sync.Mutex
+	path   string
+	stages map[string]Stage
+}
+
+func (f *fileStore) Stage(_ context.Context, specID string) (Stage, error) {
+	if f == nil {
+		return "", fmt.Errorf("specflow file store is nil")
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	stage, ok := f.stages[specID]
+	if !ok {
+		return "", ErrStageNotFound
+	}
+	return stage, nil
+}
+
+func (f *fileStore) StoreStage(_ context.Context, specID string, stage Stage) error {
+	if f == nil {
+		return fmt.Errorf("specflow file store is nil")
+	}
+	f.mu.Lock()
+	f.stages[specID] = stage
+	f.mu.Unlock()
+	return f.save()
+}
+
+func (f *fileStore) load() error {
+	if f == nil {
+		return fmt.Errorf("specflow file store is nil")
+	}
+	data, err := os.ReadFile(f.path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("reading specflow store: %w", err)
+	}
+	var raw map[string]string
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return fmt.Errorf("parsing specflow store: %w", err)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for specID, value := range raw {
+		f.stages[specID] = Stage(value)
+	}
+	return nil
+}
+
+func (f *fileStore) save() error {
+	if f == nil {
+		return fmt.Errorf("specflow file store is nil")
+	}
+	data := make(map[string]string, len(f.stages))
+	f.mu.Lock()
+	for specID, stage := range f.stages {
+		data[specID] = string(stage)
+	}
+	f.mu.Unlock()
+	jsonData, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshalling specflow store: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(f.path), 0o755); err != nil {
+		return fmt.Errorf("creating specflow store dir: %w", err)
+	}
+	if err := os.WriteFile(f.path, jsonData, 0644); err != nil {
+		return fmt.Errorf("writing specflow store: %w", err)
+	}
+	return nil
+}

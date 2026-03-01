@@ -32,18 +32,25 @@ func NewManager(store SpecStore) *Manager {
 }
 
 func (m *Manager) Resume(ctx context.Context, specID string) (Stage, error) {
+	stage, _, err := m.ResumeWithBootstrap(ctx, specID)
+	return stage, err
+}
+
+// ResumeWithBootstrap returns the current stage and whether the stage was bootstrapped
+// (i.e., no previous stage data existed for the spec).
+func (m *Manager) ResumeWithBootstrap(ctx context.Context, specID string) (Stage, bool, error) {
 	stage, err := m.store.Stage(ctx, specID)
 	if errors.Is(err, ErrStageNotFound) || stage == "" {
-		return StagePlanning, nil
+		return StagePlanning, true, nil
 	}
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
-	return stage, nil
+	return stage, false, nil
 }
 
 func (m *Manager) Advance(ctx context.Context, specID string, next Stage) error {
-	current, err := m.Resume(ctx, specID)
+	current, _, err := m.ResumeWithBootstrap(ctx, specID)
 	if err != nil {
 		return err
 	}
@@ -57,7 +64,7 @@ func (m *Manager) Advance(ctx context.Context, specID string, next Stage) error 
 }
 
 func (m *Manager) Guard(ctx context.Context, specID string, expected Stage) error {
-	stage, err := m.Resume(ctx, specID)
+	stage, _, err := m.ResumeWithBootstrap(ctx, specID)
 	if err != nil {
 		return err
 	}

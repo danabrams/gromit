@@ -179,12 +179,14 @@ The TUI store (internal/tui/store.go) uses sync.RWMutex. All mutations hold the 
 
 ### 2026-02-28 | All Subprocess Launch Sites Must Follow Full procutil Lifecycle | conventions
 *Related to: review-1772244209301323387, review-1772300695650836737, review-1772322141608097349, review-1772366501939692738*
+
 *Consolidated from: Process Capacity Gating Before Subprocess Start + Subprocess Wrappers Must Follow procutil Pattern + Subprocess Launch Must Use Full procutil Pattern Including ReapProcessTree*
 
 All subprocess launch sites must follow the full procutil lifecycle pattern: process-group setup (`SetProcessGroupKill`), capacity gating (`WaitForProcessCapacity`), cancellation descendant kill (`KillDescendantsOnCancel`), stderr capture, and process-tree reap (`ReapProcessTree`, not the shallower `ReapProcessGroup`).
 
 ### 2026-02-28 | Epilogue Close/Sync Failures Must Suppress All Success Signals | patterns
 *Related to: review-1772244209301323387, review-1772322141608097349*
+
 *Consolidated from: Epilogue Lifecycle Failure Suppresses Success Signals + Epilogue Lifecycle Failure Suppresses All Success Signals*
 
 Epilogue close/sync failures must suppress all success signals (events, logs, merge triggers) and publish a failed lifecycle outcome. When close/sync fails, BeadCompleteEvent is not emitted and spec merge triggering is skipped to prevent downstream consumers from acting on incomplete state.
@@ -196,6 +198,7 @@ Provider router (internal/provider/router.go) was a genuine data race — counts
 
 ### 2026-02-28 | Integration Queue Lifecycle Is Table-Driven via ApplyTransition With Mandatory Persistence | architecture
 *Related to: review-1772280289214510883, retro-1772302209902158129, review-1772322141608097349*
+
 *Consolidated from: Integration Queue State Machine Has 7 States With Validated Transitions + Integration Queue State Machine Is Table-Driven via ApplyTransition*
 
 Integration queue lifecycle is table-driven (7 states: draft/ready/integrating/merged/conflict/failed_gates/lane_violation) and must mutate state only through `ApplyTransition`, with every error-path transition persisted before return; direct assignment is forbidden. Error paths (push failure, rebase conflict) must persist state transitions before returning errors to avoid leaving entries stuck in `StateIntegrating`.
@@ -210,14 +213,14 @@ Pipeline.ListBeads and QueryBeads only support status="" or status="ready". Any 
 
 ### 2026-02-28 | Vision Metrics Rollups May Use Asymmetric Carve-Out Denominators | patterns
 *Related to: review-1772300695650836737, review-1772322141608097349*
+
 *Consolidated from: Vision Metrics Rollup Has Asymmetric Carve-Out Handling + Vision Metrics Rollup Has Intentional Asymmetric Carve-Outs*
 
 Vision metrics rollups may intentionally use asymmetric carve-out denominators (e.g., AcceptedWithoutReworkRate excludes rework_vision_change from denominator but FirstIntegrationPassRate includes them), but each metric must document carve-out policy explicitly.
 
-
-
 ### 2026-02-28 | Queue/Board Pipeline Methods Must Use NewPipelineDeps, Not Package-Level Factories | tech_debt
 *Related to: review-1772322141608097349, review-1772366501939692738*
+
 *Consolidated from: Board and Queue Commands Bypass Deps DI Pattern + Queue and Board Pipeline Methods Bypass Centralized DI Pattern*
 
 Queue/board pipeline methods must consume dependencies through `NewPipelineDeps` (no package-level concrete client factories). Currently board.go and queue.go bypass centralized DI using package-level factory vars — this means these methods cannot be tested with mock dependencies.
@@ -267,6 +270,11 @@ Provider router Select() has a TOCTOU race between isAvailable() and selectProvi
 
 specmerge/gh_client.go is missing KillDescendantsOnCancel after cmd.Start() and uses ReapProcessGroup instead of ReapProcessTree. All other subprocess launch sites (cmd_run.go, specbranch/git_ops.go, benchmark/worktree_run.go, preflight.go, integrationqueue_constructor.go) follow the full pattern.
 
+### 2026-03-01 | gromit-y03p | conventions
+When working with process management tasks (KillDescendantsOnCancel, ReapProcessTree), verify the target file/package exists and understand the existing process tree management patterns in the codebase before implementing.
+
+### 2026-03-01 | gromit-90i5 | conventions
+In Gromit's runner orchestration, state transitions are constrained by a transition table - check valid transitions before recovering/changing queue state; integrating→draft is invalid; consult internal/runner/orchestrator.go or runner.go for transition rules
 
 ---
 

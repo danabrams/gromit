@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/runner"
 	"github.com/danabrams/gromit/internal/specflow"
 )
@@ -93,11 +94,11 @@ func TestRunLoop_SpecFlagFreshStartBootstrapsStageAndBranch(t *testing.T) {
 	defer cleanup()
 
 	fakeStore := &fakeSpecflowStore{stageErr: specflow.ErrStageNotFound}
-	origStoreFn := newSpecflowStoreFn
-	newSpecflowStoreFn = func(gromitDir string) (specflow.SpecStore, error) {
+	origStoreFactory := runner.SpecflowStoreFactory
+	runner.SpecflowStoreFactory = func(gromitDir string) (specflow.SpecStore, error) {
 		return fakeStore, nil
 	}
-	defer func() { newSpecflowStoreFn = origStoreFn }()
+	defer func() { runner.SpecflowStoreFactory = origStoreFactory }()
 
 	var capturedStageCtx *runner.StageContext
 	origRunnerFn := newRunnerWithStageContextFn
@@ -108,14 +109,19 @@ func TestRunLoop_SpecFlagFreshStartBootstrapsStageAndBranch(t *testing.T) {
 	defer func() { newRunnerWithStageContextFn = origRunnerFn }()
 
 	var branches []string
-	origBranchFn := newSpecBranchCreatorFn
-	newSpecBranchCreatorFn = func(repoDir string, cfg *config.Config) (specBranchCreator, error) {
+	origBranchFactory := runner.SpecBranchCreatorFactory
+	runner.SpecBranchCreatorFactory = func(repoDir string, cfg *config.Config) (runner.SpecBranchCreator, error) {
 		return &fakeBranchCreator{branches: &branches}, nil
 	}
-	defer func() { newSpecBranchCreatorFn = origBranchFn }()
+	defer func() { runner.SpecBranchCreatorFactory = origBranchFactory }()
 
 	runSpecFlag = "auth"
 	runEpicFlag = ""
+
+	specPath := filepath.Join(".gromit", "specs", "auth.md")
+	if err := os.WriteFile(specPath, []byte("# auth spec"), 0644); err != nil {
+		t.Fatalf("Failed to write spec file: %v", err)
+	}
 
 	err := runLoop(runCmd, []string{})
 	if err == nil || !strings.Contains(err.Error(), "runner stub") {

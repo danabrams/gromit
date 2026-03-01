@@ -97,6 +97,9 @@ type OrchestratorConfig struct {
 	// Optional: nil means branch checkout is skipped.
 	BranchRouter BranchRouter
 
+	// StageContext carries specflow metadata for spec-scoped runs, if any.
+	StageContext *StageContext
+
 	// GitCheckout performs git branch checkout operations.
 	// Optional: nil means branch checkout is skipped.
 	GitCheckout GitCheckout

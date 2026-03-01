@@ -25,19 +25,23 @@ import (
 )
 
 var (
-	configPath        string
-	maxIterations     int
-	dryRun            bool
+	configPath                 string
+	maxIterations              int
+	dryRun                     bool
 	readinessEmergencyOverride bool
-	nonInteractive    bool
-	timeBudgetMinutes int
-	timeBudgetHours   int
-	retroSpecFlag     string
-	retroEpicFlag     string
-	runSpecFlag       string
-	runEpicFlag       string
-	statusSPC         bool
-	statusJSON        bool
+	nonInteractive             bool
+	timeBudgetMinutes          int
+	timeBudgetHours            int
+	retroSpecFlag              string
+	retroEpicFlag              string
+	runSpecFlag                string
+	runEpicFlag                string
+	statusSPC                  bool
+	statusJSON                 bool
+)
+
+var (
+	newRunnerWithStageContextFn = runner.NewRunnerWithStageContext
 )
 
 var runHasOpenBeadsForLabelFn = hasOpenBeadsForLabel
@@ -243,6 +247,7 @@ func runLoop(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
+	cfg.SetDefaults()
 
 	applyReadinessEmergencyOverrideFlag(cfg)
 
@@ -278,7 +283,22 @@ func runLoop(cmd *cobra.Command, args []string) error {
 		deadline = time.Now().Add(time.Duration(totalMinutes) * time.Minute)
 	}
 
-	r, err := runner.NewRunner(cfg, os.Stdout, labels...)
+	gromitDir := resolveGromitDir(cfg)
+	stageCtx, stageCtxErr := runner.BuildSpecStageContext(ctx, cfg, runSpecFlag, gromitDir)
+	if stageCtxErr != nil {
+		return fmt.Errorf("initializing specflow stage: %w", stageCtxErr)
+	}
+	if stageCtx != nil && stageCtx.SpecName != "" && stageCtx.FreshStart {
+		repoDir, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("determining repo dir: %w", err)
+		}
+		if err := runner.EnsureSpecBranch(ctx, cfg, stageCtx, repoDir); err != nil {
+			return fmt.Errorf("preparing spec branch: %w", err)
+		}
+	}
+
+	r, err := newRunnerWithStageContextFn(cfg, os.Stdout, stageCtx, labels...)
 	if err != nil {
 		return fmt.Errorf("failed to create runner: %w", err)
 	}
