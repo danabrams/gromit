@@ -2666,6 +2666,30 @@ func TestNewRunnerImpl_GateStageLeavesReadinessDisabledWhenFeatureOff(t *testing
 	}
 }
 
+func TestNewRunnerImpl_GateStageHasReadinessAdapterWhenFeatureOff(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	_ = os.MkdirAll(filepath.Join(gromitDir, "templates"), 0o755)
+	_ = os.MkdirAll(filepath.Join(gromitDir, "specs"), 0o755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "logs"), 0o755)
+
+	cfg := &config.Config{}
+	cfg.Paths.Templates = filepath.Join(gromitDir, "templates")
+	cfg.Paths.Specs = filepath.Join(gromitDir, "specs")
+	cfg.Paths.Logs = filepath.Join(tmpDir, "logs")
+	falseVal := false
+	cfg.ReadinessCheck.Enabled = &falseVal
+
+	orch, err := newRunnerImpl(cfg, io.Discard, nil)
+	if err != nil {
+		t.Fatalf("newRunnerImpl failed: %v", err)
+	}
+
+	ensureGateHasReadinessAssessor(t, orch)
+}
+
 func TestNewRunnerImpl_GateStageHasReadinessAdapterByDefault(t *testing.T) {
 	t.Parallel()
 
