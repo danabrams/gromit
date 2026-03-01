@@ -190,6 +190,44 @@ func TestParseProposals_JSONWithoutMarker(t *testing.T) {
 	}
 }
 
+func TestParseWorkmanshipProposals(t *testing.T) {
+	output := `
+` + "```json" + `
+{
+  "workmanship": [
+    {
+      "description": "Craft cleaner merge instructions for shared config files",
+      "friction_options": [
+        {
+          "description": "Add a checklist for verifying config alignment before merging"
+        }
+      ]
+    }
+  ]
+}
+` + "```"
+
+	proposals, err := ParseProposals(output)
+	if err != nil {
+		t.Fatalf("ParseProposals() error = %v", err)
+	}
+
+	if len(proposals.Workmanship) != 1 {
+		t.Fatalf("Expected 1 workmanship proposal, got %d", len(proposals.Workmanship))
+	}
+
+	w := proposals.Workmanship[0]
+	if w.Description != "Craft cleaner merge instructions for shared config files" {
+		t.Errorf("Unexpected workmanship description: %s", w.Description)
+	}
+	if len(w.FrictionOptions) != 1 {
+		t.Fatalf("Expected 1 friction option, got %d", len(w.FrictionOptions))
+	}
+	if w.FrictionOptions[0].Description != "Add a checklist for verifying config alignment before merging" {
+		t.Errorf("Unexpected friction option description: %s", w.FrictionOptions[0].Description)
+	}
+}
+
 func TestExtractJSONBlock_MultipleBlocks(t *testing.T) {
 	// Should extract the first block
 	output := `
