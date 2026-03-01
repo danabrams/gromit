@@ -1130,3 +1130,32 @@ func TestFormatIntegrationQueue_DeterministicOrderingForBlockedEntries(t *testin
 		t.Logf("All entries displayed in output, order verified")
 	}
 }
+
+func TestFormatIntegrationQueue_ShowsPushFailureRecoveryInstruction(t *testing.T) {
+	t.Parallel()
+
+	status := &IntegrationQueueStatus{
+		QueueLength:      1,
+		ReadyCount:       0,
+		IntegratingCount: 0,
+		BlockedCount:     1,
+		MergedCount:      0,
+		Entries: []*IntegrationQueueEntryView{
+			{
+				Branch:           "gromit/push-branch",
+				State:            "push_failure",
+				Lane:             "code_lane",
+				LastErrorCode:    "push_failed",
+				LastErrorMessage: "remote rejected push",
+			},
+		},
+	}
+
+	output := FormatIntegrationQueue(status)
+	if !strings.Contains(output, "gromit/push-branch") {
+		t.Fatalf("expected push failure branch in output; got:\n%s", output)
+	}
+	if !strings.Contains(output, "Recovery: Check git push permissions and network connectivity before retrying.") {
+		t.Fatalf("expected push failure recovery instructions; got:\n%s", output)
+	}
+}
