@@ -204,7 +204,7 @@ func TestCreateBranch_GeneratesCorrectBranchName(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	branchName, err := m.CreateBranch("retro")
+	branchName, err := m.CreateBranch(context.Background(), "retro")
 	if err != nil {
 		t.Fatalf("CreateBranch() error = %v, want nil", err)
 	}
@@ -256,7 +256,7 @@ func TestCreateBranch_DifferentCommands(t *testing.T) {
 				t.Fatalf("NewManager() error = %v", err)
 			}
 
-			branchName, err := m.CreateBranch(tt.command)
+			branchName, err := m.CreateBranch(context.Background(), tt.command)
 			if err != nil {
 				t.Fatalf("CreateBranch(%q) error = %v, want nil", tt.command, err)
 			}
@@ -407,7 +407,7 @@ func TestManager_NilReceiver(t *testing.T) {
 		t.Errorf("EnsureWorktree() error should mention nil receiver, got: %v", err)
 	}
 
-	_, err = m.CreateBranch("test")
+	_, err = m.CreateBranch(context.Background(), "test")
 	if err == nil {
 		t.Error("CreateBranch() on nil receiver should return error")
 	}
@@ -537,7 +537,7 @@ func TestCreateBranch_GitRunFnCalledInWorktreeDir(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	_, err = m.CreateBranch("retro")
+	_, err = m.CreateBranch(context.Background(), "retro")
 	if err != nil {
 		t.Fatalf("CreateBranch() error = %v, want nil", err)
 	}

@@ -143,7 +143,7 @@ func containsPath(gitWorktreeListOutput, path string) bool {
 
 // CreateBranch creates a new branch in the worktree for an interactive session.
 // Branch name: gromit/<command>-<timestamp>
-func (m *Manager) CreateBranch(command string) (string, error) {
+func (m *Manager) CreateBranch(ctx context.Context, command string) (string, error) {
 	if m == nil {
 		return "", errors.New("nil Manager receiver")
 	}
@@ -151,7 +151,7 @@ func (m *Manager) CreateBranch(command string) (string, error) {
 		return "", errors.New("command cannot be empty")
 	}
 
-	ctx := m.gitContext()
+	ctx = m.contextFor(ctx)
 
 	// Generate branch name with timestamp
 	timestamp := time.Now().Unix()
