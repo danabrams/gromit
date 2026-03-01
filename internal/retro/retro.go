@@ -230,8 +230,12 @@ func (r *Retro) Run(ctx context.Context, beadFilter map[string]bool) (*Result, e
 	runStats, _ := logger.ReadAllLogsFiltered(logsDir, beadFilter)
 	allBeadStats, _ := logger.ReadPerBeadStatsFiltered(logsDir, beadFilter)
 
-	// Load efficiency report (current run is empty string, all runs are historical)
-	efficiencyReport, _ := logger.ReadEfficiencyReportFiltered(logsDir, "", beadFilter)
+	// Load efficiency report with the latest run as "current"
+	currentRunID := logger.LatestRunID(logsDir)
+	if currentRunID == "" {
+		fmt.Fprintf(os.Stderr, "Warning: no run-*.jsonl files found in %s; current-run efficiency data will be empty\n", logsDir)
+	}
+	efficiencyReport, _ := logger.ReadEfficiencyReportFiltered(logsDir, currentRunID, beadFilter)
 
 	// Load active experiment (if any)
 	experiment, _ := LoadExperiment(r.experimentPath)
