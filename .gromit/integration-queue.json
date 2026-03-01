@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-03-01T00:35:44.875496564Z",
+  "updated_at": "2026-03-01T00:40:41.712894753Z",
   "entries": [
     {
       "branch": "gromit/debug-1772324767531454001",
@@ -42,19 +42,19 @@
       "branch": "gromit/plan-1772325344239127205",
       "session_id": "gromit/plan-1772325344239127205",
       "origin_command": "plan",
-      "state": "draft",
+      "state": "ready",
       "lane": "code_lane",
       "created_at": "2026-03-01T00:35:44.875496564Z",
-      "updated_at": "2026-03-01T00:35:44.875496564Z",
+      "updated_at": "2026-03-01T00:40:41.712894753Z",
       "attempt_count": 0,
       "retry_count": 0,
       "fifo_seq": 3,
       "base_ref": "3c2b69f4968668ee227f4899efcf6f041fbcd97d",
-      "head_sha": "3c2b69f4968668ee227f4899efcf6f041fbcd97d",
-      "changed_files_hash": "",
+      "head_sha": "3e1045a1345298240ad0cccbc478bbb7a50bd429",
+      "changed_files_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "last_error_code": "",
       "last_error_message": "",
-      "last_transition_reason": ""
+      "last_transition_reason": "session_committed"
     }
   ]
 }
