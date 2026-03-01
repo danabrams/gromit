@@ -150,15 +150,16 @@ func (s *SPCAutoTriager) Process(ctx context.Context, records []SPCCauseRecord) 
         if !ok {
             continue
         }
+        _ = issueType
         req := tracker.CreateRequest{
             Title:       fmt.Sprintf("SPC signal: %s (%s)", rec.Metric, displayStratum(rec.Stratum)),
             Status:      tracker.StatusOpen,
-            Metadata: map[string]string{
-                metadataLabelKey:      label,
-                metadataCauseClassKey: string(rec.Class),
-                metadataStratumKey:    displayStratum(rec.Stratum),
-                metadataTypeKey:       issueType,
-            },
+        Metadata: map[string]string{
+            metadataLabelKey:      label,
+            metadataCauseClassKey: string(rec.Class),
+            metadataStratumKey:    displayStratum(rec.Stratum),
+            metadataTypeKey:       "",
+        },
             Description: buildIssueDescription(rec, s.config.Guidance[rec.Class]),
         }
         item, err := s.client.Create(ctx, req)

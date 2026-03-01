@@ -160,6 +160,51 @@ func TestSPCAutoTriage_IncludesGuidanceForEachCauseClass(t *testing.T) {
     }
 }
 
+func TestSPCAutoTriage_SetsIssueTypeMapping(t *testing.T) {
+    ctx := context.Background()
+    now := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
+
+    trackerClient := trackertest.NewStubTrackerClient()
+    var created []tracker.CreateRequest
+    trackerClient.CreateFn = func(ctx context.Context, req tracker.CreateRequest) (*tracker.Item, error) {
+        created = append(created, req)
+        return &tracker.Item{ID: fmt.Sprintf("type-%d", len(created)), Status: tracker.StatusOpen}, nil
+    }
+    trackerClient.ListWithLabelFn = func(ctx context.Context, label string) ([]tracker.Item, error) {
+        return nil, nil
+    }
+
+    store := newTestCooldownStore()
+    triager := NewSPCAutoTriager(trackerClient, store, WithNowFunc(func() time.Time { return now }))
+
+    records := []SPCCauseRecord{
+        {Metric: "c1", Stratum: "global", Class: CauseClassSpecial, PersistenceWindowCount: 2, Latest: 10, DetectedAt: now.Add(-time.Hour)},
+        {Metric: "c2", Stratum: "provider:foo", Class: CauseClassCommon, PersistenceWindowCount: 2, Latest: 20, DetectedAt: now.Add(-time.Hour)},
+    }
+
+    _, err := triager.Process(ctx, records)
+    if err != nil {
+        t.Fatalf("Process() returned error: %v", err)
+    }
+    if len(created) != 2 {
+        t.Fatalf("expected 2 create requests, got %d", len(created))
+    }
+    for _, req := range created {
+        switch req.Metadata[metadataCauseClassKey] {
+        case string(CauseClassSpecial):
+            if req.Metadata[metadataTypeKey] != defaultIssueType(CauseClassSpecial) {
+                t.Errorf("special issue type = %q, want %q", req.Metadata[metadataTypeKey], defaultIssueType(CauseClassSpecial))
+            }
+        case string(CauseClassCommon):
+            if req.Metadata[metadataTypeKey] != defaultIssueType(CauseClassCommon) {
+                t.Errorf("common issue type = %q, want %q", req.Metadata[metadataTypeKey], defaultIssueType(CauseClassCommon))
+            }
+        default:
+            t.Errorf("unexpected cause class %q", req.Metadata[metadataCauseClassKey])
+        }
+    }
+}
+
 type testCooldownStore struct {
     values map[string]time.Time
 }
@@ -180,4 +225,8 @@ func (s *testCooldownStore) Set(identity string, when time.Time) {
         return
     }
     s.values[identity] = when
+}
+
+func defaultIssueType(class CauseClass) string {
+    return defaultSPCAutoTriageConfig().IssueType[class]
 }
