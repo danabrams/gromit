@@ -167,12 +167,12 @@ validation:
     - "GROMIT_TEST_TOUCHED_SHORT=1 ./scripts/test_touched.sh"
     - "./scripts/vet_touched.sh"
   full_commands:  # heavier gate at controlled checkpoints
-    - "go test -vet=off -p 4 -parallel 4 ./..."
+    - "go test -vet=off -p 2 -parallel 2 ./..."
     - "go vet ./..."
     - "go build ./..."
   full_validation_every_n_successes: 10
   commands:
-    - "go test -vet=off -p 4 -parallel 4 ./..."
+    - "go test -vet=off -p 2 -parallel 2 ./..."
     - "go vet ./..."
     - "go build ./..."
   mandatory_commands:  # prefixes that must appear in the validation command set

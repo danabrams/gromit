@@ -5911,6 +5911,36 @@ func TestReadinessEmergencyOverrideDefaultsToFalse(t *testing.T) {
 	}
 }
 
+func TestReadinessEmergencyOverrideAccessor(t *testing.T) {
+	tests := []struct {
+		name     string
+		override bool
+		want     bool
+	}{
+		{
+			name:     "accessor returns false when not set",
+			override: false,
+			want:     false,
+		},
+		{
+			name:     "accessor returns true when enabled",
+			override: true,
+			want:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{
+				ReadinessEmergencyOverride: tt.override,
+			}
+			if got := cfg.IsReadinessEmergencyOverrideEnabled(); got != tt.want {
+				t.Errorf("IsReadinessEmergencyOverrideEnabled() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestReadinessCheckConfigFromYAML(t *testing.T) {
 	tests := []struct {
 		name             string
