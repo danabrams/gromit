@@ -1782,3 +1782,16 @@ func TestBuildProcessTrend_ValidationDurationSpikeProducesSpecialCause(t *testin
 		t.Fatalf("persistence windows = %d, want >= 1", rec.PersistenceWindows)
 	}
 }
+
+func findCauseClassification(records []CauseClassificationRecord, metric, stratum string) *CauseClassificationRecord {
+	for i := range records {
+		if records[i].Metric != metric {
+			continue
+		}
+		if stratum != "" && records[i].Stratum != stratum {
+			continue
+		}
+		return &records[i]
+	}
+	return nil
+}
