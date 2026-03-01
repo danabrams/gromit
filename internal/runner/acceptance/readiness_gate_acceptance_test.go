@@ -3,10 +3,17 @@
 package acceptance_test
 
 import (
+	"context"
+	"io"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/pipeline/prepare"
 	"github.com/danabrams/gromit/internal/readiness"
+	"github.com/danabrams/gromit/internal/runner"
 )
 
 func TestReadinessGateBlocksUnlabeledBead(t *testing.T) {
@@ -26,4 +33,101 @@ func TestReadinessGateBlocksUnlabeledBead(t *testing.T) {
 	if result.GateBlockReason != "criteria_missing" {
 		t.Fatalf("GateBlockReason = %q, want %q", result.GateBlockReason, "criteria_missing")
 	}
+}
+
+type readinessGateAcceptanceOptions struct {
+	Bead       *bead.Bead
+	Assessment readiness.Assessment
+}
+
+type readinessGateAcceptanceResult struct {
+	BuildInvoked    bool
+	GateBlockReason string
+}
+
+func runReadinessGateAcceptanceTest(t *testing.T, opts readinessGateAcceptanceOptions) readinessGateAcceptanceResult {
+	t.Helper()
+
+	beadToRun := opts.Bead
+	if beadToRun == nil {
+		beadToRun = &bead.Bead{ID: "readiness-gate-test", Title: "Readiness gate test bead"}
+	}
+
+	assessment := opts.Assessment
+	if assessment.Status == "" {
+		assessment.Status = readiness.StatusNotReady
+	}
+
+	buildCalled := false
+	gateBlockReason := ""
+
+	firstCall := true
+	mockBeads := &mockBeadClient{
+		ReadyFn: func(ctx context.Context) (*bead.Bead, error) {
+			if !firstCall {
+				return nil, nil
+			}
+			firstCall = false
+			return beadToRun, nil
+		},
+	}
+
+	gateStage := prepare.New(io.Discard).WithReadinessAssessor(&fakeReadinessAssessor{
+		assessment: assessment,
+	})
+
+	buildStage := &readinessGateTestStage{
+		fn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			buildCalled = true
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		},
+	}
+
+	epilogueStage := &readinessGateTestStage{
+		fn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			if in.Result != nil {
+				gateBlockReason = in.Result.GateBlockReason
+			}
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		},
+	}
+
+	cfg := runner.OrchestratorConfig{
+		Gate:     gateStage,
+		Build:    buildStage,
+		Validate: &noopStage{},
+		Epilogue: epilogueStage,
+		GetBead:  mockBeads.Ready,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+	}
+
+	orch := runner.NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 1, time.Time{}, nil); err != nil {
+		t.Fatalf("Orchestrator.Run() failed: %v", err)
+	}
+
+	return readinessGateAcceptanceResult{
+		BuildInvoked:    buildCalled,
+		GateBlockReason: gateBlockReason,
+	}
+}
+
+type readinessGateTestStage struct {
+	fn func(ctx context.Context, in pipeline.Input) (pipeline.Output, error)
+}
+
+func (s *readinessGateTestStage) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+	if s == nil || s.fn == nil {
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}
+	return s.fn(ctx, in)
+}
+
+type fakeReadinessAssessor struct {
+	assessment readiness.Assessment
+}
+
+func (f *fakeReadinessAssessor) Assess(ctx context.Context, _ *bead.Bead) (readiness.Assessment, error) {
+	return f.assessment, nil
 }
