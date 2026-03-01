@@ -707,6 +707,48 @@ func TestNewRunnerImpl_WiresIntegrationQueueCoordinator(t *testing.T) {
 	}
 }
 
+func TestNewRunnerImpl_IntegrationQueueAdapterInitError(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	logsDir := filepath.Join(tmpDir, "logs")
+	claudePath := filepath.Join(tmpDir, "CLAUDE.md")
+
+	if err := os.MkdirAll(templatesDir, 0o755); err != nil {
+		t.Fatalf("mkdir templates: %v", err)
+	}
+	if err := os.MkdirAll(logsDir, 0o755); err != nil {
+		t.Fatalf("mkdir logs: %v", err)
+	}
+	if err := os.WriteFile(claudePath, []byte("test"), 0o644); err != nil {
+		t.Fatalf("write claude md: %v", err)
+	}
+
+	cfg := &config.Config{}
+	cfg.Paths.Templates = templatesDir
+	cfg.Paths.Specs = filepath.Join(tmpDir, "specs")
+	cfg.Paths.Logs = logsDir
+	cfg.Paths.ProjectClaudeMD = claudePath
+
+	originalFactory := newIntegrationQueueScopedGateAdapterFn
+	t.Cleanup(func() { newIntegrationQueueScopedGateAdapterFn = originalFactory })
+	newIntegrationQueueScopedGateAdapterFn = func() (*integrationQueueScopedGateAdapter, error) {
+		return nil, fmt.Errorf("gate failure")
+	}
+
+	orch, err := newRunnerImpl(cfg, io.Discard, nil)
+	if err == nil {
+		t.Fatal("newRunnerImpl did not return error when integration queue gate adapter failed")
+	}
+	if orch != nil {
+		t.Fatalf("expected orchestrator to be nil when adapter init fails, got %v", orch)
+	}
+	if !strings.Contains(err.Error(), "gate failure") {
+		t.Fatalf("error = %v, want gate failure", err)
+	}
+}
+
 // TestFailureLearnerAdapter_ForwardsFailureOutput verifies that the failureOutput
 // string passed to ExtractFailureLearning reaches the analyzer.Analyze call.
 func TestFailureLearnerAdapter_ForwardsFailureOutput(t *testing.T) {
