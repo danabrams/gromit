@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sync"
 	"testing"
 )
 
@@ -420,5 +421,164 @@ func TestStoreSaveRunsValidationHooks(t *testing.T) {
 	}
 	if err := store.Save(entry); !errors.Is(err, customErr) {
 		t.Fatalf("Save() error = %v, want %v", err, customErr)
+	}
+}
+
+func TestStore_ConcurrentSaveNoLostEntries(t *testing.T) {
+	tmpDir := t.TempDir()
+	const N = 10
+
+	var wg sync.WaitGroup
+	errCh := make(chan error, N)
+
+	for i := 0; i < N; i++ {
+		wg.Add(1)
+		i := i
+		go func() {
+			defer wg.Done()
+			store, err := NewStore(tmpDir)
+			if err != nil {
+				errCh <- fmt.Errorf("NewStore goroutine %d: %w", i, err)
+				return
+			}
+			entry := Entry{
+				Branch:           fmt.Sprintf("branch-%d", i),
+				SessionID:        fmt.Sprintf("session-%d", i),
+				OriginCommand:    "refine",
+				State:            StateReady,
+				Lane:             string(CodeLane),
+				BaseRef:          "main",
+				HeadSHA:          fmt.Sprintf("sha-%d", i),
+				ChangedFilesHash: fmt.Sprintf("hash-%d", i),
+			}
+			if err := store.Save(entry); err != nil {
+				errCh <- fmt.Errorf("Save goroutine %d: %w", i, err)
+			}
+		}()
+	}
+
+	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		if err != nil {
+			t.Fatalf("concurrent save error: %v", err)
+		}
+	}
+
+	// Load the final snapshot and verify all N entries are present.
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore for verification: %v", err)
+	}
+	snap, err := store.Snapshot()
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if len(snap.Entries) != N {
+		t.Fatalf("entries = %d, want %d", len(snap.Entries), N)
+	}
+
+	branchSet := make(map[string]bool, N)
+	for _, e := range snap.Entries {
+		branchSet[e.Branch] = true
+	}
+	for i := 0; i < N; i++ {
+		branch := fmt.Sprintf("branch-%d", i)
+		if !branchSet[branch] {
+			t.Fatalf("missing branch %q in snapshot entries", branch)
+		}
+	}
+}
+
+func TestStore_ConcurrentSaveAndSnapshot(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Save an initial entry so Snapshot always has something to read.
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore: %v", err)
+	}
+	initial := Entry{
+		Branch:           "branch-initial",
+		SessionID:        "session-initial",
+		OriginCommand:    "refine",
+		State:            StateReady,
+		Lane:             string(CodeLane),
+		BaseRef:          "main",
+		HeadSHA:          "sha-initial",
+		ChangedFilesHash: "hash-initial",
+	}
+	if err := store.Save(initial); err != nil {
+		t.Fatalf("initial Save: %v", err)
+	}
+
+	const writers = 5
+	const readers = 5
+
+	var wg sync.WaitGroup
+	errCh := make(chan error, writers+readers)
+
+	// Launch writer goroutines that save new entries.
+	for i := 0; i < writers; i++ {
+		wg.Add(1)
+		i := i
+		go func() {
+			defer wg.Done()
+			s, err := NewStore(tmpDir)
+			if err != nil {
+				errCh <- fmt.Errorf("NewStore writer %d: %w", i, err)
+				return
+			}
+			entry := Entry{
+				Branch:           fmt.Sprintf("branch-w%d", i),
+				SessionID:        fmt.Sprintf("session-w%d", i),
+				OriginCommand:    "refine",
+				State:            StateReady,
+				Lane:             string(CodeLane),
+				BaseRef:          "main",
+				HeadSHA:          fmt.Sprintf("sha-w%d", i),
+				ChangedFilesHash: fmt.Sprintf("hash-w%d", i),
+			}
+			if err := s.Save(entry); err != nil {
+				errCh <- fmt.Errorf("Save writer %d: %w", i, err)
+			}
+		}()
+	}
+
+	// Launch reader goroutines that call Snapshot concurrently.
+	for i := 0; i < readers; i++ {
+		wg.Add(1)
+		i := i
+		go func() {
+			defer wg.Done()
+			s, err := NewStore(tmpDir)
+			if err != nil {
+				errCh <- fmt.Errorf("NewStore reader %d: %w", i, err)
+				return
+			}
+			snap, err := s.Snapshot()
+			if err != nil {
+				errCh <- fmt.Errorf("Snapshot reader %d: %w", i, err)
+				return
+			}
+			// Snapshot must always return valid data with at least the initial entry.
+			if snap == nil {
+				errCh <- fmt.Errorf("Snapshot reader %d: got nil", i)
+				return
+			}
+			if len(snap.Entries) < 1 {
+				errCh <- fmt.Errorf("Snapshot reader %d: entries = %d, want >= 1", i, len(snap.Entries))
+			}
+		}()
+	}
+
+	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		if err != nil {
+			t.Fatalf("concurrent save/snapshot error: %v", err)
+		}
 	}
 }

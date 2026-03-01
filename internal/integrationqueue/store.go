@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"syscall"
 	"time"
 )
 
@@ -35,6 +36,30 @@ type Snapshot = Queue
 // ErrSchemaInvalid indicates the persisted queue file is malformed or has
 // invalid schema data that cannot be parsed into a Snapshot.
 var ErrSchemaInvalid = errors.New("queue_schema_invalid")
+
+// withQueueFileLock acquires an exclusive advisory lock on a lock file adjacent to path,
+// executes fn, then releases the lock. This prevents concurrent processes from
+// reading/writing the queue file simultaneously.
+func withQueueFileLock(path string, fn func() error) error {
+	lockPath := path + ".lock"
+	if dir := filepath.Dir(lockPath); dir != "" {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("creating queue lock directory: %w", err)
+		}
+	}
+	lockFile, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		return fmt.Errorf("opening queue lock file: %w", err)
+	}
+	defer lockFile.Close()
+
+	if err := syscall.Flock(int(lockFile.Fd()), syscall.LOCK_EX); err != nil {
+		return fmt.Errorf("acquiring queue file lock: %w", err)
+	}
+	defer syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN)
+
+	return fn()
+}
 
 // Store persists integration queue entries.
 type Store struct {
@@ -79,29 +104,31 @@ func (s *Store) Save(entry Entry) error {
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
-	snapshot, err := s.load()
-	if err != nil {
-		return fmt.Errorf("loading integration queue snapshot: %w", err)
-	}
+	return withQueueFileLock(s.path, func() error {
+		snapshot, err := s.load()
+		if err != nil {
+			return fmt.Errorf("loading integration queue snapshot: %w", err)
+		}
 
-	now := time.Now().UTC()
-	entry.UpdatedAt = now
-	sort.Strings(entry.ChangedFiles)
+		now := time.Now().UTC()
+		entry.UpdatedAt = now
+		sort.Strings(entry.ChangedFiles)
 
-	existingIdx := s.findEntryIndex(snapshot.Entries, entry.Branch)
-	if existingIdx == -1 {
-		entry.FifoSeq = len(snapshot.Entries) + 1
-		entry.CreatedAt = now
-		snapshot.Entries = append(snapshot.Entries, entry)
-	} else {
-		entry.FifoSeq = snapshot.Entries[existingIdx].FifoSeq
-		entry.CreatedAt = snapshot.Entries[existingIdx].CreatedAt
-		snapshot.Entries[existingIdx] = entry
-	}
+		existingIdx := s.findEntryIndex(snapshot.Entries, entry.Branch)
+		if existingIdx == -1 {
+			entry.FifoSeq = len(snapshot.Entries) + 1
+			entry.CreatedAt = now
+			snapshot.Entries = append(snapshot.Entries, entry)
+		} else {
+			entry.FifoSeq = snapshot.Entries[existingIdx].FifoSeq
+			entry.CreatedAt = snapshot.Entries[existingIdx].CreatedAt
+			snapshot.Entries[existingIdx] = entry
+		}
 
-	snapshot.SchemaVersion = SchemaVersion
-	snapshot.UpdatedAt = now
-	return s.write(snapshot)
+		snapshot.SchemaVersion = SchemaVersion
+		snapshot.UpdatedAt = now
+		return s.write(snapshot)
+	})
 }
 
 func (s *Store) findEntryIndex(entries []Entry, branch string) int {
@@ -127,7 +154,13 @@ func (s *Store) runValidationHooks(entry Entry) error {
 
 // Snapshot loads the current queue snapshot.
 func (s *Store) Snapshot() (*Snapshot, error) {
-	return s.load()
+	var snap *Snapshot
+	err := withQueueFileLock(s.path, func() error {
+		var loadErr error
+		snap, loadErr = s.load()
+		return loadErr
+	})
+	return snap, err
 }
 
 func (s *Store) load() (*Snapshot, error) {
@@ -178,6 +211,16 @@ func (s *Store) write(snapshot *Snapshot) error {
 
 // LoadQueue reads the queue file at path using validation and returns the parsed queue.
 func LoadQueue(path string) (*Queue, error) {
+	var queue *Queue
+	err := withQueueFileLock(path, func() error {
+		var loadErr error
+		queue, loadErr = loadQueueUnlocked(path)
+		return loadErr
+	})
+	return queue, err
+}
+
+func loadQueueUnlocked(path string) (*Queue, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -224,6 +267,12 @@ func normalizeQueue(queue *Queue) error {
 
 // SaveQueue writes the queue using atomic rename and updates the timestamp.
 func SaveQueue(path string, queue *Queue) error {
+	return withQueueFileLock(path, func() error {
+		return saveQueueUnlocked(path, queue)
+	})
+}
+
+func saveQueueUnlocked(path string, queue *Queue) error {
 	if queue == nil {
 		return fmt.Errorf("queue is nil")
 	}
@@ -290,32 +339,37 @@ func prepareQueueForWrite(queue *Queue) {
 // It loads the queue, transitions any integrating entries to ready with error code,
 // persists the recovered queue, and returns it.
 func RecoverFromMalformedQueue(ctx context.Context, path string) (*Queue, error) {
-	queue, err := loadQueueForRecovery(path)
-	if err != nil {
-		return nil, fmt.Errorf("loading queue during recovery: %w", err)
-	}
+	var queue *Queue
+	err := withQueueFileLock(path, func() error {
+		var loadErr error
+		queue, loadErr = loadQueueForRecovery(path)
+		if loadErr != nil {
+			return fmt.Errorf("loading queue during recovery: %w", loadErr)
+		}
 
-	_ = ctx
-	updated := queue.SchemaVersion != SchemaVersion
-	queue.SchemaVersion = SchemaVersion
-	for i := range queue.Entries {
-		if queue.Entries[i].State == StateIntegrating {
-			if err := ApplyTransition(&queue.Entries[i], string(StateReady), "schema recovery"); err != nil {
-				return nil, fmt.Errorf("transitioning recovered entry %s: %w", queue.Entries[i].Branch, err)
+		_ = ctx
+		updated := queue.SchemaVersion != SchemaVersion
+		queue.SchemaVersion = SchemaVersion
+		for i := range queue.Entries {
+			if queue.Entries[i].State == StateIntegrating {
+				if err := ApplyTransition(&queue.Entries[i], string(StateReady), "schema recovery"); err != nil {
+					return fmt.Errorf("transitioning recovered entry %s: %w", queue.Entries[i].Branch, err)
+				}
+				queue.Entries[i].LastErrorCode = string(ErrorCodeSchemaInvalid)
+				queue.Entries[i].LastErrorMessage = "recovered from schema error: entry was in integrating state"
+				updated = true
 			}
-			queue.Entries[i].LastErrorCode = string(ErrorCodeSchemaInvalid)
-			queue.Entries[i].LastErrorMessage = "recovered from schema error: entry was in integrating state"
-			updated = true
 		}
-	}
 
-	if updated {
-		if err := SaveQueue(path, queue); err != nil {
-			return nil, fmt.Errorf("persisting recovered queue: %w", err)
+		if updated {
+			if err := saveQueueUnlocked(path, queue); err != nil {
+				return fmt.Errorf("persisting recovered queue: %w", err)
+			}
 		}
-	}
 
-	return queue, nil
+		return nil
+	})
+	return queue, err
 }
 
 func loadQueueForRecovery(path string) (*Queue, error) {
