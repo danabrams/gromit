@@ -106,13 +106,19 @@ func extractArea(content string) string {
 
 	bestArea := ""
 	counts := make(map[string]int)
-	for _, match := range matches {
+	firstSeen := make(map[string]int)
+	for idx, match := range matches {
 		normalized := normalizeArea(match)
 		if normalized == "" {
 			continue
 		}
+		if _, seen := firstSeen[normalized]; !seen {
+			firstSeen[normalized] = idx
+		}
 		counts[normalized]++
-		if bestArea == "" || counts[normalized] > counts[bestArea] || (counts[normalized] == counts[bestArea] && normalized < bestArea) {
+		if bestArea == "" ||
+			counts[normalized] > counts[bestArea] ||
+			(counts[normalized] == counts[bestArea] && firstSeen[normalized] < firstSeen[bestArea]) {
 			bestArea = normalized
 		}
 	}
