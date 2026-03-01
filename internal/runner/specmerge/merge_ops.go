@@ -13,6 +13,7 @@ type FinalizeDependencies struct {
 	Git              GitOps
 	ConflictResolver ConflictResolver
 	MainBranch       string
+	Manager          Manager
 }
 
 // GitOps exposes the git operations needed to finalize a spec branch.
@@ -25,6 +26,14 @@ type GitOps interface {
 // ConflictResolver is invoked when FinalizeSpecBranch encounters a conflict.
 type ConflictResolver interface {
 	Resolve(ctx context.Context, branch string, cause error) error
+}
+
+// StageDone represents the stage marker used when a spec finalize run completes.
+const StageDone = "done"
+
+// Manager is responsible for marking stages forward once finalization succeeds.
+type Manager interface {
+	Advance(ctx context.Context, branch, stage string) error
 }
 
 // ConflictError represents a git conflict detected during rebase or merge.
@@ -73,6 +82,11 @@ func FinalizeSpecBranch(ctx context.Context, deps FinalizeDependencies, branch s
 	}
 	if err := deps.Git.DeleteBranch(ctx, branch); err != nil {
 		return err
+	}
+	if deps.Manager != nil {
+		if err := deps.Manager.Advance(ctx, branch, StageDone); err != nil {
+			return fmt.Errorf("advance finalize stage: %w", err)
+		}
 	}
 	return nil
 }
