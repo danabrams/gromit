@@ -714,6 +714,39 @@ func TestReadEfficiencyReportFiltered_FilterIncludesOnlyMatchingBeads(t *testing
 	}
 }
 
+func TestLatestRunID_ReturnsNewestFromMultipleFiles(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create multiple run files with different timestamps
+	for _, runID := range []string{"20260205-100000", "20260207-120000", "20260206-090000"} {
+		writeTestLogFile(t, dir, runID, []IterationLog{
+			{BeadID: "b1", Model: "sonnet", DurationMs: 1000, CostUSD: 0.1, InputTokens: 100, OutputTokens: 50},
+		})
+	}
+
+	got := LatestRunID(dir)
+	want := "20260207-120000"
+	if got != want {
+		t.Errorf("LatestRunID() = %q, want %q", got, want)
+	}
+}
+
+func TestLatestRunID_ReturnsEmptyForEmptyDir(t *testing.T) {
+	dir := t.TempDir()
+
+	got := LatestRunID(dir)
+	if got != "" {
+		t.Errorf("LatestRunID() = %q, want empty string for empty dir", got)
+	}
+}
+
+func TestLatestRunID_ReturnsEmptyForMissingDir(t *testing.T) {
+	got := LatestRunID("/nonexistent/path/that/does/not/exist")
+	if got != "" {
+		t.Errorf("LatestRunID() = %q, want empty string for missing dir", got)
+	}
+}
+
 func TestCompletenessAssertion_FailsWhenIterationsExistButEfficiencyDataEmpty(t *testing.T) {
 	dir := t.TempDir()
 
