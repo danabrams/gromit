@@ -166,6 +166,10 @@ func (c *Coordinator) RecoverFromCrash(ctx context.Context) error {
 				targetState = StateConflict
 				reason = "crash recovery: merge conflict"
 				clearError = false
+			case "push_failed":
+				targetState = StatePushFailure
+				reason = "crash recovery: push failure"
+				clearError = false
 			}
 
 			if err := ApplyTransition(entry, string(targetState), reason); err != nil {
