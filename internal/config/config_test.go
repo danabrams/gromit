@@ -3424,7 +3424,7 @@ func TestMethodologyMaxTDDCyclesParsesFromYAML(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "gromit.yaml")
 	yaml := `methodology:
-  max_tdd_cycles: 7
+	  max_tdd_cycles: 7
 `
 	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
 		t.Fatalf("writing config: %v", err)
@@ -3437,6 +3437,19 @@ func TestMethodologyMaxTDDCyclesParsesFromYAML(t *testing.T) {
 
 	if cfg.Methodology.MaxTDDCycles != 7 {
 		t.Errorf("expected max_tdd_cycles=7, got %d", cfg.Methodology.MaxTDDCycles)
+	}
+}
+
+func TestMethodologyMaxTDDCyclesIgnoredByLoopDefaults(t *testing.T) {
+	yaml := `methodology:
+  max_tdd_cycles: 5
+`
+	cfg := loadConfigFromYAML(t, yaml)
+	if cfg.Methodology.MaxTDDCycles != 5 {
+		t.Fatalf("expected max_tdd_cycles=5, got %d", cfg.Methodology.MaxTDDCycles)
+	}
+	if cfg.TDDMaxCycles() != DefaultMaxTDDCycles {
+		t.Fatalf("expected loop termination to use %d, got %d", DefaultMaxTDDCycles, cfg.TDDMaxCycles())
 	}
 }
 
