@@ -66,6 +66,27 @@ func TestRunNilLearningsFile(t *testing.T) {
 	}
 }
 
+func TestTemplateIncludesWorkmanshipReportSection(t *testing.T) {
+	templatePath := "../../.gromit/templates/PROMPT_retro.md"
+	content, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatalf("failed to read retro template: %v", err)
+	}
+	text := string(content)
+	if !strings.Contains(text, "Section 8: Workmanship Report") {
+		t.Fatalf("expected template to define Section 8 header")
+	}
+	if !strings.Contains(text, "FrictionClusters") {
+		t.Fatalf("expected template to mention FrictionClusters")
+	}
+	if !strings.Contains(text, "FrictionResolutions") {
+		t.Fatalf("expected template to mention FrictionResolutions")
+	}
+	if !strings.Contains(text, "2-4 options per friction area") {
+		t.Fatalf("expected template to mention 2-4 options per friction area")
+	}
+}
+
 func TestEnrichBeadStatsNilReceiver(t *testing.T) {
 	var r *Retro
 	beadStats := make(map[string]logger.BeadStats)
