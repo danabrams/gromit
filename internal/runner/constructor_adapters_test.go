@@ -358,6 +358,24 @@ func TestNewSpecMergeFinalizeDependencies(t *testing.T) {
 	}
 }
 
+func TestDeterministicReadinessAssessor_BlocksMissingCriteria(t *testing.T) {
+	t.Parallel()
+	assessor := NewDeterministicReadinessAssessor()
+	ctx := context.Background()
+	b := &bead.Bead{ID: "missing-criteria"}
+
+	assessment, err := assessor.Assess(ctx, b)
+	if err != nil {
+		t.Fatalf("Assess returned error: %v", err)
+	}
+	if assessment.Status != readiness.StatusNotReady {
+		t.Fatalf("status = %q, want %q", assessment.Status, readiness.StatusNotReady)
+	}
+	if assessment.Reason != prepare.ReasonCriteriaMissing {
+		t.Fatalf("reason = %q, want %q", assessment.Reason, prepare.ReasonCriteriaMissing)
+	}
+}
+
 // decomposerAdapterWithTrackerClient is a version of decomposerAdapter that uses tracker.Client
 type decomposerAdapterWithTrackerClient struct {
 	tracker tracker.Client
