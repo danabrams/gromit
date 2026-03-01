@@ -19,6 +19,7 @@ import (
 	"github.com/danabrams/gromit/internal/experiment"
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/pipeline/epilogue"
 	"github.com/danabrams/gromit/internal/pipeline/execute"
 	"github.com/danabrams/gromit/internal/pipeline/prepare"
@@ -175,6 +176,17 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 	if experimentMgr != nil {
 		buildStage.WithExperimentManager(experimentMgr)
 	}
+
+	// Conditionally wrap Build stage with escalation handler for full
+	// retry/analysis/escalation/decomposition behavior.
+	var buildPipelineStage pipeline.Stage = buildStage
+	if cfg.Escalation.Enabled {
+		buildPipelineStage = newEscalationBuildStage(
+			cfg, analyzerObj, beadsClient, buildExecInvoker, renderer,
+			buildStage, buildPromptRegistry, buildCacheVersionKey, costDefs, syncOut,
+		)
+	}
+
 	// Stage 3: Validate (validate.New with CommandRunner)
 	validateStage := validate.New(&cmdRunnerAdapter{runner: defaultCmdRunner}, syncOut)
 
@@ -270,7 +282,7 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 	}
 	orchCfg := OrchestratorConfig{
 		Gate:     gateStage,
-		Build:    buildStage,
+		Build:    buildPipelineStage,
 		Validate: validateStage,
 		Review:   reviewStage,
 		Epilogue: epilogueStage,
