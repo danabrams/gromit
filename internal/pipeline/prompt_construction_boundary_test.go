@@ -7,24 +7,19 @@ import (
 // RED: Test that ReviewRenderer receives ClaudeMD and Rules in input, not loading them
 // This enforces that prompt context assembly happens in pipeline, not adapter
 func TestReviewPromptInputIncludesContextFields(t *testing.T) {
-	// ThoroughReviewPromptInput should have all fields needed for prompt assembly
-	// If ClaudeMD and Rules are missing, the adapter will need to load them (wrong!)
-
-	input := &ThoroughReviewPromptInput{
-		FromCommit: "abc123",
-		Diff:       "some diff",
+	loader := &mockPromptContextLoader{
+		claude: "project context",
+		rules:  "rules content",
 	}
 
-	// These fields should exist and be populated by pipeline, not adapter
+	input := NewThoroughReviewPromptInput(loader, thoroughReviewPhase, "abc123", "some diff")
+
 	if input.ClaudeMD == "" {
-		// If these are empty, the adapter will load them (boundary violation)
-		// After fix, pipeline.renderReviewPrompt will populate these
-		t.Logf("WARNING: ClaudeMD not in ThoroughReviewPromptInput - adapter will load it")
+		t.Fatalf("ThoroughReviewPromptInput missing ClaudeMD - boundary violated")
 	}
 
 	if input.Rules == "" {
-		// If these are empty, the adapter will load them (boundary violation)
-		t.Logf("WARNING: Rules not in ThoroughReviewPromptInput - adapter will load it")
+		t.Fatalf("ThoroughReviewPromptInput missing Rules - boundary violated")
 	}
 }
 
@@ -43,4 +38,18 @@ func TestThoroughReviewPromptInputSupportsFullContext(t *testing.T) {
 	if input.ClaudeMD == "" || input.Rules == "" {
 		t.Errorf("ThoroughReviewPromptInput missing context fields - adapter will load from files")
 	}
+}
+
+// mockPromptContextLoader provides the prompt context that pipeline is expected to supply.
+type mockPromptContextLoader struct {
+	claude string
+	rules  string
+}
+
+func (m *mockPromptContextLoader) LoadClaudeMD() (string, error) {
+	return m.claude, nil
+}
+
+func (m *mockPromptContextLoader) LoadRulesForPhase(phase string) (string, error) {
+	return m.rules, nil
 }
