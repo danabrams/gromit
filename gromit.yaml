@@ -219,14 +219,6 @@ claude:
 # not `agents.phases.review`.
 agents:
   prompt: false
-  definitions:
-    gemini:
-      binary: /home/dabrams/.local/share/mise/installs/node/25.6.1/bin/node
-      flags:
-        - /home/dabrams/gemini-cli/bundle/gemini.js
-        - --approval-mode
-        - yolo
-      prompt_delivery: file_ref
   phases:
     refine: codex
     plan: codex
