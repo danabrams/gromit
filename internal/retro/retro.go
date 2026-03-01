@@ -74,6 +74,7 @@ type Result struct {
 	ProposedRules string
 	Success       bool
 	Efficiency    *logger.EfficiencyReport
+	Workmanship   []WorkmanshipProposal
 	Experiment    *Experiment
 }
 

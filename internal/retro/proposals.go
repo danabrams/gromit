@@ -35,12 +35,24 @@ type RuleChangeProposal struct {
 	Rationale    string `json:"rationale"`     // Why this change is needed
 }
 
+// FrictionOption represents a remediation option for a workmanship finding.
+type FrictionOption struct {
+	Description string `json:"description"`
+}
+
+// WorkmanshipProposal captures workmanship-related findings from retro output.
+type WorkmanshipProposal struct {
+	Description     string           `json:"description"`
+	FrictionOptions []FrictionOption `json:"friction_options,omitempty"`
+}
+
 // Proposals represents all proposals from a retro analysis
 type Proposals struct {
 	Consolidations []ConsolidationProposal `json:"consolidations,omitempty"`
 	Promotions     []PromotionProposal     `json:"promotions,omitempty"`
 	Archives       []ArchiveProposal       `json:"archives,omitempty"`
 	RuleChanges    []RuleChangeProposal    `json:"rule_changes,omitempty"`
+	Workmanship    []WorkmanshipProposal   `json:"workmanship,omitempty"`
 }
 
 // normalizeNilFields ensures nil slices are replaced with empty slices.
@@ -64,9 +76,15 @@ func (p *Proposals) normalizeNilFields() {
 	if p.RuleChanges == nil {
 		p.RuleChanges = []RuleChangeProposal{}
 	}
+	if p.Workmanship == nil {
+		p.Workmanship = []WorkmanshipProposal{}
+	}
 	// Normalize nested slice fields in each ConsolidationProposal
 	for i := range p.Consolidations {
 		p.Consolidations[i].normalizeNilFields()
+	}
+	for i := range p.Workmanship {
+		p.Workmanship[i].normalizeNilFields()
 	}
 }
 
@@ -79,6 +97,15 @@ func (c *ConsolidationProposal) normalizeNilFields() {
 	}
 	if c.LearningHashes == nil {
 		c.LearningHashes = []string{}
+	}
+}
+
+func (w *WorkmanshipProposal) normalizeNilFields() {
+	if w == nil {
+		return
+	}
+	if w.FrictionOptions == nil {
+		w.FrictionOptions = []FrictionOption{}
 	}
 }
 
