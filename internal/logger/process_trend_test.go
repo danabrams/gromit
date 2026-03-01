@@ -1783,6 +1783,32 @@ func TestBuildProcessTrend_ValidationDurationSpikeProducesSpecialCause(t *testin
 	}
 }
 
+func TestBuildProcessTrend_PopulatesConvergenceSummary(t *testing.T) {
+	metrics := []IterationMetric{
+		{Iteration: 1, Timestamp: time.Unix(1, 0), ConvergenceInstability: "deadlock"},
+		{Iteration: 2, Timestamp: time.Unix(2, 0)},
+		{Iteration: 3, Timestamp: time.Unix(3, 0), ConvergenceInstability: "oscillation"},
+		{Iteration: 4, Timestamp: time.Unix(4, 0), ConvergenceInstability: "deadlock"},
+	}
+	trend := buildProcessTrend(metrics, len(metrics))
+	summary := trend.ConvergenceSummary
+	if summary.DeadlockCount != 2 {
+		t.Fatalf("deadlock count = %d, want 2", summary.DeadlockCount)
+	}
+	if summary.OscillationCount != 1 {
+		t.Fatalf("oscillation count = %d, want 1", summary.OscillationCount)
+	}
+	if summary.LatestInstability != "deadlock" {
+		t.Fatalf("latest instability = %q, want %q", summary.LatestInstability, "deadlock")
+	}
+	if summary.LatestIteration != 4 {
+		t.Fatalf("latest iteration = %d, want %d", summary.LatestIteration, 4)
+	}
+	if !summary.LatestTimestamp.Equal(time.Unix(4, 0)) {
+		t.Fatalf("latest timestamp = %v, want %v", summary.LatestTimestamp, time.Unix(4, 0))
+	}
+}
+
 func findCauseClassification(records []CauseClassificationRecord, metric, stratum string) *CauseClassificationRecord {
 	for i := range records {
 		if records[i].Metric != metric {
