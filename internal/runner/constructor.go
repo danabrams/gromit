@@ -254,6 +254,10 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		statusWriter.SetScopeLabel(specProgressLabel)
 	}
 
+	coordinator, err := NewIntegrationCoordinator(gromitDir)
+	if err != nil {
+		return nil, err
+	}
 	orchCfg := OrchestratorConfig{
 		Gate:     gateStage,
 		Build:    buildStage,
@@ -299,7 +303,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		},
 		StateSaver:       sf,
 		ProviderCostDefs: costDefs,
-		Coordinator:      NewIntegrationCoordinator(),
+		Coordinator:      coordinator,
 	}
 
 	return NewOrchestrator(orchCfg), nil

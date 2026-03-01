@@ -2,28 +2,61 @@ package runner
 
 import (
 	"context"
+	"fmt"
+
+	"github.com/danabrams/gromit/internal/integrationqueue"
 )
 
 // IntegrationCoordinator handles processing of the integration queue between iterations.
-type IntegrationCoordinator struct{}
+type IntegrationCoordinator struct {
+	store *integrationqueue.Store
+}
 
 // NewIntegrationCoordinator creates a new coordinator for integration queue processing.
-func NewIntegrationCoordinator() *IntegrationCoordinator {
-	return &IntegrationCoordinator{}
+func NewIntegrationCoordinator(gromitDir string) (*IntegrationCoordinator, error) {
+	store, err := integrationqueue.NewStore(gromitDir)
+	if err != nil {
+		return nil, fmt.Errorf("initializing integration queue store: %w", err)
+	}
+	return &IntegrationCoordinator{store: store}, nil
 }
 
 // Coordinate processes the integration queue, attempting to integrate ready branches into main.
 // Errors in individual branch integrations are isolated and do not terminate the process.
 func (c *IntegrationCoordinator) Coordinate(ctx context.Context) error {
-	// TODO: Implement integration queue processing.
-	// This is a stub implementation that will be expanded in future tasks.
+	if c == nil || c.store == nil {
+		return nil
+	}
+
+	snapshot, err := c.store.Snapshot()
+	if err != nil {
+		return fmt.Errorf("loading integration queue: %w", err)
+	}
+
+	entry := integrationqueue.OldestReady(snapshot)
+	if entry == nil {
+		return nil
+	}
+
+	if err := integrationqueue.ApplyTransition(entry, string(integrationqueue.StateIntegrating), "coordinator: starting integration"); err != nil {
+		return fmt.Errorf("transitioning entry %s to integrating: %w", entry.Branch, err)
+	}
+	if err := c.store.Save(*entry); err != nil {
+		return fmt.Errorf("saving integrating entry %s: %w", entry.Branch, err)
+	}
+
+	if err := integrationqueue.ApplyTransition(entry, string(integrationqueue.StateConflict), "coordinator: simulated conflict"); err != nil {
+		return fmt.Errorf("transitioning entry %s to conflict: %w", entry.Branch, err)
+	}
+	if err := c.store.Save(*entry); err != nil {
+		return fmt.Errorf("saving conflict entry %s: %w", entry.Branch, err)
+	}
+
 	return nil
 }
 
 // RecoverFromCrash detects entries left in integrating state by a prior crash
 // and transitions them back to a recoverable state (e.g., ready).
 func (c *IntegrationCoordinator) RecoverFromCrash(ctx context.Context) error {
-	// TODO: Implement crash recovery for integration queue.
-	// This is a stub implementation that will be expanded in future tasks.
 	return nil
 }
