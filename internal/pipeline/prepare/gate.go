@@ -146,6 +146,7 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 
 	complexityRouting := resolveComplexityRouting(in)
 	gateBlockReason := ""
+	overrideEnabled := in.Config != nil && in.Config.ReadinessEmergencyOverride
 
 	// Precheck: skip beads whose acceptance criteria are already satisfied.
 	// Runs before stuck detection so completed work is always closed promptly.
@@ -176,6 +177,9 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 			gateBlockReason = assessment.Reason
 			if gateBlockReason == "" {
 				gateBlockReason = string(readiness.StatusNotReady)
+			}
+			if overrideEnabled {
+				gateBlockReason = ""
 			}
 		}
 	}
