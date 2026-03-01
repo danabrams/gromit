@@ -223,6 +223,30 @@ func TestLaneTimingScriptImplementsLaneDetection(t *testing.T) {
 	}
 }
 
+func TestREADMEDocumentsPendingResolutionWorkflow(t *testing.T) {
+	readmePath := filepath.Join("..", "..", "README.md")
+	content, err := os.ReadFile(readmePath)
+	if err != nil {
+		t.Fatalf("failed to read README.md: %v", err)
+	}
+
+	body := string(content)
+
+	// Check for pending-resolution workflow section in Vision Metrics docs
+	requiredSections := []string{
+		"pending-resolution",
+		"escaped_regression_within_7d=pending",
+		"7-day",
+		"finalize pending",
+	}
+
+	for _, section := range requiredSections {
+		if !strings.Contains(body, section) {
+			t.Errorf("README.md missing pending-resolution documentation for: %q", section)
+		}
+	}
+}
+
 func TestFinalVerificationSpecAcceptanceCriteria(t *testing.T) {
 	// RED test: Verify that all plan deliverables satisfy spec acceptance criteria
 	// This is the final verification test that checks:
