@@ -26,13 +26,14 @@ func ComputeRollup(records []Record) Rollup {
 		}
 	}
 
-	var (
-		tactical  int
-		debugging int
-		escaped   int
-		accepted  int
-		carveOuts int
-	)
+var (
+	tactical  int
+	debugging int
+	escaped   int
+	accepted  int
+	resolvedEscapedDenom int
+	carveOuts int
+)
 
 	for _, rec := range valid {
 		if rec.HumanTacticalIntervention == Yes {
@@ -43,6 +44,9 @@ func ComputeRollup(records []Record) Rollup {
 		}
 		if rec.EscapedRegressionWithin7D == Yes {
 			escaped++
+		}
+		if rec.EscapedRegressionWithin7D != EscapedRegressionPending {
+			resolvedEscapedDenom++
 		}
 		if rec.ReviewOutcome.IsAccepted() {
 			accepted++
@@ -63,7 +67,7 @@ func ComputeRollup(records []Record) Rollup {
 		HumanTacticalInterventionRate:  newMetricRate(tactical, total),
 		HumanDebuggingInterventionRate: newMetricRate(debugging, total),
 		FirstIntegrationPassRate:       newMetricRate(firstPass, total),
-		EscapedRegressionRate:          newMetricRate(escaped, total),
+	EscapedRegressionRate:          newMetricRate(escaped, resolvedEscapedDenom),
 		AcceptedWithoutReworkRate:      newMetricRate(accepted, acceptedDenom),
 	}
 }
