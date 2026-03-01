@@ -1155,6 +1155,8 @@ var _ prepare.Decomposer = (*decomposerAdapter)(nil)
 var _ epilogue.FailureLearner = (*failureLearnerAdapter)(nil)
 var _ execution.Router = (*executionRouterAdapter)(nil)
 var _ Coordinator = (*IntegrationCoordinator)(nil)
+var _ integrationqueue.GitOps = (*integrationQueueGitOpsAdapter)(nil)
+var _ integrationqueue.ScopedGate = (*integrationQueueScopedGateAdapter)(nil)
 
 type integrationQueueGitCommandFn func(ctx context.Context, repoDir string, args ...string) (string, error)
 
@@ -1258,6 +1260,22 @@ func (a *integrationQueueGitOpsAdapter) Cleanup(ctx context.Context, entry integ
 
 	if _, err := a.runGitCommand(ctx, a.repoDir, "branch", "-D", entry.Branch); err != nil {
 		return fmt.Errorf("cleanup branch %s: %w", entry.Branch, err)
+	}
+	return nil
+}
+
+type integrationQueueScopedGateEvaluator func(ctx context.Context, entry integrationqueue.Entry) error
+
+type integrationQueueScopedGateAdapter struct {
+	evaluator integrationQueueScopedGateEvaluator
+}
+
+func (a *integrationQueueScopedGateAdapter) Run(ctx context.Context, entry integrationqueue.Entry) error {
+	if a == nil || a.evaluator == nil || strings.TrimSpace(entry.Branch) == "" {
+		return nil
+	}
+	if err := a.evaluator(ctx, entry); err != nil {
+		return fmt.Errorf("scoped gate evaluation for %s failed: %w", entry.Branch, err)
 	}
 	return nil
 }
