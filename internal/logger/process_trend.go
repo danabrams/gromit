@@ -376,6 +376,7 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 		StratifiedAnomalies:     map[string][]TrendAnomaly{},
 		EWMAAnomalies:           []TrendAnomaly{},
 		PatternViolations:       []PatternViolation{},
+		CauseClassifications:    []CauseClassificationRecord{},
 	}
 	if len(metrics) == 0 {
 		return trend
@@ -451,6 +452,19 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 		}
 		return trend.PatternViolations[i].Metric < trend.PatternViolations[j].Metric
 	})
+
+	// Evaluate cause classifications using all computed anomalies and patterns
+	classificationCtx := CauseClassificationContext{
+		Metrics:                 metrics,
+		ControlLimits:           trend.ControlLimits,
+		StratifiedControlLimits: trend.StratifiedControlLimits,
+		Anomalies:               trend.Anomalies,
+		StratifiedAnomalies:     trend.StratifiedAnomalies,
+		EWMAAnomalies:           trend.EWMAAnomalies,
+		PatternViolations:       trend.PatternViolations,
+	}
+	trend.CauseClassifications = EvaluateCauseClassifications(classificationCtx)
+
 	return trend
 }
 
