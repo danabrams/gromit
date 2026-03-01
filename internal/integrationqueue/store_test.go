@@ -222,6 +222,48 @@ func TestStoreSaveSortsChangedFiles(t *testing.T) {
 	}
 }
 
+func TestTrimJSONPrefix(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "clean JSON unchanged",
+			input: `{"key": "value"}`,
+			want:  `{"key": "value"}`,
+		},
+		{
+			name:  "strips text before opening brace",
+			input: `Removed: [branch1, branch2]` + "\n" + `{"key": "value"}`,
+			want:  `{"key": "value"}`,
+		},
+		{
+			name:  "strips whitespace-only prefix",
+			input: "  \n\t" + `{"key": "value"}`,
+			want:  `{"key": "value"}`,
+		},
+		{
+			name:  "no brace returns original",
+			input: "not json at all",
+			want:  "not json at all",
+		},
+		{
+			name:  "empty input returns empty",
+			input: "",
+			want:  "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := string(trimJSONPrefix([]byte(tt.input)))
+			if got != tt.want {
+				t.Errorf("trimJSONPrefix() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestStoreSaveRunsValidationHooks(t *testing.T) {
 	tmpDir := t.TempDir()
 	customErr := fmt.Errorf("validation failure")

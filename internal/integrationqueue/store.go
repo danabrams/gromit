@@ -1,6 +1,7 @@
 package integrationqueue
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -14,6 +15,19 @@ import (
 const (
 	queueFileName = "integration-queue.json"
 )
+
+// trimJSONPrefix finds the first '{' in data and returns from there.
+// This tolerates non-JSON text (e.g. diagnostic output from editors)
+// prepended before the actual JSON content.
+// If no '{' is found, the original data is returned unchanged so that
+// json.Unmarshal produces the appropriate error.
+func trimJSONPrefix(data []byte) []byte {
+	idx := bytes.IndexByte(data, '{')
+	if idx <= 0 {
+		return data
+	}
+	return data[idx:]
+}
 
 // Snapshot maintains backwards compatibility for the old persisted snapshot type.
 type Snapshot = Queue
