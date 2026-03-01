@@ -1,0 +1,32 @@
+# PR baseline narrative
+We introduced new instrumentation to track human interventions.
+
+# Vision Metrics
+spec_id: valid-spec-accepted-clean
+cycle_start_trigger_at: 2026-02-10T05:00:00Z
+cycle_end_presented_at: 2026-02-10T07:00:00Z
+review_outcome: accepted
+human_tactical_intervention: no
+human_debugging_intervention: no
+escaped_regression_within_7d: no
+
+---
+# Vision Metrics
+spec_id: valid-spec-accepted-debug
+cycle_start_trigger_at: 2026-02-12T08:00:00Z
+cycle_end_presented_at: 2026-02-12T10:30:00Z
+review_outcome: accepted
+human_tactical_intervention: yes
+human_debugging_intervention: yes
+escaped_regression_within_7d: no
+
+---
+# Vision Metrics
+spec_id: valid-spec-vision-change
+cycle_start_trigger_at: 2026-02-14T09:00:00Z
+cycle_end_presented_at: 2026-02-14T11:00:00Z
+review_outcome: rework_vision_change
+review_rationale: Alignment shift after product review
+human_tactical_intervention: no
+human_debugging_intervention: no
+escaped_regression_within_7d: no
