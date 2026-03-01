@@ -2,6 +2,7 @@ package integrationqueue
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -78,6 +79,47 @@ func TestCoordinatorProcessesOldestReadyEntry(t *testing.T) {
 
 	if len(gate.calls) != 1 || gate.calls[0] != "feature/old" {
 		t.Fatalf("gate.calls = %v, want [\"feature/old\"]", gate.calls)
+	}
+}
+
+func TestCoordinatorReportsTransitionErrorOnLaneViolation(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	entry := Entry{
+		Branch:           "feature/lane-violation",
+		SessionID:        "feature/lane-violation",
+		OriginCommand:    "test",
+		State:            StateReady,
+		Lane:             string(CodeLane),
+		BaseRef:          "main",
+		HeadSHA:          "deadbeef",
+		ChangedFilesHash: "hash",
+	}
+	if err := store.Save(entry); err != nil {
+		t.Fatalf("Save(entry) error = %v", err)
+	}
+
+	stateTransitions := allowedTransitions[string(StateIntegrating)]
+	original := stateTransitions[string(StateLaneViolation)]
+	stateTransitions[string(StateLaneViolation)] = false
+	t.Cleanup(func() {
+		stateTransitions[string(StateLaneViolation)] = original
+	})
+
+	coord := NewCoordinator(store, &laneViolationMockGitOps{}, &mockScopedGate{})
+
+	err = coord.Coordinate(ctx)
+	if err == nil {
+		t.Fatalf("Coordinate() error = nil, want transition failure")
+	}
+	if !errors.Is(err, ErrInvalidTransition) {
+		t.Fatalf("Coordinate() error = %v, want ErrInvalidTransition", err)
 	}
 }
 
