@@ -446,7 +446,102 @@ func FormatSPCSummary(trend *logger.ProcessTrend) string {
 		}
 	}
 
+	if causeLines := formatSPCCauseClassifications(trend.CauseClassifications); len(causeLines) > 0 {
+		lines = append(lines, causeLines...)
+	}
+
+	if highCostLines := formatSPCHighMaintenanceWarnings(trend.FlaggedPackages); len(highCostLines) > 0 {
+		lines = append(lines, highCostLines...)
+	}
+
 	return strings.Join(lines, "\n")
+}
+
+var spcCauseGuidance = map[logger.CauseClass]string{
+	logger.CauseClassSpecial: "Investigate the incident in the phase/provider where the control limit was breached.",
+	logger.CauseClassCommon:  "Anti-tampering: avoid manual tweaks and prioritize system-level interventions to stabilize the broader process.",
+	logger.CauseClassStable:  "Stable signal; continue observing the current process behavior.",
+}
+
+func formatSPCCauseClassifications(records []logger.CauseClassificationRecord) []string {
+	if len(records) == 0 {
+		return nil
+	}
+
+	sorted := append([]logger.CauseClassificationRecord{}, records...)
+	sort.Slice(sorted, func(i, j int) bool {
+		if sorted[i].Metric != sorted[j].Metric {
+			return sorted[i].Metric < sorted[j].Metric
+		}
+		if sorted[i].Stratum != sorted[j].Stratum {
+			return sorted[i].Stratum < sorted[j].Stratum
+		}
+		return sorted[i].Class < sorted[j].Class
+	})
+
+	lines := []string{"  Cause classification:"}
+	for _, rec := range sorted {
+		guidance := spcCauseGuidance[rec.Class]
+		if guidance == "" {
+			guidance = spcCauseGuidance[logger.CauseClassStable]
+		}
+		lines = append(lines, fmt.Sprintf("    %s (%s, %s): %s",
+			simplifySPCMetric(rec.Metric),
+			rec.Class,
+			formatSPCStratum(rec.Stratum),
+			guidance,
+		))
+	}
+
+	return lines
+}
+
+func formatSPCStratum(stratum string) string {
+	if stratum == "" {
+		return "global"
+	}
+	return stratum
+}
+
+func formatSPCHighMaintenanceWarnings(flags []logger.FlaggedPackage) []string {
+	if len(flags) == 0 {
+		return nil
+	}
+
+	sorted := append([]logger.FlaggedPackage{}, flags...)
+	sort.Slice(sorted, func(i, j int) bool {
+		if sorted[i].Package != sorted[j].Package {
+			return sorted[i].Package < sorted[j].Package
+		}
+		if sorted[i].Metric != sorted[j].Metric {
+			return sorted[i].Metric < sorted[j].Metric
+		}
+		return sorted[i].Severity < sorted[j].Severity
+	})
+
+	lines := []string{"  High Maintenance Cost:"}
+	for _, pkg := range sorted {
+		metricLabel := pkg.Metric
+		if metricLabel == "" {
+			metricLabel = "validation duration"
+		} else {
+			metricLabel = SimplifySPCMetric(metricLabel)
+		}
+		severity := pkg.Severity
+		if severity == "" {
+			severity = "unknown"
+		}
+
+		details := []string{metricLabel}
+		if pkg.PersistenceWindows > 0 {
+			details = append(details, fmt.Sprintf("%d windows", pkg.PersistenceWindows))
+		}
+		details = append(details, fmt.Sprintf("severity %s", severity))
+
+		lines = append(lines, fmt.Sprintf("    %s — %s", pkg.Package, strings.Join(details, ", ")))
+	}
+
+	return lines
 }
 
 // formatSPCLine formats a single SPC control-limit line for display.

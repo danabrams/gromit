@@ -218,6 +218,15 @@ type TrendAnomaly struct {
 	Message  string  `json:"message"`
 }
 
+// FlaggedPackage identifies a package that repeatedly breaches maintenance limits.
+type FlaggedPackage struct {
+	Package            string    `json:"package"`
+	Metric             string    `json:"metric"`
+	Severity           string    `json:"severity,omitempty"`
+	PersistenceWindows int       `json:"persistence_windows,omitempty"`
+	DetectedAt         time.Time `json:"detected_at,omitempty"`
+}
+
 // PatternViolation captures Nelson-rule pattern signals.
 type PatternViolation struct {
 	Metric     string  `json:"metric"`
@@ -258,6 +267,7 @@ type ProcessTrend struct {
 	EWMAAnomalies           []TrendAnomaly                 `json:"ewma_anomalies"`
 	PatternViolations       []PatternViolation             `json:"pattern_violations"`
 	CauseClassifications    []CauseClassificationRecord    `json:"cause_classifications"`
+	FlaggedPackages         []FlaggedPackage               `json:"flagged_packages"`
 }
 
 func newPromptTokenSummary() PromptTokenSummary {
@@ -340,6 +350,9 @@ func (t *ProcessTrend) normalizeNilFields() {
 	if t.CauseClassifications == nil {
 		t.CauseClassifications = []CauseClassificationRecord{}
 	}
+	if t.FlaggedPackages == nil {
+		t.FlaggedPackages = []FlaggedPackage{}
+	}
 	if t.PromptTokenSummary.ByPromptType == nil {
 		t.PromptTokenSummary.ByPromptType = []PromptTypeSummary{}
 	}
@@ -377,6 +390,7 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 		EWMAAnomalies:           []TrendAnomaly{},
 		PatternViolations:       []PatternViolation{},
 		CauseClassifications:    []CauseClassificationRecord{},
+		FlaggedPackages:         []FlaggedPackage{},
 	}
 	if len(metrics) == 0 {
 		return trend
