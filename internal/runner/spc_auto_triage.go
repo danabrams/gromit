@@ -138,6 +138,10 @@ func (s *SPCAutoTriager) Process(ctx context.Context, records []SPCCauseRecord) 
             continue
         }
         identity := rec.Identity()
+        last := s.store.Get(identity)
+        if !last.IsZero() && now.Sub(last) < s.config.Cooldown {
+            continue
+        }
         label := dedupeLabelForIdentity(identity)
         if openExists(ctx, s.client, label) {
             continue
