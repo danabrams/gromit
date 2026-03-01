@@ -187,6 +187,7 @@ func buildIssueDescription(rec SPCCauseRecord, guidance string) string {
         fmt.Sprintf("Metric: %s", rec.Metric),
         fmt.Sprintf("Stratum: %s", displayStratum(rec.Stratum)),
         fmt.Sprintf("Classification: %s", rec.Class),
+        fmt.Sprintf("Latest: %.2f", rec.Latest),
     }
     if rec.Limit != nil {
         lines = append(lines, fmt.Sprintf("Control limits: [%.2f, %.2f] (mean %.2f)", rec.Limit.LCL, rec.Limit.UCL, rec.Limit.Mean))
