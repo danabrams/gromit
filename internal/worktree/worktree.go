@@ -168,7 +168,7 @@ func (m *Manager) CreateBranch(ctx context.Context, command string) (string, err
 
 // CreateSessionWorktree creates a session-specific worktree with unique branch and path names.
 // Returns a SessionWorktree containing the branch name and worktree directory path.
-func (m *Manager) CreateSessionWorktree(command string) (*SessionWorktree, error) {
+func (m *Manager) CreateSessionWorktree(ctx context.Context, command string) (*SessionWorktree, error) {
 	if m == nil {
 		return nil, errors.New("nil Manager receiver")
 	}
@@ -176,7 +176,7 @@ func (m *Manager) CreateSessionWorktree(command string) (*SessionWorktree, error
 		return nil, errors.New("command cannot be empty")
 	}
 
-	ctx := m.gitContext()
+	ctx = m.contextFor(ctx)
 
 	baseTimestamp := sessionTimestampFn()
 	var lastErr error
@@ -197,10 +197,10 @@ func (m *Manager) CreateSessionWorktree(command string) (*SessionWorktree, error
 		decision := decideSessionCreateRetry(sessionCreateRetryInput{
 			FailureClass: classifySessionCreateFailure(output, err),
 			ProbeBranchExists: func() bool {
-				return m.sessionBranchExists(branchName)
+				return m.sessionBranchExists(ctx, branchName)
 			},
 			ProbeWorktreeRegistered: func() bool {
-				return m.sessionWorktreeRegistered(worktreeDir)
+				return m.sessionWorktreeRegistered(ctx, worktreeDir)
 			},
 		})
 		if decision.Retry {
@@ -426,15 +426,15 @@ func sessionWorktreeDir(mainDir, command string, timestamp int64) string {
 	return fmt.Sprintf("%s-gromit-%s-%d", mainDir, command, timestamp)
 }
 
-func (m *Manager) sessionBranchExists(branchName string) bool {
+func (m *Manager) sessionBranchExists(ctx context.Context, branchName string) bool {
 	ref := "refs/heads/" + branchName
-	ctx := m.gitContext()
+	ctx = m.contextFor(ctx)
 	_, err := m.runGit(ctx, m.MainDir, "show-ref", "--verify", "--quiet", ref, "--")
 	return err == nil
 }
 
-func (m *Manager) sessionWorktreeRegistered(worktreeDir string) bool {
-	ctx := m.gitContext()
+func (m *Manager) sessionWorktreeRegistered(ctx context.Context, worktreeDir string) bool {
+	ctx = m.contextFor(ctx)
 	output, err := m.runGit(ctx, m.MainDir, "worktree", "list", "--porcelain")
 	if err != nil {
 		return false

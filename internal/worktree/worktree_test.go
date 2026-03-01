@@ -1736,12 +1736,12 @@ func TestCreateSessionWorktree_UniqueNames(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	first, err := m.CreateSessionWorktree("review")
+	first, err := m.CreateSessionWorktree(context.Background(), "review")
 	if err != nil {
 		t.Fatalf("CreateSessionWorktree() error = %v, want nil", err)
 	}
 
-	second, err := m.CreateSessionWorktree("review")
+	second, err := m.CreateSessionWorktree(context.Background(), "review")
 	if err != nil {
 		t.Fatalf("CreateSessionWorktree() error = %v, want nil", err)
 	}
@@ -1799,7 +1799,7 @@ func TestCreateSessionWorktree_RetriesOnBranchContention(t *testing.T) {
 	sessionTimestampFn = func() int64 { return 100 }
 	t.Cleanup(func() { sessionTimestampFn = origNowFn })
 
-	got, err := m.CreateSessionWorktree("review")
+	got, err := m.CreateSessionWorktree(context.Background(), "review")
 	if err != nil {
 		t.Fatalf("CreateSessionWorktree() error = %v, want nil after retry", err)
 	}
@@ -1856,7 +1856,7 @@ func TestCreateSessionWorktree_RetriesWhenLockRefAmbiguousAndBranchExists(t *tes
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	got, err := m.CreateSessionWorktree("review")
+	got, err := m.CreateSessionWorktree(context.Background(), "review")
 	if err != nil {
 		t.Fatalf("CreateSessionWorktree() error = %v, want nil after retry", err)
 	}
@@ -1917,7 +1917,7 @@ func TestCreateSessionWorktree_RetriesWhenLockRefAmbiguousAndWorktreeAlreadyRegi
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	got, err := m.CreateSessionWorktree("review")
+	got, err := m.CreateSessionWorktree(context.Background(), "review")
 	if err != nil {
 		t.Fatalf("CreateSessionWorktree() error = %v, want nil after retry", err)
 	}
@@ -1972,7 +1972,7 @@ func TestCreateSessionWorktree_RetriesWhenLockRefAmbiguousExistsCannotCreateAndB
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	got, err := m.CreateSessionWorktree("review")
+	got, err := m.CreateSessionWorktree(context.Background(), "review")
 	if err != nil {
 		t.Fatalf("CreateSessionWorktree() error = %v, want nil after retry", err)
 	}
@@ -2016,7 +2016,7 @@ func TestCreateSessionWorktree_AmbiguousProbeInconclusiveIncludesDecisionReason(
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	_, err = m.CreateSessionWorktree("review")
+	_, err = m.CreateSessionWorktree(context.Background(), "review")
 	if err == nil {
 		t.Fatal("CreateSessionWorktree() error = nil, want non-nil")
 	}
@@ -2053,7 +2053,7 @@ func TestCreateSessionWorktree_RetriesWhenKnownContentionOnlyInGitOutput(t *test
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	got, err := m.CreateSessionWorktree("review")
+	got, err := m.CreateSessionWorktree(context.Background(), "review")
 	if err != nil {
 		t.Fatalf("CreateSessionWorktree() error = %v, want nil after retry", err)
 	}
@@ -2086,7 +2086,7 @@ func TestCreateSessionWorktree_FailsImmediatelyOnNonContentionAlreadyExists(t *t
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	_, err = m.CreateSessionWorktree("review")
+	_, err = m.CreateSessionWorktree(context.Background(), "review")
 	if err == nil {
 		t.Fatal("CreateSessionWorktree() error = nil, want non-nil")
 	}
@@ -2119,7 +2119,7 @@ func TestCreateSessionWorktree_RetryExhaustionOnWorktreeCollision(t *testing.T) 
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	_, err = m.CreateSessionWorktree("review")
+	_, err = m.CreateSessionWorktree(context.Background(), "review")
 	if err == nil {
 		t.Fatal("CreateSessionWorktree() error = nil, want non-nil")
 	}
@@ -2159,7 +2159,7 @@ func TestCreateSessionWorktree_MixedRetryableThenNonRetryableStopsImmediately(t 
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	_, err = m.CreateSessionWorktree("review")
+	_, err = m.CreateSessionWorktree(context.Background(), "review")
 	if err == nil {
 		t.Fatal("CreateSessionWorktree() error = nil, want non-nil")
 	}
