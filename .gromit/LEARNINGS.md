@@ -264,6 +264,41 @@ Session worktree lifecycle now uses enqueue-to-integration-queue instead of dire
 
 AcceptedWithoutReworkRate excludes rework_vision_change from denominator but FirstIntegrationPassRate includes them. Both are valid business definitions but the asymmetry is intentional — new rollup metrics should document their carve-out policy explicitly.
 
+### 2026-03-01 | Integration Queue Store Lacks File Locking for Concurrent Access | reliability
+*Related to: review-1772366501939692738*
+
+Integration queue has no file locking — concurrent CLI processes (sessions + coordinator) can corrupt the queue file via TOCTOU races in the load-mutate-write cycle (Store.Save, SaveQueue, RecoverFromMalformedQueue). Add flock-based advisory locking around the load/modify/write cycle.
+
+### 2026-03-01 | RecoverFromMalformedQueue Never Persists and Uses Invalid Transition | reliability
+*Related to: review-1772366501939692738*
+
+RecoverFromMalformedQueue resets integrating entries to StateDraft (not a valid transition from integrating per the transition table) and never calls SaveQueue(), so recovery only exists in memory. Coordinator.RecoverFromCrash correctly uses ApplyTransition to StateReady and persists. The two recovery paths are inconsistent.
+
+### 2026-03-01 | constructor_adapters.go Exceeds 550-Line Limit at 1147 Lines | tech_debt
+*Related to: review-1772366501939692738*
+
+internal/runner/constructor_adapters.go is 2x the 550-line file size limit. Contains ~130 lines of dead specGateAdapter code (deprecated per constructor.go comment) and dead childWithDedupeLabelExists method. Primary extraction target for splitting into logical adapter groups.
+
+### 2026-03-01 | Epilogue Stage Mutates Caller's IterationLog Through Input Pointer | architecture
+*Related to: review-1772366501939692738*
+
+Epilogue stage sets in.Result.Success = false on lifecycle failure, mutating the caller's data through a pointer. This side-effect violates stage output isolation — the orchestrator should read success status from the epilogue Output, not the mutated Input.
+
+### 2026-03-01 | Provider Router Mutex Creates False Thread Safety in Select() | gotchas
+*Related to: review-1772366501939692738*
+
+Provider router Select() has a TOCTOU race between isAvailable() and selectProvider() calls — each acquires/releases the mutex independently, so availability can change between checks. Currently single-threaded in practice, but the lock pattern is misleading.
+
+### 2026-03-01 | specmerge gh_client.go Is Last Site Missing Full procutil Subprocess Pattern | conventions
+*Related to: review-1772366501939692738*
+
+specmerge/gh_client.go is missing KillDescendantsOnCancel after cmd.Start() and uses ReapProcessGroup instead of ReapProcessTree. All other subprocess launch sites (cmd_run.go, specbranch/git_ops.go, benchmark/worktree_run.go, preflight.go, integrationqueue_constructor.go) follow the full pattern.
+
+### 2026-03-01 | Queue and Board Pipeline Methods Bypass Centralized DI Pattern | tech_debt
+*Related to: review-1772366501939692738, review-1772322141608097349*
+
+Queue and Board pipeline methods use package-level factory vars (newQueueClient/newBoardClient) instead of injected p.deps dependencies. This bypasses NewPipelineDeps centralized DI and means these methods cannot be tested with mock dependencies.
+
 ---
 
 ## Archived
