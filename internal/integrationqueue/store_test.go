@@ -1,14 +1,20 @@
 package integrationqueue
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -451,13 +457,13 @@ func TestQueueOperationsBlockWhileLocked(t *testing.T) {
 					return fmt.Errorf("NewStore: %w", err)
 				}
 				entry := Entry{
-					Branch:       fmt.Sprintf("blocked/%s", t.Name()),
-					SessionID:    "session",
+					Branch:        fmt.Sprintf("blocked/%s", t.Name()),
+					SessionID:     "session",
 					OriginCommand: "ready",
-					State:        StateReady,
-					Lane:         string(CodeLane),
-					BaseRef:      "main",
-					HeadSHA:      "deadbeef",
+					State:         StateReady,
+					Lane:          string(CodeLane),
+					BaseRef:       "main",
+					HeadSHA:       "deadbeef",
 				}
 				return store.Save(entry)
 			},
@@ -678,5 +684,75 @@ func TestStore_ConcurrentSaveAndSnapshot(t *testing.T) {
 		if err != nil {
 			t.Fatalf("concurrent save/snapshot error: %v", err)
 		}
+	}
+}
+
+func holdQueueLock(t *testing.T, queuePath string) func() {
+	t.Helper()
+	lockPath := queuePath + ".lock"
+	if err := os.MkdirAll(filepath.Dir(lockPath), 0o755); err != nil {
+		t.Fatalf("mkdir lock directory: %v", err)
+	}
+	cmd := exec.Command(os.Args[0], "-test.run=TestQueueLockHolderProcess", "--", lockPath)
+	cmd.Env = append(os.Environ(), "INTEGRATION_QUEUE_LOCK_HOLDER=1")
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		t.Fatalf("creating lock holder stdin: %v", err)
+	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatalf("creating lock holder stdout: %v", err)
+	}
+	cmd.Stderr = os.Stderr
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("starting lock holder: %v", err)
+	}
+	line, err := bufio.NewReader(stdout).ReadString('\n')
+	if err != nil {
+		_ = cmd.Process.Kill()
+		t.Fatalf("reading lock holder output: %v", err)
+	}
+	if strings.TrimSpace(line) != "locked" {
+		_ = cmd.Process.Kill()
+		t.Fatalf("unexpected lock holder output: %q", line)
+	}
+	var once sync.Once
+	release := func() {
+		once.Do(func() {
+			if stdin != nil {
+				_, _ = stdin.Write([]byte("\n"))
+				_ = stdin.Close()
+			}
+			if err := cmd.Wait(); err != nil {
+				t.Fatalf("lock holder exit: %v", err)
+			}
+		})
+	}
+	return release
+}
+
+func TestQueueLockHolderProcess(t *testing.T) {
+	if os.Getenv("INTEGRATION_QUEUE_LOCK_HOLDER") != "1" {
+		t.Skip("queue lock holder helper")
+	}
+	if len(flag.Args()) == 0 {
+		t.Fatalf("lock path argument missing")
+	}
+	lockPath := flag.Args()[len(flag.Args())-1]
+	if err := os.MkdirAll(filepath.Dir(lockPath), 0o755); err != nil {
+		t.Fatalf("mkdir lock directory: %v", err)
+	}
+	file, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o644)
+	if err != nil {
+		t.Fatalf("opening lock file: %v", err)
+	}
+	defer file.Close()
+	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX); err != nil {
+		t.Fatalf("locking queue: %v", err)
+	}
+	fmt.Println("locked")
+	reader := bufio.NewReader(os.Stdin)
+	if _, err := reader.ReadBytes('\n'); err != nil && !errors.Is(err, io.EOF) {
+		t.Fatalf("waiting for release signal: %v", err)
 	}
 }
