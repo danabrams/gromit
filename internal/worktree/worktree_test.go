@@ -343,9 +343,9 @@ func TestCleanup_RemovesWorktree(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	err = m.Cleanup()
+	err = m.Cleanup(context.Background())
 	if err != nil {
-		t.Fatalf("Cleanup() error = %v, want nil", err)
+		t.Fatalf("Cleanup(context.Background()) error = %v, want nil", err)
 	}
 
 	// Verify git worktree remove was called
@@ -389,9 +389,9 @@ func TestCleanup_HandlesNonexistentWorktree(t *testing.T) {
 	}
 
 	// Cleanup should succeed even if worktree doesn't exist
-	err = m.Cleanup()
+	err = m.Cleanup(context.Background())
 	if err != nil {
-		t.Errorf("Cleanup() error = %v, want nil (should handle nonexistent worktree)", err)
+		t.Errorf("Cleanup(context.Background()) error = %v, want nil (should handle nonexistent worktree)", err)
 	}
 }
 
@@ -415,12 +415,12 @@ func TestManager_NilReceiver(t *testing.T) {
 		t.Errorf("CreateBranch() error should mention nil receiver, got: %v", err)
 	}
 
-	err = m.Cleanup()
+	err = m.Cleanup(context.Background())
 	if err == nil {
-		t.Error("Cleanup() on nil receiver should return error")
+		t.Error("Cleanup(context.Background()) on nil receiver should return error")
 	}
 	if err != nil && !strings.Contains(err.Error(), "nil") {
-		t.Errorf("Cleanup() error should mention nil receiver, got: %v", err)
+		t.Errorf("Cleanup(context.Background()) error should mention nil receiver, got: %v", err)
 	}
 }
 
@@ -576,14 +576,14 @@ func TestCleanup_GitRunFnCalledWithCorrectDir(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	err = m.Cleanup()
+	err = m.Cleanup(context.Background())
 	if err != nil {
-		t.Fatalf("Cleanup() error = %v, want nil", err)
+		t.Fatalf("Cleanup(context.Background()) error = %v, want nil", err)
 	}
 
 	// Cleanup should run git commands in the main directory
 	if capturedDir != mainDir {
-		t.Errorf("Cleanup() called gitRunFn with dir %q, want %q", capturedDir, mainDir)
+		t.Errorf("Cleanup(context.Background()) called gitRunFn with dir %q, want %q", capturedDir, mainDir)
 	}
 }
 

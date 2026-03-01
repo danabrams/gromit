@@ -333,12 +333,12 @@ func (m *Manager) MergeBack(ctx context.Context, branch string) error {
 
 // Cleanup removes the worktree and prunes stale branches.
 // If the worktree doesn't exist, Cleanup succeeds without error.
-func (m *Manager) Cleanup() error {
+func (m *Manager) Cleanup(ctx context.Context) error {
 	if m == nil {
 		return errors.New("nil Manager receiver")
 	}
 
-	ctx := m.gitContext()
+	ctx = m.contextFor(ctx)
 
 	// Remove the worktree. Ignore errors since worktree may not exist.
 	// This is intentionally lenient - cleanup should not fail if there's
