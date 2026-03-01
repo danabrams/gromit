@@ -287,22 +287,30 @@ func prepareQueueForWrite(queue *Queue) {
 }
 
 // RecoverFromMalformedQueue handles recovery when the queue file has schema errors.
-// It loads the queue, resets any integrating entries to draft state with error code,
-// and returns the recovered queue. This allows the system to recover from crashes
-// that left entries in the integrating state.
+// It loads the queue, transitions any integrating entries to ready with error code,
+// persists the recovered queue, and returns it.
 func RecoverFromMalformedQueue(ctx context.Context, path string) (*Queue, error) {
 	queue, err := LoadQueue(path)
 	if err != nil {
 		return nil, fmt.Errorf("loading queue during recovery: %w", err)
 	}
 
-	// Reset any integrating entries to draft state
+	_ = ctx
+	updated := false
 	for i := range queue.Entries {
 		if queue.Entries[i].State == StateIntegrating {
-			queue.Entries[i].State = StateDraft
+			if err := ApplyTransition(&queue.Entries[i], string(StateReady), "schema recovery"); err != nil {
+				return nil, fmt.Errorf("transitioning recovered entry %s: %w", queue.Entries[i].Branch, err)
+			}
 			queue.Entries[i].LastErrorCode = string(ErrorCodeSchemaInvalid)
 			queue.Entries[i].LastErrorMessage = "recovered from schema error: entry was in integrating state"
-			queue.Entries[i].UpdatedAt = time.Now()
+			updated = true
+		}
+	}
+
+	if updated {
+		if err := SaveQueue(path, queue); err != nil {
+			return nil, fmt.Errorf("persisting recovered queue: %w", err)
 		}
 	}
 

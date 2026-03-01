@@ -44,7 +44,7 @@ func TestStore_HandlesMalformedQueueFile(t *testing.T) {
 }
 
 // TestRecoverFromMalformedQueue verifies that RecoverFromMalformedQueue()
-// can reset integrating entries to draft state when recovery is triggered.
+// transitions integrating entries back to ready and persists the recovered queue.
 func TestRecoverFromMalformedQueue(t *testing.T) {
 	tmpDir := t.TempDir()
 	queuePath := filepath.Join(tmpDir, queueFileName)
@@ -98,7 +98,7 @@ func TestRecoverFromMalformedQueue(t *testing.T) {
 		t.Fatal("expected recovered queue, got nil")
 	}
 
-	// Verify that integrating entries were reset to draft
+	// Verify that integrating entries were transitioned back to ready
 	if len(recovered.Entries) != 3 {
 		t.Fatalf("expected 3 entries, got %d", len(recovered.Entries))
 	}
@@ -108,19 +108,31 @@ func TestRecoverFromMalformedQueue(t *testing.T) {
 		t.Fatalf("entry 0: expected state %s, got %s", StateReady, recovered.Entries[0].State)
 	}
 
-	// Entry 1 (integrating) should be reset to draft
-	if recovered.Entries[1].State != StateDraft {
-		t.Fatalf("entry 1: expected state %s, got %s", StateDraft, recovered.Entries[1].State)
+	// Entry 1 (integrating) should be reset to ready
+	if recovered.Entries[1].State != StateReady {
+		t.Fatalf("entry 1: expected state %s, got %s", StateReady, recovered.Entries[1].State)
 	}
 	if recovered.Entries[1].LastErrorCode != "queue_schema_invalid" {
 		t.Fatalf("entry 1: expected error code queue_schema_invalid, got %s", recovered.Entries[1].LastErrorCode)
 	}
 
-	// Entry 2 (integrating) should be reset to draft
-	if recovered.Entries[2].State != StateDraft {
-		t.Fatalf("entry 2: expected state %s, got %s", StateDraft, recovered.Entries[2].State)
+	// Entry 2 (integrating) should be reset to ready
+	if recovered.Entries[2].State != StateReady {
+		t.Fatalf("entry 2: expected state %s, got %s", StateReady, recovered.Entries[2].State)
 	}
 	if recovered.Entries[2].LastErrorCode != "queue_schema_invalid" {
 		t.Fatalf("entry 2: expected error code queue_schema_invalid, got %s", recovered.Entries[2].LastErrorCode)
+	}
+
+	// Verify that recovery was persisted to disk.
+	persisted, err := LoadQueue(queuePath)
+	if err != nil {
+		t.Fatalf("LoadQueue(persisted): %v", err)
+	}
+	if persisted.Entries[1].State != StateReady {
+		t.Fatalf("persisted entry 1: expected state %s, got %s", StateReady, persisted.Entries[1].State)
+	}
+	if persisted.Entries[2].State != StateReady {
+		t.Fatalf("persisted entry 2: expected state %s, got %s", StateReady, persisted.Entries[2].State)
 	}
 }
