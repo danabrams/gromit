@@ -1,6 +1,7 @@
 package integrationqueue
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"reflect"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestLoadQueueReturnsDefaultWhenMissing(t *testing.T) {
@@ -421,6 +423,102 @@ func TestStoreSaveRunsValidationHooks(t *testing.T) {
 	}
 	if err := store.Save(entry); !errors.Is(err, customErr) {
 		t.Fatalf("Save() error = %v, want %v", err, customErr)
+	}
+}
+
+func TestQueueOperationsBlockWhileLocked(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("mkdir gromit dir: %v", err)
+	}
+	queuePath := filepath.Join(gromitDir, queueFileName)
+	if err := SaveQueue(queuePath, &Queue{SchemaVersion: SchemaVersion}); err != nil {
+		t.Fatalf("initial SaveQueue: %v", err)
+	}
+
+	type operation struct {
+		name string
+		run  func(t *testing.T) error
+	}
+
+	operations := []operation{
+		{
+			name: "StoreSave",
+			run: func(t *testing.T) error {
+				store, err := NewStore(gromitDir)
+				if err != nil {
+					return fmt.Errorf("NewStore: %w", err)
+				}
+				entry := Entry{
+					Branch:       fmt.Sprintf("blocked/%s", t.Name()),
+					SessionID:    "session",
+					OriginCommand: "ready",
+					State:        StateReady,
+					Lane:         string(CodeLane),
+					BaseRef:      "main",
+					HeadSHA:      "deadbeef",
+				}
+				return store.Save(entry)
+			},
+		},
+		{
+			name: "SaveQueue",
+			run: func(t *testing.T) error {
+				queue := &Queue{
+					SchemaVersion: SchemaVersion,
+					Entries: []Entry{
+						{
+							Branch:        fmt.Sprintf("blocked/%s", t.Name()),
+							SessionID:     "session",
+							OriginCommand: "ready",
+							State:         StateReady,
+							Lane:          string(CodeLane),
+							BaseRef:       "main",
+							HeadSHA:       "deadbeef",
+						},
+					},
+				}
+				return SaveQueue(queuePath, queue)
+			},
+		},
+		{
+			name: "RecoverFromMalformedQueue",
+			run: func(t *testing.T) error {
+				_, err := RecoverFromMalformedQueue(context.Background(), queuePath)
+				return err
+			},
+		},
+	}
+
+	for _, op := range operations {
+		op := op
+		t.Run(op.name, func(t *testing.T) {
+			release := holdQueueLock(t, queuePath)
+			defer release()
+
+			errCh := make(chan error, 1)
+			go func() {
+				errCh <- op.run(t)
+			}()
+
+			select {
+			case err := <-errCh:
+				t.Fatalf("%s completed before lock release: %v", op.name, err)
+			case <-time.After(100 * time.Millisecond):
+			}
+
+			release()
+
+			select {
+			case err := <-errCh:
+				if err != nil {
+					t.Fatalf("%s returned error after lock release: %v", op.name, err)
+				}
+			case <-time.After(time.Second):
+				t.Fatalf("%s did not complete after lock release", op.name)
+			}
+		})
 	}
 }
 
