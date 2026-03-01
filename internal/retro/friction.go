@@ -5,9 +5,20 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/danabrams/gromit/internal/learnings"
 )
+
+// FrictionCluster captures evidence for friction areas found in learnings.
+type FrictionCluster struct {
+	Area          string         `json:"area"`
+	LearningCount int            `json:"learning_count"`
+	EarliestDate  time.Time      `json:"earliest_date"`
+	LatestDate    time.Time      `json:"latest_date"`
+	Timespan      time.Duration  `json:"timespan"`
+	Categories    map[string]int `json:"categories"`
+}
 
 const (
 	// minFrictionClusterSize defines the minimum learnings required to consider an area as friction.
@@ -54,6 +65,14 @@ func clusterByArea(learnings []learnings.Learning, minClusterSize int) []Frictio
 		if learning.Category != "" {
 			cluster.Categories[learning.Category]++
 		}
+	}
+
+	for _, cluster := range clusters {
+		if cluster.EarliestDate.IsZero() || cluster.LatestDate.IsZero() {
+			cluster.Timespan = 0
+			continue
+		}
+		cluster.Timespan = cluster.LatestDate.Sub(cluster.EarliestDate)
 	}
 
 	result := make([]FrictionCluster, 0, len(clusters))
