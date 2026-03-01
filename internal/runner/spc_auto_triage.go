@@ -142,10 +142,6 @@ func (s *SPCAutoTriager) Process(ctx context.Context, records []SPCCauseRecord) 
         if openExists(ctx, s.client, label) {
             continue
         }
-        last := s.store.Get(identity)
-        if !last.IsZero() && now.Sub(last) < s.config.Cooldown {
-            continue
-        }
         issueType, ok := s.config.IssueType[rec.Class]
         if !ok {
             continue

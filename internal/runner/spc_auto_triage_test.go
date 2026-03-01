@@ -266,6 +266,43 @@ func TestSPCAutoTriage_RespectsDedupeLabels(t *testing.T) {
     }
 }
 
+func TestSPCAutoTriage_EnforcesCooldownBoundary(t *testing.T) {
+    ctx := context.Background()
+    now := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
+
+    trackerClient := trackertest.NewStubTrackerClient()
+    var created []tracker.CreateRequest
+    trackerClient.CreateFn = func(ctx context.Context, req tracker.CreateRequest) (*tracker.Item, error) {
+        created = append(created, req)
+        return &tracker.Item{ID: fmt.Sprintf("cooldown-%d", len(created)), Status: tracker.StatusOpen}, nil
+    }
+    trackerClient.ListWithLabelFn = func(ctx context.Context, label string) ([]tracker.Item, error) {
+        return nil, nil
+    }
+
+    store := newTestCooldownStore()
+    store.Set("c1|global|special_cause", now.Add(-6*24*time.Hour))
+    store.Set("c2|provider:foo|common_cause", now.Add(-7*24*time.Hour))
+
+    triager := NewSPCAutoTriager(trackerClient, store, WithNowFunc(func() time.Time { return now }))
+
+    records := []SPCCauseRecord{
+        {Metric: "c1", Stratum: "global", Class: CauseClassSpecial, PersistenceWindowCount: 2, Latest: 10, DetectedAt: now.Add(-time.Hour)},
+        {Metric: "c2", Stratum: "provider:foo", Class: CauseClassCommon, PersistenceWindowCount: 2, Latest: 20, DetectedAt: now.Add(-time.Hour)},
+    }
+
+    _, err := triager.Process(ctx, records)
+    if err != nil {
+        t.Fatalf("Process() returned error: %v", err)
+    }
+    if len(created) != 1 {
+        t.Fatalf("expected cooldown to allow only one creation, got %d", len(created))
+    }
+    if created[0].Metadata[metadataCauseClassKey] != string(CauseClassCommon) {
+        t.Fatalf("expected common cause to fire after cooldown, got %s", created[0].Metadata[metadataCauseClassKey])
+    }
+}
+
 type testCooldownStore struct {
     values map[string]time.Time
 }
