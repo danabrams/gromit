@@ -284,17 +284,21 @@ func runLoop(cmd *cobra.Command, args []string) error {
 	}
 
 	gromitDir := resolveGromitDir(cfg)
-	stageCtx, stageCtxErr := runner.BuildSpecStageContext(ctx, cfg, runSpecFlag, gromitDir)
-	if stageCtxErr != nil {
-		return fmt.Errorf("initializing specflow stage: %w", stageCtxErr)
-	}
-	if stageCtx != nil && stageCtx.SpecName != "" && stageCtx.FreshStart {
-		repoDir, err := os.Getwd()
-		if err != nil {
-			return fmt.Errorf("determining repo dir: %w", err)
+	var stageCtx *runner.StageContext
+	if runSpecFlag != "" {
+		var stageCtxErr error
+		stageCtx, stageCtxErr = runner.BuildSpecStageContext(ctx, cfg, runSpecFlag, gromitDir)
+		if stageCtxErr != nil {
+			return fmt.Errorf("initializing specflow stage: %w", stageCtxErr)
 		}
-		if err := runner.EnsureSpecBranch(ctx, cfg, stageCtx, repoDir); err != nil {
-			return fmt.Errorf("preparing spec branch: %w", err)
+		if stageCtx != nil && stageCtx.SpecName != "" && stageCtx.FreshStart {
+			repoDir, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("determining repo dir: %w", err)
+			}
+			if err := runner.EnsureSpecBranch(ctx, cfg, stageCtx, repoDir); err != nil {
+				return fmt.Errorf("preparing spec branch: %w", err)
+			}
 		}
 	}
 
@@ -610,7 +614,7 @@ func launchRetroInteractiveSession(cfg *config.Config, cmd *cobra.Command, gromi
 		return fmt.Errorf("resolving agent: %w", err)
 	}
 
-	err = launchInSessionIfEnabled(cfg, gromitDir, retroSessionCommand, retroSessionLauncherFn, func(sessionDir string) error {
+	err = launchInSessionIfEnabled(cmd.Context(), cfg, gromitDir, retroSessionCommand, retroSessionLauncherFn, func(sessionDir string) error {
 		if err := selectedAgent.LaunchInDir(absPromptPath, sessionDir); err != nil {
 			return fmt.Errorf("launching interactive review session: %w", err)
 		}
