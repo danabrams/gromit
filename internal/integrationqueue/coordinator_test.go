@@ -392,6 +392,55 @@ func TestCoordinatorRecoverFromCrash_FailedGates(t *testing.T) {
 	}
 }
 
+func TestCoordinatorRecoverFromCrash_MergeConflict(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	entry := Entry{
+		Branch:           "feature/merge-conflict",
+		SessionID:        "feature/merge-conflict",
+		OriginCommand:    "test",
+		State:            StateIntegrating,
+		Lane:             string(CodeLane),
+		BaseRef:          "main",
+		HeadSHA:          "deadbeef",
+		FifoSeq:          1,
+		LastErrorCode:    "merge_conflict",
+		LastErrorMessage: "merge conflict detected",
+	}
+	if err := store.Save(entry); err != nil {
+		t.Fatalf("Save(entry) error = %v", err)
+	}
+
+	coord := &Coordinator{store: store}
+
+	if err := coord.RecoverFromCrash(ctx); err != nil {
+		t.Fatalf("RecoverFromCrash() error = %v", err)
+	}
+
+	payload, err := store.load()
+	if err != nil {
+		t.Fatalf("load() error = %v", err)
+	}
+
+	processed := findEntry(payload.Entries, "feature/merge-conflict")
+	if processed == nil {
+		t.Fatal("missing processed entry")
+	}
+	if processed.State != StateConflict {
+		t.Fatalf("State = %q, want %q", processed.State, StateConflict)
+	}
+	if processed.LastErrorCode != "merge_conflict" {
+		t.Fatalf("LastErrorCode = %q, want merge_conflict", processed.LastErrorCode)
+	}
+}
+
+
 func TestCoordinatorHandlesMergeConflict(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
