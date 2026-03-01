@@ -7,8 +7,8 @@ import (
 	"github.com/danabrams/gromit/internal/procutil"
 )
 
-func TestDefaultGHReaperUsesProcessGroup(t *testing.T) {
-	if reflect.ValueOf(defaultGHReaper).Pointer() != reflect.ValueOf(procutil.ReapProcessGroup).Pointer() {
-		t.Fatalf("defaultGHReaper should wrap procutil.ReapProcessGroup")
+func TestDefaultGHReaperUsesProcessTree(t *testing.T) {
+	if reflect.ValueOf(defaultGHReaper).Pointer() != reflect.ValueOf(procutil.ReapProcessTree).Pointer() {
+		t.Fatalf("defaultGHReaper should wrap procutil.ReapProcessTree")
 	}
 }
