@@ -139,6 +139,7 @@ func (s *Store) load() (*Snapshot, error) {
 		return nil, err
 	}
 
+	data = trimJSONPrefix(data)
 	var snapshot Snapshot
 	if err := json.Unmarshal(data, &snapshot); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrSchemaInvalid, err)
@@ -184,6 +185,7 @@ func LoadQueue(path string) (*Queue, error) {
 		return nil, err
 	}
 
+	data = trimJSONPrefix(data)
 	var queue Queue
 	if err := json.Unmarshal(data, &queue); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrSchemaInvalid, err)

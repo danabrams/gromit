@@ -264,6 +264,71 @@ func TestTrimJSONPrefix(t *testing.T) {
 	}
 }
 
+func TestLoadQueueToleratesPrefixGarbage(t *testing.T) {
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, queueFileName)
+
+	validJSON := fmt.Sprintf(`{"schema_version": %d, "entries": []}`, SchemaVersion)
+	garbage := "Removed: [branch1, branch2]\n" + validJSON
+
+	if err := os.WriteFile(path, []byte(garbage), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	q, err := LoadQueue(path)
+	if err != nil {
+		t.Fatalf("LoadQueue() error = %v, want nil", err)
+	}
+	if q.SchemaVersion != SchemaVersion {
+		t.Fatalf("schema version = %d, want %d", q.SchemaVersion, SchemaVersion)
+	}
+}
+
+func TestStoreLoadToleratesPrefixGarbage(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// First save a valid entry so the file exists
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore: %v", err)
+	}
+	entry := Entry{
+		Branch:        "gromit/test",
+		SessionID:     "session",
+		OriginCommand: "refine",
+		State:         StateReady,
+		Lane:          string(CodeLane),
+		BaseRef:       "main",
+		HeadSHA:       "abc123",
+	}
+	if err := store.Save(entry); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	// Now prepend garbage to the file
+	path := filepath.Join(tmpDir, queueFileName)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read file: %v", err)
+	}
+	corrupted := append([]byte("Removed: [stale-branch]\n"), data...)
+	if err := os.WriteFile(path, corrupted, 0o644); err != nil {
+		t.Fatalf("write corrupted: %v", err)
+	}
+
+	// Snapshot (via load()) should still work
+	snap, err := store.Snapshot()
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v, want nil", err)
+	}
+	if len(snap.Entries) != 1 {
+		t.Fatalf("entries = %d, want 1", len(snap.Entries))
+	}
+	if snap.Entries[0].Branch != "gromit/test" {
+		t.Fatalf("branch = %q, want %q", snap.Entries[0].Branch, "gromit/test")
+	}
+}
+
 func TestStoreSaveRunsValidationHooks(t *testing.T) {
 	tmpDir := t.TempDir()
 	customErr := fmt.Errorf("validation failure")
