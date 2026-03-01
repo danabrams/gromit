@@ -299,6 +299,9 @@ specmerge/gh_client.go is missing KillDescendantsOnCancel after cmd.Start() and 
 
 Queue and Board pipeline methods use package-level factory vars (newQueueClient/newBoardClient) instead of injected p.deps dependencies. This bypasses NewPipelineDeps centralized DI and means these methods cannot be tested with mock dependencies.
 
+### 2026-03-01 | gromit-k85o | conventions
+Gromit enforces file size limits on critical files like constructor.go (≤550 lines) via TestConstructorFileSizeLimit. When adding code, extract adapter types and related definitions into constructor_adapters.go. This pattern prevents constructor.go bloat and is actively tested.
+
 ---
 
 ## Archived
