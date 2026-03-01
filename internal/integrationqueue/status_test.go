@@ -153,3 +153,36 @@ func TestProjectStatusLimitsDisplayedEntries(t *testing.T) {
 		t.Fatalf("MergedCount = %d, want 1", status.MergedCount)
 	}
 }
+
+func TestProjectStatusCountsPushFailureAsBlocked(t *testing.T) {
+	snapshot := &Snapshot{
+		Entries: []Entry{
+			{
+				Branch: "gromit/ready-branch",
+				State:  StateReady,
+				Lane:   "code_lane",
+			},
+			{
+				Branch: "gromit/push-failure-branch",
+				State:  StatePushFailure,
+				Lane:   "code_lane",
+			},
+		},
+	}
+
+	status := ProjectStatus(snapshot)
+	if status.BlockedCount != 1 {
+		t.Fatalf("BlockedCount = %d, want 1", status.BlockedCount)
+	}
+
+	found := false
+	for _, entry := range status.Entries {
+		if entry.Entry.Branch == "gromit/push-failure-branch" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("push failure entry not included in status entries")
+	}
+}
