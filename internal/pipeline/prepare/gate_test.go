@@ -342,6 +342,28 @@ func TestGateRun_ReadinessBlockEventStripsOverrideMarker(t *testing.T) {
 	}
 }
 
+func TestGateRun_ReadinessEmergencyOverrideAllowsBypass(t *testing.T) {
+	t.Parallel()
+
+	gate := New(io.Discard).WithReadinessAssessor(
+		newMockReadinessAssessor().WithAssessment(readiness.StatusNotReady, "criteria_missing", nil),
+	)
+
+	cfg := &config.Config{ReadinessEmergencyOverride: true}
+
+	out, err := gate.Run(context.Background(), pipeline.Input{
+		Bead:   &bead.Bead{ID: "readiness-override-bead", Title: "override bead"},
+		Config: cfg,
+	})
+	if err != nil {
+		t.Fatalf("Gate.Run() error = %v", err)
+	}
+
+	if out.Decision != pipeline.Proceed {
+		t.Fatalf("decision = %v, want %v", out.Decision, pipeline.Proceed)
+	}
+}
+
 // RED: test that readiness blocking happens before stuck detection.
 func TestGateRun_ReadinessPrecedesStuckDetection(t *testing.T) {
 	t.Parallel()
