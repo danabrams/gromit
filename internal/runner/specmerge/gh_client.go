@@ -267,7 +267,7 @@ func (c *ghClient) MergePR(ctx context.Context, ref PRRef, commitMessage string)
 		"-X",
 		"PUT",
 		fmt.Sprintf("/repos/%s/%s/pulls/%d/merge", ref.Owner, ref.Repo, ref.Number),
-		"-F",
+		"-f",
 		"commit_message=" + commitMessage,
 	}
 
