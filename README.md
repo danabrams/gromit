@@ -470,6 +470,12 @@ Every failure gets analyzed by a separate provider call that categorizes it:
 | `test_flake` | Non-deterministic failure | Retry |
 | `task_too_complex` | Scope too large for one iteration | Skip for human |
 
+### Mandatory Readiness Gate
+
+Before each build iteration, Gromit enforces the mandatory readiness gate. It runs after the precheck path and confirms that a bead has explicit acceptance criteria and a bounded scope of expected outputs. When a bead is not ready, the gate blocks it before any expensive build command and emits one of `criteria_missing`, `criteria_ambiguous`, or `scope_too_broad` so you can see why it stopped.
+
+The gate is on by default for every run. Only in emergency situations should you bypass it by setting `readiness_emergency_override: true` in `gromit.yaml`. The override defaults to `false`, must be explicit, and the runner surfaces the override in logs/status to keep the escape hatch auditable.
+
 ### Partial Progress Detection
 
 When a task fails, Gromit shows what was accomplished before the failure using a git checkpoint captured before work started:

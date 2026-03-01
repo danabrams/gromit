@@ -62,6 +62,7 @@ type Config struct {
 	Refactor        RefactorConfig         `yaml:"refactor"`
 	ScopeCheck      ScopeCheckConfig       `yaml:"scope_check"`
 	ReadinessCheck  ReadinessCheckConfig   `yaml:"readiness_check"`
+	ReadinessEmergencyOverride bool `yaml:"readiness_emergency_override"`
 	Precheck        PrecheckConfig         `yaml:"precheck"`
 	Preflight       PreflightConfig        `yaml:"preflight"`
 	Claude          ClaudeConfig           `yaml:"claude"`
