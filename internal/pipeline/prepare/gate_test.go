@@ -12,6 +12,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/events/eventtest"
+	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/readiness"
 )
@@ -1077,6 +1078,64 @@ func TestGateRunDataQualityBlocker_BlocksBeadWhenDataIncomplete(t *testing.T) {
 	}
 	if out.Decision != pipeline.Block {
 		t.Fatalf("decision = %v, want %v", out.Decision, pipeline.Block)
+	}
+}
+
+func TestGateRun_SpecLevelMaintenanceBlock(t *testing.T) {
+	t.Parallel()
+
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	spec := "auth"
+	records := []logger.CauseClassificationRecord{
+		{
+			Metric:             metricRollingAvgValidationMs,
+			Stratum:            "spec:" + spec,
+			Class:              logger.CauseClassSpecial,
+			Latest:             1500,
+			PersistenceWindows: 3,
+			Severity:           anomalySeverityHigh,
+		},
+	}
+	blocker := newSpecSPCBlocker(records)
+
+	gate := New(io.Discard).WithDataQualityBlocker(blocker)
+
+	bead := &bead.Bead{
+		ID:     "spec-maintenance",
+		Title:  "maintenance heavy task",
+		Labels: []string{"spec:" + spec},
+	}
+	out, err := gate.Run(context.Background(), pipeline.Input{
+		Bead:    bead,
+		Emitter: emitter,
+	})
+	if err != nil {
+		t.Fatalf("Gate.Run() error = %v", err)
+	}
+
+	if out.Decision != pipeline.Block {
+		t.Fatalf("decision = %v, want %v", out.Decision, pipeline.Block)
+	}
+	if out.GateBlockReason != blocker.reasonFor(spec) {
+		t.Fatalf("GateBlockReason = %q, want %q", out.GateBlockReason, blocker.reasonFor(spec))
+	}
+
+	emitted := eventtest.DrainEvents(t, ch)
+	var blockEvt *events.GateBlockEvent
+	for _, evt := range emitted {
+		if be, ok := evt.(*events.GateBlockEvent); ok {
+			blockEvt = be
+		}
+	}
+	if blockEvt == nil {
+		t.Fatal("expected GateBlockEvent to be emitted")
+	}
+	if blockEvt.Reason != blocker.reasonFor(spec) {
+		t.Fatalf("GateBlockEvent reason = %q, want %q", blockEvt.Reason, blocker.reasonFor(spec))
 	}
 }
 
