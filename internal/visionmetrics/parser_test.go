@@ -148,6 +148,8 @@ review_outcome: accepted
 
 func TestParseFromPRBody_InvalidDateFormat(t *testing.T) {
 	prBody := `
+# Vision Metrics
+
 spec_id: test-spec
 cycle_start_trigger_at: invalid-date
 `
@@ -196,6 +198,8 @@ Some additional context about the PR that shouldn't affect parsing.
 
 func TestParseFromPRBody_HandlesPresentedAtBeforeStart(t *testing.T) {
 	prBody := `
+# Vision Metrics
+
 spec_id: test-spec
 cycle_start_trigger_at: 2026-02-25T10:00:00Z
 cycle_end_presented_at: 2026-02-25T09:00:00Z
