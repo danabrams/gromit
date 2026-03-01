@@ -1,0 +1,18 @@
+# Vision Metrics
+spec_id: invalid-spec-valid
+cycle_start_trigger_at: 2026-02-20T08:00:00Z
+cycle_end_presented_at: 2026-02-20T09:00:00Z
+review_outcome: accepted
+human_tactical_intervention: no
+human_debugging_intervention: no
+escaped_regression_within_7d: no
+
+---
+# Vision Metrics
+spec_id: invalid-spec-debugging
+cycle_start_trigger_at: 2026-02-21T08:00:00Z
+cycle_end_presented_at: 2026-02-21T09:30:00Z
+review_outcome: accepted
+human_tactical_intervention: no
+human_debugging_intervention: yes
+escaped_regression_within_7d: no
