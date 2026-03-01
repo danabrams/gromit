@@ -185,6 +185,57 @@ Parse each cycle record as a `visionmetrics.Record` and pass it through `visionm
 
 Feed the validated records into `visionmetrics.ComputeRollup` (see `internal/visionmetrics/rollup.go`) to compute the human tactical intervention, human debugging intervention, first-integration pass, escaped regression, and accepted-without-rework rates. The rollup helpers accept slices of `visionmetrics.Record`, so you can wire them directly into whatever store you use for cycle data (newline-delimited JSON, a database snapshot, etc.), and persist the resulting KPIs alongside the records to chart trends over time.
 
+### Contributor Guidance: pending-resolution workflow
+
+Vision Metrics cycle records are submitted via a structured `# Vision Metrics` block in PR descriptions. The `escaped_regression_within_7d` field supports three values: `yes` (regression confirmed), `no` (no regression), or `pending` (cannot yet determine).
+
+#### Providing Vision Metrics PR Metadata
+
+Add a `# Vision Metrics` block to your PR description in YAML format:
+
+```markdown
+# Vision Metrics
+
+spec_id: spec-2026-042
+cycle_start_trigger_at: 2026-02-24T10:00:00Z
+cycle_end_presented_at: 2026-02-27T14:00:00Z
+review_outcome: accepted
+human_tactical_intervention: no
+human_debugging_intervention: no
+escaped_regression_within_7d: pending
+```
+
+The `escaped_regression_within_7d` field requires values of `yes`, `no`, or `pending`. Use `pending` when the regression assessment window has not yet closed (see below).
+
+#### When to Use `escaped_regression_within_7d=pending`
+
+Set the field to `pending` when:
+
+- The cycle was presented less than 7 days ago
+- Regression assessment cannot yet be reliably determined
+- You plan to revisit and finalize the value after the 7-day window closes
+
+Do NOT use `pending` for tasks you've already committed to; use `yes` or `no` based on your best assessment at the time of submission.
+
+#### Finalizing Pending Values After the 7-Day Window
+
+After 7 days from `cycle_end_presented_at`, finalize pending assessments by returning to the PR and updating `escaped_regression_within_7d` to either `yes` or `no` based on your assessment. This can be done by:
+
+1. Editing the PR description to change `pending` to your final value
+2. Pushing an updated commit with the resolved value
+3. Ensuring the updated record is re-validated before persisting to KPI storage
+
+Until the value is finalized, the cycle record remains **excluded from the escaped-regression rate calculation**. Once resolved to `yes` or `no`, it will be included in future rollups.
+
+#### Pending Value Handling in KPI Rollups
+
+Unresolved `pending` values are tracked separately and excluded from the escaped-regression rate:
+
+- **EscapedRegressionRate** — only counts resolved values (`yes` or `no`). Denominator excludes all `pending` records.
+- **EscapedRegressionPendingCount** — separate counter for unresolved records. Allows visibility into how many assessments are awaiting finalization.
+
+This design allows you to report KPIs confidently while pending assessments are in flight, and to backfill final values once the 7-day window closes.
+
 ### Interactive Agent Selection
 
 Interactive commands (`refine`, `plan`, `review`, `explore`, `debug`) support agent selection by CLI flag or config phase defaults.
