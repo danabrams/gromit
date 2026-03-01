@@ -278,7 +278,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		LogsDir:             cfg.Paths.Logs,
 		Output:              syncOut,
 		TrendUpdater:        trendUpdater,
-		AutoTriageService:   newSPCAutoTriageService(),
+		AutoTriageService:   newAutoTriageService(cfg, gromitDir, trackerClientInterface, sf),
 		ExperimentMgr:       experimentMgr,
 		StatusWriter: func(iteration int, beadID, beadTitle string, dl time.Time) {
 			if statusWriter != nil {
