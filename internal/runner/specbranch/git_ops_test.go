@@ -161,6 +161,52 @@ func TestFastForwardMergeToMain_MergesSuccessfully(t *testing.T) {
 	}
 }
 
+// TestFinalizeSpecBranch_PerformsRebaseMergeAndDeletion ensures the new finalize
+// helper rebases the spec branch onto main, fast-forward merges it, and deletes it.
+func TestFinalizeSpecBranch_PerformsRebaseMergeAndDeletion(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	fixture := helpers.NewDeterministicGitConflictFixture(t)
+	ops := NewGitOps(fixture.Dir, fixture.BaseBranch)
+
+	specBranchName := "gromit/spec-finalize-complete"
+
+	if err := ops.CreateOrCheckoutSpecBranch(ctx, specBranchName); err != nil {
+		t.Fatalf("CreateOrCheckoutSpecBranch() error = %v", err)
+	}
+
+	cmd := exec.Command("git", "commit", "--allow-empty", "-m", "spec finalize commit")
+	cmd.Dir = fixture.Dir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to create spec commit: %v", err)
+	}
+
+	commitOutput, err := exec.Command("git", "rev-parse", specBranchName).CombinedOutput()
+	if err != nil {
+		t.Fatalf("rev-parse spec branch failed: %v", err)
+	}
+	specCommit := strings.TrimSpace(string(commitOutput))
+
+	if err := ops.FinalizeSpecBranch(ctx, specBranchName); err != nil {
+		t.Fatalf("FinalizeSpecBranch() error = %v", err)
+	}
+
+	mainCommitBytes, err := exec.Command("git", "rev-parse", fixture.BaseBranch).CombinedOutput()
+	if err != nil {
+		t.Fatalf("rev-parse base branch failed: %v", err)
+	}
+	mainCommit := strings.TrimSpace(string(mainCommitBytes))
+	if mainCommit != specCommit {
+		t.Fatalf("main commit mismatch: got %q, want %q", mainCommit, specCommit)
+	}
+
+	cmd = exec.Command("git", "show-ref", "--verify", "--quiet", "refs/heads/"+specBranchName)
+	cmd.Dir = fixture.Dir
+	if err := cmd.Run(); err == nil {
+		t.Errorf("spec branch %s should have been deleted", specBranchName)
+	}
+}
+
 // TestDeleteSpecBranch_DeletesSuccessfully verifies that DeleteSpecBranch
 // successfully deletes the spec branch.
 func TestDeleteSpecBranch_DeletesSuccessfully(t *testing.T) {
