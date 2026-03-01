@@ -80,10 +80,7 @@ func buildTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *
 						remaining = extracted
 					}
 				}
-				state := tdd.CycleState{
-					MaxCycles: cfg.Methodology.MaxTDDCycles,
-					Remaining: remaining,
-				}
+			state := newTDDCycleState(cfg, remaining)
 				return orch.RunCycles(ctx, bc, state)
 			},
 		},
@@ -91,6 +88,13 @@ func buildTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *
 		output: output,
 	}
 	return &TDDPipelineAdapter{runner: r}
+}
+
+func newTDDCycleState(cfg *config.Config, remaining []string) tdd.CycleState {
+	return tdd.CycleState{
+		MaxCycles: cfg.TDDMaxCycles(),
+		Remaining: remaining,
+	}
 }
 
 func resolveTDDBuildTier(cfg *config.Config, b *bead.Bead) string {
