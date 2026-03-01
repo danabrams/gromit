@@ -58,6 +58,24 @@ func TestReadinessGateBlocksSpecLabeledBead(t *testing.T) {
 	}
 }
 
+func TestReadinessGateAllowsReadyBead(t *testing.T) {
+	t.Parallel()
+
+	result := runReadinessGateAcceptanceTest(t, readinessGateAcceptanceOptions{
+		Bead: &bead.Bead{ID: "ready-1", Title: "Ready bead"},
+		Assessment: readiness.Assessment{
+			Status: readiness.StatusReady,
+		},
+	})
+
+	if result.Blocked {
+		t.Fatalf("ready bead should not be blocked")
+	}
+	if !result.Ready {
+		t.Fatalf("expected ready bead to report ready state")
+	}
+}
+
 type readinessGateAcceptanceOptions struct {
 	Bead       *bead.Bead
 	Assessment readiness.Assessment
