@@ -22,6 +22,7 @@ type State struct {
 	ArchivedLearningHashes         []string             `json:"archived_learning_hashes,omitempty"`
 	ProviderCounts                 map[string]int       `json:"provider_counts,omitempty"`
 	ProviderUnavailableUntil       map[string]time.Time `json:"provider_unavailable_until,omitempty"`
+	SPCCooldowns                   map[string]time.Time `json:"spc_cooldowns,omitempty"`
 	ControlLimitAlertTriggered     bool                 `json:"control_limit_alert_triggered,omitempty"`
 }
 
@@ -363,5 +364,28 @@ func (f *File) ensureProviderMaps() {
 	}
 	if f.state.ProviderUnavailableUntil == nil {
 		f.state.ProviderUnavailableUntil = make(map[string]time.Time)
+	}
+}
+
+// GetSPCCooldown returns the last-created-at timestamp for the given signal identity.
+func (f *File) GetSPCCooldown(identity string) time.Time {
+	if f == nil || f.state.SPCCooldowns == nil {
+		return time.Time{}
+	}
+	return f.state.SPCCooldowns[identity]
+}
+
+// SetSPCCooldown records the last-created-at timestamp for a signal identity.
+func (f *File) SetSPCCooldown(identity string, createdAt time.Time) {
+	if f == nil {
+		return
+	}
+	f.ensureSPCCooldowns()
+	f.state.SPCCooldowns[identity] = createdAt
+}
+
+func (f *File) ensureSPCCooldowns() {
+	if f.state.SPCCooldowns == nil {
+		f.state.SPCCooldowns = make(map[string]time.Time)
 	}
 }
