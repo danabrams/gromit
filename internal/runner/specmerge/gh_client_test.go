@@ -309,7 +309,7 @@ func TestGhCLIClient_PostCommentCommandAndJSON(t *testing.T) {
 		"-X",
 		"POST",
 		"/repos/octocat/hello-world/issues/505/comments",
-		"-F",
+		"-f",
 		"body=Nice work!",
 	}
 	if !reflect.DeepEqual(gotArgs, wantArgs) {
