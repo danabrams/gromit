@@ -12,6 +12,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/failurephase"
 	"github.com/danabrams/gromit/internal/prompt"
+	"github.com/danabrams/gromit/internal/readiness"
 )
 
 func TestBuildContinuousMetrics_FilesTouched(t *testing.T) {
@@ -488,6 +489,40 @@ func TestBuildProcessTrend_ReadinessBlockMetrics(t *testing.T) {
 		t.Fatalf("ReadinessBlockCount = %d, want 2", trend.LatestWindow.ReadinessBlockCount)
 	}
 	assertFloatNear(t, trend.LatestWindow.ReadinessBlockRate, 0.5, "ReadinessBlockRate")
+}
+
+func TestBuildProcessTrend_ReadinessOverrideNotCounted(t *testing.T) {
+	now := time.Now()
+	entries := []IterationLog{
+		{
+			Timestamp:       now,
+			Iteration:       1,
+			BeadID:          "override-1",
+			Success:         false,
+			GateBlockReason: "criteria_missing",
+		},
+		{
+			Timestamp:       now.Add(time.Second),
+			Iteration:       2,
+			BeadID:          "override-2",
+			Success:         false,
+			GateBlockReason: readiness.ReadinessOverrideReasonPrefix + "criteria_missing",
+		},
+		{
+			Timestamp: now.Add(2 * time.Second),
+			Iteration: 3,
+			BeadID:    "override-3",
+			Success:   true,
+		},
+	}
+
+	metrics := buildIterationMetrics(entries, len(entries))
+	trend := buildProcessTrend(metrics, len(entries))
+
+	if trend.LatestWindow.ReadinessBlockCount != 1 {
+		t.Fatalf("ReadinessBlockCount = %d, want 1 (override should not count)", trend.LatestWindow.ReadinessBlockCount)
+	}
+	assertFloatNear(t, trend.LatestWindow.ReadinessBlockRate, 1.0/3.0, "ReadinessBlockRate")
 }
 
 func TestBuildProcessTrend_HasExpectedControlLimitsWithPhaseRates(t *testing.T) {
