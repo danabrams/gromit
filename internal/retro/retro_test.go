@@ -1637,7 +1637,7 @@ func TestRenderPromptIncludesSpecMaintenanceWarning(t *testing.T) {
 		t.Fatalf("renderPrompt failed: %v", err)
 	}
 
-	for _, want := range []string{"High Maintenance Warning", "spec:auth", "Cause Classification"} {
+	for _, want := range []string{"spec:auth", "special_cause", "Cause Classification"} {
 		if !strings.Contains(prompt, want) {
 			t.Errorf("rendered prompt missing expected text: %q", want)
 		}
