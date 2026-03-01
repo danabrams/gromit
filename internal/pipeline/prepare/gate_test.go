@@ -200,6 +200,18 @@ func (m *mockReadinessAssessor) Assess(_ context.Context, _ *bead.Bead) (readine
 	return readiness.Assessment{Status: m.status, Reason: m.reason}, m.err
 }
 
+type criteriaAwareReadinessAssessor struct {
+	captured *bead.Bead
+}
+
+func (a *criteriaAwareReadinessAssessor) Assess(_ context.Context, b *bead.Bead) (readiness.Assessment, error) {
+	a.captured = b
+	if len(effectiveCriteria(b)) == 0 {
+		return readiness.Assessment{Status: readiness.StatusNotReady, Reason: "criteria_missing"}, nil
+	}
+	return readiness.Assessment{Status: readiness.StatusReady}, nil
+}
+
 func (m *mockDataQualityBlocker) WithShouldBlock(blocked bool, reason string, err error) *mockDataQualityBlocker {
 	m.blocked = blocked
 	m.reason = reason
@@ -246,6 +258,68 @@ func TestGateRun_ReadinessAssessorBlocksWithReason(t *testing.T) {
 	}
 	if out.GateBlockReason != "criteria_missing" {
 		t.Errorf("GateBlockReason = %q, want %q", out.GateBlockReason, "criteria_missing")
+	}
+}
+
+func TestGateRun_ReadinessFallbackFromReviewTitle(t *testing.T) {
+	t.Parallel()
+
+	assessor := &criteriaAwareReadinessAssessor{}
+	gate := New(io.Discard).WithReadinessAssessor(assessor)
+
+	b := &bead.Bead{
+		ID:    "fallback-from-review",
+		Title: "Fix malformed queue recovery",
+		Labels: []string{
+			"from-review",
+			"bug",
+		},
+	}
+
+	out, err := gate.Run(context.Background(), pipeline.Input{Bead: b})
+	if err != nil {
+		t.Fatalf("Gate.Run() error = %v", err)
+	}
+	if out.Decision != pipeline.Proceed {
+		t.Fatalf("decision = %v, want %v", out.Decision, pipeline.Proceed)
+	}
+
+	if assessor.captured == nil {
+		t.Fatal("readiness assessor did not receive bead")
+	}
+	if got := assessor.captured.ExpectedOutputs; len(got) != 1 || got[0] != "Fix malformed queue recovery" {
+		t.Fatalf("captured expected outputs = %v, want [\"Fix malformed queue recovery\"]", got)
+	}
+
+	// The fallback should not mutate the original bead; it only affects readiness input.
+	if len(b.ExpectedOutputs) != 0 {
+		t.Fatalf("original bead expected outputs mutated: got %v", b.ExpectedOutputs)
+	}
+}
+
+func TestGateRun_ReadinessFallbackDoesNotApplyWithoutFromReviewLabel(t *testing.T) {
+	t.Parallel()
+
+	assessor := &criteriaAwareReadinessAssessor{}
+	gate := New(io.Discard).WithReadinessAssessor(assessor)
+
+	b := &bead.Bead{
+		ID:    "no-fallback",
+		Title: "Fix malformed queue recovery",
+		Labels: []string{
+			"bug",
+		},
+	}
+
+	out, err := gate.Run(context.Background(), pipeline.Input{Bead: b})
+	if err != nil {
+		t.Fatalf("Gate.Run() error = %v", err)
+	}
+	if out.Decision != pipeline.Block {
+		t.Fatalf("decision = %v, want %v", out.Decision, pipeline.Block)
+	}
+	if out.GateBlockReason != "criteria_missing" {
+		t.Fatalf("GateBlockReason = %q, want %q", out.GateBlockReason, "criteria_missing")
 	}
 }
 

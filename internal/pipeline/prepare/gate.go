@@ -170,7 +170,11 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 
 	// Readiness check: block beads that are not ready before stuck detection.
 	if g.readiness != nil {
-		assessment, err := g.readiness.Assess(ctx, in.Bead)
+		readinessBead, usedFallback := beadForReadinessAssessment(in.Bead)
+		if usedFallback {
+			g.Log("info", "Readiness fallback: synthesized expected output from title for from-review bead %s", in.Bead.ID)
+		}
+		assessment, err := g.readiness.Assess(ctx, readinessBead)
 		if err != nil {
 			g.Log("warning", "Warning: readiness assessment failed for bead %s: %v", in.Bead.ID, err)
 		} else if assessment.Status == readiness.StatusNotReady {
@@ -284,6 +288,25 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 		Decision:          pipeline.Proceed,
 		ComplexityRouting: complexityRouting,
 	}, nil
+}
+
+func beadForReadinessAssessment(b *bead.Bead) (*bead.Bead, bool) {
+	if b == nil {
+		return nil, false
+	}
+	if !bead.HasLabel(b.Labels, "from-review") {
+		return b, false
+	}
+	if len(effectiveCriteria(b)) > 0 {
+		return b, false
+	}
+	trimmedTitle := strings.TrimSpace(b.Title)
+	if trimmedTitle == "" {
+		return b, false
+	}
+	clone := *b
+	clone.ExpectedOutputs = []string{trimmedTitle}
+	return &clone, true
 }
 
 func shouldBypassPrecheck(b *bead.Bead, cfg *config.Config) bool {
