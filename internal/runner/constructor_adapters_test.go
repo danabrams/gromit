@@ -859,3 +859,42 @@ func TestIntegrationQueueGitOpsAdapter_CleanupCommands(t *testing.T) {
 		t.Fatalf("commands = %v, want %v", calls, want)
 	}
 }
+
+func TestIntegrationQueueScopedGateAdapter_RunSuccess(t *testing.T) {
+	t.Parallel()
+
+	var seen integrationqueue.Entry
+	adapter := &integrationQueueScopedGateAdapter{
+		evaluator: func(ctx context.Context, entry integrationqueue.Entry) error {
+			seen = entry
+			return nil
+		},
+	}
+
+	entry := integrationqueue.Entry{Branch: "feature/gate"}
+	if err := adapter.Run(context.Background(), entry); err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if seen.Branch != entry.Branch {
+		t.Fatalf("seen branch = %q, want %q", seen.Branch, entry.Branch)
+	}
+}
+
+func TestIntegrationQueueScopedGateAdapter_RunFailure(t *testing.T) {
+	t.Parallel()
+
+	adapter := &integrationQueueScopedGateAdapter{
+		evaluator: func(ctx context.Context, entry integrationqueue.Entry) error {
+			return fmt.Errorf("gate error")
+		},
+	}
+
+	entry := integrationqueue.Entry{Branch: "feature/gate"}
+	err := adapter.Run(context.Background(), entry)
+	if err == nil {
+		t.Fatal("expected non-nil error")
+	}
+	if !strings.Contains(err.Error(), entry.Branch) {
+		t.Fatalf("error %q missing branch %q", err, entry.Branch)
+	}
+}
