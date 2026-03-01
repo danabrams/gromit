@@ -338,7 +338,7 @@ func TestGhCLIClient_RequestReviewersCommandAndJSON(t *testing.T) {
 		"-X",
 		"POST",
 		"/repos/octocat/hello-world/pulls/606/requested_reviewers",
-		"-F",
+		"-f",
 		"reviewers=[\"reviewer1\",\"reviewer2\"]",
 	}
 	if !reflect.DeepEqual(gotArgs, wantArgs) {
