@@ -288,6 +288,9 @@ func (s *State) NormalizeNilFields() {
 	if s.ProviderUnavailableUntil == nil {
 		s.ProviderUnavailableUntil = make(map[string]time.Time)
 	}
+	if s.SPCCooldowns == nil {
+		s.SPCCooldowns = make(map[string]time.Time)
+	}
 }
 
 // IncrementProviderCount increments the invocation count for a provider
