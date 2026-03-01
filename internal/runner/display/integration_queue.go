@@ -29,6 +29,7 @@ var integrationQueueRecoveryInstructions = map[string]string{
 	"conflict":       `Resolve merge conflicts on the branch (e.g., git checkout <branch> && git rebase origin/main) and allow the coordinator to retry.`,
 	"failed_gates":   `Fix gate failures (see .gromit/logs) and rerun validation before the queue retries.`,
 	"lane_violation": `Adjust lane policy compliance (safe_lane vs code_lane) and requeue the session branch once aligned.`,
+	"push_failure":   `Check git push permissions and network connectivity before retrying.`,
 }
 
 // FormatIntegrationQueue renders the queue summary and entries.
