@@ -375,6 +375,11 @@ func (r ReadinessCheckConfig) IsEnabled() bool {
 	return *r.Enabled
 }
 
+// IsReadinessEmergencyOverrideEnabled returns whether the readiness emergency override is enabled.
+func (c *Config) IsReadinessEmergencyOverrideEnabled() bool {
+	return c.ReadinessEmergencyOverride
+}
+
 // IsAutoPushEnabled returns whether git auto-push should run after bead completion (defaults to true).
 func (g GitConfig) IsAutoPushEnabled() bool {
 	if g.AutoPush == nil {
