@@ -242,6 +242,23 @@ The following iterations exceeded 80% of their model's context window:
 *No Nelson-rule pattern signals detected in latest metrics.*
 {{- end }}
 
+{{- if .ProcessTrend.CauseClassifications }}
+
+### Cause Classification
+{{- range .ProcessTrend.CauseClassifications }}
+- **{{ .Metric }}** ({{ if .Stratum }}{{ .Stratum }}{{ else }}global{{ end }}):
+  - Classification: {{ .Class }}
+  - Latest: {{ printf "%.2f" .Latest }}{{ if .Limit }} (limits {{ printf "%.2f" .Limit.LCL }}..{{ printf "%.2f" .Limit.UCL }}){{ else if ne .Drift 0.0 }} (drift {{ printf "%.2f" .Drift }}){{ end }}
+  - Persistence: {{ .PersistenceWindows }} window(s){{ if .DetectedAt.IsZero }}{{ else }}; first detected {{ .DetectedAt.Format "2006-01-02T15:04:05Z07:00" }}{{ end }}
+{{- end }}
+
+**Cause Policy Guidance**
+- `special_cause`: Investigate the specific incident and provider/model stratum before adjusting the process.
+- `common_cause`: Avoid tampering; focus on systemic improvements that address sustained drift.
+- `stable`: Metric is in control; monitor for regression but no immediate action.
+
+{{- end }}
+
 {{- end }}
 
 {{- if .Experiment }}
