@@ -351,7 +351,7 @@ func (m *Manager) Cleanup() error {
 // RemoveByPath removes a session worktree by explicit path.
 // Verifies the path is registered using git worktree list --porcelain
 // before issuing git worktree remove.
-func (m *Manager) RemoveByPath(path string) error {
+func (m *Manager) RemoveByPath(ctx context.Context, path string) error {
 	if m == nil {
 		return errors.New("nil Manager receiver")
 	}
@@ -359,7 +359,7 @@ func (m *Manager) RemoveByPath(path string) error {
 		return errors.New("path cannot be empty")
 	}
 
-	ctx := m.gitContext()
+	ctx = m.contextFor(ctx)
 
 	// Verify the path is registered in the worktree list
 	output, err := m.runGit(ctx, m.MainDir, "worktree", "list", "--porcelain")

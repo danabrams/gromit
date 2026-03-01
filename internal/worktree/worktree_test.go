@@ -2408,7 +2408,7 @@ func TestRemoveByPath_RemovesRegisteredWorktree(t *testing.T) {
 		t.Fatalf("NewManager() error = %v, want nil", err)
 	}
 
-	err = m.RemoveByPath(worktreePath)
+	err = m.RemoveByPath(context.Background(), worktreePath)
 	if err != nil {
 		t.Fatalf("RemoveByPath() error = %v, want nil", err)
 	}
@@ -2464,7 +2464,7 @@ func TestRemoveByPath_ErrorsWhenPathNotFound(t *testing.T) {
 		t.Fatalf("NewManager() error = %v, want nil", err)
 	}
 
-	err = m.RemoveByPath(nonexistentPath)
+	err = m.RemoveByPath(context.Background(), nonexistentPath)
 	if err == nil {
 		t.Fatal("RemoveByPath() should return error when path not found, got nil")
 	}
@@ -2508,7 +2508,7 @@ func TestRemoveByPath_ErrorsWhenRemoveFails(t *testing.T) {
 		t.Fatalf("NewManager() error = %v, want nil", err)
 	}
 
-	err = m.RemoveByPath(worktreePath)
+	err = m.RemoveByPath(context.Background(), worktreePath)
 	if err == nil {
 		t.Fatal("RemoveByPath() should return error when remove fails, got nil")
 	}
@@ -2521,7 +2521,7 @@ func TestRemoveByPath_ErrorsWhenRemoveFails(t *testing.T) {
 // when called on a nil Manager receiver.
 func TestRemoveByPath_NilReceiver(t *testing.T) {
 	var m *Manager
-	err := m.RemoveByPath("/some/path")
+	err := m.RemoveByPath(context.Background(), "/some/path")
 	if err == nil {
 		t.Fatal("RemoveByPath() should return error for nil receiver, got nil")
 	}
@@ -2548,7 +2548,7 @@ func TestRemoveByPath_EmptyPath(t *testing.T) {
 		t.Fatalf("NewManager() error = %v, want nil", err)
 	}
 
-	err = m.RemoveByPath("")
+	err = m.RemoveByPath(context.Background(), "")
 	if err == nil {
 		t.Fatal("RemoveByPath() should return error for empty path, got nil")
 	}
@@ -2586,7 +2586,7 @@ func TestRemoveByPath_GitRunFnCalledWithCorrectDir(t *testing.T) {
 		t.Fatalf("NewManager() error = %v, want nil", err)
 	}
 
-	err = m.RemoveByPath(worktreePath)
+	err = m.RemoveByPath(context.Background(), worktreePath)
 	if err != nil {
 		t.Fatalf("RemoveByPath() error = %v, want nil", err)
 	}
