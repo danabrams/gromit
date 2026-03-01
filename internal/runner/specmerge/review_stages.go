@@ -10,9 +10,12 @@ import (
 )
 
 const (
-	stageSpecConformance = "spec_conformance"
-	stageCodeQuality      = "code_quality"
-	stageArchitecture     = "architecture"
+	stageSpecConformance     = "spec_conformance"
+	stageCodeQuality         = "code_quality"
+	stageArchitecture        = "architecture"
+	stageTierSpecConformance = provider.TierHigh
+	stageTierCodeQuality     = provider.TierMedium
+	stageTierArchitecture    = provider.TierMedium
 )
 
 type ReviewStageDependencies struct {
@@ -96,4 +99,31 @@ func runBlockingReviewStage(ctx context.Context, deps ReviewStageDependencies, p
 	}
 
 	return reviewResult, result, nil
+}
+
+// ReviewStages returns the configured hard-gate review stages for spec merges.
+func ReviewStages(deps ReviewStageDependencies) []FlowStage {
+	return []FlowStage{
+		{
+			Name: stageSpecConformance,
+			Tier: stageTierSpecConformance,
+			Runner: func(ctx context.Context, specName, diff string) (*review.ReviewResult, *provider.Result, error) {
+				return RunStage2SpecConformance(ctx, deps, specName, diff, stageTierSpecConformance)
+			},
+		},
+		{
+			Name: stageCodeQuality,
+			Tier: stageTierCodeQuality,
+			Runner: func(ctx context.Context, _ string, diff string) (*review.ReviewResult, *provider.Result, error) {
+				return RunStage3CodeQuality(ctx, deps, diff, stageTierCodeQuality)
+			},
+		},
+		{
+			Name: stageArchitecture,
+			Tier: stageTierArchitecture,
+			Runner: func(ctx context.Context, _ string, diff string) (*review.ReviewResult, *provider.Result, error) {
+				return RunStage4Architecture(ctx, deps, diff, stageTierArchitecture)
+			},
+		},
+	}
 }

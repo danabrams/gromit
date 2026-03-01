@@ -72,7 +72,7 @@ func TestTriggerFlow_Run_StopsAfterFailure(t *testing.T) {
             },
             {
                 Name: "third",
-                Runner: func(ctx context.Context, specName, diff string) (*review.ReviewResult, *specmerge.ProviderResult, error) {
+                Runner: func(ctx context.Context, specName, diff string) (*review.ReviewResult, *provider.Result, error) {
                     seen = append(seen, "third")
                     return &review.ReviewResult{Passed: true}, nil, nil
                 },
