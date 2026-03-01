@@ -256,16 +256,7 @@ func detectAnomaly(limit TrendControlLimit) (TrendAnomaly, bool) {
 	if limit.Latest <= limit.UCL && limit.Latest >= limit.LCL {
 		return TrendAnomaly{}, false
 	}
-
-	severity := anomalySeverityModerate
-	if limit.StdDev == 0 {
-		severity = anomalySeverityHigh
-	} else {
-		distance := math.Abs(limit.Latest-limit.Mean) / limit.StdDev
-		if distance >= highSeveritySigmaThreshold {
-			severity = anomalySeverityHigh
-		}
-	}
+	severity := classifyAnomalySeverity(limit)
 
 	dir := anomalyDirectionAbove
 	if limit.Latest < limit.LCL {
@@ -297,6 +288,17 @@ func detectPatternViolations(metric string, values []float64, centerLine float64
 	}
 
 	return []PatternViolation{}
+}
+
+func classifyAnomalySeverity(limit TrendControlLimit) string {
+	if limit.StdDev == 0 || limit.Metric == metricRollingAvgValidationMs {
+		return anomalySeverityHigh
+	}
+	distance := math.Abs(limit.Latest - limit.Mean)
+	if distance/limit.StdDev >= highSeveritySigmaThreshold {
+		return anomalySeverityHigh
+	}
+	return anomalySeverityModerate
 }
 
 func newRule2Violation(metric, direction string, runLength int, centerLine float64) PatternViolation {
