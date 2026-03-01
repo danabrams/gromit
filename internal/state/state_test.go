@@ -145,6 +145,22 @@ func TestSPCCooldownRoundTrip(t *testing.T) {
 	}
 }
 
+func TestLoadNormalizesSPCCooldowns(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "state.json"), []byte(`{}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	f, _ := NewFile(dir)
+	if err := f.Load(); err != nil {
+		t.Fatalf("loading state: %v", err)
+	}
+
+	if f.state.SPCCooldowns == nil {
+		t.Error("expected SPCCooldowns to be initialized")
+	}
+}
+
 func TestIncrementIterationsSinceReview(t *testing.T) {
 	tmpDir := t.TempDir()
 	sf, _ := NewFile(tmpDir)
