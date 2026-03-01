@@ -24,6 +24,8 @@ type specFrontmatterStore struct {
 	specsDir string
 }
 
+var ErrMalformedSpecFrontmatter = errors.New("spec frontmatter is malformed")
+
 func (s *specFrontmatterStore) Stage(_ context.Context, specID string) (Stage, error) {
 	if s == nil {
 		return "", fmt.Errorf("specfrontmatter store is nil")
@@ -33,7 +35,7 @@ func (s *specFrontmatterStore) Stage(_ context.Context, specID string) (Stage, e
 		if errors.Is(err, os.ErrNotExist) {
 			return "", ErrStageNotFound
 		}
-		return "", fmt.Errorf("reading spec frontmatter: %w", err)
+		return "", fmt.Errorf("%w: %w", ErrMalformedSpecFrontmatter, err)
 	}
 	raw, ok := fm["stage"]
 	if !ok {
@@ -52,7 +54,7 @@ func (s *specFrontmatterStore) StoreStage(_ context.Context, specID string, stag
 	}
 	updates := map[string]interface{}{"stage": string(stage)}
 	if err := frontmatter.UpdateFile(s.specPath(specID), updates); err != nil {
-		return fmt.Errorf("updating spec frontmatter: %w", err)
+		return fmt.Errorf("%w: %w", ErrMalformedSpecFrontmatter, err)
 	}
 	return nil
 }
