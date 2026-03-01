@@ -1495,6 +1495,92 @@ func TestRenderPromptWithProcessTrendFailureBreakdownInRealTemplate(t *testing.T
 	}
 }
 
+func TestRenderPromptIncludesCauseClassificationSection(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	realTemplatePath := "../../.gromit/templates/PROMPT_retro.md"
+	templateContent, err := os.ReadFile(realTemplatePath)
+	if err != nil {
+		t.Fatalf("failed to read real template: %v", err)
+	}
+
+	templatePath := filepath.Join(tmpDir, "PROMPT_retro.md")
+	if err := os.WriteFile(templatePath, templateContent, 0644); err != nil {
+		t.Fatalf("failed to write template: %v", err)
+	}
+
+	tmpGromitDir := t.TempDir()
+	metricsDir := filepath.Join(tmpGromitDir, "metrics")
+	if err := os.MkdirAll(metricsDir, 0755); err != nil {
+		t.Fatalf("failed to create metrics dir: %v", err)
+	}
+
+	trend := logger.ProcessTrend{
+		GeneratedAt:     time.Date(2026, time.February, 18, 12, 0, 0, 0, time.UTC),
+		TotalIterations: 5,
+		WindowSize:      5,
+		CauseClassifications: []logger.CauseClassificationRecord{
+			{
+				Metric: "rolling_avg_cost_usd",
+				Class:  logger.CauseClassSpecial,
+				Latest: 1.2345,
+				Limit: &logger.TrendControlLimit{
+					Metric: "rolling_avg_cost_usd",
+					LCL:    0.5,
+					UCL:    2.0,
+					Mean:   0.75,
+				},
+				PersistenceWindows: 2,
+				DetectedAt:         time.Date(2026, time.February, 17, 5, 30, 0, 0, time.UTC),
+				Severity:           "high",
+			},
+			{
+				Metric:             "rolling_avg_input_tokens",
+				Stratum:            "provider:claude",
+				Class:              logger.CauseClassCommon,
+				Latest:             1200,
+				Drift:              35,
+				PersistenceWindows: 3,
+			},
+		},
+	}
+
+	data, err := json.Marshal(trend)
+	if err != nil {
+		t.Fatalf("failed to marshal process trend: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(metricsDir, "process_trend.json"), data, 0644); err != nil {
+		t.Fatalf("failed to write process trend: %v", err)
+	}
+
+	mockProvider := &mockProvider{}
+	r, err := NewRetroWithProvider(mockProvider, tmpGromitDir)
+	if err != nil {
+		t.Fatalf("failed to create Retro: %v", err)
+	}
+	r.templatePath = templatePath
+
+	prompt, err := r.renderPrompt("# Rules", "# Learnings", logger.RunStats{Total: 1}, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("renderPrompt with classification data failed: %v", err)
+	}
+
+	expected := []string{
+		"### Cause Classification",
+		"Cause Policy Guidance",
+		"rolling_avg_cost_usd",
+		"special_cause",
+		"rolling_avg_input_tokens",
+		"common_cause",
+	}
+
+	for _, want := range expected {
+		if !contains(prompt, want) {
+			t.Errorf("rendered prompt missing expected classification text: %q", want)
+		}
+	}
+}
+
 func TestRenderPrompt_ShapesRulesAndLearningsWhenBudgetConfigured(t *testing.T) {
 	tmpDir := t.TempDir()
 	templatePath := filepath.Join(tmpDir, "PROMPT_retro.md")

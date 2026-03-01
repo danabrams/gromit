@@ -60,74 +60,74 @@ var phaseRateMetrics = []string{
 
 // IterationMetric stores a single iteration with rolling-window process metrics.
 type IterationMetric struct {
-	Timestamp                    time.Time                 `json:"timestamp"`
-	Iteration                    int                       `json:"iteration"`
-	BeadID                       string                    `json:"bead_id"`
-	Model                        string                    `json:"model"`
-	ReasoningEffort              string                    `json:"reasoning_effort,omitempty"`
-	Provider                     string                    `json:"provider,omitempty"`
-	FailurePhase                 string                    `json:"failure_phase,omitempty"`
-	DefectOriginPhase            string                    `json:"defect_origin_phase,omitempty"`
-	FailureCategory              string                    `json:"failure_category,omitempty"`
-	FailureAttribution           string                    `json:"failure_attribution,omitempty"`
-	Complexity                   string                    `json:"complexity,omitempty"`
-	ComplexitySource             string                    `json:"complexity_source,omitempty"`
-	Success                      bool                      `json:"success"`
-	FirstPassSuccess             bool                      `json:"first_pass_success"`
-	Escalated                    bool                      `json:"escalated"`
-	QualityScore                 float64                   `json:"quality_score"`
-	DurationMs                   int64                     `json:"duration_ms"`
-	ValidationDurationMs         int64                     `json:"validation_duration_ms,omitempty"`
-	CostUSD                      float64                   `json:"cost_usd"`
-	InputTokens                  int                       `json:"input_tokens,omitempty"`
-	OutputTokens                 int                       `json:"output_tokens,omitempty"`
-	EstimatedFiles               int                       `json:"estimated_files,omitempty"`
-	MTTRProxyMs                  int64                     `json:"mttr_proxy_ms,omitempty"`
-	RollingSuccessRate           float64                   `json:"rolling_success_rate"`
-	RollingFailureRate           float64                   `json:"rolling_failure_rate"`
-	RollingFirstPassSuccess      float64                   `json:"rolling_first_pass_success_rate"`
-	RollingReworkRate            float64                   `json:"rolling_rework_rate"`
-	RollingEscalationRate        float64                   `json:"rolling_escalation_rate"`
-	RollingQualityScore          float64                   `json:"rolling_quality_score"`
-	RollingAvgDurationMs         float64                   `json:"rolling_avg_duration_ms"`
-	RollingP95DurationMs         float64                   `json:"rolling_p95_duration_ms"`
-	RollingAvgValidationMs       float64                   `json:"rolling_avg_validation_ms"`
-	RollingP95ValidationMs       float64                   `json:"rolling_p95_validation_ms"`
-	RollingAvgCostUSD            float64                   `json:"rolling_avg_cost_usd"`
-	RollingAvgInputTokens        float64                   `json:"rolling_avg_input_tokens"`
-	RollingAvgCostPerBeadUSD     float64                   `json:"rolling_avg_cost_per_bead_usd"`
-	RollingAvgMTTRProxyMs        float64                   `json:"rolling_avg_mttr_proxy_ms"`
-	RollingProviderName          string                    `json:"rolling_provider_name"`
-	RollingProviderInvocations   int                       `json:"rolling_provider_invocations"`
-	RollingProviderSuccesses     int                       `json:"rolling_provider_successes"`
-	RollingProviderSuccessRate   float64                   `json:"rolling_provider_success_rate"`
-	RollingProviderTransportFailures int                   `json:"rolling_provider_transport_failures"`
-	RollingProviderTransportFailureRate float64            `json:"rolling_provider_transport_failure_rate"`
-	ProviderRollingSuccessRate   float64                   `json:"provider_rolling_success_rate"`
-	ProviderRollingFailureRate   float64                   `json:"provider_rolling_failure_rate"`
-	ProviderRollingTransportFailureRate float64            `json:"provider_rolling_transport_failure_rate"`
-	ProviderRollingInvocations   int                       `json:"provider_rolling_invocations"`
-	RollingPreflightFailureRate  float64                   `json:"rolling_preflight_failure_rate"`
-	RollingBuildFailureRate      float64                   `json:"rolling_build_failure_rate"`
-	RollingValidationFailureRate float64                   `json:"rolling_validation_failure_rate"`
-	RollingTimeoutFailureRate    float64                   `json:"rolling_timeout_failure_rate"`
-	RollingTimeoutDecompositionAttempts int                 `json:"rolling_timeout_decomposition_attempts"`
-	RollingTimeoutDecompositionSuccessRate float64          `json:"rolling_timeout_decomposition_success_rate"`
-	RollingTimeoutRetryBlockCount int                       `json:"rolling_timeout_retry_block_count"`
-	RollingTimeoutRetryBlockRate float64                     `json:"rolling_timeout_retry_block_rate"`
-	RollingReadinessBlockCount     int                       `json:"rolling_readiness_block_count"`
-	RollingReadinessBlockRate      float64                   `json:"rolling_readiness_block_rate"`
-	TimeoutType                  string                    `json:"timeout_type,omitempty"`
-	TimeoutDecompositionAttempted bool                      `json:"timeout_decomposition_attempted,omitempty"`
-	TimeoutDecompositionSucceeded bool                      `json:"timeout_decomposition_succeeded,omitempty"`
-	TimeoutDecompositionOutcome   string                    `json:"timeout_decomposition_outcome,omitempty"`
-	TimeoutDecompositionReason    string                    `json:"timeout_decomposition_reason,omitempty"`
-	EWMASuccessRate              EWMAMetricState           `json:"ewma_success_rate"`
-	EWMACostUSD                  EWMAMetricState           `json:"ewma_cost_usd"`
-	EWMADurationMs               EWMAMetricState           `json:"ewma_duration_ms"`
-	EWMAInputTokens              EWMAMetricState           `json:"ewma_input_tokens"`
-	FilesTouched                 int                       `json:"files_touched,omitempty"`
-	PromptDiagnostics            *prompt.PromptDiagnostics `json:"prompt_diagnostics,omitempty"`
+	Timestamp                              time.Time                 `json:"timestamp"`
+	Iteration                              int                       `json:"iteration"`
+	BeadID                                 string                    `json:"bead_id"`
+	Model                                  string                    `json:"model"`
+	ReasoningEffort                        string                    `json:"reasoning_effort,omitempty"`
+	Provider                               string                    `json:"provider,omitempty"`
+	FailurePhase                           string                    `json:"failure_phase,omitempty"`
+	DefectOriginPhase                      string                    `json:"defect_origin_phase,omitempty"`
+	FailureCategory                        string                    `json:"failure_category,omitempty"`
+	FailureAttribution                     string                    `json:"failure_attribution,omitempty"`
+	Complexity                             string                    `json:"complexity,omitempty"`
+	ComplexitySource                       string                    `json:"complexity_source,omitempty"`
+	Success                                bool                      `json:"success"`
+	FirstPassSuccess                       bool                      `json:"first_pass_success"`
+	Escalated                              bool                      `json:"escalated"`
+	QualityScore                           float64                   `json:"quality_score"`
+	DurationMs                             int64                     `json:"duration_ms"`
+	ValidationDurationMs                   int64                     `json:"validation_duration_ms,omitempty"`
+	CostUSD                                float64                   `json:"cost_usd"`
+	InputTokens                            int                       `json:"input_tokens,omitempty"`
+	OutputTokens                           int                       `json:"output_tokens,omitempty"`
+	EstimatedFiles                         int                       `json:"estimated_files,omitempty"`
+	MTTRProxyMs                            int64                     `json:"mttr_proxy_ms,omitempty"`
+	RollingSuccessRate                     float64                   `json:"rolling_success_rate"`
+	RollingFailureRate                     float64                   `json:"rolling_failure_rate"`
+	RollingFirstPassSuccess                float64                   `json:"rolling_first_pass_success_rate"`
+	RollingReworkRate                      float64                   `json:"rolling_rework_rate"`
+	RollingEscalationRate                  float64                   `json:"rolling_escalation_rate"`
+	RollingQualityScore                    float64                   `json:"rolling_quality_score"`
+	RollingAvgDurationMs                   float64                   `json:"rolling_avg_duration_ms"`
+	RollingP95DurationMs                   float64                   `json:"rolling_p95_duration_ms"`
+	RollingAvgValidationMs                 float64                   `json:"rolling_avg_validation_ms"`
+	RollingP95ValidationMs                 float64                   `json:"rolling_p95_validation_ms"`
+	RollingAvgCostUSD                      float64                   `json:"rolling_avg_cost_usd"`
+	RollingAvgInputTokens                  float64                   `json:"rolling_avg_input_tokens"`
+	RollingAvgCostPerBeadUSD               float64                   `json:"rolling_avg_cost_per_bead_usd"`
+	RollingAvgMTTRProxyMs                  float64                   `json:"rolling_avg_mttr_proxy_ms"`
+	RollingProviderName                    string                    `json:"rolling_provider_name"`
+	RollingProviderInvocations             int                       `json:"rolling_provider_invocations"`
+	RollingProviderSuccesses               int                       `json:"rolling_provider_successes"`
+	RollingProviderSuccessRate             float64                   `json:"rolling_provider_success_rate"`
+	RollingProviderTransportFailures       int                       `json:"rolling_provider_transport_failures"`
+	RollingProviderTransportFailureRate    float64                   `json:"rolling_provider_transport_failure_rate"`
+	ProviderRollingSuccessRate             float64                   `json:"provider_rolling_success_rate"`
+	ProviderRollingFailureRate             float64                   `json:"provider_rolling_failure_rate"`
+	ProviderRollingTransportFailureRate    float64                   `json:"provider_rolling_transport_failure_rate"`
+	ProviderRollingInvocations             int                       `json:"provider_rolling_invocations"`
+	RollingPreflightFailureRate            float64                   `json:"rolling_preflight_failure_rate"`
+	RollingBuildFailureRate                float64                   `json:"rolling_build_failure_rate"`
+	RollingValidationFailureRate           float64                   `json:"rolling_validation_failure_rate"`
+	RollingTimeoutFailureRate              float64                   `json:"rolling_timeout_failure_rate"`
+	RollingTimeoutDecompositionAttempts    int                       `json:"rolling_timeout_decomposition_attempts"`
+	RollingTimeoutDecompositionSuccessRate float64                   `json:"rolling_timeout_decomposition_success_rate"`
+	RollingTimeoutRetryBlockCount          int                       `json:"rolling_timeout_retry_block_count"`
+	RollingTimeoutRetryBlockRate           float64                   `json:"rolling_timeout_retry_block_rate"`
+	RollingReadinessBlockCount             int                       `json:"rolling_readiness_block_count"`
+	RollingReadinessBlockRate              float64                   `json:"rolling_readiness_block_rate"`
+	TimeoutType                            string                    `json:"timeout_type,omitempty"`
+	TimeoutDecompositionAttempted          bool                      `json:"timeout_decomposition_attempted,omitempty"`
+	TimeoutDecompositionSucceeded          bool                      `json:"timeout_decomposition_succeeded,omitempty"`
+	TimeoutDecompositionOutcome            string                    `json:"timeout_decomposition_outcome,omitempty"`
+	TimeoutDecompositionReason             string                    `json:"timeout_decomposition_reason,omitempty"`
+	EWMASuccessRate                        EWMAMetricState           `json:"ewma_success_rate"`
+	EWMACostUSD                            EWMAMetricState           `json:"ewma_cost_usd"`
+	EWMADurationMs                         EWMAMetricState           `json:"ewma_duration_ms"`
+	EWMAInputTokens                        EWMAMetricState           `json:"ewma_input_tokens"`
+	FilesTouched                           int                       `json:"files_touched,omitempty"`
+	PromptDiagnostics                      *prompt.PromptDiagnostics `json:"prompt_diagnostics,omitempty"`
 }
 
 // EWMAMetricState captures exponential moving-average state for one metric.
@@ -172,30 +172,30 @@ type PromptTokenSummary struct {
 
 // ProcessTrendWindow summarizes metrics over the latest rolling window.
 type ProcessTrendWindow struct {
-	SuccessRate           float64 `json:"success_rate"`
-	FailureRate           float64 `json:"failure_rate"`
-	FirstPassSuccess      float64 `json:"first_pass_success_rate"`
-	ReworkRate            float64 `json:"rework_rate"`
-	EscalationRate        float64 `json:"escalation_rate"`
-	QualityScore          float64 `json:"quality_score"`
-	AvgDurationMs         float64 `json:"avg_duration_ms"`
-	P95DurationMs         float64 `json:"p95_duration_ms"`
-	AvgValidationMs       float64 `json:"avg_validation_ms"`
-	P95ValidationMs       float64 `json:"p95_validation_ms"`
-	AvgCostUSD            float64 `json:"avg_cost_usd"`
-	AvgInputTokens        float64 `json:"avg_input_tokens"`
-	AvgCostPerBeadUSD     float64 `json:"avg_cost_per_bead_usd"`
-	AvgMTTRProxyMs        float64 `json:"avg_mttr_proxy_ms"`
-	PreflightFailureRate  float64 `json:"preflight_failure_rate"`
-	BuildFailureRate      float64 `json:"build_failure_rate"`
-	ValidationFailureRate float64 `json:"validation_failure_rate"`
-	TimeoutFailureRate    float64 `json:"timeout_failure_rate"`
-	TimeoutDecompositionAttempts int   `json:"timeout_decomposition_attempts"`
+	SuccessRate                     float64 `json:"success_rate"`
+	FailureRate                     float64 `json:"failure_rate"`
+	FirstPassSuccess                float64 `json:"first_pass_success_rate"`
+	ReworkRate                      float64 `json:"rework_rate"`
+	EscalationRate                  float64 `json:"escalation_rate"`
+	QualityScore                    float64 `json:"quality_score"`
+	AvgDurationMs                   float64 `json:"avg_duration_ms"`
+	P95DurationMs                   float64 `json:"p95_duration_ms"`
+	AvgValidationMs                 float64 `json:"avg_validation_ms"`
+	P95ValidationMs                 float64 `json:"p95_validation_ms"`
+	AvgCostUSD                      float64 `json:"avg_cost_usd"`
+	AvgInputTokens                  float64 `json:"avg_input_tokens"`
+	AvgCostPerBeadUSD               float64 `json:"avg_cost_per_bead_usd"`
+	AvgMTTRProxyMs                  float64 `json:"avg_mttr_proxy_ms"`
+	PreflightFailureRate            float64 `json:"preflight_failure_rate"`
+	BuildFailureRate                float64 `json:"build_failure_rate"`
+	ValidationFailureRate           float64 `json:"validation_failure_rate"`
+	TimeoutFailureRate              float64 `json:"timeout_failure_rate"`
+	TimeoutDecompositionAttempts    int     `json:"timeout_decomposition_attempts"`
 	TimeoutDecompositionSuccessRate float64 `json:"timeout_decomposition_success_rate"`
-	TimeoutRetryBlockCount int     `json:"timeout_retry_block_count"`
-	TimeoutRetryBlockRate  float64 `json:"timeout_retry_block_rate"`
-	ReadinessBlockCount    int     `json:"readiness_block_count"`
-	ReadinessBlockRate     float64 `json:"readiness_block_rate"`
+	TimeoutRetryBlockCount          int     `json:"timeout_retry_block_count"`
+	TimeoutRetryBlockRate           float64 `json:"timeout_retry_block_rate"`
+	ReadinessBlockCount             int     `json:"readiness_block_count"`
+	ReadinessBlockRate              float64 `json:"readiness_block_rate"`
 }
 
 // TrendControlLimit captures control-limit boundaries for a process metric.
@@ -257,6 +257,7 @@ type ProcessTrend struct {
 	StratifiedAnomalies     map[string][]TrendAnomaly      `json:"stratified_anomalies"`
 	EWMAAnomalies           []TrendAnomaly                 `json:"ewma_anomalies"`
 	PatternViolations       []PatternViolation             `json:"pattern_violations"`
+	CauseClassifications    []CauseClassificationRecord    `json:"cause_classifications"`
 }
 
 func newPromptTokenSummary() PromptTokenSummary {
@@ -336,6 +337,9 @@ func (t *ProcessTrend) normalizeNilFields() {
 	if t.PatternViolations == nil {
 		t.PatternViolations = []PatternViolation{}
 	}
+	if t.CauseClassifications == nil {
+		t.CauseClassifications = []CauseClassificationRecord{}
+	}
 	if t.PromptTokenSummary.ByPromptType == nil {
 		t.PromptTokenSummary.ByPromptType = []PromptTypeSummary{}
 	}
@@ -379,30 +383,30 @@ func buildProcessTrend(metrics []IterationMetric, windowSize int) *ProcessTrend 
 
 	latestMetric := metrics[len(metrics)-1]
 	trend.LatestWindow = ProcessTrendWindow{
-		SuccessRate:           latestMetric.RollingSuccessRate,
-		FailureRate:           latestMetric.RollingFailureRate,
-		FirstPassSuccess:      latestMetric.RollingFirstPassSuccess,
-		ReworkRate:            latestMetric.RollingReworkRate,
-		EscalationRate:        latestMetric.RollingEscalationRate,
-		QualityScore:          latestMetric.RollingQualityScore,
-		AvgDurationMs:         latestMetric.RollingAvgDurationMs,
-		P95DurationMs:         latestMetric.RollingP95DurationMs,
-		AvgValidationMs:       latestMetric.RollingAvgValidationMs,
-		P95ValidationMs:       latestMetric.RollingP95ValidationMs,
-		AvgCostUSD:            latestMetric.RollingAvgCostUSD,
-		AvgInputTokens:        latestMetric.RollingAvgInputTokens,
-		AvgCostPerBeadUSD:     latestMetric.RollingAvgCostPerBeadUSD,
-		AvgMTTRProxyMs:        latestMetric.RollingAvgMTTRProxyMs,
-		PreflightFailureRate:  latestMetric.RollingPreflightFailureRate,
-		BuildFailureRate:      latestMetric.RollingBuildFailureRate,
-		ValidationFailureRate: latestMetric.RollingValidationFailureRate,
-		TimeoutFailureRate:    latestMetric.RollingTimeoutFailureRate,
-		TimeoutDecompositionAttempts: latestMetric.RollingTimeoutDecompositionAttempts,
+		SuccessRate:                     latestMetric.RollingSuccessRate,
+		FailureRate:                     latestMetric.RollingFailureRate,
+		FirstPassSuccess:                latestMetric.RollingFirstPassSuccess,
+		ReworkRate:                      latestMetric.RollingReworkRate,
+		EscalationRate:                  latestMetric.RollingEscalationRate,
+		QualityScore:                    latestMetric.RollingQualityScore,
+		AvgDurationMs:                   latestMetric.RollingAvgDurationMs,
+		P95DurationMs:                   latestMetric.RollingP95DurationMs,
+		AvgValidationMs:                 latestMetric.RollingAvgValidationMs,
+		P95ValidationMs:                 latestMetric.RollingP95ValidationMs,
+		AvgCostUSD:                      latestMetric.RollingAvgCostUSD,
+		AvgInputTokens:                  latestMetric.RollingAvgInputTokens,
+		AvgCostPerBeadUSD:               latestMetric.RollingAvgCostPerBeadUSD,
+		AvgMTTRProxyMs:                  latestMetric.RollingAvgMTTRProxyMs,
+		PreflightFailureRate:            latestMetric.RollingPreflightFailureRate,
+		BuildFailureRate:                latestMetric.RollingBuildFailureRate,
+		ValidationFailureRate:           latestMetric.RollingValidationFailureRate,
+		TimeoutFailureRate:              latestMetric.RollingTimeoutFailureRate,
+		TimeoutDecompositionAttempts:    latestMetric.RollingTimeoutDecompositionAttempts,
 		TimeoutDecompositionSuccessRate: latestMetric.RollingTimeoutDecompositionSuccessRate,
-		TimeoutRetryBlockCount: latestMetric.RollingTimeoutRetryBlockCount,
-		TimeoutRetryBlockRate:  latestMetric.RollingTimeoutRetryBlockRate,
-		ReadinessBlockCount:    latestMetric.RollingReadinessBlockCount,
-		ReadinessBlockRate:     latestMetric.RollingReadinessBlockRate,
+		TimeoutRetryBlockCount:          latestMetric.RollingTimeoutRetryBlockCount,
+		TimeoutRetryBlockRate:           latestMetric.RollingTimeoutRetryBlockRate,
+		ReadinessBlockCount:             latestMetric.RollingReadinessBlockCount,
+		ReadinessBlockRate:              latestMetric.RollingReadinessBlockRate,
 	}
 	trend.PromptTokenSummary = summarizePromptTokens(metrics, windowSize)
 	windowStart := len(metrics) - windowSize
