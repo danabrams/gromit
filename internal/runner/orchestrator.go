@@ -163,6 +163,41 @@ type Orchestrator struct {
 	emitter *events.Emitter
 }
 
+// skipTracker records how many processed beads have been skipped since the
+// last discovery of a new bead. It snapshots the count of known beads so
+// repeated interleaved skips eventually trigger the exit condition.
+type skipTracker struct {
+	processed map[string]bool
+	skipCount int
+	target    int
+}
+
+func newSkipTracker() *skipTracker {
+	return &skipTracker{processed: make(map[string]bool)}
+}
+
+func (s *skipTracker) hasProcessed(id string) bool {
+	return s.processed[id]
+}
+
+func (s *skipTracker) markProcessed(id string) {
+	s.processed[id] = true
+	s.skipCount = 0
+	s.target = len(s.processed)
+}
+
+func (s *skipTracker) recordSkip(_ string) bool {
+	if s.target == 0 {
+		return false
+	}
+	s.skipCount++
+	return s.skipCount >= s.target
+}
+
+func (s *skipTracker) processedCount() int {
+	return len(s.processed)
+}
+
 // NewOrchestrator returns an Orchestrator wired with the given configuration.
 func NewOrchestrator(cfg OrchestratorConfig) *Orchestrator {
 	o := &Orchestrator{
@@ -269,8 +304,7 @@ func (o *Orchestrator) Run(ctx context.Context, maxIterations int, deadline time
 
 	var validationFailures []string
 	var touchedPackages []string
-	processedBeads := make(map[string]bool)
-	consecutiveSkips := 0
+	skipTracker := newSkipTracker()
 	iteration := 0
 
 	// Recover from any crash that may have left entries in integrating state
@@ -349,19 +383,17 @@ runLoop:
 
 		// Skip beads already processed this run. bd returns the same
 		// bead repeatedly when it cannot transition to closed (e.g.
-		// open dependencies, gate/build failures). Break after
-		// len(processedBeads) consecutive skips — at that point every
-		// known bead has been re-offered and no new work is available.
-		if processedBeads[b.ID] {
-			consecutiveSkips++
-			if consecutiveSkips >= len(processedBeads) {
-				o.logInfo("No remaining work: all %d processed bead(s) re-offered by bd (likely uncloseable due to open dependencies)", len(processedBeads))
+		// open dependencies, gate/build failures). Track skip events since the
+		// last new bead; once we have observed as many skips as known beads,
+		// every bead has been re-offered and there is no new work.
+		if skipTracker.hasProcessed(b.ID) {
+			if skipTracker.recordSkip(b.ID) {
+				o.logInfo("No remaining work: all %d processed bead(s) re-offered by bd (likely uncloseable due to open dependencies)", skipTracker.processedCount())
 				break runLoop
 			}
 			continue
 		}
-		consecutiveSkips = 0
-		processedBeads[b.ID] = true
+		skipTracker.markProcessed(b.ID)
 
 		// Iteration numbers are assigned monotonically, one per bead regardless
 		// of whether the bead proceeds through all stages or is blocked early.
