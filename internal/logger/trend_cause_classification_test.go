@@ -101,6 +101,58 @@ func TestEvaluateCauseClassifications_SpecialCauseFromAnomaly(t *testing.T) {
     }
 }
 
+func TestEvaluateCauseClassifications_CommonCauseDrift(t *testing.T) {
+	baseTime := time.Date(2026, time.March, 2, 0, 0, 0, 0, time.UTC)
+	metrics := []IterationMetric{
+		{
+			Timestamp:          baseTime.Add(-2 * time.Minute),
+			RollingAvgDurationMs: 210,
+		},
+		{
+			Timestamp:          baseTime.Add(-time.Minute),
+			RollingAvgDurationMs: 215,
+		},
+		{
+			Timestamp:          baseTime,
+			RollingAvgDurationMs: 220,
+		},
+	}
+
+	ctx := CauseClassificationContext{
+		Metrics: metrics,
+		ControlLimits: []TrendControlLimit{
+			{
+				Metric: metricRollingAvgDurationMs,
+				Mean:   200,
+				UCL:    230,
+				LCL:    170,
+			},
+		},
+	}
+
+	recs := EvaluateCauseClassifications(ctx)
+	rec := findClassificationRecord(t, recs, metricRollingAvgDurationMs, "")
+
+	if rec.Class != CauseClassCommon {
+		t.Fatalf("class = %s, want %s", rec.Class, CauseClassCommon)
+	}
+	if rec.PersistenceWindows != 3 {
+		t.Fatalf("persistence windows = %d, want 3", rec.PersistenceWindows)
+	}
+	if rec.Drift != 20 {
+		t.Fatalf("drift = %f, want 20", rec.Drift)
+	}
+	if rec.Severity != "" {
+		t.Fatalf("expected empty severity for common cause, got %q", rec.Severity)
+	}
+	if rec.Limit != nil {
+		t.Fatalf("unexpected limit for common cause: %+v", rec.Limit)
+	}
+	if !rec.DetectedAt.Equal(metrics[0].Timestamp) {
+		t.Fatalf("detected at = %s, want %s", rec.DetectedAt, metrics[0].Timestamp)
+	}
+}
+
 func findClassificationRecord(t *testing.T, records []CauseClassificationRecord, metric, stratum string) *CauseClassificationRecord {
     for _, rec := range records {
         if rec.Metric == metric && rec.Stratum == stratum {

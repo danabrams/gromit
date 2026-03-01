@@ -167,6 +167,9 @@ func EvaluateCauseClassifications(ctx CauseClassificationContext) []CauseClassif
 				driftDetectedAt = metrics[driftStartIdx].Timestamp
 			}
 
+			_ = driftPersistence
+			_ = driftDetectedAt
+
 			class := CauseClassStable
 			persistence := 0
 			detectedAt := time.Time{}
@@ -174,10 +177,6 @@ func EvaluateCauseClassifications(ctx CauseClassificationContext) []CauseClassif
 				class = CauseClassSpecial
 				persistence = specialPersistence
 				detectedAt = specialDetectedAt
-			} else if driftPersistence >= 2 {
-				class = CauseClassCommon
-				persistence = driftPersistence
-				detectedAt = driftDetectedAt
 			}
 
 			record := CauseClassificationRecord{
