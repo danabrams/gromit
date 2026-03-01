@@ -217,15 +217,15 @@ func (m *Manager) CreateSessionWorktree(ctx context.Context, command string) (*S
 
 // PendingBranches returns branches created by interactive sessions
 // that haven't been merged yet (branches matching gromit/* pattern).
-func (m *Manager) PendingBranches() ([]string, error) {
+func (m *Manager) PendingBranches(ctx context.Context) ([]string, error) {
 	if m == nil {
 		return nil, errors.New("nil Manager receiver")
 	}
 
-	checkedOut := m.checkedOutBranchesByWorktree()
+	ctx = m.contextFor(ctx)
+	checkedOut := m.checkedOutBranchesByWorktree(ctx)
 
 	// List all branches matching gromit/* pattern
-	ctx := m.gitContext()
 	output, err := m.runGit(ctx, m.MainDir, "for-each-ref", "--format=%(refname)", "refs/heads/gromit/")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list branches: %w", err)
@@ -257,8 +257,8 @@ func (m *Manager) PendingBranches() ([]string, error) {
 	return branches, nil
 }
 
-func (m *Manager) checkedOutBranchesByWorktree() map[string]struct{} {
-	ctx := m.gitContext()
+func (m *Manager) checkedOutBranchesByWorktree(ctx context.Context) map[string]struct{} {
+	ctx = m.contextFor(ctx)
 	output, err := m.runGit(ctx, m.MainDir, "worktree", "list", "--porcelain")
 	if err != nil || strings.TrimSpace(output) == "" {
 		return map[string]struct{}{}

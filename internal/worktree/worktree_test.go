@@ -728,9 +728,9 @@ func TestPendingBranchesCancelsWhenContextDone(t *testing.T) {
 	}
 
 	if _, err := m.PendingBranches(ctx); err == nil {
-		t.Fatal("PendingBranches() should return an error when context is canceled")
+		t.Fatal("PendingBranches(context.Background()) should return an error when context is canceled")
 	} else if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) && !strings.Contains(err.Error(), "signal: killed") {
-		t.Fatalf("PendingBranches() returned %v, want context cancellation error", err)
+		t.Fatalf("PendingBranches(context.Background()) returned %v, want context cancellation error", err)
 	}
 }
 
@@ -756,13 +756,13 @@ func TestPendingBranches_ReturnsEmptyWhenNoBranches(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	branches, err := m.PendingBranches()
+	branches, err := m.PendingBranches(context.Background())
 	if err != nil {
-		t.Fatalf("PendingBranches() error = %v, want nil", err)
+		t.Fatalf("PendingBranches(context.Background()) error = %v, want nil", err)
 	}
 
 	if len(branches) != 0 {
-		t.Errorf("PendingBranches() returned %d branches, want 0", len(branches))
+		t.Errorf("PendingBranches(context.Background()) returned %d branches, want 0", len(branches))
 	}
 }
 
@@ -788,20 +788,20 @@ func TestPendingBranches_ReturnsGromitBranches(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	branches, err := m.PendingBranches()
+	branches, err := m.PendingBranches(context.Background())
 	if err != nil {
-		t.Fatalf("PendingBranches() error = %v, want nil", err)
+		t.Fatalf("PendingBranches(context.Background()) error = %v, want nil", err)
 	}
 
 	// Should only return gromit/* branches, not main or feature-branch
 	expectedBranches := []string{"gromit/retro-1234567890", "gromit/review-9876543210"}
 	if len(branches) != len(expectedBranches) {
-		t.Fatalf("PendingBranches() returned %d branches, want %d: %v", len(branches), len(expectedBranches), branches)
+		t.Fatalf("PendingBranches(context.Background()) returned %d branches, want %d: %v", len(branches), len(expectedBranches), branches)
 	}
 
 	for i, branch := range branches {
 		if branch != expectedBranches[i] {
-			t.Errorf("PendingBranches()[%d] = %q, want %q", i, branch, expectedBranches[i])
+			t.Errorf("PendingBranches(context.Background())[%d] = %q, want %q", i, branch, expectedBranches[i])
 		}
 	}
 }
@@ -828,19 +828,19 @@ func TestPendingBranches_FiltersNonGromitBranches(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	branches, err := m.PendingBranches()
+	branches, err := m.PendingBranches(context.Background())
 	if err != nil {
-		t.Fatalf("PendingBranches() error = %v, want nil", err)
+		t.Fatalf("PendingBranches(context.Background()) error = %v, want nil", err)
 	}
 
 	// Should only return the two gromit/* branches
 	if len(branches) != 2 {
-		t.Errorf("PendingBranches() returned %d branches, want 2: %v", len(branches), branches)
+		t.Errorf("PendingBranches(context.Background()) returned %d branches, want 2: %v", len(branches), branches)
 	}
 
 	for _, branch := range branches {
 		if !strings.HasPrefix(branch, "gromit/") {
-			t.Errorf("PendingBranches() returned non-gromit branch: %q", branch)
+			t.Errorf("PendingBranches(context.Background()) returned non-gromit branch: %q", branch)
 		}
 	}
 }
@@ -864,15 +864,15 @@ func TestPendingBranches_ExcludesInteractiveControlBranch(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	branches, err := m.PendingBranches()
+	branches, err := m.PendingBranches(context.Background())
 	if err != nil {
-		t.Fatalf("PendingBranches() error = %v", err)
+		t.Fatalf("PendingBranches(context.Background()) error = %v", err)
 	}
 	if len(branches) != 1 {
-		t.Fatalf("PendingBranches() returned %d branches, want 1: %v", len(branches), branches)
+		t.Fatalf("PendingBranches(context.Background()) returned %d branches, want 1: %v", len(branches), branches)
 	}
 	if branches[0] != "gromit/review-123" {
-		t.Fatalf("PendingBranches()[0] = %q, want %q", branches[0], "gromit/review-123")
+		t.Fatalf("PendingBranches(context.Background())[0] = %q, want %q", branches[0], "gromit/review-123")
 	}
 }
 
@@ -898,15 +898,15 @@ func TestPendingBranches_ExcludesBranchesCheckedOutInWorktrees(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	branches, err := m.PendingBranches()
+	branches, err := m.PendingBranches(context.Background())
 	if err != nil {
-		t.Fatalf("PendingBranches() error = %v", err)
+		t.Fatalf("PendingBranches(context.Background()) error = %v", err)
 	}
 	if len(branches) != 1 {
-		t.Fatalf("PendingBranches() returned %d branches, want 1: %v", len(branches), branches)
+		t.Fatalf("PendingBranches(context.Background()) returned %d branches, want 1: %v", len(branches), branches)
 	}
 	if branches[0] != "gromit/debug-456" {
-		t.Fatalf("PendingBranches()[0] = %q, want %q", branches[0], "gromit/debug-456")
+		t.Fatalf("PendingBranches(context.Background())[0] = %q, want %q", branches[0], "gromit/debug-456")
 	}
 }
 
@@ -932,15 +932,15 @@ func TestPendingBranches_WorktreeProbeFailureFallsBackToBranchList(t *testing.T)
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	branches, err := m.PendingBranches()
+	branches, err := m.PendingBranches(context.Background())
 	if err != nil {
-		t.Fatalf("PendingBranches() error = %v", err)
+		t.Fatalf("PendingBranches(context.Background()) error = %v", err)
 	}
 	if len(branches) != 1 {
-		t.Fatalf("PendingBranches() returned %d branches, want 1: %v", len(branches), branches)
+		t.Fatalf("PendingBranches(context.Background()) returned %d branches, want 1: %v", len(branches), branches)
 	}
 	if branches[0] != "gromit/review-123" {
-		t.Fatalf("PendingBranches()[0] = %q, want %q", branches[0], "gromit/review-123")
+		t.Fatalf("PendingBranches(context.Background())[0] = %q, want %q", branches[0], "gromit/review-123")
 	}
 }
 
@@ -1470,12 +1470,12 @@ func TestMergeBack_NilReceiver(t *testing.T) {
 func TestPendingBranches_NilReceiver(t *testing.T) {
 	var m *Manager
 
-	_, err := m.PendingBranches()
+	_, err := m.PendingBranches(context.Background())
 	if err == nil {
-		t.Error("PendingBranches() on nil receiver should return error")
+		t.Error("PendingBranches(context.Background()) on nil receiver should return error")
 	}
 	if err != nil && !strings.Contains(err.Error(), "nil") {
-		t.Errorf("PendingBranches() error should mention nil receiver, got: %v", err)
+		t.Errorf("PendingBranches(context.Background()) error should mention nil receiver, got: %v", err)
 	}
 }
 
@@ -1543,14 +1543,14 @@ func TestPendingBranches_GitRunFnCalledInMainDir(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	_, err = m.PendingBranches()
+	_, err = m.PendingBranches(context.Background())
 	if err != nil {
-		t.Fatalf("PendingBranches() error = %v, want nil", err)
+		t.Fatalf("PendingBranches(context.Background()) error = %v, want nil", err)
 	}
 
 	// Git command should run in the main directory
 	if capturedDir != mainDir {
-		t.Errorf("PendingBranches() called gitRunFn with dir %q, want %q", capturedDir, mainDir)
+		t.Errorf("PendingBranches(context.Background()) called gitRunFn with dir %q, want %q", capturedDir, mainDir)
 	}
 }
 
