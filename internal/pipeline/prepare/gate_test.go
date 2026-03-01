@@ -1217,6 +1217,46 @@ func TestConsolidatedMocks_DataQualityBlockerCanBeCreatedWithHelper(t *testing.T
 	}
 }
 
+// RED: test for Gate.WithSpecSPCBlocker wiring method exists
+func TestGate_WithSpecSPCBlocker_WiresBlocker(t *testing.T) {
+	t.Parallel()
+
+	spec := "auth"
+	records := []logger.CauseClassificationRecord{
+		{
+			Metric:             "rolling_avg_validation_ms",
+			Stratum:            "spec:" + spec,
+			Class:              logger.CauseClassSpecial,
+			Latest:             1500,
+			PersistenceWindows: 3,
+			Severity:           "high",
+		},
+	}
+	blocker := NewSpecSPCBlocker(records)
+
+	gate := New(io.Discard).WithSpecSPCBlocker(blocker)
+
+	if gate == nil {
+		t.Fatalf("WithSpecSPCBlocker() returned nil, want valid gate")
+	}
+
+	// Test that the gate blocks beads with matching spec
+	b := &bead.Bead{
+		ID:     "test-spc-blocker",
+		Title:  "test bead",
+		Labels: []string{"spec:" + spec},
+	}
+
+	out, err := gate.Run(context.Background(), pipeline.Input{Bead: b})
+	if err != nil {
+		t.Fatalf("Gate.Run() error = %v, want nil", err)
+	}
+
+	if out.Decision != pipeline.Block {
+		t.Fatalf("decision = %v, want %v", out.Decision, pipeline.Block)
+	}
+}
+
 // RED: test for gate outcomes emitting typed events
 func TestGateRun_SkipEmitsGateSkipEvent(t *testing.T) {
 	t.Parallel()

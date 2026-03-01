@@ -60,6 +60,7 @@ type Gate struct {
 	stuck               StuckDetector      // optional; nil means skip stuck detection
 	decomposer          Decomposer         // optional; used only by scope-gate decomposition
 	dataQualityChecker  DataQualityBlocker // optional; nil means skip data quality checks
+	specSPCBlocker      *SpecSPCBlocker    // optional; nil means skip spec-level SPC blocking
 	output              io.Writer
 }
 
@@ -113,6 +114,12 @@ func (g *Gate) WithDataQualityBlocker(dq DataQualityBlocker) *Gate {
 	return g
 }
 
+// WithSpecSPCBlocker configures an optional SpecSPCBlocker for spec-level SPC anomaly blocking.
+func (g *Gate) WithSpecSPCBlocker(sb *SpecSPCBlocker) *Gate {
+	g.specSPCBlocker = sb
+	return g
+}
+
 // HasDecomposer returns true if a Decomposer is wired in, false otherwise.
 func (g *Gate) HasDecomposer() bool {
 	return g.decomposer != nil
@@ -121,6 +128,11 @@ func (g *Gate) HasDecomposer() bool {
 // HasDataQualityBlocker returns true if a DataQualityBlocker is wired in, false otherwise.
 func (g *Gate) HasDataQualityBlocker() bool {
 	return g.dataQualityChecker != nil
+}
+
+// HasSpecSPCBlocker returns true if a SpecSPCBlocker is wired in, false otherwise.
+func (g *Gate) HasSpecSPCBlocker() bool {
+	return g.specSPCBlocker != nil
 }
 
 // Run executes the gate stage.
@@ -208,6 +220,27 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 			g.Log("warning", "Warning: data quality check failed for bead %s: %v", in.Bead.ID, err)
 		} else if blocked {
 			g.Log("warning", "Data quality block for bead %s: %s", in.Bead.ID, reason)
+			if in.Emitter != nil {
+				in.Emitter.Emit(&events.GateBlockEvent{
+					BeadID: in.Bead.ID,
+					Reason: reason,
+					Time:   time.Now(),
+				})
+			}
+			return pipeline.Output{
+				Decision:          pipeline.Block,
+				ComplexityRouting: complexityRouting,
+			}, nil
+		}
+	}
+
+	// Spec-level SPC blocking: block beads with high-severity rework anomalies in their spec.
+	if gateBlockReason == "" && g.specSPCBlocker != nil {
+		blocked, reason, err := g.specSPCBlocker.ShouldBlock(ctx, in.Bead)
+		if err != nil {
+			g.Log("warning", "Warning: spec SPC block check failed for bead %s: %v", in.Bead.ID, err)
+		} else if blocked {
+			g.Log("warning", "Spec SPC block for bead %s: %s", in.Bead.ID, reason)
 			if in.Emitter != nil {
 				in.Emitter.Emit(&events.GateBlockEvent{
 					BeadID: in.Bead.ID,
