@@ -38,15 +38,17 @@ type ProviderRunner interface {
 
 // Retro manages retrospective analysis
 type Retro struct {
-	provider       ProviderRunner
-	learningsFile  *learnings.File
-	rulesPath      string
-	templatePath   string
-	experimentPath string
-	gromitDir      string
-	logsDir        string // override for logs directory; when empty, defaults to gromitDir/logs
-	promptBudget   int
-	diagnostics    *prompt.PromptDiagnostics
+	provider            ProviderRunner
+	learningsFile       *learnings.File
+	rulesPath           string
+	templatePath        string
+	experimentPath      string
+	gromitDir           string
+	workmanshipPath     string
+	logsDir             string // override for logs directory; when empty, defaults to gromitDir/logs
+	promptBudget        int
+	diagnostics         *prompt.PromptDiagnostics
+	lastTemplateContext TemplateContext
 }
 
 // TemplateContext holds data for retro prompt template
@@ -97,13 +99,14 @@ func NewRetroWithProviderAndBudget(p ProviderRunner, gromitDir string, promptBud
 		return nil, err
 	}
 	return &Retro{
-		provider:       p,
-		learningsFile:  learningsFile,
-		rulesPath:      filepath.Join(gromitDir, "RULES.md"),
-		templatePath:   filepath.Join(gromitDir, "templates", "PROMPT_retro.md"),
-		experimentPath: filepath.Join(gromitDir, "experiment.json"),
-		gromitDir:      gromitDir,
-		promptBudget:   promptBudget,
+		provider:        p,
+		learningsFile:   learningsFile,
+		rulesPath:       filepath.Join(gromitDir, "RULES.md"),
+		templatePath:    filepath.Join(gromitDir, "templates", "PROMPT_retro.md"),
+		experimentPath:  filepath.Join(gromitDir, "experiment.json"),
+		gromitDir:       gromitDir,
+		workmanshipPath: filepath.Join(gromitDir, "workmanship_history.json"),
+		promptBudget:    promptBudget,
 	}, nil
 }
 
@@ -200,6 +203,22 @@ func (r *Retro) Run(ctx context.Context, beadFilter map[string]bool) (*Result, e
 		}
 	}
 
+	confirmedLearnings := r.learningsFile.GetConfirmed()
+	provisionalLearnings := r.learningsFile.GetProvisional()
+	allLearnings := make([]learnings.Learning, 0, len(confirmedLearnings)+len(provisionalLearnings))
+	allLearnings = append(allLearnings, confirmedLearnings...)
+	allLearnings = append(allLearnings, provisionalLearnings...)
+	frictionClusters := clusterByArea(allLearnings, minFrictionClusterSize)
+
+	history, err := LoadWorkmanshipHistory(r.workmanshipPath)
+	if err != nil {
+		return nil, fmt.Errorf("loading workmanship history: %w", err)
+	}
+	if history == nil {
+		history = &WorkmanshipHistory{}
+	}
+	frictionResolutions := CompareFriction(frictionClusters, &history.Report)
+
 	// Load rules
 	rules, err := r.loadRules()
 	if err != nil {
@@ -240,7 +259,7 @@ func (r *Retro) Run(ctx context.Context, beadFilter map[string]bool) (*Result, e
 	}
 
 	// Render prompt
-	prompt, err := r.renderPrompt(rules, learningsText, runStats, filteredBeadStats, efficiencyReport, experiment, nil, nil)
+	prompt, err := r.renderPrompt(rules, learningsText, runStats, filteredBeadStats, efficiencyReport, experiment, frictionClusters, frictionResolutions)
 	if err != nil {
 		return nil, fmt.Errorf("rendering prompt: %w", err)
 	}
@@ -256,6 +275,15 @@ func (r *Retro) Run(ctx context.Context, beadFilter map[string]bool) (*Result, e
 		Success:    analysisResult.GetSuccess(),
 		Efficiency: efficiencyReport,
 		Experiment: experiment,
+	}
+
+	historyToSave := &WorkmanshipHistory{
+		Report: WorkmanshipReport{
+			FrictionClusters: frictionClusters,
+		},
+	}
+	if err := SaveWorkmanshipHistory(r.workmanshipPath, historyToSave); err != nil {
+		return nil, fmt.Errorf("saving workmanship history: %w", err)
 	}
 
 	return result, nil
@@ -504,6 +532,8 @@ func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, 
 		FrictionClusters:    frictionClusters,
 		FrictionResolutions: frictionResolutions,
 	}
+
+	r.lastTemplateContext = ctx
 
 	var sb strings.Builder
 	if err := tmpl.Execute(&sb, ctx); err != nil {
