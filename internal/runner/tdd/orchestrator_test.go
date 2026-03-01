@@ -191,6 +191,52 @@ func TestRunCycles_SingleCycle_CorrectCallSequence(t *testing.T) {
 	}
 }
 
+func TestRunCycles_AppendsCycleSnapshots(t *testing.T) {
+	t.Parallel()
+	orch := newTestOrchestrator()
+
+	orch.renderRedFn = func(handoff *RedHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "red", nil
+	}
+	orch.renderGreenFn = func(handoff *GreenHandoff, bc *runtypes.BeadContext) (string, error) {
+		return "green", nil
+	}
+	orch.invokeFn = func(ctx context.Context, prompt, tier string) error {
+		return nil
+	}
+	validateCalls := 0
+	orch.validateFn = func(ctx context.Context, commands []string, workDir string) (string, bool, error) {
+		validateCalls++
+		if validateCalls == 1 {
+			return "FAIL", false, nil
+		}
+		return "PASS", true, nil
+	}
+	orch.runRefactorFn = func(ctx context.Context, bc *runtypes.BeadContext) error {
+		return nil
+	}
+
+	bc := &runtypes.BeadContext{Result: &runtypes.IterationResult{}}
+	state := singleRequirementState()
+	if err := orch.RunCycles(context.Background(), bc, state); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(bc.Result.CycleSnapshots) != 1 {
+		t.Fatalf("expected 1 cycle snapshot, got %d", len(bc.Result.CycleSnapshots))
+	}
+	snap := bc.Result.CycleSnapshots[0]
+	if snap.CycleNumber != 1 {
+		t.Fatalf("expected cycle number 1, got %d", snap.CycleNumber)
+	}
+	if len(snap.Remaining) != 0 {
+		t.Fatalf("expected remaining empty, got %v", snap.Remaining)
+	}
+	if len(snap.CoveredSoFar) != 1 || snap.CoveredSoFar[0] != "implement feature X" {
+		t.Fatalf("unexpected covered list: %v", snap.CoveredSoFar)
+	}
+}
+
 func TestRunCycles_MultipleCycles_LoopsThroughRequirements(t *testing.T) {
 	t.Parallel()
 	orch := newTestOrchestrator()
