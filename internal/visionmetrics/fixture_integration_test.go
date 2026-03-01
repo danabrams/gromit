@@ -75,6 +75,60 @@ func TestVisionMetricsFixtureInvalidScenario(t *testing.T) {
 	expectRate(t, rollup.AcceptedWithoutReworkRate, 1, 1, 1.0)
 }
 
+func TestVisionMetricsFixturePendingResolutionScenario(t *testing.T) {
+	fixtures := loadIntegrationFixtureRecords(t, "pending.fixture")
+	if len(fixtures) != 2 {
+		t.Fatalf("expected 2 fixture records, got %d", len(fixtures))
+	}
+
+	var records []Record
+	for i, entry := range fixtures {
+		if len(entry.Errors) != 0 {
+			t.Fatalf("fixture record %d should validate, but got %d errors", i+1, len(entry.Errors))
+		}
+		records = append(records, entry.Record)
+	}
+
+	var pendingCount, escapedYesCount int
+	for _, rec := range records {
+		switch rec.EscapedRegressionWithin7D {
+		case EscapedRegressionPending:
+			pendingCount++
+		case Yes:
+			escapedYesCount++
+		}
+	}
+
+	if pendingCount == 0 {
+		t.Fatalf("expected at least one pending escaped regression")
+	}
+
+	resolvedCount := len(records) - pendingCount
+	if resolvedCount == 0 {
+		t.Fatalf("expected at least one resolved escaped regression record")
+	}
+
+	rollupPre := ComputeRollup(records)
+	if rollupPre.EscapedRegressionPendingCount != pendingCount {
+		t.Fatalf("expected %d pending count, got %d", pendingCount, rollupPre.EscapedRegressionPendingCount)
+	}
+	expectRate(t, rollupPre.EscapedRegressionRate, escapedYesCount, resolvedCount, float64(escapedYesCount)/float64(resolvedCount))
+
+	resolvedRecords := append([]Record(nil), records...)
+	for i := range resolvedRecords {
+		if resolvedRecords[i].EscapedRegressionWithin7D == EscapedRegressionPending {
+			resolvedRecords[i].EscapedRegressionWithin7D = No
+			break
+		}
+	}
+
+	rollupPost := ComputeRollup(resolvedRecords)
+	if rollupPost.EscapedRegressionPendingCount != 0 {
+		t.Fatalf("expected 0 pending count after resolution, got %d", rollupPost.EscapedRegressionPendingCount)
+	}
+	expectRate(t, rollupPost.EscapedRegressionRate, escapedYesCount, len(resolvedRecords), float64(escapedYesCount)/float64(len(resolvedRecords)))
+}
+
 type integrationFixtureRecord struct {
 	Record Record
 	Errors []ValidationError
