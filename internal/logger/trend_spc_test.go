@@ -17,3 +17,17 @@ func TestTrendSPCDefinitionsFileExists(t *testing.T) {
 		t.Fatalf("%s does not declare metricSeriesDefinition", target)
 	}
 }
+
+func TestDetectAnomalySeverityClassification(t *testing.T) {
+	limit := TrendControlLimit{
+		Metric: "rolling_avg_validation_ms",
+		Latest: 2.1,
+		Mean:   2,
+		StdDev: 1,
+		UCL:    2,
+		LCL:    0,
+	}
+	if anomaly, ok := detectAnomaly(limit); !ok || anomaly.Severity != anomalySeverityHigh {
+		t.Fatalf("severity = %q, want %q when latest exceeds UCL", anomaly.Severity, anomalySeverityHigh)
+	}
+}
