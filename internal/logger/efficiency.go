@@ -303,6 +303,24 @@ func extractRunID(path string) string {
 	return base[4 : len(base)-6]
 }
 
+// LatestRunID scans run-*.jsonl files in logsDir and returns the run ID of the
+// most recent one (by filename timestamp). Returns empty string if no files found.
+func LatestRunID(logsDir string) string {
+	files, err := filepath.Glob(filepath.Join(logsDir, "run-*.jsonl"))
+	if err != nil || len(files) == 0 {
+		return ""
+	}
+
+	latest := ""
+	for _, f := range files {
+		id := extractRunID(f)
+		if id > latest {
+			latest = id
+		}
+	}
+	return latest
+}
+
 // CompletenessCheckResult holds the result of an efficiency completeness check.
 type CompletenessCheckResult struct {
 	IsComplete       bool   // true if all iterations have efficiency data
