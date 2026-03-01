@@ -530,6 +530,10 @@ func (p *Pipeline) QueryBeads(ctx context.Context, input QueryBeadsInput) (*Quer
 		return nil, err
 	}
 
+	if input.StatusFilter != "" && input.StatusFilter != "ready" {
+		return nil, fmt.Errorf("pipeline: unsupported bead status %q", input.StatusFilter)
+	}
+
 	result := NewQueryBeadsResult()
 
 	// QueryBeads returns bead metadata. The BeadQueryClient only supports
