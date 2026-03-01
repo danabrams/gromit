@@ -1244,3 +1244,20 @@ func (a *integrationQueueGitOpsAdapter) Push(ctx context.Context) error {
 	}
 	return nil
 }
+
+func (a *integrationQueueGitOpsAdapter) Cleanup(ctx context.Context, entry integrationqueue.Entry) error {
+	if a == nil {
+		return fmt.Errorf("gitops adapter is not configured")
+	}
+	if strings.TrimSpace(entry.Branch) == "" {
+		return fmt.Errorf("entry branch is empty")
+	}
+	if a.runGitCommand == nil {
+		return fmt.Errorf("git runner is not configured")
+	}
+
+	if _, err := a.runGitCommand(ctx, a.repoDir, "branch", "-D", entry.Branch); err != nil {
+		return fmt.Errorf("cleanup branch %s: %w", entry.Branch, err)
+	}
+	return nil
+}
