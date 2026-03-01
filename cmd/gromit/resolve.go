@@ -191,3 +191,25 @@ func setupRetroLogsForWorktree(worktreeGromitDir, mainGromitDir string) (string,
 	// Otherwise, use prepareRetroWorktreeWithMainRepoLogs to set up symlink and get path
 	return prepareRetroWorktreeWithMainRepoLogs(worktreeGromitDir, mainGromitDir)
 }
+
+// ResolveRetroWorktreeLogsDir is the consolidated function for retro worktree logs resolution.
+// It replaces setupRetroLogsForWorktree, prepareRetroWorktreeWithMainRepoLogs, and
+// ensureRetroWorktreeLogsSetup with a single, clear interface.
+//
+// It attempts to set up logs access in a worktree (either via symlink or by resolving
+// the main repo's logs path) and returns the path to use for logs.
+func ResolveRetroWorktreeLogsDir(worktreeGromitDir, mainGromitDir string) (string, error) {
+	if worktreeGromitDir == "" {
+		return "", nil
+	}
+
+	// Try to set up a symlink from worktree logs to main repo logs
+	if mainGromitDir != "" {
+		_ = setupRetroWorktreeLogsSymlink(worktreeGromitDir, mainGromitDir)
+		// Even if symlink creation fails, return the main repo logs path
+		return filepath.Join(mainGromitDir, "logs"), nil
+	}
+
+	// If mainGromitDir is empty, resolve the main repo logs path via git
+	return resolveMainRepoLogsDir(worktreeGromitDir), nil
+}
