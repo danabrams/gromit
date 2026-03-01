@@ -1,12 +1,15 @@
 package worktree
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/test/helpers"
 )
@@ -2335,4 +2338,55 @@ func TestRemoveByPath_GitRunFnCalledWithCorrectDir(t *testing.T) {
 	if capturedDir != mainDir {
 		t.Errorf("RemoveByPath() called gitRunFn with dir %q, want %q", capturedDir, mainDir)
 	}
+}
+
+// TestRunGitCancelsWhenContextDone verifies runGit uses the provided context
+// so long-running git commands respect cancellation.
+func TestRunGitCancelsWhenContextDone(t *testing.T) {
+	repoDir := initCancelableGitRepo(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+
+	m, err := NewManager(repoDir, WithContext(ctx))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	_, err = m.runGit(ctx, repoDir, "-c", "alias.sleep=!sleep 30", "sleep")
+	if err == nil {
+		t.Fatal("runGit() should return an error when context is canceled")
+	}
+	if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("runGit() returned %v, want context cancellation error", err)
+	}
+}
+
+func initCancelableGitRepo(t testing.TB) string {
+	t.Helper()
+	mdir := t.TempDir()
+	gitCommandMustSucceed(t, mdir, "init")
+	gitCommandMustSucceed(t, mdir, "config", "user.email", "gromit@example.com")
+	gitCommandMustSucceed(t, mdir, "config", "user.name", "gromit")
+	if err := os.WriteFile(filepath.Join(mdir, "README.md"), []byte("hello"), 0o644); err != nil {
+		t.Fatalf("creating README: %v", err)
+	}
+	gitCommandMustSucceed(t, mdir, "add", "README.md")
+	gitCommandMustSucceed(t, mdir, "commit", "-m", "initial commit")
+	return mdir
+}
+
+func gitCommandMustSucceed(t testing.TB, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %s failed: %v\noutput:\n%s", strings.Join(args, " "), err, output)
+	}
+	return string(output)
 }
