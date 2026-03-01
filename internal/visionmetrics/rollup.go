@@ -13,6 +13,7 @@ type Rollup struct {
 	HumanDebuggingInterventionRate MetricRate `json:"human_debugging_intervention_rate"`
 	FirstIntegrationPassRate       MetricRate `json:"first_integration_pass_rate"`
 	EscapedRegressionRate          MetricRate `json:"escaped_regression_rate"`
+	EscapedRegressionPendingCount  int        `json:"escaped_regression_pending_count"`
 	AcceptedWithoutReworkRate      MetricRate `json:"accepted_without_rework_rate"`
 }
 
@@ -30,6 +31,7 @@ var (
 	tactical  int
 	debugging int
 	escaped   int
+	escapedPending int
 	accepted  int
 	resolvedEscapedDenom int
 	carveOuts int
@@ -45,7 +47,9 @@ var (
 		if rec.EscapedRegressionWithin7D == Yes {
 			escaped++
 		}
-		if rec.EscapedRegressionWithin7D != EscapedRegressionPending {
+		if rec.EscapedRegressionWithin7D == EscapedRegressionPending {
+			escapedPending++
+		} else {
 			resolvedEscapedDenom++
 		}
 		if rec.ReviewOutcome.IsAccepted() {
@@ -67,7 +71,8 @@ var (
 		HumanTacticalInterventionRate:  newMetricRate(tactical, total),
 		HumanDebuggingInterventionRate: newMetricRate(debugging, total),
 		FirstIntegrationPassRate:       newMetricRate(firstPass, total),
-	EscapedRegressionRate:          newMetricRate(escaped, resolvedEscapedDenom),
+		EscapedRegressionRate:          newMetricRate(escaped, resolvedEscapedDenom),
+		EscapedRegressionPendingCount:  escapedPending,
 		AcceptedWithoutReworkRate:      newMetricRate(accepted, acceptedDenom),
 	}
 }

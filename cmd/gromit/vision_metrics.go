@@ -109,6 +109,8 @@ func visionMetricsReport(cmd *cobra.Command, args []string) error {
 			rollup.EscapedRegressionRate.Rate*100,
 			rollup.EscapedRegressionRate.Numerator,
 			rollup.EscapedRegressionRate.Denominator)
+		fmt.Printf("Escaped Regression Pending Records: %d\n",
+			rollup.EscapedRegressionPendingCount)
 		fmt.Printf("Accepted Without Rework Rate:       %.2f%% (%d/%d)\n",
 			rollup.AcceptedWithoutReworkRate.Rate*100,
 			rollup.AcceptedWithoutReworkRate.Numerator,
