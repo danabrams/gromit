@@ -299,6 +299,51 @@ compatibility:
 	}
 }
 
+func TestRunLoop_NoSpecFlagSkipsSpecflowBootstrapping(t *testing.T) {
+	_, cleanup := setupRunSpecTestEnv(t)
+	defer cleanup()
+
+	var storeCalls int
+	origStoreFactory := runner.SpecflowStoreFactory
+	runner.SpecflowStoreFactory = func(gromitDir string) (specflow.SpecStore, error) {
+		storeCalls++
+		return &fakeSpecflowStore{}, nil
+	}
+	defer func() { runner.SpecflowStoreFactory = origStoreFactory }()
+
+	var capturedStageCtx *runner.StageContext
+	origRunnerFn := newRunnerWithStageContextFn
+	newRunnerWithStageContextFn = func(cfg *config.Config, output io.Writer, stageCtx *runner.StageContext, labels ...string) (*runner.Orchestrator, error) {
+		capturedStageCtx = stageCtx
+		return nil, fmt.Errorf("runner stub")
+	}
+	defer func() { newRunnerWithStageContextFn = origRunnerFn }()
+
+	var branches []string
+	origBranchFactory := runner.SpecBranchCreatorFactory
+	runner.SpecBranchCreatorFactory = func(repoDir string, cfg *config.Config) (runner.SpecBranchCreator, error) {
+		return &fakeBranchCreator{branches: &branches}, nil
+	}
+	defer func() { runner.SpecBranchCreatorFactory = origBranchFactory }()
+
+	runSpecFlag = ""
+	runEpicFlag = ""
+
+	err := runLoop(runCmd, []string{})
+	if err == nil || !strings.Contains(err.Error(), "runner stub") {
+		t.Fatalf("expected runner stub error, got %v", err)
+	}
+	if storeCalls != 0 {
+		t.Fatalf("expected specflow store not to be created, got %d", storeCalls)
+	}
+	if capturedStageCtx != nil {
+		t.Fatalf("expected no stage context for non-spec run, got %+v", capturedStageCtx)
+	}
+	if len(branches) != 0 {
+		t.Fatalf("expected no branch creation for non-spec run, got %d", len(branches))
+	}
+}
+
 func TestRunLoop_EpicFlagMissingSpecsDir(t *testing.T) {
 	_, cleanup := setupRunSpecTestEnv(t)
 	defer cleanup()
