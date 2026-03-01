@@ -91,3 +91,17 @@ func TestWorkmanshipHistoryRoundTrip(t *testing.T) {
 		t.Fatalf("expected learning count 3, got %d", cluster.LearningCount)
 	}
 }
+
+func TestLoadWorkmanshipHistoryMissingFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "missing-history.json")
+	history, err := LoadWorkmanshipHistory(path)
+	if err != nil {
+		t.Fatalf("unexpected error loading missing file: %v", err)
+	}
+	if history == nil {
+		t.Fatalf("expected history even when file is missing")
+	}
+	if len(history.Report.FrictionClusters) != 0 {
+		t.Fatalf("expected empty history, got %d clusters", len(history.Report.FrictionClusters))
+	}
+}
