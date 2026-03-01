@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -180,6 +181,45 @@ func TestOrchestrator_RunInvokesAutoTriageServiceAfterRun(t *testing.T) {
 		t.Fatalf("Run() error = %v, want nil", err)
 	}
 
+	if service.calls != 1 {
+		t.Fatalf("Auto-triage service called %d times, want 1", service.calls)
+	}
+}
+
+func TestOrchestrator_AutoTriageErrorsAreLogged(t *testing.T) {
+	t.Parallel()
+
+	const triageErrMsg = "triage failed"
+
+	service := &fakeAutoTriageService{
+		evaluateFn: func(context.Context) error {
+			return errors.New(triageErrMsg)
+		},
+	}
+	output := &bytes.Buffer{}
+	cfg := OrchestratorConfig{
+		Gate:              &fakeStage{},
+		Build:             &fakeStage{},
+		Validate:          &fakeStage{},
+		Epilogue:          &fakeStage{},
+		GetBead:           func(_ context.Context) (*bead.Bead, error) { return nil, nil },
+		Config:            &config.Config{},
+		Output:            output,
+		AutoTriageService: service,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 1, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	log := output.String()
+	if !strings.Contains(log, "auto-triage evaluation failed") {
+		t.Fatalf("log output = %q, want warning about auto-triage failure", log)
+	}
+	if !strings.Contains(log, triageErrMsg) {
+		t.Fatalf("log output = %q, want to include the error message", log)
+	}
 	if service.calls != 1 {
 		t.Fatalf("Auto-triage service called %d times, want 1", service.calls)
 	}
