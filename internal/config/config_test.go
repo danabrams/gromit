@@ -5902,6 +5902,15 @@ func TestReadinessCheckMandatoryByDefault(t *testing.T) {
 	}
 }
 
+func TestReadinessEmergencyOverrideDefaultsToFalse(t *testing.T) {
+	cfg := &Config{}
+	cfg.SetDefaults()
+
+	if cfg.ReadinessEmergencyOverride {
+		t.Fatalf("expected readiness_emergency_override default false")
+	}
+}
+
 func TestReadinessCheckConfigFromYAML(t *testing.T) {
 	tests := []struct {
 		name             string
