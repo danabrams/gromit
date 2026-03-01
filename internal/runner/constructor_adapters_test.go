@@ -397,6 +397,27 @@ func TestDeterministicReadinessAssessor_BlocksOversizedScope(t *testing.T) {
 	}
 }
 
+func TestDeterministicReadinessAssessor_BlocksAmbiguousCriteria(t *testing.T) {
+	t.Parallel()
+	assessor := NewDeterministicReadinessAssessor()
+	ctx := context.Background()
+	b := &bead.Bead{
+		ID:              "ambiguous-criteria",
+		ExpectedOutputs: []string{"a", "b", "c", "d"},
+	}
+
+	assessment, err := assessor.Assess(ctx, b)
+	if err != nil {
+		t.Fatalf("Assess returned error: %v", err)
+	}
+	if assessment.Status != readiness.StatusNotReady {
+		t.Fatalf("status = %q, want %q", assessment.Status, readiness.StatusNotReady)
+	}
+	if assessment.Reason != prepare.ReasonCriteriaAmbiguous {
+		t.Fatalf("reason = %q, want %q", assessment.Reason, prepare.ReasonCriteriaAmbiguous)
+	}
+}
+
 // decomposerAdapterWithTrackerClient is a version of decomposerAdapter that uses tracker.Client
 type decomposerAdapterWithTrackerClient struct {
 	tracker tracker.Client
