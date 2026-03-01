@@ -162,3 +162,45 @@ func TestThresholdStuckPolicy_IsStuck_AlternatingMultiBeadCycles(t *testing.T) {
 		})
 	}
 }
+
+func TestThresholdStuckPolicy_IsStuck_LegacyDataWithoutTotalRuns(t *testing.T) {
+	t.Parallel()
+
+	// Backward compatibility: when TotalRuns is 0 (missing data), fall back to threshold check.
+	b := &bead.Bead{ID: "legacy-bead"}
+	p := policy.NewThresholdStuckPolicy(2)
+
+	stats := map[string]logger.BeadStats{
+		b.ID: {
+			Failures:  3,
+			TotalRuns: 0, // No run data recorded (legacy entry or corrupted)
+		},
+	}
+
+	// Should still mark stuck when failures >= threshold, even with missing TotalRuns
+	if got := p.IsStuck(b, stats); !got {
+		t.Errorf("IsStuck() = false, want true (backward compatibility for legacy data)")
+	}
+}
+
+func TestThresholdStuckPolicy_IsStuck_ThresholdMeetsButPartialFailure(t *testing.T) {
+	t.Parallel()
+
+	// RED test: A bead at exactly the threshold failure count but with partial success
+	// should NOT be marked stuck in a multi-bead cycle scenario.
+	b := &bead.Bead{ID: "partial-success-bead"}
+	p := policy.NewThresholdStuckPolicy(3)
+
+	stats := map[string]logger.BeadStats{
+		b.ID: {
+			Failures:  3,
+			TotalRuns: 5, // 3 failures out of 5 runs = 60% failure rate
+		},
+	}
+
+	// Even though failures >= threshold (3 >= 3), not all attempts failed,
+	// so it should NOT be marked stuck
+	if got := p.IsStuck(b, stats); got {
+		t.Errorf("IsStuck() = true, want false (bead has some successes)")
+	}
+}

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-03-01T00:44:46.235497785Z",
+  "updated_at": "2026-03-01T00:44:59.740696858Z",
   "entries": [
     {
       "branch": "gromit/debug-1772324767531454001",
@@ -73,6 +73,24 @@
       "last_error_code": "",
       "last_error_message": "",
       "last_transition_reason": "session_committed"
+    },
+    {
+      "branch": "gromit/refine-1772325899422414206",
+      "session_id": "gromit/refine-1772325899422414206",
+      "origin_command": "refine",
+      "state": "draft",
+      "lane": "code_lane",
+      "created_at": "2026-03-01T00:44:59.740696858Z",
+      "updated_at": "2026-03-01T00:44:59.740696858Z",
+      "attempt_count": 0,
+      "retry_count": 0,
+      "fifo_seq": 5,
+      "base_ref": "80131c17019d3578c1593f8868d70137d22ec31e",
+      "head_sha": "80131c17019d3578c1593f8868d70137d22ec31e",
+      "changed_files_hash": "",
+      "last_error_code": "",
+      "last_error_message": "",
+      "last_transition_reason": ""
     }
   ]
 }
