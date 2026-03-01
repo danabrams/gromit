@@ -205,6 +205,7 @@ func (c *Config) SetDefaults() {
 	if c.ReadinessCheck.TimeoutSeconds == 0 {
 		c.ReadinessCheck.TimeoutSeconds = 120
 	}
+	// ReadinessEmergencyOverride defaults to false (bool zero-value): normal readiness gate behavior
 	if c.Loop.StuckBeadThreshold == 0 {
 		c.Loop.StuckBeadThreshold = 3
 	}
