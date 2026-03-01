@@ -1,6 +1,24 @@
-Removed: ['gromit/debug-1772319234936812220', 'gromit/plan-1772320055414740567', 'gromit/review-1772322141608097349']
 {
   "schema_version": 1,
-  "updated_at": "2026-02-28T23:46:16.084212638Z",
-  "entries": []
+  "updated_at": "2026-03-01T00:26:59.694006105Z",
+  "entries": [
+    {
+      "branch": "gromit/debug-1772324767531454001",
+      "session_id": "gromit/debug-1772324767531454001",
+      "origin_command": "debug",
+      "state": "ready",
+      "lane": "code_lane",
+      "created_at": "2026-03-01T00:26:07.904551252Z",
+      "updated_at": "2026-03-01T00:26:59.694006105Z",
+      "attempt_count": 0,
+      "retry_count": 0,
+      "fifo_seq": 1,
+      "base_ref": "d154e2bc5799a435985cd27ca6958a035a10ae17",
+      "head_sha": "56ef34ac044f07e4da0713aaa5e048cd332c04fd",
+      "changed_files_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "last_error_code": "",
+      "last_error_message": "",
+      "last_transition_reason": "session_committed"
+    }
+  ]
 }
