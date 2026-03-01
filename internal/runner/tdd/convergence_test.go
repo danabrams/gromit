@@ -20,3 +20,14 @@ func TestEvaluateCycleConvergenceDeadlock(t *testing.T) {
         t.Fatalf("expected deadlock detection, got %v", got)
     }
 }
+
+func TestEvaluateCycleConvergenceOscillation(t *testing.T) {
+    snapshots := []CycleSnapshot{
+        {CycleNumber: 1, Remaining: []string{"alpha"}},
+        {CycleNumber: 2, Remaining: []string{"beta"}},
+        {CycleNumber: 3, Remaining: []string{"alpha"}},
+    }
+    if got := EvaluateCycleConvergence(snapshots); got != ConvergenceOscillation {
+        t.Fatalf("expected oscillation detection, got %v", got)
+    }
+}
