@@ -36,6 +36,13 @@ func EvaluateCycleConvergence(snapshots []CycleSnapshot) ConvergenceResult {
 		}
 	}
 
+	if n >= 3 {
+		third := snapshots[n-3]
+		if len(third.Remaining) > 0 && stringSlicesEqual(latest.Remaining, third.Remaining) {
+			return ConvergenceOscillation
+		}
+	}
+
 	return ConvergenceStable
 }
 

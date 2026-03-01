@@ -36,7 +36,8 @@ func (c CycleState) IsComplete() bool {
 	if c.Done {
 		return true
 	}
-	// Only treat empty remaining as complete if at least one cycle ran
+	// Only treat empty remaining as complete after at least one cycle runs.
+	// Completion no longer depends on any configured max cycle cap.
 	if c.CycleNumber > 0 && len(c.Remaining) == 0 {
 		return true
 	}
