@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"path/filepath"
 	"reflect"
@@ -17,14 +18,14 @@ type mockSessionWorktreeCreator struct {
 	MergeBackFn             func(branch string) error
 }
 
-func (m *mockSessionWorktreeCreator) CreateSessionWorktree(command string) (*worktree.SessionWorktree, error) {
+func (m *mockSessionWorktreeCreator) CreateSessionWorktree(_ context.Context, command string) (*worktree.SessionWorktree, error) {
 	if m != nil && m.CreateSessionWorktreeFn != nil {
 		return m.CreateSessionWorktreeFn(command)
 	}
 	return nil, nil
 }
 
-func (m *mockSessionWorktreeCreator) MergeBack(branch string) error {
+func (m *mockSessionWorktreeCreator) MergeBack(_ context.Context, branch string) error {
 	if m != nil && m.MergeBackFn != nil {
 		return m.MergeBackFn(branch)
 	}

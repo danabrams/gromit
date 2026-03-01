@@ -614,7 +614,7 @@ func launchRetroInteractiveSession(cfg *config.Config, cmd *cobra.Command, gromi
 		return fmt.Errorf("resolving agent: %w", err)
 	}
 
-	err = launchInSessionIfEnabled(cmd.Context(), cfg, gromitDir, retroSessionCommand, retroSessionLauncherFn, func(sessionDir string) error {
+	err = launchInSessionIfEnabled(cfg, gromitDir, retroSessionCommand, retroSessionLauncherFn, func(sessionDir string) error {
 		if err := selectedAgent.LaunchInDir(absPromptPath, sessionDir); err != nil {
 			return fmt.Errorf("launching interactive review session: %w", err)
 		}

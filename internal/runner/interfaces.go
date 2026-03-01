@@ -90,11 +90,11 @@ type IterationLogger interface {
 
 // WorktreeManager abstracts the worktree lifecycle used by interactive commands.
 type WorktreeManager interface {
-	EnsureWorktree() (string, error)
-	CreateBranch(command string) (string, error)
-	MergeBack(branch string) error
-	PendingBranches() ([]string, error)
-	Cleanup() error
+	EnsureWorktree(ctx context.Context) (string, error)
+	CreateBranch(ctx context.Context, command string) (string, error)
+	MergeBack(ctx context.Context, branch string) error
+	PendingBranches(ctx context.Context) ([]string, error)
+	Cleanup(ctx context.Context) error
 }
 
 // BranchRouter abstracts branch selection based on bead labels.

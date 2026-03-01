@@ -414,14 +414,14 @@ func (a *worktreeMergerAdapter) PendingBranches() ([]string, error) {
 	if a == nil || a.mgr == nil {
 		return nil, fmt.Errorf("worktree manager is nil")
 	}
-	return a.mgr.PendingBranches()
+	return a.mgr.PendingBranches(context.TODO())
 }
 
 func (a *worktreeMergerAdapter) MergeBack(branch string) error {
 	if a == nil || a.mgr == nil {
 		return fmt.Errorf("worktree manager is nil")
 	}
-	return a.mgr.MergeBack(branch)
+	return a.mgr.MergeBack(context.TODO(), branch)
 }
 
 func (a *worktreeMergerAdapter) DeriveSessionWorktreePath(branch string) string {
@@ -445,7 +445,7 @@ func (a *worktreeMergerAdapter) RemoveByPath(path string) error {
 	if a == nil || a.mgr == nil {
 		return fmt.Errorf("worktree manager is nil")
 	}
-	return a.mgr.RemoveByPath(path)
+	return a.mgr.RemoveByPath(context.TODO(), path)
 }
 
 // epilogueCommandRunnerAdapter wraps a command runner function to satisfy epilogue.CommandRunner.

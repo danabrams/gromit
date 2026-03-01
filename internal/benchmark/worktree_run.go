@@ -137,7 +137,7 @@ func NewSessionModeWorktreeRunner(opts SessionModeWorktreeRunnerOptions) *Sessio
 			if err != nil {
 				return nil, err
 			}
-			return manager.CreateSessionWorktree(command)
+			return manager.CreateSessionWorktree(context.TODO(), command)
 		}
 	}
 	if r.runModeInWorktree == nil {

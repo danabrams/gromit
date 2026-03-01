@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -17,8 +18,8 @@ import (
 )
 
 type sessionWorktreeCreator interface {
-	CreateSessionWorktree(command string) (*worktree.SessionWorktree, error)
-	MergeBack(branch string) error
+	CreateSessionWorktree(ctx context.Context, command string) (*worktree.SessionWorktree, error)
+	MergeBack(ctx context.Context, branch string) error
 }
 
 type pendingBranchRecorder interface {
@@ -167,7 +168,7 @@ func runWithSessionWorktreeWithConflictSettings(
 		return nil, fmt.Errorf("creating worktree manager: %w", err)
 	}
 
-	session, err := manager.CreateSessionWorktree(command)
+	session, err := manager.CreateSessionWorktree(context.TODO(), command)
 	if err != nil {
 		return nil, fmt.Errorf("creating session worktree: %w", err)
 	}
@@ -231,7 +232,7 @@ func attemptMergeWithConflictPolicy(
 	session *worktree.SessionWorktree,
 	conflictSettings sessionConflictSettings,
 ) error {
-	mergeErr := manager.MergeBack(session.BranchName)
+	mergeErr := manager.MergeBack(context.TODO(), session.BranchName)
 	if mergeErr == nil {
 		return clearMergedState(session, stateFile)
 	}
@@ -258,7 +259,7 @@ func attemptMergeWithConflictPolicy(
 		}
 
 		lastResolverErr = nil
-		retryErr := manager.MergeBack(session.BranchName)
+		retryErr := manager.MergeBack(context.TODO(), session.BranchName)
 		if retryErr != nil {
 			lastMergeErr = retryErr
 			continue
