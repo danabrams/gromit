@@ -246,6 +246,71 @@ func TestRunWithSessionWorktreeAutoCommitInvoked(t *testing.T) {
 	}
 }
 
+func TestRunWithSessionWorktreeSkipsCommitWhenNoChanges(t *testing.T) {
+	_, gromitDir, session := setupRunWithSessionWorktreeTest(t, "nochange")
+	session.BranchName = "gromit/nochange-123"
+
+	var commands []string
+	cleanupGit := overrideGitRun(func(dir string, args ...string) (string, error) {
+		commands = append(commands, strings.Join(args, " "))
+		if len(args) > 0 && args[0] == "diff" {
+			if len(args) > 2 && args[1] == "--cached" && args[2] == "--quiet" {
+				return "", nil
+			}
+		}
+		return "", nil
+	})
+	t.Cleanup(cleanupGit)
+
+	var recordedEntries []integrationqueue.Entry
+	cleanupStore := overrideQueueStore(func(entry integrationqueue.Entry) error {
+		recordedEntries = append(recordedEntries, entry)
+		return nil
+	})
+	t.Cleanup(cleanupStore)
+
+	pendingRecorder := &mockPendingBranchRecorder{
+		AddPendingWorktreeBranchFn: func(string) error {
+			t.Fatal("pending branch should not be recorded when no commit occurred")
+			return nil
+		},
+	}
+
+	cleanupCalled := false
+	withInteractiveWorktreeFactories(t, func(string) (sessionWorktreeCreator, error) {
+		return &mockSessionWorktreeCreator{
+			CreateSessionWorktreeFn: func(string) (*worktree.SessionWorktree, error) {
+				return session, nil
+			},
+		}, nil
+	}, func(string) (pendingBranchRecorder, error) {
+		return pendingRecorder, nil
+	}, func(string, string) error {
+		cleanupCalled = true
+		return nil
+	})
+
+	_, err := runWithSessionWorktree(gromitDir, "nochange", func(string) error { return nil })
+	if err != nil {
+		t.Fatalf("runWithSessionWorktree() error = %v", err)
+	}
+
+	for _, cmd := range commands {
+		if strings.Contains(cmd, "commit") {
+			t.Fatalf("unexpected commit command: %v", commands)
+		}
+	}
+	if !cleanupCalled {
+		t.Fatal("expected cleanup to run")
+	}
+	if len(recordedEntries) != 1 {
+		t.Fatalf("expected only draft entry, got %d", len(recordedEntries))
+	}
+	if recordedEntries[0].State != integrationqueue.StateDraft {
+		t.Fatalf("draft entry has state %q", recordedEntries[0].State)
+	}
+}
+
 func TestRunWithSessionWorktreeQueuesReadyBranch(t *testing.T) {
 	// Not parallel: withInteractiveWorktreeFactories mutates package-level globals.
 	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "ready-queue")
