@@ -108,8 +108,6 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 	if err != nil {
 		return nil, err
 	}
-	specMergeController := newSpecMergeController(cfg, trackerClientInterface)
-
 	beadsClient := newTrackerBeadClient(trackerClientInterface)
 
 	syncOut := newSyncWriter(output)
@@ -121,6 +119,13 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 
 	wireLearningsFilter(renderer, learningsProvider)
 	wireSiblingEnrichmentResolver(renderer, cfg.Paths.Logs)
+
+	specMergeController := newSpecMergeController(
+		cfg,
+		trackerClientInterface,
+		&specMergeRouterAdapter{router: router},
+		&specMergeReviewRendererAdapter{renderer: renderer},
+	)
 
 	analyzerObj, err := analyzer.NewAnalyzer(learningsProvider, cfg.Models.Validation, renderer)
 	if err != nil {

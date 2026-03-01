@@ -117,3 +117,8 @@ func (f *TriggerFlow) Run(ctx context.Context, specName string) (*FlowResult, er
 
 	return result, nil
 }
+
+// FlowExecutor represents a runtime that can execute review stages for a spec.
+type FlowExecutor interface {
+	Run(ctx context.Context, specName string) (*FlowResult, error)
+}

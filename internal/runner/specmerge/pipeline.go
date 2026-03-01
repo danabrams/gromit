@@ -2,8 +2,10 @@ package specmerge
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -13,7 +15,10 @@ import (
 	"github.com/danabrams/gromit/internal/specgate"
 )
 
-const specLabelPrefix = "spec:"
+const (
+	specLabelPrefix      = "spec:"
+	fixBeadPriorityLabel = "P1"
+)
 
 // beadQuery defines the subset of the bead client needed by Pipeline.
 type beadQuery interface {
@@ -28,18 +33,27 @@ type Controller interface {
 
 // Pipeline runs spec merge orchestration helpers.
 type Pipeline struct {
-	query   beadQuery
-	emitter CycleRecordEmitter
+	query      beadQuery
+	emitter    CycleRecordEmitter
+	flow       FlowExecutor
+	fixDeps    FixBeadDependencies
+	retryCap   int
+	attemptsMu sync.Mutex
+	attempts   map[string]int
 }
 
 // NewPipeline constructs a Pipeline with the provided bead query dependencies.
-func NewPipeline(query beadQuery, emitter CycleRecordEmitter) *Pipeline {
+func NewPipeline(query beadQuery, emitter CycleRecordEmitter, flow FlowExecutor, fixDeps FixBeadDependencies, retryCap int) *Pipeline {
 	if emitter == nil {
 		emitter = NoopCycleRecordEmitter()
 	}
 	return &Pipeline{
-		query:   query,
-		emitter: emitter,
+		query:    query,
+		emitter:  emitter,
+		flow:     flow,
+		fixDeps:  fixDeps,
+		retryCap: retryCap,
+		attempts: map[string]int{},
 	}
 }
 
@@ -78,6 +92,42 @@ func (p *Pipeline) Trigger(ctx context.Context, specName string) error {
 	if p == nil {
 		return fmt.Errorf("pipeline is nil")
 	}
+	if p.flow == nil {
+		return fmt.Errorf("trigger flow is not configured")
+	}
+
+	if _, err := p.flow.Run(ctx, specName); err != nil {
+		var stageErr StageFailureError
+		if errors.As(err, &stageErr) {
+			attempt := p.incrementAttempt(specName)
+
+			if p.fixDeps.BeadCreator != nil {
+				opts := HandleStageFailureOptions{
+					SpecName:     specName,
+					Failures:     stageResultFailures(stageErr.Result),
+					Priority:     fixBeadPriorityLabel,
+					AttemptCount: attempt,
+					RetryCap:     p.retryCap,
+				}
+				if handleErr := HandleStageFailure(ctx, p.fixDeps, opts); handleErr != nil {
+					return fmt.Errorf("handle stage failure: %w", handleErr)
+				}
+			}
+
+			if p.retryCap > 0 {
+				capExceeded, capErr := CheckRetryCapExceeded(attempt, p.retryCap)
+				if capErr != nil {
+					return fmt.Errorf("check retry cap: %w", capErr)
+				}
+				if capExceeded {
+					alert := EmitRetryCapReachedAlert(specName, p.retryCap)
+					return fmt.Errorf("%s", alert)
+				}
+			}
+		}
+		return err
+	}
+
 	p.captureCycleRecord(ctx, specName)
 	return nil
 }
@@ -108,6 +158,23 @@ func HandleStageFailure(ctx context.Context, deps FixBeadDependencies, opts Hand
 	}
 
 	return nil
+}
+
+func stageResultFailures(stage StageResult) []specgate.CriterionResult {
+	if stage.ReviewResult == nil {
+		return nil
+	}
+	evidence := strings.TrimSpace(stage.ReviewResult.Summary)
+	if evidence == "" {
+		evidence = fmt.Sprintf("stage %s failed to pass", stage.StageName)
+	}
+	return []specgate.CriterionResult{
+		{
+			Criterion: stage.StageName,
+			Passed:    false,
+			Evidence:  evidence,
+		},
+	}
 }
 
 // CheckRetryCapExceeded returns true if the attempt count has reached or exceeded the retry cap.
@@ -237,4 +304,14 @@ func (p *Pipeline) captureCycleRecord(ctx context.Context, specName string) {
 		CycleEndPresentedAt: time.Now(),
 	}
 	_ = p.emitter.CaptureCycleRecord(ctx, record)
+}
+
+func (p *Pipeline) incrementAttempt(specName string) int {
+	p.attemptsMu.Lock()
+	defer p.attemptsMu.Unlock()
+	if p.attempts == nil {
+		p.attempts = make(map[string]int)
+	}
+	p.attempts[specName]++
+	return p.attempts[specName]
 }

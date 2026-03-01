@@ -242,7 +242,7 @@ func TestPipeline_IsSpecComplete_FalseWithOpenBead(t *testing.T) {
 		},
 	}
 
-	p := specmerge.NewPipeline(client, nil)
+	p := specmerge.NewPipeline(client, nil, nil, specmerge.FixBeadDependencies{}, 0)
 	complete, err := p.IsSpecComplete(specName)
 	if err != nil {
 		t.Fatalf("IsSpecComplete returned error: %v", err)
@@ -269,7 +269,12 @@ func TestPipeline_TriggerCapturesCycleRecord(t *testing.T) {
 				return nil
 			},
 		}
-		p := specmerge.NewPipeline(query, emitter)
+		flow := &fakeFlowExecutor{
+			runFn: func(_ context.Context, _ string) (*specmerge.FlowResult, error) {
+				return &specmerge.FlowResult{}, nil
+			},
+		}
+		p := specmerge.NewPipeline(query, emitter, flow, specmerge.FixBeadDependencies{}, 0)
 		if err := p.Trigger(context.Background(), specName); err != nil {
 			t.Fatalf("Trigger() error = %v", err)
 		}
@@ -283,7 +288,12 @@ func TestPipeline_TriggerCapturesCycleRecord(t *testing.T) {
 
 	t.Run("emitter disabled", func(t *testing.T) {
 		t.Parallel()
-		p := specmerge.NewPipeline(query, nil)
+		flow := &fakeFlowExecutor{
+			runFn: func(_ context.Context, _ string) (*specmerge.FlowResult, error) {
+				return &specmerge.FlowResult{}, nil
+			},
+		}
+		p := specmerge.NewPipeline(query, nil, flow, specmerge.FixBeadDependencies{}, 0)
 		if err := p.Trigger(context.Background(), specName); err != nil {
 			t.Fatalf("Trigger() error = %v", err)
 		}

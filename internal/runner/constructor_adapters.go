@@ -600,7 +600,7 @@ func (a *specGateAdapter) Run(ctx context.Context, beadID string, labels []strin
 	return nil
 }
 
-func newSpecMergeController(cfg *config.Config, client tracker.Client) specmerge.Controller {
+func newSpecMergeController(cfg *config.Config, client tracker.Client, router providerRouter, renderer reviewPromptRenderer) specmerge.Controller {
 	if cfg == nil || client == nil {
 		return nil
 	}
@@ -611,7 +611,23 @@ func newSpecMergeController(cfg *config.Config, client tracker.Client) specmerge
 	if query == nil {
 		return nil
 	}
-	return specmerge.NewPipeline(query, nil)
+
+	var flow specmerge.FlowExecutor
+	if router != nil && renderer != nil {
+		deps := newSpecMergeReviewDependencies(router, renderer)
+		flow = &specmerge.TriggerFlow{
+			Stages:       specmerge.ReviewStages(deps),
+			DiffProvider: specmerge.DiffProviderFunc(func(ctx context.Context, specName string) (string, error) { return "", nil }),
+		}
+	}
+
+	fixDeps := specmerge.FixBeadDependencies{
+		BeadCreator: specmerge.NewTrackerBeadCreator(client),
+	}
+
+	retryCap := cfg.MergePipeline.RetryCapDefaultValue()
+
+	return specmerge.NewPipeline(query, nil, flow, fixDeps, retryCap)
 }
 
 // extractSpecLabel returns the spec name from labels (format: "spec:name").
