@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -441,4 +442,65 @@ func TestCoordinatorHandlesLaneViolation(t *testing.T) {
 	if processed.LastErrorCode != "lane_violation" {
 		t.Fatalf("LastErrorCode = %q, want lane_violation", processed.LastErrorCode)
 	}
+}
+
+func TestCoordinatorHandlesPushFailure(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	entry := Entry{
+		Branch:           "feature/push-failure",
+		SessionID:        "feature/push-failure",
+		OriginCommand:    "test",
+		State:            StateReady,
+		Lane:             "code_lane",
+		BaseRef:          "main",
+		HeadSHA:          "deadbeef",
+		ChangedFilesHash: "hash",
+	}
+	if err := store.Save(entry); err != nil {
+		t.Fatalf("Save(entry) error = %v", err)
+	}
+
+	gitops := &pushFailureMockGitOps{}
+	gate := &mockScopedGate{}
+	coord := NewCoordinator(store, gitops, gate)
+
+	err = coord.Coordinate(ctx)
+	if err == nil {
+		t.Fatalf("Coordinate() error = nil, want non-nil")
+	}
+
+	payload, err := store.load()
+	if err != nil {
+		t.Fatalf("load() error = %v", err)
+	}
+
+	processed := findEntry(payload.Entries, "feature/push-failure")
+	if processed == nil {
+		t.Fatalf("missing processed entry")
+	}
+	if processed.State != StatePushFailure {
+		t.Fatalf("State = %q, want %q", processed.State, StatePushFailure)
+	}
+	if processed.LastErrorCode != "push_failed" {
+		t.Fatalf("LastErrorCode = %q, want push_failed", processed.LastErrorCode)
+	}
+	if !strings.Contains(processed.LastErrorMessage, "push failure") {
+		t.Fatalf("LastErrorMessage = %q, want to contain 'push failure'", processed.LastErrorMessage)
+	}
+}
+
+type pushFailureMockGitOps struct {
+	mockGitOps
+}
+
+func (m *pushFailureMockGitOps) Push(ctx context.Context) error {
+	m.calls = append(m.calls, "push")
+	return fmt.Errorf("push failure: remote rejected")
 }
