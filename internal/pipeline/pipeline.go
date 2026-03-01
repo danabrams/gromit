@@ -565,6 +565,10 @@ func (p *Pipeline) CountBeads(ctx context.Context, input CountBeadsInput) (*Coun
 		return nil, err
 	}
 
+	if input.Status != "" && input.Status != "ready" {
+		return nil, fmt.Errorf("pipeline: unsupported bead status %q", input.Status)
+	}
+
 	count, err := p.deps.BeadQueryClient.CountByStatus(ctx, input.Status)
 	if err != nil {
 		return nil, fmt.Errorf("counting beads by status %q: %w", input.Status, err)
