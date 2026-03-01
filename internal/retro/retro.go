@@ -56,6 +56,7 @@ type TemplateContext struct {
 	BeadStats         map[string]logger.BeadStats
 	Efficiency        *logger.EfficiencyReport
 	ProcessTrend      *logger.ProcessTrend
+	MaintenanceWarnings []string
 	Experiment        *Experiment
 	ExperimentMetrics *ExperimentMetrics
 }
@@ -493,6 +494,7 @@ func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, 
 		BeadStats:         beadStats,
 		Efficiency:        efficiency,
 		ProcessTrend:      processTrend,
+		MaintenanceWarnings: buildMaintenanceWarnings(processTrend),
 		Experiment:        experiment,
 		ExperimentMetrics: selectExperimentMetrics(experiment, efficiency),
 	}
@@ -503,6 +505,37 @@ func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, 
 	}
 
 	return sb.String(), nil
+}
+
+func buildMaintenanceWarnings(trend *logger.ProcessTrend) []string {
+	if trend == nil || len(trend.FlaggedPackages) == 0 {
+		return nil
+	}
+	warnings := make([]string, 0, len(trend.FlaggedPackages))
+	for _, pkg := range trend.FlaggedPackages {
+		warnings = append(warnings, formatMaintenanceWarning(pkg))
+	}
+	sort.Strings(warnings)
+	return warnings
+}
+
+func formatMaintenanceWarning(pkg logger.FlaggedPackage) string {
+	metric := pkg.Metric
+	if metric == "" {
+		metric = "validation duration"
+	}
+	severity := pkg.Severity
+	if severity == "" {
+		severity = "unknown severity"
+	}
+
+	details := []string{metric}
+	if pkg.PersistenceWindows > 0 {
+		details = append(details, fmt.Sprintf("%d windows", pkg.PersistenceWindows))
+	}
+	details = append(details, fmt.Sprintf("severity %s", severity))
+
+	return fmt.Sprintf("%s — %s", pkg.Package, strings.Join(details, ", "))
 }
 
 func (r *Retro) loadProcessTrend() *logger.ProcessTrend {

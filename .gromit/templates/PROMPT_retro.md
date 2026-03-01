@@ -195,6 +195,15 @@ The following iterations exceeded 80% of their model's context window:
 - Validation failures: {{ printf "%.1f%%" (mul .ProcessTrend.LatestWindow.ValidationFailureRate 100) }}
 - Timeout failures: {{ printf "%.1f%%" (mul .ProcessTrend.LatestWindow.TimeoutFailureRate 100) }}
 
+{{- if .MaintenanceWarnings }}
+
+### High Maintenance Cost
+{{- range .MaintenanceWarnings }}
+- {{ . }}
+{{- end }}
+
+{{- end }}
+
 {{- if .ProcessTrend.ControlLimits }}
 ### Control Limits
 | Metric | Latest | Mean | Std Dev | LCL | UCL |
