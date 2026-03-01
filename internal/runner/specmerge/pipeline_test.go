@@ -7,6 +7,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/review"
 	"github.com/danabrams/gromit/internal/runner/specmerge"
 	"github.com/danabrams/gromit/internal/specgate"
 	"github.com/danabrams/gromit/internal/tracker"
@@ -46,11 +47,11 @@ func TestHandleStageFailure_CreateFixBeads(t *testing.T) {
 	}
 
 	opts := specmerge.HandleStageFailureOptions{
-		SpecName:      "test-spec",
-		Failures:      failures,
-		Priority:      "P1",
-		AttemptCount:  0,
-		RetryCap:      3,
+		SpecName:     "test-spec",
+		Failures:     failures,
+		Priority:     "P1",
+		AttemptCount: 0,
+		RetryCap:     3,
 	}
 
 	err := specmerge.HandleStageFailure(ctx, deps, opts)
@@ -132,6 +133,79 @@ func TestEmitRetryCapReachedAlert_ReturnsAlert(t *testing.T) {
 	}
 }
 
+func TestPipeline_Trigger_CreatesFixBeadsOnStageFailure(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	failure := specmerge.StageResult{
+		StageName: "spec_conformance",
+		Passed:    false,
+		ReviewResult: &review.ReviewResult{
+			Passed:  false,
+			Summary: "spec needs tightening",
+		},
+	}
+
+	var created []string
+	creator := &fakeBeadCreator{
+		createFn: func(_ context.Context, title, description, priority string, labels []string) (string, error) {
+			created = append(created, title)
+			return "bead-1", nil
+		},
+	}
+
+	flow := &fakeFlowExecutor{
+		runFn: func(_ context.Context, specName string) (*specmerge.FlowResult, error) {
+			if specName != "payments" {
+				t.Fatalf("specName = %q, want payments", specName)
+			}
+			return &specmerge.FlowResult{
+				StageResults: []specmerge.StageResult{failure},
+			}, specmerge.StageFailureError{Result: failure}
+		},
+	}
+
+	p := specmerge.NewPipeline(nil, nil, flow, specmerge.FixBeadDependencies{BeadCreator: creator}, 3)
+	if err := p.Trigger(ctx, "payments"); err == nil {
+		t.Fatal("expected pipeline to return an error for stage failure")
+	}
+	if len(created) != 1 {
+		t.Fatalf("created %d fix beads, want 1", len(created))
+	}
+}
+
+func TestPipeline_Trigger_RetryCapReachedAlerts(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	failure := specmerge.StageResult{
+		StageName: "code_quality",
+		Passed:    false,
+		ReviewResult: &review.ReviewResult{
+			Passed:  false,
+			Summary: "code quality violations",
+		},
+	}
+
+	flow := &fakeFlowExecutor{
+		runFn: func(_ context.Context, specName string) (*specmerge.FlowResult, error) {
+			return &specmerge.FlowResult{
+				StageResults: []specmerge.StageResult{failure},
+			}, specmerge.StageFailureError{Result: failure}
+		},
+	}
+
+	p := specmerge.NewPipeline(nil, nil, flow, specmerge.FixBeadDependencies{BeadCreator: &fakeBeadCreator{}}, 1)
+	err := p.Trigger(ctx, "payments")
+	if err == nil {
+		t.Fatal("expected retry-cap alert error")
+	}
+	alert := specmerge.EmitRetryCapReachedAlert("payments", 1)
+	if !strings.Contains(err.Error(), alert) {
+		t.Fatalf("error = %q, want to contain alert %q", err.Error(), alert)
+	}
+}
+
 func contains(s, substr string) bool {
 	for i := 0; i <= len(s)-len(substr); i++ {
 		if s[i:i+len(substr)] == substr {
@@ -141,11 +215,22 @@ func contains(s, substr string) bool {
 	return false
 }
 
-func TestPipeline_IsSpecComplete_FalseWithOpenBead(t *testing.T) {
-	 t.Parallel()
+type fakeFlowExecutor struct {
+	runFn func(ctx context.Context, specName string) (*specmerge.FlowResult, error)
+}
 
-	 const specName = "payments"
-	 client := &fakeBeadQuery{
+func (f *fakeFlowExecutor) Run(ctx context.Context, specName string) (*specmerge.FlowResult, error) {
+	if f == nil || f.runFn == nil {
+		return nil, nil
+	}
+	return f.runFn(ctx, specName)
+}
+
+func TestPipeline_IsSpecComplete_FalseWithOpenBead(t *testing.T) {
+	t.Parallel()
+
+	const specName = "payments"
+	client := &fakeBeadQuery{
 		listFn: func(label string) ([]*bead.Bead, error) {
 			if label != "spec:"+specName {
 				t.Fatalf("label = %q, want spec:%s", label, specName)
@@ -168,41 +253,41 @@ func TestPipeline_IsSpecComplete_FalseWithOpenBead(t *testing.T) {
 }
 
 func TestPipeline_TriggerCapturesCycleRecord(t *testing.T) {
-	 t.Parallel()
+	t.Parallel()
 
-	 specName := "payments"
-	 query := &fakeBeadQuery{listFn: func(_ string) ([]*bead.Bead, error) {
-		 return nil, nil
-	 }}
+	specName := "payments"
+	query := &fakeBeadQuery{listFn: func(_ string) ([]*bead.Bead, error) {
+		return nil, nil
+	}}
 
-	 t.Run("emitter configured", func(t *testing.T) {
-		 t.Parallel()
-		 var captured specmerge.CycleRecord
-		 emitter := &fakeCycleRecordEmitter{
-			 captureFn: func(_ context.Context, record specmerge.CycleRecord) error {
-				 captured = record
-				 return nil
-			 },
-		 }
-		 p := specmerge.NewPipeline(query, emitter)
-		 if err := p.Trigger(context.Background(), specName); err != nil {
-			 t.Fatalf("Trigger() error = %v", err)
-		 }
-		 if captured.SpecID != specName {
-			 t.Fatalf("captured spec = %q, want %q", captured.SpecID, specName)
-		 }
-		 if captured.CycleEndPresentedAt.IsZero() {
-			 t.Fatalf("captured presented time zero, want non-zero")
-		 }
-	 })
+	t.Run("emitter configured", func(t *testing.T) {
+		t.Parallel()
+		var captured specmerge.CycleRecord
+		emitter := &fakeCycleRecordEmitter{
+			captureFn: func(_ context.Context, record specmerge.CycleRecord) error {
+				captured = record
+				return nil
+			},
+		}
+		p := specmerge.NewPipeline(query, emitter)
+		if err := p.Trigger(context.Background(), specName); err != nil {
+			t.Fatalf("Trigger() error = %v", err)
+		}
+		if captured.SpecID != specName {
+			t.Fatalf("captured spec = %q, want %q", captured.SpecID, specName)
+		}
+		if captured.CycleEndPresentedAt.IsZero() {
+			t.Fatalf("captured presented time zero, want non-zero")
+		}
+	})
 
-	 t.Run("emitter disabled", func(t *testing.T) {
-		 t.Parallel()
-		 p := specmerge.NewPipeline(query, nil)
-		 if err := p.Trigger(context.Background(), specName); err != nil {
-			 t.Fatalf("Trigger() error = %v", err)
-		 }
-	 })
+	t.Run("emitter disabled", func(t *testing.T) {
+		t.Parallel()
+		p := specmerge.NewPipeline(query, nil)
+		if err := p.Trigger(context.Background(), specName); err != nil {
+			t.Fatalf("Trigger() error = %v", err)
+		}
+	})
 }
 
 func TestTrackerBeadQueryConvertsTrackerItems(t *testing.T) {
@@ -219,8 +304,8 @@ func TestTrackerBeadQueryConvertsTrackerItems(t *testing.T) {
 					Title:  "Bead",
 					Status: tracker.StatusOpen,
 					Metadata: map[string]string{
-						"type":    "task",
-						"labels":  `["spec:test"]`,
+						"type":     "task",
+						"labels":   `["spec:test"]`,
 						"priority": "1",
 					},
 				},
@@ -229,8 +314,8 @@ func TestTrackerBeadQueryConvertsTrackerItems(t *testing.T) {
 					Title:  "Closed",
 					Status: tracker.StatusClosed,
 					Metadata: map[string]string{
-						"type":    "task",
-						"labels":  `["spec:test"]`,
+						"type":     "task",
+						"labels":   `["spec:test"]`,
 						"priority": "2",
 					},
 				},
@@ -337,7 +422,7 @@ func TestRunStage1Validation_FailsOnValidationCommandError(t *testing.T) {
 		},
 	}
 	res, err := specmerge.RunStage1Validation(ctx, deps, specmerge.Stage1ValidationOptions{
-		Config: &config.Config{Validation: config.ValidationConfig{Enabled: true, FullCommands: commands}},
+		Config:  &config.Config{Validation: config.ValidationConfig{Enabled: true, FullCommands: commands}},
 		WorkDir: "/repo",
 	})
 	if err != nil {
