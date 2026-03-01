@@ -224,6 +224,46 @@ All subprocess launch sites must use procutil.SetProcessGroupKill + procutil.Wai
 ### 2026-02-28 | gromit-crt | conventions
 Profile selection tests depend on ranking algorithm behavior and global initProfile state. Changes to ranking logic require coordinated updates to test expectations. Tests in init_profile_test.go cannot run in parallel due to global state modification.
 
+### 2026-02-28 | Integration Queue State Machine Is Table-Driven via ApplyTransition | architecture
+*Related to: review-1772322141608097349*
+
+Integration queue state machine (7 states, table-driven transitions via ApplyTransition) is the established pattern for queue lifecycle; direct state assignment is forbidden.
+
+### 2026-02-28 | Subprocess Launch Must Use Full procutil Pattern Including ReapProcessTree | conventions
+*Related to: review-1772322141608097349*
+
+All subprocess launch sites must use procutil.SetProcessGroupKill + WaitForProcessCapacity + KillDescendantsOnCancel + ReapProcessTree (not the shallower ReapProcessGroup). gh CLI calls in specmerge are the one remaining inconsistent site.
+
+### 2026-02-28 | Epilogue Lifecycle Failure Suppresses All Success Signals | patterns
+*Related to: review-1772322141608097349*
+
+Epilogue lifecycle failure (close/sync) now suppresses success signals (BeadCompleteEvent, spec merge triggering) to prevent downstream consumers from acting on incomplete state.
+
+### 2026-02-28 | Board and Queue Commands Bypass Deps DI Pattern | tech_debt
+*Related to: review-1772322141608097349*
+
+board.go and queue.go bypass NewPipelineDeps centralized DI by using package-level factory vars to create concrete bead.Client instances. All other Pipeline methods receive clients through p.deps.
+
+### 2026-02-28 | TUI Store Copy-on-Read Returns Shallow Pointer Copies | gotchas
+*Related to: review-1772322141608097349*
+
+TUI store uses sync.RWMutex with copy-on-read for thread safety, but copied slices of pointer elements still allow mutation of store data without holding the lock.
+
+### 2026-02-28 | Config Bool Fields With Non-Zero Defaults Must Use Pointer Type | gotchas
+*Related to: review-1772322141608097349*
+
+Config types must use *bool for boolean fields with non-zero defaults to distinguish 'unset' from 'explicitly false' in YAML deserialization. Plain bool zero value (false) is indistinguishable from explicit false.
+
+### 2026-02-28 | Session Worktree Uses Enqueue-to-Queue Instead of Direct Merge | architecture
+*Related to: review-1772322141608097349*
+
+Session worktree lifecycle now uses enqueue-to-integration-queue instead of direct merge, following the single-writer coordinator pattern.
+
+### 2026-02-28 | Vision Metrics Rollup Has Intentional Asymmetric Carve-Outs | patterns
+*Related to: review-1772322141608097349*
+
+AcceptedWithoutReworkRate excludes rework_vision_change from denominator but FirstIntegrationPassRate includes them. Both are valid business definitions but the asymmetry is intentional — new rollup metrics should document their carve-out policy explicitly.
+
 ---
 
 ## Archived
