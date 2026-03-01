@@ -14,6 +14,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/coverage"
+	"github.com/danabrams/gromit/internal/integrationqueue"
 	"github.com/danabrams/gromit/internal/jsonutil"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline/epilogue"
@@ -1153,3 +1154,39 @@ var _ prepare.Decomposer = (*decomposerAdapter)(nil)
 var _ epilogue.FailureLearner = (*failureLearnerAdapter)(nil)
 var _ execution.Router = (*executionRouterAdapter)(nil)
 var _ Coordinator = (*IntegrationCoordinator)(nil)
+
+type integrationQueueGitCommandFn func(ctx context.Context, repoDir string, args ...string) (string, error)
+
+type integrationQueueGitOpsAdapter struct {
+	repoDir       string
+	baseBranch    string
+	runGitCommand integrationQueueGitCommandFn
+}
+
+func (a *integrationQueueGitOpsAdapter) FetchAndRebase(ctx context.Context, entry integrationqueue.Entry) error {
+	if a == nil {
+		return fmt.Errorf("gitops adapter is not configured")
+	}
+	if strings.TrimSpace(entry.Branch) == "" {
+		return fmt.Errorf("entry branch is empty")
+	}
+	if a.runGitCommand == nil {
+		return fmt.Errorf("git runner is not configured")
+	}
+
+	base := strings.TrimSpace(a.baseBranch)
+	if base == "" {
+		base = config.DefaultBaseBranch
+	}
+
+	if _, err := a.runGitCommand(ctx, a.repoDir, "fetch", "origin", base); err != nil {
+		return fmt.Errorf("fetching %s: %w", base, err)
+	}
+	if _, err := a.runGitCommand(ctx, a.repoDir, "checkout", entry.Branch); err != nil {
+		return fmt.Errorf("checkout branch %s: %w", entry.Branch, err)
+	}
+	if _, err := a.runGitCommand(ctx, a.repoDir, "rebase", base); err != nil {
+		return fmt.Errorf("rebasing branch %s onto %s: %w", entry.Branch, base, err)
+	}
+	return nil
+}
