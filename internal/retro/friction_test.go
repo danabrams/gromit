@@ -5,6 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
+
+	"github.com/danabrams/gromit/internal/learnings"
 )
 
 func TestRunPopulatesFrictionContext(t *testing.T) {
@@ -75,5 +78,47 @@ The same crash pipeline points back to internal/retro/retro.go when logging fail
 	}
 	if len(ctx.FrictionResolutions) == 0 {
 		t.Fatalf("expected friction resolutions, got none")
+	}
+}
+
+func TestClusterByAreaComputesTimespanAndEvidence(t *testing.T) {
+	base := time.Date(2026, time.February, 3, 10, 0, 0, 0, time.UTC)
+	entries := []learnings.Learning{
+		{
+			Content:  "Notes reference internal/service/api.go and internal/service/handler.go",
+			Date:     base,
+			Category: learnings.CategoryGotchas,
+		},
+		{
+			Content:  "See internal/service/pipeline.go for more context",
+			Date:     base.Add(24 * time.Hour),
+			Category: learnings.CategoryPatterns,
+		},
+	}
+	clusters := clusterByArea(entries, 1)
+	if len(clusters) != 1 {
+		t.Fatalf("expected one cluster, got %d", len(clusters))
+	}
+	cluster := clusters[0]
+	if cluster.Area != "internal/service" {
+		t.Fatalf("unexpected area: %s", cluster.Area)
+	}
+	if cluster.LearningCount != 2 {
+		t.Fatalf("unexpected count: %d", cluster.LearningCount)
+	}
+	if !cluster.EarliestDate.Equal(base) {
+		t.Fatalf("earliest date mismatch")
+	}
+	if !cluster.LatestDate.Equal(base.Add(24 * time.Hour)) {
+		t.Fatalf("latest date mismatch")
+	}
+	if cluster.Timespan != 24*time.Hour {
+		t.Fatalf("expected 24h timespan, got %v", cluster.Timespan)
+	}
+	if got := cluster.Categories[learnings.CategoryGotchas]; got != 1 {
+		t.Fatalf("expected 1 gotchas, got %d", got)
+	}
+	if got := cluster.Categories[learnings.CategoryPatterns]; got != 1 {
+		t.Fatalf("expected 1 patterns, got %d", got)
 	}
 }
