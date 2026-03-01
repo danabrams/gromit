@@ -2,6 +2,7 @@ package specflow
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -59,5 +60,35 @@ foo: bar
 	}
 	if fm["stage"] != string(StageImplementation) {
 		t.Fatalf("stage not written correctly, got %v", fm["stage"])
+	}
+}
+
+func TestSpecFrontmatterStoreMalformedFrontmatter(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+	gromitDir := filepath.Join(workDir, ".gromit")
+	specsDir := filepath.Join(gromitDir, "specs")
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("failed to create specs dir: %v", err)
+	}
+
+	specName := "malformed"
+	specFile := filepath.Join(specsDir, specName+".md")
+	manifest := "---\nid: malformed\n"
+	if err := os.WriteFile(specFile, []byte(manifest), 0o644); err != nil {
+		t.Fatalf("failed to write malformed spec: %v", err)
+	}
+
+	store, err := NewSpecFrontmatterStore(gromitDir)
+	if err != nil {
+		t.Fatalf("failed to build store: %v", err)
+	}
+
+	if _, err := store.Stage(ctx, specName); err == nil || !errors.Is(err, ErrMalformedSpecFrontmatter) {
+		t.Fatalf("expected malformed frontmatter error, got %v", err)
+	}
+
+	if err := store.StoreStage(ctx, specName, StageReview); err == nil || !errors.Is(err, ErrMalformedSpecFrontmatter) {
+		t.Fatalf("expected malformed frontmatter error on store, got %v", err)
 	}
 }
