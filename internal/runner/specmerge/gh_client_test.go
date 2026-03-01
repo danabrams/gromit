@@ -220,11 +220,11 @@ func TestGhCLIClient_PostReviewCommandAndJSON(t *testing.T) {
 		"-X",
 		"POST",
 		"/repos/octocat/hello-world/pulls/404/reviews",
-		"-F",
+		"-f",
 		"event=APPROVE",
-		"-F",
+		"-f",
 		"body=LGTM",
-		"-F",
+		"-f",
 		"comments=" + string(wantComments),
 	}
 	if !reflect.DeepEqual(gotArgs, wantArgs) {

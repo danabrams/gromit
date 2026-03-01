@@ -161,12 +161,12 @@ func (c *ghClient) PostReview(ctx context.Context, ref PRRef, payload ReviewPayl
 		"-X",
 		"POST",
 		fmt.Sprintf("/repos/%s/%s/pulls/%d/reviews", ref.Owner, ref.Repo, ref.Number),
-		"-F",
+		"-f",
 		"event=" + payload.Event,
 	}
 
 	if payload.Body != "" {
-		args = append(args, "-F", "body="+payload.Body)
+		args = append(args, "-f", "body="+payload.Body)
 	}
 
 	if len(payload.Comments) > 0 {
@@ -182,7 +182,7 @@ func (c *ghClient) PostReview(ctx context.Context, ref PRRef, payload ReviewPayl
 		if err != nil {
 			return fmt.Errorf("marshal review comments: %w", err)
 		}
-		args = append(args, "-F", "comments="+string(encoded))
+		args = append(args, "-f", "comments="+string(encoded))
 	}
 
 	out, err := c.run(ctx, args...)
