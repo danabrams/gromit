@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
@@ -1160,6 +1161,7 @@ type integrationQueueGitCommandFn func(ctx context.Context, repoDir string, args
 type integrationQueueGitOpsAdapter struct {
 	repoDir       string
 	baseBranch    string
+	pushTimeout   time.Duration
 	runGitCommand integrationQueueGitCommandFn
 }
 
@@ -1214,5 +1216,31 @@ func (a *integrationQueueGitOpsAdapter) MergeToMain(ctx context.Context, entry i
 		return fmt.Errorf("merging branch %s: %w", entry.Branch, err)
 	}
 
+	return nil
+}
+
+func (a *integrationQueueGitOpsAdapter) Push(ctx context.Context) error {
+	if a == nil {
+		return fmt.Errorf("gitops adapter is not configured")
+	}
+	if a.runGitCommand == nil {
+		return fmt.Errorf("git runner is not configured")
+	}
+
+	base := strings.TrimSpace(a.baseBranch)
+	if base == "" {
+		base = config.DefaultBaseBranch
+	}
+
+	pushCtx := ctx
+	if a.pushTimeout > 0 {
+		var cancel context.CancelFunc
+		pushCtx, cancel = context.WithTimeout(ctx, a.pushTimeout)
+		defer cancel()
+	}
+
+	if _, err := a.runGitCommand(pushCtx, a.repoDir, "push", "origin", base); err != nil {
+		return fmt.Errorf("pushing %s: %w", base, err)
+	}
 	return nil
 }
