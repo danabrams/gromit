@@ -27,5 +27,11 @@ func (d *deterministicReadinessAssessor) Assess(ctx context.Context, b *bead.Bea
 			Reason: reason,
 		}, nil
 	}
+	if outcome, reason := prepare.CheckCriteriaCount(b); outcome != prepare.ReadinessOutcomeReady {
+		return readiness.Assessment{
+			Status: readiness.StatusNotReady,
+			Reason: reason,
+		}, nil
+	}
 	return readiness.Assessment{Status: readiness.StatusReady}, nil
 }
