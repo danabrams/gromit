@@ -75,6 +75,7 @@ func EvaluateCauseClassifications(ctx CauseClassificationContext) []CauseClassif
 	}
 
 	patterns := buildPatternViolationMap(ctx.PatternViolations)
+	_ = patterns
 	globalAnomalies := buildAnomalyMap(ctx.Anomalies)
 	ewmaAnomalies := buildAnomalyMap(ctx.EWMAAnomalies)
 	stratifiedAnomalies := buildStratifiedAnomalyMap(ctx.StratifiedAnomalies)
@@ -128,16 +129,6 @@ func EvaluateCauseClassifications(ctx CauseClassificationContext) []CauseClassif
 
 			patternRun := 0
 			patternStartIdx := -1
-			if stratum == "" {
-				if pattern, ok := patterns[metric.name]; ok && pattern.RunLength > 0 {
-					run := pattern.RunLength
-					if run > len(metrics) {
-						run = len(metrics)
-					}
-					patternRun = run
-					patternStartIdx = len(metrics) - run
-				}
-			}
 
 			specialPersistence := specialCount
 			detectedIdx := specialStartIdx

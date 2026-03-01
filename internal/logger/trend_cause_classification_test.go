@@ -153,6 +153,59 @@ func TestEvaluateCauseClassifications_CommonCauseDrift(t *testing.T) {
 	}
 }
 
+func TestEvaluateCauseClassifications_SpecialCauseFromPatternViolation(t *testing.T) {
+	baseTime := time.Date(2026, time.March, 3, 0, 0, 0, 0, time.UTC)
+	metrics := make([]IterationMetric, 10)
+	for i := range metrics {
+		metrics[i] = IterationMetric{
+			Timestamp:                baseTime.Add(time.Duration(i) * time.Minute),
+			RollingAvgValidationMs:   210 + float64(i),
+			RollingAvgDurationMs:     0,
+			RollingAvgCostUSD:        0,
+			RollingAvgInputTokens:    0,
+		}
+	}
+
+	ctx := CauseClassificationContext{
+		Metrics: metrics,
+		ControlLimits: []TrendControlLimit{
+			{
+				Metric: metricRollingAvgValidationMs,
+				Mean:   200,
+				UCL:    260,
+				LCL:    170,
+			},
+		},
+		PatternViolations: []PatternViolation{
+			{
+				Metric:    metricRollingAvgValidationMs,
+				Rule:      nelsonRule2Name,
+				RunLength: 9,
+			},
+		},
+	}
+
+	recs := EvaluateCauseClassifications(ctx)
+	rec := findClassificationRecord(t, recs, metricRollingAvgValidationMs, "")
+
+	if rec.Class != CauseClassSpecial {
+		t.Fatalf("class = %s, want %s", rec.Class, CauseClassSpecial)
+	}
+	if rec.PersistenceWindows != 9 {
+		t.Fatalf("persistence windows = %d, want 9", rec.PersistenceWindows)
+	}
+	expectedDetectedAt := metrics[len(metrics)-9].Timestamp
+	if !rec.DetectedAt.Equal(expectedDetectedAt) {
+		t.Fatalf("detected at = %s, want %s", rec.DetectedAt, expectedDetectedAt)
+	}
+	if rec.Limit == nil {
+		t.Fatalf("expected limit for special cause pattern, got nil")
+	}
+	if rec.Severity != "" {
+		t.Fatalf("expected empty severity for pattern-based special cause, got %q", rec.Severity)
+	}
+}
+
 func findClassificationRecord(t *testing.T, records []CauseClassificationRecord, metric, stratum string) *CauseClassificationRecord {
     for _, rec := range records {
         if rec.Metric == metric && rec.Stratum == stratum {
