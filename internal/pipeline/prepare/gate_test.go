@@ -299,6 +299,49 @@ func TestGateRun_ReadinessBlockEmitsGateReadinessBlockEvent(t *testing.T) {
 	}
 }
 
+func TestGateRun_ReadinessBlockEventStripsOverrideMarker(t *testing.T) {
+	t.Parallel()
+
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	overrideReason := "readiness_override:criteria_missing"
+	gate := New(io.Discard).WithReadinessAssessor(
+		newMockReadinessAssessor().WithAssessment(readiness.StatusNotReady, overrideReason, nil),
+	)
+
+	beadID := "readiness-override-event"
+	b := &bead.Bead{
+		ID:    beadID,
+		Title: "readiness override bead",
+	}
+
+	_, err := gate.Run(context.Background(), pipeline.Input{
+		Bead:    b,
+		Emitter: emitter,
+	})
+	if err != nil {
+		t.Fatalf("Gate.Run() error = %v", err)
+	}
+
+	emittedEvents := eventtest.DrainEvents(t, ch)
+
+	var blockEvt *events.GateReadinessBlockEvent
+	for _, evt := range emittedEvents {
+		if be, ok := evt.(*events.GateReadinessBlockEvent); ok {
+			blockEvt = be
+		}
+	}
+	if blockEvt == nil {
+		t.Fatal("expected GateReadinessBlockEvent to be emitted")
+	}
+	if blockEvt.Reason != "criteria_missing" {
+		t.Errorf("Reason = %q, want %q", blockEvt.Reason, "criteria_missing")
+	}
+}
+
 // RED: test that readiness blocking happens before stuck detection.
 func TestGateRun_ReadinessPrecedesStuckDetection(t *testing.T) {
 	t.Parallel()
