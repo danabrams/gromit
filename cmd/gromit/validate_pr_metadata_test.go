@@ -182,3 +182,14 @@ escaped_regression_within_7d: no
 		t.Fatalf("expected non-zero exit code for invalid metadata, got %d", exitCode)
 	}
 }
+
+func TestValidatePRMetadataCmd_Exists(t *testing.T) {
+	// Test that validatePRMetadataCmd is registered and callable
+	if validatePRMetadataCmd == nil {
+		t.Fatalf("validatePRMetadataCmd should be defined")
+	}
+
+	if validatePRMetadataCmd.Use != "validate-pr-metadata" {
+		t.Fatalf("expected command Use='validate-pr-metadata', got %q", validatePRMetadataCmd.Use)
+	}
+}
