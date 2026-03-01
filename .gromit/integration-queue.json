@@ -1,54 +1,6 @@
+Removed: ['gromit/debug-1772319234936812220', 'gromit/plan-1772320055414740567', 'gromit/review-1772322141608097349']
 {
   "schema_version": 1,
   "updated_at": "2026-02-28T23:46:16.084212638Z",
-  "entries": [
-    {
-      "branch": "gromit/debug-1772319234936812220",
-      "session_id": "gromit/debug-1772319234936812220",
-      "origin_command": "debug",
-      "state": "ready",
-      "lane": "code_lane",
-      "created_at": "2026-02-28T22:53:55.276271772Z",
-      "updated_at": "2026-02-28T23:07:18.62264242Z",
-      "attempt_count": 0,
-      "retry_count": 0,
-      "fifo_seq": 1,
-      "base_ref": "877cf03524776cd394c5cae4d60215d9e9d14a6f",
-      "head_sha": "18753a4106b482fe0e8e74087e816b64fd09bed0",
-      "changed_files_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "last_transition_reason": "session_committed"
-    },
-    {
-      "branch": "gromit/plan-1772320055414740567",
-      "session_id": "gromit/plan-1772320055414740567",
-      "origin_command": "plan",
-      "state": "ready",
-      "lane": "code_lane",
-      "created_at": "2026-02-28T23:07:35.722701435Z",
-      "updated_at": "2026-02-28T23:46:16.084212638Z",
-      "attempt_count": 0,
-      "retry_count": 0,
-      "fifo_seq": 2,
-      "base_ref": "6653e9c47223d53c3a3869364f27fc10e5f0d73d",
-      "head_sha": "e2b96faa7ae73b7314bf0907cc9b7455914288c4",
-      "changed_files_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "last_transition_reason": "session_committed"
-    },
-    {
-      "branch": "gromit/review-1772322141608097349",
-      "session_id": "gromit/review-1772322141608097349",
-      "origin_command": "review",
-      "state": "draft",
-      "lane": "code_lane",
-      "created_at": "2026-02-28T23:42:21.949164541Z",
-      "updated_at": "2026-02-28T23:42:21.949164541Z",
-      "attempt_count": 0,
-      "retry_count": 0,
-      "fifo_seq": 3,
-      "base_ref": "d63d4b3d95776f467e7488920376a6af2b2c287e",
-      "head_sha": "d63d4b3d95776f467e7488920376a6af2b2c287e",
-      "changed_files_hash": "",
-      "last_transition_reason": ""
-    }
-  ]
+  "entries": []
 }
