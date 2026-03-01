@@ -6,16 +6,7 @@ import (
 	"fmt"
 )
 
-type Stage string
-
-const (
-	StagePlanning Stage = "planning"
-	StageDrafting Stage = "drafting"
-	StageReview   Stage = "review"
-)
-
 var ErrStageNotFound = errors.New("spec stage not found")
-var ErrInvalidTransition = errors.New("invalid spec stage transition")
 var ErrStageMismatch = errors.New("spec stage mismatch")
 
 type SpecStore interface {
@@ -55,9 +46,8 @@ func (m *Manager) Advance(ctx context.Context, specID string, next Stage) error 
 		return err
 	}
 
-	expected, ok := stageTransitions[current]
-	if !ok || expected != next {
-		return fmt.Errorf("%w: %s -> %s", ErrInvalidTransition, current, next)
+	if err := ValidateTransition(current, next); err != nil {
+		return err
 	}
 
 	return m.store.StoreStage(ctx, specID, next)
@@ -74,9 +64,4 @@ func (m *Manager) Guard(ctx context.Context, specID string, expected Stage) erro
 	}
 
 	return nil
-}
-
-var stageTransitions = map[Stage]Stage{
-	StagePlanning: StageDrafting,
-	StageDrafting: StageReview,
 }
