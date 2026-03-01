@@ -16,6 +16,7 @@ const (
 
 var ErrStageNotFound = errors.New("spec stage not found")
 var ErrInvalidTransition = errors.New("invalid spec stage transition")
+var ErrStageMismatch = errors.New("spec stage mismatch")
 
 type SpecStore interface {
 	Stage(context.Context, string) (Stage, error)
@@ -53,6 +54,19 @@ func (m *Manager) Advance(ctx context.Context, specID string, next Stage) error 
 	}
 
 	return m.store.StoreStage(ctx, specID, next)
+}
+
+func (m *Manager) Guard(ctx context.Context, specID string, expected Stage) error {
+	stage, err := m.Resume(ctx, specID)
+	if err != nil {
+		return err
+	}
+
+	if stage != expected {
+		return fmt.Errorf("%w: expected %s, got %s", ErrStageMismatch, expected, stage)
+	}
+
+	return nil
 }
 
 var stageTransitions = map[Stage]Stage{
