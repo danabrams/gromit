@@ -26,6 +26,8 @@ type PRState struct {
 	PRRef            PRRef         `json:"pr_ref"`
 	Outcome          PROutcome     `json:"outcome"`
 	AwaitingApproval bool          `json:"awaiting_approval"`
+	FixCycleCount    int           `json:"fix_cycle_count"`
+	StageResults     []StageResult `json:"stage_results,omitempty"`
 	LastChecks       []CheckStatus `json:"last_checks,omitempty"`
 	LastUpdated      time.Time     `json:"last_updated"`
 }
