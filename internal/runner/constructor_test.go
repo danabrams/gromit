@@ -15,6 +15,7 @@ import (
 	"github.com/danabrams/gromit/internal/analyzer"
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/integrationqueue"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/pipeline/prepare"
 	"github.com/danabrams/gromit/internal/provider"
@@ -664,6 +665,45 @@ func TestOptionalTDDCycleRunner_ReturnsNilWhenMethodologyAdapterIsNonGo(t *testi
 	result := optionalTDDCycleRunner(cfg, nil, nil, io.Discard, nil, nil)
 	if result != nil {
 		t.Fatalf("optionalTDDCycleRunner returned %T, want nil when methodology adapter is non-go", result)
+	}
+}
+
+func TestNewRunnerImpl_WiresIntegrationQueueCoordinator(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	logsDir := filepath.Join(tmpDir, "logs")
+	claudePath := filepath.Join(tmpDir, "CLAUDE.md")
+
+	if err := os.MkdirAll(templatesDir, 0o755); err != nil {
+		t.Fatalf("mkdir templates: %v", err)
+	}
+	if err := os.MkdirAll(logsDir, 0o755); err != nil {
+		t.Fatalf("mkdir logs: %v", err)
+	}
+	if err := os.WriteFile(claudePath, []byte("test"), 0o644); err != nil {
+		t.Fatalf("write claude md: %v", err)
+	}
+
+	cfg := &config.Config{}
+	cfg.Paths.Templates = templatesDir
+	cfg.Paths.Specs = filepath.Join(tmpDir, "specs")
+	cfg.Paths.Logs = logsDir
+	cfg.Paths.ProjectClaudeMD = claudePath
+
+	orch, err := newRunnerImpl(cfg, io.Discard, nil)
+	if err != nil {
+		t.Fatalf("newRunnerImpl error = %v", err)
+	}
+	if orch == nil {
+		t.Fatal("newRunnerImpl returned nil orchestrator")
+	}
+	if orch.cfg.Coordinator == nil {
+		t.Fatal("expected Coordinator dependency to be wired")
+	}
+	if _, ok := orch.cfg.Coordinator.(*integrationqueue.Coordinator); !ok {
+		t.Fatalf("coordinator = %T, want *integrationqueue.Coordinator", orch.cfg.Coordinator)
 	}
 }
 
