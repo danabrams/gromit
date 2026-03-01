@@ -1293,6 +1293,53 @@ func TestOrchestrator_ValidationFailure_SetsFailureOutput(t *testing.T) {
 	}
 }
 
+func TestOrchestrator_ValidationFailure_SetsFailurePhase(t *testing.T) {
+	t.Parallel()
+	var capturedResult *logger.IterationLog
+
+	validate := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{
+			Decision:           pipeline.Block,
+			ValidationFailures: []string{"validation failed"},
+		}, nil
+	}}
+	epilogueStage := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		capturedResult = in.Result
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-1", Title: "Validation failure"}, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     &fakeStage{},
+		Build:    &fakeStage{},
+		Validate: validate,
+		Epilogue: epilogueStage,
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if capturedResult == nil {
+		t.Fatal("expected an iteration log on validation failure")
+	}
+	if capturedResult.FailurePhase != failurephase.Validation {
+		t.Fatalf("FailurePhase = %q, want %q", capturedResult.FailurePhase, failurephase.Validation)
+	}
+}
+
 func TestOrchestrator_LocalGateFailureSkipsReview(t *testing.T) {
 	t.Parallel()
 	var capturedResult *logger.IterationLog
