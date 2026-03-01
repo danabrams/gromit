@@ -344,6 +344,54 @@ func TestCoordinator_RecoverFromCrash(t *testing.T) {
 	}
 }
 
+func TestCoordinatorRecoverFromCrash_FailedGates(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	entry := Entry{
+		Branch:        "feature/failed-gates",
+		SessionID:     "feature/failed-gates",
+		OriginCommand: "test",
+		State:         StateIntegrating,
+		Lane:          string(CodeLane),
+		BaseRef:       "main",
+		HeadSHA:       "deadbeef",
+		FifoSeq:       1,
+		LastErrorCode: string(StateFailedGates),
+		LastErrorMessage: "scoped gates failed",
+	}
+	if err := store.Save(entry); err != nil {
+		t.Fatalf("Save(entry) error = %v", err)
+	}
+
+	coord := &Coordinator{store: store}
+
+	if err := coord.RecoverFromCrash(ctx); err != nil {
+		t.Fatalf("RecoverFromCrash() error = %v", err)
+	}
+
+	payload, err := store.load()
+	if err != nil {
+		t.Fatalf("load() error = %v", err)
+	}
+
+	processed := findEntry(payload.Entries, "feature/failed-gates")
+	if processed == nil {
+		t.Fatal("missing processed entry")
+	}
+	if processed.State != StateFailedGates {
+		t.Fatalf("State = %q, want %q", processed.State, StateFailedGates)
+	}
+	if processed.LastErrorCode != string(StateFailedGates) {
+		t.Fatalf("LastErrorCode = %q, want %q", processed.LastErrorCode, string(StateFailedGates))
+	}
+}
+
 func TestCoordinatorHandlesMergeConflict(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
