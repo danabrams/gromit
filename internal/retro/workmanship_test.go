@@ -1,6 +1,9 @@
 package retro
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
 func TestCompareFrictionResolutions(t *testing.T) {
 	t.Run("classifies resolutions across reports", func(t *testing.T) {
@@ -60,4 +63,31 @@ func TestCompareFrictionResolutions(t *testing.T) {
 			t.Fatalf("unexpected counts for new area: %+v", resolution)
 		}
 	})
+}
+
+func TestWorkmanshipHistoryRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "history.json")
+	initial := &WorkmanshipHistory{
+		Report: WorkmanshipReport{
+			FrictionClusters: []FrictionCluster{{Area: "pkg/foo", LearningCount: 3}},
+		},
+	}
+
+	if err := SaveWorkmanshipHistory(path, initial); err != nil {
+		t.Fatalf("SaveWorkmanshipHistory: %v", err)
+	}
+
+	loaded, err := LoadWorkmanshipHistory(path)
+	if err != nil {
+		t.Fatalf("LoadWorkmanshipHistory: %v", err)
+	}
+
+	cluster := loaded.FindPreviousFriction("pkg/foo")
+	if cluster == nil {
+		t.Fatalf("expected to find stored friction cluster")
+	}
+	if cluster.LearningCount != 3 {
+		t.Fatalf("expected learning count 3, got %d", cluster.LearningCount)
+	}
 }
