@@ -171,6 +171,12 @@ func TestIsBlockedState_LaneViolationIsBlocked(t *testing.T) {
 	}
 }
 
+func TestIsBlockedState_PushFailureIsBlocked(t *testing.T) {
+	if !IsBlockedState("push_failure") {
+		t.Errorf("expected push_failure to be blocked state, got false")
+	}
+}
+
 func TestIsBlockedState_ReadyIsNotBlocked(t *testing.T) {
 	if IsBlockedState("ready") {
 		t.Errorf("expected ready to not be blocked state, got true")
