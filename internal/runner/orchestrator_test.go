@@ -19,6 +19,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/coverage"
 	"github.com/danabrams/gromit/internal/events"
+	"github.com/danabrams/gromit/internal/integrationqueue"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 	epiloguepkg "github.com/danabrams/gromit/internal/pipeline/epilogue"
@@ -3130,6 +3131,93 @@ func TestConstructorWiresCoordinatorAndQueueStore(t *testing.T) {
 	if orch.cfg.Coordinator == nil {
 		t.Fatal("Orchestrator missing Coordinator dependency; constructor should wire integration coordinator")
 	}
+}
+
+// TestOrchestrator_CoordinatorDrainsReadyEntry ensures a ready integration queue entry
+// is moved to a terminal non-ready state after the orchestration loop invokes the coordinator.
+func TestOrchestrator_CoordinatorDrainsReadyEntry(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	store, err := integrationqueue.NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	entry := testQueueEntry("feature/drain-ready", integrationqueue.StateReady)
+	if err := store.Save(entry); err != nil {
+		t.Fatalf("Save(entry) error = %v", err)
+	}
+
+	coord, err := NewIntegrationCoordinator(tmpDir)
+	if err != nil {
+		t.Fatalf("NewIntegrationCoordinator() error = %v", err)
+	}
+
+	getBeadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		getBeadCalls++
+		if getBeadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "drain-bead", Title: "Drain Ready Bead"}, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:        &fakeStage{},
+		Build:       &fakeStage{},
+		Validate:    &fakeStage{},
+		Epilogue:    &fakeStage{},
+		GetBead:     getBead,
+		Config:      &config.Config{},
+		Output:      io.Discard,
+		Coordinator: coord,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 1, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	result, err := store.Snapshot()
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	processed := findQueueEntry(result, entry.Branch)
+	if processed == nil {
+		t.Fatalf("entry %s missing after run", entry.Branch)
+	}
+	if processed.State != integrationqueue.StateConflict {
+		t.Fatalf("entry state = %s, want %s", processed.State, integrationqueue.StateConflict)
+	}
+}
+
+func testQueueEntry(branch string, state integrationqueue.State) integrationqueue.Entry {
+	return integrationqueue.Entry{
+		Branch:               branch,
+		SessionID:            branch,
+		OriginCommand:        "bd run",
+		State:                state,
+		Lane:                 string(integrationqueue.CodeLane),
+		BaseRef:              "main",
+		HeadSHA:              "deadbeef",
+		ChangedFiles:         []string{"file.go"},
+		ChangedFilesHash:     "hash",
+		LastTransitionReason: "test",
+	}
+}
+
+func findQueueEntry(snapshot *integrationqueue.Snapshot, branch string) *integrationqueue.Entry {
+	if snapshot == nil {
+		return nil
+	}
+	for i := range snapshot.Entries {
+		entry := &snapshot.Entries[i]
+		if entry.Branch == branch {
+			return entry
+		}
+	}
+	return nil
 }
 
 // TestOrchestratorSkipsCoordinatorOnFailedIterations verifies that the coordinator
