@@ -457,6 +457,46 @@ func TestRunWithSessionWorktreeRecordsBlockedQueueEntryOnCommitFailure(t *testin
 	}
 }
 
+// TestEnqueueBranchBaseRefFallback ensures ready and blocked queue entries populate base_ref
+// even when the provided metadata only contains the head SHA.
+func TestEnqueueBranchBaseRefFallback(t *testing.T) {
+	gromitDir := t.TempDir()
+	session := &worktree.SessionWorktree{
+		BranchName:  "gromit/base-ref-test",
+		WorktreeDir: filepath.Join(gromitDir, "session-base-ref-test"),
+	}
+
+	var recorded []integrationqueue.Entry
+	cleanupStore := overrideQueueStore(func(entry integrationqueue.Entry) error {
+		recorded = append(recorded, entry)
+		return nil
+	})
+	t.Cleanup(cleanupStore)
+
+	readyMeta := &sessionCommitMetadata{headSHA: "ready-head"}
+	if err := enqueueReadyBranch(gromitDir, "ready", session, readyMeta); err != nil {
+		t.Fatalf("enqueueReadyBranch() error = %v", err)
+	}
+	if len(recorded) != 1 {
+		t.Fatalf("ready entry count = %d, want 1", len(recorded))
+	}
+	if recorded[0].BaseRef != readyMeta.headSHA {
+		t.Fatalf("ready entry base ref = %q, want %q", recorded[0].BaseRef, readyMeta.headSHA)
+	}
+
+	recorded = nil
+	blockedMeta := &sessionCommitMetadata{headSHA: "blocked-head"}
+	if err := enqueueBlockedBranch(gromitDir, "blocked", session, blockedMeta, errors.New("failed")); err != nil {
+		t.Fatalf("enqueueBlockedBranch() error = %v", err)
+	}
+	if len(recorded) != 1 {
+		t.Fatalf("blocked entry count = %d, want 1", len(recorded))
+	}
+	if recorded[0].BaseRef != blockedMeta.headSHA {
+		t.Fatalf("blocked entry base ref = %q, want %q", recorded[0].BaseRef, blockedMeta.headSHA)
+	}
+}
+
 func TestRunWithSessionWorktreeRecordsPendingBranch(t *testing.T) {
 	// Not parallel: withInteractiveWorktreeFactories mutates package-level globals.
 	_, gromitDir, session := setupRunWithSessionWorktreeTest(t, "plan")
