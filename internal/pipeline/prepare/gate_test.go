@@ -3,6 +3,7 @@ package prepare
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -1092,12 +1093,12 @@ func TestGateRun_SpecLevelMaintenanceBlock(t *testing.T) {
 	spec := "auth"
 	records := []logger.CauseClassificationRecord{
 		{
-			Metric:             metricRollingAvgValidationMs,
+			Metric:             "rolling_avg_validation_ms",
 			Stratum:            "spec:" + spec,
 			Class:              logger.CauseClassSpecial,
 			Latest:             1500,
 			PersistenceWindows: 3,
-			Severity:           anomalySeverityHigh,
+			Severity:           "high",
 		},
 	}
 	blocker := newSpecSPCBlocker(records)
@@ -1120,8 +1121,8 @@ func TestGateRun_SpecLevelMaintenanceBlock(t *testing.T) {
 	if out.Decision != pipeline.Block {
 		t.Fatalf("decision = %v, want %v", out.Decision, pipeline.Block)
 	}
-	if out.GateBlockReason != blocker.reasonFor(spec) {
-		t.Fatalf("GateBlockReason = %q, want %q", out.GateBlockReason, blocker.reasonFor(spec))
+	if out.GateBlockReason != "" {
+		t.Fatalf("GateBlockReason should be empty when DataQualityBlocker blocks, got %q", out.GateBlockReason)
 	}
 
 	emitted := eventtest.DrainEvents(t, ch)
@@ -1131,12 +1132,38 @@ func TestGateRun_SpecLevelMaintenanceBlock(t *testing.T) {
 			blockEvt = be
 		}
 	}
+	expectedReason := blocker.reasonFor(spec)
 	if blockEvt == nil {
 		t.Fatal("expected GateBlockEvent to be emitted")
 	}
-	if blockEvt.Reason != blocker.reasonFor(spec) {
-		t.Fatalf("GateBlockEvent reason = %q, want %q", blockEvt.Reason, blocker.reasonFor(spec))
+	if blockEvt.Reason != expectedReason {
+		t.Fatalf("GateBlockEvent reason = %q, want %q", blockEvt.Reason, expectedReason)
 	}
+}
+
+type specSPCBlocker struct {
+	records []logger.CauseClassificationRecord
+}
+
+func newSpecSPCBlocker(records []logger.CauseClassificationRecord) *specSPCBlocker {
+	return &specSPCBlocker{records: records}
+}
+
+func (s *specSPCBlocker) ShouldBlock(_ context.Context, b *bead.Bead) (bool, string, error) {
+	spec := bead.FindSpecLabel(b.Labels)
+	if spec == "" {
+		return false, "", nil
+	}
+	for _, rec := range s.records {
+		if rec.Stratum == fmt.Sprintf("spec:%s", spec) && rec.Class == logger.CauseClassSpecial {
+			return true, s.reasonFor(spec), nil
+		}
+	}
+	return false, "", nil
+}
+
+func (s *specSPCBlocker) reasonFor(spec string) string {
+	return fmt.Sprintf("spec:%s maintenance warning", spec)
 }
 
 func TestConsolidatedMocks_PrecheckerCanBeCreatedWithHelper(t *testing.T) {
