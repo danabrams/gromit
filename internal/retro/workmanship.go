@@ -36,6 +36,9 @@ func (h *WorkmanshipHistory) FindPreviousFriction(area string) *FrictionCluster 
 func LoadWorkmanshipHistory(path string) (*WorkmanshipHistory, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return &WorkmanshipHistory{}, nil
+		}
 		return nil, fmt.Errorf("read workmanship history: %w", err)
 	}
 	var history WorkmanshipHistory
