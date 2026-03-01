@@ -1759,3 +1759,26 @@ func TestBuildProcessTrend_PopulatesCauseClassifications(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildProcessTrend_ValidationDurationSpikeProducesSpecialCause(t *testing.T) {
+	metrics := make([]IterationMetric, 30)
+	for i := range metrics[:len(metrics)-1] {
+		metrics[i] = IterationMetric{RollingAvgValidationMs: 0}
+	}
+	metrics[len(metrics)-1] = IterationMetric{RollingAvgValidationMs: 1200}
+
+	trend := buildProcessTrend(metrics, len(metrics))
+	rec := findCauseClassification(trend.CauseClassifications, metricRollingAvgValidationMs, "")
+	if rec == nil {
+		t.Fatalf("expected cause classification for %s", metricRollingAvgValidationMs)
+	}
+	if rec.Class != CauseClassSpecial {
+		t.Fatalf("classification class = %s, want %s", rec.Class, CauseClassSpecial)
+	}
+	if rec.Severity != anomalySeverityHigh {
+		t.Fatalf("classification severity = %q, want %q", rec.Severity, anomalySeverityHigh)
+	}
+	if rec.PersistenceWindows < 1 {
+		t.Fatalf("persistence windows = %d, want >= 1", rec.PersistenceWindows)
+	}
+}
