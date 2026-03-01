@@ -364,6 +364,48 @@ func TestGateRun_ReadinessEmergencyOverrideAllowsBypass(t *testing.T) {
 	}
 }
 
+func TestGateRun_ReadinessEmergencyOverrideLogsSignal(t *testing.T) {
+	t.Parallel()
+
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	gate := New(io.Discard).
+		WithEmitter(emitter).
+		WithReadinessAssessor(newMockReadinessAssessor().WithAssessment(readiness.StatusNotReady, "criteria_missing", nil))
+
+	cfg := &config.Config{ReadinessEmergencyOverride: true}
+	bead := &bead.Bead{ID: "readiness-override-log", Title: "override log bead"}
+
+	out, err := gate.Run(context.Background(), pipeline.Input{
+		Bead:   bead,
+		Config: cfg,
+	})
+	if err != nil {
+		t.Fatalf("Gate.Run() error = %v", err)
+	}
+	if out.Decision != pipeline.Proceed {
+		t.Fatalf("decision = %v, want %v", out.Decision, pipeline.Proceed)
+	}
+
+	emitted := eventtest.DrainEvents(t, ch)
+	var logEvt *events.LogEvent
+	for _, evt := range emitted {
+		if le, ok := evt.(*events.LogEvent); ok && strings.Contains(le.Message, "Readiness emergency override") {
+			logEvt = le
+			break
+		}
+	}
+	if logEvt == nil {
+		t.Fatal("expected readiness override log event")
+	}
+	if !strings.Contains(logEvt.Message, "criteria_missing") {
+		t.Fatalf("log message = %q, want reason %q", logEvt.Message, "criteria_missing")
+	}
+}
+
 // RED: test that readiness blocking happens before stuck detection.
 func TestGateRun_ReadinessPrecedesStuckDetection(t *testing.T) {
 	t.Parallel()
