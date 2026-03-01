@@ -579,6 +579,57 @@ func TestFormatSPCSummary(t *testing.T) {
 	}
 }
 
+func TestFormatSPCSummary_IncludesCauseClassificationGuidance(t *testing.T) {
+	t.Parallel()
+	trend := &logger.ProcessTrend{
+		TotalIterations: 5,
+		WindowSize:      5,
+		ControlLimits: []logger.TrendControlLimit{
+			{Metric: spcMetricRollingSuccessRate, Latest: 0.8, LCL: 0.6, UCL: 1.0},
+		},
+		CauseClassifications: []logger.CauseClassificationRecord{
+			{Metric: spcMetricRollingSuccessRate, Class: logger.CauseClassSpecial},
+			{Metric: spcMetricRollingAvgCostUSD, Stratum: "provider:openai", Class: logger.CauseClassCommon},
+			{Metric: spcMetricRollingAvgDurationMs, Class: logger.CauseClassStable},
+		},
+	}
+
+	got := FormatSPCSummary(trend)
+	for _, substr := range []string{
+		"Cause classification:",
+		"success (special_cause, global)",
+		"Investigate the incident",
+		"cost (common_cause, provider:openai)",
+		"Anti-tampering",
+		"duration (stable, global)",
+		"Stable signal",
+	} {
+		if !strings.Contains(got, substr) {
+			t.Fatalf("FormatSPCSummary() = %q, want substring %q", got, substr)
+		}
+	}
+}
+
+func TestFormatSPCSummary_IncludesHighMaintenanceCostSection(t *testing.T) {
+	t.Parallel()
+
+	trend := &logger.ProcessTrend{
+		TotalIterations: 5,
+		WindowSize:      5,
+		FlaggedPackages: []logger.FlaggedPackage{
+			{Package: "internal/auth", Metric: spcMetricRollingAvgDurationMs, Severity: "high", PersistenceWindows: 3},
+		},
+	}
+
+	got := FormatSPCSummary(trend)
+	if !strings.Contains(got, "High Maintenance Cost") {
+		t.Fatalf("missing High Maintenance Cost section: %q", got)
+	}
+	if !strings.Contains(got, "internal/auth") {
+		t.Fatalf("missing flagged package entry: %q", got)
+	}
+}
+
 func TestFormatSPCSummary_IncludesEWMAValues(t *testing.T) {
 	t.Parallel()
 	trend := &logger.ProcessTrend{
