@@ -142,3 +142,10 @@ func TestExtractAreaHandlesWindowsPaths(t *testing.T) {
 		t.Fatalf("expected internal/retro, got %q", got)
 	}
 }
+
+func TestExtractAreaPrefersFirstMentionWhenCountsTie(t *testing.T) {
+	content := "First mention internal/service/api.go, second mention github.com/danabrams/gromit/internal/retro/retro.go"
+	if got := extractArea(content); got != "internal/service" {
+		t.Fatalf("expected internal/service, got %q", got)
+	}
+}
