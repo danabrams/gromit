@@ -499,6 +499,10 @@ func (p *Pipeline) ListBeads(ctx context.Context, input ListBeadsInput) (*ListBe
 		return nil, err
 	}
 
+	if input.Status != "" && input.Status != "ready" {
+		return nil, fmt.Errorf("pipeline: unsupported bead status %q", input.Status)
+	}
+
 	result := NewListBeadsResult()
 
 	// ListReadyIDs is the only list method available on BeadQueryClient.
