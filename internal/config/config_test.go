@@ -3424,7 +3424,7 @@ func TestMethodologyMaxTDDCyclesParsesFromYAML(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "gromit.yaml")
 	yaml := `methodology:
-	  max_tdd_cycles: 7
+  max_tdd_cycles: 7
 `
 	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
 		t.Fatalf("writing config: %v", err)

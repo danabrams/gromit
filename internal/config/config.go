@@ -108,6 +108,12 @@ func warnCompatibilityDeprecation(ctx CompatibilityContext) {
 	)
 }
 
+// TDDMaxCycles returns the fixed limit used by the TDD loop regardless of
+// configuration to keep the deprecated max_tdd_cycles field inert.
+func (c *Config) TDDMaxCycles() int {
+	return DefaultMaxTDDCycles
+}
+
 // Validate ensures config values are within supported ranges.
 func (c *Config) Validate() error {
 	if c.Validation.PlanMaxSubBeads != nil && *c.Validation.PlanMaxSubBeads < 0 {
