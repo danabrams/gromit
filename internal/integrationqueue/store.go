@@ -172,7 +172,8 @@ func (s *Store) write(snapshot *Snapshot) error {
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("renaming queue file temp: %w", err)
 	}
-	return nil
+
+	return verifyWritten(s.path)
 }
 
 // LoadQueue reads the queue file at path using validation and returns the parsed queue.
@@ -252,6 +253,20 @@ func SaveQueue(path string, queue *Queue) error {
 	if err := os.Rename(tmpPath, path); err != nil {
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("renaming queue file temp: %w", err)
+	}
+
+	return verifyWritten(path)
+}
+
+// verifyWritten reads back the file at path and verifies it contains valid JSON.
+func verifyWritten(path string) error {
+	readBack, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("write verification read-back failed: %w", err)
+	}
+	var check json.RawMessage
+	if err := json.Unmarshal(readBack, &check); err != nil {
+		return fmt.Errorf("write verification failed: written file is not valid JSON: %w", err)
 	}
 	return nil
 }

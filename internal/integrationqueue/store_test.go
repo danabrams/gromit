@@ -329,6 +329,73 @@ func TestStoreLoadToleratesPrefixGarbage(t *testing.T) {
 	}
 }
 
+func TestWriteRoundTripVerification(t *testing.T) {
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, queueFileName)
+
+	queue := &Queue{
+		Entries: []Entry{
+			{
+				Branch:        "gromit/verify",
+				SessionID:     "session",
+				OriginCommand: "refine",
+				State:         StateReady,
+				Lane:          string(CodeLane),
+				BaseRef:       "main",
+				HeadSHA:       "deadbeef",
+			},
+		},
+	}
+	if err := SaveQueue(path, queue); err != nil {
+		t.Fatalf("SaveQueue() error = %v", err)
+	}
+
+	// Verify the written file is valid JSON by loading it back
+	loaded, err := LoadQueue(path)
+	if err != nil {
+		t.Fatalf("LoadQueue() after SaveQueue error = %v", err)
+	}
+	if len(loaded.Entries) != 1 {
+		t.Fatalf("entries = %d, want 1", len(loaded.Entries))
+	}
+	if loaded.Entries[0].Branch != "gromit/verify" {
+		t.Fatalf("branch = %q, want %q", loaded.Entries[0].Branch, "gromit/verify")
+	}
+}
+
+func TestStoreWriteRoundTripVerification(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore: %v", err)
+	}
+
+	entry := Entry{
+		Branch:        "gromit/store-verify",
+		SessionID:     "session",
+		OriginCommand: "refine",
+		State:         StateReady,
+		Lane:          string(CodeLane),
+		BaseRef:       "main",
+		HeadSHA:       "deadbeef",
+	}
+	if err := store.Save(entry); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	// Verify round-trip through Snapshot
+	snap, err := store.Snapshot()
+	if err != nil {
+		t.Fatalf("Snapshot() after Save error = %v", err)
+	}
+	if len(snap.Entries) != 1 {
+		t.Fatalf("entries = %d, want 1", len(snap.Entries))
+	}
+	if snap.Entries[0].Branch != "gromit/store-verify" {
+		t.Fatalf("branch = %q, want %q", snap.Entries[0].Branch, "gromit/store-verify")
+	}
+}
+
 func TestStoreSaveRunsValidationHooks(t *testing.T) {
 	tmpDir := t.TempDir()
 	customErr := fmt.Errorf("validation failure")
