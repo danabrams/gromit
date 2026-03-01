@@ -179,6 +179,11 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 				gateBlockReason = string(readiness.StatusNotReady)
 			}
 			if overrideEnabled {
+				overrideReason := gateBlockReason
+				if normalized, _ := readiness.NormalizeReason(overrideReason); normalized != "" {
+					overrideReason = normalized
+				}
+				g.Log("warning", "Readiness emergency override: bead %s (%s) allowed through despite %s", in.Bead.ID, in.Bead.Title, overrideReason)
 				gateBlockReason = ""
 			}
 		}
