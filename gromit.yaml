@@ -63,8 +63,8 @@ routing:
     decompose: claude    # force decompose to Claude provider
     retro: openai        # force retro to Codex/OpenAI provider
   ratio:
-    claude: 50
-    openai: 50
+    claude: 10
+    openai: 90
   fallback:
     enabled: true
     cooldown: 30m

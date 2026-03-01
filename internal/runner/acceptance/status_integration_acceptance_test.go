@@ -308,3 +308,72 @@ func TestOrchestratorHelper_InvalidQueueSchemaInJSONOutput(t *testing.T) {
 		t.Errorf("Expected 'queue_schema_invalid' in JSON errors, got: %v", statusJSON.Errors)
 	}
 }
+
+// TestOrchestratorHelper_IntegrationQueueSectionBitIdenticalAcrossInvocations
+// ensures that the exact formatted output of the Integration Queue section
+// is identical across multiple status invocations (bit-for-bit comparison).
+func TestOrchestratorHelper_IntegrationQueueSectionBitIdenticalAcrossInvocations(t *testing.T) {
+	t.Parallel()
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("Failed to create gromit dir: %v", err)
+	}
+
+	cfg := &config.Config{
+		Paths: config.PathsConfig{
+			Specs: filepath.Join(gromitDir, "specs"),
+			Plans: filepath.Join(gromitDir, "plans"),
+		},
+	}
+
+	queueData := map[string]interface{}{
+		"schema_version": 1,
+		"updated_at":     "2026-02-28T12:00:00Z",
+		"entries": []map[string]interface{}{
+			{
+				"branch":                 "gromit/stable-feature",
+				"session_id":             "session-stable",
+				"origin_command":         "review",
+				"state":                  "ready",
+				"lane":                   "code_lane",
+				"created_at":             "2026-02-28T00:00:00Z",
+				"updated_at":             "2026-02-28T12:00:00Z",
+				"attempt_count":          1,
+				"retry_count":            0,
+				"fifo_seq":               1,
+				"base_ref":               "origin/main",
+				"head_sha":               "stable123",
+				"changed_files_hash":     "sha256:hash",
+				"last_error_code":        "",
+				"last_error_message":     "",
+				"last_transition_reason": "session_committed",
+			},
+		},
+	}
+	queueBytes, err := json.Marshal(queueData)
+	if err != nil {
+		t.Fatalf("Failed to marshal queue data: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gromitDir, "integration-queue.json"), queueBytes, 0644); err != nil {
+		t.Fatalf("Failed to write queue file: %v", err)
+	}
+
+	// Capture status outputs and extract Integration Queue sections
+	outputs := captureStatusOutputs(t, gromitDir, cfg, 4)
+	sections := make([]string, len(outputs))
+	for i, output := range outputs {
+		sections[i] = extractIntegrationQueueSection(output)
+	}
+
+	// Verify all sections are identical (bit-for-bit)
+	if len(sections) == 0 {
+		t.Fatalf("No outputs captured")
+	}
+	reference := sections[0]
+	for i := 1; i < len(sections); i++ {
+		if sections[i] != reference {
+			t.Errorf("Integration Queue section differs at invocation %d\nExpected:\n%s\nGot:\n%s", i+1, reference, sections[i])
+		}
+	}
+}
