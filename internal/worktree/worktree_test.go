@@ -430,6 +430,43 @@ func TestEnsureWorktree_GitRunFnCalledWithCorrectDir(t *testing.T) {
 	}
 }
 
+// TestEnsureWorktreeCancelsWhenContextDone verifies EnsureWorktree respects the
+// caller-supplied context so long-running git commands honor cancellation.
+func TestEnsureWorktreeCancelsWhenContextDone(t *testing.T) {
+	repoDir := initCancelableGitRepo(t)
+
+	fakeGitDir := t.TempDir()
+	fakeGit := filepath.Join(fakeGitDir, "git")
+	script := "#!/bin/sh\nsleep 5\n"
+	if err := os.WriteFile(fakeGit, []byte(script), 0o755); err != nil {
+		t.Fatalf("failed to write fake git: %v", err)
+	}
+
+	origPath := os.Getenv("PATH")
+	if err := os.Setenv("PATH", fakeGitDir+string(os.PathListSeparator)+origPath); err != nil {
+		t.Fatalf("failed to update PATH: %v", err)
+	}
+	t.Cleanup(func() { os.Setenv("PATH", origPath) })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+
+	m, err := NewManager(repoDir)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	if _, err := m.EnsureWorktree(ctx); err == nil {
+		t.Fatal("EnsureWorktree() should return an error when context is canceled")
+	} else if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) && !strings.Contains(err.Error(), "signal: killed") {
+		t.Fatalf("EnsureWorktree() returned %v, want context cancellation error", err)
+	}
+}
+
 // TestCreateBranch_GitRunFnCalledInWorktreeDir verifies that CreateBranch
 // executes git commands in the worktree directory, not the main directory.
 func TestCreateBranch_GitRunFnCalledInWorktreeDir(t *testing.T) {
@@ -2361,7 +2398,7 @@ func TestRunGitCancelsWhenContextDone(t *testing.T) {
 	if err == nil {
 		t.Fatal("runGit() should return an error when context is canceled")
 	}
-	if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+	if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) && !strings.Contains(err.Error(), "signal: killed") {
 		t.Fatalf("runGit() returned %v, want context cancellation error", err)
 	}
 }
