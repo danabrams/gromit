@@ -181,9 +181,9 @@ func TestFinalizeSpecBranch_PerformsRebaseMergeAndDeletion(t *testing.T) {
 		t.Fatalf("failed to create spec commit: %v", err)
 	}
 
-	commitOutput, err := exec.Command("git", "rev-parse", specBranchName).CombinedOutput()
+	commitOutput, err := exec.Command("git", "rev-parse", "HEAD").CombinedOutput()
 	if err != nil {
-		t.Fatalf("rev-parse spec branch failed: %v", err)
+		t.Fatalf("rev-parse HEAD failed: %v", err)
 	}
 	specCommit := strings.TrimSpace(string(commitOutput))
 

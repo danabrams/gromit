@@ -187,6 +187,25 @@ func (g *GitOps) DeleteSpecBranch(ctx context.Context, specBranchName string) er
 	return g.DeleteBranch(ctx, specBranchName)
 }
 
+// FinalizeSpecBranch rebases the spec branch onto main, merges it, and deletes it.
+func (g *GitOps) FinalizeSpecBranch(ctx context.Context, specBranchName string) error {
+	if specBranchName == "" {
+		return fmt.Errorf("spec branch name cannot be empty")
+	}
+
+	if err := g.RebaseSpecOntoMain(ctx, specBranchName); err != nil {
+		return err
+	}
+	if err := g.FastForwardMergeToMain(ctx, specBranchName); err != nil {
+		return err
+	}
+	if err := g.DeleteSpecBranch(ctx, specBranchName); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func isRebaseConflict(output string, err error) bool {
 	if err == nil {
 		return false
