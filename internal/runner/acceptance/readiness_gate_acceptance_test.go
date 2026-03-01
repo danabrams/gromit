@@ -85,6 +85,7 @@ type readinessGateAcceptanceResult struct {
 	BuildInvoked    bool
 	GateBlockReason string
 	Blocked         bool
+	Ready           bool
 }
 
 func runReadinessGateAcceptanceTest(t *testing.T, opts readinessGateAcceptanceOptions) readinessGateAcceptanceResult {
@@ -153,6 +154,7 @@ func runReadinessGateAcceptanceTest(t *testing.T, opts readinessGateAcceptanceOp
 		BuildInvoked:    buildCalled,
 		GateBlockReason: gateBlockReason,
 		Blocked:         !buildCalled,
+		Ready:           buildCalled,
 	}
 }
 
