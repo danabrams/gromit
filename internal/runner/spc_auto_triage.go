@@ -198,9 +198,6 @@ func buildIssueDescription(rec SPCCauseRecord, guidance string) string {
     if !rec.DetectedAt.IsZero() {
         lines = append(lines, fmt.Sprintf("First detected: %s", rec.DetectedAt.Format(time.RFC3339)))
     }
-    if guidance != "" {
-        lines = append(lines, "Guidance:", guidance)
-    }
     return strings.Join(lines, "\n")
 }
 
