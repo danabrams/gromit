@@ -51,11 +51,11 @@ func TestRefactorValidation_ProcessTrendPublicSurface(t *testing.T) {
 		"ProcessTrendWindow",
 		"TrendControlLimit",
 		"TrendAnomaly",
-	"PatternViolation",
-	"ProviderMetrics",
-	"ProcessTrend",
-	"FlaggedPackage",
-}
+		"PatternViolation",
+		"ProviderMetrics",
+		"ProcessTrend",
+		"FlaggedPackage",
+	}
 
 	requiredFunctions := []string{
 		"BuildContinuousMetrics",
