@@ -276,6 +276,31 @@ When working with process management tasks (KillDescendantsOnCancel, ReapProcess
 ### 2026-03-01 | gromit-90i5 | conventions
 In Gromit's runner orchestration, state transitions are constrained by a transition table - check valid transitions before recovering/changing queue state; integrating→draft is invalid; consult internal/runner/orchestrator.go or runner.go for transition rules
 
+### 2026-03-01 | WorktreeManager Interface Context Parity Broken by Upstream Change | reliability
+*Related to: review-1772392326235980273*
+
+worktree.Manager was updated to accept context.Context on Cleanup, PendingBranches, MergeBack, and RemoveByPath, but the runner WorktreeManager interface and its adapter call sites were not updated — this is a cross-package contract parity failure that broke the build with 4 compile errors.
+
+### 2026-03-01 | New Files Committed With Space Indentation Bypassing gofmt | conventions
+*Related to: review-1772392326235980273*
+
+Two new files (spc_auto_triage.go, specmerge/pr_summary.go) were committed with space indentation instead of tabs, failing gofmt. CI should catch this if gofmt is enforced in the lint step; if not, add gofmt as a CI gate.
+
+### 2026-03-01 | SPC Auto-Triage Batch Processing Aborts on First Tracker Failure | reliability
+*Related to: review-1772392326235980273*
+
+SPCAutoTriager.Process returns immediately on the first tracker.Client.Create failure, abandoning all remaining SPCCauseRecords in the batch. A transient failure on one record drops the rest. Batch processing should accumulate errors or skip failed records.
+
+### 2026-03-01 | captureCycleRecord Silently Discards Emitter Error | gotchas
+*Related to: review-1772392326235980273*
+
+captureCycleRecord in specmerge/pipeline.go:306 silently discards the CaptureCycleRecord error with `_ =` assignment — this is a metrics emission that should at minimum be logged on failure for operational visibility.
+
+### 2026-03-01 | fmt.Errorf With %s String Arg Should Use errors.New | conventions
+*Related to: review-1772392326235980273*
+
+The specmerge pipeline uses fmt.Errorf("%s", alert) at pipeline.go:124 where errors.New(alert) would be more idiomatic and avoids govet printf warnings about non-formatting use of fmt.Errorf.
+
 ---
 
 ## Archived
