@@ -440,6 +440,54 @@ func TestCoordinatorRecoverFromCrash_MergeConflict(t *testing.T) {
 	}
 }
 
+func TestCoordinatorRecoverFromCrash_PushFailure(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	entry := Entry{
+		Branch:           "feature/push-failure",
+		SessionID:        "feature/push-failure",
+		OriginCommand:    "test",
+		State:            StateIntegrating,
+		Lane:             string(CodeLane),
+		BaseRef:          "main",
+		HeadSHA:          "deadbeef",
+		FifoSeq:          1,
+		LastErrorCode:    "push_failed",
+		LastErrorMessage: "push failure: remote rejected",
+	}
+	if err := store.Save(entry); err != nil {
+		t.Fatalf("Save(entry) error = %v", err)
+	}
+
+	coord := &Coordinator{store: store}
+
+	if err := coord.RecoverFromCrash(ctx); err != nil {
+		t.Fatalf("RecoverFromCrash() error = %v", err)
+	}
+
+	payload, err := store.load()
+	if err != nil {
+		t.Fatalf("load() error = %v", err)
+	}
+
+	processed := findEntry(payload.Entries, "feature/push-failure")
+	if processed == nil {
+		t.Fatal("missing processed entry")
+	}
+	if processed.State != StatePushFailure {
+		t.Fatalf("State = %q, want %q", processed.State, StatePushFailure)
+	}
+	if processed.LastErrorCode != "push_failed" {
+		t.Fatalf("LastErrorCode = %q, want push_failed", processed.LastErrorCode)
+	}
+}
+
 
 func TestCoordinatorHandlesMergeConflict(t *testing.T) {
 	ctx := context.Background()
