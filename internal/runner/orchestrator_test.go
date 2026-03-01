@@ -3220,6 +3220,60 @@ func findQueueEntry(snapshot *integrationqueue.Snapshot, branch string) *integra
 	return nil
 }
 
+func TestOrchestrator_CoordinatorRecoversFromCrash(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	store, err := integrationqueue.NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	entry := testQueueEntry("feature/crash", integrationqueue.StateIntegrating)
+	if err := store.Save(entry); err != nil {
+		t.Fatalf("Save(entry) error = %v", err)
+	}
+
+	coord, err := NewIntegrationCoordinator(tmpDir)
+	if err != nil {
+		t.Fatalf("NewIntegrationCoordinator() error = %v", err)
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:        &fakeStage{},
+		Build:       &fakeStage{},
+		Validate:    &fakeStage{},
+		Epilogue:    &fakeStage{},
+		GetBead:     func(context.Context) (*bead.Bead, error) { return nil, nil },
+		Config:      &config.Config{},
+		Output:      io.Discard,
+		Coordinator: coord,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 1, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	result, err := store.Snapshot()
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	recovered := findQueueEntry(result, entry.Branch)
+	if recovered == nil {
+		t.Fatalf("entry %s missing after run", entry.Branch)
+	}
+	if recovered.State != integrationqueue.StateReady {
+		t.Fatalf("entry state = %s, want %s", recovered.State, integrationqueue.StateReady)
+	}
+	if recovered.LastErrorCode != "crash_recovery" {
+		t.Fatalf("LastErrorCode = %q, want %q", recovered.LastErrorCode, "crash_recovery")
+	}
+	if !strings.Contains(recovered.LastErrorMessage, "recovered from crash") {
+		t.Fatalf("LastErrorMessage = %q, want crash recovery message", recovered.LastErrorMessage)
+	}
+}
+
 // TestOrchestratorSkipsCoordinatorOnFailedIterations verifies that the coordinator
 // is only invoked after successful iterations, not after gate/build/validate failures.
 func TestOrchestratorSkipsCoordinatorOnFailedIterations(t *testing.T) {
