@@ -122,6 +122,29 @@ func TestLoadNormalizesNilFields(t *testing.T) {
 	}
 }
 
+func TestSPCCooldownRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewFile(dir)
+	identity := "signal-123"
+	createdAt := time.Now().UTC().Truncate(time.Millisecond)
+	if err := f.Save(); err != nil {
+		t.Fatalf("initial save: %v", err)
+	}
+	f.SetSPCCooldown(identity, createdAt)
+	if err := f.Save(); err != nil {
+		t.Fatalf("saving state with cooldown: %v", err)
+	}
+
+	f2, _ := NewFile(dir)
+	if err := f2.Load(); err != nil {
+		t.Fatalf("loading state: %v", err)
+	}
+	got := f2.GetSPCCooldown(identity)
+	if !got.Equal(createdAt) {
+		t.Fatalf("expected %v, got %v", createdAt, got)
+	}
+}
+
 func TestIncrementIterationsSinceReview(t *testing.T) {
 	tmpDir := t.TempDir()
 	sf, _ := NewFile(tmpDir)
