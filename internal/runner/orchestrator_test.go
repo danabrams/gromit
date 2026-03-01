@@ -165,13 +165,13 @@ func TestOrchestrator_RunInvokesAutoTriageServiceAfterRun(t *testing.T) {
 
 	service := &fakeAutoTriageService{}
 	cfg := OrchestratorConfig{
-		Gate:      &fakeStage{},
-		Build:     &fakeStage{},
-		Validate:  &fakeStage{},
-		Epilogue:  &fakeStage{},
-		GetBead:   func(_ context.Context) (*bead.Bead, error) { return nil, nil },
-		Config:    &config.Config{},
-		Output:    io.Discard,
+		Gate:              &fakeStage{},
+		Build:             &fakeStage{},
+		Validate:          &fakeStage{},
+		Epilogue:          &fakeStage{},
+		GetBead:           func(_ context.Context) (*bead.Bead, error) { return nil, nil },
+		Config:            &config.Config{},
+		Output:            io.Discard,
 		AutoTriageService: service,
 	}
 

@@ -206,7 +206,6 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 			epilogueStage.WithPendingBranchRemover(interactiveFile)
 		}
 	}
-
 	epilogueStage.WithCommandRunner(&epilogueCommandRunnerAdapter{runner: defaultCmdRunner})
 	epilogueStage.WithFailureLearner(&failureLearnerAdapter{
 		renderer: renderer,
@@ -279,6 +278,7 @@ func newRunnerImpl(cfg *config.Config, output io.Writer, labels []string) (*Orch
 		LogsDir:             cfg.Paths.Logs,
 		Output:              syncOut,
 		TrendUpdater:        trendUpdater,
+		AutoTriageService:   newSPCAutoTriageService(),
 		ExperimentMgr:       experimentMgr,
 		StatusWriter: func(iteration int, beadID, beadTitle string, dl time.Time) {
 			if statusWriter != nil {

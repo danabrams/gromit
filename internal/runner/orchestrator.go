@@ -81,7 +81,8 @@ type OrchestratorConfig struct {
 	// TrendUpdater refreshes SPC process trend metrics from iteration logs.
 	// Optional: nil means skip refresh lifecycle management.
 	TrendUpdater trendUpdaterCloser
-
+	// AutoTriageService runs SPC auto-triage after a run completes.
+	AutoTriageService SPCAutoTriageService
 	// CoverageTracker tracks acceptance criteria coverage across the TDD cycle.
 	// Optional: nil means skip tracker state transitions.
 	CoverageTracker *coverage.CoverageTracker
@@ -682,6 +683,8 @@ runLoop:
 	// Check for control limit alerts (first-pass success regression below 70%)
 	o.checkControlLimitAlerts()
 
+	o.runAutoTriage(ctx)
+
 	// Persist provider routing state so availability counts survive across runs.
 	if o.cfg.StateSaver != nil {
 		if setter, ok := o.cfg.StateSaver.(interface{ SetCleanExit(bool) }); ok {
@@ -780,6 +783,13 @@ func (o *Orchestrator) checkControlLimitAlerts() {
 			setter.SetControlLimitAlertTriggered(true)
 		}
 	}
+}
+
+func (o *Orchestrator) runAutoTriage(ctx context.Context) {
+	if o.cfg.AutoTriageService == nil {
+		return
+	}
+	_ = o.cfg.AutoTriageService.EvaluateAndTriage(ctx)
 }
 
 // RunSequence executes the pipeline for an explicit, caller-provided bead ID sequence.
