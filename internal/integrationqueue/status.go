@@ -24,6 +24,7 @@ var blockedStates = map[State]struct{}{
 	StateConflict:      {},
 	StateFailedGates:   {},
 	StateLaneViolation: {},
+	StatePushFailure:   {},
 }
 
 // ProjectStatus computes summary counts and ordered entries from a snapshot.

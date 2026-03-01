@@ -70,6 +70,7 @@ func SortedForDisplay(queue *Queue) []*Entry {
 		StateConflict:      {},
 		StateFailedGates:   {},
 		StateLaneViolation: {},
+		StatePushFailure:   {},
 	}
 
 	for i := range queue.Entries {
