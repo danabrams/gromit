@@ -70,3 +70,12 @@ func TestItemWriterInterface(t *testing.T) {
 func TestItemQueryInterface(t *testing.T) {
 	var _ ItemQuery = stubClient{}
 }
+
+func TestItemReaderIncludesReadyWithLabel(t *testing.T) {
+	type readerWithLabel interface {
+		ItemReader
+		ReadyWithLabel(ctx context.Context, label string) (*Item, error)
+	}
+
+	var _ readerWithLabel = stubClient{}
+}
