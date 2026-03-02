@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -370,6 +371,39 @@ func TestRunLight_NonCrossPreferencesInvokeSelectNotSelectCross(t *testing.T) {
 	}
 	if router.SelectCrossCalled {
 		t.Error("RunLight should not invoke SelectCross for non-cross preference, even when buildProvider is non-empty")
+	}
+}
+
+func TestRunLightLogsRouterSelectFailure(t *testing.T) {
+	t.Parallel()
+
+	cfg := newTestConfig()
+	router := &mockRouter{
+		selectFn: func(phase, tier string) (provider.Provider, string) {
+			return nil, ""
+		},
+	}
+	renderer := &mockPromptRenderer{}
+	gitDiffFn := func(startCommit string) (string, error) {
+		return "diff --git a/foo.go b/foo.go\n+line", nil
+	}
+
+	reviewer := NewReviewer(cfg, router, &mockBeadClient{}, renderer, gitDiffFn, &mockIterationLogger{})
+	var logs []string
+	reviewer.SetLogFn(func(format string, args ...interface{}) {
+		logs = append(logs, fmt.Sprintf(format, args...))
+	})
+
+	b := &bead.Bead{ID: "router-log-bead", Priority: 1}
+	_, err := reviewer.RunLight(context.Background(), b, nil, "abc123", "", 1, time.Time{}, "")
+	if err == nil {
+		t.Fatal("expected error when router select returns nil")
+	}
+	if len(logs) == 0 {
+		t.Fatal("expected log message when router select fails")
+	}
+	if !strings.Contains(logs[0], "Router.Select failed for phase="+reviewPhase) {
+		t.Fatalf("unexpected log: %q", logs[0])
 	}
 }
 
