@@ -17,6 +17,8 @@ type Client interface {
 type ItemReader interface {
 	// Ready returns the next available item for work, or nil when none exist.
 	Ready(ctx context.Context) (*Item, error)
+	// ReadyWithLabel returns the next available item that matches the provided label.
+	ReadyWithLabel(ctx context.Context, label string) (*Item, error)
 	// List returns tracker items matching the provided query.
 	List(ctx context.Context, query Query) ([]Item, error)
 	// Show returns full details for the requested item.

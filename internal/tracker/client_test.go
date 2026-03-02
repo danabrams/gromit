@@ -11,6 +11,10 @@ func (stubClient) Ready(ctx context.Context) (*Item, error) {
 	return nil, nil
 }
 
+func (stubClient) ReadyWithLabel(ctx context.Context, label string) (*Item, error) {
+	return nil, nil
+}
+
 func (stubClient) List(ctx context.Context, query Query) ([]Item, error) {
 	return nil, nil
 }

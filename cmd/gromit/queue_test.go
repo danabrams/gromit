@@ -282,6 +282,10 @@ func (m *mockTrackerForReadyBeads) Ready(context.Context) (*tracker.Item, error)
 	return nil, nil
 }
 
+func (m *mockTrackerForReadyBeads) ReadyWithLabel(ctx context.Context, label string) (*tracker.Item, error) {
+	return nil, nil
+}
+
 func (m *mockTrackerForReadyBeads) List(ctx context.Context, q tracker.Query) ([]tracker.Item, error) {
 	if m.onList != nil {
 		return m.onList(ctx, q)
@@ -484,6 +488,10 @@ func (m *trackerMutationTracker) AddComment(ctx context.Context, id, comment str
 
 func (m *trackerMutationTracker) Ready(ctx context.Context) (*tracker.Item, error) {
 	return m.wrapped.Ready(ctx)
+}
+
+func (m *trackerMutationTracker) ReadyWithLabel(ctx context.Context, label string) (*tracker.Item, error) {
+	return m.wrapped.ReadyWithLabel(ctx, label)
 }
 
 func (m *trackerMutationTracker) List(ctx context.Context, q tracker.Query) ([]tracker.Item, error) {

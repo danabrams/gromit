@@ -276,6 +276,10 @@ func (d *dummyPromptRenderer) RenderReadiness(ctx *prompt.ReadinessContext) (str
 type mockTrackerClient struct{}
 
 func (m *mockTrackerClient) Ready(ctx context.Context) (*tracker.Item, error) { return nil, nil }
+
+func (m *mockTrackerClient) ReadyWithLabel(ctx context.Context, label string) (*tracker.Item, error) {
+	return nil, nil
+}
 func (m *mockTrackerClient) List(ctx context.Context, q tracker.Query) ([]tracker.Item, error) {
 	return nil, nil
 }

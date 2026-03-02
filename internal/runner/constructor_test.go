@@ -111,6 +111,10 @@ type listLabelTrackerClient struct {
 func (l *listLabelTrackerClient) Ready(ctx context.Context) (*tracker.Item, error) {
 	return nil, nil
 }
+
+func (l *listLabelTrackerClient) ReadyWithLabel(ctx context.Context, label string) (*tracker.Item, error) {
+	return nil, nil
+}
 func (l *listLabelTrackerClient) List(ctx context.Context, q tracker.Query) ([]tracker.Item, error) {
 	return nil, nil
 }

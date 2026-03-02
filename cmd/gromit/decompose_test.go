@@ -726,6 +726,10 @@ func (m *mockTrackerForDecompose) Ready(context.Context) (*tracker.Item, error) 
 	return nil, nil
 }
 
+func (m *mockTrackerForDecompose) ReadyWithLabel(ctx context.Context, label string) (*tracker.Item, error) {
+	return nil, nil
+}
+
 func (m *mockTrackerForDecompose) List(context.Context, tracker.Query) ([]tracker.Item, error) {
 	if len(m.items) > 0 {
 		// Return one item to simulate finding beads
@@ -805,6 +809,10 @@ type mockTrackerClientWithItems struct {
 }
 
 func (m *mockTrackerClientWithItems) Ready(context.Context) (*tracker.Item, error) {
+	return nil, nil
+}
+
+func (m *mockTrackerClientWithItems) ReadyWithLabel(ctx context.Context, label string) (*tracker.Item, error) {
 	return nil, nil
 }
 
@@ -920,6 +928,10 @@ type mockTrackerForTrackerVersionTest struct {
 }
 
 func (m *mockTrackerForTrackerVersionTest) Ready(context.Context) (*tracker.Item, error) {
+	return nil, nil
+}
+
+func (m *mockTrackerForTrackerVersionTest) ReadyWithLabel(ctx context.Context, label string) (*tracker.Item, error) {
 	return nil, nil
 }
 

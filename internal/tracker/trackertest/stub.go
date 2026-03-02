@@ -9,6 +9,7 @@ import (
 // StubTrackerClient lets tests fake tracker.Client implementations.
 type StubTrackerClient struct {
 	ReadyFn            func(ctx context.Context) (*tracker.Item, error)
+	ReadyWithLabelFn   func(ctx context.Context, label string) (*tracker.Item, error)
 	ListFn             func(ctx context.Context, q tracker.Query) ([]tracker.Item, error)
 	ListWithLabelFn    func(ctx context.Context, label string) ([]tracker.Item, error)
 	ShowFn             func(ctx context.Context, id string) (*tracker.Item, error)
@@ -34,6 +35,13 @@ func (s *StubTrackerClient) Ready(ctx context.Context) (*tracker.Item, error) {
 		return nil, nil
 	}
 	return s.ReadyFn(ctx)
+}
+
+func (s *StubTrackerClient) ReadyWithLabel(ctx context.Context, label string) (*tracker.Item, error) {
+	if s == nil || s.ReadyWithLabelFn == nil {
+		return nil, nil
+	}
+	return s.ReadyWithLabelFn(ctx, label)
 }
 
 func (s *StubTrackerClient) List(ctx context.Context, q tracker.Query) ([]tracker.Item, error) {

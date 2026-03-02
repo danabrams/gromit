@@ -50,6 +50,19 @@ func (a *BDAdapter) Ready(ctx context.Context) (*tracker.Item, error) {
 	return beadToItem(bead), nil
 }
 
+func (a *BDAdapter) ReadyWithLabel(ctx context.Context, label string) (*tracker.Item, error) {
+	client, err := a.clientOrErr()
+	if err != nil {
+		return nil, err
+	}
+
+	bead, err := client.ReadyWithLabel(ctx, label)
+	if err != nil {
+		return nil, err
+	}
+	return beadToItem(bead), nil
+}
+
 func (a *BDAdapter) List(ctx context.Context, query tracker.Query) ([]tracker.Item, error) {
 	client, err := a.clientOrErr()
 	if err != nil {

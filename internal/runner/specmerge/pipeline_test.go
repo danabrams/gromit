@@ -508,6 +508,10 @@ type stubTrackerBeadQueryClient struct {
 func (s *stubTrackerBeadQueryClient) Ready(ctx context.Context) (*tracker.Item, error) {
 	return nil, nil
 }
+
+func (s *stubTrackerBeadQueryClient) ReadyWithLabel(ctx context.Context, label string) (*tracker.Item, error) {
+	return nil, nil
+}
 func (s *stubTrackerBeadQueryClient) List(ctx context.Context, q tracker.Query) ([]tracker.Item, error) {
 	return nil, nil
 }
