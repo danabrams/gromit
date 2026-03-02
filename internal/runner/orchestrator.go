@@ -22,6 +22,7 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/procutil"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/specbranch"
 	"github.com/danabrams/gromit/internal/runner/specmerge"
 )
@@ -99,6 +100,10 @@ type OrchestratorConfig struct {
 	// BranchRouter maps bead labels to git branch names.
 	// Optional: nil means branch checkout is skipped.
 	BranchRouter BranchRouter
+
+	// Router provides provider selection logic for build and review stages.
+	// Optional: nil means routing is skipped.
+	Router *provider.Router
 
 	// StageContext carries specflow metadata for spec-scoped runs, if any.
 	StageContext *StageContext
