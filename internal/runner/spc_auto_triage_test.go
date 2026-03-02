@@ -310,6 +310,61 @@ func TestSPCAutoTriage_RespectsDedupeLabels(t *testing.T) {
 	}
 }
 
+func TestSPCAutoTriage_SkipsRecordOnDedupeError(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
+
+	badRecord := SPCCauseRecord{
+		Metric:                 "error-metric",
+		Stratum:                "",
+		Class:                  CauseClassSpecial,
+		PersistenceWindowCount: 2,
+		Latest:                 10,
+		DetectedAt:             now.Add(-time.Hour),
+	}
+	goodRecord := SPCCauseRecord{
+		Metric:                 "good-metric",
+		Stratum:                "",
+		Class:                  CauseClassSpecial,
+		PersistenceWindowCount: 2,
+		Latest:                 20,
+		DetectedAt:             now.Add(-time.Hour),
+	}
+
+	badLabel := dedupeLabelForIdentity(badRecord.Identity())
+	goodLabel := dedupeLabelForIdentity(goodRecord.Identity())
+
+	trackerClient := trackertest.NewStubTrackerClient()
+	var created []tracker.CreateRequest
+	trackerClient.CreateFn = func(ctx context.Context, req tracker.CreateRequest) (*tracker.Item, error) {
+		created = append(created, req)
+		return &tracker.Item{ID: fmt.Sprintf("issue-%d", len(created)), Status: tracker.StatusOpen}, nil
+	}
+	trackerClient.ListWithLabelFn = func(ctx context.Context, label string) ([]tracker.Item, error) {
+		if label == badLabel {
+			return nil, fmt.Errorf("boom")
+		}
+		return nil, nil
+	}
+
+	store := newTestCooldownStore()
+	triager := NewSPCAutoTriager(trackerClient, store, WithNowFunc(func() time.Time { return now }))
+
+	results, err := triager.Process(ctx, []SPCCauseRecord{badRecord, goodRecord})
+	if err != nil {
+		t.Fatalf("Process() returned error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 triage result, got %d", len(results))
+	}
+	if len(created) != 1 {
+		t.Fatalf("expected only the good record to create an issue, got %d requests", len(created))
+	}
+	if created[0].Metadata[metadataLabelKey] != goodLabel {
+		t.Fatalf("unexpected dedupe label for created issue: %s", created[0].Metadata[metadataLabelKey])
+	}
+}
+
 func TestSPCAutoTriage_EnforcesCooldownBoundary(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
