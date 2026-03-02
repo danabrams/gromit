@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -1015,6 +1016,47 @@ func TestReadStatus_WithInjectedDependencies(t *testing.T) {
 
 	if status.UnrefinedCount != 1 {
 		t.Errorf("UnrefinedCount = %d, want 1", status.UnrefinedCount)
+	}
+}
+
+func TestReadStatusWithDeps_MissingCriteria(t *testing.T) {
+	disableLiveBDForStatusTests(t)
+
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	specsDir := filepath.Join(gromitDir, "specs")
+	plansDir := filepath.Join(gromitDir, "plans")
+
+	os.MkdirAll(specsDir, 0755)
+	os.MkdirAll(plansDir, 0755)
+	os.MkdirAll(gromitDir, 0755)
+	os.MkdirAll(filepath.Join(tmpDir, ".beads"), 0755)
+
+	bf, err := backlog.NewFile(gromitDir)
+	if err != nil {
+		t.Fatalf("backlog.NewFile() error = %v", err)
+	}
+
+	beadClient := &testBeadQueryClientStatus{
+		readyBeads: []string{"ready-with-outputs", "missing-criteria"},
+	}
+
+	status, err := ReadStatusWithDeps(gromitDir, specsDir, plansDir, nil, bf, beadClient)
+	if err != nil {
+		t.Fatalf("ReadStatusWithDeps() error = %v", err)
+	}
+
+	if status.ReadyBeadCount != 2 {
+		t.Fatalf("ReadyBeadCount = %d, want 2", status.ReadyBeadCount)
+	}
+
+	if status.MissingCriteriaCount != 1 {
+		t.Fatalf("MissingCriteriaCount = %d, want 1", status.MissingCriteriaCount)
+	}
+
+	wantIDs := []string{"missing-criteria"}
+	if !reflect.DeepEqual(status.MissingCriteriaIDs, wantIDs) {
+		t.Fatalf("MissingCriteriaIDs = %v, want %v", status.MissingCriteriaIDs, wantIDs)
 	}
 }
 
