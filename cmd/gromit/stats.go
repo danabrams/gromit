@@ -69,15 +69,6 @@ func defaultStatsFetcher(ctx context.Context, cfg *config.Config, gromitDir stri
 	return p.Stats(ctx, cfg, pipeline.StatsOptions{IncludeTDD: includeTDD})
 }
 
-func newPipeline(cfg *config.Config, gromitDir string) (*pipeline.Pipeline, error) {
-	deps, err := NewPipelineDeps(cfg, gromitDir)
-	if err != nil {
-		return nil, err
-	}
-	paths := &pipeline.Paths{GromitDir: gromitDir}
-	return pipeline.New(deps, paths), nil
-}
-
 type statsJSONOutput struct {
 	ProjectStats    map[string]logger.ModelStats `json:"project_stats"`
 	GlobalStats     *logger.GlobalStats          `json:"global_stats"`
