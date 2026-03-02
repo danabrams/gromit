@@ -315,6 +315,31 @@ func TestReviewStage_Enabled_NoFindings_ReturnsProceedWithEmptyIDs(t *testing.T)
 	}
 }
 
+func TestReviewStage_PassesContextToGitDiff(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var seenCtx context.Context
+	gitDiff := func(received context.Context) (string, error) {
+		seenCtx = received
+		return "diff --git", nil
+	}
+
+	invoker := &fakeInvoker{}
+	beads := &fakeBeadCreator{}
+	renderer := &fakePromptRenderer{}
+	stage := reviewstage.New(invoker, beads, renderer, gitDiff, io.Discard)
+	input := makeInput(makeBead("git-context", "Git diff context"), makeConfig(true))
+
+	if _, err := stage.Run(ctx, input); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if seenCtx != ctx {
+		t.Fatalf("gitDiff context = %v, want %v", seenCtx, ctx)
+	}
+}
+
 // RED: test for Review stage emitting ReviewStartEvent and ReviewCompleteEvent
 func TestReviewRun_EmitsReviewStartAndCompleteEvents(t *testing.T) {
 	t.Parallel()
