@@ -556,12 +556,20 @@ func equalStringSlices(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
 	}
-	for i := range a {
-		if a[i] != b[i] {
+	counts := make(map[string]int, len(a))
+	for _, item := range a {
+		counts[item]++
+	}
+	for _, item := range b {
+		if counts[item] == 0 {
 			return false
 		}
+		counts[item]--
+		if counts[item] == 0 {
+			delete(counts, item)
+		}
 	}
-	return true
+	return len(counts) == 0
 }
 
 func cloneStringSlice(src []string) []string {
