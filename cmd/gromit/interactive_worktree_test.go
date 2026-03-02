@@ -15,13 +15,19 @@ import (
 )
 
 type mockSessionWorktreeCreator struct {
-	CreateSessionWorktreeFn func(command string) (*worktree.SessionWorktree, error)
-	MergeBackFn             func(branch string) error
+	CreateSessionWorktreeFn           func(command string) (*worktree.SessionWorktree, error)
+	CreateSessionWorktreeWithCtxFn    func(ctx context.Context, command string) (*worktree.SessionWorktree, error)
+	MergeBackFn                       func(branch string) error
 }
 
-func (m *mockSessionWorktreeCreator) CreateSessionWorktree(_ context.Context, command string) (*worktree.SessionWorktree, error) {
-	if m != nil && m.CreateSessionWorktreeFn != nil {
-		return m.CreateSessionWorktreeFn(command)
+func (m *mockSessionWorktreeCreator) CreateSessionWorktree(ctx context.Context, command string) (*worktree.SessionWorktree, error) {
+	if m != nil {
+		if m.CreateSessionWorktreeWithCtxFn != nil {
+			return m.CreateSessionWorktreeWithCtxFn(ctx, command)
+		}
+		if m.CreateSessionWorktreeFn != nil {
+			return m.CreateSessionWorktreeFn(command)
+		}
 	}
 	return nil, nil
 }
@@ -234,6 +240,48 @@ func TestRunWithSessionWorktreeExecutesCallbackInSessionDir(t *testing.T) {
 	}
 	if result.BranchName != session.BranchName {
 		t.Fatalf("result.BranchName = %q, want %q", result.BranchName, session.BranchName)
+	}
+}
+
+func TestRunWithSessionWorktreeWithConflictSettingsPropagatesContext(t *testing.T) {
+	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "context-propagation")
+	session.BranchName = "gromit/context-propagation-123"
+
+	ctx := context.WithValue(context.Background(), struct{}{}, "marker")
+	var gotCtx context.Context
+
+	cleanupGit := overrideGitRun(autoCommitGitRun(""))
+	t.Cleanup(cleanupGit)
+
+	withInteractiveWorktreeFactories(t,
+		func(gotMainDir string) (sessionWorktreeCreator, error) {
+			if gotMainDir != mainDir {
+				t.Fatalf("mainDir = %q, want %q", gotMainDir, mainDir)
+			}
+			return &mockSessionWorktreeCreator{
+				CreateSessionWorktreeWithCtxFn: func(c context.Context, command string) (*worktree.SessionWorktree, error) {
+					if command != "context-propagation" {
+						t.Fatalf("command = %q, want %q", command, "context-propagation")
+					}
+					gotCtx = c
+					return session, nil
+				},
+			}, nil
+		},
+		func(string) (pendingBranchRecorder, error) {
+			return &mockPendingBranchRecorder{AddPendingWorktreeBranchFn: func(string) error { return nil }}, nil
+		},
+		func(string, string) error {
+			return nil
+		},
+	)
+
+	_, err := runWithSessionWorktreeWithConflictSettings(ctx, gromitDir, "context-propagation", sessionConflictSettings{}, func(string) error { return nil })
+	if err != nil {
+		t.Fatalf("runWithSessionWorktreeWithConflictSettings() error = %v", err)
+	}
+	if gotCtx != ctx {
+		t.Fatalf("context = %v, want %v", gotCtx, ctx)
 	}
 }
 
