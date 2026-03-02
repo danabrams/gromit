@@ -16,6 +16,8 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/learnings"
 	"github.com/danabrams/gromit/internal/logger"
+	"github.com/danabrams/gromit/internal/pipeline"
+	epiloguepkg "github.com/danabrams/gromit/internal/pipeline/epilogue"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 )
@@ -492,13 +494,13 @@ func (m *mockIterationLogger) RunID() string {
 // --- mockWorktreeManager ---
 
 type mockWorktreeManager struct {
-	EnsureWorktreeFn       func() (string, error)
-	CreateBranchFn         func(command string) (string, error)
-	MergeBackFn            func(branch string) error
-	PendingBranchesFn      func() ([]string, error)
-	CleanupFn              func() error
+	EnsureWorktreeFn        func() (string, error)
+	CreateBranchFn          func(command string) (string, error)
+	MergeBackFn             func(branch string) error
+	PendingBranchesFn       func() ([]string, error)
+	CleanupFn               func() error
 	DeriveSessionWorktreeFn func(branch string) string
-	RemoveByPathFn         func(path string) error
+	RemoveByPathFn          func(path string) error
 }
 
 func (m *mockWorktreeManager) EnsureWorktree() (string, error) {
@@ -621,3 +623,66 @@ func TestMockPromptRendererBuildContextPassesPhase(t *testing.T) {
 		t.Fatalf("captured phase = %q, want %q", capturedPhase, "tdd_red")
 	}
 }
+
+// mockBeadLifecycle implements epilogue.BeadLifecycle for acceptance tests.
+type mockBeadLifecycle struct {
+	CloseFn func(ctx context.Context, id string) error
+	SyncFn  func(ctx context.Context) error
+}
+
+func (m *mockBeadLifecycle) Close(ctx context.Context, id string) error {
+	if m.CloseFn != nil {
+		return m.CloseFn(ctx, id)
+	}
+	return nil
+}
+
+func (m *mockBeadLifecycle) Sync(ctx context.Context) error {
+	if m.SyncFn != nil {
+		return m.SyncFn(ctx)
+	}
+	return nil
+}
+
+// mockStatusWriter implements epilogue.StatusWriter for acceptance tests.
+type mockStatusWriter struct {
+	WriteFn func(iteration int, beadID, beadTitle, model string, maxIterations, timeBudgetMinutes int) error
+}
+
+func (m *mockStatusWriter) Write(iteration int, beadID, beadTitle, model string, maxIterations, timeBudgetMinutes int) error {
+	if m.WriteFn != nil {
+		return m.WriteFn(iteration, beadID, beadTitle, model, maxIterations, timeBudgetMinutes)
+	}
+	return nil
+}
+
+// testStage is a simple pipeline.Stage used in acceptance tests.
+type testStage struct {
+	fn func(ctx context.Context, in pipeline.Input) (pipeline.Output, error)
+}
+
+func (s *testStage) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+	if s.fn != nil {
+		return s.fn(ctx, in)
+	}
+	return pipeline.Output{Decision: pipeline.Proceed}, nil
+}
+
+// testEpilogueStage is an epilogue stage used in acceptance tests.
+type testEpilogueStage struct {
+	fn func(ctx context.Context, in pipeline.Input) (pipeline.Output, error)
+}
+
+func (s *testEpilogueStage) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+	if s.fn != nil {
+		return s.fn(ctx, in)
+	}
+	return pipeline.Output{Decision: pipeline.Proceed}, nil
+}
+
+var (
+	_ epiloguepkg.BeadLifecycle = (*mockBeadLifecycle)(nil)
+	_ epiloguepkg.StatusWriter  = (*mockStatusWriter)(nil)
+	_ pipeline.Stage            = (*testStage)(nil)
+	_ pipeline.Stage            = (*testEpilogueStage)(nil)
+)

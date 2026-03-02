@@ -3,7 +3,6 @@ package epilogue_test
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -301,50 +300,6 @@ func TestEpilogue_ReturnsProceed(t *testing.T) {
 	if out.Decision != pipeline.Proceed {
 		t.Errorf("Decision = %v, want Proceed", out.Decision)
 	}
-}
-
-// fakeWorktreeMerger is a test double for epilogue.WorktreeMerger.
-type fakeWorktreeMerger struct {
-	branches              []string
-	pendingErr            error
-	mergeErr              error
-	pendingCalled         bool
-	pendingCallCount      int
-	mergedBranches        []string
-	derivedPaths          map[string]string // branch -> derived path
-	removedPaths          []string
-	removeByPathErr       error
-	derivedPathCallCount  int
-	removeByPathCallCount int
-	callOrder             []string // track order of calls
-}
-
-func (f *fakeWorktreeMerger) PendingBranches() ([]string, error) {
-	f.pendingCalled = true
-	f.pendingCallCount++
-	return f.branches, f.pendingErr
-}
-
-func (f *fakeWorktreeMerger) MergeBack(branch string) error {
-	f.mergedBranches = append(f.mergedBranches, branch)
-	f.callOrder = append(f.callOrder, fmt.Sprintf("MergeBack(%s)", branch))
-	return f.mergeErr
-}
-
-func (f *fakeWorktreeMerger) DeriveSessionWorktreePath(branch string) string {
-	f.derivedPathCallCount++
-	f.callOrder = append(f.callOrder, fmt.Sprintf("DeriveSessionWorktreePath(%s)", branch))
-	if f.derivedPaths != nil {
-		return f.derivedPaths[branch]
-	}
-	return ""
-}
-
-func (f *fakeWorktreeMerger) RemoveByPath(path string) error {
-	f.removeByPathCallCount++
-	f.callOrder = append(f.callOrder, fmt.Sprintf("RemoveByPath(%s)", path))
-	f.removedPaths = append(f.removedPaths, path)
-	return f.removeByPathErr
 }
 
 // fakeCommandRunner is a test double for epilogue.CommandRunner.
@@ -722,17 +677,6 @@ func TestEpilogue_SkipsIterationLog_WhenNoWriter(t *testing.T) {
 	}
 }
 
-// fakePendingBranchRemover is a test double for epilogue.PendingBranchRemover.
-type fakePendingBranchRemover struct {
-	removedBranches []string
-	removeErr       error
-}
-
-func (f *fakePendingBranchRemover) RemovePendingWorktreeBranch(branch string) error {
-	f.removedBranches = append(f.removedBranches, branch)
-	return f.removeErr
-}
-
 func drainLogMessages(t *testing.T, ch <-chan events.Event, timeout time.Duration) []string {
 	t.Helper()
 	var messages []string
@@ -914,72 +858,6 @@ func TestEpilogueRun_EmitsEpilogueStartAndCompleteEvents(t *testing.T) {
 	}
 	if completeEvent.BeadID != beadID {
 		t.Errorf("EpilogueCompleteEvent.BeadID = %q, want %q", completeEvent.BeadID, beadID)
-	}
-}
-
-// TestSingleWriterInvariant_EpilogueDoesNotMergeWhenAutoMergeDisabled is a regression guard
-// asserting that epilogue respects single-writer semantics when auto-merge is disabled.
-// Pending branches remain queued for coordinator-mediated integration when auto-merge is off.
-func TestSingleWriterInvariant_EpilogueDoesNotMergeWhenAutoMergeDisabled(t *testing.T) {
-	merger := &fakeWorktreeMerger{
-		branches: []string{"gromit/pending-branch"},
-	}
-
-	// Create epilogue with worktree merger
-	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
-		WithWorktree(merger)
-
-	// Create input with worktree enabled but auto-merge disabled
-	// Under single-writer, auto-merge should be OFF, leaving coordinator responsible for merges
-	in := makeInput("bead-1", "Test feature", true)
-	in.Config.Worktree.Enabled = boolPtr(true)     // Worktree is enabled
-	in.Config.Worktree.AutoMerge = boolPtr(false)  // But auto-merge is DISABLED (single-writer policy)
-
-	_, err := stage.Run(context.Background(), in)
-	if err != nil {
-		t.Fatalf("Run() error = %v, want nil", err)
-	}
-
-	// REGRESSION GUARD: Verify epilogue did not attempt merge since auto-merge is disabled.
-	// Under single-writer, merges should only happen via coordinator, not epilogue.
-	if len(merger.mergedBranches) > 0 {
-		t.Fatalf("regression: epilogue attempted to merge branches %v with auto-merge disabled; "+
-			"single-writer requires coordinator-mediated integration", merger.mergedBranches)
-	}
-}
-
-// TestEpilogue_LegacyMergePatchIsAbsent verifies that the legacy worktree merge-to-main
-// path is completely removed and epilogue never calls WorktreeMerger.MergeBack().
-// The merge responsibility now belongs exclusively to the coordinator.
-func TestEpilogue_LegacyMergePatchIsAbsent(t *testing.T) {
-	merger := &fakeWorktreeMerger{
-		branches: []string{"gromit/pending-branch-1", "gromit/pending-branch-2"},
-	}
-
-	// Create epilogue with all merge-related dependencies configured
-	stage := epiloguepkg.New(&fakeBeadLifecycle{}, &fakeStatusWriter{}, io.Discard).
-		WithWorktree(merger)
-
-	// Create input with worktree enabled AND auto-merge explicitly enabled
-	// (the most permissive configuration)
-	in := makeInput("bead-1", "Test feature", true)
-	in.Config.Worktree.Enabled = boolPtr(true)
-	in.Config.Worktree.AutoMerge = boolPtr(true)
-
-	_, err := stage.Run(context.Background(), in)
-	if err != nil {
-		t.Fatalf("Run() error = %v, want nil", err)
-	}
-
-	// ASSERT: WorktreeMerger.MergeBack is NEVER called, even with auto-merge enabled.
-	// The legacy merge-to-main path is gone; coordinator now owns merges.
-	if len(merger.mergedBranches) > 0 {
-		t.Errorf("epilogue called MergeBack for branches %v; legacy merge path should be absent", merger.mergedBranches)
-	}
-
-	// ASSERT: WorktreeMerger.PendingBranches is NEVER called.
-	if merger.pendingCalled {
-		t.Error("epilogue called PendingBranches(); legacy merge path should be absent")
 	}
 }
 

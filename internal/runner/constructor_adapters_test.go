@@ -12,6 +12,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/integrationqueue"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline/epilogue"
 	"github.com/danabrams/gromit/internal/pipeline/prepare"
@@ -21,27 +22,7 @@ import (
 	"github.com/danabrams/gromit/internal/readiness"
 	"github.com/danabrams/gromit/internal/runner/specmerge"
 	"github.com/danabrams/gromit/internal/tracker"
-	"github.com/danabrams/gromit/internal/integrationqueue"
 )
-
-func TestWorktreeMergerAdapterPendingBranches_NilManagerReturnsError(t *testing.T) {
-	t.Parallel()
-	adapter := &worktreeMergerAdapter{}
-
-	defer func() {
-		if r := recover(); r != nil {
-			t.Fatalf("PendingBranches() panicked with nil manager: %v", r)
-		}
-	}()
-
-	_, err := adapter.PendingBranches()
-	if err == nil {
-		t.Fatal("expected error for nil worktree manager")
-	}
-	if !strings.Contains(strings.ToLower(err.Error()), "worktree manager") {
-		t.Fatalf("error = %v, want message mentioning worktree manager", err)
-	}
-}
 
 func TestApplyCostFallback_EstimatesFromProviderPricing(t *testing.T) {
 	t.Parallel()
@@ -686,7 +667,7 @@ func TestIntegrationQueueGitOpsAdapter_CleanupCommands(t *testing.T) {
 	repoDir := "/repo"
 	var calls []string
 	adapter := &integrationQueueGitOpsAdapter{
-		repoDir:    repoDir,
+		repoDir: repoDir,
 		runGitCommand: func(ctx context.Context, dir string, args ...string) (string, error) {
 			if dir != repoDir {
 				t.Fatalf("dir = %q, want %q", dir, repoDir)

@@ -23,28 +23,9 @@ type StatusWriter interface {
 	Write(iteration int, beadID, beadTitle, model string, maxIterations, timeBudgetMinutes int) error
 }
 
-// WorktreeMerger merges pending interactive worktree branches back into the main working tree
-// and cleans up orphaned session worktrees.
-type WorktreeMerger interface {
-	PendingBranches() ([]string, error)
-	MergeBack(branch string) error
-	DeriveSessionWorktreePath(branch string) string
-	RemoveByPath(path string) error
-}
-
-// PendingBranchRemover removes successfully-merged branches from persistent state.
-type PendingBranchRemover interface {
-	RemovePendingWorktreeBranch(branch string) error
-}
-
 // CommandRunner executes a shell command and returns stdout, stderr, exit code, and any error.
 type CommandRunner interface {
 	Run(ctx context.Context, command string) (string, string, int, error)
-}
-
-// SpecGateRunner evaluates the spec gate acceptance criteria for a bead.
-type SpecGateRunner interface {
-	Run(ctx context.Context, beadID string, labels []string) error
 }
 
 // ThoroughReviewer runs a comprehensive code review of accumulated changes.
@@ -71,23 +52,18 @@ type IterationLogWriter interface {
 }
 
 // Epilogue implements pipeline.Stage for Stage 5: bead lifecycle and cleanup.
-// It closes and syncs the bead on the success path, evaluates the spec gate when
-// spec-level methodology is active, merges interactive worktree branches, writes
-// status after every iteration, triggers thorough reviews, and runs the
-// between-iterations command.
+// It closes and syncs the bead on the success path, writes status after every
+// iteration, triggers thorough reviews, and runs the between-iterations command.
 type Epilogue struct {
 	events.EmitterMixin // provides Emitter field and SetEmitter method
 	beads               BeadLifecycle
 	status              StatusWriter
 	output              io.Writer
-	worktree            WorktreeMerger       // optional; nil means skip worktree merge
-	branchRemover       PendingBranchRemover // optional; nil means skip branch removal from state
-	cmd                 CommandRunner        // optional; nil means skip between-iterations command
-	specgate            SpecGateRunner       // optional; nil means skip spec gate
-	review              ThoroughReviewer     // optional; nil means skip thorough review
-	epic                EpicChecker          // optional; used with review for epic completion detection
-	failureLearner      FailureLearner       // optional; nil means skip failure-path learning
-	logWriter           IterationLogWriter   // optional; nil means skip iteration log write
+	cmd                 CommandRunner      // optional; nil means skip between-iterations command
+	review              ThoroughReviewer   // optional; nil means skip thorough review
+	epic                EpicChecker        // optional; used with review for epic completion detection
+	failureLearner      FailureLearner     // optional; nil means skip failure-path learning
+	logWriter           IterationLogWriter // optional; nil means skip iteration log write
 }
 
 // Compile-time check: *Epilogue must implement pipeline.Stage.
@@ -109,27 +85,9 @@ func (e *Epilogue) WithEmitter(emitter *events.Emitter) *Epilogue {
 	return e
 }
 
-// WithWorktree configures an optional WorktreeMerger for merging interactive branches.
-func (e *Epilogue) WithWorktree(m WorktreeMerger) *Epilogue {
-	e.worktree = m
-	return e
-}
-
-// WithPendingBranchRemover configures an optional PendingBranchRemover for removing merged branches from state.
-func (e *Epilogue) WithPendingBranchRemover(r PendingBranchRemover) *Epilogue {
-	e.branchRemover = r
-	return e
-}
-
 // WithCommandRunner configures an optional CommandRunner for the between-iterations command.
 func (e *Epilogue) WithCommandRunner(r CommandRunner) *Epilogue {
 	e.cmd = r
-	return e
-}
-
-// WithSpecGate configures an optional SpecGateRunner for spec-level acceptance criteria.
-func (e *Epilogue) WithSpecGate(g SpecGateRunner) *Epilogue {
-	e.specgate = g
 	return e
 }
 
@@ -222,16 +180,6 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 			warnf("Warning: failed to extract failure learning: %v\n", err)
 		}
 	}
-
-	// 2. Spec gate: DEPRECATED - the new merge pipeline is now the only completion
-	// mechanism for spec-level methodology. Legacy auto-trigger has been disabled.
-	// The spec gate runner is kept wired for backward compatibility but no longer invoked.
-	_ = e.specgate
-
-	// 3. Worktree merge: REMOVED - merge responsibility now belongs exclusively to
-	// the coordinator. The epilogue no longer owns merging branches to main.
-	_ = e.worktree
-	_ = e.branchRemover
 
 	// 4. Status: always write after each iteration.
 	if e.status != nil {

@@ -30,7 +30,6 @@ import (
 	"github.com/danabrams/gromit/internal/runner/execution"
 	"github.com/danabrams/gromit/internal/state"
 	"github.com/danabrams/gromit/internal/tracker"
-	"github.com/danabrams/gromit/internal/worktree"
 )
 
 // defaultTierToModelMap defines the default Claude model tier mapping.
@@ -214,19 +213,6 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 		syncOut,
 	)
 
-	// Wire optional Epilogue dependencies
-	if cfg.Worktree.IsEnabled() {
-		mainDir := filepath.Dir(gromitDir)
-		manager, mgrErr := worktree.NewManager(mainDir)
-		if mgrErr == nil {
-			epilogueStage.WithWorktree(&worktreeMergerAdapter{mgr: manager})
-		}
-		// Wire interactive state file for removing merged branches from pending state
-		interactiveFile, err := state.NewInteractiveFile(gromitDir)
-		if err == nil {
-			epilogueStage.WithPendingBranchRemover(interactiveFile)
-		}
-	}
 	epilogueStage.WithCommandRunner(&epilogueCommandRunnerAdapter{runner: defaultCmdRunner})
 	epilogueStage.WithFailureLearner(&failureLearnerAdapter{
 		renderer: renderer,
@@ -241,17 +227,6 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 			trendUpdater: trendUpdater,
 		})
 	}
-
-	// DEPRECATED: Spec gate auto-trigger in epilogue has been replaced by the
-	// merge pipeline (internal/runner/specmerge). The merge pipeline is now the
-	// only completion mechanism for spec-level methodology. The spec gate is no
-	// longer wired to the epilogue.
-	//
-	// Previous code that wired spec gate:
-	// if cfg.Methodology.Granularity == config.MethodologyGranularitySpec && cfg.SpecGate.IsEnabled() {
-	//   epilogueStage.WithSpecGate(&specGateAdapter{...})
-	// }
-	// This has been disabled to ensure merge pipeline is the exclusive spec completion path.
 
 	// Create OrchestratorConfig
 	cfg.SetDefaults()

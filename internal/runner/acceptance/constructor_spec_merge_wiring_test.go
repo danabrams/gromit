@@ -3,7 +3,6 @@
 package acceptance_test
 
 import (
-	"context"
 	"io"
 	"os"
 	"path/filepath"
@@ -11,10 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/pipeline"
-	"github.com/danabrams/gromit/internal/pipeline/epilogue"
 	"github.com/danabrams/gromit/internal/runner"
 )
 
@@ -59,55 +55,6 @@ func TestConstructorWiringForSpecMode(t *testing.T) {
 
 	if cfg.Methodology.Granularity != config.MethodologyGranularitySpec {
 		t.Errorf("Expected spec granularity to be preserved, got %s", cfg.Methodology.Granularity)
-	}
-}
-
-// TestEpilogueSpecGateNotWiredInSpecMode verifies that the epilogue stage
-// created by the constructor for spec-mode doesn't have a spec gate wired.
-// This is a more direct test than TestConstructorWiringForSpecMode.
-func TestEpilogueSpecGateNotWiredInSpecMode(t *testing.T) {
-	t.Parallel()
-
-	// Create epilogue with spec gate NOT wired (simulating new spec mode)
-	epilogueStage := epilogue.New(
-		&mockBeadLifecycle{},
-		&mockStatusWriter{},
-		io.Discard,
-	)
-	// Note: NOT calling epilogueStage.WithSpecGate() - this simulates the new behavior
-
-	// Track if any runner is called (it shouldn't be)
-	var specGateRunCalled bool
-
-	// Create input for a successful spec bead
-	input := pipelineInputForSpecBead(true)
-
-	// Run epilogue
-	_, err := epilogueStage.Run(context.Background(), input)
-	if err != nil {
-		t.Fatalf("epilogue.Run failed: %v", err)
-	}
-
-	// Verify that no spec gate call was made (should still be false since not wired)
-	if specGateRunCalled {
-		t.Error("specgate.Run() should not have been called")
-	}
-}
-
-// Helper function to create pipeline input for a spec bead
-func pipelineInputForSpecBead(buildSucceeded bool) pipeline.Input {
-	return pipeline.Input{
-		BuildSucceeded: buildSucceeded,
-		Bead: &bead.Bead{
-			ID:     "spec-test-1",
-			Title:  "Spec Test",
-			Labels: []string{"spec:auth"},
-		},
-		Config: &config.Config{
-			Methodology: config.MethodologyConfig{
-				Granularity: config.MethodologyGranularitySpec,
-			},
-		},
 	}
 }
 

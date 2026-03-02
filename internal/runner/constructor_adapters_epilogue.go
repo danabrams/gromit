@@ -20,7 +20,6 @@ import (
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/danabrams/gromit/internal/validate"
-	"github.com/danabrams/gromit/internal/worktree"
 )
 
 // beadLifecycleAdapter wraps tracker.Client to satisfy epilogue.BeadLifecycle.
@@ -46,49 +45,6 @@ func (a *statusWriterAdapter) Write(iteration int, beadID, beadTitle, model stri
 		return nil
 	}
 	return a.sw.Write(iteration, beadID, beadTitle, model, true, maxIterations, timeBudgetMinutes)
-}
-
-// worktreeMergerAdapter wraps worktree.Manager to satisfy epilogue.WorktreeMerger.
-type worktreeMergerAdapter struct {
-	mgr *worktree.Manager
-}
-
-func (a *worktreeMergerAdapter) PendingBranches() ([]string, error) {
-	if a == nil || a.mgr == nil {
-		return nil, fmt.Errorf("worktree manager is nil")
-	}
-	return a.mgr.PendingBranches(context.TODO())
-}
-
-func (a *worktreeMergerAdapter) MergeBack(branch string) error {
-	if a == nil || a.mgr == nil {
-		return fmt.Errorf("worktree manager is nil")
-	}
-	return a.mgr.MergeBack(context.TODO(), branch)
-}
-
-func (a *worktreeMergerAdapter) DeriveSessionWorktreePath(branch string) string {
-	if a == nil || a.mgr == nil {
-		return ""
-	}
-	// Extract command and timestamp from branch name
-	// Branch format: gromit/{command}-{timestamp}
-	if !strings.HasPrefix(branch, "gromit/") {
-		return ""
-	}
-	suffix := strings.TrimPrefix(branch, "gromit/")
-	if suffix == "" {
-		return ""
-	}
-	// Format: {mainDir}-gromit-{command}-{timestamp}
-	return fmt.Sprintf("%s-gromit-%s", a.mgr.MainDir, suffix)
-}
-
-func (a *worktreeMergerAdapter) RemoveByPath(path string) error {
-	if a == nil || a.mgr == nil {
-		return fmt.Errorf("worktree manager is nil")
-	}
-	return a.mgr.RemoveByPath(context.TODO(), path)
 }
 
 // epilogueCommandRunnerAdapter wraps a command runner function to satisfy epilogue.CommandRunner.
@@ -507,7 +463,6 @@ func (a *failureLearnerAdapter) ExtractFailureLearning(ctx context.Context, bead
 var (
 	_ epilogue.BeadLifecycle      = (*beadLifecycleAdapter)(nil)
 	_ epilogue.StatusWriter       = (*statusWriterAdapter)(nil)
-	_ epilogue.WorktreeMerger     = (*worktreeMergerAdapter)(nil)
 	_ epilogue.CommandRunner      = (*epilogueCommandRunnerAdapter)(nil)
 	_ epilogue.IterationLogWriter = (*iterationLogWriterAdapter)(nil)
 	_ epilogue.FailureLearner     = (*failureLearnerAdapter)(nil)
