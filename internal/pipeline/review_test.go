@@ -275,6 +275,10 @@ func TestReviewNonInteractiveWorkflow_E2E(t *testing.T) {
 	if result.BacklogCreated != 1 {
 		t.Errorf("Result.BacklogCreated = %d, want 1", result.BacklogCreated)
 	}
+
+	if result.LearningsSaved != 1 {
+		t.Errorf("Result.LearningsSaved = %d, want 1", result.LearningsSaved)
+	}
 }
 
 // TestReviewNonInteractiveWorkflow_CreatesBeadsWithFromReviewLabel verifies beads get from-review label
