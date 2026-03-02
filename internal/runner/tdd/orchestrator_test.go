@@ -355,6 +355,27 @@ func TestDetectCycleInstability_OrderIndependentDeadlock(t *testing.T) {
 	}
 }
 
+func TestCloneStringSlice_PreservesEmptyNonNil(t *testing.T) {
+	t.Parallel()
+
+	empty := make([]string, 0)
+	if empty == nil {
+		t.Fatalf("precondition: empty slice created by make must be non-nil")
+	}
+
+	cloned := cloneStringSlice(empty)
+	if cloned == nil {
+		t.Fatalf("expected clone of empty non-nil slice to remain non-nil")
+	}
+	if len(cloned) != 0 {
+		t.Fatalf("expected clone of empty slice to have length 0, got %d", len(cloned))
+	}
+
+	if cloneStringSlice(nil) != nil {
+		t.Fatalf("expected clone of nil slice to remain nil")
+	}
+}
+
 func TestRunCycles_MultipleCycles_LoopsThroughRequirements(t *testing.T) {
 	t.Parallel()
 	orch := newTestOrchestrator()
