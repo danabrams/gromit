@@ -1,6 +1,7 @@
 package integrationqueue
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -302,6 +303,27 @@ func TestApplyTransition_WithErrorMetadata_SetsLastErrorFields(t *testing.T) {
 	if entry.LastErrorCode != "test_error" || entry.LastErrorMessage != "some failure" {
 		t.Fatalf("expected error metadata to be set, got code=%q message=%q",
 			entry.LastErrorCode, entry.LastErrorMessage)
+	}
+}
+
+func TestApplyTransition_InvalidErrorMetadataContract(t *testing.T) {
+	entry := &Entry{
+		State:                "ready",
+		LastTransitionReason: "initial",
+		LastErrorCode:        "code_without_message",
+	}
+	err := ApplyTransition(entry, "integrating", "starting integration")
+	if err == nil {
+		t.Fatalf("expected error when last error metadata is incomplete")
+	}
+	if !strings.Contains(err.Error(), "last_error_code and last_error_message") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if entry.State != "ready" {
+		t.Fatalf("entry state changed despite validation failure, got %s", entry.State)
+	}
+	if entry.LastTransitionReason != "initial" {
+		t.Fatalf("last transition reason mutated despite failure, got %s", entry.LastTransitionReason)
 	}
 }
 
