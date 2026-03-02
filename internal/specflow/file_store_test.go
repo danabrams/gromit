@@ -2,8 +2,10 @@ package specflow
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -73,4 +75,55 @@ func TestFileStoreStoreStageRace(t *testing.T) {
 	ctx := context.Background()
 	store := newTestFileStore(t)
 	runConcurrentStoreStageRace(t, ctx, store, 100)
+}
+
+func runConcurrentStoreStageRace(t *testing.T, ctx context.Context, store SpecStore, operations int) {
+	t.Helper()
+
+	const specIDCount = 3
+	specIDs := make([]string, specIDCount)
+	for i := range specIDs {
+		specIDs[i] = fmt.Sprintf("race-%d", i+1)
+	}
+
+	stages := []Stage{
+		StagePlanning,
+		StageAcceptanceTests,
+		StageImplementation,
+		StageReview,
+		StageGlobalGate,
+		StageDone,
+	}
+
+	errCh := make(chan error, operations)
+	var wg sync.WaitGroup
+
+	for i := 0; i < operations; i++ {
+		wg.Add(1)
+		specID := specIDs[i%len(specIDs)]
+		stage := stages[i%len(stages)]
+		go func(specID string, stage Stage) {
+			defer wg.Done()
+			if err := store.StoreStage(ctx, specID, stage); err != nil {
+				errCh <- fmt.Errorf("store stage %s for %s: %w", stage, specID, err)
+			}
+		}(specID, stage)
+	}
+
+	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		t.Fatalf("concurrent store stage error: %v", err)
+	}
+
+	for _, specID := range specIDs {
+		stage, err := store.Stage(ctx, specID)
+		if err != nil {
+			t.Fatalf("load stage for %s failed: %v", specID, err)
+		}
+		if stage == "" {
+			t.Fatalf("expected stage for %s to be set", specID)
+		}
+	}
 }
