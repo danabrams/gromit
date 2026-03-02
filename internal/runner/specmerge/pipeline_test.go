@@ -2,6 +2,7 @@ package specmerge_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -221,6 +222,36 @@ func TestPipeline_Trigger_RetryCapReachedAlerts(t *testing.T) {
 		t.Fatal("expected retry-cap alert error")
 	}
 	alert := specmerge.EmitRetryCapReachedAlert("payments", 1)
+	if !strings.Contains(err.Error(), alert) {
+		t.Fatalf("error = %q, want to contain alert %q", err.Error(), alert)
+	}
+}
+
+func TestPipeline_Trigger_RunnerErrorRespectsRetryCap(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	const specName = "payments"
+	runnerErr := errors.New("runner failed")
+	flow := &fakeFlowExecutor{
+		runFn: func(_ context.Context, name string) (*specmerge.FlowResult, error) {
+			if name != specName {
+				t.Fatalf("specName = %q, want %q", name, specName)
+			}
+			return &specmerge.FlowResult{}, runnerErr
+		},
+	}
+
+	p := specmerge.NewPipeline(nil, nil, flow, specmerge.FixBeadDependencies{}, 2)
+	err := p.Trigger(ctx, specName)
+	if !errors.Is(err, runnerErr) {
+		t.Fatalf("first attempt error = %v, want runner error", err)
+	}
+
+	err = p.Trigger(ctx, specName)
+	if err == nil {
+		t.Fatal("expected retry-cap alert error")
+	}
+	alert := specmerge.EmitRetryCapReachedAlert(specName, 2)
 	if !strings.Contains(err.Error(), alert) {
 		t.Fatalf("error = %q, want to contain alert %q", err.Error(), alert)
 	}
