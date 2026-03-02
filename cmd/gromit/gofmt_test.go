@@ -60,6 +60,33 @@ func cmdGromitTestFiles(t *testing.T) []string {
 	return files
 }
 
+func cmdGromitSourceFiles(t *testing.T) []string {
+	t.Helper()
+
+	var files []string
+	if err := filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			return err
+		}
+
+		files = append(files, abs)
+		return nil
+	}); err != nil {
+		t.Fatalf("walking cmd/gromit tree: %v", err)
+	}
+
+	sort.Strings(files)
+	return files
+}
+
 func gofmtNonCompliantFiles(t *testing.T, files []string) []string {
 	t.Helper()
 
