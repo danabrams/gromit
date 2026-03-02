@@ -2,8 +2,11 @@ package integrationqueue
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -620,6 +623,66 @@ func TestCoordinator_RecoverFromCrash(t *testing.T) {
 	}
 	if integ2.LastErrorCode != "crash_recovery" {
 		t.Fatalf("integrating2 error code = %s, want crash_recovery", integ2.LastErrorCode)
+	}
+}
+
+func TestCoordinatorRecoverFromCrash_PartialErrorMetadata(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	queuePath := filepath.Join(tmpDir, queueFileName)
+	queue := &Queue{
+		SchemaVersion: SchemaVersion,
+		Entries: []Entry{
+			{
+				Branch:           "feature/partial-error",
+				SessionID:        "session-partial",
+				OriginCommand:    "test",
+				State:            StateIntegrating,
+				Lane:             string(CodeLane),
+				BaseRef:          "main",
+				HeadSHA:          "deadbeef",
+				ChangedFilesHash: "hash",
+				LastErrorMessage: "fallback failure",
+			},
+		},
+	}
+	data, err := json.Marshal(queue)
+	if err != nil {
+		t.Fatalf("json.Marshal(queue) error = %v", err)
+	}
+	if err := os.WriteFile(queuePath, data, 0o644); err != nil {
+		t.Fatalf("write queue file: %v", err)
+	}
+
+	coord := &Coordinator{store: store}
+
+	if err := coord.RecoverFromCrash(ctx); err != nil {
+		t.Fatalf("RecoverFromCrash() error = %v", err)
+	}
+
+	payload, err := store.load()
+	if err != nil {
+		t.Fatalf("load() error = %v", err)
+	}
+
+	processed := findEntry(payload.Entries, "feature/partial-error")
+	if processed == nil {
+		t.Fatal("missing processed entry")
+	}
+	if processed.State != StateReady {
+		t.Fatalf("State = %q, want %q", processed.State, StateReady)
+	}
+	if processed.LastErrorCode != string(CrashRecoveryErrorCode) {
+		t.Fatalf("LastErrorCode = %q, want %q", processed.LastErrorCode, string(CrashRecoveryErrorCode))
+	}
+	if processed.LastErrorMessage != "recovered from crash: entry was in integrating state" {
+		t.Fatalf("LastErrorMessage = %q", processed.LastErrorMessage)
 	}
 }
 
