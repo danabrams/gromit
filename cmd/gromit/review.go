@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/review"
 	"github.com/danabrams/gromit/internal/scope"
 	"github.com/danabrams/gromit/internal/state"
 	"github.com/spf13/cobra"
@@ -79,6 +81,15 @@ Scope options:
 var reviewInteractiveSessionLauncherFn = runWithSessionWorktreeWithConflictSettings
 var reviewInteractiveRunnerFn = runReviewInteractiveInDir
 var recordInteractiveReviewCompletionFn = recordInteractiveReviewCompletion
+
+var reviewFindingsLogWriter io.Writer = os.Stdout
+var buildReviewFindingsApplierFn = func(cfg *config.Config, gromitDir string) (reviewFindingsApplier, error) {
+	return nil, fmt.Errorf("buildReviewFindingsApplierFn is not configured")
+}
+
+type reviewFindingsApplier interface {
+	ApplyReviewFindings(ctx context.Context, result *review.ReviewResult) (*pipeline.ReviewApplyResult, error)
+}
 
 func init() {
 	reviewCmd.Flags().BoolVar(&reviewNonInteractive, "non-interactive", false, "Run review autonomously without interactive session")
@@ -454,6 +465,18 @@ func recordInteractiveReviewCompletion(gromitDir, fromCommit string) error {
 	}
 	if err := stateAdapter.SetLastReviewCommit(fromCommit); err != nil {
 		return fmt.Errorf("recording review completion: %w", err)
+	}
+	return nil
+}
+
+func applyInteractiveReviewFindings(cfg *config.Config, gromitDir string) error {
+	reviewPath := filepath.Join(gromitDir, "tmp", "review-findings.json")
+	if _, err := os.Stat(reviewPath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			fmt.Fprintf(reviewFindingsLogWriter, "warning: review findings file %q not found; skipping apply\n", reviewPath)
+			return nil
+		}
+		return fmt.Errorf("stat review findings: %w", err)
 	}
 	return nil
 }
