@@ -394,9 +394,3 @@ State transition functions must validate target states against the allowed trans
 When implementing new pipeline methods (especially cross-package), verify that: (1) all referenced types and interfaces exist and are properly exported, (2) method signatures match interface definitions from dependent packages, (3) imports are complete in new files, and (4) existing concrete implementations (e.g., bead.Client, backlog.File) satisfy newly defined interfaces.
 
 *Archived from new: filtered: generic engineering advice*
-
-### 2026-03-02 | gromit-jvbt | conventions
-Failure analysis requires complete error output (stderr, exit codes, logs) to diagnose root causes effectively
-
-*Archived from new: filtered: generic engineering advice*
-
