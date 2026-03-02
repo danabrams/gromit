@@ -340,3 +340,47 @@ func TestClientRunWithEnv_UsesProcutilLifecycle(t *testing.T) {
 		t.Fatalf("ARGS = %q, want %q", got["ARGS"], "print-env")
 	}
 }
+
+func TestClientRepoBaseName_UsesProcutilLifecycle(t *testing.T) {
+	t.Parallel()
+	repoDir := t.TempDir()
+
+	initCmd := exec.Command("git", "init")
+	initCmd.Dir = repoDir
+	if err := initCmd.Run(); err != nil {
+		t.Fatalf("git init failed: %v", err)
+	}
+
+	var waitCalled bool
+	oldWait := waitForProcessCapacityFn
+	t.Cleanup(func() { waitForProcessCapacityFn = oldWait })
+	waitForProcessCapacityFn = func(ctx context.Context, maxWait time.Duration) error {
+		waitCalled = true
+		if maxWait <= 0 {
+			t.Fatalf("expected positive maxWait, got %v", maxWait)
+		}
+		return nil
+	}
+
+	var reapCalled bool
+	oldReap := reapProcessTreeFn
+	t.Cleanup(func() { reapProcessTreeFn = oldReap })
+	reapProcessTreeFn = func(cmd *exec.Cmd) {
+		reapCalled = true
+	}
+
+	c := &Client{Dir: repoDir}
+	got, err := c.repoBaseName()
+	if err != nil {
+		t.Fatalf("repoBaseName() error = %v", err)
+	}
+	if got != filepath.Base(repoDir) {
+		t.Fatalf("repoBaseName() = %q, want %q", got, filepath.Base(repoDir))
+	}
+	if !waitCalled {
+		t.Fatal("repoBaseName() did not wait for process capacity")
+	}
+	if !reapCalled {
+		t.Fatal("repoBaseName() did not reap process tree")
+	}
+}
