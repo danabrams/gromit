@@ -26,6 +26,8 @@ func NewFileStore(gromitDir string) (SpecStore, error) {
 	return store, nil
 }
 
+var writeFileFunc = os.WriteFile
+
 type fileStore struct {
 	mu     sync.Mutex
 	path   string
@@ -50,9 +52,9 @@ func (f *fileStore) StoreStage(_ context.Context, specID string, stage Stage) er
 		return fmt.Errorf("specflow file store is nil")
 	}
 	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.stages[specID] = stage
-	f.mu.Unlock()
-	return f.save()
+	return f.saveLocked()
 }
 
 func (f *fileStore) load() error {
@@ -82,12 +84,16 @@ func (f *fileStore) save() error {
 	if f == nil {
 		return fmt.Errorf("specflow file store is nil")
 	}
-	data := make(map[string]string, len(f.stages))
 	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.saveLocked()
+}
+
+func (f *fileStore) saveLocked() error {
+	data := make(map[string]string, len(f.stages))
 	for specID, stage := range f.stages {
 		data[specID] = string(stage)
 	}
-	f.mu.Unlock()
 	jsonData, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshalling specflow store: %w", err)
@@ -95,7 +101,7 @@ func (f *fileStore) save() error {
 	if err := os.MkdirAll(filepath.Dir(f.path), 0o755); err != nil {
 		return fmt.Errorf("creating specflow store dir: %w", err)
 	}
-	if err := os.WriteFile(f.path, jsonData, 0644); err != nil {
+	if err := writeFileFunc(f.path, jsonData, 0644); err != nil {
 		return fmt.Errorf("writing specflow store: %w", err)
 	}
 	return nil
