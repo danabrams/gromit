@@ -52,18 +52,20 @@ These are non-negotiable constraints for this project.
 
 ## Architecture <!-- phases: red, build, green, refactor, review -->
 
-- Observability fields (cost/tokens/duration/model/provider/current_run_row attribution) must be produced through the same runtime execution path used in production. Pre-launch/invocation failures must still emit non-empty attribution (or explicit sentinel attribution) and a typed failure reason. Any alternate/test path must have parity contract tests proving identical field population semantics and non-empty current-run row generation
+- Observability fields (cost/tokens/duration/model/provider/current_run_row attribution) must be produced through the same runtime execution path used in production. Pre-launch/invocation failures must emit non-empty sentinel attribution, typed failure reason, and non-empty error detail. Retro efficiency deltas/anomaly summaries must be suppressed with `data_quality_blocked` when current-run rows are dominated by invocation-failure sentinels. Any alternate/test path must have parity contract tests proving identical field population semantics and non-empty current-run row generation
 - Any bead touching provider stream usage/event handling must add a stream-event matrix contract test (turn/response/result paths) that covers both positive attribution (known model/provider) and negative completeness cases (missing current-run rows fail closed)
 - `internal/runner/*/` sub-packages must not import siblings **in production or test files**; cross-cutting types live in `runtypes/`. Parent `runner` package uses type aliases for backward compatibility. Production files: <550 lines; facade files: <1000 lines
 - Compatibility/deprecation markers are incomplete unless surfaced in user-visible status/debug output and covered by end-to-end behavior tests
 - Interactive commands use the session worktree lifecycle with a single merge/cleanup owner and typed conflict classification from git output + exit status. Do not classify conflicts by message fragments alone. Merge-back cleanup may abort only merge state created by the current operation; pre-existing `MERGE_HEAD` must return a typed non-destructive error.
 - All decomposition entry points must call the same shared validator. Required-field rules (non-empty title, expected_outputs contract, dependency-field validity) must not live in call-site-only checks. Any field required by validation must be present in candidate mapping and reprompt context; prompt/schema/fixture changes for those fields must ship together.
 - Tracker adapters must not downcast `tracker.Client` via `UnwrapBDAdapter` in production paths. If a capability is needed (e.g., `CreateWithParent`/`ListWithLabel`), add it to tracker interfaces (or a typed sub-interface) and update mocks in the same bead
+- Cross-package interface signature changes must ship with adapter/caller parity updates and a compile-gate run over all dependent packages in the same bead; partial parity is invalid
+- Pipeline command entrypoints must construct dependencies only via `NewPipelineDeps()`; package-level factory vars are test-only and forbidden in production command paths
 
 ## Process <!-- phases: build, retro -->
 
 - Post-run efficiency validation must fail closed on missing current-run rows or missing efficiency fields and include per-field diagnostics (missing row vs missing attribution vs missing numeric fields). Experiment Study/Act decisions are blocked unless a complete current-run dataset includes at least 10 post-change iterations with non-empty model/provider attribution and non-null/non-zero required baseline metrics
-- Retro/experiment Study-Act steps are blocked unless the current-run dataset has >=10 post-change iterations with non-empty model/provider attribution and non-zero required efficiency fields; on failure, emit `data_quality_blocked` with per-field diagnostics and suppress anomaly classification
+- Retro/experiment Study-Act steps are blocked unless the current-run dataset has >=10 post-change iterations with non-empty model/provider attribution and non-zero required efficiency fields; on failure, emit `data_quality_blocked` with per-field diagnostics and suppress anomaly classification, control-limit interpretation, and cost/duration delta claims
 - RecordRetro() must clear one-shot control-limit alert flags in state so previously acknowledged alerts do not persist across subsequent healthy runs
 
 ## Build Process <!-- phases: build -->
@@ -80,7 +82,7 @@ These are non-negotiable constraints for this project.
 - `test/contracts/` contract tests verify git call order (`rev-parse` before `git diff --stat`) and keep harness init and sequencing intact
 - Validation commands in gromit.yaml must match the build system (go test/vet/build); never pnpm/npm. API/lifecycle/orchestrator deletions or migrations must add compile gate `go test -tags acceptance -run '^$' ./...`.
 - When deleting exported APIs or large orchestration files, run `go test -tags acceptance -run '^$' ./...` as a compile gate before merge; blocked build-tagged references must be resolved in the same bead
-- Build phases run `go test`/`go vet` on touched packages only. Trigger full validation when either (a) every N successes OR (b) risk signal fires (cross-package touch, architecture/runner/provider paths, or control-limit build-failure signal)
+- Build phases run `go test`/`go vet` on touched packages only. Trigger full validation when either (a) every N successes OR (b) risk signal fires (cross-package touch, architecture/runner/provider paths, control-limit build-failure signal, or any validation command timeout). Repeated identical timeout signatures for the same bead must force immediate decomposition/fallback and block same-scope retry
 - `test_touched.sh` tests branch-modified packages; existing failures in those packages block new beads, so verify they pass before starting dependent work
 - Benchmark run outputs are ephemeral and must write to ignored artifact paths; committed benchmark/test artifacts must be deterministic curated fixtures (under `test/fixtures/`)
 - Validate `token_efficiency.routing` overrides after normalization: unknown categories or non-`low|medium|high` tier values are hard validation errors

@@ -272,6 +272,17 @@ func (inv *Invoker) Execute(ctx context.Context, bc *runtypes.BeadContext, promp
 	bc.Result.CacheInvalidationReason = cacheInvalidationReason
 	bc.Result.CacheVersionMarker = cacheVersionMarker
 
+	// Assign cost/token/duration data to the iteration result.
+	if stats != nil {
+		costUSD, inputTok, outputTok := stats.CostData()
+		bc.Result.CostUSD = costUSD
+		bc.Result.InputTokens = inputTok
+		bc.Result.OutputTokens = outputTok
+	}
+	if providerResult != nil {
+		bc.Result.Duration = providerResult.Duration
+	}
+
 	return &runtypes.InvocationResult{
 		Stats:          stats,
 		StallFired:     stallFired,

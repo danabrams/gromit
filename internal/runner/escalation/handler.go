@@ -693,6 +693,10 @@ func (h *Handler) ExecuteWithRetry(ctx context.Context, bc *runtypes.BeadContext
 			return false
 		}
 		bc.Result.Output = providerResult.Output
+		bc.Result.CostUSD = providerResult.CostUSD
+		bc.Result.Duration = providerResult.Duration
+		bc.Result.InputTokens = providerResult.InputTokens
+		bc.Result.OutputTokens = providerResult.OutputTokens
 
 		if providerResult.Success {
 			return true

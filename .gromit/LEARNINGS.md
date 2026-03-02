@@ -14,10 +14,12 @@ This file is automatically updated. Review periodically with `gromit retro`.
 
 Decomposition quality depends on contract parity across validator, mapping, prompt/reprompt context, and telemetry fixtures. Required fields (title, expected_outputs, dependency fields) must be present in candidate mapping and reprompt context shown to the model; prompt/schema/fixture changes for those fields must ship together. Partial adoption creates persistent retry churn, misleading telemetry, and test brittleness.
 
-### 2026-02-24 | Session Worktree and Mergeback Safety Contract | architecture
-*Related to: gromit-r7lcc, gromit-1fjzj, gromit-9948, gromit-9949, review-1771880675971102580*
+### 2026-03-02 | Session Worktree Lifecycle Is One Contract | architecture
+*Related to: gromit-r7lcc, gromit-1fjzj, gromit-9948, gromit-9949, review-1771880675971102580, review-1772124256835385050, review-1772143302280772186, review-1772322141608097349*
 
-Session worktree and mergeback behavior must follow a single ownership contract: deterministic lifecycle order (create→callback→record pending→merge attempt→cleanup or conflict handoff), typed retryable/non-retryable conflict classification using git output plus exit status, and merge-state safety that never aborts unrelated pre-existing merges. MergeBack cleanup may abort only merge state created by the current operation; pre-existing MERGE_HEAD must return a typed error and preserve the user's in-progress merge state.
+Session worktree lifecycle is one contract: deterministic create/callback/enqueue/cleanup sequencing, merge-safety guards, and queue-handoff semantics must be implemented together. Lifecycle order is create→callback→record pending→cleanup→merge→remove. Typed retryable/non-retryable conflict classification uses git output plus exit status. MergeBack cleanup may abort only merge state created by the current operation; pre-existing MERGE_HEAD must return a typed error. Uses enqueue-to-integration-queue instead of direct merge, following the single-writer coordinator pattern.
+
+*Consolidated from: Session Worktree and Mergeback Safety Contract, Session Worktree Cleanup-Before-Merge Lifecycle, Session Worktree Uses Enqueue-to-Queue Instead of Direct Merge*
 
 ### 2026-02-28 | Retro Worktree Cannot See Runtime Logs, Causing Zero-Data Efficiency Reports | reliability
 *Related to: retro-1772302209902158129, gromit-r0x (previous experiment also hit this)*
@@ -86,10 +88,6 @@ Shared orchestrator/runtime path ownership must include telemetry completeness e
 
 Tracker adapter metadata must use one canonical JSON encoder (encodeJSONIfNonEmpty) for labels/expected_outputs/criteria across all adapter entry points; fmt.Sprintf/comma formats are forbidden because they break roundtrip parsing.
 
-### 2026-02-26 | Session Worktree Cleanup-Before-Merge Lifecycle | patterns
-*Related to: code-review, review-1772124256835385050, review-1772143302280772186*
-
-Session worktree lifecycle should run add → cleanup → merge → remove to avoid checked-out-branch deletion failures, while preserving merge-state safety guarantees.
 
 ### 2026-02-26 | Profile-Aware Init Three-Function Pattern | patterns
 *Related to: code-review, review-1772124256835385050*
@@ -167,10 +165,12 @@ When extracting display/formatting logic to a new sub-package, ensure metric str
 
 parseGeminiStream, extractGeminiAssistantText/Tokens/Cost helpers are defined and tested but not called from any production code path. Scaffolded code without production callers creates maintenance burden and confusion about which parsing path is canonical.
 
-### 2026-02-28 | Centralized DI via NewPipelineDeps Is the Adapter Wiring Pattern | architecture
-*Related to: review-1772244209301323387*
+### 2026-03-02 | All CLI Command Paths Must Use NewPipelineDeps for DI | architecture
+*Related to: review-1772244209301323387, review-1772322141608097349, review-1772366501939692738*
 
-All CLI commands wire dependencies through NewPipelineDeps() in cmd/gromit/adapter_deps.go. New commands should use this single entry point rather than constructing adapters inline. Adapters are split: adapters.go (LLM/tracker) and cli_adapters.go (prompt renderers, state, logging).
+All CLI command paths must resolve dependencies through NewPipelineDeps(); package-level concrete factory bypasses are forbidden in production paths. Adapters are split: adapters.go (LLM/tracker) and cli_adapters.go (prompt renderers, state, logging). Currently board.go and queue.go bypass centralized DI using package-level factory vars — this tech debt means those methods cannot be tested with mock dependencies.
+
+*Consolidated from: Centralized DI via NewPipelineDeps Is the Adapter Wiring Pattern, Queue/Board Pipeline Methods Must Use NewPipelineDeps Not Package-Level Factories*
 
 ### 2026-02-28 | TUI Store Uses RWMutex With Copy-on-Read for Thread Safety | patterns
 *Related to: review-1772244209301323387*
@@ -196,15 +196,13 @@ Epilogue close/sync failures must suppress all success signals (events, logs, me
 
 Provider router (internal/provider/router.go) was a genuine data race — counts and unavailable maps accessed from multiple goroutines without locking. Now uses sync.Mutex on all read/write paths. New provider infrastructure must protect shared state similarly.
 
-### 2026-02-28 | Integration Queue Lifecycle Is Table-Driven via ApplyTransition With Mandatory Persistence | architecture
-*Related to: review-1772280289214510883, retro-1772302209902158129, review-1772322141608097349*
+### 2026-03-02 | Integration Queue State Must Be Table-Driven With Persistent Transitions | architecture
+*Related to: review-1772280289214510883, retro-1772302209902158129, review-1772322141608097349, review-1772366501939692738, review-1772423180715253804*
 
-*Consolidated from: Integration Queue State Machine Has 7 States With Validated Transitions + Integration Queue State Machine Is Table-Driven via ApplyTransition*
+Integration queue state evolution must be table-driven and persist every transition path (including recovery), with state count/schema updates reflected in the same change. 8 states: draft/ready/integrating/merged/conflict/failed_gates/lane_violation/push_failure. Must mutate state only through `ApplyTransition`; direct assignment is forbidden. Error paths (push failure, rebase conflict) must persist state transitions before returning errors. Recovery paths must use valid transitions (integrating→draft is invalid; use integrating→ready via ApplyTransition). RecoverFromMalformedQueue must persist and use valid transitions consistent with Coordinator.RecoverFromCrash.
 
-Integration queue lifecycle is table-driven (7 states: draft/ready/integrating/merged/conflict/failed_gates/lane_violation) and must mutate state only through `ApplyTransition`, with every error-path transition persisted before return; direct assignment is forbidden. Error paths (push failure, rebase conflict) must persist state transitions before returning errors to avoid leaving entries stuck in `StateIntegrating`.
+*Consolidated from: Integration Queue Lifecycle Is Table-Driven via ApplyTransition, Integration Queue Has 8 States Including push_failure, RecoverFromMalformedQueue Never Persists and Uses Invalid Transition*
 
-### 2026-02-28 | gromit-scfw | patterns
-Queue payload validation requires all fields (base_ref, session reference, etc.) to be set when creating records - check integration queue schema and ensure all required fields are initialized in test scenarios and concurrent session workflows
 
 ### 2026-02-28 | ListBeads/QueryBeads Silently Return Empty for Unsupported Status | gotchas
 *Related to: review-1772300695650836737*
@@ -218,12 +216,6 @@ Pipeline.ListBeads and QueryBeads only support status="" or status="ready". Any 
 
 Vision metrics rollups may intentionally use asymmetric carve-out denominators (e.g., AcceptedWithoutReworkRate excludes rework_vision_change from denominator but FirstIntegrationPassRate includes them), but each metric must document carve-out policy explicitly.
 
-### 2026-02-28 | Queue/Board Pipeline Methods Must Use NewPipelineDeps, Not Package-Level Factories | tech_debt
-*Related to: review-1772322141608097349, review-1772366501939692738*
-
-*Consolidated from: Board and Queue Commands Bypass Deps DI Pattern + Queue and Board Pipeline Methods Bypass Centralized DI Pattern*
-
-Queue/board pipeline methods must consume dependencies through `NewPipelineDeps` (no package-level concrete client factories). Currently board.go and queue.go bypass centralized DI using package-level factory vars — this means these methods cannot be tested with mock dependencies.
 
 ### 2026-02-28 | TUI Store Copy-on-Read Returns Shallow Pointer Copies | gotchas
 *Related to: review-1772322141608097349*
@@ -235,25 +227,9 @@ TUI store uses sync.RWMutex with copy-on-read for thread safety, but copied slic
 
 Config types must use *bool for boolean fields with non-zero defaults to distinguish 'unset' from 'explicitly false' in YAML deserialization. Plain bool zero value (false) is indistinguishable from explicit false.
 
-### 2026-02-28 | Session Worktree Uses Enqueue-to-Queue Instead of Direct Merge | architecture
-*Related to: review-1772322141608097349*
 
-Session worktree lifecycle now uses enqueue-to-integration-queue instead of direct merge, following the single-writer coordinator pattern.
 
-### 2026-03-01 | Integration Queue Store Lacks File Locking for Concurrent Access | reliability
-*Related to: review-1772366501939692738*
 
-Integration queue has no file locking — concurrent CLI processes (sessions + coordinator) can corrupt the queue file via TOCTOU races in the load-mutate-write cycle (Store.Save, SaveQueue, RecoverFromMalformedQueue). Add flock-based advisory locking around the load/modify/write cycle.
-
-### 2026-03-01 | RecoverFromMalformedQueue Never Persists and Uses Invalid Transition | reliability
-*Related to: review-1772366501939692738*
-
-RecoverFromMalformedQueue resets integrating entries to StateDraft (not a valid transition from integrating per the transition table) and never calls SaveQueue(), so recovery only exists in memory. Coordinator.RecoverFromCrash correctly uses ApplyTransition to StateReady and persists. The two recovery paths are inconsistent.
-
-### 2026-03-01 | constructor_adapters.go Exceeds 550-Line Limit at 1147 Lines | tech_debt
-*Related to: review-1772366501939692738*
-
-internal/runner/constructor_adapters.go is 2x the 550-line file size limit. Contains ~130 lines of dead specGateAdapter code (deprecated per constructor.go comment) and dead childWithDedupeLabelExists method. Primary extraction target for splitting into logical adapter groups.
 
 ### 2026-03-01 | Epilogue Stage Mutates Caller's IterationLog Through Input Pointer | architecture
 *Related to: review-1772366501939692738*
@@ -286,10 +262,6 @@ worktree.Manager was updated to accept context.Context on Cleanup, PendingBranch
 
 Two new files (spc_auto_triage.go, specmerge/pr_summary.go) were committed with space indentation instead of tabs, failing gofmt. CI should catch this if gofmt is enforced in the lint step; if not, add gofmt as a CI gate.
 
-### 2026-03-01 | SPC Auto-Triage Batch Processing Aborts on First Tracker Failure | reliability
-*Related to: review-1772392326235980273*
-
-SPCAutoTriager.Process returns immediately on the first tracker.Client.Create failure, abandoning all remaining SPCCauseRecords in the batch. A transient failure on one record drops the rest. Batch processing should accumulate errors or skip failed records.
 
 ### 2026-03-01 | captureCycleRecord Silently Discards Emitter Error | gotchas
 *Related to: review-1772392326235980273*
@@ -319,10 +291,6 @@ constructor_adapters.go was extracted from 1147 lines to 51 lines by splitting i
 
 internal/runner/spc_auto_triage.go Process() correctly accumulates errors via errors.Join rather than aborting on first tracker failure. Each record failure is appended to an error slice and processing continues.
 
-### 2026-03-02 | Integration Queue Has 8 States Including push_failure | architecture
-*Related to: review-1772423180715253804*
-
-The integration queue transition table includes push_failure as an additional state beyond the original 7 (draft/ready/integrating/merged/conflict/failed_gates/lane_violation), with push_failure→ready as valid recovery transition.
 
 ---
 
@@ -394,3 +362,29 @@ State transition functions must validate target states against the allowed trans
 When implementing new pipeline methods (especially cross-package), verify that: (1) all referenced types and interfaces exist and are properly exported, (2) method signatures match interface definitions from dependent packages, (3) imports are complete in new files, and (4) existing concrete implementations (e.g., bead.Client, backlog.File) satisfy newly defined interfaces.
 
 *Archived from new: filtered: generic engineering advice*
+
+### 2026-03-01 | Integration Queue Store Lacks File Locking for Concurrent Access | reliability
+*Related to: review-1772366501939692738*
+
+Integration queue has no file locking — concurrent CLI processes (sessions + coordinator) can corrupt the queue file via TOCTOU races in the load-mutate-write cycle.
+
+*Archived: 2026-03-02 — superseded by implemented flock locking (review-1772423180715253804).*
+
+### 2026-03-01 | constructor_adapters.go Exceeds 550-Line Limit at 1147 Lines | tech_debt
+*Related to: review-1772366501939692738*
+
+internal/runner/constructor_adapters.go was 2x the 550-line file size limit.
+
+*Archived: 2026-03-02 — superseded by successful extraction to 51 lines (review-1772423180715253804).*
+
+### 2026-03-01 | SPC Auto-Triage Batch Processing Aborts on First Tracker Failure | reliability
+*Related to: review-1772392326235980273*
+
+SPCAutoTriager.Process returned immediately on the first tracker.Client.Create failure, abandoning remaining records.
+
+*Archived: 2026-03-02 — superseded by errors.Join resilient accumulation (review-1772423180715253804).*
+
+### 2026-02-28 | gromit-scfw | patterns
+Queue payload validation requires all fields (base_ref, session reference, etc.) to be set when creating records.
+
+*Archived: 2026-03-02 — generic bead-ID phrasing without durable project-specific mechanism; archive per anti-generic policy.*
