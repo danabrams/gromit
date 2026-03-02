@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -61,13 +63,14 @@ var (
 	newIntegrationQueueCoordinatorFn = integrationqueue.NewCoordinator
 )
 
+
 func newIntegrationQueueScopedGateEvaluator(cfg *config.Config, repoDir string, cmdRunner runtypes.CmdRunnerFn) integrationQueueScopedGateEvaluator {
 	if cfg == nil || !cfg.Validation.Enabled {
 		return nil
 	}
 
-	commands := cfg.Validation.FastCommandsOrDefault()
-	if len(commands) == 0 {
+	fastCommands := cfg.Validation.FastCommandsOrDefault()
+	if len(fastCommands) == 0 {
 		return nil
 	}
 
@@ -83,6 +86,11 @@ func newIntegrationQueueScopedGateEvaluator(cfg *config.Config, repoDir string, 
 	return func(ctx context.Context, entry integrationqueue.Entry) error {
 		if strings.TrimSpace(entry.Branch) == "" {
 			return nil
+		}
+
+		commands := fastCommands
+		if touched := deriveTouchedPackagesFromChangedFiles(entry.ChangedFiles); len(touched) > 0 {
+			commands = config.ScopeGoTestCommands(fastCommands, touched)
 		}
 
 		runner := validation.NewRunner(cfg, cmdRunner, nil, nil)
@@ -102,6 +110,47 @@ func newIntegrationQueueScopedGateEvaluator(cfg *config.Config, repoDir string, 
 		}
 		return nil
 	}
+}
+
+func deriveTouchedPackagesFromChangedFiles(changedFiles []string) []string {
+	if len(changedFiles) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(changedFiles))
+	packages := make([]string, 0, len(changedFiles))
+
+	for _, file := range changedFiles {
+		trimmed := strings.TrimSpace(file)
+		if trimmed == "" {
+			continue
+		}
+		normalized := strings.ReplaceAll(trimmed, "\\", "/")
+		if !strings.HasSuffix(normalized, ".go") {
+			continue
+		}
+		normalized = strings.TrimPrefix(normalized, "./")
+		dir := path.Dir(normalized)
+		if dir == "" || dir == "." {
+			dir = "."
+		} else {
+			dir = strings.Trim(dir, "/")
+			if dir == "" {
+				dir = "."
+			}
+		}
+		if _, exists := seen[dir]; exists {
+			continue
+		}
+		seen[dir] = struct{}{}
+		packages = append(packages, dir)
+	}
+
+	if len(packages) == 0 {
+		return nil
+	}
+	sort.Strings(packages)
+	return packages
 }
 
 func newIntegrationQueueCoordinator(cfg *config.Config, gromitDir string) (Coordinator, error) {
