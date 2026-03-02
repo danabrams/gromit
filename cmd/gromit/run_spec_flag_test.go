@@ -87,6 +87,64 @@ func TestRunSpecTestEnvGoProfileValidationCommands(t *testing.T) {
 	}
 }
 
+// RED: We should be able to swap the specflow and branch factories for spec runs via
+// the injection globals so the run loop stays testable even if the real factories
+// are expensive or rely on git state.
+func TestRunLoop_SpecFlagInjectableFactories(t *testing.T) {
+	_, cleanup := setupRunSpecTestEnv(t)
+	defer cleanup()
+
+	fakeStore := &fakeSpecflowStore{stageErr: specflow.ErrStageNotFound}
+	origStoreFn := newSpecflowStoreFn
+	newSpecflowStoreFn = func(gromitDir string) (specflow.SpecStore, error) {
+		if gromitDir == "" {
+			t.Fatalf("expected gromitDir to be set")
+		}
+		return fakeStore, nil
+	}
+	defer func() { newSpecflowStoreFn = origStoreFn }()
+
+	var branches []string
+	origBranchFn := newSpecBranchCreatorFn
+	newSpecBranchCreatorFn = func(repoDir string, cfg *config.Config) (runner.SpecBranchCreator, error) {
+		return &fakeBranchCreator{branches: &branches}, nil
+	}
+	defer func() { newSpecBranchCreatorFn = origBranchFn }()
+
+	var stageCtxCalled bool
+	origRunnerFn := newRunnerWithStageContextFn
+	newRunnerWithStageContextFn = func(cfg *config.Config, output io.Writer, stageCtx *runner.StageContext, labels ...string) (*runner.Orchestrator, error) {
+		stageCtxCalled = true
+		if stageCtx == nil || stageCtx.SpecName != "auth" {
+			t.Fatalf("expected auth stage context, got %+v", stageCtx)
+		}
+		return nil, fmt.Errorf("runner stub")
+	}
+	defer func() { newRunnerWithStageContextFn = origRunnerFn }()
+
+	runSpecFlag = "auth"
+	runEpicFlag = ""
+
+	specPath := filepath.Join(".gromit", "specs", "auth.md")
+	if err := os.WriteFile(specPath, []byte("# auth spec"), 0644); err != nil {
+		t.Fatalf("failed to write spec: %v", err)
+	}
+
+	err := runLoop(runCmd, []string{})
+	if err == nil || !strings.Contains(err.Error(), "runner stub") {
+		t.Fatalf("expected runner stub, got %v", err)
+	}
+	if !stageCtxCalled {
+		t.Fatal("expected new runner to see the injected stage context")
+	}
+	if len(branches) != 1 {
+		t.Fatalf("branch creator called %d times, want 1", len(branches))
+	}
+	if branches[0] != "gromit/spec-auth" {
+		t.Fatalf("unexpected branch created: %s", branches[0])
+	}
+}
+
 // RED: When --spec is provided for the first time, the run-loop should bootstrap
 // specflow stage context, branch creation, and pass the context into the runner.
 func TestRunLoop_SpecFlagFreshStartBootstrapsStageAndBranch(t *testing.T) {
