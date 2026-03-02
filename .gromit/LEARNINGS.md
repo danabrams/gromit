@@ -291,6 +291,26 @@ constructor_adapters.go was extracted from 1147 lines to 51 lines by splitting i
 
 internal/runner/spc_auto_triage.go Process() correctly accumulates errors via errors.Join rather than aborting on first tracker failure. Each record failure is appended to an error slice and processing continues.
 
+### 2026-03-02 | Coordinator Error Metadata Bypasses ApplyTransition Creating Partial-State Bugs | architecture
+*Related to: review-1772449742155634887*
+
+Integration queue coordinator sets LastErrorCode/LastErrorMessage via direct field assignment before calling ApplyTransition. When ApplyTransition fails, entries are left with error codes set but State unchanged (still StateIntegrating), violating the validation contract that requires both fields set/unset together. Error metadata should be set atomically with state transitions.
+
+### 2026-03-02 | context.Background() in Adapter Factory Closures Defeats Stage Cancellation | patterns
+*Related to: review-1772449742155634887*
+
+constructor_adapters_epilogue.go and constructor_adapters_build_review.go use context.Background() instead of the ctx parameter in bead creation/close/diff operations. This means stage cancellation and orchestrator deadlines are silently ignored. New adapters must thread context from the stage invocation.
+
+### 2026-03-02 | 116 Pre-Existing gofmt Violations Despite Repo gofmt Gate | conventions
+*Related to: review-1772449742155634887*
+
+The repo gofmt gate (recently added) catches new violations but does not enforce formatting on files that were already non-compliant. 116 files currently fail gofmt including production files (verify_spec.go, config_types.go, conversation.go, etc.). A bulk cleanup pass is needed.
+
+### 2026-03-02 | orchestrator.go Exceeds 1000-Line Facade Limit at 1254 Lines | tech_debt
+*Related to: review-1772449742155634887*
+
+internal/runner/orchestrator.go is the largest production file at 1254 lines, exceeding both the 550-line production limit and the 1000-line facade limit. Continued growth without extraction will compound complexity.
+
 
 ---
 
