@@ -71,6 +71,7 @@ var (
 	subprocessEnvFn           = procutil.SubprocessEnv
 	killDescendantsOnCancelFn = procutil.KillDescendantsOnCancel
 	reapProcessTreeFn         = procutil.ReapProcessTree
+	errContextRequired        = errors.New("bead: context required")
 )
 
 // DefaultCommandTimeout is the per-command timeout applied to bd subprocess
@@ -629,7 +630,7 @@ func shouldRetryWithIssuePrefixBootstrap(err error) bool {
 
 func (c *Client) deriveIssuePrefix(ctx context.Context) (string, error) {
 	if ctx == nil {
-		ctx = context.Background()
+		return "", errContextRequired
 	}
 	repoName, err := c.repoBaseName(ctx)
 	if err != nil {
@@ -644,7 +645,7 @@ func (c *Client) deriveIssuePrefix(ctx context.Context) (string, error) {
 
 func (c *Client) repoBaseName(ctx context.Context) (string, error) {
 	if ctx == nil {
-		ctx = context.Background()
+		return "", errContextRequired
 	}
 	timeout := DefaultCommandTimeout
 	if c != nil {
