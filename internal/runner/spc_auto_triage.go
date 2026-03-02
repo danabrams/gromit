@@ -145,7 +145,10 @@ func (s *SPCAutoTriager) Process(ctx context.Context, records []SPCCauseRecord) 
 			continue
 		}
 		label := dedupeLabelForIdentity(identity)
-		if openExists(ctx, s.client, label) {
+		if exists, err := openExists(ctx, s.client, label); err != nil {
+			errs = append(errs, fmt.Errorf("checking dedupe label %q: %w", label, err))
+			continue
+		} else if exists {
 			continue
 		}
 		issueType, ok := s.config.IssueType[rec.Class]
@@ -210,15 +213,15 @@ func buildIssueDescription(rec SPCCauseRecord, guidance string) string {
 	return strings.Join(lines, "\n")
 }
 
-func openExists(ctx context.Context, client tracker.Client, label string) bool {
+func openExists(ctx context.Context, client tracker.Client, label string) (bool, error) {
 	items, err := client.ListWithLabel(ctx, label)
 	if err != nil {
-		return true
+		return false, err
 	}
 	for _, item := range items {
 		if item.Status != tracker.StatusClosed {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
