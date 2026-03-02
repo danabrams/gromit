@@ -207,6 +207,7 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 			}
 			return pipeline.Output{
 				Decision:          pipeline.Block,
+				GateBlockReason:   "failure_threshold_exceeded",
 				ComplexityRouting: complexityRouting,
 			}, nil
 		}
@@ -258,6 +259,7 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 			}
 			return pipeline.Output{
 				Decision:          pipeline.Block,
+				GateBlockReason:   reason,
 				ComplexityRouting: complexityRouting,
 			}, nil
 		}
@@ -279,6 +281,7 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 			}
 			return pipeline.Output{
 				Decision:          pipeline.Block,
+				GateBlockReason:   reason,
 				ComplexityRouting: complexityRouting,
 			}, nil
 		}
@@ -480,7 +483,10 @@ func (g *Gate) runScopeGate(ctx context.Context, in pipeline.Input) (*pipeline.O
 					Reason: "scope",
 				})
 			}
-			return &pipeline.Output{Decision: pipeline.Block}, nil
+			return &pipeline.Output{
+				Decision:        pipeline.Block,
+				GateBlockReason: "scope",
+			}, nil
 		}
 		g.Log("info", "Scope gate: decomposition succeeded for bead %s, skipping parent bead", in.Bead.ID)
 		return &pipeline.Output{Decision: pipeline.Skip}, nil
@@ -495,5 +501,8 @@ func (g *Gate) runScopeGate(ctx context.Context, in pipeline.Input) (*pipeline.O
 			Reason: "scope",
 		})
 	}
-	return &pipeline.Output{Decision: pipeline.Block}, nil
+	return &pipeline.Output{
+		Decision:        pipeline.Block,
+		GateBlockReason: "scope",
+	}, nil
 }

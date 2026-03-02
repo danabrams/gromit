@@ -1027,6 +1027,9 @@ func TestGateRunScopeGateAttemptsDecomposition(t *testing.T) {
 			if out.Decision != tt.wantDecision {
 				t.Errorf("decision = %v, want %v", out.Decision, tt.wantDecision)
 			}
+			if tt.wantDecision == pipeline.Block && out.GateBlockReason != "scope" {
+				t.Errorf("GateBlockReason = %q, want %q", out.GateBlockReason, "scope")
+			}
 			if tt.decomposer != nil {
 				if d, ok := tt.decomposer.(*fakeDecomposer); ok {
 					if d.called != tt.wantDecomposeCalled {
@@ -1291,6 +1294,9 @@ func TestGateRunComplexityRouting_OnSkipAndBlockPaths(t *testing.T) {
 		if out.Decision != pipeline.Block {
 			t.Fatalf("decision = %v, want %v", out.Decision, pipeline.Block)
 		}
+		if out.GateBlockReason != "failure_threshold_exceeded" {
+			t.Fatalf("GateBlockReason = %q, want %q", out.GateBlockReason, "failure_threshold_exceeded")
+		}
 		if out.Complexity != "high" || out.ComplexitySource != "label" || out.ComplexityFallbackReason != "scope_unavailable" {
 			t.Fatalf("unexpected complexity routing: %+v", out.ComplexityRouting)
 		}
@@ -1353,8 +1359,9 @@ func TestGateRun_SpecLevelMaintenanceBlock(t *testing.T) {
 	if out.Decision != pipeline.Block {
 		t.Fatalf("decision = %v, want %v", out.Decision, pipeline.Block)
 	}
-	if out.GateBlockReason != "" {
-		t.Fatalf("GateBlockReason should be empty when DataQualityBlocker blocks, got %q", out.GateBlockReason)
+	expectedReason := blocker.reasonFor(spec)
+	if out.GateBlockReason != expectedReason {
+		t.Fatalf("GateBlockReason = %q, want %q", out.GateBlockReason, expectedReason)
 	}
 
 	emitted := eventtest.DrainEvents(t, ch)
@@ -1364,7 +1371,6 @@ func TestGateRun_SpecLevelMaintenanceBlock(t *testing.T) {
 			blockEvt = be
 		}
 	}
-	expectedReason := blocker.reasonFor(spec)
 	if blockEvt == nil {
 		t.Fatal("expected GateBlockEvent to be emitted")
 	}
