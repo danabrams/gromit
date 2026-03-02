@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -179,7 +180,7 @@ func runDebug(cmd *cobra.Command, args []string) error {
 		selectedAgent = agent.New(claudeAgentName, binary, flags, agent.FileRef, "", nil)
 	}
 
-	if err := launchDebugSession(cfg, gromitDir, selectedAgent, promptPath, launchDir); err != nil {
+	if err := launchDebugSession(cmd.Context(), cfg, gromitDir, selectedAgent, promptPath, launchDir); err != nil {
 		return fmt.Errorf("launching agent: %w", err)
 	}
 
@@ -189,7 +190,7 @@ func runDebug(cmd *cobra.Command, args []string) error {
 	return detectAndReportArtifacts(reportsDir, plansDir, existingReports, existingPlans, existingBacklogItems, bf, cfg)
 }
 
-func launchDebugSession(cfg *config.Config, gromitDir string, selectedAgent agent.Agent, promptPath, launchDir string) error {
+func launchDebugSession(ctx context.Context, cfg *config.Config, gromitDir string, selectedAgent agent.Agent, promptPath, launchDir string) error {
 	if selectedAgent == nil {
 		return fmt.Errorf("selected agent is nil")
 	}
@@ -198,7 +199,7 @@ func launchDebugSession(cfg *config.Config, gromitDir string, selectedAgent agen
 		return fmt.Errorf("resolving prompt path: %w", err)
 	}
 
-	return launchInSessionIfEnabled(cfg, gromitDir, debugSessionCommand, debugSessionLauncherFn, func(sessionDir string) error {
+	return launchInSessionIfEnabledWithContext(ctx, cfg, gromitDir, debugSessionCommand, debugSessionLauncherFn, func(sessionDir string) error {
 		effectiveDir := sessionDir
 		if strings.TrimSpace(launchDir) != "" {
 			effectiveDir = launchDir

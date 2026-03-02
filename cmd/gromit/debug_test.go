@@ -137,7 +137,7 @@ func TestLaunchDebugSession_UsesSessionLauncherWhenEnabled(t *testing.T) {
 		},
 	}
 
-	if err := launchDebugSession(&config.Config{}, ".gromit", agent, "prompt.md", ""); err != nil {
+	if err := launchDebugSession(context.Background(), &config.Config{}, ".gromit", agent, "prompt.md", ""); err != nil {
 		t.Fatalf("launchDebugSession() error = %v", err)
 	}
 	if !launcherCalled {
@@ -177,7 +177,7 @@ func TestLaunchDebugSession_WorktreeDisabledUsesInPlaceLaunchDir(t *testing.T) {
 		},
 	}
 
-	if err := launchDebugSession(cfg, ".gromit", agent, "prompt.md", "/tmp/debug-restore"); err != nil {
+	if err := launchDebugSession(context.Background(), cfg, ".gromit", agent, "prompt.md", "/tmp/debug-restore"); err != nil {
 		t.Fatalf("launchDebugSession() error = %v", err)
 	}
 	if launcherCalled {
@@ -217,7 +217,7 @@ func TestLaunchDebugSession_UsesRestoreDirWhenProvided(t *testing.T) {
 		},
 	}
 
-	if err := launchDebugSession(&config.Config{}, ".gromit", agent, "prompt.md", restoreDir); err != nil {
+	if err := launchDebugSession(context.Background(), &config.Config{}, ".gromit", agent, "prompt.md", restoreDir); err != nil {
 		t.Fatalf("launchDebugSession() error = %v", err)
 	}
 	if launchedDir != restoreDir {
@@ -253,7 +253,7 @@ func TestLaunchDebugSession_ConvertsPromptPathToAbsolute(t *testing.T) {
 		},
 	}
 
-	if err := launchDebugSession(cfg, ".gromit", agent, relativePromptPath, ""); err != nil {
+	if err := launchDebugSession(context.Background(), cfg, ".gromit", agent, relativePromptPath, ""); err != nil {
 		t.Fatalf("launchDebugSession() error = %v", err)
 	}
 
