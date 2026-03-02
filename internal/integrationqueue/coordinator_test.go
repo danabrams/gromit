@@ -164,6 +164,50 @@ func TestCoordinatorPropagatesSaveErrorAfterInitialFetchFailure(t *testing.T) {
 	}
 }
 
+func TestCoordinatorPropagatesSaveErrorAfterGateRetryFetchFailure(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	saveErr := errors.New("retry transition save failed")
+
+	store, err := NewStore(tmpDir, WithValidationHook(func(entry Entry) error {
+		if entry.Branch == "feature/save-fail-retry" && entry.State == StateConflict {
+			return saveErr
+		}
+		return nil
+	}))
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	entry := Entry{
+		Branch:           "feature/save-fail-retry",
+		SessionID:        "feature/save-fail-retry",
+		OriginCommand:    "test",
+		State:            StateReady,
+		Lane:             "code_lane",
+		BaseRef:          "main",
+		HeadSHA:          "deadbeef",
+		ChangedFilesHash: "hash",
+	}
+	if err := store.Save(entry); err != nil {
+		t.Fatalf("Save(entry) error = %v", err)
+	}
+
+	retryErr := errors.New("retry fetch failed")
+	gitops := &retryFetchFailGitOps{failErr: retryErr}
+	gate := &failGateOnce{}
+	coord := NewCoordinator(store, gitops, gate)
+
+	err = coord.Coordinate(ctx)
+	if err == nil {
+		t.Fatalf("Coordinate() error = nil, want store save error")
+	}
+	if !errors.Is(err, saveErr) {
+		t.Fatalf("Coordinate() error = %v, want %v", err, saveErr)
+	}
+}
+
 type mockGitOps struct {
 	calls []string
 }
@@ -265,6 +309,43 @@ func (m *failFetchGitOps) Push(ctx context.Context) error {
 }
 
 func (m *failFetchGitOps) Cleanup(ctx context.Context, entry Entry) error {
+	return nil
+}
+
+type retryFetchFailGitOps struct {
+	failErr    error
+	fetchCount int
+}
+
+func (m *retryFetchFailGitOps) FetchAndRebase(ctx context.Context, entry Entry) error {
+	m.fetchCount++
+	if m.fetchCount == 2 {
+		return m.failErr
+	}
+	return nil
+}
+
+func (m *retryFetchFailGitOps) MergeToMain(ctx context.Context, entry Entry) error {
+	return nil
+}
+
+func (m *retryFetchFailGitOps) Push(ctx context.Context) error {
+	return nil
+}
+
+func (m *retryFetchFailGitOps) Cleanup(ctx context.Context, entry Entry) error {
+	return nil
+}
+
+type failGateOnce struct {
+	callCount int
+}
+
+func (m *failGateOnce) Run(ctx context.Context, entry Entry) error {
+	m.callCount++
+	if m.callCount == 1 {
+		return errors.New("scoped gate failed")
+	}
 	return nil
 }
 
