@@ -14,6 +14,7 @@ type Router struct {
 	unavailable    map[string]time.Time
 	cooldown       time.Duration
 	stateFn        StateFile
+	stateMu        sync.Mutex
 	circuitBreaker *CircuitBreaker
 	mu             sync.Mutex
 }
@@ -115,7 +116,7 @@ func (r *Router) isAvailable(name string) bool {
 	}
 
 	// Check state file for availability
-	if r.stateFn != nil && !r.stateFn.IsProviderAvailable(name) {
+	if !r.stateIsAvailable(name) {
 		return false
 	}
 
@@ -188,6 +189,33 @@ func (r *Router) isAvailableLocked(name string) bool {
 	return true
 }
 
+func (r *Router) stateIsAvailable(name string) bool {
+	if r.stateFn == nil {
+		return true
+	}
+	r.stateMu.Lock()
+	defer r.stateMu.Unlock()
+	return r.stateFn.IsProviderAvailable(name)
+}
+
+func (r *Router) stateIncrementProviderCount(name string) {
+	if r.stateFn == nil {
+		return
+	}
+	r.stateMu.Lock()
+	r.stateFn.IncrementProviderCount(name)
+	r.stateMu.Unlock()
+}
+
+func (r *Router) stateMarkUnavailable(name string, until time.Time) {
+	if r.stateFn == nil {
+		return
+	}
+	r.stateMu.Lock()
+	r.stateFn.SetProviderUnavailable(name, until)
+	r.stateMu.Unlock()
+}
+
 func (r *Router) effectiveRatioMap() map[string]int {
 	if r == nil {
 		return map[string]int{}
@@ -210,7 +238,7 @@ func (r *Router) selectIfAvailable(name string, tier string) (Provider, string) 
 		return nil, ""
 	}
 
-	if r.stateFn != nil && !r.stateFn.IsProviderAvailable(name) {
+	if !r.stateIsAvailable(name) {
 		return nil, ""
 	}
 
@@ -224,9 +252,7 @@ func (r *Router) selectIfAvailable(name string, tier string) (Provider, string) 
 	r.counts[name]++
 	r.mu.Unlock()
 
-	if r.stateFn != nil {
-		r.stateFn.IncrementProviderCount(name)
-	}
+	r.stateIncrementProviderCount(name)
 
 	return provider, modelName
 }
@@ -263,9 +289,7 @@ func (r *Router) MarkUnavailable(name string) {
 	r.unavailable[name] = until
 	r.mu.Unlock()
 
-	if r.stateFn != nil {
-		r.stateFn.SetProviderUnavailable(name, until)
-	}
+	r.stateMarkUnavailable(name, until)
 }
 
 // RecordInvocation increments count and persists to state via stateFn
@@ -274,9 +298,7 @@ func (r *Router) RecordInvocation(name string) {
 	r.counts[name]++
 	r.mu.Unlock()
 
-	if r.stateFn != nil {
-		r.stateFn.IncrementProviderCount(name)
-	}
+	r.stateIncrementProviderCount(name)
 }
 
 // RecordOutcome records an invocation outcome in the circuit breaker.
