@@ -185,7 +185,18 @@ func runWithSessionWorktreeWithConflictSettings(
 	}
 
 	if err := callback(session.WorktreeDir); err != nil {
-		return nil, fmt.Errorf("running session callback: %w", err)
+		callbackErr := fmt.Errorf("running session callback: %w", err)
+		queueErr := removeQueueBranch(gromitDir, session.BranchName)
+		cleanupErr := interactiveWorktreeCleanupSessionFn(mainDir, session.WorktreeDir)
+
+		var combinedErr error = callbackErr
+		if queueErr != nil {
+			combinedErr = errors.Join(combinedErr, fmt.Errorf("removing draft queue entry for failed callback branch %q: %w", session.BranchName, queueErr))
+		}
+		if cleanupErr != nil {
+			combinedErr = errors.Join(combinedErr, fmt.Errorf("removing session worktree for failed callback branch %q: %w", session.BranchName, cleanupErr))
+		}
+		return session, combinedErr
 	}
 
 	stateFile, err := interactiveWorktreeNewStateFileFn(gromitDir)

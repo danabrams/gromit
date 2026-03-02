@@ -757,8 +757,21 @@ func TestRunWithSessionWorktreeRecordsPendingBranch(t *testing.T) {
 
 func TestRunWithSessionWorktreeDoesNotRecordBranchWhenCallbackFails(t *testing.T) {
 	// Not parallel: withInteractiveWorktreeFactories mutates package-level globals.
-	_, gromitDir, session := setupRunWithSessionWorktreeTest(t, "explore")
+	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "explore")
 	session.BranchName = "gromit/explore-789"
+
+	var (
+		deletedBranches []string
+		cleanupMainDir  string
+		cleanupSession  string
+	)
+	cleanupStore := overrideQueueStoreWithDelete(func(integrationqueue.Entry) error {
+		return nil
+	}, func(branch string) error {
+		deletedBranches = append(deletedBranches, branch)
+		return nil
+	})
+	t.Cleanup(cleanupStore)
 
 	recordCalled := false
 	withInteractiveWorktreeFactories(t, func(string) (sessionWorktreeCreator, error) {
@@ -774,20 +787,39 @@ func TestRunWithSessionWorktreeDoesNotRecordBranchWhenCallbackFails(t *testing.T
 				return nil
 			},
 		}, nil
-	}, func(string, string) error { return nil })
+	}, func(gotMainDir, gotSessionDir string) error {
+		cleanupMainDir = gotMainDir
+		cleanupSession = gotSessionDir
+		return nil
+	})
 
 	wantErr := errors.New("callback failed")
-	_, err := runWithSessionWorktree(context.Background(), gromitDir, "explore", func(string) error {
+	result, err := runWithSessionWorktree(context.Background(), gromitDir, "explore", func(string) error {
 		return wantErr
 	})
 	if err == nil {
 		t.Fatal("expected error, got nil")
+	}
+	if result == nil {
+		t.Fatal("expected session result, got nil")
+	}
+	if result.BranchName != session.BranchName {
+		t.Fatalf("result.BranchName = %q, want %q", result.BranchName, session.BranchName)
 	}
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("error = %v, want wrapped %v", err, wantErr)
 	}
 	if recordCalled {
 		t.Fatal("branch should not be recorded when callback fails")
+	}
+	if len(deletedBranches) != 1 || deletedBranches[0] != session.BranchName {
+		t.Fatalf("deleted branches = %v, want [%s]", deletedBranches, session.BranchName)
+	}
+	if cleanupMainDir != mainDir {
+		t.Fatalf("cleanup mainDir = %q, want %q", cleanupMainDir, mainDir)
+	}
+	if cleanupSession != session.WorktreeDir {
+		t.Fatalf("cleanup sessionDir = %q, want %q", cleanupSession, session.WorktreeDir)
 	}
 }
 
