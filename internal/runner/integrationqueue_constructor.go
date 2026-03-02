@@ -55,6 +55,7 @@ var (
 			evaluator: newIntegrationQueueScopedGateEvaluator(cfg, repoDir, nil),
 		}, nil
 	}
+	newIntegrationQueueCoordinatorFn = integrationqueue.NewCoordinator
 )
 
 func newIntegrationQueueScopedGateEvaluator(cfg *config.Config, repoDir string, cmdRunner runtypes.CmdRunnerFn) integrationQueueScopedGateEvaluator {
@@ -120,7 +121,7 @@ func newIntegrationQueueCoordinator(cfg *config.Config, gromitDir string) (Coord
 		gateAdapter = &integrationQueueScopedGateAdapter{}
 	}
 
-	return integrationqueue.NewCoordinator(store, gitopsAdapter, gateAdapter), nil
+	return newIntegrationQueueCoordinatorFn(store, gitopsAdapter, gateAdapter), nil
 }
 
 var _ integrationqueue.ScopedGate = (*integrationQueueScopedGateAdapter)(nil)
