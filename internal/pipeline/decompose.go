@@ -31,6 +31,8 @@ const (
 	providerOutputPreviewLimit  = 500
 )
 
+var decomposeNow = time.Now
+
 var (
 	taskHeadingPattern = regexp.MustCompile(`^###\s+Task\s+(\d+):\s*(.+?)\s*$`)
 	stopwordTokens     = []string{
@@ -308,7 +310,7 @@ func (p *Pipeline) Decompose(ctx context.Context, input DecomposeInput) (*Decomp
 	// Update plan frontmatter
 	updates := map[string]interface{}{
 		"decomposed":    true,
-		"decomposed_at": time.Now().Format(time.RFC3339),
+		"decomposed_at": decomposeNow().Format(time.RFC3339),
 	}
 	if err := frontmatter.UpdateFile(planPath, updates); err != nil {
 		return nil, fmt.Errorf("updating plan frontmatter: %w", err)
