@@ -262,9 +262,17 @@ pwd
 		t.Fatalf("RunGromitWithStdin() exitCode = %d, want 0", exitCode)
 	}
 
-	// The output should be tmpDir
+	// Normalize both paths via EvalSymlinks to handle macOS /var -> /private/var symlink.
 	gotDir := strings.TrimSpace(stdout)
-	if gotDir != tmpDir {
+	wantDir, err := filepath.EvalSymlinks(tmpDir)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(%q): %v", tmpDir, err)
+	}
+	gotDirResolved, err := filepath.EvalSymlinks(gotDir)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(%q): %v", gotDir, err)
+	}
+	if gotDirResolved != wantDir {
 		t.Errorf("With dir=%q, command ran in %q", tmpDir, gotDir)
 	}
 }
@@ -334,6 +342,8 @@ func TestRunGromitHelperProcessWithStdin_TimeoutKillsProcessGroup(t *testing.T) 
 	tmpDir := t.TempDir()
 	childPIDPath := filepath.Join(tmpDir, "child.pid")
 
+	// The script writes the child PID then sleeps. Use a longer timeout (500ms)
+	// so the script reliably writes the PID file before being killed on slower CI.
 	scriptContent := `#!/bin/bash
 if [[ "$1" == "-test.run=TestGromitHelperProcess" && "$2" == "--" ]]; then
   shift 2
@@ -346,12 +356,24 @@ sleep 5
 `
 	testBinary := createTempShellScript(t, tmpDir, "sleep-with-child", scriptContent)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
 	_, _, _, err := RunGromitHelperProcessWithStdin(ctx, testBinary, "", os.Environ(), "", childPIDPath)
 	if err == nil {
 		t.Fatal("expected timeout error, got nil")
+	}
+
+	// Wait for the PID file to appear (the script may write it just before being killed).
+	pidFileDeadline := time.Now().Add(2 * time.Second)
+	for {
+		if _, statErr := os.Stat(childPIDPath); statErr == nil {
+			break
+		}
+		if time.Now().After(pidFileDeadline) {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	childPIDBytes, readErr := os.ReadFile(childPIDPath)
