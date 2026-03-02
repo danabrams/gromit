@@ -430,6 +430,48 @@ func TestDecomposerAdapter_CreateSubBeads_PropagatesContext(t *testing.T) {
 	}
 }
 
+// TestDecomposerAdapter_Decompose_PropagatesContext confirms the Decompose path uses
+// the caller's context for child creation and parent closure.
+func TestDecomposerAdapter_Decompose_PropagatesContext(t *testing.T) {
+	t.Parallel()
+
+	const ctxKey = testContextKey("decompose")
+	ctx := context.WithValue(context.Background(), ctxKey, "ctx-value-decompose")
+
+	client := &contextCapturingBeadClient{}
+	stub := &stubRunProvider{
+		name: "context-test",
+		runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
+			return &provider.Result{
+				Success: true,
+				Output:  `[{"title":"child-1","expected_outputs":["fileA"]},{"title":"child-2","expected_outputs":["fileB"]}]`,
+			}, nil
+		},
+	}
+	router := provider.NewSingleProviderRouter(stub)
+	adapter := &decomposerAdapter{beads: client, router: router}
+
+	b := &bead.Bead{
+		ID:              "parent-decompose",
+		Title:           "Context Check",
+		ExpectedOutputs: []string{"fileA"},
+		Priority:        1,
+	}
+
+	if err := adapter.Decompose(ctx, b); err != nil {
+		t.Fatalf("Decompose returned error: %v", err)
+	}
+	if client.lastCreateCtx == nil {
+		t.Fatal("CreateWithParent was not called during Decompose")
+	}
+	if got := client.lastCreateCtx.Value(ctxKey); got != "ctx-value-decompose" {
+		t.Fatalf("context value in CreateWithParent = %v, want %q", got, "ctx-value-decompose")
+	}
+	if got := client.lastCloseCtx.Value(ctxKey); got != "ctx-value-decompose" {
+		t.Fatalf("context value in Close = %v, want %q", got, "ctx-value-decompose")
+	}
+}
+
 type testContextKey string
 
 type contextCapturingBeadClient struct {
