@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -369,16 +370,18 @@ func RecoverFromMalformedQueue(ctx context.Context, path string) (*Queue, error)
 		updated := queue.SchemaVersion != SchemaVersion
 		queue.SchemaVersion = SchemaVersion
 		for i := range queue.Entries {
-        if queue.Entries[i].State == StateIntegrating {
-            if err := ApplyTransition(&queue.Entries[i], string(StateReady), "schema recovery"); err != nil {
-                return fmt.Errorf("transitioning recovered entry %s: %w", queue.Entries[i].Branch, err)
-            }
-            if queue.Entries[i].LastErrorCode == "" {
-                queue.Entries[i].LastErrorCode = string(ErrorCodeSchemaInvalid)
-                queue.Entries[i].LastErrorMessage = "recovered from schema error: entry was in integrating state"
-            }
-            updated = true
-        }
+			if queue.Entries[i].State == StateIntegrating {
+				if err := ApplyTransition(&queue.Entries[i], string(StateReady), "schema recovery"); err != nil {
+					return fmt.Errorf("transitioning recovered entry %s: %w", queue.Entries[i].Branch, err)
+				}
+				if queue.Entries[i].LastErrorCode == "" {
+					queue.Entries[i].LastErrorCode = string(ErrorCodeSchemaInvalid)
+				}
+				if strings.TrimSpace(queue.Entries[i].LastErrorMessage) == "" {
+					queue.Entries[i].LastErrorMessage = schemaRecoveryMessage
+				}
+				updated = true
+			}
 		}
 
 		if updated {
@@ -410,4 +413,7 @@ func loadQueueForRecovery(path string) (*Queue, error) {
 }
 
 // ErrorCodeSchemaInvalid represents a schema validation error in the queue.
-const ErrorCodeSchemaInvalid ErrorCode = "queue_schema_invalid"
+const (
+	ErrorCodeSchemaInvalid ErrorCode = "queue_schema_invalid"
+	schemaRecoveryMessage            = "recovered from schema error: entry was in integrating state"
+)
