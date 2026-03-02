@@ -208,6 +208,48 @@ func TestCoordinatorPropagatesSaveErrorAfterGateRetryFetchFailure(t *testing.T) 
 	}
 }
 
+func TestCoordinatorPropagatesTransitionErrorOnFetchConflict(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	stateTransitions := allowedTransitions[string(StateIntegrating)]
+	originalConflict := stateTransitions[string(StateConflict)]
+	stateTransitions[string(StateConflict)] = false
+	t.Cleanup(func() {
+		stateTransitions[string(StateConflict)] = originalConflict
+	})
+
+	entry := Entry{
+		Branch:           "feature/transition-error",
+		SessionID:        "feature/transition-error",
+		OriginCommand:    "test",
+		State:            StateReady,
+		Lane:             "code_lane",
+		BaseRef:          "main",
+		HeadSHA:          "deadbeef",
+		ChangedFilesHash: "hash",
+	}
+	if err := store.Save(entry); err != nil {
+		t.Fatalf("Save(entry) error = %v", err)
+	}
+
+	gitops := &failFetchGitOps{err: errors.New("fetch failed")}
+	coord := NewCoordinator(store, gitops, &mockScopedGate{})
+
+	err = coord.Coordinate(ctx)
+	if err == nil {
+		t.Fatalf("Coordinate() error = nil, want ErrInvalidTransition")
+	}
+	if !errors.Is(err, ErrInvalidTransition) {
+		t.Fatalf("Coordinate() error = %v, want ErrInvalidTransition", err)
+	}
+}
+
 type mockGitOps struct {
 	calls []string
 }
