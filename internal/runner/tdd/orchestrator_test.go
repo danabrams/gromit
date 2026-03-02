@@ -355,6 +355,19 @@ func TestDetectCycleInstability_OrderIndependentDeadlock(t *testing.T) {
 	}
 }
 
+func TestDetectCycleInstability_OrderIndependentOscillation(t *testing.T) {
+	t.Parallel()
+	snapshots := []runtypes.CycleSnapshot{
+		{CycleNumber: 1, Remaining: []string{"implement feature X", "implement feature Y"}},
+		{CycleNumber: 2, Remaining: []string{"implement feature Y"}},
+		{CycleNumber: 3, Remaining: []string{"implement feature Y", "implement feature X"}},
+	}
+	inst := detectCycleInstability(snapshots)
+	if inst != runtypes.InstabilityOscillation {
+		t.Fatalf("expected oscillation when remaining requirements return to a previous order-independent set, got %v", inst)
+	}
+}
+
 func TestCloneStringSlice_PreservesEmptyNonNil(t *testing.T) {
 	t.Parallel()
 
