@@ -1817,3 +1817,35 @@ func TestNewShellProviderCreatesShellBasedProvider(t *testing.T) {
 		})
 	}
 }
+
+func TestCodexStreamRunOnceUsesKillDescendantsOnCancel(t *testing.T) {
+	t.Parallel()
+
+	script := `#!/bin/bash
+printf '%s\n' '{"type":"item.completed","item":{"type":"agent_message","text":"ok"}}'
+printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1,"total_cost_usd":0}}'
+exit 0
+`
+	mockBinary := testCreateBinaryWithETXTBSYProtection(t, script)
+	cp := NewCodexProvider(mockBinary, []string{}, map[string]string{TierLow: "gpt-5.3-codex"})
+
+	var killCalled bool
+	oldKill := codexKillDescendantsOnCancelFn
+	t.Cleanup(func() { codexKillDescendantsOnCancelFn = oldKill })
+	codexKillDescendantsOnCancelFn = func(ctx context.Context, cmd *exec.Cmd) {
+		killCalled = true
+	}
+
+	ctx := context.Background()
+	var output bytes.Buffer
+	result, err := cp.streamRunOnce(ctx, "test prompt", TierLow, &output, nil, nil)
+	if err != nil {
+		t.Fatalf("streamRunOnce() error = %v", err)
+	}
+	if result == nil {
+		t.Fatal("streamRunOnce() returned nil result")
+	}
+	if !killCalled {
+		t.Fatal("streamRunOnce() did not call KillDescendantsOnCancel")
+	}
+}
