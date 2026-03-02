@@ -3,6 +3,7 @@ package integrationqueue
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -194,6 +195,65 @@ func TestRecoverFromMalformedQueue_PreservesLastErrorCode(t *testing.T) {
 	}
 	if persisted.Entries[0].LastErrorCode != originalCode {
 		t.Fatalf("persisted: expected last error code %s, got %s", originalCode, persisted.Entries[0].LastErrorCode)
+	}
+}
+
+func TestRecoverFromMalformedQueue_RetainsLegacyMergeConflictCode(t *testing.T) {
+	tmpDir := t.TempDir()
+	queuePath := filepath.Join(tmpDir, queueFileName)
+
+	const recoveryJSON = `{
+  "schema_version": %d,
+  "entries": [
+    {
+      "branch": "feature/legacy-merge",
+      "session_id": "session-legacy",
+      "origin_command": "refine",
+      "state": "integrating",
+      "lane": "code_lane",
+      "base_ref": "main",
+      "head_sha": "cafebabeface",
+      "fifo_seq": 99,
+      "last_error_code": "merge_conflict",
+      "last_error_message": ""
+    }
+  ]
+}`
+
+	if err := os.WriteFile(queuePath, []byte(fmt.Sprintf(recoveryJSON, SchemaVersion)), 0o644); err != nil {
+		t.Fatalf("write legacy queue: %v", err)
+	}
+
+	recovered, err := RecoverFromMalformedQueue(context.Background(), queuePath)
+	if err != nil {
+		t.Fatalf("RecoverFromMalformedQueue: %v", err)
+	}
+	if len(recovered.Entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(recovered.Entries))
+	}
+	entry := recovered.Entries[0]
+	if entry.State != StateReady {
+		t.Fatalf("expected recovered state %s, got %s", StateReady, entry.State)
+	}
+	if entry.LastErrorCode != "merge_conflict" {
+		t.Fatalf("expected LastErrorCode merge_conflict, got %s", entry.LastErrorCode)
+	}
+	if entry.LastErrorMessage == "" {
+		t.Fatalf("expected last error message to be populated, got empty string")
+	}
+
+	persisted, err := LoadQueue(queuePath)
+	if err != nil {
+		t.Fatalf("LoadQueue(persisted): %v", err)
+	}
+	if len(persisted.Entries) != 1 {
+		t.Fatalf("persisted: expected 1 entry, got %d", len(persisted.Entries))
+	}
+	if persisted.Entries[0].LastErrorCode != "merge_conflict" {
+		t.Fatalf("persisted: expected last error code merge_conflict, got %s", persisted.Entries[0].LastErrorCode)
+	}
+	if persisted.Entries[0].LastErrorMessage == "" {
+		t.Fatal("persisted: expected last error message to be populated")
 	}
 }
 
