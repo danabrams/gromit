@@ -189,6 +189,40 @@ exit 0`)
 	}
 }
 
+func TestCodexRunOnceUsesKillDescendantsOnCancel(t *testing.T) {
+	t.Parallel()
+	prompt := "test prompt"
+	const model = "gpt-5.3-codex"
+	script := strings.Join([]string{
+		`printf '{"type":"item.completed","item":{"type":"agent_message","text":"ok"}}\n'`,
+		`printf '{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1,"total_cost_usd":0}}\n'`,
+	}, "\n") + "\n"
+	mockBinary := testCreateBinaryWithETXTBSYProtection(t, script)
+	cp := NewCodexProvider(mockBinary, []string{}, map[string]string{TierLow: model})
+	args := cp.buildCommandArgsForTier(model, TierLow, true)
+	env, home, err := prepareCodexEnv()
+	if err != nil {
+		t.Fatalf("prepareCodexEnv() error = %v", err)
+	}
+	ctx := context.Background()
+	var killCalled bool
+	oldKill := codexKillDescendantsOnCancelFn
+	t.Cleanup(func() { codexKillDescendantsOnCancelFn = oldKill })
+	codexKillDescendantsOnCancelFn = func(ctx context.Context, cmd *exec.Cmd) {
+		killCalled = true
+	}
+	result, err := cp.runOnce(ctx, prompt, model, args, env, home)
+	if err != nil {
+		t.Fatalf("runOnce() error = %v", err)
+	}
+	if result == nil {
+		t.Fatal("runOnce() returned nil result")
+	}
+	if !killCalled {
+		t.Fatal("runOnce() did not call KillDescendantsOnCancel")
+	}
+}
+
 func TestCodexProviderRunDoesNotMixStderrIntoOutput(t *testing.T) {
 	t.Parallel()
 	mockBinary := newTestBinary(t, `echo "stdout line"
