@@ -116,7 +116,7 @@ func (s *Store) Save(entry Entry) error {
 
 		existingIdx := s.findEntryIndex(snapshot.Entries, entry.Branch)
 		if existingIdx == -1 {
-			entry.FifoSeq = maxFifoSeq(snapshot.Entries) + 1
+			entry.FifoSeq = nextFifoSeq(snapshot.Entries)
 			entry.CreatedAt = now
 			snapshot.Entries = append(snapshot.Entries, entry)
 		} else {
@@ -138,6 +138,10 @@ func (s *Store) findEntryIndex(entries []Entry, branch string) int {
 		}
 	}
 	return -1
+}
+
+func nextFifoSeq(entries []Entry) int {
+	return maxFifoSeq(entries) + 1
 }
 
 func maxFifoSeq(entries []Entry) int {
