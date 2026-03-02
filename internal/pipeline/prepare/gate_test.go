@@ -261,6 +261,57 @@ func TestGateRun_ReadinessAssessorBlocksWithReason(t *testing.T) {
 	}
 }
 
+func TestGateRun_ReadinessAmbiguousAttemptsDecomposition(t *testing.T) {
+	t.Parallel()
+
+	decomposer := newMockDecomposer().WithDecompose(nil)
+	gate := New(io.Discard).
+		WithReadinessAssessor(
+			newMockReadinessAssessor().WithAssessment(readiness.StatusNotReady, ReasonCriteriaAmbiguous, nil),
+		).
+		WithDecomposer(decomposer)
+
+	out, err := gate.Run(context.Background(), pipeline.Input{
+		Bead: &bead.Bead{ID: "readiness-ambiguous", Title: "test bead"},
+	})
+	if err != nil {
+		t.Fatalf("Gate.Run() error = %v", err)
+	}
+	if out.Decision != pipeline.Skip {
+		t.Fatalf("decision = %v, want %v", out.Decision, pipeline.Skip)
+	}
+	if !decomposer.WasCalled() {
+		t.Fatal("decomposer was not called for ambiguous readiness block")
+	}
+}
+
+func TestGateRun_ReadinessAmbiguousDecompositionFailureFallsBackToBlock(t *testing.T) {
+	t.Parallel()
+
+	decomposer := newMockDecomposer().WithDecompose(errors.New("decompose failed"))
+	gate := New(io.Discard).
+		WithReadinessAssessor(
+			newMockReadinessAssessor().WithAssessment(readiness.StatusNotReady, ReasonCriteriaAmbiguous, nil),
+		).
+		WithDecomposer(decomposer)
+
+	out, err := gate.Run(context.Background(), pipeline.Input{
+		Bead: &bead.Bead{ID: "readiness-ambiguous-fallback", Title: "test bead"},
+	})
+	if err != nil {
+		t.Fatalf("Gate.Run() error = %v", err)
+	}
+	if out.Decision != pipeline.Block {
+		t.Fatalf("decision = %v, want %v", out.Decision, pipeline.Block)
+	}
+	if out.GateBlockReason != ReasonCriteriaAmbiguous {
+		t.Fatalf("GateBlockReason = %q, want %q", out.GateBlockReason, ReasonCriteriaAmbiguous)
+	}
+	if !decomposer.WasCalled() {
+		t.Fatal("decomposer was not called for ambiguous readiness block")
+	}
+}
+
 func TestGateRun_ReadinessFallbackFromReviewTitle(t *testing.T) {
 	t.Parallel()
 

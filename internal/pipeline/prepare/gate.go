@@ -212,6 +212,18 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 		}
 	}
 	if gateBlockReason != "" {
+		if gateBlockReason == ReasonCriteriaAmbiguous && g.decomposer != nil {
+			g.Log("info", "Readiness gate: bead %s has ambiguous criteria, attempting decomposition", in.Bead.ID)
+			if err := g.decomposer.Decompose(ctx, in.Bead); err == nil {
+				g.Log("info", "Readiness gate: decomposition succeeded for bead %s, skipping parent bead", in.Bead.ID)
+				return pipeline.Output{
+					Decision:          pipeline.Skip,
+					ComplexityRouting: complexityRouting,
+				}, nil
+			} else {
+				g.Log("warning", "Warning: readiness decomposition failed for bead %s: %v, falling back to block", in.Bead.ID, err)
+			}
+		}
 		if in.Emitter != nil {
 			eventReason, _ := readiness.NormalizeReason(gateBlockReason)
 			if eventReason == "" {

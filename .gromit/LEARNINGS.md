@@ -301,6 +301,9 @@ captureCycleRecord in specmerge/pipeline.go:306 silently discards the CaptureCyc
 
 The specmerge pipeline uses fmt.Errorf("%s", alert) at pipeline.go:124 where errors.New(alert) would be more idiomatic and avoids govet printf warnings about non-formatting use of fmt.Errorf.
 
+### 2026-03-01 | gromit-peq | conventions
+The internal/runner package enforces file size limits via TestConstructorFileSizeLimit in file_size_test.go. When size limits are exceeded, the test provides explicit guidance on which types should be extracted and into which files. This is a codebase convention for managing large files.
+
 ---
 
 ## Archived
@@ -367,3 +370,7 @@ State transition functions must validate target states against the allowed trans
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-03-01 | gromit-ioo | conventions
+When implementing new pipeline methods (especially cross-package), verify that: (1) all referenced types and interfaces exist and are properly exported, (2) method signatures match interface definitions from dependent packages, (3) imports are complete in new files, and (4) existing concrete implementations (e.g., bead.Client, backlog.File) satisfy newly defined interfaces.
+
+*Archived from new: filtered: generic engineering advice*
