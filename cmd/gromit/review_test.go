@@ -241,7 +241,7 @@ func TestRunReviewInteractive_UsesSessionWorktreeLaunchDir(t *testing.T) {
 		return nil
 	}
 
-	if err := runReviewInteractive(cfg, "abc123", "diff --git a b"); err != nil {
+	if err := runReviewInteractive(context.Background(), cfg, "abc123", "diff --git a b"); err != nil {
 		t.Fatalf("runReviewInteractive() error = %v", err)
 	}
 	if gotLaunchDir != wantSessionDir {
@@ -290,7 +290,7 @@ func TestRunReviewInteractive_AppliesReviewFindings(t *testing.T) {
 		return nil
 	}
 
-	if err := runReviewInteractive(&config.Config{}, "abc123", "diff"); err != nil {
+	if err := runReviewInteractive(context.Background(), &config.Config{}, "abc123", "diff"); err != nil {
 		t.Fatalf("runReviewInteractive() error = %v", err)
 	}
 	if !applyCalled {
@@ -336,7 +336,7 @@ func TestRunReviewInteractive_ConflictHandoffPropagates(t *testing.T) {
 			}
 	}
 
-	err := runReviewInteractive(cfg, "abc123", "diff --git a b")
+	err := runReviewInteractive(context.Background(), cfg, "abc123", "diff --git a b")
 	if err == nil {
 		t.Fatal("expected conflict handoff error, got nil")
 	}

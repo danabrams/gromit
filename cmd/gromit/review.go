@@ -184,7 +184,11 @@ func runReview(cmd *cobra.Command, args []string) error {
 
 	// Interactive mode (default)
 	if !reviewNonInteractive {
-		return runReviewInteractive(cfg, fromCommit, diff)
+		ctx := cmd.Context()
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		return runReviewInteractive(ctx, cfg, fromCommit, diff)
 	}
 
 	// Non-interactive mode
@@ -227,13 +231,16 @@ func runGitDiffForReview(fromCommit string, errPrefix string, args ...string) (s
 	return string(out), nil
 }
 
-func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) error {
+func runReviewInteractive(ctx context.Context, cfg *config.Config, fromCommit string, diff string) error {
 	// Print status message
 	fmt.Printf("Launching interactive review session (from commit %s)...\n", shortCommit(fromCommit))
 
 	gromitDir := resolveGromitDir(cfg)
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
-	if err := launchInSessionIfEnabled(cfg, gromitDir, reviewSessionCommand, reviewInteractiveSessionLauncherFn, func(sessionDir string) error {
+	if err := launchInSessionIfEnabledWithContext(ctx, cfg, gromitDir, reviewSessionCommand, reviewInteractiveSessionLauncherFn, func(sessionDir string) error {
 		return reviewInteractiveRunnerFn(cfg, fromCommit, diff, sessionDir)
 	}, func() error {
 		return reviewInteractiveRunnerFn(cfg, fromCommit, diff, "")
