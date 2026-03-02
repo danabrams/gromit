@@ -20,6 +20,8 @@ const (
 	providerNameCodex = "codex"
 )
 
+var codexKillDescendantsOnCancelFn = procutil.KillDescendantsOnCancel
+
 // CodexProvider wraps the Codex CLI and implements the Provider interface
 type CodexProvider struct {
 	binaryPath           string
@@ -223,6 +225,7 @@ func (cp *CodexProvider) streamRunOnce(ctx context.Context, prompt string, tier 
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start codex command: %w", err)
 	}
+	codexKillDescendantsOnCancelFn(ctx, cmd)
 	defer reapProcessGroupFn(cmd)
 	codexDebugf(output, "provider debug: StreamRun cmd started pid=%d", cmd.Process.Pid)
 
@@ -366,6 +369,7 @@ func (cp *CodexProvider) runOnce(ctx context.Context, prompt, model string, args
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start codex command: %w", err)
 	}
+	codexKillDescendantsOnCancelFn(ctx, cmd)
 	defer reapProcessGroupFn(cmd)
 
 	go func() {
