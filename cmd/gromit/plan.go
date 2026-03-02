@@ -179,7 +179,7 @@ func runPlanInSession(
 		return err
 	}
 
-	if err := launchInSessionIfEnabled(cfg, gromitDir, planSessionCommand, planSessionLauncherFn, callback, fallback); err != nil {
+	if err := launchInSessionIfEnabledWithContext(ctx, cfg, gromitDir, planSessionCommand, planSessionLauncherFn, callback, fallback); err != nil {
 		return nil, err
 	}
 
