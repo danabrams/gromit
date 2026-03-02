@@ -410,6 +410,7 @@ func (f *fakeBeadQuery) ListWithLabel(ctx context.Context, label string) ([]*bea
 	if f == nil || f.listFn == nil {
 		return nil, nil
 	}
+	f.capturedCtx = ctx
 	return f.listFn(ctx, label)
 }
 
