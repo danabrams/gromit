@@ -57,3 +57,7 @@ cmd/gromit/.gromit/benchmarks/results/
 
 # Raw run outputs are ephemeral; keep curated summaries in .gromit/reports/curated/
 .gromit/reports/runs/
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db
