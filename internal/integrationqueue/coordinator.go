@@ -16,14 +16,23 @@ type ScopedGate interface {
 
 // Coordinator drives the integration queue lifecycle for a single branch per cycle.
 type Coordinator struct {
-	store  *Store
-	gitops GitOps
-	gate   ScopedGate
+	store        *Store
+	gitops       GitOps
+	gate         ScopedGate
+	transitionFn func(entry *Entry, toState string, reason string, metadata ...TransitionErrorMetadata) error
 }
 
 // NewCoordinator wires together the store, gitops adapter, and scoped gate runner.
 func NewCoordinator(store *Store, gitops GitOps, gate ScopedGate) *Coordinator {
 	return &Coordinator{store: store, gitops: gitops, gate: gate}
+}
+
+func (c *Coordinator) applyTransition(entry *Entry, toState string, reason string, metadata ...TransitionErrorMetadata) error {
+	fn := c.transitionFn
+	if fn == nil {
+		fn = ApplyTransition
+	}
+	return fn(entry, toState, reason, metadata...)
 }
 
 // Coordinate processes at most one ready branch in FIFO order.
@@ -50,7 +59,7 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 
 	entry.AttemptCount++
 	entry.RetryCount = 0
-	if err := ApplyTransition(entry, string(StateIntegrating), "coordinator: starting integration"); err != nil {
+	if err := c.applyTransition(entry, string(StateIntegrating), "coordinator: starting integration"); err != nil {
 		return fmt.Errorf("transitioning entry to integrating: %w", err)
 	}
 	if err := c.store.Save(*entry); err != nil {
@@ -58,11 +67,11 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 	}
 
 	if err := c.gitops.FetchAndRebase(ctx, *entry); err != nil {
-		entry.LastErrorCode = classifyFetchAndRebaseErrorCode(err)
-		entry.LastErrorMessage = err.Error()
+		code := classifyFetchAndRebaseErrorCode(err)
+		message := err.Error()
 		combinedErr := err
 
-		if transErr := ApplyTransition(entry, string(StateConflict), fetchAndRebaseFailureReason(entry.LastErrorCode, false)); transErr != nil {
+		if transErr := c.applyTransition(entry, string(StateConflict), fetchAndRebaseFailureReason(code, false), TransitionErrorMetadata{Code: code, Message: message}); transErr != nil {
 			combinedErr = errors.Join(combinedErr, transErr)
 			return fmt.Errorf("fetch/rebase branch: %w", combinedErr)
 		}
@@ -77,11 +86,11 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 	if err := c.gate.Run(ctx, *entry); err != nil {
 		entry.RetryCount = 1
 		if err := c.gitops.FetchAndRebase(ctx, *entry); err != nil {
-			entry.LastErrorCode = classifyFetchAndRebaseErrorCode(err)
-			entry.LastErrorMessage = err.Error()
+			code := classifyFetchAndRebaseErrorCode(err)
+			message := err.Error()
 			combinedErr := err
 
-			if transErr := ApplyTransition(entry, string(StateConflict), fetchAndRebaseFailureReason(entry.LastErrorCode, true)); transErr != nil {
+			if transErr := c.applyTransition(entry, string(StateConflict), fetchAndRebaseFailureReason(code, true), TransitionErrorMetadata{Code: code, Message: message}); transErr != nil {
 				combinedErr = errors.Join(combinedErr, transErr)
 				return fmt.Errorf("fetch/rebase branch: %w", combinedErr)
 			}
@@ -94,9 +103,8 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 		}
 		if err := c.gate.Run(ctx, *entry); err != nil {
 			entry.RetryCount++
-			entry.LastErrorCode = string(StateFailedGates)
-			entry.LastErrorMessage = err.Error()
-			if transErr := ApplyTransition(entry, string(StateFailedGates), "scoped gates failed after retry"); transErr == nil {
+			metadata := TransitionErrorMetadata{Code: string(StateFailedGates), Message: err.Error()}
+			if transErr := c.applyTransition(entry, string(StateFailedGates), "scoped gates failed after retry", metadata); transErr == nil {
 				if saveErr := c.store.Save(*entry); saveErr != nil {
 					return fmt.Errorf("marking entry failed_gates: %w", saveErr)
 				}
@@ -108,16 +116,16 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 	if err := c.gitops.MergeToMain(ctx, *entry); err != nil {
 		targetState := StateConflict
 		reason := "merge conflict detected"
+		metadata := TransitionErrorMetadata{Message: err.Error()}
 		if strings.Contains(strings.ToLower(err.Error()), "lane violation") {
 			targetState = StateLaneViolation
 			reason = "lane violation detected"
-			entry.LastErrorCode = "lane_violation"
+			metadata.Code = "lane_violation"
 		} else {
-			entry.LastErrorCode = "merge_conflict"
+			metadata.Code = "merge_conflict"
 		}
-		entry.LastErrorMessage = err.Error()
 
-		if transErr := ApplyTransition(entry, string(targetState), reason); transErr != nil {
+		if transErr := c.applyTransition(entry, string(targetState), reason, metadata); transErr != nil {
 			return fmt.Errorf("transitioning entry to %s: %w", targetState, transErr)
 		}
 
@@ -128,9 +136,8 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 	}
 
 	if err := c.gitops.Push(ctx); err != nil {
-		entry.LastErrorCode = "push_failed"
-		entry.LastErrorMessage = err.Error()
-		if transErr := ApplyTransition(entry, string(StatePushFailure), "push to remote failed"); transErr != nil {
+		metadata := TransitionErrorMetadata{Code: "push_failed", Message: err.Error()}
+		if transErr := c.applyTransition(entry, string(StatePushFailure), "push to remote failed", metadata); transErr != nil {
 			return fmt.Errorf("transitioning entry to push failure: %w", transErr)
 		}
 		if saveErr := c.store.Save(*entry); saveErr != nil {
@@ -143,9 +150,7 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 
 	entry.ChangedFiles = nil
 	entry.ChangedFilesHash = ""
-	entry.LastErrorCode = ""
-	entry.LastErrorMessage = ""
-	if transErr := ApplyTransition(entry, string(StateMerged), mergedTransitionReason); transErr != nil {
+	if transErr := c.applyTransition(entry, string(StateMerged), mergedTransitionReason, TransitionErrorMetadata{}); transErr != nil {
 		return fmt.Errorf("applying merged transition: %w", transErr)
 	}
 

@@ -945,11 +945,12 @@ func TestCoordinatorPassesErrorMetadataThroughApplyTransition(t *testing.T) {
 	gitops := &failFetchGitOps{err: errors.New("fetch failed")}
 	coord := NewCoordinator(store, gitops, &mockScopedGate{})
 
-	var conflictMetadata *TransitionErrorMetadata
-	coord.applyTransition = func(entry *Entry, toState string, reason string, metadata ...TransitionErrorMetadata) error {
+	var conflictMetadata TransitionErrorMetadata
+	recorded := false
+	coord.transitionFn = func(entry *Entry, toState string, reason string, metadata ...TransitionErrorMetadata) error {
 		if toState == string(StateConflict) && len(metadata) > 0 {
-			riskMeta := metadata[0]
-			conflictMetadata = &riskMeta
+			conflictMetadata = metadata[0]
+			recorded = true
 		}
 		return ApplyTransition(entry, toState, reason, metadata...)
 	}
@@ -958,7 +959,7 @@ func TestCoordinatorPassesErrorMetadataThroughApplyTransition(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Coordinate() error = nil, want non-nil")
 	}
-	if conflictMetadata == nil {
+	if !recorded {
 		t.Fatalf("expected metadata when transitioning to conflict")
 	}
 	if conflictMetadata.Code != "rebase_conflict" {
