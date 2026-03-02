@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -1887,6 +1889,32 @@ func TestNormalizeIssuePrefix(t *testing.T) {
 				t.Fatalf("normalizeIssuePrefix(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestClientDeriveIssuePrefixReturnsNormalizedRepoName(t *testing.T) {
+	t.Parallel()
+	repoName := "TestRepo-With_CHARS"
+	repoDir := filepath.Join(t.TempDir(), repoName)
+	if err := os.MkdirAll(repoDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(%q): %v", repoDir, err)
+	}
+	initCmd := exec.Command("git", "init")
+	initCmd.Dir = repoDir
+	if err := initCmd.Run(); err != nil {
+		t.Fatalf("git init failed: %v", err)
+	}
+	client := &Client{Dir: repoDir}
+	got, err := client.deriveIssuePrefix(context.Background())
+	if err != nil {
+		t.Fatalf("deriveIssuePrefix() error = %v", err)
+	}
+	want := normalizeIssuePrefix(repoName)
+	if want == "" {
+		t.Fatalf("normalizeIssuePrefix(%q) returned empty string", repoName)
+	}
+	if got != want {
+		t.Fatalf("deriveIssuePrefix() = %q, want %q", got, want)
 	}
 }
 
