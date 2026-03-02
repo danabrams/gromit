@@ -1,6 +1,7 @@
 package review
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -188,5 +189,12 @@ func TestParseReviewResultNormalizeLearnings(t *testing.T) {
 	}
 	if result.Learnings == nil {
 		t.Error("Learnings should be normalized to empty slice, not nil")
+	}
+}
+
+func TestReviewSourceFilesGofmt(t *testing.T) {
+	files := []string{"review.go", "helpers.go"}
+	if nonCompliant := reviewGofmtNonCompliantFiles(t, files); len(nonCompliant) > 0 {
+		t.Fatalf("gofmt -l reported non-compliant files:\n%s", strings.Join(nonCompliant, "\n"))
 	}
 }
