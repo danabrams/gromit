@@ -43,16 +43,18 @@ func (f *fakeStage) Run(ctx context.Context, in pipeline.Input) (pipeline.Output
 
 // fakeSpecMergeController is a minimal test double for specmerge.Controller.
 type fakeSpecMergeController struct {
-	isCompleteFn    func(string) (bool, error)
-	triggerFn       func(context.Context, string) error
-	isCompleteCalls []string
-	triggerCalls    []string
+	isCompleteFn       func(context.Context, string) (bool, error)
+	triggerFn          func(context.Context, string) error
+	isCompleteCalls    []string
+	isCompleteContexts []context.Context
+	triggerCalls       []string
 }
 
-func (f *fakeSpecMergeController) IsSpecComplete(specName string) (bool, error) {
+func (f *fakeSpecMergeController) IsSpecComplete(ctx context.Context, specName string) (bool, error) {
 	f.isCompleteCalls = append(f.isCompleteCalls, specName)
+	f.isCompleteContexts = append(f.isCompleteContexts, ctx)
 	if f.isCompleteFn != nil {
-		return f.isCompleteFn(specName)
+		return f.isCompleteFn(ctx, specName)
 	}
 	return false, nil
 }
@@ -436,6 +438,45 @@ func TestOrchestrator_SpecMergePipelineTriggersOnce(t *testing.T) {
 	}
 	if completeCalls != len(beads) {
 		t.Fatalf("IsSpecComplete called %d times, want %d", completeCalls, len(beads))
+	}
+}
+
+func TestOrchestrator_SpecMergeIsSpecCompleteReceivesContext(t *testing.T) {
+	t.Parallel()
+
+	key := struct{}{}
+	ctxValue := "ctx-preserved"
+	testCtx := context.WithValue(context.Background(), key, ctxValue)
+
+	specName := "payments"
+	specPipeline := &fakeSpecMergeController{
+		isCompleteFn: func(ctx context.Context, name string) (bool, error) {
+			if name != specName {
+				t.Fatalf("IsSpecComplete called with spec %q, want %q", name, specName)
+			}
+			if got := ctx.Value(key); got != ctxValue {
+				t.Fatalf("IsSpecComplete received context value %v, want %v", got, ctxValue)
+			}
+			return true, nil
+		},
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:                &fakeStage{},
+		Build:               &fakeStage{},
+		Validate:            &fakeStage{},
+		Epilogue:            &fakeStage{},
+		GetBead:             func(context.Context) (*bead.Bead, error) { return nil, nil },
+		Config:              &config.Config{Methodology: config.MethodologyConfig{Granularity: config.MethodologyGranularitySpec}},
+		SpecMergeController: specPipeline,
+		Output:              io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	orch.maybeTriggerSpecMerge(testCtx, &bead.Bead{Labels: []string{"spec:" + specName}})
+
+	if len(specPipeline.isCompleteContexts) != 1 {
+		t.Fatalf("IsSpecComplete context recorded %d times, want 1", len(specPipeline.isCompleteContexts))
 	}
 }
 
