@@ -924,3 +924,23 @@ func TestIntegrationQueueScopedGateAdapter_RunScopesChangedFiles(t *testing.T) {
 		t.Fatalf("commands = %v, want %v", commands, want)
 	}
 }
+
+func TestIntegrationQueueScopedGateAdapter_RunSkipsEmptyBranch(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	adapter := &integrationQueueScopedGateAdapter{
+		evaluator: func(ctx context.Context, entry integrationqueue.Entry) error {
+			called = true
+			return nil
+		},
+	}
+
+	entry := integrationqueue.Entry{Branch: "   "}
+	if err := adapter.Run(context.Background(), entry); err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if called {
+		t.Fatal("expected evaluator not to run for empty branch")
+	}
+}
