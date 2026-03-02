@@ -301,6 +301,45 @@ func TestStatusCmd_RegressionAssertion_OutputIsConsistent(t *testing.T) {
 	}
 }
 
+func TestStatusCmd_RealCoordinatorQueueSnapshot(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0755); err != nil {
+		t.Fatalf("failed to create gromit dir: %v", err)
+	}
+	writeRealCoordinatorQueueFixture(t, gromitDir)
+
+	configPath := filepath.Join(tmpDir, "gromit.yaml")
+	configContent := `paths:
+  gromit_dir: .gromit
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	t.Chdir(tmpDir)
+
+	output := captureStatusOutput(t, func() {
+		rootCmd.SetArgs([]string{"status"})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("status command failed: %v", err)
+		}
+	})
+
+	if !strings.Contains(output, "Integration Queue:") {
+		t.Fatalf("missing Integration Queue section:\n%s", output)
+	}
+	if !strings.Contains(output, "Queue length: 12") {
+		t.Fatalf("unexpected queue length:\n%s", output)
+	}
+	if !strings.Contains(output, "Blocked: 7") {
+		t.Fatalf("unexpected blocked count:\n%s", output)
+	}
+	if !strings.Contains(output, "gromit/conflict-late") {
+		t.Fatalf("missing conflict branch entry:\n%s", output)
+	}
+}
+
 // TestStatusCmd_RegressionAssertion_ModelPerformanceAlwaysVisible ensures the status
 // command prints the Model Performance section even when no stats exist, guarding
 // the TUI layout against missing sections.
