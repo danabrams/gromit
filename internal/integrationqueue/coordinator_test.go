@@ -792,6 +792,69 @@ func TestCoordinatorRecoverFromCrash_FailedGates(t *testing.T) {
 	}
 }
 
+func TestCoordinatorRecoverFromCrash_PassesErrorMetadataDuringTransition(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+	queuePath := filepath.Join(tmpDir, queueFileName)
+
+	entry := Entry{
+		Branch:           "feature/failed-gates-transition",
+		SessionID:        "feature/failed-gates-transition",
+		OriginCommand:    "test",
+		State:            StateIntegrating,
+		Lane:             string(CodeLane),
+		BaseRef:          "main",
+		HeadSHA:          "deadbeef",
+		FifoSeq:          1,
+		LastErrorCode:    string(StateFailedGates),
+		LastErrorMessage: "scoped gates failed",
+	}
+	queue := &Queue{
+		SchemaVersion: SchemaVersion,
+		Entries:       []Entry{entry},
+	}
+	data, err := json.MarshalIndent(queue, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal queue: %v", err)
+	}
+	if err := os.WriteFile(queuePath, data, 0o644); err != nil {
+		t.Fatalf("write queue: %v", err)
+	}
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	coord := &Coordinator{store: store}
+
+	metadataSeen := false
+	var recorded TransitionErrorMetadata
+	coord.transitionFn = func(entry *Entry, toState string, reason string, metadata ...TransitionErrorMetadata) error {
+		if toState == string(StateFailedGates) && strings.Contains(reason, "failed gates") {
+			metadataSeen = metadataSeen || len(metadata) > 0
+			if len(metadata) > 0 {
+				recorded = metadata[0]
+			}
+		}
+		return ApplyTransition(entry, toState, reason, metadata...)
+	}
+
+	if err := coord.RecoverFromCrash(ctx); err != nil {
+		t.Fatalf("RecoverFromCrash() error = %v", err)
+	}
+
+	if !metadataSeen {
+		t.Fatal("expected metadata to be passed to ApplyTransition during crash recovery")
+	}
+	if recorded.Code != string(StateFailedGates) {
+		t.Fatalf("metadata.Code = %q, want %q", recorded.Code, string(StateFailedGates))
+	}
+	if recorded.Message != "scoped gates failed" {
+		t.Fatalf("metadata.Message = %q, want %q", recorded.Message, "scoped gates failed")
+	}
+}
+
 func TestCoordinatorRecoverFromCrash_MergeConflict(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
