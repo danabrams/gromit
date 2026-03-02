@@ -172,6 +172,19 @@ func TestIsTerminalState_ReadyIsNotTerminal(t *testing.T) {
 	}
 }
 
+func TestIsTerminalState_DerivesFromAllowedTransitionsMap(t *testing.T) {
+	// A state is terminal if it has no entry in the allowedTransitions map
+	// (i.e., it has no outgoing transitions)
+
+	// Add a new state with no outgoing transitions
+	const newTerminalState = "new_terminal_state"
+	// Do NOT add this state to allowedTransitions at all
+
+	if !IsTerminalState(newTerminalState) {
+		t.Errorf("expected %s to be recognized as terminal (no entry in allowedTransitions)", newTerminalState)
+	}
+}
+
 func TestIsBlockedState_ConflictIsBlocked(t *testing.T) {
 	if !IsBlockedState("conflict") {
 		t.Errorf("expected conflict to be blocked state, got false")
