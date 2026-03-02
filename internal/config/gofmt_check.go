@@ -7,6 +7,8 @@ import (
 )
 
 var supplementaryConfigFiles = []string{
+	"config.go",
+	"config_types.go",
 	"compatibility_resolution.go",
 	"gemini_config.go",
 	"profile_defaults.go",
