@@ -198,13 +198,19 @@ func (r *Reviewer) RunLight(ctx context.Context, b *bead.Bead, parent *bead.Bead
 	tier := SelectReviewTier(r.cfg, b, buildModel)
 
 	// Select provider via router — use cross-review if configured
+	useCross := r.cfg.Routing.PhasePreferences[reviewPhase] == "cross" && buildProvider != ""
 	var p provider.Provider
-	if r.cfg.Routing.PhasePreferences[reviewPhase] == "cross" && buildProvider != "" {
+	if useCross {
 		p, _ = r.router.SelectCross(buildProvider, tier)
 	} else {
 		p, _ = r.router.Select(reviewPhase, tier)
 	}
 	if p == nil {
+		if useCross {
+			r.log("Router.SelectCross failed for buildProvider=%s phase=%s tier=%s", buildProvider, reviewPhase, tier)
+		} else {
+			r.log("Router.Select failed for phase=%s tier=%s", reviewPhase, tier)
+		}
 		return nil, fmt.Errorf("no provider available for review")
 	}
 
