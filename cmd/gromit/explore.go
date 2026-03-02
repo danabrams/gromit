@@ -90,7 +90,10 @@ func runExplore(cmd *cobra.Command, args []string) error {
 	}
 
 	// Execute explore workflow
-	ctx := context.Background()
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	agentFlag, _ := cmd.Flags().GetString("agent")
 	chooseAgent, _ := cmd.Flags().GetBool("choose-agent")
 	input := pipeline.ExploreInput{
@@ -161,7 +164,7 @@ func runExploreInSession(
 		return err
 	}
 
-	if err := launchInSessionIfEnabled(cfg, gromitDir, exploreSessionCommand, exploreSessionLauncherFn, func(sessionDir string) error {
+	if err := launchInSessionIfEnabledWithContext(ctx, cfg, gromitDir, exploreSessionCommand, exploreSessionLauncherFn, func(sessionDir string) error {
 		return exploreRunInDirFn(sessionDir, func() error {
 			var runErr error
 			result, runErr = runner.Explore(ctx, input)
