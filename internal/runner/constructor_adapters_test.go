@@ -21,6 +21,7 @@ import (
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/readiness"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/runner/specmerge"
 	"github.com/danabrams/gromit/internal/tracker"
 )
@@ -482,9 +483,60 @@ func TestDecomposerAdapterChildWithDedupeLabelExistsWithClient_ThreadsProvidedCo
 	}
 }
 
+func TestDecomposerAdapterCreateSubBeads_ThreadsContextToShow(t *testing.T) {
+	t.Parallel()
+
+	const testValue = "test-show-context"
+	ctxKey := struct{}{}
+	customCtx := context.WithValue(context.Background(), ctxKey, testValue)
+
+	var capturedCtx context.Context
+	adapter := &decomposerAdapter{
+		beads: &fakeBeadClient{
+			listFn: func(ctx context.Context, label string) ([]*bead.Bead, error) {
+				return nil, nil
+			},
+			showFn: func(ctx context.Context, id string) (*bead.Bead, error) {
+				capturedCtx = ctx
+				return &bead.Bead{ID: id, Labels: []string{"spec:parent"}}, nil
+			},
+			createWithParentFn: func(ctx context.Context, title string, priority int, labels []string, outputs []string, parentID string) (*bead.Bead, error) {
+				return &bead.Bead{ID: "child-1"}, nil
+			},
+			closeFn: func(ctx context.Context, id string) error {
+				return nil
+			},
+		},
+	}
+
+	parent := &bead.Bead{
+		ID:    "parent-1",
+		Title: "Parent Bead",
+	}
+
+	tasks := []runtypes.SubTask{
+		{
+			Title:              "child-subtask",
+			AcceptanceCriteria: []string{"output"},
+		},
+	}
+
+	if err := adapter.CreateSubBeads(customCtx, parent, tasks); err != nil {
+		t.Fatalf("CreateSubBeads returned error: %v", err)
+	}
+
+	if capturedCtx == nil {
+		t.Fatal("Show not invoked")
+	}
+	if capturedCtx.Value(ctxKey) != testValue {
+		t.Fatalf("context not threaded to Show (got %v)", capturedCtx.Value(ctxKey))
+	}
+}
+
 type fakeBeadClient struct {
 	listFn             func(ctx context.Context, label string) ([]*bead.Bead, error)
 	createFn           func(ctx context.Context, title string, priority int, labels []string, outputs []string) (*bead.Bead, error)
+	showFn             func(ctx context.Context, id string) (*bead.Bead, error)
 	createWithParentFn func(ctx context.Context, title string, priority int, labels []string, outputs []string, parentID string) (*bead.Bead, error)
 	closeFn            func(ctx context.Context, id string) error
 }
@@ -505,7 +557,10 @@ func (f *fakeBeadClient) ListWithLabel(ctx context.Context, label string) ([]*be
 	return f.listFn(ctx, label)
 }
 func (f *fakeBeadClient) Show(ctx context.Context, id string) (*bead.Bead, error) {
-	return nil, nil
+	if f.showFn == nil {
+		return nil, nil
+	}
+	return f.showFn(ctx, id)
 }
 func (f *fakeBeadClient) Close(ctx context.Context, id string) error {
 	if f.closeFn == nil {
