@@ -111,11 +111,15 @@ func IsTerminalState(state string) bool {
 }
 
 // IsBlockedState returns true if the state is a blocked state.
+// A state is blocked if it has exactly one outgoing transition: to "ready".
 func IsBlockedState(state string) bool {
-	switch state {
-	case "conflict", "failed_gates", "lane_violation", "push_failure":
-		return true
-	default:
+	transitions, ok := allowedTransitions[state]
+	if !ok {
 		return false
 	}
+	// A blocked state has exactly one transition: to "ready"
+	if len(transitions) != 1 {
+		return false
+	}
+	return transitions["ready"]
 }
