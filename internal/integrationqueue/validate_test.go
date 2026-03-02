@@ -89,6 +89,16 @@ func TestEntryValidate(t *testing.T) {
 			t.Fatal("expected validation error when last error code is set without message")
 		}
 	})
+
+	t.Run("last error metadata set while integrating", func(t *testing.T) {
+		entry := validEntryForValidationTest()
+		entry.State = StateIntegrating
+		entry.LastErrorCode = "code"
+		entry.LastErrorMessage = "message"
+		if err := entry.Validate(); err == nil {
+			t.Fatal("expected validation error when last error metadata exists in integrating state")
+		}
+	})
 }
 
 func TestEntryValidateDoesNotMutateInput(t *testing.T) {
