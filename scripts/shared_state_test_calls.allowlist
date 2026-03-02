@@ -2,6 +2,8 @@ cmd/gromit/add_test.go:os.Chdir(
 cmd/gromit/add_test.go:os.Chdir(
 cmd/gromit/add_test.go:os.Chdir(
 cmd/gromit/add_test.go:os.Chdir(
+cmd/gromit/epic_bead_counts_reclassified_test.go:os.Setenv(
+cmd/gromit/epic_bead_counts_reclassified_test.go:os.Setenv(
 cmd/gromit/epic_test_helpers_test.go:os.Chdir(
 cmd/gromit/epic_test_helpers_test.go:os.Chdir(
 cmd/gromit/epic_test_helpers_test.go:os.Chdir(
@@ -12,6 +14,8 @@ cmd/gromit/main_retro_spec_validation_test.go:os.Chdir(
 cmd/gromit/main_retro_spec_validation_test.go:os.Chdir(
 cmd/gromit/plan_agent_test.go:os.Chdir(
 cmd/gromit/plan_agent_test.go:os.Chdir(
+cmd/gromit/prs_test.go:os.Chdir(
+cmd/gromit/prs_test.go:os.Chdir(
 cmd/gromit/refine_agent_test.go:os.Chdir(
 cmd/gromit/refine_agent_test.go:os.Chdir(
 cmd/gromit/repo_root_test.go:os.Chdir(
@@ -48,6 +52,10 @@ cmd/gromit/stats_test.go:os.Setenv(
 cmd/gromit/stats_test.go:os.Setenv(
 cmd/gromit/test_binary_helpers_test.go:os.Chdir(
 cmd/gromit/test_binary_helpers_test.go:os.Chdir(
+cmd/gromit/validate_pr_metadata_test.go:os.Setenv(
+cmd/gromit/validate_pr_metadata_test.go:os.Setenv(
+cmd/gromit/validate_pr_metadata_test.go:os.Setenv(
+cmd/gromit/validate_pr_metadata_test.go:os.Setenv(
 cmd/gromit/verify_spec_test.go:os.Chdir(
 cmd/gromit/verify_spec_test.go:os.Chdir(
 internal/runner/globalstats_integration_test.go:os.Setenv(

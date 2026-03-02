@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -17,6 +18,11 @@ import (
 // setupRunSpecTestEnv creates a minimal test environment for run command spec flag tests.
 func setupRunSpecTestEnv(t *testing.T) (specsDir string, cleanup func()) {
 	t.Helper()
+
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getting working directory before setup: %v", err)
+	}
 
 	tempDir := t.TempDir()
 	gromitDir := filepath.Join(tempDir, ".gromit")
@@ -41,11 +47,17 @@ func setupRunSpecTestEnv(t *testing.T) (specsDir string, cleanup func()) {
 
 	configPath = "gromit.yaml"
 
+	var cleanupOnce sync.Once
 	cleanup = func() {
-		configPath = origConfigPath
-		runSpecFlag = origRunSpec
-		runEpicFlag = origRunEpic
-		runHasOpenBeadsForLabelFn = origRunHasOpenBeadsForLabel
+		cleanupOnce.Do(func() {
+			configPath = origConfigPath
+			runSpecFlag = origRunSpec
+			runEpicFlag = origRunEpic
+			runHasOpenBeadsForLabelFn = origRunHasOpenBeadsForLabel
+			if err := os.Chdir(origWD); err != nil {
+				t.Fatalf("restoring working directory: %v", err)
+			}
+		})
 	}
 
 	return specsDir, cleanup
