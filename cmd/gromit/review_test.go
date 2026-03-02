@@ -19,6 +19,7 @@ import (
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/review"
 	"github.com/danabrams/gromit/internal/scope"
 	"github.com/danabrams/gromit/internal/state"
 	"github.com/danabrams/gromit/internal/worktree"
@@ -356,6 +357,64 @@ func TestApplyInteractiveReviewFindings_MalformedFileWarns(t *testing.T) {
 	if !strings.Contains(buf.String(), "warning") {
 		t.Fatalf("expected warning log, got %q", buf.String())
 	}
+}
+
+func TestApplyInteractiveReviewFindings_AppliesAndLogsSummary(t *testing.T) {
+	t.Parallel()
+
+	gromitDir := t.TempDir()
+	reviewDir := filepath.Join(gromitDir, "tmp")
+	if err := os.MkdirAll(reviewDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	filePath := filepath.Join(reviewDir, "review-findings.json")
+	reviewJSON := `{"passed":true,"fixes_applied":[],"fix_categories":[],"beads_to_create":[],"backlog_items":[],"summary":"ok","learnings":[]}`
+	if err := os.WriteFile(filePath, []byte(reviewJSON), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var buf strings.Builder
+	origWriter := reviewFindingsLogWriter
+	t.Cleanup(func() { reviewFindingsLogWriter = origWriter })
+	reviewFindingsLogWriter = &buf
+
+	stub := &stubReviewFindingsApplier{
+		applyResult: &pipeline.ReviewApplyResult{
+			CreatedBeadIDs:      []string{"bead-123", "bead-456"},
+			CreatedBacklogCount: 2,
+			LearningsSaved:      1,
+		},
+	}
+	origBuilder := buildReviewFindingsApplierFn
+	t.Cleanup(func() { buildReviewFindingsApplierFn = origBuilder })
+	buildReviewFindingsApplierFn = func(cfg *config.Config, dir string) (reviewFindingsApplier, error) {
+		return stub, nil
+	}
+
+	if err := applyInteractiveReviewFindings(&config.Config{}, gromitDir); err != nil {
+		t.Fatalf("applyInteractiveReviewFindings() error = %v", err)
+	}
+
+	if !stub.called {
+		t.Fatalf("expected pipeline to be invoked")
+	}
+	log := buf.String()
+	if !strings.Contains(log, "Review findings applied") {
+		t.Fatalf("expected summary log, got %q", log)
+	}
+	if !strings.Contains(log, "Bead IDs: bead-123, bead-456") {
+		t.Fatalf("expected bead IDs in log, got %q", log)
+	}
+}
+
+type stubReviewFindingsApplier struct {
+	applyResult *pipeline.ReviewApplyResult
+	called      bool
+}
+
+func (s *stubReviewFindingsApplier) ApplyReviewFindings(ctx context.Context, result *review.ReviewResult) (*pipeline.ReviewApplyResult, error) {
+	s.called = true
+	return s.applyResult, nil
 }
 
 func TestRunGitDiffForReview_UsesInjectedGit(t *testing.T) {
