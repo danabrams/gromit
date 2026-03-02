@@ -245,6 +245,10 @@ func runReviewInteractive(cfg *config.Config, fromCommit string, diff string) er
 		return err
 	}
 
+	if err := applyInteractiveReviewFindingsFn(cfg, gromitDir); err != nil {
+		return err
+	}
+
 	return nil
 }
 
