@@ -291,6 +291,52 @@ func TestRunRefineInSession_UsesSessionLauncherWhenEnabled(t *testing.T) {
 	}
 }
 
+func TestRunRefineInSession_PassesCommandContextToLauncher(t *testing.T) {
+	t.Parallel()
+
+	customCtx := context.WithValue(context.Background(), "test-key", "test-value")
+	cfg := &config.Config{}
+	gromitDir := t.TempDir()
+
+	var capturedCtx context.Context
+	origLauncher := refineSessionLauncherFn
+	origRunInDir := refineRunInDirFn
+	t.Cleanup(func() {
+		refineSessionLauncherFn = origLauncher
+		refineRunInDirFn = origRunInDir
+	})
+
+	refineSessionLauncherFn = func(
+		ctx context.Context,
+		gromitDir string,
+		command string,
+		conflictSettings sessionConflictSettings,
+		callback func(sessionDir string) error,
+	) (*worktree.SessionWorktree, error) {
+		capturedCtx = ctx
+		if err := callback("session"); err != nil {
+			return nil, err
+		}
+		return &worktree.SessionWorktree{BranchName: "test-session", WorktreeDir: "session"}, nil
+	}
+
+	refineRunInDirFn = func(dir string, fn func() error) error {
+		return nil
+	}
+
+	p := pipeline.New(&pipeline.Deps{}, &pipeline.Paths{GromitDir: gromitDir})
+	if _, err := runRefineInSession(customCtx, cfg, gromitDir, p, pipeline.RefineInput{IdeaText: "idea"}); err != nil {
+		t.Fatalf("runRefineInSession() error = %v", err)
+	}
+
+	if capturedCtx == nil {
+		t.Fatal("expected session launcher to receive context")
+	}
+	if capturedCtx.Value("test-key") != "test-value" {
+		t.Fatalf("captured context missing marker value: %v", capturedCtx.Value("test-key"))
+	}
+}
+
 func TestRunRefineInSession_WorktreeDisabledSkipsSessionLauncher(t *testing.T) {
 
 	origLauncher := refineSessionLauncherFn
