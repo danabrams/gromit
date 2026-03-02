@@ -56,11 +56,27 @@ func (a *BDAdapter) ReadyWithLabel(ctx context.Context, label string) (*tracker.
 		return nil, err
 	}
 
-	bead, err := client.ReadyWithLabel(ctx, label)
+	beads, err := client.ListWithLabel(ctx, label)
 	if err != nil {
 		return nil, err
 	}
-	return beadToItem(bead), nil
+
+	for _, b := range beads {
+		if b == nil {
+			continue
+		}
+		if strings.EqualFold(b.Type, "epic") {
+			continue
+		}
+		if strings.EqualFold(b.Status, tracker.StatusClosed) {
+			continue
+		}
+		if item := beadToItem(b); item != nil {
+			return item, nil
+		}
+	}
+
+	return nil, nil
 }
 
 func (a *BDAdapter) List(ctx context.Context, query tracker.Query) ([]tracker.Item, error) {
