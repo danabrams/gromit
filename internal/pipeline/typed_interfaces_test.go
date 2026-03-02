@@ -588,10 +588,6 @@ func (m *typedInterfacesBacklogWriter) Add(ctx context.Context, entry *BacklogEn
 	return nil
 }
 
-func (m *typedInterfacesBacklogWriter) Update(id string, fn func(*Idea)) error {
-	return nil
-}
-
 type typedInterfacesLearningsManager struct{}
 
 func (m *typedInterfacesLearningsManager) Add(content string) error {

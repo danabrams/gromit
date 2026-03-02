@@ -279,16 +279,15 @@ type cliBacklogClient struct {
 var _ pipeline.BacklogWriter = (*cliBacklogClient)(nil)
 
 func (c *cliBacklogClient) Add(ctx context.Context, entry *pipeline.BacklogEntry) error {
+	if c == nil || c.beadClient == nil {
+		return fmt.Errorf("backlog client is not properly initialized")
+	}
 	if entry == nil {
 		return fmt.Errorf("backlog entry is nil")
 	}
 
 	_, err := c.beadClient.Create(ctx, entry.Title, entry.Priority, entry.Labels, entry.ExpectedOutputs)
 	return err
-}
-
-func (c *cliBacklogClient) Update(id string, fn func(*pipeline.Idea)) error {
-	return fmt.Errorf("not implemented")
 }
 
 // cliLearningsManager adapts learnings operations to pipeline.LearningsManager interface

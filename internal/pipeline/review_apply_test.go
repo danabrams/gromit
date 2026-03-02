@@ -312,8 +312,6 @@ func (c *capturingBacklogWriter) Add(ctx context.Context, entry *BacklogEntry) e
     return nil
 }
 
-func (c *capturingBacklogWriter) Update(id string, fn func(*Idea)) error { return nil }
-
 func compareBacklogEntries(t *testing.T, want, got []*BacklogEntry) {
 	if len(want) != len(got) {
 		t.Fatalf("backlog entry count mismatch: want %d, got %d", len(want), len(got))
@@ -336,8 +334,6 @@ func newFailingBacklogWriter(err error) *failingBacklogWriter {
 func (c *failingBacklogWriter) Add(ctx context.Context, entry *BacklogEntry) error {
 	return c.err
 }
-
-func (c *failingBacklogWriter) Update(id string, fn func(*Idea)) error { return nil }
 
 type failingTrackerClient struct {
     err error

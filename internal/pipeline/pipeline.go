@@ -197,7 +197,6 @@ type BacklogClient interface {
 // BacklogWriter abstracts write-only backlog operations.
 type BacklogWriter interface {
 	Add(ctx context.Context, entry *BacklogEntry) error
-	Update(id string, fn func(*Idea)) error
 }
 
 // BacklogEntry describes the data required to create a backlog item.

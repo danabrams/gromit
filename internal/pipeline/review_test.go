@@ -917,10 +917,6 @@ func (m *reviewAcceptanceMockBacklogWriter) Add(ctx context.Context, entry *Back
 	return nil
 }
 
-func (m *reviewAcceptanceMockBacklogWriter) Update(id string, fn func(*Idea)) error {
-	return nil
-}
-
 type reviewAcceptanceMockLearningsManager struct {
 	addFunc func(content string) error
 }
