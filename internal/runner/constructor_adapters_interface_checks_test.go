@@ -3,6 +3,7 @@ package runner
 import (
 	"testing"
 
+	"github.com/danabrams/gromit/internal/integrationqueue"
 	"github.com/danabrams/gromit/internal/pipeline/execute"
 )
 
