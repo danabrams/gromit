@@ -17,6 +17,38 @@ import (
 	"github.com/danabrams/gromit/internal/worktree"
 )
 
+type testPlanQuerier struct {
+	capturedCtx context.Context
+	result      *pipeline.QueryUndecomposedPlansResult
+}
+
+func (q *testPlanQuerier) QueryUndecomposedPlans(ctx context.Context, input pipeline.QueryUndecomposedPlansInput) (*pipeline.QueryUndecomposedPlansResult, error) {
+	q.capturedCtx = ctx
+	return q.result, nil
+}
+
+func TestQueryDecomposePlansWithPipeline_UsesProvidedContext(t *testing.T) {
+	t.Parallel()
+
+	querier := &testPlanQuerier{
+		result: &pipeline.QueryUndecomposedPlansResult{
+			Plans: []pipeline.PlanQueryInfo{{Name: "plan-a", Title: "Plan A", Path: "plan-a.md"}},
+		},
+	}
+	markerCtx := context.WithValue(context.Background(), "marker", "value")
+
+	if _, err := queryDecomposePlansWithPipeline(markerCtx, querier); err != nil {
+		t.Fatalf("queryDecomposePlansWithPipeline() error = %v", err)
+	}
+
+	if querier.capturedCtx == nil {
+		t.Fatal("expected querier to receive a context")
+	}
+	if querier.capturedCtx.Value("marker") != "value" {
+		t.Fatalf("context value missing, got %v", querier.capturedCtx.Value("marker"))
+	}
+}
+
 func TestFilterUndecomposedPlans(t *testing.T) {
 	// Not parallel: subtests mutate package-level decomposeListWithLabelFn.
 	tests := []struct {
