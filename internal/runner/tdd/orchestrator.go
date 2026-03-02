@@ -513,14 +513,14 @@ func detectCycleInstability(snapshots []runtypes.CycleSnapshot) runtypes.Instabi
 		return runtypes.InstabilityNone
 	}
 	prev := snapshots[n-2]
-	if len(prev.Remaining) > 0 && equalStringSlices(latest.Remaining, prev.Remaining) {
+	if len(prev.Remaining) > 0 && sameRemainingSet(latest.Remaining, prev.Remaining) {
 		return runtypes.InstabilityDeadlock
 	}
 	for i := n - 3; i >= 0; i-- {
 		if len(snapshots[i].Remaining) == 0 {
 			continue
 		}
-		if equalStringSlices(latest.Remaining, snapshots[i].Remaining) {
+		if sameRemainingSet(latest.Remaining, snapshots[i].Remaining) {
 			return runtypes.InstabilityOscillation
 		}
 	}
@@ -570,6 +570,12 @@ func equalStringSlices(a, b []string) bool {
 		}
 	}
 	return len(counts) == 0
+}
+
+// sameRemainingSet declares that two remaining lists represent the same
+// requirement set even when their ordering differs.
+func sameRemainingSet(a, b []string) bool {
+	return equalStringSlices(a, b)
 }
 
 func cloneStringSlice(src []string) []string {
