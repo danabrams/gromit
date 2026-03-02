@@ -198,9 +198,10 @@ func resolveCodexPreset() Agent {
 	return New("codex", "codex", nil, FileRef, "", nil)
 }
 
-// resolveGeminiPreset creates an agent for Gemini using stdin delivery
+// resolveGeminiPreset creates an agent for Gemini using file-reference delivery.
+// This preserves TTY stdin so the Gemini CLI can remain interactive.
 func resolveGeminiPreset() Agent {
-	return New("gemini", "gemini", nil, Stdin, "", nil)
+	return New("gemini", "gemini", nil, FileRef, "", nil)
 }
 
 // resolveCustomAgent creates an agent from a custom definition

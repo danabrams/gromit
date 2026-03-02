@@ -140,8 +140,8 @@ func TestResolveCodexPreset(t *testing.T) {
 	}
 }
 
-// TestResolveByName_GeminiPresetUsesStdin verifies the built-in gemini preset uses stdin delivery
-func TestResolveByName_GeminiPresetUsesStdin(t *testing.T) {
+// TestResolveByName_GeminiPresetUsesFileRef verifies the built-in gemini preset uses file_ref delivery.
+func TestResolveByName_GeminiPresetUsesFileRef(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.SetDefaults()
 
@@ -167,8 +167,8 @@ func TestResolveByName_GeminiPresetUsesStdin(t *testing.T) {
 		t.Errorf("gemini agent binary = %q, want %q", ca.binary, "gemini")
 	}
 
-	if ca.promptDelivery != Stdin {
-		t.Errorf("gemini agent promptDelivery = %q, want %q", ca.promptDelivery, Stdin)
+	if ca.promptDelivery != FileRef {
+		t.Errorf("gemini agent promptDelivery = %q, want %q", ca.promptDelivery, FileRef)
 	}
 
 	if ca.promptFlag != "" {
