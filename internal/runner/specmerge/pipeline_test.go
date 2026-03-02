@@ -5,9 +5,11 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/review"
 	"github.com/danabrams/gromit/internal/runner/specmerge"
 	"github.com/danabrams/gromit/internal/specgate"
@@ -351,6 +353,55 @@ func TestPipeline_TriggerCapturesCycleRecord(t *testing.T) {
 	})
 }
 
+func TestPipeline_TriggerLogsCaptureCycleRecordErrors(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specName := "payments"
+	errMessage := "capture failure"
+
+	emitter := events.NewEmitter()
+	logCh := emitter.Subscribe()
+	defer emitter.Unsubscribe(logCh)
+
+	query := &fakeBeadQuery{listFn: func(ctx context.Context, label string) ([]*bead.Bead, error) {
+		return nil, nil
+	}}
+
+	cycleEmitter := &fakeCycleRecordEmitter{
+		captureFn: func(_ context.Context, _ specmerge.CycleRecord) error {
+			return errors.New(errMessage)
+		},
+	}
+
+	flow := &fakeFlowExecutor{
+		runFn: func(_ context.Context, _ string) (*specmerge.FlowResult, error) {
+			return &specmerge.FlowResult{}, nil
+		},
+	}
+
+	p := specmerge.NewPipeline(query, cycleEmitter, flow, specmerge.FixBeadDependencies{}, 0).WithLogEmitter(emitter)
+	if err := p.Trigger(ctx, specName); err != nil {
+		t.Fatalf("Trigger() returned error: %v", err)
+	}
+
+	select {
+	case evt := <-logCh:
+		logEvent, ok := evt.(*events.LogEvent)
+		if !ok {
+			t.Fatalf("expected LogEvent, got %T", evt)
+		}
+		if !strings.Contains(logEvent.Message, specName) {
+			t.Fatalf("log message %q missing spec name %s", logEvent.Message, specName)
+		}
+		if !strings.Contains(logEvent.Message, errMessage) {
+			t.Fatalf("log message %q missing error %s", logEvent.Message, errMessage)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for log event")
+	}
+}
+
 func TestTrackerBeadQueryConvertsTrackerItems(t *testing.T) {
 	t.Parallel()
 
@@ -402,7 +453,7 @@ func TestTrackerBeadQueryConvertsTrackerItems(t *testing.T) {
 }
 
 type fakeBeadQuery struct {
-	listFn func(context.Context, string) ([]*bead.Bead, error)
+	listFn      func(context.Context, string) ([]*bead.Bead, error)
 	capturedCtx context.Context
 }
 
