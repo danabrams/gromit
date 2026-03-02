@@ -426,6 +426,21 @@ func assertStatusTUISections(t *testing.T, output string) {
 	}
 }
 
+func writeRealCoordinatorQueueFixture(t *testing.T, gromitDir string) {
+	t.Helper()
+	fixturePath := filepath.Join("..", "..", "testdata", "real-coordinator-integration-queue.json")
+	data, err := os.ReadFile(fixturePath)
+	if err != nil {
+		t.Fatalf("ReadFile %s: %v", fixturePath, err)
+	}
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll gromitDir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gromitDir, "integration-queue.json"), data, 0o644); err != nil {
+		t.Fatalf("WriteFile integration queue fixture: %v", err)
+	}
+}
+
 // getKeys is a helper to extract keys from a map for debugging
 func getKeys(m map[string]interface{}) []string {
 	keys := make([]string, 0, len(m))
