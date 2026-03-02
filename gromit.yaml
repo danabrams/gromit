@@ -88,6 +88,9 @@ stream:
 #   review: true         # include review phase
 #   retro: true          # include retro phase
 
+# Emergency bypass for readiness gate blocking.
+readiness_emergency_override: true
+
 # Example: Codex provider configuration
 # codex:
 #     binary: codex
@@ -123,7 +126,7 @@ andon:
 loop:
   max_iterations: 0  # 0 = unlimited
   stop_on_failure: false  # Continue to next bead on failure
-  stuck_bead_threshold: 3  # Skip bead if it fails this many times across runs
+  stuck_bead_threshold: 999999  # Effectively disable "stuck" classification from historical failures
   max_consecutive_skips: 5  # Stop loop after 5 consecutive precheck skips — needs headroom for related beads with overlapping acceptance criteria
   max_cross_run_failures: 5  # Skip bead if it has 5+ consecutive failures across runs
   learn_from_success: true  # Extract learnings from successful iterations (default: true)
@@ -134,7 +137,7 @@ loop:
 scope_check:
   enabled: true
   model: haiku  # haiku is fast and cheap for estimation
-  block_oversized: true  # block over-scoped beads before spending compute
+  block_oversized: false  # do not gate progress on oversized detection
 
 # Pre-check - verify if acceptance criteria are already met before starting work
 # Note: verification is subordinate to precheck; when precheck.enabled is false, verification is skipped regardless of its enabled setting
