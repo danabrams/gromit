@@ -275,6 +275,7 @@
 {"issue_id":"gromit-55r","label":"spec:harden-fake-claude-writes"}
 {"issue_id":"gromit-568","label":"spec:atdd-methodology"}
 {"issue_id":"gromit-578","label":"spec:review-system"}
+{"issue_id":"gromit-5ag6c","label":"from-review"}
 {"issue_id":"gromit-5bah","label":"spec:concurrent-interactive-worktrees"}
 {"issue_id":"gromit-5cfb","label":"spec:suite-wide-test-runtime-reduction"}
 {"issue_id":"gromit-5d2d","label":"spec:session-epilogue"}
@@ -632,6 +633,7 @@
 {"issue_id":"gromit-9lx6q","label":"reliability"}
 {"issue_id":"gromit-9lx6q","label":"spec:review-spec-validation"}
 {"issue_id":"gromit-9nic","label":"spec:concurrent-interactive-worktrees"}
+{"issue_id":"gromit-9olfs","label":"from-review"}
 {"issue_id":"gromit-9qmd","label":"refactor"}
 {"issue_id":"gromit-9qtb","label":"spec:acceptance-test-cleanup"}
 {"issue_id":"gromit-9qy4","label":"spec:result-output-semantics"}
@@ -1035,6 +1037,7 @@
 {"issue_id":"gromit-h94d","label":"spec:spec-acceptance-verification-loop"}
 {"issue_id":"gromit-h9m4w","label":"spec:configurable-verification-script"}
 {"issue_id":"gromit-hgu3","label":"spec:epic-scoped-execution"}
+{"issue_id":"gromit-hj49d","label":"from-review"}
 {"issue_id":"gromit-hjenc","label":"spec:configurable-verification-script"}
 {"issue_id":"gromit-hjenc","label":"tdd:false"}
 {"issue_id":"gromit-hjenc.1","label":"tdd:true"}
@@ -1394,6 +1397,7 @@
 {"issue_id":"gromit-o27x","label":"spec:andon-autonomous-run-loop"}
 {"issue_id":"gromit-o2oh","label":"spec:spec-level-atdd-execution"}
 {"issue_id":"gromit-o2vl","label":"spec:epic-scoped-execution"}
+{"issue_id":"gromit-o38nb","label":"from-review"}
 {"issue_id":"gromit-o3my","label":"spec:concurrent-interactive-worktrees"}
 {"issue_id":"gromit-o4ow","label":"spec:archived-learning-dedup"}
 {"issue_id":"gromit-o5i4","label":"spec:codex-streaming-parity"}
@@ -1780,6 +1784,7 @@
 {"issue_id":"gromit-vj4fq.2","label":"spec:decompose-low-complexity-bias"}
 {"issue_id":"gromit-vj4fq.3","label":"spec:decompose-low-complexity-bias"}
 {"issue_id":"gromit-vj4hh","label":"from-review"}
+{"issue_id":"gromit-vj714","label":"from-review"}
 {"issue_id":"gromit-vjlm","label":"spec:reduce-runner-test-runtime"}
 {"issue_id":"gromit-vlk9","label":"spec:retro-efficiency-experiments"}
 {"issue_id":"gromit-vo11r","label":"spec:cost-per-spec-metric"}
@@ -1914,6 +1919,7 @@
 {"issue_id":"gromit-ypd","label":"spec:review-system"}
 {"issue_id":"gromit-ypk","label":"spec:tdd-methodology"}
 {"issue_id":"gromit-yqdrn","label":"from-review"}
+{"issue_id":"gromit-yry7z","label":"from-review"}
 {"issue_id":"gromit-yrz2","label":"tdd:false"}
 {"issue_id":"gromit-ytka","label":"spec:review-spec-validation"}
 {"issue_id":"gromit-yut","label":"complexity:low"}
