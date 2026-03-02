@@ -1920,7 +1920,6 @@ func TestClientDeriveIssuePrefixReturnsNormalizedRepoName(t *testing.T) {
 }
 
 func TestClientRepoBaseNameContextCancellation(t *testing.T) {
-	t.Parallel()
 	repoDir := t.TempDir()
 	if err := os.MkdirAll(repoDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(%q): %v", repoDir, err)

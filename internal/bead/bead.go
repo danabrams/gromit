@@ -688,6 +688,12 @@ func (c *Client) repoBaseName(ctx context.Context) (string, error) {
 		}
 	}
 
+	if gitErr != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return "", ctxErr
+		}
+	}
+
 	cwd, cwdErr := os.Getwd()
 	if cwdErr != nil {
 		if gitErr != nil {
