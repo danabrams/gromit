@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -146,7 +147,7 @@ func (s *SPCAutoTriager) Process(ctx context.Context, records []SPCCauseRecord) 
 		}
 		label := dedupeLabelForIdentity(identity)
 		if exists, err := openExists(ctx, s.client, label); err != nil {
-			errs = append(errs, fmt.Errorf("checking dedupe label %q: %w", label, err))
+			fmt.Fprintf(os.Stderr, "[warning] skipping SPC triage record %q (%s): %v\n", label, identity, err)
 			continue
 		} else if exists {
 			continue
