@@ -820,6 +820,31 @@ func TestIntegrationQueueGitOpsAdapter_RequiresRepoDir(t *testing.T) {
 	}
 }
 
+func TestIntegrationQueueGitOpsAdapter_RepoDirGuard(t *testing.T) {
+	t.Parallel()
+
+	adapter := &integrationQueueGitOpsAdapter{
+		baseBranch: "main",
+		runGitCommand: func(ctx context.Context, dir string, args ...string) (string, error) {
+			t.Fatalf("runGitCommand called even though repo dir is missing")
+			return "", nil
+		},
+	}
+
+	if err := adapter.Push(context.Background()); err == nil {
+		t.Fatal("Push returned nil error; want failure when repo dir missing")
+	} else if !errors.Is(err, errRepoDirMissing) {
+		t.Fatalf("Push error = %v, want wrapped %v", err, errRepoDirMissing)
+	}
+
+	entry := integrationqueue.Entry{Branch: "feature/guard"}
+	if err := adapter.Cleanup(context.Background(), entry); err == nil {
+		t.Fatal("Cleanup returned nil error; want failure when repo dir missing")
+	} else if !errors.Is(err, errRepoDirMissing) {
+		t.Fatalf("Cleanup error = %v, want wrapped %v", err, errRepoDirMissing)
+	}
+}
+
 func TestIntegrationQueueScopedGateAdapter_RunSuccess(t *testing.T) {
 	t.Parallel()
 
