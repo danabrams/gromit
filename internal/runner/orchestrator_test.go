@@ -4311,3 +4311,155 @@ func TestCoordinatorRegression_ReadyEntryTransitionsOutOfReady(t *testing.T) {
 		t.Fatalf("entry state = %s, want non-ready state", processed.State)
 	}
 }
+
+// TestCoordinatorRegression_SuccessfulIntegrationTransitionsToMerged verifies that
+// when NewIntegrationCoordinator runs successfully with a ready entry and all
+// gates pass, the entry transitions specifically to the merged state.
+func TestCoordinatorRegression_SuccessfulIntegrationTransitionsToMerged(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	store, err := integrationqueue.NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	entry := testQueueEntry("feature/successful-merge", integrationqueue.StateReady)
+	if err := store.Save(entry); err != nil {
+		t.Fatalf("Save(entry) error = %v", err)
+	}
+
+	// Mock the git operations and scoped gate to succeed
+	prevGitOpsFn := newIntegrationQueueGitOpsAdapterFn
+	prevGateFn := newIntegrationQueueScopedGateAdapterFn
+	defer func() {
+		newIntegrationQueueGitOpsAdapterFn = prevGitOpsFn
+		newIntegrationQueueScopedGateAdapterFn = prevGateFn
+	}()
+	newIntegrationQueueGitOpsAdapterFn = func(repoDir string, cfg *config.Config) (*integrationQueueGitOpsAdapter, error) {
+		return &integrationQueueGitOpsAdapter{
+			repoDir:    repoDir,
+			baseBranch: "main",
+			runGitCommand: func(ctx context.Context, dir string, args ...string) (string, error) {
+				return "", nil
+			},
+		}, nil
+	}
+	newIntegrationQueueScopedGateAdapterFn = func(cfg *config.Config, repoDir string) (*integrationQueueScopedGateAdapter, error) {
+		return &integrationQueueScopedGateAdapter{
+			evaluator: func(ctx context.Context, entry integrationqueue.Entry) error {
+				return nil
+			},
+		}, nil
+	}
+
+	// Call NewIntegrationCoordinator and run one Coordinate iteration
+	coord, err := NewIntegrationCoordinator(tmpDir)
+	if err != nil {
+		t.Fatalf("NewIntegrationCoordinator() error = %v", err)
+	}
+
+	ctx := context.Background()
+	if err := coord.Coordinate(ctx); err != nil {
+		t.Fatalf("Coordinate() error = %v", err)
+	}
+
+	// Verify the entry has transitioned to merged state specifically
+	result, err := store.Snapshot()
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	processed := findQueueEntry(result, entry.Branch)
+	if processed == nil {
+		t.Fatalf("entry %s missing after coordinator run", entry.Branch)
+	}
+	if processed.State != integrationqueue.StateMerged {
+		t.Fatalf("entry state = %s, want %s", processed.State, integrationqueue.StateMerged)
+	}
+	if processed.LastErrorCode != "" {
+		t.Fatalf("LastErrorCode = %q, want empty on successful integration", processed.LastErrorCode)
+	}
+}
+
+// TestCoordinatorRegression_ProcessesOldestReadyEntryFirst verifies that when
+// NewIntegrationCoordinator is called with multiple ready entries, it processes
+// the oldest ready entry first (FIFO order).
+func TestCoordinatorRegression_ProcessesOldestReadyEntryFirst(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	store, err := integrationqueue.NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	// Create and save oldest entry first
+	oldest := testQueueEntry("feature/oldest", integrationqueue.StateReady)
+	if err := store.Save(oldest); err != nil {
+		t.Fatalf("Save(oldest) error = %v", err)
+	}
+
+	// Create and save newer entry second
+	newer := testQueueEntry("feature/newer", integrationqueue.StateReady)
+	if err := store.Save(newer); err != nil {
+		t.Fatalf("Save(newer) error = %v", err)
+	}
+
+	// Mock the git operations and scoped gate to succeed
+	prevGitOpsFn := newIntegrationQueueGitOpsAdapterFn
+	prevGateFn := newIntegrationQueueScopedGateAdapterFn
+	defer func() {
+		newIntegrationQueueGitOpsAdapterFn = prevGitOpsFn
+		newIntegrationQueueScopedGateAdapterFn = prevGateFn
+	}()
+	newIntegrationQueueGitOpsAdapterFn = func(repoDir string, cfg *config.Config) (*integrationQueueGitOpsAdapter, error) {
+		return &integrationQueueGitOpsAdapter{
+			repoDir:    repoDir,
+			baseBranch: "main",
+			runGitCommand: func(ctx context.Context, dir string, args ...string) (string, error) {
+				return "", nil
+			},
+		}, nil
+	}
+	newIntegrationQueueScopedGateAdapterFn = func(cfg *config.Config, repoDir string) (*integrationQueueScopedGateAdapter, error) {
+		return &integrationQueueScopedGateAdapter{
+			evaluator: func(ctx context.Context, entry integrationqueue.Entry) error {
+				return nil
+			},
+		}, nil
+	}
+
+	// Call NewIntegrationCoordinator and run one Coordinate iteration
+	coord, err := NewIntegrationCoordinator(tmpDir)
+	if err != nil {
+		t.Fatalf("NewIntegrationCoordinator() error = %v", err)
+	}
+
+	ctx := context.Background()
+	if err := coord.Coordinate(ctx); err != nil {
+		t.Fatalf("Coordinate() error = %v", err)
+	}
+
+	// Verify that the oldest entry was processed (transitioned out of ready)
+	result, err := store.Snapshot()
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	oldestProcessed := findQueueEntry(result, oldest.Branch)
+	if oldestProcessed == nil {
+		t.Fatalf("oldest entry %s missing after coordinator run", oldest.Branch)
+	}
+	newerRemaining := findQueueEntry(result, newer.Branch)
+	if newerRemaining == nil {
+		t.Fatalf("newer entry %s missing after coordinator run", newer.Branch)
+	}
+
+	// Oldest should be merged (processed)
+	if oldestProcessed.State != integrationqueue.StateMerged {
+		t.Fatalf("oldest entry state = %s, want %s (processed first)", oldestProcessed.State, integrationqueue.StateMerged)
+	}
+	// Newer should still be ready (not yet processed)
+	if newerRemaining.State != integrationqueue.StateReady {
+		t.Fatalf("newer entry state = %s, want %s (processed last)", newerRemaining.State, integrationqueue.StateReady)
+	}
+}
