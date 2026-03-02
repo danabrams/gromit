@@ -486,6 +486,123 @@ func TestOrchestrator_SkipPath_EmitsBeadSkippedEvent(t *testing.T) {
 	}
 }
 
+// TestOrchestrator_BlockPath_NonStuckEmitsBeadSkippedEvent verifies that gate blocks
+// for non-stuck reasons do not emit BeadStuckEvent.
+func TestOrchestrator_BlockPath_NonStuckEmitsBeadSkippedEvent(t *testing.T) {
+	t.Parallel()
+
+	gateStage := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{Decision: pipeline.Block, GateBlockReason: "criteria_missing"}, nil
+	}}
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "blocked-bead", Title: "Blocked Task"}, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     gateStage,
+		Build:    &fakeStage{},
+		Validate: &fakeStage{},
+		Epilogue: &fakeStage{},
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	capturer := newCaptureSubscriber(orch.GetEmitter())
+	go capturer.start()
+
+	err := orch.Run(context.Background(), 1, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	<-capturer.done
+
+	var beadSkippedEvent *events.BeadSkippedEvent
+	for _, evt := range capturer.capture.events {
+		switch e := evt.(type) {
+		case *events.BeadStuckEvent:
+			t.Fatalf("unexpected BeadStuckEvent emitted for non-stuck block: %+v", e)
+		case *events.BeadSkippedEvent:
+			beadSkippedEvent = e
+		}
+	}
+
+	if beadSkippedEvent == nil {
+		t.Fatal("BeadSkippedEvent not found in emitted events")
+	}
+	if beadSkippedEvent.BeadID != "blocked-bead" {
+		t.Errorf("BeadSkippedEvent.BeadID = %q, want %q", beadSkippedEvent.BeadID, "blocked-bead")
+	}
+	if !strings.Contains(beadSkippedEvent.Reason, "criteria_missing") {
+		t.Errorf("BeadSkippedEvent.Reason = %q, want it to include criteria_missing", beadSkippedEvent.Reason)
+	}
+}
+
+// TestOrchestrator_BlockPath_StuckEmitsBeadStuckEvent verifies that stuck gate blocks
+// continue to emit BeadStuckEvent.
+func TestOrchestrator_BlockPath_StuckEmitsBeadStuckEvent(t *testing.T) {
+	t.Parallel()
+
+	gateStage := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{Decision: pipeline.Block, GateBlockReason: "failure_threshold_exceeded"}, nil
+	}}
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "stuck-bead", Title: "Stuck Task"}, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     gateStage,
+		Build:    &fakeStage{},
+		Validate: &fakeStage{},
+		Epilogue: &fakeStage{},
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	capturer := newCaptureSubscriber(orch.GetEmitter())
+	go capturer.start()
+
+	err := orch.Run(context.Background(), 1, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	<-capturer.done
+
+	var beadStuckEvent *events.BeadStuckEvent
+	for _, evt := range capturer.capture.events {
+		switch e := evt.(type) {
+		case *events.BeadSkippedEvent:
+			t.Fatalf("unexpected BeadSkippedEvent emitted for stuck block: %+v", e)
+		case *events.BeadStuckEvent:
+			beadStuckEvent = e
+		}
+	}
+
+	if beadStuckEvent == nil {
+		t.Fatal("BeadStuckEvent not found in emitted events")
+	}
+	if beadStuckEvent.BeadID != "stuck-bead" {
+		t.Errorf("BeadStuckEvent.BeadID = %q, want %q", beadStuckEvent.BeadID, "stuck-bead")
+	}
+}
+
 // TestOrchestrator_IterationCompleteEventContainsPayload verifies that
 // IterationCompleteEvent contains iteration number, bead ID, success status.
 func TestOrchestrator_IterationCompleteEventContainsPayload(t *testing.T) {

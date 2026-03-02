@@ -452,7 +452,19 @@ runLoop:
 				})
 			case pipeline.Block:
 				baseIn.Result.GateBlockReason = gateOut.GateBlockReason
-				o.emitBeadStuckEvent(b, "gate stage returned block decision")
+				if gateOut.GateBlockReason == "failure_threshold_exceeded" {
+					o.emitBeadStuckEvent(b, "gate stage returned block decision")
+				} else {
+					reason := "gate stage returned block decision"
+					if gateOut.GateBlockReason != "" {
+						reason = fmt.Sprintf("%s: %s", reason, gateOut.GateBlockReason)
+					}
+					o.emitter.Emit(&events.BeadSkippedEvent{
+						BeadID: b.ID,
+						Reason: reason,
+						Time:   time.Now(),
+					})
+				}
 			default:
 				o.emitter.Emit(&events.BeadSkippedEvent{
 					BeadID: b.ID,
