@@ -104,8 +104,10 @@ func NextAllowedStates(from string) []string {
 }
 
 // IsTerminalState returns true if the state is a terminal state (has no transitions out).
+// A state is terminal if it has no entry in the allowedTransitions map.
 func IsTerminalState(state string) bool {
-	return state == "merged"
+	_, ok := allowedTransitions[state]
+	return !ok
 }
 
 // IsBlockedState returns true if the state is a blocked state.
