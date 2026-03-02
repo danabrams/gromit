@@ -5,6 +5,7 @@ import (
     "encoding/json"
     "fmt"
     "reflect"
+    "strings"
     "testing"
     "time"
 
@@ -145,6 +146,32 @@ func TestApplyReviewFindings_PreservesBeadLabels(t *testing.T) {
 	}
 }
 
+func TestApplyReviewFindings_PropagatesTrackerError(t *testing.T) {
+	t.Parallel()
+
+	reviewResult := &review.ReviewResult{
+		BeadsToCreate: []review.BeadProposal{
+			{Title: "Fix panic", Labels: []string{"bug"}, Priority: 1},
+		},
+	}
+	ctx := context.Background()
+
+	tracker := newFailingTrackerClient(fmt.Errorf("boom"))
+	backlog := newCapturingBacklogWriter()
+	deps := &Deps{
+		TrackerClient:    tracker,
+		BacklogWriter:    backlog,
+		LearningsManager: newRecordingLearningsManager(),
+	}
+	pipeline := New(deps, &Paths{GromitDir: t.TempDir()})
+
+	if _, err := pipeline.ApplyReviewFindings(ctx, reviewResult); err == nil {
+		t.Fatalf("expected error from tracker create, got nil")
+	} else if !strings.Contains(err.Error(), "creating review bead \"Fix panic\"") {
+		t.Fatalf("unexpected error message: %v", err)
+	}
+}
+
 func mixedReviewResult() *review.ReviewResult {
     return &review.ReviewResult{
         Passed: true,
@@ -232,6 +259,25 @@ func compareBacklogEntries(t *testing.T, want, got []*BacklogEntry) {
         }
     }
 }
+
+type failingTrackerClient struct {
+    err error
+}
+
+func newFailingTrackerClient(err error) *failingTrackerClient {
+    return &failingTrackerClient{err: err}
+}
+
+func (c *failingTrackerClient) Ready(ctx context.Context) (*BeadInfo, error) { return nil, nil }
+func (c *failingTrackerClient) Show(ctx context.Context, id string) (*BeadInfo, error) { return nil, nil }
+func (c *failingTrackerClient) Create(ctx context.Context, title string, priority int, labels []string, outputs []string) (*BeadInfo, error) {
+    return nil, c.err
+}
+func (c *failingTrackerClient) CreateWithDepsAndDescription(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+    return nil, fmt.Errorf("not implemented")
+}
+func (c *failingTrackerClient) Close(ctx context.Context, id string) error { return nil }
+func (c *failingTrackerClient) ListWithLabel(ctx context.Context, label string) ([]string, error) { return []string{}, nil }
 
 type recordingLearningsManager struct {
     saved []string
