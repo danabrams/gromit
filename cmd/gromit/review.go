@@ -81,6 +81,7 @@ Scope options:
 var reviewInteractiveSessionLauncherFn = runWithSessionWorktreeWithConflictSettings
 var reviewInteractiveRunnerFn = runReviewInteractiveInDir
 var recordInteractiveReviewCompletionFn = recordInteractiveReviewCompletion
+var applyInteractiveReviewFindingsFn = applyInteractiveReviewFindings
 
 var reviewFindingsLogWriter io.Writer = os.Stdout
 var buildReviewFindingsApplierFn = defaultBuildReviewFindingsApplier

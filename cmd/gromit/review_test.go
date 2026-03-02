@@ -250,6 +250,51 @@ func TestRunReviewInteractive_UsesSessionWorktreeLaunchDir(t *testing.T) {
 	}
 }
 
+func TestRunReviewInteractive_AppliesReviewFindings(t *testing.T) {
+	t.Parallel()
+
+	origLauncher := reviewInteractiveSessionLauncherFn
+	origRunner := reviewInteractiveRunnerFn
+	origRecord := recordInteractiveReviewCompletionFn
+	origApply := applyInteractiveReviewFindingsFn
+	t.Cleanup(func() {
+		reviewInteractiveSessionLauncherFn = origLauncher
+		reviewInteractiveRunnerFn = origRunner
+		recordInteractiveReviewCompletionFn = origRecord
+		applyInteractiveReviewFindingsFn = origApply
+	})
+
+	applyCalled := false
+	reviewInteractiveSessionLauncherFn = func(
+		gromitDir string,
+		command string,
+		conflictSettings sessionConflictSettings,
+		callback func(sessionDir string) error,
+	) (*worktree.SessionWorktree, error) {
+		if err := callback(t.TempDir()); err != nil {
+			return nil, err
+		}
+		return &worktree.SessionWorktree{BranchName: "test", WorktreeDir: t.TempDir()}, nil
+	}
+	reviewInteractiveRunnerFn = func(cfg *config.Config, fromCommit, diff, launchDir string) error {
+		return nil
+	}
+	recordInteractiveReviewCompletionFn = func(gromitDir, fromCommit string) error {
+		return nil
+	}
+	applyInteractiveReviewFindingsFn = func(cfg *config.Config, dir string) error {
+		applyCalled = true
+		return nil
+	}
+
+	if err := runReviewInteractive(&config.Config{}, "abc123", "diff"); err != nil {
+		t.Fatalf("runReviewInteractive() error = %v", err)
+	}
+	if !applyCalled {
+		t.Fatal("expected applyInteractiveReviewFindings to run")
+	}
+}
+
 func TestRunReviewInteractive_ConflictHandoffPropagates(t *testing.T) {
 
 	origLauncher := reviewInteractiveSessionLauncherFn
