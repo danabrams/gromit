@@ -154,6 +154,11 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 	gateStage := prepare.New(syncOut)
 	gateStage.WithDecomposer(decomposer)
 	gateStage.WithReadinessAssessor(NewDeterministicReadinessAssessor())
+	if cfg.Gate.EffectiveAutoGenerateCriteria() {
+		if enricher := newGateCriteriaEnricher(cfg, router, trackerClientInterface); enricher != nil {
+			gateStage.WithCriteriaEnricher(enricher)
+		}
+	}
 	// Stage 2: Build (execute.New with Invoker and PromptRenderer)
 	buildExecInvoker := newBuildExecutionInvoker(cfg, router, syncOut, streamLogger)
 	buildStage := execute.New(
