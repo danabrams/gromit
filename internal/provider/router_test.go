@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"io"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -149,6 +150,24 @@ func TestRouterHasStateFnField(t *testing.T) {
 
 	if r.stateFn == nil {
 		t.Error("Router.stateFn should not be nil after assignment")
+	}
+}
+
+func TestRouterHasSingleMutexField(t *testing.T) {
+	t.Parallel()
+
+	routerType := reflect.TypeOf(Router{})
+	mutexType := reflect.TypeOf(sync.Mutex{})
+
+	mutexCount := 0
+	for i := 0; i < routerType.NumField(); i++ {
+		if routerType.Field(i).Type == mutexType {
+			mutexCount++
+		}
+	}
+
+	if mutexCount != 1 {
+		t.Fatalf("Router has %d mutex fields, want 1", mutexCount)
 	}
 }
 
