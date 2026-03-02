@@ -1087,6 +1087,17 @@ func TestReadStatusWithDeps_MissingCriteria(t *testing.T) {
 	}
 }
 
+func TestGenerateRecommendation_MissingCriteria(t *testing.T) {
+	status := &PipelineStatus{
+		MissingCriteriaCount: 1,
+		MissingCriteriaIDs:   []string{"missing-criteria"},
+	}
+
+	if got, want := generateRecommendation(status), "Add missing criteria to bead \"missing-criteria\""; got != want {
+		t.Fatalf("generateRecommendation() = %q, want %q", got, want)
+	}
+}
+
 func writeRealCoordinatorQueueFixture(t *testing.T, gromitDir string) {
 	t.Helper()
 	fixturePath := filepath.Join("..", "..", "testdata", "real-coordinator-integration-queue.json")
