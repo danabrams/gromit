@@ -155,14 +155,15 @@ func formatItems(items []string, maxShow int) []string {
 	}
 
 	var lines []string
-	show := min(len(items), maxShow)
+	limit := max(maxShow, 0)
+	show := min(len(items), limit)
 
 	for i := 0; i < show; i++ {
 		lines = append(lines, fmt.Sprintf("    - %s", items[i]))
 	}
 
-	if len(items) > maxShow {
-		overflow := len(items) - maxShow
+	if len(items) > limit {
+		overflow := len(items) - limit
 		lines = append(lines, fmt.Sprintf("    (and %d more)", overflow))
 	}
 
