@@ -140,6 +140,71 @@ func (b *exploreSessionTestBacklog) Update(id string, fn func(*pipeline.Idea)) e
 	return nil
 }
 
+func TestRunExplore_CommandContextPassedToSessionLauncher(t *testing.T) {
+	baseDir := t.TempDir()
+	origRunnerFactory := exploreRunnerFactoryFn
+	origLauncher := exploreSessionLauncherFn
+	origRunInDir := exploreRunInDirFn
+	t.Cleanup(func() {
+		exploreRunnerFactoryFn = origRunnerFactory
+		exploreSessionLauncherFn = origLauncher
+		exploreRunInDirFn = origRunInDir
+	})
+
+	if err := os.Chdir(baseDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+
+	configContent := `version: 1
+worktree:
+  enabled: true
+`
+	if err := os.WriteFile(filepath.Join(baseDir, "gromit.yaml"), []byte(configContent), 0o644); err != nil {
+		t.Fatalf("write gromit.yaml: %v", err)
+	}
+
+	cmd := &cobra.Command{}
+	cmd.Flags().String("model", "", "")
+	cmd.Flags().String("agent", "", "")
+	cmd.Flags().Bool("choose-agent", false, "")
+
+	ctx := context.WithValue(context.Background(), "test-key", "test-value")
+	cmd.SetContext(ctx)
+
+	exploreRunnerFactoryFn = func(cfg *config.Config) (exploreRunner, error) {
+		return &mockExploreRunner{result: &pipeline.ExploreResult{}}, nil
+	}
+	exploreRunInDirFn = func(dir string, fn func() error) error {
+		return fn()
+	}
+
+	var capturedCtx context.Context
+	exploreSessionLauncherFn = func(
+		ctx context.Context,
+		gromitDir string,
+		command string,
+		conflictSettings sessionConflictSettings,
+		callback func(sessionDir string) error,
+	) (*worktree.SessionWorktree, error) {
+		capturedCtx = ctx
+		if err := callback("session"); err != nil {
+			return nil, err
+		}
+		return &worktree.SessionWorktree{BranchName: "gromit/explore-test", WorktreeDir: "session"}, nil
+	}
+
+	if err := runExplore(cmd, []string{"topic"}); err != nil {
+		t.Fatalf("runExplore() error = %v", err)
+	}
+
+	if capturedCtx == nil {
+		t.Fatal("expected session launcher to receive context")
+	}
+	if capturedCtx.Value("test-key") != "test-value" {
+		t.Fatalf("captured context missing marker value: %v", capturedCtx.Value("test-key"))
+	}
+}
+
 func TestRunExploreInSession_UsesSessionLauncherWhenEnabled(t *testing.T) {
 
 	origLauncher := exploreSessionLauncherFn
