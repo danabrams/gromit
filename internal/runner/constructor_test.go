@@ -749,6 +749,82 @@ func TestNewRunnerImpl_IntegrationQueueAdapterInitError(t *testing.T) {
 	}
 }
 
+func TestNewIntegrationQueueCoordinator_WiresRealDependencies(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	cfg := &config.Config{}
+
+	originalStoreFn := newRunnerIntegrationQueueStoreFn
+	originalGitOpsFn := newIntegrationQueueGitOpsAdapterFn
+	originalGateFn := newIntegrationQueueScopedGateAdapterFn
+	originalCoordinatorFn := newIntegrationQueueCoordinatorFn
+	t.Cleanup(func() {
+		newRunnerIntegrationQueueStoreFn = originalStoreFn
+		newIntegrationQueueGitOpsAdapterFn = originalGitOpsFn
+		newIntegrationQueueScopedGateAdapterFn = originalGateFn
+		newIntegrationQueueCoordinatorFn = originalCoordinatorFn
+	})
+
+	store := &integrationqueue.Store{}
+	gitopsAdapter := &integrationQueueGitOpsAdapter{}
+	gateAdapter := &integrationQueueScopedGateAdapter{}
+	var repoDirArg string
+
+	newRunnerIntegrationQueueStoreFn = func(dir string) (*integrationqueue.Store, error) {
+		if dir != gromitDir {
+			t.Fatalf("gromitDir = %q, want %q", dir, gromitDir)
+		}
+		return store, nil
+	}
+	newIntegrationQueueGitOpsAdapterFn = func(repoDir string, gotCfg *config.Config) (*integrationQueueGitOpsAdapter, error) {
+		repoDirArg = repoDir
+		if gotCfg != cfg {
+			t.Fatalf("cfg = %p, want %p", gotCfg, cfg)
+		}
+		return gitopsAdapter, nil
+	}
+	newIntegrationQueueScopedGateAdapterFn = func(gotCfg *config.Config, repoDir string) (*integrationQueueScopedGateAdapter, error) {
+		if gotCfg != cfg {
+			t.Fatalf("cfg = %p, want %p", gotCfg, cfg)
+		}
+		return gateAdapter, nil
+	}
+
+	expectedCoordinator := &integrationqueue.Coordinator{}
+	var capturedStore *integrationqueue.Store
+	var capturedGitOps integrationqueue.GitOps
+	var capturedGate integrationqueue.ScopedGate
+
+	newIntegrationQueueCoordinatorFn = func(s *integrationqueue.Store, gitops integrationqueue.GitOps, gate integrationqueue.ScopedGate) *integrationqueue.Coordinator {
+		capturedStore = s
+		capturedGitOps = gitops
+		capturedGate = gate
+		return expectedCoordinator
+	}
+
+	coord, err := newIntegrationQueueCoordinator(cfg, gromitDir)
+	if err != nil {
+		t.Fatalf("newIntegrationQueueCoordinator() error = %v", err)
+	}
+	if coord != expectedCoordinator {
+		t.Fatalf("coordinator = %p, want %p", coord, expectedCoordinator)
+	}
+	if capturedStore != store {
+		t.Fatalf("store passed to integrationqueue.NewCoordinator was %p, want %p", capturedStore, store)
+	}
+	gitops, ok := capturedGitOps.(*integrationQueueGitOpsAdapter)
+	if !ok || gitops != gitopsAdapter {
+		t.Fatalf("gitops adapter passed to integrationqueue.NewCoordinator = %v, want %p", gitops, gitopsAdapter)
+	}
+	gate, ok := capturedGate.(*integrationQueueScopedGateAdapter)
+	if !ok || gate != gateAdapter {
+		t.Fatalf("gate adapter passed to integrationqueue.NewCoordinator = %v, want %p", gate, gateAdapter)
+	}
+	if repoDirArg != filepath.Dir(gromitDir) {
+		t.Fatalf("repoDir = %q, want %q", repoDirArg, filepath.Dir(gromitDir))
+	}
+}
+
 // TestFailureLearnerAdapter_ForwardsFailureOutput verifies that the failureOutput
 // string passed to ExtractFailureLearning reaches the analyzer.Analyze call.
 func TestFailureLearnerAdapter_ForwardsFailureOutput(t *testing.T) {
