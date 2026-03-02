@@ -167,10 +167,26 @@ func resolveClaudePreset(cfg *config.Config) Agent {
 
 	if cfg != nil {
 		binary = cfg.Claude.Binary
-		flags = cfg.Claude.Flags
+		flags = sanitizeClaudeInteractiveFlags(cfg.Claude.Flags)
 	}
 
 	return New("claude", binary, flags, FileRef, "", nil)
+}
+
+func sanitizeClaudeInteractiveFlags(flags []string) []string {
+	if len(flags) == 0 {
+		return nil
+	}
+	filtered := make([]string, 0, len(flags))
+	for _, flag := range flags {
+		switch strings.TrimSpace(flag) {
+		case "-p", "--print":
+			continue
+		default:
+			filtered = append(filtered, flag)
+		}
+	}
+	return filtered
 }
 
 // resolveCodexPreset creates an agent for Codex interactive sessions.

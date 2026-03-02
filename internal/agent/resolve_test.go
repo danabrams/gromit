@@ -12,7 +12,7 @@ func TestResolveClaudePreset(t *testing.T) {
 	cfg := &config.Config{
 		Claude: config.ClaudeConfig{
 			Binary: "/usr/local/bin/claude",
-			Flags:  []string{"--model", "opus"},
+			Flags:  []string{"--dangerously-skip-permissions"},
 		},
 	}
 
@@ -39,8 +39,8 @@ func TestResolveClaudePreset(t *testing.T) {
 		t.Errorf("claude agent binary = %q, want %q", ca.binary, "/usr/local/bin/claude")
 	}
 
-	if len(ca.flags) != 2 || ca.flags[0] != "--model" || ca.flags[1] != "opus" {
-		t.Errorf("claude agent flags = %v, want [--model opus]", ca.flags)
+	if len(ca.flags) != 1 || ca.flags[0] != "--dangerously-skip-permissions" {
+		t.Errorf("claude agent flags = %v, want [--dangerously-skip-permissions]", ca.flags)
 	}
 
 	if ca.promptDelivery != FileRef {
@@ -49,6 +49,29 @@ func TestResolveClaudePreset(t *testing.T) {
 
 	if ca.promptFlag != "" {
 		t.Errorf("claude agent promptFlag = %q, want empty string", ca.promptFlag)
+	}
+}
+
+func TestResolveClaudePreset_StripsPrintModeFlags(t *testing.T) {
+	cfg := &config.Config{
+		Claude: config.ClaudeConfig{
+			Binary: "claude",
+			Flags:  []string{"-p", "--print", "--dangerously-skip-permissions"},
+		},
+	}
+
+	agent, err := resolveByName("claude", cfg)
+	if err != nil {
+		t.Fatalf("Resolve(claude) error = %v, want nil", err)
+	}
+
+	ca, ok := agent.(*cliAgent)
+	if !ok {
+		t.Fatal("Resolve(claude) should return *cliAgent")
+	}
+
+	if len(ca.flags) != 1 || ca.flags[0] != "--dangerously-skip-permissions" {
+		t.Errorf("claude agent flags = %v, want only interactive-safe flags", ca.flags)
 	}
 }
 
