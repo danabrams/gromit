@@ -137,7 +137,7 @@ func (a *decomposerAdapter) DecomposeToSubTasks(ctx context.Context, b *bead.Bea
 
 // CreateSubBeads creates child beads from sub-tasks and closes the parent bead.
 func (a *decomposerAdapter) CreateSubBeads(ctx context.Context, b *bead.Bead, tasks []runtypes.SubTask) error {
-	labels := a.resolveInheritedLabels(b)
+	labels := a.resolveInheritedLabels(ctx, b)
 	successfullyCreatedCount := 0
 	for _, task := range tasks {
 		sb := scopeGateSubBead{
@@ -209,7 +209,7 @@ func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 		return err
 	}
 
-	labels := a.resolveInheritedLabels(b)
+	labels := a.resolveInheritedLabels(ctx, b)
 	successfullyCreatedCount := 0
 	for _, sb := range subBeads {
 		dedupeLabel := scopeGateChildDedupeLabel(b.ID, sb)
@@ -345,7 +345,7 @@ func (a *decomposerAdapter) childWithDedupeLabelExistsWithClient(ctx context.Con
 	return false, nil
 }
 
-func (a *decomposerAdapter) resolveInheritedLabels(parent *bead.Bead) []string {
+func (a *decomposerAdapter) resolveInheritedLabels(ctx context.Context, parent *bead.Bead) []string {
 	const buildStrategyPrefix = "build_strategy:"
 	const specPrefix = "spec:"
 
@@ -371,7 +371,7 @@ func (a *decomposerAdapter) resolveInheritedLabels(parent *bead.Bead) []string {
 	if beadClient == nil || parent.ID == "" {
 		return labels
 	}
-	fullParent, err := beadClient.Show(context.Background(), parent.ID)
+	fullParent, err := beadClient.Show(ctx, parent.ID)
 	if err != nil || fullParent == nil {
 		return labels
 	}
