@@ -215,6 +215,20 @@ func TestIsBlockedState_ReadyIsNotBlocked(t *testing.T) {
 	}
 }
 
+func TestIsBlockedState_DerivesFromAllowedTransitionsMap(t *testing.T) {
+	// A state is blocked if it has only one outgoing transition: to "ready"
+	// Add a new blocked state and verify it's recognized as blocked
+	const newBlockedState = "new_blocked_state"
+	allowedTransitions[newBlockedState] = map[string]bool{
+		"ready": true,
+	}
+	defer delete(allowedTransitions, newBlockedState)
+
+	if !IsBlockedState(newBlockedState) {
+		t.Errorf("expected %s to be recognized as blocked (only transitions to ready)", newBlockedState)
+	}
+}
+
 func TestCheckTransition_DraftToReady_AllowedReturnsNil(t *testing.T) {
 	err := CheckTransition("draft", "ready")
 	if err != nil {
