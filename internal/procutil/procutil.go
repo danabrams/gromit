@@ -25,6 +25,8 @@ const (
 
 var processCreationPressuredFn = processCreationPressured
 var pidPressureFn = PIDPressure
+var timeNowFn = time.Now
+var sleepWithContextFn = SleepWithContext
 
 // ProcessCapacityError indicates subprocess creation stayed PID-pressured
 // for the full wait window.
@@ -183,21 +185,21 @@ func WaitForProcessCapacity(ctx context.Context, maxWait time.Duration) error {
 		maxWait = defaultProcessCapacityMaxWait
 	}
 
-	start := time.Now()
-	deadline := time.Now().Add(maxWait)
+	start := timeNowFn()
+	deadline := start.Add(maxWait)
 	for {
 		pressured, err := processCreationPressuredFn()
 		if err != nil || !pressured {
 			return nil
 		}
 
-		remaining := time.Until(deadline)
+		remaining := deadline.Sub(timeNowFn())
 		if remaining <= 0 {
 			current, max, _ := pidPressureFn()
 			return &ProcessCapacityError{
 				Current: current,
 				Max:     max,
-				Waited:  time.Since(start),
+				Waited:  timeNowFn().Sub(start),
 			}
 		}
 		wait := processPressurePollInterval
@@ -205,7 +207,7 @@ func WaitForProcessCapacity(ctx context.Context, maxWait time.Duration) error {
 			wait = remaining
 		}
 
-		if err := SleepWithContext(ctx, wait); err != nil {
+		if err := sleepWithContextFn(ctx, wait); err != nil {
 			return err
 		}
 	}
