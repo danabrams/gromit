@@ -365,7 +365,7 @@ func TestTrackerBeadClientReadyExcludingFiltersEpicsAndExcludedIDs(t *testing.T)
 	}
 }
 
-func TestTrackerBeadClientReadyWithLabelUsesBDReady(t *testing.T) {
+func TestTrackerBeadClientReadyWithLabelCallsListWithLabelOnBDAdapter(t *testing.T) {
 	t.Parallel()
 
 	var gotArgs []string
@@ -388,7 +388,7 @@ func TestTrackerBeadClientReadyWithLabelUsesBDReady(t *testing.T) {
 		t.Fatalf("bead ID = %s, want bead-1", result.ID)
 	}
 
-	wantArgs := []string{"ready", "--json", "--limit", "3", "--label", "spec:test"}
+	wantArgs := []string{"list", "--json", "--label", "spec:test", "--sort", "priority", "--all", "--limit", "0"}
 	if !reflect.DeepEqual(gotArgs, wantArgs) {
 		t.Fatalf("bd args = %v, want %v", gotArgs, wantArgs)
 	}

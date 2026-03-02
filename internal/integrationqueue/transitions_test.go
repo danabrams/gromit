@@ -268,9 +268,9 @@ func TestApplyTransition_ValidTransition_UpdatesEntryAndReturnsNil(t *testing.T)
 
 func TestApplyTransition_InvalidTransition_ReturnsErrorWithoutModifyingEntry(t *testing.T) {
 	entry := &Entry{
-		State:                 "draft",
-		UpdatedAt:             time.Now().Add(-time.Hour),
-		LastTransitionReason:  "old reason",
+		State:                "draft",
+		UpdatedAt:            time.Now().Add(-time.Hour),
+		LastTransitionReason: "old reason",
 	}
 	oldTime := entry.UpdatedAt
 	oldState := entry.State
