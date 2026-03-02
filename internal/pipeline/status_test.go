@@ -10,12 +10,13 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/backlog"
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/integrationqueue"
 )
 
 // testBeadQueryClientStatus is a mock BeadQueryClient for status tests
 type testBeadQueryClientStatus struct {
-	readyBeads   []string
+	readyBeads   []*bead.Bead
 	inProgress   int
 	deferred     int
 	closed       int
@@ -45,7 +46,25 @@ func (m *testBeadQueryClientStatus) CountByStatus(ctx context.Context, status st
 }
 
 func (m *testBeadQueryClientStatus) ListReadyIDs(ctx context.Context) ([]string, error) {
-	return m.readyBeads, nil
+	ids := make([]string, 0, len(m.readyBeads))
+	for _, b := range m.readyBeads {
+		if b == nil {
+			continue
+		}
+		ids = append(ids, b.ID)
+	}
+	return ids, nil
+}
+
+func (m *testBeadQueryClientStatus) ListReadyBeads(ctx context.Context) ([]*bead.Bead, error) {
+	result := make([]*bead.Bead, 0, len(m.readyBeads))
+	for _, b := range m.readyBeads {
+		if b == nil {
+			continue
+		}
+		result = append(result, b)
+	}
+	return result, nil
 }
 
 func (m *testBeadQueryClientStatus) CountClosedAfter(ctx context.Context, since time.Time) (int, error) {
@@ -1005,7 +1024,7 @@ func TestReadStatus_WithInjectedDependencies(t *testing.T) {
 
 	// Create a mock BeadQueryClient
 	mockBeadQueryClient := &testBeadQueryClientStatus{
-		readyBeads: []string{},
+		readyBeads: []*bead.Bead{},
 	}
 
 	// This should work with dependency injection
@@ -1038,7 +1057,10 @@ func TestReadStatusWithDeps_MissingCriteria(t *testing.T) {
 	}
 
 	beadClient := &testBeadQueryClientStatus{
-		readyBeads: []string{"ready-with-outputs", "missing-criteria"},
+		readyBeads: []*bead.Bead{
+			{ID: "ready-with-outputs", ExpectedOutputs: []string{"artifact"}},
+			{ID: "missing-criteria", ExpectedOutputs: []string{}},
+		},
 	}
 
 	status, err := ReadStatusWithDeps(gromitDir, specsDir, plansDir, nil, bf, beadClient)
@@ -1048,6 +1070,11 @@ func TestReadStatusWithDeps_MissingCriteria(t *testing.T) {
 
 	if status.ReadyBeadCount != 2 {
 		t.Fatalf("ReadyBeadCount = %d, want 2", status.ReadyBeadCount)
+	}
+
+	wantReady := []string{"ready-with-outputs", "missing-criteria"}
+	if !reflect.DeepEqual(status.ReadyBeads, wantReady) {
+		t.Fatalf("ReadyBeads = %v, want %v", status.ReadyBeads, wantReady)
 	}
 
 	if status.MissingCriteriaCount != 1 {

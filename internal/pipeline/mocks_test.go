@@ -3,6 +3,8 @@ package pipeline
 import (
 	"context"
 	"time"
+
+	"github.com/danabrams/gromit/internal/bead"
 )
 
 // These should compile if the interfaces are properly defined
@@ -168,6 +170,10 @@ func (m *testBeadQueryClient) CountByStatus(ctx context.Context, status string) 
 
 func (m *testBeadQueryClient) ListReadyIDs(ctx context.Context) ([]string, error) {
 	return []string{}, nil
+}
+
+func (m *testBeadQueryClient) ListReadyBeads(ctx context.Context) ([]*bead.Bead, error) {
+	return []*bead.Bead{}, nil
 }
 
 func (m *testBeadQueryClient) CountClosedAfter(ctx context.Context, after time.Time) (int, error) {

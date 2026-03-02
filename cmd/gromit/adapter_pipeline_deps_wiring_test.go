@@ -55,7 +55,7 @@ func TestAdapterMethodSignatures_MatchInterfaceContracts(t *testing.T) {
 	var adapter3 pipeline.TrackerClient = (*trackerClientAdapter)(nil)
 	_ = adapter3
 
-	// BeadQueryClient interface: CountByStatus, ListReadyIDs, CountClosedAfter
+	// BeadQueryClient interface: CountByStatus, ListReadyIDs, ListReadyBeads, CountClosedAfter
 	var adapter3b pipeline.BeadQueryClient = (*beadQueryClientAdapter)(nil)
 	_ = adapter3b
 

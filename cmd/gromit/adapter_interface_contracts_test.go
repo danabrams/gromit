@@ -54,7 +54,7 @@ func TestInterfaceContract_BeadQueryClient(t *testing.T) {
 	t.Parallel()
 
 	// Contract: BeadQueryClient adapts bead query operations to pipeline abstractions.
-	// Methods: CountByStatus, ListReadyIDs, CountClosedAfter
+	// Methods: CountByStatus, ListReadyIDs, ListReadyBeads, CountClosedAfter
 	// Expected behavior: pass through context and parameters to underlying bead client
 
 	var _ pipeline.BeadQueryClient = (*beadQueryClientAdapter)(nil)

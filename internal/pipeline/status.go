@@ -20,6 +20,8 @@ type PipelineStatus struct {
 	UndecomposedPlans      []string // Names of plans not yet decomposed
 	ReadyBeadCount         int      // Number of ready beads
 	ReadyBeads             []string // IDs of ready beads (up to 3 shown, rest summarized)
+	MissingCriteriaCount   int      // Number of ready beads missing expected outputs
+	MissingCriteriaIDs     []string // IDs of ready beads missing expected outputs
 	InProgressCount        int      // Number of beads currently in progress
 	BlockedCount           int      // Number of blocked beads (open but dependencies not met)
 	DeferredCount          int      // Number of deferred beads
@@ -53,10 +55,11 @@ type IntegrationQueueEntrySummary struct {
 // ReadStatusWithDeps reads pipeline state using dependency-injected clients
 func ReadStatusWithDeps(gromitDir, specsDir, plansDir string, startedAt *time.Time, backlogClient BacklogClient, beadQueryClient BeadQueryClient) (*PipelineStatus, error) {
 	status := &PipelineStatus{
-		UnrefinedIdeas:    []string{},
-		UnplannedSpecs:    []string{},
-		UndecomposedPlans: []string{},
-		ReadyBeads:        []string{},
+		UnrefinedIdeas:     []string{},
+		UnplannedSpecs:     []string{},
+		UndecomposedPlans:  []string{},
+		ReadyBeads:         []string{},
+		MissingCriteriaIDs: []string{},
 	}
 
 	// Read backlog for unrefined ideas using injected client
@@ -95,7 +98,11 @@ func ReadStatusWithDeps(gromitDir, specsDir, plansDir string, startedAt *time.Ti
 		// Best-effort: if client creation or any command fails, counts remain at zero.
 		if beadQueryClient != nil {
 			ctx := context.Background()
-			status.ReadyBeads, status.ReadyBeadCount = listReadyBeads(ctx, beadQueryClient)
+			readyBeads, readyCount, missing := listReadyBeads(ctx, beadQueryClient)
+			status.ReadyBeads = readyBeads
+			status.ReadyBeadCount = readyCount
+			status.MissingCriteriaIDs = missing
+			status.MissingCriteriaCount = len(missing)
 
 			// In-progress count
 			if count, err := beadQueryClient.CountByStatus(ctx, "in_progress"); err == nil {
@@ -170,19 +177,30 @@ func hasBeadsRepo(repoRoot string) bool {
 }
 
 // findMarkdownFiles returns all .md files in a directory
-// listReadyBeads returns a list of ready bead IDs and the count
-func listReadyBeads(ctx context.Context, client BeadQueryClient) ([]string, int) {
+// listReadyBeads returns ready bead IDs, their count, and IDs lacking expected outputs.
+func listReadyBeads(ctx context.Context, client BeadQueryClient) ([]string, int, []string) {
 	if client == nil {
-		return []string{}, 0
+		return []string{}, 0, []string{}
 	}
 
-	// Get ready bead IDs
-	ids, err := client.ListReadyIDs(ctx)
+	beads, err := client.ListReadyBeads(ctx)
 	if err != nil {
-		return []string{}, 0
+		return []string{}, 0, []string{}
 	}
 
-	return ids, len(ids)
+	ids := make([]string, 0, len(beads))
+	missing := []string{}
+	for _, bead := range beads {
+		if bead == nil {
+			continue
+		}
+		ids = append(ids, bead.ID)
+		if len(bead.ExpectedOutputs) == 0 {
+			missing = append(missing, bead.ID)
+		}
+	}
+
+	return ids, len(ids), missing
 }
 
 func loadIntegrationQueueStatus(gromitDir string) (*IntegrationQueueStatus, error) {

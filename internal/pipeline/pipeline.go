@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/backlog"
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/frontmatter"
 	"github.com/danabrams/gromit/internal/review"
 )
@@ -183,6 +184,7 @@ type TrackerClient interface {
 type BeadQueryClient interface {
 	CountByStatus(ctx context.Context, status string) (int, error)
 	ListReadyIDs(ctx context.Context) ([]string, error)
+	ListReadyBeads(ctx context.Context) ([]*bead.Bead, error)
 	CountClosedAfter(ctx context.Context, after time.Time) (int, error)
 }
 

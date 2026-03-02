@@ -226,6 +226,11 @@ func (c *Client) ListReadyIDs(ctx context.Context) ([]string, error) {
 	return ids, nil
 }
 
+// ListReadyBeads returns a slice of ready bead objects (matching ListReady semantics).
+func (c *Client) ListReadyBeads(ctx context.Context) ([]*Bead, error) {
+	return c.ListReady(ctx)
+}
+
 // ReadyWithLabel returns the next unblocked bead with the specified label (excludes epics)
 func (c *Client) ReadyWithLabel(ctx context.Context, label string) (*Bead, error) {
 	if c == nil {

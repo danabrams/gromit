@@ -376,6 +376,13 @@ func (a *beadQueryClientAdapter) ListReadyIDs(ctx context.Context) ([]string, er
 	return a.Client.ListReadyIDs(ctx)
 }
 
+func (a *beadQueryClientAdapter) ListReadyBeads(ctx context.Context) ([]*bead.Bead, error) {
+	if a == nil || a.Client == nil {
+		return nil, fmt.Errorf("bead query adapter is nil")
+	}
+	return a.Client.ListReady(ctx)
+}
+
 func (a *beadQueryClientAdapter) CountClosedAfter(ctx context.Context, after time.Time) (int, error) {
 	if a == nil || a.Client == nil {
 		return 0, fmt.Errorf("bead query adapter is nil")
