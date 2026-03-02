@@ -18,6 +18,8 @@ const (
 	geminiProcessCapacityWait  = 1500 * time.Millisecond
 )
 
+var geminiKillDescendantsOnCancelFn = procutil.KillDescendantsOnCancel
+
 // GeminiProvider wraps the Gemini CLI and implements the Provider interface
 // for JSON and streaming invocations.
 type GeminiProvider struct {
@@ -326,6 +328,7 @@ func defaultGeminiRunFn(ctx context.Context, binary string, args []string, promp
 		if err := cmd.Start(); err != nil {
 			return nil, fmt.Errorf("failed to start gemini command: %w", err)
 		}
+		geminiKillDescendantsOnCancelFn(ctx, cmd)
 		defer reapProcessGroupFn(cmd)
 
 		// Write prompt to stdin in goroutine
@@ -362,6 +365,7 @@ func defaultGeminiRunFn(ctx context.Context, binary string, args []string, promp
 	if startErr := cmd.Start(); startErr != nil {
 		return nil, fmt.Errorf("failed to start gemini command: %w", startErr)
 	}
+	geminiKillDescendantsOnCancelFn(ctx, cmd)
 	defer reapProcessGroupFn(cmd)
 	err := cmd.Wait()
 	duration := time.Since(start)
