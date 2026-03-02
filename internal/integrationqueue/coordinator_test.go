@@ -123,6 +123,47 @@ func TestCoordinatorReportsTransitionErrorOnLaneViolation(t *testing.T) {
 	}
 }
 
+func TestCoordinatorPropagatesSaveErrorAfterInitialFetchFailure(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	saveErr := errors.New("initial transition save failed")
+
+	store, err := NewStore(tmpDir, WithValidationHook(func(entry Entry) error {
+		if entry.Branch == "feature/save-fail-initial" && entry.State == StateConflict {
+			return saveErr
+		}
+		return nil
+	}))
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	if err := store.Save(Entry{
+		Branch:           "feature/save-fail-initial",
+		SessionID:        "feature/save-fail-initial",
+		OriginCommand:    "test",
+		State:            StateReady,
+		Lane:             "code_lane",
+		BaseRef:          "main",
+		HeadSHA:          "deadbeef",
+		ChangedFilesHash: "hash",
+	}); err != nil {
+		t.Fatalf("Save(entry) error = %v", err)
+	}
+
+	gitops := &failFetchGitOps{err: errors.New("fetch failed")}
+	coord := NewCoordinator(store, gitops, &mockScopedGate{})
+
+	err = coord.Coordinate(ctx)
+	if err == nil {
+		t.Fatalf("Coordinate() error = nil, want store save error")
+	}
+	if !errors.Is(err, saveErr) {
+		t.Fatalf("Coordinate() error = %v, want %v", err, saveErr)
+	}
+}
+
 type mockGitOps struct {
 	calls []string
 }
@@ -201,6 +242,29 @@ func (m *laneViolationMockGitOps) Push(ctx context.Context) error {
 
 func (m *laneViolationMockGitOps) Cleanup(ctx context.Context, entry Entry) error {
 	m.calls = append(m.calls, "cleanup:"+entry.Branch)
+	return nil
+}
+
+type failFetchGitOps struct {
+	err error
+}
+
+func (m *failFetchGitOps) FetchAndRebase(ctx context.Context, entry Entry) error {
+	if m.err != nil {
+		return m.err
+	}
+	return nil
+}
+
+func (m *failFetchGitOps) MergeToMain(ctx context.Context, entry Entry) error {
+	return nil
+}
+
+func (m *failFetchGitOps) Push(ctx context.Context) error {
+	return nil
+}
+
+func (m *failFetchGitOps) Cleanup(ctx context.Context, entry Entry) error {
 	return nil
 }
 
