@@ -146,14 +146,16 @@ func (e *mergeConflictHandoffError) Unwrap() error {
 // runWithSessionWorktree creates a session worktree, runs callback in that
 // session directory context, and records the branch for downstream merge-back.
 func runWithSessionWorktree(
+	ctx context.Context,
 	gromitDir string,
 	command string,
 	callback func(sessionDir string) error,
 ) (*worktree.SessionWorktree, error) {
-	return runWithSessionWorktreeWithConflictSettings(gromitDir, command, sessionConflictSettings{}, callback)
+	return runWithSessionWorktreeWithConflictSettings(ctx, gromitDir, command, sessionConflictSettings{}, callback)
 }
 
 func runWithSessionWorktreeWithConflictSettings(
+	ctx context.Context,
 	gromitDir string,
 	command string,
 	conflictSettings sessionConflictSettings,
@@ -169,7 +171,10 @@ func runWithSessionWorktreeWithConflictSettings(
 		return nil, fmt.Errorf("creating worktree manager: %w", err)
 	}
 
-	session, err := manager.CreateSessionWorktree(context.TODO(), command)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	session, err := manager.CreateSessionWorktree(ctx, command)
 	if err != nil {
 		return nil, fmt.Errorf("creating session worktree: %w", err)
 	}

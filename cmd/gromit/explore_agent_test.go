@@ -61,7 +61,7 @@ func TestRunExploreInSessionUsesSessionLauncher(t *testing.T) {
 	targetGromit := filepath.Join(t.TempDir(), ".gromit")
 	p, _ := newTestExplorePipeline(t, targetGromit)
 
-	exploreSessionLauncherFn = func(gromitDir string, command string, conflict sessionConflictSettings, callback func(sessionDir string) error) (*worktree.SessionWorktree, error) {
+	exploreSessionLauncherFn = func(ctx context.Context, gromitDir string, command string, conflict sessionConflictSettings, callback func(sessionDir string) error) (*worktree.SessionWorktree, error) {
 		if command != exploreSessionCommand {
 			t.Fatalf("command = %q, want %q", command, exploreSessionCommand)
 		}
@@ -95,7 +95,7 @@ func TestRunExploreInSessionSkipsSessionLauncherWhenWorktreeDisabled(t *testing.
 		exploreRunInDirFn = origRunInDir
 	})
 
-	exploreSessionLauncherFn = func(gromitDir string, command string, conflict sessionConflictSettings, callback func(sessionDir string) error) (*worktree.SessionWorktree, error) {
+	exploreSessionLauncherFn = func(ctx context.Context, gromitDir string, command string, conflict sessionConflictSettings, callback func(sessionDir string) error) (*worktree.SessionWorktree, error) {
 		t.Fatalf("session launcher should not be called when worktree is disabled")
 		return nil, nil
 	}

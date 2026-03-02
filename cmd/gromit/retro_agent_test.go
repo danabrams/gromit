@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"io"
 	"os"
 	"os/exec"
@@ -60,7 +61,7 @@ func TestLaunchRetroInteractiveSessionUsesSessionLauncher(t *testing.T) {
 	retroResolveAgentFn = func(cfg *config.Config, phase, flagOverride string, chooseAgent bool, r io.Reader, w io.Writer) (agent.Agent, error) {
 		return selectedAgent, nil
 	}
-	retroSessionLauncherFn = func(gromitDir string, command string, conflict sessionConflictSettings, callback func(sessionDir string) error) (*worktree.SessionWorktree, error) {
+	retroSessionLauncherFn = func(ctx context.Context, gromitDir string, command string, conflict sessionConflictSettings, callback func(sessionDir string) error) (*worktree.SessionWorktree, error) {
 		if command != retroSessionCommand {
 			t.Fatalf("command = %q, want %q", command, retroSessionCommand)
 		}
@@ -114,7 +115,7 @@ func TestLaunchRetroInteractiveSessionResolvesAgentWithRetroCommand(t *testing.T
 		gotChoose = chooseAgent
 		return &testRetroAgent{}, nil
 	}
-	retroSessionLauncherFn = func(gromitDir string, command string, conflict sessionConflictSettings, callback func(sessionDir string) error) (*worktree.SessionWorktree, error) {
+	retroSessionLauncherFn = func(ctx context.Context, gromitDir string, command string, conflict sessionConflictSettings, callback func(sessionDir string) error) (*worktree.SessionWorktree, error) {
 		if err := callback(""); err != nil {
 			return nil, err
 		}

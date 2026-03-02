@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -49,6 +50,7 @@ func TestLaunchRetroInteractiveSession_UsesSessionWorktreeDir(t *testing.T) {
 		}, nil
 	}
 	retroSessionLauncherFn = func(
+		ctx context.Context,
 		gromitDir string,
 		command string,
 		conflictSettings sessionConflictSettings,
@@ -108,6 +110,7 @@ func TestLaunchRetroInteractiveSession_ConflictHandoffPropagates(t *testing.T) {
 		return nil
 	}
 	retroSessionLauncherFn = func(
+		ctx context.Context,
 		gromitDir string,
 		command string,
 		conflictSettings sessionConflictSettings,
@@ -174,6 +177,7 @@ func TestLaunchRetroInteractiveSession_ConvertsPromptPathToAbsolute(t *testing.T
 		}, nil
 	}
 	retroSessionLauncherFn = func(
+		ctx context.Context,
 		gromitDir string,
 		command string,
 		conflictSettings sessionConflictSettings,

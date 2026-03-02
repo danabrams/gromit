@@ -257,6 +257,7 @@ agents:
 	origLauncher := refineSessionLauncherFn
 	origRunInDir := refineRunInDirFn
 	refineSessionLauncherFn = func(
+		ctx context.Context,
 		gDir string,
 		command string,
 		conflictSettings sessionConflictSettings,

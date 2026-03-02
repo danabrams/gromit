@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -9,7 +10,7 @@ import (
 
 // sessionLauncherFn matches the signature of the session worktree
 // launcher functions so we can reuse session wiring logic across commands.
-type sessionLauncherFn func(gromitDir string, command string, conflict sessionConflictSettings, callback func(sessionDir string) error) (*worktree.SessionWorktree, error)
+type sessionLauncherFn func(ctx context.Context, gromitDir string, command string, conflict sessionConflictSettings, callback func(sessionDir string) error) (*worktree.SessionWorktree, error)
 
 func launchInSessionIfEnabled(
 	cfg *config.Config,
@@ -34,6 +35,6 @@ func launchInSessionIfEnabled(
 	}
 
 	conflictSettings := sessionConflictSettingsFromConfig(cfg)
-	_, err := launcher(gromitDir, command, conflictSettings, callback)
+	_, err := launcher(context.Background(), gromitDir, command, conflictSettings, callback)
 	return err
 }

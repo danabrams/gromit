@@ -236,6 +236,7 @@ func TestRunRefineInSession_UsesSessionLauncherWhenEnabled(t *testing.T) {
 	agentWD := ""
 
 	refineSessionLauncherFn = func(
+		ctx context.Context,
 		gromitDir string,
 		command string,
 		conflictSettings sessionConflictSettings,
@@ -305,6 +306,7 @@ func TestRunRefineInSession_WorktreeDisabledSkipsSessionLauncher(t *testing.T) {
 
 	launcherCalled := false
 	refineSessionLauncherFn = func(
+		ctx context.Context,
 		gromitDir string,
 		command string,
 		conflictSettings sessionConflictSettings,
@@ -547,6 +549,7 @@ func TestRefineCommand_SessionAndFallbackProduceSameArtifactContract(t *testing.
 	sessionDir := t.TempDir()
 
 	refineSessionLauncherFn = func(
+		ctx context.Context,
 		gromitDir string,
 		command string,
 		conflictSettings sessionConflictSettings,

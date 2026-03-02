@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -113,6 +114,7 @@ func TestLaunchDebugSession_UsesSessionLauncherWhenEnabled(t *testing.T) {
 	launchedDir := ""
 
 	debugSessionLauncherFn = func(
+		ctx context.Context,
 		gromitDir string,
 		command string,
 		conflictSettings sessionConflictSettings,
@@ -153,6 +155,7 @@ func TestLaunchDebugSession_WorktreeDisabledUsesInPlaceLaunchDir(t *testing.T) {
 
 	launcherCalled := false
 	debugSessionLauncherFn = func(
+		ctx context.Context,
 		gromitDir string,
 		command string,
 		conflictSettings sessionConflictSettings,
@@ -195,6 +198,7 @@ func TestLaunchDebugSession_UsesRestoreDirWhenProvided(t *testing.T) {
 	launchedDir := ""
 
 	debugSessionLauncherFn = func(
+		ctx context.Context,
 		gromitDir string,
 		command string,
 		conflictSettings sessionConflictSettings,

@@ -213,6 +213,7 @@ func TestRunReviewInteractive_UsesSessionWorktreeLaunchDir(t *testing.T) {
 	recordCalled := false
 
 	reviewInteractiveSessionLauncherFn = func(
+		ctx context.Context,
 		gromitDir string,
 		command string,
 		conflictSettings sessionConflictSettings,
@@ -266,6 +267,7 @@ func TestRunReviewInteractive_AppliesReviewFindings(t *testing.T) {
 
 	applyCalled := false
 	reviewInteractiveSessionLauncherFn = func(
+		ctx context.Context,
 		gromitDir string,
 		command string,
 		conflictSettings sessionConflictSettings,
@@ -316,6 +318,7 @@ func TestRunReviewInteractive_ConflictHandoffPropagates(t *testing.T) {
 		return nil
 	}
 	reviewInteractiveSessionLauncherFn = func(
+		ctx context.Context,
 		gromitDir string,
 		command string,
 		conflictSettings sessionConflictSettings,

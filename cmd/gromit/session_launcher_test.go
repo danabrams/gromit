@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -12,7 +13,7 @@ func makeBoolPtr(v bool) *bool { return &v }
 func TestLaunchInSessionIfEnabled(t *testing.T) {
 	t.Parallel()
 	launcherCalled := 0
-	launcher := func(gromitDir string, command string, _ sessionConflictSettings, callback func(string) error) (*worktree.SessionWorktree, error) {
+	launcher := func(ctx context.Context, gromitDir string, command string, _ sessionConflictSettings, callback func(string) error) (*worktree.SessionWorktree, error) {
 		launcherCalled++
 		if err := callback("session-dir"); err != nil {
 			return nil, err

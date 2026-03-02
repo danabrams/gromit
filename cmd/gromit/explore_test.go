@@ -167,6 +167,7 @@ func TestRunExploreInSession_UsesSessionLauncherWhenEnabled(t *testing.T) {
 	agentWD := ""
 
 	exploreSessionLauncherFn = func(
+		ctx context.Context,
 		gromitDir string,
 		command string,
 		conflictSettings sessionConflictSettings,
@@ -243,6 +244,7 @@ func TestRunExploreInSession_WorktreeDisabledSkipsSessionLauncher(t *testing.T) 
 
 	launcherCalled := false
 	exploreSessionLauncherFn = func(
+		ctx context.Context,
 		gromitDir string,
 		command string,
 		conflictSettings sessionConflictSettings,
@@ -553,6 +555,7 @@ func TestExploreCommand_SessionAndFallbackProduceSameArtifactContract(t *testing
 	}
 
 	exploreSessionLauncherFn = func(
+		ctx context.Context,
 		gromitDir string,
 		command string,
 		conflictSettings sessionConflictSettings,

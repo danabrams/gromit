@@ -366,6 +366,7 @@ func TestDecomposeSinglePlan_ReviewUsesSessionWorktreeDir(t *testing.T) {
 	gotCommand := ""
 	calledInSessionDir := ""
 	decomposeSessionLauncherFn = func(
+		ctx context.Context,
 		gromitDir string,
 		command string,
 		conflictSettings sessionConflictSettings,
@@ -419,6 +420,7 @@ func TestDecomposeSinglePlan_ReviewConflictHandoffPropagates(t *testing.T) {
 	}
 
 	decomposeSessionLauncherFn = func(
+		ctx context.Context,
 		gromitDir string,
 		command string,
 		conflictSettings sessionConflictSettings,

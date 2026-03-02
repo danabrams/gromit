@@ -15,9 +15,9 @@ import (
 )
 
 type mockSessionWorktreeCreator struct {
-	CreateSessionWorktreeFn           func(command string) (*worktree.SessionWorktree, error)
-	CreateSessionWorktreeWithCtxFn    func(ctx context.Context, command string) (*worktree.SessionWorktree, error)
-	MergeBackFn                       func(branch string) error
+	CreateSessionWorktreeFn        func(command string) (*worktree.SessionWorktree, error)
+	CreateSessionWorktreeWithCtxFn func(ctx context.Context, command string) (*worktree.SessionWorktree, error)
+	MergeBackFn                    func(branch string) error
 }
 
 func (m *mockSessionWorktreeCreator) CreateSessionWorktree(ctx context.Context, command string) (*worktree.SessionWorktree, error) {
@@ -221,7 +221,7 @@ func TestRunWithSessionWorktreeExecutesCallbackInSessionDir(t *testing.T) {
 
 	callbackCalled := false
 	callbackDir := ""
-	result, err := runWithSessionWorktree(gromitDir, "refine", func(sessionDir string) error {
+	result, err := runWithSessionWorktree(context.Background(), gromitDir, "refine", func(sessionDir string) error {
 		callbackCalled = true
 		callbackDir = sessionDir
 		return nil
@@ -327,7 +327,7 @@ func TestRunWithSessionWorktreeAutoCommitInvoked(t *testing.T) {
 		return nil
 	})
 
-	_, err := runWithSessionWorktree(gromitDir, "auto", func(string) error { return nil })
+	_, err := runWithSessionWorktree(context.Background(), gromitDir, "auto", func(string) error { return nil })
 	if err != nil {
 		t.Fatalf("runWithSessionWorktree() error = %v", err)
 	}
@@ -390,7 +390,7 @@ func TestRunWithSessionWorktreeSkipsCommitWhenNoChanges(t *testing.T) {
 		return nil
 	})
 
-	_, err := runWithSessionWorktree(gromitDir, "nochange", func(string) error { return nil })
+	_, err := runWithSessionWorktree(context.Background(), gromitDir, "nochange", func(string) error { return nil })
 	if err != nil {
 		t.Fatalf("runWithSessionWorktree() error = %v", err)
 	}
@@ -453,7 +453,7 @@ func TestRunWithSessionWorktreeIgnoresDiffWarnings(t *testing.T) {
 		return nil
 	})
 
-	if _, err := runWithSessionWorktree(gromitDir, "warning", func(string) error { return nil }); err != nil {
+	if _, err := runWithSessionWorktree(context.Background(), gromitDir, "warning", func(string) error { return nil }); err != nil {
 		t.Fatalf("runWithSessionWorktree() error = %v", err)
 	}
 
@@ -525,7 +525,7 @@ func TestRunWithSessionWorktreeQueuesReadyBranch(t *testing.T) {
 		return nil
 	})
 
-	_, err := runWithSessionWorktree(gromitDir, "ready-queue", func(string) error { return nil })
+	_, err := runWithSessionWorktree(context.Background(), gromitDir, "ready-queue", func(string) error { return nil })
 	if err != nil {
 		t.Fatalf("runWithSessionWorktree() error = %v", err)
 	}
@@ -597,7 +597,7 @@ func TestRunWithSessionWorktreeRecordsBlockedQueueEntryOnCommitFailure(t *testin
 		return nil
 	})
 
-	_, err := runWithSessionWorktree(gromitDir, "blocked", func(string) error { return nil })
+	_, err := runWithSessionWorktree(context.Background(), gromitDir, "blocked", func(string) error { return nil })
 	if err == nil {
 		t.Fatal("expected auto commit error, got nil")
 	}
@@ -692,7 +692,7 @@ func TestRunWithSessionWorktreeRecordsPendingBranch(t *testing.T) {
 		}, nil
 	}, func(string, string) error { return nil })
 
-	_, err := runWithSessionWorktree(gromitDir, "plan", func(string) error {
+	_, err := runWithSessionWorktree(context.Background(), gromitDir, "plan", func(string) error {
 		callbackRan = true
 		return nil
 	})
@@ -726,7 +726,7 @@ func TestRunWithSessionWorktreeDoesNotRecordBranchWhenCallbackFails(t *testing.T
 	}, func(string, string) error { return nil })
 
 	wantErr := errors.New("callback failed")
-	_, err := runWithSessionWorktree(gromitDir, "explore", func(string) error {
+	_, err := runWithSessionWorktree(context.Background(), gromitDir, "explore", func(string) error {
 		return wantErr
 	})
 	if err == nil {
@@ -799,7 +799,7 @@ func TestRunWithSessionWorktreeSuccessPath_RecordsAndQueuesForCoordinator(t *tes
 		return nil
 	})
 
-	_, err := runWithSessionWorktree(gromitDir, "debug", func(string) error { return nil })
+	_, err := runWithSessionWorktree(context.Background(), gromitDir, "debug", func(string) error { return nil })
 	if err != nil {
 		t.Fatalf("runWithSessionWorktree() error = %v", err)
 	}
@@ -871,7 +871,7 @@ func TestRunWithSessionWorktreeOrderingInSingleWriter(t *testing.T) {
 		return nil
 	})
 
-	_, err := runWithSessionWorktree(gromitDir, "sync", func(string) error { return nil })
+	_, err := runWithSessionWorktree(context.Background(), gromitDir, "sync", func(string) error { return nil })
 	if err != nil {
 		t.Fatalf("runWithSessionWorktree() error = %v", err)
 	}
@@ -935,7 +935,7 @@ func TestSessionCleanupHappensBeforeCoordinatorTakeover(t *testing.T) {
 		return nil
 	})
 
-	_, err := runWithSessionWorktree(gromitDir, "cleanup-before-merge", func(string) error { return nil })
+	_, err := runWithSessionWorktree(context.Background(), gromitDir, "cleanup-before-merge", func(string) error { return nil })
 	if err != nil {
 		t.Fatalf("runWithSessionWorktree() error = %v", err)
 	}
@@ -996,7 +996,7 @@ func TestImmediatePath_CleanupFailureSkipsMerge(t *testing.T) {
 		return preRemoveErr
 	})
 
-	result, err := runWithSessionWorktree(gromitDir, "repair", func(string) error { return nil })
+	result, err := runWithSessionWorktree(context.Background(), gromitDir, "repair", func(string) error { return nil })
 	if err == nil {
 		t.Fatal("expected pre-remove error, got nil")
 	}
@@ -1041,7 +1041,7 @@ func TestRunWithSessionWorktreeCleanupFailureWrapsBranchContext(t *testing.T) {
 		return preRemoveErr
 	})
 
-	_, err := runWithSessionWorktree(gromitDir, "context", func(string) error { return nil })
+	_, err := runWithSessionWorktree(context.Background(), gromitDir, "context", func(string) error { return nil })
 	if err == nil {
 		t.Fatal("expected pre-remove error, got nil")
 	}
@@ -1078,7 +1078,7 @@ func TestSessionPathDoesNotAttemptConflictResolution(t *testing.T) {
 	})
 
 	// Under single-writer, session completion succeeds without conflict handling
-	result, err := runWithSessionWorktreeWithConflictSettings(gromitDir, "review", sessionConflictSettings{
+	result, err := runWithSessionWorktreeWithConflictSettings(context.Background(), gromitDir, "review", sessionConflictSettings{
 		Policy: "manual",
 	}, func(string) error { return nil })
 	if err != nil {
@@ -1126,7 +1126,7 @@ func TestAgentConflictPolicies_NotApplicableToSessionPath(t *testing.T) {
 	})
 
 	// Conflict settings don't matter in single-writer model
-	result, err := runWithSessionWorktreeWithConflictSettings(gromitDir, "refine", sessionConflictSettings{
+	result, err := runWithSessionWorktreeWithConflictSettings(context.Background(), gromitDir, "refine", sessionConflictSettings{
 		Policy:   "agent",
 		RetryCap: 2,
 		AgentConflictResolver: func(sessionDir, branch string, attempt int) error {
@@ -1193,7 +1193,7 @@ func TestSessionCompletionImmediatelyQueues_NoConflictRetry(t *testing.T) {
 		return nil
 	})
 
-	_, err := runWithSessionWorktreeWithConflictSettings(gromitDir, "review", sessionConflictSettings{
+	_, err := runWithSessionWorktreeWithConflictSettings(context.Background(), gromitDir, "review", sessionConflictSettings{
 		Policy:   "agent",
 		RetryCap: 1,
 		AgentConflictResolver: func(sessionDir, branch string, attempt int) error {
@@ -1243,7 +1243,7 @@ func TestSessionSuccessDoesNotDependOnConflictPolicy(t *testing.T) {
 		return nil
 	})
 
-	result, err := runWithSessionWorktreeWithConflictSettings(gromitDir, "debug", sessionConflictSettings{
+	result, err := runWithSessionWorktreeWithConflictSettings(context.Background(), gromitDir, "debug", sessionConflictSettings{
 		Policy:   "agent",
 		RetryCap: 2,
 		AgentConflictResolver: func(string, string, int) error {
@@ -1345,7 +1345,7 @@ func TestConcurrentSessions_BothQueueWithoutConflict(t *testing.T) {
 
 	runSession := func(command string) {
 		go func() {
-			session, err := runWithSessionWorktreeWithConflictSettings(gromitDir, command, sessionConflictSettings{}, func(string) error {
+			session, err := runWithSessionWorktreeWithConflictSettings(context.Background(), gromitDir, command, sessionConflictSettings{}, func(string) error {
 				return nil
 			})
 			resCh <- struct {
@@ -1453,5 +1453,5 @@ func TestSingleWriterInvariant_SessionsDoNotMergeToMainDirectly(t *testing.T) {
 	// When coordinator pattern is fully implemented, sessions should NOT attempt merge.
 	// This test will fail if the session path still calls MergeBack.
 	// For now, runWithSessionWorktree will trigger the t.Fatalf above if merge is attempted.
-	_, _ = runWithSessionWorktree(gromitDir, "session-no-merge", func(string) error { return nil })
+	_, _ = runWithSessionWorktree(context.Background(), gromitDir, "session-no-merge", func(string) error { return nil })
 }
