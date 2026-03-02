@@ -219,6 +219,21 @@ func TestApplyBacklogItems_ErrorPropagates(t *testing.T) {
 	}
 }
 
+func TestPersistLearnings_ErrorPropagates(t *testing.T) {
+	t.Parallel()
+
+	count, err := persistLearnings([]string{"Log errors"}, newFailingLearningsManager(fmt.Errorf("boom")))
+	if err == nil {
+		t.Fatalf("expected error from persistLearnings, got nil")
+	}
+	if count != 0 {
+		t.Fatalf("expected count 0 on failure, got %d", count)
+	}
+	if !strings.Contains(err.Error(), "persisting learning") {
+		t.Fatalf("unexpected error message: %v", err)
+	}
+}
+
 func mixedReviewResult() *review.ReviewResult {
     return &review.ReviewResult{
         Passed: true,
@@ -341,7 +356,7 @@ func (c *failingTrackerClient) Close(ctx context.Context, id string) error { ret
 func (c *failingTrackerClient) ListWithLabel(ctx context.Context, label string) ([]string, error) { return []string{}, nil }
 
 type recordingLearningsManager struct {
-    saved []string
+	saved []string
 }
 
 func newRecordingLearningsManager() *recordingLearningsManager {
@@ -349,6 +364,18 @@ func newRecordingLearningsManager() *recordingLearningsManager {
 }
 
 func (r *recordingLearningsManager) Add(content string) error {
-    r.saved = append(r.saved, content)
-    return nil
+	r.saved = append(r.saved, content)
+	return nil
+}
+
+type failingLearningsManager struct {
+	err error
+}
+
+func newFailingLearningsManager(err error) *failingLearningsManager {
+	return &failingLearningsManager{err: err}
+}
+
+func (f *failingLearningsManager) Add(content string) error {
+	return f.err
 }
