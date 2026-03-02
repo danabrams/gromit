@@ -26,6 +26,34 @@ func TestPipeline_Queue_ClientCreationError(t *testing.T) {
 	}
 }
 
+func TestPipeline_Queue_UsesDepsQueueClient(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	deps := &Deps{
+		QueueClient: &fakeQueueClient{
+			listReadyWorkFn: func(context.Context) ([]*bead.Bead, error) {
+				called = true
+				return nil, nil
+			},
+			listFn: func(context.Context) ([]*bead.Bead, error) {
+				return []*bead.Bead{}, nil
+			},
+			listByStatusFn: func(context.Context, string) ([]*bead.Bead, error) {
+				return []*bead.Bead{}, nil
+			},
+		},
+	}
+
+	p := New(deps, &Paths{})
+	if _, err := p.Queue(context.Background(), QueueInput{}); err != nil {
+		t.Fatalf("Queue() returned error: %v", err)
+	}
+	if !called {
+		t.Fatal("expected deps queue client to be used")
+	}
+}
+
 func TestPipeline_Queue_ReturnsPartitionedData(t *testing.T) {
 	t.Parallel()
 
