@@ -35,3 +35,7 @@ func TestGofmtCompliance(t *testing.T) {
         })
     }
 }
+
+func TestRepoGofmtCompliance(t *testing.T) {
+    runRepoGofmtCheck(t)
+}
