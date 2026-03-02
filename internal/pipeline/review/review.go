@@ -32,7 +32,7 @@ type PromptRenderer interface {
 }
 
 // GitDiffFn returns the current git diff.
-type GitDiffFn func() (string, error)
+type GitDiffFn func(ctx context.Context) (string, error)
 
 // Review implements pipeline.Stage for Stage 4: optional LLM code review.
 // It is stateless across iterations; all state flows through Input and Output.
@@ -75,7 +75,7 @@ func (r *Review) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, e
 		return pipeline.Output{Decision: pipeline.Proceed}, nil
 	}
 
-	diff, err := r.gitDiff()
+	diff, err := r.gitDiff(ctx)
 	if err != nil {
 		return pipeline.Output{}, fmt.Errorf("review: getting git diff: %w", err)
 	}

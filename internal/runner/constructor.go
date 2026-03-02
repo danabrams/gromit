@@ -194,8 +194,8 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 	validateStage := validate.New(&cmdRunnerAdapter{runner: defaultCmdRunner}, syncOut)
 
 	// Wrapper for getGitDiff to match review.GitDiffFn signature
-	gitDiffFn := func() (string, error) {
-		return getGitDiff(context.Background(), "")
+	gitDiffFn := func(ctx context.Context) (string, error) {
+		return getGitDiff(ctx, "")
 	}
 
 	// Stage 4: Review (review.New with Invoker, BeadCreator, PromptRenderer, GitDiffFn)

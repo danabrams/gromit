@@ -32,20 +32,21 @@ func (f *fakeInvoker) StreamRun(ctx context.Context, prompt, model string, w io.
 
 // fakeBeadCreator is a test double for reviewstage.BeadCreator.
 type fakeBeadCreator struct {
-	createFn func(title string, priority int, labels []string, outputs []string) (string, error)
+	createFn func(ctx context.Context, title string, priority int, labels []string, outputs []string) (string, error)
 	created  []createdBead
 }
 
 type createdBead struct {
+	ctx      context.Context
 	title    string
 	priority int
 	labels   []string
 }
 
-func (f *fakeBeadCreator) Create(title string, priority int, labels []string, outputs []string) (string, error) {
-	f.created = append(f.created, createdBead{title, priority, labels})
+func (f *fakeBeadCreator) Create(ctx context.Context, title string, priority int, labels []string, outputs []string) (string, error) {
+	f.created = append(f.created, createdBead{ctx, title, priority, labels})
 	if f.createFn != nil {
-		return f.createFn(title, priority, labels, outputs)
+		return f.createFn(ctx, title, priority, labels, outputs)
 	}
 	return fmt.Sprintf("bead-%d", len(f.created)), nil
 }
@@ -117,7 +118,7 @@ func TestReviewStage_Disabled_ReturnsProceedWithNoLLMCall(t *testing.T) {
 	invoker := &fakeInvoker{}
 	beads := &fakeBeadCreator{}
 	renderer := &fakePromptRenderer{}
-	gitDiff := func() (string, error) { return "some diff", nil }
+	gitDiff := func(context.Context) (string, error) { return "some diff", nil }
 
 	stage := reviewstage.New(invoker, beads, renderer, gitDiff, io.Discard)
 	in := makeInput(makeBead("bead-1", "Test bead"), makeConfig(false))
@@ -161,7 +162,7 @@ func TestReviewStage_Enabled_WithFindings_CreatesBeadsAndReturnsProceed(t *testi
 	}
 	beads := &fakeBeadCreator{}
 	renderer := &fakePromptRenderer{}
-	gitDiff := func() (string, error) { return "diff --git a/foo.go", nil }
+	gitDiff := func(context.Context) (string, error) { return "diff --git a/foo.go", nil }
 
 	stage := reviewstage.New(invoker, beads, renderer, gitDiff, io.Discard)
 	in := makeInput(makeBead("bead-1", "Implement feature"), makeConfig(true))
@@ -219,7 +220,7 @@ func TestReviewStage_UsesReviewTierForInvocation(t *testing.T) {
 	}
 	beads := &fakeBeadCreator{}
 	renderer := &fakePromptRenderer{}
-	gitDiff := func() (string, error) { return "diff --git a/foo.go", nil }
+	gitDiff := func(context.Context) (string, error) { return "diff --git a/foo.go", nil }
 
 	stage := reviewstage.New(invoker, beads, renderer, gitDiff, io.Discard)
 	cfg := makeConfig(true)
@@ -256,7 +257,7 @@ func TestReviewStage_AppliesReviewPhaseProfile(t *testing.T) {
 			return "# review rules", nil
 		},
 	}
-	gitDiff := func() (string, error) { return "diff --git a/foo.go", nil }
+	gitDiff := func(context.Context) (string, error) { return "diff --git a/foo.go", nil }
 
 	stage := reviewstage.New(invoker, beads, renderer, gitDiff, io.Discard)
 	in := makeInput(makeBead("bead-1", "Profiled review"), makeConfig(true))
@@ -292,7 +293,7 @@ func TestReviewStage_Enabled_NoFindings_ReturnsProceedWithEmptyIDs(t *testing.T)
 	}
 	beads := &fakeBeadCreator{}
 	renderer := &fakePromptRenderer{}
-	gitDiff := func() (string, error) { return "", nil }
+	gitDiff := func(context.Context) (string, error) { return "", nil }
 
 	stage := reviewstage.New(invoker, beads, renderer, gitDiff, io.Discard)
 	in := makeInput(makeBead("bead-1", "Small fix"), makeConfig(true))
@@ -358,7 +359,7 @@ func TestReviewRun_EmitsReviewStartAndCompleteEvents(t *testing.T) {
 	beads := &fakeBeadCreator{}
 	renderer := &fakePromptRenderer{}
 
-	review := reviewstage.New(invoker, beads, renderer, func() (string, error) {
+	review := reviewstage.New(invoker, beads, renderer, func(context.Context) (string, error) {
 		return "", nil
 	}, io.Discard)
 
@@ -429,15 +430,15 @@ func TestReviewRun_ReviewStartEventHasTimeAndThoroughFields(t *testing.T) {
 		&fakeInvoker{},
 		&fakeBeadCreator{},
 		&fakePromptRenderer{},
-		func() (string, error) { return "", nil },
+		func(context.Context) (string, error) { return "", nil },
 		io.Discard,
 	)
 
 	beadID := "test-review-bead"
 	cfg := makeConfig(true)
 	input := pipeline.Input{
-		Bead:   makeBead(beadID, "Test bead"),
-		Config: cfg,
+		Bead:    makeBead(beadID, "Test bead"),
+		Config:  cfg,
 		Emitter: emitter,
 	}
 
@@ -480,15 +481,15 @@ func TestReviewRun_ReviewCompleteEventHasTimeField(t *testing.T) {
 		&fakeInvoker{},
 		&fakeBeadCreator{},
 		&fakePromptRenderer{},
-		func() (string, error) { return "", nil },
+		func(context.Context) (string, error) { return "", nil },
 		io.Discard,
 	)
 
 	beadID := "test-review-bead"
 	cfg := makeConfig(true)
 	input := pipeline.Input{
-		Bead:   makeBead(beadID, "Test bead"),
-		Config: cfg,
+		Bead:    makeBead(beadID, "Test bead"),
+		Config:  cfg,
 		Emitter: emitter,
 	}
 
