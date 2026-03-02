@@ -47,7 +47,7 @@ func showQueue(cmd *cobra.Command, args []string) error {
 	}
 
 	gromitDir := resolveGromitDir(cfg)
-	executor, err := queuePipelineFactory(cfg, gromitDir)
+	executor, err := createQueuePipelineFn(cfg, gromitDir)
 	if err != nil {
 		return fmt.Errorf("creating pipeline: %w", err)
 	}
@@ -74,7 +74,7 @@ func showQueue(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-var queuePipelineFactory = createQueuePipeline
+var createQueuePipelineFn = createQueuePipeline
 
 func createQueuePipeline(cfg *config.Config, gromitDir string) (queueExecutor, error) {
 	p, err := newPipeline(cfg, gromitDir)

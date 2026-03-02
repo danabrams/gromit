@@ -110,11 +110,11 @@ func TestShowQueue_DelegatesToPipeline(t *testing.T) {
 		},
 	}
 
-	queuePipelineFactory = func(cfg *config.Config, gromitDir string) (queueExecutor, error) {
+	createQueuePipelineFn = func(cfg *config.Config, gromitDir string) (queueExecutor, error) {
 		return mockExecutor, nil
 	}
 	t.Cleanup(func() {
-		queuePipelineFactory = createQueuePipeline
+		createQueuePipelineFn = createQueuePipeline
 	})
 
 	output := captureStdout(t, func() {

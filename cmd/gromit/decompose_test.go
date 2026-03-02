@@ -1029,7 +1029,7 @@ func (m *mockDecomposePipelineForDelegation) QueryUndecomposedPlans(ctx context.
 }
 
 // TestQueryDecomposePlansWithPipeline_ForceFlagPassthrough verifies --force flag is passed to Pipeline
-// Expected: createDecomposePipeline and queryDecomposePlansWithPipeline pass --force to Pipeline.QueryUndecomposedPlans
+// Expected: createDecomposePipelineFn and queryDecomposePlansWithPipeline pass --force to Pipeline.QueryUndecomposedPlans
 func TestQueryDecomposePlansWithPipeline_ForceFlagPassthrough(t *testing.T) {
 	t.Parallel()
 

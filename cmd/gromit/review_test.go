@@ -1286,11 +1286,11 @@ claude:
 	reviewSpec = ""
 	reviewEpic = ""
 
-	origPipelineFn := createReviewPipeline
-	defer func() { createReviewPipeline = origPipelineFn }()
+	origPipelineFn := createReviewPipelineFn
+	defer func() { createReviewPipelineFn = origPipelineFn }()
 
 	resolveCalled := false
-	createReviewPipeline = func(cfg *config.Config, gromitDir string) (ReviewScopeResolver, error) {
+	createReviewPipelineFn = func(cfg *config.Config, gromitDir string) (ReviewScopeResolver, error) {
 		return &mockTestPipeline{
 			resolveReviewScopeFn: func(ctx context.Context, spec string, epic string, since string) (string, error) {
 				resolveCalled = true
@@ -1405,18 +1405,18 @@ func TestCreateReviewPipeline_CreatesValidPipeline(t *testing.T) {
 	}
 	gromitDir := t.TempDir()
 
-	p, err := createReviewPipeline(cfg, gromitDir)
+	p, err := createReviewPipelineFn(cfg, gromitDir)
 
 	if err != nil {
-		t.Errorf("createReviewPipeline() error = %v, want nil", err)
+		t.Errorf("createReviewPipelineFn() error = %v, want nil", err)
 	}
 
 	if p == nil {
-		t.Fatal("createReviewPipeline() returned nil pipeline")
+		t.Fatal("createReviewPipelineFn() returned nil pipeline")
 	}
 
 	if _, ok := p.(*pipeline.Pipeline); !ok {
-		t.Fatalf("createReviewPipeline() returned %T, want *pipeline.Pipeline", p)
+		t.Fatalf("createReviewPipelineFn() returned %T, want *pipeline.Pipeline", p)
 	}
 
 	// Verify pipeline can be used

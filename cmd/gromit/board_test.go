@@ -34,11 +34,11 @@ func TestRunBoard_DelegatesToPipeline(t *testing.T) {
 		},
 	}
 
-	boardPipelineFactory = func(cfg *config.Config, gromitDir string) (boardExecutor, error) {
+	createBoardPipelineFn = func(cfg *config.Config, gromitDir string) (boardExecutor, error) {
 		return stubPipeline, nil
 	}
 	t.Cleanup(func() {
-		boardPipelineFactory = createBoardPipeline
+		createBoardPipelineFn = createBoardPipeline
 	})
 
 	output := captureStdout(t, func() {

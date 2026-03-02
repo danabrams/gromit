@@ -91,9 +91,9 @@ func init() {
 	rootCmd.AddCommand(reviewCmd)
 }
 
-// createReviewPipeline creates a minimal pipeline instance for scope resolution.
+// createReviewPipelineFn creates a minimal pipeline instance for scope resolution.
 // This pipeline only needs StateManager for fallback to state file.
-var createReviewPipeline = func(cfg *config.Config, gromitDir string) (ReviewScopeResolver, error) {
+var createReviewPipelineFn = func(cfg *config.Config, gromitDir string) (ReviewScopeResolver, error) {
 	deps, err := NewPipelineDeps(cfg, gromitDir)
 	if err != nil {
 		return nil, fmt.Errorf("constructing pipeline deps: %w", err)
@@ -139,7 +139,7 @@ func runReview(cmd *cobra.Command, args []string) error {
 
 	// Determine scope (from commit) using Pipeline
 	gromitDir := resolveGromitDir(cfg)
-	p, err := createReviewPipeline(cfg, gromitDir)
+	p, err := createReviewPipelineFn(cfg, gromitDir)
 	if err != nil {
 		return fmt.Errorf("creating pipeline for scope resolution: %w", err)
 	}

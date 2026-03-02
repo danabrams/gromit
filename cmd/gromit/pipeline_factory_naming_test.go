@@ -25,6 +25,9 @@ func TestCLIPipelineFactoryNaming(t *testing.T) {
 		if d.IsDir() || !strings.HasSuffix(path, ".go") {
 			return nil
 		}
+		if filepath.Base(path) == "pipeline_factory_naming_test.go" {
+			return nil
+		}
 		content, err := os.ReadFile(path)
 		if err != nil {
 			return err

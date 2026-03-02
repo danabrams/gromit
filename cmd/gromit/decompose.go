@@ -35,8 +35,8 @@ var decomposeSinglePlanInDirFn = decomposeSinglePlanInCurrentDir
 var decomposeRunInDirFn = runInDir
 var decomposeListWithLabelFn = listBeadsWithLabel
 
-// createDecomposePipeline creates a minimal pipeline instance for plan querying.
-var createDecomposePipeline = func(cfg *config.Config, gromitDir string) (DecomposePlanQuerier, error) {
+// createDecomposePipelineFn creates a minimal pipeline instance for plan querying.
+var createDecomposePipelineFn = func(cfg *config.Config, gromitDir string) (DecomposePlanQuerier, error) {
 	deps, err := NewPipelineDeps(cfg, gromitDir)
 	if err != nil {
 		return nil, fmt.Errorf("constructing pipeline deps: %w", err)
@@ -149,7 +149,7 @@ func runDecompose(cmd *cobra.Command, args []string) error {
 
 	// No arguments - show picker
 	gromitDir := resolveGromitDir(cfg)
-	p, err := createDecomposePipeline(cfg, gromitDir)
+	p, err := createDecomposePipelineFn(cfg, gromitDir)
 	if err != nil {
 		return fmt.Errorf("creating pipeline for plan querying: %w", err)
 	}

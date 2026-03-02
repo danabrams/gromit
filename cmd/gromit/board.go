@@ -30,7 +30,7 @@ func runBoard(cmd *cobra.Command, args []string) error {
 	}
 
 	gromitDir := resolveGromitDir(cfg)
-	executor, err := boardPipelineFactory(cfg, gromitDir)
+	executor, err := createBoardPipelineFn(cfg, gromitDir)
 	if err != nil {
 		return fmt.Errorf("creating pipeline: %w", err)
 	}
@@ -71,7 +71,7 @@ func runBoard(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-var boardPipelineFactory = createBoardPipeline
+var createBoardPipelineFn = createBoardPipeline
 
 func createBoardPipeline(cfg *config.Config, gromitDir string) (boardExecutor, error) {
 	p, err := newPipeline(cfg, gromitDir)
