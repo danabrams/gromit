@@ -1133,8 +1133,9 @@ type integrationQueueGitOpsAdapter struct {
 }
 
 func (a *integrationQueueGitOpsAdapter) FetchAndRebase(ctx context.Context, entry integrationqueue.Entry) error {
-	if a == nil {
-		return fmt.Errorf("gitops adapter is not configured")
+	dir, err := a.requireRepoDir()
+	if err != nil {
+		return err
 	}
 	if strings.TrimSpace(entry.Branch) == "" {
 		return fmt.Errorf("entry branch is empty")
@@ -1148,21 +1149,22 @@ func (a *integrationQueueGitOpsAdapter) FetchAndRebase(ctx context.Context, entr
 		base = config.DefaultBaseBranch
 	}
 
-	if _, err := a.runGitCommand(ctx, a.repoDir, "fetch", "origin", base); err != nil {
+	if _, err := a.runGitCommand(ctx, dir, "fetch", "origin", base); err != nil {
 		return fmt.Errorf("fetching %s: %w", base, err)
 	}
-	if _, err := a.runGitCommand(ctx, a.repoDir, "checkout", entry.Branch); err != nil {
+	if _, err := a.runGitCommand(ctx, dir, "checkout", entry.Branch); err != nil {
 		return fmt.Errorf("checkout branch %s: %w", entry.Branch, err)
 	}
-	if _, err := a.runGitCommand(ctx, a.repoDir, "rebase", base); err != nil {
+	if _, err := a.runGitCommand(ctx, dir, "rebase", base); err != nil {
 		return fmt.Errorf("rebasing branch %s onto %s: %w", entry.Branch, base, err)
 	}
 	return nil
 }
 
 func (a *integrationQueueGitOpsAdapter) MergeToMain(ctx context.Context, entry integrationqueue.Entry) error {
-	if a == nil {
-		return fmt.Errorf("gitops adapter is not configured")
+	dir, err := a.requireRepoDir()
+	if err != nil {
+		return err
 	}
 	if strings.TrimSpace(entry.Branch) == "" {
 		return fmt.Errorf("entry branch is empty")
@@ -1176,10 +1178,10 @@ func (a *integrationQueueGitOpsAdapter) MergeToMain(ctx context.Context, entry i
 		base = config.DefaultBaseBranch
 	}
 
-	if _, err := a.runGitCommand(ctx, a.repoDir, "checkout", base); err != nil {
+	if _, err := a.runGitCommand(ctx, dir, "checkout", base); err != nil {
 		return fmt.Errorf("checkout %s: %w", base, err)
 	}
-	if _, err := a.runGitCommand(ctx, a.repoDir, "merge", "--ff-only", entry.Branch); err != nil {
+	if _, err := a.runGitCommand(ctx, dir, "merge", "--ff-only", entry.Branch); err != nil {
 		return fmt.Errorf("merging branch %s: %w", entry.Branch, err)
 	}
 
@@ -1187,8 +1189,9 @@ func (a *integrationQueueGitOpsAdapter) MergeToMain(ctx context.Context, entry i
 }
 
 func (a *integrationQueueGitOpsAdapter) Push(ctx context.Context) error {
-	if a == nil {
-		return fmt.Errorf("gitops adapter is not configured")
+	dir, err := a.requireRepoDir()
+	if err != nil {
+		return err
 	}
 	if a.runGitCommand == nil {
 		return fmt.Errorf("git runner is not configured")
@@ -1206,15 +1209,16 @@ func (a *integrationQueueGitOpsAdapter) Push(ctx context.Context) error {
 		defer cancel()
 	}
 
-	if _, err := a.runGitCommand(pushCtx, a.repoDir, "push", "origin", base); err != nil {
+	if _, err := a.runGitCommand(pushCtx, dir, "push", "origin", base); err != nil {
 		return fmt.Errorf("pushing %s: %w", base, err)
 	}
 	return nil
 }
 
 func (a *integrationQueueGitOpsAdapter) Cleanup(ctx context.Context, entry integrationqueue.Entry) error {
-	if a == nil {
-		return fmt.Errorf("gitops adapter is not configured")
+	dir, err := a.requireRepoDir()
+	if err != nil {
+		return err
 	}
 	if strings.TrimSpace(entry.Branch) == "" {
 		return fmt.Errorf("entry branch is empty")
@@ -1223,10 +1227,21 @@ func (a *integrationQueueGitOpsAdapter) Cleanup(ctx context.Context, entry integ
 		return fmt.Errorf("git runner is not configured")
 	}
 
-	if _, err := a.runGitCommand(ctx, a.repoDir, "branch", "-D", entry.Branch); err != nil {
+	if _, err := a.runGitCommand(ctx, dir, "branch", "-D", entry.Branch); err != nil {
 		return fmt.Errorf("cleanup branch %s: %w", entry.Branch, err)
 	}
 	return nil
+}
+
+func (a *integrationQueueGitOpsAdapter) requireRepoDir() (string, error) {
+	if a == nil {
+		return "", fmt.Errorf("gitops adapter is not configured")
+	}
+	dir := strings.TrimSpace(a.repoDir)
+	if dir == "" {
+		return "", fmt.Errorf("repo dir is not configured")
+	}
+	return dir, nil
 }
 
 type integrationQueueScopedGateEvaluator func(ctx context.Context, entry integrationqueue.Entry) error
