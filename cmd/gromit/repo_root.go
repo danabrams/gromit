@@ -44,29 +44,23 @@ func ensureRepoRoot() error {
 // findProjectRoot walks up from the current directory to find the project root
 // (identified by the presence of gromit.yaml or .gromit/ directory).
 func findProjectRoot() (string, error) {
-	dir, err := os.Getwd()
+	cwd, err := os.Getwd()
 	if err != nil {
+		if root := getProjectRootFromCaller(3); root != "" {
+			return root, nil
+		}
 		return "", err
 	}
-	nearestGromitDir := ""
-	for {
-		if hasRepoMarker(dir, repoConfigName) {
-			return dir, nil
-		}
-		if hasRepoMarker(dir, repoDirName) {
-			if nearestGromitDir == "" {
-				nearestGromitDir = dir
-			}
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			if nearestGromitDir != "" {
-				return nearestGromitDir, nil
-			}
-			return "", os.ErrNotExist
-		}
-		dir = parent
+
+	if root := findRepoRootFromDir(cwd); root != "" {
+		return root, nil
 	}
+
+	if root := getProjectRootFromCaller(3); root != "" {
+		return root, nil
+	}
+
+	return "", os.ErrNotExist
 }
 
 func absPath(path, label string) (string, error) {
@@ -86,59 +80,61 @@ func hasRepoMarker(dir, marker string) bool {
 // file location to determine the project root instead of relying on the current working directory.
 // This allows tests to work correctly when run from any directory.
 func resolveProjectPath(caller string, relativePath string) string {
-	root := getProjectRootFromTestFile(caller)
-	if root == "" {
-		return relativePath
+	if root := getProjectRootFromCaller(3); root != "" {
+		return filepath.Join(root, relativePath)
 	}
-	return filepath.Join(root, relativePath)
+	if root, err := findProjectRoot(); err == nil {
+		return filepath.Join(root, relativePath)
+	}
+	return relativePath
 }
 
-// getProjectRootFromTestFile finds the project root starting from the caller's file location.
-// This function uses runtime.Caller to get the test file's directory, then walks up
-// to find the project root. This works correctly regardless of the current working directory.
-func getProjectRootFromTestFile(caller string) string {
-	// Get the caller's file location using runtime.Caller
-	// We skip 2 frames: runtime.Caller itself and this function
-	// to get back to the caller of getProjectRootFromTestFile (which is resolveProjectPath)
-	// But we actually need to skip 3 to get the actual caller of resolveProjectPath
-	_, callerFile, _, ok := runtime.Caller(2)
-	if !ok {
-		// Fallback to using current working directory if we can't get caller info
-		if root, err := findProjectRoot(); err == nil {
-			return root
-		}
+// findRepoRootFromDir walks up from dir looking for gromit.yaml or .gromit directories.
+func findRepoRootFromDir(dir string) string {
+	if dir == "" {
 		return ""
 	}
 
-	// Start from the directory containing the caller's file
-	dir := filepath.Dir(callerFile)
-
-	// Walk up to find the project root.
-	// Prefer gromit.yaml (repoConfigName) over .gromit/ (repoDirName) to match
-	// findProjectRoot behaviour: a nested .gromit/ directory inside cmd/gromit/
-	// must not shadow the real project root that contains gromit.yaml.
-	nearestGromitDir := ""
+	nearest := ""
 	for {
 		if hasRepoMarker(dir, repoConfigName) {
 			return dir
 		}
-		if hasRepoMarker(dir, repoDirName) {
-			if nearestGromitDir == "" {
-				nearestGromitDir = dir
-			}
+		if hasRepoMarker(dir, repoDirName) && nearest == "" {
+			nearest = dir
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			if nearestGromitDir != "" {
-				return nearestGromitDir
-			}
-			// Reached filesystem root without finding project root
-			// Fallback to using findProjectRoot
-			if root, err := findProjectRoot(); err == nil {
-				return root
+			if nearest != "" {
+				return nearest
 			}
 			return ""
 		}
 		dir = parent
 	}
+}
+
+// getProjectRootFromCaller resolves the project root using the caller's file location.
+func getProjectRootFromCaller(skip int) string {
+	for i := skip; i < skip+5; i++ {
+		if root := findRepoRootFromCaller(i); root != "" {
+			return root
+		}
+	}
+	return ""
+}
+
+func findRepoRootFromCaller(skip int) string {
+	_, callerFile, _, ok := runtime.Caller(skip)
+	if !ok {
+		return ""
+	}
+	return findRepoRootFromDir(filepath.Dir(callerFile))
+}
+
+func getProjectRootFromTestFile(caller string) string {
+	if root := getProjectRootFromCaller(4); root != "" {
+		return root
+	}
+	return ""
 }
