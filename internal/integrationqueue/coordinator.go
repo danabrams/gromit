@@ -202,12 +202,14 @@ func (c *Coordinator) RecoverFromCrash(ctx context.Context) error {
 				clearError = false
 			}
 
-			var transitionErr error
+			metadata := []TransitionErrorMetadata{}
 			if clearError {
-				transitionErr = c.applyTransition(entry, string(targetState), reason, crashRecoveryMetadata())
+				metadata = append(metadata, crashRecoveryMetadata())
 			} else {
-				transitionErr = c.applyTransition(entry, string(targetState), reason)
+				metadata = append(metadata, TransitionErrorMetadata{Code: entry.LastErrorCode, Message: entry.LastErrorMessage})
 			}
+
+			transitionErr := c.applyTransition(entry, string(targetState), reason, metadata...)
 			if transitionErr != nil {
 				return fmt.Errorf("transitioning recovered entry %s: %w", entry.Branch, transitionErr)
 			}
