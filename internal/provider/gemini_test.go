@@ -2,10 +2,23 @@ package provider
 
 import (
 	"context"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func writeExecutableScript(t *testing.T, script string) string {
+	t.Helper()
+
+	binaryPath := filepath.Join(t.TempDir(), "fake-gemini")
+	if err := os.WriteFile(binaryPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+
+	return binaryPath
+}
 
 func TestGeminiShortPromptThresholdIsPractical(t *testing.T) {
 	// ARG_MAX on Linux is ~2MB, so threshold should be practical for command-line argument passing
@@ -470,6 +483,35 @@ func TestGeminiProviderRunFallsBackToInlinePForShortPrompts(t *testing.T) {
 	}
 	if result == nil {
 		t.Fatal("Run() returned nil result")
+	}
+}
+
+func TestDefaultGeminiRunFn_UsesKillDescendantsOnCancel(t *testing.T) {
+	t.Parallel()
+	const prompt = "ready"
+
+	ctx := context.Background()
+	script := "#!/bin/sh\n" +
+		"printf 'ok\\n'\n"
+	binary := writeExecutableScript(t, script)
+
+	var killCalled bool
+	oldKill := geminiKillDescendantsOnCancelFn
+	t.Cleanup(func() { geminiKillDescendantsOnCancelFn = oldKill })
+	geminiKillDescendantsOnCancelFn = func(ctx context.Context, cmd *exec.Cmd) {
+		killCalled = true
+	}
+
+	args := []string{"--output-format", "json", "-p", prompt}
+	result, err := defaultGeminiRunFn(ctx, binary, args, prompt, "")
+	if err != nil {
+		t.Fatalf("defaultGeminiRunFn() error = %v", err)
+	}
+	if result == nil {
+		t.Fatal("defaultGeminiRunFn() returned nil result")
+	}
+	if !killCalled {
+		t.Fatal("defaultGeminiRunFn() did not call KillDescendantsOnCancel")
 	}
 }
 
