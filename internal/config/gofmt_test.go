@@ -27,3 +27,22 @@ func TestSupplementaryConfigFilesIncludeCoreConfigHelpers(t *testing.T) {
 		}
 	}
 }
+
+func TestConfigCoreFilesAreInGofmtCheck(t *testing.T) {
+	required := []string{
+		"config.go",
+		"config_types.go",
+	}
+	for _, file := range required {
+		found := false
+		for _, candidate := range supplementaryConfigFiles {
+			if candidate == file {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("supplementary config gofmt list missing %s", file)
+		}
+	}
+}
