@@ -477,3 +477,14 @@ func (s *testCooldownStore) Set(identity string, when time.Time) {
 func defaultIssueType(class CauseClass) string {
 	return defaultSPCAutoTriageConfig().IssueType[class]
 }
+
+func TestOpenExists_SurfacesListWithLabelError(t *testing.T) {
+	ctx := context.Background()
+	client := trackertest.NewStubTrackerClient()
+	client.ListWithLabelFn = func(ctx context.Context, label string) ([]tracker.Item, error) {
+		return nil, fmt.Errorf("boom")
+	}
+	if _, err := openExists(ctx, client, "dedupe"); err == nil {
+		t.Fatal("expected openExists to return an error when ListWithLabel fails")
+	}
+}
