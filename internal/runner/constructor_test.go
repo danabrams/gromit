@@ -839,8 +839,6 @@ func TestNewRunnerImpl_WiresIntegrationQueueCoordinator(t *testing.T) {
 }
 
 func TestNewRunnerImpl_IntegrationQueueAdapterInitError(t *testing.T) {
-	t.Parallel()
-
 	tmpDir := t.TempDir()
 	templatesDir := filepath.Join(tmpDir, "templates")
 	logsDir := filepath.Join(tmpDir, "logs")

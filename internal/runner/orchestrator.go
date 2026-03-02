@@ -203,6 +203,14 @@ func (s *skipTracker) processedCount() int {
 	return len(s.processed)
 }
 
+func (s *skipTracker) registerBead(id string) (skip bool, stop bool) {
+	if s.hasProcessed(id) {
+		return true, s.recordSkip(id)
+	}
+	s.markProcessed(id)
+	return false, false
+}
+
 // NewOrchestrator returns an Orchestrator wired with the given configuration.
 func NewOrchestrator(cfg OrchestratorConfig) *Orchestrator {
 	o := &Orchestrator{
@@ -395,14 +403,13 @@ runLoop:
 		// open dependencies, gate/build failures). Track skip events since the
 		// last new bead; once we have observed as many skips as known beads,
 		// every bead has been re-offered and there is no new work.
-		if skipTracker.hasProcessed(b.ID) {
-			if skipTracker.recordSkip(b.ID) {
+		if skip, stop := skipTracker.registerBead(b.ID); skip {
+			if stop {
 				o.logInfo("No remaining work: all %d processed bead(s) re-offered by bd (likely uncloseable due to open dependencies)", skipTracker.processedCount())
 				break runLoop
 			}
 			continue
 		}
-		skipTracker.markProcessed(b.ID)
 
 		// Iteration numbers are assigned monotonically, one per bead regardless
 		// of whether the bead proceeds through all stages or is blocked early.
