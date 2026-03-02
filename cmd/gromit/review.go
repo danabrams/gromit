@@ -405,6 +405,9 @@ func printReviewSummaryCounts(w io.Writer, result *pipeline.ReviewResult) {
 	}
 	if result.BeadsCreated > 0 {
 		fmt.Fprintf(w, "Created %d beads from review findings\n", result.BeadsCreated)
+		if result.Apply != nil && len(result.Apply.CreatedBeadIDs) > 0 {
+			fmt.Fprintf(w, "Bead IDs: %s\n", strings.Join(result.Apply.CreatedBeadIDs, ", "))
+		}
 	}
 	if result.BacklogCreated > 0 {
 		fmt.Fprintf(w, "Created %d backlog items\n", result.BacklogCreated)
