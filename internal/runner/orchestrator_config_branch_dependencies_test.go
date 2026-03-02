@@ -30,6 +30,16 @@ func TestOrchestratorConfigHasGitCheckout(t *testing.T) {
 	}
 }
 
+// TestOrchestratorConfigHasRouter verifies that OrchestratorConfig has Router field.
+// This test will fail compilation if the field doesn't exist.
+func TestOrchestratorConfigHasRouter(t *testing.T) {
+	t.Parallel()
+	cfg := OrchestratorConfig{}
+	if cfg.Router == nil {
+		t.Log("OrchestratorConfig.Router is nil by default")
+	}
+}
+
 // TestOrchestratorConfigCanBeWiredWithDependencies verifies that dependencies can be set.
 func TestOrchestratorConfigCanBeWiredWithDependencies(t *testing.T) {
 	t.Parallel()
