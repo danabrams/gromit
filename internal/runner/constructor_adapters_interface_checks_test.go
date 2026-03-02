@@ -13,3 +13,9 @@ func TestInvokerAdapterImplementsExecuteInvoker(t *testing.T) {
 	var _ execute.Invoker = (*invokerAdapter)(nil)
 	t.Log("invokerAdapter implements execute.Invoker")
 }
+
+func TestIntegrationQueueGitOpsAdapterImplementsGitOps(t *testing.T) {
+	t.Parallel()
+	var _ integrationqueue.GitOps = (*integrationQueueGitOpsAdapter)(nil)
+	t.Log("integrationQueueGitOpsAdapter implements integrationqueue.GitOps")
+}
