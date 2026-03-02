@@ -24,7 +24,8 @@ func (a *integrationQueueGitOpsAdapter) FetchAndRebase(ctx context.Context, entr
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(entry.Branch) == "" {
+	branch := strings.TrimSpace(entry.Branch)
+	if branch == "" {
 		return fmt.Errorf("entry branch is empty")
 	}
 	if a.runGitCommand == nil {
@@ -39,11 +40,11 @@ func (a *integrationQueueGitOpsAdapter) FetchAndRebase(ctx context.Context, entr
 	if _, err := a.runGitCommand(ctx, dir, "fetch", "origin", base); err != nil {
 		return fmt.Errorf("fetching %s: %w", base, err)
 	}
-	if _, err := a.runGitCommand(ctx, dir, "checkout", entry.Branch); err != nil {
-		return fmt.Errorf("checkout branch %s: %w", entry.Branch, err)
+	if _, err := a.runGitCommand(ctx, dir, "checkout", branch); err != nil {
+		return fmt.Errorf("checkout branch %s: %w", branch, err)
 	}
 	if _, err := a.runGitCommand(ctx, dir, "rebase", base); err != nil {
-		return fmt.Errorf("rebasing branch %s onto %s: %w", entry.Branch, base, err)
+		return fmt.Errorf("rebasing branch %s onto %s: %w", branch, base, err)
 	}
 	return nil
 }
