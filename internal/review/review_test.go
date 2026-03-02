@@ -1,6 +1,7 @@
 package review
 
 import (
+	"os/exec"
 	"strings"
 	"testing"
 )
@@ -197,4 +198,34 @@ func TestReviewSourceFilesGofmt(t *testing.T) {
 	if nonCompliant := reviewGofmtNonCompliantFiles(t, files); len(nonCompliant) > 0 {
 		t.Fatalf("gofmt -l reported non-compliant files:\n%s", strings.Join(nonCompliant, "\n"))
 	}
+}
+
+func reviewGofmtNonCompliantFiles(t *testing.T, files []string) []string {
+	t.Helper()
+
+	const chunkSize = 200
+	var nonCompliant []string
+	for start := 0; start < len(files); start += chunkSize {
+		end := start + chunkSize
+		if end > len(files) {
+			end = len(files)
+		}
+		args := append([]string{"-l"}, files[start:end]...)
+		cmd := exec.Command("gofmt", args...)
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("gofmt -l failed: %v", err)
+		}
+		cleaned := strings.TrimSpace(string(out))
+		if cleaned == "" {
+			continue
+		}
+		for _, line := range strings.Split(cleaned, "\n") {
+			trimmed := strings.TrimSpace(line)
+			if trimmed != "" {
+				nonCompliant = append(nonCompliant, trimmed)
+			}
+		}
+	}
+	return nonCompliant
 }
