@@ -573,7 +573,7 @@ func equalStringSlices(a, b []string) bool {
 }
 
 func cloneStringSlice(src []string) []string {
-	if len(src) == 0 {
+	if src == nil {
 		return nil
 	}
 	cp := make([]string, len(src))
