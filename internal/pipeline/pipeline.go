@@ -376,6 +376,7 @@ func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) 
 	result.FixesApplied = len(reviewResult.FixesApplied)
 	result.BeadsCreated = len(applyResult.CreatedBeadIDs)
 	result.BacklogCreated = applyResult.CreatedBacklogCount
+	result.LearningsSaved = applyResult.LearningsSaved
 	result.Apply = applyResult
 
 	return &result, nil

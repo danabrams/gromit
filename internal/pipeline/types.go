@@ -244,6 +244,7 @@ type ReviewResult struct {
 	FixesApplied   int    `json:"fixes_applied"`
 	BeadsCreated   int    `json:"beads_created"`
 	BacklogCreated int    `json:"backlog_created"`
+	LearningsSaved int    `json:"learnings_saved"`
 	Apply          *ReviewApplyResult `json:"apply,omitempty"`
 }
 
