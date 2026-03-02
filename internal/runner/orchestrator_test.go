@@ -3022,6 +3022,79 @@ func TestOrchestrator_SkipsAlreadyProcessedBead(t *testing.T) {
 	}
 }
 
+func TestOrchestrator_UsesGetBeadExcludingForProcessedIDs(t *testing.T) {
+	t.Parallel()
+
+	buildRunCount := 0
+	build := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		buildRunCount++
+		return pipeline.Output{Decision: pipeline.Proceed, Model: "claude-sonnet-4-6"}, nil
+	}}
+
+	beadA := &bead.Bead{ID: "bead-a", Title: "A"}
+	beadB := &bead.Bead{ID: "bead-b", Title: "B"}
+
+	getBeadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		getBeadCalls++
+		if getBeadCalls == 1 {
+			return beadA, nil
+		}
+		return nil, nil
+	}
+
+	getBeadExcludingCalls := 0
+	var excludesSeen []map[string]bool
+	getBeadExcluding := func(_ context.Context, excludeIDs map[string]bool) (*bead.Bead, error) {
+		getBeadExcludingCalls++
+		snapshot := make(map[string]bool, len(excludeIDs))
+		for id, excluded := range excludeIDs {
+			snapshot[id] = excluded
+		}
+		excludesSeen = append(excludesSeen, snapshot)
+
+		if excludeIDs["bead-a"] && !excludeIDs["bead-b"] {
+			return beadB, nil
+		}
+		return nil, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:             &fakeStage{},
+		Build:            build,
+		Validate:         &fakeStage{},
+		Epilogue:         &fakeStage{},
+		GetBead:          getBead,
+		GetBeadExcluding: getBeadExcluding,
+		Config:           &config.Config{},
+		Output:           io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 0, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if buildRunCount != 2 {
+		t.Fatalf("Build stage ran %d times, want 2", buildRunCount)
+	}
+	if getBeadCalls != 1 {
+		t.Fatalf("GetBead called %d times, want 1", getBeadCalls)
+	}
+	if getBeadExcludingCalls != 2 {
+		t.Fatalf("GetBeadExcluding called %d times, want 2", getBeadExcludingCalls)
+	}
+	if len(excludesSeen) < 2 {
+		t.Fatalf("expected at least 2 exclude snapshots, got %d", len(excludesSeen))
+	}
+	if !excludesSeen[0]["bead-a"] || excludesSeen[0]["bead-b"] {
+		t.Fatalf("first exclude snapshot = %v, want only bead-a excluded", excludesSeen[0])
+	}
+	if !excludesSeen[1]["bead-a"] || !excludesSeen[1]["bead-b"] {
+		t.Fatalf("second exclude snapshot = %v, want bead-a and bead-b excluded", excludesSeen[1])
+	}
+}
+
 func TestSkipTrackerCountsInterleavedSkips(t *testing.T) {
 	t.Parallel()
 

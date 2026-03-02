@@ -45,6 +45,9 @@ type OrchestratorConfig struct {
 
 	// GetBead returns the next bead to process, or nil when the queue is empty.
 	GetBead func(ctx context.Context) (*bead.Bead, error)
+	// GetBeadExcluding returns the next bead excluding IDs already processed in
+	// this run. Optional: nil falls back to GetBead.
+	GetBeadExcluding func(ctx context.Context, excludeIDs map[string]bool) (*bead.Bead, error)
 	// GetBeadByID resolves a bead by ID for explicit sequence execution.
 	GetBeadByID func(ctx context.Context, beadID string) (*bead.Bead, error)
 
@@ -365,8 +368,16 @@ runLoop:
 			}
 		}
 
-		// Get the next bead from the work queue.
-		b, err := o.cfg.GetBead(ctx)
+		// Get the next bead from the work queue. When available, use the
+		// excluding variant after the first processed bead to avoid repeatedly
+		// fetching a re-offered item while other ready work exists.
+		var b *bead.Bead
+		var err error
+		if o.cfg.GetBeadExcluding != nil && skipTracker.processedCount() > 0 {
+			b, err = o.cfg.GetBeadExcluding(ctx, skipTracker.processedIDs())
+		} else {
+			b, err = o.cfg.GetBead(ctx)
+		}
 		if err != nil {
 			return fmt.Errorf("orchestrator: getting next bead: %w", err)
 		}

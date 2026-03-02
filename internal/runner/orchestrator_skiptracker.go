@@ -32,6 +32,14 @@ func (s *skipTracker) processedCount() int {
 	return len(s.processed)
 }
 
+func (s *skipTracker) processedIDs() map[string]bool {
+	ids := make(map[string]bool, len(s.processed))
+	for id := range s.processed {
+		ids[id] = true
+	}
+	return ids
+}
+
 func (s *skipTracker) registerBead(id string) (skip bool, stop bool) {
 	if s.hasProcessed(id) {
 		return true, s.recordSkip(id)

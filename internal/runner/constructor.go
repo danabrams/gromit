@@ -244,16 +244,7 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 		}
 		return ""
 	}
-
-	getBeadFn := func(ctx context.Context) (*bead.Bead, error) {
-		if beadsClient == nil {
-			return nil, fmt.Errorf("bead client is not configured")
-		}
-		if len(labels) > 0 {
-			return beadsClient.ReadyWithLabel(ctx, labels[0])
-		}
-		return beadsClient.Ready(ctx)
-	}
+	getBeadFn, getBeadExcludingFn := buildBeadGetters(beadsClient, labels)
 
 	specProgressLabel := resolveSingleSpecProgressLabel(labels)
 	if statusWriter != nil {
@@ -265,12 +256,13 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 		return nil, err
 	}
 	orchCfg := OrchestratorConfig{
-		Gate:     gateStage,
-		Build:    buildPipelineStage,
-		Validate: validateStage,
-		Review:   reviewStage,
-		Epilogue: epilogueStage,
-		GetBead:  getBeadFn,
+		Gate:             gateStage,
+		Build:            buildPipelineStage,
+		Validate:         validateStage,
+		Review:           reviewStage,
+		Epilogue:         epilogueStage,
+		GetBead:          getBeadFn,
+		GetBeadExcluding: getBeadExcludingFn,
 		GetBeadByID: func(ctx context.Context, beadID string) (*bead.Bead, error) {
 			if beadsClient == nil {
 				return nil, fmt.Errorf("bead client is not configured")
