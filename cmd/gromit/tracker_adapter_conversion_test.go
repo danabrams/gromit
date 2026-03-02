@@ -61,8 +61,8 @@ func TestTrackerClientAdapter_ConvertsTrackerItemToBeadInfo(t *testing.T) {
 
 // mockTrackerClient implements tracker.Client for testing
 type mockTrackerClient struct {
-	readyItem  *tracker.Item
-	showItems  map[string]*tracker.Item
+	readyItem    *tracker.Item
+	showItems    map[string]*tracker.Item
 	createdItems []*tracker.Item
 }
 
@@ -152,7 +152,6 @@ func TestTrackerClientAdapter_LabelsRoundtrip(t *testing.T) {
 		}
 	}
 }
-
 
 func TestTrackerClientAdapter_CreateExpectedOutputsMetadata(t *testing.T) {
 	t.Parallel()
