@@ -62,53 +62,9 @@ func SortedForDisplay(queue *Queue) []*Entry {
 		return nil
 	}
 
-	var integratingEntries []*Entry
-	var readyEntries []*Entry
-	var blockedEntries []*Entry
-
-	blockedStateMap := map[State]struct{}{
-		StateConflict:      {},
-		StateFailedGates:   {},
-		StateLaneViolation: {},
-		StatePushFailure:   {},
-	}
-
+	entries := make([]*Entry, 0, len(queue.Entries))
 	for i := range queue.Entries {
-		entry := &queue.Entries[i]
-		switch entry.State {
-		case StateIntegrating:
-			integratingEntries = append(integratingEntries, entry)
-		case StateReady:
-			readyEntries = append(readyEntries, entry)
-		default:
-			if _, ok := blockedStateMap[entry.State]; ok {
-				blockedEntries = append(blockedEntries, entry)
-			}
-		}
+		entries = append(entries, &queue.Entries[i])
 	}
-
-	// Sort integrating by FifoSeq ascending
-	sort.SliceStable(integratingEntries, func(i, j int) bool {
-		return integratingEntries[i].FifoSeq < integratingEntries[j].FifoSeq
-	})
-
-	// Sort ready by FifoSeq ascending
-	sort.SliceStable(readyEntries, func(i, j int) bool {
-		return readyEntries[i].FifoSeq < readyEntries[j].FifoSeq
-	})
-
-	// Sort blocked by UpdatedAt descending, then FifoSeq descending
-	sort.SliceStable(blockedEntries, func(i, j int) bool {
-		if blockedEntries[i].UpdatedAt.Equal(blockedEntries[j].UpdatedAt) {
-			return blockedEntries[i].FifoSeq > blockedEntries[j].FifoSeq
-		}
-		return blockedEntries[i].UpdatedAt.After(blockedEntries[j].UpdatedAt)
-	})
-
-	// Combine in order
-	result := make([]*Entry, 0, len(integratingEntries)+len(readyEntries)+len(blockedEntries))
-	result = append(result, integratingEntries...)
-	result = append(result, readyEntries...)
-	result = append(result, blockedEntries...)
-	return result
+	return orderEntriesForDisplay(entries)
 }

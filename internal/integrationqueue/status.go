@@ -1,7 +1,5 @@
 package integrationqueue
 
-import "sort"
-
 // Status captures summary data for an integration queue snapshot.
 type Status struct {
 	QueueLength      int
@@ -20,13 +18,6 @@ type StatusEntry struct {
 
 const displayLimit = 10
 
-var blockedStates = map[State]struct{}{
-	StateConflict:      {},
-	StateFailedGates:   {},
-	StateLaneViolation: {},
-	StatePushFailure:   {},
-}
-
 // ProjectStatus computes summary counts and ordered entries from a snapshot.
 func ProjectStatus(snapshot *Snapshot) *Status {
 	if snapshot == nil {
@@ -37,57 +28,42 @@ func ProjectStatus(snapshot *Snapshot) *Status {
 		QueueLength: len(snapshot.Entries),
 	}
 
-	var integratingEntries []*Entry
-	var readyEntries []*Entry
-	var blockedEntries []*Entry
-
+	allEntries := make([]*Entry, 0, len(snapshot.Entries))
 	for i := range snapshot.Entries {
 		entry := &snapshot.Entries[i]
+		allEntries = append(allEntries, entry)
+
 		switch entry.State {
 		case StateReady:
-			readyEntries = append(readyEntries, entry)
 			status.ReadyCount++
 		case StateIntegrating:
-			integratingEntries = append(integratingEntries, entry)
 			status.IntegratingCount++
 		case StateMerged:
 			status.MergedCount++
 		default:
-			if _, ok := blockedStates[entry.State]; ok {
-				blockedEntries = append(blockedEntries, entry)
+			if _, ok := blockedDisplayStates[entry.State]; ok {
 				status.BlockedCount++
 			}
 		}
 	}
 
-	sort.SliceStable(integratingEntries, func(i, j int) bool {
-		return integratingEntries[i].FifoSeq < integratingEntries[j].FifoSeq
-	})
+	ordered := orderEntriesForDisplay(allEntries)
+	entries := make([]StatusEntry, 0, len(ordered))
+	readyPosition := 1
 
-	sort.SliceStable(readyEntries, func(i, j int) bool {
-		return readyEntries[i].FifoSeq < readyEntries[j].FifoSeq
-	})
-
-	sort.SliceStable(blockedEntries, func(i, j int) bool {
-		if blockedEntries[i].UpdatedAt.Equal(blockedEntries[j].UpdatedAt) {
-			return blockedEntries[i].FifoSeq > blockedEntries[j].FifoSeq
+	for _, entry := range ordered {
+		statusEntry := StatusEntry{Entry: entry}
+		if entry.State == StateReady {
+			statusEntry.ReadyPosition = readyPosition
+			readyPosition++
 		}
-		return blockedEntries[i].UpdatedAt.After(blockedEntries[j].UpdatedAt)
-	})
+		entries = append(entries, statusEntry)
+	}
 
-	entries := make([]StatusEntry, 0, len(integratingEntries)+len(readyEntries)+len(blockedEntries))
-	for _, entry := range integratingEntries {
-		entries = append(entries, StatusEntry{Entry: entry})
-	}
-	for idx, entry := range readyEntries {
-		entries = append(entries, StatusEntry{Entry: entry, ReadyPosition: idx + 1})
-	}
-	for _, entry := range blockedEntries {
-		entries = append(entries, StatusEntry{Entry: entry})
-	}
 	if len(entries) > displayLimit {
 		entries = entries[:displayLimit]
 	}
+
 	status.Entries = entries
 	return status
 }
