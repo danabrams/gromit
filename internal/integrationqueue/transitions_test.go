@@ -141,6 +141,25 @@ func TestNextAllowedStates_IntegratingReturnsManyStates(t *testing.T) {
 	}
 }
 
+func TestNextAllowedStates_ReflectsAllowedTransitionsMap(t *testing.T) {
+	const extraState = "extra_next_state"
+	allowedTransitions["ready"][extraState] = true
+	defer delete(allowedTransitions["ready"], extraState)
+
+	states := NextAllowedStates("ready")
+	found := false
+	for _, state := range states {
+		if state == extraState {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		t.Fatalf("expected %q in NextAllowedStates for ready, got %v", extraState, states)
+	}
+}
+
 func TestIsTerminalState_MergedIsTerminal(t *testing.T) {
 	if !IsTerminalState("merged") {
 		t.Errorf("expected merged to be terminal state, got false")
