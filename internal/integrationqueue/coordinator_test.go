@@ -729,11 +729,9 @@ func TestCoordinatorRecoverFromCrash_RecordsErrorMetadata(t *testing.T) {
 	if recordedCount != 1 {
 		t.Fatalf("expected metadata recorded once, got %d", recordedCount)
 	}
-	if recorded.Code != string(CrashRecoveryErrorCode) {
-		t.Fatalf("metadata.Code = %q, want %q", recorded.Code, string(CrashRecoveryErrorCode))
-	}
-	if recorded.Message != crashRecoveryMessage {
-		t.Fatalf("metadata.Message = %q, want %q", recorded.Message, crashRecoveryMessage)
+	want := crashRecoveryMetadata()
+	if recorded != want {
+		t.Fatalf("metadata = %+v, want %+v", recorded, want)
 	}
 }
 

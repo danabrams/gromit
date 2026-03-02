@@ -202,15 +202,12 @@ func (c *Coordinator) RecoverFromCrash(ctx context.Context) error {
 				clearError = false
 			}
 
-			var transitionErr error
-			if clearError {
-				transitionErr = c.applyTransition(entry, string(targetState), reason, TransitionErrorMetadata{
-					Code:    string(CrashRecoveryErrorCode),
-					Message: crashRecoveryMessage,
-				})
-			} else {
-				transitionErr = c.applyTransition(entry, string(targetState), reason)
-			}
+		var transitionErr error
+		if clearError {
+			transitionErr = c.applyTransition(entry, string(targetState), reason, crashRecoveryMetadata())
+		} else {
+			transitionErr = c.applyTransition(entry, string(targetState), reason)
+		}
 			if transitionErr != nil {
 				return fmt.Errorf("transitioning recovered entry %s: %w", entry.Branch, transitionErr)
 			}
@@ -239,6 +236,13 @@ const (
 	CrashRecoveryErrorCode ErrorCode = "crash_recovery"
 	crashRecoveryMessage            = "recovered from crash: entry was in integrating state"
 )
+
+func crashRecoveryMetadata() TransitionErrorMetadata {
+	return TransitionErrorMetadata{
+		Code:    string(CrashRecoveryErrorCode),
+		Message: crashRecoveryMessage,
+	}
+}
 
 func classifyFetchAndRebaseErrorCode(err error) string {
 	if err == nil {
