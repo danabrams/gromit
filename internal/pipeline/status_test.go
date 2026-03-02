@@ -419,6 +419,53 @@ func TestReadStatus_MissingIntegrationQueueFile(t *testing.T) {
 	}
 }
 
+func TestReadStatus_RealCoordinatorQueueSnapshot(t *testing.T) {
+	disableLiveBDForStatusTests(t)
+
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	specsDir := filepath.Join(gromitDir, "specs")
+	plansDir := filepath.Join(gromitDir, "plans")
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll specs: %v", err)
+	}
+	if err := os.MkdirAll(plansDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll plans: %v", err)
+	}
+
+	writeRealCoordinatorQueueFixture(t, gromitDir)
+
+	status, err := ReadStatus(gromitDir, specsDir, plansDir, nil)
+	if err != nil {
+		t.Fatalf("ReadStatus() error = %v", err)
+	}
+	if status.IntegrationQueueStatus == nil {
+		t.Fatalf("IntegrationQueueStatus = nil, want data from real queue snapshot")
+	}
+	queue := status.IntegrationQueueStatus
+	if queue.QueueLength != 12 {
+		t.Fatalf("QueueLength = %d, want %d", queue.QueueLength, 12)
+	}
+	if queue.ReadyCount != 0 {
+		t.Fatalf("ReadyCount = %d, want 0", queue.ReadyCount)
+	}
+	if queue.IntegratingCount != 0 {
+		t.Fatalf("IntegratingCount = %d, want 0", queue.IntegratingCount)
+	}
+	if queue.BlockedCount != 7 {
+		t.Fatalf("BlockedCount = %d, want %d", queue.BlockedCount, 7)
+	}
+	if queue.MergedCount != 0 {
+		t.Fatalf("MergedCount = %d, want 0", queue.MergedCount)
+	}
+	if len(queue.Entries) != 7 {
+		t.Fatalf("Entries len = %d, want %d", len(queue.Entries), 7)
+	}
+	if queue.Entries[0].Branch != "gromit/conflict-late" {
+		t.Fatalf("first entry branch = %q, want gromit/conflict-late", queue.Entries[0].Branch)
+	}
+}
+
 func TestReadStatus_MissingDirectories(t *testing.T) {
 	disableLiveBDForStatusTests(t)
 
@@ -968,5 +1015,20 @@ func TestReadStatus_WithInjectedDependencies(t *testing.T) {
 
 	if status.UnrefinedCount != 1 {
 		t.Errorf("UnrefinedCount = %d, want 1", status.UnrefinedCount)
+	}
+}
+
+func writeRealCoordinatorQueueFixture(t *testing.T, gromitDir string) {
+	t.Helper()
+	fixturePath := filepath.Join("testdata", "real-coordinator-integration-queue.json")
+	data, err := os.ReadFile(fixturePath)
+	if err != nil {
+		t.Fatalf("ReadFile %s: %v", fixturePath, err)
+	}
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll gromitDir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gromitDir, "integration-queue.json"), data, 0o644); err != nil {
+		t.Fatalf("WriteFile integration queue fixture: %v", err)
 	}
 }
