@@ -83,15 +83,40 @@ Shared orchestrator/runtime path ownership must include telemetry completeness e
 
 *Newly observed — needs validation across more tasks.*
 
+### 2026-03-02 | Context Propagation Pattern: Derive From Cobra, Thread Through Session Launcher | patterns
+*Related to: review-1772465040994006393*
+
+Context propagation was systematically threaded through session launcher, decompose, interactive worktree, and constructor_adapters_epilogue — replacing context.Background()/context.TODO() with cmd.Context() at CLI entry points. The pattern is: derive ctx from cobra command, pass through session launcher via launchInSessionIfEnabledWithContext, into worktree/pipeline calls.
+
+### 2026-03-02 | TDD Oscillation Detection Now Uses Order-Insensitive Multiset Comparison | patterns
+*Related to: review-1772465040994006393*
+
+equalStringSlices in internal/runner/tdd/orchestrator.go was upgraded from order-sensitive index comparison to order-insensitive multiset comparison using map[string]int counters — fixing false negatives when remaining criteria appear in different order across cycles. Wrapped in sameRemainingSet for intent clarity.
+
+### 2026-03-02 | Gofmt Enforcement Is Multi-Layered: Explicit Lists, Directory Walks, and Changed-File Gate | conventions
+*Related to: review-1772465040994006393*
+
+Gofmt enforcement is now multi-layered: per-package explicit file lists (config), per-directory walks (pipeline/prompt), and repo-wide changed-file gate (runner). The directory-walk approach is more durable than explicit lists but explicit lists give tighter scope control.
+
+### 2026-03-02 | specbranch.HasSpecLabel Gate Prevents Non-Spec Bead Checkout Attempts | patterns
+*Related to: review-1772465040994006393*
+
+specbranch.HasSpecLabel gate in orchestrator prevents non-spec beads from triggering spurious branch checkout attempts. Targeted fix that avoids changing the checkout logic itself — the guard runs before CreateOrCheckoutSpecBranch is called.
+
+### 2026-03-02 | StatusFinalizer Pattern Uses Named Return Plus Defer for Guaranteed Final Status | patterns
+*Related to: review-1772465040994006393*
+
+OrchestratorConfig.StatusFinalizer uses named return (runErr) + defer to guarantee final status write and RunCompleteEvent emission regardless of how Run exits, including early returns and panics. The defer captures both the iteration count and error state at exit time.
+
 ### 2026-03-02 | Integration Queue FSM Allows Direct Construction Outside ApplyTransition | architecture
 *Related to: review-1772456575499153066, gromit-qqsq*
 
 Integration queue entries can be constructed directly via store.Save() without going through ApplyTransition FSM transitions. enqueueBlockedBranch creates StateConflict entries directly (bypassing Draft→Conflict which is not a valid FSM edge). This is architecturally intentional: session auto-commit failures create entries that never went through coordinator integration. The two meanings of StateConflict are distinguished by LastErrorCode: "session_commit_failed" (session path) vs "merge_conflict"/"rebase_conflict" (coordinator path). RecoverFromCrash correctly ignores these entries since they are not crash artifacts.
 
 ### 2026-03-02 | TDD Cycle Instability Detection Depends on Stable Slice Ordering | bug-risk
-*Related to: review-1772456575499153066, gromit-p3d7*
+*Related to: review-1772456575499153066, gromit-p3d7, review-1772465040994006393*
 
-equalStringSlices in internal/runner/tdd/orchestrator.go is order-sensitive but the Remaining criteria slice has no documented ordering guarantee. Oscillation detection (snapshot comparison across cycles) may miss matches when the same criteria set appears in different element order. Deadlock detection (adjacent cycle comparison) has the same risk.
+RESOLVED: equalStringSlices was upgraded to order-insensitive multiset comparison using map[string]int counters in this review cycle. The original bug — order-sensitive comparison missing matches when Remaining criteria appeared in different element order — is fixed. See "TDD Oscillation Detection Now Uses Order-Insensitive Multiset Comparison" learning.
 
 ### 2026-03-02 | Process Management Consolidation in procutil Is Complete Across Provider Launch Sites | architecture
 *Related to: review-1772456575499153066*

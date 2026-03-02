@@ -62,8 +62,8 @@ func TestBuildPhaseBudgetValue(t *testing.T) {
 		if budget.phase != "build" {
 			continue
 		}
-		if budget.maxChars != 11200 {
-			t.Fatalf("build phase budget is %d; want 11200", budget.maxChars)
+		if budget.maxChars != 11800 {
+			t.Fatalf("build phase budget is %d; want 11800", budget.maxChars)
 		}
 	}
 }
