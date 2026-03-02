@@ -85,13 +85,13 @@ safe_pull() {
 }
 
 main() {
-  local repo_root lockdir
+  local repo_root
   repo_root="$(resolve_repo_root)"
   export BEADS_DIR="${BEADS_DIR:-$repo_root/.beads}"
-  lockdir="$BEADS_DIR/dolt-sync.lock"
+  SYNC_LOCKDIR="$BEADS_DIR/dolt-sync.lock"
 
-  acquire_lock "$lockdir"
-  trap 'rmdir "$lockdir" >/dev/null 2>&1 || true' EXIT
+  acquire_lock "$SYNC_LOCKDIR"
+  trap 'rmdir "${SYNC_LOCKDIR:-}" >/dev/null 2>&1 || true' EXIT
 
   log "repo_root=$repo_root"
   log "BEADS_DIR=$BEADS_DIR"
