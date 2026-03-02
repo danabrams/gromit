@@ -203,6 +203,22 @@ func TestBuildReviewBacklogEntry_AssemblesDescriptionAndLabels(t *testing.T) {
 	}
 }
 
+func TestApplyBacklogItems_ErrorPropagates(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	count, err := applyBacklogItems(ctx, []review.BacklogItem{{Title: "Refactor cache"}}, newFailingBacklogWriter(fmt.Errorf("boom")))
+	if err == nil {
+		t.Fatalf("expected error from applyBacklogItems, got nil")
+	}
+	if count != 0 {
+		t.Fatalf("expected count 0 on failure, got %d", count)
+	}
+	if !strings.Contains(err.Error(), "creating backlog item \"Refactor cache\"") {
+		t.Fatalf("unexpected error message: %v", err)
+	}
+}
+
 func mixedReviewResult() *review.ReviewResult {
     return &review.ReviewResult{
         Passed: true,
@@ -263,7 +279,7 @@ func compareTrackerCalls(t *testing.T, want, got []trackerCall) {
 }
 
 type capturingBacklogWriter struct {
-    entries []*BacklogEntry
+	entries []*BacklogEntry
 }
 
 func newCapturingBacklogWriter() *capturingBacklogWriter {
@@ -281,15 +297,29 @@ func (c *capturingBacklogWriter) Add(ctx context.Context, entry *BacklogEntry) e
 func (c *capturingBacklogWriter) Update(id string, fn func(*Idea)) error { return nil }
 
 func compareBacklogEntries(t *testing.T, want, got []*BacklogEntry) {
-    if len(want) != len(got) {
-        t.Fatalf("backlog entry count mismatch: want %d, got %d", len(want), len(got))
-    }
-    for i := range want {
-        if !reflect.DeepEqual(want[i], got[i]) {
-            t.Fatalf("backlog entry %d differs: want %+v, got %+v", i, want[i], got[i])
-        }
-    }
+	if len(want) != len(got) {
+		t.Fatalf("backlog entry count mismatch: want %d, got %d", len(want), len(got))
+	}
+	for i := range want {
+		if !reflect.DeepEqual(want[i], got[i]) {
+			t.Fatalf("backlog entry %d differs: want %+v, got %+v", i, want[i], got[i])
+		}
+	}
 }
+
+type failingBacklogWriter struct {
+	err error
+}
+
+func newFailingBacklogWriter(err error) *failingBacklogWriter {
+	return &failingBacklogWriter{err: err}
+}
+
+func (c *failingBacklogWriter) Add(ctx context.Context, entry *BacklogEntry) error {
+	return c.err
+}
+
+func (c *failingBacklogWriter) Update(id string, fn func(*Idea)) error { return nil }
 
 type failingTrackerClient struct {
     err error
