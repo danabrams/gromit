@@ -115,6 +115,45 @@ func TestPrintStatus_IncludesIntegrationQueueSummary(t *testing.T) {
 	}
 }
 
+func TestPrintStatus_RealCoordinatorQueueSnapshot(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	specsDir := filepath.Join(tmpDir, "specs")
+	plansDir := filepath.Join(tmpDir, "plans")
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll specs: %v", err)
+	}
+	if err := os.MkdirAll(plansDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll plans: %v", err)
+	}
+
+	writeRealCoordinatorQueueFixture(t, gromitDir)
+
+	cfg := &config.Config{}
+	cfg.Paths.Specs = specsDir
+	cfg.Paths.Plans = plansDir
+
+	var buf strings.Builder
+	if err := PrintStatus(gromitDir, cfg, &buf, nil, false); err != nil {
+		t.Fatalf("PrintStatus: %v", err)
+	}
+	output := buf.String()
+	if !strings.Contains(output, "Integration Queue:") {
+		t.Fatalf("missing Integration Queue section: %s", output)
+	}
+	if !strings.Contains(output, "Queue length: 12") {
+		t.Fatalf("unexpected queue length: %s", output)
+	}
+	if !strings.Contains(output, "Blocked: 7") {
+		t.Fatalf("missing blocked count: %s", output)
+	}
+	if !strings.Contains(output, "gromit/conflict-late") {
+		t.Fatalf("missing branch entry: %s", output)
+	}
+}
+
 func TestPrintStatus_BlockerEntriesIncludeRecoveryInstructions(t *testing.T) {
 	t.Parallel()
 
