@@ -304,6 +304,26 @@ The specmerge pipeline uses fmt.Errorf("%s", alert) at pipeline.go:124 where err
 ### 2026-03-01 | gromit-peq | conventions
 The internal/runner package enforces file size limits via TestConstructorFileSizeLimit in file_size_test.go. When size limits are exceeded, the test provides explicit guidance on which types should be extracted and into which files. This is a codebase convention for managing large files.
 
+### 2026-03-02 | Integration Queue File Locking Now Implemented via syscall.Flock | reliability
+*Related to: review-1772423180715253804*
+
+withQueueFileLock in internal/integrationqueue/store.go uses advisory flock-based locking around all load/modify/write cycles. The earlier concern about missing file locking is resolved. Lock coverage includes Save, Snapshot, LoadQueue, SaveQueue, and RecoverFromMalformedQueue.
+
+### 2026-03-02 | constructor_adapters.go Successfully Extracted to 51 Lines | architecture
+*Related to: review-1772423180715253804*
+
+constructor_adapters.go was extracted from 1147 lines to 51 lines by splitting into constructor_adapters_build_review.go, constructor_adapters_epilogue.go, and constructor_adapters_integrationqueue.go. Well within the 550-line production file limit.
+
+### 2026-03-02 | SPC Auto-Triage Batch Processing Uses errors.Join for Resilient Error Accumulation | patterns
+*Related to: review-1772423180715253804*
+
+internal/runner/spc_auto_triage.go Process() correctly accumulates errors via errors.Join rather than aborting on first tracker failure. Each record failure is appended to an error slice and processing continues.
+
+### 2026-03-02 | Integration Queue Has 8 States Including push_failure | architecture
+*Related to: review-1772423180715253804*
+
+The integration queue transition table includes push_failure as an additional state beyond the original 7 (draft/ready/integrating/merged/conflict/failed_gates/lane_violation), with push_failure→ready as valid recovery transition.
+
 ---
 
 ## Archived
