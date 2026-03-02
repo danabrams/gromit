@@ -23,6 +23,7 @@ import (
 	"github.com/danabrams/gromit/internal/scope"
 	"github.com/danabrams/gromit/internal/state"
 	"github.com/danabrams/gromit/internal/worktree"
+	"github.com/spf13/cobra"
 )
 
 type gitCommandCapture struct {
@@ -345,6 +346,90 @@ func TestRunReviewInteractive_ConflictHandoffPropagates(t *testing.T) {
 	if recordCalled {
 		t.Fatal("review completion should not be recorded when merge handoff occurs")
 	}
+}
+
+func TestRunReview_CommandContextPassedToSessionLauncher(t *testing.T) {
+	baseDir := t.TempDir()
+	origCreatePipelineFn := createReviewPipelineFn
+	origLauncher := reviewInteractiveSessionLauncherFn
+	origRunner := reviewInteractiveRunnerFn
+	origRecord := recordInteractiveReviewCompletionFn
+	origApply := applyInteractiveReviewFindingsFn
+	origGitOutputFn := reviewGitOutputFn
+	origNonInteractive := reviewNonInteractive
+	origDryRun := reviewDryRun
+	t.Cleanup(func() {
+		createReviewPipelineFn = origCreatePipelineFn
+		reviewInteractiveSessionLauncherFn = origLauncher
+		reviewInteractiveRunnerFn = origRunner
+		recordInteractiveReviewCompletionFn = origRecord
+		applyInteractiveReviewFindingsFn = origApply
+		reviewGitOutputFn = origGitOutputFn
+		reviewNonInteractive = origNonInteractive
+		reviewDryRun = origDryRun
+	})
+
+	if err := os.Chdir(baseDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "gromit.yaml"), []byte("version: 1\n"), 0o644); err != nil {
+		t.Fatalf("write gromit.yaml: %v", err)
+	}
+
+	ctx := context.WithValue(context.Background(), "test-key", "test-value")
+	cmd := &cobra.Command{}
+	cmd.SetContext(ctx)
+
+	reviewNonInteractive = false
+	reviewDryRun = false
+
+	createReviewPipelineFn = func(cfg *config.Config, gromitDir string) (ReviewScopeResolver, error) {
+		return testReviewScopeResolver{}, nil
+	}
+	reviewGitOutputFn = func(_ *exec.Cmd) ([]byte, error) {
+		return []byte("diff"), nil
+	}
+
+	var capturedCtx context.Context
+	reviewInteractiveSessionLauncherFn = func(
+		ctx context.Context,
+		gromitDir string,
+		command string,
+		conflictSettings sessionConflictSettings,
+		callback func(sessionDir string) error,
+	) (*worktree.SessionWorktree, error) {
+		capturedCtx = ctx
+		if err := callback("session"); err != nil {
+			return nil, err
+		}
+		return &worktree.SessionWorktree{BranchName: "gromit/review-test", WorktreeDir: "session"}, nil
+	}
+	reviewInteractiveRunnerFn = func(cfg *config.Config, fromCommit, diff, launchDir string) error {
+		return nil
+	}
+	recordInteractiveReviewCompletionFn = func(gromitDir, fromCommit string) error {
+		return nil
+	}
+	applyInteractiveReviewFindingsFn = func(cfg *config.Config, dir string) error {
+		return nil
+	}
+
+	if err := runReview(cmd, []string{}); err != nil {
+		t.Fatalf("runReview() error = %v", err)
+	}
+
+	if capturedCtx == nil {
+		t.Fatal("expected session launcher to receive context")
+	}
+	if capturedCtx.Value("test-key") != "test-value" {
+		t.Fatalf("captured context missing marker value: %v", capturedCtx.Value("test-key"))
+	}
+}
+
+type testReviewScopeResolver struct{}
+
+func (testReviewScopeResolver) ResolveReviewScope(ctx context.Context, spec string, epic string, since string) (string, error) {
+	return "abc123", nil
 }
 
 func TestApplyInteractiveReviewFindings_MissingFileWarns(t *testing.T) {
