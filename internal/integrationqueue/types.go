@@ -41,6 +41,10 @@ const (
 	StatePushFailure   State = "push_failure"
 )
 
+// InitialEntryState marks the state assigned when an entry is constructed outside the FSM scope.
+// The transition table only governs the state machine after this initial construction.
+const InitialEntryState = StateDraft
+
 var validStates = map[State]struct{}{
 	StateDraft:         {},
 	StateReady:         {},
