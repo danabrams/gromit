@@ -200,6 +200,12 @@ func TestReviewSourceFilesGofmt(t *testing.T) {
 	}
 }
 
+func TestReviewTestFilesGofmt(t *testing.T) {
+	if nonCompliant := reviewGofmtNonCompliantFiles(t, reviewTestFiles()); len(nonCompliant) > 0 {
+		t.Fatalf("gofmt -l reported non-compliant test files:\n%s", strings.Join(nonCompliant, "\n"))
+	}
+}
+
 func reviewGofmtNonCompliantFiles(t *testing.T, files []string) []string {
 	t.Helper()
 
