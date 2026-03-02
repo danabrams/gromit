@@ -430,6 +430,35 @@ func TestDecomposeSinglePlan_ReviewUsesSessionWorktreeDir(t *testing.T) {
 	}
 }
 
+func TestDecomposeSinglePlan_PassesCommandContextToDirFn(t *testing.T) {
+	t.Parallel()
+
+	customCtx := context.WithValue(context.Background(), "marker", "value")
+	cfg := &config.Config{}
+
+	origFn := decomposeSinglePlanInDirFn
+	t.Cleanup(func() {
+		decomposeSinglePlanInDirFn = origFn
+	})
+
+	var capturedCtx context.Context
+	decomposeSinglePlanInDirFn = func(ctx context.Context, planName string, cfg *config.Config) error {
+		capturedCtx = ctx
+		return nil
+	}
+
+	if err := decomposeSinglePlan(customCtx, "plan-a", cfg); err != nil {
+		t.Fatalf("decomposeSinglePlan() error = %v", err)
+	}
+
+	if capturedCtx == nil {
+		t.Fatal("expected context to reach dir function")
+	}
+	if capturedCtx.Value("marker") != "value" {
+		t.Fatalf("unexpected context value: %v", capturedCtx.Value("marker"))
+	}
+}
+
 func TestDecomposeSinglePlan_ReviewConflictHandoffPropagates(t *testing.T) {
 
 	origReview := decomposeReview
