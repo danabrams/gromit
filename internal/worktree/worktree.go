@@ -20,6 +20,8 @@ const (
 	worktreeProcessCapacity = 1500 * time.Millisecond
 )
 
+var killDescendantsOnCancelFn = procutil.KillDescendantsOnCancel
+
 var sessionTimestampFn = func() int64 {
 	return time.Now().UnixNano()
 }
@@ -407,6 +409,7 @@ func (m *Manager) runGit(ctx context.Context, dir string, args ...string) (strin
 	if err := cmd.Start(); err != nil {
 		return "", err
 	}
+	killDescendantsOnCancelFn(ctx, cmd)
 	defer procutil.ReapProcessTree(cmd)
 	if err := cmd.Wait(); err != nil {
 		out := strings.TrimSpace(stdout.String() + "\n" + stderr.String())
