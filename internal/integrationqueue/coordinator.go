@@ -60,12 +60,18 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 	if err := c.gitops.FetchAndRebase(ctx, *entry); err != nil {
 		entry.LastErrorCode = "rebase_conflict"
 		entry.LastErrorMessage = err.Error()
-		if transErr := ApplyTransition(entry, string(StateConflict), "rebase conflict during initial fetch"); transErr == nil {
-			if saveErr := c.store.Save(*entry); saveErr != nil {
-				return fmt.Errorf("fetch/rebase branch: %w", errors.Join(err, saveErr))
-			}
+		combinedErr := err
+
+		if transErr := ApplyTransition(entry, string(StateConflict), "rebase conflict during initial fetch"); transErr != nil {
+			combinedErr = errors.Join(combinedErr, transErr)
+			return fmt.Errorf("fetch/rebase branch: %w", combinedErr)
 		}
-		return fmt.Errorf("fetch/rebase branch: %w", err)
+
+		if saveErr := c.store.Save(*entry); saveErr != nil {
+			combinedErr = errors.Join(combinedErr, saveErr)
+		}
+
+		return fmt.Errorf("fetch/rebase branch: %w", combinedErr)
 	}
 
 	if err := c.gate.Run(ctx, *entry); err != nil {
@@ -73,12 +79,18 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 		if err := c.gitops.FetchAndRebase(ctx, *entry); err != nil {
 			entry.LastErrorCode = "rebase_conflict"
 			entry.LastErrorMessage = err.Error()
-			if transErr := ApplyTransition(entry, string(StateConflict), "rebase conflict during retry fetch"); transErr == nil {
-				if saveErr := c.store.Save(*entry); saveErr != nil {
-					return fmt.Errorf("fetch/rebase branch: %w", errors.Join(err, saveErr))
-				}
+			combinedErr := err
+
+			if transErr := ApplyTransition(entry, string(StateConflict), "rebase conflict during retry fetch"); transErr != nil {
+				combinedErr = errors.Join(combinedErr, transErr)
+				return fmt.Errorf("fetch/rebase branch: %w", combinedErr)
 			}
-			return fmt.Errorf("fetch/rebase branch: %w", err)
+
+			if saveErr := c.store.Save(*entry); saveErr != nil {
+				combinedErr = errors.Join(combinedErr, saveErr)
+			}
+
+			return fmt.Errorf("fetch/rebase branch: %w", combinedErr)
 		}
 		if err := c.gate.Run(ctx, *entry); err != nil {
 			entry.RetryCount++
