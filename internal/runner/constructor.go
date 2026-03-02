@@ -155,7 +155,7 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 	gateStage.WithDecomposer(decomposer)
 	gateStage.WithReadinessAssessor(NewDeterministicReadinessAssessor())
 	// Stage 2: Build (execute.New with Invoker and PromptRenderer)
-	buildExecInvoker := execution.NewInvoker(&executionRouterAdapter{router: router}, syncOut, streamLogger)
+	buildExecInvoker := newBuildExecutionInvoker(cfg, router, syncOut, streamLogger)
 	buildStage := execute.New(
 		&invokerAdapter{
 			execInvoker:      buildExecInvoker,
@@ -316,6 +316,15 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 	}
 
 	return NewOrchestrator(orchCfg), nil
+}
+
+func newBuildExecutionInvoker(cfg *config.Config, router *provider.Router, output io.Writer, streamLogger *logger.StreamLogger) *execution.Invoker {
+	invoker := execution.NewInvoker(&executionRouterAdapter{router: router}, output, streamLogger)
+	preserve := false
+	if cfg != nil {
+		preserve = cfg.Stream.PreserveProviderOutputEnabled()
+	}
+	return invoker.WithPreserveProviderTerminalStream(preserve)
 }
 
 func resolveBuildCacheVersionKey(cfg *config.Config, gromitDir string) string {

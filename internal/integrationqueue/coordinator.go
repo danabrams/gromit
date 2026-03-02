@@ -202,12 +202,12 @@ func (c *Coordinator) RecoverFromCrash(ctx context.Context) error {
 				clearError = false
 			}
 
-		var transitionErr error
-		if clearError {
-			transitionErr = c.applyTransition(entry, string(targetState), reason, crashRecoveryMetadata())
-		} else {
-			transitionErr = c.applyTransition(entry, string(targetState), reason)
-		}
+			var transitionErr error
+			if clearError {
+				transitionErr = c.applyTransition(entry, string(targetState), reason, crashRecoveryMetadata())
+			} else {
+				transitionErr = c.applyTransition(entry, string(targetState), reason)
+			}
 			if transitionErr != nil {
 				return fmt.Errorf("transitioning recovered entry %s: %w", entry.Branch, transitionErr)
 			}
@@ -234,7 +234,7 @@ const (
 	// CrashRecoveryErrorCode identifies crash recovery metadata persisted when an
 	// integrating entry is reset to ready during startup recovery.
 	CrashRecoveryErrorCode ErrorCode = "crash_recovery"
-	crashRecoveryMessage            = "recovered from crash: entry was in integrating state"
+	crashRecoveryMessage             = "recovered from crash: entry was in integrating state"
 )
 
 func crashRecoveryMetadata() TransitionErrorMetadata {
