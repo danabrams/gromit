@@ -230,7 +230,7 @@ func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 		if beadClient == nil {
 			return fmt.Errorf("decomposerAdapter: unable to access bead client")
 		}
-		if _, err := beadClient.CreateWithParent(context.Background(), sb.Title, b.Priority, childLabels, sb.ExpectedOutputs, b.ID); err != nil {
+		if _, err := beadClient.CreateWithParent(ctx, sb.Title, b.Priority, childLabels, sb.ExpectedOutputs, b.ID); err != nil {
 			// If we've already created some children and now one fails, this is a partial state
 			if successfullyCreatedCount > 0 {
 				return fmt.Errorf("decomposerAdapter: partial decomposition state: %w", escalation.ErrPartialDecompositionState)
@@ -245,7 +245,7 @@ func (a *decomposerAdapter) Decompose(ctx context.Context, b *bead.Bead) error {
 	if beadClient == nil {
 		return fmt.Errorf("decomposerAdapter: unable to access bead client for closing")
 	}
-	if err := beadClient.Close(context.Background(), b.ID); err != nil {
+	if err := beadClient.Close(ctx, b.ID); err != nil {
 		return fmt.Errorf("decomposerAdapter: closing parent bead: %w", err)
 	}
 	return nil
