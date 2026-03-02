@@ -1134,6 +1134,48 @@ func TestClientCloseValidation(t *testing.T) {
 	}
 }
 
+func TestClientCloseDetectsCannotCloseCaseInsensitive(t *testing.T) {
+	t.Parallel()
+	c := &Client{
+		RunFn: func(args ...string) (string, error) {
+			if len(args) >= 2 && args[0] == "close" && args[1] == "test-id" {
+				return "Cannot close bead because dependencies are open", nil
+			}
+			t.Fatalf("unexpected command args: %v", args)
+			return "", nil
+		},
+	}
+
+	err := c.Close(context.Background(), "test-id")
+	if err == nil {
+		t.Fatal("Close() expected error for cannot-close output")
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "cannot close") {
+		t.Fatalf("Close() error = %v, want cannot close message", err)
+	}
+}
+
+func TestClientCloseDetectsCannotCloseFromStderr(t *testing.T) {
+	t.Parallel()
+	tmpDir := t.TempDir()
+	binPath := tmpDir + "/fake-bd.sh"
+	script := "#!/bin/sh\n" +
+		"echo 'cannot close bead due to open dependencies' 1>&2\n" +
+		"exit 0\n"
+	if err := os.WriteFile(binPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake bd script: %v", err)
+	}
+
+	c := &Client{binary: binPath}
+	err := c.Close(context.Background(), "test-id")
+	if err == nil {
+		t.Fatal("Close() expected error for stderr cannot-close output")
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "cannot close") {
+		t.Fatalf("Close() error = %v, want cannot close message", err)
+	}
+}
+
 // TestClientAddCommentValidation tests that AddComment() validates bead IDs
 func TestClientAddCommentValidation(t *testing.T) {
 	t.Parallel()

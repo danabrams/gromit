@@ -282,14 +282,14 @@ func (c *Client) Close(ctx context.Context, id string) error {
 		return fmt.Errorf("invalid bead ID %q", id)
 	}
 
-	out, err := c.run(ctx, "close", id)
+	out, err := c.runClose(ctx, id)
 	if err != nil {
 		return fmt.Errorf("bd close %s: %w", id, err)
 	}
 	// bd close exits 0 even when it cannot close (e.g. blocked by open
 	// dependencies). Detect this from the output so callers don't assume
 	// the bead was actually closed.
-	if strings.Contains(out, "cannot close") {
+	if strings.Contains(strings.ToLower(out), "cannot close") {
 		return fmt.Errorf("bd close %s: %s", id, strings.TrimSpace(out))
 	}
 	return nil
@@ -472,6 +472,58 @@ func (c *Client) runWithEnv(ctx context.Context, args []string, extraEnv []strin
 			return "", fmt.Errorf("%w: %s", err, string(exitErr.Stderr))
 		}
 		return "", err
+	}
+	return string(out), nil
+}
+
+func (c *Client) runClose(ctx context.Context, id string) (string, error) {
+	if c.RunFn != nil {
+		return c.RunFn("close", id)
+	}
+	args := []string{"close", id}
+	out, err := c.runWithEnvCombinedOutput(ctx, args, nil)
+	if err == nil {
+		return out, nil
+	}
+	if shouldRetryWithNoDB(err) && !beadsNoDBAlreadyEnabled() {
+		retryOut, retryErr := c.runWithEnvCombinedOutput(ctx, args, []string{"BEADS_NO_DB=true"})
+		if retryErr == nil {
+			return retryOut, nil
+		}
+		return "", fmt.Errorf("%w (retry with BEADS_NO_DB=true failed: %v)", err, retryErr)
+	}
+	if shouldRetryWithIssuePrefixBootstrap(err) {
+		prefix, prefixErr := c.deriveIssuePrefix()
+		if prefixErr != nil {
+			return "", fmt.Errorf("%w (derive issue_prefix: %v)", err, prefixErr)
+		}
+		if _, setErr := c.runWithEnv(ctx, []string{"config", "set", "issue_prefix", prefix}, nil); setErr != nil {
+			return "", fmt.Errorf("%w (auto-set issue_prefix=%q failed: %v)", err, prefix, setErr)
+		}
+		retryOut, retryErr := c.runWithEnvCombinedOutput(ctx, args, nil)
+		if retryErr == nil {
+			return retryOut, nil
+		}
+		return "", fmt.Errorf("%w (auto-set issue_prefix=%q succeeded, retry failed: %v)", err, prefix, retryErr)
+	}
+	return "", err
+}
+
+func (c *Client) runWithEnvCombinedOutput(ctx context.Context, args []string, extraEnv []string) (string, error) {
+	cmdCtx, cancel := context.WithTimeout(ctx, c.commandTimeout())
+	defer cancel()
+
+	cmd := exec.CommandContext(cmdCtx, c.binary, args...)
+	procutil.SetProcessGroupKill(cmd)
+	if c.Dir != "" {
+		cmd.Dir = c.Dir
+	}
+	if len(extraEnv) > 0 {
+		cmd.Env = append(os.Environ(), extraEnv...)
+	}
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("%w: %s", err, string(out))
 	}
 	return string(out), nil
 }
