@@ -20,6 +20,18 @@ func launchInSessionIfEnabled(
 	callback func(sessionDir string) error,
 	fallback func() error,
 ) error {
+	return launchInSessionIfEnabledWithContext(context.Background(), cfg, gromitDir, command, launcher, callback, fallback)
+}
+
+func launchInSessionIfEnabledWithContext(
+	ctx context.Context,
+	cfg *config.Config,
+	gromitDir string,
+	command string,
+	launcher sessionLauncherFn,
+	callback func(sessionDir string) error,
+	fallback func() error,
+) error {
 	if cfg != nil && !cfg.Worktree.IsEnabled() {
 		if fallback == nil {
 			return fmt.Errorf("worktree disabled but fallback is nil")
@@ -35,6 +47,9 @@ func launchInSessionIfEnabled(
 	}
 
 	conflictSettings := sessionConflictSettingsFromConfig(cfg)
-	_, err := launcher(context.Background(), gromitDir, command, conflictSettings, callback)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	_, err := launcher(ctx, gromitDir, command, conflictSettings, callback)
 	return err
 }

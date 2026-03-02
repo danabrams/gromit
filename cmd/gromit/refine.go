@@ -109,7 +109,7 @@ func runRefineInSession(
 		return err
 	}
 
-	if err := launchInSessionIfEnabled(cfg, gromitDir, refineSessionCommand, refineSessionLauncherFn, func(sessionDir string) error {
+	if err := launchInSessionIfEnabledWithContext(ctx, cfg, gromitDir, refineSessionCommand, refineSessionLauncherFn, func(sessionDir string) error {
 		return refineRunInDirFn(sessionDir, func() error {
 			var runErr error
 			result, runErr = p.Refine(ctx, input)
