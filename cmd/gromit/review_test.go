@@ -750,6 +750,27 @@ func TestPrintReviewSummaryCounts_IncludesBacklogCount(t *testing.T) {
 	}
 }
 
+func TestPrintReviewSummaryCounts_IncludesBeadIDs(t *testing.T) {
+	t.Parallel()
+	var buf strings.Builder
+	result := &pipeline.ReviewResult{
+		FixesApplied:   1,
+		BeadsCreated:   2,
+		BacklogCreated: 1,
+		Apply: &pipeline.ReviewApplyResult{
+			CreatedBeadIDs: []string{"bead-55", "bead-99"},
+		},
+	}
+	printReviewSummaryCounts(&buf, result)
+	got := buf.String()
+	if !strings.Contains(got, "Created 2 beads from review findings") {
+		t.Fatalf("missing bead count, got %q", got)
+	}
+	if !strings.Contains(got, "bead-55") || !strings.Contains(got, "bead-99") {
+		t.Fatalf("missing bead IDs, got %q", got)
+	}
+}
+
 func TestCliBacklogClient_ImplementsBacklogWriter(t *testing.T) {
 	t.Parallel()
 	var _ pipeline.BacklogWriter = (*cliBacklogClient)(nil)
