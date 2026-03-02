@@ -400,6 +400,91 @@ func TestDecomposerAdapter_ClosesParentBeadAfterLLMDecomposition(t *testing.T) {
 	}
 }
 
+// TestDecomposerAdapter_CreateSubBeads_PropagatesContext ensures the context passed
+// to CreateSubBeads is forwarded to CreateWithParent and Close.
+func TestDecomposerAdapter_CreateSubBeads_PropagatesContext(t *testing.T) {
+	t.Parallel()
+
+	const ctxKey = testContextKey("create-sub-beads")
+	ctx := context.WithValue(context.Background(), ctxKey, "ctx-value")
+
+	client := &contextCapturingBeadClient{}
+	adapter := &decomposerAdapter{beads: client}
+	tasks := []runtypes.SubTask{
+		{Title: "child-1", AcceptanceCriteria: []string{"file1"}},
+	}
+	parentBead := &bead.Bead{ID: "parent", Priority: 1}
+
+	if err := adapter.CreateSubBeads(ctx, parentBead, tasks); err != nil {
+		t.Fatalf("CreateSubBeads returned error: %v", err)
+	}
+
+	if client.lastCreateCtx == nil {
+		t.Fatal("CreateWithParent was not called")
+	}
+	if got := client.lastCreateCtx.Value(ctxKey); got != "ctx-value" {
+		t.Fatalf("context value in CreateWithParent = %v, want %q", got, "ctx-value")
+	}
+	if got := client.lastCloseCtx.Value(ctxKey); got != "ctx-value" {
+		t.Fatalf("context value in Close = %v, want %q", got, "ctx-value")
+	}
+}
+
+type testContextKey string
+
+type contextCapturingBeadClient struct {
+	lastCreateCtx context.Context
+	lastCloseCtx  context.Context
+	createdCount  int
+}
+
+func (c *contextCapturingBeadClient) Ready(ctx context.Context) (*bead.Bead, error) {
+	return nil, nil
+}
+func (c *contextCapturingBeadClient) ReadyExcluding(ctx context.Context, excludeIDs map[string]bool) (*bead.Bead, error) {
+	return nil, nil
+}
+func (c *contextCapturingBeadClient) ReadyWithLabel(ctx context.Context, label string) (*bead.Bead, error) {
+	return nil, nil
+}
+func (c *contextCapturingBeadClient) ListWithLabel(ctx context.Context, label string) ([]*bead.Bead, error) {
+	return nil, nil
+}
+func (c *contextCapturingBeadClient) Show(ctx context.Context, id string) (*bead.Bead, error) {
+	return &bead.Bead{ID: id}, nil
+}
+func (c *contextCapturingBeadClient) Close(ctx context.Context, id string) error {
+	c.lastCloseCtx = ctx
+	return nil
+}
+func (c *contextCapturingBeadClient) Sync(ctx context.Context) error {
+	return nil
+}
+func (c *contextCapturingBeadClient) AddComment(ctx context.Context, id, comment string) error {
+	return nil
+}
+func (c *contextCapturingBeadClient) GetParent(ctx context.Context, b *bead.Bead) (*bead.Bead, error) {
+	return nil, nil
+}
+func (c *contextCapturingBeadClient) Create(ctx context.Context, title string, priority int, labels []string, expectedOutputs []string) (*bead.Bead, error) {
+	return nil, nil
+}
+func (c *contextCapturingBeadClient) CreateWithParent(ctx context.Context, title string, priority int, labels []string, expectedOutputs []string, parentID string) (*bead.Bead, error) {
+	c.lastCreateCtx = ctx
+	c.createdCount++
+	return &bead.Bead{
+		ID:     fmt.Sprintf("child-%d", c.createdCount),
+		Title:  title,
+		Parent: parentID,
+	}, nil
+}
+func (c *contextCapturingBeadClient) CreateWithParentAndDescription(ctx context.Context, title string, priority int, labels []string, expectedOutputs []string, parentID string, description string) (*bead.Bead, error) {
+	return nil, nil
+}
+func (c *contextCapturingBeadClient) HasOpenChildren(ctx context.Context, parentID string) (bool, error) {
+	return false, nil
+}
+
 func TestResolveBuildCacheVersionKey_StableForSameInputs(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
