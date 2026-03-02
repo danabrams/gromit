@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 )
@@ -35,14 +34,6 @@ func writeExecutableScript(t *testing.T, script string) string {
 	}
 
 	return binaryPath
-}
-
-var procutilLifecycleTestMu sync.Mutex
-
-func lockProcutilLifecycleTest(t *testing.T) {
-	t.Helper()
-	procutilLifecycleTestMu.Lock()
-	t.Cleanup(procutilLifecycleTestMu.Unlock)
 }
 
 func TestClientRun_UsesRunFnWhenSet(t *testing.T) {
@@ -272,8 +263,6 @@ func TestClientRun_CustomCommandTimeout(t *testing.T) {
 }
 
 func TestClientRunWithEnv_UsesProcutilLifecycle(t *testing.T) {
-	lockProcutilLifecycleTest(t)
-	t.Parallel()
 	script := "#!/bin/sh\n" +
 		"printf 'FOO=%s\\n' \"$FOO\"\n" +
 		"printf 'BAZ=%s\\n' \"$BAZ\"\n" +
@@ -352,8 +341,6 @@ func TestClientRunWithEnv_UsesProcutilLifecycle(t *testing.T) {
 }
 
 func TestClientRunWithEnvCombinedOutput_UsesProcutilLifecycle(t *testing.T) {
-	lockProcutilLifecycleTest(t)
-	t.Parallel()
 	script := "#!/bin/sh\n" +
 		"printf 'FOO=%s\\n' \"$FOO\"\n" +
 		"printf 'BAZ=%s\\n' \"$BAZ\"\n" +
@@ -432,8 +419,6 @@ func TestClientRunWithEnvCombinedOutput_UsesProcutilLifecycle(t *testing.T) {
 }
 
 func TestClientRepoBaseName_UsesProcutilLifecycle(t *testing.T) {
-	lockProcutilLifecycleTest(t)
-	t.Parallel()
 	repoDir := t.TempDir()
 
 	initCmd := exec.Command("git", "init")

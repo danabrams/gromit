@@ -537,6 +537,10 @@ func (c *Client) runClose(ctx context.Context, id string) (string, error) {
 }
 
 func (c *Client) runWithEnvCombinedOutput(ctx context.Context, args []string, extraEnv []string) (string, error) {
+	if err := waitForProcessCapacityFn(ctx, commandProcessCapacityWait); err != nil {
+		return "", err
+	}
+
 	cmdCtx, cancel := context.WithTimeout(ctx, c.commandTimeout())
 	defer cancel()
 
@@ -545,14 +549,30 @@ func (c *Client) runWithEnvCombinedOutput(ctx context.Context, args []string, ex
 	if c.Dir != "" {
 		cmd.Dir = c.Dir
 	}
+
+	env := subprocessEnvFn()
 	if len(extraEnv) > 0 {
-		cmd.Env = append(os.Environ(), extraEnv...)
+		env = append(env, extraEnv...)
 	}
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("%w: %s", err, string(out))
+	cmd.Env = env
+
+	var combined bytes.Buffer
+	cmd.Stdout = &combined
+	cmd.Stderr = &combined
+
+	if err := cmd.Start(); err != nil {
+		return "", err
 	}
-	return string(out), nil
+	killDescendantsOnCancelFn(cmdCtx, cmd)
+	defer reapProcessTreeFn(cmd)
+
+	if err := cmd.Wait(); err != nil {
+		if _, ok := err.(*exec.ExitError); ok {
+			return "", fmt.Errorf("%w: %s", err, combined.String())
+		}
+		return "", err
+	}
+	return combined.String(), nil
 }
 
 func shouldRetryWithNoDB(err error) bool {
