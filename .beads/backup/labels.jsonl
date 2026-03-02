@@ -1787,6 +1787,8 @@
 {"issue_id":"gromit-vj714","label":"from-review"}
 {"issue_id":"gromit-vj714.1","label":"from-review"}
 {"issue_id":"gromit-vj714.1","label":"scope_decomp:64498d120e46e50d"}
+{"issue_id":"gromit-vj714.2","label":"from-review"}
+{"issue_id":"gromit-vj714.2","label":"scope_decomp:346a8ea19234cf24"}
 {"issue_id":"gromit-vjlm","label":"spec:reduce-runner-test-runtime"}
 {"issue_id":"gromit-vlk9","label":"spec:retro-efficiency-experiments"}
 {"issue_id":"gromit-vo11r","label":"spec:cost-per-spec-metric"}
@@ -1922,6 +1924,12 @@
 {"issue_id":"gromit-ypk","label":"spec:tdd-methodology"}
 {"issue_id":"gromit-yqdrn","label":"from-review"}
 {"issue_id":"gromit-yry7z","label":"from-review"}
+{"issue_id":"gromit-yry7z.1","label":"from-review"}
+{"issue_id":"gromit-yry7z.1","label":"scope_decomp:ed8c1c876df213c9"}
+{"issue_id":"gromit-yry7z.2","label":"from-review"}
+{"issue_id":"gromit-yry7z.2","label":"scope_decomp:36856da26f8cddc0"}
+{"issue_id":"gromit-yry7z.3","label":"from-review"}
+{"issue_id":"gromit-yry7z.3","label":"scope_decomp:5677e1e3d9992187"}
 {"issue_id":"gromit-yrz2","label":"tdd:false"}
 {"issue_id":"gromit-ytka","label":"spec:review-spec-validation"}
 {"issue_id":"gromit-yut","label":"complexity:low"}
