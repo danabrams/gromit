@@ -124,7 +124,22 @@ func (p *Pipeline) Trigger(ctx context.Context, specName string) error {
 					return fmt.Errorf("%s", alert)
 				}
 			}
+
+			return err
 		}
+
+		attempt := p.incrementAttempt(specName)
+		if p.retryCap > 0 {
+			capExceeded, capErr := CheckRetryCapExceeded(attempt, p.retryCap)
+			if capErr != nil {
+				return fmt.Errorf("check retry cap: %w", capErr)
+			}
+			if capExceeded {
+				alert := EmitRetryCapReachedAlert(specName, p.retryCap)
+				return fmt.Errorf("%s", alert)
+			}
+		}
+
 		return err
 	}
 
