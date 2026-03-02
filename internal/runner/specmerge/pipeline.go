@@ -10,6 +10,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/runner/methodology"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/specgate"
@@ -35,6 +36,7 @@ type Controller interface {
 type Pipeline struct {
 	query      beadQuery
 	emitter    CycleRecordEmitter
+	logEmitter *events.Emitter
 	flow       FlowExecutor
 	fixDeps    FixBeadDependencies
 	retryCap   int
@@ -61,6 +63,15 @@ func (p *Pipeline) WithPRDeps(deps PRDeps) *Pipeline {
 	p.prClient = deps.PRClient
 	p.stateStore = deps.StateStore
 	p.gitPush = deps.GitPush
+	return p
+}
+
+// WithLogEmitter attaches an event emitter for structured logging.
+func (p *Pipeline) WithLogEmitter(emitter *events.Emitter) *Pipeline {
+	if p == nil {
+		return nil
+	}
+	p.logEmitter = emitter
 	return p
 }
 
@@ -368,7 +379,20 @@ func (p *Pipeline) captureCycleRecord(ctx context.Context, specName string) {
 		SpecID:              specID,
 		CycleEndPresentedAt: time.Now(),
 	}
-	_ = p.emitter.CaptureCycleRecord(ctx, record)
+	if err := p.emitter.CaptureCycleRecord(ctx, record); err != nil {
+		p.logCaptureCycleRecordError(specID, err)
+	}
+}
+
+func (p *Pipeline) logCaptureCycleRecordError(specID string, err error) {
+	if err == nil || p == nil || p.logEmitter == nil {
+		return
+	}
+	if !p.logEmitter.HasSubscribers() {
+		return
+	}
+	logger := &events.EmitterLogger{Emitter: p.logEmitter}
+	logger.Log("warning", "captureCycleRecord failed for spec %s: %v", specID, err)
 }
 
 func (p *Pipeline) incrementAttempt(specName string) int {
