@@ -9,8 +9,7 @@ bd ready              # Find available work
 bd show <id>          # View issue details
 bd update <id> --status in_progress  # Claim work
 bd close <id>         # Complete work
-bd dolt pull          # Pull beads from remote
-bd dolt push          # Push beads to remote
+scripts/bd-sync-safe.sh  # Safe beads pull/push with lock + recovery
 ```
 
 ## Landing the Plane (Session Completion)
@@ -25,8 +24,7 @@ bd dolt push          # Push beads to remote
 4. **PUSH TO REMOTE** - This is MANDATORY:
    ```bash
    git pull --rebase
-   bd dolt pull
-   bd dolt push
+   scripts/bd-sync-safe.sh
    git push
    git status  # MUST show "up to date with origin"
    ```
@@ -137,7 +135,7 @@ Run `bd prime` for workflow context, or install hooks (`bd hooks install`) for a
 - `bd ready` - Find unblocked work
 - `bd create "Title" --type task --priority 2` - Create issue
 - `bd close <id>` - Complete work
-- `bd dolt push` - Push beads to remote
+- `scripts/bd-sync-safe.sh` - Safe beads pull/push with lock + recovery
 
 For full workflow details: `bd prime`
 
@@ -151,7 +149,7 @@ Run `bd prime` for workflow context, or install hooks (`bd hooks install`) for a
 - `bd ready` - Find unblocked work
 - `bd create "Title" --type task --priority 2` - Create issue
 - `bd close <id>` - Complete work
-- `bd dolt push` - Push beads to remote
+- `scripts/bd-sync-safe.sh` - Safe beads pull/push with lock + recovery
 
 For full workflow details: `bd prime`
 --- END AGENTS.MD CONTENT ---

@@ -500,6 +500,92 @@ func TestClientRunWithEnvCombinedOutput_UsesProcutilLifecycle(t *testing.T) {
 	}
 }
 
+func TestClientRunWithEnv_SetsCanonicalBeadsDirFromGitCommonDir(t *testing.T) {
+	mainDir := t.TempDir()
+	runInDir(t, mainDir, "git", "init")
+	runInDir(t, mainDir, "git", "config", "user.email", "test@example.com")
+	runInDir(t, mainDir, "git", "config", "user.name", "Test User")
+	if err := os.WriteFile(filepath.Join(mainDir, "README.md"), []byte("test\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(README.md): %v", err)
+	}
+	runInDir(t, mainDir, "git", "add", "README.md")
+	runInDir(t, mainDir, "git", "commit", "-m", "init")
+
+	worktreeDir := filepath.Join(t.TempDir(), "wt")
+	runInDir(t, mainDir, "git", "worktree", "add", worktreeDir)
+	if err := os.MkdirAll(filepath.Join(mainDir, ".beads"), 0o755); err != nil {
+		t.Fatalf("MkdirAll(.beads): %v", err)
+	}
+
+	script := "#!/bin/sh\n" +
+		"printf 'BEADS_DIR=%s\\n' \"$BEADS_DIR\"\n"
+	binaryPath := writeExecutableScript(t, script)
+
+	c := &Client{
+		binary: binaryPath,
+		Dir:    worktreeDir,
+	}
+	out, err := c.runWithEnv(context.Background(), []string{"print-env"}, nil)
+	if err != nil {
+		t.Fatalf("runWithEnv() error = %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	got := make(map[string]string)
+	for _, line := range lines {
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			got[parts[0]] = parts[1]
+		}
+	}
+
+	wantBeadsDir := filepath.Join(mainDir, ".beads")
+	gotInfo, gotErr := os.Stat(got["BEADS_DIR"])
+	if gotErr != nil {
+		t.Fatalf("Stat(BEADS_DIR=%q): %v", got["BEADS_DIR"], gotErr)
+	}
+	wantInfo, wantErr := os.Stat(wantBeadsDir)
+	if wantErr != nil {
+		t.Fatalf("Stat(wantBeadsDir=%q): %v", wantBeadsDir, wantErr)
+	}
+	if !os.SameFile(gotInfo, wantInfo) {
+		t.Fatalf("BEADS_DIR = %q, want %q", got["BEADS_DIR"], wantBeadsDir)
+	}
+}
+
+func TestClientRunWithEnv_PreservesExplicitBeadsDir(t *testing.T) {
+	script := "#!/bin/sh\n" +
+		"printf 'BEADS_DIR=%s\\n' \"$BEADS_DIR\"\n"
+	binaryPath := writeExecutableScript(t, script)
+
+	oldSubprocessEnv := subprocessEnvFn
+	t.Cleanup(func() { subprocessEnvFn = oldSubprocessEnv })
+	subprocessEnvFn = func() []string {
+		return []string{"BEADS_DIR=/tmp/explicit-beads"}
+	}
+
+	c := &Client{binary: binaryPath}
+	out, err := c.runWithEnv(context.Background(), []string{"print-env"}, nil)
+	if err != nil {
+		t.Fatalf("runWithEnv() error = %v", err)
+	}
+
+	got := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(out), "BEADS_DIR="))
+	if got != "/tmp/explicit-beads" {
+		t.Fatalf("BEADS_DIR = %q, want %q", got, "/tmp/explicit-beads")
+	}
+}
+
+func runInDir(t *testing.T, dir string, name string, args ...string) {
+	t.Helper()
+	cmd := exec.Command(name, args...)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("%s %s failed: %v\n%s", name, strings.Join(args, " "), err, string(out))
+	}
+}
+
 func TestClientRepoBaseName_UsesProcutilLifecycle(t *testing.T) {
 	repoDir := t.TempDir()
 

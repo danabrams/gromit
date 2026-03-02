@@ -71,6 +71,7 @@ var (
 	subprocessEnvFn           = procutil.SubprocessEnv
 	killDescendantsOnCancelFn = procutil.KillDescendantsOnCancel
 	reapProcessTreeFn         = procutil.ReapProcessTree
+	resolveBeadsDirFn         = resolveDefaultBeadsDir
 	errContextRequired        = errors.New("bead: context required")
 )
 
@@ -492,6 +493,11 @@ func (c *Client) runWithEnv(ctx context.Context, args []string, extraEnv []strin
 	if len(extraEnv) > 0 {
 		env = append(env, extraEnv...)
 	}
+	if !envHasKey(env, "BEADS_DIR") {
+		if beadsDir := resolveBeadsDirFn(cmdCtx, c.Dir); beadsDir != "" {
+			env = append(env, "BEADS_DIR="+beadsDir)
+		}
+	}
 	cmd.Env = env
 
 	var stdout bytes.Buffer
@@ -575,6 +581,11 @@ func (c *Client) runWithEnvCombinedOutput(ctx context.Context, args []string, ex
 	if len(extraEnv) > 0 {
 		env = append(env, extraEnv...)
 	}
+	if !envHasKey(env, "BEADS_DIR") {
+		if beadsDir := resolveBeadsDirFn(cmdCtx, c.Dir); beadsDir != "" {
+			env = append(env, "BEADS_DIR="+beadsDir)
+		}
+	}
 	cmd.Env = env
 
 	var combined bytes.Buffer
@@ -594,6 +605,68 @@ func (c *Client) runWithEnvCombinedOutput(ctx context.Context, args []string, ex
 		return "", err
 	}
 	return combined.String(), nil
+}
+
+func envHasKey(env []string, key string) bool {
+	prefix := key + "="
+	for _, item := range env {
+		if strings.HasPrefix(item, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func resolveDefaultBeadsDir(ctx context.Context, dir string) string {
+	workingDir := strings.TrimSpace(dir)
+	if workingDir == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return ""
+		}
+		workingDir = cwd
+	}
+
+	root, err := resolveCanonicalRepoRoot(ctx, workingDir)
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(root, ".beads")
+}
+
+func resolveCanonicalRepoRoot(ctx context.Context, dir string) (string, error) {
+	if strings.TrimSpace(dir) == "" {
+		return "", fmt.Errorf("working directory is empty")
+	}
+
+	cmd := exec.CommandContext(ctx, "git", "-C", dir, "rev-parse", "--git-common-dir")
+	procutil.SetProcessGroupKill(cmd)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Start(); err != nil {
+		return "", err
+	}
+	defer reapProcessTreeFn(cmd)
+	if err := cmd.Wait(); err != nil {
+		if strings.TrimSpace(stderr.String()) != "" {
+			return "", fmt.Errorf("%w: %s", err, strings.TrimSpace(stderr.String()))
+		}
+		return "", err
+	}
+
+	commonDir := strings.TrimSpace(stdout.String())
+	if commonDir == "" {
+		return "", fmt.Errorf("git common dir is empty")
+	}
+	if !filepath.IsAbs(commonDir) {
+		commonDir = filepath.Clean(filepath.Join(dir, commonDir))
+	}
+	if filepath.Base(commonDir) != ".git" {
+		return "", fmt.Errorf("git common dir %q is not a .git directory", commonDir)
+	}
+	return filepath.Dir(commonDir), nil
 }
 
 func shouldRetryWithNoDB(err error) bool {
