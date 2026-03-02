@@ -263,3 +263,49 @@ func TestQueryRanksByRelevance(t *testing.T) {
 		t.Fatalf("expected second confidence > third, got %f vs %f", results[1].ConfidenceScore, results[2].ConfidenceScore)
 	}
 }
+
+func TestQueryPrioritizesRareTerms(t *testing.T) {
+	q := NewQuerier()
+
+	docs := []DocumentWithAttribution{
+		{
+			FilePath:  "common.go",
+			StartLine: 1,
+			EndLine:   5,
+			Content:   "common common common common",
+		},
+		{
+			FilePath:  "rare.go",
+			StartLine: 1,
+			EndLine:   5,
+			Content:   "rare",
+		},
+		{
+			FilePath:  "common_shared.go",
+			StartLine: 1,
+			EndLine:   5,
+			Content:   "common filler",
+		},
+	}
+
+	if err := q.Index(docs); err != nil {
+		t.Fatalf("Index failed: %v", err)
+	}
+
+	results, err := q.Query("common rare", 2)
+	if err != nil {
+		t.Fatalf("Query failed: %v", err)
+	}
+
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+
+	if results[0].FilePath != "rare.go" {
+		t.Fatalf("expected rare term doc first, got %s", results[0].FilePath)
+	}
+
+	if !(results[0].ConfidenceScore > results[1].ConfidenceScore) {
+		t.Fatalf("expected first confidence > second, got %f vs %f", results[0].ConfidenceScore, results[1].ConfidenceScore)
+	}
+}
