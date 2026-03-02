@@ -603,6 +603,38 @@ func TestIntegrationQueueGitOpsAdapter_FetchAndRebaseCommands(t *testing.T) {
 	}
 }
 
+func TestIntegrationQueueGitOpsAdapter_FetchAndRebaseTrimsBranch(t *testing.T) {
+	t.Parallel()
+
+	repoDir := "/repo"
+	calls := make([]string, 0, 3)
+	adapter := &integrationQueueGitOpsAdapter{
+		repoDir:    repoDir,
+		baseBranch: "main",
+		runGitCommand: func(ctx context.Context, dir string, args ...string) (string, error) {
+			if dir != repoDir {
+				t.Fatalf("dir = %q, want %q", dir, repoDir)
+			}
+			calls = append(calls, strings.Join(args, " "))
+			return "", nil
+		},
+	}
+
+	entry := integrationqueue.Entry{Branch: " feature/trim "}
+	if err := adapter.FetchAndRebase(context.Background(), entry); err != nil {
+		t.Fatalf("FetchAndRebase returned error: %v", err)
+	}
+
+	want := []string{
+		"fetch origin main",
+		"checkout feature/trim",
+		"rebase main",
+	}
+	if !reflect.DeepEqual(calls, want) {
+		t.Fatalf("commands = %v, want %v", calls, want)
+	}
+}
+
 func TestIntegrationQueueGitOpsAdapter_MergeToMainCommands(t *testing.T) {
 	t.Parallel()
 
