@@ -197,11 +197,11 @@ func TestRunLoop_SpecFlagFreshStartBootstrapsStageAndBranch(t *testing.T) {
 	defer func() { newRunnerWithStageContextFn = origRunnerFn }()
 
 	var branches []string
-	origBranchFactory := runner.SpecBranchCreatorFactory
-	runner.SpecBranchCreatorFactory = func(repoDir string, cfg *config.Config) (runner.SpecBranchCreator, error) {
+	origBranchFn := newSpecBranchCreatorFn
+	newSpecBranchCreatorFn = func(repoDir string, cfg *config.Config) (runner.SpecBranchCreator, error) {
 		return &fakeBranchCreator{branches: &branches}, nil
 	}
-	defer func() { runner.SpecBranchCreatorFactory = origBranchFactory }()
+	defer func() { newSpecBranchCreatorFn = origBranchFn }()
 
 	runSpecFlag = "auth"
 	runEpicFlag = ""
@@ -446,11 +446,11 @@ func TestRunLoop_SpecFlagResumeChecksOutBranch(t *testing.T) {
 	defer cleanup()
 
 	fakeStore := &fakeSpecflowStore{stage: specflow.StageDrafting}
-	origStoreFactory := runner.SpecflowStoreFactory
-	runner.SpecflowStoreFactory = func(gromitDir string) (specflow.SpecStore, error) {
+	origStoreFn2 := newSpecflowStoreFn
+	newSpecflowStoreFn = func(gromitDir string) (specflow.SpecStore, error) {
 		return fakeStore, nil
 	}
-	defer func() { runner.SpecflowStoreFactory = origStoreFactory }()
+	defer func() { newSpecflowStoreFn = origStoreFn2 }()
 
 	var capturedStageCtx *runner.StageContext
 	origRunnerFn := newRunnerWithStageContextFn
@@ -461,11 +461,11 @@ func TestRunLoop_SpecFlagResumeChecksOutBranch(t *testing.T) {
 	defer func() { newRunnerWithStageContextFn = origRunnerFn }()
 
 	var branches []string
-	origBranchFactory := runner.SpecBranchCreatorFactory
-	runner.SpecBranchCreatorFactory = func(repoDir string, cfg *config.Config) (runner.SpecBranchCreator, error) {
+	origBranchFn2 := newSpecBranchCreatorFn
+	newSpecBranchCreatorFn = func(repoDir string, cfg *config.Config) (runner.SpecBranchCreator, error) {
 		return &fakeBranchCreator{branches: &branches}, nil
 	}
-	defer func() { runner.SpecBranchCreatorFactory = origBranchFactory }()
+	defer func() { newSpecBranchCreatorFn = origBranchFn2 }()
 
 	runSpecFlag = "auth"
 	runEpicFlag = ""

@@ -54,13 +54,13 @@ type DataQualityBlocker interface {
 // If data quality blocked, returns Block.
 // Otherwise returns Proceed.
 type Gate struct {
-	events.EmitterMixin                    // provides Emitter field and SetEmitter method
-	precheck            Prechecker         // optional; nil means skip precheck
-	readiness           readiness.Assessor // optional; nil means skip readiness assessment
-	stuck               StuckDetector      // optional; nil means skip stuck detection
-	decomposer          Decomposer         // optional; used only by scope-gate decomposition
-	dataQualityChecker  DataQualityBlocker // optional; nil means skip data quality checks
-	specSPCBlocker      *SpecSPCBlocker    // optional; nil means skip spec-level SPC blocking
+	events.EmitterMixin                      // provides Emitter field and SetEmitter method
+	precheck            Prechecker           // optional; nil means skip precheck
+	readiness           readiness.Assessor   // optional; nil means skip readiness assessment
+	stuck               StuckDetector        // optional; nil means skip stuck detection
+	decomposer          Decomposer           // optional; used only by scope-gate decomposition
+	dataQualityChecker  DataQualityBlocker   // optional; nil means skip data quality checks
+	specSPCBlocker      *SpecSPCBlocker      // optional; nil means skip spec-level SPC blocking
 	criteriaEnricher    *LLMCriteriaEnricher // optional; nil means skip criteria enrichment
 	output              io.Writer
 }

@@ -60,13 +60,13 @@ func TestEnsureRepoRootFromSubdir(t *testing.T) {
 		t.Fatalf("getwd after ensure: %v", err)
 	}
 
-	rootAbs, err := filepath.Abs(root)
+	rootAbs, err := filepath.EvalSymlinks(root)
 	if err != nil {
-		t.Fatalf("abs root: %v", err)
+		t.Fatalf("eval symlinks root: %v", err)
 	}
-	cwdAbs, err := filepath.Abs(cwd)
+	cwdAbs, err := filepath.EvalSymlinks(cwd)
 	if err != nil {
-		t.Fatalf("abs cwd: %v", err)
+		t.Fatalf("eval symlinks cwd: %v", err)
 	}
 
 	if cwdAbs != rootAbs {

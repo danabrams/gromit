@@ -133,7 +133,7 @@ func findRepoRootFromCaller(skip int) string {
 }
 
 func getProjectRootFromTestFile(caller string) string {
-	if root := getProjectRootFromCaller(4); root != "" {
+	if root := getProjectRootFromCaller(3); root != "" {
 		return root
 	}
 	return ""

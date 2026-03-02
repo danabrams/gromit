@@ -425,8 +425,12 @@ func TestDecomposeSinglePlan_ReviewUsesSessionWorktreeDir(t *testing.T) {
 	if gotCommand != "decompose" {
 		t.Fatalf("command = %q, want %q", gotCommand, "decompose")
 	}
-	if calledInSessionDir != sessionDir {
-		t.Fatalf("decompose executed in %q, want %q", calledInSessionDir, sessionDir)
+	wantSessionDir, err := filepath.EvalSymlinks(sessionDir)
+	if err != nil {
+		t.Fatalf("filepath.EvalSymlinks(%q): %v", sessionDir, err)
+	}
+	if calledInSessionDir != wantSessionDir {
+		t.Fatalf("decompose executed in %q, want %q", calledInSessionDir, wantSessionDir)
 	}
 }
 

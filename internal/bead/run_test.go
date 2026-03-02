@@ -86,8 +86,12 @@ func TestClientRun_SubprocessUsesConfiguredBinaryAndDir(t *testing.T) {
 	if lines[0] != "FAKE_BINARY" {
 		t.Fatalf("run() did not use configured binary; marker = %q", lines[0])
 	}
-	if lines[1] != workDir {
-		t.Fatalf("run() working dir = %q, want %q", lines[1], workDir)
+	wantWorkDir, err := filepath.EvalSymlinks(workDir)
+	if err != nil {
+		t.Fatalf("filepath.EvalSymlinks(%q): %v", workDir, err)
+	}
+	if lines[1] != wantWorkDir {
+		t.Fatalf("run() working dir = %q, want %q", lines[1], wantWorkDir)
 	}
 	if lines[2] != "ready --json --limit 3" {
 		t.Fatalf("run() args = %q, want %q", lines[2], "ready --json --limit 3")

@@ -286,8 +286,12 @@ func TestRunRefineInSession_UsesSessionLauncherWhenEnabled(t *testing.T) {
 	if runInDirArg != sessionDir {
 		t.Fatalf("runInDir called with %q, want %q", runInDirArg, sessionDir)
 	}
-	if agentWD != sessionDir {
-		t.Fatalf("agent launched from %q, want %q", agentWD, sessionDir)
+	wantAgentWD, err := filepath.EvalSymlinks(sessionDir)
+	if err != nil {
+		t.Fatalf("filepath.EvalSymlinks(%q): %v", sessionDir, err)
+	}
+	if agentWD != wantAgentWD {
+		t.Fatalf("agent launched from %q, want %q", agentWD, wantAgentWD)
 	}
 }
 

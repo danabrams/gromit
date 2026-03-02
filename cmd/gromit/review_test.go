@@ -358,6 +358,10 @@ func TestRunReview_CommandContextPassedToSessionLauncher(t *testing.T) {
 	origGitOutputFn := reviewGitOutputFn
 	origNonInteractive := reviewNonInteractive
 	origDryRun := reviewDryRun
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
 	t.Cleanup(func() {
 		createReviewPipelineFn = origCreatePipelineFn
 		reviewInteractiveSessionLauncherFn = origLauncher
@@ -367,6 +371,7 @@ func TestRunReview_CommandContextPassedToSessionLauncher(t *testing.T) {
 		reviewGitOutputFn = origGitOutputFn
 		reviewNonInteractive = origNonInteractive
 		reviewDryRun = origDryRun
+		_ = os.Chdir(origWD)
 	})
 
 	if err := os.Chdir(baseDir); err != nil {

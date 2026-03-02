@@ -53,9 +53,14 @@ func TestPRSListDisplaysOpenPRs(t *testing.T) {
 		},
 	}
 	newPRClientFn = func() specmerge.PRClient { return fakeClient }
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
 	t.Cleanup(func() {
 		newPRStateStoreFn = origStoreFn
 		newPRClientFn = origClientFn
+		_ = os.Chdir(origWD)
 	})
 
 	if err := os.Chdir(tmpDir); err != nil {
@@ -124,9 +129,14 @@ func TestPRSDetailShowsSpecPRInfo(t *testing.T) {
 		},
 	}
 	newPRClientFn = func() specmerge.PRClient { return fakeClient }
+	origWD2, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
 	t.Cleanup(func() {
 		newPRStateStoreFn = origStoreFn
 		newPRClientFn = origClientFn
+		_ = os.Chdir(origWD2)
 	})
 
 	if err := os.Chdir(tmpDir); err != nil {

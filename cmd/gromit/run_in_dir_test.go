@@ -100,13 +100,18 @@ func TestRunInDir_RestoresOriginalDirectoryOnCallbackError(t *testing.T) {
 	targetDir := t.TempDir()
 	wantErr := errors.New("callback failed")
 
-	err := runInDir(targetDir, func() error {
+	wantTargetDir, err := filepath.EvalSymlinks(targetDir)
+	if err != nil {
+		t.Fatalf("filepath.EvalSymlinks(%q): %v", targetDir, err)
+	}
+
+	err = runInDir(targetDir, func() error {
 		wd, err := os.Getwd()
 		if err != nil {
 			return err
 		}
-		if wd != targetDir {
-			t.Fatalf("callback working directory = %q, want %q", wd, targetDir)
+		if wd != wantTargetDir {
+			t.Fatalf("callback working directory = %q, want %q", wd, wantTargetDir)
 		}
 		return wantErr
 	})
