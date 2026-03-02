@@ -23,6 +23,7 @@ type integrationQueueGitOpsAdapter struct {
 var (
 	errGitPushFailed    = errors.New("git push failed")
 	errGitCleanupFailed = errors.New("git cleanup failed")
+	errRepoDirMissing   = errors.New("repo dir is not configured")
 )
 
 func (a *integrationQueueGitOpsAdapter) FetchAndRebase(ctx context.Context, entry integrationqueue.Entry) error {
@@ -130,11 +131,11 @@ func (a *integrationQueueGitOpsAdapter) Cleanup(ctx context.Context, entry integ
 
 func (a *integrationQueueGitOpsAdapter) requireRepoDir() (string, error) {
 	if a == nil {
-		return "", fmt.Errorf("gitops adapter is not configured")
+		return "", fmt.Errorf("%w: gitops adapter is not configured", errRepoDirMissing)
 	}
 	dir := strings.TrimSpace(a.repoDir)
 	if dir == "" {
-		return "", fmt.Errorf("repo dir is not configured")
+		return "", fmt.Errorf("%w: repo dir is not configured", errRepoDirMissing)
 	}
 	return dir, nil
 }
