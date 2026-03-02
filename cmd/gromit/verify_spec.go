@@ -30,6 +30,7 @@ var verifySpecCreateBeads bool
 var verifySpecGateRunner = runSpecGate
 var verifySpecFixBeadsFn = createSpecGateFixBeads
 var verifySpecBuildRouterFromConfig = provider.BuildRouterFromConfig
+var verifySpecKillDescendantsOnCancelFn = procutil.KillDescendantsOnCancel
 
 var verifySpecCmd = &cobra.Command{
 	Use:   "verify-spec <spec>",
@@ -439,6 +440,7 @@ func defaultVerifySpecCmdRunner(ctx context.Context, command string, workDir str
 	if err := cmd.Start(); err != nil {
 		return "", "", -1, err
 	}
+	verifySpecKillDescendantsOnCancelFn(ctx, cmd)
 	defer procutil.ReapProcessTree(cmd)
 	if err := cmd.Wait(); err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
