@@ -4,6 +4,11 @@ These rules represent high-leverage control points that have either caused repea
 
 ## Architecture <!-- phases: red, build, green, refactor, review -->
 
+### Go subprocesses must thread context end-to-end and guard platform-specific paths
+Go subprocesses with user-influenced args (bead IDs, refs, branch names) must use `runArgv`, not `runCmd`, to prevent shell/flag injection; thread caller `context.Context` end-to-end (never replace with `context.Background()`/`context.TODO()` in live paths); follow full procutil lifecycle (`SetProcessGroupKill`, capacity gating, descendant kill on cancel, stderr capture, process-tree reap); and guard Linux-only `/proc` code with `//go:build linux` (or explicit typed not-supported behavior on other platforms).
+
+**Enforcement:** Code review on subprocess-creating paths; grep for `context.Background()`/`context.TODO()` in subprocess chains; `//go:build linux` audit for `/proc` path access; procutil lifecycle checklist in subprocess code review.
+
 ### Benchmark runtime must treat manifest.modes as the sole execution source of truth
 Hardcoded mode lists are forbidden in production paths. All benchmark execution must derive modes from `manifest.modes`. This prevents spec drift and ensures manifest-driven experiments are valid.
 
@@ -100,6 +105,11 @@ Tests that need to change the working directory must use `t.Chdir()` (Go 1.24+),
 
 **Enforcement:** `grep -rn 'os\.Chdir' cmd/ internal/ --include='*_test.go'` must return zero hits outside of production code.
 
+### Tests that override package-level injectable vars must restore originals via t.Cleanup
+Tests that override package-level injectable vars (FnField/function-pointer seams) must restore originals via `t.Cleanup` in the same test helper; un-restored globals are forbidden. Add a restore helper (e.g. `restoreXxxFns(t *testing.T)`) that captures current values and registers `t.Cleanup` to reset them. Add a comment above the var block noting the restore requirement. Any setup helper that overrides package-level injectable vars must register `t.Cleanup` restoration of original values before returning.
+
+**Enforcement:** Code review on test helpers overriding package-level vars; grep for package-level var overrides without paired `t.Cleanup`; CI lint for missing cleanup restoration in test injection helpers.
+
 ### Shared helper APIs must not expose mutable global maps or slices
 Shared helper packages (especially test helpers) must not expose mutable global maps/slices. Keep mutable sources unexported and provide copy/accessor functions. This prevents order-dependent tests and hidden cross-suite coupling.
 
@@ -130,7 +140,7 @@ Refactor guardrail tests must validate structural declarations (AST/compile-time
 
 **Enforcement:** Code review on guardrail test changes; CI lint for source-reading test patterns in guardrail suites.
 
-### Fixture tests should assert schema and records, not prose tokens
-Use structured fixture assertions (parse JSON/JSONL and ledger rows) instead of broad markdown/log token matching. Real-provider probe fixtures are canonical and should drive parser/schema updates rather than forcing fixtures back to stale assumptions.
+### Provider fixture governance is schema-first with deterministic provenance metadata
+Provider fixture governance must be schema-first: assertions must validate structured schema/records and deterministic provenance metadata; prose-token assertions are forbidden. Use structured fixture assertions (parse JSON/JSONL and ledger rows) instead of broad markdown/log token matching. Fixtures must be stored under `test/fixtures/gemini/` (or the relevant provider path) and validated with schema-first deterministic assertions including provenance metadata. Real-provider probe fixtures are canonical and should drive parser/schema updates rather than forcing fixtures back to stale assumptions.
 
-**Enforcement:** Code review on fixture changes; require structured assertions in test review.
+**Enforcement:** Code review on fixture changes; require structured schema/record assertions and provenance metadata checks in test review; grep for prose-token assertions in fixture test files.
