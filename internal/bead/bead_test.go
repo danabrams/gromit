@@ -3,6 +3,7 @@ package bead
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -1915,6 +1916,39 @@ func TestClientDeriveIssuePrefixReturnsNormalizedRepoName(t *testing.T) {
 	}
 	if got != want {
 		t.Fatalf("deriveIssuePrefix() = %q, want %q", got, want)
+	}
+}
+
+func TestClientRepoBaseNameContextCancellation(t *testing.T) {
+	t.Parallel()
+	repoDir := t.TempDir()
+	if err := os.MkdirAll(repoDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(%q): %v", repoDir, err)
+	}
+	if err := exec.Command("git", "init").Run(); err != nil {
+		t.Fatalf("git init failed: %v", err)
+	}
+
+	scriptDir := t.TempDir()
+	scriptPath := filepath.Join(scriptDir, "git")
+	script := "#!/bin/sh\nsleep 5\nprintf '%s\\n' \"$PWD\"\n"
+	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake git: %v", err)
+	}
+	origPath := os.Getenv("PATH")
+	if err := os.Setenv("PATH", scriptDir+string(os.PathListSeparator)+origPath); err != nil {
+		t.Fatalf("set PATH: %v", err)
+	}
+	t.Cleanup(func() { os.Setenv("PATH", origPath) })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	c := &Client{Dir: repoDir}
+	if _, err := c.repoBaseName(ctx); err == nil {
+		t.Fatal("repoBaseName() should return an error when context cancels before git finishes")
+	} else if !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
+		t.Fatalf("repoBaseName() returned %v, want context cancellation", err)
 	}
 }
 
