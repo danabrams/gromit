@@ -393,8 +393,22 @@ func RecoverFromMalformedQueue(ctx context.Context, path string) (*Queue, error)
 		_ = ctx
 		updated := queue.SchemaVersion != SchemaVersion
 		queue.SchemaVersion = SchemaVersion
+		sanitizeErrorMetadata := func(entry *Entry) {
+			codeEmpty := strings.TrimSpace(entry.LastErrorCode) == ""
+			msgEmpty := strings.TrimSpace(entry.LastErrorMessage) == ""
+			if codeEmpty && msgEmpty {
+				return
+			}
+			if codeEmpty {
+				entry.LastErrorCode = string(ErrorCodeSchemaInvalid)
+			}
+			if msgEmpty {
+				entry.LastErrorMessage = schemaRecoveryMessage
+			}
+		}
 		for i := range queue.Entries {
 			if queue.Entries[i].State == StateIntegrating {
+				sanitizeErrorMetadata(&queue.Entries[i])
 				if err := ApplyTransition(&queue.Entries[i], string(StateReady), "schema recovery"); err != nil {
 					return fmt.Errorf("transitioning recovered entry %s: %w", queue.Entries[i].Branch, err)
 				}

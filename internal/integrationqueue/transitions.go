@@ -75,6 +75,15 @@ func CheckTransition(from, to string) error {
 // updated_at, last_transition_reason, and optionally error metadata on success.
 // Returns ErrInvalidTransition if the transition is not allowed.
 func ApplyTransition(entry *Entry, toState string, reason string, metadata ...TransitionErrorMetadata) error {
+	targetCode := entry.LastErrorCode
+	targetMessage := entry.LastErrorMessage
+	if len(metadata) > 0 {
+		targetCode = metadata[0].Code
+		targetMessage = metadata[0].Message
+	}
+	if err := validateErrorContract(targetCode, targetMessage); err != nil {
+		return err
+	}
 	if err := CheckTransition(string(entry.State), toState); err != nil {
 		return err
 	}
@@ -82,8 +91,8 @@ func ApplyTransition(entry *Entry, toState string, reason string, metadata ...Tr
 	entry.LastTransitionReason = reason
 	entry.UpdatedAt = time.Now()
 	if len(metadata) > 0 {
-		entry.LastErrorCode = metadata[0].Code
-		entry.LastErrorMessage = metadata[0].Message
+		entry.LastErrorCode = targetCode
+		entry.LastErrorMessage = targetMessage
 	}
 	return nil
 }
