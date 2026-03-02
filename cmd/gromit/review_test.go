@@ -298,6 +298,32 @@ func TestRunReviewInteractive_ConflictHandoffPropagates(t *testing.T) {
 	}
 }
 
+func TestApplyInteractiveReviewFindings_MissingFileWarns(t *testing.T) {
+    t.Parallel()
+
+    gromitDir := t.TempDir()
+    var buf strings.Builder
+
+    origWriter := reviewFindingsLogWriter
+    t.Cleanup(func() { reviewFindingsLogWriter = origWriter })
+    reviewFindingsLogWriter = &buf
+
+    origBuilder := buildReviewFindingsApplierFn
+    t.Cleanup(func() { buildReviewFindingsApplierFn = origBuilder })
+    buildReviewFindingsApplierFn = func(cfg *config.Config, dir string) (reviewFindingsApplier, error) {
+        t.Fatalf("pipeline should not be built when findings file is absent")
+        return nil, nil
+    }
+
+    if err := applyInteractiveReviewFindings(&config.Config{}, gromitDir); err != nil {
+        t.Fatalf("applyInteractiveReviewFindings() error = %v", err)
+    }
+
+    if !strings.Contains(buf.String(), "warning") {
+        t.Fatalf("expected warning log, got %q", buf.String())
+    }
+}
+
 func TestRunGitDiffForReview_UsesInjectedGit(t *testing.T) {
 	// Not parallel: stubReviewGit mutates package-level reviewGitCommandFn and reviewGitOutputFn.
 	capture := stubReviewGit(t, []byte("diff output\n"), nil)
