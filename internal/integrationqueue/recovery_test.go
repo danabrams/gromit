@@ -137,6 +137,66 @@ func TestRecoverFromMalformedQueue(t *testing.T) {
 	}
 }
 
+func TestRecoverFromMalformedQueue_PreservesLastErrorCode(t *testing.T) {
+	tmpDir := t.TempDir()
+	queuePath := filepath.Join(tmpDir, queueFileName)
+
+	const (
+		originalCode    = "merge_conflict"
+		originalMessage = "merge conflict happened"
+	)
+
+	queue := &Queue{
+		SchemaVersion: SchemaVersion,
+		Entries: []Entry{
+			{
+				Branch:           "feature/retain-error",
+				SessionID:        "session-merge",
+				OriginCommand:    "refine",
+				State:            StateIntegrating,
+				Lane:             string(CodeLane),
+				BaseRef:          "main",
+				HeadSHA:          "cafebabefaced",
+				FifoSeq:          42,
+				LastErrorCode:    originalCode,
+				LastErrorMessage: originalMessage,
+			},
+		},
+	}
+	if err := SaveQueue(queuePath, queue); err != nil {
+		t.Fatalf("SaveQueue: %v", err)
+	}
+
+	recovered, err := RecoverFromMalformedQueue(context.Background(), queuePath)
+	if err != nil {
+		t.Fatalf("RecoverFromMalformedQueue: %v", err)
+	}
+	if len(recovered.Entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(recovered.Entries))
+	}
+	recoveredEntry := recovered.Entries[0]
+	if recoveredEntry.State != StateReady {
+		t.Fatalf("expected recovered state %s, got %s", StateReady, recoveredEntry.State)
+	}
+	if recoveredEntry.LastErrorCode != originalCode {
+		t.Fatalf("expected last error code %s, got %s", originalCode, recoveredEntry.LastErrorCode)
+	}
+	if recoveredEntry.LastErrorMessage != originalMessage {
+		t.Fatalf("expected last error message %q, got %q", originalMessage, recoveredEntry.LastErrorMessage)
+	}
+
+	persisted, err := LoadQueue(queuePath)
+	if err != nil {
+		t.Fatalf("LoadQueue(persisted): %v", err)
+	}
+	if len(persisted.Entries) != 1 {
+		t.Fatalf("persisted: expected 1 entry, got %d", len(persisted.Entries))
+	}
+	if persisted.Entries[0].LastErrorCode != originalCode {
+		t.Fatalf("persisted: expected last error code %s, got %s", originalCode, persisted.Entries[0].LastErrorCode)
+	}
+}
+
 func TestRecoverFromMalformedQueue_UnsupportedSchemaVersion(t *testing.T) {
 	tmpDir := t.TempDir()
 	queuePath := filepath.Join(tmpDir, queueFileName)
