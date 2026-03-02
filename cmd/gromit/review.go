@@ -86,6 +86,7 @@ var reviewFindingsLogWriter io.Writer = os.Stdout
 var buildReviewFindingsApplierFn = func(cfg *config.Config, gromitDir string) (reviewFindingsApplier, error) {
 	return nil, fmt.Errorf("buildReviewFindingsApplierFn is not configured")
 }
+var readReviewFindingsFileFn = os.ReadFile
 
 type reviewFindingsApplier interface {
 	ApplyReviewFindings(ctx context.Context, result *review.ReviewResult) (*pipeline.ReviewApplyResult, error)
@@ -477,6 +478,16 @@ func applyInteractiveReviewFindings(cfg *config.Config, gromitDir string) error 
 			return nil
 		}
 		return fmt.Errorf("stat review findings: %w", err)
+	}
+
+	data, err := readReviewFindingsFileFn(reviewPath)
+	if err != nil {
+		return fmt.Errorf("reading review findings: %w", err)
+	}
+
+	if _, err := review.ParseReviewResult(string(data)); err != nil {
+		fmt.Fprintf(reviewFindingsLogWriter, "warning: failed to parse review findings %q: %v\n", reviewPath, err)
+		return nil
 	}
 	return nil
 }
