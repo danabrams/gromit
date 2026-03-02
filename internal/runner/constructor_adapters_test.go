@@ -533,6 +533,66 @@ func TestDecomposerAdapterCreateSubBeads_ThreadsContextToShow(t *testing.T) {
 	}
 }
 
+func TestDecomposerAdapterFactoryClosures_PropagateContextCancellation(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	var providerCtx, showCtx, listCtx, createCtx context.Context
+	adapter := &decomposerAdapter{
+		router: provider.NewSingleProviderRouter(&stubRunProvider{
+			name: "context-cancel",
+			runFn: func(ctx context.Context, prompt, tier string) (*provider.Result, error) {
+				providerCtx = ctx
+				return &provider.Result{
+					Success: true,
+					Output:  `[{"title":"child-1","expected_outputs":["output-1"]},{"title":"child-2","expected_outputs":["output-2"]}]`,
+				}, nil
+			},
+		}),
+		beads: &fakeBeadClient{
+			showFn: func(ctx context.Context, id string) (*bead.Bead, error) {
+				showCtx = ctx
+				return &bead.Bead{ID: id, Labels: []string{"spec:parent"}}, nil
+			},
+			listFn: func(ctx context.Context, label string) ([]*bead.Bead, error) {
+				listCtx = ctx
+				return nil, nil
+			},
+			createWithParentFn: func(ctx context.Context, title string, priority int, labels []string, outputs []string, parentID string) (*bead.Bead, error) {
+				createCtx = ctx
+				return &bead.Bead{ID: "child-1"}, nil
+			},
+			closeFn: func(ctx context.Context, id string) error {
+				return nil
+			},
+		},
+	}
+
+	parent := &bead.Bead{ID: "parent-1", Title: "Parent", Priority: 1}
+	tasks, err := adapter.DecomposeToSubTasks(ctx, parent)
+	if err != nil {
+		t.Fatalf("DecomposeToSubTasks returned error: %v", err)
+	}
+	if providerCtx == nil || providerCtx.Err() != context.Canceled {
+		t.Fatalf("provider context = %v, want canceled", providerCtx)
+	}
+
+	if err := adapter.CreateSubBeads(ctx, parent, tasks); err != nil {
+		t.Fatalf("CreateSubBeads returned error: %v", err)
+	}
+	if showCtx == nil || showCtx.Err() != context.Canceled {
+		t.Fatalf("Show context = %v, want canceled", showCtx)
+	}
+	if listCtx == nil || listCtx.Err() != context.Canceled {
+		t.Fatalf("List context = %v, want canceled", listCtx)
+	}
+	if createCtx == nil || createCtx.Err() != context.Canceled {
+		t.Fatalf("Create context = %v, want canceled", createCtx)
+	}
+}
+
 type fakeBeadClient struct {
 	listFn             func(ctx context.Context, label string) ([]*bead.Bead, error)
 	createFn           func(ctx context.Context, title string, priority int, labels []string, outputs []string) (*bead.Bead, error)
