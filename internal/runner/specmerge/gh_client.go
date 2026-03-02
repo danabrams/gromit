@@ -322,19 +322,23 @@ func (c *ghClient) run(ctx context.Context, args ...string) (string, error) {
 
 type defaultGHRunner struct{}
 
-var defaultGHReaper = procutil.ReapProcessTree
+var (
+	defaultGHReaper            = procutil.ReapProcessTree
+	ghSetProcessGroupKillFn    = procutil.SetProcessGroupKill
+	ghWaitForProcessCapacityFn = procutil.WaitForProcessCapacity
+)
 
 const ghProcessCapacityWait = 1500 * time.Millisecond
 
 func (r *defaultGHRunner) Run(ctx context.Context, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "gh", args...)
-	procutil.SetProcessGroupKill(cmd)
+	ghSetProcessGroupKillFn(cmd)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	if waitErr := procutil.WaitForProcessCapacity(ctx, ghProcessCapacityWait); waitErr != nil {
+	if waitErr := ghWaitForProcessCapacityFn(ctx, ghProcessCapacityWait); waitErr != nil {
 		return "", fmt.Errorf("waiting for process capacity: %w", waitErr)
 	}
 	if err := cmd.Start(); err != nil {
