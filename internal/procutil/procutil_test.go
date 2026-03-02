@@ -310,3 +310,58 @@ func TestWaitForProcessCapacityReturnsErrorWhenStillPressured(t *testing.T) {
 		t.Fatalf("ProcessCapacityError = (%d/%d), want (90/100)", capacityErr.Current, capacityErr.Max)
 	}
 }
+
+func TestWaitForProcessCapacityAnchorsDeadlineToStart(t *testing.T) {
+	originalTimeNow := timeNowFn
+	originalSleep := sleepWithContextFn
+	originalPressured := processCreationPressuredFn
+	originalPressure := pidPressureFn
+	clock := &fakeClock{now: time.Unix(0, 0)}
+	delta := 5 * time.Millisecond
+	maxWait := 20 * time.Millisecond
+	callCount := 0
+	t.Cleanup(func() {
+		timeNowFn = originalTimeNow
+		sleepWithContextFn = originalSleep
+		processCreationPressuredFn = originalPressured
+		pidPressureFn = originalPressure
+	})
+
+	timeNowFn = func() time.Time {
+		callCount++
+		if callCount == 2 {
+			clock.Advance(delta)
+		}
+		return clock.Now()
+	}
+	sleepWithContextFn = func(ctx context.Context, d time.Duration) error {
+		clock.Advance(d)
+		return nil
+	}
+	processCreationPressuredFn = func() (bool, error) { return true, nil }
+	pidPressureFn = func() (int, int, error) { return 1, 1, nil }
+
+	err := WaitForProcessCapacity(context.Background(), maxWait)
+	if err == nil {
+		t.Fatal("expected ProcessCapacityError")
+	}
+	var capErr *ProcessCapacityError
+	if !errors.As(err, &capErr) {
+		t.Fatalf("WaitForProcessCapacity() error type = %T, want *ProcessCapacityError", err)
+	}
+	if capErr.Waited != maxWait {
+		t.Fatalf("Waited = %v, want %v", capErr.Waited, maxWait)
+	}
+}
+
+type fakeClock struct {
+	now time.Time
+}
+
+func (c *fakeClock) Now() time.Time {
+	return c.now
+}
+
+func (c *fakeClock) Advance(d time.Duration) {
+	c.now = c.now.Add(d)
+}
