@@ -68,3 +68,9 @@ func newTestFileStore(t *testing.T) *fileStore {
 		stages: make(map[string]Stage),
 	}
 }
+
+func TestFileStoreStoreStageRace(t *testing.T) {
+	ctx := context.Background()
+	store := newTestFileStore(t)
+	runConcurrentStoreStageRace(t, ctx, store, 100)
+}
