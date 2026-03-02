@@ -172,6 +172,8 @@ func NewPipelineDeps(cfg *config.Config, gromitDir string) (*pipeline.Deps, erro
 		ReviewInvoker:     claudeAdapter,
 		TrackerClient:     trackerAdapter,
 		BeadQueryClient:   beadQueryAdapter,
+		BoardClient:       beadClient,
+		QueueClient:       beadClient,
 		BacklogClient:     backlogClient,
 		BacklogWriter:     backlogWriter,
 		RefineRenderer:    refineRenderer,

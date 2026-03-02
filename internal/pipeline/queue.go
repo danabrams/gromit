@@ -9,17 +9,9 @@ import (
 	"github.com/danabrams/gromit/internal/queue"
 )
 
-type queueClient interface {
+type QueueClient interface {
 	ActiveBeadClient
 	ListReadyWork(ctx context.Context) ([]*bead.Bead, error)
-}
-
-var newQueueClient = func() (queueClient, error) {
-	client, err := bead.NewClient()
-	if err != nil {
-		return nil, err
-	}
-	return client, nil
 }
 
 // QueueInput contains the configuration required to render the queue.
@@ -38,7 +30,7 @@ type QueueResult struct {
 
 // Queue assembles queue data for the CLI.
 func (p *Pipeline) Queue(ctx context.Context, input QueueInput) (*QueueResult, error) {
-	client, err := newQueueClient()
+	client, err := p.queueClient()
 	if err != nil {
 		return nil, fmt.Errorf("creating bead client: %w", err)
 	}
@@ -73,4 +65,11 @@ func (p *Pipeline) Queue(ctx context.Context, input QueueInput) (*QueueResult, e
 		Stuck:   stuck,
 		All:     allBeads,
 	}, nil
+}
+
+func (p *Pipeline) queueClient() (QueueClient, error) {
+	if p != nil && p.deps != nil && p.deps.QueueClient != nil {
+		return p.deps.QueueClient, nil
+	}
+	return bead.NewClient()
 }

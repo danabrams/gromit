@@ -117,6 +117,7 @@ type Deps struct {
 	TrackerClient     TrackerClient
 	BeadQueryClient   BeadQueryClient
 	BoardClient       BoardClient
+	QueueClient       QueueClient
 	BacklogClient     BacklogClient
 	BacklogWriter     BacklogWriter
 	RefineRenderer    RefineRenderer

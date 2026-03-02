@@ -11,14 +11,21 @@ import (
 func TestPipeline_Queue_ClientCreationError(t *testing.T) {
 	t.Parallel()
 
-	origClient := newQueueClient
-	t.Cleanup(func() { newQueueClient = origClient })
-
-	newQueueClient = func() (queueClient, error) {
-		return nil, queueErrBoom
+	deps := &Deps{
+		QueueClient: &fakeQueueClient{
+			listReadyWorkFn: func(context.Context) ([]*bead.Bead, error) {
+				return nil, queueErrBoom
+			},
+			listFn: func(context.Context) ([]*bead.Bead, error) {
+				return nil, nil
+			},
+			listByStatusFn: func(context.Context, string) ([]*bead.Bead, error) {
+				return nil, nil
+			},
+		},
 	}
 
-	p := New(&Deps{}, &Paths{})
+	p := New(deps, &Paths{})
 	if _, err := p.Queue(context.Background(), QueueInput{}); err == nil {
 		t.Fatal("expected error when bead client creation fails")
 	} else if !errors.Is(err, queueErrBoom) {
@@ -57,11 +64,8 @@ func TestPipeline_Queue_UsesDepsQueueClient(t *testing.T) {
 func TestPipeline_Queue_ReturnsPartitionedData(t *testing.T) {
 	t.Parallel()
 
-	origClient := newQueueClient
-	t.Cleanup(func() { newQueueClient = origClient })
-
-	newQueueClient = func() (queueClient, error) {
-		return &fakeQueueClient{
+	deps := &Deps{
+		QueueClient: &fakeQueueClient{
 			listReadyWorkFn: func(context.Context) ([]*bead.Bead, error) {
 				return []*bead.Bead{
 					{ID: "ready", Priority: 0},
@@ -78,10 +82,10 @@ func TestPipeline_Queue_ReturnsPartitionedData(t *testing.T) {
 					{ID: "in-progress", Priority: 1, Status: "in_progress"},
 				}, nil
 			},
-		}, nil
+		},
 	}
 
-	p := New(&Deps{}, &Paths{})
+	p := New(deps, &Paths{})
 	result, err := p.Queue(context.Background(), QueueInput{LogsDir: "nonexistent", StuckThreshold: 1})
 	if err != nil {
 		t.Fatalf("Queue() returned error: %v", err)
