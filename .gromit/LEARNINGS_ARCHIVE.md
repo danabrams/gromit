@@ -1948,3 +1948,8 @@ Failure analysis requires complete error output (stderr, exit codes, logs) to di
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-03-02 | gromit-vj714.2 | gotchas
+When updating function signatures across a codebase, ensure test updates cover all call sites - validation may pass for specific test files but miss other areas needing updates
+
+*Archived from new: filtered: generic engineering advice*
+

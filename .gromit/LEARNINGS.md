@@ -133,7 +133,6 @@ worktree.Manager methods accept context.Context at the library level, but the CL
 
 Tracker adapter metadata must use one canonical JSON encoder (encodeJSONIfNonEmpty) for labels/expected_outputs/criteria across all adapter entry points; fmt.Sprintf/comma formats are forbidden because they break roundtrip parsing.
 
-
 ### 2026-02-26 | Profile-Aware Init Three-Function Pattern | patterns
 *Related to: code-review, review-1772124256835385050*
 
@@ -248,7 +247,6 @@ Integration queue state evolution must be table-driven and persist every transit
 
 *Consolidated from: Integration Queue Lifecycle Is Table-Driven via ApplyTransition, Integration Queue Has 8 States Including push_failure, RecoverFromMalformedQueue Never Persists and Uses Invalid Transition*
 
-
 ### 2026-02-28 | ListBeads/QueryBeads Silently Return Empty for Unsupported Status | gotchas
 *Related to: review-1772300695650836737*
 
@@ -261,7 +259,6 @@ Pipeline.ListBeads and QueryBeads only support status="" or status="ready". Any 
 
 Vision metrics rollups may intentionally use asymmetric carve-out denominators (e.g., AcceptedWithoutReworkRate excludes rework_vision_change from denominator but FirstIntegrationPassRate includes them), but each metric must document carve-out policy explicitly.
 
-
 ### 2026-02-28 | TUI Store Copy-on-Read Returns Shallow Pointer Copies | gotchas
 *Related to: review-1772322141608097349*
 
@@ -271,10 +268,6 @@ TUI store uses sync.RWMutex with copy-on-read for thread safety, but copied slic
 *Related to: review-1772322141608097349*
 
 Config types must use *bool for boolean fields with non-zero defaults to distinguish 'unset' from 'explicitly false' in YAML deserialization. Plain bool zero value (false) is indistinguishable from explicit false.
-
-
-
-
 
 ### 2026-03-01 | Epilogue Stage Mutates Caller's IterationLog Through Input Pointer | architecture
 *Related to: review-1772366501939692738*
@@ -306,7 +299,6 @@ worktree.Manager was updated to accept context.Context on Cleanup, PendingBranch
 *Related to: review-1772392326235980273*
 
 Two new files (spc_auto_triage.go, specmerge/pr_summary.go) were committed with space indentation instead of tabs, failing gofmt. CI should catch this if gofmt is enforced in the lint step; if not, add gofmt as a CI gate.
-
 
 ### 2026-03-01 | captureCycleRecord Silently Discards Emitter Error | gotchas
 *Related to: review-1772392326235980273*
@@ -380,7 +372,6 @@ Forward-references to unimplemented types (prepare.LLMCriteriaEnricher, cfg.Gate
 *Related to: review-1772468843459581859*
 
 Close detection in bead.Client via string matching (strings.Contains output, 'cannot close') is fragile and depends on exact bd CLI output format. Consider using exit codes or structured output for close failure detection.
-
 
 ---
 
@@ -478,3 +469,24 @@ SPCAutoTriager.Process returned immediately on the first tracker.Client.Create f
 Queue payload validation requires all fields (base_ref, session reference, etc.) to be set when creating records.
 
 *Archived: 2026-03-02 — generic bead-ID phrasing without durable project-specific mechanism; archive per anti-generic policy.*
+
+### 2026-03-02 | gromit-vj714 | gotchas
+When task titles don't match code changes, verify scope alignment before escalating build failures. The task conflation between repoBaseName changes and JSONL sync logic suggests context confusion—future tasks should have explicit scope definition in task metadata, not just titles.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-03-02 | gromit-yry7z | patterns
+When implementing dependency validation in constructor functions, ensure validated dependencies are actually assigned to the struct being returned; validation without assignment creates silent failures
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-03-02 | gromit-yry7z.1 | gotchas
+When validations pass but task is marked failed, verify task completion criteria explicitly—validations may only check one dimension and miss others (e.g., code review approval, integration requirements, or deliverable completeness).
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-03-02 | gromit-vj714.2 | gotchas
+When updating function signatures across a codebase, ensure test updates cover all call sites - validation may pass for specific test files but miss other areas needing updates
+
+*Archived from new: filtered: generic engineering advice*
+
