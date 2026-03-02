@@ -13,6 +13,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/integrationqueue"
 	"github.com/danabrams/gromit/internal/procutil"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
 const integrationQueueGitCommandProcessCapacityWait = 1500 * time.Millisecond
@@ -52,6 +53,13 @@ var (
 		return &integrationQueueScopedGateAdapter{}, nil
 	}
 )
+
+func newIntegrationQueueScopedGateEvaluator(cfg *config.Config, repoDir string, cmdRunner runtypes.CmdRunnerFn) integrationQueueScopedGateEvaluator {
+	if cfg == nil || !cfg.Validation.Enabled {
+		return nil
+	}
+	return nil
+}
 
 func newIntegrationQueueCoordinator(cfg *config.Config, gromitDir string) (Coordinator, error) {
 	store, err := newRunnerIntegrationQueueStoreFn(gromitDir)
