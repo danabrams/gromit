@@ -54,7 +54,8 @@ func (a *integrationQueueGitOpsAdapter) MergeToMain(ctx context.Context, entry i
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(entry.Branch) == "" {
+	branch := strings.TrimSpace(entry.Branch)
+	if branch == "" {
 		return fmt.Errorf("entry branch is empty")
 	}
 	if a.runGitCommand == nil {
@@ -69,8 +70,8 @@ func (a *integrationQueueGitOpsAdapter) MergeToMain(ctx context.Context, entry i
 	if _, err := a.runGitCommand(ctx, dir, "checkout", base); err != nil {
 		return fmt.Errorf("checkout %s: %w", base, err)
 	}
-	if _, err := a.runGitCommand(ctx, dir, "merge", "--ff-only", entry.Branch); err != nil {
-		return fmt.Errorf("merging branch %s: %w", entry.Branch, err)
+	if _, err := a.runGitCommand(ctx, dir, "merge", "--ff-only", branch); err != nil {
+		return fmt.Errorf("merging branch %s: %w", branch, err)
 	}
 
 	return nil
