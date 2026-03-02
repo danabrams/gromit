@@ -2,6 +2,7 @@ package integrationqueue
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -60,7 +61,9 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 		entry.LastErrorCode = "rebase_conflict"
 		entry.LastErrorMessage = err.Error()
 		if transErr := ApplyTransition(entry, string(StateConflict), "rebase conflict during initial fetch"); transErr == nil {
-			_ = c.store.Save(*entry)
+			if saveErr := c.store.Save(*entry); saveErr != nil {
+				return fmt.Errorf("fetch/rebase branch: %w", errors.Join(err, saveErr))
+			}
 		}
 		return fmt.Errorf("fetch/rebase branch: %w", err)
 	}
@@ -184,10 +187,10 @@ func (c *Coordinator) RecoverFromCrash(ctx context.Context) error {
 				return fmt.Errorf("transitioning recovered entry %s: %w", entry.Branch, err)
 			}
 
-		if clearError {
-			entry.LastErrorCode = string(CrashRecoveryErrorCode)
-			entry.LastErrorMessage = "recovered from crash: entry was in integrating state"
-		}
+			if clearError {
+				entry.LastErrorCode = string(CrashRecoveryErrorCode)
+				entry.LastErrorMessage = "recovered from crash: entry was in integrating state"
+			}
 
 			// Save each recovered entry
 			if err := c.store.Save(*entry); err != nil {
