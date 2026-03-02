@@ -356,6 +356,31 @@ The repo gofmt gate (recently added) catches new violations but does not enforce
 
 internal/runner/orchestrator.go is the largest production file at 1254 lines, exceeding both the 550-line production limit and the 1000-line facade limit. Continued growth without extraction will compound complexity.
 
+### 2026-03-02 | Integration Queue FSM Is Well-Designed Reference Pattern | architecture
+*Related to: review-1772468843459581859*
+
+Integration queue package uses table-driven state machine, advisory file locking (syscall.Flock), and clear separation between store/coordinator/transitions/validation. The FSM pattern should be replicated for other state machines in the codebase.
+
+### 2026-03-02 | Mutable Package-Level Transition Tables Create Test Isolation Hazards | gotchas
+*Related to: review-1772468843459581859*
+
+Mutable package-level transition tables (integrationqueue/transitions.go allowedTransitions) create test isolation hazards when tests modify and restore the map without synchronization. Use a function returning a fresh map, or accept a transitions table as a parameter.
+
+### 2026-03-02 | Documentation-Only Tests Inflate Coverage Without Regression Protection | test_quality
+*Related to: review-1772468843459581859*
+
+The adapter_*_test.go files in cmd/gromit/ contain a class of 'documentation tests' that use only t.Logf() and tautological nil checks — these inflate test coverage metrics without providing regression protection. The compile-time `var _ Interface = (*Type)(nil)` pattern already covers what these tests claim to verify.
+
+### 2026-03-02 | Forward-References to Unimplemented Types Break Build Discipline | conventions
+*Related to: review-1772468843459581859*
+
+Forward-references to unimplemented types (prepare.LLMCriteriaEnricher, cfg.Gate) broke the build. The red-green discipline should prevent committing code that references types not yet defined — this likely came from a partial merge of an in-progress feature branch.
+
+### 2026-03-02 | Close Detection via String Matching in bead.Client Is Fragile | gotchas
+*Related to: review-1772468843459581859*
+
+Close detection in bead.Client via string matching (strings.Contains output, 'cannot close') is fragile and depends on exact bd CLI output format. Consider using exit codes or structured output for close failure detection.
+
 
 ---
 
