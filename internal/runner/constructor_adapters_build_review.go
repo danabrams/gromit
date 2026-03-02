@@ -284,7 +284,7 @@ func (a *beadCreatorAdapter) Create(ctx context.Context, title string, priority 
 	if a == nil || a.beads == nil {
 		return "", fmt.Errorf("bead creator is not configured")
 	}
-	b, err := a.beads.Create(context.Background(), title, priority, labels, outputs)
+	b, err := a.beads.Create(ctx, title, priority, labels, outputs)
 	if err != nil {
 		return "", err
 	}
@@ -425,11 +425,11 @@ func newStageAwarePreImplementationHook(stageCtx *StageContext) func(context.Con
 }
 
 var (
-	_ execute.Invoker             = (*invokerAdapter)(nil)
-	_ execute.PromptRenderer      = (*renderAdapter)(nil)
+	_ execute.Invoker                = (*invokerAdapter)(nil)
+	_ execute.PromptRenderer         = (*renderAdapter)(nil)
 	_ pipelinevalidate.CommandRunner = (*cmdRunnerAdapter)(nil)
-	_ review.Invoker              = (*reviewInvokerAdapter)(nil)
-	_ review.BeadCreator          = (*beadCreatorAdapter)(nil)
-	_ review.PromptRenderer       = (*reviewRendererAdapter)(nil)
-	_ execution.Router            = (*executionRouterAdapter)(nil)
+	_ review.Invoker                 = (*reviewInvokerAdapter)(nil)
+	_ review.BeadCreator             = (*beadCreatorAdapter)(nil)
+	_ review.PromptRenderer          = (*reviewRendererAdapter)(nil)
+	_ execution.Router               = (*executionRouterAdapter)(nil)
 )

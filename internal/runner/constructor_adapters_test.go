@@ -483,10 +483,10 @@ func TestDecomposerAdapterChildWithDedupeLabelExistsWithClient_ThreadsProvidedCo
 }
 
 type fakeBeadClient struct {
-	listFn   func(ctx context.Context, label string) ([]*bead.Bead, error)
+	listFn             func(ctx context.Context, label string) ([]*bead.Bead, error)
 	createFn           func(ctx context.Context, title string, priority int, labels []string, outputs []string) (*bead.Bead, error)
 	createWithParentFn func(ctx context.Context, title string, priority int, labels []string, outputs []string, parentID string) (*bead.Bead, error)
-	closeFn  func(ctx context.Context, id string) error
+	closeFn            func(ctx context.Context, id string) error
 }
 
 func (f *fakeBeadClient) Ready(ctx context.Context) (*bead.Bead, error) {
