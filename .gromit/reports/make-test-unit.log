@@ -1,0 +1,697 @@
+go test ./...
+ok  	github.com/danabrams/gromit	0.040s
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+
+Epics created:
+  - mocked
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+
+Epics created:
+  - epic1.md
+
+Specs created:
+  - spec1.md
+
+Backlog items created: 2
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+
+Epics created:
+  - epic1.md
+
+Specs created:
+  - spec1.md
+Initializing gromit in /tmp/TestInitWritesDetectedProfile658967560/001
+  Created .gromit/templates/
+  Created .gromit/specs/
+  Created .gromit/plans/
+  Created gromit.yaml
+  Created CLAUDE.md
+  Created PROMPT_build.md
+  Created PROMPT_validate.md
+  Created PROMPT_retro.md
+  Created PROMPT_analyze.md
+  Created PROMPT_scope.md
+  Created PROMPT_decompose.md
+  Created PROMPT_review.md
+  Created PROMPT_thorough_review.md
+  Created PROMPT_learn.md
+  Created PROMPT_acceptance_tests.md
+  Created PROMPT_atdd_diagnostic.md
+  Created PROMPT_atdd_build.md
+  Created PROMPT_refactor.md
+  Created PROMPT_tdd_build.md
+  Created PROMPT_precheck.md
+  Created RULES.md
+  Created LEARNINGS.md
+
+Done! Next steps:
+  1. Edit gromit.yaml to customize validation commands
+  2. Edit .gromit/RULES.md to add project-specific rules
+  3. Set bead ID prefix (one-time): bd config set issue_prefix <project-name>
+  4. Create specs in .gromit/specs/ and plans in .gromit/plans/
+  5. Create beads with: bd create "Task title" --priority 1
+  6. Run validation: npm test && npm run build
+  7. Run: gromit run --dry-run
+
+Periodically run 'gromit retro' to analyze and consolidate learnings.
+Initializing gromit in /tmp/TestInitWritesGoProfile1014853462/001
+  Created .gromit/templates/
+  Created .gromit/specs/
+  Created .gromit/plans/
+  Created gromit.yaml
+  Created CLAUDE.md
+  Created PROMPT_build.md
+  Created PROMPT_validate.md
+  Created PROMPT_retro.md
+  Created PROMPT_analyze.md
+  Created PROMPT_scope.md
+  Created PROMPT_decompose.md
+  Created PROMPT_review.md
+  Created PROMPT_thorough_review.md
+  Created PROMPT_learn.md
+  Created PROMPT_acceptance_tests.md
+  Created PROMPT_atdd_diagnostic.md
+  Created PROMPT_atdd_build.md
+  Created PROMPT_refactor.md
+  Created PROMPT_tdd_build.md
+  Created PROMPT_precheck.md
+  Created RULES.md
+  Created LEARNINGS.md
+
+Done! Next steps:
+  1. Edit gromit.yaml to customize validation commands
+  2. Edit .gromit/RULES.md to add project-specific rules
+  3. Set bead ID prefix (one-time): bd config set issue_prefix <project-name>
+  4. Create specs in .gromit/specs/ and plans in .gromit/plans/
+  5. Create beads with: bd create "Task title" --priority 1
+  6. Run validation: go test && go vet && go build
+  7. Run: gromit run --dry-run
+
+Periodically run 'gromit retro' to analyze and consolidate learnings.
+Initializing gromit in /tmp/TestInitRespectsProfileFlag179675085/001
+  Created .gromit/templates/
+  Created .gromit/specs/
+  Created .gromit/plans/
+  Created gromit.yaml
+  Created CLAUDE.md
+  Created PROMPT_build.md
+  Created PROMPT_validate.md
+  Created PROMPT_retro.md
+  Created PROMPT_analyze.md
+  Created PROMPT_scope.md
+  Created PROMPT_decompose.md
+  Created PROMPT_review.md
+  Created PROMPT_thorough_review.md
+  Created PROMPT_learn.md
+  Created PROMPT_acceptance_tests.md
+  Created PROMPT_atdd_diagnostic.md
+  Created PROMPT_atdd_build.md
+  Created PROMPT_refactor.md
+  Created PROMPT_tdd_build.md
+  Created PROMPT_precheck.md
+  Created RULES.md
+  Created LEARNINGS.md
+
+Done! Next steps:
+  1. Edit gromit.yaml to customize validation commands
+  2. Edit .gromit/RULES.md to add project-specific rules
+  3. Set bead ID prefix (one-time): bd config set issue_prefix <project-name>
+  4. Create specs in .gromit/specs/ and plans in .gromit/plans/
+  5. Create beads with: bd create "Task title" --priority 1
+  6. Run validation: pytest
+  7. Run: gromit run --dry-run
+
+Periodically run 'gromit retro' to analyze and consolidate learnings.
+Initializing gromit in /tmp/TestExplicitProfileOverrideNoImplicitInjectionexplicit_profile_1008998655/001
+  Created .gromit/templates/
+  Created .gromit/specs/
+  Created .gromit/plans/
+  Created gromit.yaml
+  Created CLAUDE.md
+  Created PROMPT_build.md
+  Created PROMPT_validate.md
+  Created PROMPT_retro.md
+  Created PROMPT_analyze.md
+  Created PROMPT_scope.md
+  Created PROMPT_decompose.md
+  Created PROMPT_review.md
+  Created PROMPT_thorough_review.md
+  Created PROMPT_learn.md
+  Created PROMPT_acceptance_tests.md
+  Created PROMPT_atdd_diagnostic.md
+  Created PROMPT_atdd_build.md
+  Created PROMPT_refactor.md
+  Created PROMPT_tdd_build.md
+  Created PROMPT_precheck.md
+  Created RULES.md
+  Created LEARNINGS.md
+
+Done! Next steps:
+  1. Edit gromit.yaml to customize validation commands
+  2. Edit .gromit/RULES.md to add project-specific rules
+  3. Set bead ID prefix (one-time): bd config set issue_prefix <project-name>
+  4. Create specs in .gromit/specs/ and plans in .gromit/plans/
+  5. Create beads with: bd create "Task title" --priority 1
+  6. Run validation: go test && go vet && go build
+  7. Run: gromit run --dry-run
+
+Periodically run 'gromit retro' to analyze and consolidate learnings.
+Initializing gromit in /tmp/TestExplicitProfileOverrideNoImplicitInjectionexplicit_python_p3150116709/001
+  Created .gromit/templates/
+  Created .gromit/specs/
+  Created .gromit/plans/
+  Created gromit.yaml
+  Created CLAUDE.md
+  Created PROMPT_build.md
+  Created PROMPT_validate.md
+  Created PROMPT_retro.md
+  Created PROMPT_analyze.md
+  Created PROMPT_scope.md
+  Created PROMPT_decompose.md
+  Created PROMPT_review.md
+  Created PROMPT_thorough_review.md
+  Created PROMPT_learn.md
+  Created PROMPT_acceptance_tests.md
+  Created PROMPT_atdd_diagnostic.md
+  Created PROMPT_atdd_build.md
+  Created PROMPT_refactor.md
+  Created PROMPT_tdd_build.md
+  Created PROMPT_precheck.md
+  Created RULES.md
+  Created LEARNINGS.md
+
+Done! Next steps:
+  1. Edit gromit.yaml to customize validation commands
+  2. Edit .gromit/RULES.md to add project-specific rules
+  3. Set bead ID prefix (one-time): bd config set issue_prefix <project-name>
+  4. Create specs in .gromit/specs/ and plans in .gromit/plans/
+  5. Create beads with: bd create "Task title" --priority 1
+  6. Run validation: pytest
+  7. Run: gromit run --dry-run
+
+Periodically run 'gromit retro' to analyze and consolidate learnings.
+Initializing gromit in /tmp/TestExplicitProfileOverrideNoImplicitInjectionexplicit_node_pro2316472811/001
+  Created .gromit/templates/
+  Created .gromit/specs/
+  Created .gromit/plans/
+  Created gromit.yaml
+  Created CLAUDE.md
+  Created PROMPT_build.md
+  Created PROMPT_validate.md
+  Created PROMPT_retro.md
+  Created PROMPT_analyze.md
+  Created PROMPT_scope.md
+  Created PROMPT_decompose.md
+  Created PROMPT_review.md
+  Created PROMPT_thorough_review.md
+  Created PROMPT_learn.md
+  Created PROMPT_acceptance_tests.md
+  Created PROMPT_atdd_diagnostic.md
+  Created PROMPT_atdd_build.md
+  Created PROMPT_refactor.md
+  Created PROMPT_tdd_build.md
+  Created PROMPT_precheck.md
+  Created RULES.md
+  Created LEARNINGS.md
+
+Done! Next steps:
+  1. Edit gromit.yaml to customize validation commands
+  2. Edit .gromit/RULES.md to add project-specific rules
+  3. Set bead ID prefix (one-time): bd config set issue_prefix <project-name>
+  4. Create specs in .gromit/specs/ and plans in .gromit/plans/
+  5. Create beads with: bd create "Task title" --priority 1
+  6. Run validation: npm test && npm run build
+  7. Run: gromit run --dry-run
+
+Periodically run 'gromit retro' to analyze and consolidate learnings.
+Initializing gromit in /tmp/TestInitWritesGoProfileRules1600277116/001
+  Created .gromit/templates/
+  Created .gromit/specs/
+  Created .gromit/plans/
+  Created gromit.yaml
+  Created CLAUDE.md
+  Created PROMPT_build.md
+  Created PROMPT_validate.md
+  Created PROMPT_retro.md
+  Created PROMPT_analyze.md
+  Created PROMPT_scope.md
+  Created PROMPT_decompose.md
+  Created PROMPT_review.md
+  Created PROMPT_thorough_review.md
+  Created PROMPT_learn.md
+  Created PROMPT_acceptance_tests.md
+  Created PROMPT_atdd_diagnostic.md
+  Created PROMPT_atdd_build.md
+  Created PROMPT_refactor.md
+  Created PROMPT_tdd_build.md
+  Created PROMPT_precheck.md
+  Created RULES.md
+  Created LEARNINGS.md
+
+Done! Next steps:
+  1. Edit gromit.yaml to customize validation commands
+  2. Edit .gromit/RULES.md to add project-specific rules
+  3. Set bead ID prefix (one-time): bd config set issue_prefix <project-name>
+  4. Create specs in .gromit/specs/ and plans in .gromit/plans/
+  5. Create beads with: bd create "Task title" --priority 1
+  6. Run validation: go test && go vet && go build
+  7. Run: gromit run --dry-run
+
+Periodically run 'gromit retro' to analyze and consolidate learnings.
+Initializing gromit in /tmp/TestRunInitUsesProfileAwareRulesAndNextSteps385659225/001
+  Created .gromit/templates/
+  Created .gromit/specs/
+  Created .gromit/plans/
+  Skipped gromit.yaml (already exists, use --force to overwrite)
+  Created CLAUDE.md
+  Created PROMPT_build.md
+  Created PROMPT_validate.md
+  Created PROMPT_retro.md
+  Created PROMPT_analyze.md
+  Created PROMPT_scope.md
+  Created PROMPT_decompose.md
+  Created PROMPT_review.md
+  Created PROMPT_thorough_review.md
+  Created PROMPT_learn.md
+  Created PROMPT_acceptance_tests.md
+  Created PROMPT_atdd_diagnostic.md
+  Created PROMPT_atdd_build.md
+  Created PROMPT_refactor.md
+  Created PROMPT_tdd_build.md
+  Created PROMPT_precheck.md
+  Created RULES.md
+  Created LEARNINGS.md
+
+Done! Next steps:
+  1. Edit gromit.yaml to customize validation commands
+  2. Edit .gromit/RULES.md to add project-specific rules
+  3. Set bead ID prefix (one-time): bd config set issue_prefix <project-name>
+  4. Create specs in .gromit/specs/ and plans in .gromit/plans/
+  5. Create beads with: bd create "Task title" --priority 1
+  6. Run validation: go test && go vet && go build
+  7. Run: gromit run --dry-run
+
+Periodically run 'gromit retro' to analyze and consolidate learnings.
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+--- FAIL: TestShowQueue_DelegatesToPipeline (0.00s)
+    queue_test.go:122: showQueue returned error: loading config: reading config file: open ../../gromit.yaml: no such file or directory
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+--- FAIL: TestRunRefineReturnsErrorWhenPipelineCreationFails (0.00s)
+    refine_test.go:147: expected error to include factory failure, got resolve gromit directory: getwd: no such file or directory
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+2026/03/02 03:28:06 WARNING: failed to create review tag: creating review tag gromit/interactive-review/1772422086713154127: exit status 128
+--- FAIL: TestRunInDir_EmptyDirRunsInCurrentDirectory (0.00s)
+    run_in_dir_test.go:41: Getwd() failed: getwd: no such file or directory
+--- FAIL: TestRunInDir_NonexistentDirectory (0.00s)
+    run_in_dir_test.go:65: Getwd() failed: getwd: no such file or directory
+--- FAIL: TestRunInDir_PropagatesCallbackError (0.00s)
+    run_in_dir_test.go:92: error = getting current directory: getwd: no such file or directory, want callback failed
+--- FAIL: TestRunInDir_RestoresOriginalDirectoryOnCallbackError (0.00s)
+    run_in_dir_test.go:98: Getwd() failed: getwd: no such file or directory
+--- FAIL: TestRunSpecTestEnvSeedsExplicitProfile (0.00s)
+    run_spec_flag_test.go:67: getting working directory before setup: getwd: no such file or directory
+--- FAIL: TestRunSpecTestEnvGoProfileValidationCommands (0.00s)
+    run_spec_flag_test.go:80: getting working directory before setup: getwd: no such file or directory
+--- FAIL: TestRunSpecTestEnvRestoresWorkingDirectory (0.00s)
+    run_spec_flag_test.go:105: getting working directory before setup: getwd: no such file or directory
+--- FAIL: TestRunLoop_SpecFlagInjectableFactories (0.00s)
+    run_spec_flag_test.go:124: getting working directory before setup: getwd: no such file or directory
+--- FAIL: TestRunLoop_SpecFlagFreshStartBootstrapsStageAndBranch (0.00s)
+    run_spec_flag_test.go:181: getting working directory before setup: getwd: no such file or directory
+--- FAIL: TestRunLoop_ScopeFlagsMutuallyExclusive (0.00s)
+    run_spec_flag_test.go:267: getting working directory before setup: getwd: no such file or directory
+--- FAIL: TestRunLoop_SpecFlagNonexistentSpec (0.00s)
+    run_spec_flag_test.go:285: getting working directory before setup: getwd: no such file or directory
+--- FAIL: TestRunLoop_SpecFlagValidSpec (0.00s)
+    run_spec_flag_test.go:317: getting working directory before setup: getwd: no such file or directory
+--- FAIL: TestRunLoop_SpecFlagMissingSpecFallsBackToLegacyLabelWhenOpenBeadsExist (0.00s)
+    run_spec_flag_test.go:344: getting working directory before setup: getwd: no such file or directory
+--- FAIL: TestRunLoop_SpecFlagMissingSpecDoesNotFallbackWhenStrictLegacyFallbackEnabled (0.00s)
+    run_spec_flag_test.go:367: getting working directory before setup: getwd: no such file or directory
+--- FAIL: TestRunLoop_NoSpecFlagSkipsSpecflowBootstrapping (0.00s)
+    run_spec_flag_test.go:400: getting working directory before setup: getwd: no such file or directory
+--- FAIL: TestRunLoop_SpecFlagResumeChecksOutBranch (0.00s)
+    run_spec_flag_test.go:445: getting working directory before setup: getwd: no such file or directory
+--- FAIL: TestRunLoop_EpicFlagMissingSpecsDir (0.00s)
+    run_spec_flag_test.go:501: getting working directory before setup: getwd: no such file or directory
+--- FAIL: TestRunLoop_EpicFlagValidScope (0.00s)
+    run_spec_flag_test.go:522: getting working directory before setup: getwd: no such file or directory
+--- FAIL: TestLaunchRetroInteractiveSession_UsesSessionWorktreeDir (0.00s)
+    runretro_test.go:75: launchRetroInteractiveSession() error = resolving prompt path: getwd: no such file or directory
+--- FAIL: TestLaunchRetroInteractiveSession_ConflictHandoffPropagates (0.00s)
+    runretro_test.go:132: expected merge conflict handoff error, got *fmt.wrapError (resolving prompt path: getwd: no such file or directory)
+--- FAIL: TestSharedFileContainsNewPipeline (0.00s)
+    shared_test.go:14: expected shared.go to exist: open shared.go: no such file or directory
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+--- FAIL: TestRunGromitCobra_HelpOutputsUsage (0.00s)
+    test_binary_helpers_test.go:75: failed to get working directory: getwd: no such file or directory
+--- FAIL: TestRunCommandHelpIncludesGracefulStopHint (0.00s)
+    test_binary_helpers_test.go:88: failed to get working directory: getwd: no such file or directory
+--- FAIL: TestRunGromitCobra_ResetsHelpFlag (0.00s)
+    test_binary_helpers_test.go:102: failed to get working directory: getwd: no such file or directory
+PR metadata validation failed:
+  - spec_id: required
+  - review_outcome: invalid
+--- FAIL: TestVerifySpecCmd_ArgParsing (0.00s)
+    verify_spec_test.go:74: failed to get working directory: getwd: no such file or directory
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+--- FAIL: TestSmokeDecisionRubric_DestinationConventionsForCmdAndRunner (0.00s)
+    smoke_decision_rubric_test.go:66: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestSmokeDecisionRubric_MatrixTemplateHasRequiredFields (0.00s)
+    smoke_decision_rubric_test.go:39: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestReviewSpecValidationRefactor_ReducesLinesAndKeepsDeterministicCoverage (0.00s)
+    review_spec_validation_refactor_reclassified_test.go:84: could not find project root: getwd: no such file or directory
+--- FAIL: TestReviewSpecValidationRefactorReclassified_UsesSharedHelpers (0.00s)
+    review_spec_validation_refactor_reclassified_test.go:64: could not find project root: getwd: no such file or directory
+--- FAIL: TestReviewSpecValidationRefactor_UsesTableDrivenScenarioGroups (0.00s)
+    review_spec_validation_refactor_reclassified_test.go:43: could not find project root: getwd: no such file or directory
+--- FAIL: TestReviewPrompt_LearningsOnlyForViolationsAndNovelPatterns (0.00s)
+    review_prompt_learnings_test.go:18: reading PROMPT_review.md: open ../../.gromit/templates/PROMPT_review.md: no such file or directory
+--- FAIL: TestReviewCommand_UsesNewPipelineDeps (0.00s)
+    review_deps_wiring_test.go:18: reading review.go: open review.go: no such file or directory
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+2026/03/02 03:28:06 WARNING: failed to create review tag: creating review tag gromit/interactive-review/1772422086776272908: exit status 128
+2026/03/02 03:28:06 WARNING: failed to create review tag: creating review tag gromit/interactive-review/1772422086776213836: exit status 128
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+--- FAIL: TestRepoHygiene_ScratchFilesRemovedAndIgnored (0.00s)
+    repo_hygiene_test.go:97: could not find project root: getwd: no such file or directory
+--- FAIL: TestRepoHygiene_CodexHomeNotTracked (0.00s)
+    repo_hygiene_test.go:91: could not find project root: getwd: no such file or directory
+--- FAIL: TestRepoHygiene_CodexHomeIgnored (0.00s)
+    repo_hygiene_test.go:85: could not find project root: getwd: no such file or directory
+--- FAIL: TestRepoHygiene_TestBinaryRemoved (0.00s)
+    repo_hygiene_test.go:60: could not find project root: getwd: no such file or directory
+--- FAIL: TestRefineCommand_UsesNewPipelineDeps (0.00s)
+    refine_deps_wiring_test.go:18: reading refine.go: open refine.go: no such file or directory
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+--- FAIL: TestRefactorBaselineSummary_FileExistsAndIsClean (0.00s)
+    refactor_log_parse_test.go:74: could not find project root: getwd: no such file or directory
+--- FAIL: TestAdapters_MarshalJSONListRemoved (0.00s)
+    verify_spec_test.go:419: failed to read adapters.go: open adapters.go: no such file or directory
+--- FAIL: TestVerifySpec_LocalProviderConfigHelpersRemoved (0.00s)
+    verify_spec_test.go:391: Reading verify_spec.go: open verify_spec.go: no such file or directory
+--- FAIL: TestDebugHelpMatchesGolden (0.00s)
+    debug_help_golden_test.go:7: reading golden file "cmd/gromit/testdata/golden/debug.help.txt": open ../../cmd/gromit/testdata/golden/debug.help.txt: no such file or directory
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+--- FAIL: TestConsolidateCliAdapters_HasCorrectMethods (0.00s)
+    consolidate_cli_adapters_test.go:49: reading cli_adapters.go: open cli_adapters.go: no such file or directory
+--- FAIL: TestConsolidateCliAdapters_ContainsPromptRenderers (0.00s)
+    consolidate_cli_adapters_test.go:28: reading cli_adapters.go: open cli_adapters.go: no such file or directory
+--- FAIL: TestConsolidateCliAdapters_FileExists (0.00s)
+    consolidate_cli_adapters_test.go:17: cli_adapters.go should exist: stat cli_adapters.go: no such file or directory
+--- FAIL: TestCliAdapters_NoMapConstructionForPrompts (0.00s)
+    consolidate_cli_adapters_location_test.go:45: reading cli_adapters.go: open cli_adapters.go: no such file or directory
+--- FAIL: TestAssertCodexHarnessAcceptanceBuildTagsApplied (0.00s)
+    codex_harness_build_tags_test.go:11: could not find project root: getwd: no such file or directory
+--- FAIL: TestCmdSmoke_AcceptanceTestsEnforceThinWrapperDelegation (0.00s)
+    cmd_smoke_slimming_test.go:301: collect command imports: cmd/gromit directory not found
+--- FAIL: TestCliAdapters_PromptRenderersNotInReviewOrExplore (0.00s)
+    consolidate_cli_adapters_location_test.go:18: reading review.go: open review.go: no such file or directory
+--- FAIL: TestCmdAcceptanceTests_SmokeAnnotationsMatchMatrix (0.00s)
+    cmd_smoke_slimming_test.go:230: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestCmdAcceptanceTests_MaxThreeTestsPerFile (0.00s)
+    cmd_smoke_slimming_test.go:203: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestCmdAcceptanceTests_OnlyTestCmdSmokePatternFunctions (0.00s)
+    cmd_smoke_slimming_test.go:163: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestCmdAcceptanceTests_RemovedCasesHaveUnitCoverage (0.00s)
+    cmd_smoke_slimming_test.go:124: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestCmdAcceptanceTests_AllKeepCasesPresent (0.00s)
+    cmd_smoke_slimming_test.go:87: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestCmdAcceptanceTests_OnlyContainSmokeMatrixKeepCases (0.00s)
+    cmd_smoke_slimming_test.go:33: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestLoadCmdSmokeMatrix_IncludesKnownCase (0.00s)
+    cmd_smoke_matrix_test.go:99: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestCmdSmokeMatrix_MovedCasesHaveConcreteUnitDestinations (0.00s)
+    cmd_smoke_matrix_test.go:74: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestCmdSmokeMatrix_AllCmdCasesHaveDecisions (0.00s)
+    cmd_smoke_matrix_test.go:42: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestLogWriter_UsesTypedEntry (0.00s)
+    cli_adapters_typed_signatures_test.go:250: reading pipeline.go: open ../../internal/pipeline/pipeline.go: no such file or directory
+--- FAIL: TestDecomposeWorkflow_NoTypeAssertions (0.00s)
+    cli_adapters_typed_signatures_test.go:228: reading decompose.go: open ../../internal/pipeline/decompose.go: no such file or directory
+--- FAIL: TestDecomposeWorkflow_NoReflectImport (0.00s)
+    cli_adapters_typed_signatures_test.go:211: reading decompose.go: open ../../internal/pipeline/decompose.go: no such file or directory
+--- FAIL: TestCliAdapters_DefinitionsLocatedInAdapterFile (0.00s)
+    cli_adapters_typed_signatures_test.go:186: reading cli_adapters.go: open cli_adapters.go: no such file or directory
+--- FAIL: TestAdapters_NoMapConstructionForPrompts (0.00s)
+    cli_adapters_typed_signatures_test.go:167: reading review.go: open review.go: no such file or directory
+--- FAIL: TestAdapterIntegrationTypedTest_UsesLLMNames (0.00s)
+    cli_adapters_typed_signatures_test.go:140: reading adapter_integration_typed_test.go: open adapter_integration_typed_test.go: no such file or directory
+--- FAIL: TestPipelinePromptInputTypes_Exist (0.00s)
+    cli_adapters_typed_signatures_test.go:113: reading pipeline.go: open ../../internal/pipeline/pipeline.go: no such file or directory
+--- FAIL: TestPipelineInterfaces_AllTypedSignatures (0.00s)
+    cli_adapters_typed_signatures_test.go:66: reading pipeline.go: open ../../internal/pipeline/pipeline.go: no such file or directory
+--- FAIL: TestRunBoard_DelegatesToPipeline (0.00s)
+    board_test.go:46: runBoard returned error: reading config file: open ../../gromit.yaml: no such file or directory
+--- FAIL: TestRetroRouterAdapterCompileTimeCheckIsPackageLevel (0.00s)
+    adapters_retro_router_test.go:48: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestRetroRouterAdapterCompileTimeCheckLivesInProduction (0.00s)
+    adapters_retro_router_test.go:31: findProjectRoot: getwd: no such file or directory
+Warning: could not determine working directory: getwd: no such file or directory
+--- FAIL: TestAdapterWiring_CompleteFormalization (0.00s)
+    adapter_wiring_formalization_complete_test.go:34: NewPipelineDeps failed: opening lock file: open .gromit/interactive-state.json.lock: no such file or directory
+Warning: could not determine working directory: getwd: no such file or directory
+--- FAIL: TestAdapterFormalization_InterfaceAssertionsPresent (0.00s)
+    adapter_formalization_naming_test.go:115: Could not read cli_adapters.go: open cli_adapters.go: no such file or directory
+--- FAIL: TestAdapterFormalization_NamingConventionsAligned (0.00s)
+    adapter_formalization_naming_test.go:26: Could not read cli_adapters.go: open cli_adapters.go: no such file or directory
+--- FAIL: TestAdapterDepsWiring_AllFieldsWiredInNewPipelineDeps (0.00s)
+    adapter_deps_complete_wiring_test.go:29: NewPipelineDeps failed: opening lock file: open .gromit/interactive-state.json.lock: no such file or directory
+--- FAIL: TestAdapters_AllInheritFromAdaptersGo (0.00s)
+    adapter_business_logic_isolation_test.go:58: Failed to read adapters.go: open adapters.go: no such file or directory
+--- FAIL: TestAdapters_NoBusinessLogicInCLIAdapters (0.00s)
+    adapter_business_logic_isolation_test.go:18: Failed to read cli_adapters.go: open cli_adapters.go: no such file or directory
+--- FAIL: TestSharedAgentResolver_UsedInReview (0.00s)
+    adapter_agent_resolver_shared_test.go:60: failed to read review.go: open review.go: no such file or directory
+--- FAIL: TestSharedAgentResolver_UsedInRefine (0.00s)
+    adapter_agent_resolver_shared_test.go:37: failed to read refine.go: open refine.go: no such file or directory
+--- FAIL: TestSharedAgentResolver_UsedInExplore (0.00s)
+    adapter_agent_resolver_shared_test.go:14: failed to read explore.go: open explore.go: no such file or directory
+--- FAIL: TestRefactorLog_ArtifactPathIsUnderTestLogs (0.00s)
+    refactor_log_completeness_test.go:96: could not find project root: getwd: no such file or directory
+--- FAIL: TestBuildVerifySpecRouter_UsesProviderBuildRouterFromConfig (0.00s)
+    verify_spec_test.go:353: Reading verify_spec.go: open verify_spec.go: no such file or directory
+--- FAIL: TestRefactorLog_ContainsStatusMarkers (0.00s)
+    refactor_log_completeness_test.go:64: could not find project root: getwd: no such file or directory
+--- FAIL: TestRefactorLog_ContainsPerPackageOkLines (0.00s)
+    refactor_log_completeness_test.go:45: could not find project root: getwd: no such file or directory
+--- FAIL: TestPackageTestNameIndex_WorksWithFileLocationResolution (0.00s)
+    test_smoke_decision_rubric_paths_test.go:40: index test names in cmd/gromit: lstat cmd/gromit: no such file or directory
+--- FAIL: TestLoadConsolidatedSmokeMatrix_UsesFileLocationBasedResolution (0.00s)
+    test_smoke_consolidated_paths_test.go:18: open consolidated smoke coverage matrix: open docs/smoke_coverage_matrix.md: no such file or directory
+--- FAIL: TestCollectAcceptanceTests_UsesProperPathResolution (0.00s)
+    test_smoke_consolidated_paths_test.go:34: read cmd/gromit/debug_agent_acceptance_test.go: open cmd/gromit/debug_agent_acceptance_test.go: no such file or directory
+--- FAIL: TestTestLogsDir_ExistsAtRepoRoot (0.00s)
+    test_logs_dir_test.go:15: could not find project root: getwd: no such file or directory
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+--- FAIL: TestCmdNonE2EChecks_AreReclassifiedIntoUnitSuite (0.00s)
+    smoke_suite_slimming_test.go:169: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestCmdAcceptanceSmokeSuite_IsSlimAndFocused (0.00s)
+    smoke_suite_slimming_test.go:90: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestCmdExploreAcceptanceFile_OnlyContainsSmokeTest (0.00s)
+    smoke_suite_slimming_test.go:65: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestCmdDebugAcceptanceFile_OnlyContainsSmokeTest (0.00s)
+    smoke_suite_slimming_test.go:46: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestMakefile_TestProfileTarget (0.00s)
+    makefile_profile_test.go:14: findProjectRoot: getwd: no such file or directory
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+--- FAIL: TestCmdSmokeSuiteReclassified_AcceptanceFileSet (0.00s)
+    smoke_suite_cmd_files_test.go:12: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestFinalVerification (0.00s)
+    final_verification_test.go:22: could not find project root: getwd: no such file or directory
+--- FAIL: TestInitGoLogicFileIsShort (0.00s)
+    init_templates_test.go:27: failed to open init.go: open init.go: no such file or directory
+Warning: could not determine working directory: getwd: no such file or directory
+--- FAIL: TestExploreHelpMatchesGolden (0.00s)
+    explore_help_golden_test.go:7: reading golden file "cmd/gromit/testdata/golden/explore.help.txt": open ../../cmd/gromit/testdata/golden/explore.help.txt: no such file or directory
+--- FAIL: TestExploreCommand_UsesNewPipelineDeps (0.00s)
+    explore_deps_wiring_test.go:18: reading explore.go: open explore.go: no such file or directory
+--- FAIL: TestRootHelpGoldenIncludesPRS (0.00s)
+    help_goldens_test.go:44: reading golden file "cmd/gromit/testdata/golden/root.help.txt": open ../../cmd/gromit/testdata/golden/root.help.txt: no such file or directory
+--- FAIL: TestFinalVerification_NoBuildExplorePromptReference (0.00s)
+    final_verification_test.go:178: could not find project root: getwd: no such file or directory
+--- FAIL: TestEpicAcceptanceFileExists (0.00s)
+    epic_test.go:13: acceptance test file epic_acceptance_test.go missing: stat epic_acceptance_test.go: no such file or directory
+--- FAIL: TestSmokeDecisionRubric_DefinesCriticalOutcomesOnly (0.00s)
+    smoke_decision_rubric_test.go:14: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestProviderGenericAdapter_UsesLLMRouterNaming (0.00s)
+    decompose_adapters_test.go:156: reading adapters.go: open adapters.go: no such file or directory
+--- FAIL: TestCmdSmokeCoverageMatrix_MovedCasesPointToConcreteUnitSuites (0.00s)
+    smoke_coverage_matrix_test.go:143: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestAdapterHelpers_UseLLMRunResultNaming (0.00s)
+    decompose_adapters_test.go:144: reading adapters.go: open adapters.go: no such file or directory
+--- FAIL: TestCmdSmokeCoverageMatrix_KeepSetIsHighValueE2E (0.00s)
+    smoke_coverage_matrix_test.go:105: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestAdapterSimplification_NoMapConstruction (0.00s)
+    decompose_adapters_test.go:117: reading adapters.go: open adapters.go: no such file or directory
+--- FAIL: TestCmdSmokeCoverageMatrix_CaseDecisionsIncludeRationale (0.00s)
+    smoke_coverage_matrix_test.go:80: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestAdapterFile_ImportsTypedPipeline (0.00s)
+    decompose_adapters_test.go:97: reading adapters.go: open adapters.go: no such file or directory
+--- FAIL: TestSmokeCoverageMatrix_MoveCasesHaveConcreteUnitDestinations (0.00s)
+    smoke_coverage_consolidated_test.go:254: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestBeadClientAdapter_ConstructsTypedStruct (0.00s)
+    decompose_adapters_test.go:72: reading adapters.go: open adapters.go: no such file or directory
+--- FAIL: TestSmokeCoverageMatrix_KeepCasesHaveConcreteDestinations (0.00s)
+    smoke_coverage_consolidated_test.go:229: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestSmokeCoverageMatrix_KeepSetIsMinimalHighValue (0.00s)
+    smoke_coverage_consolidated_test.go:194: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestFilterUndecomposedPlans_UnreadableFile (0.05s)
+    decompose_test.go:335: filterUndecomposedPlans() returned 0 plans, want 1 (invalid should be skipped)
+--- FAIL: TestAdapterTests_UseLLMTypeNaming (0.00s)
+    decompose_adapters_test.go:168: reading decompose_adapters_test.go: open decompose_adapters_test.go: no such file or directory
+--- FAIL: TestSmokeCoverageMatrix_ConsolidatedCaseMappingIsComplete (0.00s)
+    smoke_coverage_consolidated_test.go:140: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestClaudeClientAdapter_ConstructsTypedStruct (0.00s)
+    decompose_adapters_test.go:17: reading adapters.go: open adapters.go: no such file or directory
+--- FAIL: TestSmokeCoverageMatrix_ConsolidatedFileHasHeader (0.00s)
+    smoke_coverage_consolidated_test.go:117: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestSkippedTestCleanup_GromitJ99sy (0.00s)
+    skipped_test_cleanup_test.go:83: could not find project root: getwd: no such file or directory
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+--- FAIL: TestDebugCompatibilityDiagnostics_CommandSurfaceSupportsLegacyAndExplicitConfig (0.00s)
+    --- FAIL: TestDebugCompatibilityDiagnostics_CommandSurfaceSupportsLegacyAndExplicitConfig/legacy_fixture_surfaces_fallback_diagnostics (0.00s)
+        migration_compat_command_surface_test.go:51: Load("../../test/fixtures/migration/legacy_command_surface.yaml") error = reading config file: open ../../test/fixtures/migration/legacy_command_surface.yaml: no such file or directory
+    --- FAIL: TestDebugCompatibilityDiagnostics_CommandSurfaceSupportsLegacyAndExplicitConfig/explicit_fixture_surfaces_explicit_diagnostics (0.00s)
+        migration_compat_command_surface_test.go:51: Load("../../test/fixtures/migration/new_command_surface.yaml") error = reading config file: open ../../test/fixtures/migration/new_command_surface.yaml: no such file or directory
+FAIL	github.com/danabrams/gromit/cmd/gromit	2.731s
+?   	github.com/danabrams/gromit/cmd/test_e2e_live_packages	[no test files]
+ok  	github.com/danabrams/gromit/internal/agent	0.038s
+ok  	github.com/danabrams/gromit/internal/analyzer	0.027s
+ok  	github.com/danabrams/gromit/internal/backlog	(cached)
+ok  	github.com/danabrams/gromit/internal/bead	0.312s
+ok  	github.com/danabrams/gromit/internal/benchmark	0.189s
+ok  	github.com/danabrams/gromit/internal/claude	4.268s
+ok  	github.com/danabrams/gromit/internal/config	0.093s
+?   	github.com/danabrams/gromit/internal/conversation	[no test files]
+ok  	github.com/danabrams/gromit/internal/coverage	(cached)
+ok  	github.com/danabrams/gromit/internal/events	(cached)
+ok  	github.com/danabrams/gromit/internal/events/cli	0.015s
+ok  	github.com/danabrams/gromit/internal/events/eventtest	(cached)
+ok  	github.com/danabrams/gromit/internal/events/status	(cached)
+ok  	github.com/danabrams/gromit/internal/events/stream	(cached)
+ok  	github.com/danabrams/gromit/internal/events/tmux	(cached)
+ok  	github.com/danabrams/gromit/internal/experiment	(cached)
+ok  	github.com/danabrams/gromit/internal/failurephase	0.003s
+ok  	github.com/danabrams/gromit/internal/frontmatter	(cached)
+ok  	github.com/danabrams/gromit/internal/integrationqueue	(cached)
+ok  	github.com/danabrams/gromit/internal/jsonutil	(cached)
+ok  	github.com/danabrams/gromit/internal/learnings	0.021s
+ok  	github.com/danabrams/gromit/internal/logger	0.097s
+ok  	github.com/danabrams/gromit/internal/pipeline	0.163s
+ok  	github.com/danabrams/gromit/internal/pipeline/epilogue	0.106s
+ok  	github.com/danabrams/gromit/internal/pipeline/execute	0.107s
+ok  	github.com/danabrams/gromit/internal/pipeline/prepare	0.209s
+ok  	github.com/danabrams/gromit/internal/pipeline/review	0.104s
+ok  	github.com/danabrams/gromit/internal/pipeline/validate	0.107s
+ok  	github.com/danabrams/gromit/internal/preflight	0.027s
+ok  	github.com/danabrams/gromit/internal/procutil	0.127s
+ok  	github.com/danabrams/gromit/internal/prompt	0.077s
+ok  	github.com/danabrams/gromit/internal/provider	0.606s
+ok  	github.com/danabrams/gromit/internal/queue	0.004s
+?   	github.com/danabrams/gromit/internal/readiness	[no test files]
+ok  	github.com/danabrams/gromit/internal/retrieval	(cached)
+ok  	github.com/danabrams/gromit/internal/retro	0.145s
+ok  	github.com/danabrams/gromit/internal/review	(cached)
+ok  	github.com/danabrams/gromit/internal/rules	0.027s
+ok  	github.com/danabrams/gromit/internal/runbook	(cached)
+ok  	github.com/danabrams/gromit/internal/runner	6.418s
+?   	github.com/danabrams/gromit/internal/runner/acceptance	[no test files]
+ok  	github.com/danabrams/gromit/internal/runner/andon	(cached)
+ok  	github.com/danabrams/gromit/internal/runner/display	0.021s
+ok  	github.com/danabrams/gromit/internal/runner/escalation	0.114s
+ok  	github.com/danabrams/gromit/internal/runner/execution	(cached)
+ok  	github.com/danabrams/gromit/internal/runner/methodology	(cached)
+ok  	github.com/danabrams/gromit/internal/runner/policy	(cached)
+ok  	github.com/danabrams/gromit/internal/runner/readinessadapterllm	0.014s
+ok  	github.com/danabrams/gromit/internal/runner/reviewpkg	0.035s
+ok  	github.com/danabrams/gromit/internal/runner/runtypes	(cached)
+ok  	github.com/danabrams/gromit/internal/runner/specbranch	1.705s
+ok  	github.com/danabrams/gromit/internal/runner/specmerge	0.209s
+ok  	github.com/danabrams/gromit/internal/runner/tdd	0.006s
+ok  	github.com/danabrams/gromit/internal/runner/validation	(cached)
+ok  	github.com/danabrams/gromit/internal/scope	(cached)
+ok  	github.com/danabrams/gromit/internal/specflow	0.006s
+ok  	github.com/danabrams/gromit/internal/specgate	0.005s
+ok  	github.com/danabrams/gromit/internal/state	0.109s
+ok  	github.com/danabrams/gromit/internal/testpkg	(cached)
+ok  	github.com/danabrams/gromit/internal/tmux	(cached)
+ok  	github.com/danabrams/gromit/internal/tracker	(cached)
+ok  	github.com/danabrams/gromit/internal/tracker/trackertest	(cached)
+ok  	github.com/danabrams/gromit/internal/tui	0.033s
+ok  	github.com/danabrams/gromit/internal/usagelimit	0.005s
+ok  	github.com/danabrams/gromit/internal/validate	(cached)
+ok  	github.com/danabrams/gromit/internal/visionmetrics	(cached)
+ok  	github.com/danabrams/gromit/internal/worktree	0.974s
+ok  	github.com/danabrams/gromit/scripts	0.005s
+?   	github.com/danabrams/gromit/scripts/add_parallel	[no test files]
+?   	github.com/danabrams/gromit/skills	[no test files]
+ok  	github.com/danabrams/gromit/test/codexenv	0.004s
+?   	github.com/danabrams/gromit/test/contracts	[no test files]
+ok  	github.com/danabrams/gromit/test/docs	0.005s
+ok  	github.com/danabrams/gromit/test/fixtures	0.008s
+ok  	github.com/danabrams/gromit/test/helpers	0.075s
+ok  	github.com/danabrams/gromit/test/repohygiene	0.558s
+ok  	github.com/danabrams/gromit/test/testutil	0.240s
+ok  	github.com/danabrams/gromit/test/toolcalls	0.007s
+FAIL
+make: *** [Makefile:55: test-unit] Error 1

@@ -1,10 +1,11 @@
 ---
+created: 2026-03-01T00:00:00Z
+decomposed: true
+decomposed_at: "2026-03-02T04:12:02Z"
 id: fix-review-finding-routing
-source_spec: review-finding-routing-consistency
-created: 2026-03-01
-decomposed: false
 research:
-  - .gromit/reports/debug-20260301-123211.md
+    - .gromit/reports/debug-20260301-123211.md
+source_spec: review-finding-routing-consistency
 ---
 
 # Review Finding Routing Consistency Implementation Plan

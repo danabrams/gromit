@@ -1,0 +1,751 @@
+go test -tags acceptance ./...
+ok  	github.com/danabrams/gromit	0.053s
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+--- FAIL: TestRunBenchmarkPipeline_ReportArtifactsMatchCuratedFixture (0.03s)
+    benchmark_test.go:697: runBenchmarkPipeline() error = reopen selected bead "gromit-1" before benchmark mode: exit status 1: bd: bead not found: gromit-1
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+
+Epics created:
+  - mocked
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+
+Epics created:
+  - epic1.md
+
+Specs created:
+  - spec1.md
+
+Backlog items created: 2
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+
+Epics created:
+  - epic1.md
+
+Specs created:
+  - spec1.md
+Initializing gromit in /tmp/TestInitWritesDetectedProfile1031427174/001
+  Created .gromit/templates/
+  Created .gromit/specs/
+  Created .gromit/plans/
+  Created gromit.yaml
+  Created CLAUDE.md
+  Created PROMPT_build.md
+  Created PROMPT_validate.md
+  Created PROMPT_retro.md
+  Created PROMPT_analyze.md
+  Created PROMPT_scope.md
+  Created PROMPT_decompose.md
+  Created PROMPT_review.md
+  Created PROMPT_thorough_review.md
+  Created PROMPT_learn.md
+  Created PROMPT_acceptance_tests.md
+  Created PROMPT_atdd_diagnostic.md
+  Created PROMPT_atdd_build.md
+  Created PROMPT_refactor.md
+  Created PROMPT_tdd_build.md
+  Created PROMPT_precheck.md
+  Created RULES.md
+  Created LEARNINGS.md
+
+Done! Next steps:
+  1. Edit gromit.yaml to customize validation commands
+  2. Edit .gromit/RULES.md to add project-specific rules
+  3. Set bead ID prefix (one-time): bd config set issue_prefix <project-name>
+  4. Create specs in .gromit/specs/ and plans in .gromit/plans/
+  5. Create beads with: bd create "Task title" --priority 1
+  6. Run validation: npm test && npm run build
+  7. Run: gromit run --dry-run
+
+Periodically run 'gromit retro' to analyze and consolidate learnings.
+Initializing gromit in /tmp/TestInitWritesGoProfile4157780246/001
+  Created .gromit/templates/
+  Created .gromit/specs/
+  Created .gromit/plans/
+  Created gromit.yaml
+  Created CLAUDE.md
+  Created PROMPT_build.md
+  Created PROMPT_validate.md
+  Created PROMPT_retro.md
+  Created PROMPT_analyze.md
+  Created PROMPT_scope.md
+  Created PROMPT_decompose.md
+  Created PROMPT_review.md
+  Created PROMPT_thorough_review.md
+  Created PROMPT_learn.md
+  Created PROMPT_acceptance_tests.md
+  Created PROMPT_atdd_diagnostic.md
+  Created PROMPT_atdd_build.md
+  Created PROMPT_refactor.md
+  Created PROMPT_tdd_build.md
+  Created PROMPT_precheck.md
+  Created RULES.md
+  Created LEARNINGS.md
+
+Done! Next steps:
+  1. Edit gromit.yaml to customize validation commands
+  2. Edit .gromit/RULES.md to add project-specific rules
+  3. Set bead ID prefix (one-time): bd config set issue_prefix <project-name>
+  4. Create specs in .gromit/specs/ and plans in .gromit/plans/
+  5. Create beads with: bd create "Task title" --priority 1
+  6. Run validation: go test && go vet && go build
+  7. Run: gromit run --dry-run
+
+Periodically run 'gromit retro' to analyze and consolidate learnings.
+Initializing gromit in /tmp/TestInitRespectsProfileFlag1867857168/001
+  Created .gromit/templates/
+  Created .gromit/specs/
+  Created .gromit/plans/
+  Created gromit.yaml
+  Created CLAUDE.md
+  Created PROMPT_build.md
+  Created PROMPT_validate.md
+  Created PROMPT_retro.md
+  Created PROMPT_analyze.md
+  Created PROMPT_scope.md
+  Created PROMPT_decompose.md
+  Created PROMPT_review.md
+  Created PROMPT_thorough_review.md
+  Created PROMPT_learn.md
+  Created PROMPT_acceptance_tests.md
+  Created PROMPT_atdd_diagnostic.md
+  Created PROMPT_atdd_build.md
+  Created PROMPT_refactor.md
+  Created PROMPT_tdd_build.md
+  Created PROMPT_precheck.md
+  Created RULES.md
+  Created LEARNINGS.md
+
+Done! Next steps:
+  1. Edit gromit.yaml to customize validation commands
+  2. Edit .gromit/RULES.md to add project-specific rules
+  3. Set bead ID prefix (one-time): bd config set issue_prefix <project-name>
+  4. Create specs in .gromit/specs/ and plans in .gromit/plans/
+  5. Create beads with: bd create "Task title" --priority 1
+  6. Run validation: pytest
+  7. Run: gromit run --dry-run
+
+Periodically run 'gromit retro' to analyze and consolidate learnings.
+Initializing gromit in /tmp/TestExplicitProfileOverrideNoImplicitInjectionexplicit_profile_1334283697/001
+  Created .gromit/templates/
+  Created .gromit/specs/
+  Created .gromit/plans/
+  Created gromit.yaml
+  Created CLAUDE.md
+  Created PROMPT_build.md
+  Created PROMPT_validate.md
+  Created PROMPT_retro.md
+  Created PROMPT_analyze.md
+  Created PROMPT_scope.md
+  Created PROMPT_decompose.md
+  Created PROMPT_review.md
+  Created PROMPT_thorough_review.md
+  Created PROMPT_learn.md
+  Created PROMPT_acceptance_tests.md
+  Created PROMPT_atdd_diagnostic.md
+  Created PROMPT_atdd_build.md
+  Created PROMPT_refactor.md
+  Created PROMPT_tdd_build.md
+  Created PROMPT_precheck.md
+  Created RULES.md
+  Created LEARNINGS.md
+
+Done! Next steps:
+  1. Edit gromit.yaml to customize validation commands
+  2. Edit .gromit/RULES.md to add project-specific rules
+  3. Set bead ID prefix (one-time): bd config set issue_prefix <project-name>
+  4. Create specs in .gromit/specs/ and plans in .gromit/plans/
+  5. Create beads with: bd create "Task title" --priority 1
+  6. Run validation: go test && go vet && go build
+  7. Run: gromit run --dry-run
+
+Periodically run 'gromit retro' to analyze and consolidate learnings.
+Initializing gromit in /tmp/TestExplicitProfileOverrideNoImplicitInjectionexplicit_python_p1497447319/001
+  Created .gromit/templates/
+  Created .gromit/specs/
+  Created .gromit/plans/
+  Created gromit.yaml
+  Created CLAUDE.md
+  Created PROMPT_build.md
+  Created PROMPT_validate.md
+  Created PROMPT_retro.md
+  Created PROMPT_analyze.md
+  Created PROMPT_scope.md
+  Created PROMPT_decompose.md
+  Created PROMPT_review.md
+  Created PROMPT_thorough_review.md
+  Created PROMPT_learn.md
+  Created PROMPT_acceptance_tests.md
+  Created PROMPT_atdd_diagnostic.md
+  Created PROMPT_atdd_build.md
+  Created PROMPT_refactor.md
+  Created PROMPT_tdd_build.md
+  Created PROMPT_precheck.md
+  Created RULES.md
+  Created LEARNINGS.md
+
+Done! Next steps:
+  1. Edit gromit.yaml to customize validation commands
+  2. Edit .gromit/RULES.md to add project-specific rules
+  3. Set bead ID prefix (one-time): bd config set issue_prefix <project-name>
+  4. Create specs in .gromit/specs/ and plans in .gromit/plans/
+  5. Create beads with: bd create "Task title" --priority 1
+  6. Run validation: pytest
+  7. Run: gromit run --dry-run
+
+Periodically run 'gromit retro' to analyze and consolidate learnings.
+Initializing gromit in /tmp/TestExplicitProfileOverrideNoImplicitInjectionexplicit_node_pro2662184146/001
+  Created .gromit/templates/
+  Created .gromit/specs/
+  Created .gromit/plans/
+  Created gromit.yaml
+  Created CLAUDE.md
+  Created PROMPT_build.md
+  Created PROMPT_validate.md
+  Created PROMPT_retro.md
+  Created PROMPT_analyze.md
+  Created PROMPT_scope.md
+  Created PROMPT_decompose.md
+  Created PROMPT_review.md
+  Created PROMPT_thorough_review.md
+  Created PROMPT_learn.md
+  Created PROMPT_acceptance_tests.md
+  Created PROMPT_atdd_diagnostic.md
+  Created PROMPT_atdd_build.md
+  Created PROMPT_refactor.md
+  Created PROMPT_tdd_build.md
+  Created PROMPT_precheck.md
+  Created RULES.md
+  Created LEARNINGS.md
+
+Done! Next steps:
+  1. Edit gromit.yaml to customize validation commands
+  2. Edit .gromit/RULES.md to add project-specific rules
+  3. Set bead ID prefix (one-time): bd config set issue_prefix <project-name>
+  4. Create specs in .gromit/specs/ and plans in .gromit/plans/
+  5. Create beads with: bd create "Task title" --priority 1
+  6. Run validation: npm test && npm run build
+  7. Run: gromit run --dry-run
+
+Periodically run 'gromit retro' to analyze and consolidate learnings.
+Initializing gromit in /tmp/TestInitWritesGoProfileRules3492174212/001
+  Created .gromit/templates/
+  Created .gromit/specs/
+  Created .gromit/plans/
+  Created gromit.yaml
+  Created CLAUDE.md
+  Created PROMPT_build.md
+  Created PROMPT_validate.md
+  Created PROMPT_retro.md
+  Created PROMPT_analyze.md
+  Created PROMPT_scope.md
+  Created PROMPT_decompose.md
+  Created PROMPT_review.md
+  Created PROMPT_thorough_review.md
+  Created PROMPT_learn.md
+  Created PROMPT_acceptance_tests.md
+  Created PROMPT_atdd_diagnostic.md
+  Created PROMPT_atdd_build.md
+  Created PROMPT_refactor.md
+  Created PROMPT_tdd_build.md
+  Created PROMPT_precheck.md
+  Created RULES.md
+  Created LEARNINGS.md
+
+Done! Next steps:
+  1. Edit gromit.yaml to customize validation commands
+  2. Edit .gromit/RULES.md to add project-specific rules
+  3. Set bead ID prefix (one-time): bd config set issue_prefix <project-name>
+  4. Create specs in .gromit/specs/ and plans in .gromit/plans/
+  5. Create beads with: bd create "Task title" --priority 1
+  6. Run validation: go test && go vet && go build
+  7. Run: gromit run --dry-run
+
+Periodically run 'gromit retro' to analyze and consolidate learnings.
+Initializing gromit in /tmp/TestRunInitUsesProfileAwareRulesAndNextSteps1551966370/001
+  Created .gromit/templates/
+  Created .gromit/specs/
+  Created .gromit/plans/
+  Skipped gromit.yaml (already exists, use --force to overwrite)
+  Created CLAUDE.md
+  Created PROMPT_build.md
+  Created PROMPT_validate.md
+  Created PROMPT_retro.md
+  Created PROMPT_analyze.md
+  Created PROMPT_scope.md
+  Created PROMPT_decompose.md
+  Created PROMPT_review.md
+  Created PROMPT_thorough_review.md
+  Created PROMPT_learn.md
+  Created PROMPT_acceptance_tests.md
+  Created PROMPT_atdd_diagnostic.md
+  Created PROMPT_atdd_build.md
+  Created PROMPT_refactor.md
+  Created PROMPT_tdd_build.md
+  Created PROMPT_precheck.md
+  Created RULES.md
+  Created LEARNINGS.md
+
+Done! Next steps:
+  1. Edit gromit.yaml to customize validation commands
+  2. Edit .gromit/RULES.md to add project-specific rules
+  3. Set bead ID prefix (one-time): bd config set issue_prefix <project-name>
+  4. Create specs in .gromit/specs/ and plans in .gromit/plans/
+  5. Create beads with: bd create "Task title" --priority 1
+  6. Run validation: go test && go vet && go build
+  7. Run: gromit run --dry-run
+
+Periodically run 'gromit retro' to analyze and consolidate learnings.
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Running retrospective analysis...
+This may take a few minutes as it uses opus for quality analysis.
+Warning: no run-*.jsonl files found in .gromit/logs; current-run efficiency data will be empty
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+--- FAIL: TestShowQueue_DelegatesToPipeline (0.00s)
+    queue_test.go:122: showQueue returned error: loading config: reading config file: open ../../gromit.yaml: no such file or directory
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+--- FAIL: TestRunRefineReturnsErrorWhenPipelineCreationFails (0.00s)
+    refine_test.go:147: expected error to include factory failure, got resolve gromit directory: getwd: no such file or directory
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+2026/03/02 03:28:26 WARNING: failed to create review tag: creating review tag gromit/interactive-review/1772422105895463239: exit status 128
+--- FAIL: TestRunInDir_EmptyDirRunsInCurrentDirectory (0.00s)
+    run_in_dir_test.go:41: Getwd() failed: getwd: no such file or directory
+--- FAIL: TestRunInDir_NonexistentDirectory (0.00s)
+    run_in_dir_test.go:65: Getwd() failed: getwd: no such file or directory
+--- FAIL: TestRunInDir_PropagatesCallbackError (0.00s)
+    run_in_dir_test.go:92: error = getting current directory: getwd: no such file or directory, want callback failed
+--- FAIL: TestRunInDir_RestoresOriginalDirectoryOnCallbackError (0.00s)
+    run_in_dir_test.go:98: Getwd() failed: getwd: no such file or directory
+--- FAIL: TestRunSpecTestEnvSeedsExplicitProfile (0.00s)
+    run_spec_flag_test.go:67: getting working directory before setup: getwd: no such file or directory
+--- FAIL: TestRunSpecTestEnvGoProfileValidationCommands (0.00s)
+    run_spec_flag_test.go:80: getting working directory before setup: getwd: no such file or directory
+--- FAIL: TestRunSpecTestEnvRestoresWorkingDirectory (0.00s)
+    run_spec_flag_test.go:105: getting working directory before setup: getwd: no such file or directory
+--- FAIL: TestRunLoop_SpecFlagInjectableFactories (0.00s)
+    run_spec_flag_test.go:124: getting working directory before setup: getwd: no such file or directory
+--- FAIL: TestRunLoop_SpecFlagFreshStartBootstrapsStageAndBranch (0.00s)
+    run_spec_flag_test.go:181: getting working directory before setup: getwd: no such file or directory
+--- FAIL: TestRunLoop_ScopeFlagsMutuallyExclusive (0.00s)
+    run_spec_flag_test.go:267: getting working directory before setup: getwd: no such file or directory
+--- FAIL: TestRunLoop_SpecFlagNonexistentSpec (0.00s)
+    run_spec_flag_test.go:285: getting working directory before setup: getwd: no such file or directory
+--- FAIL: TestRunLoop_SpecFlagValidSpec (0.00s)
+    run_spec_flag_test.go:317: getting working directory before setup: getwd: no such file or directory
+--- FAIL: TestRunLoop_SpecFlagMissingSpecFallsBackToLegacyLabelWhenOpenBeadsExist (0.00s)
+    run_spec_flag_test.go:344: getting working directory before setup: getwd: no such file or directory
+--- FAIL: TestRunLoop_SpecFlagMissingSpecDoesNotFallbackWhenStrictLegacyFallbackEnabled (0.00s)
+    run_spec_flag_test.go:367: getting working directory before setup: getwd: no such file or directory
+--- FAIL: TestRunLoop_NoSpecFlagSkipsSpecflowBootstrapping (0.00s)
+    run_spec_flag_test.go:400: getting working directory before setup: getwd: no such file or directory
+--- FAIL: TestRunLoop_SpecFlagResumeChecksOutBranch (0.00s)
+    run_spec_flag_test.go:445: getting working directory before setup: getwd: no such file or directory
+--- FAIL: TestRunLoop_EpicFlagMissingSpecsDir (0.00s)
+    run_spec_flag_test.go:501: getting working directory before setup: getwd: no such file or directory
+--- FAIL: TestRunLoop_EpicFlagValidScope (0.00s)
+    run_spec_flag_test.go:522: getting working directory before setup: getwd: no such file or directory
+--- FAIL: TestLaunchRetroInteractiveSession_UsesSessionWorktreeDir (0.00s)
+    runretro_test.go:75: launchRetroInteractiveSession() error = resolving prompt path: getwd: no such file or directory
+--- FAIL: TestLaunchRetroInteractiveSession_ConflictHandoffPropagates (0.00s)
+    runretro_test.go:132: expected merge conflict handoff error, got *fmt.wrapError (resolving prompt path: getwd: no such file or directory)
+--- FAIL: TestSharedFileContainsNewPipeline (0.00s)
+    shared_test.go:14: expected shared.go to exist: open shared.go: no such file or directory
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+--- FAIL: TestRunGromitCobra_HelpOutputsUsage (0.00s)
+    test_binary_helpers_test.go:75: failed to get working directory: getwd: no such file or directory
+--- FAIL: TestRunCommandHelpIncludesGracefulStopHint (0.00s)
+    test_binary_helpers_test.go:88: failed to get working directory: getwd: no such file or directory
+--- FAIL: TestRunGromitCobra_ResetsHelpFlag (0.00s)
+    test_binary_helpers_test.go:102: failed to get working directory: getwd: no such file or directory
+PR metadata validation failed:
+  - spec_id: required
+  - review_outcome: invalid
+--- FAIL: TestVerifySpecCmd_ArgParsing (0.00s)
+    verify_spec_test.go:74: failed to get working directory: getwd: no such file or directory
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+--- FAIL: TestTestLogsDir_ExistsAtRepoRoot (0.00s)
+    test_logs_dir_test.go:15: could not find project root: getwd: no such file or directory
+--- FAIL: TestCmdNonE2EChecks_AreReclassifiedIntoUnitSuite (0.00s)
+    smoke_suite_slimming_test.go:169: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestCmdAcceptanceSmokeSuite_IsSlimAndFocused (0.00s)
+    smoke_suite_slimming_test.go:90: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestCmdExploreAcceptanceFile_OnlyContainsSmokeTest (0.00s)
+    smoke_suite_slimming_test.go:65: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestCmdDebugAcceptanceFile_OnlyContainsSmokeTest (0.00s)
+    smoke_suite_slimming_test.go:46: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestCmdSmokeSuiteReclassified_AcceptanceFileSet (0.00s)
+    smoke_suite_cmd_files_test.go:12: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestSmokeDecisionRubric_DestinationConventionsForCmdAndRunner (0.00s)
+    smoke_decision_rubric_test.go:66: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestSmokeDecisionRubric_MatrixTemplateHasRequiredFields (0.00s)
+    smoke_decision_rubric_test.go:39: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestSmokeDecisionRubric_DefinesCriticalOutcomesOnly (0.00s)
+    smoke_decision_rubric_test.go:14: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestCmdSmokeCoverageMatrix_MovedCasesPointToConcreteUnitSuites (0.00s)
+    smoke_coverage_matrix_test.go:143: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestCmdSmokeCoverageMatrix_CaseDecisionsIncludeRationale (0.00s)
+    smoke_coverage_matrix_test.go:80: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestSmokeCoverageMatrix_MoveCasesHaveConcreteUnitDestinations (0.00s)
+    smoke_coverage_consolidated_test.go:254: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestSmokeCoverageMatrix_KeepCasesHaveConcreteDestinations (0.00s)
+    smoke_coverage_consolidated_test.go:229: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestSmokeCoverageMatrix_KeepSetIsMinimalHighValue (0.00s)
+    smoke_coverage_consolidated_test.go:194: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestSmokeCoverageMatrix_ConsolidatedCaseMappingIsComplete (0.00s)
+    smoke_coverage_consolidated_test.go:140: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestSmokeCoverageMatrix_ConsolidatedFileHasHeader (0.00s)
+    smoke_coverage_consolidated_test.go:117: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestSkippedTestCleanup_GromitJ99sy (0.00s)
+    skipped_test_cleanup_test.go:83: could not find project root: getwd: no such file or directory
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+--- FAIL: TestCmdSmokeCoverageMatrix_KeepSetIsHighValueE2E (0.00s)
+    smoke_coverage_matrix_test.go:105: findProjectRoot: getwd: no such file or directory
+--- FAIL: TestInitGoLogicFileIsShort (0.00s)
+    init_templates_test.go:27: failed to open init.go: open init.go: no such file or directory
+--- FAIL: TestReviewSpecValidationRefactor_ReducesLinesAndKeepsDeterministicCoverage (0.00s)
+    review_spec_validation_refactor_reclassified_test.go:84: could not find project root: getwd: no such file or directory
+--- FAIL: TestReviewSpecValidationRefactorReclassified_UsesSharedHelpers (0.00s)
+    review_spec_validation_refactor_reclassified_test.go:64: could not find project root: getwd: no such file or directory
+--- FAIL: TestReviewSpecValidationRefactor_UsesTableDrivenScenarioGroups (0.00s)
+    review_spec_validation_refactor_reclassified_test.go:43: could not find project root: getwd: no such file or directory
+2026/03/02 03:28:26 WARNING: failed to create review tag: creating review tag gromit/interactive-review/1772422106116355622: exit status 128
+--- FAIL: TestReviewPrompt_LearningsOnlyForViolationsAndNovelPatterns (0.00s)
+    review_prompt_learnings_test.go:18: reading PROMPT_review.md: open ../../.gromit/templates/PROMPT_review.md: no such file or directory
+--- FAIL: TestReviewCommand_UsesNewPipelineDeps (0.00s)
+    review_deps_wiring_test.go:18: reading review.go: open review.go: no such file or directory
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+--- FAIL: TestRootHelpGoldenIncludesPRS (0.00s)
+    help_goldens_test.go:44: reading golden file "cmd/gromit/testdata/golden/root.help.txt": open ../../cmd/gromit/testdata/golden/root.help.txt: no such file or directory
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+--- FAIL: TestFinalVerification_NoBuildExplorePromptReference (0.00s)
+    final_verification_test.go:178: could not find project root: getwd: no such file or directory
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+--- FAIL: TestFinalVerification (0.00s)
+    final_verification_test.go:22: could not find project root: getwd: no such file or directory
+Warning: could not determine working directory: getwd: no such file or directory
+--- FAIL: TestExploreHelpMatchesGolden (0.00s)
+    explore_help_golden_test.go:7: reading golden file "cmd/gromit/testdata/golden/explore.help.txt": open ../../cmd/gromit/testdata/golden/explore.help.txt: no such file or directory
+--- FAIL: TestExploreCommand_UsesNewPipelineDeps (0.00s)
+    explore_deps_wiring_test.go:18: reading explore.go: open explore.go: no such file or directory
+--- FAIL: TestCmdSmoke_ExploreAgentSelectionEndToEnd (0.01s)
+    explore_codex_help_acceptance_test.go:33: expected exit code 0, got 1 (stderr: Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+        Usage:
+          gromit explore [topic] [flags]
+        
+        Flags:
+              --agent string   Override the default agent for this explore session
+              --choose-agent   Show interactive picker to choose agent
+          -h, --help           help for explore
+              --model string   Model to use when the Claude agent is selected (opus, sonnet, haiku) (default "opus")
+        
+        Global Flags:
+          -c, --config string   Path to config file (default "gromit.yaml")
+        
+        explore workflow: creating session worktree: failed to create session worktree (non_retryable_failure): exit status 128
+        )
+--- FAIL: TestRepoHygiene_ScratchFilesRemovedAndIgnored (0.00s)
+    repo_hygiene_test.go:97: could not find project root: getwd: no such file or directory
+--- FAIL: TestEpicAcceptanceFileExists (0.00s)
+    epic_test.go:13: acceptance test file epic_acceptance_test.go missing: stat epic_acceptance_test.go: no such file or directory
+--- FAIL: TestRepoHygiene_CodexHomeNotTracked (0.00s)
+    repo_hygiene_test.go:91: could not find project root: getwd: no such file or directory
+--- FAIL: TestRepoHygiene_CodexHomeIgnored (0.00s)
+    repo_hygiene_test.go:85: could not find project root: getwd: no such file or directory
+--- FAIL: TestRepoHygiene_TestBinaryRemoved (0.00s)
+    repo_hygiene_test.go:60: could not find project root: getwd: no such file or directory
+--- FAIL: TestCmdSmoke_ReviewSpecValidationEndToEnd (0.03s)
+    review_spec_validation_acceptance_test.go:36: expected not-found validation error, got: Warning: compat-deprecated-legacy-hardcoded-defaults, compat-deprecated-legacy-tracker-backend-fallback active; set compatibility.strict_legacy_fallback: true now (strict-by-default planned after 2026-06-01)
+        Usage:
+          gromit review [flags]
+        
+        Flags:
+              --agent string      Override the agent to use for interactive review
+              --choose-agent      Show picker to select agent for interactive review
+              --dry-run           Preview what would be reviewed
+              --epic string       Review changes from this epic's beads
+          -h, --help              help for review
+              --non-interactive   Run review autonomously without interactive session
+              --since string      Review from this commit
+              --spec string       Review changes from this spec's beads
+        
+        Global Flags:
+          -c, --config string   Path to config file (default "gromit.yaml")
+        
+        determining review scope: no beads found for spec "nonexistent-spec" - try using --since to specify a commit
+2026/03/02 03:28:26 WARNING: failed to create review tag: creating review tag gromit/interactive-review/1772422106117489407: exit status 128
+--- FAIL: TestGetBeadCounts_HandlesOnlyOpenBeads (0.16s)
+    epic_bead_counts_reclassified_test.go:187: getBeadCounts() open count = 0, expected 3
+--- FAIL: TestEpicStatusCommand_GapAnalysisPrintsOutput (0.00s)
+panic: testing: test using t.Setenv, t.Chdir, or cryptotest.SetGlobalRandom can not use t.Parallel [recovered, repanicked]
+
+goroutine 418 [running]:
+testing.tRunner.func1.2({0x984860, 0xad8c00})
+	/home/dabrams/.local/share/mise/installs/go/1.26.0/src/testing/testing.go:1974 +0x232
+testing.tRunner.func1()
+	/home/dabrams/.local/share/mise/installs/go/1.26.0/src/testing/testing.go:1977 +0x349
+panic({0x984860?, 0xad8c00?})
+	/home/dabrams/.local/share/mise/installs/go/1.26.0/src/runtime/panic.go:860 +0x13a
+testing.(*T).checkParallel(...)
+	/home/dabrams/.local/share/mise/installs/go/1.26.0/src/testing/testing.go:1838
+testing.(*T).Chdir(0x239118c780e0?, {0x239118c9c140?, 0x239118c780f0?})
+	/home/dabrams/.local/share/mise/installs/go/1.26.0/src/testing/testing.go:1863 +0x5e
+github.com/danabrams/gromit/cmd/gromit.chdirTo(0x239118e438c8, {0x239118c9c140, 0x40})
+	/home/dabrams/gromit/cmd/gromit/epic_test_helpers_test.go:40 +0x39
+github.com/danabrams/gromit/cmd/gromit.TestEpicStatusCommand_GapAnalysisPrintsOutput(0x239118e438c8)
+	/home/dabrams/gromit/cmd/gromit/epic_acceptance_test.go:657 +0x3ad
+testing.tRunner(0x239118e438c8, 0xad36c8)
+	/home/dabrams/.local/share/mise/installs/go/1.26.0/src/testing/testing.go:2036 +0xea
+created by testing.(*T).Run in goroutine 1
+	/home/dabrams/.local/share/mise/installs/go/1.26.0/src/testing/testing.go:2101 +0x4c5
+FAIL	github.com/danabrams/gromit/cmd/gromit	1.525s
+?   	github.com/danabrams/gromit/cmd/test_e2e_live_packages	[no test files]
+ok  	github.com/danabrams/gromit/internal/agent	0.027s
+ok  	github.com/danabrams/gromit/internal/analyzer	0.008s
+ok  	github.com/danabrams/gromit/internal/backlog	(cached)
+--- FAIL: TestListWithLabel_CommandContract (0.00s)
+    label_integration_test.go:531: Skipping bd command contract test (set BD_AVAILABLE=true to run)
+--- FAIL: TestReadyWithLabel_IntegrationRegression_LabelFilterAndCommandContract (0.00s)
+    label_integration_test.go:465: Skipping bd command contract test (set BD_AVAILABLE=true to run)
+--- FAIL: TestReadyWithLabel_CommandContract (0.00s)
+    label_integration_test.go:423: Skipping bd command contract test (set BD_AVAILABLE=true to run)
+--- FAIL: TestListWithLabel_IntegrationExcludesEpics (0.08s)
+    label_integration_test.go:395: bd init not available: exit status 1:   ✓ Initialized git repository
+        Error: failed to connect to dolt server: database "beads_001" not available after CREATE DATABASE: Error 1105 (HY000): open /home/dabrams/gromit/beads_001/.dolt/repo_state.json: no such file or directory
+        
+        Beads requires a running dolt sql-server. Start one with:
+          gt dolt start    (if using Gas Town)
+          dolt sql-server  (standalone)
+--- FAIL: TestListWithLabel_ReturnsUnlimitedResults (0.09s)
+    list_with_label_acceptance_test.go:15: bd init not available: exit status 1:   ✓ Initialized git repository
+        Error: failed to connect to dolt server: database "beads_001" not available after CREATE DATABASE: Error 1105 (HY000): open /home/dabrams/gromit/beads_001/.dolt/repo_state.json: no such file or directory
+        
+        Beads requires a running dolt sql-server. Start one with:
+          gt dolt start    (if using Gas Town)
+          dolt sql-server  (standalone)
+--- FAIL: TestListWithLabel_IntegrationReturnsMultipleBeadsInOrder (0.09s)
+    label_integration_test.go:351: bd init not available: exit status 1:   ✓ Initialized git repository
+        Error: failed to connect to dolt server: database "beads_001" not available after CREATE DATABASE: Error 1105 (HY000): open /home/dabrams/gromit/beads_001/.dolt/repo_state.json: no such file or directory
+        
+        Beads requires a running dolt sql-server. Start one with:
+          gt dolt start    (if using Gas Town)
+          dolt sql-server  (standalone)
+--- FAIL: TestReadyWithLabel_IntegrationWithSpecialCharacters (0.10s)
+    label_integration_test.go:296: bd init not available: exit status 1:   ✓ Initialized git repository
+        Error: failed to connect to dolt server: database "beads_001" not available after CREATE DATABASE: Error 1105 (HY000): open /home/dabrams/gromit/beads_001/.dolt/repo_state.json: no such file or directory
+        
+        Beads requires a running dolt sql-server. Start one with:
+          gt dolt start    (if using Gas Town)
+          dolt sql-server  (standalone)
+--- FAIL: TestListWithLabel_IntegrationCallsCorrectCommand (0.09s)
+    label_integration_test.go:267: bd init not available: exit status 1:   ✓ Initialized git repository
+        Error: failed to connect to dolt server: database "beads_001" not available after CREATE DATABASE: Error 1105 (HY000): open /home/dabrams/gromit/beads_001/.dolt/repo_state.json: no such file or directory
+        
+        Beads requires a running dolt sql-server. Start one with:
+          gt dolt start    (if using Gas Town)
+          dolt sql-server  (standalone)
+--- FAIL: TestReadyWithLabel_IntegrationCallsCorrectCommand (0.09s)
+    label_integration_test.go:235: bd init not available: exit status 1:   ✓ Initialized git repository
+        Error: failed to connect to dolt server: database "beads_001" not available after CREATE DATABASE: Error 1105 (HY000): open /home/dabrams/gromit/beads_001/.dolt/repo_state.json: no such file or directory
+        
+        Beads requires a running dolt sql-server. Start one with:
+          gt dolt start    (if using Gas Town)
+          dolt sql-server  (standalone)
+--- FAIL: TestReadyWithLabel_IntegrationExcludesEpics (0.11s)
+    label_integration_test.go:200: bd init not available: exit status 1:   ✓ Initialized git repository
+        Error: failed to connect to dolt server: database "beads_001" not available after CREATE DATABASE: Error 1105 (HY000): open /home/dabrams/gromit/beads_001/.dolt/repo_state.json: no such file or directory
+        
+        Beads requires a running dolt sql-server. Start one with:
+          gt dolt start    (if using Gas Town)
+          dolt sql-server  (standalone)
+--- FAIL: TestReadyWithLabel_IntegrationReturnsNilWhenNoMatch (0.09s)
+    label_integration_test.go:161: bd init not available: exit status 1:   ✓ Initialized git repository
+        Error: failed to connect to dolt server: database "beads_001" not available after CREATE DATABASE: Error 1105 (HY000): open /home/dabrams/gromit/beads_001/.dolt/repo_state.json: no such file or directory
+        
+        Beads requires a running dolt sql-server. Start one with:
+          gt dolt start    (if using Gas Town)
+          dolt sql-server  (standalone)
+--- FAIL: TestListWithLabel_IntegrationReturnsEmptySliceWhenNoMatch (0.10s)
+    label_integration_test.go:178: bd init not available: exit status 1:   ✓ Initialized git repository
+        Error: failed to connect to dolt server: database "beads_001" not available after CREATE DATABASE: Error 1105 (HY000): open /home/dabrams/gromit/beads_001/.dolt/repo_state.json: no such file or directory
+        
+        Beads requires a running dolt sql-server. Start one with:
+          gt dolt start    (if using Gas Town)
+          dolt sql-server  (standalone)
+--- FAIL: TestListWithLabel_IntegrationCallsBdWithLabelFlag (0.09s)
+    label_integration_test.go:86: bd init not available: exit status 1:   ✓ Initialized git repository
+        Error: failed to connect to dolt server: database "beads_001" not available after CREATE DATABASE: Error 1105 (HY000): open /home/dabrams/gromit/beads_001/.dolt/repo_state.json: no such file or directory
+        
+        Beads requires a running dolt sql-server. Start one with:
+          gt dolt start    (if using Gas Town)
+          dolt sql-server  (standalone)
+--- FAIL: TestListWithLabel_IntegrationExcludesBeadsWithoutLabel (0.15s)
+    label_integration_test.go:120: bd init not available: exit status 1:   ✓ Initialized git repository
+        Error: failed to connect to dolt server: database "beads_001" not available after CREATE DATABASE: Error 1105 (HY000): open /home/dabrams/gromit/beads_001/.dolt/repo_state.json: no such file or directory
+        
+        Beads requires a running dolt sql-server. Start one with:
+          gt dolt start    (if using Gas Town)
+          dolt sql-server  (standalone)
+--- FAIL: TestReadyWithLabel_IntegrationExcludesBeadsWithoutLabel (0.08s)
+    label_integration_test.go:47: bd init not available: exit status 1:   ✓ Initialized git repository
+        Error: failed to connect to dolt server: database "beads_001" not available after CREATE DATABASE: Error 1105 (HY000): open /home/dabrams/gromit/beads_001/.dolt/repo_state.json: no such file or directory
+        
+        Beads requires a running dolt sql-server. Start one with:
+          gt dolt start    (if using Gas Town)
+          dolt sql-server  (standalone)
+--- FAIL: TestReadyWithLabel_IntegrationCallsBdWithLabelFlag (0.07s)
+    label_integration_test.go:16: bd init not available: exit status 1:   ✓ Initialized git repository
+        Error: failed to connect to dolt server: database "beads_001" not available after CREATE DATABASE: Error 1105 (HY000): open /home/dabrams/gromit/beads_001/.dolt/repo_state.json: no such file or directory
+        
+        Beads requires a running dolt sql-server. Start one with:
+          gt dolt start    (if using Gas Town)
+          dolt sql-server  (standalone)
+FAIL
+FAIL	github.com/danabrams/gromit/internal/bead	0.440s
+ok  	github.com/danabrams/gromit/internal/benchmark	0.312s
+ok  	github.com/danabrams/gromit/internal/claude	4.547s
+ok  	github.com/danabrams/gromit/internal/config	0.184s
+?   	github.com/danabrams/gromit/internal/conversation	[no test files]
+ok  	github.com/danabrams/gromit/internal/coverage	(cached)
+ok  	github.com/danabrams/gromit/internal/events	(cached)
+ok  	github.com/danabrams/gromit/internal/events/cli	0.033s
+ok  	github.com/danabrams/gromit/internal/events/eventtest	0.057s
+ok  	github.com/danabrams/gromit/internal/events/status	0.015s
+ok  	github.com/danabrams/gromit/internal/events/stream	0.005s
+ok  	github.com/danabrams/gromit/internal/events/tmux	0.016s
+ok  	github.com/danabrams/gromit/internal/experiment	(cached)
+ok  	github.com/danabrams/gromit/internal/failurephase	0.003s
+ok  	github.com/danabrams/gromit/internal/frontmatter	(cached)
+ok  	github.com/danabrams/gromit/internal/integrationqueue	0.407s
+ok  	github.com/danabrams/gromit/internal/jsonutil	(cached)
+ok  	github.com/danabrams/gromit/internal/learnings	0.020s
+ok  	github.com/danabrams/gromit/internal/logger	0.108s
+ok  	github.com/danabrams/gromit/internal/pipeline	0.207s
+ok  	github.com/danabrams/gromit/internal/pipeline/epilogue	0.106s
+ok  	github.com/danabrams/gromit/internal/pipeline/execute	0.118s
+ok  	github.com/danabrams/gromit/internal/pipeline/prepare	0.217s
+ok  	github.com/danabrams/gromit/internal/pipeline/review	0.105s
+ok  	github.com/danabrams/gromit/internal/pipeline/validate	0.106s
+ok  	github.com/danabrams/gromit/internal/preflight	0.013s
+ok  	github.com/danabrams/gromit/internal/procutil	0.125s
+ok  	github.com/danabrams/gromit/internal/prompt	0.082s
+ok  	github.com/danabrams/gromit/internal/provider	2.310s
+ok  	github.com/danabrams/gromit/internal/queue	0.004s
+?   	github.com/danabrams/gromit/internal/readiness	[no test files]
+ok  	github.com/danabrams/gromit/internal/retrieval	0.003s
+ok  	github.com/danabrams/gromit/internal/retro	0.068s
+ok  	github.com/danabrams/gromit/internal/review	(cached)
+ok  	github.com/danabrams/gromit/internal/rules	0.006s
+ok  	github.com/danabrams/gromit/internal/runbook	(cached)
+ok  	github.com/danabrams/gromit/internal/runner	6.872s
+ok  	github.com/danabrams/gromit/internal/runner/acceptance	0.845s
+ok  	github.com/danabrams/gromit/internal/runner/andon	(cached)
+ok  	github.com/danabrams/gromit/internal/runner/display	0.018s
+ok  	github.com/danabrams/gromit/internal/runner/escalation	0.021s
+ok  	github.com/danabrams/gromit/internal/runner/execution	0.084s
+ok  	github.com/danabrams/gromit/internal/runner/methodology	0.035s
+ok  	github.com/danabrams/gromit/internal/runner/policy	0.007s
+ok  	github.com/danabrams/gromit/internal/runner/readinessadapterllm	0.004s
+ok  	github.com/danabrams/gromit/internal/runner/reviewpkg	0.023s
+ok  	github.com/danabrams/gromit/internal/runner/runtypes	0.035s
+ok  	github.com/danabrams/gromit/internal/runner/specbranch	2.434s
+ok  	github.com/danabrams/gromit/internal/runner/specmerge	0.074s
+ok  	github.com/danabrams/gromit/internal/runner/tdd	0.006s
+ok  	github.com/danabrams/gromit/internal/runner/validation	0.048s
+ok  	github.com/danabrams/gromit/internal/scope	(cached)
+ok  	github.com/danabrams/gromit/internal/specflow	0.006s
+ok  	github.com/danabrams/gromit/internal/specgate	0.004s
+ok  	github.com/danabrams/gromit/internal/state	0.059s
+ok  	github.com/danabrams/gromit/internal/testpkg	(cached)
+ok  	github.com/danabrams/gromit/internal/tmux	(cached)
+ok  	github.com/danabrams/gromit/internal/tracker	(cached)
+ok  	github.com/danabrams/gromit/internal/tracker/trackertest	0.003s
+ok  	github.com/danabrams/gromit/internal/tui	0.016s
+ok  	github.com/danabrams/gromit/internal/usagelimit	0.004s
+ok  	github.com/danabrams/gromit/internal/validate	(cached)
+ok  	github.com/danabrams/gromit/internal/visionmetrics	0.010s
+ok  	github.com/danabrams/gromit/internal/worktree	0.569s
+ok  	github.com/danabrams/gromit/scripts	0.005s
+?   	github.com/danabrams/gromit/scripts/add_parallel	[no test files]
+?   	github.com/danabrams/gromit/skills	[no test files]
+ok  	github.com/danabrams/gromit/test/codexenv	0.013s
+ok  	github.com/danabrams/gromit/test/contracts	0.016s
+ok  	github.com/danabrams/gromit/test/docs	0.005s
+ok  	github.com/danabrams/gromit/test/e2e	0.005s
+ok  	github.com/danabrams/gromit/test/fixtures	0.007s
+ok  	github.com/danabrams/gromit/test/helpers	0.132s
+ok  	github.com/danabrams/gromit/test/repohygiene	0.430s
+--- FAIL: TestRunGromitWithStdin_EmptyDirNotSet (0.02s)
+    runner_test.go:228: RunGromitWithStdin() error = fork/exec /tmp/TestRunGromitWithStdin_EmptyDirNotSet2157802256/001/pwd-script.2804135629: text file busy
+--- FAIL: TestRunGromitWithStdin (0.08s)
+    --- FAIL: TestRunGromitWithStdin/basic_stdin_echo (0.02s)
+        runner_test.go:113: RunGromitWithStdin() error = fork/exec /tmp/TestRunGromitWithStdinbasic_stdin_echo861339212/001/test-echo.1957599200: text file busy, wantErr false
+FAIL
+FAIL	github.com/danabrams/gromit/test/testutil	0.246s
+ok  	github.com/danabrams/gromit/test/toolcalls	0.007s
+FAIL
+make: *** [Makefile:58: test-acceptance] Error 1

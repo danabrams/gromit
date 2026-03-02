@@ -3,62 +3,52 @@
     "friction_clusters": [
       {
         "area": "cross-cutting",
-        "learning_count": 30,
+        "learning_count": 28,
         "earliest_date": "2026-02-07T00:00:00Z",
-        "latest_date": "2026-03-01T00:00:00Z",
-        "timespan": 1900800000000000,
+        "latest_date": "2026-03-02T00:00:00Z",
+        "timespan": 1987200000000000,
         "categories": {
           "ARCHITECTURE": 1,
           "CONVENTIONS": 2,
           "PATTERNS": 1,
           "architecture": 4,
-          "conventions": 5,
+          "conventions": 4,
           "gotchas": 5,
-          "patterns": 9,
-          "reliability": 2,
+          "patterns": 7,
+          "reliability": 4
+        }
+      },
+      {
+        "area": "internal/runner",
+        "learning_count": 3,
+        "earliest_date": "2026-03-01T00:00:00Z",
+        "latest_date": "2026-03-02T00:00:00Z",
+        "timespan": 86400000000000,
+        "categories": {
+          "conventions": 1,
+          "patterns": 1,
           "tech_debt": 1
         }
       },
       {
-        "area": "close/sync",
-        "learning_count": 2,
-        "earliest_date": "2026-02-28T00:00:00Z",
-        "latest_date": "2026-02-28T00:00:00Z",
-        "timespan": 0,
-        "categories": {
-          "patterns": 2
-        }
-      },
-      {
-        "area": "cmd/gromit",
-        "learning_count": 2,
-        "earliest_date": "2026-02-28T00:00:00Z",
-        "latest_date": "2026-02-28T00:00:00Z",
-        "timespan": 0,
-        "categories": {
-          "architecture": 1,
-          "conventions": 1
-        }
-      },
-      {
-        "area": "gromit",
-        "learning_count": 2,
-        "earliest_date": "2026-02-25T00:00:00Z",
-        "latest_date": "2026-02-28T00:00:00Z",
-        "timespan": 259200000000000,
-        "categories": {
-          "conventions": 1,
-          "safety": 1
-        }
-      },
-      {
         "area": "specmerge",
+        "learning_count": 3,
+        "earliest_date": "2026-03-01T00:00:00Z",
+        "latest_date": "2026-03-01T00:00:00Z",
+        "timespan": 0,
+        "categories": {
+          "conventions": 2,
+          "gotchas": 1
+        }
+      },
+      {
+        "area": "draft/ready/integrating/merged/conflict/failed_gates/lane_violation",
         "learning_count": 2,
         "earliest_date": "2026-02-28T00:00:00Z",
-        "latest_date": "2026-03-01T00:00:00Z",
-        "timespan": 86400000000000,
+        "latest_date": "2026-03-02T00:00:00Z",
+        "timespan": 172800000000000,
         "categories": {
-          "conventions": 2
+          "architecture": 2
         }
       }
     ]

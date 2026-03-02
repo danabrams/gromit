@@ -1943,3 +1943,8 @@ State transition functions must validate target states against the allowed trans
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-03-02 | gromit-jvbt | conventions
+Failure analysis requires complete error output (stderr, exit codes, logs) to diagnose root causes effectively
+
+*Archived from new: filtered: generic engineering advice*
+

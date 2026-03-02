@@ -1,8 +1,9 @@
 ---
+created: 2026-03-01T00:00:00Z
+decomposed: true
+decomposed_at: "2026-03-02T04:15:49Z"
 id: integration-queue-coordinator-wiring
 source_spec: integration-queue-coordinator-wiring
-created: 2026-03-01
-decomposed: false
 ---
 
 # Integration Queue Coordinator Wiring Implementation Plan
