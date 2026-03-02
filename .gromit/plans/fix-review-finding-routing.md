@@ -11,7 +11,7 @@ research:
 
 **Goal:** Ensure `gromit review` persists findings consistently across interactive and non-interactive modes via a shared apply path.
 
-**Architecture:** Extract bead/backlog/learnings persistence from `ReviewNonInteractive` into a shared `ApplyReviewFindings` Pipeline method, then wire both flows to use it. Interactive mode reads structured output from a known file path written by the agent.
+**Architecture:** Extract bead/backlog/learnings persistence from `ReviewNonInteractive` into a shared `ApplyReviewFindings` Pipeline method, then wire both flows to use it. Interactive mode uses best-effort ingestion from a known file path; non-interactive mode fails closed.
 
 **Tech Stack:** Go, existing pipeline dependency injection, `internal/review` JSON parsing
 
@@ -23,7 +23,7 @@ research:
 
 ### Overview
 
-The inline apply logic in `ReviewNonInteractive` (pipeline.go:316-391) becomes a standalone `Pipeline.ApplyReviewFindings` method in a new `review_apply.go` file. Both interactive and non-interactive flows call this method with a parsed `review.ReviewResult`.
+The inline apply logic in `ReviewNonInteractive` (pipeline.go:348-388) becomes a standalone `Pipeline.ApplyReviewFindings` method in a new `review_apply.go` file. Both interactive and non-interactive flows call this method with a parsed `review.ReviewResult`.
 
 ### Key Components
 
@@ -38,29 +38,35 @@ The inline apply logic in `ReviewNonInteractive` (pipeline.go:316-391) becomes a
    - `CreatedBacklogCount int` — backlog items persisted
    - `LearningsSaved int` — learnings persisted
 
-3. **Interactive findings ingestion** — Post-session step in CLI layer
+3. **Interactive findings ingestion (best-effort)** — Post-session step in CLI layer
    - Review prompt instructs agent to write findings JSON to `.gromit/tmp/review-findings.json`
    - CLI reads file after session, parses via `review.ParseReviewResult`, calls `ApplyReviewFindings`
-   - Missing/malformed file → typed error, no false success
+   - Missing/malformed file → warning printed, session still completes successfully
+   - Valid file → findings applied, summary printed with counts and IDs
+
+### Error Handling Split
+
+- **Non-interactive: fail closed.** Structured output is the contract. Missing or malformed JSON is a hard error.
+- **Interactive: best-effort ingestion.** The review session itself is valuable (agent may have made commits, left comments, etc.). If the findings file is missing or malformed, print a warning and complete successfully. If it's present and valid, apply it and print the summary.
 
 ### Integration Points
 
 - `ReviewNonInteractive` delegates apply to `ApplyReviewFindings` (replacing inline loop)
-- `runReviewInteractive` in CLI calls `ApplyReviewFindings` after session completes
+- `runReviewInteractive` in CLI calls `ApplyReviewFindings` after session completes (best-effort)
 - Both flows produce `ReviewApplyResult` → CLI formats summary with counts and IDs
 
 ### Data Flow
 
 ```
-Non-interactive:  ReviewInvoker.Run → ParseReviewResult → ApplyReviewFindings → ReviewResult
-Interactive:      Agent session → writes findings.json → ParseReviewResult → ApplyReviewFindings → summary
+Non-interactive:  ReviewInvoker.Run → ParseReviewResult → ApplyReviewFindings → ReviewResult (fail closed)
+Interactive:      Agent session → writes findings.json → ParseReviewResult → ApplyReviewFindings → summary (best-effort)
 ```
 
 ### Files to Modify
 
 - `internal/pipeline/pipeline.go` — Refactor `ReviewNonInteractive` to call `ApplyReviewFindings`
 - `internal/pipeline/types.go` — Add `ReviewApplyResult` type
-- `cmd/gromit/review.go` — Wire interactive completion to apply path
+- `cmd/gromit/review.go` — Wire interactive completion to best-effort apply path
 
 ### Files to Create
 
@@ -71,7 +77,7 @@ Interactive:      Agent session → writes findings.json → ParseReviewResult �
 
 - **Agent output via file (not stdout)**: Interactive agents don't return structured output reliably. Writing to a known file path is deterministic and testable. Cost: prompt must instruct agent to write the file.
 - **Logging/state stays in caller**: `ApplyReviewFindings` only handles artifact creation. Log writing and state updates remain in `ReviewNonInteractive` and `runReviewInteractive` respectively. Keeps the helper focused.
-- **Fail closed on missing findings**: If interactive mode can't find the findings file, it's a hard error — no silent partial success.
+- **Best-effort for interactive, fail-closed for non-interactive**: Interactive sessions are inherently valuable even without structured output. Non-interactive mode's entire value is structured output, so missing output is a real failure.
 
 ---
 
@@ -82,33 +88,39 @@ Interactive:      Agent session → writes findings.json → ParseReviewResult �
 - Mixed result (beads + backlog + learnings) → correct counts and IDs
 - Empty result (no findings) → zero counts, no errors
 - Nil dependencies → typed error
-- Bead creation failure → error propagation, no partial state
+- Bead creation failure → error propagation
 - Backlog creation failure → error propagation
 - `from-review` label preserved on beads
 - `from-review` + `backlog` labels on backlog entries
 - Bead with no `expected_outputs` → falls back to title
 
+### Refactor Verification (`internal/pipeline/review_test.go`)
+
+- All existing `TestReviewNonInteractive*` tests pass without modification
+- Confirms `ReviewNonInteractive` still fails closed on parse errors
+
+### CLI Interactive Ingestion (`cmd/gromit/review_test.go`)
+
+- Valid findings file → `ApplyReviewFindings` called, summary printed with counts and IDs
+- Missing findings file → warning printed, no error returned, session completes
+- Malformed JSON → warning printed, no error returned, session completes
+
 ### Parity Tests (`internal/pipeline/review_apply_test.go`)
 
 - Given identical `review.ReviewResult`, verify same `TrackerClient.Create` and `BacklogWriter.Add` calls regardless of calling flow
-- Existing `TestReviewNonInteractiveWorkflow_E2E` continues to pass after refactor
-
-### CLI Tests (`cmd/gromit/review_test.go`)
-
-- Interactive completion with valid findings file → `ApplyReviewFindings` called, summary printed
-- Interactive completion with missing findings file → typed error
-- Interactive completion with malformed JSON → typed error
+- Mixed-result test verifies counts for both beads and backlog in output
 
 ### Mocking Strategy
 
-- Mock `TrackerClient`, `BacklogWriter`, `LearningsManager` (reuse existing mock types from `review_test.go`)
-- Real `review.ParseReviewResult` for JSON parsing tests
-- Mock agent output via file on disk for interactive tests
+- Reuse existing mock types from `review_test.go` (`reviewAcceptanceMock*` family)
+- Real `review.ParseReviewResult` for JSON parsing paths
+- Mock findings file on disk for interactive ingestion tests
 
 ### Coverage Goals
 
 - All `ApplyReviewFindings` branches covered
 - Both success and error paths for each artifact type
+- Interactive best-effort path (present, missing, malformed)
 - Parity between interactive and non-interactive apply semantics
 
 ---
@@ -180,7 +192,7 @@ Replace the inline bead creation loop, backlog creation loop, and learnings pers
 
 **Dependencies:** Task 3
 
-### Task 5: Wire interactive review completion to ApplyReviewFindings
+### Task 5: Wire interactive review completion to ApplyReviewFindings (best-effort)
 
 **Files:**
 - Modify: `cmd/gromit/review.go`
@@ -188,12 +200,12 @@ Replace the inline bead creation loop, backlog creation loop, and learnings pers
 - Test: `cmd/gromit/review_test.go`
 
 **What to Do:**
-After interactive agent session completes, read structured findings from `.gromit/tmp/review-findings.json`. Parse via `review.ParseReviewResult`. Call `Pipeline.ApplyReviewFindings`. Print summary with counts and IDs. On missing/malformed file, return typed error (fail closed). The review prompt template should instruct the agent to write findings to this path.
+After interactive agent session completes, attempt to read structured findings from `.gromit/tmp/review-findings.json`. If the file exists and parses successfully, call `Pipeline.ApplyReviewFindings` and print summary with counts and IDs. If the file is missing or malformed, print a warning and complete successfully (best-effort — the session itself was valuable). The review prompt template should instruct the agent to write findings to this path.
 
 **Acceptance Criteria:**
 - Interactive review with valid findings file → beads and backlog created, summary printed with counts
-- Missing findings file → clear error message, no false success
-- Malformed JSON → typed error returned
+- Missing findings file → warning printed, no error, session completes successfully
+- Malformed JSON → warning printed, no error, session completes successfully
 
 **Dependencies:** Task 4
 
