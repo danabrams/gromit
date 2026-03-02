@@ -15,7 +15,7 @@ Benchmark and retro reports have external consumers (dashboards, analytics). The
 **Enforcement:** Architecture review for new report generation; test coverage on schema contract boundaries.
 
 ### All run termination paths must call one shared metrics-persist epilogue
-Observability fields (cost/tokens/duration/model/provider/current_run_row attribution) must be produced through the same runtime execution path used in production. Pre-launch/invocation failures must still emit non-empty attribution (or explicit sentinel attribution) and a typed failure reason. Any alternate/test path must have parity contract tests proving identical field population semantics and non-empty current-run row generation. Enforce a single shared persist-epilogue invoked by every return path with tests enumerating each exit.
+Observability fields (cost/tokens/duration/model/provider/current_run_row attribution) must be produced through the same runtime execution path used in production. Pre-launch/invocation failures must still emit non-empty attribution (or explicit sentinel attribution) and a typed failure reason. Rows with execute-not-launched or unresolved attribution must be tagged `data_quality_invalid` and excluded from efficiency/SPC aggregates; fail validation if aggregation includes zero-filled placeholder rows. Any alternate/test path must have parity contract tests proving identical field population semantics and non-empty current-run row generation. Enforce a single shared persist-epilogue invoked by every return path with tests enumerating each exit.
 
 **Enforcement:** Parity contract tests for each exit path (success, build-fail, validation-fail, pre-launch, timeout); CI gate on persist-epilogue coverage.
 
@@ -23,6 +23,11 @@ Observability fields (cost/tokens/duration/model/provider/current_run_row attrib
 Pipeline methods follow the pattern: typed input/output structs → validate dependencies first → renderer processing → post-processing change detection. For shared artifacts, enforce one writer/owner path and add contract tests that fail on duplicate writers.
 
 **Enforcement:** Keep pipeline tests next to command files; add contract tests before merging dual-writer changes.
+
+### Usage attribution and stream-event merge beads require reducer contract before wiring
+Any bead touching usage attribution or stream-event merge semantics must land a pure reducer contract (including turn/response/result matrix tests and unknown-attribution fail-closed cases) before production wiring.
+
+**Enforcement:** Bead scope tagging for attribution/merge paths; CI gate requiring reducer contract test pass before integration merge.
 
 ## Process
 
@@ -36,13 +41,18 @@ Any bead touching provider stream usage/event handling must add a stream-event m
 
 **Enforcement:** Bead scope tagging for stream-event paths; CI gate requiring matrix contract test pass before merge.
 
+### Nil-safety fixes require centralized wrapper before call-site patches
+For nil-safety defects, first implement a centralized safe-call wrapper or boundary guard; all-call-site patch beads are forbidden unless explicitly decomposed into wrapper-first children.
+
+**Enforcement:** Bead scope review for nil-safety titles; decomposition gate requiring wrapper-first child bead before distributed call-site migration beads.
+
 ### Ephemeral session worktree paths must remain untracked via repo ignore plus gitlink mode guard
 Ephemeral `.-gromit-*` worktree paths must stay untracked in version control. Repository-level ignore plus explicit gitlink guard (mode `160000` fails fast before commit/CI) prevents accidental repo integrity corruption.
 
 **Enforcement:** Local pre-commit hooks and CI entry targets; audit gitlink entries in hook output.
 
 ### Bead failure decomposition must be enforced by preflight
-On bead failure: for broad/high-risk scope (cross-package, regression umbrella titles, or 6+ files), decompose after the first failure; otherwise decompose after 2 consecutive failures. If failure signature is invocation/pre-launch (duration_ms=0 and attribution unresolved), forbid same-scope retry and require immediate diagnostic decomposition. Preflight must verify decomposition children exist and parent is blocked before any retry is allowed. Missing child-bead links is a hard error (not warning), with idempotent child creation and explicit `discovered-from` linkage required. Telemetry/usage children split: (1) event-merge, (2) completeness, (3) attribution. Block parent retries until a child lands. If broad-scope signals indicate cross-package or 6+ files, planning must fail until decomposition child beads (with expected_outputs) are linked.
+On bead failure: for broad/high-risk scope (cross-package, regression umbrella titles, 6+ files, or call-site sweep scopes like '...at all call sites'), decompose after the first failure; nil-safety and stream-attribution fixes require wrapper/reducer-first child beads before retry; otherwise decompose after 2 consecutive failures. If failure signature is invocation/pre-launch (duration_ms=0 and attribution unresolved), forbid same-scope retry and require immediate diagnostic decomposition. Preflight must verify decomposition children exist and parent is blocked before any retry is allowed. Missing child-bead links is a hard error (not warning), with idempotent child creation and explicit `discovered-from` linkage required. Telemetry/usage children split: (1) event-merge, (2) completeness, (3) attribution. Block parent retries until a child lands. If broad-scope signals indicate cross-package or 6+ files, planning must fail until decomposition child beads (with expected_outputs) are linked.
 
 **Enforcement:** Preflight gate on bead retry; auditable decomposition-attempt event; broad-scope detection at first failure; block parent retries until child lands; planning validator hard-fail for broad-scope signals without linked children.
 
@@ -57,7 +67,7 @@ Apply timeout-first decomposition at >=60% elapsed budget when complexity signal
 **Enforcement:** Orchestrator/runner validates elapsed budget and complexity signals before allowing same-scope retry; telemetry gates on escalation recording.
 
 ### Usage accounting must use explicit snapshots and one canonical merge strategy
-Usage accounting must use explicit before/after snapshots for every phase and one canonical merge strategy for provider stream events. Pre-launch/invocation failures must still emit non-empty attribution (or explicit sentinel attribution) and a typed failure reason; blank model/provider fields are forbidden on any iteration outcome. Treat any non-empty run with `model=unknown` or `provider=unknown` attribution as a data-quality failure: mark the run as data-quality-failed, auto-create/link a blocking bead, and block keep/revert experiment decisions until one complete current-run dataset with known attribution is recorded. Fail the iteration when usage exists but model/provider attribution is unknown. Retro/experiment Study-Act steps are blocked unless the current-run dataset has >=10 post-change iterations with non-empty model/provider attribution and non-zero required efficiency fields; on failure, emit `data_quality_blocked` with per-field diagnostics and suppress anomaly classification. Output must remain fail-closed (`insufficient_current_run_data`, deltas `N/A`). Stratified SPC must additionally require >=10 samples and non-zero variance per stratum, otherwise emit `insufficient_stratum_data` and suppress anomaly classification.
+Usage accounting must use explicit before/after snapshots for every phase and one canonical merge strategy for provider stream events. Pre-launch/invocation failures must still emit non-empty attribution (or explicit sentinel attribution) and a typed failure reason; blank model/provider fields are forbidden on any iteration outcome. Treat any non-empty run with `model=unknown` or `provider=unknown` attribution as a data-quality failure: mark the run as data-quality-failed, auto-create/link a blocking bead, and block keep/revert experiment decisions until one complete current-run dataset with known attribution is recorded. Fail the iteration when usage exists but model/provider attribution is unknown. Retro/experiment Study-Act steps are blocked unless the current-run dataset has >=10 post-change iterations with non-empty model/provider attribution and non-zero required efficiency fields; on failure, emit `data_quality_blocked` with per-field diagnostics, suppress anomaly classification, and suppress all deltas/control-limit comparisons for the affected run. Output must remain fail-closed (`insufficient_current_run_data`, deltas `N/A`). Stratified SPC must additionally require >=10 samples and non-zero variance per stratum, otherwise emit `insufficient_stratum_data` and suppress anomaly classification.
 
 **Enforcement:** Runtime telemetry validator; experiment decision gate; unknown-attribution detector in post-run validation; iteration-level attribution guard; experiment.json schema validator on keep/revert/extend; pre-launch attribution contract tests; stratum validity gate (sample count + variance check); Study-Act data quality gate (>=10 post-change iterations with per-field diagnostics).
 

@@ -4,6 +4,30 @@
 
 ## Archived
 
+### 2026-02-24 | cohort_validation_must_reject_nil_lookup_payloads_before_field_access | RELIABILITY
+*Related to: gromit/review-1771938913730053167*
+*Archived: 2026-03-02 — consolidated into nil_safety_boundary_centralized_guard; incident-specific detail with no recent recurrence.*
+
+Cohort validation paths that call external lookups must treat a nil object as invalid input and return a typed error before dereferencing fields, preventing panic-class failures from malformed integration responses.
+
+### 2026-02-28 | codex_usage_attribution_contract_first | ARCHITECTURE
+*Related to: gromit-9bhr, gromit-qs2ks*
+*Archived: 2026-03-02 — consolidated into runtime_execution_attribution_ownership_contract.*
+
+Codex usage attribution must be contract-first: define normalized usage schema, implement a pure event reducer with precedence rules, and require stream-event matrix tests before integration wiring.
+
+### 2026-02-28 | execution_boundary_ownership_contract | ARCHITECTURE
+*Related to: gromit/review-1772054097495408438, gromit/review-1772062103155608386, gromit-9948, gromit-9949, gromit-y7flm, gromit-z9z2k*
+*Archived: 2026-03-02 — consolidated into runtime_execution_attribution_ownership_contract.*
+
+Execution-boundary ownership includes diagnostic survivability: decompose by responsibility while preserving package boundaries, keep single mergeback cleanup ownership with typed conflict handling, use workspace-local state as source of truth with repo-scoped fallback only, and preserve fallback emission paths so failures remain observable.
+
+### 2026-02-28 | nil_guard_centralized_wrapper | RELIABILITY
+*Related to: gromit-scrae.1, gromit-scrae.3*
+*Archived: 2026-03-02 — consolidated into nil_safety_boundary_centralized_guard.*
+
+Nil-guard fixes must be centralized in one safe-call wrapper; avoid bead scopes that patch every call site directly.
+
 ### 2026-02-27 | select_break_only_exits_select_not_enclosing_loop | CODE_QUALITY
 *Related to: gromit/review-1772199039639467769*
 *Archived: 2026-02-28 — generic language-level behavior; not project-specific under anti-generic archival policy.*
