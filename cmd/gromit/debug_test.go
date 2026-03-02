@@ -262,6 +262,35 @@ func TestLaunchDebugSession_ConvertsPromptPathToAbsolute(t *testing.T) {
 	}
 }
 
+func TestLaunchDebugSession_UsesCommandContext(t *testing.T) {
+	key := struct{}{}
+	ctx := context.WithValue(context.Background(), key, "debug-context")
+	savedLauncher := debugSessionLauncherFn
+	t.Cleanup(func() {
+		debugSessionLauncherFn = savedLauncher
+	})
+
+	var capturedContext context.Context
+	debugSessionLauncherFn = func(ctx context.Context, gromitDir string, command string, conflictSettings sessionConflictSettings, callback func(sessionDir string) error) (*worktree.SessionWorktree, error) {
+		capturedContext = ctx
+		if err := callback("session-dir"); err != nil {
+			return nil, err
+		}
+		return &worktree.SessionWorktree{WorktreeDir: "session-dir"}, nil
+	}
+
+	agent := &sessionTestAgent{}
+	if err := launchDebugSession(ctx, &config.Config{}, ".gromit", agent, "prompt.md", ""); err != nil {
+		t.Fatalf("launchDebugSession() error = %v", err)
+	}
+	if capturedContext == nil {
+		t.Fatalf("expected launcher to receive context")
+	}
+	if capturedContext.Value(key) != "debug-context" {
+		t.Fatalf("launcher context missing marker: got %v", capturedContext.Value(key))
+	}
+}
+
 func TestGetPlanFiles(t *testing.T) {
 	t.Parallel()
 	t.Run("finds markdown files", func(t *testing.T) {
