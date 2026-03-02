@@ -2622,6 +2622,30 @@ func TestRunGitCancelsWhenContextDone(t *testing.T) {
 	}
 }
 
+func TestRunGitUsesKillDescendantsOnCancel(t *testing.T) {
+	repoDir := initCancelableGitRepo(t)
+
+	m, err := NewManager(repoDir)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	var killCalled bool
+	oldKill := killDescendantsOnCancelFn
+	t.Cleanup(func() { killDescendantsOnCancelFn = oldKill })
+	killDescendantsOnCancelFn = func(ctx context.Context, cmd *exec.Cmd) {
+		killCalled = true
+	}
+
+	if _, err := m.runGit(context.Background(), repoDir, "status"); err != nil {
+		t.Fatalf("runGit() error = %v", err)
+	}
+
+	if !killCalled {
+		t.Fatal("runGit() did not call KillDescendantsOnCancel")
+	}
+}
+
 func initCancelableGitRepo(t testing.TB) string {
 	t.Helper()
 	mdir := t.TempDir()
