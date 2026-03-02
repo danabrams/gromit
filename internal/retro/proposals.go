@@ -35,6 +35,36 @@ type RuleChangeProposal struct {
 	Rationale    string `json:"rationale"`     // Why this change is needed
 }
 
+type Taxonomy struct {
+	Technical        []string `json:"technical"`
+	Architecture     []string `json:"architecture"`
+	Process          []string `json:"process"`
+	RepeatedPatterns []string `json:"repeated_patterns"`
+}
+
+type SystemAction struct {
+	Finding          string `json:"finding"`
+	Type             string `json:"type"`
+	LocalFix         string `json:"local_fix"`
+	SystemFix        string `json:"system_fix"`
+	Owner            string `json:"owner"`
+	DueDate          string `json:"due_date"`
+	LeadingIndicator string `json:"leading_indicator"`
+}
+
+type WhyChainItem struct {
+	Why     int    `json:"why"`
+	Because string `json:"because"`
+}
+
+type FiveWhysProposal struct {
+	Item           string         `json:"item"`
+	Impact         string         `json:"impact"`
+	WhyChain       []WhyChainItem `json:"why_chain"`
+	RootCauseType  string         `json:"root_cause_type"`
+	StoppingReason string         `json:"stopping_reason"`
+}
+
 // FrictionOption represents a remediation option for a workmanship finding.
 type FrictionOption struct {
 	Description string `json:"description"`
@@ -53,6 +83,9 @@ type Proposals struct {
 	Archives       []ArchiveProposal       `json:"archives,omitempty"`
 	RuleChanges    []RuleChangeProposal    `json:"rule_changes,omitempty"`
 	Workmanship    []WorkmanshipProposal   `json:"workmanship,omitempty"`
+	Taxonomy       Taxonomy                `json:"taxonomy,omitempty"`
+	SystemActions  []SystemAction          `json:"system_actions,omitempty"`
+	FiveWhys       []FiveWhysProposal      `json:"five_whys,omitempty"`
 }
 
 // normalizeNilFields ensures nil slices are replaced with empty slices.
@@ -79,12 +112,22 @@ func (p *Proposals) normalizeNilFields() {
 	if p.Workmanship == nil {
 		p.Workmanship = []WorkmanshipProposal{}
 	}
+	if p.SystemActions == nil {
+		p.SystemActions = []SystemAction{}
+	}
+	if p.FiveWhys == nil {
+		p.FiveWhys = []FiveWhysProposal{}
+	}
+	(&p.Taxonomy).normalizeNilFields()
 	// Normalize nested slice fields in each ConsolidationProposal
 	for i := range p.Consolidations {
 		p.Consolidations[i].normalizeNilFields()
 	}
 	for i := range p.Workmanship {
 		p.Workmanship[i].normalizeNilFields()
+	}
+	for i := range p.FiveWhys {
+		p.FiveWhys[i].normalizeNilFields()
 	}
 }
 
@@ -106,6 +149,33 @@ func (w *WorkmanshipProposal) normalizeNilFields() {
 	}
 	if w.FrictionOptions == nil {
 		w.FrictionOptions = []FrictionOption{}
+	}
+}
+
+func (t *Taxonomy) normalizeNilFields() {
+	if t == nil {
+		return
+	}
+	if t.Technical == nil {
+		t.Technical = []string{}
+	}
+	if t.Architecture == nil {
+		t.Architecture = []string{}
+	}
+	if t.Process == nil {
+		t.Process = []string{}
+	}
+	if t.RepeatedPatterns == nil {
+		t.RepeatedPatterns = []string{}
+	}
+}
+
+func (f *FiveWhysProposal) normalizeNilFields() {
+	if f == nil {
+		return
+	}
+	if f.WhyChain == nil {
+		f.WhyChain = []WhyChainItem{}
 	}
 }
 
