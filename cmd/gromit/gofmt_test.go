@@ -22,6 +22,17 @@ func TestCmdGromitTestFilesGofmt(t *testing.T) {
 	}
 }
 
+func TestCmdGromitSourceFilesGofmt(t *testing.T) {
+	files := cmdGromitSourceFiles(t)
+	if len(files) == 0 {
+		t.Fatalf("no cmd/gromit source files found")
+	}
+
+	if nonCompliant := gofmtNonCompliantFiles(t, files); len(nonCompliant) > 0 {
+		t.Fatalf("gofmt -l reported non-compliant files:\n%s", strings.Join(nonCompliant, "\n"))
+	}
+}
+
 func cmdGromitTestFiles(t *testing.T) []string {
 	t.Helper()
 
