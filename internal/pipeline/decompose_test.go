@@ -1518,9 +1518,11 @@ func TestDecomposeWorkflow_UpdatesPlanFrontmatterTimestamp(t *testing.T) {
 		PlanName: "test-plan",
 	}
 
-	beforeTime := time.Now()
+	fixedTime := time.Date(2026, 3, 1, 12, 34, 56, 0, time.UTC)
+	origDecomposeNow := decomposeNow
+	decomposeNow = func() time.Time { return fixedTime }
+	defer func() { decomposeNow = origDecomposeNow }()
 	_, err := p.Decompose(ctx, input)
-	afterTime := time.Now()
 
 	if err != nil {
 		t.Fatalf("Decompose() failed: %v", err)
@@ -1538,7 +1540,6 @@ func TestDecomposeWorkflow_UpdatesPlanFrontmatterTimestamp(t *testing.T) {
 		t.Fatal("Plan frontmatter missing decomposed_at field")
 	}
 
-	// Verify timestamp is in reasonable range (between before and after)
 	var tsLine string
 	for _, line := range strings.Split(planStr, "\n") {
 		if strings.HasPrefix(strings.TrimSpace(line), "decomposed_at:") {
@@ -1556,8 +1557,8 @@ func TestDecomposeWorkflow_UpdatesPlanFrontmatterTimestamp(t *testing.T) {
 	if parseErr != nil {
 		t.Fatalf("decomposed_at is not RFC3339: %q (%v)", tsValue, parseErr)
 	}
-	if decomposedAt.Before(beforeTime.Add(-1*time.Second)) || decomposedAt.After(afterTime.Add(1*time.Second)) {
-		t.Fatalf("decomposed_at=%s outside expected range [%s, %s]", decomposedAt.Format(time.RFC3339), beforeTime.Format(time.RFC3339), afterTime.Format(time.RFC3339))
+	if !decomposedAt.Equal(fixedTime) {
+		t.Fatalf("decomposed_at=%s, want %s", decomposedAt.Format(time.RFC3339), fixedTime.Format(time.RFC3339))
 	}
 }
 
