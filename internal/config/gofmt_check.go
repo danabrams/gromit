@@ -10,6 +10,9 @@ var supplementaryConfigFiles = []string{
 	"compatibility_resolution.go",
 	"gemini_config.go",
 	"profile_defaults.go",
+	"config_normalize.go",
+	"config_defaults.go",
+	"config_accessors.go",
 }
 
 func EnsureSupplementaryConfigFilesFormatted() error {
