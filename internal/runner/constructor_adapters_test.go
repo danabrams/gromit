@@ -431,31 +431,6 @@ func TestBeadLifecycleAdapterAcceptsTrackerClient(t *testing.T) {
 	}
 }
 
-func TestDecomposerAdapterChildWithDedupeLabelExistsUsesBeadClient(t *testing.T) {
-	t.Parallel()
-
-	adapter := &decomposerAdapter{
-		beads: &fakeBeadClient{
-			listFn: func(ctx context.Context, label string) ([]*bead.Bead, error) {
-				if label != "scope_decomp:foo" {
-					t.Fatalf("label = %q, want scope_decomp:foo", label)
-				}
-				return []*bead.Bead{
-					{ID: "child-1", Parent: "parent-1", Labels: []string{label}},
-				}, nil
-			},
-		},
-	}
-
-	exists, err := adapter.childWithDedupeLabelExists("parent-1", "scope_decomp:foo")
-	if err != nil {
-		t.Fatalf("childWithDedupeLabelExists returned error: %v", err)
-	}
-	if !exists {
-		t.Fatalf("expected child to exist")
-	}
-}
-
 func TestDecomposerAdapterChildWithDedupeLabelExistsWithClient_ThreadsProvidedContext(t *testing.T) {
 	t.Parallel()
 

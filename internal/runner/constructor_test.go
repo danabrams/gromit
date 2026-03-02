@@ -1822,16 +1822,6 @@ func TestDecomposerAdapter_Decompose_RetryDoesNotDuplicateWhenTitleAndOutputsVar
 	}
 }
 
-// TestSpecGateAdapterImplementsEpilogueSpecGateRunner verifies that specGateAdapter
-// satisfies the epilogue.SpecGateRunner interface so it can be wired into the Epilogue stage.
-func TestSpecGateAdapterImplementsEpilogueSpecGateRunner(t *testing.T) {
-	t.Parallel()
-	adapter := &specGateAdapter{}
-	// This test is a compile-time check via implicit interface satisfaction.
-	// If specGateAdapter doesn't implement SpecGateRunner, this will fail at compile time.
-	_ = interface{}(adapter)
-}
-
 // TestNewRunnerImpl_WiresSpecGateIntoEpilogue verifies that the spec gate adapter
 // is wired into the epilogue stage when newRunnerImpl creates the orchestrator.
 func TestNewRunnerImpl_WiresSpecGateIntoEpilogue(t *testing.T) {
