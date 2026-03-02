@@ -591,13 +591,43 @@ func (c *Client) deriveIssuePrefix() (string, error) {
 }
 
 func (c *Client) repoBaseName() (string, error) {
-	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
+	timeout := DefaultCommandTimeout
+	if c != nil {
+		timeout = c.commandTimeout()
+	}
+
+	cmdCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	if err := waitForProcessCapacityFn(cmdCtx, commandProcessCapacityWait); err != nil {
+		return "", err
+	}
+
+	cmd := exec.CommandContext(cmdCtx, "git", "rev-parse", "--show-toplevel")
+	procutil.SetProcessGroupKill(cmd)
 	if c != nil && c.Dir != "" {
 		cmd.Dir = c.Dir
 	}
-	out, err := cmd.Output()
-	if err == nil {
-		root := strings.TrimSpace(string(out))
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Start(); err != nil {
+		return "", err
+	}
+	killDescendantsOnCancelFn(cmdCtx, cmd)
+	defer reapProcessTreeFn(cmd)
+
+	gitErr := cmd.Wait()
+	if gitErr != nil {
+		if _, ok := gitErr.(*exec.ExitError); ok {
+			gitErr = fmt.Errorf("%w: %s", gitErr, stderr.String())
+		}
+	}
+	if gitErr == nil {
+		root := strings.TrimSpace(stdout.String())
 		if root != "" {
 			return filepath.Base(root), nil
 		}
@@ -605,8 +635,8 @@ func (c *Client) repoBaseName() (string, error) {
 
 	cwd, cwdErr := os.Getwd()
 	if cwdErr != nil {
-		if err != nil {
-			return "", fmt.Errorf("git rev-parse failed: %v; getwd failed: %w", err, cwdErr)
+		if gitErr != nil {
+			return "", fmt.Errorf("git rev-parse failed: %v; getwd failed: %w", gitErr, cwdErr)
 		}
 		return "", fmt.Errorf("getwd failed: %w", cwdErr)
 	}
