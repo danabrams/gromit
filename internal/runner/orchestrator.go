@@ -23,6 +23,7 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/procutil"
+	"github.com/danabrams/gromit/internal/runner/specbranch"
 	"github.com/danabrams/gromit/internal/runner/specmerge"
 )
 
@@ -71,6 +72,9 @@ type OrchestratorConfig struct {
 	// StatusWriter is called at the start of each iteration to update status.json.
 	// Optional: nil means skip.
 	StatusWriter func(iteration int, beadID, beadTitle string, dl time.Time)
+	// StatusFinalizer is called before Run returns to finalize status output.
+	// Optional: nil means skip.
+	StatusFinalizer func(iteration int, runErr error)
 
 	// StateSaver persists provider routing state after the loop completes.
 	// Optional: nil means skip. Typically backed by state.File.
@@ -242,7 +246,7 @@ func (o *Orchestrator) StartSubscribers(ctx context.Context) (*sync.WaitGroup, e
 // blocked or skipped at the Gate stage. ValidationFailures from a failed Validate
 // stage are accumulated and fed into the next Build stage's Input. Global stats are
 // merged (not overwritten) at completion when GlobalStatsPath is configured.
-func (o *Orchestrator) Run(ctx context.Context, maxIterations int, deadline time.Time, stopCh <-chan struct{}) error {
+func (o *Orchestrator) Run(ctx context.Context, maxIterations int, deadline time.Time, stopCh <-chan struct{}) (runErr error) {
 	if stopCh == nil {
 		stopCh = make(chan struct{})
 	}
@@ -271,10 +275,25 @@ func (o *Orchestrator) Run(ctx context.Context, maxIterations int, deadline time
 		}
 	}
 
+	iteration := 0
+	defer func() {
+		if o.cfg.StatusFinalizer != nil {
+			o.cfg.StatusFinalizer(iteration, runErr)
+		}
+		reason := "completed"
+		if runErr != nil {
+			reason = fmt.Sprintf("error: %v", runErr)
+		}
+		o.emitter.Emit(&events.RunCompleteEvent{
+			IterationsCompleted: iteration,
+			Reason:              reason,
+			Time:                time.Now(),
+		})
+	}()
+
 	var validationFailures []string
 	var touchedPackages []string
 	skipTracker := newSkipTracker()
-	iteration := 0
 
 	// Recover from any crash that may have left entries in integrating state
 	if o.cfg.Coordinator != nil {
@@ -448,7 +467,7 @@ runLoop:
 		}
 
 		// Checkout branch if router and checkout are configured.
-		if o.cfg.BranchRouter != nil && o.cfg.GitCheckout != nil {
+		if o.cfg.BranchRouter != nil && o.cfg.GitCheckout != nil && specbranch.HasSpecLabel(b.Labels) {
 			branch, branchErr := o.cfg.BranchRouter.BranchForLabels(b.Labels)
 			if branchErr != nil {
 				o.logWarning("Warning: branch resolution failed for bead %s: %v", b.ID, branchErr)
@@ -827,13 +846,6 @@ runLoop:
 			o.logWarning("Warning: could not save provider state: %v", err)
 		}
 	}
-
-	// Emit RunCompleteEvent
-	o.emitter.Emit(&events.RunCompleteEvent{
-		IterationsCompleted: iteration,
-		Reason:              "completed", // TODO(review): reflect actual failure reasons once TUI consumes this field
-		Time:                time.Now(),
-	})
 
 	return nil
 }

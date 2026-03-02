@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +19,83 @@ import (
 // eventCapture records emitted events in order for assertion.
 type eventCapture struct {
 	events []events.Event
+}
+
+func TestOrchestrator_PostLoopError_EmitsRunCompleteAndFinalizesStatus(t *testing.T) {
+	t.Parallel()
+
+	logsDir := t.TempDir()
+	runID := "20260302-133000"
+	logPath := filepath.Join(logsDir, "run-"+runID+".jsonl")
+	logContent := `{"type":"iteration","timestamp":"2026-02-25T12:00:00Z","iteration":1,"bead_id":"b1","bead_title":"Missing efficiency data","model":"haiku","success":true,"validated":true,"duration_ms":0,"cost_usd":0,"input_tokens":0,"output_tokens":0}
+`
+	if err := os.WriteFile(logPath, []byte(logContent), 0644); err != nil {
+		t.Fatalf("WriteFile run log: %v", err)
+	}
+
+	finalizerCalled := false
+	finalizerErr := error(nil)
+	finalizerIteration := -1
+
+	cfg := OrchestratorConfig{
+		Gate:     &fakeStage{},
+		Build:    &fakeStage{},
+		Validate: &fakeStage{},
+		Epilogue: &fakeStage{},
+		GetBead: func(_ context.Context) (*bead.Bead, error) {
+			return nil, nil
+		},
+		Config:   &config.Config{},
+		Output:   io.Discard,
+		LogsDir:  logsDir,
+		GetRunID: func() string { return runID },
+		StatusFinalizer: func(iteration int, runErr error) {
+			finalizerCalled = true
+			finalizerIteration = iteration
+			finalizerErr = runErr
+		},
+	}
+
+	orch := NewOrchestrator(cfg)
+	capturer := newCaptureSubscriber(orch.GetEmitter())
+	go capturer.start()
+
+	err := orch.Run(context.Background(), 1, time.Time{}, nil)
+	if err == nil {
+		t.Fatal("Run() expected completeness error, got nil")
+	}
+	if !strings.Contains(err.Error(), "efficiency data completeness assertion failed") {
+		t.Fatalf("Run() error = %v, want completeness assertion error", err)
+	}
+
+	<-capturer.done
+
+	if !finalizerCalled {
+		t.Fatal("StatusFinalizer not called on post-loop error")
+	}
+	if finalizerIteration != 0 {
+		t.Fatalf("StatusFinalizer iteration = %d, want 0", finalizerIteration)
+	}
+	if finalizerErr == nil {
+		t.Fatal("StatusFinalizer runErr = nil, want error")
+	}
+
+	var runComplete *events.RunCompleteEvent
+	for _, evt := range capturer.capture.events {
+		if rce, ok := evt.(*events.RunCompleteEvent); ok {
+			runComplete = rce
+			break
+		}
+	}
+	if runComplete == nil {
+		t.Fatal("RunCompleteEvent not emitted on post-loop error")
+	}
+	if runComplete.IterationsCompleted != 0 {
+		t.Fatalf("RunCompleteEvent.IterationsCompleted = %d, want 0", runComplete.IterationsCompleted)
+	}
+	if !strings.Contains(runComplete.Reason, "error:") {
+		t.Fatalf("RunCompleteEvent.Reason = %q, want error reason", runComplete.Reason)
+	}
 }
 
 // captureSubscriber subscribes to an emitter and records events for testing.

@@ -53,6 +53,12 @@ func (r *Router) Resolve(labels []string) (string, error) {
 	return r.BranchForLabels(labels)
 }
 
+// HasSpecLabel reports whether labels contain at least one spec:<name> value.
+func HasSpecLabel(labels []string) bool {
+	_, found := findSpecLabel(labels)
+	return found
+}
+
 func (r *Router) baseBranchOrDefault() string {
 	if r == nil || r.baseBranch == "" {
 		return config.DefaultBaseBranch

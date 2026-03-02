@@ -122,3 +122,43 @@ func TestRouterResolve(t *testing.T) {
 		})
 	}
 }
+
+func TestHasSpecLabel(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		labels []string
+		want   bool
+	}{
+		{
+			name:   "no labels",
+			labels: nil,
+			want:   false,
+		},
+		{
+			name:   "non-spec labels",
+			labels: []string{"bug", "from-review"},
+			want:   false,
+		},
+		{
+			name:   "spec label present",
+			labels: []string{"from-review", "spec:auth"},
+			want:   true,
+		},
+		{
+			name:   "empty spec label still treated as spec-scoped",
+			labels: []string{"spec:"},
+			want:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := specbranch.HasSpecLabel(tt.labels)
+			if got != tt.want {
+				t.Fatalf("HasSpecLabel() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

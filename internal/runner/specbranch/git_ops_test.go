@@ -47,6 +47,29 @@ func TestCreateOrCheckoutSpecBranch_CreatesNewBranch(t *testing.T) {
 	}
 }
 
+func TestCreateOrCheckoutSpecBranch_IncludesGitContextOnFailure(t *testing.T) {
+	t.Parallel()
+
+	fixture := helpers.NewDeterministicGitConflictFixture(t)
+	ops := NewGitOps(fixture.Dir, fixture.BaseBranch)
+
+	err := ops.CreateOrCheckoutSpecBranch(context.Background(), "bad branch name")
+	if err == nil {
+		t.Fatal("CreateOrCheckoutSpecBranch() expected error for invalid branch name")
+	}
+
+	msg := err.Error()
+	if !strings.Contains(msg, "create attempt failed") {
+		t.Fatalf("error %q missing create attempt context", msg)
+	}
+	if !strings.Contains(msg, "checkout attempt failed") {
+		t.Fatalf("error %q missing checkout attempt context", msg)
+	}
+	if !strings.Contains(msg, "output:") {
+		t.Fatalf("error %q missing git command output context", msg)
+	}
+}
+
 // TestRebaseSpecOntoMain_Rebases verifies that RebaseSpecOntoMain rebases
 // the spec branch onto main without conflicts.
 func TestRebaseSpecOntoMain_Rebases(t *testing.T) {

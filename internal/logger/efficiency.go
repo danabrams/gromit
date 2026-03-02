@@ -351,7 +351,7 @@ func AssertEfficiencyCompleteness(logsDir string, runID string) (CompletenessChe
 		// - CostUSD is zero AND
 		// - InputTokens is zero AND
 		// - OutputTokens is zero
-		if entry.CostUSD == 0 && entry.InputTokens == 0 && entry.OutputTokens == 0 {
+		if entry.CostUSD == 0 && entry.InputTokens == 0 && entry.OutputTokens == 0 && !isExpectedEfficiencySentinel(entry) {
 			result.IsComplete = false
 			result.MissingDataCount++
 			diagnostics = append(diagnostics, fmt.Sprintf("Iteration %d (BeadID: %s, Title: %s) missing efficiency data", entry.Iteration, entry.BeadID, entry.BeadTitle))
@@ -359,4 +359,13 @@ func AssertEfficiencyCompleteness(logsDir string, runID string) (CompletenessChe
 	}
 
 	return result, diagnostics
+}
+
+func isExpectedEfficiencySentinel(entry IterationLog) bool {
+	phase := strings.TrimSpace(strings.ToLower(entry.FailurePhase))
+	if phase == "prelaunch" {
+		return true
+	}
+	timeoutType := strings.TrimSpace(strings.ToLower(entry.TimeoutType))
+	return timeoutType == "invocation"
 }

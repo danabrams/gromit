@@ -302,6 +302,15 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 				_ = statusWriter.Write(iteration, beadID, beadTitle, "", true, cfg.Loop.MaxIterations, timeBudgetMinutes)
 			}
 		},
+		StatusFinalizer: func(iteration int, runErr error) {
+			_ = runErr
+			if statusWriter == nil {
+				return
+			}
+			if err := statusWriter.WriteFinal(iteration); err != nil {
+				_, _ = fmt.Fprintf(syncOut, "Warning: could not write final status: %v\n", err)
+			}
+		},
 		StateSaver:       sf,
 		ProviderCostDefs: costDefs,
 		Coordinator:      coordinator,

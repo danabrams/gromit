@@ -69,19 +69,38 @@ func (g *GitOps) CreateOrCheckoutSpecBranch(ctx context.Context, specBranchName 
 	}
 
 	// Try to create the branch first
-	_, err := runGitCommand(ctx, g.repoDir, "checkout", "-b", specBranchName)
+	createOutput, err := runGitCommand(ctx, g.repoDir, "checkout", "-b", specBranchName)
 
 	if err == nil {
 		return nil
 	}
 
 	// If branch exists, just checkout
-	_, err = runGitCommand(ctx, g.repoDir, "checkout", specBranchName)
-	if err != nil {
-		return fmt.Errorf("failed to create or checkout spec branch %s: %w", specBranchName, err)
+	checkoutOutput, checkoutErr := runGitCommand(ctx, g.repoDir, "checkout", specBranchName)
+	if checkoutErr != nil {
+		return fmt.Errorf(
+			"failed to create or checkout spec branch %s: create attempt failed: %v (output: %s); checkout attempt failed: %w (output: %s)",
+			specBranchName,
+			err,
+			formatGitCommandOutput(createOutput),
+			checkoutErr,
+			formatGitCommandOutput(checkoutOutput),
+		)
 	}
 
 	return nil
+}
+
+func formatGitCommandOutput(output string) string {
+	trimmed := strings.TrimSpace(output)
+	if trimmed == "" {
+		return "<empty>"
+	}
+	lines := strings.Split(trimmed, "\n")
+	for i := range lines {
+		lines[i] = strings.TrimSpace(lines[i])
+	}
+	return strings.Join(lines, " | ")
 }
 
 // RebaseOnto rebases the branch onto the specified target branch.
