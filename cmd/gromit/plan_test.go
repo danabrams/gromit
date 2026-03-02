@@ -10,6 +10,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/worktree"
 	"github.com/spf13/cobra"
 )
 
@@ -272,4 +273,44 @@ func copyFileWithSuffix(srcDir, srcName, dstPath, suffix string) error {
 		data = append(data, []byte(suffix)...)
 	}
 	return os.WriteFile(dstPath, data, 0644)
+}
+
+func TestRunPlanInSession_UsesCommandContext(t *testing.T) {
+	key := struct{}{}
+	ctx := context.WithValue(context.Background(), key, "plan-context")
+	savedLauncher := planSessionLauncherFn
+	t.Cleanup(func() {
+		planSessionLauncherFn = savedLauncher
+	})
+
+	var capturedContext context.Context
+	planSessionLauncherFn = func(ctx context.Context, gromitDir string, command string, conflict sessionConflictSettings, callback func(sessionDir string) error) (*worktree.SessionWorktree, error) {
+		capturedContext = ctx
+		if err := callback("session-dir"); err != nil {
+			return nil, err
+		}
+		return &worktree.SessionWorktree{WorktreeDir: "session-dir"}, nil
+	}
+
+	sessionDir := t.TempDir()
+	executor := &noopPlanExecutor{}
+	session, err := runPlanInSession(ctx, nil, sessionDir, executor, pipeline.PlanInput{SpecName: "test-spec"})
+	if err != nil {
+		t.Fatalf("runPlanInSession failed: %v", err)
+	}
+	if capturedContext == nil {
+		t.Fatal("expected launcher to receive context")
+	}
+	if capturedContext.Value(key) != "plan-context" {
+		t.Fatalf("launcher context missing marker: got %v", capturedContext.Value(key))
+	}
+	if session == nil {
+		t.Fatal("expected plan session to be returned")
+	}
+}
+
+type noopPlanExecutor struct{}
+
+func (noopPlanExecutor) Plan(ctx context.Context, input pipeline.PlanInput) (*pipeline.PlanSession, error) {
+	return pipeline.NewPlanSession(func() {}), nil
 }
