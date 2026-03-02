@@ -24,10 +24,10 @@ func TestATDDPromptConfigSetDefaults(t *testing.T) {
 
 	falseVal := false
 	cfg = &ATDDPromptConfig{
-		IncludeRules:    &falseVal,
-		IncludeSpec:     &falseVal,
-		IncludeClaudeMD: &falseVal,
-		MaxChars:        123,
+		IncludeRules:              &falseVal,
+		IncludeSpec:               &falseVal,
+		IncludeClaudeMD:           &falseVal,
+		MaxChars:                  123,
 		MaxConfirmedLearningChars: 321,
 	}
 	cfg.SetDefaults()

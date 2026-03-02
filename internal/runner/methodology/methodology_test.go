@@ -69,6 +69,10 @@ func newProjectPromptRenderer(t *testing.T) *prompt.Renderer {
 	return renderer
 }
 
+func boolRef(value bool) *bool {
+	return &value
+}
+
 // --- NewExecutor constructor tests ---
 
 func TestNewExecutor_ReturnsNonNil(t *testing.T) {
@@ -271,9 +275,9 @@ func TestRunAcceptanceTests_AppliesATDDContextShaping(t *testing.T) {
 	cfg := newTestConfig()
 	var buf strings.Builder
 
-	cfg.Methodology.ATDDPrompt.IncludeRules = false
-	cfg.Methodology.ATDDPrompt.IncludeSpec = false
-	cfg.Methodology.ATDDPrompt.IncludeClaudeMD = false
+	cfg.Methodology.ATDDPrompt.IncludeRules = boolRef(false)
+	cfg.Methodology.ATDDPrompt.IncludeSpec = boolRef(false)
+	cfg.Methodology.ATDDPrompt.IncludeClaudeMD = boolRef(false)
 	cfg.Methodology.ATDDPrompt.MaxChars = 10
 	cfg.Methodology.ATDDPrompt.MaxConfirmedLearningChars = 0
 
@@ -1337,10 +1341,10 @@ func TestRunAcceptanceTests_EndToEndRenderPathWithStatsEmission(t *testing.T) {
 	var buf strings.Builder
 
 	// Configure ATDD prompt shaping to trigger reductions
-	cfg.Methodology.ATDDPrompt.IncludeRules = true
-	cfg.Methodology.ATDDPrompt.IncludeSpec = true
-	cfg.Methodology.ATDDPrompt.IncludeClaudeMD = true
-	cfg.Methodology.ATDDPrompt.MaxChars = 500  // Tight budget to trigger shaping
+	cfg.Methodology.ATDDPrompt.IncludeRules = boolRef(true)
+	cfg.Methodology.ATDDPrompt.IncludeSpec = boolRef(true)
+	cfg.Methodology.ATDDPrompt.IncludeClaudeMD = boolRef(true)
+	cfg.Methodology.ATDDPrompt.MaxChars = 500 // Tight budget to trigger shaping
 	cfg.Methodology.ATDDPrompt.MaxConfirmedLearningChars = 50
 
 	renderer := newProjectPromptRenderer(t)

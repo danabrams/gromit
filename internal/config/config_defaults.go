@@ -266,21 +266,7 @@ func (c *Config) SetDefaults() {
 	if c.Methodology.PhaseModels.Refactor == "" {
 		c.Methodology.PhaseModels.Refactor = "low"
 	}
-	if !c.Methodology.ATDDPrompt.includeRulesSet {
-		c.Methodology.ATDDPrompt.IncludeRules = true
-	}
-	if !c.Methodology.ATDDPrompt.includeSpecSet {
-		c.Methodology.ATDDPrompt.IncludeSpec = true
-	}
-	if !c.Methodology.ATDDPrompt.includeClaudeMDSet {
-		c.Methodology.ATDDPrompt.IncludeClaudeMD = true
-	}
-	if !c.Methodology.ATDDPrompt.maxCharsSet {
-		c.Methodology.ATDDPrompt.MaxChars = 20000
-	}
-	if !c.Methodology.ATDDPrompt.maxConfirmedLearningCharsSet {
-		c.Methodology.ATDDPrompt.MaxConfirmedLearningChars = 2000
-	}
+	c.Methodology.ATDDPrompt.SetDefaults()
 	if c.Methodology.SpecGateMaxRetries == 0 {
 		c.Methodology.SpecGateMaxRetries = DefaultSpecGateMaxRetries
 	}

@@ -3526,13 +3526,13 @@ func TestMethodologyATDDPromptDefaults(t *testing.T) {
 	cfg := &Config{}
 	cfg.SetDefaults()
 
-	if !cfg.Methodology.ATDDPrompt.IncludeRules {
+	if cfg.Methodology.ATDDPrompt.IncludeRules == nil || !*cfg.Methodology.ATDDPrompt.IncludeRules {
 		t.Error("expected default ATDDPrompt.IncludeRules=true")
 	}
-	if !cfg.Methodology.ATDDPrompt.IncludeSpec {
+	if cfg.Methodology.ATDDPrompt.IncludeSpec == nil || !*cfg.Methodology.ATDDPrompt.IncludeSpec {
 		t.Error("expected default ATDDPrompt.IncludeSpec=true")
 	}
-	if !cfg.Methodology.ATDDPrompt.IncludeClaudeMD {
+	if cfg.Methodology.ATDDPrompt.IncludeClaudeMD == nil || !*cfg.Methodology.ATDDPrompt.IncludeClaudeMD {
 		t.Error("expected default ATDDPrompt.IncludeClaudeMD=true")
 	}
 	if cfg.Methodology.ATDDPrompt.MaxChars != 20000 {
@@ -3563,14 +3563,14 @@ func TestMethodologyATDDPromptConfigFromYAML(t *testing.T) {
 		t.Fatalf("loading config: %v", err)
 	}
 
-	if cfg.Methodology.ATDDPrompt.IncludeRules != false {
-		t.Errorf("expected include_rules=false, got %t", cfg.Methodology.ATDDPrompt.IncludeRules)
+	if cfg.Methodology.ATDDPrompt.IncludeRules == nil || *cfg.Methodology.ATDDPrompt.IncludeRules {
+		t.Errorf("expected include_rules=false, got %v", cfg.Methodology.ATDDPrompt.IncludeRules)
 	}
-	if cfg.Methodology.ATDDPrompt.IncludeSpec != false {
-		t.Errorf("expected include_spec=false, got %t", cfg.Methodology.ATDDPrompt.IncludeSpec)
+	if cfg.Methodology.ATDDPrompt.IncludeSpec == nil || *cfg.Methodology.ATDDPrompt.IncludeSpec {
+		t.Errorf("expected include_spec=false, got %v", cfg.Methodology.ATDDPrompt.IncludeSpec)
 	}
-	if cfg.Methodology.ATDDPrompt.IncludeClaudeMD != false {
-		t.Errorf("expected include_claude_md=false, got %t", cfg.Methodology.ATDDPrompt.IncludeClaudeMD)
+	if cfg.Methodology.ATDDPrompt.IncludeClaudeMD == nil || *cfg.Methodology.ATDDPrompt.IncludeClaudeMD {
+		t.Errorf("expected include_claude_md=false, got %v", cfg.Methodology.ATDDPrompt.IncludeClaudeMD)
 	}
 	if cfg.Methodology.ATDDPrompt.MaxChars != 12345 {
 		t.Errorf("expected max_chars=12345, got %d", cfg.Methodology.ATDDPrompt.MaxChars)

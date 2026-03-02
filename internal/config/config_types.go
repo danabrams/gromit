@@ -51,41 +51,41 @@ var defaultAndonBulkDeleteAllowlist = []string{
 }
 
 type Config struct {
-	Project         ProjectConfig          `yaml:"project"`
-	Compatibility   CompatibilityConfig    `yaml:"compatibility"`
-	Tracker         TrackerConfig          `yaml:"tracker"`
-	Models          ModelsConfig           `yaml:"models"`
-	Escalation      EscalationConfig       `yaml:"escalation"`
-	Andon           AndonConfig            `yaml:"andon"`
-	Loop            LoopConfig             `yaml:"loop"`
-	Validation      ValidationConfig       `yaml:"validation"`
-	Refactor        RefactorConfig         `yaml:"refactor"`
-	ScopeCheck      ScopeCheckConfig       `yaml:"scope_check"`
-	ReadinessCheck  ReadinessCheckConfig   `yaml:"readiness_check"`
-	ReadinessEmergencyOverride bool `yaml:"readiness_emergency_override"`
-	Precheck        PrecheckConfig         `yaml:"precheck"`
-	Preflight       PreflightConfig        `yaml:"preflight"`
-	Claude          ClaudeConfig           `yaml:"claude"`
-	Paths           PathsConfig            `yaml:"paths"`
-	Experiment      ExperimentConfig       `yaml:"experiment"`
-	Review          ReviewConfig           `yaml:"review"`
-	Methodology     MethodologyConfig      `yaml:"methodology"`
-	Git             GitConfig              `yaml:"git"`
-	State           StateConfig            `yaml:"state"`
-	Learnings       LearningsConfig        `yaml:"learnings"`
-	Prompt          PromptConfig           `yaml:"prompt"`
-	Agents          AgentsConfig           `yaml:"agents"`
-	Providers       map[string]ProviderDef `yaml:"providers"`
-	Routing         RoutingConfig          `yaml:"routing"`
-	TokenEfficiency TokenEfficiencyConfig  `yaml:"token_efficiency"`
-	Stream          StreamConfig           `yaml:"stream"`
-	Worktree        WorktreeConfig         `yaml:"worktree"`
-	Session         SessionConfig          `yaml:"session"`
-	Runbook         RunbookConfig          `yaml:"runbook"`
-	SpecGate        SpecGateConfig         `yaml:"spec_gate"`
-	Decompose       DecomposeConfig        `yaml:"decompose"`
-	MergePipeline   MergePipelineConfig    `yaml:"merge_pipeline"`
-	SpecPR          SpecPRConfig           `yaml:"spec_pr"`
+	Project                    ProjectConfig          `yaml:"project"`
+	Compatibility              CompatibilityConfig    `yaml:"compatibility"`
+	Tracker                    TrackerConfig          `yaml:"tracker"`
+	Models                     ModelsConfig           `yaml:"models"`
+	Escalation                 EscalationConfig       `yaml:"escalation"`
+	Andon                      AndonConfig            `yaml:"andon"`
+	Loop                       LoopConfig             `yaml:"loop"`
+	Validation                 ValidationConfig       `yaml:"validation"`
+	Refactor                   RefactorConfig         `yaml:"refactor"`
+	ScopeCheck                 ScopeCheckConfig       `yaml:"scope_check"`
+	ReadinessCheck             ReadinessCheckConfig   `yaml:"readiness_check"`
+	ReadinessEmergencyOverride bool                   `yaml:"readiness_emergency_override"`
+	Precheck                   PrecheckConfig         `yaml:"precheck"`
+	Preflight                  PreflightConfig        `yaml:"preflight"`
+	Claude                     ClaudeConfig           `yaml:"claude"`
+	Paths                      PathsConfig            `yaml:"paths"`
+	Experiment                 ExperimentConfig       `yaml:"experiment"`
+	Review                     ReviewConfig           `yaml:"review"`
+	Methodology                MethodologyConfig      `yaml:"methodology"`
+	Git                        GitConfig              `yaml:"git"`
+	State                      StateConfig            `yaml:"state"`
+	Learnings                  LearningsConfig        `yaml:"learnings"`
+	Prompt                     PromptConfig           `yaml:"prompt"`
+	Agents                     AgentsConfig           `yaml:"agents"`
+	Providers                  map[string]ProviderDef `yaml:"providers"`
+	Routing                    RoutingConfig          `yaml:"routing"`
+	TokenEfficiency            TokenEfficiencyConfig  `yaml:"token_efficiency"`
+	Stream                     StreamConfig           `yaml:"stream"`
+	Worktree                   WorktreeConfig         `yaml:"worktree"`
+	Session                    SessionConfig          `yaml:"session"`
+	Runbook                    RunbookConfig          `yaml:"runbook"`
+	SpecGate                   SpecGateConfig         `yaml:"spec_gate"`
+	Decompose                  DecomposeConfig        `yaml:"decompose"`
+	MergePipeline              MergePipelineConfig    `yaml:"merge_pipeline"`
+	SpecPR                     SpecPRConfig           `yaml:"spec_pr"`
 }
 
 type CompatibilityConfig struct {
@@ -322,11 +322,11 @@ type ThoroughReviewConfig struct {
 }
 
 type MethodologyConfig struct {
-	Adapter              string                  `yaml:"adapter"`
-	ATDD                 bool                    `yaml:"atdd"`
-	TDD                  bool                    `yaml:"tdd"`
-	BuildStrategy        string                  `yaml:"build_strategy"`
-	PhaseModels          PhaseModelsConfig       `yaml:"phase_models"`
+	Adapter       string            `yaml:"adapter"`
+	ATDD          bool              `yaml:"atdd"`
+	TDD           bool              `yaml:"tdd"`
+	BuildStrategy string            `yaml:"build_strategy"`
+	PhaseModels   PhaseModelsConfig `yaml:"phase_models"`
 	// Deprecated: max_tdd_cycles is parsed for compatibility but ignored by runtime.
 	// Use Config.TDDMaxCycles() if you need to inspect the fixed loop cap.
 	MaxTDDCycles         int                     `yaml:"max_tdd_cycles"`
@@ -346,55 +346,32 @@ type PhaseModelsConfig struct {
 }
 
 type ATDDPromptConfig struct {
-	IncludeRules              bool `yaml:"include_rules"`
-	IncludeSpec               bool `yaml:"include_spec"`
-	IncludeClaudeMD           bool `yaml:"include_claude_md"`
-	MaxChars                  int  `yaml:"max_chars"`
-	MaxConfirmedLearningChars int  `yaml:"max_confirmed_learning_chars"`
-
-	includeRulesSet              bool `yaml:"-"`
-	includeSpecSet               bool `yaml:"-"`
-	includeClaudeMDSet           bool `yaml:"-"`
-	maxCharsSet                  bool `yaml:"-"`
-	maxConfirmedLearningCharsSet bool `yaml:"-"`
+	IncludeRules              *bool `yaml:"include_rules"`
+	IncludeSpec               *bool `yaml:"include_spec"`
+	IncludeClaudeMD           *bool `yaml:"include_claude_md"`
+	MaxChars                  int   `yaml:"max_chars"`
+	MaxConfirmedLearningChars int   `yaml:"max_confirmed_learning_chars"`
 }
 
-func (c *ATDDPromptConfig) UnmarshalYAML(value *yaml.Node) error {
-	type atddPromptDecode struct {
-		IncludeRules              *bool `yaml:"include_rules"`
-		IncludeSpec               *bool `yaml:"include_spec"`
-		IncludeClaudeMD           *bool `yaml:"include_claude_md"`
-		MaxChars                  *int  `yaml:"max_chars"`
-		MaxConfirmedLearningChars *int  `yaml:"max_confirmed_learning_chars"`
+func (c *ATDDPromptConfig) SetDefaults() {
+	if c == nil {
+		return
 	}
-
-	var decoded atddPromptDecode
-	if err := value.Decode(&decoded); err != nil {
-		return err
+	if c.IncludeRules == nil {
+		c.IncludeRules = boolPtr(true)
 	}
-
-	if decoded.IncludeRules != nil {
-		c.IncludeRules = *decoded.IncludeRules
-		c.includeRulesSet = true
+	if c.IncludeSpec == nil {
+		c.IncludeSpec = boolPtr(true)
 	}
-	if decoded.IncludeSpec != nil {
-		c.IncludeSpec = *decoded.IncludeSpec
-		c.includeSpecSet = true
+	if c.IncludeClaudeMD == nil {
+		c.IncludeClaudeMD = boolPtr(true)
 	}
-	if decoded.IncludeClaudeMD != nil {
-		c.IncludeClaudeMD = *decoded.IncludeClaudeMD
-		c.includeClaudeMDSet = true
+	if c.MaxChars == 0 {
+		c.MaxChars = defaultATDDPromptMaxChars
 	}
-	if decoded.MaxChars != nil {
-		c.MaxChars = *decoded.MaxChars
-		c.maxCharsSet = true
+	if c.MaxConfirmedLearningChars == 0 {
+		c.MaxConfirmedLearningChars = defaultATDDPromptLearningCharsCap
 	}
-	if decoded.MaxConfirmedLearningChars != nil {
-		c.MaxConfirmedLearningChars = *decoded.MaxConfirmedLearningChars
-		c.maxConfirmedLearningCharsSet = true
-	}
-
-	return nil
 }
 
 type MethodologyPhaseTimeout struct {
@@ -638,16 +615,16 @@ type MergePipelineConfig struct {
 }
 
 type SpecPRConfig struct {
-	Enabled              *bool    `yaml:"enabled"`
-	Reviewers            []string `yaml:"reviewers"`
-	MergeMethod          string   `yaml:"merge_method"`
-	FixCycleCap          int      `yaml:"fix_cycle_cap"`
-	AutoFixHumanComments bool     `yaml:"auto_fix_human_comments"`
-	autoFixHumanCommentsSet bool `yaml:"-"`
-	AutoMergeOnApproval  bool     `yaml:"auto_merge_on_approval"`
-	CIPollInterval       int      `yaml:"ci_poll_interval"`
-	CITimeout            int      `yaml:"ci_timeout"`
-	MaxOpenPRs           int      `yaml:"max_open_prs"`
+	Enabled                 *bool    `yaml:"enabled"`
+	Reviewers               []string `yaml:"reviewers"`
+	MergeMethod             string   `yaml:"merge_method"`
+	FixCycleCap             int      `yaml:"fix_cycle_cap"`
+	AutoFixHumanComments    bool     `yaml:"auto_fix_human_comments"`
+	autoFixHumanCommentsSet bool     `yaml:"-"`
+	AutoMergeOnApproval     bool     `yaml:"auto_merge_on_approval"`
+	CIPollInterval          int      `yaml:"ci_poll_interval"`
+	CITimeout               int      `yaml:"ci_timeout"`
+	MaxOpenPRs              int      `yaml:"max_open_prs"`
 }
 
 type specPRConfigAlias SpecPRConfig

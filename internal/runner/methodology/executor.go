@@ -53,8 +53,8 @@ type Executor struct {
 	renderDiagnosticFn RenderDiagnosticFn
 	gitResetFn         GitResetFn
 	getGitHeadFn       GetGitHeadFn
-	adapter             RunnerAdapter
-	adapterProfile      string
+	adapter            RunnerAdapter
+	adapterProfile     string
 }
 
 // AcceptanceVerificationError captures failure details when post-build
@@ -278,12 +278,19 @@ func (e *Executor) atddPromptConfig() prompt.ATDDPromptConfig {
 		return prompt.ATDDPromptConfig{}
 	}
 	return prompt.ATDDPromptConfig{
-		IncludeRules:              e.cfg.Methodology.ATDDPrompt.IncludeRules,
-		IncludeSpec:               e.cfg.Methodology.ATDDPrompt.IncludeSpec,
-		IncludeClaudeMD:           e.cfg.Methodology.ATDDPrompt.IncludeClaudeMD,
+		IncludeRules:              atddBool(e.cfg.Methodology.ATDDPrompt.IncludeRules),
+		IncludeSpec:               atddBool(e.cfg.Methodology.ATDDPrompt.IncludeSpec),
+		IncludeClaudeMD:           atddBool(e.cfg.Methodology.ATDDPrompt.IncludeClaudeMD),
 		MaxChars:                  e.cfg.Methodology.ATDDPrompt.MaxChars,
 		MaxConfirmedLearningChars: e.cfg.Methodology.ATDDPrompt.MaxConfirmedLearningChars,
 	}
+}
+
+func atddBool(ptr *bool) bool {
+	if ptr == nil {
+		return true
+	}
+	return *ptr
 }
 
 func (e *Executor) logATDDPromptShape(report *prompt.ShapeReport) {
