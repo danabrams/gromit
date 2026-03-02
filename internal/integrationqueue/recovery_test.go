@@ -116,6 +116,9 @@ func TestRecoverFromMalformedQueue(t *testing.T) {
 	if recovered.Entries[1].LastErrorCode != "queue_schema_invalid" {
 		t.Fatalf("entry 1: expected error code queue_schema_invalid, got %s", recovered.Entries[1].LastErrorCode)
 	}
+	if recovered.Entries[1].LastErrorMessage != schemaRecoveryMessage {
+		t.Fatalf("entry 1: expected error message %q, got %q", schemaRecoveryMessage, recovered.Entries[1].LastErrorMessage)
+	}
 
 	// Entry 2 (integrating) should be reset to ready
 	if recovered.Entries[2].State != StateReady {
@@ -123,6 +126,9 @@ func TestRecoverFromMalformedQueue(t *testing.T) {
 	}
 	if recovered.Entries[2].LastErrorCode != "queue_schema_invalid" {
 		t.Fatalf("entry 2: expected error code queue_schema_invalid, got %s", recovered.Entries[2].LastErrorCode)
+	}
+	if recovered.Entries[2].LastErrorMessage != schemaRecoveryMessage {
+		t.Fatalf("entry 2: expected error message %q, got %q", schemaRecoveryMessage, recovered.Entries[2].LastErrorMessage)
 	}
 
 	// Verify that recovery was persisted to disk.
@@ -135,6 +141,12 @@ func TestRecoverFromMalformedQueue(t *testing.T) {
 	}
 	if persisted.Entries[2].State != StateReady {
 		t.Fatalf("persisted entry 2: expected state %s, got %s", StateReady, persisted.Entries[2].State)
+	}
+	if persisted.Entries[1].LastErrorMessage != schemaRecoveryMessage {
+		t.Fatalf("persisted entry 1: expected error message %q, got %q", schemaRecoveryMessage, persisted.Entries[1].LastErrorMessage)
+	}
+	if persisted.Entries[2].LastErrorMessage != schemaRecoveryMessage {
+		t.Fatalf("persisted entry 2: expected error message %q, got %q", schemaRecoveryMessage, persisted.Entries[2].LastErrorMessage)
 	}
 }
 

@@ -393,30 +393,11 @@ func RecoverFromMalformedQueue(ctx context.Context, path string) (*Queue, error)
 		_ = ctx
 		updated := queue.SchemaVersion != SchemaVersion
 		queue.SchemaVersion = SchemaVersion
-		sanitizeErrorMetadata := func(entry *Entry) {
-			codeEmpty := strings.TrimSpace(entry.LastErrorCode) == ""
-			msgEmpty := strings.TrimSpace(entry.LastErrorMessage) == ""
-			if codeEmpty && msgEmpty {
-				return
-			}
-			if codeEmpty {
-				entry.LastErrorCode = string(ErrorCodeSchemaInvalid)
-			}
-			if msgEmpty {
-				entry.LastErrorMessage = schemaRecoveryMessage
-			}
-		}
 		for i := range queue.Entries {
 			if queue.Entries[i].State == StateIntegrating {
-				sanitizeErrorMetadata(&queue.Entries[i])
-				if err := ApplyTransition(&queue.Entries[i], string(StateReady), "schema recovery"); err != nil {
+				metadata := schemaRecoveryMetadata(queue.Entries[i])
+				if err := ApplyTransition(&queue.Entries[i], string(StateReady), "schema recovery", metadata); err != nil {
 					return fmt.Errorf("transitioning recovered entry %s: %w", queue.Entries[i].Branch, err)
-				}
-				if queue.Entries[i].LastErrorCode == "" {
-					queue.Entries[i].LastErrorCode = string(ErrorCodeSchemaInvalid)
-				}
-				if strings.TrimSpace(queue.Entries[i].LastErrorMessage) == "" {
-					queue.Entries[i].LastErrorMessage = schemaRecoveryMessage
 				}
 				updated = true
 			}
@@ -431,6 +412,27 @@ func RecoverFromMalformedQueue(ctx context.Context, path string) (*Queue, error)
 		return nil
 	})
 	return queue, err
+}
+
+func schemaRecoveryMetadata(entry Entry) TransitionErrorMetadata {
+	metadata := TransitionErrorMetadata{
+		Code:    entry.LastErrorCode,
+		Message: entry.LastErrorMessage,
+	}
+	codeEmpty := strings.TrimSpace(entry.LastErrorCode) == ""
+	msgEmpty := strings.TrimSpace(entry.LastErrorMessage) == ""
+	if codeEmpty && msgEmpty {
+		metadata.Code = string(ErrorCodeSchemaInvalid)
+		metadata.Message = schemaRecoveryMessage
+		return metadata
+	}
+	if codeEmpty {
+		metadata.Code = string(ErrorCodeSchemaInvalid)
+	}
+	if msgEmpty {
+		metadata.Message = schemaRecoveryMessage
+	}
+	return metadata
 }
 
 func loadQueueForRecovery(path string) (*Queue, error) {

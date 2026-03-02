@@ -202,13 +202,17 @@ func (c *Coordinator) RecoverFromCrash(ctx context.Context) error {
 				clearError = false
 			}
 
-			if err := ApplyTransition(entry, string(targetState), reason); err != nil {
-				return fmt.Errorf("transitioning recovered entry %s: %w", entry.Branch, err)
-			}
-
+			var transitionErr error
 			if clearError {
-				entry.LastErrorCode = string(CrashRecoveryErrorCode)
-				entry.LastErrorMessage = "recovered from crash: entry was in integrating state"
+				transitionErr = c.applyTransition(entry, string(targetState), reason, TransitionErrorMetadata{
+					Code:    string(CrashRecoveryErrorCode),
+					Message: crashRecoveryMessage,
+				})
+			} else {
+				transitionErr = c.applyTransition(entry, string(targetState), reason)
+			}
+			if transitionErr != nil {
+				return fmt.Errorf("transitioning recovered entry %s: %w", entry.Branch, transitionErr)
 			}
 
 			// Save each recovered entry
@@ -229,7 +233,12 @@ func (c *Coordinator) RecoverFromCrash(ctx context.Context) error {
 
 // CrashRecoveryErrorCode identifies crash recovery metadata persisted when an
 // integrating entry is reset to ready during startup recovery.
-const CrashRecoveryErrorCode ErrorCode = "crash_recovery"
+const (
+	// CrashRecoveryErrorCode identifies crash recovery metadata persisted when an
+	// integrating entry is reset to ready during startup recovery.
+	CrashRecoveryErrorCode ErrorCode = "crash_recovery"
+	crashRecoveryMessage            = "recovered from crash: entry was in integrating state"
+)
 
 func classifyFetchAndRebaseErrorCode(err error) string {
 	if err == nil {

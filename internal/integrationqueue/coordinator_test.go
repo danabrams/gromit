@@ -681,7 +681,7 @@ func TestCoordinatorRecoverFromCrash_PartialErrorMetadata(t *testing.T) {
 	if processed.LastErrorCode != string(CrashRecoveryErrorCode) {
 		t.Fatalf("LastErrorCode = %q, want %q", processed.LastErrorCode, string(CrashRecoveryErrorCode))
 	}
-	if processed.LastErrorMessage != "recovered from crash: entry was in integrating state" {
+	if processed.LastErrorMessage != crashRecoveryMessage {
 		t.Fatalf("LastErrorMessage = %q", processed.LastErrorMessage)
 	}
 }
