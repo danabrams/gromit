@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -721,6 +722,30 @@ func TestIntegrationQueueGitOpsAdapter_PushCommands(t *testing.T) {
 	want := []string{"push origin main"}
 	if !reflect.DeepEqual(calls, want) {
 		t.Fatalf("commands = %v, want %v", calls, want)
+	}
+}
+
+func TestIntegrationQueueGitOpsAdapter_PushCommandFailure(t *testing.T) {
+	t.Parallel()
+
+	repoDir := "/repo"
+	adapter := &integrationQueueGitOpsAdapter{
+		repoDir:    repoDir,
+		baseBranch: "main",
+		runGitCommand: func(ctx context.Context, dir string, args ...string) (string, error) {
+			return "", fmt.Errorf("git command failed")
+		},
+	}
+
+	err := adapter.Push(context.Background())
+	if err == nil {
+		t.Fatal("Push returned nil error; want failure when git command fails")
+	}
+	if !errors.Is(err, errGitPushFailed) {
+		t.Fatalf("error = %v, want wrapped %v", err, errGitPushFailed)
+	}
+	if !strings.Contains(err.Error(), "pushing main") {
+		t.Fatalf("error %q missing \"pushing main\"", err)
 	}
 }
 
