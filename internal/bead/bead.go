@@ -446,8 +446,18 @@ func (c *Client) run(ctx context.Context, args ...string) (string, error) {
 		}
 		return "", fmt.Errorf("%w (retry with BEADS_NO_DB=true failed: %v)", err, retryErr)
 	}
+	if shouldRetryWithJSONLSync(err) {
+		if _, syncErr := c.runWithEnv(ctx, []string{"init", "--from-jsonl"}, nil); syncErr != nil {
+			return "", fmt.Errorf("%w (auto re-sync via 'bd init --from-jsonl' failed: %v)", err, syncErr)
+		}
+		retryOut, retryErr := c.runWithEnv(ctx, args, nil)
+		if retryErr == nil {
+			return retryOut, nil
+		}
+		return "", fmt.Errorf("%w (auto re-sync via 'bd init --from-jsonl' succeeded, retry failed: %v)", err, retryErr)
+	}
 	if shouldRetryWithIssuePrefixBootstrap(err) {
-		prefix, prefixErr := c.deriveIssuePrefix()
+		prefix, prefixErr := c.deriveIssuePrefix(ctx)
 		if prefixErr != nil {
 			return "", fmt.Errorf("%w (derive issue_prefix: %v)", err, prefixErr)
 		}
@@ -519,8 +529,18 @@ func (c *Client) runClose(ctx context.Context, id string) (string, error) {
 		}
 		return "", fmt.Errorf("%w (retry with BEADS_NO_DB=true failed: %v)", err, retryErr)
 	}
+	if shouldRetryWithJSONLSync(err) {
+		if _, syncErr := c.runWithEnv(ctx, []string{"init", "--from-jsonl"}, nil); syncErr != nil {
+			return "", fmt.Errorf("%w (auto re-sync via 'bd init --from-jsonl' failed: %v)", err, syncErr)
+		}
+		retryOut, retryErr := c.runWithEnvCombinedOutput(ctx, args, nil)
+		if retryErr == nil {
+			return retryOut, nil
+		}
+		return "", fmt.Errorf("%w (auto re-sync via 'bd init --from-jsonl' succeeded, retry failed: %v)", err, retryErr)
+	}
 	if shouldRetryWithIssuePrefixBootstrap(err) {
-		prefix, prefixErr := c.deriveIssuePrefix()
+		prefix, prefixErr := c.deriveIssuePrefix(ctx)
 		if prefixErr != nil {
 			return "", fmt.Errorf("%w (derive issue_prefix: %v)", err, prefixErr)
 		}
@@ -591,6 +611,15 @@ func shouldRetryWithNoDB(err error) bool {
 		strings.Contains(errText, "issues")
 }
 
+func shouldRetryWithJSONLSync(err error) bool {
+	if err == nil {
+		return false
+	}
+	errText := err.Error()
+	return strings.Contains(errText, "database out of sync:") &&
+		strings.Contains(errText, "issues.jsonl is newer than last import")
+}
+
 func shouldRetryWithIssuePrefixBootstrap(err error) bool {
 	if err == nil {
 		return false
@@ -598,8 +627,11 @@ func shouldRetryWithIssuePrefixBootstrap(err error) bool {
 	return strings.Contains(err.Error(), "issue_prefix config is missing")
 }
 
-func (c *Client) deriveIssuePrefix() (string, error) {
-	repoName, err := c.repoBaseName()
+func (c *Client) deriveIssuePrefix(ctx context.Context) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	repoName, err := c.repoBaseName(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -610,13 +642,16 @@ func (c *Client) deriveIssuePrefix() (string, error) {
 	return prefix, nil
 }
 
-func (c *Client) repoBaseName() (string, error) {
+func (c *Client) repoBaseName(ctx context.Context) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	timeout := DefaultCommandTimeout
 	if c != nil {
 		timeout = c.commandTimeout()
 	}
 
-	cmdCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	if err := waitForProcessCapacityFn(cmdCtx, commandProcessCapacityWait); err != nil {

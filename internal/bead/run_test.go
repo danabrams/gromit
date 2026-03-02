@@ -222,6 +222,84 @@ exit 1
 	}
 }
 
+func TestClientRun_RetriesAfterJSONLSyncOutOfSync(t *testing.T) {
+	t.Parallel()
+	statePath := filepath.Join(t.TempDir(), "sync-state")
+	script := fmt.Sprintf(`#!/bin/sh
+if [ "$1" = "init" ] && [ "$2" = "--from-jsonl" ]; then
+  echo "synced" > %q
+  exit 0
+fi
+if [ "$1" = "ready" ]; then
+  if [ -f %q ]; then
+    printf '[{"id":"b1","title":"ok","description":"d","priority":2,"labels":[]}]'
+    exit 0
+  fi
+  printf 'Error: database out of sync: issues.jsonl is newer than last import (2026-03-02T14:55:16-05:00 > 2026-03-02T14:11:11-05:00)\n' >&2
+  exit 1
+fi
+printf 'unexpected args: %%s\n' "$*" >&2
+exit 1
+`, statePath, statePath)
+	binaryPath := writeExecutableScript(t, script)
+
+	c := &Client{binary: binaryPath}
+	out, err := c.run(context.Background(), "ready", "--json", "--limit", "1")
+	if err != nil {
+		t.Fatalf("run() unexpected error: %v", err)
+	}
+	if !strings.Contains(out, `"id":"b1"`) {
+		t.Fatalf("run() output = %q, want fallback success output", out)
+	}
+
+	stateRaw, readErr := os.ReadFile(statePath)
+	if readErr != nil {
+		t.Fatalf("ReadFile(%q): %v", statePath, readErr)
+	}
+	if strings.TrimSpace(string(stateRaw)) != "synced" {
+		t.Fatalf("sync state = %q, want %q", strings.TrimSpace(string(stateRaw)), "synced")
+	}
+}
+
+func TestClientRunClose_RetriesAfterJSONLSyncOutOfSync(t *testing.T) {
+	t.Parallel()
+	statePath := filepath.Join(t.TempDir(), "sync-state")
+	script := fmt.Sprintf(`#!/bin/sh
+if [ "$1" = "init" ] && [ "$2" = "--from-jsonl" ]; then
+  echo "synced" > %q
+  exit 0
+fi
+if [ "$1" = "close" ]; then
+  if [ -f %q ]; then
+    printf 'closed\n'
+    exit 0
+  fi
+  printf 'Error: database out of sync: issues.jsonl is newer than last import (2026-03-02T14:55:16-05:00 > 2026-03-02T14:11:11-05:00)\n' >&2
+  exit 1
+fi
+printf 'unexpected args: %%s\n' "$*" >&2
+exit 1
+`, statePath, statePath)
+	binaryPath := writeExecutableScript(t, script)
+
+	c := &Client{binary: binaryPath}
+	out, err := c.runClose(context.Background(), "bd-1")
+	if err != nil {
+		t.Fatalf("runClose() unexpected error: %v", err)
+	}
+	if !strings.Contains(out, "closed") {
+		t.Fatalf("runClose() output = %q, want %q", out, "closed")
+	}
+
+	stateRaw, readErr := os.ReadFile(statePath)
+	if readErr != nil {
+		t.Fatalf("ReadFile(%q): %v", statePath, readErr)
+	}
+	if strings.TrimSpace(string(stateRaw)) != "synced" {
+		t.Fatalf("sync state = %q, want %q", strings.TrimSpace(string(stateRaw)), "synced")
+	}
+}
+
 func TestClientRun_ContextCancellationStopsCommand(t *testing.T) {
 	t.Parallel()
 	// Script that sleeps for 60 seconds - should be killed by context cancellation.
@@ -450,7 +528,7 @@ func TestClientRepoBaseName_UsesProcutilLifecycle(t *testing.T) {
 	}
 
 	c := &Client{Dir: repoDir}
-	got, err := c.repoBaseName()
+	got, err := c.repoBaseName(context.Background())
 	if err != nil {
 		t.Fatalf("repoBaseName() error = %v", err)
 	}
