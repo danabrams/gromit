@@ -883,3 +883,44 @@ func TestIntegrationQueueScopedGateAdapter_RunFailure(t *testing.T) {
 		t.Fatalf("error %q missing branch %q", err, entry.Branch)
 	}
 }
+
+func TestIntegrationQueueScopedGateAdapter_RunScopesChangedFiles(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+	cfg.Validation.Enabled = true
+	cfg.Validation.FastCommands = []string{"go test ./...", "echo done"}
+
+	var commands []string
+	runner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		commands = append(commands, command)
+		return "", "", 0, nil
+	}
+
+	evaluator := newIntegrationQueueScopedGateEvaluator(cfg, "/repo", runner)
+	if evaluator == nil {
+		t.Fatal("expected evaluator")
+	}
+
+	entry := integrationqueue.Entry{
+		Branch: "feature/gate",
+		ChangedFiles: []string{
+			"cmd/gromit/main.go",
+			"internal/prompt/context_types.go",
+			"docs/README.md",
+		},
+	}
+
+	if err := evaluator(context.Background(), entry); err != nil {
+		t.Fatalf("evaluator error: %v", err)
+	}
+
+	want := []string{
+		"go test ./cmd/gromit/... ./internal/prompt/...",
+		"echo done",
+	}
+	if !reflect.DeepEqual(commands, want) {
+		t.Fatalf("commands = %v, want %v", commands, want)
+	}
+}
