@@ -87,6 +87,24 @@ func TestRunSpecTestEnvGoProfileValidationCommands(t *testing.T) {
 	}
 }
 
+func TestRunSpecTestEnvRestoresWorkingDirectory(t *testing.T) {
+	originalWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getting working directory before setup: %v", err)
+	}
+
+	_, cleanup := setupRunSpecTestEnv(t)
+	cleanup()
+
+	currentWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getting working directory after cleanup: %v", err)
+	}
+	if currentWD != originalWD {
+		t.Fatalf("expected working directory %q after cleanup, got %q", originalWD, currentWD)
+	}
+}
+
 // RED: We should be able to swap the specflow and branch factories for spec runs via
 // the injection globals so the run loop stays testable even if the real factories
 // are expensive or rely on git state.
