@@ -919,6 +919,56 @@ func TestCoordinatorHandlesPushFailure(t *testing.T) {
 	}
 }
 
+func TestCoordinatorPassesErrorMetadataThroughApplyTransition(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	entry := Entry{
+		Branch:           "feature/error-meta",
+		SessionID:        "feature/error-meta",
+		OriginCommand:    "test",
+		State:            StateReady,
+		Lane:             "code_lane",
+		BaseRef:          "main",
+		HeadSHA:          "deadbeef",
+		ChangedFilesHash: "hash",
+	}
+	if err := store.Save(entry); err != nil {
+		t.Fatalf("Save(entry) error = %v", err)
+	}
+
+	gitops := &failFetchGitOps{err: errors.New("fetch failed")}
+	coord := NewCoordinator(store, gitops, &mockScopedGate{})
+
+	var conflictMetadata *TransitionErrorMetadata
+	coord.applyTransition = func(entry *Entry, toState string, reason string, metadata ...TransitionErrorMetadata) error {
+		if toState == string(StateConflict) && len(metadata) > 0 {
+			riskMeta := metadata[0]
+			conflictMetadata = &riskMeta
+		}
+		return ApplyTransition(entry, toState, reason, metadata...)
+	}
+
+	err = coord.Coordinate(ctx)
+	if err == nil {
+		t.Fatalf("Coordinate() error = nil, want non-nil")
+	}
+	if conflictMetadata == nil {
+		t.Fatalf("expected metadata when transitioning to conflict")
+	}
+	if conflictMetadata.Code != "rebase_conflict" {
+		t.Fatalf("metadata.Code = %q, want rebase_conflict", conflictMetadata.Code)
+	}
+	if conflictMetadata.Message != "fetch failed" {
+		t.Fatalf("metadata.Message = %q, want fetch failed", conflictMetadata.Message)
+	}
+}
+
 type pushFailureMockGitOps struct {
 	mockGitOps
 }
