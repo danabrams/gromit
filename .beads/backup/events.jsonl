@@ -1844,3 +1844,4 @@
 {"actor":"Dan Abrams","comment":null,"created_at":"2026-03-02T14:11:20Z","event_type":"created","id":1844,"issue_id":"gromit-fw485","new_value":"","old_value":""}
 {"actor":"Dan Abrams","comment":null,"created_at":"2026-03-02T14:11:20Z","event_type":"created","id":1845,"issue_id":"gromit-4ofwv","new_value":"","old_value":""}
 {"actor":"Dan Abrams","comment":null,"created_at":"2026-03-02T14:11:20Z","event_type":"created","id":1846,"issue_id":"gromit-sb4mt","new_value":"","old_value":""}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-02T14:42:21Z","event_type":"closed","id":1847,"issue_id":"gromit-wwu80","new_value":"stale: db reset","old_value":""}
