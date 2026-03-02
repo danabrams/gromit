@@ -1,6 +1,7 @@
 package retrieval
 
 import (
+	"math"
 	"sort"
 	"strings"
 )
@@ -34,6 +35,7 @@ func (q *Querier) Index(docs []DocumentWithAttribution) error {
 // Query performs a top-K retrieval query.
 func (q *Querier) Query(query string, k int) ([]Snippet, error) {
 	queryTokens := tokenize(query)
+	docCount := len(q.documents)
 
 	type scored struct {
 		snippet Snippet
@@ -41,11 +43,55 @@ func (q *Querier) Query(query string, k int) ([]Snippet, error) {
 		index   int
 	}
 
+	if docCount == 0 {
+		return []Snippet{}, nil
+	}
+
+	docTokenFreqs := make([]map[string]int, docCount)
+	docFreq := map[string]int{}
+
+	for idx, doc := range q.documents {
+		freq := map[string]int{}
+		seen := map[string]bool{}
+		tokens := tokenize(doc.Content)
+
+		for _, token := range tokens {
+			freq[token]++
+			if !seen[token] {
+				docFreq[token]++
+				seen[token] = true
+			}
+		}
+
+		docTokenFreqs[idx] = freq
+	}
+
+	queryFreq := map[string]int{}
+	for _, token := range queryTokens {
+		if token == "" {
+			continue
+		}
+		queryFreq[token]++
+	}
+
+	idf := func(token string) float64 {
+		df := docFreq[token]
+		return math.Log(1 + (float64(docCount)-float64(df)+0.5)/(float64(df)+0.5))
+	}
+
 	var scoredDocs []scored
 	maxScore := 0.0
 
 	for idx, doc := range q.documents {
-		score := documentScore(doc.Content, queryTokens)
+		score := 0.0
+		for token, qtf := range queryFreq {
+			tf := float64(docTokenFreqs[idx][token])
+			if tf == 0 {
+				continue
+			}
+			score += idf(token) * (tf/(tf+1)) * float64(qtf)
+		}
+
 		if score > maxScore {
 			maxScore = score
 		}
@@ -97,22 +143,6 @@ func tokenize(text string) []string {
 		tokens = append(tokens, token)
 	}
 	return tokens
-}
-
-func documentScore(text string, tokens []string) float64 {
-	if len(tokens) == 0 {
-		return 0
-	}
-
-	lower := strings.ToLower(text)
-	score := 0.0
-	for _, token := range tokens {
-		if token == "" {
-			continue
-		}
-		score += float64(strings.Count(lower, token))
-	}
-	return score
 }
 
 // Snippet represents a ranked snippet with attribution.
