@@ -3,6 +3,7 @@ package runner
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -18,6 +19,8 @@ import (
 )
 
 const integrationQueueGitCommandProcessCapacityWait = 1500 * time.Millisecond
+
+var errIntegrationQueueStoreInit = errors.New("integration queue store initialization failed")
 
 var (
 	newRunnerIntegrationQueueStoreFn = func(gromitDir string) (*integrationqueue.Store, error) {
@@ -104,7 +107,7 @@ func newIntegrationQueueScopedGateEvaluator(cfg *config.Config, repoDir string, 
 func newIntegrationQueueCoordinator(cfg *config.Config, gromitDir string) (Coordinator, error) {
 	store, err := newRunnerIntegrationQueueStoreFn(gromitDir)
 	if err != nil {
-		return nil, fmt.Errorf("initializing integration queue store: %w", err)
+		return nil, fmt.Errorf("initializing integration queue store: %w", errors.Join(errIntegrationQueueStoreInit, err))
 	}
 
 	repoDir := filepath.Dir(gromitDir)
