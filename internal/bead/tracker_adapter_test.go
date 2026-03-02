@@ -3,6 +3,7 @@ package bead
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/tracker"
@@ -204,6 +205,33 @@ func TestBeadHasAnyLabel(t *testing.T) {
 	}
 	if beadHasAnyLabel(bead, []string{"spec:baz"}) {
 		t.Fatalf("expected beadHasAnyLabel to return false when none of the required labels are present")
+	}
+}
+
+func TestBDAdapterReadyWithLabelUsesListWithLabel(t *testing.T) {
+	t.Parallel()
+
+	var calls [][]string
+	client := &Client{
+		RunFn: func(args ...string) (string, error) {
+			calls = append(calls, append([]string(nil), args...))
+			if len(args) >= 1 && args[0] == "list" {
+				return `[{"id":"bead-1","title":"Label bead","issue_type":"task","status":"open","priority":1,"labels":["spec:test"]}]`, nil
+			}
+			return "", fmt.Errorf("unexpected bd command %q", args)
+		},
+	}
+
+	adapter := NewBDAdapter(client)
+	item, err := adapter.ReadyWithLabel(context.Background(), "spec:test")
+	if err != nil {
+		t.Fatalf("ReadyWithLabel returned error: %v", err)
+	}
+	if item == nil {
+		t.Fatal("ReadyWithLabel returned nil, expected bead")
+	}
+	if len(calls) == 0 || calls[0][0] != "list" {
+		t.Fatalf("expected list command, got %v", calls)
 	}
 }
 
