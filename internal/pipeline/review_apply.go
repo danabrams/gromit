@@ -30,10 +30,10 @@ func (p *Pipeline) ApplyReviewFindings(ctx context.Context, result *review.Revie
 
     applyResult := NewReviewApplyResult()
 
-    for _, bp := range result.BeadsToCreate {
-        labels := review.BuildReviewBeadLabels(bp.Labels)
-        outputs := review.ExpectedOutputsOrTitle(bp.ExpectedOutputs, bp.Title)
-        bead, err := p.deps.TrackerClient.Create(ctx, bp.Title, bp.Priority, labels, outputs)
+	for _, bp := range result.BeadsToCreate {
+		labels := append([]string(nil), review.BuildReviewBeadLabels(bp.Labels)...)
+		outputs := append([]string(nil), review.ExpectedOutputsOrTitle(bp.ExpectedOutputs, bp.Title)...)
+		bead, err := p.deps.TrackerClient.Create(ctx, bp.Title, bp.Priority, labels, outputs)
         if err != nil {
             return nil, fmt.Errorf("creating review bead %q: %w", bp.Title, err)
         }
