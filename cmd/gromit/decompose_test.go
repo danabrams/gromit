@@ -1099,7 +1099,7 @@ func TestQueryDecomposePlansWithPipeline_ForceFlagPassthrough(t *testing.T) {
 	decomposeForce = true
 
 	// Call the helper function
-	plans, err := queryDecomposePlansWithPipeline(mockPipeline)
+	plans, err := queryDecomposePlansWithPipeline(context.Background(), mockPipeline)
 
 	if err != nil {
 		t.Errorf("queryDecomposePlansWithPipeline() error = %v, want nil", err)

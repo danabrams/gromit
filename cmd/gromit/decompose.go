@@ -109,8 +109,10 @@ type planInfo struct {
 	Path  string
 }
 
-func queryDecomposePlansWithPipeline(querier DecomposePlanQuerier) ([]planInfo, error) {
-	ctx := context.Background()
+func queryDecomposePlansWithPipeline(ctx context.Context, querier DecomposePlanQuerier) ([]planInfo, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	input := pipeline.QueryUndecomposedPlansInput{Force: decomposeForce}
 
 	result, err := querier.QueryUndecomposedPlans(ctx, input)
@@ -132,6 +134,8 @@ func queryDecomposePlansWithPipeline(querier DecomposePlanQuerier) ([]planInfo, 
 }
 
 func runDecompose(cmd *cobra.Command, args []string) error {
+	ctx := cmd.Context()
+
 	// Load config
 	cfg, err := loadConfig()
 	if err != nil {
@@ -154,7 +158,7 @@ func runDecompose(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("creating pipeline for plan querying: %w", err)
 	}
 
-	plans, err := queryDecomposePlansWithPipeline(p)
+	plans, err := queryDecomposePlansWithPipeline(ctx, p)
 	if err != nil {
 		return fmt.Errorf("querying undecomposed plans: %w", err)
 	}
