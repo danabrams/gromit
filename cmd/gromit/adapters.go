@@ -105,7 +105,9 @@ func (a *llmRouterClientAdapter) Run(prompt string, model string) (*pipeline.LLM
 	if err != nil && selectedProvider.IsUsageLimitError(result, err) {
 		a.Router.MarkUnavailable(selectedProvider.Name())
 		selectedProvider, _ = a.Router.Select(phase, tier)
-		if selectedProvider != nil {
+		if selectedProvider == nil {
+			logRouterSelectFailure(phase, tier)
+		} else {
 			result, err = selectedProvider.Run(ctx, prompt, tier)
 		}
 	}
