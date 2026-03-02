@@ -270,12 +270,61 @@ func TestRunWithSessionWorktreeSkipsCommitWhenNoChanges(t *testing.T) {
 	})
 	t.Cleanup(cleanupStore)
 
-	pendingRecorder := &mockPendingBranchRecorder{
-		AddPendingWorktreeBranchFn: func(string) error {
-			t.Fatal("pending branch should not be recorded when no commit occurred")
-			return nil
-		},
+	cleanupCalled := false
+	withInteractiveWorktreeFactories(t, func(string) (sessionWorktreeCreator, error) {
+		return &mockSessionWorktreeCreator{
+			CreateSessionWorktreeFn: func(string) (*worktree.SessionWorktree, error) {
+				return session, nil
+			},
+		}, nil
+	}, func(string) (pendingBranchRecorder, error) {
+		return &mockPendingBranchRecorder{}, nil
+	}, func(string, string) error {
+		cleanupCalled = true
+		return nil
+	})
+
+	_, err := runWithSessionWorktree(gromitDir, "nochange", func(string) error { return nil })
+	if err != nil {
+		t.Fatalf("runWithSessionWorktree() error = %v", err)
 	}
+
+	for _, cmd := range commands {
+		if strings.Contains(cmd, "commit") {
+			t.Fatalf("unexpected commit command: %v", commands)
+		}
+	}
+	if !cleanupCalled {
+		t.Fatal("expected cleanup to run")
+	}
+	if len(recordedEntries) != 1 {
+		t.Fatalf("expected only draft entry, got %d", len(recordedEntries))
+	}
+	if recordedEntries[0].State != integrationqueue.StateDraft {
+		t.Fatalf("draft entry has state %q", recordedEntries[0].State)
+	}
+}
+
+func TestRunWithSessionWorktreeIgnoresDiffWarnings(t *testing.T) {
+	_, gromitDir, session := setupRunWithSessionWorktreeTest(t, "warning")
+	session.BranchName = "gromit/warning-123"
+
+	var commands []string
+	cleanupGit := overrideGitRun(func(dir string, args ...string) (string, error) {
+		commands = append(commands, strings.Join(args, " "))
+		if len(args) > 2 && args[0] == "diff" && args[1] == "--cached" && args[2] == "--quiet" {
+			return "warning: CRLF will be replaced by LF in file.go\n", nil
+		}
+		return "", nil
+	})
+	t.Cleanup(cleanupGit)
+
+	var recordedEntries []integrationqueue.Entry
+	cleanupStore := overrideQueueStore(func(entry integrationqueue.Entry) error {
+		recordedEntries = append(recordedEntries, entry)
+		return nil
+	})
+	t.Cleanup(cleanupStore)
 
 	cleanupCalled := false
 	withInteractiveWorktreeFactories(t, func(string) (sessionWorktreeCreator, error) {
@@ -285,14 +334,13 @@ func TestRunWithSessionWorktreeSkipsCommitWhenNoChanges(t *testing.T) {
 			},
 		}, nil
 	}, func(string) (pendingBranchRecorder, error) {
-		return pendingRecorder, nil
+		return &mockPendingBranchRecorder{}, nil
 	}, func(string, string) error {
 		cleanupCalled = true
 		return nil
 	})
 
-	_, err := runWithSessionWorktree(gromitDir, "nochange", func(string) error { return nil })
-	if err != nil {
+	if _, err := runWithSessionWorktree(gromitDir, "warning", func(string) error { return nil }); err != nil {
 		t.Fatalf("runWithSessionWorktree() error = %v", err)
 	}
 
