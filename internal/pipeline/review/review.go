@@ -22,7 +22,7 @@ type Invoker interface {
 
 // BeadCreator creates a bead and returns its ID.
 type BeadCreator interface {
-	Create(title string, priority int, labels []string, outputs []string) (string, error)
+	Create(ctx context.Context, title string, priority int, labels []string, outputs []string) (string, error)
 }
 
 // PromptRenderer renders the review prompt from bead and diff context.
@@ -136,7 +136,7 @@ func (r *Review) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, e
 	beadIDs := []string{}
 	for _, bp := range result.BeadsToCreate {
 		labels := reviewpkg.BuildReviewBeadLabels(bp.Labels)
-		id, err := r.beads.Create(bp.Title, bp.Priority, labels, bp.ExpectedOutputs)
+		id, err := r.beads.Create(ctx, bp.Title, bp.Priority, labels, bp.ExpectedOutputs)
 		if err != nil {
 			return pipeline.Output{}, fmt.Errorf("review: creating bead %q: %w", bp.Title, err)
 		}

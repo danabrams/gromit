@@ -280,7 +280,7 @@ type beadCreatorAdapter struct {
 	beads BeadClient
 }
 
-func (a *beadCreatorAdapter) Create(title string, priority int, labels []string, outputs []string) (string, error) {
+func (a *beadCreatorAdapter) Create(ctx context.Context, title string, priority int, labels []string, outputs []string) (string, error) {
 	if a == nil || a.beads == nil {
 		return "", fmt.Errorf("bead creator is not configured")
 	}

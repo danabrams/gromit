@@ -404,6 +404,35 @@ func TestBeadCreatorAdapterAcceptsTrackerClient(t *testing.T) {
 	}
 }
 
+func TestBeadCreatorAdapter_CreateThreadsContext(t *testing.T) {
+	t.Parallel()
+
+	const testValue = "test-context-value"
+	ctxKey := struct{}{}
+	ctx := context.WithValue(context.Background(), ctxKey, testValue)
+
+	var capturedCtx context.Context
+	adapter := &beadCreatorAdapter{
+		beads: &fakeBeadClient{
+			createFn: func(ctx context.Context, title string, priority int, labels []string, outputs []string) (*bead.Bead, error) {
+				capturedCtx = ctx
+				return &bead.Bead{ID: "created"}, nil
+			},
+		},
+	}
+
+	id, err := adapter.Create(ctx, "Test Bead", 2, []string{"label"}, []string{"output"})
+	if err != nil {
+		t.Fatalf("Create returned error: %v", err)
+	}
+	if id != "created" {
+		t.Fatalf("Create returned id %q, want %q", id, "created")
+	}
+	if capturedCtx == nil || capturedCtx.Value(ctxKey) != testValue {
+		t.Fatalf("context not threaded to bead client (captured %#v)", capturedCtx)
+	}
+}
+
 func TestBeadLifecycleAdapterAcceptsTrackerClient(t *testing.T) {
 	t.Parallel()
 
@@ -455,7 +484,8 @@ func TestDecomposerAdapterChildWithDedupeLabelExistsWithClient_ThreadsProvidedCo
 
 type fakeBeadClient struct {
 	listFn   func(ctx context.Context, label string) ([]*bead.Bead, error)
-	createFn func(ctx context.Context, title string, priority int, labels []string, outputs []string, parentID string) (*bead.Bead, error)
+	createFn           func(ctx context.Context, title string, priority int, labels []string, outputs []string) (*bead.Bead, error)
+	createWithParentFn func(ctx context.Context, title string, priority int, labels []string, outputs []string, parentID string) (*bead.Bead, error)
 	closeFn  func(ctx context.Context, id string) error
 }
 
@@ -493,13 +523,16 @@ func (f *fakeBeadClient) GetParent(ctx context.Context, b *bead.Bead) (*bead.Bea
 	return nil, nil
 }
 func (f *fakeBeadClient) Create(ctx context.Context, title string, priority int, labels []string, outputs []string) (*bead.Bead, error) {
-	return nil, nil
-}
-func (f *fakeBeadClient) CreateWithParent(ctx context.Context, title string, priority int, labels []string, outputs []string, parentID string) (*bead.Bead, error) {
 	if f.createFn == nil {
 		return nil, nil
 	}
-	return f.createFn(ctx, title, priority, labels, outputs, parentID)
+	return f.createFn(ctx, title, priority, labels, outputs)
+}
+func (f *fakeBeadClient) CreateWithParent(ctx context.Context, title string, priority int, labels []string, outputs []string, parentID string) (*bead.Bead, error) {
+	if f.createWithParentFn == nil {
+		return nil, nil
+	}
+	return f.createWithParentFn(ctx, title, priority, labels, outputs, parentID)
 }
 func (f *fakeBeadClient) CreateWithParentAndDescription(ctx context.Context, title string, priority int, labels []string, outputs []string, parentID string, description string) (*bead.Bead, error) {
 	return nil, nil
@@ -547,7 +580,7 @@ func TestDecomposerAdapter_Decompose_ThreadsContextToChildDuplicateCheck(t *test
 				// Return no existing children so the bead gets created
 				return nil, nil
 			},
-			createFn: func(ctx context.Context, title string, priority int, labels []string, outputs []string, parentID string) (*bead.Bead, error) {
+			createWithParentFn: func(ctx context.Context, title string, priority int, labels []string, outputs []string, parentID string) (*bead.Bead, error) {
 				return &bead.Bead{ID: "child-1", Title: title, Parent: parentID}, nil
 			},
 			closeFn: func(ctx context.Context, id string) error {
