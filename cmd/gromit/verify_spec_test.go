@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -528,6 +529,35 @@ func TestDefaultVerifySpecCmdRunner_CanceledContextReapsChildren(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Fatalf("child process still alive after canceled verify-spec command, pid=%d", childPID)
+}
+
+func TestDefaultVerifySpecCmdRunner_UsesKillDescendantsOnCancel(t *testing.T) {
+	command := "printf 'ok'"
+
+	var killCalled bool
+	oldKill := verifySpecKillDescendantsOnCancelFn
+	t.Cleanup(func() { verifySpecKillDescendantsOnCancelFn = oldKill })
+	verifySpecKillDescendantsOnCancelFn = func(ctx context.Context, cmd *exec.Cmd) {
+		killCalled = true
+	}
+
+	stdout, stderr, exitCode, err := defaultVerifySpecCmdRunner(context.Background(), command, "")
+	if err != nil {
+		t.Fatalf("defaultVerifySpecCmdRunner() error = %v", err)
+	}
+	if exitCode != 0 {
+		t.Fatalf("defaultVerifySpecCmdRunner() exit code = %d, want 0", exitCode)
+	}
+	if strings.TrimSpace(stdout) != "ok" {
+		t.Fatalf("stdout = %q, want %q", stdout, "ok")
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+
+	if !killCalled {
+		t.Fatal("defaultVerifySpecCmdRunner() did not call KillDescendantsOnCancel")
+	}
 }
 
 func setupVerifySpecTest(t *testing.T, specName string, specContent string) {
