@@ -39,6 +39,12 @@ func TestSchemaVersionConstant(t *testing.T) {
 	}
 }
 
+func TestInitialEntryStateConstant(t *testing.T) {
+	if InitialEntryState != StateDraft {
+		t.Fatalf("InitialEntryState = %q, want %q", InitialEntryState, StateDraft)
+	}
+}
+
 func TestQueueStruct(t *testing.T) {
 	// Verify Queue struct exists with correct fields
 	created := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
