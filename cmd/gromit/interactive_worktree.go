@@ -375,26 +375,20 @@ func autoCommitSessionWorktree(sessionDir, branch string) (*sessionCommitMetadat
 }
 
 func sessionWorktreeHasStagedChanges(sessionDir string) (bool, error) {
-	output, err := interactiveWorktreeGitRunFn(sessionDir, "diff", "--cached", "--quiet")
-	if err == nil {
-		// Test doubles may return file names for this invocation; treat that as
-		// staged changes even though real git --quiet output is empty.
-		if strings.TrimSpace(output) != "" {
+	_, err := interactiveWorktreeGitRunFn(sessionDir, "diff", "--cached", "--quiet")
+	if err != nil {
+		var exitErr interface{ ExitCode() int }
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
 			return true, nil
 		}
-		porcelain, statusErr := interactiveWorktreeGitRunFn(sessionDir, "status", "--porcelain")
-		if statusErr != nil {
-			return false, fmt.Errorf("checking staged changes via status: %w", statusErr)
-		}
-		return strings.TrimSpace(porcelain) != "", nil
+		return false, fmt.Errorf("checking staged changes: %w", err)
 	}
 
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
-		return true, nil
+	porcelain, statusErr := interactiveWorktreeGitRunFn(sessionDir, "status", "--porcelain")
+	if statusErr != nil {
+		return false, fmt.Errorf("checking staged changes via status: %w", statusErr)
 	}
-
-	return false, fmt.Errorf("checking staged changes: %w", err)
+	return strings.TrimSpace(porcelain) != "", nil
 }
 
 func describeSessionCommit(sessionDir string) (*sessionCommitMetadata, error) {

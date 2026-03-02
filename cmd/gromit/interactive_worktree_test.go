@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -77,7 +78,7 @@ func setupRunWithSessionWorktreeTest(t *testing.T, command string) (mainDir stri
 		WorktreeDir: filepath.Join(mainDir, "session-"+command),
 	}
 
-	cleanupGit := overrideGitRun(defaultTestGitRun)
+	cleanupGit := overrideGitRun(autoCommitGitRun(""))
 	t.Cleanup(cleanupGit)
 
 	return mainDir, gromitDir, session
@@ -99,6 +100,42 @@ func defaultTestGitRun(dir string, args ...string) (string, error) {
 		return "cmd/gromit/default.go\n", nil
 	}
 	return "", nil
+}
+
+func autoCommitGitRun(changedFile string) func(dir string, args ...string) (string, error) {
+	if changedFile == "" {
+		changedFile = "cmd/gromit/example.go"
+	}
+	return func(dir string, args ...string) (string, error) {
+		if len(args) == 0 {
+			return "", nil
+		}
+		switch args[0] {
+		case "add", "commit":
+			return "", nil
+		case "status":
+			return fmt.Sprintf(" M %s\n", changedFile), nil
+		case "rev-parse":
+			if len(args) > 1 {
+				if args[1] == "HEAD" {
+					return "headsha", nil
+				}
+				if args[1] == "HEAD^" {
+					return "baseref", nil
+				}
+			}
+		case "diff":
+			if len(args) > 1 {
+				if args[1] == "--cached" {
+					return "", nil
+				}
+				if len(args) > 2 && args[1] == "--name-only" {
+					return changedFile + "\n", nil
+				}
+			}
+		}
+		return "", nil
+	}
 }
 
 func withInteractiveWorktreeFactories(
@@ -204,6 +241,8 @@ func TestRunWithSessionWorktreeAutoCommitInvoked(t *testing.T) {
 				}
 			case "diff":
 				return "cmd/gromit/example.go\n", nil
+			case "status":
+				return " M cmd/gromit/example.go\n", nil
 			}
 		}
 		return "", nil
@@ -387,6 +426,8 @@ func TestRunWithSessionWorktreeQueuesReadyBranch(t *testing.T) {
 			}
 		case "diff":
 			return "cmd/gromit/example.go\n", nil
+		case "status":
+			return " M cmd/gromit/example.go\n", nil
 		}
 		return "", nil
 	})
@@ -551,6 +592,9 @@ func TestRunWithSessionWorktreeRecordsPendingBranch(t *testing.T) {
 	_, gromitDir, session := setupRunWithSessionWorktreeTest(t, "plan")
 	session.BranchName = "gromit/plan-456"
 
+	cleanupGit := overrideGitRun(autoCommitGitRun(""))
+	t.Cleanup(cleanupGit)
+
 	recordedBranch := ""
 	callbackRan := false
 	withInteractiveWorktreeFactories(t, func(string) (sessionWorktreeCreator, error) {
@@ -626,6 +670,9 @@ func TestRunWithSessionWorktreeSuccessPath_RecordsAndQueuesForCoordinator(t *tes
 	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "debug")
 	session.BranchName = "gromit/debug-123"
 
+	cleanupGit := overrideGitRun(autoCommitGitRun(""))
+	t.Cleanup(cleanupGit)
+
 	var (
 		addCalled    bool
 		mergeCalled  bool
@@ -700,6 +747,9 @@ func TestRunWithSessionWorktreeOrderingInSingleWriter(t *testing.T) {
 	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "sync")
 	session.BranchName = "gromit/sync-999"
 
+	cleanupGit := overrideGitRun(autoCommitGitRun(""))
+	t.Cleanup(cleanupGit)
+
 	var events []string
 
 	withInteractiveWorktreeFactories(t, func(gotMainDir string) (sessionWorktreeCreator, error) {
@@ -763,6 +813,8 @@ func TestSessionCleanupHappensBeforeCoordinatorTakeover(t *testing.T) {
 	session.BranchName = "gromit/cleanup-before-merge"
 
 	var events []string
+	cleanupGit := overrideGitRun(autoCommitGitRun(""))
+	t.Cleanup(cleanupGit)
 
 	withInteractiveWorktreeFactories(t, func(gotMainDir string) (sessionWorktreeCreator, error) {
 		if gotMainDir != mainDir {
@@ -822,6 +874,9 @@ func TestImmediatePath_CleanupFailureSkipsMerge(t *testing.T) {
 	// Not parallel: withInteractiveWorktreeFactories mutates package-level globals.
 	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "repair")
 	session.BranchName = "gromit/repair-111"
+
+	cleanupGit := overrideGitRun(autoCommitGitRun(""))
+	t.Cleanup(cleanupGit)
 
 	preRemoveErr := errors.New("cannot remove worktree: uncommitted changes")
 	var (
@@ -892,6 +947,9 @@ func TestRunWithSessionWorktreeCleanupFailureWrapsBranchContext(t *testing.T) {
 	// Not parallel: withInteractiveWorktreeFactories mutates package-level globals.
 	_, gromitDir, session := setupRunWithSessionWorktreeTest(t, "context")
 	session.BranchName = "gromit/context-222"
+
+	cleanupGit := overrideGitRun(autoCommitGitRun(""))
+	t.Cleanup(cleanupGit)
 
 	preRemoveErr := errors.New("cannot remove worktree")
 	withInteractiveWorktreeFactories(t, func(string) (sessionWorktreeCreator, error) {
@@ -1021,6 +1079,9 @@ func TestSessionCompletionImmediatelyQueues_NoConflictRetry(t *testing.T) {
 	mainDir, gromitDir, session := setupRunWithSessionWorktreeTest(t, "review")
 	session.BranchName = "gromit/review-234"
 
+	cleanupGit := overrideGitRun(autoCommitGitRun(""))
+	t.Cleanup(cleanupGit)
+
 	var events []string
 
 	withInteractiveWorktreeFactories(t, func(string) (sessionWorktreeCreator, error) {
@@ -1131,7 +1192,7 @@ func TestSessionSuccessDoesNotDependOnConflictPolicy(t *testing.T) {
 // multiple concurrent sessions queue their branches independently without merge contention.
 func TestConcurrentSessions_BothQueueWithoutConflict(t *testing.T) {
 	// Not parallel: withInteractiveWorktreeFactories mutates package-level globals.
-	cleanupGit := overrideGitRun(defaultTestGitRun)
+	cleanupGit := overrideGitRun(autoCommitGitRun(""))
 	t.Cleanup(cleanupGit)
 	cleanupStore := overrideQueueStore(func(entry integrationqueue.Entry) error { return nil })
 	t.Cleanup(cleanupStore)
