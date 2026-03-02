@@ -1,6 +1,7 @@
 package bead
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -53,15 +54,23 @@ var validBeadID = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
 // Maximum lengths for bead fields
 const (
-	maxIDLength          = 128
-	maxTitleLength       = 512
-	maxDescriptionLength = 16384
-	maxLabelLength       = 128
-	maxLabelCount        = 64
-	minPriority          = 0
-	maxPriority          = 4
-	defaultBDBinary      = "bd"
-	labelMetaChars       = ";\n|$`&<>(){}[]'\"\\"
+	maxIDLength                = 128
+	maxTitleLength             = 512
+	maxDescriptionLength       = 16384
+	maxLabelLength             = 128
+	maxLabelCount              = 64
+	minPriority                = 0
+	maxPriority                = 4
+	defaultBDBinary            = "bd"
+	labelMetaChars             = ";\n|$`&<>(){}[]'\"\\"
+	commandProcessCapacityWait = 1500 * time.Millisecond
+)
+
+var (
+	waitForProcessCapacityFn  = procutil.WaitForProcessCapacity
+	subprocessEnvFn           = procutil.SubprocessEnv
+	killDescendantsOnCancelFn = procutil.KillDescendantsOnCancel
+	reapProcessTreeFn         = procutil.ReapProcessTree
 )
 
 // DefaultCommandTimeout is the per-command timeout applied to bd subprocess
@@ -455,6 +464,10 @@ func (c *Client) run(ctx context.Context, args ...string) (string, error) {
 }
 
 func (c *Client) runWithEnv(ctx context.Context, args []string, extraEnv []string) (string, error) {
+	if err := waitForProcessCapacityFn(ctx, commandProcessCapacityWait); err != nil {
+		return "", err
+	}
+
 	cmdCtx, cancel := context.WithTimeout(ctx, c.commandTimeout())
 	defer cancel()
 
@@ -463,17 +476,31 @@ func (c *Client) runWithEnv(ctx context.Context, args []string, extraEnv []strin
 	if c.Dir != "" {
 		cmd.Dir = c.Dir
 	}
+
+	env := subprocessEnvFn()
 	if len(extraEnv) > 0 {
-		cmd.Env = append(os.Environ(), extraEnv...)
+		env = append(env, extraEnv...)
 	}
-	out, err := cmd.Output()
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			return "", fmt.Errorf("%w: %s", err, string(exitErr.Stderr))
+	cmd.Env = env
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Start(); err != nil {
+		return "", err
+	}
+	killDescendantsOnCancelFn(cmdCtx, cmd)
+	defer reapProcessTreeFn(cmd)
+
+	if err := cmd.Wait(); err != nil {
+		if _, ok := err.(*exec.ExitError); ok {
+			return "", fmt.Errorf("%w: %s", err, stderr.String())
 		}
 		return "", err
 	}
-	return string(out), nil
+	return stdout.String(), nil
 }
 
 func (c *Client) runClose(ctx context.Context, id string) (string, error) {
