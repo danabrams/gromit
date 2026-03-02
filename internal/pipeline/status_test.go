@@ -1020,7 +1020,7 @@ func TestReadStatus_WithInjectedDependencies(t *testing.T) {
 
 func writeRealCoordinatorQueueFixture(t *testing.T, gromitDir string) {
 	t.Helper()
-	fixturePath := filepath.Join("testdata", "real-coordinator-integration-queue.json")
+	fixturePath := filepath.Join("..", "..", "testdata", "real-coordinator-integration-queue.json")
 	data, err := os.ReadFile(fixturePath)
 	if err != nil {
 		t.Fatalf("ReadFile %s: %v", fixturePath, err)
