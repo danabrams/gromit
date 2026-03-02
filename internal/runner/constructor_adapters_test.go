@@ -776,6 +776,30 @@ func TestIntegrationQueueGitOpsAdapter_CleanupCommands(t *testing.T) {
 	}
 }
 
+func TestIntegrationQueueGitOpsAdapter_CleanupCommandFailure(t *testing.T) {
+	t.Parallel()
+
+	repoDir := "/repo"
+	adapter := &integrationQueueGitOpsAdapter{
+		repoDir: repoDir,
+		runGitCommand: func(ctx context.Context, dir string, args ...string) (string, error) {
+			return "", fmt.Errorf("git command failed")
+		},
+	}
+
+	entry := integrationqueue.Entry{Branch: "feature/cleanup"}
+	err := adapter.Cleanup(context.Background(), entry)
+	if err == nil {
+		t.Fatal("Cleanup returned nil error; want failure when git command fails")
+	}
+	if !errors.Is(err, errGitCleanupFailed) {
+		t.Fatalf("error = %v, want wrapped %v", err, errGitCleanupFailed)
+	}
+	if !strings.Contains(err.Error(), "cleanup branch feature/cleanup") {
+		t.Fatalf("error %q missing \"cleanup branch feature/cleanup\"", err)
+	}
+}
+
 func TestIntegrationQueueGitOpsAdapter_RequiresRepoDir(t *testing.T) {
 	t.Parallel()
 
