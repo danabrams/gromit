@@ -369,14 +369,16 @@ func RecoverFromMalformedQueue(ctx context.Context, path string) (*Queue, error)
 		updated := queue.SchemaVersion != SchemaVersion
 		queue.SchemaVersion = SchemaVersion
 		for i := range queue.Entries {
-			if queue.Entries[i].State == StateIntegrating {
-				if err := ApplyTransition(&queue.Entries[i], string(StateReady), "schema recovery"); err != nil {
-					return fmt.Errorf("transitioning recovered entry %s: %w", queue.Entries[i].Branch, err)
-				}
-				queue.Entries[i].LastErrorCode = string(ErrorCodeSchemaInvalid)
-				queue.Entries[i].LastErrorMessage = "recovered from schema error: entry was in integrating state"
-				updated = true
-			}
+        if queue.Entries[i].State == StateIntegrating {
+            if err := ApplyTransition(&queue.Entries[i], string(StateReady), "schema recovery"); err != nil {
+                return fmt.Errorf("transitioning recovered entry %s: %w", queue.Entries[i].Branch, err)
+            }
+            if queue.Entries[i].LastErrorCode == "" {
+                queue.Entries[i].LastErrorCode = string(ErrorCodeSchemaInvalid)
+                queue.Entries[i].LastErrorMessage = "recovered from schema error: entry was in integrating state"
+            }
+            updated = true
+        }
 		}
 
 		if updated {
