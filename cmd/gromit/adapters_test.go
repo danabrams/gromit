@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"io"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/agent"
@@ -273,6 +276,59 @@ func TestRetroRouterAdapterStreamRun_RetriesOnUsageLimitResultWithoutError(t *te
 	if markedUnavailable != "first" {
 		t.Fatalf("marked unavailable provider = %q, want %q", markedUnavailable, "first")
 	}
+}
+
+func TestRetroRouterAdapterRun_LogsWhenSelectFails(t *testing.T) {
+	wantPhase := "retro"
+	wantTier := provider.TierMedium
+	selectCalls := 0
+	mockRouter := &reviewRouterStub{
+		SelectFn: func(phase string, tier string) (provider.Provider, string) {
+			selectCalls++
+			return nil, ""
+		},
+	}
+	adapter := &retroRouterAdapter{
+		Router: mockRouter,
+		Phase:  wantPhase,
+	}
+
+	var err error
+	output := captureStderr(t, func() {
+		_, err = adapter.Run(context.Background(), "prompt", wantTier)
+	})
+	if err == nil {
+		t.Fatal("Run() error = nil, want failure when no providers are available")
+	}
+	if selectCalls != 1 {
+		t.Fatalf("router Select calls = %d, want 1", selectCalls)
+	}
+	if !strings.Contains(output, "router.Select failed") {
+		t.Fatalf("stderr output %q does not mention router.Select failure", output)
+	}
+	if !strings.Contains(output, "phase \""+wantPhase+"\"") {
+		t.Fatalf("stderr output %q does not contain phase %q", output, wantPhase)
+	}
+	if !strings.Contains(output, "tier \""+wantTier+"\"") {
+		t.Fatalf("stderr output %q does not contain tier %q", output, wantTier)
+	}
+}
+
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+	old := os.Stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create pipe: %v", err)
+	}
+	os.Stderr = w
+	fn()
+	w.Close()
+	os.Stderr = old
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	r.Close()
+	return buf.String()
 }
 
 func TestRetroRouterAdapterStreamRun_ReturnsProviderExhaustedErrorAfterUsageLimit(t *testing.T) {
