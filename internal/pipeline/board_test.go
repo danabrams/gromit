@@ -49,6 +49,28 @@ func TestPipeline_Board_ReturnsSortedOpenBeads(t *testing.T) {
 	}
 }
 
+func TestPipeline_Board_UsesDepsBoardClient(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	deps := &Deps{
+		BoardClient: &fakeBoardClient{
+			listAllFn: func(context.Context) ([]*bead.Bead, []*bead.Bead, error) {
+				called = true
+				return nil, nil, nil
+			},
+		},
+	}
+
+	p := New(deps, &Paths{})
+	if _, err := p.Board(context.Background()); err != nil {
+		t.Fatalf("Board() returned error: %v", err)
+	}
+	if !called {
+		t.Fatal("expected deps board client to be used")
+	}
+}
+
 func TestPipeline_Board_ClientCreationError(t *testing.T) {
 	t.Parallel()
 
