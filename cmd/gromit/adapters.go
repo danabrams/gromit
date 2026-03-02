@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"time"
 
 	"github.com/danabrams/gromit/internal/agent"
@@ -96,6 +97,7 @@ func (a *llmRouterClientAdapter) Run(prompt string, model string) (*pipeline.LLM
 
 	selectedProvider, _ := a.Router.Select(phase, tier)
 	if selectedProvider == nil {
+		logRouterSelectFailure(phase, tier)
 		return nil, fmt.Errorf("no providers available for phase %q and tier %q", phase, tier)
 	}
 
@@ -134,6 +136,7 @@ func (a *retroRouterAdapter) Run(ctx context.Context, prompt string, tier string
 	phase := resolveProviderReviewPhase(a.Phase)
 	selectedProvider, _ := a.Router.Select(phase, tier)
 	if selectedProvider == nil {
+		logRouterSelectFailure(phase, tier)
 		return nil, fmt.Errorf("no providers available for phase %q and tier %q", phase, tier)
 	}
 
@@ -142,6 +145,7 @@ func (a *retroRouterAdapter) Run(ctx context.Context, prompt string, tier string
 		a.Router.MarkUnavailable(selectedProvider.Name())
 		selectedProvider, _ = a.Router.Select(phase, tier)
 		if selectedProvider == nil {
+			logRouterSelectFailure(phase, tier)
 			return nil, fmt.Errorf("no providers available for phase %q and tier %q", phase, tier)
 		}
 		result, err = selectedProvider.Run(ctx, prompt, tier)
@@ -165,6 +169,7 @@ func (a *retroRouterAdapter) StreamRun(ctx context.Context, prompt string, tier 
 		a.Router.MarkUnavailable(selectedProvider.Name())
 		selectedProvider, _ = a.Router.Select(phase, tier)
 		if selectedProvider == nil {
+			logRouterSelectFailure(phase, tier)
 			return nil, fmt.Errorf("no providers available for phase %q and tier %q", phase, tier)
 		}
 		result, err = selectedProvider.StreamRun(ctx, prompt, tier, output, handler, onToolCall)
@@ -195,6 +200,10 @@ func resolveProviderReviewPhase(phase string) string {
 		return reviewSessionCommand
 	}
 	return phase
+}
+
+func logRouterSelectFailure(phase, tier string) {
+	fmt.Fprintf(os.Stderr, "Warning: router.Select failed for phase %q and tier %q\n", phase, tier)
 }
 
 func toLLMRunResult(success bool, exitCode int, output string) *pipeline.LLMRunResult {
