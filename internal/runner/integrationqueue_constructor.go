@@ -14,6 +14,7 @@ import (
 	"github.com/danabrams/gromit/internal/integrationqueue"
 	"github.com/danabrams/gromit/internal/procutil"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
+	"github.com/danabrams/gromit/internal/runner/validation"
 )
 
 const integrationQueueGitCommandProcessCapacityWait = 1500 * time.Millisecond
@@ -49,8 +50,10 @@ var (
 			runGitCommand: runIntegrationQueueGitCommand,
 		}, nil
 	}
-	newIntegrationQueueScopedGateAdapterFn = func() (*integrationQueueScopedGateAdapter, error) {
-		return &integrationQueueScopedGateAdapter{}, nil
+	newIntegrationQueueScopedGateAdapterFn = func(cfg *config.Config, repoDir string) (*integrationQueueScopedGateAdapter, error) {
+		return &integrationQueueScopedGateAdapter{
+			evaluator: newIntegrationQueueScopedGateEvaluator(cfg, repoDir, nil),
+		}, nil
 	}
 )
 
@@ -58,7 +61,43 @@ func newIntegrationQueueScopedGateEvaluator(cfg *config.Config, repoDir string, 
 	if cfg == nil || !cfg.Validation.Enabled {
 		return nil
 	}
-	return nil
+
+	commands := cfg.Validation.FastCommandsOrDefault()
+	if len(commands) == 0 {
+		return nil
+	}
+
+	if cmdRunner == nil {
+		cmdRunner = defaultCmdRunner
+	}
+
+	dir := strings.TrimSpace(repoDir)
+	if dir == "" {
+		dir = "."
+	}
+
+	return func(ctx context.Context, entry integrationqueue.Entry) error {
+		if strings.TrimSpace(entry.Branch) == "" {
+			return nil
+		}
+
+		runner := validation.NewRunner(cfg, cmdRunner, nil, nil)
+		result, err := runner.RunDirect(ctx, commands, dir)
+		if err != nil {
+			return fmt.Errorf("validation invocation: %w", err)
+		}
+		if result == nil {
+			return fmt.Errorf("validation returned no result")
+		}
+		if !result.Success {
+			output := strings.TrimSpace(result.Output)
+			if output == "" {
+				output = "validation failed"
+			}
+			return fmt.Errorf("validation failed: %s", output)
+		}
+		return nil
+	}
 }
 
 func newIntegrationQueueCoordinator(cfg *config.Config, gromitDir string) (Coordinator, error) {
@@ -73,7 +112,7 @@ func newIntegrationQueueCoordinator(cfg *config.Config, gromitDir string) (Coord
 		return nil, fmt.Errorf("initializing integration queue gitops adapter: %w", err)
 	}
 
-	gateAdapter, err := newIntegrationQueueScopedGateAdapterFn()
+	gateAdapter, err := newIntegrationQueueScopedGateAdapterFn(cfg, repoDir)
 	if err != nil {
 		return nil, fmt.Errorf("initializing integration queue scoped gate adapter: %w", err)
 	}
@@ -83,6 +122,8 @@ func newIntegrationQueueCoordinator(cfg *config.Config, gromitDir string) (Coord
 
 	return integrationqueue.NewCoordinator(store, gitopsAdapter, gateAdapter), nil
 }
+
+var _ integrationqueue.ScopedGate = (*integrationQueueScopedGateAdapter)(nil)
 
 func runIntegrationQueueGitCommand(ctx context.Context, repoDir string, args ...string) (string, error) {
 	if err := procutil.WaitForProcessCapacity(ctx, integrationQueueGitCommandProcessCapacityWait); err != nil {

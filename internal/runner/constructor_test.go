@@ -733,7 +733,7 @@ func TestNewRunnerImpl_IntegrationQueueAdapterInitError(t *testing.T) {
 
 	originalFactory := newIntegrationQueueScopedGateAdapterFn
 	t.Cleanup(func() { newIntegrationQueueScopedGateAdapterFn = originalFactory })
-	newIntegrationQueueScopedGateAdapterFn = func() (*integrationQueueScopedGateAdapter, error) {
+	newIntegrationQueueScopedGateAdapterFn = func(cfg *config.Config, repoDir string) (*integrationQueueScopedGateAdapter, error) {
 		return nil, fmt.Errorf("gate failure")
 	}
 

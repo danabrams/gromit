@@ -3519,7 +3519,7 @@ func TestOrchestrator_CoordinatorDrainsReadyEntry(t *testing.T) {
 			},
 		}, nil
 	}
-	newIntegrationQueueScopedGateAdapterFn = func() (*integrationQueueScopedGateAdapter, error) {
+	newIntegrationQueueScopedGateAdapterFn = func(cfg *config.Config, repoDir string) (*integrationQueueScopedGateAdapter, error) {
 		return &integrationQueueScopedGateAdapter{
 			evaluator: func(ctx context.Context, entry integrationqueue.Entry) error {
 				return nil
