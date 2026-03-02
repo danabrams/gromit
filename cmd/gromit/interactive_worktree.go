@@ -484,9 +484,7 @@ func enqueueBlockedBranch(gromitDir, command string, session *worktree.SessionWo
 }
 
 func newBlockedQueueEntry(command string, session *worktree.SessionWorktree, meta *sessionCommitMetadata, commitErr error) integrationqueue.Entry {
-	if meta == nil {
-		meta = &sessionCommitMetadata{}
-	}
+	meta = ensureSessionCommitMetadata(meta)
 	guidance := fmt.Sprintf("Auto-commit failed for branch %q (%v); checkout %s, resolve issues, run `git add -A` and `git commit`, then requeue.", session.BranchName, commitErr, session.BranchName)
 	return integrationqueue.Entry{
 		Branch:               session.BranchName,
@@ -504,6 +502,13 @@ func newBlockedQueueEntry(command string, session *worktree.SessionWorktree, met
 		LastErrorCode:        sessionQueueCommitFailedCode,
 		LastErrorMessage:     guidance,
 	}
+}
+
+func ensureSessionCommitMetadata(meta *sessionCommitMetadata) *sessionCommitMetadata {
+	if meta == nil {
+		return &sessionCommitMetadata{}
+	}
+	return meta
 }
 
 func removeQueueBranch(gromitDir, branch string) error {
