@@ -285,6 +285,21 @@ func (f *fakeIntegrationQueueStore) Snapshot() (*integrationqueue.Snapshot, erro
 	return f.snapshot, f.err
 }
 
+func writeRealCoordinatorQueueFixture(t *testing.T, gromitDir string) {
+	t.Helper()
+	fixturePath := filepath.Join("..", "..", "testdata", "real-coordinator-integration-queue.json")
+	data, err := os.ReadFile(fixturePath)
+	if err != nil {
+		t.Fatalf("ReadFile %s: %v", fixturePath, err)
+	}
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll gromitDir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gromitDir, "integration-queue.json"), data, 0o644); err != nil {
+		t.Fatalf("WriteFile integration queue fixture: %v", err)
+	}
+}
+
 func TestPrintStatus_IncludesCompatibilityDiagnostics(t *testing.T) {
 	t.Parallel()
 	tmpDir := t.TempDir()
