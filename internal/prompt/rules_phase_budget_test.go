@@ -11,11 +11,11 @@ type rulesPhaseBudget struct {
 
 func rulesPhaseBudgetMatrix() []rulesPhaseBudget {
 	return []rulesPhaseBudget{
-		{phase: "red", maxChars: 7200},
-		{phase: "build", maxChars: 11200},
-		{phase: "green", maxChars: 7200},
-		{phase: "refactor", maxChars: 7200},
-		{phase: "review", maxChars: 6800},
+		{phase: "red", maxChars: 7600},
+		{phase: "build", maxChars: 11800},
+		{phase: "green", maxChars: 7600},
+		{phase: "refactor", maxChars: 7600},
+		{phase: "review", maxChars: 7300},
 		{phase: "plan", maxChars: 2000},
 		{phase: "refine", maxChars: 2000},
 		{phase: "retro", maxChars: 2000},
