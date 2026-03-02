@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -18,6 +19,8 @@ type integrationQueueGitOpsAdapter struct {
 	pushTimeout   time.Duration
 	runGitCommand integrationQueueGitCommandFn
 }
+
+var errGitPushFailed = errors.New("git push failed")
 
 func (a *integrationQueueGitOpsAdapter) FetchAndRebase(ctx context.Context, entry integrationqueue.Entry) error {
 	dir, err := a.requireRepoDir()
@@ -99,7 +102,7 @@ func (a *integrationQueueGitOpsAdapter) Push(ctx context.Context) error {
 	}
 
 	if _, err := a.runGitCommand(pushCtx, dir, "push", "origin", base); err != nil {
-		return fmt.Errorf("pushing %s: %w", base, err)
+		return fmt.Errorf("pushing %s: %w", base, fmt.Errorf("%w: %v", errGitPushFailed, err))
 	}
 	return nil
 }
