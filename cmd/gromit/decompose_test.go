@@ -410,7 +410,7 @@ func TestDecomposeSinglePlan_ReviewUsesSessionWorktreeDir(t *testing.T) {
 		}
 		return &worktree.SessionWorktree{BranchName: "gromit/decompose-test", WorktreeDir: sessionDir}, nil
 	}
-	decomposeSinglePlanInDirFn = func(planName string, cfg *config.Config) error {
+	decomposeSinglePlanInDirFn = func(ctx context.Context, planName string, cfg *config.Config) error {
 		cwd, err := os.Getwd()
 		if err != nil {
 			return err
@@ -419,7 +419,7 @@ func TestDecomposeSinglePlan_ReviewUsesSessionWorktreeDir(t *testing.T) {
 		return nil
 	}
 
-	if err := decomposeSinglePlan("plan-a", cfg); err != nil {
+	if err := decomposeSinglePlan(context.Background(), "plan-a", cfg); err != nil {
 		t.Fatalf("decomposeSinglePlan() error = %v", err)
 	}
 	if gotCommand != "decompose" {
@@ -475,7 +475,7 @@ func TestDecomposeSinglePlan_ReviewConflictHandoffPropagates(t *testing.T) {
 	cfg.Paths.GromitDir = filepath.Join(t.TempDir(), ".gromit")
 
 	currentDirCalled := false
-	decomposeSinglePlanInDirFn = func(planName string, cfg *config.Config) error {
+	decomposeSinglePlanInDirFn = func(ctx context.Context, planName string, cfg *config.Config) error {
 		currentDirCalled = true
 		return nil
 	}
@@ -498,7 +498,7 @@ func TestDecomposeSinglePlan_ReviewConflictHandoffPropagates(t *testing.T) {
 			}
 	}
 
-	err := decomposeSinglePlan("plan-b", cfg)
+	err := decomposeSinglePlan(context.Background(), "plan-b", cfg)
 	if err == nil {
 		t.Fatal("expected conflict handoff error, got nil")
 	}

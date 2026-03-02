@@ -31,7 +31,9 @@ var (
 const decomposeSessionCommand = "decompose"
 
 var decomposeSessionLauncherFn = runWithSessionWorktreeWithConflictSettings
-var decomposeSinglePlanInDirFn = decomposeSinglePlanInCurrentDir
+var decomposeSinglePlanInDirFn = func(ctx context.Context, planName string, cfg *config.Config) error {
+	return decomposeSinglePlanInCurrentDir(ctx, planName, cfg)
+}
 var decomposeRunInDirFn = runInDir
 var decomposeListWithLabelFn = listBeadsWithLabel
 
@@ -148,7 +150,7 @@ func runDecompose(cmd *cobra.Command, args []string) error {
 		planName := args[0]
 		// Remove .md suffix if provided
 		planName = strings.TrimSuffix(planName, ".md")
-		return decomposeSinglePlan(planName, cfg)
+		return decomposeSinglePlan(ctx, planName, cfg)
 	}
 
 	// No arguments - show picker
@@ -201,38 +203,38 @@ func runDecompose(cmd *cobra.Command, args []string) error {
 
 	// Handle "Decompose all" selection
 	if decomposeAllOption != -1 && choice == decomposeAllOption {
-		return decomposeAll(plans, cfg)
+		return decomposeAll(ctx, plans, cfg)
 	}
 
 	// Single plan selected
 	selectedPlan := plans[choice-1]
 	fmt.Printf("\nDecomposing: %s\n\n", selectedPlan.Name)
-	return decomposeSinglePlan(selectedPlan.Name, cfg)
+	return decomposeSinglePlan(ctx, selectedPlan.Name, cfg)
 }
 
 // decomposeSinglePlan decomposes a single plan file into bd beads.
 // Delegates business logic to pipeline.Decompose() and handles CLI interactions
 // (review confirmation, output formatting, chaining).
 // Respects package-level flags: decomposeReview, decomposeForce, decomposeNoChain.
-func decomposeSinglePlan(planName string, cfg *config.Config) error {
+func decomposeSinglePlan(ctx context.Context, planName string, cfg *config.Config) error {
 	if decomposeReview {
-		return runDecomposeReviewInSession(planName, cfg)
+		return runDecomposeReviewInSession(ctx, planName, cfg)
 	}
 
-	return decomposeSinglePlanInDirFn(planName, cfg)
+	return decomposeSinglePlanInDirFn(ctx, planName, cfg)
 }
 
-func runDecomposeReviewInSession(planName string, cfg *config.Config) error {
+func runDecomposeReviewInSession(ctx context.Context, planName string, cfg *config.Config) error {
 	gromitDir := resolveGromitDir(cfg)
 	fallback := func() error {
 		return decomposeRunInDirFn("", func() error {
-			return decomposeSinglePlanInDirFn(planName, cfg)
+			return decomposeSinglePlanInDirFn(ctx, planName, cfg)
 		})
 	}
 
-	if err := launchInSessionIfEnabled(cfg, gromitDir, decomposeSessionCommand, decomposeSessionLauncherFn, func(sessionDir string) error {
+	if err := launchInSessionIfEnabledWithContext(ctx, cfg, gromitDir, decomposeSessionCommand, decomposeSessionLauncherFn, func(sessionDir string) error {
 		return decomposeRunInDirFn(sessionDir, func() error {
-			return decomposeSinglePlanInDirFn(planName, cfg)
+			return decomposeSinglePlanInDirFn(ctx, planName, cfg)
 		})
 	}, fallback); err != nil {
 		return err
@@ -241,11 +243,13 @@ func runDecomposeReviewInSession(planName string, cfg *config.Config) error {
 	return nil
 }
 
-func decomposeSinglePlanInCurrentDir(planName string, cfg *config.Config) error {
+func decomposeSinglePlanInCurrentDir(ctx context.Context, planName string, cfg *config.Config) error {
 	plansDir := resolvePlansDir(cfg)
 	planPath := filepath.Join(plansDir, planName+".md")
 
-	ctx := context.Background()
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
 	// Create Bead client and wrap in tracker adapter early so we can use it for reconciliation
 	beadClient, err := bead.NewClient()
@@ -288,7 +292,6 @@ func decomposeSinglePlanInCurrentDir(planName string, cfg *config.Config) error 
 
 	// Execute decompose workflow
 	fmt.Printf("Decomposing plan '%s' into beads...\n", planName)
-	ctx = context.Background()
 	input := buildDecomposeInput(planName, cfg)
 
 	result, err := p.Decompose(ctx, input)
@@ -467,7 +470,7 @@ func chainAfterDecompose() {
 // decomposeAll processes all undecomposed plans sequentially.
 // Shows progress for each plan, continues on errors, and summarizes results.
 // Respects the --review flag for each individual plan.
-func decomposeAll(plans []planInfo, cfg *config.Config) error {
+func decomposeAll(ctx context.Context, plans []planInfo, cfg *config.Config) error {
 	if len(plans) == 0 {
 		return nil
 	}
@@ -480,7 +483,7 @@ func decomposeAll(plans []planInfo, cfg *config.Config) error {
 	for i, plan := range plans {
 		fmt.Printf("[%d/%d] Decomposing %s...\n", i+1, len(plans), plan.Name)
 
-		err := decomposeSinglePlan(plan.Name, cfg)
+		err := decomposeSinglePlan(ctx, plan.Name, cfg)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			failedPlans = append(failedPlans, plan.Name)
