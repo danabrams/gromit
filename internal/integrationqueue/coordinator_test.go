@@ -738,11 +738,7 @@ func TestCoordinatorRecoverFromCrash_RecordsErrorMetadata(t *testing.T) {
 func TestCoordinatorRecoverFromCrash_FailedGates(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
-
-	store, err := NewStore(tmpDir)
-	if err != nil {
-		t.Fatalf("NewStore() error = %v", err)
-	}
+	queuePath := filepath.Join(tmpDir, queueFileName)
 
 	entry := Entry{
 		Branch:           "feature/failed-gates",
@@ -756,8 +752,21 @@ func TestCoordinatorRecoverFromCrash_FailedGates(t *testing.T) {
 		LastErrorCode:    string(StateFailedGates),
 		LastErrorMessage: "scoped gates failed",
 	}
-	if err := store.Save(entry); err != nil {
-		t.Fatalf("Save(entry) error = %v", err)
+	queue := &Queue{
+		SchemaVersion: SchemaVersion,
+		Entries:       []Entry{entry},
+	}
+	data, err := json.MarshalIndent(queue, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal queue: %v", err)
+	}
+	if err := os.WriteFile(queuePath, data, 0o644); err != nil {
+		t.Fatalf("write queue: %v", err)
+	}
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
 	}
 
 	coord := &Coordinator{store: store}
@@ -786,11 +795,7 @@ func TestCoordinatorRecoverFromCrash_FailedGates(t *testing.T) {
 func TestCoordinatorRecoverFromCrash_MergeConflict(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
-
-	store, err := NewStore(tmpDir)
-	if err != nil {
-		t.Fatalf("NewStore() error = %v", err)
-	}
+	queuePath := filepath.Join(tmpDir, queueFileName)
 
 	entry := Entry{
 		Branch:           "feature/merge-conflict",
@@ -804,8 +809,21 @@ func TestCoordinatorRecoverFromCrash_MergeConflict(t *testing.T) {
 		LastErrorCode:    "merge_conflict",
 		LastErrorMessage: "merge conflict detected",
 	}
-	if err := store.Save(entry); err != nil {
-		t.Fatalf("Save(entry) error = %v", err)
+	queue := &Queue{
+		SchemaVersion: SchemaVersion,
+		Entries:       []Entry{entry},
+	}
+	data, err := json.MarshalIndent(queue, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal queue: %v", err)
+	}
+	if err := os.WriteFile(queuePath, data, 0o644); err != nil {
+		t.Fatalf("write queue: %v", err)
+	}
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
 	}
 
 	coord := &Coordinator{store: store}
@@ -834,11 +852,7 @@ func TestCoordinatorRecoverFromCrash_MergeConflict(t *testing.T) {
 func TestCoordinatorRecoverFromCrash_PushFailure(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
-
-	store, err := NewStore(tmpDir)
-	if err != nil {
-		t.Fatalf("NewStore() error = %v", err)
-	}
+	queuePath := filepath.Join(tmpDir, queueFileName)
 
 	entry := Entry{
 		Branch:           "feature/push-failure",
@@ -852,8 +866,21 @@ func TestCoordinatorRecoverFromCrash_PushFailure(t *testing.T) {
 		LastErrorCode:    "push_failed",
 		LastErrorMessage: "push failure: remote rejected",
 	}
-	if err := store.Save(entry); err != nil {
-		t.Fatalf("Save(entry) error = %v", err)
+	queue := &Queue{
+		SchemaVersion: SchemaVersion,
+		Entries:       []Entry{entry},
+	}
+	data, err := json.MarshalIndent(queue, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal queue: %v", err)
+	}
+	if err := os.WriteFile(queuePath, data, 0o644); err != nil {
+		t.Fatalf("write queue: %v", err)
+	}
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
 	}
 
 	coord := &Coordinator{store: store}

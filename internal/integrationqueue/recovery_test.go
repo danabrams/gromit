@@ -2,6 +2,7 @@ package integrationqueue
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -86,8 +87,12 @@ func TestRecoverFromMalformedQueue(t *testing.T) {
 			},
 		},
 	}
-	if err := SaveQueue(queuePath, queue); err != nil {
-		t.Fatalf("SaveQueue: %v", err)
+	data, err := json.MarshalIndent(queue, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal queue: %v", err)
+	}
+	if err := os.WriteFile(queuePath, data, 0o644); err != nil {
+		t.Fatalf("write queue: %v", err)
 	}
 
 	// Recover from malformed queue
@@ -176,8 +181,12 @@ func TestRecoverFromMalformedQueue_PreservesLastErrorCode(t *testing.T) {
 			},
 		},
 	}
-	if err := SaveQueue(queuePath, queue); err != nil {
-		t.Fatalf("SaveQueue: %v", err)
+	data, err := json.MarshalIndent(queue, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal queue: %v", err)
+	}
+	if err := os.WriteFile(queuePath, data, 0o644); err != nil {
+		t.Fatalf("write queue: %v", err)
 	}
 
 	recovered, err := RecoverFromMalformedQueue(context.Background(), queuePath)

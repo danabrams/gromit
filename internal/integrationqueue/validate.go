@@ -31,6 +31,13 @@ func validateEntry(entry Entry) error {
 	if !entry.State.Valid() {
 		return fmt.Errorf("state %q is not supported", entry.State)
 	}
+	if entry.State == StateIntegrating {
+		codeEmpty := strings.TrimSpace(entry.LastErrorCode) == ""
+		msgEmpty := strings.TrimSpace(entry.LastErrorMessage) == ""
+		if !codeEmpty || !msgEmpty {
+			return fmt.Errorf("last_error_code and last_error_message may only be set via ApplyTransition")
+		}
+	}
 	if err := validateErrorContract(entry.LastErrorCode, entry.LastErrorMessage); err != nil {
 		return err
 	}

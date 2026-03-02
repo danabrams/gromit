@@ -90,6 +90,10 @@ func ApplyTransition(entry *Entry, toState string, reason string, metadata ...Tr
 	entry.State = State(toState)
 	entry.LastTransitionReason = reason
 	entry.UpdatedAt = time.Now()
+	if len(metadata) == 0 && entry.State == StateIntegrating {
+		entry.LastErrorCode = ""
+		entry.LastErrorMessage = ""
+	}
 	if len(metadata) > 0 {
 		entry.LastErrorCode = targetCode
 		entry.LastErrorMessage = targetMessage
