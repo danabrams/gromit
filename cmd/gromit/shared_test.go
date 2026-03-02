@@ -8,7 +8,7 @@ import (
 )
 
 func TestSharedFileContainsNewPipeline(t *testing.T) {
-	path := filepath.Join("cmd", "gromit", "shared.go")
+	path := filepath.Join("shared.go")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("expected %s to exist: %v", path, err)
