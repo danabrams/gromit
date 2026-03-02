@@ -251,6 +251,73 @@ func TestStoreSaveAssignsFifoSeqFromMaxExisting(t *testing.T) {
 	}
 }
 
+func TestStoreSaveAvoidsFifoSeqCollisionAfterDeletedEntries(t *testing.T) {
+	tmpDir := t.TempDir()
+	initial := Snapshot{
+		SchemaVersion: SchemaVersion,
+		Entries: []Entry{
+			{
+				Branch:        "feature/deleted-gap-1",
+				SessionID:     "session-old-1",
+				OriginCommand: "refine",
+				State:         StateReady,
+				Lane:          string(CodeLane),
+				BaseRef:       "main",
+				HeadSHA:       "sha-old-1",
+				CreatedAt:     time.Now().Add(-2 * time.Hour),
+				UpdatedAt:     time.Now().Add(-2 * time.Hour),
+				FifoSeq:       3,
+			},
+			{
+				Branch:        "feature/deleted-gap-2",
+				SessionID:     "session-old-2",
+				OriginCommand: "refine",
+				State:         StateReady,
+				Lane:          string(CodeLane),
+				BaseRef:       "main",
+				HeadSHA:       "sha-old-2",
+				CreatedAt:     time.Now().Add(-time.Hour),
+				UpdatedAt:     time.Now().Add(-time.Hour),
+				FifoSeq:       5,
+			},
+		},
+	}
+	writeQueueSnapshot(t, tmpDir, initial)
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore: %v", err)
+	}
+
+	entry := Entry{
+		Branch:        "feature/new-gap",
+		SessionID:     "session-new-gap",
+		OriginCommand: "refine",
+		State:         StateReady,
+		Lane:          string(CodeLane),
+		BaseRef:       "main",
+		HeadSHA:       "sha-new-gap",
+	}
+	if err := store.Save(entry); err != nil {
+		t.Fatalf("store.Save: %v", err)
+	}
+
+	updated := readQueueSnapshot(t, tmpDir)
+	var newEntry *Entry
+	for i := range updated.Entries {
+		if updated.Entries[i].Branch == entry.Branch {
+			newEntry = &updated.Entries[i]
+			break
+		}
+	}
+	if newEntry == nil {
+		t.Fatalf("new entry not found")
+	}
+	if newEntry.FifoSeq != 6 {
+		t.Fatalf("fifo_seq = %d, want 6", newEntry.FifoSeq)
+	}
+}
+
 func readQueueSnapshot(t *testing.T, gromitDir string) Snapshot {
 	t.Helper()
 	path := filepath.Join(gromitDir, queueFileName)
