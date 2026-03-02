@@ -725,6 +725,104 @@ func TestRouterSelectAvailabilityCheckUsesStateFile(t *testing.T) {
 	}
 }
 
+func TestSelectionBlocksMarkUnavailableWhileSelecting(t *testing.T) {
+	cases := []struct {
+		name       string
+		setup      func() (*Router, *blockingProvider, func(*Router) (Provider, string))
+		buildPhase string
+	}{
+		{
+			name: "Select",
+			setup: func() (*Router, *blockingProvider, func(*Router) (Provider, string)) {
+				blocking := newBlockingProvider("blocking")
+				r := &Router{
+					providers: map[string]Provider{
+						"blocking": blocking,
+					},
+					preferences: map[string]string{
+						"phase-select": "blocking",
+					},
+					ratio:       map[string]int{"blocking": 100},
+					counts:      map[string]int{},
+					unavailable: map[string]time.Time{},
+					cooldown:    30 * time.Minute,
+					stateFn:     &mockStateFile{},
+				}
+				return r, blocking, func(r *Router) (Provider, string) {
+					return r.Select("phase-select", TierMedium)
+				}
+			},
+		},
+		{
+			name: "SelectCross",
+			setup: func() (*Router, *blockingProvider, func(*Router) (Provider, string)) {
+				blocking := newBlockingProvider("blocking")
+				r := &Router{
+					providers: map[string]Provider{
+						"blocking": blocking,
+						"build":    &mockProvider{name: "build"},
+					},
+					ratio:       map[string]int{"blocking": 100, "build": 0},
+					counts:      map[string]int{},
+					unavailable: map[string]time.Time{},
+					cooldown:    30 * time.Minute,
+					stateFn:     &mockStateFile{},
+				}
+				return r, blocking, func(r *Router) (Provider, string) {
+					return r.SelectCross("build", TierMedium)
+				}
+			},
+		},
+	}
+
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			r, blocking, invoke := tt.setup()
+
+			doneSelect := make(chan struct{})
+			var selected Provider
+			go func() {
+				defer close(doneSelect)
+				provider, _ := invoke(r)
+				selected = provider
+			}()
+
+			<-blocking.modelStarted
+
+			markDone := make(chan struct{})
+			go func() {
+				r.MarkUnavailable(blocking.Name())
+				close(markDone)
+			}()
+
+			select {
+			case <-markDone:
+				t.Fatalf("MarkUnavailable returned before selection released lock for %s", tt.name)
+			case <-time.After(50 * time.Millisecond):
+			}
+
+			close(blocking.resume)
+
+			select {
+			case <-markDone:
+			case <-time.After(time.Second):
+				t.Fatalf("MarkUnavailable did not complete after selection finished for %s", tt.name)
+			}
+
+			select {
+			case <-doneSelect:
+			case <-time.After(time.Second):
+				t.Fatalf("selection did not return for %s", tt.name)
+			}
+
+			if selected == nil {
+				t.Fatalf("%s returned nil provider", tt.name)
+			}
+		})
+	}
+}
+
 // mockStateFile is a test implementation of the state.File interface
 // for Router tests.
 type mockStateFile struct {
@@ -1185,5 +1283,57 @@ func (m *mockProviderWithModels) IsValidationPassed(result *Result) bool {
 }
 
 func (m *mockProviderWithModels) IsScopeTooLarge(result *Result) (bool, string) {
+	return IsScopeTooLarge(result)
+}
+
+type blockingProvider struct {
+	name         string
+	modelStarted chan struct{}
+	resume       chan struct{}
+}
+
+func newBlockingProvider(name string) *blockingProvider {
+	return &blockingProvider{
+		name:         name,
+		modelStarted: make(chan struct{}, 1),
+		resume:       make(chan struct{}),
+	}
+}
+
+func (b *blockingProvider) Name() string {
+	return b.name
+}
+
+func (b *blockingProvider) ModelForTier(tier string) string {
+	select {
+	case b.modelStarted <- struct{}{}:
+	default:
+	}
+	<-b.resume
+	return tier
+}
+
+func (b *blockingProvider) Run(ctx context.Context, prompt string, tier string) (*Result, error) {
+	return &Result{Success: true}, nil
+}
+
+func (b *blockingProvider) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer,
+	handler EventHandler, onToolCall ToolCallHandler) (*Result, error) {
+	return &Result{Success: true}, nil
+}
+
+func (b *blockingProvider) RunValidation(ctx context.Context, commands []string, tier string, workDir string) (*Result, error) {
+	return &Result{Success: true}, nil
+}
+
+func (b *blockingProvider) IsUsageLimitError(result *Result, err error) bool {
+	return false
+}
+
+func (b *blockingProvider) IsValidationPassed(result *Result) bool {
+	return IsValidationPassed(result)
+}
+
+func (b *blockingProvider) IsScopeTooLarge(result *Result) (bool, string) {
 	return IsScopeTooLarge(result)
 }
