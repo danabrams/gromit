@@ -4,6 +4,12 @@
 
 ## Archived
 
+### 2026-03-02 | config_accessor_receiver_nil_safety | CODE_PATTERNS
+*Related to: gromit/review-1772480612920810000*
+*Archived: 2026-03-02 — mostly covered by existing nil-safety and receiver-guard rules; low incremental value as a standalone learning.*
+
+Config accessor receivers: `*bool` field accessors already guard via the pointer-nil check pattern. Plain `bool` field accessors on pointer receivers (e.g. `func (c *Config) IsXxx() bool { return c.Field }`) do not auto-guard — a nil receiver panics. Use a value receiver or add an explicit nil check. The nullable duration pattern for optional timeouts: `if field > 0 { return field }; return DefaultXxx` (see `Client.commandTimeout()`); new fields with optional durations follow this shape.
+
 ### 2026-02-24 | cohort_validation_must_reject_nil_lookup_payloads_before_field_access | RELIABILITY
 *Related to: gromit/review-1771938913730053167*
 *Archived: 2026-03-02 — consolidated into nil_safety_boundary_centralized_guard; incident-specific detail with no recent recurrence.*
