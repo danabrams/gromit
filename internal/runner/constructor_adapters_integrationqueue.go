@@ -20,7 +20,10 @@ type integrationQueueGitOpsAdapter struct {
 	runGitCommand integrationQueueGitCommandFn
 }
 
-var errGitPushFailed = errors.New("git push failed")
+var (
+	errGitPushFailed    = errors.New("git push failed")
+	errGitCleanupFailed = errors.New("git cleanup failed")
+)
 
 func (a *integrationQueueGitOpsAdapter) FetchAndRebase(ctx context.Context, entry integrationqueue.Entry) error {
 	dir, err := a.requireRepoDir()
@@ -120,7 +123,7 @@ func (a *integrationQueueGitOpsAdapter) Cleanup(ctx context.Context, entry integ
 	}
 
 	if _, err := a.runGitCommand(ctx, dir, "branch", "-D", entry.Branch); err != nil {
-		return fmt.Errorf("cleanup branch %s: %w", entry.Branch, err)
+		return fmt.Errorf("cleanup branch %s: %w", entry.Branch, fmt.Errorf("%w: %v", errGitCleanupFailed, err))
 	}
 	return nil
 }
