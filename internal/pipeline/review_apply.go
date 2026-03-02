@@ -33,9 +33,12 @@ func (p *Pipeline) ApplyReviewFindings(ctx context.Context, result *review.Revie
 	for _, bp := range result.BeadsToCreate {
 		labels := append([]string(nil), review.BuildReviewBeadLabels(bp.Labels)...)
 		outputs := append([]string(nil), review.ExpectedOutputsOrTitle(bp.ExpectedOutputs, bp.Title)...)
-		bead, err := p.deps.TrackerClient.Create(ctx, bp.Title, bp.Priority, labels, outputs)
+        bead, err := p.deps.TrackerClient.Create(ctx, bp.Title, bp.Priority, labels, outputs)
         if err != nil {
             return nil, fmt.Errorf("creating review bead %q: %w", bp.Title, err)
+        }
+        if bead == nil {
+            return nil, fmt.Errorf("creating review bead %q: tracker returned no bead", bp.Title)
         }
         applyResult.CreatedBeadIDs = append(applyResult.CreatedBeadIDs, bead.ID)
     }
