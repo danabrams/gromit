@@ -165,10 +165,41 @@ func TestApplyReviewFindings_PropagatesTrackerError(t *testing.T) {
 	}
 	pipeline := New(deps, &Paths{GromitDir: t.TempDir()})
 
-	if _, err := pipeline.ApplyReviewFindings(ctx, reviewResult); err == nil {
-		t.Fatalf("expected error from tracker create, got nil")
-	} else if !strings.Contains(err.Error(), "creating review bead \"Fix panic\"") {
-		t.Fatalf("unexpected error message: %v", err)
+		if _, err := pipeline.ApplyReviewFindings(ctx, reviewResult); err == nil {
+			t.Fatalf("expected error from tracker create, got nil")
+		} else if !strings.Contains(err.Error(), "creating review bead \"Fix panic\"") {
+			t.Fatalf("unexpected error message: %v", err)
+		}
+}
+
+func TestBuildReviewBacklogEntry_AssemblesDescriptionAndLabels(t *testing.T) {
+	t.Parallel()
+
+	item := review.BacklogItem{
+		Title:       "Refactor cache",
+		Description: "Cache is convoluted",
+		Reason:      "performance",
+	}
+
+	entry := buildReviewBacklogEntry(item)
+
+	wantDescription := "Cache is convoluted\n\nReason for backlog: performance"
+	if entry.Description != wantDescription {
+		t.Fatalf("unexpected description, want %q, got %q", wantDescription, entry.Description)
+	}
+
+	wantLabels := review.BuildBacklogLabels()
+	if !reflect.DeepEqual(entry.Labels, wantLabels) {
+		t.Fatalf("unexpected labels, want %v, got %v", wantLabels, entry.Labels)
+	}
+
+	wantOutputs := []string{"Refactor cache"}
+	if !reflect.DeepEqual(entry.ExpectedOutputs, wantOutputs) {
+		t.Fatalf("unexpected expected outputs, want %v, got %v", wantOutputs, entry.ExpectedOutputs)
+	}
+
+	if entry.Priority != backlogPriorityDefault {
+		t.Fatalf("unexpected priority, want %d, got %d", backlogPriorityDefault, entry.Priority)
 	}
 }
 
