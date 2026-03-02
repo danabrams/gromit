@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/danabrams/gromit/internal/agent"
 	"github.com/danabrams/gromit/internal/config"
@@ -329,6 +330,60 @@ func captureStderr(t *testing.T, fn func()) string {
 	_, _ = io.Copy(&buf, r)
 	r.Close()
 	return buf.String()
+}
+
+func TestProviderRouterClientAdapterRun_LogsWhenFallbackSelectFails(t *testing.T) {
+	usageErr := context.DeadlineExceeded
+	mockProvider := &reviewProviderStub{
+		NameFn: func() string { return "primary" },
+		RunFn: func(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
+			return nil, usageErr
+		},
+		IsUsageLimitErrorFn: func(result *provider.Result, err error) bool {
+			return result == nil && err == usageErr
+		},
+	}
+
+	selectCalls := 0
+	router := &reviewRouterStub{
+		SelectFn: func(phase string, tier string) (provider.Provider, string) {
+			selectCalls++
+			if phase != reviewSessionCommand {
+				t.Fatalf("phase = %q, want %q", phase, reviewSessionCommand)
+			}
+			if selectCalls == 1 {
+				return mockProvider, "legacy-model"
+			}
+			return nil, ""
+		},
+		MarkUnavailableFn: func(name string) {
+			if name != mockProvider.Name() {
+				t.Fatalf("MarkUnavailable called with %q, want %q", name, mockProvider.Name())
+			}
+		},
+	}
+
+	adapter := &llmRouterClientAdapter{
+		Router:  router,
+		Timeout: 1 * time.Second,
+		Phase:   reviewSessionCommand,
+	}
+
+	output := captureStderr(t, func() {
+		_, _ = adapter.Run("prompt", "haiku")
+	})
+	if selectCalls != 2 {
+		t.Fatalf("router Select calls = %d, want 2", selectCalls)
+	}
+	if !strings.Contains(output, "router.Select failed") {
+		t.Fatalf("stderr output %q does not mention router.Select failure", output)
+	}
+	if !strings.Contains(output, "phase \""+reviewSessionCommand+"\"") {
+		t.Fatalf("stderr output %q does not contain phase %q", output, reviewSessionCommand)
+	}
+	if !strings.Contains(output, "tier \""+provider.TierFromLegacyModel("haiku")+"\"") {
+		t.Fatalf("stderr output %q does not contain tier mapping", output)
+	}
 }
 
 func TestRetroRouterAdapterStreamRun_ReturnsProviderExhaustedErrorAfterUsageLimit(t *testing.T) {
