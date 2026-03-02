@@ -664,6 +664,36 @@ func TestEnqueueBranchBaseRefFallback(t *testing.T) {
 	}
 }
 
+func TestNewBlockedQueueEntryRecordsCommitFailureMetadata(t *testing.T) {
+	meta := &sessionCommitMetadata{
+		headSHA:          "blocked-head",
+		baseRef:          "blocked-base",
+		changedFiles:     []string{"file/blocked.go"},
+		changedFilesHash: "hash-123",
+	}
+	session := &worktree.SessionWorktree{
+		BranchName:  "gromit/fsm-bypass",
+		WorktreeDir: filepath.Join(t.TempDir(), "session-fsm-bypass"),
+	}
+	commitErr := errors.New("auto commit failure")
+	entry := newBlockedQueueEntry("blocked", session, meta, commitErr)
+	if entry.State != sessionQueueBlockedState {
+		t.Fatalf("state = %q, want %q", entry.State, sessionQueueBlockedState)
+	}
+	if entry.LastTransitionReason != sessionQueueCommitFailedReason {
+		t.Fatalf("reason = %q, want %q", entry.LastTransitionReason, sessionQueueCommitFailedReason)
+	}
+	if entry.LastErrorCode != sessionQueueCommitFailedCode {
+		t.Fatalf("code = %q, want %q", entry.LastErrorCode, sessionQueueCommitFailedCode)
+	}
+	if !strings.Contains(entry.LastErrorMessage, commitErr.Error()) {
+		t.Fatalf("message = %q should mention %q", entry.LastErrorMessage, commitErr.Error())
+	}
+	if got := integrationqueue.IsBlockedState(entry.State); !got {
+		t.Fatalf("state %q should be blocked", entry.State)
+	}
+}
+
 func TestRunWithSessionWorktreeRecordsPendingBranch(t *testing.T) {
 	// Not parallel: withInteractiveWorktreeFactories mutates package-level globals.
 	_, gromitDir, session := setupRunWithSessionWorktreeTest(t, "plan")
