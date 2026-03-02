@@ -4244,3 +4244,70 @@ func TestOrchestrator_AllExitPaths_InvokeEpilogue(t *testing.T) {
 		})
 	}
 }
+
+// TestCoordinatorRegression_ReadyEntryTransitionsOutOfReady verifies that when
+// NewIntegrationCoordinator is called and runs one Coordinate iteration with a
+// ready queue entry, the entry transitions out of ready state. This test fails
+// if the coordinator is swapped back to a no-op implementation.
+func TestCoordinatorRegression_ReadyEntryTransitionsOutOfReady(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	store, err := integrationqueue.NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	entry := testQueueEntry("feature/ready-to-transition", integrationqueue.StateReady)
+	if err := store.Save(entry); err != nil {
+		t.Fatalf("Save(entry) error = %v", err)
+	}
+
+	// Mock the git operations and scoped gate to succeed
+	prevGitOpsFn := newIntegrationQueueGitOpsAdapterFn
+	prevGateFn := newIntegrationQueueScopedGateAdapterFn
+	defer func() {
+		newIntegrationQueueGitOpsAdapterFn = prevGitOpsFn
+		newIntegrationQueueScopedGateAdapterFn = prevGateFn
+	}()
+	newIntegrationQueueGitOpsAdapterFn = func(repoDir string, cfg *config.Config) (*integrationQueueGitOpsAdapter, error) {
+		return &integrationQueueGitOpsAdapter{
+			repoDir:    repoDir,
+			baseBranch: "main",
+			runGitCommand: func(ctx context.Context, dir string, args ...string) (string, error) {
+				return "", nil
+			},
+		}, nil
+	}
+	newIntegrationQueueScopedGateAdapterFn = func(cfg *config.Config, repoDir string) (*integrationQueueScopedGateAdapter, error) {
+		return &integrationQueueScopedGateAdapter{
+			evaluator: func(ctx context.Context, entry integrationqueue.Entry) error {
+				return nil
+			},
+		}, nil
+	}
+
+	// Call NewIntegrationCoordinator and run one Coordinate iteration
+	coord, err := NewIntegrationCoordinator(tmpDir)
+	if err != nil {
+		t.Fatalf("NewIntegrationCoordinator() error = %v", err)
+	}
+
+	ctx := context.Background()
+	if err := coord.Coordinate(ctx); err != nil {
+		t.Fatalf("Coordinate() error = %v", err)
+	}
+
+	// Verify the entry has transitioned out of ready state
+	result, err := store.Snapshot()
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	processed := findQueueEntry(result, entry.Branch)
+	if processed == nil {
+		t.Fatalf("entry %s missing after coordinator run", entry.Branch)
+	}
+	if processed.State == integrationqueue.StateReady {
+		t.Fatalf("entry state = %s, want non-ready state", processed.State)
+	}
+}
