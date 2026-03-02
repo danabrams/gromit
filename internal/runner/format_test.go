@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/logger"
@@ -86,6 +87,17 @@ func TestFormatSPCSummaryWrapper_DelegatesToDisplay(t *testing.T) {
 	want := display.FormatSPCSummary(trend)
 	if got != want {
 		t.Errorf("formatSPCSummary() = %q, want %q", got, want)
+	}
+}
+
+func TestFormatItems_clampsNegativeMaxShow(t *testing.T) {
+	t.Parallel()
+
+	items := []string{"one", "two"}
+	got := formatItems(items, -1)
+	want := []string{"    (and 2 more)"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("formatItems() = %v, want %v", got, want)
 	}
 }
 
