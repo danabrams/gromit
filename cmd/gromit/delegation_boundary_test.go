@@ -37,6 +37,7 @@ var allowedCommandInternalImports = map[string]struct{}{
 	"github.com/danabrams/gromit/internal/review":           {},
 	"github.com/danabrams/gromit/internal/runbook":          {},
 	"github.com/danabrams/gromit/internal/runner":           {},
+	"github.com/danabrams/gromit/internal/runner/specmerge": {},
 	"github.com/danabrams/gromit/internal/scope":            {},
 	"github.com/danabrams/gromit/internal/specgate":         {},
 	"github.com/danabrams/gromit/internal/state":            {},

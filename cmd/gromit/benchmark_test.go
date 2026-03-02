@@ -644,12 +644,14 @@ func TestRunBenchmarkPipeline_ReportArtifactsMatchCuratedFixture(t *testing.T) {
 	origValidate := benchmarkValidateCohortFn
 	origResolver := benchmarkNewBaseCommitResolverFn
 	origRunner := benchmarkNewModeWorktreeRunnerFn
+	origRunModes := benchmarkInternalRunModesInIsolatedWorktreesFn
 	t.Cleanup(func() {
 		benchmarkInternalLoadManifestFn = origLoad
 		benchmarkSelectCohortFn = origSelect
 		benchmarkValidateCohortFn = origValidate
 		benchmarkNewBaseCommitResolverFn = origResolver
 		benchmarkNewModeWorktreeRunnerFn = origRunner
+		benchmarkInternalRunModesInIsolatedWorktreesFn = origRunModes
 	})
 
 	manifest := benchpkg.Manifest{
@@ -690,6 +692,38 @@ func TestRunBenchmarkPipeline_ReportArtifactsMatchCuratedFixture(t *testing.T) {
 	}
 	benchmarkNewModeWorktreeRunnerFn = func() benchpkg.ModeWorktreeRunner {
 		return runner
+	}
+
+	// Stub RunModesInIsolatedWorktrees to skip the bd-update call
+	// (ensureSelectedBeadsOpen) that would hit the real bead database.
+	benchmarkInternalRunModesInIsolatedWorktreesFn = func(ctx context.Context, input benchpkg.RunModesInput) ([]benchpkg.ModeWorktreeRun, string, error) {
+		baseCommit, err := input.Resolver.ResolveBaseCommit(ctx, input.BaseCommitHint)
+		if err != nil {
+			return nil, "", err
+		}
+		var runs []benchpkg.ModeWorktreeRun
+		for _, mode := range input.Manifest.Modes {
+			overlay, err := benchpkg.BuildModeOverlay(input.Manifest, mode)
+			if err != nil {
+				return nil, "", err
+			}
+			run, err := input.Runner.RunMode(ctx, benchpkg.ModeWorktreeRequest{
+				Mode:          mode,
+				BaseCommit:    baseCommit,
+				SelectedBeads: append([]string(nil), input.SelectedBeads...),
+				Overlay:       overlay,
+			})
+			if err != nil {
+				return nil, "", err
+			}
+			if run.Cleanup != nil {
+				if err := run.Cleanup(); err != nil {
+					return nil, "", err
+				}
+			}
+			runs = append(runs, run)
+		}
+		return runs, baseCommit, nil
 	}
 
 	opts := benchmarkRunOptions{
