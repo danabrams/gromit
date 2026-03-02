@@ -55,9 +55,9 @@ func TestTMUXSubscriber_UpdatesOnIterationStart(t *testing.T) {
 
 	// Emit iteration start event
 	emitter.Emit(&events.IterationStartEvent{
-		Iteration:  1,
-		BeadID:     "test-1",
-		BeadTitle:  "Test Bead",
+		Iteration: 1,
+		BeadID:    "test-1",
+		BeadTitle: "Test Bead",
 	})
 
 	// Wait for subscriber to process

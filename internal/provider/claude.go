@@ -23,8 +23,8 @@ type claudeClient interface {
 
 // ClaudeProvider wraps the Claude CLI client and implements the Provider interface
 type ClaudeProvider struct {
-	client      claudeClient
-	tierToModel map[string]string
+	client       claudeClient
+	tierToModel  map[string]string
 	cacheAdapter CacheAdapter
 }
 
@@ -34,8 +34,8 @@ var _ Provider = (*ClaudeProvider)(nil)
 // NewClaudeProvider creates a new ClaudeProvider with the given client and tier mapping
 func NewClaudeProvider(client claudeClient, tierToModel map[string]string) *ClaudeProvider {
 	return &ClaudeProvider{
-		client:      client,
-		tierToModel: tierToModel,
+		client:       client,
+		tierToModel:  tierToModel,
 		cacheAdapter: NewNoopCacheAdapter(),
 	}
 }

@@ -22,21 +22,21 @@ func TestAdapters_NoBusinessLogicInCLIAdapters(t *testing.T) {
 	// Verify adapters don't contain hardcoded business logic keywords
 	forbiddenPatterns := map[string]string{
 		// cliBacklogClient should not set defaults directly
-		"entry.Labels = review.BuildBacklogLabels()":  "adapters should not set default labels",
-		"entry.Priority = 2":                           "adapters should not set default priority",
-		"expectedOutputs = []string{}":                 "adapters should not set default outputs",
+		"entry.Labels = review.BuildBacklogLabels()": "adapters should not set default labels",
+		"entry.Priority = 2":                         "adapters should not set default priority",
+		"expectedOutputs = []string{}":               "adapters should not set default outputs",
 
 		// cliLearningsManager should not manage filter logic
-		"learnings.NewLLMFilter":        "adapters should not create filters",
-		"learningsFile.SetFilter":       "adapters should not configure filters",
-		"learningsFile.Load()":          "adapters should delegate to caller",
+		"learnings.NewLLMFilter":  "adapters should not create filters",
+		"learningsFile.SetFilter": "adapters should not configure filters",
+		"learningsFile.Load()":    "adapters should delegate to caller",
 
 		// cliStateManager should not compute state logic
 		"state.LatestReviewTagCommitInRepo": "adapters should not query git state",
 		"sf.RecordReview":                   "adapters should not record review state",
 
 		// cliLogWriter should not hardcode metadata
-		"reviewLogType":     "adapters should not hardcode log type",
+		"reviewLogType":      "adapters should not hardcode log type",
 		"reviewDefaultModel": "adapters should not hardcode model name",
 	}
 

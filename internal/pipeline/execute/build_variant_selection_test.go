@@ -22,14 +22,14 @@ func (m *mockInvoker) Run(ctx context.Context, prompt, tier string) (*provider.R
 
 func (m *mockInvoker) StreamRun(ctx context.Context, prompt, tier string, w io.Writer, h provider.EventHandler, tc provider.ToolCallHandler) (*provider.Result, error) {
 	return &provider.Result{
-		Success:       true,
-		Output:        "test",
-		Duration:      0,
-		Model:         "test-model",
-		CostUSD:       0,
-		InputTokens:   10,
-		OutputTokens:  20,
-		ExitCode:      0,
+		Success:      true,
+		Output:       "test",
+		Duration:     0,
+		Model:        "test-model",
+		CostUSD:      0,
+		InputTokens:  10,
+		OutputTokens: 20,
+		ExitCode:     0,
 	}, nil
 }
 
@@ -62,8 +62,8 @@ func TestBuildStageSelectsVariantForBuildPhase(t *testing.T) {
 				Template: "variant1_template",
 				Model:    "sonnet",
 				Budget: &experiment.Budget{
-					MaxChars:            10000,
-					LearningCapChars:    1000,
+					MaxChars:         10000,
+					LearningCapChars: 1000,
 				},
 			},
 		},

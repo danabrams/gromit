@@ -239,12 +239,12 @@ func NewReviewApplyResult() ReviewApplyResult {
 // ReviewResult contains the output from the Review workflow.
 // Use NewReviewResult() to create instances with properly initialized slices.
 type ReviewResult struct {
-	Passed         bool   `json:"passed"`
-	Summary        string `json:"summary"`
-	FixesApplied   int    `json:"fixes_applied"`
-	BeadsCreated   int    `json:"beads_created"`
-	BacklogCreated int    `json:"backlog_created"`
-	LearningsSaved int    `json:"learnings_saved"`
+	Passed         bool               `json:"passed"`
+	Summary        string             `json:"summary"`
+	FixesApplied   int                `json:"fixes_applied"`
+	BeadsCreated   int                `json:"beads_created"`
+	BacklogCreated int                `json:"backlog_created"`
+	LearningsSaved int                `json:"learnings_saved"`
 	Apply          *ReviewApplyResult `json:"apply,omitempty"`
 }
 

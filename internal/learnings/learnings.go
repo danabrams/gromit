@@ -305,7 +305,6 @@ func (f *File) Save() error {
 	return os.WriteFile(f.path, []byte(sb.String()), 0644)
 }
 
-
 // Remove removes a learning by hash from all sections
 func (f *File) Remove(hash string) error {
 	if f == nil {

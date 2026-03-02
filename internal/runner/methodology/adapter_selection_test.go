@@ -128,8 +128,8 @@ func TestExecutorAdapterSelectionFromConfig(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		profile          string
-		expectedAdapter  string
+		profile         string
+		expectedAdapter string
 	}{
 		{"go", "GoAdapter"},
 		{"node", "PassthroughAdapter"},

@@ -2,10 +2,10 @@ package tdd
 
 // CycleSnapshot captures the state of a TDD cycle for convergence evaluation.
 type CycleSnapshot struct {
-    CycleNumber  int
-    CoveredSoFar []string
-    Remaining    []string
-    TouchedFiles []string
+	CycleNumber  int
+	CoveredSoFar []string
+	Remaining    []string
+	TouchedFiles []string
 }
 
 // ConvergenceResult classifies the outcome of evaluating recent cycles.

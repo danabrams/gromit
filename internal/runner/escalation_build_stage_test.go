@@ -58,7 +58,7 @@ func TestEscalationBuildStage_FallsBackForTDDFreshContext(t *testing.T) {
 		Bead: &bead.Bead{Title: "test", Labels: []string{"tdd:true"}},
 		Config: &config.Config{
 			Methodology: config.MethodologyConfig{
-				TDD:                 true,
+				TDD:                  true,
 				FreshContextPerCycle: true,
 			},
 		},
@@ -105,9 +105,9 @@ func TestEscalationBuildStage_DelegatesToHandlerOnEscalationEnabled(t *testing.T
 	// Track invocation
 	invoked := false
 	stage := &escalationBuildStage{
-		handler:  handler,
-		renderer: &stubRenderer{prompt: "build this thing"},
-		fallback: &stubFallbackStage{},
+		handler:     handler,
+		renderer:    &stubRenderer{prompt: "build this thing"},
+		fallback:    &stubFallbackStage{},
 		execInvoker: nil, // we'll use a custom invokeFn via handler
 	}
 

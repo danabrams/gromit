@@ -69,7 +69,7 @@ func TestIsAtomic_SingleFileTarget(t *testing.T) {
 	t.Parallel()
 
 	bead := &Bead{
-		ID:               "test-bead",
+		ID:              "test-bead",
 		ExpectedOutputs: []string{"internal/foo/bar.go"},
 	}
 
@@ -83,7 +83,7 @@ func TestIsAtomic_MultipleFileTargets(t *testing.T) {
 	t.Parallel()
 
 	bead := &Bead{
-		ID:               "test-bead",
+		ID:              "test-bead",
 		ExpectedOutputs: []string{"internal/foo/bar.go", "internal/foo/bar_test.go"},
 	}
 
@@ -119,8 +119,8 @@ func TestIsAtomic_AtomicFalseLabel(t *testing.T) {
 	t.Parallel()
 
 	bead := &Bead{
-		ID:               "test-bead",
-		Labels:           []string{"atomic:false"},
+		ID:              "test-bead",
+		Labels:          []string{"atomic:false"},
 		ExpectedOutputs: []string{"internal/foo/bar.go"},
 	}
 
@@ -134,7 +134,7 @@ func TestIsAtomic_MultipleFilesAtMaxDepth(t *testing.T) {
 	t.Parallel()
 
 	bead := &Bead{
-		ID:               "test-bead",
+		ID:              "test-bead",
 		ExpectedOutputs: []string{"file1.go", "file2.go", "file3.go"},
 	}
 
@@ -162,12 +162,12 @@ func TestIsAtomic_AllClassificationPaths(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		bead      *Bead
-		depth     int
-		maxDepth  int
+		name       string
+		bead       *Bead
+		depth      int
+		maxDepth   int
 		wantAtomic bool
-		reason    string
+		reason     string
 	}{
 		{
 			name: "atomic:true label makes atomic",
@@ -260,12 +260,12 @@ func TestIsAtomic_AllClassificationPaths(t *testing.T) {
 			reason:     "single-target heuristic",
 		},
 		{
-			name: "nil bead is not atomic",
-			bead: nil,
-			depth: 0,
-			maxDepth: 5,
+			name:       "nil bead is not atomic",
+			bead:       nil,
+			depth:      0,
+			maxDepth:   5,
 			wantAtomic: false,
-			reason: "nil bead",
+			reason:     "nil bead",
 		},
 	}
 

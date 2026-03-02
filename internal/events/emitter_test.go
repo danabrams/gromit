@@ -174,7 +174,7 @@ func TestEmitter_SlowConsumer_DropsEvents(t *testing.T) {
 
 	// Fill the subscriber's buffer with events (buffer size is 100)
 	const bufferedSize = 100
-	for i := 0; i < bufferedSize + 50; i++ {
+	for i := 0; i < bufferedSize+50; i++ {
 		event := &LogEvent{
 			Level:   "info",
 			Message: "fill buffer test",

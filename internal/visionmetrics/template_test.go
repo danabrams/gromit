@@ -1,77 +1,77 @@
 package visionmetrics
 
 import (
-    "os"
-    "path/filepath"
-    "strings"
-    "testing"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
 )
 
 func TestPRTemplateIncludesRequiredVisionMetricsFields(t *testing.T) {
-    path := filepath.Join("..", "..", ".github", "pull_request_template.md")
-    data, err := os.ReadFile(path)
-    if err != nil {
-        t.Fatalf("unable to read template: %v", err)
-    }
+	path := filepath.Join("..", "..", ".github", "pull_request_template.md")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("unable to read template: %v", err)
+	}
 
-    content := string(data)
-    required := []string{
-        "# Vision Metrics",
-        "spec_id:",
-        "cycle_start_trigger_at:",
-        "cycle_end_presented_at:",
-        "review_outcome:",
-        "human_tactical_intervention:",
-        "human_debugging_intervention:",
-        "escaped_regression_within_7d:",
-    }
+	content := string(data)
+	required := []string{
+		"# Vision Metrics",
+		"spec_id:",
+		"cycle_start_trigger_at:",
+		"cycle_end_presented_at:",
+		"review_outcome:",
+		"human_tactical_intervention:",
+		"human_debugging_intervention:",
+		"escaped_regression_within_7d:",
+	}
 
-    for _, substring := range required {
-        if !strings.Contains(content, substring) {
-            t.Fatalf("template missing %q", substring)
-        }
-    }
+	for _, substring := range required {
+		if !strings.Contains(content, substring) {
+			t.Fatalf("template missing %q", substring)
+		}
+	}
 }
 
 func TestPRTemplateDocumentsAllowedValues(t *testing.T) {
-    path := filepath.Join("..", "..", ".github", "pull_request_template.md")
-    data, err := os.ReadFile(path)
-    if err != nil {
-        t.Fatalf("unable to read template: %v", err)
-    }
+	path := filepath.Join("..", "..", ".github", "pull_request_template.md")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("unable to read template: %v", err)
+	}
 
-    content := string(data)
-    allowed := []string{
-        "review_outcome: accepted | rework_implementation_gap | rework_vision_change",
-        "human_tactical_intervention: yes | no",
-        "human_debugging_intervention: yes | no",
-        "escaped_regression_within_7d: yes | no | pending",
-    }
+	content := string(data)
+	allowed := []string{
+		"review_outcome: accepted | rework_implementation_gap | rework_vision_change",
+		"human_tactical_intervention: yes | no",
+		"human_debugging_intervention: yes | no",
+		"escaped_regression_within_7d: yes | no | pending",
+	}
 
-    for _, line := range allowed {
-        if !strings.Contains(content, line) {
-            t.Fatalf("template missing allowed value guidance %q", line)
-        }
-    }
+	for _, line := range allowed {
+		if !strings.Contains(content, line) {
+			t.Fatalf("template missing allowed value guidance %q", line)
+		}
+	}
 }
 
 func TestPRTemplateDocumentsRationaleRequirementAndExample(t *testing.T) {
-    path := filepath.Join("..", "..", ".github", "pull_request_template.md")
-    data, err := os.ReadFile(path)
-    if err != nil {
-        t.Fatalf("unable to read template: %v", err)
-    }
+	path := filepath.Join("..", "..", ".github", "pull_request_template.md")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("unable to read template: %v", err)
+	}
 
-    content := string(data)
-    requirements := []string{
-        "review_rationale is required when review_outcome is rework_vision_change",
-        "### Known-good Vision Metrics example (LLM copy-edit safe)",
-        "review_rationale: Product owner shifted direction after the first presentation.",
-    }
+	content := string(data)
+	requirements := []string{
+		"review_rationale is required when review_outcome is rework_vision_change",
+		"### Known-good Vision Metrics example (LLM copy-edit safe)",
+		"review_rationale: Product owner shifted direction after the first presentation.",
+	}
 
-    for _, requirement := range requirements {
-        if !strings.Contains(content, requirement) {
-            t.Fatalf("template missing rationale/example guidance %q", requirement)
-        }
-    }
+	for _, requirement := range requirements {
+		if !strings.Contains(content, requirement) {
+			t.Fatalf("template missing rationale/example guidance %q", requirement)
+		}
+	}
 }

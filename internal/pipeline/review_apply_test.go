@@ -1,109 +1,109 @@
 package pipeline
 
 import (
-    "context"
-    "encoding/json"
-    "fmt"
-    "reflect"
-    "strings"
-    "testing"
-    "time"
+	"context"
+	"encoding/json"
+	"fmt"
+	"reflect"
+	"strings"
+	"testing"
+	"time"
 
-    "github.com/danabrams/gromit/internal/review"
+	"github.com/danabrams/gromit/internal/review"
 )
 
 func TestApplyReviewFindings_CalledPathsProduceIdenticalTrackerAndBacklogCalls(t *testing.T) {
-    t.Parallel()
+	t.Parallel()
 
-    reviewResult := mixedReviewResult()
-    ctx := context.Background()
+	reviewResult := mixedReviewResult()
+	ctx := context.Background()
 
-    directTracker := newCapturingTrackerClient()
-    directBacklog := newCapturingBacklogWriter()
-    directDeps := &Deps{
-        TrackerClient:    directTracker,
-        BacklogWriter:    directBacklog,
-        LearningsManager: newRecordingLearningsManager(),
-    }
-    directPipeline := New(directDeps, &Paths{GromitDir: t.TempDir()})
+	directTracker := newCapturingTrackerClient()
+	directBacklog := newCapturingBacklogWriter()
+	directDeps := &Deps{
+		TrackerClient:    directTracker,
+		BacklogWriter:    directBacklog,
+		LearningsManager: newRecordingLearningsManager(),
+	}
+	directPipeline := New(directDeps, &Paths{GromitDir: t.TempDir()})
 
-    directApply, err := directPipeline.ApplyReviewFindings(ctx, reviewResult)
-    if err != nil {
-        t.Fatalf("ApplyReviewFindings direct path error: %v", err)
-    }
+	directApply, err := directPipeline.ApplyReviewFindings(ctx, reviewResult)
+	if err != nil {
+		t.Fatalf("ApplyReviewFindings direct path error: %v", err)
+	}
 
-    encoded, err := json.Marshal(reviewResult)
-    if err != nil {
-        t.Fatalf("marshal review result: %v", err)
-    }
+	encoded, err := json.Marshal(reviewResult)
+	if err != nil {
+		t.Fatalf("marshal review result: %v", err)
+	}
 
-    nonInteractiveTracker := newCapturingTrackerClient()
-    nonInteractiveBacklog := newCapturingBacklogWriter()
-    invoker := &reviewAcceptanceMockReviewInvoker{
-        runFunc: func(prompt string, model string, timeout time.Duration) (*LLMRunResult, error) {
-            return &LLMRunResult{Success: true, Output: string(encoded)}, nil
-        },
-    }
-    renderer := &reviewAcceptanceMockReviewRenderer{
-        renderThoroughReviewFunc: func(input *ThoroughReviewPromptInput) (string, error) {
-            return "# Review Prompt", nil
-        },
-    }
-    nonInteractiveDeps := &Deps{
-        ReviewRenderer:   renderer,
-        ReviewInvoker:    invoker,
-        TrackerClient:    nonInteractiveTracker,
-        BacklogWriter:    nonInteractiveBacklog,
-        LearningsManager: newRecordingLearningsManager(),
-        LogWriter:        &reviewAcceptanceMockLogWriter{},
-        StateManager:     &reviewAcceptanceMockStateManager{},
-    }
-    nonInteractivePipeline := New(nonInteractiveDeps, &Paths{GromitDir: t.TempDir()})
+	nonInteractiveTracker := newCapturingTrackerClient()
+	nonInteractiveBacklog := newCapturingBacklogWriter()
+	invoker := &reviewAcceptanceMockReviewInvoker{
+		runFunc: func(prompt string, model string, timeout time.Duration) (*LLMRunResult, error) {
+			return &LLMRunResult{Success: true, Output: string(encoded)}, nil
+		},
+	}
+	renderer := &reviewAcceptanceMockReviewRenderer{
+		renderThoroughReviewFunc: func(input *ThoroughReviewPromptInput) (string, error) {
+			return "# Review Prompt", nil
+		},
+	}
+	nonInteractiveDeps := &Deps{
+		ReviewRenderer:   renderer,
+		ReviewInvoker:    invoker,
+		TrackerClient:    nonInteractiveTracker,
+		BacklogWriter:    nonInteractiveBacklog,
+		LearningsManager: newRecordingLearningsManager(),
+		LogWriter:        &reviewAcceptanceMockLogWriter{},
+		StateManager:     &reviewAcceptanceMockStateManager{},
+	}
+	nonInteractivePipeline := New(nonInteractiveDeps, &Paths{GromitDir: t.TempDir()})
 
-    nonInteractiveResult, err := nonInteractivePipeline.ReviewNonInteractive(ctx, ReviewInput{
-        FromCommit: "abc123",
-        Diff:       "diff",
-        Model:      "sonnet",
-        Timeout:    60,
-    })
-    if err != nil {
-        t.Fatalf("ReviewNonInteractive error: %v", err)
-    }
+	nonInteractiveResult, err := nonInteractivePipeline.ReviewNonInteractive(ctx, ReviewInput{
+		FromCommit: "abc123",
+		Diff:       "diff",
+		Model:      "sonnet",
+		Timeout:    60,
+	})
+	if err != nil {
+		t.Fatalf("ReviewNonInteractive error: %v", err)
+	}
 
-    compareTrackerCalls(t, directTracker.calls, nonInteractiveTracker.calls)
-    compareBacklogEntries(t, directBacklog.entries, nonInteractiveBacklog.entries)
+	compareTrackerCalls(t, directTracker.calls, nonInteractiveTracker.calls)
+	compareBacklogEntries(t, directBacklog.entries, nonInteractiveBacklog.entries)
 
-    if nonInteractiveResult.Apply == nil {
-        t.Fatalf("non-interactive result Apply field is nil")
-    }
-    if !reflect.DeepEqual(directApply.CreatedBeadIDs, nonInteractiveResult.Apply.CreatedBeadIDs) {
-        t.Fatalf("bead IDs differ between paths: %v vs %v", directApply.CreatedBeadIDs, nonInteractiveResult.Apply.CreatedBeadIDs)
-    }
+	if nonInteractiveResult.Apply == nil {
+		t.Fatalf("non-interactive result Apply field is nil")
+	}
+	if !reflect.DeepEqual(directApply.CreatedBeadIDs, nonInteractiveResult.Apply.CreatedBeadIDs) {
+		t.Fatalf("bead IDs differ between paths: %v vs %v", directApply.CreatedBeadIDs, nonInteractiveResult.Apply.CreatedBeadIDs)
+	}
 }
 
 func TestReviewApplyResult_MixedResultCountsAndIDs(t *testing.T) {
 	t.Parallel()
 
-    reviewResult := mixedReviewResult()
-    ctx := context.Background()
+	reviewResult := mixedReviewResult()
+	ctx := context.Background()
 
-    tracker := newCapturingTrackerClient()
-    backlog := newCapturingBacklogWriter()
-    deps := &Deps{
-        TrackerClient:    tracker,
-        BacklogWriter:    backlog,
-        LearningsManager: newRecordingLearningsManager(),
-    }
-    pipeline := New(deps, &Paths{GromitDir: t.TempDir()})
+	tracker := newCapturingTrackerClient()
+	backlog := newCapturingBacklogWriter()
+	deps := &Deps{
+		TrackerClient:    tracker,
+		BacklogWriter:    backlog,
+		LearningsManager: newRecordingLearningsManager(),
+	}
+	pipeline := New(deps, &Paths{GromitDir: t.TempDir()})
 
-    applyResult, err := pipeline.ApplyReviewFindings(ctx, reviewResult)
-    if err != nil {
-        t.Fatalf("ApplyReviewFindings error: %v", err)
-    }
+	applyResult, err := pipeline.ApplyReviewFindings(ctx, reviewResult)
+	if err != nil {
+		t.Fatalf("ApplyReviewFindings error: %v", err)
+	}
 
-    if len(applyResult.CreatedBeadIDs) != len(reviewResult.BeadsToCreate) {
-        t.Fatalf("expected %d bead IDs, got %d", len(reviewResult.BeadsToCreate), len(applyResult.CreatedBeadIDs))
-    }
+	if len(applyResult.CreatedBeadIDs) != len(reviewResult.BeadsToCreate) {
+		t.Fatalf("expected %d bead IDs, got %d", len(reviewResult.BeadsToCreate), len(applyResult.CreatedBeadIDs))
+	}
 	if applyResult.CreatedBacklogCount != len(reviewResult.BacklogItems) {
 		t.Fatalf("expected backlog count %d, got %d", len(reviewResult.BacklogItems), applyResult.CreatedBacklogCount)
 	}
@@ -168,11 +168,11 @@ func TestApplyReviewFindings_PropagatesTrackerError(t *testing.T) {
 	}
 	pipeline := New(deps, &Paths{GromitDir: t.TempDir()})
 
-		if _, err := pipeline.ApplyReviewFindings(ctx, reviewResult); err == nil {
-			t.Fatalf("expected error from tracker create, got nil")
-		} else if !strings.Contains(err.Error(), "creating review bead \"Fix panic\"") {
-			t.Fatalf("unexpected error message: %v", err)
-		}
+	if _, err := pipeline.ApplyReviewFindings(ctx, reviewResult); err == nil {
+		t.Fatalf("expected error from tracker create, got nil")
+	} else if !strings.Contains(err.Error(), "creating review bead \"Fix panic\"") {
+		t.Fatalf("unexpected error message: %v", err)
+	}
 }
 
 func TestBuildReviewBacklogEntry_AssemblesDescriptionAndLabels(t *testing.T) {
@@ -238,62 +238,66 @@ func TestPersistLearnings_ErrorPropagates(t *testing.T) {
 }
 
 func mixedReviewResult() *review.ReviewResult {
-    return &review.ReviewResult{
-        Passed: true,
-        FixesApplied: []string{"fix formatting"},
-        BeadsToCreate: []review.BeadProposal{
-            {
-                Title: "Add logging",
-                Priority: 1,
-                Labels: []string{"observability"},
-            },
-        },
-        BacklogItems: []review.BacklogItem{
-            {
-                Title: "Refactor cache",
-                Reason: "performance",
-            },
-        },
-        Learnings: []string{"Log errors"},
-    }
+	return &review.ReviewResult{
+		Passed:       true,
+		FixesApplied: []string{"fix formatting"},
+		BeadsToCreate: []review.BeadProposal{
+			{
+				Title:    "Add logging",
+				Priority: 1,
+				Labels:   []string{"observability"},
+			},
+		},
+		BacklogItems: []review.BacklogItem{
+			{
+				Title:  "Refactor cache",
+				Reason: "performance",
+			},
+		},
+		Learnings: []string{"Log errors"},
+	}
 }
 
 type trackerCall struct {
-    title    string
-    priority int
-    labels   []string
-    outputs  []string
+	title    string
+	priority int
+	labels   []string
+	outputs  []string
 }
 
 type capturingTrackerClient struct {
-    calls []trackerCall
+	calls []trackerCall
 }
 
 func newCapturingTrackerClient() *capturingTrackerClient {
-    return &capturingTrackerClient{}
+	return &capturingTrackerClient{}
 }
 
 func (c *capturingTrackerClient) Ready(ctx context.Context) (*BeadInfo, error) { return nil, nil }
-func (c *capturingTrackerClient) Show(ctx context.Context, id string) (*BeadInfo, error) { return nil, nil }
+func (c *capturingTrackerClient) Show(ctx context.Context, id string) (*BeadInfo, error) {
+	return nil, nil
+}
 func (c *capturingTrackerClient) Create(ctx context.Context, title string, priority int, labels []string, outputs []string) (*BeadInfo, error) {
-    c.calls = append(c.calls, trackerCall{title: title, priority: priority, labels: append([]string(nil), labels...), outputs: append([]string(nil), outputs...)})
-    return &BeadInfo{ID: fmt.Sprintf("bead-%d", len(c.calls))}, nil
+	c.calls = append(c.calls, trackerCall{title: title, priority: priority, labels: append([]string(nil), labels...), outputs: append([]string(nil), outputs...)})
+	return &BeadInfo{ID: fmt.Sprintf("bead-%d", len(c.calls))}, nil
 }
 func (c *capturingTrackerClient) CreateWithDepsAndDescription(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
-    return nil, fmt.Errorf("not implemented")
+	return nil, fmt.Errorf("not implemented")
 }
 func (c *capturingTrackerClient) Close(ctx context.Context, id string) error { return nil }
-func (c *capturingTrackerClient) ListWithLabel(ctx context.Context, label string) ([]string, error) { return []string{}, nil }
+func (c *capturingTrackerClient) ListWithLabel(ctx context.Context, label string) ([]string, error) {
+	return []string{}, nil
+}
 
 func compareTrackerCalls(t *testing.T, want, got []trackerCall) {
-    if len(want) != len(got) {
-        t.Fatalf("tracker call count mismatch: want %d, got %d", len(want), len(got))
-    }
-    for i := range want {
-        if want[i].title != got[i].title || want[i].priority != got[i].priority || !reflect.DeepEqual(want[i].labels, got[i].labels) || !reflect.DeepEqual(want[i].outputs, got[i].outputs) {
-            t.Fatalf("tracker call %d differs: want %+v, got %+v", i, want[i], got[i])
-        }
-    }
+	if len(want) != len(got) {
+		t.Fatalf("tracker call count mismatch: want %d, got %d", len(want), len(got))
+	}
+	for i := range want {
+		if want[i].title != got[i].title || want[i].priority != got[i].priority || !reflect.DeepEqual(want[i].labels, got[i].labels) || !reflect.DeepEqual(want[i].outputs, got[i].outputs) {
+			t.Fatalf("tracker call %d differs: want %+v, got %+v", i, want[i], got[i])
+		}
+	}
 }
 
 type capturingBacklogWriter struct {
@@ -301,15 +305,15 @@ type capturingBacklogWriter struct {
 }
 
 func newCapturingBacklogWriter() *capturingBacklogWriter {
-    return &capturingBacklogWriter{}
+	return &capturingBacklogWriter{}
 }
 
 func (c *capturingBacklogWriter) Add(ctx context.Context, entry *BacklogEntry) error {
-    copy := *entry
-    copy.Labels = append([]string(nil), entry.Labels...)
-    copy.ExpectedOutputs = append([]string(nil), entry.ExpectedOutputs...)
-    c.entries = append(c.entries, &copy)
-    return nil
+	copy := *entry
+	copy.Labels = append([]string(nil), entry.Labels...)
+	copy.ExpectedOutputs = append([]string(nil), entry.ExpectedOutputs...)
+	c.entries = append(c.entries, &copy)
+	return nil
 }
 
 func compareBacklogEntries(t *testing.T, want, got []*BacklogEntry) {
@@ -336,30 +340,34 @@ func (c *failingBacklogWriter) Add(ctx context.Context, entry *BacklogEntry) err
 }
 
 type failingTrackerClient struct {
-    err error
+	err error
 }
 
 func newFailingTrackerClient(err error) *failingTrackerClient {
-    return &failingTrackerClient{err: err}
+	return &failingTrackerClient{err: err}
 }
 
 func (c *failingTrackerClient) Ready(ctx context.Context) (*BeadInfo, error) { return nil, nil }
-func (c *failingTrackerClient) Show(ctx context.Context, id string) (*BeadInfo, error) { return nil, nil }
+func (c *failingTrackerClient) Show(ctx context.Context, id string) (*BeadInfo, error) {
+	return nil, nil
+}
 func (c *failingTrackerClient) Create(ctx context.Context, title string, priority int, labels []string, outputs []string) (*BeadInfo, error) {
-    return nil, c.err
+	return nil, c.err
 }
 func (c *failingTrackerClient) CreateWithDepsAndDescription(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
-    return nil, fmt.Errorf("not implemented")
+	return nil, fmt.Errorf("not implemented")
 }
 func (c *failingTrackerClient) Close(ctx context.Context, id string) error { return nil }
-func (c *failingTrackerClient) ListWithLabel(ctx context.Context, label string) ([]string, error) { return []string{}, nil }
+func (c *failingTrackerClient) ListWithLabel(ctx context.Context, label string) ([]string, error) {
+	return []string{}, nil
+}
 
 type recordingLearningsManager struct {
 	saved []string
 }
 
 func newRecordingLearningsManager() *recordingLearningsManager {
-    return &recordingLearningsManager{}
+	return &recordingLearningsManager{}
 }
 
 func (r *recordingLearningsManager) Add(content string) error {

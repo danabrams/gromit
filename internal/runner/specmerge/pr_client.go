@@ -29,16 +29,16 @@ type CheckStatus struct {
 
 // ReviewPayload contains the parameters for posting a review.
 type ReviewPayload struct {
-	Event   string // "APPROVE", "REQUEST_CHANGES", "COMMENT"
-	Body    string
+	Event    string // "APPROVE", "REQUEST_CHANGES", "COMMENT"
+	Body     string
 	Comments []ReviewComment
 }
 
 // ReviewComment represents a single comment in a review.
 type ReviewComment struct {
-	Path     string
-	Line     int
-	Body     string
+	Path string
+	Line int
+	Body string
 }
 
 // PRClient defines the interface for pull request operations.

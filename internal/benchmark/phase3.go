@@ -25,10 +25,10 @@ type Phase3RunMetrics struct {
 }
 
 type Phase3MeasurementReport struct {
-	Baseline            Phase3RunMetrics
-	Optimized           Phase3RunMetrics
+	Baseline             Phase3RunMetrics
+	Optimized            Phase3RunMetrics
 	CacheHitRatesByClass []CacheHitRateEntry
-	Rollback            Phase3RollbackAssessment
+	Rollback             Phase3RollbackAssessment
 }
 
 type CacheHitRateEntry struct {
@@ -42,9 +42,9 @@ type Phase3RollbackAssessment struct {
 }
 
 type Phase3ReportPaths struct {
-	JSONPath            string
-	MarkdownPath        string
-	BaselineArtifactPath string
+	JSONPath              string
+	MarkdownPath          string
+	BaselineArtifactPath  string
 	OptimizedArtifactPath string
 }
 
@@ -113,20 +113,20 @@ func WritePhase3MeasurementReport(input Phase3MeasurementInput) (Phase3ReportPat
 
 	jsonPath := filepath.Join(reportsDir, "phase3-measurement-"+ts+".json")
 	payload := struct {
-		Timestamp           string                      `json:"timestamp"`
-		Baseline            Phase3RunMetrics           `json:"baseline"`
-		Optimized           Phase3RunMetrics           `json:"optimized"`
-		CacheHitRatesByClass []CacheHitRateEntry       `json:"cache_hit_rates_by_class"`
-		Rollback            Phase3RollbackAssessment    `json:"rollback"`
-		BaselineArtifactPath string                     `json:"baseline_artifact_path"`
-		OptimizedArtifactPath string                    `json:"optimized_artifact_path"`
+		Timestamp             string                   `json:"timestamp"`
+		Baseline              Phase3RunMetrics         `json:"baseline"`
+		Optimized             Phase3RunMetrics         `json:"optimized"`
+		CacheHitRatesByClass  []CacheHitRateEntry      `json:"cache_hit_rates_by_class"`
+		Rollback              Phase3RollbackAssessment `json:"rollback"`
+		BaselineArtifactPath  string                   `json:"baseline_artifact_path"`
+		OptimizedArtifactPath string                   `json:"optimized_artifact_path"`
 	}{
-		Timestamp:            ts,
-		Baseline:             report.Baseline,
-		Optimized:            report.Optimized,
-		CacheHitRatesByClass: report.CacheHitRatesByClass,
-		Rollback:             report.Rollback,
-		BaselineArtifactPath: baselineArtifactPath,
+		Timestamp:             ts,
+		Baseline:              report.Baseline,
+		Optimized:             report.Optimized,
+		CacheHitRatesByClass:  report.CacheHitRatesByClass,
+		Rollback:              report.Rollback,
+		BaselineArtifactPath:  baselineArtifactPath,
 		OptimizedArtifactPath: optimizedArtifactPath,
 	}
 	jsonBytes, err := stdjson.MarshalIndent(payload, "", "  ")
@@ -167,9 +167,9 @@ func WritePhase3MeasurementReport(input Phase3MeasurementInput) (Phase3ReportPat
 	}
 
 	return Phase3ReportPaths{
-		JSONPath:             jsonPath,
-		MarkdownPath:         mdPath,
-		BaselineArtifactPath: baselineArtifactPath,
+		JSONPath:              jsonPath,
+		MarkdownPath:          mdPath,
+		BaselineArtifactPath:  baselineArtifactPath,
 		OptimizedArtifactPath: optimizedArtifactPath,
 	}, nil
 }

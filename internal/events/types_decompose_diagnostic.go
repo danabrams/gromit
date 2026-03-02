@@ -22,12 +22,12 @@ func (e *DecomposeStartEvent) EventTime() time.Time {
 
 // SubBeadCreatedEvent is emitted for each sub-bead created.
 type SubBeadCreatedEvent struct {
-	ParentBeadID  string
-	SubBeadID     string
-	SubBeadTitle  string
-	Index         int
-	Total         int
-	Time          time.Time
+	ParentBeadID string
+	SubBeadID    string
+	SubBeadTitle string
+	Index        int
+	Total        int
+	Time         time.Time
 }
 
 func (e *SubBeadCreatedEvent) EventType() string {
@@ -43,9 +43,9 @@ func (e *SubBeadCreatedEvent) EventTime() time.Time {
 
 // DecomposeCompleteEvent is emitted when decomposition finishes.
 type DecomposeCompleteEvent struct {
-	BeadID           string
-	SubBeadsCreated  int
-	Time             time.Time
+	BeadID          string
+	SubBeadsCreated int
+	Time            time.Time
 }
 
 func (e *DecomposeCompleteEvent) EventType() string {

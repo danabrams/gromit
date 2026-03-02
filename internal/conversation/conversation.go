@@ -4,37 +4,37 @@ package conversation
 type EventType int
 
 const (
-    EventTypeStream EventType = iota
-    EventTypeToolWait
-    EventTypeToolResult
-    EventTypeDone
+	EventTypeStream EventType = iota
+	EventTypeToolWait
+	EventTypeToolResult
+	EventTypeDone
 )
 
 func (t EventType) String() string {
-    switch t {
-    case EventTypeStream:
-        return "stream"
-    case EventTypeToolWait:
-        return "tool wait"
-    case EventTypeToolResult:
-        return "tool result"
-    case EventTypeDone:
-        return "done"
-    default:
-        return "unknown"
-    }
+	switch t {
+	case EventTypeStream:
+		return "stream"
+	case EventTypeToolWait:
+		return "tool wait"
+	case EventTypeToolResult:
+		return "tool result"
+	case EventTypeDone:
+		return "done"
+	default:
+		return "unknown"
+	}
 }
 
 // Event represents a discrete update emitted by a conversation session.
 type Event struct {
-    Type     EventType
-    Text     string
-    ToolName string
+	Type     EventType
+	Text     string
+	ToolName string
 }
 
 // Session abstracts the streaming contract shared between pipeline and UI components.
 type Session interface {
-    Events() <-chan Event
-    Cancel()
-    FollowUp(prompt string)
+	Events() <-chan Event
+	Cancel()
+	FollowUp(prompt string)
 }

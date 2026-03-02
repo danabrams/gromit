@@ -2453,10 +2453,10 @@ func TestRenderMethodsNormalizeNilFields(t *testing.T) {
 
 	// Create minimal template files that access the fields to verify they're not nil
 	templates := map[string]string{
-		"PROMPT_review.md":           "Review: {{len .ValidationCommands}} commands",
-		"PROMPT_thorough_review.md":  "Thorough: {{len .CompletedBeads}} beads",
-		"PROMPT_tdd_red.md":          "Red: {{len .TestFileContents}} files",
-		"PROMPT_tdd_green.md":        "Green: {{len .ImplFileContents}} files",
+		"PROMPT_review.md":          "Review: {{len .ValidationCommands}} commands",
+		"PROMPT_thorough_review.md": "Thorough: {{len .CompletedBeads}} beads",
+		"PROMPT_tdd_red.md":         "Red: {{len .TestFileContents}} files",
+		"PROMPT_tdd_green.md":       "Green: {{len .ImplFileContents}} files",
 	}
 	for name, content := range templates {
 		os.WriteFile(filepath.Join(templatesDir, name), []byte(content), 0644)

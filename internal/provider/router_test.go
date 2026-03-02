@@ -842,7 +842,6 @@ func TestSelectionBlocksMarkUnavailableWhileSelecting(t *testing.T) {
 	}
 }
 
-
 func TestRouterSelectDoesNotCallStateFileConcurrentlyWithMarkUnavailable(t *testing.T) {
 	t.Parallel()
 

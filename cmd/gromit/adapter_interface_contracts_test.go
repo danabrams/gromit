@@ -160,21 +160,21 @@ func TestAdapterPattern_ImplementsUnifiedContract(t *testing.T) {
 	var deps *pipeline.Deps
 	if deps != nil {
 		// This structure documents the unified adapter contract
-		_ = deps.AgentResolver      // provided by agent.NewResolver
-		_ = deps.LLMClient           // claudeClientAdapter or llmRouterClientAdapter
-		_ = deps.ReviewInvoker       // same as LLMClient
-		_ = deps.TrackerClient       // trackerClientAdapter
-		_ = deps.BeadQueryClient     // beadQueryClientAdapter
-		_ = deps.BacklogClient       // backlogClientAdapter
-		_ = deps.BacklogWriter       // cliBacklogClient
-		_ = deps.RefineRenderer      // refinePromptRenderer
-		_ = deps.PlanRenderer        // planPromptRenderer
-		_ = deps.DecomposeRenderer   // decomposePromptRenderer
-		_ = deps.ReviewRenderer      // cliPromptRenderer
-		_ = deps.ExploreRenderer     // explorePromptRenderer
-		_ = deps.LearningsManager    // cliLearningsManager
-		_ = deps.StateManager        // cliStateManager
-		_ = deps.LogWriter           // cliLogWriter
+		_ = deps.AgentResolver     // provided by agent.NewResolver
+		_ = deps.LLMClient         // claudeClientAdapter or llmRouterClientAdapter
+		_ = deps.ReviewInvoker     // same as LLMClient
+		_ = deps.TrackerClient     // trackerClientAdapter
+		_ = deps.BeadQueryClient   // beadQueryClientAdapter
+		_ = deps.BacklogClient     // backlogClientAdapter
+		_ = deps.BacklogWriter     // cliBacklogClient
+		_ = deps.RefineRenderer    // refinePromptRenderer
+		_ = deps.PlanRenderer      // planPromptRenderer
+		_ = deps.DecomposeRenderer // decomposePromptRenderer
+		_ = deps.ReviewRenderer    // cliPromptRenderer
+		_ = deps.ExploreRenderer   // explorePromptRenderer
+		_ = deps.LearningsManager  // cliLearningsManager
+		_ = deps.StateManager      // cliStateManager
+		_ = deps.LogWriter         // cliLogWriter
 	}
 
 	t.Log("All adapters implement unified contract: wrap, transform, delegate")

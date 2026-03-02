@@ -111,9 +111,9 @@ func TestDecomposeFirstHandler_DecidesToDecomposeNonAtomic(t *testing.T) {
 
 	// ShouldDecomposeBeforeEscalate should exist and return a decision
 	bc := &runtypes.BeadContext{
-		Bead:              &bead.Bead{ID: "test-001", Title: "Test", Description: "Test bead"},
-		RetriesThisModel:  3, // Exceeded max of 2
-		MaxRetries:        2,
+		Bead:             &bead.Bead{ID: "test-001", Title: "Test", Description: "Test bead"},
+		RetriesThisModel: 3, // Exceeded max of 2
+		MaxRetries:       2,
 	}
 
 	shouldDecompose := handler.ShouldDecomposeBeforeEscalate(bc)
@@ -153,9 +153,9 @@ func TestDecomposeFirstHandler_DetectsAtomicBead(t *testing.T) {
 
 	// IsAtomicBead should exist
 	bc := &runtypes.BeadContext{
-		Bead:              &bead.Bead{ID: "test-001", Title: "Test", Description: "Test bead"},
-		RetriesThisModel:  2,
-		MaxRetries:        2,
+		Bead:             &bead.Bead{ID: "test-001", Title: "Test", Description: "Test bead"},
+		RetriesThisModel: 2,
+		MaxRetries:       2,
 	}
 
 	isAtomic := handler.IsAtomicBead(bc)
@@ -208,9 +208,9 @@ func TestDecomposeFirstHandler_DecomposesNonAtomicBead(t *testing.T) {
 
 	// Verify handler is not atomic (has decomposeFn)
 	bc := &runtypes.BeadContext{
-		Bead:              &bead.Bead{ID: "test-001", Title: "Test", Description: "Test bead"},
-		RetriesThisModel:  2,
-		MaxRetries:        2,
+		Bead:             &bead.Bead{ID: "test-001", Title: "Test", Description: "Test bead"},
+		RetriesThisModel: 2,
+		MaxRetries:       2,
 	}
 
 	isAtomic := handler.IsAtomicBead(bc)
@@ -268,12 +268,12 @@ func TestDecomposeFirstHandler_EscalatesAtomicBeads(t *testing.T) {
 
 	// Verify bead is atomic
 	bc := &runtypes.BeadContext{
-		Bead:              &bead.Bead{ID: "test-001", Title: "Test", Description: "Test bead"},
-		Tier:              "haiku",
-		Model:             "haiku",
-		RetriesThisModel:  2,
-		MaxRetries:        2,
-		Result:            &runtypes.IterationResult{},
+		Bead:             &bead.Bead{ID: "test-001", Title: "Test", Description: "Test bead"},
+		Tier:             "haiku",
+		Model:            "haiku",
+		RetriesThisModel: 2,
+		MaxRetries:       2,
+		Result:           &runtypes.IterationResult{},
 	}
 
 	isAtomic := handler.IsAtomicBead(bc)
@@ -329,12 +329,12 @@ func TestDecomposeFirstHandler_HandleFailureDecision(t *testing.T) {
 
 	// Test scenario: bead has reached max retries
 	bc := &runtypes.BeadContext{
-		Bead:              &bead.Bead{ID: "test-001", Title: "Test", Description: "Test bead"},
-		Tier:              "haiku",
-		Model:             "haiku",
-		RetriesThisModel:  2,
-		MaxRetries:        2,
-		Result:            &runtypes.IterationResult{},
+		Bead:             &bead.Bead{ID: "test-001", Title: "Test", Description: "Test bead"},
+		Tier:             "haiku",
+		Model:            "haiku",
+		RetriesThisModel: 2,
+		MaxRetries:       2,
+		Result:           &runtypes.IterationResult{},
 	}
 
 	// Verify decision logic
@@ -389,12 +389,12 @@ func TestDecomposeFirstHandler_AtomicFallbackPath(t *testing.T) {
 
 	// Test scenario: atomic bead has reached max retries
 	bc := &runtypes.BeadContext{
-		Bead:              &bead.Bead{ID: "test-001", Title: "Test", Description: "Test bead"},
-		Tier:              "haiku",
-		Model:             "haiku",
-		RetriesThisModel:  2,
-		MaxRetries:        2,
-		Result:            &runtypes.IterationResult{},
+		Bead:             &bead.Bead{ID: "test-001", Title: "Test", Description: "Test bead"},
+		Tier:             "haiku",
+		Model:            "haiku",
+		RetriesThisModel: 2,
+		MaxRetries:       2,
+		Result:           &runtypes.IterationResult{},
 	}
 
 	// Verify decision logic
@@ -419,4 +419,3 @@ func TestDecomposeFirstHandler_AtomicFallbackPath(t *testing.T) {
 		}
 	}
 }
-

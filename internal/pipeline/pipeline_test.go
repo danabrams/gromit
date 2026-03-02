@@ -47,9 +47,9 @@ func TestPaths_FieldAccess(t *testing.T) {
 func TestDeps_FieldAccess(t *testing.T) {
 	deps := Deps{
 		AgentResolver:     &testAgentResolver{},
-	LLMClient:         &testLLMClient{},
-	TrackerClient:     &testBeadClient{},
-	BacklogClient:     &testBacklogClient{},
+		LLMClient:         &testLLMClient{},
+		TrackerClient:     &testBeadClient{},
+		BacklogClient:     &testBacklogClient{},
 		RefineRenderer:    &testRefineRenderer{},
 		PlanRenderer:      &testPlanRenderer{},
 		DecomposeRenderer: &testDecomposeRenderer{},
@@ -254,15 +254,15 @@ func TestPipeline_ResolveReviewScopeMethod(t *testing.T) {
 	p := New(deps, paths)
 
 	ctx := context.Background()
-	
+
 	// Method should exist and be callable
 	commit, err := p.ResolveReviewScope(ctx, "spec-name", "", "")
-	
+
 	// Currently returns error as placeholder - this will change when implemented
 	if err == nil {
 		t.Error("ResolveReviewScope() expected error (method not yet implemented)")
 	}
-	
+
 	if commit != "" {
 		t.Errorf("ResolveReviewScope() returned commit=%q, want empty string", commit)
 	}
@@ -299,10 +299,10 @@ func TestPipeline_ResolveReviewScopeWithSpec(t *testing.T) {
 
 	ctx := context.Background()
 	specName := "init-wizard"
-	
+
 	// When --spec is provided, should use it
 	_, err := p.ResolveReviewScope(ctx, specName, "", "")
-	
+
 	// Will error until implemented, but verifies signature accepts spec
 	if err == nil {
 		t.Error("ResolveReviewScope() expected error (method not yet implemented)")
@@ -318,10 +318,10 @@ func TestPipeline_ResolveReviewScopeWithEpic(t *testing.T) {
 
 	ctx := context.Background()
 	epicID := "gromit-xyz"
-	
+
 	// When --epic is provided, should use it
 	_, err := p.ResolveReviewScope(ctx, "", epicID, "")
-	
+
 	// Will error until implemented, but verifies signature accepts epic
 	if err == nil {
 		t.Error("ResolveReviewScope() expected error (method not yet implemented)")

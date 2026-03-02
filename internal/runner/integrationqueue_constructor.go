@@ -63,7 +63,6 @@ var (
 	newIntegrationQueueCoordinatorFn = integrationqueue.NewCoordinator
 )
 
-
 func newIntegrationQueueScopedGateEvaluator(cfg *config.Config, repoDir string, cmdRunner runtypes.CmdRunnerFn) integrationQueueScopedGateEvaluator {
 	if cfg == nil || !cfg.Validation.Enabled {
 		return nil

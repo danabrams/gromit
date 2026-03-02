@@ -15,7 +15,7 @@ func TestPhase4EvaluateAdoptionGates_AllGatesPass_ReturnsAdopt(t *testing.T) {
 		WrongFileRate:              0.01,
 	}
 	retrieval := Phase4RunMetrics{
-		MedianDiscoveryInputTokens: 70,  // 30% reduction
+		MedianDiscoveryInputTokens: 70,   // 30% reduction
 		MedianDiscoveryLatencyMs:   800,  // 20% reduction
 		SuccessRate:                0.94, // 1% drop acceptable
 		WrongFileRate:              0.02, // within threshold
@@ -260,11 +260,11 @@ func TestPhase4ComputeAdoptionDecision_IncludesReasonsForFailure(t *testing.T) {
 
 func TestPhase4AdoptionGates_EdgeCases(t *testing.T) {
 	tests := []struct {
-		name           string
-		baseline       Phase4RunMetrics
-		retrieval      Phase4RunMetrics
-		expectedPass   bool
-		gateToCheck    string
+		name         string
+		baseline     Phase4RunMetrics
+		retrieval    Phase4RunMetrics
+		expectedPass bool
+		gateToCheck  string
 	}{
 		{
 			name: "token_reduction_exactly_20_percent_passes",
@@ -275,7 +275,7 @@ func TestPhase4AdoptionGates_EdgeCases(t *testing.T) {
 				WrongFileRate:              0.01,
 			},
 			retrieval: Phase4RunMetrics{
-				MedianDiscoveryInputTokens: 80,  // exactly 20% reduction
+				MedianDiscoveryInputTokens: 80, // exactly 20% reduction
 				MedianDiscoveryLatencyMs:   900,
 				SuccessRate:                0.94,
 				WrongFileRate:              0.01,
@@ -292,7 +292,7 @@ func TestPhase4AdoptionGates_EdgeCases(t *testing.T) {
 				WrongFileRate:              0.01,
 			},
 			retrieval: Phase4RunMetrics{
-				MedianDiscoveryInputTokens: 81,  // 19% reduction
+				MedianDiscoveryInputTokens: 81, // 19% reduction
 				MedianDiscoveryLatencyMs:   900,
 				SuccessRate:                0.94,
 				WrongFileRate:              0.01,
@@ -310,7 +310,7 @@ func TestPhase4AdoptionGates_EdgeCases(t *testing.T) {
 			},
 			retrieval: Phase4RunMetrics{
 				MedianDiscoveryInputTokens: 70,
-				MedianDiscoveryLatencyMs:   850,  // exactly 15% reduction
+				MedianDiscoveryLatencyMs:   850, // exactly 15% reduction
 				SuccessRate:                0.94,
 				WrongFileRate:              0.01,
 			},
@@ -328,7 +328,7 @@ func TestPhase4AdoptionGates_EdgeCases(t *testing.T) {
 			retrieval: Phase4RunMetrics{
 				MedianDiscoveryInputTokens: 70,
 				MedianDiscoveryLatencyMs:   800,
-				SuccessRate:                0.90,  // exactly 5% drop
+				SuccessRate:                0.90, // exactly 5% drop
 				WrongFileRate:              0.01,
 			},
 			expectedPass: true,
@@ -346,7 +346,7 @@ func TestPhase4AdoptionGates_EdgeCases(t *testing.T) {
 				MedianDiscoveryInputTokens: 70,
 				MedianDiscoveryLatencyMs:   800,
 				SuccessRate:                0.94,
-				WrongFileRate:              0.05,  // exactly 5% threshold
+				WrongFileRate:              0.05, // exactly 5% threshold
 			},
 			expectedPass: true,
 			gateToCheck:  "wrong_file",
@@ -363,7 +363,7 @@ func TestPhase4AdoptionGates_EdgeCases(t *testing.T) {
 				MedianDiscoveryInputTokens: 70,
 				MedianDiscoveryLatencyMs:   800,
 				SuccessRate:                0.94,
-				WrongFileRate:              0.051,  // above 5% threshold
+				WrongFileRate:              0.051, // above 5% threshold
 			},
 			expectedPass: false,
 			gateToCheck:  "wrong_file",
@@ -467,8 +467,8 @@ func TestPhase4ReadPairedIterationRecords_HandlesEmptyAndMalformedFiles(t *testi
 			expectCount: 0,
 		},
 		{
-			name:        "file with valid and empty lines",
-			content:     `{"discovery_input_tokens_baseline":100,"discovery_input_tokens_retrieval":70,"discovery_latency_ms_baseline":1000,"discovery_latency_ms_retrieval":800,"success_baseline":true,"success_retrieval":true,"wrong_file_retrieval":false}
+			name: "file with valid and empty lines",
+			content: `{"discovery_input_tokens_baseline":100,"discovery_input_tokens_retrieval":70,"discovery_latency_ms_baseline":1000,"discovery_latency_ms_retrieval":800,"success_baseline":true,"success_retrieval":true,"wrong_file_retrieval":false}
 
 {"discovery_input_tokens_baseline":90,"discovery_input_tokens_retrieval":65,"discovery_latency_ms_baseline":950,"discovery_latency_ms_retrieval":780,"success_baseline":true,"success_retrieval":false,"wrong_file_retrieval":true}
 `,
@@ -556,11 +556,11 @@ func TestPhase4DisabledRetrievalMatchesBaseline_ProducesNoAdoptDecision(t *testi
 
 func TestPhase4SingleGateFailure_EachGateFailureProducesNoAdopt(t *testing.T) {
 	tests := []struct {
-		name               string
-		baseline           Phase4RunMetrics
-		retrieval          Phase4RunMetrics
-		failingGate        string
-		expectedNotAdopt   bool
+		name             string
+		baseline         Phase4RunMetrics
+		retrieval        Phase4RunMetrics
+		failingGate      string
+		expectedNotAdopt bool
 	}{
 		{
 			name: "token_reduction_gate_failure_alone",
@@ -571,7 +571,7 @@ func TestPhase4SingleGateFailure_EachGateFailureProducesNoAdopt(t *testing.T) {
 				WrongFileRate:              0.01,
 			},
 			retrieval: Phase4RunMetrics{
-				MedianDiscoveryInputTokens: 81,  // 19% reduction (below 20% threshold)
+				MedianDiscoveryInputTokens: 81,   // 19% reduction (below 20% threshold)
 				MedianDiscoveryLatencyMs:   800,  // 20% reduction (passes)
 				SuccessRate:                0.94, // 1% drop (passes)
 				WrongFileRate:              0.01, // passes
@@ -588,8 +588,8 @@ func TestPhase4SingleGateFailure_EachGateFailureProducesNoAdopt(t *testing.T) {
 				WrongFileRate:              0.01,
 			},
 			retrieval: Phase4RunMetrics{
-				MedianDiscoveryInputTokens: 70,  // 30% reduction (passes)
-				MedianDiscoveryLatencyMs:   860, // 14% reduction (below 15% threshold)
+				MedianDiscoveryInputTokens: 70,   // 30% reduction (passes)
+				MedianDiscoveryLatencyMs:   860,  // 14% reduction (below 15% threshold)
 				SuccessRate:                0.94, // 1% drop (passes)
 				WrongFileRate:              0.01, // passes
 			},
@@ -605,8 +605,8 @@ func TestPhase4SingleGateFailure_EachGateFailureProducesNoAdopt(t *testing.T) {
 				WrongFileRate:              0.01,
 			},
 			retrieval: Phase4RunMetrics{
-				MedianDiscoveryInputTokens: 70,  // 30% reduction (passes)
-				MedianDiscoveryLatencyMs:   800, // 20% reduction (passes)
+				MedianDiscoveryInputTokens: 70,   // 30% reduction (passes)
+				MedianDiscoveryLatencyMs:   800,  // 20% reduction (passes)
 				SuccessRate:                0.89, // 6% drop (above 5% threshold)
 				WrongFileRate:              0.01, // passes
 			},
@@ -622,9 +622,9 @@ func TestPhase4SingleGateFailure_EachGateFailureProducesNoAdopt(t *testing.T) {
 				WrongFileRate:              0.01,
 			},
 			retrieval: Phase4RunMetrics{
-				MedianDiscoveryInputTokens: 70,   // 30% reduction (passes)
-				MedianDiscoveryLatencyMs:   800,  // 20% reduction (passes)
-				SuccessRate:                0.94, // 1% drop (passes)
+				MedianDiscoveryInputTokens: 70,    // 30% reduction (passes)
+				MedianDiscoveryLatencyMs:   800,   // 20% reduction (passes)
+				SuccessRate:                0.94,  // 1% drop (passes)
 				WrongFileRate:              0.051, // above 5% threshold
 			},
 			failingGate:      "wrong_file_rate",

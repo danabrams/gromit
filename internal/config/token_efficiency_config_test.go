@@ -367,11 +367,11 @@ token_efficiency:
 
 func TestRetrievalExperimentConfidenceThresholdValue(t *testing.T) {
 	tests := []struct {
-		name              string
-		confidenceThresh  float64
-		want              float64
-		minConfidence     float64
-		wantError         bool
+		name             string
+		confidenceThresh float64
+		want             float64
+		minConfidence    float64
+		wantError        bool
 	}{
 		{
 			name:             "zero threshold uses min",

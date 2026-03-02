@@ -96,10 +96,10 @@ func TestSPCMetricConstants_AreFromDisplayPackage(t *testing.T) {
 	// rather than maintaining its own duplicates. This test ensures we reference the
 	// display package constants throughout.
 	tests := []struct {
-		name                  string
-		formatConstantValue   string
-		displayConstantValue  string
-		displayConstantName   string
+		name                 string
+		formatConstantValue  string
+		displayConstantValue string
+		displayConstantName  string
 	}{
 		{
 			name:                 "rolling_success_rate",

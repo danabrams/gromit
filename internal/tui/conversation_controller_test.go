@@ -1,218 +1,218 @@
 package tui
 
 import (
-    "strings"
-    "testing"
+	"strings"
+	"testing"
 
-    "github.com/danabrams/gromit/internal/conversation"
-    tea "github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/danabrams/gromit/internal/conversation"
 )
 
 func TestConversationControllerStreamsEvents(t *testing.T) {
-    timeline := []conversation.FakeStep{
-        {Event: conversation.Event{Type: conversation.EventTypeStream, Text: "hello"}},
-        {Event: conversation.Event{Type: conversation.EventTypeStream, Text: " world"}},
-        {Event: conversation.Event{Type: conversation.EventTypeDone, Text: "complete"}},
-    }
-    session := conversation.NewFakeSession(timeline)
-    controller := NewConversationController(session)
+	timeline := []conversation.FakeStep{
+		{Event: conversation.Event{Type: conversation.EventTypeStream, Text: "hello"}},
+		{Event: conversation.Event{Type: conversation.EventTypeStream, Text: " world"}},
+		{Event: conversation.Event{Type: conversation.EventTypeDone, Text: "complete"}},
+	}
+	session := conversation.NewFakeSession(timeline)
+	controller := NewConversationController(session)
 
-    cmd := controller.Init()
-    for cmd != nil {
-        msg := cmd()
-        model, next := controller.Update(msg)
-        var ok bool
-        controller, ok = model.(*ConversationController)
-        if !ok {
-            t.Fatalf("expected ConversationController, got %T", model)
-        }
-        cmd = next
-    }
+	cmd := controller.Init()
+	for cmd != nil {
+		msg := cmd()
+		model, next := controller.Update(msg)
+		var ok bool
+		controller, ok = model.(*ConversationController)
+		if !ok {
+			t.Fatalf("expected ConversationController, got %T", model)
+		}
+		cmd = next
+	}
 
-    view := controller.View()
-    if !strings.Contains(view, "hello") || !strings.Contains(view, "world") {
-        t.Fatalf("view output missing streamed text: %q", view)
-    }
+	view := controller.View()
+	if !strings.Contains(view, "hello") || !strings.Contains(view, "world") {
+		t.Fatalf("view output missing streamed text: %q", view)
+	}
 }
 
 func TestConversationControllerCancelsDuringStream(t *testing.T) {
-    timeline := []conversation.FakeStep{
-        {Event: conversation.Event{Type: conversation.EventTypeStream, Text: "hello"}},
-        {Event: conversation.Event{Type: conversation.EventTypeStream, Text: "world"}},
-    }
-    session := conversation.NewFakeSession(timeline)
-    controller := NewConversationController(session)
+	timeline := []conversation.FakeStep{
+		{Event: conversation.Event{Type: conversation.EventTypeStream, Text: "hello"}},
+		{Event: conversation.Event{Type: conversation.EventTypeStream, Text: "world"}},
+	}
+	session := conversation.NewFakeSession(timeline)
+	controller := NewConversationController(session)
 
-    cmd := controller.Init()
-    if cmd == nil {
-        t.Fatal("expected initial command to start session watch")
-    }
+	cmd := controller.Init()
+	if cmd == nil {
+		t.Fatal("expected initial command to start session watch")
+	}
 
-    // Process first event
-    msg := cmd()
-    model, _ := controller.Update(msg)
-    ctrl, ok := model.(*ConversationController)
-    if !ok {
-        t.Fatalf("expected ConversationController, got %T", model)
-    }
+	// Process first event
+	msg := cmd()
+	model, _ := controller.Update(msg)
+	ctrl, ok := model.(*ConversationController)
+	if !ok {
+		t.Fatalf("expected ConversationController, got %T", model)
+	}
 
-    // Cancel before draining remaining events
-    model, cancelCmd := ctrl.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
-    ctrl, ok = model.(*ConversationController)
-    if !ok {
-        t.Fatalf("expected ConversationController, got %T", model)
-    }
-    if cancelCmd == nil {
-        t.Fatal("expected cancel to continue watching the session")
-    }
+	// Cancel before draining remaining events
+	model, cancelCmd := ctrl.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	ctrl, ok = model.(*ConversationController)
+	if !ok {
+		t.Fatalf("expected ConversationController, got %T", model)
+	}
+	if cancelCmd == nil {
+		t.Fatal("expected cancel to continue watching the session")
+	}
 
-    // Drain any pending events so channels close
-    for cancelCmd != nil {
-        msg := cancelCmd()
-        model, cancelCmd = ctrl.Update(msg)
-        var ok bool
-        ctrl, ok = model.(*ConversationController)
-        if !ok {
-            t.Fatalf("expected ConversationController, got %T", model)
-        }
-    }
+	// Drain any pending events so channels close
+	for cancelCmd != nil {
+		msg := cancelCmd()
+		model, cancelCmd = ctrl.Update(msg)
+		var ok bool
+		ctrl, ok = model.(*ConversationController)
+		if !ok {
+			t.Fatalf("expected ConversationController, got %T", model)
+		}
+	}
 
-    view := ctrl.View()
-    if !strings.Contains(view, "[cancelled]") {
-        t.Fatalf("expected cancelled indicator, got %q", view)
-    }
-    if strings.Contains(view, "world") {
-        t.Fatalf("expected stream after cancel to be ignored, got %q", view)
-    }
-    if !session.WasCancelled() {
-        t.Fatal("expected fake session to see cancellation")
-    }
+	view := ctrl.View()
+	if !strings.Contains(view, "[cancelled]") {
+		t.Fatalf("expected cancelled indicator, got %q", view)
+	}
+	if strings.Contains(view, "world") {
+		t.Fatalf("expected stream after cancel to be ignored, got %q", view)
+	}
+	if !session.WasCancelled() {
+		t.Fatal("expected fake session to see cancellation")
+	}
 }
 
 func TestConversationControllerFollowUpDuringToolWait(t *testing.T) {
-    toolResultRelease := make(chan struct{})
-    timeline := []conversation.FakeStep{
-        {Event: conversation.Event{Type: conversation.EventTypeStream, Text: "greeting"}},
-        {Event: conversation.Event{Type: conversation.EventTypeToolWait, Text: "waiting", ToolName: "formatter"}},
-        {Event: conversation.Event{Type: conversation.EventTypeToolResult, Text: "done"}, BlockUntil: toolResultRelease},
-    }
-    session := conversation.NewFakeSession(timeline)
-    prompt := "please follow up"
-    controller := NewConversationController(session, WithFollowUpProvider(func() string { return prompt }))
+	toolResultRelease := make(chan struct{})
+	timeline := []conversation.FakeStep{
+		{Event: conversation.Event{Type: conversation.EventTypeStream, Text: "greeting"}},
+		{Event: conversation.Event{Type: conversation.EventTypeToolWait, Text: "waiting", ToolName: "formatter"}},
+		{Event: conversation.Event{Type: conversation.EventTypeToolResult, Text: "done"}, BlockUntil: toolResultRelease},
+	}
+	session := conversation.NewFakeSession(timeline)
+	prompt := "please follow up"
+	controller := NewConversationController(session, WithFollowUpProvider(func() string { return prompt }))
 
-    cmd := controller.Init()
-    if cmd == nil {
-        t.Fatal("expected init to return a watcher command")
-    }
+	cmd := controller.Init()
+	if cmd == nil {
+		t.Fatal("expected init to return a watcher command")
+	}
 
-    // drain events until tool wait
-    msg := cmd()
-    model, cmd := controller.Update(msg)
-    ctrl, ok := model.(*ConversationController)
-    if !ok {
-        t.Fatalf("expected ConversationController, got %T", model)
-    }
+	// drain events until tool wait
+	msg := cmd()
+	model, cmd := controller.Update(msg)
+	ctrl, ok := model.(*ConversationController)
+	if !ok {
+		t.Fatalf("expected ConversationController, got %T", model)
+	}
 
-    msg = cmd()
-    model, cmd = ctrl.Update(msg)
-    ctrl, ok = model.(*ConversationController)
-    if !ok {
-        t.Fatalf("expected ConversationController, got %T", model)
-    }
+	msg = cmd()
+	model, cmd = ctrl.Update(msg)
+	ctrl, ok = model.(*ConversationController)
+	if !ok {
+		t.Fatalf("expected ConversationController, got %T", model)
+	}
 
-    view := ctrl.View()
-    if !strings.Contains(view, "[waiting for tool]") {
-        t.Fatalf("expected waiting state after tool wait event, got %q", view)
-    }
+	view := ctrl.View()
+	if !strings.Contains(view, "[waiting for tool]") {
+		t.Fatalf("expected waiting state after tool wait event, got %q", view)
+	}
 
-    model, followUpCmd := ctrl.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
-    ctrl, ok = model.(*ConversationController)
-    if !ok {
-        t.Fatalf("expected ConversationController, got %T", model)
-    }
-    if followUpCmd == nil {
-        t.Fatal("expected follow-up to restart the watcher")
-    }
+	model, followUpCmd := ctrl.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
+	ctrl, ok = model.(*ConversationController)
+	if !ok {
+		t.Fatalf("expected ConversationController, got %T", model)
+	}
+	if followUpCmd == nil {
+		t.Fatal("expected follow-up to restart the watcher")
+	}
 
-    if !strings.Contains(ctrl.View(), "[waiting for tool]") {
-        t.Fatalf("expected to still show waiting indicator after follow-up request, got %q", ctrl.View())
-    }
+	if !strings.Contains(ctrl.View(), "[waiting for tool]") {
+		t.Fatalf("expected to still show waiting indicator after follow-up request, got %q", ctrl.View())
+	}
 
-    calls := session.FollowUpCalls()
-    if len(calls) != 1 || calls[0] != prompt {
-        t.Fatalf("unexpected follow-up calls: %v", calls)
-    }
+	calls := session.FollowUpCalls()
+	if len(calls) != 1 || calls[0] != prompt {
+		t.Fatalf("unexpected follow-up calls: %v", calls)
+	}
 
-    close(toolResultRelease)
+	close(toolResultRelease)
 
-    for followUpCmd != nil {
-        msg = followUpCmd()
-        model, followUpCmd = ctrl.Update(msg)
-        ctrl, ok = model.(*ConversationController)
-        if !ok {
-            t.Fatalf("expected ConversationController, got %T", model)
-        }
-    }
+	for followUpCmd != nil {
+		msg = followUpCmd()
+		model, followUpCmd = ctrl.Update(msg)
+		ctrl, ok = model.(*ConversationController)
+		if !ok {
+			t.Fatalf("expected ConversationController, got %T", model)
+		}
+	}
 
-    finalView := ctrl.View()
-    if strings.Contains(finalView, "[waiting for tool]") {
-        t.Fatalf("expected waiting indicator to disappear after tool result, got %q", finalView)
-    }
-    if !strings.Contains(finalView, "done") {
-        t.Fatalf("expected final result in view, got %q", finalView)
-    }
+	finalView := ctrl.View()
+	if strings.Contains(finalView, "[waiting for tool]") {
+		t.Fatalf("expected waiting indicator to disappear after tool result, got %q", finalView)
+	}
+	if !strings.Contains(finalView, "done") {
+		t.Fatalf("expected final result in view, got %q", finalView)
+	}
 }
 
 func TestConversationControllerIgnoresLateEventsAfterCancel(t *testing.T) {
-    timeline := []conversation.FakeStep{
-        {Event: conversation.Event{Type: conversation.EventTypeStream, Text: "start"}},
-        {Event: conversation.Event{Type: conversation.EventTypeStream, Text: "mid"}},
-        {Event: conversation.Event{Type: conversation.EventTypeStream, Text: "late"}},
-    }
-    session := conversation.NewFakeSession(timeline)
-    controller := NewConversationController(session)
+	timeline := []conversation.FakeStep{
+		{Event: conversation.Event{Type: conversation.EventTypeStream, Text: "start"}},
+		{Event: conversation.Event{Type: conversation.EventTypeStream, Text: "mid"}},
+		{Event: conversation.Event{Type: conversation.EventTypeStream, Text: "late"}},
+	}
+	session := conversation.NewFakeSession(timeline)
+	controller := NewConversationController(session)
 
-    cmd := controller.Init()
-    if cmd == nil {
-        t.Fatal("expected watcher command from init")
-    }
+	cmd := controller.Init()
+	if cmd == nil {
+		t.Fatal("expected watcher command from init")
+	}
 
-    msg := cmd()
-    model, cmd := controller.Update(msg)
-    ctrl, ok := model.(*ConversationController)
-    if !ok {
-        t.Fatalf("expected ConversationController, got %T", model)
-    }
+	msg := cmd()
+	model, cmd := controller.Update(msg)
+	ctrl, ok := model.(*ConversationController)
+	if !ok {
+		t.Fatalf("expected ConversationController, got %T", model)
+	}
 
-    model, cancelCmd := ctrl.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
-    ctrl, ok = model.(*ConversationController)
-    if !ok {
-        t.Fatalf("expected ConversationController, got %T", model)
-    }
-    if cancelCmd == nil {
-        t.Fatal("expected cancel to continue watching the session")
-    }
+	model, cancelCmd := ctrl.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	ctrl, ok = model.(*ConversationController)
+	if !ok {
+		t.Fatalf("expected ConversationController, got %T", model)
+	}
+	if cancelCmd == nil {
+		t.Fatal("expected cancel to continue watching the session")
+	}
 
-    for cancelCmd != nil {
-        msg = cancelCmd()
-        model, cancelCmd = ctrl.Update(msg)
-        ctrl, ok = model.(*ConversationController)
-        if !ok {
-            t.Fatalf("expected ConversationController, got %T", model)
-        }
-    }
+	for cancelCmd != nil {
+		msg = cancelCmd()
+		model, cancelCmd = ctrl.Update(msg)
+		ctrl, ok = model.(*ConversationController)
+		if !ok {
+			t.Fatalf("expected ConversationController, got %T", model)
+		}
+	}
 
-    view := ctrl.View()
-    if !strings.Contains(view, "- stream: start") {
-        t.Fatalf("expected start event, got %q", view)
-    }
-    if strings.Contains(view, "- stream: mid") {
-        t.Fatalf("expected mid event to be ignored after cancel, got %q", view)
-    }
-    if strings.Contains(view, "- stream: late") {
-        t.Fatalf("expected late event to be ignored after cancel, got %q", view)
-    }
-    if !strings.Contains(view, "[ignored 2 late events]") {
-        t.Fatalf("expected indicator about ignored late events, got %q", view)
-    }
+	view := ctrl.View()
+	if !strings.Contains(view, "- stream: start") {
+		t.Fatalf("expected start event, got %q", view)
+	}
+	if strings.Contains(view, "- stream: mid") {
+		t.Fatalf("expected mid event to be ignored after cancel, got %q", view)
+	}
+	if strings.Contains(view, "- stream: late") {
+		t.Fatalf("expected late event to be ignored after cancel, got %q", view)
+	}
+	if !strings.Contains(view, "[ignored 2 late events]") {
+		t.Fatalf("expected indicator about ignored late events, got %q", view)
+	}
 }

@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
 )
 
 // assertNoDelegationBypassInCommand verifies that a command handler delegates to the

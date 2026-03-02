@@ -27,12 +27,12 @@ func TestAdapterNaming_ConsistentSuffix(t *testing.T) {
 
 	adapters := map[string]string{
 		// adapters.go - general adapters
-		"claudeClientAdapter":       "general LLM adapter",
-		"llmRouterClientAdapter":    "general router adapter",
-		"retroRouterAdapter":        "general retro adapter",
-		"trackerClientAdapter":      "general tracker adapter",
-		"backlogClientAdapter":      "general backlog adapter",
-		"beadQueryClientAdapter":    "general bead query adapter",
+		"claudeClientAdapter":    "general LLM adapter",
+		"llmRouterClientAdapter": "general router adapter",
+		"retroRouterAdapter":     "general retro adapter",
+		"trackerClientAdapter":   "general tracker adapter",
+		"backlogClientAdapter":   "general backlog adapter",
+		"beadQueryClientAdapter": "general bead query adapter",
 
 		// cli_adapters.go - CLI-specific adapters
 		"cliPromptRenderer":       "CLI review prompt renderer",
@@ -80,7 +80,7 @@ func TestAdapterNaming_PromptRenderersAligned(t *testing.T) {
 		"refinePromptRenderer",
 		"planPromptRenderer",
 		"decomposePromptRenderer",
-		"cliPromptRenderer",       // ReviewRenderer
+		"cliPromptRenderer", // ReviewRenderer
 		"explorePromptRenderer",
 	}
 
@@ -93,7 +93,7 @@ func TestAdapterNaming_PromptRenderersAligned(t *testing.T) {
 
 			// All should follow the pattern
 			isValid := strings.HasSuffix(renderer, "PromptRenderer") ||
-				      strings.HasPrefix(renderer, "cli")
+				strings.HasPrefix(renderer, "cli")
 
 			if !isValid {
 				t.Logf("WARNING: %q doesn't follow standard pattern, but may be intentional", renderer)
@@ -128,11 +128,11 @@ func TestAdapterNaming_CLIPrefixUsageAligned(t *testing.T) {
 
 	// CLI-specific adapters (using "cli" prefix):
 	cliAdapters := []string{
-		"cliPromptRenderer",    // wraps prompt.Renderer, loads context
-		"cliBacklogClient",     // wraps bead.Client for write operations
-		"cliLearningsManager",  // wraps learnings.File
-		"cliStateManager",      // wraps state.File
-		"cliLogWriter",         // wraps logger operations
+		"cliPromptRenderer",   // wraps prompt.Renderer, loads context
+		"cliBacklogClient",    // wraps bead.Client for write operations
+		"cliLearningsManager", // wraps learnings.File
+		"cliStateManager",     // wraps state.File
+		"cliLogWriter",        // wraps logger operations
 	}
 
 	for _, adapter := range cliAdapters {

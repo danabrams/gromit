@@ -26,8 +26,8 @@ func TestClaudeClient_StallTimeoutClassification(t *testing.T) {
 	// - parentErr = nil (the parent context was not canceled)
 
 	stallFired := true
-	var ctxErr error = nil     // Stall cancellation, not deadline exceeded
-	var parentErr error = nil  // Parent context not canceled
+	var ctxErr error = nil    // Stall cancellation, not deadline exceeded
+	var parentErr error = nil // Parent context not canceled
 
 	// Classify using the policy
 	cfg := &config.Config{}

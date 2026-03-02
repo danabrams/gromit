@@ -11,13 +11,13 @@ import (
 // DecomposeFirstHandler retries at a low tier before decomposing non-atomic failures.
 // For atomic failures, it escalates through the existing tier chain.
 type DecomposeFirstHandler struct {
-	cfg                   *config.Config
-	analyzer              FailureAnalyzer
-	beadClient            BeadClient
-	decomposeFn           DecomposeFn
-	createSubFn           CreateSubFn
-	logFn                 LogFn
-	showPartialProgressFn ShowPartialProgressFn
+	cfg                       *config.Config
+	analyzer                  FailureAnalyzer
+	beadClient                BeadClient
+	decomposeFn               DecomposeFn
+	createSubFn               CreateSubFn
+	logFn                     LogFn
+	showPartialProgressFn     ShowPartialProgressFn
 	maxRetriesBeforeDecompose int
 }
 
@@ -33,13 +33,13 @@ func NewDecomposeFirstHandler(
 	maxRetriesBeforeDecompose int,
 ) *DecomposeFirstHandler {
 	return &DecomposeFirstHandler{
-		cfg:                   cfg,
-		analyzer:              analyzer,
-		beadClient:            beadClient,
-		decomposeFn:           decomposeFn,
-		createSubFn:           createSubFn,
-		logFn:                 logFn,
-		showPartialProgressFn: showPartialProgressFn,
+		cfg:                       cfg,
+		analyzer:                  analyzer,
+		beadClient:                beadClient,
+		decomposeFn:               decomposeFn,
+		createSubFn:               createSubFn,
+		logFn:                     logFn,
+		showPartialProgressFn:     showPartialProgressFn,
 		maxRetriesBeforeDecompose: maxRetriesBeforeDecompose,
 	}
 }

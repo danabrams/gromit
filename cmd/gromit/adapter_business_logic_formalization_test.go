@@ -20,28 +20,28 @@ func TestAdapterFormalization_PromptRenderersArePureAdapters(t *testing.T) {
 		expectsPromptRendererField bool
 	}{
 		{
-			name:                      "refinePromptRenderer wraps prompt.Renderer",
-			adapter:                   &refinePromptRenderer{},
+			name:                       "refinePromptRenderer wraps prompt.Renderer",
+			adapter:                    &refinePromptRenderer{},
 			expectsPromptRendererField: true,
 		},
 		{
-			name:                      "planPromptRenderer wraps prompt.Renderer",
-			adapter:                   &planPromptRenderer{},
+			name:                       "planPromptRenderer wraps prompt.Renderer",
+			adapter:                    &planPromptRenderer{},
 			expectsPromptRendererField: true,
 		},
 		{
-			name:                      "decomposePromptRenderer wraps prompt.Renderer",
-			adapter:                   &decomposePromptRenderer{},
+			name:                       "decomposePromptRenderer wraps prompt.Renderer",
+			adapter:                    &decomposePromptRenderer{},
 			expectsPromptRendererField: true,
 		},
 		{
-			name:                      "cliPromptRenderer wraps prompt.Renderer",
-			adapter:                   &cliPromptRenderer{},
+			name:                       "cliPromptRenderer wraps prompt.Renderer",
+			adapter:                    &cliPromptRenderer{},
 			expectsPromptRendererField: true,
 		},
 		{
-			name:                      "explorePromptRenderer wraps prompt.Renderer",
-			adapter:                   &explorePromptRenderer{},
+			name:                       "explorePromptRenderer wraps prompt.Renderer",
+			adapter:                    &explorePromptRenderer{},
 			expectsPromptRendererField: true,
 		},
 	}

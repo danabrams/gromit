@@ -15,7 +15,7 @@ const (
 	// CompatibilityDeprecationMarkerLegacyTrackerBackendFallback marks tracker backend
 	// selection that comes from legacy fallback or profile defaults.
 	CompatibilityDeprecationMarkerLegacyTrackerBackendFallback = "compat-deprecated-legacy-tracker-backend-fallback"
-	CompatibilityStrictDefaultCutoverDate                = "2026-06-01"
+	CompatibilityStrictDefaultCutoverDate                      = "2026-06-01"
 )
 
 type CompatibilityResolvedValue struct {
@@ -25,8 +25,8 @@ type CompatibilityResolvedValue struct {
 }
 
 type CompatibilityContext struct {
-	Profile           CompatibilityResolvedValue
-	TrackerBackend    CompatibilityResolvedValue
+	Profile            CompatibilityResolvedValue
+	TrackerBackend     CompatibilityResolvedValue
 	MethodologyAdapter CompatibilityResolvedValue
 }
 

@@ -18,7 +18,6 @@ func (m *mockBeadClient) ListWithLabel(ctx context.Context, label string) ([]*be
 	return m.beads, nil
 }
 
-
 func TestBuildBeadFilterWithClient_ThreadsProvidedContext(t *testing.T) {
 	t.Parallel()
 
@@ -93,5 +92,3 @@ func TestHasOpenBeadsForLabelWithClient_ThreadsProvidedContext(t *testing.T) {
 		t.Fatal("context value not found in captured context - hasOpenBeadsForLabelWithClient not threading context properly")
 	}
 }
-
-

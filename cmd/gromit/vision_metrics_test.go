@@ -74,7 +74,6 @@ func TestVisionMetricsReportHasJSONFlag(t *testing.T) {
 	}
 }
 
-
 // TestVisionMetricsValidateLoadsAndValidatesRecords verifies validate loads records and reports errors
 func TestVisionMetricsValidateLoadsAndValidatesRecords(t *testing.T) {
 	tmpDir := t.TempDir()

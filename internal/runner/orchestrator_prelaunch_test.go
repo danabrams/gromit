@@ -79,7 +79,7 @@ func TestOrchestrator_BranchCheckoutFailure_SetsPrelaunchFailurePhase(t *testing
 			return pipeline.Output{}, nil
 		}},
 		BranchRouter: &mockBranchRouter{},
-		GitCheckout: &failingGitCheckout{},
+		GitCheckout:  &failingGitCheckout{},
 		GetBead: func(ctx context.Context) (*bead.Bead, error) {
 			beadCount++
 			if beadCount == 1 {

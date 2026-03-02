@@ -434,8 +434,8 @@ func TestE2E_WriteAndReadCallLog_RoundTrip(t *testing.T) {
 	allClaude, _ := FilterE2EToolCalls(env, ToolCallClaude)
 	allCodex, _ := FilterE2EToolCalls(env, ToolCallCodex)
 
-	if len(allBD) + len(allClaude) + len(allCodex) != len(originalCalls) {
-		t.Errorf("expected filtered calls to sum to %d, got %d", len(originalCalls), len(allBD) + len(allClaude) + len(allCodex))
+	if len(allBD)+len(allClaude)+len(allCodex) != len(originalCalls) {
+		t.Errorf("expected filtered calls to sum to %d, got %d", len(originalCalls), len(allBD)+len(allClaude)+len(allCodex))
 	}
 }
 

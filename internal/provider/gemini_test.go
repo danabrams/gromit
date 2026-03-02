@@ -30,7 +30,7 @@ func TestGeminiShortPromptThresholdIsPractical(t *testing.T) {
 func TestGeminiProviderRunFallsBackToInlinePUsesExportedConstant(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	shortPrompt := "short"             // Well under threshold
+	shortPrompt := "short" // Well under threshold
 	gp := &GeminiProvider{
 		binary: "gemini",
 		tierToModel: map[string]string{
@@ -445,7 +445,7 @@ func TestGeminiProviderRunDeliveredViaStdin(t *testing.T) {
 func TestGeminiProviderRunFallsBackToInlinePForShortPrompts(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	shortPrompt := "short"             // Well under threshold
+	shortPrompt := "short" // Well under threshold
 	gp := &GeminiProvider{
 		binary: "gemini",
 		tierToModel: map[string]string{

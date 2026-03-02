@@ -133,11 +133,11 @@ func TestThresholdStuckPolicy_IsStuck_AlternatingMultiBeadCycles(t *testing.T) {
 	// In an alternating multi-bead cycle, a bead with high failure rate
 	// should be marked stuck, but one with moderate failure rate should not.
 	cases := []struct {
-		name     string
-		failures int
-		total    int
+		name      string
+		failures  int
+		total     int
 		threshold int
-		want     bool
+		want      bool
 	}{
 		{"100% failure rate (all attempts failed)", 3, 3, 2, true},
 		{"100% failure rate with high threshold", 2, 2, 1, true},

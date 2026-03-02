@@ -11,20 +11,20 @@ import (
 )
 
 type dummyRouter struct {
-    phase string
-    tier  string
+	phase string
+	tier  string
 }
 
 func (d *dummyRouter) Select(phase, tier string) (provider.Provider, string) {
-    d.phase = phase
-    d.tier = tier
-    return nil, "dummy-model"
+	d.phase = phase
+	d.tier = tier
+	return nil, "dummy-model"
 }
 
 type dummyPromptRenderer struct{}
 
 func (d *dummyPromptRenderer) RenderReadiness(ctx *prompt.ReadinessContext) (string, error) {
-    return "ready", nil
+	return "ready", nil
 }
 
 func TestNewReadinessAdapterWithLLM_CreatesInstance(t *testing.T) {

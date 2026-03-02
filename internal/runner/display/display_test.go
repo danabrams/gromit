@@ -1092,9 +1092,9 @@ func TestFormatIntegrationQueue_RendersNonMergedEntriesWithErrorReasons(t *testi
 				LastErrorMessage: "Test timeout in integration_test.go",
 			},
 			{
-				Branch:           "gromit/merged-branch",
-				State:            "merged",
-				Lane:             "code_lane",
+				Branch: "gromit/merged-branch",
+				State:  "merged",
+				Lane:   "code_lane",
 			},
 		},
 	}

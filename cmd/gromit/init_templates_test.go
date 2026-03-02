@@ -11,11 +11,11 @@ import (
 )
 
 type profileExpectation struct {
-	profileLine        string
-	rulesContains      []string
-	rulesNotContains   []string
-	templateContains   []string
-	nextStepsContains  []string
+	profileLine         string
+	rulesContains       []string
+	rulesNotContains    []string
+	templateContains    []string
+	nextStepsContains   []string
 	nextStepsNotContain []string
 }
 

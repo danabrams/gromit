@@ -10,13 +10,13 @@ import (
 )
 
 type phase4PairedIterationRecord struct {
-	DiscoveryInputTokensBaseline  int   `json:"discovery_input_tokens_baseline"`
-	DiscoveryInputTokensRetrieval int   `json:"discovery_input_tokens_retrieval"`
-	DiscoveryLatencyMsBaseline    int   `json:"discovery_latency_ms_baseline"`
-	DiscoveryLatencyMsRetrieval   int   `json:"discovery_latency_ms_retrieval"`
-	SuccessBaseline               bool  `json:"success_baseline"`
-	SuccessRetrieval              bool  `json:"success_retrieval"`
-	WrongFileRetrieval            bool  `json:"wrong_file_retrieval"`
+	DiscoveryInputTokensBaseline  int  `json:"discovery_input_tokens_baseline"`
+	DiscoveryInputTokensRetrieval int  `json:"discovery_input_tokens_retrieval"`
+	DiscoveryLatencyMsBaseline    int  `json:"discovery_latency_ms_baseline"`
+	DiscoveryLatencyMsRetrieval   int  `json:"discovery_latency_ms_retrieval"`
+	SuccessBaseline               bool `json:"success_baseline"`
+	SuccessRetrieval              bool `json:"success_retrieval"`
+	WrongFileRetrieval            bool `json:"wrong_file_retrieval"`
 }
 
 type Phase4RunMetrics struct {
@@ -27,11 +27,11 @@ type Phase4RunMetrics struct {
 }
 
 type Phase4AdoptionGates struct {
-	TokenReductionGate     bool
-	LatencyReductionGate   bool
-	SuccessRateParityGate  bool
-	WrongFileRateGate      bool
-	CanAdopt               bool
+	TokenReductionGate    bool
+	LatencyReductionGate  bool
+	SuccessRateParityGate bool
+	WrongFileRateGate     bool
+	CanAdopt              bool
 }
 
 type Phase4AdoptionDecision struct {

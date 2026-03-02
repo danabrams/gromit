@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
-	"github.com/danabrams/gromit/internal/integrationqueue"
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/integrationqueue"
 )
 
 // TestPrintStatus_IncludesPipelineSection verifies that PrintStatus outputs
@@ -257,22 +257,22 @@ func TestReadIntegrationQueue_UsesStoreSnapshot(t *testing.T) {
 
 func makeQueueEntry(branch, state, lane string, fifo int, lastCode, lastMsg string) map[string]interface{} {
 	return map[string]interface{}{
-		"branch":                  branch,
-		"session_id":              branch + "-session",
-		"origin_command":          "review",
-		"state":                   state,
-		"lane":                    lane,
-		"created_at":              "2026-02-28T00:00:00Z",
-		"updated_at":              "2026-02-28T00:00:00Z",
-		"attempt_count":           1,
-		"retry_count":             0,
-		"fifo_seq":                fifo,
-		"base_ref":                "origin/main",
-		"head_sha":                "deadbeef",
-		"changed_files_hash":      "sha256:hash",
-		"last_error_code":         lastCode,
-		"last_error_message":      lastMsg,
-		"last_transition_reason":  "session_committed",
+		"branch":                 branch,
+		"session_id":             branch + "-session",
+		"origin_command":         "review",
+		"state":                  state,
+		"lane":                   lane,
+		"created_at":             "2026-02-28T00:00:00Z",
+		"updated_at":             "2026-02-28T00:00:00Z",
+		"attempt_count":          1,
+		"retry_count":            0,
+		"fifo_seq":               fifo,
+		"base_ref":               "origin/main",
+		"head_sha":               "deadbeef",
+		"changed_files_hash":     "sha256:hash",
+		"last_error_code":        lastCode,
+		"last_error_message":     lastMsg,
+		"last_transition_reason": "session_committed",
 	}
 }
 

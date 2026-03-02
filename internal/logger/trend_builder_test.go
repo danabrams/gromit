@@ -244,23 +244,23 @@ func TestBuildIterationMetrics_ProviderRollingStats(t *testing.T) {
 		wantTransportFailureRate float64
 	}{
 		{
-			name:       "mixed provider window",
-			windowSize: 3,
+			name:        "mixed provider window",
+			windowSize:  3,
 			metricIndex: 2,
 			entries: []IterationLog{
 				{
-					Timestamp:       time.Now(),
-					Iteration:       1,
-					Provider:        "openai",
-					Model:           "gpt-5",
-					Success:         true,
+					Timestamp: time.Now(),
+					Iteration: 1,
+					Provider:  "openai",
+					Model:     "gpt-5",
+					Success:   true,
 				},
 				{
-					Timestamp:       time.Now().Add(time.Second),
-					Iteration:       2,
-					Provider:        "claude",
-					Model:           "claude-v1",
-					Success:         false,
+					Timestamp: time.Now().Add(time.Second),
+					Iteration: 2,
+					Provider:  "claude",
+					Model:     "claude-v1",
+					Success:   false,
 				},
 				{
 					Timestamp:       time.Now().Add(2 * time.Second),
@@ -278,16 +278,16 @@ func TestBuildIterationMetrics_ProviderRollingStats(t *testing.T) {
 			wantTransportFailureRate: 0.5,
 		},
 		{
-			name:       "inference fallback",
-			windowSize: 3,
+			name:        "inference fallback",
+			windowSize:  3,
 			metricIndex: 1,
 			entries: []IterationLog{
 				{
-					Timestamp:       time.Now(),
-					Iteration:       1,
-					Provider:        "",
-					Model:           "gpt-5.3-codex",
-					Success:         true,
+					Timestamp: time.Now(),
+					Iteration: 1,
+					Provider:  "",
+					Model:     "gpt-5.3-codex",
+					Success:   true,
 				},
 				{
 					Timestamp:       time.Now().Add(time.Second),
@@ -298,11 +298,11 @@ func TestBuildIterationMetrics_ProviderRollingStats(t *testing.T) {
 					FailureCategory: transportDisconnectFailure,
 				},
 				{
-					Timestamp:       time.Now().Add(2 * time.Second),
-					Iteration:       3,
-					Provider:        "claude",
-					Model:           "claude-v1",
-					Success:         true,
+					Timestamp: time.Now().Add(2 * time.Second),
+					Iteration: 3,
+					Provider:  "claude",
+					Model:     "claude-v1",
+					Success:   true,
 				},
 			},
 			wantInvocations:          2,
@@ -312,8 +312,8 @@ func TestBuildIterationMetrics_ProviderRollingStats(t *testing.T) {
 			wantTransportFailureRate: 0.5,
 		},
 		{
-			name:       "transport-only failure",
-			windowSize: 1,
+			name:        "transport-only failure",
+			windowSize:  1,
 			metricIndex: 0,
 			entries: []IterationLog{
 				{

@@ -8,14 +8,14 @@ import (
 func TestExperimentStructHasAllRequiredFields(t *testing.T) {
 	// Verify that Experiment struct can be created with all fields
 	exp := &Experiment{
-		ID:               "test-exp-1",
-		Phase:            "build",
-		Description:      "Test experiment",
-		Created:          time.Now(),
-		Control:          &Variant{},
-		Variants:         []*Variant{},
-		SuccessCriteria:  "",
-		ForceVariant:     "",
+		ID:              "test-exp-1",
+		Phase:           "build",
+		Description:     "Test experiment",
+		Created:         time.Now(),
+		Control:         &Variant{},
+		Variants:        []*Variant{},
+		SuccessCriteria: "",
+		ForceVariant:    "",
 	}
 
 	if exp.ID != "test-exp-1" {

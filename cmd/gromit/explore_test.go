@@ -357,7 +357,7 @@ worktree:
 }
 
 type mockExploreRunner struct {
-	result   *pipeline.ExploreResult
+	result    *pipeline.ExploreResult
 	onExplore func()
 }
 

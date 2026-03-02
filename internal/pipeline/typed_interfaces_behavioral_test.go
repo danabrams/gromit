@@ -336,7 +336,7 @@ func TestPipeline_WorksWithTypedDependencies(t *testing.T) {
 	}
 
 	deps := &Deps{
-		LLMClient:  mockClaude,
+		LLMClient:     mockClaude,
 		TrackerClient: mockBead,
 	}
 

@@ -270,10 +270,10 @@ func newSpecGateRenderer(cfg *config.Config) (*prompt.Renderer, error) {
 var verifySpecCmdRunner = defaultVerifySpecCmdRunner
 
 const (
-	specGateTestCommand = "go test -tags acceptance ./..."
-	specGateDiffCommand = "git diff"
-	specGateStatusPass  = "PASS"
-	specGateStatusFail  = "FAIL"
+	specGateTestCommand           = "go test -tags acceptance ./..."
+	specGateDiffCommand           = "git diff"
+	specGateStatusPass            = "PASS"
+	specGateStatusFail            = "FAIL"
 	verifySpecProcessCapacityWait = 1500 * time.Millisecond
 )
 

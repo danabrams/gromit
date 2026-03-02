@@ -1745,11 +1745,11 @@ func TestBenchmarkPhase4Report_DisabledRetrievalProducesFullReport(t *testing.T)
 				WrongFileRate              float64 `json:"WrongFileRate"`
 			} `json:"Retrieval"`
 			Gates struct {
-				TokenReductionGate     bool `json:"TokenReductionGate"`
-				LatencyReductionGate   bool `json:"LatencyReductionGate"`
-				SuccessRateParityGate  bool `json:"SuccessRateParityGate"`
-				WrongFileRateGate      bool `json:"WrongFileRateGate"`
-				CanAdopt               bool `json:"CanAdopt"`
+				TokenReductionGate    bool `json:"TokenReductionGate"`
+				LatencyReductionGate  bool `json:"LatencyReductionGate"`
+				SuccessRateParityGate bool `json:"SuccessRateParityGate"`
+				WrongFileRateGate     bool `json:"WrongFileRateGate"`
+				CanAdopt              bool `json:"CanAdopt"`
 			} `json:"Gates"`
 		} `json:"report"`
 		Decision struct {
@@ -1821,11 +1821,11 @@ func TestBenchmarkPhase4Report_AllGatesPassProducesAdoptWithEvidence(t *testing.
 	var report struct {
 		Report struct {
 			Gates struct {
-				TokenReductionGate     bool `json:"TokenReductionGate"`
-				LatencyReductionGate   bool `json:"LatencyReductionGate"`
-				SuccessRateParityGate  bool `json:"SuccessRateParityGate"`
-				WrongFileRateGate      bool `json:"WrongFileRateGate"`
-				CanAdopt               bool `json:"CanAdopt"`
+				TokenReductionGate    bool `json:"TokenReductionGate"`
+				LatencyReductionGate  bool `json:"LatencyReductionGate"`
+				SuccessRateParityGate bool `json:"SuccessRateParityGate"`
+				WrongFileRateGate     bool `json:"WrongFileRateGate"`
+				CanAdopt              bool `json:"CanAdopt"`
 			} `json:"Gates"`
 		} `json:"report"`
 		Decision struct {

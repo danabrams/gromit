@@ -468,11 +468,11 @@ func specEventCases(ts time.Time) []eventSpec {
 			name:     "GateScopeEvent",
 			wantType: "gate_scope",
 			event: &GateScopeEvent{
-				BeadID:   "b1",
+				BeadID:    "b1",
 				FileCount: 5,
-				MaxFiles: 10,
-				Action:   "block",
-				Time:     ts,
+				MaxFiles:  10,
+				Action:    "block",
+				Time:      ts,
 			},
 		},
 		{

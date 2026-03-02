@@ -329,11 +329,11 @@ func TestTracker_ResetFromErrorStateToPending(t *testing.T) {
 
 func TestTrackerStateTransitions_TableDriven(t *testing.T) {
 	tests := []struct {
-		name            string
-		setup           func(*CoverageTracker)
-		transition      func(*CoverageTracker)
-		expectedState   State
-		description     string
+		name          string
+		setup         func(*CoverageTracker)
+		transition    func(*CoverageTracker)
+		expectedState State
+		description   string
 	}{
 		{
 			name: "PendingToCollecting",

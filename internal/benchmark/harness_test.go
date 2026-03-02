@@ -59,7 +59,7 @@ func TestBuildModeOverlay_UsesExpectedTierDefaultsForBuildAndValidation(t *testi
 	}
 
 	cases := map[string]string{
-		"single_pass":       "low",
+		"single_pass":        "low",
 		"tdd_shared_context": "low",
 		"tdd_fresh_context":  "low",
 	}

@@ -16,10 +16,10 @@ import (
 // (process_trend.go, trend_analytics.go, trend_builder.go, trend_spc.go) are <= 550 lines.
 func TestRefactorValidation_FileLinesUnder550(t *testing.T) {
 	files := map[string]int{
-		"process_trend.go":    550,
-		"trend_analytics.go":  550,
-		"trend_builder.go":    550,
-		"trend_spc.go":        550,
+		"process_trend.go":   550,
+		"trend_analytics.go": 550,
+		"trend_builder.go":   550,
+		"trend_spc.go":       550,
 	}
 
 	// Get the directory of the current file

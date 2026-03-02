@@ -26,8 +26,8 @@ func TestBuildStageStoresVariantIDInResult(t *testing.T) {
 				Template: "variant1_template",
 				Model:    "sonnet",
 				Budget: &experiment.Budget{
-					MaxChars:            10000,
-					LearningCapChars:    1000,
+					MaxChars:         10000,
+					LearningCapChars: 1000,
 				},
 			},
 		},

@@ -193,16 +193,16 @@ func TestShapeATDDContextForBudget_LargeContextRegressionCoverage(t *testing.T) 
 	// Verify that default ATDD budgeting yields at least 30% prompt-size reduction
 	// while preserving required bead/task identity
 	testBead := &bead.Bead{
-		ID:    "large-context-001",
-		Title: "Complex feature implementation",
+		ID:          "large-context-001",
+		Title:       "Complex feature implementation",
 		Description: "Implement large feature with extensive constraints",
-		Priority: 1,
+		Priority:    1,
 	}
 
 	ctx := &Context{
-		Bead: testBead,
+		Bead:     testBead,
 		ClaudeMD: strings.Repeat("claude project context ", 200),
-		Spec: strings.Repeat("detailed specification section ", 300),
+		Spec:     strings.Repeat("detailed specification section ", 300),
 		Rules: "# Complex Rules\n\n" +
 			"## Test Quality <!-- phases: build -->\n" +
 			strings.Repeat("test quality rule ", 100) +

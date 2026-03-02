@@ -269,12 +269,12 @@ func TestFakePRClient_ReturnsErrorsForAllMethods(t *testing.T) {
 	for methodName, testFn := range tests {
 		t.Run(methodName, func(t *testing.T) {
 			fake := &fakePRClient{
-				getPRError:           testError,
-				listChecksError:      testError,
-				postReviewError:      testError,
-				postCommentError:     testError,
+				getPRError:            testError,
+				listChecksError:       testError,
+				postReviewError:       testError,
+				postCommentError:      testError,
 				requestReviewersError: testError,
-				mergePRError:         testError,
+				mergePRError:          testError,
 			}
 
 			err := testFn(fake)
@@ -391,19 +391,19 @@ func TestReviewPayload_WithComments(t *testing.T) {
 
 // fakePRClient is a test implementation of PRClient interface.
 type fakePRClient struct {
-	nextPRNumber        int
-	createPRError       error
-	getPRError          error
-	listChecksError     error
-	postReviewError     error
-	postCommentError    error
+	nextPRNumber          int
+	createPRError         error
+	getPRError            error
+	listChecksError       error
+	postReviewError       error
+	postCommentError      error
 	requestReviewersError error
-	mergePRError        error
-	checksToReturn      []specmerge.CheckStatus
-	postReviewCalls     []specmerge.ReviewPayload
-	postCommentCalls    []string
+	mergePRError          error
+	checksToReturn        []specmerge.CheckStatus
+	postReviewCalls       []specmerge.ReviewPayload
+	postCommentCalls      []string
 	requestReviewersCalls [][]string
-	mergePRCalls        []string
+	mergePRCalls          []string
 }
 
 func (f *fakePRClient) CreatePR(ctx context.Context, title, body, head, base string) (specmerge.PRRef, error) {

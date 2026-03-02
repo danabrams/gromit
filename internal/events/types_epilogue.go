@@ -4,10 +4,10 @@ import "time"
 
 // EpilogueStartEvent is emitted when the epilogue stage begins.
 type EpilogueStartEvent struct {
-	BeadID   string
+	BeadID    string
 	Iteration int
-	Success  bool // Whether build succeeded
-	Time     time.Time
+	Success   bool // Whether build succeeded
+	Time      time.Time
 }
 
 func (e *EpilogueStartEvent) EventType() string {

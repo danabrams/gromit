@@ -346,18 +346,18 @@ func TestResolveCompatibilityContext_FullPrecedenceMatrix(t *testing.T) {
 		{
 			name: "all legacy defaults",
 			config: Config{
-				Project:    ProjectConfig{},
-				Tracker:    TrackerConfig{},
+				Project:     ProjectConfig{},
+				Tracker:     TrackerConfig{},
 				Methodology: MethodologyConfig{},
 			},
 			wantProfs: map[string]string{
-				"profile.value": "go",
+				"profile.value":  "go",
 				"profile.source": string(CompatibilitySourceLegacyFallback),
 				"profile.marker": CompatibilityDeprecationMarkerLegacyHardcodedDefaults,
-				"tracker.value": "bd",
+				"tracker.value":  "bd",
 				"tracker.source": string(CompatibilitySourceLegacyFallback),
 				"tracker.marker": CompatibilityDeprecationMarkerLegacyTrackerBackendFallback,
-				"adapter.value": "go",
+				"adapter.value":  "go",
 				"adapter.source": string(CompatibilitySourceLegacyFallback),
 				"adapter.marker": CompatibilityDeprecationMarkerLegacyHardcodedDefaults,
 			},
@@ -365,18 +365,18 @@ func TestResolveCompatibilityContext_FullPrecedenceMatrix(t *testing.T) {
 		{
 			name: "explicit profile only",
 			config: Config{
-				Project:    ProjectConfig{Profile: "python"},
-				Tracker:    TrackerConfig{},
+				Project:     ProjectConfig{Profile: "python"},
+				Tracker:     TrackerConfig{},
 				Methodology: MethodologyConfig{},
 			},
 			wantProfs: map[string]string{
-				"profile.value": "python",
+				"profile.value":  "python",
 				"profile.source": string(CompatibilitySourceExplicit),
 				"profile.marker": "",
-				"tracker.value": "bd",
+				"tracker.value":  "bd",
 				"tracker.source": string(CompatibilitySourceProfileDefault),
 				"tracker.marker": CompatibilityDeprecationMarkerLegacyTrackerBackendFallback,
-				"adapter.value": "passthrough",
+				"adapter.value":  "passthrough",
 				"adapter.source": string(CompatibilitySourceProfileDefault),
 				"adapter.marker": "",
 			},
@@ -384,18 +384,18 @@ func TestResolveCompatibilityContext_FullPrecedenceMatrix(t *testing.T) {
 		{
 			name: "explicit profile and tracker",
 			config: Config{
-				Project:    ProjectConfig{Profile: "node"},
-				Tracker:    TrackerConfig{Backend: "linear"},
+				Project:     ProjectConfig{Profile: "node"},
+				Tracker:     TrackerConfig{Backend: "linear"},
 				Methodology: MethodologyConfig{},
 			},
 			wantProfs: map[string]string{
-				"profile.value": "node",
+				"profile.value":  "node",
 				"profile.source": string(CompatibilitySourceExplicit),
 				"profile.marker": "",
-				"tracker.value": "linear",
+				"tracker.value":  "linear",
 				"tracker.source": string(CompatibilitySourceExplicit),
 				"tracker.marker": "",
-				"adapter.value": "passthrough",
+				"adapter.value":  "passthrough",
 				"adapter.source": string(CompatibilitySourceProfileDefault),
 				"adapter.marker": "",
 			},
@@ -403,18 +403,18 @@ func TestResolveCompatibilityContext_FullPrecedenceMatrix(t *testing.T) {
 		{
 			name: "all explicit",
 			config: Config{
-				Project:    ProjectConfig{Profile: "go"},
-				Tracker:    TrackerConfig{Backend: "bd"},
+				Project:     ProjectConfig{Profile: "go"},
+				Tracker:     TrackerConfig{Backend: "bd"},
 				Methodology: MethodologyConfig{Adapter: "python"},
 			},
 			wantProfs: map[string]string{
-				"profile.value": "go",
+				"profile.value":  "go",
 				"profile.source": string(CompatibilitySourceExplicit),
 				"profile.marker": "",
-				"tracker.value": "bd",
+				"tracker.value":  "bd",
 				"tracker.source": string(CompatibilitySourceExplicit),
 				"tracker.marker": "",
-				"adapter.value": "python",
+				"adapter.value":  "python",
 				"adapter.source": string(CompatibilitySourceExplicit),
 				"adapter.marker": "",
 			},
@@ -426,9 +426,9 @@ func TestResolveCompatibilityContext_FullPrecedenceMatrix(t *testing.T) {
 			resolved := tc.config.ResolveCompatibilityContext()
 
 			checks := []struct {
-				path  string
-				got   string
-				want  string
+				path string
+				got  string
+				want string
 			}{
 				{"profile.value", resolved.Profile.Value, tc.wantProfs["profile.value"]},
 				{"profile.source", string(resolved.Profile.Source), tc.wantProfs["profile.source"]},

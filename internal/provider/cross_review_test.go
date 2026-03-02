@@ -396,4 +396,3 @@ func TestSelectCrossConcurrentAccess(t *testing.T) {
 		<-done
 	}
 }
-

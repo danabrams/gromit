@@ -11,7 +11,7 @@ func TestEmitLogWritesToOutputWhenNoSubscribers(t *testing.T) {
 	var output bytes.Buffer
 
 	o := &Orchestrator{
-		cfg: OrchestratorConfig{Output: &output},
+		cfg:     OrchestratorConfig{Output: &output},
 		emitter: events.NewEmitter(),
 	}
 

@@ -14,16 +14,16 @@ import (
 // InteractiveState / interactive-state.json.  Do NOT add review fields here;
 // the compiler will catch callers that try to use state.File for review state.
 type State struct {
-	LastRetro                      time.Time            `json:"last_retro,omitempty"`
-	IterationsSinceReview          int                  `json:"iterations_since_review,omitempty"`
-	CleanExit                      bool                 `json:"clean_exit"`
-	UpdatedAt                      time.Time            `json:"updated_at"`
-	FilteredLearningHashes         []string             `json:"filtered_learning_hashes,omitempty"`
-	ArchivedLearningHashes         []string             `json:"archived_learning_hashes,omitempty"`
-	ProviderCounts                 map[string]int       `json:"provider_counts,omitempty"`
-	ProviderUnavailableUntil       map[string]time.Time `json:"provider_unavailable_until,omitempty"`
-	SPCCooldowns                   map[string]time.Time `json:"spc_cooldowns,omitempty"`
-	ControlLimitAlertTriggered     bool                 `json:"control_limit_alert_triggered,omitempty"`
+	LastRetro                  time.Time            `json:"last_retro,omitempty"`
+	IterationsSinceReview      int                  `json:"iterations_since_review,omitempty"`
+	CleanExit                  bool                 `json:"clean_exit"`
+	UpdatedAt                  time.Time            `json:"updated_at"`
+	FilteredLearningHashes     []string             `json:"filtered_learning_hashes,omitempty"`
+	ArchivedLearningHashes     []string             `json:"archived_learning_hashes,omitempty"`
+	ProviderCounts             map[string]int       `json:"provider_counts,omitempty"`
+	ProviderUnavailableUntil   map[string]time.Time `json:"provider_unavailable_until,omitempty"`
+	SPCCooldowns               map[string]time.Time `json:"spc_cooldowns,omitempty"`
+	ControlLimitAlertTriggered bool                 `json:"control_limit_alert_triggered,omitempty"`
 }
 
 // File manages the state.json file

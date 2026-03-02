@@ -89,7 +89,7 @@ func (q *Querier) Query(query string, k int) ([]Snippet, error) {
 			if tf == 0 {
 				continue
 			}
-			score += idf(token) * (tf/(tf+1)) * float64(qtf)
+			score += idf(token) * (tf / (tf + 1)) * float64(qtf)
 		}
 
 		if score > maxScore {

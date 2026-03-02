@@ -531,7 +531,7 @@ func TestIterationResult_SpecIDJSONTag(t *testing.T) {
 func TestIterationResult_EstimatedFilesJSONTag(t *testing.T) {
 	t.Parallel()
 	result := IterationResult{
-		BeadID:        "bead-1",
+		BeadID:         "bead-1",
 		EstimatedFiles: 5,
 	}
 

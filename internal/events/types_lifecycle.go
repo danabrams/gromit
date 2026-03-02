@@ -41,10 +41,10 @@ func (e *RunCompleteEvent) EventTime() time.Time {
 
 // IterationStartEvent is emitted at the start of each iteration.
 type IterationStartEvent struct {
-	Iteration  int
-	BeadID     string
-	BeadTitle  string
-	Time       time.Time
+	Iteration int
+	BeadID    string
+	BeadTitle string
+	Time      time.Time
 }
 
 func (e *IterationStartEvent) EventType() string {
@@ -60,11 +60,11 @@ func (e *IterationStartEvent) EventTime() time.Time {
 
 // IterationCompleteEvent is emitted when an iteration completes.
 type IterationCompleteEvent struct {
-	Iteration  int
-	BeadID     string
-	Success    bool
-	Duration   time.Duration
-	Time       time.Time
+	Iteration int
+	BeadID    string
+	Success   bool
+	Duration  time.Duration
+	Time      time.Time
 }
 
 func (e *IterationCompleteEvent) EventType() string {

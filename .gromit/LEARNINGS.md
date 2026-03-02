@@ -83,6 +83,26 @@ Shared orchestrator/runtime path ownership must include telemetry completeness e
 
 *Newly observed — needs validation across more tasks.*
 
+### 2026-03-02 | Integration Queue FSM Allows Direct Construction Outside ApplyTransition | architecture
+*Related to: review-1772456575499153066, gromit-qqsq*
+
+Integration queue entries can be constructed directly via store.Save() without going through ApplyTransition FSM transitions. enqueueBlockedBranch creates StateConflict entries directly (bypassing Draft→Conflict which is not a valid FSM edge). This is architecturally intentional: session auto-commit failures create entries that never went through coordinator integration. The two meanings of StateConflict are distinguished by LastErrorCode: "session_commit_failed" (session path) vs "merge_conflict"/"rebase_conflict" (coordinator path). RecoverFromCrash correctly ignores these entries since they are not crash artifacts.
+
+### 2026-03-02 | TDD Cycle Instability Detection Depends on Stable Slice Ordering | bug-risk
+*Related to: review-1772456575499153066, gromit-p3d7*
+
+equalStringSlices in internal/runner/tdd/orchestrator.go is order-sensitive but the Remaining criteria slice has no documented ordering guarantee. Oscillation detection (snapshot comparison across cycles) may miss matches when the same criteria set appears in different element order. Deadlock detection (adjacent cycle comparison) has the same risk.
+
+### 2026-03-02 | Process Management Consolidation in procutil Is Complete Across Provider Launch Sites | architecture
+*Related to: review-1772456575499153066*
+
+procutil package now provides the canonical subprocess lifecycle: SetProcessGroupKill, WaitForProcessCapacity (cgroup v2 PID pressure), KillDescendantsOnCancel, ReapProcessTree. All provider launch sites (codex, gemini) and worktree.Manager use the full pattern. WaitForProcessCapacity is cgroup v2 only; cgroup v1 systems silently skip throttling (best-effort). The double-kill between KillDescendantsOnCancel goroutine and defer ReapProcessTree is harmless (ESRCH on dead PIDs is ignored).
+
+### 2026-03-02 | Context Propagation Gap Between Library and CLI Layers | patterns
+*Related to: review-1772456575499153066, gromit-yfj6, gromit-1fov*
+
+worktree.Manager methods accept context.Context at the library level, but the CLI layer (interactive_worktree.go) uses context.TODO() because runWithSessionWorktreeWithConflictSettings does not accept a context parameter. Similarly, constructor_adapters_epilogue.go uses context.Background() in adapter factory closures, defeating stage cancellation. Context threading must be end-to-end from CLI command through adapter closures to be effective.
+
 ### 2026-02-26 | Tracker Adapter Metadata Serialization Must Use JSON | gotchas
 *Related to: code-review, review-1772124256835385050, gromit-qdjqk, review-1772143302280772186*
 

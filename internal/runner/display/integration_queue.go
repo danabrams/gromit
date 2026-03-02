@@ -7,11 +7,11 @@ import (
 
 // IntegrationQueueStatus holds queue summary for display purposes.
 type IntegrationQueueStatus struct {
-	QueueLength      int                         `json:"queue_length"`
-	ReadyCount       int                         `json:"ready_count"`
-	IntegratingCount int                         `json:"integrating_count"`
-	BlockedCount     int                         `json:"blocked_count"`
-	MergedCount      int                         `json:"merged_count"`
+	QueueLength      int                          `json:"queue_length"`
+	ReadyCount       int                          `json:"ready_count"`
+	IntegratingCount int                          `json:"integrating_count"`
+	BlockedCount     int                          `json:"blocked_count"`
+	MergedCount      int                          `json:"merged_count"`
 	Entries          []*IntegrationQueueEntryView `json:"entries"`
 }
 

@@ -1267,4 +1267,3 @@ func TestMaybeCleanupDebugRestoreWorktreeKeepsWhenAccepted(t *testing.T) {
 		t.Fatal("expected git worktree remove not to be called when user keeps worktree")
 	}
 }
-
