@@ -290,6 +290,21 @@ func TestApplyTransition_InvalidTransition_ReturnsErrorWithoutModifyingEntry(t *
 	}
 }
 
+func TestApplyTransition_WithErrorMetadata_SetsLastErrorFields(t *testing.T) {
+	entry := &Entry{State: "draft"}
+	err := ApplyTransition(entry, "failed_gates", "scoped gate failure", TransitionErrorMetadata{
+		Code:    "test_error",
+		Message: "some failure",
+	})
+	if err != nil {
+		t.Fatalf("expected ApplyTransition to succeed, got: %v", err)
+	}
+	if entry.LastErrorCode != "test_error" || entry.LastErrorMessage != "some failure" {
+		t.Fatalf("expected error metadata to be set, got code=%q message=%q",
+			entry.LastErrorCode, entry.LastErrorMessage)
+	}
+}
+
 func TestCheckTransition_AllAllowedTransitions(t *testing.T) {
 	allowedCases := []struct {
 		from, to string
