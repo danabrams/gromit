@@ -282,7 +282,7 @@ func TestPipeline_IsSpecComplete_FalseWithOpenBead(t *testing.T) {
 
 	const specName = "payments"
 	client := &fakeBeadQuery{
-		listFn: func(label string) ([]*bead.Bead, error) {
+		listFn: func(_ context.Context, label string) ([]*bead.Bead, error) {
 			if label != "spec:"+specName {
 				t.Fatalf("label = %q, want spec:%s", label, specName)
 			}
@@ -294,7 +294,7 @@ func TestPipeline_IsSpecComplete_FalseWithOpenBead(t *testing.T) {
 	}
 
 	p := specmerge.NewPipeline(client, nil, nil, specmerge.FixBeadDependencies{}, 0)
-	complete, err := p.IsSpecComplete(specName)
+	complete, err := p.IsSpecComplete(context.Background(), specName)
 	if err != nil {
 		t.Fatalf("IsSpecComplete returned error: %v", err)
 	}
@@ -307,7 +307,7 @@ func TestPipeline_TriggerCapturesCycleRecord(t *testing.T) {
 	t.Parallel()
 
 	specName := "payments"
-	query := &fakeBeadQuery{listFn: func(_ string) ([]*bead.Bead, error) {
+	query := &fakeBeadQuery{listFn: func(_ context.Context, _ string) ([]*bead.Bead, error) {
 		return nil, nil
 	}}
 
@@ -389,7 +389,7 @@ func TestTrackerBeadQueryConvertsTrackerItems(t *testing.T) {
 		t.Fatal("NewTrackerBeadQuery returned nil")
 	}
 
-	beads, err := query.ListWithLabel("spec:test")
+	beads, err := query.ListWithLabel(context.Background(), "spec:test")
 	if err != nil {
 		t.Fatalf("ListWithLabel returned error: %v", err)
 	}
@@ -402,14 +402,14 @@ func TestTrackerBeadQueryConvertsTrackerItems(t *testing.T) {
 }
 
 type fakeBeadQuery struct {
-	listFn func(label string) ([]*bead.Bead, error)
+	listFn func(context.Context, string) ([]*bead.Bead, error)
 }
 
-func (f *fakeBeadQuery) ListWithLabel(label string) ([]*bead.Bead, error) {
+func (f *fakeBeadQuery) ListWithLabel(ctx context.Context, label string) ([]*bead.Bead, error) {
 	if f == nil || f.listFn == nil {
 		return nil, nil
 	}
-	return f.listFn(label)
+	return f.listFn(ctx, label)
 }
 
 type fakeCycleRecordEmitter struct {

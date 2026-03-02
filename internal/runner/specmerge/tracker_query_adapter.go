@@ -20,11 +20,11 @@ func NewTrackerBeadQuery(client tracker.Client) beadQuery {
 	return &trackerBeadQuery{client: client}
 }
 
-func (q *trackerBeadQuery) ListWithLabel(label string) ([]*bead.Bead, error) {
+func (q *trackerBeadQuery) ListWithLabel(ctx context.Context, label string) ([]*bead.Bead, error) {
 	if q == nil || q.client == nil {
 		return nil, fmt.Errorf("bead query is not configured")
 	}
-	items, err := q.client.ListWithLabel(context.Background(), label)
+	items, err := q.client.ListWithLabel(ctx, label)
 	if err != nil {
 		return nil, err
 	}

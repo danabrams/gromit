@@ -22,12 +22,12 @@ const (
 
 // beadQuery defines the subset of the bead client needed by Pipeline.
 type beadQuery interface {
-	ListWithLabel(label string) ([]*bead.Bead, error)
+	ListWithLabel(ctx context.Context, label string) ([]*bead.Bead, error)
 }
 
 // Controller coordinates spec merge completion triggers.
 type Controller interface {
-	IsSpecComplete(specName string) (bool, error)
+	IsSpecComplete(ctx context.Context, specName string) (bool, error)
 	Trigger(ctx context.Context, specName string) error
 }
 
@@ -58,7 +58,7 @@ func NewPipeline(query beadQuery, emitter CycleRecordEmitter, flow FlowExecutor,
 }
 
 // IsSpecComplete returns true when no open beads remain for the given spec.
-func (p *Pipeline) IsSpecComplete(specName string) (bool, error) {
+func (p *Pipeline) IsSpecComplete(ctx context.Context, specName string) (bool, error) {
 	if p == nil {
 		return false, fmt.Errorf("pipeline is nil")
 	}
@@ -71,7 +71,7 @@ func (p *Pipeline) IsSpecComplete(specName string) (bool, error) {
 	}
 
 	label := specLabelPrefix + specName
-	beads, err := p.query.ListWithLabel(label)
+	beads, err := p.query.ListWithLabel(ctx, label)
 	if err != nil {
 		return false, fmt.Errorf("list beads for spec %q: %w", specName, err)
 	}

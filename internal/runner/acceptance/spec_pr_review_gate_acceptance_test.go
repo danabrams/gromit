@@ -68,7 +68,7 @@ func TestSpecPrReviewGateLifecycle(t *testing.T) {
 	}
 
 	specController := &fakeSpecMergeController{
-		isCompleteFn: func(_ string) (bool, error) {
+		isCompleteFn: func(_ context.Context, _ string) (bool, error) {
 			return closedSpecCount == len(specBeads), nil
 		},
 	}
@@ -132,17 +132,19 @@ func TestSpecPrReviewGateLifecycle(t *testing.T) {
 
 // fakeSpecMergeController is a test double that records spec completion and trigger calls.
 type fakeSpecMergeController struct {
-	isCompleteFn func(string) (bool, error)
+	isCompleteFn func(context.Context, string) (bool, error)
 	triggerFn    func(context.Context, string) error
 
-	isCompleteCalls []string
-	triggerCalls    []string
+	isCompleteCalls    []string
+	isCompleteContexts []context.Context
+	triggerCalls       []string
 }
 
-func (f *fakeSpecMergeController) IsSpecComplete(specName string) (bool, error) {
+func (f *fakeSpecMergeController) IsSpecComplete(ctx context.Context, specName string) (bool, error) {
 	f.isCompleteCalls = append(f.isCompleteCalls, specName)
+	f.isCompleteContexts = append(f.isCompleteContexts, ctx)
 	if f.isCompleteFn != nil {
-		return f.isCompleteFn(specName)
+		return f.isCompleteFn(ctx, specName)
 	}
 	return false, nil
 }

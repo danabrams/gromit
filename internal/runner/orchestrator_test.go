@@ -402,7 +402,7 @@ func TestOrchestrator_SpecMergePipelineTriggersOnce(t *testing.T) {
 
 	completeCalls := 0
 	specPipeline := &fakeSpecMergeController{
-		isCompleteFn: func(name string) (bool, error) {
+		isCompleteFn: func(_ context.Context, name string) (bool, error) {
 			if name != specName {
 				t.Fatalf("IsSpecComplete called with spec %q, want %q", name, specName)
 			}
@@ -3076,7 +3076,7 @@ func TestOrchestrator_SkipsSpecMergeTriggerOnEpilogueLifecycleFailure(t *testing
 
 	triggerCalls := 0
 	specPipeline := &fakeSpecMergeController{
-		isCompleteFn: func(name string) (bool, error) {
+		isCompleteFn: func(_ context.Context, name string) (bool, error) {
 			// Always report spec as complete
 			return true, nil
 		},
@@ -3185,7 +3185,7 @@ func TestOrchestrator_TriggersSpecMergeWhenLifecycleSucceeds(t *testing.T) {
 
 	triggerCalls := 0
 	specPipeline := &fakeSpecMergeController{
-		isCompleteFn: func(name string) (bool, error) {
+		isCompleteFn: func(_ context.Context, name string) (bool, error) {
 			// Always report spec as complete
 			return true, nil
 		},

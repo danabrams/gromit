@@ -1072,7 +1072,7 @@ func (o *Orchestrator) maybeTriggerSpecMerge(ctx context.Context, b *bead.Bead) 
 		return
 	}
 
-	complete, err := o.cfg.SpecMergeController.IsSpecComplete(specName)
+	complete, err := o.cfg.SpecMergeController.IsSpecComplete(ctx, specName)
 	if err != nil {
 		o.logWarning("Warning: could not check spec completion for %q: %v", specName, err)
 		return
