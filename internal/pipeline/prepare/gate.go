@@ -61,6 +61,7 @@ type Gate struct {
 	decomposer          Decomposer         // optional; used only by scope-gate decomposition
 	dataQualityChecker  DataQualityBlocker // optional; nil means skip data quality checks
 	specSPCBlocker      *SpecSPCBlocker    // optional; nil means skip spec-level SPC blocking
+	criteriaEnricher    *LLMCriteriaEnricher // optional; nil means skip criteria enrichment
 	output              io.Writer
 }
 
@@ -117,6 +118,12 @@ func (g *Gate) WithDataQualityBlocker(dq DataQualityBlocker) *Gate {
 // WithSpecSPCBlocker configures an optional SpecSPCBlocker for spec-level SPC anomaly blocking.
 func (g *Gate) WithSpecSPCBlocker(sb *SpecSPCBlocker) *Gate {
 	g.specSPCBlocker = sb
+	return g
+}
+
+// WithCriteriaEnricher configures an optional LLMCriteriaEnricher for auto-generating acceptance criteria.
+func (g *Gate) WithCriteriaEnricher(e *LLMCriteriaEnricher) *Gate {
+	g.criteriaEnricher = e
 	return g
 }
 

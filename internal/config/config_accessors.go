@@ -465,6 +465,14 @@ func (w WorktreeConfig) IsAutoMergeEnabled() bool {
 	return *w.AutoMerge
 }
 
+// EffectiveAutoGenerateCriteria returns whether LLM criteria auto-generation is enabled (defaults to false).
+func (g GateConfig) EffectiveAutoGenerateCriteria() bool {
+	if g.AutoGenerateCriteria == nil {
+		return false
+	}
+	return *g.AutoGenerateCriteria
+}
+
 // IsEnabled returns whether spec gate is enabled (defaults to true).
 func (s SpecGateConfig) IsEnabled() bool {
 	if s.Enabled == nil {

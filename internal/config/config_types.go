@@ -82,6 +82,7 @@ type Config struct {
 	Worktree                   WorktreeConfig         `yaml:"worktree"`
 	Session                    SessionConfig          `yaml:"session"`
 	Runbook                    RunbookConfig          `yaml:"runbook"`
+	Gate                       GateConfig             `yaml:"gate"`
 	SpecGate                   SpecGateConfig         `yaml:"spec_gate"`
 	Decompose                  DecomposeConfig        `yaml:"decompose"`
 	MergePipeline              MergePipelineConfig    `yaml:"merge_pipeline"`
@@ -589,6 +590,10 @@ type SessionConfig struct {
 
 type RunbookConfig struct {
 	TTLDays int `yaml:"ttl_days"`
+}
+
+type GateConfig struct {
+	AutoGenerateCriteria *bool `yaml:"auto_generate_criteria"`
 }
 
 type SpecGateConfig struct {
