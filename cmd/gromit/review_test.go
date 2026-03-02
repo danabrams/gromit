@@ -324,6 +324,40 @@ func TestApplyInteractiveReviewFindings_MissingFileWarns(t *testing.T) {
 	}
 }
 
+func TestApplyInteractiveReviewFindings_MalformedFileWarns(t *testing.T) {
+	t.Parallel()
+
+	gromitDir := t.TempDir()
+	reviewDir := filepath.Join(gromitDir, "tmp")
+	if err := os.MkdirAll(reviewDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	filePath := filepath.Join(reviewDir, "review-findings.json")
+	if err := os.WriteFile(filePath, []byte("not-json"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var buf strings.Builder
+	origWriter := reviewFindingsLogWriter
+	t.Cleanup(func() { reviewFindingsLogWriter = origWriter })
+	reviewFindingsLogWriter = &buf
+
+	origBuilder := buildReviewFindingsApplierFn
+	t.Cleanup(func() { buildReviewFindingsApplierFn = origBuilder })
+	buildReviewFindingsApplierFn = func(cfg *config.Config, dir string) (reviewFindingsApplier, error) {
+		t.Fatalf("pipeline should not be built when findings file cannot be parsed")
+		return nil, nil
+	}
+
+	if err := applyInteractiveReviewFindings(&config.Config{}, gromitDir); err != nil {
+		t.Fatalf("applyInteractiveReviewFindings() error = %v", err)
+	}
+
+	if !strings.Contains(buf.String(), "warning") {
+		t.Fatalf("expected warning log, got %q", buf.String())
+	}
+}
+
 func TestRunGitDiffForReview_UsesInjectedGit(t *testing.T) {
 	// Not parallel: stubReviewGit mutates package-level reviewGitCommandFn and reviewGitOutputFn.
 	capture := stubReviewGit(t, []byte("diff output\n"), nil)
