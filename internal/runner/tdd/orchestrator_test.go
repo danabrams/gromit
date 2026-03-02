@@ -343,6 +343,18 @@ func TestRunCycles_OscillationStopsWithScopeReason(t *testing.T) {
 	}
 }
 
+func TestDetectCycleInstability_OrderIndependentDeadlock(t *testing.T) {
+	t.Parallel()
+	snapshots := []runtypes.CycleSnapshot{
+		{CycleNumber: 1, Remaining: []string{"implement feature X", "implement feature Y"}},
+		{CycleNumber: 2, Remaining: []string{"implement feature Y", "implement feature X"}},
+	}
+	inst := detectCycleInstability(snapshots)
+	if inst != runtypes.InstabilityDeadlock {
+		t.Fatalf("expected deadlock when remaining requirements only reorder, got %v", inst)
+	}
+}
+
 func TestRunCycles_MultipleCycles_LoopsThroughRequirements(t *testing.T) {
 	t.Parallel()
 	orch := newTestOrchestrator()
