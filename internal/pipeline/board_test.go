@@ -3,7 +3,6 @@ package pipeline
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -12,12 +11,9 @@ import (
 func TestPipeline_Board_ReturnsSortedOpenBeads(t *testing.T) {
 	t.Parallel()
 
-	origClient := newBoardClient
-	t.Cleanup(func() { newBoardClient = origClient })
-
 	called := false
-	newBoardClient = func() (boardClient, error) {
-		return &fakeBoardClient{
+	deps := &Deps{
+		BoardClient: &fakeBoardClient{
 			listAllFn: func(ctx context.Context) ([]*bead.Bead, []*bead.Bead, error) {
 				called = true
 				return []*bead.Bead{
@@ -27,10 +23,10 @@ func TestPipeline_Board_ReturnsSortedOpenBeads(t *testing.T) {
 						{ID: "closed", Priority: 1},
 					}, nil
 			},
-		}, nil
+		},
 	}
 
-	p := New(&Deps{}, &Paths{})
+	p := New(deps, &Paths{})
 	result, err := p.Board(context.Background())
 	if err != nil {
 		t.Fatalf("Board() returned error: %v", err)
@@ -71,20 +67,21 @@ func TestPipeline_Board_UsesDepsBoardClient(t *testing.T) {
 	}
 }
 
-func TestPipeline_Board_ClientCreationError(t *testing.T) {
+func TestPipeline_Board_ListAllError(t *testing.T) {
 	t.Parallel()
 
-	origClient := newBoardClient
-	t.Cleanup(func() { newBoardClient = origClient })
-
-	newBoardClient = func() (boardClient, error) {
-		return nil, errBoom
+	deps := &Deps{
+		BoardClient: &fakeBoardClient{
+			listAllFn: func(context.Context) ([]*bead.Bead, []*bead.Bead, error) {
+				return nil, nil, errBoom
+			},
+		},
 	}
 
-	p := New(&Deps{}, &Paths{})
+	p := New(deps, &Paths{})
 	if _, err := p.Board(context.Background()); err == nil {
-		t.Fatal("expected error when bead client creation fails")
-	} else if !strings.Contains(err.Error(), "creating bead client") {
+		t.Fatal("expected error when ListAll fails")
+	} else if !errors.Is(err, errBoom) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

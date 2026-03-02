@@ -8,17 +8,13 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 )
 
-type boardClient interface {
+type BoardClient interface {
 	ListAll(context.Context) ([]*bead.Bead, []*bead.Bead, error)
-}
-
-var newBoardClient = func() (boardClient, error) {
-	return bead.NewClient()
 }
 
 // Board assembles board data with open and closed beads.
 func (p *Pipeline) Board(ctx context.Context) (*BoardData, error) {
-	client, err := newBoardClient()
+	client, err := p.boardClient()
 	if err != nil {
 		return nil, fmt.Errorf("creating bead client: %w", err)
 	}
@@ -36,6 +32,13 @@ func (p *Pipeline) Board(ctx context.Context) (*BoardData, error) {
 	result.Open = convertToBeadInfo(open)
 	result.Closed = convertToBeadInfo(closed)
 	return &result, nil
+}
+
+func (p *Pipeline) boardClient() (BoardClient, error) {
+	if p != nil && p.deps != nil && p.deps.BoardClient != nil {
+		return p.deps.BoardClient, nil
+	}
+	return bead.NewClient()
 }
 
 func convertToBeadInfo(beads []*bead.Bead) []BeadInfo {

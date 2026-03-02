@@ -116,6 +116,7 @@ type Deps struct {
 	ReviewInvoker     ReviewInvoker
 	TrackerClient     TrackerClient
 	BeadQueryClient   BeadQueryClient
+	BoardClient       BoardClient
 	BacklogClient     BacklogClient
 	BacklogWriter     BacklogWriter
 	RefineRenderer    RefineRenderer
