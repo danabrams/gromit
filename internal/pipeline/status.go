@@ -283,6 +283,16 @@ func generateRecommendation(status *PipelineStatus) string {
 		return fmt.Sprintf("Decompose plan %q", status.UndecomposedPlans[0])
 	}
 
+	if status.MissingCriteriaCount > 0 {
+		if len(status.MissingCriteriaIDs) > 0 {
+			if status.MissingCriteriaCount == 1 {
+				return fmt.Sprintf("Add missing criteria to bead %q", status.MissingCriteriaIDs[0])
+			}
+			return fmt.Sprintf("Add missing criteria to bead %q (+%d more)", status.MissingCriteriaIDs[0], status.MissingCriteriaCount-1)
+		}
+		return fmt.Sprintf("Add missing criteria to %d ready bead(s)", status.MissingCriteriaCount)
+	}
+
 	if status.ReadyBeadCount > 0 {
 		return fmt.Sprintf("Run %d ready bead(s)", status.ReadyBeadCount)
 	}
