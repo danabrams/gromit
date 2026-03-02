@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -34,6 +35,14 @@ func writeExecutableScript(t *testing.T, script string) string {
 	}
 
 	return binaryPath
+}
+
+var procutilLifecycleTestMu sync.Mutex
+
+func lockProcutilLifecycleTest(t *testing.T) {
+	t.Helper()
+	procutilLifecycleTestMu.Lock()
+	t.Cleanup(procutilLifecycleTestMu.Unlock)
 }
 
 func TestClientRun_UsesRunFnWhenSet(t *testing.T) {
@@ -263,6 +272,7 @@ func TestClientRun_CustomCommandTimeout(t *testing.T) {
 }
 
 func TestClientRunWithEnv_UsesProcutilLifecycle(t *testing.T) {
+	lockProcutilLifecycleTest(t)
 	t.Parallel()
 	script := "#!/bin/sh\n" +
 		"printf 'FOO=%s\\n' \"$FOO\"\n" +
@@ -341,7 +351,88 @@ func TestClientRunWithEnv_UsesProcutilLifecycle(t *testing.T) {
 	}
 }
 
+func TestClientRunWithEnvCombinedOutput_UsesProcutilLifecycle(t *testing.T) {
+	lockProcutilLifecycleTest(t)
+	t.Parallel()
+	script := "#!/bin/sh\n" +
+		"printf 'FOO=%s\\n' \"$FOO\"\n" +
+		"printf 'BAZ=%s\\n' \"$BAZ\"\n" +
+		"printf 'ARGS=%s\\n' \"$*\"\n"
+	binaryPath := writeExecutableScript(t, script)
+
+	var waitCalled bool
+	oldWait := waitForProcessCapacityFn
+	t.Cleanup(func() { waitForProcessCapacityFn = oldWait })
+	waitForProcessCapacityFn = func(ctx context.Context, maxWait time.Duration) error {
+		waitCalled = true
+		if maxWait <= 0 {
+			t.Fatalf("expected positive maxWait, got %v", maxWait)
+		}
+		return nil
+	}
+
+	var killCalled bool
+	oldKill := killDescendantsOnCancelFn
+	t.Cleanup(func() { killDescendantsOnCancelFn = oldKill })
+	killDescendantsOnCancelFn = func(ctx context.Context, cmd *exec.Cmd) {
+		killCalled = true
+	}
+
+	var reapCalled bool
+	oldReap := reapProcessTreeFn
+	t.Cleanup(func() { reapProcessTreeFn = oldReap })
+	reapProcessTreeFn = func(cmd *exec.Cmd) {
+		reapCalled = true
+	}
+
+	var envCalled bool
+	oldSubprocessEnv := subprocessEnvFn
+	t.Cleanup(func() { subprocessEnvFn = oldSubprocessEnv })
+	subprocessEnvFn = func() []string {
+		envCalled = true
+		return []string{"FOO=proc"}
+	}
+
+	c := &Client{binary: binaryPath}
+	out, err := c.runWithEnvCombinedOutput(context.Background(), []string{"print-env"}, []string{"BAZ=qux"})
+	if err != nil {
+		t.Fatalf("runWithEnvCombinedOutput() error = %v", err)
+	}
+
+	if !waitCalled {
+		t.Fatal("runWithEnvCombinedOutput() did not wait for process capacity")
+	}
+	if !killCalled {
+		t.Fatal("runWithEnvCombinedOutput() did not call KillDescendantsOnCancel")
+	}
+	if !reapCalled {
+		t.Fatal("runWithEnvCombinedOutput() did not defer ReapProcessTree")
+	}
+	if !envCalled {
+		t.Fatal("runWithEnvCombinedOutput() did not use subprocess env")
+	}
+
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	got := make(map[string]string)
+	for _, line := range lines {
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			got[parts[0]] = parts[1]
+		}
+	}
+	if got["FOO"] != "proc" {
+		t.Fatalf("FOO = %q, want %q", got["FOO"], "proc")
+	}
+	if got["BAZ"] != "qux" {
+		t.Fatalf("BAZ = %q, want %q", got["BAZ"], "qux")
+	}
+	if got["ARGS"] != "print-env" {
+		t.Fatalf("ARGS = %q, want %q", got["ARGS"], "print-env")
+	}
+}
+
 func TestClientRepoBaseName_UsesProcutilLifecycle(t *testing.T) {
+	lockProcutilLifecycleTest(t)
 	t.Parallel()
 	repoDir := t.TempDir()
 
