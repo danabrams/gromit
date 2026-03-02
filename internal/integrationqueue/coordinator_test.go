@@ -686,6 +686,57 @@ func TestCoordinatorRecoverFromCrash_PartialErrorMetadata(t *testing.T) {
 	}
 }
 
+func TestCoordinatorRecoverFromCrash_RecordsErrorMetadata(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	entry := Entry{
+		Branch:           "feature/crash-metadata",
+		SessionID:        "feature/crash-metadata",
+		OriginCommand:    "test",
+		State:            StateIntegrating,
+		Lane:             string(CodeLane),
+		BaseRef:          "main",
+		HeadSHA:          "deadbeef",
+		ChangedFilesHash: "hash",
+	}
+	if err := store.Save(entry); err != nil {
+		t.Fatalf("Save(entry) error = %v", err)
+	}
+
+	coord := &Coordinator{store: store}
+
+	var recorded TransitionErrorMetadata
+	recordedCount := 0
+	coord.transitionFn = func(entry *Entry, toState string, reason string, metadata ...TransitionErrorMetadata) error {
+		if toState == string(StateReady) && strings.Contains(reason, "crash recovery") {
+			recordedCount++
+			if len(metadata) > 0 {
+				recorded = metadata[0]
+			}
+		}
+		return ApplyTransition(entry, toState, reason, metadata...)
+	}
+
+	if err := coord.RecoverFromCrash(ctx); err != nil {
+		t.Fatalf("RecoverFromCrash() error = %v", err)
+	}
+	if recordedCount != 1 {
+		t.Fatalf("expected metadata recorded once, got %d", recordedCount)
+	}
+	if recorded.Code != string(CrashRecoveryErrorCode) {
+		t.Fatalf("metadata.Code = %q, want %q", recorded.Code, string(CrashRecoveryErrorCode))
+	}
+	if recorded.Message != crashRecoveryMessage {
+		t.Fatalf("metadata.Message = %q, want %q", recorded.Message, crashRecoveryMessage)
+	}
+}
+
 func TestCoordinatorRecoverFromCrash_FailedGates(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
