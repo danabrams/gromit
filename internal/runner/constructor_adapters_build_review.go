@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"os/exec"
 	"strings"
 	"sync"
 
@@ -397,7 +398,20 @@ func newSpecMergeController(cfg *config.Config, client tracker.Client, router pr
 
 	retryCap := cfg.MergePipeline.RetryCapDefaultValue()
 
-	return specmerge.NewPipeline(query, nil, flow, fixDeps, retryCap)
+	pipeline := specmerge.NewPipeline(query, nil, flow, fixDeps, retryCap)
+
+	if cfg.SpecPR.Enabled != nil && *cfg.SpecPR.Enabled {
+		ghClient := specmerge.NewGhCLIClient(nil)
+		pipeline.WithPRDeps(specmerge.PRDeps{
+			PRClient: ghClient,
+			GitPush: func(ctx context.Context, branch string) error {
+				cmd := exec.CommandContext(ctx, "git", "push", "-u", "origin", branch)
+				return cmd.Run()
+			},
+		})
+	}
+
+	return pipeline
 }
 
 func newStageAwarePreImplementationHook(stageCtx *StageContext) func(context.Context) error {

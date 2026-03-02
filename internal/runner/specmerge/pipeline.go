@@ -40,6 +40,28 @@ type Pipeline struct {
 	retryCap   int
 	attemptsMu sync.Mutex
 	attempts   map[string]int
+
+	prClient   PRClient
+	stateStore PRStateStore
+	gitPush    func(ctx context.Context, branch string) error
+}
+
+// PRDeps holds optional PR creation dependencies.
+type PRDeps struct {
+	PRClient   PRClient
+	StateStore PRStateStore
+	GitPush    func(ctx context.Context, branch string) error
+}
+
+// WithPRDeps configures optional PR creation dependencies.
+func (p *Pipeline) WithPRDeps(deps PRDeps) *Pipeline {
+	if p == nil {
+		return p
+	}
+	p.prClient = deps.PRClient
+	p.stateStore = deps.StateStore
+	p.gitPush = deps.GitPush
+	return p
 }
 
 // NewPipeline constructs a Pipeline with the provided bead query dependencies.
@@ -141,6 +163,34 @@ func (p *Pipeline) Trigger(ctx context.Context, specName string) error {
 		}
 
 		return err
+	}
+
+	if p.prClient != nil {
+		branch := "gromit/spec-" + specName
+		if p.gitPush != nil {
+			if err := p.gitPush(ctx, branch); err != nil {
+				return fmt.Errorf("push spec branch %q: %w", branch, err)
+			}
+		}
+
+		title := fmt.Sprintf("Spec: %s", specName)
+		body, _ := BuildPRSummary(ctx, PRSummaryInput{SpecName: specName})
+		ref, err := p.prClient.CreatePR(ctx, title, body, branch, "main")
+		if err != nil {
+			return fmt.Errorf("create PR for spec %q: %w", specName, err)
+		}
+
+		if p.stateStore != nil {
+			state := &PRState{
+				SpecName:    specName,
+				PRRef:       ref,
+				Outcome:     PROutcomePending,
+				LastUpdated: time.Now(),
+			}
+			if err := p.stateStore.Save(ctx, state); err != nil {
+				return fmt.Errorf("save PR state for spec %q: %w", specName, err)
+			}
+		}
 	}
 
 	p.captureCycleRecord(ctx, specName)

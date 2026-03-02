@@ -28,6 +28,7 @@ import (
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/execution"
+	"github.com/danabrams/gromit/internal/runner/specbranch"
 	"github.com/danabrams/gromit/internal/state"
 	"github.com/danabrams/gromit/internal/tracker"
 )
@@ -305,6 +306,13 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 		ProviderCostDefs: costDefs,
 		Coordinator:      coordinator,
 		StageContext:     stageCtx,
+	}
+
+	if cfg.Methodology.Granularity == config.MethodologyGranularitySpec {
+		repoDir := filepath.Dir(gromitDir)
+		baseBranch := cfg.Git.BaseBranch
+		orchCfg.BranchRouter = specbranch.NewRouter(baseBranch)
+		orchCfg.GitCheckout = specbranch.NewGitOps(repoDir, baseBranch)
 	}
 
 	return NewOrchestrator(orchCfg), nil

@@ -271,12 +271,22 @@ methodology:
   #   max_chars: 20000  # Character budget for ATDD prompts (0 = unlimited)
   #   max_confirmed_learning_chars: 2000  # Max chars from confirmed learnings in ATDD prompts
   fresh_context_per_cycle: false  # Use a fresh invocation context for each TDD cycle instead of single-invocation flow
+  granularity: "spec"
   # granularity: "bead"  # "bead" or "spec" (default: "bead")
   # Optional phase-specific time budgets (seconds). Any zero/omitted value falls back to claude.bead_timeout.
   # phase_timeouts:
   #   red_seconds: 900
   #   green_seconds: 900
   #   refactor_seconds: 900
+
+# Spec PR - automatic PR creation per spec
+spec_pr:
+  enabled: true
+  reviewers: []
+  merge_method: "squash"
+  fix_cycle_cap: 3
+  auto_merge_on_approval: false
+  max_open_prs: 3
 
 # Learnings - control how confirmed learnings are injected into build prompts
 learnings:
