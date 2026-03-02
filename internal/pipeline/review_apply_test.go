@@ -81,7 +81,7 @@ func TestApplyReviewFindings_CalledPathsProduceIdenticalTrackerAndBacklogCalls(t
 }
 
 func TestReviewApplyResult_MixedResultCountsAndIDs(t *testing.T) {
-    t.Parallel()
+	t.Parallel()
 
     reviewResult := mixedReviewResult()
     ctx := context.Background()
@@ -106,6 +106,43 @@ func TestReviewApplyResult_MixedResultCountsAndIDs(t *testing.T) {
     if applyResult.CreatedBacklogCount != len(reviewResult.BacklogItems) {
         t.Fatalf("expected backlog count %d, got %d", len(reviewResult.BacklogItems), applyResult.CreatedBacklogCount)
     }
+}
+
+func TestApplyReviewFindings_PreservesBeadLabels(t *testing.T) {
+	t.Parallel()
+
+	reviewResult := &review.ReviewResult{
+		BeadsToCreate: []review.BeadProposal{
+			{
+				Title:    "Document API",
+				Labels:   []string{"bug", "from-review", "urgent"},
+				Priority: 2,
+			},
+		},
+	}
+	ctx := context.Background()
+
+	tracker := newCapturingTrackerClient()
+	backlog := newCapturingBacklogWriter()
+	deps := &Deps{
+		TrackerClient:    tracker,
+		BacklogWriter:    backlog,
+		LearningsManager: newRecordingLearningsManager(),
+	}
+	pipeline := New(deps, &Paths{GromitDir: t.TempDir()})
+
+	if _, err := pipeline.ApplyReviewFindings(ctx, reviewResult); err != nil {
+		t.Fatalf("ApplyReviewFindings error: %v", err)
+	}
+
+	if len(tracker.calls) != 1 {
+		t.Fatalf("expected tracker to be called once, got %d", len(tracker.calls))
+	}
+
+	wantLabels := []string{"from-review", "bug", "urgent"}
+	if !reflect.DeepEqual(tracker.calls[0].labels, wantLabels) {
+		t.Fatalf("unexpected labels, want %v, got %v", wantLabels, tracker.calls[0].labels)
+	}
 }
 
 func mixedReviewResult() *review.ReviewResult {
