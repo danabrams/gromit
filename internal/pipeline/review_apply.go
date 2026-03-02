@@ -49,12 +49,11 @@ func (p *Pipeline) ApplyReviewFindings(ctx context.Context, result *review.Revie
 	}
 	applyResult.CreatedBacklogCount = backlogCount
 
-	for _, learning := range result.Learnings {
-		if err := p.deps.LearningsManager.Add(learning); err != nil {
-			return nil, fmt.Errorf("persisting learning: %w", err)
-		}
-		applyResult.LearningsSaved++
+	learningsSaved, err := persistLearnings(result.Learnings, p.deps.LearningsManager)
+	if err != nil {
+		return nil, err
 	}
+	applyResult.LearningsSaved = learningsSaved
 
 	return &applyResult, nil
 }
@@ -84,6 +83,17 @@ func applyBacklogItems(ctx context.Context, items []review.BacklogItem, writer B
 		entry := buildReviewBacklogEntry(bi)
 		if err := writer.Add(ctx, entry); err != nil {
 			return count, fmt.Errorf("creating backlog item %q: %w", bi.Title, err)
+		}
+		count++
+	}
+	return count, nil
+}
+
+func persistLearnings(learnings []string, manager LearningsManager) (int, error) {
+	count := 0
+	for _, learning := range learnings {
+		if err := manager.Add(learning); err != nil {
+			return count, fmt.Errorf("persisting learning: %w", err)
 		}
 		count++
 	}

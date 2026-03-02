@@ -104,9 +104,12 @@ func TestReviewApplyResult_MixedResultCountsAndIDs(t *testing.T) {
     if len(applyResult.CreatedBeadIDs) != len(reviewResult.BeadsToCreate) {
         t.Fatalf("expected %d bead IDs, got %d", len(reviewResult.BeadsToCreate), len(applyResult.CreatedBeadIDs))
     }
-    if applyResult.CreatedBacklogCount != len(reviewResult.BacklogItems) {
-        t.Fatalf("expected backlog count %d, got %d", len(reviewResult.BacklogItems), applyResult.CreatedBacklogCount)
-    }
+	if applyResult.CreatedBacklogCount != len(reviewResult.BacklogItems) {
+		t.Fatalf("expected backlog count %d, got %d", len(reviewResult.BacklogItems), applyResult.CreatedBacklogCount)
+	}
+	if applyResult.LearningsSaved != len(reviewResult.Learnings) {
+		t.Fatalf("expected learnings saved %d, got %d", len(reviewResult.Learnings), applyResult.LearningsSaved)
+	}
 }
 
 func TestApplyReviewFindings_PreservesBeadLabels(t *testing.T) {
