@@ -469,16 +469,26 @@ func enqueueReadyBranch(gromitDir, command string, session *worktree.SessionWork
 	return store.Save(entry)
 }
 
+// enqueueBlockedBranch records a blocked session branch when an automatic commit fails.
+// This path runs outside the integration queue FSM, so we bypass ApplyTransition and create the
+// entry directly in the conflict state. StateConflict is shared between this auto-commit failure path
+// and the coordinator-driven conflict transitions, giving the state these dual semantics while still
+// signaling a blocked entry that must return to ready after a manual resolution.
 func enqueueBlockedBranch(gromitDir, command string, session *worktree.SessionWorktree, meta *sessionCommitMetadata, commitErr error) error {
-	if meta == nil {
-		meta = &sessionCommitMetadata{}
-	}
 	store, err := interactiveWorktreeNewQueueStoreFn(gromitDir)
 	if err != nil {
 		return fmt.Errorf("creating integration queue store: %w", err)
 	}
+	entry := newBlockedQueueEntry(command, session, meta, commitErr)
+	return store.Save(entry)
+}
+
+func newBlockedQueueEntry(command string, session *worktree.SessionWorktree, meta *sessionCommitMetadata, commitErr error) integrationqueue.Entry {
+	if meta == nil {
+		meta = &sessionCommitMetadata{}
+	}
 	guidance := fmt.Sprintf("Auto-commit failed for branch %q (%v); checkout %s, resolve issues, run `git add -A` and `git commit`, then requeue.", session.BranchName, commitErr, session.BranchName)
-	entry := integrationqueue.Entry{
+	return integrationqueue.Entry{
 		Branch:               session.BranchName,
 		SessionID:            session.BranchName,
 		OriginCommand:        command,
@@ -494,7 +504,6 @@ func enqueueBlockedBranch(gromitDir, command string, session *worktree.SessionWo
 		LastErrorCode:        sessionQueueCommitFailedCode,
 		LastErrorMessage:     guidance,
 	}
-	return store.Save(entry)
 }
 
 func removeQueueBranch(gromitDir, branch string) error {

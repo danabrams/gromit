@@ -689,7 +689,7 @@ func TestNewBlockedQueueEntryRecordsCommitFailureMetadata(t *testing.T) {
 	if !strings.Contains(entry.LastErrorMessage, commitErr.Error()) {
 		t.Fatalf("message = %q should mention %q", entry.LastErrorMessage, commitErr.Error())
 	}
-	if got := integrationqueue.IsBlockedState(entry.State); !got {
+	if got := integrationqueue.IsBlockedState(string(entry.State)); !got {
 		t.Fatalf("state %q should be blocked", entry.State)
 	}
 }
