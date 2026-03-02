@@ -825,6 +825,33 @@ func TestNewIntegrationQueueCoordinator_WiresRealDependencies(t *testing.T) {
 	}
 }
 
+func TestNewIntegrationQueueCoordinator_StoreInitErrorSurfaces(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	cfg := &config.Config{}
+
+	originalStoreFn := newRunnerIntegrationQueueStoreFn
+	t.Cleanup(func() {
+		newRunnerIntegrationQueueStoreFn = originalStoreFn
+	})
+
+	initErr := errors.New("store unhappy")
+	newRunnerIntegrationQueueStoreFn = func(dir string) (*integrationqueue.Store, error) {
+		if dir != gromitDir {
+			t.Fatalf("gromitDir = %q, want %q", dir, gromitDir)
+		}
+		return nil, initErr
+	}
+
+	if _, err := newIntegrationQueueCoordinator(cfg, gromitDir); err == nil {
+		t.Fatal("newIntegrationQueueCoordinator() returned nil error, want store init error")
+	} else if !errors.Is(err, errIntegrationQueueStoreInit) {
+		t.Fatalf("error = %v, want errors.Is(err, errIntegrationQueueStoreInit)", err)
+	} else if !errors.Is(err, initErr) {
+		t.Fatalf("error = %v, want root store init error to be preserved", err)
+	}
+}
+
 // TestFailureLearnerAdapter_ForwardsFailureOutput verifies that the failureOutput
 // string passed to ExtractFailureLearning reaches the analyzer.Analyze call.
 func TestFailureLearnerAdapter_ForwardsFailureOutput(t *testing.T) {
