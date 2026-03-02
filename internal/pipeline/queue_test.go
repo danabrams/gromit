@@ -93,8 +93,8 @@ func TestPipeline_Queue_ReturnsPartitionedData(t *testing.T) {
 	if len(result.Ready) != 1 || result.Ready[0].ID != "ready" {
 		t.Fatalf("unexpected ready beads: %+v", result.Ready)
 	}
-	if len(result.Blocked) != 1 || result.Blocked[0].ID != "in-progress" {
-		t.Fatalf("expected blocked bead in-progress, got %+v", result.Blocked)
+	if len(result.Blocked) != 0 {
+		t.Fatalf("expected no blocked beads, got %+v", result.Blocked)
 	}
 	if len(result.Stuck) != 0 {
 		t.Fatalf("expected no stuck beads, got %+v", result.Stuck)

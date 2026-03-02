@@ -57,6 +57,26 @@ func TestPartitionQueueBeads_SeparatesReadyBlockedAndStuck(t *testing.T) {
 	}
 }
 
+func TestPartitionQueueBeads_DoesNotClassifyInProgressAsBlocked(t *testing.T) {
+	t.Parallel()
+	readyInput := []*bead.Bead{}
+	all := []*bead.Bead{
+		{ID: "progress-1", Status: "in_progress", Priority: 1, Title: "Active Work"},
+	}
+
+	ready, blocked, stuck := PartitionQueueBeads(readyInput, all, map[string]logger.BeadStats{}, 3)
+
+	if len(ready) != 0 {
+		t.Fatalf("ready = %+v, want empty", ready)
+	}
+	if len(blocked) != 0 {
+		t.Fatalf("blocked = %+v, want empty", blocked)
+	}
+	if len(stuck) != 0 {
+		t.Fatalf("stuck = %+v, want empty", stuck)
+	}
+}
+
 func TestGetReason_FromDependencies(t *testing.T) {
 	t.Parallel()
 	b := &bead.Bead{

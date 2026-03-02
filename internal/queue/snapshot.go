@@ -29,6 +29,10 @@ func PartitionQueueBeads(
 			stuck = append(stuck, b)
 			continue
 		}
+		// In-progress beads are active work and should not be shown as blocked.
+		if strings.EqualFold(strings.TrimSpace(b.Status), "in_progress") {
+			continue
+		}
 		if !readyMap[b.ID] {
 			blocked = append(blocked, b)
 		}
