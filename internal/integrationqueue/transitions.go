@@ -17,6 +17,12 @@ type TransitionRecord struct {
 	Timestamp time.Time
 }
 
+// TransitionErrorMetadata packages optional error metadata for ApplyTransition.
+type TransitionErrorMetadata struct {
+	Code    string
+	Message string
+}
+
 // allowedTransitions is the table-driven transition matrix.
 var allowedTransitions = map[string]map[string]bool{
 	"draft": {
@@ -66,14 +72,19 @@ func CheckTransition(from, to string) error {
 }
 
 // ApplyTransition validates the transition and updates the entry's state,
-// updated_at, and last_transition_reason on success. Returns ErrInvalidTransition if not allowed.
-func ApplyTransition(entry *Entry, toState string, reason string) error {
+// updated_at, last_transition_reason, and optionally error metadata on success.
+// Returns ErrInvalidTransition if the transition is not allowed.
+func ApplyTransition(entry *Entry, toState string, reason string, metadata ...TransitionErrorMetadata) error {
 	if err := CheckTransition(string(entry.State), toState); err != nil {
 		return err
 	}
 	entry.State = State(toState)
 	entry.LastTransitionReason = reason
 	entry.UpdatedAt = time.Now()
+	if len(metadata) > 0 {
+		entry.LastErrorCode = metadata[0].Code
+		entry.LastErrorMessage = metadata[0].Message
+	}
 	return nil
 }
 

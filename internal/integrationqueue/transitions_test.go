@@ -291,7 +291,7 @@ func TestApplyTransition_InvalidTransition_ReturnsErrorWithoutModifyingEntry(t *
 }
 
 func TestApplyTransition_WithErrorMetadata_SetsLastErrorFields(t *testing.T) {
-	entry := &Entry{State: "draft"}
+	entry := &Entry{State: "integrating"}
 	err := ApplyTransition(entry, "failed_gates", "scoped gate failure", TransitionErrorMetadata{
 		Code:    "test_error",
 		Message: "some failure",
