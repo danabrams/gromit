@@ -1785,6 +1785,8 @@
 {"issue_id":"gromit-vj4fq.3","label":"spec:decompose-low-complexity-bias"}
 {"issue_id":"gromit-vj4hh","label":"from-review"}
 {"issue_id":"gromit-vj714","label":"from-review"}
+{"issue_id":"gromit-vj714.1","label":"from-review"}
+{"issue_id":"gromit-vj714.1","label":"scope_decomp:64498d120e46e50d"}
 {"issue_id":"gromit-vjlm","label":"spec:reduce-runner-test-runtime"}
 {"issue_id":"gromit-vlk9","label":"spec:retro-efficiency-experiments"}
 {"issue_id":"gromit-vo11r","label":"spec:cost-per-spec-metric"}

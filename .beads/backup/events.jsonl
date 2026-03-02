@@ -16214,3 +16214,6 @@
 {"actor":"Dan Abrams","comment":"Added label: from-review","created_at":"2026-03-02T14:53:50Z","event_type":"label_added","id":16214,"issue_id":"gromit-o38nb","new_value":null,"old_value":null}
 {"actor":"Dan Abrams","comment":null,"created_at":"2026-03-02T14:54:19Z","event_type":"created","id":16215,"issue_id":"gromit-5ag6c","new_value":"","old_value":""}
 {"actor":"Dan Abrams","comment":"Added label: from-review","created_at":"2026-03-02T14:54:19Z","event_type":"label_added","id":16216,"issue_id":"gromit-5ag6c","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-02T16:45:10Z","event_type":"created","id":16217,"issue_id":"gromit-vj714.1","new_value":"","old_value":""}
+{"actor":"Dan Abrams","comment":"Added label: scope_decomp:64498d120e46e50d","created_at":"2026-03-02T16:45:10Z","event_type":"label_added","id":16218,"issue_id":"gromit-vj714.1","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: from-review","created_at":"2026-03-02T16:45:10Z","event_type":"label_added","id":16219,"issue_id":"gromit-vj714.1","new_value":null,"old_value":null}
