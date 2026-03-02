@@ -83,9 +83,7 @@ var reviewInteractiveRunnerFn = runReviewInteractiveInDir
 var recordInteractiveReviewCompletionFn = recordInteractiveReviewCompletion
 
 var reviewFindingsLogWriter io.Writer = os.Stdout
-var buildReviewFindingsApplierFn = func(cfg *config.Config, gromitDir string) (reviewFindingsApplier, error) {
-	return nil, fmt.Errorf("buildReviewFindingsApplierFn is not configured")
-}
+var buildReviewFindingsApplierFn = defaultBuildReviewFindingsApplier
 var readReviewFindingsFileFn = os.ReadFile
 
 type reviewFindingsApplier interface {
@@ -485,11 +483,40 @@ func applyInteractiveReviewFindings(cfg *config.Config, gromitDir string) error 
 		return fmt.Errorf("reading review findings: %w", err)
 	}
 
-	if _, err := review.ParseReviewResult(string(data)); err != nil {
+	reviewResult, err := review.ParseReviewResult(string(data))
+	if err != nil {
 		fmt.Fprintf(reviewFindingsLogWriter, "warning: failed to parse review findings %q: %v\n", reviewPath, err)
 		return nil
 	}
+
+	applier, err := buildReviewFindingsApplierFn(cfg, gromitDir)
+	if err != nil {
+		return err
+	}
+
+	applyResult, err := applier.ApplyReviewFindings(context.Background(), reviewResult)
+	if err != nil {
+		return fmt.Errorf("applying review findings: %w", err)
+	}
+	if applyResult == nil {
+		applyResult = &pipeline.ReviewApplyResult{}
+	}
+
+	fmt.Fprintf(reviewFindingsLogWriter, "Review findings applied: %d beads, %d backlog items, %d learnings saved\n", len(applyResult.CreatedBeadIDs), applyResult.CreatedBacklogCount, applyResult.LearningsSaved)
+	if len(applyResult.CreatedBeadIDs) > 0 {
+		fmt.Fprintf(reviewFindingsLogWriter, "Bead IDs: %s\n", strings.Join(applyResult.CreatedBeadIDs, ", "))
+	}
+
 	return nil
+}
+
+func defaultBuildReviewFindingsApplier(cfg *config.Config, gromitDir string) (reviewFindingsApplier, error) {
+	deps, err := NewPipelineDeps(cfg, gromitDir)
+	if err != nil {
+		return nil, fmt.Errorf("constructing pipeline deps for review findings: %w", err)
+	}
+	paths := &pipeline.Paths{GromitDir: gromitDir}
+	return pipeline.New(deps, paths), nil
 }
 
 func reviewRepoDirFromGromitDir(gromitDir string) string {
