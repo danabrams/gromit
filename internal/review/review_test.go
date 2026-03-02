@@ -235,3 +235,7 @@ func reviewGofmtNonCompliantFiles(t *testing.T, files []string) []string {
 	}
 	return nonCompliant
 }
+
+func reviewTestFiles() []string {
+	return []string{"helpers_test.go", "review_test.go"}
+}
