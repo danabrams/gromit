@@ -903,3 +903,52 @@ func TestQueueLockHolderProcess(t *testing.T) {
 		t.Fatalf("waiting for release signal: %v", err)
 	}
 }
+
+func TestStoreDeleteRemovesEntryByBranch(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	entry := Entry{
+		Branch:           "feature/delete-me",
+		SessionID:        "feature/delete-me",
+		OriginCommand:    "test",
+		State:            StateReady,
+		Lane:             "code_lane",
+		BaseRef:          "main",
+		HeadSHA:          "deadbeef",
+		ChangedFilesHash: "hash",
+	}
+	if err := store.Save(entry); err != nil {
+		t.Fatalf("Save(entry) error = %v", err)
+	}
+
+	if err := store.Delete(entry.Branch); err != nil {
+		t.Fatalf("Delete() error = %v", err)
+	}
+
+	snapshot, err := store.Snapshot()
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if findEntry(snapshot.Entries, entry.Branch) != nil {
+		t.Fatalf("entry %q still present after delete", entry.Branch)
+	}
+}
+
+func TestStoreDeleteMissingEntryNoop(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+	if err := store.Delete("feature/not-found"); err != nil {
+		t.Fatalf("Delete() error = %v, want nil for missing entry", err)
+	}
+}

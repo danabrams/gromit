@@ -66,6 +66,7 @@ const (
 
 type sessionQueueStore interface {
 	Save(entry integrationqueue.Entry) error
+	Delete(branch string) error
 }
 
 var (
@@ -204,6 +205,9 @@ func runWithSessionWorktreeWithConflictSettings(
 		return session, finalErr
 	}
 	if commitMeta == nil {
+		if err := removeQueueBranch(gromitDir, session.BranchName); err != nil {
+			return session, fmt.Errorf("removing draft queue entry for no-op branch %q: %w", session.BranchName, err)
+		}
 		if err := interactiveWorktreeCleanupSessionFn(mainDir, session.WorktreeDir); err != nil {
 			return session, fmt.Errorf("removing session worktree for no-op branch %q: %w", session.BranchName, err)
 		}
@@ -486,6 +490,14 @@ func enqueueBlockedBranch(gromitDir, command string, session *worktree.SessionWo
 		LastErrorMessage:     guidance,
 	}
 	return store.Save(entry)
+}
+
+func removeQueueBranch(gromitDir, branch string) error {
+	store, err := interactiveWorktreeNewQueueStoreFn(gromitDir)
+	if err != nil {
+		return fmt.Errorf("creating integration queue store: %w", err)
+	}
+	return store.Delete(branch)
 }
 
 func gatherWorkingTreeSnapshot(sessionDir string) *sessionCommitMetadata {

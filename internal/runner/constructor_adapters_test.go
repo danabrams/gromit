@@ -636,6 +636,34 @@ func TestIntegrationQueueGitOpsAdapter_FetchAndRebaseTrimsBranch(t *testing.T) {
 	}
 }
 
+func TestIntegrationQueueGitOpsAdapter_FetchAndRebaseCheckoutFailureIncludesGitOutput(t *testing.T) {
+	t.Parallel()
+
+	repoDir := "/repo"
+	adapter := &integrationQueueGitOpsAdapter{
+		repoDir:    repoDir,
+		baseBranch: "main",
+		runGitCommand: func(ctx context.Context, dir string, args ...string) (string, error) {
+			if strings.Join(args, " ") == "checkout feature/fetch" {
+				return "fatal: pathspec did not match", errors.New("exit status 1")
+			}
+			return "", nil
+		},
+	}
+
+	entry := integrationqueue.Entry{Branch: "feature/fetch"}
+	err := adapter.FetchAndRebase(context.Background(), entry)
+	if err == nil {
+		t.Fatal("FetchAndRebase returned nil error; want checkout failure")
+	}
+	if !strings.Contains(err.Error(), "checkout branch feature/fetch") {
+		t.Fatalf("error = %q, want checkout context", err)
+	}
+	if !strings.Contains(err.Error(), "git output: fatal: pathspec did not match") {
+		t.Fatalf("error = %q, want git output context", err)
+	}
+}
+
 func TestIntegrationQueueGitOpsAdapter_MergeToMainCommands(t *testing.T) {
 	t.Parallel()
 

@@ -132,6 +132,30 @@ func (s *Store) Save(entry Entry) error {
 	})
 }
 
+// Delete removes the queue entry for the provided branch, if present.
+func (s *Store) Delete(branch string) error {
+	if strings.TrimSpace(branch) == "" {
+		return fmt.Errorf("branch is empty")
+	}
+
+	return withQueueFileLock(s.path, func() error {
+		snapshot, err := s.loadUnlocked()
+		if err != nil {
+			return fmt.Errorf("loading integration queue snapshot: %w", err)
+		}
+
+		idx := s.findEntryIndex(snapshot.Entries, branch)
+		if idx == -1 {
+			return nil
+		}
+
+		snapshot.Entries = append(snapshot.Entries[:idx], snapshot.Entries[idx+1:]...)
+		snapshot.SchemaVersion = SchemaVersion
+		snapshot.UpdatedAt = time.Now().UTC()
+		return s.write(snapshot)
+	})
+}
+
 func (s *Store) findEntryIndex(entries []Entry, branch string) int {
 	for i, entry := range entries {
 		if entry.Branch == branch {

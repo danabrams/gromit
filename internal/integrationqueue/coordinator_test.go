@@ -250,6 +250,56 @@ func TestCoordinatorPropagatesTransitionErrorOnFetchConflict(t *testing.T) {
 	}
 }
 
+func TestCoordinatorClassifiesCheckoutFailureDistinctly(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	entry := Entry{
+		Branch:           "feature/checkout-failure",
+		SessionID:        "feature/checkout-failure",
+		OriginCommand:    "test",
+		State:            StateReady,
+		Lane:             "code_lane",
+		BaseRef:          "main",
+		HeadSHA:          "deadbeef",
+		ChangedFilesHash: "hash",
+	}
+	if err := store.Save(entry); err != nil {
+		t.Fatalf("Save(entry) error = %v", err)
+	}
+
+	gitops := &failFetchGitOps{err: errors.New("checkout branch feature/checkout-failure: exit status 1")}
+	coord := NewCoordinator(store, gitops, &mockScopedGate{})
+
+	err = coord.Coordinate(ctx)
+	if err == nil {
+		t.Fatalf("Coordinate() error = nil, want checkout failure")
+	}
+
+	payload, loadErr := store.load()
+	if loadErr != nil {
+		t.Fatalf("load() error = %v", loadErr)
+	}
+	processed := findEntry(payload.Entries, entry.Branch)
+	if processed == nil {
+		t.Fatalf("missing processed entry %q", entry.Branch)
+	}
+	if processed.State != StateConflict {
+		t.Fatalf("processed.State = %q, want %q", processed.State, StateConflict)
+	}
+	if processed.LastErrorCode != "checkout_failed" {
+		t.Fatalf("LastErrorCode = %q, want checkout_failed", processed.LastErrorCode)
+	}
+	if processed.LastTransitionReason != "checkout failed during initial fetch" {
+		t.Fatalf("LastTransitionReason = %q, want checkout failed during initial fetch", processed.LastTransitionReason)
+	}
+}
+
 type mockGitOps struct {
 	calls []string
 }
@@ -583,15 +633,15 @@ func TestCoordinatorRecoverFromCrash_FailedGates(t *testing.T) {
 	}
 
 	entry := Entry{
-		Branch:        "feature/failed-gates",
-		SessionID:     "feature/failed-gates",
-		OriginCommand: "test",
-		State:         StateIntegrating,
-		Lane:          string(CodeLane),
-		BaseRef:       "main",
-		HeadSHA:       "deadbeef",
-		FifoSeq:       1,
-		LastErrorCode: string(StateFailedGates),
+		Branch:           "feature/failed-gates",
+		SessionID:        "feature/failed-gates",
+		OriginCommand:    "test",
+		State:            StateIntegrating,
+		Lane:             string(CodeLane),
+		BaseRef:          "main",
+		HeadSHA:          "deadbeef",
+		FifoSeq:          1,
+		LastErrorCode:    string(StateFailedGates),
 		LastErrorMessage: "scoped gates failed",
 	}
 	if err := store.Save(entry); err != nil {
@@ -716,7 +766,6 @@ func TestCoordinatorRecoverFromCrash_PushFailure(t *testing.T) {
 		t.Fatalf("LastErrorCode = %q, want push_failed", processed.LastErrorCode)
 	}
 }
-
 
 func TestCoordinatorHandlesMergeConflict(t *testing.T) {
 	ctx := context.Background()

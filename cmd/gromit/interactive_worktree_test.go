@@ -53,12 +53,20 @@ func (m *mockPendingBranchRecorder) RemovePendingWorktreeBranch(branch string) e
 }
 
 type mockQueueStore struct {
-	SaveFn func(entry integrationqueue.Entry) error
+	SaveFn   func(entry integrationqueue.Entry) error
+	DeleteFn func(branch string) error
 }
 
 func (m *mockQueueStore) Save(entry integrationqueue.Entry) error {
 	if m != nil && m.SaveFn != nil {
 		return m.SaveFn(entry)
+	}
+	return nil
+}
+
+func (m *mockQueueStore) Delete(branch string) error {
+	if m != nil && m.DeleteFn != nil {
+		return m.DeleteFn(branch)
 	}
 	return nil
 }
@@ -168,9 +176,16 @@ func overrideGitRun(fn func(dir string, args ...string) (string, error)) func() 
 }
 
 func overrideQueueStore(saveFn func(entry integrationqueue.Entry) error) func() {
+	return overrideQueueStoreWithDelete(saveFn, nil)
+}
+
+func overrideQueueStoreWithDelete(
+	saveFn func(entry integrationqueue.Entry) error,
+	deleteFn func(branch string) error,
+) func() {
 	original := interactiveWorktreeNewQueueStoreFn
 	interactiveWorktreeNewQueueStoreFn = func(gromitDir string) (sessionQueueStore, error) {
-		return &mockQueueStore{SaveFn: saveFn}, nil
+		return &mockQueueStore{SaveFn: saveFn, DeleteFn: deleteFn}, nil
 	}
 	return func() {
 		interactiveWorktreeNewQueueStoreFn = original
@@ -303,8 +318,12 @@ func TestRunWithSessionWorktreeSkipsCommitWhenNoChanges(t *testing.T) {
 	t.Cleanup(cleanupGit)
 
 	var recordedEntries []integrationqueue.Entry
-	cleanupStore := overrideQueueStore(func(entry integrationqueue.Entry) error {
+	var deletedBranches []string
+	cleanupStore := overrideQueueStoreWithDelete(func(entry integrationqueue.Entry) error {
 		recordedEntries = append(recordedEntries, entry)
+		return nil
+	}, func(branch string) error {
+		deletedBranches = append(deletedBranches, branch)
 		return nil
 	})
 	t.Cleanup(cleanupStore)
@@ -342,6 +361,9 @@ func TestRunWithSessionWorktreeSkipsCommitWhenNoChanges(t *testing.T) {
 	if recordedEntries[0].State != integrationqueue.StateDraft {
 		t.Fatalf("draft entry has state %q", recordedEntries[0].State)
 	}
+	if len(deletedBranches) != 1 || deletedBranches[0] != session.BranchName {
+		t.Fatalf("deleted branches = %v, want [%s]", deletedBranches, session.BranchName)
+	}
 }
 
 func TestRunWithSessionWorktreeIgnoresDiffWarnings(t *testing.T) {
@@ -359,8 +381,12 @@ func TestRunWithSessionWorktreeIgnoresDiffWarnings(t *testing.T) {
 	t.Cleanup(cleanupGit)
 
 	var recordedEntries []integrationqueue.Entry
-	cleanupStore := overrideQueueStore(func(entry integrationqueue.Entry) error {
+	var deletedBranches []string
+	cleanupStore := overrideQueueStoreWithDelete(func(entry integrationqueue.Entry) error {
 		recordedEntries = append(recordedEntries, entry)
+		return nil
+	}, func(branch string) error {
+		deletedBranches = append(deletedBranches, branch)
 		return nil
 	})
 	t.Cleanup(cleanupStore)
@@ -396,6 +422,9 @@ func TestRunWithSessionWorktreeIgnoresDiffWarnings(t *testing.T) {
 	}
 	if recordedEntries[0].State != integrationqueue.StateDraft {
 		t.Fatalf("draft entry has state %q", recordedEntries[0].State)
+	}
+	if len(deletedBranches) != 1 || deletedBranches[0] != session.BranchName {
+		t.Fatalf("deleted branches = %v, want [%s]", deletedBranches, session.BranchName)
 	}
 }
 

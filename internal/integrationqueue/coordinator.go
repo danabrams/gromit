@@ -58,11 +58,11 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 	}
 
 	if err := c.gitops.FetchAndRebase(ctx, *entry); err != nil {
-		entry.LastErrorCode = "rebase_conflict"
+		entry.LastErrorCode = classifyFetchAndRebaseErrorCode(err)
 		entry.LastErrorMessage = err.Error()
 		combinedErr := err
 
-		if transErr := ApplyTransition(entry, string(StateConflict), "rebase conflict during initial fetch"); transErr != nil {
+		if transErr := ApplyTransition(entry, string(StateConflict), fetchAndRebaseFailureReason(entry.LastErrorCode, false)); transErr != nil {
 			combinedErr = errors.Join(combinedErr, transErr)
 			return fmt.Errorf("fetch/rebase branch: %w", combinedErr)
 		}
@@ -77,11 +77,11 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 	if err := c.gate.Run(ctx, *entry); err != nil {
 		entry.RetryCount = 1
 		if err := c.gitops.FetchAndRebase(ctx, *entry); err != nil {
-			entry.LastErrorCode = "rebase_conflict"
+			entry.LastErrorCode = classifyFetchAndRebaseErrorCode(err)
 			entry.LastErrorMessage = err.Error()
 			combinedErr := err
 
-			if transErr := ApplyTransition(entry, string(StateConflict), "rebase conflict during retry fetch"); transErr != nil {
+			if transErr := ApplyTransition(entry, string(StateConflict), fetchAndRebaseFailureReason(entry.LastErrorCode, true)); transErr != nil {
 				combinedErr = errors.Join(combinedErr, transErr)
 				return fmt.Errorf("fetch/rebase branch: %w", combinedErr)
 			}
@@ -225,3 +225,27 @@ func (c *Coordinator) RecoverFromCrash(ctx context.Context) error {
 // CrashRecoveryErrorCode identifies crash recovery metadata persisted when an
 // integrating entry is reset to ready during startup recovery.
 const CrashRecoveryErrorCode ErrorCode = "crash_recovery"
+
+func classifyFetchAndRebaseErrorCode(err error) string {
+	if err == nil {
+		return "rebase_conflict"
+	}
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "checkout branch") || strings.Contains(msg, " checkout ") {
+		return "checkout_failed"
+	}
+	return "rebase_conflict"
+}
+
+func fetchAndRebaseFailureReason(errorCode string, retry bool) string {
+	if errorCode == "checkout_failed" {
+		if retry {
+			return "checkout failed during retry fetch"
+		}
+		return "checkout failed during initial fetch"
+	}
+	if retry {
+		return "rebase conflict during retry fetch"
+	}
+	return "rebase conflict during initial fetch"
+}

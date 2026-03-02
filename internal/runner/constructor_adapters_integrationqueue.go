@@ -44,14 +44,14 @@ func (a *integrationQueueGitOpsAdapter) FetchAndRebase(ctx context.Context, entr
 		base = config.DefaultBaseBranch
 	}
 
-	if _, err := a.runGitCommand(ctx, dir, "fetch", "origin", base); err != nil {
-		return fmt.Errorf("fetching %s: %w", base, err)
+	if output, err := a.runGitCommand(ctx, dir, "fetch", "origin", base); err != nil {
+		return fmt.Errorf("fetching %s: %w", base, wrapGitCommandError(err, output))
 	}
-	if _, err := a.runGitCommand(ctx, dir, "checkout", branch); err != nil {
-		return fmt.Errorf("checkout branch %s: %w", branch, err)
+	if output, err := a.runGitCommand(ctx, dir, "checkout", branch); err != nil {
+		return fmt.Errorf("checkout branch %s: %w", branch, wrapGitCommandError(err, output))
 	}
-	if _, err := a.runGitCommand(ctx, dir, "rebase", base); err != nil {
-		return fmt.Errorf("rebasing branch %s onto %s: %w", branch, base, err)
+	if output, err := a.runGitCommand(ctx, dir, "rebase", base); err != nil {
+		return fmt.Errorf("rebasing branch %s onto %s: %w", branch, base, wrapGitCommandError(err, output))
 	}
 	return nil
 }
@@ -74,11 +74,11 @@ func (a *integrationQueueGitOpsAdapter) MergeToMain(ctx context.Context, entry i
 		base = config.DefaultBaseBranch
 	}
 
-	if _, err := a.runGitCommand(ctx, dir, "checkout", base); err != nil {
-		return fmt.Errorf("checkout %s: %w", base, err)
+	if output, err := a.runGitCommand(ctx, dir, "checkout", base); err != nil {
+		return fmt.Errorf("checkout %s: %w", base, wrapGitCommandError(err, output))
 	}
-	if _, err := a.runGitCommand(ctx, dir, "merge", "--ff-only", branch); err != nil {
-		return fmt.Errorf("merging branch %s: %w", branch, err)
+	if output, err := a.runGitCommand(ctx, dir, "merge", "--ff-only", branch); err != nil {
+		return fmt.Errorf("merging branch %s: %w", branch, wrapGitCommandError(err, output))
 	}
 
 	return nil
@@ -105,8 +105,8 @@ func (a *integrationQueueGitOpsAdapter) Push(ctx context.Context) error {
 		defer cancel()
 	}
 
-	if _, err := a.runGitCommand(pushCtx, dir, "push", "origin", base); err != nil {
-		return fmt.Errorf("pushing %s: %w", base, fmt.Errorf("%w: %v", errGitPushFailed, err))
+	if output, err := a.runGitCommand(pushCtx, dir, "push", "origin", base); err != nil {
+		return fmt.Errorf("pushing %s: %w", base, wrapGitCommandError(fmt.Errorf("%w: %v", errGitPushFailed, err), output))
 	}
 	return nil
 }
@@ -123,10 +123,18 @@ func (a *integrationQueueGitOpsAdapter) Cleanup(ctx context.Context, entry integ
 		return fmt.Errorf("git runner is not configured")
 	}
 
-	if _, err := a.runGitCommand(ctx, dir, "branch", "-D", entry.Branch); err != nil {
-		return fmt.Errorf("cleanup branch %s: %w", entry.Branch, fmt.Errorf("%w: %v", errGitCleanupFailed, err))
+	if output, err := a.runGitCommand(ctx, dir, "branch", "-D", entry.Branch); err != nil {
+		return fmt.Errorf("cleanup branch %s: %w", entry.Branch, wrapGitCommandError(fmt.Errorf("%w: %v", errGitCleanupFailed, err), output))
 	}
 	return nil
+}
+
+func wrapGitCommandError(err error, output string) error {
+	trimmedOutput := strings.TrimSpace(output)
+	if trimmedOutput == "" {
+		return err
+	}
+	return fmt.Errorf("%w (git output: %s)", err, trimmedOutput)
 }
 
 func (a *integrationQueueGitOpsAdapter) requireRepoDir() (string, error) {
