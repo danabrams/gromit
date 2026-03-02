@@ -90,19 +90,16 @@ func RecordTransition(from, to, reason, errorCode string) *TransitionRecord {
 
 // NextAllowedStates returns a list of all allowed next states from the given state.
 func NextAllowedStates(from string) []string {
-	var states []string
-	switch from {
-	case "draft":
-		states = append(states, "ready")
-	case "ready":
-		states = append(states, "integrating")
-	case "integrating":
-		states = append(states, "merged", "conflict", "failed_gates", "lane_violation", "ready", "push_failure")
-	case "conflict", "failed_gates", "lane_violation":
-		states = append(states, "ready")
-	case "push_failure":
-		states = append(states, "ready")
+	fromTransitions, ok := allowedTransitions[from]
+	if !ok {
+		return nil
 	}
+
+	states := make([]string, 0, len(fromTransitions))
+	for state := range fromTransitions {
+		states = append(states, state)
+	}
+
 	return states
 }
 
