@@ -104,6 +104,70 @@ That's my analysis.
 	}
 }
 
+func TestParseProposalsStructuredSections(t *testing.T) {
+	output := `
+## Analysis
+
+Structured recommendations ahead.
+
+` + "```json" + `
+{
+  "taxonomy": {
+    "technical": ["Use structured retro JSON"],
+    "architecture": ["Split tooling responsibilities"],
+    "process": ["Apply retro for stuck beads"],
+    "repeated_patterns": ["stuck beads trigger retro"]
+  },
+  "system_actions": [
+    {
+      "finding": "stuck bead cost spike",
+      "type": "architecture",
+      "local_fix": "Re-run bead with smaller scope",
+      "system_fix": "Add retry guardrails",
+      "owner": "retro-team",
+      "due_date": "2026-03-10",
+      "leading_indicator": "failure rate drops"
+    }
+  ],
+  "five_whys": [
+    {
+      "item": "stuck bead",
+      "impact": "blocking delivery",
+      "why_chain": [
+        {"why": 1, "because": "iteration failed twice"}
+      ],
+      "root_cause_type": "architecture",
+      "stopping_reason": "system-level guard identified"
+    }
+  ]
+}
+` + "```" + `
+
+That's my structured analysis.
+`
+
+	proposals, err := ParseProposals(output)
+	if err != nil {
+		t.Fatalf("ParseProposals() error = %v", err)
+	}
+
+	if len(proposals.Taxonomy.Technical) != 1 {
+		t.Fatalf("expected taxonomy technical insight, got %#v", proposals.Taxonomy.Technical)
+	}
+	if len(proposals.SystemActions) != 1 {
+		t.Fatalf("expected 1 system action, got %d", len(proposals.SystemActions))
+	}
+	if proposals.SystemActions[0].Owner != "retro-team" {
+		t.Errorf("unexpected system action owner: %s", proposals.SystemActions[0].Owner)
+	}
+	if len(proposals.FiveWhys) != 1 {
+		t.Fatalf("expected 1 five whys entry, got %d", len(proposals.FiveWhys))
+	}
+	if proposals.FiveWhys[0].RootCauseType != "architecture" {
+		t.Errorf("unexpected root cause type: %s", proposals.FiveWhys[0].RootCauseType)
+	}
+}
+
 func TestParseProposals_EmptyProposals(t *testing.T) {
 	output := `
 No changes needed at this time.
