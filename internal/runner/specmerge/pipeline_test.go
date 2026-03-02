@@ -403,6 +403,7 @@ func TestTrackerBeadQueryConvertsTrackerItems(t *testing.T) {
 
 type fakeBeadQuery struct {
 	listFn func(context.Context, string) ([]*bead.Bead, error)
+	capturedCtx context.Context
 }
 
 func (f *fakeBeadQuery) ListWithLabel(ctx context.Context, label string) ([]*bead.Bead, error) {
@@ -410,6 +411,31 @@ func (f *fakeBeadQuery) ListWithLabel(ctx context.Context, label string) ([]*bea
 		return nil, nil
 	}
 	return f.listFn(ctx, label)
+}
+
+func TestPipeline_IsSpecComplete_ForwardsContext(t *testing.T) {
+	t.Parallel()
+
+	const specName = "payments"
+	ctxKey := struct{}{}
+	wantCtx := context.WithValue(context.Background(), ctxKey, "value")
+
+	query := &fakeBeadQuery{
+		listFn: func(receivedCtx context.Context, label string) ([]*bead.Bead, error) {
+			if label != "spec:"+specName {
+				t.Fatalf("label = %q, want spec:%s", label, specName)
+			}
+			return []*bead.Bead{}, nil
+		},
+	}
+
+	if _, err := specmerge.NewPipeline(query, nil, nil, specmerge.FixBeadDependencies{}, 0).IsSpecComplete(wantCtx, specName); err != nil {
+		t.Fatalf("IsSpecComplete returned error: %v", err)
+	}
+
+	if query.capturedCtx != wantCtx {
+		t.Fatalf("captured context = %v, want %v", query.capturedCtx, wantCtx)
+	}
 }
 
 type fakeCycleRecordEmitter struct {
