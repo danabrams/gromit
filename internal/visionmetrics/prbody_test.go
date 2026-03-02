@@ -29,7 +29,7 @@ Some follow-up notes.
 		wantSpec      string
 		wantOutcome   ReviewOutcome
 		wantRationale string
-		wantEscaped   YesNo
+		wantEscaped   EscapedRegressionStatus
 	}{
 		{
 			name:        "missing Vision Metrics block",

@@ -21,11 +21,26 @@ const (
 	No  YesNo = "no"
 )
 
-// EscapedRegressionPending marks the escaped-regression status as pending.
-const EscapedRegressionPending YesNo = "pending"
+// EscapedRegressionStatus captures the escaped-regression lifecycle states.
+type EscapedRegressionStatus string
+
+const (
+	EscapedRegressionYes     EscapedRegressionStatus = "yes"
+	EscapedRegressionNo      EscapedRegressionStatus = "no"
+	EscapedRegressionPending EscapedRegressionStatus = "pending"
+)
 
 func (y YesNo) Valid() bool {
 	return y == Yes || y == No
+}
+
+func (s EscapedRegressionStatus) Valid() bool {
+	switch s {
+	case EscapedRegressionYes, EscapedRegressionNo, EscapedRegressionPending:
+		return true
+	default:
+		return false
+	}
 }
 
 // ReviewOutcome captures the final review disposition for a cycle.
@@ -56,12 +71,12 @@ func (r ReviewOutcome) IsAccepted() bool {
 
 // Record represents a validated cycle record at PR presentation time.
 type Record struct {
-	SpecID                     string        `json:"spec_id"`
-	CycleStartTriggerAt        time.Time     `json:"cycle_start_trigger_at"`
-	CycleEndPresentedAt        time.Time     `json:"cycle_end_presented_at"`
-	ReviewOutcome              ReviewOutcome `json:"review_outcome"`
-	ReviewRationale            string        `json:"review_rationale,omitempty"`
-	HumanTacticalIntervention  YesNo         `json:"human_tactical_intervention"`
-	HumanDebuggingIntervention YesNo         `json:"human_debugging_intervention"`
-	EscapedRegressionWithin7D  YesNo         `json:"escaped_regression_within_7d"`
+	SpecID                     string                  `json:"spec_id"`
+	CycleStartTriggerAt        time.Time               `json:"cycle_start_trigger_at"`
+	CycleEndPresentedAt        time.Time               `json:"cycle_end_presented_at"`
+	ReviewOutcome              ReviewOutcome           `json:"review_outcome"`
+	ReviewRationale            string                  `json:"review_rationale,omitempty"`
+	HumanTacticalIntervention  YesNo                   `json:"human_tactical_intervention"`
+	HumanDebuggingIntervention YesNo                   `json:"human_debugging_intervention"`
+	EscapedRegressionWithin7D  EscapedRegressionStatus `json:"escaped_regression_within_7d"`
 }

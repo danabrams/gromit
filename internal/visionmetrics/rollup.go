@@ -27,15 +27,15 @@ func ComputeRollup(records []Record) Rollup {
 		}
 	}
 
-var (
-	tactical  int
-	debugging int
-	escaped   int
-	escapedPending int
-	accepted  int
-	resolvedEscapedDenom int
-	carveOuts int
-)
+	var (
+		tactical             int
+		debugging            int
+		escaped              int
+		escapedPending       int
+		accepted             int
+		resolvedEscapedDenom int
+		carveOuts            int
+	)
 
 	for _, rec := range valid {
 		if rec.HumanTacticalIntervention == Yes {
@@ -44,7 +44,7 @@ var (
 		if rec.HumanDebuggingIntervention == Yes {
 			debugging++
 		}
-		if rec.EscapedRegressionWithin7D == Yes {
+		if rec.EscapedRegressionWithin7D == EscapedRegressionYes {
 			escaped++
 		}
 		if rec.EscapedRegressionWithin7D == EscapedRegressionPending {

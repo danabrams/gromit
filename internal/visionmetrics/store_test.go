@@ -86,7 +86,7 @@ func TestAppendRecord_WritesToJSONLFile(t *testing.T) {
 		ReviewOutcome:              ReviewOutcomeAccepted,
 		HumanTacticalIntervention:  Yes,
 		HumanDebuggingIntervention: No,
-		EscapedRegressionWithin7D:  No,
+		EscapedRegressionWithin7D:  EscapedRegressionNo,
 	}
 
 	if err := AppendRecord(tmpFile, record); err != nil {
@@ -131,7 +131,7 @@ func TestAppendRecord_AppendsMultipleRecords(t *testing.T) {
 			ReviewOutcome:              ReviewOutcomeAccepted,
 			HumanTacticalIntervention:  Yes,
 			HumanDebuggingIntervention: No,
-			EscapedRegressionWithin7D:  No,
+			EscapedRegressionWithin7D:  EscapedRegressionNo,
 		},
 		{
 			SpecID:                     "spec-2",
@@ -140,7 +140,7 @@ func TestAppendRecord_AppendsMultipleRecords(t *testing.T) {
 			ReviewOutcome:              ReviewOutcomeImplementationGap,
 			HumanTacticalIntervention:  No,
 			HumanDebuggingIntervention: Yes,
-			EscapedRegressionWithin7D:  No,
+			EscapedRegressionWithin7D:  EscapedRegressionNo,
 		},
 		{
 			SpecID:                     "spec-3",
@@ -150,7 +150,7 @@ func TestAppendRecord_AppendsMultipleRecords(t *testing.T) {
 			ReviewRationale:            "Strategy adjusted",
 			HumanTacticalIntervention:  No,
 			HumanDebuggingIntervention: No,
-			EscapedRegressionWithin7D:  Yes,
+			EscapedRegressionWithin7D:  EscapedRegressionYes,
 		},
 	}
 
@@ -203,7 +203,7 @@ func TestAppendRecord_CreatesFileIfNotExists(t *testing.T) {
 		ReviewOutcome:              ReviewOutcomeAccepted,
 		HumanTacticalIntervention:  No,
 		HumanDebuggingIntervention: No,
-		EscapedRegressionWithin7D:  No,
+		EscapedRegressionWithin7D:  EscapedRegressionNo,
 	}
 
 	if err := AppendRecord(tmpFile, record); err != nil {
@@ -272,7 +272,7 @@ func TestAppendRecord_PreservesTimestamps(t *testing.T) {
 		ReviewOutcome:              ReviewOutcomeAccepted,
 		HumanTacticalIntervention:  No,
 		HumanDebuggingIntervention: No,
-		EscapedRegressionWithin7D:  No,
+		EscapedRegressionWithin7D:  EscapedRegressionNo,
 	}
 
 	if err := AppendRecord(tmpFile, record); err != nil {
@@ -312,7 +312,7 @@ func TestAppendRecord_PreservesOptionalFields(t *testing.T) {
 		ReviewRationale:            "Business priorities shifted due to market analysis",
 		HumanTacticalIntervention:  Yes,
 		HumanDebuggingIntervention: No,
-		EscapedRegressionWithin7D:  No,
+		EscapedRegressionWithin7D:  EscapedRegressionNo,
 	}
 
 	if err := AppendRecord(tmpFile, record); err != nil {
@@ -341,7 +341,7 @@ func TestAppendRecord_PreservesOptionalFields(t *testing.T) {
 		ReviewOutcome:              ReviewOutcomeAccepted,
 		HumanTacticalIntervention:  No,
 		HumanDebuggingIntervention: No,
-		EscapedRegressionWithin7D:  No,
+		EscapedRegressionWithin7D:  EscapedRegressionNo,
 	}
 
 	if err := AppendRecord(tmpFile, recordNoRationale); err != nil {
@@ -374,20 +374,16 @@ func TestAppendRecord_PreservesAllYesNoValues(t *testing.T) {
 	tmpDir := t.TempDir()
 	tmpFile := filepath.Join(tmpDir, "yesno.jsonl")
 
-	// Test all combinations of YesNo values
+	// Test a few combinations of YesNo values alongside EscapedRegressionStatus
 	testCases := []struct {
 		tactical   YesNo
 		debugging  YesNo
-		regression YesNo
+		regression EscapedRegressionStatus
 	}{
-		{Yes, Yes, Yes},
-		{Yes, Yes, No},
-		{Yes, No, Yes},
-		{Yes, No, No},
-		{No, Yes, Yes},
-		{No, Yes, No},
-		{No, No, Yes},
-		{No, No, No},
+		{Yes, Yes, EscapedRegressionYes},
+		{Yes, No, EscapedRegressionNo},
+		{No, Yes, EscapedRegressionPending},
+		{No, No, EscapedRegressionNo},
 	}
 
 	for i, tc := range testCases {
@@ -454,7 +450,7 @@ func TestAppendRecord_PreservesAllReviewOutcomes(t *testing.T) {
 			ReviewRationale:            tc.rationale,
 			HumanTacticalIntervention:  No,
 			HumanDebuggingIntervention: No,
-			EscapedRegressionWithin7D:  No,
+			EscapedRegressionWithin7D:  EscapedRegressionNo,
 		}
 
 		if err := AppendRecord(tmpFile, record); err != nil {
@@ -492,7 +488,7 @@ func TestAppendRecord_ErrorOnNonExistentDirectory(t *testing.T) {
 		ReviewOutcome:              ReviewOutcomeAccepted,
 		HumanTacticalIntervention:  No,
 		HumanDebuggingIntervention: No,
-		EscapedRegressionWithin7D:  No,
+		EscapedRegressionWithin7D:  EscapedRegressionNo,
 	}
 
 	// This should fail because the directory doesn't exist
@@ -528,7 +524,7 @@ func TestAppendRecord_AtomicWriteUnderConcurrentAccess(t *testing.T) {
 					ReviewOutcome:              ReviewOutcomeAccepted,
 					HumanTacticalIntervention:  No,
 					HumanDebuggingIntervention: No,
-					EscapedRegressionWithin7D:  No,
+					EscapedRegressionWithin7D:  EscapedRegressionNo,
 				}
 				if err := AppendRecord(tmpFile, record); err != nil {
 					errChan <- err

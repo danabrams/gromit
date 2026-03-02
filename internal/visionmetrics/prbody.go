@@ -96,7 +96,7 @@ func recordFromFields(fields map[string]string) (Record, error) {
 		rec.HumanDebuggingIntervention = YesNo(val)
 	}
 	if val := strings.TrimSpace(fields[FieldEscapedRegressionWithin7D]); val != "" {
-		rec.EscapedRegressionWithin7D = YesNo(val)
+		rec.EscapedRegressionWithin7D = EscapedRegressionStatus(val)
 	}
 
 	return rec, nil

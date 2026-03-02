@@ -23,7 +23,7 @@ func TestComputeRollup_FiltersInvalidRecords(t *testing.T) {
 					ReviewOutcome:              ReviewOutcomeAccepted,
 					HumanTacticalIntervention:  No,
 					HumanDebuggingIntervention: No,
-					EscapedRegressionWithin7D:  No,
+					EscapedRegressionWithin7D:  EscapedRegressionNo,
 				},
 			},
 			wantValid: 1,
@@ -39,7 +39,7 @@ func TestComputeRollup_FiltersInvalidRecords(t *testing.T) {
 					ReviewOutcome:              ReviewOutcomeAccepted,
 					HumanTacticalIntervention:  No,
 					HumanDebuggingIntervention: No,
-					EscapedRegressionWithin7D:  No,
+					EscapedRegressionWithin7D:  EscapedRegressionNo,
 				},
 				{
 					SpecID:                     "spec-2",
@@ -48,7 +48,7 @@ func TestComputeRollup_FiltersInvalidRecords(t *testing.T) {
 					ReviewOutcome:              ReviewOutcomeAccepted,
 					HumanTacticalIntervention:  No,
 					HumanDebuggingIntervention: Yes, // invalid: debugging without tactical
-					EscapedRegressionWithin7D:  No,
+					EscapedRegressionWithin7D:  EscapedRegressionNo,
 				},
 			},
 			wantValid: 1,
@@ -64,7 +64,7 @@ func TestComputeRollup_FiltersInvalidRecords(t *testing.T) {
 					ReviewOutcome:              ReviewOutcomeAccepted,
 					HumanTacticalIntervention:  No,
 					HumanDebuggingIntervention: No,
-					EscapedRegressionWithin7D:  No,
+					EscapedRegressionWithin7D:  EscapedRegressionNo,
 				},
 			},
 			wantValid: 0,
@@ -100,12 +100,12 @@ func TestComputeRollup_FiltersInvalidRecords(t *testing.T) {
 func TestComputeRollup_CarveOutScenarios(t *testing.T) {
 	now := time.Now()
 	tests := []struct {
-		name                string
-		records             []Record
-		wantAcceptNum       int
-		wantTotalDenom      int
-		wantAcceptDenom     int // excluding carve-outs
-		wantAcceptRate      float64
+		name            string
+		records         []Record
+		wantAcceptNum   int
+		wantTotalDenom  int
+		wantAcceptDenom int // excluding carve-outs
+		wantAcceptRate  float64
 	}{
 		{
 			name: "single vision change carve-out",
@@ -118,7 +118,7 @@ func TestComputeRollup_CarveOutScenarios(t *testing.T) {
 					ReviewRationale:            "Product direction shifted",
 					HumanTacticalIntervention:  No,
 					HumanDebuggingIntervention: No,
-					EscapedRegressionWithin7D:  No,
+					EscapedRegressionWithin7D:  EscapedRegressionNo,
 				},
 			},
 			wantAcceptNum:   0,
@@ -136,7 +136,7 @@ func TestComputeRollup_CarveOutScenarios(t *testing.T) {
 					ReviewOutcome:              ReviewOutcomeAccepted,
 					HumanTacticalIntervention:  No,
 					HumanDebuggingIntervention: No,
-					EscapedRegressionWithin7D:  No,
+					EscapedRegressionWithin7D:  EscapedRegressionNo,
 				},
 				{
 					SpecID:                     "spec-2",
@@ -146,7 +146,7 @@ func TestComputeRollup_CarveOutScenarios(t *testing.T) {
 					ReviewRationale:            "Market analysis required rethink",
 					HumanTacticalIntervention:  No,
 					HumanDebuggingIntervention: No,
-					EscapedRegressionWithin7D:  No,
+					EscapedRegressionWithin7D:  EscapedRegressionNo,
 				},
 				{
 					SpecID:                     "spec-3",
@@ -155,12 +155,12 @@ func TestComputeRollup_CarveOutScenarios(t *testing.T) {
 					ReviewOutcome:              ReviewOutcomeAccepted,
 					HumanTacticalIntervention:  Yes,
 					HumanDebuggingIntervention: No,
-					EscapedRegressionWithin7D:  No,
+					EscapedRegressionWithin7D:  EscapedRegressionNo,
 				},
 			},
-			wantAcceptNum:   2, // only accepted records
-			wantTotalDenom:  3, // all valid records
-			wantAcceptDenom: 2, // total - carve-outs
+			wantAcceptNum:   2,   // only accepted records
+			wantTotalDenom:  3,   // all valid records
+			wantAcceptDenom: 2,   // total - carve-outs
 			wantAcceptRate:  1.0, // 2/2
 		},
 		{
@@ -174,7 +174,7 @@ func TestComputeRollup_CarveOutScenarios(t *testing.T) {
 					ReviewRationale:            "First carve-out",
 					HumanTacticalIntervention:  No,
 					HumanDebuggingIntervention: No,
-					EscapedRegressionWithin7D:  No,
+					EscapedRegressionWithin7D:  EscapedRegressionNo,
 				},
 				{
 					SpecID:                     "spec-2",
@@ -183,7 +183,7 @@ func TestComputeRollup_CarveOutScenarios(t *testing.T) {
 					ReviewOutcome:              ReviewOutcomeAccepted,
 					HumanTacticalIntervention:  No,
 					HumanDebuggingIntervention: No,
-					EscapedRegressionWithin7D:  No,
+					EscapedRegressionWithin7D:  EscapedRegressionNo,
 				},
 				{
 					SpecID:                     "spec-3",
@@ -193,7 +193,7 @@ func TestComputeRollup_CarveOutScenarios(t *testing.T) {
 					ReviewRationale:            "Second carve-out",
 					HumanTacticalIntervention:  No,
 					HumanDebuggingIntervention: No,
-					EscapedRegressionWithin7D:  No,
+					EscapedRegressionWithin7D:  EscapedRegressionNo,
 				},
 			},
 			wantAcceptNum:   1,
@@ -212,7 +212,7 @@ func TestComputeRollup_CarveOutScenarios(t *testing.T) {
 					ReviewRationale:            "Carve-out",
 					HumanTacticalIntervention:  No,
 					HumanDebuggingIntervention: No,
-					EscapedRegressionWithin7D:  No,
+					EscapedRegressionWithin7D:  EscapedRegressionNo,
 				},
 				{
 					SpecID:                     "spec-2",
@@ -222,7 +222,7 @@ func TestComputeRollup_CarveOutScenarios(t *testing.T) {
 					ReviewRationale:            "Another carve-out",
 					HumanTacticalIntervention:  No,
 					HumanDebuggingIntervention: No,
-					EscapedRegressionWithin7D:  No,
+					EscapedRegressionWithin7D:  EscapedRegressionNo,
 				},
 			},
 			wantAcceptNum:   0,
@@ -296,7 +296,7 @@ func TestComputeRollup_EdgeCases(t *testing.T) {
 					ReviewOutcome:              ReviewOutcomeAccepted,
 					HumanTacticalIntervention:  Yes,
 					HumanDebuggingIntervention: Yes,
-					EscapedRegressionWithin7D:  Yes,
+					EscapedRegressionWithin7D:  EscapedRegressionYes,
 				},
 				{
 					SpecID:                     "spec-2",
@@ -305,7 +305,7 @@ func TestComputeRollup_EdgeCases(t *testing.T) {
 					ReviewOutcome:              ReviewOutcomeAccepted,
 					HumanTacticalIntervention:  Yes,
 					HumanDebuggingIntervention: Yes,
-					EscapedRegressionWithin7D:  Yes,
+					EscapedRegressionWithin7D:  EscapedRegressionYes,
 				},
 			},
 			wantDenom: 2,
@@ -329,7 +329,7 @@ func TestComputeRollup_EdgeCases(t *testing.T) {
 					ReviewOutcome:              ReviewOutcomeAccepted,
 					HumanTacticalIntervention:  No,
 					HumanDebuggingIntervention: No,
-					EscapedRegressionWithin7D:  No,
+					EscapedRegressionWithin7D:  EscapedRegressionNo,
 				},
 				{
 					SpecID:                     "spec-2",
@@ -338,7 +338,7 @@ func TestComputeRollup_EdgeCases(t *testing.T) {
 					ReviewOutcome:              ReviewOutcomeAccepted,
 					HumanTacticalIntervention:  No,
 					HumanDebuggingIntervention: No,
-					EscapedRegressionWithin7D:  No,
+					EscapedRegressionWithin7D:  EscapedRegressionNo,
 				},
 			},
 			wantDenom: 2,
@@ -380,14 +380,14 @@ func TestComputeRollup_EdgeCases(t *testing.T) {
 func TestComputeRollup_NormalScenarios(t *testing.T) {
 	now := time.Now()
 	tests := []struct {
-		name      string
-		records   []Record
-		wantTact  int // tactical numerator
-		wantDebug int // debugging numerator
-		wantPass  int // first pass numerator
-		wantEsc   int // escaped regression numerator
-		wantAccep int // accepted numerator
-		wantDenom int // denominator (valid records)
+		name            string
+		records         []Record
+		wantTact        int // tactical numerator
+		wantDebug       int // debugging numerator
+		wantPass        int // first pass numerator
+		wantEsc         int // escaped regression numerator
+		wantAccep       int // accepted numerator
+		wantDenom       int // denominator (valid records)
 		wantAcceptDenom int // accepted-without-rework denominator
 	}{
 		{
@@ -400,7 +400,7 @@ func TestComputeRollup_NormalScenarios(t *testing.T) {
 					ReviewOutcome:              ReviewOutcomeAccepted,
 					HumanTacticalIntervention:  No,
 					HumanDebuggingIntervention: No,
-					EscapedRegressionWithin7D:  No,
+					EscapedRegressionWithin7D:  EscapedRegressionNo,
 				},
 			},
 			wantTact:        0,
@@ -421,7 +421,7 @@ func TestComputeRollup_NormalScenarios(t *testing.T) {
 					ReviewOutcome:              ReviewOutcomeAccepted,
 					HumanTacticalIntervention:  Yes,
 					HumanDebuggingIntervention: No,
-					EscapedRegressionWithin7D:  No,
+					EscapedRegressionWithin7D:  EscapedRegressionNo,
 				},
 			},
 			wantTact:        1,
@@ -442,7 +442,7 @@ func TestComputeRollup_NormalScenarios(t *testing.T) {
 					ReviewOutcome:              ReviewOutcomeAccepted,
 					HumanTacticalIntervention:  No,
 					HumanDebuggingIntervention: No,
-					EscapedRegressionWithin7D:  No,
+					EscapedRegressionWithin7D:  EscapedRegressionNo,
 				},
 				{
 					SpecID:                     "spec-2",
@@ -451,7 +451,7 @@ func TestComputeRollup_NormalScenarios(t *testing.T) {
 					ReviewOutcome:              ReviewOutcomeImplementationGap,
 					HumanTacticalIntervention:  Yes,
 					HumanDebuggingIntervention: Yes,
-					EscapedRegressionWithin7D:  Yes,
+					EscapedRegressionWithin7D:  EscapedRegressionYes,
 				},
 				{
 					SpecID:                     "spec-3",
@@ -460,7 +460,7 @@ func TestComputeRollup_NormalScenarios(t *testing.T) {
 					ReviewOutcome:              ReviewOutcomeAccepted,
 					HumanTacticalIntervention:  Yes,
 					HumanDebuggingIntervention: No,
-					EscapedRegressionWithin7D:  No,
+					EscapedRegressionWithin7D:  EscapedRegressionNo,
 				},
 			},
 			wantTact:        2,
@@ -535,7 +535,7 @@ func TestComputeRollup_EscapedRegressionPendingExclusion(t *testing.T) {
 			ReviewOutcome:              ReviewOutcomeAccepted,
 			HumanTacticalIntervention:  No,
 			HumanDebuggingIntervention: No,
-			EscapedRegressionWithin7D:  Yes,
+			EscapedRegressionWithin7D:  EscapedRegressionYes,
 		},
 		{
 			SpecID:                     "spec-pending",
@@ -553,7 +553,7 @@ func TestComputeRollup_EscapedRegressionPendingExclusion(t *testing.T) {
 			ReviewOutcome:              ReviewOutcomeAccepted,
 			HumanTacticalIntervention:  No,
 			HumanDebuggingIntervention: No,
-			EscapedRegressionWithin7D:  No,
+			EscapedRegressionWithin7D:  EscapedRegressionNo,
 		},
 	}
 
@@ -596,7 +596,7 @@ func TestComputeRollup_EscapedRegressionPendingCount(t *testing.T) {
 			ReviewOutcome:              ReviewOutcomeAccepted,
 			HumanTacticalIntervention:  No,
 			HumanDebuggingIntervention: No,
-			EscapedRegressionWithin7D:  No,
+			EscapedRegressionWithin7D:  EscapedRegressionNo,
 		},
 	}
 

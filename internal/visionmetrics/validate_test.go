@@ -67,7 +67,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "invalid escaped_regression_within_7d",
 			modify: func(rec *Record) {
-				rec.EscapedRegressionWithin7D = YesNo("maybe")
+				rec.EscapedRegressionWithin7D = EscapedRegressionStatus("maybe")
 			},
 			wantErr:    true,
 			wantFields: []string{FieldEscapedRegressionWithin7D},
@@ -75,7 +75,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "escaped regression pending allowed",
 			modify: func(rec *Record) {
-				rec.EscapedRegressionWithin7D = YesNo("pending")
+				rec.EscapedRegressionWithin7D = EscapedRegressionStatus("pending")
 			},
 			wantErr: false,
 		},
@@ -178,6 +178,6 @@ func validRecord() Record {
 		ReviewRationale:            "baseline rationale",
 		HumanTacticalIntervention:  No,
 		HumanDebuggingIntervention: No,
-		EscapedRegressionWithin7D:  No,
+		EscapedRegressionWithin7D:  EscapedRegressionNo,
 	}
 }

@@ -94,7 +94,7 @@ func TestVisionMetricsFixturePendingResolutionScenario(t *testing.T) {
 		switch rec.EscapedRegressionWithin7D {
 		case EscapedRegressionPending:
 			pendingCount++
-		case Yes:
+		case EscapedRegressionYes:
 			escapedYesCount++
 		}
 	}
@@ -117,7 +117,7 @@ func TestVisionMetricsFixturePendingResolutionScenario(t *testing.T) {
 	resolvedRecords := append([]Record(nil), records...)
 	for i := range resolvedRecords {
 		if resolvedRecords[i].EscapedRegressionWithin7D == EscapedRegressionPending {
-			resolvedRecords[i].EscapedRegressionWithin7D = No
+			resolvedRecords[i].EscapedRegressionWithin7D = EscapedRegressionNo
 			break
 		}
 	}

@@ -94,7 +94,7 @@ func TestRecordFieldWiring(t *testing.T) {
 		checkStructField(t, "Record", (*Record)(nil), "HumanDebuggingIntervention", "YesNo", FieldHumanDebuggingIntervention)
 	})
 	t.Run("escaped_regression_within_7d field", func(t *testing.T) {
-		checkStructField(t, "Record", (*Record)(nil), "EscapedRegressionWithin7D", "YesNo", FieldEscapedRegressionWithin7D)
+		checkStructField(t, "Record", (*Record)(nil), "EscapedRegressionWithin7D", "EscapedRegressionStatus", FieldEscapedRegressionWithin7D)
 	})
 }
 
