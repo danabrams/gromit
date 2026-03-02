@@ -43,13 +43,11 @@ func (p *Pipeline) ApplyReviewFindings(ctx context.Context, result *review.Revie
         applyResult.CreatedBeadIDs = append(applyResult.CreatedBeadIDs, bead.ID)
     }
 
-	for _, bi := range result.BacklogItems {
-		entry := buildReviewBacklogEntry(bi)
-		if err := p.deps.BacklogWriter.Add(ctx, entry); err != nil {
-			return nil, fmt.Errorf("creating backlog item %q: %w", bi.Title, err)
-		}
-		applyResult.CreatedBacklogCount++
+	backlogCount, err := applyBacklogItems(ctx, result.BacklogItems, p.deps.BacklogWriter)
+	if err != nil {
+		return nil, err
 	}
+	applyResult.CreatedBacklogCount = backlogCount
 
 	for _, learning := range result.Learnings {
 		if err := p.deps.LearningsManager.Add(learning); err != nil {
@@ -78,4 +76,16 @@ func buildReviewBacklogEntry(item review.BacklogItem) *BacklogEntry {
 		Labels:          review.BuildBacklogLabels(),
 		ExpectedOutputs: review.ExpectedOutputsOrTitle(item.ExpectedOutputs, item.Title),
 	}
+}
+
+func applyBacklogItems(ctx context.Context, items []review.BacklogItem, writer BacklogWriter) (int, error) {
+	count := 0
+	for _, bi := range items {
+		entry := buildReviewBacklogEntry(bi)
+		if err := writer.Add(ctx, entry); err != nil {
+			return count, fmt.Errorf("creating backlog item %q: %w", bi.Title, err)
+		}
+		count++
+	}
+	return count, nil
 }
