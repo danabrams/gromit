@@ -74,7 +74,9 @@ func (c *Coordinator) Coordinate(ctx context.Context) error {
 			entry.LastErrorCode = "rebase_conflict"
 			entry.LastErrorMessage = err.Error()
 			if transErr := ApplyTransition(entry, string(StateConflict), "rebase conflict during retry fetch"); transErr == nil {
-				_ = c.store.Save(*entry)
+				if saveErr := c.store.Save(*entry); saveErr != nil {
+					return fmt.Errorf("fetch/rebase branch: %w", errors.Join(err, saveErr))
+				}
 			}
 			return fmt.Errorf("fetch/rebase branch: %w", err)
 		}
