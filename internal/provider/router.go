@@ -83,21 +83,23 @@ func NewSingleProviderRouter(p Provider) *Router {
 func (r *Router) Select(phase string, tier string) (Provider, string) {
 	// Layer 1: Check phase preference
 	if pref, ok := r.preferences[phase]; ok && pref != "any" {
-		if r.isAvailable(pref) {
-			return r.selectProvider(pref, tier)
+		if provider, model := r.selectIfAvailable(pref, tier); provider != nil {
+			return provider, model
 		}
 	}
 
 	// Layer 2: Ratio balancing for "any" preference or fallback
 	selectedName := r.selectByRatio()
-	if selectedName != "" && r.isAvailable(selectedName) {
-		return r.selectProvider(selectedName, tier)
+	if selectedName != "" {
+		if provider, model := r.selectIfAvailable(selectedName, tier); provider != nil {
+			return provider, model
+		}
 	}
 
 	// Layer 3: Try any available provider
 	for name := range r.providers {
-		if r.isAvailable(name) {
-			return r.selectProvider(name, tier)
+		if provider, model := r.selectIfAvailable(name, tier); provider != nil {
+			return provider, model
 		}
 	}
 
@@ -120,16 +122,7 @@ func (r *Router) isAvailable(name string) bool {
 	// Check local unavailable map (under lock)
 	r.mu.Lock()
 	defer r.mu.Unlock()
-
-	if until, ok := r.unavailable[name]; ok {
-		if time.Now().Before(until) {
-			return false
-		}
-		// Cooldown expired, remove from unavailable
-		delete(r.unavailable, name)
-	}
-
-	return true
+	return r.isAvailableLocked(name)
 }
 
 // selectByRatio selects the provider furthest below its target ratio.
@@ -183,6 +176,18 @@ func (r *Router) selectByRatio() string {
 	return selectedName
 }
 
+func (r *Router) isAvailableLocked(name string) bool {
+	if until, ok := r.unavailable[name]; ok {
+		if time.Now().Before(until) {
+			return false
+		}
+		// Cooldown expired, remove from unavailable
+		delete(r.unavailable, name)
+	}
+
+	return true
+}
+
 func (r *Router) effectiveRatioMap() map[string]int {
 	if r == nil {
 		return map[string]int{}
@@ -195,15 +200,27 @@ func (r *Router) effectiveRatioMap() map[string]int {
 	return r.circuitBreaker.EffectiveRatio(r.ratio)
 }
 
-// selectProvider returns the provider and model name, and increments count
-func (r *Router) selectProvider(name string, tier string) (Provider, string) {
-	provider := r.providers[name]
+func (r *Router) selectIfAvailable(name string, tier string) (Provider, string) {
+	if name == "" {
+		return nil, ""
+	}
 
-	// Get model name for the tier
-	modelName := provider.ModelForTier(tier)
+	provider, ok := r.providers[name]
+	if !ok {
+		return nil, ""
+	}
 
-	// Increment count (under lock)
+	if r.stateFn != nil && !r.stateFn.IsProviderAvailable(name) {
+		return nil, ""
+	}
+
 	r.mu.Lock()
+	if !r.isAvailableLocked(name) {
+		r.mu.Unlock()
+		return nil, ""
+	}
+
+	modelName := provider.ModelForTier(tier)
 	r.counts[name]++
 	r.mu.Unlock()
 
@@ -221,14 +238,17 @@ func (r *Router) selectProvider(name string, tier string) (Provider, string) {
 func (r *Router) SelectCross(buildProvider string, tier string) (Provider, string) {
 	// Try to find an available provider that differs from the build provider
 	for name := range r.providers {
-		if name != buildProvider && r.isAvailable(name) {
-			return r.selectProvider(name, tier)
+		if name == buildProvider {
+			continue
+		}
+		if provider, model := r.selectIfAvailable(name, tier); provider != nil {
+			return provider, model
 		}
 	}
 
 	// Fall back to the build provider itself if no cross-provider is available
-	if r.isAvailable(buildProvider) {
-		return r.selectProvider(buildProvider, tier)
+	if provider, model := r.selectIfAvailable(buildProvider, tier); provider != nil {
+		return provider, model
 	}
 
 	// No providers available at all
