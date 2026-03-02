@@ -823,6 +823,51 @@ func TestSelectionBlocksMarkUnavailableWhileSelecting(t *testing.T) {
 	}
 }
 
+
+func TestRouterSelectDoesNotCallStateFileConcurrentlyWithMarkUnavailable(t *testing.T) {
+	t.Parallel()
+
+	monitor := newStateFileConcurrencyMonitor()
+	r := &Router{
+		providers: map[string]Provider{
+			"blocking": &mockProvider{name: "blocking"},
+		},
+		preferences: map[string]string{
+			"phase-select": "blocking",
+		},
+		ratio:       map[string]int{"blocking": 100},
+		counts:      map[string]int{},
+		unavailable: map[string]time.Time{},
+		cooldown:    30 * time.Minute,
+		stateFn:     monitor,
+	}
+
+	selectDone := make(chan struct{})
+	go func() {
+		defer close(selectDone)
+		r.Select("phase-select", TierMedium)
+	}()
+
+	<-monitor.entered
+
+	markDone := make(chan struct{})
+	go func() {
+		defer close(markDone)
+		r.MarkUnavailable("blocking")
+	}()
+
+	select {
+	case <-monitor.concurrent:
+		t.Fatalf("state file was accessed concurrently")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	monitor.releaseIsAvailable()
+
+	<-selectDone
+	<-markDone
+}
+
 // mockStateFile is a test implementation of the state.File interface
 // for Router tests.
 type mockStateFile struct {
@@ -879,6 +924,70 @@ func (m *mockStateFile) SetProviderUnavailable(provider string, until time.Time)
 		m.unavailableProviders = make(map[string]bool)
 	}
 	m.unavailableProviders[provider] = true
+}
+
+type stateFileConcurrencyMonitor struct {
+	entered    chan struct{}
+	concurrent chan struct{}
+	resume     chan struct{}
+	resumeOnce sync.Once
+	mu         sync.Mutex
+	inUse      bool
+}
+
+func newStateFileConcurrencyMonitor() *stateFileConcurrencyMonitor {
+	return &stateFileConcurrencyMonitor{
+		entered:    make(chan struct{}, 1),
+		concurrent: make(chan struct{}, 1),
+		resume:     make(chan struct{}),
+	}
+}
+
+func (m *stateFileConcurrencyMonitor) enter() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	already := m.inUse
+	m.inUse = true
+	if already {
+		select {
+		case m.concurrent <- struct{}{}:
+		default:
+		}
+	}
+}
+
+func (m *stateFileConcurrencyMonitor) exit() {
+	m.mu.Lock()
+	m.inUse = false
+	m.mu.Unlock()
+}
+
+func (m *stateFileConcurrencyMonitor) releaseIsAvailable() {
+	m.resumeOnce.Do(func() {
+		close(m.resume)
+	})
+}
+
+func (m *stateFileConcurrencyMonitor) IncrementProviderCount(provider string) {}
+
+func (m *stateFileConcurrencyMonitor) GetProviderCounts() map[string]int {
+	return map[string]int{}
+}
+
+func (m *stateFileConcurrencyMonitor) IsProviderAvailable(provider string) bool {
+	m.enter()
+	select {
+	case m.entered <- struct{}{}:
+	default:
+	}
+	<-m.resume
+	m.exit()
+	return true
+}
+
+func (m *stateFileConcurrencyMonitor) SetProviderUnavailable(provider string, until time.Time) {
+	m.enter()
+	m.exit()
 }
 
 // TestRouterMarkUnavailableMethod verifies that MarkUnavailable() method
