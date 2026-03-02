@@ -43,34 +43,39 @@ func (p *Pipeline) ApplyReviewFindings(ctx context.Context, result *review.Revie
         applyResult.CreatedBeadIDs = append(applyResult.CreatedBeadIDs, bead.ID)
     }
 
-    for _, bi := range result.BacklogItems {
-        description := bi.Description
-        if bi.Reason != "" {
-            if description != "" {
-                description += "\n\n"
-            }
-            description += "Reason for backlog: " + bi.Reason
-        }
-        entry := &BacklogEntry{
-            Title:           bi.Title,
-            Type:            backlogTypeReviewFinding,
-            Description:     description,
-            Priority:        backlogPriorityDefault,
-            Labels:          review.BuildBacklogLabels(),
-            ExpectedOutputs: review.ExpectedOutputsOrTitle(bi.ExpectedOutputs, bi.Title),
-        }
-        if err := p.deps.BacklogWriter.Add(ctx, entry); err != nil {
-            return nil, fmt.Errorf("creating backlog item %q: %w", bi.Title, err)
-        }
-        applyResult.CreatedBacklogCount++
-    }
+	for _, bi := range result.BacklogItems {
+		entry := buildReviewBacklogEntry(bi)
+		if err := p.deps.BacklogWriter.Add(ctx, entry); err != nil {
+			return nil, fmt.Errorf("creating backlog item %q: %w", bi.Title, err)
+		}
+		applyResult.CreatedBacklogCount++
+	}
 
-    for _, learning := range result.Learnings {
-        if err := p.deps.LearningsManager.Add(learning); err != nil {
-            return nil, fmt.Errorf("persisting learning: %w", err)
-        }
-        applyResult.LearningsSaved++
-    }
+	for _, learning := range result.Learnings {
+		if err := p.deps.LearningsManager.Add(learning); err != nil {
+			return nil, fmt.Errorf("persisting learning: %w", err)
+		}
+		applyResult.LearningsSaved++
+	}
 
-    return &applyResult, nil
+	return &applyResult, nil
+}
+
+func buildReviewBacklogEntry(item review.BacklogItem) *BacklogEntry {
+	description := item.Description
+	if item.Reason != "" {
+		if description != "" {
+			description += "\n\n"
+		}
+		description += "Reason for backlog: " + item.Reason
+	}
+
+	return &BacklogEntry{
+		Title:           item.Title,
+		Type:            backlogTypeReviewFinding,
+		Description:     description,
+		Priority:        backlogPriorityDefault,
+		Labels:          review.BuildBacklogLabels(),
+		ExpectedOutputs: review.ExpectedOutputsOrTitle(item.ExpectedOutputs, item.Title),
+	}
 }
