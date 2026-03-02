@@ -322,8 +322,9 @@ func (testBacklogClient) Update(id string, fn func(*pipeline.Idea)) error {
 	return nil
 }
 
-func TestToPipelineIdeaCopiesFields(t *testing.T) {
+func TestPipelineIdeaIsBacklogIdeaAlias(t *testing.T) {
 	t.Parallel()
+	// pipeline.Idea = backlog.Idea (type alias), so no conversion needed
 	idea := &backlog.Idea{
 		ID:       "idea-1",
 		Text:     "refine this",
@@ -333,38 +334,10 @@ func TestToPipelineIdeaCopiesFields(t *testing.T) {
 		SpecName: "spec-name",
 	}
 
-	pipeIdea := toPipelineIdea(idea)
-	if pipeIdea == nil {
-		t.Fatal("toPipelineIdea returned nil")
-	}
+	// A *backlog.Idea IS a *pipeline.Idea — verify assignability
+	var pipeIdea *pipeline.Idea = idea
 	if pipeIdea.ID != idea.ID {
 		t.Fatalf("ID = %q, want %q", pipeIdea.ID, idea.ID)
-	}
-	if pipeIdea.Text != idea.Text {
-		t.Fatalf("Text = %q, want %q", pipeIdea.Text, idea.Text)
-	}
-	if pipeIdea.SpecName != idea.SpecName {
-		t.Fatalf("SpecName = %q, want %q", pipeIdea.SpecName, idea.SpecName)
-	}
-}
-
-func TestApplyPipelineIdeaFieldsCopiesStatus(t *testing.T) {
-	t.Parallel()
-	idea := &backlog.Idea{
-		Status:   "open",
-		SpecName: "old-spec",
-	}
-	pipeIdea := &pipeline.Idea{
-		Status:   "refined",
-		SpecName: "new-spec",
-	}
-
-	applyPipelineIdeaFields(idea, pipeIdea)
-	if idea.Status != "refined" {
-		t.Fatalf("Status = %q, want %q", idea.Status, "refined")
-	}
-	if idea.SpecName != "new-spec" {
-		t.Fatalf("SpecName = %q, want %q", idea.SpecName, "new-spec")
 	}
 }
 

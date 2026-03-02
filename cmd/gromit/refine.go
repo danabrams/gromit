@@ -339,13 +339,6 @@ func createRefinePipeline(cfg *config.Config, gromitDir, specsDir, plansDir stri
 		return nil, err
 	}
 
-	// Override backlog client with refine-specific implementation
-	bf, err := backlog.NewFile(gromitDir)
-	if err != nil {
-		return nil, err
-	}
-	deps.BacklogClient = &backlogAdapter{file: bf}
-
 	paths := &pipeline.Paths{
 		GromitDir: gromitDir,
 		SpecsDir:  specsDir,
@@ -378,70 +371,3 @@ func handleRefineOutput(result *pipeline.RefineResult, specsDir, plansDir string
 
 	return nil
 }
-
-type backlogAdapter struct {
-	file *backlog.File
-}
-
-func toPipelineIdea(idea *backlog.Idea) *pipeline.Idea {
-	if idea == nil {
-		return nil
-	}
-
-	return &pipeline.Idea{
-		ID:       idea.ID,
-		Text:     idea.Text,
-		Type:     idea.Type,
-		Context:  idea.Context,
-		Status:   idea.Status,
-		SpecName: idea.SpecName,
-	}
-}
-
-func applyPipelineIdeaFields(dst *backlog.Idea, src *pipeline.Idea) {
-	dst.Status = src.Status
-	dst.SpecName = src.SpecName
-}
-
-func (b *backlogAdapter) List() ([]*pipeline.Idea, error) {
-	ideas, err := b.file.List()
-	if err != nil {
-		return nil, err
-	}
-	result := make([]*pipeline.Idea, len(ideas))
-	for i, idea := range ideas {
-		result[i] = toPipelineIdea(idea)
-	}
-	return result, nil
-}
-
-func (b *backlogAdapter) Get(id string) (*pipeline.Idea, error) {
-	idea, err := b.file.Get(id)
-	if err != nil {
-		return nil, err
-	}
-	return toPipelineIdea(idea), nil
-}
-
-func (b *backlogAdapter) Add(item *pipeline.Idea) error {
-	// Note: CreatedAt and ID generation handled by caller
-	return b.file.Add(&backlog.Idea{
-		ID:       item.ID,
-		Text:     item.Text,
-		Type:     item.Type,
-		Context:  item.Context,
-		Status:   item.Status,
-		SpecName: item.SpecName,
-	})
-}
-
-func (b *backlogAdapter) Update(id string, fn func(*pipeline.Idea)) error {
-	return b.file.Update(id, func(idea *backlog.Idea) {
-		pipelineIdea := toPipelineIdea(idea)
-		fn(pipelineIdea)
-		applyPipelineIdeaFields(idea, pipelineIdea)
-	})
-}
-
-// Compile-time interface check
-var _ pipeline.BacklogClient = (*backlogAdapter)(nil)
