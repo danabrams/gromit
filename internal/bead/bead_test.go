@@ -1951,6 +1951,21 @@ func TestClientRepoBaseNameContextCancellation(t *testing.T) {
 	}
 }
 
+func TestClientRepoBaseNameAndDeriveIssuePrefixRequireContext(t *testing.T) {
+	repoDir := t.TempDir()
+	if err := exec.Command("git", "init").Run(); err != nil {
+		t.Fatalf("git init failed: %v", err)
+	}
+
+	c := &Client{Dir: repoDir}
+	if _, err := c.repoBaseName(nil); err == nil {
+		t.Fatal("repoBaseName(nil) should return an error")
+	}
+	if _, err := c.deriveIssuePrefix(nil); err == nil {
+		t.Fatal("deriveIssuePrefix(nil) should return an error")
+	}
+}
+
 func TestHasOpenChildrenHandlesPrefixedJSON(t *testing.T) {
 	t.Parallel()
 	const parentID = "epic-noise"
