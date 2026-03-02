@@ -346,47 +346,9 @@ func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) 
 		return nil, fmt.Errorf("parsing review result: %w", err)
 	}
 
-	// Create beads from findings with from-review label
-	beadsCreated := 0
-	for _, bp := range reviewResult.BeadsToCreate {
-		labels := review.BuildReviewBeadLabels(bp.Labels)
-		_, err := p.deps.TrackerClient.Create(ctx, bp.Title, bp.Priority, labels, review.ExpectedOutputsOrTitle(bp.ExpectedOutputs, bp.Title))
-		if err != nil {
-			return nil, fmt.Errorf("creating review bead: %w", err)
-		}
-		beadsCreated++
-	}
-
-	// Create backlog items with from-review and backlog labels
-	backlogCreated := 0
-	for _, bi := range reviewResult.BacklogItems {
-		description := bi.Description
-		if bi.Reason != "" {
-			if description != "" {
-				description += "\n\n"
-			}
-			description += "Reason for backlog: " + bi.Reason
-		}
-
-		entry := &BacklogEntry{
-			Title:           bi.Title,
-			Type:            backlogTypeReviewFinding,
-			Description:     description,
-			Priority:        backlogPriorityDefault,
-			Labels:          review.BuildBacklogLabels(),
-			ExpectedOutputs: review.ExpectedOutputsOrTitle(bi.ExpectedOutputs, bi.Title),
-		}
-		if err := p.deps.BacklogWriter.Add(ctx, entry); err != nil {
-			return nil, fmt.Errorf("creating backlog item: %w", err)
-		}
-		backlogCreated++
-	}
-
-	// Persist learnings
-	for _, learning := range reviewResult.Learnings {
-		if err := p.deps.LearningsManager.Add(learning); err != nil {
-			return nil, fmt.Errorf("persisting learning: %w", err)
-		}
+	applyResult, err := p.ApplyReviewFindings(ctx, reviewResult)
+	if err != nil {
+		return nil, err
 	}
 
 	// Log review
@@ -394,8 +356,8 @@ func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) 
 		Type:           logTypeReview,
 		Passed:         reviewResult.Passed,
 		FixesApplied:   len(reviewResult.FixesApplied),
-		BeadsCreated:   beadsCreated,
-		BacklogCreated: backlogCreated,
+		BeadsCreated:   len(applyResult.CreatedBeadIDs),
+		BacklogCreated: applyResult.CreatedBacklogCount,
 		Model:          input.Model,
 	}
 	if err := p.deps.LogWriter.Write(logEntry); err != nil {
@@ -412,8 +374,9 @@ func (p *Pipeline) ReviewNonInteractive(ctx context.Context, input ReviewInput) 
 	result.Passed = reviewResult.Passed
 	result.Summary = reviewResult.Summary
 	result.FixesApplied = len(reviewResult.FixesApplied)
-	result.BeadsCreated = beadsCreated
-	result.BacklogCreated = backlogCreated
+	result.BeadsCreated = len(applyResult.CreatedBeadIDs)
+	result.BacklogCreated = applyResult.CreatedBacklogCount
+	result.Apply = applyResult
 
 	return &result, nil
 }

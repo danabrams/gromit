@@ -222,6 +222,20 @@ type ReviewInput struct {
 	Epic       string // Epic label to scope review (used by CLI to resolve FromCommit)
 }
 
+// ReviewApplyResult contains metadata produced when applying review findings.
+type ReviewApplyResult struct {
+	CreatedBeadIDs      []string `json:"created_bead_ids"`
+	CreatedBacklogCount int      `json:"created_backlog_count"`
+	LearningsSaved      int      `json:"learnings_saved"`
+}
+
+// NewReviewApplyResult initializes a ReviewApplyResult with default values.
+func NewReviewApplyResult() ReviewApplyResult {
+	return ReviewApplyResult{
+		CreatedBeadIDs: []string{},
+	}
+}
+
 // ReviewResult contains the output from the Review workflow.
 // Use NewReviewResult() to create instances with properly initialized slices.
 type ReviewResult struct {
@@ -230,6 +244,7 @@ type ReviewResult struct {
 	FixesApplied   int    `json:"fixes_applied"`
 	BeadsCreated   int    `json:"beads_created"`
 	BacklogCreated int    `json:"backlog_created"`
+	Apply          *ReviewApplyResult `json:"apply,omitempty"`
 }
 
 // NewReviewResult creates a ReviewResult with initialized slices.
