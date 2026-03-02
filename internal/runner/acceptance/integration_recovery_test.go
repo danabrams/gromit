@@ -5,6 +5,7 @@ package acceptance_test
 import (
 	"context"
 	"io"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -62,6 +63,90 @@ func TestOrchestrator_RecoverFromCrashOnStartup(t *testing.T) {
 	}
 	if recoveryCallCount != 1 {
 		t.Fatalf("expected Coordinator.RecoverFromCrash() to be called once, got %d", recoveryCallCount)
+	}
+}
+
+// TestOrchestrator_RecoverFromCrashPersistedQueue ensures startup recovery marks
+// integrating entries as ready with crash-recovery metadata.
+func TestOrchestrator_RecoverFromCrashPersistedQueue(t *testing.T) {
+	t.Parallel()
+	tmpDir := t.TempDir()
+	queuePath := filepath.Join(tmpDir, "integration-queue.json")
+
+	queue := &integrationqueue.Queue{
+		SchemaVersion: integrationqueue.SchemaVersion,
+		Entries: []integrationqueue.Entry{
+			{
+				Branch:        "feature/integrate",
+				SessionID:     "session1",
+				OriginCommand: "refine",
+				State:         integrationqueue.StateIntegrating,
+				Lane:          string(integrationqueue.CodeLane),
+				BaseRef:       "main",
+				HeadSHA:       "cafebabe",
+				FifoSeq:       1,
+			},
+		},
+	}
+	if err := integrationqueue.SaveQueue(queuePath, queue); err != nil {
+		t.Fatalf("SaveQueue: %v", err)
+	}
+
+	store, err := integrationqueue.NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore: %v", err)
+	}
+
+	coord := integrationqueue.NewCoordinator(store, nil, nil)
+
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
+
+	mock := &mockBeadClient{
+		ReadyFn: func(ctx context.Context) (*bead.Bead, error) {
+			return nil, nil
+		},
+	}
+
+	orch := runner.NewOrchestrator(runner.OrchestratorConfig{
+		Gate:     &noopStage{},
+		Build:    &noopStage{},
+		Validate: &noopStage{},
+		Epilogue: &noopStage{},
+		GetBead: func(ctx context.Context) (*bead.Bead, error) {
+			return mock.Ready(ctx)
+		},
+		Config:      cfg,
+		Output:      io.Discard,
+		Coordinator: coord,
+	})
+
+	if err := orch.Run(context.Background(), 0, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	recovered, err := integrationqueue.LoadQueue(queuePath)
+	if err != nil {
+		t.Fatalf("LoadQueue: %v", err)
+	}
+
+	if len(recovered.Entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(recovered.Entries))
+	}
+
+	entry := recovered.Entries[0]
+	if entry.State != integrationqueue.StateReady {
+		t.Fatalf("expected state %s, got %s", integrationqueue.StateReady, entry.State)
+	}
+	if entry.LastErrorCode != string(integrationqueue.CrashRecoveryErrorCode) {
+		t.Fatalf("expected recovery error code %s, got %s", integrationqueue.CrashRecoveryErrorCode, entry.LastErrorCode)
+	}
+	if entry.LastErrorMessage != "recovered from crash: entry was in integrating state" {
+		t.Fatalf("unexpected recovery message: %s", entry.LastErrorMessage)
+	}
+	if entry.LastTransitionReason != "crash recovery" {
+		t.Fatalf("expected transition reason crash recovery, got %s", entry.LastTransitionReason)
 	}
 }
 
