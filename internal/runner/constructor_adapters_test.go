@@ -732,6 +732,26 @@ func TestIntegrationQueueGitOpsAdapter_CleanupCommands(t *testing.T) {
 	}
 }
 
+func TestIntegrationQueueGitOpsAdapter_RequiresRepoDir(t *testing.T) {
+	t.Parallel()
+
+	adapter := &integrationQueueGitOpsAdapter{
+		runGitCommand: func(ctx context.Context, dir string, args ...string) (string, error) {
+			t.Fatalf("runGitCommand called even though repo dir is missing")
+			return "", nil
+		},
+	}
+
+	entry := integrationqueue.Entry{Branch: "feature/guard"}
+	err := adapter.FetchAndRebase(context.Background(), entry)
+	if err == nil {
+		t.Fatalf("FetchAndRebase returned nil error; want failure when repo dir missing")
+	}
+	if !strings.Contains(err.Error(), "repo dir") {
+		t.Fatalf("error = %v, want message mentioning repo dir", err)
+	}
+}
+
 func TestIntegrationQueueScopedGateAdapter_RunSuccess(t *testing.T) {
 	t.Parallel()
 
