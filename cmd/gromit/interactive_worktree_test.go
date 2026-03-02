@@ -694,6 +694,27 @@ func TestNewBlockedQueueEntryRecordsCommitFailureMetadata(t *testing.T) {
 	}
 }
 
+func TestNewBlockedQueueEntryHandlesNilMeta(t *testing.T) {
+	session := &worktree.SessionWorktree{
+		BranchName:  "gromit/fsm-bypass-nil-meta",
+		WorktreeDir: filepath.Join(t.TempDir(), "session-fsm-bypass-nil-meta"),
+	}
+	commitErr := errors.New("auto commit failure")
+	entry := newBlockedQueueEntry("blocked", session, nil, commitErr)
+	if entry.HeadSHA != "" {
+		t.Fatalf("head SHA = %q, want empty string", entry.HeadSHA)
+	}
+	if entry.BaseRef != "" {
+		t.Fatalf("base ref = %q, want empty string", entry.BaseRef)
+	}
+	if entry.State != sessionQueueBlockedState {
+		t.Fatalf("state = %q, want %q", entry.State, sessionQueueBlockedState)
+	}
+	if entry.LastErrorCode != sessionQueueCommitFailedCode {
+		t.Fatalf("last error code = %q, want %q", entry.LastErrorCode, sessionQueueCommitFailedCode)
+	}
+}
+
 func TestRunWithSessionWorktreeRecordsPendingBranch(t *testing.T) {
 	// Not parallel: withInteractiveWorktreeFactories mutates package-level globals.
 	_, gromitDir, session := setupRunWithSessionWorktreeTest(t, "plan")
