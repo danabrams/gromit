@@ -175,6 +175,9 @@ func WaitForProcessCapacity(ctx context.Context, maxWait time.Duration) error {
 	for {
 		pressured, err := processCreationPressuredFn()
 		if err != nil || !pressured {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return ctxErr
+			}
 			return nil
 		}
 
