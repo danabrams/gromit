@@ -655,12 +655,12 @@ func TestInteractiveFileCompatibilityBridgeSyncFromQueueEntries(t *testing.T) {
 	dir := t.TempDir()
 	f, _ := NewInteractiveFile(dir)
 
-	// Create mock queue entries in draft and ready states
-	queueEntries := []BranchStateEntry{
-		mockBranchStateEntry{branch: "feature/draft-1", state: "draft"},
-		mockBranchStateEntry{branch: "feature/ready-1", state: "ready"},
-		mockBranchStateEntry{branch: "feature/integrating", state: "integrating"},
-		mockBranchStateEntry{branch: "feature/merged", state: "merged"}, // Terminal state, should not include
+	// Create queue entries in draft, ready, and integrating states
+	queueEntries := []integrationqueue.Entry{
+		{Branch: "feature/draft-1", State: integrationqueue.StateDraft},
+		{Branch: "feature/ready-1", State: integrationqueue.StateReady},
+		{Branch: "feature/integrating", State: integrationqueue.StateIntegrating},
+		{Branch: "feature/merged", State: integrationqueue.StateMerged}, // Terminal state, should not include
 	}
 
 	// Call the compatibility bridge method
@@ -719,10 +719,6 @@ func TestInteractiveFileSyncPendingBranchesFromQueueEntriesTypedEntries(t *testi
 	if branchSet["feature/merged-typed"] {
 		t.Fatalf("merged entry should not be pending, got %v", branches)
 	}
-}
-
-func TestBranchStateEntryImplementation(t *testing.T) {
-	var _ BranchStateEntry = integrationqueue.Entry{}
 }
 
 func TestInteractiveFilePendingWorktreeBranchesDeduplication(t *testing.T) {
@@ -877,19 +873,6 @@ func pendingBranchSet(branches []string) map[string]bool {
 		set[branch] = true
 	}
 	return set
-}
-
-type mockBranchStateEntry struct {
-	branch string
-	state  string
-}
-
-func (m mockBranchStateEntry) BranchName() string {
-	return m.branch
-}
-
-func (m mockBranchStateEntry) StateName() string {
-	return m.state
 }
 
 // TestInteractiveFileRoundTrip verifies complete round-trip of all interactive state fields

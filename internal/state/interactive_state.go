@@ -9,6 +9,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	integrationqueue "github.com/danabrams/gromit/internal/integrationqueue"
 )
 
 const (
@@ -51,12 +53,6 @@ type InteractiveState struct {
 type InteractiveFile struct {
 	path  string
 	state InteractiveState
-}
-
-// BranchStateEntry represents queue entries that expose branch and state metadata.
-type BranchStateEntry interface {
-	BranchName() string
-	StateName() string
 }
 
 // NewInteractiveFile creates a new interactive state file manager
@@ -246,19 +242,16 @@ func (f *InteractiveFile) ListPendingWorktreeBranches() ([]string, error) {
 // queue entries (non-terminal states). This provides a compatibility bridge during
 // migration from queue-only to queue+state-file dual tracking.
 // Entries in terminal state (merged) are excluded; all others are included.
-func (f *InteractiveFile) SyncPendingBranchesFromQueueEntries(entries []BranchStateEntry) error {
+func (f *InteractiveFile) SyncPendingBranchesFromQueueEntries(entries []integrationqueue.Entry) error {
 	if err := f.ensureReceiver(); err != nil {
 		return err
 	}
 
 	var branchesToSync []string
 	for _, entry := range entries {
-		if entry == nil {
-			continue
-		}
-		branch := entry.BranchName()
-		state := entry.StateName()
-		if branch == "" || state == "merged" {
+		branch := entry.Branch
+		state := entry.State
+		if branch == "" || state == integrationqueue.StateMerged {
 			continue
 		}
 		branchesToSync = append(branchesToSync, branch)
