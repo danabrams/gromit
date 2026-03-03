@@ -299,6 +299,37 @@ func TestApplyPhaseProfile_RefactorKeepsRulesAndValidationFailures(t *testing.T)
 	}
 }
 
+func TestApplyPhaseProfile_ReviewPhasesNoOp(t *testing.T) {
+	baseCtx := &Context{
+		Spec:                     "spec",
+		ClaudeMD:                 "claude",
+		Rules:                    "rules",
+		ConfirmedLearnings:       []learnings.Learning{{Category: "c", Content: "confirmed"}},
+		RecentLearnings:          []learnings.Learning{{Category: "c", Content: "recent"}},
+		RecentValidationFailures: []string{"failure"},
+		CoverageState:            "coverage",
+		TargetCriterion:          "criterion",
+		PrevFailure:              "prev",
+		SiblingTouchedPackages:   []string{"internal/prompt"},
+		Bead: &bead.Bead{
+			ID:              "b1",
+			ExpectedOutputs: []string{"criterion"},
+		},
+	}
+	phases := []string{"review", "thorough_review"}
+	for _, phase := range phases {
+		phase := phase
+		t.Run(phase, func(t *testing.T) {
+			ctx := cloneContext(baseCtx)
+			original := cloneContext(baseCtx)
+			ApplyPhaseProfile(ctx, phase)
+			if !reflect.DeepEqual(ctx, original) {
+				t.Fatalf("ApplyPhaseProfile should not modify context for %q", phase)
+			}
+		})
+	}
+}
+
 func TestApplyPhaseProfile_ContainsProfilesForAllPhases(t *testing.T) {
 	expected := []string{"decompose", "red", "build", "green", "refactor", "review", "thorough_review"}
 	for _, phase := range expected {
