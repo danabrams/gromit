@@ -2,6 +2,7 @@ package prompt
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,9 +18,6 @@ func (r *Renderer) render(templateName string, ctx any) (string, error) {
 		return "", fmt.Errorf("renderer is nil")
 	}
 
-	// Use cached template if available; otherwise load from disk and cache.
-	// Templates are frozen at first access so mid-run file changes (e.g. a
-	// bead modifying its own templates) cannot break subsequent iterations.
 	tmpl, ok := r.templateCache[templateName]
 	if !ok {
 		path := filepath.Join(r.templatesDir, templateName)
@@ -28,22 +26,61 @@ func (r *Renderer) render(templateName string, ctx any) (string, error) {
 			return "", fmt.Errorf("reading template %s: %w", templateName, err)
 		}
 
-		tmpl, err = template.New(templateName).Option("missingkey=zero").Funcs(templateFuncs()).Parse(string(content))
+		tmpl, err = r.parseAndCacheTemplate(templateName, string(content))
 		if err != nil {
 			return "", fmt.Errorf("parsing template %s: %w", templateName, err)
 		}
-
-		if r.templateCache == nil {
-			r.templateCache = make(map[string]*template.Template)
-		}
-		r.templateCache[templateName] = tmpl
 	}
 
+	return r.executeTemplate(templateName, tmpl, ctx)
+}
+
+func (r *Renderer) renderWithDefault(templateName, defaultContent string, ctx any) (string, error) {
+	result, err := r.render(templateName, ctx)
+	if err == nil {
+		return result, nil
+	}
+	if defaultContent == "" {
+		return "", err
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+	return r.renderFromString(templateName, defaultContent, ctx)
+}
+
+func (r *Renderer) renderFromString(templateName, content string, ctx any) (string, error) {
+	if r == nil {
+		return "", fmt.Errorf("renderer is nil")
+	}
+	tmpl, ok := r.templateCache[templateName]
+	if !ok {
+		parsed, err := r.parseAndCacheTemplate(templateName, content)
+		if err != nil {
+			return "", fmt.Errorf("parsing template %s: %w", templateName, err)
+		}
+		tmpl = parsed
+	}
+	return r.executeTemplate(templateName, tmpl, ctx)
+}
+
+func (r *Renderer) parseAndCacheTemplate(templateName, content string) (*template.Template, error) {
+	tmpl, err := template.New(templateName).Option("missingkey=zero").Funcs(templateFuncs()).Parse(content)
+	if err != nil {
+		return nil, err
+	}
+	if r.templateCache == nil {
+		r.templateCache = make(map[string]*template.Template)
+	}
+	r.templateCache[templateName] = tmpl
+	return tmpl, nil
+}
+
+func (r *Renderer) executeTemplate(templateName string, tmpl *template.Template, ctx any) (string, error) {
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, ctx); err != nil {
 		return "", fmt.Errorf("executing template %s: %w", templateName, err)
 	}
-
 	return buf.String(), nil
 }
 

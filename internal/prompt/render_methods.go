@@ -236,7 +236,7 @@ func (r *Renderer) RenderTDDRed(ctx *TDDRedContext) (string, error) {
 			SectionTemplateStatic: "PROMPT_tdd_red.md",
 		})
 	}
-	return r.render("PROMPT_tdd_red.md", ctx)
+	return r.renderWithDefault("PROMPT_tdd_red.md", builtinTDDRedTemplate, ctx)
 }
 
 // RenderTDDGreen renders the TDD green-phase prompt.
@@ -258,7 +258,7 @@ func (r *Renderer) RenderTDDGreen(ctx *TDDGreenContext) (string, error) {
 			SectionTemplateStatic: "PROMPT_tdd_green.md",
 		})
 	}
-	return r.render("PROMPT_tdd_green.md", ctx)
+	return r.renderWithDefault("PROMPT_tdd_green.md", builtinTDDGreenTemplate, ctx)
 }
 
 // RenderTestFix renders the test-fix prompt for fixing implementation without changing tests.
