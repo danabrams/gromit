@@ -61,3 +61,9 @@ cmd/gromit/.gromit/benchmarks/results/
 # Dolt database files (added by bd init)
 .dolt/
 *.db
+
+# Beads runtime logs
+.beads/*.log
+.beads/*.launchd.err.log
+.beads/*.launchd.out.log
+.beads/remotes/
