@@ -24,7 +24,7 @@ func TestLLMCriteriaEnricher_UsesSpecContext(t *testing.T) {
 	enricher := NewLLMCriteriaEnricher(fakeProvider, loader, updater)
 	bead := &bead.Bead{ID: "bead-1", Labels: []string{"spec:alpha"}, Title: "Title"}
 
-	if _, err := enricher.Enrich(context.Background(), bead); err != nil {
+	if err := enricher.Enrich(context.Background(), bead); err != nil {
 		t.Fatalf("Enrich returned error: %v", err)
 	}
 
@@ -48,7 +48,7 @@ func TestLLMCriteriaEnricher_FallbacksToTitleAndDescription(t *testing.T) {
 		Description: "Fallback Description",
 	}
 
-	if _, err := enricher.Enrich(context.Background(), bead); err != nil {
+	if err := enricher.Enrich(context.Background(), bead); err != nil {
 		t.Fatalf("Enrich returned error: %v", err)
 	}
 
@@ -65,12 +65,8 @@ func TestLLMCriteriaEnricher_PersistsExpectedOutputs(t *testing.T) {
 	enricher := NewLLMCriteriaEnricher(fakeProvider, loader, updater)
 	bead := &bead.Bead{ID: "persist-bead", Title: "Persist criteria"}
 
-	enriched, err := enricher.Enrich(context.Background(), bead)
-	if err != nil {
+	if err := enricher.Enrich(context.Background(), bead); err != nil {
 		t.Fatalf("Enrich returned error: %v", err)
-	}
-	if enriched == nil {
-		t.Fatal("Enrich returned nil bead")
 	}
 	if updater.lastUpdateID != bead.ID {
 		t.Fatalf("updated bead ID = %q, want %q", updater.lastUpdateID, bead.ID)
@@ -78,7 +74,7 @@ func TestLLMCriteriaEnricher_PersistsExpectedOutputs(t *testing.T) {
 	if got, want := len(updater.lastUpdatedOutputs), 2; got != want {
 		t.Fatalf("persisted outputs = %v, want %d entries", updater.lastUpdatedOutputs, want)
 	}
-	if got := len(enriched.ExpectedOutputs); got != len(updater.lastUpdatedOutputs) {
+	if got := len(bead.ExpectedOutputs); got != len(updater.lastUpdatedOutputs) {
 		t.Fatalf("enriched bead outputs = %d, want %d", got, len(updater.lastUpdatedOutputs))
 	}
 }

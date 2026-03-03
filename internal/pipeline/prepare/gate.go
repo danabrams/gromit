@@ -43,6 +43,11 @@ type DataQualityBlocker interface {
 	ShouldBlock(ctx context.Context, b *bead.Bead) (bool, string, error) // blocked, reason, error
 }
 
+// CriteriaEnricher populates missing acceptance criteria for a bead before readiness gating.
+type CriteriaEnricher interface {
+	Enrich(ctx context.Context, b *bead.Bead) error
+}
+
 // Gate implements pipeline.Stage for Stage 1: gate decisions.
 // It runs precheck, stuck-bead detection, and scope gate
 // before any LLM build invocation.
@@ -61,7 +66,7 @@ type Gate struct {
 	decomposer          Decomposer           // optional; used only by scope-gate decomposition
 	dataQualityChecker  DataQualityBlocker   // optional; nil means skip data quality checks
 	specSPCBlocker      *SpecSPCBlocker      // optional; nil means skip spec-level SPC blocking
-	criteriaEnricher    *LLMCriteriaEnricher // optional; nil means skip criteria enrichment
+	criteriaEnricher    CriteriaEnricher      // optional; nil means skip criteria enrichment
 	output              io.Writer
 }
 
@@ -121,8 +126,9 @@ func (g *Gate) WithSpecSPCBlocker(sb *SpecSPCBlocker) *Gate {
 	return g
 }
 
-// WithCriteriaEnricher configures an optional LLMCriteriaEnricher for auto-generating acceptance criteria.
-func (g *Gate) WithCriteriaEnricher(e *LLMCriteriaEnricher) *Gate {
+
+// WithCriteriaEnricher configures an optional CriteriaEnricher for auto-generating acceptance criteria.
+func (g *Gate) WithCriteriaEnricher(e CriteriaEnricher) *Gate {
 	g.criteriaEnricher = e
 	return g
 }
@@ -179,10 +185,8 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 
 	// Criteria enrichment: attempt to generate expected outputs before readiness assessment.
 	if g.criteriaEnricher != nil && len(sanitizeOutputs(currentBead.ExpectedOutputs)) == 0 {
-		if enriched, err := g.criteriaEnricher.Enrich(ctx, currentBead); err != nil {
+		if err := g.criteriaEnricher.Enrich(ctx, currentBead); err != nil {
 			g.Log("warning", "Warning: criteria enrichment failed for bead %s: %v", currentBead.ID, err)
-		} else if enriched != nil {
-			currentBead = enriched
 		}
 	}
 	in.Bead = currentBead

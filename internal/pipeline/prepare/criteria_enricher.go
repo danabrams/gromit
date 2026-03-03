@@ -52,49 +52,48 @@ func NewLLMCriteriaEnricher(provider CriteriaProvider, loader SpecLoader, update
 	}
 }
 
-// Enrich returns a copy of the bead with acceptance criteria populated from
-// the LLM if the bead currently has none. Returns the original bead unchanged
-// if it already has criteria or if enrichment yields no usable output.
-func (e *LLMCriteriaEnricher) Enrich(ctx context.Context, b *bead.Bead) (*bead.Bead, error) {
+// Enrich populates acceptance criteria for the bead using the LLM when none exist.
+func (e *LLMCriteriaEnricher) Enrich(ctx context.Context, b *bead.Bead) error {
 	if e == nil || b == nil {
-		return b, nil
+		return nil
 	}
 	if len(effectiveCriteria(b)) > 0 {
-		return b, nil
+		return nil
 	}
 
 	prompt, err := e.buildPrompt(ctx, b)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if strings.TrimSpace(prompt) == "" {
-		return b, nil
+		return nil
 	}
 
 	result, err := e.provider.Run(ctx, prompt, provider.TierLow)
 	if err != nil {
-		return b, err
+		return err
 	}
 	if result == nil {
-		return b, nil
+		return nil
 	}
 
 	criteria := parseAcceptanceCriteria(result.Output)
 	if len(criteria) == 0 {
-		return b, nil
+		return nil
 	}
 	if len(criteria) > 5 {
 		criteria = criteria[:5]
 	}
 
 	if err := e.updater.UpdateExpectedOutputs(ctx, b.ID, criteria); err != nil {
-		return nil, fmt.Errorf("bd update expected outputs: %w", err)
+		return fmt.Errorf("bd update expected outputs: %w", err)
 	}
 
 	clone := *b
 	clone.ExpectedOutputs = append([]string(nil), criteria...)
 	clone.AcceptanceCriteria = strings.Join(criteria, "\n")
-	return &clone, nil
+	*b = clone
+	return nil
 }
 
 func (e *LLMCriteriaEnricher) buildPrompt(ctx context.Context, b *bead.Bead) (string, error) {
