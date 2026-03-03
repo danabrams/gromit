@@ -70,3 +70,49 @@ func TestMidBuildReviewResult_JSONMarshal(t *testing.T) {
 		t.Fatalf("Summary = %q, want %q", decoded.Summary, "Found 2 issues")
 	}
 }
+
+func TestParseMidBuildReviewResult_ValidFullResult(t *testing.T) {
+	t.Parallel()
+
+	input := `{
+		"findings": [
+			{"category": "performance", "message": "Consider optimizing loop"},
+			{"category": "testing", "message": "Add test coverage"}
+		],
+		"summary": "Found 2 issues"
+	}`
+
+	result, err := midreview.ParseMidBuildReviewResult(input)
+	if err != nil {
+		t.Fatalf("ParseMidBuildReviewResult() error = %v, want nil", err)
+	}
+
+	if len(result.Findings) != 2 {
+		t.Fatalf("Findings length = %d, want 2", len(result.Findings))
+	}
+	if result.Summary != "Found 2 issues" {
+		t.Fatalf("Summary = %q, want %q", result.Summary, "Found 2 issues")
+	}
+}
+
+func TestParseMidBuildReviewResult_MalformedJSON(t *testing.T) {
+	t.Parallel()
+
+	input := `{invalid json}`
+
+	_, err := midreview.ParseMidBuildReviewResult(input)
+	if err == nil {
+		t.Fatalf("ParseMidBuildReviewResult() error = nil, want non-nil")
+	}
+}
+
+func TestParseMidBuildReviewResult_EmptyString(t *testing.T) {
+	t.Parallel()
+
+	input := ""
+
+	_, err := midreview.ParseMidBuildReviewResult(input)
+	if err == nil {
+		t.Fatalf("ParseMidBuildReviewResult() error = nil, want non-nil")
+	}
+}
