@@ -11,16 +11,21 @@ const (
 	ViewConversation = "conversation"
 )
 
+type pipelineListModel interface {
+	SetItems([]ListItem)
+}
+
 // Model implements the bubbletea.Model interface for the Gromit TUI.
 type Model struct {
-	store         *Store
-	currentView   string
-	focusedPanel  int
-	scrollOffset  int
-	conversation  *ConversationController
-	pendingAction *PendingAction
-	detailView    bool
-	confirmDelete bool
+	store              *Store
+	currentView        string
+	focusedPanel       int
+	scrollOffset       int
+	conversation       *ConversationController
+	pendingAction      *PendingAction
+	detailView         bool
+	confirmDelete      bool
+	pipelineListModels []pipelineListModel
 }
 
 // NewModel creates a new TUI model with the given store.
@@ -57,6 +62,13 @@ func (m *Model) PendingAction() *PendingAction {
 		return nil
 	}
 	return m.pendingAction
+}
+
+func (m *Model) registerPipelineListModel(list pipelineListModel) {
+	if m == nil || list == nil {
+		return
+	}
+	m.pipelineListModels = append(m.pipelineListModels, list)
 }
 
 // Init initializes the model.
@@ -125,6 +137,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
+	case pipelineRefreshedMsg:
+		items := m.pipelineListItemsForTab(msg.RequestedTab)
+		for _, list := range m.pipelineListModels {
+			list.SetItems(items)
+		}
 	}
 	return m, nil
 }
@@ -154,4 +171,8 @@ func (m *Model) renderDashboardView() string {
 
 func (m *Model) renderQueueView() string {
 	return RenderQueueView(m.store, m.focusedPanel)
+}
+
+func (m *Model) pipelineListItemsForTab(tab Tab) []ListItem {
+	return nil
 }
