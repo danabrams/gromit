@@ -439,6 +439,51 @@ func TestGateRun_CriteriaEnricherSpecLoaderErrorLogsWarning(t *testing.T) {
 	}
 }
 
+func TestGateRun_CriteriaEnricherUpdateErrorLogsWarning(t *testing.T) {
+	t.Parallel()
+
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	helper := newTestCriteriaEnricher().WithUpdaterError(errors.New("bd update failure"))
+	gate := New(io.Discard).
+		WithEmitter(emitter).
+		WithCriteriaEnricher(helper.enricher).
+		WithReadinessAssessor(newMockReadinessAssessor().WithAssessment(readiness.StatusNotReady, "criteria_missing", nil))
+
+	beadID := "update-error"
+	bead := &bead.Bead{
+		ID:    beadID,
+		Title: "Update error bead",
+	}
+
+	out, err := gate.Run(context.Background(), pipeline.Input{Bead: bead})
+	if err != nil {
+		t.Fatalf("Gate.Run() error = %v", err)
+	}
+	if out.Decision != pipeline.Block {
+		t.Fatalf("decision = %v, want %v", out.Decision, pipeline.Block)
+	}
+
+	emitted := eventtest.DrainEvents(t, ch)
+	var logEvt *events.LogEvent
+	for _, evt := range emitted {
+		if le, ok := evt.(*events.LogEvent); ok {
+			if strings.Contains(le.Message, "criteria enrichment failed") &&
+				strings.Contains(le.Message, "bd update expected outputs") &&
+				strings.Contains(le.Message, beadID) {
+				logEvt = le
+				break
+			}
+		}
+	}
+	if logEvt == nil {
+		t.Fatalf("expected warning log for update failure, got %v events", emitted)
+	}
+}
+
 func (m *mockDataQualityBlocker) WithShouldBlock(blocked bool, reason string, err error) *mockDataQualityBlocker {
 	m.blocked = blocked
 	m.reason = reason
