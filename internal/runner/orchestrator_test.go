@@ -1831,6 +1831,27 @@ func TestOrchestrator_MidReviewMetricsCaptured(t *testing.T) {
 	if capturedResult.MidReviewOutputTokens != 200 {
 		t.Fatalf("MidReviewOutputTokens = %d, want %d", capturedResult.MidReviewOutputTokens, 200)
 	}
+	if !capturedResult.MidBuildReviewRan {
+		t.Fatalf("MidBuildReviewRan = %v, want true", capturedResult.MidBuildReviewRan)
+	}
+	if capturedResult.MidBuildReviewFindingsCount != len(findings) {
+		t.Fatalf("MidBuildReviewFindingsCount = %d, want %d", capturedResult.MidBuildReviewFindingsCount, len(findings))
+	}
+	if !capturedResult.MidBuildReviewFixBuild {
+		t.Fatalf("MidBuildReviewFixBuild = %v, want true", capturedResult.MidBuildReviewFixBuild)
+	}
+	if capturedResult.MidBuildReviewDurationMs != 120 {
+		t.Fatalf("MidBuildReviewDurationMs = %d, want %d", capturedResult.MidBuildReviewDurationMs, 120)
+	}
+	if capturedResult.MidBuildReviewCostUSD != 0.42 {
+		t.Fatalf("MidBuildReviewCostUSD = %f, want %f", capturedResult.MidBuildReviewCostUSD, 0.42)
+	}
+	if capturedResult.MidBuildReviewInputTokens != 100 {
+		t.Fatalf("MidBuildReviewInputTokens = %d, want %d", capturedResult.MidBuildReviewInputTokens, 100)
+	}
+	if capturedResult.MidBuildReviewOutputTokens != 200 {
+		t.Fatalf("MidBuildReviewOutputTokens = %d, want %d", capturedResult.MidBuildReviewOutputTokens, 200)
+	}
 	if !capturedResult.FixBuildRan {
 		t.Fatalf("FixBuildRan = %v, want true", capturedResult.FixBuildRan)
 	}
