@@ -55,6 +55,27 @@ func requireGitignoreContains(t *testing.T, root string, patterns ...string) {
 	}
 }
 
+func requireFileContainsLine(t *testing.T, path string, patterns ...string) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("could not read %s: %v", path, err)
+	}
+	lines := strings.Split(string(data), "\n")
+	for _, pattern := range patterns {
+		found := false
+		for _, line := range lines {
+			if strings.TrimSpace(line) == pattern {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("%s missing pattern %q", path, pattern)
+		}
+	}
+}
+
 func TestRepoHygiene_TestBinaryRemoved(t *testing.T) {
 	t.Parallel()
 	root := projectRoot(t)
@@ -114,4 +135,11 @@ func TestRepoHygiene_ScratchFilesRemovedAndIgnored(t *testing.T) {
 			"progress.md", "testfailure.md", "testfix.md",
 		)
 	})
+}
+
+func TestRepoHygiene_DoltMonitorPIDRuntimeFileIgnored(t *testing.T) {
+	t.Parallel()
+	root := projectRoot(t)
+
+	requireFileContainsLine(t, filepath.Join(root, ".beads", ".gitignore"), "dolt-monitor.pid")
 }
