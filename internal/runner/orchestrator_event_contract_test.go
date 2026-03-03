@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -95,6 +96,58 @@ func TestOrchestrator_PostLoopError_EmitsRunCompleteAndFinalizesStatus(t *testin
 	}
 	if !strings.Contains(runComplete.Reason, "error:") {
 		t.Fatalf("RunCompleteEvent.Reason = %q, want error reason", runComplete.Reason)
+	}
+}
+
+func TestOrchestrator_StartFailure_EmitsRunCompleteEvent(t *testing.T) {
+	t.Parallel()
+
+	cfg := OrchestratorConfig{
+		Gate:     &fakeStage{},
+		Build:    &fakeStage{},
+		Validate: &fakeStage{},
+		Epilogue: &fakeStage{},
+		GetBead: func(_ context.Context) (*bead.Bead, error) {
+			return nil, nil
+		},
+		Config: &config.Config{},
+		Output: io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	capturer := newCaptureSubscriber(orch.GetEmitter())
+	go capturer.start()
+
+	failureMessage := "subscriber startup failure"
+	orch.startSubscribersFn = func(_ context.Context) (*sync.WaitGroup, error) {
+		return nil, errors.New(failureMessage)
+	}
+
+	err := orch.Run(context.Background(), 1, time.Time{}, nil)
+	if err == nil {
+		t.Fatalf("Run() succeeded, want startup error")
+	}
+	if !strings.Contains(err.Error(), failureMessage) {
+		t.Fatalf("Run() error = %v, want to contain %q", err, failureMessage)
+	}
+
+	<-capturer.done
+
+	var runComplete *events.RunCompleteEvent
+	for _, evt := range capturer.capture.events {
+		if rce, ok := evt.(*events.RunCompleteEvent); ok {
+			runComplete = rce
+			break
+		}
+	}
+	if runComplete == nil {
+		t.Fatal("RunCompleteEvent not emitted on start failure")
+	}
+	if !strings.Contains(runComplete.Reason, "error:") {
+		t.Fatalf("RunCompleteEvent.Reason = %q, want error prefix", runComplete.Reason)
+	}
+	if runComplete.IterationsCompleted != 0 {
+		t.Fatalf("RunCompleteEvent.IterationsCompleted = %d, want 0", runComplete.IterationsCompleted)
 	}
 }
 
