@@ -413,6 +413,7 @@ func TestGateRun_CriteriaEnricherSpecLoaderErrorLogsWarning(t *testing.T) {
 	bead := &bead.Bead{
 		ID:    beadID,
 		Title: "Spec error bead",
+		Labels: []string{"spec:alpha"},
 	}
 
 	out, err := gate.Run(context.Background(), pipeline.Input{Bead: bead})

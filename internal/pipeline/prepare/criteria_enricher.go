@@ -62,7 +62,10 @@ func (e *LLMCriteriaEnricher) Enrich(ctx context.Context, b *bead.Bead) (*bead.B
 		return b, nil
 	}
 
-	prompt := e.buildPrompt(ctx, b)
+	prompt, err := e.buildPrompt(ctx, b)
+	if err != nil {
+		return nil, err
+	}
 	if strings.TrimSpace(prompt) == "" {
 		return b, nil
 	}
@@ -93,24 +96,35 @@ func (e *LLMCriteriaEnricher) Enrich(ctx context.Context, b *bead.Bead) (*bead.B
 	return &clone, nil
 }
 
-func (e *LLMCriteriaEnricher) buildPrompt(ctx context.Context, b *bead.Bead) string {
-	sections := e.contextSections(ctx, b)
+func (e *LLMCriteriaEnricher) buildPrompt(ctx context.Context, b *bead.Bead) (string, error) {
+	sections, err := e.contextSections(ctx, b)
+	if err != nil {
+		return "", err
+	}
 	if len(sections) == 0 {
-		return ""
+		return "", nil
 	}
 
-	return "Generate acceptance criteria for the following work item:\n\n" + strings.Join(sections, "\n\n")
+	return "Generate acceptance criteria for the following work item:\n\n" + strings.Join(sections, "\n\n"), nil
 }
 
-func (e *LLMCriteriaEnricher) contextSections(ctx context.Context, b *bead.Bead) []string {
+func (e *LLMCriteriaEnricher) contextSections(ctx context.Context, b *bead.Bead) ([]string, error) {
 	var sections []string
 	if specID := bead.FindSpecLabel(b.Labels); specID != "" {
-		if doc, ok, err := e.loader.LoadSpec(ctx, specID); err == nil && ok && doc != nil {
+		doc, ok, err := e.loader.LoadSpec(ctx, specID)
+		if err != nil {
+			return nil, err
+		}
+		if ok && doc != nil {
 			if formatted := formatDocument("Spec", doc); formatted != "" {
 				sections = append(sections, formatted)
 			}
 		}
-		if plan, ok, err := e.loader.LoadPlan(ctx, specID); err == nil && ok && plan != nil {
+		plan, ok, err := e.loader.LoadPlan(ctx, specID)
+		if err != nil {
+			return nil, err
+		}
+		if ok && plan != nil {
 			if formatted := formatDocument("Plan", plan); formatted != "" {
 				sections = append(sections, formatted)
 			}
@@ -130,7 +144,7 @@ func (e *LLMCriteriaEnricher) contextSections(ctx context.Context, b *bead.Bead)
 		}
 	}
 
-	return sections
+	return sections, nil
 }
 
 func formatDocument(label string, doc *Document) string {
