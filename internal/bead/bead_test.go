@@ -1398,6 +1398,20 @@ func TestClientUpdateExpectedOutputs_PassesAcceptance(t *testing.T) {
 	}
 }
 
+func TestClientUpdateExpectedOutputs_ValidatesID(t *testing.T) {
+	t.Parallel()
+	c := newValidationOnlyClient()
+
+	err := c.UpdateExpectedOutputs(context.Background(), "bad;id", []string{"file.go"})
+	if err == nil {
+		t.Fatal("expected validation error for invalid bead ID")
+	}
+	wantErr := fmt.Sprintf("invalid bead ID %q", "bad;id")
+	if !strings.Contains(err.Error(), wantErr) {
+		t.Fatalf("error = %v, want %q", err, wantErr)
+	}
+}
+
 // TestErrorWrapping tests that CLI errors are properly wrapped
 func TestErrorWrapping(t *testing.T) {
 	t.Parallel()
