@@ -820,6 +820,8 @@
 {"created_at":"2026-02-18T17:50:13Z","created_by":"Dan Abrams","depends_on_id":"gromit-85z2x","issue_id":"gromit-h9m4w","type":"blocks"}
 {"created_at":"2026-02-08T08:10:56Z","created_by":"Dan Abrams","depends_on_id":"gromit-81bz","issue_id":"gromit-hgu3","type":"blocks"}
 {"created_at":"2026-02-08T08:10:56Z","created_by":"Dan Abrams","depends_on_id":"gromit-elej","issue_id":"gromit-hgu3","type":"blocks"}
+{"created_at":"2026-03-02T20:19:19Z","created_by":"Dan Abrams","depends_on_id":"gromit-hj49d","issue_id":"gromit-hj49d.1","type":"parent-child"}
+{"created_at":"2026-03-02T20:19:19Z","created_by":"Dan Abrams","depends_on_id":"gromit-hj49d","issue_id":"gromit-hj49d.2","type":"parent-child"}
 {"created_at":"2026-02-18T17:50:17Z","created_by":"Dan Abrams","depends_on_id":"gromit-h9m4w","issue_id":"gromit-hjenc","type":"blocks"}
 {"created_at":"2026-02-18T17:50:17Z","created_by":"Dan Abrams","depends_on_id":"gromit-rzfbn","issue_id":"gromit-hjenc","type":"blocks"}
 {"created_at":"2026-02-18T17:50:17Z","created_by":"Dan Abrams","depends_on_id":"gromit-w23y4","issue_id":"gromit-hjenc","type":"blocks"}
@@ -1054,6 +1056,9 @@
 {"created_at":"2026-02-16T15:43:48Z","created_by":"Dan Abrams","depends_on_id":"gromit-8ks7","issue_id":"gromit-o27x","type":"blocks"}
 {"created_at":"2026-02-16T15:43:48Z","created_by":"Dan Abrams","depends_on_id":"gromit-e97x","issue_id":"gromit-o27x","type":"blocks"}
 {"created_at":"2026-02-16T01:30:34Z","created_by":"Dan Abrams","depends_on_id":"gromit-c4uk","issue_id":"gromit-o2oh","type":"blocks"}
+{"created_at":"2026-03-02T20:32:24Z","created_by":"Dan Abrams","depends_on_id":"gromit-o38nb","issue_id":"gromit-o38nb.1","type":"parent-child"}
+{"created_at":"2026-03-02T20:32:25Z","created_by":"Dan Abrams","depends_on_id":"gromit-o38nb","issue_id":"gromit-o38nb.2","type":"parent-child"}
+{"created_at":"2026-03-02T20:32:25Z","created_by":"Dan Abrams","depends_on_id":"gromit-o38nb","issue_id":"gromit-o38nb.3","type":"parent-child"}
 {"created_at":"2026-02-11T07:12:35Z","created_by":"Dan Abrams","depends_on_id":"gromit-gcla","issue_id":"gromit-o4ow","type":"blocks"}
 {"created_at":"2026-02-12T15:44:11Z","created_by":"Dan Abrams","depends_on_id":"gromit-b002","issue_id":"gromit-o5i4","type":"blocks"}
 {"created_at":"2026-02-08T17:00:34Z","created_by":"Dan Abrams","depends_on_id":"gromit-davm","issue_id":"gromit-o5py","type":"blocks"}

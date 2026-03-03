@@ -1046,6 +1046,10 @@
 {"issue_id":"gromit-h9m4w","label":"spec:configurable-verification-script"}
 {"issue_id":"gromit-hgu3","label":"spec:epic-scoped-execution"}
 {"issue_id":"gromit-hj49d","label":"from-review"}
+{"issue_id":"gromit-hj49d.1","label":"from-review"}
+{"issue_id":"gromit-hj49d.1","label":"scope_decomp:767a7305f7f8c2e8"}
+{"issue_id":"gromit-hj49d.2","label":"from-review"}
+{"issue_id":"gromit-hj49d.2","label":"scope_decomp:405548f04f48ccbf"}
 {"issue_id":"gromit-hjenc","label":"spec:configurable-verification-script"}
 {"issue_id":"gromit-hjenc","label":"tdd:false"}
 {"issue_id":"gromit-hjenc.1","label":"tdd:true"}
@@ -1406,6 +1410,12 @@
 {"issue_id":"gromit-o2oh","label":"spec:spec-level-atdd-execution"}
 {"issue_id":"gromit-o2vl","label":"spec:epic-scoped-execution"}
 {"issue_id":"gromit-o38nb","label":"from-review"}
+{"issue_id":"gromit-o38nb.1","label":"from-review"}
+{"issue_id":"gromit-o38nb.1","label":"scope_decomp:8f2f9ec66d6d9084"}
+{"issue_id":"gromit-o38nb.2","label":"from-review"}
+{"issue_id":"gromit-o38nb.2","label":"scope_decomp:83c3ba15b169b778"}
+{"issue_id":"gromit-o38nb.3","label":"from-review"}
+{"issue_id":"gromit-o38nb.3","label":"scope_decomp:40830dedd19c0c3b"}
 {"issue_id":"gromit-o3my","label":"spec:concurrent-interactive-worktrees"}
 {"issue_id":"gromit-o4ow","label":"spec:archived-learning-dedup"}
 {"issue_id":"gromit-o5i4","label":"spec:codex-streaming-parity"}
