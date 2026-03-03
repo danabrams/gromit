@@ -1,10 +1,14 @@
 package runner
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -996,5 +1000,92 @@ func TestPrintStatus_IncludesNextActionSection(t *testing.T) {
 	output := buf.String()
 	if !strings.Contains(output, "Next action:") {
 		t.Errorf("PrintStatus output missing Next action section; got:\n%s", output)
+	}
+}
+
+func TestStatusWriter_FinalUpdateReflectsLastContextOnEarlyExit(t *testing.T) {
+	t.Parallel()
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	if err := os.MkdirAll(gromitDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	sw, err := NewStatusWriter(gromitDir)
+	if err != nil {
+		t.Fatalf("NewStatusWriter: %v", err)
+	}
+	sw.SetIterationTotal(10)
+	sw.SetScopeLabel("spec:finalize")
+	deadline := time.Now().Add(30 * time.Minute)
+	sw.SetTimeBudgetFromDeadline(deadline)
+	expectedBudget := sw.TimeBudgetMinutes()
+	if expectedBudget == 0 {
+		t.Fatalf("TimeBudgetMinutes = 0, want >0")
+	}
+	if err := sw.Write(1, "status-bead", "Status bead", "sonnet", true, 5, 0); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     &fakeStage{},
+		Build:    &fakeStage{},
+		Validate: &fakeStage{},
+		Epilogue: &fakeStage{},
+		GetBead: func(context.Context) (*bead.Bead, error) {
+			return nil, nil
+		},
+		Config: &config.Config{},
+		Output: io.Discard,
+		StatusFinalizer: func(iteration int, runErr error) {
+			if err := sw.WriteFinal(iteration); err != nil {
+				t.Fatalf("WriteFinal: %v", err)
+			}
+		},
+	}
+
+	orch := NewOrchestrator(cfg)
+	orch.startSubscribersFn = func(context.Context) (*sync.WaitGroup, error) {
+		return nil, errors.New("subscriber startup failure")
+	}
+
+	err = orch.Run(context.Background(), 1, time.Time{}, nil)
+	if err == nil || !strings.Contains(err.Error(), "subscriber startup failure") {
+		t.Fatalf("Run() error = %v, want subscriber startup failure", err)
+	}
+
+	status, err := ReadStatus(gromitDir)
+	if err != nil {
+		t.Fatalf("ReadStatus: %v", err)
+	}
+	if status == nil {
+		t.Fatalf("ReadStatus returned nil status")
+	}
+	if status.Running {
+		t.Fatalf("status.Running = true, want false")
+	}
+	if status.Iteration != 0 {
+		t.Fatalf("status.Iteration = %d, want 0", status.Iteration)
+	}
+	if status.IterationTotal != 10 {
+		t.Fatalf("status.IterationTotal = %d, want 10", status.IterationTotal)
+	}
+	if status.ScopeLabel != "spec:finalize" {
+		t.Fatalf("status.ScopeLabel = %q, want %q", status.ScopeLabel, "spec:finalize")
+	}
+	if status.BeadID != "status-bead" {
+		t.Fatalf("status.BeadID = %q, want %q", status.BeadID, "status-bead")
+	}
+	if status.BeadTitle != "Status bead" {
+		t.Fatalf("status.BeadTitle = %q, want %q", status.BeadTitle, "Status bead")
+	}
+	if status.Model != "sonnet" {
+		t.Fatalf("status.Model = %q, want %q", status.Model, "sonnet")
+	}
+	if status.MaxIterations != 5 {
+		t.Fatalf("status.MaxIterations = %d, want 5", status.MaxIterations)
+	}
+	if status.TimeBudgetMinutes != expectedBudget {
+		t.Fatalf("status.TimeBudgetMinutes = %d, want %d", status.TimeBudgetMinutes, expectedBudget)
 	}
 }
