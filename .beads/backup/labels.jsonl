@@ -1415,6 +1415,12 @@
 {"issue_id":"gromit-njqtd","label":"spec:cost-per-spec-metric"}
 {"issue_id":"gromit-njsqp","label":"from-review"}
 {"issue_id":"gromit-njsqp","label":"refactor"}
+{"issue_id":"gromit-njsqp.1","label":"from-review"}
+{"issue_id":"gromit-njsqp.1","label":"refactor"}
+{"issue_id":"gromit-njsqp.1","label":"scope_decomp:bb6de34087501aea"}
+{"issue_id":"gromit-njsqp.2","label":"from-review"}
+{"issue_id":"gromit-njsqp.2","label":"refactor"}
+{"issue_id":"gromit-njsqp.2","label":"scope_decomp:249deb825bf36651"}
 {"issue_id":"gromit-nk2ui","label":"feature"}
 {"issue_id":"gromit-nk2ui","label":"from-review"}
 {"issue_id":"gromit-nk2ui.1","label":"feature"}

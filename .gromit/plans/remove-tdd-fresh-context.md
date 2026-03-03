@@ -1,8 +1,9 @@
 ---
+created: 2026-03-02T00:00:00Z
+decomposed: true
+decomposed_at: "2026-03-02T23:24:02-05:00"
 id: remove-tdd-fresh-context
 source_spec: remove-tdd-fresh-context
-created: 2026-03-02
-decomposed: false
 ---
 
 # Remove TDD Fresh Context Implementation Plan

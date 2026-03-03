@@ -505,3 +505,8 @@ When updating function signatures across a codebase, ensure test updates cover a
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-03-02 | gromit-mal9n | conventions
+In Go, consts can only hold basic literal types (string, int, bool, etc.); complex types or reassigned variables must remain as vars. Always check variable type and usage before attempting const conversion.
+
+*Archived from new: filtered: generic engineering advice*
+
