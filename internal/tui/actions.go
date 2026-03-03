@@ -17,12 +17,58 @@ type ListItem interface {
 	Summary() string
 }
 
-// handleAction will eventually route pipeline tab keystrokes to their respective behaviors.
-// For now it is a placeholder that maintains the intended signature.
-func handleAction(key string, activeTab Tab, selectedItem ListItem, store *Store) (tea.Model, tea.Cmd) {
-	_ = key
-	_ = activeTab
-	_ = selectedItem
-	_ = store
-	return nil, nil
+type identifierProvider interface {
+	Identifier() string
+}
+
+type pipelineRefreshedMsg struct{}
+
+// handleAction routes pipeline tab keystrokes to their respective behaviors.
+func handleAction(m *Model, key string, activeTab Tab, selectedItem ListItem, store *Store) (tea.Model, tea.Cmd) {
+	if m == nil {
+		m = &Model{}
+	}
+
+	switch key {
+	case "r":
+		m.pendingAction = buildPendingAction("refine", extractIdentifier(selectedItem))
+		return m, tea.Quit
+	case "p":
+		m.pendingAction = buildPendingAction("plan", extractIdentifier(selectedItem))
+		return m, tea.Quit
+	case "d":
+		m.pendingAction = buildPendingAction("decompose", extractIdentifier(selectedItem))
+		return m, tea.Quit
+	case "R":
+		return m, refreshPipelineCmd()
+	default:
+		return m, nil
+	}
+}
+
+func extractIdentifier(item ListItem) string {
+	if item == nil {
+		return ""
+	}
+	if provider, ok := item.(identifierProvider); ok {
+		return provider.Identifier()
+	}
+	return ""
+}
+
+func buildPendingAction(command, target string) *PendingAction {
+	args := []string{}
+	if target != "" {
+		args = append(args, target)
+	}
+	return &PendingAction{
+		Command: command,
+		Args:    args,
+	}
+}
+
+func refreshPipelineCmd() tea.Cmd {
+	return func() tea.Msg {
+		return pipelineRefreshedMsg{}
+	}
 }
