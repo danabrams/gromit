@@ -58,3 +58,21 @@ func TestExtractSymbolsFromDiff_FindsTypesMethodsAndFields(t *testing.T) {
         t.Fatalf("ExtractSymbolsFromDiff() = %v, want %v", got, want)
     }
 }
+
+func TestExtractSymbolsFromDiff_SkipsTestFiles(t *testing.T) {
+    diff := strings.Join([]string{
+        "diff --git a/foo_test.go b/foo_test.go",
+        "new file mode 100644",
+        "index 0000000..1111111",
+        "--- /dev/null",
+        "+++ b/foo_test.go",
+        "@@ -0,0 +1,4 @@",
+        "+package foo",
+        "+",
+        "+func TestHelper() {}",
+    }, "\n")
+
+    if got := wiring.ExtractSymbolsFromDiff(diff); len(got) != 0 {
+        t.Fatalf("ExtractSymbolsFromDiff() = %v, want no symbols", got)
+    }
+}
