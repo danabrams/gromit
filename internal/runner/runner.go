@@ -53,7 +53,7 @@ func NewRunnerWithStageContext(cfg *config.Config, output io.Writer, stageCtx *S
 }
 
 // NewRunnerWithDeps creates an Orchestrator using only Router dependencies,
-// without Claude fallback behavior.
+// wiring the provided Router into OrchestratorConfig.Router without Claude fallback behavior.
 func NewRunnerWithDeps(deps *Deps) (*Orchestrator, error) {
 	if deps == nil {
 		return nil, fmt.Errorf("deps cannot be nil")
@@ -63,5 +63,9 @@ func NewRunnerWithDeps(deps *Deps) (*Orchestrator, error) {
 	}
 
 	// Return a minimal Orchestrator with Router-only dependencies
-	return NewOrchestrator(OrchestratorConfig{}), nil
+	orchCfg := OrchestratorConfig{
+		Router: deps.Router,
+	}
+
+	return NewOrchestrator(orchCfg), nil
 }
