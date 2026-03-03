@@ -69,9 +69,9 @@ func (v *Validate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 	if in.Emitter != nil {
 		startTime = time.Now()
 		in.Emitter.Emit(&events.ValidationStartEvent{
-			BeadID:   in.Bead.ID,
-			Commands: commands,
-			Time:     startTime,
+			BeadID:    in.Bead.ID,
+			Commands:  commands,
+			TimeMixin: events.TimeMixin{Time: startTime},
 		})
 	}
 
@@ -84,9 +84,9 @@ func (v *Validate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 			duration = 0
 		}
 		in.Emitter.Emit(&events.ValidationPassEvent{
-			BeadID:   in.Bead.ID,
-			Duration: duration,
-			Time:     time.Now(),
+			BeadID:    in.Bead.ID,
+			Duration:  duration,
+			TimeMixin: events.TimeMixin{Time: time.Now()},
 		})
 	}
 	emitFail := func(output string) {
@@ -98,10 +98,10 @@ func (v *Validate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 			duration = 0
 		}
 		in.Emitter.Emit(&events.ValidationFailEvent{
-			BeadID:   in.Bead.ID,
-			Output:   output,
-			Duration: duration,
-			Time:     time.Now(),
+			BeadID:    in.Bead.ID,
+			Output:    output,
+			Duration:  duration,
+			TimeMixin: events.TimeMixin{Time: time.Now()},
 		})
 	}
 

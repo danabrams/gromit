@@ -13,7 +13,6 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/coverage"
-	"github.com/danabrams/gromit/internal/pipeline/execute"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
@@ -21,8 +20,8 @@ import (
 )
 
 // buildTDDCycleRunner creates a TDDCycleRunner adapter backed by a Runner with a
-// configured tddOrchestrator. Inject the result into execute.Build via WithTDDCycleRunner.
-func buildTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *provider.Router, output io.Writer, beads BeadClient, costDefs map[string]config.ProviderDef) execute.TDDCycleRunner {
+// configured tddOrchestrator.
+func buildTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *provider.Router, output io.Writer, beads BeadClient, costDefs map[string]config.ProviderDef) TDDCycleRunner {
 	orch := tdd.NewCycleOrchestrator(cfg, output, tdd.CycleOrchestratorDeps{
 		RenderRedFn:        buildRenderRedFn(cfg, renderer),
 		RenderGreenFn:      buildRenderGreenFn(cfg, renderer),
@@ -348,9 +347,8 @@ func gitListChangedFiles(sinceCommit string) ([]string, error) {
 }
 
 // optionalTDDCycleRunner returns a TDDCycleRunner when FreshContextPerCycle is
-// enabled, or nil otherwise. The caller should inject the result into the Build
-// stage via WithTDDCycleRunner.
-func optionalTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *provider.Router, output io.Writer, beads BeadClient, costDefs map[string]config.ProviderDef) execute.TDDCycleRunner {
+// enabled, or nil otherwise.
+func optionalTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *provider.Router, output io.Writer, beads BeadClient, costDefs map[string]config.ProviderDef) TDDCycleRunner {
 	if cfg == nil || !cfg.Methodology.FreshContextPerCycle {
 		return nil
 	}

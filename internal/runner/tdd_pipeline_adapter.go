@@ -15,8 +15,8 @@ import (
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
-// Compile-time check: *TDDPipelineAdapter must implement execute.TDDCycleRunner.
-var _ execute.TDDCycleRunner = (*TDDPipelineAdapter)(nil)
+// Compile-time check: *TDDPipelineAdapter must implement TDDCycleRunner.
+var _ TDDCycleRunner = (*TDDPipelineAdapter)(nil)
 
 // TDDPipelineAdapter bridges the runner's TDD orchestration to the pipeline's
 // TDDCycleRunner interface.
@@ -24,11 +24,11 @@ type TDDPipelineAdapter struct {
 	runner *Runner
 }
 
-// RunCycles implements execute.TDDCycleRunner. It applies Layer 1/3 expected
+// RunCycles implements TDDCycleRunner. It applies Layer 1/3 expected
 // outputs logic, builds a coverage tracker, delegates to the runner's
 // tddOrchestrator, aggregates per-phase metrics, and returns them as
 // pipeline.PhaseMetric.
-func (a *TDDPipelineAdapter) RunCycles(ctx context.Context, b *bead.Bead, cfg *config.Config) (execute.TDDCycleResult, error) {
+func (a *TDDPipelineAdapter) RunCycles(ctx context.Context, b *bead.Bead, cfg *config.Config) (TDDCycleResult, error) {
 	// Apply Layer 1/3 expected outputs logic: when the bead has no
 	// ExpectedOutputs, derive them from description parsing or title fallback.
 	if len(b.ExpectedOutputs) == 0 {
@@ -50,7 +50,7 @@ func (a *TDDPipelineAdapter) RunCycles(ctx context.Context, b *bead.Bead, cfg *c
 			coverageTracker = nil
 			coverageCriteria = nil
 		} else {
-			return execute.TDDCycleResult{}, err
+			return TDDCycleResult{}, err
 		}
 	}
 
@@ -74,7 +74,7 @@ func (a *TDDPipelineAdapter) RunCycles(ctx context.Context, b *bead.Bead, cfg *c
 		actualTier = bc.Tier
 	}
 
-	result := execute.TDDCycleResult{
+	result := TDDCycleResult{
 		PhaseMetrics: convertPhaseMetrics(bc.Result.PhaseMetrics),
 		OriginalTier: originalTier,
 		ActualTier:   actualTier,

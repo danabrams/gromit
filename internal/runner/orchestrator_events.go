@@ -39,7 +39,7 @@ func (o *Orchestrator) emitBeadFailedEvent(b *bead.Bead, errMsg string) {
 		BeadID:    b.ID,
 		BeadTitle: b.Title,
 		Error:     errMsg,
-		Time:      time.Now(),
+		TimeMixin: events.TimeMixin{Time: time.Now()},
 	})
 }
 
@@ -51,6 +51,6 @@ func (o *Orchestrator) emitBeadStuckEvent(b *bead.Bead, reason string) {
 		BeadID:    b.ID,
 		BeadTitle: b.Title,
 		Reason:    reason,
-		Time:      time.Now(),
+		TimeMixin: events.TimeMixin{Time: time.Now()},
 	})
 }
