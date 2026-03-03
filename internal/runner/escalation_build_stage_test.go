@@ -346,6 +346,22 @@ func TestEscalationBuildStage_RenderPromptMethodology(t *testing.T) {
 	}
 }
 
+func TestNewEscalationBuildStage_OmitsFallbackArg(t *testing.T) {
+	t.Parallel()
+
+	stage := newEscalationBuildStage(
+		&config.Config{},
+		nil, nil, nil, nil, nil, nil,
+		nil,
+		"",
+		nil,
+		io.Discard,
+	)
+	if stage == nil {
+		t.Fatal("expected stage instance")
+	}
+}
+
 func TestEscalationBuildStage_CompileTimeStageCheck(t *testing.T) {
 	t.Parallel()
 	// Verify the compile-time check at package level
