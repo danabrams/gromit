@@ -76,3 +76,22 @@ func TestExtractSymbolsFromDiff_SkipsTestFiles(t *testing.T) {
         t.Fatalf("ExtractSymbolsFromDiff() = %v, want no symbols", got)
     }
 }
+
+func TestExtractSymbolsFromDiff_SkipsDeferredSymbols(t *testing.T) {
+    diff := strings.Join([]string{
+        "diff --git a/foo.go b/foo.go",
+        "new file mode 100644",
+        "index 0000000..1111111",
+        "--- /dev/null",
+        "+++ b/foo.go",
+        "@@ -0,0 +1,5 @@",
+        "+package foo",
+        "+",
+        "+// wiring:deferred",
+        "+func Deferred() {}",
+    }, "\n")
+
+    if got := wiring.ExtractSymbolsFromDiff(diff); len(got) != 0 {
+        t.Fatalf("ExtractSymbolsFromDiff() = %v, want no symbols", got)
+    }
+}
