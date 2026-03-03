@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -156,7 +157,7 @@ func TestCompileTimeTypeSafety(t *testing.T) {
 	// This test demonstrates compile-time safety with typed interfaces
 
 	var claudeClient pipeline.LLMClient
-	var beadClient pipeline.BeadClient
+	var beadClient beadClientWithContext
 
 	// These are interface declarations - the test verifies they compile
 	// If the interfaces still used interface{}, this would compile with wrong types
@@ -184,7 +185,7 @@ func TestCompileTimeTypeSafety(t *testing.T) {
 	}
 	// result.Success is compile-time checked - no type assertion
 
-	beadInfo, _ := beadClient.Ready()
+	beadInfo, _ := beadClient.Ready(context.Background())
 	if beadInfo == nil {
 		t.Error("expected non-nil bead info")
 	}
@@ -206,6 +207,16 @@ type mockBeadForIntegration struct {
 	info *pipeline.BeadInfo
 	err  error
 }
+
+type beadClientWithContext interface {
+	Ready(context.Context) (*pipeline.BeadInfo, error)
+	Show(context.Context, string) (*pipeline.BeadInfo, error)
+	Create(context.Context, string, int, []string, []string) (*pipeline.BeadInfo, error)
+	CreateWithDepsAndDescription(context.Context, string, int, []string, []string, []string, string) (*pipeline.BeadInfo, error)
+	Close(context.Context, string) error
+}
+
+var _ beadClientWithContext = (*mockBeadForIntegration)(nil)
 
 func (m *mockBeadForIntegration) Ready() (*pipeline.BeadInfo, error) {
 	return m.info, m.err
