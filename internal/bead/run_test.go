@@ -15,6 +15,16 @@ import (
 	"github.com/danabrams/gromit/internal/procutil"
 )
 
+var defaultGitPath = findDefaultGitPath()
+
+func findDefaultGitPath() string {
+	gitPath, err := exec.LookPath("git")
+	if err != nil {
+		panic(fmt.Sprintf("unable to locate git binary: %v", err))
+	}
+	return gitPath
+}
+
 func assertRunArgsEqual(t *testing.T, got, want []string) {
 	t.Helper()
 
@@ -456,10 +466,10 @@ func TestClientRunDeriveIssuePrefixUsesCallerContext(t *testing.T) {
 	if err := os.MkdirAll(repoDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(%q): %v", repoDir, err)
 	}
-	initCmd := exec.Command("git", "init")
+	initCmd := exec.Command(defaultGitPath, "init")
 	initCmd.Dir = repoDir
-	if err := initCmd.Run(); err != nil {
-		t.Fatalf("git init failed: %v", err)
+	if output, err := initCmd.CombinedOutput(); err != nil {
+		t.Fatalf("git init failed: %v output=%q", err, output)
 	}
 
 	gitScriptDir := t.TempDir()
@@ -527,10 +537,10 @@ func TestClientRunCloseDeriveIssuePrefixUsesCallerContext(t *testing.T) {
 	if err := os.MkdirAll(repoDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(%q): %v", repoDir, err)
 	}
-	initCmd := exec.Command("git", "init")
+	initCmd := exec.Command(defaultGitPath, "init")
 	initCmd.Dir = repoDir
-	if err := initCmd.Run(); err != nil {
-		t.Fatalf("git init failed: %v", err)
+	if output, err := initCmd.CombinedOutput(); err != nil {
+		t.Fatalf("git init failed: %v output=%q", err, output)
 	}
 
 	scriptDir := t.TempDir()
