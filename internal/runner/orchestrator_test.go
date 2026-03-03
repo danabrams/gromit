@@ -4947,3 +4947,96 @@ func TestOrchestrator_RegressionGateSkippedByLabel(t *testing.T) {
 		t.Errorf("RegressionGate called %d times; want 0 (should be skipped by label)", regressionGateCalls)
 	}
 }
+
+// TestOrchestrator_RegressionAndReviewRunConcurrently verifies that regression gate
+// and review stage execute concurrently using goroutines. Verified via timing that
+// both complete within approximately the same duration (not sequential).
+func TestOrchestrator_RegressionAndReviewRunConcurrently(t *testing.T) {
+	t.Parallel()
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-1", Title: "Test"}, nil
+	}
+
+	buildStage := &fakeStage{
+		runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		},
+	}
+
+	validateStage := &fakeStage{
+		runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		},
+	}
+
+	var regressionStartTime, reviewStartTime time.Time
+	var regressionMutex, reviewMutex sync.Mutex
+
+	// Regression gate with 50ms delay
+	regressionGateStage := &fakeStage{
+		runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			regressionMutex.Lock()
+			regressionStartTime = time.Now()
+			regressionMutex.Unlock()
+			time.Sleep(50 * time.Millisecond)
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		},
+	}
+
+	// Review stage with 50ms delay
+	reviewStage := &fakeStage{
+		runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			reviewMutex.Lock()
+			reviewStartTime = time.Now()
+			reviewMutex.Unlock()
+			time.Sleep(50 * time.Millisecond)
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		},
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:           &fakeStage{},
+		Build:          buildStage,
+		Validate:       validateStage,
+		RegressionGate: regressionGateStage,
+		Review:         reviewStage,
+		Epilogue:       &fakeStage{},
+		GetBead:        getBead,
+		Config: &config.Config{
+			Review: config.ReviewConfig{
+				Enabled: true,
+			},
+		},
+		Output: io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	startTime := time.Now()
+	err := orch.Run(context.Background(), 10, time.Time{}, nil)
+	totalDuration := time.Since(startTime)
+
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	// If concurrent, total duration should be ~50ms (not 100ms for sequential)
+	// Allow some tolerance for scheduling overhead
+	if totalDuration > 100*time.Millisecond {
+		t.Logf("Total duration: %v (sequential would be ~100ms, concurrent ~50ms)", totalDuration)
+		t.Errorf("Regression gate and review did not run concurrently; duration suggests sequential execution")
+	}
+
+	// Verify both started (both times should be set)
+	if regressionStartTime.IsZero() {
+		t.Error("Regression gate did not execute")
+	}
+	if reviewStartTime.IsZero() {
+		t.Error("Review stage did not execute")
+	}
+}

@@ -892,84 +892,106 @@ runLoop:
 			}
 		}
 
-		// Stage 3c: Regression Gate — optional quality gate that runs after wiring gate.
-		// On failure, triggers a retry of Build→Validate→RegressionGate.
-		// Skipped if bead has skip-regression-check label.
+		// Stage 3c & 4: Regression Gate and Review run concurrently.
+		// Regression gate is a quality gate that runs after wiring gate.
+		// Review is optional LLM code review.
+		// Both are non-blocking for the success path, but regression gate failure triggers retry.
+		var regressionGateOut pipeline.Output
+		var regressionGateErr error
 		skipRegressionGate := bead.HasLabel(b.Labels, "skip-regression-check")
-		if o.cfg.RegressionGate != nil && !skipRegressionGate {
-			regressionGateOut, regressionGateErr := o.cfg.RegressionGate.Run(ctx, baseIn)
-			if regressionGateErr != nil || regressionGateOut.Decision != pipeline.Proceed {
-				maxValidationRetries := 0
-				if o.cfg.Config != nil {
-					maxValidationRetries = o.cfg.Config.Validation.MaxValidationRetries
-				}
-				regressionPassed := regressionGateErr == nil && regressionGateOut.Decision == pipeline.Proceed
-				for attempt := 1; attempt <= maxValidationRetries && !regressionPassed; attempt++ {
-					if regressionGateErr != nil {
-						break
-					}
-					o.logWarning("Warning: regression gate failed for bead %s (iteration %d), attempting recovery build %d/%d", b.ID, iteration, attempt, maxValidationRetries)
-					retryIn := baseIn
-					retryIn.ValidationFailures = append([]string(nil), regressionGateOut.ValidationFailures...)
 
-					retryBuildOut, retryBuildErr := o.cfg.Build.Run(ctx, retryIn)
-					buildOut = retryBuildOut
-					if retryBuildErr != nil {
-						regressionGateErr = retryBuildErr
-						break
-					}
+		// Use a WaitGroup and channels to run regression gate and review concurrently
+		var wg sync.WaitGroup
+		wg.Add(2)
 
-					validateOut, validateErr = o.cfg.Validate.Run(ctx, retryIn)
-					if validateErr != nil || validateOut.Decision != pipeline.Proceed {
-						break
-					}
-
-					regressionGateOut, regressionGateErr = o.cfg.RegressionGate.Run(ctx, retryIn)
-					regressionPassed = regressionGateErr == nil && regressionGateOut.Decision == pipeline.Proceed
-				}
-				if !regressionPassed {
-					// Regression gate still failed after retries
-					failureReasons := append([]string(nil), regressionGateOut.ValidationFailures...)
-					if regressionGateErr != nil {
-						failureReasons = append(failureReasons, regressionGateErr.Error())
-					}
-					failureMessage := strings.Join(failureReasons, "; ")
-					if failureMessage == "" {
-						failureMessage = "regression gate failed"
-					}
-					baseIn.Result = &logger.IterationLog{
-						Timestamp:                time.Now(),
-						Iteration:                iteration,
-						BeadID:                   b.ID,
-						BeadTitle:                b.Title,
-						Success:                  false,
-						FailurePhase:             failurephase.Validation,
-						ValidationFailures:       regressionGateOut.ValidationFailures,
-						Error:                    failureMessage,
-						Complexity:               baseIn.Complexity,
-						ComplexitySource:         baseIn.ComplexitySource,
-						ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
-					}
-					baseIn.FailureOutput = strings.Join(regressionGateOut.ValidationFailures, "\n")
-					stampBuildAttribution(baseIn.Result, buildOut)
-					o.emitBeadFailedEvent(b, failureMessage)
-					o.runEpilogue(ctx, baseIn, false)
-					o.emitter.Emit(&events.IterationCompleteEvent{
-						Iteration: iteration,
-						BeadID:    b.ID,
-						Success:   false,
-						Duration:  0,
-						TimeMixin: events.TimeMixin{Time: time.Now()},
-					})
-					continue
-				}
+		// Goroutine 1: Regression Gate
+		go func() {
+			defer wg.Done()
+			if o.cfg.RegressionGate == nil || skipRegressionGate {
+				return
 			}
-		}
+			regressionGateOut, regressionGateErr = o.cfg.RegressionGate.Run(ctx, baseIn)
+		}()
 
-		// Stage 4: Review — optional LLM code review.
-		if o.cfg.Review != nil && o.cfg.Config != nil && o.cfg.Config.Review.Enabled {
+		// Goroutine 2: Review
+		go func() {
+			defer wg.Done()
+			if o.cfg.Review == nil || o.cfg.Config == nil || !o.cfg.Config.Review.Enabled {
+				return
+			}
 			reviewOut, _ := o.cfg.Review.Run(ctx, baseIn)
 			_ = reviewOut
+		}()
+
+		// Wait for both to complete
+		wg.Wait()
+
+		// Check regression gate result and handle failure with retry logic
+		if (o.cfg.RegressionGate != nil && !skipRegressionGate) && (regressionGateErr != nil || regressionGateOut.Decision != pipeline.Proceed) {
+			maxValidationRetries := 0
+			if o.cfg.Config != nil {
+				maxValidationRetries = o.cfg.Config.Validation.MaxValidationRetries
+			}
+			regressionPassed := regressionGateErr == nil && regressionGateOut.Decision == pipeline.Proceed
+			for attempt := 1; attempt <= maxValidationRetries && !regressionPassed; attempt++ {
+				if regressionGateErr != nil {
+					break
+				}
+				o.logWarning("Warning: regression gate failed for bead %s (iteration %d), attempting recovery build %d/%d", b.ID, iteration, attempt, maxValidationRetries)
+				retryIn := baseIn
+				retryIn.ValidationFailures = append([]string(nil), regressionGateOut.ValidationFailures...)
+
+				retryBuildOut, retryBuildErr := o.cfg.Build.Run(ctx, retryIn)
+				buildOut = retryBuildOut
+				if retryBuildErr != nil {
+					regressionGateErr = retryBuildErr
+					break
+				}
+
+				validateOut, validateErr = o.cfg.Validate.Run(ctx, retryIn)
+				if validateErr != nil || validateOut.Decision != pipeline.Proceed {
+					break
+				}
+
+				regressionGateOut, regressionGateErr = o.cfg.RegressionGate.Run(ctx, retryIn)
+				regressionPassed = regressionGateErr == nil && regressionGateOut.Decision == pipeline.Proceed
+			}
+			if !regressionPassed {
+				// Regression gate still failed after retries
+				failureReasons := append([]string(nil), regressionGateOut.ValidationFailures...)
+				if regressionGateErr != nil {
+					failureReasons = append(failureReasons, regressionGateErr.Error())
+				}
+				failureMessage := strings.Join(failureReasons, "; ")
+				if failureMessage == "" {
+					failureMessage = "regression gate failed"
+				}
+				baseIn.Result = &logger.IterationLog{
+					Timestamp:                time.Now(),
+					Iteration:                iteration,
+					BeadID:                   b.ID,
+					BeadTitle:                b.Title,
+					Success:                  false,
+					FailurePhase:             failurephase.Validation,
+					ValidationFailures:       regressionGateOut.ValidationFailures,
+					Error:                    failureMessage,
+					Complexity:               baseIn.Complexity,
+					ComplexitySource:         baseIn.ComplexitySource,
+					ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
+				}
+				baseIn.FailureOutput = strings.Join(regressionGateOut.ValidationFailures, "\n")
+				stampBuildAttribution(baseIn.Result, buildOut)
+				o.emitBeadFailedEvent(b, failureMessage)
+				o.runEpilogue(ctx, baseIn, false)
+				o.emitter.Emit(&events.IterationCompleteEvent{
+					Iteration: iteration,
+					BeadID:    b.ID,
+					Success:   false,
+					Duration:  0,
+					TimeMixin: events.TimeMixin{Time: time.Now()},
+				})
+				continue
+			}
 		}
 
 		// Stage 5: Epilogue — close bead, sync, write status, write iteration log,
