@@ -104,3 +104,25 @@ func TestNewRunnerWithDeps_WiresRouterConfig(t *testing.T) {
 		t.Fatalf("Orchestrator config router = %v, want %v", orch.cfg.Router, router)
 	}
 }
+
+// TestNewRunnerWithDeps_PropagatesRouterToConfig ensures the Router dependency
+// supplied via Deps is made available through the Orchestrator config helper.
+func TestNewRunnerWithDeps_PropagatesRouterToConfig(t *testing.T) {
+	t.Parallel()
+
+	router := &provider.Router{}
+	deps := &Deps{Router: router}
+
+	orch, err := NewRunnerWithDeps(deps)
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps error = %v, want nil", err)
+	}
+
+	if orch == nil {
+		t.Fatal("NewRunnerWithDeps returned nil Orchestrator, want non-nil")
+	}
+
+	if got := orch.Router(); got != router {
+		t.Fatalf("Orchestrator Router() = %v, want %v", got, router)
+	}
+}
