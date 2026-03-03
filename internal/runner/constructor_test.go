@@ -732,77 +732,6 @@ func TestFailureLearnerAdapter_CallsAnalyzer(t *testing.T) {
 	}
 }
 
-// TestBuildTDDCycleRunner_ReturnsTDDPipelineAdapter verifies that buildTDDCycleRunner
-// returns a non-nil *TDDPipelineAdapter so that the Build stage can delegate TDD
-// cycles to the runner-backed orchestrator.
-func TestBuildTDDCycleRunner_ReturnsTDDPipelineAdapter(t *testing.T) {
-	t.Parallel()
-	cfg := &config.Config{}
-	result := buildTDDCycleRunner(cfg, nil, nil, io.Discard, nil, nil)
-	if result == nil {
-		t.Fatal("buildTDDCycleRunner returned nil TDDCycleRunner")
-	}
-	if _, ok := result.(*TDDPipelineAdapter); !ok {
-		t.Fatalf("buildTDDCycleRunner returned %T, want *TDDPipelineAdapter", result)
-	}
-}
-
-// TestBuildTDDCycleRunner_RunnerHasConfiguredOrchestrator verifies that the adapter
-// returned by buildTDDCycleRunner has a non-nil tddOrchestrator with a configured
-// runCyclesFn, so TDD cycle invocations will execute rather than error with "not configured".
-func TestBuildTDDCycleRunner_RunnerHasConfiguredOrchestrator(t *testing.T) {
-	t.Parallel()
-	cfg := &config.Config{}
-	result := buildTDDCycleRunner(cfg, nil, nil, io.Discard, nil, nil)
-	adapter, ok := result.(*TDDPipelineAdapter)
-	if !ok {
-		t.Fatalf("expected *TDDPipelineAdapter, got %T", result)
-	}
-	if adapter.runner.tddOrchestrator == nil {
-		t.Fatal("runner.tddOrchestrator is nil; want configured orchestrator")
-	}
-	if adapter.runner.tddOrchestrator.runCyclesFn == nil {
-		t.Fatal("runner.tddOrchestrator.runCyclesFn is nil; want configured run cycles function")
-	}
-}
-
-// TestOptionalTDDCycleRunner_ReturnsNilWhenFreshContextDisabled verifies that
-// optionalTDDCycleRunner returns nil when FreshContextPerCycle is false, so the
-// Build stage falls back to single-invocation StreamRun.
-func TestOptionalTDDCycleRunner_ReturnsNilWhenFreshContextDisabled(t *testing.T) {
-	t.Parallel()
-	cfg := &config.Config{}
-	result := optionalTDDCycleRunner(cfg, nil, nil, io.Discard, nil, nil)
-	if result != nil {
-		t.Errorf("optionalTDDCycleRunner returned %T, want nil when FreshContextPerCycle is false", result)
-	}
-}
-
-// TestOptionalTDDCycleRunner_ReturnsAdapterWhenFreshContextEnabled verifies that
-// optionalTDDCycleRunner returns a non-nil TDDCycleRunner when FreshContextPerCycle
-// is true, so the Build stage can delegate to per-cycle TDD orchestration.
-func TestOptionalTDDCycleRunner_ReturnsAdapterWhenFreshContextEnabled(t *testing.T) {
-	t.Parallel()
-	cfg := &config.Config{}
-	cfg.Methodology.FreshContextPerCycle = true
-	result := optionalTDDCycleRunner(cfg, nil, nil, io.Discard, nil, nil)
-	if result == nil {
-		t.Fatal("optionalTDDCycleRunner returned nil, want non-nil TDDCycleRunner when FreshContextPerCycle is true")
-	}
-}
-
-func TestOptionalTDDCycleRunner_ReturnsNilWhenMethodologyAdapterIsNonGo(t *testing.T) {
-	t.Parallel()
-	cfg := &config.Config{}
-	cfg.Methodology.FreshContextPerCycle = true
-	cfg.Methodology.Adapter = "python"
-
-	result := optionalTDDCycleRunner(cfg, nil, nil, io.Discard, nil, nil)
-	if result != nil {
-		t.Fatalf("optionalTDDCycleRunner returned %T, want nil when methodology adapter is non-go", result)
-	}
-}
-
 func TestNewRunnerImpl_WiresIntegrationQueueCoordinator(t *testing.T) {
 	t.Parallel()
 
@@ -1006,55 +935,6 @@ func TestFailureLearnerAdapter_ForwardsFailureOutput(t *testing.T) {
 	}
 	if receivedOutput != "FAIL: TestFoo\nexpected 1 got 2" {
 		t.Errorf("analyzer received output %q, want %q", receivedOutput, "FAIL: TestFoo\nexpected 1 got 2")
-	}
-}
-
-// TestNewRunnerImpl_BuildStageDoesNotWireTDDCycleRunner verifies that
-// newRunnerImpl no longer wires a TDDCycleRunner into the Build stage,
-// even when FreshContextPerCycle is true. The fresh-context TDD path
-// has been removed; Build uses the standard prompt rendering path.
-func TestNewRunnerImpl_BuildStageDoesNotWireTDDCycleRunner(t *testing.T) {
-	t.Parallel()
-	tmpDir := t.TempDir()
-	gromitDir := filepath.Join(tmpDir, ".gromit")
-	_ = os.MkdirAll(filepath.Join(gromitDir, "templates"), 0o755)
-	_ = os.MkdirAll(filepath.Join(gromitDir, "specs"), 0o755)
-	_ = os.MkdirAll(filepath.Join(tmpDir, "logs"), 0o755)
-
-	cfg := &config.Config{}
-	cfg.Paths.Templates = filepath.Join(gromitDir, "templates")
-	cfg.Paths.Specs = filepath.Join(gromitDir, "specs")
-	cfg.Paths.Logs = filepath.Join(tmpDir, "logs")
-	cfg.Methodology.TDD = true
-	cfg.Methodology.FreshContextPerCycle = true
-
-	orch, err := newRunnerImpl(cfg, io.Discard, nil)
-	if err != nil {
-		t.Fatalf("newRunnerImpl: %v", err)
-	}
-
-	// Extract the Build stage and run it with a TDD bead.
-	// Since TDDCycleRunner is no longer wired, the Build stage should
-	// attempt prompt rendering (not TDD cycle runner delegation).
-	buildStage := orch.cfg.Build
-	tddBead := &bead.Bead{
-		ID:     "test-bead-1",
-		Title:  "Test feature",
-		Labels: []string{"tdd:true"},
-	}
-	in := pipeline.Input{
-		Bead:   tddBead,
-		Config: cfg,
-	}
-	_, err = buildStage.Run(context.Background(), in)
-	if err == nil {
-		t.Fatal("Build.Run() returned nil error; want prompt rendering error")
-	}
-	// Without TDDCycleRunner, Build falls through to prompt rendering which
-	// fails because templates don't exist in the temp directory.
-	if strings.Contains(err.Error(), "TDD cycle runner") {
-		t.Errorf("Build.Run() error = %q; should NOT contain %q (TDDCycleRunner removed)",
-			err.Error(), "TDD cycle runner")
 	}
 }
 
@@ -1340,6 +1220,41 @@ func TestNewRunnerImpl_GateStageCriteriaEnricherWiring(t *testing.T) {
 		if got := gateStage.HasCriteriaEnricher(); got != tc.want {
 			t.Fatalf("HasCriteriaEnricher() = %v, want %v", got, tc.want)
 		}
+	}
+}
+
+func TestNewRunnerImpl_WiresRegressionGate(t *testing.T) {
+	t.Parallel()
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	_ = os.MkdirAll(filepath.Join(gromitDir, "templates"), 0o755)
+	_ = os.MkdirAll(filepath.Join(gromitDir, "specs"), 0o755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "logs"), 0o755)
+	claudePath := filepath.Join(gromitDir, "CLAUDE.md")
+	if err := os.WriteFile(claudePath, []byte("# CLAUDE\n"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(%q): %v", claudePath, err)
+	}
+
+	cfg := &config.Config{
+		QualityGates: &config.QualityGatesConfig{
+			Regression: &config.RegressionGateConfig{
+				Enabled: true,
+				Command: "go test ./...",
+			},
+		},
+	}
+	cfg.Paths.Templates = filepath.Join(gromitDir, "templates")
+	cfg.Paths.Specs = filepath.Join(gromitDir, "specs")
+	cfg.Paths.Logs = filepath.Join(tmpDir, "logs")
+	cfg.Paths.ProjectClaudeMD = claudePath
+	cfg.Paths.GromitDir = gromitDir
+
+	orch, err := newRunnerImpl(cfg, io.Discard, nil)
+	if err != nil {
+		t.Fatalf("newRunnerImpl: %v", err)
+	}
+	if orch.cfg.RegressionGate == nil {
+		t.Fatal("newRunnerImpl did not wire RegressionGate stage")
 	}
 }
 
