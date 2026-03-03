@@ -780,6 +780,18 @@ func TestClientRepoBaseName_UsesProcutilLifecycle(t *testing.T) {
 	}
 }
 
+func TestClientRepoBaseNameRequiresContext(t *testing.T) {
+	repoDir := t.TempDir()
+	if err := exec.Command("git", "init").Run(); err != nil {
+		t.Fatalf("git init failed: %v", err)
+	}
+
+	c := &Client{Dir: repoDir}
+	if _, err := c.repoBaseName(nil); !errors.Is(err, errContextRequired) {
+		t.Fatalf("repoBaseName(nil) error = %v, want %v", err, errContextRequired)
+	}
+}
+
 func TestRestoreBeadProcutilFns(t *testing.T) {
 	origWait := waitForProcessCapacityFn
 	origKill := killDescendantsOnCancelFn

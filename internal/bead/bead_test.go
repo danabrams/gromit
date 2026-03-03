@@ -1990,11 +1990,11 @@ func TestClientRepoBaseNameAndDeriveIssuePrefixRequireContext(t *testing.T) {
 	}
 
 	c := &Client{Dir: repoDir}
-	if _, err := c.repoBaseName(nil); err == nil {
-		t.Fatal("repoBaseName(nil) should return an error")
+	if _, err := c.repoBaseName(nil); !errors.Is(err, errContextRequired) {
+		t.Fatalf("repoBaseName(nil) error = %v, want %v", err, errContextRequired)
 	}
-	if _, err := c.deriveIssuePrefix(nil); err == nil {
-		t.Fatal("deriveIssuePrefix(nil) should return an error")
+	if _, err := c.deriveIssuePrefix(nil); !errors.Is(err, errContextRequired) {
+		t.Fatalf("deriveIssuePrefix(nil) error = %v, want %v", err, errContextRequired)
 	}
 }
 
