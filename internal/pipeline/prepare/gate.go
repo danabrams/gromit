@@ -178,8 +178,10 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 	}
 
 	// Criteria enrichment: attempt to generate expected outputs before readiness assessment.
-	if g.criteriaEnricher != nil {
-		if enriched, err := g.criteriaEnricher.Enrich(ctx, currentBead); err == nil && enriched != nil {
+	if g.criteriaEnricher != nil && len(sanitizeOutputs(currentBead.ExpectedOutputs)) == 0 {
+		if enriched, err := g.criteriaEnricher.Enrich(ctx, currentBead); err != nil {
+			g.Log("warning", "Warning: criteria enrichment failed for bead %s: %v", currentBead.ID, err)
+		} else if enriched != nil {
 			currentBead = enriched
 		}
 	}
