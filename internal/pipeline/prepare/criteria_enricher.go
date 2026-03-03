@@ -111,11 +111,15 @@ func (e *LLMCriteriaEnricher) contextSections(ctx context.Context, b *bead.Bead)
 	}
 
 	if len(sections) == 0 {
+		var fallback []string
 		if trimmed := strings.TrimSpace(b.Title); trimmed != "" {
-			sections = append(sections, "Title: "+trimmed)
+			fallback = append(fallback, "Title: "+trimmed)
 		}
 		if trimmed := strings.TrimSpace(b.Description); trimmed != "" {
-			sections = append(sections, "Description: "+trimmed)
+			fallback = append(fallback, "Description: "+trimmed)
+		}
+		if len(fallback) > 0 {
+			sections = append(sections, strings.Join(fallback, "\n"))
 		}
 	}
 
