@@ -800,3 +800,28 @@ func TestCompletenessAssertion_AllowsPrelaunchAndInvocationSentinels(t *testing.
 		t.Fatalf("expected no diagnostics for sentinel-only rows, got %v", diags)
 	}
 }
+
+func TestCompletenessAssertion_FailsWhenSentinelsAndRealDataGapsMixed(t *testing.T) {
+	dir := t.TempDir()
+
+	// Mix of sentinels and real missing data - should detect the real gap
+	logContent := `{"type":"iteration","timestamp":"2026-02-25T12:00:00Z","iteration":1,"bead_id":"b1","bead_title":"Prelaunch failure","model":"haiku","success":false,"validated":false,"failure_phase":"prelaunch","duration_ms":0,"cost_usd":0,"input_tokens":0,"output_tokens":0}
+{"type":"iteration","timestamp":"2026-02-25T12:00:01Z","iteration":2,"bead_id":"b2","bead_title":"Real task with missing data","model":"haiku","success":false,"validated":false,"duration_ms":0,"cost_usd":0,"input_tokens":0,"output_tokens":0}
+`
+	logPath := filepath.Join(dir, "run-20260225-120000.jsonl")
+	if err := os.WriteFile(logPath, []byte(logContent), 0644); err != nil {
+		t.Fatalf("failed to write log file: %v", err)
+	}
+
+	result, diags := AssertEfficiencyCompleteness(dir, "20260225-120000")
+	// Should fail because b2 is a real iteration with missing data (not a sentinel)
+	if result.IsComplete {
+		t.Error("expected IsComplete=false when real data gaps exist, got true")
+	}
+	if result.MissingDataCount != 1 {
+		t.Errorf("expected MissingDataCount=1 for one real gap, got %d", result.MissingDataCount)
+	}
+	if len(diags) == 0 {
+		t.Error("expected diagnostics for real data gaps, got none")
+	}
+}

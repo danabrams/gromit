@@ -4536,3 +4536,82 @@ func TestCoordinatorRegression_ProcessesOldestReadyEntryFirst(t *testing.T) {
 		t.Fatalf("newer entry state = %s, want %s (processed last)", newerRemaining.State, integrationqueue.StateReady)
 	}
 }
+
+// TestAssertEfficiencyCompleteness_AllowsPrelaunchSentinelOnly tests that a run
+// with only prelaunch sentinel rows does not trigger a completeness abort.
+func TestAssertEfficiencyCompleteness_AllowsPrelaunchSentinelOnly(t *testing.T) {
+	logsDir := t.TempDir()
+	runID := "20260303-100000"
+
+	// Create a log file with only a prelaunch failure (sentinel row)
+	logContent := `{"type":"iteration","timestamp":"2026-03-03T10:00:00Z","iteration":1,"bead_id":"b1","bead_title":"Prelaunch checkout failure","model":"haiku","success":false,"validated":false,"failure_phase":"prelaunch","duration_ms":0,"cost_usd":0,"input_tokens":0,"output_tokens":0}
+`
+	logPath := filepath.Join(logsDir, fmt.Sprintf("run-%s.jsonl", runID))
+	if err := os.WriteFile(logPath, []byte(logContent), 0644); err != nil {
+		t.Fatalf("failed to write log file: %v", err)
+	}
+
+	// Create orchestrator with logs directory
+	cfg := OrchestratorConfig{
+		Gate:    &fakeStage{},
+		Build:   &fakeStage{},
+		Validate: &fakeStage{},
+		Epilogue: &fakeStage{},
+		GetBead: func(context.Context) (*bead.Bead, error) { return nil, nil },
+		Config:  &config.Config{},
+		LogsDir: logsDir,
+		GetRunID: func() string {
+			return runID
+		},
+		Output: io.Discard,
+	}
+	orch := NewOrchestrator(cfg)
+
+	// assertEfficiencyCompleteness should NOT error for prelaunch-only runs
+	// totalIterations=1 because we have 1 log entry
+	err := orch.assertEfficiencyCompleteness(1)
+	if err != nil {
+		t.Errorf("assertEfficiencyCompleteness() failed unexpectedly: %v", err)
+	}
+}
+
+// TestAssertEfficiencyCompleteness_FailsWhenRealDataGapExists tests that
+// completeness check still fails for real missing efficiency data, even if
+// sentinel rows are also present.
+func TestAssertEfficiencyCompleteness_FailsWhenRealDataGapExists(t *testing.T) {
+	logsDir := t.TempDir()
+	runID := "20260303-100000"
+
+	// Create a log file with prelaunch sentinel AND a real iteration with missing data
+	logContent := `{"type":"iteration","timestamp":"2026-03-03T10:00:00Z","iteration":1,"bead_id":"b1","bead_title":"Prelaunch failure","model":"haiku","success":false,"validated":false,"failure_phase":"prelaunch","duration_ms":0,"cost_usd":0,"input_tokens":0,"output_tokens":0}
+{"type":"iteration","timestamp":"2026-03-03T10:00:01Z","iteration":2,"bead_id":"b2","bead_title":"Real task missing data","model":"haiku","success":false,"validated":false,"duration_ms":0,"cost_usd":0,"input_tokens":0,"output_tokens":0}
+`
+	logPath := filepath.Join(logsDir, fmt.Sprintf("run-%s.jsonl", runID))
+	if err := os.WriteFile(logPath, []byte(logContent), 0644); err != nil {
+		t.Fatalf("failed to write log file: %v", err)
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:    &fakeStage{},
+		Build:   &fakeStage{},
+		Validate: &fakeStage{},
+		Epilogue: &fakeStage{},
+		GetBead: func(context.Context) (*bead.Bead, error) { return nil, nil },
+		Config:  &config.Config{},
+		LogsDir: logsDir,
+		GetRunID: func() string {
+			return runID
+		},
+		Output: io.Discard,
+	}
+	orch := NewOrchestrator(cfg)
+
+	// assertEfficiencyCompleteness should error because b2 has missing data
+	err := orch.assertEfficiencyCompleteness(2)
+	if err == nil {
+		t.Error("assertEfficiencyCompleteness() should have failed for real data gaps, got nil")
+	}
+	if !strings.Contains(err.Error(), "missing efficiency data") {
+		t.Errorf("error message should mention missing efficiency data, got: %v", err)
+	}
+}
