@@ -692,6 +692,10 @@ func newDualProviderConfig() *config.Config {
 	}
 }
 
+func boolPtr(v bool) *bool {
+	return &v
+}
+
 // stubFailureAnalyzer is a test double for FailureAnalyzer.
 type stubFailureAnalyzer struct {
 	fn func(ctx context.Context, b *bead.Bead, output string) (*analyzer.Analysis, error)
@@ -1282,6 +1286,59 @@ func TestNewRunnerImpl_GateStageHasDecomposerConfigured(t *testing.T) {
 	// oversized beads instead of blocking them.
 	if !gateStage.HasDecomposer() {
 		t.Fatal("Gate.HasDecomposer() returned false; want Decomposer wired in constructor for scope-triggered auto-decomposition")
+	}
+}
+
+func TestNewRunnerImpl_GateStageCriteriaEnricherWiring(t *testing.T) {
+	t.Parallel()
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	templatesDir := filepath.Join(gromitDir, "templates")
+	specsDir := filepath.Join(gromitDir, "specs")
+	plansDir := filepath.Join(gromitDir, "plans")
+	logsDir := filepath.Join(tmpDir, "logs")
+	claudePath := filepath.Join(gromitDir, "CLAUDE.md")
+
+	for _, dir := range []string{templatesDir, specsDir, plansDir, logsDir} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(%q): %v", dir, err)
+		}
+	}
+	if err := os.WriteFile(claudePath, []byte("# CLAUDE\n"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(%q): %v", claudePath, err)
+	}
+
+	cases := []struct {
+		name         string
+		autoGenerate *bool
+		want         bool
+	}{
+		{name: "enabled", autoGenerate: boolPtr(true), want: true},
+		{name: "disabled", autoGenerate: boolPtr(false), want: false},
+	}
+
+	for _, tc := range cases {
+		cfg := &config.Config{
+			Gate: config.GateConfig{AutoGenerateCriteria: tc.autoGenerate},
+		}
+		cfg.Paths.Templates = templatesDir
+		cfg.Paths.Specs = specsDir
+		cfg.Paths.Plans = plansDir
+		cfg.Paths.Logs = logsDir
+		cfg.Paths.ProjectClaudeMD = claudePath
+		cfg.Paths.GromitDir = gromitDir
+
+		orch, err := newRunnerImpl(cfg, io.Discard, nil)
+		if err != nil {
+			t.Fatalf("newRunnerImpl() error = %v", err)
+		}
+		gateStage, ok := orch.cfg.Gate.(*prepare.Gate)
+		if !ok {
+			t.Fatalf("Gate stage is %T, want *prepare.Gate", orch.cfg.Gate)
+		}
+		if got := gateStage.HasCriteriaEnricher(); got != tc.want {
+			t.Fatalf("HasCriteriaEnricher() = %v, want %v", got, tc.want)
+		}
 	}
 }
 
