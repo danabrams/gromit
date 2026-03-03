@@ -30,6 +30,7 @@ type Context struct {
 	// Validation history
 	RecentValidationFailures []string // Summaries of recent validation failures from current run
 	CommonReviewFindings     []string // Recurring review fix categories to proactively avoid in build
+	MidBuildReviewFindings   []string // Summaries surfaced by the mid-build review stage
 
 	// Coverage tracking
 	CoverageState   string // Summary of current criterion coverage state for TDD build prompts
@@ -78,6 +79,9 @@ func (c *Context) normalizeNilFields() {
 	}
 	if c.CommonReviewFindings == nil {
 		c.CommonReviewFindings = []string{}
+	}
+	if c.MidBuildReviewFindings == nil {
+		c.MidBuildReviewFindings = []string{}
 	}
 	if c.SiblingTouchedPackages == nil {
 		c.SiblingTouchedPackages = []string{}
