@@ -79,6 +79,31 @@ func TestCreateOrCheckoutSpecBranch_IncludesGitContextOnFailure(t *testing.T) {
 	}
 }
 
+func TestCreateOrCheckoutSpecBranch_DirtyWorktreeReturnsTypedError(t *testing.T) {
+	fixture := helpers.NewDeterministicGitConflictFixture(t)
+	ops := NewGitOps(fixture.Dir, fixture.BaseBranch)
+
+	dirtyFile := filepath.Join(fixture.Dir, fixture.ConflictingFile)
+	if err := os.WriteFile(dirtyFile, []byte("dirty change"), 0o644); err != nil {
+		t.Fatalf("failed to dirty worktree: %v", err)
+	}
+
+	specBranchName := fixture.OurBranch
+	err := ops.CreateOrCheckoutSpecBranch(context.Background(), specBranchName)
+	if err == nil {
+		t.Fatal("expected dirty worktree error")
+	}
+
+	var dirtyErr *DirtyWorktreeError
+	if !errors.As(err, &dirtyErr) {
+		t.Fatalf("expected DirtyWorktreeError, got %T: %v", err, err)
+	}
+
+	if !strings.Contains(dirtyErr.Status, fixture.ConflictingFile) {
+		t.Fatalf("dirty worktree status missing file context: %q", dirtyErr.Status)
+	}
+}
+
 // TestRebaseSpecOntoMain_Rebases verifies that RebaseSpecOntoMain rebases
 // the spec branch onto main without conflicts.
 func TestRebaseSpecOntoMain_Rebases(t *testing.T) {
