@@ -24,6 +24,16 @@ Recent observations that may be relevant:
 {{formatLearnings .RecentLearnings}}
 {{end}}
 
+{{if .MidBuildReviewFindings}}
+## Mid-build Review Findings
+
+The mid-build review surfaced the following concerns. Please resolve them before proceeding:
+
+{{range .MidBuildReviewFindings}}
+- {{.}}
+{{end}}
+{{end}}
+
 ## Project Context
 
 {{if .ClaudeMD}}

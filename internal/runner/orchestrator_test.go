@@ -1623,6 +1623,252 @@ func TestOrchestrator_LocalGateFailureSkipsReview(t *testing.T) {
 	}
 }
 
+func TestOrchestrator_MidReviewFindingsTriggerBuildRetry(t *testing.T) {
+	t.Parallel()
+
+	var buildInputs []pipeline.Input
+	build := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		buildInputs = append(buildInputs, in)
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	findings := []string{"fix logging", "document the API"}
+	midReviewCalled := false
+	midReview := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		midReviewCalled = true
+		return pipeline.Output{
+			Decision:               pipeline.Proceed,
+			MidBuildReviewFindings: findings,
+		}, nil
+	}}
+
+	var validateInput pipeline.Input
+	validate := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		validateInput = in
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-mid-review", Title: "Mid review"}, nil
+	}
+
+	orch := NewOrchestrator(OrchestratorConfig{
+		Gate:      &fakeStage{},
+		Build:     build,
+		MidReview: midReview,
+		Validate:  validate,
+		Epilogue:  &fakeStage{},
+		GetBead:   getBead,
+		Config:    &config.Config{},
+		Output:    io.Discard,
+	})
+
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if !midReviewCalled {
+		t.Fatal("expected mid-review stage to run")
+	}
+	if len(buildInputs) < 2 {
+		t.Fatalf("build should run twice, got %d", len(buildInputs))
+	}
+	if len(buildInputs[0].MidBuildReviewFindings) != 0 {
+		t.Fatalf("first build should not receive mid-review findings, got %+v", buildInputs[0].MidBuildReviewFindings)
+	}
+	if !reflect.DeepEqual(buildInputs[1].MidBuildReviewFindings, findings) {
+		t.Fatalf("second build findings = %+v, want %+v", buildInputs[1].MidBuildReviewFindings, findings)
+	}
+	if validateInput.MidBuildReviewFindings != nil {
+		t.Fatalf("validate should see cleared findings, got %+v", validateInput.MidBuildReviewFindings)
+	}
+}
+
+func TestOrchestrator_MidReviewErrorLogged(t *testing.T) {
+	t.Parallel()
+	midReviewErr := errors.New("mid-review failed")
+	midReview := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{Decision: pipeline.Proceed}, midReviewErr
+	}}
+
+	build := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+	validate := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	var capturedResult *logger.IterationLog
+	epilogueStage := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		capturedResult = in.Result
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-mid-review-error", Title: "Mid review error"}, nil
+	}
+
+	orch := NewOrchestrator(OrchestratorConfig{
+		Gate:      &fakeStage{},
+		Build:     build,
+		MidReview: midReview,
+		Validate:  validate,
+		Epilogue:  epilogueStage,
+		GetBead:   getBead,
+		Config:    &config.Config{},
+		Output:    io.Discard,
+	})
+
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if capturedResult == nil {
+		t.Fatal("Iteration log was not captured")
+	}
+	if !capturedResult.MidReviewRan {
+		t.Fatalf("MidReviewRan = %v, want true", capturedResult.MidReviewRan)
+	}
+	if capturedResult.MidReviewError != midReviewErr.Error() {
+		t.Fatalf("MidReviewError = %q, want %q", capturedResult.MidReviewError, midReviewErr.Error())
+	}
+}
+
+func TestOrchestrator_MidReviewMetricsCaptured(t *testing.T) {
+	t.Parallel()
+	findings := []string{"fix logging"}
+	midReview := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{
+			Decision:               pipeline.Proceed,
+			MidBuildReviewFindings: findings,
+			DurationMs:             120,
+			CostUSD:                0.42,
+			InputTokens:            100,
+			OutputTokens:           200,
+		}, nil
+	}}
+
+	buildCall := 0
+	build := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		buildCall++
+		if buildCall == 1 {
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		}
+		return pipeline.Output{
+			Decision:     pipeline.Proceed,
+			DurationMs:   500,
+			CostUSD:      0.75,
+			InputTokens:  150,
+			OutputTokens: 250,
+		}, nil
+	}}
+
+	validate := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	var capturedResult *logger.IterationLog
+	epilogueStage := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		capturedResult = in.Result
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-mid-review-metrics", Title: "Mid review metrics"}, nil
+	}
+
+	orch := NewOrchestrator(OrchestratorConfig{
+		Gate:      &fakeStage{},
+		Build:     build,
+		MidReview: midReview,
+		Validate:  validate,
+		Epilogue:  epilogueStage,
+		GetBead:   getBead,
+		Config:    &config.Config{},
+		Output:    io.Discard,
+	})
+
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if capturedResult == nil {
+		t.Fatal("Iteration log was not captured")
+	}
+	if !capturedResult.MidReviewRan {
+		t.Fatalf("MidReviewRan = %v, want true", capturedResult.MidReviewRan)
+	}
+	if capturedResult.MidReviewFindingsCount != len(findings) {
+		t.Fatalf("MidReviewFindingsCount = %d, want %d", capturedResult.MidReviewFindingsCount, len(findings))
+	}
+	if !capturedResult.MidReviewFixBuild {
+		t.Fatalf("MidReviewFixBuild = %v, want true", capturedResult.MidReviewFixBuild)
+	}
+	if capturedResult.MidReviewDurationMs != 120 {
+		t.Fatalf("MidReviewDurationMs = %d, want %d", capturedResult.MidReviewDurationMs, 120)
+	}
+	if capturedResult.MidReviewCostUSD != 0.42 {
+		t.Fatalf("MidReviewCostUSD = %f, want %f", capturedResult.MidReviewCostUSD, 0.42)
+	}
+	if capturedResult.MidReviewInputTokens != 100 {
+		t.Fatalf("MidReviewInputTokens = %d, want %d", capturedResult.MidReviewInputTokens, 100)
+	}
+	if capturedResult.MidReviewOutputTokens != 200 {
+		t.Fatalf("MidReviewOutputTokens = %d, want %d", capturedResult.MidReviewOutputTokens, 200)
+	}
+	if !capturedResult.MidBuildReviewRan {
+		t.Fatalf("MidBuildReviewRan = %v, want true", capturedResult.MidBuildReviewRan)
+	}
+	if capturedResult.MidBuildReviewFindingsCount != len(findings) {
+		t.Fatalf("MidBuildReviewFindingsCount = %d, want %d", capturedResult.MidBuildReviewFindingsCount, len(findings))
+	}
+	if !capturedResult.MidBuildReviewFixBuild {
+		t.Fatalf("MidBuildReviewFixBuild = %v, want true", capturedResult.MidBuildReviewFixBuild)
+	}
+	if capturedResult.MidBuildReviewDurationMs != 120 {
+		t.Fatalf("MidBuildReviewDurationMs = %d, want %d", capturedResult.MidBuildReviewDurationMs, 120)
+	}
+	if capturedResult.MidBuildReviewCostUSD != 0.42 {
+		t.Fatalf("MidBuildReviewCostUSD = %f, want %f", capturedResult.MidBuildReviewCostUSD, 0.42)
+	}
+	if capturedResult.MidBuildReviewInputTokens != 100 {
+		t.Fatalf("MidBuildReviewInputTokens = %d, want %d", capturedResult.MidBuildReviewInputTokens, 100)
+	}
+	if capturedResult.MidBuildReviewOutputTokens != 200 {
+		t.Fatalf("MidBuildReviewOutputTokens = %d, want %d", capturedResult.MidBuildReviewOutputTokens, 200)
+	}
+	if !capturedResult.FixBuildRan {
+		t.Fatalf("FixBuildRan = %v, want true", capturedResult.FixBuildRan)
+	}
+	if capturedResult.FixBuildDurationMs != 500 {
+		t.Fatalf("FixBuildDurationMs = %d, want %d", capturedResult.FixBuildDurationMs, 500)
+	}
+	if capturedResult.FixBuildCostUSD != 0.75 {
+		t.Fatalf("FixBuildCostUSD = %f, want %f", capturedResult.FixBuildCostUSD, 0.75)
+	}
+	if capturedResult.FixBuildInputTokens != 150 {
+		t.Fatalf("FixBuildInputTokens = %d, want %d", capturedResult.FixBuildInputTokens, 150)
+	}
+	if capturedResult.FixBuildOutputTokens != 250 {
+		t.Fatalf("FixBuildOutputTokens = %d, want %d", capturedResult.FixBuildOutputTokens, 250)
+	}
+}
+
 // TestOrchestrator_RunSequence_UsesCallerProvidedOrder verifies that RunSequence
 // resolves bead IDs via GetBeadByID and executes them in the exact caller-provided
 // order, independent of queue ordering.
@@ -4742,6 +4988,70 @@ func TestOrchestrator_WiringGateFailureTriggersRetry(t *testing.T) {
 	}
 }
 
+func TestOrchestrator_WiringGateFailureFeedsValidationFailures(t *testing.T) {
+	t.Parallel()
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-1", Title: "Test"}, nil
+	}
+
+	var buildInputs []pipeline.Input
+	buildStage := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		buildInputs = append(buildInputs, in)
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	validateStage := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	wiringFailures := []string{"TestSymbol exported but not referenced"}
+	wiringGateCalls := 0
+	wiringGateStage := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		wiringGateCalls++
+		if wiringGateCalls == 1 {
+			return pipeline.Output{
+				Decision:       pipeline.Block,
+				WiringFailures: append([]string(nil), wiringFailures...),
+			}, nil
+		}
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	cfg := OrchestratorConfig{
+		Gate:       &fakeStage{},
+		Build:      buildStage,
+		Validate:   validateStage,
+		WiringGate: wiringGateStage,
+		Epilogue:   &fakeStage{},
+		GetBead:    getBead,
+		Config: &config.Config{
+			Validation: config.ValidationConfig{MaxValidationRetries: 1},
+		},
+		Output: io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if len(buildInputs) < 2 {
+		t.Fatalf("captured build inputs = %d, want at least 2", len(buildInputs))
+	}
+	if len(buildInputs[0].ValidationFailures) != 0 {
+		t.Fatalf("first build validation failures = %#v, want empty", buildInputs[0].ValidationFailures)
+	}
+	if !reflect.DeepEqual(buildInputs[1].ValidationFailures, wiringFailures) {
+		t.Fatalf("recovery build validation failures = %#v, want %#v", buildInputs[1].ValidationFailures, wiringFailures)
+	}
+}
+
 // TestOrchestrator_RegressionGateFailureTriggersRetry verifies that when the regression gate
 // returns Block on first attempt and Proceed on retry, the orchestrator re-enters the
 // Build→Validate→RegressionGate loop with appropriate context.
@@ -4816,6 +5126,75 @@ func TestOrchestrator_RegressionGateFailureTriggersRetry(t *testing.T) {
 	}
 	if regressionGateCalls != 2 {
 		t.Errorf("RegressionGate called %d times; want 2 (initial failure + retry)", regressionGateCalls)
+	}
+}
+
+// TestOrchestrator_RegressionGateRetryReRunsWiringGate ensures that the wiring gate
+// is executed again when the regression gate triggers a retry so wiring issues
+// are rechecked after the rebuild.
+func TestOrchestrator_RegressionGateRetryReRunsWiringGate(t *testing.T) {
+	t.Parallel()
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-1", Title: "Test"}, nil
+	}
+
+	buildCalls := 0
+	buildStage := &fakeStage{runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+		buildCalls++
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	validateCalls := 0
+	validateStage := &fakeStage{runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+		validateCalls++
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	wiringGateCalls := 0
+	wiringGateStage := &fakeStage{runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+		wiringGateCalls++
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	regressionGateCalls := 0
+	regressionGateStage := &fakeStage{runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+		regressionGateCalls++
+		if regressionGateCalls == 1 {
+			return pipeline.Output{Decision: pipeline.Block, ValidationFailures: []string{"fail"}}, nil
+		}
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	cfg := OrchestratorConfig{
+		Gate:           &fakeStage{},
+		Build:          buildStage,
+		Validate:       validateStage,
+		WiringGate:     wiringGateStage,
+		RegressionGate: regressionGateStage,
+		Epilogue:       &fakeStage{},
+		GetBead:        getBead,
+		Config: &config.Config{
+			Validation: config.ValidationConfig{
+				MaxValidationRetries: 1,
+			},
+		},
+		Output: io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	err := orch.Run(context.Background(), 10, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if wiringGateCalls != 2 {
+		t.Fatalf("WiringGate called %d times; want 2 (retry after regression gate failure)", wiringGateCalls)
 	}
 }
 
@@ -5038,5 +5417,117 @@ func TestOrchestrator_RegressionAndReviewRunConcurrently(t *testing.T) {
 	}
 	if reviewStartTime.IsZero() {
 		t.Error("Review stage did not execute")
+	}
+}
+
+func TestOrchestrator_WiringGateFinalFailureSetsFailurePhase(t *testing.T) {
+	t.Parallel()
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-1", Title: "Test"}, nil
+	}
+
+	wiringGate := &fakeStage{runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{
+			Decision:       pipeline.Block,
+			WiringFailures: []string{"FAIL: TestWiring"},
+		}, nil
+	}}
+
+	var capturedResult *logger.IterationLog
+	var capturedInput pipeline.Input
+	epilogueStage := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		capturedResult = in.Result
+		capturedInput = in
+		return pipeline.Output{}, nil
+	}}
+
+	cfg := OrchestratorConfig{
+		Gate:       &fakeStage{},
+		Build:      &fakeStage{},
+		Validate:   &fakeStage{},
+		WiringGate: wiringGate,
+		Epilogue:   epilogueStage,
+		GetBead:    getBead,
+		Config: &config.Config{
+			Validation: config.ValidationConfig{MaxValidationRetries: 0},
+		},
+		Output: io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if capturedResult == nil {
+		t.Fatal("expected iteration log on wiring gate failure")
+	}
+	if capturedResult.FailurePhase != failurephase.WiringGate {
+		t.Fatalf("FailurePhase = %q, want %q", capturedResult.FailurePhase, failurephase.WiringGate)
+	}
+	if !strings.Contains(capturedInput.FailureOutput, "FAIL: TestWiring") {
+		t.Fatalf("FailureOutput = %q, want it to contain wiring gate failure output", capturedInput.FailureOutput)
+	}
+}
+
+func TestOrchestrator_RegressionGateFinalFailureSetsFailurePhase(t *testing.T) {
+	t.Parallel()
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-1", Title: "Test"}, nil
+	}
+
+	regressionGate := &fakeStage{runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{
+			Decision:           pipeline.Block,
+			ValidationFailures: []string{"FAIL: TestRegression"},
+		}, nil
+	}}
+
+	var capturedResult *logger.IterationLog
+	var capturedInput pipeline.Input
+	epilogueStage := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		capturedResult = in.Result
+		capturedInput = in
+		return pipeline.Output{}, nil
+	}}
+
+	cfg := OrchestratorConfig{
+		Gate:           &fakeStage{},
+		Build:          &fakeStage{},
+		Validate:       &fakeStage{},
+		RegressionGate: regressionGate,
+		Epilogue:       epilogueStage,
+		GetBead:        getBead,
+		Config: &config.Config{
+			Validation: config.ValidationConfig{MaxValidationRetries: 0},
+		},
+		Output: io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if capturedResult == nil {
+		t.Fatal("expected iteration log on regression gate failure")
+	}
+	if capturedResult.FailurePhase != failurephase.RegressionGate {
+		t.Fatalf("FailurePhase = %q, want %q", capturedResult.FailurePhase, failurephase.RegressionGate)
+	}
+	if !strings.Contains(capturedInput.FailureOutput, "FAIL: TestRegression") {
+		t.Fatalf("FailureOutput = %q, want it to contain regression failure output", capturedInput.FailureOutput)
 	}
 }

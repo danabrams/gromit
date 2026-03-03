@@ -102,18 +102,39 @@ func applyCostFallback(result *provider.Result, providerName string, defs map[st
 
 // renderAdapter wraps prompt.Renderer to satisfy execute.PromptRenderer.
 type renderAdapter struct {
-	r              *prompt.Renderer
-	promptRegistry *buildPromptRegistry
+	r                 *prompt.Renderer
+	promptRegistry    *buildPromptRegistry
+	midReviewFindings []string
 }
 
-func (a *renderAdapter) RenderBuild(title, description string, validationFailures []string) (string, error) {
+func (a *renderAdapter) SetMidBuildReviewFindings(findings []string) {
+	if a == nil {
+		return
+	}
+	if len(findings) == 0 {
+		a.midReviewFindings = nil
+		return
+	}
+	a.midReviewFindings = append([]string(nil), findings...)
+}
+
+func (a *renderAdapter) buildPromptContext(title, description string, validationFailures []string) *prompt.Context {
 	ctx := &prompt.Context{
 		Bead: &bead.Bead{
 			Title:       title,
 			Description: description,
 		},
-		RecentValidationFailures: validationFailures,
+		RecentValidationFailures: append([]string(nil), validationFailures...),
 	}
+	if len(a.midReviewFindings) > 0 {
+		ctx.MidBuildReviewFindings = append([]string(nil), a.midReviewFindings...)
+	}
+	a.midReviewFindings = nil
+	return ctx
+}
+
+func (a *renderAdapter) RenderBuild(title, description string, validationFailures []string) (string, error) {
+	ctx := a.buildPromptContext(title, description, validationFailures)
 	rendered, err := a.r.RenderBuild(ctx)
 	if err != nil {
 		return "", err
@@ -125,13 +146,7 @@ func (a *renderAdapter) RenderBuild(title, description string, validationFailure
 }
 
 func (a *renderAdapter) RenderTDDBuild(title, description string, validationFailures []string) (string, error) {
-	ctx := &prompt.Context{
-		Bead: &bead.Bead{
-			Title:       title,
-			Description: description,
-		},
-		RecentValidationFailures: validationFailures,
-	}
+	ctx := a.buildPromptContext(title, description, validationFailures)
 	rendered, err := a.r.RenderTDDBuild(ctx)
 	if err != nil {
 		return "", err
@@ -143,13 +158,7 @@ func (a *renderAdapter) RenderTDDBuild(title, description string, validationFail
 }
 
 func (a *renderAdapter) RenderRefactorBuild(title, description string, validationFailures []string) (string, error) {
-	ctx := &prompt.Context{
-		Bead: &bead.Bead{
-			Title:       title,
-			Description: description,
-		},
-		RecentValidationFailures: validationFailures,
-	}
+	ctx := a.buildPromptContext(title, description, validationFailures)
 	rendered, err := a.r.RenderRefactor(ctx)
 	if err != nil {
 		return "", err

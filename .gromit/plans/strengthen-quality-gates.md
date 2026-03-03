@@ -1,8 +1,9 @@
 ---
+created: 2026-03-03T00:00:00Z
+decomposed: true
+decomposed_at: "2026-03-03T07:13:11-05:00"
 id: strengthen-quality-gates
 source_spec: strengthen-quality-gates
-created: 2026-03-03
-decomposed: false
 ---
 
 # Strengthen Quality Gates Implementation Plan

@@ -95,3 +95,56 @@ func TestExtractSymbolsFromDiff_SkipsDeferredSymbols(t *testing.T) {
 		t.Fatalf("ExtractSymbolsFromDiff() = %v, want no symbols", got)
 	}
 }
+
+func TestExtractSymbolsFromDiff_SkipsInterfaceMethods(t *testing.T) {
+	diff := strings.Join([]string{
+		"diff --git a/foo.go b/foo.go",
+		"new file mode 100644",
+		"index 0000000..1111111",
+		"--- /dev/null",
+		"+++ b/foo.go",
+		"@@ -0,0 +1,11 @@",
+		"+package foo",
+		"+",
+		"+type Outer struct {",
+		"+    Inner interface {",
+		"+        Burp()",
+		"+    }",
+		"+}",
+	}, "\n")
+
+	got := wiring.ExtractSymbolsFromDiff(diff)
+	for _, sym := range got {
+		if sym.Name == "Burp" {
+			t.Fatalf("interface method Burp should be skipped: %v", got)
+		}
+	}
+}
+
+func TestExtractSymbolsFromDiff_DetectsConstAndVarExports(t *testing.T) {
+	diff := strings.Join([]string{
+		"diff --git a/foo.go b/foo.go",
+		"new file mode 100644",
+		"index 0000000..1111111",
+		"--- /dev/null",
+		"+++ b/foo.go",
+		"@@ -0,0 +1,7 @@",
+		"+package foo",
+		"+",
+		"+const (",
+		"+    ExportedConst = 1",
+		"+    unexportedConst = 2",
+		"+)",
+		"+var ExportedVar = 3",
+	}, "\n")
+
+	got := wiring.ExtractSymbolsFromDiff(diff)
+	want := []wiring.Symbol{
+		{Name: "ExportedConst", File: "foo.go", Line: 4},
+		{Name: "ExportedVar", File: "foo.go", Line: 7},
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("ExtractSymbolsFromDiff() = %v, want %v", got, want)
+	}
+}

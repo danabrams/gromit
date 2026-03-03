@@ -34,6 +34,8 @@ type OrchestratorConfig struct {
 	Gate pipeline.Stage
 	// Build is Stage 2: authors code via LLM invocation.
 	Build pipeline.Stage
+	// MidReview runs between Build and Validate to highlight issues before validation.
+	MidReview pipeline.Stage
 	// Validate is Stage 3: runs programmatic checks.
 	Validate pipeline.Stage
 	// LocalGate runs spec-only acceptance checks after implementation succeeds.
@@ -189,6 +191,48 @@ type Orchestrator struct {
 	preImplementationHookRan bool
 }
 
+type midReviewMetrics struct {
+	ran                  bool
+	err                  string
+	findingsCount        int
+	fixBuildTriggered    bool
+	durationMs           int64
+	costUSD              float64
+	inputTokens          int
+	outputTokens         int
+	fixBuildRan          bool
+	fixBuildDurationMs   int64
+	fixBuildCostUSD      float64
+	fixBuildInputTokens  int
+	fixBuildOutputTokens int
+}
+
+func attachMidReviewMetrics(log *logger.IterationLog, metrics midReviewMetrics) {
+	if log == nil {
+		return
+	}
+	log.MidBuildReviewRan = metrics.ran
+	log.MidBuildReviewFindingsCount = metrics.findingsCount
+	log.MidBuildReviewFixBuild = metrics.fixBuildTriggered
+	log.MidBuildReviewDurationMs = metrics.durationMs
+	log.MidBuildReviewCostUSD = metrics.costUSD
+	log.MidBuildReviewInputTokens = metrics.inputTokens
+	log.MidBuildReviewOutputTokens = metrics.outputTokens
+	log.MidReviewRan = metrics.ran
+	log.MidReviewError = metrics.err
+	log.MidReviewFindingsCount = metrics.findingsCount
+	log.MidReviewFixBuild = metrics.fixBuildTriggered
+	log.MidReviewDurationMs = metrics.durationMs
+	log.MidReviewCostUSD = metrics.costUSD
+	log.MidReviewInputTokens = metrics.inputTokens
+	log.MidReviewOutputTokens = metrics.outputTokens
+	log.FixBuildRan = metrics.fixBuildRan
+	log.FixBuildDurationMs = metrics.fixBuildDurationMs
+	log.FixBuildCostUSD = metrics.fixBuildCostUSD
+	log.FixBuildInputTokens = metrics.fixBuildInputTokens
+	log.FixBuildOutputTokens = metrics.fixBuildOutputTokens
+}
+
 // NewOrchestrator returns an Orchestrator wired with the given configuration.
 func NewOrchestrator(cfg OrchestratorConfig) *Orchestrator {
 	o := &Orchestrator{
@@ -197,6 +241,7 @@ func NewOrchestrator(cfg OrchestratorConfig) *Orchestrator {
 	}
 	o.attachEmitterToStage(cfg.Gate)
 	o.attachEmitterToStage(cfg.Build)
+	o.attachEmitterToStage(cfg.MidReview)
 	o.attachEmitterToStage(cfg.Validate)
 	o.attachEmitterToStage(cfg.LocalGate)
 	o.attachEmitterToStage(cfg.Review)
@@ -372,6 +417,20 @@ func (o *Orchestrator) Run(ctx context.Context, maxIterations int, deadline time
 		return err
 	}
 
+	runWiringGate := func(input pipeline.Input) (bool, []string, error) {
+		if o.cfg.WiringGate == nil {
+			return true, nil, nil
+		}
+		wiringGateOut, wiringGateErr := o.cfg.WiringGate.Run(ctx, input)
+		if wiringGateErr != nil {
+			return false, nil, wiringGateErr
+		}
+		if wiringGateOut.Decision != pipeline.Proceed {
+			return false, append([]string(nil), wiringGateOut.WiringFailures...), nil
+		}
+		return true, nil, nil
+	}
+
 runLoop:
 	for {
 		// Check stop signals before each iteration.
@@ -455,6 +514,7 @@ runLoop:
 		}
 
 		baseIn := o.buildInput(b, iteration, deadline, validationFailures, touchedPackages)
+		midReviewMetrics := midReviewMetrics{}
 
 		// Stage 1: Gate — precheck, stuck detection, scope gate, proactive decomposition.
 		gateOut, gateErr := o.cfg.Gate.Run(ctx, baseIn)
@@ -476,6 +536,7 @@ runLoop:
 				ComplexitySource:         baseIn.ComplexitySource,
 				ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 			}
+			attachMidReviewMetrics(baseIn.Result, midReviewMetrics)
 			switch gateOut.Decision {
 			case pipeline.Skip:
 				o.emitter.Emit(&events.BeadSkippedEvent{
@@ -544,6 +605,7 @@ runLoop:
 							ComplexitySource:         baseIn.ComplexitySource,
 							ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 						}
+						attachMidReviewMetrics(baseIn.Result, midReviewMetrics)
 						o.runEpilogue(ctx, baseIn, false)
 						o.emitter.Emit(&events.IterationCompleteEvent{
 							Iteration: iteration,
@@ -575,6 +637,7 @@ runLoop:
 				ComplexitySource:         baseIn.ComplexitySource,
 				ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 			}
+			attachMidReviewMetrics(baseIn.Result, midReviewMetrics)
 			o.runEpilogue(ctx, baseIn, false)
 			o.emitter.Emit(&events.IterationCompleteEvent{
 				Iteration: iteration,
@@ -615,6 +678,7 @@ runLoop:
 					ComplexitySource:         baseIn.ComplexitySource,
 					ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 				}
+				attachMidReviewMetrics(baseIn.Result, midReviewMetrics)
 				o.runEpilogue(ctx, baseIn, false)
 				o.emitter.Emit(&events.IterationCompleteEvent{
 					Iteration: iteration,
@@ -649,6 +713,7 @@ runLoop:
 				ComplexitySource:         baseIn.ComplexitySource,
 				ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 			}
+			attachMidReviewMetrics(baseIn.Result, midReviewMetrics)
 			stampBuildAttribution(baseIn.Result, buildOut)
 			o.runEpilogue(ctx, baseIn, false)
 			// Emit IterationCompleteEvent
@@ -661,6 +726,61 @@ runLoop:
 			})
 			continue
 		}
+		if o.cfg.MidReview != nil {
+			midReviewMetrics.ran = true
+			midReviewOut, midReviewErr := o.cfg.MidReview.Run(ctx, baseIn)
+			if midReviewErr != nil {
+				midReviewMetrics.err = midReviewErr.Error()
+				o.logWarning("Warning: mid-review error for bead %s (iteration %d): %v", b.ID, iteration, midReviewErr)
+			} else {
+				midReviewMetrics.findingsCount = len(midReviewOut.MidBuildReviewFindings)
+				midReviewMetrics.durationMs = midReviewOut.DurationMs
+				midReviewMetrics.costUSD = midReviewOut.CostUSD
+				midReviewMetrics.inputTokens = midReviewOut.InputTokens
+				midReviewMetrics.outputTokens = midReviewOut.OutputTokens
+				if midReviewMetrics.findingsCount > 0 {
+					midReviewMetrics.fixBuildTriggered = true
+					retryIn := baseIn
+					retryIn.MidBuildReviewFindings = append([]string(nil), midReviewOut.MidBuildReviewFindings...)
+					buildOut, buildErr = o.cfg.Build.Run(ctx, retryIn)
+					midReviewMetrics.fixBuildRan = true
+					midReviewMetrics.fixBuildDurationMs = buildOut.DurationMs
+					midReviewMetrics.fixBuildCostUSD = buildOut.CostUSD
+					midReviewMetrics.fixBuildInputTokens = buildOut.InputTokens
+					midReviewMetrics.fixBuildOutputTokens = buildOut.OutputTokens
+					if buildErr != nil {
+						o.logWarning("Warning: build failed for bead %s (iteration %d): %v", b.ID, iteration, buildErr)
+						failurePhase := inferBuildFailurePhase(buildErr)
+						o.emitBeadFailedEvent(b, buildErr.Error())
+						baseIn.Result = &logger.IterationLog{
+							Timestamp:                time.Now(),
+							Iteration:                iteration,
+							BeadID:                   b.ID,
+							BeadTitle:                b.Title,
+							Success:                  false,
+							Error:                    buildErr.Error(),
+							FailurePhase:             failurePhase,
+							Complexity:               baseIn.Complexity,
+							ComplexitySource:         baseIn.ComplexitySource,
+							ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
+						}
+						attachMidReviewMetrics(baseIn.Result, midReviewMetrics)
+						stampBuildAttribution(baseIn.Result, buildOut)
+						o.runEpilogue(ctx, baseIn, false)
+						// Emit IterationCompleteEvent
+						o.emitter.Emit(&events.IterationCompleteEvent{
+							Iteration: iteration,
+							BeadID:    b.ID,
+							Success:   false,
+							Duration:  0,
+							TimeMixin: events.TimeMixin{Time: time.Now()},
+						})
+						continue
+					}
+					baseIn.MidBuildReviewFindings = nil
+				}
+			}
+		}
 
 		// Stage 3: Validate — runs fast validation commands, enforces deadline.
 		if o.cfg.CoverageTracker != nil {
@@ -668,18 +788,36 @@ runLoop:
 		}
 		validateOut, validateErr := o.cfg.Validate.Run(ctx, baseIn)
 		validationPassed := validateErr == nil && validateOut.Decision == pipeline.Proceed
-		if !validationPassed {
+		failurePhase := failurephase.Validation
+		var wiringGateErr error
+		var wiringGateFailures []string
+		if validationPassed {
+			// Stage 3b: Wiring gate — checks symbol wiring before review.
+			validationPassed, wiringGateFailures, wiringGateErr = runWiringGate(baseIn)
+			if wiringGateErr != nil {
+				failurePhase = failurephase.WiringGate
+				validationPassed = false
+			} else if !validationPassed {
+				validationFailures = append([]string(nil), wiringGateFailures...)
+				failurePhase = failurephase.WiringGate
+			}
+		} else {
 			validationFailures = append([]string(nil), validateOut.ValidationFailures...)
+		}
+		if !validationPassed {
 			maxValidationRetries := 0
 			if o.cfg.Config != nil {
 				maxValidationRetries = o.cfg.Config.Validation.MaxValidationRetries
 			}
 			for attempt := 1; attempt <= maxValidationRetries && !validationPassed; attempt++ {
-				// Non-validation execution errors from Validate stage are not recoverable.
-				if validateErr != nil {
+				if validateErr != nil || wiringGateErr != nil {
 					break
 				}
-				o.logWarning("Warning: validation failed for bead %s (iteration %d), attempting recovery build %d/%d", b.ID, iteration, attempt, maxValidationRetries)
+				reason := "validation"
+				if failurePhase == failurephase.WiringGate {
+					reason = "wiring gate"
+				}
+				o.logWarning("Warning: %s failed for bead %s (iteration %d), attempting recovery build %d/%d", reason, b.ID, iteration, attempt, maxValidationRetries)
 				retryIn := baseIn
 				retryIn.ValidationFailures = append([]string(nil), validationFailures...)
 
@@ -694,7 +832,24 @@ runLoop:
 				validationPassed = validateErr == nil && validateOut.Decision == pipeline.Proceed
 				if !validationPassed {
 					validationFailures = append([]string(nil), validateOut.ValidationFailures...)
+					failurePhase = failurephase.Validation
+					continue
 				}
+
+				var wiringGateFailures []string
+				validationPassed, wiringGateFailures, wiringGateErr = runWiringGate(retryIn)
+				if wiringGateErr != nil {
+					failurePhase = failurephase.WiringGate
+					validationPassed = false
+					break
+				}
+				if !validationPassed {
+					validationFailures = append([]string(nil), wiringGateFailures...)
+					failurePhase = failurephase.WiringGate
+					continue
+				}
+
+				validationFailures = nil
 			}
 		}
 		if buildErr != nil {
@@ -713,6 +868,7 @@ runLoop:
 				ComplexitySource:         baseIn.ComplexitySource,
 				ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 			}
+			attachMidReviewMetrics(baseIn.Result, midReviewMetrics)
 			stampBuildAttribution(baseIn.Result, buildOut)
 			o.runEpilogue(ctx, baseIn, false)
 			// Emit IterationCompleteEvent
@@ -726,8 +882,6 @@ runLoop:
 			continue
 		}
 		if !validationPassed {
-			// Accumulate failure summaries for the next Build invocation.
-			validationFailures = append([]string(nil), validateOut.ValidationFailures...)
 			baseIn.FailureOutput = strings.Join(validationFailures, "\n")
 			baseIn.Result = &logger.IterationLog{
 				Timestamp:                time.Now(),
@@ -735,21 +889,29 @@ runLoop:
 				BeadID:                   b.ID,
 				BeadTitle:                b.Title,
 				Success:                  false,
-				FailurePhase:             failurephase.Validation,
+				FailurePhase:             failurePhase,
 				ValidationFailures:       validationFailures,
 				Complexity:               baseIn.Complexity,
 				ComplexitySource:         baseIn.ComplexitySource,
 				ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 			}
+			attachMidReviewMetrics(baseIn.Result, midReviewMetrics)
 			stampBuildAttribution(baseIn.Result, buildOut)
 			failureReasons := make([]string, 0, len(validationFailures)+1)
 			failureReasons = append(failureReasons, validationFailures...)
 			if validateErr != nil {
 				failureReasons = append(failureReasons, validateErr.Error())
 			}
+			if wiringGateErr != nil {
+				failureReasons = append(failureReasons, wiringGateErr.Error())
+			}
 			failureMessage := strings.Join(failureReasons, "; ")
 			if failureMessage == "" {
-				failureMessage = "validation failed"
+				if failurePhase == failurephase.WiringGate {
+					failureMessage = "wiring gate failed"
+				} else {
+					failureMessage = "validation failed"
+				}
 			}
 			o.emitBeadFailedEvent(b, failureMessage)
 			o.runEpilogue(ctx, baseIn, false)
@@ -764,9 +926,7 @@ runLoop:
 			continue
 		}
 
-		// Validation passed: clear accumulated failures so the next bead starts clean.
 		validationFailures = nil
-
 		if o.cfg.CoverageTracker != nil {
 			o.cfg.CoverageTracker.ToComplete()
 		}
@@ -800,6 +960,7 @@ runLoop:
 					ComplexitySource:         baseIn.ComplexitySource,
 					ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 				}
+				attachMidReviewMetrics(baseIn.Result, midReviewMetrics)
 				baseIn.FailureOutput = strings.Join(localGateOut.ValidationFailures, "\n")
 				stampBuildAttribution(baseIn.Result, buildOut)
 				o.emitBeadFailedEvent(b, failureMessage)
@@ -812,83 +973,6 @@ runLoop:
 					TimeMixin: events.TimeMixin{Time: time.Now()},
 				})
 				continue
-			}
-		}
-
-		// Stage 3b: Wiring Gate — optional quality gate that runs after validation.
-		// On failure, triggers a retry of Build→Validate→WiringGate.
-		var wiringFailures []string
-		if o.cfg.WiringGate != nil {
-			wiringGateOut, wiringGateErr := o.cfg.WiringGate.Run(ctx, baseIn)
-			if wiringGateErr != nil || wiringGateOut.Decision != pipeline.Proceed {
-				wiringFailures = append([]string(nil), wiringGateOut.WiringFailures...)
-				maxValidationRetries := 0
-				if o.cfg.Config != nil {
-					maxValidationRetries = o.cfg.Config.Validation.MaxValidationRetries
-				}
-				wiringPassed := wiringGateErr == nil && wiringGateOut.Decision == pipeline.Proceed
-				for attempt := 1; attempt <= maxValidationRetries && !wiringPassed; attempt++ {
-					if wiringGateErr != nil {
-						break
-					}
-					o.logWarning("Warning: wiring gate failed for bead %s (iteration %d), attempting recovery build %d/%d", b.ID, iteration, attempt, maxValidationRetries)
-					retryIn := baseIn
-					retryIn.ValidationFailures = append([]string(nil), wiringFailures...)
-
-					retryBuildOut, retryBuildErr := o.cfg.Build.Run(ctx, retryIn)
-					buildOut = retryBuildOut
-					if retryBuildErr != nil {
-						wiringGateErr = retryBuildErr
-						break
-					}
-
-					validateOut, validateErr = o.cfg.Validate.Run(ctx, retryIn)
-					if validateErr != nil || validateOut.Decision != pipeline.Proceed {
-						break
-					}
-
-					wiringGateOut, wiringGateErr = o.cfg.WiringGate.Run(ctx, retryIn)
-					wiringPassed = wiringGateErr == nil && wiringGateOut.Decision == pipeline.Proceed
-					if !wiringPassed {
-						wiringFailures = append([]string(nil), wiringGateOut.WiringFailures...)
-					}
-				}
-				if !wiringPassed {
-					// Wiring gate still failed after retries
-					failureReasons := append([]string(nil), wiringFailures...)
-					if wiringGateErr != nil {
-						failureReasons = append(failureReasons, wiringGateErr.Error())
-					}
-					failureMessage := strings.Join(failureReasons, "; ")
-					if failureMessage == "" {
-						failureMessage = "wiring gate failed"
-					}
-					baseIn.Result = &logger.IterationLog{
-						Timestamp:                time.Now(),
-						Iteration:                iteration,
-						BeadID:                   b.ID,
-						BeadTitle:                b.Title,
-						Success:                  false,
-						FailurePhase:             failurephase.Validation,
-						ValidationFailures:       wiringFailures,
-						Error:                    failureMessage,
-						Complexity:               baseIn.Complexity,
-						ComplexitySource:         baseIn.ComplexitySource,
-						ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
-					}
-					baseIn.FailureOutput = strings.Join(wiringFailures, "\n")
-					stampBuildAttribution(baseIn.Result, buildOut)
-					o.emitBeadFailedEvent(b, failureMessage)
-					o.runEpilogue(ctx, baseIn, false)
-					o.emitter.Emit(&events.IterationCompleteEvent{
-						Iteration: iteration,
-						BeadID:    b.ID,
-						Success:   false,
-						Duration:  0,
-						TimeMixin: events.TimeMixin{Time: time.Now()},
-					})
-					continue
-				}
 			}
 		}
 
@@ -940,6 +1024,7 @@ runLoop:
 				o.logWarning("Warning: regression gate failed for bead %s (iteration %d), attempting recovery build %d/%d", b.ID, iteration, attempt, maxValidationRetries)
 				retryIn := baseIn
 				retryIn.ValidationFailures = append([]string(nil), regressionGateOut.ValidationFailures...)
+				retryIn.FailureOutput = strings.Join(regressionGateOut.ValidationFailures, "\n")
 
 				retryBuildOut, retryBuildErr := o.cfg.Build.Run(ctx, retryIn)
 				buildOut = retryBuildOut
@@ -951,6 +1036,23 @@ runLoop:
 				validateOut, validateErr = o.cfg.Validate.Run(ctx, retryIn)
 				if validateErr != nil || validateOut.Decision != pipeline.Proceed {
 					break
+				}
+
+				if o.cfg.WiringGate != nil {
+					wiringGateOut, wiringGateErr := o.cfg.WiringGate.Run(ctx, retryIn)
+					if wiringGateErr != nil || wiringGateOut.Decision != pipeline.Proceed {
+						failureReasons := append([]string(nil), wiringGateOut.WiringFailures...)
+						if wiringGateErr != nil {
+							failureReasons = append(failureReasons, wiringGateErr.Error())
+						}
+						regressionGateOut.ValidationFailures = failureReasons
+						if wiringGateErr != nil {
+							regressionGateErr = wiringGateErr
+						} else {
+							regressionGateErr = fmt.Errorf("wiring gate decision %v", wiringGateOut.Decision)
+						}
+						break
+					}
 				}
 
 				regressionGateOut, regressionGateErr = o.cfg.RegressionGate.Run(ctx, retryIn)
@@ -972,13 +1074,14 @@ runLoop:
 					BeadID:                   b.ID,
 					BeadTitle:                b.Title,
 					Success:                  false,
-					FailurePhase:             failurephase.Validation,
+					FailurePhase:             failurephase.RegressionGate,
 					ValidationFailures:       regressionGateOut.ValidationFailures,
 					Error:                    failureMessage,
 					Complexity:               baseIn.Complexity,
 					ComplexitySource:         baseIn.ComplexitySource,
 					ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 				}
+				attachMidReviewMetrics(baseIn.Result, midReviewMetrics)
 				baseIn.FailureOutput = strings.Join(regressionGateOut.ValidationFailures, "\n")
 				stampBuildAttribution(baseIn.Result, buildOut)
 				o.emitBeadFailedEvent(b, failureMessage)
@@ -1011,6 +1114,7 @@ runLoop:
 			ComplexitySource:         baseIn.ComplexitySource,
 			ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 		}
+		attachMidReviewMetrics(baseIn.Result, midReviewMetrics)
 		stampBuildAttribution(baseIn.Result, buildOut)
 		epilogueOut := o.runEpilogue(ctx, baseIn, true)
 		finalSuccess := epilogueOut.LifecycleFailure == pipeline.LifecycleFailureNone

@@ -34,7 +34,7 @@ func (r *stubRenderer) RenderRefactorBuild(title, description string, validation
 	return r.prompt, r.err
 }
 
-func TestEscalationBuildStage_RendersPromptWhenTDDEnabled(t *testing.T) {
+func TestEscalationBuildStage_RendersPromptDespiteFreshContext(t *testing.T) {
 	t.Parallel()
 
 	cfg := &config.Config{
@@ -78,7 +78,7 @@ func TestEscalationBuildStage_RendersPromptWhenTDDEnabled(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if renderer.tddCalls == 0 {
-		t.Fatal("expected TDD renderer to run when TDD is enabled")
+		t.Fatal("expected TDD renderer to run for TDD bead")
 	}
 	if out.Model == "" {
 		t.Fatal("expected handler path to populate output model")

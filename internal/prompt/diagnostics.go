@@ -9,6 +9,7 @@ const (
 	SectionTaskIdentity       = "task_identity"
 	SectionDiff               = "diff"
 	SectionFailureContext     = "failure_context"
+	SectionAcceptanceCriteria = "acceptance_criteria"
 	SectionTemplateStatic     = "template_static"
 	SectionSkillInstructions  = "skill_instructions"
 	SectionPlanBody           = "plan_body"

@@ -57,6 +57,10 @@ type Build struct {
 	experimentMgr       *experiment.Manager
 }
 
+type midReviewFindingsSetter interface {
+	SetMidBuildReviewFindings([]string)
+}
+
 // Compile-time check: *Build must implement pipeline.Stage.
 var _ pipeline.Stage = (*Build)(nil)
 
@@ -116,6 +120,9 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 		hasBuildStrategyLabel(in.Bead, "build_strategy:single_pass") &&
 		(methodology == MethodologyTDD || methodology == MethodologyRefactor) {
 		methodology = MethodologyStandard
+	}
+	if setter, ok := b.renderer.(midReviewFindingsSetter); ok {
+		setter.SetMidBuildReviewFindings(in.MidBuildReviewFindings)
 	}
 
 	var (

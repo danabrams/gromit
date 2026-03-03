@@ -10,7 +10,6 @@ import (
 var allowedBenchmarkModes = map[string]struct{}{
 	"single_pass":        {},
 	"tdd_shared_context": {},
-	"tdd_fresh_context":  {},
 }
 
 type Manifest struct {

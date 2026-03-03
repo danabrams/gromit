@@ -159,6 +159,15 @@ func (r *Renderer) RenderReview(ctx *ReviewContext) (string, error) {
 	return r.render("PROMPT_review.md", ctx)
 }
 
+// RenderMidBuildReview renders the mid-build review prompt.
+func (r *Renderer) RenderMidBuildReview(ctx *MidBuildReviewContext) (string, error) {
+	if r != nil {
+		diagnostics := r.computeMidBuildReviewDiagnostics(ctx)
+		r.lastDiagnostics = diagnostics
+	}
+	return r.render("PROMPT_midreview.md", ctx)
+}
+
 // RenderThoroughReview renders the thorough review prompt.
 func (r *Renderer) RenderThoroughReview(ctx *ThoroughReviewContext) (string, error) {
 	ctx.normalizeNilFields()
@@ -408,6 +417,22 @@ func (r *Renderer) computeReviewDiagnostics(ctx *ReviewContext) *PromptDiagnosti
 		SectionDiff:           ctx.Diff,
 		SectionTaskIdentity:   formatTaskIdentity(ctx.Bead, ctx.ParentBead, 0, ctx.Model),
 		SectionTemplateStatic: "PROMPT_review.md",
+	})
+}
+
+func (r *Renderer) computeMidBuildReviewDiagnostics(ctx *MidBuildReviewContext) *PromptDiagnostics {
+	if ctx == nil {
+		return r.computeDiagnostics("mid_review", map[string]string{
+			SectionTemplateStatic: "PROMPT_midreview.md",
+		})
+	}
+	taskIdentity := formatBeadIdentity("", ctx.BeadTitle, ctx.BeadDescription, "", 0)
+	return r.computeDiagnostics("mid_review", map[string]string{
+		SectionSpec:               ctx.Spec,
+		SectionDiff:               ctx.Diff,
+		SectionAcceptanceCriteria: ctx.AcceptanceCriteria,
+		SectionTaskIdentity:       taskIdentity,
+		SectionTemplateStatic:     "PROMPT_midreview.md",
 	})
 }
 

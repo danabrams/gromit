@@ -15,6 +15,26 @@ import (
 	"github.com/danabrams/gromit/internal/procutil"
 )
 
+func TestClientRunWithEnv_UsesInjectedWaitForProcessCapacity(t *testing.T) {
+	t.Parallel()
+
+	var waitCalled bool
+	c := &Client{
+		binary: filepath.Join(t.TempDir(), "missing-bd"),
+		Deps: ClientDeps{
+			WaitForProcessCapacity: func(ctx context.Context, maxWait time.Duration) error {
+				waitCalled = true
+				return nil
+			},
+		},
+	}
+
+	_, _ = c.runWithEnv(context.Background(), []string{"ready"}, nil)
+	if !waitCalled {
+		t.Fatalf("wait hook not invoked")
+	}
+}
+
 var defaultGitPath = findDefaultGitPath()
 
 func findDefaultGitPath() string {
@@ -191,15 +211,16 @@ func TestClientRunWithEnvUsesProcutilDefaultWait(t *testing.T) {
 	sentinel := errors.New("wait stub")
 	var gotMaxWait time.Duration
 
-	restore := restoreBeadProcutilFns(t)
-	waitForProcessCapacityFn = func(ctx context.Context, maxWait time.Duration) error {
-		gotMaxWait = maxWait
-		return sentinel
+	c := &Client{
+		binary: filepath.Join(t.TempDir(), "missing-bd"),
+		Deps: ClientDeps{
+			WaitForProcessCapacity: func(ctx context.Context, maxWait time.Duration) error {
+				gotMaxWait = maxWait
+				return sentinel
+			},
+		},
 	}
-
-	c := &Client{binary: filepath.Join(t.TempDir(), "missing-bd")}
 	_, err := c.runWithEnv(context.Background(), []string{"ready"}, nil)
-	restore()
 	if !errors.Is(err, sentinel) {
 		t.Fatalf("runWithEnv() error = %v, want %v", err, sentinel)
 	}
@@ -361,19 +382,19 @@ exit 1
 }
 
 func TestClientRunAndRunCloseUseSharedRetryHelper(t *testing.T) {
+	t.Parallel()
 
 	var calls []string
-	originalFn := runWithRetryCascadeFn
-	runWithRetryCascadeFn = func(c *Client, ctx context.Context, args []string, extraEnv []string, runner func(context.Context, []string, []string) (string, error)) (string, error) {
-		if len(args) == 0 {
-			t.Fatalf("runWithRetryCascade called with no args")
-		}
-		calls = append(calls, args[0])
-		return "", nil
+	deps := ClientDeps{
+		RunWithRetryCascade: func(c *Client, ctx context.Context, args []string, extraEnv []string, runner runExecutor) (string, error) {
+			if len(args) == 0 {
+				t.Fatalf("runWithRetryCascade called with no args")
+			}
+			calls = append(calls, args[0])
+			return "", nil
+		},
 	}
-	defer func() { runWithRetryCascadeFn = originalFn }()
-
-	c := &Client{binary: "bd"}
+	c := &Client{binary: "bd", Deps: deps}
 	if _, err := c.run(context.Background(), "ready"); err != nil {
 		t.Fatalf("run() unexpected error: %v", err)
 	}
@@ -644,6 +665,38 @@ func TestClientRun_CustomCommandTimeout(t *testing.T) {
 	}
 }
 
+func TestClientRunWithRunner_UsesInjectedRetryCascade(t *testing.T) {
+	t.Parallel()
+
+	var cascadeCalled bool
+	deps := ClientDeps{
+		RunWithRetryCascade: func(c *Client, ctx context.Context, args []string, extraEnv []string, runner runExecutor) (string, error) {
+			cascadeCalled = true
+			if len(args) == 0 || args[0] != "ready" {
+				t.Fatalf("unexpected args: %v", args)
+			}
+			return "cascade", nil
+		},
+	}
+	c := &Client{Deps: deps}
+
+	runner := func(ctx context.Context, args []string, extraEnv []string) (string, error) {
+		t.Fatalf("runner should not be executed when cascade handles it")
+		return "", nil
+	}
+
+	out, err := c.runWithRunner(context.Background(), []string{"ready"}, nil, runner)
+	if err != nil {
+		t.Fatalf("runWithRunner() error = %v", err)
+	}
+	if !cascadeCalled {
+		t.Fatal("runWithRunner() did not call injected cascade")
+	}
+	if out != "cascade" {
+		t.Fatalf("runWithRunner() output = %q, want %q", out, "cascade")
+	}
+}
+
 func TestClientRunWithEnv_UsesProcutilLifecycle(t *testing.T) {
 	script := "#!/bin/sh\n" +
 		"printf 'FOO=%s\\n' \"$FOO\"\n" +
@@ -652,34 +705,30 @@ func TestClientRunWithEnv_UsesProcutilLifecycle(t *testing.T) {
 	binaryPath := writeExecutableScript(t, script)
 
 	var waitCalled bool
-	restore := restoreBeadProcutilFns(t)
-	waitForProcessCapacityFn = func(ctx context.Context, maxWait time.Duration) error {
-		waitCalled = true
-		if maxWait <= 0 {
-			t.Fatalf("expected positive maxWait, got %v", maxWait)
-		}
-		return nil
-	}
-
 	var killCalled bool
-	killDescendantsOnCancelFn = func(ctx context.Context, cmd *exec.Cmd) {
-		killCalled = true
-	}
-
 	var reapCalled bool
-	reapProcessTreeFn = func(cmd *exec.Cmd) {
-		reapCalled = true
-	}
-
 	var envCalled bool
-	subprocessEnvFn = func() []string {
-		envCalled = true
-		return []string{"FOO=proc"}
+	deps := ClientDeps{
+		WaitForProcessCapacity: func(ctx context.Context, maxWait time.Duration) error {
+			waitCalled = true
+			if maxWait <= 0 {
+				t.Fatalf("expected positive maxWait, got %v", maxWait)
+			}
+			return nil
+		},
+		KillDescendantsOnCancel: func(ctx context.Context, cmd *exec.Cmd) {
+			killCalled = true
+		},
+		ReapProcessTree: func(cmd *exec.Cmd) {
+			reapCalled = true
+		},
+		SubprocessEnv: func() []string {
+			envCalled = true
+			return []string{"FOO=proc"}
+		},
 	}
-
-	c := &Client{binary: binaryPath}
+	c := &Client{binary: binaryPath, Deps: deps}
 	out, err := c.runWithEnv(context.Background(), []string{"print-env"}, []string{"BAZ=qux"})
-	restore()
 	if err != nil {
 		t.Fatalf("runWithEnv() error = %v", err)
 	}
@@ -724,34 +773,30 @@ func TestClientRunWithEnvCombinedOutput_UsesProcutilLifecycle(t *testing.T) {
 	binaryPath := writeExecutableScript(t, script)
 
 	var waitCalled bool
-	restore := restoreBeadProcutilFns(t)
-	waitForProcessCapacityFn = func(ctx context.Context, maxWait time.Duration) error {
-		waitCalled = true
-		if maxWait <= 0 {
-			t.Fatalf("expected positive maxWait, got %v", maxWait)
-		}
-		return nil
-	}
-
 	var killCalled bool
-	killDescendantsOnCancelFn = func(ctx context.Context, cmd *exec.Cmd) {
-		killCalled = true
-	}
-
 	var reapCalled bool
-	reapProcessTreeFn = func(cmd *exec.Cmd) {
-		reapCalled = true
-	}
-
 	var envCalled bool
-	subprocessEnvFn = func() []string {
-		envCalled = true
-		return []string{"FOO=proc"}
+	deps := ClientDeps{
+		WaitForProcessCapacity: func(ctx context.Context, maxWait time.Duration) error {
+			waitCalled = true
+			if maxWait <= 0 {
+				t.Fatalf("expected positive maxWait, got %v", maxWait)
+			}
+			return nil
+		},
+		KillDescendantsOnCancel: func(ctx context.Context, cmd *exec.Cmd) {
+			killCalled = true
+		},
+		ReapProcessTree: func(cmd *exec.Cmd) {
+			reapCalled = true
+		},
+		SubprocessEnv: func() []string {
+			envCalled = true
+			return []string{"FOO=proc"}
+		},
 	}
-
-	c := &Client{binary: binaryPath}
+	c := &Client{binary: binaryPath, Deps: deps}
 	out, err := c.runWithEnvCombinedOutput(context.Background(), []string{"print-env"}, []string{"BAZ=qux"})
-	restore()
 	if err != nil {
 		t.Fatalf("runWithEnvCombinedOutput() error = %v", err)
 	}
@@ -846,14 +891,13 @@ func TestClientRunWithEnv_PreservesExplicitBeadsDir(t *testing.T) {
 		"printf 'BEADS_DIR=%s\\n' \"$BEADS_DIR\"\n"
 	binaryPath := writeExecutableScript(t, script)
 
-	restore := restoreBeadProcutilFns(t)
-	subprocessEnvFn = func() []string {
-		return []string{"BEADS_DIR=/tmp/explicit-beads"}
+	c := &Client{
+		binary: binaryPath,
+		Deps: ClientDeps{
+			SubprocessEnv: func() []string { return []string{"BEADS_DIR=/tmp/explicit-beads"} },
+		},
 	}
-
-	c := &Client{binary: binaryPath}
 	out, err := c.runWithEnv(context.Background(), []string{"print-env"}, nil)
-	restore()
 	if err != nil {
 		t.Fatalf("runWithEnv() error = %v", err)
 	}
@@ -884,23 +928,21 @@ func TestClientRepoBaseName_UsesProcutilLifecycle(t *testing.T) {
 	}
 
 	var waitCalled bool
-	restore := restoreBeadProcutilFns(t)
-	waitForProcessCapacityFn = func(ctx context.Context, maxWait time.Duration) error {
-		waitCalled = true
-		if maxWait <= 0 {
-			t.Fatalf("expected positive maxWait, got %v", maxWait)
-		}
-		return nil
-	}
-
 	var reapCalled bool
-	reapProcessTreeFn = func(cmd *exec.Cmd) {
-		reapCalled = true
+	deps := ClientDeps{
+		WaitForProcessCapacity: func(ctx context.Context, maxWait time.Duration) error {
+			waitCalled = true
+			if maxWait <= 0 {
+				t.Fatalf("expected positive maxWait, got %v", maxWait)
+			}
+			return nil
+		},
+		ReapProcessTree: func(cmd *exec.Cmd) {
+			reapCalled = true
+		},
 	}
-
-	c := &Client{Dir: repoDir}
+	c := &Client{Dir: repoDir, Deps: deps}
 	got, err := c.repoBaseName(context.Background())
-	restore()
 	if err != nil {
 		t.Fatalf("repoBaseName() error = %v", err)
 	}
@@ -924,68 +966,5 @@ func TestClientRepoBaseNameRequiresContext(t *testing.T) {
 	c := &Client{Dir: repoDir}
 	if _, err := c.repoBaseName(nil); !errors.Is(err, errContextRequired) {
 		t.Fatalf("repoBaseName(nil) error = %v, want %v", err, errContextRequired)
-	}
-}
-
-func TestRestoreBeadProcutilFns(t *testing.T) {
-	origWait := waitForProcessCapacityFn
-	origKill := killDescendantsOnCancelFn
-	origReap := reapProcessTreeFn
-	origEnv := subprocessEnvFn
-	origResolve := resolveBeadsDirFn
-
-	restore := restoreBeadProcutilFns(t)
-
-	getPtr := func(fn any) uintptr {
-		if fn == nil {
-			return 0
-		}
-		return reflect.ValueOf(fn).Pointer()
-	}
-
-	customWait := func(ctx context.Context, maxWait time.Duration) error { return fmt.Errorf("change") }
-	customKill := func(ctx context.Context, cmd *exec.Cmd) {}
-	customReap := func(cmd *exec.Cmd) {}
-	customEnv := func() []string { return []string{"FOO=bar"} }
-	customResolve := func(ctx context.Context, dir string) string { return "/tmp" }
-
-	waitForProcessCapacityFn = customWait
-	killDescendantsOnCancelFn = customKill
-	reapProcessTreeFn = customReap
-	subprocessEnvFn = customEnv
-	resolveBeadsDirFn = customResolve
-
-	if getPtr(waitForProcessCapacityFn) == getPtr(origWait) {
-		t.Fatal("wait hook was not replaced")
-	}
-	if getPtr(killDescendantsOnCancelFn) == getPtr(origKill) {
-		t.Fatal("kill hook was not replaced")
-	}
-	if getPtr(reapProcessTreeFn) == getPtr(origReap) {
-		t.Fatal("reap hook was not replaced")
-	}
-	if getPtr(subprocessEnvFn) == getPtr(origEnv) {
-		t.Fatal("env hook was not replaced")
-	}
-	if getPtr(resolveBeadsDirFn) == getPtr(origResolve) {
-		t.Fatal("resolve hook was not replaced")
-	}
-
-	restore()
-
-	if getPtr(waitForProcessCapacityFn) != getPtr(origWait) {
-		t.Fatal("wait hook was not restored")
-	}
-	if getPtr(killDescendantsOnCancelFn) != getPtr(origKill) {
-		t.Fatal("kill hook was not restored")
-	}
-	if getPtr(reapProcessTreeFn) != getPtr(origReap) {
-		t.Fatal("reap hook was not restored")
-	}
-	if getPtr(subprocessEnvFn) != getPtr(origEnv) {
-		t.Fatal("env hook was not restored")
-	}
-	if getPtr(resolveBeadsDirFn) != getPtr(origResolve) {
-		t.Fatal("resolve hook was not restored")
 	}
 }

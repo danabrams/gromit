@@ -329,3 +329,44 @@ func TestBuildTemplatesSelfCheckGuidance(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildTemplatesRenderMidReviewFindingsSection(t *testing.T) {
+	r := setupRealTemplateRenderer(t)
+
+	type renderFunc func(*Context) (string, error)
+	templates := []struct {
+		name   string
+		render renderFunc
+	}{
+		{"PROMPT_build.md", r.RenderBuild},
+		{"PROMPT_atdd_build.md", r.RenderATDDBuild},
+		{"PROMPT_tdd_build.md", r.RenderTDDBuild},
+		{"PROMPT_refactor.md", r.RenderRefactor},
+	}
+
+	findings := []string{"unexpected lint warning", "CI diff shows missing documentation"}
+	for _, tmpl := range templates {
+		t.Run(tmpl.name, func(t *testing.T) {
+			ctx := &Context{
+				Bead:                   testBead(),
+				Model:                  "sonnet",
+				Iteration:              1,
+				MidBuildReviewFindings: findings,
+			}
+
+			result, err := tmpl.render(ctx)
+			if err != nil {
+				t.Fatalf("%s: render error: %v", tmpl.name, err)
+			}
+
+			if !strings.Contains(result, "Mid-build Review Findings") {
+				t.Fatalf("%s: expected mid-review findings section header", tmpl.name)
+			}
+			for _, finding := range findings {
+				if !strings.Contains(result, finding) {
+					t.Fatalf("%s: missing finding %q", tmpl.name, finding)
+				}
+			}
+		})
+	}
+}

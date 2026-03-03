@@ -26,7 +26,7 @@ func TestBuildModeOverlay_PinsProviderAndModelFamilyAcrossModes(t *testing.T) {
 		HighTierModel:   "gpt-5.3-codex",
 	}
 
-	for _, mode := range []string{"single_pass", "tdd_shared_context", "tdd_fresh_context"} {
+	for _, mode := range []string{"single_pass", "tdd_shared_context"} {
 		overlay, err := BuildModeOverlay(manifest, mode)
 		if err != nil {
 			t.Fatalf("BuildModeOverlay(%q) error = %v", mode, err)
@@ -61,7 +61,6 @@ func TestBuildModeOverlay_UsesExpectedTierDefaultsForBuildAndValidation(t *testi
 	cases := map[string]string{
 		"single_pass":        "low",
 		"tdd_shared_context": "low",
-		"tdd_fresh_context":  "low",
 	}
 	for mode, expectedTier := range cases {
 		overlay, err := BuildModeOverlay(manifest, mode)
@@ -121,22 +120,12 @@ func TestBuildModeOverlay_ModeDifferencesAreMethodologyOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tdd_shared_context overlay error = %v", err)
 	}
-	fresh, err := BuildModeOverlay(manifest, "tdd_fresh_context")
-	if err != nil {
-		t.Fatalf("tdd_fresh_context overlay error = %v", err)
-	}
 
 	if single.BuildStrategy != "single_pass" {
 		t.Fatalf("single_pass build strategy = %q, want %q", single.BuildStrategy, "single_pass")
 	}
-	if shared.BuildStrategy != "tdd" || fresh.BuildStrategy != "tdd" {
-		t.Fatalf("tdd build strategy mismatch: shared=%q fresh=%q", shared.BuildStrategy, fresh.BuildStrategy)
-	}
-	if shared.FreshContextPerCycle {
-		t.Fatal("tdd_shared_context fresh_context_per_cycle = true, want false")
-	}
-	if !fresh.FreshContextPerCycle {
-		t.Fatal("tdd_fresh_context fresh_context_per_cycle = false, want true")
+	if shared.BuildStrategy != "tdd" {
+		t.Fatalf("tdd build strategy mismatch: shared=%q", shared.BuildStrategy)
 	}
 }
 
@@ -177,7 +166,7 @@ func TestRunModesInIsolatedWorktrees_UsesOneResolvedBaseCommitAndSameSelectedBea
 		LowTierModel:    "gpt-5.1-codex-mini",
 		MediumTierModel: "gpt-5.3-codex",
 		HighTierModel:   "gpt-5.3-codex",
-		Modes:           []string{"single_pass", "tdd_shared_context", "tdd_fresh_context"},
+		Modes:           []string{"single_pass", "tdd_shared_context"},
 	}
 	selected := []string{"gromit-1", "gromit-2", "gromit-3"}
 
@@ -195,8 +184,8 @@ func TestRunModesInIsolatedWorktrees_UsesOneResolvedBaseCommitAndSameSelectedBea
 		t.Fatalf("base commit = %q, want %q", baseCommit, "abc123")
 	}
 
-	if len(runner.requests) != 3 {
-		t.Fatalf("mode run requests = %d, want 3", len(runner.requests))
+	if len(runner.requests) != 2 {
+		t.Fatalf("mode run requests = %d, want 2", len(runner.requests))
 	}
 	for _, req := range runner.requests {
 		if req.BaseCommit != "abc123" {
@@ -224,7 +213,7 @@ func TestRunModesInIsolatedWorktrees_CleansUpEveryModeAfterSuccessfulRun(t *test
 			LowTierModel:    "gpt-5.1-codex-mini",
 			MediumTierModel: "gpt-5.3-codex",
 			HighTierModel:   "gpt-5.3-codex",
-			Modes:           []string{"single_pass", "tdd_shared_context", "tdd_fresh_context"},
+			Modes:           []string{"single_pass", "tdd_shared_context"},
 		},
 		SelectedBeads:  []string{"gromit-1", "gromit-2", "gromit-3"},
 		BaseCommitHint: "HEAD",
@@ -235,8 +224,8 @@ func TestRunModesInIsolatedWorktrees_CleansUpEveryModeAfterSuccessfulRun(t *test
 		t.Fatalf("RunModesInIsolatedWorktrees() error = %v", err)
 	}
 
-	if len(runner.cleanupModes) != 3 {
-		t.Fatalf("cleanup calls = %d, want 3", len(runner.cleanupModes))
+	if len(runner.cleanupModes) != 2 {
+		t.Fatalf("cleanup calls = %d, want %d", len(runner.cleanupModes), 2)
 	}
 }
 
@@ -251,7 +240,7 @@ func TestRunModesInIsolatedWorktrees_CleansUpFailedModeBeforeReturningError(t *t
 			LowTierModel:    "gpt-5.1-codex-mini",
 			MediumTierModel: "gpt-5.3-codex",
 			HighTierModel:   "gpt-5.3-codex",
-			Modes:           []string{"single_pass", "tdd_shared_context", "tdd_fresh_context"},
+			Modes:           []string{"single_pass", "tdd_shared_context"},
 		},
 		SelectedBeads:  []string{"gromit-1", "gromit-2", "gromit-3"},
 		BaseCommitHint: "HEAD",
@@ -287,7 +276,7 @@ func TestRunModesInIsolatedWorktrees_PersistsModeLogsToDeterministicPathBeforeCl
 			LowTierModel:    "gpt-5.1-codex-mini",
 			MediumTierModel: "gpt-5.3-codex",
 			HighTierModel:   "gpt-5.3-codex",
-			Modes:           []string{"single_pass", "tdd_shared_context", "tdd_fresh_context"},
+			Modes:           []string{"single_pass", "tdd_shared_context"},
 		},
 		SelectedBeads:  []string{"gromit-1", "gromit-2", "gromit-3"},
 		BaseCommitHint: "HEAD",
@@ -297,8 +286,8 @@ func TestRunModesInIsolatedWorktrees_PersistsModeLogsToDeterministicPathBeforeCl
 	if err != nil {
 		t.Fatalf("RunModesInIsolatedWorktrees() error = %v", err)
 	}
-	if len(runs) != 3 {
-		t.Fatalf("run count = %d, want 3", len(runs))
+	if len(runs) != 2 {
+		t.Fatalf("run count = %d, want 2", len(runs))
 	}
 
 	for _, run := range runs {
@@ -328,7 +317,7 @@ func TestRunModesInIsolatedWorktrees_ExecutesOnlyRequestedManifestModes(t *testi
 			LowTierModel:    "gpt-5.1-codex-mini",
 			MediumTierModel: "gpt-5.3-codex",
 			HighTierModel:   "gpt-5.3-codex",
-			Modes:           []string{"single_pass"},
+			Modes:           []string{"single_pass", "tdd_shared_context"},
 		},
 		SelectedBeads:  []string{"gromit-1", "gromit-2", "gromit-3"},
 		BaseCommitHint: "HEAD",
@@ -338,11 +327,14 @@ func TestRunModesInIsolatedWorktrees_ExecutesOnlyRequestedManifestModes(t *testi
 	if err != nil {
 		t.Fatalf("RunModesInIsolatedWorktrees() error = %v", err)
 	}
-	if len(runner.requests) != 1 {
-		t.Fatalf("mode run requests = %d, want 1", len(runner.requests))
+	if len(runner.requests) != 2 {
+		t.Fatalf("mode run requests = %d, want 2", len(runner.requests))
 	}
 	if runner.requests[0].Mode != "single_pass" {
-		t.Fatalf("executed mode = %q, want %q", runner.requests[0].Mode, "single_pass")
+		t.Fatalf("first mode = %q, want %q", runner.requests[0].Mode, "single_pass")
+	}
+	if runner.requests[1].Mode != "tdd_shared_context" {
+		t.Fatalf("second mode = %q, want %q", runner.requests[1].Mode, "tdd_shared_context")
 	}
 }
 
@@ -368,7 +360,7 @@ func TestRunModesInIsolatedWorktrees_ReopensSelectedBeadsBeforeEachMode(t *testi
 			LowTierModel:    "gpt-5.1-codex-mini",
 			MediumTierModel: "gpt-5.3-codex",
 			HighTierModel:   "gpt-5.3-codex",
-			Modes:           []string{"single_pass", "tdd_shared_context", "tdd_fresh_context"},
+			Modes:           []string{"single_pass", "tdd_shared_context"},
 		},
 		SelectedBeads: []string{"gromit-1", "gromit-2"},
 		Resolver:      resolver,
@@ -377,8 +369,8 @@ func TestRunModesInIsolatedWorktrees_ReopensSelectedBeadsBeforeEachMode(t *testi
 	if err != nil {
 		t.Fatalf("RunModesInIsolatedWorktrees() error = %v", err)
 	}
-	if calls != 3 {
-		t.Fatalf("ensure open calls = %d, want 3 (once per mode)", calls)
+	if calls != 2 {
+		t.Fatalf("ensure open calls = %d, want 2 (once per mode)", calls)
 	}
 }
 
@@ -399,7 +391,7 @@ func TestRunModesInIsolatedWorktrees_ReturnsOpenBeadErrorBeforeModeRun(t *testin
 			LowTierModel:    "gpt-5.1-codex-mini",
 			MediumTierModel: "gpt-5.3-codex",
 			HighTierModel:   "gpt-5.3-codex",
-			Modes:           []string{"single_pass"},
+			Modes:           []string{"single_pass", "tdd_shared_context"},
 		},
 		SelectedBeads: []string{"gromit-1"},
 		Resolver:      resolver,
@@ -447,7 +439,7 @@ func TestRunModesInIsolatedWorktrees_ExecutesOnlyManifestDeclaredModes(t *testin
 			LowTierModel:    "gpt-5.1-codex-mini",
 			MediumTierModel: "gpt-5.3-codex",
 			HighTierModel:   "gpt-5.3-codex",
-			Modes:           []string{"single_pass", "tdd_fresh_context"},
+			Modes:           []string{"single_pass", "tdd_shared_context"},
 		},
 		SelectedBeads:  []string{"gromit-1", "gromit-2", "gromit-3"},
 		BaseCommitHint: "HEAD",
@@ -458,13 +450,13 @@ func TestRunModesInIsolatedWorktrees_ExecutesOnlyManifestDeclaredModes(t *testin
 		t.Fatalf("RunModesInIsolatedWorktrees() error = %v", err)
 	}
 	if len(runner.requests) != 2 {
-		t.Fatalf("mode run requests = %d, want 2 (only manifest declared modes)", len(runner.requests))
+		t.Fatalf("mode run requests = %d, want %d (only manifest declared modes)", len(runner.requests), 2)
 	}
-	if runner.requests[0].Mode != "single_pass" {
-		t.Fatalf("first mode = %q, want %q", runner.requests[0].Mode, "single_pass")
-	}
-	if runner.requests[1].Mode != "tdd_fresh_context" {
-		t.Fatalf("second mode = %q, want %q", runner.requests[1].Mode, "tdd_fresh_context")
+	expectedModes := []string{"single_pass", "tdd_shared_context"}
+	for i, expected := range expectedModes {
+		if runner.requests[i].Mode != expected {
+			t.Fatalf("mode[%d] = %q, want %q", i, runner.requests[i].Mode, expected)
+		}
 	}
 }
 
@@ -479,7 +471,7 @@ func TestRunModesInIsolatedWorktrees_ExecutesSingleModeManifest(t *testing.T) {
 			LowTierModel:    "gpt-5.1-codex-mini",
 			MediumTierModel: "gpt-5.3-codex",
 			HighTierModel:   "gpt-5.3-codex",
-			Modes:           []string{"tdd_fresh_context"},
+			Modes:           []string{"tdd_shared_context"},
 		},
 		SelectedBeads:  []string{"gromit-1", "gromit-2", "gromit-3"},
 		BaseCommitHint: "HEAD",
@@ -492,8 +484,8 @@ func TestRunModesInIsolatedWorktrees_ExecutesSingleModeManifest(t *testing.T) {
 	if len(runner.requests) != 1 {
 		t.Fatalf("mode run requests = %d, want 1 (single mode manifest)", len(runner.requests))
 	}
-	if runner.requests[0].Mode != "tdd_fresh_context" {
-		t.Fatalf("executed mode = %q, want %q", runner.requests[0].Mode, "tdd_fresh_context")
+	if runner.requests[0].Mode != "tdd_shared_context" {
+		t.Fatalf("executed mode = %q, want %q", runner.requests[0].Mode, "tdd_shared_context")
 	}
 }
 
@@ -508,7 +500,7 @@ func TestRunModesInIsolatedWorktrees_ExecutesFullModeManifest(t *testing.T) {
 			LowTierModel:    "gpt-5.1-codex-mini",
 			MediumTierModel: "gpt-5.3-codex",
 			HighTierModel:   "gpt-5.3-codex",
-			Modes:           []string{"single_pass", "tdd_shared_context", "tdd_fresh_context"},
+			Modes:           []string{"single_pass", "tdd_shared_context"},
 		},
 		SelectedBeads:  []string{"gromit-1", "gromit-2", "gromit-3"},
 		BaseCommitHint: "HEAD",
@@ -518,10 +510,10 @@ func TestRunModesInIsolatedWorktrees_ExecutesFullModeManifest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RunModesInIsolatedWorktrees() error = %v", err)
 	}
-	if len(runner.requests) != 3 {
-		t.Fatalf("mode run requests = %d, want 3 (all three modes)", len(runner.requests))
+	if len(runner.requests) != 2 {
+		t.Fatalf("mode run requests = %d, want 2 (all manifest modes)", len(runner.requests))
 	}
-	expectedModes := []string{"single_pass", "tdd_shared_context", "tdd_fresh_context"}
+	expectedModes := []string{"single_pass", "tdd_shared_context"}
 	for i, expectedMode := range expectedModes {
 		if runner.requests[i].Mode != expectedMode {
 			t.Fatalf("mode[%d] = %q, want %q", i, runner.requests[i].Mode, expectedMode)
@@ -544,7 +536,7 @@ func TestRunModesInIsolatedWorktrees_IgnoresRunModesInputModesField(t *testing.T
 			HighTierModel:   "gpt-5.3-codex",
 			Modes:           []string{"single_pass"},
 		},
-		Modes:          []string{"tdd_shared_context", "tdd_fresh_context"},
+		Modes:          []string{"tdd_shared_context"},
 		SelectedBeads:  []string{"gromit-1", "gromit-2", "gromit-3"},
 		BaseCommitHint: "HEAD",
 		Resolver:       resolver,

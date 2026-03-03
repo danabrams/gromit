@@ -65,19 +65,8 @@ const (
 	labelMetaChars       = ";\n|$`&<>(){}[]'\"\\"
 )
 
-// procutil helpers are declared as vars so tests can replace them.
-// Tests must call restoreBeadProcutilFns(t) (or equivalent cleanup) when doing so
-// to avoid polluting other tests. The indirection also centralizes cleanup
-// helpers that need context-aware behavior during tests that exercise
-// subprocess management.
 var (
-	waitForProcessCapacityFn  = procutil.WaitForProcessCapacity
-	subprocessEnvFn           = procutil.SubprocessEnv
-	killDescendantsOnCancelFn = procutil.KillDescendantsOnCancel
-	reapProcessTreeFn         = procutil.ReapProcessTree
-	resolveBeadsDirFn         = resolveDefaultBeadsDir
-	errContextRequired        = errors.New("bead: context required")
-	runWithRetryCascadeFn     = runWithRetryCascadeDefault
+	errContextRequired = errors.New("bead: context required")
 )
 
 // DefaultCommandTimeout is the per-command timeout applied to bd subprocess
@@ -226,6 +215,60 @@ type Client struct {
 	// CommandTimeout is the maximum duration for a single bd subprocess
 	// invocation. Zero means use DefaultCommandTimeout.
 	CommandTimeout time.Duration
+	// Deps configures the external helpers used by subprocess management.
+	Deps ClientDeps
+}
+
+type runExecutor func(context.Context, []string, []string) (string, error)
+
+type runWithRetryCascadeFunc func(*Client, context.Context, []string, []string, runExecutor) (string, error)
+
+// ClientDeps centralizes the procutil helpers that Client uses for subprocess management.
+type ClientDeps struct {
+	WaitForProcessCapacity  func(context.Context, time.Duration) error
+	SubprocessEnv           func() []string
+	KillDescendantsOnCancel func(context.Context, *exec.Cmd)
+	ReapProcessTree         func(*exec.Cmd)
+	ResolveBeadsDir         func(context.Context, string) string
+	RunWithRetryCascade     runWithRetryCascadeFunc
+}
+
+func (d *ClientDeps) ensureDefaults() {
+	if d == nil {
+		return
+	}
+	if d.WaitForProcessCapacity == nil {
+		d.WaitForProcessCapacity = procutil.WaitForProcessCapacity
+	}
+	if d.SubprocessEnv == nil {
+		d.SubprocessEnv = procutil.SubprocessEnv
+	}
+	if d.KillDescendantsOnCancel == nil {
+		d.KillDescendantsOnCancel = procutil.KillDescendantsOnCancel
+	}
+	if d.ReapProcessTree == nil {
+		d.ReapProcessTree = procutil.ReapProcessTree
+	}
+	if d.ResolveBeadsDir == nil {
+		d.ResolveBeadsDir = resolveDefaultBeadsDir
+	}
+	if d.RunWithRetryCascade == nil {
+		d.RunWithRetryCascade = runWithRetryCascadeDefault
+	}
+}
+
+func newClientDeps() *ClientDeps {
+	deps := &ClientDeps{}
+	deps.ensureDefaults()
+	return deps
+}
+
+func (c *Client) resolveDeps() *ClientDeps {
+	if c == nil {
+		return newClientDeps()
+	}
+	c.Deps.ensureDefaults()
+	return &c.Deps
 }
 
 // NewClient creates a new bd client
@@ -459,7 +502,8 @@ func (c *Client) run(ctx context.Context, args ...string) (string, error) {
 }
 
 func (c *Client) runWithEnv(ctx context.Context, args []string, extraEnv []string) (string, error) {
-	if err := waitForProcessCapacityFn(ctx, procutil.DefaultProcessCapacityMaxWait); err != nil {
+	deps := c.resolveDeps()
+	if err := deps.WaitForProcessCapacity(ctx, procutil.DefaultProcessCapacityMaxWait); err != nil {
 		return "", err
 	}
 
@@ -472,12 +516,12 @@ func (c *Client) runWithEnv(ctx context.Context, args []string, extraEnv []strin
 		cmd.Dir = c.Dir
 	}
 
-	env := subprocessEnvFn()
+	env := deps.SubprocessEnv()
 	if len(extraEnv) > 0 {
 		env = append(env, extraEnv...)
 	}
 	if !envHasKey(env, "BEADS_DIR") {
-		if beadsDir := resolveBeadsDirFn(cmdCtx, c.Dir); beadsDir != "" {
+		if beadsDir := deps.ResolveBeadsDir(cmdCtx, c.Dir); beadsDir != "" {
 			env = append(env, "BEADS_DIR="+beadsDir)
 		}
 	}
@@ -491,8 +535,8 @@ func (c *Client) runWithEnv(ctx context.Context, args []string, extraEnv []strin
 	if err := cmd.Start(); err != nil {
 		return "", err
 	}
-	killDescendantsOnCancelFn(cmdCtx, cmd)
-	defer reapProcessTreeFn(cmd)
+	deps.KillDescendantsOnCancel(cmdCtx, cmd)
+	defer deps.ReapProcessTree(cmd)
 
 	if err := cmd.Wait(); err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
@@ -508,7 +552,7 @@ func (c *Client) runClose(ctx context.Context, id string) (string, error) {
 	return c.runWithRunner(ctx, args, nil, c.runWithEnvCombinedOutput)
 }
 
-func (c *Client) runWithRunner(ctx context.Context, args []string, extraEnv []string, runner func(context.Context, []string, []string) (string, error)) (string, error) {
+func (c *Client) runWithRunner(ctx context.Context, args []string, extraEnv []string, runner runExecutor) (string, error) {
 	if c.RunFn != nil {
 		return c.RunFn(args...)
 	}
@@ -516,11 +560,11 @@ func (c *Client) runWithRunner(ctx context.Context, args []string, extraEnv []st
 }
 
 // runWithRetryCascade centralizes the retry cascade shared by run variants.
-func (c *Client) runWithRetryCascade(ctx context.Context, args []string, extraEnv []string, runner func(context.Context, []string, []string) (string, error)) (string, error) {
-	return runWithRetryCascadeFn(c, ctx, args, extraEnv, runner)
+func (c *Client) runWithRetryCascade(ctx context.Context, args []string, extraEnv []string, runner runExecutor) (string, error) {
+	return c.resolveDeps().RunWithRetryCascade(c, ctx, args, extraEnv, runner)
 }
 
-func runWithRetryCascadeDefault(c *Client, ctx context.Context, args []string, extraEnv []string, runner func(context.Context, []string, []string) (string, error)) (string, error) {
+func runWithRetryCascadeDefault(c *Client, ctx context.Context, args []string, extraEnv []string, runner runExecutor) (string, error) {
 	out, err := runner(ctx, args, extraEnv)
 	if err == nil {
 		return out, nil
@@ -563,7 +607,8 @@ func runWithRetryCascadeDefault(c *Client, ctx context.Context, args []string, e
 }
 
 func (c *Client) runWithEnvCombinedOutput(ctx context.Context, args []string, extraEnv []string) (string, error) {
-	if err := waitForProcessCapacityFn(ctx, procutil.DefaultProcessCapacityMaxWait); err != nil {
+	deps := c.resolveDeps()
+	if err := deps.WaitForProcessCapacity(ctx, procutil.DefaultProcessCapacityMaxWait); err != nil {
 		return "", err
 	}
 
@@ -576,12 +621,12 @@ func (c *Client) runWithEnvCombinedOutput(ctx context.Context, args []string, ex
 		cmd.Dir = c.Dir
 	}
 
-	env := subprocessEnvFn()
+	env := deps.SubprocessEnv()
 	if len(extraEnv) > 0 {
 		env = append(env, extraEnv...)
 	}
 	if !envHasKey(env, "BEADS_DIR") {
-		if beadsDir := resolveBeadsDirFn(cmdCtx, c.Dir); beadsDir != "" {
+		if beadsDir := deps.ResolveBeadsDir(cmdCtx, c.Dir); beadsDir != "" {
 			env = append(env, "BEADS_DIR="+beadsDir)
 		}
 	}
@@ -594,8 +639,8 @@ func (c *Client) runWithEnvCombinedOutput(ctx context.Context, args []string, ex
 	if err := cmd.Start(); err != nil {
 		return "", err
 	}
-	killDescendantsOnCancelFn(cmdCtx, cmd)
-	defer reapProcessTreeFn(cmd)
+	deps.KillDescendantsOnCancel(cmdCtx, cmd)
+	defer deps.ReapProcessTree(cmd)
 
 	if err := cmd.Wait(); err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
@@ -647,7 +692,8 @@ func resolveCanonicalRepoRoot(ctx context.Context, dir string) (string, error) {
 	if err := cmd.Start(); err != nil {
 		return "", err
 	}
-	defer reapProcessTreeFn(cmd)
+	procutil.KillDescendantsOnCancel(ctx, cmd)
+	defer procutil.ReapProcessTree(cmd)
 	if err := cmd.Wait(); err != nil {
 		if strings.TrimSpace(stderr.String()) != "" {
 			return "", fmt.Errorf("%w: %s", err, strings.TrimSpace(stderr.String()))
@@ -727,7 +773,8 @@ func (c *Client) repoBaseName(ctx context.Context) (string, error) {
 	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	if err := waitForProcessCapacityFn(cmdCtx, procutil.DefaultProcessCapacityMaxWait); err != nil {
+	deps := c.resolveDeps()
+	if err := deps.WaitForProcessCapacity(cmdCtx, procutil.DefaultProcessCapacityMaxWait); err != nil {
 		return "", err
 	}
 
@@ -745,8 +792,8 @@ func (c *Client) repoBaseName(ctx context.Context) (string, error) {
 	if err := cmd.Start(); err != nil {
 		return "", err
 	}
-	killDescendantsOnCancelFn(cmdCtx, cmd)
-	defer reapProcessTreeFn(cmd)
+	deps.KillDescendantsOnCancel(cmdCtx, cmd)
+	defer deps.ReapProcessTree(cmd)
 
 	gitErr := cmd.Wait()
 	if gitErr != nil {

@@ -1958,3 +1958,33 @@ In Go, consts can only hold basic literal types (string, int, bool, etc.); compl
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-03-03 | gromit-tph0c | conventions
+When analyzing 'failures' with empty error output, verify test results first - no error output doesn't automatically mean failure occurred.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-03-03 | gromit-hpsll | gotchas
+Capture and provide actual error messages, build/test output, or failure logs when analyzing task failures—empty error sections prevent root cause analysis.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-03-03 | gromit-6lvne | gotchas
+When modifying Go files in this project, always run `gofmt -w` on changed files before running tests. The test suite enforces gofmt compliance as a gate.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-03-03 | gromit-b05fm | conventions
+When refactoring deletes files or reorganizes packages (as shown in git status with multiple D entries), verify that testdata references, golden files, and relative paths in tests are still valid. Go golden file tests are particularly sensitive to directory structure changes.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-03-03 | gromit-60e4n | conventions
+Always run `gofmt -w` on modified/new Go files before considering work complete - gofmt compliance is a hard requirement in this project's test suite
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-03-03 | gromit-2emji | conventions
+After writing Go code, run `gofmt -w` on modified files to ensure compliance with the repository's gofmt test (TestRepoGofmtCompliance); this is a mandatory check before considering work complete
+
+*Archived from new: filtered: generic engineering advice*
+

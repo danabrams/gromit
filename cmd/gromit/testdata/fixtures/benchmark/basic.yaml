@@ -9,7 +9,6 @@ beads:
 modes:
   - single_pass
   - tdd_shared_context
-  - tdd_fresh_context
 provider: openai
 model_family: gpt-5
 low_tier_model: gpt-5.1-codex-mini
