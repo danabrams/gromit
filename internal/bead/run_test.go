@@ -711,12 +711,14 @@ func TestClientRunWithEnv_PreservesExplicitBeadsDir(t *testing.T) {
 		"printf 'BEADS_DIR=%s\\n' \"$BEADS_DIR\"\n"
 	binaryPath := writeExecutableScript(t, script)
 
+	restore := restoreBeadProcutilFns(t)
 	subprocessEnvFn = func() []string {
 		return []string{"BEADS_DIR=/tmp/explicit-beads"}
 	}
 
 	c := &Client{binary: binaryPath}
 	out, err := c.runWithEnv(context.Background(), []string{"print-env"}, nil)
+	restore()
 	if err != nil {
 		t.Fatalf("runWithEnv() error = %v", err)
 	}
