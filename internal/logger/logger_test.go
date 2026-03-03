@@ -346,6 +346,34 @@ func TestReadPerBeadStatsAfterFiltersByRestartPoint(t *testing.T) {
 	}
 }
 
+func TestReadPerBeadStatsAfterIncludesRestartEntry(t *testing.T) {
+	dir := t.TempDir()
+
+	restart := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
+	later := restart.Add(time.Minute)
+	logContent := fmt.Sprintf(
+		`{"timestamp":"%s","iteration":1,"bead_id":"b1","bead_title":"Bug","model":"sonnet","success":false,"validated":false,"escalated":false,"duration_ms":1000}
+{"timestamp":"%s","iteration":2,"bead_id":"b1","bead_title":"Bug","model":"sonnet","success":true,"validated":true,"escalated":false,"duration_ms":1500}
+`, restart.Format(time.RFC3339), later.Format(time.RFC3339))
+
+	if err := os.WriteFile(filepath.Join(dir, "run-20260301-000000.jsonl"), []byte(logContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	stats, err := ReadPerBeadStatsAfter(dir, map[string]time.Time{"b1": restart})
+	if err != nil {
+		t.Fatalf("ReadPerBeadStatsAfter error: %v", err)
+	}
+
+	b1 := stats["b1"]
+	if b1.TotalRuns != 2 {
+		t.Fatalf("expected 2 total runs when restart entry should be included, got %d", b1.TotalRuns)
+	}
+	if !b1.LastAttempt.Equal(later) {
+		t.Fatalf("expected last attempt %v, got %v", later, b1.LastAttempt)
+	}
+}
+
 func TestReadPerBeadStatsAfterNilMatchesReadPerBeadStats(t *testing.T) {
 	dir := t.TempDir()
 
