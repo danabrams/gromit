@@ -11,10 +11,11 @@ func TestSpecLabelFor(t *testing.T) {
 }
 
 func TestSpecLabelPrefixConstant(t *testing.T) {
-	if specLabelPrefix != "spec:" {
-		t.Fatalf("expected specLabelPrefix to equal \"spec:\", got %q", specLabelPrefix)
+	expectedPrefix := "spec:"
+	if specLabelPrefix != expectedPrefix {
+		t.Fatalf("expected specLabelPrefix to equal %q, got %q", expectedPrefix, specLabelPrefix)
 	}
-	if SpecLabelPrefix != specLabelPrefix {
-		t.Fatalf("expected exported SpecLabelPrefix to re-use specLabelPrefix, got %q", SpecLabelPrefix)
+	if SpecLabelPrefix != expectedPrefix {
+		t.Fatalf("expected exported SpecLabelPrefix to equal %q, got %q", expectedPrefix, SpecLabelPrefix)
 	}
 }
