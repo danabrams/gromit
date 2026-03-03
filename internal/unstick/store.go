@@ -1,6 +1,8 @@
 package unstick
 
 import (
+    "encoding/json"
+    "os"
     "path/filepath"
     "sync"
     "time"
@@ -50,4 +52,46 @@ func (s *Store) All() map[string]time.Time {
         result[id] = point.Time
     }
     return result
+}
+
+// Save writes the restart points to disk so they can be restored later.
+func (s *Store) Save() error {
+    s.mu.RLock()
+    data := make(map[string]RestartPoint, len(s.points))
+    for k, v := range s.points {
+        data[k] = v
+    }
+    s.mu.RUnlock()
+
+    if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
+        return err
+    }
+
+    body, err := json.MarshalIndent(data, "", "  ")
+    if err != nil {
+        return err
+    }
+
+    return os.WriteFile(s.path, body, 0o644)
+}
+
+// Load populates the store from the persisted restart-point state.
+func (s *Store) Load() error {
+    contents, err := os.ReadFile(s.path)
+    if err != nil {
+        if os.IsNotExist(err) {
+            return nil
+        }
+        return err
+    }
+
+    var data map[string]RestartPoint
+    if err := json.Unmarshal(contents, &data); err != nil {
+        return err
+    }
+
+    s.mu.Lock()
+    s.points = data
+    s.mu.Unlock()
+    return nil
 }
