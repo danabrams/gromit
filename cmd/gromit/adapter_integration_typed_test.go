@@ -218,22 +218,22 @@ type beadClientWithContext interface {
 
 var _ beadClientWithContext = (*mockBeadForIntegration)(nil)
 
-func (m *mockBeadForIntegration) Ready() (*pipeline.BeadInfo, error) {
+func (m *mockBeadForIntegration) Ready(ctx context.Context) (*pipeline.BeadInfo, error) {
 	return m.info, m.err
 }
 
-func (m *mockBeadForIntegration) Show(id string) (*pipeline.BeadInfo, error) {
+func (m *mockBeadForIntegration) Show(ctx context.Context, id string) (*pipeline.BeadInfo, error) {
 	return m.info, m.err
 }
 
-func (m *mockBeadForIntegration) Create(title string, priority int, labels, outputs []string) (*pipeline.BeadInfo, error) {
+func (m *mockBeadForIntegration) Create(ctx context.Context, title string, priority int, labels, outputs []string) (*pipeline.BeadInfo, error) {
 	return m.info, m.err
 }
 
-func (m *mockBeadForIntegration) CreateWithDepsAndDescription(title string, priority int, labels, criteria, deps []string, desc string) (*pipeline.BeadInfo, error) {
+func (m *mockBeadForIntegration) CreateWithDepsAndDescription(ctx context.Context, title string, priority int, labels, criteria, deps []string, desc string) (*pipeline.BeadInfo, error) {
 	return m.info, m.err
 }
 
-func (m *mockBeadForIntegration) Close(id string) error {
+func (m *mockBeadForIntegration) Close(ctx context.Context, id string) error {
 	return m.err
 }
