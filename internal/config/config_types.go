@@ -600,6 +600,29 @@ type GateConfig struct {
 type RegressionGateConfig struct {
 	Enabled bool   `yaml:"enabled"`
 	Command string `yaml:"command"`
+
+	enabledSet bool `yaml:"-"`
+}
+
+func (c *RegressionGateConfig) UnmarshalYAML(value *yaml.Node) error {
+	if value == nil {
+		return nil
+	}
+
+	type regressionGateConfigAlias struct {
+		Enabled bool   `yaml:"enabled"`
+		Command string `yaml:"command"`
+	}
+
+	var decoded regressionGateConfigAlias
+	if err := value.Decode(&decoded); err != nil {
+		return err
+	}
+
+	c.Enabled = decoded.Enabled
+	c.Command = decoded.Command
+	c.enabledSet = yamlMappingHasKey(value, "enabled")
+	return nil
 }
 
 type QualityGatesConfig struct {
@@ -609,6 +632,27 @@ type QualityGatesConfig struct {
 
 type WiringGateConfig struct {
 	Enabled bool `yaml:"enabled"`
+
+	enabledSet bool `yaml:"-"`
+}
+
+func (c *WiringGateConfig) UnmarshalYAML(value *yaml.Node) error {
+	if value == nil {
+		return nil
+	}
+
+	type wiringGateConfigAlias struct {
+		Enabled bool `yaml:"enabled"`
+	}
+
+	var decoded wiringGateConfigAlias
+	if err := value.Decode(&decoded); err != nil {
+		return err
+	}
+
+	c.Enabled = decoded.Enabled
+	c.enabledSet = yamlMappingHasKey(value, "enabled")
+	return nil
 }
 
 type SpecGateConfig struct {

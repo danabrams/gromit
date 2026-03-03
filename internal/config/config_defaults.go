@@ -12,6 +12,7 @@ const (
 	defaultCostOptimizedMaxDecompositionDepth     = 10
 	defaultCostOptimizedMaxRetriesBeforeDecompose = 2
 	defaultMergePipelineRetryCapDefault           = 3
+	defaultQualityGatesRegressionCommand          = "go test ./..."
 )
 
 var defaultPrecheckBypassIssueTypes = []string{
@@ -487,5 +488,24 @@ func (c *Config) SetDefaults() {
 	}
 	if c.SpecPR.MaxOpenPRs == 0 {
 		c.SpecPR.MaxOpenPRs = 3
+	}
+
+	if c.QualityGates == nil {
+		c.QualityGates = &QualityGatesConfig{}
+	}
+	if c.QualityGates.Regression == nil {
+		c.QualityGates.Regression = &RegressionGateConfig{}
+	}
+	if !c.QualityGates.Regression.enabledSet {
+		c.QualityGates.Regression.Enabled = true
+	}
+	if c.QualityGates.Regression.Command == "" {
+		c.QualityGates.Regression.Command = defaultQualityGatesRegressionCommand
+	}
+	if c.QualityGates.Wiring == nil {
+		c.QualityGates.Wiring = &WiringGateConfig{}
+	}
+	if !c.QualityGates.Wiring.enabledSet {
+		c.QualityGates.Wiring.Enabled = true
 	}
 }
