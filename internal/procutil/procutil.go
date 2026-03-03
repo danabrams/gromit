@@ -18,9 +18,11 @@ import (
 const MaxGoParallelism = "4"
 
 const (
-	processPressureThreshold      = 0.90
-	processPressurePollInterval   = 100 * time.Millisecond
-	defaultProcessCapacityMaxWait = 1500 * time.Millisecond
+	processPressureThreshold    = 0.90
+	processPressurePollInterval = 100 * time.Millisecond
+	// DefaultProcessCapacityMaxWait is the default maximum duration to wait when
+	// PID pressure is detected before returning an error.
+	DefaultProcessCapacityMaxWait = 1500 * time.Millisecond
 )
 
 var processCreationPressuredFn = processCreationPressured
@@ -167,7 +169,7 @@ func SubprocessEnv() []string {
 // if cgroup metrics are unavailable, it returns immediately.
 func WaitForProcessCapacity(ctx context.Context, maxWait time.Duration) error {
 	if maxWait <= 0 {
-		maxWait = defaultProcessCapacityMaxWait
+		maxWait = DefaultProcessCapacityMaxWait
 	}
 
 	start := timeNowFn()

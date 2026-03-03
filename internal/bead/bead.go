@@ -54,16 +54,15 @@ var validBeadID = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
 // Maximum lengths for bead fields
 const (
-	maxIDLength                = 128
-	maxTitleLength             = 512
-	maxDescriptionLength       = 16384
-	maxLabelLength             = 128
-	maxLabelCount              = 64
-	minPriority                = 0
-	maxPriority                = 4
-	defaultBDBinary            = "bd"
-	labelMetaChars             = ";\n|$`&<>(){}[]'\"\\"
-	commandProcessCapacityWait = 1500 * time.Millisecond
+	maxIDLength          = 128
+	maxTitleLength       = 512
+	maxDescriptionLength = 16384
+	maxLabelLength       = 128
+	maxLabelCount        = 64
+	minPriority          = 0
+	maxPriority          = 4
+	defaultBDBinary      = "bd"
+	labelMetaChars       = ";\n|$`&<>(){}[]'\"\\"
 )
 
 var (
@@ -477,7 +476,7 @@ func (c *Client) run(ctx context.Context, args ...string) (string, error) {
 }
 
 func (c *Client) runWithEnv(ctx context.Context, args []string, extraEnv []string) (string, error) {
-	if err := waitForProcessCapacityFn(ctx, commandProcessCapacityWait); err != nil {
+	if err := waitForProcessCapacityFn(ctx, procutil.DefaultProcessCapacityMaxWait); err != nil {
 		return "", err
 	}
 
@@ -566,7 +565,7 @@ func (c *Client) runClose(ctx context.Context, id string) (string, error) {
 }
 
 func (c *Client) runWithEnvCombinedOutput(ctx context.Context, args []string, extraEnv []string) (string, error) {
-	if err := waitForProcessCapacityFn(ctx, commandProcessCapacityWait); err != nil {
+	if err := waitForProcessCapacityFn(ctx, procutil.DefaultProcessCapacityMaxWait); err != nil {
 		return "", err
 	}
 
@@ -730,7 +729,7 @@ func (c *Client) repoBaseName(ctx context.Context) (string, error) {
 	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	if err := waitForProcessCapacityFn(cmdCtx, commandProcessCapacityWait); err != nil {
+	if err := waitForProcessCapacityFn(cmdCtx, procutil.DefaultProcessCapacityMaxWait); err != nil {
 		return "", err
 	}
 
