@@ -203,3 +203,14 @@ func TestPhaseMetricSingularType(t *testing.T) {
 		t.Errorf("PhaseMetric.Phase: want %q, got %q", "refactor", m.Phase)
 	}
 }
+
+func TestOutputHoldsWiringFailures(t *testing.T) {
+	failures := []string{"symbol mismatch", "wiring error"}
+	out := pipeline.Output{WiringFailures: failures}
+	if len(out.WiringFailures) != 2 {
+		t.Errorf("Output.WiringFailures: want 2 items, got %d", len(out.WiringFailures))
+	}
+	if out.WiringFailures[0] != "symbol mismatch" {
+		t.Errorf("Output.WiringFailures[0]: want %q, got %q", "symbol mismatch", out.WiringFailures[0])
+	}
+}
