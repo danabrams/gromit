@@ -135,8 +135,9 @@ type Deps struct {
 
 // Pipeline orchestrates workflow execution.
 type Pipeline struct {
-	deps  *Deps
-	paths *Paths
+	deps    *Deps
+	paths   *Paths
+	emitter eventEmitter
 }
 
 // New creates a new Pipeline with the given dependencies and paths.
