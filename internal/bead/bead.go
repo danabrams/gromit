@@ -66,8 +66,10 @@ const (
 )
 
 // procutil helpers are declared as vars so tests can replace them.
-// The indirection also centralizes cleanup helpers that need context-aware
-// behavior during tests that exercise subprocess management.
+// Tests must call restoreBeadProcutilFns(t) (or equivalent cleanup) when doing so
+// to avoid polluting other tests. The indirection also centralizes cleanup
+// helpers that need context-aware behavior during tests that exercise
+// subprocess management.
 var (
 	waitForProcessCapacityFn  = procutil.WaitForProcessCapacity
 	subprocessEnvFn           = procutil.SubprocessEnv

@@ -156,8 +156,7 @@ func TestClientRunWithEnvUsesProcutilDefaultWait(t *testing.T) {
 	sentinel := errors.New("wait stub")
 	var gotMaxWait time.Duration
 
-	originalWait := waitForProcessCapacityFn
-	defer func() { waitForProcessCapacityFn = originalWait }()
+	restore := restoreBeadProcutilFns(t)
 	waitForProcessCapacityFn = func(ctx context.Context, maxWait time.Duration) error {
 		gotMaxWait = maxWait
 		return sentinel
@@ -165,6 +164,7 @@ func TestClientRunWithEnvUsesProcutilDefaultWait(t *testing.T) {
 
 	c := &Client{binary: filepath.Join(t.TempDir(), "missing-bd")}
 	_, err := c.runWithEnv(context.Background(), []string{"ready"}, nil)
+	restore()
 	if !errors.Is(err, sentinel) {
 		t.Fatalf("runWithEnv() error = %v, want %v", err, sentinel)
 	}
@@ -517,8 +517,7 @@ func TestClientRunWithEnv_UsesProcutilLifecycle(t *testing.T) {
 	binaryPath := writeExecutableScript(t, script)
 
 	var waitCalled bool
-	oldWait := waitForProcessCapacityFn
-	t.Cleanup(func() { waitForProcessCapacityFn = oldWait })
+	restore := restoreBeadProcutilFns(t)
 	waitForProcessCapacityFn = func(ctx context.Context, maxWait time.Duration) error {
 		waitCalled = true
 		if maxWait <= 0 {
@@ -528,22 +527,16 @@ func TestClientRunWithEnv_UsesProcutilLifecycle(t *testing.T) {
 	}
 
 	var killCalled bool
-	oldKill := killDescendantsOnCancelFn
-	t.Cleanup(func() { killDescendantsOnCancelFn = oldKill })
 	killDescendantsOnCancelFn = func(ctx context.Context, cmd *exec.Cmd) {
 		killCalled = true
 	}
 
 	var reapCalled bool
-	oldReap := reapProcessTreeFn
-	t.Cleanup(func() { reapProcessTreeFn = oldReap })
 	reapProcessTreeFn = func(cmd *exec.Cmd) {
 		reapCalled = true
 	}
 
 	var envCalled bool
-	oldSubprocessEnv := subprocessEnvFn
-	t.Cleanup(func() { subprocessEnvFn = oldSubprocessEnv })
 	subprocessEnvFn = func() []string {
 		envCalled = true
 		return []string{"FOO=proc"}
@@ -551,6 +544,7 @@ func TestClientRunWithEnv_UsesProcutilLifecycle(t *testing.T) {
 
 	c := &Client{binary: binaryPath}
 	out, err := c.runWithEnv(context.Background(), []string{"print-env"}, []string{"BAZ=qux"})
+	restore()
 	if err != nil {
 		t.Fatalf("runWithEnv() error = %v", err)
 	}
@@ -595,8 +589,7 @@ func TestClientRunWithEnvCombinedOutput_UsesProcutilLifecycle(t *testing.T) {
 	binaryPath := writeExecutableScript(t, script)
 
 	var waitCalled bool
-	oldWait := waitForProcessCapacityFn
-	t.Cleanup(func() { waitForProcessCapacityFn = oldWait })
+	restore := restoreBeadProcutilFns(t)
 	waitForProcessCapacityFn = func(ctx context.Context, maxWait time.Duration) error {
 		waitCalled = true
 		if maxWait <= 0 {
@@ -606,22 +599,16 @@ func TestClientRunWithEnvCombinedOutput_UsesProcutilLifecycle(t *testing.T) {
 	}
 
 	var killCalled bool
-	oldKill := killDescendantsOnCancelFn
-	t.Cleanup(func() { killDescendantsOnCancelFn = oldKill })
 	killDescendantsOnCancelFn = func(ctx context.Context, cmd *exec.Cmd) {
 		killCalled = true
 	}
 
 	var reapCalled bool
-	oldReap := reapProcessTreeFn
-	t.Cleanup(func() { reapProcessTreeFn = oldReap })
 	reapProcessTreeFn = func(cmd *exec.Cmd) {
 		reapCalled = true
 	}
 
 	var envCalled bool
-	oldSubprocessEnv := subprocessEnvFn
-	t.Cleanup(func() { subprocessEnvFn = oldSubprocessEnv })
 	subprocessEnvFn = func() []string {
 		envCalled = true
 		return []string{"FOO=proc"}
@@ -629,6 +616,7 @@ func TestClientRunWithEnvCombinedOutput_UsesProcutilLifecycle(t *testing.T) {
 
 	c := &Client{binary: binaryPath}
 	out, err := c.runWithEnvCombinedOutput(context.Background(), []string{"print-env"}, []string{"BAZ=qux"})
+	restore()
 	if err != nil {
 		t.Fatalf("runWithEnvCombinedOutput() error = %v", err)
 	}
@@ -761,8 +749,7 @@ func TestClientRepoBaseName_UsesProcutilLifecycle(t *testing.T) {
 	}
 
 	var waitCalled bool
-	oldWait := waitForProcessCapacityFn
-	t.Cleanup(func() { waitForProcessCapacityFn = oldWait })
+	restore := restoreBeadProcutilFns(t)
 	waitForProcessCapacityFn = func(ctx context.Context, maxWait time.Duration) error {
 		waitCalled = true
 		if maxWait <= 0 {
@@ -772,14 +759,13 @@ func TestClientRepoBaseName_UsesProcutilLifecycle(t *testing.T) {
 	}
 
 	var reapCalled bool
-	oldReap := reapProcessTreeFn
-	t.Cleanup(func() { reapProcessTreeFn = oldReap })
 	reapProcessTreeFn = func(cmd *exec.Cmd) {
 		reapCalled = true
 	}
 
 	c := &Client{Dir: repoDir}
 	got, err := c.repoBaseName(context.Background())
+	restore()
 	if err != nil {
 		t.Fatalf("repoBaseName() error = %v", err)
 	}
