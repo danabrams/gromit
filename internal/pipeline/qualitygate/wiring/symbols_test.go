@@ -95,3 +95,28 @@ func TestExtractSymbolsFromDiff_SkipsDeferredSymbols(t *testing.T) {
         t.Fatalf("ExtractSymbolsFromDiff() = %v, want no symbols", got)
     }
 }
+
+func TestExtractSymbolsFromDiff_SkipsInterfaceMethods(t *testing.T) {
+    diff := strings.Join([]string{
+        "diff --git a/foo.go b/foo.go",
+        "new file mode 100644",
+        "index 0000000..1111111",
+        "--- /dev/null",
+        "+++ b/foo.go",
+        "@@ -0,0 +1,11 @@",
+        "+package foo",
+        "+",
+        "+type Outer struct {",
+        "+    Inner interface {",
+        "+        Burp()",
+        "+    }",
+        "+}",
+    }, "\n")
+
+    got := wiring.ExtractSymbolsFromDiff(diff)
+    for _, sym := range got {
+        if sym.Name == "Burp" {
+            t.Fatalf("interface method Burp should be skipped: %v", got)
+        }
+    }
+}
