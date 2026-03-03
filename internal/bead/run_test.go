@@ -15,6 +15,26 @@ import (
 	"github.com/danabrams/gromit/internal/procutil"
 )
 
+func TestClientRunWithEnv_UsesInjectedWaitForProcessCapacity(t *testing.T) {
+	t.Parallel()
+
+	var waitCalled bool
+	c := &Client{
+		binary: filepath.Join(t.TempDir(), "missing-bd"),
+		Deps: ClientDeps{
+			WaitForProcessCapacity: func(ctx context.Context, maxWait time.Duration) error {
+				waitCalled = true
+				return nil
+			},
+		},
+	}
+
+	_, _ = c.runWithEnv(context.Background(), []string{"ready"}, nil)
+	if !waitCalled {
+		t.Fatalf("wait hook not invoked")
+	}
+}
+
 var defaultGitPath = findDefaultGitPath()
 
 func findDefaultGitPath() string {
