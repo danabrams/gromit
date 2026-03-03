@@ -3,12 +3,12 @@ package prompt
 import "github.com/danabrams/gromit/internal/learnings"
 
 var phaseProfiles = map[string]func(*Context){
-	"decompose":      applyDecomposeProfile,
-	"red":            applyRedProfile,
-	"build":          applyImplementationProfile,
-	"green":          applyImplementationProfile,
-	"refactor":       applyRefactorProfile,
-	"review":         applyNoOpPhaseProfile,
+	"decompose":       applyDecomposeProfile,
+	"red":             applyRedProfile,
+	"build":           applyImplementationProfile,
+	"green":           applyImplementationProfile,
+	"refactor":        applyRefactorProfile,
+	"review":          applyNoOpPhaseProfile,
 	"thorough_review": applyNoOpPhaseProfile,
 }
 
