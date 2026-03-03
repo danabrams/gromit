@@ -22,7 +22,6 @@ type escalationBuildStage struct {
 	handler          *escalation.Handler
 	execInvoker      *execution.Invoker
 	renderer         execute.PromptRenderer
-	fallback         pipeline.Stage
 	promptRegistry   *buildPromptRegistry
 	cacheVersionKey  string
 	providerCostDefs map[string]config.ProviderDef
@@ -148,7 +147,6 @@ func newEscalationBuildStage(
 	createSubFn escalation.CreateSubFn,
 	execInvoker *execution.Invoker,
 	renderer *prompt.Renderer,
-	fallback pipeline.Stage,
 	registry *buildPromptRegistry,
 	cacheVersionKey string,
 	costDefs map[string]config.ProviderDef,
@@ -164,7 +162,6 @@ func newEscalationBuildStage(
 		handler:          handler,
 		execInvoker:      execInvoker,
 		renderer:         &renderAdapter{r: renderer, promptRegistry: registry},
-		fallback:         fallback,
 		promptRegistry:   registry,
 		cacheVersionKey:  cacheVersionKey,
 		providerCostDefs: costDefs,

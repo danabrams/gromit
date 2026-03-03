@@ -34,18 +34,6 @@ func (r *stubRenderer) RenderRefactorBuild(title, description string, validation
 	return r.prompt, r.err
 }
 
-// stubFallbackStage implements pipeline.Stage for fallback delegation tests.
-type stubFallbackStage struct {
-	called bool
-	out    pipeline.Output
-	err    error
-}
-
-func (s *stubFallbackStage) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
-	s.called = true
-	return s.out, s.err
-}
-
 func TestEscalationBuildStage_RendersPromptDespiteFreshContext(t *testing.T) {
 	t.Parallel()
 
@@ -75,14 +63,6 @@ func TestEscalationBuildStage_RendersPromptDespiteFreshContext(t *testing.T) {
 		execInvoker: invoker,
 		renderer:    renderer,
 	}
-	fallback := &stubFallbackStage{
-		out: pipeline.Output{
-			Decision: pipeline.Proceed,
-			Model:    "fallback",
-		},
-	}
-	stage.fallback = fallback
-
 	in := pipeline.Input{
 		Bead: &bead.Bead{
 			ID:          "fresh-bead",
@@ -101,50 +81,10 @@ func TestEscalationBuildStage_RendersPromptDespiteFreshContext(t *testing.T) {
 	if renderer.tddCalls == 0 {
 		t.Fatal("expected TDD renderer to run even when FreshContextPerCycle is set")
 	}
-	if fallback == nil {
-		t.Fatal("fallback stage should be set for this test")
-	}
-	if fallback.called {
-		t.Fatal("expected fallback stage not to be invoked when handler path succeeds")
-	}
 	if out.Model == "" {
 		t.Fatal("expected handler path to populate output model")
 	}
 }
-
-func TestEscalationBuildStage_FallsBackForTDDFreshContext(t *testing.T) {
-	t.Parallel()
-
-	fallback := &stubFallbackStage{
-		out: pipeline.Output{Decision: pipeline.Proceed, Model: "from-fallback"},
-	}
-	stage := &escalationBuildStage{
-		fallback: fallback,
-		renderer: &stubRenderer{prompt: "test prompt"},
-	}
-
-	in := pipeline.Input{
-		Bead: &bead.Bead{Title: "test", Labels: []string{"tdd:true"}},
-		Config: &config.Config{
-			Methodology: config.MethodologyConfig{
-				TDD:                  true,
-				FreshContextPerCycle: true,
-			},
-		},
-	}
-
-	out, err := stage.Run(context.Background(), in)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !fallback.called {
-		t.Fatal("expected fallback stage to be called for TDD fresh-context")
-	}
-	if out.Model != "from-fallback" {
-		t.Errorf("expected model 'from-fallback', got %q", out.Model)
-	}
-}
-
 func TestEscalationBuildStage_DelegatesToHandlerOnEscalationEnabled(t *testing.T) {
 	t.Parallel()
 
@@ -176,7 +116,6 @@ func TestEscalationBuildStage_DelegatesToHandlerOnEscalationEnabled(t *testing.T
 	stage := &escalationBuildStage{
 		handler:     handler,
 		renderer:    &stubRenderer{prompt: "build this thing"},
-		fallback:    &stubFallbackStage{},
 		execInvoker: nil, // we'll use a custom invokeFn via handler
 	}
 

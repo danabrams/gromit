@@ -197,7 +197,7 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 			cfg, analyzerObj, beadsClient,
 			decomposer.DecomposeToSubTasks, decomposer.CreateSubBeads,
 			buildExecInvoker, renderer,
-			buildStage, buildPromptRegistry, buildCacheVersionKey, costDefs, syncOut,
+			buildPromptRegistry, buildCacheVersionKey, costDefs, syncOut,
 		)
 	}
 
