@@ -173,10 +173,13 @@ func WaitForProcessCapacity(ctx context.Context, maxWait time.Duration) error {
 	start := timeNowFn()
 	deadline := start.Add(maxWait)
 	for {
+		if err := ctxErrOrNil(ctx); err != nil {
+			return err
+		}
 		pressured, err := processCreationPressuredFn()
 		if err != nil || !pressured {
-			if ctxErr := ctx.Err(); ctxErr != nil {
-				return ctxErr
+			if err := ctxErrOrNil(ctx); err != nil {
+				return err
 			}
 			return nil
 		}
@@ -211,6 +214,13 @@ func SleepWithContext(ctx context.Context, d time.Duration) error {
 	case <-timer.C:
 		return nil
 	}
+}
+
+func ctxErrOrNil(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func processCreationPressured() (bool, error) {
