@@ -441,7 +441,7 @@ func (c *Client) run(ctx context.Context, args ...string) (string, error) {
 	if c.RunFn != nil {
 		return c.RunFn(args...)
 	}
-	return c.runWithRetryCascade(ctx, args, c.runWithEnv)
+	return c.runWithRetryCascade(ctx, args, nil, c.runWithEnv)
 }
 
 func (c *Client) runWithEnv(ctx context.Context, args []string, extraEnv []string) (string, error) {
@@ -494,17 +494,19 @@ func (c *Client) runClose(ctx context.Context, id string) (string, error) {
 		return c.RunFn("close", id)
 	}
 	args := []string{"close", id}
-	return c.runWithRetryCascade(ctx, args, c.runWithEnvCombinedOutput)
+	return c.runWithRetryCascade(ctx, args, nil, c.runWithEnvCombinedOutput)
 }
 
 // runWithRetryCascade centralizes the retry cascade shared by run variants.
-func (c *Client) runWithRetryCascade(ctx context.Context, args []string, runner func(context.Context, []string, []string) (string, error)) (string, error) {
-	out, err := runner(ctx, args, nil)
+func (c *Client) runWithRetryCascade(ctx context.Context, args []string, extraEnv []string, runner func(context.Context, []string, []string) (string, error)) (string, error) {
+	out, err := runner(ctx, args, extraEnv)
 	if err == nil {
 		return out, nil
 	}
 	if shouldRetryWithNoDB(err) && !beadsNoDBAlreadyEnabled() {
-		retryOut, retryErr := runner(ctx, args, []string{"BEADS_NO_DB=true"})
+		retryEnv := append([]string(nil), extraEnv...)
+		retryEnv = append(retryEnv, "BEADS_NO_DB=true")
+		retryOut, retryErr := runner(ctx, args, retryEnv)
 		if retryErr == nil {
 			return retryOut, nil
 		}
@@ -514,7 +516,7 @@ func (c *Client) runWithRetryCascade(ctx context.Context, args []string, runner 
 		if _, syncErr := c.runWithEnv(ctx, []string{"init", "--from-jsonl"}, nil); syncErr != nil {
 			return "", fmt.Errorf("%w (auto re-sync via 'bd init --from-jsonl' failed: %v)", err, syncErr)
 		}
-		retryOut, retryErr := runner(ctx, args, nil)
+		retryOut, retryErr := runner(ctx, args, extraEnv)
 		if retryErr == nil {
 			return retryOut, nil
 		}
@@ -529,7 +531,7 @@ func (c *Client) runWithRetryCascade(ctx context.Context, args []string, runner 
 		if _, setErr := c.runWithEnv(ctx, []string{"config", "set", "issue_prefix", prefix}, nil); setErr != nil {
 			return "", fmt.Errorf("%w (auto-set issue_prefix=%q failed: %v)", err, prefix, setErr)
 		}
-		retryOut, retryErr := runner(ctx, args, nil)
+		retryOut, retryErr := runner(ctx, args, extraEnv)
 		if retryErr == nil {
 			return retryOut, nil
 		}

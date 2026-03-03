@@ -349,7 +349,7 @@ func TestClientRunWithRetryCascade_RetriesWithNoDB(t *testing.T) {
 	}
 
 	c := &Client{}
-	out, err := c.runWithRetryCascade(context.Background(), []string{"ready"}, runner)
+	out, err := c.runWithRetryCascade(context.Background(), []string{"ready"}, nil, runner)
 	if err != nil {
 		t.Fatalf("runWithRetryCascade() error = %v", err)
 	}
