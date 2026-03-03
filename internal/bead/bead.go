@@ -65,6 +65,9 @@ const (
 	labelMetaChars       = ";\n|$`&<>(){}[]'\"\\"
 )
 
+// procutil helpers are declared as vars so tests can replace them.
+// The indirection also centralizes cleanup helpers that need context-aware
+// behavior during tests that exercise subprocess management.
 var (
 	waitForProcessCapacityFn  = procutil.WaitForProcessCapacity
 	subprocessEnvFn           = procutil.SubprocessEnv
