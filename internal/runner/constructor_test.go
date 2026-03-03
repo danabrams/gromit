@@ -18,6 +18,7 @@ import (
 	"github.com/danabrams/gromit/internal/integrationqueue"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/pipeline/prepare"
+	wiringgate "github.com/danabrams/gromit/internal/pipeline/qualitygate/wiring"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/escalation"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
@@ -1255,6 +1256,43 @@ func TestNewRunnerImpl_WiresRegressionGate(t *testing.T) {
 	}
 	if orch.cfg.RegressionGate == nil {
 		t.Fatal("newRunnerImpl did not wire RegressionGate stage")
+	}
+}
+
+func TestNewRunnerImpl_WiresWiringGate(t *testing.T) {
+	t.Parallel()
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	_ = os.MkdirAll(filepath.Join(gromitDir, "templates"), 0o755)
+	_ = os.MkdirAll(filepath.Join(gromitDir, "specs"), 0o755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "logs"), 0o755)
+	claudePath := filepath.Join(gromitDir, "CLAUDE.md")
+	if err := os.WriteFile(claudePath, []byte("# CLAUDE\n"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(%q): %v", claudePath, err)
+	}
+
+	cfg := &config.Config{
+		QualityGates: &config.QualityGatesConfig{
+			Wiring: &config.WiringGateConfig{
+				Enabled: true,
+			},
+		},
+	}
+	cfg.Paths.Templates = filepath.Join(gromitDir, "templates")
+	cfg.Paths.Specs = filepath.Join(gromitDir, "specs")
+	cfg.Paths.Logs = filepath.Join(tmpDir, "logs")
+	cfg.Paths.ProjectClaudeMD = claudePath
+	cfg.Paths.GromitDir = gromitDir
+
+	orch, err := newRunnerImpl(cfg, io.Discard, nil)
+	if err != nil {
+		t.Fatalf("newRunnerImpl: %v", err)
+	}
+	if orch.cfg.WiringGate == nil {
+		t.Fatal("newRunnerImpl did not wire WiringGate stage")
+	}
+	if _, ok := orch.cfg.WiringGate.(*wiringgate.Gate); !ok {
+		t.Fatalf("WiringGate stage is %T, want *wiringgate.Gate", orch.cfg.WiringGate)
 	}
 }
 
