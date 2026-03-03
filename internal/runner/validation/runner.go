@@ -66,6 +66,18 @@ func NewRunner(cfg *config.Config, cmdRunner runtypes.CmdRunnerFn, autoFixFn run
 	}
 }
 
+// SetLogOutput allows tests or callers to override where validation logs are emitted.
+func (r *Runner) SetLogOutput(w io.Writer) {
+	if r == nil {
+		return
+	}
+	if w == nil {
+		r.logOutput = os.Stderr
+		return
+	}
+	r.logOutput = w
+}
+
 // Failures returns the accumulated validation failure summaries from this run.
 func (r *Runner) Failures() []string {
 	return r.failures
