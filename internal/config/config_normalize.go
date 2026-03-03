@@ -86,6 +86,15 @@ func (c *Config) NormalizeNilFields() {
 	if c.Routing.Ratio == nil {
 		c.Routing.Ratio = make(map[string]int)
 	}
+	if c.QualityGates == nil {
+		c.QualityGates = &QualityGatesConfig{}
+	}
+	if c.QualityGates.Regression == nil {
+		c.QualityGates.Regression = &RegressionGateConfig{}
+	}
+	if c.QualityGates.Wiring == nil {
+		c.QualityGates.Wiring = &WiringGateConfig{}
+	}
 }
 
 func normalizeProviderModelCosts(costs map[string]*ModelCost) map[string]*ModelCost {
