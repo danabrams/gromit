@@ -636,11 +636,21 @@ func newPipelineStore(t *testing.T) (*Store, *bead.Bead) {
 type mockPipelineListModel struct {
 	called int
 	items  []ListItem
+	cursorUpCalls   int
+	cursorDownCalls int
 }
 
 func (m *mockPipelineListModel) SetItems(items []ListItem) {
 	m.called++
 	m.items = items
+}
+
+func (m *mockPipelineListModel) CursorUp() {
+	m.cursorUpCalls++
+}
+
+func (m *mockPipelineListModel) CursorDown() {
+	m.cursorDownCalls++
 }
 
 func TestModel_PipelineRefreshUpdatesLists(t *testing.T) {
@@ -661,5 +671,26 @@ func TestModel_PipelineRefreshUpdatesLists(t *testing.T) {
 		if list.items != nil {
 			t.Fatalf("expected nil items, got %+v", list.items)
 		}
+	}
+}
+
+func TestModel_PipelineListNavigationRoutesToActiveList(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+	list := &mockPipelineListModel{}
+	m.registerPipelineListModel(list)
+
+	if _, cmd := m.Update(tea.KeyMsg{Type: tea.KeyUp}); cmd != nil {
+		t.Fatalf("unexpected command for up key: %v", cmd)
+	}
+	if list.cursorUpCalls != 1 {
+		t.Fatalf("expected CursorUp to be called once, got %d", list.cursorUpCalls)
+	}
+
+	if _, cmd := m.Update(tea.KeyMsg{Type: tea.KeyDown}); cmd != nil {
+		t.Fatalf("unexpected command for down key: %v", cmd)
+	}
+	if list.cursorDownCalls != 1 {
+		t.Fatalf("expected CursorDown to be called once, got %d", list.cursorDownCalls)
 	}
 }
