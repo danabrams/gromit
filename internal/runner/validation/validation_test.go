@@ -455,6 +455,14 @@ func TestRunWithRecovery_ExecuteFnCalledWhenAutoFixFails(t *testing.T) {
 	}
 
 	r := NewRunner(cfg, cmdRunner, autoFix, executeFn)
+	listChangeCall := 0
+	r.listChangedFilesFn = func(ctx context.Context, sinceCommit string) ([]string, error) {
+		listChangeCall++
+		if listChangeCall == 1 {
+			return []string{"initial.go"}, nil
+		}
+		return []string{fmt.Sprintf("progress-%d.go", listChangeCall)}, nil
+	}
 
 	bc := newTestBeadContext()
 	bc.StartCommit = "abc123"

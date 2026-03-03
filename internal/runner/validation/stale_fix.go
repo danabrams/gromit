@@ -5,6 +5,7 @@ type StaleFixSnapshot struct {
 	ChangedFiles      []string
 	ErrorCategories   []string
 	ChangedFilesKnown bool
+	ChangedFilesAttempted bool
 }
 
 // StaleFixDetection reports whether the current attempt repeats the previous one.
@@ -34,16 +35,21 @@ func NewStaleFixDetector() *StaleFixDetector {
 func (d *StaleFixDetector) RecordAttempt(snapshot StaleFixSnapshot) StaleFixDetection {
 	detection := StaleFixDetection{}
 	if d.previous != nil {
-		if snapshot.ChangedFilesKnown && d.previous.ChangedFilesKnown {
+		detection.ErrorCategoriesMatch = stringSlicesEqual(snapshot.ErrorCategories, d.previous.ErrorCategories)
+		filesComparable := snapshot.ChangedFilesKnown && d.previous.ChangedFilesKnown
+		if filesComparable {
 			detection.ChangedFilesMatch = stringSlicesEqual(snapshot.ChangedFiles, d.previous.ChangedFiles)
 		}
-		detection.ErrorCategoriesMatch = stringSlicesEqual(snapshot.ErrorCategories, d.previous.ErrorCategories)
-		detection.StaleFixDetected = detection.ChangedFilesMatch && detection.ErrorCategoriesMatch
+		attemptedButUnknown := snapshot.ChangedFilesAttempted && d.previous.ChangedFilesAttempted && !filesComparable
+		if detection.ErrorCategoriesMatch && ((filesComparable && detection.ChangedFilesMatch) || attemptedButUnknown) {
+			detection.StaleFixDetected = true
+		}
 	}
 	d.previous = &StaleFixSnapshot{
-		ChangedFiles:      cloneStringSlice(snapshot.ChangedFiles),
-		ErrorCategories:   cloneStringSlice(snapshot.ErrorCategories),
-		ChangedFilesKnown: snapshot.ChangedFilesKnown,
+		ChangedFiles:         cloneStringSlice(snapshot.ChangedFiles),
+		ErrorCategories:      cloneStringSlice(snapshot.ErrorCategories),
+		ChangedFilesKnown:    snapshot.ChangedFilesKnown,
+		ChangedFilesAttempted: snapshot.ChangedFilesAttempted,
 	}
 	return detection
 }

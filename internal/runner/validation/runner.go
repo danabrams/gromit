@@ -357,10 +357,11 @@ func (r *Runner) shortCircuitOnStaleFix(ctx context.Context, bc *runtypes.BeadCo
 	if r == nil || bc == nil || detector == nil {
 		return false
 	}
-	changedFiles, known := r.gatherChangedFiles(ctx, bc)
+	changedFiles, known, attempted := r.gatherChangedFiles(ctx, bc)
 	snapshot := StaleFixSnapshot{
 		ChangedFiles:      changedFiles,
 		ChangedFilesKnown: known,
+		ChangedFilesAttempted: attempted,
 		ErrorCategories:   cloneStringSlice(r.lastFailureCategories),
 	}
 	detection := detector.RecordAttempt(snapshot)
@@ -371,22 +372,23 @@ func (r *Runner) shortCircuitOnStaleFix(ctx context.Context, bc *runtypes.BeadCo
 	return false
 }
 
-func (r *Runner) gatherChangedFiles(ctx context.Context, bc *runtypes.BeadContext) ([]string, bool) {
+func (r *Runner) gatherChangedFiles(ctx context.Context, bc *runtypes.BeadContext) ([]string, bool, bool) {
 	if r == nil || bc == nil || r.listChangedFilesFn == nil {
-		return nil, false
+		return nil, false, false
 	}
 	commit := strings.TrimSpace(bc.StartCommit)
 	if commit == "" {
-		return nil, false
+		return nil, false, false
 	}
 	files, err := r.listChangedFilesFn(ctx, commit)
+	attempted := true
 	if err != nil {
-		return nil, false
+		return nil, false, attempted
 	}
 	if files == nil {
 		files = []string{}
 	}
-	return files, true
+	return files, true, attempted
 }
 
 func (r *Runner) emitStaleFixMessage(bc *runtypes.BeadContext) {
