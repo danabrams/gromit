@@ -53,6 +53,25 @@ func TestPipelineListStuckReturnsStuckBeads(t *testing.T) {
 	}
 }
 
+func TestPipelineUnstickErrorsWhenBeadMissing(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeQueueClient{
+		listFn: func(ctx context.Context) ([]*bead.Bead, error) {
+			return []*bead.Bead{{ID: "other"}}, nil
+		},
+		listByStatusFn: func(ctx context.Context, status string) ([]*bead.Bead, error) {
+			return nil, nil
+		},
+	}
+
+	p := &Pipeline{deps: &Deps{QueueClient: client}}
+	err := p.Unstick(context.Background(), "missing", t.TempDir())
+	if err == nil {
+		t.Fatal("expected error when bead does not exist")
+	}
+}
+
 func writeLogEntries(t *testing.T, logsDir, beadID string, timestamps []time.Time) {
 	t.Helper()
 
