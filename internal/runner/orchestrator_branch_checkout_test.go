@@ -13,11 +13,19 @@ import (
 // mockBranchRouter records calls to Resolve
 type mockBranchRouter struct {
 	calls [][]string
+	sessionModeEnabled bool
 }
 
 func (m *mockBranchRouter) BranchForLabels(labels []string) (string, error) {
 	m.calls = append(m.calls, labels)
+	if m.sessionModeEnabled && !specbranch.HasSpecLabel(labels) {
+		return "", nil
+	}
 	return specbranch.NewRouter("main").BranchForLabels(labels)
+}
+
+func (m *mockBranchRouter) EnableSessionWorktreeMode() {
+	m.sessionModeEnabled = true
 }
 
 // mockGitCheckout records calls to CreateOrCheckoutSpecBranch
@@ -117,5 +125,49 @@ func TestOrchestratorCheckoutSkippedForNonSpecBead(t *testing.T) {
 	}
 	if len(mockCheckout.calls) != 0 {
 		t.Fatalf("GitCheckout should not be called for non-spec beads, got %d call(s)", len(mockCheckout.calls))
+	}
+}
+
+func TestOrchestratorSessionWorktreeSkipsNonSpecCheckout(t *testing.T) {
+	t.Parallel()
+
+	mockRouter := &mockBranchRouter{}
+	mockCheckout := &mockGitCheckout{}
+
+	beadCount := 0
+	cfg := OrchestratorConfig{
+		Gate:            &mockStage{decision: pipeline.Proceed},
+		Build:           &mockStage{decision: pipeline.Proceed},
+		Validate:        &mockStage{decision: pipeline.Proceed},
+		Epilogue:        &mockStage{},
+		BranchRouter:    mockRouter,
+		GitCheckout:     mockCheckout,
+		SessionWorktree: true,
+		GetBead: func(ctx context.Context) (*bead.Bead, error) {
+			beadCount++
+			if beadCount == 1 {
+				return &bead.Bead{
+					ID:     "session-bead",
+					Title:  "Session Bead",
+					Labels: []string{"from-session"},
+				}, nil
+			}
+			return nil, nil
+		},
+	}
+
+	o := NewOrchestrator(cfg)
+	ctx := context.Background()
+
+	_ = o.Run(ctx, 1, time.Time{}, make(chan struct{}))
+
+	if len(mockRouter.calls) == 0 {
+		t.Fatal("BranchRouter should be called in session worktree mode")
+	}
+	if len(mockCheckout.calls) != 0 {
+		t.Fatalf("GitCheckout should not be called for non-spec beads in session worktree mode, got %d call(s)", len(mockCheckout.calls))
+	}
+	if !mockRouter.sessionModeEnabled {
+		t.Fatal("BranchRouter should be enabled for session worktree mode")
 	}
 }
