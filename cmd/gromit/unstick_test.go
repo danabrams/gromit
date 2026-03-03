@@ -52,9 +52,46 @@ func TestUnstick_WithBeadIDCallsUnstick(t *testing.T) {
 	}
 }
 
+// TestUnstick_WithoutArgsEmptyListPrintsMessage verifies unstick without args prints "No stuck beads" when list is empty
+func TestUnstick_WithoutArgsEmptyListPrintsMessage(t *testing.T) {
+	t.Parallel()
+
+	originalConfigPath := configPath
+	configPath = filepath.Join("..", "..", "gromit.yaml")
+	t.Cleanup(func() {
+		configPath = originalConfigPath
+	})
+
+	stubPipeline := &mockUnstickExecutor{
+		ListStuckFn: func(ctx context.Context) (*pipeline.ListStuckResult, error) {
+			return &pipeline.ListStuckResult{
+				StuckBeads: []pipeline.BeadInfo{},
+			}, nil
+		},
+	}
+
+	createUnstickPipelineFn = func(cfg *config.Config, gromitDir string) (unstickExecutor, error) {
+		return stubPipeline, nil
+	}
+	t.Cleanup(func() {
+		createUnstickPipelineFn = createUnstickPipeline
+	})
+
+	output := captureStdout(t, func() {
+		if err := runUnstick(unstickCmd, []string{}); err != nil {
+			t.Fatalf("runUnstick returned error: %v", err)
+		}
+	})
+
+	if !strings.Contains(output, "No stuck beads") {
+		t.Fatalf("expected 'No stuck beads' in output: %s", output)
+	}
+}
+
 // mockUnstickExecutor is a test double for the unstick executor.
 type mockUnstickExecutor struct {
-	UnstickFn func(context.Context, string) (*pipeline.UnstickResult, error)
+	UnstickFn    func(context.Context, string) (*pipeline.UnstickResult, error)
+	ListStuckFn  func(context.Context) (*pipeline.ListStuckResult, error)
 }
 
 func (m *mockUnstickExecutor) Unstick(ctx context.Context, beadID string) (*pipeline.UnstickResult, error) {
@@ -62,4 +99,11 @@ func (m *mockUnstickExecutor) Unstick(ctx context.Context, beadID string) (*pipe
 		return nil, nil
 	}
 	return m.UnstickFn(ctx, beadID)
+}
+
+func (m *mockUnstickExecutor) ListStuck(ctx context.Context) (*pipeline.ListStuckResult, error) {
+	if m == nil || m.ListStuckFn == nil {
+		return nil, nil
+	}
+	return m.ListStuckFn(ctx)
 }
