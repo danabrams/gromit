@@ -678,9 +678,13 @@ runLoop:
 			})
 			continue
 		}
+		midReviewRan := false
+		midReviewError := ""
 		if o.cfg.MidReview != nil {
+			midReviewRan = true
 			midReviewOut, midReviewErr := o.cfg.MidReview.Run(ctx, baseIn)
 			if midReviewErr != nil {
+				midReviewError = midReviewErr.Error()
 				o.logWarning("Warning: mid-review error for bead %s (iteration %d): %v", b.ID, iteration, midReviewErr)
 			} else if len(midReviewOut.MidBuildReviewFindings) > 0 {
 				retryIn := baseIn
@@ -1045,6 +1049,8 @@ runLoop:
 			Complexity:               baseIn.Complexity,
 			ComplexitySource:         baseIn.ComplexitySource,
 			ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
+			MidReviewRan:             midReviewRan,
+			MidReviewError:           midReviewError,
 		}
 		stampBuildAttribution(baseIn.Result, buildOut)
 		epilogueOut := o.runEpilogue(ctx, baseIn, true)

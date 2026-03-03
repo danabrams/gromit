@@ -34,6 +34,8 @@ type IterationLog struct {
 	Complexity               string    `json:"complexity,omitempty"`
 	ComplexitySource         string    `json:"complexity_source,omitempty"`
 	ComplexityFallbackReason string    `json:"complexity_fallback_reason,omitempty"`
+	MidReviewRan             bool      `json:"mid_review_ran,omitempty"`
+	MidReviewError           string    `json:"mid_review_error,omitempty"`
 	DurationMs               int64     `json:"duration_ms"`
 	CostUSD                  float64   `json:"cost_usd"`
 	InputTokens              int       `json:"input_tokens"`
