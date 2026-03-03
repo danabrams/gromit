@@ -2008,6 +2008,12 @@
 {"issue_id":"gromit-zck6","label":"spec:epic-scoped-execution"}
 {"issue_id":"gromit-zdn9o","label":"from-review"}
 {"issue_id":"gromit-zdn9o","label":"refactor"}
+{"issue_id":"gromit-zdn9o.1","label":"from-review"}
+{"issue_id":"gromit-zdn9o.1","label":"refactor"}
+{"issue_id":"gromit-zdn9o.1","label":"scope_decomp:5cc68c477df68b26"}
+{"issue_id":"gromit-zdn9o.2","label":"from-review"}
+{"issue_id":"gromit-zdn9o.2","label":"refactor"}
+{"issue_id":"gromit-zdn9o.2","label":"scope_decomp:56beea5fd8a71c6c"}
 {"issue_id":"gromit-zdr9","label":"spec:debug-runbook"}
 {"issue_id":"gromit-zds8","label":"spec:retro-efficiency-experiments"}
 {"issue_id":"gromit-zf3u","label":"bug"}
