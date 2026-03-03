@@ -32,24 +32,3 @@ func TestRestoreBeadProcutilFnsRegistersCleanup(t *testing.T) {
 	subprocessEnvFn = nil
 	resolveBeadsDirFn = nil
 }
-
-func restoreBeadProcutilFns(t *testing.T) func() {
-	t.Helper()
-
-	origWait := waitForProcessCapacityFn
-	origKill := killDescendantsOnCancelFn
-	origReap := reapProcessTreeFn
-	origEnv := subprocessEnvFn
-	origResolve := resolveBeadsDirFn
-
-	restore := func() {
-		waitForProcessCapacityFn = origWait
-		killDescendantsOnCancelFn = origKill
-		reapProcessTreeFn = origReap
-		subprocessEnvFn = origEnv
-		resolveBeadsDirFn = origResolve
-	}
-
-	t.Cleanup(restore)
-	return restore
-}
