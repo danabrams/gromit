@@ -424,3 +424,9 @@ func NewQueryUndecomposedPlansResult() QueryUndecomposedPlansResult {
 		Plans: []PlanQueryInfo{},
 	}
 }
+
+// UnstickResult contains the output from unsticking a bead.
+type UnstickResult struct {
+	BeadID string `json:"bead_id"`
+	Status string `json:"status"`
+}
