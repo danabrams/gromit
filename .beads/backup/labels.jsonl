@@ -952,6 +952,8 @@
 {"issue_id":"gromit-esh0x","label":"cleanup"}
 {"issue_id":"gromit-esh0x","label":"from-review"}
 {"issue_id":"gromit-etfv9","label":"spec:orchestration-policy-interfaces"}
+{"issue_id":"gromit-euxuu","label":"estimated-files:1"}
+{"issue_id":"gromit-euxuu","label":"spec:validation-auto-fix-integration"}
 {"issue_id":"gromit-evne","label":"spec:parallel-interactive-command-worktrees"}
 {"issue_id":"gromit-evq","label":"bug"}
 {"issue_id":"gromit-evq","label":"from-review"}
