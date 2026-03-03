@@ -101,3 +101,13 @@ func (e Entry) Ordering() EntryOrdering {
 		UpdatedAt: e.UpdatedAt,
 	}
 }
+
+// BranchName returns the branch tracked by the queue entry.
+func (e Entry) BranchName() string {
+	return e.Branch
+}
+
+// StateName returns the serialized state of the queue entry.
+func (e Entry) StateName() string {
+	return string(e.State)
+}

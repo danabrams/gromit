@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/jsonutil"
+	"github.com/danabrams/gromit/internal/tracker"
 )
 
 func TestValidate_ValidBead(t *testing.T) {
@@ -721,6 +722,15 @@ func TestFindSpecLabel(t *testing.T) {
 				t.Errorf("FindSpecLabel() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestFindSpecLabelUsesSharedPrefix(t *testing.T) {
+	t.Parallel()
+	label := tracker.SpecLabelPrefix + "shared"
+	got := FindSpecLabel([]string{label})
+	if got != "shared" {
+		t.Fatalf("FindSpecLabel() = %q, want %q", got, "shared")
 	}
 }
 

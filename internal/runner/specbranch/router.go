@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/tracker"
 )
 
 const defaultBranchPrefix = "gromit/spec-"
@@ -16,8 +17,6 @@ var specNamePattern = regexp.MustCompile(`^[A-Za-z0-9._/\-]+$`)
 type Router struct {
 	baseBranch string
 }
-
-const specLabelPrefix = "spec:"
 
 // NewRouter returns a Router with default branch naming rules.
 func NewRouter(baseBranch string) *Router {
@@ -68,8 +67,8 @@ func (r *Router) baseBranchOrDefault() string {
 
 func findSpecLabel(labels []string) (string, bool) {
 	for _, label := range labels {
-		if strings.HasPrefix(label, specLabelPrefix) {
-			return strings.TrimPrefix(label, specLabelPrefix), true
+		if strings.HasPrefix(label, tracker.SpecLabelPrefix) {
+			return strings.TrimPrefix(label, tracker.SpecLabelPrefix), true
 		}
 	}
 	return "", false

@@ -56,6 +56,19 @@ func TestResolveCompatibilityContextUsesProfileDefaultsWhenProfileExplicit(t *te
 	}
 }
 
+func TestResolveCompatibilityContextUnknownProfileDefaultsToPassthrough(t *testing.T) {
+	cfg := Config{
+		Project: ProjectConfig{
+			Profile: "goo",
+		},
+	}
+
+	resolved := cfg.ResolveCompatibilityContext()
+	if resolved.MethodologyAdapter.Value != "passthrough" {
+		t.Fatalf("MethodologyAdapter.Value = %q, want %q", resolved.MethodologyAdapter.Value, "passthrough")
+	}
+}
+
 func TestResolveCompatibilityContextExplicitSelectorsOverrideProfileDefaults(t *testing.T) {
 	cfg := Config{
 		Project: ProjectConfig{

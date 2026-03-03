@@ -5,13 +5,12 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/tracker"
 )
 
 const (
 	methodologyATDD = "atdd"
 	methodologyTDD  = "tdd"
-
-	specLabelPrefix = "spec:"
 
 	minRefactorBudget     = 60 * time.Second
 	minRevalidationBudget = 30 * time.Second
@@ -57,7 +56,7 @@ func (p *ConfigMethodologyPolicy) IsActive(labels []string, methodology string) 
 
 	if methodology == methodologyATDD && p.cfg.Methodology.Granularity == config.MethodologyGranularitySpec {
 		for _, label := range labels {
-			if strings.HasPrefix(label, specLabelPrefix) {
+			if strings.HasPrefix(label, tracker.SpecLabelPrefix) {
 				return false
 			}
 		}

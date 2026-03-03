@@ -3,10 +3,11 @@ package bead
 import (
 	"regexp"
 	"strings"
+
+	"github.com/danabrams/gromit/internal/tracker"
 )
 
 const (
-	specLabelPrefix          = "spec:"
 	proactiveStructThreshold = 3
 )
 
@@ -24,8 +25,8 @@ var testOnlyTitlePrefixes = []string{
 // FindSpecLabel returns the spec name from labels (spec:<name>) or empty string.
 func FindSpecLabel(labels []string) string {
 	for _, label := range labels {
-		if strings.HasPrefix(label, specLabelPrefix) {
-			return strings.TrimPrefix(label, specLabelPrefix)
+		if strings.HasPrefix(label, tracker.SpecLabelPrefix) {
+			return strings.TrimPrefix(label, tracker.SpecLabelPrefix)
 		}
 	}
 	return ""

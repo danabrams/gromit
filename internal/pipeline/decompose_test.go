@@ -92,7 +92,7 @@ created: 2026-02-11
 
 	var createdBeads []*BeadInfo
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			bead := &BeadInfo{
 				ID:       fmt.Sprintf("bead-%d", len(createdBeads)+1),
 				Title:    title,
@@ -338,7 +338,7 @@ id: coverage-gap
 
 	createCalls := 0
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			createCalls++
 			return &BeadInfo{ID: "bead-1", Title: title, Priority: priority, Labels: labels}, nil
 		},
@@ -426,7 +426,7 @@ id: explicit-coverage
 
 	createCalls := 0
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			createCalls++
 			return &BeadInfo{ID: fmt.Sprintf("bead-%d", createCalls), Title: title, Priority: priority, Labels: labels}, nil
 		},
@@ -550,7 +550,7 @@ func TestDecomposeWorkflow_RetriesOnValidationViolation(t *testing.T) {
 	}
 
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			return &BeadInfo{ID: "bead-1"}, nil
 		},
 	}
@@ -621,7 +621,7 @@ func TestDecomposeWorkflow_ValidationRetriesExhaustedContinues(t *testing.T) {
 	}
 
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			return &BeadInfo{ID: "bead-1"}, nil
 		},
 	}
@@ -722,7 +722,7 @@ func TestDecomposeWorkflow_SkipValidationDisablesRetryLoop(t *testing.T) {
 	}
 
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			return &BeadInfo{ID: "bead-1"}, nil
 		},
 	}
@@ -770,7 +770,7 @@ func TestDecomposeWorkflow_SkipValidationOversizedBatchErrorsWithoutCreatingBead
 
 	createCalls := 0
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			createCalls++
 			return &BeadInfo{ID: fmt.Sprintf("bead-%d", createCalls)}, nil
 		},
@@ -822,7 +822,7 @@ func TestDecomposeWorkflow_SkipValidationUnlimitedMaxAllowsLargeBatch(t *testing
 
 	createCalls := 0
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			createCalls++
 			return &BeadInfo{ID: fmt.Sprintf("bead-%d", createCalls)}, nil
 		},
@@ -866,7 +866,7 @@ func TestDecomposeWorkflow_SkipValidationUndersizedBatchErrorsWithoutCreatingBea
 
 	createCalls := 0
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			createCalls++
 			return &BeadInfo{ID: fmt.Sprintf("bead-%d", createCalls)}, nil
 		},
@@ -931,7 +931,7 @@ func TestDecomposeWorkflow_CreatesBeadsWithCorrectLabels(t *testing.T) {
 
 	var capturedLabels []string
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			capturedLabels = labels
 			return &BeadInfo{ID: "bead-1", Title: title, Priority: priority, Labels: labels}, nil
 		},
@@ -1022,7 +1022,7 @@ func TestDecomposeWorkflow_HandlesDependencyMapping(t *testing.T) {
 	}
 	var capturedBeads []beadCapture
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			capturedBeads = append(capturedBeads, beadCapture{title: title, deps: deps})
 			return &BeadInfo{
 				ID:       fmt.Sprintf("bead-%d", len(capturedBeads)),
@@ -1120,7 +1120,7 @@ func TestDecomposeWorkflow_SkipsSelfDependencies(t *testing.T) {
 
 	var capturedDeps []string
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			capturedDeps = deps
 			return &BeadInfo{ID: "bead-1"}, nil
 		},
@@ -1199,7 +1199,7 @@ func TestDecomposeWorkflow_SkipsOutOfRangeDependencies(t *testing.T) {
 	}
 	var capturedBeads []beadCapture
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			capturedBeads = append(capturedBeads, beadCapture{title: title, deps: deps})
 			return &BeadInfo{ID: fmt.Sprintf("bead-%d", len(capturedBeads))}, nil
 		},
@@ -1277,7 +1277,7 @@ func TestDecomposeWorkflow_ReviewModeReturnsProposedBeads(t *testing.T) {
 
 	beadCreateCalled := false
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			beadCreateCalled = true
 			return &BeadInfo{ID: "bead-1"}, nil
 		},
@@ -1374,7 +1374,7 @@ Already decomposed
 	}
 
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			return &BeadInfo{ID: "bead-1"}, nil
 		},
 	}
@@ -1498,7 +1498,7 @@ func TestDecomposeWorkflow_UpdatesPlanFrontmatterTimestamp(t *testing.T) {
 	}
 
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			return &BeadInfo{ID: "bead-1"}, nil
 		},
 	}
@@ -1615,7 +1615,7 @@ func TestDecomposeWorkflow_ParsesPriorityCorrectly(t *testing.T) {
 	}
 	var capturedBeads []beadCapture
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			capturedBeads = append(capturedBeads, beadCapture{title: title, priority: priority})
 			return &BeadInfo{ID: fmt.Sprintf("bead-%d", len(capturedBeads))}, nil
 		},
@@ -1741,7 +1741,7 @@ func (m *decomposeAcceptanceLLMClient) Run(prompt string, model string) (*LLMRun
 }
 
 type decomposeAcceptanceBeadClient struct {
-	createFunc func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error)
+	createFunc func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error)
 }
 
 func (m *decomposeAcceptanceBeadClient) Ready(ctx context.Context) (*BeadInfo, error) {
@@ -1760,7 +1760,7 @@ func (m *decomposeAcceptanceBeadClient) Create(ctx context.Context, title string
 
 func (m *decomposeAcceptanceBeadClient) CreateWithDepsAndDescription(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 	if m.createFunc != nil {
-		return m.createFunc(title, priority, labels, criteria, deps, desc)
+		return m.createFunc(ctx, title, priority, labels, criteria, deps, desc)
 	}
 	return nil, fmt.Errorf("not implemented")
 }
@@ -1813,7 +1813,7 @@ func TestDecomposeWorkflow_UsesExpectedOutputsWhenNonEmpty(t *testing.T) {
 
 	var capturedCriteria []string
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			capturedCriteria = criteria
 			return &BeadInfo{ID: "bead-1"}, nil
 		},
@@ -1875,7 +1875,7 @@ func TestDecomposeWorkflow_FallsBackToAcceptanceCriteriaWhenNoExpectedOutputs(t 
 
 	var capturedCriteria []string
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			capturedCriteria = criteria
 			return &BeadInfo{ID: "bead-1"}, nil
 		},
@@ -2038,7 +2038,7 @@ func TestDecomposeWorkflow_UsesInputTierForProviderCall(t *testing.T) {
 	}
 
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			return &BeadInfo{ID: "bead-1"}, nil
 		},
 	}
@@ -2096,7 +2096,7 @@ func TestDecomposeWorkflow_SixBeadBatchViolationRepromptsThenErrorsAtRetryCap(t 
 
 	var createdCount int
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			createdCount++
 			return &BeadInfo{ID: fmt.Sprintf("bead-%d", createdCount)}, nil
 		},
@@ -2158,7 +2158,7 @@ func TestDecomposeWorkflow_OneBeadBatchViolationRepromptsThenErrorsAtRetryCap(t 
 	}
 
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			t.Fatal("CreateWithDepsAndDescription should not be called when batch contract fails")
 			return nil, nil
 		},
@@ -2204,7 +2204,7 @@ func TestDecomposeWorkflow_LogsComplexitySummaryPerAttempt(t *testing.T) {
 	}
 
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			return &BeadInfo{ID: "bead-1"}, nil
 		},
 	}
@@ -2262,7 +2262,7 @@ func TestDecomposeWorkflow_IncludesComplexityFeedbackInReprompt(t *testing.T) {
 	}
 
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			return &BeadInfo{ID: "bead-1"}, nil
 		},
 	}
@@ -2317,7 +2317,7 @@ func TestDecomposeWorkflow_IncludesStructuredComplexityFeedbackAndStillCreatesBe
 	}
 
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			createCalls++
 			return &BeadInfo{ID: fmt.Sprintf("bead-%d", createCalls)}, nil
 		},
@@ -2388,7 +2388,7 @@ func TestDecomposeWorkflow_RetriesWhenHighComplexityRemains(t *testing.T) {
 	}
 
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			return &BeadInfo{ID: "bead-1"}, nil
 		},
 	}
@@ -2451,7 +2451,7 @@ func TestDecomposeWorkflow_RetriesWhenBroadScopeSignalFlagsHighComplexity(t *tes
 	}
 
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			return &BeadInfo{ID: "bead-1"}, nil
 		},
 	}
@@ -2497,7 +2497,7 @@ func TestDecomposeWorkflow_HighComplexityWarningIncludesDetails(t *testing.T) {
 	}
 
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			return &BeadInfo{ID: "bead-1"}, nil
 		},
 	}
@@ -2552,7 +2552,7 @@ func TestDecomposeWorkflow_FinalHighComplexityWarningAtLoopExitAfterValidationFa
 	}
 
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			return &BeadInfo{ID: "bead-1"}, nil
 		},
 	}
@@ -2607,7 +2607,7 @@ func TestDecomposeWorkflow_HighComplexityWarningIncludesBroadScopeReasonWithoutL
 	}
 
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			return &BeadInfo{ID: "bead-1"}, nil
 		},
 	}
@@ -2659,7 +2659,7 @@ func TestDecomposeWorkflow_ComplexitySummaryIncludesHighTitles(t *testing.T) {
 	}
 
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			return &BeadInfo{ID: "bead-1"}, nil
 		},
 	}
@@ -2731,7 +2731,7 @@ func TestDecomposeWorkflow_CleanExitAfterComplexityRetryHasNoWarning(t *testing.
 	}
 
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			return &BeadInfo{ID: "bead-1"}, nil
 		},
 	}
@@ -2793,7 +2793,7 @@ func TestDecomposeWorkflow_ComplexityRetryCapWithPartialImprovementMarksImproved
 	}
 
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			return &BeadInfo{ID: "bead-1"}, nil
 		},
 	}
@@ -2871,7 +2871,7 @@ func TestDecomposeWorkflow_StopsRetryingWhenComplexityTrajectoryStalls(t *testin
 	}
 
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			return &BeadInfo{ID: "bead-1"}, nil
 		},
 	}
@@ -2914,7 +2914,7 @@ func TestDecomposeWorkflow_HighComplexityWarningProceedSetsValidationFlag(t *tes
 	}
 
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			return &BeadInfo{ID: "bead-1"}, nil
 		},
 	}
@@ -2960,7 +2960,7 @@ func TestDecomposeWorkflow_RetryCapPathSetsValidationFlag(t *testing.T) {
 	}
 
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			return &BeadInfo{ID: "bead-1"}, nil
 		},
 	}
@@ -3018,7 +3018,7 @@ func TestDecomposeWorkflow_RetryLoopSuccessPathSetsValidationFlag(t *testing.T) 
 	}
 
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			return &BeadInfo{ID: "bead-1"}, nil
 		},
 	}
@@ -3067,7 +3067,7 @@ func TestDecomposeWorkflow_RetryLoopNonImprovingPathSetsValidationFlag(t *testin
 	}
 
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			return &BeadInfo{ID: "bead-1"}, nil
 		},
 	}
@@ -3160,7 +3160,7 @@ This is the first task
 
 	var createdBeads []*BeadInfo
 	mockBead := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			bead := &BeadInfo{
 				ID:       fmt.Sprintf("bead-%d", len(createdBeads)+1),
 				Title:    title,

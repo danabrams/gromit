@@ -11,20 +11,10 @@ import (
 	"github.com/danabrams/gromit/internal/runner/specmerge"
 )
 
-func withDefaultBaseBranch(t *testing.T, branch string) func() {
-	t.Helper()
-	original := config.DefaultBaseBranch
-	config.DefaultBaseBranch = branch
-	return func() {
-		config.DefaultBaseBranch = original
-	}
-}
-
 func TestFinalizeSpecBranch_RebaseBeforeMergeBeforeDelete(t *testing.T) {
 	ctx := context.Background()
 	branch := "gromit/spec-payments"
 	callLog := []string{}
-	defer withDefaultBaseBranch(t, "test-main-branch")()
 
 	git := &fakeGitOps{
 		rebaseFn: func(_ context.Context, b, onto string) error {
@@ -62,7 +52,6 @@ func TestFinalizeSpecBranch_RebaseBeforeMergeBeforeDelete(t *testing.T) {
 func TestFinalizeSpecBranch_RebaseConflictTriggersResolver(t *testing.T) {
 	ctx := context.Background()
 	branch := "gromit/spec-payments"
-	defer withDefaultBaseBranch(t, "test-main-branch")()
 	callLog := []string{}
 	rebaseAttempts := 0
 
@@ -131,7 +120,6 @@ func TestFinalizeSpecBranch_RebaseConflictTriggersResolver(t *testing.T) {
 func TestFinalizeSpecBranch_MergeConflictTriggersResolver(t *testing.T) {
 	ctx := context.Background()
 	branch := "gromit/spec-payments"
-	defer withDefaultBaseBranch(t, "test-main-branch")()
 	callLog := []string{}
 	mergeAttempts := 0
 
@@ -254,7 +242,6 @@ func (f *fakeManager) Advance(ctx context.Context, branch, stage string) error {
 func TestFinalizeSpecBranch_SpecbranchConflictErrorDetectedAfterConsolidation(t *testing.T) {
 	ctx := context.Background()
 	branch := "gromit/spec-payments"
-	defer withDefaultBaseBranch(t, "test-main-branch")()
 	callLog := []string{}
 	rebaseAttempts := 0
 
@@ -330,7 +317,6 @@ func TestFinalizeSpecBranch_SpecbranchConflictErrorDetectedAfterConsolidation(t 
 func TestFinalizeSpecBranch_ManagerAdvanceOnSuccess(t *testing.T) {
 	ctx := context.Background()
 	branch := "gromit/spec-manager-advance-success"
-	defer withDefaultBaseBranch(t, "test-main-branch")()
 	callLog := []string{}
 
 	git := &fakeGitOps{

@@ -402,6 +402,34 @@ func TestPipeline_TriggerLogsCaptureCycleRecordErrors(t *testing.T) {
 	}
 }
 
+func TestPipeline_Trigger_UsesConfigDefaultBaseBranchForCreatePR(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	const specName = "payments"
+	expectedBaseBranch := config.DefaultBaseBranch
+	flow := &fakeFlowExecutor{
+		runFn: func(_ context.Context, _ string) (*specmerge.FlowResult, error) {
+			return &specmerge.FlowResult{}, nil
+		},
+	}
+    prClient := &fakePRClient{
+        createPRFn: func(_ context.Context, title, body, head, base string) (specmerge.PRRef, error) {
+			if head != "gromit/spec-"+specName {
+				t.Fatalf("head branch = %q, want gromit/spec-%s", head, specName)
+			}
+			if base != expectedBaseBranch {
+				t.Fatalf("PR base branch = %q, want %q", base, expectedBaseBranch)
+			}
+			return specmerge.PRRef{}, nil
+		},
+	}
+
+	p := specmerge.NewPipeline(nil, nil, flow, specmerge.FixBeadDependencies{}, 0).WithPRDeps(specmerge.PRDeps{PRClient: prClient})
+	if err := p.Trigger(ctx, specName); err != nil {
+		t.Fatalf("Trigger() returned error: %v", err)
+	}
+}
+
 func TestTrackerBeadQueryConvertsTrackerItems(t *testing.T) {
 	t.Parallel()
 
@@ -518,6 +546,7 @@ func (s *stubTrackerBeadQueryClient) List(ctx context.Context, q tracker.Query) 
 func (s *stubTrackerBeadQueryClient) Show(ctx context.Context, id string) (*tracker.Item, error) {
 	return nil, nil
 }
+
 func (s *stubTrackerBeadQueryClient) Search(ctx context.Context, q tracker.Query) ([]tracker.Item, error) {
 	return nil, nil
 }

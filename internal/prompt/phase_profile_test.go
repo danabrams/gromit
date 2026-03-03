@@ -299,8 +299,39 @@ func TestApplyPhaseProfile_RefactorKeepsRulesAndValidationFailures(t *testing.T)
 	}
 }
 
+func TestApplyPhaseProfile_ReviewPhasesNoOp(t *testing.T) {
+	baseCtx := &Context{
+		Spec:                     "spec",
+		ClaudeMD:                 "claude",
+		Rules:                    "rules",
+		ConfirmedLearnings:       []learnings.Learning{{Category: "c", Content: "confirmed"}},
+		RecentLearnings:          []learnings.Learning{{Category: "c", Content: "recent"}},
+		RecentValidationFailures: []string{"failure"},
+		CoverageState:            "coverage",
+		TargetCriterion:          "criterion",
+		PrevFailure:              "prev",
+		SiblingTouchedPackages:   []string{"internal/prompt"},
+		Bead: &bead.Bead{
+			ID:              "b1",
+			ExpectedOutputs: []string{"criterion"},
+		},
+	}
+	phases := []string{"review", "thorough_review"}
+	for _, phase := range phases {
+		phase := phase
+		t.Run(phase, func(t *testing.T) {
+			ctx := cloneContext(baseCtx)
+			original := cloneContext(baseCtx)
+			ApplyPhaseProfile(ctx, phase)
+			if !reflect.DeepEqual(ctx, original) {
+				t.Fatalf("ApplyPhaseProfile should not modify context for %q", phase)
+			}
+		})
+	}
+}
+
 func TestApplyPhaseProfile_ContainsProfilesForAllPhases(t *testing.T) {
-	expected := []string{"decompose", "red", "build", "green", "refactor"}
+	expected := []string{"decompose", "red", "build", "green", "refactor", "review", "thorough_review"}
 	for _, phase := range expected {
 		if _, ok := phaseProfiles[phase]; !ok {
 			t.Fatalf("phaseProfiles missing entry for %q", phase)
@@ -356,4 +387,35 @@ func TestApplyPhaseProfile_UnknownPhaseNoOp(t *testing.T) {
 	if !reflect.DeepEqual(*reviewCtx, originalReview) {
 		t.Fatalf("ApplyReviewPhaseProfile should leave unknown phases unchanged")
 	}
+}
+
+func cloneContext(ctx *Context) *Context {
+	if ctx == nil {
+		return nil
+	}
+	result := *ctx
+	result.ConfirmedLearnings = append([]learnings.Learning{}, ctx.ConfirmedLearnings...)
+	result.RecentLearnings = append([]learnings.Learning{}, ctx.RecentLearnings...)
+	result.RecentValidationFailures = append([]string{}, ctx.RecentValidationFailures...)
+	result.CommonReviewFindings = append([]string{}, ctx.CommonReviewFindings...)
+	result.SiblingTouchedPackages = append([]string{}, ctx.SiblingTouchedPackages...)
+	if ctx.Bead != nil {
+		beadCopy := *ctx.Bead
+		beadCopy.ExpectedOutputs = append([]string{}, ctx.Bead.ExpectedOutputs...)
+		beadCopy.Labels = append([]string{}, ctx.Bead.Labels...)
+		beadCopy.Dependencies = append([]bead.Dependency{}, ctx.Bead.Dependencies...)
+		beadCopy.BlockedBy = append([]bead.Dependency{}, ctx.Bead.BlockedBy...)
+		beadCopy.DependsOn = append([]bead.Dependency{}, ctx.Bead.DependsOn...)
+		result.Bead = &beadCopy
+	}
+	if ctx.ParentBead != nil {
+		parentCopy := *ctx.ParentBead
+		parentCopy.ExpectedOutputs = append([]string{}, ctx.ParentBead.ExpectedOutputs...)
+		parentCopy.Labels = append([]string{}, ctx.ParentBead.Labels...)
+		parentCopy.Dependencies = append([]bead.Dependency{}, ctx.ParentBead.Dependencies...)
+		parentCopy.BlockedBy = append([]bead.Dependency{}, ctx.ParentBead.BlockedBy...)
+		parentCopy.DependsOn = append([]bead.Dependency{}, ctx.ParentBead.DependsOn...)
+		result.ParentBead = &parentCopy
+	}
+	return &result
 }

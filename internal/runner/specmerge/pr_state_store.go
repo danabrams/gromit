@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	"github.com/danabrams/gromit/internal/review"
+	"github.com/danabrams/gromit/internal/runner/util"
 )
 
 const (
@@ -223,9 +224,9 @@ func cloneReviewResult(result *review.ReviewResult) *review.ReviewResult {
 		return nil
 	}
 	copied := *result
-	copied.FixesApplied = cloneStringSlice(result.FixesApplied)
-	copied.FixCategories = cloneStringSlice(result.FixCategories)
-	copied.Learnings = cloneStringSlice(result.Learnings)
+	copied.FixesApplied = util.CloneStringSlice(result.FixesApplied)
+	copied.FixCategories = util.CloneStringSlice(result.FixCategories)
+	copied.Learnings = util.CloneStringSlice(result.Learnings)
 	copied.BeadsToCreate = cloneBeadProposals(result.BeadsToCreate)
 	copied.BacklogItems = cloneBacklogItems(result.BacklogItems)
 	return &copied
@@ -238,8 +239,8 @@ func cloneBeadProposals(items []review.BeadProposal) []review.BeadProposal {
 	copies := make([]review.BeadProposal, len(items))
 	for i, item := range items {
 		clones := item
-		clones.Labels = cloneStringSlice(item.Labels)
-		clones.ExpectedOutputs = cloneStringSlice(item.ExpectedOutputs)
+		clones.Labels = util.CloneStringSlice(item.Labels)
+		clones.ExpectedOutputs = util.CloneStringSlice(item.ExpectedOutputs)
 		copies[i] = clones
 	}
 	return copies
@@ -252,17 +253,8 @@ func cloneBacklogItems(items []review.BacklogItem) []review.BacklogItem {
 	copies := make([]review.BacklogItem, len(items))
 	for i, item := range items {
 		clones := item
-		clones.ExpectedOutputs = cloneStringSlice(item.ExpectedOutputs)
+		clones.ExpectedOutputs = util.CloneStringSlice(item.ExpectedOutputs)
 		copies[i] = clones
 	}
 	return copies
-}
-
-func cloneStringSlice(in []string) []string {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]string, len(in))
-	copy(out, in)
-	return out
 }

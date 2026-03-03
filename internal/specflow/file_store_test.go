@@ -1,10 +1,13 @@
 package specflow
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -125,5 +128,42 @@ func runConcurrentStoreStageRace(t *testing.T, ctx context.Context, store SpecSt
 		if stage == "" {
 			t.Fatalf("expected stage for %s to be set", specID)
 		}
+	}
+}
+
+func TestFileStoreSaveMethodHasNoCallers(t *testing.T) {
+	t.Helper()
+
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("read specflow directory: %v", err)
+	}
+
+	var matches []string
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".go" || strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+		data, err := os.ReadFile(entry.Name())
+		if err != nil {
+			t.Fatalf("read %s: %v", entry.Name(), err)
+		}
+
+		scanner := bufio.NewScanner(bytes.NewReader(data))
+		line := 0
+		for scanner.Scan() {
+			line++
+			text := scanner.Text()
+			if strings.Contains(text, "save()") {
+				matches = append(matches, fmt.Sprintf("%s:%d: %s", entry.Name(), line, strings.TrimSpace(text)))
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			t.Fatalf("scan %s: %v", entry.Name(), err)
+		}
+	}
+
+	if len(matches) > 0 {
+		t.Fatalf("found unexpected save() occurrences:\n%s", strings.Join(matches, "\n"))
 	}
 }

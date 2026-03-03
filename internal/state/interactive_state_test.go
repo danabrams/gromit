@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	integrationqueue "github.com/danabrams/gromit/internal/integrationqueue"
 )
 
 // TestNewInteractiveFile verifies that NewInteractiveFile creates an InteractiveFile instance with correct path
@@ -653,16 +655,12 @@ func TestInteractiveFileCompatibilityBridgeSyncFromQueueEntries(t *testing.T) {
 	dir := t.TempDir()
 	f, _ := NewInteractiveFile(dir)
 
-	// Create mock queue entries in draft and ready states
-	type queueEntry struct {
-		Branch string
-		State  string
-	}
-	queueEntries := []queueEntry{
-		{Branch: "feature/draft-1", State: "draft"},
-		{Branch: "feature/ready-1", State: "ready"},
-		{Branch: "feature/integrating", State: "integrating"},
-		{Branch: "feature/merged", State: "merged"}, // Terminal state, should not include
+	// Create queue entries in draft, ready, and integrating states
+	queueEntries := []integrationqueue.Entry{
+		{Branch: "feature/draft-1", State: integrationqueue.StateDraft},
+		{Branch: "feature/ready-1", State: integrationqueue.StateReady},
+		{Branch: "feature/integrating", State: integrationqueue.StateIntegrating},
+		{Branch: "feature/merged", State: integrationqueue.StateMerged}, // Terminal state, should not include
 	}
 
 	// Call the compatibility bridge method
@@ -694,6 +692,32 @@ func TestInteractiveFileCompatibilityBridgeSyncFromQueueEntries(t *testing.T) {
 	}
 	if branchSet["feature/merged"] {
 		t.Error("merged (terminal) entry should NOT be in pending branches")
+	}
+}
+
+func TestInteractiveFileSyncPendingBranchesFromQueueEntriesTypedEntries(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewInteractiveFile(dir)
+
+	entries := []integrationqueue.Entry{
+		{Branch: "feature/draft-typed", State: integrationqueue.StateDraft},
+		{Branch: "feature/merged-typed", State: integrationqueue.StateMerged},
+	}
+
+	if err := f.SyncPendingBranchesFromQueueEntries(entries); err != nil {
+		t.Fatalf("SyncPendingBranchesFromQueueEntries failed: %v", err)
+	}
+
+	branches, err := f.ListPendingWorktreeBranches()
+	if err != nil {
+		t.Fatalf("ListPendingWorktreeBranches: %v", err)
+	}
+	branchSet := pendingBranchSet(branches)
+	if !branchSet["feature/draft-typed"] {
+		t.Fatalf("expected draft branch in pending list, got %v", branches)
+	}
+	if branchSet["feature/merged-typed"] {
+		t.Fatalf("merged entry should not be pending, got %v", branches)
 	}
 }
 

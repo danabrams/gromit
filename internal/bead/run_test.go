@@ -15,6 +15,16 @@ import (
 	"github.com/danabrams/gromit/internal/procutil"
 )
 
+var defaultGitPath = findDefaultGitPath()
+
+func findDefaultGitPath() string {
+	gitPath, err := exec.LookPath("git")
+	if err != nil {
+		panic(fmt.Sprintf("unable to locate git binary: %v", err))
+	}
+	return gitPath
+}
+
 func assertRunArgsEqual(t *testing.T, got, want []string) {
 	t.Helper()
 
@@ -61,6 +71,31 @@ func TestClientRun_UsesRunFnWhenSet(t *testing.T) {
 
 	wantArgs := []string{"ready", "--json"}
 	assertRunArgsEqual(t, gotArgs, wantArgs)
+}
+
+func TestClientRunWithRunner_UsesRunFnWhenSet(t *testing.T) {
+	t.Parallel()
+	var gotArgs []string
+	c := &Client{
+		RunFn: func(args ...string) (string, error) {
+			gotArgs = append([]string(nil), args...)
+			return "runfn", nil
+		},
+	}
+
+	runner := func(ctx context.Context, args []string, extraEnv []string) (string, error) {
+		t.Fatalf("runner should not be called when RunFn is set")
+		return "", nil
+	}
+
+	out, err := c.runWithRunner(context.Background(), []string{"close", "bd-1"}, nil, runner)
+	if err != nil {
+		t.Fatalf("runWithRunner() unexpected error: %v", err)
+	}
+	if out != "runfn" {
+		t.Fatalf("runWithRunner() output = %q, want %q", out, "runfn")
+	}
+	assertRunArgsEqual(t, gotArgs, []string{"close", "bd-1"})
 }
 
 func TestClientRun_SubprocessUsesConfiguredBinaryAndDir(t *testing.T) {
@@ -325,16 +360,116 @@ exit 1
 	}
 }
 
+func TestClientRunAndRunCloseUseSharedRetryHelper(t *testing.T) {
+
+	var calls []string
+	originalFn := runWithRetryCascadeFn
+	runWithRetryCascadeFn = func(c *Client, ctx context.Context, args []string, extraEnv []string, runner func(context.Context, []string, []string) (string, error)) (string, error) {
+		if len(args) == 0 {
+			t.Fatalf("runWithRetryCascade called with no args")
+		}
+		calls = append(calls, args[0])
+		return "", nil
+	}
+	defer func() { runWithRetryCascadeFn = originalFn }()
+
+	c := &Client{binary: "bd"}
+	if _, err := c.run(context.Background(), "ready"); err != nil {
+		t.Fatalf("run() unexpected error: %v", err)
+	}
+	if _, err := c.runClose(context.Background(), "bd-1"); err != nil {
+		t.Fatalf("runClose() unexpected error: %v", err)
+	}
+
+	if len(calls) != 2 {
+		t.Fatalf("shared retry helper called %d times, want 2", len(calls))
+	}
+	if calls[0] != "ready" {
+		t.Fatalf("1st call args[0] = %q, want %q", calls[0], "ready")
+	}
+	if calls[1] != "close" {
+		t.Fatalf("2nd call args[0] = %q, want %q", calls[1], "close")
+	}
+}
+
+func TestClientRunWithRetryCascade_RetriesWithNoDB(t *testing.T) {
+	t.Parallel()
+
+	var callCount int
+	runner := func(ctx context.Context, args []string, extraEnv []string) (string, error) {
+		callCount++
+		switch callCount {
+		case 1:
+			if len(extraEnv) != 0 {
+				t.Fatalf("first invocation should not include extra env, got %v", extraEnv)
+			}
+			return "", fmt.Errorf("database not found: beads_gromit")
+		case 2:
+			if len(extraEnv) != 1 || extraEnv[0] != "BEADS_NO_DB=true" {
+				t.Fatalf("second invocation should receive BEADS_NO_DB=true, got %v", extraEnv)
+			}
+			return "recovered", nil
+		default:
+			t.Fatalf("unexpected invocation %d", callCount)
+		}
+		return "", fmt.Errorf("unreachable")
+	}
+
+	c := &Client{}
+	out, err := c.runWithRetryCascade(context.Background(), []string{"ready"}, nil, runner)
+	if err != nil {
+		t.Fatalf("runWithRetryCascade() error = %v", err)
+	}
+	if out != "recovered" {
+		t.Fatalf("runWithRetryCascade() output = %q, want %q", out, "recovered")
+	}
+}
+
+func TestClientRunWithRetryCascade_PreservesExtraEnvDuringRetries(t *testing.T) {
+	t.Parallel()
+
+	extraEnv := []string{"FOO=bar"}
+	var callCount int
+	runner := func(ctx context.Context, args []string, env []string) (string, error) {
+		callCount++
+		copied := append([]string(nil), env...)
+		if callCount == 1 {
+			if !reflect.DeepEqual(copied, extraEnv) {
+				t.Fatalf("first call env = %v, want %v", copied, extraEnv)
+			}
+			return "", fmt.Errorf("database not found: beads_gromit")
+		}
+		if callCount == 2 {
+			want := append(append([]string(nil), extraEnv...), "BEADS_NO_DB=true")
+			if !reflect.DeepEqual(copied, want) {
+				t.Fatalf("second call env = %v, want %v", copied, want)
+			}
+			return "recovered", nil
+		}
+		t.Fatalf("unexpected runner invocation %d", callCount)
+		return "", fmt.Errorf("unreachable")
+	}
+
+	c := &Client{}
+	out, err := c.runWithRetryCascade(context.Background(), []string{"ready"}, extraEnv, runner)
+	if err != nil {
+		t.Fatalf("runWithRetryCascade() error = %v", err)
+	}
+	if out != "recovered" {
+		t.Fatalf("runWithRetryCascade() output = %q, want %q", out, "recovered")
+	}
+}
+
 func TestClientRunDeriveIssuePrefixUsesCallerContext(t *testing.T) {
 	t.Parallel()
 	repoDir := t.TempDir()
 	if err := os.MkdirAll(repoDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(%q): %v", repoDir, err)
 	}
-	initCmd := exec.Command("git", "init")
+	initCmd := exec.Command(defaultGitPath, "init")
 	initCmd.Dir = repoDir
-	if err := initCmd.Run(); err != nil {
-		t.Fatalf("git init failed: %v", err)
+	if output, err := initCmd.CombinedOutput(); err != nil {
+		t.Fatalf("git init failed: %v output=%q", err, output)
 	}
 
 	gitScriptDir := t.TempDir()
@@ -402,10 +537,10 @@ func TestClientRunCloseDeriveIssuePrefixUsesCallerContext(t *testing.T) {
 	if err := os.MkdirAll(repoDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(%q): %v", repoDir, err)
 	}
-	initCmd := exec.Command("git", "init")
+	initCmd := exec.Command(defaultGitPath, "init")
 	initCmd.Dir = repoDir
-	if err := initCmd.Run(); err != nil {
-		t.Fatalf("git init failed: %v", err)
+	if output, err := initCmd.CombinedOutput(); err != nil {
+		t.Fatalf("git init failed: %v output=%q", err, output)
 	}
 
 	scriptDir := t.TempDir()

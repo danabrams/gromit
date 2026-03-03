@@ -43,7 +43,7 @@ const (
 	MethodologyGranularitySpec = "spec"
 )
 
-var DefaultBaseBranch = "main"
+const DefaultBaseBranch = "main"
 
 var defaultAndonBulkDeleteAllowlist = []string{
 	".gromit/logs/**",

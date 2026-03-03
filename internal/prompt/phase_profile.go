@@ -3,11 +3,13 @@ package prompt
 import "github.com/danabrams/gromit/internal/learnings"
 
 var phaseProfiles = map[string]func(*Context){
-	"decompose": applyDecomposeProfile,
-	"red":       applyRedProfile,
-	"build":     applyImplementationProfile,
-	"green":     applyImplementationProfile,
-	"refactor":  applyRefactorProfile,
+	"decompose":      applyDecomposeProfile,
+	"red":            applyRedProfile,
+	"build":          applyImplementationProfile,
+	"green":          applyImplementationProfile,
+	"refactor":       applyRefactorProfile,
+	"review":         applyNoOpPhaseProfile,
+	"thorough_review": applyNoOpPhaseProfile,
 }
 
 // ApplyPhaseProfile prunes context fields that are not needed for the given phase.
@@ -58,6 +60,8 @@ func applyRefactorProfile(ctx *Context) {
 	ctx.PrevFailure = ""
 	ctx.SiblingTouchedPackages = []string{}
 }
+
+func applyNoOpPhaseProfile(ctx *Context) {}
 
 // ApplyReviewPhaseProfile prunes review-context fields not needed for the given phase.
 func ApplyReviewPhaseProfile(ctx any, phase string) {

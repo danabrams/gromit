@@ -27,8 +27,7 @@ import (
 var (
 	configPath                 string
 	maxIterations              int
-	dryRun                     bool
-	readinessEmergencyOverride bool
+readinessEmergencyOverride bool
 	nonInteractive             bool
 	timeBudgetMinutes          int
 	timeBudgetHours            int
@@ -150,8 +149,7 @@ func init() {
 	}
 
 	runCmd.Flags().IntVarP(&maxIterations, "max-iterations", "n", 0, "Maximum iterations (0 = unlimited)")
-	runCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would run without executing")
-	runCmd.Flags().IntVarP(&timeBudgetMinutes, "time-budget", "t", 0, "Time budget in minutes (0 = unlimited)")
+runCmd.Flags().IntVarP(&timeBudgetMinutes, "time-budget", "t", 0, "Time budget in minutes (0 = unlimited)")
 	runCmd.Flags().IntVarP(&timeBudgetHours, "time-budget-hours", "H", 0, "Time budget in hours (0 = unlimited)")
 	runCmd.Flags().StringVar(&runSpecFlag, "spec", "", "Filter to beads for a specific spec")
 	runCmd.Flags().StringVar(&runEpicFlag, "epic", "", "Filter to beads for a specific epic")
@@ -319,7 +317,6 @@ func runLoop(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create runner: %w", err)
 	}
-	_ = dryRun
 	return r.Run(ctx, cfg.Loop.MaxIterations, deadline, stopCh)
 }
 

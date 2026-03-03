@@ -14,10 +14,10 @@ import (
 	"github.com/danabrams/gromit/internal/runner/methodology"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/specgate"
+	"github.com/danabrams/gromit/internal/tracker"
 )
 
 const (
-	specLabelPrefix      = "spec:"
 	fixBeadPriorityLabel = "P1"
 )
 
@@ -103,7 +103,7 @@ func (p *Pipeline) IsSpecComplete(ctx context.Context, specName string) (bool, e
 		return false, fmt.Errorf("spec name is required")
 	}
 
-	label := specLabelPrefix + specName
+	label := tracker.SpecLabelFor(specName)
 	beads, err := p.query.ListWithLabel(ctx, label)
 	if err != nil {
 		return false, fmt.Errorf("list beads for spec %q: %w", specName, err)
@@ -186,7 +186,7 @@ func (p *Pipeline) Trigger(ctx context.Context, specName string) error {
 
 		title := fmt.Sprintf("Spec: %s", specName)
 		body, _ := BuildPRSummary(ctx, PRSummaryInput{SpecName: specName})
-		ref, err := p.prClient.CreatePR(ctx, title, body, branch, "main")
+		ref, err := p.prClient.CreatePR(ctx, title, body, branch, config.DefaultBaseBranch)
 		if err != nil {
 			return fmt.Errorf("create PR for spec %q: %w", specName, err)
 		}
