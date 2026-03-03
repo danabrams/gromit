@@ -65,19 +65,8 @@ const (
 	labelMetaChars       = ";\n|$`&<>(){}[]'\"\\"
 )
 
-// procutil helpers are declared as vars so tests can replace them.
-// Tests must call restoreBeadProcutilFns(t) (or equivalent cleanup) when doing so
-// to avoid polluting other tests. The indirection also centralizes cleanup
-// helpers that need context-aware behavior during tests that exercise
-// subprocess management.
 var (
-	waitForProcessCapacityFn  = procutil.WaitForProcessCapacity
-	subprocessEnvFn           = procutil.SubprocessEnv
-	killDescendantsOnCancelFn = procutil.KillDescendantsOnCancel
-	reapProcessTreeFn         = procutil.ReapProcessTree
-	resolveBeadsDirFn         = resolveDefaultBeadsDir
-	errContextRequired        = errors.New("bead: context required")
-	runWithRetryCascadeFn     = runWithRetryCascadeDefault
+	errContextRequired = errors.New("bead: context required")
 )
 
 // DefaultCommandTimeout is the per-command timeout applied to bd subprocess
@@ -234,7 +223,7 @@ type runExecutor func(context.Context, []string, []string) (string, error)
 
 type runWithRetryCascadeFunc func(*Client, context.Context, []string, []string, runExecutor) (string, error)
 
-// ClientDeps holds the helpers used by Client when interacting with subprocesses.
+// ClientDeps centralizes the procutil helpers that Client uses for subprocess management.
 type ClientDeps struct {
 	WaitForProcessCapacity  func(context.Context, time.Duration) error
 	SubprocessEnv           func() []string
@@ -249,19 +238,19 @@ func (d *ClientDeps) ensureDefaults() {
 		return
 	}
 	if d.WaitForProcessCapacity == nil {
-		d.WaitForProcessCapacity = waitForProcessCapacityFn
+		d.WaitForProcessCapacity = procutil.WaitForProcessCapacity
 	}
 	if d.SubprocessEnv == nil {
-		d.SubprocessEnv = subprocessEnvFn
+		d.SubprocessEnv = procutil.SubprocessEnv
 	}
 	if d.KillDescendantsOnCancel == nil {
-		d.KillDescendantsOnCancel = killDescendantsOnCancelFn
+		d.KillDescendantsOnCancel = procutil.KillDescendantsOnCancel
 	}
 	if d.ReapProcessTree == nil {
-		d.ReapProcessTree = reapProcessTreeFn
+		d.ReapProcessTree = procutil.ReapProcessTree
 	}
 	if d.ResolveBeadsDir == nil {
-		d.ResolveBeadsDir = resolveBeadsDirFn
+		d.ResolveBeadsDir = resolveDefaultBeadsDir
 	}
 	if d.RunWithRetryCascade == nil {
 		d.RunWithRetryCascade = runWithRetryCascadeDefault
@@ -703,7 +692,8 @@ func resolveCanonicalRepoRoot(ctx context.Context, dir string) (string, error) {
 	if err := cmd.Start(); err != nil {
 		return "", err
 	}
-	defer reapProcessTreeFn(cmd)
+	procutil.KillDescendantsOnCancel(ctx, cmd)
+	defer procutil.ReapProcessTree(cmd)
 	if err := cmd.Wait(); err != nil {
 		if strings.TrimSpace(stderr.String()) != "" {
 			return "", fmt.Errorf("%w: %s", err, strings.TrimSpace(stderr.String()))
@@ -783,7 +773,8 @@ func (c *Client) repoBaseName(ctx context.Context) (string, error) {
 	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	if err := waitForProcessCapacityFn(cmdCtx, procutil.DefaultProcessCapacityMaxWait); err != nil {
+	deps := c.resolveDeps()
+	if err := deps.WaitForProcessCapacity(cmdCtx, procutil.DefaultProcessCapacityMaxWait); err != nil {
 		return "", err
 	}
 
@@ -801,8 +792,8 @@ func (c *Client) repoBaseName(ctx context.Context) (string, error) {
 	if err := cmd.Start(); err != nil {
 		return "", err
 	}
-	killDescendantsOnCancelFn(cmdCtx, cmd)
-	defer reapProcessTreeFn(cmd)
+	deps.KillDescendantsOnCancel(cmdCtx, cmd)
+	defer deps.ReapProcessTree(cmd)
 
 	gitErr := cmd.Wait()
 	if gitErr != nil {
