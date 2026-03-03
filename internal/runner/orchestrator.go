@@ -357,6 +357,10 @@ func (o *Orchestrator) Run(ctx context.Context, maxIterations int, deadline time
 		reason := "completed"
 		if runErr != nil {
 			reason = fmt.Sprintf("error: %v", runErr)
+			var dirtyErr *specbranch.DirtyWorktreeError
+			if errors.As(runErr, &dirtyErr) {
+				reason = fmt.Sprintf("%s %s", reason, dirtyWorktreeOperatorActionableGuidance)
+			}
 		}
 		o.emitter.Emit(&events.RunCompleteEvent{
 			IterationsCompleted: iteration,
