@@ -300,7 +300,7 @@ func TestApplyPhaseProfile_RefactorKeepsRulesAndValidationFailures(t *testing.T)
 }
 
 func TestApplyPhaseProfile_ContainsProfilesForAllPhases(t *testing.T) {
-	expected := []string{"decompose", "red", "build", "green", "refactor"}
+	expected := []string{"decompose", "red", "build", "green", "refactor", "review", "thorough_review"}
 	for _, phase := range expected {
 		if _, ok := phaseProfiles[phase]; !ok {
 			t.Fatalf("phaseProfiles missing entry for %q", phase)
