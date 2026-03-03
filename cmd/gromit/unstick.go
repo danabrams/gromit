@@ -1,8 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"os"
+	"strconv"
+	"strings"
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
@@ -57,7 +61,34 @@ func runUnstick(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// TODO: implement interactive selection for stuck beads
+	// Display numbered list of stuck beads
+	fmt.Println("Stuck beads:")
+	for i, b := range result.StuckBeads {
+		fmt.Printf("%d. %s - %s\n", i+1, b.ID, b.Title)
+	}
+
+	// Read user selection
+	scanner := bufio.NewScanner(os.Stdin)
+	fmt.Print("\nSelect bead to unstick [1-" + strconv.Itoa(len(result.StuckBeads)) + "]: ")
+	if !scanner.Scan() {
+		return nil
+	}
+
+	choice := strings.TrimSpace(scanner.Text())
+	index, err := strconv.Atoi(choice)
+	if err != nil || index < 1 || index > len(result.StuckBeads) {
+		fmt.Println("Invalid selection")
+		return nil
+	}
+
+	// Unstick the selected bead
+	selectedBead := result.StuckBeads[index-1]
+	unstickResult, err := executor.Unstick(cmd.Context(), selectedBead.ID)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("✓ Unsticked %s (%s)\n", selectedBead.ID, unstickResult.Status)
 	return nil
 }
 
