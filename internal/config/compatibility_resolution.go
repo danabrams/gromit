@@ -37,7 +37,7 @@ type ProfileDependentDefaults struct {
 }
 
 // profileToAdapterName maps a profile name to the corresponding adapter name.
-// Returns "go" for "go" profile and "passthrough" for all other profiles.
+// Returns "go" for the "go" profile and "passthrough" otherwise.
 func profileToAdapterName(profileName string) string {
 	normalized := strings.ToLower(strings.TrimSpace(profileName))
 	switch normalized {
@@ -46,7 +46,7 @@ func profileToAdapterName(profileName string) string {
 	case "node", "python", "custom":
 		return "passthrough"
 	default:
-		return "go" // fallback
+		return "passthrough"
 	}
 }
 
