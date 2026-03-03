@@ -16726,3 +16726,4 @@
 {"actor":"Dan Abrams","comment":"Added label: area:runner","created_at":"2026-03-03T10:50:56Z","event_type":"label_added","id":16726,"issue_id":"gromit-xp9zc.5","new_value":null,"old_value":null}
 {"actor":"Dan Abrams","comment":"Added label: area:specbranch","created_at":"2026-03-03T10:50:56Z","event_type":"label_added","id":16727,"issue_id":"gromit-xp9zc.5","new_value":null,"old_value":null}
 {"actor":"Dan Abrams","comment":"Added label: decomposed-from:debug-20260303-104035","created_at":"2026-03-03T10:50:56Z","event_type":"label_added","id":16728,"issue_id":"gromit-xp9zc.5","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-03T12:09:37Z","event_type":"closed","id":16729,"issue_id":"gromit-74kzw","new_value":"Closed","old_value":""}
