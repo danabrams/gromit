@@ -50,6 +50,21 @@ func TestLogEvent_EventType_AlwaysReturnsLog(t *testing.T) {
 	}
 }
 
+// TestTimeMixin_EventTime ensures the embeddable TimeMixin exposes the usual EventTime behavior.
+func TestTimeMixin_EventTime(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 2, 27, 10, 30, 0, 0, time.UTC)
+	mixin := &TimeMixin{Time: now}
+
+	if got := mixin.EventTime(); got != now {
+		t.Fatalf("EventTime() = %v, want %v", got, now)
+	}
+
+	if zero := (&TimeMixin{}).EventTime(); zero.IsZero() {
+		t.Errorf("EventTime() should not return zero for zero-value mixin")
+	}
+}
+
 // TestEmitterLogger_Log_EmitsLogEvent tests that EmitterLogger.Log emits a LogEvent with correct level and message.
 func TestEmitterLogger_Log_EmitsLogEvent(t *testing.T) {
 	t.Parallel()
