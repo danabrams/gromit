@@ -381,19 +381,19 @@ exit 1
 }
 
 func TestClientRunAndRunCloseUseSharedRetryHelper(t *testing.T) {
+	t.Parallel()
 
 	var calls []string
-	originalFn := runWithRetryCascadeFn
-	runWithRetryCascadeFn = func(c *Client, ctx context.Context, args []string, extraEnv []string, runner runExecutor) (string, error) {
-		if len(args) == 0 {
-			t.Fatalf("runWithRetryCascade called with no args")
-		}
-		calls = append(calls, args[0])
-		return "", nil
+	deps := ClientDeps{
+		RunWithRetryCascade: func(c *Client, ctx context.Context, args []string, extraEnv []string, runner runExecutor) (string, error) {
+			if len(args) == 0 {
+				t.Fatalf("runWithRetryCascade called with no args")
+			}
+			calls = append(calls, args[0])
+			return "", nil
+		},
 	}
-	defer func() { runWithRetryCascadeFn = originalFn }()
-
-	c := &Client{binary: "bd"}
+	c := &Client{binary: "bd", Deps: deps}
 	if _, err := c.run(context.Background(), "ready"); err != nil {
 		t.Fatalf("run() unexpected error: %v", err)
 	}

@@ -563,7 +563,7 @@ func (c *Client) runClose(ctx context.Context, id string) (string, error) {
 	return c.runWithRunner(ctx, args, nil, c.runWithEnvCombinedOutput)
 }
 
-func (c *Client) runWithRunner(ctx context.Context, args []string, extraEnv []string, runner func(context.Context, []string, []string) (string, error)) (string, error) {
+func (c *Client) runWithRunner(ctx context.Context, args []string, extraEnv []string, runner runExecutor) (string, error) {
 	if c.RunFn != nil {
 		return c.RunFn(args...)
 	}
@@ -571,8 +571,8 @@ func (c *Client) runWithRunner(ctx context.Context, args []string, extraEnv []st
 }
 
 // runWithRetryCascade centralizes the retry cascade shared by run variants.
-func (c *Client) runWithRetryCascade(ctx context.Context, args []string, extraEnv []string, runner func(context.Context, []string, []string) (string, error)) (string, error) {
-	return runWithRetryCascadeFn(c, ctx, args, extraEnv, runner)
+func (c *Client) runWithRetryCascade(ctx context.Context, args []string, extraEnv []string, runner runExecutor) (string, error) {
+	return c.resolveDeps().RunWithRetryCascade(c, ctx, args, extraEnv, runner)
 }
 
 func runWithRetryCascadeDefault(c *Client, ctx context.Context, args []string, extraEnv []string, runner runExecutor) (string, error) {
