@@ -426,7 +426,7 @@ func ReadPerBeadStatsAfter(logsDir string, after map[string]time.Time) (map[stri
 			continue // Skip unreadable files
 		}
 		for _, entry := range entries {
-		if restart, ok := after[entry.BeadID]; ok && entry.Timestamp.Before(restart) {
+			if restart, ok := after[entry.BeadID]; ok && entry.Timestamp.Before(restart) {
 				continue
 			}
 

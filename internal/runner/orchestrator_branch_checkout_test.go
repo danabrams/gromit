@@ -12,7 +12,7 @@ import (
 
 // mockBranchRouter records calls to Resolve
 type mockBranchRouter struct {
-	calls [][]string
+	calls              [][]string
 	sessionModeEnabled bool
 }
 

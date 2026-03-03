@@ -110,6 +110,9 @@ type OrchestratorConfig struct {
 
 	// StageContext carries specflow metadata for spec-scoped runs, if any.
 	StageContext *StageContext
+	// SessionWorktree indicates the orchestrator is running in a session worktree context.
+	// When true, non-spec beads should skip forced base-branch checkout.
+	SessionWorktree bool
 
 	// PreImplementationHook orchestrates acceptance-test authoring beads before implementation.
 	PreImplementationHook func(ctx context.Context) error
@@ -203,6 +206,15 @@ func (o *Orchestrator) attachEmitterToStage(stage pipeline.Stage) {
 	}
 	if setter, ok := stage.(emitterSetter); ok {
 		setter.SetEmitter(o.emitter)
+	}
+}
+
+func (o *Orchestrator) enableSessionBranchRouter() {
+	if o == nil || !o.cfg.SessionWorktree || o.cfg.BranchRouter == nil {
+		return
+	}
+	if enabler, ok := o.cfg.BranchRouter.(interface{ EnableSessionWorktreeMode() }); ok {
+		enabler.EnableSessionWorktreeMode()
 	}
 }
 
@@ -499,35 +511,42 @@ runLoop:
 		}
 
 		// Checkout branch if router and checkout are configured.
-		if o.cfg.BranchRouter != nil && o.cfg.GitCheckout != nil && specbranch.HasSpecLabel(b.Labels) {
-			branch, branchErr := o.cfg.BranchRouter.BranchForLabels(b.Labels)
-			if branchErr != nil {
-				o.logWarning("Warning: branch resolution failed for bead %s: %v", b.ID, branchErr)
-			} else if branch != "" {
-				if checkoutErr := o.cfg.GitCheckout.CreateOrCheckoutSpecBranch(ctx, branch); checkoutErr != nil {
-					o.logWarning("Branch checkout failed for %s: %v; marking bead %s as failed", branch, checkoutErr, b.ID)
-					o.emitBeadFailedEvent(b, fmt.Sprintf("branch checkout failed for %s: %v", branch, checkoutErr))
-					baseIn.Result = &logger.IterationLog{
-						Timestamp:                time.Now(),
-						Iteration:                iteration,
-						BeadID:                   b.ID,
-						BeadTitle:                b.Title,
-						Success:                  false,
-						Error:                    fmt.Sprintf("branch checkout failed for %s: %v", branch, checkoutErr),
-						FailurePhase:             failurephase.Prelaunch,
-						Complexity:               baseIn.Complexity,
-						ComplexitySource:         baseIn.ComplexitySource,
-						ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
+		if o.cfg.BranchRouter != nil && o.cfg.GitCheckout != nil {
+			shouldResolveBranch := specbranch.HasSpecLabel(b.Labels)
+			if o.cfg.SessionWorktree {
+				o.enableSessionBranchRouter()
+				shouldResolveBranch = true
+			}
+			if shouldResolveBranch {
+				branch, branchErr := o.cfg.BranchRouter.BranchForLabels(b.Labels)
+				if branchErr != nil {
+					o.logWarning("Warning: branch resolution failed for bead %s: %v", b.ID, branchErr)
+				} else if branch != "" {
+					if checkoutErr := o.cfg.GitCheckout.CreateOrCheckoutSpecBranch(ctx, branch); checkoutErr != nil {
+						o.logWarning("Branch checkout failed for %s: %v; marking bead %s as failed", branch, checkoutErr, b.ID)
+						o.emitBeadFailedEvent(b, fmt.Sprintf("branch checkout failed for %s: %v", branch, checkoutErr))
+						baseIn.Result = &logger.IterationLog{
+							Timestamp:                time.Now(),
+							Iteration:                iteration,
+							BeadID:                   b.ID,
+							BeadTitle:                b.Title,
+							Success:                  false,
+							Error:                    fmt.Sprintf("branch checkout failed for %s: %v", branch, checkoutErr),
+							FailurePhase:             failurephase.Prelaunch,
+							Complexity:               baseIn.Complexity,
+							ComplexitySource:         baseIn.ComplexitySource,
+							ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
+						}
+						o.runEpilogue(ctx, baseIn, false)
+						o.emitter.Emit(&events.IterationCompleteEvent{
+							Iteration: iteration,
+							BeadID:    b.ID,
+							Success:   false,
+							Duration:  0,
+							Time:      time.Now(),
+						})
+						continue
 					}
-					o.runEpilogue(ctx, baseIn, false)
-					o.emitter.Emit(&events.IterationCompleteEvent{
-						Iteration: iteration,
-						BeadID:    b.ID,
-						Success:   false,
-						Duration:  0,
-						Time:      time.Now(),
-					})
-					continue
 				}
 			}
 		}

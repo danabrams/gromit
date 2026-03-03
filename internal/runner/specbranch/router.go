@@ -15,7 +15,8 @@ var specNamePattern = regexp.MustCompile(`^[A-Za-z0-9._/\-]+$`)
 
 // Router maps bead labels to execution branch names.
 type Router struct {
-	baseBranch string
+	baseBranch          string
+	sessionWorktreeMode bool
 }
 
 // NewRouter returns a Router with default branch naming rules.
@@ -32,6 +33,9 @@ func NewRouter(baseBranch string) *Router {
 func (r *Router) BranchForLabels(labels []string) (string, error) {
 	rawSpecName, found := findSpecLabel(labels)
 	if !found {
+		if r.sessionWorktreeMode {
+			return "", nil
+		}
 		return r.baseBranchOrDefault(), nil
 	}
 	specName := strings.TrimSpace(rawSpecName)
@@ -63,6 +67,15 @@ func (r *Router) baseBranchOrDefault() string {
 		return config.DefaultBaseBranch
 	}
 	return r.baseBranch
+}
+
+// EnableSessionWorktreeMode toggles session worktree handling for the router.
+// When enabled, non-spec beads return an empty branch to avoid forced base-branch checkout.
+func (r *Router) EnableSessionWorktreeMode() {
+	if r == nil {
+		return
+	}
+	r.sessionWorktreeMode = true
 }
 
 func findSpecLabel(labels []string) (string, bool) {

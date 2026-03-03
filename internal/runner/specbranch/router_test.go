@@ -123,6 +123,28 @@ func TestRouterResolve(t *testing.T) {
 	}
 }
 
+func TestRouterSessionWorktreeSkipsBaseBranch(t *testing.T) {
+	t.Parallel()
+
+	router := specbranch.NewRouter("main")
+	router.EnableSessionWorktreeMode()
+	branch, err := router.BranchForLabels(nil)
+	if err != nil {
+		t.Fatalf("BranchForLabels() error = %v", err)
+	}
+	if branch != "" {
+		t.Fatalf("BranchForLabels() = %q, want empty string in session worktree mode", branch)
+	}
+
+	specBranch, err := router.BranchForLabels([]string{"spec:auth"})
+	if err != nil {
+		t.Fatalf("BranchForLabels() error = %v", err)
+	}
+	if specBranch != "gromit/spec-auth" {
+		t.Fatalf("BranchForLabels() = %q, want %q", specBranch, "gromit/spec-auth")
+	}
+}
+
 func TestHasSpecLabel(t *testing.T) {
 	t.Parallel()
 
