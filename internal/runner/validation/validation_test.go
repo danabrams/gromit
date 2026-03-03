@@ -557,6 +557,63 @@ func TestRunWithRecovery_StopsWhenStaleFixDetected(t *testing.T) {
 	}
 }
 
+func TestRunWithRecovery_ShortCircuitsEvenWhenDiffUnavailable(t *testing.T) {
+	t.Parallel()
+
+	cfg := newTestConfig()
+	cfg.Validation.Commands = []string{"go test ./..."}
+	cfg.Validation.MaxValidationRetries = 2
+
+	cmdCalls := 0
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		cmdCalls++
+		return "", "validation failure", 1, nil
+	}
+
+	autoFixCalls := 0
+	autoFix := func(startCommit string) error {
+		autoFixCalls++
+		return nil
+	}
+
+	executeFnCalls := 0
+	executeFn := func(ctx context.Context, bc *runtypes.BeadContext, escalationEnabled bool) bool {
+		executeFnCalls++
+		return true
+	}
+
+	r := NewRunner(cfg, cmdRunner, autoFix, executeFn)
+	r.listChangedFilesFn = func(ctx context.Context, sinceCommit string) ([]string, error) {
+		return nil, fmt.Errorf("git diff unavailable")
+	}
+	logBuffer := &bytes.Buffer{}
+	r.SetLogOutput(logBuffer)
+
+	bc := newTestBeadContext()
+	bc.StartCommit = "abc123"
+
+	err := r.RunWithRecovery(context.Background(), bc)
+	if !errors.Is(err, ErrValidationFailed) {
+		t.Fatalf("RunWithRecovery error = %v, want ErrValidationFailed", err)
+	}
+
+	if autoFixCalls != 1 {
+		t.Errorf("autoFix called %d times, want 1", autoFixCalls)
+	}
+	if executeFnCalls != 0 {
+		t.Errorf("executeFn called %d times, want 0", executeFnCalls)
+	}
+	if cmdCalls != 2 {
+		t.Errorf("validation commands executed %d times, want 2", cmdCalls)
+	}
+
+	if !strings.Contains(logBuffer.String(), staleFixShortCircuitMessage) {
+		t.Fatalf("expected stale-fix log entry, got %q", logBuffer.String())
+	}
+	if !strings.Contains(bc.Result.Output, staleFixShortCircuitMessage) {
+		t.Fatalf("expected stale-fix message in bead output, got %q", bc.Result.Output)
+	}
+}
 func TestRunWithRecovery_DefaultGitDiffShortCircuit(t *testing.T) {
 	t.Parallel()
 	commit := requireGitHeadCommit(t)
