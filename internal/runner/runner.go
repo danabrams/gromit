@@ -16,11 +16,10 @@ import (
 //
 //nolint:govet // field alignment is intentionally grouped by responsibility.
 type Runner struct {
-	cfg             *config.Config
-	tddOrchestrator *tddOrchestrator
-	experimentMgr   *experiment.Manager
-	beads           coverageCommentClient
-	output          io.Writer
+	cfg           *config.Config
+	experimentMgr *experiment.Manager
+	beads         coverageCommentClient
+	output        io.Writer
 }
 
 type coverageCommentClient interface {
