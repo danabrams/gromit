@@ -68,6 +68,15 @@ func TestCreateOrCheckoutSpecBranch_IncludesGitContextOnFailure(t *testing.T) {
 	if !strings.Contains(msg, "output:") {
 		t.Fatalf("error %q missing git command output context", msg)
 	}
+	if !strings.Contains(msg, "stdout:") {
+		t.Fatalf("error %q missing stdout context", msg)
+	}
+	if !strings.Contains(msg, "stderr:") {
+		t.Fatalf("error %q missing stderr context", msg)
+	}
+	if !strings.Contains(msg, "fatal: 'bad branch name' is not a valid branch name") {
+		t.Fatalf("error %q missing actionable git stderr content", msg)
+	}
 }
 
 // TestRebaseSpecOntoMain_Rebases verifies that RebaseSpecOntoMain rebases
