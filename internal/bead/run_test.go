@@ -664,6 +664,38 @@ func TestClientRun_CustomCommandTimeout(t *testing.T) {
 	}
 }
 
+func TestClientRunWithRunner_UsesInjectedRetryCascade(t *testing.T) {
+	t.Parallel()
+
+	var cascadeCalled bool
+	deps := ClientDeps{
+		RunWithRetryCascade: func(c *Client, ctx context.Context, args []string, extraEnv []string, runner runExecutor) (string, error) {
+			cascadeCalled = true
+			if len(args) == 0 || args[0] != "ready" {
+				t.Fatalf("unexpected args: %v", args)
+			}
+			return "cascade", nil
+		},
+	}
+	c := &Client{Deps: deps}
+
+	runner := func(ctx context.Context, args []string, extraEnv []string) (string, error) {
+		t.Fatalf("runner should not be executed when cascade handles it")
+		return "", nil
+	}
+
+	out, err := c.runWithRunner(context.Background(), []string{"ready"}, nil, runner)
+	if err != nil {
+		t.Fatalf("runWithRunner() error = %v", err)
+	}
+	if !cascadeCalled {
+		t.Fatal("runWithRunner() did not call injected cascade")
+	}
+	if out != "cascade" {
+		t.Fatalf("runWithRunner() output = %q, want %q", out, "cascade")
+	}
+}
+
 func TestClientRunWithEnv_UsesProcutilLifecycle(t *testing.T) {
 	script := "#!/bin/sh\n" +
 		"printf 'FOO=%s\\n' \"$FOO\"\n" +
