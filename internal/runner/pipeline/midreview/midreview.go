@@ -9,6 +9,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 )
 
@@ -27,13 +28,7 @@ type PromptRenderer interface {
 }
 
 // MidBuildReviewContext represents the data required to render the mid-review prompt.
-type MidBuildReviewContext struct {
-	BeadTitle          string
-	BeadDescription    string
-	Diff               string
-	AcceptanceCriteria string
-	Spec               string
-}
+type MidBuildReviewContext = prompt.MidBuildReviewContext
 
 func (s *Stage) invocationContext(ctx context.Context, in pipeline.Input) (context.Context, context.CancelFunc) {
 	cfg := in.Config

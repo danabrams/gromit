@@ -246,6 +246,15 @@ func (s *ScopeEstimate) normalizeNilFields() {
 	}
 }
 
+// MidBuildReviewContext holds metadata supplied to the mid-build review prompt.
+type MidBuildReviewContext struct {
+	Diff               string
+	Spec               string
+	AcceptanceCriteria string
+	BeadTitle          string
+	BeadDescription    string
+}
+
 // ReviewContext holds data for light review prompt template
 type ReviewContext struct {
 	Bead               *bead.Bead
