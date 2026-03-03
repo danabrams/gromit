@@ -13,82 +13,11 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/coverage"
-	"github.com/danabrams/gromit/internal/pipeline/execute"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/runner/tdd"
 )
-
-// buildTDDCycleRunner creates a TDDCycleRunner adapter backed by a Runner with a
-// configured tddOrchestrator. Inject the result into execute.Build via WithTDDCycleRunner.
-func buildTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *provider.Router, output io.Writer, beads BeadClient, costDefs map[string]config.ProviderDef) execute.TDDCycleRunner {
-	orch := tdd.NewCycleOrchestrator(cfg, output, tdd.CycleOrchestratorDeps{
-		RenderRedFn:        buildRenderRedFn(cfg, renderer),
-		RenderGreenFn:      buildRenderGreenFn(cfg, renderer),
-		InvokeFn:           buildInvokeFn(router, output),
-		ValidateFn:         buildValidateFn(cfg),
-		RunRefactorFn:      buildRunRefactorFn(cfg, renderer, router, output),
-		EscalateTierFn:     func(currentTier string) string { return cfg.NextEscalationTier(currentTier) },
-		GetDiffFn:          func() (string, error) { return getGitDiff(context.Background(), "HEAD") },
-		ReadFileFn:         readFileAsString,
-		GetGitHeadFn:       gitHeadCommit,
-		GitResetFn:         gitResetHard,
-		ListChangedFilesFn: gitListChangedFiles,
-		RestoreTestFilesFn: gitRestoreFiles,
-		LogPhaseFn: func(cycle int, phase, detail string) {
-			_, _ = fmt.Fprintf(output, "  [tdd] cycle %d %s: %s\n", cycle, phase, detail)
-		},
-		RecordPhaseMetricFn: func(bc *runtypes.BeadContext, phase string, cycleNumber int, beforeCostUSD float64, beforeInputTokens int, beforeOutputTokens int, startTime time.Time) {
-			appendTDDPhaseMetric(bc, phase, cycleNumber, beforeCostUSD, beforeInputTokens, beforeOutputTokens, startTime)
-		},
-	})
-
-	// layer3Invoke wraps the router to provide the invoke signature that
-	// extractRequirementsViaLLM / applyLayer3Requirements expect.
-	layer3Invoke := func(invokeCtx context.Context, prompt, tier string) (*provider.Result, error) {
-		p, _ := router.Select("build", tier)
-		if p == nil {
-			return nil, fmt.Errorf("no provider available for tier %s", tier)
-		}
-		return p.Run(invokeCtx, prompt, tier)
-	}
-
-	r := &Runner{
-		cfg: cfg,
-		tddOrchestrator: &tddOrchestrator{
-			runCyclesFn: func(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, criteria []coverage.Criterion) error {
-				if bc.Tier == "" {
-					bc.Tier = resolveTDDBuildTier(cfg, bc.Bead)
-				}
-				if bc.Model == "" {
-					bc.Model = provider.TierToLegacyModel(bc.Tier)
-					if bc.Result != nil {
-						bc.Result.Model = bc.Model
-					}
-				}
-				// Swap in a telemetry-accumulating InvokeFn now that bc is available.
-				orch.SetInvokeFn(buildInvokeFnWithTelemetry(router, output, bc, costDefs))
-				remaining := bc.Bead.ExpectedOutputs
-				if len(remaining) == 0 {
-					remaining = tddExpectedOutputsOrTitle(bc.Bead)
-				}
-				// Layer 3: LLM-based requirement extraction when we only have
-				// a single broad requirement (title fallback).
-				if len(remaining) <= 1 {
-					if extracted, _ := applyLayer3Requirements(ctx, cfg, bc.Result, remaining, bc.Bead.Title, bc.Bead.Description, layer3Invoke); len(extracted) > len(remaining) {
-						remaining = extracted
-					}
-				}
-				state := newTDDCycleState(cfg, remaining)
-				return orch.RunCycles(ctx, bc, state)
-			},
-		},
-		beads:  beads,
-		output: output,
-	}
-	return &TDDPipelineAdapter{runner: r}
-}
 
 func newTDDCycleState(cfg *config.Config, remaining []string) tdd.CycleState {
 	return tdd.CycleState{
@@ -345,19 +274,6 @@ func gitListChangedFiles(sinceCommit string) ([]string, error) {
 		return nil, nil
 	}
 	return strings.Split(raw, "\n"), nil
-}
-
-// optionalTDDCycleRunner returns a TDDCycleRunner when FreshContextPerCycle is
-// enabled, or nil otherwise. The caller should inject the result into the Build
-// stage via WithTDDCycleRunner.
-func optionalTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *provider.Router, output io.Writer, beads BeadClient, costDefs map[string]config.ProviderDef) execute.TDDCycleRunner {
-	if cfg == nil || !cfg.Methodology.FreshContextPerCycle {
-		return nil
-	}
-	if cfg.ResolvedMethodologyAdapter().Value != "go" {
-		return nil
-	}
-	return buildTDDCycleRunner(cfg, renderer, router, output, beads, costDefs)
 }
 
 func phaseUsageDelta(

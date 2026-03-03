@@ -180,11 +180,6 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 		},
 		syncOut,
 	)
-	if beadsClient != nil {
-		if runner := optionalTDDCycleRunner(cfg, renderer, router, syncOut, beadsClient, costDefs); runner != nil {
-			buildStage.WithTDDCycleRunner(runner)
-		}
-	}
 	if experimentMgr != nil {
 		buildStage.WithExperimentManager(experimentMgr)
 	}
