@@ -9,8 +9,8 @@ func TestCloneStringSliceReturnsNilForNilInput(t *testing.T) {
 }
 
 func TestCloneStringSliceCreatesIndependentCopy(t *testing.T) {
-    src := []string{"alpha", "beta"}
-    clone := cloneStringSlice(src)
+	src := []string{"alpha", "beta"}
+	clone := cloneStringSlice(src)
 
     if len(clone) != len(src) {
         t.Fatalf("expected clone length %d, got %d", len(src), len(clone))
@@ -23,7 +23,14 @@ func TestCloneStringSliceCreatesIndependentCopy(t *testing.T) {
     }
 
     clone[0] = "changed"
-    if src[0] == "changed" {
-        t.Fatalf("modifying clone should not mutate source")
-    }
+	if src[0] == "changed" {
+		t.Fatalf("modifying clone should not mutate source")
+	}
+}
+
+func TestCloneStringSliceEmptyNonNil(t *testing.T) {
+	empty := make([]string, 0)
+	if CloneStringSlice(empty) == nil {
+		t.Fatalf("expected non-nil clone for non-nil empty slice")
+	}
 }
