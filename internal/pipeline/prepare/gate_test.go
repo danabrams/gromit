@@ -314,6 +314,42 @@ func (a *criteriaAwareReadinessAssessor) Assess(_ context.Context, b *bead.Bead)
 	return readiness.Assessment{Status: readiness.StatusReady}, nil
 }
 
+type noopCriteriaEnricher struct{}
+
+func (noopCriteriaEnricher) Enrich(_ context.Context, _ *bead.Bead) error {
+	return nil
+}
+
+// RED: test for gate default behavior when no criteria enricher is configured.
+func TestGateRun_DefaultBehaviorWithoutCriteriaEnricher(t *testing.T) {
+	t.Parallel()
+
+	var _ CriteriaEnricher = noopCriteriaEnricher{}
+
+	assessor := &criteriaAwareReadinessAssessor{}
+	gate := New(io.Discard).WithReadinessAssessor(assessor)
+	beadID := "default-behavior-no-enricher"
+	b := &bead.Bead{ID: beadID, Title: "default gate bead"}
+
+	out, err := gate.Run(context.Background(), pipeline.Input{Bead: b})
+	if err != nil {
+		t.Fatalf("Gate.Run() error = %v", err)
+	}
+
+	if out.Decision != pipeline.Block {
+		t.Fatalf("decision = %v, want %v", out.Decision, pipeline.Block)
+	}
+	if out.GateBlockReason != "criteria_missing" {
+		t.Fatalf("GateBlockReason = %q, want %q", out.GateBlockReason, "criteria_missing")
+	}
+	if len(b.ExpectedOutputs) != 0 {
+		t.Fatalf("bead expected outputs mutated without enricher: %v", b.ExpectedOutputs)
+	}
+	if assessor.captured != b {
+		t.Fatalf("readiness assessor received unexpected bead %v", assessor.captured)
+	}
+}
+
 // RED: test for criteria enricher populating expected outputs before readiness assessment.
 func TestGateRun_CriteriaEnricherPopulatesExpectedOutputs(t *testing.T) {
 	t.Parallel()
