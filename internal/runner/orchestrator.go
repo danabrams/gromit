@@ -3,6 +3,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -157,6 +158,9 @@ var orchestratorPrelaunchBackoffFn = func(d time.Duration) { time.Sleep(d) }
 
 // orchestratorPrelaunchBackoffDuration is the sleep duration after a pre-launch failure.
 const orchestratorPrelaunchBackoffDuration = 3 * time.Second
+
+const dirtyWorktreeOperatorActionableGuidance = "Clean, stash, or commit your working tree (or run in session worktree mode) before retrying."
+const dirtyWorktreeGateBlockReason = "dirty_worktree_precondition"
 
 // StateSaver persists provider routing state (provider counts, availability) to disk.
 type StateSaver interface {
@@ -353,6 +357,10 @@ func (o *Orchestrator) Run(ctx context.Context, maxIterations int, deadline time
 		reason := "completed"
 		if runErr != nil {
 			reason = fmt.Sprintf("error: %v", runErr)
+			var dirtyErr *specbranch.DirtyWorktreeError
+			if errors.As(runErr, &dirtyErr) {
+				reason = fmt.Sprintf("%s %s", reason, dirtyWorktreeOperatorActionableGuidance)
+			}
 		}
 		o.emitter.Emit(&events.RunCompleteEvent{
 			IterationsCompleted: iteration,
@@ -591,16 +599,26 @@ runLoop:
 					o.logWarning("Warning: branch resolution failed for bead %s: %v", b.ID, branchErr)
 				} else if branch != "" {
 					if checkoutErr := o.cfg.GitCheckout.CreateOrCheckoutSpecBranch(ctx, branch); checkoutErr != nil {
-						o.logWarning("Branch checkout failed for %s: %v; marking bead %s as failed", branch, checkoutErr, b.ID)
-						o.emitBeadFailedEvent(b, fmt.Sprintf("branch checkout failed for %s: %v", branch, checkoutErr))
+						var dirtyErr *specbranch.DirtyWorktreeError
+						dirty := errors.As(checkoutErr, &dirtyErr)
+						errMsg := fmt.Sprintf("branch checkout failed for %s: %v", branch, checkoutErr)
+						if dirty {
+							dirtyMessage := fmt.Sprintf("dirty worktree precondition blocked branch checkout for %s: %s", branch, dirtyErr.Error())
+							errMsg = fmt.Sprintf("%s %s", dirtyMessage, dirtyWorktreeOperatorActionableGuidance)
+							o.logWarning("%s", errMsg)
+						} else {
+							o.logWarning("Branch checkout failed for %s: %v; marking bead %s as failed", branch, checkoutErr, b.ID)
+						}
+						o.emitBeadFailedEvent(b, errMsg)
 						baseIn.Result = &logger.IterationLog{
 							Timestamp:                time.Now(),
 							Iteration:                iteration,
 							BeadID:                   b.ID,
 							BeadTitle:                b.Title,
 							Success:                  false,
-							Error:                    fmt.Sprintf("branch checkout failed for %s: %v", branch, checkoutErr),
+							Error:                    errMsg,
 							FailurePhase:             failurephase.Prelaunch,
+							GateBlockReason:          dirtyWorktreeGateBlockReason,
 							Complexity:               baseIn.Complexity,
 							ComplexitySource:         baseIn.ComplexitySource,
 							ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
@@ -614,6 +632,9 @@ runLoop:
 							Duration:  0,
 							TimeMixin: events.TimeMixin{Time: time.Now()},
 						})
+						if dirty {
+							return fmt.Errorf("branch checkout blocked by dirty worktree precondition for %s: %w", branch, checkoutErr)
+						}
 						continue
 					}
 				}

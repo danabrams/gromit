@@ -15,6 +15,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/runner/specbranch"
 )
 
 // eventCapture records emitted events in order for assertion.
@@ -204,6 +205,23 @@ func emitValidationFailEvent(in pipeline.Input, output string, duration time.Dur
 		Duration:  duration,
 		TimeMixin: events.TimeMixin{Time: time.Now()},
 	})
+}
+
+type staticBranchRouter struct {
+	branch string
+}
+
+func (s *staticBranchRouter) BranchForLabels([]string) (string, error) {
+	return s.branch, nil
+}
+
+type haltingDirtyCheckout struct{}
+
+func (h *haltingDirtyCheckout) CreateOrCheckoutSpecBranch(ctx context.Context, specBranchName string) error {
+	return &specbranch.DirtyWorktreeError{
+		RepoDir: specBranchName,
+		Status:  "M dirty.go",
+	}
 }
 
 func (cs *captureSubscriber) start() {
@@ -732,6 +750,101 @@ func TestOrchestrator_BlockPath_StuckEmitsBeadStuckEvent(t *testing.T) {
 	}
 	if beadStuckEvent.BeadID != "stuck-bead" {
 		t.Errorf("BeadStuckEvent.BeadID = %q, want %q", beadStuckEvent.BeadID, "stuck-bead")
+	}
+}
+
+// TestOrchestrator_CheckoutPreconditionHalt_EmitsEventContract verifies that a dirty-worktree
+// checkout precondition short-circuits the run and still emits the expected events.
+func TestOrchestrator_CheckoutPreconditionHalt_EmitsEventContract(t *testing.T) {
+	t.Parallel()
+
+	beadCalls := 0
+	cfg := OrchestratorConfig{
+		Gate:         &fakeStage{},
+		Build:        &fakeStage{},
+		Validate:     &fakeStage{},
+		Epilogue:     &fakeStage{},
+		BranchRouter: &staticBranchRouter{branch: "gromit/spec-dirty"},
+		GitCheckout:  &haltingDirtyCheckout{},
+		Config:       &config.Config{},
+		Output:       io.Discard,
+		GetBead: func(_ context.Context) (*bead.Bead, error) {
+			beadCalls++
+			if beadCalls > 1 {
+				return nil, nil
+			}
+			return &bead.Bead{
+				ID:     "dirty",
+				Title:  "Dirty Bead",
+				Labels: []string{"spec:dirty"},
+			}, nil
+		},
+	}
+
+	orch := NewOrchestrator(cfg)
+	capturer := newCaptureSubscriber(orch.GetEmitter())
+	go capturer.start()
+
+	err := orch.Run(context.Background(), 1, time.Time{}, nil)
+	if err == nil {
+		t.Fatal("Run() succeeded, want checkout precondition error")
+	}
+	var dirtyErr *specbranch.DirtyWorktreeError
+	if !errors.As(err, &dirtyErr) {
+		t.Fatalf("Run() error = %T, want DirtyWorktreeError: %v", err, err)
+	}
+
+	<-capturer.done
+
+	var beadFailed *events.BeadFailedEvent
+	var iterComplete *events.IterationCompleteEvent
+	var runComplete *events.RunCompleteEvent
+
+	for _, evt := range capturer.capture.events {
+		switch e := evt.(type) {
+		case *events.BeadFailedEvent:
+			if beadFailed == nil {
+				beadFailed = e
+			}
+		case *events.IterationCompleteEvent:
+			if iterComplete == nil {
+				iterComplete = e
+			}
+		case *events.RunCompleteEvent:
+			if runComplete == nil {
+				runComplete = e
+			}
+		}
+	}
+
+	if beadFailed == nil {
+		t.Fatal("BeadFailedEvent missing for checkout precondition halt")
+	}
+	if !strings.Contains(beadFailed.Error, "dirty worktree precondition blocked branch checkout for") {
+		t.Fatalf("BeadFailedEvent.Error = %q, want dirty worktree context", beadFailed.Error)
+	}
+	if !strings.Contains(beadFailed.Error, dirtyWorktreeOperatorActionableGuidance) {
+		t.Fatalf("BeadFailedEvent.Error missing guidance: %q", beadFailed.Error)
+	}
+
+	if iterComplete == nil {
+		t.Fatal("IterationCompleteEvent missing for checkout precondition halt")
+	}
+	if iterComplete.Success {
+		t.Fatalf("IterationCompleteEvent.Success = true, want false")
+	}
+
+	if runComplete == nil {
+		t.Fatal("RunCompleteEvent missing for checkout precondition halt")
+	}
+	if runComplete.IterationsCompleted != 1 {
+		t.Fatalf("RunCompleteEvent.IterationsCompleted = %d, want 1", runComplete.IterationsCompleted)
+	}
+	if !strings.Contains(runComplete.Reason, "branch checkout blocked by dirty worktree precondition for") {
+		t.Fatalf("RunCompleteEvent.Reason missing dirty context: %q", runComplete.Reason)
+	}
+	if !strings.Contains(runComplete.Reason, dirtyWorktreeOperatorActionableGuidance) {
+		t.Fatalf("RunCompleteEvent.Reason missing guidance: %q", runComplete.Reason)
 	}
 }
 

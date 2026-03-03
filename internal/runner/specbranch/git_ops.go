@@ -22,6 +22,28 @@ type gitCommandOutput struct {
 	stderr string
 }
 
+// DirtyWorktreeError is returned when the repository has uncommitted changes that block branch switching.
+type DirtyWorktreeError struct {
+	RepoDir string
+	Status  string
+}
+
+const dirtyWorktreeGuidance = "Please commit, stash, or clean your working tree before switching branches."
+
+func (e *DirtyWorktreeError) Error() string {
+	if e == nil {
+		return ""
+	}
+	status := strings.TrimSpace(e.Status)
+
+	message := fmt.Sprintf("dirty worktree %s", e.RepoDir)
+	if status != "" {
+		message = fmt.Sprintf("%s: %s", message, status)
+	}
+
+	return fmt.Sprintf("%s. %s", message, dirtyWorktreeGuidance)
+}
+
 // runGitCommand executes a git command with process capacity waiting and lifecycle handling.
 func runGitCommand(ctx context.Context, repoDir string, args ...string) (string, error) {
 	output, err := runGitCommandWithOutput(ctx, repoDir, args...)
@@ -82,6 +104,10 @@ func (g *GitOps) CreateOrCheckoutSpecBranch(ctx context.Context, specBranchName 
 		return fmt.Errorf("spec branch name cannot be empty")
 	}
 
+	if err := g.ensureWorktreeClean(ctx); err != nil {
+		return fmt.Errorf("spec branch %s blocked by dirty worktree precondition: %w", specBranchName, err)
+	}
+
 	// Try to create the branch first
 	createOutput, err := runGitCommandWithOutput(ctx, g.repoDir, "checkout", "-b", specBranchName)
 
@@ -125,6 +151,30 @@ func formatGitCommandOutput(output gitCommandOutput) string {
 	}
 
 	return fmt.Sprintf("stdout: %s | stderr: %s", stdout, stderr)
+}
+
+// WorktreeStatus returns the porcelain status of the repository worktree.
+func WorktreeStatus(ctx context.Context, repoDir string) (string, error) {
+	output, err := runGitCommandWithOutput(ctx, repoDir, "status", "--porcelain=1", "--untracked-files=all")
+	if err != nil {
+		return "", fmt.Errorf("determine worktree status: %w", err)
+	}
+
+	return strings.TrimSpace(output.stdout), nil
+}
+
+func (g *GitOps) ensureWorktreeClean(ctx context.Context) error {
+	status, err := WorktreeStatus(ctx, g.repoDir)
+	if err != nil {
+		return err
+	}
+	if status == "" {
+		return nil
+	}
+	return &DirtyWorktreeError{
+		RepoDir: g.repoDir,
+		Status:  status,
+	}
 }
 
 // RebaseOnto rebases the branch onto the specified target branch.

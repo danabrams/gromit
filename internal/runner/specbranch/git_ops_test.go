@@ -79,6 +79,116 @@ func TestCreateOrCheckoutSpecBranch_IncludesGitContextOnFailure(t *testing.T) {
 	}
 }
 
+func TestCreateOrCheckoutSpecBranch_DirtyWorktreeReturnsTypedError(t *testing.T) {
+	fixture := helpers.NewDeterministicGitConflictFixture(t)
+	ops := NewGitOps(fixture.Dir, fixture.BaseBranch)
+
+	dirtyFile := filepath.Join(fixture.Dir, fixture.ConflictingFile)
+	if err := os.WriteFile(dirtyFile, []byte("dirty change"), 0o644); err != nil {
+		t.Fatalf("failed to dirty worktree: %v", err)
+	}
+
+	specBranchName := fixture.OurBranch
+	err := ops.CreateOrCheckoutSpecBranch(context.Background(), specBranchName)
+	if err == nil {
+		t.Fatal("expected dirty worktree error")
+	}
+
+	var dirtyErr *DirtyWorktreeError
+	if !errors.As(err, &dirtyErr) {
+		t.Fatalf("expected DirtyWorktreeError, got %T: %v", err, err)
+	}
+
+	if !strings.Contains(dirtyErr.Status, fixture.ConflictingFile) {
+		t.Fatalf("dirty worktree status missing file context: %q", dirtyErr.Status)
+	}
+}
+
+func TestCreateOrCheckoutSpecBranch_DirtyWorktreeIncludesGuidance(t *testing.T) {
+	fixture := helpers.NewDeterministicGitConflictFixture(t)
+	ops := NewGitOps(fixture.Dir, fixture.BaseBranch)
+
+	dirtyFile := filepath.Join(fixture.Dir, fixture.ConflictingFile)
+	if err := os.WriteFile(dirtyFile, []byte("dirty change"), 0o644); err != nil {
+		t.Fatalf("failed to dirty worktree: %v", err)
+	}
+
+	specBranchName := fixture.OurBranch
+	err := ops.CreateOrCheckoutSpecBranch(context.Background(), specBranchName)
+	if err == nil {
+		t.Fatal("expected dirty worktree error")
+	}
+
+	var dirtyErr *DirtyWorktreeError
+	if !errors.As(err, &dirtyErr) {
+		t.Fatalf("expected DirtyWorktreeError, got %T: %v", err, err)
+	}
+
+	msg := dirtyErr.Error()
+	guidance := "commit, stash, or clean your working tree"
+	if !strings.Contains(msg, guidance) {
+		t.Fatalf("error %q missing guidance %q", msg, guidance)
+	}
+}
+
+func TestCreateOrCheckoutSpecBranch_DirtyWorktreeErrorMessageIsActionable(t *testing.T) {
+	fixture := helpers.NewDeterministicGitConflictFixture(t)
+	ops := NewGitOps(fixture.Dir, fixture.BaseBranch)
+
+	dirtyFile := filepath.Join(fixture.Dir, fixture.ConflictingFile)
+	if err := os.WriteFile(dirtyFile, []byte("dirty change"), 0o644); err != nil {
+		t.Fatalf("failed to dirty worktree: %v", err)
+	}
+
+	specBranchName := fixture.OurBranch
+	err := ops.CreateOrCheckoutSpecBranch(context.Background(), specBranchName)
+	if err == nil {
+		t.Fatal("expected dirty worktree error")
+	}
+
+	var dirtyErr *DirtyWorktreeError
+	if !errors.As(err, &dirtyErr) {
+		t.Fatalf("expected DirtyWorktreeError, got %T: %v", err, err)
+	}
+
+	msg := err.Error()
+	if !strings.Contains(msg, specBranchName) {
+		t.Fatalf("error %q missing branch context %q", msg, specBranchName)
+	}
+	if !strings.Contains(msg, dirtyWorktreeGuidance) {
+		t.Fatalf("error %q missing guidance %q", msg, dirtyWorktreeGuidance)
+	}
+	if !strings.Contains(msg, dirtyErr.Status) {
+		t.Fatalf("error %q missing worktree status %q", msg, dirtyErr.Status)
+	}
+}
+
+func TestCreateOrCheckoutSpecBranch_DirtyWorktreeFixtureBlocksCheckout(t *testing.T) {
+	fixture := helpers.NewDirtyWorktreeFixture(t)
+	ops := NewGitOps(fixture.Dir, fixture.BaseBranch)
+
+	specBranchName := "gromit/spec-dirty-block"
+	err := ops.CreateOrCheckoutSpecBranch(context.Background(), specBranchName)
+	if err == nil {
+		t.Fatal("expected dirty worktree error")
+	}
+
+	var dirtyErr *DirtyWorktreeError
+	if !errors.As(err, &dirtyErr) {
+		t.Fatalf("expected DirtyWorktreeError, got %T: %v", err, err)
+	}
+
+	if !strings.Contains(dirtyErr.Status, fixture.DirtyFile) {
+		t.Fatalf("dirty worktree status missing file context: %q", dirtyErr.Status)
+	}
+
+	cmd := exec.Command("git", "show-ref", "--verify", "--quiet", "refs/heads/"+specBranchName)
+	cmd.Dir = fixture.Dir
+	if cmd.Run() == nil {
+		t.Fatalf("expected spec branch %s not to exist when checkout is blocked", specBranchName)
+	}
+}
+
 // TestRebaseSpecOntoMain_Rebases verifies that RebaseSpecOntoMain rebases
 // the spec branch onto main without conflicts.
 func TestRebaseSpecOntoMain_Rebases(t *testing.T) {
