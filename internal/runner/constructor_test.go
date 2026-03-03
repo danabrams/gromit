@@ -2089,6 +2089,46 @@ func TestNewRunnerImpl_WiresSpecGateIntoEpilogue(t *testing.T) {
 	}
 }
 
+func TestNewRunnerImpl_ExposesRouter(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	logsDir := filepath.Join(tmpDir, "logs")
+	specsDir := filepath.Join(tmpDir, "specs")
+	claudePath := filepath.Join(tmpDir, "CLAUDE.md")
+
+	if err := os.MkdirAll(templatesDir, 0o755); err != nil {
+		t.Fatalf("mkdir templates: %v", err)
+	}
+	if err := os.MkdirAll(logsDir, 0o755); err != nil {
+		t.Fatalf("mkdir logs: %v", err)
+	}
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("mkdir specs: %v", err)
+	}
+	if err := os.WriteFile(claudePath, []byte("test"), 0o644); err != nil {
+		t.Fatalf("write claude md: %v", err)
+	}
+
+	cfg := newCodexProvidersConfig()
+	cfg.Paths.Templates = templatesDir
+	cfg.Paths.Logs = logsDir
+	cfg.Paths.Specs = specsDir
+	cfg.Paths.ProjectClaudeMD = claudePath
+
+	orch, err := newRunnerImpl(cfg, io.Discard, nil)
+	if err != nil {
+		t.Fatalf("newRunnerImpl error = %v", err)
+	}
+	if orch == nil {
+		t.Fatal("newRunnerImpl returned nil orchestrator, want non-nil")
+	}
+	if orch.Router() == nil {
+		t.Fatal("orchestrator router is nil, want non-nil")
+	}
+}
+
 func TestNewRunnerLoadsExperimentsWhenEnabled(t *testing.T) {
 	t.Parallel(
 	// Setup: Create a temporary directory with an experiment
