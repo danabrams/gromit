@@ -31,6 +31,7 @@ func ExtractSymbolsFromDiff(diff string) []Symbol {
 	var currentFile string
 	var newLine int
 	var structStack []int
+	skipSymbolFile := false
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -50,6 +51,7 @@ func ExtractSymbolsFromDiff(diff string) []Symbol {
 			}
 			currentFile = filepath.ToSlash(raw)
 			structStack = nil
+			skipSymbolFile = strings.HasSuffix(currentFile, "_test.go")
 			continue
 		}
 		if strings.HasPrefix(line, "@@ ") {
@@ -79,6 +81,9 @@ func ExtractSymbolsFromDiff(diff string) []Symbol {
 				continue
 			}
 			trimmed := strings.TrimSpace(line[1:])
+			if skipSymbolFile {
+				continue
+			}
 			started := startStructContext(trimmed, &structStack)
 			if name := parseSymbolName(trimmed, structStack); name != "" {
 				symbols = append(symbols, Symbol{Name: name, File: currentFile, Line: newLine})
