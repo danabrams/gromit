@@ -634,6 +634,10 @@
 {"issue_id":"gromit-9lx6q","label":"spec:review-spec-validation"}
 {"issue_id":"gromit-9nic","label":"spec:concurrent-interactive-worktrees"}
 {"issue_id":"gromit-9olfs","label":"from-review"}
+{"issue_id":"gromit-9olfs.1","label":"from-review"}
+{"issue_id":"gromit-9olfs.1","label":"scope_decomp:6bea1a2b509c333d"}
+{"issue_id":"gromit-9olfs.2","label":"from-review"}
+{"issue_id":"gromit-9olfs.2","label":"scope_decomp:68e2c962c4711843"}
 {"issue_id":"gromit-9qmd","label":"refactor"}
 {"issue_id":"gromit-9qtb","label":"spec:acceptance-test-cleanup"}
 {"issue_id":"gromit-9qy4","label":"spec:result-output-semantics"}
