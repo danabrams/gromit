@@ -72,6 +72,46 @@ agents:
 	}
 }
 
+func TestQualityGatesYAMLDeserialization(t *testing.T) {
+	yamlContent := `
+quality_gates:
+  regression:
+    enabled: true
+    command: "go test ./..."
+  wiring:
+    enabled: false
+`
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.QualityGates == nil {
+		t.Fatal("QualityGates is nil, want non-nil struct")
+	}
+	if cfg.QualityGates.Regression == nil {
+		t.Fatal("QualityGates.Regression is nil, want non-nil struct")
+	}
+	if !cfg.QualityGates.Regression.Enabled {
+		t.Errorf("QualityGates.Regression.Enabled = %t, want true", cfg.QualityGates.Regression.Enabled)
+	}
+	if cfg.QualityGates.Regression.Command != "go test ./..." {
+		t.Errorf("QualityGates.Regression.Command = %q, want %q", cfg.QualityGates.Regression.Command, "go test ./...")
+	}
+	if cfg.QualityGates.Wiring == nil {
+		t.Fatal("QualityGates.Wiring is nil, want non-nil struct")
+	}
+	if cfg.QualityGates.Wiring.Enabled {
+		t.Errorf("QualityGates.Wiring.Enabled = %t, want false", cfg.QualityGates.Wiring.Enabled)
+	}
+}
+
 func TestNormalizeNilFieldsInitializesAgentFlags(t *testing.T) {
 	cfg := &Config{
 		Agents: AgentsConfig{
@@ -3482,43 +3522,10 @@ func TestMethodologySpecGateMaxRetriesParsesFromYAML(t *testing.T) {
 	}
 }
 
-func TestMethodologyFreshContextPerCycleParsesFromYAML(t *testing.T) {
-	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "gromit.yaml")
-	yaml := `methodology:
-  fresh_context_per_cycle: true
-`
-	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
-		t.Fatalf("writing config: %v", err)
-	}
-
-	cfg, err := Load(cfgPath)
-	if err != nil {
-		t.Fatalf("loading config: %v", err)
-	}
-
-	if !cfg.Methodology.FreshContextPerCycle {
-		t.Error("expected fresh_context_per_cycle=true, got false")
-	}
-}
-
-func TestMethodologyFreshContextPerCycleDefaultsFalseWhenUnset(t *testing.T) {
-	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "gromit.yaml")
-	yaml := `methodology:
-  tdd: true
-`
-	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
-		t.Fatalf("writing config: %v", err)
-	}
-
-	cfg, err := Load(cfgPath)
-	if err != nil {
-		t.Fatalf("loading config: %v", err)
-	}
-
-	if cfg.Methodology.FreshContextPerCycle {
-		t.Error("expected fresh_context_per_cycle=false when unset")
+func TestMethodologyConfigHasNoFreshContextPerCycleField(t *testing.T) {
+	typeInfo := reflect.TypeOf(MethodologyConfig{})
+	if _, found := typeInfo.FieldByName("FreshContextPerCycle"); found {
+		t.Fatal("MethodologyConfig should not define FreshContextPerCycle")
 	}
 }
 
