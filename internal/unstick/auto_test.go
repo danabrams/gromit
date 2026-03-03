@@ -10,90 +10,95 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 )
 
-func TestAutoChecker_Check_UnsticksOnGitLog(t *testing.T) {
+func TestAutoChecker_Check_RestartsOnSignals(t *testing.T) {
 	ctx := context.Background()
 	lastAttempt := time.Unix(42, 0).UTC()
 	now := time.Unix(4242, 0).UTC()
 
-	store := NewStore(t.TempDir())
-	stats := map[string]logger.BeadStats{
-		"bead-1": {BeadID: "bead-1", LastAttempt: lastAttempt},
+	cases := []struct {
+		name            string
+		closedDep       bool
+		metadataChanged bool
+		wantReason      string
+	}{
+		{
+			name:       "closed dependency signal",
+			closedDep:  true,
+			wantReason: RestartReasonClosedDependency,
+		},
+		{
+			name:            "metadata changed signal",
+			metadataChanged: true,
+			wantReason:      RestartReasonMetadataChanged,
+		},
 	}
 
-	emitter := &fakeEmitter{}
-	checker := &AutoChecker{
-		GitLogFn: func(since time.Time) (bool, error) {
-			if !since.Equal(lastAttempt) {
-				t.Fatalf("git log called with wrong time: %v", since)
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			store := NewStore(t.TempDir())
+			stats := map[string]logger.BeadStats{
+				"bead-1": {BeadID: "bead-1", LastAttempt: lastAttempt},
 			}
-			return true, nil
-		},
-		NowFn: func() time.Time {
-			return now
-		},
-	}
 
-	if err := checker.Check(ctx, []*bead.Bead{{ID: "bead-1"}}, stats, store, emitter); err != nil {
-		t.Fatalf("unexpected Check error: %v", err)
-	}
+			client := &mockBeadClient{
+				closedDependency: tc.closedDep,
+				metadataChanged:  tc.metadataChanged,
+			}
+			emitter := &fakeEmitter{}
+			checker := &AutoChecker{
+				Client: client,
+				NowFn: func() time.Time {
+					return now
+				},
+			}
 
-	point, ok := store.Get("bead-1")
-	if !ok {
-		t.Fatalf("expected restart point for bead-1")
-	}
-	if !point.Time.Equal(now) {
-		t.Fatalf("expected restart time %v, got %v", now, point.Time)
-	}
-	if point.Reason != RestartReasonNewCommits {
-		t.Fatalf("expected reason %q, got %q", RestartReasonNewCommits, point.Reason)
-	}
+			err := checker.Check(ctx, []*bead.Bead{{ID: "bead-1"}}, stats, store, emitter)
+			if err != nil {
+				t.Fatalf("unexpected Check error: %v", err)
+			}
 
-	if len(emitter.events) != 1 {
-		t.Fatalf("expected 1 event, got %d", len(emitter.events))
-	}
-	evt, ok := emitter.events[0].(*events.BeadUnstickedEvent)
-	if !ok {
-		t.Fatalf("expected BeadUnstickedEvent, got %T", emitter.events[0])
-	}
-	if evt.BeadID != "bead-1" {
-		t.Fatalf("expected bead-id bead-1, got %s", evt.BeadID)
-	}
-	if evt.Reason != RestartReasonNewCommits {
-		t.Fatalf("expected event reason %q, got %q", RestartReasonNewCommits, evt.Reason)
+			point, ok := store.Get("bead-1")
+			if !ok {
+				t.Fatalf("expected restart point")
+			}
+			if point.Time != now {
+				t.Fatalf("expected restart time %v, got %v", now, point.Time)
+			}
+			if point.Reason != tc.wantReason {
+				t.Fatalf("expected reason %q, got %q", tc.wantReason, point.Reason)
+			}
+
+			if len(emitter.events) != 1 {
+				t.Fatalf("expected 1 event, got %d", len(emitter.events))
+			}
+			evt, ok := emitter.events[0].(*events.BeadUnstickedEvent)
+			if !ok {
+				t.Fatalf("expected BeadUnstickedEvent, got %T", emitter.events[0])
+			}
+			if evt.BeadID != "bead-1" {
+				t.Fatalf("expected bead-id bead-1, got %s", evt.BeadID)
+			}
+			if evt.Reason != tc.wantReason {
+				t.Fatalf("expected event reason %q, got %q", tc.wantReason, evt.Reason)
+			}
+
+			emitter.events = nil
+		})
 	}
 }
 
-func TestAutoChecker_Check_SkipsRestartedBeads(t *testing.T) {
-	ctx := context.Background()
-	lastAttempt := time.Unix(10, 0).UTC()
-	restartedAt := time.Unix(20, 0).UTC()
+type mockBeadClient struct {
+	closedDependency bool
+	metadataChanged  bool
+}
 
-	store := NewStore(t.TempDir())
-	store.Set("bead-2", RestartPoint{Time: restartedAt, Reason: "existing"})
+func (m *mockBeadClient) ClosedDependencySignal(ctx context.Context, beadID string) (bool, error) {
+	return m.closedDependency, nil
+}
 
-	stats := map[string]logger.BeadStats{
-		"bead-2": {BeadID: "bead-2", LastAttempt: lastAttempt},
-	}
-
-	emitter := &fakeEmitter{}
-	gitLogCalled := false
-	checker := &AutoChecker{
-		GitLogFn: func(since time.Time) (bool, error) {
-			gitLogCalled = true
-			return true, nil
-		},
-	}
-
-	if err := checker.Check(ctx, []*bead.Bead{{ID: "bead-2"}}, stats, store, emitter); err != nil {
-		t.Fatalf("unexpected Check error: %v", err)
-	}
-
-	if gitLogCalled {
-		t.Fatalf("expected GitLogFn not to be called when restart point is newer")
-	}
-	if len(emitter.events) != 0 {
-		t.Fatalf("expected no events, got %d", len(emitter.events))
-	}
+func (m *mockBeadClient) MetadataChangedSignal(ctx context.Context, beadID string) (bool, error) {
+	return m.metadataChanged, nil
 }
 
 type fakeEmitter struct {
