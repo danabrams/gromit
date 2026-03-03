@@ -135,6 +135,24 @@ func (e *BeadStuckEvent) EventTime() time.Time {
 	return e.Time
 }
 
+// BeadUnstickedEvent is emitted when a bead is manually or automatically unstuck.
+type BeadUnstickedEvent struct {
+	BeadID string
+	Reason string
+	Time   time.Time
+}
+
+func (e *BeadUnstickedEvent) EventType() string {
+	return "bead_unsticked"
+}
+
+func (e *BeadUnstickedEvent) EventTime() time.Time {
+	if e.Time.IsZero() {
+		return time.Now()
+	}
+	return e.Time
+}
+
 // BeadSkippedEvent is emitted when a bead is skipped.
 type BeadSkippedEvent struct {
 	BeadID string

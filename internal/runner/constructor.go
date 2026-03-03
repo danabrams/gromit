@@ -28,6 +28,7 @@ import (
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/execution"
+	"github.com/danabrams/gromit/internal/runner/policy"
 	"github.com/danabrams/gromit/internal/runner/specbranch"
 	"github.com/danabrams/gromit/internal/state"
 	"github.com/danabrams/gromit/internal/tracker"
@@ -154,6 +155,11 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 	gateStage := prepare.New(syncOut)
 	gateStage.WithDecomposer(decomposer)
 	gateStage.WithReadinessAssessor(NewDeterministicReadinessAssessor())
+	gateStage.WithStuckDetector(&stuckDetectorAdapter{
+		logsDir:   cfg.Paths.Logs,
+		gromitDir: gromitDir,
+		policy:    policy.NewConfigStuckPolicy(cfg),
+	})
 	if cfg.Gate.EffectiveAutoGenerateCriteria() {
 		if enricher := newGateCriteriaEnricher(cfg, router, trackerClientInterface); enricher != nil {
 			gateStage.WithCriteriaEnricher(enricher)

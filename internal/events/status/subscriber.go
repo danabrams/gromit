@@ -80,6 +80,8 @@ func (s *StatusSubscriber) handleEvent(event events.Event) {
 		s.writer.Write("bead_status", "failed")
 	case *events.BeadStuckEvent:
 		s.writer.Write("bead_status", "stuck")
+	case *events.BeadUnstickedEvent:
+		s.writer.Write("bead_status", "unstuck")
 	case *events.BeadSkippedEvent:
 		s.writer.Write("bead_status", "skipped")
 	case *events.BuildStartEvent:

@@ -411,6 +411,54 @@ func ReadPerBeadStatsFiltered(logsDir string, beadFilter map[string]bool) (map[s
 	return beadMap, nil
 }
 
+// ReadPerBeadStatsAfter reads per-bead stats while skipping entries before restart points.
+func ReadPerBeadStatsAfter(logsDir string, after map[string]time.Time) (map[string]BeadStats, error) {
+	beadMap := make(map[string]BeadStats)
+
+	files, err := filepath.Glob(filepath.Join(logsDir, "run-*.jsonl"))
+	if err != nil {
+		return beadMap, fmt.Errorf("globbing log files: %w", err)
+	}
+
+	for _, f := range files {
+		entries, err := readLogFile(f)
+		if err != nil {
+			continue // Skip unreadable files
+		}
+		for _, entry := range entries {
+			if restart, ok := after[entry.BeadID]; ok && !entry.Timestamp.After(restart) {
+				continue
+			}
+
+			stats := beadMap[entry.BeadID]
+
+			if stats.BeadID == "" {
+				stats.BeadID = entry.BeadID
+				stats.BeadTitle = entry.BeadTitle
+			}
+
+			stats.TotalRuns++
+			if entry.UsageLimited {
+				stats.UsageLimitedFailures++
+			}
+			if entry.Success {
+				stats.Successes++
+			} else {
+				stats.Failures++
+			}
+
+			if entry.Timestamp.After(stats.LastAttempt) {
+				stats.LastAttempt = entry.Timestamp
+			}
+
+			stats.normalizeNilFields()
+			beadMap[entry.BeadID] = stats
+		}
+	}
+
+	return beadMap, nil
+}
+
 // WriteValidationLog saves full validation output to a dedicated log file.
 // Returns the path to the written log file.
 func WriteValidationLog(logsDir string, output string) (string, error) {

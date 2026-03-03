@@ -106,6 +106,8 @@ func (c *CLISubscriber) handleEvent(event events.Event) {
 		fmt.Fprintf(c.output, "=== Bead failed: %s (%s) — %s ===\n", e.BeadTitle, e.BeadID, e.Error)
 	case *events.BeadStuckEvent:
 		fmt.Fprintf(c.output, "=== Bead stuck: %s (%s) — %s ===\n", e.BeadTitle, e.BeadID, e.Reason)
+	case *events.BeadUnstickedEvent:
+		fmt.Fprintf(c.output, "=== Bead unstuck: %s — %s ===\n", e.BeadID, e.Reason)
 	case *events.BeadSkippedEvent:
 		fmt.Fprintf(c.output, "=== Bead skipped: %s — %s ===\n", e.BeadID, e.Reason)
 	case *events.BuildStartEvent:
