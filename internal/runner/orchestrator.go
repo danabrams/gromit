@@ -160,6 +160,7 @@ var orchestratorPrelaunchBackoffFn = func(d time.Duration) { time.Sleep(d) }
 const orchestratorPrelaunchBackoffDuration = 3 * time.Second
 
 const dirtyWorktreeOperatorActionableGuidance = "Clean, stash, or commit your working tree (or run in session worktree mode) before retrying."
+const dirtyWorktreeGateBlockReason = "dirty_worktree_precondition"
 
 // StateSaver persists provider routing state (provider counts, availability) to disk.
 type StateSaver interface {
@@ -613,6 +614,7 @@ runLoop:
 							Success:                  false,
 							Error:                    errMsg,
 							FailurePhase:             failurephase.Prelaunch,
+							GateBlockReason:          dirtyWorktreeGateBlockReason,
 							Complexity:               baseIn.Complexity,
 							ComplexitySource:         baseIn.ComplexitySource,
 							ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
