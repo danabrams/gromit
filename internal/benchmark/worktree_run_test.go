@@ -410,9 +410,6 @@ func TestApplyBenchmarkOverlayToConfig_PinsProviderAndEnforcesTierPolicies(t *te
 	if got.Methodology.BuildStrategy != "tdd" {
 		t.Fatalf("build_strategy = %q, want %q", got.Methodology.BuildStrategy, "tdd")
 	}
-	if !got.Methodology.FreshContextPerCycle {
-		t.Fatal("fresh_context_per_cycle = false, want true")
-	}
 	if got.Methodology.PhaseModels.Build != "low" {
 		t.Fatalf("phase_models.build = %q, want %q", got.Methodology.PhaseModels.Build, "low")
 	}

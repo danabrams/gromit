@@ -766,35 +766,35 @@ func TestBuildTDDCycleRunner_RunnerHasConfiguredOrchestrator(t *testing.T) {
 	}
 }
 
-// TestOptionalTDDCycleRunner_ReturnsNilWhenFreshContextDisabled verifies that
-// optionalTDDCycleRunner returns nil when FreshContextPerCycle is false, so the
+// TestOptionalTDDCycleRunner_ReturnsNilWhenTDDDisabled verifies that
+// optionalTDDCycleRunner returns nil when TDD is false, so the
 // Build stage falls back to single-invocation StreamRun.
-func TestOptionalTDDCycleRunner_ReturnsNilWhenFreshContextDisabled(t *testing.T) {
+func TestOptionalTDDCycleRunner_ReturnsNilWhenTDDDisabled(t *testing.T) {
 	t.Parallel()
 	cfg := &config.Config{}
 	result := optionalTDDCycleRunner(cfg, nil, nil, io.Discard, nil, nil)
 	if result != nil {
-		t.Errorf("optionalTDDCycleRunner returned %T, want nil when FreshContextPerCycle is false", result)
+		t.Errorf("optionalTDDCycleRunner returned %T, want nil when TDD is false", result)
 	}
 }
 
-// TestOptionalTDDCycleRunner_ReturnsAdapterWhenFreshContextEnabled verifies that
-// optionalTDDCycleRunner returns a non-nil TDDCycleRunner when FreshContextPerCycle
-// is true, so the Build stage can delegate to per-cycle TDD orchestration.
-func TestOptionalTDDCycleRunner_ReturnsAdapterWhenFreshContextEnabled(t *testing.T) {
+// TestOptionalTDDCycleRunner_ReturnsAdapterWhenTDDEnabled verifies that
+// optionalTDDCycleRunner returns a non-nil TDDCycleRunner when TDD is true,
+// so the Build stage can delegate to per-cycle TDD orchestration.
+func TestOptionalTDDCycleRunner_ReturnsAdapterWhenTDDEnabled(t *testing.T) {
 	t.Parallel()
 	cfg := &config.Config{}
-	cfg.Methodology.FreshContextPerCycle = true
+	cfg.Methodology.TDD = true
 	result := optionalTDDCycleRunner(cfg, nil, nil, io.Discard, nil, nil)
 	if result == nil {
-		t.Fatal("optionalTDDCycleRunner returned nil, want non-nil TDDCycleRunner when FreshContextPerCycle is true")
+		t.Fatal("optionalTDDCycleRunner returned nil, want non-nil TDDCycleRunner when TDD is true")
 	}
 }
 
 func TestOptionalTDDCycleRunner_ReturnsNilWhenMethodologyAdapterIsNonGo(t *testing.T) {
 	t.Parallel()
 	cfg := &config.Config{}
-	cfg.Methodology.FreshContextPerCycle = true
+	cfg.Methodology.TDD = true
 	cfg.Methodology.Adapter = "python"
 
 	result := optionalTDDCycleRunner(cfg, nil, nil, io.Discard, nil, nil)
@@ -1011,7 +1011,7 @@ func TestFailureLearnerAdapter_ForwardsFailureOutput(t *testing.T) {
 
 // TestNewRunnerImpl_BuildStageDoesNotWireTDDCycleRunner verifies that
 // newRunnerImpl no longer wires a TDDCycleRunner into the Build stage,
-// even when FreshContextPerCycle is true. The fresh-context TDD path
+// even when TDD is true. The previous fresh-context TDD path
 // has been removed; Build uses the standard prompt rendering path.
 func TestNewRunnerImpl_BuildStageDoesNotWireTDDCycleRunner(t *testing.T) {
 	t.Parallel()
@@ -1026,7 +1026,6 @@ func TestNewRunnerImpl_BuildStageDoesNotWireTDDCycleRunner(t *testing.T) {
 	cfg.Paths.Specs = filepath.Join(gromitDir, "specs")
 	cfg.Paths.Logs = filepath.Join(tmpDir, "logs")
 	cfg.Methodology.TDD = true
-	cfg.Methodology.FreshContextPerCycle = true
 
 	orch, err := newRunnerImpl(cfg, io.Discard, nil)
 	if err != nil {

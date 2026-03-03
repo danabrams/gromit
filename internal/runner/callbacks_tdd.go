@@ -346,10 +346,10 @@ func gitListChangedFiles(sinceCommit string) ([]string, error) {
 	return strings.Split(raw, "\n"), nil
 }
 
-// optionalTDDCycleRunner returns a TDDCycleRunner when FreshContextPerCycle is
-// enabled, or nil otherwise.
+// optionalTDDCycleRunner returns a TDDCycleRunner when TDD is enabled,
+// or nil otherwise.
 func optionalTDDCycleRunner(cfg *config.Config, renderer *prompt.Renderer, router *provider.Router, output io.Writer, beads BeadClient, costDefs map[string]config.ProviderDef) TDDCycleRunner {
-	if cfg == nil || !cfg.Methodology.FreshContextPerCycle {
+	if cfg == nil || !cfg.Methodology.TDD {
 		return nil
 	}
 	if cfg.ResolvedMethodologyAdapter().Value != "go" {
@@ -440,5 +440,5 @@ func warnTddFreshContextMissingOutputs(output io.Writer, b *bead.Bead) {
 	if strings.TrimSpace(b.Title) != "" {
 		return
 	}
-	fmt.Fprintf(output, "[tdd] bead %s lacks expected outputs and title fallback; FreshContextPerCycle will error\n", b.ID)
+	fmt.Fprintf(output, "[tdd] bead %s lacks expected outputs and title fallback; TDD cycle mode will error\n", b.ID)
 }
