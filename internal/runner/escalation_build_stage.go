@@ -17,8 +17,7 @@ import (
 
 // escalationBuildStage wraps the escalation handler to implement pipeline.Stage
 // for the Build phase. It delegates to the escalation handler's
-// ExecuteWithRetryWithEscalation for full retry/escalation/decomposition behavior,
-// falling back to the original Build stage for TDD fresh-context mode.
+// ExecuteWithRetryWithEscalation for full retry/escalation/decomposition behavior.
 type escalationBuildStage struct {
 	handler          *escalation.Handler
 	execInvoker      *execution.Invoker
@@ -32,16 +31,11 @@ type escalationBuildStage struct {
 // Compile-time check: *escalationBuildStage must implement pipeline.Stage.
 var _ pipeline.Stage = (*escalationBuildStage)(nil)
 
-// Run implements pipeline.Stage. For TDD fresh-context mode it delegates to the
-// fallback Build stage. Otherwise it renders the prompt, builds a BeadContext,
-// creates an InvokeFn wrapping execution.Invoker.Execute, and calls
+// Run implements pipeline.Stage by rendering the prompt, building a BeadContext,
+// creating an InvokeFn wrapping execution.Invoker.Execute, and calling
 // handler.ExecuteWithRetryWithEscalation.
 func (s *escalationBuildStage) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
-	// TDD fresh-context delegates to fallback (unchanged behavior)
 	methodology := execute.SelectMethodology(in.Bead, in.Config)
-	if methodology == execute.MethodologyTDD && in.Config != nil && in.Config.Methodology.FreshContextPerCycle {
-		return s.fallback.Run(ctx, in)
-	}
 
 	// Render prompt based on methodology
 	promptText, err := s.renderPrompt(methodology, in)
