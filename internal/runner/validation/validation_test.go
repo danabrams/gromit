@@ -1,6 +1,7 @@
 package validation
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -470,7 +471,7 @@ func TestRunWithRecovery_ExecuteFnCalledWhenAutoFixFails(t *testing.T) {
 // Expected failure: validation.Runner type and RunWithRecovery method do not exist yet
 func TestRunWithRecovery_RespectsConfiguredRecoveryCap(t *testing.T) {
 	t.Parallel(
-	// RunWithRecovery should honor MaxValidationRetries.
+		// RunWithRecovery should honor MaxValidationRetries.
 	)
 
 	cfg := newTestConfig()
@@ -495,6 +496,63 @@ func TestRunWithRecovery_RespectsConfiguredRecoveryCap(t *testing.T) {
 	}
 	if executeFnCallCount != 2 {
 		t.Errorf("ExecuteFn called %d times, want 2 (max retries)", executeFnCallCount)
+	}
+}
+
+func TestRunWithRecovery_StopsWhenStaleFixDetected(t *testing.T) {
+	t.Parallel()
+	cfg := newTestConfig()
+	cfg.Validation.Commands = []string{"go test ./..."}
+	cfg.Validation.MaxValidationRetries = 2
+
+	cmdCalls := 0
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		cmdCalls++
+		return "", "validation failure", 1, nil
+	}
+
+	autoFixCalled := 0
+	autoFix := func(startCommit string) error {
+		autoFixCalled++
+		return nil
+	}
+
+	executeFnCalled := 0
+	executeFn := func(ctx context.Context, bc *runtypes.BeadContext, escalationEnabled bool) bool {
+		executeFnCalled++
+		return true
+	}
+
+	r := NewRunner(cfg, cmdRunner, autoFix, executeFn)
+	r.listChangedFilesFn = func(ctx context.Context, sinceCommit string) ([]string, error) {
+		return []string{"file.go"}, nil
+	}
+	logBuffer := &bytes.Buffer{}
+	r.logOutput = logBuffer
+
+	bc := newTestBeadContext()
+	bc.StartCommit = "abc123"
+
+	err := r.RunWithRecovery(context.Background(), bc)
+	if !errors.Is(err, ErrValidationFailed) {
+		t.Fatalf("RunWithRecovery error = %v, want ErrValidationFailed", err)
+	}
+
+	if autoFixCalled != 1 {
+		t.Errorf("autoFix called %d times, want 1", autoFixCalled)
+	}
+	if executeFnCalled != 0 {
+		t.Errorf("executeFn called %d times, want 0 (stale fix should short-circuit)", executeFnCalled)
+	}
+	if cmdCalls != 2 {
+		t.Errorf("validation commands executed %d times, want 2 (initial + retry)", cmdCalls)
+	}
+
+	if !strings.Contains(logBuffer.String(), "No meaningful auto-fix progress detected") {
+		t.Fatalf("expected stale-fix log message, got %q", logBuffer.String())
+	}
+	if !strings.Contains(bc.Result.Output, "No meaningful auto-fix progress detected") {
+		t.Fatalf("expected stale-fix message in validation output, got %q", bc.Result.Output)
 	}
 }
 
