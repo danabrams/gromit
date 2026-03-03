@@ -67,6 +67,8 @@
 {"issue_id":"gromit-1hv","label":"bug"}
 {"issue_id":"gromit-1hv","label":"from-review"}
 {"issue_id":"gromit-1jdw4","label":"tdd:false"}
+{"issue_id":"gromit-1l2rd","label":"estimated-files:5"}
+{"issue_id":"gromit-1l2rd","label":"spec:fix-prelaunch-checkout-failure-and-stale-run-status"}
 {"issue_id":"gromit-1m8kc","label":"from-review"}
 {"issue_id":"gromit-1ohu","label":"spec:invocation-result-consolidation"}
 {"issue_id":"gromit-1qorl","label":"estimated-files:1"}
@@ -152,6 +154,8 @@
 {"issue_id":"gromit-35lia","label":"spec:end-of-loop-command"}
 {"issue_id":"gromit-36p1","label":"spec:routing-ratio-reliability-review"}
 {"issue_id":"gromit-3be2","label":"spec:multi-agent-phases"}
+{"issue_id":"gromit-3ckaf","label":"estimated-files:2"}
+{"issue_id":"gromit-3ckaf","label":"spec:unstick-beads"}
 {"issue_id":"gromit-3eg","label":"spec:atdd-methodology"}
 {"issue_id":"gromit-3eis","label":"spec:retro-archive-learnings"}
 {"issue_id":"gromit-3eyv","label":"from-review"}
@@ -365,6 +369,8 @@
 {"issue_id":"gromit-6wh2","label":"spec:bead-scope-validation"}
 {"issue_id":"gromit-6x11","label":"spec:retro-efficiency-experiments"}
 {"issue_id":"gromit-6yim","label":"spec:multi-agent-phases"}
+{"issue_id":"gromit-6z616","label":"estimated-files:2"}
+{"issue_id":"gromit-6z616","label":"spec:auto-generate-acceptance-criteria"}
 {"issue_id":"gromit-6zn","label":"spec:real-tests-for-chain-logic"}
 {"issue_id":"gromit-703n","label":"spec:multi-agent-phases"}
 {"issue_id":"gromit-70che","label":"backlog"}
@@ -687,11 +693,15 @@
 {"issue_id":"gromit-akah","label":"spec:codex-cli-spike"}
 {"issue_id":"gromit-akd","label":"complexity:low"}
 {"issue_id":"gromit-aki9e","label":"spec:review-git-ops-injection"}
+{"issue_id":"gromit-am5wp","label":"estimated-files:2"}
+{"issue_id":"gromit-am5wp","label":"spec:remove-tdd-fresh-context"}
 {"issue_id":"gromit-ao3jt","label":"spec:runner-pipeline"}
 {"issue_id":"gromit-ap30","label":"spec:fix-validation-timeout-classification"}
 {"issue_id":"gromit-aqye","label":"spec:tskip-audit"}
 {"issue_id":"gromit-atgpc","label":"estimated-files:2"}
 {"issue_id":"gromit-atgpc","label":"spec:phase-cost-optimization"}
+{"issue_id":"gromit-au1yu","label":"estimated-files:2"}
+{"issue_id":"gromit-au1yu","label":"spec:auto-generate-acceptance-criteria"}
 {"issue_id":"gromit-avbc","label":"spec:retro-efficiency-experiments"}
 {"issue_id":"gromit-awh9","label":"spec:pipeline-extraction"}
 {"issue_id":"gromit-axqrj","label":"spec:runner-pipeline"}
@@ -725,6 +735,8 @@
 {"issue_id":"gromit-bo7","label":"bug"}
 {"issue_id":"gromit-bo7","label":"from-review"}
 {"issue_id":"gromit-bq2g","label":"spec:debug-command"}
+{"issue_id":"gromit-bsx8d","label":"estimated-files:2"}
+{"issue_id":"gromit-bsx8d","label":"spec:remove-tdd-fresh-context"}
 {"issue_id":"gromit-bsyu","label":"spec:reduce-iteration-cost"}
 {"issue_id":"gromit-btk9n","label":"from-review"}
 {"issue_id":"gromit-btk9n","label":"refactor"}
@@ -747,6 +759,8 @@
 {"issue_id":"gromit-c75","label":"complexity:low"}
 {"issue_id":"gromit-c7z","label":"spec:robust-picker-tests"}
 {"issue_id":"gromit-c8tax","label":"spec:orchestration-policy-interfaces"}
+{"issue_id":"gromit-c9ozb","label":"estimated-files:2"}
+{"issue_id":"gromit-c9ozb","label":"spec:auto-generate-acceptance-criteria"}
 {"issue_id":"gromit-ca2","label":"complexity:low"}
 {"issue_id":"gromit-cbu","label":"spec:pipeline-chaining"}
 {"issue_id":"gromit-cc9","label":"spec:atdd-methodology"}
@@ -974,6 +988,7 @@
 {"issue_id":"gromit-fpx8","label":"consistency"}
 {"issue_id":"gromit-fpx8","label":"from-review"}
 {"issue_id":"gromit-fqx","label":"complexity:low"}
+{"issue_id":"gromit-frly6","label":"from-review"}
 {"issue_id":"gromit-fsdak","label":"spec:session-completion-timeouts"}
 {"issue_id":"gromit-fu1f","label":"spec:phase-isolated-methodology-contexts"}
 {"issue_id":"gromit-fu70d","label":"from-review"}
@@ -1023,6 +1038,8 @@
 {"issue_id":"gromit-ghubx","label":"from-review"}
 {"issue_id":"gromit-ghubx","label":"test-gap"}
 {"issue_id":"gromit-gibz","label":"spec:multi-provider-routing"}
+{"issue_id":"gromit-gidfs","label":"estimated-files:2"}
+{"issue_id":"gromit-gidfs","label":"spec:unstick-beads"}
 {"issue_id":"gromit-gkmy0","label":"estimated-files:1"}
 {"issue_id":"gromit-gkmy0","label":"spec:provider-parity-decompose-retro"}
 {"issue_id":"gromit-gkmy0.1","label":"estimated-files:1"}
@@ -1061,8 +1078,12 @@
 {"issue_id":"gromit-h2p","label":"spec:atdd-methodology"}
 {"issue_id":"gromit-h5l46","label":"from-review"}
 {"issue_id":"gromit-h5l46","label":"naming"}
+{"issue_id":"gromit-h8j9z","label":"estimated-files:2"}
+{"issue_id":"gromit-h8j9z","label":"spec:remove-tdd-fresh-context"}
 {"issue_id":"gromit-h94d","label":"spec:spec-acceptance-verification-loop"}
 {"issue_id":"gromit-h9m4w","label":"spec:configurable-verification-script"}
+{"issue_id":"gromit-hg222","label":"estimated-files:4"}
+{"issue_id":"gromit-hg222","label":"spec:unstick-beads"}
 {"issue_id":"gromit-hgu3","label":"spec:epic-scoped-execution"}
 {"issue_id":"gromit-hj49d","label":"from-review"}
 {"issue_id":"gromit-hj49d.1","label":"from-review"}
@@ -1077,6 +1098,9 @@
 {"issue_id":"gromit-hjo6d","label":"spec:tdd-cycle-coverage-tracker"}
 {"issue_id":"gromit-hm1g7","label":"from-review"}
 {"issue_id":"gromit-hm1g7","label":"monitoring"}
+{"issue_id":"gromit-hpsll","label":"complexity:high"}
+{"issue_id":"gromit-hpsll","label":"estimated-files:8"}
+{"issue_id":"gromit-hpsll","label":"spec:remove-tdd-fresh-context"}
 {"issue_id":"gromit-hq5z","label":"atdd"}
 {"issue_id":"gromit-hq5z","label":"spec:atdd-simplification"}
 {"issue_id":"gromit-hq5z.1","label":"tdd:true"}
@@ -1128,6 +1152,8 @@
 {"issue_id":"gromit-iqoj4","label":"spec:runner-pipeline"}
 {"issue_id":"gromit-irc6","label":"spec:reduce-iteration-cost"}
 {"issue_id":"gromit-itwxl","label":"spec:rules-phase-budgets"}
+{"issue_id":"gromit-iv1v2","label":"estimated-files:2"}
+{"issue_id":"gromit-iv1v2","label":"spec:auto-generate-acceptance-criteria"}
 {"issue_id":"gromit-ixf7","label":"spec:phase-isolated-methodology-contexts"}
 {"issue_id":"gromit-ixf7.1","label":"tdd:true"}
 {"issue_id":"gromit-ixf7.2","label":"tdd:true"}
@@ -1142,6 +1168,8 @@
 {"issue_id":"gromit-j2p9","label":"spec:sonnet-timeout-investigation"}
 {"issue_id":"gromit-j5edk","label":"spec:runner-pipeline"}
 {"issue_id":"gromit-j5x0","label":"spec:learning-quality-filter"}
+{"issue_id":"gromit-j62sq","label":"estimated-files:4"}
+{"issue_id":"gromit-j62sq","label":"spec:fix-prelaunch-checkout-failure-and-stale-run-status"}
 {"issue_id":"gromit-j7nnm","label":"from-review"}
 {"issue_id":"gromit-j7nnm","label":"refactor"}
 {"issue_id":"gromit-j8c","label":"spec:atdd-methodology"}
@@ -1203,6 +1231,8 @@
 {"issue_id":"gromit-k5lbt.3","label":"tdd:true"}
 {"issue_id":"gromit-k6onw","label":"from-review"}
 {"issue_id":"gromit-k6onw","label":"tdd:false"}
+{"issue_id":"gromit-k8kax","label":"estimated-files:2"}
+{"issue_id":"gromit-k8kax","label":"spec:unstick-beads"}
 {"issue_id":"gromit-k9mi","label":"spec:multi-agent-phases"}
 {"issue_id":"gromit-k9qyt","label":"estimated-files:2"}
 {"issue_id":"gromit-k9qyt","label":"spec:decompose-low-complexity-bias"}
@@ -1284,6 +1314,8 @@
 {"issue_id":"gromit-l6wv","label":"spec:atdd-prompt-context-budget"}
 {"issue_id":"gromit-l6wv","label":"tdd:true"}
 {"issue_id":"gromit-l71fi","label":"phase-1-2"}
+{"issue_id":"gromit-l7fah","label":"estimated-files:2"}
+{"issue_id":"gromit-l7fah","label":"spec:auto-generate-acceptance-criteria"}
 {"issue_id":"gromit-l7nmj","label":"spec:pipeline-typed-nil-dependency-validation"}
 {"issue_id":"gromit-l7v4","label":"spec:multi-agent-phases"}
 {"issue_id":"gromit-l8bxt","label":"spec:tdd-cycle-coverage-tracker"}
@@ -1444,6 +1476,8 @@
 {"issue_id":"gromit-nqs","label":"bug"}
 {"issue_id":"gromit-nqs","label":"from-review"}
 {"issue_id":"gromit-nrzg","label":"spec:model-success-tracking"}
+{"issue_id":"gromit-ns0yy","label":"from-review"}
+{"issue_id":"gromit-ns0yy","label":"refactor"}
 {"issue_id":"gromit-nuf","label":"spec:between-iteration-command"}
 {"issue_id":"gromit-nui3","label":"spec:codex-streaming-parity"}
 {"issue_id":"gromit-nv2p","label":"spec:atdd-test-review-gate"}
@@ -1451,6 +1485,8 @@
 {"issue_id":"gromit-nwe9y","label":"from-review"}
 {"issue_id":"gromit-nwe9y","label":"spec:runner-pipeline"}
 {"issue_id":"gromit-nwhgo","label":"spec:runner-pipeline"}
+{"issue_id":"gromit-nxp9w","label":"estimated-files:2"}
+{"issue_id":"gromit-nxp9w","label":"spec:remove-tdd-fresh-context"}
 {"issue_id":"gromit-o13m2","label":"spec:runner-pipeline"}
 {"issue_id":"gromit-o27x","label":"spec:andon-autonomous-run-loop"}
 {"issue_id":"gromit-o2oh","label":"spec:spec-level-atdd-execution"}
@@ -1541,6 +1577,7 @@
 {"issue_id":"gromit-pbc","label":"complexity:low"}
 {"issue_id":"gromit-pbv6","label":"spec:layered-failure-triage"}
 {"issue_id":"gromit-pc2e","label":"spec:run-loop-reliability-speed"}
+{"issue_id":"gromit-pda3z","label":"spec:remove-tdd-fresh-context"}
 {"issue_id":"gromit-pdr","label":"complexity:low"}
 {"issue_id":"gromit-pe23","label":"spec:runner-subpackage-split"}
 {"issue_id":"gromit-pfawp","label":"from-review"}
@@ -1737,8 +1774,12 @@
 {"issue_id":"gromit-tabl","label":"spec:epic-scoped-execution"}
 {"issue_id":"gromit-tabr","label":"bug"}
 {"issue_id":"gromit-tabr","label":"from-review"}
+{"issue_id":"gromit-talq6","label":"estimated-files:1"}
+{"issue_id":"gromit-talq6","label":"spec:auto-generate-acceptance-criteria"}
 {"issue_id":"gromit-tem6n","label":"backlog"}
 {"issue_id":"gromit-tev3","label":"spec:bead-scope-validation"}
+{"issue_id":"gromit-tfkw7","label":"estimated-files:2"}
+{"issue_id":"gromit-tfkw7","label":"spec:auto-generate-acceptance-criteria"}
 {"issue_id":"gromit-thd","label":"complexity:high"}
 {"issue_id":"gromit-ti2yc","label":"estimated-files:1"}
 {"issue_id":"gromit-ti2yc","label":"spec:provider-parity-decompose-retro"}
@@ -1768,6 +1809,8 @@
 {"issue_id":"gromit-tolg5.2","label":"spec:provider-parity-decompose-retro"}
 {"issue_id":"gromit-tolg5.3","label":"estimated-files:2"}
 {"issue_id":"gromit-tolg5.3","label":"spec:provider-parity-decompose-retro"}
+{"issue_id":"gromit-tph0c","label":"estimated-files:2"}
+{"issue_id":"gromit-tph0c","label":"spec:remove-tdd-fresh-context"}
 {"issue_id":"gromit-tpw83","label":"spec:tdd-fresh-context-per-cycle"}
 {"issue_id":"gromit-tpw83","label":"tdd:true"}
 {"issue_id":"gromit-tpw83.1","label":"tdd:true"}
@@ -1812,6 +1855,8 @@
 {"issue_id":"gromit-u74","label":"spec:skip-decompose-if-done"}
 {"issue_id":"gromit-u89","label":"spec:robust-picker-tests"}
 {"issue_id":"gromit-u9qy","label":"spec:pipeline-extraction"}
+{"issue_id":"gromit-u9uqd","label":"estimated-files:2"}
+{"issue_id":"gromit-u9uqd","label":"spec:unstick-beads"}
 {"issue_id":"gromit-udofq","label":"estimated-files:2"}
 {"issue_id":"gromit-udofq","label":"spec:phase-cost-optimization"}
 {"issue_id":"gromit-udofq.1","label":"estimated-files:2"}
@@ -1871,6 +1916,8 @@
 {"issue_id":"gromit-vbav","label":"spec:state-staleness-protection"}
 {"issue_id":"gromit-vd7f","label":"spec:andon-autonomous-run-loop"}
 {"issue_id":"gromit-vflg","label":"spec:status-bead-breakdown"}
+{"issue_id":"gromit-vgsvw","label":"estimated-files:2"}
+{"issue_id":"gromit-vgsvw","label":"spec:unstick-beads"}
 {"issue_id":"gromit-vgzh","label":"spec:multi-provider-routing"}
 {"issue_id":"gromit-vh9j","label":"spec:reduce-runner-test-runtime"}
 {"issue_id":"gromit-vj4fq","label":"estimated-files:2"}
@@ -1894,6 +1941,8 @@
 {"issue_id":"gromit-w0en","label":"spec:model-success-tracking"}
 {"issue_id":"gromit-w0lo","label":"complexity:low"}
 {"issue_id":"gromit-w0z6","label":"spec:phase-isolated-methodology-contexts"}
+{"issue_id":"gromit-w1dux","label":"estimated-files:5"}
+{"issue_id":"gromit-w1dux","label":"spec:remove-tdd-fresh-context"}
 {"issue_id":"gromit-w1sv","label":"complexity:low"}
 {"issue_id":"gromit-w1sv","label":"spec:parallel-post-success"}
 {"issue_id":"gromit-w1t","label":"complexity:low"}
@@ -1909,6 +1958,8 @@
 {"issue_id":"gromit-w7qn","label":"spec:bead-scope-validation"}
 {"issue_id":"gromit-w971","label":"spec:precheck-loop-guard"}
 {"issue_id":"gromit-w9rs","label":"spec:git-auto-push"}
+{"issue_id":"gromit-wai8t","label":"estimated-files:2"}
+{"issue_id":"gromit-wai8t","label":"spec:unstick-beads"}
 {"issue_id":"gromit-wbmpq","label":"from-review"}
 {"issue_id":"gromit-wbmpq","label":"refactor"}
 {"issue_id":"gromit-wbmpq","label":"spec:concurrent-interactive-worktrees"}
@@ -1968,6 +2019,8 @@
 {"issue_id":"gromit-xnp4e.3","label":"spec:phase-cost-optimization"}
 {"issue_id":"gromit-xqjz","label":"spec:phase-isolated-methodology-contexts"}
 {"issue_id":"gromit-xr4i","label":"spec:multi-provider-routing"}
+{"issue_id":"gromit-xri0d","label":"estimated-files:2"}
+{"issue_id":"gromit-xri0d","label":"spec:auto-generate-acceptance-criteria"}
 {"issue_id":"gromit-xv99p","label":"from-review"}
 {"issue_id":"gromit-xv99p","label":"refactor"}
 {"issue_id":"gromit-xvurl","label":"from-review"}
@@ -1989,6 +2042,8 @@
 {"issue_id":"gromit-y8uq","label":"spec:codex-cli-spike-findings"}
 {"issue_id":"gromit-y9p0g","label":"spec:spec-acceptance-verification-loop"}
 {"issue_id":"gromit-yara","label":"spec:multi-agent-phases"}
+{"issue_id":"gromit-yb9qf","label":"estimated-files:2"}
+{"issue_id":"gromit-yb9qf","label":"spec:unstick-beads"}
 {"issue_id":"gromit-ydhki","label":"from-review"}
 {"issue_id":"gromit-ye7g","label":"spec:model-success-tracking"}
 {"issue_id":"gromit-yew","label":"spec:gromit-prefix-migration"}
@@ -2032,6 +2087,8 @@
 {"issue_id":"gromit-yw0x","label":"spec:learning-quality-filter"}
 {"issue_id":"gromit-yw1t9","label":"spec:complexity-based-routing"}
 {"issue_id":"gromit-ywkv","label":"tdd:false"}
+{"issue_id":"gromit-yx8b3","label":"estimated-files:4"}
+{"issue_id":"gromit-yx8b3","label":"spec:fix-prelaunch-checkout-failure-and-stale-run-status"}
 {"issue_id":"gromit-yy5bo","label":"from-review"}
 {"issue_id":"gromit-z2sg","label":"spec:pipeline-timeout-config"}
 {"issue_id":"gromit-z56a","label":"spec:multi-provider-routing"}
@@ -2062,6 +2119,8 @@
 {"issue_id":"gromit-zf3u","label":"from-review"}
 {"issue_id":"gromit-zksej","label":"spec:tdd-cycle-coverage-tracker"}
 {"issue_id":"gromit-zksej","label":"tdd:true"}
+{"issue_id":"gromit-zod3t","label":"estimated-files:2"}
+{"issue_id":"gromit-zod3t","label":"spec:fix-prelaunch-checkout-failure-and-stale-run-status"}
 {"issue_id":"gromit-zpqdj","label":"cleanup"}
 {"issue_id":"gromit-zpqdj","label":"from-review"}
 {"issue_id":"gromit-zt4n","label":"from-review"}
