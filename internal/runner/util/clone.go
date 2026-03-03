@@ -4,5 +4,7 @@ func cloneStringSlice(src []string) []string {
     if src == nil {
         return nil
     }
-    return src
+    clone := make([]string, len(src))
+    copy(clone, src)
+    return clone
 }
