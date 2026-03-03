@@ -110,17 +110,8 @@ func (f *fakeSpecLoader) LoadPlan(ctx context.Context, specID string) (*Document
 }
 
 type fakeBeadUpdater struct {
-	lastCriteria []string
-	lastUpdateID string
+	lastUpdateID       string
 	lastUpdatedOutputs []string
-}
-
-func (u *fakeBeadUpdater) UpdateAcceptanceCriteria(ctx context.Context, b *bead.Bead, criteria []string) (*bead.Bead, error) {
-	u.lastCriteria = append([]string(nil), criteria...)
-	clone := *b
-	clone.ExpectedOutputs = append([]string(nil), criteria...)
-	clone.AcceptanceCriteria = strings.Join(criteria, "\n")
-	return &clone, nil
 }
 
 func (u *fakeBeadUpdater) UpdateExpectedOutputs(ctx context.Context, id string, outputs []string) error {

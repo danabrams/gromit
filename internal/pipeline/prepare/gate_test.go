@@ -211,15 +211,9 @@ func (m *mockSpecLoader) LoadPlan(_ context.Context, _ string) (*Document, bool,
 
 type mockBeadUpdater struct {
 	called   bool
-	updated  *bead.Bead
-	criteria []string
-	result   *bead.Bead
+	beadID   string
+	outputs  []string
 	err      error
-}
-
-func (m *mockBeadUpdater) WithResult(result *bead.Bead) *mockBeadUpdater {
-	m.result = result
-	return m
 }
 
 func (m *mockBeadUpdater) WithError(err error) *mockBeadUpdater {
@@ -227,19 +221,11 @@ func (m *mockBeadUpdater) WithError(err error) *mockBeadUpdater {
 	return m
 }
 
-func (m *mockBeadUpdater) UpdateAcceptanceCriteria(_ context.Context, b *bead.Bead, criteria []string) (*bead.Bead, error) {
+func (m *mockBeadUpdater) UpdateExpectedOutputs(_ context.Context, id string, outputs []string) error {
 	m.called = true
-	m.updated = b
-	m.criteria = append([]string(nil), criteria...)
-	if m.err != nil {
-		return b, m.err
-	}
-	if m.result != nil {
-		return m.result, nil
-	}
-	clone := *b
-	clone.ExpectedOutputs = append([]string(nil), criteria...)
-	return &clone, nil
+	m.beadID = id
+	m.outputs = append([]string(nil), outputs...)
+	return m.err
 }
 
 type testCriteriaEnricher struct {
@@ -269,11 +255,6 @@ func (t *testCriteriaEnricher) WithProviderResult(output string) *testCriteriaEn
 
 func (t *testCriteriaEnricher) WithProviderError(err error) *testCriteriaEnricher {
 	t.provider.WithError(err)
-	return t
-}
-
-func (t *testCriteriaEnricher) WithUpdaterResult(result *bead.Bead) *testCriteriaEnricher {
-	t.updater.WithResult(result)
 	return t
 }
 
@@ -320,11 +301,7 @@ func (a *criteriaAwareReadinessAssessor) Assess(_ context.Context, b *bead.Bead)
 func TestGateRun_CriteriaEnricherPopulatesExpectedOutputs(t *testing.T) {
 	t.Parallel()
 
-	enriched := &bead.Bead{
-		ID:              "enriched-bead",
-		ExpectedOutputs: []string{"generated artifact"},
-	}
-	helper := newTestCriteriaEnricher().WithUpdaterResult(enriched)
+	helper := newTestCriteriaEnricher().WithProviderResult("generated artifact\n")
 	assessor := &criteriaAwareReadinessAssessor{}
 	gate := New(io.Discard).
 		WithCriteriaEnricher(helper.enricher).
@@ -349,8 +326,11 @@ func TestGateRun_CriteriaEnricherPopulatesExpectedOutputs(t *testing.T) {
 	if assessor.captured == nil {
 		t.Fatal("readiness assessor did not receive bead")
 	}
-	if got := assessor.captured.ExpectedOutputs; len(got) != len(enriched.ExpectedOutputs) || got[0] != enriched.ExpectedOutputs[0] {
-		t.Fatalf("readiness assessed bead = %v, want expected outputs %v", assessor.captured.ExpectedOutputs, enriched.ExpectedOutputs)
+	if helper.updater.beadID != original.ID {
+		t.Fatalf("updater bead ID = %q, want %q", helper.updater.beadID, original.ID)
+	}
+	if got := assessor.captured.ExpectedOutputs; len(got) != 1 || got[0] != "generated artifact" {
+		t.Fatalf("readiness assessed bead = %v, want expected outputs [generated artifact]", assessor.captured.ExpectedOutputs)
 	}
 }
 

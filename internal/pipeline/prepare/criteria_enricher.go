@@ -25,9 +25,9 @@ type SpecLoader interface {
 	LoadPlan(ctx context.Context, specID string) (*Document, bool, error)
 }
 
-// BeadUpdater patches a bead with new acceptance criteria.
+// BeadUpdater persists updated expected outputs for a bead.
 type BeadUpdater interface {
-	UpdateAcceptanceCriteria(ctx context.Context, b *bead.Bead, criteria []string) (*bead.Bead, error)
+	UpdateExpectedOutputs(ctx context.Context, id string, outputs []string) error
 }
 
 // LLMCriteriaEnricher uses an LLM to auto-generate acceptance criteria for
@@ -83,7 +83,14 @@ func (e *LLMCriteriaEnricher) Enrich(ctx context.Context, b *bead.Bead) (*bead.B
 		criteria = criteria[:5]
 	}
 
-	return e.updater.UpdateAcceptanceCriteria(ctx, b, criteria)
+	if err := e.updater.UpdateExpectedOutputs(ctx, b.ID, criteria); err != nil {
+		return nil, err
+	}
+
+	clone := *b
+	clone.ExpectedOutputs = append([]string(nil), criteria...)
+	clone.AcceptanceCriteria = strings.Join(criteria, "\n")
+	return &clone, nil
 }
 
 func (e *LLMCriteriaEnricher) buildPrompt(ctx context.Context, b *bead.Bead) string {
