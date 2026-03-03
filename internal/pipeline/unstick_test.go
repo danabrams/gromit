@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/events"
 )
 
 func TestPipelineListStuckReturnsStuckBeads(t *testing.T) {
@@ -70,6 +72,80 @@ func TestPipelineUnstickErrorsWhenBeadMissing(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when bead does not exist")
 	}
+}
+
+func TestPipelineUnstickWritesRestartPointAndEmitsEvent(t *testing.T) {
+	t.Parallel()
+
+	gromitDir := t.TempDir()
+
+	client := &fakeQueueClient{
+		listFn: func(ctx context.Context) ([]*bead.Bead, error) {
+			return []*bead.Bead{{ID: "b1", Title: "Stuck bead"}}, nil
+		},
+		listByStatusFn: func(ctx context.Context, status string) ([]*bead.Bead, error) {
+			return nil, nil
+		},
+	}
+
+	emitter := &fakeEmitter{}
+	p := &Pipeline{
+		deps:    &Deps{QueueClient: client},
+		emitter: emitter,
+	}
+
+	if err := p.Unstick(context.Background(), "b1", gromitDir); err != nil {
+		t.Fatalf("unexpected Unstick error: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(gromitDir, "restart-points.json"))
+	if err != nil {
+		t.Fatalf("expected restart points file: %v", err)
+	}
+
+	var points map[string]struct {
+		RestartAt time.Time `json:"restart_at"`
+		Reason    string    `json:"reason"`
+	}
+	if err := json.Unmarshal(data, &points); err != nil {
+		t.Fatalf("failed to unmarshal restart points: %v", err)
+	}
+
+	pt, ok := points["b1"]
+	if !ok {
+		t.Fatalf("expected restart point for bead b1")
+	}
+	if pt.Reason != "manual" {
+		t.Fatalf("unexpected restart reason: %s", pt.Reason)
+	}
+	if pt.RestartAt.IsZero() {
+		t.Fatalf("expected restart time to be set")
+	}
+
+	if len(emitter.events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(emitter.events))
+	}
+	evt, ok := emitter.events[0].(*events.BeadUnstickedEvent)
+	if !ok {
+		t.Fatalf("expected BeadUnstickedEvent, got %T", emitter.events[0])
+	}
+	if evt.BeadID != "b1" {
+		t.Fatalf("unexpected bead ID: %s", evt.BeadID)
+	}
+	if evt.Reason != "manual" {
+		t.Fatalf("unexpected reason: %s", evt.Reason)
+	}
+}
+
+type fakeEmitter struct {
+	events []events.Event
+}
+
+func (f *fakeEmitter) Emit(evt events.Event) {
+	if f == nil {
+		return
+	}
+	f.events = append(f.events, evt)
 }
 
 func writeLogEntries(t *testing.T, logsDir, beadID string, timestamps []time.Time) {
