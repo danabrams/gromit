@@ -186,7 +186,7 @@ func (p *Pipeline) Trigger(ctx context.Context, specName string) error {
 
 		title := fmt.Sprintf("Spec: %s", specName)
 		body, _ := BuildPRSummary(ctx, PRSummaryInput{SpecName: specName})
-		ref, err := p.prClient.CreatePR(ctx, title, body, branch, "main")
+		ref, err := p.prClient.CreatePR(ctx, title, body, branch, config.DefaultBaseBranch)
 		if err != nil {
 			return fmt.Errorf("create PR for spec %q: %w", specName, err)
 		}
