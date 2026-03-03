@@ -27,7 +27,7 @@ import (
 var (
 	configPath                 string
 	maxIterations              int
-readinessEmergencyOverride bool
+	readinessEmergencyOverride bool
 	nonInteractive             bool
 	timeBudgetMinutes          int
 	timeBudgetHours            int
@@ -149,7 +149,7 @@ func init() {
 	}
 
 	runCmd.Flags().IntVarP(&maxIterations, "max-iterations", "n", 0, "Maximum iterations (0 = unlimited)")
-runCmd.Flags().IntVarP(&timeBudgetMinutes, "time-budget", "t", 0, "Time budget in minutes (0 = unlimited)")
+	runCmd.Flags().IntVarP(&timeBudgetMinutes, "time-budget", "t", 0, "Time budget in minutes (0 = unlimited)")
 	runCmd.Flags().IntVarP(&timeBudgetHours, "time-budget-hours", "H", 0, "Time budget in hours (0 = unlimited)")
 	runCmd.Flags().StringVar(&runSpecFlag, "spec", "", "Filter to beads for a specific spec")
 	runCmd.Flags().StringVar(&runEpicFlag, "epic", "", "Filter to beads for a specific epic")

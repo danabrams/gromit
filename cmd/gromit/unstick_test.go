@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
 )
@@ -22,12 +23,9 @@ func TestUnstick_WithBeadIDCallsUnstick(t *testing.T) {
 
 	pipelineCalled := false
 	stubPipeline := &mockUnstickExecutor{
-		UnstickFn: func(ctx context.Context, beadID string) (*pipeline.UnstickResult, error) {
+		UnstickFn: func(ctx context.Context, beadID, gromitDir string) error {
 			pipelineCalled = true
-			return &pipeline.UnstickResult{
-				BeadID: beadID,
-				Status: "unstuck",
-			}, nil
+			return nil
 		},
 	}
 
@@ -47,7 +45,7 @@ func TestUnstick_WithBeadIDCallsUnstick(t *testing.T) {
 	if !pipelineCalled {
 		t.Fatal("expected Unstick to be called")
 	}
-	if !strings.Contains(output, "unstuck") {
+	if !strings.Contains(output, "Unsticked") {
 		t.Fatalf("expected confirmation in output: %s", output)
 	}
 }
@@ -62,10 +60,8 @@ func TestUnstick_WithoutArgsEmptyListPrintsMessage(t *testing.T) {
 	})
 
 	stubPipeline := &mockUnstickExecutor{
-		ListStuckFn: func(ctx context.Context) (*pipeline.ListStuckResult, error) {
-			return &pipeline.ListStuckResult{
-				StuckBeads: []pipeline.BeadInfo{},
-			}, nil
+		ListStuckFn: func(ctx context.Context, input pipeline.QueueInput) ([]*bead.Bead, error) {
+			return []*bead.Bead{}, nil
 		},
 	}
 
@@ -96,19 +92,14 @@ func TestUnstick_WithoutArgsDisplaysNumberedList(t *testing.T) {
 	})
 
 	stubPipeline := &mockUnstickExecutor{
-		ListStuckFn: func(ctx context.Context) (*pipeline.ListStuckResult, error) {
-			return &pipeline.ListStuckResult{
-				StuckBeads: []pipeline.BeadInfo{
-					{ID: "stuck-1", Title: "First Stuck Bead"},
-					{ID: "stuck-2", Title: "Second Stuck Bead"},
-				},
+		ListStuckFn: func(ctx context.Context, input pipeline.QueueInput) ([]*bead.Bead, error) {
+			return []*bead.Bead{
+				{ID: "stuck-1", Title: "First Stuck Bead"},
+				{ID: "stuck-2", Title: "Second Stuck Bead"},
 			}, nil
 		},
-		UnstickFn: func(ctx context.Context, beadID string) (*pipeline.UnstickResult, error) {
-			return &pipeline.UnstickResult{
-				BeadID: beadID,
-				Status: "unstuck",
-			}, nil
+		UnstickFn: func(ctx context.Context, beadID, gromitDir string) error {
+			return nil
 		},
 	}
 
@@ -145,27 +136,27 @@ func TestUnstick_WithoutArgsDisplaysNumberedList(t *testing.T) {
 	if !strings.Contains(output, "2.") || !strings.Contains(output, "Second Stuck Bead") {
 		t.Fatalf("expected numbered list with second bead in output: %s", output)
 	}
-	if !strings.Contains(output, "unstuck") {
+	if !strings.Contains(output, "Unsticked") {
 		t.Fatalf("expected confirmation message in output: %s", output)
 	}
 }
 
 // mockUnstickExecutor is a test double for the unstick executor.
 type mockUnstickExecutor struct {
-	UnstickFn   func(context.Context, string) (*pipeline.UnstickResult, error)
-	ListStuckFn func(context.Context) (*pipeline.ListStuckResult, error)
+	UnstickFn   func(context.Context, string, string) error
+	ListStuckFn func(context.Context, pipeline.QueueInput) ([]*bead.Bead, error)
 }
 
-func (m *mockUnstickExecutor) Unstick(ctx context.Context, beadID string) (*pipeline.UnstickResult, error) {
+func (m *mockUnstickExecutor) Unstick(ctx context.Context, beadID, gromitDir string) error {
 	if m == nil || m.UnstickFn == nil {
-		return nil, nil
+		return nil
 	}
-	return m.UnstickFn(ctx, beadID)
+	return m.UnstickFn(ctx, beadID, gromitDir)
 }
 
-func (m *mockUnstickExecutor) ListStuck(ctx context.Context) (*pipeline.ListStuckResult, error) {
+func (m *mockUnstickExecutor) ListStuck(ctx context.Context, input pipeline.QueueInput) ([]*bead.Bead, error) {
 	if m == nil || m.ListStuckFn == nil {
 		return nil, nil
 	}
-	return m.ListStuckFn(ctx)
+	return m.ListStuckFn(ctx, input)
 }

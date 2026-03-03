@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/spf13/cobra"
@@ -39,56 +40,59 @@ func runUnstick(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("creating pipeline: %w", err)
 	}
 
+	queueInput := pipeline.QueueInput{
+		LogsDir:        cfg.Paths.Logs,
+		StuckThreshold: cfg.Loop.StuckBeadThreshold,
+	}
+
 	// If a bead ID was provided, unstick that specific bead
 	if len(args) > 0 {
 		beadID := args[0]
-		result, err := executor.Unstick(cmd.Context(), beadID)
-		if err != nil {
+		if err := executor.Unstick(cmd.Context(), beadID, gromitDir); err != nil {
 			return err
 		}
-		fmt.Printf("✓ Unsticked %s (%s)\n", beadID, result.Status)
+		fmt.Printf("✓ Unsticked %s\n", beadID)
 		return nil
 	}
 
 	// No arguments - list stuck beads
-	result, err := executor.ListStuck(cmd.Context())
+	stuckBeads, err := executor.ListStuck(cmd.Context(), queueInput)
 	if err != nil {
 		return err
 	}
 
-	if len(result.StuckBeads) == 0 {
+	if len(stuckBeads) == 0 {
 		fmt.Println("No stuck beads")
 		return nil
 	}
 
 	// Display numbered list of stuck beads
 	fmt.Println("Stuck beads:")
-	for i, b := range result.StuckBeads {
+	for i, b := range stuckBeads {
 		fmt.Printf("%d. %s - %s\n", i+1, b.ID, b.Title)
 	}
 
 	// Read user selection
 	scanner := bufio.NewScanner(os.Stdin)
-	fmt.Print("\nSelect bead to unstick [1-" + strconv.Itoa(len(result.StuckBeads)) + "]: ")
+	fmt.Print("\nSelect bead to unstick [1-" + strconv.Itoa(len(stuckBeads)) + "]: ")
 	if !scanner.Scan() {
 		return nil
 	}
 
 	choice := strings.TrimSpace(scanner.Text())
 	index, err := strconv.Atoi(choice)
-	if err != nil || index < 1 || index > len(result.StuckBeads) {
+	if err != nil || index < 1 || index > len(stuckBeads) {
 		fmt.Println("Invalid selection")
 		return nil
 	}
 
 	// Unstick the selected bead
-	selectedBead := result.StuckBeads[index-1]
-	unstickResult, err := executor.Unstick(cmd.Context(), selectedBead.ID)
-	if err != nil {
+	selectedBead := stuckBeads[index-1]
+	if err := executor.Unstick(cmd.Context(), selectedBead.ID, gromitDir); err != nil {
 		return err
 	}
 
-	fmt.Printf("✓ Unsticked %s (%s)\n", selectedBead.ID, unstickResult.Status)
+	fmt.Printf("✓ Unsticked %s\n", selectedBead.ID)
 	return nil
 }
 
@@ -103,6 +107,6 @@ func createUnstickPipeline(cfg *config.Config, gromitDir string) (unstickExecuto
 }
 
 type unstickExecutor interface {
-	Unstick(context.Context, string) (*pipeline.UnstickResult, error)
-	ListStuck(context.Context) (*pipeline.ListStuckResult, error)
+	Unstick(context.Context, string, string) error
+	ListStuck(context.Context, pipeline.QueueInput) ([]*bead.Bead, error)
 }
