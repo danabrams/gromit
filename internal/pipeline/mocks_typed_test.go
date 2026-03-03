@@ -176,6 +176,34 @@ func TestReviewAcceptanceMocks_UseTypedReturns(t *testing.T) {
 	})
 }
 
+func TestAcceptanceMocks_CreateFuncsReceiveContext(t *testing.T) {
+	ctx := context.Background()
+
+	reviewMock := &reviewAcceptanceMockBeadClient{
+		createFunc: func(receivedCtx context.Context, title string, priority int, labels []string, outputs []string) (*BeadInfo, error) {
+			if receivedCtx != ctx {
+				t.Fatalf("review mock Create got unexpected context: %p", receivedCtx)
+			}
+			return &BeadInfo{Title: title}, nil
+		},
+	}
+	if _, err := reviewMock.Create(ctx, "test title", 1, nil, nil); err != nil {
+		t.Fatalf("review mock Create failed: %v", err)
+	}
+
+	decomposeMock := &decomposeAcceptanceBeadClient{
+		createFunc: func(receivedCtx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+			if receivedCtx != ctx {
+				t.Fatalf("decompose CreateWithDepsAndDescription got unexpected context: %p", receivedCtx)
+			}
+			return &BeadInfo{Title: title}, nil
+		},
+	}
+	if _, err := decomposeMock.CreateWithDepsAndDescription(ctx, "test", 1, nil, nil, nil, "desc"); err != nil {
+		t.Fatalf("decompose mock CreateWithDepsAndDescription failed: %v", err)
+	}
+}
+
 // TestDecomposeAcceptanceBeadDef_DoesNotExist verifies the intermediate struct was removed
 func TestDecomposeAcceptanceBeadDef_DoesNotExist(t *testing.T) {
 	// This test documents that decomposeAcceptanceBeadDef struct has been removed
