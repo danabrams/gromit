@@ -16572,3 +16572,5 @@
 {"actor":"Dan Abrams","comment":null,"created_at":"2026-03-02T23:32:59Z","event_type":"created","id":16572,"issue_id":"gromit-k8kax","new_value":"","old_value":""}
 {"actor":"Dan Abrams","comment":"Added label: spec:unstick-beads","created_at":"2026-03-02T23:32:59Z","event_type":"label_added","id":16573,"issue_id":"gromit-k8kax","new_value":null,"old_value":null}
 {"actor":"Dan Abrams","comment":"Added label: estimated-files:2","created_at":"2026-03-02T23:32:59Z","event_type":"label_added","id":16574,"issue_id":"gromit-k8kax","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-02T23:45:19Z","event_type":"closed","id":16575,"issue_id":"gromit-3ckaf","new_value":"Closed","old_value":""}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-02T23:48:38Z","event_type":"closed","id":16576,"issue_id":"gromit-k8kax","new_value":"Closed","old_value":""}
