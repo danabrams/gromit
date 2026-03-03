@@ -22,6 +22,12 @@ type gitCommandOutput struct {
 	stderr string
 }
 
+var nonBlockingDirtyWorktreePaths = map[string]struct{}{
+	".gromit/integration-queue.json":  {},
+	".beads/backup/backup_state.json": {},
+	".beads/dolt-monitor.pid":         {},
+}
+
 // DirtyWorktreeError is returned when the repository has uncommitted changes that block branch switching.
 type DirtyWorktreeError struct {
 	RepoDir string
@@ -176,7 +182,7 @@ func WorktreeStatus(ctx context.Context, repoDir string) (string, error) {
 		return "", fmt.Errorf("determine worktree status: %w", err)
 	}
 
-	return strings.TrimSpace(output.stdout), nil
+	return strings.TrimRight(output.stdout, "\n"), nil
 }
 
 func (g *GitOps) ensureWorktreeClean(ctx context.Context) error {
@@ -184,13 +190,71 @@ func (g *GitOps) ensureWorktreeClean(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if status == "" {
+	blockingStatus := filterBlockingWorktreeStatus(status)
+	if blockingStatus == "" {
 		return nil
 	}
 	return &DirtyWorktreeError{
 		RepoDir: g.repoDir,
-		Status:  status,
+		Status:  blockingStatus,
 	}
+}
+
+func filterBlockingWorktreeStatus(status string) string {
+	if strings.TrimSpace(status) == "" {
+		return ""
+	}
+
+	lines := strings.Split(status, "\n")
+	blocking := make([]string, 0, len(lines))
+	for _, line := range lines {
+		raw := strings.TrimRight(line, "\r")
+		if strings.TrimSpace(raw) == "" {
+			continue
+		}
+
+		path := parsePorcelainStatusPath(raw)
+		if path != "" {
+			if _, ok := nonBlockingDirtyWorktreePaths[path]; ok {
+				continue
+			}
+		}
+
+		blocking = append(blocking, strings.TrimSpace(raw))
+	}
+
+	return strings.Join(blocking, "\n")
+}
+
+func parsePorcelainStatusPath(line string) string {
+	trimmed := strings.TrimSpace(line)
+	if trimmed == "" {
+		return ""
+	}
+
+	path := ""
+	switch {
+	case len(line) >= 3 && line[2] == ' ':
+		path = strings.TrimSpace(line[3:])
+	case len(trimmed) >= 2 && trimmed[1] == ' ':
+		path = strings.TrimSpace(trimmed[2:])
+	default:
+		fields := strings.Fields(trimmed)
+		if len(fields) > 1 {
+			path = fields[len(fields)-1]
+		}
+	}
+
+	if path == "" {
+		return ""
+	}
+
+	if idx := strings.Index(path, " -> "); idx >= 0 {
+		path = strings.TrimSpace(path[idx+4:])
+	}
+
+	path = strings.Trim(path, "\"")
+	return path
 }
 
 // RebaseOnto rebases the branch onto the specified target branch.

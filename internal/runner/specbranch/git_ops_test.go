@@ -205,6 +205,70 @@ func TestCreateOrCheckoutSpecBranch_AllowsDirtyWorktreeWhenAlreadyOnTargetBranch
 	}
 }
 
+func TestCreateOrCheckoutSpecBranch_IgnoresOperationalQueueStateChanges(t *testing.T) {
+	fixture := helpers.NewDeterministicGitConflictFixture(t)
+	ops := NewGitOps(fixture.Dir, fixture.BaseBranch)
+
+	queueFile := filepath.Join(fixture.Dir, ".gromit", "integration-queue.json")
+	if err := os.MkdirAll(filepath.Dir(queueFile), 0o755); err != nil {
+		t.Fatalf("failed to create queue directory: %v", err)
+	}
+	if err := os.WriteFile(queueFile, []byte("{\"schema_version\":1}\n"), 0o644); err != nil {
+		t.Fatalf("failed to write queue file: %v", err)
+	}
+	cmd := exec.Command("git", "add", ".gromit/integration-queue.json")
+	cmd.Dir = fixture.Dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed to add queue file: %v (%s)", err, out)
+	}
+	cmd = exec.Command("git", "commit", "-m", "add queue file")
+	cmd.Dir = fixture.Dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed to commit queue file: %v (%s)", err, out)
+	}
+
+	specBranchName := "gromit/spec-queue-ops"
+	if err := ops.CreateOrCheckoutSpecBranch(context.Background(), specBranchName); err != nil {
+		t.Fatalf("CreateOrCheckoutSpecBranch() initial create error = %v", err)
+	}
+	cmd = exec.Command("git", "checkout", fixture.BaseBranch)
+	cmd.Dir = fixture.Dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed to checkout base branch: %v (%s)", err, out)
+	}
+
+	if err := os.WriteFile(queueFile, []byte("{\"schema_version\":1,\"updated_at\":\"now\"}\n"), 0o644); err != nil {
+		t.Fatalf("failed to dirty queue file: %v", err)
+	}
+
+	if err := ops.CreateOrCheckoutSpecBranch(context.Background(), specBranchName); err != nil {
+		t.Fatalf("CreateOrCheckoutSpecBranch() with operational queue dirtiness error = %v, want nil", err)
+	}
+}
+
+func TestFilterBlockingWorktreeStatus_IgnoresOnlyOperationalPaths(t *testing.T) {
+	status := strings.Join([]string{
+		"M .gromit/integration-queue.json",
+		" M .beads/backup/backup_state.json",
+		"?? .beads/dolt-monitor.pid",
+		" M internal/runner/specbranch/git_ops.go",
+	}, "\n")
+
+	filtered := filterBlockingWorktreeStatus(status)
+	if strings.Contains(filtered, ".gromit/integration-queue.json") {
+		t.Fatalf("filtered status should not include integration queue operational path: %q", filtered)
+	}
+	if strings.Contains(filtered, ".beads/backup/backup_state.json") {
+		t.Fatalf("filtered status should not include backup operational path: %q", filtered)
+	}
+	if strings.Contains(filtered, ".beads/dolt-monitor.pid") {
+		t.Fatalf("filtered status should not include monitor pid operational path: %q", filtered)
+	}
+	if !strings.Contains(filtered, "internal/runner/specbranch/git_ops.go") {
+		t.Fatalf("filtered status should retain source changes: %q", filtered)
+	}
+}
+
 // TestRebaseSpecOntoMain_Rebases verifies that RebaseSpecOntoMain rebases
 // the spec branch onto main without conflicts.
 func TestRebaseSpecOntoMain_Rebases(t *testing.T) {
