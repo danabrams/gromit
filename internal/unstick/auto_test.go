@@ -88,16 +88,59 @@ func TestAutoChecker_Check_RestartsOnSignals(t *testing.T) {
 	}
 }
 
+func TestAutoChecker_Check_SkipsRestartWithRecentPoint(t *testing.T) {
+	ctx := context.Background()
+	lastAttempt := time.Unix(10, 0).UTC()
+	restartAt := time.Unix(20, 0).UTC()
+
+	store := NewStore(t.TempDir())
+	store.Set("bead-2", RestartPoint{Time: restartAt, Reason: "manual"})
+	stats := map[string]logger.BeadStats{
+		"bead-2": {BeadID: "bead-2", LastAttempt: lastAttempt},
+	}
+
+	client := &mockBeadClient{closedDependency: true}
+	emitter := &fakeEmitter{}
+	checker := &AutoChecker{
+		Client: client,
+		NowFn: func() time.Time {
+			return time.Unix(30, 0).UTC()
+		},
+	}
+
+	if err := checker.Check(ctx, []*bead.Bead{{ID: "bead-2"}}, stats, store, emitter); err != nil {
+		t.Fatalf("unexpected Check error: %v", err)
+	}
+
+	point, ok := store.Get("bead-2")
+	if !ok {
+		t.Fatalf("expected restart point to remain present")
+	}
+	if !point.Time.Equal(restartAt) {
+		t.Fatalf("expected restart time %v, got %v", restartAt, point.Time)
+	}
+	if len(emitter.events) != 0 {
+		t.Fatalf("expected no events, got %d", len(emitter.events))
+	}
+	if client.closedDependencyCalled || client.metadataChangedCalled {
+		t.Fatalf("expected signals not to be queried when restart point is newer")
+	}
+}
+
 type mockBeadClient struct {
-	closedDependency bool
-	metadataChanged  bool
+	closedDependency       bool
+	metadataChanged        bool
+	closedDependencyCalled bool
+	metadataChangedCalled  bool
 }
 
 func (m *mockBeadClient) ClosedDependencySignal(ctx context.Context, beadID string) (bool, error) {
+	m.closedDependencyCalled = true
 	return m.closedDependency, nil
 }
 
 func (m *mockBeadClient) MetadataChangedSignal(ctx context.Context, beadID string) (bool, error) {
+	m.metadataChangedCalled = true
 	return m.metadataChanged, nil
 }
 
