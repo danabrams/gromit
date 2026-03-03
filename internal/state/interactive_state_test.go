@@ -695,6 +695,32 @@ func TestInteractiveFileCompatibilityBridgeSyncFromQueueEntries(t *testing.T) {
 	}
 }
 
+func TestInteractiveFileSyncPendingBranchesFromQueueEntriesTypedEntries(t *testing.T) {
+	dir := t.TempDir()
+	f, _ := NewInteractiveFile(dir)
+
+	entries := []integrationqueue.Entry{
+		{Branch: "feature/draft-typed", State: integrationqueue.StateDraft},
+		{Branch: "feature/merged-typed", State: integrationqueue.StateMerged},
+	}
+
+	if err := f.SyncPendingBranchesFromQueueEntries(entries); err != nil {
+		t.Fatalf("SyncPendingBranchesFromQueueEntries failed: %v", err)
+	}
+
+	branches, err := f.ListPendingWorktreeBranches()
+	if err != nil {
+		t.Fatalf("ListPendingWorktreeBranches: %v", err)
+	}
+	branchSet := pendingBranchSet(branches)
+	if !branchSet["feature/draft-typed"] {
+		t.Fatalf("expected draft branch in pending list, got %v", branches)
+	}
+	if branchSet["feature/merged-typed"] {
+		t.Fatalf("merged entry should not be pending, got %v", branches)
+	}
+}
+
 func TestBranchStateEntryImplementation(t *testing.T) {
 	var _ BranchStateEntry = integrationqueue.Entry{}
 }
