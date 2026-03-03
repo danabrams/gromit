@@ -300,6 +300,75 @@ exit 1
 	}
 }
 
+func TestClientRunDeriveIssuePrefixUsesCallerContext(t *testing.T) {
+	t.Parallel()
+	repoDir := t.TempDir()
+	if err := os.MkdirAll(repoDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(%q): %v", repoDir, err)
+	}
+	if err := exec.Command("git", "init").Run(); err != nil {
+		t.Fatalf("git init failed: %v", err)
+	}
+
+	gitScriptDir := t.TempDir()
+	gitScriptPath := filepath.Join(gitScriptDir, "git")
+	gitScript := "#!/bin/sh\nsleep 1\nprintf '%s\\n' \"$PWD\"\n"
+	if err := os.WriteFile(gitScriptPath, []byte(gitScript), 0o755); err != nil {
+		t.Fatalf("write fake git: %v", err)
+	}
+	origPath := os.Getenv("PATH")
+	if err := os.Setenv("PATH", gitScriptDir+string(os.PathListSeparator)+origPath); err != nil {
+		t.Fatalf("set PATH: %v", err)
+	}
+	t.Cleanup(func() { os.Setenv("PATH", origPath) })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	readyFile := filepath.Join(t.TempDir(), "ready-done")
+	readyDone := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(10 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if _, err := os.Stat(readyFile); err == nil {
+					cancel()
+					close(readyDone)
+					return
+				}
+			}
+		}
+	}()
+
+	script := fmt.Sprintf(`#!/bin/sh
+if [ "$1" = "ready" ]; then
+  printf 'issue_prefix config is missing\n' >&2
+  touch %q
+  exit 1
+fi
+printf 'unexpected args: %%s\n' "$*" >&2
+exit 1
+`, readyFile)
+	binaryPath := writeExecutableScript(t, script)
+
+	c := &Client{binary: binaryPath, Dir: repoDir}
+	_, err := c.run(ctx, "ready", "--json")
+	if err == nil {
+		t.Fatal("run() error = nil, want cancellation error")
+	}
+	select {
+	case <-readyDone:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for ready marker")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
+		t.Fatalf("run() error = %v, want context cancellation", err)
+	}
+}
+
 func TestClientRun_ContextCancellationStopsCommand(t *testing.T) {
 	t.Parallel()
 	// Script that sleeps for 60 seconds - should be killed by context cancellation.
