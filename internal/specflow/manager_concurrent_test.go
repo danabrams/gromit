@@ -202,3 +202,30 @@ func (s *instrumentedSpecStore) StoreStage(ctx context.Context, specID string, s
 	<-s.allowStore
 	return s.delegate.StoreStage(ctx, specID, stage)
 }
+
+type storeBlockingSpecStore struct {
+	delegate    SpecStore
+	storeCalled chan struct{}
+	allowStore  chan struct{}
+}
+
+func newStoreBlockingSpecStore(delegate SpecStore) *storeBlockingSpecStore {
+	return &storeBlockingSpecStore{
+		delegate:    delegate,
+		storeCalled: make(chan struct{}, 2),
+		allowStore:  make(chan struct{}),
+	}
+}
+
+func (s *storeBlockingSpecStore) Stage(ctx context.Context, specID string) (Stage, error) {
+	return s.delegate.Stage(ctx, specID)
+}
+
+func (s *storeBlockingSpecStore) StoreStage(ctx context.Context, specID string, stage Stage) error {
+	select {
+	case s.storeCalled <- struct{}{}:
+	default:
+	}
+	<-s.allowStore
+	return s.delegate.StoreStage(ctx, specID, stage)
+}
