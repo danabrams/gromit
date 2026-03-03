@@ -63,6 +63,39 @@ func TestAutoChecker_Check_UnsticksOnGitLog(t *testing.T) {
 	}
 }
 
+func TestAutoChecker_Check_SkipsRestartedBeads(t *testing.T) {
+	ctx := context.Background()
+	lastAttempt := time.Unix(10, 0).UTC()
+	restartedAt := time.Unix(20, 0).UTC()
+
+	store := NewStore(t.TempDir())
+	store.Set("bead-2", RestartPoint{Time: restartedAt, Reason: "existing"})
+
+	stats := map[string]logger.BeadStats{
+		"bead-2": {BeadID: "bead-2", LastAttempt: lastAttempt},
+	}
+
+	emitter := &fakeEmitter{}
+	gitLogCalled := false
+	checker := &AutoChecker{
+		GitLogFn: func(since time.Time) (bool, error) {
+			gitLogCalled = true
+			return true, nil
+		},
+	}
+
+	if err := checker.Check(ctx, []*bead.Bead{{ID: "bead-2"}}, stats, store, emitter); err != nil {
+		t.Fatalf("unexpected Check error: %v", err)
+	}
+
+	if gitLogCalled {
+		t.Fatalf("expected GitLogFn not to be called when restart point is newer")
+	}
+	if len(emitter.events) != 0 {
+		t.Fatalf("expected no events, got %d", len(emitter.events))
+	}
+}
+
 type fakeEmitter struct {
 	events []events.Event
 }
