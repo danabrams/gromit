@@ -1158,6 +1158,8 @@
 {"issue_id":"gromit-ixf7.1","label":"tdd:true"}
 {"issue_id":"gromit-ixf7.2","label":"tdd:true"}
 {"issue_id":"gromit-ixf7.3","label":"tdd:true"}
+{"issue_id":"gromit-iy4gs","label":"from-review"}
+{"issue_id":"gromit-iy4gs","label":"refactor"}
 {"issue_id":"gromit-iz2lz","label":"from-review"}
 {"issue_id":"gromit-iz2lz","label":"refactor"}
 {"issue_id":"gromit-izlpz","label":"spec:prompt-token-accounting-diagnostics"}
@@ -1324,6 +1326,8 @@
 {"issue_id":"gromit-leha","label":"spec:multi-agent-phases"}
 {"issue_id":"gromit-lem3h","label":"spec:spec-acceptance-verification-loop"}
 {"issue_id":"gromit-lgeo","label":"spec:retro-efficiency-experiments"}
+{"issue_id":"gromit-li4ef","label":"bug"}
+{"issue_id":"gromit-li4ef","label":"from-review"}
 {"issue_id":"gromit-lii","label":"spec:review-system"}
 {"issue_id":"gromit-ll2l","label":"spec:epic-scoped-execution"}
 {"issue_id":"gromit-lms","label":"spec:run-output-newlines"}
