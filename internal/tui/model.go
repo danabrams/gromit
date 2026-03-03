@@ -13,11 +13,14 @@ const (
 
 // Model implements the bubbletea.Model interface for the Gromit TUI.
 type Model struct {
-	store        *Store
-	currentView  string
-	focusedPanel int
-	scrollOffset int
-	conversation *ConversationController
+	store         *Store
+	currentView   string
+	focusedPanel  int
+	scrollOffset  int
+	conversation  *ConversationController
+	pendingAction *PendingAction
+	detailView    bool
+	confirmDelete bool
 }
 
 // NewModel creates a new TUI model with the given store.
@@ -109,6 +112,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if m.conversation != nil {
 						return m, m.conversation.Init()
 					}
+				case 'v':
+					m.detailView = !m.detailView
 				}
 			}
 		}
