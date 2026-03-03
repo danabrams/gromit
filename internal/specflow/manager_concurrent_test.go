@@ -3,10 +3,8 @@ package specflow
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -27,9 +25,11 @@ func TestManagerAdvanceConcurrentSafety(t *testing.T) {
 		t.Fatalf("failed to seed spec stage: %v", err)
 	}
 
-	store := newInstrumentedSpecStore(specsDir)
-	proxy := NewManager(store)
-	mirror := NewManager(store)
+	delegate, err := NewSpecFrontmatterStore(gromitDir)
+	if err != nil {
+		t.Fatalf("failed to build spec store: %v", err)
+	}
+	store := newInstrumentedSpecStore(delegate)
 
 	start := make(chan struct{})
 	ready := make(chan struct{}, 2)
@@ -41,8 +41,8 @@ func TestManagerAdvanceConcurrentSafety(t *testing.T) {
 		results <- m.Advance(ctx, specID, StageAcceptanceTests)
 	}
 
-	go run(proxy)
-	go run(mirror)
+	go run(NewManager(store))
+	go run(NewManager(store))
 
 	for i := 0; i < 2; i++ {
 		<-ready
@@ -62,7 +62,7 @@ func TestManagerAdvanceConcurrentSafety(t *testing.T) {
 		t.Fatalf("expected one success and one ErrInvalidTransition, got success=%d invalid=%d", successCount, invalidCount)
 	}
 
-	stage, err := readStageFromFile(filepath.Join(specsDir, specID+".md"))
+	stage, err := delegate.Stage(ctx, specID)
 	if err != nil {
 		t.Fatalf("failed to read stage: %v", err)
 	}
@@ -112,36 +112,15 @@ func writeSpecStage(t *testing.T, specsDir, specID string, stage Stage) error {
 	return os.WriteFile(specPath, []byte(content), 0o644)
 }
 
-func readStageFromFile(path string) (Stage, error) {
-	fm, _, err := frontmatter.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	raw, ok := fm["stage"]
-	if !ok {
-		return "", ErrStageNotFound
-	}
-	value, ok := raw.(string)
-	if !ok || strings.TrimSpace(value) == "" {
-		return "", fmt.Errorf("invalid stage value: %v", raw)
-	}
-	return Stage(value), nil
-}
-
-func writeStageToFile(path string, stage Stage) error {
-	updates := map[string]interface{}{"stage": string(stage)}
-	return frontmatter.UpdateFile(path, updates)
-}
-
 type instrumentedSpecStore struct {
-	specsDir    string
+	delegate    SpecStore
 	stageCalled chan struct{}
 	allowStore  chan struct{}
 }
 
-func newInstrumentedSpecStore(specsDir string) *instrumentedSpecStore {
+func newInstrumentedSpecStore(delegate SpecStore) *instrumentedSpecStore {
 	return &instrumentedSpecStore{
-		specsDir:    specsDir,
+		delegate:    delegate,
 		stageCalled: make(chan struct{}, 2),
 		allowStore:  make(chan struct{}),
 	}
@@ -149,10 +128,10 @@ func newInstrumentedSpecStore(specsDir string) *instrumentedSpecStore {
 
 func (s *instrumentedSpecStore) Stage(ctx context.Context, specID string) (Stage, error) {
 	s.stageCalled <- struct{}{}
-	return readStageFromFile(filepath.Join(s.specsDir, specID+".md"))
+	return s.delegate.Stage(ctx, specID)
 }
 
 func (s *instrumentedSpecStore) StoreStage(ctx context.Context, specID string, stage Stage) error {
 	<-s.allowStore
-	return writeStageToFile(filepath.Join(s.specsDir, specID+".md"), stage)
+	return s.delegate.StoreStage(ctx, specID, stage)
 }
