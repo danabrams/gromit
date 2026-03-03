@@ -1349,6 +1349,12 @@
 {"issue_id":"gromit-ma49","label":"spec:session-epilogue"}
 {"issue_id":"gromit-mal9n","label":"cleanup"}
 {"issue_id":"gromit-mal9n","label":"from-review"}
+{"issue_id":"gromit-mal9n.1","label":"cleanup"}
+{"issue_id":"gromit-mal9n.1","label":"from-review"}
+{"issue_id":"gromit-mal9n.1","label":"scope_decomp:b57baadced371892"}
+{"issue_id":"gromit-mal9n.2","label":"cleanup"}
+{"issue_id":"gromit-mal9n.2","label":"from-review"}
+{"issue_id":"gromit-mal9n.2","label":"scope_decomp:1bc818172470f739"}
 {"issue_id":"gromit-md3w","label":"spec:retro-efficiency-experiments"}
 {"issue_id":"gromit-meya","label":"spec:runner-subpackage-split"}
 {"issue_id":"gromit-mh9p","label":"spec:suite-wide-test-runtime-reduction"}
@@ -1478,6 +1484,12 @@
 {"issue_id":"gromit-oj4lv","label":"spec:token-budget-guardrail"}
 {"issue_id":"gromit-ojcbp","label":"from-review"}
 {"issue_id":"gromit-ojcbp","label":"refactor"}
+{"issue_id":"gromit-ojcbp.1","label":"from-review"}
+{"issue_id":"gromit-ojcbp.1","label":"refactor"}
+{"issue_id":"gromit-ojcbp.1","label":"scope_decomp:a506667dd0e2fa5a"}
+{"issue_id":"gromit-ojcbp.2","label":"from-review"}
+{"issue_id":"gromit-ojcbp.2","label":"refactor"}
+{"issue_id":"gromit-ojcbp.2","label":"scope_decomp:08132f839a66be7c"}
 {"issue_id":"gromit-ok34","label":"spec:decomposition-granularity"}
 {"issue_id":"gromit-okv","label":"spec:pipeline-chaining"}
 {"issue_id":"gromit-op06","label":"spec:pipeline-extraction"}
