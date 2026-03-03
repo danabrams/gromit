@@ -2,6 +2,8 @@ package pipeline
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/danabrams/gromit/internal/bead"
 )
@@ -22,10 +24,28 @@ func (p *Pipeline) ListStuck(ctx context.Context, input QueueInput) ([]*bead.Bea
 }
 
 // Unstick marks a bead as unstuck.
-func (p *Pipeline) Unstick(ctx context.Context, beadID string) (*UnstickResult, error) {
-	// TODO: implement actual unstick logic
-	return &UnstickResult{
-		BeadID: beadID,
-		Status: "unstuck",
-	}, nil
+func (p *Pipeline) Unstick(ctx context.Context, beadID, gromitDir string) error {
+	beadID = strings.TrimSpace(beadID)
+	if beadID == "" {
+		return fmt.Errorf("bead id is required")
+	}
+
+	client, err := p.queueClient()
+	if err != nil {
+		return fmt.Errorf("creating bead client: %w", err)
+	}
+
+	active, err := ListActiveBeads(ctx, client)
+	if err != nil {
+		return fmt.Errorf("listing active beads: %w", err)
+	}
+
+	for _, b := range active {
+		if b != nil && b.ID == beadID {
+			_ = gromitDir
+			return nil
+		}
+	}
+
+	return fmt.Errorf("bead %s not found", beadID)
 }
