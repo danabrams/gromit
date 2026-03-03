@@ -210,6 +210,14 @@ func (o *Orchestrator) GetEmitter() *events.Emitter {
 	return o.emitter
 }
 
+// Router exposes the Router configured for the Orchestrator.
+func (o *Orchestrator) Router() *provider.Router {
+	if o == nil {
+		return nil
+	}
+	return o.cfg.Router
+}
+
 // StartSubscribers registers and starts all subscribers (CLI always, status/tmux conditionally).
 // It starts subscriber goroutines that consume events until the context is cancelled or the
 // emitter is closed. This should be called before Run() to ensure subscribers are active.
