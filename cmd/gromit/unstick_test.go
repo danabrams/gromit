@@ -152,8 +152,8 @@ func TestUnstick_WithoutArgsDisplaysNumberedList(t *testing.T) {
 
 // mockUnstickExecutor is a test double for the unstick executor.
 type mockUnstickExecutor struct {
-	UnstickFn    func(context.Context, string) (*pipeline.UnstickResult, error)
-	ListStuckFn  func(context.Context) (*pipeline.ListStuckResult, error)
+	UnstickFn   func(context.Context, string) (*pipeline.UnstickResult, error)
+	ListStuckFn func(context.Context) (*pipeline.ListStuckResult, error)
 }
 
 func (m *mockUnstickExecutor) Unstick(ctx context.Context, beadID string) (*pipeline.UnstickResult, error) {
