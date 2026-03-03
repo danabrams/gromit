@@ -711,8 +711,6 @@ func TestClientRunWithEnv_PreservesExplicitBeadsDir(t *testing.T) {
 		"printf 'BEADS_DIR=%s\\n' \"$BEADS_DIR\"\n"
 	binaryPath := writeExecutableScript(t, script)
 
-	oldSubprocessEnv := subprocessEnvFn
-	t.Cleanup(func() { subprocessEnvFn = oldSubprocessEnv })
 	subprocessEnvFn = func() []string {
 		return []string{"BEADS_DIR=/tmp/explicit-beads"}
 	}
