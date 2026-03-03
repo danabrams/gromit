@@ -350,6 +350,39 @@ exit 1
 	}
 }
 
+func TestClientRunAndRunCloseUseSharedRetryHelper(t *testing.T) {
+	t.Parallel()
+
+	var calls []string
+	originalFn := runWithRetryCascadeFn
+	runWithRetryCascadeFn = func(c *Client, ctx context.Context, args []string, extraEnv []string, runner func(context.Context, []string, []string) (string, error)) (string, error) {
+		if len(args) == 0 {
+			t.Fatalf("runWithRetryCascade called with no args")
+		}
+		calls = append(calls, args[0])
+		return "", nil
+	}
+	defer func() { runWithRetryCascadeFn = originalFn }()
+
+	c := &Client{binary: "bd"}
+	if _, err := c.run(context.Background(), "ready"); err != nil {
+		t.Fatalf("run() unexpected error: %v", err)
+	}
+	if _, err := c.runClose(context.Background(), "bd-1"); err != nil {
+		t.Fatalf("runClose() unexpected error: %v", err)
+	}
+
+	if len(calls) != 2 {
+		t.Fatalf("shared retry helper called %d times, want 2", len(calls))
+	}
+	if calls[0] != "ready" {
+		t.Fatalf("1st call args[0] = %q, want %q", calls[0], "ready")
+	}
+	if calls[1] != "close" {
+		t.Fatalf("2nd call args[0] = %q, want %q", calls[1], "close")
+	}
+}
+
 func TestClientRunWithRetryCascade_RetriesWithNoDB(t *testing.T) {
 	t.Parallel()
 
