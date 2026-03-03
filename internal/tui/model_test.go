@@ -185,6 +185,28 @@ func TestModel_QuitWithCtrlC(t *testing.T) {
 	_ = model
 }
 
+func TestModel_ToggleDetailView(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+
+	if m.detailView {
+		t.Fatalf("expected detail view to start disabled")
+	}
+
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}}
+	model, _ := m.Update(msg)
+	m = model.(*Model)
+	if !m.detailView {
+		t.Fatalf("expected detail view to be enabled after 'v' key")
+	}
+
+	model, _ = m.Update(msg)
+	m = model.(*Model)
+	if m.detailView {
+		t.Fatalf("expected detail view to be disabled after second 'v' key")
+	}
+}
+
 func TestModel_DashboardViewHasMultiplePanels(t *testing.T) {
 	store := &Store{
 		Dashboard: DashboardState{
