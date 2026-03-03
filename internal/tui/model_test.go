@@ -632,3 +632,34 @@ func newPipelineStore(t *testing.T) (*Store, *bead.Bead) {
 
 	return store, ready
 }
+
+type mockPipelineListModel struct {
+	called int
+	items  []ListItem
+}
+
+func (m *mockPipelineListModel) SetItems(items []ListItem) {
+	m.called++
+	m.items = items
+}
+
+func TestModel_PipelineRefreshUpdatesLists(t *testing.T) {
+	store := &Store{}
+	model := NewModel(store)
+
+	first := &mockPipelineListModel{}
+	second := &mockPipelineListModel{}
+	model.registerPipelineListModel(first)
+	model.registerPipelineListModel(second)
+
+	model.Update(pipelineRefreshedMsg{RequestedTab: Tab("backlog")})
+
+	for _, list := range []*mockPipelineListModel{first, second} {
+		if list.called != 1 {
+			t.Fatalf("SetItems called %d times, want 1", list.called)
+		}
+		if list.items != nil {
+			t.Fatalf("expected nil items, got %+v", list.items)
+		}
+	}
+}
