@@ -151,6 +151,8 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 		return pipeline.Output{Decision: pipeline.Proceed}, nil
 	}
 
+	currentBead := in.Bead
+
 	complexityRouting := resolveComplexityRouting(in)
 	gateBlockReason := ""
 	overrideEnabled := in.Config != nil && in.Config.ReadinessEmergencyOverride
@@ -174,6 +176,14 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 			}, nil
 		}
 	}
+
+	// Criteria enrichment: attempt to generate expected outputs before readiness assessment.
+	if g.criteriaEnricher != nil {
+		if enriched, err := g.criteriaEnricher.Enrich(ctx, currentBead); err == nil && enriched != nil {
+			currentBead = enriched
+		}
+	}
+	in.Bead = currentBead
 
 	// Readiness check: block beads that are not ready before stuck detection.
 	if g.readiness != nil {
