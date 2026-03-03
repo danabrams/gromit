@@ -1402,6 +1402,15 @@
 {"issue_id":"gromit-njsqp","label":"refactor"}
 {"issue_id":"gromit-nk2ui","label":"feature"}
 {"issue_id":"gromit-nk2ui","label":"from-review"}
+{"issue_id":"gromit-nk2ui.1","label":"feature"}
+{"issue_id":"gromit-nk2ui.1","label":"from-review"}
+{"issue_id":"gromit-nk2ui.1","label":"scope_decomp:dce54bf66bcc3447"}
+{"issue_id":"gromit-nk2ui.2","label":"feature"}
+{"issue_id":"gromit-nk2ui.2","label":"from-review"}
+{"issue_id":"gromit-nk2ui.2","label":"scope_decomp:52787cb94f2ed1fa"}
+{"issue_id":"gromit-nk2ui.3","label":"feature"}
+{"issue_id":"gromit-nk2ui.3","label":"from-review"}
+{"issue_id":"gromit-nk2ui.3","label":"scope_decomp:52c08b8b3ec70d32"}
 {"issue_id":"gromit-nlfe","label":"spec:run-loop-reliability-speed"}
 {"issue_id":"gromit-nmh","label":"spec:tdd-methodology"}
 {"issue_id":"gromit-nmk2n","label":"from-review"}
