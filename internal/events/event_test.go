@@ -11,9 +11,9 @@ import (
 func TestLogEvent_Implements_Event(t *testing.T) {
 	t.Parallel()
 	event := &LogEvent{
-		Level:   "info",
-		Message: "test message",
-		Time:    time.Now(),
+		Level:     "info",
+		Message:   "test message",
+		TimeMixin: TimeMixin{Time: time.Now()},
 	}
 
 	// Compile-time interface check is implicit; runtime checks verify methods work.
@@ -31,9 +31,9 @@ func TestLogEvent_EventTime_UsesProvidedTime(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 2, 27, 10, 30, 0, 0, time.UTC)
 	event := &LogEvent{
-		Level:   "info",
-		Message: "test",
-		Time:    now,
+		Level:     "info",
+		Message:   "test",
+		TimeMixin: TimeMixin{Time: now},
 	}
 
 	if event.EventTime() != now {

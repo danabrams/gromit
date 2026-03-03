@@ -193,7 +193,7 @@ func specEventCases(ts time.Time) []eventSpec {
 				MaxIterations: 1,
 				TimeBudget:    1 * time.Hour,
 				DryRun:        true,
-				Time:          ts,
+				TimeMixin:     TimeMixin{Time: ts},
 			},
 		},
 		{
@@ -202,7 +202,7 @@ func specEventCases(ts time.Time) []eventSpec {
 			event: &RunCompleteEvent{
 				IterationsCompleted: 1,
 				Reason:              "done",
-				Time:                ts,
+				TimeMixin:           TimeMixin{Time: ts},
 			},
 		},
 		{
@@ -212,7 +212,7 @@ func specEventCases(ts time.Time) []eventSpec {
 				Iteration: 1,
 				BeadID:    "b1",
 				BeadTitle: "title",
-				Time:      ts,
+				TimeMixin: TimeMixin{Time: ts},
 			},
 		},
 		{
@@ -223,7 +223,7 @@ func specEventCases(ts time.Time) []eventSpec {
 				BeadID:    "b1",
 				Success:   true,
 				Duration:  1 * time.Second,
-				Time:      ts,
+				TimeMixin: TimeMixin{Time: ts},
 			},
 		},
 		{
@@ -233,7 +233,7 @@ func specEventCases(ts time.Time) []eventSpec {
 				BeadID:    "b1",
 				BeadTitle: "title",
 				Duration:  1 * time.Second,
-				Time:      ts,
+				TimeMixin: TimeMixin{Time: ts},
 			},
 		},
 		{
@@ -243,7 +243,7 @@ func specEventCases(ts time.Time) []eventSpec {
 				BeadID:    "b1",
 				BeadTitle: "title",
 				Error:     "boom",
-				Time:      ts,
+				TimeMixin: TimeMixin{Time: ts},
 			},
 		},
 		{
@@ -253,25 +253,25 @@ func specEventCases(ts time.Time) []eventSpec {
 				BeadID:    "b1",
 				BeadTitle: "title",
 				Reason:    "stuck",
-				Time:      ts,
+				TimeMixin: TimeMixin{Time: ts},
 			},
 		},
 		{
 			name:     "BeadUnstickedEvent",
 			wantType: "bead_unsticked",
 			event: &BeadUnstickedEvent{
-				BeadID: "b1",
-				Reason: "manual",
-				Time:   ts,
+				BeadID:    "b1",
+				Reason:    "manual",
+				TimeMixin: TimeMixin{Time: ts},
 			},
 		},
 		{
 			name:     "BeadSkippedEvent",
 			wantType: "bead_skipped",
 			event: &BeadSkippedEvent{
-				BeadID: "b1",
-				Reason: "skip",
-				Time:   ts,
+				BeadID:    "b1",
+				Reason:    "skip",
+				TimeMixin: TimeMixin{Time: ts},
 			},
 		},
 		{
@@ -282,7 +282,7 @@ func specEventCases(ts time.Time) []eventSpec {
 				Model:       "opus",
 				Attempt:     1,
 				MaxAttempts: 3,
-				Time:        ts,
+				TimeMixin:   TimeMixin{Time: ts},
 			},
 		},
 		{
@@ -295,64 +295,64 @@ func specEventCases(ts time.Time) []eventSpec {
 				Cost:      0.5,
 				TokensIn:  10,
 				TokensOut: 5,
-				Time:      ts,
+				TimeMixin: TimeMixin{Time: ts},
 			},
 		},
 		{
 			name:     "ValidationStartEvent",
 			wantType: "validation_start",
 			event: &ValidationStartEvent{
-				BeadID:   "b1",
-				Model:    "haiku",
-				Commands: []string{"go test"},
-				Time:     ts,
+				BeadID:    "b1",
+				Model:     "haiku",
+				Commands:  []string{"go test"},
+				TimeMixin: TimeMixin{Time: ts},
 			},
 		},
 		{
 			name:     "ValidationPassEvent",
 			wantType: "validation_pass",
 			event: &ValidationPassEvent{
-				BeadID:   "b1",
-				Duration: 1 * time.Second,
-				Time:     ts,
+				BeadID:    "b1",
+				Duration:  1 * time.Second,
+				TimeMixin: TimeMixin{Time: ts},
 			},
 		},
 		{
 			name:     "ValidationFailEvent",
 			wantType: "validation_fail",
 			event: &ValidationFailEvent{
-				BeadID:   "b1",
-				Output:   "fail",
-				Duration: 1 * time.Second,
-				Time:     ts,
+				BeadID:    "b1",
+				Output:    "fail",
+				Duration:  1 * time.Second,
+				TimeMixin: TimeMixin{Time: ts},
 			},
 		},
 		{
 			name:     "ReviewStartEvent",
 			wantType: "review_start",
 			event: &ReviewStartEvent{
-				BeadID:   "b1",
-				Model:    "opus",
-				Thorough: true,
-				Time:     ts,
+				BeadID:    "b1",
+				Model:     "opus",
+				Thorough:  true,
+				TimeMixin: TimeMixin{Time: ts},
 			},
 		},
 		{
 			name:     "ReviewCompleteEvent",
 			wantType: "review_complete",
 			event: &ReviewCompleteEvent{
-				BeadID:  "b1",
-				Verdict: "pass",
-				Issues:  []string{"issue"},
-				Time:    ts,
+				BeadID:    "b1",
+				Verdict:   "pass",
+				Issues:    []string{"issue"},
+				TimeMixin: TimeMixin{Time: ts},
 			},
 		},
 		{
 			name:     "AnalysisStartEvent",
 			wantType: "analysis_start",
 			event: &AnalysisStartEvent{
-				BeadID: "b1",
-				Time:   ts,
+				BeadID:    "b1",
+				TimeMixin: TimeMixin{Time: ts},
 			},
 		},
 		{
@@ -363,15 +363,15 @@ func specEventCases(ts time.Time) []eventSpec {
 				Category:    "logic",
 				Recoverable: true,
 				Suggestion:  "retry",
-				Time:        ts,
+				TimeMixin:   TimeMixin{Time: ts},
 			},
 		},
 		{
 			name:     "RetroStartEvent",
 			wantType: "retro_start",
 			event: &RetroStartEvent{
-				BeadID: "b1",
-				Time:   ts,
+				BeadID:    "b1",
+				TimeMixin: TimeMixin{Time: ts},
 			},
 		},
 		{
@@ -381,7 +381,7 @@ func specEventCases(ts time.Time) []eventSpec {
 				BeadID:               "b1",
 				ProvisionalLearnings: 2,
 				RulesUpdated:         true,
-				Time:                 ts,
+				TimeMixin:            TimeMixin{Time: ts},
 			},
 		},
 		{
@@ -393,16 +393,16 @@ func specEventCases(ts time.Time) []eventSpec {
 				FilesModified:      0,
 				RateLimitHits:      0,
 				WaitingForResponse: true,
-				Time:               ts,
+				TimeMixin:          TimeMixin{Time: ts},
 			},
 		},
 		{
 			name:     "ModelSelectedEvent",
 			wantType: "model_selected",
 			event: &ModelSelectedEvent{
-				Model:  "opus",
-				Reason: "priority",
-				Time:   ts,
+				Model:     "opus",
+				Reason:    "priority",
+				TimeMixin: TimeMixin{Time: ts},
 			},
 		},
 		{
@@ -413,7 +413,7 @@ func specEventCases(ts time.Time) []eventSpec {
 				ToModel:   "opus",
 				Attempt:   2,
 				Reason:    "retry",
-				Time:      ts,
+				TimeMixin: TimeMixin{Time: ts},
 			},
 		},
 		{
@@ -422,7 +422,7 @@ func specEventCases(ts time.Time) []eventSpec {
 			event: &StallDetectedEvent{
 				Elapsed:   2 * time.Second,
 				Threshold: 5 * time.Second,
-				Time:      ts,
+				TimeMixin: TimeMixin{Time: ts},
 			},
 		},
 		{
@@ -433,7 +433,7 @@ func specEventCases(ts time.Time) []eventSpec {
 				Complexity: "medium",
 				Approved:   true,
 				Reason:     "ok",
-				Time:       ts,
+				TimeMixin:  TimeMixin{Time: ts},
 			},
 		},
 		{
@@ -442,7 +442,7 @@ func specEventCases(ts time.Time) []eventSpec {
 			event: &DecomposeStartEvent{
 				BeadID:    "b1",
 				BeadTitle: "title",
-				Time:      ts,
+				TimeMixin: TimeMixin{Time: ts},
 			},
 		},
 		{
@@ -454,7 +454,7 @@ func specEventCases(ts time.Time) []eventSpec {
 				SubBeadTitle: "sub",
 				Index:        1,
 				Total:        3,
-				Time:         ts,
+				TimeMixin:    TimeMixin{Time: ts},
 			},
 		},
 		{
@@ -463,16 +463,16 @@ func specEventCases(ts time.Time) []eventSpec {
 			event: &DecomposeCompleteEvent{
 				BeadID:          "b1",
 				SubBeadsCreated: 3,
-				Time:            ts,
+				TimeMixin:       TimeMixin{Time: ts},
 			},
 		},
 		{
 			name:     "LogEvent",
 			wantType: "log",
 			event: &LogEvent{
-				Level:   "info",
-				Message: "hello",
-				Time:    ts,
+				Level:     "info",
+				Message:   "hello",
+				TimeMixin: TimeMixin{Time: ts},
 			},
 		},
 		{
@@ -483,34 +483,34 @@ func specEventCases(ts time.Time) []eventSpec {
 				FileCount: 5,
 				MaxFiles:  10,
 				Action:    "block",
-				Time:      ts,
+				TimeMixin: TimeMixin{Time: ts},
 			},
 		},
 		{
 			name:     "GateStuckEvent",
 			wantType: "gate_stuck",
 			event: &GateStuckEvent{
-				BeadID: "b1",
-				Reason: "timeout",
-				Time:   ts,
+				BeadID:    "b1",
+				Reason:    "timeout",
+				TimeMixin: TimeMixin{Time: ts},
 			},
 		},
 		{
 			name:     "GateSkipEvent",
 			wantType: "gate_skip",
 			event: &GateSkipEvent{
-				BeadID: "b1",
-				Reason: "precheck_passed",
-				Time:   ts,
+				BeadID:    "b1",
+				Reason:    "precheck_passed",
+				TimeMixin: TimeMixin{Time: ts},
 			},
 		},
 		{
 			name:     "GateBlockEvent",
 			wantType: "gate_block",
 			event: &GateBlockEvent{
-				BeadID: "b1",
-				Reason: "stuck",
-				Time:   ts,
+				BeadID:    "b1",
+				Reason:    "stuck",
+				TimeMixin: TimeMixin{Time: ts},
 			},
 		},
 		{
@@ -520,33 +520,33 @@ func specEventCases(ts time.Time) []eventSpec {
 				BeadID:    "b1",
 				Iteration: 1,
 				Success:   true,
-				Time:      ts,
+				TimeMixin: TimeMixin{Time: ts},
 			},
 		},
 		{
 			name:     "EpilogueCompleteEvent",
 			wantType: "epilogue_complete",
 			event: &EpilogueCompleteEvent{
-				BeadID:  "b1",
-				Success: true,
-				Time:    ts,
+				BeadID:    "b1",
+				Success:   true,
+				TimeMixin: TimeMixin{Time: ts},
 			},
 		},
 		{
 			name:     "BeadCloseEvent",
 			wantType: "bead_close",
 			event: &BeadCloseEvent{
-				BeadID: "b1",
-				Time:   ts,
+				BeadID:    "b1",
+				TimeMixin: TimeMixin{Time: ts},
 			},
 		},
 		{
 			name:     "BeadCleanupEvent",
 			wantType: "bead_cleanup",
 			event: &BeadCleanupEvent{
-				BeadID: "b1",
-				Action: "sync",
-				Time:   ts,
+				BeadID:    "b1",
+				Action:    "sync",
+				TimeMixin: TimeMixin{Time: ts},
 			},
 		},
 	}

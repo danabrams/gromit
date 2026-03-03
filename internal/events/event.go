@@ -15,20 +15,12 @@ type Event interface {
 type LogEvent struct {
 	Level   string
 	Message string
-	Time    time.Time
+	TimeMixin
 }
 
 // EventType returns the event type identifier.
 func (e *LogEvent) EventType() string {
 	return "log"
-}
-
-// EventTime returns the event timestamp.
-func (e *LogEvent) EventTime() time.Time {
-	if e.Time.IsZero() {
-		return time.Now()
-	}
-	return e.Time
 }
 
 // EmitterLogger is a helper that logs formatted messages by emitting LogEvent to an Emitter.
