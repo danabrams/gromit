@@ -767,6 +767,9 @@ func (c *Client) repoBaseName(ctx context.Context) (string, error) {
 		}
 	}
 
+	if c != nil && c.Dir != "" {
+		return filepath.Base(c.Dir), nil
+	}
 	cwd, cwdErr := os.Getwd()
 	if cwdErr != nil {
 		if gitErr != nil {

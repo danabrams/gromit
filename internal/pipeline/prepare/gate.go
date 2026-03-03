@@ -258,9 +258,9 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 				eventReason = gateBlockReason
 			}
 			in.Emitter.Emit(&events.GateReadinessBlockEvent{
-				BeadID: in.Bead.ID,
-				Reason: eventReason,
-				Time:   time.Now(),
+				BeadID:    in.Bead.ID,
+				Reason:    eventReason,
+				TimeMixin: events.TimeMixin{Time: time.Now()},
 			})
 		}
 		return pipeline.Output{
@@ -279,9 +279,9 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 			g.Log("warning", "Data quality block for bead %s: %s", in.Bead.ID, reason)
 			if in.Emitter != nil {
 				in.Emitter.Emit(&events.GateBlockEvent{
-					BeadID: in.Bead.ID,
-					Reason: reason,
-					Time:   time.Now(),
+					BeadID:    in.Bead.ID,
+					Reason:    reason,
+					TimeMixin: events.TimeMixin{Time: time.Now()},
 				})
 			}
 			return pipeline.Output{
@@ -301,9 +301,9 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 			g.Log("warning", "Spec SPC block for bead %s: %s", in.Bead.ID, reason)
 			if in.Emitter != nil {
 				in.Emitter.Emit(&events.GateBlockEvent{
-					BeadID: in.Bead.ID,
-					Reason: reason,
-					Time:   time.Now(),
+					BeadID:    in.Bead.ID,
+					Reason:    reason,
+					TimeMixin: events.TimeMixin{Time: time.Now()},
 				})
 			}
 			return pipeline.Output{
@@ -492,7 +492,7 @@ func (g *Gate) runScopeGate(ctx context.Context, in pipeline.Input) (*pipeline.O
 			FileCount: fileCount,
 			MaxFiles:  maxScopeFiles,
 			Action:    action,
-			Time:      time.Now(),
+			TimeMixin: events.TimeMixin{Time: time.Now()},
 		})
 	}
 

@@ -136,6 +136,11 @@ func ReadEfficiencyReportFiltered(logsDir string, currentRunID string, beadFilte
 					report.HighContextIterations = append(report.HighContextIterations, ie)
 				}
 
+				// Skip blank-model entries from aggregation maps
+				if strings.TrimSpace(entry.Model) == "" {
+					continue
+				}
+
 				// Accumulate per-model stats
 				if currentModelTotals[entry.Model] == nil {
 					currentModelTotals[entry.Model] = &modelAccumulator{}
@@ -151,6 +156,11 @@ func ReadEfficiencyReportFiltered(logsDir string, currentRunID string, beadFilte
 				}
 			} else {
 				// Historical
+				// Skip blank-model entries from historical aggregation maps
+				if strings.TrimSpace(entry.Model) == "" {
+					continue
+				}
+
 				if historicalModelTotals[entry.Model] == nil {
 					historicalModelTotals[entry.Model] = &modelAccumulator{}
 				}

@@ -136,7 +136,7 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 			BeadID:    in.Bead.ID,
 			Iteration: in.Iteration,
 			Success:   in.BuildSucceeded,
-			Time:      time.Now(),
+			TimeMixin: events.TimeMixin{Time: time.Now()},
 		})
 	}
 
@@ -151,8 +151,8 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 			// Emit BeadCloseEvent on successful close
 			if in.Emitter != nil {
 				in.Emitter.Emit(&events.BeadCloseEvent{
-					BeadID: in.Bead.ID,
-					Time:   time.Now(),
+					BeadID:    in.Bead.ID,
+					TimeMixin: events.TimeMixin{Time: time.Now()},
 				})
 			}
 		}
@@ -165,9 +165,9 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 			// Emit BeadCleanupEvent for sync action
 			if in.Emitter != nil {
 				in.Emitter.Emit(&events.BeadCleanupEvent{
-					BeadID: in.Bead.ID,
-					Action: "sync",
-					Time:   time.Now(),
+					BeadID:    in.Bead.ID,
+					Action:    "sync",
+					TimeMixin: events.TimeMixin{Time: time.Now()},
 				})
 			}
 		}
@@ -252,7 +252,7 @@ func (e *Epilogue) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 			BeadID:           in.Bead.ID,
 			Success:          lifecycleFailure == pipeline.LifecycleFailureNone,
 			WarningsOccurred: warningOccurred,
-			Time:             time.Now(),
+			TimeMixin:        events.TimeMixin{Time: time.Now()},
 		})
 	}
 

@@ -16,7 +16,7 @@ func TestOnRunStart_UpdatesRunProgress(t *testing.T) {
 		MaxIterations: 5,
 		TimeBudget:    10 * time.Minute,
 		DryRun:        false,
-		Time:          time.Unix(1000, 0),
+		TimeMixin:     events.TimeMixin{Time: time.Unix(1000, 0)},
 	}
 
 	store.OnRunStart(event)
@@ -50,7 +50,7 @@ func TestOnRunComplete_UpdatesRunProgress(t *testing.T) {
 	event := &events.RunCompleteEvent{
 		IterationsCompleted: 3,
 		Reason:              "success",
-		Time:                time.Unix(2000, 0),
+		TimeMixin:           events.TimeMixin{Time: time.Unix(2000, 0)},
 	}
 
 	store.OnRunComplete(event)
@@ -75,7 +75,7 @@ func TestOnRunComplete_MarksFailedOnFailureReason(t *testing.T) {
 	event := &events.RunCompleteEvent{
 		IterationsCompleted: 2,
 		Reason:              "failed: build error",
-		Time:                time.Unix(3000, 0),
+		TimeMixin:           events.TimeMixin{Time: time.Unix(3000, 0)},
 	}
 
 	store.OnRunComplete(event)
@@ -93,7 +93,7 @@ func TestOnIterationStart_UpdatesActivePhase(t *testing.T) {
 		Iteration: 1,
 		BeadID:    "bead-123",
 		BeadTitle: "Test Feature",
-		Time:      time.Unix(1000, 0),
+		TimeMixin: events.TimeMixin{Time: time.Unix(1000, 0)},
 	}
 
 	store.OnIterationStart(event)
@@ -125,7 +125,7 @@ func TestOnIterationComplete_UpdatesProgressPercentage(t *testing.T) {
 		BeadID:    "bead-123",
 		Success:   true,
 		Duration:  5 * time.Second,
-		Time:      time.Unix(2000, 0),
+		TimeMixin: events.TimeMixin{Time: time.Unix(2000, 0)},
 	}
 
 	store.OnIterationComplete(event)
@@ -146,7 +146,7 @@ func TestOnBeadComplete_TracksRecentCompletion(t *testing.T) {
 		BeadID:    "bead-123",
 		BeadTitle: "Test Feature",
 		Duration:  5 * time.Second,
-		Time:      time.Unix(3000, 0),
+		TimeMixin: events.TimeMixin{Time: time.Unix(3000, 0)},
 	}
 
 	store.OnBeadComplete(event)
@@ -170,7 +170,7 @@ func TestOnBeadFailed_TracksRecentFailure(t *testing.T) {
 		BeadID:    "bead-456",
 		BeadTitle: "Failed Feature",
 		Error:     "test failed",
-		Time:      time.Unix(4000, 0),
+		TimeMixin: events.TimeMixin{Time: time.Unix(4000, 0)},
 	}
 
 	store.OnBeadFailed(event)
@@ -192,7 +192,7 @@ func TestRecentCompletions_LimitsTo10(t *testing.T) {
 			BeadID:    "bead-" + string(rune(i)),
 			BeadTitle: "Feature",
 			Duration:  time.Second,
-			Time:      time.Unix(int64(5000+i), 0),
+			TimeMixin: events.TimeMixin{Time: time.Unix(int64(5000+i), 0)},
 		}
 		store.OnBeadComplete(event)
 	}
@@ -217,7 +217,7 @@ func TestOnBuildStart_UpdatesPhase(t *testing.T) {
 		Model:       "haiku",
 		Attempt:     1,
 		MaxAttempts: 3,
-		Time:        time.Unix(3000, 0),
+		TimeMixin:   events.TimeMixin{Time: time.Unix(3000, 0)},
 	}
 
 	store.OnBuildStart(event)
@@ -239,9 +239,9 @@ func TestOnValidationStart_UpdatesPhase(t *testing.T) {
 		},
 	}
 	event := &events.ValidationStartEvent{
-		BeadID:   "bead-123",
-		Commands: []string{"make test"},
-		Time:     time.Unix(4000, 0),
+		BeadID:    "bead-123",
+		Commands:  []string{"make test"},
+		TimeMixin: events.TimeMixin{Time: time.Unix(4000, 0)},
 	}
 
 	store.OnValidationStart(event)
@@ -261,7 +261,7 @@ func TestOnHeartbeat_UpdatesHealthIndicator(t *testing.T) {
 		FilesModified:      2,
 		RateLimitHits:      0,
 		WaitingForResponse: true,
-		Time:               time.Unix(5000, 0),
+		TimeMixin:          events.TimeMixin{Time: time.Unix(5000, 0)},
 	}
 
 	store.OnHeartbeat(event)
@@ -290,7 +290,7 @@ func TestOnStallDetected_MarkUnhealthy(t *testing.T) {
 	event := &events.StallDetectedEvent{
 		Elapsed:   15 * time.Second,
 		Threshold: 10 * time.Second,
-		Time:      time.Unix(6000, 0),
+		TimeMixin: events.TimeMixin{Time: time.Unix(6000, 0)},
 	}
 
 	store.OnStallDetected(event)
@@ -369,7 +369,7 @@ func TestOnBeadStuck_TracksStuckCompletion(t *testing.T) {
 		BeadID:    "bead-789",
 		BeadTitle: "Stuck Feature",
 		Reason:    "timeout",
-		Time:      time.Unix(7000, 0),
+		TimeMixin: events.TimeMixin{Time: time.Unix(7000, 0)},
 	}
 
 	store.OnBeadStuck(event)
@@ -399,7 +399,7 @@ func TestOnBuildComplete_UpdatesPhase(t *testing.T) {
 		Cost:      0.001,
 		TokensIn:  1000,
 		TokensOut: 200,
-		Time:      time.Unix(8000, 0),
+		TimeMixin: events.TimeMixin{Time: time.Unix(8000, 0)},
 	}
 
 	store.OnBuildComplete(event)

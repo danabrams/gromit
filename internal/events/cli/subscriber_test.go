@@ -254,7 +254,7 @@ func TestCLISubscriber_RunStartEventFormatsUnlimitedValues(t *testing.T) {
 	emitter.Emit(&events.RunStartEvent{
 		MaxIterations: 0,
 		TimeBudget:    0,
-		Time:          time.Now(),
+		TimeMixin:     events.TimeMixin{Time: time.Now()},
 	})
 
 	processCtx, processCancel := context.WithTimeout(context.Background(), 1*time.Second)

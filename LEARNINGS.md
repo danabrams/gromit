@@ -19,6 +19,16 @@ Boundary-sensitive runtime behavior must be centralized and fail-closed: subproc
 
 Provider fixture governance should be schema-first and deterministic: canonical real-probe fixtures with provenance metadata, explicit required artifacts, and structured assertions (never prose-token checks). Fixture contracts must include deterministic schema assertions and provenance metadata; prose-token assertions are forbidden.
 
+### 2026-03-03 | timemixin_embedded_struct_literal_initialization | CODE_PATTERN
+*Related to: gromit/review-1772533894632263000*
+
+When event structs embed TimeMixin (or any struct with fields), struct literals must initialize the embedded type by name: `TimeMixin: events.TimeMixin{Time: time.Now()}`, not `Time: time.Now()` directly. Go does not allow setting fields of an embedded struct without naming the embedded type in a composite literal. This was missed across 30+ call sites when TimeMixin was introduced, causing build failures in pipeline/review, pipeline/validate, pipeline/epilogue, pipeline/execute, pipeline/prepare, and runner/orchestrator.
+
+### 2026-03-03 | integration_queue_session_architecture | ARCHITECTURE
+*Related to: gromit/review-1772533894632263000*
+
+Sessions now produce branches that flow through a state-machine-based integration queue (draft→ready→integrating→merged/conflict/failed_gates) with file-based JSON persistence and atomic writes, rather than merging directly back to main. This avoids merge conflicts during session execution and is a safer model for single-machine session orchestration. The tracker.Client interface decomposition into ItemReader/ItemWriter/ItemQuery follows Interface Segregation Principle well.
+
 ## Provisional Learnings
 
 *No provisional learnings at this time.*

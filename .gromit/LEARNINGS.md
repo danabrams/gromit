@@ -83,20 +83,24 @@ Shared orchestrator/runtime path ownership must include telemetry completeness e
 
 *Newly observed — needs validation across more tasks.*
 
-### 2026-03-02 | Context Propagation Pattern: Derive From Cobra, Thread Through Session Launcher | patterns
-*Related to: review-1772465040994006393*
+### 2026-03-03 | Context Propagation Is an End-to-End Contract | patterns
+*Related to: review-1772465040994006393, review-1772456575499153066, review-1772449742155634887, gromit-yfj6, gromit-1fov, review-1772511363996530000*
 
-Context propagation was systematically threaded through session launcher, decompose, interactive worktree, and constructor_adapters_epilogue — replacing context.Background()/context.TODO() with cmd.Context() at CLI entry points. The pattern is: derive ctx from cobra command, pass through session launcher via launchInSessionIfEnabledWithContext, into worktree/pipeline calls.
+Context propagation is an end-to-end contract: derive ctx at Cobra entry, thread through session launchers/adapters/closures, and forbid context.Background/context.TODO in live execution paths.
+
+*Consolidated from: Context Propagation Pattern: Derive From Cobra Thread Through Session Launcher, Context Propagation Gap Between Library and CLI Layers, context.Background() in Adapter Factory Closures Defeats Stage Cancellation*
 
 ### 2026-03-02 | TDD Oscillation Detection Now Uses Order-Insensitive Multiset Comparison | patterns
 *Related to: review-1772465040994006393*
 
 equalStringSlices in internal/runner/tdd/orchestrator.go was upgraded from order-sensitive index comparison to order-insensitive multiset comparison using map[string]int counters — fixing false negatives when remaining criteria appear in different order across cycles. Wrapped in sameRemainingSet for intent clarity.
 
-### 2026-03-02 | Gofmt Enforcement Is Multi-Layered: Explicit Lists, Directory Walks, and Changed-File Gate | conventions
-*Related to: review-1772465040994006393*
+### 2026-03-03 | Gofmt Governance Must Be Layered: Changed-File Gate Plus Full-Tree Enforcement | conventions
+*Related to: review-1772465040994006393, review-1772392326235980273, review-1772449742155634887*
 
-Gofmt enforcement is now multi-layered: per-package explicit file lists (config), per-directory walks (pipeline/prompt), and repo-wide changed-file gate (runner). The directory-walk approach is more durable than explicit lists but explicit lists give tighter scope control.
+Gofmt governance must be layered: changed-file gate for fast feedback plus periodic/full-tree enforcement to eliminate baseline drift and prevent old violations from persisting. Per-package explicit file lists, per-directory walks, and repo-wide changed-file gate each cover different scopes; all three are needed.
+
+*Consolidated from: Gofmt Enforcement Is Multi-Layered, New Files Committed With Space Indentation Bypassing gofmt, 116 Pre-Existing gofmt Violations Despite Repo gofmt Gate*
 
 ### 2026-03-02 | specbranch.HasSpecLabel Gate Prevents Non-Spec Bead Checkout Attempts | patterns
 *Related to: review-1772465040994006393*
@@ -108,25 +112,10 @@ specbranch.HasSpecLabel gate in orchestrator prevents non-spec beads from trigge
 
 OrchestratorConfig.StatusFinalizer uses named return (runErr) + defer to guarantee final status write and RunCompleteEvent emission regardless of how Run exits, including early returns and panics. The defer captures both the iteration count and error state at exit time.
 
-### 2026-03-02 | Integration Queue FSM Allows Direct Construction Outside ApplyTransition | architecture
-*Related to: review-1772456575499153066, gromit-qqsq*
-
-Integration queue entries can be constructed directly via store.Save() without going through ApplyTransition FSM transitions. enqueueBlockedBranch creates StateConflict entries directly (bypassing Draft→Conflict which is not a valid FSM edge). This is architecturally intentional: session auto-commit failures create entries that never went through coordinator integration. The two meanings of StateConflict are distinguished by LastErrorCode: "session_commit_failed" (session path) vs "merge_conflict"/"rebase_conflict" (coordinator path). RecoverFromCrash correctly ignores these entries since they are not crash artifacts.
-
-### 2026-03-02 | TDD Cycle Instability Detection Depends on Stable Slice Ordering | bug-risk
-*Related to: review-1772456575499153066, gromit-p3d7, review-1772465040994006393*
-
-RESOLVED: equalStringSlices was upgraded to order-insensitive multiset comparison using map[string]int counters in this review cycle. The original bug — order-sensitive comparison missing matches when Remaining criteria appeared in different element order — is fixed. See "TDD Oscillation Detection Now Uses Order-Insensitive Multiset Comparison" learning.
-
 ### 2026-03-02 | Process Management Consolidation in procutil Is Complete Across Provider Launch Sites | architecture
 *Related to: review-1772456575499153066*
 
 procutil package now provides the canonical subprocess lifecycle: SetProcessGroupKill, WaitForProcessCapacity (cgroup v2 PID pressure), KillDescendantsOnCancel, ReapProcessTree. All provider launch sites (codex, gemini) and worktree.Manager use the full pattern. WaitForProcessCapacity is cgroup v2 only; cgroup v1 systems silently skip throttling (best-effort). The double-kill between KillDescendantsOnCancel goroutine and defer ReapProcessTree is harmless (ESRCH on dead PIDs is ignored).
-
-### 2026-03-02 | Context Propagation Gap Between Library and CLI Layers | patterns
-*Related to: review-1772456575499153066, gromit-yfj6, gromit-1fov, review-1772511363996530000*
-
-worktree.Manager methods accept context.Context at the library level, but the CLI layer (interactive_worktree.go) uses context.TODO() because runWithSessionWorktreeWithConflictSettings does not accept a context parameter. Similarly, constructor_adapters_epilogue.go uses context.Background() in adapter factory closures, defeating stage cancellation. Context threading must be end-to-end from CLI command through adapter closures to be effective. Additional gap: StatusWriter callback in constructor.go uses context.Background() for bd calls, and learnings/filter.go uses context.Background() for LLM classification — both ignore caller context.
 
 ### 2026-02-26 | Tracker Adapter Metadata Serialization Must Use JSON | gotchas
 *Related to: code-review, review-1772124256835385050, gromit-qdjqk, review-1772143302280772186*
@@ -235,17 +224,19 @@ All subprocess launch sites must follow the full procutil lifecycle pattern: pro
 
 Epilogue close/sync failures must suppress all success signals (events, logs, merge triggers) and publish a failed lifecycle outcome. When close/sync fails, BeadCompleteEvent is not emitted and spec merge triggering is skipped to prevent downstream consumers from acting on incomplete state.
 
-### 2026-02-28 | Provider Router Requires Mutex and Correct Count Semantics | patterns
-*Related to: review-1772280289214510883, review-1772511363996530000*
+### 2026-03-03 | Provider Router Concurrency Requires One Lock Domain With Single-Increment Semantics | patterns
+*Related to: review-1772280289214510883, review-1772511363996530000, review-1772366501939692738*
 
-Provider router (internal/provider/router.go) was a genuine data race — counts and unavailable maps accessed from multiple goroutines without locking. Now uses sync.Mutex on all read/write paths. New provider infrastructure must protect shared state similarly. Additional issue: selectIfAvailable increments r.counts[name] on selection, and RecordInvocation also increments the same counter — if both are called per invocation, ratio balancing is skewed by double-counting.
+Provider router concurrency correctness requires one lock domain for availability + selection + accounting, with single-increment invocation semantics to prevent skew and TOCTOU races. Select() had a TOCTOU race between isAvailable() and selectProvider() — each acquired/released the mutex independently. selectIfAvailable and RecordInvocation both increment counts, causing double-counting if both are called per invocation.
 
-### 2026-03-02 | Integration Queue State Must Be Table-Driven With Persistent Transitions | architecture
-*Related to: review-1772280289214510883, retro-1772302209902158129, review-1772322141608097349, review-1772366501939692738, review-1772423180715253804*
+*Consolidated from: Provider Router Requires Mutex and Correct Count Semantics, Provider Router Mutex Creates False Thread Safety in Select()*
 
-Integration queue state evolution must be table-driven and persist every transition path (including recovery), with state count/schema updates reflected in the same change. 8 states: draft/ready/integrating/merged/conflict/failed_gates/lane_violation/push_failure. Must mutate state only through `ApplyTransition`; direct assignment is forbidden. Error paths (push failure, rebase conflict) must persist state transitions before returning errors. Recovery paths must use valid transitions (integrating→draft is invalid; use integrating→ready via ApplyTransition). RecoverFromMalformedQueue must persist and use valid transitions consistent with Coordinator.RecoverFromCrash.
+### 2026-03-03 | Integration Queue Transitions Must Be Table-Driven, Persisted, and Error-Atomic | architecture
+*Related to: review-1772280289214510883, retro-1772302209902158129, review-1772322141608097349, review-1772366501939692738, review-1772423180715253804, review-1772449742155634887, review-1772511363996530000*
 
-*Consolidated from: Integration Queue Lifecycle Is Table-Driven via ApplyTransition, Integration Queue Has 8 States Including push_failure, RecoverFromMalformedQueue Never Persists and Uses Invalid Transition*
+Integration queue transitions must be table-driven, persisted on all paths, and include error metadata atomically through transition APIs; no direct state/error field mutation outside transition handling. 8 states: draft/ready/integrating/merged/conflict/failed_gates/lane_violation/push_failure. Error paths (push failure, rebase conflict) must persist state transitions before returning errors. Recovery paths must use valid transitions. When operation failure and transition-persist failure both occur, return joined typed errors and persist both diagnostics.
+
+*Consolidated from: Integration Queue Lifecycle Is Table-Driven via ApplyTransition, Integration Queue Has 8 States Including push_failure, RecoverFromMalformedQueue Never Persists and Uses Invalid Transition, Coordinator Error Metadata Bypasses ApplyTransition Creating Partial-State Bugs, Integration Queue Coordinator Must Join Transition Errors With Operation Errors, Integration Queue FSM Allows Direct Construction Outside ApplyTransition*
 
 ### 2026-02-28 | ListBeads/QueryBeads Silently Return Empty for Unsupported Status | gotchas
 *Related to: review-1772300695650836737*
@@ -274,18 +265,11 @@ Config types must use *bool for boolean fields with non-zero defaults to disting
 
 Epilogue stage sets in.Result.Success = false on lifecycle failure, mutating the caller's data through a pointer. This side-effect violates stage output isolation — the orchestrator should read success status from the epilogue Output, not the mutated Input.
 
-### 2026-03-01 | Provider Router Mutex Creates False Thread Safety in Select() | gotchas
-*Related to: review-1772366501939692738*
-
-Provider router Select() has a TOCTOU race between isAvailable() and selectProvider() calls — each acquires/releases the mutex independently, so availability can change between checks. Currently single-threaded in practice, but the lock pattern is misleading.
-
 ### 2026-03-01 | specmerge gh_client.go Is Last Site Missing Full procutil Subprocess Pattern | conventions
 *Related to: review-1772366501939692738*
 
 specmerge/gh_client.go is missing KillDescendantsOnCancel after cmd.Start() and uses ReapProcessGroup instead of ReapProcessTree. All other subprocess launch sites (cmd_run.go, specbranch/git_ops.go, benchmark/worktree_run.go, preflight.go, integrationqueue_constructor.go) follow the full pattern.
 
-### 2026-03-01 | gromit-y03p | conventions
-When working with process management tasks (KillDescendantsOnCancel, ReapProcessTree), verify the target file/package exists and understand the existing process tree management patterns in the codebase before implementing.
 
 ### 2026-03-01 | gromit-90i5 | conventions
 In Gromit's runner orchestration, state transitions are constrained by a transition table - check valid transitions before recovering/changing queue state; integrating→draft is invalid; consult internal/runner/orchestrator.go or runner.go for transition rules
@@ -295,28 +279,15 @@ In Gromit's runner orchestration, state transitions are constrained by a transit
 
 worktree.Manager was updated to accept context.Context on Cleanup, PendingBranches, MergeBack, and RemoveByPath, but the runner WorktreeManager interface and its adapter call sites were not updated — this is a cross-package contract parity failure that broke the build with 4 compile errors.
 
-### 2026-03-01 | New Files Committed With Space Indentation Bypassing gofmt | conventions
-*Related to: review-1772392326235980273*
-
-Two new files (spc_auto_triage.go, specmerge/pr_summary.go) were committed with space indentation instead of tabs, failing gofmt. CI should catch this if gofmt is enforced in the lint step; if not, add gofmt as a CI gate.
-
 ### 2026-03-01 | captureCycleRecord Silently Discards Emitter Error | gotchas
 *Related to: review-1772392326235980273*
 
 captureCycleRecord in specmerge/pipeline.go:306 silently discards the CaptureCycleRecord error with `_ =` assignment — this is a metrics emission that should at minimum be logged on failure for operational visibility.
 
-### 2026-03-01 | fmt.Errorf With %s String Arg Should Use errors.New | conventions
-*Related to: review-1772392326235980273*
-
-The specmerge pipeline uses fmt.Errorf("%s", alert) at pipeline.go:124 where errors.New(alert) would be more idiomatic and avoids govet printf warnings about non-formatting use of fmt.Errorf.
 
 ### 2026-03-01 | gromit-peq | conventions
 The internal/runner package enforces file size limits via TestConstructorFileSizeLimit in file_size_test.go. When size limits are exceeded, the test provides explicit guidance on which types should be extracted and into which files. This is a codebase convention for managing large files.
 
-### 2026-03-02 | Integration Queue File Locking Now Implemented via syscall.Flock | reliability
-*Related to: review-1772423180715253804*
-
-withQueueFileLock in internal/integrationqueue/store.go uses advisory flock-based locking around all load/modify/write cycles. The earlier concern about missing file locking is resolved. Lock coverage includes Save, Snapshot, LoadQueue, SaveQueue, and RecoverFromMalformedQueue.
 
 ### 2026-03-02 | constructor_adapters.go Successfully Extracted to 51 Lines | architecture
 *Related to: review-1772423180715253804*
@@ -328,20 +299,6 @@ constructor_adapters.go was extracted from 1147 lines to 51 lines by splitting i
 
 internal/runner/spc_auto_triage.go Process() correctly accumulates errors via errors.Join rather than aborting on first tracker failure. Each record failure is appended to an error slice and processing continues.
 
-### 2026-03-02 | Coordinator Error Metadata Bypasses ApplyTransition Creating Partial-State Bugs | architecture
-*Related to: review-1772449742155634887*
-
-Integration queue coordinator sets LastErrorCode/LastErrorMessage via direct field assignment before calling ApplyTransition. When ApplyTransition fails, entries are left with error codes set but State unchanged (still StateIntegrating), violating the validation contract that requires both fields set/unset together. Error metadata should be set atomically with state transitions.
-
-### 2026-03-02 | context.Background() in Adapter Factory Closures Defeats Stage Cancellation | patterns
-*Related to: review-1772449742155634887*
-
-constructor_adapters_epilogue.go and constructor_adapters_build_review.go use context.Background() instead of the ctx parameter in bead creation/close/diff operations. This means stage cancellation and orchestrator deadlines are silently ignored. New adapters must thread context from the stage invocation.
-
-### 2026-03-02 | 116 Pre-Existing gofmt Violations Despite Repo gofmt Gate | conventions
-*Related to: review-1772449742155634887*
-
-The repo gofmt gate (recently added) catches new violations but does not enforce formatting on files that were already non-compliant. 116 files currently fail gofmt including production files (verify_spec.go, config_types.go, conversation.go, etc.). A bulk cleanup pass is needed.
 
 ### 2026-03-02 | orchestrator.go Exceeds 1000-Line Facade Limit at 1254 Lines | tech_debt
 *Related to: review-1772449742155634887*
@@ -383,16 +340,55 @@ Gemini provider is missing retry logic (Codex has runWithRetry for transient fai
 
 config_normalize.go NormalizeNilFields() mixes business-logic defaults (BuildStrategy, PhaseModels, Refactor.MinFilesChanged) with nil-normalization. Per CLAUDE.md convention, NormalizeNilFields should only convert nil slices/maps to empty values. Business defaults belong in SetDefaults(). Also, SetDefaults/NormalizeNilFields are called redundantly in Load(), constructor.go, and buildRouterAndLearningsProvider.
 
-### 2026-03-03 | Integration Queue Coordinator Must Join Transition Errors With Operation Errors | reliability
-*Related to: review-1772511363996530000*
-
-When coordinator gate/rebase operations fail AND the subsequent state transition also fails, the transition error is silently dropped, leaving entries in inconsistent state. Error metadata should be set atomically with state transitions, and transition errors should be joined with operation errors.
-
 ---
 
 ## Archived
 
 *Previously archived learnings.*
+
+### 2026-03-02 | TDD Cycle Instability Detection Depends on Stable Slice Ordering | bug-risk
+RESOLVED: equalStringSlices upgraded to order-insensitive multiset comparison. Original bug is fixed.
+
+*Archived: 2026-03-03 — marked resolved in content and superseded by the positive consolidated learning.*
+
+### 2026-03-02 | Integration Queue File Locking Now Implemented via syscall.Flock | reliability
+withQueueFileLock in internal/integrationqueue/store.go uses advisory flock-based locking.
+
+*Archived: 2026-03-03 — implementation-status note ('now implemented') is stale as an enduring learning.*
+
+### 2026-03-01 | fmt.Errorf With %s String Arg Should Use errors.New | conventions
+fmt.Errorf("%s", alert) should use errors.New(alert).
+
+*Archived: 2026-03-03 — generic idiomatic style advice; low project-specific leverage.*
+
+### 2026-03-01 | gromit-y03p | conventions
+Verify target file/package exists before implementing process management tasks.
+
+*Archived: 2026-03-03 — generic process reminder without durable project-specific contract.*
+
+### 2026-03-02 | Integration Queue FSM Allows Direct Construction Outside ApplyTransition | architecture
+*Archived: 2026-03-03 — describes intentional exception now consolidated into stronger FSM contract learning.*
+
+### 2026-03-02 | Context Propagation Gap Between Library and CLI Layers | patterns
+*Archived: 2026-03-03 — consolidated into Context Propagation Is an End-to-End Contract.*
+
+### 2026-03-02 | Coordinator Error Metadata Bypasses ApplyTransition | architecture
+*Archived: 2026-03-03 — consolidated into Integration Queue Transitions Must Be Table-Driven, Persisted, and Error-Atomic.*
+
+### 2026-03-03 | Integration Queue Coordinator Must Join Transition Errors | reliability
+*Archived: 2026-03-03 — consolidated into Integration Queue Transitions Must Be Table-Driven, Persisted, and Error-Atomic.*
+
+### 2026-03-01 | Provider Router Mutex Creates False Thread Safety in Select() | gotchas
+*Archived: 2026-03-03 — consolidated into Provider Router Concurrency Requires One Lock Domain With Single-Increment Semantics.*
+
+### 2026-03-02 | context.Background() in Adapter Factory Closures Defeats Stage Cancellation | patterns
+*Archived: 2026-03-03 — consolidated into Context Propagation Is an End-to-End Contract.*
+
+### 2026-03-01 | New Files Committed With Space Indentation Bypassing gofmt | conventions
+*Archived: 2026-03-03 — consolidated into Gofmt Governance Must Be Layered.*
+
+### 2026-03-02 | 116 Pre-Existing gofmt Violations Despite Repo gofmt Gate | conventions
+*Archived: 2026-03-03 — consolidated into Gofmt Governance Must Be Layered.*
 
 ### 2026-02-28 | gromit-9hw | conventions
 When adding regression coverage tests, verify test expectations match actual implementation behavior before running; avoid hardcoded absolute paths in tests—use temp files or environment-specific config paths instead
@@ -507,6 +503,16 @@ When updating function signatures across a codebase, ensure test updates cover a
 
 ### 2026-03-02 | gromit-mal9n | conventions
 In Go, consts can only hold basic literal types (string, int, bool, etc.); complex types or reassigned variables must remain as vars. Always check variable type and usage before attempting const conversion.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-03-03 | gromit-tph0c | conventions
+When analyzing 'failures' with empty error output, verify test results first - no error output doesn't automatically mean failure occurred.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-03-03 | gromit-hpsll | gotchas
+Capture and provide actual error messages, build/test output, or failure logs when analyzing task failures—empty error sections prevent root cause analysis.
 
 *Archived from new: filtered: generic engineering advice*
 

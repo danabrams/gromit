@@ -165,6 +165,9 @@ func buildStratifiedControlLimits(metrics []IterationMetric) (map[string][]Trend
 		if len(stratumMetrics) == 0 {
 			continue
 		}
+		if isDegenerateUnknownStratum(key, stratumMetrics) {
+			continue
+		}
 
 		latestMetric := stratumMetrics[len(stratumMetrics)-1]
 		limits := make([]TrendControlLimit, 0, len(trendControlLimitSeries))
@@ -188,9 +191,39 @@ func buildStratifiedControlLimits(metrics []IterationMetric) (map[string][]Trend
 	return limitsByStratum, anomaliesByStratum
 }
 
+// isQuarantinedAttribution returns true when both model and provider are
+// blank or "unknown", meaning the iteration has no useful attribution data.
+// These metrics produce degenerate zero-variance strata that cause false
+// high-severity SPC alerts.
+func isQuarantinedAttribution(metric IterationMetric) bool {
+	model := strings.TrimSpace(strings.ToLower(metric.Model))
+	provider := strings.TrimSpace(strings.ToLower(metric.Provider))
+	modelBlank := model == "" || model == "unknown"
+	providerBlank := provider == "" || provider == "unknown"
+	return modelBlank && providerBlank
+}
+
+// isDegenerateUnknownStratum returns true if the stratum key contains "unknown"
+// and ALL of its metrics have zero cost AND zero input tokens, indicating a
+// stratum with no meaningful data that would produce false SPC alerts.
+func isDegenerateUnknownStratum(key string, metrics []IterationMetric) bool {
+	if !strings.Contains(strings.ToLower(key), "unknown") {
+		return false
+	}
+	for _, m := range metrics {
+		if m.CostUSD != 0 || m.InputTokens != 0 {
+			return false
+		}
+	}
+	return true
+}
+
 func partitionMetricsByStratum(metrics []IterationMetric) map[string][]IterationMetric {
 	byStratum := map[string][]IterationMetric{}
 	for _, m := range metrics {
+		if isQuarantinedAttribution(m) {
+			continue
+		}
 		provider := resolveProviderName(m.Provider, m.Model)
 		providerKey := providerStratumKey(provider)
 		byStratum[providerKey] = append(byStratum[providerKey], m)

@@ -9,17 +9,16 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/coverage"
-	"github.com/danabrams/gromit/internal/pipeline/execute"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
 // TestTDDPipelineAdapter_ImplementsInterface verifies that TDDPipelineAdapter
-// satisfies the execute.TDDCycleRunner interface.
+// satisfies the TDDCycleRunner interface.
 func TestTDDPipelineAdapter_ImplementsInterface(t *testing.T) {
 	t.Parallel()
 	var a *TDDPipelineAdapter
-	if _, ok := any(a).(execute.TDDCycleRunner); !ok {
-		t.Fatal("TDDPipelineAdapter does not implement execute.TDDCycleRunner")
+	if _, ok := any(a).(TDDCycleRunner); !ok {
+		t.Fatal("TDDPipelineAdapter does not implement TDDCycleRunner")
 	}
 }
 

@@ -306,7 +306,7 @@ func (o *Orchestrator) Run(ctx context.Context, maxIterations int, deadline time
 		o.emitter.Emit(&events.RunCompleteEvent{
 			IterationsCompleted: iteration,
 			Reason:              reason,
-			Time:                time.Now(),
+			TimeMixin:           events.TimeMixin{Time: time.Now()},
 		})
 	}()
 
@@ -351,7 +351,7 @@ func (o *Orchestrator) Run(ctx context.Context, maxIterations int, deadline time
 		MaxIterations: maxIterations,
 		DryRun:        false,
 		TimeBudget:    timeBudget,
-		Time:          time.Now(),
+		TimeMixin:     events.TimeMixin{Time: time.Now()},
 	})
 
 	// Check experiments for convergence and emit summary
@@ -441,7 +441,7 @@ runLoop:
 			Iteration: iteration,
 			BeadID:    b.ID,
 			BeadTitle: b.Title,
-			Time:      time.Now(),
+			TimeMixin: events.TimeMixin{Time: time.Now()},
 		})
 
 		if o.cfg.StatusWriter != nil {
@@ -473,9 +473,9 @@ runLoop:
 			switch gateOut.Decision {
 			case pipeline.Skip:
 				o.emitter.Emit(&events.BeadSkippedEvent{
-					BeadID: b.ID,
-					Reason: "gate stage returned skip decision",
-					Time:   time.Now(),
+					BeadID:    b.ID,
+					Reason:    "gate stage returned skip decision",
+					TimeMixin: events.TimeMixin{Time: time.Now()},
 				})
 			case pipeline.Block:
 				baseIn.Result.GateBlockReason = gateOut.GateBlockReason
@@ -487,16 +487,16 @@ runLoop:
 						reason = fmt.Sprintf("%s: %s", reason, gateOut.GateBlockReason)
 					}
 					o.emitter.Emit(&events.BeadSkippedEvent{
-						BeadID: b.ID,
-						Reason: reason,
-						Time:   time.Now(),
+						BeadID:    b.ID,
+						Reason:    reason,
+						TimeMixin: events.TimeMixin{Time: time.Now()},
 					})
 				}
 			default:
 				o.emitter.Emit(&events.BeadSkippedEvent{
-					BeadID: b.ID,
-					Reason: "gate stage returned non-proceed decision",
-					Time:   time.Now(),
+					BeadID:    b.ID,
+					Reason:    "gate stage returned non-proceed decision",
+					TimeMixin: events.TimeMixin{Time: time.Now()},
 				})
 			}
 			o.runEpilogue(ctx, baseIn, false)
@@ -506,7 +506,7 @@ runLoop:
 				BeadID:    b.ID,
 				Success:   false,
 				Duration:  0,
-				Time:      time.Now(),
+				TimeMixin: events.TimeMixin{Time: time.Now()},
 			})
 			continue
 		}
@@ -544,7 +544,7 @@ runLoop:
 							BeadID:    b.ID,
 							Success:   false,
 							Duration:  0,
-							Time:      time.Now(),
+							TimeMixin: events.TimeMixin{Time: time.Now()},
 						})
 						continue
 					}
@@ -575,7 +575,7 @@ runLoop:
 				BeadID:    b.ID,
 				Success:   false,
 				Duration:  0,
-				Time:      time.Now(),
+				TimeMixin: events.TimeMixin{Time: time.Now()},
 			})
 			orchestratorPrelaunchBackoffFn(orchestratorPrelaunchBackoffDuration)
 			continue
@@ -615,7 +615,7 @@ runLoop:
 					BeadID:    b.ID,
 					Success:   false,
 					Duration:  0,
-					Time:      time.Now(),
+					TimeMixin: events.TimeMixin{Time: time.Now()},
 				})
 				orchestratorPrelaunchBackoffFn(orchestratorPrelaunchBackoffDuration)
 				continue
@@ -651,7 +651,7 @@ runLoop:
 				BeadID:    b.ID,
 				Success:   false,
 				Duration:  0,
-				Time:      time.Now(),
+				TimeMixin: events.TimeMixin{Time: time.Now()},
 			})
 			continue
 		}
@@ -715,7 +715,7 @@ runLoop:
 				BeadID:    b.ID,
 				Success:   false,
 				Duration:  0,
-				Time:      time.Now(),
+				TimeMixin: events.TimeMixin{Time: time.Now()},
 			})
 			continue
 		}
@@ -753,7 +753,7 @@ runLoop:
 				BeadID:    b.ID,
 				Success:   false,
 				Duration:  0,
-				Time:      time.Now(),
+				TimeMixin: events.TimeMixin{Time: time.Now()},
 			})
 			continue
 		}
@@ -803,7 +803,7 @@ runLoop:
 					BeadID:    b.ID,
 					Success:   false,
 					Duration:  time.Duration(buildOut.DurationMs) * time.Millisecond,
-					Time:      time.Now(),
+					TimeMixin: events.TimeMixin{Time: time.Now()},
 				})
 				continue
 			}
@@ -852,7 +852,7 @@ runLoop:
 			BeadID:    b.ID,
 			Success:   finalSuccess,
 			Duration:  time.Duration(buildOut.DurationMs) * time.Millisecond,
-			Time:      time.Now(),
+			TimeMixin: events.TimeMixin{Time: time.Now()},
 		})
 		if finalSuccess {
 			// Emit BeadCompleteEvent only for successful lifecycle iterations
@@ -860,7 +860,7 @@ runLoop:
 				BeadID:    b.ID,
 				BeadTitle: b.Title,
 				Duration:  0, // TODO(review): thread real duration once TUI consumes this field
-				Time:      time.Now(),
+				TimeMixin: events.TimeMixin{Time: time.Now()},
 			})
 		}
 		touchedPackages = mergeTouchedPackages(touchedPackages, epilogueOut.TouchedPackages)

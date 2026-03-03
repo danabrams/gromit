@@ -50,9 +50,9 @@ func TestEmitterCreatedAndAccessibleFromOrchestrator(t *testing.T) {
 	defer emitter.Unsubscribe(ch)
 
 	testEvent := &events.LogEvent{
-		Level:   "test",
-		Message: "test message",
-		Time:    time.Now(),
+		Level:     "test",
+		Message:   "test message",
+		TimeMixin: events.TimeMixin{Time: time.Now()},
 	}
 
 	emitter.Emit(testEvent)
@@ -108,9 +108,9 @@ func TestSubscriberStartupAndTeardown(t *testing.T) {
 
 	// Verify subscribers can receive events by emitting a test event
 	testEvent := &events.LogEvent{
-		Level:   "test",
-		Message: "test event after startup",
-		Time:    time.Now(),
+		Level:     "test",
+		Message:   "test event after startup",
+		TimeMixin: events.TimeMixin{Time: time.Now()},
 	}
 
 	// Emit event - should be received by subscriber channels
@@ -122,9 +122,9 @@ func TestSubscriberStartupAndTeardown(t *testing.T) {
 
 	// Verify that emitting after close is safe (no panic)
 	emitter.Emit(&events.LogEvent{
-		Level:   "test",
-		Message: "after close",
-		Time:    time.Now(),
+		Level:     "test",
+		Message:   "after close",
+		TimeMixin: events.TimeMixin{Time: time.Now()},
 	})
 }
 
@@ -287,9 +287,9 @@ func TestCLISubscriberStartsAndReceivesEvents(t *testing.T) {
 
 	// Emit a test event
 	testEvent := &events.LogEvent{
-		Level:   "test",
-		Message: "test message from CLI subscriber test",
-		Time:    time.Now(),
+		Level:     "test",
+		Message:   "test message from CLI subscriber test",
+		TimeMixin: events.TimeMixin{Time: time.Now()},
 	}
 
 	emitter.Emit(testEvent)
@@ -357,9 +357,9 @@ func TestStatusAndTMUXSubscribersConditionalStartup(t *testing.T) {
 
 	// Emit a test event
 	testEvent := &events.LogEvent{
-		Level:   "test",
-		Message: "test message for conditional subscribers",
-		Time:    time.Now(),
+		Level:     "test",
+		Message:   "test message for conditional subscribers",
+		TimeMixin: events.TimeMixin{Time: time.Now()},
 	}
 
 	emitter.Emit(testEvent)
@@ -450,9 +450,9 @@ func TestRunStartsSubscribersBeforeLoop(t *testing.T) {
 
 	// Emitting after Run should not panic (emitter should be closed)
 	emitter.Emit(&events.LogEvent{
-		Level:   "test",
-		Message: "test after run",
-		Time:    time.Now(),
+		Level:     "test",
+		Message:   "test after run",
+		TimeMixin: events.TimeMixin{Time: time.Now()},
 	})
 }
 
@@ -512,9 +512,9 @@ func TestEmitterClosedAfterRun(t *testing.T) {
 
 	// Emit an event
 	emitter.Emit(&events.LogEvent{
-		Level:   "test",
-		Message: "after run emitter closed",
-		Time:    time.Now(),
+		Level:     "test",
+		Message:   "after run emitter closed",
+		TimeMixin: events.TimeMixin{Time: time.Now()},
 	})
 
 	// The channel should be closed or the event dropped (emitter is closed)
