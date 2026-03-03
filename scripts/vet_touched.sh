@@ -6,7 +6,10 @@ if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   exit 1
 fi
 
-mapfile -t packages < <(
+packages=()
+while IFS= read -r pkg; do
+  packages+=("$pkg")
+done < <(
   git diff --name-only --diff-filter=ACMRTUXB HEAD -- '*.go' \
     | xargs -r -n1 dirname \
     | sed 's#^\.$##' \

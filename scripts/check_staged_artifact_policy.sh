@@ -4,7 +4,10 @@ set -euo pipefail
 ROOT_DIR="$(git rev-parse --show-toplevel)"
 cd "${ROOT_DIR}"
 
-mapfile -t staged_files < <(git diff --cached --name-only --diff-filter=ACMR)
+staged_files=()
+while IFS= read -r f; do
+  staged_files+=("$f")
+done < <(git diff --cached --name-only --diff-filter=ACMR)
 
 if [[ "${#staged_files[@]}" -eq 0 ]]; then
   echo "[repo-hygiene] no staged files to validate for artifact policy"
