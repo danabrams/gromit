@@ -213,6 +213,30 @@ func TestSetDefaultsRunbookTTLDays(t *testing.T) {
 	}
 }
 
+func TestSetDefaultsQualityGates(t *testing.T) {
+	cfg := &Config{}
+	cfg.SetDefaults()
+
+	if cfg.QualityGates == nil {
+		t.Fatal("QualityGates is nil, want non-nil struct")
+	}
+	if cfg.QualityGates.Regression == nil {
+		t.Fatal("QualityGates.Regression is nil, want non-nil struct")
+	}
+	if !cfg.QualityGates.Regression.Enabled {
+		t.Errorf("QualityGates.Regression.Enabled = %t, want true", cfg.QualityGates.Regression.Enabled)
+	}
+	if cfg.QualityGates.Regression.Command != "go test ./..." {
+		t.Errorf("QualityGates.Regression.Command = %q, want %q", cfg.QualityGates.Regression.Command, "go test ./...")
+	}
+	if cfg.QualityGates.Wiring == nil {
+		t.Fatal("QualityGates.Wiring is nil, want non-nil struct")
+	}
+	if !cfg.QualityGates.Wiring.Enabled {
+		t.Errorf("QualityGates.Wiring.Enabled = %t, want true", cfg.QualityGates.Wiring.Enabled)
+	}
+}
+
 func TestRunbookConfigYAMLDeserialization(t *testing.T) {
 	yamlContent := `
 runbook:
