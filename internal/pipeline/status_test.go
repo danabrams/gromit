@@ -1087,6 +1087,47 @@ func TestReadStatusWithDeps_MissingCriteria(t *testing.T) {
 	}
 }
 
+func TestReadStatusWithDeps_MissingCriteriaIDsSorted(t *testing.T) {
+	disableLiveBDForStatusTests(t)
+
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	specsDir := filepath.Join(gromitDir, "specs")
+	plansDir := filepath.Join(gromitDir, "plans")
+
+	os.MkdirAll(specsDir, 0755)
+	os.MkdirAll(plansDir, 0755)
+	os.MkdirAll(gromitDir, 0755)
+	os.MkdirAll(filepath.Join(tmpDir, ".beads"), 0755)
+
+	bf, err := backlog.NewFile(gromitDir)
+	if err != nil {
+		t.Fatalf("backlog.NewFile() error = %v", err)
+	}
+
+	beadClient := &testBeadQueryClientStatus{
+		readyBeads: []*bead.Bead{
+			{ID: "missing-zeta", ExpectedOutputs: []string{}},
+			{ID: "missing-alpha", ExpectedOutputs: []string{}},
+			{ID: "complete", ExpectedOutputs: []string{"artifact"}},
+		},
+	}
+
+	status, err := ReadStatusWithDeps(gromitDir, specsDir, plansDir, nil, bf, beadClient)
+	if err != nil {
+		t.Fatalf("ReadStatusWithDeps() error = %v", err)
+	}
+
+	if status.MissingCriteriaCount != 2 {
+		t.Fatalf("MissingCriteriaCount = %d, want 2", status.MissingCriteriaCount)
+	}
+
+	wantIDs := []string{"missing-alpha", "missing-zeta"}
+	if !reflect.DeepEqual(status.MissingCriteriaIDs, wantIDs) {
+		t.Fatalf("MissingCriteriaIDs = %v, want %v", status.MissingCriteriaIDs, wantIDs)
+	}
+}
+
 func TestGenerateRecommendation_MissingCriteria(t *testing.T) {
 	status := &PipelineStatus{
 		MissingCriteriaCount: 1,
