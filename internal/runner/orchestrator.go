@@ -473,8 +473,8 @@ runLoop:
 			switch gateOut.Decision {
 			case pipeline.Skip:
 				o.emitter.Emit(&events.BeadSkippedEvent{
-					BeadID: b.ID,
-					Reason: "gate stage returned skip decision",
+					BeadID:    b.ID,
+					Reason:    "gate stage returned skip decision",
 					TimeMixin: events.TimeMixin{Time: time.Now()},
 				})
 			case pipeline.Block:
@@ -487,15 +487,15 @@ runLoop:
 						reason = fmt.Sprintf("%s: %s", reason, gateOut.GateBlockReason)
 					}
 					o.emitter.Emit(&events.BeadSkippedEvent{
-						BeadID: b.ID,
-						Reason: reason,
+						BeadID:    b.ID,
+						Reason:    reason,
 						TimeMixin: events.TimeMixin{Time: time.Now()},
 					})
 				}
 			default:
 				o.emitter.Emit(&events.BeadSkippedEvent{
-					BeadID: b.ID,
-					Reason: "gate stage returned non-proceed decision",
+					BeadID:    b.ID,
+					Reason:    "gate stage returned non-proceed decision",
 					TimeMixin: events.TimeMixin{Time: time.Now()},
 				})
 			}

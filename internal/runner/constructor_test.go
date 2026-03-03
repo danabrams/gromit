@@ -1009,12 +1009,11 @@ func TestFailureLearnerAdapter_ForwardsFailureOutput(t *testing.T) {
 	}
 }
 
-// TestNewRunnerImpl_BuildStageUsesTDDCycleRunner_WhenFreshContextPerCycle verifies
-// that newRunnerImpl wires the TDDCycleRunner into the Build stage when
-// FreshContextPerCycle is true. The test exercises the Build stage with a TDD bead
-// and checks that it delegates to the TDDCycleRunner (identified by the distinctive
-// error from the placeholder runCyclesFn) instead of falling back to StreamRun.
-func TestNewRunnerImpl_BuildStageUsesTDDCycleRunner_WhenFreshContextPerCycle(t *testing.T) {
+// TestNewRunnerImpl_BuildStageDoesNotWireTDDCycleRunner verifies that
+// newRunnerImpl no longer wires a TDDCycleRunner into the Build stage,
+// even when FreshContextPerCycle is true. The fresh-context TDD path
+// has been removed; Build uses the standard prompt rendering path.
+func TestNewRunnerImpl_BuildStageDoesNotWireTDDCycleRunner(t *testing.T) {
 	t.Parallel()
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
@@ -1035,6 +1034,8 @@ func TestNewRunnerImpl_BuildStageUsesTDDCycleRunner_WhenFreshContextPerCycle(t *
 	}
 
 	// Extract the Build stage and run it with a TDD bead.
+	// Since TDDCycleRunner is no longer wired, the Build stage should
+	// attempt prompt rendering (not TDD cycle runner delegation).
 	buildStage := orch.cfg.Build
 	tddBead := &bead.Bead{
 		ID:     "test-bead-1",
@@ -1047,12 +1048,12 @@ func TestNewRunnerImpl_BuildStageUsesTDDCycleRunner_WhenFreshContextPerCycle(t *
 	}
 	_, err = buildStage.Run(context.Background(), in)
 	if err == nil {
-		t.Fatal("Build.Run() returned nil error; want TDD cycle runner error proving delegation")
+		t.Fatal("Build.Run() returned nil error; want prompt rendering error")
 	}
-	// The real runCyclesFn delegates to the CycleOrchestrator which attempts
-	// red-phase rendering. The error proves Build delegated to TDDCycleRunner.
-	if !strings.Contains(err.Error(), "TDD cycle runner") {
-		t.Errorf("Build.Run() error = %q; want error containing %q (proves TDDCycleRunner was wired)",
+	// Without TDDCycleRunner, Build falls through to prompt rendering which
+	// fails because templates don't exist in the temp directory.
+	if strings.Contains(err.Error(), "TDD cycle runner") {
+		t.Errorf("Build.Run() error = %q; should NOT contain %q (TDDCycleRunner removed)",
 			err.Error(), "TDD cycle runner")
 	}
 }

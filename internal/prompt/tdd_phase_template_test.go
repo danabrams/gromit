@@ -58,7 +58,7 @@ func TestRenderTDDRedTemplateIncludesRequiredSections(t *testing.T) {
 }
 
 func TestRenderTDDGreenTemplateIncludesRequiredSections(t *testing.T) {
-    r := &Renderer{templatesDir: filepath.Join("..", "..", ".gromit", "templates")}
+	r := &Renderer{templatesDir: filepath.Join("..", "..", ".gromit", "templates")}
 
 	ctx := &TDDGreenContext{
 		BeadID:            "gromit-60m8d",
@@ -109,45 +109,45 @@ func TestRenderTDDGreenTemplateIncludesRequiredSections(t *testing.T) {
 }
 
 func TestRenderTDDPhaseTemplatesFallbackToBuiltinContent(t *testing.T) {
-    // Use an empty templates directory so file lookups fail.
-    r := &Renderer{templatesDir: t.TempDir()}
+	// Use an empty templates directory so file lookups fail.
+	r := &Renderer{templatesDir: t.TempDir()}
 
-    redCtx := &TDDRedContext{
-        BeadID:      "fallback-red",
-        BeadTitle:   "Fallback Red",
-        SpecExcerpt: "Fallback spec",
-        TestFileContents: map[string]string{
-            "file_test.go": "func TestFallback(t *testing.T) {}",
-        },
-        APISurface:    "RenderTDDRed(ctx *TDDRedContext)",
-        CycleSummary:  "Cycle summary",
-        Rules:         "- Follow the fallback template",
-        ScopedTestCommand: "go test ./...",
-    }
-    redResult, redErr := r.RenderTDDRed(redCtx)
-    if redErr != nil {
-        t.Fatalf("RenderTDDRed failed with builtin fallback: %v", redErr)
-    }
-    if !strings.Contains(redResult, "# TDD Red Phase") {
-        t.Fatalf("expected builtin red template header, got:\n%s", redResult)
-    }
+	redCtx := &TDDRedContext{
+		BeadID:      "fallback-red",
+		BeadTitle:   "Fallback Red",
+		SpecExcerpt: "Fallback spec",
+		TestFileContents: map[string]string{
+			"file_test.go": "func TestFallback(t *testing.T) {}",
+		},
+		APISurface:        "RenderTDDRed(ctx *TDDRedContext)",
+		CycleSummary:      "Cycle summary",
+		Rules:             "- Follow the fallback template",
+		ScopedTestCommand: "go test ./...",
+	}
+	redResult, redErr := r.RenderTDDRed(redCtx)
+	if redErr != nil {
+		t.Fatalf("RenderTDDRed failed with builtin fallback: %v", redErr)
+	}
+	if !strings.Contains(redResult, "# TDD Red Phase") {
+		t.Fatalf("expected builtin red template header, got:\n%s", redResult)
+	}
 
-    greenCtx := &TDDGreenContext{
-        BeadID:            "fallback-green",
-        BeadTitle:         "Fallback Green",
-        FailingTest:       "func TestFallbackGreen(t *testing.T) { t.Fatal(\"fail\") }",
-        TestFailureOutput: "--- FAIL: TestFallbackGreen (0.00s)\nfail",
-        ImplFileContents: map[string]string{
-            "file.go": "func fallback() {}",
-        },
-        Rules:             "- Follow the fallback template",
-        ScopedTestCommand: "go test ./...",
-    }
-    greenResult, greenErr := r.RenderTDDGreen(greenCtx)
-    if greenErr != nil {
-        t.Fatalf("RenderTDDGreen failed with builtin fallback: %v", greenErr)
-    }
-    if !strings.Contains(greenResult, "# TDD Green Phase") {
-        t.Fatalf("expected builtin green template header, got:\n%s", greenResult)
-    }
+	greenCtx := &TDDGreenContext{
+		BeadID:            "fallback-green",
+		BeadTitle:         "Fallback Green",
+		FailingTest:       "func TestFallbackGreen(t *testing.T) { t.Fatal(\"fail\") }",
+		TestFailureOutput: "--- FAIL: TestFallbackGreen (0.00s)\nfail",
+		ImplFileContents: map[string]string{
+			"file.go": "func fallback() {}",
+		},
+		Rules:             "- Follow the fallback template",
+		ScopedTestCommand: "go test ./...",
+	}
+	greenResult, greenErr := r.RenderTDDGreen(greenCtx)
+	if greenErr != nil {
+		t.Fatalf("RenderTDDGreen failed with builtin fallback: %v", greenErr)
+	}
+	if !strings.Contains(greenResult, "# TDD Green Phase") {
+		t.Fatalf("expected builtin green template header, got:\n%s", greenResult)
+	}
 }

@@ -171,9 +171,9 @@ func emitValidationStartEvent(in pipeline.Input) {
 		return
 	}
 	in.Emitter.Emit(&events.ValidationStartEvent{
-		BeadID:   in.Bead.ID,
-		Commands: []string{"fake-validation"},
-		Time:     time.Now(),
+		BeadID:    in.Bead.ID,
+		Commands:  []string{"fake-validation"},
+		TimeMixin: events.TimeMixin{Time: time.Now()},
 	})
 }
 
@@ -185,9 +185,9 @@ func emitValidationPassEvent(in pipeline.Input, duration time.Duration) {
 		duration = 0
 	}
 	in.Emitter.Emit(&events.ValidationPassEvent{
-		BeadID:   in.Bead.ID,
-		Duration: duration,
-		Time:     time.Now(),
+		BeadID:    in.Bead.ID,
+		Duration:  duration,
+		TimeMixin: events.TimeMixin{Time: time.Now()},
 	})
 }
 
@@ -199,10 +199,10 @@ func emitValidationFailEvent(in pipeline.Input, output string, duration time.Dur
 		duration = 0
 	}
 	in.Emitter.Emit(&events.ValidationFailEvent{
-		BeadID:   in.Bead.ID,
-		Output:   output,
-		Duration: duration,
-		Time:     time.Now(),
+		BeadID:    in.Bead.ID,
+		Output:    output,
+		Duration:  duration,
+		TimeMixin: events.TimeMixin{Time: time.Now()},
 	})
 }
 

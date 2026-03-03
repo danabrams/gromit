@@ -4,7 +4,7 @@ These are non-negotiable constraints for this project.
 
 ## Code Style <!-- phases: red, build, green, refactor, review -->
 
-- Use `go fmt` standard formatting
+- Use `go fmt` standard formatting. Formatting enforcement must include a full-repo gofmt gate in CI (or scheduled gate) in addition to changed-file checks; changed-file-only enforcement is insufficient
 - Use `error` returns, not panics, for recoverable failures. Exception: test helpers and init()
 - After unmarshaling or file loading, call `normalizeNilFields()` to convert nil slices to empty slices. Keep it as a pure nil→empty converter; field mapping belongs in a separate resolution step
 - Keep packages focused: one package should not reach into another package's internal types
@@ -53,19 +53,22 @@ These are non-negotiable constraints for this project.
 ## Architecture <!-- phases: red, build, green, refactor, review -->
 
 - Observability fields (cost/tokens/duration/model/provider/current_run_row attribution) must be produced through the same runtime execution path used in production. Pre-launch/invocation failures must emit non-empty sentinel attribution, typed failure reason, and non-empty error detail. Retro efficiency deltas/anomaly summaries must be suppressed with `data_quality_blocked` when current-run rows are dominated by invocation-failure sentinels. Any alternate/test path must have parity contract tests proving identical field population semantics and non-empty current-run row generation
-- Any bead touching provider stream usage/event handling must add a stream-event matrix contract test (turn/response/result paths) that covers both positive attribution (known model/provider) and negative completeness cases (missing current-run rows fail closed)
+- Any bead touching provider stream usage/event handling must add a stream-event matrix contract test (turn/response/result paths) that covers both positive attribution (known model/provider) and negative completeness cases (missing current-run rows fail closed). Report generation must fail closed on aggregate inconsistency (model/provider rollups not reconciling to current-run totals, or placeholder zero rows entering SPC/delta inputs)
 - `internal/runner/*/` sub-packages must not import siblings **in production or test files**; cross-cutting types live in `runtypes/`. Parent `runner` package uses type aliases for backward compatibility. Production files: <550 lines; facade files: <1000 lines
 - Compatibility/deprecation markers are incomplete unless surfaced in user-visible status/debug output and covered by end-to-end behavior tests
 - Interactive commands use the session worktree lifecycle with a single merge/cleanup owner and typed conflict classification from git output + exit status. Do not classify conflicts by message fragments alone. Merge-back cleanup may abort only merge state created by the current operation; pre-existing `MERGE_HEAD` must return a typed non-destructive error.
 - All decomposition entry points must call the same shared validator. Required-field rules (non-empty title, expected_outputs contract, dependency-field validity) must not live in call-site-only checks. Any field required by validation must be present in candidate mapping and reprompt context; prompt/schema/fixture changes for those fields must ship together.
 - Tracker adapters must not downcast `tracker.Client` via `UnwrapBDAdapter` in production paths. If a capability is needed (e.g., `CreateWithParent`/`ListWithLabel`), add it to tracker interfaces (or a typed sub-interface) and update mocks in the same bead
 - Cross-package interface signature changes must ship with adapter/caller parity updates and a compile-gate run over all dependent packages in the same bead; partial parity is invalid
+- Provider selection must be atomic under one lock domain (availability check + selection + accounting), and invocation counters must increment exactly once per request path
+- Usage accounting must use explicit snapshots and one canonical merge strategy, quarantine any blank/unknown attribution rows regardless of usage value, and block SPC/delta publication when unknown/blank attribution exceeds threshold or stratum baselines collapse to zero-variance limits
 - Pipeline command entrypoints must construct dependencies only via `NewPipelineDeps()`; package-level factory vars are test-only and forbidden in production command paths
 
 ## Process <!-- phases: build, retro -->
 
 - Post-run efficiency validation must fail closed on missing current-run rows or missing efficiency fields and include per-field diagnostics (missing row vs missing attribution vs missing numeric fields). Experiment Study/Act decisions are blocked unless a complete current-run dataset includes at least 10 post-change iterations with non-empty model/provider attribution and non-null/non-zero required baseline metrics
 - Retro/experiment Study-Act steps are blocked unless the current-run dataset has >=10 post-change iterations with non-empty model/provider attribution and non-zero required efficiency fields; on failure, emit `data_quality_blocked` with per-field diagnostics and suppress anomaly classification, control-limit interpretation, and cost/duration delta claims
+- When operation failure and transition-persist failure both occur, return joined typed errors and persist both diagnostics; never overwrite primary failure context with secondary transition errors
 - RecordRetro() must clear one-shot control-limit alert flags in state so previously acknowledged alerts do not persist across subsequent healthy runs
 
 ## Build Process <!-- phases: build -->

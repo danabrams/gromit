@@ -825,3 +825,179 @@ func TestCompletenessAssertion_FailsWhenSentinelsAndRealDataGapsMixed(t *testing
 		t.Error("expected diagnostics for real data gaps, got none")
 	}
 }
+
+func TestEfficiencyReport_BlankModelExcludedFromCurrentModelTotals(t *testing.T) {
+	dir := t.TempDir()
+	runID := "20260303-120000"
+
+	logs := []IterationLog{
+		{
+			BeadID:       "bead-valid",
+			Model:        "opus",
+			DurationMs:   10000,
+			CostUSD:      0.30,
+			InputTokens:  5000,
+			OutputTokens: 1000,
+		},
+		{
+			BeadID:       "bead-blank",
+			Model:        "",
+			DurationMs:   5000,
+			CostUSD:      0.10,
+			InputTokens:  2000,
+			OutputTokens: 500,
+		},
+		{
+			BeadID:       "bead-whitespace",
+			Model:        "   ",
+			DurationMs:   3000,
+			CostUSD:      0.05,
+			InputTokens:  1000,
+			OutputTokens: 200,
+		},
+	}
+	writeTestLogFile(t, dir, runID, logs)
+
+	report, err := ReadEfficiencyReport(dir, runID)
+	if err != nil {
+		t.Fatalf("ReadEfficiencyReport failed: %v", err)
+	}
+
+	// Only "opus" should appear in CurrentModels; blank and whitespace-only should be excluded
+	if len(report.CurrentModels) != 1 {
+		t.Errorf("expected 1 current model (opus only), got %d: %v", len(report.CurrentModels), efficiencyMapKeys(report.CurrentModels))
+	}
+
+	if _, ok := report.CurrentModels[""]; ok {
+		t.Error("blank model key should not appear in CurrentModels")
+	}
+	if _, ok := report.CurrentModels["   "]; ok {
+		t.Error("whitespace-only model key should not appear in CurrentModels")
+	}
+
+	opus := report.CurrentModels["opus"]
+	if opus.IterationCount != 1 {
+		t.Errorf("opus IterationCount = %d, want 1", opus.IterationCount)
+	}
+	if opus.TotalCostUSD != 0.30 {
+		t.Errorf("opus TotalCostUSD = %f, want 0.30", opus.TotalCostUSD)
+	}
+}
+
+func TestEfficiencyReport_BlankModelExcludedFromCurrentFamilyTotals(t *testing.T) {
+	dir := t.TempDir()
+	runID := "20260303-120100"
+
+	logs := []IterationLog{
+		{
+			BeadID:       "bead-valid",
+			Model:        "sonnet",
+			DurationMs:   10000,
+			CostUSD:      0.25,
+			InputTokens:  5000,
+			OutputTokens: 1000,
+		},
+		{
+			BeadID:       "bead-blank",
+			Model:        "",
+			DurationMs:   5000,
+			CostUSD:      0.10,
+			InputTokens:  2000,
+			OutputTokens: 500,
+		},
+	}
+	writeTestLogFile(t, dir, runID, logs)
+
+	report, err := ReadEfficiencyReport(dir, runID)
+	if err != nil {
+		t.Fatalf("ReadEfficiencyReport failed: %v", err)
+	}
+
+	// Only "claude" family should appear; blank model should not contribute
+	if len(report.CurrentProviderFamilies) != 1 {
+		t.Errorf("expected 1 provider family, got %d: %v", len(report.CurrentProviderFamilies), efficiencyMapKeys(report.CurrentProviderFamilies))
+	}
+
+	claude := report.CurrentProviderFamilies["claude"]
+	if claude.IterationCount != 1 {
+		t.Errorf("claude IterationCount = %d, want 1", claude.IterationCount)
+	}
+	if claude.TotalCostUSD != 0.25 {
+		t.Errorf("claude TotalCostUSD = %f, want 0.25", claude.TotalCostUSD)
+	}
+}
+
+func TestEfficiencyReport_BlankModelExcludedFromHistoricalTotals(t *testing.T) {
+	dir := t.TempDir()
+	currentRunID := "20260303-130000"
+	historicalRunID := "20260303-120000"
+
+	// Historical run with blank model entries
+	historicalLogs := []IterationLog{
+		{
+			BeadID:       "bead-hist-valid",
+			Model:        "haiku",
+			DurationMs:   8000,
+			CostUSD:      0.15,
+			InputTokens:  3000,
+			OutputTokens: 600,
+		},
+		{
+			BeadID:       "bead-hist-blank",
+			Model:        "",
+			DurationMs:   4000,
+			CostUSD:      0.08,
+			InputTokens:  1500,
+			OutputTokens: 300,
+		},
+	}
+	writeTestLogFile(t, dir, historicalRunID, historicalLogs)
+
+	// Current run (non-blank)
+	currentLogs := []IterationLog{
+		{
+			BeadID:       "bead-current",
+			Model:        "opus",
+			DurationMs:   20000,
+			CostUSD:      0.50,
+			InputTokens:  10000,
+			OutputTokens: 2000,
+		},
+	}
+	writeTestLogFile(t, dir, currentRunID, currentLogs)
+
+	report, err := ReadEfficiencyReport(dir, currentRunID)
+	if err != nil {
+		t.Fatalf("ReadEfficiencyReport failed: %v", err)
+	}
+
+	// Historical should only have "haiku", not blank
+	if len(report.HistoricalModels) != 1 {
+		t.Errorf("expected 1 historical model (haiku only), got %d: %v", len(report.HistoricalModels), efficiencyMapKeys(report.HistoricalModels))
+	}
+	if _, ok := report.HistoricalModels[""]; ok {
+		t.Error("blank model key should not appear in HistoricalModels")
+	}
+
+	// Historical provider families should only have "claude"
+	if len(report.HistoricalProviderFamilies) != 1 {
+		t.Errorf("expected 1 historical provider family, got %d", len(report.HistoricalProviderFamilies))
+	}
+
+	histHaiku := report.HistoricalModels["haiku"]
+	if histHaiku.IterationCount != 1 {
+		t.Errorf("historical haiku IterationCount = %d, want 1", histHaiku.IterationCount)
+	}
+	if histHaiku.TotalCostUSD != 0.15 {
+		t.Errorf("historical haiku TotalCostUSD = %f, want 0.15", histHaiku.TotalCostUSD)
+	}
+}
+
+// efficiencyMapKeys returns the keys of a ModelEfficiency map for diagnostic output.
+func efficiencyMapKeys(m map[string]ModelEfficiency) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, fmt.Sprintf("%q", k))
+	}
+	return keys
+}
