@@ -1,10 +1,13 @@
 package specmerge_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"reflect"
+	"runtime"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -17,6 +20,20 @@ func withDefaultBaseBranch(t *testing.T, branch string) func() {
 	config.DefaultBaseBranch = branch
 	return func() {
 		config.DefaultBaseBranch = original
+	}
+}
+
+func TestMergeOps_NoDefaultBaseBranchAssignments(t *testing.T) {
+	_, path, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read test file=%s: %v", path, err)
+	}
+	if bytes.Contains(data, []byte("DefaultBaseBranch =")) {
+		t.Fatalf("assignment of DefaultBaseBranch found in %s", path)
 	}
 }
 
