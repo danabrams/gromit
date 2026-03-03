@@ -77,6 +77,7 @@ var (
 	reapProcessTreeFn         = procutil.ReapProcessTree
 	resolveBeadsDirFn         = resolveDefaultBeadsDir
 	errContextRequired        = errors.New("bead: context required")
+	runWithRetryCascadeFn     = runWithRetryCascadeDefault
 )
 
 // DefaultCommandTimeout is the per-command timeout applied to bd subprocess
@@ -500,6 +501,10 @@ func (c *Client) runWithRunner(ctx context.Context, args []string, extraEnv []st
 
 // runWithRetryCascade centralizes the retry cascade shared by run variants.
 func (c *Client) runWithRetryCascade(ctx context.Context, args []string, extraEnv []string, runner func(context.Context, []string, []string) (string, error)) (string, error) {
+	return runWithRetryCascadeFn(c, ctx, args, extraEnv, runner)
+}
+
+func runWithRetryCascadeDefault(c *Client, ctx context.Context, args []string, extraEnv []string, runner func(context.Context, []string, []string) (string, error)) (string, error) {
 	out, err := runner(ctx, args, extraEnv)
 	if err == nil {
 		return out, nil

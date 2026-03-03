@@ -351,7 +351,6 @@ exit 1
 }
 
 func TestClientRunAndRunCloseUseSharedRetryHelper(t *testing.T) {
-	t.Parallel()
 
 	var calls []string
 	originalFn := runWithRetryCascadeFn
