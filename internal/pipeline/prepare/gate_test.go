@@ -15,6 +15,7 @@ import (
 	"github.com/danabrams/gromit/internal/events/eventtest"
 	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/readiness"
 )
 
@@ -177,6 +178,109 @@ type mockDataQualityBlocker struct {
 func newMockDataQualityBlocker() *mockDataQualityBlocker {
 	return &mockDataQualityBlocker{}
 }
+type mockCriteriaProvider struct {
+	called bool
+	result *provider.Result
+	err    error
+}
+
+func (m *mockCriteriaProvider) WithResult(output string) *mockCriteriaProvider {
+	m.result = &provider.Result{Output: output}
+	return m
+}
+
+func (m *mockCriteriaProvider) WithError(err error) *mockCriteriaProvider {
+	m.err = err
+	return m
+}
+
+func (m *mockCriteriaProvider) Run(_ context.Context, _, _ string) (*provider.Result, error) {
+	m.called = true
+	return m.result, m.err
+}
+
+type mockSpecLoader struct{}
+
+func (m *mockSpecLoader) LoadSpec(_ context.Context, _ string) (*Document, bool, error) {
+	return nil, false, nil
+}
+
+func (m *mockSpecLoader) LoadPlan(_ context.Context, _ string) (*Document, bool, error) {
+	return nil, false, nil
+}
+
+type mockBeadUpdater struct {
+	called   bool
+	updated  *bead.Bead
+	criteria []string
+	result   *bead.Bead
+	err      error
+}
+
+func (m *mockBeadUpdater) WithResult(result *bead.Bead) *mockBeadUpdater {
+	m.result = result
+	return m
+}
+
+func (m *mockBeadUpdater) WithError(err error) *mockBeadUpdater {
+	m.err = err
+	return m
+}
+
+func (m *mockBeadUpdater) UpdateAcceptanceCriteria(_ context.Context, b *bead.Bead, criteria []string) (*bead.Bead, error) {
+	m.called = true
+	m.updated = b
+	m.criteria = append([]string(nil), criteria...)
+	if m.err != nil {
+		return b, m.err
+	}
+	if m.result != nil {
+		return m.result, nil
+	}
+	clone := *b
+	clone.ExpectedOutputs = append([]string(nil), criteria...)
+	return &clone, nil
+}
+
+type testCriteriaEnricher struct {
+	provider *mockCriteriaProvider
+	loader   *mockSpecLoader
+	updater  *mockBeadUpdater
+	enricher *LLMCriteriaEnricher
+}
+
+func newTestCriteriaEnricher() *testCriteriaEnricher {
+	provider := &mockCriteriaProvider{}
+	provider.WithResult("- default criteria")
+	loader := &mockSpecLoader{}
+	updater := &mockBeadUpdater{}
+	return &testCriteriaEnricher{
+		provider: provider,
+		loader:   loader,
+		updater:  updater,
+		enricher: NewLLMCriteriaEnricher(provider, loader, updater),
+	}
+}
+
+func (t *testCriteriaEnricher) WithProviderResult(output string) *testCriteriaEnricher {
+	t.provider.WithResult(output)
+	return t
+}
+
+func (t *testCriteriaEnricher) WithProviderError(err error) *testCriteriaEnricher {
+	t.provider.WithError(err)
+	return t
+}
+
+func (t *testCriteriaEnricher) WithUpdaterResult(result *bead.Bead) *testCriteriaEnricher {
+	t.updater.WithResult(result)
+	return t
+}
+
+func (t *testCriteriaEnricher) WithUpdaterError(err error) *testCriteriaEnricher {
+	t.updater.WithError(err)
+	return t
+}
 
 // mockReadinessAssessor simulates readiness responses for gate tests.
 type mockReadinessAssessor struct {
@@ -210,6 +314,44 @@ func (a *criteriaAwareReadinessAssessor) Assess(_ context.Context, b *bead.Bead)
 		return readiness.Assessment{Status: readiness.StatusNotReady, Reason: "criteria_missing"}, nil
 	}
 	return readiness.Assessment{Status: readiness.StatusReady}, nil
+}
+
+// RED: test for criteria enricher populating expected outputs before readiness assessment.
+func TestGateRun_CriteriaEnricherPopulatesExpectedOutputs(t *testing.T) {
+	t.Parallel()
+
+	enriched := &bead.Bead{
+		ID:              "enriched-bead",
+		ExpectedOutputs: []string{"generated artifact"},
+	}
+	helper := newTestCriteriaEnricher().WithUpdaterResult(enriched)
+	assessor := &criteriaAwareReadinessAssessor{}
+	gate := New(io.Discard).
+		WithCriteriaEnricher(helper.enricher).
+		WithReadinessAssessor(assessor)
+
+	original := &bead.Bead{
+		ID:    "missing-criteria",
+		Title: "bead requiring criteria",
+	}
+
+	out, err := gate.Run(context.Background(), pipeline.Input{Bead: original})
+	if err != nil {
+		t.Fatalf("Gate.Run() error = %v", err)
+	}
+
+	if !helper.updater.called {
+		t.Fatal("criteria enricher did not attempt to update the bead")
+	}
+	if out.Decision != pipeline.Proceed {
+		t.Fatalf("decision = %v, want %v", out.Decision, pipeline.Proceed)
+	}
+	if assessor.captured == nil {
+		t.Fatal("readiness assessor did not receive bead")
+	}
+	if got := assessor.captured.ExpectedOutputs; len(got) != len(enriched.ExpectedOutputs) || got[0] != enriched.ExpectedOutputs[0] {
+		t.Fatalf("readiness assessed bead = %v, want expected outputs %v", assessor.captured.ExpectedOutputs, enriched.ExpectedOutputs)
+	}
 }
 
 func (m *mockDataQualityBlocker) WithShouldBlock(blocked bool, reason string, err error) *mockDataQualityBlocker {
