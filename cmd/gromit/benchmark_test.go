@@ -341,8 +341,8 @@ func TestRunBenchmarkPipeline_WritesDeterministicArtifacts(t *testing.T) {
 	if strings.Join(payload.Manifest.Beads, ",") != "gromit-1,gromit-2,gromit-3,gromit-4,gromit-5" {
 		t.Fatalf("manifest.beads = %v", payload.Manifest.Beads)
 	}
-	if len(payload.Modes) != 3 {
-		t.Fatalf("mode count = %d, want 3", len(payload.Modes))
+	if len(payload.Modes) != 2 {
+		t.Fatalf("mode count = %d, want 2", len(payload.Modes))
 	}
 }
 
@@ -1581,7 +1581,6 @@ func TestBenchmarkRunCommand_SingleBeadPilotSelection(t *testing.T) {
 			Modes: []benchmarkModeResult{
 				{Mode: "single_pass", BaseCommit: "abc123", SelectedBeads: append([]string(nil), cohort.SelectedBeads...)},
 				{Mode: "tdd_shared_context", BaseCommit: "abc123", SelectedBeads: append([]string(nil), cohort.SelectedBeads...)},
-				{Mode: "tdd_fresh_context", BaseCommit: "abc123", SelectedBeads: append([]string(nil), cohort.SelectedBeads...)},
 			},
 		}, nil
 	}

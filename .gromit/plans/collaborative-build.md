@@ -1,8 +1,9 @@
 ---
+created: 2026-03-03T00:00:00Z
+decomposed: true
+decomposed_at: "2026-03-03T07:10:27-05:00"
 id: collaborative-build
 source_spec: collaborative-build
-created: 2026-03-03
-decomposed: false
 ---
 
 # Collaborative Build Implementation Plan

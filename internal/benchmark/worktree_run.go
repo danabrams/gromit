@@ -394,7 +394,6 @@ func applyBenchmarkOverlayToConfig(cfg *config.Config, overlay ModeOverlay) (*co
 
 	cloned := *cfg
 	cloned.Methodology.BuildStrategy = overlay.BuildStrategy
-	cloned.Methodology.FreshContextPerCycle = overlay.FreshContextPerCycle
 	cloned.Methodology.PhaseModels.Build = overlay.BuildTierDefault
 	cloned.Methodology.PhaseModels.Red = overlay.BuildTierDefault
 	cloned.Methodology.PhaseModels.Green = overlay.BuildTierDefault

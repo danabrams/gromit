@@ -1,40 +1,24 @@
 {
   "report": {
-    "resolved_areas": [],
     "friction_clusters": [
       {
         "area": "cross-cutting",
-        "learning_count": 28,
+        "learning_count": 32,
         "earliest_date": "2026-02-07T00:00:00Z",
-        "latest_date": "2026-03-02T00:00:00Z",
-        "timespan": 1987200000000000,
+        "latest_date": "2026-03-03T00:00:00Z",
+        "timespan": 2073600000000000,
         "categories": {
           "ARCHITECTURE": 1,
           "CONVENTIONS": 2,
           "PATTERNS": 1,
-          "architecture": 4,
-          "conventions": 4,
-          "gotchas": 5,
+          "architecture": 5,
+          "bug-risk": 1,
+          "conventions": 6,
+          "gotchas": 6,
           "patterns": 7,
-          "reliability": 4
-        },
-        "status": "persisting",
-        "options": [
-          {
-            "name": "Contract Matrix Hardening",
-            "addresses": "persisting cluster",
-            "investment": "1-2 weeks; add/expand cross-package parity contract tests and ownership docs.",
-            "impact": "Reduces recurrence of attribution, DI, transition, and interface parity regressions.",
-            "risk": "If deferred, drift continues across runner/provider/retro seams with high rework."
-          },
-          {
-            "name": "Failure Signature Taxonomy",
-            "addresses": "persisting cluster",
-            "investment": "3-5 days; add typed failure signatures and dashboards.",
-            "impact": "Improves decomposition timing and avoids repeated blind retries.",
-            "risk": "If classification is too coarse, teams may over-decompose."
-          }
-        ]
+          "reliability": 2,
+          "tech_debt": 1
+        }
       },
       {
         "area": "internal/runner",
@@ -46,24 +30,7 @@
           "conventions": 1,
           "patterns": 1,
           "tech_debt": 1
-        },
-        "status": "persisting",
-        "options": [
-          {
-            "name": "Runner Interface Compatibility Gate",
-            "addresses": "persisting cluster",
-            "investment": "2-3 days; compile-gate suite + adapter parity checks.",
-            "impact": "Catches signature drift before merge and reduces red-build churn.",
-            "risk": "Without it, context/signature changes will keep breaking downstream packages."
-          },
-          {
-            "name": "Stage Boundary Debt Burn-down",
-            "addresses": "persisting cluster",
-            "investment": "1 week; remove residual mutable cross-stage side effects and enforce typed outputs.",
-            "impact": "Stabilizes orchestration behavior and improves test determinism.",
-            "risk": "Deferred cleanup increases hidden coupling in future stage changes."
-          }
-        ]
+        }
       },
       {
         "area": "specmerge",
@@ -74,51 +41,7 @@
         "categories": {
           "conventions": 2,
           "gotchas": 1
-        },
-        "status": "persisting",
-        "options": [
-          {
-            "name": "Subprocess Lifecycle Compliance Sweep",
-            "addresses": "persisting cluster",
-            "investment": "2-4 days; codemod + tests for full procutil lifecycle.",
-            "impact": "Eliminates lingering subprocess safety divergence and cancellation leaks.",
-            "risk": "If skipped, remaining legacy callsites stay fragile under cancellation/load."
-          },
-          {
-            "name": "Emission Error Visibility Standard",
-            "addresses": "persisting cluster",
-            "investment": "1-2 days; enforce non-silent capture/emitter failure logging.",
-            "impact": "Improves operational debugging for pipeline/metrics issues.",
-            "risk": "Silent metric loss continues, reducing trust in observability."
-          }
-        ]
-      },
-      {
-        "area": "draft/ready/integrating/merged/conflict/failed_gates/lane_violation",
-        "learning_count": 2,
-        "earliest_date": "2026-02-28T00:00:00Z",
-        "latest_date": "2026-03-02T00:00:00Z",
-        "timespan": 172800000000000,
-        "categories": {
-          "architecture": 2
-        },
-        "status": "persisting",
-        "options": [
-          {
-            "name": "Transition Ledger Verifier",
-            "addresses": "persisting cluster",
-            "investment": "3-5 days; add invariant checker over queue snapshots and transitions.",
-            "impact": "Detects invalid transitions and missing persistence immediately.",
-            "risk": "Without it, queue state corruption remains latent until coordinator stalls."
-          },
-          {
-            "name": "Recovery Path Parity Tests",
-            "addresses": "persisting cluster",
-            "investment": "2-3 days; table-driven tests for recovery transitions and persistence.",
-            "impact": "Prevents divergence between normal-path and recovery-path state behavior.",
-            "risk": "Deferred parity keeps reopening old failure modes during incident handling."
-          }
-        ]
+        }
       }
     ]
   }

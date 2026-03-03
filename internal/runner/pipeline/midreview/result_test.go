@@ -95,6 +95,30 @@ func TestParseMidBuildReviewResult_ValidFullResult(t *testing.T) {
 	}
 }
 
+func TestParseMidBuildReviewResult_LegacyArrayFormat(t *testing.T) {
+	t.Parallel()
+
+	input := `["fix logging","add docs"]`
+
+	result, err := midreview.ParseMidBuildReviewResult(input)
+	if err != nil {
+		t.Fatalf("ParseMidBuildReviewResult() error = %v, want nil", err)
+	}
+
+	if len(result.Findings) != 2 {
+		t.Fatalf("Findings length = %d, want 2", len(result.Findings))
+	}
+	if result.Findings[0].Message != "fix logging" {
+		t.Fatalf("Findings[0].Message = %q, want %q", result.Findings[0].Message, "fix logging")
+	}
+	if result.Findings[1].Message != "add docs" {
+		t.Fatalf("Findings[1].Message = %q, want %q", result.Findings[1].Message, "add docs")
+	}
+	if result.Summary != "" {
+		t.Fatalf("Summary = %q, want empty string", result.Summary)
+	}
+}
+
 func TestParseMidBuildReviewResult_MalformedJSON(t *testing.T) {
 	t.Parallel()
 

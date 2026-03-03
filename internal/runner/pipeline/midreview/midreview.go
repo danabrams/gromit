@@ -2,7 +2,6 @@ package midreview
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"strings"
 	"time"
@@ -52,10 +51,14 @@ func (s *Stage) invocationContext(ctx context.Context, in pipeline.Input) (conte
 }
 
 func parseMidReviewResult(raw string) ([]string, error) {
-	raw = strings.TrimSpace(raw)
-	var findings []string
-	if err := json.Unmarshal([]byte(raw), &findings); err != nil {
+	result, err := ParseMidBuildReviewResult(raw)
+	if err != nil {
 		return nil, err
+	}
+
+	findings := make([]string, len(result.Findings))
+	for i, finding := range result.Findings {
+		findings[i] = finding.Message
 	}
 	return findings, nil
 }

@@ -49,7 +49,13 @@ func TestStage_RunInvokesLLMAndReturnsFindings(t *testing.T) {
 	expectedTier := "high"
 	invoker := &fakeInvoker{
 		result: &provider.Result{
-			Output:       `["fix logging","add docs"]`,
+			Output: `{
+				"findings": [
+					{"category": "logging", "message": "fix logging"},
+					{"category": "docs", "message": "add docs"}
+				],
+				"summary": "Need more docs"
+			}`,
 			Duration:     123 * time.Millisecond,
 			CostUSD:      0.27,
 			InputTokens:  50,

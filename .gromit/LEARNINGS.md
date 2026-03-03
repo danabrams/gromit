@@ -270,7 +270,6 @@ Epilogue stage sets in.Result.Success = false on lifecycle failure, mutating the
 
 specmerge/gh_client.go is missing KillDescendantsOnCancel after cmd.Start() and uses ReapProcessGroup instead of ReapProcessTree. All other subprocess launch sites (cmd_run.go, specbranch/git_ops.go, benchmark/worktree_run.go, preflight.go, integrationqueue_constructor.go) follow the full pattern.
 
-
 ### 2026-03-01 | gromit-90i5 | conventions
 In Gromit's runner orchestration, state transitions are constrained by a transition table - check valid transitions before recovering/changing queue state; integrating→draft is invalid; consult internal/runner/orchestrator.go or runner.go for transition rules
 
@@ -284,10 +283,8 @@ worktree.Manager was updated to accept context.Context on Cleanup, PendingBranch
 
 captureCycleRecord in specmerge/pipeline.go:306 silently discards the CaptureCycleRecord error with `_ =` assignment — this is a metrics emission that should at minimum be logged on failure for operational visibility.
 
-
 ### 2026-03-01 | gromit-peq | conventions
 The internal/runner package enforces file size limits via TestConstructorFileSizeLimit in file_size_test.go. When size limits are exceeded, the test provides explicit guidance on which types should be extracted and into which files. This is a codebase convention for managing large files.
-
 
 ### 2026-03-02 | constructor_adapters.go Successfully Extracted to 51 Lines | architecture
 *Related to: review-1772423180715253804*
@@ -298,7 +295,6 @@ constructor_adapters.go was extracted from 1147 lines to 51 lines by splitting i
 *Related to: review-1772423180715253804*
 
 internal/runner/spc_auto_triage.go Process() correctly accumulates errors via errors.Join rather than aborting on first tracker failure. Each record failure is appended to an error slice and processing continues.
-
 
 ### 2026-03-02 | orchestrator.go Exceeds 1000-Line Facade Limit at 1254 Lines | tech_debt
 *Related to: review-1772449742155634887*
@@ -339,6 +335,18 @@ Gemini provider is missing retry logic (Codex has runWithRetry for transient fai
 *Related to: review-1772511363996530000*
 
 config_normalize.go NormalizeNilFields() mixes business-logic defaults (BuildStrategy, PhaseModels, Refactor.MinFilesChanged) with nil-normalization. Per CLAUDE.md convention, NormalizeNilFields should only convert nil slices/maps to empty values. Business defaults belong in SetDefaults(). Also, SetDefaults/NormalizeNilFields are called redundantly in Load(), constructor.go, and buildRouterAndLearningsProvider.
+
+### 2026-03-03 | gromit-74kzw | conventions
+When refactoring runner/review infrastructure, verify test dependencies on deleted code paths. TDD adapter deletion breaks review integration tests that expect pipeline behavior. Always run full test suite and gofmt before considering work complete.
+
+### 2026-03-03 | gromit-7ti5h | gotchas
+When implementing code generation for Go, ensure output passes TestRepoGofmtCompliance by either auto-formatting generated code with gofmt or adjusting the generator to emit properly formatted output
+
+### 2026-03-03 | gromit-ruyx2 | gotchas
+The gromit project enforces strict gofmt compliance via TestRepoGofmtCompliance; always run gofmt -w before final testing to prevent format failures
+
+### 2026-03-03 | gromit-w1dux | conventions
+When deleting core runner components (callbacks, TDD pipeline, adapters), verify all references in runner.go, pipeline implementations, and tests before assuming deletion is safe—check for compilation errors and failing tests post-deletion
 
 ---
 
@@ -513,6 +521,26 @@ When analyzing 'failures' with empty error output, verify test results first - n
 
 ### 2026-03-03 | gromit-hpsll | gotchas
 Capture and provide actual error messages, build/test output, or failure logs when analyzing task failures—empty error sections prevent root cause analysis.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-03-03 | gromit-6lvne | gotchas
+When modifying Go files in this project, always run `gofmt -w` on changed files before running tests. The test suite enforces gofmt compliance as a gate.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-03-03 | gromit-b05fm | conventions
+When refactoring deletes files or reorganizes packages (as shown in git status with multiple D entries), verify that testdata references, golden files, and relative paths in tests are still valid. Go golden file tests are particularly sensitive to directory structure changes.
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-03-03 | gromit-60e4n | conventions
+Always run `gofmt -w` on modified/new Go files before considering work complete - gofmt compliance is a hard requirement in this project's test suite
+
+*Archived from new: filtered: generic engineering advice*
+
+### 2026-03-03 | gromit-2emji | conventions
+After writing Go code, run `gofmt -w` on modified files to ensure compliance with the repository's gofmt test (TestRepoGofmtCompliance); this is a mandatory check before considering work complete
 
 *Archived from new: filtered: generic engineering advice*
 

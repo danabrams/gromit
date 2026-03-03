@@ -39,8 +39,7 @@ func TestEscalationBuildStage_RendersPromptDespiteFreshContext(t *testing.T) {
 
 	cfg := &config.Config{
 		Methodology: config.MethodologyConfig{
-			TDD:                  true,
-			FreshContextPerCycle: true,
+			TDD: true,
 		},
 		Escalation: config.EscalationConfig{
 			Enabled:            true,
@@ -79,7 +78,7 @@ func TestEscalationBuildStage_RendersPromptDespiteFreshContext(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if renderer.tddCalls == 0 {
-		t.Fatal("expected TDD renderer to run even when FreshContextPerCycle is set")
+		t.Fatal("expected TDD renderer to run for TDD bead")
 	}
 	if out.Model == "" {
 		t.Fatal("expected handler path to populate output model")
