@@ -153,3 +153,14 @@ func (s *restartPointStore) save() error {
 
 	return nil
 }
+
+func (s *restartPointStore) all() map[string]time.Time {
+	result := make(map[string]time.Time, len(s.points))
+	for id, pt := range s.points {
+		if pt.RestartAt.IsZero() {
+			continue
+		}
+		result[id] = pt.RestartAt
+	}
+	return result
+}

@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/logger"
@@ -18,6 +19,7 @@ type QueueClient interface {
 type QueueInput struct {
 	LogsDir        string
 	StuckThreshold int
+	GromitDir      string
 }
 
 // QueueResult contains beads organized by processing state for CLI display.
@@ -47,7 +49,18 @@ func (p *Pipeline) Queue(ctx context.Context, input QueueInput) (*QueueResult, e
 
 	readyBeads = queue.EnrichReadyBeads(readyBeads, allBeads)
 
-	beadStats, err := logger.ReadPerBeadStats(input.LogsDir)
+	gromitDir := input.GromitDir
+	if gromitDir == "" && p != nil && p.paths != nil {
+		gromitDir = p.paths.GromitDir
+	}
+	restartPoints := map[string]time.Time{}
+	if gromitDir != "" {
+		store := newRestartPointStore(gromitDir)
+		if err := store.load(); err == nil {
+			restartPoints = store.all()
+		}
+	}
+	beadStats, err := logger.ReadPerBeadStatsAfter(input.LogsDir, restartPoints)
 	if err != nil {
 		beadStats = map[string]logger.BeadStats{}
 	}

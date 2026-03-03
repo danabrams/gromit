@@ -43,6 +43,7 @@ func runUnstick(cmd *cobra.Command, args []string) error {
 	queueInput := pipeline.QueueInput{
 		LogsDir:        cfg.Paths.Logs,
 		StuckThreshold: cfg.Loop.StuckBeadThreshold,
+		GromitDir:      gromitDir,
 	}
 
 	// If a bead ID was provided, unstick that specific bead

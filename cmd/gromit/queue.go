@@ -55,6 +55,7 @@ func showQueue(cmd *cobra.Command, args []string) error {
 	input := pipeline.QueueInput{
 		LogsDir:        cfg.Paths.Logs,
 		StuckThreshold: cfg.Loop.StuckBeadThreshold,
+		GromitDir:      gromitDir,
 	}
 
 	result, err := executor.Queue(cmd.Context(), input)
