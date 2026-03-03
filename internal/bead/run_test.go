@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -790,5 +791,68 @@ func TestClientRepoBaseName_UsesProcutilLifecycle(t *testing.T) {
 	}
 	if !reapCalled {
 		t.Fatal("repoBaseName() did not reap process tree")
+	}
+}
+
+func TestRestoreBeadProcutilFns(t *testing.T) {
+	origWait := waitForProcessCapacityFn
+	origKill := killDescendantsOnCancelFn
+	origReap := reapProcessTreeFn
+	origEnv := subprocessEnvFn
+	origResolve := resolveBeadsDirFn
+
+	restore := restoreBeadProcutilFns(t)
+
+	getPtr := func(fn any) uintptr {
+		if fn == nil {
+			return 0
+		}
+		return reflect.ValueOf(fn).Pointer()
+	}
+
+	customWait := func(ctx context.Context, maxWait time.Duration) error { return fmt.Errorf("change") }
+	customKill := func(ctx context.Context, cmd *exec.Cmd) {}
+	customReap := func(cmd *exec.Cmd) {}
+	customEnv := func() []string { return []string{"FOO=bar"} }
+	customResolve := func(ctx context.Context, dir string) string { return "/tmp" }
+
+	waitForProcessCapacityFn = customWait
+	killDescendantsOnCancelFn = customKill
+	reapProcessTreeFn = customReap
+	subprocessEnvFn = customEnv
+	resolveBeadsDirFn = customResolve
+
+	if getPtr(waitForProcessCapacityFn) == getPtr(origWait) {
+		t.Fatal("wait hook was not replaced")
+	}
+	if getPtr(killDescendantsOnCancelFn) == getPtr(origKill) {
+		t.Fatal("kill hook was not replaced")
+	}
+	if getPtr(reapProcessTreeFn) == getPtr(origReap) {
+		t.Fatal("reap hook was not replaced")
+	}
+	if getPtr(subprocessEnvFn) == getPtr(origEnv) {
+		t.Fatal("env hook was not replaced")
+	}
+	if getPtr(resolveBeadsDirFn) == getPtr(origResolve) {
+		t.Fatal("resolve hook was not replaced")
+	}
+
+	restore()
+
+	if getPtr(waitForProcessCapacityFn) != getPtr(origWait) {
+		t.Fatal("wait hook was not restored")
+	}
+	if getPtr(killDescendantsOnCancelFn) != getPtr(origKill) {
+		t.Fatal("kill hook was not restored")
+	}
+	if getPtr(reapProcessTreeFn) != getPtr(origReap) {
+		t.Fatal("reap hook was not restored")
+	}
+	if getPtr(subprocessEnvFn) != getPtr(origEnv) {
+		t.Fatal("env hook was not restored")
+	}
+	if getPtr(resolveBeadsDirFn) != getPtr(origResolve) {
+		t.Fatal("resolve hook was not restored")
 	}
 }
