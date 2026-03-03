@@ -149,6 +149,7 @@ Run `bd prime` for workflow context, or install hooks (`bd hooks install`) for a
 - `bd ready` - Find unblocked work
 - `bd create "Title" --type task --priority 2` - Create issue
 - `bd close <id>` - Complete work
+- `bd dolt push` - Push beads to remote
 - `scripts/bd-sync-safe.sh` - Safe beads pull/push with lock + recovery
 
 For full workflow details: `bd prime`

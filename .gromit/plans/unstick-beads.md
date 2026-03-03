@@ -1,8 +1,9 @@
 ---
+created: 2026-03-02T00:00:00Z
+decomposed: true
+decomposed_at: "2026-03-02T23:32:59-05:00"
 id: unstick-beads
 source_spec: unstick-beads
-created: 2026-03-02
-decomposed: false
 ---
 
 # Unstick Beads Implementation Plan

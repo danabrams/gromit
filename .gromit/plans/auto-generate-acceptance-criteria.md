@@ -1,8 +1,9 @@
 ---
+created: 2026-03-02T00:00:00Z
+decomposed: true
+decomposed_at: "2026-03-02T23:28:10-05:00"
 id: auto-generate-acceptance-criteria
 source_spec: auto-generate-acceptance-criteria
-created: 2026-03-02
-decomposed: false
 ---
 
 # Auto-Generate Acceptance Criteria Implementation Plan

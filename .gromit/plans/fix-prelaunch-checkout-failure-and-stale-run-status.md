@@ -1,8 +1,9 @@
 ---
+created: 2026-03-02T13:19:41Z
+decomposed: true
+decomposed_at: "2026-03-02T23:29:15-05:00"
 id: fix-prelaunch-checkout-failure-and-stale-run-status
 spec: fix-prelaunch-checkout-failure-and-stale-run-status
-created: 2026-03-02T13:19:41Z
-decomposed: false
 ---
 
 # Fix Prelaunch Checkout Failure and Stale Run Status
