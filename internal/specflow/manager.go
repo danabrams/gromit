@@ -20,6 +20,8 @@ type Manager struct {
 	mu    sync.Mutex
 }
 
+var specLocks = newSpecLockStore()
+
 func NewManager(store SpecStore) *Manager {
 	return &Manager{store: store}
 }
@@ -43,6 +45,9 @@ func (m *Manager) ResumeWithBootstrap(ctx context.Context, specID string) (Stage
 }
 
 func (m *Manager) Advance(ctx context.Context, specID string, next Stage) error {
+	unlock := specLocks.Lock(specID)
+	defer unlock()
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -69,4 +74,42 @@ func (m *Manager) Guard(ctx context.Context, specID string, expected Stage) erro
 	}
 
 	return nil
+}
+
+type specLockEntry struct {
+	mu   sync.Mutex
+	refs int
+}
+
+type specLockStore struct {
+	mu    sync.Mutex
+	locks map[string]*specLockEntry
+}
+
+func newSpecLockStore() *specLockStore {
+	return &specLockStore{
+		locks: make(map[string]*specLockEntry),
+	}
+}
+
+func (s *specLockStore) Lock(specID string) func() {
+	s.mu.Lock()
+	entry, ok := s.locks[specID]
+	if !ok {
+		entry = &specLockEntry{}
+		s.locks[specID] = entry
+	}
+	entry.refs++
+	s.mu.Unlock()
+
+	entry.mu.Lock()
+	return func() {
+		entry.mu.Unlock()
+		s.mu.Lock()
+		entry.refs--
+		if entry.refs == 0 {
+			delete(s.locks, specID)
+		}
+		s.mu.Unlock()
+	}
 }
