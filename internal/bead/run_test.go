@@ -384,7 +384,7 @@ func TestClientRunAndRunCloseUseSharedRetryHelper(t *testing.T) {
 
 	var calls []string
 	originalFn := runWithRetryCascadeFn
-	runWithRetryCascadeFn = func(c *Client, ctx context.Context, args []string, extraEnv []string, runner func(context.Context, []string, []string) (string, error)) (string, error) {
+	runWithRetryCascadeFn = func(c *Client, ctx context.Context, args []string, extraEnv []string, runner runExecutor) (string, error) {
 		if len(args) == 0 {
 			t.Fatalf("runWithRetryCascade called with no args")
 		}
