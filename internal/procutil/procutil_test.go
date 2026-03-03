@@ -3,6 +3,9 @@ package procutil
 import (
 	"context"
 	"errors"
+	"go/doc"
+	"go/parser"
+	"go/token"
 	"os"
 	"os/exec"
 	"strings"
@@ -364,4 +367,49 @@ func (c *fakeClock) Now() time.Time {
 
 func (c *fakeClock) Advance(d time.Duration) {
 	c.now = c.now.Add(d)
+}
+
+func TestPlatformLimitationDocComments(t *testing.T) {
+	// This test verifies that ReapProcessTree, KillDescendantsOnCancel, and
+	// collectDescendants have doc comments mentioning platform limitations.
+	// Parse this package
+	fset := token.NewFileSet()
+	pkgs, err := parser.ParseDir(fset, ".", nil, parser.ParseComments)
+	if err != nil {
+		t.Fatalf("Failed to parse package: %v", err)
+	}
+
+	pkg := pkgs["procutil"]
+	if pkg == nil {
+		t.Fatal("procutil package not found")
+	}
+
+	// Create a doc package to analyze
+	docPkg := doc.New(pkg, ".", doc.AllDecls)
+
+	// Check functions by name
+	functionsToCheck := map[string]bool{
+		"ReapProcessTree":         false,
+		"KillDescendantsOnCancel": false,
+		"collectDescendants":      false,
+	}
+
+	for _, fn := range docPkg.Funcs {
+		if _, ok := functionsToCheck[fn.Name]; ok {
+			// Check if the doc comment mentions platform or limitation
+			docComment := fn.Doc
+			hasPlatformDoc := strings.Contains(docComment, "platform") || strings.Contains(docComment, "Platform")
+			if !hasPlatformDoc {
+				t.Errorf("%s missing platform limitation documentation", fn.Name)
+			}
+			functionsToCheck[fn.Name] = true
+		}
+	}
+
+	// Check that all functions were found
+	for name, found := range functionsToCheck {
+		if !found {
+			t.Errorf("Function %s not found in documentation", name)
+		}
+	}
 }
