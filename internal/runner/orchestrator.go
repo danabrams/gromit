@@ -940,6 +940,7 @@ runLoop:
 				o.logWarning("Warning: regression gate failed for bead %s (iteration %d), attempting recovery build %d/%d", b.ID, iteration, attempt, maxValidationRetries)
 				retryIn := baseIn
 				retryIn.ValidationFailures = append([]string(nil), regressionGateOut.ValidationFailures...)
+				retryIn.FailureOutput = strings.Join(regressionGateOut.ValidationFailures, "\n")
 
 				retryBuildOut, retryBuildErr := o.cfg.Build.Run(ctx, retryIn)
 				buildOut = retryBuildOut
@@ -972,7 +973,7 @@ runLoop:
 					BeadID:                   b.ID,
 					BeadTitle:                b.Title,
 					Success:                  false,
-					FailurePhase:             failurephase.Validation,
+					FailurePhase:             failurephase.RegressionGate,
 					ValidationFailures:       regressionGateOut.ValidationFailures,
 					Error:                    failureMessage,
 					Complexity:               baseIn.Complexity,
