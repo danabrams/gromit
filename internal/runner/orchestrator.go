@@ -3,6 +3,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -614,6 +615,10 @@ runLoop:
 							Duration:  0,
 							TimeMixin: events.TimeMixin{Time: time.Now()},
 						})
+						var dirtyErr *specbranch.DirtyWorktreeError
+						if errors.As(checkoutErr, &dirtyErr) {
+							return fmt.Errorf("branch checkout blocked by dirty worktree precondition for %s: %w", branch, checkoutErr)
+						}
 						continue
 					}
 				}
