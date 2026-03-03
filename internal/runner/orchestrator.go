@@ -175,6 +175,7 @@ type Coordinator interface {
 type Orchestrator struct {
 	cfg                      OrchestratorConfig
 	emitter                  *events.Emitter
+	startSubscribersFn       func(context.Context) (*sync.WaitGroup, error)
 	preImplementationHookRan bool
 }
 
@@ -266,31 +267,21 @@ func (o *Orchestrator) Run(ctx context.Context, maxIterations int, deadline time
 		stopCh = make(chan struct{})
 	}
 
-	// Start subscribers before entering the main loop
-	subscriberWg, err := o.StartSubscribers(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to start subscribers: %w", err)
-	}
+	iteration := 0
+	var subscriberWg *sync.WaitGroup
+	var err error
 
 	// Cleanup ordering (defers run LIFO): close emitter first to unblock
 	// subscriber channel reads, then wait for subscriber goroutines to drain.
 	defer func() {
 		o.emitter.Close()
-		subscriberWg.Wait()
+		if subscriberWg != nil {
+			subscriberWg.Wait()
+		}
 	}()
 	if o.cfg.TrendUpdater != nil {
 		defer o.cfg.TrendUpdater.Close()
 	}
-	if o.cfg.StateSaver != nil {
-		if setter, ok := o.cfg.StateSaver.(interface{ SetCleanExit(bool) }); ok {
-			setter.SetCleanExit(false)
-			if err := o.cfg.StateSaver.Save(); err != nil {
-				o.logWarning("Warning: could not mark state clean_exit=false: %v", err)
-			}
-		}
-	}
-
-	iteration := 0
 	defer func() {
 		if o.cfg.StatusFinalizer != nil {
 			o.cfg.StatusFinalizer(iteration, runErr)
@@ -305,6 +296,24 @@ func (o *Orchestrator) Run(ctx context.Context, maxIterations int, deadline time
 			Time:                time.Now(),
 		})
 	}()
+
+	startSubscribers := o.startSubscribersFn
+	if startSubscribers == nil {
+		startSubscribers = o.StartSubscribers
+	}
+	subscriberWg, err = startSubscribers(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to start subscribers: %w", err)
+	}
+
+	if o.cfg.StateSaver != nil {
+		if setter, ok := o.cfg.StateSaver.(interface{ SetCleanExit(bool) }); ok {
+			setter.SetCleanExit(false)
+			if err := o.cfg.StateSaver.Save(); err != nil {
+				o.logWarning("Warning: could not mark state clean_exit=false: %v", err)
+			}
+		}
+	}
 
 	var validationFailures []string
 	var touchedPackages []string
