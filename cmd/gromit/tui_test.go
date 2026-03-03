@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"reflect"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/conversation"
@@ -64,5 +66,31 @@ func TestModelAcceptsConversationController(t *testing.T) {
 	view := model.View()
 	if view == "" {
 		t.Error("expected conversation view to be non-empty")
+	}
+}
+
+func TestBuildPendingActionCommand(t *testing.T) {
+	prevExecutable := osExecutable
+	osExecutable = func() (string, error) { return "/usr/local/bin/gromit", nil }
+	defer func() { osExecutable = prevExecutable }()
+
+	action := &tui.PendingAction{Command: "refine", Args: []string{"abc"}}
+	cmd, err := buildPendingActionCommand(action)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	wantPath := "/usr/local/bin/gromit"
+	if cmd.Path != wantPath {
+		t.Fatalf("path = %q, want %q", cmd.Path, wantPath)
+	}
+
+	wantArgs := []string{wantPath, "refine", "abc"}
+	if !reflect.DeepEqual(cmd.Args, wantArgs) {
+		t.Fatalf("args = %+v, want %+v", cmd.Args, wantArgs)
+	}
+
+	if cmd.Stdin != os.Stdin || cmd.Stdout != os.Stdout || cmd.Stderr != os.Stderr {
+		t.Fatalf("stdio not inherited")
 	}
 }
