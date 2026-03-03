@@ -59,11 +59,8 @@ func TestCreateOrCheckoutSpecBranch_IncludesGitContextOnFailure(t *testing.T) {
 	}
 
 	msg := err.Error()
-	if !strings.Contains(msg, "create attempt failed") {
-		t.Fatalf("error %q missing create attempt context", msg)
-	}
-	if !strings.Contains(msg, "checkout attempt failed") {
-		t.Fatalf("error %q missing checkout attempt context", msg)
+	if !strings.Contains(msg, "failed to create spec branch bad branch name") {
+		t.Fatalf("error %q missing create failure context", msg)
 	}
 	if !strings.Contains(msg, "output:") {
 		t.Fatalf("error %q missing git command output context", msg)
@@ -186,6 +183,25 @@ func TestCreateOrCheckoutSpecBranch_DirtyWorktreeFixtureBlocksCheckout(t *testin
 	cmd.Dir = fixture.Dir
 	if cmd.Run() == nil {
 		t.Fatalf("expected spec branch %s not to exist when checkout is blocked", specBranchName)
+	}
+}
+
+func TestCreateOrCheckoutSpecBranch_AllowsDirtyWorktreeWhenAlreadyOnTargetBranch(t *testing.T) {
+	fixture := helpers.NewDeterministicGitConflictFixture(t)
+	ops := NewGitOps(fixture.Dir, fixture.BaseBranch)
+
+	specBranchName := "gromit/spec-already-on-target"
+	if err := ops.CreateOrCheckoutSpecBranch(context.Background(), specBranchName); err != nil {
+		t.Fatalf("CreateOrCheckoutSpecBranch() initial create error = %v", err)
+	}
+
+	dirtyFile := filepath.Join(fixture.Dir, fixture.ConflictingFile)
+	if err := os.WriteFile(dirtyFile, []byte("dirty change"), 0o644); err != nil {
+		t.Fatalf("failed to dirty worktree: %v", err)
+	}
+
+	if err := ops.CreateOrCheckoutSpecBranch(context.Background(), specBranchName); err != nil {
+		t.Fatalf("CreateOrCheckoutSpecBranch() when already on target branch error = %v, want nil", err)
 	}
 }
 

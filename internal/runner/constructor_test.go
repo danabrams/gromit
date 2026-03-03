@@ -732,7 +732,7 @@ func TestFailureLearnerAdapter_CallsAnalyzer(t *testing.T) {
 	}
 }
 
-func TestNewRunnerImpl_AllowsFreshContextPerCycle(t *testing.T) {
+func TestNewRunnerImpl_AllowsMethodologyAdapterConfig(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
@@ -757,7 +757,6 @@ func TestNewRunnerImpl_AllowsFreshContextPerCycle(t *testing.T) {
 	cfg.Paths.Specs = filepath.Join(tmpDir, "specs")
 	cfg.Paths.Logs = logsDir
 	cfg.Paths.ProjectClaudeMD = claudePath
-	cfg.Methodology.FreshContextPerCycle = true
 	cfg.Methodology.Adapter = "go"
 
 	if _, err := newRunnerImpl(cfg, io.Discard, nil); err != nil {

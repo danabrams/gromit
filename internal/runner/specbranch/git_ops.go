@@ -104,6 +104,14 @@ func (g *GitOps) CreateOrCheckoutSpecBranch(ctx context.Context, specBranchName 
 		return fmt.Errorf("spec branch name cannot be empty")
 	}
 
+	currentBranch, err := g.currentBranch(ctx)
+	if err != nil {
+		return fmt.Errorf("determine current branch before spec checkout: %w", err)
+	}
+	if currentBranch == specBranchName {
+		return nil
+	}
+
 	if err := g.ensureWorktreeClean(ctx); err != nil {
 		return fmt.Errorf("spec branch %s blocked by dirty worktree precondition: %w", specBranchName, err)
 	}
@@ -137,6 +145,14 @@ func (g *GitOps) CreateOrCheckoutSpecBranch(ctx context.Context, specBranchName 
 	}
 
 	return nil
+}
+
+func (g *GitOps) currentBranch(ctx context.Context) (string, error) {
+	output, err := runGitCommandWithOutput(ctx, g.repoDir, "rev-parse", "--abbrev-ref", "HEAD")
+	if err != nil {
+		return "", fmt.Errorf("resolve current branch: %w", err)
+	}
+	return strings.TrimSpace(output.stdout), nil
 }
 
 func formatGitCommandOutput(output gitCommandOutput) string {
