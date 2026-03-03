@@ -4615,3 +4615,49 @@ func TestAssertEfficiencyCompleteness_FailsWhenRealDataGapExists(t *testing.T) {
 		t.Errorf("error message should mention missing efficiency data, got: %v", err)
 	}
 }
+
+// TestOrchestrator_StatusWriter_ReceivesContext verifies that the orchestrator
+// passes the run context to the StatusWriter function so that cancellation
+// signals propagate through to bd calls (estimateScopedIterationTotal).
+func TestOrchestrator_StatusWriter_ReceivesContext(t *testing.T) {
+	t.Parallel()
+	var capturedCtx context.Context
+
+	deadline := time.Now().Add(30 * time.Minute)
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-1", Title: "Test"}, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     &fakeStage{},
+		Build:    &fakeStage{},
+		Validate: &fakeStage{},
+		Epilogue: &fakeStage{},
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+		StatusWriter: func(ctx context.Context, iteration int, beadID, beadTitle string, dl time.Time) {
+			capturedCtx = ctx
+		},
+	}
+
+	orch := NewOrchestrator(cfg)
+	runCtx := context.Background()
+	err := orch.Run(runCtx, 10, deadline, nil)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if capturedCtx == nil {
+		t.Error("StatusWriter did not receive context; want context passed for cancellation propagation")
+	}
+	if capturedCtx != runCtx {
+		t.Errorf("StatusWriter context is not the run context; want same context for proper cancellation")
+	}
+}
