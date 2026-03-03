@@ -325,6 +325,39 @@ exit 1
 	}
 }
 
+func TestClientRunWithRetryCascade_RetriesWithNoDB(t *testing.T) {
+	t.Parallel()
+
+	var callCount int
+	runner := func(ctx context.Context, args []string, extraEnv []string) (string, error) {
+		callCount++
+		switch callCount {
+		case 1:
+			if len(extraEnv) != 0 {
+				t.Fatalf("first invocation should not include extra env, got %v", extraEnv)
+			}
+			return "", fmt.Errorf("database not found: beads_gromit")
+		case 2:
+			if len(extraEnv) != 1 || extraEnv[0] != "BEADS_NO_DB=true" {
+				t.Fatalf("second invocation should receive BEADS_NO_DB=true, got %v", extraEnv)
+			}
+			return "recovered", nil
+		default:
+			t.Fatalf("unexpected invocation %d", callCount)
+		}
+		return "", fmt.Errorf("unreachable")
+	}
+
+	c := &Client{}
+	out, err := c.runWithRetryCascade(context.Background(), []string{"ready"}, runner)
+	if err != nil {
+		t.Fatalf("runWithRetryCascade() error = %v", err)
+	}
+	if out != "recovered" {
+		t.Fatalf("runWithRetryCascade() output = %q, want %q", out, "recovered")
+	}
+}
+
 func TestClientRunDeriveIssuePrefixUsesCallerContext(t *testing.T) {
 	t.Parallel()
 	repoDir := t.TempDir()
