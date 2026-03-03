@@ -251,6 +251,8 @@ func TestFilterBlockingWorktreeStatus_IgnoresOnlyOperationalPaths(t *testing.T) 
 		"M .gromit/integration-queue.json",
 		" M .beads/backup/backup_state.json",
 		"?? .beads/dolt-monitor.pid",
+		"?? internal/runner/.gromit/tmp/go-build-cache/ab/cached-file-a",
+		"?? .gromit/tmp/go-build-cache/ab/cached-file-b",
 		" M internal/runner/specbranch/git_ops.go",
 	}, "\n")
 
@@ -263,6 +265,12 @@ func TestFilterBlockingWorktreeStatus_IgnoresOnlyOperationalPaths(t *testing.T) 
 	}
 	if strings.Contains(filtered, ".beads/dolt-monitor.pid") {
 		t.Fatalf("filtered status should not include monitor pid operational path: %q", filtered)
+	}
+	if strings.Contains(filtered, "internal/runner/.gromit/tmp/go-build-cache/ab/cached-file-a") {
+		t.Fatalf("filtered status should not include nested .gromit/tmp cache artifacts: %q", filtered)
+	}
+	if strings.Contains(filtered, ".gromit/tmp/go-build-cache/ab/cached-file-b") {
+		t.Fatalf("filtered status should not include root .gromit/tmp cache artifacts: %q", filtered)
 	}
 	if !strings.Contains(filtered, "internal/runner/specbranch/git_ops.go") {
 		t.Fatalf("filtered status should retain source changes: %q", filtered)

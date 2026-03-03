@@ -215,7 +215,7 @@ func filterBlockingWorktreeStatus(status string) string {
 
 		path := parsePorcelainStatusPath(raw)
 		if path != "" {
-			if _, ok := nonBlockingDirtyWorktreePaths[path]; ok {
+			if isNonBlockingDirtyWorktreePath(path) {
 				continue
 			}
 		}
@@ -224,6 +224,22 @@ func filterBlockingWorktreeStatus(status string) string {
 	}
 
 	return strings.Join(blocking, "\n")
+}
+
+func isNonBlockingDirtyWorktreePath(path string) bool {
+	if _, ok := nonBlockingDirtyWorktreePaths[path]; ok {
+		return true
+	}
+
+	// Runtime temp/cache artifacts can appear at repo root or within nested worktree dirs.
+	if strings.HasPrefix(path, ".gromit/tmp/") || path == ".gromit/tmp" {
+		return true
+	}
+	if strings.Contains(path, "/.gromit/tmp/") || strings.HasSuffix(path, "/.gromit/tmp") {
+		return true
+	}
+
+	return false
 }
 
 func parsePorcelainStatusPath(line string) string {
