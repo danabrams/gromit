@@ -894,7 +894,9 @@ runLoop:
 
 		// Stage 3c: Regression Gate — optional quality gate that runs after wiring gate.
 		// On failure, triggers a retry of Build→Validate→RegressionGate.
-		if o.cfg.RegressionGate != nil {
+		// Skipped if bead has skip-regression-check label.
+		skipRegressionGate := bead.HasLabel(b.Labels, "skip-regression-check")
+		if o.cfg.RegressionGate != nil && !skipRegressionGate {
 			regressionGateOut, regressionGateErr := o.cfg.RegressionGate.Run(ctx, baseIn)
 			if regressionGateErr != nil || regressionGateOut.Decision != pipeline.Proceed {
 				maxValidationRetries := 0

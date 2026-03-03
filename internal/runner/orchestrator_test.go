@@ -4818,3 +4818,132 @@ func TestOrchestrator_RegressionGateFailureTriggersRetry(t *testing.T) {
 		t.Errorf("RegressionGate called %d times; want 2 (initial failure + retry)", regressionGateCalls)
 	}
 }
+
+// TestOrchestrator_DisabledGates verifies that when WiringGate and RegressionGate
+// are nil, the pipeline proceeds without running them.
+func TestOrchestrator_DisabledGates(t *testing.T) {
+	t.Parallel()
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-1", Title: "Test"}, nil
+	}
+
+	buildCalls := 0
+	buildStage := &fakeStage{
+		runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			buildCalls++
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		},
+	}
+
+	validateCalls := 0
+	validateStage := &fakeStage{
+		runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			validateCalls++
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		},
+	}
+
+	epilogueCalls := 0
+	epilogueStage := &fakeStage{
+		runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			epilogueCalls++
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		},
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:       &fakeStage{},
+		Build:      buildStage,
+		Validate:   validateStage,
+		WiringGate: nil, // Disabled
+		Epilogue:   epilogueStage,
+		GetBead:    getBead,
+		Config:     &config.Config{},
+		Output:     io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	err := orch.Run(context.Background(), 10, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	// Verify that Build and Validate were called once (no retry due to gate being disabled)
+	if buildCalls != 1 {
+		t.Errorf("Build called %d times; want 1 (no retry since gates disabled)", buildCalls)
+	}
+	if validateCalls != 1 {
+		t.Errorf("Validate called %d times; want 1 (no retry since gates disabled)", validateCalls)
+	}
+	if epilogueCalls != 1 {
+		t.Errorf("Epilogue called %d times; want 1", epilogueCalls)
+	}
+}
+
+// TestOrchestrator_RegressionGateSkippedByLabel verifies that when a bead
+// has the skip-regression-check label, the regression gate is skipped.
+func TestOrchestrator_RegressionGateSkippedByLabel(t *testing.T) {
+	t.Parallel()
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{
+			ID:     "bead-1",
+			Title:  "Test",
+			Labels: []string{"skip-regression-check"},
+		}, nil
+	}
+
+	buildStage := &fakeStage{
+		runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		},
+	}
+
+	validateStage := &fakeStage{
+		runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		},
+	}
+
+	regressionGateCalls := 0
+	regressionGateStage := &fakeStage{
+		runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			regressionGateCalls++
+			// This should fail if called, but it shouldn't be called due to skip label
+			return pipeline.Output{Decision: pipeline.Block}, nil
+		},
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:           &fakeStage{},
+		Build:          buildStage,
+		Validate:       validateStage,
+		RegressionGate: regressionGateStage,
+		Epilogue:       &fakeStage{},
+		GetBead:        getBead,
+		Config:         &config.Config{},
+		Output:         io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	err := orch.Run(context.Background(), 10, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	// Verify that RegressionGate was NOT called because of skip label
+	if regressionGateCalls != 0 {
+		t.Errorf("RegressionGate called %d times; want 0 (should be skipped by label)", regressionGateCalls)
+	}
+}
