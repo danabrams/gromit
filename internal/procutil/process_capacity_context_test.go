@@ -54,3 +54,31 @@ func TestWaitForProcessCapacityDetectsContextCancelWhileNonPressured(t *testing.
 		t.Fatalf("WaitForProcessCapacity() error = %v, want context.Canceled", err)
 	}
 }
+
+func TestWaitForProcessCapacityHonorsContextDeadlineDuringNonPressuredPath(t *testing.T) {
+	original := processCreationPressuredFn
+	release := make(chan struct{})
+	processCreationPressuredFn = func() (bool, error) {
+		<-release
+		return false, nil
+	}
+	t.Cleanup(func() {
+		processCreationPressuredFn = original
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- WaitForProcessCapacity(ctx, 100*time.Millisecond)
+	}()
+
+	<-ctx.Done()
+	close(release)
+
+	err := <-errCh
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("WaitForProcessCapacity() error = %v, want context.DeadlineExceeded", err)
+	}
+}
