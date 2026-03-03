@@ -46,9 +46,11 @@ func (m *mockGitCheckout) CreateOrCheckoutSpecBranch(ctx context.Context, specBr
 type mockStage struct {
 	decision pipeline.Decision
 	called   bool
+	callCount int
 }
 
 func (m *mockStage) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+	m.callCount++
 	m.called = true
 	return pipeline.Output{Decision: m.decision}, nil
 }
@@ -226,6 +228,11 @@ func TestOrchestratorHaltsWhenCheckoutDirtyWorktree(t *testing.T) {
 	if buildStage.called {
 		t.Fatal("build stage should not run when checkout precondition fails")
 	}
+}
+
+func TestOrchestratorDirtyCheckoutStopsBeforeSecondBead(t *testing.T) {
+	t.Parallel()
+	assertMultiBeadDirtyCheckoutNonCascade(t)
 }
 
 func TestOrchestratorLogsActionableMessageOnDirtyWorktree(t *testing.T) {
