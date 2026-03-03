@@ -131,6 +131,32 @@ func TestCreateOrCheckoutSpecBranch_DirtyWorktreeIncludesGuidance(t *testing.T) 
 	}
 }
 
+func TestCreateOrCheckoutSpecBranch_DirtyWorktreeFixtureBlocksCheckout(t *testing.T) {
+	fixture := helpers.NewDirtyWorktreeFixture(t)
+	ops := NewGitOps(fixture.Dir, fixture.BaseBranch)
+
+	specBranchName := "gromit/spec-dirty-block"
+	err := ops.CreateOrCheckoutSpecBranch(context.Background(), specBranchName)
+	if err == nil {
+		t.Fatal("expected dirty worktree error")
+	}
+
+	var dirtyErr *DirtyWorktreeError
+	if !errors.As(err, &dirtyErr) {
+		t.Fatalf("expected DirtyWorktreeError, got %T: %v", err, err)
+	}
+
+	if !strings.Contains(dirtyErr.Status, fixture.DirtyFile) {
+		t.Fatalf("dirty worktree status missing file context: %q", dirtyErr.Status)
+	}
+
+	cmd := exec.Command("git", "show-ref", "--verify", "--quiet", "refs/heads/"+specBranchName)
+	cmd.Dir = fixture.Dir
+	if cmd.Run() == nil {
+		t.Fatalf("expected spec branch %s not to exist when checkout is blocked", specBranchName)
+	}
+}
+
 // TestRebaseSpecOntoMain_Rebases verifies that RebaseSpecOntoMain rebases
 // the spec branch onto main without conflicts.
 func TestRebaseSpecOntoMain_Rebases(t *testing.T) {
