@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-03-03T04:32:02.62851Z",
+  "updated_at": "2026-03-03T17:09:38.379483Z",
   "entries": [
     {
       "branch": "gromit/debug-1772324767531454001",
@@ -631,6 +631,28 @@
       "last_error_code": "",
       "last_error_message": "",
       "last_transition_reason": ""
+    },
+    {
+      "branch": "gromit/debug-1772552361311699000",
+      "session_id": "gromit/debug-1772552361311699000",
+      "origin_command": "debug",
+      "state": "conflict",
+      "lane": "code_lane",
+      "created_at": "2026-03-03T17:07:15.829411Z",
+      "updated_at": "2026-03-03T17:09:38.379483Z",
+      "attempt_count": 1,
+      "retry_count": 0,
+      "fifo_seq": 36,
+      "base_ref": "f5b76b1230935b81690e5ad88b9351cdf1adcd18",
+      "head_sha": "0f7889a6d5a7bc46ec1fa863e9fd94829fb4c4f3",
+      "changed_files": [
+        ".gromit/plans/fix-spec-branch-checkout-preconditions.md",
+        ".gromit/reports/debug-20260303-104035.md"
+      ],
+      "changed_files_hash": "sha256:c824f72294071a523d0af8c906ec0f2a3e098acf2c2af81501060227bdeb627c",
+      "last_error_code": "rebase_conflict",
+      "last_error_message": "rebasing branch gromit/debug-1772552361311699000 onto main: exit status 1 (git output: error: cannot rebase: You have unstaged changes.\nerror: Please commit or stash them.)",
+      "last_transition_reason": "rebase conflict during initial fetch"
     }
   ]
 }

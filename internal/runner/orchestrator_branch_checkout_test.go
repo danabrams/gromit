@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -41,10 +42,21 @@ func (m *mockGitCheckout) CreateOrCheckoutSpecBranch(ctx context.Context, specBr
 // mockStage is a minimal pipeline Stage for testing
 type mockStage struct {
 	decision pipeline.Decision
+	called   bool
 }
 
 func (m *mockStage) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+	m.called = true
 	return pipeline.Output{Decision: m.decision}, nil
+}
+
+type dirtyWorktreeCheckout struct{}
+
+func (d *dirtyWorktreeCheckout) CreateOrCheckoutSpecBranch(ctx context.Context, specBranchName string) error {
+	return &specbranch.DirtyWorktreeError{
+		RepoDir: specBranchName,
+		Status:  "M dirty.go",
+	}
 }
 
 // TestOrchestratorCheckoutCalledAfterGateProceed verifies checkout is executed
@@ -169,5 +181,46 @@ func TestOrchestratorSessionWorktreeSkipsNonSpecCheckout(t *testing.T) {
 	}
 	if !mockRouter.sessionModeEnabled {
 		t.Fatal("BranchRouter should be enabled for session worktree mode")
+	}
+}
+
+func TestOrchestratorHaltsWhenCheckoutDirtyWorktree(t *testing.T) {
+	t.Parallel()
+
+	gateStage := &mockStage{decision: pipeline.Proceed}
+	buildStage := &mockStage{decision: pipeline.Proceed}
+	checkout := &dirtyWorktreeCheckout{}
+	beadCount := 0
+	cfg := OrchestratorConfig{
+		Gate:         gateStage,
+		Build:        buildStage,
+		Validate:     &mockStage{},
+		Epilogue:     &mockStage{},
+		BranchRouter: &mockBranchRouter{},
+		GitCheckout:  checkout,
+		GetBead: func(ctx context.Context) (*bead.Bead, error) {
+			beadCount++
+			if beadCount == 1 {
+				return &bead.Bead{
+					ID:     "dirty",
+					Title:  "Dirty Bead",
+					Labels: []string{"spec:dirty"},
+				}, nil
+			}
+			return nil, nil
+		},
+	}
+
+	o := NewOrchestrator(cfg)
+	err := o.Run(context.Background(), 1, time.Time{}, make(chan struct{}))
+	if err == nil {
+		t.Fatal("expected orchestrator run to fail when checkout blocked by dirty worktree")
+	}
+	var dirtyErr *specbranch.DirtyWorktreeError
+	if !errors.As(err, &dirtyErr) {
+		t.Fatalf("expected DirtyWorktreeError, got %T: %v", err, err)
+	}
+	if buildStage.called {
+		t.Fatal("build stage should not run when checkout precondition fails")
 	}
 }

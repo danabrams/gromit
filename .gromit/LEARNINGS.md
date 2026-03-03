@@ -348,6 +348,9 @@ The gromit project enforces strict gofmt compliance via TestRepoGofmtCompliance;
 ### 2026-03-03 | gromit-w1dux | conventions
 When deleting core runner components (callbacks, TDD pipeline, adapters), verify all references in runner.go, pipeline implementations, and tests before assuming deletion is safe—check for compilation errors and failing tests post-deletion
 
+### 2026-03-03 | gromit-xp9zc.2 | conventions
+When adding tests to gromit, follow TDD pattern (red/green commits) and understand existing specbranch test structure and dirty-worktree validation patterns in the codebase
+
 ---
 
 ## Archived
