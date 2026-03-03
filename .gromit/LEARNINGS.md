@@ -124,9 +124,9 @@ RESOLVED: equalStringSlices was upgraded to order-insensitive multiset compariso
 procutil package now provides the canonical subprocess lifecycle: SetProcessGroupKill, WaitForProcessCapacity (cgroup v2 PID pressure), KillDescendantsOnCancel, ReapProcessTree. All provider launch sites (codex, gemini) and worktree.Manager use the full pattern. WaitForProcessCapacity is cgroup v2 only; cgroup v1 systems silently skip throttling (best-effort). The double-kill between KillDescendantsOnCancel goroutine and defer ReapProcessTree is harmless (ESRCH on dead PIDs is ignored).
 
 ### 2026-03-02 | Context Propagation Gap Between Library and CLI Layers | patterns
-*Related to: review-1772456575499153066, gromit-yfj6, gromit-1fov*
+*Related to: review-1772456575499153066, gromit-yfj6, gromit-1fov, review-1772511363996530000*
 
-worktree.Manager methods accept context.Context at the library level, but the CLI layer (interactive_worktree.go) uses context.TODO() because runWithSessionWorktreeWithConflictSettings does not accept a context parameter. Similarly, constructor_adapters_epilogue.go uses context.Background() in adapter factory closures, defeating stage cancellation. Context threading must be end-to-end from CLI command through adapter closures to be effective.
+worktree.Manager methods accept context.Context at the library level, but the CLI layer (interactive_worktree.go) uses context.TODO() because runWithSessionWorktreeWithConflictSettings does not accept a context parameter. Similarly, constructor_adapters_epilogue.go uses context.Background() in adapter factory closures, defeating stage cancellation. Context threading must be end-to-end from CLI command through adapter closures to be effective. Additional gap: StatusWriter callback in constructor.go uses context.Background() for bd calls, and learnings/filter.go uses context.Background() for LLM classification — both ignore caller context.
 
 ### 2026-02-26 | Tracker Adapter Metadata Serialization Must Use JSON | gotchas
 *Related to: code-review, review-1772124256835385050, gromit-qdjqk, review-1772143302280772186*
@@ -235,10 +235,10 @@ All subprocess launch sites must follow the full procutil lifecycle pattern: pro
 
 Epilogue close/sync failures must suppress all success signals (events, logs, merge triggers) and publish a failed lifecycle outcome. When close/sync fails, BeadCompleteEvent is not emitted and spec merge triggering is skipped to prevent downstream consumers from acting on incomplete state.
 
-### 2026-02-28 | Provider Router Requires Mutex for Concurrent Access | patterns
-*Related to: review-1772280289214510883*
+### 2026-02-28 | Provider Router Requires Mutex and Correct Count Semantics | patterns
+*Related to: review-1772280289214510883, review-1772511363996530000*
 
-Provider router (internal/provider/router.go) was a genuine data race — counts and unavailable maps accessed from multiple goroutines without locking. Now uses sync.Mutex on all read/write paths. New provider infrastructure must protect shared state similarly.
+Provider router (internal/provider/router.go) was a genuine data race — counts and unavailable maps accessed from multiple goroutines without locking. Now uses sync.Mutex on all read/write paths. New provider infrastructure must protect shared state similarly. Additional issue: selectIfAvailable increments r.counts[name] on selection, and RecordInvocation also increments the same counter — if both are called per invocation, ratio balancing is skewed by double-counting.
 
 ### 2026-03-02 | Integration Queue State Must Be Table-Driven With Persistent Transitions | architecture
 *Related to: review-1772280289214510883, retro-1772302209902158129, review-1772322141608097349, review-1772366501939692738, review-1772423180715253804*
@@ -372,6 +372,21 @@ Forward-references to unimplemented types (prepare.LLMCriteriaEnricher, cfg.Gate
 *Related to: review-1772468843459581859*
 
 Close detection in bead.Client via string matching (strings.Contains output, 'cannot close') is fragile and depends on exact bd CLI output format. Consider using exit codes or structured output for close failure detection.
+
+### 2026-03-03 | Gemini Provider Has Parity Gaps With Codex Provider | tech_debt
+*Related to: review-1772511363996530000*
+
+Gemini provider is missing retry logic (Codex has runWithRetry for transient failures), context cancellation checks after cmd.Wait() (Codex checks ctx.Err()), and has duplicated code paths for stdin vs -p flag invocations. The geminiCLIErrorClassification struct has a Retryable field that is never used for retry decisions.
+
+### 2026-03-03 | NormalizeNilFields Must Only Normalize Nils, Not Set Business Defaults | conventions
+*Related to: review-1772511363996530000*
+
+config_normalize.go NormalizeNilFields() mixes business-logic defaults (BuildStrategy, PhaseModels, Refactor.MinFilesChanged) with nil-normalization. Per CLAUDE.md convention, NormalizeNilFields should only convert nil slices/maps to empty values. Business defaults belong in SetDefaults(). Also, SetDefaults/NormalizeNilFields are called redundantly in Load(), constructor.go, and buildRouterAndLearningsProvider.
+
+### 2026-03-03 | Integration Queue Coordinator Must Join Transition Errors With Operation Errors | reliability
+*Related to: review-1772511363996530000*
+
+When coordinator gate/rebase operations fail AND the subsequent state transition also fails, the transition error is silently dropped, leaving entries in inconsistent state. Error metadata should be set atomically with state transitions, and transition errors should be joined with operation errors.
 
 ---
 
