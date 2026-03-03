@@ -1689,6 +1689,61 @@ func TestOrchestrator_MidReviewFindingsTriggerBuildRetry(t *testing.T) {
 	}
 }
 
+func TestOrchestrator_MidReviewErrorLogged(t *testing.T) {
+	t.Parallel()
+	midReviewErr := errors.New("mid-review failed")
+	midReview := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{Decision: pipeline.Proceed}, midReviewErr
+	}}
+
+	build := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+	validate := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	var capturedResult *logger.IterationLog
+	epilogueStage := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		capturedResult = in.Result
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-mid-review-error", Title: "Mid review error"}, nil
+	}
+
+	orch := NewOrchestrator(OrchestratorConfig{
+		Gate:      &fakeStage{},
+		Build:     build,
+		MidReview: midReview,
+		Validate:  validate,
+		Epilogue:  epilogueStage,
+		GetBead:   getBead,
+		Config:    &config.Config{},
+		Output:    io.Discard,
+	})
+
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if capturedResult == nil {
+		t.Fatal("Iteration log was not captured")
+	}
+	if !capturedResult.MidReviewRan {
+		t.Fatalf("MidReviewRan = %v, want true", capturedResult.MidReviewRan)
+	}
+	if capturedResult.MidReviewError != midReviewErr.Error() {
+		t.Fatalf("MidReviewError = %q, want %q", capturedResult.MidReviewError, midReviewErr.Error())
+	}
+}
+
 // TestOrchestrator_RunSequence_UsesCallerProvidedOrder verifies that RunSequence
 // resolves bead IDs via GetBeadByID and executes them in the exact caller-provided
 // order, independent of queue ordering.
