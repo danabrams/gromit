@@ -28,3 +28,33 @@ func TestExtractSymbolsFromDiff_DetectsExportedFunction(t *testing.T) {
         t.Fatalf("ExtractSymbolsFromDiff() = %v, want %v", got, want)
     }
 }
+
+func TestExtractSymbolsFromDiff_FindsTypesMethodsAndFields(t *testing.T) {
+    diff := strings.Join([]string{
+        "diff --git a/foo.go b/foo.go",
+        "new file mode 100644",
+        "index 0000000..1111111",
+        "--- /dev/null",
+        "+++ b/foo.go",
+        "@@ -0,0 +1,9 @@",
+        "+package foo",
+        "+",
+        "+type ExportedType struct {",
+        "+    ExportedField string",
+        "+    unexportedField int",
+        "+}",
+        "+",
+        "+func (t ExportedType) ExportedMethod() {}",
+    }, "\n")
+
+    got := wiring.ExtractSymbolsFromDiff(diff)
+    want := []wiring.Symbol{
+        {Name: "ExportedType", File: "foo.go", Line: 3},
+        {Name: "ExportedField", File: "foo.go", Line: 4},
+        {Name: "ExportedMethod", File: "foo.go", Line: 8},
+    }
+
+    if !reflect.DeepEqual(got, want) {
+        t.Fatalf("ExtractSymbolsFromDiff() = %v, want %v", got, want)
+    }
+}
