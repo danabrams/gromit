@@ -2,6 +2,7 @@ package prepare
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -87,7 +88,7 @@ func (e *LLMCriteriaEnricher) Enrich(ctx context.Context, b *bead.Bead) (*bead.B
 	}
 
 	if err := e.updater.UpdateExpectedOutputs(ctx, b.ID, criteria); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("bd update expected outputs: %w", err)
 	}
 
 	clone := *b
