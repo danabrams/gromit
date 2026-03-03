@@ -43,10 +43,13 @@ func (c *AutoChecker) Check(ctx context.Context, stuck []*bead.Bead, stats map[s
 		return nil
 	}
 
-	_ = stats
-
 	for _, b := range stuck {
 		if b == nil || b.ID == "" {
+			continue
+		}
+
+		lastAttempt := stats[b.ID].LastAttempt
+		if c.shouldSkipRestart(b.ID, lastAttempt, store) {
 			continue
 		}
 
@@ -102,4 +105,15 @@ func (c *AutoChecker) currentTime() time.Time {
 		return c.NowFn()
 	}
 	return time.Now().UTC()
+}
+
+func (c *AutoChecker) shouldSkipRestart(beadID string, lastAttempt time.Time, store *Store) bool {
+	if store == nil || lastAttempt.IsZero() {
+		return false
+	}
+	point, ok := store.Get(beadID)
+	if !ok || point.Time.IsZero() {
+		return false
+	}
+	return point.Time.After(lastAttempt)
 }
