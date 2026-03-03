@@ -84,3 +84,23 @@ func TestNewRunnerWithDeps_OrchhestratorSupportsRouterOnlyConfiguration(t *testi
 		t.Error("Router reference in Deps was modified")
 	}
 }
+
+// TestNewRunnerWithDeps_WiresRouterConfig ensures the Orchestrator config retains the provided Router.
+func TestNewRunnerWithDeps_WiresRouterConfig(t *testing.T) {
+	t.Parallel()
+	router := &provider.Router{}
+	deps := &Deps{Router: router}
+
+	orch, err := NewRunnerWithDeps(deps)
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps error = %v, want nil", err)
+	}
+
+	if orch == nil {
+		t.Fatal("NewRunnerWithDeps returned nil Orchestrator, want non-nil")
+	}
+
+	if orch.cfg.Router != router {
+		t.Fatalf("Orchestrator config router = %v, want %v", orch.cfg.Router, router)
+	}
+}
