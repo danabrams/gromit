@@ -85,6 +85,7 @@ type Config struct {
 	Gate                       GateConfig             `yaml:"gate"`
 	SpecGate                   SpecGateConfig         `yaml:"spec_gate"`
 	WiringGate                 WiringGateConfig       `yaml:"wiring_gate"`
+	QualityGates               *QualityGatesConfig    `yaml:"quality_gates"`
 	Decompose                  DecomposeConfig        `yaml:"decompose"`
 	MergePipeline              MergePipelineConfig    `yaml:"merge_pipeline"`
 	SpecPR                     SpecPRConfig           `yaml:"spec_pr"`
@@ -594,6 +595,16 @@ type RunbookConfig struct {
 
 type GateConfig struct {
 	AutoGenerateCriteria *bool `yaml:"auto_generate_criteria"`
+}
+
+type RegressionGateConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Command string `yaml:"command"`
+}
+
+type QualityGatesConfig struct {
+	Regression *RegressionGateConfig `yaml:"regression"`
+	Wiring     *WiringGateConfig     `yaml:"wiring"`
 }
 
 type WiringGateConfig struct {
