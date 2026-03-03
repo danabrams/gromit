@@ -122,7 +122,7 @@ func TestNewRunnerWithDeps_PropagatesRouterToConfig(t *testing.T) {
 		t.Fatal("NewRunnerWithDeps returned nil Orchestrator, want non-nil")
 	}
 
-	if got := orch.Router(); got != router {
-		t.Fatalf("Orchestrator Router() = %v, want %v", got, router)
+	if got := orch.cfg.Router; got != router {
+		t.Fatalf("Orchestrator cfg.Router = %v, want %v", got, router)
 	}
 }
