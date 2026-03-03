@@ -388,3 +388,34 @@ func TestApplyPhaseProfile_UnknownPhaseNoOp(t *testing.T) {
 		t.Fatalf("ApplyReviewPhaseProfile should leave unknown phases unchanged")
 	}
 }
+
+func cloneContext(ctx *Context) *Context {
+	if ctx == nil {
+		return nil
+	}
+	result := *ctx
+	result.ConfirmedLearnings = append([]learnings.Learning{}, ctx.ConfirmedLearnings...)
+	result.RecentLearnings = append([]learnings.Learning{}, ctx.RecentLearnings...)
+	result.RecentValidationFailures = append([]string{}, ctx.RecentValidationFailures...)
+	result.CommonReviewFindings = append([]string{}, ctx.CommonReviewFindings...)
+	result.SiblingTouchedPackages = append([]string{}, ctx.SiblingTouchedPackages...)
+	if ctx.Bead != nil {
+		beadCopy := *ctx.Bead
+		beadCopy.ExpectedOutputs = append([]string{}, ctx.Bead.ExpectedOutputs...)
+		beadCopy.Labels = append([]string{}, ctx.Bead.Labels...)
+		beadCopy.Dependencies = append([]bead.Dependency{}, ctx.Bead.Dependencies...)
+		beadCopy.BlockedBy = append([]bead.Dependency{}, ctx.Bead.BlockedBy...)
+		beadCopy.DependsOn = append([]bead.Dependency{}, ctx.Bead.DependsOn...)
+		result.Bead = &beadCopy
+	}
+	if ctx.ParentBead != nil {
+		parentCopy := *ctx.ParentBead
+		parentCopy.ExpectedOutputs = append([]string{}, ctx.ParentBead.ExpectedOutputs...)
+		parentCopy.Labels = append([]string{}, ctx.ParentBead.Labels...)
+		parentCopy.Dependencies = append([]bead.Dependency{}, ctx.ParentBead.Dependencies...)
+		parentCopy.BlockedBy = append([]bead.Dependency{}, ctx.ParentBead.BlockedBy...)
+		parentCopy.DependsOn = append([]bead.Dependency{}, ctx.ParentBead.DependsOn...)
+		result.ParentBead = &parentCopy
+	}
+	return &result
+}
