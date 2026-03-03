@@ -72,7 +72,7 @@ func TestNewManager_WithGitRunFn(t *testing.T) {
 	}
 
 	gitCalls := []string{}
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		gitCalls = append(gitCalls, strings.Join(args, " "))
 		return "", nil
 	}
@@ -97,7 +97,7 @@ func TestEnsureWorktree_CreatesWorktreeWhenMissing(t *testing.T) {
 	}
 
 	gitCalls := []string{}
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		gitCalls = append(gitCalls, strings.Join(args, " "))
 		// Simulate successful git worktree add
 		if args[0] == "worktree" && args[1] == "add" {
@@ -153,7 +153,7 @@ func TestEnsureWorktree_ReusesExistingWorktree(t *testing.T) {
 	}
 
 	gitCalls := []string{}
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		gitCalls = append(gitCalls, strings.Join(args, " "))
 		// Simulate worktree already exists
 		if args[0] == "worktree" && args[1] == "list" {
@@ -194,7 +194,7 @@ func TestCreateBranch_GeneratesCorrectBranchName(t *testing.T) {
 	}
 
 	gitCalls := []string{}
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		gitCalls = append(gitCalls, strings.Join(args, " "))
 		return "", nil
 	}
@@ -247,7 +247,7 @@ func TestCreateBranch_DifferentCommands(t *testing.T) {
 				t.Fatalf("failed to create main dir: %v", err)
 			}
 
-			mockGitRun := func(dir string, args ...string) (string, error) {
+			mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 				return "", nil
 			}
 
@@ -328,7 +328,7 @@ func TestCleanup_RemovesWorktree(t *testing.T) {
 	}
 
 	gitCalls := []string{}
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		gitCalls = append(gitCalls, strings.Join(args, " "))
 		// Simulate successful worktree removal
 		if args[0] == "worktree" && args[1] == "remove" {
@@ -375,7 +375,7 @@ func TestCleanup_HandlesNonexistentWorktree(t *testing.T) {
 		t.Fatalf("failed to create main dir: %v", err)
 	}
 
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		// Simulate worktree doesn't exist
 		if args[0] == "worktree" && args[1] == "remove" {
 			return "", errors.New("worktree not found")
@@ -445,7 +445,7 @@ func TestEnsureWorktree_GitRunFnCalledWithCorrectDir(t *testing.T) {
 	}
 
 	var capturedDir string
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		capturedDir = dir
 		// Simulate worktree doesn't exist (list returns empty)
 		if args[0] == "worktree" && args[1] == "list" {
@@ -527,7 +527,7 @@ func TestCreateBranch_GitRunFnCalledInWorktreeDir(t *testing.T) {
 	}
 
 	var capturedDir string
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		capturedDir = dir
 		return "", nil
 	}
@@ -563,7 +563,7 @@ func TestCleanup_GitRunFnCalledWithCorrectDir(t *testing.T) {
 	}
 
 	var capturedDir string
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		capturedDir = dir
 		if args[0] == "worktree" && args[1] == "remove" {
 			return "", os.RemoveAll(args[2])
@@ -617,7 +617,7 @@ func TestManager_FieldsAreAccessible(t *testing.T) {
 // TestWithGitRunFn_IsOptionFunction verifies that WithGitRunFn returns
 // a valid option function that can be passed to NewManager.
 func TestWithGitRunFn_IsOptionFunction(t *testing.T) {
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		return "", nil
 	}
 
@@ -641,9 +641,9 @@ func TestWithGitRunFn_IsOptionFunction(t *testing.T) {
 
 // helperMockGitRun is a reusable mock gitRunFn for tests that need
 // simple git command simulation.
-func helperMockGitRun(t *testing.T, worktreePath string) func(string, ...string) (string, error) {
+func helperMockGitRun(t *testing.T, worktreePath string) func(context.Context, string, ...string) (string, error) {
 	t.Helper()
-	return func(dir string, args ...string) (string, error) {
+	return func(_ context.Context, dir string, args ...string) (string, error) {
 		switch {
 		case len(args) >= 2 && args[0] == "worktree" && args[1] == "list":
 			// Return empty to simulate no worktree exists
@@ -743,7 +743,7 @@ func TestPendingBranches_ReturnsEmptyWhenNoBranches(t *testing.T) {
 		t.Fatalf("failed to create main dir: %v", err)
 	}
 
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		// Simulate git for-each-ref returning no branches
 		if args[0] == "for-each-ref" {
 			return "", nil
@@ -775,7 +775,7 @@ func TestPendingBranches_ReturnsGromitBranches(t *testing.T) {
 		t.Fatalf("failed to create main dir: %v", err)
 	}
 
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		// Simulate git for-each-ref returning multiple branches
 		if args[0] == "for-each-ref" {
 			return "refs/heads/gromit/retro-1234567890\nrefs/heads/gromit/review-9876543210\nrefs/heads/main\nrefs/heads/feature-branch\n", nil
@@ -815,7 +815,7 @@ func TestPendingBranches_FiltersNonGromitBranches(t *testing.T) {
 		t.Fatalf("failed to create main dir: %v", err)
 	}
 
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		if args[0] == "for-each-ref" {
 			// Mix of gromit and non-gromit branches
 			return "refs/heads/main\nrefs/heads/develop\nrefs/heads/gromit/retro-123\nrefs/heads/feature/new-ui\nrefs/heads/gromit/review-456\n", nil
@@ -852,7 +852,7 @@ func TestPendingBranches_ExcludesInteractiveControlBranch(t *testing.T) {
 		t.Fatalf("failed to create main dir: %v", err)
 	}
 
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		if args[0] == "for-each-ref" {
 			return "refs/heads/gromit/interactive\nrefs/heads/gromit/review-123\n", nil
 		}
@@ -883,7 +883,7 @@ func TestPendingBranches_ExcludesBranchesCheckedOutInWorktrees(t *testing.T) {
 		t.Fatalf("failed to create main dir: %v", err)
 	}
 
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		if args[0] == "worktree" && len(args) >= 3 && args[1] == "list" && args[2] == "--porcelain" {
 			return "worktree /repo\nHEAD abc\nbranch refs/heads/main\n\nworktree /repo-gromit-review\nHEAD def\nbranch refs/heads/gromit/review-123\n", nil
 		}
@@ -917,7 +917,7 @@ func TestPendingBranches_WorktreeProbeFailureFallsBackToBranchList(t *testing.T)
 		t.Fatalf("failed to create main dir: %v", err)
 	}
 
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		if args[0] == "worktree" && len(args) >= 3 && args[1] == "list" && args[2] == "--porcelain" {
 			return "", errors.New("worktree listing failed")
 		}
@@ -1000,7 +1000,7 @@ func TestMergeBack_FastForwardSuccess(t *testing.T) {
 	}
 
 	gitCalls := []string{}
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		gitCalls = append(gitCalls, strings.Join(args, " "))
 		// Simulate successful fast-forward merge
 		if args[0] == "merge" && contains(args, "--ff-only") {
@@ -1058,7 +1058,7 @@ func TestMergeBack_FallbackToMergeCommit(t *testing.T) {
 	}
 
 	gitCalls := []string{}
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		gitCalls = append(gitCalls, strings.Join(args, " "))
 		// Fast-forward merge fails (not possible)
 		if args[0] == "merge" && contains(args, "--ff-only") {
@@ -1126,7 +1126,7 @@ func TestMergeBack_ConflictReturnsError(t *testing.T) {
 	}
 
 	gitCalls := []string{}
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		gitCalls = append(gitCalls, strings.Join(args, " "))
 		// Simulate abort succeeds
 		if args[0] == "merge" && args[1] == "--abort" {
@@ -1191,7 +1191,7 @@ func TestMergeBack_ConflictDetectedFromOutputWithGenericError(t *testing.T) {
 	}
 
 	gitCalls := []string{}
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		gitCalls = append(gitCalls, strings.Join(args, " "))
 		if args[0] == "merge" && args[1] == "--abort" {
 			return "", nil
@@ -1240,7 +1240,7 @@ func TestMergeBack_ConflictDetectedFromAutomaticMergeFailedWithoutSemicolon(t *t
 	}
 
 	gitCalls := []string{}
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		gitCalls = append(gitCalls, strings.Join(args, " "))
 		if args[0] == "merge" && args[1] == "--abort" {
 			return "", nil
@@ -1291,7 +1291,7 @@ func TestMergeBack_NonConflictMergeFailureReturnsError(t *testing.T) {
 	}
 
 	gitCalls := []string{}
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		gitCalls = append(gitCalls, strings.Join(args, " "))
 		if args[0] == "merge" && contains(args, "--ff-only") {
 			return "", errors.New("fatal: Not possible to fast-forward")
@@ -1336,7 +1336,7 @@ func TestMergeBack_MergeStatePresentClassifiesAsConflict(t *testing.T) {
 
 	gitCalls := []string{}
 	mergeProbeCalls := 0
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		gitCalls = append(gitCalls, strings.Join(args, " "))
 		if args[0] == "merge" && contains(args, "--ff-only") {
 			return "", errors.New("fatal: Not possible to fast-forward")
@@ -1392,7 +1392,7 @@ func TestMergeBack_PreExistingMergeStateIsNotAbortedOnNonConflictFailure(t *test
 	}
 
 	gitCalls := []string{}
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		gitCalls = append(gitCalls, strings.Join(args, " "))
 		if args[0] == "merge" && contains(args, "--ff-only") {
 			return "", errors.New("fatal: Not possible to fast-forward")
@@ -1441,7 +1441,7 @@ func TestMergeBack_NonConflictErrorContainingConflictInBranchName(t *testing.T) 
 
 	gitCalls := []string{}
 	branch := "gromit/review-conflict-1234567890"
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		gitCalls = append(gitCalls, strings.Join(args, " "))
 		if args[0] == "merge" && contains(args, "--ff-only") {
 			return "", errors.New("fatal: Not possible to fast-forward")
@@ -1484,7 +1484,7 @@ func TestMergeBack_InvalidBranchName(t *testing.T) {
 		t.Fatalf("failed to create main dir: %v", err)
 	}
 
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		return "", nil
 	}
 
@@ -1535,7 +1535,7 @@ func TestMergeBack_GitRunFnCalledInMainDir(t *testing.T) {
 	}
 
 	capturedDirs := []string{}
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		capturedDirs = append(capturedDirs, dir)
 		// Simulate successful fast-forward merge
 		if args[0] == "merge" {
@@ -1576,7 +1576,7 @@ func TestPendingBranches_GitRunFnCalledInMainDir(t *testing.T) {
 	}
 
 	var capturedDir string
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		capturedDir = dir
 		if args[0] == "for-each-ref" {
 			return "refs/heads/gromit/retro-123\n", nil
@@ -1610,7 +1610,7 @@ func TestMergeBack_DeletesBranchOnlyAfterSuccessfulMerge(t *testing.T) {
 	}
 
 	callOrder := []string{}
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		callOrder = append(callOrder, args[0])
 		if args[0] == "merge" {
 			return "Merged successfully", nil
@@ -1662,7 +1662,7 @@ func TestMergeBack_FastForwardSuccess_DoesNotRemoveDerivedSessionWorktree(t *tes
 	}
 
 	removedWorktree := false
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		if args[0] == "merge" && contains(args, "--ff-only") {
 			return "Fast-forward merge successful", nil
 		}
@@ -1699,7 +1699,7 @@ func TestMergeBack_FallbackToMergeCommit_DoesNotRemoveDerivedSessionWorktree(t *
 	}
 
 	removedWorktree := false
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		if args[0] == "merge" && contains(args, "--ff-only") {
 			return "", errors.New("fatal: Not possible to fast-forward, aborting")
 		}
@@ -1738,7 +1738,7 @@ func TestMergeBack_BranchDeleteErrorReturnsFailure(t *testing.T) {
 		t.Fatalf("failed to create main dir: %v", err)
 	}
 
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		if args[0] == "merge" && contains(args, "--ff-only") {
 			return "Fast-forward", nil
 		}
@@ -1814,7 +1814,7 @@ func TestCreateSessionWorktree_UniqueNames(t *testing.T) {
 		t.Fatalf("failed to create main dir: %v", err)
 	}
 
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		return "", nil
 	}
 
@@ -1864,7 +1864,7 @@ func TestCreateSessionWorktree_RetriesOnBranchContention(t *testing.T) {
 	}
 
 	var calls [][]string
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		copied := append([]string{}, args...)
 		calls = append(calls, copied)
 		if len(args) >= 5 && args[0] == "worktree" && args[1] == "add" {
@@ -1919,7 +1919,7 @@ func TestCreateSessionWorktree_RetriesWhenLockRefAmbiguousAndBranchExists(t *tes
 
 	attempts := 0
 	branchProbeCalls := 0
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		if len(args) >= 2 && args[0] == "worktree" && args[1] == "add" {
 			attempts++
 			if attempts == 1 {
@@ -1973,7 +1973,7 @@ func TestCreateSessionWorktree_RetriesWhenLockRefAmbiguousAndWorktreeAlreadyRegi
 	branchProbeCalls := 0
 	worktreeProbeCalls := 0
 	targetWorktree := sessionWorktreeDir(mainDir, "review", 100)
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		if len(args) >= 2 && args[0] == "worktree" && args[1] == "add" {
 			attempts++
 			if attempts == 1 {
@@ -2035,7 +2035,7 @@ func TestCreateSessionWorktree_RetriesWhenLockRefAmbiguousExistsCannotCreateAndB
 
 	attempts := 0
 	branchProbeCalls := 0
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		if len(args) >= 2 && args[0] == "worktree" && args[1] == "add" {
 			attempts++
 			if attempts == 1 {
@@ -2085,7 +2085,7 @@ func TestCreateSessionWorktree_AmbiguousProbeInconclusiveIncludesDecisionReason(
 	sessionTimestampFn = func() int64 { return 100 }
 	t.Cleanup(func() { sessionTimestampFn = origNowFn })
 
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		if len(args) >= 2 && args[0] == "worktree" && args[1] == "add" {
 			return "", errors.New("fatal: cannot lock ref 'refs/heads/gromit/review-100': File exists")
 		}
@@ -2124,7 +2124,7 @@ func TestCreateSessionWorktree_RetriesWhenKnownContentionOnlyInGitOutput(t *test
 	t.Cleanup(func() { sessionTimestampFn = origNowFn })
 
 	attempts := 0
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		if len(args) >= 2 && args[0] == "worktree" && args[1] == "add" {
 			attempts++
 			if attempts == 1 {
@@ -2160,7 +2160,7 @@ func TestCreateSessionWorktree_FailsImmediatelyOnNonContentionAlreadyExists(t *t
 	}
 
 	attempts := 0
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		if len(args) >= 2 && args[0] == "worktree" && args[1] == "add" {
 			attempts++
 			return "", errors.New("fatal: remote 'origin' already exists")
@@ -2193,7 +2193,7 @@ func TestCreateSessionWorktree_RetryExhaustionOnWorktreeCollision(t *testing.T) 
 	}
 
 	attempts := 0
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		if len(args) >= 2 && args[0] == "worktree" && args[1] == "add" {
 			attempts++
 			return "", errors.New("fatal: '/tmp/repo-gromit-review-100' is already registered as a worktree")
@@ -2226,7 +2226,7 @@ func TestCreateSessionWorktree_MixedRetryableThenNonRetryableStopsImmediately(t 
 	}
 
 	attempts := 0
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		if len(args) >= 2 && args[0] == "worktree" && args[1] == "add" {
 			attempts++
 			switch attempts {
@@ -2390,7 +2390,7 @@ func TestRemoveByPath_RemovesRegisteredWorktree(t *testing.T) {
 	}
 
 	gitCalls := []string{}
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		gitCalls = append(gitCalls, strings.Join(args, " "))
 		// Simulate git worktree list --porcelain output
 		if args[0] == "worktree" && args[1] == "list" && len(args) >= 3 && args[2] == "--porcelain" {
@@ -2450,7 +2450,7 @@ func TestRemoveByPath_ErrorsWhenPathNotFound(t *testing.T) {
 	}
 
 	gitCalls := []string{}
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		gitCalls = append(gitCalls, strings.Join(args, " "))
 		// Return an empty worktree list (no worktrees registered)
 		if args[0] == "worktree" && args[1] == "list" && len(args) >= 3 && args[2] == "--porcelain" {
@@ -2491,7 +2491,7 @@ func TestRemoveByPath_ErrorsWhenRemoveFails(t *testing.T) {
 		t.Fatalf("failed to create main dir: %v", err)
 	}
 
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		// Simulate git worktree list --porcelain output showing the path exists
 		if args[0] == "worktree" && args[1] == "list" && len(args) >= 3 && args[2] == "--porcelain" {
 			return fmt.Sprintf("worktree %s\nbranch refs/heads/gromit/test-123\n", worktreePath), nil
@@ -2539,7 +2539,7 @@ func TestRemoveByPath_EmptyPath(t *testing.T) {
 		t.Fatalf("failed to create main dir: %v", err)
 	}
 
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		return "", nil
 	}
 
@@ -2569,7 +2569,7 @@ func TestRemoveByPath_GitRunFnCalledWithCorrectDir(t *testing.T) {
 	}
 
 	var capturedDir string
-	mockGitRun := func(dir string, args ...string) (string, error) {
+	mockGitRun := func(_ context.Context, dir string, args ...string) (string, error) {
 		capturedDir = dir
 		// Simulate git worktree list --porcelain output
 		if args[0] == "worktree" && args[1] == "list" && len(args) >= 3 && args[2] == "--porcelain" {

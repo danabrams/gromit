@@ -27,8 +27,9 @@ var sessionTimestampFn = func() int64 {
 }
 
 // GitRunFn is a function type for executing git commands.
-// dir is the working directory, args are the git command arguments.
-type GitRunFn func(dir string, args ...string) (string, error)
+// ctx is the context used for cancellation, dir is the working directory,
+// and args are the git command arguments.
+type GitRunFn func(ctx context.Context, dir string, args ...string) (string, error)
 
 // SessionWorktree holds the result of creating a session-specific worktree.
 type SessionWorktree struct {
@@ -385,12 +386,12 @@ func (m *Manager) RemoveByPath(ctx context.Context, path string) error {
 
 // runGit executes a git command in the specified directory.
 func (m *Manager) runGit(ctx context.Context, dir string, args ...string) (string, error) {
-	if m.gitRunFn != nil {
-		return m.gitRunFn(dir, args...)
-	}
-
 	if ctx == nil {
 		ctx = context.Background()
+	}
+
+	if m.gitRunFn != nil {
+		return m.gitRunFn(ctx, dir, args...)
 	}
 
 	// Default implementation: run real git command
