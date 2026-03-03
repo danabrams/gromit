@@ -285,10 +285,10 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 		TrendUpdater:        trendUpdater,
 		AutoTriageService:   newAutoTriageService(cfg, gromitDir, trackerClientInterface, sf),
 		ExperimentMgr:       experimentMgr,
-		StatusWriter: func(iteration int, beadID, beadTitle string, dl time.Time) {
+		StatusWriter: func(ctx context.Context, iteration int, beadID, beadTitle string, dl time.Time) {
 			if statusWriter != nil {
 				if specProgressLabel != "" {
-					total, err := estimateScopedIterationTotal(context.Background(), trackerClientInterface, specProgressLabel, iteration)
+					total, err := estimateScopedIterationTotal(ctx, trackerClientInterface, specProgressLabel, iteration)
 					if err == nil {
 						statusWriter.SetIterationTotal(total)
 					} else {

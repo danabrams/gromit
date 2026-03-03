@@ -1081,7 +1081,7 @@ func TestNewRunnerImpl_StatusWriterComputesTimeBudgetFromDeadline(t *testing.T) 
 
 	// Call the StatusWriter callback with a deadline 30 minutes from now.
 	deadline := time.Now().Add(30 * time.Minute)
-	orch.cfg.StatusWriter(1, "bead-1", "Test bead", deadline)
+	orch.cfg.StatusWriter(context.Background(), 1, "bead-1", "Test bead", deadline)
 
 	// Read the status.json that was written.
 	statusPath := filepath.Join(gromitDir, "status.json")

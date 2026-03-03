@@ -73,8 +73,9 @@ type OrchestratorConfig struct {
 	Output io.Writer
 
 	// StatusWriter is called at the start of each iteration to update status.json.
+	// The context is the run context, allowing cancellation signals to propagate.
 	// Optional: nil means skip.
-	StatusWriter func(iteration int, beadID, beadTitle string, dl time.Time)
+	StatusWriter func(ctx context.Context, iteration int, beadID, beadTitle string, dl time.Time)
 	// StatusFinalizer is called before Run returns to finalize status output.
 	// Optional: nil means skip.
 	StatusFinalizer func(iteration int, runErr error)
@@ -444,7 +445,7 @@ runLoop:
 		})
 
 		if o.cfg.StatusWriter != nil {
-			o.cfg.StatusWriter(iteration, b.ID, b.Title, deadline)
+			o.cfg.StatusWriter(ctx, iteration, b.ID, b.Title, deadline)
 		}
 
 		baseIn := o.buildInput(b, iteration, deadline, validationFailures, touchedPackages)

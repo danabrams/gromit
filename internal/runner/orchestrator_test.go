@@ -1280,7 +1280,7 @@ func TestOrchestrator_StatusWriter_ReceivesDeadline(t *testing.T) {
 		GetBead:  getBead,
 		Config:   &config.Config{},
 		Output:   io.Discard,
-		StatusWriter: func(iteration int, beadID, beadTitle string, dl time.Time) {
+		StatusWriter: func(_ context.Context, iteration int, beadID, beadTitle string, dl time.Time) {
 			capturedDeadline = dl
 		},
 	}
