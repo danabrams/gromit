@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
@@ -99,6 +100,61 @@ func TestOrchestrator_BranchCheckoutFailure_SetsPrelaunchFailurePhase(t *testing
 	}
 	if capturedResult.FailurePhase != failurephase.Prelaunch {
 		t.Errorf("FailurePhase = %q, want %q", capturedResult.FailurePhase, failurephase.Prelaunch)
+	}
+}
+
+func TestOrchestrator_DirtyWorktreeCheckoutRecordsPrelaunchDetails(t *testing.T) {
+	t.Parallel()
+
+	var capturedResult *logger.IterationLog
+	buildCalled := false
+	beadCount := 0
+	cfg := OrchestratorConfig{
+		Gate: &fakeStage{runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		}},
+		Build: &fakeStage{runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			buildCalled = true
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		}},
+		Validate: &fakeStage{},
+		Epilogue: &fakeStage{runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			capturedResult = in.Result
+			return pipeline.Output{}, nil
+		}},
+		BranchRouter: &mockBranchRouter{},
+		GitCheckout:  &dirtyWorktreeCheckout{},
+		GetBead: func(ctx context.Context) (*bead.Bead, error) {
+			beadCount++
+			if beadCount == 1 {
+				return &bead.Bead{ID: "b-dirty-precondition", Title: "Dirty Precondition", Labels: []string{"spec:dirty"}}, nil
+			}
+			return nil, nil
+		},
+		Config: &config.Config{},
+		Output: io.Discard,
+	}
+
+	o := NewOrchestrator(cfg)
+	_ = o.Run(context.Background(), 1, time.Time{}, nil)
+
+	if buildCalled {
+		t.Fatal("Build stage should not run when branch checkout is blocked by dirty worktree precondition")
+	}
+	if capturedResult == nil {
+		t.Fatal("expected epilogue to receive an IterationLog")
+	}
+	if capturedResult.FailurePhase != failurephase.Prelaunch {
+		t.Fatalf("FailurePhase = %q, want %q", capturedResult.FailurePhase, failurephase.Prelaunch)
+	}
+	if capturedResult.GateBlockReason != "dirty_worktree_precondition" {
+		t.Fatalf("GateBlockReason = %q, want %q", capturedResult.GateBlockReason, "dirty_worktree_precondition")
+	}
+	if !strings.Contains(capturedResult.Error, "dirty worktree precondition blocked branch checkout for gromit/spec-dirty") {
+		t.Fatalf("error message %q missing dirty worktree precondition context", capturedResult.Error)
+	}
+	if !strings.Contains(capturedResult.Error, dirtyWorktreeOperatorActionableGuidance) {
+		t.Fatalf("error message %q missing operator guidance", capturedResult.Error)
 	}
 }
 
