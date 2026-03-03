@@ -441,43 +441,7 @@ func (c *Client) run(ctx context.Context, args ...string) (string, error) {
 	if c.RunFn != nil {
 		return c.RunFn(args...)
 	}
-	out, err := c.runWithEnv(ctx, args, nil)
-	if err == nil {
-		return out, nil
-	}
-	if shouldRetryWithNoDB(err) && !beadsNoDBAlreadyEnabled() {
-		retryOut, retryErr := c.runWithEnv(ctx, args, []string{"BEADS_NO_DB=true"})
-		if retryErr == nil {
-			return retryOut, nil
-		}
-		return "", fmt.Errorf("%w (retry with BEADS_NO_DB=true failed: %v)", err, retryErr)
-	}
-	if shouldRetryWithJSONLSync(err) {
-		if _, syncErr := c.runWithEnv(ctx, []string{"init", "--from-jsonl"}, nil); syncErr != nil {
-			return "", fmt.Errorf("%w (auto re-sync via 'bd init --from-jsonl' failed: %v)", err, syncErr)
-		}
-		retryOut, retryErr := c.runWithEnv(ctx, args, nil)
-		if retryErr == nil {
-			return retryOut, nil
-		}
-		return "", fmt.Errorf("%w (auto re-sync via 'bd init --from-jsonl' succeeded, retry failed: %v)", err, retryErr)
-	}
-	if shouldRetryWithIssuePrefixBootstrap(err) {
-		prefix, prefixErr := c.deriveIssuePrefix(ctx)
-		if prefixErr != nil {
-			deriveErr := fmt.Errorf("derive issue_prefix: %w", prefixErr)
-			return "", errors.Join(err, deriveErr)
-		}
-		if _, setErr := c.runWithEnv(ctx, []string{"config", "set", "issue_prefix", prefix}, nil); setErr != nil {
-			return "", fmt.Errorf("%w (auto-set issue_prefix=%q failed: %v)", err, prefix, setErr)
-		}
-		retryOut, retryErr := c.runWithEnv(ctx, args, nil)
-		if retryErr == nil {
-			return retryOut, nil
-		}
-		return "", fmt.Errorf("%w (auto-set issue_prefix=%q succeeded, retry failed: %v)", err, prefix, retryErr)
-	}
-	return "", err
+	return c.runWithRetryCascade(ctx, args, c.runWithEnv)
 }
 
 func (c *Client) runWithEnv(ctx context.Context, args []string, extraEnv []string) (string, error) {
@@ -530,12 +494,17 @@ func (c *Client) runClose(ctx context.Context, id string) (string, error) {
 		return c.RunFn("close", id)
 	}
 	args := []string{"close", id}
-	out, err := c.runWithEnvCombinedOutput(ctx, args, nil)
+	return c.runWithRetryCascade(ctx, args, c.runWithEnvCombinedOutput)
+}
+
+// runWithRetryCascade centralizes the retry cascade shared by run variants.
+func (c *Client) runWithRetryCascade(ctx context.Context, args []string, runner func(context.Context, []string, []string) (string, error)) (string, error) {
+	out, err := runner(ctx, args, nil)
 	if err == nil {
 		return out, nil
 	}
 	if shouldRetryWithNoDB(err) && !beadsNoDBAlreadyEnabled() {
-		retryOut, retryErr := c.runWithEnvCombinedOutput(ctx, args, []string{"BEADS_NO_DB=true"})
+		retryOut, retryErr := runner(ctx, args, []string{"BEADS_NO_DB=true"})
 		if retryErr == nil {
 			return retryOut, nil
 		}
@@ -545,7 +514,7 @@ func (c *Client) runClose(ctx context.Context, id string) (string, error) {
 		if _, syncErr := c.runWithEnv(ctx, []string{"init", "--from-jsonl"}, nil); syncErr != nil {
 			return "", fmt.Errorf("%w (auto re-sync via 'bd init --from-jsonl' failed: %v)", err, syncErr)
 		}
-		retryOut, retryErr := c.runWithEnvCombinedOutput(ctx, args, nil)
+		retryOut, retryErr := runner(ctx, args, nil)
 		if retryErr == nil {
 			return retryOut, nil
 		}
@@ -560,7 +529,7 @@ func (c *Client) runClose(ctx context.Context, id string) (string, error) {
 		if _, setErr := c.runWithEnv(ctx, []string{"config", "set", "issue_prefix", prefix}, nil); setErr != nil {
 			return "", fmt.Errorf("%w (auto-set issue_prefix=%q failed: %v)", err, prefix, setErr)
 		}
-		retryOut, retryErr := c.runWithEnvCombinedOutput(ctx, args, nil)
+		retryOut, retryErr := runner(ctx, args, nil)
 		if retryErr == nil {
 			return retryOut, nil
 		}
