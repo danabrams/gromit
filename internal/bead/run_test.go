@@ -63,6 +63,31 @@ func TestClientRun_UsesRunFnWhenSet(t *testing.T) {
 	assertRunArgsEqual(t, gotArgs, wantArgs)
 }
 
+func TestClientRunWithRunner_UsesRunFnWhenSet(t *testing.T) {
+	t.Parallel()
+	var gotArgs []string
+	c := &Client{
+		RunFn: func(args ...string) (string, error) {
+			gotArgs = append([]string(nil), args...)
+			return "runfn", nil
+		},
+	}
+
+	runner := func(ctx context.Context, args []string, extraEnv []string) (string, error) {
+		t.Fatalf("runner should not be called when RunFn is set")
+		return "", nil
+	}
+
+	out, err := c.runWithRunner(context.Background(), []string{"close", "bd-1"}, runner)
+	if err != nil {
+		t.Fatalf("runWithRunner() unexpected error: %v", err)
+	}
+	if out != "runfn" {
+		t.Fatalf("runWithRunner() output = %q, want %q", out, "runfn")
+	}
+	assertRunArgsEqual(t, gotArgs, []string{"close", "bd-1"})
+}
+
 func TestClientRun_SubprocessUsesConfiguredBinaryAndDir(t *testing.T) {
 	t.Parallel()
 	workDir := t.TempDir()
