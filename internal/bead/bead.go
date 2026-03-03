@@ -438,10 +438,7 @@ func (c *Client) HasOpenChildren(ctx context.Context, parentID string) (bool, er
 }
 
 func (c *Client) run(ctx context.Context, args ...string) (string, error) {
-	if c.RunFn != nil {
-		return c.RunFn(args...)
-	}
-	return c.runWithRetryCascade(ctx, args, nil, c.runWithEnv)
+	return c.runWithRunner(ctx, args, nil, c.runWithEnv)
 }
 
 func (c *Client) runWithEnv(ctx context.Context, args []string, extraEnv []string) (string, error) {
@@ -490,11 +487,15 @@ func (c *Client) runWithEnv(ctx context.Context, args []string, extraEnv []strin
 }
 
 func (c *Client) runClose(ctx context.Context, id string) (string, error) {
-	if c.RunFn != nil {
-		return c.RunFn("close", id)
-	}
 	args := []string{"close", id}
-	return c.runWithRetryCascade(ctx, args, nil, c.runWithEnvCombinedOutput)
+	return c.runWithRunner(ctx, args, nil, c.runWithEnvCombinedOutput)
+}
+
+func (c *Client) runWithRunner(ctx context.Context, args []string, extraEnv []string, runner func(context.Context, []string, []string) (string, error)) (string, error) {
+	if c.RunFn != nil {
+		return c.RunFn(args...)
+	}
+	return c.runWithRetryCascade(ctx, args, extraEnv, runner)
 }
 
 // runWithRetryCascade centralizes the retry cascade shared by run variants.

@@ -78,7 +78,7 @@ func TestClientRunWithRunner_UsesRunFnWhenSet(t *testing.T) {
 		return "", nil
 	}
 
-	out, err := c.runWithRunner(context.Background(), []string{"close", "bd-1"}, runner)
+	out, err := c.runWithRunner(context.Background(), []string{"close", "bd-1"}, nil, runner)
 	if err != nil {
 		t.Fatalf("runWithRunner() unexpected error: %v", err)
 	}
