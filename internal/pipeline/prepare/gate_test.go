@@ -199,14 +199,31 @@ func (m *mockCriteriaProvider) Run(_ context.Context, _, _ string) (*provider.Re
 	return m.result, m.err
 }
 
-type mockSpecLoader struct{}
+type mockSpecLoader struct {
+	specDoc   *Document
+	planDoc   *Document
+	specFound bool
+	planFound bool
+	specErr   error
+	planErr   error
+}
+
+func (m *mockSpecLoader) WithSpecError(err error) *mockSpecLoader {
+	m.specErr = err
+	return m
+}
+
+func (m *mockSpecLoader) WithPlanError(err error) *mockSpecLoader {
+	m.planErr = err
+	return m
+}
 
 func (m *mockSpecLoader) LoadSpec(_ context.Context, _ string) (*Document, bool, error) {
-	return nil, false, nil
+	return m.specDoc, m.specFound, m.specErr
 }
 
 func (m *mockSpecLoader) LoadPlan(_ context.Context, _ string) (*Document, bool, error) {
-	return nil, false, nil
+	return m.planDoc, m.planFound, m.planErr
 }
 
 type mockBeadUpdater struct {
@@ -375,6 +392,49 @@ func TestGateRun_CriteriaEnricherErrorLogsWarning(t *testing.T) {
 	}
 	if logEvt == nil {
 		t.Fatalf("expected warning log for criteria enricher failure, got %v events", emitted)
+	}
+}
+
+func TestGateRun_CriteriaEnricherSpecLoaderErrorLogsWarning(t *testing.T) {
+	t.Parallel()
+
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	helper := newTestCriteriaEnricher()
+	helper.loader.WithSpecError(errors.New("spec load failure"))
+	gate := New(io.Discard).
+		WithEmitter(emitter).
+		WithCriteriaEnricher(helper.enricher)
+
+	beadID := "spec-loader-error"
+	bead := &bead.Bead{
+		ID:    beadID,
+		Title: "Spec error bead",
+	}
+
+	out, err := gate.Run(context.Background(), pipeline.Input{Bead: bead})
+	if err != nil {
+		t.Fatalf("Gate.Run() error = %v", err)
+	}
+	if out.Decision != pipeline.Proceed {
+		t.Fatalf("decision = %v, want %v", out.Decision, pipeline.Proceed)
+	}
+
+	emitted := eventtest.DrainEvents(t, ch)
+	var logEvt *events.LogEvent
+	for _, evt := range emitted {
+		if le, ok := evt.(*events.LogEvent); ok {
+			if strings.Contains(le.Message, "criteria enrichment failed") && strings.Contains(le.Message, beadID) {
+				logEvt = le
+				break
+			}
+		}
+	}
+	if logEvt == nil {
+		t.Fatalf("expected warning log for spec loader failure, got %v events", emitted)
 	}
 }
 
