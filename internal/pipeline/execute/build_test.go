@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
 	"testing"
 	"time"
 
@@ -719,6 +720,13 @@ func TestBuildStage_Run_PopulatesOutputMetadataFromProviderResult(t *testing.T) 
 	}
 	if out.OutputTokens != 800 {
 		t.Errorf("Output.OutputTokens = %d, want 800", out.OutputTokens)
+	}
+}
+
+func TestBuild_NoTDDCycleRunnerMethod(t *testing.T) {
+	buildType := reflect.TypeOf((*execute.Build)(nil))
+	if _, ok := buildType.MethodByName("WithTDDCycleRunner"); ok {
+		t.Fatal("WithTDDCycleRunner should be removed")
 	}
 }
 
