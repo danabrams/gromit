@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/danabrams/gromit/internal/procutil"
 )
 
 func assertRunArgsEqual(t *testing.T, got, want []string) {
@@ -145,6 +147,28 @@ func TestClientRun_SubprocessNonExitErrorIsUnchanged(t *testing.T) {
 	// The error should mention the missing binary path (exec.ErrNotFound or similar).
 	if !strings.Contains(err.Error(), missingBinary) && !strings.Contains(err.Error(), "executable file not found") {
 		t.Fatalf("run() error = %q, want to mention missing binary", err.Error())
+	}
+}
+
+func TestClientRunWithEnvUsesProcutilDefaultWait(t *testing.T) {
+	t.Parallel()
+	sentinel := errors.New("wait stub")
+	var gotMaxWait time.Duration
+
+	originalWait := waitForProcessCapacityFn
+	defer func() { waitForProcessCapacityFn = originalWait }()
+	waitForProcessCapacityFn = func(ctx context.Context, maxWait time.Duration) error {
+		gotMaxWait = maxWait
+		return sentinel
+	}
+
+	c := &Client{binary: filepath.Join(t.TempDir(), "missing-bd")}
+	_, err := c.runWithEnv(context.Background(), []string{"ready"}, nil)
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("runWithEnv() error = %v, want %v", err, sentinel)
+	}
+	if gotMaxWait != procutil.DefaultProcessCapacityMaxWait {
+		t.Fatalf("runWithEnv() wait = %v, want %v", gotMaxWait, procutil.DefaultProcessCapacityMaxWait)
 	}
 }
 
