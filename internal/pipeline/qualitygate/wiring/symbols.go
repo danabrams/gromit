@@ -28,6 +28,8 @@ var (
 	constBlockStartRE    = regexp.MustCompile(`^const\s*\(`)
 	varBlockStartRE      = regexp.MustCompile(`^var\s*\(`)
 	constVarBlockFieldRE = regexp.MustCompile(`^([A-Z]\w*)\b`)
+	typeBlockStartRE     = regexp.MustCompile(`^type\s*\(`)
+	typeBlockEntryRE     = regexp.MustCompile(`^([A-Z]\w*(?:\[[^\]]+\])?)\b`)
 )
 
 // ExtractSymbolsFromDiff parses diff output and returns exported symbols added in the patch.
@@ -40,6 +42,7 @@ func ExtractSymbolsFromDiff(diff string) []Symbol {
 	var interfaceStack []int
 	var constBlockActive bool
 	var varBlockActive bool
+	var typeBlockActive bool
 	skipSymbolFile := false
 	deferredNext := false
 
@@ -62,6 +65,7 @@ func ExtractSymbolsFromDiff(diff string) []Symbol {
 			currentFile = filepath.ToSlash(raw)
 			structStack = nil
 			interfaceStack = nil
+			typeBlockActive = false
 			skipSymbolFile = strings.HasSuffix(currentFile, "_test.go")
 			deferredNext = false
 			continue
@@ -85,9 +89,10 @@ func ExtractSymbolsFromDiff(diff string) []Symbol {
 			trimmed := strings.TrimSpace(line[1:])
 			structStarted := startStructContext(trimmed, &structStack)
 			interfaceStarted := startInterfaceContext(trimmed, &interfaceStack)
+			typeStarted := startTypeContext(trimmed, &typeBlockActive)
 			constStarted := startConstContext(trimmed, &constBlockActive)
 			varStarted := startVarContext(trimmed, &varBlockActive)
-			finalizeContexts(trimmed, structStarted, interfaceStarted, &structStack, &interfaceStack, constStarted, varStarted, &constBlockActive, &varBlockActive)
+			finalizeContexts(trimmed, structStarted, interfaceStarted, &structStack, &interfaceStack, typeStarted, constStarted, varStarted, &typeBlockActive, &constBlockActive, &varBlockActive)
 		case '+':
 			newLine++
 			if currentFile == "" {
@@ -99,30 +104,31 @@ func ExtractSymbolsFromDiff(diff string) []Symbol {
 			}
 			structStarted := startStructContext(trimmed, &structStack)
 			interfaceStarted := startInterfaceContext(trimmed, &interfaceStack)
+			typeStarted := startTypeContext(trimmed, &typeBlockActive)
 			constStarted := startConstContext(trimmed, &constBlockActive)
 			varStarted := startVarContext(trimmed, &varBlockActive)
 
 			if deferredNext {
 				deferredNext = false
-				finalizeContexts(trimmed, structStarted, interfaceStarted, &structStack, &interfaceStack, constStarted, varStarted, &constBlockActive, &varBlockActive)
+				finalizeContexts(trimmed, structStarted, interfaceStarted, &structStack, &interfaceStack, typeStarted, constStarted, varStarted, &typeBlockActive, &constBlockActive, &varBlockActive)
 				continue
 			}
 			if strings.HasPrefix(trimmed, "//") && strings.Contains(trimmed, "wiring:deferred") {
 				deferredNext = true
-				finalizeContexts(trimmed, structStarted, interfaceStarted, &structStack, &interfaceStack, constStarted, varStarted, &constBlockActive, &varBlockActive)
+				finalizeContexts(trimmed, structStarted, interfaceStarted, &structStack, &interfaceStack, typeStarted, constStarted, varStarted, &typeBlockActive, &constBlockActive, &varBlockActive)
 				continue
 			}
 
 			inInterface := len(interfaceStack) > 0 && !interfaceStarted
 			if inInterface {
-				finalizeContexts(trimmed, structStarted, interfaceStarted, &structStack, &interfaceStack, constStarted, varStarted, &constBlockActive, &varBlockActive)
+				finalizeContexts(trimmed, structStarted, interfaceStarted, &structStack, &interfaceStack, typeStarted, constStarted, varStarted, &typeBlockActive, &constBlockActive, &varBlockActive)
 				continue
 			}
 
-			if name := parseSymbolName(trimmed, structStack, constBlockActive, varBlockActive); name != "" {
+			if name := parseSymbolName(trimmed, structStack, constBlockActive, varBlockActive, typeBlockActive); name != "" {
 				symbols = append(symbols, Symbol{Name: name, File: currentFile, Line: newLine})
 			}
-			finalizeContexts(trimmed, structStarted, interfaceStarted, &structStack, &interfaceStack, constStarted, varStarted, &constBlockActive, &varBlockActive)
+			finalizeContexts(trimmed, structStarted, interfaceStarted, &structStack, &interfaceStack, typeStarted, constStarted, varStarted, &typeBlockActive, &constBlockActive, &varBlockActive)
 		case '-':
 			// removal lines do not affect new file line numbers
 		default:
@@ -140,7 +146,12 @@ func parseFuncName(line string) string {
 	return ""
 }
 
-func parseSymbolName(line string, structStack []int, inConstBlock, inVarBlock bool) string {
+func parseSymbolName(line string, structStack []int, inConstBlock, inVarBlock, inTypeBlock bool) string {
+	if inTypeBlock {
+		if matches := typeBlockEntryRE.FindStringSubmatch(line); len(matches) > 1 {
+			return matches[1]
+		}
+	}
 	if inConstBlock {
 		if name := parseConstVarBlockSymbol(line); name != "" {
 			return name
@@ -285,12 +296,40 @@ func updateVarContext(line string, active *bool) {
 	}
 }
 
-func finalizeContexts(line string, structStarted, interfaceStarted bool, structStack *[]int, interfaceStack *[]int, constStarted, varStarted bool, constActive, varActive *bool) {
+func startTypeContext(line string, active *bool) bool {
+	if line == "" {
+		return false
+	}
+	if typeBlockStartRE.MatchString(line) {
+		*active = true
+		return true
+	}
+	return false
+}
+
+func updateTypeContext(line string, active *bool) {
+	if !*active {
+		return
+	}
+	trimmed := strings.TrimSpace(line)
+	if !strings.HasPrefix(trimmed, ")") {
+		return
+	}
+	rest := strings.TrimSpace(trimmed[1:])
+	if rest == "" || strings.HasPrefix(rest, "//") || strings.HasPrefix(rest, "/*") {
+		*active = false
+	}
+}
+
+func finalizeContexts(line string, structStarted, interfaceStarted bool, structStack *[]int, interfaceStack *[]int, typeStarted, constStarted, varStarted bool, typeActive, constActive, varActive *bool) {
 	if !structStarted {
 		updateStructContext(line, structStack)
 	}
 	if !interfaceStarted {
 		updateInterfaceContext(line, interfaceStack)
+	}
+	if !typeStarted {
+		updateTypeContext(line, typeActive)
 	}
 	if !constStarted {
 		updateConstContext(line, constActive)
