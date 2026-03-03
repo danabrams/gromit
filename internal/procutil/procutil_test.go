@@ -314,6 +314,40 @@ func TestWaitForProcessCapacityReturnsErrorWhenStillPressured(t *testing.T) {
 	}
 }
 
+func TestWaitForProcessCapacityUsesDefaultMaxWait(t *testing.T) {
+	originalPressured := processCreationPressuredFn
+	originalPressure := pidPressureFn
+	originalTimeNow := timeNowFn
+	originalSleep := sleepWithContextFn
+	clock := &fakeClock{now: time.Unix(0, 0)}
+	processCreationPressuredFn = func() (bool, error) { return true, nil }
+	pidPressureFn = func() (int, int, error) { return 10, 10, nil }
+	t.Cleanup(func() {
+		processCreationPressuredFn = originalPressured
+		pidPressureFn = originalPressure
+		timeNowFn = originalTimeNow
+		sleepWithContextFn = originalSleep
+	})
+
+	timeNowFn = func() time.Time { return clock.Now() }
+	sleepWithContextFn = func(ctx context.Context, d time.Duration) error {
+		clock.Advance(d)
+		return nil
+	}
+
+	err := WaitForProcessCapacity(context.Background(), 0)
+	if err == nil {
+		t.Fatal("WaitForProcessCapacity() error = nil, want ProcessCapacityError")
+	}
+	var capErr *ProcessCapacityError
+	if !errors.As(err, &capErr) {
+		t.Fatalf("WaitForProcessCapacity() error type = %T, want *ProcessCapacityError", err)
+	}
+	if capErr.Waited != DefaultProcessCapacityMaxWait {
+		t.Fatalf("WaitForProcessCapacity() waited = %v, want %v", capErr.Waited, DefaultProcessCapacityMaxWait)
+	}
+}
+
 func TestWaitForProcessCapacityAnchorsDeadlineToStart(t *testing.T) {
 	originalTimeNow := timeNowFn
 	originalSleep := sleepWithContextFn
