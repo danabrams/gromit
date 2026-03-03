@@ -98,6 +98,9 @@ type Output struct {
 	// ValidationFailures holds failure summaries produced by the validate stage
 	// to be fed into the next execute stage Input.
 	ValidationFailures []string
+	// WiringFailures holds failure summaries produced by the wiring gate stage
+	// to be fed into the next execute stage Input on retry.
+	WiringFailures []string
 	// ReviewBeadIDs holds IDs of beads created by the review stage from findings.
 	ReviewBeadIDs []string
 	// TouchedPackages is the updated set of Go package paths touched across iterations,

@@ -4661,3 +4661,83 @@ func TestOrchestrator_StatusWriter_ReceivesContext(t *testing.T) {
 		t.Errorf("StatusWriter context is not the run context; want same context for proper cancellation")
 	}
 }
+
+// TestOrchestrator_WiringGateFailureTriggersRetry verifies that when the wiring gate
+// returns Block on first attempt and Proceed on retry, the orchestrator re-enters the
+// Build→Validate→WiringGate loop with appropriate context.
+func TestOrchestrator_WiringGateFailureTriggersRetry(t *testing.T) {
+	t.Parallel()
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-1", Title: "Test"}, nil
+	}
+
+	buildCalls := 0
+	buildStage := &fakeStage{
+		runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			buildCalls++
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		},
+	}
+
+	validateCalls := 0
+	validateStage := &fakeStage{
+		runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			validateCalls++
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		},
+	}
+
+	wiringGateCalls := 0
+	wiringGateStage := &fakeStage{
+		runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			wiringGateCalls++
+			if wiringGateCalls == 1 {
+				// First call: fail
+				return pipeline.Output{
+					Decision: pipeline.Block,
+					WiringFailures: []string{"NewFoo exported but not referenced"},
+				}, nil
+			}
+			// Second call: pass
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		},
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:         &fakeStage{},
+		Build:        buildStage,
+		Validate:     validateStage,
+		WiringGate:   wiringGateStage,
+		Epilogue:     &fakeStage{},
+		GetBead:      getBead,
+		Config: &config.Config{
+			Validation: config.ValidationConfig{
+				MaxValidationRetries: 2,
+			},
+		},
+		Output: io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	err := orch.Run(context.Background(), 10, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	// Verify that Build, Validate, and WiringGate were called twice each (retry)
+	if buildCalls != 2 {
+		t.Errorf("Build called %d times; want 2 (initial + retry after wiring gate failure)", buildCalls)
+	}
+	if validateCalls != 2 {
+		t.Errorf("Validate called %d times; want 2 (initial + retry after wiring gate failure)", validateCalls)
+	}
+	if wiringGateCalls != 2 {
+		t.Errorf("WiringGate called %d times; want 2 (initial failure + retry)", wiringGateCalls)
+	}
+}

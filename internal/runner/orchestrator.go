@@ -38,6 +38,12 @@ type OrchestratorConfig struct {
 	Validate pipeline.Stage
 	// LocalGate runs spec-only acceptance checks after implementation succeeds.
 	LocalGate pipeline.Stage
+	// WiringGate is an optional quality gate stage that checks symbol wiring.
+	// Runs after Validate; if it fails, triggers a retry. Nil means skip.
+	WiringGate pipeline.Stage
+	// RegressionGate is an optional quality gate stage that runs regression tests.
+	// Runs concurrently with Review; if it fails, triggers a retry. Nil means skip.
+	RegressionGate pipeline.Stage
 	// Review is Stage 4: optional LLM code review. Nil means skip.
 	Review pipeline.Stage
 	// Epilogue is Stage 5: bead lifecycle and cleanup.
@@ -806,6 +812,83 @@ runLoop:
 					TimeMixin: events.TimeMixin{Time: time.Now()},
 				})
 				continue
+			}
+		}
+
+		// Stage 3b: Wiring Gate — optional quality gate that runs after validation.
+		// On failure, triggers a retry of Build→Validate→WiringGate.
+		var wiringFailures []string
+		if o.cfg.WiringGate != nil {
+			wiringGateOut, wiringGateErr := o.cfg.WiringGate.Run(ctx, baseIn)
+			if wiringGateErr != nil || wiringGateOut.Decision != pipeline.Proceed {
+				wiringFailures = append([]string(nil), wiringGateOut.WiringFailures...)
+				maxValidationRetries := 0
+				if o.cfg.Config != nil {
+					maxValidationRetries = o.cfg.Config.Validation.MaxValidationRetries
+				}
+				wiringPassed := wiringGateErr == nil && wiringGateOut.Decision == pipeline.Proceed
+				for attempt := 1; attempt <= maxValidationRetries && !wiringPassed; attempt++ {
+					if wiringGateErr != nil {
+						break
+					}
+					o.logWarning("Warning: wiring gate failed for bead %s (iteration %d), attempting recovery build %d/%d", b.ID, iteration, attempt, maxValidationRetries)
+					retryIn := baseIn
+					retryIn.ValidationFailures = append([]string(nil), wiringFailures...)
+
+					retryBuildOut, retryBuildErr := o.cfg.Build.Run(ctx, retryIn)
+					buildOut = retryBuildOut
+					if retryBuildErr != nil {
+						wiringGateErr = retryBuildErr
+						break
+					}
+
+					validateOut, validateErr = o.cfg.Validate.Run(ctx, retryIn)
+					if validateErr != nil || validateOut.Decision != pipeline.Proceed {
+						break
+					}
+
+					wiringGateOut, wiringGateErr = o.cfg.WiringGate.Run(ctx, retryIn)
+					wiringPassed = wiringGateErr == nil && wiringGateOut.Decision == pipeline.Proceed
+					if !wiringPassed {
+						wiringFailures = append([]string(nil), wiringGateOut.WiringFailures...)
+					}
+				}
+				if !wiringPassed {
+					// Wiring gate still failed after retries
+					failureReasons := append([]string(nil), wiringFailures...)
+					if wiringGateErr != nil {
+						failureReasons = append(failureReasons, wiringGateErr.Error())
+					}
+					failureMessage := strings.Join(failureReasons, "; ")
+					if failureMessage == "" {
+						failureMessage = "wiring gate failed"
+					}
+					baseIn.Result = &logger.IterationLog{
+						Timestamp:                time.Now(),
+						Iteration:                iteration,
+						BeadID:                   b.ID,
+						BeadTitle:                b.Title,
+						Success:                  false,
+						FailurePhase:             failurephase.Validation,
+						ValidationFailures:       wiringFailures,
+						Error:                    failureMessage,
+						Complexity:               baseIn.Complexity,
+						ComplexitySource:         baseIn.ComplexitySource,
+						ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
+					}
+					baseIn.FailureOutput = strings.Join(wiringFailures, "\n")
+					stampBuildAttribution(baseIn.Result, buildOut)
+					o.emitBeadFailedEvent(b, failureMessage)
+					o.runEpilogue(ctx, baseIn, false)
+					o.emitter.Emit(&events.IterationCompleteEvent{
+						Iteration: iteration,
+						BeadID:    b.ID,
+						Success:   false,
+						Duration:  0,
+						TimeMixin: events.TimeMixin{Time: time.Now()},
+					})
+					continue
+				}
 			}
 		}
 
