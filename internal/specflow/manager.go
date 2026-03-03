@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 )
 
 var ErrStageNotFound = errors.New("spec stage not found")
@@ -16,6 +17,7 @@ type SpecStore interface {
 
 type Manager struct {
 	store SpecStore
+	mu    sync.Mutex
 }
 
 func NewManager(store SpecStore) *Manager {
@@ -41,6 +43,9 @@ func (m *Manager) ResumeWithBootstrap(ctx context.Context, specID string) (Stage
 }
 
 func (m *Manager) Advance(ctx context.Context, specID string, next Stage) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	current, _, err := m.ResumeWithBootstrap(ctx, specID)
 	if err != nil {
 		return err
