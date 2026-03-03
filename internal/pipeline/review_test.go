@@ -137,7 +137,7 @@ func TestReviewNonInteractiveWorkflow_E2E(t *testing.T) {
 
 	createdBeads := []reviewAcceptanceBeadRecord{}
 	mockBead := &reviewAcceptanceMockBeadClient{
-		createFunc: func(title string, priority int, labels []string, outputs []string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, outputs []string) (*BeadInfo, error) {
 			createdBeads = append(createdBeads, reviewAcceptanceBeadRecord{
 				title:    title,
 				priority: priority,
@@ -315,7 +315,7 @@ func TestReviewNonInteractiveWorkflow_CreatesBeadsWithFromReviewLabel(t *testing
 
 	var capturedLabels []string
 	mockBead := &reviewAcceptanceMockBeadClient{
-		createFunc: func(title string, priority int, labels []string, outputs []string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, outputs []string) (*BeadInfo, error) {
 			capturedLabels = labels
 			return &BeadInfo{ID: "bead-1"}, nil
 		},
@@ -725,7 +725,7 @@ func TestReviewNonInteractiveWorkflow_UsesExpectedOutputsOrTitle(t *testing.T) {
 
 	var createdBeads []reviewAcceptanceBeadRecord
 	mockBead := &reviewAcceptanceMockBeadClient{
-		createFunc: func(title string, priority int, labels []string, outputs []string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, outputs []string) (*BeadInfo, error) {
 			createdBeads = append(createdBeads, reviewAcceptanceBeadRecord{
 				title:    title,
 				priority: priority,
@@ -875,7 +875,7 @@ type reviewAcceptanceBeadRecord struct {
 }
 
 type reviewAcceptanceMockBeadClient struct {
-	createFunc func(title string, priority int, labels []string, outputs []string) (*BeadInfo, error)
+	createFunc func(ctx context.Context, title string, priority int, labels []string, outputs []string) (*BeadInfo, error)
 }
 
 func (m *reviewAcceptanceMockBeadClient) Ready(ctx context.Context) (*BeadInfo, error) {
@@ -888,7 +888,7 @@ func (m *reviewAcceptanceMockBeadClient) Show(ctx context.Context, id string) (*
 
 func (m *reviewAcceptanceMockBeadClient) Create(ctx context.Context, title string, priority int, labels []string, outputs []string) (*BeadInfo, error) {
 	if m.createFunc != nil {
-		return m.createFunc(title, priority, labels, outputs)
+		return m.createFunc(ctx, title, priority, labels, outputs)
 	}
 	return &BeadInfo{ID: "bead-1"}, nil
 }

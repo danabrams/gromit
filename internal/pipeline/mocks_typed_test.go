@@ -96,7 +96,7 @@ func TestDecomposeAcceptanceMocks_UseTypedReturns(t *testing.T) {
 
 	t.Run("decomposeAcceptanceBeadClient returns BeadInfo", func(t *testing.T) {
 		mock := &decomposeAcceptanceBeadClient{
-			createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+			createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 				return &BeadInfo{
 					ID:       "bead-123",
 					Title:    title,
@@ -151,7 +151,7 @@ func TestReviewAcceptanceMocks_UseTypedReturns(t *testing.T) {
 
 	t.Run("reviewAcceptanceMockBeadClient returns BeadInfo", func(t *testing.T) {
 		mock := &reviewAcceptanceMockBeadClient{
-			createFunc: func(title string, priority int, labels []string, outputs []string) (*BeadInfo, error) {
+			createFunc: func(ctx context.Context, title string, priority int, labels []string, outputs []string) (*BeadInfo, error) {
 				return &BeadInfo{
 					ID:       "bead-456",
 					Title:    title,
@@ -213,7 +213,7 @@ func TestDecomposeAcceptanceBeadDef_DoesNotExist(t *testing.T) {
 	// Create a mock using BeadInfo directly
 	var createdBeads []*BeadInfo
 	mock := &decomposeAcceptanceBeadClient{
-		createFunc: func(title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
+		createFunc: func(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*BeadInfo, error) {
 			bead := &BeadInfo{
 				ID:       "test-id",
 				Title:    title,
