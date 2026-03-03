@@ -803,6 +803,39 @@ func TestOptionalTDDCycleRunner_ReturnsNilWhenMethodologyAdapterIsNonGo(t *testi
 	}
 }
 
+func TestNewRunnerImpl_AllowsFreshContextPerCycle(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	logsDir := filepath.Join(tmpDir, "logs")
+	claudePath := filepath.Join(tmpDir, "CLAUDE.md")
+	if err := os.MkdirAll(templatesDir, 0o755); err != nil {
+		t.Fatalf("mkdir templates: %v", err)
+	}
+	if err := os.MkdirAll(logsDir, 0o755); err != nil {
+		t.Fatalf("mkdir logs: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(tmpDir, "specs"), 0o755); err != nil {
+		t.Fatalf("mkdir specs: %v", err)
+	}
+	if err := os.WriteFile(claudePath, []byte("test"), 0o644); err != nil {
+		t.Fatalf("write claude md: %v", err)
+	}
+
+	cfg := &config.Config{}
+	cfg.Paths.Templates = templatesDir
+	cfg.Paths.Specs = filepath.Join(tmpDir, "specs")
+	cfg.Paths.Logs = logsDir
+	cfg.Paths.ProjectClaudeMD = claudePath
+	cfg.Methodology.FreshContextPerCycle = true
+	cfg.Methodology.Adapter = "go"
+
+	if _, err := newRunnerImpl(cfg, io.Discard, nil); err != nil {
+		t.Fatalf("newRunnerImpl error = %v", err)
+	}
+}
+
 func TestNewRunnerImpl_WiresIntegrationQueueCoordinator(t *testing.T) {
 	t.Parallel()
 
