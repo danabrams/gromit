@@ -21,7 +21,9 @@ type identifierProvider interface {
 	Identifier() string
 }
 
-type pipelineRefreshedMsg struct{}
+type pipelineRefreshedMsg struct {
+	RequestedTab Tab
+}
 
 // handleAction routes pipeline tab keystrokes to their respective behaviors.
 func handleAction(m *Model, key string, activeTab Tab, selectedItem ListItem, store *Store) (tea.Model, tea.Cmd) {
@@ -40,7 +42,7 @@ func handleAction(m *Model, key string, activeTab Tab, selectedItem ListItem, st
 		m.pendingAction = buildPendingAction("decompose", extractIdentifier(selectedItem))
 		return m, tea.Quit
 	case "R":
-		return m, refreshPipelineCmd()
+		return m, refreshPipelineCmd(activeTab)
 	default:
 		return m, nil
 	}
@@ -67,8 +69,10 @@ func buildPendingAction(command, target string) *PendingAction {
 	}
 }
 
-func refreshPipelineCmd() tea.Cmd {
+func refreshPipelineCmd(active Tab) tea.Cmd {
 	return func() tea.Msg {
-		return pipelineRefreshedMsg{}
+		return pipelineRefreshedMsg{
+			RequestedTab: active,
+		}
 	}
 }
