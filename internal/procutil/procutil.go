@@ -164,13 +164,18 @@ func SubprocessEnv() []string {
 	return env
 }
 
+func resolveProcessCapacityMaxWait(maxWait time.Duration) time.Duration {
+	if maxWait <= 0 {
+		return DefaultProcessCapacityMaxWait
+	}
+	return maxWait
+}
+
 // WaitForProcessCapacity pauses briefly when the current cgroup is near its PID
 // limit, reducing fork/exec EAGAIN spikes during process bursts. Best effort:
 // if cgroup metrics are unavailable, it returns immediately.
 func WaitForProcessCapacity(ctx context.Context, maxWait time.Duration) error {
-	if maxWait <= 0 {
-		maxWait = DefaultProcessCapacityMaxWait
-	}
+	maxWait = resolveProcessCapacityMaxWait(maxWait)
 
 	start := timeNowFn()
 	deadline := start.Add(maxWait)
