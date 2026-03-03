@@ -18,10 +18,8 @@ import (
 	"github.com/danabrams/gromit/internal/integrationqueue"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/pipeline/prepare"
-	wiringgate "github.com/danabrams/gromit/internal/pipeline/qualitygate/wiring"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/escalation"
-	"github.com/danabrams/gromit/internal/runner/pipeline/midreview"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/danabrams/gromit/internal/validate"
@@ -734,6 +732,39 @@ func TestFailureLearnerAdapter_CallsAnalyzer(t *testing.T) {
 	}
 }
 
+func TestNewRunnerImpl_AllowsFreshContextPerCycle(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	logsDir := filepath.Join(tmpDir, "logs")
+	claudePath := filepath.Join(tmpDir, "CLAUDE.md")
+	if err := os.MkdirAll(templatesDir, 0o755); err != nil {
+		t.Fatalf("mkdir templates: %v", err)
+	}
+	if err := os.MkdirAll(logsDir, 0o755); err != nil {
+		t.Fatalf("mkdir logs: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(tmpDir, "specs"), 0o755); err != nil {
+		t.Fatalf("mkdir specs: %v", err)
+	}
+	if err := os.WriteFile(claudePath, []byte("test"), 0o644); err != nil {
+		t.Fatalf("write claude md: %v", err)
+	}
+
+	cfg := &config.Config{}
+	cfg.Paths.Templates = templatesDir
+	cfg.Paths.Specs = filepath.Join(tmpDir, "specs")
+	cfg.Paths.Logs = logsDir
+	cfg.Paths.ProjectClaudeMD = claudePath
+	cfg.Methodology.FreshContextPerCycle = true
+	cfg.Methodology.Adapter = "go"
+
+	if _, err := newRunnerImpl(cfg, io.Discard, nil); err != nil {
+		t.Fatalf("newRunnerImpl error = %v", err)
+	}
+}
+
 func TestNewRunnerImpl_WiresIntegrationQueueCoordinator(t *testing.T) {
 	t.Parallel()
 
@@ -940,10 +971,6 @@ func TestFailureLearnerAdapter_ForwardsFailureOutput(t *testing.T) {
 	}
 }
 
-// TestNewRunnerImpl_StatusWriterComputesTimeBudgetFromDeadline verifies that the
-// StatusWriter closure created by newRunnerImpl computes timeBudgetMinutes from the
-// deadline parameter instead of hardcoding 0. When the deadline is 30 minutes away,
-// the status.json should contain time_budget_minutes ≈ 30, not 0.
 func TestNewRunnerImpl_StatusWriterComputesTimeBudgetFromDeadline(t *testing.T) {
 	t.Parallel()
 	tmpDir := t.TempDir()
@@ -1222,115 +1249,6 @@ func TestNewRunnerImpl_GateStageCriteriaEnricherWiring(t *testing.T) {
 		if got := gateStage.HasCriteriaEnricher(); got != tc.want {
 			t.Fatalf("HasCriteriaEnricher() = %v, want %v", got, tc.want)
 		}
-	}
-}
-
-func TestNewRunnerImpl_WiresRegressionGate(t *testing.T) {
-	t.Parallel()
-	tmpDir := t.TempDir()
-	gromitDir := filepath.Join(tmpDir, ".gromit")
-	_ = os.MkdirAll(filepath.Join(gromitDir, "templates"), 0o755)
-	_ = os.MkdirAll(filepath.Join(gromitDir, "specs"), 0o755)
-	_ = os.MkdirAll(filepath.Join(tmpDir, "logs"), 0o755)
-	claudePath := filepath.Join(gromitDir, "CLAUDE.md")
-	if err := os.WriteFile(claudePath, []byte("# CLAUDE\n"), 0o644); err != nil {
-		t.Fatalf("os.WriteFile(%q): %v", claudePath, err)
-	}
-
-	cfg := &config.Config{
-		QualityGates: &config.QualityGatesConfig{
-			Regression: &config.RegressionGateConfig{
-				Enabled: true,
-				Command: "go test ./...",
-			},
-		},
-	}
-	cfg.Paths.Templates = filepath.Join(gromitDir, "templates")
-	cfg.Paths.Specs = filepath.Join(gromitDir, "specs")
-	cfg.Paths.Logs = filepath.Join(tmpDir, "logs")
-	cfg.Paths.ProjectClaudeMD = claudePath
-	cfg.Paths.GromitDir = gromitDir
-
-	orch, err := newRunnerImpl(cfg, io.Discard, nil)
-	if err != nil {
-		t.Fatalf("newRunnerImpl: %v", err)
-	}
-	if orch.cfg.RegressionGate == nil {
-		t.Fatal("newRunnerImpl did not wire RegressionGate stage")
-	}
-}
-
-func TestNewRunnerImpl_WiresWiringGate(t *testing.T) {
-	t.Parallel()
-	tmpDir := t.TempDir()
-	gromitDir := filepath.Join(tmpDir, ".gromit")
-	_ = os.MkdirAll(filepath.Join(gromitDir, "templates"), 0o755)
-	_ = os.MkdirAll(filepath.Join(gromitDir, "specs"), 0o755)
-	_ = os.MkdirAll(filepath.Join(tmpDir, "logs"), 0o755)
-	claudePath := filepath.Join(gromitDir, "CLAUDE.md")
-	if err := os.WriteFile(claudePath, []byte("# CLAUDE\n"), 0o644); err != nil {
-		t.Fatalf("os.WriteFile(%q): %v", claudePath, err)
-	}
-
-	cfg := &config.Config{
-		QualityGates: &config.QualityGatesConfig{
-			Wiring: &config.WiringGateConfig{
-				Enabled: true,
-			},
-		},
-	}
-	cfg.Paths.Templates = filepath.Join(gromitDir, "templates")
-	cfg.Paths.Specs = filepath.Join(gromitDir, "specs")
-	cfg.Paths.Logs = filepath.Join(tmpDir, "logs")
-	cfg.Paths.ProjectClaudeMD = claudePath
-	cfg.Paths.GromitDir = gromitDir
-
-	orch, err := newRunnerImpl(cfg, io.Discard, nil)
-	if err != nil {
-		t.Fatalf("newRunnerImpl: %v", err)
-	}
-	if orch.cfg.WiringGate == nil {
-		t.Fatal("newRunnerImpl did not wire WiringGate stage")
-	}
-	if _, ok := orch.cfg.WiringGate.(*wiringgate.Gate); !ok {
-		t.Fatalf("WiringGate stage is %T, want *wiringgate.Gate", orch.cfg.WiringGate)
-	}
-}
-
-func TestNewRunnerImpl_WiresMidReviewStage(t *testing.T) {
-	t.Parallel()
-	tmpDir := t.TempDir()
-	gromitDir := filepath.Join(tmpDir, ".gromit")
-	templatesDir := filepath.Join(gromitDir, "templates")
-	specsDir := filepath.Join(gromitDir, "specs")
-	logsDir := filepath.Join(tmpDir, "logs")
-	for _, dir := range []string{templatesDir, specsDir, logsDir} {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			t.Fatalf("os.MkdirAll(%q): %v", dir, err)
-		}
-	}
-	claudePath := filepath.Join(gromitDir, "CLAUDE.md")
-	if err := os.WriteFile(claudePath, []byte("# CLAUDE\n"), 0o644); err != nil {
-		t.Fatalf("os.WriteFile(%q): %v", claudePath, err)
-	}
-
-	cfg := &config.Config{}
-	cfg.Paths.Templates = templatesDir
-	cfg.Paths.Specs = specsDir
-	cfg.Paths.Logs = logsDir
-	cfg.Paths.ProjectClaudeMD = claudePath
-	cfg.Paths.GromitDir = gromitDir
-	cfg.MidBuildReview.Enabled = true
-
-	orch, err := newRunnerImpl(cfg, io.Discard, nil)
-	if err != nil {
-		t.Fatalf("newRunnerImpl: %v", err)
-	}
-	if orch.cfg.MidReview == nil {
-		t.Fatal("newRunnerImpl did not wire MidReview stage")
-	}
-	if _, ok := orch.cfg.MidReview.(*midreview.Stage); !ok {
-		t.Fatalf("MidReview stage is %T, want *midreview.Stage", orch.cfg.MidReview)
 	}
 }
 

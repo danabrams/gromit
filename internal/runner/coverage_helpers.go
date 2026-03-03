@@ -9,22 +9,28 @@ import (
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
+// populateCoverageResult populates coverage fields in bc.Result from the tracker.
 func populateCoverageResult(bc *runtypes.BeadContext, tracker *coverage.CoverageTracker) {
 	if bc == nil || bc.Result == nil || tracker == nil {
 		return
 	}
 
 	bc.Result.CriteriaTotal = tracker.TotalCriteria()
-	bc.Result.CriteriaCovered = len(tracker.CoveredCriteria())
-	bc.Result.CriteriaUntestable = len(tracker.UntestableCriteria())
+	coveredCriteria := tracker.CoveredCriteria()
+	bc.Result.CriteriaCovered = len(coveredCriteria)
 
-	uncovered := tracker.UncoveredCriteria()
-	bc.Result.UncoveredCriteria = make([]string, len(uncovered))
-	for i, criterion := range uncovered {
+	untestableCriteria := tracker.UntestableCriteria()
+	bc.Result.CriteriaUntestable = len(untestableCriteria)
+
+	uncoveredCriteria := tracker.UncoveredCriteria()
+	bc.Result.UncoveredCriteria = make([]string, len(uncoveredCriteria))
+	for i, criterion := range uncoveredCriteria {
 		bc.Result.UncoveredCriteria[i] = criterion.Text
 	}
 }
 
+// addCoverageCommentWithClient adds a bead comment with the coverage summary
+// when there are uncovered or untestable criteria.
 func addCoverageCommentWithClient(ctx context.Context, bc *runtypes.BeadContext, tracker *coverage.CoverageTracker, beadsClient interface {
 	AddComment(ctx context.Context, id, comment string) error
 }) {
@@ -42,6 +48,8 @@ func addCoverageCommentWithClient(ctx context.Context, bc *runtypes.BeadContext,
 	_ = beadsClient.AddComment(ctx, bc.Bead.ID, summary)
 }
 
+// logCoverageSummary logs the coverage summary to the provided writer when
+// there are uncovered or untestable criteria.
 func logCoverageSummary(output io.Writer, tracker *coverage.CoverageTracker) {
 	if output == nil || tracker == nil {
 		return
