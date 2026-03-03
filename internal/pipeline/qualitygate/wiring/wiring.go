@@ -1,13 +1,11 @@
 package wiring
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -44,7 +42,7 @@ func (g *Gate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, err
 		return pipeline.Output{}, fmt.Errorf("wiring: git diff: %w", err)
 	}
 
-	symbols := extractSymbolsFromDiff(diff)
+	symbols := ExtractSymbolsFromDiff(diff)
 	if len(symbols) == 0 {
 		return pipeline.Output{Decision: pipeline.Proceed}, nil
 	}
@@ -76,83 +74,7 @@ func isEnabled(cfg *config.Config) bool {
 	return cfg.WiringGate.Enabled
 }
 
-type symbol struct {
-	Name string
-	File string
-}
-
-func extractSymbolsFromDiff(diff string) []symbol {
-	scanner := bufio.NewScanner(strings.NewReader(diff))
-	currentFile := ""
-	seens := make(map[string]struct{})
-	var symbols []symbol
-
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.HasPrefix(line, "+++ ") {
-			raw := strings.TrimPrefix(line, "+++ ")
-			if raw == "/dev/null" {
-				currentFile = ""
-				continue
-			}
-			if strings.HasPrefix(raw, "b/") {
-				currentFile = filepath.ToSlash(strings.TrimPrefix(raw, "b/"))
-			} else {
-				currentFile = filepath.ToSlash(raw)
-			}
-			continue
-		}
-		if currentFile == "" {
-			continue
-		}
-		if !strings.HasPrefix(line, "+") || strings.HasPrefix(line, "+++") {
-			continue
-		}
-		trimmed := strings.TrimSpace(line[1:])
-		if trimmed == "" {
-			continue
-		}
-		if name := parseSymbolName(trimmed); name != "" {
-			key := currentFile + ":" + name
-			if _, ok := seens[key]; ok {
-				continue
-			}
-			seens[key] = struct{}{}
-			symbols = append(symbols, symbol{
-				Name: name,
-				File: currentFile,
-			})
-		}
-	}
-
-	return symbols
-}
-
-var (
-	funcDeclRE    = regexp.MustCompile(`^func\s+([A-Z]\w*)\s*\(`)
-	methodDeclRE  = regexp.MustCompile(`^func\s+\([^)]*\)\s+([A-Z]\w*)\s*\(`)
-	typeDeclRE    = regexp.MustCompile(`^type\s+([A-Z]\w*)\b`)
-	constDeclRE   = regexp.MustCompile(`^const\s+([A-Z]\w*)\b`)
-	varDeclRE     = regexp.MustCompile(`^var\s+([A-Z]\w*)\b`)
-	symbolPatterns = []*regexp.Regexp{
-		methodDeclRE,
-		funcDeclRE,
-		typeDeclRE,
-		constDeclRE,
-		varDeclRE,
-	}
-)
-
-func parseSymbolName(line string) string {
-	for _, pattern := range symbolPatterns {
-		if matches := pattern.FindStringSubmatch(line); len(matches) > 1 {
-			return matches[1]
-		}
-	}
-	return ""
-}
-
-func hasExternalReference(ctx context.Context, sym symbol) (bool, error) {
+func hasExternalReference(ctx context.Context, sym Symbol) (bool, error) {
 	cmd := exec.CommandContext(
 		ctx,
 		"grep",
