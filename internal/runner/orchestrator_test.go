@@ -1744,6 +1744,109 @@ func TestOrchestrator_MidReviewErrorLogged(t *testing.T) {
 	}
 }
 
+func TestOrchestrator_MidReviewMetricsCaptured(t *testing.T) {
+	t.Parallel()
+	findings := []string{"fix logging"}
+	midReview := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{
+			Decision:               pipeline.Proceed,
+			MidBuildReviewFindings: findings,
+			DurationMs:             120,
+			CostUSD:                0.42,
+			InputTokens:            100,
+			OutputTokens:           200,
+		}, nil
+	}}
+
+	buildCall := 0
+	build := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		buildCall++
+		if buildCall == 1 {
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		}
+		return pipeline.Output{
+			Decision:     pipeline.Proceed,
+			DurationMs:   500,
+			CostUSD:      0.75,
+			InputTokens:  150,
+			OutputTokens: 250,
+		}, nil
+	}}
+
+	validate := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	var capturedResult *logger.IterationLog
+	epilogueStage := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		capturedResult = in.Result
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-mid-review-metrics", Title: "Mid review metrics"}, nil
+	}
+
+	orch := NewOrchestrator(OrchestratorConfig{
+		Gate:      &fakeStage{},
+		Build:     build,
+		MidReview: midReview,
+		Validate:  validate,
+		Epilogue:  epilogueStage,
+		GetBead:   getBead,
+		Config:    &config.Config{},
+		Output:    io.Discard,
+	})
+
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if capturedResult == nil {
+		t.Fatal("Iteration log was not captured")
+	}
+	if !capturedResult.MidReviewRan {
+		t.Fatalf("MidReviewRan = %v, want true", capturedResult.MidReviewRan)
+	}
+	if capturedResult.MidReviewFindingsCount != len(findings) {
+		t.Fatalf("MidReviewFindingsCount = %d, want %d", capturedResult.MidReviewFindingsCount, len(findings))
+	}
+	if !capturedResult.MidReviewFixBuild {
+		t.Fatalf("MidReviewFixBuild = %v, want true", capturedResult.MidReviewFixBuild)
+	}
+	if capturedResult.MidReviewDurationMs != 120 {
+		t.Fatalf("MidReviewDurationMs = %d, want %d", capturedResult.MidReviewDurationMs, 120)
+	}
+	if capturedResult.MidReviewCostUSD != 0.42 {
+		t.Fatalf("MidReviewCostUSD = %f, want %f", capturedResult.MidReviewCostUSD, 0.42)
+	}
+	if capturedResult.MidReviewInputTokens != 100 {
+		t.Fatalf("MidReviewInputTokens = %d, want %d", capturedResult.MidReviewInputTokens, 100)
+	}
+	if capturedResult.MidReviewOutputTokens != 200 {
+		t.Fatalf("MidReviewOutputTokens = %d, want %d", capturedResult.MidReviewOutputTokens, 200)
+	}
+	if !capturedResult.FixBuildRan {
+		t.Fatalf("FixBuildRan = %v, want true", capturedResult.FixBuildRan)
+	}
+	if capturedResult.FixBuildDurationMs != 500 {
+		t.Fatalf("FixBuildDurationMs = %d, want %d", capturedResult.FixBuildDurationMs, 500)
+	}
+	if capturedResult.FixBuildCostUSD != 0.75 {
+		t.Fatalf("FixBuildCostUSD = %f, want %f", capturedResult.FixBuildCostUSD, 0.75)
+	}
+	if capturedResult.FixBuildInputTokens != 150 {
+		t.Fatalf("FixBuildInputTokens = %d, want %d", capturedResult.FixBuildInputTokens, 150)
+	}
+	if capturedResult.FixBuildOutputTokens != 250 {
+		t.Fatalf("FixBuildOutputTokens = %d, want %d", capturedResult.FixBuildOutputTokens, 250)
+	}
+}
 // TestOrchestrator_RunSequence_UsesCallerProvidedOrder verifies that RunSequence
 // resolves bead IDs via GetBeadByID and executes them in the exact caller-provided
 // order, independent of queue ordering.
