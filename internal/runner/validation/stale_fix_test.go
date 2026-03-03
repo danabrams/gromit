@@ -5,8 +5,9 @@ import "testing"
 func TestStaleFixDetectorDetectsRepeatedNoOp(t *testing.T) {
 	detector := NewStaleFixDetector()
 	snapshot := StaleFixSnapshot{
-		ChangedFiles:   []string{"a.go", "b.go"},
-		ErrorCategories: []string{"test_failure"},
+		ChangedFiles:      []string{"a.go", "b.go"},
+		ErrorCategories:   []string{"test_failure"},
+		ChangedFilesKnown: true,
 	}
 
 	first := detector.RecordAttempt(snapshot)

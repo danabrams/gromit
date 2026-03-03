@@ -2,8 +2,9 @@ package validation
 
 // StaleFixSnapshot captures metadata for a validation retry attempt.
 type StaleFixSnapshot struct {
-	ChangedFiles   []string
-	ErrorCategories []string
+	ChangedFiles      []string
+	ErrorCategories   []string
+	ChangedFilesKnown bool
 }
 
 // StaleFixDetection reports whether the current attempt repeats the previous one.
@@ -33,13 +34,16 @@ func NewStaleFixDetector() *StaleFixDetector {
 func (d *StaleFixDetector) RecordAttempt(snapshot StaleFixSnapshot) StaleFixDetection {
 	detection := StaleFixDetection{}
 	if d.previous != nil {
-		detection.ChangedFilesMatch = stringSlicesEqual(snapshot.ChangedFiles, d.previous.ChangedFiles)
+		if snapshot.ChangedFilesKnown && d.previous.ChangedFilesKnown {
+			detection.ChangedFilesMatch = stringSlicesEqual(snapshot.ChangedFiles, d.previous.ChangedFiles)
+		}
 		detection.ErrorCategoriesMatch = stringSlicesEqual(snapshot.ErrorCategories, d.previous.ErrorCategories)
 		detection.StaleFixDetected = detection.ChangedFilesMatch && detection.ErrorCategoriesMatch
 	}
 	d.previous = &StaleFixSnapshot{
-		ChangedFiles:   cloneStringSlice(snapshot.ChangedFiles),
-		ErrorCategories: cloneStringSlice(snapshot.ErrorCategories),
+		ChangedFiles:      cloneStringSlice(snapshot.ChangedFiles),
+		ErrorCategories:   cloneStringSlice(snapshot.ErrorCategories),
+		ChangedFilesKnown: snapshot.ChangedFilesKnown,
 	}
 	return detection
 }

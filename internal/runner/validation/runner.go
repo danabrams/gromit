@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
+	"os/exec"
 	"path"
 	"regexp"
 	"strings"
@@ -28,13 +31,16 @@ type ExecuteFn func(ctx context.Context, bc *runtypes.BeadContext, escalationEna
 
 // Runner handles direct validation command execution and recovery.
 type Runner struct {
-	cfg               *config.Config
-	cmdRunner         runtypes.CmdRunnerFn
-	autoFixFn         runtypes.AutoFixFn
-	executeFn         ExecuteFn
-	failures          []string // accumulated validation failure summaries
-	elapsed           time.Duration
-	lastFailureOutput string
+	cfg                   *config.Config
+	cmdRunner             runtypes.CmdRunnerFn
+	autoFixFn             runtypes.AutoFixFn
+	executeFn             ExecuteFn
+	failures              []string // accumulated validation failure summaries
+	elapsed               time.Duration
+	lastFailureOutput     string
+	listChangedFilesFn    listChangedFilesFn
+	logOutput             io.Writer
+	lastFailureCategories []string
 }
 
 type commandResult struct {
@@ -45,14 +51,18 @@ type commandResult struct {
 	err      error
 }
 
+type listChangedFilesFn func(ctx context.Context, sinceCommit string) ([]string, error)
+
 // NewRunner creates a Runner with narrow dependency interfaces.
 // autoFixFn and executeFn may be nil (no auto-fix or Claude-based recovery).
 func NewRunner(cfg *config.Config, cmdRunner runtypes.CmdRunnerFn, autoFixFn runtypes.AutoFixFn, executeFn ExecuteFn) *Runner {
 	return &Runner{
-		cfg:       cfg,
-		cmdRunner: cmdRunner,
-		autoFixFn: autoFixFn,
-		executeFn: executeFn,
+		cfg:                cfg,
+		cmdRunner:          cmdRunner,
+		autoFixFn:          autoFixFn,
+		executeFn:          executeFn,
+		listChangedFilesFn: defaultListChangedFiles,
+		logOutput:          os.Stderr,
 	}
 }
 
@@ -141,6 +151,11 @@ func (r *Runner) runWithRecoveryForCommands(ctx context.Context, bc *runtypes.Be
 		return err
 	}
 
+	detector := NewStaleFixDetector()
+	if r.shortCircuitOnStaleFix(ctx, bc, detector) {
+		return err
+	}
+
 	maxRetries := r.cfg.Validation.MaxValidationRetries
 	if maxRetries <= 0 {
 		return err
@@ -160,8 +175,13 @@ func (r *Runner) runWithRecoveryForCommands(ctx context.Context, bc *runtypes.Be
 			if valErr := r.runValidationWithCommands(ctx, bc, commands, mode); valErr == nil {
 				bc.Result.TrivialAutoFixed = true
 				return nil
-			} else if !errors.Is(valErr, ErrValidationFailed) {
-				return valErr
+			} else {
+				if !errors.Is(valErr, ErrValidationFailed) {
+					return valErr
+				}
+				if r.shortCircuitOnStaleFix(ctx, bc, detector) {
+					return valErr
+				}
 			}
 		}
 
@@ -179,8 +199,13 @@ func (r *Runner) runWithRecoveryForCommands(ctx context.Context, bc *runtypes.Be
 			// Re-validate after Claude fix
 			if valErr := r.runValidationWithCommands(ctx, bc, commands, mode); valErr == nil {
 				return nil
-			} else if !errors.Is(valErr, ErrValidationFailed) {
-				return valErr
+			} else {
+				if !errors.Is(valErr, ErrValidationFailed) {
+					return valErr
+				}
+				if r.shortCircuitOnStaleFix(ctx, bc, detector) {
+					return valErr
+				}
 			}
 		}
 	}
@@ -216,6 +241,7 @@ func (r *Runner) validationCommands() []string {
 
 // runValidation runs validation commands and updates the bead context result.
 func (r *Runner) runValidationWithCommands(ctx context.Context, bc *runtypes.BeadContext, commands []string, mode string) error {
+	r.lastFailureCategories = nil
 	if !r.cfg.Validation.Enabled {
 		return nil
 	}
@@ -235,6 +261,7 @@ func (r *Runner) runValidationWithCommands(ctx context.Context, bc *runtypes.Bea
 			if errors.Is(result.err, context.DeadlineExceeded) {
 				failureOutput := formatTimeoutFailureOutput(result.command, time.Duration(r.cfg.Validation.CommandTimeout), result.stdout, result.stderr)
 				r.lastFailureOutput = failureOutput
+				r.recordFailureCategories(result.command)
 				bc.Result.Output += runtypes.ValidationOutputHeader + failureOutput
 				return ErrValidationFailed
 			}
@@ -249,6 +276,7 @@ func (r *Runner) runValidationWithCommands(ctx context.Context, bc *runtypes.Bea
 			}
 		}
 		if result.exitCode != 0 {
+			r.recordFailureCategories(result.command)
 			failureOutput := formatFailureOutput(result.command, result.exitCode, result.stdout, result.stderr)
 			if summary := ExtractValidationSummary(failureOutput); summary != "" {
 				r.failures = append(r.failures, summary)
@@ -309,6 +337,85 @@ func (r *Runner) runCommands(ctx context.Context, commands []string, workDir str
 	}
 	wg.Wait()
 	return results, nil
+}
+
+const staleFixShortCircuitMessage = "No meaningful auto-fix progress detected; short-circuiting validation retries."
+
+func (r *Runner) shortCircuitOnStaleFix(ctx context.Context, bc *runtypes.BeadContext, detector *StaleFixDetector) bool {
+	if r == nil || bc == nil || detector == nil {
+		return false
+	}
+	changedFiles, known := r.gatherChangedFiles(ctx, bc)
+	snapshot := StaleFixSnapshot{
+		ChangedFiles:      changedFiles,
+		ChangedFilesKnown: known,
+		ErrorCategories:   cloneStringSlice(r.lastFailureCategories),
+	}
+	detection := detector.RecordAttempt(snapshot)
+	if detection.StaleFixDetected {
+		r.emitStaleFixMessage(bc)
+		return true
+	}
+	return false
+}
+
+func (r *Runner) gatherChangedFiles(ctx context.Context, bc *runtypes.BeadContext) ([]string, bool) {
+	if r == nil || bc == nil || r.listChangedFilesFn == nil {
+		return nil, false
+	}
+	commit := strings.TrimSpace(bc.StartCommit)
+	if commit == "" {
+		return nil, false
+	}
+	files, err := r.listChangedFilesFn(ctx, commit)
+	if err != nil {
+		return nil, false
+	}
+	if files == nil {
+		files = []string{}
+	}
+	return files, true
+}
+
+func (r *Runner) emitStaleFixMessage(bc *runtypes.BeadContext) {
+	if bc != nil && bc.Result != nil {
+		bc.Result.Output += runtypes.ValidationOutputHeader + staleFixShortCircuitMessage + "\n"
+	}
+	if r != nil && r.logOutput != nil {
+		_, _ = fmt.Fprintf(r.logOutput, "Warning: %s\n", staleFixShortCircuitMessage)
+	}
+}
+
+func defaultListChangedFiles(ctx context.Context, sinceCommit string) ([]string, error) {
+	if strings.TrimSpace(sinceCommit) == "" {
+		return nil, nil
+	}
+	cmd := exec.CommandContext(ctx, "git", "diff", "--name-only", sinceCommit)
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+	raw := strings.TrimSpace(string(out))
+	if raw == "" {
+		return []string{}, nil
+	}
+	return strings.Split(raw, "\n"), nil
+}
+
+func (r *Runner) recordFailureCategories(command string) {
+	r.lastFailureCategories = failureCategoriesForCommand(command)
+}
+
+func failureCategoriesForCommand(command string) []string {
+	trimmed := strings.TrimSpace(command)
+	if trimmed == "" {
+		return nil
+	}
+	parts := strings.Fields(trimmed)
+	if len(parts) >= 2 {
+		return []string{fmt.Sprintf("%s %s", parts[0], parts[1])}
+	}
+	return []string{parts[0]}
 }
 
 func (r *Runner) runSingleCommand(ctx context.Context, command, workDir string) commandResult {
