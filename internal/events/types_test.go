@@ -19,6 +19,7 @@ func TestAllEventTypesImplementEvent(t *testing.T) {
 	beadCompleteEvent := &BeadCompleteEvent{BeadID: "b1", BeadTitle: "Test", Duration: 1 * time.Second}
 	beadFailedEvent := &BeadFailedEvent{BeadID: "b1", BeadTitle: "Test", Error: "failed"}
 	beadStuckEvent := &BeadStuckEvent{BeadID: "b1", BeadTitle: "Test", Reason: "stalled"}
+	beadUnstickedEvent := &BeadUnstickedEvent{BeadID: "b1", Reason: "manual"}
 	beadSkippedEvent := &BeadSkippedEvent{BeadID: "b1", Reason: "test"}
 
 	// Phase events
@@ -61,7 +62,7 @@ func TestAllEventTypesImplementEvent(t *testing.T) {
 	// Collect all events to test
 	events := []Event{
 		runStartEvent, runCompleteEvent, iterStartEvent, iterCompleteEvent,
-		beadCompleteEvent, beadFailedEvent, beadStuckEvent, beadSkippedEvent,
+		beadCompleteEvent, beadFailedEvent, beadStuckEvent, beadUnstickedEvent, beadSkippedEvent,
 		buildStartEvent, buildCompleteEvent, validationStartEvent, validationPassEvent,
 		validationFailEvent, reviewStartEvent, reviewCompleteEvent,
 		analysisStartEvent, analysisCompleteEvent, retroStartEvent, retroCompleteEvent,
@@ -103,6 +104,7 @@ func TestEventTypeStringsAreUnique(t *testing.T) {
 		(&BeadCompleteEvent{}).EventType():      true,
 		(&BeadFailedEvent{}).EventType():        true,
 		(&BeadStuckEvent{}).EventType():         true,
+		(&BeadUnstickedEvent{}).EventType():     true,
 		(&BeadSkippedEvent{}).EventType():       true,
 		(&BuildStartEvent{}).EventType():        true,
 		(&BuildCompleteEvent{}).EventType():     true,
@@ -134,7 +136,7 @@ func TestEventTypeStringsAreUnique(t *testing.T) {
 	}
 
 	// If we reach here, all EventType() strings are unique (map keys are unique)
-	if len(eventTypes) != 35 {
+	if len(eventTypes) != 36 {
 		t.Errorf("Expected 35 unique event types, got %d", len(eventTypes))
 	}
 }
@@ -252,6 +254,15 @@ func specEventCases(ts time.Time) []eventSpec {
 				BeadTitle: "title",
 				Reason:    "stuck",
 				Time:      ts,
+			},
+		},
+		{
+			name:     "BeadUnstickedEvent",
+			wantType: "bead_unsticked",
+			event: &BeadUnstickedEvent{
+				BeadID: "b1",
+				Reason: "manual",
+				Time:   ts,
 			},
 		},
 		{

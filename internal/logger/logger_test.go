@@ -3,6 +3,7 @@ package logger
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -311,6 +312,75 @@ func TestReadPerBeadStatsMultipleFiles(t *testing.T) {
 	}
 	if b2.Failures != 1 {
 		t.Errorf("expected b2 failures 1, got %d", b2.Failures)
+	}
+}
+
+func TestReadPerBeadStatsAfterFiltersByRestartPoint(t *testing.T) {
+	dir := t.TempDir()
+
+	first := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
+	second := first.Add(time.Minute)
+	logContent := fmt.Sprintf(
+		`{"timestamp":"%s","iteration":1,"bead_id":"b1","bead_title":"Bug","model":"sonnet","success":false,"validated":false,"escalated":false,"duration_ms":1000}
+{"timestamp":"%s","iteration":2,"bead_id":"b1","bead_title":"Bug","model":"sonnet","success":false,"validated":false,"escalated":false,"duration_ms":1200}
+`, first.Format(time.RFC3339), second.Format(time.RFC3339))
+
+	if err := os.WriteFile(filepath.Join(dir, "run-20260301-000000.jsonl"), []byte(logContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	stats, err := ReadPerBeadStatsAfter(dir, map[string]time.Time{"b1": first})
+	if err != nil {
+		t.Fatalf("ReadPerBeadStatsAfter error: %v", err)
+	}
+
+	b1 := stats["b1"]
+	if b1.TotalRuns != 1 {
+		t.Fatalf("expected 1 total run after restart, got %d", b1.TotalRuns)
+	}
+	if b1.Failures != 1 {
+		t.Fatalf("expected 1 failure after restart, got %d", b1.Failures)
+	}
+	if !b1.LastAttempt.Equal(second) {
+		t.Fatalf("expected last attempt %v, got %v", second, b1.LastAttempt)
+	}
+}
+
+func TestReadPerBeadStatsAfterNilMatchesReadPerBeadStats(t *testing.T) {
+	dir := t.TempDir()
+
+	logContent := `{"timestamp":"2026-03-01T00:00:00Z","iteration":1,"bead_id":"b1","bead_title":"Bug","model":"sonnet","success":false,"validated":false,"escalated":false,"duration_ms":1000}
+{"timestamp":"2026-03-01T00:01:00Z","iteration":2,"bead_id":"b2","bead_title":"Feature","model":"opus","success":true,"validated":true,"escalated":false,"duration_ms":800}
+`
+	if err := os.WriteFile(filepath.Join(dir, "run-20260301-000000.jsonl"), []byte(logContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	fullStats, err := ReadPerBeadStats(dir)
+	if err != nil {
+		t.Fatalf("ReadPerBeadStats error: %v", err)
+	}
+
+	afterStats, err := ReadPerBeadStatsAfter(dir, nil)
+	if err != nil {
+		t.Fatalf("ReadPerBeadStatsAfter error: %v", err)
+	}
+
+	if len(fullStats) != len(afterStats) {
+		t.Fatalf("expected same bead count, got %d vs %d", len(fullStats), len(afterStats))
+	}
+
+	for id, full := range fullStats {
+		after, ok := afterStats[id]
+		if !ok {
+			t.Fatalf("missing bead %s in after stats", id)
+		}
+		if full.TotalRuns != after.TotalRuns || full.Failures != after.Failures || full.Successes != after.Successes {
+			t.Fatalf("stats mismatch for %s", id)
+		}
+		if !full.LastAttempt.Equal(after.LastAttempt) {
+			t.Fatalf("last attempt mismatch for %s: %v vs %v", id, full.LastAttempt, after.LastAttempt)
+		}
 	}
 }
 
