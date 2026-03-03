@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-03-03T17:09:38.379483Z",
+  "updated_at": "2026-03-03T22:22:18.782499Z",
   "entries": [
     {
       "branch": "gromit/debug-1772324767531454001",
@@ -633,26 +633,62 @@
       "last_transition_reason": ""
     },
     {
-      "branch": "gromit/debug-1772552361311699000",
-      "session_id": "gromit/debug-1772552361311699000",
+      "branch": "gromit/debug-1772570206316097000",
+      "session_id": "gromit/debug-1772570206316097000",
       "origin_command": "debug",
-      "state": "conflict",
+      "state": "ready",
       "lane": "code_lane",
-      "created_at": "2026-03-03T17:07:15.829411Z",
-      "updated_at": "2026-03-03T17:09:38.379483Z",
-      "attempt_count": 1,
+      "created_at": "2026-03-03T20:36:46.543068Z",
+      "updated_at": "2026-03-03T21:27:56.494615Z",
+      "attempt_count": 0,
       "retry_count": 0,
-      "fifo_seq": 36,
-      "base_ref": "f5b76b1230935b81690e5ad88b9351cdf1adcd18",
-      "head_sha": "0f7889a6d5a7bc46ec1fa863e9fd94829fb4c4f3",
+      "fifo_seq": 39,
+      "base_ref": "c504ad3f25fce457b36a09c5c22c09f02e53e658",
+      "head_sha": "54ba5ac581598917bc902aa5f829e1b1e91049d0",
       "changed_files": [
-        ".gromit/plans/fix-spec-branch-checkout-preconditions.md",
-        ".gromit/reports/debug-20260303-104035.md"
+        ".gromit/backlog.jsonl",
+        ".gromit/reports/debug-20260303-153826.md"
       ],
-      "changed_files_hash": "sha256:c824f72294071a523d0af8c906ec0f2a3e098acf2c2af81501060227bdeb627c",
-      "last_error_code": "rebase_conflict",
-      "last_error_message": "rebasing branch gromit/debug-1772552361311699000 onto main: exit status 1 (git output: error: cannot rebase: You have unstaged changes.\nerror: Please commit or stash them.)",
-      "last_transition_reason": "rebase conflict during initial fetch"
+      "changed_files_hash": "sha256:76484cca69db9a0a60a8db48d40c62a851e7bf2877d18a5387cdda29d78d4fc3",
+      "last_error_code": "",
+      "last_error_message": "",
+      "last_transition_reason": "session_committed"
+    },
+    {
+      "branch": "gromit/plan-1772573309144759000",
+      "session_id": "gromit/plan-1772573309144759000",
+      "origin_command": "plan",
+      "state": "draft",
+      "lane": "code_lane",
+      "created_at": "2026-03-03T21:28:29.380133Z",
+      "updated_at": "2026-03-03T21:28:29.380133Z",
+      "attempt_count": 0,
+      "retry_count": 0,
+      "fifo_seq": 40,
+      "base_ref": "8d6c222fe695a3532235ecf0203850e4a256dfc2",
+      "head_sha": "8d6c222fe695a3532235ecf0203850e4a256dfc2",
+      "changed_files_hash": "",
+      "last_error_code": "",
+      "last_error_message": "",
+      "last_transition_reason": ""
+    },
+    {
+      "branch": "gromit/debug-1772576538560756000",
+      "session_id": "gromit/debug-1772576538560756000",
+      "origin_command": "debug",
+      "state": "draft",
+      "lane": "code_lane",
+      "created_at": "2026-03-03T22:22:18.782499Z",
+      "updated_at": "2026-03-03T22:22:18.782499Z",
+      "attempt_count": 0,
+      "retry_count": 0,
+      "fifo_seq": 41,
+      "base_ref": "96ee111a11ee99fc44b4a2088c46d8446842228f",
+      "head_sha": "96ee111a11ee99fc44b4a2088c46d8446842228f",
+      "changed_files_hash": "",
+      "last_error_code": "",
+      "last_error_message": "",
+      "last_transition_reason": ""
     }
   ]
 }

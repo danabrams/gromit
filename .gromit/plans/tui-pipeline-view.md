@@ -1,8 +1,9 @@
 ---
+created: 2026-03-03T00:00:00Z
+decomposed: true
+decomposed_at: "2026-03-03T16:55:27-05:00"
 id: tui-pipeline-view
 source_spec: tui-pipeline-view
-created: 2026-03-03
-decomposed: false
 ---
 
 # TUI Pipeline Management View Implementation Plan

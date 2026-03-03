@@ -1,8 +1,9 @@
 ---
+created: 2026-03-03T00:00:00Z
+decomposed: true
+decomposed_at: "2026-03-03T16:48:27-05:00"
 id: validation-auto-fix-integration
 source_spec: validation-auto-fix-integration
-created: 2026-03-03
-decomposed: false
 ---
 
 # Integrated Validation Auto-Fixes Implementation Plan
