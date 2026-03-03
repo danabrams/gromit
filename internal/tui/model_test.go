@@ -1,9 +1,11 @@
 package tui
 
 import (
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/conversation"
 )
 
@@ -201,11 +203,11 @@ func TestModel_DashboardViewHasMultiplePanels(t *testing.T) {
 		t.Error("expected non-empty view for dashboard")
 	}
 
-	// Verify that the view indicates the current focused panel
-	if m.focusedPanel == 0 {
-		if !containsString(view, "panel 0") && !containsString(view, "progress") {
-			t.Error("expected dashboard view to contain progress panel info")
-		}
+	if !strings.Contains(view, "=== Progress Panel") {
+		t.Error("expected dashboard view to contain progress panel header")
+	}
+	if !strings.Contains(view, "Queue depth:") {
+		t.Error("expected dashboard view to describe queue depth")
 	}
 }
 
@@ -481,4 +483,130 @@ func TestModel_ForwardsKeysToConversationControllerWhenInConversationView(t *tes
 	if !containsString(view, "[cancelled]") {
 		t.Errorf("expected conversation view to contain '[cancelled]', got: %q", view)
 	}
+}
+
+func TestModel_TabNavigationKeepsCursorAndRendersPipelineData(t *testing.T) {
+	store, ready := newPipelineStore(t)
+	m := NewModel(store)
+	m.focusedPanel = 1
+
+	view := m.View()
+	if !strings.Contains(view, "Iteration 2/5") {
+		t.Fatalf("expected dashboard view to show iteration progress, got %q", view)
+	}
+	if !strings.Contains(view, "Queue depth: ready=1 blocked=1 stuck=1") {
+		t.Fatalf("expected dashboard view to include queue depth, got %q", view)
+	}
+
+	queueMsg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}}
+	model, _ := m.Update(queueMsg)
+	m = model.(*Model)
+	queueView := m.View()
+	if !strings.Contains(queueView, ready.Title) {
+		t.Fatalf("expected queue view to render ready bead title, got %q", queueView)
+	}
+
+	downMsg := tea.KeyMsg{Type: tea.KeyDown}
+	model, _ = m.Update(downMsg)
+	m = model.(*Model)
+	if m.scrollOffset != 1 {
+		t.Fatalf("expected scroll offset to increment, got %d", m.scrollOffset)
+	}
+
+	model, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'1'}})
+	m = model.(*Model)
+	if m.focusedPanel != 1 {
+		t.Fatalf("expected focus to remain on status panel, got panel %d", m.focusedPanel)
+	}
+
+	model, _ = m.Update(queueMsg)
+	m = model.(*Model)
+	if m.scrollOffset != 1 {
+		t.Fatalf("expected scroll offset to persist after switching tabs, got %d", m.scrollOffset)
+	}
+	queueView = m.View()
+	if !strings.Contains(queueView, ready.Title) {
+		t.Fatalf("expected queue view to still render ready bead title, got %q", queueView)
+	}
+}
+
+func TestModel_ActionDispatchConversationViewUsesPipelineStore(t *testing.T) {
+	store, ready := newPipelineStore(t)
+	timeline := []conversation.FakeStep{
+		{Event: conversation.Event{Type: conversation.EventTypeStream, Text: "hello"}},
+		{Event: conversation.Event{Type: conversation.EventTypeDone}},
+	}
+	session := conversation.NewFakeSession(timeline)
+	controller := NewConversationController(session)
+
+	m := NewModel(store)
+	m.SetConversationController(controller)
+
+	focusMsg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'3'}}
+	model, cmd := m.Update(focusMsg)
+	m = model.(*Model)
+	if cmd == nil {
+		t.Fatalf("expected conversation init command, got nil")
+	}
+	for cmd != nil {
+		msg := cmd()
+		model, next := m.Update(msg)
+		var ok bool
+		m, ok = model.(*Model)
+		if !ok {
+			t.Fatalf("expected Model, got %T", model)
+		}
+		cmd = next
+	}
+
+	if store.Conversation.EventCount == 0 {
+		t.Fatal("expected conversation events to be recorded")
+	}
+	if !strings.Contains(m.View(), "hello") {
+		t.Fatalf("expected conversation view to include transcript text, got %q", m.View())
+	}
+
+	m.SwitchView(ViewQueue)
+	queueView := m.View()
+	if !strings.Contains(queueView, ready.Title) {
+		t.Fatalf("expected pipeline queue view still to show ready bead title, got %q", queueView)
+	}
+}
+
+func newPipelineStore(t *testing.T) (*Store, *bead.Bead) {
+	t.Helper()
+
+	ready := &bead.Bead{
+		ID:    "ready-1",
+		Title: "Ready Bead",
+	}
+	blocked := &bead.Bead{
+		ID:     "blocked-1",
+		Title:  "Blocked Bead",
+		Parent: "parent-1",
+	}
+	stuck := &bead.Bead{
+		ID:    "stuck-1",
+		Title: "Stuck Bead",
+	}
+
+	store := &Store{
+		Dashboard: DashboardState{
+			RunProgress: &RunProgress{
+				CurrentIteration: 2,
+				MaxIterations:    5,
+				Status:           "running",
+			},
+		},
+		Queue: QueueState{
+			Snapshot: &QueueSnapshot{
+				Ready:   []*bead.Bead{ready},
+				Blocked: []*bead.Bead{blocked},
+				Stuck:   []*bead.Bead{stuck},
+				All:     []*bead.Bead{ready, blocked, stuck},
+			},
+		},
+	}
+
+	return store, ready
 }
