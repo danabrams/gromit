@@ -19,19 +19,19 @@ func TestWiringGate_SkipsWhenDisabled(t *testing.T) {
 		return "", nil
 	})
 
-    input := pipeline.Input{
-        Config: &config.Config{
-            WiringGate: config.WiringGateConfig{Enabled: false},
-        },
-    }
+	input := pipeline.Input{
+		Config: &config.Config{
+			WiringGate: config.WiringGateConfig{Enabled: false},
+		},
+	}
 
-    output, err := stage.Run(context.Background(), input)
-    if err != nil {
-        t.Fatalf("Run() error = %v", err)
-    }
-    if output.Decision != pipeline.Proceed {
-        t.Errorf("Decision = %v, want %v", output.Decision, pipeline.Proceed)
-    }
+	output, err := stage.Run(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if output.Decision != pipeline.Proceed {
+		t.Errorf("Decision = %v, want %v", output.Decision, pipeline.Proceed)
+	}
 	if len(output.WiringFailures) != 0 {
 		t.Fatalf("WiringFailures = %v, want none", output.WiringFailures)
 	}
