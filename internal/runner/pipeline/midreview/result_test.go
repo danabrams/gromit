@@ -140,3 +140,29 @@ func TestParseMidBuildReviewResult_EmptyString(t *testing.T) {
 		t.Fatalf("ParseMidBuildReviewResult() error = nil, want non-nil")
 	}
 }
+
+func TestParseMidBuildReviewResult_TrimsWhitespace(t *testing.T) {
+	t.Parallel()
+
+	input := `{
+		"findings": [
+			{"category": "performance", "message": "  Consider optimizing loop  "}
+		],
+		"summary": "  Found 1 issue  "
+	}`
+
+	result, err := midreview.ParseMidBuildReviewResult(input)
+	if err != nil {
+		t.Fatalf("ParseMidBuildReviewResult() error = %v, want nil", err)
+	}
+
+	if result.Summary != "Found 1 issue" {
+		t.Fatalf("Summary = %q, want %q", result.Summary, "Found 1 issue")
+	}
+	if len(result.Findings) != 1 {
+		t.Fatalf("Findings length = %d, want 1", len(result.Findings))
+	}
+	if result.Findings[0].Message != "Consider optimizing loop" {
+		t.Fatalf("Findings[0].Message = %q, want %q", result.Findings[0].Message, "Consider optimizing loop")
+	}
+}
