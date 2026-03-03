@@ -318,8 +318,8 @@ type ReviewConfig struct {
 
 // MidBuildReviewConfig configures the mid-build review stage.
 type MidBuildReviewConfig struct {
-	Enabled bool           `yaml:"enabled"`
-	Tier    string         `yaml:"tier"`
+	Enabled bool            `yaml:"enabled"`
+	Tier    string          `yaml:"tier"`
 	Timeout DurationSeconds `yaml:"timeout"`
 }
 

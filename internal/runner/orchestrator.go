@@ -211,6 +211,13 @@ func attachMidReviewMetrics(log *logger.IterationLog, metrics midReviewMetrics) 
 	if log == nil {
 		return
 	}
+	log.MidBuildReviewRan = metrics.ran
+	log.MidBuildReviewFindingsCount = metrics.findingsCount
+	log.MidBuildReviewFixBuild = metrics.fixBuildTriggered
+	log.MidBuildReviewDurationMs = metrics.durationMs
+	log.MidBuildReviewCostUSD = metrics.costUSD
+	log.MidBuildReviewInputTokens = metrics.inputTokens
+	log.MidBuildReviewOutputTokens = metrics.outputTokens
 	log.MidReviewRan = metrics.ran
 	log.MidReviewError = metrics.err
 	log.MidReviewFindingsCount = metrics.findingsCount
