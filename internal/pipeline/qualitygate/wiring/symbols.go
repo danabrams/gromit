@@ -16,12 +16,13 @@ type Symbol struct {
 }
 
 var (
-	hunkHeaderRE   = regexp.MustCompile(`^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@`)
-	symbolFuncRE   = regexp.MustCompile(`^func\s+([A-Z]\w*)\s*\(`)
-	symbolTypeRE   = regexp.MustCompile(`^type\s+([A-Z]\w*(?:\[[^\]]+\])?)\b`)
-	symbolMethodRE = regexp.MustCompile(`^func\s+\([^)]*\)\s+([A-Z]\w*)\s*\(`)
-	structDeclRE   = regexp.MustCompile(`^type\s+\w+\s+struct\b`)
-	structFieldRE  = regexp.MustCompile(`^([A-Z]\w*)\b`)
+	hunkHeaderRE    = regexp.MustCompile(`^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@`)
+	symbolFuncRE    = regexp.MustCompile(`^func\s+([A-Z]\w*)\s*\(`)
+	symbolTypeRE    = regexp.MustCompile(`^type\s+([A-Z]\w*(?:\[[^\]]+\])?)\b`)
+	symbolMethodRE  = regexp.MustCompile(`^func\s+\([^)]*\)\s+([A-Z]\w*)\s*\(`)
+	structDeclRE    = regexp.MustCompile(`^type\s+\w+\s+struct\b`)
+	structFieldRE   = regexp.MustCompile(`^([A-Z]\w*)\b`)
+	interfaceDeclRE = regexp.MustCompile(`\binterface\b`)
 )
 
 // ExtractSymbolsFromDiff parses diff output and returns exported symbols added in the patch.
@@ -31,6 +32,7 @@ func ExtractSymbolsFromDiff(diff string) []Symbol {
 	var currentFile string
 	var newLine int
 	var structStack []int
+	var interfaceStack []int
 	skipSymbolFile := false
 	deferredNext := false
 
@@ -52,6 +54,7 @@ func ExtractSymbolsFromDiff(diff string) []Symbol {
 			}
 			currentFile = filepath.ToSlash(raw)
 			structStack = nil
+			interfaceStack = nil
 			skipSymbolFile = strings.HasSuffix(currentFile, "_test.go")
 			deferredNext = false
 			continue
@@ -73,10 +76,9 @@ func ExtractSymbolsFromDiff(diff string) []Symbol {
 		case ' ':
 			newLine++
 			trimmed := strings.TrimSpace(line[1:])
-			started := startStructContext(trimmed, &structStack)
-			if !started {
-				updateStructContext(trimmed, &structStack)
-			}
+			structStarted := startStructContext(trimmed, &structStack)
+			interfaceStarted := startInterfaceContext(trimmed, &interfaceStack)
+			finalizeContexts(trimmed, structStarted, interfaceStarted, &structStack, &interfaceStack)
 		case '+':
 			newLine++
 			if currentFile == "" {
@@ -86,21 +88,30 @@ func ExtractSymbolsFromDiff(diff string) []Symbol {
 			if skipSymbolFile {
 				continue
 			}
+			structStarted := startStructContext(trimmed, &structStack)
+			interfaceStarted := startInterfaceContext(trimmed, &interfaceStack)
+
 			if deferredNext {
 				deferredNext = false
+				finalizeContexts(trimmed, structStarted, interfaceStarted, &structStack, &interfaceStack)
 				continue
 			}
 			if strings.HasPrefix(trimmed, "//") && strings.Contains(trimmed, "wiring:deferred") {
 				deferredNext = true
+				finalizeContexts(trimmed, structStarted, interfaceStarted, &structStack, &interfaceStack)
 				continue
 			}
-			started := startStructContext(trimmed, &structStack)
+
+			inInterface := len(interfaceStack) > 0 && !interfaceStarted
+			if inInterface {
+				finalizeContexts(trimmed, structStarted, interfaceStarted, &structStack, &interfaceStack)
+				continue
+			}
+
 			if name := parseSymbolName(trimmed, structStack); name != "" {
 				symbols = append(symbols, Symbol{Name: name, File: currentFile, Line: newLine})
 			}
-			if !started {
-				updateStructContext(trimmed, &structStack)
-			}
+			finalizeContexts(trimmed, structStarted, interfaceStarted, &structStack, &interfaceStack)
 		case '-':
 			// removal lines do not affect new file line numbers
 		default:
@@ -160,5 +171,41 @@ func updateStructContext(line string, stack *[]int) {
 	(*stack)[top] += delta
 	for len(*stack) > 0 && (*stack)[len(*stack)-1] <= 0 {
 		*stack = (*stack)[:len(*stack)-1]
+	}
+}
+
+func startInterfaceContext(line string, stack *[]int) bool {
+	if line == "" {
+		return false
+	}
+	if interfaceDeclRE.MatchString(line) && strings.Contains(line, "{") {
+		delta := strings.Count(line, "{") - strings.Count(line, "}")
+		*stack = append(*stack, delta)
+		return true
+	}
+	return false
+}
+
+func updateInterfaceContext(line string, stack *[]int) {
+	if len(line) == 0 || len(*stack) == 0 {
+		return
+	}
+	delta := strings.Count(line, "{") - strings.Count(line, "}")
+	if delta == 0 {
+		return
+	}
+	top := len(*stack) - 1
+	(*stack)[top] += delta
+	for len(*stack) > 0 && (*stack)[len(*stack)-1] <= 0 {
+		*stack = (*stack)[:len(*stack)-1]
+	}
+}
+
+func finalizeContexts(line string, structStarted, interfaceStarted bool, structStack *[]int, interfaceStack *[]int) {
+	if !structStarted {
+		updateStructContext(line, structStack)
+	}
+	if !interfaceStarted {
+		updateInterfaceContext(line, interfaceStack)
 	}
 }
