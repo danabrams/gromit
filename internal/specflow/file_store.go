@@ -80,15 +80,6 @@ func (f *fileStore) load() error {
 	return nil
 }
 
-func (f *fileStore) save() error {
-	if f == nil {
-		return fmt.Errorf("specflow file store is nil")
-	}
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.saveLocked()
-}
-
 func (f *fileStore) saveLocked() error {
 	data := make(map[string]string, len(f.stages))
 	for specID, stage := range f.stages {
