@@ -36,6 +36,28 @@ func TestLLMCriteriaEnricher_UsesSpecContext(t *testing.T) {
 	}
 }
 
+func TestLLMCriteriaEnricher_FallbacksToTitleAndDescription(t *testing.T) {
+	loader := &fakeSpecLoader{}
+	fakeProvider := &fakeCriteriaProvider{}
+	updater := &fakeBeadUpdater{}
+
+	enricher := NewLLMCriteriaEnricher(fakeProvider, loader, updater)
+	bead := &bead.Bead{
+		ID:          "fallback-bead",
+		Title:       "Fallback Title",
+		Description: "Fallback Description",
+	}
+
+	if _, err := enricher.Enrich(context.Background(), bead); err != nil {
+		t.Fatalf("Enrich returned error: %v", err)
+	}
+
+	expected := "Title: Fallback Title\nDescription: Fallback Description"
+	if !strings.Contains(fakeProvider.lastPrompt, expected) {
+		t.Fatalf("fallback prompt %q missing block %q", fakeProvider.lastPrompt, expected)
+	}
+}
+
 type fakeCriteriaProvider struct {
 	lastPrompt string
 	lastTier   string
