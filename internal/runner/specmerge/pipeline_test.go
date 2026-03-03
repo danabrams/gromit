@@ -406,7 +406,7 @@ func TestPipeline_Trigger_UsesConfigDefaultBaseBranchForCreatePR(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	const specName = "payments"
-	const expectedBaseBranch = "non-main-base"
+	expectedBaseBranch := config.DefaultBaseBranch
 	flow := &fakeFlowExecutor{
 		runFn: func(_ context.Context, _ string) (*specmerge.FlowResult, error) {
 			return &specmerge.FlowResult{}, nil
@@ -423,7 +423,6 @@ func TestPipeline_Trigger_UsesConfigDefaultBaseBranchForCreatePR(t *testing.T) {
 			return specmerge.PRRef{}, nil
 		},
 	}
-	defer withDefaultBaseBranch(t, expectedBaseBranch)()
 
 	p := specmerge.NewPipeline(nil, nil, flow, specmerge.FixBeadDependencies{}, 0).WithPRDeps(specmerge.PRDeps{PRClient: prClient})
 	if err := p.Trigger(ctx, specName); err != nil {
