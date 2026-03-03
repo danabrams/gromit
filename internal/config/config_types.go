@@ -84,6 +84,7 @@ type Config struct {
 	Runbook                    RunbookConfig          `yaml:"runbook"`
 	Gate                       GateConfig             `yaml:"gate"`
 	SpecGate                   SpecGateConfig         `yaml:"spec_gate"`
+	WiringGate                 WiringGateConfig       `yaml:"wiring_gate"`
 	Decompose                  DecomposeConfig        `yaml:"decompose"`
 	MergePipeline              MergePipelineConfig    `yaml:"merge_pipeline"`
 	SpecPR                     SpecPRConfig           `yaml:"spec_pr"`
@@ -330,12 +331,11 @@ type MethodologyConfig struct {
 	PhaseModels   PhaseModelsConfig `yaml:"phase_models"`
 	// Deprecated: max_tdd_cycles is parsed for compatibility but ignored by runtime.
 	// Use Config.TDDMaxCycles() if you need to inspect the fixed loop cap.
-	MaxTDDCycles         int                     `yaml:"max_tdd_cycles"`
-	SpecGateMaxRetries   int                     `yaml:"spec_gate_max_retries"`
-	ATDDPrompt           ATDDPromptConfig        `yaml:"atdd_prompt"`
-	FreshContextPerCycle bool                    `yaml:"fresh_context_per_cycle"`
-	Granularity          string                  `yaml:"granularity"`
-	PhaseTimeouts        MethodologyPhaseTimeout `yaml:"phase_timeouts"`
+	MaxTDDCycles       int                     `yaml:"max_tdd_cycles"`
+	SpecGateMaxRetries int                     `yaml:"spec_gate_max_retries"`
+	ATDDPrompt         ATDDPromptConfig        `yaml:"atdd_prompt"`
+	Granularity        string                  `yaml:"granularity"`
+	PhaseTimeouts      MethodologyPhaseTimeout `yaml:"phase_timeouts"`
 }
 
 type PhaseModelsConfig struct {
@@ -594,6 +594,10 @@ type RunbookConfig struct {
 
 type GateConfig struct {
 	AutoGenerateCriteria *bool `yaml:"auto_generate_criteria"`
+}
+
+type WiringGateConfig struct {
+	Enabled bool `yaml:"enabled"`
 }
 
 type SpecGateConfig struct {
