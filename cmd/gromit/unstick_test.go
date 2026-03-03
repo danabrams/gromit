@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -83,6 +84,69 @@ func TestUnstick_WithoutArgsEmptyListPrintsMessage(t *testing.T) {
 
 	if !strings.Contains(output, "No stuck beads") {
 		t.Fatalf("expected 'No stuck beads' in output: %s", output)
+	}
+}
+
+// TestUnstick_WithoutArgsDisplaysNumberedList verifies unstick without args displays numbered list of stuck beads
+func TestUnstick_WithoutArgsDisplaysNumberedList(t *testing.T) {
+	originalConfigPath := configPath
+	configPath = filepath.Join("..", "..", "gromit.yaml")
+	t.Cleanup(func() {
+		configPath = originalConfigPath
+	})
+
+	stubPipeline := &mockUnstickExecutor{
+		ListStuckFn: func(ctx context.Context) (*pipeline.ListStuckResult, error) {
+			return &pipeline.ListStuckResult{
+				StuckBeads: []pipeline.BeadInfo{
+					{ID: "stuck-1", Title: "First Stuck Bead"},
+					{ID: "stuck-2", Title: "Second Stuck Bead"},
+				},
+			}, nil
+		},
+		UnstickFn: func(ctx context.Context, beadID string) (*pipeline.UnstickResult, error) {
+			return &pipeline.UnstickResult{
+				BeadID: beadID,
+				Status: "unstuck",
+			}, nil
+		},
+	}
+
+	createUnstickPipelineFn = func(cfg *config.Config, gromitDir string) (unstickExecutor, error) {
+		return stubPipeline, nil
+	}
+	t.Cleanup(func() {
+		createUnstickPipelineFn = createUnstickPipeline
+	})
+
+	stdin := os.Stdin
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create pipe: %v", err)
+	}
+	if _, err := w.Write([]byte("1\n")); err != nil {
+		t.Fatalf("failed to write to stdin: %v", err)
+	}
+	w.Close()
+	os.Stdin = r
+	t.Cleanup(func() {
+		os.Stdin = stdin
+	})
+
+	output := captureStdout(t, func() {
+		if err := runUnstick(unstickCmd, []string{}); err != nil {
+			t.Fatalf("runUnstick returned error: %v", err)
+		}
+	})
+
+	if !strings.Contains(output, "1.") || !strings.Contains(output, "First Stuck Bead") {
+		t.Fatalf("expected numbered list with first bead in output: %s", output)
+	}
+	if !strings.Contains(output, "2.") || !strings.Contains(output, "Second Stuck Bead") {
+		t.Fatalf("expected numbered list with second bead in output: %s", output)
+	}
+	if !strings.Contains(output, "unstuck") {
+		t.Fatalf("expected confirmation message in output: %s", output)
 	}
 }
 
