@@ -348,6 +348,36 @@ The gromit project enforces strict gofmt compliance via TestRepoGofmtCompliance;
 ### 2026-03-03 | gromit-w1dux | conventions
 When deleting core runner components (callbacks, TDD pipeline, adapters), verify all references in runner.go, pipeline implementations, and tests before assuming deletion is safe—check for compilation errors and failing tests post-deletion
 
+### 2026-03-03 | Pipeline Delegation Pattern Is Consistently Applied | architecture
+*Related to: review-1772568662297747000*
+
+All CLI commands (queue, stats, review, plan, refine, unstick) delegate to pipeline.Pipeline via NewPipelineDeps(). No direct internal package access from the cmd layer. This pattern is now consistently applied and should be maintained for new commands.
+
+### 2026-03-03 | Process Group Management Is Consistently Applied Across Subprocess Sites | patterns
+*Related to: review-1772568662297747000*
+
+procutil lifecycle (SetProcessGroupKill, KillDescendantsOnCancel, ReapProcessTree) is consistently used for subprocess lifecycle in verify_spec and worktree packages. The double-kill between KillDescendantsOnCancel goroutine and defer ReapProcessTree is harmless (ESRCH on dead PIDs is ignored).
+
+### 2026-03-03 | Git Conflict Detection Must Use Exact Markers, Not Substring Matches | gotchas
+*Related to: review-1772568662297747000*
+
+Git conflict detection functions (isMergeConflict, isRebaseConflict) must match on exact git markers like "CONFLICT" (uppercase), not broad substrings like lowercase "conflict" or success messages like "Merge made by". Broad matching causes false positives that trigger unnecessary aborts on successful operations.
+
+### 2026-03-03 | Rebase/Merge Abort Cleanup Must Use Independent Context | patterns
+*Related to: review-1772568662297747000*
+
+When a git rebase or merge fails and needs cleanup (--abort), the cleanup command must use context.Background() or an independent short-deadline context, not the parent context that may already be cancelled. Using a cancelled context for abort leaves the repo in a mid-rebase/merge state.
+
+### 2026-03-03 | Shell Script Portability: Avoid mapfile Bash-ism | conventions
+*Related to: review-1772568662297747000*
+
+Shell scripts must use POSIX-compatible `while IFS= read -r` loops instead of bash-specific `mapfile` for array population. This enables compatibility with zsh and other non-bash shells.
+
+### 2026-03-03 | Prompt Staging for Worktrees Handles File-vs-Stdin Delivery Mutual Exclusivity | patterns
+*Related to: review-1772568662297747000*
+
+stagePromptForLaunchDir in agent.go correctly handles the mutual exclusivity of file-staged vs stdin-pipe delivery modes. File staging (copy to worktree .gromit/tmp/) only happens for FileRef/PromptFileArg delivery; Stdin delivery reads content into memory before piping. No race condition exists because these paths never overlap.
+
 ---
 
 ## Archived
