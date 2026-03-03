@@ -44,8 +44,8 @@ func (m *mockGitCheckout) CreateOrCheckoutSpecBranch(ctx context.Context, specBr
 
 // mockStage is a minimal pipeline Stage for testing
 type mockStage struct {
-	decision pipeline.Decision
-	called   bool
+	decision  pipeline.Decision
+	called    bool
 	callCount int
 }
 
@@ -276,5 +276,45 @@ func TestOrchestratorLogsActionableMessageOnDirtyWorktree(t *testing.T) {
 	}
 	if !strings.Contains(output, "session worktree mode") {
 		t.Fatalf("log output missing session worktree hint: %q", output)
+	}
+}
+
+func assertMultiBeadDirtyCheckoutNonCascade(t *testing.T) {
+	gateStage := &mockStage{decision: pipeline.Proceed}
+	buildStage := &mockStage{decision: pipeline.Proceed}
+	beadCalls := 0
+	cfg := OrchestratorConfig{
+		Gate:         gateStage,
+		Build:        buildStage,
+		Validate:     &mockStage{},
+		Epilogue:     &mockStage{},
+		BranchRouter: &mockBranchRouter{},
+		GitCheckout:  &dirtyWorktreeCheckout{},
+		GetBead: func(ctx context.Context) (*bead.Bead, error) {
+			beadCalls++
+			switch beadCalls {
+			case 1:
+				return &bead.Bead{ID: "dirty-1", Title: "Dirty Bead 1", Labels: []string{"spec:dirty"}}, nil
+			case 2:
+				return &bead.Bead{ID: "dirty-2", Title: "Dirty Bead 2", Labels: []string{"spec:dirty"}}, nil
+			default:
+				return nil, nil
+			}
+		},
+	}
+
+	o := NewOrchestrator(cfg)
+	err := o.Run(context.Background(), 0, time.Time{}, make(chan struct{}))
+	if err == nil {
+		t.Fatal("expected orchestrator run to fail when checkout blocked by dirty worktree")
+	}
+	if beadCalls != 1 {
+		t.Fatalf("expected orchestrator to fetch only one bead, got %d", beadCalls)
+	}
+	if gateStage.callCount != 1 {
+		t.Fatalf("gate stage run count = %d, want 1", gateStage.callCount)
+	}
+	if buildStage.callCount != 0 {
+		t.Fatalf("build stage ran %d times, want 0", buildStage.callCount)
 	}
 }
