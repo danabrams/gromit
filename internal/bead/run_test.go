@@ -358,6 +358,41 @@ func TestClientRunWithRetryCascade_RetriesWithNoDB(t *testing.T) {
 	}
 }
 
+func TestClientRunWithRetryCascade_PreservesExtraEnvDuringRetries(t *testing.T) {
+	t.Parallel()
+
+	extraEnv := []string{"FOO=bar"}
+	var callCount int
+	runner := func(ctx context.Context, args []string, env []string) (string, error) {
+		callCount++
+		copied := append([]string(nil), env...)
+		if callCount == 1 {
+			if !reflect.DeepEqual(copied, extraEnv) {
+				t.Fatalf("first call env = %v, want %v", copied, extraEnv)
+			}
+			return "", fmt.Errorf("database not found: beads_gromit")
+		}
+		if callCount == 2 {
+			want := append(append([]string(nil), extraEnv...), "BEADS_NO_DB=true")
+			if !reflect.DeepEqual(copied, want) {
+				t.Fatalf("second call env = %v, want %v", copied, want)
+			}
+			return "recovered", nil
+		}
+		t.Fatalf("unexpected runner invocation %d", callCount)
+		return "", fmt.Errorf("unreachable")
+	}
+
+	c := &Client{}
+	out, err := c.runWithRetryCascade(context.Background(), []string{"ready"}, extraEnv, runner)
+	if err != nil {
+		t.Fatalf("runWithRetryCascade() error = %v", err)
+	}
+	if out != "recovered" {
+		t.Fatalf("runWithRetryCascade() output = %q, want %q", out, "recovered")
+	}
+}
+
 func TestClientRunDeriveIssuePrefixUsesCallerContext(t *testing.T) {
 	t.Parallel()
 	repoDir := t.TempDir()
