@@ -58,11 +58,11 @@ func TestPrintStatus_IncludesIntegrationQueueSummary(t *testing.T) {
 		t.Fatalf("MkdirAll: %v", err)
 	}
 
-	entries := []map[string]interface{}{
-		makeQueueEntry("gromit/ready-branch", "ready", "code_lane", 1, "", ""),
-		makeQueueEntry("gromit/integrating-branch", "integrating", "code_lane", 2, "", ""),
-		makeQueueEntry("gromit/conflict-branch", "conflict", "safe_lane", 3, "merge_conflict", "Conflict in cmd/gromit/run.go"),
-		makeQueueEntry("gromit/merged-branch", "merged", "code_lane", 4, "", ""),
+	entries := []integrationqueue.Entry{
+		makeQueueEntry("gromit/ready-branch", integrationqueue.StateReady, "code_lane", 1, "", ""),
+		makeQueueEntry("gromit/integrating-branch", integrationqueue.StateIntegrating, "code_lane", 2, "", ""),
+		makeQueueEntry("gromit/conflict-branch", integrationqueue.StateConflict, "safe_lane", 3, "merge_conflict", "Conflict in cmd/gromit/run.go"),
+		makeQueueEntry("gromit/merged-branch", integrationqueue.StateMerged, "code_lane", 4, "", ""),
 	}
 
 	queueData := map[string]interface{}{
@@ -163,7 +163,7 @@ func TestPrintStatus_BlockerEntriesIncludeRecoveryInstructions(t *testing.T) {
 		t.Fatalf("MkdirAll: %v", err)
 	}
 
-	entry := makeQueueEntry("gromit/conflict-branch", "conflict", "safe_lane", 1, "merge_conflict", "Conflict in cmd/gromit/run.go")
+    entry := makeQueueEntry("gromit/conflict-branch", integrationqueue.StateConflict, "safe_lane", 1, "merge_conflict", "Conflict in cmd/gromit/run.go")
 	queueData := map[string]interface{}{
 		"schema_version": 1,
 		"updated_at":     "2026-02-28T00:00:00Z",
