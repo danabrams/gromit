@@ -2646,6 +2646,30 @@ func TestRunGitUsesKillDescendantsOnCancel(t *testing.T) {
 	}
 }
 
+// TestRunGitPassesContextToGitRunFn verifies runGit forwards the provided
+// context to the configured gitRunFn so that wrappers can observe it.
+func TestRunGitPassesContextToGitRunFn(t *testing.T) {
+	ctx := context.WithValue(context.Background(), "marker", "value")
+	var capturedCtx context.Context
+	mockGitRun := func(ctx context.Context, dir string, args ...string) (string, error) {
+		capturedCtx = ctx
+		return "", nil
+	}
+	repoDir := t.TempDir()
+	m, err := NewManager(repoDir, WithGitRunFn(mockGitRun))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	if _, err := m.runGit(ctx, repoDir, "status"); err != nil {
+		t.Fatalf("runGit() error = %v", err)
+	}
+
+	if capturedCtx != ctx {
+		t.Fatalf("runGit() used context %v, want %v", capturedCtx, ctx)
+	}
+}
+
 func initCancelableGitRepo(t testing.TB) string {
 	t.Helper()
 	mdir := t.TempDir()
