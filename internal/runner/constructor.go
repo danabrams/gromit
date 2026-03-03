@@ -197,12 +197,10 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 			buildPromptRegistry, buildCacheVersionKey, costDefs, syncOut,
 		)
 	}
-
 	// Stage 3: Validate (validate.New with CommandRunner)
 	validateStage := validate.New(&cmdRunnerAdapter{runner: defaultCmdRunner}, syncOut)
 	// Stage 3c: Regression Gate (quality gate that runs regression tests).
 	regressionStage := regression.New(&cmdRunnerAdapter{runner: defaultCmdRunner})
-
 	// Wrapper for getGitDiff to match review.GitDiffFn signature
 	gitDiffFn := func(ctx context.Context) (string, error) {
 		return getGitDiff(ctx, "")
@@ -211,6 +209,7 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 	if cfg.QualityGates != nil && cfg.QualityGates.Wiring != nil && cfg.QualityGates.Wiring.Enabled {
 		wiringStage = wiringgate.New(gitDiffFn)
 	}
+	midReviewStage := newMidReviewStage(renderer, buildExecInvoker, gitDiffFn, syncOut, costDefs)
 	// Stage 4: Review (review.New with Invoker, BeadCreator, PromptRenderer, GitDiffFn)
 	reviewStage := review.New(
 		&reviewInvokerAdapter{router: router, syncOut: syncOut},
@@ -263,6 +262,7 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 	orchCfg := OrchestratorConfig{
 		Gate:             gateStage,
 		Build:            buildPipelineStage,
+		MidReview:        midReviewStage,
 		Validate:         validateStage,
 		WiringGate:       wiringStage,
 		RegressionGate:   regressionStage,
