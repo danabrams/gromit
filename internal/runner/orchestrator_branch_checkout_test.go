@@ -1,8 +1,11 @@
 package runner
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -222,5 +225,49 @@ func TestOrchestratorHaltsWhenCheckoutDirtyWorktree(t *testing.T) {
 	}
 	if buildStage.called {
 		t.Fatal("build stage should not run when checkout precondition fails")
+	}
+}
+
+func TestOrchestratorLogsActionableMessageOnDirtyWorktree(t *testing.T) {
+	t.Parallel()
+
+	gateStage := &mockStage{decision: pipeline.Proceed}
+	buildStage := &mockStage{decision: pipeline.Proceed}
+	checkout := &dirtyWorktreeCheckout{}
+	buf := &bytes.Buffer{}
+	beadCount := 0
+	cfg := OrchestratorConfig{
+		Gate:         gateStage,
+		Build:        buildStage,
+		Validate:     &mockStage{},
+		Epilogue:     &mockStage{},
+		BranchRouter: &mockBranchRouter{},
+		GitCheckout:  checkout,
+		Output:       buf,
+		GetBead: func(ctx context.Context) (*bead.Bead, error) {
+			beadCount++
+			if beadCount == 1 {
+				return &bead.Bead{
+					ID:     "dirty",
+					Title:  "Dirty Bead",
+					Labels: []string{"spec:dirty"},
+				}, nil
+			}
+			return nil, nil
+		},
+	}
+
+	o := NewOrchestrator(cfg)
+	o.startSubscribersFn = func(ctx context.Context) (*sync.WaitGroup, error) { return nil, nil }
+	err := o.Run(context.Background(), 1, time.Time{}, make(chan struct{}))
+	if err == nil {
+		t.Fatal("expected orchestrator run to fail when checkout blocked by dirty worktree")
+	}
+	output := buf.String()
+	if !strings.Contains(output, "dirty worktree precondition") {
+		t.Fatalf("log output missing dirty worktree guidance: %q", output)
+	}
+	if !strings.Contains(output, "session worktree mode") {
+		t.Fatalf("log output missing session worktree hint: %q", output)
 	}
 }
