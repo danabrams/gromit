@@ -180,8 +180,14 @@ func WaitForProcessCapacity(ctx context.Context, maxWait time.Duration) error {
 	start := timeNowFn()
 	deadline := start.Add(maxWait)
 	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		pressured, err := processCreationPressuredFn()
 		if err != nil || !pressured {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return ctxErr
+			}
 			return nil
 		}
 
