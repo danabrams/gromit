@@ -17,10 +17,24 @@ var waitForProcessCapacityFn = procutil.WaitForProcessCapacity
 
 const defaultProcessCapacityWaitTime = 1500 * time.Millisecond
 
+type gitCommandOutput struct {
+	stdout string
+	stderr string
+}
+
 // runGitCommand executes a git command with process capacity waiting and lifecycle handling.
 func runGitCommand(ctx context.Context, repoDir string, args ...string) (string, error) {
+	output, err := runGitCommandWithOutput(ctx, repoDir, args...)
+	if err != nil {
+		return strings.TrimSuffix(output.stdout+"\n"+output.stderr, "\n"), err
+	}
+
+	return output.stdout, nil
+}
+
+func runGitCommandWithOutput(ctx context.Context, repoDir string, args ...string) (gitCommandOutput, error) {
 	if err := waitForProcessCapacityFn(ctx, defaultProcessCapacityWaitTime); err != nil {
-		return "", fmt.Errorf("waiting for process capacity: %w", err)
+		return gitCommandOutput{}, fmt.Errorf("waiting for process capacity: %w", err)
 	}
 
 	cmd := exec.CommandContext(ctx, "git", args...)
@@ -33,17 +47,17 @@ func runGitCommand(ctx context.Context, repoDir string, args ...string) (string,
 	cmd.Stderr = &stderr
 
 	if err := cmd.Start(); err != nil {
-		return "", err
+		return gitCommandOutput{}, err
 	}
 
 	procutil.KillDescendantsOnCancel(ctx, cmd)
 	defer procutil.ReapProcessTree(cmd)
 
 	if err := cmd.Wait(); err != nil {
-		return stdout.String() + "\n" + stderr.String(), err
+		return gitCommandOutput{stdout: stdout.String(), stderr: stderr.String()}, err
 	}
 
-	return stdout.String(), nil
+	return gitCommandOutput{stdout: stdout.String(), stderr: stderr.String()}, nil
 }
 
 // GitOps provides git operations for spec branch lifecycle.
@@ -69,14 +83,14 @@ func (g *GitOps) CreateOrCheckoutSpecBranch(ctx context.Context, specBranchName 
 	}
 
 	// Try to create the branch first
-	createOutput, err := runGitCommand(ctx, g.repoDir, "checkout", "-b", specBranchName)
+	createOutput, err := runGitCommandWithOutput(ctx, g.repoDir, "checkout", "-b", specBranchName)
 
 	if err == nil {
 		return nil
 	}
 
 	// If branch exists, just checkout
-	checkoutOutput, checkoutErr := runGitCommand(ctx, g.repoDir, "checkout", specBranchName)
+	checkoutOutput, checkoutErr := runGitCommandWithOutput(ctx, g.repoDir, "checkout", specBranchName)
 	if checkoutErr != nil {
 		return fmt.Errorf(
 			"failed to create or checkout spec branch %s: create attempt failed: %v (output: %s); checkout attempt failed: %w (output: %s)",
@@ -91,16 +105,18 @@ func (g *GitOps) CreateOrCheckoutSpecBranch(ctx context.Context, specBranchName 
 	return nil
 }
 
-func formatGitCommandOutput(output string) string {
-	trimmed := strings.TrimSpace(output)
-	if trimmed == "" {
-		return "<empty>"
+func formatGitCommandOutput(output gitCommandOutput) string {
+	stdout := strings.TrimSpace(output.stdout)
+	stderr := strings.TrimSpace(output.stderr)
+
+	if stdout == "" {
+		stdout = "<empty>"
 	}
-	lines := strings.Split(trimmed, "\n")
-	for i := range lines {
-		lines[i] = strings.TrimSpace(lines[i])
+	if stderr == "" {
+		stderr = "<empty>"
 	}
-	return strings.Join(lines, " | ")
+
+	return fmt.Sprintf("stdout: %s | stderr: %s", stdout, stderr)
 }
 
 // RebaseOnto rebases the branch onto the specified target branch.
