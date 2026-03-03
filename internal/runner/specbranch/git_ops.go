@@ -28,15 +28,20 @@ type DirtyWorktreeError struct {
 	Status  string
 }
 
+const dirtyWorktreeGuidance = "Please commit, stash, or clean your working tree before switching branches."
+
 func (e *DirtyWorktreeError) Error() string {
 	if e == nil {
 		return ""
 	}
 	status := strings.TrimSpace(e.Status)
-	if status == "" {
-		return fmt.Sprintf("dirty worktree %s", e.RepoDir)
+
+	message := fmt.Sprintf("dirty worktree %s", e.RepoDir)
+	if status != "" {
+		message = fmt.Sprintf("%s: %s", message, status)
 	}
-	return fmt.Sprintf("dirty worktree %s: %s", e.RepoDir, status)
+
+	return fmt.Sprintf("%s. %s", message, dirtyWorktreeGuidance)
 }
 
 // runGitCommand executes a git command with process capacity waiting and lifecycle handling.
