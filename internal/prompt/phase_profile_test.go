@@ -299,6 +299,15 @@ func TestApplyPhaseProfile_RefactorKeepsRulesAndValidationFailures(t *testing.T)
 	}
 }
 
+func TestApplyPhaseProfile_ContainsProfilesForAllPhases(t *testing.T) {
+	expected := []string{"decompose", "red", "build", "green", "refactor"}
+	for _, phase := range expected {
+		if _, ok := phaseProfiles[phase]; !ok {
+			t.Fatalf("phaseProfiles missing entry for %q", phase)
+		}
+	}
+}
+
 func TestApplyPhaseProfile_UnknownPhaseNoOp(t *testing.T) {
 	baseCtx := &Context{
 		Bead: &bead.Bead{
