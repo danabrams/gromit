@@ -69,6 +69,7 @@ type Config struct {
 	Paths                      PathsConfig            `yaml:"paths"`
 	Experiment                 ExperimentConfig       `yaml:"experiment"`
 	Review                     ReviewConfig           `yaml:"review"`
+	MidBuildReview             MidBuildReviewConfig   `yaml:"mid_build_review"`
 	Methodology                MethodologyConfig      `yaml:"methodology"`
 	Git                        GitConfig              `yaml:"git"`
 	State                      StateConfig            `yaml:"state"`
@@ -313,6 +314,11 @@ type ReviewConfig struct {
 	MatchBuildModel *bool                `yaml:"match_build_model"`
 	Timeout         int                  `yaml:"timeout"`
 	Thorough        ThoroughReviewConfig `yaml:"thorough"`
+}
+
+// MidBuildReviewConfig configures the mid-build review stage.
+type MidBuildReviewConfig struct {
+	Enabled bool `yaml:"enabled"`
 }
 
 type ThoroughReviewConfig struct {
