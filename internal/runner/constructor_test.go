@@ -21,6 +21,7 @@ import (
 	wiringgate "github.com/danabrams/gromit/internal/pipeline/qualitygate/wiring"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/escalation"
+	"github.com/danabrams/gromit/internal/runner/pipeline/midreview"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/danabrams/gromit/internal/validate"
@@ -1293,6 +1294,43 @@ func TestNewRunnerImpl_WiresWiringGate(t *testing.T) {
 	}
 	if _, ok := orch.cfg.WiringGate.(*wiringgate.Gate); !ok {
 		t.Fatalf("WiringGate stage is %T, want *wiringgate.Gate", orch.cfg.WiringGate)
+	}
+}
+
+func TestNewRunnerImpl_WiresMidReviewStage(t *testing.T) {
+	t.Parallel()
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	templatesDir := filepath.Join(gromitDir, "templates")
+	specsDir := filepath.Join(gromitDir, "specs")
+	logsDir := filepath.Join(tmpDir, "logs")
+	for _, dir := range []string{templatesDir, specsDir, logsDir} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(%q): %v", dir, err)
+		}
+	}
+	claudePath := filepath.Join(gromitDir, "CLAUDE.md")
+	if err := os.WriteFile(claudePath, []byte("# CLAUDE\n"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile(%q): %v", claudePath, err)
+	}
+
+	cfg := &config.Config{}
+	cfg.Paths.Templates = templatesDir
+	cfg.Paths.Specs = specsDir
+	cfg.Paths.Logs = logsDir
+	cfg.Paths.ProjectClaudeMD = claudePath
+	cfg.Paths.GromitDir = gromitDir
+	cfg.MidBuildReview.Enabled = true
+
+	orch, err := newRunnerImpl(cfg, io.Discard, nil)
+	if err != nil {
+		t.Fatalf("newRunnerImpl: %v", err)
+	}
+	if orch.cfg.MidReview == nil {
+		t.Fatal("newRunnerImpl did not wire MidReview stage")
+	}
+	if _, ok := orch.cfg.MidReview.(*midreview.Stage); !ok {
+		t.Fatalf("MidReview stage is %T, want *midreview.Stage", orch.cfg.MidReview)
 	}
 }
 
