@@ -32,3 +32,41 @@ func TestFinding_JSONMarshal(t *testing.T) {
 		t.Fatalf("Message = %q, want %q", decoded.Message, f.Message)
 	}
 }
+
+func TestMidBuildReviewResult_JSONMarshal(t *testing.T) {
+	t.Parallel()
+
+	result := midreview.MidBuildReviewResult{
+		Findings: []midreview.Finding{
+			{
+				Category: "performance",
+				Message:  "Consider optimizing loop",
+			},
+			{
+				Category: "testing",
+				Message:  "Add test coverage",
+			},
+		},
+		Summary: "Found 2 issues",
+	}
+
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v, want nil", err)
+	}
+
+	var decoded midreview.MidBuildReviewResult
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+
+	if len(decoded.Findings) != 2 {
+		t.Fatalf("Findings length = %d, want 2", len(decoded.Findings))
+	}
+	if decoded.Findings[0].Category != "performance" {
+		t.Fatalf("Findings[0].Category = %q, want %q", decoded.Findings[0].Category, "performance")
+	}
+	if decoded.Summary != "Found 2 issues" {
+		t.Fatalf("Summary = %q, want %q", decoded.Summary, "Found 2 issues")
+	}
+}
