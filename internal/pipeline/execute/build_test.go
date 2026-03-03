@@ -882,6 +882,38 @@ func TestBuildRun_TDD_FreshContextFalse_UsesSingleInvocationPath(t *testing.T) {
 	}
 }
 
+// TestBuildRun_TDD_FreshContextRunnerNotUsed ensures that even if a runner is
+// injected while FreshContextPerCycle=true, Build.Run() does not delegate to it.
+func TestBuildRun_TDD_FreshContextRunnerNotUsed(t *testing.T) {
+	runCyclesCalled := false
+	runner := &trackingTDDCycleRunner{
+		runCyclesFn: func(_ context.Context, _ *bead.Bead, _ *config.Config) (execute.TDDCycleResult, error) {
+			runCyclesCalled = true
+			return execute.TDDCycleResult{}, nil
+		},
+	}
+
+	invoker := &fakeInvoker{}
+	stage := execute.New(invoker, &fakePromptRenderer{}, io.Discard).WithTDDCycleRunner(runner)
+
+	cfg := defaultConfig()
+	cfg.Methodology.TDD = true
+	cfg.Methodology.FreshContextPerCycle = true
+	in := makeInput(makeBead("bead-1", "Implement TDD feature"), cfg)
+
+	_, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if runCyclesCalled {
+		t.Error("TDDCycleRunner.RunCycles should not be called when FreshContextPerCycle=true but runner is ignored")
+	}
+	if len(invoker.streamCalls) != 1 {
+		t.Errorf("StreamRun called %d times, want 1 (fresh context should still use StreamRun)", len(invoker.streamCalls))
+	}
+}
+
 // TestBuildRun_BuildStrategyTDDLabel_DelegatesToTDDCycleRunner verifies that
 // a bead-level build_strategy:tdd label overrides global methodology defaults
 // and forces the TDD cycle runner path.
