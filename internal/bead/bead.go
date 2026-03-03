@@ -378,6 +378,19 @@ func (c *Client) GetComments(ctx context.Context, id string) ([]Comment, error) 
 	return comments, nil
 }
 
+// UpdateExpectedOutputs updates the documented expected outputs for a bead
+func (c *Client) UpdateExpectedOutputs(ctx context.Context, id string, criteria []string) error {
+	if c == nil {
+		return fmt.Errorf("bead client is nil")
+	}
+	acceptance := strings.Join(criteria, "\n")
+	_, err := c.run(ctx, "update", id, "--acceptance", acceptance)
+	if err != nil {
+		return fmt.Errorf("bd update acceptance: %w", err)
+	}
+	return nil
+}
+
 // UpdatePriority changes the priority of a bead
 func (c *Client) UpdatePriority(ctx context.Context, id string, priority int) error {
 	if c == nil {
