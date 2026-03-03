@@ -105,7 +105,7 @@ func (g *GitOps) CreateOrCheckoutSpecBranch(ctx context.Context, specBranchName 
 	}
 
 	if err := g.ensureWorktreeClean(ctx); err != nil {
-		return err
+		return fmt.Errorf("spec branch %s blocked by dirty worktree precondition: %w", specBranchName, err)
 	}
 
 	// Try to create the branch first
