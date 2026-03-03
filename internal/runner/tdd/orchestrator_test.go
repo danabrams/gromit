@@ -11,6 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline/prepare"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
+	"github.com/danabrams/gromit/internal/runner/util"
 )
 
 func newTestOrchestrator() *CycleOrchestrator {
@@ -376,7 +377,7 @@ func TestCloneStringSlice_PreservesEmptyNonNil(t *testing.T) {
 		t.Fatalf("precondition: empty slice created by make must be non-nil")
 	}
 
-	cloned := cloneStringSlice(empty)
+	cloned := util.CloneStringSlice(empty)
 	if cloned == nil {
 		t.Fatalf("expected clone of empty non-nil slice to remain non-nil")
 	}
@@ -384,7 +385,7 @@ func TestCloneStringSlice_PreservesEmptyNonNil(t *testing.T) {
 		t.Fatalf("expected clone of empty slice to have length 0, got %d", len(cloned))
 	}
 
-	if cloneStringSlice(nil) != nil {
+	if util.CloneStringSlice(nil) != nil {
 		t.Fatalf("expected clone of nil slice to remain nil")
 	}
 }
