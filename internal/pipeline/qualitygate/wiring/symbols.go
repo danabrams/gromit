@@ -32,6 +32,7 @@ func ExtractSymbolsFromDiff(diff string) []Symbol {
 	var newLine int
 	var structStack []int
 	skipSymbolFile := false
+	deferredNext := false
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -52,6 +53,7 @@ func ExtractSymbolsFromDiff(diff string) []Symbol {
 			currentFile = filepath.ToSlash(raw)
 			structStack = nil
 			skipSymbolFile = strings.HasSuffix(currentFile, "_test.go")
+			deferredNext = false
 			continue
 		}
 		if strings.HasPrefix(line, "@@ ") {
@@ -82,6 +84,14 @@ func ExtractSymbolsFromDiff(diff string) []Symbol {
 			}
 			trimmed := strings.TrimSpace(line[1:])
 			if skipSymbolFile {
+				continue
+			}
+			if deferredNext {
+				deferredNext = false
+				continue
+			}
+			if strings.HasPrefix(trimmed, "//") && strings.Contains(trimmed, "wiring:deferred") {
+				deferredNext = true
 				continue
 			}
 			started := startStructContext(trimmed, &structStack)
