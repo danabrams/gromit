@@ -126,3 +126,25 @@ func TestNewRunnerWithDeps_PropagatesRouterToConfig(t *testing.T) {
 		t.Fatalf("Orchestrator cfg.Router = %v, want %v", got, router)
 	}
 }
+
+// TestNewRunnerWithDeps_OrchestratorExposesRouter ensures the Orchestrator
+// exposes the Router it was wired with via its public API.
+func TestNewRunnerWithDeps_OrchestratorExposesRouter(t *testing.T) {
+	t.Parallel()
+
+	router := &provider.Router{}
+	deps := &Deps{Router: router}
+
+	orch, err := NewRunnerWithDeps(deps)
+	if err != nil {
+		t.Fatalf("NewRunnerWithDeps error = %v, want nil", err)
+	}
+
+	if orch == nil {
+		t.Fatal("NewRunnerWithDeps returned nil Orchestrator, want non-nil")
+	}
+
+	if got := orch.Router(); got != router {
+		t.Fatalf("Orchestrator.Router() = %v, want %v", got, router)
+	}
+}
