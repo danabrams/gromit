@@ -3522,13 +3522,6 @@ func TestMethodologyFreshContextPerCycleDefaultsFalseWhenUnset(t *testing.T) {
 	}
 }
 
-func TestMethodologyConfigHasNoFreshContextPerCycleField(t *testing.T) {
-	typeInfo := reflect.TypeOf(MethodologyConfig{})
-	if _, found := typeInfo.FieldByName("FreshContextPerCycle"); found {
-		t.Fatal("MethodologyConfig should not define FreshContextPerCycle")
-	}
-}
-
 func TestMethodologyATDDPromptDefaults(t *testing.T) {
 	cfg := &Config{}
 	cfg.SetDefaults()

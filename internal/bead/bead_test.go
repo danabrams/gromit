@@ -1957,7 +1957,7 @@ func TestClientDeriveIssuePrefixReturnsNormalizedRepoName(t *testing.T) {
 	if err := os.MkdirAll(repoDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(%q): %v", repoDir, err)
 	}
-	initCmd := exec.Command("git", "init")
+	initCmd := exec.Command(defaultGitPath, "init")
 	initCmd.Dir = repoDir
 	if err := initCmd.Run(); err != nil {
 		t.Fatalf("git init failed: %v", err)
