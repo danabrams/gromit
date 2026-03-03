@@ -393,6 +393,7 @@ func TestReviewPayload_WithComments(t *testing.T) {
 type fakePRClient struct {
 	nextPRNumber          int
 	createPRError         error
+	createPRFn            func(ctx context.Context, title, body, head, base string) (specmerge.PRRef, error)
 	getPRError            error
 	listChecksError       error
 	postReviewError       error
@@ -407,6 +408,9 @@ type fakePRClient struct {
 }
 
 func (f *fakePRClient) CreatePR(ctx context.Context, title, body, head, base string) (specmerge.PRRef, error) {
+	if f.createPRFn != nil {
+		return f.createPRFn(ctx, title, body, head, base)
+	}
 	if f.createPRError != nil {
 		return specmerge.PRRef{}, f.createPRError
 	}
