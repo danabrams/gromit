@@ -656,15 +656,11 @@ func TestInteractiveFileCompatibilityBridgeSyncFromQueueEntries(t *testing.T) {
 	f, _ := NewInteractiveFile(dir)
 
 	// Create mock queue entries in draft and ready states
-	type queueEntry struct {
-		Branch string
-		State  string
-	}
-	queueEntries := []queueEntry{
-		{Branch: "feature/draft-1", State: "draft"},
-		{Branch: "feature/ready-1", State: "ready"},
-		{Branch: "feature/integrating", State: "integrating"},
-		{Branch: "feature/merged", State: "merged"}, // Terminal state, should not include
+	queueEntries := []BranchStateEntry{
+		mockBranchStateEntry{branch: "feature/draft-1", state: "draft"},
+		mockBranchStateEntry{branch: "feature/ready-1", state: "ready"},
+		mockBranchStateEntry{branch: "feature/integrating", state: "integrating"},
+		mockBranchStateEntry{branch: "feature/merged", state: "merged"}, // Terminal state, should not include
 	}
 
 	// Call the compatibility bridge method
@@ -855,6 +851,19 @@ func pendingBranchSet(branches []string) map[string]bool {
 		set[branch] = true
 	}
 	return set
+}
+
+type mockBranchStateEntry struct {
+	branch string
+	state  string
+}
+
+func (m mockBranchStateEntry) BranchName() string {
+	return m.branch
+}
+
+func (m mockBranchStateEntry) StateName() string {
+	return m.state
 }
 
 // TestInteractiveFileRoundTrip verifies complete round-trip of all interactive state fields
