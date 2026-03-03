@@ -24,6 +24,7 @@ import (
 	"github.com/danabrams/gromit/internal/pipeline/execute"
 	"github.com/danabrams/gromit/internal/pipeline/prepare"
 	"github.com/danabrams/gromit/internal/pipeline/qualitygate/regression"
+	wiringgate "github.com/danabrams/gromit/internal/pipeline/qualitygate/wiring"
 	"github.com/danabrams/gromit/internal/pipeline/review"
 	"github.com/danabrams/gromit/internal/pipeline/validate"
 	"github.com/danabrams/gromit/internal/prompt"
@@ -199,7 +200,6 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 
 	// Stage 3: Validate (validate.New with CommandRunner)
 	validateStage := validate.New(&cmdRunnerAdapter{runner: defaultCmdRunner}, syncOut)
-
 	// Stage 3c: Regression Gate (quality gate that runs regression tests).
 	regressionStage := regression.New(&cmdRunnerAdapter{runner: defaultCmdRunner})
 
@@ -207,7 +207,7 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 	gitDiffFn := func(ctx context.Context) (string, error) {
 		return getGitDiff(ctx, "")
 	}
-
+	wiringStage := wiringgate.New(gitDiffFn)
 	// Stage 4: Review (review.New with Invoker, BeadCreator, PromptRenderer, GitDiffFn)
 	reviewStage := review.New(
 		&reviewInvokerAdapter{router: router, syncOut: syncOut},
@@ -264,6 +264,7 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 		Gate:             gateStage,
 		Build:            buildPipelineStage,
 		Validate:         validateStage,
+		WiringGate:       wiringStage,
 		RegressionGate:   regressionStage,
 		Review:           reviewStage,
 		Epilogue:         epilogueStage,
