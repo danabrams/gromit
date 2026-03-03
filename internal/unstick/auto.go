@@ -10,11 +10,18 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 )
 
-// RestartReasonNewCommits is the reason recorded when new commits allow an automatic restart.
-const RestartReasonNewCommits = "new_commits"
+const (
+	// RestartReasonClosedDependency is recorded when a dependency closed signal fires.
+	RestartReasonClosedDependency = "closed_dependency"
+	// RestartReasonMetadataChanged is recorded when metadata changed since last attempt.
+	RestartReasonMetadataChanged = "metadata_changed"
+)
 
 // BeadClient lets the AutoChecker inspect bead state when evaluating signals.
-type BeadClient interface{}
+type BeadClient interface {
+	ClosedDependencySignal(ctx context.Context, beadID string) (bool, error)
+	MetadataChangedSignal(ctx context.Context, beadID string) (bool, error)
+}
 
 // eventEmitter captures the subset of emitter behavior the AutoChecker uses.
 type eventEmitter interface {
@@ -23,42 +30,41 @@ type eventEmitter interface {
 
 // AutoChecker evaluates external signals and writes restart points for stuck beads.
 type AutoChecker struct {
-	// Client is reserved for future dependency and metadata checks.
-	Client   BeadClient
-	GitLogFn func(since time.Time) (bool, error)
-	NowFn    func() time.Time
+	Client BeadClient
+	NowFn  func() time.Time
 }
 
-// Check inspects the stuck beads and restarts any that see new commits.
+// Check inspects the stuck beads and restarts any that see new signals.
 func (c *AutoChecker) Check(ctx context.Context, stuck []*bead.Bead, stats map[string]logger.BeadStats, store *Store, emitter eventEmitter) error {
-	_ = ctx
 	if store == nil {
 		return fmt.Errorf("store is required")
 	}
-	if c == nil {
+	if c == nil || c.Client == nil {
 		return nil
 	}
-	gitLogFn := c.GitLogFn
-	if gitLogFn == nil {
-		return nil
-	}
+
+	_ = stats
 
 	for _, b := range stuck {
 		if b == nil || b.ID == "" {
 			continue
 		}
-		lastAttempt := stats[b.ID].LastAttempt
-		if c.shouldSkipRestart(b.ID, lastAttempt, store) {
-			continue
-		}
-		hasNew, err := gitLogFn(lastAttempt)
+
+		closed, err := c.Client.ClosedDependencySignal(ctx, b.ID)
 		if err != nil {
-			return fmt.Errorf("git log check for %s: %w", b.ID, err)
+			return fmt.Errorf("closed-dependency signal for %s: %w", b.ID, err)
 		}
-		if !hasNew {
+		metadataChanged, err := c.Client.MetadataChangedSignal(ctx, b.ID)
+		if err != nil {
+			return fmt.Errorf("metadata-changed signal for %s: %w", b.ID, err)
+		}
+
+		reason := reasonForSignals(closed, metadataChanged)
+		if reason == "" {
 			continue
 		}
-		if err := c.emitRestart(b.ID, store, emitter); err != nil {
+
+		if err := c.emitRestart(b.ID, store, emitter, reason); err != nil {
 			return err
 		}
 	}
@@ -66,19 +72,26 @@ func (c *AutoChecker) Check(ctx context.Context, stuck []*bead.Bead, stats map[s
 	return nil
 }
 
-func (c *AutoChecker) emitRestart(beadID string, store *Store, emitter eventEmitter) error {
+func reasonForSignals(closed, metadataChanged bool) string {
+	if metadataChanged {
+		return RestartReasonMetadataChanged
+	}
+	if closed {
+		return RestartReasonClosedDependency
+	}
+	return ""
+}
+
+func (c *AutoChecker) emitRestart(beadID string, store *Store, emitter eventEmitter, reason string) error {
 	now := c.currentTime()
-	store.Set(beadID, RestartPoint{
-		Time:   now,
-		Reason: RestartReasonNewCommits,
-	})
+	store.Set(beadID, RestartPoint{Time: now, Reason: reason})
 	if err := store.Save(); err != nil {
 		return fmt.Errorf("saving restart point for %s: %w", beadID, err)
 	}
 	if emitter != nil {
 		emitter.Emit(&events.BeadUnstickedEvent{
 			BeadID: beadID,
-			Reason: RestartReasonNewCommits,
+			Reason: reason,
 		})
 	}
 	return nil
@@ -89,15 +102,4 @@ func (c *AutoChecker) currentTime() time.Time {
 		return c.NowFn()
 	}
 	return time.Now().UTC()
-}
-
-func (c *AutoChecker) shouldSkipRestart(beadID string, lastAttempt time.Time, store *Store) bool {
-	if store == nil || lastAttempt.IsZero() {
-		return false
-	}
-	point, ok := store.Get(beadID)
-	if !ok || point.Time.IsZero() {
-		return false
-	}
-	return point.Time.After(lastAttempt)
 }
