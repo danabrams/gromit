@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	integrationqueue "github.com/danabrams/gromit/internal/integrationqueue"
 )
 
 // TestNewInteractiveFile verifies that NewInteractiveFile creates an InteractiveFile instance with correct path
@@ -695,6 +697,10 @@ func TestInteractiveFileCompatibilityBridgeSyncFromQueueEntries(t *testing.T) {
 	if branchSet["feature/merged"] {
 		t.Error("merged (terminal) entry should NOT be in pending branches")
 	}
+}
+
+func TestBranchStateEntryImplementation(t *testing.T) {
+	var _ BranchStateEntry = integrationqueue.Entry{}
 }
 
 func TestInteractiveFilePendingWorktreeBranchesDeduplication(t *testing.T) {
