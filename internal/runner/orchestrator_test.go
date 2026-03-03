@@ -4700,7 +4700,7 @@ func TestOrchestrator_WiringGateFailureTriggersRetry(t *testing.T) {
 			if wiringGateCalls == 1 {
 				// First call: fail
 				return pipeline.Output{
-					Decision: pipeline.Block,
+					Decision:       pipeline.Block,
 					WiringFailures: []string{"NewFoo exported but not referenced"},
 				}, nil
 			}
@@ -4710,12 +4710,12 @@ func TestOrchestrator_WiringGateFailureTriggersRetry(t *testing.T) {
 	}
 
 	cfg := OrchestratorConfig{
-		Gate:         &fakeStage{},
-		Build:        buildStage,
-		Validate:     validateStage,
-		WiringGate:   wiringGateStage,
-		Epilogue:     &fakeStage{},
-		GetBead:      getBead,
+		Gate:       &fakeStage{},
+		Build:      buildStage,
+		Validate:   validateStage,
+		WiringGate: wiringGateStage,
+		Epilogue:   &fakeStage{},
+		GetBead:    getBead,
 		Config: &config.Config{
 			Validation: config.ValidationConfig{
 				MaxValidationRetries: 2,
@@ -4739,5 +4739,82 @@ func TestOrchestrator_WiringGateFailureTriggersRetry(t *testing.T) {
 	}
 	if wiringGateCalls != 2 {
 		t.Errorf("WiringGate called %d times; want 2 (initial failure + retry)", wiringGateCalls)
+	}
+}
+
+// TestOrchestrator_RegressionGateFailureTriggersRetry verifies that when the regression gate
+// returns Block on first attempt and Proceed on retry, the orchestrator re-enters the
+// Build→Validate→RegressionGate loop with appropriate context.
+func TestOrchestrator_RegressionGateFailureTriggersRetry(t *testing.T) {
+	t.Parallel()
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-1", Title: "Test"}, nil
+	}
+
+	buildCalls := 0
+	buildStage := &fakeStage{
+		runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			buildCalls++
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		},
+	}
+
+	validateCalls := 0
+	validateStage := &fakeStage{
+		runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			validateCalls++
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		},
+	}
+
+	regressionGateCalls := 0
+	regressionGateStage := &fakeStage{
+		runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			regressionGateCalls++
+			if regressionGateCalls == 1 {
+				// First call: fail
+				return pipeline.Output{Decision: pipeline.Block}, nil
+			}
+			// Second call: pass
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		},
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:           &fakeStage{},
+		Build:          buildStage,
+		Validate:       validateStage,
+		RegressionGate: regressionGateStage,
+		Epilogue:       &fakeStage{},
+		GetBead:        getBead,
+		Config: &config.Config{
+			Validation: config.ValidationConfig{
+				MaxValidationRetries: 2,
+			},
+		},
+		Output: io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	err := orch.Run(context.Background(), 10, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	// Verify that Build, Validate, and RegressionGate were called twice each (retry)
+	if buildCalls != 2 {
+		t.Errorf("Build called %d times; want 2 (initial + retry after regression gate failure)", buildCalls)
+	}
+	if validateCalls != 2 {
+		t.Errorf("Validate called %d times; want 2 (initial + retry after regression gate failure)", validateCalls)
+	}
+	if regressionGateCalls != 2 {
+		t.Errorf("RegressionGate called %d times; want 2 (initial failure + retry)", regressionGateCalls)
 	}
 }
