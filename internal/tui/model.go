@@ -51,6 +51,14 @@ func (m *Model) FocusPrev() {
 	m.focusedPanel = (m.focusedPanel - 1 + 2) % 2
 }
 
+// PendingAction returns the action that should be executed after the TUI exits.
+func (m *Model) PendingAction() *PendingAction {
+	if m == nil {
+		return nil
+	}
+	return m.pendingAction
+}
+
 // Init initializes the model.
 func (m *Model) Init() tea.Cmd {
 	if m.currentView == ViewConversation && m.conversation != nil {
