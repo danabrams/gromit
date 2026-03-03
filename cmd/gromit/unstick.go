@@ -46,8 +46,18 @@ func runUnstick(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// TODO: implement ListStuck and interactive selection
-	fmt.Println("No stuck beads")
+	// No arguments - list stuck beads
+	result, err := executor.ListStuck(cmd.Context())
+	if err != nil {
+		return err
+	}
+
+	if len(result.StuckBeads) == 0 {
+		fmt.Println("No stuck beads")
+		return nil
+	}
+
+	// TODO: implement interactive selection for stuck beads
 	return nil
 }
 
@@ -63,4 +73,5 @@ func createUnstickPipeline(cfg *config.Config, gromitDir string) (unstickExecuto
 
 type unstickExecutor interface {
 	Unstick(context.Context, string) (*pipeline.UnstickResult, error)
+	ListStuck(context.Context) (*pipeline.ListStuckResult, error)
 }

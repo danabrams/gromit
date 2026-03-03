@@ -430,3 +430,16 @@ type UnstickResult struct {
 	BeadID string `json:"bead_id"`
 	Status string `json:"status"`
 }
+
+// ListStuckResult contains the output from listing stuck beads.
+// Use NewListStuckResult() to create instances with properly initialized slices.
+type ListStuckResult struct {
+	StuckBeads []BeadInfo `json:"stuck_beads"`
+}
+
+// NewListStuckResult creates a ListStuckResult with initialized slices.
+func NewListStuckResult() ListStuckResult {
+	return ListStuckResult{
+		StuckBeads: []BeadInfo{},
+	}
+}

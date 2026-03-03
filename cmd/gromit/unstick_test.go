@@ -12,7 +12,6 @@ import (
 
 // TestUnstick_WithBeadIDCallsUnstick verifies unstick with a bead ID argument calls Unstick and prints confirmation
 func TestUnstick_WithBeadIDCallsUnstick(t *testing.T) {
-	t.Parallel()
 
 	originalConfigPath := configPath
 	configPath = filepath.Join("..", "..", "gromit.yaml")
@@ -54,7 +53,6 @@ func TestUnstick_WithBeadIDCallsUnstick(t *testing.T) {
 
 // TestUnstick_WithoutArgsEmptyListPrintsMessage verifies unstick without args prints "No stuck beads" when list is empty
 func TestUnstick_WithoutArgsEmptyListPrintsMessage(t *testing.T) {
-	t.Parallel()
 
 	originalConfigPath := configPath
 	configPath = filepath.Join("..", "..", "gromit.yaml")
