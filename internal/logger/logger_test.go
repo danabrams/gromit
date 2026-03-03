@@ -318,18 +318,18 @@ func TestReadPerBeadStatsMultipleFiles(t *testing.T) {
 func TestReadPerBeadStatsAfterFiltersByRestartPoint(t *testing.T) {
 	dir := t.TempDir()
 
-	first := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
-	second := first.Add(time.Minute)
+	before := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
+	after := before.Add(time.Minute)
 	logContent := fmt.Sprintf(
 		`{"timestamp":"%s","iteration":1,"bead_id":"b1","bead_title":"Bug","model":"sonnet","success":false,"validated":false,"escalated":false,"duration_ms":1000}
 {"timestamp":"%s","iteration":2,"bead_id":"b1","bead_title":"Bug","model":"sonnet","success":false,"validated":false,"escalated":false,"duration_ms":1200}
-`, first.Format(time.RFC3339), second.Format(time.RFC3339))
+`, before.Format(time.RFC3339), after.Format(time.RFC3339))
 
 	if err := os.WriteFile(filepath.Join(dir, "run-20260301-000000.jsonl"), []byte(logContent), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	stats, err := ReadPerBeadStatsAfter(dir, map[string]time.Time{"b1": first})
+	stats, err := ReadPerBeadStatsAfter(dir, map[string]time.Time{"b1": after})
 	if err != nil {
 		t.Fatalf("ReadPerBeadStatsAfter error: %v", err)
 	}
@@ -341,8 +341,8 @@ func TestReadPerBeadStatsAfterFiltersByRestartPoint(t *testing.T) {
 	if b1.Failures != 1 {
 		t.Fatalf("expected 1 failure after restart, got %d", b1.Failures)
 	}
-	if !b1.LastAttempt.Equal(second) {
-		t.Fatalf("expected last attempt %v, got %v", second, b1.LastAttempt)
+	if !b1.LastAttempt.Equal(after) {
+		t.Fatalf("expected last attempt %v, got %v", after, b1.LastAttempt)
 	}
 }
 
