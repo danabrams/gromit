@@ -64,3 +64,20 @@ func TestHandleActionTransitionActionsSetPendingAction(t *testing.T) {
         })
     }
 }
+
+func TestHandleActionRefreshCommandIncludesRequestedTab(t *testing.T) {
+	m := &Model{}
+	_, cmd := handleAction(m, "R", Tab("queue"), nil, nil)
+
+	if cmd == nil {
+		t.Fatal("expected refresh command to be non-nil")
+	}
+	msg := cmd()
+	refreshMsg, ok := msg.(pipelineRefreshedMsg)
+	if !ok {
+		t.Fatalf("expected pipelineRefreshedMsg, got %T", msg)
+	}
+	if refreshMsg.RequestedTab != Tab("queue") {
+		t.Fatalf("expected requested tab to be queue, got %q", refreshMsg.RequestedTab)
+	}
+}
