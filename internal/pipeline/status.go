@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/danabrams/gromit/internal/backlog"
@@ -199,6 +200,8 @@ func listReadyBeads(ctx context.Context, client BeadQueryClient) ([]string, int,
 			missing = append(missing, bead.ID)
 		}
 	}
+
+	sort.Strings(missing)
 
 	return ids, len(ids), missing
 }
