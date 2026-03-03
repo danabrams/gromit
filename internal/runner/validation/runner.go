@@ -433,7 +433,15 @@ func ExtractValidationSummary(failureOutput string) string {
 	}
 
 	if len(entries) == 0 && len(lines) == 0 {
-		return "PASS: all validations passed"
+		// Non-empty input with no recognized patterns means an unrecognized
+		// failure format (e.g. compilation errors from go build). Return a
+		// truncated version of the raw output instead of falsely reporting PASS.
+		const maxRaw = 500
+		raw := strings.TrimSpace(failureOutput)
+		if len(raw) > maxRaw {
+			raw = raw[:maxRaw] + "..."
+		}
+		return "FAIL (unrecognized output): " + raw
 	}
 
 	output := make([]string, 0, len(lines)+len(entries)+1)
