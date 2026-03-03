@@ -5040,3 +5040,59 @@ func TestOrchestrator_RegressionAndReviewRunConcurrently(t *testing.T) {
 		t.Error("Review stage did not execute")
 	}
 }
+
+func TestOrchestrator_RegressionGateFinalFailureSetsFailurePhase(t *testing.T) {
+	t.Parallel()
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-1", Title: "Test"}, nil
+	}
+
+	regressionGate := &fakeStage{runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{
+			Decision:           pipeline.Block,
+			ValidationFailures: []string{"FAIL: TestRegression"},
+		}, nil
+	}}
+
+	var capturedResult *logger.IterationLog
+	var capturedInput pipeline.Input
+	epilogueStage := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		capturedResult = in.Result
+		capturedInput = in
+		return pipeline.Output{}, nil
+	}}
+
+	cfg := OrchestratorConfig{
+		Gate:           &fakeStage{},
+		Build:          &fakeStage{},
+		Validate:       &fakeStage{},
+		RegressionGate: regressionGate,
+		Epilogue:       epilogueStage,
+		GetBead:        getBead,
+		Config: &config.Config{
+			Validation: config.ValidationConfig{MaxValidationRetries: 0},
+		},
+		Output: io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if capturedResult == nil {
+		t.Fatal("expected iteration log on regression gate failure")
+	}
+	if capturedResult.FailurePhase != failurephase.RegressionGate {
+		t.Fatalf("FailurePhase = %q, want %q", capturedResult.FailurePhase, failurephase.RegressionGate)
+	}
+	if !strings.Contains(capturedInput.FailureOutput, "FAIL: TestRegression") {
+		t.Fatalf("FailureOutput = %q, want it to contain regression failure output", capturedInput.FailureOutput)
+	}
+}
