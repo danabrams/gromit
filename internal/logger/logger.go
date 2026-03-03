@@ -36,6 +36,17 @@ type IterationLog struct {
 	ComplexityFallbackReason string    `json:"complexity_fallback_reason,omitempty"`
 	MidReviewRan             bool      `json:"mid_review_ran,omitempty"`
 	MidReviewError           string    `json:"mid_review_error,omitempty"`
+	MidReviewFindingsCount   int       `json:"mid_review_findings_count,omitempty"`
+	MidReviewFixBuild        bool      `json:"mid_review_fix_build,omitempty"`
+	MidReviewDurationMs      int64     `json:"mid_review_duration_ms,omitempty"`
+	MidReviewCostUSD         float64   `json:"mid_review_cost_usd,omitempty"`
+	MidReviewInputTokens     int       `json:"mid_review_input_tokens,omitempty"`
+	MidReviewOutputTokens    int       `json:"mid_review_output_tokens,omitempty"`
+	FixBuildRan              bool      `json:"fix_build_ran,omitempty"`
+	FixBuildDurationMs       int64     `json:"fix_build_duration_ms,omitempty"`
+	FixBuildCostUSD          float64   `json:"fix_build_cost_usd,omitempty"`
+	FixBuildInputTokens      int       `json:"fix_build_input_tokens,omitempty"`
+	FixBuildOutputTokens     int       `json:"fix_build_output_tokens,omitempty"`
 	DurationMs               int64     `json:"duration_ms"`
 	CostUSD                  float64   `json:"cost_usd"`
 	InputTokens              int       `json:"input_tokens"`

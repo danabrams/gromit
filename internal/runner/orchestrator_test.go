@@ -1847,6 +1847,7 @@ func TestOrchestrator_MidReviewMetricsCaptured(t *testing.T) {
 		t.Fatalf("FixBuildOutputTokens = %d, want %d", capturedResult.FixBuildOutputTokens, 250)
 	}
 }
+
 // TestOrchestrator_RunSequence_UsesCallerProvidedOrder verifies that RunSequence
 // resolves bead IDs via GetBeadByID and executes them in the exact caller-provided
 // order, independent of queue ordering.

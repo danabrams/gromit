@@ -191,6 +191,41 @@ type Orchestrator struct {
 	preImplementationHookRan bool
 }
 
+type midReviewMetrics struct {
+	ran                  bool
+	err                  string
+	findingsCount        int
+	fixBuildTriggered    bool
+	durationMs           int64
+	costUSD              float64
+	inputTokens          int
+	outputTokens         int
+	fixBuildRan          bool
+	fixBuildDurationMs   int64
+	fixBuildCostUSD      float64
+	fixBuildInputTokens  int
+	fixBuildOutputTokens int
+}
+
+func attachMidReviewMetrics(log *logger.IterationLog, metrics midReviewMetrics) {
+	if log == nil {
+		return
+	}
+	log.MidReviewRan = metrics.ran
+	log.MidReviewError = metrics.err
+	log.MidReviewFindingsCount = metrics.findingsCount
+	log.MidReviewFixBuild = metrics.fixBuildTriggered
+	log.MidReviewDurationMs = metrics.durationMs
+	log.MidReviewCostUSD = metrics.costUSD
+	log.MidReviewInputTokens = metrics.inputTokens
+	log.MidReviewOutputTokens = metrics.outputTokens
+	log.FixBuildRan = metrics.fixBuildRan
+	log.FixBuildDurationMs = metrics.fixBuildDurationMs
+	log.FixBuildCostUSD = metrics.fixBuildCostUSD
+	log.FixBuildInputTokens = metrics.fixBuildInputTokens
+	log.FixBuildOutputTokens = metrics.fixBuildOutputTokens
+}
+
 // NewOrchestrator returns an Orchestrator wired with the given configuration.
 func NewOrchestrator(cfg OrchestratorConfig) *Orchestrator {
 	o := &Orchestrator{
@@ -472,6 +507,7 @@ runLoop:
 		}
 
 		baseIn := o.buildInput(b, iteration, deadline, validationFailures, touchedPackages)
+		midReviewMetrics := midReviewMetrics{}
 
 		// Stage 1: Gate — precheck, stuck detection, scope gate, proactive decomposition.
 		gateOut, gateErr := o.cfg.Gate.Run(ctx, baseIn)
@@ -493,6 +529,7 @@ runLoop:
 				ComplexitySource:         baseIn.ComplexitySource,
 				ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 			}
+			attachMidReviewMetrics(baseIn.Result, midReviewMetrics)
 			switch gateOut.Decision {
 			case pipeline.Skip:
 				o.emitter.Emit(&events.BeadSkippedEvent{
@@ -561,6 +598,7 @@ runLoop:
 							ComplexitySource:         baseIn.ComplexitySource,
 							ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 						}
+						attachMidReviewMetrics(baseIn.Result, midReviewMetrics)
 						o.runEpilogue(ctx, baseIn, false)
 						o.emitter.Emit(&events.IterationCompleteEvent{
 							Iteration: iteration,
@@ -592,6 +630,7 @@ runLoop:
 				ComplexitySource:         baseIn.ComplexitySource,
 				ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 			}
+			attachMidReviewMetrics(baseIn.Result, midReviewMetrics)
 			o.runEpilogue(ctx, baseIn, false)
 			o.emitter.Emit(&events.IterationCompleteEvent{
 				Iteration: iteration,
@@ -632,6 +671,7 @@ runLoop:
 					ComplexitySource:         baseIn.ComplexitySource,
 					ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 				}
+				attachMidReviewMetrics(baseIn.Result, midReviewMetrics)
 				o.runEpilogue(ctx, baseIn, false)
 				o.emitter.Emit(&events.IterationCompleteEvent{
 					Iteration: iteration,
@@ -666,6 +706,7 @@ runLoop:
 				ComplexitySource:         baseIn.ComplexitySource,
 				ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 			}
+			attachMidReviewMetrics(baseIn.Result, midReviewMetrics)
 			stampBuildAttribution(baseIn.Result, buildOut)
 			o.runEpilogue(ctx, baseIn, false)
 			// Emit IterationCompleteEvent
@@ -678,47 +719,59 @@ runLoop:
 			})
 			continue
 		}
-		midReviewRan := false
-		midReviewError := ""
 		if o.cfg.MidReview != nil {
-			midReviewRan = true
+			midReviewMetrics.ran = true
 			midReviewOut, midReviewErr := o.cfg.MidReview.Run(ctx, baseIn)
 			if midReviewErr != nil {
-				midReviewError = midReviewErr.Error()
+				midReviewMetrics.err = midReviewErr.Error()
 				o.logWarning("Warning: mid-review error for bead %s (iteration %d): %v", b.ID, iteration, midReviewErr)
-			} else if len(midReviewOut.MidBuildReviewFindings) > 0 {
-				retryIn := baseIn
-				retryIn.MidBuildReviewFindings = append([]string(nil), midReviewOut.MidBuildReviewFindings...)
-				buildOut, buildErr = o.cfg.Build.Run(ctx, retryIn)
-				if buildErr != nil {
-					o.logWarning("Warning: build failed for bead %s (iteration %d): %v", b.ID, iteration, buildErr)
-					failurePhase := inferBuildFailurePhase(buildErr)
-					o.emitBeadFailedEvent(b, buildErr.Error())
-					baseIn.Result = &logger.IterationLog{
-						Timestamp:                time.Now(),
-						Iteration:                iteration,
-						BeadID:                   b.ID,
-						BeadTitle:                b.Title,
-						Success:                  false,
-						Error:                    buildErr.Error(),
-						FailurePhase:             failurePhase,
-						Complexity:               baseIn.Complexity,
-						ComplexitySource:         baseIn.ComplexitySource,
-						ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
+			} else {
+				midReviewMetrics.findingsCount = len(midReviewOut.MidBuildReviewFindings)
+				midReviewMetrics.durationMs = midReviewOut.DurationMs
+				midReviewMetrics.costUSD = midReviewOut.CostUSD
+				midReviewMetrics.inputTokens = midReviewOut.InputTokens
+				midReviewMetrics.outputTokens = midReviewOut.OutputTokens
+				if midReviewMetrics.findingsCount > 0 {
+					midReviewMetrics.fixBuildTriggered = true
+					retryIn := baseIn
+					retryIn.MidBuildReviewFindings = append([]string(nil), midReviewOut.MidBuildReviewFindings...)
+					buildOut, buildErr = o.cfg.Build.Run(ctx, retryIn)
+					midReviewMetrics.fixBuildRan = true
+					midReviewMetrics.fixBuildDurationMs = buildOut.DurationMs
+					midReviewMetrics.fixBuildCostUSD = buildOut.CostUSD
+					midReviewMetrics.fixBuildInputTokens = buildOut.InputTokens
+					midReviewMetrics.fixBuildOutputTokens = buildOut.OutputTokens
+					if buildErr != nil {
+						o.logWarning("Warning: build failed for bead %s (iteration %d): %v", b.ID, iteration, buildErr)
+						failurePhase := inferBuildFailurePhase(buildErr)
+						o.emitBeadFailedEvent(b, buildErr.Error())
+						baseIn.Result = &logger.IterationLog{
+							Timestamp:                time.Now(),
+							Iteration:                iteration,
+							BeadID:                   b.ID,
+							BeadTitle:                b.Title,
+							Success:                  false,
+							Error:                    buildErr.Error(),
+							FailurePhase:             failurePhase,
+							Complexity:               baseIn.Complexity,
+							ComplexitySource:         baseIn.ComplexitySource,
+							ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
+						}
+						attachMidReviewMetrics(baseIn.Result, midReviewMetrics)
+						stampBuildAttribution(baseIn.Result, buildOut)
+						o.runEpilogue(ctx, baseIn, false)
+						// Emit IterationCompleteEvent
+						o.emitter.Emit(&events.IterationCompleteEvent{
+							Iteration: iteration,
+							BeadID:    b.ID,
+							Success:   false,
+							Duration:  0,
+							TimeMixin: events.TimeMixin{Time: time.Now()},
+						})
+						continue
 					}
-					stampBuildAttribution(baseIn.Result, buildOut)
-					o.runEpilogue(ctx, baseIn, false)
-					// Emit IterationCompleteEvent
-					o.emitter.Emit(&events.IterationCompleteEvent{
-						Iteration: iteration,
-						BeadID:    b.ID,
-						Success:   false,
-						Duration:  0,
-						TimeMixin: events.TimeMixin{Time: time.Now()},
-					})
-					continue
+					baseIn.MidBuildReviewFindings = nil
 				}
-				baseIn.MidBuildReviewFindings = nil
 			}
 		}
 
@@ -808,6 +861,7 @@ runLoop:
 				ComplexitySource:         baseIn.ComplexitySource,
 				ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 			}
+			attachMidReviewMetrics(baseIn.Result, midReviewMetrics)
 			stampBuildAttribution(baseIn.Result, buildOut)
 			o.runEpilogue(ctx, baseIn, false)
 			// Emit IterationCompleteEvent
@@ -834,6 +888,7 @@ runLoop:
 				ComplexitySource:         baseIn.ComplexitySource,
 				ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 			}
+			attachMidReviewMetrics(baseIn.Result, midReviewMetrics)
 			stampBuildAttribution(baseIn.Result, buildOut)
 			failureReasons := make([]string, 0, len(validationFailures)+1)
 			failureReasons = append(failureReasons, validationFailures...)
@@ -898,6 +953,7 @@ runLoop:
 					ComplexitySource:         baseIn.ComplexitySource,
 					ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 				}
+				attachMidReviewMetrics(baseIn.Result, midReviewMetrics)
 				baseIn.FailureOutput = strings.Join(localGateOut.ValidationFailures, "\n")
 				stampBuildAttribution(baseIn.Result, buildOut)
 				o.emitBeadFailedEvent(b, failureMessage)
@@ -1018,6 +1074,7 @@ runLoop:
 					ComplexitySource:         baseIn.ComplexitySource,
 					ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
 				}
+				attachMidReviewMetrics(baseIn.Result, midReviewMetrics)
 				baseIn.FailureOutput = strings.Join(regressionGateOut.ValidationFailures, "\n")
 				stampBuildAttribution(baseIn.Result, buildOut)
 				o.emitBeadFailedEvent(b, failureMessage)
@@ -1049,9 +1106,8 @@ runLoop:
 			Complexity:               baseIn.Complexity,
 			ComplexitySource:         baseIn.ComplexitySource,
 			ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
-			MidReviewRan:             midReviewRan,
-			MidReviewError:           midReviewError,
 		}
+		attachMidReviewMetrics(baseIn.Result, midReviewMetrics)
 		stampBuildAttribution(baseIn.Result, buildOut)
 		epilogueOut := o.runEpilogue(ctx, baseIn, true)
 		finalSuccess := epilogueOut.LifecycleFailure == pipeline.LifecycleFailureNone
