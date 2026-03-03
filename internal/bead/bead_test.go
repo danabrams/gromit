@@ -1365,6 +1365,39 @@ func TestClientSync(t *testing.T) {
 	}
 }
 
+func TestClientUpdateExpectedOutputs_PassesAcceptance(t *testing.T) {
+	t.Parallel()
+	criteria := []string{"file1.go", "file2.go"}
+	wantAcceptance := strings.Join(criteria, "\n")
+	var gotArgs []string
+
+	c := &Client{
+		RunFn: func(args ...string) (string, error) {
+			gotArgs = append([]string(nil), args...)
+			if len(args) != 4 {
+				return "", fmt.Errorf("unexpected args: %v", args)
+			}
+			if args[0] != "update" || args[1] != "task-123" {
+				return "", fmt.Errorf("unexpected command: %v", args)
+			}
+			if args[2] != "--acceptance" {
+				return "", fmt.Errorf("missing --acceptance arg: %v", args)
+			}
+			if args[3] != wantAcceptance {
+				return "", fmt.Errorf("acceptance = %q, want %q", args[3], wantAcceptance)
+			}
+			return "", nil
+		},
+	}
+
+	if err := c.UpdateExpectedOutputs(context.Background(), "task-123", criteria); err != nil {
+		t.Fatalf("UpdateExpectedOutputs() unexpected error: %v", err)
+	}
+	if len(gotArgs) == 0 {
+		t.Fatal("UpdateExpectedOutputs() did not run bd")
+	}
+}
+
 // TestErrorWrapping tests that CLI errors are properly wrapped
 func TestErrorWrapping(t *testing.T) {
 	t.Parallel()
