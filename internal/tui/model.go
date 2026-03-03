@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"strconv"
-
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -104,13 +102,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, tea.Quit
 				case '1':
 					m.SwitchView(ViewDashboard)
-					m.focusedPanel = 0 // Reset focus when switching views
 				case '2':
 					m.SwitchView(ViewQueue)
-					m.focusedPanel = 0 // Reset focus when switching views
 				case '3':
 					m.SwitchView(ViewConversation)
-					m.focusedPanel = 0 // Reset focus when switching views
 					if m.conversation != nil {
 						return m, m.conversation.Init()
 					}
@@ -141,45 +136,9 @@ func (m *Model) renderConversationView() string {
 }
 
 func (m *Model) renderDashboardView() string {
-	var output string
-
-	// Panel 0: Progress panel
-	progressFocus := ""
-	if m.focusedPanel == 0 {
-		progressFocus = " [FOCUSED]"
-	}
-	output += "=== Progress Panel" + progressFocus + " ===\n"
-	output += "panel 0\n"
-	if m.store != nil {
-		if progress := m.store.RunProgressSnapshot(); progress != nil {
-			output += "progress: " + strconv.Itoa(progress.CurrentIteration) + "/" + strconv.Itoa(progress.MaxIterations) + "\n"
-		}
-	}
-	output += "\n"
-
-	// Panel 1: Status panel
-	statusFocus := ""
-	if m.focusedPanel == 1 {
-		statusFocus = " [FOCUSED]"
-	}
-	output += "=== Status Panel" + statusFocus + " ===\n"
-	output += "panel 1\n"
-	output += "Status information\n"
-
-	return output
+	return RenderDashboardView(m.store, m.focusedPanel)
 }
 
 func (m *Model) renderQueueView() string {
-	var output string
-
-	// Panel 0: Ready beads
-	readyFocus := ""
-	if m.focusedPanel == 0 {
-		readyFocus = " [FOCUSED]"
-	}
-	output += "=== Ready Beads" + readyFocus + " ===\n"
-	output += "panel 0\n"
-	output += "Queue beads\n"
-
-	return output
+	return RenderQueueView(m.store, m.focusedPanel)
 }
