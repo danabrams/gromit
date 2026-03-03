@@ -1785,6 +1785,12 @@
 {"issue_id":"gromit-tt7a","label":"spec:spec-acceptance-verification-loop"}
 {"issue_id":"gromit-ttnt1","label":"cleanup"}
 {"issue_id":"gromit-ttnt1","label":"from-review"}
+{"issue_id":"gromit-ttnt1.1","label":"cleanup"}
+{"issue_id":"gromit-ttnt1.1","label":"from-review"}
+{"issue_id":"gromit-ttnt1.1","label":"scope_decomp:433560be795b8ca4"}
+{"issue_id":"gromit-ttnt1.2","label":"cleanup"}
+{"issue_id":"gromit-ttnt1.2","label":"from-review"}
+{"issue_id":"gromit-ttnt1.2","label":"scope_decomp:5d9f30ecbdb80dd2"}
 {"issue_id":"gromit-tv7a","label":"spec:spec-acceptance-verification-loop"}
 {"issue_id":"gromit-twl","label":"spec:system-verification"}
 {"issue_id":"gromit-txl6","label":"spec:routing-ratio-reliability-review"}
