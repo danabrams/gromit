@@ -383,6 +383,9 @@ func (c *Client) UpdateExpectedOutputs(ctx context.Context, id string, criteria 
 	if c == nil {
 		return fmt.Errorf("bead client is nil")
 	}
+	if !validBeadID.MatchString(id) || len(id) > maxIDLength {
+		return fmt.Errorf("invalid bead ID %q", id)
+	}
 	acceptance := strings.Join(criteria, "\n")
 	_, err := c.run(ctx, "update", id, "--acceptance", acceptance)
 	if err != nil {
