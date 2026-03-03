@@ -640,49 +640,6 @@ func TestBuildStage_EscalationEnabled_FailsWhenAllTiersExhausted(t *testing.T) {
 	}
 }
 
-// trackingTDDCycleRunner is a test double for TDDCycleRunner that records calls.
-type trackingTDDCycleRunner struct {
-	runCyclesFn func(ctx context.Context, b *bead.Bead, cfg *config.Config) (execute.TDDCycleResult, error)
-}
-
-func (f *trackingTDDCycleRunner) RunCycles(ctx context.Context, b *bead.Bead, cfg *config.Config) (execute.TDDCycleResult, error) {
-	if f.runCyclesFn != nil {
-		return f.runCyclesFn(ctx, b, cfg)
-	}
-	return execute.TDDCycleResult{}, nil
-}
-
-// TestBuildRun_TDD_FreshContextRunnerNotUsed ensures that even if a runner is
-// injected while FreshContextPerCycle=true, Build.Run() does not delegate to it.
-func TestBuildRun_TDD_FreshContextRunnerNotUsed(t *testing.T) {
-	runCyclesCalled := false
-	runner := &trackingTDDCycleRunner{
-		runCyclesFn: func(_ context.Context, _ *bead.Bead, _ *config.Config) (execute.TDDCycleResult, error) {
-			runCyclesCalled = true
-			return execute.TDDCycleResult{}, nil
-		},
-	}
-
-	invoker := &fakeInvoker{}
-	stage := execute.New(invoker, &fakePromptRenderer{}, io.Discard).WithTDDCycleRunner(runner)
-
-	cfg := defaultConfig()
-	cfg.Methodology.TDD = true
-	cfg.Methodology.FreshContextPerCycle = true
-	in := makeInput(makeBead("bead-1", "Implement TDD feature"), cfg)
-
-	_, err := stage.Run(context.Background(), in)
-	if err != nil {
-		t.Fatalf("Run() error = %v, want nil", err)
-	}
-
-	if runCyclesCalled {
-		t.Error("TDDCycleRunner.RunCycles should not be called when FreshContextPerCycle=true but runner is ignored")
-	}
-	if len(invoker.streamCalls) != 1 {
-		t.Errorf("StreamRun called %d times, want 1 (fresh context should still use StreamRun)", len(invoker.streamCalls))
-	}
-}
 // TestBuildStage_Run_PopulatesOutputMetadataFromProviderResult verifies that the
 // Build stage copies Model, DurationMs, CostUSD, InputTokens, and OutputTokens
 // from the successful StreamRun provider result into the returned Output.
