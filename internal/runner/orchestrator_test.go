@@ -4819,6 +4819,75 @@ func TestOrchestrator_RegressionGateFailureTriggersRetry(t *testing.T) {
 	}
 }
 
+// TestOrchestrator_RegressionGateRetryReRunsWiringGate ensures that the wiring gate
+// is executed again when the regression gate triggers a retry so wiring issues
+// are rechecked after the rebuild.
+func TestOrchestrator_RegressionGateRetryReRunsWiringGate(t *testing.T) {
+	t.Parallel()
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-1", Title: "Test"}, nil
+	}
+
+	buildCalls := 0
+	buildStage := &fakeStage{runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+		buildCalls++
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	validateCalls := 0
+	validateStage := &fakeStage{runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+		validateCalls++
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	wiringGateCalls := 0
+	wiringGateStage := &fakeStage{runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+		wiringGateCalls++
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	regressionGateCalls := 0
+	regressionGateStage := &fakeStage{runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+		regressionGateCalls++
+		if regressionGateCalls == 1 {
+			return pipeline.Output{Decision: pipeline.Block, ValidationFailures: []string{"fail"}}, nil
+		}
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	cfg := OrchestratorConfig{
+		Gate:           &fakeStage{},
+		Build:          buildStage,
+		Validate:       validateStage,
+		WiringGate:     wiringGateStage,
+		RegressionGate: regressionGateStage,
+		Epilogue:       &fakeStage{},
+		GetBead:        getBead,
+		Config: &config.Config{
+			Validation: config.ValidationConfig{
+				MaxValidationRetries: 1,
+			},
+		},
+		Output: io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	err := orch.Run(context.Background(), 10, time.Time{}, nil)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if wiringGateCalls != 2 {
+		t.Fatalf("WiringGate called %d times; want 2 (retry after regression gate failure)", wiringGateCalls)
+	}
+}
+
 // TestOrchestrator_DisabledGates verifies that when WiringGate and RegressionGate
 // are nil, the pipeline proceeds without running them.
 func TestOrchestrator_DisabledGates(t *testing.T) {

@@ -954,6 +954,23 @@ runLoop:
 					break
 				}
 
+				if o.cfg.WiringGate != nil {
+					wiringGateOut, wiringGateErr := o.cfg.WiringGate.Run(ctx, retryIn)
+					if wiringGateErr != nil || wiringGateOut.Decision != pipeline.Proceed {
+						failureReasons := append([]string(nil), wiringGateOut.WiringFailures...)
+						if wiringGateErr != nil {
+							failureReasons = append(failureReasons, wiringGateErr.Error())
+						}
+						regressionGateOut.ValidationFailures = failureReasons
+						if wiringGateErr != nil {
+							regressionGateErr = wiringGateErr
+						} else {
+							regressionGateErr = fmt.Errorf("wiring gate decision %v", wiringGateOut.Decision)
+						}
+						break
+					}
+				}
+
 				regressionGateOut, regressionGateErr = o.cfg.RegressionGate.Run(ctx, retryIn)
 				regressionPassed = regressionGateErr == nil && regressionGateOut.Decision == pipeline.Proceed
 			}
