@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"fmt"
+	"io"
 	"testing"
 	"time"
 
@@ -11,7 +12,9 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/pipeline/execute"
+	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/escalation"
+	"github.com/danabrams/gromit/internal/runner/execution"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
@@ -41,6 +44,72 @@ type stubFallbackStage struct {
 func (s *stubFallbackStage) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
 	s.called = true
 	return s.out, s.err
+}
+
+func TestEscalationBuildStage_RendersPromptDespiteFreshContext(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		Methodology: config.MethodologyConfig{
+			TDD:                  true,
+			FreshContextPerCycle: true,
+		},
+		Escalation: config.EscalationConfig{
+			Enabled:            true,
+			MaxRetriesPerModel: 1,
+			MaxRetriesPerBead:  1,
+			Chain:              []string{"low"},
+		},
+		Claude: config.ClaudeConfig{
+			BeadTimeout: 120,
+		},
+	}
+	cfg.SetDefaults()
+
+	renderer := &trackingRenderer{}
+	handler := escalation.NewHandler(cfg, &noopAnalyzer{}, &noopBeadClient{}, nil, nil, nil, nil)
+	invoker := execution.NewInvoker(&testRouter{}, io.Discard, nil)
+
+	stage := &escalationBuildStage{
+		handler:     handler,
+		execInvoker: invoker,
+		renderer:    renderer,
+	}
+	fallback := &stubFallbackStage{
+		out: pipeline.Output{
+			Decision: pipeline.Proceed,
+			Model:    "fallback",
+		},
+	}
+	stage.fallback = fallback
+
+	in := pipeline.Input{
+		Bead: &bead.Bead{
+			ID:          "fresh-bead",
+			Title:       "fresh TDD bead",
+			Description: "ensure handler still runs",
+			Labels:      []string{"tdd:true"},
+		},
+		Config:            cfg,
+		EscalationEnabled: false,
+	}
+
+	out, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if renderer.tddCalls == 0 {
+		t.Fatal("expected TDD renderer to run even when FreshContextPerCycle is set")
+	}
+	if fallback == nil {
+		t.Fatal("fallback stage should be set for this test")
+	}
+	if fallback.called {
+		t.Fatal("expected fallback stage not to be invoked when handler path succeeds")
+	}
+	if out.Model == "" {
+		t.Fatal("expected handler path to populate output model")
+	}
 }
 
 func TestEscalationBuildStage_FallsBackForTDDFreshContext(t *testing.T) {
@@ -309,4 +378,55 @@ func (r *methodologyTrackingRenderer) RenderTDDBuild(title, description string, 
 }
 func (r *methodologyTrackingRenderer) RenderRefactorBuild(title, description string, validationFailures []string) (string, error) {
 	return r.prompts["refactor"], nil
+}
+
+type trackingRenderer struct {
+	tddCalls int
+}
+
+func (r *trackingRenderer) RenderBuild(title, description string, validationFailures []string) (string, error) {
+	return "standard", nil
+}
+
+func (r *trackingRenderer) RenderTDDBuild(title, description string, validationFailures []string) (string, error) {
+	r.tddCalls++
+	return "tdd prompt", nil
+}
+
+func (r *trackingRenderer) RenderRefactorBuild(title, description string, validationFailures []string) (string, error) {
+	return "refactor", nil
+}
+
+type testRouter struct{}
+
+func (*testRouter) Select(phase, tier string) (execution.Provider, string) {
+	return &testProvider{}, "stub-model"
+}
+
+func (*testRouter) MarkUnavailable(name string) {}
+
+func (*testRouter) RecordOutcome(providerName, failureCategory string) {}
+
+type testProvider struct{}
+
+func (*testProvider) Name() string {
+	return "stub-provider"
+}
+
+func (*testProvider) StreamRun(
+	ctx context.Context,
+	prompt, tier string,
+	output io.Writer,
+	handler provider.EventHandler,
+	onToolCall provider.ToolCallHandler,
+) (*provider.Result, error) {
+	return &provider.Result{
+		Success:  true,
+		Duration: time.Millisecond,
+		Model:    "stub-model",
+	}, nil
+}
+
+func (*testProvider) IsUsageLimitError(result *provider.Result, err error) bool {
+	return false
 }
