@@ -58,6 +58,31 @@ func TestLLMCriteriaEnricher_FallbacksToTitleAndDescription(t *testing.T) {
 	}
 }
 
+func TestLLMCriteriaEnricher_PersistsExpectedOutputs(t *testing.T) {
+	loader := &fakeSpecLoader{}
+	fakeProvider := &fakeCriteriaProvider{}
+	updater := &fakeBeadUpdater{}
+	enricher := NewLLMCriteriaEnricher(fakeProvider, loader, updater)
+	bead := &bead.Bead{ID: "persist-bead", Title: "Persist criteria"}
+
+	enriched, err := enricher.Enrich(context.Background(), bead)
+	if err != nil {
+		t.Fatalf("Enrich returned error: %v", err)
+	}
+	if enriched == nil {
+		t.Fatal("Enrich returned nil bead")
+	}
+	if updater.lastUpdateID != bead.ID {
+		t.Fatalf("updated bead ID = %q, want %q", updater.lastUpdateID, bead.ID)
+	}
+	if got, want := len(updater.lastUpdatedOutputs), 2; got != want {
+		t.Fatalf("persisted outputs = %v, want %d entries", updater.lastUpdatedOutputs, want)
+	}
+	if got := len(enriched.ExpectedOutputs); got != len(updater.lastUpdatedOutputs) {
+		t.Fatalf("enriched bead outputs = %d, want %d", got, len(updater.lastUpdatedOutputs))
+	}
+}
+
 type fakeCriteriaProvider struct {
 	lastPrompt string
 	lastTier   string
@@ -86,6 +111,8 @@ func (f *fakeSpecLoader) LoadPlan(ctx context.Context, specID string) (*Document
 
 type fakeBeadUpdater struct {
 	lastCriteria []string
+	lastUpdateID string
+	lastUpdatedOutputs []string
 }
 
 func (u *fakeBeadUpdater) UpdateAcceptanceCriteria(ctx context.Context, b *bead.Bead, criteria []string) (*bead.Bead, error) {
@@ -94,4 +121,10 @@ func (u *fakeBeadUpdater) UpdateAcceptanceCriteria(ctx context.Context, b *bead.
 	clone.ExpectedOutputs = append([]string(nil), criteria...)
 	clone.AcceptanceCriteria = strings.Join(criteria, "\n")
 	return &clone, nil
+}
+
+func (u *fakeBeadUpdater) UpdateExpectedOutputs(ctx context.Context, id string, outputs []string) error {
+	u.lastUpdateID = id
+	u.lastUpdatedOutputs = append([]string(nil), outputs...)
+	return nil
 }
