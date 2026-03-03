@@ -323,6 +323,14 @@ type MidBuildReviewConfig struct {
 	Timeout DurationSeconds `yaml:"timeout"`
 }
 
+// MidBuildReviewTimeout reports the configured timeout or zero when no config is loaded.
+func (c *Config) MidBuildReviewTimeout() time.Duration {
+	if c == nil {
+		return 0
+	}
+	return time.Duration(c.MidBuildReview.Timeout)
+}
+
 type ThoroughReviewConfig struct {
 	Enabled          bool   `yaml:"enabled"`
 	EveryNIterations int    `yaml:"every_n_iterations"`

@@ -29,6 +29,7 @@ func ParseMidBuildReviewResult(raw string) (*MidBuildReviewResult, error) {
 	var result MidBuildReviewResult
 	input := []byte(raw)
 	if err := json.Unmarshal(input, &result); err == nil {
+		normalizeMidBuildReviewResult(&result)
 		return &result, nil
 	}
 
@@ -38,8 +39,21 @@ func ParseMidBuildReviewResult(raw string) (*MidBuildReviewResult, error) {
 		for i, msg := range legacy {
 			result.Findings[i] = Finding{Message: msg}
 		}
+		normalizeMidBuildReviewResult(&result)
 		return &result, nil
 	} else {
 		return nil, fmt.Errorf("failed to parse JSON: %w", err)
+	}
+}
+
+func normalizeMidBuildReviewResult(result *MidBuildReviewResult) {
+	if result == nil {
+		return
+	}
+
+	result.Summary = strings.TrimSpace(result.Summary)
+	for i := range result.Findings {
+		result.Findings[i].Category = strings.TrimSpace(result.Findings[i].Category)
+		result.Findings[i].Message = strings.TrimSpace(result.Findings[i].Message)
 	}
 }

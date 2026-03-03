@@ -89,7 +89,15 @@ func (g *GitOps) CreateOrCheckoutSpecBranch(ctx context.Context, specBranchName 
 		return nil
 	}
 
-	// If branch exists, just checkout
+	// Only fall back to plain checkout if the error is "branch already exists".
+	// Other failures (dirty working tree, locked index, context cancellation) should
+	// be returned immediately so the root cause is not masked.
+	combinedOutput := createOutput.stdout + "\n" + createOutput.stderr
+	if !strings.Contains(combinedOutput, "already exists") {
+		return fmt.Errorf("failed to create spec branch %s: %w (output: %s)", specBranchName, err, formatGitCommandOutput(createOutput))
+	}
+
+	// Branch already exists, just checkout
 	checkoutOutput, checkoutErr := runGitCommandWithOutput(ctx, g.repoDir, "checkout", specBranchName)
 	if checkoutErr != nil {
 		return fmt.Errorf(
@@ -138,8 +146,9 @@ func (g *GitOps) RebaseOnto(ctx context.Context, branch, onto string) error {
 
 	// Check if this is a rebase conflict
 	if isRebaseConflict(output, err) {
-		// Abort the rebase to clean up state
-		_, _ = runGitCommand(ctx, g.repoDir, "rebase", "--abort")
+		// Abort the rebase to clean up state.
+		// Use context.Background() so cleanup completes even if the parent context is cancelled.
+		_, _ = runGitCommand(context.Background(), g.repoDir, "rebase", "--abort")
 
 		return &specmerge.ConflictError{
 			Operation: "rebase",
@@ -246,7 +255,7 @@ func isRebaseConflict(output string, err error) bool {
 		return false
 	}
 	// Check for typical rebase conflict markers in output
-	return strings.Contains(output, "CONFLICT") || strings.Contains(output, "conflict")
+	return strings.Contains(output, "CONFLICT")
 }
 
 func isMergeConflict(output string, err error) bool {
@@ -255,8 +264,6 @@ func isMergeConflict(output string, err error) bool {
 	}
 	// Check for typical merge conflict markers and fast-forward failures
 	return strings.Contains(output, "CONFLICT") ||
-		strings.Contains(output, "conflict") ||
-		strings.Contains(output, "Merge made by") ||
 		strings.Contains(output, "Not possible to fast-forward")
 }
 
