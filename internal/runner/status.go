@@ -46,6 +46,7 @@ type StatusWriter struct {
 	iterationTotal int
 	scopeLabel     string
 	mu             sync.Mutex
+	lastStatus     Status
 }
 
 // NewStatusWriter creates a new status writer for the given gromit directory
@@ -134,6 +135,11 @@ func (sw *StatusWriter) Write(iteration int, beadID, beadTitle, model string, ru
 		TimeBudgetMinutes: timeBudgetMinutes,
 	}
 
+	sw.lastStatus = status
+	return sw.writeStatusLocked(status)
+}
+
+func (sw *StatusWriter) writeStatusLocked(status Status) error {
 	data, err := json.MarshalIndent(status, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshaling status: %w", err)
@@ -172,29 +178,21 @@ func (sw *StatusWriter) WriteFinal(iteration int) error {
 	sw.mu.Lock()
 	defer sw.mu.Unlock()
 
-	status := Status{
-		Running:   false,
-		Iteration: iteration,
-		BeadID:    "",
-		BeadTitle: "",
-		Model:     "",
-		StartedAt: sw.startTime,
-		ElapsedS:  int(time.Since(sw.startTime).Seconds()),
-		PID:       os.Getpid(),
-		// MaxIterations and TimeBudgetMinutes are omitted (zero values) on final write
+	status := sw.lastStatus
+	if status.StartedAt.IsZero() {
+		status.StartedAt = sw.startTime
 	}
+	status.Running = false
+	status.Iteration = iteration
+	status.ScopeLabel = sw.scopeLabel
+	status.IterationTotal = sw.iterationTotal
+	status.TimeBudgetMinutes = sw.timeBudgetMinutes
+	status.ElapsedS = int(time.Since(sw.startTime).Seconds())
+	status.PID = os.Getpid()
+	status.StartedAt = sw.startTime
 
-	data, err := json.MarshalIndent(status, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshaling final status: %w", err)
-	}
-
-	// Write with 0644 permissions
-	if err := os.WriteFile(sw.path, data, 0644); err != nil {
-		return fmt.Errorf("writing final status file: %w", err)
-	}
-
-	return nil
+	sw.lastStatus = status
+	return sw.writeStatusLocked(status)
 }
 
 // ReadStatus reads and parses status.json from the gromit directory.
