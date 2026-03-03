@@ -178,6 +178,7 @@ type mockDataQualityBlocker struct {
 func newMockDataQualityBlocker() *mockDataQualityBlocker {
 	return &mockDataQualityBlocker{}
 }
+
 type mockCriteriaProvider struct {
 	called bool
 	result *provider.Result
@@ -227,10 +228,10 @@ func (m *mockSpecLoader) LoadPlan(_ context.Context, _ string) (*Document, bool,
 }
 
 type mockBeadUpdater struct {
-	called   bool
-	beadID   string
-	outputs  []string
-	err      error
+	called  bool
+	beadID  string
+	outputs []string
+	err     error
 }
 
 func (m *mockBeadUpdater) WithError(err error) *mockBeadUpdater {
@@ -447,8 +448,8 @@ func TestGateRun_CriteriaEnricherSpecLoaderErrorLogsWarning(t *testing.T) {
 
 	beadID := "spec-loader-error"
 	bead := &bead.Bead{
-		ID:    beadID,
-		Title: "Spec error bead",
+		ID:     beadID,
+		Title:  "Spec error bead",
 		Labels: []string{"spec:alpha"},
 	}
 

@@ -59,14 +59,14 @@ type CriteriaEnricher interface {
 // If data quality blocked, returns Block.
 // Otherwise returns Proceed.
 type Gate struct {
-	events.EmitterMixin                      // provides Emitter field and SetEmitter method
-	precheck            Prechecker           // optional; nil means skip precheck
-	readiness           readiness.Assessor   // optional; nil means skip readiness assessment
-	stuck               StuckDetector        // optional; nil means skip stuck detection
-	decomposer          Decomposer           // optional; used only by scope-gate decomposition
-	dataQualityChecker  DataQualityBlocker   // optional; nil means skip data quality checks
-	specSPCBlocker      *SpecSPCBlocker      // optional; nil means skip spec-level SPC blocking
-	criteriaEnricher    CriteriaEnricher      // optional; nil means skip criteria enrichment
+	events.EmitterMixin                    // provides Emitter field and SetEmitter method
+	precheck            Prechecker         // optional; nil means skip precheck
+	readiness           readiness.Assessor // optional; nil means skip readiness assessment
+	stuck               StuckDetector      // optional; nil means skip stuck detection
+	decomposer          Decomposer         // optional; used only by scope-gate decomposition
+	dataQualityChecker  DataQualityBlocker // optional; nil means skip data quality checks
+	specSPCBlocker      *SpecSPCBlocker    // optional; nil means skip spec-level SPC blocking
+	criteriaEnricher    CriteriaEnricher   // optional; nil means skip criteria enrichment
 	output              io.Writer
 }
 
@@ -126,7 +126,6 @@ func (g *Gate) WithSpecSPCBlocker(sb *SpecSPCBlocker) *Gate {
 	return g
 }
 
-
 // WithCriteriaEnricher configures an optional CriteriaEnricher for auto-generating acceptance criteria.
 func (g *Gate) WithCriteriaEnricher(e CriteriaEnricher) *Gate {
 	g.criteriaEnricher = e
@@ -146,6 +145,11 @@ func (g *Gate) HasDataQualityBlocker() bool {
 // HasSpecSPCBlocker returns true if a SpecSPCBlocker is wired in, false otherwise.
 func (g *Gate) HasSpecSPCBlocker() bool {
 	return g.specSPCBlocker != nil
+}
+
+// HasCriteriaEnricher returns true if a CriteriaEnricher is wired in, false otherwise.
+func (g *Gate) HasCriteriaEnricher() bool {
+	return g != nil && g.criteriaEnricher != nil
 }
 
 // Run executes the gate stage.

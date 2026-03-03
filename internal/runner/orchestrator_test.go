@@ -4553,13 +4553,13 @@ func TestAssertEfficiencyCompleteness_AllowsPrelaunchSentinelOnly(t *testing.T) 
 
 	// Create orchestrator with logs directory
 	cfg := OrchestratorConfig{
-		Gate:    &fakeStage{},
-		Build:   &fakeStage{},
+		Gate:     &fakeStage{},
+		Build:    &fakeStage{},
 		Validate: &fakeStage{},
 		Epilogue: &fakeStage{},
-		GetBead: func(context.Context) (*bead.Bead, error) { return nil, nil },
-		Config:  &config.Config{},
-		LogsDir: logsDir,
+		GetBead:  func(context.Context) (*bead.Bead, error) { return nil, nil },
+		Config:   &config.Config{},
+		LogsDir:  logsDir,
 		GetRunID: func() string {
 			return runID
 		},
@@ -4592,13 +4592,13 @@ func TestAssertEfficiencyCompleteness_FailsWhenRealDataGapExists(t *testing.T) {
 	}
 
 	cfg := OrchestratorConfig{
-		Gate:    &fakeStage{},
-		Build:   &fakeStage{},
+		Gate:     &fakeStage{},
+		Build:    &fakeStage{},
 		Validate: &fakeStage{},
 		Epilogue: &fakeStage{},
-		GetBead: func(context.Context) (*bead.Bead, error) { return nil, nil },
-		Config:  &config.Config{},
-		LogsDir: logsDir,
+		GetBead:  func(context.Context) (*bead.Bead, error) { return nil, nil },
+		Config:   &config.Config{},
+		LogsDir:  logsDir,
 		GetRunID: func() string {
 			return runID
 		},

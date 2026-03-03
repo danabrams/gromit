@@ -33,7 +33,7 @@ func newGateCriteriaEnricher(cfg *config.Config, router *provider.Router, tracke
 	}
 
 	loader := newDiskSpecLoader(cfg.Paths.Specs, cfg.Paths.Plans)
-	return prepare.NewLLMCriteriaEnricher(beadClient, providerAdapter, loader)
+	return prepare.NewLLMCriteriaEnricher(providerAdapter, loader, beadClient)
 }
 
 type criteriaLLMProvider struct {
