@@ -684,10 +684,9 @@ runLoop:
 		validationPassed := validateErr == nil && validateOut.Decision == pipeline.Proceed
 		failurePhase := failurephase.Validation
 		var wiringGateErr error
-		if !validationPassed {
-			validationFailures = append([]string(nil), validateOut.ValidationFailures...)
-		} else {
-			var wiringGateFailures []string
+		var wiringGateFailures []string
+		if validationPassed {
+			// Stage 3b: Wiring gate — checks symbol wiring before review.
 			validationPassed, wiringGateFailures, wiringGateErr = runWiringGate(baseIn)
 			if wiringGateErr != nil {
 				failurePhase = failurephase.WiringGate
@@ -696,6 +695,8 @@ runLoop:
 				validationFailures = append([]string(nil), wiringGateFailures...)
 				failurePhase = failurephase.WiringGate
 			}
+		} else {
+			validationFailures = append([]string(nil), validateOut.ValidationFailures...)
 		}
 		if !validationPassed {
 			maxValidationRetries := 0
@@ -818,7 +819,6 @@ runLoop:
 		}
 
 		validationFailures = nil
-
 		if o.cfg.CoverageTracker != nil {
 			o.cfg.CoverageTracker.ToComplete()
 		}

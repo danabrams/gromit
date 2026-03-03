@@ -58,6 +58,8 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 	if cfg == nil {
 		return nil, fmt.Errorf("config is nil")
 	}
+	cfg.SetDefaults()
+	cfg.NormalizeNilFields()
 	if output == nil {
 		output = os.Stdout
 	}
@@ -81,12 +83,10 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 			},
 		)
 	}
-
 	statusWriter, err := NewStatusWriter(gromitDir)
 	if err != nil {
 		_, _ = fmt.Fprintf(output, "Warning: could not create status writer: %v\n", err)
 	}
-
 	// Load experiments early so they can be injected into stages
 	var experimentMgr *experiment.Manager
 	if cfg.Experiment.Enabled {
@@ -207,7 +207,10 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 	gitDiffFn := func(ctx context.Context) (string, error) {
 		return getGitDiff(ctx, "")
 	}
-	wiringStage := wiringgate.New(gitDiffFn)
+	var wiringStage pipeline.Stage
+	if cfg.QualityGates != nil && cfg.QualityGates.Wiring != nil && cfg.QualityGates.Wiring.Enabled {
+		wiringStage = wiringgate.New(gitDiffFn)
+	}
 	// Stage 4: Review (review.New with Invoker, BeadCreator, PromptRenderer, GitDiffFn)
 	reviewStage := review.New(
 		&reviewInvokerAdapter{router: router, syncOut: syncOut},
@@ -240,9 +243,6 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 	}
 
 	// Create OrchestratorConfig
-	cfg.SetDefaults()
-	cfg.NormalizeNilFields()
-
 	getRunIDFn := func() string {
 		if iterationLogger != nil {
 			return iterationLogger.RunID()
