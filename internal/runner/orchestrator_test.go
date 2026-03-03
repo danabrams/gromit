@@ -4742,6 +4742,70 @@ func TestOrchestrator_WiringGateFailureTriggersRetry(t *testing.T) {
 	}
 }
 
+func TestOrchestrator_WiringGateFailureFeedsValidationFailures(t *testing.T) {
+	t.Parallel()
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-1", Title: "Test"}, nil
+	}
+
+	var buildInputs []pipeline.Input
+	buildStage := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		buildInputs = append(buildInputs, in)
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	validateStage := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	wiringFailures := []string{"TestSymbol exported but not referenced"}
+	wiringGateCalls := 0
+	wiringGateStage := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		wiringGateCalls++
+		if wiringGateCalls == 1 {
+			return pipeline.Output{
+				Decision:       pipeline.Block,
+				WiringFailures: append([]string(nil), wiringFailures...),
+			}, nil
+		}
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	cfg := OrchestratorConfig{
+		Gate:       &fakeStage{},
+		Build:      buildStage,
+		Validate:   validateStage,
+		WiringGate: wiringGateStage,
+		Epilogue:   &fakeStage{},
+		GetBead:    getBead,
+		Config: &config.Config{
+			Validation: config.ValidationConfig{MaxValidationRetries: 1},
+		},
+		Output: io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if len(buildInputs) < 2 {
+		t.Fatalf("captured build inputs = %d, want at least 2", len(buildInputs))
+	}
+	if len(buildInputs[0].ValidationFailures) != 0 {
+		t.Fatalf("first build validation failures = %#v, want empty", buildInputs[0].ValidationFailures)
+	}
+	if !reflect.DeepEqual(buildInputs[1].ValidationFailures, wiringFailures) {
+		t.Fatalf("recovery build validation failures = %#v, want %#v", buildInputs[1].ValidationFailures, wiringFailures)
+	}
+}
+
 // TestOrchestrator_RegressionGateFailureTriggersRetry verifies that when the regression gate
 // returns Block on first attempt and Proceed on retry, the orchestrator re-enters the
 // Build→Validate→RegressionGate loop with appropriate context.
