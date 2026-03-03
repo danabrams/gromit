@@ -1623,6 +1623,72 @@ func TestOrchestrator_LocalGateFailureSkipsReview(t *testing.T) {
 	}
 }
 
+func TestOrchestrator_MidReviewFindingsTriggerBuildRetry(t *testing.T) {
+	t.Parallel()
+
+	var buildInputs []pipeline.Input
+	build := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		buildInputs = append(buildInputs, in)
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	findings := []string{"fix logging", "document the API"}
+	midReviewCalled := false
+	midReview := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		midReviewCalled = true
+		return pipeline.Output{
+			Decision:               pipeline.Proceed,
+			MidBuildReviewFindings: findings,
+		}, nil
+	}}
+
+	var validateInput pipeline.Input
+	validate := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		validateInput = in
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-mid-review", Title: "Mid review"}, nil
+	}
+
+	orch := NewOrchestrator(OrchestratorConfig{
+		Gate:      &fakeStage{},
+		Build:     build,
+		MidReview: midReview,
+		Validate:  validate,
+		Epilogue:  &fakeStage{},
+		GetBead:   getBead,
+		Config:    &config.Config{},
+		Output:    io.Discard,
+	})
+
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if !midReviewCalled {
+		t.Fatal("expected mid-review stage to run")
+	}
+	if len(buildInputs) < 2 {
+		t.Fatalf("build should run twice, got %d", len(buildInputs))
+	}
+	if len(buildInputs[0].MidBuildReviewFindings) != 0 {
+		t.Fatalf("first build should not receive mid-review findings, got %+v", buildInputs[0].MidBuildReviewFindings)
+	}
+	if !reflect.DeepEqual(buildInputs[1].MidBuildReviewFindings, findings) {
+		t.Fatalf("second build findings = %+v, want %+v", buildInputs[1].MidBuildReviewFindings, findings)
+	}
+	if validateInput.MidBuildReviewFindings != nil {
+		t.Fatalf("validate should see cleared findings, got %+v", validateInput.MidBuildReviewFindings)
+	}
+}
+
 // TestOrchestrator_RunSequence_UsesCallerProvidedOrder verifies that RunSequence
 // resolves bead IDs via GetBeadByID and executes them in the exact caller-provided
 // order, independent of queue ordering.
