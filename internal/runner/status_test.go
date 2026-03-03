@@ -65,12 +65,12 @@ func TestPrintStatus_IncludesIntegrationQueueSummary(t *testing.T) {
 		makeQueueEntry("gromit/merged-branch", integrationqueue.StateMerged, "code_lane", 4, "", ""),
 	}
 
-	queueData := map[string]interface{}{
-		"schema_version": 1,
-		"updated_at":     "2026-02-28T00:00:00Z",
-		"entries":        entries,
+	queue := integrationqueue.Queue{
+		SchemaVersion: integrationqueue.SchemaVersion,
+		UpdatedAt:     time.Date(2026, time.February, 28, 0, 0, 0, 0, time.UTC),
+		Entries:       entries,
 	}
-	bytes, err := json.Marshal(queueData)
+	bytes, err := json.Marshal(queue)
 	if err != nil {
 		t.Fatalf("json.Marshal queue data: %v", err)
 	}
@@ -163,13 +163,13 @@ func TestPrintStatus_BlockerEntriesIncludeRecoveryInstructions(t *testing.T) {
 		t.Fatalf("MkdirAll: %v", err)
 	}
 
-    entry := makeQueueEntry("gromit/conflict-branch", integrationqueue.StateConflict, "safe_lane", 1, "merge_conflict", "Conflict in cmd/gromit/run.go")
-	queueData := map[string]interface{}{
-		"schema_version": 1,
-		"updated_at":     "2026-02-28T00:00:00Z",
-		"entries":        []map[string]interface{}{entry},
+	entry := makeQueueEntry("gromit/conflict-branch", integrationqueue.StateConflict, "safe_lane", 1, "merge_conflict", "Conflict in cmd/gromit/run.go")
+	queue := integrationqueue.Queue{
+		SchemaVersion: integrationqueue.SchemaVersion,
+		UpdatedAt:     time.Date(2026, time.February, 28, 0, 0, 0, 0, time.UTC),
+		Entries:       []integrationqueue.Entry{entry},
 	}
-	data, err := json.Marshal(queueData)
+	data, err := json.Marshal(queue)
 	if err != nil {
 		t.Fatalf("json.Marshal queue data: %v", err)
 	}
@@ -255,24 +255,25 @@ func TestReadIntegrationQueue_UsesStoreSnapshot(t *testing.T) {
 	}
 }
 
-func makeQueueEntry(branch, state, lane string, fifo int, lastCode, lastMsg string) map[string]interface{} {
-	return map[string]interface{}{
-		"branch":                 branch,
-		"session_id":             branch + "-session",
-		"origin_command":         "review",
-		"state":                  state,
-		"lane":                   lane,
-		"created_at":             "2026-02-28T00:00:00Z",
-		"updated_at":             "2026-02-28T00:00:00Z",
-		"attempt_count":          1,
-		"retry_count":            0,
-		"fifo_seq":               fifo,
-		"base_ref":               "origin/main",
-		"head_sha":               "deadbeef",
-		"changed_files_hash":     "sha256:hash",
-		"last_error_code":        lastCode,
-		"last_error_message":     lastMsg,
-		"last_transition_reason": "session_committed",
+func makeQueueEntry(branch string, state integrationqueue.State, lane string, fifo int, lastCode, lastMsg string) integrationqueue.Entry {
+	timestamp := time.Date(2026, time.February, 28, 0, 0, 0, 0, time.UTC)
+	return integrationqueue.Entry{
+		Branch:               branch,
+		SessionID:            branch + "-session",
+		OriginCommand:        "review",
+		State:                state,
+		Lane:                 lane,
+		CreatedAt:            timestamp,
+		UpdatedAt:            timestamp,
+		AttemptCount:         1,
+		RetryCount:           0,
+		FifoSeq:              fifo,
+		BaseRef:              "origin/main",
+		HeadSHA:              "deadbeef",
+		ChangedFilesHash:     "sha256:hash",
+		LastErrorCode:        lastCode,
+		LastErrorMessage:     lastMsg,
+		LastTransitionReason: "session_committed",
 	}
 }
 
