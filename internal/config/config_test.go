@@ -142,6 +142,21 @@ func TestNormalizeNilFieldsInitializesDefinitionsMap(t *testing.T) {
 	}
 }
 
+func TestNormalizeNilFieldsQualityGates(t *testing.T) {
+	cfg := &Config{}
+	cfg.NormalizeNilFields()
+
+	if cfg.QualityGates == nil {
+		t.Fatal("QualityGates is nil, want non-nil struct")
+	}
+	if cfg.QualityGates.Regression == nil {
+		t.Fatal("QualityGates.Regression is nil, want non-nil struct")
+	}
+	if cfg.QualityGates.Wiring == nil {
+		t.Fatal("QualityGates.Wiring is nil, want non-nil struct")
+	}
+}
+
 func TestNormalizeNilFields_MandatoryCommandsInitialized(t *testing.T) {
 	cfg := &Config{}
 	cfg.NormalizeNilFields()
