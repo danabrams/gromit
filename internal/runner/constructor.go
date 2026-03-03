@@ -271,6 +271,7 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 		},
 		Config:              cfg,
 		SpecMergeController: specMergeController,
+		Router:              router,
 		GlobalStatsPath:     filepath.Join(gromitDir, "stats.json"),
 		GetRunID:            getRunIDFn,
 		LogsDir:             cfg.Paths.Logs,
