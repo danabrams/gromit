@@ -144,25 +144,6 @@ func (b *Build) Run(ctx context.Context, in pipeline.Input) (pipeline.Output, er
 		methodology = MethodologyStandard
 	}
 
-	if methodology == MethodologyTDD && in.Config != nil && in.Config.Methodology.FreshContextPerCycle && b.tddCycleRunner != nil {
-		result, err := b.tddCycleRunner.RunCycles(ctx, in.Bead, in.Config)
-		out := pipeline.Output{
-			Decision:     pipeline.Proceed,
-			PhaseMetrics: result.PhaseMetrics,
-			OriginalTier: result.OriginalTier,
-			ActualTier:   result.ActualTier,
-			Model:        result.Model,
-			DurationMs:   result.DurationMs,
-			CostUSD:      result.CostUSD,
-			InputTokens:  result.InputTokens,
-			OutputTokens: result.OutputTokens,
-		}
-		if err != nil {
-			return out, fmt.Errorf("build: TDD cycle runner: %w", err)
-		}
-		return out, nil
-	}
-
 	var (
 		prompt string
 		err    error
