@@ -85,6 +85,9 @@ func ReapProcessGroup(cmd *exec.Cmd) {
 // daemons or processes that called setpgid). Safe to call after cmd.Wait()
 // returns. Errors are silently ignored (processes may already be gone).
 //
+// Platform limitation: Descendant tree walking via /proc only works on Linux.
+// On other platforms, falls back to process-group kill.
+//
 // Usage: defer procutil.ReapProcessTree(cmd) after cmd.Start() succeeds.
 func ReapProcessTree(cmd *exec.Cmd) {
 	if cmd.Process == nil {
@@ -111,6 +114,9 @@ func ReapProcessTree(cmd *exec.Cmd) {
 // after cmd.Wait() returns, the parent's /proc entry is gone and
 // collectDescendants can't find grandchildren. By listening on ctx.Done()
 // we catch the cancellation while the process tree is still visible.
+//
+// Platform limitation: Descendant tree walking via /proc only works on Linux.
+// On other platforms, falls back to process-group kill.
 //
 // Usage: call immediately after cmd.Start() succeeds.
 func KillDescendantsOnCancel(ctx context.Context, cmd *exec.Cmd) {
