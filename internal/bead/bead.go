@@ -461,7 +461,8 @@ func (c *Client) run(ctx context.Context, args ...string) (string, error) {
 	if shouldRetryWithIssuePrefixBootstrap(err) {
 		prefix, prefixErr := c.deriveIssuePrefix(ctx)
 		if prefixErr != nil {
-			return "", fmt.Errorf("%w (derive issue_prefix: %v)", err, prefixErr)
+			deriveErr := fmt.Errorf("derive issue_prefix: %w", prefixErr)
+			return "", errors.Join(err, deriveErr)
 		}
 		if _, setErr := c.runWithEnv(ctx, []string{"config", "set", "issue_prefix", prefix}, nil); setErr != nil {
 			return "", fmt.Errorf("%w (auto-set issue_prefix=%q failed: %v)", err, prefix, setErr)
@@ -549,7 +550,8 @@ func (c *Client) runClose(ctx context.Context, id string) (string, error) {
 	if shouldRetryWithIssuePrefixBootstrap(err) {
 		prefix, prefixErr := c.deriveIssuePrefix(ctx)
 		if prefixErr != nil {
-			return "", fmt.Errorf("%w (derive issue_prefix: %v)", err, prefixErr)
+			deriveErr := fmt.Errorf("derive issue_prefix: %w", prefixErr)
+			return "", errors.Join(err, deriveErr)
 		}
 		if _, setErr := c.runWithEnv(ctx, []string{"config", "set", "issue_prefix", prefix}, nil); setErr != nil {
 			return "", fmt.Errorf("%w (auto-set issue_prefix=%q failed: %v)", err, prefix, setErr)
