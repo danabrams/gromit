@@ -34,6 +34,8 @@ type OrchestratorConfig struct {
 	Gate pipeline.Stage
 	// Build is Stage 2: authors code via LLM invocation.
 	Build pipeline.Stage
+	// MidReview runs between Build and Validate to highlight issues before validation.
+	MidReview pipeline.Stage
 	// Validate is Stage 3: runs programmatic checks.
 	Validate pipeline.Stage
 	// LocalGate runs spec-only acceptance checks after implementation succeeds.
@@ -197,6 +199,7 @@ func NewOrchestrator(cfg OrchestratorConfig) *Orchestrator {
 	}
 	o.attachEmitterToStage(cfg.Gate)
 	o.attachEmitterToStage(cfg.Build)
+	o.attachEmitterToStage(cfg.MidReview)
 	o.attachEmitterToStage(cfg.Validate)
 	o.attachEmitterToStage(cfg.LocalGate)
 	o.attachEmitterToStage(cfg.Review)
@@ -674,6 +677,45 @@ runLoop:
 				TimeMixin: events.TimeMixin{Time: time.Now()},
 			})
 			continue
+		}
+		if o.cfg.MidReview != nil {
+			midReviewOut, midReviewErr := o.cfg.MidReview.Run(ctx, baseIn)
+			if midReviewErr != nil {
+				o.logWarning("Warning: mid-review error for bead %s (iteration %d): %v", b.ID, iteration, midReviewErr)
+			} else if len(midReviewOut.MidBuildReviewFindings) > 0 {
+				retryIn := baseIn
+				retryIn.MidBuildReviewFindings = append([]string(nil), midReviewOut.MidBuildReviewFindings...)
+				buildOut, buildErr = o.cfg.Build.Run(ctx, retryIn)
+				if buildErr != nil {
+					o.logWarning("Warning: build failed for bead %s (iteration %d): %v", b.ID, iteration, buildErr)
+					failurePhase := inferBuildFailurePhase(buildErr)
+					o.emitBeadFailedEvent(b, buildErr.Error())
+					baseIn.Result = &logger.IterationLog{
+						Timestamp:                time.Now(),
+						Iteration:                iteration,
+						BeadID:                   b.ID,
+						BeadTitle:                b.Title,
+						Success:                  false,
+						Error:                    buildErr.Error(),
+						FailurePhase:             failurePhase,
+						Complexity:               baseIn.Complexity,
+						ComplexitySource:         baseIn.ComplexitySource,
+						ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
+					}
+					stampBuildAttribution(baseIn.Result, buildOut)
+					o.runEpilogue(ctx, baseIn, false)
+					// Emit IterationCompleteEvent
+					o.emitter.Emit(&events.IterationCompleteEvent{
+						Iteration: iteration,
+						BeadID:    b.ID,
+						Success:   false,
+						Duration:  0,
+						TimeMixin: events.TimeMixin{Time: time.Now()},
+					})
+					continue
+				}
+				baseIn.MidBuildReviewFindings = nil
+			}
 		}
 
 		// Stage 3: Validate — runs fast validation commands, enforces deadline.

@@ -52,6 +52,9 @@ type Input struct {
 	// ValidationFailures holds summaries of recent validation failures
 	// from the previous validate stage, fed into the next execute stage.
 	ValidationFailures []string
+	// MidBuildReviewFindings holds findings returned by the mid-review stage
+	// that should be passed to the subsequent build invocation.
+	MidBuildReviewFindings []string
 	// EscalationEnabled controls whether the Build stage may escalate to higher
 	// tiers (haiku→sonnet→opus) on invocation failure. When false, a single
 	// attempt is made at the bead's configured tier with no retry.
@@ -98,6 +101,9 @@ type Output struct {
 	// ValidationFailures holds failure summaries produced by the validate stage
 	// to be fed into the next execute stage Input.
 	ValidationFailures []string
+	// MidBuildReviewFindings carries findings discovered by the mid-review stage
+	// so the orchestrator can trigger an extra build invocation.
+	MidBuildReviewFindings []string
 	// WiringFailures holds failure summaries produced by the wiring gate stage
 	// to be fed into the next execute stage Input on retry.
 	WiringFailures []string
