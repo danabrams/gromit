@@ -91,65 +91,41 @@ func removeEnvKey(env []string, key string) []string {
 }
 
 func classifyCodexFailure(exitCode int, stdout, stderr string) string {
-	if exitCode == 0 {
-		return FailureCategoryNone
+	text := stdout + "\n" + stderr
+	patterns := FailurePatterns{
+		Auth: []string{
+			"unauthorized",
+			"invalid api key",
+			"authentication",
+			"forbidden",
+		},
+		Startup: []string{
+			"failed to start",
+			"failed to create stdin pipe",
+			"failed to create stdout pipe",
+			"timed out waiting for first event",
+			"startup",
+			"initializ",
+		},
+		Transport: []string{
+			"stream disconnected",
+			"could not resolve host",
+			"temporary failure in name resolution",
+			"name or service not known",
+			"connection reset",
+			"connection refused",
+			"connection timed out",
+			"timeout",
+			"temporarily unavailable",
+			"internal server error",
+			"service unavailable",
+			"broken pipe",
+			"econnreset",
+			"reconnecting",
+		},
+		RateLimit: []string{"rate limit", "too many requests", "quota exceeded", "429", "503"},
 	}
-	text := strings.ToLower(strings.TrimSpace(stdout + "\n" + stderr))
-	if text == "" {
-		return FailureCategoryOther
-	}
-	authPatterns := []string{
-		"unauthorized",
-		"invalid api key",
-		"authentication",
-		"forbidden",
-	}
-	for _, p := range authPatterns {
-		if strings.Contains(text, p) {
-			return FailureCategoryAuth
-		}
-	}
-	startupPatterns := []string{
-		"failed to start",
-		"failed to create stdin pipe",
-		"failed to create stdout pipe",
-		"timed out waiting for first event",
-		"startup",
-		"initializ",
-	}
-	for _, p := range startupPatterns {
-		if strings.Contains(text, p) {
-			return FailureCategoryStartupError
-		}
-	}
-	transportPatterns := []string{
-		"stream disconnected",
-		"could not resolve host",
-		"temporary failure in name resolution",
-		"name or service not known",
-		"connection reset",
-		"connection refused",
-		"connection timed out",
-		"timeout",
-		"temporarily unavailable",
-		"internal server error",
-		"service unavailable",
-		"broken pipe",
-		"econnreset",
-		"reconnecting",
-	}
-	for _, p := range transportPatterns {
-		if strings.Contains(text, p) {
-			return FailureCategoryTransportDisconnect
-		}
-	}
-	ratePatterns := []string{"rate limit", "too many requests", "quota exceeded", "429", "503"}
-	for _, p := range ratePatterns {
-		if strings.Contains(text, p) {
-			return FailureCategoryRateLimited
-		}
-	}
-	return FailureCategoryOther
+	return classifyFailure(exitCode, text, patterns)
 }
 
 func isTransientCodexFailure(failureCategory string) bool {

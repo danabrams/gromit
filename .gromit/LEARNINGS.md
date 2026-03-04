@@ -125,7 +125,6 @@ Shared orchestrator/runtime path ownership must include telemetry completeness e
 
 *Newly observed — needs validation across more tasks.*
 
-
 ### 2026-03-02 | TDD Oscillation Detection Now Uses Order-Insensitive Multiset Comparison | patterns
 *Related to: review-1772465040994006393*
 
@@ -246,7 +245,6 @@ All CLI command paths must resolve dependencies through NewPipelineDeps(); packa
 
 The TUI store (internal/tui/store.go) uses sync.RWMutex. All mutations hold the write lock; map function reads hold the read lock. View rendering uses copy-on-read to minimize lock duration.
 
-
 ### 2026-02-28 | Epilogue Close/Sync Failures Must Suppress All Success Signals | patterns
 *Related to: review-1772244209301323387, review-1772322141608097349*
 
@@ -260,7 +258,6 @@ Epilogue close/sync failures must suppress all success signals (events, logs, me
 Provider router concurrency correctness requires one lock domain for availability + selection + accounting, with single-increment invocation semantics to prevent skew and TOCTOU races. Select() had a TOCTOU race between isAvailable() and selectProvider() — each acquired/released the mutex independently. selectIfAvailable and RecordInvocation both increment counts, causing double-counting if both are called per invocation.
 
 *Consolidated from: Provider Router Requires Mutex and Correct Count Semantics, Provider Router Mutex Creates False Thread Safety in Select()*
-
 
 ### 2026-02-28 | ListBeads/QueryBeads Silently Return Empty for Unsupported Status | gotchas
 *Related to: review-1772300695650836737*
@@ -402,7 +399,6 @@ Shell scripts must use POSIX-compatible `while IFS= read -r` loops instead of ba
 
 stagePromptForLaunchDir in agent.go correctly handles the mutual exclusivity of file-staged vs stdin-pipe delivery modes. File staging (copy to worktree .gromit/tmp/) only happens for FileRef/PromptFileArg delivery; Stdin delivery reads content into memory before piping. No race condition exists because these paths never overlap.
 
----
 
 ## Emerging
 
@@ -432,6 +428,21 @@ The integrationqueue package uses atomic file writes (write-temp + rename) but u
 *Related to: review-1772628758554464000*
 
 Compile-time interface checks (var _ Interface = (*Impl)(nil)) are duplicated across 5+ test files — one canonical location per adapter set is sufficient.
+
+### 2026-03-04 | gromit-rep1r | conventions
+Changes to validation/retry logic affect prompt generation size—always verify rules phase character budgets pass when modifying validation behavior, particularly for retry/escalation logic.
+
+### 2026-03-04 | gromit-ibb9p | conventions
+Adapter documentation test files may influence prompt generation behavior. Before deleting test files, verify they don't affect character budget calculations or prompt content composition.
+
+### 2026-03-04 | gromit-q64o1 | conventions
+Core package changes can affect prompt generation size; always verify character budget tests after modifying packages referenced in prompt rules or templates
+
+### 2026-03-04 | gromit-d9zop | conventions
+Gromit enforces character budgets for prompt phases (internal/prompt/rules_phase_budget_test.go). Any prompt text additions must stay within these limits; review and optimize prompt content or adjust budgets if necessary.
+
+### 2026-03-04 | gromit-igr10 | conventions
+Changes affecting prompt generation must be validated against character budget constraints in internal/prompt - budgets are hard limits that prevent token overflow during inference
 
 ---
 
