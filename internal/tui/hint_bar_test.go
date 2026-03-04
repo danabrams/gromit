@@ -29,3 +29,31 @@ func TestNormalHintActions(t *testing.T) {
 		})
 	}
 }
+
+func TestDetailViewHintActions(t *testing.T) {
+	testCases := []struct {
+		name string
+		tab  Tab
+		want []string
+	}{
+		{name: "backlog", tab: TabBacklog, want: []string{"[q] quit", "[esc] back"}},
+		{name: "specs", tab: TabSpecs, want: []string{"[q] quit", "[esc] back"}},
+		{name: "plans", tab: TabPlans, want: []string{"[q] quit", "[esc] back"}},
+		{name: "queue", tab: TabQueue, want: []string{"[q] quit", "[esc] back"}},
+		{name: "runloop", tab: TabRunLoop, want: []string{"[q] quit"}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := detailViewHintActions(tc.tab)
+			if len(got) != len(tc.want) {
+				t.Fatalf("detailViewHintActions(%q) = %v, want %v", tc.tab, got, tc.want)
+			}
+			for i, action := range tc.want {
+				if got[i] != action {
+					t.Fatalf("detailViewHintActions(%q)[%d] = %q, want %q", tc.tab, i, got[i], action)
+				}
+			}
+		})
+	}
+}
