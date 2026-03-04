@@ -45,8 +45,14 @@ func (v *Validate) WithAutoFix(autoFixFn runtypes.AutoFixFn, startCommit string)
 	if v == nil {
 		return v
 	}
+	startCommit = strings.TrimSpace(startCommit)
+	if autoFixFn == nil {
+		v.autoFixFn = nil
+		v.autoFixStartCommit = ""
+		return v
+	}
 	v.autoFixFn = autoFixFn
-	v.autoFixStartCommit = strings.TrimSpace(startCommit)
+	v.autoFixStartCommit = startCommit
 	return v
 }
 
