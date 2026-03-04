@@ -804,3 +804,20 @@ func TestModel_RunLoopSubViewInitializesToDashboard(t *testing.T) {
 		t.Errorf("expected initial runLoopSubView to be Dashboard, got %v", m.runLoopSubView)
 	}
 }
+
+func TestModel_SwitchViewUpdatesRunLoopSubView(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+
+	// Switch to Queue view
+	m.SwitchView(ViewQueue)
+	if m.runLoopSubView != ViewQueue {
+		t.Errorf("expected runLoopSubView to be Queue after SwitchView, got %v", m.runLoopSubView)
+	}
+
+	// Switch to Conversation view
+	m.SwitchView(ViewConversation)
+	if m.runLoopSubView != ViewConversation {
+		t.Errorf("expected runLoopSubView to be Conversation after SwitchView, got %v", m.runLoopSubView)
+	}
+}
