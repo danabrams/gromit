@@ -735,6 +735,22 @@ func (m *mockPipelineListModel) Selected() ListItem {
 	return m.selected
 }
 
+type testActionListItem struct {
+	id string
+}
+
+func (t *testActionListItem) Title() string {
+	return "action item"
+}
+
+func (t *testActionListItem) Summary() string {
+	return "selected for action"
+}
+
+func (t *testActionListItem) Identifier() string {
+	return t.id
+}
+
 func TestModel_PipelineRefreshUpdatesLists(t *testing.T) {
 	store := &Store{}
 	model := NewModel(store)
@@ -806,6 +822,36 @@ func TestModel_PipelineListNavigationTargetsActiveTab(t *testing.T) {
 	}
 	if backlog.cursorDownCalls != 0 {
 		t.Fatalf("expected backlog CursorDown to remain zero, got %d", backlog.cursorDownCalls)
+	}
+}
+
+func TestModel_PipelineActionKeysInvokeHandleAction(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+
+	item := &testActionListItem{id: "idea-9"}
+	list := &mockPipelineListModel{selected: item}
+	m.registerPipelineListModel(TabBacklog, list)
+	m.activeTab = TabBacklog
+
+	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	m = model.(*Model)
+
+	if cmd == nil {
+		t.Fatalf("expected non-nil command from handleAction")
+	}
+	if m.pendingAction == nil {
+		t.Fatalf("expected pending action to be set after handleAction")
+	}
+	if m.pendingAction.Command != "refine" {
+		t.Fatalf("expected pending action command \"refine\", got %q", m.pendingAction.Command)
+	}
+	if len(m.pendingAction.Args) != 1 || m.pendingAction.Args[0] != item.Identifier() {
+		t.Fatalf("expected pending action args [%q], got %+v", item.Identifier(), m.pendingAction.Args)
+	}
+	msg := cmd()
+	if _, ok := msg.(tea.QuitMsg); !ok {
+		t.Fatalf("expected handleAction to return tea.QuitMsg, got %T", msg)
 	}
 }
 
