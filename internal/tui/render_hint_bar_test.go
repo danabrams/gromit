@@ -105,3 +105,18 @@ func TestRenderHintBarUnknownTabFallsBackToQuit(t *testing.T) {
 		t.Fatalf("RenderHintBar(mystery) missing quit hint: %q", hint)
 	}
 }
+
+func TestRenderHintBarNormalStateMatchesPerTabStrings(t *testing.T) {
+	testTabs := []Tab{TabBacklog, TabSpecs, TabPlans, TabQueue, TabRunLoop}
+	for _, tab := range testTabs {
+		t.Run(string(tab), func(t *testing.T) {
+			want, ok := normalStateHintStrings[tab]
+			if !ok {
+				t.Fatalf("missing normal hint string for %q", tab)
+			}
+			if got := RenderHintBar(tab, true, false, false); got != want {
+				t.Fatalf("RenderHintBar(%q) = %q, want %q", tab, got, want)
+			}
+		})
+	}
+}
