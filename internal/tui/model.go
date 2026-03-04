@@ -114,15 +114,44 @@ func (m *Model) forEachPipelineNavigator(fn func(pipelineListNavigator)) {
 	}
 }
 
-func (m *Model) activePipelineNavigator() pipelineListNavigator {
+func (m *Model) activePipelineListModel() pipelineListModel {
 	if m == nil || m.pipelineListModels == nil {
 		return nil
 	}
 	list, ok := m.pipelineListModels[m.activeTab]
-	if !ok || list == nil {
+	if !ok {
 		return nil
 	}
 	return list
+}
+
+func (m *Model) activePipelineNavigator() pipelineListNavigator {
+	return m.activePipelineListModel()
+}
+
+func (m *Model) shouldRoutePipelineActions() bool {
+	if m == nil {
+		return false
+	}
+	if m.currentView != ViewDashboard {
+		return false
+	}
+	return isPipelineTab(m.activeTab)
+}
+
+func (m *Model) handlePipelineActionRune(key rune) (tea.Model, tea.Cmd, bool) {
+	if !m.shouldRoutePipelineActions() {
+		return m, nil, false
+	}
+	var selected ListItem
+	if list := m.activePipelineListModel(); list != nil {
+		selected = list.Selected()
+	}
+	updatedModel, cmd := handleAction(m, string(key), m.activeTab, selected, m.store)
+	if updated, ok := updatedModel.(*Model); ok && updated != nil {
+		m = updated
+	}
+	return m, cmd, true
 }
 
 // Init initializes the model.
@@ -215,6 +244,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						return m, m.conversation.Init()
 					}
 				}
+			default:
+				if updatedModel, cmd, handled := m.handlePipelineActionRune(key); handled {
+					return updatedModel, cmd
+				}
 			}
 		}
 	case pipelineRefreshedMsg:
@@ -258,4 +291,13 @@ func (m *Model) renderQueueView() string {
 
 func (m *Model) pipelineListItemsForTab(tab Tab) []ListItem {
 	return nil
+}
+
+func isPipelineTab(tab Tab) bool {
+	switch tab {
+	case TabBacklog, TabSpecs, TabPlans, TabQueue:
+		return true
+	default:
+		return false
+	}
 }
