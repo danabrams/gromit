@@ -139,3 +139,33 @@ func TestRenderPipelineTabsDetailViewShowsTitleAndSummary(t *testing.T) {
 		})
 	}
 }
+
+func TestRenderPipelineTabsEmptyListShowsNoItems(t *testing.T) {
+	renderers := []struct {
+		name     string
+		header   string
+		renderer pipelineTabRenderer
+	}{
+		{"backlog", "Backlog", RenderBacklogTab},
+		{"specs", "Specs", RenderSpecsTab},
+		{"plans", "Plans", RenderPlansTab},
+		{"queue", "Queue", RenderQueueTab},
+	}
+
+	for _, tc := range renderers {
+		tc := tc
+		t.Run(tc.name+" list", func(t *testing.T) {
+			got := tc.renderer(nil, nil, 80, false)
+			if !strings.Contains(got, "No items") {
+				t.Fatalf("expected 'No items' for %s list, got %q", tc.header, got)
+			}
+		})
+		t.Run(tc.name+" detail", func(t *testing.T) {
+			model := &testPipelineTabModel{}
+			got := tc.renderer(nil, model, 80, true)
+			if !strings.Contains(got, "No items") {
+				t.Fatalf("expected 'No items' for %s detail, got %q", tc.header, got)
+			}
+		})
+	}
+}
