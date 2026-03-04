@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/danabrams/gromit/internal/prompt"
@@ -194,6 +195,7 @@ type Logger struct {
 	file     *os.File
 	encoder  *json.Encoder
 	runID    string
+	mu       sync.Mutex
 }
 
 // NewLogger creates a new logger that writes to the specified directory.
@@ -233,6 +235,8 @@ func (l *Logger) logRecord(record any) error {
 	if l == nil {
 		return nil
 	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	if err := l.ensureFile(); err != nil {
 		return err
 	}
@@ -261,7 +265,12 @@ func (l *Logger) LogTDDSummary(rec *TDDSummaryRecord) error {
 
 // Close closes the log file
 func (l *Logger) Close() error {
-	if l == nil || l.file == nil {
+	if l == nil {
+		return nil
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.file == nil {
 		return nil
 	}
 	return l.file.Close()
