@@ -54,8 +54,7 @@ func EnsureSpecBranch(ctx context.Context, cfg *config.Config, stageCtx *StageCo
 	if branchFactory == nil {
 		branchFactory = SpecBranchCreatorFactory
 	}
-	_ = branchFactory
-	creator, err := SpecBranchCreatorFactory(repoDir, cfg)
+	creator, err := branchFactory(repoDir, cfg)
 	if err != nil {
 		return err
 	}
