@@ -20,6 +20,7 @@ type Model struct {
 	store              *Store
 	currentView        string
 	activeTab          Tab
+	runLoopSubView     string
 	focusedPanel       int
 	scrollOffset       int
 	conversation       *ConversationController
@@ -32,9 +33,10 @@ type Model struct {
 // NewModel creates a new TUI model with the given store.
 func NewModel(store *Store) *Model {
 	return &Model{
-		store:       store,
-		currentView: ViewDashboard,
-		activeTab:   TabRunLoop,
+		store:          store,
+		currentView:    ViewDashboard,
+		activeTab:      TabRunLoop,
+		runLoopSubView: ViewDashboard,
 	}
 }
 
