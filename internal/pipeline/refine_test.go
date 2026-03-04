@@ -381,3 +381,73 @@ func TestPipeline_RefineWithBlankSessionCreatesEmptyResult(t *testing.T) {
 		t.Error("CreatedSpecs should be non-nil empty slice")
 	}
 }
+
+func TestPipeline_RefineBlankSessionUsesBacklogGenerateID(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	specsDir := filepath.Join(gromitDir, "specs")
+
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("failed to create specs dir: %v", err)
+	}
+
+	specName := "auto-spec"
+	specPath := filepath.Join(specsDir, specName+".md")
+
+	mockAgent := &mockAgent{
+		LaunchInDirFn: func(promptPath, dir string) error {
+			content := []byte("# Auto spec\n")
+			return os.WriteFile(specPath, content, 0o644)
+		},
+	}
+
+	var addedIdea *Idea
+	mockAgentResolver := &mockAgentResolver{
+		ResolveFn: func(phase, flagOverride string, choosePicker bool) (Agent, error) {
+			return mockAgent, nil
+		},
+	}
+
+	mockBacklog := &mockBacklogClient{
+		AddFn: func(item *Idea) error {
+			addedIdea = item
+			return nil
+		},
+	}
+
+	deps := &Deps{
+		AgentResolver: mockAgentResolver,
+		BacklogClient: mockBacklog,
+	}
+
+	paths := &Paths{
+		GromitDir: gromitDir,
+		SpecsDir:  specsDir,
+	}
+
+	p := New(deps, paths)
+	ctx := context.Background()
+	input := RefineInput{}
+
+	result, err := p.Refine(ctx, input)
+	if err != nil {
+		t.Fatalf("Refine() failed: %v", err)
+	}
+
+	if len(result.CreatedSpecs) == 0 {
+		t.Fatal("expected created spec from agent")
+	}
+
+	if addedIdea == nil {
+		t.Fatal("expected backlog Add to be called")
+	}
+
+	legacyID := fmt.Sprintf("idea-%d", len(specName))
+	if addedIdea.ID == legacyID {
+		t.Fatalf("expected backlog.Add to use GenerateID, got legacy ID %q", legacyID)
+	}
+
+	if addedIdea.SpecName != specName {
+		t.Fatalf("unexpected SpecName: got %q, want %q", addedIdea.SpecName, specName)
+	}
+}
