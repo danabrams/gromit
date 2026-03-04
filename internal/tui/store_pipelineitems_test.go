@@ -77,3 +77,41 @@ func TestStorePipelineItemsSetStoresIndependentCopies(t *testing.T) {
 		t.Fatalf("BacklogIdeas mutated: %v", gots.BacklogIdeas)
 	}
 }
+
+func TestStorePipelineItemsGetReturnsIndependentCopy(t *testing.T) {
+	store := &Store{}
+	store.PipelineItems = PipelineItems{
+		BacklogIdeas:      []backlog.Idea{{ID: "idea-alpha"}},
+		UnplannedSpecs:    []string{"spec-alpha"},
+		UndecomposedPlans: []string{"plan-alpha"},
+		Beads:             []bead.Bead{{ID: "bead-alpha"}},
+	}
+
+	first := store.GetPipelineItems()
+	first.BacklogIdeas[0].ID = "idea-beta"
+	first.BacklogIdeas = append(first.BacklogIdeas, backlog.Idea{ID: "idea-gamma"})
+
+	first.UnplannedSpecs[0] = "spec-beta"
+	first.UnplannedSpecs = append(first.UnplannedSpecs, "spec-gamma")
+
+	first.UndecomposedPlans[0] = "plan-beta"
+	first.UndecomposedPlans = append(first.UndecomposedPlans, "plan-gamma")
+
+	first.Beads[0].ID = "bead-beta"
+	first.Beads = append(first.Beads, bead.Bead{ID: "bead-gamma"})
+
+	second := store.GetPipelineItems()
+
+	if len(second.BacklogIdeas) != 1 || second.BacklogIdeas[0].ID != "idea-alpha" {
+		t.Fatalf("BacklogIdeas shared while copying: %v", second.BacklogIdeas)
+	}
+	if len(second.UnplannedSpecs) != 1 || second.UnplannedSpecs[0] != "spec-alpha" {
+		t.Fatalf("UnplannedSpecs shared while copying: %v", second.UnplannedSpecs)
+	}
+	if len(second.UndecomposedPlans) != 1 || second.UndecomposedPlans[0] != "plan-alpha" {
+		t.Fatalf("UndecomposedPlans shared while copying: %v", second.UndecomposedPlans)
+	}
+	if len(second.Beads) != 1 || second.Beads[0].ID != "bead-alpha" {
+		t.Fatalf("Beads shared while copying: %v", second.Beads)
+	}
+}
