@@ -1,6 +1,9 @@
 package unstick
 
 import (
+	"bytes"
+	"errors"
+	"os"
 	"testing"
 	"time"
 )
@@ -59,5 +62,55 @@ func TestStoreSaveLoad(t *testing.T) {
 
 	if len(reloaded.All()) != 1 {
 		t.Fatalf("expected 1 restart point after load, got %d", len(reloaded.All()))
+	}
+}
+
+func TestStoreSaveAtomicPartialWrite(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir)
+
+	store.Set("bead-initial", RestartPoint{
+		Time:   time.Unix(1, 0).UTC(),
+		Reason: "initial",
+	})
+	if err := store.Save(); err != nil {
+		t.Fatalf("initial save failed: %v", err)
+	}
+
+	initialData, err := os.ReadFile(store.path)
+	if err != nil {
+		t.Fatalf("could not read initial store: %v", err)
+	}
+
+	store.Set("bead-next", RestartPoint{
+		Time:   time.Unix(2, 0).UTC(),
+		Reason: "next",
+	})
+
+	origWrite := writeFileFunc
+	t.Cleanup(func() {
+		writeFileFunc = origWrite
+	})
+	writeFileFunc = func(name string, data []byte, perm os.FileMode) error {
+		if len(data) > 1 {
+			data = data[:len(data)/2]
+		}
+		if err := os.WriteFile(name, data, perm); err != nil {
+			return err
+		}
+		return errors.New("simulated partial write")
+	}
+
+	if err := store.Save(); err == nil {
+		t.Fatalf("expected save error, got nil")
+	}
+
+	afterData, err := os.ReadFile(store.path)
+	if err != nil {
+		t.Fatalf("could not read store after failed save: %v", err)
+	}
+
+	if !bytes.Equal(afterData, initialData) {
+		t.Fatalf("store file changed after failed save: before=%q after=%q", initialData, afterData)
 	}
 }
