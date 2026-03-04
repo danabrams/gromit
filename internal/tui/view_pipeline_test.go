@@ -66,6 +66,34 @@ func TestBeadListItemTitleSummary(t *testing.T) {
 	}
 }
 
+func TestListItemAdapterIdentifiers(t *testing.T) {
+	idea := &backlog.Idea{ID: "idea-123", Text: "Implement the pipeline view"}
+	plan := "plans/awesome.plan"
+	spec := "specs/cool.md"
+	beadItem := &bead.Bead{ID: "B-1"}
+
+	tests := []struct {
+		name string
+		item interface {
+			Identifier() string
+		}
+		want string
+	}{
+		{name: "idea", item: &IdeaListItem{idea: idea}, want: idea.ID},
+		{name: "spec", item: &SpecListItem{path: spec}, want: spec},
+		{name: "plan", item: &PlanListItem{path: plan}, want: plan},
+		{name: "bead", item: &BeadListItem{bead: beadItem}, want: beadItem.ID},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.item.Identifier(); got != tc.want {
+				t.Fatalf("Identifier() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 var pipelineTabRenderers = []struct {
 	name     string
 	header   string
