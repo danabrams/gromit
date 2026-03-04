@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"reflect"
 	"testing"
 	"time"
 
@@ -41,6 +42,26 @@ func TestHydrateStore_PopulatesDashboardFromStatuses(t *testing.T) {
 	}
 }
 
+func TestHydrateStore_PipelineItemsPopulated(t *testing.T) {
+	t.Parallel()
+
+	items := PipelineItems{
+		UnplannedSpecs:    []string{"spec-1"},
+		UndecomposedPlans: []string{"plan-1"},
+	}
+
+	provider := &mockHydrationProvider{
+		pipelineItems: items,
+	}
+
+	cfg := &config.Config{}
+	store := HydrateStore(context.Background(), cfg, ".gromit", ".gromit/specs", ".gromit/plans", provider)
+
+	if !reflect.DeepEqual(store.PipelineItems, items) {
+		t.Fatalf("pipeline items = %+v, want %+v", store.PipelineItems, items)
+	}
+}
+
 var _ HydrationProvider = (*mockHydrationProvider)(nil)
 
 type mockHydrationProvider struct {
@@ -48,6 +69,8 @@ type mockHydrationProvider struct {
 	pipelineStatus *pipeline.PipelineStatus
 	runnerErr      error
 	pipelineErr    error
+	pipelineItems  PipelineItems
+	pipelineItemsErr error
 }
 
 func (m *mockHydrationProvider) RunnerStatus(ctx context.Context, gromitDir string) (*runner.Status, error) {
@@ -56,4 +79,8 @@ func (m *mockHydrationProvider) RunnerStatus(ctx context.Context, gromitDir stri
 
 func (m *mockHydrationProvider) PipelineStatus(ctx context.Context, gromitDir, specsDir, plansDir string, startedAt *time.Time) (*pipeline.PipelineStatus, error) {
 	return m.pipelineStatus, m.pipelineErr
+}
+
+func (m *mockHydrationProvider) PipelineItems(ctx context.Context, gromitDir, specsDir, plansDir string) (PipelineItems, error) {
+	return m.pipelineItems, m.pipelineItemsErr
 }
