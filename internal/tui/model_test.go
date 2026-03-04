@@ -560,6 +560,30 @@ func TestModel_ForwardsKeysToConversationControllerWhenInConversationView(t *tes
 	}
 }
 
+func TestModel_ArrowKeysNavigateTabsDuringConversationView(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+	timeline := []conversation.FakeStep{
+		{Event: conversation.Event{Type: conversation.EventTypeDone}},
+	}
+	session := conversation.NewFakeSession(timeline)
+	controller := NewConversationController(session)
+	m.SetConversationController(controller)
+	m.SwitchView(ViewConversation)
+
+	if m.activeTab != TabRunLoop {
+		t.Fatalf("expected active tab run loop before navigation, got %q", m.activeTab)
+	}
+
+	if _, _ = m.Update(tea.KeyMsg{Type: tea.KeyRight}); m.activeTab != TabBacklog {
+		t.Fatalf("expected active tab to advance to backlog while in conversation view, got %q", m.activeTab)
+	}
+
+	if _, _ = m.Update(tea.KeyMsg{Type: tea.KeyLeft}); m.activeTab != TabRunLoop {
+		t.Fatalf("expected active tab to move back to run loop after left arrow, got %q", m.activeTab)
+	}
+}
+
 func TestModel_TabNavigationKeepsCursorAndRendersPipelineData(t *testing.T) {
 	store, ready := newPipelineStore(t)
 	m := NewModel(store)
