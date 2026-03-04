@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/conversation"
 	"github.com/danabrams/gromit/internal/pipeline"
@@ -121,9 +121,9 @@ func TestRunTuiHydratesBeforeProgramAndExitsWhenNoPendingAction(t *testing.T) {
 	defer func() { newHydrationProvider = originalProvider }()
 
 	originalProgramFactory := newTeaProgram
-	newTeaProgram = func(model bubbletea.Model) teaProgram {
+	newTeaProgram = func(model tea.Model) teaProgram {
 		callOrder = append(callOrder, "program")
-		return &fakeTeaProgram{runFn: func() (bubbletea.Model, error) {
+		return &fakeTeaProgram{runFn: func() (tea.Model, error) {
 			return model, nil
 		}}
 	}
@@ -156,10 +156,10 @@ func (*fakeHydrationProvider) PipelineItems(ctx context.Context, gromitDir, spec
 }
 
 type fakeTeaProgram struct {
-	runFn func() (bubbletea.Model, error)
+	runFn func() (tea.Model, error)
 }
 
-func (f *fakeTeaProgram) Run() (bubbletea.Model, error) {
+func (f *fakeTeaProgram) Run() (tea.Model, error) {
 	if f == nil || f.runFn == nil {
 		return nil, nil
 	}
