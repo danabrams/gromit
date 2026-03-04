@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/danabrams/gromit/internal/backlog"
+	"github.com/danabrams/gromit/internal/bead"
 )
 
 // IdeaListItem adapts a backlog.Idea for pipeline tabs.
@@ -94,4 +95,38 @@ func (p *PlanListItem) Identifier() string {
 		return ""
 	}
 	return strings.TrimSpace(p.path)
+}
+
+// BeadListItem adapts a bead.Bead for pipeline tabs.
+type BeadListItem struct {
+	bead *bead.Bead
+}
+
+func (b *BeadListItem) Title() string {
+	if b == nil || b.bead == nil {
+		return ""
+	}
+	return strings.TrimSpace(b.bead.Title)
+}
+
+func (b *BeadListItem) Summary() string {
+	if b == nil || b.bead == nil {
+		return ""
+	}
+	parts := []string{}
+	if id := strings.TrimSpace(b.bead.ID); id != "" {
+		parts = append(parts, id)
+	}
+	if status := strings.TrimSpace(b.bead.Status); status != "" {
+		parts = append(parts, fmt.Sprintf("status=%s", status))
+	}
+	parts = append(parts, fmt.Sprintf("priority=%d", b.bead.Priority))
+	return strings.Join(parts, " · ")
+}
+
+func (b *BeadListItem) Identifier() string {
+	if b == nil || b.bead == nil {
+		return ""
+	}
+	return strings.TrimSpace(b.bead.ID)
 }
