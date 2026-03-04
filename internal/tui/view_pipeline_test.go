@@ -43,3 +43,18 @@ func TestSpecListItemTitleSummaryIdentifier(t *testing.T) {
         t.Fatalf("Identifier() = %q, want %q", got, want)
     }
 }
+
+func TestPlanListItemTitleSummaryIdentifier(t *testing.T) {
+    path := "plans/awesome-feature.plan"
+    item := &PlanListItem{path: path}
+
+    if got, want := item.Title(), "awesome-feature.plan"; got != want {
+        t.Fatalf("Title() = %q, want %q", got, want)
+    }
+    if got, want := item.Summary(), path; got != want {
+        t.Fatalf("Summary() = %q, want %q", got, want)
+    }
+    if got, want := item.Identifier(), path; got != want {
+        t.Fatalf("Identifier() = %q, want %q", got, want)
+    }
+}
