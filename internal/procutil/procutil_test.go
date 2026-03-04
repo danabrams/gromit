@@ -108,6 +108,68 @@ func TestSubprocessEnvRespectsRuntimeLimit(t *testing.T) {
 	}
 }
 
+func TestBuildSubprocessEnvRespectsGOMAXPROCS(t *testing.T) {
+	cases := map[string]struct {
+		env          []string
+		runtimeLimit int
+		wantLen      int
+		wantValue    string
+	}{
+		"existing env retains value": {
+			env:          []string{"PATH=/bin", "GOMAXPROCS=99", "FOO=bar"},
+			runtimeLimit: 128,
+			wantLen:      3,
+			wantValue:    "GOMAXPROCS=99",
+		},
+		"runtime limit below cap skips override": {
+			env:          []string{"PATH=/bin"},
+			runtimeLimit: 2,
+			wantLen:      1,
+		},
+		"runtime limit above cap adds MaxGoParallelism": {
+			env:          []string{"PATH=/bin", "HOME=/tmp"},
+			runtimeLimit: 99,
+			wantLen:      3,
+			wantValue:    "GOMAXPROCS=" + MaxGoParallelism,
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			envCopy := append([]string(nil), tc.env...)
+			got := buildSubprocessEnv(envCopy, tc.runtimeLimit)
+
+			if len(got) != tc.wantLen {
+				t.Fatalf("length = %d, want %d", len(got), tc.wantLen)
+			}
+
+			if tc.wantValue == "" {
+				for _, kv := range got {
+					if strings.HasPrefix(kv, "GOMAXPROCS=") {
+						t.Fatalf("found unexpected GOMAXPROCS entry %q", kv)
+					}
+				}
+				return
+			}
+
+			var gomax string
+			for _, kv := range got {
+				if strings.HasPrefix(kv, "GOMAXPROCS=") {
+					gomax = kv
+					break
+				}
+			}
+			if gomax != tc.wantValue {
+				t.Fatalf("GOMAXPROCS = %q, want %q", gomax, tc.wantValue)
+			}
+
+			if len(got) > len(tc.env) && got[len(got)-1] != tc.wantValue {
+				t.Fatalf("last entry = %q, want %q", got[len(got)-1], tc.wantValue)
+			}
+		})
+	}
+}
+
 func TestReapProcessGroupNilProcess(t *testing.T) {
 	cmd := exec.Command("echo", "test")
 	// Should not panic when Process is nil
