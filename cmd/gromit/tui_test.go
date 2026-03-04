@@ -1,11 +1,17 @@
 package main
 
 import (
+	"context"
 	"os"
 	"reflect"
 	"testing"
+	"time"
 
+	"github.com/charmbracelet/bubbletea"
+	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/conversation"
+	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/runner"
 	"github.com/danabrams/gromit/internal/tui"
 	"github.com/spf13/cobra"
 )
@@ -93,4 +99,69 @@ func TestBuildPendingActionCommand(t *testing.T) {
 	if cmd.Stdin != os.Stdin || cmd.Stdout != os.Stdout || cmd.Stderr != os.Stderr {
 		t.Fatalf("stdio not inherited")
 	}
+}
+
+func TestRunTuiHydratesBeforeProgramAndExitsWhenNoPendingAction(t *testing.T) {
+	originalLoadConfig := runTuiLoadConfig
+	runTuiLoadConfig = func() (*config.Config, error) { return &config.Config{}, nil }
+	defer func() { runTuiLoadConfig = originalLoadConfig }()
+
+	callOrder := []string{}
+	originalHydrate := hydrateStoreFn
+	hydrateStoreFn = func(ctx context.Context, cfg *config.Config, gromitDir, specsDir, plansDir string, provider tui.HydrationProvider) *tui.Store {
+		callOrder = append(callOrder, "hydrate")
+		return &tui.Store{}
+	}
+	defer func() { hydrateStoreFn = originalHydrate }()
+
+	originalProvider := newHydrationProvider
+	newHydrationProvider = func(cfg *config.Config) tui.HydrationProvider {
+		return &fakeHydrationProvider{}
+	}
+	defer func() { newHydrationProvider = originalProvider }()
+
+	originalProgramFactory := newTeaProgram
+	newTeaProgram = func(model bubbletea.Model) teaProgram {
+		callOrder = append(callOrder, "program")
+		return &fakeTeaProgram{runFn: func() (bubbletea.Model, error) {
+			return model, nil
+		}}
+	}
+	defer func() { newTeaProgram = originalProgramFactory }()
+
+	if err := runTui(nil, nil); err != nil {
+		t.Fatalf("runTui() error = %v", err)
+	}
+
+	if len(callOrder) != 2 {
+		t.Fatalf("calls = %v, want hydrate->program", callOrder)
+	}
+	if callOrder[0] != "hydrate" || callOrder[1] != "program" {
+		t.Fatalf("call order = %v, want [hydrate program]", callOrder)
+	}
+}
+
+type fakeHydrationProvider struct{}
+
+func (*fakeHydrationProvider) RunnerStatus(ctx context.Context, gromitDir string) (*runner.Status, error) {
+	return nil, nil
+}
+
+func (*fakeHydrationProvider) PipelineStatus(ctx context.Context, gromitDir, specsDir, plansDir string, startedAt *time.Time) (*pipeline.PipelineStatus, error) {
+	return nil, nil
+}
+
+func (*fakeHydrationProvider) PipelineItems(ctx context.Context, gromitDir, specsDir, plansDir string) (tui.PipelineItems, error) {
+	return tui.PipelineItems{}, nil
+}
+
+type fakeTeaProgram struct {
+	runFn func() (bubbletea.Model, error)
+}
+
+func (f *fakeTeaProgram) Run() (bubbletea.Model, error) {
+	if f == nil || f.runFn == nil {
+		return nil, nil
+	}
+	return f.runFn()
 }
