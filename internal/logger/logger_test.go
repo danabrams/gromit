@@ -1293,6 +1293,35 @@ func TestIterationLogCacheStatsJSON(t *testing.T) {
     }
 }
 
+func TestIterationLogExperimentTrackingJSON(t *testing.T) {
+	logEntry := &IterationLog{
+		Timestamp: time.Now(),
+		ExperimentTracking: ExperimentTracking{
+			ExperimentID: "exp-foo",
+			VariantID:    "var-bar",
+		},
+	}
+
+	payload, err := json.Marshal(logEntry)
+	if err != nil {
+		t.Fatalf("marshal iteration log: %v", err)
+	}
+
+	var decoded map[string]json.RawMessage
+	if err := json.Unmarshal(payload, &decoded); err != nil {
+		t.Fatalf("unmarshal iteration log: %v", err)
+	}
+
+	for _, key := range []string{
+		"experiment_id",
+		"variant_id",
+	} {
+		if _, exists := decoded[key]; !exists {
+			t.Fatalf("expected %s to be present in JSON", key)
+		}
+	}
+}
+
 func TestLogIterationWithRoutingTelemetry(t *testing.T) {
 	tmpDir := t.TempDir()
 	l, err := NewLogger(tmpDir)
