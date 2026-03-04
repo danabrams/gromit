@@ -345,12 +345,21 @@ func (r *Runner) runCommands(ctx context.Context, commands []string, workDir str
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			sem <- struct{}{}
+			select {
+			case <-parallelCtx.Done():
+				results[i] = commandResult{command: command, err: parallelCtx.Err()}
+				return
+			case sem <- struct{}{}:
+			}
+			defer func() { <-sem }()
+			if err := parallelCtx.Err(); err != nil {
+				results[i] = commandResult{command: command, err: err}
+				return
+			}
 			results[i] = r.runSingleCommand(parallelCtx, command, workDir)
 			if result := results[i]; result.err != nil || result.exitCode != 0 {
 				failureCancel.Do(parallelCancel)
 			}
-			<-sem
 		}()
 	}
 	wg.Wait()
