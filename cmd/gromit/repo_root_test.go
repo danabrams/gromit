@@ -115,9 +115,7 @@ func TestFindProjectRoot_ProjectPathRelativeToInitialWorkingDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("findProjectRoot: %v", err)
 	}
-	if got != root {
-		t.Fatalf("root = %q, want %q", got, root)
-	}
+	assertSameProjectRoot(t, got, root)
 }
 
 func TestFindProjectRoot_WalksUpFromWorkingDirWhenProjectPathUnset(t *testing.T) {
@@ -154,8 +152,21 @@ func TestFindProjectRoot_WalksUpFromWorkingDirWhenProjectPathUnset(t *testing.T)
 	if err != nil {
 		t.Fatalf("findProjectRoot: %v", err)
 	}
-	if got != root {
-		t.Fatalf("root = %q, want %q", got, root)
+	assertSameProjectRoot(t, got, root)
+}
+
+func assertSameProjectRoot(t *testing.T, got, want string) {
+	t.Helper()
+	gotRoot, err := filepath.EvalSymlinks(got)
+	if err != nil {
+		t.Fatalf("eval symlinks got: %v", err)
+	}
+	wantRoot, err := filepath.EvalSymlinks(want)
+	if err != nil {
+		t.Fatalf("eval symlinks want: %v", err)
+	}
+	if gotRoot != wantRoot {
+		t.Fatalf("root = %q, want %q", gotRoot, wantRoot)
 	}
 }
 
