@@ -42,13 +42,17 @@ func renderNormalHints(tab Tab, hasSelection bool) string {
 }
 
 func normalStateHintString(tab Tab, hasSelection bool) string {
-	actions := normalTabHintActions[tab]
-	hints := []string{}
-	if hasSelection && len(actions) > 0 {
-		hints = append(hints, actions...)
+	return renderHintActions(normalHintActions(tab, hasSelection))
+}
+
+func normalHintActions(tab Tab, hasSelection bool) []string {
+	actions := []string{}
+	if hasSelection {
+		if tabActions, ok := normalTabHintActions[tab]; ok && len(tabActions) > 0 {
+			actions = append(actions, tabActions...)
+		}
 	}
-	hints = append(hints, "[q] quit")
-	return renderHintActions(hints)
+	return append(actions, "[q] quit")
 }
 
 func renderHintActions(actions []string) string {
