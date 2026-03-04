@@ -20,3 +20,14 @@ func TestTabBarHighlightsActiveTab(t *testing.T) {
 		}
 	}
 }
+
+func TestTabEntriesFallbacksToFirstTab(t *testing.T) {
+	entries := tabEntries("invalid-tab")
+	if len(entries) == 0 {
+		t.Fatalf("expected at least one tab entry, got none")
+	}
+
+	if !entries[0].active || entries[0].tab != TabBacklog {
+		t.Fatalf("expected first tab entry to be %+v with active=true, got %+v", TabBacklog, entries[0])
+	}
+}
