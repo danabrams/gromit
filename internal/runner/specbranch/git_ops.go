@@ -16,6 +16,7 @@ import (
 )
 
 var waitForProcessCapacityFn = procutil.WaitForProcessCapacity
+var removeStaleWorktreeFn = removeStaleWorktree
 
 const defaultProcessCapacityWaitTime = 1500 * time.Millisecond
 
@@ -121,6 +122,17 @@ func parseWorktreeConflictPath(gitOutput string) (string, bool) {
 		return "", false
 	}
 	return rest[:endIdx], true
+}
+
+// recoverStaleSessionWorktree extracts the conflicting worktree path, validates it,
+// and attempts removal if it looks like a stale gromit run session.
+func recoverStaleSessionWorktree(ctx context.Context, repoDir, gitOutput string) (bool, string, error) {
+	worktreePath, ok := parseWorktreeConflictPath(gitOutput)
+	if !ok || !isStaleGromitWorktree(worktreePath) {
+		return false, "", nil
+	}
+	attempted, err := removeStaleWorktreeFn(ctx, repoDir, worktreePath)
+	return attempted, worktreePath, err
 }
 
 // isStaleGromitWorktree returns true if the worktree path looks like it was

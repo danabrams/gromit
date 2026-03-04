@@ -793,10 +793,6 @@ func TestRecoverStaleSessionWorktree_RemovesStaleWhenRunInactive(t *testing.T) {
 	}
 	t.Cleanup(func() { removeStaleWorktreeFn = oldRemove })
 
-	oldRunLoop := runLoopActiveFn
-	ranLoopActiveFn = func(string) bool { return false }
-	t.Cleanup(func() { runLoopActiveFn = oldRunLoop })
-
 	output := "fatal: 'gromit/spec-branch' is already used by worktree at '/tmp/repo-gromit-run-12345'"
 	attempted, path, err := recoverStaleSessionWorktree(ctx, "/tmp/repo", output)
 	if err != nil {
