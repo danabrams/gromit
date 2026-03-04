@@ -581,6 +581,50 @@ func TestRouterSelectIncrementsCountInState(t *testing.T) {
 	}
 }
 
+// TestRouterSelectDoesNotIncrementCountUntilRecordInvocation ensures Select()
+// defers count updates until RecordInvocation() is called, so Select()+RecordInvocation
+// only adds a single invocation.
+func TestRouterSelectDoesNotIncrementCountUntilRecordInvocation(t *testing.T) {
+	t.Parallel()
+	stateFn := &mockStateFile{
+		providerCounts: map[string]int{
+			"claude": 5,
+		},
+	}
+
+	r := &Router{
+		providers: map[string]Provider{
+			"claude": &mockProvider{name: "claude"},
+		},
+		preferences: map[string]string{
+			"build": "claude",
+		},
+		ratio:  map[string]int{"claude": 100},
+		counts: map[string]int{"claude": 5},
+		stateFn: stateFn,
+	}
+
+	_, _ = r.Select("build", TierMedium)
+
+	if r.counts["claude"] != 5 {
+		t.Fatalf("Select() should not increment local counts, got %d", r.counts["claude"])
+	}
+
+	if stateFn.providerCounts["claude"] != 5 {
+		t.Fatalf("Select() should not increment state counts, got %d", stateFn.providerCounts["claude"])
+	}
+
+	r.RecordInvocation("claude")
+
+	if r.counts["claude"] != 6 {
+		t.Fatalf("RecordInvocation() should increment local counts to 6, got %d", r.counts["claude"])
+	}
+
+	if stateFn.providerCounts["claude"] != 6 {
+		t.Fatalf("RecordInvocation() should increment state counts to 6, got %d", stateFn.providerCounts["claude"])
+	}
+}
+
 func TestRouterSelectAndRecordInvocationCountOnce(t *testing.T) {
 	t.Parallel()
 	stateFn := &mockStateFile{
