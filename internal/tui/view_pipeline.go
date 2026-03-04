@@ -55,3 +55,22 @@ func (s *SpecListItem) Summary() string {
     }
     return strings.TrimSpace(s.path)
 }
+
+// PlanListItem adapts a plan path for pipeline tabs.
+type PlanListItem struct {
+    path string
+}
+
+func (p *PlanListItem) Title() string {
+    if p == nil {
+        return ""
+    }
+    return filepath.Base(p.path)
+}
+
+func (p *PlanListItem) Summary() string {
+    if p == nil {
+        return ""
+    }
+    return strings.TrimSpace(p.path)
+}
