@@ -49,6 +49,7 @@ func HydrateStore(ctx context.Context, cfg *config.Config, gromitDir, specsDir, 
 	pipelineItems, err := provider.PipelineItems(ctx, gromitDir, specsDir, plansDir)
 	if err != nil {
 		dashboardWarnings = append(dashboardWarnings, fmt.Sprintf("pipeline items: %v", err))
+		store.SetPipelineItems(PipelineItems{})
 	} else {
 		store.SetPipelineItems(pipelineItems)
 	}
