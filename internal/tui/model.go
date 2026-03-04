@@ -119,6 +119,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.currentView == ViewConversation && m.conversation != nil {
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
+			switch msg.Type {
+			case tea.KeyLeft:
+				m.PrevTab()
+				return m, nil
+			case tea.KeyRight:
+				m.NextTab()
+				return m, nil
+			}
 			model, cmd := m.conversation.Update(msg)
 			if ctrl, ok := model.(*ConversationController); ok {
 				m.conversation = ctrl
@@ -172,7 +180,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			case 'v':
 				m.detailView = !m.detailView
-			default:
+			case '1', '2', '3':
 				if m.activeTab != TabRunLoop {
 					break
 				}
