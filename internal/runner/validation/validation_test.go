@@ -310,6 +310,61 @@ func TestRunDirect_ParallelCommands_CancelsOnFirstFailure(t *testing.T) {
 	}
 }
 
+func TestRunDirect_ParallelCommands_SkipsQueuedAfterFailure(t *testing.T) {
+	t.Parallel()
+
+	cfg := newTestConfig()
+	commands := []string{"fast-fail", "slow-blocking", "should-not-start"}
+	cfg.Validation.Commands = commands
+	cfg.Validation.MaxParallelCommands = 2
+
+	neverStarted := make(chan struct{}, 1)
+	slowStarted := make(chan struct{}, 1)
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		switch command {
+		case "fast-fail":
+			return "", "failure", 1, nil
+		case "slow-blocking":
+			slowStarted <- struct{}{}
+			select {
+			case <-ctx.Done():
+				return "", "", 0, ctx.Err()
+			case <-time.After(1 * time.Second):
+				return "ok", "", 0, nil
+			}
+		case "should-not-start":
+			neverStarted <- struct{}{}
+			return "ok", "", 0, nil
+		default:
+			t.Fatalf("unexpected command %q", command)
+			return "", "", 0, nil
+		}
+	}
+
+	r := NewRunner(cfg, cmdRunner, nil, nil)
+	result, err := r.RunDirect(context.Background(), commands, "/tmp/test")
+	if err != nil {
+		t.Fatalf("RunDirect returned unexpected error: %v", err)
+	}
+	if result.Success {
+		t.Fatal("RunDirect should report failure when a command fails")
+	}
+
+	// Ensure the slow command started so the queueing scenario was reached.
+	select {
+	case <-slowStarted:
+	default:
+		t.Fatal("slow-blocking command never started")
+	}
+
+	select {
+	case <-neverStarted:
+		t.Fatal("queued command should not have started after the first failure")
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
 func TestRunnerValidate_UsesProfileDefaultCommands(t *testing.T) {
 	t.Parallel()
 	cfg := &config.Config{}
