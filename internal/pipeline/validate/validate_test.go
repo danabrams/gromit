@@ -218,6 +218,85 @@ func TestValidate_EmitsValidationFailEventOnFailure(t *testing.T) {
 	}
 }
 
+func TestValidate_AutoFixFailureReportsUpdatedSummary(t *testing.T) {
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	runner := &fakeCommandRunner{
+		results: []commandRunResult{
+			{stdout: "initial fail", stderr: "detail", exitCode: 1, err: nil},
+			{stdout: "still failing", stderr: "auto fix detail", exitCode: 1, err: nil},
+		},
+	}
+	autoFixCalled := false
+	stage := New(runner, io.Discard).WithAutoFix(func(startCommit string) error {
+		autoFixCalled = true
+		return nil
+	})
+
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled:  true,
+			Commands: []string{"go test ./..."},
+		},
+	}
+	in := pipeline.Input{
+		Bead:        &bead.Bead{ID: "test-auto-fix-failure", Title: "Auto fix failure"},
+		Config:      cfg,
+		Emitter:     emitter,
+		StartCommit: "start-commit",
+	}
+
+	out, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if out.Decision != pipeline.Block {
+		t.Fatalf("Decision = %v, want Block when auto fix fails", out.Decision)
+	}
+	if !autoFixCalled {
+		t.Fatalf("auto fix was not invoked")
+	}
+	if runner.callIdx != 2 {
+		t.Fatalf("expected two command executions, got %d", runner.callIdx)
+	}
+	if len(out.ValidationFailures) != 1 {
+		t.Fatalf("expected one validation failure summary, got %d", len(out.ValidationFailures))
+	}
+
+	emitted := eventtest.DrainEvents(t, ch)
+	var (
+		startIdx = -1
+		failIdx  = -1
+		failEvt  *events.ValidationFailEvent
+	)
+	for idx, evt := range emitted {
+		switch e := evt.(type) {
+		case *events.ValidationStartEvent:
+			startIdx = idx
+		case *events.ValidationFailEvent:
+			failIdx = idx
+			failEvt = e
+		case *events.ValidationPassEvent:
+			t.Fatalf("unexpected ValidationPassEvent emitted when auto fix fails")
+		}
+	}
+	if failEvt == nil {
+		t.Fatal("expected ValidationFailEvent to be emitted after auto fix failure")
+	}
+	if startIdx == -1 || startIdx > failIdx {
+		t.Fatalf("ValidationFailEvent ordering incorrect (%d > %d)", failIdx, startIdx)
+	}
+	if failEvt.Output != strings.Join(out.ValidationFailures, "\n") {
+		t.Fatalf("ValidationFailEvent.Output = %q, want %q", failEvt.Output, strings.Join(out.ValidationFailures, "\n"))
+	}
+	if !contains(failEvt.Output, "still failing") {
+		t.Fatalf("fail event output missing final failure detail: %s", failEvt.Output)
+	}
+}
+
 // TestValidate_SingleCommandFailure_ReturnsBlockWithSummaries verifies that when any
 // command fails (exit code 1), the stage returns Block with ValidationFailures populated.
 func TestValidate_SingleCommandFailure_ReturnsBlockWithSummaries(t *testing.T) {
