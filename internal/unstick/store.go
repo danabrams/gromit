@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+var writeFileFunc = os.WriteFile
+
 // RestartPoint records when a bead restarted and why.
 type RestartPoint struct {
 	Time   time.Time `json:"time"`
@@ -73,7 +75,17 @@ func (s *Store) Save() error {
 		return err
 	}
 
-	return os.WriteFile(s.path, body, 0o644)
+	tmpPath := s.path + ".tmp"
+	if err := writeFileFunc(tmpPath, body, 0o644); err != nil {
+		return err
+	}
+
+	if err := os.Rename(tmpPath, s.path); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+
+	return nil
 }
 
 // Load populates the store from the persisted restart-point state.
