@@ -11,7 +11,7 @@ var (
 	hintSeparatorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#5C5C5C")).Faint(true)
 )
 
-var normalTabHintActions = map[Tab][]string{
+var normalTabBaseActions = map[Tab][]string{
 	TabBacklog: {"[r] refine", "[v] view", "[x] delete"},
 	TabSpecs:   {"[p] plan", "[v] view", "[x] delete"},
 	TabPlans:   {"[d] decompose", "[v] view", "[x] delete"},
@@ -46,11 +46,18 @@ func normalStateHintString(tab Tab, hasSelection bool) string {
 func normalHintActions(tab Tab, hasSelection bool) []string {
 	actions := []string{}
 	if hasSelection {
-		if tabActions, ok := normalTabHintActions[tab]; ok && len(tabActions) > 0 {
-			actions = append(actions, tabActions...)
-		}
+		actions = append(actions, perTabNormalHintActions(tab)...)
 	}
 	return append(actions, "[q] quit")
+}
+
+func perTabNormalHintActions(tab Tab) []string {
+	if tabActions, ok := normalTabBaseActions[tab]; ok {
+		copied := make([]string, len(tabActions))
+		copy(copied, tabActions)
+		return copied
+	}
+	return nil
 }
 
 func detailViewHintActions(tab Tab) []string {
