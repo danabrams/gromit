@@ -1,6 +1,7 @@
 package tui
 
 import (
+    "strings"
     "testing"
 
     "github.com/danabrams/gromit/internal/backlog"
@@ -63,4 +64,31 @@ func TestBeadListItemTitleSummary(t *testing.T) {
     if got, want := item.Summary(), "B-1 · status=open · priority=1"; got != want {
         t.Fatalf("Summary() = %q, want %q", got, want)
     }
+}
+
+func TestRenderBacklogTabUsesListModelOutput(t *testing.T) {
+    model := &testPipelineTabModel{
+        rendered: "idea-1 · feature\nidea-2 · bug\n",
+    }
+
+    got := RenderBacklogTab(nil, model, 60, false)
+    if !strings.Contains(got, "=== Backlog ===") {
+        t.Fatalf("expected header, got %q", got)
+    }
+    if !strings.Contains(got, model.rendered) {
+        t.Fatalf("expected list content, got %q", got)
+    }
+}
+
+type testPipelineTabModel struct {
+    rendered string
+    selected ListItem
+}
+
+func (m *testPipelineTabModel) Render(width int) string {
+    return m.rendered
+}
+
+func (m *testPipelineTabModel) Selected() ListItem {
+    return m.selected
 }
