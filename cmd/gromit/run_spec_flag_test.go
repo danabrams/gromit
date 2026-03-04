@@ -250,6 +250,84 @@ func TestRunLoop_SpecFlagPassesSpecflowStoreFactory(t *testing.T) {
 	}
 }
 
+func TestRunLoop_SpecFlagPassesBranchCreatorFactoryArguments(t *testing.T) {
+	_, cleanup := setupRunSpecTestEnv(t)
+	defer cleanup()
+
+	runSpecFlag = "auth"
+	defer func() { runSpecFlag = "" }()
+	runEpicFlag = ""
+
+	specPath := filepath.Join(".gromit", "specs", "auth.md")
+	if err := os.WriteFile(specPath, []byte("# auth spec"), 0644); err != nil {
+		t.Fatalf("failed to write spec: %v", err)
+	}
+
+	expectedRepoDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getting repo dir after setup: %v", err)
+	}
+
+	fakeStore := &fakeSpecflowStore{stageErr: specflow.ErrStageNotFound}
+	origStoreFn := newSpecflowStoreFn
+	newSpecflowStoreFn = func(gromitDir string) (specflow.SpecStore, error) {
+		return fakeStore, nil
+	}
+	defer func() { newSpecflowStoreFn = origStoreFn }()
+
+	stageCtx := &runner.StageContext{SpecName: "auth"}
+	origBuildFn := newBuildSpecStageContextFn
+	newBuildSpecStageContextFn = func(ctx context.Context, cfg *config.Config, specName, gromitDir string, factory func(string) (specflow.SpecStore, error)) (*runner.StageContext, error) {
+		if factory == nil {
+			t.Fatal("expected store factory parameter")
+		}
+		store, err := factory(gromitDir)
+		if err != nil {
+			t.Fatalf("store factory error: %v", err)
+		}
+		if store != fakeStore {
+			t.Fatalf("store factory returned wrong store: %T", store)
+		}
+		return stageCtx, nil
+	}
+	defer func() { newBuildSpecStageContextFn = origBuildFn }()
+
+	var branchFactoryCalled int
+	var capturedRepoDir string
+	var capturedCfg *config.Config
+	origBranchFn := newSpecBranchCreatorFn
+	newSpecBranchCreatorFn = func(repoDir string, cfg *config.Config) (runner.SpecBranchCreator, error) {
+		branchFactoryCalled++
+		capturedRepoDir = repoDir
+		capturedCfg = cfg
+		return &fakeBranchCreator{branches: new([]string)}, nil
+	}
+	defer func() { newSpecBranchCreatorFn = origBranchFn }()
+
+	origRunnerFn := newRunnerWithStageContextFn
+	newRunnerWithStageContextFn = func(cfg *config.Config, output io.Writer, stageCtx *runner.StageContext, labels ...string) (*runner.Orchestrator, error) {
+		return nil, fmt.Errorf("runner stub")
+	}
+	defer func() { newRunnerWithStageContextFn = origRunnerFn }()
+
+	err = runLoop(runCmd, []string{})
+	if err == nil || !strings.Contains(err.Error(), "runner stub") {
+		t.Fatalf("expected runner stub error, got %v", err)
+	}
+	if branchFactoryCalled != 1 {
+		t.Fatalf("branch creator called %d times, want 1", branchFactoryCalled)
+	}
+	if capturedRepoDir != expectedRepoDir {
+		t.Fatalf("branch creator repoDir = %q, want %q", capturedRepoDir, expectedRepoDir)
+	}
+	if capturedCfg == nil {
+		t.Fatal("expected config to be passed to branch factory")
+	}
+	if !capturedCfg.RunWorktreeMode {
+		t.Fatalf("expected RunWorktreeMode true, got false")
+	}
+}
+
 // RED: When --spec is provided for the first time, the run-loop should bootstrap
 // specflow stage context, branch creation, and pass the context into the runner.
 func TestRunLoop_SpecFlagFreshStartBootstrapsStageAndBranch(t *testing.T) {
