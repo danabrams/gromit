@@ -146,6 +146,11 @@ func (r *Router) selectByRatio() string {
 		countsSnapshot[k] = v
 		totalCount += v
 	}
+	pendingTotal := 0
+	for _, pending := range r.pendingCounts {
+		pendingTotal += pending
+	}
+	totalCount += pendingTotal
 
 	var selectedName string
 	largestGap := -1.0
@@ -160,6 +165,9 @@ func (r *Router) selectByRatio() string {
 		}
 
 		currentCount := countsSnapshot[name]
+		if pending := r.pendingCounts[name]; pending > 0 {
+			currentCount += pending
+		}
 		var currentPercent float64
 		if totalCount > 0 {
 			currentPercent = float64(currentCount) / float64(totalCount) * 100.0
