@@ -232,11 +232,13 @@ func isNonBlockingDirtyWorktreePath(path string) bool {
 		return true
 	}
 
-	// Runtime temp/cache artifacts can appear at repo root or within nested worktree dirs.
-	if strings.HasPrefix(path, ".gromit/tmp/") || path == ".gromit/tmp" {
+	// The .gromit/ directory contains infrastructure artifacts (plans, specs, reports,
+	// templates, experiments, etc.) that may be edited in parallel with the runner.
+	// None of these are source code, so they should not block branch checkout.
+	if strings.HasPrefix(path, ".gromit/") {
 		return true
 	}
-	if strings.Contains(path, "/.gromit/tmp/") || strings.HasSuffix(path, "/.gromit/tmp") {
+	if strings.Contains(path, "/.gromit/") {
 		return true
 	}
 

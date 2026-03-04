@@ -253,24 +253,38 @@ func TestFilterBlockingWorktreeStatus_IgnoresOnlyOperationalPaths(t *testing.T) 
 		"?? .beads/dolt-monitor.pid",
 		"?? internal/runner/.gromit/tmp/go-build-cache/ab/cached-file-a",
 		"?? .gromit/tmp/go-build-cache/ab/cached-file-b",
+		" M .gromit/plans/tui-pipeline-view.md",
+		" M .gromit/plans/validation-auto-fix-integration.md",
+		" M .gromit/specs/remove-tdd-fresh-context.md",
+		" M .gromit/reports/debug-20260303-104035.md",
+		" M .gromit/templates/PROMPT_build.md",
+		" M .gromit/experiments/current.md",
+		"?? .gromit/epics/new-epic.md",
+		"?? internal/runner/.gromit/reports/nested-report.md",
 		" M internal/runner/specbranch/git_ops.go",
 	}, "\n")
 
 	filtered := filterBlockingWorktreeStatus(status)
-	if strings.Contains(filtered, ".gromit/integration-queue.json") {
-		t.Fatalf("filtered status should not include integration queue operational path: %q", filtered)
+
+	nonBlockingPaths := []string{
+		".gromit/integration-queue.json",
+		".beads/backup/backup_state.json",
+		".beads/dolt-monitor.pid",
+		"internal/runner/.gromit/tmp/go-build-cache/ab/cached-file-a",
+		".gromit/tmp/go-build-cache/ab/cached-file-b",
+		".gromit/plans/tui-pipeline-view.md",
+		".gromit/plans/validation-auto-fix-integration.md",
+		".gromit/specs/remove-tdd-fresh-context.md",
+		".gromit/reports/debug-20260303-104035.md",
+		".gromit/templates/PROMPT_build.md",
+		".gromit/experiments/current.md",
+		".gromit/epics/new-epic.md",
+		"internal/runner/.gromit/reports/nested-report.md",
 	}
-	if strings.Contains(filtered, ".beads/backup/backup_state.json") {
-		t.Fatalf("filtered status should not include backup operational path: %q", filtered)
-	}
-	if strings.Contains(filtered, ".beads/dolt-monitor.pid") {
-		t.Fatalf("filtered status should not include monitor pid operational path: %q", filtered)
-	}
-	if strings.Contains(filtered, "internal/runner/.gromit/tmp/go-build-cache/ab/cached-file-a") {
-		t.Fatalf("filtered status should not include nested .gromit/tmp cache artifacts: %q", filtered)
-	}
-	if strings.Contains(filtered, ".gromit/tmp/go-build-cache/ab/cached-file-b") {
-		t.Fatalf("filtered status should not include root .gromit/tmp cache artifacts: %q", filtered)
+	for _, p := range nonBlockingPaths {
+		if strings.Contains(filtered, p) {
+			t.Fatalf("filtered status should not include non-blocking path %q: %q", p, filtered)
+		}
 	}
 	if !strings.Contains(filtered, "internal/runner/specbranch/git_ops.go") {
 		t.Fatalf("filtered status should retain source changes: %q", filtered)
