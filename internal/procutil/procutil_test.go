@@ -66,16 +66,6 @@ func TestSubprocessEnvSetsGOMAXPROCS(t *testing.T) {
 	}
 }
 
-func TestSubprocessEnvOverridesExistingGOMAXPROCS(t *testing.T) {
-	t.Setenv("GOMAXPROCS", "99")
-	env := SubprocessEnv()
-	for _, kv := range env {
-		if kv == "GOMAXPROCS=99" {
-			t.Fatal("SubprocessEnv() did not override existing GOMAXPROCS=99")
-		}
-	}
-}
-
 func TestSubprocessEnvRespectsExistingGOMAXPROCS(t *testing.T) {
 	t.Setenv("GOMAXPROCS", "99")
 	env := SubprocessEnv()
