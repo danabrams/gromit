@@ -48,7 +48,11 @@ func handleAction(m *Model, key string, activeTab Tab, selectedItem ListItem, st
 		m.confirmDelete = true
 		return m, nil
 	case "y":
-		if !m.confirmDelete || selectedItem == nil {
+		if !m.confirmDelete {
+			return m, nil
+		}
+		if selectedItem == nil {
+			m.confirmDelete = false
 			return m, nil
 		}
 		identifier := extractIdentifier(selectedItem)
