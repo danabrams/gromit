@@ -78,3 +78,32 @@ func TestListModelRenderShowsCursorAndScroll(t *testing.T) {
 		t.Fatalf("non-cursor line missing second item, got %q", otherLine)
 	}
 }
+
+func TestListModelSetItemsPreservesScrollOffset(t *testing.T) {
+	model := &ListModel{
+		viewHeight:   2,
+		scrollOffset: 1,
+		cursor:       1,
+	}
+
+	items := []ListItem{
+		&testListItem{title: "first"},
+		&testListItem{title: "second"},
+		&testListItem{title: "third"},
+	}
+
+	model.SetItems(items)
+	if got, want := model.scrollOffset, 1; got != want {
+		t.Fatalf("scrollOffset = %d, want %d", got, want)
+	}
+
+	model.scrollOffset = 5
+	items = []ListItem{
+		&testListItem{title: "one"},
+		&testListItem{title: "two"},
+	}
+	model.SetItems(items)
+	if got, want := model.scrollOffset, 0; got != want {
+		t.Fatalf("scrollOffset = %d after shrinking, want %d", got, want)
+	}
+}
