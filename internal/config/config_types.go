@@ -51,6 +51,7 @@ var defaultAndonBulkDeleteAllowlist = []string{
 }
 
 type Config struct {
+	ProjectRoot                string                 `yaml:"-"`
 	Project                    ProjectConfig          `yaml:"project"`
 	Compatibility              CompatibilityConfig    `yaml:"compatibility"`
 	Tracker                    TrackerConfig          `yaml:"tracker"`

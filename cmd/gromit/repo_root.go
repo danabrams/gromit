@@ -44,6 +44,20 @@ func ensureRepoRoot() error {
 // findProjectRoot walks up from the current directory to find the project root
 // (identified by the presence of gromit.yaml or .gromit/ directory).
 func findProjectRoot() (string, error) {
+	if projectPath != "" {
+		absPathValue, err := absPath(projectPath, "project path flag")
+		if err != nil {
+			return "", err
+		}
+		if _, err := os.Stat(absPathValue); err != nil {
+			return "", fmt.Errorf("project path %q: %w", absPathValue, err)
+		}
+		if hasRepoMarker(absPathValue, repoConfigName) || hasRepoMarker(absPathValue, repoDirName) {
+			return absPathValue, nil
+		}
+		return "", fmt.Errorf("project path %q does not contain %s or %s: %w", absPathValue, repoConfigName, repoDirName, os.ErrNotExist)
+	}
+
 	cwd, err := os.Getwd()
 	if err != nil {
 		if root := getProjectRootFromCaller(3); root != "" {
