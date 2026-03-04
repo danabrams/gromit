@@ -261,10 +261,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case pipelineRefreshedMsg:
 		items := m.pipelineListItemsForTab(msg.RequestedTab)
-		for _, list := range m.pipelineListModels {
-			if list == nil {
-				continue
-			}
+		if m.pipelineListModels == nil {
+			break
+		}
+		if list, ok := m.pipelineListModels[msg.RequestedTab]; ok && list != nil {
 			list.SetItems(items)
 		}
 	}
@@ -299,7 +299,38 @@ func (m *Model) renderQueueView() string {
 }
 
 func (m *Model) pipelineListItemsForTab(tab Tab) []ListItem {
-	return nil
+	if m == nil || m.store == nil {
+		return nil
+	}
+	items := m.store.GetPipelineItems()
+	switch tab {
+	case TabBacklog:
+		list := make([]ListItem, 0, len(items.BacklogIdeas))
+		for i := range items.BacklogIdeas {
+			list = append(list, &IdeaListItem{idea: &items.BacklogIdeas[i]})
+		}
+		return list
+	case TabSpecs:
+		list := make([]ListItem, 0, len(items.UnplannedSpecs))
+		for i := range items.UnplannedSpecs {
+			list = append(list, &SpecListItem{path: items.UnplannedSpecs[i]})
+		}
+		return list
+	case TabPlans:
+		list := make([]ListItem, 0, len(items.UndecomposedPlans))
+		for i := range items.UndecomposedPlans {
+			list = append(list, &PlanListItem{path: items.UndecomposedPlans[i]})
+		}
+		return list
+	case TabQueue:
+		list := make([]ListItem, 0, len(items.Beads))
+		for i := range items.Beads {
+			list = append(list, &BeadListItem{bead: &items.Beads[i]})
+		}
+		return list
+	default:
+		return nil
+	}
 }
 
 func isPipelineTab(tab Tab) bool {
