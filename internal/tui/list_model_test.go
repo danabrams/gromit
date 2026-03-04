@@ -15,19 +15,35 @@ func (t *testListItem) Title() string { return t.title }
 func (t *testListItem) Summary() string { return t.summary }
 
 func TestListModelMoveUpClampsCursor(t *testing.T) {
-    model := &ListModel{
-        items: []ListItem{
-            &testListItem{title: "first"},
-            &testListItem{title: "second"},
-        },
-        cursor: -5,
-    }
+	model := &ListModel{
+		items: []ListItem{
+			&testListItem{title: "first"},
+			&testListItem{title: "second"},
+		},
+		cursor: -5,
+	}
 
     model.MoveUp()
 
-    if got, want := model.cursor, 0; got != want {
-        t.Fatalf("cursor = %d, want %d", got, want)
-    }
+	if got, want := model.cursor, 0; got != want {
+		t.Fatalf("cursor = %d, want %d", got, want)
+	}
+}
+
+func TestListModelMoveDownClampsCursor(t *testing.T) {
+	model := &ListModel{
+		items: []ListItem{
+			&testListItem{title: "first"},
+			&testListItem{title: "second"},
+		},
+		cursor: 5,
+	}
+
+	model.MoveDown()
+
+	if got, want := model.cursor, len(model.items)-1; got != want {
+		t.Fatalf("cursor = %d, want %d", got, want)
+	}
 }
 
 func TestListModelSetItemsClampsCursor(t *testing.T) {
