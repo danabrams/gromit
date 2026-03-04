@@ -809,6 +809,35 @@ func TestRecoverStaleSessionWorktree_RemovesStaleWhenRunInactive(t *testing.T) {
 	}
 }
 
+func TestRecoverStaleSessionWorktree_SkipsWhenRunActive(t *testing.T) {
+	ctx := context.Background()
+	calledRemove := false
+	oldRemove := removeStaleWorktreeFn
+	removeStaleWorktreeFn = func(context.Context, string, string) (bool, error) {
+		calledRemove = true
+		return true, nil
+	}
+	t.Cleanup(func() { removeStaleWorktreeFn = oldRemove })
+
+	oldRunLoop := runLoopActiveFn
+	runLoopActiveFn = func(string) bool { return true }
+	t.Cleanup(func() { runLoopActiveFn = oldRunLoop })
+
+	attempted, path, err := recoverStaleSessionWorktree(ctx, "/tmp/repo", "fatal: 'gromit/spec-branch' is already used by worktree at '/tmp/repo-gromit-run-12345'")
+	if err != nil {
+		t.Fatalf("recoverStaleSessionWorktree() error = %v, want nil", err)
+	}
+	if attempted {
+		t.Fatal("recoverStaleSessionWorktree() should not attempt removal when run active")
+	}
+	if path != "" {
+		t.Fatalf("recoverStaleSessionWorktree() path = %q, want empty", path)
+	}
+	if calledRemove {
+		t.Fatal("removeStaleWorktreeFn should not be called when run active")
+	}
+}
+
 func TestCreateOrCheckoutSpecBranch_RecoversStalWorktreeConflict(t *testing.T) {
 	fixture := helpers.NewDeterministicGitConflictFixture(t)
 	ops := NewGitOps(fixture.Dir, fixture.BaseBranch)
