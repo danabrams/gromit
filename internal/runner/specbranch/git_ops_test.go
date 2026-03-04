@@ -889,9 +889,20 @@ func TestCreateOrCheckoutSpecBranch_RecoversStalWorktreeConflict(t *testing.T) {
 		t.Fatalf("failed to create worktree: %v (%s)", err, out)
 	}
 
+	calledRunLoop := false
+	oldRunLoop := runLoopActiveFn
+	runLoopActiveFn = func(string) bool {
+		calledRunLoop = true
+		return false
+	}
+	t.Cleanup(func() { runLoopActiveFn = oldRunLoop })
+
 	// Now CreateOrCheckoutSpecBranch should detect the stale worktree, remove it, and succeed.
 	if err := ops.CreateOrCheckoutSpecBranch(context.Background(), specBranchName); err != nil {
 		t.Fatalf("CreateOrCheckoutSpecBranch() after stale worktree error = %v, want nil", err)
+	}
+	if !calledRunLoop {
+		t.Fatal("expected runLoopActiveFn to be called during stale worktree recovery")
 	}
 
 	// Verify we're on the spec branch.
