@@ -3,20 +3,19 @@
     "friction_clusters": [
       {
         "area": "cross-cutting",
-        "learning_count": 32,
+        "learning_count": 40,
         "earliest_date": "2026-02-07T00:00:00Z",
-        "latest_date": "2026-03-03T00:00:00Z",
-        "timespan": 2073600000000000,
+        "latest_date": "2026-03-04T00:00:00Z",
+        "timespan": 2160000000000000,
         "categories": {
           "ARCHITECTURE": 1,
           "CONVENTIONS": 2,
           "PATTERNS": 1,
-          "architecture": 5,
-          "bug-risk": 1,
+          "architecture": 7,
           "conventions": 6,
-          "gotchas": 6,
-          "patterns": 7,
-          "reliability": 2,
+          "gotchas": 9,
+          "patterns": 10,
+          "reliability": 3,
           "tech_debt": 1
         }
       },
@@ -33,13 +32,24 @@
         }
       },
       {
+        "area": "slices/maps",
+        "learning_count": 2,
+        "earliest_date": "2026-03-03T00:00:00Z",
+        "latest_date": "2026-03-04T00:00:00Z",
+        "timespan": 86400000000000,
+        "categories": {
+          "architecture": 1,
+          "conventions": 1
+        }
+      },
+      {
         "area": "specmerge",
-        "learning_count": 3,
+        "learning_count": 2,
         "earliest_date": "2026-03-01T00:00:00Z",
         "latest_date": "2026-03-01T00:00:00Z",
         "timespan": 0,
         "categories": {
-          "conventions": 2,
+          "conventions": 1,
           "gotchas": 1
         }
       }
