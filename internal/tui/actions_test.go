@@ -121,3 +121,24 @@ func TestHandleActionDeleteConfirmationFlow(t *testing.T) {
 		t.Fatalf("expected no additional delete calls, got %d", len(deleted))
 	}
 }
+
+func TestHandleActionDeleteGuardWithEmptySelection(t *testing.T) {
+	store := &Store{}
+	called := false
+	store.DeletePipelineItemFunc = func(Tab, string) {
+		called = true
+	}
+	m := &Model{}
+
+	if _, _ = handleAction(m, "x", Tab("backlog"), nil, store); m.confirmDelete {
+		t.Fatalf("expected confirmDelete to remain false when no item is selected")
+	}
+	if called {
+		t.Fatalf("expected no delete call when pressing x with empty selection")
+	}
+
+	m.confirmDelete = true
+	if _, _ = handleAction(m, "y", Tab("backlog"), nil, store); called {
+		t.Fatalf("expected no delete call when confirming without a selection")
+	}
+}
