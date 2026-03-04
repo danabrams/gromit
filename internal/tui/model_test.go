@@ -867,6 +867,36 @@ func TestModel_PipelineActionKeysInvokeHandleAction(t *testing.T) {
 	}
 }
 
+func TestModel_PipelineActionKeysHandleOutsideDashboardView(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+	m.currentView = ViewQueue
+
+	item := &testActionListItem{id: "idea-42"}
+	list := &mockPipelineListModel{selected: item}
+	m.registerPipelineListModel(TabBacklog, list)
+	m.activeTab = TabBacklog
+
+	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	m = model.(*Model)
+
+	if cmd == nil {
+		t.Fatalf("expected non-nil command from handleAction")
+	}
+	if m.pendingAction == nil {
+		t.Fatalf("expected pending action to be set")
+	}
+	if m.pendingAction.Command != "refine" {
+		t.Fatalf("expected pending action command \"refine\", got %q", m.pendingAction.Command)
+	}
+	if len(m.pendingAction.Args) != 1 || m.pendingAction.Args[0] != item.Identifier() {
+		t.Fatalf("expected pending action args [%q], got %+v", item.Identifier(), m.pendingAction.Args)
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Fatalf("expected handleAction to emit tea.QuitMsg, got %T", cmd())
+	}
+}
+
 func TestModel_EscapeClosesDetailView(t *testing.T) {
 	store := &Store{}
 	m := NewModel(store)
