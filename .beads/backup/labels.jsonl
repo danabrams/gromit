@@ -416,6 +416,12 @@
 {"issue_id":"gromit-77xe5","label":"from-review"}
 {"issue_id":"gromit-791l5","label":"bug"}
 {"issue_id":"gromit-791l5","label":"from-review"}
+{"issue_id":"gromit-791l5.1","label":"bug"}
+{"issue_id":"gromit-791l5.1","label":"from-review"}
+{"issue_id":"gromit-791l5.1","label":"scope_decomp:9bb2f18914c33ca3"}
+{"issue_id":"gromit-791l5.2","label":"bug"}
+{"issue_id":"gromit-791l5.2","label":"from-review"}
+{"issue_id":"gromit-791l5.2","label":"scope_decomp:bb7c5088fca01066"}
 {"issue_id":"gromit-79kjl","label":"estimated-files:2"}
 {"issue_id":"gromit-79kjl","label":"spec:tui-pipeline-view"}
 {"issue_id":"gromit-7dcu","label":"spec:multi-agent-phases"}
