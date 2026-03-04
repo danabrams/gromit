@@ -368,31 +368,31 @@ func TestSetDefaultsMethodologyPhaseModels_SetsDefaultTiers(t *testing.T) {
 	}
 }
 
-func TestNormalizeNilFieldsMethodologyAndRefactor_SetsSafeDefaults(t *testing.T) {
+func TestNormalizeNilFieldsMethodologyAndRefactor_DoesNotReapplyDefaults(t *testing.T) {
 	cfg := &Config{}
 
 	cfg.NormalizeNilFields()
 
-	if cfg.Methodology.BuildStrategy != "single_pass" {
-		t.Fatalf("Methodology.BuildStrategy = %q, want %q", cfg.Methodology.BuildStrategy, "single_pass")
+	if cfg.Methodology.BuildStrategy != "" {
+		t.Fatalf("Methodology.BuildStrategy = %q, want empty string", cfg.Methodology.BuildStrategy)
 	}
-	if cfg.Methodology.PhaseModels.Decompose != "medium" {
-		t.Fatalf("Methodology.PhaseModels.Decompose = %q, want %q", cfg.Methodology.PhaseModels.Decompose, "medium")
+	if cfg.Methodology.PhaseModels.Decompose != "" {
+		t.Fatalf("Methodology.PhaseModels.Decompose = %q, want empty string", cfg.Methodology.PhaseModels.Decompose)
 	}
 	if cfg.Methodology.PhaseModels.Build != "" {
-		t.Fatalf("Methodology.PhaseModels.Build = %q, want %q", cfg.Methodology.PhaseModels.Build, "")
+		t.Fatalf("Methodology.PhaseModels.Build = %q, want empty string", cfg.Methodology.PhaseModels.Build)
 	}
-	if cfg.Methodology.PhaseModels.Red != "low" {
-		t.Fatalf("Methodology.PhaseModels.Red = %q, want %q", cfg.Methodology.PhaseModels.Red, "low")
+	if cfg.Methodology.PhaseModels.Red != "" {
+		t.Fatalf("Methodology.PhaseModels.Red = %q, want empty string", cfg.Methodology.PhaseModels.Red)
 	}
-	if cfg.Methodology.PhaseModels.Green != "medium" {
-		t.Fatalf("Methodology.PhaseModels.Green = %q, want %q", cfg.Methodology.PhaseModels.Green, "medium")
+	if cfg.Methodology.PhaseModels.Green != "" {
+		t.Fatalf("Methodology.PhaseModels.Green = %q, want empty string", cfg.Methodology.PhaseModels.Green)
 	}
-	if cfg.Methodology.PhaseModels.Refactor != "low" {
-		t.Fatalf("Methodology.PhaseModels.Refactor = %q, want %q", cfg.Methodology.PhaseModels.Refactor, "low")
+	if cfg.Methodology.PhaseModels.Refactor != "" {
+		t.Fatalf("Methodology.PhaseModels.Refactor = %q, want empty string", cfg.Methodology.PhaseModels.Refactor)
 	}
-	if cfg.Refactor.MinFilesChanged != 3 {
-		t.Fatalf("Refactor.MinFilesChanged = %d, want %d", cfg.Refactor.MinFilesChanged, 3)
+	if cfg.Refactor.MinFilesChanged != 0 {
+		t.Fatalf("Refactor.MinFilesChanged = %d, want %d", cfg.Refactor.MinFilesChanged, 0)
 	}
 }
 
