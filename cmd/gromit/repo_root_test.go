@@ -156,6 +156,35 @@ func TestFindProjectRoot_ProjectPathRelativeToInitialWorkingDir(t *testing.T) {
 	assertSameProjectRoot(t, got, root)
 }
 
+func TestFindProjectRoot_WalksUpFromNestedSubdir(t *testing.T) {
+	t.Parallel()
+
+	root, nested := createRepoRootWithSubdir(t)
+
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(origWD)
+	})
+	if err := os.Chdir(nested); err != nil {
+		t.Fatalf("chdir to nested dir: %v", err)
+	}
+
+	origProjectPath := projectPath
+	projectPath = ""
+	t.Cleanup(func() {
+		projectPath = origProjectPath
+	})
+
+	got, err := findProjectRoot()
+	if err != nil {
+		t.Fatalf("findProjectRoot: %v", err)
+	}
+	assertSameProjectRoot(t, got, root)
+}
+
 func TestFindProjectRoot_WalksUpFromWorkingDirWhenProjectPathUnset(t *testing.T) {
 	t.Parallel()
 
