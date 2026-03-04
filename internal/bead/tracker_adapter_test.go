@@ -208,14 +208,14 @@ func TestBeadHasAnyLabel(t *testing.T) {
 	}
 }
 
-func TestBDAdapterReadyWithLabelUsesListWithLabel(t *testing.T) {
+func TestBDAdapterReadyWithLabelUsesReadyWithLabel(t *testing.T) {
 	t.Parallel()
 
 	var calls [][]string
 	client := &Client{
 		RunFn: func(args ...string) (string, error) {
 			calls = append(calls, append([]string(nil), args...))
-			if len(args) >= 1 && args[0] == "list" {
+			if len(args) >= 1 && args[0] == "ready" {
 				return `[{"id":"bead-1","title":"Label bead","issue_type":"task","status":"open","priority":1,"labels":["spec:test"]}]`, nil
 			}
 			return "", fmt.Errorf("unexpected bd command %q", args)
@@ -230,8 +230,16 @@ func TestBDAdapterReadyWithLabelUsesListWithLabel(t *testing.T) {
 	if item == nil {
 		t.Fatal("ReadyWithLabel returned nil, expected bead")
 	}
-	if len(calls) == 0 || calls[0][0] != "list" {
-		t.Fatalf("expected list command, got %v", calls)
+	if len(calls) == 0 {
+		t.Fatalf("expected at least one bd command, got none")
+	}
+	if calls[0][0] != "ready" {
+		t.Fatalf("expected ready command, got %v", calls)
+	}
+	for _, args := range calls {
+		if args[0] == "list" {
+			t.Fatalf("did not expect list command, got %v", calls)
+		}
 	}
 }
 
