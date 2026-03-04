@@ -8,6 +8,7 @@ import (
 	"go/token"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -78,6 +79,33 @@ func TestSubprocessEnvRespectsExistingGOMAXPROCS(t *testing.T) {
 		}
 	}
 	t.Fatal("GOMAXPROCS not found in SubprocessEnv()")
+}
+
+func TestSubprocessEnvRespectsRuntimeLimit(t *testing.T) {
+	prev, had := os.LookupEnv("GOMAXPROCS")
+	t.Cleanup(func() {
+		if had {
+			_ = os.Setenv("GOMAXPROCS", prev)
+			return
+		}
+		_ = os.Unsetenv("GOMAXPROCS")
+	})
+	if err := os.Unsetenv("GOMAXPROCS"); err != nil {
+		t.Fatalf("Unsetenv: %v", err)
+	}
+
+	original := runtime.GOMAXPROCS(0)
+	t.Cleanup(func() {
+		runtime.GOMAXPROCS(original)
+	})
+	runtime.GOMAXPROCS(2)
+
+	env := SubprocessEnv()
+	for _, kv := range env {
+		if strings.HasPrefix(kv, "GOMAXPROCS=") {
+			t.Fatalf("expected no GOMAXPROCS override when runtime limit <= %s, found %q", MaxGoParallelism, kv)
+		}
+	}
 }
 
 func TestReapProcessGroupNilProcess(t *testing.T) {
