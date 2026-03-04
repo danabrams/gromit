@@ -56,3 +56,24 @@ func TestHintBarRunLoopTabNormalState(t *testing.T) {
 		t.Fatalf("HintBar for runloop tab missing key %q, got %q", "q", hint)
 	}
 }
+
+func TestHintBarDetailViewOverride(t *testing.T) {
+	tests := []struct {
+		tab      Tab
+		wantKeys []string
+	}{
+		{Tab("backlog"), []string{"q", "esc"}},
+		{Tab("specs"), []string{"q", "esc"}},
+		{Tab("plans"), []string{"q", "esc"}},
+		{Tab("queue"), []string{"q", "esc"}},
+	}
+
+	for _, tc := range tests {
+		hint := HintBar(tc.tab, true, false)
+		for _, key := range tc.wantKeys {
+			if !strings.Contains(hint, key) {
+				t.Fatalf("HintBar for %s tab detail view missing key %q, got %q", tc.tab, key, hint)
+			}
+		}
+	}
+}
