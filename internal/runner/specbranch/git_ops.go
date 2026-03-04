@@ -278,24 +278,22 @@ func (g *GitOps) CreateOrCheckoutSpecBranch(ctx context.Context, specBranchName 
 	}
 
 	// If the branch is held by a stale gromit worktree, try to remove it and retry.
-	if worktreePath, ok := parseWorktreeConflictPath(checkoutCombined); ok {
-		if attempted, removeErr := removeStaleWorktree(ctx, g.repoDir, worktreePath); attempted {
-			if removeErr != nil {
-				return fmt.Errorf(
-					"failed to checkout spec branch %s: branch held by stale worktree %s, removal failed: %w",
-					specBranchName, worktreePath, removeErr,
-				)
-			}
-			// Worktree removed successfully — retry checkout once.
-			retryOutput, retryErr := runGitCommandWithOutput(ctx, g.repoDir, "checkout", specBranchName)
-			if retryErr != nil {
-				return fmt.Errorf(
-					"failed to checkout spec branch %s after removing stale worktree %s: %w (output: %s)",
-					specBranchName, worktreePath, retryErr, formatGitCommandOutput(retryOutput),
-				)
-			}
-			return nil
+	if attempted, worktreePath, recoverErr := recoverStaleSessionWorktree(ctx, g.repoDir, checkoutCombined); attempted {
+		if recoverErr != nil {
+			return fmt.Errorf(
+				"failed to checkout spec branch %s: branch held by stale worktree %s, removal failed: %w",
+				specBranchName, worktreePath, recoverErr,
+			)
 		}
+		// Worktree removed successfully — retry checkout once.
+		retryOutput, retryErr := runGitCommandWithOutput(ctx, g.repoDir, "checkout", specBranchName)
+		if retryErr != nil {
+			return fmt.Errorf(
+				"failed to checkout spec branch %s after removing stale worktree %s: %w (output: %s)",
+				specBranchName, worktreePath, retryErr, formatGitCommandOutput(retryOutput),
+			)
+		}
+		return nil
 	}
 
 	return fmt.Errorf(
