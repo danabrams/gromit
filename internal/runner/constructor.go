@@ -36,9 +36,7 @@ import (
 	"github.com/danabrams/gromit/internal/tracker"
 )
 
-// defaultTierToModelMap defines the default Claude model tier mapping.
-// This is used for backward compatibility when no providers are configured.
-// Deprecation marker: RunnerDeprecationMarkerLegacyClaudeTierModelMap
+// defaultTierToModelMap preserves legacy Claude tier mapping when no providers are configured.
 var defaultTierToModelMap = map[string]string{
 	"high":   "opus",
 	"medium": "sonnet",
@@ -504,7 +502,6 @@ func applyStateStalenessRecovery(sf *state.File, cfg *config.Config, output io.W
 	if !isStale {
 		return
 	}
-
 	sf.AutoHeal()
 	if output != nil {
 		_, _ = fmt.Fprintf(output, "Warning: state.json staleness detected (%s); provider routing state reset\n", reason)
@@ -524,10 +521,10 @@ func wireLearningsFilter(renderer PromptRenderer, learningsProvider provider.Pro
 	if lf == nil {
 		return
 	}
-
 	providerRunnerAdapter := learnings.NewProviderRunnerAdapter(learningsProvider)
 	lf.SetFilter(learnings.NewLLMFilter(providerRunnerAdapter, "gromit", learnings.ProjectDescriptions.Gromit))
 }
+
 func wireSiblingEnrichmentResolver(renderer PromptRenderer, logsDir string) {
 	if renderer == nil {
 		return
