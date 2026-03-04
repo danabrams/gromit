@@ -107,6 +107,40 @@ func TestModel_KeyboardNavigationShiftTab(t *testing.T) {
 	_ = cmd
 }
 
+func TestModel_ArrowKeysNavigateTabs(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+
+	if m.activeTab != TabRunLoop {
+		t.Fatalf("expected initial active tab to be run loop, got %q", m.activeTab)
+	}
+
+	rightSequence := []struct {
+		key  tea.KeyType
+		want Tab
+	}{
+		{tea.KeyRight, TabBacklog},
+		{tea.KeyRight, TabSpecs},
+		{tea.KeyRight, TabPlans},
+		{tea.KeyRight, TabQueue},
+		{tea.KeyRight, TabRunLoop},
+	}
+
+	for _, tc := range rightSequence {
+		msg := tea.KeyMsg{Type: tc.key}
+		m.Update(msg)
+		if m.activeTab != tc.want {
+			t.Fatalf("after %s, expected active tab %q, got %q", tc.key, tc.want, m.activeTab)
+		}
+	}
+
+	msg := tea.KeyMsg{Type: tea.KeyLeft}
+	m.Update(msg)
+	if m.activeTab != TabQueue {
+		t.Fatalf("after left arrow, expected active tab queue, got %q", m.activeTab)
+	}
+}
+
 func TestModel_ScrollHandlingUp(t *testing.T) {
 	store := &Store{}
 	m := NewModel(store)
