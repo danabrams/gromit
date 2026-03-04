@@ -79,3 +79,12 @@ func (o *Orchestrator) runEpilogue(ctx context.Context, in pipeline.Input, build
 	}
 	return out
 }
+
+func (o *Orchestrator) cleanupAfterFailedIteration(ctx context.Context) {
+	if o.cfg.GitCheckout == nil {
+		return
+	}
+	if err := o.cfg.GitCheckout.RevertAndReturnToBase(ctx); err != nil {
+		o.logWarning("Warning: worktree cleanup after failed iteration: %v", err)
+	}
+}

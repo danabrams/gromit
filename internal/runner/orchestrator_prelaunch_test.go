@@ -214,6 +214,10 @@ func (f *failingGitCheckout) CreateOrCheckoutSpecBranch(ctx context.Context, bra
 	return context.DeadlineExceeded
 }
 
+func (f *failingGitCheckout) RevertAndReturnToBase(ctx context.Context) error {
+	return nil
+}
+
 // TestOrchestrator_ProviderBinaryMissing_SetsPrelaunchFailure verifies that when
 // no configured provider binary exists on PATH, the iteration is recorded as a
 // prelaunch failure with GateBlockReason "provider_binary_missing".

@@ -23,7 +23,8 @@ var (
 	_ IterationLogger = (*logger.Logger)(nil)
 	_ WorktreeManager = (*worktree.Manager)(nil)
 	_ BranchRouter    = (*specbranch.Router)(nil)
-	_ GitCheckout     = (*specbranch.GitOps)(nil)
+	_ GitCheckout       = (*specbranch.GitOps)(nil)
+	_ PreflightChecker  = (*specbranch.GitOps)(nil)
 )
 
 // BeadClient abstracts the bead (bd) CLI operations used by the runner.
@@ -107,6 +108,12 @@ type BranchRouter interface {
 // GitCheckout abstracts git branch checkout operations.
 type GitCheckout interface {
 	CreateOrCheckoutSpecBranch(ctx context.Context, specBranchName string) error
+	RevertAndReturnToBase(ctx context.Context) error
+}
+
+// PreflightChecker checks environment preconditions before the run loop starts.
+type PreflightChecker interface {
+	EnsureWorktreeClean(ctx context.Context) error
 }
 
 // IterationResult captures the outcome of one loop iteration.

@@ -127,6 +127,10 @@ type OrchestratorConfig struct {
 	// PreImplementationHook orchestrates acceptance-test authoring beads before implementation.
 	PreImplementationHook func(ctx context.Context) error
 
+	// PreflightCheck validates environment preconditions before the main loop.
+	// Optional: nil means no preflight check is performed.
+	PreflightCheck PreflightChecker
+
 	// GitCheckout performs git branch checkout operations.
 	// Optional: nil means branch checkout is skipped.
 	GitCheckout GitCheckout
@@ -430,6 +434,13 @@ func (o *Orchestrator) Run(ctx context.Context, maxIterations int, deadline time
 		}
 	}
 
+	// Preflight: ensure worktree is clean before any beads are processed.
+	if o.cfg.PreflightCheck != nil {
+		if err := o.cfg.PreflightCheck.EnsureWorktreeClean(ctx); err != nil {
+			return fmt.Errorf("environment_blocked: dirty worktree at run start: %w", err)
+		}
+	}
+
 	// Emit RunStartEvent
 	timeBudget := time.Duration(0)
 	if !deadline.IsZero() {
@@ -623,6 +634,7 @@ runLoop:
 				Duration:  0,
 				TimeMixin: events.TimeMixin{Time: time.Now()},
 			})
+			o.cleanupAfterFailedIteration(ctx)
 			continue
 		}
 
@@ -707,6 +719,7 @@ runLoop:
 				Duration:  0,
 				TimeMixin: events.TimeMixin{Time: time.Now()},
 			})
+			o.cleanupAfterFailedIteration(ctx)
 			orchestratorPrelaunchBackoffFn(orchestratorPrelaunchBackoffDuration)
 			continue
 		}
@@ -748,6 +761,7 @@ runLoop:
 					Duration:  0,
 					TimeMixin: events.TimeMixin{Time: time.Now()},
 				})
+				o.cleanupAfterFailedIteration(ctx)
 				orchestratorPrelaunchBackoffFn(orchestratorPrelaunchBackoffDuration)
 				continue
 			}
@@ -785,6 +799,7 @@ runLoop:
 				Duration:  0,
 				TimeMixin: events.TimeMixin{Time: time.Now()},
 			})
+			o.cleanupAfterFailedIteration(ctx)
 			continue
 		}
 		if o.cfg.MidReview != nil {
@@ -836,6 +851,7 @@ runLoop:
 							Duration:  0,
 							TimeMixin: events.TimeMixin{Time: time.Now()},
 						})
+						o.cleanupAfterFailedIteration(ctx)
 						continue
 					}
 					baseIn.MidBuildReviewFindings = nil
@@ -940,6 +956,7 @@ runLoop:
 				Duration:  0,
 				TimeMixin: events.TimeMixin{Time: time.Now()},
 			})
+			o.cleanupAfterFailedIteration(ctx)
 			continue
 		}
 		if !validationPassed {
@@ -984,6 +1001,7 @@ runLoop:
 				Duration:  0,
 				TimeMixin: events.TimeMixin{Time: time.Now()},
 			})
+			o.cleanupAfterFailedIteration(ctx)
 			continue
 		}
 
@@ -1033,6 +1051,7 @@ runLoop:
 					Duration:  time.Duration(buildOut.DurationMs) * time.Millisecond,
 					TimeMixin: events.TimeMixin{Time: time.Now()},
 				})
+				o.cleanupAfterFailedIteration(ctx)
 				continue
 			}
 		}
@@ -1154,6 +1173,7 @@ runLoop:
 					Duration:  0,
 					TimeMixin: events.TimeMixin{Time: time.Now()},
 				})
+				o.cleanupAfterFailedIteration(ctx)
 				continue
 			}
 		}

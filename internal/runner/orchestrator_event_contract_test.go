@@ -224,6 +224,10 @@ func (h *haltingDirtyCheckout) CreateOrCheckoutSpecBranch(ctx context.Context, s
 	}
 }
 
+func (h *haltingDirtyCheckout) RevertAndReturnToBase(ctx context.Context) error {
+	return nil
+}
+
 func (cs *captureSubscriber) start() {
 	defer close(cs.done)
 

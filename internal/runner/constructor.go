@@ -324,10 +324,10 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 	}
 
 	if cfg.Methodology.Granularity == config.MethodologyGranularitySpec {
-		repoDir := filepath.Dir(gromitDir)
-		baseBranch := cfg.Git.BaseBranch
+		repoDir, baseBranch := filepath.Dir(gromitDir), cfg.Git.BaseBranch
+		gitOps := specbranch.NewGitOps(repoDir, baseBranch)
 		orchCfg.BranchRouter = specbranch.NewRouter(baseBranch)
-		orchCfg.GitCheckout = specbranch.NewGitOps(repoDir, baseBranch)
+		orchCfg.GitCheckout, orchCfg.PreflightCheck = gitOps, gitOps
 	}
 
 	return NewOrchestrator(orchCfg), nil

@@ -305,6 +305,12 @@ func WorktreeStatus(ctx context.Context, repoDir string) (string, error) {
 	return strings.TrimRight(output.stdout, "\n"), nil
 }
 
+// EnsureWorktreeClean checks that the repository worktree has no blocking
+// uncommitted changes. Returns a *DirtyWorktreeError if dirty.
+func (g *GitOps) EnsureWorktreeClean(ctx context.Context) error {
+	return g.ensureWorktreeClean(ctx)
+}
+
 func (g *GitOps) ensureWorktreeClean(ctx context.Context) error {
 	status, err := WorktreeStatus(ctx, g.repoDir)
 	if err != nil {
@@ -533,6 +539,47 @@ func isMergeConflict(output string, err error) bool {
 	// Check for typical merge conflict markers and fast-forward failures
 	return strings.Contains(output, "CONFLICT") ||
 		strings.Contains(output, "Not possible to fast-forward")
+}
+
+// RevertAndReturnToBase reverts all uncommitted changes and checks out the base branch.
+// It is a no-op if the worktree is already clean and on the base branch.
+func (g *GitOps) RevertAndReturnToBase(ctx context.Context) error {
+	// Check current state: is the worktree clean and are we on the base branch?
+	status, err := WorktreeStatus(ctx, g.repoDir)
+	if err != nil {
+		return fmt.Errorf("check worktree status before revert: %w", err)
+	}
+
+	currentBranch, err := g.currentBranch(ctx)
+	if err != nil {
+		return fmt.Errorf("determine current branch before revert: %w", err)
+	}
+
+	baseBranch := g.baseBranchOrDefault()
+
+	// No-op if already clean and on the base branch.
+	if status == "" && currentBranch == baseBranch {
+		return nil
+	}
+
+	// Revert all uncommitted tracked file changes.
+	if _, err := runGitCommand(ctx, g.repoDir, "checkout", "--", "."); err != nil {
+		return fmt.Errorf("revert uncommitted changes: %w", err)
+	}
+
+	// Remove untracked files and directories.
+	if _, err := runGitCommand(ctx, g.repoDir, "clean", "-fd"); err != nil {
+		return fmt.Errorf("remove untracked files: %w", err)
+	}
+
+	// Checkout the base branch (skip if already on it).
+	if currentBranch != baseBranch {
+		if _, err := runGitCommand(ctx, g.repoDir, "checkout", baseBranch); err != nil {
+			return fmt.Errorf("checkout base branch %s: %w", baseBranch, err)
+		}
+	}
+
+	return nil
 }
 
 func (g *GitOps) baseBranchOrDefault() string {

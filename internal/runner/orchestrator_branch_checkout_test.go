@@ -34,11 +34,21 @@ func (m *mockBranchRouter) EnableSessionWorktreeMode() {
 
 // mockGitCheckout records calls to CreateOrCheckoutSpecBranch
 type mockGitCheckout struct {
-	calls []string
+	calls                    []string
+	RevertAndReturnToBaseFn  func(ctx context.Context) error
+	revertAndReturnBaseCalls int
 }
 
 func (m *mockGitCheckout) CreateOrCheckoutSpecBranch(ctx context.Context, specBranchName string) error {
 	m.calls = append(m.calls, specBranchName)
+	return nil
+}
+
+func (m *mockGitCheckout) RevertAndReturnToBase(ctx context.Context) error {
+	m.revertAndReturnBaseCalls++
+	if m.RevertAndReturnToBaseFn != nil {
+		return m.RevertAndReturnToBaseFn(ctx)
+	}
 	return nil
 }
 
@@ -62,6 +72,10 @@ func (d *dirtyWorktreeCheckout) CreateOrCheckoutSpecBranch(ctx context.Context, 
 		RepoDir: specBranchName,
 		Status:  "M dirty.go",
 	}
+}
+
+func (d *dirtyWorktreeCheckout) RevertAndReturnToBase(ctx context.Context) error {
+	return nil
 }
 
 // TestOrchestratorCheckoutCalledAfterGateProceed verifies checkout is executed

@@ -821,6 +821,115 @@ func TestCreateOrCheckoutSpecBranch_RecoversStalWorktreeConflict(t *testing.T) {
 	}
 }
 
+// --- RevertAndReturnToBase tests ---
+
+// TestRevertAndReturnToBase_RevertsAndCheckoutsBase verifies that dirty tracked and
+// untracked files are cleaned and the base branch is checked out.
+func TestRevertAndReturnToBase_RevertsAndCheckoutsBase(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	fixture := helpers.NewDeterministicGitConflictFixture(t)
+	ops := NewGitOps(fixture.Dir, fixture.BaseBranch)
+
+	// Create and switch to a spec branch.
+	specBranch := "gromit/spec-revert-test"
+	if err := ops.CreateOrCheckoutSpecBranch(ctx, specBranch); err != nil {
+		t.Fatalf("CreateOrCheckoutSpecBranch() error = %v", err)
+	}
+
+	// Dirty a tracked file.
+	trackedFile := filepath.Join(fixture.Dir, fixture.ConflictingFile)
+	if err := os.WriteFile(trackedFile, []byte("dirty tracked change"), 0o644); err != nil {
+		t.Fatalf("failed to dirty tracked file: %v", err)
+	}
+
+	// Create an untracked file.
+	untrackedFile := filepath.Join(fixture.Dir, "untracked_build_artifact.txt")
+	if err := os.WriteFile(untrackedFile, []byte("build output"), 0o644); err != nil {
+		t.Fatalf("failed to create untracked file: %v", err)
+	}
+
+	// Verify worktree is dirty before the call.
+	cmd := exec.Command("git", "status", "--porcelain")
+	cmd.Dir = fixture.Dir
+	statusBefore, _ := cmd.CombinedOutput()
+	if len(strings.TrimSpace(string(statusBefore))) == 0 {
+		t.Fatal("expected dirty worktree before RevertAndReturnToBase")
+	}
+
+	// Call RevertAndReturnToBase.
+	if err := ops.RevertAndReturnToBase(ctx); err != nil {
+		t.Fatalf("RevertAndReturnToBase() error = %v", err)
+	}
+
+	// Verify worktree is clean.
+	cmd = exec.Command("git", "status", "--porcelain")
+	cmd.Dir = fixture.Dir
+	statusAfter, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git status failed: %v", err)
+	}
+	if strings.TrimSpace(string(statusAfter)) != "" {
+		t.Fatalf("worktree not clean after RevertAndReturnToBase: %s", statusAfter)
+	}
+
+	// Verify we're on the base branch.
+	cmd = exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	cmd.Dir = fixture.Dir
+	branchOutput, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("rev-parse failed: %v", err)
+	}
+	if strings.TrimSpace(string(branchOutput)) != fixture.BaseBranch {
+		t.Fatalf("expected branch %s, got %s", fixture.BaseBranch, strings.TrimSpace(string(branchOutput)))
+	}
+
+	// Verify untracked file was removed.
+	if _, err := os.Stat(untrackedFile); !os.IsNotExist(err) {
+		t.Fatalf("untracked file should have been removed, but still exists")
+	}
+}
+
+// TestRevertAndReturnToBase_NoOpWhenCleanAndOnBase verifies that the method is a no-op
+// when the worktree is already clean and on the base branch.
+func TestRevertAndReturnToBase_NoOpWhenCleanAndOnBase(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	fixture := helpers.NewDeterministicGitConflictFixture(t)
+	ops := NewGitOps(fixture.Dir, fixture.BaseBranch)
+
+	// We should already be on the base branch with a clean worktree.
+	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	cmd.Dir = fixture.Dir
+	branchOutput, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("rev-parse failed: %v", err)
+	}
+	if strings.TrimSpace(string(branchOutput)) != fixture.BaseBranch {
+		t.Fatalf("fixture not on base branch: %s", strings.TrimSpace(string(branchOutput)))
+	}
+
+	// Should succeed as a no-op.
+	if err := ops.RevertAndReturnToBase(ctx); err != nil {
+		t.Fatalf("RevertAndReturnToBase() error = %v, want nil (no-op)", err)
+	}
+}
+
+// TestRevertAndReturnToBase_ErrorNotInGitRepo verifies that the method returns an
+// error when called outside a git repository.
+func TestRevertAndReturnToBase_ErrorNotInGitRepo(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	nonGitDir := t.TempDir()
+	ops := NewGitOps(nonGitDir, "main")
+
+	err := ops.RevertAndReturnToBase(ctx)
+	if err == nil {
+		t.Fatal("RevertAndReturnToBase() expected error outside git repo, got nil")
+	}
+}
+
 func TestCreateOrCheckoutSpecBranch_ReturnsErrorForNonGromitWorktree(t *testing.T) {
 	fixture := helpers.NewDeterministicGitConflictFixture(t)
 	ops := NewGitOps(fixture.Dir, fixture.BaseBranch)
