@@ -18,6 +18,7 @@ func (l *ListModel) SetItems(items []ListItem) {
 	if l == nil {
 		return
 	}
+	prevScroll := l.scrollOffset
 	l.items = append([]ListItem{}, items...)
 	if len(l.items) == 0 {
 		l.cursor = 0
@@ -30,7 +31,10 @@ func (l *ListModel) SetItems(items []ListItem) {
 	if l.cursor < 0 {
 		l.cursor = 0
 	}
-	l.scrollOffset = 0
+	l.scrollOffset = prevScroll
+	l.ensureCursorVisible()
+	maxOffset := max(0, len(l.items)-l.viewHeight)
+	l.scrollOffset = clamp(l.scrollOffset, 0, maxOffset)
 }
 
 // MoveUp moves the cursor up by one row and adjusts scroll offset.
