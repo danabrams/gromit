@@ -20,8 +20,10 @@ var normalTabHintActions = map[Tab][]string{
 }
 
 func RenderHintBar(activeTab Tab, hasSelection bool, inDetailView bool, inConfirmation bool) string {
-	if inConfirmation && tabNeedsConfirmation(activeTab) {
-		return styleHint("[y/n] confirm delete")
+	if inConfirmation {
+		if actions := confirmationHintActions(activeTab); len(actions) > 0 {
+			return renderHintActions(actions)
+		}
 	}
 	if inDetailView {
 		return renderHintActions(detailViewHintActions(activeTab))
@@ -56,6 +58,13 @@ func detailViewHintActions(tab Tab) []string {
 		return []string{"[q] quit"}
 	}
 	return []string{"[q] quit", "[esc] back"}
+}
+
+func confirmationHintActions(tab Tab) []string {
+	if !tabNeedsConfirmation(tab) {
+		return []string{}
+	}
+	return []string{"[y/n] confirm delete"}
 }
 
 func renderHintActions(actions []string) string {
