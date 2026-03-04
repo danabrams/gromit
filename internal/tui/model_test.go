@@ -694,3 +694,26 @@ func TestModel_PipelineListNavigationRoutesToActiveList(t *testing.T) {
 		t.Fatalf("expected CursorDown to be called once, got %d", list.cursorDownCalls)
 	}
 }
+
+func TestModel_PipelineListNavigationRoutesToAllLists(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+	first := &mockPipelineListModel{}
+	second := &mockPipelineListModel{}
+	m.registerPipelineListModel(first)
+	m.registerPipelineListModel(second)
+
+	if _, cmd := m.Update(tea.KeyMsg{Type: tea.KeyUp}); cmd != nil {
+		t.Fatalf("unexpected command for up key: %v", cmd)
+	}
+	if first.cursorUpCalls != 1 || second.cursorUpCalls != 1 {
+		t.Fatalf("expected CursorUp called for every list, got first=%d second=%d", first.cursorUpCalls, second.cursorUpCalls)
+	}
+
+	if _, cmd := m.Update(tea.KeyMsg{Type: tea.KeyDown}); cmd != nil {
+		t.Fatalf("unexpected command for down key: %v", cmd)
+	}
+	if first.cursorDownCalls != 1 || second.cursorDownCalls != 1 {
+		t.Fatalf("expected CursorDown called for every list, got first=%d second=%d", first.cursorDownCalls, second.cursorDownCalls)
+	}
+}
