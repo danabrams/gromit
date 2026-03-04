@@ -1,10 +1,12 @@
 package integrationqueue
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -623,6 +625,36 @@ func TestCoordinator_RecoverFromCrash(t *testing.T) {
 	}
 	if integ2.LastErrorCode != "crash_recovery" {
 		t.Fatalf("integrating2 error code = %s, want crash_recovery", integ2.LastErrorCode)
+	}
+}
+
+func TestCoordinatorRecoverFromCrashLogsWhenNoEntriesRecovered(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	coord := &Coordinator{store: store}
+
+	var buf bytes.Buffer
+	origFlags := log.Flags()
+	origOutput := log.Writer()
+	log.SetFlags(0)
+	log.SetOutput(&buf)
+	t.Cleanup(func() {
+		log.SetFlags(origFlags)
+		log.SetOutput(origOutput)
+	})
+
+	if err := coord.RecoverFromCrash(ctx); err != nil {
+		t.Fatalf("RecoverFromCrash() error = %v", err)
+	}
+
+	if !strings.Contains(buf.String(), "no stranded entries found") {
+		t.Fatalf("log output = %q, want contains 'no stranded entries found'", buf.String())
 	}
 }
 
