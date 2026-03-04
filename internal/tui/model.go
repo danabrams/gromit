@@ -48,6 +48,7 @@ func (m *Model) SetConversationController(ctrl *ConversationController) {
 // SwitchView switches the current view to the specified view.
 func (m *Model) SwitchView(view string) {
 	m.currentView = view
+	m.runLoopSubView = view
 }
 
 // FocusNext moves focus to the next panel.
