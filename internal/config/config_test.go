@@ -72,6 +72,42 @@ agents:
 	}
 }
 
+func TestResolveProjectRootPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte("version: 1\n"), 0o644); err != nil {
+		t.Fatalf("write gromit.yaml: %v", err)
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get working directory: %v", err)
+	}
+
+	relPath, err := filepath.Rel(cwd, cfgPath)
+	if err != nil {
+		t.Fatalf("filepath.Rel: %v", err)
+	}
+
+	absPath, projectRoot, err := resolveProjectRootPath(relPath)
+	if err != nil {
+		t.Fatalf("resolveProjectRootPath: %v", err)
+	}
+
+	wantAbsPath, err := filepath.Abs(relPath)
+	if err != nil {
+		t.Fatalf("filepath.Abs: %v", err)
+	}
+	if absPath != wantAbsPath {
+		t.Fatalf("abs path = %q, want %q", absPath, wantAbsPath)
+	}
+
+	wantRoot := filepath.Dir(wantAbsPath)
+	if projectRoot != wantRoot {
+		t.Fatalf("project root = %q, want %q", projectRoot, wantRoot)
+	}
+}
+
 func TestQualityGatesYAMLDeserialization(t *testing.T) {
 	yamlContent := `
 quality_gates:
