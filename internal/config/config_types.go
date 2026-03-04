@@ -90,6 +90,11 @@ type Config struct {
 	Decompose                  DecomposeConfig        `yaml:"decompose"`
 	MergePipeline              MergePipelineConfig    `yaml:"merge_pipeline"`
 	SpecPR                     SpecPRConfig           `yaml:"spec_pr"`
+
+	// RunWorktreeMode is a runtime-only flag (not serialized) indicating that
+	// the run loop is executing inside a dedicated worktree. When true, the
+	// integration queue coordinator is disabled to avoid branch conflicts.
+	RunWorktreeMode bool `yaml:"-"`
 }
 
 type CompatibilityConfig struct {

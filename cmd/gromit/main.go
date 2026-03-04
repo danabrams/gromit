@@ -247,15 +247,14 @@ func runLoop(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cfg, err := loadConfig()
+	// Capture main worktree dir before entering the dedicated run worktree.
+	// ensureRepoRoot() has already set cwd to project root via PersistentPreRunE.
+	mainDir, err := os.Getwd()
 	if err != nil {
-		return fmt.Errorf("loading config: %w", err)
+		return fmt.Errorf("determining main dir: %w", err)
 	}
-	cfg.SetDefaults()
 
-	applyReadinessEmergencyOverrideFlag(cfg)
-
-	// Set up context with signal handling
+	// Set up context with signal handling outside the worktree
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -265,59 +264,70 @@ func runLoop(cmd *cobra.Command, args []string) error {
 	defer signal.Stop(sigCh)
 	go handleRunSignals(sigCh, stopCh, cancel, os.Stderr)
 
-	specsDir := resolveSpecsDir(cfg)
-	labels, err := resolveScopeLabels(specsDir, runEpicFlag, runSpecFlag)
-	if err != nil {
-		fallbackLabels, fallbackErr := resolveLegacyRunSpecScope(cfg, specsDir, runSpecFlag, err)
-		if fallbackErr != nil {
-			return fallbackErr
+	return runInDedicatedWorktree(ctx, mainDir, func() error {
+		cfg, err := loadConfig()
+		if err != nil {
+			return fmt.Errorf("loading config: %w", err)
 		}
-		labels = fallbackLabels
-	}
+		cfg.SetDefaults()
+		cfg.RunWorktreeMode = true
 
-	// Override max iterations from flag if set
-	if maxIterations > 0 {
-		cfg.Loop.MaxIterations = maxIterations
-	}
+		applyReadinessEmergencyOverrideFlag(cfg)
 
-	// Compute deadline from time budget flags (additive: total = minutes + hours*60)
-	var deadline time.Time
-	if timeBudgetMinutes > 0 || timeBudgetHours > 0 {
-		totalMinutes := timeBudgetMinutes + timeBudgetHours*60
-		deadline = time.Now().Add(time.Duration(totalMinutes) * time.Minute)
-	}
-
-	gromitDir := resolveGromitDir(cfg)
-	var stageCtx *runner.StageContext
-	if runSpecFlag != "" {
-		var stageCtxErr error
-		origStoreFactory := runner.SpecflowStoreFactory
-		runner.SpecflowStoreFactory = newSpecflowStoreFn
-		stageCtx, stageCtxErr = newBuildSpecStageContextFn(ctx, cfg, runSpecFlag, gromitDir)
-		runner.SpecflowStoreFactory = origStoreFactory
-		if stageCtxErr != nil {
-			return fmt.Errorf("initializing specflow stage: %w", stageCtxErr)
-		}
-		if stageCtx != nil && stageCtx.SpecName != "" {
-			repoDir, err := os.Getwd()
-			if err != nil {
-				return fmt.Errorf("determining repo dir: %w", err)
+		specsDir := resolveSpecsDir(cfg)
+		labels, err := resolveScopeLabels(specsDir, runEpicFlag, runSpecFlag)
+		if err != nil {
+			fallbackLabels, fallbackErr := resolveLegacyRunSpecScope(cfg, specsDir, runSpecFlag, err)
+			if fallbackErr != nil {
+				return fallbackErr
 			}
-			origBranchFactory := runner.SpecBranchCreatorFactory
-			runner.SpecBranchCreatorFactory = newSpecBranchCreatorFn
-			if err := runner.EnsureSpecBranch(ctx, cfg, stageCtx, repoDir); err != nil {
+			labels = fallbackLabels
+		}
+
+		// Override max iterations from flag if set
+		if maxIterations > 0 {
+			cfg.Loop.MaxIterations = maxIterations
+		}
+
+		// Compute deadline from time budget flags (additive: total = minutes + hours*60)
+		var deadline time.Time
+		if timeBudgetMinutes > 0 || timeBudgetHours > 0 {
+			totalMinutes := timeBudgetMinutes + timeBudgetHours*60
+			deadline = time.Now().Add(time.Duration(totalMinutes) * time.Minute)
+		}
+
+		gromitDir := resolveGromitDir(cfg)
+		var stageCtx *runner.StageContext
+		if runSpecFlag != "" {
+			var stageCtxErr error
+			origStoreFactory := runner.SpecflowStoreFactory
+			runner.SpecflowStoreFactory = newSpecflowStoreFn
+			stageCtx, stageCtxErr = newBuildSpecStageContextFn(ctx, cfg, runSpecFlag, gromitDir)
+			runner.SpecflowStoreFactory = origStoreFactory
+			if stageCtxErr != nil {
+				return fmt.Errorf("initializing specflow stage: %w", stageCtxErr)
+			}
+			if stageCtx != nil && stageCtx.SpecName != "" {
+				repoDir, err := os.Getwd()
+				if err != nil {
+					return fmt.Errorf("determining repo dir: %w", err)
+				}
+				origBranchFactory := runner.SpecBranchCreatorFactory
+				runner.SpecBranchCreatorFactory = newSpecBranchCreatorFn
+				if err := runner.EnsureSpecBranch(ctx, cfg, stageCtx, repoDir); err != nil {
+					runner.SpecBranchCreatorFactory = origBranchFactory
+					return fmt.Errorf("preparing spec branch: %w", err)
+				}
 				runner.SpecBranchCreatorFactory = origBranchFactory
-				return fmt.Errorf("preparing spec branch: %w", err)
 			}
-			runner.SpecBranchCreatorFactory = origBranchFactory
 		}
-	}
 
-	r, err := newRunnerWithStageContextFn(cfg, os.Stdout, stageCtx, labels...)
-	if err != nil {
-		return fmt.Errorf("failed to create runner: %w", err)
-	}
-	return r.Run(ctx, cfg.Loop.MaxIterations, deadline, stopCh)
+		r, err := newRunnerWithStageContextFn(cfg, os.Stdout, stageCtx, labels...)
+		if err != nil {
+			return fmt.Errorf("failed to create runner: %w", err)
+		}
+		return r.Run(ctx, cfg.Loop.MaxIterations, deadline, stopCh)
+	})
 }
 
 func applyReadinessEmergencyOverrideFlag(cfg *config.Config) {

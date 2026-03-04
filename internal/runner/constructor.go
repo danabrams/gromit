@@ -255,9 +255,12 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 		statusWriter.SetScopeLabel(specProgressLabel)
 	}
 
-	coordinator, err := newIntegrationQueueCoordinator(cfg, gromitDir)
-	if err != nil {
-		return nil, err
+	var coordinator Coordinator
+	if !cfg.RunWorktreeMode {
+		coordinator, err = newIntegrationQueueCoordinator(cfg, gromitDir)
+		if err != nil {
+			return nil, err
+		}
 	}
 	orchCfg := OrchestratorConfig{
 		Gate:             gateStage,

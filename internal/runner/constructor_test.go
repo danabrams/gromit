@@ -843,6 +843,44 @@ func TestNewRunnerImpl_IntegrationQueueAdapterInitError(t *testing.T) {
 	}
 }
 
+func TestNewRunnerImpl_RunWorktreeMode_DisablesCoordinator(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	templatesDir := filepath.Join(tmpDir, "templates")
+	logsDir := filepath.Join(tmpDir, "logs")
+	claudePath := filepath.Join(tmpDir, "CLAUDE.md")
+
+	if err := os.MkdirAll(templatesDir, 0o755); err != nil {
+		t.Fatalf("mkdir templates: %v", err)
+	}
+	if err := os.MkdirAll(logsDir, 0o755); err != nil {
+		t.Fatalf("mkdir logs: %v", err)
+	}
+	if err := os.WriteFile(claudePath, []byte("test"), 0o644); err != nil {
+		t.Fatalf("write claude md: %v", err)
+	}
+
+	cfg := &config.Config{
+		RunWorktreeMode: true,
+	}
+	cfg.Paths.Templates = templatesDir
+	cfg.Paths.Specs = filepath.Join(tmpDir, "specs")
+	cfg.Paths.Logs = logsDir
+	cfg.Paths.ProjectClaudeMD = claudePath
+
+	orch, err := newRunnerImpl(cfg, io.Discard, nil)
+	if err != nil {
+		t.Fatalf("newRunnerImpl error = %v", err)
+	}
+	if orch == nil {
+		t.Fatal("newRunnerImpl returned nil orchestrator")
+	}
+	if orch.cfg.Coordinator != nil {
+		t.Fatalf("expected Coordinator to be nil in RunWorktreeMode, got %T", orch.cfg.Coordinator)
+	}
+}
+
 func TestNewIntegrationQueueCoordinator_WiresRealDependencies(t *testing.T) {
 	tmpDir := t.TempDir()
 	gromitDir := filepath.Join(tmpDir, ".gromit")
