@@ -38,15 +38,22 @@ var (
 	tabBarSeparatorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#5C5C5C"))
 )
 
+type tabEntry struct {
+	tab    Tab
+	label  string
+	active bool
+}
+
 func TabBar(activeTab Tab, width int) string {
-	rendered := make([]string, len(tabOrder))
+	entries := tabEntries(activeTab)
+	rendered := make([]string, len(entries))
 	separator := tabBarSeparatorStyle.Render(" ")
-	for i, tab := range tabOrder {
+	for i, entry := range entries {
 		style := tabBarInactiveStyle
-		if tab == activeTab {
+		if entry.active {
 			style = tabBarActiveStyle
 		}
-		rendered[i] = style.Render(tabLabel(tab))
+		rendered[i] = style.Render(entry.label)
 	}
 
 	bar := strings.Join(rendered, separator)
@@ -62,6 +69,33 @@ func tabLabel(tab Tab) string {
 		return label
 	}
 	return string(tab)
+}
+
+func tabEntries(active Tab) []tabEntry {
+	entries := make([]tabEntry, len(tabOrder))
+	selected := active
+	if !tabExists(active) && len(tabOrder) > 0 {
+		selected = tabOrder[0]
+	}
+
+	for i, tab := range tabOrder {
+		entries[i] = tabEntry{
+			tab:    tab,
+			label:  tabLabel(tab),
+			active: tab == selected,
+		}
+	}
+
+	return entries
+}
+
+func tabExists(tab Tab) bool {
+	for _, candidate := range tabOrder {
+		if candidate == tab {
+			return true
+		}
+	}
+	return false
 }
 
 func nextTab(current Tab) Tab {
