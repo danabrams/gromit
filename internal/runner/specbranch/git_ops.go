@@ -122,15 +122,16 @@ func parseWorktreeConflictPath(gitOutput string) (string, bool) {
 }
 
 // isStaleGromitWorktree returns true if the worktree path looks like it was
-// created by a previous gromit run session (contains "-gromit-run-" or "-gromit-").
+// created by a previous gromit run session (contains "-gromit-run-").
+// Excludes interactive worktrees ("-gromit-interactive") which may be active.
 func isStaleGromitWorktree(worktreePath string) bool {
-	return strings.Contains(worktreePath, "-gromit-run-") ||
-		strings.Contains(worktreePath, "-gromit-")
+	return strings.Contains(worktreePath, "-gromit-run-")
 }
 
-// removeStaleWorktree attempts to forcibly remove a stale gromit worktree so
-// the branch it holds can be checked out elsewhere. Returns true if removal
-// was attempted (regardless of success), along with any error from the removal.
+// removeStaleWorktree attempts to forcibly remove a stale gromit run worktree
+// so the branch it holds can be checked out elsewhere. Only targets worktrees
+// matching the gromit-run session pattern. Returns true if removal was
+// attempted, along with any error from the removal.
 func removeStaleWorktree(ctx context.Context, repoDir, worktreePath string) (attempted bool, err error) {
 	if !isStaleGromitWorktree(worktreePath) {
 		return false, nil

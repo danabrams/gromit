@@ -765,10 +765,14 @@ func TestIsStaleGromitWorktree_TrueForGromitRunPaths(t *testing.T) {
 	}
 }
 
-func TestIsStaleGromitWorktree_TrueForGromitPaths(t *testing.T) {
+func TestIsStaleGromitWorktree_FalseForNonRunGromitPaths(t *testing.T) {
 	t.Parallel()
-	if !isStaleGromitWorktree("/tmp/myrepo-gromit-debug-abc123") {
-		t.Fatal("isStaleGromitWorktree() = false for -gromit- path, want true")
+	// Interactive and debug worktrees should NOT be treated as stale run sessions
+	if isStaleGromitWorktree("/tmp/myrepo-gromit-interactive") {
+		t.Fatal("isStaleGromitWorktree() = true for -gromit-interactive path, want false")
+	}
+	if isStaleGromitWorktree("/tmp/myrepo-gromit-debug-abc123") {
+		t.Fatal("isStaleGromitWorktree() = true for -gromit-debug- path, want false")
 	}
 }
 
