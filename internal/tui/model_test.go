@@ -432,6 +432,25 @@ func TestModel_FocusConversationKeySwitchesToConversationView(t *testing.T) {
 	}
 }
 
+func TestModel_NumberKeysOnlyRunLoopActive(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+	m.SwitchView(ViewDashboard)
+
+	m.activeTab = TabBacklog
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}}
+	m.Update(msg)
+	if m.currentView != ViewDashboard {
+		t.Fatalf("expected view to stay Dashboard when active tab is %q, got %q", m.activeTab, m.currentView)
+	}
+
+	m.activeTab = TabRunLoop
+	m.Update(msg)
+	if m.currentView != ViewQueue {
+		t.Fatalf("expected view to switch to Queue when run loop active, got %q", m.currentView)
+	}
+}
+
 func TestModel_UsesKeymapForConversationActions(t *testing.T) {
 	store := &Store{}
 	m := NewModel(store)
