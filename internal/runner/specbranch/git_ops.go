@@ -221,8 +221,28 @@ func (g *GitOps) CreateOrCheckoutSpecBranch(ctx context.Context, specBranchName 
 		return nil
 	}
 
-	// If the branch is held by a stale gromit worktree, try to remove it and retry.
 	checkoutCombined := checkoutOutput.stdout + "\n" + checkoutOutput.stderr
+
+	// If checkout fails because non-blocking dirty files (e.g. .gromit/) would be
+	// overwritten, stash them, retry checkout, and restore. ensureWorktreeClean already
+	// passed, so only non-blocking paths are dirty.
+	if strings.Contains(checkoutCombined, "would be overwritten") {
+		if _, stashErr := runGitCommandWithOutput(ctx, g.repoDir, "stash", "push", "-m", "gromit-spec-checkout-auto"); stashErr == nil {
+			retryOutput, retryErr := runGitCommandWithOutput(ctx, g.repoDir, "checkout", specBranchName)
+			// Best-effort restore of stashed changes; conflicts in non-blocking
+			// files are acceptable and won't block the build.
+			_, _ = runGitCommandWithOutput(ctx, g.repoDir, "stash", "pop")
+			if retryErr == nil {
+				return nil
+			}
+			// Update error context for the final error message.
+			checkoutOutput = retryOutput
+			checkoutErr = retryErr
+			checkoutCombined = retryOutput.stdout + "\n" + retryOutput.stderr
+		}
+	}
+
+	// If the branch is held by a stale gromit worktree, try to remove it and retry.
 	if worktreePath, ok := parseWorktreeConflictPath(checkoutCombined); ok {
 		if attempted, removeErr := removeStaleWorktree(ctx, g.repoDir, worktreePath); attempted {
 			if removeErr != nil {
