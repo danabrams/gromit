@@ -84,8 +84,10 @@ func (l *ListModel) Selected() ListItem {
 	if l == nil || len(l.items) == 0 {
 		return nil
 	}
-	if l.cursor < 0 || l.cursor >= len(l.items) {
-		return nil
+	if l.cursor < 0 {
+		l.cursor = 0
+	} else if l.cursor >= len(l.items) {
+		l.cursor = len(l.items) - 1
 	}
 	return l.items[l.cursor]
 }
