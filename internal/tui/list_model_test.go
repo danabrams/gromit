@@ -68,6 +68,20 @@ func TestListModelSelectedClampsCursor(t *testing.T) {
 	}
 }
 
+func TestListModelSelectedEmptyListClampsCursor(t *testing.T) {
+	model := &ListModel{
+		items:  nil,
+		cursor: 5,
+	}
+
+	if got := model.Selected(); got != nil {
+		t.Fatalf("selected = %v, want nil", got)
+	}
+	if got, want := model.cursor, 0; got != want {
+		t.Fatalf("cursor = %d, want %d", got, want)
+	}
+}
+
 func TestListModelSetItemsClampsCursor(t *testing.T) {
 	model := &ListModel{
 		cursor:       5,
