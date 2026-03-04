@@ -19,6 +19,14 @@ var normalTabBaseActions = map[Tab][]string{
 	TabRunLoop: {},
 }
 
+var normalStateHintStrings = map[Tab]string{
+	TabBacklog: renderHintActions(normalHintActions(TabBacklog, true)),
+	TabSpecs:   renderHintActions(normalHintActions(TabSpecs, true)),
+	TabPlans:   renderHintActions(normalHintActions(TabPlans, true)),
+	TabQueue:   renderHintActions(normalHintActions(TabQueue, true)),
+	TabRunLoop: renderHintActions(normalHintActions(TabRunLoop, true)),
+}
+
 func RenderHintBar(activeTab Tab, hasSelection bool, inDetailView bool, inConfirmation bool) string {
 	if inConfirmation {
 		if actions := confirmationHintActions(activeTab); len(actions) > 0 {
@@ -40,7 +48,13 @@ func renderNormalHints(tab Tab, hasSelection bool) string {
 }
 
 func normalStateHintString(tab Tab, hasSelection bool) string {
-	return renderHintActions(normalHintActions(tab, hasSelection))
+	if !hasSelection {
+		return renderHintActions([]string{"[q] quit"})
+	}
+	if hint, ok := normalStateHintStrings[tab]; ok {
+		return hint
+	}
+	return renderHintActions([]string{"[q] quit"})
 }
 
 func normalHintActions(tab Tab, hasSelection bool) []string {
