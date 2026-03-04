@@ -11,6 +11,14 @@ var (
 	hintSeparatorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#5C5C5C")).Faint(true)
 )
 
+var normalTabHintActions = map[Tab][]string{
+	TabBacklog: {"[r] refine", "[v] view", "[x] delete"},
+	TabSpecs:   {"[p] plan", "[v] view", "[x] delete"},
+	TabPlans:   {"[d] decompose", "[v] view", "[x] delete"},
+	TabQueue:   {"[v] view"},
+	TabRunLoop: {},
+}
+
 func RenderHintBar(activeTab Tab, hasSelection bool, inDetailView bool, inConfirmation bool) string {
 	if inConfirmation && tabNeedsConfirmation(activeTab) {
 		return styleHint("[y/n] confirm delete")
@@ -30,31 +38,20 @@ func HintBar(tab Tab, detailView, confirmDelete bool) string {
 }
 
 func renderNormalHints(tab Tab, hasSelection bool) string {
-	actions := []string{}
-	switch tab {
-	case TabBacklog:
-		if hasSelection {
-			actions = append(actions, "[r] refine", "[v] view", "[x] delete")
-		}
-	case TabSpecs:
-		if hasSelection {
-			actions = append(actions, "[p] plan", "[v] view", "[x] delete")
-		}
-	case TabPlans:
-		if hasSelection {
-			actions = append(actions, "[d] decompose", "[v] view", "[x] delete")
-		}
-	case TabQueue:
-		if hasSelection {
-			actions = append(actions, "[v] view")
-		}
-	case TabRunLoop:
-		// run loop only supports quit; nothing to add here
-	default:
+	return normalStateHintString(tab, hasSelection)
+}
+
+func normalStateHintString(tab Tab, hasSelection bool) string {
+	actions, ok := normalTabHintActions[tab]
+	if !ok {
 		return ""
 	}
-	actions = append(actions, "[q] quit")
-	return renderHintActions(actions)
+	hints := []string{}
+	if hasSelection && len(actions) > 0 {
+		hints = append(hints, actions...)
+	}
+	hints = append(hints, "[q] quit")
+	return renderHintActions(hints)
 }
 
 func renderHintActions(actions []string) string {
