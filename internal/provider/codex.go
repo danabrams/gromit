@@ -448,8 +448,8 @@ func (cp *CodexProvider) RunValidation(ctx context.Context, commands []string, t
 }
 
 // IsUsageLimitError detects Codex-specific usage limit errors.
-// Checks for output containing "usage limit", "rate limit", or "quota exceeded"
-// (case-insensitive) with a non-success result.
+// Checks for output or stderr containing "usage limit", "rate limit", or "quota exceeded"
+// (case-insensitive) with a non-success result, or detects *UsageLimitError in err.
 func (cp *CodexProvider) IsUsageLimitError(result *Result, err error) bool {
 	if result == nil {
 		return false
@@ -466,7 +466,7 @@ func (cp *CodexProvider) IsUsageLimitError(result *Result, err error) bool {
 	if result.Success {
 		return false
 	}
-	return containsAnyKeywordCaseInsensitive(result.Output, usageLimitKeywords)
+	return hasUsageLimitKeywords(result.Output, result.Stderr)
 }
 
 // IsValidationPassed delegates to the shared helper function.
