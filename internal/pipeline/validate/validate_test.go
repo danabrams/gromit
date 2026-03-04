@@ -487,6 +487,20 @@ func TestValidate_WithAutoFixNilFnGuard(t *testing.T) {
 	}
 }
 
+// TestValidate_WithAutoFixEmptyStartCommitGuard ensures an empty start commit
+// prevents auto-fix configuration even if a function is provided.
+func TestValidate_WithAutoFixEmptyStartCommitGuard(t *testing.T) {
+	fn := func(startCommit string) error { return nil }
+	stage := New(&fakeCommandRunner{}, io.Discard).WithAutoFix(fn, "\n  ")
+
+	if stage.autoFixFn != nil {
+		t.Fatalf("autoFixFn = %v, want nil when start commit is empty", stage.autoFixFn)
+	}
+	if stage.autoFixStartCommit != "" {
+		t.Fatalf("autoFixStartCommit = %q, want empty when start commit is blank", stage.autoFixStartCommit)
+	}
+}
+
 // TestValidate_AutoFixStartCommitGuard verifies that auto-fixes are only attempted when
 // a non-empty start commit is available.
 func TestValidate_AutoFixStartCommitGuard(t *testing.T) {
