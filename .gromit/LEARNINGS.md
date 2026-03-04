@@ -60,6 +60,41 @@ Methodologies use label-based activation ("methodology:true"/"false") with globa
 
 Prompt templates in .gromit/templates/ use explicit section headers (##) and preserve exact whitespace/structure when updating. Template files follow a consistent structure: context section at top, then Guidelines, then preserved sections like 'Avoiding Sibling Overlap' and ATDD blocks. When modifying sections, maintain blank lines between sections and ensure downstream blocks remain unchanged. Acceptance tests for template changes must match the exact content being added, including specific phrases and subsection structure.
 
+### 2026-03-04 | Nil-Field Normalization Convention | architecture
+*Related to: review-1772625696305156000*
+
+Nil-field normalization is consistently applied via exported `NormalizeNilFields()` for cross-package types and unexported `normalizeNilFields()` for internal-only types. Both map nil slices/maps to empty values. Pattern is consistently followed across config, bead, and pipeline packages, providing predictable zero-value semantics across API boundaries.
+
+### 2026-03-04 | Process Lifecycle Management Consolidation | architecture
+*Related to: review-1772625696305156000*
+
+Process lifecycle management (SetProcessGroupKill, KillDescendantsOnCancel, ReapProcessTree) is consistently applied across all provider implementations and worktree operations. Pattern provides deterministic cleanup and child process termination, with double-kill between KillDescendantsOnCancel goroutine and defer ReapProcessTree being harmless (ESRCH on dead PIDs is ignored).
+
+### 2026-03-04 | Compile-Time Interface Satisfaction Checks | patterns
+*Related to: review-1772625696305156000*
+
+Compile-time interface satisfaction checks using `var _ Interface = (*Impl)(nil)` are used consistently across runner, pipeline, and provider packages. This pattern prevents interface drift at compile time and is now recognized as a strong architectural guard. Adoption is consistent and demonstrates high code quality discipline.
+
+### 2026-03-04 | Git Argument Injection Protection | security
+*Related to: review-1772625696305156000*
+
+Git argument injection protection is correctly implemented in pipeline/review_scope.go with ref validation and --fixed-strings flags. Pattern prevents command injection attacks when building git commands with user-controlled input.
+
+### 2026-03-04 | Integration Queue Store Crash-Safe Persistence | reliability
+*Related to: review-1772625696305156000*
+
+Integration queue store uses atomic write-to-temp-then-rename plus verification read-back — a robust crash-safe persistence pattern. Ensures data integrity even under process failure, with atomic filesystem operations and verification round-trips.
+
+### 2026-03-04 | Specflow Lock Store Per-Spec Mutex Pattern | patterns
+*Related to: review-1772625696305156000*
+
+The specflow lock store uses per-spec mutex with reference counting and automatic cleanup. Implementation is well-structured, preventing race conditions while avoiding unbounded mutex proliferation.
+
+### 2026-03-04 | Adapter Pattern for Tracker Implementation | architecture
+*Related to: review-1772625696305156000*
+
+Adapter pattern (bead.BDAdapter implementing tracker.Client) is clean with proper nil checks and UnwrapBDAdapter escape hatch. Provides clean separation of concerns while allowing escape-hatch access to underlying implementation when needed for non-interface methods.
+
 ---
 
 ## Provisional
