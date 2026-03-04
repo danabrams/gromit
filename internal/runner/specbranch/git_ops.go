@@ -13,10 +13,12 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/procutil"
 	"github.com/danabrams/gromit/internal/runner/specmerge"
+	"github.com/danabrams/gromit/internal/worktree"
 )
 
 var waitForProcessCapacityFn = procutil.WaitForProcessCapacity
 var removeStaleWorktreeFn = removeStaleWorktree
+var runLoopActiveFn = worktree.IsRunLoopActive
 
 const defaultProcessCapacityWaitTime = 1500 * time.Millisecond
 
@@ -131,8 +133,21 @@ func recoverStaleSessionWorktree(ctx context.Context, repoDir, gitOutput string)
 	if !ok || !isStaleGromitWorktree(worktreePath) {
 		return false, "", nil
 	}
+	gromitRoot := sessionWorktreeRoot(worktreePath)
+	if gromitRoot == "" || runLoopActiveFn(gromitRoot) {
+		return false, "", nil
+	}
 	attempted, err := removeStaleWorktreeFn(ctx, repoDir, worktreePath)
 	return attempted, worktreePath, err
+}
+
+func sessionWorktreeRoot(worktreePath string) string {
+	const marker = "-gromit-run-"
+	idx := strings.LastIndex(worktreePath, marker)
+	if idx < 0 {
+		return ""
+	}
+	return worktreePath[:idx]
 }
 
 // isStaleGromitWorktree returns true if the worktree path looks like it was
