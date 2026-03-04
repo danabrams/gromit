@@ -1,7 +1,9 @@
 package validate
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -294,6 +296,77 @@ func TestValidate_AutoFixFailureReportsUpdatedSummary(t *testing.T) {
 	}
 	if !contains(failEvt.Output, "still failing") {
 		t.Fatalf("fail event output missing final failure detail: %s", failEvt.Output)
+	}
+}
+
+func TestValidate_AutoFixErrorIsHandled(t *testing.T) {
+	emitter := events.NewEmitter()
+	defer emitter.Close()
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	runner := &fakeCommandRunner{
+		results: []commandRunResult{
+			{stdout: "initial fail", stderr: "detail", exitCode: 1, err: nil},
+			{stdout: "still failing", stderr: "auto fix detail", exitCode: 1, err: nil},
+		},
+	}
+	autoFixErr := errors.New("auto-fix error")
+	autoFixCalled := false
+	outputBuf := &bytes.Buffer{}
+	stage := New(runner, outputBuf).WithAutoFix(func(startCommit string) error {
+		autoFixCalled = true
+		return autoFixErr
+	})
+
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled:  true,
+			Commands: []string{"go test ./..."},
+		},
+	}
+	in := pipeline.Input{
+		Bead:        &bead.Bead{ID: "test-auto-fix-error", Title: "Auto fix error"},
+		Config:      cfg,
+		Emitter:     emitter,
+		StartCommit: "start-commit",
+	}
+
+	out, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if out.Decision != pipeline.Block {
+		t.Fatalf("Decision = %v, want Block when auto fix error is handled", out.Decision)
+	}
+	if !autoFixCalled {
+		t.Fatalf("auto fix was not invoked")
+	}
+	if runner.callIdx != 2 {
+		t.Fatalf("expected two command executions, got %d", runner.callIdx)
+	}
+	if len(out.ValidationFailures) != 1 {
+		t.Fatalf("expected one validation failure summary, got %d", len(out.ValidationFailures))
+	}
+	expectedOutput := strings.Join(out.ValidationFailures, "\n")
+	if !strings.Contains(outputBuf.String(), "Warning: validate auto-fix failed") {
+		t.Fatalf("expected warning when auto fix errors, got: %s", outputBuf.String())
+	}
+	if !strings.Contains(outputBuf.String(), autoFixErr.Error()) {
+		t.Fatalf("warning missing auto-fix error text: %s", outputBuf.String())
+	}
+	emitted := eventtest.DrainEvents(t, ch)
+	var failEvt *events.ValidationFailEvent
+	for _, evt := range emitted {
+		if e, ok := evt.(*events.ValidationFailEvent); ok {
+			failEvt = e
+		}
+	}
+	if failEvt == nil {
+		t.Fatal("expected ValidationFailEvent to be emitted when auto fix returns error")
+	}
+	if failEvt.Output != expectedOutput {
+		t.Fatalf("ValidationFailEvent.Output = %q, want %q", failEvt.Output, expectedOutput)
 	}
 }
 

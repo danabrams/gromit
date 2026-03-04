@@ -149,7 +149,6 @@ func (v *Validate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 		return pipeline.Output{Decision: pipeline.Proceed}, nil
 	}
 
-	emitFail(summary)
 	lastSummary := summary
 	if v.shouldAttemptAutoFix(in.StartCommit) {
 		v.attemptAutoFix(in.StartCommit)
@@ -166,6 +165,8 @@ func (v *Validate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 			}, nil
 		}
 	}
+
+	emitFail(lastSummary)
 
 	return pipeline.Output{
 		Decision:           pipeline.Block,
