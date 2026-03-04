@@ -15,9 +15,9 @@ var configWarningWriter io.Writer = os.Stderr
 const precheckVerificationConflictError = "precheck.enabled=false conflicts with precheck.verification.enabled=true"
 
 func Load(path string) (*Config, error) {
-	absPath, err := filepath.Abs(path)
+	absPath, projectRoot, err := resolveProjectRootPath(path)
 	if err != nil {
-		return nil, fmt.Errorf("resolving config path: %w", err)
+		return nil, err
 	}
 
 	data, err := os.ReadFile(absPath)
@@ -30,7 +30,7 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("parsing config file: %w", err)
 	}
 
-	cfg.ProjectRoot = filepath.Dir(absPath)
+	cfg.ProjectRoot = projectRoot
 
 	matchBuildModelConfigured := cfg.Review.MatchBuildModel != nil
 	cfg.applyPostLoadNormalization(matchBuildModelConfigured)
@@ -41,6 +41,14 @@ func Load(path string) (*Config, error) {
 	}
 	warnCompatibilityDeprecation(cfg.ResolveCompatibilityContext())
 	return &cfg, nil
+}
+
+func resolveProjectRootPath(path string) (string, string, error) {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return "", "", fmt.Errorf("resolving config path: %w", err)
+	}
+	return absPath, filepath.Dir(absPath), nil
 }
 
 func (c *Config) applyPostLoadNormalization(matchBuildModelConfigured bool) {
