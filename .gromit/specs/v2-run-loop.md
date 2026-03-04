@@ -8,7 +8,7 @@ created: 2026-03-04
 
 ## Specification
 
-The v2 run loop evolves the existing Gromit orchestrator in place, replacing the monolithic runner with a two-level loop built on a refined Stage abstraction. It takes a spec as input and produces code on a branch ready for product owner review. The loop operates at two levels (spec and bead) and runs in isolated git worktrees. Existing stage implementations, adapters, and infrastructure are refactored incrementally to fit the new architecture.
+The v2 run loop replaces the monolithic Gromit orchestrator with a two-level loop built on a refined Stage abstraction. It takes a spec as input and produces code on a branch ready for product owner review. The loop operates at two levels (spec and bead) and runs in isolated git worktrees. V2 is built in a separate `internal/v2/` package tree while v1 remains operational; proven v1 logic (decomposition, validation, escalation, review) is copied and adapted to the new interfaces.
 
 A cycle (as defined in VISION.md) starts when a spec enters the queue and ends when work is presented to the product owner via a Presenter adapter. The system's goal is to get it right the first time — exhausting its own ability to fix, review, and validate before presenting.
 
@@ -252,7 +252,7 @@ The primary CLI command is `gromit run <spec-file>`. This:
 
 14. **Cycle ends at presentation.** Aligned with VISION.md, a cycle ends when work is presented to the product owner. Post-presentation feedback (if it's an implementation gap) is a new cycle. The loop's job is to get it right the first time.
 
-15. **In-place evolution over clean start.** v2 evolves the existing codebase rather than rewriting from scratch. The orchestrator is replaced, the Stage interface is refined (StageResult with Decision/Artifacts/Events), and existing stage implementations are adapted incrementally. This preserves battle-tested edge case handling, working adapters, CLI wiring, and config infrastructure while achieving all architectural goals. The risk of half-v1-half-v2 limbo is managed by replacing the orchestrator first (the core problem), then migrating stages one at a time.
+15. **Clean implementation in parallel package tree.** V2 is built in `internal/v2/` while v1 stays untouched in `internal/runner/` and `internal/pipeline/`. This is driven by three factors: (a) v1 must remain stable because it builds v2 (bootstrapping constraint), (b) wrapping v1 stages in translation adapters adds throwaway complexity, (c) a separate tree avoids half-v1/half-v2 limbo. Proven v1 logic (decomposition, validation, model escalation, review) is copied and adapted to v2 interfaces. Infrastructure packages (`internal/config/`, `internal/bead/`) are imported directly. At cutover, v1 packages are deleted and the CLI command is renamed. See `docs/plans/2026-03-04-v2-run-loop-clean-implementation-design.md`.
 
 16. **Generation cap with Andon trigger.** Scope control uses a generation cap on beads to prevent review/accept spirals. When the cap is reached, the loop triggers Andon escalation rather than silently stopping. The Andon spec defines what happens next; this spec defines detection and triggering.
 
@@ -266,35 +266,30 @@ The primary CLI command is `gromit run <spec-file>`. This:
 
 The v1 orchestrator lives in `internal/runner/orchestrator.go` and is ~700+ lines with hand-rolled retry loops for Validate, WiringGate, and RegressionGate tangled into the main Run method. The stage interface (`internal/pipeline/stage.go`) is clean — `Run(ctx, Input) (Output, error)` — but the Output struct is a grab-bag with fields most stages don't use.
 
-**Replace:**
-- `internal/runner/orchestrator.go` — the monolithic orchestrator is replaced with the two-level loop
-- `internal/pipeline/stage.go` — the Stage interface is refined (StageResult with Decision/Artifacts/Events)
-- `internal/pipeline/types.go` — Input/Output types replaced with StageRequest/StageResult
+V2 is built in `internal/v2/` as a parallel package tree. V1 packages remain untouched until cutover.
 
-**Refactor and adapt:**
-- `internal/pipeline/execute/` — becomes the Build stage, adapted to new interface; escalation logic preserved
-- `internal/pipeline/validate/` — becomes the Validate stage, adapted to new interface; validation step logic preserved
-- `internal/pipeline/review/` — becomes the Review stage, adapted to new interface; review logic preserved, bead auto-creation added
-- `internal/pipeline/prepare/` — becomes the Gate stage, adapted to new interface
-- `internal/pipeline/epilogue/` — becomes the Epilogue stage, adapted to new interface
-- `internal/runner/adapters.go` — adapter pattern preserved, interfaces formalized for LLM Provider, Task Tracker, Presenter, Git
-
-**Preserve as-is (initially):**
+**Import from v1** (use directly):
 - `internal/config/` — YAML config loading
-- `internal/bead/` — bd CLI integration (behind Task Tracker interface)
-- `internal/events/` — event system (evolved to typed schema)
-- `internal/prompt/` — prompt rendering (evolved to composable layers)
-- `cmd/gromit/` — CLI wiring
+- `internal/bead/` — bd CLI integration (behind TaskTracker adapter)
 
-**Add new:**
-- Plan and Decompose stages (spec-level)
-- Accept and Present stages (spec-level completion)
-- Spec dependency resolution
-- Bead dependency DAG and scheduling
-- Generation tracking and cap enforcement
-- Presenter adapter interface and initial implementation
+**Copy and adapt from v1** (proven logic, rewritten to v2 interfaces):
+- `internal/pipeline/decompose/` — decomposition logic, works well
+- `internal/pipeline/execute/` — model escalation logic for Build stage
+- `internal/pipeline/validate/` — validation command execution for Validate stage
+- `internal/pipeline/review/` — review prompt logic for Review stage
 
-The v1 pipeline also has a separate `Pipeline` type for interactive workflows (plan, review, decompose) which is unrelated to the build-loop stages — a naming confusion that v2 resolves.
+**Build fresh in `internal/v2/`:**
+- Two-level loop orchestration (`loop/`)
+- Stage interface and types (`stage/`)
+- Plan, Gate, Epilogue, Accept, Present stages
+- Adapter interfaces (`adapter/`): LLM Provider, TaskTracker, Presenter, Git, Config
+- Composable prompt assembler (`prompt/`)
+- Typed event system (`event/`)
+- Dependency DAG resolver (`dep/`)
+
+**CLI:** `gromit run2` during development (`cmd/gromit/run2.go`), renamed to `gromit run` at cutover.
+
+**Delete at cutover:** `internal/runner/`, `internal/pipeline/`, old `cmd/gromit/run.go`.
 
 ### VISION.md Alignment
 
@@ -305,14 +300,16 @@ This spec directly supports the VISION.md outcomes:
 
 ### Migration Strategy
 
-The migration follows this order:
-1. **Replace the orchestrator** — write the new two-level loop with v2 Stage interface, initially wrapping existing stage implementations in adapters that translate between v1 Input/Output and v2 StageRequest/StageResult
-2. **Migrate stages one at a time** — refactor each stage to implement the v2 interface natively, removing the translation adapter
-3. **Add new stages** — Plan, Decompose, Accept, Present
-4. **Evolve infrastructure** — prompt system (composable layers), event system (typed schema), dependency DAG
-5. **Remove v1 artifacts** — old orchestrator, grab-bag Output type, Pipeline type for interactive workflows
+The migration builds v2 in `internal/v2/` while v1 stays operational:
 
-Each step produces a working system. The loop works end-to-end after step 1, even though individual stages are still v1 internally.
+1. **Scaffold v2 package tree** — interfaces, types, empty stage stubs
+2. **Build the two-level loop** — spec_loop and bead_loop with test doubles
+3. **Implement stages** — copy proven logic from v1 (decompose, validate, build, review), build new stages fresh (plan, gate, epilogue, accept, present)
+4. **Wire CLI** — `gromit run2` entry point
+5. **End-to-end testing** — run v2 on a real spec
+6. **Cutover** — delete v1 packages, rename `run2` to `run`
+
+Each step produces a testable increment. V1 runs throughout, including as the tool that builds v2.
 
 ### Epic Context
 
