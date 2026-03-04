@@ -81,7 +81,11 @@ func (l *ListModel) MoveDown() {
 
 // Selected returns the currently selected item, if any.
 func (l *ListModel) Selected() ListItem {
-	if l == nil || len(l.items) == 0 {
+	if l == nil {
+		return nil
+	}
+	if len(l.items) == 0 {
+		l.cursor = 0
 		return nil
 	}
 	if l.cursor < 0 {
