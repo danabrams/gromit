@@ -37,3 +37,14 @@ func TestHintBarPlansTabNormalState(t *testing.T) {
 		}
 	}
 }
+
+func TestHintBarQueueTabNormalState(t *testing.T) {
+	hint := HintBar(Tab("queue"), false, false)
+
+	expectedHints := []string{"v", "q"}
+	for _, key := range expectedHints {
+		if !strings.Contains(hint, key) {
+			t.Fatalf("HintBar for queue tab missing key %q, got %q", key, hint)
+		}
+	}
+}
