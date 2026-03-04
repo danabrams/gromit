@@ -99,11 +99,16 @@ func resolveProjectPathCandidate(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if _, err := os.Stat(absPathValue); err != nil {
+	info, err := os.Stat(absPathValue)
+	if err != nil {
 		return "", fmt.Errorf("project path %q: %w", absPathValue, err)
 	}
-	if hasRepoMarker(absPathValue, repoConfigName) || hasRepoMarker(absPathValue, repoDirName) {
-		return absPathValue, nil
+	dir := absPathValue
+	if !info.IsDir() {
+		dir = filepath.Dir(absPathValue)
+	}
+	if root := findRepoRootFromDir(dir); root != "" {
+		return root, nil
 	}
 	return "", fmt.Errorf("project path %q does not contain %s or %s: %w", absPathValue, repoConfigName, repoDirName, os.ErrNotExist)
 }
