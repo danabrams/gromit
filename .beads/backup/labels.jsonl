@@ -562,6 +562,8 @@
 {"issue_id":"gromit-7ov2d","label":"estimated-files:2"}
 {"issue_id":"gromit-7ov2d","label":"spec:validation-auto-fix-integration"}
 {"issue_id":"gromit-7prn","label":"spec:result-output-semantics"}
+{"issue_id":"gromit-7q763","label":"bug"}
+{"issue_id":"gromit-7q763","label":"from-review"}
 {"issue_id":"gromit-7qr9","label":"spec:refine-epic-context"}
 {"issue_id":"gromit-7r3za","label":"from-review"}
 {"issue_id":"gromit-7ra21","label":"from-review"}
