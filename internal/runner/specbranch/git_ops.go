@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -132,12 +134,51 @@ func isStaleGromitWorktree(worktreePath string) bool {
 // so the branch it holds can be checked out elsewhere. Only targets worktrees
 // matching the gromit-run session pattern. Returns true if removal was
 // attempted, along with any error from the removal.
+//
+// When `git worktree remove --force` fails (e.g., permission denied on orphaned
+// worktrees, exit status 255), falls back to manual directory removal followed
+// by `git worktree prune` to clean the registry.
 func removeStaleWorktree(ctx context.Context, repoDir, worktreePath string) (attempted bool, err error) {
 	if !isStaleGromitWorktree(worktreePath) {
 		return false, nil
 	}
 	_, err = runGitCommandWithOutput(ctx, repoDir, "worktree", "remove", "--force", worktreePath)
-	return true, err
+	if err == nil {
+		return true, nil
+	}
+
+	// Fallback: manually remove the directory and prune the worktree registry.
+	// This handles orphaned worktrees where git's internal removal fails.
+	// Go module caches inside worktrees have read-only permissions, so fix
+	// permissions before removal.
+	_ = chmodWritableRecursive(worktreePath)
+	removeErr := os.RemoveAll(worktreePath)
+	if removeErr != nil {
+		return true, fmt.Errorf("git worktree remove failed: %w; manual removal also failed: %v", err, removeErr)
+	}
+
+	// Clean up the now-orphaned registry entry.
+	_, pruneErr := runGitCommandWithOutput(ctx, repoDir, "worktree", "prune")
+	if pruneErr != nil {
+		return true, fmt.Errorf("directory removed but git worktree prune failed: %w", pruneErr)
+	}
+
+	return true, nil
+}
+
+// chmodWritableRecursive makes all files and directories under root writable by
+// the owner. This is needed because Go module caches (and similar) use read-only
+// permissions that prevent os.RemoveAll from succeeding.
+func chmodWritableRecursive(root string) error {
+	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil // best-effort: skip inaccessible entries
+		}
+		if info.Mode().Perm()&0200 == 0 {
+			_ = os.Chmod(path, info.Mode()|0200)
+		}
+		return nil
+	})
 }
 
 // CreateOrCheckoutSpecBranch creates a new spec branch or checks out an existing one.
