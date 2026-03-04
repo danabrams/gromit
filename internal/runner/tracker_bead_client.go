@@ -72,6 +72,12 @@ func (c *trackerBeadClient) ReadyWithLabel(ctx context.Context, label string) (*
 	if c == nil || c.client == nil {
 		return nil, fmt.Errorf("bead client is nil")
 	}
+	if item, err := c.client.ReadyWithLabel(ctx, label); err != nil {
+		return nil, err
+	} else if item != nil {
+		return bead.TrackerItemToBead(item)
+	}
+
 	items, err := c.client.ListWithLabel(ctx, label)
 	if err != nil {
 		return nil, err
