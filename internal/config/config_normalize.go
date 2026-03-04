@@ -6,25 +6,6 @@ package config
 // See CLAUDE.md nil-field normalization visibility convention:
 // Config crosses package boundaries so the helper stays exported.
 func (c *Config) NormalizeNilFields() {
-	if c.Methodology.BuildStrategy == "" {
-		c.Methodology.BuildStrategy = defaultMethodologyBuildStrategy
-	}
-	if c.Methodology.PhaseModels.Decompose == "" {
-		c.Methodology.PhaseModels.Decompose = "medium"
-	}
-	if c.Methodology.PhaseModels.Red == "" {
-		c.Methodology.PhaseModels.Red = "low"
-	}
-	if c.Methodology.PhaseModels.Green == "" {
-		c.Methodology.PhaseModels.Green = "medium"
-	}
-	if c.Methodology.PhaseModels.Refactor == "" {
-		c.Methodology.PhaseModels.Refactor = "low"
-	}
-	if c.Refactor.MinFilesChanged == 0 {
-		c.Refactor.MinFilesChanged = 3
-	}
-
 	if c.Escalation.Chain == nil {
 		c.Escalation.Chain = []string{}
 	}
