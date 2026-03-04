@@ -130,6 +130,10 @@ func RenderQueueTab(_ *Store, listModel pipelineTabListModel, width int, inDetai
 }
 
 func renderPipelineTab(title string, listModel pipelineTabListModel, width int, inDetailView bool) string {
+	if inDetailView {
+		return renderPipelineDetail(title, listModel)
+	}
+
 	var b strings.Builder
 	b.WriteString(fmt.Sprintf("=== %s ===\n", title))
 
@@ -137,9 +141,21 @@ func renderPipelineTab(title string, listModel pipelineTabListModel, width int, 
 		return b.String()
 	}
 
-	// Detail view rendering will be added later.
-	_ = inDetailView
-
 	b.WriteString(listModel.Render(width))
+	return b.String()
+}
+
+func renderPipelineDetail(title string, listModel pipelineTabListModel) string {
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("=== %s Detail ===\n", title))
+	if listModel == nil {
+		return b.String()
+	}
+	selected := listModel.Selected()
+	if selected == nil {
+		return b.String()
+	}
+	b.WriteString(fmt.Sprintf("Title: %s\n", selected.Title()))
+	b.WriteString(fmt.Sprintf("Summary: %s\n", selected.Summary()))
 	return b.String()
 }
