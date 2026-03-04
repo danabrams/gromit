@@ -554,6 +554,54 @@ func TestValidate_AutoFixStartCommitGuard(t *testing.T) {
 	}
 }
 
+func TestValidate_AutoFixResolvesFailure(t *testing.T) {
+    runner := &fakeCommandRunner{
+        results: []commandRunResult{
+            {stdout: "fail", stderr: "error", exitCode: 1, err: nil},
+            {stdout: "pass", stderr: "", exitCode: 0, err: nil},
+        },
+    }
+    autoFixCalled := false
+    captured := ""
+    stage := New(runner, io.Discard).WithAutoFix(func(startCommit string) error {
+        autoFixCalled = true
+        captured = startCommit
+        return nil
+    })
+
+    cfg := &config.Config{
+        Validation: config.ValidationConfig{
+            Enabled:  true,
+            Commands: []string{"go test ./..."},
+        },
+    }
+    in := pipeline.Input{
+        Bead:        &bead.Bead{ID: "test-auto-fix", Title: "Auto-fix bead"},
+        Config:      cfg,
+        StartCommit: "start-commit",
+    }
+
+    out, err := stage.Run(context.Background(), in)
+    if err != nil {
+        t.Fatalf("Run() error = %v, want nil", err)
+    }
+    if out.Decision != pipeline.Proceed {
+        t.Fatalf("Decision = %v, want Proceed", out.Decision)
+    }
+    if !autoFixCalled {
+        t.Fatalf("auto-fix not invoked")
+    }
+    if captured != "start-commit" {
+        t.Fatalf("captured start commit = %q, want %q", captured, "start-commit")
+    }
+    if !out.TrivialAutoFixed {
+        t.Fatalf("TrivialAutoFixed = %v, want true", out.TrivialAutoFixed)
+    }
+    if runner.callIdx != 2 {
+        t.Fatalf("expected 2 command executions, got %d", runner.callIdx)
+    }
+}
+
 // contains is a helper to check if a string contains a substring (case-insensitive).
 func contains(s, substr string) bool {
 	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
