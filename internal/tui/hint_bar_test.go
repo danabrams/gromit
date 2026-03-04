@@ -15,3 +15,14 @@ func TestHintBarBacklogTabNormalState(t *testing.T) {
 		}
 	}
 }
+
+func TestHintBarSpecsTabNormalState(t *testing.T) {
+	hint := HintBar(Tab("specs"), false, false)
+
+	expectedHints := []string{"p", "v", "x", "q"}
+	for _, key := range expectedHints {
+		if !strings.Contains(hint, key) {
+			t.Fatalf("HintBar for specs tab missing key %q, got %q", key, hint)
+		}
+	}
+}
