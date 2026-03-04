@@ -451,7 +451,7 @@ func (s *Store) SetPipelineItems(items PipelineItems) {
 func (s *Store) GetPipelineItems() PipelineItems {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return normalizePipelineItems(s.PipelineItems)
+	return copyPipelineItems(s.PipelineItems)
 }
 
 // DeletePipelineItem invokes the configured deletion callback for the requested tab and identifier.
