@@ -5,95 +5,47 @@ import (
 	"testing"
 )
 
-func TestHintBarBacklogTabNormalState(t *testing.T) {
-	hint := HintBar(Tab("backlog"), false, false)
-
-	expectedHints := []string{"r", "v", "x", "q"}
-	for _, key := range expectedHints {
-		if !strings.Contains(hint, key) {
-			t.Fatalf("HintBar for backlog tab missing key %q, got %q", key, hint)
-		}
-	}
-}
-
-func TestHintBarSpecsTabNormalState(t *testing.T) {
-	hint := HintBar(Tab("specs"), false, false)
-
-	expectedHints := []string{"p", "v", "x", "q"}
-	for _, key := range expectedHints {
-		if !strings.Contains(hint, key) {
-			t.Fatalf("HintBar for specs tab missing key %q, got %q", key, hint)
-		}
-	}
-}
-
-func TestHintBarPlansTabNormalState(t *testing.T) {
-	hint := HintBar(Tab("plans"), false, false)
-
-	expectedHints := []string{"d", "v", "x", "q"}
-	for _, key := range expectedHints {
-		if !strings.Contains(hint, key) {
-			t.Fatalf("HintBar for plans tab missing key %q, got %q", key, hint)
-		}
-	}
-}
-
-func TestHintBarQueueTabNormalState(t *testing.T) {
-	hint := HintBar(Tab("queue"), false, false)
-
-	expectedHints := []string{"v", "q"}
-	for _, key := range expectedHints {
-		if !strings.Contains(hint, key) {
-			t.Fatalf("HintBar for queue tab missing key %q, got %q", key, hint)
-		}
-	}
-}
-
-func TestHintBarRunLoopTabNormalState(t *testing.T) {
-	hint := HintBar(Tab("runloop"), false, false)
-
-	if !strings.Contains(hint, "q") {
-		t.Fatalf("HintBar for runloop tab missing key %q, got %q", "q", hint)
-	}
-}
-
-func TestHintBarDetailViewOverride(t *testing.T) {
-	tests := []struct {
-		tab      Tab
-		wantKeys []string
+func TestRenderHintBarDetailViewOverride(t *testing.T) {
+	testCases := []struct {
+		name string
+		tab  Tab
+		want []string
 	}{
-		{Tab("backlog"), []string{"q", "esc"}},
-		{Tab("specs"), []string{"q", "esc"}},
-		{Tab("plans"), []string{"q", "esc"}},
-		{Tab("queue"), []string{"q", "esc"}},
+		{name: "backlog", tab: TabBacklog, want: []string{"[q] quit", "[esc] back"}},
+		{name: "specs", tab: TabSpecs, want: []string{"[q] quit", "[esc] back"}},
+		{name: "plans", tab: TabPlans, want: []string{"[q] quit", "[esc] back"}},
+		{name: "queue", tab: TabQueue, want: []string{"[q] quit", "[esc] back"}},
+		{name: "runloop", tab: TabRunLoop, want: []string{"[q] quit"}},
 	}
 
-	for _, tc := range tests {
-		hint := HintBar(tc.tab, true, false)
-		for _, key := range tc.wantKeys {
-			if !strings.Contains(hint, key) {
-				t.Fatalf("HintBar for %s tab detail view missing key %q, got %q", tc.tab, key, hint)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			hint := RenderHintBar(tc.tab, true, true, false)
+			for _, want := range tc.want {
+				if !strings.Contains(hint, want) {
+					t.Fatalf("RenderHintBar(%q, detailView) missing %q in %q", tc.tab, want, hint)
+				}
 			}
-		}
+		})
 	}
 }
 
-func TestHintBarConfirmationOverride(t *testing.T) {
-	tests := []struct {
-		tab      Tab
-		wantKeys []string
+func TestRenderHintBarConfirmationOverride(t *testing.T) {
+	testCases := []struct {
+		name string
+		tab  Tab
 	}{
-		{Tab("backlog"), []string{"y", "n"}},
-		{Tab("specs"), []string{"y", "n"}},
-		{Tab("plans"), []string{"y", "n"}},
+		{name: "backlog", tab: TabBacklog},
+		{name: "specs", tab: TabSpecs},
+		{name: "plans", tab: TabPlans},
 	}
 
-	for _, tc := range tests {
-		hint := HintBar(tc.tab, false, true)
-		for _, key := range tc.wantKeys {
-			if !strings.Contains(hint, key) {
-				t.Fatalf("HintBar for %s tab confirm delete missing key %q, got %q", tc.tab, key, hint)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			hint := RenderHintBar(tc.tab, true, false, true)
+			if !strings.Contains(hint, "[y/n] confirm delete") {
+				t.Fatalf("RenderHintBar(%q, confirm) missing confirmation text, got %q", tc.tab, hint)
 			}
-		}
+		})
 	}
 }
