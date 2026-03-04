@@ -986,6 +986,39 @@ func TestCliLogWriter_WriteUsesProviderAtWriteTime(t *testing.T) {
 	}
 }
 
+func TestCliLogWriter_WriteReusesLogger(t *testing.T) {
+	t.Parallel()
+	logsDir := t.TempDir()
+	writer := &cliLogWriter{logsDir: logsDir}
+
+	entry := &pipeline.LogEntry{
+		Type:   "review",
+		Passed: true,
+	}
+	for i := 0; i < 2; i++ {
+		if err := writer.Write(entry); err != nil {
+			t.Fatalf("Write() error = %v", err)
+		}
+	}
+
+	files, err := filepath.Glob(filepath.Join(logsDir, "run-*.jsonl"))
+	if err != nil {
+		t.Fatalf("Glob() error = %v", err)
+	}
+	if len(files) != 1 {
+		t.Fatalf("expected 1 log file, got %d", len(files))
+	}
+
+	content, err := os.ReadFile(files[0])
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 log lines, got %d", len(lines))
+	}
+}
+
 func TestPrintReviewSummaryCounts_IncludesBacklogCount(t *testing.T) {
 	t.Parallel()
 	var buf strings.Builder
