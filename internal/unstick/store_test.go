@@ -113,4 +113,11 @@ func TestStoreSaveAtomicPartialWrite(t *testing.T) {
 	if !bytes.Equal(afterData, initialData) {
 		t.Fatalf("store file changed after failed save: before=%q after=%q", initialData, afterData)
 	}
+
+	tmpPath := store.path + ".tmp"
+	if _, err := os.Stat(tmpPath); err == nil {
+		t.Fatalf("temp file %s should be removed after failed save", tmpPath)
+	} else if !os.IsNotExist(err) {
+		t.Fatalf("unexpected error checking temp file: %v", err)
+	}
 }
