@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -14,7 +15,12 @@ var configWarningWriter io.Writer = os.Stderr
 const precheckVerificationConflictError = "precheck.enabled=false conflicts with precheck.verification.enabled=true"
 
 func Load(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, fmt.Errorf("resolving config path: %w", err)
+	}
+
+	data, err := os.ReadFile(absPath)
 	if err != nil {
 		return nil, fmt.Errorf("reading config file: %w", err)
 	}
@@ -23,6 +29,8 @@ func Load(path string) (*Config, error) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("parsing config file: %w", err)
 	}
+
+	cfg.ProjectRoot = filepath.Dir(absPath)
 
 	matchBuildModelConfigured := cfg.Review.MatchBuildModel != nil
 	cfg.applyPostLoadNormalization(matchBuildModelConfigured)
