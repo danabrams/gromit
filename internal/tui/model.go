@@ -133,9 +133,6 @@ func (m *Model) shouldRoutePipelineActions() bool {
 	if m == nil {
 		return false
 	}
-	if m.currentView != ViewDashboard {
-		return false
-	}
 	return isPipelineTab(m.activeTab)
 }
 
