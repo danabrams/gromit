@@ -96,3 +96,38 @@ func TestClassifyFailureWithPatterns(t *testing.T) {
 		})
 	}
 }
+
+func TestClassifyFailureWithCommonPatterns(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		text          string
+		extraPatterns FailurePatterns
+		want          string
+	}{
+		{
+			name: "base auth pattern",
+			text: "forbidden access",
+			want: FailureCategoryAuth,
+		},
+		{
+			name: "provider-specific startup pattern",
+			text: "failed to create stdin pipe",
+			extraPatterns: FailurePatterns{
+				Startup: []string{"failed to create stdin pipe"},
+			},
+			want: FailureCategoryStartupError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := classifyFailureWithCommonPatterns(1, tt.text, tt.extraPatterns)
+			if got != tt.want {
+				t.Fatalf("classifyFailureWithCommonPatterns(%q, extras) = %q, want %q", tt.text, got, tt.want)
+			}
+		})
+	}
+}
