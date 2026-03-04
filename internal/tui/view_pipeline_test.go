@@ -171,3 +171,16 @@ func TestRenderPipelineTabsIncludesListAndDetailScenarios(t *testing.T) {
 		}
 	})
 }
+
+func TestRenderPipelineDetailAlwaysDisplaysContentHeading(t *testing.T) {
+	listModel := &testPipelineTabModel{
+		rendered: "",
+		selected: &mockListItem{title: "Empty idea", summary: "No extra content"},
+	}
+
+	got := RenderBacklogTab(nil, listModel, 40, true)
+
+	if !strings.Contains(got, "Content:") {
+		t.Fatalf("expected detail view to include Content heading, got %q", got)
+	}
+}
