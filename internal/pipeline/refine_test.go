@@ -451,3 +451,68 @@ func TestPipeline_RefineBlankSessionUsesBacklogGenerateID(t *testing.T) {
 		t.Fatalf("unexpected SpecName: got %q, want %q", addedIdea.SpecName, specName)
 	}
 }
+
+func TestPipeline_RefineBlankSessionHonorsIDGeneratorOverride(t *testing.T) {
+	tmpDir := t.TempDir()
+	gromitDir := filepath.Join(tmpDir, ".gromit")
+	specsDir := filepath.Join(gromitDir, "specs")
+
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("failed to create specs dir: %v", err)
+	}
+
+	specName := "override-spec"
+	specPath := filepath.Join(specsDir, specName+".md")
+
+	mockAgent := &mockAgent{
+		LaunchInDirFn: func(promptPath, dir string) error {
+			content := []byte("# Override spec\n")
+			return os.WriteFile(specPath, content, 0o644)
+		},
+	}
+
+	var addedIdea *Idea
+	mockAgentResolver := &mockAgentResolver{
+		ResolveFn: func(phase, flagOverride string, choosePicker bool) (Agent, error) {
+			return mockAgent, nil
+		},
+	}
+
+	mockBacklog := &mockBacklogClient{
+		AddFn: func(item *Idea) error {
+			addedIdea = item
+			return nil
+		},
+	}
+
+	const expectedID = "override-idea-id"
+	originalGenerator := refineIdeaIDGenerator
+	refineIdeaIDGenerator = func() string { return expectedID }
+	defer func() { refineIdeaIDGenerator = originalGenerator }()
+
+	deps := &Deps{
+		AgentResolver: mockAgentResolver,
+		BacklogClient: mockBacklog,
+	}
+
+	paths := &Paths{
+		GromitDir: gromitDir,
+		SpecsDir:  specsDir,
+	}
+
+	p := New(deps, paths)
+	ctx := context.Background()
+	input := RefineInput{}
+
+	if _, err := p.Refine(ctx, input); err != nil {
+		t.Fatalf("Refine() failed: %v", err)
+	}
+
+	if addedIdea == nil {
+		t.Fatal("expected backlog Add to be called")
+	}
+
+	if addedIdea.ID != expectedID {
+		t.Fatalf("expected override ID %q, got %q", expectedID, addedIdea.ID)
+	}
+}
