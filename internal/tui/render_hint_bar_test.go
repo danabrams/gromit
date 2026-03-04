@@ -1,9 +1,32 @@
 package tui
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
+
+func TestPerTabNormalHintActions(t *testing.T) {
+	testCases := []struct {
+		name string
+		tab  Tab
+		want []string
+	}{
+		{name: "backlog", tab: TabBacklog, want: []string{"[r] refine", "[v] view", "[x] delete"}},
+		{name: "specs", tab: TabSpecs, want: []string{"[p] plan", "[v] view", "[x] delete"}},
+		{name: "plans", tab: TabPlans, want: []string{"[d] decompose", "[v] view", "[x] delete"}},
+		{name: "queue", tab: TabQueue, want: []string{"[v] view"}},
+		{name: "runloop", tab: TabRunLoop, want: []string{}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := perTabNormalHintActions(tc.tab); !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("perTabNormalHintActions(%q) = %v, want %v", tc.tab, got, tc.want)
+			}
+		})
+	}
+}
 
 func TestRenderHintBarNormalState(t *testing.T) {
 	testCases := []struct {
