@@ -64,10 +64,10 @@ func (gp *GeminiProvider) Name() string {
 
 // ModelForTier maps abstract tiers to concrete Gemini models.
 func (gp *GeminiProvider) ModelForTier(tier string) string {
-	if model, ok := gp.tierToModel[tier]; ok {
+	if model, ok := gp.tierToModel[tier]; ok && model != "" {
 		return model
 	}
-	return ""
+	return tier
 }
 
 // Run executes a non-streaming Gemini invocation and parses the JSON result.
