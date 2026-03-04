@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/skills"
 )
 
@@ -108,7 +109,7 @@ func (p *Pipeline) Refine(ctx context.Context, input RefineInput) (*RefineResult
 
 		// Create backlog item
 		idea := &Idea{
-			ID:       fmt.Sprintf("idea-%d", len(specName)), // Simple ID generation for now
+			ID:       backlog.GenerateID(),
 			Text:     specTitle,
 			Type:     "feature",
 			Status:   "refined",
