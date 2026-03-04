@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/conversation"
 )
@@ -753,8 +754,14 @@ func (t *testActionListItem) Identifier() string {
 
 func TestModel_PipelineRefreshUpdatesLists(t *testing.T) {
 	store := &Store{}
+	ideas := []backlog.Idea{
+		{ID: "idea-alpha", Text: "Alpha idea"},
+	}
 	specs := []string{"spec-alpha", "spec-beta"}
-	store.SetPipelineItems(PipelineItems{UnplannedSpecs: specs})
+	store.SetPipelineItems(PipelineItems{
+		BacklogIdeas:   ideas,
+		UnplannedSpecs: specs,
+	})
 
 	model := NewModel(store)
 	backlog := &mockPipelineListModel{}
@@ -764,11 +771,23 @@ func TestModel_PipelineRefreshUpdatesLists(t *testing.T) {
 
 	model.Update(pipelineRefreshedMsg{RequestedTab: TabSpecs})
 
-	if backlog.called != 0 {
-		t.Fatalf("expected backlog list not to be updated, got %d", backlog.called)
+	if backlog.called != 1 {
+		t.Fatalf("expected backlog list to be updated once, got %d", backlog.called)
 	}
 	if specList.called != 1 {
 		t.Fatalf("expected specs list to be updated once, got %d", specList.called)
+	}
+	if len(backlog.items) != len(ideas) {
+		t.Fatalf("expected %d backlog items, got %d", len(ideas), len(backlog.items))
+	}
+	for i, item := range backlog.items {
+		ideaItem, ok := item.(*IdeaListItem)
+		if !ok {
+			t.Fatalf("expected IdeaListItem, got %T", item)
+		}
+		if ideaItem.idea.ID != ideas[i].ID {
+			t.Fatalf("expected idea ID %q, got %q", ideas[i].ID, ideaItem.idea.ID)
+		}
 	}
 	if len(specList.items) != len(specs) {
 		t.Fatalf("expected %d spec items, got %d", len(specs), len(specList.items))
