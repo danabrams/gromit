@@ -81,3 +81,43 @@ func TestHandleActionRefreshCommandIncludesRequestedTab(t *testing.T) {
 		t.Fatalf("expected requested tab to be queue, got %q", refreshMsg.RequestedTab)
 	}
 }
+
+func TestHandleActionDeleteConfirmationFlow(t *testing.T) {
+	store := &Store{}
+	deleted := []struct {
+		tab        Tab
+		identifier string
+	}{}
+	store.DeletePipelineItemFunc = func(tab Tab, identifier string) {
+		deleted = append(deleted, struct {
+			tab        Tab
+			identifier string
+		}{tab: tab, identifier: identifier})
+	}
+	item := &mockActionableListItem{id: "idea-9"}
+	m := &Model{}
+
+	if _, _ = handleAction(m, "x", Tab("backlog"), item, store); !m.confirmDelete {
+		t.Fatalf("expected confirmDelete after pressing x")
+	}
+
+	if _, _ = handleAction(m, "y", Tab("backlog"), item, store); m.confirmDelete {
+		t.Fatalf("expected confirmDelete cleared after confirming deletion")
+	}
+	if len(deleted) != 1 || deleted[0].tab != Tab("backlog") || deleted[0].identifier != "idea-9" {
+		t.Fatalf("expected delete call for backlog item, got %v", deleted)
+	}
+
+	m.confirmDelete = true
+	if _, _ = handleAction(m, "n", Tab("backlog"), item, store); m.confirmDelete {
+		t.Fatalf("expected confirmDelete cleared after pressing n")
+	}
+
+	m.confirmDelete = true
+	if _, _ = handleAction(m, "esc", Tab("backlog"), item, store); m.confirmDelete {
+		t.Fatalf("expected confirmDelete cleared after pressing esc")
+	}
+	if len(deleted) != 1 {
+		t.Fatalf("expected no additional delete calls, got %d", len(deleted))
+	}
+}
