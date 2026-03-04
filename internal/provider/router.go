@@ -135,27 +135,27 @@ func (r *Router) selectByRatio() string {
 		return ""
 	}
 
-	// Read counts under lock
-	r.mu.Lock()
-	countsSnapshot := make(map[string]int)
-	for k, v := range r.counts {
-		countsSnapshot[k] = v
-	}
-	r.mu.Unlock()
-
-	// Calculate total count across all providers
-	totalCount := 0
-	for _, count := range countsSnapshot {
-		totalCount += count
-	}
-
-	// Find available provider with largest gap below its target
-	var selectedName string
-	largestGap := -1.0
 	effectiveRatios := r.effectiveRatioMap()
 
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	countsSnapshot := make(map[string]int, len(r.counts))
+	totalCount := 0
+	for k, v := range r.counts {
+		countsSnapshot[k] = v
+		totalCount += v
+	}
+
+	var selectedName string
+	largestGap := -1.0
+
 	for name, configuredRatio := range effectiveRatios {
-		if !r.isAvailable(name) {
+		if !r.stateIsAvailable(name) {
+			continue
+		}
+
+		if !r.isAvailableLocked(name) {
 			continue
 		}
 
