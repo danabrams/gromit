@@ -2395,6 +2395,15 @@
 {"issue_id":"gromit-zt4n","label":"test-gap"}
 {"issue_id":"gromit-zvc8u","label":"bug"}
 {"issue_id":"gromit-zvc8u","label":"from-review"}
+{"issue_id":"gromit-zvc8u.1","label":"bug"}
+{"issue_id":"gromit-zvc8u.1","label":"from-review"}
+{"issue_id":"gromit-zvc8u.1","label":"scope_decomp:de2ab0ce76f2642d"}
+{"issue_id":"gromit-zvc8u.2","label":"bug"}
+{"issue_id":"gromit-zvc8u.2","label":"from-review"}
+{"issue_id":"gromit-zvc8u.2","label":"scope_decomp:bacf5dd3de9e8d76"}
+{"issue_id":"gromit-zvc8u.3","label":"bug"}
+{"issue_id":"gromit-zvc8u.3","label":"from-review"}
+{"issue_id":"gromit-zvc8u.3","label":"scope_decomp:21e6bb8975b4ae94"}
 {"issue_id":"gromit-zvpvx","label":"backlog"}
 {"issue_id":"gromit-zvpvx","label":"tdd:false"}
 {"issue_id":"gromit-zwam","label":"spec:run-scope-flags"}
