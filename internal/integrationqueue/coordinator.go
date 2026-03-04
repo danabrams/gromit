@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 )
 
@@ -222,9 +223,9 @@ func (c *Coordinator) RecoverFromCrash(ctx context.Context) error {
 		}
 	}
 
-	// If no entries needed recovery, just return early
+	// If no entries needed recovery, just log and return early
 	if !recovered {
-		return nil
+		log.Println("no stranded entries found during crash recovery")
 	}
 
 	return nil
