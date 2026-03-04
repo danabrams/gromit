@@ -444,7 +444,16 @@ func TestEnsureRepoRoot_ProjectPathResolvesToAbsolutePath(t *testing.T) {
 		t.Fatalf("abs root: %v", err)
 	}
 
-	if filepath.Clean(projectPath) != filepath.Clean(rootAbs) {
-		t.Fatalf("projectPath = %q, want %q", projectPath, rootAbs)
+	projectPathEval, err := filepath.EvalSymlinks(projectPath)
+	if err != nil {
+		t.Fatalf("eval projectPath: %v", err)
+	}
+	rootEval, err := filepath.EvalSymlinks(rootAbs)
+	if err != nil {
+		t.Fatalf("eval root: %v", err)
+	}
+
+	if projectPathEval != rootEval {
+		t.Fatalf("projectPath = %q, want %q", projectPathEval, rootEval)
 	}
 }

@@ -38,6 +38,9 @@ func ensureRepoRoot() error {
 	if err != nil {
 		return err
 	}
+	if projectPath != "" {
+		projectPath = rootAbs
+	}
 	cwdAbs, err := absPath(cwd, "working directory")
 	if err != nil {
 		return err
