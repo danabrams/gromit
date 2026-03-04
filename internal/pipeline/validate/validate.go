@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/runner/validation"
 )
 
@@ -23,6 +25,8 @@ type CommandRunner interface {
 type Validate struct {
 	runner CommandRunner
 	output io.Writer
+	autoFixFn runtypes.AutoFixFn
+	autoFixStartCommit string
 }
 
 // Compile-time check: *Validate must implement pipeline.Stage.
@@ -32,6 +36,18 @@ var _ pipeline.Stage = (*Validate)(nil)
 // output receives diagnostic messages; pass io.Discard to suppress.
 func New(runner CommandRunner, output io.Writer) *Validate {
 	return &Validate{runner: runner, output: output}
+}
+
+// WithAutoFix configures the auto-fix callback and the start commit used to
+// execute it. The commit string is trimmed before storage so guard conditions
+// can treat whitespace-only values as empty.
+func (v *Validate) WithAutoFix(autoFixFn runtypes.AutoFixFn, startCommit string) *Validate {
+	if v == nil {
+		return v
+	}
+	v.autoFixFn = autoFixFn
+	v.autoFixStartCommit = strings.TrimSpace(startCommit)
+	return v
 }
 
 // Run executes the validate stage:
