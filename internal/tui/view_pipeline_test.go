@@ -66,18 +66,15 @@ func TestBeadListItemTitleSummary(t *testing.T) {
     }
 }
 
-func TestRenderBacklogTabUsesListModelOutput(t *testing.T) {
-    model := &testPipelineTabModel{
-        rendered: "idea-1 · feature\nidea-2 · bug\n",
-    }
-
-    got := RenderBacklogTab(nil, model, 60, false)
-    if !strings.Contains(got, "=== Backlog ===") {
-        t.Fatalf("expected header, got %q", got)
-    }
-    if !strings.Contains(got, model.rendered) {
-        t.Fatalf("expected list content, got %q", got)
-    }
+var pipelineTabRenderers = []struct {
+    name     string
+    header   string
+    renderer pipelineTabRenderer
+}{
+    {"backlog", "Backlog", RenderBacklogTab},
+    {"specs", "Specs", RenderSpecsTab},
+    {"plans", "Plans", RenderPlansTab},
+    {"queue", "Queue", RenderQueueTab},
 }
 
 type testPipelineTabModel struct {
@@ -108,64 +105,69 @@ func (m *mockListItem) Summary() string {
 	return m.summary
 }
 
-func TestRenderPipelineTabsDetailViewShowsTitleAndSummary(t *testing.T) {
+func TestRenderPipelineTabsIncludesListAndDetailScenarios(t *testing.T) {
 	listModel := &testPipelineTabModel{
+		rendered: "item detail line 1\nitem detail line 2",
 		selected: &mockListItem{title: "Focused idea", summary: "Full idea description"},
 	}
-	renderers := []struct {
-		name     string
-		header   string
-		renderer pipelineTabRenderer
-	}{
-		{"backlog", "Backlog", RenderBacklogTab},
-		{"specs", "Specs", RenderSpecsTab},
-		{"plans", "Plans", RenderPlansTab},
-		{"queue", "Queue", RenderQueueTab},
-	}
 
-	for _, tc := range renderers {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			got := tc.renderer(nil, listModel, 80, true)
-			if !strings.Contains(got, "=== "+tc.header+" Detail ===") {
-				t.Fatalf("expected detail header for %s tab, got %q", tc.header, got)
-			}
-			if !strings.Contains(got, listModel.selected.Title()) {
-				t.Fatalf("expected title in detail view, got %q", got)
-			}
-			if !strings.Contains(got, listModel.selected.Summary()) {
-				t.Fatalf("expected summary in detail view, got %q", got)
-			}
-		})
-	}
-}
+	t.Run("list view", func(t *testing.T) {
+		for _, tc := range pipelineTabRenderers {
+			t.Run(tc.name, func(t *testing.T) {
+				got := tc.renderer(nil, listModel, 40, false)
+				header := "=== " + tc.header + " ===\n"
+				if !strings.HasPrefix(got, header) {
+					t.Fatalf("list view for %s tab missing header, got %q", tc.header, got)
+				}
+				if !strings.Contains(got, listModel.rendered) {
+					t.Fatalf("expected rendered list for %s tab, got %q", tc.header, got)
+				}
+				if !strings.HasSuffix(got, "\n") {
+					t.Fatalf("expected newline-terminated output for %s tab, got %q", tc.header, got)
+				}
+			})
+		}
+	})
 
-func TestRenderPipelineTabsEmptyListShowsNoItems(t *testing.T) {
-	renderers := []struct {
-		name     string
-		header   string
-		renderer pipelineTabRenderer
-	}{
-		{"backlog", "Backlog", RenderBacklogTab},
-		{"specs", "Specs", RenderSpecsTab},
-		{"plans", "Plans", RenderPlansTab},
-		{"queue", "Queue", RenderQueueTab},
-	}
+	t.Run("detail view", func(t *testing.T) {
+		for _, tc := range pipelineTabRenderers {
+			t.Run(tc.name, func(t *testing.T) {
+				got := tc.renderer(nil, listModel, 80, true)
+				detailHeader := "=== " + tc.header + " Detail ==="
+				if !strings.Contains(got, detailHeader) {
+					t.Fatalf("detail view for %s tab missing header, got %q", tc.header, got)
+				}
+				if !strings.Contains(got, "Title: "+listModel.selected.Title()) {
+					t.Fatalf("detail view for %s tab missing title, got %q", tc.header, got)
+				}
+				if !strings.Contains(got, "Summary: "+listModel.selected.Summary()) {
+					t.Fatalf("detail view for %s tab missing summary, got %q", tc.header, got)
+				}
+				if !strings.Contains(got, "Content:") {
+					t.Fatalf("detail view for %s tab missing content label, got %q", tc.header, got)
+				}
+				if !strings.Contains(got, listModel.rendered) {
+					t.Fatalf("detail view for %s tab missing rendered content, got %q", tc.header, got)
+				}
+			})
+		}
+	})
 
-	for _, tc := range renderers {
-		tc := tc
-		t.Run(tc.name+" list", func(t *testing.T) {
-			got := tc.renderer(nil, nil, 80, false)
-			if !strings.Contains(got, "No items") {
-				t.Fatalf("expected 'No items' for %s list, got %q", tc.header, got)
-			}
-		})
-		t.Run(tc.name+" detail", func(t *testing.T) {
-			model := &testPipelineTabModel{}
-			got := tc.renderer(nil, model, 80, true)
-			if !strings.Contains(got, "No items") {
-				t.Fatalf("expected 'No items' for %s detail, got %q", tc.header, got)
-			}
-		})
-	}
+	t.Run("empty lists", func(t *testing.T) {
+		for _, tc := range pipelineTabRenderers {
+			t.Run(tc.name+" list", func(t *testing.T) {
+				got := tc.renderer(nil, nil, 80, false)
+				if !strings.Contains(got, "No items") {
+					t.Fatalf("expected 'No items' for %s list, got %q", tc.header, got)
+				}
+			})
+			t.Run(tc.name+" detail", func(t *testing.T) {
+				model := &testPipelineTabModel{}
+				got := tc.renderer(nil, model, 80, true)
+				if !strings.Contains(got, "No items") {
+					t.Fatalf("expected 'No items' for %s detail, got %q", tc.header, got)
+				}
+			})
+		}
+	})
 }
