@@ -673,6 +673,24 @@ func TestModel_ActionDispatchConversationViewUsesPipelineStore(t *testing.T) {
 	}
 }
 
+func TestModel_RunLoopSubViewKeysWorkFromConversationView(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+	timeline := []conversation.FakeStep{
+		{Event: conversation.Event{Type: conversation.EventTypeDone}},
+	}
+	session := conversation.NewFakeSession(timeline)
+	controller := NewConversationController(session)
+	m.SetConversationController(controller)
+	m.SwitchView(ViewConversation)
+
+	model, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'1'}})
+	m = model.(*Model)
+	if m.currentView != ViewDashboard {
+		t.Fatalf("expected dashboard view after pressing '1' in conversation view, got %v", m.currentView)
+	}
+}
+
 func newPipelineStore(t *testing.T) (*Store, *bead.Bead) {
 	t.Helper()
 
