@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"testing"
 	"time"
@@ -58,6 +59,33 @@ func TestHydrateStore_PipelineItemsPopulated(t *testing.T) {
 	store := HydrateStore(context.Background(), cfg, ".gromit", ".gromit/specs", ".gromit/plans", provider)
 	want := normalizePipelineItems(items)
 
+	if !reflect.DeepEqual(store.PipelineItems, want) {
+		t.Fatalf("pipeline items = %+v, want %+v", store.PipelineItems, want)
+	}
+}
+
+func TestHydrateStore_PipelineItemsErrorNormalizes(t *testing.T) {
+	t.Parallel()
+
+	errMsg := "boom"
+	provider := &mockHydrationProvider{
+		pipelineItemsErr: errors.New(errMsg),
+	}
+
+	cfg := &config.Config{}
+	store := HydrateStore(context.Background(), cfg, ".gromit", ".gromit/specs", ".gromit/plans", provider)
+
+	if len(store.Dashboard.Warnings) != 1 {
+		t.Fatalf("warning len = %d, want 1", len(store.Dashboard.Warnings))
+	}
+
+	warning := store.Dashboard.Warnings[0]
+	wantWarning := "pipeline items: " + errMsg
+	if warning != wantWarning {
+		t.Fatalf("warning = %q, want %q", warning, wantWarning)
+	}
+
+	want := normalizePipelineItems(PipelineItems{})
 	if !reflect.DeepEqual(store.PipelineItems, want) {
 		t.Fatalf("pipeline items = %+v, want %+v", store.PipelineItems, want)
 	}
