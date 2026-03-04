@@ -70,6 +70,21 @@ func (m *Model) registerPipelineListModel(list pipelineListModel) {
 	}
 	m.pipelineListModels = append(m.pipelineListModels, list)
 }
+type pipelineListNavigator interface {
+	CursorUp()
+	CursorDown()
+}
+
+func (m *Model) forEachPipelineNavigator(fn func(pipelineListNavigator)) {
+	if m == nil || fn == nil {
+		return
+	}
+	for _, list := range m.pipelineListModels {
+		if nav, ok := list.(pipelineListNavigator); ok && nav != nil {
+			fn(nav)
+		}
+	}
+}
 
 // Init initializes the model.
 func (m *Model) Init() tea.Cmd {
@@ -111,10 +126,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyShiftTab:
 			m.FocusPrev()
 		case tea.KeyUp:
+			m.forEachPipelineNavigator(func(nav pipelineListNavigator) {
+				nav.CursorUp()
+			})
 			if m.scrollOffset > 0 {
 				m.scrollOffset--
 			}
 		case tea.KeyDown:
+			m.forEachPipelineNavigator(func(nav pipelineListNavigator) {
+				nav.CursorDown()
+			})
 			m.scrollOffset++
 		case tea.KeyCtrlC:
 			return m, tea.Quit
