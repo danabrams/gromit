@@ -22,6 +22,18 @@ const (
 	trimCapATDDLearnings = "cap ATDD ConfirmedLearnings"
 )
 
+var rulesPhaseMaxChars = map[string]int{
+	"red":      8500,
+	"build":    12800,
+	"green":    8500,
+	"refactor": 8500,
+	"review":   8100,
+	"plan":     2000,
+	"refine":   2000,
+	"retro":    2000,
+	"validate": 2000,
+}
+
 // Renderer loads and renders prompt templates
 type Renderer struct {
 	templatesDir           string
@@ -291,7 +303,12 @@ func (r *Renderer) LoadRulesForPhase(phase string) (string, error) {
 		return "", nil
 	}
 
-	return filterRulesByPhase(content, phase), nil
+	filtered := filterRulesByPhase(content, phase)
+	maxChars, ok := rulesPhaseMaxChars[strings.ToLower(strings.TrimSpace(phase))]
+	if !ok || maxChars <= 0 || len(filtered) <= maxChars {
+		return filtered, nil
+	}
+	return truncateWithMarker(filtered, maxChars), nil
 }
 
 // ExtractATDDRulesSubset extracts only ATDD-relevant rules from RULES.md content.

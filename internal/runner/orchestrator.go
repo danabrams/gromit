@@ -687,6 +687,7 @@ runLoop:
 						if dirty {
 							return fmt.Errorf("branch checkout blocked by dirty worktree precondition for %s: %w", branch, checkoutErr)
 						}
+						o.cleanupAfterFailedIteration(ctx)
 						continue
 					}
 				}

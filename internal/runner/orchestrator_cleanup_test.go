@@ -17,13 +17,14 @@ import (
 // cleanupTrackingCheckout tracks calls to RevertAndReturnToBase.
 type cleanupTrackingCheckout struct {
 	RevertAndReturnToBaseFn  func(ctx context.Context) error
+	CreateOrCheckoutErr      error
 	revertAndReturnBaseCalls int
 	checkoutCalls            []string
 }
 
 func (c *cleanupTrackingCheckout) CreateOrCheckoutSpecBranch(ctx context.Context, specBranchName string) error {
 	c.checkoutCalls = append(c.checkoutCalls, specBranchName)
-	return nil
+	return c.CreateOrCheckoutErr
 }
 
 func (c *cleanupTrackingCheckout) RevertAndReturnToBase(ctx context.Context) error {
@@ -112,6 +113,44 @@ func TestOrchestrator_ValidationFailure_CallsRevertAndReturnToBase(t *testing.T)
 
 	if checkout.revertAndReturnBaseCalls == 0 {
 		t.Fatal("RevertAndReturnToBase was not called after validation failure")
+	}
+}
+
+// TestOrchestrator_BranchCheckoutFailure_CallsRevertAndReturnToBase verifies
+// that non-dirty checkout failures still trigger cleanup before continuing.
+func TestOrchestrator_BranchCheckoutFailure_CallsRevertAndReturnToBase(t *testing.T) {
+	t.Parallel()
+
+	checkout := &cleanupTrackingCheckout{
+		CreateOrCheckoutErr: errors.New("checkout failed"),
+	}
+	beadCount := 0
+
+	cfg := OrchestratorConfig{
+		Gate: &fakeStage{runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
+			return pipeline.Output{Decision: pipeline.Proceed}, nil
+		}},
+		Build:        &fakeStage{},
+		Validate:     &fakeStage{},
+		Epilogue:     &fakeStage{},
+		BranchRouter: &mockBranchRouter{},
+		GitCheckout:  checkout,
+		GetBead: func(ctx context.Context) (*bead.Bead, error) {
+			beadCount++
+			if beadCount == 1 {
+				return &bead.Bead{ID: "cleanup-checkout-fail", Title: "Checkout Fail", Labels: []string{"spec:auth"}}, nil
+			}
+			return nil, nil
+		},
+		Config: &config.Config{},
+		Output: io.Discard,
+	}
+
+	o := NewOrchestrator(cfg)
+	_ = o.Run(context.Background(), 1, time.Time{}, make(chan struct{}))
+
+	if checkout.revertAndReturnBaseCalls == 0 {
+		t.Fatal("RevertAndReturnToBase was not called after non-dirty checkout failure")
 	}
 }
 
