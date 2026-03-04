@@ -111,6 +111,15 @@ func normalizePipelineItems(items PipelineItems) PipelineItems {
 	return items
 }
 
+func copyPipelineItems(items PipelineItems) PipelineItems {
+	items = normalizePipelineItems(items)
+	items.BacklogIdeas = append([]backlog.Idea{}, items.BacklogIdeas...)
+	items.UnplannedSpecs = append([]string{}, items.UnplannedSpecs...)
+	items.UndecomposedPlans = append([]string{}, items.UndecomposedPlans...)
+	items.Beads = append([]bead.Bead{}, items.Beads...)
+	return items
+}
+
 // ConversationState tracks conversation state.
 type ConversationState struct {
 	EventCount int
@@ -435,7 +444,7 @@ func (s *Store) recordConversationToolIndicator(toolName, status string) {
 func (s *Store) SetPipelineItems(items PipelineItems) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.PipelineItems = normalizePipelineItems(items)
+	s.PipelineItems = copyPipelineItems(items)
 }
 
 // GetPipelineItems returns the current pipeline items under a read lock, ensuring slices are normalized.
