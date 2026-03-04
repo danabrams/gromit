@@ -163,10 +163,20 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyCtrlC:
 			return m, tea.Quit
 		case tea.KeyRunes:
-			if len(msg.Runes) > 0 {
-				switch msg.Runes[0] {
-				case 'q':
-					return m, tea.Quit
+			if len(msg.Runes) == 0 {
+				break
+			}
+			key := msg.Runes[0]
+			switch key {
+			case 'q':
+				return m, tea.Quit
+			case 'v':
+				m.detailView = !m.detailView
+			default:
+				if m.activeTab != TabRunLoop {
+					break
+				}
+				switch key {
 				case '1':
 					m.SwitchView(ViewDashboard)
 				case '2':
@@ -176,8 +186,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if m.conversation != nil {
 						return m, m.conversation.Init()
 					}
-				case 'v':
-					m.detailView = !m.detailView
 				}
 			}
 		}
