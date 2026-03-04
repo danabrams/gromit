@@ -1185,13 +1185,15 @@ func TestLogIterationWithCacheTelemetry(t *testing.T) {
 		Validated:               true,
 		Escalated:               false,
 		DurationMs:              1000,
-		CacheHit:                true,
-		CacheMiss:               true,
-		CacheWrite:              true,
-		CacheClass:              "render_static_build",
-		CacheKey:                "cache-key-1",
-		CacheInvalidationReason: "version_change",
-		CacheVersionMarker:      "rules-v2",
+		CacheStats: CacheStats{
+			CacheHit:                true,
+			CacheMiss:               true,
+			CacheWrite:              true,
+			CacheClass:              "render_static_build",
+			CacheKey:                "cache-key-1",
+			CacheInvalidationReason: "version_change",
+			CacheVersionMarker:      "rules-v2",
+		},
 	}
 	if err := l.LogIteration(cached); err != nil {
 		t.Fatal(err)
@@ -1257,7 +1259,7 @@ func TestIterationLogCacheStatsJSON(t *testing.T) {
         Timestamp: time.Now(),
         CacheStats: CacheStats{
             CacheHit:                true,
-            CacheMiss:               false,
+        CacheMiss:               true,
             CacheWrite:              true,
             CacheClass:              "prep",
             CacheKey:                "foo",

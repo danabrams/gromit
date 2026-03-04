@@ -88,13 +88,7 @@ type IterationLog struct {
 	StallTier                       string    `json:"stall_tier,omitempty"`                         // "initial" or "active"
 	RateLimitHits                   int       `json:"rate_limit_hits,omitempty"`                    // rate limit events detected
 	RateLimitRecoveryMs             int64     `json:"rate_limit_recovery_ms,omitempty"`             // ms to recover from most recent rate limit
-	CacheHit                        bool      `json:"cache_hit,omitempty"`
-	CacheMiss                       bool      `json:"cache_miss,omitempty"`
-	CacheWrite                      bool      `json:"cache_write,omitempty"`
-	CacheClass                      string    `json:"cache_class,omitempty"`
-	CacheKey                        string    `json:"cache_key,omitempty"`
-	CacheInvalidationReason         string    `json:"cache_invalidation_reason,omitempty"`
-	CacheVersionMarker              string    `json:"cache_version_marker,omitempty"`
+	CacheStats
 	UtilityRoutingCategory          string    `json:"utility_routing_category,omitempty"`
 	UtilityRoutingTier              string    `json:"utility_routing_tier,omitempty"`
 	FallbackAttempts                int       `json:"fallback_attempts,omitempty"`  // fallback attempts in this iteration
@@ -132,6 +126,17 @@ type IterationLog struct {
 	// Experiment tracking fields
 	ExperimentID string `json:"experiment_id,omitempty"`
 	VariantID    string `json:"variant_id,omitempty"`
+}
+
+// CacheStats groups cache telemetry fields for easier reuse and JSON serialization.
+type CacheStats struct {
+	CacheHit                bool   `json:"cache_hit,omitempty"`
+	CacheMiss               bool   `json:"cache_miss,omitempty"`
+	CacheWrite              bool   `json:"cache_write,omitempty"`
+	CacheClass              string `json:"cache_class,omitempty"`
+	CacheKey                string `json:"cache_key,omitempty"`
+	CacheInvalidationReason string `json:"cache_invalidation_reason,omitempty"`
+	CacheVersionMarker      string `json:"cache_version_marker,omitempty"`
 }
 
 // ReviewLog represents a review's outcome (light or thorough)
