@@ -296,3 +296,20 @@ func TestClaudeProviderIsUsageLimitErrorExitCode2(t *testing.T) {
 		t.Errorf("IsUsageLimitError() = %v, want true for exit code 2 with 'usage limit'", got)
 	}
 }
+
+func TestConvertResultPropagatesStderrForUsageLimitDetection(t *testing.T) {
+	t.Parallel()
+	claudeResult := &claude.Result{
+		Success:  false,
+		ExitCode: 2,
+		Model:    "sonnet",
+		Stderr:   "quota exceeded",
+	}
+
+	result := convertResult(claudeResult)
+	cp := &ClaudeProvider{}
+
+	if !cp.IsUsageLimitError(result, nil) {
+		t.Fatalf("IsUsageLimitError() = false, want true when stderr contains usage limit keywords")
+	}
+}
