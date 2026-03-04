@@ -4,6 +4,8 @@
 {"issue_id":"gromit-03lk","label":"spec:status-bead-breakdown"}
 {"issue_id":"gromit-04fp6","label":"spec:complexity-based-routing"}
 {"issue_id":"gromit-05or","label":"spec:runner-subpackage-split"}
+{"issue_id":"gromit-06174","label":"estimated-files:2"}
+{"issue_id":"gromit-06174","label":"spec:fix-stale-worktree-branch-checkout"}
 {"issue_id":"gromit-07107","label":"spec:bead-client-runfn-consolidation"}
 {"issue_id":"gromit-07f","label":"spec:atdd-methodology"}
 {"issue_id":"gromit-08s1","label":"from-review"}
@@ -603,6 +605,8 @@
 {"issue_id":"gromit-7w49.2","label":"debug"}
 {"issue_id":"gromit-7x2ne","label":"from-review"}
 {"issue_id":"gromit-7x2ne","label":"refactor"}
+{"issue_id":"gromit-7zwxh","label":"estimated-files:3"}
+{"issue_id":"gromit-7zwxh","label":"spec:external-project-support"}
 {"issue_id":"gromit-80s","label":"spec:review-system"}
 {"issue_id":"gromit-81bz","label":"spec:epic-scoped-execution"}
 {"issue_id":"gromit-82ilf","label":"from-review"}
@@ -693,6 +697,7 @@
 {"issue_id":"gromit-9949","label":"from-review"}
 {"issue_id":"gromit-9949","label":"refactor"}
 {"issue_id":"gromit-9949","label":"spec:concurrent-interactive-worktrees"}
+{"issue_id":"gromit-99ycz","label":"spec:external-project-support"}
 {"issue_id":"gromit-9at0","label":"spec:retro-efficiency-experiments"}
 {"issue_id":"gromit-9atb","label":"spec:routing-ratio-reliability-review"}
 {"issue_id":"gromit-9bhr","label":"spec:codex-streaming-parity"}
@@ -1545,6 +1550,7 @@
 {"issue_id":"gromit-n8iwm.3","label":"spec:provider-parity-decompose-retro"}
 {"issue_id":"gromit-n8iwm.4","label":"estimated-files:2"}
 {"issue_id":"gromit-n8iwm.4","label":"spec:provider-parity-decompose-retro"}
+{"issue_id":"gromit-n8rsx","label":"spec:external-project-support"}
 {"issue_id":"gromit-n9dou","label":"spec:tdd-cycle-granularity"}
 {"issue_id":"gromit-nb9pf","label":"spec:runner-pipeline"}
 {"issue_id":"gromit-nd1","label":"spec:pipeline-stages"}
@@ -2117,6 +2123,8 @@
 {"issue_id":"gromit-wpcjh","label":"estimated-files:1"}
 {"issue_id":"gromit-wpcjh","label":"spec:provider-parity-decompose-retro"}
 {"issue_id":"gromit-wpzoe","label":"spec:tdd-cycle-coverage-tracker"}
+{"issue_id":"gromit-wqlgv","label":"estimated-files:1"}
+{"issue_id":"gromit-wqlgv","label":"spec:external-project-support"}
 {"issue_id":"gromit-wrcw","label":"spec:retro-archive-learnings"}
 {"issue_id":"gromit-wte3u","label":"from-review"}
 {"issue_id":"gromit-wtfu6","label":"from-review"}
@@ -2287,6 +2295,8 @@
 {"issue_id":"gromit-xr4i","label":"spec:multi-provider-routing"}
 {"issue_id":"gromit-xri0d","label":"estimated-files:2"}
 {"issue_id":"gromit-xri0d","label":"spec:auto-generate-acceptance-criteria"}
+{"issue_id":"gromit-xtbdn","label":"estimated-files:2"}
+{"issue_id":"gromit-xtbdn","label":"spec:fix-stale-worktree-branch-checkout"}
 {"issue_id":"gromit-xv99p","label":"from-review"}
 {"issue_id":"gromit-xv99p","label":"refactor"}
 {"issue_id":"gromit-xvurl","label":"from-review"}
