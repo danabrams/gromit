@@ -332,36 +332,51 @@ func (r *Runner) runCommands(ctx context.Context, commands []string, workDir str
 	if maxParallel > len(commands) {
 		maxParallel = len(commands)
 	}
+	return r.runCommandsParallel(ctx, commands, workDir, maxParallel)
+}
 
+func (r *Runner) runCommandsParallel(ctx context.Context, commands []string, workDir string, maxParallel int) ([]commandResult, error) {
+	if len(commands) == 0 {
+		return nil, nil
+	}
+	if maxParallel <= 0 {
+		maxParallel = 1
+	}
+	if maxParallel > len(commands) {
+		maxParallel = len(commands)
+	}
 	results := make([]commandResult, len(commands))
 	var wg sync.WaitGroup
 	parallelCtx, parallelCancel := context.WithCancel(ctx)
 	defer parallelCancel()
 	var failureCancel sync.Once
 	sem := make(chan struct{}, maxParallel)
+
 	for i, command := range commands {
-		i := i
-		command := command
+		select {
+		case <-parallelCtx.Done():
+			results[i] = commandResult{command: command, err: parallelCtx.Err()}
+			continue
+		case sem <- struct{}{}:
+		}
+
 		wg.Add(1)
-		go func() {
+		go func(i int, command string) {
 			defer wg.Done()
-			select {
-			case <-parallelCtx.Done():
-				results[i] = commandResult{command: command, err: parallelCtx.Err()}
-				return
-			case sem <- struct{}{}:
-			}
 			defer func() { <-sem }()
+
 			if err := parallelCtx.Err(); err != nil {
 				results[i] = commandResult{command: command, err: err}
 				return
 			}
+
 			results[i] = r.runSingleCommand(parallelCtx, command, workDir)
 			if result := results[i]; result.err != nil || result.exitCode != 0 {
 				failureCancel.Do(parallelCancel)
 			}
-		}()
+		}(i, command)
 	}
+
 	wg.Wait()
 	return results, nil
 }
@@ -374,10 +389,10 @@ func (r *Runner) shortCircuitOnStaleFix(ctx context.Context, bc *runtypes.BeadCo
 	}
 	changedFiles, known, attempted := r.gatherChangedFiles(ctx, bc)
 	snapshot := StaleFixSnapshot{
-		ChangedFiles:      changedFiles,
-		ChangedFilesKnown: known,
+		ChangedFiles:          changedFiles,
+		ChangedFilesKnown:     known,
 		ChangedFilesAttempted: attempted,
-		ErrorCategories:   cloneStringSlice(r.lastFailureCategories),
+		ErrorCategories:       cloneStringSlice(r.lastFailureCategories),
 	}
 	detection := detector.RecordAttempt(snapshot)
 	if detection.StaleFixDetected {
