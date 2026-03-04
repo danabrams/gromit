@@ -335,6 +335,9 @@ func (r *Runner) runCommands(ctx context.Context, commands []string, workDir str
 
 	results := make([]commandResult, len(commands))
 	var wg sync.WaitGroup
+	parallelCtx, parallelCancel := context.WithCancel(ctx)
+	defer parallelCancel()
+	var failureCancel sync.Once
 	sem := make(chan struct{}, maxParallel)
 	for i, command := range commands {
 		i := i
@@ -343,7 +346,10 @@ func (r *Runner) runCommands(ctx context.Context, commands []string, workDir str
 		go func() {
 			defer wg.Done()
 			sem <- struct{}{}
-			results[i] = r.runSingleCommand(ctx, command, workDir)
+			results[i] = r.runSingleCommand(parallelCtx, command, workDir)
+			if result := results[i]; result.err != nil || result.exitCode != 0 {
+				failureCancel.Do(parallelCancel)
+			}
 			<-sem
 		}()
 	}
