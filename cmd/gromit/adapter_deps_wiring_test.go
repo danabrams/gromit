@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/pipeline"
 )
 
 // TestNewPipelineDeps_WiresAllRequiredAdapters verifies that NewPipelineDeps
@@ -56,45 +55,6 @@ func TestNewPipelineDeps_WiresAllRequiredAdapters(t *testing.T) {
 			t.Errorf("deps.%s is nil - adapter not wired", name)
 		}
 	}
-}
-
-// TestNewPipelineDeps_AdaptersMatchInterfaceSignatures verifies that the wired
-// adapters actually implement their claimed interfaces with proper method signatures.
-// This is a compile-time check demonstrated at runtime.
-func TestNewPipelineDeps_AdaptersMatchInterfaceSignatures(t *testing.T) {
-	t.Parallel()
-
-	gromitDir := t.TempDir()
-	cfg := &config.Config{
-		Claude: config.ClaudeConfig{
-			Binary: "claude",
-			Flags:  []string{},
-		},
-	}
-
-	deps, err := NewPipelineDeps(cfg, gromitDir)
-	if err != nil {
-		t.Fatalf("NewPipelineDeps failed: %v", err)
-	}
-
-	// Verify adapters implement correct types
-	var _ pipeline.AgentResolver = deps.AgentResolver
-	var _ pipeline.LLMClient = deps.LLMClient
-	var _ pipeline.ReviewInvoker = deps.ReviewInvoker
-	var _ pipeline.TrackerClient = deps.TrackerClient
-	var _ pipeline.BeadQueryClient = deps.BeadQueryClient
-	var _ pipeline.BacklogClient = deps.BacklogClient
-	var _ pipeline.BacklogWriter = deps.BacklogWriter
-	var _ pipeline.RefineRenderer = deps.RefineRenderer
-	var _ pipeline.PlanRenderer = deps.PlanRenderer
-	var _ pipeline.DecomposeRenderer = deps.DecomposeRenderer
-	var _ pipeline.ReviewRenderer = deps.ReviewRenderer
-	var _ pipeline.ExploreRenderer = deps.ExploreRenderer
-	var _ pipeline.LearningsManager = deps.LearningsManager
-	var _ pipeline.StateManager = deps.StateManager
-	var _ pipeline.LogWriter = deps.LogWriter
-
-	t.Log("All adapters match their interface signatures")
 }
 
 // TestNewPipelineDeps_ConstructorDocuments that it's the single dependency injection point

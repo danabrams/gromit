@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/pipeline"
 )
 
 // TestAdapterDepsWiring_AllFieldsWiredInNewPipelineDeps verifies that
@@ -62,38 +61,4 @@ func TestAdapterDepsWiring_AllFieldsWiredInNewPipelineDeps(t *testing.T) {
 	}
 
 	t.Log("All pipeline.Deps fields are properly wired in NewPipelineDeps")
-}
-
-// TestAdapterDepsWiring_TypesMatchInterfaces verifies that each field
-// in pipeline.Deps is assigned an adapter that implements the required interface.
-//
-// This test validates compile-time interface compatibility.
-func TestAdapterDepsWiring_TypesMatchInterfaces(t *testing.T) {
-	t.Parallel()
-
-	// These are compile-time type assertions - if they fail, the code won't compile
-	// This test documents the contract
-
-	// From adapters.go
-	var _ pipeline.LLMClient = (*claudeClientAdapter)(nil)
-	var _ pipeline.ReviewInvoker = (*claudeClientAdapter)(nil)
-	var _ pipeline.LLMClient = (*llmRouterClientAdapter)(nil)
-	var _ pipeline.ReviewInvoker = (*llmRouterClientAdapter)(nil)
-	var _ pipeline.TrackerClient = (*trackerClientAdapter)(nil)
-	var _ pipeline.BacklogClient = (*backlogClientAdapter)(nil)
-	var _ pipeline.BeadQueryClient = (*beadQueryClientAdapter)(nil)
-
-	// From cli_adapters.go
-	var _ pipeline.RefineRenderer = (*refinePromptRenderer)(nil)
-	var _ pipeline.PlanRenderer = (*planPromptRenderer)(nil)
-	var _ pipeline.DecomposeRenderer = (*decomposePromptRenderer)(nil)
-	var _ pipeline.ReviewRenderer = (*cliPromptRenderer)(nil)
-	var _ pipeline.ExploreRenderer = (*explorePromptRenderer)(nil)
-	var _ pipeline.BacklogWriter = (*cliBacklogClient)(nil)
-	var _ pipeline.LearningsManager = (*cliLearningsManager)(nil)
-	var _ pipeline.StateManager = (*cliStateManager)(nil)
-	var _ pipeline.LogWriter = (*cliLogWriter)(nil)
-
-	// AgentResolver is from agent.Resolver which should implement pipeline.AgentResolver
-	t.Log("All adapter types properly implement their interface contracts")
 }
