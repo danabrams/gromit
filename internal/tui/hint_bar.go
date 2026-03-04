@@ -24,11 +24,7 @@ func RenderHintBar(activeTab Tab, hasSelection bool, inDetailView bool, inConfir
 		return styleHint("[y/n] confirm delete")
 	}
 	if inDetailView {
-		actions := []string{"[q] quit"}
-		if activeTab != TabRunLoop {
-			actions = append(actions, "[esc] back")
-		}
-		return renderHintActions(actions)
+		return renderHintActions(detailViewHintActions(activeTab))
 	}
 	return renderNormalHints(activeTab, hasSelection)
 }
@@ -53,6 +49,13 @@ func normalHintActions(tab Tab, hasSelection bool) []string {
 		}
 	}
 	return append(actions, "[q] quit")
+}
+
+func detailViewHintActions(tab Tab) []string {
+	if tab == TabRunLoop {
+		return []string{"[q] quit"}
+	}
+	return []string{"[q] quit", "[esc] back"}
 }
 
 func renderHintActions(actions []string) string {
