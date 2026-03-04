@@ -27,8 +27,12 @@ func NewAutoFixFn(runner func(ctx context.Context, name string, args ...string) 
 
 		files := collectGoFiles(diffOutput)
 		for _, file := range files {
-			_, _ = runner(context.Background(), "gofmt", "-w", file)
-			_, _ = runner(context.Background(), "goimports", "-w", file)
+			if _, err := runner(context.Background(), "gofmt", "-w", file); err != nil {
+				return err
+			}
+			if _, err := runner(context.Background(), "goimports", "-w", file); err != nil {
+				return err
+			}
 		}
 		return nil
 	}
