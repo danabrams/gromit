@@ -197,12 +197,18 @@ func TestSelectCrossIncrementsCount(t *testing.T) {
 		t.Fatal("SelectCross() returned nil provider")
 	}
 
-	// Should have selected openai and incremented its count
+	// SelectCross should not yet increment counts until the invocation is recorded.
+	if r.counts["openai"] != 0 {
+		t.Errorf("counts[\"openai\"] = %d after SelectCross, want 0 before RecordInvocation", r.counts["openai"])
+	}
+
+	r.RecordInvocation("openai")
+
 	if r.counts["openai"] != 1 {
-		t.Errorf("counts[\"openai\"] = %d after SelectCross, want 1", r.counts["openai"])
+		t.Errorf("counts[\"openai\"] = %d after RecordInvocation, want 1", r.counts["openai"])
 	}
 	if r.counts["claude"] != 0 {
-		t.Errorf("counts[\"claude\"] = %d after SelectCross, want 0 (should not be incremented)", r.counts["claude"])
+		t.Errorf("counts[\"claude\"] = %d after RecordInvocation, want 0 (no invocation)", r.counts["claude"])
 	}
 }
 

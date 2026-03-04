@@ -541,46 +541,6 @@ func TestRouterSelectReturnsModelName(t *testing.T) {
 // TestRouterSelectIncrementsCountInState verifies that Select method
 // increments the provider's invocation count in the state file.
 // Expected failure: Select() method does not exist yet
-func TestRouterSelectIncrementsCountInState(t *testing.T) {
-	t.Parallel()
-	stateFn := &mockStateFile{
-		providerCounts: map[string]int{
-			"claude": 5,
-		},
-	}
-
-	r := &Router{
-		providers: map[string]Provider{
-			"claude": &mockProvider{name: "claude"},
-		},
-		preferences: map[string]string{
-			"build": "claude",
-		},
-		ratio:       map[string]int{"claude": 100},
-		counts:      map[string]int{"claude": 5},
-		unavailable: map[string]time.Time{},
-		cooldown:    30 * time.Minute,
-		stateFn:     stateFn,
-	}
-
-	// Call Select
-	_, _ = r.Select("build", TierMedium)
-
-	// Verify that IncrementProviderCount was called
-	if !stateFn.incrementCalled {
-		t.Error("Select() should call IncrementProviderCount on state file")
-	}
-
-	if stateFn.lastIncrementedProvider != "claude" {
-		t.Errorf("IncrementProviderCount called with %q, want %q", stateFn.lastIncrementedProvider, "claude")
-	}
-
-	// Verify internal count was updated
-	if r.counts["claude"] != 6 {
-		t.Errorf("counts[\"claude\"] = %d, want 6 after Select()", r.counts["claude"])
-	}
-}
-
 // TestRouterSelectDoesNotIncrementCountUntilRecordInvocation ensures Select()
 // defers count updates until RecordInvocation() is called, so Select()+RecordInvocation
 // only adds a single invocation.
@@ -647,6 +607,14 @@ func TestRouterSelectAndRecordInvocationCountOnce(t *testing.T) {
 
 	// Select should count once
 	_, _ = r.Select("build", TierMedium)
+
+	if r.counts["claude"] != 5 {
+		t.Errorf("counts[\"claude\"] = %d, want 5 after Select()", r.counts["claude"])
+	}
+
+	if stateFn.providerCounts["claude"] != 5 {
+		t.Errorf("state provider count = %d, want 5 after Select()", stateFn.providerCounts["claude"])
+	}
 
 	// RecordInvocation should not increment the count a second time
 	r.RecordInvocation("claude")

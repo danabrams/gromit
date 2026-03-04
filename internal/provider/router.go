@@ -270,8 +270,6 @@ func (r *Router) selectIfAvailable(name string, tier string) (Provider, string) 
 	}
 
 	modelName := provider.ModelForTier(tier)
-	r.counts[name]++
-	r.stateIncrementProviderCount(name)
 	r.incrementPendingCount(name)
 
 	return provider, modelName
@@ -316,8 +314,10 @@ func (r *Router) RecordInvocation(name string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if r.consumePendingCount(name) {
-		return
+	r.consumePendingCount(name)
+
+	if r.counts == nil {
+		r.counts = make(map[string]int)
 	}
 
 	r.counts[name]++
