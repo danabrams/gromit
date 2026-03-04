@@ -14,6 +14,20 @@ func TestBenchmarkDecomposeCompare_CommandExists(t *testing.T) {
 	}
 }
 
+func TestBenchmarkDecomposeCompare_RequiresExperimentalFlag(t *testing.T) {
+	// RED: Test that the experimental flag is required
+	_, stderr, exitCode := runGromitCobra(t,
+		"benchmark", "decompose-compare",
+		"--manifest", "testdata/fixtures/benchmark/decompose.yaml",
+	)
+	if exitCode == 0 {
+		t.Fatalf("exitCode = %d, want non-zero when experimental flag is missing", exitCode)
+	}
+	if !strings.Contains(stderr, "experimental") && !strings.Contains(stderr, "--experimental") {
+		t.Fatalf("stderr = %q, want message mentioning the experimental flag", stderr)
+	}
+}
+
 func TestBenchmarkDecomposeCompare_RunEndToEnd(t *testing.T) {
 	// Test end-to-end flow with fake dependencies
 	called := false
