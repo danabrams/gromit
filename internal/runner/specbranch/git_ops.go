@@ -24,6 +24,7 @@ type gitCommandOutput struct {
 
 var nonBlockingDirtyWorktreePaths = map[string]struct{}{
 	".gromit/integration-queue.json":  {},
+	".gromit/LEARNINGS.md":            {},
 	".beads/backup/backup_state.json": {},
 	".beads/dolt-monitor.pid":         {},
 }
