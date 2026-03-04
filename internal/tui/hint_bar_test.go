@@ -57,3 +57,31 @@ func TestDetailViewHintActions(t *testing.T) {
 		})
 	}
 }
+
+func TestConfirmationHintActions(t *testing.T) {
+	testCases := []struct {
+		name string
+		tab  Tab
+		want []string
+	}{
+		{name: "backlog", tab: TabBacklog, want: []string{"[y/n] confirm delete"}},
+		{name: "specs", tab: TabSpecs, want: []string{"[y/n] confirm delete"}},
+		{name: "plans", tab: TabPlans, want: []string{"[y/n] confirm delete"}},
+		{name: "queue", tab: TabQueue, want: []string{}},
+		{name: "runloop", tab: TabRunLoop, want: []string{}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := confirmationHintActions(tc.tab)
+			if len(got) != len(tc.want) {
+				t.Fatalf("confirmationHintActions(%q) = %v, want %v", tc.tab, got, tc.want)
+			}
+			for i, action := range tc.want {
+				if got[i] != action {
+					t.Fatalf("confirmationHintActions(%q)[%d] = %q, want %q", tc.tab, i, got[i], action)
+				}
+			}
+		})
+	}
+}
