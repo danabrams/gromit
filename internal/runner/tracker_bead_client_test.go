@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -365,35 +364,6 @@ func TestTrackerBeadClientReadyExcludingFiltersEpicsAndExcludedIDs(t *testing.T)
 	}
 }
 
-func TestTrackerBeadClientReadyWithLabelCallsListWithLabelOnBDAdapter(t *testing.T) {
-	t.Parallel()
-
-	var gotArgs []string
-	bdClient := &bead.Client{
-		RunFn: func(args ...string) (string, error) {
-			gotArgs = append([]string(nil), args...)
-			return `[{"id":"bead-1","title":"Ready bead","description":"desc","priority":1,"labels":["spec:test"],"issue_type":"task","status":"open"}]`, nil
-		},
-	}
-
-	client := &trackerBeadClient{client: bead.NewBDAdapter(bdClient)}
-	result, err := client.ReadyWithLabel(context.Background(), "spec:test")
-	if err != nil {
-		t.Fatalf("ReadyWithLabel returned error: %v", err)
-	}
-	if result == nil {
-		t.Fatal("ReadyWithLabel returned nil bead")
-	}
-	if result.ID != "bead-1" {
-		t.Fatalf("bead ID = %s, want bead-1", result.ID)
-	}
-
-	wantArgs := []string{"list", "--json", "--label", "spec:test", "--sort", "priority", "--all", "--limit", "0"}
-	if !reflect.DeepEqual(gotArgs, wantArgs) {
-		t.Fatalf("bd args = %v, want %v", gotArgs, wantArgs)
-	}
-}
-
 func TestTrackerBeadClientReadyWithLabelFallsBackToListWithLabel(t *testing.T) {
 	t.Parallel()
 
@@ -436,21 +406,21 @@ func TestTrackerBeadClientReadyWithLabelFallsBackToListWithLabel(t *testing.T) {
 func TestTrackerBeadClientReadyWithLabelUsesTrackerReadyCommand(t *testing.T) {
 	t.Parallel()
 
-	 var calls [][]string
-	 bdClient := &bead.Client{
-	 	 RunFn: func(args ...string) (string, error) {
-	 	 	 calls = append(calls, append([]string(nil), args...))
-	 	 	 if len(args) >= 1 && args[0] == "ready" {
-	 	 	 	 return `[{"id":"bead-1","title":"Ready bead","description":"desc","priority":1,"labels":["spec:test"],"issue_type":"task","status":"open"}]`, nil
-	 	 	 }
-	 	 	 if len(args) >= 1 && args[0] == "list" {
-	 	 	 	 return `[{"id":"bead-1","title":"Ready bead","description":"desc","priority":1,"labels":["spec:test"],"issue_type":"task","status":"open"}]`, nil
-	 	 	 }
-	 	 	 return "", fmt.Errorf("unexpected bd command %q", args)
-	 	 },
-	 }
+	var calls [][]string
+	bdClient := &bead.Client{
+		RunFn: func(args ...string) (string, error) {
+			calls = append(calls, append([]string(nil), args...))
+			if len(args) >= 1 && args[0] == "ready" {
+				return `[{"id":"bead-1","title":"Ready bead","description":"desc","priority":1,"labels":["spec:test"],"issue_type":"task","status":"open"}]`, nil
+			}
+			if len(args) >= 1 && args[0] == "list" {
+				return `[{"id":"bead-1","title":"Ready bead","description":"desc","priority":1,"labels":["spec:test"],"issue_type":"task","status":"open"}]`, nil
+			}
+			return "", fmt.Errorf("unexpected bd command %q", args)
+		},
+	}
 
-	 bc := &trackerBeadClient{client: bead.NewBDAdapter(bdClient)}
+	bc := &trackerBeadClient{client: bead.NewBDAdapter(bdClient)}
 	result, err := bc.ReadyWithLabel(context.Background(), "spec:test")
 	if err != nil {
 		t.Fatalf("ReadyWithLabel returned error: %v", err)
