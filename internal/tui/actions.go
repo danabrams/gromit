@@ -41,13 +41,13 @@ func handleAction(m *Model, key string, activeTab Tab, selectedItem ListItem, st
 	case "d":
 		m.pendingAction = buildPendingAction("decompose", extractIdentifier(selectedItem))
 		return m, tea.Quit
-	case "x":
+	case "x", "X":
 		if selectedItem == nil {
 			return m, nil
 		}
 		m.confirmDelete = true
 		return m, nil
-	case "y":
+	case "y", "Y":
 		if !m.confirmDelete {
 			return m, nil
 		}
@@ -64,7 +64,7 @@ func handleAction(m *Model, key string, activeTab Tab, selectedItem ListItem, st
 			store.DeletePipelineItem(activeTab, identifier)
 		}
 		return m, nil
-	case "n", "esc", "Esc":
+	case "n", "N", "esc", "Esc":
 		if m.confirmDelete {
 			m.confirmDelete = false
 		}
