@@ -574,3 +574,8 @@ After writing Go code, run `gofmt -w` on modified files to ensure compliance wit
 
 *Archived from new: filtered: generic engineering advice*
 
+### 2026-03-03 | gromit-dxl15 | conventions
+When implementing features with test coverage, verify test expectations match implementation—review test setup for mocked/invoked functions and required test files before claiming work is complete
+
+*Archived from new: filtered: generic engineering advice*
+
