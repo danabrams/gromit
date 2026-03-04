@@ -26,3 +26,14 @@ func TestHintBarSpecsTabNormalState(t *testing.T) {
 		}
 	}
 }
+
+func TestHintBarPlansTabNormalState(t *testing.T) {
+	hint := HintBar(Tab("plans"), false, false)
+
+	expectedHints := []string{"d", "v", "x", "q"}
+	for _, key := range expectedHints {
+		if !strings.Contains(hint, key) {
+			t.Fatalf("HintBar for plans tab missing key %q, got %q", key, hint)
+		}
+	}
+}
