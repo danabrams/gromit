@@ -5,6 +5,28 @@ import (
 	"testing"
 )
 
+func TestNormalStateHintStrings(t *testing.T) {
+	testCases := []struct {
+		name string
+		tab  Tab
+		want string
+	}{
+		{name: "backlog", tab: TabBacklog, want: "[r] refine | [v] view | [x] delete | [q] quit"},
+		{name: "specs", tab: TabSpecs, want: "[p] plan | [v] view | [x] delete | [q] quit"},
+		{name: "plans", tab: TabPlans, want: "[d] decompose | [v] view | [x] delete | [q] quit"},
+		{name: "queue", tab: TabQueue, want: "[v] view | [q] quit"},
+		{name: "runloop", tab: TabRunLoop, want: "[q] quit"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := normalStateHintString(tc.tab, true); got != tc.want {
+				t.Fatalf("normalStateHintString(%q, true) = %q, want %q", tc.tab, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestRenderHintBarNormalStateForAllTabs(t *testing.T) {
 	for _, tc := range normalHintTestCases() {
 		t.Run(tc.name, func(t *testing.T) {
