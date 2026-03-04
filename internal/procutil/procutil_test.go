@@ -76,6 +76,20 @@ func TestSubprocessEnvOverridesExistingGOMAXPROCS(t *testing.T) {
 	}
 }
 
+func TestSubprocessEnvRespectsExistingGOMAXPROCS(t *testing.T) {
+	t.Setenv("GOMAXPROCS", "99")
+	env := SubprocessEnv()
+	for _, kv := range env {
+		if strings.HasPrefix(kv, "GOMAXPROCS=") {
+			if kv != "GOMAXPROCS=99" {
+				t.Fatalf("GOMAXPROCS = %q, want %q", kv, "GOMAXPROCS=99")
+			}
+			return
+		}
+	}
+	t.Fatal("GOMAXPROCS not found in SubprocessEnv()")
+}
+
 func TestReapProcessGroupNilProcess(t *testing.T) {
 	cmd := exec.Command("echo", "test")
 	// Should not panic when Process is nil
