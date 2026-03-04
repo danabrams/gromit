@@ -474,6 +474,19 @@ func TestValidate_WithAutoFixNilFn_BlocksOnFailure(t *testing.T) {
 	}
 }
 
+// TestValidate_WithAutoFixNilFnGuard ensures configuring WithAutoFix with a nil fn
+// never retains start commit data so the guard in Run can skip auto-fix.
+func TestValidate_WithAutoFixNilFnGuard(t *testing.T) {
+	stage := New(&fakeCommandRunner{}, io.Discard).WithAutoFix(nil, "  start-commit  ")
+
+	if stage.autoFixFn != nil {
+		t.Fatalf("autoFixFn = %v, want nil when guard is triggered", stage.autoFixFn)
+	}
+	if stage.autoFixStartCommit != "" {
+		t.Fatalf("autoFixStartCommit = %q, want empty when autoFixFn is nil", stage.autoFixStartCommit)
+	}
+}
+
 // TestValidate_AutoFixStartCommitGuard verifies that auto-fixes are only attempted when
 // a non-empty start commit is available.
 func TestValidate_AutoFixStartCommitGuard(t *testing.T) {
