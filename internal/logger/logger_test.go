@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -809,6 +810,127 @@ func TestLogReviewNilLogger(t *testing.T) {
 	if err := l.LogReview(review); err != nil {
 		t.Error("expected nil logger to return nil error")
 	}
+}
+
+func TestLogRecordSerializesConcurrentWrites(t *testing.T) {
+	t.Parallel()
+	writer := newBlockingWriter()
+	tmpFile, err := os.CreateTemp("", "logger-concurrency")
+	if err != nil {
+		t.Fatalf("create temp file: %v", err)
+	}
+	t.Cleanup(func() {
+		tmpFile.Close()
+		os.Remove(tmpFile.Name())
+	})
+	l := &Logger{
+		file:    tmpFile,
+		encoder: json.NewEncoder(writer),
+	}
+
+	entry := &IterationLog{
+		Timestamp:    time.Now(),
+		Iteration:    1,
+		BeadID:       "concurrency",
+		BeadTitle:    "test",
+		Model:        "haiku",
+		Success:      true,
+		Validated:    true,
+		DurationMs:   1,
+		CostUSD:      0,
+		InputTokens:  0,
+		OutputTokens: 0,
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	errCh := make(chan error, 2)
+
+	go func() {
+		defer wg.Done()
+		errCh <- l.LogIteration(entry)
+	}()
+	<-writer.firstStarted
+	go func() {
+		defer wg.Done()
+		errCh <- l.LogIteration(entry)
+	}()
+	select {
+	case <-writer.secondStarted:
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(writer.continueFirst)
+	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		if err != nil {
+			t.Fatalf("LogIteration error: %v", err)
+		}
+	}
+
+	if got := writer.MaxActive(); got != 1 {
+		t.Fatalf("expected max concurrent writes 1, got %d", got)
+	}
+}
+
+type blockingWriter struct {
+	mu            sync.Mutex
+	active        int
+	maxActive     int
+	callCount     int
+	firstStarted  chan struct{}
+	secondStarted chan struct{}
+	continueFirst chan struct{}
+	firstOnce     sync.Once
+	secondOnce    sync.Once
+}
+
+func newBlockingWriter() *blockingWriter {
+	return &blockingWriter{
+		firstStarted:  make(chan struct{}),
+		secondStarted: make(chan struct{}),
+		continueFirst: make(chan struct{}),
+	}
+}
+
+func (w *blockingWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	w.active++
+	if w.active > w.maxActive {
+		w.maxActive = w.active
+	}
+	w.callCount++
+	callNum := w.callCount
+	w.mu.Unlock()
+
+	switch callNum {
+	case 1:
+		w.firstOnce.Do(func() {
+			close(w.firstStarted)
+		})
+		<-w.continueFirst
+	case 2:
+		w.secondOnce.Do(func() {
+			close(w.secondStarted)
+		})
+	}
+
+	w.mu.Lock()
+	w.active--
+	w.mu.Unlock()
+
+	return len(p), nil
+}
+
+func (w *blockingWriter) Close() error {
+	return nil
+}
+
+func (w *blockingWriter) MaxActive() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.maxActive
 }
 
 func TestIterationLogOutcomeField(t *testing.T) {
