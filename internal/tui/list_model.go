@@ -60,12 +60,22 @@ func (l *ListModel) MoveUp() {
 
 // MoveDown moves the cursor down by one row and adjusts scroll offset.
 func (l *ListModel) MoveDown() {
-	if l == nil || len(l.items) == 0 {
+	if l == nil {
 		return
 	}
-	if l.cursor < len(l.items)-1 {
+	if len(l.items) == 0 {
+		l.cursor = 0
+		return
+	}
+
+	if l.cursor >= len(l.items)-1 {
+		l.cursor = len(l.items) - 1
+	} else if l.cursor < 0 {
+		l.cursor = 0
+	} else {
 		l.cursor++
 	}
+
 	l.ensureCursorVisible()
 }
 
