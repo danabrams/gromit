@@ -78,11 +78,11 @@ func (p *PlanListItem) Summary() string {
 
 // BeadListItem adapts a bead.Bead for pipeline tabs.
 type BeadListItem struct {
-    bead *bead.Bead
+	bead *bead.Bead
 }
 
 func (b *BeadListItem) Title() string {
-    if b == nil || b.bead == nil {
+	if b == nil || b.bead == nil {
         return ""
     }
     return strings.TrimSpace(b.bead.Title)
@@ -100,5 +100,46 @@ func (b *BeadListItem) Summary() string {
         parts = append(parts, fmt.Sprintf("status=%s", status))
     }
     parts = append(parts, fmt.Sprintf("priority=%d", b.bead.Priority))
-    return strings.Join(parts, " · ")
+	return strings.Join(parts, " · ")
+}
+
+
+type pipelineTabListModel interface {
+	Render(width int) string
+	Selected() ListItem
+}
+
+// RenderBacklogTab renders the backlog tab using the provided list model.
+func RenderBacklogTab(_ *Store, listModel pipelineTabListModel, width int, inDetailView bool) string {
+	return renderPipelineTab("Backlog", listModel, width, inDetailView)
+}
+
+// RenderSpecsTab renders the specs tab using the provided list model.
+func RenderSpecsTab(_ *Store, listModel pipelineTabListModel, width int, inDetailView bool) string {
+	return renderPipelineTab("Specs", listModel, width, inDetailView)
+}
+
+// RenderPlansTab renders the plans tab using the provided list model.
+func RenderPlansTab(_ *Store, listModel pipelineTabListModel, width int, inDetailView bool) string {
+	return renderPipelineTab("Plans", listModel, width, inDetailView)
+}
+
+// RenderQueueTab renders the queue tab using the provided list model.
+func RenderQueueTab(_ *Store, listModel pipelineTabListModel, width int, inDetailView bool) string {
+	return renderPipelineTab("Queue", listModel, width, inDetailView)
+}
+
+func renderPipelineTab(title string, listModel pipelineTabListModel, width int, inDetailView bool) string {
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("=== %s ===\n", title))
+
+	if listModel == nil {
+		return b.String()
+	}
+
+	// Detail view rendering will be added later.
+	_ = inDetailView
+
+	b.WriteString(listModel.Render(width))
+	return b.String()
 }
