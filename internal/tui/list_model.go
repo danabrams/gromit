@@ -58,6 +58,14 @@ func (l *ListModel) MoveUp() {
 	l.ensureCursorVisible()
 }
 
+// CursorUp moves the cursor up using the shared navigation helper.
+func (l *ListModel) CursorUp() {
+	if l == nil {
+		return
+	}
+	l.MoveUp()
+}
+
 // MoveDown moves the cursor down by one row and adjusts scroll offset.
 func (l *ListModel) MoveDown() {
 	if l == nil {
@@ -77,6 +85,14 @@ func (l *ListModel) MoveDown() {
 	}
 
 	l.ensureCursorVisible()
+}
+
+// CursorDown moves the cursor down using the shared navigation helper.
+func (l *ListModel) CursorDown() {
+	if l == nil {
+		return
+	}
+	l.MoveDown()
 }
 
 // Selected returns the currently selected item, if any.

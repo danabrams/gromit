@@ -715,6 +715,7 @@ type mockPipelineListModel struct {
 	items  []ListItem
 	cursorUpCalls   int
 	cursorDownCalls int
+	selected        ListItem
 }
 
 func (m *mockPipelineListModel) SetItems(items []ListItem) {
@@ -730,14 +731,18 @@ func (m *mockPipelineListModel) CursorDown() {
 	m.cursorDownCalls++
 }
 
+func (m *mockPipelineListModel) Selected() ListItem {
+	return m.selected
+}
+
 func TestModel_PipelineRefreshUpdatesLists(t *testing.T) {
 	store := &Store{}
 	model := NewModel(store)
 
 	first := &mockPipelineListModel{}
 	second := &mockPipelineListModel{}
-	model.registerPipelineListModel(first)
-	model.registerPipelineListModel(second)
+	model.registerPipelineListModel(TabBacklog, first)
+	model.registerPipelineListModel(TabSpecs, second)
 
 	model.Update(pipelineRefreshedMsg{RequestedTab: Tab("backlog")})
 
@@ -755,7 +760,8 @@ func TestModel_PipelineListNavigationRoutesToActiveList(t *testing.T) {
 	store := &Store{}
 	m := NewModel(store)
 	list := &mockPipelineListModel{}
-	m.registerPipelineListModel(list)
+	m.registerPipelineListModel(TabBacklog, list)
+	m.activeTab = TabBacklog
 
 	if _, cmd := m.Update(tea.KeyMsg{Type: tea.KeyUp}); cmd != nil {
 		t.Fatalf("unexpected command for up key: %v", cmd)
@@ -777,8 +783,8 @@ func TestModel_PipelineListNavigationTargetsActiveTab(t *testing.T) {
 	m := NewModel(store)
 	backlog := &mockPipelineListModel{}
 	specs := &mockPipelineListModel{}
-	m.registerPipelineListModel(backlog)
-	m.registerPipelineListModel(specs)
+	m.registerPipelineListModel(TabBacklog, backlog)
+	m.registerPipelineListModel(TabSpecs, specs)
 
 	m.activeTab = TabBacklog
 	if _, cmd := m.Update(tea.KeyMsg{Type: tea.KeyUp}); cmd != nil {
@@ -803,28 +809,6 @@ func TestModel_PipelineListNavigationTargetsActiveTab(t *testing.T) {
 	}
 }
 
-func TestModel_PipelineListNavigationRoutesToAllLists(t *testing.T) {
-	store := &Store{}
-	m := NewModel(store)
-	first := &mockPipelineListModel{}
-	second := &mockPipelineListModel{}
-	m.registerPipelineListModel(first)
-	m.registerPipelineListModel(second)
-
-	if _, cmd := m.Update(tea.KeyMsg{Type: tea.KeyUp}); cmd != nil {
-		t.Fatalf("unexpected command for up key: %v", cmd)
-	}
-	if first.cursorUpCalls != 1 || second.cursorUpCalls != 1 {
-		t.Fatalf("expected CursorUp called for every list, got first=%d second=%d", first.cursorUpCalls, second.cursorUpCalls)
-	}
-
-	if _, cmd := m.Update(tea.KeyMsg{Type: tea.KeyDown}); cmd != nil {
-		t.Fatalf("unexpected command for down key: %v", cmd)
-	}
-	if first.cursorDownCalls != 1 || second.cursorDownCalls != 1 {
-		t.Fatalf("expected CursorDown called for every list, got first=%d second=%d", first.cursorDownCalls, second.cursorDownCalls)
-	}
-}
 
 func TestModel_RunLoopSubViewInitializesToDashboard(t *testing.T) {
 	store := &Store{}

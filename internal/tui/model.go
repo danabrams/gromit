@@ -13,6 +13,8 @@ const (
 
 type pipelineListModel interface {
 	SetItems([]ListItem)
+	Selected() ListItem
+	pipelineListNavigator
 }
 
 // Model implements the bubbletea.Model interface for the Gromit TUI.
@@ -27,7 +29,7 @@ type Model struct {
 	pendingAction      *PendingAction
 	detailView         bool
 	confirmDelete      bool
-	pipelineListModels []pipelineListModel
+	pipelineListModels map[Tab]pipelineListModel
 }
 
 // NewModel creates a new TUI model with the given store.
@@ -85,11 +87,14 @@ func (m *Model) PendingAction() *PendingAction {
 	return m.pendingAction
 }
 
-func (m *Model) registerPipelineListModel(list pipelineListModel) {
+func (m *Model) registerPipelineListModel(tab Tab, list pipelineListModel) {
 	if m == nil || list == nil {
 		return
 	}
-	m.pipelineListModels = append(m.pipelineListModels, list)
+	if m.pipelineListModels == nil {
+		m.pipelineListModels = make(map[Tab]pipelineListModel)
+	}
+	m.pipelineListModels[tab] = list
 }
 
 type pipelineListNavigator interface {
@@ -102,10 +107,22 @@ func (m *Model) forEachPipelineNavigator(fn func(pipelineListNavigator)) {
 		return
 	}
 	for _, list := range m.pipelineListModels {
-		if nav, ok := list.(pipelineListNavigator); ok && nav != nil {
-			fn(nav)
+		if list == nil {
+			continue
 		}
+		fn(list)
 	}
+}
+
+func (m *Model) activePipelineNavigator() pipelineListNavigator {
+	if m == nil || m.pipelineListModels == nil {
+		return nil
+	}
+	list, ok := m.pipelineListModels[m.activeTab]
+	if !ok || list == nil {
+		return nil
+	}
+	return list
 }
 
 // Init initializes the model.
@@ -160,16 +177,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyRight:
 			m.NextTab()
 		case tea.KeyUp:
-			m.forEachPipelineNavigator(func(nav pipelineListNavigator) {
+			if nav := m.activePipelineNavigator(); nav != nil {
 				nav.CursorUp()
-			})
+			}
 			if m.scrollOffset > 0 {
 				m.scrollOffset--
 			}
 		case tea.KeyDown:
-			m.forEachPipelineNavigator(func(nav pipelineListNavigator) {
+			if nav := m.activePipelineNavigator(); nav != nil {
 				nav.CursorDown()
-			})
+			}
 			m.scrollOffset++
 		case tea.KeyCtrlC:
 			return m, tea.Quit
@@ -203,6 +220,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case pipelineRefreshedMsg:
 		items := m.pipelineListItemsForTab(msg.RequestedTab)
 		for _, list := range m.pipelineListModels {
+			if list == nil {
+				continue
+			}
 			list.SetItems(items)
 		}
 	}
