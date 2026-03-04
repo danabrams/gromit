@@ -794,3 +794,13 @@ func TestModel_PipelineListNavigationRoutesToAllLists(t *testing.T) {
 		t.Fatalf("expected CursorDown called for every list, got first=%d second=%d", first.cursorDownCalls, second.cursorDownCalls)
 	}
 }
+
+func TestModel_RunLoopSubViewInitializesToDashboard(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+
+	// runLoopSubView should be initialized to ViewDashboard
+	if m.runLoopSubView != ViewDashboard {
+		t.Errorf("expected initial runLoopSubView to be Dashboard, got %v", m.runLoopSubView)
+	}
+}
