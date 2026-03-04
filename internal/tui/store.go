@@ -19,6 +19,8 @@ type Store struct {
 	Dashboard    DashboardState
 	Queue        QueueState
 	Conversation ConversationState
+	// DeletePipelineItemFunc is invoked when the TUI requests a pipeline deletion.
+	DeletePipelineItemFunc func(tab Tab, identifier string)
 }
 
 // DashboardState captures the fields needed to render the dashboard view.
@@ -401,4 +403,14 @@ func (s *Store) recordConversationToolIndicator(toolName, status string) {
 		Status:   status,
 	}
 	s.Conversation.ToolIndicators = append(s.Conversation.ToolIndicators, indicator)
+}
+
+// DeletePipelineItem invokes the configured deletion callback for the requested tab and identifier.
+func (s *Store) DeletePipelineItem(tab Tab, identifier string) {
+	if s == nil {
+		return
+	}
+	if fn := s.DeletePipelineItemFunc; fn != nil {
+		fn(tab, identifier)
+	}
 }

@@ -41,6 +41,30 @@ func handleAction(m *Model, key string, activeTab Tab, selectedItem ListItem, st
 	case "d":
 		m.pendingAction = buildPendingAction("decompose", extractIdentifier(selectedItem))
 		return m, tea.Quit
+	case "x":
+		if selectedItem == nil {
+			return m, nil
+		}
+		m.confirmDelete = true
+		return m, nil
+	case "y":
+		if !m.confirmDelete || selectedItem == nil {
+			return m, nil
+		}
+		identifier := extractIdentifier(selectedItem)
+		m.confirmDelete = false
+		if identifier == "" {
+			return m, nil
+		}
+		if store != nil {
+			store.DeletePipelineItem(activeTab, identifier)
+		}
+		return m, nil
+	case "n", "esc", "Esc":
+		if m.confirmDelete {
+			m.confirmDelete = false
+		}
+		return m, nil
 	case "R":
 		return m, refreshPipelineCmd(activeTab)
 	default:
