@@ -89,13 +89,13 @@ type IterationLog struct {
 	RateLimitHits                   int       `json:"rate_limit_hits,omitempty"`                    // rate limit events detected
 	RateLimitRecoveryMs             int64     `json:"rate_limit_recovery_ms,omitempty"`             // ms to recover from most recent rate limit
 	CacheStats
-	UtilityRoutingCategory          string    `json:"utility_routing_category,omitempty"`
-	UtilityRoutingTier              string    `json:"utility_routing_tier,omitempty"`
-	FallbackAttempts                int       `json:"fallback_attempts,omitempty"`  // fallback attempts in this iteration
-	FallbackSuccesses               int       `json:"fallback_successes,omitempty"` // successful fallback outcomes
-	FallbackFailures                int       `json:"fallback_failures,omitempty"`  // failed fallback outcomes
-	FailureLayer                    string    `json:"failure_layer,omitempty"`      // top-level failure taxonomy bucket
-	FailureSubCat                   string    `json:"failure_sub_cat,omitempty"`    // lower-level failure taxonomy value
+	UtilityRoutingCategory string `json:"utility_routing_category,omitempty"`
+	UtilityRoutingTier     string `json:"utility_routing_tier,omitempty"`
+	FallbackAttempts       int    `json:"fallback_attempts,omitempty"`  // fallback attempts in this iteration
+	FallbackSuccesses      int    `json:"fallback_successes,omitempty"` // successful fallback outcomes
+	FallbackFailures       int    `json:"fallback_failures,omitempty"`  // failed fallback outcomes
+	FailureLayer           string `json:"failure_layer,omitempty"`      // top-level failure taxonomy bucket
+	FailureSubCat          string `json:"failure_sub_cat,omitempty"`    // lower-level failure taxonomy value
 
 	AcceptanceFailureSummary  string `json:"acceptance_failure_summary,omitempty"`
 	AcceptanceFailureOutput   string `json:"acceptance_failure_output,omitempty"`
@@ -124,8 +124,7 @@ type IterationLog struct {
 	PromptDiagnostics *prompt.PromptDiagnostics `json:"prompt_diagnostics,omitempty"`
 
 	// Experiment tracking fields
-	ExperimentID string `json:"experiment_id,omitempty"`
-	VariantID    string `json:"variant_id,omitempty"`
+	ExperimentTracking
 }
 
 // CacheStats groups cache telemetry fields for easier reuse and JSON serialization.
@@ -137,6 +136,12 @@ type CacheStats struct {
 	CacheKey                string `json:"cache_key,omitempty"`
 	CacheInvalidationReason string `json:"cache_invalidation_reason,omitempty"`
 	CacheVersionMarker      string `json:"cache_version_marker,omitempty"`
+}
+
+// ExperimentTracking captures experiment identifiers for audit logging.
+type ExperimentTracking struct {
+	ExperimentID string `json:"experiment_id,omitempty"`
+	VariantID    string `json:"variant_id,omitempty"`
 }
 
 // ReviewLog represents a review's outcome (light or thorough)

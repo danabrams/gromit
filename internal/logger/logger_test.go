@@ -1176,15 +1176,15 @@ func TestLogIterationWithCacheTelemetry(t *testing.T) {
 	defer l.Close()
 
 	cached := &IterationLog{
-		Timestamp:               time.Now(),
-		Iteration:               1,
-		BeadID:                  "b1",
-		BeadTitle:               "Cache telemetry bead",
-		Model:                   "sonnet",
-		Success:                 true,
-		Validated:               true,
-		Escalated:               false,
-		DurationMs:              1000,
+		Timestamp:  time.Now(),
+		Iteration:  1,
+		BeadID:     "b1",
+		BeadTitle:  "Cache telemetry bead",
+		Model:      "sonnet",
+		Success:    true,
+		Validated:  true,
+		Escalated:  false,
+		DurationMs: 1000,
 		CacheStats: CacheStats{
 			CacheHit:                true,
 			CacheMiss:               true,
@@ -1255,42 +1255,42 @@ func TestLogIterationWithCacheTelemetry(t *testing.T) {
 }
 
 func TestIterationLogCacheStatsJSON(t *testing.T) {
-    logEntry := &IterationLog{
-        Timestamp: time.Now(),
-        CacheStats: CacheStats{
-            CacheHit:                true,
-        CacheMiss:               true,
-            CacheWrite:              true,
-            CacheClass:              "prep",
-            CacheKey:                "foo",
-            CacheInvalidationReason: "update",
-            CacheVersionMarker:      "v1",
-        },
-    }
+	logEntry := &IterationLog{
+		Timestamp: time.Now(),
+		CacheStats: CacheStats{
+			CacheHit:                true,
+			CacheMiss:               true,
+			CacheWrite:              true,
+			CacheClass:              "prep",
+			CacheKey:                "foo",
+			CacheInvalidationReason: "update",
+			CacheVersionMarker:      "v1",
+		},
+	}
 
-    payload, err := json.Marshal(logEntry)
-    if err != nil {
-        t.Fatalf("marshal iteration log: %v", err)
-    }
+	payload, err := json.Marshal(logEntry)
+	if err != nil {
+		t.Fatalf("marshal iteration log: %v", err)
+	}
 
-    var decoded map[string]json.RawMessage
-    if err := json.Unmarshal(payload, &decoded); err != nil {
-        t.Fatalf("unmarshal iteration log: %v", err)
-    }
+	var decoded map[string]json.RawMessage
+	if err := json.Unmarshal(payload, &decoded); err != nil {
+		t.Fatalf("unmarshal iteration log: %v", err)
+	}
 
-    for _, key := range []string{
-        "cache_hit",
-        "cache_miss",
-        "cache_write",
-        "cache_class",
-        "cache_key",
-        "cache_invalidation_reason",
-        "cache_version_marker",
-    } {
-        if _, exists := decoded[key]; !exists {
-            t.Fatalf("expected %s to be present in JSON", key)
-        }
-    }
+	for _, key := range []string{
+		"cache_hit",
+		"cache_miss",
+		"cache_write",
+		"cache_class",
+		"cache_key",
+		"cache_invalidation_reason",
+		"cache_version_marker",
+	} {
+		if _, exists := decoded[key]; !exists {
+			t.Fatalf("expected %s to be present in JSON", key)
+		}
+	}
 }
 
 func TestIterationLogExperimentTrackingJSON(t *testing.T) {
