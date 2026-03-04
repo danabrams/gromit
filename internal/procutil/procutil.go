@@ -150,18 +150,14 @@ func collectDescendants(pid int) []int {
 // preventing cgroup PID exhaustion on resource-constrained hosts.
 func SubprocessEnv() []string {
 	env := os.Environ()
-	found := false
-	for i, kv := range env {
+	for _, kv := range env {
 		if strings.HasPrefix(kv, "GOMAXPROCS=") {
-			env[i] = "GOMAXPROCS=" + MaxGoParallelism
-			found = true
-			break
+			// Linux cgroup tooling or macOS hosts may already choose an appropriate
+			// level of parallelism, so we respect that instead of overwriting it.
+			return env
 		}
 	}
-	if !found {
-		env = append(env, "GOMAXPROCS="+MaxGoParallelism)
-	}
-	return env
+	return append(env, "GOMAXPROCS="+MaxGoParallelism)
 }
 
 func resolveProcessCapacityMaxWait(maxWait time.Duration) time.Duration {
