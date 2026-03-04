@@ -1,6 +1,11 @@
 package tui
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/danabrams/gromit/internal/backlog"
+	"github.com/danabrams/gromit/internal/bead"
+)
 
 func TestStorePipelineItemsGetNormalizesNilFields(t *testing.T) {
 	store := &Store{}
@@ -21,5 +26,54 @@ func TestStorePipelineItemsGetNormalizesNilFields(t *testing.T) {
 	}
 	if len(items.UnplannedSpecs) != 1 || items.UnplannedSpecs[0] != "spec-alpha" {
 		t.Fatalf("unexpected UnplannedSpecs = %v", items.UnplannedSpecs)
+	}
+}
+
+func TestStorePipelineItemsSetStoresIndependentCopies(t *testing.T) {
+	store := &Store{}
+
+	specs := make([]string, 1, 2)
+	specs[0] = "spec-alpha"
+	plans := make([]string, 1, 2)
+	plans[0] = "plan-alpha"
+	beads := make([]bead.Bead, 1, 2)
+	beads[0] = bead.Bead{ID: "bead-alpha"}
+	ideas := make([]backlog.Idea, 1, 2)
+	ideas[0] = backlog.Idea{ID: "idea-alpha"}
+
+	items := PipelineItems{
+		BacklogIdeas:      ideas,
+		UnplannedSpecs:    specs,
+		UndecomposedPlans: plans,
+		Beads:             beads,
+	}
+
+	store.SetPipelineItems(items)
+
+	items.UnplannedSpecs[0] = "spec-beta"
+	items.UnplannedSpecs = append(items.UnplannedSpecs, "spec-gamma")
+
+	items.UndecomposedPlans[0] = "plan-beta"
+	items.UndecomposedPlans = append(items.UndecomposedPlans, "plan-gamma")
+
+	items.Beads[0].ID = "bead-beta"
+	items.Beads = append(items.Beads, bead.Bead{ID: "bead-gamma"})
+
+	items.BacklogIdeas[0].ID = "idea-beta"
+	items.BacklogIdeas = append(items.BacklogIdeas, backlog.Idea{ID: "idea-gamma"})
+
+	gots := store.GetPipelineItems()
+
+	if len(gots.UnplannedSpecs) != 1 || gots.UnplannedSpecs[0] != "spec-alpha" {
+		t.Fatalf("UnplannedSpecs mutated: %v", gots.UnplannedSpecs)
+	}
+	if len(gots.UndecomposedPlans) != 1 || gots.UndecomposedPlans[0] != "plan-alpha" {
+		t.Fatalf("UndecomposedPlans mutated: %v", gots.UndecomposedPlans)
+	}
+	if len(gots.Beads) != 1 || gots.Beads[0].ID != "bead-alpha" {
+		t.Fatalf("Beads mutated: %v", gots.Beads)
+	}
+	if len(gots.BacklogIdeas) != 1 || gots.BacklogIdeas[0].ID != "idea-alpha" {
+		t.Fatalf("BacklogIdeas mutated: %v", gots.BacklogIdeas)
 	}
 }
