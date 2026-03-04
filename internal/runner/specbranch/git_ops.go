@@ -104,6 +104,41 @@ func NewGitOps(repoDir, baseBranch string) *GitOps {
 	return &GitOps{repoDir: repoDir, baseBranch: baseBranch}
 }
 
+// parseWorktreeConflictPath extracts the worktree path from a git error message
+// of the form: "fatal: '<branch>' is already used by worktree at '<path>'"
+// Returns the path and true if found, or empty string and false otherwise.
+func parseWorktreeConflictPath(gitOutput string) (string, bool) {
+	const marker = "already used by worktree at '"
+	idx := strings.Index(gitOutput, marker)
+	if idx < 0 {
+		return "", false
+	}
+	rest := gitOutput[idx+len(marker):]
+	endIdx := strings.Index(rest, "'")
+	if endIdx < 0 {
+		return "", false
+	}
+	return rest[:endIdx], true
+}
+
+// isStaleGromitWorktree returns true if the worktree path looks like it was
+// created by a previous gromit run session (contains "-gromit-run-" or "-gromit-").
+func isStaleGromitWorktree(worktreePath string) bool {
+	return strings.Contains(worktreePath, "-gromit-run-") ||
+		strings.Contains(worktreePath, "-gromit-")
+}
+
+// removeStaleWorktree attempts to forcibly remove a stale gromit worktree so
+// the branch it holds can be checked out elsewhere. Returns true if removal
+// was attempted (regardless of success), along with any error from the removal.
+func removeStaleWorktree(ctx context.Context, repoDir, worktreePath string) (attempted bool, err error) {
+	if !isStaleGromitWorktree(worktreePath) {
+		return false, nil
+	}
+	_, err = runGitCommandWithOutput(ctx, repoDir, "worktree", "remove", "--force", worktreePath)
+	return true, err
+}
+
 // CreateOrCheckoutSpecBranch creates a new spec branch or checks out an existing one.
 // If the branch already exists, it checks it out. Otherwise, it creates a new branch.
 func (g *GitOps) CreateOrCheckoutSpecBranch(ctx context.Context, specBranchName string) error {
@@ -140,18 +175,40 @@ func (g *GitOps) CreateOrCheckoutSpecBranch(ctx context.Context, specBranchName 
 
 	// Branch already exists, just checkout
 	checkoutOutput, checkoutErr := runGitCommandWithOutput(ctx, g.repoDir, "checkout", specBranchName)
-	if checkoutErr != nil {
-		return fmt.Errorf(
-			"failed to create or checkout spec branch %s: create attempt failed: %v (output: %s); checkout attempt failed: %w (output: %s)",
-			specBranchName,
-			err,
-			formatGitCommandOutput(createOutput),
-			checkoutErr,
-			formatGitCommandOutput(checkoutOutput),
-		)
+	if checkoutErr == nil {
+		return nil
 	}
 
-	return nil
+	// If the branch is held by a stale gromit worktree, try to remove it and retry.
+	checkoutCombined := checkoutOutput.stdout + "\n" + checkoutOutput.stderr
+	if worktreePath, ok := parseWorktreeConflictPath(checkoutCombined); ok {
+		if attempted, removeErr := removeStaleWorktree(ctx, g.repoDir, worktreePath); attempted {
+			if removeErr != nil {
+				return fmt.Errorf(
+					"failed to checkout spec branch %s: branch held by stale worktree %s, removal failed: %w",
+					specBranchName, worktreePath, removeErr,
+				)
+			}
+			// Worktree removed successfully — retry checkout once.
+			retryOutput, retryErr := runGitCommandWithOutput(ctx, g.repoDir, "checkout", specBranchName)
+			if retryErr != nil {
+				return fmt.Errorf(
+					"failed to checkout spec branch %s after removing stale worktree %s: %w (output: %s)",
+					specBranchName, worktreePath, retryErr, formatGitCommandOutput(retryOutput),
+				)
+			}
+			return nil
+		}
+	}
+
+	return fmt.Errorf(
+		"failed to create or checkout spec branch %s: create attempt failed: %v (output: %s); checkout attempt failed: %w (output: %s)",
+		specBranchName,
+		err,
+		formatGitCommandOutput(createOutput),
+		checkoutErr,
+		formatGitCommandOutput(checkoutOutput),
+	)
 }
 
 func (g *GitOps) currentBranch(ctx context.Context) (string, error) {
