@@ -1918,16 +1918,6 @@ func TestBenchmarkPhase4Report_AllGatesPassProducesAdoptWithEvidence(t *testing.
 	}
 }
 
-func TestRegisterBenchmarkCommands_RegistersDecomposeCompare(t *testing.T) {
-	// RED: Test that decompose-compare command is registered
-	if benchmarkDecomposeCompareCmd == nil {
-		t.Fatal("benchmarkDecomposeCompareCmd must be registered")
-	}
-	if benchmarkDecomposeCompareCmd.Use != "decompose-compare" {
-		t.Fatalf("expected command Use = 'decompose-compare', got %q", benchmarkDecomposeCompareCmd.Use)
-	}
-}
-
 func TestRegisterBenchmarkCommands_DoesNotRegisterDecomposeCompare(t *testing.T) {
 	for _, cmd := range benchmarkCmd.Commands() {
 		if cmd.Use == "decompose-compare" {

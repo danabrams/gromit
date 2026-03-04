@@ -237,7 +237,6 @@ func registerBenchmarkCommands(root *cobra.Command) {
 	benchmarkCmd.AddCommand(benchmarkRunCmd)
 	benchmarkCmd.AddCommand(benchmarkPhase3ReportCmd)
 	benchmarkCmd.AddCommand(benchmarkPhase4ReportCmd)
-	benchmarkCmd.AddCommand(benchmarkDecomposeCompareCmd)
 	root.AddCommand(benchmarkCmd)
 }
 
