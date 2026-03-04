@@ -12,6 +12,16 @@ const (
 	repoDirName    = ".gromit"
 )
 
+var initialWorkingDir string
+
+func init() {
+	wd, err := os.Getwd()
+	if err != nil {
+		return
+	}
+	initialWorkingDir = wd
+}
+
 func ensureRepoRoot() error {
 	root, err := findProjectRoot()
 	if err != nil {
@@ -45,7 +55,11 @@ func ensureRepoRoot() error {
 // (identified by the presence of gromit.yaml or .gromit/ directory).
 func findProjectRoot() (string, error) {
 	if projectPath != "" {
-		absPathValue, err := absPath(projectPath, "project path flag")
+		pathValue := projectPath
+		if !filepath.IsAbs(pathValue) && initialWorkingDir != "" {
+			pathValue = filepath.Join(initialWorkingDir, pathValue)
+		}
+		absPathValue, err := absPath(pathValue, "project path flag")
 		if err != nil {
 			return "", err
 		}
