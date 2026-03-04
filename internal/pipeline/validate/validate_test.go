@@ -474,6 +474,59 @@ func TestValidate_WithAutoFixNilFn_BlocksOnFailure(t *testing.T) {
 	}
 }
 
+// TestValidate_AutoFixStartCommitGuard verifies that auto-fixes are only attempted when
+// a non-empty start commit is available.
+func TestValidate_AutoFixStartCommitGuard(t *testing.T) {
+	cases := []struct {
+		name          string
+		startCommit   string
+		expectAutoFix bool
+	}{
+		{name: "auto fix with commit", startCommit: "start-commit", expectAutoFix: true},
+		{name: "skip auto fix without commit", startCommit: "", expectAutoFix: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			autoFixInvoked := false
+			captured := ""
+			runner := &fakeCommandRunner{
+				results: []commandRunResult{{stdout: "fail", stderr: "error", exitCode: 1, err: nil}},
+			}
+			stage := New(runner, io.Discard).WithAutoFix(func(startCommit string) error {
+				autoFixInvoked = true
+				captured = startCommit
+				return nil
+			}, tc.startCommit)
+
+			cfg := &config.Config{
+				Validation: config.ValidationConfig{
+					Enabled:  true,
+					Commands: []string{"go test ./..."},
+				},
+			}
+			in := pipeline.Input{
+				Bead:   &bead.Bead{ID: "test-guard", Title: "Guard test"},
+				Config: cfg,
+			}
+
+			out, err := stage.Run(context.Background(), in)
+			if err != nil {
+				t.Fatalf("Run() error = %v, want nil", err)
+			}
+			if out.Decision != pipeline.Block {
+				t.Fatalf("Decision = %v, want Block", out.Decision)
+			}
+			if autoFixInvoked != tc.expectAutoFix {
+				t.Fatalf("autoFixInvoked = %v, want %v", autoFixInvoked, tc.expectAutoFix)
+			}
+			if tc.expectAutoFix && captured != "start-commit" {
+				t.Fatalf("captured start commit = %q, want %q", captured, "start-commit")
+			}
+		})
+	}
+}
+
 // contains is a helper to check if a string contains a substring (case-insensitive).
 func contains(s, substr string) bool {
 	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
