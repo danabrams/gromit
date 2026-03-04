@@ -237,6 +237,20 @@ func assertSameProjectRoot(t *testing.T, got, want string) {
 	}
 }
 
+func createRepoRootWithSubdir(t *testing.T) (string, string) {
+	t.Helper()
+
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, repoConfigName), []byte(""), 0o644); err != nil {
+		t.Fatalf("write %s: %v", repoConfigName, err)
+	}
+	subdir := filepath.Join(root, "nested", "child")
+	if err := os.MkdirAll(subdir, 0o755); err != nil {
+		t.Fatalf("create nested subdir: %v", err)
+	}
+	return root, subdir
+}
+
 func TestEnsureRepoRootFromSubdir(t *testing.T) {
 
 	root := t.TempDir()
