@@ -329,3 +329,38 @@ func TestEnsureRepoRoot_UsesProjectPath(t *testing.T) {
 
 	assertWorkingDir(t, root)
 }
+
+func TestEnsureRepoRoot_ProjectPathInsideSubdir(t *testing.T) {
+	t.Parallel()
+
+	root, nested := createRepoRootWithSubdir(t)
+
+	workDir := t.TempDir()
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(origWD)
+	})
+	if err := os.Chdir(workDir); err != nil {
+		t.Fatalf("chdir to work dir: %v", err)
+	}
+
+	relPath, err := filepath.Rel(workDir, nested)
+	if err != nil {
+		t.Fatalf("rel path: %v", err)
+	}
+
+	origProjectPath := projectPath
+	projectPath = relPath
+	t.Cleanup(func() {
+		projectPath = origProjectPath
+	})
+
+	if err := ensureRepoRoot(); err != nil {
+		t.Fatalf("ensureRepoRoot: %v", err)
+	}
+
+	assertWorkingDir(t, root)
+}
