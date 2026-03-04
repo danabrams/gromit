@@ -138,10 +138,20 @@ func renderPipelineTab(title string, listModel pipelineTabListModel, width int, 
 	b.WriteString(fmt.Sprintf("=== %s ===\n", title))
 
 	if listModel == nil {
+		b.WriteString("No items\n")
 		return b.String()
 	}
 
-	b.WriteString(listModel.Render(width))
+	raw := listModel.Render(width)
+	if strings.TrimSpace(raw) == "" {
+		b.WriteString("No items\n")
+		return b.String()
+	}
+
+	b.WriteString(raw)
+	if !strings.HasSuffix(raw, "\n") {
+		b.WriteString("\n")
+	}
 	return b.String()
 }
 
@@ -149,10 +159,12 @@ func renderPipelineDetail(title string, listModel pipelineTabListModel) string {
 	var b strings.Builder
 	b.WriteString(fmt.Sprintf("=== %s Detail ===\n", title))
 	if listModel == nil {
+		b.WriteString("No items\n")
 		return b.String()
 	}
 	selected := listModel.Selected()
 	if selected == nil {
+		b.WriteString("No items\n")
 		return b.String()
 	}
 	b.WriteString(fmt.Sprintf("Title: %s\n", selected.Title()))
