@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/conversation"
 	"github.com/danabrams/gromit/internal/events"
@@ -15,10 +16,11 @@ import (
 
 // Store holds the UI state for the TUI clients.
 type Store struct {
-	mu           sync.RWMutex
-	Dashboard    DashboardState
-	Queue        QueueState
-	Conversation ConversationState
+	mu            sync.RWMutex
+	Dashboard     DashboardState
+	Queue         QueueState
+	Conversation  ConversationState
+	PipelineItems PipelineItems
 	// DeletePipelineItemFunc is invoked when the TUI requests a pipeline deletion.
 	DeletePipelineItemFunc func(tab Tab, identifier string)
 }
@@ -83,6 +85,30 @@ type QueueSnapshot struct {
 	All            []*bead.Bead
 	Stats          map[string]logger.BeadStats
 	StuckThreshold int
+}
+
+// PipelineItems holds the data needed to render pipeline tabs.
+type PipelineItems struct {
+	BacklogIdeas      []backlog.Idea
+	UnplannedSpecs    []string
+	UndecomposedPlans []string
+	Beads             []bead.Bead
+}
+
+func normalizePipelineItems(items PipelineItems) PipelineItems {
+	if items.BacklogIdeas == nil {
+		items.BacklogIdeas = []backlog.Idea{}
+	}
+	if items.UnplannedSpecs == nil {
+		items.UnplannedSpecs = []string{}
+	}
+	if items.UndecomposedPlans == nil {
+		items.UndecomposedPlans = []string{}
+	}
+	if items.Beads == nil {
+		items.Beads = []bead.Bead{}
+	}
+	return items
 }
 
 // ConversationState tracks conversation state.
@@ -403,6 +429,13 @@ func (s *Store) recordConversationToolIndicator(toolName, status string) {
 		Status:   status,
 	}
 	s.Conversation.ToolIndicators = append(s.Conversation.ToolIndicators, indicator)
+}
+
+// SetPipelineItems updates the current pipeline items, normalizing nil slices.
+func (s *Store) SetPipelineItems(items PipelineItems) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.PipelineItems = normalizePipelineItems(items)
 }
 
 // DeletePipelineItem invokes the configured deletion callback for the requested tab and identifier.

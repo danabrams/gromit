@@ -56,20 +56,21 @@ func TestHydrateStore_PipelineItemsPopulated(t *testing.T) {
 
 	cfg := &config.Config{}
 	store := HydrateStore(context.Background(), cfg, ".gromit", ".gromit/specs", ".gromit/plans", provider)
+	want := normalizePipelineItems(items)
 
-	if !reflect.DeepEqual(store.PipelineItems, items) {
-		t.Fatalf("pipeline items = %+v, want %+v", store.PipelineItems, items)
+	if !reflect.DeepEqual(store.PipelineItems, want) {
+		t.Fatalf("pipeline items = %+v, want %+v", store.PipelineItems, want)
 	}
 }
 
 var _ HydrationProvider = (*mockHydrationProvider)(nil)
 
 type mockHydrationProvider struct {
-	runnerStatus   *runner.Status
-	pipelineStatus *pipeline.PipelineStatus
-	runnerErr      error
-	pipelineErr    error
-	pipelineItems  PipelineItems
+	runnerStatus     *runner.Status
+	pipelineStatus   *pipeline.PipelineStatus
+	runnerErr        error
+	pipelineErr      error
+	pipelineItems    PipelineItems
 	pipelineItemsErr error
 }
 
