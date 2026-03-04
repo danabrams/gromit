@@ -81,8 +81,8 @@ func TestRenderBacklogTabUsesListModelOutput(t *testing.T) {
 }
 
 type testPipelineTabModel struct {
-    rendered string
-    selected ListItem
+	rendered string
+	selected ListItem
 }
 
 func (m *testPipelineTabModel) Render(width int) string {
@@ -90,5 +90,52 @@ func (m *testPipelineTabModel) Render(width int) string {
 }
 
 func (m *testPipelineTabModel) Selected() ListItem {
-    return m.selected
+	return m.selected
+}
+
+type pipelineTabRenderer func(*Store, pipelineTabListModel, int, bool) string
+
+type mockListItem struct {
+	title   string
+	summary string
+}
+
+func (m *mockListItem) Title() string {
+	return m.title
+}
+
+func (m *mockListItem) Summary() string {
+	return m.summary
+}
+
+func TestRenderPipelineTabsDetailViewShowsTitleAndSummary(t *testing.T) {
+	listModel := &testPipelineTabModel{
+		selected: &mockListItem{title: "Focused idea", summary: "Full idea description"},
+	}
+	renderers := []struct {
+		name     string
+		header   string
+		renderer pipelineTabRenderer
+	}{
+		{"backlog", "Backlog", RenderBacklogTab},
+		{"specs", "Specs", RenderSpecsTab},
+		{"plans", "Plans", RenderPlansTab},
+		{"queue", "Queue", RenderQueueTab},
+	}
+
+	for _, tc := range renderers {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			got := tc.renderer(nil, listModel, 80, true)
+			if !strings.Contains(got, "=== "+tc.header+" Detail ===") {
+				t.Fatalf("expected detail header for %s tab, got %q", tc.header, got)
+			}
+			if !strings.Contains(got, listModel.selected.Title()) {
+				t.Fatalf("expected title in detail view, got %q", got)
+			}
+			if !strings.Contains(got, listModel.selected.Summary()) {
+				t.Fatalf("expected summary in detail view, got %q", got)
+			}
+		})
+	}
 }
