@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
@@ -340,16 +341,18 @@ type cliLogWriter struct {
 	logReviewType             string
 	defaultModel              string
 	promptDiagnosticsProvider func() *prompt.PromptDiagnostics
+	logger                    *logger.Logger
+	loggerOnce                sync.Once
+	loggerErr                 error
 }
 
 var _ pipeline.LogWriter = (*cliLogWriter)(nil)
 
 func (w *cliLogWriter) Write(entry *pipeline.LogEntry) error {
-	log, err := logger.NewLogger(w.logsDir)
+	log, err := w.ensureLogger()
 	if err != nil {
 		return err
 	}
-	defer log.Close()
 
 	model := entry.Model
 	if model == "" {
@@ -373,6 +376,17 @@ func (w *cliLogWriter) Write(entry *pipeline.LogEntry) error {
 	}
 
 	return log.LogReview(reviewLog)
+}
+
+func (w *cliLogWriter) ensureLogger() (*logger.Logger, error) {
+	w.loggerOnce.Do(func() {
+		if w.logsDir == "" {
+			w.loggerErr = fmt.Errorf("logs directory is not set")
+			return
+		}
+		w.logger, w.loggerErr = logger.NewLogger(w.logsDir)
+	})
+	return w.logger, w.loggerErr
 }
 
 // stateFileAdapter abstracts state.File operations for the adapter
