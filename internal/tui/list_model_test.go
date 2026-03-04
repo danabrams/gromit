@@ -14,6 +14,22 @@ func (t *testListItem) Title() string { return t.title }
 
 func (t *testListItem) Summary() string { return t.summary }
 
+func TestListModelMoveUpClampsCursor(t *testing.T) {
+    model := &ListModel{
+        items: []ListItem{
+            &testListItem{title: "first"},
+            &testListItem{title: "second"},
+        },
+        cursor: -5,
+    }
+
+    model.MoveUp()
+
+    if got, want := model.cursor, 0; got != want {
+        t.Fatalf("cursor = %d, want %d", got, want)
+    }
+}
+
 func TestListModelSetItemsClampsCursor(t *testing.T) {
 	model := &ListModel{
 		cursor:       5,
