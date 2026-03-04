@@ -159,7 +159,7 @@ func (cp *ClaudeProvider) RunValidation(ctx context.Context, commands []string, 
 }
 
 // IsUsageLimitError detects Claude-specific usage limit errors.
-// Checks for exit code 2 with stderr containing "usage limit", "rate limit",
+// Checks for exit code 2 with output or stderr containing "usage limit", "rate limit",
 // or "quota exceeded" (case-insensitive).
 func (cp *ClaudeProvider) IsUsageLimitError(result *Result, err error) bool {
 	if result == nil {
@@ -169,7 +169,7 @@ func (cp *ClaudeProvider) IsUsageLimitError(result *Result, err error) bool {
 	if result.ExitCode != 2 {
 		return false
 	}
-	return containsAnyKeywordCaseInsensitive(result.Output, usageLimitKeywords)
+	return hasUsageLimitKeywords(result.Output, result.Stderr)
 }
 
 // IsValidationPassed checks if the result indicates validation passed.

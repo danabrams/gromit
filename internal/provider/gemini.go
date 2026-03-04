@@ -169,7 +169,7 @@ func (gp *GeminiProvider) IsUsageLimitError(result *Result, err error) bool {
 	if result.ExitCode != 2 {
 		return false
 	}
-	return containsAnyKeywordCaseInsensitive(result.Output, usageLimitKeywords)
+	return hasUsageLimitKeywords(result.Output, result.Stderr)
 }
 
 func (gp *GeminiProvider) IsValidationPassed(result *Result) bool {

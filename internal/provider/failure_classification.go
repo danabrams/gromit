@@ -10,6 +10,12 @@ type FailurePatterns struct {
 	RateLimit []string
 }
 
+// hasUsageLimitKeywords checks if both output and stderr contain any usage limit keywords.
+func hasUsageLimitKeywords(output, stderr string) bool {
+	combined := strings.ToLower(output + "\n" + stderr)
+	return containsAnyKeywordCaseInsensitive(combined, usageLimitKeywords)
+}
+
 // classifyFailure classifies a failure based on exit code and text using provider-specific patterns.
 // Returns FailureCategoryNone if exit code is 0, FailureCategoryOther if text is empty,
 // or the appropriate category based on pattern matching.
