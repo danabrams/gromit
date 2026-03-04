@@ -2,6 +2,7 @@ package tui
 
 import (
     "fmt"
+    "path/filepath"
     "strings"
 
     "github.com/danabrams/gromit/internal/backlog"
@@ -34,4 +35,23 @@ func (i *IdeaListItem) Summary() string {
         parts = append(parts, id)
     }
     return strings.Join(parts, " · ")
+}
+
+// SpecListItem adapts a spec path for pipeline tabs.
+type SpecListItem struct {
+    path string
+}
+
+func (s *SpecListItem) Title() string {
+    if s == nil {
+        return ""
+    }
+    return filepath.Base(s.path)
+}
+
+func (s *SpecListItem) Summary() string {
+    if s == nil {
+        return ""
+    }
+    return strings.TrimSpace(s.path)
 }
