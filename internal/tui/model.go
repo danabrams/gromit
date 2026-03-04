@@ -19,6 +19,7 @@ type pipelineListModel interface {
 type Model struct {
 	store              *Store
 	currentView        string
+	activeTab          Tab
 	focusedPanel       int
 	scrollOffset       int
 	conversation       *ConversationController
@@ -33,6 +34,7 @@ func NewModel(store *Store) *Model {
 	return &Model{
 		store:       store,
 		currentView: ViewDashboard,
+		activeTab:   TabRunLoop,
 	}
 }
 
@@ -56,6 +58,22 @@ func (m *Model) FocusPrev() {
 	m.focusedPanel = (m.focusedPanel - 1 + 2) % 2
 }
 
+// NextTab advances the active top-level tab, wrapping around the tab list.
+func (m *Model) NextTab() {
+	if m == nil {
+		return
+	}
+	m.activeTab = nextTab(m.activeTab)
+}
+
+// PrevTab moves the active top-level tab backward, wrapping around the tab list.
+func (m *Model) PrevTab() {
+	if m == nil {
+		return
+	}
+	m.activeTab = prevTab(m.activeTab)
+}
+
 // PendingAction returns the action that should be executed after the TUI exits.
 func (m *Model) PendingAction() *PendingAction {
 	if m == nil {
@@ -70,6 +88,7 @@ func (m *Model) registerPipelineListModel(list pipelineListModel) {
 	}
 	m.pipelineListModels = append(m.pipelineListModels, list)
 }
+
 type pipelineListNavigator interface {
 	CursorUp()
 	CursorDown()
@@ -125,6 +144,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.FocusNext()
 		case tea.KeyShiftTab:
 			m.FocusPrev()
+		case tea.KeyLeft:
+			m.PrevTab()
+		case tea.KeyRight:
+			m.NextTab()
 		case tea.KeyUp:
 			m.forEachPipelineNavigator(func(nav pipelineListNavigator) {
 				nav.CursorUp()
