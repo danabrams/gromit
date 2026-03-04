@@ -175,3 +175,31 @@ func TestListModelSetItemsPreservesScrollOffset(t *testing.T) {
 		t.Fatalf("scrollOffset = %d after shrinking, want %d", got, want)
 	}
 }
+
+func TestListModelRenderClampsCursor(t *testing.T) {
+	items := []ListItem{
+		&testListItem{title: "alpha"},
+		&testListItem{title: "omega"},
+	}
+	model := &ListModel{
+		items:  items,
+		cursor: len(items),
+	}
+
+	rendered := strings.Split(strings.TrimSpace(model.Render(10)), "\n")
+	cursorLines := 0
+	for _, line := range rendered {
+		if strings.HasPrefix(line, "> ") {
+			cursorLines++
+			if !strings.Contains(line, "omega") {
+				t.Fatalf("cursor line %q missing omega", line)
+			}
+		}
+	}
+	if got, want := cursorLines, 1; got != want {
+		t.Fatalf("cursor lines = %d, want %d", got, want)
+	}
+	if got, want := model.cursor, len(items)-1; got != want {
+		t.Fatalf("cursor = %d, want %d", got, want)
+	}
+}
