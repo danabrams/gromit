@@ -112,6 +112,32 @@ quality_gates:
 	}
 }
 
+func TestLoadSetsProjectRoot(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	configContent := `version: 1
+worktree:
+  enabled: false
+`
+	if err := os.WriteFile(cfgPath, []byte(configContent), 0o644); err != nil {
+		t.Fatalf("write gromit.yaml: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	expectedRoot, err := filepath.Abs(tmpDir)
+	if err != nil {
+		t.Fatalf("filepath.Abs: %v", err)
+	}
+
+	if cfg.ProjectRoot != expectedRoot {
+		t.Fatalf("ProjectRoot = %q, want %q", cfg.ProjectRoot, expectedRoot)
+	}
+}
+
 func TestNormalizeNilFieldsInitializesAgentFlags(t *testing.T) {
 	cfg := &Config{
 		Agents: AgentsConfig{
