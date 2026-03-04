@@ -134,6 +134,10 @@ type OrchestratorConfig struct {
 	// Coordinator performs integration of queued session branches into main between iterations.
 	// Optional: nil means coordinator is disabled.
 	Coordinator Coordinator
+
+	// WorktreeManager manages worktree lifecycle operations.
+	// Optional: nil means worktree pruning at startup is skipped.
+	WorktreeManager WorktreeManager
 }
 
 type trendUpdaterCloser interface {
@@ -395,6 +399,15 @@ func (o *Orchestrator) Run(ctx context.Context, maxIterations int, deadline time
 	if o.cfg.Coordinator != nil {
 		if err := o.cfg.Coordinator.RecoverFromCrash(ctx); err != nil {
 			o.logWarning("Warning: coordinator crash recovery failed: %v", err)
+		}
+	}
+
+	// Prune stale session worktrees from previous runs whose directories no longer exist.
+	if o.cfg.WorktreeManager != nil && o.cfg.SessionWorktree {
+		if pruned, pruneErr := o.cfg.WorktreeManager.PruneStaleSessionWorktrees(ctx); pruneErr != nil {
+			o.logWarning("Warning: stale worktree pruning: %v", pruneErr)
+		} else if pruned > 0 {
+			o.logWarning("Pruned %d stale session worktree(s)", pruned)
 		}
 	}
 

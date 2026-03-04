@@ -96,6 +96,7 @@ type WorktreeManager interface {
 	PendingBranches(ctx context.Context) ([]string, error)
 	RemoveByPath(ctx context.Context, path string) error
 	Cleanup(ctx context.Context) error
+	PruneStaleSessionWorktrees(ctx context.Context) (int, error)
 }
 
 // BranchRouter abstracts branch selection based on bead labels.

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -349,6 +350,59 @@ func (m *Manager) Cleanup(ctx context.Context) error {
 	_, _ = m.runGit(ctx, m.MainDir, "worktree", "remove", m.WorktreeDir)
 
 	return nil
+}
+
+// PruneStaleSessionWorktrees removes session worktrees from previous gromit run
+// sessions whose directories no longer exist on disk. It lists all registered
+// worktrees, identifies those matching the "-gromit-run-" pattern, checks whether
+// their directory still exists, and force-removes stale entries.
+// Returns the count of removed worktrees and any errors encountered.
+func (m *Manager) PruneStaleSessionWorktrees(ctx context.Context) (int, error) {
+	if m == nil {
+		return 0, errors.New("nil Manager receiver")
+	}
+
+	ctx = m.contextFor(ctx)
+
+	output, err := m.runGit(ctx, m.MainDir, "worktree", "list", "--porcelain")
+	if err != nil {
+		return 0, fmt.Errorf("listing worktrees: %w", err)
+	}
+
+	// Parse porcelain output to extract worktree paths.
+	// Format: blocks separated by blank lines, each starting with "worktree <path>".
+	var sessionPaths []string
+	for _, line := range strings.Split(output, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, "worktree ") {
+			continue
+		}
+		wtPath := strings.TrimPrefix(trimmed, "worktree ")
+		if strings.Contains(wtPath, "-gromit-run-") {
+			sessionPaths = append(sessionPaths, wtPath)
+		}
+	}
+
+	removed := 0
+	var errs []string
+	for _, wtPath := range sessionPaths {
+		if _, statErr := os.Stat(wtPath); statErr == nil {
+			// Directory still exists on disk; not stale.
+			continue
+		}
+
+		// Directory is gone — force-remove the stale worktree entry.
+		if _, removeErr := m.runGit(ctx, m.MainDir, "worktree", "remove", "--force", wtPath); removeErr != nil {
+			errs = append(errs, fmt.Sprintf("removing %s: %v", wtPath, removeErr))
+			continue
+		}
+		removed++
+	}
+
+	if len(errs) > 0 {
+		return removed, fmt.Errorf("pruning stale worktrees: %s", strings.Join(errs, "; "))
+	}
+	return removed, nil
 }
 
 // RemoveByPath removes a session worktree by explicit path.
