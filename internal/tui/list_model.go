@@ -102,6 +102,12 @@ func (l *ListModel) Render(width int) string {
 		return ""
 	}
 
+	if l.cursor < 0 {
+		l.cursor = 0
+	} else if l.cursor >= len(l.items) {
+		l.cursor = len(l.items) - 1
+	}
+
 	start := 0
 	end := len(l.items)
 	if l.viewHeight > 0 {
