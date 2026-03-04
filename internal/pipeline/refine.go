@@ -10,6 +10,8 @@ import (
 	"github.com/danabrams/gromit/skills"
 )
 
+var refineIdeaIDGenerator = backlog.GenerateID
+
 // Refine executes the refine workflow interactively.
 func (p *Pipeline) Refine(ctx context.Context, input RefineInput) (*RefineResult, error) {
 	if p.deps == nil || p.deps.AgentResolver == nil {
@@ -109,7 +111,7 @@ func (p *Pipeline) Refine(ctx context.Context, input RefineInput) (*RefineResult
 
 		// Create backlog item
 		idea := &Idea{
-			ID:       backlog.GenerateID(),
+			ID:       refineIdeaIDGenerator(),
 			Text:     specTitle,
 			Type:     "feature",
 			Status:   "refined",
