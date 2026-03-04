@@ -237,6 +237,15 @@ func assertSameProjectRoot(t *testing.T, got, want string) {
 	}
 }
 
+func assertWorkingDir(t *testing.T, expected string) {
+	t.Helper()
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	assertSameProjectRoot(t, cwd, expected)
+}
+
 func createRepoRootWithSubdir(t *testing.T) (string, string) {
 	t.Helper()
 
