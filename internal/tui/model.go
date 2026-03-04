@@ -219,6 +219,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.scrollOffset++
 		case tea.KeyCtrlC:
 			return m, tea.Quit
+		case tea.KeyEsc:
+			if m.detailView {
+				m.detailView = false
+				return m, nil
+			}
+			if m.confirmDelete {
+				m.confirmDelete = false
+				return m, nil
+			}
 		case tea.KeyRunes:
 			if len(msg.Runes) == 0 {
 				break
