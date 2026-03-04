@@ -263,7 +263,50 @@ func TestRunDirect_ParallelCommands_BoundedConcurrency(t *testing.T) {
 		t.Fatalf("expected success, got %+v", result)
 	}
 	if got := atomic.LoadInt32(&peak); got != 2 {
-		t.Fatalf("peak parallelism=%d, want 2", got)
+		 t.Fatalf("peak parallelism=%d, want 2", got)
+	}
+}
+
+func TestRunDirect_ParallelCommands_CancelsOnFirstFailure(t *testing.T) {
+	t.Parallel()
+
+	cfg := newTestConfig()
+	cfg.Validation.Commands = []string{"fast-fail", "slow-block"}
+	cfg.Validation.MaxParallelCommands = 2
+
+	slowCanceled := make(chan struct{}, 1)
+
+	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
+		switch command {
+		case "fast-fail":
+			return "", "failure", 1, nil
+		case "slow-block":
+			select {
+			case <-ctx.Done():
+				slowCanceled <- struct{}{}
+				return "", "", 0, ctx.Err()
+			case <-time.After(1 * time.Second):
+				return "ok", "", 0, nil
+			}
+		default:
+			return "", "", 0, nil
+		}
+	}
+
+	r := NewRunner(cfg, cmdRunner, nil, nil)
+	ctx := context.Background()
+	result, err := r.RunDirect(ctx, cfg.Validation.Commands, "/tmp/test")
+	if err != nil {
+		t.Fatalf("RunDirect returned unexpected error: %v", err)
+	}
+	if result.Success {
+		t.Fatal("RunDirect should report failure when a parallel command fails")
+	}
+
+	select {
+	case <-slowCanceled:
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("slow command should be cancelled after fast failure")
 	}
 }
 
