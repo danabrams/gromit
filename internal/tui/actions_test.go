@@ -142,3 +142,60 @@ func TestHandleActionDeleteGuardWithEmptySelection(t *testing.T) {
 		t.Fatalf("expected no delete call when confirming without a selection")
 	}
 }
+
+func TestHandleActionDeleteConfirmationUppercaseFlow(t *testing.T) {
+	store := &Store{}
+	deleted := []struct {
+		tab        Tab
+		identifier string
+	}{}
+	store.DeletePipelineItemFunc = func(tab Tab, identifier string) {
+		deleted = append(deleted, struct {
+			tab        Tab
+			identifier string
+		}{tab: tab, identifier: identifier})
+	}
+	item := &mockActionableListItem{id: "idea-upper"}
+	m := &Model{}
+
+	// Uppercase X should trigger the confirmation prompt just like lowercase x.
+	if _, _ = handleAction(m, "X", Tab("backlog"), item, store); !m.confirmDelete {
+		t.Fatalf("expected confirmDelete after pressing uppercase X")
+	}
+
+	// Uppercase Y should perform the deletion and clear the confirmation.
+	if _, _ = handleAction(m, "Y", Tab("backlog"), item, store); m.confirmDelete {
+		t.Fatalf("expected confirmDelete cleared after confirming deletion with uppercase Y")
+	}
+	if got, want := len(deleted), 1; got != want {
+		t.Fatalf("expected one delete call, got %d", got)
+	}
+	if deleted[0].tab != Tab("backlog") || deleted[0].identifier != "idea-upper" {
+		t.Fatalf("unexpected delete record: %+v", deleted[0])
+	}
+
+	m.confirmDelete = true
+	if _, _ = handleAction(m, "N", Tab("backlog"), item, store); m.confirmDelete {
+		t.Fatalf("expected confirmDelete cleared after pressing uppercase N")
+	}
+	if got := len(deleted); got != 1 {
+		t.Fatalf("expected no additional delete calls after cancel, got %d", got)
+	}
+
+	m.confirmDelete = true
+	if _, _ = handleAction(m, "Esc", Tab("backlog"), item, store); m.confirmDelete {
+		t.Fatalf("expected confirmDelete cleared after pressing Esc")
+	}
+	if got := len(deleted); got != 1 {
+		t.Fatalf("expected no additional delete calls after Esc, got %d", got)
+	}
+
+	// Uppercase keys should honor the empty selection guard too.
+	if _, _ = handleAction(m, "X", Tab("backlog"), nil, store); m.confirmDelete {
+		t.Fatalf("expected confirmDelete to remain false when uppercase X is pressed with no selection")
+	}
+	m.confirmDelete = true
+	if _, _ = handleAction(m, "Y", Tab("backlog"), nil, store); len(deleted) != 1 {
+		t.Fatalf("expected no delete when confirming with uppercase Y and no selection")
+	}
+}
