@@ -19,6 +19,14 @@ func HintBar(tab Tab, detailView, confirmDelete bool) string {
 			return "[q] quit | [esc] back"
 		}
 		return "[p] plan | [v] view | [x] delete | [q] quit"
+	case "plans":
+		if confirmDelete {
+			return "[y/n] confirm delete"
+		}
+		if detailView {
+			return "[q] quit | [esc] back"
+		}
+		return "[d] decompose | [v] view | [x] delete | [q] quit"
 	}
 	return ""
 }
