@@ -72,6 +72,37 @@ func TestGeminiProviderRunFallsBackToInlinePUsesExportedConstant(t *testing.T) {
 	}
 }
 
+func TestGeminiProviderModelForTierFallsBackToTier(t *testing.T) {
+	t.Parallel()
+
+	gp := &GeminiProvider{
+		tierToModel: map[string]string{
+			TierLow: "gemini-3-flash",
+		},
+	}
+
+	const unknownTier = "tier-no-mapping"
+	if got := gp.ModelForTier(unknownTier); got != unknownTier {
+		t.Fatalf("ModelForTier(%q) = %q, want %q", unknownTier, got, unknownTier)
+	}
+}
+
+func TestGeminiProviderModelForTierSkipsEmptyMappedModel(t *testing.T) {
+	t.Parallel()
+
+	const tierWithEmptyMapping = "tier-empty"
+
+	gp := &GeminiProvider{
+		tierToModel: map[string]string{
+			tierWithEmptyMapping: "",
+		},
+	}
+
+	if got := gp.ModelForTier(tierWithEmptyMapping); got != tierWithEmptyMapping {
+		t.Fatalf("ModelForTier(%q) = %q, want %q", tierWithEmptyMapping, got, tierWithEmptyMapping)
+	}
+}
+
 func TestGeminiProviderRunValidationRunsPrompt(t *testing.T) {
 	t.Parallel()
 	mockBinary := testCreateBinaryWithETXTBSYProtection(t, `echo '{"output":"1. go test\n2. go vet\n\nVALIDATION_PASSED","usage":{"input_tokens":100,"output_tokens":50,"cached_input_tokens":0},"cost":{"total":0},"model":"gemini-2.0-flash","session_id":"test","response":"1. go test\n2. go vet\n\nVALIDATION_PASSED"}'
