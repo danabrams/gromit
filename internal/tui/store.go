@@ -438,6 +438,13 @@ func (s *Store) SetPipelineItems(items PipelineItems) {
 	s.PipelineItems = normalizePipelineItems(items)
 }
 
+// GetPipelineItems returns the current pipeline items under a read lock, ensuring slices are normalized.
+func (s *Store) GetPipelineItems() PipelineItems {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return normalizePipelineItems(s.PipelineItems)
+}
+
 // DeletePipelineItem invokes the configured deletion callback for the requested tab and identifier.
 func (s *Store) DeletePipelineItem(tab Tab, identifier string) {
 	if s == nil {
