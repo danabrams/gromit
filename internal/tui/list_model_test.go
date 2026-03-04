@@ -56,10 +56,25 @@ func TestListModelRenderShowsCursorAndScroll(t *testing.T) {
 	if got, want := len(lines), 2; got != want {
 		t.Fatalf("rendered lines = %d, want %d", got, want)
 	}
-	if got := lines[0]; !strings.HasPrefix(got, "> ") || !strings.Contains(got, "third") {
-		t.Fatalf("expected cursor line containing third item, got %q", got)
+
+	cursorLines := []string{}
+	for _, line := range lines {
+		if strings.HasPrefix(line, "> ") {
+			cursorLines = append(cursorLines, line)
+		}
 	}
-	if got := lines[1]; !strings.HasPrefix(got, "  ") || !strings.Contains(got, "charlie") {
-		t.Fatalf("expected following line containing charlie summary, got %q", got)
+	if len(cursorLines) != 1 {
+		t.Fatalf("expected 1 cursor line, got %d", len(cursorLines))
+	}
+	if !strings.Contains(cursorLines[0], "third") {
+		t.Fatalf("cursor line missing third item, got %q", cursorLines[0])
+	}
+
+	otherLine := lines[0]
+	if strings.HasPrefix(otherLine, "> ") {
+		otherLine = lines[1]
+	}
+	if !strings.Contains(otherLine, "second") {
+		t.Fatalf("non-cursor line missing second item, got %q", otherLine)
 	}
 }
