@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/backlog"
@@ -26,6 +27,17 @@ func TestStorePipelineItemsGetNormalizesNilFields(t *testing.T) {
 	}
 	if len(items.UnplannedSpecs) != 1 || items.UnplannedSpecs[0] != "spec-alpha" {
 		t.Fatalf("unexpected UnplannedSpecs = %v", items.UnplannedSpecs)
+	}
+}
+
+func TestStorePipelineItemsGetHandlesNilStore(t *testing.T) {
+	var store *Store
+
+	items := store.GetPipelineItems()
+	want := normalizePipelineItems(PipelineItems{})
+
+	if !reflect.DeepEqual(items, want) {
+		t.Fatalf("pipeline items = %+v, want %+v", items, want)
 	}
 }
 
