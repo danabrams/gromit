@@ -113,13 +113,21 @@ func NewGitOps(repoDir, baseBranch string) *GitOps {
 // of the form: "fatal: '<branch>' is already used by worktree at '<path>'"
 // Returns the path and true if found, or empty string and false otherwise.
 func parseWorktreeConflictPath(gitOutput string) (string, bool) {
-	const marker = "already used by worktree at '"
+	const marker = "already used by worktree at "
 	idx := strings.Index(gitOutput, marker)
 	if idx < 0 {
 		return "", false
 	}
-	rest := gitOutput[idx+len(marker):]
-	endIdx := strings.Index(rest, "'")
+	rest := strings.TrimSpace(gitOutput[idx+len(marker):])
+	if rest == "" {
+		return "", false
+	}
+	delim := rest[0]
+	if delim != '\'' && delim != '"' {
+		return "", false
+	}
+	rest = rest[1:]
+	endIdx := strings.IndexByte(rest, byte(delim))
 	if endIdx < 0 {
 		return "", false
 	}
