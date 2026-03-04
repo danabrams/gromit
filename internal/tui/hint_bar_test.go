@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestRenderHintBarNormalState(t *testing.T) {
+func TestRenderHintBarNormalStateForAllTabs(t *testing.T) {
 	for _, tc := range normalHintTestCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			hint := RenderHintBar(tc.tab, true, false, false)
@@ -60,5 +60,43 @@ func TestRenderHintBarConfirmationOverride(t *testing.T) {
 				t.Fatalf("RenderHintBar(%q, confirm) missing confirmation text, got %q", tc.tab, hint)
 			}
 		})
+	}
+}
+
+func normalHintTestCases() []struct {
+	name string
+	tab  Tab
+	want []string
+} {
+	return []struct {
+		name string
+		tab  Tab
+		want []string
+	}{
+		{
+			name: "backlog",
+			tab:  TabBacklog,
+			want: []string{"[r] refine", "[v] view", "[x] delete", "[q] quit"},
+		},
+		{
+			name: "specs",
+			tab:  TabSpecs,
+			want: []string{"[p] plan", "[v] view", "[x] delete", "[q] quit"},
+		},
+		{
+			name: "plans",
+			tab:  TabPlans,
+			want: []string{"[d] decompose", "[v] view", "[x] delete", "[q] quit"},
+		},
+		{
+			name: "queue",
+			tab:  TabQueue,
+			want: []string{"[v] view", "[q] quit"},
+		},
+		{
+			name: "runloop",
+			tab:  TabRunLoop,
+			want: []string{"[q] quit"},
+		},
 	}
 }
