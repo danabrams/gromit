@@ -10,6 +10,38 @@ type FailurePatterns struct {
 	RateLimit []string
 }
 
+var baseFailurePatterns = FailurePatterns{
+	Auth: []string{
+		"unauthorized",
+		"invalid api key",
+		"authentication",
+		"forbidden",
+	},
+	Startup: []string{
+		"failed to start",
+		"startup",
+		"initializ",
+	},
+	Transport: []string{
+		"connection reset",
+		"connection refused",
+		"connection timed out",
+		"timeout",
+		"service unavailable",
+		"broken pipe",
+		"could not resolve host",
+		"internal server error",
+		"temporary failure",
+	},
+	RateLimit: []string{
+		"rate limit",
+		"too many requests",
+		"quota exceeded",
+		"429",
+		"503",
+	},
+}
+
 // hasUsageLimitKeywords checks if both output and stderr contain any usage limit keywords.
 func hasUsageLimitKeywords(output, stderr string) bool {
 	combined := strings.ToLower(output + "\n" + stderr)
@@ -58,4 +90,17 @@ func classifyFailure(exitCode int, text string, patterns FailurePatterns) string
 	}
 
 	return FailureCategoryOther
+}
+
+func classifyFailureWithCommonPatterns(exitCode int, text string, extra FailurePatterns) string {
+	return classifyFailure(exitCode, text, mergeFailurePatterns(baseFailurePatterns, extra))
+}
+
+func mergeFailurePatterns(base, extra FailurePatterns) FailurePatterns {
+	return FailurePatterns{
+		Auth:      append([]string{}, append(base.Auth, extra.Auth...)...),
+		Startup:   append([]string{}, append(base.Startup, extra.Startup...)...),
+		Transport: append([]string{}, append(base.Transport, extra.Transport...)...),
+		RateLimit: append([]string{}, append(base.RateLimit, extra.RateLimit...)...),
+	}
 }
