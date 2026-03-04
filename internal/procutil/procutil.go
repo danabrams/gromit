@@ -150,7 +150,12 @@ func collectDescendants(pid int) []int {
 // (go test, go build, go vet) spawned by LLM agents and validation runners,
 // preventing cgroup PID exhaustion on resource-constrained hosts.
 func SubprocessEnv() []string {
-	env := os.Environ()
+	return buildSubprocessEnv(os.Environ(), runtime.GOMAXPROCS(0))
+}
+
+// buildSubprocessEnv allows tests to drive GOMAXPROCS decisions without mutating
+// global state.
+func buildSubprocessEnv(env []string, currentGOMAXPROCS int) []string {
 	for _, kv := range env {
 		if strings.HasPrefix(kv, "GOMAXPROCS=") {
 			// Linux cgroup tooling or macOS hosts may already choose an appropriate
@@ -159,13 +164,11 @@ func SubprocessEnv() []string {
 		}
 	}
 	maxParallelism, err := strconv.Atoi(MaxGoParallelism)
-	if err == nil {
-		if runtime.GOMAXPROCS(0) <= maxParallelism {
-			// Linux cgroup tooling or macOS hosts may already choose an appropriate
-			// level of parallelism via runtime heuristics, so we respect the
-			// host-chosen value instead of overwriting it.
-			return env
-		}
+	if err == nil && currentGOMAXPROCS <= maxParallelism {
+		// Linux cgroup tooling or macOS hosts may already choose an appropriate
+		// level of parallelism via runtime heuristics, so we respect the
+		// host-chosen value instead of overwriting it.
+		return env
 	}
 	return append(env, "GOMAXPROCS="+MaxGoParallelism)
 }
