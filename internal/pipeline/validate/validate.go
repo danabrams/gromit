@@ -145,6 +145,7 @@ func (v *Validate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 			failureOutput := formatCommandFailure(cmd, exitCode, stdout, stderr)
 			summary := validation.ExtractValidationSummary(failureOutput)
 			emitFail(summary)
+			v.attemptAutoFix()
 			return pipeline.Output{
 				Decision:           pipeline.Block,
 				ValidationFailures: []string{summary},
@@ -171,4 +172,13 @@ func formatCommandFailure(command string, exitCode int, stdout, stderr string) s
 // formatTimeoutMessage formats a timeout error message for a command.
 func formatTimeoutMessage(command string) string {
 	return fmt.Sprintf("Command timeout: %s exceeded configured timeout limit", command)
+}
+
+func (v *Validate) attemptAutoFix() {
+	if v == nil || v.autoFixFn == nil || v.autoFixStartCommit == "" {
+		return
+	}
+	if err := v.autoFixFn(v.autoFixStartCommit); err != nil && v.output != nil {
+		_, _ = fmt.Fprintf(v.output, "Warning: validate auto-fix failed: %v\n", err)
+	}
 }
