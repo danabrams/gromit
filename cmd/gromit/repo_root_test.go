@@ -79,6 +79,86 @@ func TestFindProjectRoot_UsesProjectPathFlag(t *testing.T) {
 	}
 }
 
+func TestFindProjectRoot_ProjectPathRelativeToInitialWorkingDir(t *testing.T) {
+	t.Parallel()
+
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, repoConfigName), []byte(""), 0o644); err != nil {
+		t.Fatalf("write gromit.yaml: %v", err)
+	}
+
+	relPath, err := filepath.Rel(origWD, root)
+	if err != nil {
+		t.Fatalf("rel root: %v", err)
+	}
+
+	origProjectPath := projectPath
+	projectPath = relPath
+	t.Cleanup(func() {
+		projectPath = origProjectPath
+	})
+
+	otherDir := t.TempDir()
+	if err := os.Chdir(otherDir); err != nil {
+		t.Fatalf("chdir to other dir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(origWD)
+	})
+
+	got, err := findProjectRoot()
+	if err != nil {
+		t.Fatalf("findProjectRoot: %v", err)
+	}
+	if got != root {
+		t.Fatalf("root = %q, want %q", got, root)
+	}
+}
+
+func TestFindProjectRoot_WalksUpFromWorkingDirWhenProjectPathUnset(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, repoConfigName), []byte(""), 0o644); err != nil {
+		t.Fatalf("write gromit.yaml: %v", err)
+	}
+	subdir := filepath.Join(root, "subdir")
+	if err := os.MkdirAll(subdir, 0o755); err != nil {
+		t.Fatalf("create subdir: %v", err)
+	}
+
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(origWD)
+	})
+
+	origProjectPath := projectPath
+	projectPath = ""
+	t.Cleanup(func() {
+		projectPath = origProjectPath
+	})
+
+	if err := os.Chdir(subdir); err != nil {
+		t.Fatalf("chdir to subdir: %v", err)
+	}
+
+	got, err := findProjectRoot()
+	if err != nil {
+		t.Fatalf("findProjectRoot: %v", err)
+	}
+	if got != root {
+		t.Fatalf("root = %q, want %q", got, root)
+	}
+}
+
 func TestEnsureRepoRootFromSubdir(t *testing.T) {
 
 	root := t.TempDir()
