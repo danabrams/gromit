@@ -38,6 +38,13 @@ func (i *IdeaListItem) Summary() string {
 	return strings.Join(parts, " · ")
 }
 
+func (i *IdeaListItem) Identifier() string {
+	if i == nil || i.idea == nil {
+		return ""
+	}
+	return strings.TrimSpace(i.idea.ID)
+}
+
 // SpecListItem adapts a spec path for pipeline tabs.
 type SpecListItem struct {
 	path string
@@ -57,6 +64,13 @@ func (s *SpecListItem) Summary() string {
 	return strings.TrimSpace(s.path)
 }
 
+func (s *SpecListItem) Identifier() string {
+	if s == nil {
+		return ""
+	}
+	return strings.TrimSpace(s.path)
+}
+
 // PlanListItem adapts a plan path for pipeline tabs.
 type PlanListItem struct {
 	path string
@@ -70,6 +84,13 @@ func (p *PlanListItem) Title() string {
 }
 
 func (p *PlanListItem) Summary() string {
+	if p == nil {
+		return ""
+	}
+	return strings.TrimSpace(p.path)
+}
+
+func (p *PlanListItem) Identifier() string {
 	if p == nil {
 		return ""
 	}
@@ -101,6 +122,13 @@ func (b *BeadListItem) Summary() string {
 	}
 	parts = append(parts, fmt.Sprintf("priority=%d", b.bead.Priority))
 	return strings.Join(parts, " · ")
+}
+
+func (b *BeadListItem) Identifier() string {
+	if b == nil || b.bead == nil {
+		return ""
+	}
+	return strings.TrimSpace(b.bead.ID)
 }
 
 type pipelineTabListModel interface {
