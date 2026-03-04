@@ -433,21 +433,24 @@ func TestTrackerBeadClientReadyWithLabelFallsBackToListWithLabel(t *testing.T) {
 	}
 }
 
-func TestTrackerBeadClientReadyWithLabelAlwaysUsesTrackerList(t *testing.T) {
+func TestTrackerBeadClientReadyWithLabelUsesTrackerReadyCommand(t *testing.T) {
 	t.Parallel()
 
-	var calls [][]string
-	bdClient := &bead.Client{
-		RunFn: func(args ...string) (string, error) {
-			calls = append(calls, append([]string(nil), args...))
-			if len(args) >= 1 && args[0] == "list" {
-				return `[{"id":"bead-1","title":"Ready bead","description":"desc","priority":1,"labels":["spec:test"],"issue_type":"task","status":"open"}]`, nil
-			}
-			return "", fmt.Errorf("unexpected bd command %q", args)
-		},
-	}
+	 var calls [][]string
+	 bdClient := &bead.Client{
+	 	 RunFn: func(args ...string) (string, error) {
+	 	 	 calls = append(calls, append([]string(nil), args...))
+	 	 	 if len(args) >= 1 && args[0] == "ready" {
+	 	 	 	 return `[{"id":"bead-1","title":"Ready bead","description":"desc","priority":1,"labels":["spec:test"],"issue_type":"task","status":"open"}]`, nil
+	 	 	 }
+	 	 	 if len(args) >= 1 && args[0] == "list" {
+	 	 	 	 return `[{"id":"bead-1","title":"Ready bead","description":"desc","priority":1,"labels":["spec:test"],"issue_type":"task","status":"open"}]`, nil
+	 	 	 }
+	 	 	 return "", fmt.Errorf("unexpected bd command %q", args)
+	 	 },
+	 }
 
-	bc := &trackerBeadClient{client: bead.NewBDAdapter(bdClient)}
+	 bc := &trackerBeadClient{client: bead.NewBDAdapter(bdClient)}
 	result, err := bc.ReadyWithLabel(context.Background(), "spec:test")
 	if err != nil {
 		t.Fatalf("ReadyWithLabel returned error: %v", err)
@@ -458,8 +461,16 @@ func TestTrackerBeadClientReadyWithLabelAlwaysUsesTrackerList(t *testing.T) {
 	if result.ID != "bead-1" {
 		t.Fatalf("bead ID = %s, want bead-1", result.ID)
 	}
-	if len(calls) == 0 || calls[0][0] != "list" {
-		t.Fatalf("bd command = %v, want list", calls)
+	if len(calls) == 0 {
+		t.Fatalf("expected at least one bd command, got none")
+	}
+	if calls[0][0] != "ready" {
+		t.Fatalf("bd command = %v, want ready", calls)
+	}
+	for _, args := range calls {
+		if args[0] == "list" {
+			t.Fatalf("did not expect list command, got %v", calls)
+		}
 	}
 }
 
