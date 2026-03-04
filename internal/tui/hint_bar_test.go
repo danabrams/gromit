@@ -77,3 +77,23 @@ func TestHintBarDetailViewOverride(t *testing.T) {
 		}
 	}
 }
+
+func TestHintBarConfirmationOverride(t *testing.T) {
+	tests := []struct {
+		tab      Tab
+		wantKeys []string
+	}{
+		{Tab("backlog"), []string{"y", "n"}},
+		{Tab("specs"), []string{"y", "n"}},
+		{Tab("plans"), []string{"y", "n"}},
+	}
+
+	for _, tc := range tests {
+		hint := HintBar(tc.tab, false, true)
+		for _, key := range tc.wantKeys {
+			if !strings.Contains(hint, key) {
+				t.Fatalf("HintBar for %s tab confirm delete missing key %q, got %q", tc.tab, key, hint)
+			}
+		}
+	}
+}
