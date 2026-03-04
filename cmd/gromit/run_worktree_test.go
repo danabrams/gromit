@@ -209,6 +209,49 @@ func TestRunInDedicatedWorktree_BranchPrefix(t *testing.T) {
 	}
 }
 
+func TestRunInDedicatedWorktree_RestoresOriginalWorkingDirectory(t *testing.T) {
+	origManager := runWorktreeNewManagerFn
+	origCleanup := runWorktreeCleanupFn
+	defer func() {
+		runWorktreeNewManagerFn = origManager
+		runWorktreeCleanupFn = origCleanup
+	}()
+
+	originalWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getting original cwd: %v", err)
+	}
+
+	tmpDir := t.TempDir()
+	worktreeDir := tmpDir + "-gromit-run-restore"
+	if err := os.MkdirAll(worktreeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(worktreeDir)
+
+	runWorktreeNewManagerFn = func(mainDir string) (runWorktreeManager, error) {
+		return &fakeRunWorktreeManager{
+			session: &worktree.SessionWorktree{
+				BranchName:  "gromit/run-restore",
+				WorktreeDir: worktreeDir,
+			},
+		}, nil
+	}
+	runWorktreeCleanupFn = func(_, _, _ string) {}
+
+	if err := runInDedicatedWorktree(context.Background(), tmpDir, func() error { return nil }); err != nil {
+		t.Fatalf("runInDedicatedWorktree() error = %v", err)
+	}
+
+	gotWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getting cwd after run: %v", err)
+	}
+	if gotWD != originalWD {
+		t.Fatalf("cwd after run = %q, want %q", gotWD, originalWD)
+	}
+}
+
 // fakeRunWorktreeManager is a test double for runWorktreeManager.
 type fakeRunWorktreeManager struct {
 	session         *worktree.SessionWorktree

@@ -42,10 +42,14 @@ func setupRunSpecTestEnv(t *testing.T) (specsDir string, cleanup func()) {
 	origRunSpec := runSpecFlag
 	origRunEpic := runEpicFlag
 	origRunHasOpenBeadsForLabel := runHasOpenBeadsForLabelFn
+	origRunInDedicatedWorktree := runInDedicatedWorktreeFn
 
 	t.Chdir(tempDir)
 
 	configPath = "gromit.yaml"
+	runInDedicatedWorktreeFn = func(_ context.Context, _ string, fn func() error) error {
+		return fn()
+	}
 
 	var cleanupOnce sync.Once
 	cleanup = func() {
@@ -54,6 +58,7 @@ func setupRunSpecTestEnv(t *testing.T) (specsDir string, cleanup func()) {
 			runSpecFlag = origRunSpec
 			runEpicFlag = origRunEpic
 			runHasOpenBeadsForLabelFn = origRunHasOpenBeadsForLabel
+			runInDedicatedWorktreeFn = origRunInDedicatedWorktree
 			if err := os.Chdir(origWD); err != nil {
 				t.Fatalf("restoring working directory: %v", err)
 			}

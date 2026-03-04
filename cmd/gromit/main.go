@@ -42,6 +42,7 @@ var (
 var (
 	newRunnerWithStageContextFn = runner.NewRunnerWithStageContext
 	newBuildSpecStageContextFn  = runner.BuildSpecStageContext
+	runInDedicatedWorktreeFn    = runInDedicatedWorktree
 )
 
 var (
@@ -264,7 +265,7 @@ func runLoop(cmd *cobra.Command, args []string) error {
 	defer signal.Stop(sigCh)
 	go handleRunSignals(sigCh, stopCh, cancel, os.Stderr)
 
-	return runInDedicatedWorktree(ctx, mainDir, func() error {
+	return runInDedicatedWorktreeFn(ctx, mainDir, func() error {
 		cfg, err := loadConfig()
 		if err != nil {
 			return fmt.Errorf("loading config: %w", err)

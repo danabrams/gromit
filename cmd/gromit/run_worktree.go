@@ -38,6 +38,10 @@ func runInDedicatedWorktree(ctx context.Context, mainDir string, fn func() error
 	if mainDir == "" {
 		return fmt.Errorf("mainDir cannot be empty")
 	}
+	origDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("getting current directory: %w", err)
+	}
 
 	manager, err := runWorktreeNewManagerFn(mainDir)
 	if err != nil {
@@ -51,6 +55,9 @@ func runInDedicatedWorktree(ctx context.Context, mainDir string, fn func() error
 
 	// Use context.Background() for cleanup so a cancelled ctx doesn't block it
 	defer runWorktreeCleanupFn(mainDir, session.WorktreeDir, session.BranchName)
+	defer func() {
+		_ = os.Chdir(origDir)
+	}()
 
 	if err := os.Chdir(session.WorktreeDir); err != nil {
 		return fmt.Errorf("changing to worktree dir %s: %w", session.WorktreeDir, err)
