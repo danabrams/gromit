@@ -48,3 +48,11 @@ func TestHintBarQueueTabNormalState(t *testing.T) {
 		}
 	}
 }
+
+func TestHintBarRunLoopTabNormalState(t *testing.T) {
+	hint := HintBar(Tab("runloop"), false, false)
+
+	if !strings.Contains(hint, "q") {
+		t.Fatalf("HintBar for runloop tab missing key %q, got %q", "q", hint)
+	}
+}
