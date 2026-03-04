@@ -30,21 +30,31 @@ func HintBar(tab Tab, detailView, confirmDelete bool) string {
 }
 
 func renderNormalHints(tab Tab, hasSelection bool) string {
-	_ = hasSelection // placeholder until selection-specific hints exist
+	actions := []string{}
 	switch tab {
 	case TabBacklog:
-		return renderHintActions([]string{"[r] refine", "[v] view", "[x] delete", "[q] quit"})
+		if hasSelection {
+			actions = append(actions, "[r] refine", "[v] view", "[x] delete")
+		}
 	case TabSpecs:
-		return renderHintActions([]string{"[p] plan", "[v] view", "[x] delete", "[q] quit"})
+		if hasSelection {
+			actions = append(actions, "[p] plan", "[v] view", "[x] delete")
+		}
 	case TabPlans:
-		return renderHintActions([]string{"[d] decompose", "[v] view", "[x] delete", "[q] quit"})
+		if hasSelection {
+			actions = append(actions, "[d] decompose", "[v] view", "[x] delete")
+		}
 	case TabQueue:
-		return renderHintActions([]string{"[v] view", "[q] quit"})
+		if hasSelection {
+			actions = append(actions, "[v] view")
+		}
 	case TabRunLoop:
-		return renderHintActions([]string{"[q] quit"})
+		// run loop only supports quit; nothing to add here
 	default:
 		return ""
 	}
+	actions = append(actions, "[q] quit")
+	return renderHintActions(actions)
 }
 
 func renderHintActions(actions []string) string {
