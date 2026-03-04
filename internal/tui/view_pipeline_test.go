@@ -22,3 +22,15 @@ func TestIdeaListItemTitleSummary(t *testing.T) {
         t.Fatalf("Summary() = %q, want %q", got, want)
     }
 }
+
+func TestSpecListItemTitleSummary(t *testing.T) {
+    path := "specs/awesome-feature.md"
+    item := &SpecListItem{path: path}
+
+    if got, want := item.Title(), "awesome-feature.md"; got != want {
+        t.Fatalf("Title() = %q, want %q", got, want)
+    }
+    if got, want := item.Summary(), path; got != want {
+        t.Fatalf("Summary() = %q, want %q", got, want)
+    }
+}
