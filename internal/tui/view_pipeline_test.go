@@ -184,3 +184,16 @@ func TestRenderPipelineDetailAlwaysDisplaysContentHeading(t *testing.T) {
 		t.Fatalf("expected detail view to include Content heading, got %q", got)
 	}
 }
+
+func TestRenderPipelineDetailShowsNoItemsWhenContentEmpty(t *testing.T) {
+	listModel := &testPipelineTabModel{
+		rendered: "",
+		selected: &mockListItem{title: "Empty idea", summary: "No extra content"},
+	}
+
+	for _, tc := range pipelineTabRenderers {
+		if got := tc.renderer(nil, listModel, 80, true); !strings.Contains(got, "No items") {
+			t.Fatalf("expected 'No items' in detail output for %s tab when content empty, got %q", tc.header, got)
+		}
+	}
+}
