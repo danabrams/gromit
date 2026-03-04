@@ -28,6 +28,7 @@ const claudeProcessCapacityWait = 1500 * time.Millisecond
 type Result struct {
 	Success           bool          `json:"success"`
 	Output            string        `json:"output"`
+	Stderr            string        `json:"stderr"`
 	ExitCode          int           `json:"exit_code"`
 	Duration          time.Duration `json:"duration"`
 	Model             string        `json:"model"`
@@ -115,6 +116,7 @@ func (c *Client) Run(ctx context.Context, prompt string, model string) (*Result,
 
 	result := &Result{
 		Output:   stdout.String(),
+		Stderr:   stderr.String(),
 		Duration: duration,
 		Model:    model,
 	}
