@@ -5,6 +5,19 @@ import (
 	"testing"
 )
 
+func TestRenderHintBarNormalState(t *testing.T) {
+	for _, tc := range normalHintTestCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			hint := RenderHintBar(tc.tab, true, false, false)
+			for _, want := range tc.want {
+				if !strings.Contains(hint, want) {
+					t.Fatalf("RenderHintBar(%q) missing %q in %q", tc.tab, want, hint)
+				}
+			}
+		})
+	}
+}
+
 func TestRenderHintBarDetailViewOverride(t *testing.T) {
 	testCases := []struct {
 		name string
