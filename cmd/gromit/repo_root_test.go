@@ -65,7 +65,7 @@ func TestFindProjectRoot_UsesProjectPathFlag(t *testing.T) {
 	})
 	projectPath = filepath.Base(root)
 
-	want, err := filepath.Abs(root)
+	want, err := absPath(projectPath, "project path flag")
 	if err != nil {
 		t.Fatalf("abs root: %v", err)
 	}

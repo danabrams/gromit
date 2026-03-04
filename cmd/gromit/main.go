@@ -26,6 +26,7 @@ import (
 
 var (
 	configPath                 string
+	projectPath                string
 	maxIterations              int
 	readinessEmergencyOverride bool
 	nonInteractive             bool
@@ -142,6 +143,7 @@ within that scope. Without either flag, all beads are included (default behavior
 
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", "gromit.yaml", "Path to config file")
+	rootCmd.PersistentFlags().StringVarP(&projectPath, "project-path", "P", "", "Path to project root (must contain gromit.yaml or .gromit/)")
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
 		if !commandRequiresRepoRoot(cmd) {
 			return nil
@@ -240,6 +242,15 @@ func loadConfig() (*config.Config, error) {
 		}
 		return nil, err
 	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("get working directory: %w", err)
+	}
+	rootAbs, err := absPath(cwd, "project root")
+	if err != nil {
+		return nil, err
+	}
+	cfg.ProjectRoot = rootAbs
 	return cfg, nil
 }
 
