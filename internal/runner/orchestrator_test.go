@@ -529,6 +529,55 @@ func TestOrchestrator_SuccessPath_CarriesBuildModelToIterationLog(t *testing.T) 
 	}
 }
 
+func TestOrchestrator_SuccessPathRecordsTrivialAutoFixed(t *testing.T) {
+	t.Parallel()
+	var capturedResult *logger.IterationLog
+
+	build := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+	validate := &fakeStage{runFn: func(_ context.Context, _ pipeline.Input) (pipeline.Output, error) {
+		return pipeline.Output{Decision: pipeline.Proceed, TrivialAutoFixed: true}, nil
+	}}
+	epilogueStage := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		if in.Result != nil {
+			capturedResult = in.Result
+		}
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-trivial-auto-fix", Title: "Trivial auto fix bead"}, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     &fakeStage{},
+		Build:    build,
+		Validate: validate,
+		Epilogue: epilogueStage,
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 1, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if capturedResult == nil {
+		t.Fatal("IterationLog was not captured; want log entry on success path")
+	}
+	if !capturedResult.TrivialAutoFixed {
+		t.Errorf("IterationLog.TrivialAutoFixed = %v, want true", capturedResult.TrivialAutoFixed)
+	}
+}
+
 // TestOrchestrator_SuccessPathLifecycleFailureRecordsFailureOutcome verifies that when
 // the Epilogue fails to close the bead, the persisted IterationLog marks the iteration as failed.
 func TestOrchestrator_SuccessPathLifecycleFailureRecordsFailureOutcome(t *testing.T) {
