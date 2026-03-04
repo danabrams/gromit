@@ -286,3 +286,37 @@ func TestEnsureRepoRootFromSubdir(t *testing.T) {
 		t.Fatalf("cwd = %s, want %s", cwdAbs, rootAbs)
 	}
 }
+
+func TestEnsureRepoRoot_UsesProjectPath(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, repoConfigName), []byte(""), 0o644); err != nil {
+		t.Fatalf("write %s: %v", repoConfigName, err)
+	}
+
+	workDir := t.TempDir()
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(origWD)
+	})
+
+	if err := os.Chdir(workDir); err != nil {
+		t.Fatalf("chdir to work dir: %v", err)
+	}
+
+	origProjectPath := projectPath
+	projectPath = root
+	t.Cleanup(func() {
+		projectPath = origProjectPath
+	})
+
+	if err := ensureRepoRoot(); err != nil {
+		t.Fatalf("ensureRepoRoot: %v", err)
+	}
+
+	assertWorkingDir(t, root)
+}
