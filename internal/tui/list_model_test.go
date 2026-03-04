@@ -46,6 +46,28 @@ func TestListModelMoveDownClampsCursor(t *testing.T) {
 	}
 }
 
+func TestListModelSelectedClampsCursor(t *testing.T) {
+	items := []ListItem{
+		&testListItem{title: "alpha"},
+		&testListItem{title: "omega"},
+	}
+	model := &ListModel{
+		items:  items,
+		cursor: len(items) + 2,
+	}
+
+	selected := model.Selected()
+	if selected == nil {
+		t.Fatal("expected selected item, got nil")
+	}
+	if got, want := selected.Title(), "omega"; got != want {
+		t.Fatalf("selected title = %q, want %q", got, want)
+	}
+	if got, want := model.cursor, len(items)-1; got != want {
+		t.Fatalf("cursor = %d, want %d", got, want)
+	}
+}
+
 func TestListModelSetItemsClampsCursor(t *testing.T) {
 	model := &ListModel{
 		cursor:       5,
