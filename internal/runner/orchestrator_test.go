@@ -947,6 +947,53 @@ func TestOrchestrator_PropagatesGateComplexityRoutingToBuildInput(t *testing.T) 
 	}
 }
 
+func TestOrchestrator_BuildInputIncludesStartCommit(t *testing.T) {
+	t.Parallel()
+	var buildInput pipeline.Input
+	const commit = "deadbeef"
+	gitHeadCalls := 0
+
+	build := &fakeStage{runFn: func(_ context.Context, in pipeline.Input) (pipeline.Output, error) {
+		buildInput = in
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}}
+
+	beadCalls := 0
+	getBead := func(_ context.Context) (*bead.Bead, error) {
+		beadCalls++
+		if beadCalls > 1 {
+			return nil, nil
+		}
+		return &bead.Bead{ID: "bead-start-commit", Title: "Start commit bead"}, nil
+	}
+
+	cfg := OrchestratorConfig{
+		Gate:     &fakeStage{},
+		Build:    build,
+		Validate: &fakeStage{},
+		Epilogue: &fakeStage{},
+		GetBead:  getBead,
+		Config:   &config.Config{},
+		Output:   io.Discard,
+		GitHead: func(ctx context.Context) (string, error) {
+			gitHeadCalls++
+			return commit, nil
+		},
+	}
+
+	orch := NewOrchestrator(cfg)
+	if err := orch.Run(context.Background(), 10, time.Time{}, nil); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	if gitHeadCalls == 0 {
+		t.Fatalf("GitHeadFn was not called; want start commit recorded")
+	}
+	if buildInput.StartCommit != commit {
+		t.Errorf("Build input StartCommit = %q, want %q", buildInput.StartCommit, commit)
+	}
+}
+
 func TestOrchestrator_AttachesEmitterToBuildInput(t *testing.T) {
 	t.Parallel()
 	var captured pipeline.Input
