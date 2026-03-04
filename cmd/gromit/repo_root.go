@@ -110,8 +110,8 @@ func resolveProjectPathCandidate(path string) (string, error) {
 	if !info.IsDir() {
 		dir = filepath.Dir(absPathValue)
 	}
-	if root := findRepoRootFromDir(dir); root != "" {
-		return root, nil
+	if hasRepoMarker(dir, repoConfigName) || hasRepoMarker(dir, repoDirName) {
+		return dir, nil
 	}
 	return "", fmt.Errorf("project path %q does not contain %s or %s: %w", absPathValue, repoConfigName, repoDirName, os.ErrNotExist)
 }
