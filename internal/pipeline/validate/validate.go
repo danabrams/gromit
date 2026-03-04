@@ -46,7 +46,7 @@ func (v *Validate) WithAutoFix(autoFixFn runtypes.AutoFixFn, startCommit string)
 		return v
 	}
 	startCommit = strings.TrimSpace(startCommit)
-	if autoFixFn == nil {
+	if autoFixFn == nil || startCommit == "" {
 		v.autoFixFn = nil
 		v.autoFixStartCommit = ""
 		return v
