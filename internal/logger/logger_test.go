@@ -1252,6 +1252,45 @@ func TestLogIterationWithCacheTelemetry(t *testing.T) {
 	}
 }
 
+func TestIterationLogCacheStatsJSON(t *testing.T) {
+    logEntry := &IterationLog{
+        Timestamp: time.Now(),
+        CacheStats: CacheStats{
+            CacheHit:                true,
+            CacheMiss:               false,
+            CacheWrite:              true,
+            CacheClass:              "prep",
+            CacheKey:                "foo",
+            CacheInvalidationReason: "update",
+            CacheVersionMarker:      "v1",
+        },
+    }
+
+    payload, err := json.Marshal(logEntry)
+    if err != nil {
+        t.Fatalf("marshal iteration log: %v", err)
+    }
+
+    var decoded map[string]json.RawMessage
+    if err := json.Unmarshal(payload, &decoded); err != nil {
+        t.Fatalf("unmarshal iteration log: %v", err)
+    }
+
+    for _, key := range []string{
+        "cache_hit",
+        "cache_miss",
+        "cache_write",
+        "cache_class",
+        "cache_key",
+        "cache_invalidation_reason",
+        "cache_version_marker",
+    } {
+        if _, exists := decoded[key]; !exists {
+            t.Fatalf("expected %s to be present in JSON", key)
+        }
+    }
+}
+
 func TestLogIterationWithRoutingTelemetry(t *testing.T) {
 	tmpDir := t.TempDir()
 	l, err := NewLogger(tmpDir)
