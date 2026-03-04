@@ -50,48 +50,48 @@ func TestPlanListItemTitleSummary(t *testing.T) {
 }
 
 func TestBeadListItemTitleSummary(t *testing.T) {
-	b := &bead.Bead{
-		ID:       "B-1",
-		Title:    "Execute pipeline",
-		Status:   "open",
-		Priority: 1,
-	}
-	item := &BeadListItem{bead: b}
+	 b := &bead.Bead{
+	 	 ID:       "B-1",
+	 	 Title:    "Execute pipeline",
+	 	 Status:   "open",
+	 	 Priority: 1,
+	 }
+	 item := &BeadListItem{bead: b}
 
 	if got, want := item.Title(), b.Title; got != want {
 		t.Fatalf("Title() = %q, want %q", got, want)
 	}
-	if got, want := item.Summary(), "B-1 · status=open · priority=1"; got != want {
-		t.Fatalf("Summary() = %q, want %q", got, want)
-	}
+	 if got, want := item.Summary(), "B-1 · status=open · priority=1"; got != want {
+	 	 t.Fatalf("Summary() = %q, want %q", got, want)
+	 }
 }
 
 func TestListItemAdapterIdentifiers(t *testing.T) {
-	idea := &backlog.Idea{ID: "idea-123", Text: "Implement the pipeline view"}
-	plan := "plans/awesome.plan"
-	spec := "specs/cool.md"
-	beadItem := &bead.Bead{ID: "B-1"}
+	 idea := &backlog.Idea{ID: "idea-123", Text: "Implement the pipeline view"}
+	 plan := "plans/awesome.plan"
+	 spec := "specs/cool.md"
+	 beadItem := &bead.Bead{ID: "B-1"}
 
-	tests := []struct {
-		name string
-		item interface {
-			Identifier() string
-		}
-		want string
-	}{
-		{name: "idea", item: &IdeaListItem{idea: idea}, want: idea.ID},
-		{name: "spec", item: &SpecListItem{path: spec}, want: spec},
-		{name: "plan", item: &PlanListItem{path: plan}, want: plan},
-		{name: "bead", item: &BeadListItem{bead: beadItem}, want: beadItem.ID},
-	}
+	 tests := []struct {
+	 	 name string
+	 	 item interface {
+	 	 	 Identifier() string
+	 	 }
+	 	 want string
+	 }{
+	 	 {name: "idea", item: &IdeaListItem{idea: idea}, want: idea.ID},
+	 	 {name: "spec", item: &SpecListItem{path: spec}, want: spec},
+	 	 {name: "plan", item: &PlanListItem{path: plan}, want: plan},
+	 	 {name: "bead", item: &BeadListItem{bead: beadItem}, want: beadItem.ID},
+	 }
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := tc.item.Identifier(); got != tc.want {
-				t.Fatalf("Identifier() = %q, want %q", got, tc.want)
-			}
-		})
-	}
+	 for _, tc := range tests {
+	 	 t.Run(tc.name, func(t *testing.T) {
+	 	 	 if got := tc.item.Identifier(); got != tc.want {
+	 	 	 	 t.Fatalf("Identifier() = %q, want %q", got, tc.want)
+	 	 	 }
+	 	 })
+	 }
 }
 
 var pipelineTabRenderers = []struct {
