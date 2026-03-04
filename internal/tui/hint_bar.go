@@ -32,6 +32,8 @@ func HintBar(tab Tab, detailView, confirmDelete bool) string {
 			return "[q] quit | [esc] back"
 		}
 		return "[v] view | [q] quit"
+	case "runloop":
+		return "[q] quit"
 	}
 	return ""
 }
