@@ -4,6 +4,7 @@ import (
     "testing"
 
     "github.com/danabrams/gromit/internal/backlog"
+    "github.com/danabrams/gromit/internal/bead"
 )
 
 func TestIdeaListItemTitleSummaryIdentifier(t *testing.T) {
@@ -55,6 +56,26 @@ func TestPlanListItemTitleSummaryIdentifier(t *testing.T) {
         t.Fatalf("Summary() = %q, want %q", got, want)
     }
     if got, want := item.Identifier(), path; got != want {
+        t.Fatalf("Identifier() = %q, want %q", got, want)
+    }
+}
+
+func TestBeadListItemTitleSummaryIdentifier(t *testing.T) {
+    b := &bead.Bead{
+        ID:       "B-1",
+        Title:    "Execute pipeline",
+        Status:   "open",
+        Priority: 1,
+    }
+    item := &BeadListItem{bead: b}
+
+    if got, want := item.Title(), b.Title; got != want {
+        t.Fatalf("Title() = %q, want %q", got, want)
+    }
+    if got, want := item.Summary(), "B-1 · status=open · priority=1"; got != want {
+        t.Fatalf("Summary() = %q, want %q", got, want)
+    }
+    if got, want := item.Identifier(), b.ID; got != want {
         t.Fatalf("Identifier() = %q, want %q", got, want)
     }
 }
