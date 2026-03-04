@@ -170,6 +170,10 @@ func renderPipelineDetail(title string, listModel pipelineTabListModel, width in
 	b.WriteString(fmt.Sprintf("Summary: %s\n", selected.Summary()))
 	rendered := listModel.Render(width)
 	b.WriteString("Content:\n")
+	if strings.TrimSpace(rendered) == "" {
+		b.WriteString("No items\n")
+		return b.String()
+	}
 	b.WriteString(rendered)
 	if !strings.HasSuffix(rendered, "\n") {
 		b.WriteString("\n")
