@@ -442,6 +442,9 @@ func (s *Store) recordConversationToolIndicator(toolName, status string) {
 
 // SetPipelineItems updates the current pipeline items, normalizing nil slices.
 func (s *Store) SetPipelineItems(items PipelineItems) {
+	if s == nil {
+		return
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.PipelineItems = copyPipelineItems(items)
@@ -449,6 +452,9 @@ func (s *Store) SetPipelineItems(items PipelineItems) {
 
 // GetPipelineItems returns the current pipeline items under a read lock, ensuring slices are normalized.
 func (s *Store) GetPipelineItems() PipelineItems {
+	if s == nil {
+		return copyPipelineItems(PipelineItems{})
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return copyPipelineItems(s.PipelineItems)
