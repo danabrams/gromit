@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -154,6 +155,21 @@ func TestFindProjectRoot_ProjectPathRelativeToInitialWorkingDir(t *testing.T) {
 		t.Fatalf("findProjectRoot: %v", err)
 	}
 	assertSameProjectRoot(t, got, root)
+}
+
+func TestResolveProjectPathCandidate_ProjectPathMustContainMarkers(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, repoConfigName), []byte(""), 0o644); err != nil {
+		t.Fatalf("write %s: %v", repoConfigName, err)
+	}
+	nested := filepath.Join(root, "nested")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatalf("create nested: %v", err)
+	}
+
+	if _, err := resolveProjectPathCandidate(nested); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("expected project path error, got %v", err)
+	}
 }
 
 func TestFindProjectRoot_WalksUpFromNestedSubdir(t *testing.T) {
