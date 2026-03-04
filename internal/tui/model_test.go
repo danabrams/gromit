@@ -855,6 +855,34 @@ func TestModel_PipelineActionKeysInvokeHandleAction(t *testing.T) {
 	}
 }
 
+func TestModel_EscapeClosesDetailView(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+	m.detailView = true
+	m.activeTab = TabBacklog
+
+	model, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m = model.(*Model)
+
+	if m.detailView {
+		t.Fatalf("expected detail view to close after Escape")
+	}
+}
+
+func TestModel_EscapeCancelsConfirmDelete(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+	m.activeTab = TabBacklog
+	m.confirmDelete = true
+
+	model, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m = model.(*Model)
+
+	if m.confirmDelete {
+		t.Fatalf("expected confirmDelete to be cleared after Escape")
+	}
+}
+
 
 func TestModel_RunLoopSubViewInitializesToDashboard(t *testing.T) {
 	store := &Store{}
