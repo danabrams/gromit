@@ -9,6 +9,13 @@ This file is automatically updated. Review periodically with `gromit retro`.
 
 *Patterns seen multiple times - high confidence.*
 
+### 2026-03-04 | Runtime Boundary Ownership Is One Architecture Contract | architecture
+*Related to: retro-1772626933875557000*
+
+Runtime boundary ownership is one architecture contract: context propagation, subprocess lifecycle, integration queue transitions, and observability attribution must be centralized, fail-closed, and validated with parity tests across all return paths.
+
+*Consolidated from: Context Propagation Is an End-to-End Contract, Integration Queue Transitions Must Be Table-Driven Persisted and Error-Atomic, All Subprocess Launch Sites Must Follow Full procutil Lifecycle*
+
 ### 2026-02-24 | Decomposition Contract-Field Parity Across Layers | architecture
 *Related to: gromit-jysme, gromit-o9i5v, gromit-btk9n, review-1771835747422178794, gromit-9947, review-1771832540735638835*
 
@@ -118,12 +125,6 @@ Shared orchestrator/runtime path ownership must include telemetry completeness e
 
 *Newly observed — needs validation across more tasks.*
 
-### 2026-03-03 | Context Propagation Is an End-to-End Contract | patterns
-*Related to: review-1772465040994006393, review-1772456575499153066, review-1772449742155634887, gromit-yfj6, gromit-1fov, review-1772511363996530000*
-
-Context propagation is an end-to-end contract: derive ctx at Cobra entry, thread through session launchers/adapters/closures, and forbid context.Background/context.TODO in live execution paths.
-
-*Consolidated from: Context Propagation Pattern: Derive From Cobra Thread Through Session Launcher, Context Propagation Gap Between Library and CLI Layers, context.Background() in Adapter Factory Closures Defeats Stage Cancellation*
 
 ### 2026-03-02 | TDD Oscillation Detection Now Uses Order-Insensitive Multiset Comparison | patterns
 *Related to: review-1772465040994006393*
@@ -245,12 +246,6 @@ All CLI command paths must resolve dependencies through NewPipelineDeps(); packa
 
 The TUI store (internal/tui/store.go) uses sync.RWMutex. All mutations hold the write lock; map function reads hold the read lock. View rendering uses copy-on-read to minimize lock duration.
 
-### 2026-02-28 | All Subprocess Launch Sites Must Follow Full procutil Lifecycle | conventions
-*Related to: review-1772244209301323387, review-1772300695650836737, review-1772322141608097349, review-1772366501939692738*
-
-*Consolidated from: Process Capacity Gating Before Subprocess Start + Subprocess Wrappers Must Follow procutil Pattern + Subprocess Launch Must Use Full procutil Pattern Including ReapProcessTree*
-
-All subprocess launch sites must follow the full procutil lifecycle pattern: process-group setup (`SetProcessGroupKill`), capacity gating (`WaitForProcessCapacity`), cancellation descendant kill (`KillDescendantsOnCancel`), stderr capture, and process-tree reap (`ReapProcessTree`, not the shallower `ReapProcessGroup`).
 
 ### 2026-02-28 | Epilogue Close/Sync Failures Must Suppress All Success Signals | patterns
 *Related to: review-1772244209301323387, review-1772322141608097349*
@@ -266,12 +261,6 @@ Provider router concurrency correctness requires one lock domain for availabilit
 
 *Consolidated from: Provider Router Requires Mutex and Correct Count Semantics, Provider Router Mutex Creates False Thread Safety in Select()*
 
-### 2026-03-03 | Integration Queue Transitions Must Be Table-Driven, Persisted, and Error-Atomic | architecture
-*Related to: review-1772280289214510883, retro-1772302209902158129, review-1772322141608097349, review-1772366501939692738, review-1772423180715253804, review-1772449742155634887, review-1772511363996530000*
-
-Integration queue transitions must be table-driven, persisted on all paths, and include error metadata atomically through transition APIs; no direct state/error field mutation outside transition handling. 8 states: draft/ready/integrating/merged/conflict/failed_gates/lane_violation/push_failure. Error paths (push failure, rebase conflict) must persist state transitions before returning errors. Recovery paths must use valid transitions. When operation failure and transition-persist failure both occur, return joined typed errors and persist both diagnostics.
-
-*Consolidated from: Integration Queue Lifecycle Is Table-Driven via ApplyTransition, Integration Queue Has 8 States Including push_failure, RecoverFromMalformedQueue Never Persists and Uses Invalid Transition, Coordinator Error Metadata Bypasses ApplyTransition Creating Partial-State Bugs, Integration Queue Coordinator Must Join Transition Errors With Operation Errors, Integration Queue FSM Allows Direct Construction Outside ApplyTransition*
 
 ### 2026-02-28 | ListBeads/QueryBeads Silently Return Empty for Unsupported Status | gotchas
 *Related to: review-1772300695650836737*
@@ -418,6 +407,15 @@ stagePromptForLaunchDir in agent.go correctly handles the mutual exclusivity of 
 ## Archived
 
 *Previously archived learnings.*
+
+### 2026-03-03 | Context Propagation Is an End-to-End Contract | patterns
+*Archived: 2026-03-04 — consolidated into Runtime Boundary Ownership Is One Architecture Contract.*
+
+### 2026-03-03 | Integration Queue Transitions Must Be Table-Driven, Persisted, and Error-Atomic | architecture
+*Archived: 2026-03-04 — consolidated into Runtime Boundary Ownership Is One Architecture Contract.*
+
+### 2026-02-28 | All Subprocess Launch Sites Must Follow Full procutil Lifecycle | conventions
+*Archived: 2026-03-04 — consolidated into Runtime Boundary Ownership Is One Architecture Contract.*
 
 ### 2026-03-02 | TDD Cycle Instability Detection Depends on Stable Slice Ordering | bug-risk
 RESOLVED: equalStringSlices upgraded to order-insensitive multiset comparison. Original bug is fixed.
