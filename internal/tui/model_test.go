@@ -772,6 +772,37 @@ func TestModel_PipelineListNavigationRoutesToActiveList(t *testing.T) {
 	}
 }
 
+func TestModel_PipelineListNavigationTargetsActiveTab(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+	backlog := &mockPipelineListModel{}
+	specs := &mockPipelineListModel{}
+	m.registerPipelineListModel(backlog)
+	m.registerPipelineListModel(specs)
+
+	m.activeTab = TabBacklog
+	if _, cmd := m.Update(tea.KeyMsg{Type: tea.KeyUp}); cmd != nil {
+		t.Fatalf("unexpected command for up key: %v", cmd)
+	}
+	if backlog.cursorUpCalls != 1 {
+		t.Fatalf("expected backlog CursorUp to be called once, got %d", backlog.cursorUpCalls)
+	}
+	if specs.cursorUpCalls != 0 {
+		t.Fatalf("expected specs CursorUp to be ignored, got %d", specs.cursorUpCalls)
+	}
+
+	m.activeTab = TabSpecs
+	if _, cmd := m.Update(tea.KeyMsg{Type: tea.KeyDown}); cmd != nil {
+		t.Fatalf("unexpected command for down key: %v", cmd)
+	}
+	if specs.cursorDownCalls != 1 {
+		t.Fatalf("expected specs CursorDown to be called once, got %d", specs.cursorDownCalls)
+	}
+	if backlog.cursorDownCalls != 0 {
+		t.Fatalf("expected backlog CursorDown to remain zero, got %d", backlog.cursorDownCalls)
+	}
+}
+
 func TestModel_PipelineListNavigationRoutesToAllLists(t *testing.T) {
 	store := &Store{}
 	m := NewModel(store)
