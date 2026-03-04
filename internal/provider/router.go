@@ -11,6 +11,7 @@ type Router struct {
 	preferences    map[string]string
 	ratio          map[string]int
 	counts         map[string]int
+	pendingCounts  map[string]int
 	unavailable    map[string]time.Time
 	cooldown       time.Duration
 	stateFn        StateFile
@@ -48,6 +49,7 @@ func NewRouter(
 		preferences:    preferences,
 		ratio:          ratio,
 		counts:         counts,
+		pendingCounts:  make(map[string]int),
 		unavailable:    make(map[string]time.Time),
 		cooldown:       cooldown,
 		stateFn:        stateFn,
@@ -70,6 +72,7 @@ func NewSingleProviderRouter(p Provider) *Router {
 			name: 100,
 		},
 		counts:         make(map[string]int),
+		pendingCounts:  make(map[string]int),
 		unavailable:    make(map[string]time.Time),
 		cooldown:       0,
 		stateFn:        nil,
@@ -200,6 +203,32 @@ func (r *Router) stateIncrementProviderCount(name string) {
 	r.stateFn.IncrementProviderCount(name)
 }
 
+func (r *Router) incrementPendingCount(name string) {
+	if r.pendingCounts == nil {
+		r.pendingCounts = make(map[string]int)
+	}
+	r.pendingCounts[name]++
+}
+
+func (r *Router) consumePendingCount(name string) bool {
+	if r.pendingCounts == nil {
+		return false
+	}
+
+	count := r.pendingCounts[name]
+	if count == 0 {
+		return false
+	}
+
+	if count == 1 {
+		delete(r.pendingCounts, name)
+	} else {
+		r.pendingCounts[name] = count - 1
+	}
+
+	return true
+}
+
 func (r *Router) stateMarkUnavailable(name string, until time.Time) {
 	if r.stateFn == nil {
 		return
@@ -243,6 +272,7 @@ func (r *Router) selectIfAvailable(name string, tier string) (Provider, string) 
 	modelName := provider.ModelForTier(tier)
 	r.counts[name]++
 	r.stateIncrementProviderCount(name)
+	r.incrementPendingCount(name)
 
 	return provider, modelName
 }
@@ -284,9 +314,14 @@ func (r *Router) MarkUnavailable(name string) {
 // RecordInvocation increments count and persists to state via stateFn
 func (r *Router) RecordInvocation(name string) {
 	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.consumePendingCount(name) {
+		return
+	}
+
 	r.counts[name]++
 	r.stateIncrementProviderCount(name)
-	r.mu.Unlock()
 }
 
 // RecordOutcome records an invocation outcome in the circuit breaker.
