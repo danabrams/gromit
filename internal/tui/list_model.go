@@ -39,12 +39,22 @@ func (l *ListModel) SetItems(items []ListItem) {
 
 // MoveUp moves the cursor up by one row and adjusts scroll offset.
 func (l *ListModel) MoveUp() {
-	if l == nil || len(l.items) == 0 {
+	if l == nil {
 		return
 	}
-	if l.cursor > 0 {
+	if len(l.items) == 0 {
+		l.cursor = 0
+		return
+	}
+
+	if l.cursor <= 0 {
+		l.cursor = 0
+	} else if l.cursor >= len(l.items) {
+		l.cursor = len(l.items) - 1
+	} else {
 		l.cursor--
 	}
+
 	l.ensureCursorVisible()
 }
 
