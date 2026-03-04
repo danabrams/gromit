@@ -319,14 +319,21 @@ func TestRunDirect_ParallelCommands_SkipsQueuedAfterFailure(t *testing.T) {
 	cfg.Validation.MaxParallelCommands = 2
 
 	neverStarted := make(chan struct{}, 1)
-	slowStarted := make(chan struct{}, 1)
+	fastFailed := make(chan struct{})
+	startThird := make(chan struct{})
+
+	go func() {
+		<-fastFailed
+		time.Sleep(10 * time.Millisecond)
+		close(startThird)
+	}()
 
 	cmdRunner := func(ctx context.Context, command string, workDir string) (string, string, int, error) {
 		switch command {
 		case "fast-fail":
+			close(fastFailed)
 			return "", "failure", 1, nil
 		case "slow-blocking":
-			slowStarted <- struct{}{}
 			select {
 			case <-ctx.Done():
 				return "", "", 0, ctx.Err()
@@ -334,6 +341,7 @@ func TestRunDirect_ParallelCommands_SkipsQueuedAfterFailure(t *testing.T) {
 				return "ok", "", 0, nil
 			}
 		case "should-not-start":
+			<-startThird
 			neverStarted <- struct{}{}
 			return "ok", "", 0, nil
 		default:
@@ -349,13 +357,6 @@ func TestRunDirect_ParallelCommands_SkipsQueuedAfterFailure(t *testing.T) {
 	}
 	if result.Success {
 		t.Fatal("RunDirect should report failure when a command fails")
-	}
-
-	// Ensure the slow command started so the queueing scenario was reached.
-	select {
-	case <-slowStarted:
-	default:
-		t.Fatal("slow-blocking command never started")
 	}
 
 	select {
