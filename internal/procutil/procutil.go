@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -154,6 +155,15 @@ func SubprocessEnv() []string {
 		if strings.HasPrefix(kv, "GOMAXPROCS=") {
 			// Linux cgroup tooling or macOS hosts may already choose an appropriate
 			// level of parallelism, so we respect that instead of overwriting it.
+			return env
+		}
+	}
+	maxParallelism, err := strconv.Atoi(MaxGoParallelism)
+	if err == nil {
+		if runtime.GOMAXPROCS(0) <= maxParallelism {
+			// Linux cgroup tooling or macOS hosts may already choose an appropriate
+			// level of parallelism via runtime heuristics, so we respect the
+			// host-chosen value instead of overwriting it.
 			return env
 		}
 	}
