@@ -8,9 +8,6 @@ type PendingAction struct {
 	Args    []string
 }
 
-// Tab identifies a top-level pipeline tab in the TUI.
-type Tab string
-
 // ListItem is used to abstract items displayed in the pipeline tabs.
 type ListItem interface {
 	Title() string
