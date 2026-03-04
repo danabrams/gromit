@@ -38,6 +38,47 @@ func TestFindProjectRoot_FallsBackWhenWorkingDirectoryRemoved(t *testing.T) {
 	}
 }
 
+func TestFindProjectRoot_UsesProjectPathFlag(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "gromit.yaml"), []byte(""), 0644); err != nil {
+		t.Fatalf("write gromit.yaml: %v", err)
+	}
+
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(origWD)
+	})
+
+	parent := filepath.Dir(root)
+	if err := os.Chdir(parent); err != nil {
+		t.Fatalf("chdir to parent: %v", err)
+	}
+
+	origProjectPath := projectPath
+	t.Cleanup(func() {
+		projectPath = origProjectPath
+	})
+	projectPath = filepath.Base(root)
+
+	want, err := filepath.Abs(root)
+	if err != nil {
+		t.Fatalf("abs root: %v", err)
+	}
+
+	got, err := findProjectRoot()
+	if err != nil {
+		t.Fatalf("findProjectRoot: %v", err)
+	}
+	if got != want {
+		t.Fatalf("root = %q, want %q", got, want)
+	}
+}
+
 func TestEnsureRepoRootFromSubdir(t *testing.T) {
 
 	root := t.TempDir()
