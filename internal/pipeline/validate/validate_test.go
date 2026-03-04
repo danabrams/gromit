@@ -442,6 +442,38 @@ func TestValidate_CommandTimeout_ProducesBlockWithTimeoutMessage(t *testing.T) {
 	}
 }
 
+// TestValidate_WithAutoFixNilFn_BlocksOnFailure verifies that configuring WithAutoFix
+// with a nil auto-fix function leaves the Validate stage behavior unchanged when
+// validation fails.
+func TestValidate_WithAutoFixNilFn_BlocksOnFailure(t *testing.T) {
+	runner := &fakeCommandRunner{
+		results: []commandRunResult{{stdout: "fail", stderr: "error", exitCode: 1, err: nil}},
+	}
+	stage := New(runner, io.Discard).WithAutoFix(nil, "start-commit")
+
+	cfg := &config.Config{
+		Validation: config.ValidationConfig{
+			Enabled:  true,
+			Commands: []string{"go test ./..."},
+		},
+	}
+	in := pipeline.Input{
+		Bead:   &bead.Bead{ID: "test-1", Title: "Test bead"},
+		Config: cfg,
+	}
+
+	out, err := stage.Run(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if out.Decision != pipeline.Block {
+		t.Errorf("Decision = %v, want Block", out.Decision)
+	}
+	if len(out.ValidationFailures) == 0 {
+		t.Errorf("ValidationFailures empty; want summary")
+	}
+}
+
 // contains is a helper to check if a string contains a substring (case-insensitive).
 func contains(s, substr string) bool {
 	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
