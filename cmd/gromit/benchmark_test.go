@@ -1927,3 +1927,11 @@ func TestRegisterBenchmarkCommands_RegistersDecomposeCompare(t *testing.T) {
 		t.Fatalf("expected command Use = 'decompose-compare', got %q", benchmarkDecomposeCompareCmd.Use)
 	}
 }
+
+func TestRegisterBenchmarkCommands_DoesNotRegisterDecomposeCompare(t *testing.T) {
+	for _, cmd := range benchmarkCmd.Commands() {
+		if cmd.Use == "decompose-compare" {
+			t.Fatalf("decompose-compare command should not be registered")
+		}
+	}
+}
