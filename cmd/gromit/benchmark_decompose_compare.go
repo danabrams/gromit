@@ -42,12 +42,16 @@ var benchmarkDecomposeCompareManifestPath string
 var benchmarkDecomposeCompareOutputTS string
 var benchmarkDecomposeCompareSpecs string
 var benchmarkDecomposeCompareThreshold float64
+var benchmarkDecomposeCompareExperimental bool
 
 var benchmarkDecomposeCompareCmd = &cobra.Command{
 	Use:          "decompose-compare",
 	Short:        "Compare decomposition quality between model tiers",
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if !benchmarkDecomposeCompareExperimental {
+			return fmt.Errorf("decompose-compare is experimental; run 'gromit benchmark --experimental decompose-compare' to enable it")
+		}
 		manifestPath := strings.TrimSpace(benchmarkDecomposeCompareManifestPath)
 		if manifestPath == "" {
 			return fmt.Errorf("--manifest must be a non-empty path")
@@ -112,10 +116,6 @@ func init() {
 		0,
 		"Failure threshold tuning (0 ≤ threshold ≤ 1)",
 	)
-}
-
-func registerBenchmarkDecomposeCompareCommand(root *cobra.Command) {
-	benchmarkCmd.AddCommand(benchmarkDecomposeCompareCmd)
 }
 
 func runBenchmarkDecomposeCompare(opts benchmarkDecomposeCompareOptions) error {

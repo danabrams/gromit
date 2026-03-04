@@ -209,6 +209,12 @@ var benchmarkPhase4ReportCmd = &cobra.Command{
 }
 
 func init() {
+	benchmarkCmd.PersistentFlags().BoolVar(
+		&benchmarkDecomposeCompareExperimental,
+		"experimental",
+		false,
+		"Enable experimental benchmark commands such as decompose-compare",
+	)
 	benchmarkRunCmd.Flags().StringVar(&benchmarkManifestPath, "manifest", "", "Path to benchmark manifest")
 	benchmarkRunCmd.Flags().StringVar(&benchmarkOutputTS, "output-ts", "", "Timestamp override for deterministic artifact names")
 	benchmarkRunCmd.Flags().StringVar(&benchmarkBaseCommit, "base-commit", "", "Base commit override for benchmark runs")

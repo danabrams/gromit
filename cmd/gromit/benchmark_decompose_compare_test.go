@@ -43,7 +43,7 @@ func TestBenchmarkDecomposeCompare_RunEndToEnd(t *testing.T) {
 	}
 
 	_, _, exitCode := runGromitCobra(t,
-		"benchmark", "decompose-compare",
+		"benchmark", "--experimental", "decompose-compare",
 		"--manifest", "testdata/fixtures/benchmark/decompose.yaml",
 	)
 	if !called {
@@ -78,7 +78,7 @@ func TestBenchmarkDecomposeCompare_WiresCohortSelector(t *testing.T) {
 	}
 
 	_, _, exitCode := runGromitCobra(t,
-		"benchmark", "decompose-compare",
+		"benchmark", "--experimental", "decompose-compare",
 		"--manifest", "testdata/fixtures/benchmark/decompose.yaml",
 	)
 	if !cohortSelectorCalled {
@@ -114,7 +114,7 @@ func TestBenchmarkDecomposeCompare_WiresCompareRunner(t *testing.T) {
 	}
 
 	_, _, exitCode := runGromitCobra(t,
-		"benchmark", "decompose-compare",
+		"benchmark", "--experimental", "decompose-compare",
 		"--manifest", "testdata/fixtures/benchmark/decompose.yaml",
 	)
 	if !compareRunnerCalled {
@@ -151,7 +151,7 @@ func TestBenchmarkDecomposeCompare_WiresReportWriter(t *testing.T) {
 	}
 
 	_, _, exitCode := runGromitCobra(t,
-		"benchmark", "decompose-compare",
+		"benchmark", "--experimental", "decompose-compare",
 		"--manifest", "testdata/fixtures/benchmark/decompose.yaml",
 	)
 	if !reportWriterCalled {
@@ -186,7 +186,7 @@ func TestBenchmarkDecomposeCompare_PrintsArtifactPathsOnStdout(t *testing.T) {
 	}
 
 	stdout, _, exitCode := runGromitCobra(t,
-		"benchmark", "decompose-compare",
+		"benchmark", "--experimental", "decompose-compare",
 		"--manifest", "testdata/fixtures/benchmark/decompose.yaml",
 	)
 	if exitCode != 0 {
@@ -207,7 +207,7 @@ func TestBenchmarkDecomposeCompare_FailsWithInsufficientCohort(t *testing.T) {
 	}
 
 	_, stderr, exitCode := runGromitCobra(t,
-		"benchmark", "decompose-compare",
+		"benchmark", "--experimental", "decompose-compare",
 		"--manifest", "testdata/fixtures/benchmark/decompose.yaml",
 	)
 	if exitCode == 0 {
@@ -242,7 +242,7 @@ func TestBenchmarkDecomposeCompare_FailsWithWriteError(t *testing.T) {
 	}
 
 	_, stderr, exitCode := runGromitCobra(t,
-		"benchmark", "decompose-compare",
+		"benchmark", "--experimental", "decompose-compare",
 		"--manifest", "testdata/fixtures/benchmark/decompose.yaml",
 	)
 	if exitCode == 0 {
@@ -263,7 +263,7 @@ func TestBenchmarkDecomposeCompare_FailsWithCohortSelectorError(t *testing.T) {
 	}
 
 	_, stderr, exitCode := runGromitCobra(t,
-		"benchmark", "decompose-compare",
+		"benchmark", "--experimental", "decompose-compare",
 		"--manifest", "testdata/fixtures/benchmark/decompose.yaml",
 	)
 	if exitCode == 0 {
@@ -277,7 +277,7 @@ func TestBenchmarkDecomposeCompare_FailsWithCohortSelectorError(t *testing.T) {
 func TestBenchmarkDecomposeCompare_ValidatesOutputTimestampFormat(t *testing.T) {
 	// RED: Test that invalid timestamp is rejected
 	_, stderr, exitCode := runGromitCobra(t,
-		"benchmark", "decompose-compare",
+		"benchmark", "--experimental", "decompose-compare",
 		"--manifest", "testdata/fixtures/benchmark/decompose.yaml",
 		"--output-ts", "invalid-timestamp",
 	)
@@ -317,7 +317,7 @@ func TestBenchmarkDecomposeCompare_AcceptsValidOutputTimestamp(t *testing.T) {
 	}
 
 	stdout, _, exitCode := runGromitCobra(t,
-		"benchmark", "decompose-compare",
+		"benchmark", "--experimental", "decompose-compare",
 		"--manifest", "testdata/fixtures/benchmark/decompose.yaml",
 		"--output-ts", "20260225T123456Z",
 	)
@@ -337,7 +337,7 @@ func TestBenchmarkDecomposeCompare_AcceptsValidOutputTimestamp(t *testing.T) {
 
 func TestBenchmarkDecomposeCompare_FailsWithInvalidSpecOverrides(t *testing.T) {
 	_, stderr, exitCode := runGromitCobra(t,
-		"benchmark", "decompose-compare",
+		"benchmark", "--experimental", "decompose-compare",
 		"--manifest", "testdata/fixtures/benchmark/decompose.yaml",
 		"--specs", "spec1,spec2",
 	)
@@ -351,7 +351,7 @@ func TestBenchmarkDecomposeCompare_FailsWithInvalidSpecOverrides(t *testing.T) {
 
 func TestBenchmarkDecomposeCompare_FailsWithInvalidThreshold(t *testing.T) {
 	_, stderr, exitCode := runGromitCobra(t,
-		"benchmark", "decompose-compare",
+		"benchmark", "--experimental", "decompose-compare",
 		"--manifest", "testdata/fixtures/benchmark/decompose.yaml",
 		"--threshold", "-0.1",
 	)
@@ -392,7 +392,7 @@ func TestBenchmarkDecomposeCompare_PassesOverridesToRunner(t *testing.T) {
 	}
 
 	stdout, _, exitCode := runGromitCobra(t,
-		"benchmark", "decompose-compare",
+		"benchmark", "--experimental", "decompose-compare",
 		"--manifest", "testdata/fixtures/benchmark/decompose.yaml",
 		"--specs", strings.Join(specs, ","),
 		"--threshold", "0.42",
