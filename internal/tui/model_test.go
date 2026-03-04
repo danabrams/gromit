@@ -753,21 +753,33 @@ func (t *testActionListItem) Identifier() string {
 
 func TestModel_PipelineRefreshUpdatesLists(t *testing.T) {
 	store := &Store{}
+	specs := []string{"spec-alpha", "spec-beta"}
+	store.SetPipelineItems(PipelineItems{UnplannedSpecs: specs})
+
 	model := NewModel(store)
+	backlog := &mockPipelineListModel{}
+	specList := &mockPipelineListModel{}
+	model.registerPipelineListModel(TabBacklog, backlog)
+	model.registerPipelineListModel(TabSpecs, specList)
 
-	first := &mockPipelineListModel{}
-	second := &mockPipelineListModel{}
-	model.registerPipelineListModel(TabBacklog, first)
-	model.registerPipelineListModel(TabSpecs, second)
+	model.Update(pipelineRefreshedMsg{RequestedTab: TabSpecs})
 
-	model.Update(pipelineRefreshedMsg{RequestedTab: Tab("backlog")})
-
-	for _, list := range []*mockPipelineListModel{first, second} {
-		if list.called != 1 {
-			t.Fatalf("SetItems called %d times, want 1", list.called)
+	if backlog.called != 0 {
+		t.Fatalf("expected backlog list not to be updated, got %d", backlog.called)
+	}
+	if specList.called != 1 {
+		t.Fatalf("expected specs list to be updated once, got %d", specList.called)
+	}
+	if len(specList.items) != len(specs) {
+		t.Fatalf("expected %d spec items, got %d", len(specs), len(specList.items))
+	}
+	for i, item := range specList.items {
+		specItem, ok := item.(*SpecListItem)
+		if !ok {
+			t.Fatalf("expected SpecListItem, got %T", item)
 		}
-		if list.items != nil {
-			t.Fatalf("expected nil items, got %+v", list.items)
+		if specItem.path != specs[i] {
+			t.Fatalf("expected spec path %q, got %q", specs[i], specItem.path)
 		}
 	}
 }
