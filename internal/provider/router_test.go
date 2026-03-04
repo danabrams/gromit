@@ -671,6 +671,35 @@ func TestRouterSelectRatioBalancing(t *testing.T) {
 	}
 }
 
+// TestRouterSelectByRatioAccountsForPendingCounts ensures pending selections
+// influence ratio decisions so the work-in-flight provider is not favored again.
+func TestRouterSelectByRatioAccountsForPendingCounts(t *testing.T) {
+	t.Parallel()
+	r := &Router{
+		providers: map[string]Provider{
+			"claude": &mockProvider{name: "claude"},
+			"openai": &mockProvider{name: "openai"},
+		},
+		ratio: map[string]int{
+			"claude": 80,
+			"openai": 20,
+		},
+		counts: map[string]int{
+			"claude": 0,
+			"openai": 0,
+		},
+		pendingCounts: map[string]int{
+			"claude": 5,
+		},
+		stateFn: &mockStateFile{},
+	}
+
+	selected := r.selectByRatio()
+	if selected != "openai" {
+		t.Fatalf("selectByRatio() selected %q, want %q when claude has pending usage", selected, "openai")
+	}
+}
+
 func TestRouterSelectPrefersNonDegradedProviderMoreOften(t *testing.T) {
 	t.Parallel()
 	const selectionRuns = 30
