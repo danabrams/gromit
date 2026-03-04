@@ -45,7 +45,7 @@ func (o *Orchestrator) RunSequence(
 	return cloned.Run(ctx, maxIterations, deadline, stopCh)
 }
 
-func (o *Orchestrator) buildInput(b *bead.Bead, iteration int, deadline time.Time, validationFailures, touchedPackages []string) pipeline.Input {
+func (o *Orchestrator) buildInput(b *bead.Bead, iteration int, deadline time.Time, validationFailures, touchedPackages []string, startCommit string) pipeline.Input {
 	cfg := o.cfg.Config
 	escalationEnabled := cfg != nil && cfg.Escalation.Enabled
 	complexity := ""
@@ -59,6 +59,7 @@ func (o *Orchestrator) buildInput(b *bead.Bead, iteration int, deadline time.Tim
 		Iteration:          iteration,
 		Deadline:           deadline,
 		ValidationFailures: validationFailures,
+		StartCommit:        startCommit,
 		EscalationEnabled:  escalationEnabled,
 		TouchedPackages:    touchedPackages,
 		ComplexityRouting: pipeline.ComplexityRouting{

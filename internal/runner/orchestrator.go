@@ -131,6 +131,10 @@ type OrchestratorConfig struct {
 	// Optional: nil means branch checkout is skipped.
 	GitCheckout GitCheckout
 
+	// GitHead returns the current HEAD commit before running Build.
+	// Optional: nil uses the default git rev-parse HEAD helper.
+	GitHead func(ctx context.Context) (string, error)
+
 	// Coordinator performs integration of queued session branches into main between iterations.
 	// Optional: nil means coordinator is disabled.
 	Coordinator Coordinator
@@ -166,6 +170,15 @@ const orchestratorPrelaunchBackoffDuration = 3 * time.Second
 const dirtyWorktreeOperatorActionableGuidance = "Clean, stash, or commit your working tree (or run in session worktree mode) before retrying."
 const dirtyWorktreeGateBlockReason = "dirty_worktree_precondition"
 
+func defaultGitHead(ctx context.Context) (string, error) {
+	cmd := exec.CommandContext(ctx, "git", "rev-parse", "HEAD")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
 // StateSaver persists provider routing state (provider counts, availability) to disk.
 type StateSaver interface {
 	Save() error
@@ -196,6 +209,7 @@ type Orchestrator struct {
 	cfg                      OrchestratorConfig
 	emitter                  *events.Emitter
 	startSubscribersFn       func(context.Context) (*sync.WaitGroup, error)
+	gitHeadFn                func(context.Context) (string, error)
 	preImplementationHookRan bool
 }
 
@@ -243,9 +257,14 @@ func attachMidReviewMetrics(log *logger.IterationLog, metrics midReviewMetrics) 
 
 // NewOrchestrator returns an Orchestrator wired with the given configuration.
 func NewOrchestrator(cfg OrchestratorConfig) *Orchestrator {
+	gitHeadFn := cfg.GitHead
+	if gitHeadFn == nil {
+		gitHeadFn = defaultGitHead
+	}
 	o := &Orchestrator{
-		cfg:     cfg,
-		emitter: events.NewEmitter(),
+		cfg:       cfg,
+		emitter:   events.NewEmitter(),
+		gitHeadFn: gitHeadFn,
 	}
 	o.attachEmitterToStage(cfg.Gate)
 	o.attachEmitterToStage(cfg.Build)
@@ -534,7 +553,15 @@ runLoop:
 			o.cfg.StatusWriter(ctx, iteration, b.ID, b.Title, deadline)
 		}
 
-		baseIn := o.buildInput(b, iteration, deadline, validationFailures, touchedPackages)
+		startCommit := ""
+		if o.gitHeadFn != nil {
+			if head, err := o.gitHeadFn(ctx); err != nil {
+				o.logWarning("Warning: could not read git HEAD before build for bead %s (iteration %d): %v", b.ID, iteration, err)
+			} else {
+				startCommit = strings.TrimSpace(head)
+			}
+		}
+		baseIn := o.buildInput(b, iteration, deadline, validationFailures, touchedPackages, startCommit)
 		midReviewMetrics := midReviewMetrics{}
 
 		// Stage 1: Gate — precheck, stuck detection, scope gate, proactive decomposition.
@@ -1135,6 +1162,7 @@ runLoop:
 		// run between-iterations command, trigger thorough review when due.
 		escalated := buildOut.OriginalTier != buildOut.ActualTier
 		validationRetried := len(baseIn.ValidationFailures) > 0
+		trivialAutoFixed := validateOut.TrivialAutoFixed
 		baseIn.Result = &logger.IterationLog{
 			Timestamp:                time.Now(),
 			Iteration:                iteration,
@@ -1143,7 +1171,8 @@ runLoop:
 			Success:                  true,
 			Validated:                true,
 			FirstPassSuccess:         !validationRetried && !escalated,
-			QualityScore:             logger.ComputeQualityScore(0, 0, validationRetried, false, escalated, 0),
+			QualityScore:             logger.ComputeQualityScore(0, 0, validationRetried, trivialAutoFixed, escalated, 0),
+			TrivialAutoFixed:         trivialAutoFixed,
 			Complexity:               baseIn.Complexity,
 			ComplexitySource:         baseIn.ComplexitySource,
 			ComplexityFallbackReason: baseIn.ComplexityFallbackReason,
