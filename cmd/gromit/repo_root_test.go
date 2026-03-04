@@ -364,3 +364,87 @@ func TestEnsureRepoRoot_ProjectPathInsideSubdir(t *testing.T) {
 
 	assertWorkingDir(t, root)
 }
+
+func TestEnsureRepoRoot_ProjectPathRelativeToWorkingDirFallback(t *testing.T) {
+	t.Parallel()
+
+	root, nested := createRepoRootWithSubdir(t)
+
+	workDir := t.TempDir()
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(origWD)
+	})
+	if err := os.Chdir(workDir); err != nil {
+		t.Fatalf("chdir to work dir: %v", err)
+	}
+
+	relPath, err := filepath.Rel(workDir, nested)
+	if err != nil {
+		t.Fatalf("rel path: %v", err)
+	}
+
+	origProjectPath := projectPath
+	projectPath = relPath
+	t.Cleanup(func() {
+		projectPath = origProjectPath
+	})
+
+	origInitialWD := initialWorkingDir
+	fakeInitialWD := t.TempDir()
+	initialWorkingDir = fakeInitialWD
+	t.Cleanup(func() {
+		initialWorkingDir = origInitialWD
+	})
+
+	if err := ensureRepoRoot(); err != nil {
+		t.Fatalf("ensureRepoRoot: %v", err)
+	}
+
+	assertWorkingDir(t, root)
+}
+
+func TestEnsureRepoRoot_ProjectPathResolvesToAbsolutePath(t *testing.T) {
+	t.Parallel()
+
+	root, nested := createRepoRootWithSubdir(t)
+
+	workDir := t.TempDir()
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(origWD)
+	})
+	if err := os.Chdir(workDir); err != nil {
+		t.Fatalf("chdir to work dir: %v", err)
+	}
+
+	relPath, err := filepath.Rel(workDir, nested)
+	if err != nil {
+		t.Fatalf("rel path: %v", err)
+	}
+
+	origProjectPath := projectPath
+	projectPath = relPath
+	t.Cleanup(func() {
+		projectPath = origProjectPath
+	})
+
+	if err := ensureRepoRoot(); err != nil {
+		t.Fatalf("ensureRepoRoot: %v", err)
+	}
+
+	rootAbs, err := filepath.Abs(root)
+	if err != nil {
+		t.Fatalf("abs root: %v", err)
+	}
+
+	if filepath.Clean(projectPath) != filepath.Clean(rootAbs) {
+		t.Fatalf("projectPath = %q, want %q", projectPath, rootAbs)
+	}
+}
