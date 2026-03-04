@@ -404,6 +404,37 @@ stagePromptForLaunchDir in agent.go correctly handles the mutual exclusivity of 
 
 ---
 
+## Emerging
+
+*First-time observations — not yet confirmed by repetition.*
+
+### 2026-03-04 | Adapter Test Files Have ~20 Documentation-Only Tests Inflating Counts | test_quality
+*Related to: review-1772628758554464000*
+
+Adapter test files have accumulated ~20 files of pure documentation tests (t.Log only, no assertions) that inflate test counts without providing regression protection — periodic pruning needed.
+
+### 2026-03-04 | Codebase Has Two Parallel Tracker Paths During Migration | architecture
+*Related to: review-1772628758554464000*
+
+The codebase has two parallel tracker paths (bead.Client and tracker.Client) during migration — new code should prefer tracker.Client and old bead.Client paths should be marked for deprecation.
+
+### 2026-03-04 | Context Threading Has Residual context.Background/TODO in cmd/ Call Sites | tech_debt
+*Related to: review-1772628758554464000*
+
+Context threading has been systematically applied to bead.Client methods, but several cmd/ call sites still use context.Background() or context.TODO() — these should be treated as migration debt.
+
+### 2026-03-04 | Atomic File Write Pattern Not Uniformly Applied Across Stores | patterns
+*Related to: review-1772628758554464000*
+
+The integrationqueue package uses atomic file writes (write-temp + rename) but unstick.Store does not — the atomic pattern should be the standard for all persistent stores.
+
+### 2026-03-04 | Compile-Time Interface Checks Duplicated Across 5+ Test Files | conventions
+*Related to: review-1772628758554464000*
+
+Compile-time interface checks (var _ Interface = (*Impl)(nil)) are duplicated across 5+ test files — one canonical location per adapter set is sufficient.
+
+---
+
 ## Archived
 
 *Previously archived learnings.*
