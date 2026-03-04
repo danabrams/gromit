@@ -77,6 +77,7 @@ func (s *Store) Save() error {
 
 	tmpPath := s.path + ".tmp"
 	if err := writeFileFunc(tmpPath, body, 0o644); err != nil {
+		_ = os.Remove(tmpPath)
 		return err
 	}
 
