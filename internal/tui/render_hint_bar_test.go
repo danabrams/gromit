@@ -76,3 +76,9 @@ func TestRenderHintBarHidesSelectionActionsWithoutSelection(t *testing.T) {
 		})
 	}
 }
+
+func TestRenderHintBarUnknownTabFallsBackToQuit(t *testing.T) {
+	if hint := RenderHintBar("mystery", true, false, false); !strings.Contains(hint, "[q] quit") {
+		t.Fatalf("RenderHintBar(mystery) missing quit hint: %q", hint)
+	}
+}
