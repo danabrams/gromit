@@ -32,4 +32,4 @@ fi
 
 echo "Running tests for touched packages:"
 printf '  %s\n' "${packages[@]}"
-go test -vet=off -p 2 -parallel 2 "${short_flag[@]}" "${packages[@]}"
+go test -vet=off -p 6 -parallel 6 "${short_flag[@]}" "${packages[@]}"
