@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -59,17 +60,19 @@ func findProjectRoot() (string, error) {
 		if !filepath.IsAbs(pathValue) && initialWorkingDir != "" {
 			pathValue = filepath.Join(initialWorkingDir, pathValue)
 		}
-		absPathValue, err := absPath(pathValue, "project path flag")
-		if err != nil {
-			return "", err
+		root, err := resolveProjectPathCandidate(pathValue)
+		if err == nil {
+			return root, nil
 		}
-		if _, err := os.Stat(absPathValue); err != nil {
-			return "", fmt.Errorf("project path %q: %w", absPathValue, err)
+		if !filepath.IsAbs(projectPath) && initialWorkingDir != "" && errors.Is(err, os.ErrNotExist) {
+			if cwd, cwdErr := os.Getwd(); cwdErr == nil {
+				fallback := filepath.Join(cwd, projectPath)
+				if filepath.Clean(fallback) != filepath.Clean(pathValue) {
+					return resolveProjectPathCandidate(fallback)
+				}
+			}
 		}
-		if hasRepoMarker(absPathValue, repoConfigName) || hasRepoMarker(absPathValue, repoDirName) {
-			return absPathValue, nil
-		}
-		return "", fmt.Errorf("project path %q does not contain %s or %s: %w", absPathValue, repoConfigName, repoDirName, os.ErrNotExist)
+		return "", err
 	}
 
 	cwd, err := os.Getwd()
@@ -89,6 +92,20 @@ func findProjectRoot() (string, error) {
 	}
 
 	return "", os.ErrNotExist
+}
+
+func resolveProjectPathCandidate(path string) (string, error) {
+	absPathValue, err := absPath(path, "project path flag")
+	if err != nil {
+		return "", err
+	}
+	if _, err := os.Stat(absPathValue); err != nil {
+		return "", fmt.Errorf("project path %q: %w", absPathValue, err)
+	}
+	if hasRepoMarker(absPathValue, repoConfigName) || hasRepoMarker(absPathValue, repoDirName) {
+		return absPathValue, nil
+	}
+	return "", fmt.Errorf("project path %q does not contain %s or %s: %w", absPathValue, repoConfigName, repoDirName, os.ErrNotExist)
 }
 
 func absPath(path, label string) (string, error) {
