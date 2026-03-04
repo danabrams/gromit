@@ -734,3 +734,121 @@ func TestRebaseOnto_WaitForProcessCapacity(t *testing.T) {
 		t.Error("WaitForProcessCapacity was not called in RebaseOnto")
 	}
 }
+
+// --- Worktree-conflict recovery tests ---
+
+func TestParseWorktreeConflictPath_ExtractsPath(t *testing.T) {
+	t.Parallel()
+	input := "fatal: 'gromit/spec-branch' is already used by worktree at '/tmp/repo-gromit-run-12345'"
+	path, ok := parseWorktreeConflictPath(input)
+	if !ok {
+		t.Fatal("parseWorktreeConflictPath() returned false, want true")
+	}
+	if path != "/tmp/repo-gromit-run-12345" {
+		t.Fatalf("parseWorktreeConflictPath() path = %q, want %q", path, "/tmp/repo-gromit-run-12345")
+	}
+}
+
+func TestParseWorktreeConflictPath_ReturnsFalseWhenNoConflict(t *testing.T) {
+	t.Parallel()
+	input := "fatal: 'bad branch name' is not a valid branch name"
+	_, ok := parseWorktreeConflictPath(input)
+	if ok {
+		t.Fatal("parseWorktreeConflictPath() returned true for non-worktree error, want false")
+	}
+}
+
+func TestIsStaleGromitWorktree_TrueForGromitRunPaths(t *testing.T) {
+	t.Parallel()
+	if !isStaleGromitWorktree("/tmp/myrepo-gromit-run-1772611822677537000") {
+		t.Fatal("isStaleGromitWorktree() = false for -gromit-run- path, want true")
+	}
+}
+
+func TestIsStaleGromitWorktree_TrueForGromitPaths(t *testing.T) {
+	t.Parallel()
+	if !isStaleGromitWorktree("/tmp/myrepo-gromit-debug-abc123") {
+		t.Fatal("isStaleGromitWorktree() = false for -gromit- path, want true")
+	}
+}
+
+func TestIsStaleGromitWorktree_FalseForNonGromitPaths(t *testing.T) {
+	t.Parallel()
+	if isStaleGromitWorktree("/tmp/myrepo-feature-branch") {
+		t.Fatal("isStaleGromitWorktree() = true for non-gromit path, want false")
+	}
+}
+
+func TestCreateOrCheckoutSpecBranch_RecoversStalWorktreeConflict(t *testing.T) {
+	fixture := helpers.NewDeterministicGitConflictFixture(t)
+	ops := NewGitOps(fixture.Dir, fixture.BaseBranch)
+
+	specBranchName := "gromit/spec-worktree-recovery"
+
+	// Create the spec branch so it exists, then switch back to base.
+	cmd := exec.Command("git", "branch", specBranchName)
+	cmd.Dir = fixture.Dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed to create branch: %v (%s)", err, out)
+	}
+
+	// Create a worktree that holds the branch, using a gromit-like path.
+	worktreeDir := filepath.Join(t.TempDir(), ".-gromit-run-stale-1234")
+	cmd = exec.Command("git", "worktree", "add", worktreeDir, specBranchName)
+	cmd.Dir = fixture.Dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed to create worktree: %v (%s)", err, out)
+	}
+
+	// Now CreateOrCheckoutSpecBranch should detect the stale worktree, remove it, and succeed.
+	if err := ops.CreateOrCheckoutSpecBranch(context.Background(), specBranchName); err != nil {
+		t.Fatalf("CreateOrCheckoutSpecBranch() after stale worktree error = %v, want nil", err)
+	}
+
+	// Verify we're on the spec branch.
+	cmd = exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	cmd.Dir = fixture.Dir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("rev-parse failed: %v", err)
+	}
+	if strings.TrimSpace(string(output)) != specBranchName {
+		t.Fatalf("expected to be on %s, got %s", specBranchName, strings.TrimSpace(string(output)))
+	}
+}
+
+func TestCreateOrCheckoutSpecBranch_ReturnsErrorForNonGromitWorktree(t *testing.T) {
+	fixture := helpers.NewDeterministicGitConflictFixture(t)
+	ops := NewGitOps(fixture.Dir, fixture.BaseBranch)
+
+	specBranchName := "gromit/spec-worktree-nongromit"
+
+	// Create the spec branch without checking it out.
+	cmd := exec.Command("git", "branch", specBranchName)
+	cmd.Dir = fixture.Dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed to create branch: %v (%s)", err, out)
+	}
+
+	// Create a worktree with a non-gromit path holding the branch.
+	worktreeDir := filepath.Join(t.TempDir(), "user-feature-worktree")
+	cmd = exec.Command("git", "worktree", "add", worktreeDir, specBranchName)
+	cmd.Dir = fixture.Dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed to create worktree: %v (%s)", err, out)
+	}
+	t.Cleanup(func() {
+		cmd := exec.Command("git", "worktree", "remove", "--force", worktreeDir)
+		cmd.Dir = fixture.Dir
+		_ = cmd.Run()
+	})
+
+	// Should fail because the worktree is not a gromit worktree (not recoverable).
+	err := ops.CreateOrCheckoutSpecBranch(context.Background(), specBranchName)
+	if err == nil {
+		t.Fatal("CreateOrCheckoutSpecBranch() expected error for non-gromit worktree conflict, got nil")
+	}
+	if !strings.Contains(err.Error(), "checkout") {
+		t.Fatalf("error %q should mention checkout failure", err.Error())
+	}
+}
