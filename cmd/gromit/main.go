@@ -301,10 +301,7 @@ func runLoop(cmd *cobra.Command, args []string) error {
 		var stageCtx *runner.StageContext
 		if runSpecFlag != "" {
 			var stageCtxErr error
-			origStoreFactory := runner.SpecflowStoreFactory
-			runner.SpecflowStoreFactory = newSpecflowStoreFn
-			stageCtx, stageCtxErr = newBuildSpecStageContextFn(ctx, cfg, runSpecFlag, gromitDir)
-			runner.SpecflowStoreFactory = origStoreFactory
+			stageCtx, stageCtxErr = newBuildSpecStageContextFn(ctx, cfg, runSpecFlag, gromitDir, newSpecflowStoreFn)
 			if stageCtxErr != nil {
 				return fmt.Errorf("initializing specflow stage: %w", stageCtxErr)
 			}
@@ -313,13 +310,9 @@ func runLoop(cmd *cobra.Command, args []string) error {
 				if err != nil {
 					return fmt.Errorf("determining repo dir: %w", err)
 				}
-				origBranchFactory := runner.SpecBranchCreatorFactory
-				runner.SpecBranchCreatorFactory = newSpecBranchCreatorFn
-				if err := runner.EnsureSpecBranch(ctx, cfg, stageCtx, repoDir); err != nil {
-					runner.SpecBranchCreatorFactory = origBranchFactory
+				if err := runner.EnsureSpecBranch(ctx, cfg, stageCtx, repoDir, newSpecBranchCreatorFn); err != nil {
 					return fmt.Errorf("preparing spec branch: %w", err)
 				}
-				runner.SpecBranchCreatorFactory = origBranchFactory
 			}
 		}
 

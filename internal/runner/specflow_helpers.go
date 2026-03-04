@@ -19,11 +19,14 @@ type SpecBranchCreator interface {
 	CreateOrCheckoutSpecBranch(ctx context.Context, specBranchName string) error
 }
 
-func BuildSpecStageContext(ctx context.Context, cfg *config.Config, specName, gromitDir string) (*StageContext, error) {
+func BuildSpecStageContext(ctx context.Context, cfg *config.Config, specName, gromitDir string, storeFactory func(string) (specflow.SpecStore, error)) (*StageContext, error) {
 	if cfg == nil {
 		return nil, nil
 	}
-	store, err := SpecflowStoreFactory(gromitDir)
+	if storeFactory == nil {
+		storeFactory = SpecflowStoreFactory
+	}
+	store, err := storeFactory(gromitDir)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +43,7 @@ func BuildSpecStageContext(ctx context.Context, cfg *config.Config, specName, gr
 	}, nil
 }
 
-func EnsureSpecBranch(ctx context.Context, cfg *config.Config, stageCtx *StageContext, repoDir string) error {
+func EnsureSpecBranch(ctx context.Context, cfg *config.Config, stageCtx *StageContext, repoDir string, branchFactory func(string, *config.Config) (SpecBranchCreator, error)) error {
 	if stageCtx == nil || stageCtx.SpecName == "" {
 		return nil
 	}
@@ -48,7 +51,10 @@ func EnsureSpecBranch(ctx context.Context, cfg *config.Config, stageCtx *StageCo
 	if err != nil {
 		return err
 	}
-	creator, err := SpecBranchCreatorFactory(repoDir, cfg)
+	if branchFactory == nil {
+		branchFactory = SpecBranchCreatorFactory
+	}
+	creator, err := branchFactory(repoDir, cfg)
 	if err != nil {
 		return err
 	}
