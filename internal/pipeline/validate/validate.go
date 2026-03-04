@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/pipeline"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/runner/validation"
 )
 
@@ -21,8 +23,9 @@ type CommandRunner interface {
 // It runs validation commands via CommandRunner and returns Proceed on success
 // or Block with structured summaries on failure.
 type Validate struct {
-	runner CommandRunner
-	output io.Writer
+	runner    CommandRunner
+	output    io.Writer
+	autoFixFn runtypes.AutoFixFn
 }
 
 // Compile-time check: *Validate must implement pipeline.Stage.
@@ -32,6 +35,17 @@ var _ pipeline.Stage = (*Validate)(nil)
 // output receives diagnostic messages; pass io.Discard to suppress.
 func New(runner CommandRunner, output io.Writer) *Validate {
 	return &Validate{runner: runner, output: output}
+}
+
+// WithAutoFix configures the auto-fix callback and the start commit used to
+// execute it. The commit string is trimmed before storage so guard conditions
+// can treat whitespace-only values as empty.
+func (v *Validate) WithAutoFix(autoFixFn runtypes.AutoFixFn) *Validate {
+	if v == nil {
+		return v
+	}
+	v.autoFixFn = autoFixFn
+	return v
 }
 
 // Run executes the validate stage:
@@ -105,39 +119,59 @@ func (v *Validate) Run(ctx context.Context, in pipeline.Input) (pipeline.Output,
 		})
 	}
 
-	// Run validation commands and collect failures.
-	for _, cmd := range commands {
-		stdout, stderr, exitCode, err := v.runner.Run(ctx, cmd, "")
+	runOnce := func() (bool, string, error) {
+		for _, cmd := range commands {
+			stdout, stderr, exitCode, err := v.runner.Run(ctx, cmd, "")
 
-		// Handle timeout errors as validation failures.
-		if errors.Is(err, context.DeadlineExceeded) {
-			summary := formatTimeoutMessage(cmd)
-			emitFail(summary)
-			return pipeline.Output{
-				Decision:           pipeline.Block,
-				ValidationFailures: []string{summary},
-			}, nil
+			if errors.Is(err, context.DeadlineExceeded) {
+				return false, formatTimeoutMessage(cmd), nil
+			}
+
+			if err != nil {
+				return false, "", err
+			}
+
+			if exitCode != 0 {
+				failureOutput := formatCommandFailure(cmd, exitCode, stdout, stderr)
+				summary := validation.ExtractValidationSummary(failureOutput)
+				return false, summary, nil
+			}
 		}
+		return true, "", nil
+	}
 
-		// Other errors are propagated.
+	success, summary, err := runOnce()
+	if err != nil {
+		return pipeline.Output{}, err
+	}
+	if success {
+		emitPass()
+		return pipeline.Output{Decision: pipeline.Proceed}, nil
+	}
+
+	lastSummary := summary
+	if v.shouldAttemptAutoFix(in.StartCommit) {
+		v.attemptAutoFix(in.StartCommit)
+		success, summary, err = runOnce()
 		if err != nil {
 			return pipeline.Output{}, err
 		}
-
-		if exitCode != 0 {
-			// Format failure output using ExtractValidationSummary.
-			failureOutput := formatCommandFailure(cmd, exitCode, stdout, stderr)
-			summary := validation.ExtractValidationSummary(failureOutput)
-			emitFail(summary)
+		lastSummary = summary
+		if success {
+			emitPass()
 			return pipeline.Output{
-				Decision:           pipeline.Block,
-				ValidationFailures: []string{summary},
+				Decision:         pipeline.Proceed,
+				TrivialAutoFixed: true,
 			}, nil
 		}
 	}
 
-	emitPass()
-	return pipeline.Output{Decision: pipeline.Proceed}, nil
+	emitFail(lastSummary)
+
+	return pipeline.Output{
+		Decision:           pipeline.Block,
+		ValidationFailures: []string{lastSummary},
+	}, nil
 }
 
 // formatCommandFailure formats the failure output from a failed command.
@@ -155,4 +189,20 @@ func formatCommandFailure(command string, exitCode int, stdout, stderr string) s
 // formatTimeoutMessage formats a timeout error message for a command.
 func formatTimeoutMessage(command string) string {
 	return fmt.Sprintf("Command timeout: %s exceeded configured timeout limit", command)
+}
+
+func (v *Validate) attemptAutoFix(startCommit string) {
+	if !v.shouldAttemptAutoFix(startCommit) {
+		return
+	}
+	if err := v.autoFixFn(startCommit); err != nil && v.output != nil {
+		_, _ = fmt.Fprintf(v.output, "Warning: validate auto-fix failed: %v\n", err)
+	}
+}
+
+func (v *Validate) shouldAttemptAutoFix(startCommit string) bool {
+	if v == nil || v.autoFixFn == nil {
+		return false
+	}
+	return strings.TrimSpace(startCommit) != ""
 }

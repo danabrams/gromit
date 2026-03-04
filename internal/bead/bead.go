@@ -227,6 +227,7 @@ type runWithRetryCascadeFunc func(*Client, context.Context, []string, []string, 
 type ClientDeps struct {
 	WaitForProcessCapacity  func(context.Context, time.Duration) error
 	SubprocessEnv           func() []string
+	SetProcessGroupKill     func(*exec.Cmd)
 	KillDescendantsOnCancel func(context.Context, *exec.Cmd)
 	ReapProcessTree         func(*exec.Cmd)
 	ResolveBeadsDir         func(context.Context, string) string
@@ -242,6 +243,9 @@ func (d *ClientDeps) ensureDefaults() {
 	}
 	if d.SubprocessEnv == nil {
 		d.SubprocessEnv = procutil.SubprocessEnv
+	}
+	if d.SetProcessGroupKill == nil {
+		d.SetProcessGroupKill = procutil.SetProcessGroupKill
 	}
 	if d.KillDescendantsOnCancel == nil {
 		d.KillDescendantsOnCancel = procutil.KillDescendantsOnCancel
@@ -511,7 +515,7 @@ func (c *Client) runWithEnv(ctx context.Context, args []string, extraEnv []strin
 	defer cancel()
 
 	cmd := exec.CommandContext(cmdCtx, c.binary, args...)
-	procutil.SetProcessGroupKill(cmd)
+	deps.SetProcessGroupKill(cmd)
 	if c.Dir != "" {
 		cmd.Dir = c.Dir
 	}
@@ -616,7 +620,7 @@ func (c *Client) runWithEnvCombinedOutput(ctx context.Context, args []string, ex
 	defer cancel()
 
 	cmd := exec.CommandContext(cmdCtx, c.binary, args...)
-	procutil.SetProcessGroupKill(cmd)
+	deps.SetProcessGroupKill(cmd)
 	if c.Dir != "" {
 		cmd.Dir = c.Dir
 	}
@@ -779,7 +783,7 @@ func (c *Client) repoBaseName(ctx context.Context) (string, error) {
 	}
 
 	cmd := exec.CommandContext(cmdCtx, "git", "rev-parse", "--show-toplevel")
-	procutil.SetProcessGroupKill(cmd)
+	deps.SetProcessGroupKill(cmd)
 	if c != nil && c.Dir != "" {
 		cmd.Dir = c.Dir
 	}

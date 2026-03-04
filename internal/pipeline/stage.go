@@ -62,6 +62,8 @@ type Input struct {
 	// BuildSucceeded is true when the build and validate stages both passed
 	// for this iteration. Set by the orchestrator before calling Epilogue.
 	BuildSucceeded bool
+	// StartCommit tracks the git commit used as the base for validation auto-fixes.
+	StartCommit string
 	// TouchedPackages holds the Go package paths touched by this iteration.
 	// Set by the orchestrator before calling Epilogue.
 	// The Epilogue returns an updated set in Output.TouchedPackages for the orchestrator to
@@ -101,6 +103,8 @@ type Output struct {
 	// ValidationFailures holds failure summaries produced by the validate stage
 	// to be fed into the next execute stage Input.
 	ValidationFailures []string
+	// TrivialAutoFixed is true when the validate stage resolved failures via auto-fix.
+	TrivialAutoFixed bool
 	// MidBuildReviewFindings carries findings discovered by the mid-review stage
 	// so the orchestrator can trigger an extra build invocation.
 	MidBuildReviewFindings []string

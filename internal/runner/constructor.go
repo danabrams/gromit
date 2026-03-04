@@ -196,7 +196,7 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 		)
 	}
 	// Stage 3: Validate (validate.New with CommandRunner)
-	validateStage := validate.New(&cmdRunnerAdapter{runner: defaultCmdRunner}, syncOut)
+	validateStage := validate.New(&cmdRunnerAdapter{runner: defaultCmdRunner}, syncOut).WithAutoFix(validate.NewAutoFixFn(runAutoFixCommand))
 	// Stage 3c: Regression Gate (quality gate that runs regression tests).
 	regressionStage := regression.New(&cmdRunnerAdapter{runner: defaultCmdRunner})
 	// Wrapper for getGitDiff to match review.GitDiffFn signature

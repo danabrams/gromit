@@ -229,6 +229,33 @@ func TestClientRunWithEnvUsesProcutilDefaultWait(t *testing.T) {
 	}
 }
 
+func TestClientRunWithEnv_UsesInjectedSetProcessGroupKill(t *testing.T) {
+	t.Parallel()
+
+	script := "#!/bin/sh\nexit 0\n"
+	binaryPath := writeExecutableScript(t, script)
+
+	var setCalled bool
+	c := &Client{
+		binary: binaryPath,
+		Deps: ClientDeps{
+			SetProcessGroupKill: func(cmd *exec.Cmd) {
+				setCalled = true
+				if cmd == nil {
+					t.Fatal("SetProcessGroupKill called with nil cmd")
+				}
+			},
+		},
+	}
+
+	if _, err := c.runWithEnv(context.Background(), []string{"ready"}, nil); err != nil {
+		t.Fatalf("runWithEnv() error = %v", err)
+	}
+	if !setCalled {
+		t.Fatal("runWithEnv() did not call SetProcessGroupKill")
+	}
+}
+
 func TestClientRun_RetriesWithNoDBOnDatabaseNotFound(t *testing.T) {
 	t.Parallel()
 	counterPath := filepath.Join(t.TempDir(), "run-count")
