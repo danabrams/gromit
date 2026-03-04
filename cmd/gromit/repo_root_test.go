@@ -38,6 +38,44 @@ func TestFindProjectRoot_FallsBackWhenWorkingDirectoryRemoved(t *testing.T) {
 	}
 }
 
+func TestFindProjectRoot_ProjectPathRelativeToWorkingDir(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, repoConfigName), []byte(""), 0o644); err != nil {
+		t.Fatalf("write %s: %v", repoConfigName, err)
+	}
+
+	workDir := t.TempDir()
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(origWD)
+	})
+	if err := os.Chdir(workDir); err != nil {
+		t.Fatalf("chdir to work dir: %v", err)
+	}
+
+	relPath, err := filepath.Rel(workDir, root)
+	if err != nil {
+		t.Fatalf("rel path: %v", err)
+	}
+
+	origProjectPath := projectPath
+	projectPath = relPath
+	t.Cleanup(func() {
+		projectPath = origProjectPath
+	})
+
+	got, err := findProjectRoot()
+	if err != nil {
+		t.Fatalf("findProjectRoot: %v", err)
+	}
+	assertSameProjectRoot(t, got, root)
+}
+
 func TestFindProjectRoot_UsesProjectPathFlag(t *testing.T) {
 	t.Parallel()
 
