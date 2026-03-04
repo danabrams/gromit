@@ -581,6 +581,41 @@ func TestRouterSelectIncrementsCountInState(t *testing.T) {
 	}
 }
 
+func TestRouterSelectAndRecordInvocationCountOnce(t *testing.T) {
+	t.Parallel()
+	stateFn := &mockStateFile{
+		providerCounts: map[string]int{
+			"claude": 5,
+		},
+	}
+
+	r := &Router{
+		providers: map[string]Provider{
+			"claude": &mockProvider{name: "claude"},
+		},
+		preferences: map[string]string{
+			"build": "claude",
+		},
+		ratio:       map[string]int{"claude": 100},
+		counts:      map[string]int{"claude": 5},
+		stateFn:     stateFn,
+	}
+
+	// Select should count once
+	_, _ = r.Select("build", TierMedium)
+
+	// RecordInvocation should not increment the count a second time
+	r.RecordInvocation("claude")
+
+	if r.counts["claude"] != 6 {
+		t.Errorf("counts[\"claude\"] = %d, want 6 after Select()+RecordInvocation", r.counts["claude"])
+	}
+
+	if stateFn.providerCounts["claude"] != 6 {
+		t.Errorf("state provider count = %d, want 6", stateFn.providerCounts["claude"])
+	}
+}
+
 // TestRouterSelectRatioBalancing verifies that Select method properly
 // balances invocations based on target ratios over multiple calls.
 // Expected failure: Select() method does not exist yet
