@@ -151,6 +151,43 @@ func (m *Model) handlePipelineActionRune(key rune) (tea.Model, tea.Cmd, bool) {
 	return m, cmd, true
 }
 
+func (m *Model) handleRunLoopNavigationKey(msg tea.KeyMsg) (tea.Cmd, bool) {
+	switch msg.Type {
+	case tea.KeyLeft:
+		m.PrevTab()
+		return nil, true
+	case tea.KeyRight:
+		m.NextTab()
+		return nil, true
+	case tea.KeyRunes:
+		if len(msg.Runes) == 0 {
+			return nil, false
+		}
+		key := msg.Runes[0]
+		switch key {
+		case '1', '2', '3':
+			if m.activeTab != TabRunLoop {
+				return nil, true
+			}
+			switch key {
+			case '1':
+				m.SwitchView(ViewDashboard)
+				return nil, true
+			case '2':
+				m.SwitchView(ViewQueue)
+				return nil, true
+			case '3':
+				m.SwitchView(ViewConversation)
+				if m.conversation != nil {
+					return m.conversation.Init(), true
+				}
+				return nil, true
+			}
+		}
+	}
+	return nil, false
+}
+
 // Init initializes the model.
 func (m *Model) Init() tea.Cmd {
 	if m.currentView == ViewConversation && m.conversation != nil {
@@ -161,25 +198,21 @@ func (m *Model) Init() tea.Cmd {
 
 // Update handles messages and updates the model.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// When in conversation view, forward messages to the conversation controller
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		if cmd, handled := m.handleRunLoopNavigationKey(keyMsg); handled {
+			return m, cmd
+		}
+	}
+
 	if m.currentView == ViewConversation && m.conversation != nil {
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
-			switch msg.Type {
-			case tea.KeyLeft:
-				m.PrevTab()
-				return m, nil
-			case tea.KeyRight:
-				m.NextTab()
-				return m, nil
-			}
 			model, cmd := m.conversation.Update(msg)
 			if ctrl, ok := model.(*ConversationController); ok {
 				m.conversation = ctrl
 			}
 			return m, cmd
 		case conversationEventMsg:
-			// Apply conversation event to store
 			if m.store != nil {
 				m.store.ApplyConversationEvent(msg.Event)
 			}
@@ -198,10 +231,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.FocusNext()
 		case tea.KeyShiftTab:
 			m.FocusPrev()
-		case tea.KeyLeft:
-			m.PrevTab()
-		case tea.KeyRight:
-			m.NextTab()
 		case tea.KeyUp:
 			if nav := m.activePipelineNavigator(); nav != nil {
 				nav.CursorUp()
@@ -235,21 +264,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			case 'v':
 				m.detailView = !m.detailView
-			case '1', '2', '3':
-				if m.activeTab != TabRunLoop {
-					break
-				}
-				switch key {
-				case '1':
-					m.SwitchView(ViewDashboard)
-				case '2':
-					m.SwitchView(ViewQueue)
-				case '3':
-					m.SwitchView(ViewConversation)
-					if m.conversation != nil {
-						return m, m.conversation.Init()
-					}
-				}
 			default:
 				if updatedModel, cmd, handled := m.handlePipelineActionRune(key); handled {
 					return updatedModel, cmd
