@@ -8,9 +8,6 @@ type PendingAction struct {
 	Args    []string
 }
 
-// Tab identifies a top-level pipeline tab in the TUI.
-type Tab string
-
 // ListItem is used to abstract items displayed in the pipeline tabs.
 type ListItem interface {
 	Title() string
@@ -41,6 +38,34 @@ func handleAction(m *Model, key string, activeTab Tab, selectedItem ListItem, st
 	case "d":
 		m.pendingAction = buildPendingAction("decompose", extractIdentifier(selectedItem))
 		return m, tea.Quit
+	case "x", "X":
+		if selectedItem == nil {
+			return m, nil
+		}
+		m.confirmDelete = true
+		return m, nil
+	case "y", "Y":
+		if !m.confirmDelete {
+			return m, nil
+		}
+		if selectedItem == nil {
+			m.confirmDelete = false
+			return m, nil
+		}
+		identifier := extractIdentifier(selectedItem)
+		m.confirmDelete = false
+		if identifier == "" {
+			return m, nil
+		}
+		if store != nil {
+			store.DeletePipelineItem(activeTab, identifier)
+		}
+		return m, nil
+	case "n", "N", "esc", "Esc":
+		if m.confirmDelete {
+			m.confirmDelete = false
+		}
+		return m, nil
 	case "R":
 		return m, refreshPipelineCmd(activeTab)
 	default:

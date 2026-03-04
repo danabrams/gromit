@@ -14,6 +14,7 @@ import (
 type HydrationProvider interface {
 	RunnerStatus(ctx context.Context, gromitDir string) (*runner.Status, error)
 	PipelineStatus(ctx context.Context, gromitDir, specsDir, plansDir string, startedAt *time.Time) (*pipeline.PipelineStatus, error)
+	PipelineItems(ctx context.Context, gromitDir, specsDir, plansDir string) (PipelineItems, error)
 }
 
 // HydrateStore loads the dashboard and queue fields from the provided sources.
@@ -44,6 +45,14 @@ func HydrateStore(ctx context.Context, cfg *config.Config, gromitDir, specsDir, 
 		dashboardWarnings = append(dashboardWarnings, fmt.Sprintf("pipeline status: %v", err))
 	}
 	store.Dashboard.PipelineStatus = pipelineStatus
+
+	pipelineItems, err := provider.PipelineItems(ctx, gromitDir, specsDir, plansDir)
+	if err != nil {
+		dashboardWarnings = append(dashboardWarnings, fmt.Sprintf("pipeline items: %v", err))
+		store.SetPipelineItems(PipelineItems{})
+	} else {
+		store.SetPipelineItems(pipelineItems)
+	}
 
 	store.Dashboard.LastHydration = now
 	store.Dashboard.Warnings = dashboardWarnings

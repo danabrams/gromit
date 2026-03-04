@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/danabrams/gromit/internal/backlog"
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/conversation"
 )
@@ -105,6 +106,40 @@ func TestModel_KeyboardNavigationShiftTab(t *testing.T) {
 		t.Errorf("expected focus to be 0 after Shift+Tab, got %d", m.focusedPanel)
 	}
 	_ = cmd
+}
+
+func TestModel_ArrowKeysNavigateTabs(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+
+	if m.activeTab != TabRunLoop {
+		t.Fatalf("expected initial active tab to be run loop, got %q", m.activeTab)
+	}
+
+	rightSequence := []struct {
+		key  tea.KeyType
+		want Tab
+	}{
+		{tea.KeyRight, TabBacklog},
+		{tea.KeyRight, TabSpecs},
+		{tea.KeyRight, TabPlans},
+		{tea.KeyRight, TabQueue},
+		{tea.KeyRight, TabRunLoop},
+	}
+
+	for _, tc := range rightSequence {
+		msg := tea.KeyMsg{Type: tc.key}
+		m.Update(msg)
+		if m.activeTab != tc.want {
+			t.Fatalf("after %s, expected active tab %q, got %q", tc.key, tc.want, m.activeTab)
+		}
+	}
+
+	msg := tea.KeyMsg{Type: tea.KeyLeft}
+	m.Update(msg)
+	if m.activeTab != TabQueue {
+		t.Fatalf("after left arrow, expected active tab queue, got %q", m.activeTab)
+	}
 }
 
 func TestModel_ScrollHandlingUp(t *testing.T) {
@@ -398,6 +433,25 @@ func TestModel_FocusConversationKeySwitchesToConversationView(t *testing.T) {
 	}
 }
 
+func TestModel_NumberKeysOnlyRunLoopActive(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+	m.SwitchView(ViewDashboard)
+
+	m.activeTab = TabBacklog
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}}
+	m.Update(msg)
+	if m.currentView != ViewDashboard {
+		t.Fatalf("expected view to stay Dashboard when active tab is %q, got %q", m.activeTab, m.currentView)
+	}
+
+	m.activeTab = TabRunLoop
+	m.Update(msg)
+	if m.currentView != ViewQueue {
+		t.Fatalf("expected view to switch to Queue when run loop active, got %q", m.currentView)
+	}
+}
+
 func TestModel_UsesKeymapForConversationActions(t *testing.T) {
 	store := &Store{}
 	m := NewModel(store)
@@ -507,6 +561,30 @@ func TestModel_ForwardsKeysToConversationControllerWhenInConversationView(t *tes
 	}
 }
 
+func TestModel_ArrowKeysNavigateTabsDuringConversationView(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+	timeline := []conversation.FakeStep{
+		{Event: conversation.Event{Type: conversation.EventTypeDone}},
+	}
+	session := conversation.NewFakeSession(timeline)
+	controller := NewConversationController(session)
+	m.SetConversationController(controller)
+	m.SwitchView(ViewConversation)
+
+	if m.activeTab != TabRunLoop {
+		t.Fatalf("expected active tab run loop before navigation, got %q", m.activeTab)
+	}
+
+	if _, _ = m.Update(tea.KeyMsg{Type: tea.KeyRight}); m.activeTab != TabBacklog {
+		t.Fatalf("expected active tab to advance to backlog while in conversation view, got %q", m.activeTab)
+	}
+
+	if _, _ = m.Update(tea.KeyMsg{Type: tea.KeyLeft}); m.activeTab != TabRunLoop {
+		t.Fatalf("expected active tab to move back to run loop after left arrow, got %q", m.activeTab)
+	}
+}
+
 func TestModel_TabNavigationKeepsCursorAndRendersPipelineData(t *testing.T) {
 	store, ready := newPipelineStore(t)
 	m := NewModel(store)
@@ -595,6 +673,24 @@ func TestModel_ActionDispatchConversationViewUsesPipelineStore(t *testing.T) {
 	}
 }
 
+func TestModel_RunLoopSubViewKeysWorkFromConversationView(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+	timeline := []conversation.FakeStep{
+		{Event: conversation.Event{Type: conversation.EventTypeDone}},
+	}
+	session := conversation.NewFakeSession(timeline)
+	controller := NewConversationController(session)
+	m.SetConversationController(controller)
+	m.SwitchView(ViewConversation)
+
+	model, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'1'}})
+	m = model.(*Model)
+	if m.currentView != ViewDashboard {
+		t.Fatalf("expected dashboard view after pressing '1' in conversation view, got %v", m.currentView)
+	}
+}
+
 func newPipelineStore(t *testing.T) (*Store, *bead.Bead) {
 	t.Helper()
 
@@ -636,6 +732,9 @@ func newPipelineStore(t *testing.T) (*Store, *bead.Bead) {
 type mockPipelineListModel struct {
 	called int
 	items  []ListItem
+	cursorUpCalls   int
+	cursorDownCalls int
+	selected        ListItem
 }
 
 func (m *mockPipelineListModel) SetItems(items []ListItem) {
@@ -643,23 +742,250 @@ func (m *mockPipelineListModel) SetItems(items []ListItem) {
 	m.items = items
 }
 
+func (m *mockPipelineListModel) CursorUp() {
+	m.cursorUpCalls++
+}
+
+func (m *mockPipelineListModel) CursorDown() {
+	m.cursorDownCalls++
+}
+
+func (m *mockPipelineListModel) Selected() ListItem {
+	return m.selected
+}
+
+type testActionListItem struct {
+	id string
+}
+
+func (t *testActionListItem) Title() string {
+	return "action item"
+}
+
+func (t *testActionListItem) Summary() string {
+	return "selected for action"
+}
+
+func (t *testActionListItem) Identifier() string {
+	return t.id
+}
+
 func TestModel_PipelineRefreshUpdatesLists(t *testing.T) {
 	store := &Store{}
+	ideas := []backlog.Idea{
+		{ID: "idea-alpha", Text: "Alpha idea"},
+	}
+	specs := []string{"spec-alpha", "spec-beta"}
+	store.SetPipelineItems(PipelineItems{
+		BacklogIdeas:   ideas,
+		UnplannedSpecs: specs,
+	})
+
 	model := NewModel(store)
+	backlog := &mockPipelineListModel{}
+	specList := &mockPipelineListModel{}
+	model.registerPipelineListModel(TabBacklog, backlog)
+	model.registerPipelineListModel(TabSpecs, specList)
 
-	first := &mockPipelineListModel{}
-	second := &mockPipelineListModel{}
-	model.registerPipelineListModel(first)
-	model.registerPipelineListModel(second)
+	model.Update(pipelineRefreshedMsg{RequestedTab: TabSpecs})
 
-	model.Update(pipelineRefreshedMsg{RequestedTab: Tab("backlog")})
-
-	for _, list := range []*mockPipelineListModel{first, second} {
-		if list.called != 1 {
-			t.Fatalf("SetItems called %d times, want 1", list.called)
+	if backlog.called != 1 {
+		t.Fatalf("expected backlog list to be updated once, got %d", backlog.called)
+	}
+	if specList.called != 1 {
+		t.Fatalf("expected specs list to be updated once, got %d", specList.called)
+	}
+	if len(backlog.items) != len(ideas) {
+		t.Fatalf("expected %d backlog items, got %d", len(ideas), len(backlog.items))
+	}
+	for i, item := range backlog.items {
+		ideaItem, ok := item.(*IdeaListItem)
+		if !ok {
+			t.Fatalf("expected IdeaListItem, got %T", item)
 		}
-		if list.items != nil {
-			t.Fatalf("expected nil items, got %+v", list.items)
+		if ideaItem.idea.ID != ideas[i].ID {
+			t.Fatalf("expected idea ID %q, got %q", ideas[i].ID, ideaItem.idea.ID)
 		}
+	}
+	if len(specList.items) != len(specs) {
+		t.Fatalf("expected %d spec items, got %d", len(specs), len(specList.items))
+	}
+	for i, item := range specList.items {
+		specItem, ok := item.(*SpecListItem)
+		if !ok {
+			t.Fatalf("expected SpecListItem, got %T", item)
+		}
+		if specItem.path != specs[i] {
+			t.Fatalf("expected spec path %q, got %q", specs[i], specItem.path)
+		}
+	}
+}
+
+func TestModel_PipelineListNavigationRoutesToActiveList(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+	list := &mockPipelineListModel{}
+	m.registerPipelineListModel(TabBacklog, list)
+	m.activeTab = TabBacklog
+
+	if _, cmd := m.Update(tea.KeyMsg{Type: tea.KeyUp}); cmd != nil {
+		t.Fatalf("unexpected command for up key: %v", cmd)
+	}
+	if list.cursorUpCalls != 1 {
+		t.Fatalf("expected CursorUp to be called once, got %d", list.cursorUpCalls)
+	}
+
+	if _, cmd := m.Update(tea.KeyMsg{Type: tea.KeyDown}); cmd != nil {
+		t.Fatalf("unexpected command for down key: %v", cmd)
+	}
+	if list.cursorDownCalls != 1 {
+		t.Fatalf("expected CursorDown to be called once, got %d", list.cursorDownCalls)
+	}
+}
+
+func TestModel_PipelineListNavigationTargetsActiveTab(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+	backlog := &mockPipelineListModel{}
+	specs := &mockPipelineListModel{}
+	m.registerPipelineListModel(TabBacklog, backlog)
+	m.registerPipelineListModel(TabSpecs, specs)
+
+	m.activeTab = TabBacklog
+	if _, cmd := m.Update(tea.KeyMsg{Type: tea.KeyUp}); cmd != nil {
+		t.Fatalf("unexpected command for up key: %v", cmd)
+	}
+	if backlog.cursorUpCalls != 1 {
+		t.Fatalf("expected backlog CursorUp to be called once, got %d", backlog.cursorUpCalls)
+	}
+	if specs.cursorUpCalls != 0 {
+		t.Fatalf("expected specs CursorUp to be ignored, got %d", specs.cursorUpCalls)
+	}
+
+	m.activeTab = TabSpecs
+	if _, cmd := m.Update(tea.KeyMsg{Type: tea.KeyDown}); cmd != nil {
+		t.Fatalf("unexpected command for down key: %v", cmd)
+	}
+	if specs.cursorDownCalls != 1 {
+		t.Fatalf("expected specs CursorDown to be called once, got %d", specs.cursorDownCalls)
+	}
+	if backlog.cursorDownCalls != 0 {
+		t.Fatalf("expected backlog CursorDown to remain zero, got %d", backlog.cursorDownCalls)
+	}
+}
+
+func TestModel_PipelineActionKeysInvokeHandleAction(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+
+	item := &testActionListItem{id: "idea-9"}
+	list := &mockPipelineListModel{selected: item}
+	m.registerPipelineListModel(TabBacklog, list)
+	m.activeTab = TabBacklog
+
+	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	m = model.(*Model)
+
+	if cmd == nil {
+		t.Fatalf("expected non-nil command from handleAction")
+	}
+	if m.pendingAction == nil {
+		t.Fatalf("expected pending action to be set after handleAction")
+	}
+	if m.pendingAction.Command != "refine" {
+		t.Fatalf("expected pending action command \"refine\", got %q", m.pendingAction.Command)
+	}
+	if len(m.pendingAction.Args) != 1 || m.pendingAction.Args[0] != item.Identifier() {
+		t.Fatalf("expected pending action args [%q], got %+v", item.Identifier(), m.pendingAction.Args)
+	}
+	msg := cmd()
+	if _, ok := msg.(tea.QuitMsg); !ok {
+		t.Fatalf("expected handleAction to return tea.QuitMsg, got %T", msg)
+	}
+}
+
+func TestModel_PipelineActionKeysHandleOutsideDashboardView(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+	m.currentView = ViewQueue
+
+	item := &testActionListItem{id: "idea-42"}
+	list := &mockPipelineListModel{selected: item}
+	m.registerPipelineListModel(TabBacklog, list)
+	m.activeTab = TabBacklog
+
+	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	m = model.(*Model)
+
+	if cmd == nil {
+		t.Fatalf("expected non-nil command from handleAction")
+	}
+	if m.pendingAction == nil {
+		t.Fatalf("expected pending action to be set")
+	}
+	if m.pendingAction.Command != "refine" {
+		t.Fatalf("expected pending action command \"refine\", got %q", m.pendingAction.Command)
+	}
+	if len(m.pendingAction.Args) != 1 || m.pendingAction.Args[0] != item.Identifier() {
+		t.Fatalf("expected pending action args [%q], got %+v", item.Identifier(), m.pendingAction.Args)
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Fatalf("expected handleAction to emit tea.QuitMsg, got %T", cmd())
+	}
+}
+
+func TestModel_EscapeClosesDetailView(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+	m.detailView = true
+	m.activeTab = TabBacklog
+
+	model, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m = model.(*Model)
+
+	if m.detailView {
+		t.Fatalf("expected detail view to close after Escape")
+	}
+}
+
+func TestModel_EscapeCancelsConfirmDelete(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+	m.activeTab = TabBacklog
+	m.confirmDelete = true
+
+	model, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m = model.(*Model)
+
+	if m.confirmDelete {
+		t.Fatalf("expected confirmDelete to be cleared after Escape")
+	}
+}
+
+
+func TestModel_RunLoopSubViewInitializesToDashboard(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+
+	// runLoopSubView should be initialized to ViewDashboard
+	if m.runLoopSubView != ViewDashboard {
+		t.Errorf("expected initial runLoopSubView to be Dashboard, got %v", m.runLoopSubView)
+	}
+}
+
+func TestModel_SwitchViewUpdatesRunLoopSubView(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+
+	// Switch to Queue view
+	m.SwitchView(ViewQueue)
+	if m.runLoopSubView != ViewQueue {
+		t.Errorf("expected runLoopSubView to be Queue after SwitchView, got %v", m.runLoopSubView)
+	}
+
+	// Switch to Conversation view
+	m.SwitchView(ViewConversation)
+	if m.runLoopSubView != ViewConversation {
+		t.Errorf("expected runLoopSubView to be Conversation after SwitchView, got %v", m.runLoopSubView)
 	}
 }
