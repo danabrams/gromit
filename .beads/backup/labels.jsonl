@@ -350,6 +350,8 @@
 {"issue_id":"gromit-61692.1","label":"tdd:true"}
 {"issue_id":"gromit-61692.2","label":"tdd:true"}
 {"issue_id":"gromit-61692.3","label":"tdd:true"}
+{"issue_id":"gromit-62ro2","label":"bug"}
+{"issue_id":"gromit-62ro2","label":"from-review"}
 {"issue_id":"gromit-6426","label":"spec:optimize-bd-subprocess-calls"}
 {"issue_id":"gromit-65k","label":"spec:expanded-status"}
 {"issue_id":"gromit-6aa","label":"spec:atdd-methodology"}
@@ -1247,6 +1249,8 @@
 {"issue_id":"gromit-imtt9","label":"estimated-files:2"}
 {"issue_id":"gromit-imtt9","label":"spec:strengthen-quality-gates"}
 {"issue_id":"gromit-iplr","label":"spec:refine-epic-context"}
+{"issue_id":"gromit-iq7r7","label":"feature"}
+{"issue_id":"gromit-iq7r7","label":"from-review"}
 {"issue_id":"gromit-iqaq4","label":"from-review"}
 {"issue_id":"gromit-iqoj4","label":"spec:runner-pipeline"}
 {"issue_id":"gromit-irc6","label":"spec:reduce-iteration-cost"}
@@ -1410,6 +1414,8 @@
 {"issue_id":"gromit-kx5","label":"from-review"}
 {"issue_id":"gromit-kx5n","label":"spec:filtered-hash-eviction"}
 {"issue_id":"gromit-kyknq","label":"spec:prompt-token-accounting-diagnostics"}
+{"issue_id":"gromit-kzny5","label":"feature"}
+{"issue_id":"gromit-kzny5","label":"from-review"}
 {"issue_id":"gromit-l0g9d","label":"spec:dynamic-code-map"}
 {"issue_id":"gromit-l1qsb","label":"from-review"}
 {"issue_id":"gromit-l1qsb","label":"spec:runner-pipeline"}
@@ -1909,6 +1915,8 @@
 {"issue_id":"gromit-szaw4","label":"spec:cost-per-spec-metric"}
 {"issue_id":"gromit-t0i","label":"spec:between-iteration-command"}
 {"issue_id":"gromit-t1rh9","label":"spec:dynamic-code-map"}
+{"issue_id":"gromit-t3uy7","label":"feature"}
+{"issue_id":"gromit-t3uy7","label":"from-review"}
 {"issue_id":"gromit-t4ch","label":"spec:pipeline-extraction"}
 {"issue_id":"gromit-t4cnb","label":"cleanup"}
 {"issue_id":"gromit-t4cnb","label":"from-review"}
@@ -2306,6 +2314,9 @@
 {"issue_id":"gromit-xp9zc.5.3","label":"spec:fix-spec-branch-checkout-preconditions"}
 {"issue_id":"gromit-xqjz","label":"spec:phase-isolated-methodology-contexts"}
 {"issue_id":"gromit-xr4i","label":"spec:multi-provider-routing"}
+{"issue_id":"gromit-xr728","label":"bug"}
+{"issue_id":"gromit-xr728","label":"from-review"}
+{"issue_id":"gromit-xr728","label":"test-flake"}
 {"issue_id":"gromit-xri0d","label":"estimated-files:2"}
 {"issue_id":"gromit-xri0d","label":"spec:auto-generate-acceptance-criteria"}
 {"issue_id":"gromit-xtbdn","label":"estimated-files:2"}
