@@ -309,3 +309,45 @@ func TestEmitter_DroppedCount_IncrementsWhenBufferFull(t *testing.T) {
 		t.Errorf("expected to receive %d buffered events, got %d", bufferedSize, received)
 	}
 }
+
+// TestEmitter_EmitNotifiesDroppedEvents verifies that a DroppedEventsEvent is emitted when events are dropped.
+func TestEmitter_EmitNotifiesDroppedEvents(t *testing.T) {
+	t.Parallel()
+	emitter := NewEmitter()
+	defer emitter.Close()
+
+	slowCh := emitter.Subscribe()
+	fastCh := emitter.Subscribe()
+
+	const extra = 5
+	for i := 0; i < subscriberBufferSize+extra; i++ {
+		emitter.Emit(&LogEvent{
+			Level:   "info",
+			Message: "drop notification test",
+		})
+	}
+
+	// Drain the slow consumer to keep the test deterministic.
+	go func() {
+		for range slowCh {
+		}
+	}()
+
+	deadline := time.After(1 * time.Second)
+	var droppedEvent *DroppedEventsEvent
+	for {
+		select {
+		case evt := <-fastCh:
+			if dropped, ok := evt.(*DroppedEventsEvent); ok {
+				droppedEvent = dropped
+				goto done
+			}
+		case <-deadline:
+			t.Fatal("timed out waiting for DroppedEventsEvent")
+		}
+	}
+done:
+	if droppedEvent.Count != extra {
+		t.Fatalf("expected DroppedEventsEvent.Count = %d, got %d", extra, droppedEvent.Count)
+	}
+}
