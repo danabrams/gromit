@@ -243,3 +243,26 @@ func (m *contextSensitiveMockGitOps) Cleanup(ctx context.Context, entry Entry) e
 	}
 	return nil
 }
+
+// NewSuccessfulMockGitOps creates a mock GitOps that always succeeds.
+func NewSuccessfulMockGitOps() GitOps {
+	return &successfulMockGitOps{}
+}
+
+type successfulMockGitOps struct{}
+
+func (m *successfulMockGitOps) FetchAndRebase(ctx context.Context, entry Entry) error {
+	return nil
+}
+
+func (m *successfulMockGitOps) MergeToMain(ctx context.Context, entry Entry) error {
+	return nil
+}
+
+func (m *successfulMockGitOps) Push(ctx context.Context) error {
+	return nil
+}
+
+func (m *successfulMockGitOps) Cleanup(ctx context.Context, entry Entry) error {
+	return nil
+}
