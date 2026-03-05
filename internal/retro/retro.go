@@ -47,6 +47,7 @@ type Retro struct {
 	gromitDir           string
 	workmanshipPath     string
 	logsDir             string // override for logs directory; when empty, defaults to gromitDir/logs
+	outputWriter        io.Writer
 	promptBudget        int
 	diagnostics         *prompt.PromptDiagnostics
 	lastTemplateContext TemplateContext
@@ -86,18 +87,27 @@ type Result struct {
 
 // NewRetroWithProvider creates a new retrospective analyzer with a Provider
 func NewRetroWithProvider(p ProviderRunner, gromitDir string) (*Retro, error) {
-	return NewRetroWithProviderAndBudget(p, gromitDir, 0)
+	return NewRetroWithProviderAndBudgetWithWriter(p, gromitDir, 0, os.Stderr)
 }
 
 // NewRetroWithProviderAndBudget creates a new retrospective analyzer with a Provider
 // and optional prompt budget for retro rules/learnings shaping.
 func NewRetroWithProviderAndBudget(p ProviderRunner, gromitDir string, promptBudget int) (*Retro, error) {
+	return NewRetroWithProviderAndBudgetWithWriter(p, gromitDir, promptBudget, os.Stderr)
+}
+
+// NewRetroWithProviderAndBudgetWithWriter creates a new retrospective analyzer with a Provider
+// and allows customizing the output writer used by streaming and warning helpers.
+func NewRetroWithProviderAndBudgetWithWriter(p ProviderRunner, gromitDir string, promptBudget int, output io.Writer) (*Retro, error) {
 	if p == nil {
 		return nil, fmt.Errorf("provider is nil")
 	}
 	learningsFile, err := learnings.NewFile(gromitDir)
 	if err != nil {
 		return nil, err
+	}
+	if output == nil {
+		output = os.Stderr
 	}
 	return &Retro{
 		provider:        p,
@@ -108,6 +118,7 @@ func NewRetroWithProviderAndBudget(p ProviderRunner, gromitDir string, promptBud
 		gromitDir:       gromitDir,
 		workmanshipPath: filepath.Join(gromitDir, "workmanship_history.json"),
 		promptBudget:    promptBudget,
+		outputWriter:    output,
 	}, nil
 }
 
@@ -234,7 +245,7 @@ func (r *Retro) Run(ctx context.Context, beadFilter map[string]bool) (*Result, e
 	// Load efficiency report with the latest run as "current"
 	currentRunID := analytics.LatestRunID(logsDir)
 	if currentRunID == "" {
-		fmt.Fprintf(os.Stderr, "Warning: no run-*.jsonl files found in %s; current-run efficiency data will be empty\n", logsDir)
+		fmt.Fprintf(r.getOutputWriter(), "Warning: no run-*.jsonl files found in %s; current-run efficiency data will be empty\n", logsDir)
 	}
 	efficiencyReport, _ := analytics.ReadEfficiencyReportFiltered(logsDir, currentRunID, beadFilter)
 
@@ -352,7 +363,7 @@ func (r *Retro) createLearningsAdapter() interface {
 
 // runAnalysis executes the LLM analysis using provider with streaming output
 func (r *Retro) runAnalysis(ctx context.Context, prompt string) (resultGetter, error) {
-	result, err := r.provider.StreamRun(ctx, prompt, retroAnalysisTier, os.Stderr, nil, nil)
+	result, err := r.provider.StreamRun(ctx, prompt, retroAnalysisTier, r.getOutputWriter(), nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("running provider analysis: %w", err)
 	}
@@ -380,6 +391,13 @@ func (r *Retro) runAnalysis(ctx context.Context, prompt string) (resultGetter, e
 		return nil, fmt.Errorf("provider returned empty analysis output")
 	}
 	return &providerResultAdapter{result}, nil
+}
+
+func (r *Retro) getOutputWriter() io.Writer {
+	if r == nil || r.outputWriter == nil {
+		return os.Stderr
+	}
+	return r.outputWriter
 }
 
 // providerResultAdapter adapts provider.Result to resultGetter interface
@@ -586,7 +604,7 @@ func (r *Retro) loadProcessTrend() *analytics.ProcessTrend {
 	path := filepath.Join(r.gromitDir, "metrics", "process_trend.json")
 	trend, err := analytics.ReadProcessTrend(path)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to load process trend: %v\n", err)
+		fmt.Fprintf(r.getOutputWriter(), "Warning: failed to load process trend: %v\n", err)
 		return nil
 	}
 	return trend
@@ -623,7 +641,7 @@ func (r *Retro) captureExperimentLearning(exp *Experiment) {
 	)
 
 	if _, err := r.learningsFile.Add("retro", content, learnings.CategoryPatterns); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to capture experiment learning: %v\n", err)
+		fmt.Fprintf(r.getOutputWriter(), "Warning: failed to capture experiment learning: %v\n", err)
 		return
 	}
 
@@ -636,6 +654,6 @@ func (r *Retro) captureExperimentLearning(exp *Experiment) {
 		exp.ActDate = &now
 	}
 	if err := SaveExperiment(r.experimentPath, exp); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to persist experiment learning state: %v\n", err)
+		fmt.Fprintf(r.getOutputWriter(), "Warning: failed to persist experiment learning state: %v\n", err)
 	}
 }
