@@ -324,6 +324,9 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 		StageContext:     stageCtx,
 	}
 
+	// Set up pre-implementation hook for acceptance tests stage
+	orchCfg.PreImplementationHook = newStageAwarePreImplementationHookWithBeadClient(stageCtx, beadsClient)
+
 	if cfg.Methodology.Granularity == config.MethodologyGranularitySpec {
 		repoDir, baseBranch := filepath.Dir(gromitDir), cfg.Git.BaseBranch
 		gitOps := specbranch.NewGitOps(repoDir, baseBranch)
