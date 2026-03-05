@@ -15,6 +15,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/integrationqueue"
+	"github.com/danabrams/gromit/internal/runner/display"
 )
 
 // TestPrintStatus_IncludesPipelineSection verifies that PrintStatus outputs
@@ -569,12 +570,12 @@ func TestPrintStatus_ShowsModelAndTimeBudget(t *testing.T) {
 	}
 
 	// Verify the display format includes both fields.
-	display := formatRun(status)
-	if !strings.Contains(display, "Model:    opus") {
-		t.Errorf("formatRun missing model; got:\n%s", display)
+	runOutput := display.FormatRun(toDisplayRunStatus(status))
+	if !strings.Contains(runOutput, "Model:    opus") {
+		t.Errorf("FormatRun missing model; got:\n%s", runOutput)
 	}
-	if !strings.Contains(display, "of 45m elapsed") {
-		t.Errorf("formatRun missing time budget; got:\n%s", display)
+	if !strings.Contains(runOutput, "of 45m elapsed") {
+		t.Errorf("FormatRun missing time budget; got:\n%s", runOutput)
 	}
 
 	// PrintStatus must exist as the exported entry point for "gromit status" display.
@@ -624,9 +625,9 @@ func TestStatusWriter_UsesFixedTimeBudgetFromDeadline(t *testing.T) {
 		t.Fatalf("TimeBudgetMinutes = %d; want 59", status.TimeBudgetMinutes)
 	}
 
-	display := formatRun(status)
-	if !strings.Contains(display, "of 59m elapsed") {
-		t.Errorf("formatRun missing fixed time budget; got:\n%s", display)
+	runOutput := display.FormatRun(toDisplayRunStatus(status))
+	if !strings.Contains(runOutput, "of 59m elapsed") {
+		t.Errorf("FormatRun missing fixed time budget; got:\n%s", runOutput)
 	}
 }
 

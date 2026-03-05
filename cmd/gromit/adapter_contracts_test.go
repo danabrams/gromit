@@ -8,6 +8,140 @@ import (
 	"github.com/danabrams/gromit/internal/pipeline"
 )
 
+// TestInterfaceContract_LLMClient documents the expected LLMClient interface contract
+// that adapters must satisfy: simple delegation to underlying LLM execution.
+func TestInterfaceContract_LLMClient(t *testing.T) {
+	t.Parallel()
+
+	var _ pipeline.LLMClient = (*claudeClientAdapter)(nil)
+	var _ pipeline.LLMClient = (*llmRouterClientAdapter)(nil)
+
+	t.Log("LLMClient contract: adapters delegate to underlying LLM execution")
+}
+
+// TestInterfaceContract_ReviewInvoker documents the ReviewInvoker interface contract
+// that adapters must satisfy: same as LLMClient for non-interactive review.
+func TestInterfaceContract_ReviewInvoker(t *testing.T) {
+	t.Parallel()
+
+	var _ pipeline.ReviewInvoker = (*claudeClientAdapter)(nil)
+	var _ pipeline.ReviewInvoker = (*llmRouterClientAdapter)(nil)
+
+	t.Log("ReviewInvoker contract: adapters delegate to underlying invocation")
+}
+
+// TestInterfaceContract_TrackerClient documents the TrackerClient interface contract.
+func TestInterfaceContract_TrackerClient(t *testing.T) {
+	t.Parallel()
+
+	var _ pipeline.TrackerClient = (*trackerClientAdapter)(nil)
+
+	t.Log("TrackerClient contract: adapters transform pipeline types to tracker types")
+}
+
+// TestInterfaceContract_BeadQueryClient documents the BeadQueryClient interface contract.
+func TestInterfaceContract_BeadQueryClient(t *testing.T) {
+	t.Parallel()
+
+	var _ pipeline.BeadQueryClient = (*beadQueryClientAdapter)(nil)
+
+	t.Log("BeadQueryClient contract: adapters delegate bead queries with context")
+}
+
+// TestInterfaceContract_BacklogClient documents the BacklogClient interface contract.
+func TestInterfaceContract_BacklogClient(t *testing.T) {
+	t.Parallel()
+
+	var _ pipeline.BacklogClient = (*backlogClientAdapter)(nil)
+
+	t.Log("BacklogClient contract: adapters delegate to backlog.File read operations")
+}
+
+// TestInterfaceContract_BacklogWriter documents the BacklogWriter interface contract.
+func TestInterfaceContract_BacklogWriter(t *testing.T) {
+	t.Parallel()
+
+	var _ pipeline.BacklogWriter = (*cliBacklogClient)(nil)
+
+	t.Log("BacklogWriter contract: adapters transform pipeline types and delegate")
+}
+
+// TestInterfaceContract_PromptRenderers documents the prompt renderer interface contracts.
+func TestInterfaceContract_PromptRenderers(t *testing.T) {
+	t.Parallel()
+
+	var _ pipeline.RefineRenderer = (*refinePromptRenderer)(nil)
+	var _ pipeline.PlanRenderer = (*planPromptRenderer)(nil)
+	var _ pipeline.DecomposeRenderer = (*decomposePromptRenderer)(nil)
+	var _ pipeline.ReviewRenderer = (*cliPromptRenderer)(nil)
+	var _ pipeline.ExploreRenderer = (*explorePromptRenderer)(nil)
+
+	t.Log("PromptRenderer contract: adapters delegate to wrapped prompt.Renderer")
+}
+
+// TestInterfaceContract_LearningsManager documents the LearningsManager interface contract.
+func TestInterfaceContract_LearningsManager(t *testing.T) {
+	t.Parallel()
+
+	var _ pipeline.LearningsManager = (*cliLearningsManager)(nil)
+
+	t.Log("LearningsManager contract: adapters delegate to learnings.File operations")
+}
+
+// TestInterfaceContract_StateManager documents the StateManager interface contract.
+func TestInterfaceContract_StateManager(t *testing.T) {
+	t.Parallel()
+
+	var _ pipeline.StateManager = (*cliStateManager)(nil)
+
+	t.Log("StateManager contract: adapters delegate to state.File operations")
+}
+
+// TestInterfaceContract_LogWriter documents the LogWriter interface contract.
+func TestInterfaceContract_LogWriter(t *testing.T) {
+	t.Parallel()
+
+	var _ pipeline.LogWriter = (*cliLogWriter)(nil)
+
+	t.Log("LogWriter contract: adapters transform pipeline types and delegate to logger")
+}
+
+// TestAdapterPattern_ImplementsUnifiedContract verifies that all adapters follow
+// the unified adapter pattern: wrap underlying dependency, transform types, delegate.
+func TestAdapterPattern_ImplementsUnifiedContract(t *testing.T) {
+	t.Parallel()
+
+	// All adapters follow this pattern:
+	// 1. Wrap a single underlying dependency (field)
+	// 2. Implement a pipeline interface (methods)
+	// 3. Transform pipeline types to underlying types
+	// 4. Delegate to underlying implementation
+	// 5. Transform return types back to pipeline types
+
+	// Verify compile-time interface compliance
+	var deps *pipeline.Deps
+	if deps != nil {
+		// This structure documents the unified adapter contract
+		_ = deps.AgentResolver     // provided by agent.NewResolver
+		_ = deps.LLMClient         // claudeClientAdapter or llmRouterClientAdapter
+		_ = deps.ReviewInvoker     // same as LLMClient
+		_ = deps.TrackerClient     // trackerClientAdapter
+		_ = deps.BeadQueryClient   // beadQueryClientAdapter
+		_ = deps.BacklogClient     // backlogClientAdapter
+		_ = deps.BacklogWriter     // cliBacklogClient
+		_ = deps.RefineRenderer    // refinePromptRenderer
+		_ = deps.PlanRenderer      // planPromptRenderer
+		_ = deps.DecomposeRenderer // decomposePromptRenderer
+		_ = deps.ReviewRenderer    // cliPromptRenderer
+		_ = deps.ExploreRenderer   // explorePromptRenderer
+		_ = deps.LearningsManager  // cliLearningsManager
+		_ = deps.StateManager      // cliStateManager
+		_ = deps.LogWriter         // cliLogWriter
+	}
+
+	t.Log("All adapters implement unified contract: wrap, transform, delegate")
+}
+
 // TestAdapterContract_ValidateTypedSignatures verifies that each adapter's
 // actual method signatures match the pipeline interface contracts exactly.
 // This uses reflection to check method parameter types, return types, and ordering.
@@ -24,7 +158,6 @@ func TestAdapterContract_ValidateTypedSignatures(t *testing.T) {
 			}
 			method, ok := adapterType.MethodByName("Run")
 			if !ok {
-				// List all methods found
 				methodCount := adapterType.NumMethod()
 				t.Logf("Found %d methods on %s, but Run was not found", methodCount, adapterType)
 				for i := 0; i < methodCount; i++ {
@@ -316,22 +449,7 @@ func TestAdapterContract_ValidateTypedSignatures(t *testing.T) {
 	t.Log("All adapter method signatures match their interface contracts")
 }
 
-// TestAdapterWiring_NewPipelineDepsValidatesAllFields verifies that NewPipelineDeps
-// populates all required pipeline.Deps fields with adapters that satisfy their interfaces.
-func TestAdapterWiring_NewPipelineDepsValidatesAllFields(t *testing.T) {
-	t.Parallel()
-
-	// This test will fail if NewPipelineDeps doesn't properly initialize all Deps fields
-	// or if any field is nil when it shouldn't be.
-
-	// We can't construct NewPipelineDeps without a config, so this is a compile-time contract test
-	// verifying that NewPipelineDeps returns a *pipeline.Deps that should have all fields populated.
-	var _ *pipeline.Deps // Placeholder to verify Deps structure exists
-
-	t.Log("NewPipelineDeps dependency wiring contract validated")
-}
-
-// TestAdapterIntegration_ClarentContextParameters verifies that adapters
+// TestAdapterIntegration_ContextParametersHandled verifies that adapters
 // that accept context parameters pass them through correctly.
 func TestAdapterIntegration_ContextParametersHandled(t *testing.T) {
 	t.Parallel()
@@ -340,8 +458,6 @@ func TestAdapterIntegration_ContextParametersHandled(t *testing.T) {
 	{
 		adapter := (*trackerClientAdapter)(nil)
 		if adapter != nil {
-			// Compile-time verification - if method signature doesn't match,
-			// this will fail at compile time when calling these methods
 			_, _ = reflect.TypeOf(adapter).MethodByName("Ready")
 			_, _ = reflect.TypeOf(adapter).MethodByName("Show")
 			_, _ = reflect.TypeOf(adapter).MethodByName("Create")

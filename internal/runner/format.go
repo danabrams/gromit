@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/runner/display"
 )
@@ -46,11 +45,6 @@ func formatDuration(d time.Duration) string {
 // FormatPipeline formats pipeline status for display.
 // Exported for acceptance tests in internal/runner/acceptance/.
 func FormatPipeline(ps *pipeline.PipelineStatus) string {
-	return formatPipeline(ps)
-}
-
-// formatPipeline formats pipeline status for display (thin wrapper, delegates to display package)
-func formatPipeline(ps *pipeline.PipelineStatus) string {
 	return display.FormatPipeline(ps)
 }
 
@@ -82,14 +76,6 @@ func formatRunningLine(s *Status) string {
 	return formatIterationPrefix(s) + ", " + formatElapsedSuffix(s)
 }
 
-// formatRun formats run status for display (thin wrapper, delegates to display package)
-func formatRun(s *Status) string {
-	return display.FormatRun(toDisplayRunStatus(s))
-}
-
-func formatCompatibility(ctx config.CompatibilityContext) string {
-	return display.FormatCompatibility(ctx)
-}
 
 // formatReliabilityLine formats the reliability summary line.
 // Returns empty string if no reliability data is present.
@@ -138,16 +124,6 @@ func formatRecurrenceBreakdown(counters map[string]int) string {
 	return strings.Join(parts, " | ")
 }
 
-// formatHealth formats health status for display (thin wrapper, delegates to display package)
-func formatHealth(lastRetro time.Time, iterationsSinceReview int) string {
-	return display.FormatHealth(lastRetro, iterationsSinceReview)
-}
-
-// formatRecommendation formats a recommendation string with a command hint (thin wrapper, delegates to display package)
-func formatRecommendation(rec string) string {
-	return display.FormatRecommendation(rec)
-}
-
 // formatItems formats a list of items, showing up to maxShow items and an overflow message
 func formatItems(items []string, maxShow int) []string {
 	if len(items) == 0 {
@@ -173,11 +149,6 @@ func formatItems(items []string, maxShow int) []string {
 // FormatSPCSummary formats SPC (Statistical Process Control) trend data for display.
 // Exported for use by commands like status --spc.
 func FormatSPCSummary(trend *analytics.ProcessTrend) string {
-	return formatSPCSummary(trend)
-}
-
-// formatSPCSummary formats SPC (Statistical Process Control) trend data for display (thin wrapper, delegates to display package)
-func formatSPCSummary(trend *analytics.ProcessTrend) string {
 	return display.FormatSPCSummary(trend)
 }
 
