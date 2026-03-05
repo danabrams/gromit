@@ -208,6 +208,8 @@ func expectedHintString(tab Tab, state hintBarState) string {
 		if hint, ok := hintBarDetailStateStrings[tab]; ok {
 			return hint
 		}
+	case hintBarStateConfirmation:
+		return expectedConfirmationHintString(tab)
 	}
 	return ""
 }
