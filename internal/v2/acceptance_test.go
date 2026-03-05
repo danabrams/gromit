@@ -143,6 +143,20 @@ func verifyPlanFileJustInTime(t *testing.T, worktree, specID string, recorder *f
 	}
 }
 
+func sampleStageEvent(level, message string) events.Event {
+	return &events.LogEvent{Level: level, Message: message}
+}
+
+func newStageResult(evt events.Event) stage.Result {
+	return stage.Result{
+		Decision: stage.DecisionProceed,
+		Artifacts: map[string]string{
+			"phase": "acceptance",
+		},
+		Events: []events.Event{evt},
+	}
+}
+
 // fake adapters
 
 type recordingGitAdapter struct {
