@@ -262,7 +262,6 @@ methodology:
     build: "low"
     decompose: "low"
     green: "low"
-  # max_tdd_cycles: 10  # Maximum red/green/refactor loops per bead before stopping (default: 10)
   # spec_gate_max_retries: 3  # Max scoped spec-gate fix synthesis retries before stopping (default: 3)
   # atdd_prompt:
   #   include_rules: true  # Include RULES.md in ATDD build prompts

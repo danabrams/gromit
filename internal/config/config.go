@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -14,7 +15,12 @@ var configWarningWriter io.Writer = os.Stderr
 const precheckVerificationConflictError = "precheck.enabled=false conflicts with precheck.verification.enabled=true"
 
 func Load(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
+	absPath, projectRoot, err := resolveProjectRootPath(path)
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := os.ReadFile(absPath)
 	if err != nil {
 		return nil, fmt.Errorf("reading config file: %w", err)
 	}
@@ -23,6 +29,8 @@ func Load(path string) (*Config, error) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("parsing config file: %w", err)
 	}
+
+	cfg.ProjectRoot = projectRoot
 
 	matchBuildModelConfigured := cfg.Review.MatchBuildModel != nil
 	cfg.applyPostLoadNormalization(matchBuildModelConfigured)
@@ -33,6 +41,14 @@ func Load(path string) (*Config, error) {
 	}
 	warnCompatibilityDeprecation(cfg.ResolveCompatibilityContext())
 	return &cfg, nil
+}
+
+func resolveProjectRootPath(path string) (string, string, error) {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return "", "", fmt.Errorf("resolving config path: %w", err)
+	}
+	return absPath, filepath.Dir(absPath), nil
 }
 
 func (c *Config) applyPostLoadNormalization(matchBuildModelConfigured bool) {
@@ -106,12 +122,6 @@ func warnCompatibilityDeprecation(ctx CompatibilityContext) {
 			CompatibilityStrictDefaultCutoverDate,
 		),
 	)
-}
-
-// TDDMaxCycles returns the fixed limit used by the TDD loop regardless of
-// configuration to keep the deprecated max_tdd_cycles field inert.
-func (c *Config) TDDMaxCycles() int {
-	return DefaultMaxTDDCycles
 }
 
 // Validate ensures config values are within supported ranges.

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -52,5 +53,24 @@ func TestConfigMidBuildReviewTimeout(t *testing.T) {
 
 	if got := cfg.MidBuildReviewTimeout(); got != 30*time.Second {
 		t.Fatalf("MidBuildReviewTimeout() = %v, want %v", got, 30*time.Second)
+	}
+}
+
+func TestConfigProjectRootNotSerializedToYAML(t *testing.T) {
+	cfg := Config{}
+	cfg.ProjectRoot = "/home/user/myproject"
+	cfg.Project.Profile = "go"
+
+	data, err := yaml.Marshal(&cfg)
+	if err != nil {
+		t.Fatalf("yaml.Marshal: %v", err)
+	}
+
+	yamlStr := string(data)
+	if strings.Contains(yamlStr, "ProjectRoot") {
+		t.Fatalf("ProjectRoot should not be serialized to YAML, got: %s", yamlStr)
+	}
+	if !strings.Contains(yamlStr, "profile") {
+		t.Fatalf("profile field should be serialized to YAML, got: %s", yamlStr)
 	}
 }

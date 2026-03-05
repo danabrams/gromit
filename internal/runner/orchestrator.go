@@ -24,6 +24,8 @@ import (
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/procutil"
 	"github.com/danabrams/gromit/internal/provider"
+	"github.com/danabrams/gromit/internal/runner/escalation"
+	"github.com/danabrams/gromit/internal/runner/runtypes"
 	"github.com/danabrams/gromit/internal/runner/specbranch"
 	"github.com/danabrams/gromit/internal/runner/specmerge"
 )
@@ -1009,6 +1011,15 @@ runLoop:
 		validationFailures = nil
 		if o.cfg.CoverageTracker != nil {
 			o.cfg.CoverageTracker.ToComplete()
+		}
+
+		// Post-execution scope gate: warn if files changed exceeds estimate.
+		if filesChanged := countChangedFiles(startCommit); filesChanged > 0 {
+			scopeBC := &runtypes.BeadContext{Bead: b}
+			scopeResult := escalation.CheckPostExecutionScope(scopeBC, filesChanged)
+			if scopeResult.ScopeExceeded {
+				o.logWarning("Warning: %s", scopeResult.Message)
+			}
 		}
 
 		if o.cfg.LocalGate != nil {
