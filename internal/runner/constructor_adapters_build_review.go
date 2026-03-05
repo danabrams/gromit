@@ -433,6 +433,25 @@ func newStageAwarePreImplementationHook(stageCtx *StageContext) func(context.Con
 	}
 }
 
+func newStageAwarePreImplementationHookWithBeadClient(stageCtx *StageContext, beadClient BeadClient) func(context.Context) error {
+	if stageCtx == nil || stageCtx.SpecName == "" || stageCtx.Stage != specflow.StageAcceptanceTests {
+		return nil
+	}
+	if beadClient == nil {
+		return nil
+	}
+	return func(ctx context.Context) error {
+		// Create an acceptance-test authoring bead for the spec
+		title := "Author acceptance tests for " + stageCtx.SpecName
+		labels := []string{"acceptance-test-authoring", "spec:" + stageCtx.SpecName}
+		_, err := beadClient.Create(ctx, title, 1, labels, nil)
+		if err != nil {
+			return fmt.Errorf("orchestrating acceptance-test authoring bead: %w", err)
+		}
+		return nil
+	}
+}
+
 var (
 	_ execute.Invoker                = (*invokerAdapter)(nil)
 	_ execute.PromptRenderer         = (*renderAdapter)(nil)
