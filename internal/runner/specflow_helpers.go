@@ -9,25 +9,35 @@ import (
 	"github.com/danabrams/gromit/internal/specflow"
 )
 
+type SpecflowStoreFactoryFn func(gromitDir string) (specflow.SpecStore, error)
+type SpecflowManagerFactoryFn func(store specflow.SpecStore) *specflow.Manager
+type SpecBranchCreatorFactoryFn func(repoDir string, cfg *config.Config) (SpecBranchCreator, error)
+
 var (
-	SpecflowStoreFactory     = specflow.NewFileStore
-	SpecflowManagerFactory   = specflow.NewManager
-	SpecBranchCreatorFactory = defaultSpecBranchCreator
+	SpecflowStoreFactory     SpecflowStoreFactoryFn     = specflow.NewFileStore
+	SpecflowManagerFactory   SpecflowManagerFactoryFn   = specflow.NewManager
+	SpecBranchCreatorFactory SpecBranchCreatorFactoryFn = defaultSpecBranchCreator
 )
 
 type SpecBranchCreator interface {
 	CreateOrCheckoutSpecBranch(ctx context.Context, specBranchName string) error
 }
 
-func BuildSpecStageContext(ctx context.Context, cfg *config.Config, specName, gromitDir string) (*StageContext, error) {
+func BuildSpecStageContext(ctx context.Context, cfg *config.Config, specName, gromitDir string, storeFactory SpecflowStoreFactoryFn, managerFactory SpecflowManagerFactoryFn) (*StageContext, error) {
 	if cfg == nil {
 		return nil, nil
 	}
-	store, err := SpecflowStoreFactory(gromitDir)
+	if storeFactory == nil {
+		storeFactory = SpecflowStoreFactory
+	}
+	if managerFactory == nil {
+		managerFactory = SpecflowManagerFactory
+	}
+	store, err := storeFactory(gromitDir)
 	if err != nil {
 		return nil, err
 	}
-	manager := SpecflowManagerFactory(store)
+	manager := managerFactory(store)
 	stage, bootstrapped, err := manager.ResumeWithBootstrap(ctx, specName)
 	if err != nil {
 		return nil, err
@@ -40,7 +50,7 @@ func BuildSpecStageContext(ctx context.Context, cfg *config.Config, specName, gr
 	}, nil
 }
 
-func EnsureSpecBranch(ctx context.Context, cfg *config.Config, stageCtx *StageContext, repoDir string) error {
+func EnsureSpecBranch(ctx context.Context, cfg *config.Config, stageCtx *StageContext, repoDir string, creatorFactory SpecBranchCreatorFactoryFn) error {
 	if stageCtx == nil || stageCtx.SpecName == "" {
 		return nil
 	}
@@ -48,7 +58,10 @@ func EnsureSpecBranch(ctx context.Context, cfg *config.Config, stageCtx *StageCo
 	if err != nil {
 		return err
 	}
-	creator, err := SpecBranchCreatorFactory(repoDir, cfg)
+	if creatorFactory == nil {
+		creatorFactory = SpecBranchCreatorFactory
+	}
+	creator, err := creatorFactory(repoDir, cfg)
 	if err != nil {
 		return err
 	}

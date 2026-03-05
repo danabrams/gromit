@@ -182,11 +182,11 @@ func TestRunLoop_SpecFlagFreshStartBootstrapsStageAndBranch(t *testing.T) {
 	defer cleanup()
 
 	fakeStore := &fakeSpecflowStore{stageErr: specflow.ErrStageNotFound}
-	origStoreFactory := runner.SpecflowStoreFactory
-	runner.SpecflowStoreFactory = func(gromitDir string) (specflow.SpecStore, error) {
+	origStoreFactory := newSpecflowStoreFn
+	newSpecflowStoreFn = func(gromitDir string) (specflow.SpecStore, error) {
 		return fakeStore, nil
 	}
-	defer func() { runner.SpecflowStoreFactory = origStoreFactory }()
+	defer func() { newSpecflowStoreFn = origStoreFactory }()
 
 	var capturedStageCtx *runner.StageContext
 	origRunnerFn := newRunnerWithStageContextFn
@@ -401,12 +401,12 @@ func TestRunLoop_NoSpecFlagSkipsSpecflowBootstrapping(t *testing.T) {
 	defer cleanup()
 
 	var storeCalls int
-	origStoreFactory := runner.SpecflowStoreFactory
-	runner.SpecflowStoreFactory = func(gromitDir string) (specflow.SpecStore, error) {
+	origStoreFactory := newSpecflowStoreFn
+	newSpecflowStoreFn = func(gromitDir string) (specflow.SpecStore, error) {
 		storeCalls++
 		return &fakeSpecflowStore{}, nil
 	}
-	defer func() { runner.SpecflowStoreFactory = origStoreFactory }()
+	defer func() { newSpecflowStoreFn = origStoreFactory }()
 
 	var capturedStageCtx *runner.StageContext
 	origRunnerFn := newRunnerWithStageContextFn
@@ -417,11 +417,11 @@ func TestRunLoop_NoSpecFlagSkipsSpecflowBootstrapping(t *testing.T) {
 	defer func() { newRunnerWithStageContextFn = origRunnerFn }()
 
 	var branches []string
-	origBranchFactory := runner.SpecBranchCreatorFactory
-	runner.SpecBranchCreatorFactory = func(repoDir string, cfg *config.Config) (runner.SpecBranchCreator, error) {
+	origBranchFactory := newSpecBranchCreatorFn
+	newSpecBranchCreatorFn = func(repoDir string, cfg *config.Config) (runner.SpecBranchCreator, error) {
 		return &fakeBranchCreator{branches: &branches}, nil
 	}
-	defer func() { runner.SpecBranchCreatorFactory = origBranchFactory }()
+	defer func() { newSpecBranchCreatorFn = origBranchFactory }()
 
 	runSpecFlag = ""
 	runEpicFlag = ""
