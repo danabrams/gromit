@@ -30,7 +30,7 @@ internal/v2/
     epilogue/   # bead-level: close bead, emit telemetry
     accept/     # spec-level: verify acceptance criteria
     present/    # spec-level: surface work to product owner
-  adapter/      # interfaces: LLM, TaskTracker, Presenter, Git, Config
+  adapter/      # interfaces: LLM, TaskTracker, Presenter, Git
   event/        # typed event system with versioned schema
   prompt/       # composable assembler (base/project/instance/fragment)
   dep/          # dependency DAG resolution for specs and beads

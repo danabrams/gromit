@@ -23,3 +23,6 @@ Transform Gromit into a **Goal-Oriented Autonomous Engine** that manages the ent
 2. **Self-Correcting:** The loop reviews its own work against `RULES.md`.
 3. **Autonomous Setup:** Automated Planning and Decomposition as standard stages.
 4. **Observable:** Time-travel debugging through iteration snapshots.
+
+## Future Scope
+- **Automated Spec Generation from Review Findings:** The v2 run loop emits out-of-scope `ReviewFinding` events for tangential issues discovered during review. A future capability could mine these events from iteration logs and propose new specs for recurring or high-impact findings, closing the loop between observation and action without human triage.

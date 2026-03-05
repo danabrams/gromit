@@ -20,7 +20,7 @@ A cycle (as defined in VISION.md) starts when a spec enters the queue and ends w
 - Runs Plan and Decompose stages to generate beads from the spec against the live codebase
 - Executes beads through the inner loop
 - After all beads complete, checks acceptance criteria
-- If acceptance criteria are not met, generates additional beads and continues (subject to generation cap)
+- If acceptance criteria are not met, Accept produces a gap analysis and Decompose breaks it into remediation beads; the inner loop continues (subject to generation cap)
 - On success: presents completed work to the product owner via the Presenter adapter
 - On total failure (generation cap or retry limits exhausted): preserves the branch with a failure summary and triggers Andon escalation
 
@@ -36,9 +36,9 @@ All work enters the system as a spec — there are no special cases for maintena
 
 ### Dependency Model
 
-**Spec dependencies:** Specs can declare dependencies on other specs. A spec cannot be planned or enqueued until all its dependency specs have been accepted by the product owner. This enables a DAG of work at the spec level.
+**Spec dependencies:** Specs can declare dependencies on other specs. `gromit run <spec-file>` checks that all dependency specs have been accepted by the product owner before proceeding; if any are unsatisfied, it exits with an error listing the blocking specs. A separate query command (`gromit ready` or equivalent) scans all specs and lists those whose dependencies are satisfied and are eligible to run. Queue management and multi-spec scheduling are out of scope for this spec (see Integration Coordinator in the epic).
 
-**Bead dependencies:** Beads produced by Decompose can declare dependencies on other beads. The inner loop only picks up beads whose dependencies are satisfied. This enables parallelism — independent beads can execute concurrently (in separate worktrees or sequentially, depending on configuration), while dependent beads wait.
+**Bead dependencies:** Beads produced by Decompose can declare dependencies on other beads. The inner loop picks the next bead whose dependencies are satisfied. In v2, beads execute sequentially — the dependency DAG determines ordering, not concurrency. Beads must not assume execution order relative to independent siblings; they depend only on their declared dependencies. This constraint preserves the option for future parallel execution without redesigning beads or the dependency model. Parallel bead execution (likely via sub-worktrees branched from the spec branch) is a future optimization, not a v2 concern.
 
 ### Worktree Isolation
 
@@ -60,13 +60,23 @@ Run(ctx, StageRequest) -> (StageResult, error)
 - Model selection
 - Iteration number
 - Project config
+- RetryContext (optional) — populated by the loop on retry iterations. Contains prior failure information (e.g., validation failure summaries, Andon escalation level, time budget remaining). Stages read RetryContext if present and ignore it otherwise. This is the sole mechanism for passing inter-stage retry data — stages remain stateless and the loop is the stateful coordinator. RetryContext is a single structured field, not a grab-bag: it carries only what the retrying stage needs for recovery.
 
 **StageResult** has three fields:
 - **Decision** — Proceed, Skip, Block, or Fail. The loop uses this for control flow.
-- **Artifacts** — stage-specific typed data (e.g., Review returns new beads to enqueue, Validate returns failure details). The loop collects artifacts; stages do not consume other stages' artifacts.
+- **Artifacts** — `any`-typed stage-specific data (e.g., Review returns new beads to enqueue, Validate returns failure details). Each stage defines its own concrete artifact struct containing only the data it produces. The loop is the sole consumer of artifacts: it always knows which stage just ran and does a single type-assertion to the expected concrete type. This solves the v1 grab-bag problem (stages forced to populate irrelevant Output fields) while keeping the interface uniform. The type-assertion is safe because it is centralized in the loop, not scattered across stages.
 - **Events** — an array of typed, schema-contracted events (cost, telemetry, timing, stage transitions). The loop accumulates these and streams them to subscribers.
 
-Stages are single-shot and stateless. They read state from git/filesystem, not from previous stage outputs.
+Stages are single-shot and stateless. They read codebase state from git/filesystem, not from previous stage outputs. The one exception is RetryContext on StageRequest, which the loop populates with prior failure information on retry iterations. This is control-flow data (what failed and why), not codebase state — the loop is the stateful coordinator and RetryContext is how it communicates retry intent to stages.
+
+### Filesystem Conventions
+
+Stages that produce or consume artifacts beyond git and the Task Tracker follow these conventions within the spec's worktree:
+
+- **Plan output** — `.gromit/v2/plan.md`. Written by Plan, read by Decompose.
+- **Accept gap analysis** — `.gromit/v2/gap-analysis.md`. Written by Accept when criteria are not met, read by Decompose to produce remediation beads.
+
+Bead metadata (descriptions, dependencies, status) lives in the Task Tracker (bd), not the filesystem. Build reads the bead's task description from the Task Tracker via the adapter. Code changes are committed to git in the worktree. Validation commands run against the worktree's working tree.
 
 ### Retry
 
@@ -89,21 +99,25 @@ The loop enforces retry. Stages themselves do not retry. This keeps stage implem
 1. **Gate** — checks whether the bead is still relevant, already done, or out of scope. Returns Skip or Block to short-circuit, Proceed to continue.
 2. **Build** — invokes the LLM to do the work. Prompt is composed from base, project, and instance layers. Model escalation (e.g., haiku to sonnet to opus) is internal to the Build stage.
 3. **Validate** — runs configured validation commands (build, test, lint, format). Language-agnostic; commands come from project config. Returns pass/fail per step.
-4. **Review** — LLM self-review against project rules and spec. Auto-creates new beads from review findings and enqueues them via the Task Tracker adapter.
+4. **Review** — LLM self-review against project rules and spec. Findings are classified as in-scope (affects the current spec's acceptance criteria) or out-of-scope (tangential issues noticed during review). In-scope findings become new beads, enqueued via the Task Tracker adapter. Out-of-scope findings are emitted as `ReviewFinding` events with `in_scope: false` and are not acted on — they surface in the Present stage summary for the product owner.
 5. **Epilogue** — closes the bead via the Task Tracker adapter, emits telemetry events.
 
 **Spec-level completion:**
 
-6. **Accept** — after all beads complete, verifies acceptance criteria from the spec against the codebase using an LLM evaluation. If criteria are not met, generates new beads describing what's missing and the inner loop continues (subject to generation cap).
-7. **Present** — on success, presents completed work to the product owner via the Presenter adapter with a summary of what was done, acceptance criteria results, and a link to the branch/diff.
+6. **Accept** — after all beads complete, verifies acceptance criteria from the spec against the codebase using an LLM evaluation. If criteria are not met, Accept produces a gap analysis describing what's missing, then Decompose runs against the gap analysis to produce properly scoped, dependency-ordered remediation beads. Plan is skipped because Accept's gap analysis serves the same role — it already identifies what needs to change against the live codebase. The inner loop then continues with the new beads (subject to generation cap).
+7. **Present** — on success, presents completed work to the product owner via the Presenter adapter with a summary of what was done, acceptance criteria results, out-of-scope review findings, and a link to the branch/diff.
+
+### Budget Integration
+
+The loop checks time and cost budgets at two points: before starting each bead (outer/inner loop boundary) and before retrying a stage. Budget policy (limits, escalation thresholds) is defined by the Andon spec, not this spec. The loop's responsibility is to check remaining budget at control points and trigger Andon escalation when exhausted. RetryContext carries remaining budget so stages have awareness of runway. When budget is low at a bead boundary, the loop may skip remaining lower-priority beads and proceed directly to Accept to evaluate whether completed work is sufficient.
 
 ### Scope Control
 
 The loop has built-in limits to prevent infinite spirals:
 
-- **Generation cap** — beads are tagged with a generation number. Original beads from Decompose are generation 0. Beads created by Review are generation N+1 of their parent. Beads created by Accept are also a new generation. When the generation cap is reached (configurable, default 3), the loop stops creating new beads and triggers Andon escalation. The Andon spec will define the escalation behavior; this spec defines the detection and triggering.
+- **Generation cap** — beads are tagged with a generation number. Original beads from Decompose are generation 0. Beads created by Review are generation N+1 of their parent. Beads created by Accept are generation `max(current bead generations) + 1`. The generation cap (configurable, default 3) is a *window*, not an absolute ceiling: when the highest generation reaches `start_generation + cap`, the loop stops creating new beads and pauses for human review. If the human re-runs `gromit run <spec-file>`, the loop resumes from the current state — the new start generation is whatever the existing beads are at, and the cap window resets. This means generations can grow indefinitely across human checkpoints, but never more than `cap` generations without review.
 
-When a limit is hit, the loop preserves the branch with a failure summary and emits an Andon event. This is a structured failure, not a crash — the system recognizes it cannot self-correct and escalates.
+When the cap is hit, the loop preserves the branch with a summary of what was attempted and what remains, and emits an Andon event. This is a structured pause, not a crash — the system recognizes it needs human review before continuing.
 
 ### Adapter Interfaces
 
@@ -115,7 +129,8 @@ All external dependencies are accessed through adapter interfaces. Stages and th
 - **Task Tracker** — create, close, query, and update beads/tasks with dependency tracking. Current implementation uses bd; the interface allows replacing it. Decompose, Review, Gate, and Epilogue stages use this.
 - **Presenter** — present completed work for human review. Implementations could include GitHub PR creation, Slack notification, TUI prompt, or others. The Present stage uses this.
 - **Git** — branch, commit, diff, worktree create/remove, merge operations. The loop and multiple stages use this.
-- **Config** — load project configuration (validation commands, model settings, prompt paths). The loop loads config once and passes it through StageRequest.
+
+Config is not an adapter — it is loaded once at startup from `internal/config/` and passed through StageRequest. There is no need to swap config implementations at runtime.
 
 ### Prompt System
 
@@ -136,7 +151,7 @@ The loop emits typed, schema-contracted events as it runs. Events follow a defin
 - **Lifecycle** — SpecStarted, SpecCompleted, SpecFailed, BeadStarted, BeadCompleted
 - **Stage** — StageStarted, StageCompleted, StageFailed, StageRetrying
 - **Validation** — ValidationPassed, ValidationFailed, ValidationStepResult
-- **Review** — ReviewFinding, BeadCreated
+- **Review** — ReviewFinding (with `in_scope` boolean, description, affected files; in-scope findings also produce BeadCreated events), BeadCreated
 - **Scope** — GenerationCapReached, AndonTriggered
 - **Telemetry** — LLMInvocation (model, tokens, cost, duration), StageTimings
 
@@ -145,7 +160,7 @@ The loop emits typed, schema-contracted events as it runs. Events follow a defin
 - **API** — exposes the event stream for external consumers
 - **Log** — writes events to the iteration log file for post-hoc analysis
 
-The event schema is a contract: consumers depend on it, and changes require versioning.
+Every event carries a `schema_version` field. Consumers must handle unknown event types gracefully (ignore, don't crash). This enables forward compatibility — new event types can be added without breaking existing consumers.
 
 ### Language Agnosticism
 
@@ -197,16 +212,20 @@ The primary CLI command is `gromit run <spec-file>`. This:
 4. Streams events to CLI display and log
 5. Returns exit code 0 on success (presented to PO), non-zero on failure
 
+`gromit ready` lists specs whose dependencies are satisfied and are eligible to run. This is a query, not an execution command.
+
 ## Acceptance Criteria
 
 - The run loop processes a spec end-to-end: Plan, Decompose, then execute beads through Gate, Build, Validate, Review, Epilogue, then Accept, then Present
 - Everything enters as a spec — no special batch or chore handling
 - Planning and decomposition run just-in-time when a spec becomes current, not ahead of time
 - Each spec executes in an isolated git worktree
-- Specs with unsatisfied dependencies are not planned or executed
+- `gromit run` exits with an error listing blocking specs when dependencies are unsatisfied
+- `gromit ready` lists specs eligible to run (all dependencies satisfied)
 - Beads with unsatisfied dependencies are not picked up by the inner loop
-- After all beads in a spec complete, acceptance criteria are checked; if not met, new beads are generated and the loop continues
+- After all beads in a spec complete, acceptance criteria are checked; if not met, Accept produces a gap analysis and Decompose breaks it into remediation beads, then the loop continues
 - Generation cap stops bead creation and triggers Andon when reached
+- The loop checks time/cost budgets at bead boundaries and before stage retries, triggering Andon when exhausted
 - On success, work is presented to the product owner via the Presenter adapter
 - On failure, the branch is preserved with a failure summary and Andon is triggered
 - All stages implement the uniform Stage interface (Run with StageRequest/StageResult)
@@ -214,13 +233,16 @@ The primary CLI command is `gromit run <spec-file>`. This:
 - Validate stage runs configurable external commands (not hardcoded to any language)
 - Retry is configured per-stage (MaxRetries, RetryWith) and enforced by the loop
 - Build stage handles model escalation internally
-- Review stage auto-creates beads from findings
+- Review stage classifies findings as in-scope or out-of-scope; only in-scope findings become beads
+- Out-of-scope review findings are emitted as events and included in the Present stage summary
 - Stages are stateless; inter-stage data flows through git/filesystem
 - Prompts are composed from base, project, instance, and fragment layers
 - The loop emits typed events with a schema contract
 - Events are consumable by CLI, API, and log subscribers
-- All external dependencies are accessed through adapter interfaces (LLM Provider, Task Tracker, Presenter, Git, Config)
+- Events carry a `schema_version` field; consumers handle unknown event types gracefully
+- All external dependencies are accessed through adapter interfaces (LLM Provider, Task Tracker, Presenter, Git)
 - Adapters can be swapped without changing stage or loop code
+- Config is loaded directly from `internal/config/`, not through an adapter
 
 ## Decisions
 
@@ -234,13 +256,13 @@ The primary CLI command is `gromit run <spec-file>`. This:
 
 5. **DAG dependencies for specs and beads.** Both specs and beads support dependency declarations, enabling a DAG of work rather than a flat queue. Specs wait for dependency specs to be accepted; beads wait for dependency beads to complete. This supports parallelism and correct ordering.
 
-6. **Uniform Stage interface with typed Artifacts.** Stages return a uniform StageResult with Decision (for control flow), typed Artifacts (for stage-specific data), and Events (for telemetry). Stages do not consume other stages' artifacts — the loop collects them. This keeps stages decoupled.
+6. **Uniform Stage interface with `any`-typed Artifacts.** Stages return a uniform StageResult with Decision (for control flow), `any`-typed Artifacts (for stage-specific data), and Events (for telemetry). Each stage defines its own concrete artifact struct; the loop is the sole consumer and does a single type-assertion per stage. This solves the v1 grab-bag problem (monolith Output struct with 25+ fields most stages ignore) while keeping the Stage interface uniform. Stages do not consume other stages' artifacts — the loop collects them.
 
 7. **Paired retry over retry groups.** Stages declare RetryWith (stages to rerun before retrying) rather than the loop defining explicit stage groups. This keeps retry semantics co-located with the stage that needs them and avoids a separate grouping concept.
 
 8. **Escalation internal to Build.** Model escalation (haiku to sonnet to opus) is Build's concern, not the loop's. This keeps the loop's retry logic simple (rerun stages) and escalation logic encapsulated.
 
-9. **Git as ground truth.** Stages read state from git/filesystem, not from in-memory structs passed between stages. StageRequest carries only bead metadata, model selection, iteration number, and config. This aligns with the principle "state in files, not memory" and makes stages independently testable.
+9. **Git as ground truth for codebase state.** Stages read codebase state from git/filesystem, not from in-memory structs passed between stages. StageRequest carries bead metadata, model selection, iteration number, config, and RetryContext. RetryContext is the sole exception: it carries control-flow data (prior failure summaries, escalation level, time budget) that the loop populates on retry iterations. This distinguishes codebase state (git) from retry coordination (in-memory via the loop), keeping stages independently testable while giving retries the context they need.
 
 10. **Language-agnostic validation.** Validate runs configurable commands from project config. The loop does not parse or interpret command output. Prompts provide language/project context to the LLM. This allows gromit to work with any language or toolchain.
 
@@ -248,17 +270,33 @@ The primary CLI command is `gromit run <spec-file>`. This:
 
 12. **Review auto-creates beads.** When Review finds issues, it creates new beads and enqueues them via the Task Tracker adapter, rather than returning findings for the loop to interpret. This keeps the Review stage self-contained and the loop simple.
 
-13. **Adapter interfaces for all external dependencies.** LLM Provider, Task Tracker, Presenter, Git, and Config are all accessed through interfaces. This makes the core loop testable with mocks and allows swapping implementations (e.g., replacing bd with a different tracker, or presenting via Slack instead of GitHub PRs).
+13. **Adapter interfaces for external dependencies, not config.** LLM Provider, Task Tracker, Presenter, and Git are accessed through interfaces. Config is loaded once from `internal/config/` and passed through StageRequest — no adapter needed since there is no runtime-swap use case. This makes the core loop testable with mocks while avoiding unnecessary abstraction.
 
 14. **Cycle ends at presentation.** Aligned with VISION.md, a cycle ends when work is presented to the product owner. Post-presentation feedback (if it's an implementation gap) is a new cycle. The loop's job is to get it right the first time.
 
 15. **Clean implementation in parallel package tree.** V2 is built in `internal/v2/` while v1 stays untouched in `internal/runner/` and `internal/pipeline/`. This is driven by three factors: (a) v1 must remain stable because it builds v2 (bootstrapping constraint), (b) wrapping v1 stages in translation adapters adds throwaway complexity, (c) a separate tree avoids half-v1/half-v2 limbo. Proven v1 logic (decomposition, validation, model escalation, review) is copied and adapted to v2 interfaces. Infrastructure packages (`internal/config/`, `internal/bead/`) are imported directly. At cutover, v1 packages are deleted and the CLI command is renamed. See `docs/plans/2026-03-04-v2-run-loop-clean-implementation-design.md`.
 
-16. **Generation cap with Andon trigger.** Scope control uses a generation cap on beads to prevent review/accept spirals. When the cap is reached, the loop triggers Andon escalation rather than silently stopping. The Andon spec defines what happens next; this spec defines detection and triggering.
+16. **Generation cap as checkpoint window, not absolute ceiling.** The generation cap (default 3) limits consecutive generations within a single run. When hit, the loop pauses for human review. Re-running `gromit run` resets the window from the current generation — generations can grow indefinitely across human checkpoints. This balances autonomy (the system works without supervision for `cap` generations) with safety (humans review before unbounded continuation).
 
 17. **Composable prompt system.** Prompts are assembled from four layers (base, project, instance, fragment) rather than monolithic per-stage templates. This makes individual concerns independently editable, supports cross-cutting concerns via fragments, and separates what gromit provides from what the project provides.
 
-18. **Typed event stream with schema contract.** The loop emits typed events (not freeform logs) with a versioned schema. Consumers (CLI, API, log) subscribe to the stream. This enables real-time observation, structured post-hoc analysis, and guarantees consumer compatibility across versions.
+18. **Accept feeds Decompose, skips Plan.** When Accept finds unmet acceptance criteria, it produces a gap analysis that feeds into Decompose to produce properly scoped remediation beads. Plan is skipped because Accept's gap analysis already identifies what needs to change against the live codebase — running Plan would redundantly re-analyze the same state. This preserves decomposition granularity for remediation work while avoiding unnecessary planning overhead. Review-created beads remain direct (single-bead fixes from code review findings), which is appropriate for their narrower scope.
+
+19. **Budget integration points, not budget policy.** The v2 loop defines where budgets are checked (bead boundaries, stage retries) and what happens when they're exhausted (Andon escalation), but budget policy (time limits, cost caps, escalation thresholds) is owned by the Andon spec. This avoids duplicating concerns and keeps budget policy in one place.
+
+20. **Sequential bead execution in v2, parallel-ready design.** The inner loop executes beads one at a time; the dependency DAG determines order. Beads must not assume execution order relative to independent siblings — they depend only on declared dependencies. This constraint makes future parallel execution possible (likely via sub-worktrees) without redesigning the bead model. Parallelism is deferred until v2 runs smoothly.
+
+21. **Minimal filesystem conventions for new artifacts only.** Plan and Accept gap analysis are the only new filesystem artifacts — they live at known paths in the worktree (`.gromit/v2/`). Bead metadata stays in the Task Tracker (bd). Code state stays in git. This keeps the filesystem layout small and avoids duplicating what bd and git already manage.
+
+22. **Review scoped to spec acceptance criteria.** Review only creates beads for findings that affect the current spec's acceptance criteria. Tangential findings are emitted as `ReviewFinding` events with `in_scope: false` and surfaced in the Present stage summary for the product owner. This prevents scope creep within the loop while ensuring nothing is silently dropped.
+
+23. **Single-spec execution with dependency gate, not queue management.** `gromit run` executes one spec and fails fast if dependencies aren't met. `gromit ready` queries which specs are eligible. Queue management and multi-spec scheduling belong to the Integration Coordinator (separate epic concern). This keeps the v2 run loop focused on execution.
+
+24. **RetryContext on StageRequest over filesystem-mediated retry data.** Retry context (validation failures, escalation level, time budget remaining) flows through a structured RetryContext field on StageRequest rather than through filesystem files. The loop is the stateful coordinator — it captures stage results, builds RetryContext, and passes it on retry. Writing retry data to the filesystem just to have stages read it back would be ceremony without benefit. This is compatible with the immutable pipeline (iteration snapshots can include RetryContext for debugging) and Andon escalation (RetryContext carries escalation level and time budget).
+
+25. **Event schema versioning via field, not framework.** Every event carries a `schema_version` field. Consumers must handle unknown event types gracefully (ignore, don't crash). This enables forward compatibility without a versioning framework.
+
+19. **Typed event stream with schema contract.** The loop emits typed events (not freeform logs) with a versioned schema. Consumers (CLI, API, log) subscribe to the stream. This enables real-time observation, structured post-hoc analysis, and guarantees consumer compatibility across versions.
 
 ## Research & Context
 
