@@ -1083,6 +1083,89 @@ func TestReviewInteractiveReturnsSessionWithCleanupOwnership(t *testing.T) {
 	}
 }
 
+// TestReviewInteractiveLaunchesAgentAsync verifies that the agent is launched
+// asynchronously so ReviewInteractive returns immediately while the agent runs
+// in the background. The caller can later wait on the session to observe
+// completion.
+func TestReviewInteractiveLaunchesAgentAsync(t *testing.T) {
+	gromitDir := t.TempDir()
+	launchStarted := make(chan struct{})
+	releaseLaunch := make(chan struct{})
+
+	mockAgent := &reviewAcceptanceMockAgent{
+		name: "test-agent",
+		launchInDirFunc: func(promptPath, dir string) error {
+			close(launchStarted)
+			<-releaseLaunch
+			return nil
+		},
+	}
+
+	mockResolver := &reviewAcceptanceMockAgentResolver{
+		resolveFunc: func(phase string, flagOverride string, choosePicker bool) (Agent, error) {
+			return mockAgent, nil
+		},
+	}
+
+	mockRenderer := &reviewAcceptanceMockReviewRenderer{
+		renderThoroughReviewFunc: func(input *ThoroughReviewPromptInput) (string, error) {
+			return "# Review Prompt\n", nil
+		},
+	}
+
+	deps := &Deps{
+		AgentResolver:  mockResolver,
+		ReviewRenderer: mockRenderer,
+	}
+	paths := &Paths{
+		GromitDir: gromitDir,
+	}
+	p := New(deps, paths)
+
+	ctx := context.Background()
+	input := ReviewInput{
+		FromCommit: "abc123",
+		Diff:       "diff content",
+		AgentName:  "test-agent",
+		LaunchDir:  "/tmp",
+	}
+
+	// Launch in goroutine so we can observe asynchronous behavior.
+	done := make(chan struct{})
+	var session *ReviewSession
+	var launchErr error
+	go func() {
+		session, launchErr = p.ReviewInteractive(ctx, input)
+		close(done)
+	}()
+
+	select {
+	case <-launchStarted:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("LaunchInDir did not start within expected time")
+	}
+
+	select {
+	case <-done:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("ReviewInteractive did not return while agent was still running")
+	}
+
+	// Agent should still be waiting on release until we close the channel.
+	close(releaseLaunch)
+	if launchErr != nil {
+		t.Fatalf("ReviewInteractive returned unexpected error: %v", launchErr)
+	}
+	if session == nil {
+		t.Fatal("expected non-nil ReviewSession")
+	}
+
+	if err := session.Wait(); err != nil {
+		t.Fatalf("session.Wait() returned error: %v", err)
+	}
+	session.Cleanup()
+}
+
 // countTempPromptFiles counts review-prompt-*.md files in tmpDir
 func countTempPromptFiles(t *testing.T, tmpDir string) int {
 	// tmpDir might not exist yet
