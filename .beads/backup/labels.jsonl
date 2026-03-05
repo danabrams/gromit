@@ -2074,6 +2074,9 @@
 {"issue_id":"gromit-vj714.2","label":"from-review"}
 {"issue_id":"gromit-vj714.2","label":"scope_decomp:346a8ea19234cf24"}
 {"issue_id":"gromit-vjlm","label":"spec:reduce-runner-test-runtime"}
+{"issue_id":"gromit-vkxpb","label":"bug"}
+{"issue_id":"gromit-vkxpb","label":"from-review"}
+{"issue_id":"gromit-vkxpb","label":"test-infra"}
 {"issue_id":"gromit-vlk9","label":"spec:retro-efficiency-experiments"}
 {"issue_id":"gromit-vo11r","label":"spec:cost-per-spec-metric"}
 {"issue_id":"gromit-vst","label":"spec:precheck-already-done"}
