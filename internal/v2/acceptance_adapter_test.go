@@ -96,7 +96,7 @@ func newAdapterSet() loop.AdapterSet {
 
 func assertStagePackagesAvoidAdapterImports(t *testing.T) {
 	t.Helper()
-	const stagePath = "internal/v2/stages"
+	stagePath := filepath.Join("stages")
 	const adapterPrefix = "github.com/danabrams/gromit/internal/v2/adapter"
 
 	info, err := os.Stat(stagePath)
@@ -137,7 +137,7 @@ func assertStagePackagesAvoidAdapterImports(t *testing.T) {
 
 func assertLoopImportsConfigPackage(t *testing.T) {
 	t.Helper()
-	const loopPath = "internal/v2/loop"
+	loopPath := filepath.Join("loop")
 	const configImport = "github.com/danabrams/gromit/internal/config"
 
 	info, err := os.Stat(loopPath)
