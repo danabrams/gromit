@@ -84,6 +84,9 @@ func renderSuccessBody(summary PresentationSummary) string {
 func renderFailureBody(summary PresentationSummary) string {
 	var b strings.Builder
 	b.WriteString("## Failure Summary\n")
+	if spec := strings.TrimSpace(summary.SpecName); spec != "" {
+		b.WriteString("Spec: " + spec + "\n")
+	}
 	failure := strings.TrimSpace(summary.FailureSummary)
 	if failure == "" {
 		b.WriteString("- Not available\n")
