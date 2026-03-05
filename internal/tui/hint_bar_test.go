@@ -85,3 +85,13 @@ func TestConfirmationHintActions(t *testing.T) {
 		})
 	}
 }
+
+func TestHintBarDetailViewOverrides(t *testing.T) {
+	for tab, want := range hintBarDetailStateStrings {
+		t.Run(string(tab), func(t *testing.T) {
+			if got := HintBar(tab, true, false); got != want {
+				t.Fatalf("HintBar(%q, detail view) = %q, want %q", tab, got, want)
+			}
+		})
+	}
+}
