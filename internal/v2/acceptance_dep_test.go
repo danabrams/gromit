@@ -44,6 +44,47 @@ func TestRun2BlocksSpecWhenDependenciesIncomplete(t *testing.T) {
 	}
 }
 
+func TestListReadyOnlyIncludesEligibleSpecs(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specsDir := createSpecsDir(t)
+
+	writeSpecFile(t, specsDir, "done-parent", "done", nil)
+	writeSpecFile(t, specsDir, "child-ready", "", []string{"done-parent"})
+	writeSpecFile(t, specsDir, "pending", "", nil)
+	writeSpecFile(t, specsDir, "blocked-child", "", []string{"pending"})
+	writeSpecFile(t, specsDir, "independent", "", nil)
+
+	gate, err := dep.NewSpecDependencyGate(specsDir)
+	if err != nil {
+		t.Fatalf("new spec gate: %v", err)
+	}
+
+	ready, err := gate.ListReady(ctx)
+	if err != nil {
+		t.Fatalf("ListReady() error = %v", err)
+	}
+
+	readySet := make(map[string]bool, len(ready))
+	for _, id := range ready {
+		readySet[id] = true
+	}
+
+	if !readySet["child-ready"] {
+		t.Fatalf("child-ready not reported as ready: %v", ready)
+	}
+	if !readySet["independent"] {
+		t.Fatalf("independent not reported as ready: %v", ready)
+	}
+	if readySet["blocked-child"] {
+		t.Fatalf("blocked-child should be excluded from ready list: %v", ready)
+	}
+	if readySet["done-parent"] {
+		t.Fatalf("done-parent should not be returned once marked done: %v", ready)
+	}
+}
+
 func createSpecsDir(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
