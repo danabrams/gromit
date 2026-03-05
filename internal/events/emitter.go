@@ -9,9 +9,10 @@ const subscriberBufferSize = 100
 
 // Emitter is a concurrency-safe event bus that distributes events to multiple subscribers.
 type Emitter struct {
-	mu          sync.RWMutex
-	subscribers map[chan Event]bool
-	closed      bool
+	mu           sync.RWMutex
+	subscribers  map[chan Event]bool
+	closed       bool
+	droppedCount int64
 }
 
 // NewEmitter creates a new event emitter.
@@ -76,6 +77,13 @@ func (e *Emitter) HasSubscribers() bool {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	return !e.closed && len(e.subscribers) > 0
+}
+
+// DroppedCount returns the total number of events that were dropped due to full subscriber channels.
+func (e *Emitter) DroppedCount() int64 {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.droppedCount
 }
 
 // Close shuts down the emitter and closes all subscriber channels.
