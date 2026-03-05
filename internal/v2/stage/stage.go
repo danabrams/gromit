@@ -6,29 +6,68 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 )
 
-// Decision represents the advice returned by a stage.
+// Stage defines a single beam within the run loop.
+type Stage interface {
+	Name() string
+	Run(context.Context, *Request) (*Result, error)
+}
+
+// Request captures metadata the loop passes to each stage during execution.
+type Request struct {
+	Bead         BeadInfo
+	Model        string
+	Iteration    int
+	Config       *config.Config
+	RetryContext *RetryContext
+}
+
+// Result reports the outcome of a stage invocation.
+type Result struct {
+	Decision  Decision
+	Summary   string
+	Artifacts any
+}
+
+// Decision describes how the loop should proceed after a stage runs.
 type Decision int
 
 const (
 	DecisionProceed Decision = iota
 	DecisionSkip
 	DecisionBlock
+	DecisionFail
 )
 
-// Request carries the spec metadata that stages consume.
-type Request struct {
-	SpecID string
-	Config *config.Config
+func (d Decision) String() string {
+	switch d {
+	case DecisionProceed:
+		return "proceed"
+	case DecisionSkip:
+		return "skip"
+	case DecisionBlock:
+		return "block"
+	case DecisionFail:
+		return "fail"
+	default:
+		return "unknown"
+	}
 }
 
-// Result reports the outcome of running a stage.
-type Result struct {
-	Summary  string
-	Decision Decision
+// BeadInfo captures identifying metadata about the bead under execution.
+type BeadInfo struct {
+	ID     string
+	Labels []string
 }
 
-// Stage defines the contract every execution stage must honor.
-type Stage interface {
-	Name() string
-	Run(ctx context.Context, req *Request) (*Result, error)
+// RetryContext carries prior failure information for retry attempts.
+type RetryContext struct {
+	Attempt         int
+	PriorFailures   []string
+	EscalationLevel int
+}
+
+// RetryConfig defines retry behavior for a stage.
+type RetryConfig struct {
+	MaxRetries int
+	RetryWith  []string
 }
