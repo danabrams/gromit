@@ -36,10 +36,10 @@ func TestRenderBuildHandlesNilBead(t *testing.T) {
 
 	r := &Renderer{templatesDir: templatesDir}
 	ctx := &Context{
-		Bead:   nil,
-		Rules:  "Use explicit defaults",
-		Spec:   "Acceptance criteria",
-		Model:  "sonnet",
+		Bead:    nil,
+		Rules:   "Use explicit defaults",
+		Spec:    "Acceptance criteria",
+		Model:   "sonnet",
 		WorkDir: "src",
 	}
 
