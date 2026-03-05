@@ -167,7 +167,7 @@ func (m *Model) handleRunLoopNavigationKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		switch key {
 		case '1', '2', '3':
 			if m.activeTab != TabRunLoop {
-				return nil, true
+				return nil, false
 			}
 			switch key {
 			case '1':
