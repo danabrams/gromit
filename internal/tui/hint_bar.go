@@ -129,3 +129,19 @@ func tabNeedsConfirmation(tab Tab) bool {
 		return false
 	}
 }
+
+func hintTabs() []Tab {
+	tabs := make([]Tab, len(tabOrder))
+	copy(tabs, tabOrder)
+	return tabs
+}
+
+func expectedConfirmationHintString(tab Tab) string {
+	if hint, ok := hintBarConfirmationStateStrings[tab]; ok && hint != "" {
+		return hint
+	}
+	if hint, ok := hintBarNormalStateStrings[tab]; ok {
+		return hint
+	}
+	return ""
+}
