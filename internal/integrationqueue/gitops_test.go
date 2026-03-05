@@ -47,6 +47,48 @@ func TestPushErrorPropagation(t *testing.T) {
 	}
 }
 
+// TestCleanupErrorPropagation verifies that Cleanup errors are properly propagated.
+func TestCleanupErrorPropagation(t *testing.T) {
+	ctx := context.Background()
+	entry := Entry{Branch: "test-branch", SessionID: "test"}
+
+	wantErr := errors.New("cleanup failed")
+	mock := NewCallTrackingMockGitOps(nil, nil, nil, wantErr)
+
+	err := mock.Cleanup(ctx, entry)
+	if err != wantErr {
+		t.Fatalf("Cleanup() error = %v, want %v", err, wantErr)
+	}
+}
+
+// TestGitOpsCallSequence verifies that GitOps methods can be called in sequence.
+func TestGitOpsCallSequence(t *testing.T) {
+	ctx := context.Background()
+	entry := Entry{Branch: "test-branch", SessionID: "test"}
+
+	mock := NewCallTrackingMockGitOps(nil, nil, nil, nil)
+
+	// Call all methods in sequence
+	if err := mock.FetchAndRebase(ctx, entry); err != nil {
+		t.Fatalf("FetchAndRebase() error = %v", err)
+	}
+	if err := mock.MergeToMain(ctx, entry); err != nil {
+		t.Fatalf("MergeToMain() error = %v", err)
+	}
+	if err := mock.Push(ctx); err != nil {
+		t.Fatalf("Push() error = %v", err)
+	}
+	if err := mock.Cleanup(ctx, entry); err != nil {
+		t.Fatalf("Cleanup() error = %v", err)
+	}
+
+	// Verify calls were tracked
+	wantCalls := []string{"FetchAndRebase", "MergeToMain", "Push", "Cleanup"}
+	if !callsMatch(mock.GetCalls(), wantCalls) {
+		t.Fatalf("calls = %v, want %v", mock.GetCalls(), wantCalls)
+	}
+}
+
 // NewErrorMockGitOps creates a mock GitOps implementation that returns specified errors.
 func NewErrorMockGitOps(fetchErr, mergeErr, pushErr, cleanupErr error) GitOps {
 	return &errorMockGitOps{
