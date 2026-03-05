@@ -32,6 +32,9 @@ func (i *IdeaListItem) Summary() string {
 	if spec := strings.TrimSpace(i.idea.SpecName); spec != "" {
 		parts = append(parts, fmt.Sprintf("spec=%s", spec))
 	}
+	if status := strings.TrimSpace(i.idea.Status); status != "" {
+		parts = append(parts, fmt.Sprintf("status=%s", status))
+	}
 	if id := strings.TrimSpace(i.idea.ID); id != "" {
 		parts = append(parts, id)
 	}
