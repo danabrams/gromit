@@ -35,6 +35,14 @@ var hintBarDetailStateStrings = map[Tab]string{
 	TabRunLoop: renderHintActions(detailViewHintActions(TabRunLoop)),
 }
 
+var hintBarConfirmationStateStrings = map[Tab]string{
+	TabBacklog: renderHintActions(confirmationHintActions(TabBacklog)),
+	TabSpecs:   renderHintActions(confirmationHintActions(TabSpecs)),
+	TabPlans:   renderHintActions(confirmationHintActions(TabPlans)),
+	TabQueue:   renderHintActions(confirmationHintActions(TabQueue)),
+	TabRunLoop: renderHintActions(confirmationHintActions(TabRunLoop)),
+}
+
 func RenderHintBar(activeTab Tab, hasSelection bool, inDetailView bool, inConfirmation bool) string {
 	if inConfirmation {
 		if actions := confirmationHintActions(activeTab); len(actions) > 0 {
