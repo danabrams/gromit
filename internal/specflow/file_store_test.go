@@ -74,6 +74,28 @@ func newTestFileStore(t *testing.T) *fileStore {
 	}
 }
 
+func TestFileStoreUsesInjectedWriter(t *testing.T) {
+	t.Helper()
+	ctx := context.Background()
+	store := newTestFileStore(t)
+	writeCalled := make(chan struct{}, 1)
+	store.writeFile = func(name string, data []byte, perm os.FileMode) error {
+		select {
+		case writeCalled <- struct{}{}:
+		default:
+		}
+		return nil
+	}
+	if err := store.StoreStage(ctx, "spec-1", StagePlanning); err != nil {
+		t.Fatalf("StoreStage failed: %v", err)
+	}
+	select {
+	case <-writeCalled:
+	default:
+		t.Fatalf("no writeFile call detected")
+	}
+}
+
 func TestFileStoreStoreStageRace(t *testing.T) {
 	ctx := context.Background()
 	store := newTestFileStore(t)
