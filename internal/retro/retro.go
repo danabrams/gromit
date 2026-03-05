@@ -487,7 +487,7 @@ func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, 
 	}
 	r.diagnostics = diagnostics
 
-	tmpl, err := template.New("retro").Funcs(template.FuncMap{
+	tmpl, err := template.New("retro").Option("missingkey=zero").Funcs(template.FuncMap{
 		"mul": func(a, b float64) float64 { return a * b },
 		"div": func(a, b float64) float64 {
 			if b == 0 {
