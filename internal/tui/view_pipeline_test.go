@@ -39,6 +39,21 @@ func TestIdeaListItemSummaryIncludesStatus(t *testing.T) {
 	}
 }
 
+func TestIdeaListItemSummaryIncludesContext(t *testing.T) {
+	idea := &backlog.Idea{
+		ID:       "idea-123",
+		Type:     "feature",
+		SpecName: "specs/pipeline-view.md",
+		Status:   "refined",
+		Context:  "Needs more detail",
+	}
+	item := &IdeaListItem{idea: idea}
+
+	if got, want := item.Summary(), "feature · spec=specs/pipeline-view.md · status=refined · context=Needs more detail · idea-123"; got != want {
+		t.Fatalf("Summary() = %q, want %q", got, want)
+	}
+}
+
 func TestSpecListItemTitleSummary(t *testing.T) {
 	path := "specs/awesome-feature.md"
 	item := &SpecListItem{path: path}
