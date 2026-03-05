@@ -40,8 +40,13 @@ func (c *Classifier) Classify(parent *bead.Bead, findings []Finding) Classificat
         parentGen = generation.Current(parent.Labels)
     }
     nextGenLabel := generation.Format(parentGen + 1)
+    parentID := ""
+    if parent != nil {
+        parentID = parent.ID
+    }
 
     for _, finding := range findings {
+        c.emitReviewFinding(parentID, finding)
         if finding.InScope {
             labels := reviewpkg.BuildReviewBeadLabels([]string{nextGenLabel})
             newBead := &bead.Bead{
@@ -57,6 +62,20 @@ func (c *Classifier) Classify(parent *bead.Bead, findings []Finding) Classificat
     }
 
     return result
+}
+
+func (c *Classifier) emitReviewFinding(beadID string, finding Finding) {
+    if c == nil || c.emitter == nil {
+        return
+    }
+    c.emitter.Emit(&events.ReviewFindingEvent{
+        BeadID:        beadID,
+        Title:         finding.Title,
+        Description:   finding.Description,
+        InScope:       finding.InScope,
+        AffectedFiles: append([]string(nil), finding.AffectedFiles...),
+        SchemaVersion: events.ReviewFindingSchemaVersion,
+    })
 }
 
 func resolvePriority(requested int) int {
