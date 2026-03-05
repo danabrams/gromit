@@ -72,6 +72,68 @@ agents:
 	}
 }
 
+func TestResolveProjectRootPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	if err := os.WriteFile(cfgPath, []byte("version: 1\n"), 0o644); err != nil {
+		t.Fatalf("write gromit.yaml: %v", err)
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get working directory: %v", err)
+	}
+
+	relPath, err := filepath.Rel(cwd, cfgPath)
+	if err != nil {
+		t.Fatalf("filepath.Rel: %v", err)
+	}
+
+	absPath, projectRoot, err := resolveProjectRootPath(relPath)
+	if err != nil {
+		t.Fatalf("resolveProjectRootPath: %v", err)
+	}
+
+	wantAbsPath, err := filepath.Abs(relPath)
+	if err != nil {
+		t.Fatalf("filepath.Abs: %v", err)
+	}
+	if absPath != wantAbsPath {
+		t.Fatalf("abs path = %q, want %q", absPath, wantAbsPath)
+	}
+
+	wantRoot := filepath.Dir(wantAbsPath)
+	if projectRoot != wantRoot {
+		t.Fatalf("project root = %q, want %q", projectRoot, wantRoot)
+	}
+}
+
+func TestLoadSetsProjectRoot(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "gromit.yaml")
+	configContent := `version: 1
+worktree:
+  enabled: false
+`
+	if err := os.WriteFile(cfgPath, []byte(configContent), 0o644); err != nil {
+		t.Fatalf("write gromit.yaml: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	expectedRoot, err := filepath.Abs(tmpDir)
+	if err != nil {
+		t.Fatalf("filepath.Abs: %v", err)
+	}
+
+	if cfg.ProjectRoot != expectedRoot {
+		t.Fatalf("ProjectRoot = %q, want %q", cfg.ProjectRoot, expectedRoot)
+	}
+}
+
 func TestQualityGatesYAMLDeserialization(t *testing.T) {
 	yamlContent := `
 quality_gates:
@@ -3487,48 +3549,6 @@ func TestMethodologyGranularityDefaultsToBead(t *testing.T) {
 
 	if cfg.Methodology.Granularity != MethodologyGranularityBead {
 		t.Errorf("expected granularity=%s, got %q", MethodologyGranularityBead, cfg.Methodology.Granularity)
-	}
-}
-
-func TestMethodologyMaxTDDCyclesNotSetByDefaults(t *testing.T) {
-	cfg := &Config{}
-	cfg.SetDefaults()
-
-	if cfg.Methodology.MaxTDDCycles != 0 {
-		t.Errorf("expected max_tdd_cycles to remain unset, got %d", cfg.Methodology.MaxTDDCycles)
-	}
-}
-
-func TestMethodologyMaxTDDCyclesParsesFromYAML(t *testing.T) {
-	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "gromit.yaml")
-	yaml := `methodology:
-  max_tdd_cycles: 7
-`
-	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
-		t.Fatalf("writing config: %v", err)
-	}
-
-	cfg, err := Load(cfgPath)
-	if err != nil {
-		t.Fatalf("loading config: %v", err)
-	}
-
-	if cfg.Methodology.MaxTDDCycles != 7 {
-		t.Errorf("expected max_tdd_cycles=7, got %d", cfg.Methodology.MaxTDDCycles)
-	}
-}
-
-func TestMethodologyMaxTDDCyclesIgnoredByLoopDefaults(t *testing.T) {
-	yaml := `methodology:
-  max_tdd_cycles: 5
-`
-	cfg := loadConfigFromYAML(t, yaml)
-	if cfg.Methodology.MaxTDDCycles != 5 {
-		t.Fatalf("expected max_tdd_cycles=5, got %d", cfg.Methodology.MaxTDDCycles)
-	}
-	if cfg.TDDMaxCycles() != DefaultMaxTDDCycles {
-		t.Fatalf("expected loop termination to use %d, got %d", DefaultMaxTDDCycles, cfg.TDDMaxCycles())
 	}
 }
 

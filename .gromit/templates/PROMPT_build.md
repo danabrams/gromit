@@ -104,6 +104,16 @@ Previous output:
 Please analyze the failure and try a different approach.
 {{end}}
 
+## Scope Boundary
+
+Your scope is EXACTLY the bead title: **{{.Bead.Title}}**
+
+- Implement ONLY what the title describes — nothing upstream or downstream
+- Do NOT implement consumers, CLI flags, or wiring for the thing you're adding
+- Do NOT add features that "would be nice to have" alongside the task
+- If you realize follow-on work is needed, note it in your commit message — do not do it
+- Example: if the title says "Add X field to Y struct", you add the field, populate it, write tests, and stop. You do NOT add CLI flags that use the field, wire it into other packages, or implement callers
+
 ## Instructions
 
 1. **Study the codebase** before making changes - don't assume code is missing

@@ -32,7 +32,6 @@ const (
 	DefaultAndonL2TimeCapMinutes = 15
 
 	DefaultRunbookTTLDays     = 14
-	DefaultMaxTDDCycles       = 10
 	DefaultSpecGateMaxCycles  = 3
 	DefaultSpecGateMaxRetries = 3
 	DefaultMaxSubBeads        = 5
@@ -51,6 +50,7 @@ var defaultAndonBulkDeleteAllowlist = []string{
 }
 
 type Config struct {
+	ProjectRoot                string                 `yaml:"-"`
 	Project                    ProjectConfig          `yaml:"project"`
 	Compatibility              CompatibilityConfig    `yaml:"compatibility"`
 	Tracker                    TrackerConfig          `yaml:"tracker"`
@@ -346,14 +346,11 @@ type ThoroughReviewConfig struct {
 }
 
 type MethodologyConfig struct {
-	Adapter       string            `yaml:"adapter"`
-	ATDD          bool              `yaml:"atdd"`
-	TDD           bool              `yaml:"tdd"`
-	BuildStrategy string            `yaml:"build_strategy"`
-	PhaseModels   PhaseModelsConfig `yaml:"phase_models"`
-	// Deprecated: max_tdd_cycles is parsed for compatibility but ignored by runtime.
-	// Use Config.TDDMaxCycles() if you need to inspect the fixed loop cap.
-	MaxTDDCycles       int                     `yaml:"max_tdd_cycles"`
+	Adapter            string                  `yaml:"adapter"`
+	ATDD               bool                    `yaml:"atdd"`
+	TDD                bool                    `yaml:"tdd"`
+	BuildStrategy      string                  `yaml:"build_strategy"`
+	PhaseModels        PhaseModelsConfig       `yaml:"phase_models"`
 	SpecGateMaxRetries int                     `yaml:"spec_gate_max_retries"`
 	ATDDPrompt         ATDDPromptConfig        `yaml:"atdd_prompt"`
 	Granularity        string                  `yaml:"granularity"`

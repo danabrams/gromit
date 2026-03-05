@@ -73,6 +73,109 @@ func TestShouldTriggerPreExecutionScopeDecomposition(t *testing.T) {
 	}
 }
 
+// TestCheckPostExecutionScope verifies post-execution scope checking
+// against estimated file counts and hard caps.
+func TestCheckPostExecutionScope(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		bc              *runtypes.BeadContext
+		filesChanged    int
+		wantExceeded    bool
+		wantNonEmptyMsg bool
+	}{
+		{
+			name: "WithinEstimate",
+			bc: &runtypes.BeadContext{
+				Bead: &bead.Bead{
+					ID:              "test-id",
+					Title:           "Test task",
+					ExpectedOutputs: []string{"a.go", "b.go", "c.go"},
+				},
+			},
+			filesChanged:    2,
+			wantExceeded:    false,
+			wantNonEmptyMsg: false,
+		},
+		{
+			name: "ExceedsEstimate",
+			bc: &runtypes.BeadContext{
+				Bead: &bead.Bead{
+					ID:              "test-id",
+					Title:           "Test task",
+					ExpectedOutputs: []string{"a.go", "b.go", "c.go"},
+				},
+			},
+			filesChanged:    8,
+			wantExceeded:    true,
+			wantNonEmptyMsg: true,
+		},
+		{
+			name: "NoEstimate_WithinCap",
+			bc: &runtypes.BeadContext{
+				Bead: &bead.Bead{
+					ID:              "test-id",
+					Title:           "Test task",
+					ExpectedOutputs: []string{},
+				},
+			},
+			filesChanged:    4,
+			wantExceeded:    false,
+			wantNonEmptyMsg: false,
+		},
+		{
+			name: "NoEstimate_ExceedsCap",
+			bc: &runtypes.BeadContext{
+				Bead: &bead.Bead{
+					ID:              "test-id",
+					Title:           "Test task",
+					ExpectedOutputs: []string{},
+				},
+			},
+			filesChanged:    8,
+			wantExceeded:    true,
+			wantNonEmptyMsg: true,
+		},
+		{
+			name:            "NilContext",
+			bc:              nil,
+			filesChanged:    10,
+			wantExceeded:    false,
+			wantNonEmptyMsg: false,
+		},
+		{
+			name: "ExactBoundary",
+			bc: &runtypes.BeadContext{
+				Bead: &bead.Bead{
+					ID:              "test-id",
+					Title:           "Test task",
+					ExpectedOutputs: []string{"a.go", "b.go", "c.go"},
+				},
+			},
+			filesChanged:    6, // exactly 3 * 2 = 6, not exceeded
+			wantExceeded:    false,
+			wantNonEmptyMsg: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := CheckPostExecutionScope(tt.bc, tt.filesChanged)
+			if result.ScopeExceeded != tt.wantExceeded {
+				t.Errorf("CheckPostExecutionScope().ScopeExceeded = %v, want %v", result.ScopeExceeded, tt.wantExceeded)
+			}
+			if tt.wantNonEmptyMsg && result.Message == "" {
+				t.Error("CheckPostExecutionScope().Message is empty, want non-empty")
+			}
+			if !tt.wantNonEmptyMsg && result.Message != "" {
+				t.Errorf("CheckPostExecutionScope().Message = %q, want empty", result.Message)
+			}
+		})
+	}
+}
+
 // TestCheckPreExecutionScopeGate verifies that CheckPreExecutionScopeGate
 // returns false and attempts decomposition when file count > 3.
 func TestCheckPreExecutionScopeGate(t *testing.T) {
