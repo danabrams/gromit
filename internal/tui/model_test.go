@@ -730,8 +730,8 @@ func newPipelineStore(t *testing.T) (*Store, *bead.Bead) {
 }
 
 type mockPipelineListModel struct {
-	called int
-	items  []ListItem
+	called          int
+	items           []ListItem
 	cursorUpCalls   int
 	cursorDownCalls int
 	selected        ListItem
@@ -952,7 +952,6 @@ func TestModel_EscapeCancelsConfirmDelete(t *testing.T) {
 		t.Fatalf("expected confirmDelete to be cleared after Escape")
 	}
 }
-
 
 func TestModel_RunLoopSubViewInitializesToDashboard(t *testing.T) {
 	store := &Store{}
