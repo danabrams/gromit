@@ -54,7 +54,7 @@ func (s *SpecListItem) Title() string {
 	if s == nil {
 		return ""
 	}
-	return filepath.Base(s.path)
+	return strings.TrimSpace(filepath.Base(s.path))
 }
 
 func (s *SpecListItem) Summary() string {
@@ -80,7 +80,7 @@ func (p *PlanListItem) Title() string {
 	if p == nil {
 		return ""
 	}
-	return filepath.Base(p.path)
+	return strings.TrimSpace(filepath.Base(p.path))
 }
 
 func (p *PlanListItem) Summary() string {
