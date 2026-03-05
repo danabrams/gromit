@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/danabrams/gromit/internal/agent"
@@ -224,20 +225,26 @@ type trackerClientAdapter struct {
 var _ pipeline.TrackerClient = (*trackerClientAdapter)(nil)
 
 // trackerItemToBeadInfo converts a tracker.Item to pipeline.BeadInfo.
-func trackerItemToBeadInfo(item *tracker.Item) *pipeline.BeadInfo {
+func trackerItemToBeadInfo(item *tracker.Item) (*pipeline.BeadInfo, error) {
 	if item == nil {
-		return nil
+		return nil, nil
 	}
 
 	priority := 0
 	if p, ok := item.Metadata["priority"]; ok {
-		fmt.Sscanf(p, "%d", &priority)
+		parsed, err := strconv.Atoi(p)
+		if err != nil {
+			return nil, fmt.Errorf("parse priority metadata %q: %w", p, err)
+		}
+		priority = parsed
 	}
 
 	var labels []string
 	if l, ok := item.Metadata["labels"]; ok {
 		// Labels are stored as JSON array in metadata
-		json.Unmarshal([]byte(l), &labels)
+		if err := json.Unmarshal([]byte(l), &labels); err != nil {
+			return nil, fmt.Errorf("unmarshal labels metadata %q: %w", l, err)
+		}
 	}
 
 	return &pipeline.BeadInfo{
@@ -245,7 +252,7 @@ func trackerItemToBeadInfo(item *tracker.Item) *pipeline.BeadInfo {
 		Title:    item.Title,
 		Priority: priority,
 		Labels:   labels,
-	}
+	}, nil
 }
 
 func (a *trackerClientAdapter) Ready(ctx context.Context) (*pipeline.BeadInfo, error) {
@@ -253,7 +260,11 @@ func (a *trackerClientAdapter) Ready(ctx context.Context) (*pipeline.BeadInfo, e
 	if err != nil {
 		return nil, err
 	}
-	return trackerItemToBeadInfo(item), nil
+	info, err := trackerItemToBeadInfo(item)
+	if err != nil {
+		return nil, err
+	}
+	return info, nil
 }
 
 func (a *trackerClientAdapter) Show(ctx context.Context, id string) (*pipeline.BeadInfo, error) {
@@ -261,7 +272,11 @@ func (a *trackerClientAdapter) Show(ctx context.Context, id string) (*pipeline.B
 	if err != nil {
 		return nil, err
 	}
-	return trackerItemToBeadInfo(item), nil
+	info, err := trackerItemToBeadInfo(item)
+	if err != nil {
+		return nil, err
+	}
+	return info, nil
 }
 
 func (a *trackerClientAdapter) Create(ctx context.Context, title string, priority int, labels []string, outputs []string) (*pipeline.BeadInfo, error) {
@@ -273,7 +288,10 @@ func (a *trackerClientAdapter) Create(ctx context.Context, title string, priorit
 		req.Metadata["priority"] = fmt.Sprintf("%d", priority)
 	}
 	if len(labels) > 0 {
-		labelsJSON, _ := json.Marshal(labels)
+		labelsJSON, err := json.Marshal(labels)
+		if err != nil {
+			return nil, fmt.Errorf("marshal labels metadata: %w", err)
+		}
 		req.Metadata["labels"] = string(labelsJSON)
 	}
 	if encoded, ok := tracker.EncodeMetadataJSONList(outputs); ok {
@@ -284,7 +302,11 @@ func (a *trackerClientAdapter) Create(ctx context.Context, title string, priorit
 	if err != nil {
 		return nil, err
 	}
-	return trackerItemToBeadInfo(item), nil
+	info, err := trackerItemToBeadInfo(item)
+	if err != nil {
+		return nil, err
+	}
+	return info, nil
 }
 
 func (a *trackerClientAdapter) CreateWithDepsAndDescription(ctx context.Context, title string, priority int, labels []string, criteria []string, deps []string, desc string) (*pipeline.BeadInfo, error) {
@@ -297,7 +319,10 @@ func (a *trackerClientAdapter) CreateWithDepsAndDescription(ctx context.Context,
 		req.Metadata["priority"] = fmt.Sprintf("%d", priority)
 	}
 	if len(labels) > 0 {
-		labelsJSON, _ := json.Marshal(labels)
+		labelsJSON, err := json.Marshal(labels)
+		if err != nil {
+			return nil, fmt.Errorf("marshal labels metadata: %w", err)
+		}
 		req.Metadata["labels"] = string(labelsJSON)
 	}
 	if encoded, ok := tracker.EncodeMetadataJSONList(criteria); ok {
@@ -311,7 +336,11 @@ func (a *trackerClientAdapter) CreateWithDepsAndDescription(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
-	return trackerItemToBeadInfo(item), nil
+	info, err := trackerItemToBeadInfo(item)
+	if err != nil {
+		return nil, err
+	}
+	return info, nil
 }
 
 func (a *trackerClientAdapter) Close(ctx context.Context, id string) error {
