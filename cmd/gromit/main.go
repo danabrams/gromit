@@ -172,7 +172,6 @@ func registerRootCommands(root *cobra.Command) {
 	root.AddCommand(runCmd)
 	root.AddCommand(statusCmd)
 	root.AddCommand(retroCmd)
-	root.AddCommand(tuiCmd)
 	root.AddCommand(validatePRMetadataCmd)
 	registerBenchmarkCommands(root)
 }

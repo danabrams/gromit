@@ -42,7 +42,6 @@ var allowedCommandInternalImports = map[string]struct{}{
 	"github.com/danabrams/gromit/internal/specgate":         {},
 	"github.com/danabrams/gromit/internal/state":            {},
 	"github.com/danabrams/gromit/internal/tracker":          {},
-	"github.com/danabrams/gromit/internal/tui":              {},
 	"github.com/danabrams/gromit/internal/visionmetrics":    {},
 	"github.com/danabrams/gromit/internal/worktree":         {},
 }
