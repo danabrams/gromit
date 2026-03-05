@@ -80,6 +80,58 @@ func TestNewStageAwarePreImplementationHook_ReturnsNilWhenSpecNameEmpty(t *testi
 	}
 }
 
+func TestNewStageAwarePreImplementationHook_CreatedBeadHasCorrectLabels(t *testing.T) {
+	t.Parallel()
+
+	var createdBead *bead.Bead
+	mockBeadClient := &mockBeadClientForPreImplementationHook{
+		createFn: func(ctx context.Context, title string, priority int, labels []string, expectedOutputs []string) (*bead.Bead, error) {
+			createdBead = &bead.Bead{
+				ID:       "at-auth-bead",
+				Title:    title,
+				Priority: priority,
+				Labels:   labels,
+			}
+			return createdBead, nil
+		},
+	}
+
+	stageCtx := &StageContext{
+		SpecName: "my-spec",
+		Stage:    specflow.StageAcceptanceTests,
+	}
+
+	hook := newStageAwarePreImplementationHookWithBeadClient(stageCtx, mockBeadClient)
+	if hook == nil {
+		t.Fatal("hook is nil, want non-nil hook")
+	}
+
+	err := hook(context.Background())
+	if err != nil {
+		t.Fatalf("hook() error = %v, want nil", err)
+	}
+
+	if createdBead == nil {
+		t.Fatal("no bead created")
+	}
+
+	if !contains(createdBead.Labels, "acceptance-test-authoring") {
+		t.Errorf("labels = %v, want to contain 'acceptance-test-authoring'", createdBead.Labels)
+	}
+	if !contains(createdBead.Labels, "spec:my-spec") {
+		t.Errorf("labels = %v, want to contain 'spec:my-spec'", createdBead.Labels)
+	}
+}
+
+func contains(s []string, item string) bool {
+	for _, x := range s {
+		if x == item {
+			return true
+		}
+	}
+	return false
+}
+
 // mockBeadClientForPreImplementationHook implements BeadClient for testing.
 type mockBeadClientForPreImplementationHook struct {
 	createFn func(ctx context.Context, title string, priority int, labels []string, expectedOutputs []string) (*bead.Bead, error)
