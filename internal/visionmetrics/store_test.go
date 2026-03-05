@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -565,6 +566,65 @@ func TestAppendRecord_AtomicWriteUnderConcurrentAccess(t *testing.T) {
 			t.Errorf("duplicate SpecID: %q", record.SpecID)
 		}
 		seenIDs[record.SpecID] = true
+	}
+}
+
+func TestAppendRecord_WaitsForFileLock(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "locked.jsonl")
+	record := Record{
+		SpecID:                     "locked-spec",
+		CycleStartTriggerAt:        parseTime("2026-02-01T08:00:00Z"),
+		CycleEndPresentedAt:        parseTime("2026-02-01T10:00:00Z"),
+		ReviewOutcome:              ReviewOutcomeAccepted,
+		HumanTacticalIntervention:  Yes,
+		HumanDebuggingIntervention: No,
+		EscapedRegressionWithin7D:  EscapedRegressionNo,
+	}
+
+	lockPath := tmpFile + ".lock"
+	lockFile, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		t.Fatalf("failed to open lock file: %v", err)
+	}
+	defer lockFile.Close()
+	if err := syscall.Flock(int(lockFile.Fd()), syscall.LOCK_EX); err != nil {
+		t.Fatalf("failed to grab lock: %v", err)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- AppendRecord(tmpFile, record)
+	}()
+
+	select {
+	case err := <-done:
+		t.Fatalf("AppendRecord finished before lock released: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	if err := syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN); err != nil {
+		t.Fatalf("failed to release lock: %v", err)
+	}
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("AppendRecord failed after lock released: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("AppendRecord did not finish after releasing lock")
+	}
+
+	records, err := LoadRecords(tmpFile)
+	if err != nil {
+		t.Fatalf("LoadRecords failed: %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("expected 1 record, got %d", len(records))
+	}
+	if records[0].SpecID != record.SpecID {
+		t.Fatalf("record mismatch: got %q, want %q", records[0].SpecID, record.SpecID)
 	}
 }
 
