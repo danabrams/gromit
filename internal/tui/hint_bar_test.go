@@ -167,3 +167,21 @@ func TestRenderHintBarConfirmationStateStrings(t *testing.T) {
 		})
 	}
 }
+
+type hintBarState int
+
+const (
+	hintBarStateNormal hintBarState = iota
+	hintBarStateDetail
+	hintBarStateConfirmation
+)
+
+func expectedHintString(tab Tab, state hintBarState) string {
+	switch state {
+	case hintBarStateNormal:
+		if hint, ok := hintBarNormalStateStrings[tab]; ok {
+			return hint
+		}
+	}
+	return ""
+}
