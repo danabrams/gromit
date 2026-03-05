@@ -198,9 +198,9 @@ func (c *Coordinator) RecoverFromCrash(ctx context.Context) error {
 	}
 
 	if recoveredCount == 0 {
-		log.Println("no stranded entries found during crash recovery")
+		log.Println("no stranded entries found")
 	} else {
-		log.Printf("recovered %d stranded entries during crash recovery", recoveredCount)
+		log.Printf("recovered %d stranded entries", recoveredCount)
 	}
 
 	return nil
