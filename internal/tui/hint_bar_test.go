@@ -118,6 +118,17 @@ func TestHintBarNormalStateOutputs(t *testing.T) {
 	}
 }
 
+func TestHintBarNormalStateStrings(t *testing.T) {
+	for _, tab := range hintTabs() {
+		t.Run(string(tab), func(t *testing.T) {
+			want := expectedHintString(tab, hintBarStateNormal)
+			if got := HintBar(tab, false, false); got != want {
+				t.Fatalf("HintBar(%q, normal) = %q, want %q", tab, got, want)
+			}
+		})
+	}
+}
+
 func TestRenderHintBarNormalStateStrings(t *testing.T) {
 	for _, tab := range hintTabs() {
 		t.Run(string(tab), func(t *testing.T) {
