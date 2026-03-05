@@ -274,11 +274,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.pipelineListModels == nil {
 			break
 		}
-		for tab, list := range m.pipelineListModels {
-			if list == nil {
-				continue
+		requestedTab := msg.RequestedTab
+		if requestedTab == "" {
+			for tab, list := range m.pipelineListModels {
+				if list == nil {
+					continue
+				}
+				list.SetItems(m.pipelineListItemsForTab(tab))
 			}
-			list.SetItems(m.pipelineListItemsForTab(tab))
+			break
+		}
+		if list := m.pipelineListModels[requestedTab]; list != nil {
+			list.SetItems(m.pipelineListItemsForTab(requestedTab))
 		}
 	}
 	return m, nil
