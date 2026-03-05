@@ -132,3 +132,17 @@ func TestStyledNormalHintStringMatchesActions(t *testing.T) {
 		})
 	}
 }
+
+func TestPerTabNormalHintStringsMatchRenderHintBar(t *testing.T) {
+	for _, tab := range hintTabs() {
+		t.Run(string(tab), func(t *testing.T) {
+			got, ok := perTabNormalHintStrings[tab]
+			if !ok {
+				t.Fatalf("missing per-tab normal hint string for %q", tab)
+			}
+			if want := RenderHintBar(tab, true, false, false); got != want {
+				t.Fatalf("perTabNormalHintStrings[%q] = %q, want %q", tab, got, want)
+			}
+		})
+	}
+}
