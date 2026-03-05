@@ -804,14 +804,14 @@ func TestCoordinatorRecoverFromCrash_PassesCrashRecoveryMetadataDuringTransition
 	queuePath := filepath.Join(tmpDir, queueFileName)
 
 	entry := Entry{
-		Branch:           "feature/crash-transition",
-		SessionID:        "feature/crash-transition",
-		OriginCommand:    "test",
-		State:            StateIntegrating,
-		Lane:             string(CodeLane),
-		BaseRef:          "main",
-		HeadSHA:          "deadbeef",
-		FifoSeq:          1,
+		Branch:        "feature/crash-transition",
+		SessionID:     "feature/crash-transition",
+		OriginCommand: "test",
+		State:         StateIntegrating,
+		Lane:          string(CodeLane),
+		BaseRef:       "main",
+		HeadSHA:       "deadbeef",
+		FifoSeq:       1,
 	}
 	queue := &Queue{
 		SchemaVersion: SchemaVersion,

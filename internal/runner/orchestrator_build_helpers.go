@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"os/exec"
 	"strings"
 
 	"github.com/danabrams/gromit/internal/logger"
@@ -25,6 +26,25 @@ func stampBuildAttribution(log *logger.IterationLog, buildOut pipeline.Output) {
 	log.CacheKey = buildOut.CacheKey
 	log.CacheInvalidationReason = buildOut.CacheInvalidationReason
 	log.CacheVersionMarker = buildOut.CacheVersionMarker
+}
+
+// countChangedFiles returns the number of files changed since startCommit
+// by running git diff --name-only. Returns 0 if startCommit is empty or
+// the command fails.
+func countChangedFiles(startCommit string) int {
+	if startCommit == "" {
+		return 0
+	}
+	cmd := exec.Command("git", "diff", "--name-only", startCommit)
+	out, err := cmd.Output()
+	if err != nil {
+		return 0
+	}
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	if len(lines) == 1 && lines[0] == "" {
+		return 0
+	}
+	return len(lines)
 }
 
 func inferBuildFailurePhase(err error) string {
