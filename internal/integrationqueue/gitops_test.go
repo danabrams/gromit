@@ -317,3 +317,38 @@ func (m *successfulMockGitOps) Push(ctx context.Context) error {
 func (m *successfulMockGitOps) Cleanup(ctx context.Context, entry Entry) error {
 	return nil
 }
+
+// NewSequentialContextMock creates a mock GitOps that respects context in each call.
+func NewSequentialContextMock() GitOps {
+	return &sequentialContextMock{}
+}
+
+type sequentialContextMock struct{}
+
+func (m *sequentialContextMock) FetchAndRebase(ctx context.Context, entry Entry) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *sequentialContextMock) MergeToMain(ctx context.Context, entry Entry) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *sequentialContextMock) Push(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *sequentialContextMock) Cleanup(ctx context.Context, entry Entry) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return nil
+}
