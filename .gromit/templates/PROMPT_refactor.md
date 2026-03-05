@@ -38,14 +38,16 @@ The mid-build review surfaced the following concerns. Please resolve them before
 
 ## Current Task
 
-**ID:** {{.Bead.ID}}
-**Title:** {{.Bead.Title}}
-**Priority:** P{{.Bead.Priority}}
-{{if .Bead.Labels}}**Labels:** {{join .Bead.Labels ", "}}{{end}}
+{{with .Bead}}
+**ID:** {{.ID}}
+**Title:** {{.Title}}
+**Priority:** P{{.Priority}}
+{{if .Labels}}**Labels:** {{join .Labels ", "}}{{end}}
 
-{{if .Bead.Description}}
+{{if .Description}}
 ### Description
-{{.Bead.Description}}
+{{.Description}}
+{{end}}
 {{end}}
 
 {{if .Spec}}

@@ -10,9 +10,11 @@ You are reviewing code changes from a single iteration to catch issues early.
 
 ## Task Context
 
-**Bead:** {{.Bead.Title}}
-{{if .Bead.Description}}
-**Description:** {{.Bead.Description}}
+{{with .Bead}}
+**Bead:** {{.Title}}
+{{if .Description}}
+**Description:** {{.Description}}
+{{end}}
 {{end}}
 
 {{if .Spec}}

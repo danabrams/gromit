@@ -4,13 +4,17 @@ A task has been identified as too large or complex to complete in a single itera
 
 ## Original Task
 
-**ID:** {{.Bead.ID}}
-**Title:** {{.Bead.Title}}
-**Priority:** P{{.Bead.Priority}}
+{{with .Bead}}
+**ID:** {{.ID}}
+**Title:** {{.Title}}
+**Priority:** P{{.Priority}}
 
+{{if .Description}}
 ### Description
 
-{{.Bead.Description}}
+{{.Description}}
+{{end}}
+{{end}}
 
 {{if .ParentBead}}
 ### Parent Context
