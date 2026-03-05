@@ -131,6 +131,16 @@ Shared orchestrator/runtime path ownership must include telemetry completeness e
 
 *Newly observed — needs validation across more tasks.*
 
+### 2026-03-05 | Validation Commands via sh -c Is Acceptable for Owner-Controlled Config | security
+*Related to: review-1772715065914055000*
+
+`defaultCmdRunner` in internal/runner/cmd_run.go:85 executes commands via `sh -c`. This is safe because validation commands come exclusively from the project owner's config YAML (e.g., `go test`, `go vet`), not from untrusted user input. The `sh -c` pattern is intentional to support shell features (pipes, redirects) in validation commands.
+
+### 2026-03-05 | specID Path Parameters Lack Traversal Validation Unlike Bead IDs | security
+*Related to: review-1772715065914055000, gromit-ntw1d*
+
+Bead IDs are strictly validated via regex `^[a-zA-Z0-9._-]+$` with length limits (internal/bead/bead.go), but specID parameters in specflow/store.go are joined directly into filepaths without equivalent validation. All path-based identifiers should apply the same validation discipline at the boundary.
+
 ### 2026-03-05 | Gofmt Compliance Test Fragile to Cross-Branch File Deletions | test-infra
 *Related to: review-1772674701122012000, gromit-vkxpb*
 
