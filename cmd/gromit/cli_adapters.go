@@ -240,14 +240,7 @@ type refinePromptRenderer struct {
 var _ pipeline.RefineRenderer = (*refinePromptRenderer)(nil)
 
 func (r *refinePromptRenderer) RenderRefine(input *pipeline.RefinePromptInput) (string, error) {
-	ideaText := ""
-	if input != nil {
-		ideaText = input.IdeaText
-	}
-	if ideaText == "" {
-		return "Refine prompt placeholder", nil
-	}
-	return fmt.Sprintf("Refine prompt placeholder for %s", ideaText), nil
+	return "", fmt.Errorf("refine prompt rendering is not yet available")
 }
 
 // decomposePromptRenderer adapts prompt.Renderer to pipeline.DecomposeRenderer interface
