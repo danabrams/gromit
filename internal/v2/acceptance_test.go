@@ -47,31 +47,8 @@ func TestSpecLoopExecutesCanonicalStageChain(t *testing.T) {
 		t.Fatalf("Run() error = %v", err)
 	}
 
-	if got := recorder.stageNames(); !reflect.DeepEqual(got, loop.StageSequence) {
-		t.Fatalf("stage order = %v, want %v", got, loop.StageSequence)
-	}
-
-	planPath := filepath.Join(git.lastWorktree, "plan.md")
-	info, err := os.Stat(planPath)
-	if err != nil {
-		t.Fatalf("stat plan file: %v", err)
-	}
-
-	planStart := recorder.stageTime("plan")
-	if planStart.IsZero() {
-		t.Fatalf("no plan stage recorded")
-	}
-	if info.ModTime().Before(planStart) {
-		t.Fatalf("plan file mod time %v should not be before plan stage start %v", info.ModTime(), planStart)
-	}
-
-	planData, err := os.ReadFile(planPath)
-	if err != nil {
-		t.Fatalf("read plan file: %v", err)
-	}
-	if got := string(planData); got != specID+"-plan" {
-		t.Fatalf("plan contents = %q, want %q", got, specID+"-plan")
-	}
+	requireCanonicalStageSequence(t, recorder)
+	verifyPlanFileJustInTime(t, git.lastWorktree, specID, recorder)
 }
 
 func TestStageResultCarriesDecisionArtifactsEvents(t *testing.T) {
