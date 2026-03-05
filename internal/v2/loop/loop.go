@@ -11,14 +11,20 @@ import (
 // AdapterSet alias exposes the adapter basket consumed by the run loop.
 type AdapterSet = adapter.AdapterSet
 
+// DependencyGate enforces spec-level dependency checks before a run executes.
+type DependencyGate interface {
+	EnsureSpecReady(ctx context.Context, specID string) error
+}
+
 // SpecLoop orchestrates the adapters that drive a single spec iteration.
 type SpecLoop struct {
 	adapters adapter.AdapterSet
 	cfg      *config.Config
+	gate     DependencyGate
 }
 
 // NewSpecLoop constructs a spec loop backed by the provided adapters and configuration.
-func NewSpecLoop(adapters adapter.AdapterSet, cfg *config.Config) (*SpecLoop, error) {
+func NewSpecLoop(adapters adapter.AdapterSet, cfg *config.Config, gate DependencyGate) (*SpecLoop, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config required")
 	}
@@ -34,13 +40,20 @@ func NewSpecLoop(adapters adapter.AdapterSet, cfg *config.Config) (*SpecLoop, er
 	if adapters.Presenter == nil {
 		return nil, fmt.Errorf("presenter adapter required")
 	}
-	return &SpecLoop{adapters: adapters, cfg: cfg}, nil
+	if gate == nil {
+		return nil, fmt.Errorf("dependency gate required")
+	}
+	return &SpecLoop{adapters: adapters, cfg: cfg, gate: gate}, nil
 }
 
 // Run executes the configured adapters for the requested spec.
 func (s *SpecLoop) Run(ctx context.Context, specID string) error {
 	if specID == "" {
 		return fmt.Errorf("spec ID required")
+	}
+
+	if err := s.gate.EnsureSpecReady(ctx, specID); err != nil {
+		return fmt.Errorf("dependency gate: %w", err)
 	}
 
 	worktree, err := s.adapters.Git.Checkout(ctx, specID)

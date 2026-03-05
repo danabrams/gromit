@@ -25,7 +25,7 @@ func TestAdapterSwappability(t *testing.T) {
 	for _, swap := range adapterSwaps() {
 		swap := swap
 		t.Run(swap.name, func(t *testing.T) {
-			loopInstance, err := loop.NewSpecLoop(swap.setup(newAdapterSet()), &config.Config{})
+			loopInstance, err := loop.NewSpecLoop(swap.setup(newAdapterSet()), &config.Config{}, newDependencyGate())
 			if err != nil {
 				t.Fatalf("setup loop: %v", err)
 			}
@@ -35,7 +35,7 @@ func TestAdapterSwappability(t *testing.T) {
 		})
 	}
 
-	baseLoop, err := loop.NewSpecLoop(newAdapterSet(), &config.Config{})
+	baseLoop, err := loop.NewSpecLoop(newAdapterSet(), &config.Config{}, newDependencyGate())
 	if err != nil {
 		t.Fatalf("base state: %v", err)
 	}
@@ -206,4 +206,14 @@ func (fakePresenterAdapter) PresentSummary(_ context.Context, specID, summary st
 	_ = specID
 	_ = summary
 	return nil
+}
+
+type noopDependencyGate struct{}
+
+func (noopDependencyGate) EnsureSpecReady(_ context.Context, _ string) error {
+	return nil
+}
+
+func newDependencyGate() loop.DependencyGate {
+	return noopDependencyGate{}
 }
