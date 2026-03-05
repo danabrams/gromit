@@ -125,6 +125,30 @@ Shared orchestrator/runtime path ownership must include telemetry completeness e
 
 *Newly observed — needs validation across more tasks.*
 
+### 2026-03-05 | Security Posture Is Strong: Exec, Paths, and Secrets Follow Best Practices | security
+*Related to: review-1772674701122012000*
+
+All exec.Command usage separates binary from args (no shell injection vectors). File paths use filepath.Join with validated roots from git rev-parse. No secrets are logged. Error discarding follows a consistent documented pattern: best-effort operations use `_ =` assignment with explanatory comments.
+
+### 2026-03-05 | Gofmt Compliance Test Fragile to Cross-Branch File Deletions | test-infra
+*Related to: review-1772674701122012000, gromit-vkxpb*
+
+TestRepoGofmtCompliance uses `git diff --name-only` to find changed files but doesn't filter deleted files. When branches remove files (e.g., TUI removal), gofmt -l exits non-zero on missing paths, causing spurious failures. Use `--diff-filter=d` or existence checks.
+
+### 2026-03-05 | Timing-Based Concurrency Assertions Are Inherently Flaky | test-quality
+*Related to: review-1772674701122012000, gromit-mk7za*
+
+TestOrchestrator_RegressionAndReviewRunConcurrently asserts concurrency via wall-clock timing thresholds. Under CI load, these thresholds are unreliable. Prefer sync-primitive-based verification (e.g., both goroutines signal a shared WaitGroup before completing) over elapsed-time comparisons.
+
+### 2026-03-05 | NilFields Normalization Convention Is Consistently Followed | conventions
+*Related to: review-1772674701122012000*
+
+Exported `NormalizeNilFields()` for cross-package types and unexported `normalizeNilFields()` for internal-only types — the CLAUDE.md convention is applied consistently across config, prompt, runtypes, state, specgate, and methodology packages.
+
+### 2026-03-05 | Runner Package Is Large But Well-Decomposed | architecture
+*Related to: review-1772674701122012000*
+
+internal/runner/ has 93 .go files but is not a god package. It decomposes into focused sub-packages (validation/, escalation/, execution/, methodology/, tdd/, specmerge/, specbranch/, display/, policy/, runtypes/) with clean downward dependency flow and no circular imports.
 
 ### 2026-03-02 | TDD Oscillation Detection Now Uses Order-Insensitive Multiset Comparison | patterns
 *Related to: review-1772465040994006393*

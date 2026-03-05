@@ -119,7 +119,7 @@ func (f *fakeSpecStore) Stage(_ context.Context, _ string) (Stage, error) {
 
 type blockingSpecStore struct {
 	*fakeSpecStore
-	stageCalled chan struct{}
+	stageCalled  chan struct{}
 	storeReached chan struct{}
 	releaseStore chan struct{}
 }
@@ -127,9 +127,9 @@ type blockingSpecStore struct {
 func newBlockingSpecStore(initial Stage) *blockingSpecStore {
 	return &blockingSpecStore{
 		fakeSpecStore: &fakeSpecStore{stage: initial},
-		stageCalled:  make(chan struct{}, 2),
-		storeReached: make(chan struct{}, 1),
-		releaseStore: make(chan struct{}),
+		stageCalled:   make(chan struct{}, 2),
+		storeReached:  make(chan struct{}, 1),
+		releaseStore:  make(chan struct{}),
 	}
 }
 

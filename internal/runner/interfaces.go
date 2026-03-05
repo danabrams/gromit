@@ -16,15 +16,15 @@ import (
 
 // Compile-time interface satisfaction checks.
 var (
-	_ BeadClient      = (*bead.Client)(nil)
-	_ tracker.Client  = (*bead.BDAdapter)(nil)
-	_ FailureAnalyzer = (*analyzer.Analyzer)(nil)
-	_ PromptRenderer  = (*prompt.Renderer)(nil)
-	_ IterationLogger = (*logger.Logger)(nil)
-	_ WorktreeManager = (*worktree.Manager)(nil)
-	_ BranchRouter    = (*specbranch.Router)(nil)
-	_ GitCheckout       = (*specbranch.GitOps)(nil)
-	_ PreflightChecker  = (*specbranch.GitOps)(nil)
+	_ BeadClient       = (*bead.Client)(nil)
+	_ tracker.Client   = (*bead.BDAdapter)(nil)
+	_ FailureAnalyzer  = (*analyzer.Analyzer)(nil)
+	_ PromptRenderer   = (*prompt.Renderer)(nil)
+	_ IterationLogger  = (*logger.Logger)(nil)
+	_ WorktreeManager  = (*worktree.Manager)(nil)
+	_ BranchRouter     = (*specbranch.Router)(nil)
+	_ GitCheckout      = (*specbranch.GitOps)(nil)
+	_ PreflightChecker = (*specbranch.GitOps)(nil)
 )
 
 // BeadClient abstracts the bead (bd) CLI operations used by the runner.

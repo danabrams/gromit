@@ -72,70 +72,70 @@ func TestManagerAdvanceConcurrentSafety(t *testing.T) {
 }
 
 func TestManagerAdvanceConcurrentStoreStage(t *testing.T) {
-    ctx := context.Background()
-    specID := "store-stage-concurrent"
+	ctx := context.Background()
+	specID := "store-stage-concurrent"
 
-    gromitDir := filepath.Join(t.TempDir(), "gromit")
-    specsDir := filepath.Join(gromitDir, "specs")
-    if err := os.MkdirAll(specsDir, 0o755); err != nil {
-        t.Fatalf("failed to create specs dir: %v", err)
-    }
+	gromitDir := filepath.Join(t.TempDir(), "gromit")
+	specsDir := filepath.Join(gromitDir, "specs")
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("failed to create specs dir: %v", err)
+	}
 
-    if err := writeSpecStage(t, specsDir, specID, StagePlanning); err != nil {
-        t.Fatalf("failed to seed spec stage: %v", err)
-    }
+	if err := writeSpecStage(t, specsDir, specID, StagePlanning); err != nil {
+		t.Fatalf("failed to seed spec stage: %v", err)
+	}
 
-    delegate, err := NewSpecFrontmatterStore(gromitDir)
-    if err != nil {
-        t.Fatalf("failed to build spec store: %v", err)
-    }
-    store := newStoreBlockingSpecStore(delegate)
+	delegate, err := NewSpecFrontmatterStore(gromitDir)
+	if err != nil {
+		t.Fatalf("failed to build spec store: %v", err)
+	}
+	store := newStoreBlockingSpecStore(delegate)
 
-    start := make(chan struct{})
-    ready := make(chan struct{}, 2)
-    results := make(chan error, 2)
+	start := make(chan struct{})
+	ready := make(chan struct{}, 2)
+	results := make(chan error, 2)
 
-    run := func(m *Manager) {
-        ready <- struct{}{}
-        <-start
-        results <- m.Advance(ctx, specID, StageAcceptanceTests)
-    }
+	run := func(m *Manager) {
+		ready <- struct{}{}
+		<-start
+		results <- m.Advance(ctx, specID, StageAcceptanceTests)
+	}
 
-    go run(NewManager(store))
-    go run(NewManager(store))
+	go run(NewManager(store))
+	go run(NewManager(store))
 
-    for i := 0; i < 2; i++ {
-        <-ready
-    }
-    close(start)
+	for i := 0; i < 2; i++ {
+		<-ready
+	}
+	close(start)
 
-    select {
-    case <-store.storeCalled:
-    case <-time.After(50 * time.Millisecond):
-        t.Fatal("StoreStage never started")
-    }
+	select {
+	case <-store.storeCalled:
+	case <-time.After(50 * time.Millisecond):
+		t.Fatal("StoreStage never started")
+	}
 
-    select {
-    case <-store.storeCalled:
-        t.Fatal("second StoreStage entered before first completed")
-    case <-time.After(10 * time.Millisecond):
-    }
+	select {
+	case <-store.storeCalled:
+		t.Fatal("second StoreStage entered before first completed")
+	case <-time.After(10 * time.Millisecond):
+	}
 
-    close(store.allowStore)
+	close(store.allowStore)
 
-    errs := []error{<-results, <-results}
-    successCount, invalidCount := countAdvanceResults(errs)
-    if successCount != 1 || invalidCount != 1 {
-        t.Fatalf("expected one success and one ErrInvalidTransition, got success=%d invalid=%d", successCount, invalidCount)
-    }
+	errs := []error{<-results, <-results}
+	successCount, invalidCount := countAdvanceResults(errs)
+	if successCount != 1 || invalidCount != 1 {
+		t.Fatalf("expected one success and one ErrInvalidTransition, got success=%d invalid=%d", successCount, invalidCount)
+	}
 
-    stage, err := delegate.Stage(ctx, specID)
-    if err != nil {
-        t.Fatalf("failed to read stage: %v", err)
-    }
-    if stage != StageAcceptanceTests {
-        t.Fatalf("expected stage %s, got %s", StageAcceptanceTests, stage)
-    }
+	stage, err := delegate.Stage(ctx, specID)
+	if err != nil {
+		t.Fatalf("failed to read stage: %v", err)
+	}
+	if stage != StageAcceptanceTests {
+		t.Fatalf("expected stage %s, got %s", StageAcceptanceTests, stage)
+	}
 }
 
 func waitForStageCalls(t *testing.T, ch <-chan struct{}, limit int, timeout time.Duration) int {

@@ -359,10 +359,10 @@ func (r *Runner) shortCircuitOnStaleFix(ctx context.Context, bc *runtypes.BeadCo
 	}
 	changedFiles, known, attempted := r.gatherChangedFiles(ctx, bc)
 	snapshot := StaleFixSnapshot{
-		ChangedFiles:      changedFiles,
-		ChangedFilesKnown: known,
+		ChangedFiles:          changedFiles,
+		ChangedFilesKnown:     known,
 		ChangedFilesAttempted: attempted,
-		ErrorCategories:   cloneStringSlice(r.lastFailureCategories),
+		ErrorCategories:       cloneStringSlice(r.lastFailureCategories),
 	}
 	detection := detector.RecordAttempt(snapshot)
 	if detection.StaleFixDetected {

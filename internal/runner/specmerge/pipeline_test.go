@@ -412,8 +412,8 @@ func TestPipeline_Trigger_UsesConfigDefaultBaseBranchForCreatePR(t *testing.T) {
 			return &specmerge.FlowResult{}, nil
 		},
 	}
-    prClient := &fakePRClient{
-        createPRFn: func(_ context.Context, title, body, head, base string) (specmerge.PRRef, error) {
+	prClient := &fakePRClient{
+		createPRFn: func(_ context.Context, title, body, head, base string) (specmerge.PRRef, error) {
 			if head != "gromit/spec-"+specName {
 				t.Fatalf("head branch = %q, want gromit/spec-%s", head, specName)
 			}

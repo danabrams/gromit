@@ -46,8 +46,8 @@ func TestOrchestrator_PreflightDirtyWorktree_ReturnsEnvironmentBlocked(t *testin
 			buildCalled = true
 			return pipeline.Output{Decision: pipeline.Proceed}, nil
 		}},
-		Validate: &fakeStage{},
-		Epilogue: &fakeStage{},
+		Validate:       &fakeStage{},
+		Epilogue:       &fakeStage{},
 		PreflightCheck: &dirtyPreflightChecker{},
 		GetBead: func(ctx context.Context) (*bead.Bead, error) {
 			beadCount++
@@ -92,8 +92,8 @@ func TestOrchestrator_PreflightCleanWorktree_ProceedsNormally(t *testing.T) {
 			buildCalled = true
 			return pipeline.Output{Decision: pipeline.Proceed}, nil
 		}},
-		Validate: &fakeStage{},
-		Epilogue: &fakeStage{},
+		Validate:       &fakeStage{},
+		Epilogue:       &fakeStage{},
 		PreflightCheck: &cleanPreflightChecker{},
 		GetBead: func(ctx context.Context) (*bead.Bead, error) {
 			beadCount++
