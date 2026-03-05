@@ -19,6 +19,7 @@ func NewFileStore(gromitDir string) (SpecStore, error) {
 	store := &fileStore{
 		path:   filepath.Join(gromitDir, "specflow.json"),
 		stages: make(map[string]Stage),
+		writeFile: os.WriteFile,
 	}
 	if err := store.load(); err != nil {
 		return nil, err
@@ -26,12 +27,11 @@ func NewFileStore(gromitDir string) (SpecStore, error) {
 	return store, nil
 }
 
-var writeFileFunc = os.WriteFile
-
 type fileStore struct {
 	mu     sync.Mutex
 	path   string
 	stages map[string]Stage
+	writeFile func(string, []byte, os.FileMode) error
 }
 
 func (f *fileStore) Stage(_ context.Context, specID string) (Stage, error) {
@@ -92,7 +92,11 @@ func (f *fileStore) saveLocked() error {
 	if err := os.MkdirAll(filepath.Dir(f.path), 0o755); err != nil {
 		return fmt.Errorf("creating specflow store dir: %w", err)
 	}
-	if err := writeFileFunc(f.path, jsonData, 0644); err != nil {
+	write := os.WriteFile
+	if f.writeFile != nil {
+		write = f.writeFile
+	}
+	if err := write(f.path, jsonData, 0644); err != nil {
 		return fmt.Errorf("writing specflow store: %w", err)
 	}
 	return nil

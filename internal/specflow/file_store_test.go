@@ -23,15 +23,15 @@ func TestFileStoreStoreStageBlocksWhileSaving(t *testing.T) {
 	allowFirstSave := make(chan struct{})
 	var writeCalls int32
 
-	origWrite := writeFileFunc
-	writeFileFunc = func(name string, data []byte, perm os.FileMode) error {
+	origWrite := store.writeFile
+	store.writeFile = func(name string, data []byte, perm os.FileMode) error {
 		if atomic.AddInt32(&writeCalls, 1) == 1 {
 			close(saveStarted)
 			<-allowFirstSave
 		}
 		return origWrite(name, data, perm)
 	}
-	t.Cleanup(func() { writeFileFunc = origWrite })
+	t.Cleanup(func() { store.writeFile = origWrite })
 
 	ctx := context.Background()
 
@@ -71,6 +71,7 @@ func newTestFileStore(t *testing.T) *fileStore {
 	return &fileStore{
 		path:   filepath.Join(t.TempDir(), "specflow.json"),
 		stages: make(map[string]Stage),
+		writeFile: os.WriteFile,
 	}
 }
 
