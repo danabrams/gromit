@@ -5425,8 +5425,9 @@ func TestOrchestrator_RegressionGateSkippedByLabel(t *testing.T) {
 }
 
 // TestOrchestrator_RegressionAndReviewRunConcurrently verifies that regression gate
-// and review stage execute concurrently using goroutines. Verified via timing that
-// both complete within approximately the same duration (not sequential).
+// and review stage execute concurrently using a sync barrier. Both stages signal
+// arrival and then block until the other has also arrived, proving temporal overlap.
+// If they ran sequentially, the barrier would deadlock (caught by context timeout).
 func TestOrchestrator_RegressionAndReviewRunConcurrently(t *testing.T) {
 	t.Parallel()
 
@@ -5451,27 +5452,23 @@ func TestOrchestrator_RegressionAndReviewRunConcurrently(t *testing.T) {
 		},
 	}
 
-	var regressionStartTime, reviewStartTime time.Time
-	var regressionMutex, reviewMutex sync.Mutex
+	// Both stages must reach this barrier before either can proceed.
+	// If they run sequentially, barrier.Wait() deadlocks (caught by timeout).
+	var barrier sync.WaitGroup
+	barrier.Add(2)
 
-	// Regression gate with 50ms delay
 	regressionGateStage := &fakeStage{
 		runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
-			regressionMutex.Lock()
-			regressionStartTime = time.Now()
-			regressionMutex.Unlock()
-			time.Sleep(50 * time.Millisecond)
+			barrier.Done() // Signal: "I've started"
+			barrier.Wait() // Block until the other has also started (proves overlap)
 			return pipeline.Output{Decision: pipeline.Proceed}, nil
 		},
 	}
 
-	// Review stage with 50ms delay
 	reviewStage := &fakeStage{
 		runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
-			reviewMutex.Lock()
-			reviewStartTime = time.Now()
-			reviewMutex.Unlock()
-			time.Sleep(50 * time.Millisecond)
+			barrier.Done() // Signal: "I've started"
+			barrier.Wait() // Block until the other has also started (proves overlap)
 			return pipeline.Output{Decision: pipeline.Proceed}, nil
 		},
 	}
@@ -5492,28 +5489,17 @@ func TestOrchestrator_RegressionAndReviewRunConcurrently(t *testing.T) {
 		Output: io.Discard,
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	orch := NewOrchestrator(cfg)
-	startTime := time.Now()
-	err := orch.Run(context.Background(), 10, time.Time{}, nil)
-	totalDuration := time.Since(startTime)
+	err := orch.Run(ctx, 10, time.Time{}, nil)
 
 	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			t.Fatal("Run() timed out — regression gate and review likely ran sequentially (barrier deadlock)")
+		}
 		t.Fatalf("Run() error = %v, want nil", err)
-	}
-
-	// If concurrent, total duration should be ~50ms (not 100ms for sequential)
-	// Allow some tolerance for scheduling overhead
-	if totalDuration > 100*time.Millisecond {
-		t.Logf("Total duration: %v (sequential would be ~100ms, concurrent ~50ms)", totalDuration)
-		t.Errorf("Regression gate and review did not run concurrently; duration suggests sequential execution")
-	}
-
-	// Verify both started (both times should be set)
-	if regressionStartTime.IsZero() {
-		t.Error("Regression gate did not execute")
-	}
-	if reviewStartTime.IsZero() {
-		t.Error("Review stage did not execute")
 	}
 }
 
