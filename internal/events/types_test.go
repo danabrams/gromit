@@ -92,6 +92,18 @@ func TestValidationStartEventIncludesModel(t *testing.T) {
 	}
 }
 
+func TestSpecEventCasesIncludeGateReadinessBlock(t *testing.T) {
+	t.Parallel()
+	now := time.Unix(1234, 0)
+	wantType := (&GateReadinessBlockEvent{}).EventType()
+	for _, tc := range specEventCases(now) {
+		if tc.wantType == wantType {
+			return
+		}
+	}
+	t.Fatalf("specEventCases missing %q", wantType)
+}
+
 // TestEventTypeStringsAreUnique tests that each event type has a unique EventType() string.
 func TestEventTypeStringsAreUnique(t *testing.T) {
 	t.Parallel()
