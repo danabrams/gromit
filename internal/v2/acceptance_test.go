@@ -54,14 +54,8 @@ func TestSpecLoopExecutesCanonicalStageChain(t *testing.T) {
 func TestStageResultCarriesDecisionArtifactsEvents(t *testing.T) {
 	t.Parallel()
 
-	evt := &events.LogEvent{Level: "info", Message: "ok"}
-	res := stage.Result{
-		Decision: stage.DecisionProceed,
-		Artifacts: map[string]string{
-			"phase": "acceptance",
-		},
-		Events: []events.Event{evt},
-	}
+	evt := sampleStageEvent("info", "ok")
+	res := newStageResult(evt)
 
 	if res.Decision != stage.DecisionProceed {
 		t.Fatalf("decision = %v", res.Decision)
