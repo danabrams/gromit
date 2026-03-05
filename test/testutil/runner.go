@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"github.com/danabrams/gromit/internal/analytics"
 	"bufio"
 	"context"
 	"encoding/json"
@@ -210,7 +211,7 @@ func FindIterationLogForBead(logsDir, beadID string) (*logger.IterationLog, erro
 }
 
 // FindIterationMetricForBead returns the latest iteration metric entry for the given bead ID.
-func FindIterationMetricForBead(metricsDir, beadID string) (*logger.IterationMetric, error) {
+func FindIterationMetricForBead(metricsDir, beadID string) (*analytics.IterationMetric, error) {
 	if metricsDir == "" {
 		return nil, fmt.Errorf("metricsDir is empty")
 	}
@@ -222,9 +223,9 @@ func FindIterationMetricForBead(metricsDir, beadID string) (*logger.IterationMet
 	defer f.Close()
 
 	scanner := bufio.NewScanner(f)
-	var found *logger.IterationMetric
+	var found *analytics.IterationMetric
 	for scanner.Scan() {
-		var entry logger.IterationMetric
+		var entry analytics.IterationMetric
 		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
 			continue
 		}

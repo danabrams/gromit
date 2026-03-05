@@ -1,8 +1,9 @@
-package logger
+package analytics
 
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/danabrams/gromit/internal/logger"
 	"math"
 	"os"
 	"path/filepath"
@@ -19,11 +20,11 @@ func TestBuildContinuousMetrics_FilesTouched(t *testing.T) {
 	dir := t.TempDir()
 	metricsDir := t.TempDir()
 
-	l, err := NewLogger(dir)
+	l, err := logger.NewLogger(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := l.LogIteration(&IterationLog{
+	if err := l.LogIteration(&logger.IterationLog{
 		Timestamp:       time.Now(),
 		Iteration:       1,
 		BeadID:          "ft-1",
@@ -64,7 +65,7 @@ func TestBuildContinuousMetrics_FilesTouched(t *testing.T) {
 }
 
 func TestBuildIterationMetrics_CopiesFailurePhaseAndCategory(t *testing.T) {
-	entries := []IterationLog{
+	entries := []logger.IterationLog{
 		{
 			Timestamp:       time.Now(),
 			Iteration:       1,
@@ -101,7 +102,7 @@ func TestBuildIterationMetrics_CopiesFailurePhaseAndCategory(t *testing.T) {
 }
 
 func TestBuildIterationMetrics_DefectOriginPhaseBuildForCompilationErrors(t *testing.T) {
-	entries := []IterationLog{
+	entries := []logger.IterationLog{
 		{
 			Timestamp:         time.Now(),
 			Iteration:         1,
@@ -128,7 +129,7 @@ func TestBuildIterationMetrics_DefectOriginPhaseBuildForCompilationErrors(t *tes
 }
 
 func TestBuildIterationMetrics_FailureAttribution_SystemOnCrossTierRepeatedFailures(t *testing.T) {
-	entries := []IterationLog{
+	entries := []logger.IterationLog{
 		{
 			Timestamp:  time.Now(),
 			Iteration:  1,
@@ -160,7 +161,7 @@ func TestBuildIterationMetrics_FailureAttribution_SystemOnCrossTierRepeatedFailu
 }
 
 func TestBuildIterationMetrics_FailureAttribution_TransientOnSameTierRetrySuccess(t *testing.T) {
-	entries := []IterationLog{
+	entries := []logger.IterationLog{
 		{
 			Timestamp:  time.Now(),
 			Iteration:  1,
@@ -192,7 +193,7 @@ func TestBuildIterationMetrics_FailureAttribution_TransientOnSameTierRetrySucces
 }
 
 func TestBuildIterationMetrics_FailureAttribution_ModelDefault(t *testing.T) {
-	entries := []IterationLog{
+	entries := []logger.IterationLog{
 		{
 			Timestamp:  time.Now(),
 			Iteration:  1,
@@ -221,7 +222,7 @@ func TestBuildIterationMetrics_FailureAttribution_ModelDefault(t *testing.T) {
 }
 
 func TestBuildIterationMetrics_CopiesTokenCounts(t *testing.T) {
-	entries := []IterationLog{
+	entries := []logger.IterationLog{
 		{
 			Timestamp:    time.Now(),
 			Iteration:    1,
@@ -247,7 +248,7 @@ func TestBuildIterationMetrics_CopiesTokenCounts(t *testing.T) {
 }
 
 func TestBuildIterationMetrics_CopiesValidationDurationAndRollingStats(t *testing.T) {
-	entries := []IterationLog{
+	entries := []logger.IterationLog{
 		{
 			Timestamp:            time.Now(),
 			Iteration:            1,
@@ -288,7 +289,7 @@ func TestBuildIterationMetrics_CopiesValidationDurationAndRollingStats(t *testin
 }
 
 func TestBuildIterationMetrics_CopiesPromptDiagnostics(t *testing.T) {
-	entries := []IterationLog{
+	entries := []logger.IterationLog{
 		{
 			Timestamp: time.Now(),
 			Iteration: 1,
@@ -318,7 +319,7 @@ func TestBuildIterationMetrics_CopiesPromptDiagnostics(t *testing.T) {
 }
 
 func TestSummarizeWindow_AllSuccessPhaseRatesZero(t *testing.T) {
-	window := []IterationLog{
+	window := []logger.IterationLog{
 		{Success: true},
 		{Success: true},
 		{Success: true},
@@ -340,7 +341,7 @@ func TestSummarizeWindow_AllSuccessPhaseRatesZero(t *testing.T) {
 }
 
 func TestSummarizeWindow_MixedPhaseRates(t *testing.T) {
-	window := []IterationLog{
+	window := []logger.IterationLog{
 		makeIterationLog(true, ""),
 		makeIterationLog(false, failurephase.Preflight),
 		makeIterationLog(false, failurephase.Build),
@@ -356,7 +357,7 @@ func TestSummarizeWindow_MixedPhaseRates(t *testing.T) {
 }
 
 func TestSummarizeWindow_ComputesReworkRateFromFirstPassFailures(t *testing.T) {
-	window := []IterationLog{
+	window := []logger.IterationLog{
 		{FirstPassSuccess: true},
 		{FirstPassSuccess: false},
 		{FirstPassSuccess: false},
@@ -369,7 +370,7 @@ func TestSummarizeWindow_ComputesReworkRateFromFirstPassFailures(t *testing.T) {
 }
 
 func TestSummarizeWindow_ValidationDurationExcludesZeroEntries(t *testing.T) {
-	window := []IterationLog{
+	window := []logger.IterationLog{
 		{Success: true, ValidationDurationMs: 0},
 		{Success: true, ValidationDurationMs: 100},
 		{Success: true, ValidationDurationMs: 300},
@@ -381,7 +382,7 @@ func TestSummarizeWindow_ValidationDurationExcludesZeroEntries(t *testing.T) {
 }
 
 func TestSummarizeWindow_TimeoutDecompositionMetrics(t *testing.T) {
-	window := []IterationLog{
+	window := []logger.IterationLog{
 		{TimeoutDecompositionAttempted: true, TimeoutDecompositionSucceeded: true},
 		{TimeoutDecompositionAttempted: true, TimeoutDecompositionSucceeded: false},
 		{TimeoutDecompositionAttempted: true, TimeoutDecompositionSucceeded: true},
@@ -398,7 +399,7 @@ func TestSummarizeWindow_TimeoutDecompositionMetrics(t *testing.T) {
 func TestSummarizeWindow_TimeoutRetryBlockMetrics(t *testing.T) {
 	const blockMessage = "Same-scope retry blocked: timeout requires decomposition or escalation decision"
 	const partialMessage = "Partial/unsafe decomposition state: retry or escalate before continuing"
-	window := []IterationLog{
+	window := []logger.IterationLog{
 		{Error: blockMessage},
 		{Error: "something else"},
 		{Error: blockMessage + " (wrapped)"},
@@ -413,7 +414,7 @@ func TestSummarizeWindow_TimeoutRetryBlockMetrics(t *testing.T) {
 }
 
 func TestBuildIterationMetrics_SinglePhaseRollingRates(t *testing.T) {
-	entries := []IterationLog{
+	entries := []logger.IterationLog{
 		makeIterationLog(false, failurephase.Build),
 		makeIterationLog(false, failurephase.Build),
 		makeIterationLog(false, failurephase.Build),
@@ -432,7 +433,7 @@ func TestBuildIterationMetrics_SinglePhaseRollingRates(t *testing.T) {
 }
 
 func TestBuildProcessTrend_PhaseRatesSumToFailureRate(t *testing.T) {
-	entries := []IterationLog{
+	entries := []logger.IterationLog{
 		makeIterationLog(false, failurephase.Preflight),
 		makeIterationLog(false, failurephase.Build),
 		makeIterationLog(true, ""),
@@ -451,7 +452,7 @@ func TestBuildProcessTrend_PhaseRatesSumToFailureRate(t *testing.T) {
 
 func TestBuildProcessTrend_ReadinessBlockMetrics(t *testing.T) {
 	now := time.Now()
-	entries := []IterationLog{
+	entries := []logger.IterationLog{
 		{
 			Timestamp:       now,
 			Iteration:       1,
@@ -493,7 +494,7 @@ func TestBuildProcessTrend_ReadinessBlockMetrics(t *testing.T) {
 
 func TestBuildProcessTrend_ReadinessOverrideNotCounted(t *testing.T) {
 	now := time.Now()
-	entries := []IterationLog{
+	entries := []logger.IterationLog{
 		{
 			Timestamp:       now,
 			Iteration:       1,
@@ -526,7 +527,7 @@ func TestBuildProcessTrend_ReadinessOverrideNotCounted(t *testing.T) {
 }
 
 func TestBuildProcessTrend_HasExpectedControlLimitsWithPhaseRates(t *testing.T) {
-	entries := []IterationLog{
+	entries := []logger.IterationLog{
 		makeIterationLog(false, failurephase.Preflight),
 		makeIterationLog(false, failurephase.Build),
 		makeIterationLog(false, failurephase.Validation),
@@ -609,7 +610,7 @@ func TestBuildProcessTrend_ControlLimitsUseRawObservationsForCoreMetrics(t *test
 }
 
 func TestBuildIterationMetrics_ComputesEWMAStateForCoreMetrics(t *testing.T) {
-	entries := []IterationLog{
+	entries := []logger.IterationLog{
 		{Timestamp: time.Now(), Success: true, DurationMs: 100, CostUSD: 1, InputTokens: 1000},
 		{Timestamp: time.Now().Add(time.Second), Success: false, DurationMs: 300, CostUSD: 4, InputTokens: 2000},
 		{Timestamp: time.Now().Add(2 * time.Second), Success: true, DurationMs: 500, CostUSD: 7, InputTokens: 5000},
@@ -679,7 +680,7 @@ func TestBuildProcessTrend_IncludesEWMAAnomalies(t *testing.T) {
 }
 
 func TestBuildProcessTrend_IncludesRollingAvgValidationControlLimit(t *testing.T) {
-	entries := []IterationLog{
+	entries := []logger.IterationLog{
 		{Success: true, ValidationDurationMs: 50},
 		{Success: true, ValidationDurationMs: 100},
 		{Success: true, ValidationDurationMs: 200},
@@ -694,7 +695,7 @@ func TestBuildProcessTrend_IncludesRollingAvgValidationControlLimit(t *testing.T
 }
 
 func TestBuildProcessTrend_IncludesRollingAvgInputTokensControlLimitAndLatestWindow(t *testing.T) {
-	entries := []IterationLog{
+	entries := []logger.IterationLog{
 		{Timestamp: time.Now(), InputTokens: 1000, Success: true},
 		{Timestamp: time.Now().Add(time.Second), InputTokens: 2000, Success: true},
 		{Timestamp: time.Now().Add(2 * time.Second), InputTokens: 4000, Success: true},
@@ -710,7 +711,7 @@ func TestBuildProcessTrend_IncludesRollingAvgInputTokensControlLimitAndLatestWin
 }
 
 func TestBuildIterationMetrics_ComputesRollingReworkRate(t *testing.T) {
-	entries := []IterationLog{
+	entries := []logger.IterationLog{
 		{Timestamp: time.Now(), FirstPassSuccess: true},
 		{Timestamp: time.Now().Add(time.Second), FirstPassSuccess: false},
 		{Timestamp: time.Now().Add(2 * time.Second), FirstPassSuccess: false},
@@ -727,7 +728,7 @@ func TestBuildIterationMetrics_ComputesRollingReworkRate(t *testing.T) {
 }
 
 func TestBuildProcessTrend_IncludesRollingReworkRateControlLimitAndLatestWindow(t *testing.T) {
-	entries := []IterationLog{
+	entries := []logger.IterationLog{
 		{Timestamp: time.Now(), FirstPassSuccess: true},
 		{Timestamp: time.Now().Add(time.Second), FirstPassSuccess: false},
 		{Timestamp: time.Now().Add(2 * time.Second), FirstPassSuccess: false},
@@ -891,7 +892,7 @@ func TestBuildProcessTrend_PhaseRateControlLimitsClampedToZeroOne(t *testing.T) 
 }
 
 func TestBuildProcessTrend_AggregatesPromptTokenSummary(t *testing.T) {
-	entries := []IterationLog{
+	entries := []logger.IterationLog{
 		{
 			Iteration: 1,
 			PromptDiagnostics: &prompt.PromptDiagnostics{
@@ -994,11 +995,11 @@ func TestBuildContinuousMetrics_ValidationDurationControlLimitInProcessTrendFile
 	logsDir := t.TempDir()
 	metricsDir := t.TempDir()
 
-	l, err := NewLogger(logsDir)
+	l, err := logger.NewLogger(logsDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := l.LogIteration(&IterationLog{
+	if err := l.LogIteration(&logger.IterationLog{
 		Timestamp:            time.Now(),
 		Iteration:            1,
 		BeadID:               "vd-1",
@@ -1009,7 +1010,7 @@ func TestBuildContinuousMetrics_ValidationDurationControlLimitInProcessTrendFile
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := l.LogIteration(&IterationLog{
+	if err := l.LogIteration(&logger.IterationLog{
 		Timestamp:            time.Now().Add(time.Second),
 		Iteration:            2,
 		BeadID:               "vd-2",
@@ -1377,7 +1378,7 @@ func TestBuildProcessTrend_ComputesStratifiedAnomalies(t *testing.T) {
 func TestSummarizeWindow_AvgCostPerBead(t *testing.T) {
 	testCases := []struct {
 		name     string
-		window   []IterationLog
+		window   []logger.IterationLog
 		expected float64
 	}{
 		{
@@ -1385,7 +1386,7 @@ func TestSummarizeWindow_AvgCostPerBead(t *testing.T) {
 			// Bead A: 3 iterations at $2 each, 3rd is successful -> total $6.
 			// Bead B: 1 iteration at $3, successful -> total $3.
 			// Expected avg: ($6 + $3) / 2 = $4.50.
-			window: []IterationLog{
+			window: []logger.IterationLog{
 				{BeadID: "bead-a", CostUSD: 2.0, Success: false},
 				{BeadID: "bead-a", CostUSD: 2.0, Success: false},
 				{BeadID: "bead-a", CostUSD: 2.0, Success: true},
@@ -1398,7 +1399,7 @@ func TestSummarizeWindow_AvgCostPerBead(t *testing.T) {
 			// Bead A: 1 successful iteration at $5 -> total $5.
 			// Bead B: 2 failed iterations at $2 each -> not counted (no success in window).
 			// Expected avg: $5 / 1 = $5.
-			window: []IterationLog{
+			window: []logger.IterationLog{
 				{BeadID: "bead-a", CostUSD: 5.0, Success: true},
 				{BeadID: "bead-b", CostUSD: 2.0, Success: false},
 				{BeadID: "bead-b", CostUSD: 2.0, Success: false},
@@ -1407,7 +1408,7 @@ func TestSummarizeWindow_AvgCostPerBead(t *testing.T) {
 		},
 		{
 			name: "returns zero when no completed beads",
-			window: []IterationLog{
+			window: []logger.IterationLog{
 				{BeadID: "bead-a", CostUSD: 2.0, Success: false},
 			},
 			expected: 0.0,
@@ -1425,7 +1426,7 @@ func TestSummarizeWindow_AvgCostPerBead(t *testing.T) {
 func TestBuildIterationMetrics_RollingAvgCostPerBeadUSD(t *testing.T) {
 	// Window of 3: bead-a has 2 retries + success ($1+$1+$1=$3), bead-b succeeds once ($2)
 	// AvgCostPerBeadUSD = ($3 + $2) / 2 = $2.50
-	entries := []IterationLog{
+	entries := []logger.IterationLog{
 		{Timestamp: time.Now(), BeadID: "bead-a", CostUSD: 1.0, Success: false},
 		{Timestamp: time.Now().Add(time.Second), BeadID: "bead-a", CostUSD: 1.0, Success: false},
 		{Timestamp: time.Now().Add(2 * time.Second), BeadID: "bead-a", CostUSD: 1.0, Success: true},
@@ -1442,7 +1443,7 @@ func TestBuildIterationMetrics_RollingAvgCostPerBeadUSD(t *testing.T) {
 }
 
 func TestBuildProcessTrend_IncludesRollingAvgCostPerBeadControlLimit(t *testing.T) {
-	entries := []IterationLog{
+	entries := []logger.IterationLog{
 		{BeadID: "b1", CostUSD: 1.0, Success: true},
 		{BeadID: "b2", CostUSD: 2.0, Success: true},
 		{BeadID: "b3", CostUSD: 3.0, Success: true},
@@ -1456,8 +1457,8 @@ func TestBuildProcessTrend_IncludesRollingAvgCostPerBeadControlLimit(t *testing.
 	}
 }
 
-func makeIterationLog(success bool, phase string) IterationLog {
-	return IterationLog{
+func makeIterationLog(success bool, phase string) logger.IterationLog {
+	return logger.IterationLog{
 		Success:      success,
 		FailurePhase: phase,
 	}
@@ -1551,7 +1552,7 @@ func assertProviderMetricsEqual(t *testing.T, got, want ProviderMetrics) {
 // TestTrendBuilderFunctionsExist verifies that computation pipeline functions exist in trend_builder.go
 func TestTrendBuilderFunctionsExist(t *testing.T) {
 	// This test should fail until trend_builder.go exists with buildBeadEntryIndices function
-	entries := []IterationLog{
+	entries := []logger.IterationLog{
 		{
 			Timestamp: time.Now(),
 			Iteration: 1,
@@ -1588,7 +1589,7 @@ func TestTrendBuilderFunctionsExist(t *testing.T) {
 // TestBuildIterationMetrics_TimeoutDecompositionOutcome validates that timeout decomposition
 // outcome and reason fields are properly captured in iteration logs.
 func TestBuildIterationMetrics_TimeoutDecompositionOutcome(t *testing.T) {
-	entries := []IterationLog{
+	entries := []logger.IterationLog{
 		{
 			Timestamp:                     time.Now(),
 			Iteration:                     1,
@@ -1633,13 +1634,13 @@ func TestBuildContinuousMetrics_TimeoutDecompositionAggregates(t *testing.T) {
 	dir := t.TempDir()
 	metricsDir := t.TempDir()
 
-	l, err := NewLogger(dir)
+	l, err := logger.NewLogger(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Log two iterations: first with successful decomposition, second without timeout
-	if err := l.LogIteration(&IterationLog{
+	if err := l.LogIteration(&logger.IterationLog{
 		Timestamp:                     time.Now(),
 		Iteration:                     1,
 		BeadID:                        "b-1",
@@ -1652,7 +1653,7 @@ func TestBuildContinuousMetrics_TimeoutDecompositionAggregates(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := l.LogIteration(&IterationLog{
+	if err := l.LogIteration(&logger.IterationLog{
 		Timestamp: time.Now(),
 		Iteration: 2,
 		BeadID:    "b-2",

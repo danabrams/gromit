@@ -37,7 +37,7 @@ func ReadReliabilityMetrics(logsDir string) (ReliabilityMetrics, error) {
 	var latestMTTRAt time.Time
 
 	for _, file := range files {
-		entries, err := readLogFile(file)
+		entries, err := ReadLogFile(file)
 		if err != nil {
 			continue
 		}

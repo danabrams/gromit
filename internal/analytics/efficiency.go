@@ -1,7 +1,8 @@
-package logger
+package analytics
 
 import (
 	"fmt"
+	"github.com/danabrams/gromit/internal/logger"
 	"path/filepath"
 	"strings"
 	"time"
@@ -102,7 +103,7 @@ func ReadEfficiencyReportFiltered(logsDir string, currentRunID string, beadFilte
 		runID := extractRunID(f)
 		isCurrent := (runID == currentRunID)
 
-		entries, err := readLogFile(f)
+		entries, err := logger.ReadLogFile(f)
 		if err != nil {
 			continue // Skip unreadable files
 		}
@@ -347,7 +348,7 @@ func AssertEfficiencyCompleteness(logsDir string, runID string) (CompletenessChe
 
 	// Read log file for this run
 	logPath := filepath.Join(logsDir, fmt.Sprintf("run-%s.jsonl", runID))
-	entries, err := readLogFile(logPath)
+	entries, err := logger.ReadLogFile(logPath)
 	if err != nil {
 		result.ErrorMessage = fmt.Sprintf("failed to read log file: %v", err)
 		return result, diagnostics
@@ -371,7 +372,7 @@ func AssertEfficiencyCompleteness(logsDir string, runID string) (CompletenessChe
 	return result, diagnostics
 }
 
-func isExpectedEfficiencySentinel(entry IterationLog) bool {
+func isExpectedEfficiencySentinel(entry logger.IterationLog) bool {
 	phase := strings.TrimSpace(strings.ToLower(entry.FailurePhase))
 	if phase == "prelaunch" {
 		return true

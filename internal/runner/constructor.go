@@ -5,6 +5,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
+	"github.com/danabrams/gromit/internal/analytics"
 	"io"
 	"os"
 	"path/filepath"
@@ -68,9 +69,9 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 	if err != nil {
 		_, _ = fmt.Fprintf(output, "Warning: could not create logger: %v\n", err)
 	}
-	var trendUpdater *logger.AsyncTrendUpdater
+	var trendUpdater *analytics.AsyncTrendUpdater
 	if iterationLogger != nil {
-		trendUpdater = logger.NewAsyncTrendUpdater(
+		trendUpdater = analytics.NewAsyncTrendUpdater(
 			cfg.Paths.Logs,
 			filepath.Join(gromitDir, "metrics"),
 			30,
@@ -534,7 +535,7 @@ func wireSiblingEnrichmentResolver(renderer PromptRenderer, logsDir string) {
 			return []string{}, nil
 		}
 		specID := specLabelFromCurrentOrParent(current, parent)
-		return logger.ReadSiblingTouchedPackagesBySpec(logsDir, current.ID, specID)
+		return analytics.ReadSiblingTouchedPackagesBySpec(logsDir, current.ID, specID)
 	})
 }
 

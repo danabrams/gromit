@@ -3,6 +3,7 @@
 package retro
 
 import (
+	"github.com/danabrams/gromit/internal/analytics"
 	"os"
 	"path/filepath"
 	"testing"
@@ -21,8 +22,8 @@ func requireInteractiveLaunch(t *testing.T) {
 func TestLaunchClaudeCodeAcceptsDirParameter(t *testing.T) {
 	requireInteractiveLaunch(t)
 	// Expected failure: LaunchClaudeCode function signature does not include dir parameter yet
-	// Current signature: LaunchClaudeCode(analysis string, efficiency *logger.EfficiencyReport, experiment *Experiment) error
-	// New signature: LaunchClaudeCode(analysis string, efficiency *logger.EfficiencyReport, experiment *Experiment, dir string) error
+	// Current signature: LaunchClaudeCode(analysis string, efficiency *analytics.EfficiencyReport, experiment *Experiment) error
+	// New signature: LaunchClaudeCode(analysis string, efficiency *analytics.EfficiencyReport, experiment *Experiment, dir string) error
 
 	tmpDir := t.TempDir()
 	targetDir := filepath.Join(tmpDir, "worktree")
@@ -67,7 +68,7 @@ func TestLaunchClaudeCodeWithEfficiencyAndExperimentInDir(t *testing.T) {
 	}
 
 	analysis := "Test analysis with efficiency"
-	efficiency := &logger.EfficiencyReport{
+	efficiency := &analytics.EfficiencyReport{
 		CurrentAvgCostPerBead:    1.5,
 		HistoricalAvgCostPerBead: 2.0,
 		CostDelta:                -0.5,
@@ -114,7 +115,7 @@ func TestLaunchClaudeCodePreservesExistingPromptBehavior(t *testing.T) {
 	// existing prompt construction logic
 
 	analysis := "# Test Analysis\n\nThis is a test."
-	efficiency := &logger.EfficiencyReport{
+	efficiency := &analytics.EfficiencyReport{
 		CurrentAvgCostPerBead:    1.0,
 		HistoricalAvgCostPerBead: 1.0,
 		CostDelta:                0.0,
@@ -135,7 +136,7 @@ func TestLaunchClaudeCodeDirParameterPosition(t *testing.T) {
 	// Based on worktree spec, dir should be added as a parameter to allow launching in worktree
 
 	// This test verifies the parameter order is:
-	// LaunchClaudeCode(analysis string, efficiency *logger.EfficiencyReport, experiment *Experiment, dir string) error
+	// LaunchClaudeCode(analysis string, efficiency *analytics.EfficiencyReport, experiment *Experiment, dir string) error
 
 	tmpDir := t.TempDir()
 	targetDir := filepath.Join(tmpDir, "target")
@@ -146,7 +147,7 @@ func TestLaunchClaudeCodeDirParameterPosition(t *testing.T) {
 	// All parameters in order
 	err := LaunchClaudeCode(
 		"analysis", // string
-		nil,        // *logger.EfficiencyReport
+		nil,        // *analytics.EfficiencyReport
 		nil,        // *Experiment
 		targetDir,  // string (dir - new parameter)
 	)

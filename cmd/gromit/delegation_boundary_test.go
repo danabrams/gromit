@@ -18,6 +18,7 @@ import (
 // design review before business logic resurfaces in the CLI layer.
 var allowedCommandInternalImports = map[string]struct{}{
 	"github.com/danabrams/gromit/internal/agent":            {},
+	"github.com/danabrams/gromit/internal/analytics":        {},
 	"github.com/danabrams/gromit/internal/backlog":          {},
 	"github.com/danabrams/gromit/internal/bead":             {},
 	"github.com/danabrams/gromit/internal/benchmark":        {},

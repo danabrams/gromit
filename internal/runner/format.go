@@ -2,13 +2,13 @@ package runner
 
 import (
 	"fmt"
+	"github.com/danabrams/gromit/internal/analytics"
 	"math"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/runner/display"
 )
@@ -172,18 +172,18 @@ func formatItems(items []string, maxShow int) []string {
 
 // FormatSPCSummary formats SPC (Statistical Process Control) trend data for display.
 // Exported for use by commands like status --spc.
-func FormatSPCSummary(trend *logger.ProcessTrend) string {
+func FormatSPCSummary(trend *analytics.ProcessTrend) string {
 	return formatSPCSummary(trend)
 }
 
 // formatSPCSummary formats SPC (Statistical Process Control) trend data for display (thin wrapper, delegates to display package)
-func formatSPCSummary(trend *logger.ProcessTrend) string {
+func formatSPCSummary(trend *analytics.ProcessTrend) string {
 	return display.FormatSPCSummary(trend)
 }
 
 // formatSPCLine formats a single SPC control-limit line for display.
 // When isDuration is true, values are shown as milliseconds; otherwise as percentages.
-func formatSPCLine(label string, cl logger.TrendControlLimit, isDuration bool) string {
+func formatSPCLine(label string, cl analytics.TrendControlLimit, isDuration bool) string {
 	if isDuration {
 		return fmt.Sprintf("  %-10s %s, limits %s..%s",
 			label, formatSPCValue(cl.Latest, false), formatSPCValue(cl.LCL, false), formatSPCValue(cl.UCL, false))
@@ -192,7 +192,7 @@ func formatSPCLine(label string, cl logger.TrendControlLimit, isDuration bool) s
 		label, formatSPCValue(cl.Latest, true), formatSPCValue(cl.LCL, true), formatSPCValue(cl.UCL, true))
 }
 
-func formatSPCProviderMetrics(metrics []logger.ProviderMetrics) []string {
+func formatSPCProviderMetrics(metrics []analytics.ProviderMetrics) []string {
 	if len(metrics) == 0 {
 		return nil
 	}
@@ -219,7 +219,7 @@ func formatSPCProviderMetrics(metrics []logger.ProviderMetrics) []string {
 	return lines
 }
 
-func formatSPCLeadingIndicators(window logger.ProcessTrendWindow) []string {
+func formatSPCLeadingIndicators(window analytics.ProcessTrendWindow) []string {
 	lines := []string{}
 	if window.FirstPassSuccess > 0 {
 		lines = append(lines, fmt.Sprintf("    first-pass success %d%%", int(math.Round(window.FirstPassSuccess*100))))
@@ -239,7 +239,7 @@ func formatSPCLeadingIndicators(window logger.ProcessTrendWindow) []string {
 	return append([]string{"  Leading indicators:"}, lines...)
 }
 
-func formatSPCEconomicMetrics(window logger.ProcessTrendWindow) []string {
+func formatSPCEconomicMetrics(window analytics.ProcessTrendWindow) []string {
 	shouldShow := window.AvgCostUSD > 0 || window.AvgCostPerBeadUSD > 0 || window.AvgDurationMs > 0
 	if !shouldShow {
 		return nil
@@ -258,7 +258,7 @@ func formatSPCEconomicMetrics(window logger.ProcessTrendWindow) []string {
 	return lines
 }
 
-func formatSPCNelsonViolations(violations []logger.PatternViolation) []string {
+func formatSPCNelsonViolations(violations []analytics.PatternViolation) []string {
 	if len(violations) == 0 {
 		return nil
 	}
@@ -271,12 +271,12 @@ func formatSPCNelsonViolations(violations []logger.PatternViolation) []string {
 	return lines
 }
 
-func formatSPCEWMAValues(anomalies []logger.TrendAnomaly) []string {
+func formatSPCEWMAValues(anomalies []analytics.TrendAnomaly) []string {
 	if len(anomalies) == 0 {
 		return nil
 	}
 
-	sorted := make([]logger.TrendAnomaly, len(anomalies))
+	sorted := make([]analytics.TrendAnomaly, len(anomalies))
 	copy(sorted, anomalies)
 	sort.Slice(sorted, func(i, j int) bool {
 		return sorted[i].Metric < sorted[j].Metric
@@ -364,7 +364,7 @@ func simplifySPCMetric(metric string) string {
 }
 
 // formatModelPerformance formats per-model performance statistics for display.
-func formatModelPerformance(stats map[string]logger.ModelStats) string {
+func formatModelPerformance(stats map[string]analytics.ModelStats) string {
 	return display.FormatModelPerformance(stats)
 }
 

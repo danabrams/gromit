@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/danabrams/gromit/internal/analytics"
 	"io"
 	"os"
 	"path/filepath"
@@ -2217,7 +2218,7 @@ func TestOrchestrator_MergesGlobalStatsPreservingExistingData(t *testing.T) {
 		createRunLogsImpl(t, logsDir, runID, models)
 	}
 
-	invokeOrchestrator := func(t *testing.T, statsPath, logsDir, runID string) *logger.GlobalStats {
+	invokeOrchestrator := func(t *testing.T, statsPath, logsDir, runID string) *analytics.GlobalStats {
 		return invokeOrchestratorImpl(t, statsPath, logsDir, runID)
 	}
 
@@ -2462,10 +2463,10 @@ func TestOrchestrator_ControlLimitAlert_SetsRetroFlagWhenFirstPassSuccessBelowEi
 	writeOrchestratorTestLogFile(t, logsDir, "test-run", logs)
 
 	// Create ProcessTrend with low FirstPassSuccess rate
-	trend := &logger.ProcessTrend{
+	trend := &analytics.ProcessTrend{
 		TotalIterations: 30,
 		WindowSize:      30,
-		LatestWindow: logger.ProcessTrendWindow{
+		LatestWindow: analytics.ProcessTrendWindow{
 			FirstPassSuccess: 0.20, // 20%, below 80% threshold
 		},
 	}
@@ -2532,10 +2533,10 @@ func TestOrchestrator_ControlLimitAlert_NotTriggeredWhenSuccessRateAtThreshold(t
 	stateDir := t.TempDir()
 
 	// Create ProcessTrend with FirstPassSuccess exactly at 80% (should NOT trigger)
-	trend := &logger.ProcessTrend{
+	trend := &analytics.ProcessTrend{
 		TotalIterations: 30,
 		WindowSize:      30,
-		LatestWindow: logger.ProcessTrendWindow{
+		LatestWindow: analytics.ProcessTrendWindow{
 			FirstPassSuccess: 0.80, // Exactly at threshold, should NOT trigger
 		},
 	}
@@ -2594,10 +2595,10 @@ func TestOrchestrator_ControlLimitAlert_NotTriggeredWhenWindowTooSmall(t *testin
 	stateDir := t.TempDir()
 
 	// Create ProcessTrend with low success rate but window < 30
-	trend := &logger.ProcessTrend{
+	trend := &analytics.ProcessTrend{
 		TotalIterations: 29,
 		WindowSize:      29, // Less than minimum 30
-		LatestWindow: logger.ProcessTrendWindow{
+		LatestWindow: analytics.ProcessTrendWindow{
 			FirstPassSuccess: 0.20, // Low rate, but window is too small
 		},
 	}
@@ -2654,10 +2655,10 @@ func TestOrchestrator_ControlLimitAlert_TriggeredWhenFirstPassBelowEightyPercent
 	metricsDir := t.TempDir()
 	stateDir := t.TempDir()
 
-	trend := &logger.ProcessTrend{
+	trend := &analytics.ProcessTrend{
 		TotalIterations: 30,
 		WindowSize:      30,
-		LatestWindow: logger.ProcessTrendWindow{
+		LatestWindow: analytics.ProcessTrendWindow{
 			FirstPassSuccess: 0.75, // Below the new 80% guard
 		},
 	}
@@ -2715,10 +2716,10 @@ func TestOrchestrator_ControlLimitAlert_LogsWarningWhenTriggered(t *testing.T) {
 	stateDir := t.TempDir()
 
 	// Create ProcessTrend with low FirstPassSuccess rate
-	trend := &logger.ProcessTrend{
+	trend := &analytics.ProcessTrend{
 		TotalIterations: 30,
 		WindowSize:      30,
-		LatestWindow: logger.ProcessTrendWindow{
+		LatestWindow: analytics.ProcessTrendWindow{
 			FirstPassSuccess: 0.1667, // 16.67%, below 80% threshold
 		},
 	}
@@ -2878,7 +2879,7 @@ func TestOrchestrator_ScopeGateBlockedBeads_IterationCounterConsistency(t *testi
 
 // fakeTrendUpdater is a test double for trendUpdaterCloser
 type fakeTrendUpdater struct {
-	trend *logger.ProcessTrend
+	trend *analytics.ProcessTrend
 }
 
 func (f *fakeTrendUpdater) Close() {
@@ -2902,10 +2903,10 @@ func setupMergeStatsTestDirsImpl(t *testing.T) (dir, logsDir, statsPath string) 
 // seedGlobalStatsImpl creates an existing global stats file with opus history
 func seedGlobalStatsImpl(t *testing.T, statsPath string) {
 	t.Helper()
-	existingStats := logger.GlobalStats{
+	existingStats := analytics.GlobalStats{
 		Version: 1,
 		Updated: "2026-02-24T10:00:00Z",
-		Models: map[string]*logger.GlobalModelStats{
+		Models: map[string]*analytics.GlobalModelStats{
 			"opus": {
 				Iterations:      10,
 				Successes:       8,
@@ -2955,7 +2956,7 @@ func createRunLogsImpl(t *testing.T, logsDir, runID string, models []string) {
 }
 
 // invokeOrchestratorImpl runs the orchestrator and returns the merged stats
-func invokeOrchestratorImpl(t *testing.T, statsPath, logsDir, runID string) *logger.GlobalStats {
+func invokeOrchestratorImpl(t *testing.T, statsPath, logsDir, runID string) *analytics.GlobalStats {
 	t.Helper()
 
 	beadCalls := 0
@@ -2984,7 +2985,7 @@ func invokeOrchestratorImpl(t *testing.T, statsPath, logsDir, runID string) *log
 		t.Fatalf("Run() error = %v, want nil", err)
 	}
 
-	mergedStats, err := logger.ReadGlobalStats(statsPath)
+	mergedStats, err := analytics.ReadGlobalStats(statsPath)
 	if err != nil {
 		t.Fatalf("ReadGlobalStats failed: %v", err)
 	}

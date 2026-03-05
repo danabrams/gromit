@@ -1,6 +1,7 @@
-package logger
+package analytics
 
 import (
+	"github.com/danabrams/gromit/internal/logger"
 	"math"
 	"sort"
 	"strings"
@@ -167,8 +168,8 @@ func summarizePromptTokens(metrics []IterationMetric, windowSize int) PromptToke
 
 	summary.ReconciliationDrift = ReconciliationDrift{
 		SampleCount:          len(absDeltaPct),
-		MeanAbsTokenDeltaPct: meanFloat64(absDeltaPct),
-		P95AbsTokenDeltaPct:  percentileFloat64(absDeltaPct, p95Percentile),
+		MeanAbsTokenDeltaPct: logger.MeanFloat64(absDeltaPct),
+		P95AbsTokenDeltaPct:  logger.PercentileFloat64(absDeltaPct, p95Percentile),
 	}
 
 	return summary

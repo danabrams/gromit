@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/danabrams/gromit/internal/analytics"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/tracker"
 	"github.com/danabrams/gromit/internal/tracker/trackertest"
 )
@@ -462,13 +462,13 @@ func TestSPCAutoTriageService_EvaluatesProcessTrend(t *testing.T) {
 		t.Fatalf("failed to create metrics dir: %v", err)
 	}
 	trendPath := filepath.Join(metricsDir, "process_trend.json")
-	trend := logger.ProcessTrend{
+	trend := analytics.ProcessTrend{
 		GeneratedAt: time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC),
-		CauseClassifications: []logger.CauseClassificationRecord{
+		CauseClassifications: []analytics.CauseClassificationRecord{
 			{
 				Metric:             "rolling_avg_cost_usd",
 				Stratum:            "",
-				Class:              logger.CauseClassSpecial,
+				Class:              analytics.CauseClassSpecial,
 				Latest:             123.45,
 				PersistenceWindows: 2,
 				DetectedAt:         now.Add(-2 * time.Hour),

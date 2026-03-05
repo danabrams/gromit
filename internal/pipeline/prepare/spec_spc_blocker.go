@@ -3,19 +3,19 @@ package prepare
 import (
 	"context"
 	"fmt"
+	"github.com/danabrams/gromit/internal/analytics"
 
 	"github.com/danabrams/gromit/internal/bead"
-	"github.com/danabrams/gromit/internal/logger"
 )
 
 // SpecSPCBlocker implements DataQualityBlocker to block beads whose spec:* label
 // maps to a high-severity rework anomaly (special cause classification) in the process trend.
 type SpecSPCBlocker struct {
-	records []logger.CauseClassificationRecord
+	records []analytics.CauseClassificationRecord
 }
 
 // NewSpecSPCBlocker creates a new SpecSPCBlocker with the given cause classification records.
-func NewSpecSPCBlocker(records []logger.CauseClassificationRecord) *SpecSPCBlocker {
+func NewSpecSPCBlocker(records []analytics.CauseClassificationRecord) *SpecSPCBlocker {
 	return &SpecSPCBlocker{
 		records: records,
 	}
@@ -39,7 +39,7 @@ func (s *SpecSPCBlocker) ShouldBlock(ctx context.Context, b *bead.Bead) (bool, s
 
 	// Look for a matching record with special cause classification
 	for _, rec := range s.records {
-		if rec.Stratum == fmt.Sprintf("spec:%s", spec) && rec.Class == logger.CauseClassSpecial && rec.Severity == "high" {
+		if rec.Stratum == fmt.Sprintf("spec:%s", spec) && rec.Class == analytics.CauseClassSpecial && rec.Severity == "high" {
 			return true, fmt.Sprintf("spec:%s maintenance warning", spec), nil
 		}
 	}

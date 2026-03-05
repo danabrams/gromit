@@ -1,7 +1,8 @@
-package logger
+package analytics
 
 import (
 	"fmt"
+	"github.com/danabrams/gromit/internal/logger"
 	"path/filepath"
 )
 
@@ -62,7 +63,7 @@ func aggregateModelStats(files []string) (map[string]ModelStats, error) {
 	modelMap := make(map[string]ModelStats)
 
 	for _, f := range files {
-		entries, err := readLogFile(f)
+		entries, err := logger.ReadLogFile(f)
 		if err != nil {
 			continue // Skip unreadable files
 		}
@@ -78,7 +79,7 @@ func aggregateModelStats(files []string) (map[string]ModelStats, error) {
 }
 
 // updateModelStats updates the statistics for the model in the given entry
-func updateModelStats(modelMap map[string]ModelStats, entry IterationLog) {
+func updateModelStats(modelMap map[string]ModelStats, entry logger.IterationLog) {
 	stats := modelMap[entry.Model]
 
 	// Initialize with model name if first time
@@ -104,7 +105,7 @@ func updateModelStats(modelMap map[string]ModelStats, entry IterationLog) {
 }
 
 // trackEscalationTargets tracks how many times each model was escalated to
-func trackEscalationTargets(modelMap map[string]ModelStats, entries []IterationLog) {
+func trackEscalationTargets(modelMap map[string]ModelStats, entries []logger.IterationLog) {
 	for _, entry := range entries {
 		if entry.Escalated && entry.EscalatedTo != "" {
 			targetStats := modelMap[entry.EscalatedTo]
@@ -146,7 +147,7 @@ func CostPerSpec(logsDir string) (map[string]SpecCost, error) {
 	accum := make(map[string]*specAccum)
 
 	for _, f := range files {
-		entries, err := readLogFile(f)
+		entries, err := logger.ReadLogFile(f)
 		if err != nil {
 			continue
 		}
@@ -194,7 +195,7 @@ func CostPerCompletedBead(logsDir string) (map[string]float64, error) {
 	}
 
 	for _, f := range files {
-		entries, err := readLogFile(f)
+		entries, err := logger.ReadLogFile(f)
 		if err != nil {
 			continue // Skip unreadable files
 		}

@@ -3,6 +3,7 @@ package retro
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/danabrams/gromit/internal/analytics"
 	"strings"
 
 	"github.com/danabrams/gromit/internal/logger"
@@ -21,8 +22,8 @@ func buildRetroSectionTokens(
 	rules, learnings string,
 	runStats logger.RunStats,
 	beadStats map[string]logger.BeadStats,
-	efficiency *logger.EfficiencyReport,
-	processTrend *logger.ProcessTrend,
+	efficiency *analytics.EfficiencyReport,
+	processTrend *analytics.ProcessTrend,
 	frictionClusters []FrictionCluster,
 	frictionResolutions []FrictionResolution,
 ) map[string]int {
@@ -57,7 +58,7 @@ func (r *Retro) PromptDiagnostics() *prompt.PromptDiagnostics {
 	return &diagnostics
 }
 
-func selectExperimentMetrics(exp *Experiment, efficiency *logger.EfficiencyReport) *ExperimentMetrics {
+func selectExperimentMetrics(exp *Experiment, efficiency *analytics.EfficiencyReport) *ExperimentMetrics {
 	if exp == nil || efficiency == nil {
 		return nil
 	}
@@ -76,7 +77,7 @@ func selectExperimentMetrics(exp *Experiment, efficiency *logger.EfficiencyRepor
 	}
 }
 
-func experimentMetricsFromStats(family string, stats logger.ModelEfficiency) *ExperimentMetrics {
+func experimentMetricsFromStats(family string, stats analytics.ModelEfficiency) *ExperimentMetrics {
 	return &ExperimentMetrics{
 		ProviderFamily:            family,
 		CurrentAvgCostPerBead:     stats.AvgCostUSD,

@@ -2,13 +2,13 @@ package display
 
 import (
 	"fmt"
+	"github.com/danabrams/gromit/internal/analytics"
 	"math"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 )
 
@@ -179,7 +179,7 @@ func FormatCompatibility(ctx config.CompatibilityContext) string {
 }
 
 // FormatModelPerformance formats per-model performance statistics for display.
-func FormatModelPerformance(stats map[string]logger.ModelStats) string {
+func FormatModelPerformance(stats map[string]analytics.ModelStats) string {
 	lines := []string{"Model Performance:"}
 
 	if len(stats) == 0 {
@@ -377,7 +377,7 @@ func FormatRecurrenceBreakdown(counters map[string]int) string {
 }
 
 // FormatSPCSummary formats SPC (Statistical Process Control) trend data for display.
-func FormatSPCSummary(trend *logger.ProcessTrend) string {
+func FormatSPCSummary(trend *analytics.ProcessTrend) string {
 	if trend == nil || trend.TotalIterations == 0 {
 		return "SPC: (no data)"
 	}
@@ -396,7 +396,7 @@ func FormatSPCSummary(trend *logger.ProcessTrend) string {
 		{spcMetricRollingQualityScore, "Quality:"},
 		{spcMetricRollingAvgDurationMs, "Duration:"},
 	}
-	limitsByMetric := map[string]logger.TrendControlLimit{}
+	limitsByMetric := map[string]analytics.TrendControlLimit{}
 	for _, cl := range trend.ControlLimits {
 		limitsByMetric[cl.Metric] = cl
 	}
@@ -457,18 +457,18 @@ func FormatSPCSummary(trend *logger.ProcessTrend) string {
 	return strings.Join(lines, "\n")
 }
 
-var spcCauseGuidance = map[logger.CauseClass]string{
-	logger.CauseClassSpecial: "Investigate the incident in the phase/provider where the control limit was breached.",
-	logger.CauseClassCommon:  "Anti-tampering: avoid manual tweaks and prioritize system-level interventions to stabilize the broader process.",
-	logger.CauseClassStable:  "Stable signal; continue observing the current process behavior.",
+var spcCauseGuidance = map[analytics.CauseClass]string{
+	analytics.CauseClassSpecial: "Investigate the incident in the phase/provider where the control limit was breached.",
+	analytics.CauseClassCommon:  "Anti-tampering: avoid manual tweaks and prioritize system-level interventions to stabilize the broader process.",
+	analytics.CauseClassStable:  "Stable signal; continue observing the current process behavior.",
 }
 
-func formatSPCCauseClassifications(records []logger.CauseClassificationRecord) []string {
+func formatSPCCauseClassifications(records []analytics.CauseClassificationRecord) []string {
 	if len(records) == 0 {
 		return nil
 	}
 
-	sorted := append([]logger.CauseClassificationRecord{}, records...)
+	sorted := append([]analytics.CauseClassificationRecord{}, records...)
 	sort.Slice(sorted, func(i, j int) bool {
 		if sorted[i].Metric != sorted[j].Metric {
 			return sorted[i].Metric < sorted[j].Metric
@@ -483,7 +483,7 @@ func formatSPCCauseClassifications(records []logger.CauseClassificationRecord) [
 	for _, rec := range sorted {
 		guidance := spcCauseGuidance[rec.Class]
 		if guidance == "" {
-			guidance = spcCauseGuidance[logger.CauseClassStable]
+			guidance = spcCauseGuidance[analytics.CauseClassStable]
 		}
 		lines = append(lines, fmt.Sprintf("    %s (%s, %s): %s",
 			simplifySPCMetric(rec.Metric),
@@ -503,12 +503,12 @@ func formatSPCStratum(stratum string) string {
 	return stratum
 }
 
-func formatSPCHighMaintenanceWarnings(flags []logger.FlaggedPackage) []string {
+func formatSPCHighMaintenanceWarnings(flags []analytics.FlaggedPackage) []string {
 	if len(flags) == 0 {
 		return nil
 	}
 
-	sorted := append([]logger.FlaggedPackage{}, flags...)
+	sorted := append([]analytics.FlaggedPackage{}, flags...)
 	sort.Slice(sorted, func(i, j int) bool {
 		if sorted[i].Package != sorted[j].Package {
 			return sorted[i].Package < sorted[j].Package
@@ -546,7 +546,7 @@ func formatSPCHighMaintenanceWarnings(flags []logger.FlaggedPackage) []string {
 
 // formatSPCLine formats a single SPC control-limit line for display.
 // When isDuration is true, values are shown as milliseconds; otherwise as percentages.
-func formatSPCLine(label string, cl logger.TrendControlLimit, isDuration bool) string {
+func formatSPCLine(label string, cl analytics.TrendControlLimit, isDuration bool) string {
 	if isDuration {
 		return fmt.Sprintf("  %-10s %s, limits %s..%s",
 			label, formatSPCValue(cl.Latest, false), formatSPCValue(cl.LCL, false), formatSPCValue(cl.UCL, false))
@@ -556,11 +556,11 @@ func formatSPCLine(label string, cl logger.TrendControlLimit, isDuration bool) s
 }
 
 // FormatSPCLine exposes the SPC control-line formatting for tests.
-func FormatSPCLine(label string, cl logger.TrendControlLimit, isDuration bool) string {
+func FormatSPCLine(label string, cl analytics.TrendControlLimit, isDuration bool) string {
 	return formatSPCLine(label, cl, isDuration)
 }
 
-func formatSPCProviderMetrics(metrics []logger.ProviderMetrics) []string {
+func formatSPCProviderMetrics(metrics []analytics.ProviderMetrics) []string {
 	if len(metrics) == 0 {
 		return nil
 	}
@@ -587,7 +587,7 @@ func formatSPCProviderMetrics(metrics []logger.ProviderMetrics) []string {
 	return lines
 }
 
-func formatSPCLeadingIndicators(window logger.ProcessTrendWindow) []string {
+func formatSPCLeadingIndicators(window analytics.ProcessTrendWindow) []string {
 	lines := []string{}
 	if window.FirstPassSuccess > 0 {
 		lines = append(lines, fmt.Sprintf("    first-pass success %d%%", int(math.Round(window.FirstPassSuccess*100))))
@@ -607,7 +607,7 @@ func formatSPCLeadingIndicators(window logger.ProcessTrendWindow) []string {
 	return append([]string{"  Leading indicators:"}, lines...)
 }
 
-func formatSPCEconomicMetrics(window logger.ProcessTrendWindow) []string {
+func formatSPCEconomicMetrics(window analytics.ProcessTrendWindow) []string {
 	shouldShow := window.AvgCostUSD > 0 || window.AvgCostPerBeadUSD > 0 || window.AvgDurationMs > 0
 	if !shouldShow {
 		return nil
@@ -626,7 +626,7 @@ func formatSPCEconomicMetrics(window logger.ProcessTrendWindow) []string {
 	return lines
 }
 
-func formatSPCNelsonViolations(violations []logger.PatternViolation) []string {
+func formatSPCNelsonViolations(violations []analytics.PatternViolation) []string {
 	if len(violations) == 0 {
 		return nil
 	}
@@ -639,12 +639,12 @@ func formatSPCNelsonViolations(violations []logger.PatternViolation) []string {
 	return lines
 }
 
-func formatSPCEWMAValues(anomalies []logger.TrendAnomaly) []string {
+func formatSPCEWMAValues(anomalies []analytics.TrendAnomaly) []string {
 	if len(anomalies) == 0 {
 		return nil
 	}
 
-	sorted := make([]logger.TrendAnomaly, len(anomalies))
+	sorted := make([]analytics.TrendAnomaly, len(anomalies))
 	copy(sorted, anomalies)
 	sort.Slice(sorted, func(i, j int) bool {
 		return sorted[i].Metric < sorted[j].Metric

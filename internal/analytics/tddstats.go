@@ -1,9 +1,10 @@
-package logger
+package analytics
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/danabrams/gromit/internal/logger"
 	"os"
 	"path/filepath"
 )
@@ -32,13 +33,13 @@ type TDDStats struct {
 }
 
 // ReadTDDPhaseRecords reads all run JSONL files and returns only tdd_phase records.
-func ReadTDDPhaseRecords(logsDir string) ([]TDDPhaseRecord, error) {
+func ReadTDDPhaseRecords(logsDir string) ([]logger.TDDPhaseRecord, error) {
 	files, err := listRunLogFiles(logsDir)
 	if err != nil {
 		return nil, err
 	}
 
-	records := []TDDPhaseRecord{}
+	records := []logger.TDDPhaseRecord{}
 	for _, f := range files {
 		runRecords, err := readTDDPhaseFile(f)
 		if err != nil {
@@ -51,13 +52,13 @@ func ReadTDDPhaseRecords(logsDir string) ([]TDDPhaseRecord, error) {
 }
 
 // ReadTDDSummaries reads all run JSONL files and returns only tdd_summary records.
-func ReadTDDSummaries(logsDir string) ([]TDDSummaryRecord, error) {
+func ReadTDDSummaries(logsDir string) ([]logger.TDDSummaryRecord, error) {
 	files, err := listRunLogFiles(logsDir)
 	if err != nil {
 		return nil, err
 	}
 
-	records := []TDDSummaryRecord{}
+	records := []logger.TDDSummaryRecord{}
 	for _, f := range files {
 		runRecords, err := readTDDSummaryFile(f)
 		if err != nil {
@@ -141,12 +142,12 @@ func AggregateTDDStats(logsDir string) (TDDStats, error) {
 	return stats, nil
 }
 
-func readTDDPhaseFile(path string) ([]TDDPhaseRecord, error) {
-	return readTypedRecords[TDDPhaseRecord](path, tddPhaseType)
+func readTDDPhaseFile(path string) ([]logger.TDDPhaseRecord, error) {
+	return readTypedRecords[logger.TDDPhaseRecord](path, tddPhaseType)
 }
 
-func readTDDSummaryFile(path string) ([]TDDSummaryRecord, error) {
-	return readTypedRecords[TDDSummaryRecord](path, tddSummaryType)
+func readTDDSummaryFile(path string) ([]logger.TDDSummaryRecord, error) {
+	return readTypedRecords[logger.TDDSummaryRecord](path, tddSummaryType)
 }
 
 func readTypedRecords[T any](path string, targetType string) ([]T, error) {
@@ -194,7 +195,7 @@ func hasRecordType(raw json.RawMessage, recordType string) bool {
 	return gotType == recordType
 }
 
-func escalationPattern(phase TDDPhaseRecord) string {
+func escalationPattern(phase logger.TDDPhaseRecord) string {
 	from := phase.EscalatedFrom
 	if from == "" {
 		from = unknownEscalationFrom
@@ -214,7 +215,7 @@ func readIterationCostForBeads(logsDir string, beadFilter map[string]bool) (floa
 
 	var totalCost float64
 	for _, f := range files {
-		entries, err := readLogFile(f)
+		entries, err := logger.ReadLogFile(f)
 		if err != nil {
 			continue
 		}

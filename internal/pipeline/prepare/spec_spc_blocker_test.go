@@ -2,17 +2,17 @@ package prepare
 
 import (
 	"context"
+	"github.com/danabrams/gromit/internal/analytics"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
-	"github.com/danabrams/gromit/internal/logger"
 )
 
 // RED: test for NewSpecSPCBlocker creating a valid blocker
 func TestNewSpecSPCBlocker_CreatesBlocker(t *testing.T) {
 	t.Parallel()
 
-	records := []logger.CauseClassificationRecord{}
+	records := []analytics.CauseClassificationRecord{}
 	blocker := NewSpecSPCBlocker(records)
 
 	if blocker == nil {
@@ -24,7 +24,7 @@ func TestNewSpecSPCBlocker_CreatesBlocker(t *testing.T) {
 func TestSpecSPCBlocker_ShouldBlock_MethodExists(t *testing.T) {
 	t.Parallel()
 
-	records := []logger.CauseClassificationRecord{}
+	records := []analytics.CauseClassificationRecord{}
 	blocker := NewSpecSPCBlocker(records)
 
 	b := &bead.Bead{
@@ -51,11 +51,11 @@ func TestSpecSPCBlocker_ShouldBlock_MethodExists(t *testing.T) {
 func TestSpecSPCBlocker_ShouldBlock_NoSpecLabel(t *testing.T) {
 	t.Parallel()
 
-	records := []logger.CauseClassificationRecord{
+	records := []analytics.CauseClassificationRecord{
 		{
 			Metric:             "rolling_avg_validation_ms",
 			Stratum:            "spec:auth",
-			Class:              logger.CauseClassSpecial,
+			Class:              analytics.CauseClassSpecial,
 			Latest:             1500,
 			PersistenceWindows: 3,
 			Severity:           "high",
@@ -87,11 +87,11 @@ func TestSpecSPCBlocker_ShouldBlock_BlocksOnSpecialCauseAnomaly(t *testing.T) {
 	t.Parallel()
 
 	spec := "auth"
-	records := []logger.CauseClassificationRecord{
+	records := []analytics.CauseClassificationRecord{
 		{
 			Metric:             "rolling_avg_validation_ms",
 			Stratum:            "spec:" + spec,
-			Class:              logger.CauseClassSpecial,
+			Class:              analytics.CauseClassSpecial,
 			Latest:             1500,
 			PersistenceWindows: 3,
 			Severity:           "high",
@@ -123,11 +123,11 @@ func TestSpecSPCBlocker_ShouldBlock_StableDoesNotBlock(t *testing.T) {
 	t.Parallel()
 
 	spec := "auth"
-	records := []logger.CauseClassificationRecord{
+	records := []analytics.CauseClassificationRecord{
 		{
 			Metric:             "rolling_avg_validation_ms",
 			Stratum:            "spec:" + spec,
-			Class:              logger.CauseClassStable,
+			Class:              analytics.CauseClassStable,
 			Latest:             1500,
 			PersistenceWindows: 3,
 		},
@@ -158,11 +158,11 @@ func TestSpecSPCBlocker_ShouldBlock_CommonCauseDoesNotBlock(t *testing.T) {
 	t.Parallel()
 
 	spec := "auth"
-	records := []logger.CauseClassificationRecord{
+	records := []analytics.CauseClassificationRecord{
 		{
 			Metric:             "rolling_avg_validation_ms",
 			Stratum:            "spec:" + spec,
-			Class:              logger.CauseClassCommon,
+			Class:              analytics.CauseClassCommon,
 			Latest:             1500,
 			PersistenceWindows: 3,
 			Severity:           "low",
@@ -194,11 +194,11 @@ func TestSpecSPCBlocker_ShouldBlock_ReasonMessageFormat(t *testing.T) {
 	t.Parallel()
 
 	spec := "payments"
-	records := []logger.CauseClassificationRecord{
+	records := []analytics.CauseClassificationRecord{
 		{
 			Metric:             "rolling_avg_validation_ms",
 			Stratum:            "spec:" + spec,
-			Class:              logger.CauseClassSpecial,
+			Class:              analytics.CauseClassSpecial,
 			Latest:             2000,
 			PersistenceWindows: 5,
 			Severity:           "high",
@@ -232,11 +232,11 @@ func TestSpecSPCBlocker_ShouldBlock_SpecLabelCaseMismatch(t *testing.T) {
 	t.Parallel()
 
 	spec := "auth"
-	records := []logger.CauseClassificationRecord{
+	records := []analytics.CauseClassificationRecord{
 		{
 			Metric:             "rolling_avg_validation_ms",
 			Stratum:            "spec:" + spec,
-			Class:              logger.CauseClassSpecial,
+			Class:              analytics.CauseClassSpecial,
 			Latest:             1500,
 			PersistenceWindows: 3,
 			Severity:           "high",
@@ -265,11 +265,11 @@ func TestSpecSPCBlocker_ShouldBlock_SpecLabelCaseMismatch(t *testing.T) {
 func TestSpecSPCBlocker_ShouldBlock_MultipleRecords(t *testing.T) {
 	t.Parallel()
 
-	records := []logger.CauseClassificationRecord{
+	records := []analytics.CauseClassificationRecord{
 		{
 			Metric:             "rolling_avg_validation_ms",
 			Stratum:            "spec:auth",
-			Class:              logger.CauseClassSpecial,
+			Class:              analytics.CauseClassSpecial,
 			Latest:             1500,
 			PersistenceWindows: 3,
 			Severity:           "high",
@@ -277,7 +277,7 @@ func TestSpecSPCBlocker_ShouldBlock_MultipleRecords(t *testing.T) {
 		{
 			Metric:             "rolling_avg_validation_ms",
 			Stratum:            "spec:payments",
-			Class:              logger.CauseClassStable,
+			Class:              analytics.CauseClassStable,
 			Latest:             1200,
 			PersistenceWindows: 1,
 			Severity:           "",
@@ -285,7 +285,7 @@ func TestSpecSPCBlocker_ShouldBlock_MultipleRecords(t *testing.T) {
 		{
 			Metric:             "rolling_avg_duration_ms",
 			Stratum:            "spec:auth",
-			Class:              logger.CauseClassCommon,
+			Class:              analytics.CauseClassCommon,
 			Latest:             2000,
 			PersistenceWindows: 2,
 			Severity:           "low",

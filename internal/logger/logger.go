@@ -349,7 +349,7 @@ func ReadAllLogsFiltered(logsDir string, beadFilter map[string]bool) (RunStats, 
 	}
 
 	for _, f := range files {
-		entries, err := readLogFile(f)
+		entries, err := ReadLogFile(f)
 		if err != nil {
 			continue // Skip unreadable files
 		}
@@ -390,7 +390,7 @@ func ReadPerBeadStatsFiltered(logsDir string, beadFilter map[string]bool) (map[s
 	}
 
 	for _, f := range files {
-		entries, err := readLogFile(f)
+		entries, err := ReadLogFile(f)
 		if err != nil {
 			continue // Skip unreadable files
 		}
@@ -441,7 +441,7 @@ func ReadPerBeadStatsAfter(logsDir string, after map[string]time.Time) (map[stri
 	}
 
 	for _, f := range files {
-		entries, err := readLogFile(f)
+		entries, err := ReadLogFile(f)
 		if err != nil {
 			continue // Skip unreadable files
 		}
@@ -496,7 +496,8 @@ func WriteValidationLog(logsDir string, output string) (string, error) {
 	return filename, nil
 }
 
-func readLogFile(path string) ([]IterationLog, error) {
+// ReadLogFile reads a single JSONL log file and returns all iteration log entries.
+func ReadLogFile(path string) ([]IterationLog, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err

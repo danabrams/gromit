@@ -85,7 +85,7 @@ func DeleteExperiment(path string) error {
 }
 
 // ModelEfficiencyData represents aggregated efficiency metrics for a model.
-// This is a subset of logger.ModelEfficiency used for baseline computation.
+// This is a subset of analytics.ModelEfficiency used for baseline computation.
 type ModelEfficiencyData struct {
 	TotalCostUSD      float64
 	TotalDuration     time.Duration

@@ -3,9 +3,8 @@ package runner
 import (
 	"context"
 	"fmt"
+	"github.com/danabrams/gromit/internal/analytics"
 	"strings"
-
-	"github.com/danabrams/gromit/internal/logger"
 )
 
 func (o *Orchestrator) mergeGlobalStats() {
@@ -19,12 +18,12 @@ func (o *Orchestrator) mergeGlobalStats() {
 	if o.cfg.LogsDir == "" || runID == "" {
 		return // Nothing to merge
 	}
-	runStats, err := logger.ReadRunModelStats(o.cfg.LogsDir, runID)
+	runStats, err := analytics.ReadRunModelStats(o.cfg.LogsDir, runID)
 	if err != nil {
 		o.logWarning("Warning: could not read run stats for global merge: %v", err)
 		return
 	}
-	if err := logger.UpdateGlobalStats(o.cfg.GlobalStatsPath, runStats); err != nil {
+	if err := analytics.UpdateGlobalStats(o.cfg.GlobalStatsPath, runStats); err != nil {
 		o.logWarning("Warning: could not update global stats: %v", err)
 	}
 }
@@ -41,7 +40,7 @@ func (o *Orchestrator) assertEfficiencyCompleteness(totalIterations int) error {
 		return nil
 	}
 
-	result, diags := logger.AssertEfficiencyCompleteness(o.cfg.LogsDir, runID)
+	result, diags := analytics.AssertEfficiencyCompleteness(o.cfg.LogsDir, runID)
 
 	baseDiags := make([]string, 0, len(diags)+1)
 	baseDiags = append(baseDiags, diags...)
@@ -91,7 +90,7 @@ func (o *Orchestrator) checkControlLimitAlerts() {
 		return
 	}
 
-	trend, err := logger.ReadProcessTrend(o.cfg.LogsDir)
+	trend, err := analytics.ReadProcessTrend(o.cfg.LogsDir)
 	if err != nil {
 		o.logWarning("Warning: could not read process trend for control limit check: %v", err)
 		return

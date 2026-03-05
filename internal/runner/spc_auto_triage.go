@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/danabrams/gromit/internal/analytics"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/tracker"
 )
 
@@ -20,7 +20,7 @@ const (
 )
 
 // TrendControlLimit mirrors the logger definition to keep the runner package self-contained.
-type TrendControlLimit = logger.TrendControlLimit
+type TrendControlLimit = analytics.TrendControlLimit
 
 // CauseClass defines the classification assigned to an SPC signal.
 type CauseClass string
@@ -37,7 +37,7 @@ type SPCCauseRecord struct {
 	Stratum                string
 	Class                  CauseClass
 	Latest                 float64
-	Limit                  *logger.TrendControlLimit
+	Limit                  *analytics.TrendControlLimit
 	Drift                  float64
 	PersistenceWindowCount int
 	DetectedAt             time.Time

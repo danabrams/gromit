@@ -1,8 +1,9 @@
-package logger
+package analytics
 
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/danabrams/gromit/internal/logger"
 	"os"
 	"path/filepath"
 	"testing"
@@ -219,7 +220,7 @@ func TestReadEfficiencyReport_SingleRun(t *testing.T) {
 	runID := "20260207-120000"
 
 	// Create a log file with test data
-	logs := []IterationLog{
+	logs := []logger.IterationLog{
 		{
 			BeadID:       "bead-1",
 			Model:        "opus",
@@ -290,7 +291,7 @@ func TestReadEfficiencyReport_ProviderFamilyAggregates(t *testing.T) {
 	dir := t.TempDir()
 	runID := "20260207-130000"
 
-	logs := []IterationLog{
+	logs := []logger.IterationLog{
 		{
 			BeadID:       "bead-1",
 			Model:        "opus",
@@ -347,7 +348,7 @@ func TestReadEfficiencyReport_CurrentAndHistorical(t *testing.T) {
 	historicalRunID := "20260207-120000"
 
 	// Historical run
-	historicalLogs := []IterationLog{
+	historicalLogs := []logger.IterationLog{
 		{
 			BeadID:       "bead-1",
 			Model:        "opus",
@@ -368,7 +369,7 @@ func TestReadEfficiencyReport_CurrentAndHistorical(t *testing.T) {
 	writeTestLogFile(t, dir, historicalRunID, historicalLogs)
 
 	// Current run
-	currentLogs := []IterationLog{
+	currentLogs := []logger.IterationLog{
 		{
 			BeadID:       "bead-3",
 			Model:        "opus",
@@ -428,7 +429,7 @@ func TestReadEfficiencyReport_ContextWindowThreshold(t *testing.T) {
 
 	// Opus context window is 200000 tokens
 	// 80% threshold = 160000 tokens
-	logs := []IterationLog{
+	logs := []logger.IterationLog{
 		{
 			BeadID:       "bead-below",
 			Model:        "opus",
@@ -514,7 +515,7 @@ func TestReadEfficiencyReport_MultipleHistoricalRuns(t *testing.T) {
 
 	// Create multiple historical runs
 	for i, runID := range []string{"20260207-120000", "20260207-130000", "20260207-140000"} {
-		logs := []IterationLog{
+		logs := []logger.IterationLog{
 			{
 				BeadID:       "bead-" + runID,
 				Model:        "sonnet",
@@ -528,7 +529,7 @@ func TestReadEfficiencyReport_MultipleHistoricalRuns(t *testing.T) {
 	}
 
 	// Current run
-	currentLogs := []IterationLog{
+	currentLogs := []logger.IterationLog{
 		{
 			BeadID:       "bead-current",
 			Model:        "sonnet",
@@ -600,7 +601,7 @@ func TestExtractRunID(t *testing.T) {
 }
 
 // Helper function to write test log files
-func writeTestLogFile(t *testing.T, dir string, runID string, logs []IterationLog) {
+func writeTestLogFile(t *testing.T, dir string, runID string, logs []logger.IterationLog) {
 	t.Helper()
 
 	filename := filepath.Join(dir, "run-"+runID+".jsonl")
@@ -719,7 +720,7 @@ func TestLatestRunID_ReturnsNewestFromMultipleFiles(t *testing.T) {
 
 	// Create multiple run files with different timestamps
 	for _, runID := range []string{"20260205-100000", "20260207-120000", "20260206-090000"} {
-		writeTestLogFile(t, dir, runID, []IterationLog{
+		writeTestLogFile(t, dir, runID, []logger.IterationLog{
 			{BeadID: "b1", Model: "sonnet", DurationMs: 1000, CostUSD: 0.1, InputTokens: 100, OutputTokens: 50},
 		})
 	}
@@ -830,7 +831,7 @@ func TestEfficiencyReport_BlankModelExcludedFromCurrentModelTotals(t *testing.T)
 	dir := t.TempDir()
 	runID := "20260303-120000"
 
-	logs := []IterationLog{
+	logs := []logger.IterationLog{
 		{
 			BeadID:       "bead-valid",
 			Model:        "opus",
@@ -888,7 +889,7 @@ func TestEfficiencyReport_BlankModelExcludedFromCurrentFamilyTotals(t *testing.T
 	dir := t.TempDir()
 	runID := "20260303-120100"
 
-	logs := []IterationLog{
+	logs := []logger.IterationLog{
 		{
 			BeadID:       "bead-valid",
 			Model:        "sonnet",
@@ -933,7 +934,7 @@ func TestEfficiencyReport_BlankModelExcludedFromHistoricalTotals(t *testing.T) {
 	historicalRunID := "20260303-120000"
 
 	// Historical run with blank model entries
-	historicalLogs := []IterationLog{
+	historicalLogs := []logger.IterationLog{
 		{
 			BeadID:       "bead-hist-valid",
 			Model:        "haiku",
@@ -954,7 +955,7 @@ func TestEfficiencyReport_BlankModelExcludedFromHistoricalTotals(t *testing.T) {
 	writeTestLogFile(t, dir, historicalRunID, historicalLogs)
 
 	// Current run (non-blank)
-	currentLogs := []IterationLog{
+	currentLogs := []logger.IterationLog{
 		{
 			BeadID:       "bead-current",
 			Model:        "opus",

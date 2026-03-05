@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/danabrams/gromit/internal/analytics"
 	"io"
 	"strings"
 	"testing"
@@ -13,7 +14,6 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/events/eventtest"
-	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/readiness"
@@ -1638,11 +1638,11 @@ func TestGateRun_SpecLevelMaintenanceBlock(t *testing.T) {
 	defer emitter.Unsubscribe(ch)
 
 	spec := "auth"
-	records := []logger.CauseClassificationRecord{
+	records := []analytics.CauseClassificationRecord{
 		{
 			Metric:             "rolling_avg_validation_ms",
 			Stratum:            "spec:" + spec,
-			Class:              logger.CauseClassSpecial,
+			Class:              analytics.CauseClassSpecial,
 			Latest:             1500,
 			PersistenceWindows: 3,
 			Severity:           "high",
@@ -1689,10 +1689,10 @@ func TestGateRun_SpecLevelMaintenanceBlock(t *testing.T) {
 }
 
 type specSPCBlocker struct {
-	records []logger.CauseClassificationRecord
+	records []analytics.CauseClassificationRecord
 }
 
-func newSpecSPCBlocker(records []logger.CauseClassificationRecord) *specSPCBlocker {
+func newSpecSPCBlocker(records []analytics.CauseClassificationRecord) *specSPCBlocker {
 	return &specSPCBlocker{records: records}
 }
 
@@ -1702,7 +1702,7 @@ func (s *specSPCBlocker) ShouldBlock(_ context.Context, b *bead.Bead) (bool, str
 		return false, "", nil
 	}
 	for _, rec := range s.records {
-		if rec.Stratum == fmt.Sprintf("spec:%s", spec) && rec.Class == logger.CauseClassSpecial {
+		if rec.Stratum == fmt.Sprintf("spec:%s", spec) && rec.Class == analytics.CauseClassSpecial {
 			return true, s.reasonFor(spec), nil
 		}
 	}
@@ -1769,11 +1769,11 @@ func TestGate_WithSpecSPCBlocker_WiresBlocker(t *testing.T) {
 	t.Parallel()
 
 	spec := "auth"
-	records := []logger.CauseClassificationRecord{
+	records := []analytics.CauseClassificationRecord{
 		{
 			Metric:             "rolling_avg_validation_ms",
 			Stratum:            "spec:" + spec,
-			Class:              logger.CauseClassSpecial,
+			Class:              analytics.CauseClassSpecial,
 			Latest:             1500,
 			PersistenceWindows: 3,
 			Severity:           "high",
@@ -1816,7 +1816,7 @@ func TestGate_HasSpecSPCBlocker(t *testing.T) {
 	})
 
 	t.Run("returns true when wired", func(t *testing.T) {
-		blocker := NewSpecSPCBlocker([]logger.CauseClassificationRecord{})
+		blocker := NewSpecSPCBlocker([]analytics.CauseClassificationRecord{})
 		gate := New(io.Discard).WithSpecSPCBlocker(blocker)
 		if !gate.HasSpecSPCBlocker() {
 			t.Fatalf("HasSpecSPCBlocker() = false, want true")
@@ -1829,11 +1829,11 @@ func TestGateRun_SpecSPCBlockingPrecedence(t *testing.T) {
 	t.Parallel()
 
 	spec := "auth"
-	spcRecords := []logger.CauseClassificationRecord{
+	spcRecords := []analytics.CauseClassificationRecord{
 		{
 			Metric:             "rolling_avg_validation_ms",
 			Stratum:            "spec:" + spec,
-			Class:              logger.CauseClassSpecial,
+			Class:              analytics.CauseClassSpecial,
 			Latest:             1500,
 			PersistenceWindows: 3,
 			Severity:           "high",
@@ -1869,11 +1869,11 @@ func TestGateRun_SpecSPCBlockingPrecedence(t *testing.T) {
 func TestGateRun_SpecSPCBlocker_AllowsHealthySpecs(t *testing.T) {
 	t.Parallel()
 
-	records := []logger.CauseClassificationRecord{
+	records := []analytics.CauseClassificationRecord{
 		{
 			Metric:             "rolling_avg_validation_ms",
 			Stratum:            "spec:auth",
-			Class:              logger.CauseClassSpecial,
+			Class:              analytics.CauseClassSpecial,
 			Latest:             1500,
 			PersistenceWindows: 3,
 			Severity:           "high",
@@ -1910,11 +1910,11 @@ func TestGateRun_SpecSPCBlocker_EmitsGateBlockEvent(t *testing.T) {
 	defer emitter.Unsubscribe(ch)
 
 	spec := "database"
-	records := []logger.CauseClassificationRecord{
+	records := []analytics.CauseClassificationRecord{
 		{
 			Metric:             "rolling_avg_validation_ms",
 			Stratum:            "spec:" + spec,
-			Class:              logger.CauseClassSpecial,
+			Class:              analytics.CauseClassSpecial,
 			Latest:             2000,
 			PersistenceWindows: 5,
 			Severity:           "high",

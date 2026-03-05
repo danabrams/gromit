@@ -1,4 +1,4 @@
-package logger
+package analytics
 
 const (
 	qualityPenaltyValidationRetried = 0.10

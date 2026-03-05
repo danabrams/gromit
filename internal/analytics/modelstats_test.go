@@ -1,7 +1,8 @@
-package logger
+package analytics
 
 import (
 	"encoding/json"
+	"github.com/danabrams/gromit/internal/logger"
 	"os"
 	"path/filepath"
 	"testing"
@@ -103,7 +104,7 @@ func TestReadModelStats_SingleModel(t *testing.T) {
 	dir := t.TempDir()
 	runID := "20260211-120000"
 
-	logs := []IterationLog{
+	logs := []logger.IterationLog{
 		{
 			BeadID:     "b1",
 			Model:      "opus",
@@ -164,7 +165,7 @@ func TestReadModelStats_MultipleModels(t *testing.T) {
 	dir := t.TempDir()
 	runID := "20260211-120000"
 
-	logs := []IterationLog{
+	logs := []logger.IterationLog{
 		{
 			BeadID:     "b1",
 			Model:      "opus",
@@ -250,7 +251,7 @@ func TestReadModelStats_MultipleFiles(t *testing.T) {
 	dir := t.TempDir()
 
 	// First run
-	logs1 := []IterationLog{
+	logs1 := []logger.IterationLog{
 		{
 			BeadID:     "b1",
 			Model:      "opus",
@@ -269,7 +270,7 @@ func TestReadModelStats_MultipleFiles(t *testing.T) {
 	writeTestLogFile(t, dir, "20260211-120000", logs1)
 
 	// Second run
-	logs2 := []IterationLog{
+	logs2 := []logger.IterationLog{
 		{
 			BeadID:     "b3",
 			Model:      "opus",
@@ -325,7 +326,7 @@ func TestReadRunModelStats_SingleRun(t *testing.T) {
 	dir := t.TempDir()
 	runID := "20260211-120000"
 
-	logs := []IterationLog{
+	logs := []logger.IterationLog{
 		{
 			BeadID:     "b1",
 			Model:      "opus",
@@ -344,7 +345,7 @@ func TestReadRunModelStats_SingleRun(t *testing.T) {
 	writeTestLogFile(t, dir, runID, logs)
 
 	// Also write another run that should be excluded
-	logsOther := []IterationLog{
+	logsOther := []logger.IterationLog{
 		{
 			BeadID:     "b3",
 			Model:      "haiku",
@@ -380,7 +381,7 @@ func TestReadRunModelStats_SingleRun(t *testing.T) {
 func TestReadRunModelStats_EmptyRunID(t *testing.T) {
 	dir := t.TempDir()
 
-	logs := []IterationLog{
+	logs := []logger.IterationLog{
 		{
 			BeadID:     "b1",
 			Model:      "opus",
@@ -406,7 +407,7 @@ func TestReadRunModelStats_EmptyRunID(t *testing.T) {
 func TestReadRunModelStats_NonexistentRun(t *testing.T) {
 	dir := t.TempDir()
 
-	logs := []IterationLog{
+	logs := []logger.IterationLog{
 		{
 			BeadID:     "b1",
 			Model:      "opus",
@@ -433,7 +434,7 @@ func TestCostPerCompletedBead_SingleBeadSingleAttempt(t *testing.T) {
 	dir := t.TempDir()
 	runID := "20260211-120000"
 
-	logs := []IterationLog{
+	logs := []logger.IterationLog{
 		{
 			BeadID:     "b1",
 			Model:      "opus",
@@ -470,7 +471,7 @@ func TestCostPerCompletedBead_MultipleAttempts(t *testing.T) {
 
 	// Bead b1: haiku fails (0.10), escalates to sonnet fails (0.25), escalates to opus succeeds (0.55)
 	// Total cost for b1 completion: 0.10 + 0.25 + 0.55 = 0.90
-	logs := []IterationLog{
+	logs := []logger.IterationLog{
 		{
 			BeadID:      "b1",
 			Model:       "haiku",
@@ -521,7 +522,7 @@ func TestCostPerCompletedBead_IncompleteBeadsExcluded(t *testing.T) {
 	dir := t.TempDir()
 	runID := "20260211-120000"
 
-	logs := []IterationLog{
+	logs := []logger.IterationLog{
 		{
 			BeadID:     "b1",
 			Model:      "opus",
@@ -571,7 +572,7 @@ func TestCostPerCompletedBead_MultipleBeadsMultipleAttempts(t *testing.T) {
 	dir := t.TempDir()
 	runID := "20260211-120000"
 
-	logs := []IterationLog{
+	logs := []logger.IterationLog{
 		// b1: haiku fails (0.10), sonnet succeeds (0.25) = 0.35 total
 		{
 			BeadID:      "b1",
@@ -641,7 +642,7 @@ func TestCostPerCompletedBead_AcrossMultipleFiles(t *testing.T) {
 	dir := t.TempDir()
 
 	// First run: b1 fails with haiku
-	logs1 := []IterationLog{
+	logs1 := []logger.IterationLog{
 		{
 			BeadID:      "b1",
 			Model:       "haiku",
@@ -655,7 +656,7 @@ func TestCostPerCompletedBead_AcrossMultipleFiles(t *testing.T) {
 	writeTestLogFile(t, dir, "20260211-120000", logs1)
 
 	// Second run: b1 succeeds with sonnet
-	logs2 := []IterationLog{
+	logs2 := []logger.IterationLog{
 		{
 			BeadID:     "b1",
 			Model:      "sonnet",
@@ -688,7 +689,7 @@ func TestModelStats_EscalationTracking(t *testing.T) {
 	dir := t.TempDir()
 	runID := "20260211-120000"
 
-	logs := []IterationLog{
+	logs := []logger.IterationLog{
 		{
 			BeadID:      "b1",
 			Model:       "haiku",
@@ -818,12 +819,12 @@ this is not json
 func TestCostPerSpec_AggregatesAcrossMultipleFiles(t *testing.T) {
 	dir := t.TempDir()
 
-	logs1 := []IterationLog{
+	logs1 := []logger.IterationLog{
 		{BeadID: "b1", Model: "opus", Success: true, CostUSD: 0.50, SpecID: "spec-A"},
 	}
 	writeTestLogFile(t, dir, "20260218-120000", logs1)
 
-	logs2 := []IterationLog{
+	logs2 := []logger.IterationLog{
 		{BeadID: "b2", Model: "sonnet", Success: true, CostUSD: 0.25, SpecID: "spec-A"},
 		{BeadID: "b3", Model: "haiku", Success: true, CostUSD: 0.10, SpecID: "spec-B"},
 	}
@@ -851,7 +852,7 @@ func TestCostPerSpec_AggregatesAcrossMultipleFiles(t *testing.T) {
 func TestCostPerSpec_ModelMixTracksModelUsage(t *testing.T) {
 	dir := t.TempDir()
 
-	logs := []IterationLog{
+	logs := []logger.IterationLog{
 		{BeadID: "b1", Model: "haiku", Success: false, CostUSD: 0.05, SpecID: "spec-A"},
 		{BeadID: "b1", Model: "sonnet", Success: false, CostUSD: 0.15, SpecID: "spec-A"},
 		{BeadID: "b1", Model: "opus", Success: true, CostUSD: 0.50, SpecID: "spec-A"},
@@ -880,7 +881,7 @@ func TestCostPerSpec_CountsDistinctBeads(t *testing.T) {
 	dir := t.TempDir()
 
 	// b1 appears twice (retry), b2 once — 2 distinct beads for spec-A
-	logs := []IterationLog{
+	logs := []logger.IterationLog{
 		{BeadID: "b1", Model: "opus", Success: false, CostUSD: 0.20, SpecID: "spec-A"},
 		{BeadID: "b1", Model: "opus", Success: true, CostUSD: 0.30, SpecID: "spec-A"},
 		{BeadID: "b2", Model: "sonnet", Success: true, CostUSD: 0.25, SpecID: "spec-A"},
@@ -900,7 +901,7 @@ func TestCostPerSpec_CountsDistinctBeads(t *testing.T) {
 func TestCostPerSpec_CountsIterationsPerSpec(t *testing.T) {
 	dir := t.TempDir()
 
-	logs := []IterationLog{
+	logs := []logger.IterationLog{
 		{BeadID: "b1", Model: "opus", Success: false, CostUSD: 0.20, SpecID: "spec-A"},
 		{BeadID: "b1", Model: "opus", Success: true, CostUSD: 0.30, SpecID: "spec-A"},
 		{BeadID: "b2", Model: "sonnet", Success: true, CostUSD: 0.25, SpecID: "spec-A"},
@@ -924,7 +925,7 @@ func TestCostPerSpec_CountsIterationsPerSpec(t *testing.T) {
 func TestCostPerSpec_GroupsBySpecIDAndAccumulatesCost(t *testing.T) {
 	dir := t.TempDir()
 
-	logs := []IterationLog{
+	logs := []logger.IterationLog{
 		{BeadID: "b1", Model: "opus", Success: true, CostUSD: 0.50, SpecID: "spec-A"},
 		{BeadID: "b2", Model: "sonnet", Success: false, CostUSD: 0.25, SpecID: "spec-A"},
 		{BeadID: "b3", Model: "haiku", Success: true, CostUSD: 0.10, SpecID: "spec-B"},
@@ -950,7 +951,7 @@ func TestCostPerSpec_GroupsBySpecIDAndAccumulatesCost(t *testing.T) {
 func TestCostPerSpec_EmptySpecIDMapsToUnassigned(t *testing.T) {
 	dir := t.TempDir()
 
-	logs := []IterationLog{
+	logs := []logger.IterationLog{
 		{BeadID: "b1", Model: "opus", Success: true, CostUSD: 0.50, SpecID: ""},
 	}
 	writeTestLogFile(t, dir, "20260218-120000", logs)
@@ -1078,7 +1079,7 @@ func TestCostPerCompletedBead_NoCompletedBeads(t *testing.T) {
 	runID := "20260211-120000"
 
 	// All beads fail
-	logs := []IterationLog{
+	logs := []logger.IterationLog{
 		{
 			BeadID:     "b1",
 			Model:      "sonnet",
@@ -1110,7 +1111,7 @@ func TestReadModelStats_NormalizesLegacyCodex53HistoricalCosts(t *testing.T) {
 	dir := t.TempDir()
 	runID := "20260219-093235"
 
-	logs := []IterationLog{
+	logs := []logger.IterationLog{
 		{
 			BeadID:       "b1",
 			Model:        "gpt-5.3-codex",
@@ -1139,7 +1140,7 @@ func TestReadModelStats_PreservesNonLegacyCodex53Costs(t *testing.T) {
 	dir := t.TempDir()
 	runID := "20260219-120000"
 
-	logs := []IterationLog{
+	logs := []logger.IterationLog{
 		{
 			BeadID:       "b1",
 			Model:        "gpt-5.3-codex",

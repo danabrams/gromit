@@ -1,7 +1,8 @@
-package logger
+package analytics
 
 import (
 	"fmt"
+	"github.com/danabrams/gromit/internal/logger"
 	"path/filepath"
 	"sort"
 )
@@ -25,7 +26,7 @@ func ReadSiblingTouchedPackages(logsDir, currentBeadID, specID string, parentSib
 
 	packages := make(map[string]struct{})
 	for _, f := range files {
-		entries, err := readLogFile(f)
+		entries, err := logger.ReadLogFile(f)
 		if err != nil {
 			continue // Skip unreadable files
 		}

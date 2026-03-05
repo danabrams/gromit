@@ -54,7 +54,7 @@ func AnalyzeTimeouts(logsDir string) (TimeoutAnalysis, error) {
 	totals := make(map[string]*modelTotals)
 
 	for _, f := range files {
-		entries, err := readLogFile(f)
+		entries, err := ReadLogFile(f)
 		if err != nil {
 			continue // Skip unreadable files
 		}

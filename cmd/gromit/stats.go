@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/danabrams/gromit/internal/analytics"
 	"os"
 	"sort"
 	"strings"
 
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/spf13/cobra"
 )
@@ -70,12 +70,12 @@ func defaultStatsFetcher(ctx context.Context, cfg *config.Config, gromitDir stri
 }
 
 type statsJSONOutput struct {
-	ProjectStats    map[string]logger.ModelStats `json:"project_stats"`
-	GlobalStats     *logger.GlobalStats          `json:"global_stats"`
-	CostPerSpec     map[string]logger.SpecCost   `json:"cost_per_spec"`
-	RoutingStrategy string                       `json:"routing_strategy"`
-	ProviderMetrics []logger.ProviderMetrics     `json:"provider_metrics"`
-	TDDMetrics      *logger.TDDStats             `json:"tdd_metrics"`
+	ProjectStats    map[string]analytics.ModelStats `json:"project_stats"`
+	GlobalStats     *analytics.GlobalStats          `json:"global_stats"`
+	CostPerSpec     map[string]analytics.SpecCost   `json:"cost_per_spec"`
+	RoutingStrategy string                          `json:"routing_strategy"`
+	ProviderMetrics []analytics.ProviderMetrics     `json:"provider_metrics"`
+	TDDMetrics      *analytics.TDDStats             `json:"tdd_metrics"`
 }
 
 func outputJSON(summary *pipeline.StatsSummary) error {
@@ -142,10 +142,10 @@ func outputText(summary *pipeline.StatsSummary) error {
 
 type specCostEntry struct {
 	specID string
-	cost   logger.SpecCost
+	cost   analytics.SpecCost
 }
 
-func sortedSpecCosts(costs map[string]logger.SpecCost) []specCostEntry {
+func sortedSpecCosts(costs map[string]analytics.SpecCost) []specCostEntry {
 	entries := make([]specCostEntry, 0, len(costs))
 	for specID, cost := range costs {
 		entries = append(entries, specCostEntry{specID: specID, cost: cost})
@@ -159,7 +159,7 @@ func sortedSpecCosts(costs map[string]logger.SpecCost) []specCostEntry {
 	return entries
 }
 
-func printProjectModelStats(stats map[string]logger.ModelStats) {
+func printProjectModelStats(stats map[string]analytics.ModelStats) {
 	for model, s := range stats {
 		printModelLine(model, s.SuccessRate()*100, s.Successes, s.Iterations, s.TotalCostUSD)
 		printEscalations(s.EscalationsFrom, s.EscalationsTo)
@@ -167,7 +167,7 @@ func printProjectModelStats(stats map[string]logger.ModelStats) {
 	}
 }
 
-func printGlobalModelStats(stats map[string]*logger.GlobalModelStats) {
+func printGlobalModelStats(stats map[string]*analytics.GlobalModelStats) {
 	for model, s := range stats {
 		successRate := calculateSuccessRate(s.Successes, s.Iterations)
 		printModelLine(model, successRate, s.Successes, s.Iterations, s.TotalCostUSD)
@@ -176,14 +176,14 @@ func printGlobalModelStats(stats map[string]*logger.GlobalModelStats) {
 	}
 }
 
-func printProviderMetrics(metrics []logger.ProviderMetrics) {
+func printProviderMetrics(metrics []analytics.ProviderMetrics) {
 	if len(metrics) == 0 {
 		return
 	}
 
 	fmt.Println()
 	fmt.Println("Provider Metrics (process_trend):")
-	sorted := append([]logger.ProviderMetrics(nil), metrics...)
+	sorted := append([]analytics.ProviderMetrics(nil), metrics...)
 	sort.Slice(sorted, func(i, j int) bool {
 		return sorted[i].Name < sorted[j].Name
 	})
@@ -251,7 +251,7 @@ func formatModelMix(mix map[string]int) string {
 	return strings.Join(parts, ", ")
 }
 
-func printTDDMetrics(stats logger.TDDStats) {
+func printTDDMetrics(stats analytics.TDDStats) {
 	fmt.Println("TDD Metrics:")
 	fmt.Printf("  avg cycles/bead: %.2f\n", stats.AvgCyclesPerBead)
 	fmt.Printf("  avg cost/cycle: $%.2f\n", stats.AvgCostUSDPerCycle)

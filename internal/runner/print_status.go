@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/danabrams/gromit/internal/analytics"
 	"io"
 	"os"
 	"path/filepath"
@@ -13,7 +14,6 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/integrationqueue"
-	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/runner/display"
 	"github.com/danabrams/gromit/internal/state"
@@ -116,9 +116,9 @@ func PrintStatus(gromitDir string, cfg *config.Config, w io.Writer, processCheck
 	}
 
 	// Model Performance section: read per-model stats from iteration logs
-	var modelStats map[string]logger.ModelStats
+	var modelStats map[string]analytics.ModelStats
 	if cfg.Paths.Logs != "" {
-		if stats, err := logger.ReadModelStats(cfg.Paths.Logs); err == nil {
+		if stats, err := analytics.ReadModelStats(cfg.Paths.Logs); err == nil {
 			modelStats = stats
 		}
 	}
@@ -137,11 +137,11 @@ func PrintStatus(gromitDir string, cfg *config.Config, w io.Writer, processCheck
 
 // ReadProcessTrendForStatus reads process trend data from the metrics directory.
 // Exported for use by commands like status --spc.
-func ReadProcessTrendForStatus(gromitDir string, cfg *config.Config) *logger.ProcessTrend {
+func ReadProcessTrendForStatus(gromitDir string, cfg *config.Config) *analytics.ProcessTrend {
 	return readProcessTrendForStatus(gromitDir, cfg)
 }
 
-func readProcessTrendForStatus(gromitDir string, cfg *config.Config) *logger.ProcessTrend {
+func readProcessTrendForStatus(gromitDir string, cfg *config.Config) *analytics.ProcessTrend {
 	if cfg == nil {
 		return nil
 	}
@@ -153,7 +153,7 @@ func readProcessTrendForStatus(gromitDir string, cfg *config.Config) *logger.Pro
 	}
 
 	for _, p := range paths {
-		trend, err := logger.ReadProcessTrend(p)
+		trend, err := analytics.ReadProcessTrend(p)
 		if err == nil && trend != nil {
 			return trend
 		}

@@ -3,9 +3,9 @@ package runner
 import (
 	"context"
 	"fmt"
+	"github.com/danabrams/gromit/internal/analytics"
 	"time"
 
-	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/state"
 	"github.com/danabrams/gromit/internal/tracker"
 )
@@ -62,7 +62,7 @@ func loadSPCCauseRecords(paths []string) ([]SPCCauseRecord, error) {
 		if path == "" {
 			continue
 		}
-		trend, err := logger.ReadProcessTrend(path)
+		trend, err := analytics.ReadProcessTrend(path)
 		if err != nil {
 			lastErr = fmt.Errorf("reading process trend (%s): %w", path, err)
 			continue
@@ -75,7 +75,7 @@ func loadSPCCauseRecords(paths []string) ([]SPCCauseRecord, error) {
 	return nil, lastErr
 }
 
-func convertCauseRecords(records []logger.CauseClassificationRecord) []SPCCauseRecord {
+func convertCauseRecords(records []analytics.CauseClassificationRecord) []SPCCauseRecord {
 	out := make([]SPCCauseRecord, 0, len(records))
 	for _, rec := range records {
 		out = append(out, SPCCauseRecord{

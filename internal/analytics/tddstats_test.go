@@ -1,7 +1,8 @@
-package logger
+package analytics
 
 import (
 	"encoding/json"
+	"github.com/danabrams/gromit/internal/logger"
 	"math"
 	"os"
 	"path/filepath"
@@ -13,14 +14,14 @@ func TestReadTDDPhaseRecords_FiltersByType(t *testing.T) {
 	dir := t.TempDir()
 
 	run1 := []any{
-		IterationLog{
+		logger.IterationLog{
 			Timestamp: time.Date(2026, 2, 19, 10, 0, 0, 0, time.UTC),
 			Iteration: 1,
 			BeadID:    "b-1",
 			Model:     "sonnet",
 			Success:   true,
 		},
-		TDDPhaseRecord{
+		logger.TDDPhaseRecord{
 			Type:        "tdd_phase",
 			Timestamp:   time.Date(2026, 2, 19, 10, 1, 0, 0, time.UTC),
 			BeadID:      "b-1",
@@ -29,7 +30,7 @@ func TestReadTDDPhaseRecords_FiltersByType(t *testing.T) {
 			Model:       "haiku",
 			Success:     false,
 		},
-		TDDSummaryRecord{
+		logger.TDDSummaryRecord{
 			Type:        "tdd_summary",
 			Timestamp:   time.Date(2026, 2, 19, 10, 2, 0, 0, time.UTC),
 			BeadID:      "b-1",
@@ -41,7 +42,7 @@ func TestReadTDDPhaseRecords_FiltersByType(t *testing.T) {
 	writeMixedLogFile(t, dir, "20260219-100000", run1)
 
 	run2 := []any{
-		TDDPhaseRecord{
+		logger.TDDPhaseRecord{
 			Type:          "tdd_phase",
 			Timestamp:     time.Date(2026, 2, 19, 11, 1, 0, 0, time.UTC),
 			BeadID:        "b-2",
@@ -52,7 +53,7 @@ func TestReadTDDPhaseRecords_FiltersByType(t *testing.T) {
 			Escalated:     true,
 			EscalatedFrom: "haiku",
 		},
-		TDDPhaseRecord{
+		logger.TDDPhaseRecord{
 			Type:        "tdd_phase",
 			Timestamp:   time.Date(2026, 2, 19, 11, 2, 0, 0, time.UTC),
 			BeadID:      "b-2",
@@ -81,14 +82,14 @@ func TestReadTDDSummaries_FiltersByType(t *testing.T) {
 	dir := t.TempDir()
 
 	records := []any{
-		IterationLog{
+		logger.IterationLog{
 			Timestamp: time.Date(2026, 2, 19, 12, 0, 0, 0, time.UTC),
 			Iteration: 1,
 			BeadID:    "b-1",
 			Model:     "sonnet",
 			Success:   true,
 		},
-		TDDPhaseRecord{
+		logger.TDDPhaseRecord{
 			Type:        "tdd_phase",
 			Timestamp:   time.Date(2026, 2, 19, 12, 1, 0, 0, time.UTC),
 			BeadID:      "b-1",
@@ -97,7 +98,7 @@ func TestReadTDDSummaries_FiltersByType(t *testing.T) {
 			Model:       "sonnet",
 			Success:     false,
 		},
-		TDDSummaryRecord{
+		logger.TDDSummaryRecord{
 			Type:            "tdd_summary",
 			Timestamp:       time.Date(2026, 2, 19, 12, 2, 0, 0, time.UTC),
 			BeadID:          "b-1",
@@ -106,7 +107,7 @@ func TestReadTDDSummaries_FiltersByType(t *testing.T) {
 			Success:         true,
 			TotalDurationMs: 1000,
 		},
-		TDDSummaryRecord{
+		logger.TDDSummaryRecord{
 			Type:            "tdd_summary",
 			Timestamp:       time.Date(2026, 2, 19, 12, 3, 0, 0, time.UTC),
 			BeadID:          "b-2",
@@ -135,7 +136,7 @@ func TestAggregateTDDStats_ComputesExpectedMetrics(t *testing.T) {
 	dir := t.TempDir()
 
 	records := []any{
-		IterationLog{
+		logger.IterationLog{
 			Timestamp: time.Date(2026, 2, 19, 13, 0, 0, 0, time.UTC),
 			Iteration: 1,
 			BeadID:    "bead-a",
@@ -143,7 +144,7 @@ func TestAggregateTDDStats_ComputesExpectedMetrics(t *testing.T) {
 			Success:   false,
 			CostUSD:   0.60,
 		},
-		IterationLog{
+		logger.IterationLog{
 			Timestamp: time.Date(2026, 2, 19, 13, 1, 0, 0, time.UTC),
 			Iteration: 2,
 			BeadID:    "bead-a",
@@ -151,7 +152,7 @@ func TestAggregateTDDStats_ComputesExpectedMetrics(t *testing.T) {
 			Success:   true,
 			CostUSD:   0.40,
 		},
-		TDDPhaseRecord{
+		logger.TDDPhaseRecord{
 			Type:         "tdd_phase",
 			Timestamp:    time.Date(2026, 2, 19, 13, 2, 0, 0, time.UTC),
 			BeadID:       "bead-a",
@@ -162,7 +163,7 @@ func TestAggregateTDDStats_ComputesExpectedMetrics(t *testing.T) {
 			OutputTokens: 30,
 			Success:      false,
 		},
-		TDDPhaseRecord{
+		logger.TDDPhaseRecord{
 			Type:          "tdd_phase",
 			Timestamp:     time.Date(2026, 2, 19, 13, 3, 0, 0, time.UTC),
 			BeadID:        "bead-a",
@@ -175,7 +176,7 @@ func TestAggregateTDDStats_ComputesExpectedMetrics(t *testing.T) {
 			Escalated:     true,
 			EscalatedFrom: "haiku",
 		},
-		TDDPhaseRecord{
+		logger.TDDPhaseRecord{
 			Type:         "tdd_phase",
 			Timestamp:    time.Date(2026, 2, 19, 13, 4, 0, 0, time.UTC),
 			BeadID:       "bead-a",
@@ -186,7 +187,7 @@ func TestAggregateTDDStats_ComputesExpectedMetrics(t *testing.T) {
 			OutputTokens: 20,
 			Success:      true,
 		},
-		TDDPhaseRecord{
+		logger.TDDPhaseRecord{
 			Type:         "tdd_phase",
 			Timestamp:    time.Date(2026, 2, 19, 13, 5, 0, 0, time.UTC),
 			BeadID:       "bead-a",
@@ -197,7 +198,7 @@ func TestAggregateTDDStats_ComputesExpectedMetrics(t *testing.T) {
 			OutputTokens: 30,
 			Success:      true,
 		},
-		TDDSummaryRecord{
+		logger.TDDSummaryRecord{
 			Type:            "tdd_summary",
 			Timestamp:       time.Date(2026, 2, 19, 13, 6, 0, 0, time.UTC),
 			BeadID:          "bead-a",
@@ -206,7 +207,7 @@ func TestAggregateTDDStats_ComputesExpectedMetrics(t *testing.T) {
 			Success:         true,
 			TotalDurationMs: 1800,
 		},
-		IterationLog{
+		logger.IterationLog{
 			Timestamp: time.Date(2026, 2, 19, 14, 0, 0, 0, time.UTC),
 			Iteration: 1,
 			BeadID:    "bead-b",
@@ -214,7 +215,7 @@ func TestAggregateTDDStats_ComputesExpectedMetrics(t *testing.T) {
 			Success:   true,
 			CostUSD:   0.30,
 		},
-		TDDPhaseRecord{
+		logger.TDDPhaseRecord{
 			Type:         "tdd_phase",
 			Timestamp:    time.Date(2026, 2, 19, 14, 1, 0, 0, time.UTC),
 			BeadID:       "bead-b",
@@ -225,7 +226,7 @@ func TestAggregateTDDStats_ComputesExpectedMetrics(t *testing.T) {
 			OutputTokens: 20,
 			Success:      true,
 		},
-		TDDPhaseRecord{
+		logger.TDDPhaseRecord{
 			Type:         "tdd_phase",
 			Timestamp:    time.Date(2026, 2, 19, 14, 2, 0, 0, time.UTC),
 			BeadID:       "bead-b",
@@ -236,7 +237,7 @@ func TestAggregateTDDStats_ComputesExpectedMetrics(t *testing.T) {
 			OutputTokens: 15,
 			Success:      true,
 		},
-		TDDPhaseRecord{
+		logger.TDDPhaseRecord{
 			Type:         "tdd_phase",
 			Timestamp:    time.Date(2026, 2, 19, 14, 3, 0, 0, time.UTC),
 			BeadID:       "bead-b",
@@ -247,7 +248,7 @@ func TestAggregateTDDStats_ComputesExpectedMetrics(t *testing.T) {
 			OutputTokens: 10,
 			Success:      false,
 		},
-		TDDSummaryRecord{
+		logger.TDDSummaryRecord{
 			Type:            "tdd_summary",
 			Timestamp:       time.Date(2026, 2, 19, 14, 4, 0, 0, time.UTC),
 			BeadID:          "bead-b",

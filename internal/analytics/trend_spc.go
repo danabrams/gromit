@@ -1,7 +1,8 @@
-package logger
+package analytics
 
 import (
 	"fmt"
+	"github.com/danabrams/gromit/internal/logger"
 	"math"
 	"sort"
 	"strings"
@@ -126,7 +127,7 @@ func computeEWMAState(metric string, value float64, values []float64, previousZ 
 	if hasPrevious {
 		z = ewmaLambda*value + (1-ewmaLambda)*previousZ
 	}
-	mean, stddev := meanAndStdDev(values)
+	mean, stddev := logger.MeanAndStdDev(values)
 	ewmaControlLimitScale := math.Sqrt(ewmaLambda / (2 - ewmaLambda))
 	ucl := mean + ewmaSigmaMultiplier*stddev*ewmaControlLimitScale
 	lcl := mean - ewmaSigmaMultiplier*stddev*ewmaControlLimitScale
@@ -266,7 +267,7 @@ func boolToFloat64(v bool) float64 {
 }
 
 func computeControlLimit(metric string, latest float64, values []float64) TrendControlLimit {
-	mean, stddev := meanAndStdDev(values)
+	mean, stddev := logger.MeanAndStdDev(values)
 	ucl := mean + controlLimitSigmaMultiplier*stddev
 	lcl := mean - controlLimitSigmaMultiplier*stddev
 

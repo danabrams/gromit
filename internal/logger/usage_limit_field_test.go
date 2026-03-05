@@ -130,7 +130,7 @@ func TestReadLogFile_UsageLimitedField(t *testing.T) {
 	}
 
 	// Read back the entries
-	entries, err := readLogFile(filepath.Join(dir, "run-20260212-120000.jsonl"))
+	entries, err := ReadLogFile(filepath.Join(dir, "run-20260212-120000.jsonl"))
 	if err != nil {
 		t.Fatalf("reading log file: %v", err)
 	}
@@ -176,7 +176,7 @@ func TestReadLogFile_BackwardCompatibility(t *testing.T) {
 	}
 
 	// Read back the entries
-	entries, err := readLogFile(filepath.Join(dir, "run-20260212-120000.jsonl"))
+	entries, err := ReadLogFile(filepath.Join(dir, "run-20260212-120000.jsonl"))
 	if err != nil {
 		t.Fatalf("reading log file: %v", err)
 	}

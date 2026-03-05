@@ -1,4 +1,4 @@
-package logger
+package analytics
 
 import (
 	"os"
@@ -8,7 +8,7 @@ import (
 )
 
 func TestTrendSPCDefinitionsFileExists(t *testing.T) {
-	target := filepath.Clean(filepath.Join("..", "..", "internal", "logger", "trend_spc.go"))
+	target := filepath.Clean(filepath.Join("..", "..", "internal", "analytics", "trend_spc.go"))
 	data, err := os.ReadFile(target)
 	if err != nil {
 		t.Fatalf("expected %s to exist: %v", target, err)

@@ -1,6 +1,7 @@
-package logger
+package analytics
 
 import (
+	"github.com/danabrams/gromit/internal/logger"
 	"sort"
 	"strings"
 
@@ -22,15 +23,15 @@ var readinessBlockReasons = map[string]struct{}{
 	"scope_too_broad":    {},
 }
 
-func readAllIterationLogsSorted(logsDir string) ([]IterationLog, error) {
+func readAllIterationLogsSorted(logsDir string) ([]logger.IterationLog, error) {
 	files, err := listRunLogFilesFn(logsDir)
 	if err != nil {
 		return nil, err
 	}
 
-	entries := make([]IterationLog, 0, 128)
+	entries := make([]logger.IterationLog, 0, 128)
 	for _, f := range files {
-		logs, err := readLogFile(f)
+		logs, err := logger.ReadLogFile(f)
 		if err != nil {
 			continue
 		}
@@ -49,7 +50,7 @@ func readAllIterationLogsSorted(logsDir string) ([]IterationLog, error) {
 	return entries, nil
 }
 
-func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMetric {
+func buildIterationMetrics(entries []logger.IterationLog, windowSize int) []IterationMetric {
 	if len(entries) == 0 {
 		return []IterationMetric{}
 	}
@@ -204,7 +205,7 @@ func buildIterationMetrics(entries []IterationLog, windowSize int) []IterationMe
 	return metrics
 }
 
-func buildBeadEntryIndices(entries []IterationLog) map[string][]int {
+func buildBeadEntryIndices(entries []logger.IterationLog) map[string][]int {
 	indices := make(map[string][]int, len(entries))
 	for i := range entries {
 		indices[entries[i].BeadID] = append(indices[entries[i].BeadID], i)
@@ -212,7 +213,7 @@ func buildBeadEntryIndices(entries []IterationLog) map[string][]int {
 	return indices
 }
 
-func classifyFailureAttribution(entries []IterationLog, beadSeries []int, idx int) string {
+func classifyFailureAttribution(entries []logger.IterationLog, beadSeries []int, idx int) string {
 	if idx < 0 || idx >= len(entries) {
 		return ""
 	}
@@ -236,7 +237,7 @@ func classifyFailureAttribution(entries []IterationLog, beadSeries []int, idx in
 	return failureAttributionModel
 }
 
-func deriveDefectOriginPhase(entry IterationLog) string {
+func deriveDefectOriginPhase(entry logger.IterationLog) string {
 	if entry.Success {
 		return ""
 	}
@@ -246,7 +247,7 @@ func deriveDefectOriginPhase(entry IterationLog) string {
 	return entry.FailurePhase
 }
 
-func isTransientFailureSignal(entry IterationLog) bool {
+func isTransientFailureSignal(entry logger.IterationLog) bool {
 	if entry.FailurePhase == failurephase.Timeout || entry.TimeoutType != "" {
 		return true
 	}
@@ -267,7 +268,7 @@ func indexInSeries(series []int, idx int) int {
 	return -1
 }
 
-func isSingleFailureThenSameTierSuccess(entries []IterationLog, series []int, pos int) bool {
+func isSingleFailureThenSameTierSuccess(entries []logger.IterationLog, series []int, pos int) bool {
 	if pos < 0 || pos >= len(series) {
 		return false
 	}
@@ -284,7 +285,7 @@ func isSingleFailureThenSameTierSuccess(entries []IterationLog, series []int, po
 	return currentTier != "" && currentTier == nextTier
 }
 
-func hasRepeatedCrossTierFailures(entries []IterationLog, series []int, pos int) bool {
+func hasRepeatedCrossTierFailures(entries []logger.IterationLog, series []int, pos int) bool {
 	if pos < 0 || pos >= len(series) {
 		return false
 	}
@@ -310,14 +311,14 @@ func hasRepeatedCrossTierFailures(entries []IterationLog, series []int, pos int)
 	return len(tiers) > 1
 }
 
-func resolvedTier(entry IterationLog) string {
+func resolvedTier(entry logger.IterationLog) string {
 	if entry.ActualTier != "" {
 		return entry.ActualTier
 	}
 	return entry.Model
 }
 
-func summarizeWindow(window []IterationLog) ProcessTrendWindow {
+func summarizeWindow(window []logger.IterationLog) ProcessTrendWindow {
 	if len(window) == 0 {
 		return ProcessTrendWindow{}
 	}
@@ -428,9 +429,9 @@ func summarizeWindow(window []IterationLog) ProcessTrendWindow {
 		EscalationRate:               float64(escalations) / count,
 		QualityScore:                 qualityTotal / count,
 		AvgDurationMs:                avgDuration,
-		P95DurationMs:                percentileInt64(durations, p95Percentile),
+		P95DurationMs:                logger.PercentileInt64(durations, p95Percentile),
 		AvgValidationMs:              avgValidationDuration,
-		P95ValidationMs:              percentileInt64(validationDurations, p95Percentile),
+		P95ValidationMs:              logger.PercentileInt64(validationDurations, p95Percentile),
 		AvgCostUSD:                   avgCost,
 		AvgInputTokens:               avgInputTokens,
 		AvgCostPerBeadUSD:            avgCostPerBead,
@@ -458,7 +459,7 @@ type beadCostAccum struct {
 	hasSuccess bool
 }
 
-func updateBeadCostAccum(beadCosts map[string]beadCostAccum, entry IterationLog) {
+func updateBeadCostAccum(beadCosts map[string]beadCostAccum, entry logger.IterationLog) {
 	if entry.BeadID == "" {
 		return
 	}

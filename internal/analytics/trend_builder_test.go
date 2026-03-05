@@ -1,7 +1,8 @@
-package logger
+package analytics
 
 import (
 	"errors"
+	"github.com/danabrams/gromit/internal/logger"
 	"testing"
 	"time"
 )
@@ -27,7 +28,7 @@ func TestReadAllIterationLogsSorted_UsesListRunLogFiles(t *testing.T) {
 // from IterationLog entries to IterationMetric.
 func TestBuildIterationMetrics_MapsComplexityAndEstimatedFilesFields(t *testing.T) {
 	t.Parallel()
-	entries := []IterationLog{
+	entries := []logger.IterationLog{
 		{
 			BeadID:                   "bead-1",
 			Iteration:                1,
@@ -68,7 +69,7 @@ func TestBuildIterationMetrics_MapsComplexityAndEstimatedFilesFields(t *testing.
 func TestBuildIterationMetrics_FieldParityContractForAttributionFields(t *testing.T) {
 	t.Parallel()
 	// Scenario: IterationLog has all attribution fields populated
-	entries := []IterationLog{
+	entries := []logger.IterationLog{
 		{
 			BeadID:                   "bead-1",
 			Iteration:                1,
@@ -165,7 +166,7 @@ func TestBuildIterationMetrics_AllComplexitySourceValues(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			entries := []IterationLog{
+			entries := []logger.IterationLog{
 				{
 					BeadID:                   "bead-test",
 					Iteration:                1,
@@ -236,7 +237,7 @@ func TestBuildIterationMetrics_ProviderRollingStats(t *testing.T) {
 		name                     string
 		windowSize               int
 		metricIndex              int
-		entries                  []IterationLog
+		entries                  []logger.IterationLog
 		wantInvocations          int
 		wantSuccesses            int
 		wantSuccessRate          float64
@@ -247,7 +248,7 @@ func TestBuildIterationMetrics_ProviderRollingStats(t *testing.T) {
 			name:        "mixed provider window",
 			windowSize:  3,
 			metricIndex: 2,
-			entries: []IterationLog{
+			entries: []logger.IterationLog{
 				{
 					Timestamp: time.Now(),
 					Iteration: 1,
@@ -281,7 +282,7 @@ func TestBuildIterationMetrics_ProviderRollingStats(t *testing.T) {
 			name:        "inference fallback",
 			windowSize:  3,
 			metricIndex: 1,
-			entries: []IterationLog{
+			entries: []logger.IterationLog{
 				{
 					Timestamp: time.Now(),
 					Iteration: 1,
@@ -315,7 +316,7 @@ func TestBuildIterationMetrics_ProviderRollingStats(t *testing.T) {
 			name:        "transport-only failure",
 			windowSize:  1,
 			metricIndex: 0,
-			entries: []IterationLog{
+			entries: []logger.IterationLog{
 				{
 					Timestamp:       time.Now(),
 					Iteration:       1,

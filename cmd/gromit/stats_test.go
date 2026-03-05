@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"github.com/danabrams/gromit/internal/analytics"
 	"io"
 	"os"
 	"path/filepath"
@@ -68,7 +69,7 @@ func TestStatsCmd_UsesPipelineStats(t *testing.T) {
 	defer func() { statsFetcher = originalFetcher }()
 	called := false
 	stubSummary := &pipeline.StatsSummary{
-		ProjectStats: map[string]logger.ModelStats{
+		ProjectStats: map[string]analytics.ModelStats{
 			"test-model": {
 				Model:        "test-model",
 				Iterations:   1,
@@ -241,10 +242,10 @@ func TestStatsCmd_DisplaysGlobalStats(t *testing.T) {
 
 	// Create global stats file
 	globalStatsPath := filepath.Join(gromitHomeDir, "stats.json")
-	globalStats := logger.GlobalStats{
+	globalStats := analytics.GlobalStats{
 		Version: 1,
 		Updated: "2026-02-11T14:30:00Z",
-		Models: map[string]*logger.GlobalModelStats{
+		Models: map[string]*analytics.GlobalModelStats{
 			"opus": {
 				Iterations:      42,
 				Successes:       38,
@@ -521,8 +522,8 @@ func TestStatsCmd_JSONIncludesProviderMetrics(t *testing.T) {
 		t.Fatalf("failed to create metrics dir: %v", err)
 	}
 
-	trend := logger.ProcessTrend{
-		ProviderMetrics: []logger.ProviderMetrics{
+	trend := analytics.ProcessTrend{
+		ProviderMetrics: []analytics.ProviderMetrics{
 			{
 				Name:                 "openai",
 				TotalInvocations:     5,
@@ -564,7 +565,7 @@ func TestStatsCmd_JSONIncludesProviderMetrics(t *testing.T) {
 	})
 
 	var result struct {
-		ProviderMetrics []logger.ProviderMetrics `json:"provider_metrics"`
+		ProviderMetrics []analytics.ProviderMetrics `json:"provider_metrics"`
 	}
 	if err := json.Unmarshal([]byte(output), &result); err != nil {
 		t.Fatalf("output should be valid JSON, got parse error: %v", err)

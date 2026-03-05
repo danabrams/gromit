@@ -1,12 +1,12 @@
 package display
 
 import (
+	"github.com/danabrams/gromit/internal/analytics"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 )
 
@@ -387,7 +387,7 @@ func TestFormatRecommendation_commands(t *testing.T) {
 func TestFormatModelPerformance_singleModel(t *testing.T) {
 	t.Parallel()
 
-	stats := map[string]logger.ModelStats{
+	stats := map[string]analytics.ModelStats{
 		"opus": {
 			Model:        "opus",
 			Iterations:   10,
@@ -407,7 +407,7 @@ func TestFormatModelPerformance_singleModel(t *testing.T) {
 func TestFormatModelPerformance_multipleModels(t *testing.T) {
 	t.Parallel()
 
-	stats := map[string]logger.ModelStats{
+	stats := map[string]analytics.ModelStats{
 		"opus":   {Model: "opus", Iterations: 11, Successes: 10, Failures: 1, TotalCostUSD: 22.44},
 		"sonnet": {Model: "sonnet", Iterations: 8, Successes: 3, Failures: 5, TotalCostUSD: 3.68},
 		"haiku":  {Model: "haiku", Iterations: 8, Successes: 6, Failures: 2, TotalCostUSD: 0.96},
@@ -467,10 +467,10 @@ func TestSPCMetricConstants(t *testing.T) {
 
 func TestFormatSPCSummary_IncludesProviderMetrics(t *testing.T) {
 	t.Parallel()
-	trend := &logger.ProcessTrend{
+	trend := &analytics.ProcessTrend{
 		TotalIterations: 3,
 		WindowSize:      1,
-		ProviderMetrics: []logger.ProviderMetrics{
+		ProviderMetrics: []analytics.ProviderMetrics{
 			{
 				Name:                 "openai",
 				TotalInvocations:     2,
@@ -483,7 +483,7 @@ func TestFormatSPCSummary_IncludesProviderMetrics(t *testing.T) {
 				TotalCostUSD:         3.14,
 			},
 		},
-		ControlLimits: []logger.TrendControlLimit{
+		ControlLimits: []analytics.TrendControlLimit{
 			{Metric: spcMetricRollingSuccessRate, Latest: 0.5, LCL: 0.2, UCL: 0.8},
 		},
 	}
@@ -506,7 +506,7 @@ func TestFormatSPCSummary(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name           string
-		trend          *logger.ProcessTrend
+		trend          *analytics.ProcessTrend
 		wantSubstrings []string
 	}{
 		{
@@ -516,21 +516,21 @@ func TestFormatSPCSummary(t *testing.T) {
 		},
 		{
 			name:           "zero iterations returns no-data",
-			trend:          &logger.ProcessTrend{TotalIterations: 0},
+			trend:          &analytics.ProcessTrend{TotalIterations: 0},
 			wantSubstrings: []string{"SPC: (no data)"},
 		},
 		{
 			name: "basic trend with control limits and no anomalies",
-			trend: &logger.ProcessTrend{
+			trend: &analytics.ProcessTrend{
 				TotalIterations: 50,
 				WindowSize:      30,
-				ControlLimits: []logger.TrendControlLimit{
+				ControlLimits: []analytics.TrendControlLimit{
 					{Metric: spcMetricRollingSuccessRate, Latest: 0.85, Mean: 0.80, StdDev: 0.05, UCL: 0.95, LCL: 0.65},
 					{Metric: spcMetricRollingEscalateRate, Latest: 0.10, Mean: 0.15, StdDev: 0.03, UCL: 0.24, LCL: 0.06},
 					{Metric: spcMetricRollingQualityScore, Latest: 0.90, Mean: 0.85, StdDev: 0.04, UCL: 0.97, LCL: 0.73},
 					{Metric: spcMetricRollingAvgDurationMs, Latest: 45000, Mean: 50000, StdDev: 5000, UCL: 65000, LCL: 35000},
 				},
-				Anomalies: []logger.TrendAnomaly{},
+				Anomalies: []analytics.TrendAnomaly{},
 			},
 			wantSubstrings: []string{
 				"SPC:",
@@ -544,13 +544,13 @@ func TestFormatSPCSummary(t *testing.T) {
 		},
 		{
 			name: "trend with anomalies shows count and first anomaly details",
-			trend: &logger.ProcessTrend{
+			trend: &analytics.ProcessTrend{
 				TotalIterations: 40,
 				WindowSize:      30,
-				ControlLimits: []logger.TrendControlLimit{
+				ControlLimits: []analytics.TrendControlLimit{
 					{Metric: spcMetricRollingSuccessRate, Latest: 0.50, Mean: 0.80, StdDev: 0.05, UCL: 0.95, LCL: 0.65},
 				},
-				Anomalies: []logger.TrendAnomaly{
+				Anomalies: []analytics.TrendAnomaly{
 					{Metric: spcMetricRollingSuccessRate, Latest: 0.50, UCL: 0.95, LCL: 0.65, Severity: "high"},
 					{Metric: spcMetricRollingEscalateRate, Latest: 0.40, UCL: 0.24, LCL: 0.06, Severity: "moderate"},
 				},
@@ -581,16 +581,16 @@ func TestFormatSPCSummary(t *testing.T) {
 
 func TestFormatSPCSummary_IncludesCauseClassificationGuidance(t *testing.T) {
 	t.Parallel()
-	trend := &logger.ProcessTrend{
+	trend := &analytics.ProcessTrend{
 		TotalIterations: 5,
 		WindowSize:      5,
-		ControlLimits: []logger.TrendControlLimit{
+		ControlLimits: []analytics.TrendControlLimit{
 			{Metric: spcMetricRollingSuccessRate, Latest: 0.8, LCL: 0.6, UCL: 1.0},
 		},
-		CauseClassifications: []logger.CauseClassificationRecord{
-			{Metric: spcMetricRollingSuccessRate, Class: logger.CauseClassSpecial},
-			{Metric: spcMetricRollingAvgCostUSD, Stratum: "provider:openai", Class: logger.CauseClassCommon},
-			{Metric: spcMetricRollingAvgDurationMs, Class: logger.CauseClassStable},
+		CauseClassifications: []analytics.CauseClassificationRecord{
+			{Metric: spcMetricRollingSuccessRate, Class: analytics.CauseClassSpecial},
+			{Metric: spcMetricRollingAvgCostUSD, Stratum: "provider:openai", Class: analytics.CauseClassCommon},
+			{Metric: spcMetricRollingAvgDurationMs, Class: analytics.CauseClassStable},
 		},
 	}
 
@@ -613,10 +613,10 @@ func TestFormatSPCSummary_IncludesCauseClassificationGuidance(t *testing.T) {
 func TestFormatSPCSummary_IncludesHighMaintenanceCostSection(t *testing.T) {
 	t.Parallel()
 
-	trend := &logger.ProcessTrend{
+	trend := &analytics.ProcessTrend{
 		TotalIterations: 5,
 		WindowSize:      5,
-		FlaggedPackages: []logger.FlaggedPackage{
+		FlaggedPackages: []analytics.FlaggedPackage{
 			{Package: "internal/auth", Metric: spcMetricRollingAvgDurationMs, Severity: "high", PersistenceWindows: 3},
 		},
 	}
@@ -632,13 +632,13 @@ func TestFormatSPCSummary_IncludesHighMaintenanceCostSection(t *testing.T) {
 
 func TestFormatSPCSummary_IncludesEWMAValues(t *testing.T) {
 	t.Parallel()
-	trend := &logger.ProcessTrend{
+	trend := &analytics.ProcessTrend{
 		TotalIterations: 10,
 		WindowSize:      5,
-		ControlLimits: []logger.TrendControlLimit{
+		ControlLimits: []analytics.TrendControlLimit{
 			{Metric: spcMetricRollingSuccessRate, Latest: 0.5, LCL: 0.2, UCL: 0.8},
 		},
-		EWMAAnomalies: []logger.TrendAnomaly{
+		EWMAAnomalies: []analytics.TrendAnomaly{
 			{
 				Metric: spcMetricEWMASuccessRate,
 				Latest: 0.7,
@@ -671,10 +671,10 @@ func TestFormatSPCSummary_IncludesEWMAValues(t *testing.T) {
 
 func TestFormatSPCSummary_IncludesLeadingIndicatorsAndEconomicMetrics(t *testing.T) {
 	t.Parallel()
-	trend := &logger.ProcessTrend{
+	trend := &analytics.ProcessTrend{
 		TotalIterations: 5,
 		WindowSize:      5,
-		LatestWindow: logger.ProcessTrendWindow{
+		LatestWindow: analytics.ProcessTrendWindow{
 			FirstPassSuccess:  0.75,
 			ReworkRate:        0.22,
 			EscalationRate:    0.05,
@@ -683,7 +683,7 @@ func TestFormatSPCSummary_IncludesLeadingIndicatorsAndEconomicMetrics(t *testing
 			AvgCostPerBeadUSD: 2.34,
 			AvgDurationMs:     62000,
 		},
-		ControlLimits: []logger.TrendControlLimit{
+		ControlLimits: []analytics.TrendControlLimit{
 			{Metric: spcMetricRollingSuccessRate, Latest: 0.85, LCL: 0.6, UCL: 1.0},
 		},
 	}
@@ -708,10 +708,10 @@ func TestFormatSPCSummary_IncludesLeadingIndicatorsAndEconomicMetrics(t *testing
 
 func TestFormatSPCSummary_SortsMetricsDeterministically(t *testing.T) {
 	t.Parallel()
-	trend := &logger.ProcessTrend{
+	trend := &analytics.ProcessTrend{
 		TotalIterations: 4,
 		WindowSize:      3,
-		ControlLimits: []logger.TrendControlLimit{
+		ControlLimits: []analytics.TrendControlLimit{
 			{Metric: spcMetricRollingSuccessRate, Latest: 0.8, UCL: 0.97, LCL: 0.65},
 			{Metric: spcMetricRollingAvgDurationMs, Latest: 45000, UCL: 65000, LCL: 35000},
 			{Metric: spcMetricRollingQualityScore, Latest: 0.9, UCL: 1.0, LCL: 0.7},
@@ -752,10 +752,10 @@ func TestFormatSPCSummary_SortsMetricsDeterministically(t *testing.T) {
 
 func TestFormatSPCSummary_DisplaysUCLAndLCLInControlLimits(t *testing.T) {
 	t.Parallel()
-	trend := &logger.ProcessTrend{
+	trend := &analytics.ProcessTrend{
 		TotalIterations: 20,
 		WindowSize:      15,
-		ControlLimits: []logger.TrendControlLimit{
+		ControlLimits: []analytics.TrendControlLimit{
 			{
 				Metric: spcMetricRollingSuccessRate,
 				Latest: 0.82,
@@ -791,13 +791,13 @@ func TestFormatSPCSummary_DisplaysUCLAndLCLInControlLimits(t *testing.T) {
 
 func TestFormatSPCSummary_IncludesNelsonRuleViolations(t *testing.T) {
 	t.Parallel()
-	trend := &logger.ProcessTrend{
+	trend := &analytics.ProcessTrend{
 		TotalIterations: 12,
 		WindowSize:      10,
-		ControlLimits: []logger.TrendControlLimit{
+		ControlLimits: []analytics.TrendControlLimit{
 			{Metric: spcMetricRollingSuccessRate, Latest: 0.8, LCL: 0.5, UCL: 0.95},
 		},
-		PatternViolations: []logger.PatternViolation{
+		PatternViolations: []analytics.PatternViolation{
 			{
 				Metric:    "rolling_success_rate",
 				Rule:      "nelson_rule_2",
@@ -823,14 +823,14 @@ func TestFormatSPCSummary_IncludesNelsonRuleViolations(t *testing.T) {
 
 func TestFormatSPCSummary_DisplaysMultipleNelsonRuleViolations(t *testing.T) {
 	t.Parallel()
-	trend := &logger.ProcessTrend{
+	trend := &analytics.ProcessTrend{
 		TotalIterations: 15,
 		WindowSize:      10,
-		ControlLimits: []logger.TrendControlLimit{
+		ControlLimits: []analytics.TrendControlLimit{
 			{Metric: spcMetricRollingSuccessRate, Latest: 0.7, LCL: 0.5, UCL: 0.95},
 			{Metric: spcMetricRollingEscalateRate, Latest: 0.2, LCL: 0.05, UCL: 0.3},
 		},
-		PatternViolations: []logger.PatternViolation{
+		PatternViolations: []analytics.PatternViolation{
 			{
 				Metric:    "rolling_success_rate",
 				Rule:      "nelson_rule_2",
@@ -866,13 +866,13 @@ func TestFormatSPCSummary_DisplaysMultipleNelsonRuleViolations(t *testing.T) {
 
 func TestFormatSPCSummary_OmitsNelsonSectionWhenNoViolations(t *testing.T) {
 	t.Parallel()
-	trend := &logger.ProcessTrend{
+	trend := &analytics.ProcessTrend{
 		TotalIterations: 10,
 		WindowSize:      10,
-		ControlLimits: []logger.TrendControlLimit{
+		ControlLimits: []analytics.TrendControlLimit{
 			{Metric: spcMetricRollingSuccessRate, Latest: 0.85, LCL: 0.65, UCL: 0.95},
 		},
-		PatternViolations: []logger.PatternViolation{},
+		PatternViolations: []analytics.PatternViolation{},
 	}
 
 	got := FormatSPCSummary(trend)
@@ -950,28 +950,28 @@ func TestFormatSPCLine(t *testing.T) {
 	tests := []struct {
 		name       string
 		label      string
-		cl         logger.TrendControlLimit
+		cl         analytics.TrendControlLimit
 		isDuration bool
 		want       string
 	}{
 		{
 			name:       "percentage metric shows percent values and limits",
 			label:      "Success:",
-			cl:         logger.TrendControlLimit{Latest: 0.85, LCL: 0.65, UCL: 0.95},
+			cl:         analytics.TrendControlLimit{Latest: 0.85, LCL: 0.65, UCL: 0.95},
 			isDuration: false,
 			want:       "  Success:   85%, limits 65%..95%",
 		},
 		{
 			name:       "duration metric uses human-friendly format",
 			label:      "Duration:",
-			cl:         logger.TrendControlLimit{Latest: 45000, LCL: 30000, UCL: 55000},
+			cl:         analytics.TrendControlLimit{Latest: 45000, LCL: 30000, UCL: 55000},
 			isDuration: true,
 			want:       "  Duration:  45s, limits 30s..55s",
 		},
 		{
 			name:       "duration metric with minute-scale values",
 			label:      "Duration:",
-			cl:         logger.TrendControlLimit{Latest: 120000, LCL: 60000, UCL: 180000},
+			cl:         analytics.TrendControlLimit{Latest: 120000, LCL: 60000, UCL: 180000},
 			isDuration: true,
 			want:       "  Duration:  2m, limits 1m..3m",
 		},

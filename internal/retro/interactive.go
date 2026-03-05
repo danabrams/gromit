@@ -2,12 +2,11 @@ package retro
 
 import (
 	"fmt"
+	"github.com/danabrams/gromit/internal/analytics"
 	"io"
 	"os"
 	"os/exec"
 	"strings"
-
-	"github.com/danabrams/gromit/internal/logger"
 )
 
 const fileRefMessageFormat = "Read and follow instructions in %s"
@@ -51,13 +50,13 @@ var runInteractiveClaude = func(promptText, dir string, stdin io.Reader, stdout,
 // - Run bd commands
 // - Create specs
 // - Select and persist experiments
-func LaunchClaudeCode(analysis string, efficiency *logger.EfficiencyReport, experiment *Experiment, dir string) error {
+func LaunchClaudeCode(analysis string, efficiency *analytics.EfficiencyReport, experiment *Experiment, dir string) error {
 	promptText := BuildClaudeCodePrompt(analysis, efficiency, experiment)
 	return runInteractiveClaude(promptText, dir, os.Stdin, os.Stdout, os.Stderr)
 }
 
 // BuildClaudeCodePrompt builds the prompt for the interactive retro review session.
-func BuildClaudeCodePrompt(analysis string, efficiency *logger.EfficiencyReport, experiment *Experiment) string {
+func BuildClaudeCodePrompt(analysis string, efficiency *analytics.EfficiencyReport, experiment *Experiment) string {
 	// Build the prompt with analysis and instructions
 	var prompt strings.Builder
 

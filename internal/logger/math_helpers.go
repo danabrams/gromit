@@ -5,7 +5,8 @@ import (
 	"sort"
 )
 
-func percentileInt64(values []int64, percentile int) float64 {
+// PercentileInt64 computes the given percentile from a slice of int64 values.
+func PercentileInt64(values []int64, percentile int) float64 {
 	if len(values) == 0 {
 		return 0
 	}
@@ -30,7 +31,8 @@ func percentileInt64(values []int64, percentile int) float64 {
 	return float64(sorted[low])*(1-weight) + float64(sorted[high])*weight
 }
 
-func percentileFloat64(values []float64, percentile int) float64 {
+// PercentileFloat64 computes the given percentile from a slice of float64 values.
+func PercentileFloat64(values []float64, percentile int) float64 {
 	if len(values) == 0 {
 		return 0
 	}
@@ -55,7 +57,8 @@ func percentileFloat64(values []float64, percentile int) float64 {
 	return sorted[low]*(1-weight) + sorted[high]*weight
 }
 
-func meanAndStdDev(values []float64) (float64, float64) {
+// MeanAndStdDev computes the mean and population standard deviation.
+func MeanAndStdDev(values []float64) (float64, float64) {
 	if len(values) == 0 {
 		return 0, 0
 	}
@@ -77,7 +80,8 @@ func meanAndStdDev(values []float64) (float64, float64) {
 	return mean, math.Sqrt(variance)
 }
 
-func meanFloat64(values []float64) float64 {
+// MeanFloat64 computes the arithmetic mean.
+func MeanFloat64(values []float64) float64 {
 	if len(values) == 0 {
 		return 0
 	}

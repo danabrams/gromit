@@ -634,7 +634,7 @@ func TestStatusWriter_UsesFixedTimeBudgetFromDeadline(t *testing.T) {
 // trend data from the logs directory and includes an SPC section in the output.
 // Even with no log data, the output should contain "SPC:" with a "(no data)"
 // indicator. The current implementation only outputs Run, Pipeline, and Health
-// sections — this test drives adding logger.ReadProcessTrend integration.
+// sections — this test drives adding analytics.ReadProcessTrend integration.
 func TestPrintStatus_IncludesSPCSection(t *testing.T) {
 	t.Parallel()
 	tmpDir := t.TempDir()
@@ -919,7 +919,7 @@ func TestPrintStatus_NoStatusFile_ShowsStructuredOutput(t *testing.T) {
 // TestPrintStatus_IncludesModelPerformanceSection verifies that PrintStatus
 // reads model stats from iteration logs and includes a "Model Performance:"
 // section in the output. The current implementation only outputs Run, Pipeline,
-// Health, and SPC sections — this test drives adding logger.ReadModelStats
+// Health, and SPC sections — this test drives adding analytics.ReadModelStats
 // integration so the output includes per-model success rates and costs.
 func TestPrintStatus_IncludesModelPerformanceSection(t *testing.T) {
 	t.Parallel()

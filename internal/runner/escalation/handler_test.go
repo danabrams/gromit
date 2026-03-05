@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/danabrams/gromit/internal/analytics"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,7 +18,6 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/failurephase"
 	"github.com/danabrams/gromit/internal/learnings"
-	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/prompt"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
@@ -580,8 +580,8 @@ func writeModelBuildFailureLimit(t *testing.T, gromitDir, model string, latest, 
 	if err := os.MkdirAll(metricsDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
-	trend := logger.ProcessTrend{
-		StratifiedControlLimits: map[string][]logger.TrendControlLimit{
+	trend := analytics.ProcessTrend{
+		StratifiedControlLimits: map[string][]analytics.TrendControlLimit{
 			"model:" + model: {
 				{Metric: "rolling_build_failure_rate", Latest: latest, LCL: lcl, UCL: ucl},
 			},

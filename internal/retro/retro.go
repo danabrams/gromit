@@ -3,6 +3,7 @@ package retro
 import (
 	"context"
 	"fmt"
+	"github.com/danabrams/gromit/internal/analytics"
 	"io"
 	"os"
 	"path/filepath"
@@ -57,8 +58,8 @@ type TemplateContext struct {
 	Learnings           string
 	RunStats            logger.RunStats
 	BeadStats           map[string]logger.BeadStats
-	Efficiency          *logger.EfficiencyReport
-	ProcessTrend        *logger.ProcessTrend
+	Efficiency          *analytics.EfficiencyReport
+	ProcessTrend        *analytics.ProcessTrend
 	MaintenanceWarnings []string
 	Experiment          *Experiment
 	ExperimentMetrics   *ExperimentMetrics
@@ -78,7 +79,7 @@ type Result struct {
 	Analysis      string
 	ProposedRules string
 	Success       bool
-	Efficiency    *logger.EfficiencyReport
+	Efficiency    *analytics.EfficiencyReport
 	Workmanship   []WorkmanshipProposal
 	Experiment    *Experiment
 }
@@ -231,11 +232,11 @@ func (r *Retro) Run(ctx context.Context, beadFilter map[string]bool) (*Result, e
 	allBeadStats, _ := logger.ReadPerBeadStatsFiltered(logsDir, beadFilter)
 
 	// Load efficiency report with the latest run as "current"
-	currentRunID := logger.LatestRunID(logsDir)
+	currentRunID := analytics.LatestRunID(logsDir)
 	if currentRunID == "" {
 		fmt.Fprintf(os.Stderr, "Warning: no run-*.jsonl files found in %s; current-run efficiency data will be empty\n", logsDir)
 	}
-	efficiencyReport, _ := logger.ReadEfficiencyReportFiltered(logsDir, currentRunID, beadFilter)
+	efficiencyReport, _ := analytics.ReadEfficiencyReportFiltered(logsDir, currentRunID, beadFilter)
 
 	// Load active experiment (if any)
 	experiment, _ := LoadExperiment(r.experimentPath)
@@ -458,7 +459,7 @@ func (r *Retro) formatLearnings() string {
 }
 
 // renderPrompt renders the retro prompt template
-func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, beadStats map[string]logger.BeadStats, efficiency *logger.EfficiencyReport, experiment *Experiment, frictionClusters []FrictionCluster, frictionResolutions []FrictionResolution) (string, error) {
+func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, beadStats map[string]logger.BeadStats, efficiency *analytics.EfficiencyReport, experiment *Experiment, frictionClusters []FrictionCluster, frictionResolutions []FrictionResolution) (string, error) {
 	tmplContent, err := os.ReadFile(r.templatePath)
 	if err != nil {
 		return "", fmt.Errorf("reading template: %w", err)
@@ -498,7 +499,7 @@ func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, 
 		"durationMs": func(d time.Duration) float64 {
 			return float64(d.Milliseconds())
 		},
-		"avgInputTokens": func(entries []logger.IterationEfficiency) float64 {
+		"avgInputTokens": func(entries []analytics.IterationEfficiency) float64 {
 			if len(entries) == 0 {
 				return 0
 			}
@@ -508,7 +509,7 @@ func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, 
 			}
 			return float64(total) / float64(len(entries))
 		},
-		"avgOutputTokens": func(entries []logger.IterationEfficiency) float64 {
+		"avgOutputTokens": func(entries []analytics.IterationEfficiency) float64 {
 			if len(entries) == 0 {
 				return 0
 			}
@@ -547,7 +548,7 @@ func (r *Retro) renderPrompt(rules, learnings string, runStats logger.RunStats, 
 	return sb.String(), nil
 }
 
-func buildMaintenanceWarnings(trend *logger.ProcessTrend) []string {
+func buildMaintenanceWarnings(trend *analytics.ProcessTrend) []string {
 	if trend == nil || len(trend.FlaggedPackages) == 0 {
 		return nil
 	}
@@ -559,7 +560,7 @@ func buildMaintenanceWarnings(trend *logger.ProcessTrend) []string {
 	return warnings
 }
 
-func formatMaintenanceWarning(pkg logger.FlaggedPackage) string {
+func formatMaintenanceWarning(pkg analytics.FlaggedPackage) string {
 	metric := pkg.Metric
 	if metric == "" {
 		metric = "validation duration"
@@ -578,12 +579,12 @@ func formatMaintenanceWarning(pkg logger.FlaggedPackage) string {
 	return fmt.Sprintf("%s — %s", pkg.Package, strings.Join(details, ", "))
 }
 
-func (r *Retro) loadProcessTrend() *logger.ProcessTrend {
+func (r *Retro) loadProcessTrend() *analytics.ProcessTrend {
 	if r == nil || r.gromitDir == "" {
 		return nil
 	}
 	path := filepath.Join(r.gromitDir, "metrics", "process_trend.json")
-	trend, err := logger.ReadProcessTrend(path)
+	trend, err := analytics.ReadProcessTrend(path)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to load process trend: %v\n", err)
 		return nil

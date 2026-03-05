@@ -2,13 +2,12 @@ package retro
 
 import (
 	"fmt"
+	"github.com/danabrams/gromit/internal/analytics"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/danabrams/gromit/internal/logger"
 )
 
 func TestLaunchClaudeCode_PassesDirAndPromptToRunner(t *testing.T) {
@@ -88,7 +87,7 @@ esac
 }
 
 func TestBuildClaudeCodePrompt_IncludesEfficiencyAndExperimentSections(t *testing.T) {
-	efficiency := &logger.EfficiencyReport{
+	efficiency := &analytics.EfficiencyReport{
 		CurrentAvgCostPerBead:    1.5,
 		HistoricalAvgCostPerBead: 2.0,
 		CostDelta:                -0.5,
@@ -116,7 +115,7 @@ func TestBuildClaudeCodePrompt_IncludesEfficiencyAndExperimentSections(t *testin
 }
 
 func TestBuildClaudeCodePrompt_SkipsCostDeltaPercentWhenHistoricalCostIsZero(t *testing.T) {
-	efficiency := &logger.EfficiencyReport{
+	efficiency := &analytics.EfficiencyReport{
 		CurrentAvgCostPerBead:    1.5,
 		HistoricalAvgCostPerBead: 0,
 		CostDelta:                0.5,

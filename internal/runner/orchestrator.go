@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/danabrams/gromit/internal/analytics"
 	"io"
 	"os"
 	"os/exec"
@@ -1203,7 +1204,7 @@ runLoop:
 			Success:                  true,
 			Validated:                true,
 			FirstPassSuccess:         !validationRetried && !escalated,
-			QualityScore:             logger.ComputeQualityScore(0, 0, validationRetried, trivialAutoFixed, escalated, 0),
+			QualityScore:             analytics.ComputeQualityScore(0, 0, validationRetried, trivialAutoFixed, escalated, 0),
 			TrivialAutoFixed:         trivialAutoFixed,
 			Complexity:               baseIn.Complexity,
 			ComplexitySource:         baseIn.ComplexitySource,

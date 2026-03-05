@@ -43,7 +43,7 @@ func ReadRecurringReviewFixCategories(logsDir, currentBeadID, specID string, min
 
 	specByBead := make(map[string]string)
 	for _, f := range files {
-		entries, err := readLogFile(f)
+		entries, err := ReadLogFile(f)
 		if err != nil {
 			continue
 		}

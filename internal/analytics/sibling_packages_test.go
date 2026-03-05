@@ -1,7 +1,8 @@
-package logger
+package analytics
 
 import (
 	"encoding/json"
+	"github.com/danabrams/gromit/internal/logger"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -10,13 +11,13 @@ import (
 
 func TestReadSiblingTouchedPackages_UnionBySpecOrParentCompletedOnly(t *testing.T) {
 	dir := t.TempDir()
-	writeIterationFixture(t, dir, "run-20260219-100000.jsonl", []IterationLog{
+	writeIterationFixture(t, dir, "run-20260219-100000.jsonl", []logger.IterationLog{
 		{BeadID: "self", Success: true, SpecID: "spec-A", TouchedPackages: []string{"internal/self"}},
 		{BeadID: "sibling-spec-1", Success: true, SpecID: "spec-A", TouchedPackages: []string{"internal/speca", "internal/shared"}},
 		{BeadID: "sibling-spec-2", Success: false, SpecID: "spec-A", TouchedPackages: []string{"internal/failed"}},
 		{BeadID: "other-spec", Success: true, SpecID: "spec-B", TouchedPackages: []string{"internal/other"}},
 	})
-	writeIterationFixture(t, dir, "run-20260219-110000.jsonl", []IterationLog{
+	writeIterationFixture(t, dir, "run-20260219-110000.jsonl", []logger.IterationLog{
 		{BeadID: "sibling-parent-1", Success: true, SpecID: "spec-Z", TouchedPackages: []string{"internal/parent", "internal/shared"}},
 		{BeadID: "sibling-parent-2", Success: false, SpecID: "spec-Z", TouchedPackages: []string{"internal/parent-failed"}},
 		{BeadID: "unrelated", Success: true, SpecID: "spec-Z", TouchedPackages: []string{"internal/unrelated"}},
@@ -35,7 +36,7 @@ func TestReadSiblingTouchedPackages_UnionBySpecOrParentCompletedOnly(t *testing.
 
 func TestReadSiblingTouchedPackagesBySpec_IncludesOnlyCompletedMatchingSpec(t *testing.T) {
 	dir := t.TempDir()
-	writeIterationFixture(t, dir, "run-20260219-120000.jsonl", []IterationLog{
+	writeIterationFixture(t, dir, "run-20260219-120000.jsonl", []logger.IterationLog{
 		{BeadID: "self", Success: true, SpecID: "spec-A", TouchedPackages: []string{"internal/self"}},
 		{BeadID: "b1", Success: true, SpecID: "spec-A", TouchedPackages: []string{"internal/a", "internal/b"}},
 		{BeadID: "b2", Success: false, SpecID: "spec-A", TouchedPackages: []string{"internal/fail"}},
@@ -55,7 +56,7 @@ func TestReadSiblingTouchedPackagesBySpec_IncludesOnlyCompletedMatchingSpec(t *t
 
 func TestReadSiblingTouchedPackagesByParent_IncludesOnlyCompletedProvidedSiblings(t *testing.T) {
 	dir := t.TempDir()
-	writeIterationFixture(t, dir, "run-20260219-130000.jsonl", []IterationLog{
+	writeIterationFixture(t, dir, "run-20260219-130000.jsonl", []logger.IterationLog{
 		{BeadID: "self", Success: true, SpecID: "spec-A", TouchedPackages: []string{"internal/self"}},
 		{BeadID: "sib-1", Success: true, SpecID: "spec-X", TouchedPackages: []string{"internal/one"}},
 		{BeadID: "sib-2", Success: false, SpecID: "spec-X", TouchedPackages: []string{"internal/two"}},
@@ -75,7 +76,7 @@ func TestReadSiblingTouchedPackagesByParent_IncludesOnlyCompletedProvidedSibling
 
 func TestReadSiblingTouchedPackages_NoContextReturnsEmptySlice(t *testing.T) {
 	dir := t.TempDir()
-	writeIterationFixture(t, dir, "run-20260219-140000.jsonl", []IterationLog{
+	writeIterationFixture(t, dir, "run-20260219-140000.jsonl", []logger.IterationLog{
 		{BeadID: "b1", Success: true, SpecID: "spec-A", TouchedPackages: []string{"internal/a"}},
 	})
 
@@ -91,7 +92,7 @@ func TestReadSiblingTouchedPackages_NoContextReturnsEmptySlice(t *testing.T) {
 	}
 }
 
-func writeIterationFixture(t *testing.T, dir, fileName string, entries []IterationLog) {
+func writeIterationFixture(t *testing.T, dir, fileName string, entries []logger.IterationLog) {
 	t.Helper()
 
 	path := filepath.Join(dir, fileName)

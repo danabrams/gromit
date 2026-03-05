@@ -2,10 +2,10 @@ package escalation
 
 import (
 	"fmt"
+	"github.com/danabrams/gromit/internal/analytics"
 	"path/filepath"
 	"strings"
 
-	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/runner/runtypes"
 )
 
@@ -24,26 +24,26 @@ func (h *Handler) shouldEscalateAsSpecialCause(bc *runtypes.BeadContext) bool {
 	return limit.Latest > limit.UCL || limit.Latest < limit.LCL
 }
 
-func (h *Handler) readModelBuildFailureControlLimit(model string) (logger.TrendControlLimit, bool) {
+func (h *Handler) readModelBuildFailureControlLimit(model string) (analytics.TrendControlLimit, bool) {
 	if h == nil || h.cfg == nil {
-		return logger.TrendControlLimit{}, false
+		return analytics.TrendControlLimit{}, false
 	}
 	trendPath := filepath.Join(h.cfg.Paths.GromitDir, processTrendMetricsDir, processTrendFileName)
-	trend, err := logger.ReadProcessTrend(trendPath)
+	trend, err := analytics.ReadProcessTrend(trendPath)
 	if err != nil || trend == nil {
-		return logger.TrendControlLimit{}, false
+		return analytics.TrendControlLimit{}, false
 	}
 	modelKey := modelStratumPrefix + strings.ToLower(strings.TrimSpace(model))
 	limits, ok := trend.StratifiedControlLimits[modelKey]
 	if !ok {
-		return logger.TrendControlLimit{}, false
+		return analytics.TrendControlLimit{}, false
 	}
 	for _, limit := range limits {
 		if limit.Metric == metricBuildFailureRate {
 			return limit, true
 		}
 	}
-	return logger.TrendControlLimit{}, false
+	return analytics.TrendControlLimit{}, false
 }
 
 func (h *Handler) incrementRetryCounters(bc *runtypes.BeadContext) bool {

@@ -3,6 +3,7 @@ package retro
 import (
 	"context"
 	"encoding/json"
+	"github.com/danabrams/gromit/internal/analytics"
 	"os"
 	"path/filepath"
 	"strings"
@@ -183,9 +184,9 @@ func TestLaunchClaudeCodeWithAnalysis(t *testing.T) {
 	// the command execution. For now, we just verify the function exists and
 	// accepts the correct parameters.
 
-	// The function signature is: LaunchClaudeCode(analysis string, efficiency *logger.EfficiencyReport, experiment *Experiment, dir string) error
+	// The function signature is: LaunchClaudeCode(analysis string, efficiency *analytics.EfficiencyReport, experiment *Experiment, dir string) error
 	// This is a compile-time check that the function exists with the right signature.
-	var _ func(string, *logger.EfficiencyReport, *Experiment, string) error = LaunchClaudeCode
+	var _ func(string, *analytics.EfficiencyReport, *Experiment, string) error = LaunchClaudeCode
 
 	// Test that the function accepts a non-empty analysis
 	analysis = "Test analysis results"
@@ -290,8 +291,8 @@ func TestRenderPromptWithPopulatedExperiment(t *testing.T) {
 				Comments:    []string{"Comment 1", "Comment 2"},
 			},
 		},
-		Efficiency: &logger.EfficiencyReport{
-			CurrentModels: map[string]logger.ModelEfficiency{
+		Efficiency: &analytics.EfficiencyReport{
+			CurrentModels: map[string]analytics.ModelEfficiency{
 				"sonnet": {
 					Model:           "sonnet",
 					IterationCount:  5,
@@ -378,8 +379,8 @@ Cost: ${{ printf "%.2f" .ExperimentMetrics.CurrentAvgCostPerBead }}
 	}
 
 	r := &Retro{templatePath: templatePath}
-	efficiency := &logger.EfficiencyReport{
-		CurrentProviderFamilies: map[string]logger.ModelEfficiency{
+	efficiency := &analytics.EfficiencyReport{
+		CurrentProviderFamilies: map[string]analytics.ModelEfficiency{
 			"codex": {
 				Model:          "codex",
 				AvgCostUSD:     0.55,
@@ -435,7 +436,7 @@ func TestRenderPromptWithoutExperiment(t *testing.T) {
 	r.templatePath = templatePath
 
 	// Call renderPrompt with nil Experiment
-	prompt, err := r.renderPrompt("", "", logger.RunStats{Total: 5}, nil, &logger.EfficiencyReport{
+	prompt, err := r.renderPrompt("", "", logger.RunStats{Total: 5}, nil, &analytics.EfficiencyReport{
 		CurrentAvgCostPerBead: 0.35,
 	}, nil, nil, nil)
 
@@ -518,8 +519,8 @@ func TestRenderPromptTemplateExpressionsWithFloatTypes(t *testing.T) {
 		},
 	}
 
-	efficiency := &logger.EfficiencyReport{
-		CurrentModels: map[string]logger.ModelEfficiency{
+	efficiency := &analytics.EfficiencyReport{
+		CurrentModels: map[string]analytics.ModelEfficiency{
 			"sonnet": {
 				Model:           "sonnet",
 				IterationCount:  5,
@@ -894,7 +895,7 @@ func TestRunWithBeadFilter_FilterAppliedToEfficiencyReport(t *testing.T) {
 	}
 
 	// Test ReadEfficiencyReportFiltered with the filter
-	report, err := logger.ReadEfficiencyReportFiltered(logsDir, runID, beadFilter)
+	report, err := analytics.ReadEfficiencyReportFiltered(logsDir, runID, beadFilter)
 	if err != nil {
 		t.Fatalf("ReadEfficiencyReportFiltered failed: %v", err)
 	}
@@ -983,7 +984,7 @@ func TestRunWithBeadFilter_FilterWithNonexistentBead(t *testing.T) {
 	}
 
 	// Test ReadEfficiencyReportFiltered - should return empty report
-	report, err := logger.ReadEfficiencyReportFiltered(logsDir, runID, beadFilter)
+	report, err := analytics.ReadEfficiencyReportFiltered(logsDir, runID, beadFilter)
 	if err != nil {
 		t.Fatalf("ReadEfficiencyReportFiltered failed: %v", err)
 	}
@@ -1284,15 +1285,15 @@ func TestRenderPromptWithProviderFamiliesInRealTemplate(t *testing.T) {
 	}
 	r.templatePath = templatePath
 
-	efficiency := &logger.EfficiencyReport{
-		CurrentIterations: []logger.IterationEfficiency{
+	efficiency := &analytics.EfficiencyReport{
+		CurrentIterations: []analytics.IterationEfficiency{
 			{BeadID: "gromit-1", Model: "codex"},
 		},
-		CurrentProviderFamilies: map[string]logger.ModelEfficiency{
+		CurrentProviderFamilies: map[string]analytics.ModelEfficiency{
 			"claude": {Model: "claude", IterationCount: 2},
 			"codex":  {Model: "codex", IterationCount: 1},
 		},
-		HistoricalModels: map[string]logger.ModelEfficiency{
+		HistoricalModels: map[string]analytics.ModelEfficiency{
 			"opus": {Model: "opus", IterationCount: 1},
 		},
 		MixedProviderFamilies: true,
@@ -1333,16 +1334,16 @@ func TestRenderPromptWithProviderFamiliesIncludesMixedAggregateRow(t *testing.T)
 	}
 	r.templatePath = templatePath
 
-	efficiency := &logger.EfficiencyReport{
-		CurrentIterations: []logger.IterationEfficiency{
+	efficiency := &analytics.EfficiencyReport{
+		CurrentIterations: []analytics.IterationEfficiency{
 			{BeadID: "gromit-1", Model: "gpt-5.1-codex-mini"},
 			{BeadID: "gromit-2", Model: "sonnet"},
 		},
-		CurrentProviderFamilies: map[string]logger.ModelEfficiency{
+		CurrentProviderFamilies: map[string]analytics.ModelEfficiency{
 			providerFamilyClaude: {Model: providerFamilyClaude, IterationCount: 2},
 			providerFamilyCodex:  {Model: providerFamilyCodex, IterationCount: 1},
 		},
-		HistoricalModels: map[string]logger.ModelEfficiency{
+		HistoricalModels: map[string]analytics.ModelEfficiency{
 			"opus": {Model: "opus", IterationCount: 1},
 		},
 		MixedProviderFamilies: true,
@@ -1380,15 +1381,15 @@ func TestRenderPromptWithProviderFamiliesEmitsMixedProviderAggregateLabel(t *tes
 	}
 	r.templatePath = templatePath
 
-	efficiency := &logger.EfficiencyReport{
-		CurrentIterations: []logger.IterationEfficiency{
+	efficiency := &analytics.EfficiencyReport{
+		CurrentIterations: []analytics.IterationEfficiency{
 			{BeadID: "gromit-1", Model: "codex"},
 		},
-		CurrentProviderFamilies: map[string]logger.ModelEfficiency{
+		CurrentProviderFamilies: map[string]analytics.ModelEfficiency{
 			"claude": {Model: "claude", IterationCount: 2},
 			"codex":  {Model: "codex", IterationCount: 1},
 		},
-		HistoricalModels: map[string]logger.ModelEfficiency{
+		HistoricalModels: map[string]analytics.ModelEfficiency{
 			"opus": {Model: "opus", IterationCount: 1},
 		},
 		MixedProviderFamilies: true,
@@ -1422,8 +1423,8 @@ func TestRenderPromptEmitsMixedProviderFamilyLabel(t *testing.T) {
 	r.templatePath = templatePath
 
 	experiment := &Experiment{Name: "Mixed family experiment"}
-	efficiency := &logger.EfficiencyReport{
-		CurrentProviderFamilies: map[string]logger.ModelEfficiency{
+	efficiency := &analytics.EfficiencyReport{
+		CurrentProviderFamilies: map[string]analytics.ModelEfficiency{
 			providerFamilyClaude: {Model: providerFamilyClaude, IterationCount: 2},
 			providerFamilyCodex:  {Model: providerFamilyCodex, IterationCount: 1},
 		},
@@ -1462,11 +1463,11 @@ func TestRenderPromptWithProcessTrendFailureBreakdownInRealTemplate(t *testing.T
 		t.Fatalf("failed to create metrics dir: %v", err)
 	}
 
-	trend := logger.ProcessTrend{
+	trend := analytics.ProcessTrend{
 		GeneratedAt:     time.Date(2026, time.February, 18, 12, 0, 0, 0, time.UTC),
 		TotalIterations: 12,
 		WindowSize:      5,
-		LatestWindow: logger.ProcessTrendWindow{
+		LatestWindow: analytics.ProcessTrendWindow{
 			SuccessRate:           0.4,
 			FailureRate:           0.6,
 			FirstPassSuccess:      0.3,
@@ -1480,7 +1481,7 @@ func TestRenderPromptWithProcessTrendFailureBreakdownInRealTemplate(t *testing.T
 			ValidationFailureRate: 0.3,
 			TimeoutFailureRate:    0.4,
 		},
-		PatternViolations: []logger.PatternViolation{
+		PatternViolations: []analytics.PatternViolation{
 			{
 				Metric:    "rolling_success_rate",
 				Rule:      "nelson_rule_2",
@@ -1489,14 +1490,14 @@ func TestRenderPromptWithProcessTrendFailureBreakdownInRealTemplate(t *testing.T
 				Message:   "latest 9 points are below center line 0.9550 (Nelson Rule 2)",
 			},
 		},
-		EWMAAnomalies: []logger.TrendAnomaly{
+		EWMAAnomalies: []analytics.TrendAnomaly{
 			{
 				Metric:   "ewma_cost_usd",
 				Severity: "moderate",
 				Message:  "latest value 1.2300 is above control limits [0.4000, 1.1000]",
 			},
 		},
-		StratifiedAnomalies: map[string][]logger.TrendAnomaly{
+		StratifiedAnomalies: map[string][]analytics.TrendAnomaly{
 			"provider:claude": {
 				{
 					Metric:   "rolling_success_rate",
@@ -1568,16 +1569,16 @@ func TestRenderPromptIncludesCauseClassificationSection(t *testing.T) {
 		t.Fatalf("failed to create metrics dir: %v", err)
 	}
 
-	trend := logger.ProcessTrend{
+	trend := analytics.ProcessTrend{
 		GeneratedAt:     time.Date(2026, time.February, 18, 12, 0, 0, 0, time.UTC),
 		TotalIterations: 5,
 		WindowSize:      5,
-		CauseClassifications: []logger.CauseClassificationRecord{
+		CauseClassifications: []analytics.CauseClassificationRecord{
 			{
 				Metric: "rolling_avg_cost_usd",
-				Class:  logger.CauseClassSpecial,
+				Class:  analytics.CauseClassSpecial,
 				Latest: 1.2345,
-				Limit: &logger.TrendControlLimit{
+				Limit: &analytics.TrendControlLimit{
 					Metric: "rolling_avg_cost_usd",
 					LCL:    0.5,
 					UCL:    2.0,
@@ -1590,7 +1591,7 @@ func TestRenderPromptIncludesCauseClassificationSection(t *testing.T) {
 			{
 				Metric:             "rolling_avg_input_tokens",
 				Stratum:            "provider:claude",
-				Class:              logger.CauseClassCommon,
+				Class:              analytics.CauseClassCommon,
 				Latest:             1200,
 				Drift:              35,
 				PersistenceWindows: 3,
@@ -1654,14 +1655,14 @@ func TestRenderPromptIncludesSpecMaintenanceWarning(t *testing.T) {
 		t.Fatalf("failed to create metrics dir: %v", err)
 	}
 
-	trend := logger.ProcessTrend{
+	trend := analytics.ProcessTrend{
 		GeneratedAt:     time.Now(),
 		TotalIterations: 1,
 		WindowSize:      1,
-		CauseClassifications: []logger.CauseClassificationRecord{
+		CauseClassifications: []analytics.CauseClassificationRecord{
 			{
 				Metric:             "rolling_avg_validation_ms",
-				Class:              logger.CauseClassSpecial,
+				Class:              analytics.CauseClassSpecial,
 				Stratum:            "spec:auth",
 				Latest:             1500,
 				PersistenceWindows: 2,
@@ -1717,11 +1718,11 @@ func TestRenderPromptIncludesHighMaintenanceCostSection(t *testing.T) {
 		t.Fatalf("failed to create metrics dir: %v", err)
 	}
 
-	trend := logger.ProcessTrend{
+	trend := analytics.ProcessTrend{
 		GeneratedAt:     time.Now(),
 		TotalIterations: 1,
 		WindowSize:      1,
-		FlaggedPackages: []logger.FlaggedPackage{
+		FlaggedPackages: []analytics.FlaggedPackage{
 			{Package: "internal/auth", Metric: "rolling_avg_duration_ms", Severity: "high", PersistenceWindows: 3},
 		},
 	}
@@ -1797,7 +1798,7 @@ func TestRenderPrompt_BuildsPromptDiagnostics(t *testing.T) {
 			BeadTitle: "Test Bead",
 		},
 	}
-	efficiency := &logger.EfficiencyReport{
+	efficiency := &analytics.EfficiencyReport{
 		CurrentAvgCostPerBead: 0.2,
 	}
 	runStats := logger.RunStats{Total: 1}

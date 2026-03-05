@@ -1,10 +1,10 @@
 package runner
 
 import (
+	"github.com/danabrams/gromit/internal/analytics"
 	"reflect"
 	"testing"
 
-	"github.com/danabrams/gromit/internal/logger"
 	"github.com/danabrams/gromit/internal/pipeline"
 	"github.com/danabrams/gromit/internal/runner/display"
 )
@@ -82,7 +82,7 @@ func TestFormatPipelineWrapper_DelegatesToDisplay(t *testing.T) {
 func TestFormatSPCSummaryWrapper_DelegatesToDisplay(t *testing.T) {
 	t.Parallel()
 
-	trend := (*logger.ProcessTrend)(nil)
+	trend := (*analytics.ProcessTrend)(nil)
 	got := formatSPCSummary(trend)
 	want := display.FormatSPCSummary(trend)
 	if got != want {
