@@ -66,3 +66,41 @@ func (m *errorMockGitOps) Push(ctx context.Context) error {
 func (m *errorMockGitOps) Cleanup(ctx context.Context, entry Entry) error {
 	return m.cleanupErr
 }
+
+// NewCallTrackingMockGitOps creates a mock GitOps that tracks method calls and returns specified errors.
+func NewCallTrackingMockGitOps(fetchErr, mergeErr, pushErr, cleanupErr error) GitOps {
+	return &callTrackingMockGitOps{
+		fetchErr:   fetchErr,
+		mergeErr:   mergeErr,
+		pushErr:    pushErr,
+		cleanupErr: cleanupErr,
+	}
+}
+
+type callTrackingMockGitOps struct {
+	fetchErr   error
+	mergeErr   error
+	pushErr    error
+	cleanupErr error
+	calls      []string
+}
+
+func (m *callTrackingMockGitOps) FetchAndRebase(ctx context.Context, entry Entry) error {
+	m.calls = append(m.calls, "FetchAndRebase")
+	return m.fetchErr
+}
+
+func (m *callTrackingMockGitOps) MergeToMain(ctx context.Context, entry Entry) error {
+	m.calls = append(m.calls, "MergeToMain")
+	return m.mergeErr
+}
+
+func (m *callTrackingMockGitOps) Push(ctx context.Context) error {
+	m.calls = append(m.calls, "Push")
+	return m.pushErr
+}
+
+func (m *callTrackingMockGitOps) Cleanup(ctx context.Context, entry Entry) error {
+	m.calls = append(m.calls, "Cleanup")
+	return m.cleanupErr
+}
