@@ -141,6 +141,7 @@ func TestEventTypeStringsAreUnique(t *testing.T) {
 		(&GateStuckEvent{}).EventType():         true,
 		(&GateSkipEvent{}).EventType():          true,
 		(&GateBlockEvent{}).EventType():         true,
+		(&GateReadinessBlockEvent{}).EventType(): true,
 		(&EpilogueStartEvent{}).EventType():     true,
 		(&EpilogueCompleteEvent{}).EventType():  true,
 		(&BeadCloseEvent{}).EventType():         true,
@@ -148,8 +149,8 @@ func TestEventTypeStringsAreUnique(t *testing.T) {
 	}
 
 	// If we reach here, all EventType() strings are unique (map keys are unique)
-	if len(eventTypes) != 36 {
-		t.Errorf("Expected 35 unique event types, got %d", len(eventTypes))
+	if len(eventTypes) != 37 {
+		t.Errorf("Expected 37 unique event types, got %d", len(eventTypes))
 	}
 }
 
@@ -522,6 +523,15 @@ func specEventCases(ts time.Time) []eventSpec {
 			event: &GateBlockEvent{
 				BeadID:    "b1",
 				Reason:    "stuck",
+				TimeMixin: TimeMixin{Time: ts},
+			},
+		},
+		{
+			name:     "GateReadinessBlockEvent",
+			wantType: "gate_readiness_block",
+			event: &GateReadinessBlockEvent{
+				BeadID:    "b1",
+				Reason:    "readiness",
 				TimeMixin: TimeMixin{Time: ts},
 			},
 		},
