@@ -20,11 +20,11 @@ var normalTabBaseActions = map[Tab][]string{
 }
 
 var normalStateHintStrings = map[Tab]string{
-	TabBacklog: renderHintActions(normalHintActions(TabBacklog, true)),
-	TabSpecs:   renderHintActions(normalHintActions(TabSpecs, true)),
-	TabPlans:   renderHintActions(normalHintActions(TabPlans, true)),
-	TabQueue:   renderHintActions(normalHintActions(TabQueue, true)),
-	TabRunLoop: renderHintActions(normalHintActions(TabRunLoop, true)),
+	TabBacklog: styledNormalHintString(TabBacklog),
+	TabSpecs:   styledNormalHintString(TabSpecs),
+	TabPlans:   styledNormalHintString(TabPlans),
+	TabQueue:   styledNormalHintString(TabQueue),
+	TabRunLoop: styledNormalHintString(TabRunLoop),
 }
 
 var hintBarNormalStateStrings = normalStateHintStrings
@@ -81,6 +81,10 @@ func normalHintActions(tab Tab, hasSelection bool) []string {
 		actions = append(actions, perTabNormalHintActions(tab)...)
 	}
 	return append(actions, "[q] quit")
+}
+
+func styledNormalHintString(tab Tab) string {
+	return renderHintActions(normalHintActions(tab, true))
 }
 
 func perTabNormalHintActions(tab Tab) []string {
