@@ -55,3 +55,23 @@ package sample
 		t.Fatalf("unexpectedly detected e2e_live tag after package clause")
 	}
 }
+
+func TestHasBuildTagRespectsBlockCommentPreamble(t *testing.T) {
+	t.Helper()
+	content := []byte(`/*
+Copyright 2026 Example Corp
+//go:build acceptance
+*/
+package sample
+
+//go:build e2e_live
+`)
+
+	if !hasBuildTag(content, "acceptance") {
+		t.Fatalf("expected acceptance tag inside block comment preamble to be detected")
+	}
+
+	if hasBuildTag(content, "e2e_live") {
+		t.Fatalf("unexpectedly detected e2e_live tag after package clause")
+	}
+}
