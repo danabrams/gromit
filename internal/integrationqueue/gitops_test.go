@@ -187,3 +187,38 @@ func callsMatch(got, want []string) bool {
 	}
 	return true
 }
+
+// NewContextSensitiveMockGitOps creates a mock GitOps that respects context cancellation.
+func NewContextSensitiveMockGitOps() GitOps {
+	return &contextSensitiveMockGitOps{}
+}
+
+type contextSensitiveMockGitOps struct{}
+
+func (m *contextSensitiveMockGitOps) FetchAndRebase(ctx context.Context, entry Entry) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *contextSensitiveMockGitOps) MergeToMain(ctx context.Context, entry Entry) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *contextSensitiveMockGitOps) Push(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *contextSensitiveMockGitOps) Cleanup(ctx context.Context, entry Entry) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return nil
+}
