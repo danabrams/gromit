@@ -1398,6 +1398,54 @@ func TestClientUpdateExpectedOutputs_PassesAcceptance(t *testing.T) {
 	}
 }
 
+func TestClientUpdateExpectedOutputs_UsesTempFile(t *testing.T) {
+	t.Parallel()
+	criteria := []string{"file1.go", "file2.go"}
+	wantContent := strings.Join(criteria, "\n")
+	var gotArgs []string
+
+	c := &Client{
+		RunFn: func(args ...string) (string, error) {
+			gotArgs = append([]string(nil), args...)
+			idx := -1
+			for i, arg := range args {
+				if arg == "--acceptance-file" {
+					idx = i
+					break
+				}
+			}
+			if idx == -1 {
+				return "", fmt.Errorf("missing --acceptance-file flag: %v", args)
+			}
+			if idx+1 >= len(args) {
+				return "", fmt.Errorf("--acceptance-file missing value: %v", args)
+			}
+			if hasSubsequence(args, []string{"--acceptance"}) {
+				return "", fmt.Errorf("should not pass acceptance text directly: %v", args)
+			}
+			path := args[idx+1]
+			content, err := os.ReadFile(path)
+			if err != nil {
+				return "", fmt.Errorf("reading temp file: %w", err)
+			}
+			if string(content) != wantContent {
+				return "", fmt.Errorf("temp file content = %q, want %q", string(content), wantContent)
+			}
+			if len(args) != 4 {
+				return "", fmt.Errorf("unexpected args: %v", args)
+			}
+			return "", nil
+		},
+	}
+
+	if err := c.UpdateExpectedOutputs(context.Background(), "task-123", criteria); err != nil {
+		t.Fatalf("UpdateExpectedOutputs() unexpected error: %v", err)
+	}
+	if len(gotArgs) == 0 {
+		t.Fatal("UpdateExpectedOutputs() did not run bd")
+	}
+}
+
 func TestClientUpdateExpectedOutputs_ValidatesID(t *testing.T) {
 	t.Parallel()
 	c := newValidationOnlyClient()
