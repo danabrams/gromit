@@ -12,11 +12,10 @@ import (
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/runner"
-	"github.com/danabrams/gromit/internal/specflow"
 )
 
 // setupRunSpecTestEnv creates a minimal test environment for run command spec flag tests.
-func setupRunSpecTestEnv(t *testing.T) (specsDir string, cleanup func()) {
+func setupRunSpecTestEnv(t *testing.T) (specsDir string, deps *runDeps, cleanup func()) {
 	t.Helper()
 
 	origWD, err := os.Getwd()
@@ -41,15 +40,15 @@ func setupRunSpecTestEnv(t *testing.T) (specsDir string, cleanup func()) {
 	origConfigPath := configPath
 	origRunSpec := runSpecFlag
 	origRunEpic := runEpicFlag
-	origRunHasOpenBeadsForLabel := runHasOpenBeadsForLabelFn
-	origRunInDedicatedWorktree := runInDedicatedWorktreeFn
 
 	t.Chdir(tempDir)
 
 	configPath = "gromit.yaml"
-	runInDedicatedWorktreeFn = func(_ context.Context, _ string, fn func() error) error {
+	depsValue := newRunDeps()
+	depsValue.runInDedicatedWorktree = func(_ context.Context, _ string, fn func() error) error {
 		return fn()
 	}
+	deps = &depsValue
 
 	var cleanupOnce sync.Once
 	cleanup = func() {
@@ -57,19 +56,17 @@ func setupRunSpecTestEnv(t *testing.T) (specsDir string, cleanup func()) {
 			configPath = origConfigPath
 			runSpecFlag = origRunSpec
 			runEpicFlag = origRunEpic
-			runHasOpenBeadsForLabelFn = origRunHasOpenBeadsForLabel
-			runInDedicatedWorktreeFn = origRunInDedicatedWorktree
 			if err := os.Chdir(origWD); err != nil {
 				t.Fatalf("restoring working directory: %v", err)
 			}
 		})
 	}
 
-	return specsDir, cleanup
+	return specsDir, deps, cleanup
 }
 
 func TestRunSpecTestEnvSeedsExplicitProfile(t *testing.T) {
-	_, cleanup := setupRunSpecTestEnv(t)
+	_, _, cleanup := setupRunSpecTestEnv(t)
 	defer cleanup()
 
 	data, err := os.ReadFile(configPath)
@@ -82,7 +79,7 @@ func TestRunSpecTestEnvSeedsExplicitProfile(t *testing.T) {
 }
 
 func TestRunSpecTestEnvGoProfileValidationCommands(t *testing.T) {
-	_, cleanup := setupRunSpecTestEnv(t)
+	_, _, cleanup := setupRunSpecTestEnv(t)
 	defer cleanup()
 
 	data, err := os.ReadFile(configPath)
@@ -110,7 +107,7 @@ func TestRunSpecTestEnvRestoresWorkingDirectory(t *testing.T) {
 		t.Fatalf("getting working directory before setup: %v", err)
 	}
 
-	_, cleanup := setupRunSpecTestEnv(t)
+	_, _, cleanup := setupRunSpecTestEnv(t)
 	cleanup()
 
 	currentWD, err := os.Getwd()
@@ -126,36 +123,32 @@ func TestRunSpecTestEnvRestoresWorkingDirectory(t *testing.T) {
 // the injection globals so the run loop stays testable even if the real factories
 // are expensive or rely on git state.
 func TestRunLoop_SpecFlagInjectableFactories(t *testing.T) {
-	_, cleanup := setupRunSpecTestEnv(t)
+	_, deps, cleanup := setupRunSpecTestEnv(t)
 	defer cleanup()
 
-	fakeStore := &fakeSpecflowStore{stageErr: specflow.ErrStageNotFound}
-	origStoreFn := newSpecflowStoreFn
-	newSpecflowStoreFn = func(gromitDir string) (specflow.SpecStore, error) {
+	deps.newBuildSpecStageContext = func(ctx context.Context, cfg *config.Config, specName, gromitDir string) (*runner.StageContext, error) {
+		if specName != "auth" {
+			t.Fatalf("expected spec name auth, got %q", specName)
+		}
 		if gromitDir == "" {
 			t.Fatalf("expected gromitDir to be set")
 		}
-		return fakeStore, nil
+		return &runner.StageContext{SpecName: "auth"}, nil
 	}
-	defer func() { newSpecflowStoreFn = origStoreFn }()
 
 	var branches []string
-	origBranchFn := newSpecBranchCreatorFn
-	newSpecBranchCreatorFn = func(repoDir string, cfg *config.Config) (runner.SpecBranchCreator, error) {
+	deps.newSpecBranchCreator = func(repoDir string, cfg *config.Config) (runner.SpecBranchCreator, error) {
 		return &fakeBranchCreator{branches: &branches}, nil
 	}
-	defer func() { newSpecBranchCreatorFn = origBranchFn }()
 
 	var stageCtxCalled bool
-	origRunnerFn := newRunnerWithStageContextFn
-	newRunnerWithStageContextFn = func(cfg *config.Config, output io.Writer, stageCtx *runner.StageContext, labels ...string) (*runner.Orchestrator, error) {
+	deps.newRunnerWithStageContext = func(cfg *config.Config, output io.Writer, stageCtx *runner.StageContext, labels ...string) (*runner.Orchestrator, error) {
 		stageCtxCalled = true
 		if stageCtx == nil || stageCtx.SpecName != "auth" {
 			t.Fatalf("expected auth stage context, got %+v", stageCtx)
 		}
 		return nil, fmt.Errorf("runner stub")
 	}
-	defer func() { newRunnerWithStageContextFn = origRunnerFn }()
 
 	runSpecFlag = "auth"
 	runEpicFlag = ""
@@ -165,7 +158,7 @@ func TestRunLoop_SpecFlagInjectableFactories(t *testing.T) {
 		t.Fatalf("failed to write spec: %v", err)
 	}
 
-	err := runLoop(runCmd, []string{})
+	err := deps.runLoop(runCmd, []string{})
 	if err == nil || !strings.Contains(err.Error(), "runner stub") {
 		t.Fatalf("expected runner stub, got %v", err)
 	}
@@ -183,49 +176,38 @@ func TestRunLoop_SpecFlagInjectableFactories(t *testing.T) {
 // RED: When --spec is provided for the first time, the run-loop should bootstrap
 // specflow stage context, branch creation, and pass the context into the runner.
 func TestRunLoop_SpecFlagFreshStartBootstrapsStageAndBranch(t *testing.T) {
-	_, cleanup := setupRunSpecTestEnv(t)
+	_, deps, cleanup := setupRunSpecTestEnv(t)
 	defer cleanup()
 
-	fakeStore := &fakeSpecflowStore{stageErr: specflow.ErrStageNotFound}
-	origStoreFactory := runner.SpecflowStoreFactory
-	runner.SpecflowStoreFactory = func(gromitDir string) (specflow.SpecStore, error) {
-		return fakeStore, nil
+	deps.newBuildSpecStageContext = func(ctx context.Context, cfg *config.Config, specName, gromitDir string) (*runner.StageContext, error) {
+		return &runner.StageContext{SpecName: specName, FreshStart: true}, nil
 	}
-	defer func() { runner.SpecflowStoreFactory = origStoreFactory }()
 
 	var capturedStageCtx *runner.StageContext
-	origRunnerFn := newRunnerWithStageContextFn
-	newRunnerWithStageContextFn = func(cfg *config.Config, output io.Writer, stageCtx *runner.StageContext, labels ...string) (*runner.Orchestrator, error) {
+	deps.newRunnerWithStageContext = func(cfg *config.Config, output io.Writer, stageCtx *runner.StageContext, labels ...string) (*runner.Orchestrator, error) {
 		capturedStageCtx = stageCtx
 		return nil, fmt.Errorf("runner stub")
 	}
-	defer func() { newRunnerWithStageContextFn = origRunnerFn }()
 
 	var branches []string
-	origBranchFn := newSpecBranchCreatorFn
-	newSpecBranchCreatorFn = func(repoDir string, cfg *config.Config) (runner.SpecBranchCreator, error) {
+	deps.newSpecBranchCreator = func(repoDir string, cfg *config.Config) (runner.SpecBranchCreator, error) {
 		return &fakeBranchCreator{branches: &branches}, nil
 	}
-	defer func() { newSpecBranchCreatorFn = origBranchFn }()
 
 	runSpecFlag = "auth"
 	runEpicFlag = ""
 
-	if err := os.WriteFile(filepath.Join(".gromit", "specs", "auth.md"), []byte("# auth spec"), 0644); err != nil {
+	specPath := filepath.Join(".gromit", "specs", "auth.md")
+	if err := os.WriteFile(specPath, []byte("# auth spec"), 0644); err != nil {
 		t.Fatalf("Failed to write spec file for resume test: %v", err)
 	}
-	if info, err := os.Stat(filepath.Join(".gromit", "specs", "auth.md")); err != nil {
+	if info, err := os.Stat(specPath); err != nil {
 		t.Fatalf("spec file missing after creation: %v", err)
 	} else if info.IsDir() {
 		t.Fatalf("spec path is a directory, expected file")
 	}
 
-	specPath := filepath.Join(".gromit", "specs", "auth.md")
-	if err := os.WriteFile(specPath, []byte("# auth spec"), 0644); err != nil {
-		t.Fatalf("Failed to write spec file: %v", err)
-	}
-
-	err := runLoop(runCmd, []string{})
+	err := deps.runLoop(runCmd, []string{})
 	if err == nil || !strings.Contains(err.Error(), "runner stub") {
 		t.Fatalf("expected runner stub error, got %v", err)
 	}
@@ -269,13 +251,13 @@ func TestRunCmd_ScopeFlagsRegistered(t *testing.T) {
 }
 
 func TestRunLoop_ScopeFlagsMutuallyExclusive(t *testing.T) {
-	_, cleanup := setupRunSpecTestEnv(t)
+	_, deps, cleanup := setupRunSpecTestEnv(t)
 	defer cleanup()
 
 	runSpecFlag = "auth"
 	runEpicFlag = "gromit-123"
 
-	err := runLoop(runCmd, []string{})
+	err := deps.runLoop(runCmd, []string{})
 	if err == nil {
 		t.Fatal("runLoop should fail when --spec and --epic are both set")
 	}
@@ -287,7 +269,7 @@ func TestRunLoop_ScopeFlagsMutuallyExclusive(t *testing.T) {
 // TestRunLoop_SpecFlagNonexistentSpec verifies that --spec with a nonexistent spec
 // returns a validation error before attempting to run.
 func TestRunLoop_SpecFlagNonexistentSpec(t *testing.T) {
-	specsDir, cleanup := setupRunSpecTestEnv(t)
+	specsDir, deps, cleanup := setupRunSpecTestEnv(t)
 	defer cleanup()
 
 	// Create some spec files so the error can list them
@@ -301,7 +283,7 @@ func TestRunLoop_SpecFlagNonexistentSpec(t *testing.T) {
 	runSpecFlag = "nonexistent-spec"
 	runEpicFlag = ""
 
-	err := runLoop(runCmd, []string{})
+	err := deps.runLoop(runCmd, []string{})
 
 	if err == nil {
 		t.Fatal("runLoop with nonexistent --spec should return error")
@@ -319,7 +301,7 @@ func TestRunLoop_SpecFlagNonexistentSpec(t *testing.T) {
 // TestRunLoop_SpecFlagValidSpec verifies that a valid --spec passes validation
 // and that the error is NOT a spec validation error (i.e., we proceed to the runner).
 func TestRunLoop_SpecFlagValidSpec(t *testing.T) {
-	specsDir, cleanup := setupRunSpecTestEnv(t)
+	specsDir, deps, cleanup := setupRunSpecTestEnv(t)
 	defer cleanup()
 
 	// Create the spec file
@@ -331,7 +313,7 @@ func TestRunLoop_SpecFlagValidSpec(t *testing.T) {
 	runSpecFlag = "auth"
 	runEpicFlag = ""
 
-	err := runLoop(runCmd, []string{})
+	err := deps.runLoop(runCmd, []string{})
 
 	// May fail for other reasons (no bd cli, etc), but must NOT fail due to spec validation
 	if err != nil {
@@ -346,17 +328,17 @@ func TestRunLoop_SpecFlagValidSpec(t *testing.T) {
 }
 
 func TestRunLoop_SpecFlagMissingSpecDoesNotFallbackToLegacyLabel(t *testing.T) {
-	_, cleanup := setupRunSpecTestEnv(t)
+	_, deps, cleanup := setupRunSpecTestEnv(t)
 	defer cleanup()
 
-	runHasOpenBeadsForLabelFn = func(label string) (bool, error) {
+	deps.runHasOpenBeadsForLabel = func(label string) (bool, error) {
 		return label == "spec:review-revisions", nil
 	}
 
 	runSpecFlag = "review-revisions"
 	runEpicFlag = ""
 
-	err := runLoop(runCmd, []string{})
+	err := deps.runLoop(runCmd, []string{})
 	if err == nil {
 		t.Fatal("runLoop with missing --spec should return validation error")
 	}
@@ -366,7 +348,7 @@ func TestRunLoop_SpecFlagMissingSpecDoesNotFallbackToLegacyLabel(t *testing.T) {
 }
 
 func TestRunLoop_SpecFlagMissingSpecDoesNotFallbackWhenStrictLegacyFallbackEnabled(t *testing.T) {
-	_, cleanup := setupRunSpecTestEnv(t)
+	_, deps, cleanup := setupRunSpecTestEnv(t)
 	defer cleanup()
 
 	strictCfg := `project:
@@ -382,14 +364,14 @@ compatibility:
 		t.Fatalf("Failed to write strict compatibility config: %v", err)
 	}
 
-	runHasOpenBeadsForLabelFn = func(label string) (bool, error) {
+	deps.runHasOpenBeadsForLabel = func(label string) (bool, error) {
 		return label == "spec:review-revisions", nil
 	}
 
 	runSpecFlag = "review-revisions"
 	runEpicFlag = ""
 
-	err := runLoop(runCmd, []string{})
+	err := deps.runLoop(runCmd, []string{})
 	if err == nil {
 		t.Fatal("runLoop with strict legacy fallback should return spec validation error for missing spec")
 	}
@@ -399,36 +381,30 @@ compatibility:
 }
 
 func TestRunLoop_NoSpecFlagSkipsSpecflowBootstrapping(t *testing.T) {
-	_, cleanup := setupRunSpecTestEnv(t)
+	_, deps, cleanup := setupRunSpecTestEnv(t)
 	defer cleanup()
 
 	var storeCalls int
-	origStoreFactory := runner.SpecflowStoreFactory
-	runner.SpecflowStoreFactory = func(gromitDir string) (specflow.SpecStore, error) {
+	deps.newBuildSpecStageContext = func(ctx context.Context, cfg *config.Config, specName, gromitDir string) (*runner.StageContext, error) {
 		storeCalls++
-		return &fakeSpecflowStore{}, nil
+		return &runner.StageContext{}, nil
 	}
-	defer func() { runner.SpecflowStoreFactory = origStoreFactory }()
 
 	var capturedStageCtx *runner.StageContext
-	origRunnerFn := newRunnerWithStageContextFn
-	newRunnerWithStageContextFn = func(cfg *config.Config, output io.Writer, stageCtx *runner.StageContext, labels ...string) (*runner.Orchestrator, error) {
+	deps.newRunnerWithStageContext = func(cfg *config.Config, output io.Writer, stageCtx *runner.StageContext, labels ...string) (*runner.Orchestrator, error) {
 		capturedStageCtx = stageCtx
 		return nil, fmt.Errorf("runner stub")
 	}
-	defer func() { newRunnerWithStageContextFn = origRunnerFn }()
 
 	var branches []string
-	origBranchFactory := runner.SpecBranchCreatorFactory
-	runner.SpecBranchCreatorFactory = func(repoDir string, cfg *config.Config) (runner.SpecBranchCreator, error) {
+	deps.newSpecBranchCreator = func(repoDir string, cfg *config.Config) (runner.SpecBranchCreator, error) {
 		return &fakeBranchCreator{branches: &branches}, nil
 	}
-	defer func() { runner.SpecBranchCreatorFactory = origBranchFactory }()
 
 	runSpecFlag = ""
 	runEpicFlag = ""
 
-	err := runLoop(runCmd, []string{})
+	err := deps.runLoop(runCmd, []string{})
 	if err == nil || !strings.Contains(err.Error(), "runner stub") {
 		t.Fatalf("expected runner stub error, got %v", err)
 	}
@@ -444,44 +420,38 @@ func TestRunLoop_NoSpecFlagSkipsSpecflowBootstrapping(t *testing.T) {
 }
 
 func TestRunLoop_SpecFlagResumeChecksOutBranch(t *testing.T) {
-	_, cleanup := setupRunSpecTestEnv(t)
+	_, deps, cleanup := setupRunSpecTestEnv(t)
 	defer cleanup()
 
-	fakeStore := &fakeSpecflowStore{stage: specflow.StageDrafting}
-	origStoreFn2 := newSpecflowStoreFn
-	newSpecflowStoreFn = func(gromitDir string) (specflow.SpecStore, error) {
-		return fakeStore, nil
+	deps.newBuildSpecStageContext = func(ctx context.Context, cfg *config.Config, specName, gromitDir string) (*runner.StageContext, error) {
+		return &runner.StageContext{SpecName: specName, FreshStart: false}, nil
 	}
-	defer func() { newSpecflowStoreFn = origStoreFn2 }()
 
 	var capturedStageCtx *runner.StageContext
-	origRunnerFn := newRunnerWithStageContextFn
-	newRunnerWithStageContextFn = func(cfg *config.Config, output io.Writer, stageCtx *runner.StageContext, labels ...string) (*runner.Orchestrator, error) {
+	deps.newRunnerWithStageContext = func(cfg *config.Config, output io.Writer, stageCtx *runner.StageContext, labels ...string) (*runner.Orchestrator, error) {
 		capturedStageCtx = stageCtx
 		return nil, fmt.Errorf("runner stub")
 	}
-	defer func() { newRunnerWithStageContextFn = origRunnerFn }()
 
 	var branches []string
-	origBranchFn2 := newSpecBranchCreatorFn
-	newSpecBranchCreatorFn = func(repoDir string, cfg *config.Config) (runner.SpecBranchCreator, error) {
+	deps.newSpecBranchCreator = func(repoDir string, cfg *config.Config) (runner.SpecBranchCreator, error) {
 		return &fakeBranchCreator{branches: &branches}, nil
 	}
-	defer func() { newSpecBranchCreatorFn = origBranchFn2 }()
 
 	runSpecFlag = "auth"
 	runEpicFlag = ""
 
-	if err := os.WriteFile(filepath.Join(".gromit", "specs", "auth.md"), []byte("# auth spec"), 0644); err != nil {
+	specPath := filepath.Join(".gromit", "specs", "auth.md")
+	if err := os.WriteFile(specPath, []byte("# auth spec"), 0644); err != nil {
 		t.Fatalf("Failed to write spec file for resume test: %v", err)
 	}
-	if info, err := os.Stat(filepath.Join(".gromit", "specs", "auth.md")); err != nil {
+	if info, err := os.Stat(specPath); err != nil {
 		t.Fatalf("spec file missing after creation: %v", err)
 	} else if info.IsDir() {
 		t.Fatalf("spec path is a directory, expected file")
 	}
 
-	err := runLoop(runCmd, []string{})
+	err := deps.runLoop(runCmd, []string{})
 	if err == nil || !strings.Contains(err.Error(), "runner stub") {
 		t.Fatalf("expected runner stub error, got %v", err)
 	}
@@ -500,7 +470,7 @@ func TestRunLoop_SpecFlagResumeChecksOutBranch(t *testing.T) {
 }
 
 func TestRunLoop_EpicFlagMissingSpecsDir(t *testing.T) {
-	_, cleanup := setupRunSpecTestEnv(t)
+	_, deps, cleanup := setupRunSpecTestEnv(t)
 	defer cleanup()
 
 	// Remove .gromit/specs to force ResolveEpic error path.
@@ -511,7 +481,7 @@ func TestRunLoop_EpicFlagMissingSpecsDir(t *testing.T) {
 	runSpecFlag = ""
 	runEpicFlag = "gromit-123"
 
-	err := runLoop(runCmd, []string{})
+	err := deps.runLoop(runCmd, []string{})
 	if err == nil {
 		t.Fatal("runLoop with --epic and missing specs dir should return error")
 	}
@@ -521,7 +491,7 @@ func TestRunLoop_EpicFlagMissingSpecsDir(t *testing.T) {
 }
 
 func TestRunLoop_EpicFlagValidScope(t *testing.T) {
-	specsDir, cleanup := setupRunSpecTestEnv(t)
+	specsDir, deps, cleanup := setupRunSpecTestEnv(t)
 	defer cleanup()
 
 	specContent := `---
@@ -538,33 +508,10 @@ epic: gromit-123
 	runSpecFlag = ""
 	runEpicFlag = "gromit-123"
 
-	err := runLoop(runCmd, []string{})
+	err := deps.runLoop(runCmd, []string{})
 	if err != nil && strings.Contains(err.Error(), "resolving epic scope:") {
 		t.Fatalf("runLoop should not fail epic scope resolution for a valid epic: %v", err)
 	}
-}
-
-type fakeSpecflowStore struct {
-	stage    specflow.Stage
-	stageErr error
-}
-
-func (f *fakeSpecflowStore) Stage(_ context.Context, _ string) (specflow.Stage, error) {
-	if f == nil {
-		return "", specflow.ErrStageNotFound
-	}
-	if f.stageErr != nil {
-		return "", f.stageErr
-	}
-	return f.stage, nil
-}
-
-func (f *fakeSpecflowStore) StoreStage(_ context.Context, _ string, stage specflow.Stage) error {
-	if f == nil {
-		return fmt.Errorf("fake store nil")
-	}
-	f.stage = stage
-	return nil
 }
 
 type fakeBranchCreator struct {

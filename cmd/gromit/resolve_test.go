@@ -41,18 +41,16 @@ func TestResolveMainRepoLogsDir_ResolvesMainRepoWhenLocalMissing(t *testing.T) {
 	}
 }
 
-func TestResolveMainRepoLogsDirFn_IsInjectable(t *testing.T) {
-	// Verify the function variable can be replaced for testing
-	original := resolveMainRepoLogsDirFn
-	defer func() { resolveMainRepoLogsDirFn = original }()
-
+func TestRunDepsResolveMainRepoLogsDirInjectable(t *testing.T) {
+	t.Parallel()
+	deps := newRunDeps()
 	called := false
-	resolveMainRepoLogsDirFn = func(gromitDir string) string {
+	deps.resolveMainRepoLogsDir = func(gromitDir string) string {
 		called = true
 		return "/override/logs"
 	}
 
-	result := resolveMainRepoLogsDirFn(".gromit")
+	result := deps.resolveMainRepoLogsDir(".gromit")
 	if !called {
 		t.Fatal("injected function was not called")
 	}

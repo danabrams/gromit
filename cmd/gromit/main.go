@@ -12,9 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/danabrams/gromit/internal/agent"
 	"github.com/danabrams/gromit/internal/bead"
-	"github.com/danabrams/gromit/internal/claude"
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/provider"
 	"github.com/danabrams/gromit/internal/retro"
@@ -39,30 +37,6 @@ var (
 	statusJSON                 bool
 )
 
-var (
-	newRunnerWithStageContextFn = runner.NewRunnerWithStageContext
-	newBuildSpecStageContextFn  = runner.BuildSpecStageContext
-	runInDedicatedWorktreeFn    = runInDedicatedWorktree
-)
-
-var (
-	newSpecflowStoreFn     = runner.SpecflowStoreFactory
-	newSpecBranchCreatorFn = runner.SpecBranchCreatorFactory
-)
-
-var runHasOpenBeadsForLabelFn = hasOpenBeadsForLabel
-
-var retroResolveAgentFn = agent.Resolve
-var retroSessionLauncherFn = runWithSessionWorktreeWithConflictSettings
-var retroRecordStateFn = recordRetroState
-var retroClaudeFallbackRunnerFn = func(cfg *config.Config) (retro.ProviderRunner, error) {
-	opusTimeout, _, _, _ := cfg.Claude.TimeoutsForModel("opus")
-	claudeClient, err := claude.NewClient(cfg.Claude.Binary, cfg.Claude.Flags, opusTimeout)
-	if err != nil {
-		return nil, err
-	}
-	return provider.NewClaudeProvider(claudeClient, provider.DefaultTierToModelMap), nil
-}
 var _ retro.ProviderRunner = (*provider.ClaudeProvider)(nil)
 
 const retroSessionCommand = "retro"
@@ -243,18 +217,19 @@ func loadConfig() (*config.Config, error) {
 }
 
 func runLoop(cmd *cobra.Command, args []string) error {
+	return newRunDeps().runLoop(cmd, args)
+}
+
+func (deps runDeps) runLoop(cmd *cobra.Command, args []string) error {
 	if err := scope.ValidateFlags(runEpicFlag, runSpecFlag); err != nil {
 		return err
 	}
 
-	// Capture main worktree dir before entering the dedicated run worktree.
-	// ensureRepoRoot() has already set cwd to project root via PersistentPreRunE.
 	mainDir, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("determining main dir: %w", err)
 	}
 
-	// Set up context with signal handling outside the worktree
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -264,7 +239,7 @@ func runLoop(cmd *cobra.Command, args []string) error {
 	defer signal.Stop(sigCh)
 	go handleRunSignals(sigCh, stopCh, cancel, os.Stderr)
 
-	return runInDedicatedWorktreeFn(ctx, mainDir, func() error {
+	return deps.runInDedicatedWorktree(ctx, mainDir, func() error {
 		cfg, err := loadConfig()
 		if err != nil {
 			return fmt.Errorf("loading config: %w", err)
@@ -280,12 +255,10 @@ func runLoop(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		// Override max iterations from flag if set
 		if maxIterations > 0 {
 			cfg.Loop.MaxIterations = maxIterations
 		}
 
-		// Compute deadline from time budget flags (additive: total = minutes + hours*60)
 		var deadline time.Time
 		if timeBudgetMinutes > 0 || timeBudgetHours > 0 {
 			totalMinutes := timeBudgetMinutes + timeBudgetHours*60
@@ -296,10 +269,7 @@ func runLoop(cmd *cobra.Command, args []string) error {
 		var stageCtx *runner.StageContext
 		if runSpecFlag != "" {
 			var stageCtxErr error
-			origStoreFactory := runner.SpecflowStoreFactory
-			runner.SpecflowStoreFactory = newSpecflowStoreFn
-			stageCtx, stageCtxErr = newBuildSpecStageContextFn(ctx, cfg, runSpecFlag, gromitDir)
-			runner.SpecflowStoreFactory = origStoreFactory
+			stageCtx, stageCtxErr = deps.newBuildSpecStageContext(ctx, cfg, runSpecFlag, gromitDir)
 			if stageCtxErr != nil {
 				return fmt.Errorf("initializing specflow stage: %w", stageCtxErr)
 			}
@@ -309,7 +279,7 @@ func runLoop(cmd *cobra.Command, args []string) error {
 					return fmt.Errorf("determining repo dir: %w", err)
 				}
 				origBranchFactory := runner.SpecBranchCreatorFactory
-				runner.SpecBranchCreatorFactory = newSpecBranchCreatorFn
+				runner.SpecBranchCreatorFactory = deps.newSpecBranchCreator
 				if err := runner.EnsureSpecBranch(ctx, cfg, stageCtx, repoDir); err != nil {
 					runner.SpecBranchCreatorFactory = origBranchFactory
 					return fmt.Errorf("preparing spec branch: %w", err)
@@ -318,7 +288,7 @@ func runLoop(cmd *cobra.Command, args []string) error {
 			}
 		}
 
-		r, err := newRunnerWithStageContextFn(cfg, os.Stdout, stageCtx, labels...)
+		r, err := deps.newRunnerWithStageContext(cfg, os.Stdout, stageCtx, labels...)
 		if err != nil {
 			return fmt.Errorf("failed to create runner: %w", err)
 		}
@@ -381,7 +351,10 @@ func showStatus(cmd *cobra.Command, args []string) error {
 }
 
 func runRetro(cmd *cobra.Command, args []string) error {
-	// Validate flags first
+	return newRunDeps().runRetro(cmd, args)
+}
+
+func (deps runDeps) runRetro(cmd *cobra.Command, args []string) error {
 	if err := scope.ValidateFlags(retroEpicFlag, retroSpecFlag); err != nil {
 		return err
 	}
@@ -391,10 +364,8 @@ func runRetro(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	// Determine .gromit directory from config
 	gromitDir := resolveGromitDir(cfg)
 
-	// Set up context with signal handling
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -406,7 +377,6 @@ func runRetro(cmd *cobra.Command, args []string) error {
 		cancel()
 	}()
 
-	// Build bead filter from flags
 	var beadFilter map[string]bool
 	specsDir := resolveSpecsDir(cfg)
 	labels, err := resolveScopeLabels(specsDir, retroEpicFlag, retroSpecFlag)
@@ -415,18 +385,17 @@ func runRetro(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(labels) > 0 {
-		var err error
-		beadFilter, err = buildBeadFilter(ctx, labels)
-		if err != nil {
-			return fmt.Errorf("building bead filter: %w", err)
+		var filterErr error
+		beadFilter, filterErr = buildBeadFilter(ctx, labels)
+		if filterErr != nil {
+			return fmt.Errorf("building bead filter: %w", filterErr)
 		}
 	}
 
-	// Run retrospective
 	fmt.Println("Running retrospective analysis...")
 	fmt.Println("This may take a few minutes as it uses opus for quality analysis.")
 
-	runner, err := buildRetroProviderRunner(cfg)
+	runner, err := deps.buildRetroProviderRunner(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to create retro provider runner: %w", err)
 	}
@@ -436,9 +405,7 @@ func runRetro(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create retro analyzer: %w", err)
 	}
 
-	// Resolve the logs directory, falling back to the main repo's logs when
-	// running from a session worktree where .gromit/logs/ doesn't exist.
-	r.SetLogsDir(resolveMainRepoLogsDirFn(gromitDir))
+	r.SetLogsDir(deps.resolveMainRepoLogsDir(gromitDir))
 
 	result, err := r.Run(ctx, beadFilter)
 	if err != nil {
@@ -449,7 +416,6 @@ func runRetro(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("retro analysis failed")
 	}
 
-	// Display results
 	fmt.Println("=" + "=" + strings.Repeat("=", 78))
 	fmt.Println("RETROSPECTIVE ANALYSIS")
 	fmt.Println("=" + "=" + strings.Repeat("=", 78))
@@ -458,7 +424,6 @@ func runRetro(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	fmt.Println("=" + "=" + strings.Repeat("=", 78))
 
-	// If --non-interactive flag is set, write to file and exit
 	if nonInteractive {
 		analysisPath := filepath.Join(gromitDir, "RETRO_PROPOSED_CHANGES.md")
 		if writeErr := os.WriteFile(analysisPath, []byte(result.Analysis), 0644); writeErr != nil {
@@ -470,7 +435,6 @@ func runRetro(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Default: launch interactive review and application session
 	promptText := retro.BuildClaudeCodePrompt(result.Analysis, result.Efficiency, result.Experiment)
 	tmpDir := filepath.Join(gromitDir, "tmp")
 	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
@@ -488,7 +452,7 @@ func runRetro(cmd *cobra.Command, args []string) error {
 	}
 	promptFile.Close()
 
-	return launchRetroInteractiveSession(cfg, cmd, gromitDir, promptPath)
+	return deps.launchRetroInteractiveSession(cfg, cmd, gromitDir, promptPath)
 }
 
 // buildBeadFilterWithClient is a testable version of buildBeadFilter that accepts a bead client.
@@ -551,13 +515,13 @@ func resolveScopeLabels(specsDir, epicFlag, specFlag string) ([]string, error) {
 	return nil, nil
 }
 
-func resolveLegacyRunSpecScope(cfg *config.Config, specsDir, specFlag string, originalErr error) ([]string, error) {
+func (deps runDeps) resolveLegacyRunSpecScope(cfg *config.Config, specsDir, specFlag string, originalErr error) ([]string, error) {
 	if originalErr == nil || specFlag == "" || cfg == nil || cfg.Compatibility.StrictLegacyFallback {
 		return nil, originalErr
 	}
 
 	label := fmt.Sprintf("spec:%s", specFlag)
-	hasOpen, err := runHasOpenBeadsForLabelFn(label)
+	hasOpen, err := deps.runHasOpenBeadsForLabel(label)
 	if err != nil || !hasOpen {
 		return nil, originalErr
 	}
@@ -596,7 +560,7 @@ func hasOpenBeadsForLabel(label string) (bool, error) {
 	return len(beads) > 0, nil
 }
 
-func buildRetroProviderRunner(cfg *config.Config) (retro.ProviderRunner, error) {
+func (deps runDeps) buildRetroProviderRunner(cfg *config.Config) (retro.ProviderRunner, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config is nil")
 	}
@@ -609,14 +573,14 @@ func buildRetroProviderRunner(cfg *config.Config) (retro.ProviderRunner, error) 
 		return &retroRouterAdapter{Router: router, Phase: retroSessionCommand}, nil
 	}
 
-	runner, err := retroClaudeFallbackRunnerFn(cfg)
+	runner, err := deps.retroClaudeFallbackRunner(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("creating retro claude fallback runner: %w", err)
 	}
 	return runner, nil
 }
 
-func launchRetroInteractiveSession(cfg *config.Config, cmd *cobra.Command, gromitDir, promptPath string) error {
+func (deps runDeps) launchRetroInteractiveSession(cfg *config.Config, cmd *cobra.Command, gromitDir, promptPath string) error {
 	fmt.Println("\nLaunching interactive review session...")
 	absPromptPath, err := filepath.Abs(promptPath)
 	if err != nil {
@@ -625,12 +589,12 @@ func launchRetroInteractiveSession(cfg *config.Config, cmd *cobra.Command, gromi
 
 	agentFlag, _ := cmd.Flags().GetString("agent")
 	chooseAgent, _ := cmd.Flags().GetBool("choose-agent")
-	selectedAgent, err := retroResolveAgentFn(cfg, retroSessionCommand, agentFlag, chooseAgent, os.Stdin, os.Stdout)
+	selectedAgent, err := deps.retroResolveAgent(cfg, retroSessionCommand, agentFlag, chooseAgent, os.Stdin, os.Stdout)
 	if err != nil {
 		return fmt.Errorf("resolving agent: %w", err)
 	}
 
-	err = launchInSessionIfEnabled(cfg, gromitDir, retroSessionCommand, retroSessionLauncherFn, func(sessionDir string) error {
+	err = launchInSessionIfEnabled(cfg, gromitDir, retroSessionCommand, deps.retroSessionLauncher, func(sessionDir string) error {
 		if err := selectedAgent.LaunchInDir(absPromptPath, sessionDir); err != nil {
 			return fmt.Errorf("launching interactive review session: %w", err)
 		}
@@ -642,7 +606,7 @@ func launchRetroInteractiveSession(cfg *config.Config, cmd *cobra.Command, gromi
 		return err
 	}
 
-	return retroRecordStateFn(gromitDir)
+	return deps.retroRecordState(gromitDir)
 }
 
 func recordRetroState(gromitDir string) error {

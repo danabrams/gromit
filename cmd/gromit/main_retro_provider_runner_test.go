@@ -26,7 +26,7 @@ func TestBuildRetroProviderRunner_ProvidersPathUsesRouterAdapter(t *testing.T) {
 		},
 	}
 
-	runner, err := buildRetroProviderRunner(cfg)
+	runner, err := newRunDeps().buildRetroProviderRunner(cfg)
 	if err != nil {
 		t.Fatalf("buildRetroProviderRunner() error = %v", err)
 	}
@@ -44,7 +44,7 @@ func TestBuildRetroProviderRunner_ProvidersPathUsesRouterAdapter(t *testing.T) {
 }
 
 func TestBuildRetroProviderRunner_ProvidersPathDoesNotUseClaudeFallbackFactory(t *testing.T) {
-
+	t.Parallel()
 	cfg := &config.Config{
 		Providers: map[string]config.ProviderDef{
 			"openai": {
@@ -58,15 +58,13 @@ func TestBuildRetroProviderRunner_ProvidersPathDoesNotUseClaudeFallbackFactory(t
 		},
 	}
 
-	orig := retroClaudeFallbackRunnerFn
-	t.Cleanup(func() { retroClaudeFallbackRunnerFn = orig })
-
-	retroClaudeFallbackRunnerFn = func(*config.Config) (retro.ProviderRunner, error) {
-		t.Fatal("retroClaudeFallbackRunnerFn should not be called when providers are configured")
+	deps := newRunDeps()
+	deps.retroClaudeFallbackRunner = func(*config.Config) (retro.ProviderRunner, error) {
+		t.Fatal("retroClaudeFallbackRunner should not be called when providers are configured")
 		return nil, nil
 	}
 
-	runner, err := buildRetroProviderRunner(cfg)
+	runner, err := deps.buildRetroProviderRunner(cfg)
 	if err != nil {
 		t.Fatalf("buildRetroProviderRunner() error = %v", err)
 	}
@@ -76,17 +74,15 @@ func TestBuildRetroProviderRunner_ProvidersPathDoesNotUseClaudeFallbackFactory(t
 }
 
 func TestBuildRetroProviderRunner_ClaudeFallbackErrorIsWrapped(t *testing.T) {
-
+	t.Parallel()
 	cfg := &config.Config{}
 
-	orig := retroClaudeFallbackRunnerFn
-	t.Cleanup(func() { retroClaudeFallbackRunnerFn = orig })
-
-	retroClaudeFallbackRunnerFn = func(*config.Config) (retro.ProviderRunner, error) {
+	deps := newRunDeps()
+	deps.retroClaudeFallbackRunner = func(*config.Config) (retro.ProviderRunner, error) {
 		return nil, fmt.Errorf("boom")
 	}
 
-	_, err := buildRetroProviderRunner(cfg)
+	_, err := deps.buildRetroProviderRunner(cfg)
 	if err == nil {
 		t.Fatal("buildRetroProviderRunner() error = nil, want non-nil")
 	}

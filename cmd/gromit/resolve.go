@@ -55,11 +55,6 @@ func resolveExperimentStateDir(cfg *config.Config) string {
 	return filepath.Join(gromitDir, "experiment-state")
 }
 
-// resolveMainRepoLogsDirFn resolves the logs directory, falling back to the main
-// repo's .gromit/logs when the local gromitDir/logs doesn't exist (e.g., in a worktree).
-// Injected as a variable for testing.
-var resolveMainRepoLogsDirFn = resolveMainRepoLogsDir
-
 func resolveMainRepoLogsDir(gromitDir string) string {
 	localLogs := filepath.Join(gromitDir, "logs")
 	if info, err := os.Stat(localLogs); err == nil && info.IsDir() {

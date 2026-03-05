@@ -14,23 +14,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// retroTestAgent is now defined in session_test_agent_helper.go
-// using the shared sessionTestAgent test helper
 type retroTestAgent = sessionTestAgent
 
-var _ agent.Agent = (*retroTestAgent)(nil)
-
 func TestLaunchRetroInteractiveSession_UsesSessionWorktreeDir(t *testing.T) {
-
-	origResolve := retroResolveAgentFn
-	origLauncher := retroSessionLauncherFn
-	origRecord := retroRecordStateFn
-	t.Cleanup(func() {
-		retroResolveAgentFn = origResolve
-		retroSessionLauncherFn = origLauncher
-		retroRecordStateFn = origRecord
-	})
-
+	t.Parallel()
+	deps := newRunDeps()
 	cfg := &config.Config{}
 	cfg.Paths.GromitDir = filepath.Join(t.TempDir(), ".gromit")
 	cmd := &cobra.Command{}
@@ -41,7 +29,7 @@ func TestLaunchRetroInteractiveSession_UsesSessionWorktreeDir(t *testing.T) {
 	gotLaunchDir := ""
 	recordCalled := false
 
-	retroResolveAgentFn = func(*config.Config, string, string, bool, io.Reader, io.Writer) (agent.Agent, error) {
+	deps.retroResolveAgent = func(*config.Config, string, string, bool, io.Reader, io.Writer) (agent.Agent, error) {
 		return &retroTestAgent{
 			launchInDirFn: func(promptPath, dir string) error {
 				gotLaunchDir = dir
@@ -49,7 +37,7 @@ func TestLaunchRetroInteractiveSession_UsesSessionWorktreeDir(t *testing.T) {
 			},
 		}, nil
 	}
-	retroSessionLauncherFn = func(
+	deps.retroSessionLauncher = func(
 		ctx context.Context,
 		gromitDir string,
 		command string,
@@ -68,12 +56,12 @@ func TestLaunchRetroInteractiveSession_UsesSessionWorktreeDir(t *testing.T) {
 		}
 		return &worktree.SessionWorktree{BranchName: "gromit/retro-test", WorktreeDir: wantSessionDir}, nil
 	}
-	retroRecordStateFn = func(gromitDir string) error {
+	deps.retroRecordState = func(gromitDir string) error {
 		recordCalled = true
 		return nil
 	}
 
-	if err := launchRetroInteractiveSession(cfg, cmd, cfg.Paths.GromitDir, "prompt.md"); err != nil {
+	if err := deps.launchRetroInteractiveSession(cfg, cmd, cfg.Paths.GromitDir, "prompt.md"); err != nil {
 		t.Fatalf("launchRetroInteractiveSession() error = %v", err)
 	}
 	if gotLaunchDir != wantSessionDir {
@@ -85,16 +73,8 @@ func TestLaunchRetroInteractiveSession_UsesSessionWorktreeDir(t *testing.T) {
 }
 
 func TestLaunchRetroInteractiveSession_ConflictHandoffPropagates(t *testing.T) {
-
-	origResolve := retroResolveAgentFn
-	origLauncher := retroSessionLauncherFn
-	origRecord := retroRecordStateFn
-	t.Cleanup(func() {
-		retroResolveAgentFn = origResolve
-		retroSessionLauncherFn = origLauncher
-		retroRecordStateFn = origRecord
-	})
-
+	t.Parallel()
+	deps := newRunDeps()
 	cfg := &config.Config{}
 	cfg.Paths.GromitDir = filepath.Join(t.TempDir(), ".gromit")
 	cmd := &cobra.Command{}
@@ -102,14 +82,14 @@ func TestLaunchRetroInteractiveSession_ConflictHandoffPropagates(t *testing.T) {
 	cmd.Flags().Bool("choose-agent", false, "")
 
 	recordCalled := false
-	retroResolveAgentFn = func(*config.Config, string, string, bool, io.Reader, io.Writer) (agent.Agent, error) {
+	deps.retroResolveAgent = func(*config.Config, string, string, bool, io.Reader, io.Writer) (agent.Agent, error) {
 		return &retroTestAgent{}, nil
 	}
-	retroRecordStateFn = func(gromitDir string) error {
+	deps.retroRecordState = func(gromitDir string) error {
 		recordCalled = true
 		return nil
 	}
-	retroSessionLauncherFn = func(
+	deps.retroSessionLauncher = func(
 		ctx context.Context,
 		gromitDir string,
 		command string,
@@ -127,7 +107,7 @@ func TestLaunchRetroInteractiveSession_ConflictHandoffPropagates(t *testing.T) {
 			}
 	}
 
-	err := launchRetroInteractiveSession(cfg, cmd, cfg.Paths.GromitDir, "prompt.md")
+	err := deps.launchRetroInteractiveSession(cfg, cmd, cfg.Paths.GromitDir, "prompt.md")
 	if err == nil {
 		t.Fatal("expected conflict handoff error, got nil")
 	}
@@ -140,16 +120,7 @@ func TestLaunchRetroInteractiveSession_ConflictHandoffPropagates(t *testing.T) {
 }
 
 func TestLaunchRetroInteractiveSession_ConvertsPromptPathToAbsolute(t *testing.T) {
-
-	origResolve := retroResolveAgentFn
-	origLauncher := retroSessionLauncherFn
-	origRecord := retroRecordStateFn
-	t.Cleanup(func() {
-		retroResolveAgentFn = origResolve
-		retroSessionLauncherFn = origLauncher
-		retroRecordStateFn = origRecord
-	})
-
+	deps := newRunDeps()
 	cfg := &config.Config{}
 	cfg.Paths.GromitDir = filepath.Join(t.TempDir(), ".gromit")
 	cmd := &cobra.Command{}
@@ -168,7 +139,7 @@ func TestLaunchRetroInteractiveSession_ConvertsPromptPathToAbsolute(t *testing.T
 	}
 
 	capturedPromptPath := ""
-	retroResolveAgentFn = func(*config.Config, string, string, bool, io.Reader, io.Writer) (agent.Agent, error) {
+	deps.retroResolveAgent = func(*config.Config, string, string, bool, io.Reader, io.Writer) (agent.Agent, error) {
 		return &retroTestAgent{
 			launchInDirFn: func(promptPath, dir string) error {
 				capturedPromptPath = promptPath
@@ -176,7 +147,7 @@ func TestLaunchRetroInteractiveSession_ConvertsPromptPathToAbsolute(t *testing.T
 			},
 		}, nil
 	}
-	retroSessionLauncherFn = func(
+	deps.retroSessionLauncher = func(
 		ctx context.Context,
 		gromitDir string,
 		command string,
@@ -188,9 +159,10 @@ func TestLaunchRetroInteractiveSession_ConvertsPromptPathToAbsolute(t *testing.T
 		}
 		return &worktree.SessionWorktree{}, nil
 	}
-	retroRecordStateFn = func(gromitDir string) error { return nil }
+	deps.retroRecordState = func(gromitDir string) error { return nil }
 
-	if err := launchRetroInteractiveSession(cfg, cmd, cfg.Paths.GromitDir, relativePromptPath); err != nil {
+	err := deps.launchRetroInteractiveSession(cfg, cmd, cfg.Paths.GromitDir, relativePromptPath)
+	if err != nil {
 		t.Fatalf("launchRetroInteractiveSession() error = %v", err)
 	}
 	if !filepath.IsAbs(capturedPromptPath) {
