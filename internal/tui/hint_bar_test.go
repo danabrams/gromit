@@ -119,6 +119,17 @@ func TestHintBarConfirmationOverrides(t *testing.T) {
 	}
 }
 
+func TestHintBarConfirmationStateStrings(t *testing.T) {
+	for _, tab := range hintTabs() {
+		t.Run(string(tab), func(t *testing.T) {
+			want := expectedHintString(tab, hintBarStateConfirmation)
+			if got := HintBar(tab, false, true); got != want {
+				t.Fatalf("HintBar(%q, confirmation) = %q, want %q", tab, got, want)
+			}
+		})
+	}
+}
+
 func TestHintBarNormalStateOutputs(t *testing.T) {
 	for tab, want := range hintBarNormalStateStrings {
 		t.Run(string(tab), func(t *testing.T) {
