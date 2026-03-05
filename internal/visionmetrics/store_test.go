@@ -628,6 +628,52 @@ func TestAppendRecord_WaitsForFileLock(t *testing.T) {
 	}
 }
 
+func TestLoadRecords_WaitsForFileLock(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "locked-read.jsonl")
+
+	// Write a sample record so there's data to read once the lock releases.
+	content := `{"spec_id":"locked-read","cycle_start_trigger_at":"2026-02-01T08:00:00Z","cycle_end_presented_at":"2026-02-01T10:00:00Z","review_outcome":"accepted"}`
+	if err := os.WriteFile(tmpFile, []byte(content+"\n"), 0644); err != nil {
+		t.Fatalf("failed to seed test file: %v", err)
+	}
+
+	lockPath := tmpFile + ".lock"
+	lockFile, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		t.Fatalf("failed to open lock file: %v", err)
+	}
+	defer lockFile.Close()
+	if err := syscall.Flock(int(lockFile.Fd()), syscall.LOCK_EX); err != nil {
+		t.Fatalf("failed to grab lock: %v", err)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := LoadRecords(tmpFile)
+		done <- err
+	}()
+
+	select {
+	case err := <-done:
+		t.Fatalf("LoadRecords finished before lock released: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	if err := syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN); err != nil {
+		t.Fatalf("failed to release lock: %v", err)
+	}
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("LoadRecords failed after lock released: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("LoadRecords did not finish after releasing lock")
+	}
+}
+
 func parseTime(s string) time.Time {
 	// Helper to parse RFC3339 timestamp
 	t, _ := time.Parse(time.RFC3339, s)
