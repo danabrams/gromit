@@ -3,6 +3,7 @@ package presenter
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -59,13 +60,19 @@ func (g *GitHubPresenter) PresentSummary(ctx context.Context, specID string, sum
 	}
 
 	body := presentation.RenderPRBody(summary)
+	bodyFile, err := g.writeBodyFile(body)
+	if err != nil {
+		return fmt.Errorf("prepare pr body: %w", err)
+	}
+	defer os.Remove(bodyFile) // best effort cleanup
+
 	args := []string{
 		"pr",
 		"create",
 		"--head", head,
 		"--base", base,
 		"--title", title,
-		"--body", body,
+		"--body-file", bodyFile,
 	}
 	if _, err := g.runner.Run(ctx, g.ghCmd, args...); err != nil {
 		return fmt.Errorf("create pr: %w", err)
@@ -80,4 +87,21 @@ func (defaultCommandRunner) Run(ctx context.Context, name string, args ...string
 	cmd := exec.CommandContext(ctx, name, args...)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
+}
+
+func (g *GitHubPresenter) writeBodyFile(body string) (string, error) {
+	tmp, err := os.CreateTemp("", "gromit-presenter-*.md")
+	if err != nil {
+		return "", err
+	}
+	if _, err := tmp.WriteString(body); err != nil {
+		_ = tmp.Close()
+		os.Remove(tmp.Name())
+		return "", err
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmp.Name())
+		return "", err
+	}
+	return tmp.Name(), nil
 }
