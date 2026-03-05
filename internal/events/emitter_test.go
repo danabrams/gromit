@@ -257,3 +257,14 @@ func TestEmitter_CloseIsIdempotent(t *testing.T) {
 		t.Error("channel not closed after multiple Close() calls")
 	}
 }
+
+// TestEmitter_DroppedCount_InitiallyZero tests that DroppedCount returns 0 initially.
+func TestEmitter_DroppedCount_InitiallyZero(t *testing.T) {
+	t.Parallel()
+	emitter := NewEmitter()
+	defer emitter.Close()
+
+	if count := emitter.DroppedCount(); count != 0 {
+		t.Errorf("expected initial DroppedCount to be 0, got %d", count)
+	}
+}
