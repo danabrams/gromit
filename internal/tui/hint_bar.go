@@ -27,6 +27,8 @@ var normalStateHintStrings = map[Tab]string{
 	TabRunLoop: renderHintActions(normalHintActions(TabRunLoop, true)),
 }
 
+var hintBarNormalStateStrings = normalStateHintStrings
+
 var hintBarDetailStateStrings = map[Tab]string{
 	TabBacklog: renderHintActions(detailViewHintActions(TabBacklog)),
 	TabSpecs:   renderHintActions(detailViewHintActions(TabSpecs)),
