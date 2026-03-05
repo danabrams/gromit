@@ -514,6 +514,35 @@ func TestModel_RunLoopSubViewKeysOnlyHandledWhenRunLoopActive(t *testing.T) {
 	}
 }
 
+func TestModel_RunLoopKeysSkipPipelineActionsWhenInactive(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+	list := &countingPipelineList{}
+	m.registerPipelineListModel(TabBacklog, list)
+	m.activeTab = TabBacklog
+
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}}
+	m.Update(msg)
+
+	if list.selectedCalls != 0 {
+		t.Fatalf("expected pipeline list not to be consulted for run loop key when inactive, got %d calls", list.selectedCalls)
+	}
+}
+
+type countingPipelineList struct {
+	selectedCalls int
+}
+
+func (c *countingPipelineList) SetItems([]ListItem) {}
+
+func (c *countingPipelineList) Selected() ListItem {
+	c.selectedCalls++
+	return nil
+}
+
+func (c *countingPipelineList) CursorUp()   {}
+func (c *countingPipelineList) CursorDown() {}
+
 func TestModel_AppliesConversationEventsToStore(t *testing.T) {
 	timeline := []conversation.FakeStep{
 		{Event: conversation.Event{Type: conversation.EventTypeStream, Text: "streamed text"}},
