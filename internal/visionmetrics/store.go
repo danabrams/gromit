@@ -12,27 +12,30 @@ const fileMode = 0644
 
 // LoadRecords reads a JSONL file and returns the list of Records.
 func LoadRecords(path string) ([]Record, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
 	records := make([]Record, 0)
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		if len(line) == 0 {
-			continue
+	err := withFileLock(path, func() error {
+		file, err := os.Open(path)
+		if err != nil {
+			return err
 		}
-		var record Record
-		if err := json.Unmarshal(line, &record); err != nil {
-			return nil, err
-		}
-		records = append(records, record)
-	}
+		defer file.Close()
 
-	if err := scanner.Err(); err != nil {
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			line := scanner.Bytes()
+			if len(line) == 0 {
+				continue
+			}
+			var record Record
+			if err := json.Unmarshal(line, &record); err != nil {
+				return err
+			}
+			records = append(records, record)
+		}
+
+		return scanner.Err()
+	})
+	if err != nil {
 		return nil, err
 	}
 
