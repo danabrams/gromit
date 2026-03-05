@@ -4,11 +4,13 @@
 package v2
 
 import (
+    "strings"
     "testing"
     "time"
 
     "github.com/danabrams/gromit/internal/bead"
     "github.com/danabrams/gromit/internal/events"
+    present "github.com/danabrams/gromit/internal/v2/stages/present"
     v2review "github.com/danabrams/gromit/internal/v2/review"
 )
 
@@ -87,6 +89,30 @@ func TestReviewStageOutOfScopeFindingsEmitEvents(t *testing.T) {
         }
     case <-time.After(time.Second):
         t.Fatal("timed out waiting for review finding event")
+    }
+}
+
+func TestPresentSummaryIncludesOutOfScopeFindings(t *testing.T) {
+    t.Parallel()
+
+    findings := []v2review.Finding{
+        {
+            Title:         "Document audit drift",
+            Description:   "The audit guidance has drifted outside the current acceptance criteria",
+            InScope:       false,
+            AffectedFiles: []string{"README.md"},
+        },
+    }
+
+    summary := present.FormatOutOfScopeSummary(findings)
+    if !strings.Contains(summary, "product owner") && !strings.Contains(summary, "Product Owner") {
+        t.Fatalf("summary missing product owner context: %s", summary)
+    }
+    if !strings.Contains(summary, findings[0].Title) {
+        t.Fatalf("summary missing finding title: %s", summary)
+    }
+    if !strings.Contains(summary, "README.md") {
+        t.Fatalf("summary missing affected file list: %s", summary)
     }
 }
 
