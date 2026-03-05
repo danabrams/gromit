@@ -4,15 +4,17 @@ You are reviewing a task to quickly estimate its complexity and whether it can b
 
 ## Task Details
 
-**ID:** {{.Bead.ID}}
-**Title:** {{.Bead.Title}}
-**Priority:** P{{.Bead.Priority}}
+{{with .Bead}}
+**ID:** {{.ID}}
+**Title:** {{.Title}}
+**Priority:** P{{.Priority}}
 
-{{if .Bead.Labels}}**Labels:** {{join .Bead.Labels ", "}}{{end}}
+{{if .Labels}}**Labels:** {{join .Labels ", "}}{{end}}
 
 ### Description
 
-{{.Bead.Description}}
+{{.Description}}
+{{end}}
 
 {{if .ParentBead}}## Parent Context
 

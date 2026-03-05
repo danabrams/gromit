@@ -62,14 +62,16 @@ The mid-build review surfaced the following concerns. Please resolve them before
 
 ## Current Task
 
-**ID:** {{.Bead.ID}}
-**Title:** {{.Bead.Title}}
-**Priority:** P{{.Bead.Priority}}
-{{if .Bead.Labels}}**Labels:** {{join .Bead.Labels ", "}}{{end}}
+{{with .Bead}}
+**ID:** {{.ID}}
+**Title:** {{.Title}}
+**Priority:** P{{.Priority}}
+{{if .Labels}}**Labels:** {{join .Labels ", "}}{{end}}
 
-{{if .Bead.Description}}
+{{if .Description}}
 ### Description
-{{.Bead.Description}}
+{{.Description}}
+{{end}}
 {{end}}
 
 {{if .Spec}}
@@ -106,7 +108,9 @@ Please analyze the failure and try a different approach.
 
 ## Scope Boundary
 
-Your scope is EXACTLY the bead title: **{{.Bead.Title}}**
+{{with .Bead}}
+Your scope is EXACTLY the bead title: **{{.Title}}**
+{{end}}
 
 - Implement ONLY what the title describes — nothing upstream or downstream
 - Do NOT implement consumers, CLI flags, or wiring for the thing you're adding

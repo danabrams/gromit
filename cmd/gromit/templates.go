@@ -270,14 +270,16 @@ Recent observations that may be relevant:
 
 ## Current Task
 
-**ID:** {{.Bead.ID}}
-**Title:** {{.Bead.Title}}
-**Priority:** P{{.Bead.Priority}}
-{{if .Bead.Labels}}**Labels:** {{join .Bead.Labels ", "}}{{end}}
+{{with .Bead}}
+**ID:** {{.ID}}
+**Title:** {{.Title}}
+**Priority:** P{{.Priority}}
+{{if .Labels}}**Labels:** {{join .Labels ", "}}{{end}}
 
-{{if .Bead.Description}}
+{{if .Description}}
 ### Description
-{{.Bead.Description}}
+{{.Description}}
+{{end}}
 {{end}}
 
 {{if .Spec}}
@@ -599,15 +601,17 @@ You are reviewing a task to quickly estimate its complexity and whether it can b
 
 ## Task Details
 
-**ID:** {{.Bead.ID}}
-**Title:** {{.Bead.Title}}
-**Priority:** P{{.Bead.Priority}}
+{{with .Bead}}
+**ID:** {{.ID}}
+**Title:** {{.Title}}
+**Priority:** P{{.Priority}}
 
-{{if .Bead.Labels}}**Labels:** {{join .Bead.Labels ", "}}{{end}}
+{{if .Labels}}**Labels:** {{join .Labels ", "}}{{end}}
 
 ### Description
 
-{{.Bead.Description}}
+{{.Description}}
+{{end}}
 
 {{if .ParentBead}}## Parent Context
 
@@ -659,13 +663,15 @@ A task has been identified as too large or complex to complete in a single itera
 
 ## Original Task
 
-**ID:** {{.Bead.ID}}
-**Title:** {{.Bead.Title}}
-**Priority:** P{{.Bead.Priority}}
+{{with .Bead}}
+**ID:** {{.ID}}
+**Title:** {{.Title}}
+**Priority:** P{{.Priority}}
 
 ### Description
 
-{{.Bead.Description}}
+{{.Description}}
+{{end}}
 
 {{if .ParentBead}}
 ### Parent Context
@@ -730,9 +736,11 @@ You are reviewing code changes from a single iteration to catch issues early.
 
 ## Task Context
 
-**Bead:** {{.Bead.Title}}
-{{if .Bead.Description}}
-**Description:** {{.Bead.Description}}
+{{with .Bead}}
+**Bead:** {{.Title}}
+{{if .Description}}
+**Description:** {{.Description}}
+{{end}}
 {{end}}
 
 {{if .Spec}}
@@ -1102,14 +1110,16 @@ Recent observations that may be relevant:
 
 ## Current Task
 
-**ID:** {{.Bead.ID}}
-**Title:** {{.Bead.Title}}
-**Priority:** P{{.Bead.Priority}}
-{{if .Bead.Labels}}**Labels:** {{join .Bead.Labels ", "}}{{end}}
+{{with .Bead}}
+**ID:** {{.ID}}
+**Title:** {{.Title}}
+**Priority:** P{{.Priority}}
+{{if .Labels}}**Labels:** {{join .Labels ", "}}{{end}}
 
-{{if .Bead.Description}}
+{{if .Description}}
 ### Description
-{{.Bead.Description}}
+{{.Description}}
+{{end}}
 {{end}}
 
 {{if .Spec}}
@@ -1259,14 +1269,16 @@ Recent observations that may be relevant:
 
 ## Current Task
 
-**ID:** {{.Bead.ID}}
-**Title:** {{.Bead.Title}}
-**Priority:** P{{.Bead.Priority}}
-{{if .Bead.Labels}}**Labels:** {{join .Bead.Labels ", "}}{{end}}
+{{with .Bead}}
+**ID:** {{.ID}}
+**Title:** {{.Title}}
+**Priority:** P{{.Priority}}
+{{if .Labels}}**Labels:** {{join .Labels ", "}}{{end}}
 
-{{if .Bead.Description}}
+{{if .Description}}
 ### Description
-{{.Bead.Description}}
+{{.Description}}
+{{end}}
 {{end}}
 
 {{if .Spec}}
@@ -1397,14 +1409,16 @@ Recent observations that may be relevant:
 
 ## Current Task
 
-**ID:** {{.Bead.ID}}
-**Title:** {{.Bead.Title}}
-**Priority:** P{{.Bead.Priority}}
-{{if .Bead.Labels}}**Labels:** {{join .Bead.Labels ", "}}{{end}}
+{{with .Bead}}
+**ID:** {{.ID}}
+**Title:** {{.Title}}
+**Priority:** P{{.Priority}}
+{{if .Labels}}**Labels:** {{join .Labels ", "}}{{end}}
 
-{{if .Bead.Description}}
+{{if .Description}}
 ### Description
-{{.Bead.Description}}
+{{.Description}}
+{{end}}
 {{end}}
 
 {{if .Spec}}
@@ -1487,14 +1501,16 @@ You are performing a lightweight pre-check to determine whether the acceptance c
 
 ## Task Details
 
-**ID:** {{.Bead.ID}}
-**Title:** {{.Bead.Title}}
-**Priority:** P{{.Bead.Priority}}
-{{if .Bead.Labels}}**Labels:** {{join .Bead.Labels ", "}}{{end}}
+{{with .Bead}}
+**ID:** {{.ID}}
+**Title:** {{.Title}}
+**Priority:** P{{.Priority}}
+{{if .Labels}}**Labels:** {{join .Labels ", "}}{{end}}
 
-{{if .Bead.Description}}
+{{if .Description}}
 ### Description
-{{.Bead.Description}}
+{{.Description}}
+{{end}}
 {{end}}
 
 {{if .ParentBead}}
@@ -1574,14 +1590,16 @@ Recent observations that may be relevant:
 
 ## Current Task
 
-**ID:** {{.Bead.ID}}
-**Title:** {{.Bead.Title}}
-**Priority:** P{{.Bead.Priority}}
-{{if .Bead.Labels}}**Labels:** {{join .Bead.Labels ", "}}{{end}}
+{{with .Bead}}
+**ID:** {{.ID}}
+**Title:** {{.Title}}
+**Priority:** P{{.Priority}}
+{{if .Labels}}**Labels:** {{join .Labels ", "}}{{end}}
 
-{{if .Bead.Description}}
+{{if .Description}}
 ### Description
-{{.Bead.Description}}
+{{.Description}}
+{{end}}
 {{end}}
 
 {{if .Spec}}

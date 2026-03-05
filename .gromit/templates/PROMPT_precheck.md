@@ -4,14 +4,16 @@ You are performing a lightweight pre-check to determine whether the acceptance c
 
 ## Task Details
 
-**ID:** {{.Bead.ID}}
-**Title:** {{.Bead.Title}}
-**Priority:** P{{.Bead.Priority}}
-{{if .Bead.Labels}}**Labels:** {{join .Bead.Labels ", "}}{{end}}
+{{with .Bead}}
+**ID:** {{.ID}}
+**Title:** {{.Title}}
+**Priority:** P{{.Priority}}
+{{if .Labels}}**Labels:** {{join .Labels ", "}}{{end}}
 
-{{if .Bead.Description}}
+{{if .Description}}
 ### Description
-{{.Bead.Description}}
+{{.Description}}
+{{end}}
 {{end}}
 
 {{if .ParentBead}}
