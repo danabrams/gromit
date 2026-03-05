@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/v2/loop"
@@ -101,6 +102,72 @@ func TestMaxRetriesExhaustionHaltsLoop(t *testing.T) {
 	wantOrder := []string{"build", "validate"}
 	if !reflect.DeepEqual(callOrder, wantOrder) {
 		t.Fatalf("call order = %v, want %v", callOrder, wantOrder)
+	}
+}
+
+func TestRetryContextCarriesPriorFailures(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	buildStage := &modelEscalatingStage{
+		name:   "build",
+		models: []string{"haiku", "sonnet"},
+	}
+	validateStage := &failingStage{
+		name:      "validate",
+		failCount: 1,
+	}
+
+	beadLoop, err := loop.NewBeadLoop([]loop.StageSpec{
+		{
+			Stage: buildStage,
+			Retry: stage.RetryConfig{MaxRetries: 2},
+		},
+		{
+			Stage: validateStage,
+			Retry: stage.RetryConfig{MaxRetries: 2, RetryWith: []string{"build"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("construct bead loop: %v", err)
+	}
+
+	if err := beadLoop.Run(ctx, stage.Request{Bead: stage.BeadInfo{ID: "retry-context"}}); err != nil {
+		t.Fatalf("run bead loop: %v", err)
+	}
+
+	if len(validateStage.contexts) < 2 {
+		t.Fatalf("validate contexts = %d, want >=2", len(validateStage.contexts))
+	}
+
+	if validateStage.contexts[0] != nil {
+		t.Fatalf("expected first validate context to be nil, got %+v", validateStage.contexts[0])
+	}
+
+	secondCtx := validateStage.contexts[1]
+	if secondCtx == nil {
+		t.Fatal("expected retry validate context, got nil")
+	}
+	if secondCtx.Attempt != 1 {
+		t.Fatalf("validate retry attempt = %d, want 1", secondCtx.Attempt)
+	}
+	if len(secondCtx.PriorFailures) == 0 || !strings.Contains(secondCtx.PriorFailures[0], "validate failed") {
+		t.Fatalf("prior failures = %v", secondCtx.PriorFailures)
+	}
+
+	if len(buildStage.contexts) < 2 {
+		t.Fatalf("build contexts = %d, want >=2", len(buildStage.contexts))
+	}
+
+	buildRetryCtx := buildStage.contexts[1]
+	if buildRetryCtx == nil {
+		t.Fatal("expected retry build context, got nil")
+	}
+	if buildRetryCtx.Attempt != 1 {
+		t.Fatalf("build retry attempt = %d, want 1", buildRetryCtx.Attempt)
+	}
+	if len(buildRetryCtx.PriorFailures) == 0 || !strings.Contains(buildRetryCtx.PriorFailures[0], "validate failed") {
+		t.Fatalf("build prior failures = %v", buildRetryCtx.PriorFailures)
 	}
 }
 
