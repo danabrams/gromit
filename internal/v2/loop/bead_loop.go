@@ -75,14 +75,15 @@ func (b *BeadLoop) runStage(ctx context.Context, baseReq stage.Request, spec Sta
 
 func (b *BeadLoop) handleFailure(ctx context.Context, baseReq stage.Request, spec StageSpec, state *loopState, failure error) error {
 	stageName := spec.Stage.Name()
-	summary := fmt.Sprintf("%s failed: %v", stageName, failure)
-	state.failureHistory = append(state.failureHistory, summary)
 
 	retries := state.retryCounts[stageName] + 1
 	if retries > spec.Retry.MaxRetries {
 		return fmt.Errorf("%s: %w", stageName, ErrMaxRetriesExceeded)
 	}
 	state.retryCounts[stageName] = retries
+
+	summary := fmt.Sprintf("%s failed: %v", stageName, failure)
+	state.failureHistory = append(state.failureHistory, summary)
 
 	retryCtx := &stage.RetryContext{
 		Attempt:       retries,
