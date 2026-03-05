@@ -21,6 +21,8 @@ type Store struct {
 	points map[string]RestartPoint
 }
 
+var renameTempFile = os.Rename
+
 // NewStore returns a store rooted at gromitDir.
 func NewStore(gromitDir string) *Store {
 	return &Store{
@@ -73,7 +75,17 @@ func (s *Store) Save() error {
 		return err
 	}
 
-	return os.WriteFile(s.path, body, 0o644)
+	tmpPath := s.path + ".tmp"
+	if err := os.WriteFile(tmpPath, body, 0o644); err != nil {
+		return err
+	}
+
+	if err := renameTempFile(tmpPath, s.path); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+
+	return nil
 }
 
 // Load populates the store from the persisted restart-point state.
