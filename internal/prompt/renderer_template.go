@@ -65,7 +65,7 @@ func (r *Renderer) renderFromString(templateName, content string, ctx any) (stri
 }
 
 func (r *Renderer) parseAndCacheTemplate(templateName, content string) (*template.Template, error) {
-	tmpl, err := template.New(templateName).Option("missingkey=zero").Funcs(templateFuncs()).Parse(content)
+	tmpl, err := template.New(templateName).Option("missingkey=error").Funcs(templateFuncs()).Parse(content)
 	if err != nil {
 		return nil, err
 	}
