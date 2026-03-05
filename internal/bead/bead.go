@@ -434,7 +434,13 @@ func (c *Client) UpdateExpectedOutputs(ctx context.Context, id string, criteria 
 		return fmt.Errorf("invalid bead ID %q", id)
 	}
 	acceptance := strings.Join(criteria, "\n")
-	_, err := c.run(ctx, "update", id, "--acceptance", acceptance)
+	acceptancePath, cleanup, err := writeTempFile("bd-acceptance-*.txt", acceptance)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	_, err = c.run(ctx, "update", id, "--acceptance-file", acceptancePath)
 	if err != nil {
 		return fmt.Errorf("bd update acceptance: %w", err)
 	}

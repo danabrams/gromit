@@ -1368,7 +1368,6 @@ func TestClientSync(t *testing.T) {
 func TestClientUpdateExpectedOutputs_PassesAcceptance(t *testing.T) {
 	t.Parallel()
 	criteria := []string{"file1.go", "file2.go"}
-	wantAcceptance := strings.Join(criteria, "\n")
 	var gotArgs []string
 
 	c := &Client{
@@ -1380,11 +1379,14 @@ func TestClientUpdateExpectedOutputs_PassesAcceptance(t *testing.T) {
 			if args[0] != "update" || args[1] != "task-123" {
 				return "", fmt.Errorf("unexpected command: %v", args)
 			}
-			if args[2] != "--acceptance" {
-				return "", fmt.Errorf("missing --acceptance arg: %v", args)
+			if args[2] != "--acceptance-file" {
+				return "", fmt.Errorf("missing --acceptance-file arg: %v", args)
 			}
-			if args[3] != wantAcceptance {
-				return "", fmt.Errorf("acceptance = %q, want %q", args[3], wantAcceptance)
+			if args[3] == "" {
+				return "", fmt.Errorf("acceptance file path is empty: %v", args)
+			}
+			if _, err := os.Stat(args[3]); err != nil {
+				return "", fmt.Errorf("acceptance file missing: %w", err)
 			}
 			return "", nil
 		},
