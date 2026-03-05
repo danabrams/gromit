@@ -243,15 +243,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyUp:
 			if nav := m.activePipelineNavigator(); nav != nil {
 				nav.CursorUp()
-			}
-			if m.scrollOffset > 0 {
-				m.scrollOffset--
+				if m.scrollOffset > 0 {
+					m.scrollOffset--
+				}
 			}
 		case tea.KeyDown:
 			if nav := m.activePipelineNavigator(); nav != nil {
 				nav.CursorDown()
+				m.scrollOffset++
 			}
-			m.scrollOffset++
 		case tea.KeyCtrlC:
 			return m, tea.Quit
 		case tea.KeyEsc:

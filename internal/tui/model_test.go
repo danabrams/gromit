@@ -147,6 +147,10 @@ func TestModel_ScrollHandlingUp(t *testing.T) {
 	m := NewModel(store)
 	m.scrollOffset = 5
 
+	list := &mockPipelineListModel{}
+	m.registerPipelineListModel(TabBacklog, list)
+	m.activeTab = TabBacklog
+
 	// Send Up key to scroll up
 	msg := tea.KeyMsg{Type: tea.KeyUp}
 	model, _ := m.Update(msg)
@@ -163,6 +167,10 @@ func TestModel_ScrollHandlingDown(t *testing.T) {
 	m := NewModel(store)
 	m.scrollOffset = 0
 
+	list := &mockPipelineListModel{}
+	m.registerPipelineListModel(TabBacklog, list)
+	m.activeTab = TabBacklog
+
 	// Send Down key to scroll down
 	msg := tea.KeyMsg{Type: tea.KeyDown}
 	model, _ := m.Update(msg)
@@ -178,6 +186,10 @@ func TestModel_ScrollHandlingNegativeBound(t *testing.T) {
 	store := &Store{}
 	m := NewModel(store)
 	m.scrollOffset = 0
+
+	list := &mockPipelineListModel{}
+	m.registerPipelineListModel(TabBacklog, list)
+	m.activeTab = TabBacklog
 
 	// Send Up key - should not go below 0
 	msg := tea.KeyMsg{Type: tea.KeyUp}
@@ -659,6 +671,9 @@ func TestModel_TabNavigationKeepsCursorAndRendersPipelineData(t *testing.T) {
 	m := NewModel(store)
 	m.focusedPanel = 1
 
+	queueList := &mockPipelineListModel{}
+	m.registerPipelineListModel(TabQueue, queueList)
+
 	view := m.View()
 	if !strings.Contains(view, "Iteration 2/5") {
 		t.Fatalf("expected dashboard view to show iteration progress, got %q", view)
@@ -674,6 +689,8 @@ func TestModel_TabNavigationKeepsCursorAndRendersPipelineData(t *testing.T) {
 	if !strings.Contains(queueView, ready.Title) {
 		t.Fatalf("expected queue view to render ready bead title, got %q", queueView)
 	}
+
+	m.activeTab = TabQueue
 
 	downMsg := tea.KeyMsg{Type: tea.KeyDown}
 	model, _ = m.Update(downMsg)
