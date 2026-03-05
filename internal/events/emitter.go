@@ -68,6 +68,7 @@ func (e *Emitter) Emit(event Event) {
 			// Event sent successfully
 		default:
 			// Channel is full, drop event for this subscriber to avoid blocking
+			e.droppedCount++
 		}
 	}
 }
