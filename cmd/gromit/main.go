@@ -277,11 +277,7 @@ func runLoop(cmd *cobra.Command, args []string) error {
 		specsDir := resolveSpecsDir(cfg)
 		labels, err := resolveScopeLabels(specsDir, runEpicFlag, runSpecFlag)
 		if err != nil {
-			fallbackLabels, fallbackErr := resolveLegacyRunSpecScope(cfg, specsDir, runSpecFlag, err)
-			if fallbackErr != nil {
-				return fallbackErr
-			}
-			labels = fallbackLabels
+			return err
 		}
 
 		// Override max iterations from flag if set

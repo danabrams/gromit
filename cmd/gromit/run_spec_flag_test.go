@@ -345,7 +345,7 @@ func TestRunLoop_SpecFlagValidSpec(t *testing.T) {
 	}
 }
 
-func TestRunLoop_SpecFlagMissingSpecFallsBackToLegacyLabelWhenOpenBeadsExist(t *testing.T) {
+func TestRunLoop_SpecFlagMissingSpecDoesNotFallbackToLegacyLabel(t *testing.T) {
 	_, cleanup := setupRunSpecTestEnv(t)
 	defer cleanup()
 
@@ -357,14 +357,11 @@ func TestRunLoop_SpecFlagMissingSpecFallsBackToLegacyLabelWhenOpenBeadsExist(t *
 	runEpicFlag = ""
 
 	err := runLoop(runCmd, []string{})
-	if err != nil {
-		errMsg := err.Error()
-		if strings.Contains(errMsg, "validating spec:") {
-			t.Errorf("Error should not be spec validation error when legacy fallback applies, got: %v", err)
-		}
-		if strings.Contains(errMsg, "Available specs") {
-			t.Errorf("Error should not list available specs when legacy fallback applies, got: %v", err)
-		}
+	if err == nil {
+		t.Fatal("runLoop with missing --spec should return validation error")
+	}
+	if !strings.Contains(err.Error(), "validating spec:") {
+		t.Fatalf("expected spec validation error for missing spec, got: %v", err)
 	}
 }
 
