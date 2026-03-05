@@ -65,28 +65,66 @@ func FindTaggedPackages(root, tag string) ([]string, error) {
 
 func hasBuildTag(content []byte, tag string) bool {
 	lines := strings.Split(string(content), "\n")
+	inBlockComment := false
+
+lineLoop:
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
 			continue
 		}
 
-		if !isCommentLine(trimmed) {
-			break
-		}
+		for {
+			if inBlockComment {
+				if idx := strings.Index(trimmed, "*/"); idx >= 0 {
+					trimmed = strings.TrimSpace(trimmed[idx+2:])
+					inBlockComment = false
+					if trimmed == "" {
+						continue lineLoop
+					}
+					continue
+				}
+				if hasBuildTagLine(trimmed, tag) {
+					return true
+				}
+				continue lineLoop
+			}
 
-		switch {
-		case strings.HasPrefix(trimmed, "//go:build"):
-			expr := extractExpression(trimmed, "//go:build")
-			if matchesTag(expr, tag) {
+			if strings.HasPrefix(trimmed, "/*") {
+				if idx := strings.Index(trimmed, "*/"); idx >= 0 {
+					trimmed = strings.TrimSpace(trimmed[idx+2:])
+					if trimmed == "" {
+						continue lineLoop
+					}
+					continue
+				}
+				inBlockComment = true
+				continue lineLoop
+			}
+
+			if !isCommentLine(trimmed) {
+				break lineLoop
+			}
+
+			if hasBuildTagLine(trimmed, tag) {
 				return true
 			}
-		case strings.HasPrefix(trimmed, "// +build"):
-			expr := extractExpression(trimmed, "// +build")
-			if matchesTag(expr, tag) {
-				return true
-			}
+
+			continue lineLoop
 		}
+	}
+
+	return false
+}
+
+func hasBuildTagLine(trimmed, tag string) bool {
+	switch {
+	case strings.HasPrefix(trimmed, "//go:build"):
+		expr := extractExpression(trimmed, "//go:build")
+		return matchesTag(expr, tag)
+	case strings.HasPrefix(trimmed, "// +build"):
+		expr := extractExpression(trimmed, "// +build")
+		return matchesTag(expr, tag)
 	}
 	return false
 }
