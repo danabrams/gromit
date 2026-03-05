@@ -43,7 +43,19 @@ var newHydrationProvider = func(cfg *config.Config) tui.HydrationProvider {
 	return &defaultHydrationProvider{cfg: cfg}
 }
 
+type pendingActionProvider interface {
+	PendingAction() *tui.PendingAction
+}
+
 var runTuiLoadConfig = loadConfig
+
+var executePendingAction = func(action *tui.PendingAction) error {
+	cmd, err := buildPendingActionCommand(action)
+	if err != nil {
+		return err
+	}
+	return cmd.Run()
+}
 
 func init() {
 	rootCmd.AddCommand(tuiCmd)
@@ -75,25 +87,19 @@ func runTui(_ *cobra.Command, _ []string) error {
 			return err
 		}
 
-		tuiModel, ok := finalModel.(*tui.Model)
+		pendingModel, ok := finalModel.(pendingActionProvider)
 		if !ok {
 			return fmt.Errorf("tui program returned unexpected model type %T", finalModel)
 		}
 
-		pending := tuiModel.PendingAction()
-		if pending == nil {
-			return nil
-		}
-
-		cmd, err := buildPendingActionCommand(pending)
-		if err != nil {
-			return err
-		}
-
-		if err := cmd.Run(); err != nil {
+		if pending := pendingModel.PendingAction(); pending == nil {
+			break
+		} else if err := executePendingAction(pending); err != nil {
 			return err
 		}
 	}
+
+	return nil
 }
 
 func buildPendingActionCommand(action *tui.PendingAction) (*exec.Cmd, error) {
