@@ -4,6 +4,24 @@
 
 ## Archived
 
+### 2026-03-05 | context_propagation_pervasive_io_subprocess | ARCHITECTURE
+*Related to: gromit/review-1772703746750955000*
+*Archived: 2026-03-05 — descriptive praise; low ongoing decision value under anti-generic archival policy.*
+
+Context propagation is now pervasive across I/O and subprocess operations, enabling cancellation/timeout support throughout the call chain.
+
+### 2026-03-05 | provider_router_mutex_split | ARCHITECTURE
+*Related to: gromit/review-1772703746750955000*
+*Archived: 2026-03-05 — already codified and broadly generic; incremental value as a standalone learning is low.*
+
+Provider router uses sync.Mutex for thread-safe state mutations with a clean locked/unlocked method split (isAvailableLocked vs isAvailable).
+
+### 2026-03-05 | logger_analytics_package_split | ARCHITECTURE
+*Related to: gromit/review-1772703746750955000*
+*Archived: 2026-03-05 — context-specific observation; not durable as a general learning.*
+
+Logger/analytics package split cleanly separates I/O concerns (logger) from calculation/reporting (analytics). Analytics imports from logger for shared types like IterationLog.
+
 ### 2026-03-02 | config_accessor_receiver_nil_safety | CODE_PATTERNS
 *Related to: gromit/review-1772480612920810000*
 *Archived: 2026-03-02 — mostly covered by existing nil-safety and receiver-guard rules; low incremental value as a standalone learning.*

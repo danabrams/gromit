@@ -5,9 +5,14 @@ These rules represent high-leverage control points that have either caused repea
 ## Architecture <!-- phases: red, build, green, refactor, review -->
 
 ### Go subprocesses must thread context end-to-end and guard platform-specific paths
-Go subprocesses with user-influenced args (bead IDs, refs, branch names) must use `runArgv`, not `runCmd`, to prevent shell/flag injection; thread caller `context.Context` end-to-end (never replace with `context.Background()`/`context.TODO()` in live paths); follow full procutil lifecycle (`SetProcessGroupKill`, capacity gating, descendant kill on cancel, stderr capture, process-tree reap); and guard Linux-only `/proc` code with `//go:build linux` (or explicit typed not-supported behavior on other platforms).
+Go subprocesses with user-influenced args (bead IDs, refs, branch names, spec IDs, queue keys) must use `runArgv`, not `runCmd`, and all path/identifier inputs must pass strict allowlist validation before filesystem join or command construction; thread caller `context.Context` end-to-end (never replace with `context.Background()`/`context.TODO()` in live paths); follow full procutil lifecycle (`SetProcessGroupKill`, capacity gating, descendant kill on cancel, stderr capture, process-tree reap); and guard Linux-only `/proc` code with `//go:build linux` (or explicit typed not-supported behavior on other platforms).
 
-**Enforcement:** Code review on subprocess-creating paths; grep for `context.Background()`/`context.TODO()` in subprocess chains; `//go:build linux` audit for `/proc` path access; procutil lifecycle checklist in subprocess code review.
+**Enforcement:** Code review on subprocess-creating paths; grep for `context.Background()`/`context.TODO()` in subprocess chains; `//go:build linux` audit for `/proc` path access; procutil lifecycle checklist in subprocess code review; allowlist-regex audit for path/identifier inputs.
+
+### Subprocess stdin writer goroutines must check write errors before close
+Subprocess stdin writer goroutines must check and surface `io.WriteString` errors (or equivalent write errors) before close/wait to avoid silent broken-pipe hangs. Unchecked write errors in goroutine writers can cause diagnostic loss and process hangs.
+
+**Enforcement:** Code review on subprocess stdin writer paths; grep for unchecked `io.WriteString` in goroutine writers.
 
 ### Benchmark runtime must treat manifest.modes as the sole execution source of truth
 Hardcoded mode lists are forbidden in production paths. All benchmark execution must derive modes from `manifest.modes`. This prevents spec drift and ensures manifest-driven experiments are valid.
@@ -20,7 +25,7 @@ Benchmark and retro reports have external consumers (dashboards, analytics). The
 **Enforcement:** Architecture review for new report generation; test coverage on schema contract boundaries.
 
 ### All run termination paths must call one shared metrics-persist epilogue
-Observability fields (cost/tokens/duration/model/provider/current_run_row attribution) must be produced through the same runtime execution path used in production, and ingestion must enforce fail-closed eligibility: any row with usage present but unknown model/provider attribution is marked data-quality-failed and excluded from SPC/delta aggregates. Pre-launch/invocation failures must still emit non-empty attribution (or explicit sentinel attribution) and a typed failure reason. Rows with execute-not-launched or unresolved attribution must be tagged `data_quality_invalid` and excluded from efficiency/SPC aggregates; fail validation if aggregation includes zero-filled placeholder rows. Any alternate/test path must have parity contract tests proving identical field population semantics and non-empty current-run row generation. Enforce a single shared persist-epilogue invoked by every return path with tests enumerating each exit.
+Observability fields (cost/tokens/duration/model/provider/current_run_row attribution) must be produced through the same runtime execution path used in production, and ingestion must enforce fail-closed eligibility: any row with usage present but unknown model/provider attribution is marked data-quality-failed and excluded from SPC/delta aggregates. Pre-launch/invocation failures must still emit non-empty attribution (or explicit sentinel attribution) and a typed failure reason. Rows with execute-not-launched or unresolved attribution must be tagged `data_quality_invalid` and excluded from efficiency/SPC aggregates; fail validation if aggregation includes zero-filled placeholder rows. Invocation-failure sentinel rows (`duration_ms=0` and `input_tokens=0`) must be quarantined from model/provider delta calculations; publish deltas only when each compared stratum has sufficient valid samples. Any alternate/test path must have parity contract tests proving identical field population semantics and non-empty current-run row generation. Enforce a single shared persist-epilogue invoked by every return path with tests enumerating each exit.
 
 **Enforcement:** Parity contract tests for each exit path (success, build-fail, validation-fail, pre-launch, timeout); CI gate on persist-epilogue coverage.
 
@@ -55,6 +60,11 @@ For nil-safety defects, first implement a centralized safe-call wrapper or bound
 Ephemeral `.-gromit-*` worktree paths must stay untracked in version control. Repository-level ignore plus explicit gitlink guard (mode `160000` fails fast before commit/CI) prevents accidental repo integrity corruption.
 
 **Enforcement:** Local pre-commit hooks and CI entry targets; audit gitlink entries in hook output.
+
+### Preflight must gate on package red-state before expensive invocation
+Before build phase starts, run a hard preflight environment gate (clean worktree, queue-state writeability, spec-branch checkout viability) plus package red-state gate for touched packages; block expensive invocation when known baseline regressions are already present. Emit typed `environment_blocked` when already-failing packages are in scope.
+
+**Enforcement:** Preflight gate runs targeted package tests before model invocation; CI gate on preflight coverage for touched-package health checks.
 
 ### Bead failure decomposition must be enforced by preflight
 For broad/high-risk scope (cross-package, regression umbrella titles, 6+ files, or call-site sweep scopes like '...at all call sites'), require decomposition before the first implementation attempt — failure-triggered decomposition is fallback only. Nil-safety and stream-attribution fixes require wrapper/reducer-first child beads before retry. For non-broad scopes, decompose after 2 consecutive failures. If failure signature is invocation/pre-launch (duration_ms=0 and attribution unresolved), forbid same-scope retry and require immediate diagnostic decomposition. Preflight must verify decomposition children exist and parent is blocked before any retry is allowed. Missing child-bead links is a hard error (not warning), with idempotent child creation and explicit `discovered-from` linkage required. Telemetry/usage children split: (1) event-merge, (2) completeness, (3) attribution. Block parent retries until a child lands. If broad-scope signals indicate cross-package or 6+ files, planning must fail until decomposition child beads (with expected_outputs) are linked.
@@ -114,6 +124,11 @@ Tests that override package-level injectable vars (FnField/function-pointer seam
 Shared helper packages (especially test helpers) must not expose mutable global maps/slices. Keep mutable sources unexported and provide copy/accessor functions. This prevents order-dependent tests and hidden cross-suite coupling.
 
 **Enforcement:** Code review on helper API changes; grep for exported `var` maps/slices in shared packages.
+
+### Documentation-only tests do not satisfy regression-protection criteria
+Tests that only assert documentation strings or source-text presence do not satisfy regression-protection criteria for quality gates; affected suites must include behavioral or contract assertions to count toward coverage/quality signals.
+
+**Enforcement:** Code review on test changes; CI lint for tests with only string/doc assertions and no behavioral checks.
 
 ### End-to-end tests must execute CLI path and assert user-visible behavior
 Acceptance tests must verify behavior through public API/CLI surfaces, not private helpers. Tests named `end_to_end` must execute the CLI command path and assert exit code + user-visible output/artifacts; parser- or model-state-only checks belong in focused unit tests.
