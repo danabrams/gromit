@@ -83,9 +83,10 @@ func TestGitOpsCallSequence(t *testing.T) {
 	}
 
 	// Verify calls were tracked
+	mockImpl := mock.(*callTrackingMockGitOps)
 	wantCalls := []string{"FetchAndRebase", "MergeToMain", "Push", "Cleanup"}
-	if !callsMatch(mock.GetCalls(), wantCalls) {
-		t.Fatalf("calls = %v, want %v", mock.GetCalls(), wantCalls)
+	if !callsMatch(mockImpl.calls, wantCalls) {
+		t.Fatalf("calls = %v, want %v", mockImpl.calls, wantCalls)
 	}
 }
 
@@ -158,4 +159,17 @@ func (m *callTrackingMockGitOps) Push(ctx context.Context) error {
 func (m *callTrackingMockGitOps) Cleanup(ctx context.Context, entry Entry) error {
 	m.calls = append(m.calls, "Cleanup")
 	return m.cleanupErr
+}
+
+// callsMatch compares two slices of strings for equality.
+func callsMatch(got, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			return false
+		}
+	}
+	return true
 }
