@@ -538,14 +538,3 @@ func wireSiblingEnrichmentResolver(renderer PromptRenderer, logsDir string) {
 		return analytics.ReadSiblingTouchedPackagesBySpec(logsDir, current.ID, specID)
 	})
 }
-
-func specLabelFromCurrentOrParent(current, parent *bead.Bead) string {
-	if current == nil {
-		return ""
-	}
-	specID := bead.FindSpecLabel(current.Labels)
-	if specID == "" && parent != nil {
-		specID = bead.FindSpecLabel(parent.Labels)
-	}
-	return specID
-}

@@ -29,6 +29,31 @@ When event structs embed TimeMixin (or any struct with fields), struct literals 
 
 Sessions now produce branches that flow through a state-machine-based integration queue (draft→ready→integrating→merged/conflict/failed_gates) with file-based JSON persistence and atomic writes, rather than merging directly back to main. This avoids merge conflicts during session execution and is a safer model for single-machine session orchestration. The tracker.Client interface decomposition into ItemReader/ItemWriter/ItemQuery follows Interface Segregation Principle well.
 
+### 2026-03-05 | context_propagation_pervasive_io_subprocess | ARCHITECTURE
+*Related to: gromit/review-1772703746750955000*
+
+Context propagation is now pervasive across I/O and subprocess operations, enabling cancellation/timeout support throughout the call chain.
+
+### 2026-03-05 | provider_router_mutex_split | ARCHITECTURE
+*Related to: gromit/review-1772703746750955000*
+
+Provider router uses sync.Mutex for thread-safe state mutations with a clean locked/unlocked method split (isAvailableLocked vs isAvailable).
+
+### 2026-03-05 | stale_fix_detection_prevents_wasted_invocations | ARCHITECTURE
+*Related to: gromit/review-1772703746750955000*
+
+Stale-fix detection in the validation package prevents wasted agent invocations by comparing changed files and error categories across retry attempts. When both match a prior attempt, the retry loop short-circuits.
+
+### 2026-03-05 | logger_analytics_package_split | ARCHITECTURE
+*Related to: gromit/review-1772703746750955000*
+
+Logger/analytics package split cleanly separates I/O concerns (logger) from calculation/reporting (analytics). Analytics imports from logger for shared types like IterationLog.
+
+### 2026-03-05 | clientdeps_ensure_defaults_injection | CODE_PATTERN
+*Related to: gromit/review-1772703746750955000*
+
+Dependency injection via ClientDeps struct with ensureDefaults() fallback is the established pattern for testability in the bead package. Struct fields hold function references; ensureDefaults() wires procutil helpers as production defaults.
+
 ## Provisional Learnings
 
 *No provisional learnings at this time.*
