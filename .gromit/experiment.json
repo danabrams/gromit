@@ -1,21 +1,26 @@
 {
-  "id": "concurrency-test-determinism-migration-2026-03-05",
-  "name": "Concurrency Test Determinism Migration",
-  "hypothesis": "Replacing timing-threshold concurrency assertions with sync-primitive assertions will reduce flaky build failures without reducing coverage.",
-  "change": "Migrate known timing-based tests in runner/orchestrator to deterministic overlap proofs (barriers/waitgroups/channels).",
-  "measurement": "Track test flake rate and build-failure share attributed to test timing over 30 CI runs.",
-  "risk": "Test refactors may temporarily hide intent if synchronization harnesses are poorly named.",
-  "status": "done",
-  "study_summary": "All 3 timing-based test files migrated: orchestrator_test.go (sync.WaitGroup barriers), emitter_wiring_test.go (context.WithTimeout + re-emit pattern), validation_test.go (channel-controlled runners replacing time.Sleep). Migration also discovered and fixed a real race condition in startupMonitor.firstRead (atomic.Bool). All migrated tests pass reliably with -count=3. Baseline flake-rate data was not captured, so quantitative before/after comparison is unavailable, but the pattern is structurally sound: sync primitives cannot produce false timing-window failures. Rule already landed in RULES.md.",
-  "act_decision": "keep",
-  "act_date": "2026-03-05",
+  "id": "prompt-budget-by-scope-2026-03-05",
+  "name": "Prompt Budget by Scope",
+  "hypothesis": "Applying tighter prompt shaping for low-scope CLI beads reduces input tokens without harming first-pass success.",
+  "change": "For beads with \u22642 estimated files, cap prompt budget at 50% of baseline; for 3-4 files, cap at 75%. Uses existing ShapeContextForBudget trim cascade with a lower ceiling.",
+  "measurement": "Compare median input tokens, first-pass success rate, and cost per bead against baseline over next 30 iterations.",
+  "risk": "Under-context may increase retries on edge cases where dropped learnings/rules were needed.",
+  "status": "doing",
+  "study_summary": "",
+  "act_decision": "",
   "started_at": "2026-03-05T00:00:00Z",
-  "baseline_metrics": {},
+  "baseline_metrics": {
+    "avg_cost_per_bead": 0.9069,
+    "avg_duration_ms": 771558,
+    "avg_input_tokens": 2400,
+    "avg_output_tokens": 53836,
+    "failure_rate": 0.2
+  },
   "previous_experiment": {
-    "id": "attribution-quarantine-hard-gate-2026-03-03",
-    "name": "Attribution Quarantine Hard Gate",
-    "act_decision": "inconclusive",
+    "id": "concurrency-test-determinism-migration-2026-03-05",
+    "name": "Concurrency Test Determinism Migration",
+    "act_decision": "keep",
     "act_date": "2026-03-05",
-    "final_summary": "Inconclusive after 58 iterations across 11 runs. Provider field is structurally MISSING from all run log entries, so the quarantine gate cannot distinguish known vs unknown attribution. Cost dropped 35% but confounded by 33% zero-execution failures. Failure rate rose from 10% to 46.6%."
+    "final_summary": "All 3 timing-based test files migrated to sync primitives, real race condition discovered and fixed, rule landed."
   }
 }
