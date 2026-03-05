@@ -178,53 +178,20 @@ func (c *Coordinator) RecoverFromCrash(ctx context.Context) error {
 		return fmt.Errorf("loading integration queue for recovery: %w", err)
 	}
 
-	// Find and reset any entries in integrating state
-	recovered := false
+	// Find and reset any entries stranded in integrating state.
+	// LastErrorCode is always empty here because ApplyTransition clears
+	// error fields when transitioning to StateIntegrating (no metadata),
+	// so we unconditionally reset to StateReady.
 	for i := range queue.Entries {
 		entry := &queue.Entries[i]
 		if entry.State == StateIntegrating {
-			targetState := StateReady
-			reason := "crash recovery"
-			clearError := true
-
-			switch entry.LastErrorCode {
-			case string(StateFailedGates):
-				targetState = StateFailedGates
-				reason = "crash recovery: failed gates"
-				clearError = false
-			case "merge_conflict":
-				targetState = StateConflict
-				reason = "crash recovery: merge conflict"
-				clearError = false
-			case "push_failed":
-				targetState = StatePushFailure
-				reason = "crash recovery: push failure"
-				clearError = false
+			if err := c.applyTransition(entry, string(StateReady), "crash recovery", crashRecoveryMetadata()); err != nil {
+				return fmt.Errorf("transitioning recovered entry %s: %w", entry.Branch, err)
 			}
-
-			metadata := []TransitionErrorMetadata{}
-			if clearError {
-				metadata = append(metadata, crashRecoveryMetadata())
-			} else {
-				metadata = append(metadata, TransitionErrorMetadata{Code: entry.LastErrorCode, Message: entry.LastErrorMessage})
-			}
-
-			transitionErr := c.applyTransition(entry, string(targetState), reason, metadata...)
-			if transitionErr != nil {
-				return fmt.Errorf("transitioning recovered entry %s: %w", entry.Branch, transitionErr)
-			}
-
-			// Save each recovered entry
 			if err := c.store.Save(*entry); err != nil {
 				return fmt.Errorf("saving recovered entry %s: %w", entry.Branch, err)
 			}
-			recovered = true
 		}
-	}
-
-	// If no entries needed recovery, just return early
-	if !recovered {
-		return nil
 	}
 
 	return nil
