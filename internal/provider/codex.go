@@ -233,7 +233,9 @@ func (cp *CodexProvider) streamRunOnce(ctx context.Context, prompt string, tier 
 	// Write prompt to stdin in goroutine
 	go func() {
 		defer stdin.Close()
-		io.WriteString(stdin, prompt)
+		if _, err := io.WriteString(stdin, prompt); err != nil {
+			codexDebugf(output, "provider debug: error writing prompt to codex stdin: %v", err)
+		}
 	}()
 
 	// Process the JSONL stream

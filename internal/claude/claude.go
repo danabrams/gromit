@@ -106,7 +106,9 @@ func (c *Client) Run(ctx context.Context, prompt string, model string) (*Result,
 	// Write prompt to stdin
 	go func() {
 		defer stdin.Close()
-		io.WriteString(stdin, prompt)
+		if _, err := io.WriteString(stdin, prompt); err != nil {
+			fmt.Fprintf(os.Stderr, "gromit: error writing prompt to claude stdin: %v\n", err)
+		}
 	}()
 
 	// Wait for completion
@@ -358,7 +360,9 @@ func (c *Client) StreamRun(ctx context.Context, prompt string, model string, out
 
 	go func() {
 		defer stdin.Close()
-		io.WriteString(stdin, prompt)
+		if _, err := io.WriteString(stdin, prompt); err != nil {
+			fmt.Fprintf(output, "  error writing prompt to claude stdin: %v\n", err)
+		}
 	}()
 
 	// Derive startup warning from invocation timeout: timeout/10, clamped to [30s, 120s].
@@ -414,7 +418,7 @@ func (c *Client) StreamRun(ctx context.Context, prompt string, model string, out
 type startupMonitor struct {
 	reader    io.Reader
 	warned    atomic.Bool
-	firstRead bool
+	firstRead atomic.Bool
 	timeout   time.Duration
 	output    io.Writer
 }
@@ -428,8 +432,7 @@ func newStartupMonitor(r io.Reader, timeout time.Duration, output io.Writer) *st
 }
 
 func (m *startupMonitor) Read(p []byte) (int, error) {
-	if !m.firstRead {
-		m.firstRead = true
+	if m.firstRead.CompareAndSwap(false, true) {
 		// Start a goroutine that warns if this first read takes too long
 		done := make(chan struct{})
 		go func() {

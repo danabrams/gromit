@@ -131,6 +131,16 @@ Shared orchestrator/runtime path ownership must include telemetry completeness e
 
 *Newly observed — needs validation across more tasks.*
 
+### 2026-03-05 | V2 Cutover Deletes V1 Runner and Pipeline — Review Findings Must Target Surviving Packages | architecture
+*Related to: review-1772740826510950000*
+
+When reviewing during a major rewrite, check which packages survive cutover before filing issues. The v2 run loop (internal/v2/) replaces internal/runner/ and internal/pipeline/ entirely. Infrastructure packages (internal/claude/, internal/provider/, internal/config/, internal/bead/) are imported directly by v2 and survive. Review findings targeting doomed v1 code (orchestrator DI patterns, interface placement, large test files, PromptRenderer splitting) are wasted effort.
+
+### 2026-03-05 | Subprocess Stdin Writers Must Check io.WriteString Errors | reliability
+*Related to: review-1772740826510950000*
+
+Goroutines that write prompts to subprocess stdin via io.WriteString() must check the error return. A broken pipe (subprocess crashed or exited early) silently swallows the write failure, leaving the caller hanging on Wait() with no diagnostic. Affected: internal/claude/claude.go, internal/provider/gemini.go, internal/provider/codex.go. Pattern: log the error since goroutines can't return it, then let defer stdin.Close() clean up.
+
 ### 2026-03-05 | Validation Commands via sh -c Is Acceptable for Owner-Controlled Config | security
 *Related to: review-1772715065914055000*
 

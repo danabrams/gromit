@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"time"
 
@@ -334,7 +335,9 @@ func defaultGeminiRunFn(ctx context.Context, binary string, args []string, promp
 		// Write prompt to stdin in goroutine
 		go func() {
 			defer stdin.Close()
-			io.WriteString(stdin, prompt)
+			if _, err := io.WriteString(stdin, prompt); err != nil {
+				fmt.Fprintf(os.Stderr, "gromit: error writing prompt to gemini stdin: %v\n", err)
+			}
 		}()
 
 		err = cmd.Wait()
