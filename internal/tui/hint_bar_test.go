@@ -95,3 +95,15 @@ func TestHintBarDetailViewOverrides(t *testing.T) {
 		})
 	}
 }
+
+func TestHintBarConfirmationOverrides(t *testing.T) {
+	tabs := []Tab{TabBacklog, TabSpecs, TabPlans}
+	for _, tab := range tabs {
+		t.Run(string(tab), func(t *testing.T) {
+			got := HintBar(tab, false, true)
+			if got != hintBarConfirmationStateStrings[tab] {
+				t.Fatalf("HintBar(%q, confirmation) = %q, want %q", tab, got, hintBarConfirmationStateStrings[tab])
+			}
+		})
+	}
+}
