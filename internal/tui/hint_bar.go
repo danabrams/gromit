@@ -19,13 +19,15 @@ var normalTabBaseActions = map[Tab][]string{
 	TabRunLoop: {},
 }
 
-var normalStateHintStrings = map[Tab]string{
+var perTabNormalHintStrings = map[Tab]string{
 	TabBacklog: styledNormalHintString(TabBacklog),
 	TabSpecs:   styledNormalHintString(TabSpecs),
 	TabPlans:   styledNormalHintString(TabPlans),
 	TabQueue:   styledNormalHintString(TabQueue),
 	TabRunLoop: styledNormalHintString(TabRunLoop),
 }
+
+var normalStateHintStrings = perTabNormalHintStrings
 
 var hintBarNormalStateStrings = normalStateHintStrings
 
