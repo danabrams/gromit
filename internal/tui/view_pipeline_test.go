@@ -49,6 +49,24 @@ func TestPlanListItemTitleSummary(t *testing.T) {
 	}
 }
 
+func TestSpecListItemTitleTrimsWhitespace(t *testing.T) {
+	path := " specs/awesome-feature.md "
+	item := &SpecListItem{path: path}
+
+	if got, want := item.Title(), "awesome-feature.md"; got != want {
+		t.Fatalf("Title() = %q, want %q", got, want)
+	}
+}
+
+func TestPlanListItemTitleTrimsWhitespace(t *testing.T) {
+	path := " plans/awesome-feature.plan "
+	item := &PlanListItem{path: path}
+
+	if got, want := item.Title(), "awesome-feature.plan"; got != want {
+		t.Fatalf("Title() = %q, want %q", got, want)
+	}
+}
+
 func TestBeadListItemTitleSummary(t *testing.T) {
 	 b := &bead.Bead{
 	 	 ID:       "B-1",
