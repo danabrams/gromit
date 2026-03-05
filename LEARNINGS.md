@@ -11,7 +11,7 @@ Package-level var injection for test fakes (e.g. `killDescendantsOnCancelFn = pr
 *Related to: gromit/review-1772480612920810000, gromit-vj714, gromit-9olfs, gromit-5ag6c, gromit/review-1772054097495408438, gromit/review-1772062103155608386, gromit-9948, gromit-9949, gromit-y7flm, gromit-z9z2k, gromit/review-1771861273153074810, gromit/review-1771878486437709843, gromit/review-1772059511071909600, gromit/review-1772199039639467769, gromit-9bhr, gromit-qs2ks, gromit/review-1771938913730053167, gromit-scrae.1, gromit-scrae.3*
 *Consolidated from: runtime_execution_attribution_ownership_contract + nil_safety_boundary_centralized_guard + subprocess_context_threading_and_platform_guards*
 
-Boundary-sensitive runtime behavior must be centralized and fail-closed: subprocess/context propagation, platform-specific guards, attribution completeness, and lifecycle persistence must be enforced through shared boundary contracts rather than call-site patches. Specific recurring failure modes: (1) context threading — callers that receive a live ctx must thread it all the way to subprocess creation; using context.Background() mid-chain silently ignores cancellation and causes up to DefaultCommandTimeout of lag after user cancel; (2) platform-specific /proc paths are Linux-only — add //go:build linux tags or explicit typed not-supported behavior on macOS; (3) attribution completeness, lifecycle persistence, and nil/callback safety must use centralized safe-call wrappers that reject nil payloads before field access. All three failure modes share the same root: boundary ownership spread across call sites causes silent correctness and observability regressions.
+Runtime boundary ownership is one enforceable contract: context propagation, subprocess lifecycle, telemetry completeness, and residual call-site parity must be validated together with fail-closed tests on every return path. Specific recurring failure modes: (1) context threading — callers that receive a live ctx must thread it all the way to subprocess creation; using context.Background() mid-chain silently ignores cancellation and causes up to DefaultCommandTimeout of lag after user cancel; (2) platform-specific /proc paths are Linux-only — add //go:build linux tags or explicit typed not-supported behavior on macOS; (3) attribution completeness, lifecycle persistence, and nil/callback safety must use centralized safe-call wrappers that reject nil payloads before field access. All four failure modes (context, subprocess, telemetry, parity) share the same root: boundary ownership spread across call sites causes silent correctness and observability regressions.
 
 ### 2026-02-25 | provider_fixture_governance_schema_first_deterministic | TEST_QUALITY
 *Related to: gromit/review-1771886115282672489, gromit/review-1771908518510170783, gromit/review-1771929160626448252, gromit/review-1771897964548429202*
@@ -29,25 +29,10 @@ When event structs embed TimeMixin (or any struct with fields), struct literals 
 
 Sessions now produce branches that flow through a state-machine-based integration queue (draft→ready→integrating→merged/conflict/failed_gates) with file-based JSON persistence and atomic writes, rather than merging directly back to main. This avoids merge conflicts during session execution and is a safer model for single-machine session orchestration. The tracker.Client interface decomposition into ItemReader/ItemWriter/ItemQuery follows Interface Segregation Principle well.
 
-### 2026-03-05 | context_propagation_pervasive_io_subprocess | ARCHITECTURE
-*Related to: gromit/review-1772703746750955000*
-
-Context propagation is now pervasive across I/O and subprocess operations, enabling cancellation/timeout support throughout the call chain.
-
-### 2026-03-05 | provider_router_mutex_split | ARCHITECTURE
-*Related to: gromit/review-1772703746750955000*
-
-Provider router uses sync.Mutex for thread-safe state mutations with a clean locked/unlocked method split (isAvailableLocked vs isAvailable).
-
 ### 2026-03-05 | stale_fix_detection_prevents_wasted_invocations | ARCHITECTURE
 *Related to: gromit/review-1772703746750955000*
 
 Stale-fix detection in the validation package prevents wasted agent invocations by comparing changed files and error categories across retry attempts. When both match a prior attempt, the retry loop short-circuits.
-
-### 2026-03-05 | logger_analytics_package_split | ARCHITECTURE
-*Related to: gromit/review-1772703746750955000*
-
-Logger/analytics package split cleanly separates I/O concerns (logger) from calculation/reporting (analytics). Analytics imports from logger for shared types like IterationLog.
 
 ### 2026-03-05 | clientdeps_ensure_defaults_injection | CODE_PATTERN
 *Related to: gromit/review-1772703746750955000*
