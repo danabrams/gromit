@@ -117,3 +117,45 @@ func TestHintBarNormalStateOutputs(t *testing.T) {
 		})
 	}
 }
+
+func TestRenderHintBarNormalStateStrings(t *testing.T) {
+	for _, tab := range hintTabs() {
+		t.Run(string(tab), func(t *testing.T) {
+			want, ok := hintBarNormalStateStrings[tab]
+			if !ok {
+				t.Fatalf("missing normal hint string for %q", tab)
+			}
+			if got := RenderHintBar(tab, true, false, false); got != want {
+				t.Fatalf("RenderHintBar(%q, normal) = %q, want %q", tab, got, want)
+			}
+		})
+	}
+}
+
+func TestRenderHintBarDetailStateStrings(t *testing.T) {
+	for _, tab := range hintTabs() {
+		t.Run(string(tab), func(t *testing.T) {
+			want, ok := hintBarDetailStateStrings[tab]
+			if !ok {
+				t.Fatalf("missing detail hint string for %q", tab)
+			}
+			if got := RenderHintBar(tab, true, true, false); got != want {
+				t.Fatalf("RenderHintBar(%q, detail view) = %q, want %q", tab, got, want)
+			}
+		})
+	}
+}
+
+func TestRenderHintBarConfirmationStateStrings(t *testing.T) {
+	for _, tab := range hintTabs() {
+		t.Run(string(tab), func(t *testing.T) {
+			want, ok := hintBarConfirmationStateStrings[tab]
+			if !ok {
+				t.Fatalf("missing confirmation hint string for %q", tab)
+			}
+			if got := RenderHintBar(tab, true, false, true); got != want {
+				t.Fatalf("RenderHintBar(%q, confirmation) = %q, want %q", tab, got, want)
+			}
+		})
+	}
+}
