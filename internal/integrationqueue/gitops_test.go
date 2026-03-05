@@ -21,4 +21,34 @@ func TestFetchAndRebaseErrorPropagation(t *testing.T) {
 }
 
 // NewErrorMockGitOps creates a mock GitOps implementation that returns specified errors.
-// This function does not exist yet and will cause compilation to fail in RED phase.
+func NewErrorMockGitOps(fetchErr, mergeErr, pushErr, cleanupErr error) GitOps {
+	return &errorMockGitOps{
+		fetchErr:   fetchErr,
+		mergeErr:   mergeErr,
+		pushErr:    pushErr,
+		cleanupErr: cleanupErr,
+	}
+}
+
+type errorMockGitOps struct {
+	fetchErr   error
+	mergeErr   error
+	pushErr    error
+	cleanupErr error
+}
+
+func (m *errorMockGitOps) FetchAndRebase(ctx context.Context, entry Entry) error {
+	return m.fetchErr
+}
+
+func (m *errorMockGitOps) MergeToMain(ctx context.Context, entry Entry) error {
+	return m.mergeErr
+}
+
+func (m *errorMockGitOps) Push(ctx context.Context) error {
+	return m.pushErr
+}
+
+func (m *errorMockGitOps) Cleanup(ctx context.Context, entry Entry) error {
+	return m.cleanupErr
+}
