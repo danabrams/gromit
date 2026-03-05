@@ -2,19 +2,25 @@ package v2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/events"
+	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/stage"
 )
 
 // RemediationRunnerConfig captures dependencies for remediation orchestration.
 type RemediationRunnerConfig struct {
-	AcceptStage    stage.Stage
-	GapStage       stage.Stage
-	DecomposeStage stage.Stage
-	BeadRunner     BeadRunner
-	GenerationCap  int
+	AcceptStage     stage.Stage
+	GapStage        stage.Stage
+	DecomposeStage  stage.Stage
+	BeadRunner      BeadRunner
+	GenerationCap   int
+	Presenter       adapter.PresenterAdapter
+	Emitter         *events.Emitter
+	WorktreeCleaner WorktreeCleaner
 }
 
 // BeadRunner executes the loop that processes each generated bead.
@@ -22,9 +28,15 @@ type BeadRunner interface {
 	Run(ctx context.Context, beads []*bead.Bead) error
 }
 
+// WorktreeCleaner cleans up the spec worktree after a successful run.
+type WorktreeCleaner interface {
+	Cleanup(ctx context.Context, specID string) error
+}
+
 // RemediationRunner drives the accept-gap-decompose-bead loop cycle.
 type RemediationRunner struct {
-	cfg RemediationRunnerConfig
+	cfg             RemediationRunnerConfig
+	generationCount int
 }
 
 // NewRemediationRunner constructs a remediation runner using the provided config.
@@ -59,11 +71,26 @@ func (r *RemediationRunner) Run(ctx context.Context, specID string) error {
 			}
 			continue
 		}
+		if err := r.cleanup(ctx, specID); err != nil {
+			return err
+		}
 		return nil
 	}
 }
 
+func (r *RemediationRunner) cleanup(ctx context.Context, specID string) error {
+	if cleaner := r.cfg.WorktreeCleaner; cleaner != nil {
+		return cleaner.Cleanup(ctx, specID)
+	}
+	return nil
+}
+
 func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.Request) error {
+	specID := req.Bead.ID
+	if !r.canRemediate() {
+		return r.handleGenerationCap(ctx, specID)
+	}
+
 	if r.cfg.GapStage != nil {
 		if _, err := r.cfg.GapStage.Run(ctx, req); err != nil {
 			return err
@@ -82,6 +109,42 @@ func (r *RemediationRunner) executeRemediation(ctx context.Context, req *stage.R
 		return err
 	}
 
+	r.generationCount++
+
+	return nil
+}
+
+func (r *RemediationRunner) canRemediate() bool {
+	cap := r.cfg.GenerationCap
+	if cap <= 0 {
+		return false
+	}
+	return r.generationCount < cap
+}
+
+func (r *RemediationRunner) handleGenerationCap(ctx context.Context, specID string) error {
+	reason := "generation cap reached"
+	if emitter := r.cfg.Emitter; emitter != nil {
+		emitter.Emit(&events.GenerationCapReachedEvent{
+			SpecID:        specID,
+			GenerationCap: r.cfg.GenerationCap,
+		})
+		emitter.Emit(&events.AndonTriggeredEvent{
+			SpecID: specID,
+			Reason: reason,
+		})
+	}
+	if err := r.presentFailureSummary(ctx, specID, reason); err != nil {
+		return err
+	}
+	return errors.New(reason)
+}
+
+func (r *RemediationRunner) presentFailureSummary(ctx context.Context, specID, reason string) error {
+	if presenter := r.cfg.Presenter; presenter != nil {
+		summary := fmt.Sprintf("spec %s remediation halted: %s", specID, reason)
+		return presenter.PresentSummary(ctx, specID, summary)
+	}
 	return nil
 }
 
