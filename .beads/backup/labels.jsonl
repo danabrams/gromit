@@ -1520,6 +1520,8 @@
 {"issue_id":"gromit-mpift.1","label":"tdd:true"}
 {"issue_id":"gromit-mpift.2","label":"tdd:true"}
 {"issue_id":"gromit-mpift.3","label":"tdd:true"}
+{"issue_id":"gromit-mpv13","label":"from-review"}
+{"issue_id":"gromit-mpv13","label":"refactor"}
 {"issue_id":"gromit-mqu","label":"complexity:low"}
 {"issue_id":"gromit-mrf","label":"spec:review-system"}
 {"issue_id":"gromit-mrg1","label":"spec:typed-session-results"}
