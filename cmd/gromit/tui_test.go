@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"reflect"
 	"testing"
@@ -141,6 +142,68 @@ func TestRunTuiHydratesBeforeProgramAndExitsWhenNoPendingAction(t *testing.T) {
 	}
 }
 
+func TestRunTuiRelaunchesUntilPendingActionClears(t *testing.T) {
+	originalLoadConfig := runTuiLoadConfig
+	runTuiLoadConfig = func() (*config.Config, error) { return &config.Config{}, nil }
+	defer func() { runTuiLoadConfig = originalLoadConfig }()
+
+	hydrateCalls := 0
+	originalHydrate := hydrateStoreFn
+	hydrateStoreFn = func(ctx context.Context, cfg *config.Config, gromitDir, specsDir, plansDir string, provider tui.HydrationProvider) *tui.Store {
+		hydrateCalls++
+		return &tui.Store{}
+	}
+	defer func() { hydrateStoreFn = originalHydrate }()
+
+	originalProvider := newHydrationProvider
+	newHydrationProvider = func(cfg *config.Config) tui.HydrationProvider {
+		return &fakeHydrationProvider{}
+	}
+	defer func() { newHydrationProvider = originalProvider }()
+
+	runCount := 0
+	expectedModels := []*pendingActionModel{
+		{pending: &tui.PendingAction{Command: "plan", Args: []string{"spec"}}},
+		{pending: nil},
+	}
+	originalProgramFactory := newTeaProgram
+	newTeaProgram = func(model tea.Model) teaProgram {
+		runCount++
+		return &fakeTeaProgram{runFn: func() (tea.Model, error) {
+			if runCount > len(expectedModels) {
+				return nil, fmt.Errorf("unexpected run count %d", runCount)
+			}
+			return expectedModels[runCount-1], nil
+		}}
+	}
+	defer func() { newTeaProgram = originalProgramFactory }()
+
+	executePendingActionCalls := 0
+	originalExecutePendingAction := executePendingAction
+	executePendingAction = func(action *tui.PendingAction) error {
+		executePendingActionCalls++
+		if action == nil || action.Command != "plan" {
+			t.Fatalf("unexpected pending action = %+v", action)
+		}
+		return nil
+	}
+	defer func() { executePendingAction = originalExecutePendingAction }()
+
+	if err := runTui(nil, nil); err != nil {
+		t.Fatalf("runTui() error = %v", err)
+	}
+
+	if hydrateCalls != len(expectedModels) {
+		t.Fatalf("hydrate called %d times, want %d", hydrateCalls, len(expectedModels))
+	}
+	if runCount != len(expectedModels) {
+		t.Fatalf("program run %d times, want %d", runCount, len(expectedModels))
+	}
+	if executePendingActionCalls != 1 {
+		t.Fatalf("pending action executed %d times, want 1", executePendingActionCalls)
+	}
+}
+
 type fakeHydrationProvider struct{}
 
 func (*fakeHydrationProvider) RunnerStatus(ctx context.Context, gromitDir string) (*runner.Status, error) {
@@ -164,4 +227,24 @@ func (f *fakeTeaProgram) Run() (tea.Model, error) {
 		return nil, nil
 	}
 	return f.runFn()
+}
+
+type pendingActionModel struct {
+	pending *tui.PendingAction
+}
+
+func (p *pendingActionModel) PendingAction() *tui.PendingAction {
+	return p.pending
+}
+
+func (p *pendingActionModel) Init() tea.Cmd {
+	return nil
+}
+
+func (p *pendingActionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	return p, nil
+}
+
+func (p *pendingActionModel) View() string {
+	return ""
 }
