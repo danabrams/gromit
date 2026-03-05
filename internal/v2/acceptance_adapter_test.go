@@ -16,6 +16,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/v2/loop"
+	"github.com/danabrams/gromit/internal/v2/presentation"
 )
 
 func TestAdapterSwappability(t *testing.T) {
@@ -202,7 +203,7 @@ func (fakeTaskTrackerAdapter) RecordPlan(_ context.Context, specID, plan string)
 
 type fakePresenterAdapter struct{}
 
-func (fakePresenterAdapter) PresentSummary(_ context.Context, specID, summary string) error {
+func (fakePresenterAdapter) PresentSummary(_ context.Context, specID string, summary presentation.PresentationSummary) error {
 	_ = specID
 	_ = summary
 	return nil

@@ -20,6 +20,8 @@ type PresentationSummary struct {
 	SpecName           string
 	SpecBranch         string
 	IntegrationBranch  string
+	Plan               string
+	Worktree           string
 	Success            bool
 	AcceptanceResults  []AcceptanceResult
 	OutOfScopeFindings []v2review.Finding

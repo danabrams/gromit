@@ -11,6 +11,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/events"
+	"github.com/danabrams/gromit/internal/v2/presentation"
 	"github.com/danabrams/gromit/internal/v2/stage"
 )
 
@@ -105,7 +106,7 @@ func TestGenerationCapStopsRemediation(t *testing.T) {
 	if !presenter.called || presenter.lastSpec != "spec-cap" {
 		t.Fatalf("unexpected presenter calls: %#v", presenter)
 	}
-	if presenter.lastSummary == "" {
+	if presenter.lastSummary.FailureSummary == "" {
 		t.Fatal("expected presenter to display failure summary")
 	}
 	if cleaner.calls != 0 {
@@ -195,10 +196,10 @@ func (f *fakeBeadRunner) Run(ctx context.Context, beads []*bead.Bead) error {
 type spyPresenter struct {
 	called      bool
 	lastSpec    string
-	lastSummary string
+	lastSummary presentation.PresentationSummary
 }
 
-func (s *spyPresenter) PresentSummary(ctx context.Context, specID, summary string) error {
+func (s *spyPresenter) PresentSummary(ctx context.Context, specID string, summary presentation.PresentationSummary) error {
 	s.called = true
 	s.lastSpec = specID
 	s.lastSummary = summary

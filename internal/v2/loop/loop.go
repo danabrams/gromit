@@ -3,9 +3,11 @@ package loop
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/v2/adapter"
+	"github.com/danabrams/gromit/internal/v2/presentation"
 )
 
 // AdapterSet alias exposes the adapter basket consumed by the run loop.
@@ -70,7 +72,19 @@ func (s *SpecLoop) Run(ctx context.Context, specID string) error {
 		return fmt.Errorf("record plan: %w", err)
 	}
 
-	summary := fmt.Sprintf("spec=%s profile=%s plan=%q worktree=%s", specID, s.cfg.Project.Profile, plan, worktree)
+	specBranch := presentation.SpecBranchName(specID)
+	integrationBranch := strings.TrimSpace(s.cfg.Git.BaseBranch)
+	if integrationBranch == "" {
+		integrationBranch = presentation.DefaultIntegrationBranch()
+	}
+	summary := presentation.PresentationSummary{
+		SpecName:          specID,
+		SpecBranch:        specBranch,
+		IntegrationBranch: integrationBranch,
+		Plan:              plan,
+		Worktree:          worktree,
+		Success:           true,
+	}
 	if err := s.adapters.Presenter.PresentSummary(ctx, specID, summary); err != nil {
 		return fmt.Errorf("present summary: %w", err)
 	}

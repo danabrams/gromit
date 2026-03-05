@@ -1,6 +1,10 @@
 package adapter
 
-import "context"
+import (
+	"context"
+
+	"github.com/danabrams/gromit/internal/v2/presentation"
+)
 
 // GitAdapter performs git operations required by the run loop.
 type GitAdapter interface {
@@ -19,7 +23,7 @@ type TaskTrackerAdapter interface {
 
 // PresenterAdapter surfaces completed specs to product owners.
 type PresenterAdapter interface {
-	PresentSummary(ctx context.Context, specID, summary string) error
+	PresentSummary(ctx context.Context, specID string, summary presentation.PresentationSummary) error
 }
 
 // AdapterSet aggregates the adapters consumed by the run loop.

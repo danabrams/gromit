@@ -8,6 +8,7 @@ import (
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
+	"github.com/danabrams/gromit/internal/v2/presentation"
 	"github.com/danabrams/gromit/internal/v2/stage"
 )
 
@@ -142,7 +143,14 @@ func (r *RemediationRunner) handleGenerationCap(ctx context.Context, specID stri
 
 func (r *RemediationRunner) presentFailureSummary(ctx context.Context, specID, reason string) error {
 	if presenter := r.cfg.Presenter; presenter != nil {
-		summary := fmt.Sprintf("spec %s remediation halted: %s", specID, reason)
+		summary := presentation.PresentationSummary{
+			SpecName:          specID,
+			SpecBranch:        presentation.SpecBranchName(specID),
+			IntegrationBranch: presentation.DefaultIntegrationBranch(),
+			Success:           false,
+			FailureSummary:    fmt.Sprintf("spec %s remediation halted: %s", specID, reason),
+			RemainingWork:     []string{},
+		}
 		return presenter.PresentSummary(ctx, specID, summary)
 	}
 	return nil

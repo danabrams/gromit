@@ -17,6 +17,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/dep"
 	"github.com/danabrams/gromit/internal/v2/loop"
+	"github.com/danabrams/gromit/internal/v2/presentation"
 )
 
 func TestRun2BlocksSpecWhenDependenciesIncomplete(t *testing.T) {
@@ -204,7 +205,7 @@ type fatalPresenterAdapter struct {
 	t *testing.T
 }
 
-func (f *fatalPresenterAdapter) PresentSummary(context.Context, string, string) error {
+func (f *fatalPresenterAdapter) PresentSummary(context.Context, string, presentation.PresentationSummary) error {
 	f.t.Fatalf("presenter should not run when dependencies block")
 	return nil
 }
