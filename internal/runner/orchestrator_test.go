@@ -5452,23 +5452,25 @@ func TestOrchestrator_RegressionAndReviewRunConcurrently(t *testing.T) {
 		},
 	}
 
-	// Both stages must reach this barrier before either can proceed.
-	// If they run sequentially, barrier.Wait() deadlocks (caught by timeout).
-	var barrier sync.WaitGroup
-	barrier.Add(2)
+	// Both stages must report "ready" before either can proceed. The barrier
+	// ensures they both start before anyone continues, so a sequential execution
+	// path will block until the test context times out.
+	stageBarrier := newStageBarrier(2)
 
 	regressionGateStage := &fakeStage{
 		runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
-			barrier.Done() // Signal: "I've started"
-			barrier.Wait() // Block until the other has also started (proves overlap)
+			if err := stageBarrier.arrive(ctx); err != nil {
+				return pipeline.Output{}, err
+			}
 			return pipeline.Output{Decision: pipeline.Proceed}, nil
 		},
 	}
 
 	reviewStage := &fakeStage{
 		runFn: func(ctx context.Context, in pipeline.Input) (pipeline.Output, error) {
-			barrier.Done() // Signal: "I've started"
-			barrier.Wait() // Block until the other has also started (proves overlap)
+			if err := stageBarrier.arrive(ctx); err != nil {
+				return pipeline.Output{}, err
+			}
 			return pipeline.Output{Decision: pipeline.Proceed}, nil
 		},
 	}
