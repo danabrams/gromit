@@ -122,6 +122,29 @@ func TestRunSpecTestEnvRestoresWorkingDirectory(t *testing.T) {
 	}
 }
 
+func TestBuildRunSpecStageContextUsesInjectedStoreFactory(t *testing.T) {
+	_, cleanup := setupRunSpecTestEnv(t)
+	defer cleanup()
+
+	storeCalled := false
+	origStoreFn := newSpecflowStoreFn
+	newSpecflowStoreFn = func(gromitDir string) (specflow.SpecStore, error) {
+		storeCalled = true
+		return nil, fmt.Errorf("store error")
+	}
+	defer func() { newSpecflowStoreFn = origStoreFn }()
+
+	cfg := &config.Config{}
+	gromitDir := filepath.Join(".gromit")
+	_, err := buildRunSpecStageContext(context.Background(), cfg, "auth", gromitDir)
+	if err == nil || !strings.Contains(err.Error(), "store error") {
+		t.Fatalf("expected store error, got %v", err)
+	}
+	if !storeCalled {
+		t.Fatal("expected injected store factory to be invoked")
+	}
+}
+
 // RED: We should be able to swap the specflow and branch factories for spec runs via
 // the injection globals so the run loop stays testable even if the real factories
 // are expensive or rely on git state.
