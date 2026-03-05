@@ -190,6 +190,21 @@ func TestModel_ScrollHandlingNegativeBound(t *testing.T) {
 	}
 }
 
+func TestModel_ScrollIgnoredWhenPipelineTabInactive(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+	m.scrollOffset = 2
+
+	if _, _ = m.Update(tea.KeyMsg{Type: tea.KeyUp}); m.scrollOffset != 2 {
+		t.Fatalf("expected scrollOffset to remain 2 when active tab %q is inactive, got %d", m.activeTab, m.scrollOffset)
+	}
+
+	m.scrollOffset = 2
+	if _, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown}); m.scrollOffset != 2 {
+		t.Fatalf("expected scrollOffset to remain 2 when active tab %q is inactive, got %d", m.activeTab, m.scrollOffset)
+	}
+}
+
 func TestModel_QuitWithQKey(t *testing.T) {
 	store := &Store{}
 	m := NewModel(store)
