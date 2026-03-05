@@ -347,7 +347,7 @@ func (m *Manager) Cleanup(ctx context.Context) error {
 	// Remove the worktree. Ignore errors since worktree may not exist.
 	// This is intentionally lenient - cleanup should not fail if there's
 	// nothing to clean up.
-	_, _ = m.runGit(ctx, m.MainDir, "worktree", "remove", m.WorktreeDir)
+	_, _ = m.runGit(ctx, m.MainDir, "worktree", "remove", "--force", m.WorktreeDir)
 
 	return nil
 }
@@ -429,8 +429,8 @@ func (m *Manager) RemoveByPath(ctx context.Context, path string) error {
 		return fmt.Errorf("worktree path not found in registry: %s", path)
 	}
 
-	// Remove the worktree
-	_, err = m.runGit(ctx, m.MainDir, "worktree", "remove", path)
+	// Remove the worktree (--force handles untracked files from build cache)
+	_, err = m.runGit(ctx, m.MainDir, "worktree", "remove", "--force", path)
 	if err != nil {
 		return fmt.Errorf("failed to remove worktree at %s: %w", path, err)
 	}

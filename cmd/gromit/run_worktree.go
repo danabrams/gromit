@@ -23,7 +23,7 @@ var runWorktreeNewManagerFn = func(mainDir string) (runWorktreeManager, error) {
 }
 
 var runWorktreeCleanupFn = func(mainDir, worktreeDir, branchName string) {
-	cmd := exec.Command("git", "worktree", "remove", worktreeDir)
+	cmd := exec.Command("git", "worktree", "remove", "--force", worktreeDir)
 	cmd.Dir = mainDir
 	_ = cmd.Run()
 
