@@ -355,6 +355,8 @@
 {"issue_id":"gromit-6426","label":"spec:optimize-bd-subprocess-calls"}
 {"issue_id":"gromit-65k","label":"spec:expanded-status"}
 {"issue_id":"gromit-6aa","label":"spec:atdd-methodology"}
+{"issue_id":"gromit-6b2du","label":"bug"}
+{"issue_id":"gromit-6b2du","label":"from-review"}
 {"issue_id":"gromit-6bc","label":"bug"}
 {"issue_id":"gromit-6bc","label":"from-review"}
 {"issue_id":"gromit-6bmd1","label":"spec:phase-1-2-token-efficiency-foundation"}

@@ -17304,3 +17304,6 @@
 {"actor":"Dan Abrams","comment":null,"created_at":"2026-03-05T09:44:59Z","event_type":"closed","id":17304,"issue_id":"gromit-6tcgl","new_value":"TUI code deleted from codebase; closing stale beads","old_value":""}
 {"actor":"Dan Abrams","comment":null,"created_at":"2026-03-05T09:44:59Z","event_type":"closed","id":17305,"issue_id":"gromit-bdrmd","new_value":"TUI code deleted from codebase; closing stale beads","old_value":""}
 {"actor":"Dan Abrams","comment":null,"created_at":"2026-03-05T09:44:59Z","event_type":"closed","id":17306,"issue_id":"gromit-hpsvp","new_value":"TUI code deleted from codebase; closing stale beads","old_value":""}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-05T10:27:56Z","event_type":"created","id":17307,"issue_id":"gromit-6b2du","new_value":"","old_value":""}
+{"actor":"Dan Abrams","comment":"Added label: bug","created_at":"2026-03-05T10:27:56Z","event_type":"label_added","id":17308,"issue_id":"gromit-6b2du","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: from-review","created_at":"2026-03-05T10:27:56Z","event_type":"label_added","id":17309,"issue_id":"gromit-6b2du","new_value":null,"old_value":null}
