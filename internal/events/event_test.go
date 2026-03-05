@@ -94,6 +94,39 @@ func TestEmitterLogger_Log_EmitsLogEvent(t *testing.T) {
 	}
 }
 
+// TestEmitterLogger_Log_SetsLogEventTime checks that LogEvent time is initialized at emission.
+func TestEmitterLogger_Log_SetsLogEventTime(t *testing.T) {
+	t.Parallel()
+	emitter := NewEmitter()
+	defer emitter.Close()
+
+	ch := emitter.Subscribe()
+	defer emitter.Unsubscribe(ch)
+
+	logger := &EmitterLogger{Emitter: emitter}
+	start := time.Now()
+	logger.Log("info", "time test")
+
+	select {
+	case evt := <-ch:
+		logEvent, ok := evt.(*LogEvent)
+		if !ok {
+			t.Fatalf("expected LogEvent, got %T", evt)
+		}
+		if logEvent.Time.IsZero() {
+			t.Fatalf("expected non-zero LogEvent time")
+		}
+		if logEvent.Time.Before(start) {
+			t.Fatalf("LogEvent time %v before start %v", logEvent.Time, start)
+		}
+		if got := logEvent.Time; got.After(time.Now().Add(100 * time.Millisecond)) {
+			t.Fatalf("LogEvent time %v unreasonably far in the future", got)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timeout waiting for LogEvent")
+	}
+}
+
 // TestEmitterLogger_Log_DoesNothingWhenEmitterNil tests that Log is safe when emitter is nil.
 func TestEmitterLogger_Log_DoesNothingWhenEmitterNil(t *testing.T) {
 	t.Parallel()
