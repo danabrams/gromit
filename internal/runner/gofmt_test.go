@@ -75,6 +75,20 @@ func TestRepoGofmtCompliance(t *testing.T) {
 	runRepoGofmtCheck(t)
 }
 
+func TestFilterExistingGoFilesRemovesDeleted(t *testing.T) {
+	root := t.TempDir()
+	existing := filepath.Join(root, "existent.go")
+	if err := os.WriteFile(existing, []byte("package runner\n"), 0o644); err != nil {
+		t.Fatalf("write existing file: %v", err)
+	}
+
+	input := []string{"existent.go", "deleted.go"}
+	filtered := filterExistingGoFiles(root, input)
+	if len(filtered) != 1 || filtered[0] != "existent.go" {
+		t.Fatalf("unexpected filtered list: %v", filtered)
+	}
+}
+
 func detectStdLibImportBlankLines(filePath string, src []byte) ([]string, error) {
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, filePath, src, parser.ImportsOnly)
