@@ -85,10 +85,7 @@ func (b *BeadLoop) handleFailure(ctx context.Context, baseReq stage.Request, spe
 	summary := fmt.Sprintf("%s failed: %v", stageName, failure)
 	state.failureHistory = append(state.failureHistory, summary)
 
-	retryCtx := &stage.RetryContext{
-		Attempt:       retries,
-		PriorFailures: append([]string(nil), state.failureHistory...),
-	}
+	retryCtx := newRetryContext(state.failureHistory, retries)
 
 	for _, rerun := range spec.Retry.RetryWith {
 		rerunIdx, ok := b.stageIndex[rerun]
@@ -101,4 +98,11 @@ func (b *BeadLoop) handleFailure(ctx context.Context, baseReq stage.Request, spe
 	}
 
 	return b.runStage(ctx, baseReq, spec, state, retryCtx)
+}
+
+func newRetryContext(history []string, attempt int) *stage.RetryContext {
+	return &stage.RetryContext{
+		Attempt:       attempt,
+		PriorFailures: append([]string(nil), history...),
+	}
 }
