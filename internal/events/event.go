@@ -37,6 +37,7 @@ func (el *EmitterLogger) Log(level, format string, args ...interface{}) {
 	el.Emitter.Emit(&LogEvent{
 		Level:   level,
 		Message: fmt.Sprintf(format, args...),
+		TimeMixin: TimeMixin{Time: time.Now()},
 	})
 }
 
