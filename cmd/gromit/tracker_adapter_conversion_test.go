@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/pipeline"
@@ -150,6 +151,27 @@ func TestTrackerClientAdapter_LabelsRoundtrip(t *testing.T) {
 		if i >= len(created.Labels) || created.Labels[i] != label {
 			t.Errorf("Label %d mismatch: got %q, want %q", i, created.Labels[i], label)
 		}
+	}
+}
+
+func TestTrackerClientAdapter_ReadyErrorsOnMalformedLabels(t *testing.T) {
+	t.Parallel()
+
+	mockClient := &mockTrackerClient{
+		readyItem: &tracker.Item{
+			ID:    "malformed-labels",
+			Title: "Malformed Labels",
+			Metadata: map[string]string{
+				"labels": "[invalid-json]",
+			},
+		},
+	}
+
+	adapter := &trackerClientAdapter{Client: mockClient}
+	if _, err := adapter.Ready(context.Background()); err == nil {
+		t.Fatal("Ready() with malformed labels should return an error")
+	} else if !strings.Contains(err.Error(), "labels") {
+		t.Fatalf("error %q should mention labels metadata", err)
 	}
 }
 
