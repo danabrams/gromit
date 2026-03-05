@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 )
 
@@ -182,9 +183,11 @@ func (c *Coordinator) RecoverFromCrash(ctx context.Context) error {
 	// LastErrorCode is always empty here because ApplyTransition clears
 	// error fields when transitioning to StateIntegrating (no metadata),
 	// so we unconditionally reset to StateReady.
+	recoveredCount := 0
 	for i := range queue.Entries {
 		entry := &queue.Entries[i]
 		if entry.State == StateIntegrating {
+			recoveredCount++
 			if err := c.applyTransition(entry, string(StateReady), "crash recovery", crashRecoveryMetadata()); err != nil {
 				return fmt.Errorf("transitioning recovered entry %s: %w", entry.Branch, err)
 			}
@@ -192,6 +195,12 @@ func (c *Coordinator) RecoverFromCrash(ctx context.Context) error {
 				return fmt.Errorf("saving recovered entry %s: %w", entry.Branch, err)
 			}
 		}
+	}
+
+	if recoveredCount == 0 {
+		log.Println("no stranded entries found during crash recovery")
+	} else {
+		log.Printf("recovered %d stranded entries during crash recovery", recoveredCount)
 	}
 
 	return nil
