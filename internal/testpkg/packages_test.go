@@ -38,3 +38,20 @@ func createFile(t *testing.T, root, relPath, content string) {
 		t.Fatalf("write failed: %v", err)
 	}
 }
+
+func TestHasBuildTagStopsAtPreamble(t *testing.T) {
+	t.Helper()
+	content := []byte(`//go:build acceptance
+package sample
+
+//go:build e2e_live
+`)
+
+	if !hasBuildTag(content, "acceptance") {
+		t.Fatalf("expected acceptance tag to be detected in preamble")
+	}
+
+	if hasBuildTag(content, "e2e_live") {
+		t.Fatalf("unexpectedly detected e2e_live tag after package clause")
+	}
+}
