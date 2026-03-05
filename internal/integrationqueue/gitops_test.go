@@ -20,6 +20,20 @@ func TestFetchAndRebaseErrorPropagation(t *testing.T) {
 	}
 }
 
+// TestMergeToMainErrorPropagation verifies that MergeToMain errors are properly propagated.
+func TestMergeToMainErrorPropagation(t *testing.T) {
+	ctx := context.Background()
+	entry := Entry{Branch: "test-branch", SessionID: "test"}
+
+	wantErr := errors.New("merge conflict")
+	mock := NewCallTrackingMockGitOps(nil, wantErr, nil, nil)
+
+	err := mock.MergeToMain(ctx, entry)
+	if err != wantErr {
+		t.Fatalf("MergeToMain() error = %v, want %v", err, wantErr)
+	}
+}
+
 // NewErrorMockGitOps creates a mock GitOps implementation that returns specified errors.
 func NewErrorMockGitOps(fetchErr, mergeErr, pushErr, cleanupErr error) GitOps {
 	return &errorMockGitOps{
