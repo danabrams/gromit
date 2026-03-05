@@ -188,6 +188,15 @@ func (m *Model) handleRunLoopNavigationKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	return nil, false
 }
 
+func isRunLoopSubViewKey(key rune) bool {
+	switch key {
+	case '1', '2', '3':
+		return true
+	default:
+		return false
+	}
+}
+
 // Init initializes the model.
 func (m *Model) Init() tea.Cmd {
 	if m.currentView == ViewConversation && m.conversation != nil {
@@ -259,6 +268,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				break
 			}
 			key := msg.Runes[0]
+			if isRunLoopSubViewKey(key) && m.activeTab != TabRunLoop {
+				break
+			}
 			switch key {
 			case 'q':
 				return m, tea.Quit
