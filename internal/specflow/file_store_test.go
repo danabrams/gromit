@@ -69,8 +69,8 @@ func TestFileStoreStoreStageBlocksWhileSaving(t *testing.T) {
 func newTestFileStore(t *testing.T) *fileStore {
 	t.Helper()
 	return &fileStore{
-		path:   filepath.Join(t.TempDir(), "specflow.json"),
-		stages: make(map[string]Stage),
+		path:      filepath.Join(t.TempDir(), "specflow.json"),
+		stages:    make(map[string]Stage),
 		writeFile: os.WriteFile,
 	}
 }
@@ -94,6 +94,42 @@ func TestFileStoreUsesInjectedWriter(t *testing.T) {
 	case <-writeCalled:
 	default:
 		t.Fatalf("no writeFile call detected")
+	}
+}
+
+func TestFileStoreLoadUsesInjectedReader(t *testing.T) {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "specflow.json")
+	store := &fileStore{
+		path:   path,
+		stages: make(map[string]Stage),
+	}
+
+	var readCalls int32
+	store.readFile = func(p string) ([]byte, error) {
+		if p != path {
+			t.Fatalf("unexpected path: %s", p)
+		}
+		atomic.AddInt32(&readCalls, 1)
+		return []byte(`{"spec-1": "` + string(StageImplementation) + `"}`), nil
+	}
+
+	if err := store.load(); err != nil {
+		t.Fatalf("load failed: %v", err)
+	}
+
+	if atomic.LoadInt32(&readCalls) == 0 {
+		t.Fatalf("injected reader was not used")
+	}
+
+	ctx := context.Background()
+	stage, err := store.Stage(ctx, "spec-1")
+	if err != nil {
+		t.Fatalf("expected stage to be loaded, got %v", err)
+	}
+	if stage != StageImplementation {
+		t.Fatalf("stage = %s, want %s", stage, StageImplementation)
 	}
 }
 
