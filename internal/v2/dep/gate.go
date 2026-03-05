@@ -62,6 +62,9 @@ func (s *SpecDependencyGate) ListReady(ctx context.Context) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
+		if meta.Stage == specflow.StageDone {
+			continue
+		}
 		blockers, _ := s.blockingDependencies(meta)
 		if len(blockers) == 0 {
 			ready = append(ready, meta.ID)
