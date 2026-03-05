@@ -800,7 +800,7 @@ runLoop:
 				Iteration: iteration,
 				BeadID:    b.ID,
 				Success:   false,
-				Duration:  0,
+				Duration:  time.Duration(buildOut.DurationMs) * time.Millisecond,
 				TimeMixin: events.TimeMixin{Time: time.Now()},
 			})
 			o.cleanupAfterFailedIteration(ctx)
@@ -852,7 +852,7 @@ runLoop:
 							Iteration: iteration,
 							BeadID:    b.ID,
 							Success:   false,
-							Duration:  0,
+							Duration:  time.Duration(buildOut.DurationMs) * time.Millisecond,
 							TimeMixin: events.TimeMixin{Time: time.Now()},
 						})
 						o.cleanupAfterFailedIteration(ctx)
@@ -957,7 +957,7 @@ runLoop:
 				Iteration: iteration,
 				BeadID:    b.ID,
 				Success:   false,
-				Duration:  0,
+				Duration:  time.Duration(buildOut.DurationMs) * time.Millisecond,
 				TimeMixin: events.TimeMixin{Time: time.Now()},
 			})
 			o.cleanupAfterFailedIteration(ctx)
@@ -1002,7 +1002,7 @@ runLoop:
 				Iteration: iteration,
 				BeadID:    b.ID,
 				Success:   false,
-				Duration:  0,
+				Duration:  time.Duration(buildOut.DurationMs) * time.Millisecond,
 				TimeMixin: events.TimeMixin{Time: time.Now()},
 			})
 			o.cleanupAfterFailedIteration(ctx)
@@ -1183,7 +1183,7 @@ runLoop:
 					Iteration: iteration,
 					BeadID:    b.ID,
 					Success:   false,
-					Duration:  0,
+					Duration:  time.Duration(buildOut.DurationMs) * time.Millisecond,
 					TimeMixin: events.TimeMixin{Time: time.Now()},
 				})
 				o.cleanupAfterFailedIteration(ctx)
