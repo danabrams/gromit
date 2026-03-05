@@ -147,6 +147,49 @@ func (f *fakeCoordinator) RecoverFromCrash(ctx context.Context) error {
 	return nil
 }
 
+// stageBarrier synchronizes a fixed number of parties before allowing them to
+// proceed, ensuring tests can observe that multiple callers arrived before any
+// continue.
+type stageBarrier struct {
+	mu      sync.Mutex
+	parties int
+	arrived int
+	start   chan struct{}
+}
+
+// newStageBarrier creates a barrier that releases all waiters once the provided
+// parties have called arrive.
+func newStageBarrier(parties int) *stageBarrier {
+	if parties <= 0 {
+		panic("stageBarrier requires at least one party")
+	}
+	return &stageBarrier{
+		parties: parties,
+		start:   make(chan struct{}),
+	}
+}
+
+// arrive blocks until all parties have called arrive or the context expires.
+func (b *stageBarrier) arrive(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	b.mu.Lock()
+	b.arrived++
+	if b.arrived == b.parties {
+		close(b.start)
+	}
+	start := b.start
+	b.mu.Unlock()
+
+	select {
+	case <-start:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 // TestOrchestrator_CallsStateSaverAfterRun verifies that when StateSaver is set
 // in the config, it is called once after the orchestrator loop completes,
 // so provider routing state is persisted across runs.
