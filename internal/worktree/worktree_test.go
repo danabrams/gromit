@@ -333,7 +333,12 @@ func TestCleanup_RemovesWorktree(t *testing.T) {
 		// Simulate successful worktree removal
 		if args[0] == "worktree" && args[1] == "remove" {
 			// Remove the directory to simulate git's behavior
-			return "", os.RemoveAll(args[2])
+			// Path is after --force flag
+			for _, a := range args[2:] {
+				if a != "--force" {
+					return "", os.RemoveAll(a)
+				}
+			}
 		}
 		return "", nil
 	}
@@ -348,16 +353,16 @@ func TestCleanup_RemovesWorktree(t *testing.T) {
 		t.Fatalf("Cleanup(context.Background()) error = %v, want nil", err)
 	}
 
-	// Verify git worktree remove was called
+	// Verify git worktree remove --force was called
 	foundWorktreeRemove := false
 	for _, call := range gitCalls {
-		if strings.Contains(call, "worktree remove") {
+		if strings.Contains(call, "worktree remove --force") {
 			foundWorktreeRemove = true
 			break
 		}
 	}
 	if !foundWorktreeRemove {
-		t.Errorf("expected 'git worktree remove' to be called, got calls: %v", gitCalls)
+		t.Errorf("expected 'git worktree remove --force' to be called, got calls: %v", gitCalls)
 	}
 
 	// Verify directory was actually removed
@@ -2428,13 +2433,13 @@ func TestRemoveByPath_RemovesRegisteredWorktree(t *testing.T) {
 	// Verify git worktree remove was called with correct path
 	foundRemoveCall := false
 	for _, call := range gitCalls {
-		if strings.Contains(call, fmt.Sprintf("worktree remove %s", worktreePath)) {
+		if strings.Contains(call, fmt.Sprintf("worktree remove --force %s", worktreePath)) {
 			foundRemoveCall = true
 			break
 		}
 	}
 	if !foundRemoveCall {
-		t.Errorf("expected 'git worktree remove %s' to be called, got calls: %v", worktreePath, gitCalls)
+		t.Errorf("expected 'git worktree remove --force %s' to be called, got calls: %v", worktreePath, gitCalls)
 	}
 }
 
