@@ -109,6 +109,7 @@ func newRunnerImplWithStageContext(cfg *config.Config, output io.Writer, labels 
 	renderer.SetMaxLearningChars(cfg.Learnings.MaxLearningChars)
 	renderer.SetSkipBuildLearnings(cfg.Learnings.SkipBuildLearnings)
 	renderer.SetBudgetConfig(cfg.Prompt.Budget.MaxChars, cfg.Prompt.Budget.LearningCapChars)
+	renderer.SetScopeBudgetEnabled(true)
 	renderer.SetDecomposeTarget(cfg.Decompose.Target)
 
 	trackerClientInterface, err := newTrackerClient(resolveTrackerBackend(cfg))
