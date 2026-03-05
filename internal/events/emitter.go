@@ -2,6 +2,8 @@ package events
 
 import (
 	"sync"
+	"sync/atomic"
+	"time"
 )
 
 // subscriberBufferSize is the buffer size for each subscriber's event channel.
@@ -56,21 +58,30 @@ func (e *Emitter) Unsubscribe(ch chan Event) {
 // Emit is safe to call concurrently and after Close (it becomes a no-op).
 func (e *Emitter) Emit(event Event) {
 	e.mu.RLock()
-	defer e.mu.RUnlock()
 
 	if e.closed {
+		e.mu.RUnlock()
 		return
 	}
 
+	dropped := int64(0)
 	for ch := range e.subscribers {
 		select {
 		case ch <- event:
 			// Event sent successfully
 		default:
 			// Channel is full, drop event for this subscriber to avoid blocking
-			e.droppedCount++
+			dropped++
 		}
 	}
+	e.mu.RUnlock()
+
+	if dropped == 0 {
+		return
+	}
+
+	totalDrops := atomic.AddInt64(&e.droppedCount, dropped)
+	e.emitDroppedEventsEvent(dropped, totalDrops)
 }
 
 // HasSubscribers reports whether there are active subscribers.
@@ -82,9 +93,30 @@ func (e *Emitter) HasSubscribers() bool {
 
 // DroppedCount returns the total number of events that were dropped due to full subscriber channels.
 func (e *Emitter) DroppedCount() int64 {
+	return atomic.LoadInt64(&e.droppedCount)
+}
+
+func (e *Emitter) emitDroppedEventsEvent(delta, total int64) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	return e.droppedCount
+
+	if e.closed || len(e.subscribers) == 0 {
+		return
+	}
+
+	event := &DroppedEventsEvent{
+		Count:     delta,
+		Total:     total,
+		TimeMixin: TimeMixin{Time: time.Now()},
+	}
+
+	for ch := range e.subscribers {
+		select {
+		case ch <- event:
+		default:
+			// Drop notification for slow subscribers but do not count it to avoid loops.
+		}
+	}
 }
 
 // Close shuts down the emitter and closes all subscriber channels.

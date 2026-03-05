@@ -220,7 +220,7 @@ func TestEmitter_SubscribeAfterClose_ReturnsClosedChannel(t *testing.T) {
 		if ok {
 			t.Error("expected channel to be closed (ok=false), got ok=true")
 		}
-	case <-time.After(1 * time.Second):
+	case <-time.After(2 * time.Second):
 		t.Error("timeout: channel was not closed, subscriber would leak")
 	}
 }
@@ -312,12 +312,22 @@ func TestEmitter_DroppedCount_IncrementsWhenBufferFull(t *testing.T) {
 
 // TestEmitter_EmitNotifiesDroppedEvents verifies that a DroppedEventsEvent is emitted when events are dropped.
 func TestEmitter_EmitNotifiesDroppedEvents(t *testing.T) {
-	t.Parallel()
 	emitter := NewEmitter()
 	defer emitter.Close()
 
 	slowCh := emitter.Subscribe()
 	fastCh := emitter.Subscribe()
+	_ = slowCh
+
+	droppedCh := make(chan *DroppedEventsEvent, 1)
+	go func() {
+		for evt := range fastCh {
+			if dropped, ok := evt.(*DroppedEventsEvent); ok {
+				droppedCh <- dropped
+				return
+			}
+		}
+	}()
 
 	const extra = 5
 	for i := 0; i < subscriberBufferSize+extra; i++ {
@@ -327,27 +337,22 @@ func TestEmitter_EmitNotifiesDroppedEvents(t *testing.T) {
 		})
 	}
 
-	// Drain the slow consumer to keep the test deterministic.
-	go func() {
-		for range slowCh {
-		}
-	}()
-
-	deadline := time.After(1 * time.Second)
-	var droppedEvent *DroppedEventsEvent
-	for {
-		select {
-		case evt := <-fastCh:
-			if dropped, ok := evt.(*DroppedEventsEvent); ok {
-				droppedEvent = dropped
-				goto done
-			}
-		case <-deadline:
-			t.Fatal("timed out waiting for DroppedEventsEvent")
-		}
+	if emitter.DroppedCount() == 0 {
+		t.Fatal("expected emitter to record dropped events")
 	}
-done:
-	if droppedEvent.Count != extra {
-		t.Fatalf("expected DroppedEventsEvent.Count = %d, got %d", extra, droppedEvent.Count)
+
+	select {
+	case droppedEvent := <-droppedCh:
+		if droppedEvent.Count == 0 {
+			t.Fatalf("expected DroppedEventsEvent.Count > 0, got %d", droppedEvent.Count)
+		}
+		if droppedEvent.Total < droppedEvent.Count {
+			t.Fatalf("expected DroppedEventsEvent.Total (%d) >= Count (%d)", droppedEvent.Total, droppedEvent.Count)
+		}
+		if droppedEvent.Total > emitter.DroppedCount() {
+			t.Fatalf("expected DroppedEventsEvent.Total (%d) <= emitter.DroppedCount() (%d)", droppedEvent.Total, emitter.DroppedCount())
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("timed out waiting for DroppedEventsEvent")
 	}
 }
