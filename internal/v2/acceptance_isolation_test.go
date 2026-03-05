@@ -5,6 +5,7 @@ package v2
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -68,4 +69,24 @@ type spyValidationRunner struct {
 func (s *spyValidationRunner) Run(ctx context.Context, command string) error {
 	s.commands = append(s.commands, command)
 	return nil
+}
+
+func TestPromptAssemblerCompilesAllLayers(t *testing.T) {
+	t.Parallel()
+
+	assembler := NewPromptAssembler("base", "project", "instance", "fragment")
+	output := assembler.Assemble()
+
+	order := []string{"base", "project", "instance", "fragment"}
+	for idx, fragment := range order {
+		if !strings.Contains(output, fragment) {
+			t.Fatalf("missing %q in prompt output", fragment)
+		}
+		if idx > 0 {
+			prev := order[idx-1]
+			if strings.Index(output, prev) > strings.Index(output, fragment) {
+				t.Fatalf("layer %q should appear before %q", prev, fragment)
+			}
+		}
+	}
 }
