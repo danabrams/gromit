@@ -5,6 +5,7 @@ package v2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -58,6 +59,48 @@ func TestValidateRetryRunsBuildBeforeRetry(t *testing.T) {
 	wantModels := []string{"haiku", "sonnet"}
 	if !reflect.DeepEqual(buildStage.ModelsUsed, wantModels) {
 		t.Fatalf("build models = %v, want %v", buildStage.ModelsUsed, wantModels)
+	}
+}
+
+func TestMaxRetriesExhaustionHaltsLoop(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	callOrder := []string{}
+
+	buildStage := &modelEscalatingStage{
+		name:      "build",
+		models:    []string{"haiku"},
+		callOrder: &callOrder,
+	}
+
+	validateStage := &failingStage{
+		name:      "validate",
+		failCount: 10,
+		callOrder: &callOrder,
+	}
+
+	beadLoop, err := loop.NewBeadLoop([]loop.StageSpec{
+		{
+			Stage: buildStage,
+			Retry: stage.RetryConfig{MaxRetries: 1},
+		},
+		{
+			Stage: validateStage,
+			Retry: stage.RetryConfig{MaxRetries: 0, RetryWith: []string{"build"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("construct bead loop: %v", err)
+	}
+
+	if err := beadLoop.Run(ctx, stage.Request{Bead: stage.BeadInfo{ID: "max-retries"}}); err == nil || !errors.Is(err, loop.ErrMaxRetriesExceeded) {
+		t.Fatalf("run bead loop = %v", err)
+	}
+
+	wantOrder := []string{"build", "validate"}
+	if !reflect.DeepEqual(callOrder, wantOrder) {
+		t.Fatalf("call order = %v, want %v", callOrder, wantOrder)
 	}
 }
 
