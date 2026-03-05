@@ -104,6 +104,27 @@ func TestContextCanceledFetchAndRebase(t *testing.T) {
 	}
 }
 
+// TestAllGitOpsMethodsSucceed verifies that all GitOps methods can succeed without errors.
+func TestAllGitOpsMethodsSucceed(t *testing.T) {
+	ctx := context.Background()
+	entry := Entry{Branch: "test-branch", SessionID: "test"}
+
+	mock := NewSuccessfulMockGitOps()
+
+	if err := mock.FetchAndRebase(ctx, entry); err != nil {
+		t.Errorf("FetchAndRebase() unexpected error: %v", err)
+	}
+	if err := mock.MergeToMain(ctx, entry); err != nil {
+		t.Errorf("MergeToMain() unexpected error: %v", err)
+	}
+	if err := mock.Push(ctx); err != nil {
+		t.Errorf("Push() unexpected error: %v", err)
+	}
+	if err := mock.Cleanup(ctx, entry); err != nil {
+		t.Errorf("Cleanup() unexpected error: %v", err)
+	}
+}
+
 // NewErrorMockGitOps creates a mock GitOps implementation that returns specified errors.
 func NewErrorMockGitOps(fetchErr, mergeErr, pushErr, cleanupErr error) GitOps {
 	return &errorMockGitOps{
