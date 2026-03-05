@@ -120,3 +120,15 @@ func TestRenderHintBarNormalStateMatchesPerTabStrings(t *testing.T) {
 		})
 	}
 }
+
+func TestStyledNormalHintStringMatchesActions(t *testing.T) {
+	testTabs := []Tab{TabBacklog, TabSpecs, TabPlans, TabQueue, TabRunLoop}
+	for _, tab := range testTabs {
+		t.Run(string(tab), func(t *testing.T) {
+			want := renderHintActions(normalHintActions(tab, true))
+			if got := styledNormalHintString(tab); got != want {
+				t.Fatalf("styledNormalHintString(%q) = %q, want %q", tab, got, want)
+			}
+		})
+	}
+}
