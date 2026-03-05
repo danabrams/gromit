@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/v2/dep"
 )
 
@@ -82,6 +83,40 @@ func TestListReadyOnlyIncludesEligibleSpecs(t *testing.T) {
 	}
 	if readySet["done-parent"] {
 		t.Fatalf("done-parent should not be returned once marked done: %v", ready)
+	}
+}
+
+func TestBeadLoopSkipsBlockedBeadsUntilDependenciesComplete(t *testing.T) {
+	t.Parallel()
+
+	beads := []*bead.Bead{
+		{ID: "leaf"},
+		{ID: "mid", DependsOn: []bead.Dependency{{ID: "leaf"}}},
+		{ID: "root", DependsOn: []bead.Dependency{{ID: "mid"}}},
+	}
+
+	scheduler := dep.NewBeadScheduler(beads)
+
+	pick := scheduler.Next()
+	if pick == nil || pick.ID != "leaf" {
+		t.Fatalf("expected leaf first, got %v", pick)
+	}
+	scheduler.MarkComplete(pick.ID)
+
+	pick = scheduler.Next()
+	if pick == nil || pick.ID != "mid" {
+		t.Fatalf("expected mid second, got %v", pick)
+	}
+	scheduler.MarkComplete(pick.ID)
+
+	pick = scheduler.Next()
+	if pick == nil || pick.ID != "root" {
+		t.Fatalf("expected root third, got %v", pick)
+	}
+	scheduler.MarkComplete(pick.ID)
+
+	if scheduler.Next() != nil {
+		t.Fatal("expected no beads after all dependencies complete")
 	}
 }
 
