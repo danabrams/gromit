@@ -193,6 +193,10 @@ func expectedHintString(tab Tab, state hintBarState) string {
 		if hint, ok := hintBarNormalStateStrings[tab]; ok {
 			return hint
 		}
+	case hintBarStateDetail:
+		if hint, ok := hintBarDetailStateStrings[tab]; ok {
+			return hint
+		}
 	}
 	return ""
 }
