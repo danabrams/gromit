@@ -13,7 +13,10 @@ import (
 	"testing"
 
 	"github.com/danabrams/gromit/internal/bead"
+	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/dep"
+	"github.com/danabrams/gromit/internal/v2/loop"
 )
 
 func TestRun2BlocksSpecWhenDependenciesIncomplete(t *testing.T) {
@@ -30,9 +33,26 @@ func TestRun2BlocksSpecWhenDependenciesIncomplete(t *testing.T) {
 		t.Fatalf("new spec gate: %v", err)
 	}
 
-	err = gate.EnsureSpecReady(ctx, "child")
+	cfg := &config.Config{}
+	cfg.Project.Profile = "acceptance"
+
+	loopInstance, err := loop.NewSpecLoop(
+		adapter.AdapterSet{
+			Git:         &fatalGitAdapter{t: t},
+			LLM:         &fatalLLMAdapter{t: t},
+			TaskTracker: &fatalTaskTrackerAdapter{t: t},
+			Presenter:   &fatalPresenterAdapter{t: t},
+		},
+		cfg,
+		gate,
+	)
+	if err != nil {
+		t.Fatalf("creating spec loop: %v", err)
+	}
+
+	err = loopInstance.Run(ctx, "child")
 	if err == nil {
-		t.Fatal("EnsureSpecReady() expected error when dependency is incomplete")
+		t.Fatal("Run() expected dependency error when prereqs are incomplete")
 	}
 
 	var blockingErr *dep.SpecDependencyError
@@ -151,4 +171,40 @@ func writeSpecFile(t *testing.T, specsDir, id, stage string, depends []string) {
 	if err := os.WriteFile(path, []byte(sb.String()), 0o644); err != nil {
 		t.Fatalf("writing spec file: %v", err)
 	}
+}
+
+type fatalGitAdapter struct {
+	t *testing.T
+}
+
+func (f *fatalGitAdapter) Checkout(context.Context, string) (string, error) {
+	f.t.Fatalf("git adapter should not run when dependencies block")
+	return "", nil
+}
+
+type fatalLLMAdapter struct {
+	t *testing.T
+}
+
+func (f *fatalLLMAdapter) GeneratePlan(context.Context, string) (string, error) {
+	f.t.Fatalf("LLM adapter should not run when dependencies block")
+	return "", nil
+}
+
+type fatalTaskTrackerAdapter struct {
+	t *testing.T
+}
+
+func (f *fatalTaskTrackerAdapter) RecordPlan(context.Context, string, string) error {
+	f.t.Fatalf("task tracker should not run when dependencies block")
+	return nil
+}
+
+type fatalPresenterAdapter struct {
+	t *testing.T
+}
+
+func (f *fatalPresenterAdapter) PresentSummary(context.Context, string, string) error {
+	f.t.Fatalf("presenter should not run when dependencies block")
+	return nil
 }
