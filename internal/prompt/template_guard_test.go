@@ -94,3 +94,12 @@ func TestTemplatesWithNilBeadRender(t *testing.T) {
 		})
 	}
 }
+
+func TestRendererMissingKeyErrors(t *testing.T) {
+	ctx := map[string]string{}
+	r := &Renderer{}
+
+	if _, err := r.renderFromString("missing-key", "Missing: {{.Missing}}", ctx); err == nil {
+		t.Fatal("expected missing key error when template references absent field")
+	}
+}
