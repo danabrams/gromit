@@ -84,6 +84,12 @@ func (o *Orchestrator) cleanupAfterFailedIteration(ctx context.Context) {
 	if o.cfg.GitCheckout == nil {
 		return
 	}
+	// In session worktree mode, the base branch is checked out in the main
+	// worktree, so git checkout <base> fails with exit 128. The session
+	// worktree lifecycle handles its own cleanup; skip the revert here.
+	if o.cfg.SessionWorktree {
+		return
+	}
 	if err := o.cfg.GitCheckout.RevertAndReturnToBase(ctx); err != nil {
 		o.logWarning("Warning: worktree cleanup after failed iteration: %v", err)
 	}
