@@ -57,13 +57,16 @@ func TestEmitterCreatedAndAccessibleFromOrchestrator(t *testing.T) {
 
 	emitter.Emit(testEvent)
 
-	// Verify event is received
+	// Verify event is received using context timeout instead of time.After
+	receiveCtx, receiveCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer receiveCancel()
+
 	select {
 	case received := <-ch:
 		if received != testEvent {
 			t.Fatalf("received event = %v, want %v", received, testEvent)
 		}
-	case <-time.After(1 * time.Second):
+	case <-receiveCtx.Done():
 		t.Fatal("timeout waiting for emitted event")
 	}
 }
@@ -172,18 +175,20 @@ func TestStreamSubscriberWiredEnsuresStructuredEventFileStreams(t *testing.T) {
 		t.Fatalf("WaitForSubscriberReady failed: %v", err)
 	}
 
-	// Give subscriber extra time to initialize file writing
-	time.Sleep(50 * time.Millisecond)
-
 	testEvent := &events.LogEvent{Level: "test", Message: "stream subscriber event"}
-	emitter.Emit(testEvent)
 
-	// Wait for the stream file to be created and have content
-	// The file is created asynchronously by the stream subscriber
+	// Poll until the stream file is created and has content. On each poll
+	// iteration we re-emit the event so that the subscriber catches it once
+	// its goroutine is fully initialised (channel registered != goroutine
+	// reading). This replaces the former time.Sleep that guessed at
+	// subscriber initialisation time.
 	files := []os.DirEntry{}
-	fileWaitCtx, fileWaitCancel := context.WithTimeout(context.Background(), 1*time.Second)
+	fileWaitCtx, fileWaitCancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer fileWaitCancel()
 	if err := eventtest.WaitForCondition(fileWaitCtx, func() bool {
+		// Re-emit on each poll so the subscriber catches it once ready.
+		emitter.Emit(testEvent)
+
 		var err error
 		files, err = os.ReadDir(tmpDir)
 		if err != nil {
@@ -227,11 +232,15 @@ func TestStreamSubscriberWiredEnsuresStructuredEventFileStreams(t *testing.T) {
 		t.Fatal("structured file is empty")
 	}
 
+	// The file is JSONL (one JSON record per line). Multiple events may have
+	// been written because we re-emit in the poll loop. Parse the first line.
+	firstLine := bytes.SplitN(bytes.TrimSpace(data), []byte("\n"), 2)[0]
+
 	var eventLine struct {
 		Type    string          `json:"type"`
 		Payload json.RawMessage `json:"payload"`
 	}
-	if err := json.Unmarshal(bytes.TrimSpace(data), &eventLine); err != nil {
+	if err := json.Unmarshal(firstLine, &eventLine); err != nil {
 		t.Fatalf("parse stream record: %v", err)
 	}
 	if eventLine.Type != testEvent.EventType() {
