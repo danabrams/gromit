@@ -489,6 +489,31 @@ func TestModel_UsesKeymapForConversationActions(t *testing.T) {
 	}
 }
 
+func TestModel_RunLoopSubViewKeysOnlyHandledWhenRunLoopActive(t *testing.T) {
+	store := &Store{}
+	m := NewModel(store)
+
+	// When active tab is not the run loop, the key handler should not report the key as handled.
+	m.activeTab = TabBacklog
+	cmd, handled := m.handleRunLoopNavigationKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
+	if handled {
+		t.Fatalf("expected run loop sub-view keys not to be handled when active tab is %q", m.activeTab)
+	}
+	if cmd != nil {
+		t.Fatalf("expected no command when key is not handled, got %T", cmd)
+	}
+
+	// When run loop tab is active, the handler should intercept the key.
+	m.activeTab = TabRunLoop
+	cmd, handled = m.handleRunLoopNavigationKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
+	if !handled {
+		t.Fatalf("expected run loop sub-view keys to be handled when active tab is run loop")
+	}
+	if cmd != nil {
+		t.Fatalf("expected no command from run loop sub-view key, got %T", cmd)
+	}
+}
+
 func TestModel_AppliesConversationEventsToStore(t *testing.T) {
 	timeline := []conversation.FakeStep{
 		{Event: conversation.Event{Type: conversation.EventTypeStream, Text: "streamed text"}},
