@@ -17307,3 +17307,36 @@
 {"actor":"Dan Abrams","comment":null,"created_at":"2026-03-05T10:27:56Z","event_type":"created","id":17307,"issue_id":"gromit-6b2du","new_value":"","old_value":""}
 {"actor":"Dan Abrams","comment":"Added label: bug","created_at":"2026-03-05T10:27:56Z","event_type":"label_added","id":17308,"issue_id":"gromit-6b2du","new_value":null,"old_value":null}
 {"actor":"Dan Abrams","comment":"Added label: from-review","created_at":"2026-03-05T10:27:56Z","event_type":"label_added","id":17309,"issue_id":"gromit-6b2du","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-05T10:27:58Z","event_type":"created","id":17310,"issue_id":"gromit-o0cjy","new_value":"","old_value":""}
+{"actor":"Dan Abrams","comment":"Added label: observability","created_at":"2026-03-05T10:27:58Z","event_type":"label_added","id":17311,"issue_id":"gromit-o0cjy","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: from-review","created_at":"2026-03-05T10:27:58Z","event_type":"label_added","id":17312,"issue_id":"gromit-o0cjy","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-05T10:28:00Z","event_type":"created","id":17313,"issue_id":"gromit-nf092","new_value":"","old_value":""}
+{"actor":"Dan Abrams","comment":"Added label: bug","created_at":"2026-03-05T10:28:00Z","event_type":"label_added","id":17314,"issue_id":"gromit-nf092","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: from-review","created_at":"2026-03-05T10:28:00Z","event_type":"label_added","id":17315,"issue_id":"gromit-nf092","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-05T10:28:02Z","event_type":"created","id":17316,"issue_id":"gromit-ocdxk","new_value":"","old_value":""}
+{"actor":"Dan Abrams","comment":"Added label: bug","created_at":"2026-03-05T10:28:02Z","event_type":"label_added","id":17317,"issue_id":"gromit-ocdxk","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: from-review","created_at":"2026-03-05T10:28:02Z","event_type":"label_added","id":17318,"issue_id":"gromit-ocdxk","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-05T10:28:04Z","event_type":"created","id":17319,"issue_id":"gromit-cx22d","new_value":"","old_value":""}
+{"actor":"Dan Abrams","comment":"Added label: bug","created_at":"2026-03-05T10:28:04Z","event_type":"label_added","id":17320,"issue_id":"gromit-cx22d","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: test","created_at":"2026-03-05T10:28:04Z","event_type":"label_added","id":17321,"issue_id":"gromit-cx22d","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: from-review","created_at":"2026-03-05T10:28:04Z","event_type":"label_added","id":17322,"issue_id":"gromit-cx22d","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-05T10:28:06Z","event_type":"created","id":17323,"issue_id":"gromit-ecxja","new_value":"","old_value":""}
+{"actor":"Dan Abrams","comment":"Added label: bug","created_at":"2026-03-05T10:28:06Z","event_type":"label_added","id":17324,"issue_id":"gromit-ecxja","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: from-review","created_at":"2026-03-05T10:28:06Z","event_type":"label_added","id":17325,"issue_id":"gromit-ecxja","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-05T10:28:07Z","event_type":"created","id":17326,"issue_id":"gromit-7oiys","new_value":"","old_value":""}
+{"actor":"Dan Abrams","comment":"Added label: refactor","created_at":"2026-03-05T10:28:07Z","event_type":"label_added","id":17327,"issue_id":"gromit-7oiys","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: from-review","created_at":"2026-03-05T10:28:07Z","event_type":"label_added","id":17328,"issue_id":"gromit-7oiys","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-05T10:28:10Z","event_type":"created","id":17329,"issue_id":"gromit-9kjvx","new_value":"","old_value":""}
+{"actor":"Dan Abrams","comment":"Added label: refactor","created_at":"2026-03-05T10:28:10Z","event_type":"label_added","id":17330,"issue_id":"gromit-9kjvx","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: from-review","created_at":"2026-03-05T10:28:10Z","event_type":"label_added","id":17331,"issue_id":"gromit-9kjvx","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-05T10:30:21Z","event_type":"created","id":17332,"issue_id":"gromit-euu7v","new_value":"","old_value":""}
+{"actor":"Dan Abrams","comment":"Added label: refactor","created_at":"2026-03-05T10:30:21Z","event_type":"label_added","id":17333,"issue_id":"gromit-euu7v","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: from-review","created_at":"2026-03-05T10:30:21Z","event_type":"label_added","id":17334,"issue_id":"gromit-euu7v","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-05T10:33:58Z","event_type":"created","id":17335,"issue_id":"gromit-4fuko","new_value":"","old_value":""}
+{"actor":"Dan Abrams","comment":"Added label: bug","created_at":"2026-03-05T10:33:58Z","event_type":"label_added","id":17336,"issue_id":"gromit-4fuko","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: from-review","created_at":"2026-03-05T10:33:58Z","event_type":"label_added","id":17337,"issue_id":"gromit-4fuko","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-05T10:33:59Z","event_type":"created","id":17338,"issue_id":"gromit-bd41p","new_value":"","old_value":""}
+{"actor":"Dan Abrams","comment":"Added label: refactor","created_at":"2026-03-05T10:33:59Z","event_type":"label_added","id":17339,"issue_id":"gromit-bd41p","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":"Added label: from-review","created_at":"2026-03-05T10:33:59Z","event_type":"label_added","id":17340,"issue_id":"gromit-bd41p","new_value":null,"old_value":null}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-05T10:34:54Z","event_type":"status_changed","id":17341,"issue_id":"gromit-cx22d","new_value":"{\"status\":\"in_progress\"}","old_value":"{\"id\":\"gromit-cx22d\",\"title\":\"Fix event type count mismatch in types_test.go\",\"description\":\"internal/events/types_test.go:139 checks len(eventTypes) \\\\!= 36 but the error message says 'Expected 35'. Also, GateReadinessBlockEvent (defined in types_gate.go:49) is missing from both this test and the specEventCases helper, so new event types can be added without uniqueness or timestamp verification.\",\"status\":\"open\",\"priority\":1,\"issue_type\":\"task\",\"owner\":\"me@thedanabrams.com\",\"created_at\":\"2026-03-05T15:28:05Z\",\"created_by\":\"Dan Abrams\",\"updated_at\":\"2026-03-05T15:28:05Z\"}"}
+{"actor":"Dan Abrams","comment":null,"created_at":"2026-03-05T10:37:29Z","event_type":"closed","id":17342,"issue_id":"gromit-cx22d","new_value":"Completed","old_value":""}
