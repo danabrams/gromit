@@ -268,3 +268,44 @@ func TestEmitter_DroppedCount_InitiallyZero(t *testing.T) {
 		t.Errorf("expected initial DroppedCount to be 0, got %d", count)
 	}
 }
+
+// TestEmitter_DroppedCount_IncrementsWhenBufferFull tests that DroppedCount increases when events are dropped.
+func TestEmitter_DroppedCount_IncrementsWhenBufferFull(t *testing.T) {
+	t.Parallel()
+	emitter := NewEmitter()
+	defer emitter.Close()
+
+	slowCh := emitter.Subscribe()
+
+	// Fill the subscriber's buffer with events (buffer size is 100)
+	const bufferedSize = 100
+	const extraEvents = 50
+	for i := 0; i < bufferedSize+extraEvents; i++ {
+		event := &LogEvent{
+			Level:   "info",
+			Message: "fill buffer test",
+		}
+		emitter.Emit(event)
+	}
+
+	// DroppedCount should reflect the number of dropped events
+	droppedCount := emitter.DroppedCount()
+	if droppedCount != extraEvents {
+		t.Errorf("expected DroppedCount to be %d (50 extra events over 100 buffer), got %d", extraEvents, droppedCount)
+	}
+
+	// Verify we actually received 100 events in the buffer
+	received := 0
+	for i := 0; i < bufferedSize; i++ {
+		select {
+		case <-slowCh:
+			received++
+		case <-time.After(100 * time.Millisecond):
+			t.Fatalf("failed to drain buffer, expected at least %d events", bufferedSize)
+		}
+	}
+
+	if received != bufferedSize {
+		t.Errorf("expected to receive %d buffered events, got %d", bufferedSize, received)
+	}
+}
