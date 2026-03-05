@@ -302,17 +302,13 @@ func (p *Pipeline) ReviewInteractive(ctx context.Context, input ReviewInput) (*R
 		return nil, fmt.Errorf("resolving agent: %w", err)
 	}
 
-	// Launch agent and return session
-	// For now, we launch synchronously and return a session wrapper that owns cleanup
-	// TODO: implement actual async session management
-	if err := agent.LaunchInDir(promptPath, input.LaunchDir); err != nil {
-		cleanup() // Clean up on error before returning
-		return nil, fmt.Errorf("launching agent: %w", err)
-	}
-
-	// Return session that owns the cleanup function
-	// Caller must call session.Cleanup() to remove the temp file
-	return NewReviewSession(cleanup), nil
+	// Launch agent asynchronously and return session that owns cleanup.
+	session := NewReviewSession(cleanup)
+	go func() {
+		err := agent.LaunchInDir(promptPath, input.LaunchDir)
+		session.finalize(err)
+	}()
+	return session, nil
 }
 
 // ReviewNonInteractive executes the non-interactive review workflow.

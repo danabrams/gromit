@@ -1,6 +1,10 @@
 package pipeline
 
-import "github.com/danabrams/gromit/internal/prompt"
+import (
+	"sync"
+
+	"github.com/danabrams/gromit/internal/prompt"
+)
 
 // ConversationLifecycleState represents the lifecycle state of a conversation session.
 type ConversationLifecycleState int
@@ -311,12 +315,17 @@ func (ps *PlanSession) Cleanup() {
 type ReviewSession struct {
 	Session
 	cleanup func()
+	done    chan struct{}
+	once    sync.Once
+	mu      sync.Mutex
+	err     error
 }
 
 // NewReviewSession creates a ReviewSession that owns the given cleanup function.
 func NewReviewSession(cleanup func()) *ReviewSession {
 	return &ReviewSession{
 		cleanup: cleanup,
+		done:    make(chan struct{}),
 	}
 }
 
@@ -327,6 +336,25 @@ func (rs *ReviewSession) Cleanup() {
 		rs.cleanup()
 		rs.cleanup = nil // Prevent double cleanup
 	}
+}
+
+// Wait blocks until the interactive agent process exits and returns any error
+// produced during the asynchronous launch.
+func (rs *ReviewSession) Wait() error {
+	<-rs.done
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+	return rs.err
+}
+
+// finalize marks the session as complete and records the launch error.
+func (rs *ReviewSession) finalize(err error) {
+	rs.mu.Lock()
+	rs.err = err
+	rs.mu.Unlock()
+	rs.once.Do(func() {
+		close(rs.done)
+	})
 }
 
 // ExploreSession is a typed wrapper for interactive Explore sessions.

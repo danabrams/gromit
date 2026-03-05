@@ -304,11 +304,15 @@ func runReviewInteractiveInDir(cfg *config.Config, fromCommit string, diff strin
 	if err != nil {
 		return fmt.Errorf("review interactive: %w", err)
 	}
+	if session == nil {
+		return nil
+	}
 
-	// Clean up temp file now that LaunchInDir has completed (synchronous mode)
-	// In async mode, the session owner would manage this lifecycle
-	if session != nil {
-		session.Cleanup()
+	// Clean up temp file once the async session completes.
+	defer session.Cleanup()
+
+	if err := session.Wait(); err != nil {
+		return fmt.Errorf("review interactive session: %w", err)
 	}
 
 	return nil
