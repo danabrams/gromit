@@ -34,6 +34,19 @@ func TestMergeToMainErrorPropagation(t *testing.T) {
 	}
 }
 
+// TestPushErrorPropagation verifies that Push errors are properly propagated.
+func TestPushErrorPropagation(t *testing.T) {
+	ctx := context.Background()
+
+	wantErr := errors.New("push failed")
+	mock := NewCallTrackingMockGitOps(nil, nil, wantErr, nil)
+
+	err := mock.Push(ctx)
+	if err != wantErr {
+		t.Fatalf("Push() error = %v, want %v", err, wantErr)
+	}
+}
+
 // NewErrorMockGitOps creates a mock GitOps implementation that returns specified errors.
 func NewErrorMockGitOps(fetchErr, mergeErr, pushErr, cleanupErr error) GitOps {
 	return &errorMockGitOps{
