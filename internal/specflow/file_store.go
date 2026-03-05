@@ -17,8 +17,9 @@ func NewFileStore(gromitDir string) (SpecStore, error) {
 		gromitDir = ".gromit"
 	}
 	store := &fileStore{
-		path:   filepath.Join(gromitDir, "specflow.json"),
-		stages: make(map[string]Stage),
+		path:      filepath.Join(gromitDir, "specflow.json"),
+		stages:    make(map[string]Stage),
+		readFile:  os.ReadFile,
 		writeFile: os.WriteFile,
 	}
 	if err := store.load(); err != nil {
@@ -28,9 +29,10 @@ func NewFileStore(gromitDir string) (SpecStore, error) {
 }
 
 type fileStore struct {
-	mu     sync.Mutex
-	path   string
-	stages map[string]Stage
+	mu        sync.Mutex
+	path      string
+	stages    map[string]Stage
+	readFile  func(string) ([]byte, error)
 	writeFile func(string, []byte, os.FileMode) error
 }
 
@@ -61,7 +63,11 @@ func (f *fileStore) load() error {
 	if f == nil {
 		return fmt.Errorf("specflow file store is nil")
 	}
-	data, err := os.ReadFile(f.path)
+	read := os.ReadFile
+	if f.readFile != nil {
+		read = f.readFile
+	}
+	data, err := read(f.path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil

@@ -71,6 +71,7 @@ func newTestFileStore(t *testing.T) *fileStore {
 	return &fileStore{
 		path:      filepath.Join(t.TempDir(), "specflow.json"),
 		stages:    make(map[string]Stage),
+		readFile:  os.ReadFile,
 		writeFile: os.WriteFile,
 	}
 }
