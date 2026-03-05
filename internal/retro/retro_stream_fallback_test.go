@@ -1,6 +1,7 @@
 package retro
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"testing"
@@ -15,6 +16,19 @@ type streamFallbackProvider struct {
 	runErr       error
 	streamCalls  int
 	runCalls     int
+}
+
+type streamWriterProvider struct {
+	streamOutput io.Writer
+}
+
+func (m *streamWriterProvider) Run(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
+	return nil, nil
+}
+
+func (m *streamWriterProvider) StreamRun(ctx context.Context, prompt string, tier string, output io.Writer, handler provider.EventHandler, onToolCall provider.ToolCallHandler) (*provider.Result, error) {
+	m.streamOutput = output
+	return &provider.Result{Success: true, Output: "stream output"}, nil
 }
 
 func (m *streamFallbackProvider) Run(ctx context.Context, prompt string, tier string) (*provider.Result, error) {
@@ -90,5 +104,22 @@ func TestRunAnalysis_ReturnsErrorWhenBothOutputsEmpty(t *testing.T) {
 	}
 	if got != nil {
 		t.Fatal("runAnalysis() result should be nil on empty output")
+	}
+}
+
+func TestRunAnalysis_UsesInjectedStreamWriter(t *testing.T) {
+	buf := &bytes.Buffer{}
+	provider := &streamWriterProvider{}
+	r := &Retro{provider: provider, outputWriter: buf}
+
+	got, err := r.runAnalysis(context.Background(), "prompt")
+	if err != nil {
+		t.Fatalf("runAnalysis() error = %v", err)
+	}
+	if got == nil {
+		t.Fatal("runAnalysis() returned nil result")
+	}
+	if provider.streamOutput != buf {
+		t.Fatalf("StreamRun writer = %T, want %T", provider.streamOutput, buf)
 	}
 }
