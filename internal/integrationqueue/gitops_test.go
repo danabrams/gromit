@@ -125,6 +125,35 @@ func TestAllGitOpsMethodsSucceed(t *testing.T) {
 	}
 }
 
+// TestMixedSuccessAndFailure verifies that GitOps methods can have mixed success/failure.
+func TestMixedSuccessAndFailure(t *testing.T) {
+	ctx := context.Background()
+	entry := Entry{Branch: "test-branch", SessionID: "test"}
+
+	fetchErr := errors.New("fetch error")
+	mergeErr := errors.New("merge error")
+
+	mock := NewCallTrackingMockGitOps(fetchErr, mergeErr, nil, nil)
+
+	// First call should fail
+	if err := mock.FetchAndRebase(ctx, entry); err != fetchErr {
+		t.Errorf("FetchAndRebase() got %v, want %v", err, fetchErr)
+	}
+
+	// Second call should fail with different error
+	if err := mock.MergeToMain(ctx, entry); err != mergeErr {
+		t.Errorf("MergeToMain() got %v, want %v", err, mergeErr)
+	}
+
+	// Remaining calls should succeed
+	if err := mock.Push(ctx); err != nil {
+		t.Errorf("Push() unexpected error: %v", err)
+	}
+	if err := mock.Cleanup(ctx, entry); err != nil {
+		t.Errorf("Cleanup() unexpected error: %v", err)
+	}
+}
+
 // NewErrorMockGitOps creates a mock GitOps implementation that returns specified errors.
 func NewErrorMockGitOps(fetchErr, mergeErr, pushErr, cleanupErr error) GitOps {
 	return &errorMockGitOps{
