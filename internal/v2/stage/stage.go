@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/danabrams/gromit/internal/config"
+	"github.com/danabrams/gromit/internal/events"
 )
 
 // Stage defines a single beam within the run loop.
@@ -24,8 +25,8 @@ type Request struct {
 // Result reports the outcome of a stage invocation.
 type Result struct {
 	Decision  Decision
-	Summary   string
 	Artifacts any
+	Events    []events.Event
 }
 
 // Decision describes how the loop should proceed after a stage runs.
