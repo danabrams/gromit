@@ -236,12 +236,12 @@ func changedGoFilesSinceBase(t *testing.T, root string) []string {
 
 func gitDiffGoFiles(t *testing.T, root, base, head string) []string {
 	t.Helper()
-	return gitList(t, root, "diff", "--name-only", base, head, "--", "*.go")
+	return filterExistingGoFiles(root, gitList(t, root, "diff", "--name-only", "--diff-filter=d", base, head, "--", "*.go"))
 }
 
 func gitDiffHeadGoFiles(t *testing.T, root string) []string {
 	t.Helper()
-	return gitList(t, root, "diff", "--name-only", "HEAD", "--", "*.go")
+	return filterExistingGoFiles(root, gitList(t, root, "diff", "--name-only", "--diff-filter=d", "HEAD", "--", "*.go"))
 }
 
 func gitMergeBase(root, other string) (string, error) {
@@ -285,4 +285,23 @@ func gitList(t *testing.T, root string, args ...string) []string {
 		}
 	}
 	return files
+}
+
+func filterExistingGoFiles(root string, files []string) []string {
+	if len(files) == 0 {
+		return nil
+	}
+	var filtered []string
+	for _, file := range files {
+		if file == "" {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(root, file)); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+		}
+		filtered = append(filtered, file)
+	}
+	return filtered
 }
