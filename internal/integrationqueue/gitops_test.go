@@ -90,6 +90,20 @@ func TestGitOpsCallSequence(t *testing.T) {
 	}
 }
 
+// TestContextCanceledFetchAndRebase verifies that FetchAndRebase respects context cancellation.
+func TestContextCanceledFetchAndRebase(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	entry := Entry{Branch: "test-branch", SessionID: "test"}
+	mock := NewContextSensitiveMockGitOps()
+
+	err := mock.FetchAndRebase(ctx, entry)
+	if err == nil {
+		t.Fatalf("FetchAndRebase() expected error for canceled context, got nil")
+	}
+}
+
 // NewErrorMockGitOps creates a mock GitOps implementation that returns specified errors.
 func NewErrorMockGitOps(fetchErr, mergeErr, pushErr, cleanupErr error) GitOps {
 	return &errorMockGitOps{
