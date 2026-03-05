@@ -154,6 +154,28 @@ func TestMixedSuccessAndFailure(t *testing.T) {
 	}
 }
 
+// TestPartialContextCancellation verifies GitOps handles context cancellation mid-sequence.
+func TestPartialContextCancellation(t *testing.T) {
+	ctx := context.Background()
+	entry := Entry{Branch: "test-branch", SessionID: "test"}
+
+	mock := NewSequentialContextMock()
+
+	// First call with valid context should succeed
+	if err := mock.FetchAndRebase(ctx, entry); err != nil {
+		t.Errorf("FetchAndRebase() unexpected error: %v", err)
+	}
+
+	// Create cancelled context for second call
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// Second call with cancelled context should fail
+	if err := mock.MergeToMain(canceledCtx, entry); err == nil {
+		t.Errorf("MergeToMain() expected error for canceled context")
+	}
+}
+
 // NewErrorMockGitOps creates a mock GitOps implementation that returns specified errors.
 func NewErrorMockGitOps(fetchErr, mergeErr, pushErr, cleanupErr error) GitOps {
 	return &errorMockGitOps{
