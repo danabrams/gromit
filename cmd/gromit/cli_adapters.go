@@ -229,14 +229,7 @@ type planPromptRenderer struct {
 var _ pipeline.PlanRenderer = (*planPromptRenderer)(nil)
 
 func (r *planPromptRenderer) RenderPlan(input *pipeline.PlanPromptInput) (string, error) {
-	specName := ""
-	if input != nil {
-		specName = input.IdeaText
-	}
-	if specName == "" {
-		return "Plan prompt placeholder", nil
-	}
-	return fmt.Sprintf("Plan prompt placeholder for %s", specName), nil
+	return "", fmt.Errorf("plan prompt rendering is not yet available")
 }
 
 // refinePromptRenderer adapts prompt.Renderer to pipeline.RefineRenderer interface
