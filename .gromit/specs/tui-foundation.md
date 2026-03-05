@@ -3,6 +3,8 @@ id: tui-foundation
 source_ideas: []
 created: 2026-02-27
 epic: multi-interface-architecture
+deprecated: 2026-03-05
+deprecated_reason: "TUI interface removed — internal/tui/ deleted per docs/plans/2026-03-04-deprecate-tui.md"
 ---
 
 # TUI Foundation

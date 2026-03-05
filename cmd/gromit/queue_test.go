@@ -199,7 +199,7 @@ func TestPrintQueueByStatus_BySpecGroupsStatusesWithinEachSpec(t *testing.T) {
 	all := append(append(append([]*bead.Bead{}, ready...), blocked...), stuck...)
 
 	output := captureStdout(t, func() {
-		printQueueByStatus(cfg, ready, blocked, stuck, all, true, false)
+		printQueueByStatus(cfg, ready, nil, blocked, stuck, all, true, false)
 	})
 
 	authIdx := strings.Index(output, "Spec: auth")
@@ -259,7 +259,7 @@ func TestPrintQueueByStatus_BySpecIncludesSpecsWithoutReadyBeads(t *testing.T) {
 	}
 
 	output := captureStdout(t, func() {
-		printQueueByStatus(cfg, ready, blocked, nil, blocked, true, false)
+		printQueueByStatus(cfg, ready, nil, blocked, nil, blocked, true, false)
 	})
 
 	if !strings.Contains(output, "Spec: auth") {
@@ -391,7 +391,7 @@ func TestQueueCmd_RegressionAssertion_OutputIsStable(t *testing.T) {
 			blocked := []*bead.Bead{}
 			stuck := []*bead.Bead{}
 
-			printQueueByStatus(cfg, ready, blocked, stuck, ready, true, false)
+			printQueueByStatus(cfg, ready, nil, blocked, stuck, ready, true, false)
 			callCount++
 		})
 
@@ -429,7 +429,7 @@ func TestQueueCmd_RegressionAssertion_TUISectionsIntact(t *testing.T) {
 	all := append(append(append([]*bead.Bead{}, ready...), blocked...), stuck...)
 
 	output := captureStdout(t, func() {
-		printQueueByStatus(cfg, ready, blocked, stuck, all, true, false)
+		printQueueByStatus(cfg, ready, nil, blocked, stuck, all, true, false)
 	})
 
 	assertQueueTUISections(t, output)

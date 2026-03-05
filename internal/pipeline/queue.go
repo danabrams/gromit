@@ -24,10 +24,11 @@ type QueueInput struct {
 
 // QueueResult contains beads organized by processing state for CLI display.
 type QueueResult struct {
-	Ready   []*bead.Bead
-	Blocked []*bead.Bead
-	Stuck   []*bead.Bead
-	All     []*bead.Bead
+	Ready      []*bead.Bead
+	Blocked    []*bead.Bead
+	Stuck      []*bead.Bead
+	InProgress []*bead.Bead
+	All        []*bead.Bead
 }
 
 // Queue assembles queue data for the CLI.
@@ -70,13 +71,14 @@ func (p *Pipeline) Queue(ctx context.Context, input QueueInput) (*QueueResult, e
 		stuckThreshold = 3
 	}
 
-	ready, blocked, stuck := queue.PartitionQueueBeads(readyBeads, allBeads, beadStats, stuckThreshold)
+	ready, blocked, stuck, inProgress := queue.PartitionQueueBeads(readyBeads, allBeads, beadStats, stuckThreshold)
 
 	return &QueueResult{
-		Ready:   ready,
-		Blocked: blocked,
-		Stuck:   stuck,
-		All:     allBeads,
+		Ready:      ready,
+		Blocked:    blocked,
+		Stuck:      stuck,
+		InProgress: inProgress,
+		All:        allBeads,
 	}, nil
 }
 

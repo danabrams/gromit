@@ -44,7 +44,7 @@ func TestPartitionQueueBeads_SeparatesReadyBlockedAndStuck(t *testing.T) {
 		"stuck-blocked": {BeadID: "stuck-blocked", Failures: 4},
 	}
 
-	ready, blocked, stuck := PartitionQueueBeads(readyInput, all, stats, 3)
+	ready, blocked, stuck, inProgress := PartitionQueueBeads(readyInput, all, stats, 3)
 
 	if len(ready) != 1 || ready[0].ID != "ready-1" {
 		t.Fatalf("ready = %+v, want [ready-1]", ready)
@@ -55,6 +55,9 @@ func TestPartitionQueueBeads_SeparatesReadyBlockedAndStuck(t *testing.T) {
 	if len(stuck) != 2 || stuck[0].ID != "stuck-ready" || stuck[1].ID != "stuck-blocked" {
 		t.Fatalf("stuck = %+v, want [stuck-ready stuck-blocked]", stuck)
 	}
+	if len(inProgress) != 0 {
+		t.Fatalf("inProgress = %+v, want empty", inProgress)
+	}
 }
 
 func TestPartitionQueueBeads_DoesNotClassifyInProgressAsBlocked(t *testing.T) {
@@ -64,7 +67,7 @@ func TestPartitionQueueBeads_DoesNotClassifyInProgressAsBlocked(t *testing.T) {
 		{ID: "progress-1", Status: "in_progress", Priority: 1, Title: "Active Work"},
 	}
 
-	ready, blocked, stuck := PartitionQueueBeads(readyInput, all, map[string]logger.BeadStats{}, 3)
+	ready, blocked, stuck, inProgress := PartitionQueueBeads(readyInput, all, map[string]logger.BeadStats{}, 3)
 
 	if len(ready) != 0 {
 		t.Fatalf("ready = %+v, want empty", ready)
@@ -74,6 +77,9 @@ func TestPartitionQueueBeads_DoesNotClassifyInProgressAsBlocked(t *testing.T) {
 	}
 	if len(stuck) != 0 {
 		t.Fatalf("stuck = %+v, want empty", stuck)
+	}
+	if len(inProgress) != 1 || inProgress[0].ID != "progress-1" {
+		t.Fatalf("inProgress = %+v, want [progress-1]", inProgress)
 	}
 }
 

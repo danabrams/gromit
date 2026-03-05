@@ -8,12 +8,12 @@ import (
 	"github.com/danabrams/gromit/internal/logger"
 )
 
-// PartitionQueueBeads separates beads into ready, blocked, and stuck categories.
+// PartitionQueueBeads separates beads into ready, blocked, stuck, and in-progress categories.
 func PartitionQueueBeads(
 	readyBeads, allBeads []*bead.Bead,
 	beadStats map[string]logger.BeadStats,
 	stuckThreshold int,
-) (ready []*bead.Bead, blocked []*bead.Bead, stuck []*bead.Bead) {
+) (ready []*bead.Bead, blocked []*bead.Bead, stuck []*bead.Bead, inProgress []*bead.Bead) {
 	stuckMap := FindStuckBeadIDs(beadStats, stuckThreshold)
 
 	readyMap := make(map[string]bool, len(readyBeads))
@@ -29,8 +29,9 @@ func PartitionQueueBeads(
 			stuck = append(stuck, b)
 			continue
 		}
-		// In-progress beads are active work and should not be shown as blocked.
+		// In-progress beads are active work and should be shown separately.
 		if strings.EqualFold(strings.TrimSpace(b.Status), "in_progress") {
+			inProgress = append(inProgress, b)
 			continue
 		}
 		if !readyMap[b.ID] {
@@ -38,7 +39,7 @@ func PartitionQueueBeads(
 		}
 	}
 
-	return ready, blocked, stuck
+	return ready, blocked, stuck, inProgress
 }
 
 // FindStuckBeadIDs identifies beads that have exceeded the failure threshold.

@@ -15,11 +15,12 @@ import (
 )
 
 const (
-	ansiReset = "\x1b[0m"
-	ansiBold  = "\x1b[1m"
-	ansiGreen = "\x1b[32m"
-	ansiWhite = "\x1b[37m"
-	ansiRed   = "\x1b[31m"
+	ansiReset  = "\x1b[0m"
+	ansiBold   = "\x1b[1m"
+	ansiGreen  = "\x1b[32m"
+	ansiYellow = "\x1b[33m"
+	ansiWhite  = "\x1b[37m"
+	ansiRed    = "\x1b[31m"
 )
 
 var queueBySpec bool
@@ -71,7 +72,7 @@ func showQueue(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	printQueueByStatus(cfg, result.Ready, result.Blocked, result.Stuck, result.All, queueBySpec, isColorEnabled())
+	printQueueByStatus(cfg, result.Ready, result.InProgress, result.Blocked, result.Stuck, result.All, queueBySpec, isColorEnabled())
 	return nil
 }
 
@@ -89,9 +90,9 @@ type queueExecutor interface {
 	Queue(context.Context, pipeline.QueueInput) (*pipeline.QueueResult, error)
 }
 
-func printQueueByStatus(cfg queueModelSelector, readyBeads, blockedBeads, stuckBeads, allBeads []*bead.Bead, bySpec bool, useColor bool) {
+func printQueueByStatus(cfg queueModelSelector, readyBeads, inProgressBeads, blockedBeads, stuckBeads, allBeads []*bead.Bead, bySpec bool, useColor bool) {
 	if bySpec {
-		printQueueBySpec(cfg, readyBeads, blockedBeads, stuckBeads, allBeads, useColor)
+		printQueueBySpec(cfg, readyBeads, inProgressBeads, blockedBeads, stuckBeads, allBeads, useColor)
 		return
 	}
 
@@ -109,6 +110,19 @@ func printQueueByStatus(cfg queueModelSelector, readyBeads, blockedBeads, stuckB
 		})
 	} else {
 		fmt.Println("Queue: empty (no beads ready)")
+	}
+
+	if len(inProgressBeads) > 0 {
+		fmt.Println()
+		fmt.Println("In Progress (" + fmt.Sprintf("%d", len(inProgressBeads)) + "):")
+		printBeadsBySpec(inProgressBeads, false, func(_ int, b *bead.Bead) {
+			line := fmt.Sprintf("  [P%d] %s  %s  (%s)",
+				b.Priority,
+				b.ID,
+				truncateTitle(b.Title, 30),
+				b.Status)
+			fmt.Println(colorizeLine(line, ansiYellow, useColor))
+		})
 	}
 
 	if len(blockedBeads) > 0 {
@@ -138,7 +152,7 @@ func printQueueByStatus(cfg queueModelSelector, readyBeads, blockedBeads, stuckB
 	}
 }
 
-func printQueueBySpec(cfg queueModelSelector, readyBeads, blockedBeads, stuckBeads, allBeads []*bead.Bead, useColor bool) {
+func printQueueBySpec(cfg queueModelSelector, readyBeads, inProgressBeads, blockedBeads, stuckBeads, allBeads []*bead.Bead, useColor bool) {
 	if len(readyBeads) > 0 {
 		fmt.Println("Queue (" + fmt.Sprintf("%d", len(readyBeads)) + " beads ready):")
 	} else {
@@ -146,9 +160,10 @@ func printQueueBySpec(cfg queueModelSelector, readyBeads, blockedBeads, stuckBea
 	}
 
 	readyBySpec := groupBeadsBySpec(readyBeads)
+	inProgressBySpec := groupBeadsBySpec(inProgressBeads)
 	blockedBySpec := groupBeadsBySpec(blockedBeads)
 	stuckBySpec := groupBeadsBySpec(stuckBeads)
-	specKeys := combinedSpecKeys(readyBySpec, blockedBySpec, stuckBySpec)
+	specKeys := combinedSpecKeys(readyBySpec, inProgressBySpec, blockedBySpec, stuckBySpec)
 
 	fmt.Println("Queue by spec:")
 	if len(specKeys) == 0 {
@@ -174,6 +189,18 @@ func printQueueBySpec(cfg queueModelSelector, readyBeads, blockedBeads, stuckBea
 					model)
 				fmt.Println(colorizeLine(line, ansiBold+ansiGreen, useColor))
 				readyIndex++
+			}
+		}
+
+		if specInProgress := inProgressBySpec[spec]; len(specInProgress) > 0 {
+			fmt.Printf("    In Progress (%d):\n", len(specInProgress))
+			for _, b := range specInProgress {
+				line := fmt.Sprintf("      [P%d] %s  %s  (%s)",
+					b.Priority,
+					b.ID,
+					truncateTitle(b.Title, 30),
+					b.Status)
+				fmt.Println(colorizeLine(line, ansiYellow, useColor))
 			}
 		}
 
