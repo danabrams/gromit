@@ -735,14 +735,20 @@ func TestCoordinatorRecoverFromCrash_RecordsErrorMetadata(t *testing.T) {
 	}
 }
 
-func TestCoordinatorRecoverFromCrash_FailedGates(t *testing.T) {
+// TestCoordinatorRecoverFromCrash_StaleErrorCodeIgnored verifies that stale
+// LastErrorCode values on integrating entries are ignored during crash recovery.
+// In production, ApplyTransition clears error fields when transitioning to
+// StateIntegrating (no metadata), so LastErrorCode is always empty for
+// integrating entries. This test confirms recovery always resets to StateReady
+// even if an entry has a stale error code from a previous lifecycle.
+func TestCoordinatorRecoverFromCrash_StaleErrorCodeIgnored(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
 	queuePath := filepath.Join(tmpDir, queueFileName)
 
 	entry := Entry{
-		Branch:           "feature/failed-gates",
-		SessionID:        "feature/failed-gates",
+		Branch:           "feature/stale-error",
+		SessionID:        "feature/stale-error",
 		OriginCommand:    "test",
 		State:            StateIntegrating,
 		Lane:             string(CodeLane),
@@ -780,34 +786,32 @@ func TestCoordinatorRecoverFromCrash_FailedGates(t *testing.T) {
 		t.Fatalf("load() error = %v", err)
 	}
 
-	processed := findEntry(payload.Entries, "feature/failed-gates")
+	processed := findEntry(payload.Entries, "feature/stale-error")
 	if processed == nil {
 		t.Fatal("missing processed entry")
 	}
-	if processed.State != StateFailedGates {
-		t.Fatalf("State = %q, want %q", processed.State, StateFailedGates)
+	if processed.State != StateReady {
+		t.Fatalf("State = %q, want %q", processed.State, StateReady)
 	}
-	if processed.LastErrorCode != string(StateFailedGates) {
-		t.Fatalf("LastErrorCode = %q, want %q", processed.LastErrorCode, string(StateFailedGates))
+	if processed.LastErrorCode != string(CrashRecoveryErrorCode) {
+		t.Fatalf("LastErrorCode = %q, want %q", processed.LastErrorCode, string(CrashRecoveryErrorCode))
 	}
 }
 
-func TestCoordinatorRecoverFromCrash_PassesErrorMetadataDuringTransition(t *testing.T) {
+func TestCoordinatorRecoverFromCrash_PassesCrashRecoveryMetadataDuringTransition(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
 	queuePath := filepath.Join(tmpDir, queueFileName)
 
 	entry := Entry{
-		Branch:           "feature/failed-gates-transition",
-		SessionID:        "feature/failed-gates-transition",
+		Branch:           "feature/crash-transition",
+		SessionID:        "feature/crash-transition",
 		OriginCommand:    "test",
 		State:            StateIntegrating,
 		Lane:             string(CodeLane),
 		BaseRef:          "main",
 		HeadSHA:          "deadbeef",
 		FifoSeq:          1,
-		LastErrorCode:    string(StateFailedGates),
-		LastErrorMessage: "scoped gates failed",
 	}
 	queue := &Queue{
 		SchemaVersion: SchemaVersion,
@@ -831,7 +835,7 @@ func TestCoordinatorRecoverFromCrash_PassesErrorMetadataDuringTransition(t *test
 	metadataSeen := false
 	var recorded TransitionErrorMetadata
 	coord.transitionFn = func(entry *Entry, toState string, reason string, metadata ...TransitionErrorMetadata) error {
-		if toState == string(StateFailedGates) && strings.Contains(reason, "failed gates") {
+		if toState == string(StateReady) && strings.Contains(reason, "crash recovery") {
 			metadataSeen = metadataSeen || len(metadata) > 0
 			if len(metadata) > 0 {
 				recorded = metadata[0]
@@ -845,17 +849,22 @@ func TestCoordinatorRecoverFromCrash_PassesErrorMetadataDuringTransition(t *test
 	}
 
 	if !metadataSeen {
-		t.Fatal("expected metadata to be passed to ApplyTransition during crash recovery")
+		t.Fatal("expected crash recovery metadata to be passed to ApplyTransition")
 	}
-	if recorded.Code != string(StateFailedGates) {
-		t.Fatalf("metadata.Code = %q, want %q", recorded.Code, string(StateFailedGates))
+	want := crashRecoveryMetadata()
+	if recorded.Code != want.Code {
+		t.Fatalf("metadata.Code = %q, want %q", recorded.Code, want.Code)
 	}
-	if recorded.Message != "scoped gates failed" {
-		t.Fatalf("metadata.Message = %q, want %q", recorded.Message, "scoped gates failed")
+	if recorded.Message != want.Message {
+		t.Fatalf("metadata.Message = %q, want %q", recorded.Message, want.Message)
 	}
 }
 
-func TestCoordinatorRecoverFromCrash_MergeConflict(t *testing.T) {
+// TestCoordinatorRecoverFromCrash_StaleMergeConflictCodeIgnored verifies that
+// a stale merge_conflict error code on an integrating entry doesn't prevent
+// recovery to StateReady. In production, error fields are cleared when
+// transitioning to StateIntegrating.
+func TestCoordinatorRecoverFromCrash_StaleMergeConflictCodeIgnored(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
 	queuePath := filepath.Join(tmpDir, queueFileName)
@@ -904,15 +913,18 @@ func TestCoordinatorRecoverFromCrash_MergeConflict(t *testing.T) {
 	if processed == nil {
 		t.Fatal("missing processed entry")
 	}
-	if processed.State != StateConflict {
-		t.Fatalf("State = %q, want %q", processed.State, StateConflict)
+	if processed.State != StateReady {
+		t.Fatalf("State = %q, want %q", processed.State, StateReady)
 	}
-	if processed.LastErrorCode != "merge_conflict" {
-		t.Fatalf("LastErrorCode = %q, want merge_conflict", processed.LastErrorCode)
+	if processed.LastErrorCode != string(CrashRecoveryErrorCode) {
+		t.Fatalf("LastErrorCode = %q, want %q", processed.LastErrorCode, string(CrashRecoveryErrorCode))
 	}
 }
 
-func TestCoordinatorRecoverFromCrash_PushFailure(t *testing.T) {
+// TestCoordinatorRecoverFromCrash_StalePushFailedCodeIgnored verifies that
+// a stale push_failed error code on an integrating entry doesn't prevent
+// recovery to StateReady.
+func TestCoordinatorRecoverFromCrash_StalePushFailedCodeIgnored(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
 	queuePath := filepath.Join(tmpDir, queueFileName)
@@ -961,11 +973,11 @@ func TestCoordinatorRecoverFromCrash_PushFailure(t *testing.T) {
 	if processed == nil {
 		t.Fatal("missing processed entry")
 	}
-	if processed.State != StatePushFailure {
-		t.Fatalf("State = %q, want %q", processed.State, StatePushFailure)
+	if processed.State != StateReady {
+		t.Fatalf("State = %q, want %q", processed.State, StateReady)
 	}
-	if processed.LastErrorCode != "push_failed" {
-		t.Fatalf("LastErrorCode = %q, want push_failed", processed.LastErrorCode)
+	if processed.LastErrorCode != string(CrashRecoveryErrorCode) {
+		t.Fatalf("LastErrorCode = %q, want %q", processed.LastErrorCode, string(CrashRecoveryErrorCode))
 	}
 }
 
