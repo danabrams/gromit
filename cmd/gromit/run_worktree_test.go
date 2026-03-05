@@ -252,11 +252,49 @@ func TestRunInDedicatedWorktree_RestoresOriginalWorkingDirectory(t *testing.T) {
 	}
 }
 
+func TestRunInDedicatedWorktree_PrunesStaleWorktreesBeforeCreating(t *testing.T) {
+	origManager := runWorktreeNewManagerFn
+	origCleanup := runWorktreeCleanupFn
+	defer func() {
+		runWorktreeNewManagerFn = origManager
+		runWorktreeCleanupFn = origCleanup
+	}()
+
+	tmpDir := t.TempDir()
+	worktreeDir := tmpDir + "-gromit-run-prune"
+	if err := os.MkdirAll(worktreeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(worktreeDir)
+
+	var pruned bool
+	runWorktreeNewManagerFn = func(mainDir string) (runWorktreeManager, error) {
+		return &fakeRunWorktreeManager{
+			session: &worktree.SessionWorktree{
+				BranchName:  "gromit/run-prune",
+				WorktreeDir: worktreeDir,
+			},
+			onPrune: func() { pruned = true },
+		}, nil
+	}
+	runWorktreeCleanupFn = func(_, _, _ string) {}
+
+	if err := runInDedicatedWorktree(context.Background(), tmpDir, func() error { return nil }); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !pruned {
+		t.Fatal("PruneStaleSessionWorktrees was not called before creating worktree")
+	}
+}
+
 // fakeRunWorktreeManager is a test double for runWorktreeManager.
 type fakeRunWorktreeManager struct {
 	session         *worktree.SessionWorktree
 	createErr       error
 	onCreateCommand func(string)
+	onPrune         func()
+	pruneErr        error
+	pruneCount      int
 }
 
 func (f *fakeRunWorktreeManager) CreateSessionWorktree(_ context.Context, command string) (*worktree.SessionWorktree, error) {
@@ -267,4 +305,11 @@ func (f *fakeRunWorktreeManager) CreateSessionWorktree(_ context.Context, comman
 		return nil, f.createErr
 	}
 	return f.session, nil
+}
+
+func (f *fakeRunWorktreeManager) PruneStaleSessionWorktrees(_ context.Context) (int, error) {
+	if f.onPrune != nil {
+		f.onPrune()
+	}
+	return f.pruneCount, f.pruneErr
 }

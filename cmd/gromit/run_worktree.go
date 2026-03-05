@@ -11,6 +11,7 @@ import (
 
 type runWorktreeManager interface {
 	CreateSessionWorktree(ctx context.Context, command string) (*worktree.SessionWorktree, error)
+	PruneStaleSessionWorktrees(ctx context.Context) (int, error)
 }
 
 var (
@@ -46,6 +47,16 @@ func runInDedicatedWorktree(ctx context.Context, mainDir string, fn func() error
 	manager, err := runWorktreeNewManagerFn(mainDir)
 	if err != nil {
 		return fmt.Errorf("creating worktree manager: %w", err)
+	}
+
+	// Prune stale session worktrees from previous killed runs before creating a new one.
+	// When a run process is killed (SIGKILL, OOM, terminal close), the defer cleanup
+	// doesn't run and stale worktrees persist. These can hold spec branches checked out,
+	// blocking subsequent runs from checking out the same branches.
+	if pruned, pruneErr := manager.PruneStaleSessionWorktrees(ctx); pruneErr != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Warning: stale worktree pruning: %v\n", pruneErr)
+	} else if pruned > 0 {
+		_, _ = fmt.Fprintf(os.Stderr, "Pruned %d stale session worktree(s)\n", pruned)
 	}
 
 	session, err := manager.CreateSessionWorktree(ctx, "run")
