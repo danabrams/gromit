@@ -149,10 +149,7 @@ func TestRenderHintBarDetailStateStrings(t *testing.T) {
 func TestRenderHintBarConfirmationStateStrings(t *testing.T) {
 	for _, tab := range hintTabs() {
 		t.Run(string(tab), func(t *testing.T) {
-			want, ok := hintBarConfirmationStateStrings[tab]
-			if !ok {
-				t.Fatalf("missing confirmation hint string for %q", tab)
-			}
+			want := expectedConfirmationHintString(tab)
 			if got := RenderHintBar(tab, true, false, true); got != want {
 				t.Fatalf("RenderHintBar(%q, confirmation) = %q, want %q", tab, got, want)
 			}
