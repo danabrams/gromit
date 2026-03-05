@@ -1,27 +1,21 @@
 {
-  "id": "attribution-quarantine-hard-gate-2026-03-03",
-  "name": "Attribution Quarantine Hard Gate",
-  "hypothesis": "Hard-blocking SPC/delta outputs when blank/unknown attribution rows appear will eliminate false anomaly classifications.",
-  "change": "Treat any blank/unknown model/provider row as data-quality-invalid for aggregation input; emit only data_quality_blocked diagnostics until clean.",
-  "measurement": "Track unknown/blank-row incidence, count of unknown-stratum SPC alerts, and percentage of retros with valid deltas.",
-  "risk": "More retros may be blocked initially, increasing short-term operational friction.",
+  "id": "concurrency-test-determinism-migration-2026-03-05",
+  "name": "Concurrency Test Determinism Migration",
+  "hypothesis": "Replacing timing-threshold concurrency assertions with sync-primitive assertions will reduce flaky build failures without reducing coverage.",
+  "change": "Migrate known timing-based tests in runner/orchestrator to deterministic overlap proofs (barriers/waitgroups/channels).",
+  "measurement": "Track test flake rate and build-failure share attributed to test timing over 30 CI runs.",
+  "risk": "Test refactors may temporarily hide intent if synchronization harnesses are poorly named.",
   "status": "doing",
   "study_summary": "",
   "act_decision": "",
   "act_date": "",
-  "started_at": "2026-03-03T00:00:00Z",
-  "baseline_metrics": {
-    "avg_cost_per_bead": 1.0764,
-    "avg_duration_ms": 441926.0,
-    "avg_input_tokens": 4899800.0,
-    "avg_output_tokens": 30324.0,
-    "failure_rate": 0.1
-  },
+  "started_at": "2026-03-05T00:00:00Z",
+  "baseline_metrics": {},
   "previous_experiment": {
-    "id": "worktree-agnostic-retro-ingestion-2026-03-01",
-    "name": "Worktree-Agnostic Retro Ingestion",
-    "act_decision": "keep",
-    "act_date": "2026-03-03",
-    "final_summary": "Retro now reads efficiency data from canonical repo-root paths. Current run produced non-zero cost/duration/token metrics ($1.0764/bead avg), confirming the worktree log visibility fix works. Remaining data-quality issues (blank attribution rows) are a separate concern addressed by the next experiment."
+    "id": "attribution-quarantine-hard-gate-2026-03-03",
+    "name": "Attribution Quarantine Hard Gate",
+    "act_decision": "inconclusive",
+    "act_date": "2026-03-05",
+    "final_summary": "Inconclusive after 58 iterations across 11 runs. Provider field is structurally MISSING from all run log entries, so the quarantine gate cannot distinguish known vs unknown attribution. Cost dropped 35% but confounded by 33% zero-execution failures. Failure rate rose from 10% to 46.6%."
   }
 }

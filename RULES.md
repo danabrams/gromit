@@ -37,12 +37,12 @@ Any bead touching usage attribution or stream-event merge semantics must land a 
 ## Process
 
 ### Beads touching telemetry or usage paths require telemetry contract validation
-If a bead touches usage accounting, provider stream-event handling, or retro efficiency formatting, mandatory validation must also include telemetry contract suites covering provider merge semantics and iteration-row completeness before merge.
+If a bead touches usage accounting, provider stream-event handling, or retro efficiency formatting, mandatory validation must include telemetry contract suites covering provider merge semantics, iteration-row completeness, and stratum reconciliation (model/provider totals must reconcile exactly to current-run rows).
 
 **Enforcement:** Bead scope tagging; CI gate on telemetry-tagged beads requiring contract suite pass.
 
 ### Beads touching stream events must add event-matrix contract tests
-Any bead touching provider stream usage/event handling must add a stream-event matrix contract test (turn/response/result paths) and verify post-run completeness assertions still fail/pass in the expected scenarios.
+Any bead touching provider stream usage/event handling must add a stream-event matrix contract test (turn/response/result paths), verify completeness fail/pass scenarios, and include unknown-attribution quarantine tests proving such rows cannot enter SPC/delta or stratum aggregates.
 
 **Enforcement:** Bead scope tagging for stream-event paths; CI gate requiring matrix contract test pass before merge.
 
@@ -136,7 +136,7 @@ Issue-ledger normalization and semantic edits must be split into separate beads/
 **Enforcement:** Code review on ledger changes; automation rejects commits mixing normalization-only and semantic edits.
 
 ### Refactor guardrail tests must validate structural declarations
-Refactor guardrail tests must validate structural declarations (AST/compile-time contracts) instead of naming or string heuristics. For architecture guardrails, require AST- or type-level structural assertions when exported surface invariants are part of acceptance criteria. Source-reading tests (`os.ReadFile`+`strings.Contains` on `.go` files) break on refactoring and are insufficient.
+Refactor guardrail tests must validate structural declarations (AST/compile-time contracts) instead of naming or string heuristics; concurrency assertions must also be structure/synchronization-based, not timing-threshold-based. For architecture guardrails, require AST- or type-level structural assertions when exported surface invariants are part of acceptance criteria. Source-reading tests (`os.ReadFile`+`strings.Contains` on `.go` files) break on refactoring and are insufficient.
 
 **Enforcement:** Code review on guardrail test changes; CI lint for source-reading test patterns in guardrail suites.
 

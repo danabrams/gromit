@@ -67,15 +67,19 @@ Methodologies use label-based activation ("methodology:true"/"false") with globa
 
 Prompt templates in .gromit/templates/ use explicit section headers (##) and preserve exact whitespace/structure when updating. Template files follow a consistent structure: context section at top, then Guidelines, then preserved sections like 'Avoiding Sibling Overlap' and ATDD blocks. When modifying sections, maintain blank lines between sections and ensure downstream blocks remain unchanged. Acceptance tests for template changes must match the exact content being added, including specific phrases and subsection structure.
 
-### 2026-03-04 | Nil-Field Normalization Convention | architecture
-*Related to: review-1772625696305156000*
+### 2026-03-05 | Nil-Field Normalization Is One Project Convention | architecture
+*Related to: review-1772625696305156000, review-1772674701122012000*
 
-Nil-field normalization is consistently applied via exported `NormalizeNilFields()` for cross-package types and unexported `normalizeNilFields()` for internal-only types. Both map nil slices/maps to empty values. Pattern is consistently followed across config, bead, and pipeline packages, providing predictable zero-value semantics across API boundaries.
+Nil-field normalization is one project convention: NormalizeNilFields/normalizeNilFields only convert nil slices/maps to empty, and this behavior should be documented once and referenced across packages.
 
-### 2026-03-04 | Process Lifecycle Management Consolidation | architecture
-*Related to: review-1772625696305156000*
+*Consolidated from: Nil-Field Normalization Convention, NilFields Normalization Convention Is Consistently Followed*
 
-Process lifecycle management (SetProcessGroupKill, KillDescendantsOnCancel, ReapProcessTree) is consistently applied across all provider implementations and worktree operations. Pattern provides deterministic cleanup and child process termination, with double-kill between KillDescendantsOnCancel goroutine and defer ReapProcessTree being harmless (ESRCH on dead PIDs is ignored).
+### 2026-03-05 | Subprocess Lifecycle Governance Is One Contract | architecture
+*Related to: review-1772625696305156000, review-1772456575499153066, review-1772366501939692738, review-1772568662297747000*
+
+Subprocess lifecycle governance is one contract: all launch sites must use full procutil lifecycle, and parity is incomplete until every remaining edge site conforms.
+
+*Consolidated from: Process Lifecycle Management Consolidation, Process Management Consolidation in procutil Is Complete Across Provider Launch Sites, specmerge gh_client.go Is Last Site Missing Full procutil Subprocess Pattern, Process Group Management Is Consistently Applied Across Subprocess Sites*
 
 ### 2026-03-04 | Compile-Time Interface Satisfaction Checks | patterns
 *Related to: review-1772625696305156000*
@@ -97,10 +101,12 @@ Integration queue store uses atomic write-to-temp-then-rename plus verification 
 
 The specflow lock store uses per-spec mutex with reference counting and automatic cleanup. Implementation is well-structured, preventing race conditions while avoiding unbounded mutex proliferation.
 
-### 2026-03-04 | Adapter Pattern for Tracker Implementation | architecture
-*Related to: review-1772625696305156000*
+### 2026-03-05 | Tracker Adapter Boundaries Require Interface-First Design | architecture
+*Related to: review-1772625696305156000, review-1772124256835385050, gromit-67j3a, review-1772628758554464000*
 
-Adapter pattern (bead.BDAdapter implementing tracker.Client) is clean with proper nil checks and UnwrapBDAdapter escape hatch. Provides clean separation of concerns while allowing escape-hatch access to underlying implementation when needed for non-interface methods.
+Tracker adapter boundaries require interface-first design: avoid production downcasts, and route all command paths through typed DI capabilities.
+
+*Consolidated from: Adapter Pattern for Tracker Implementation, UnwrapBDAdapter Creates Leaky Abstraction, Codebase Has Two Parallel Tracker Paths During Migration*
 
 ---
 
@@ -125,11 +131,6 @@ Shared orchestrator/runtime path ownership must include telemetry completeness e
 
 *Newly observed — needs validation across more tasks.*
 
-### 2026-03-05 | Security Posture Is Strong: Exec, Paths, and Secrets Follow Best Practices | security
-*Related to: review-1772674701122012000*
-
-All exec.Command usage separates binary from args (no shell injection vectors). File paths use filepath.Join with validated roots from git rev-parse. No secrets are logged. Error discarding follows a consistent documented pattern: best-effort operations use `_ =` assignment with explanatory comments.
-
 ### 2026-03-05 | Gofmt Compliance Test Fragile to Cross-Branch File Deletions | test-infra
 *Related to: review-1772674701122012000, gromit-vkxpb*
 
@@ -139,16 +140,6 @@ TestRepoGofmtCompliance uses `git diff --name-only` to find changed files but do
 *Related to: review-1772674701122012000, gromit-mk7za*
 
 TestOrchestrator_RegressionAndReviewRunConcurrently asserts concurrency via wall-clock timing thresholds. Under CI load, these thresholds are unreliable. Prefer sync-primitive-based verification (e.g., both goroutines signal a shared WaitGroup before completing) over elapsed-time comparisons.
-
-### 2026-03-05 | NilFields Normalization Convention Is Consistently Followed | conventions
-*Related to: review-1772674701122012000*
-
-Exported `NormalizeNilFields()` for cross-package types and unexported `normalizeNilFields()` for internal-only types — the CLAUDE.md convention is applied consistently across config, prompt, runtypes, state, specgate, and methodology packages.
-
-### 2026-03-05 | Runner Package Is Large But Well-Decomposed | architecture
-*Related to: review-1772674701122012000*
-
-internal/runner/ has 93 .go files but is not a god package. It decomposes into focused sub-packages (validation/, escalation/, execution/, methodology/, tdd/, specmerge/, specbranch/, display/, policy/, runtypes/) with clean downward dependency flow and no circular imports.
 
 ### 2026-03-02 | TDD Oscillation Detection Now Uses Order-Insensitive Multiset Comparison | patterns
 *Related to: review-1772465040994006393*
@@ -172,11 +163,6 @@ specbranch.HasSpecLabel gate in orchestrator prevents non-spec beads from trigge
 
 OrchestratorConfig.StatusFinalizer uses named return (runErr) + defer to guarantee final status write and RunCompleteEvent emission regardless of how Run exits, including early returns and panics. The defer captures both the iteration count and error state at exit time.
 
-### 2026-03-02 | Process Management Consolidation in procutil Is Complete Across Provider Launch Sites | architecture
-*Related to: review-1772456575499153066*
-
-procutil package now provides the canonical subprocess lifecycle: SetProcessGroupKill, WaitForProcessCapacity (cgroup v2 PID pressure), KillDescendantsOnCancel, ReapProcessTree. All provider launch sites (codex, gemini) and worktree.Manager use the full pattern. WaitForProcessCapacity is cgroup v2 only; cgroup v1 systems silently skip throttling (best-effort). The double-kill between KillDescendantsOnCancel goroutine and defer ReapProcessTree is harmless (ESRCH on dead PIDs is ignored).
-
 ### 2026-02-26 | Tracker Adapter Metadata Serialization Must Use JSON | gotchas
 *Related to: code-review, review-1772124256835385050, gromit-qdjqk, review-1772143302280772186*
 
@@ -186,11 +172,6 @@ Tracker adapter metadata must use one canonical JSON encoder (encodeJSONIfNonEmp
 *Related to: code-review, review-1772124256835385050*
 
 Profile-aware init bootstrap uses three functions: rulesForProfile() for RULES.md content, nextStepsForProfile() for terminal output, seedProfileAwareCommandExamples() for template injection. Profile detection precedence: explicit --profile flag > gromit.yaml config > filesystem signals (go.mod, package.json, pyproject.toml) > "custom" default.
-
-### 2026-02-26 | UnwrapBDAdapter Creates Leaky Abstraction | architecture
-*Related to: code-review, review-1772124256835385050, gromit-67j3a*
-
-decomposerAdapter and beadCreatorAdapter use bead.UnwrapBDAdapter() to downcast tracker.Client back to *bead.Client for methods not on the interface (CreateWithParent, ListWithLabel). This defeats the abstraction — non-BD tracker backends will fail at runtime. Either extend tracker.Client or use a tiered interface before adding a second backend.
 
 ### 2026-02-23 | Estimate-Only Complexity Scoring Is Fragile | gotchas
 *Related to: gromit-fu70d, review-1771835747422178794*
@@ -265,11 +246,12 @@ All CLI command paths must resolve dependencies through NewPipelineDeps(); packa
 
 *Consolidated from: Centralized DI via NewPipelineDeps Is the Adapter Wiring Pattern, Queue/Board Pipeline Methods Must Use NewPipelineDeps Not Package-Level Factories*
 
-### 2026-02-28 | TUI Store Uses RWMutex With Copy-on-Read for Thread Safety | patterns
-*Related to: review-1772244209301323387*
+### 2026-03-05 | TUI Store RWMutex Copy-on-Read Requires Deep-Copy for Pointer Collections | patterns
+*Related to: review-1772244209301323387, review-1772322141608097349*
 
-The TUI store (internal/tui/store.go) uses sync.RWMutex. All mutations hold the write lock; map function reads hold the read lock. View rendering uses copy-on-read to minimize lock duration.
+RWMutex copy-on-read is safe only with deep-copy semantics for pointer-containing collections; shallow pointer copies leak mutable state.
 
+*Consolidated from: TUI Store Uses RWMutex With Copy-on-Read for Thread Safety, TUI Store Copy-on-Read Returns Shallow Pointer Copies*
 
 ### 2026-02-28 | Epilogue Close/Sync Failures Must Suppress All Success Signals | patterns
 *Related to: review-1772244209301323387, review-1772322141608097349*
@@ -298,11 +280,6 @@ Pipeline.ListBeads and QueryBeads only support status="" or status="ready". Any 
 
 Vision metrics rollups may intentionally use asymmetric carve-out denominators (e.g., AcceptedWithoutReworkRate excludes rework_vision_change from denominator but FirstIntegrationPassRate includes them), but each metric must document carve-out policy explicitly.
 
-### 2026-02-28 | TUI Store Copy-on-Read Returns Shallow Pointer Copies | gotchas
-*Related to: review-1772322141608097349*
-
-TUI store uses sync.RWMutex with copy-on-read for thread safety, but copied slices of pointer elements still allow mutation of store data without holding the lock.
-
 ### 2026-02-28 | Config Bool Fields With Non-Zero Defaults Must Use Pointer Type | gotchas
 *Related to: review-1772322141608097349*
 
@@ -312,14 +289,6 @@ Config types must use *bool for boolean fields with non-zero defaults to disting
 *Related to: review-1772366501939692738*
 
 Epilogue stage sets in.Result.Success = false on lifecycle failure, mutating the caller's data through a pointer. This side-effect violates stage output isolation — the orchestrator should read success status from the epilogue Output, not the mutated Input.
-
-### 2026-03-01 | specmerge gh_client.go Is Last Site Missing Full procutil Subprocess Pattern | conventions
-*Related to: review-1772366501939692738*
-
-specmerge/gh_client.go is missing KillDescendantsOnCancel after cmd.Start() and uses ReapProcessGroup instead of ReapProcessTree. All other subprocess launch sites (cmd_run.go, specbranch/git_ops.go, benchmark/worktree_run.go, preflight.go, integrationqueue_constructor.go) follow the full pattern.
-
-### 2026-03-01 | gromit-90i5 | conventions
-In Gromit's runner orchestration, state transitions are constrained by a transition table - check valid transitions before recovering/changing queue state; integrating→draft is invalid; consult internal/runner/orchestrator.go or runner.go for transition rules
 
 ### 2026-03-01 | WorktreeManager Interface Context Parity Broken by Upstream Change | reliability
 *Related to: review-1772392326235980273*
@@ -333,11 +302,6 @@ captureCycleRecord in specmerge/pipeline.go:306 silently discards the CaptureCyc
 
 ### 2026-03-01 | gromit-peq | conventions
 The internal/runner package enforces file size limits via TestConstructorFileSizeLimit in file_size_test.go. When size limits are exceeded, the test provides explicit guidance on which types should be extracted and into which files. This is a codebase convention for managing large files.
-
-### 2026-03-02 | constructor_adapters.go Successfully Extracted to 51 Lines | architecture
-*Related to: review-1772423180715253804*
-
-constructor_adapters.go was extracted from 1147 lines to 51 lines by splitting into constructor_adapters_build_review.go, constructor_adapters_epilogue.go, and constructor_adapters_integrationqueue.go. Well within the 550-line production file limit.
 
 ### 2026-03-02 | SPC Auto-Triage Batch Processing Uses errors.Join for Resilient Error Accumulation | patterns
 *Related to: review-1772423180715253804*
@@ -384,9 +348,6 @@ Gemini provider is missing retry logic (Codex has runWithRetry for transient fai
 
 config_normalize.go NormalizeNilFields() mixes business-logic defaults (BuildStrategy, PhaseModels, Refactor.MinFilesChanged) with nil-normalization. Per CLAUDE.md convention, NormalizeNilFields should only convert nil slices/maps to empty values. Business defaults belong in SetDefaults(). Also, SetDefaults/NormalizeNilFields are called redundantly in Load(), constructor.go, and buildRouterAndLearningsProvider.
 
-### 2026-03-03 | gromit-74kzw | conventions
-When refactoring runner/review infrastructure, verify test dependencies on deleted code paths. TDD adapter deletion breaks review integration tests that expect pipeline behavior. Always run full test suite and gofmt before considering work complete.
-
 ### 2026-03-03 | gromit-7ti5h | gotchas
 When implementing code generation for Go, ensure output passes TestRepoGofmtCompliance by either auto-formatting generated code with gofmt or adjusting the generator to emit properly formatted output
 
@@ -400,11 +361,6 @@ When deleting core runner components (callbacks, TDD pipeline, adapters), verify
 *Related to: review-1772568662297747000*
 
 All CLI commands (queue, stats, review, plan, refine, unstick) delegate to pipeline.Pipeline via NewPipelineDeps(). No direct internal package access from the cmd layer. This pattern is now consistently applied and should be maintained for new commands.
-
-### 2026-03-03 | Process Group Management Is Consistently Applied Across Subprocess Sites | patterns
-*Related to: review-1772568662297747000*
-
-procutil lifecycle (SetProcessGroupKill, KillDescendantsOnCancel, ReapProcessTree) is consistently used for subprocess lifecycle in verify_spec and worktree packages. The double-kill between KillDescendantsOnCancel goroutine and defer ReapProcessTree is harmless (ESRCH on dead PIDs is ignored).
 
 ### 2026-03-03 | Git Conflict Detection Must Use Exact Markers, Not Substring Matches | gotchas
 *Related to: review-1772568662297747000*
@@ -436,11 +392,6 @@ stagePromptForLaunchDir in agent.go correctly handles the mutual exclusivity of 
 *Related to: review-1772628758554464000*
 
 Adapter test files have accumulated ~20 files of pure documentation tests (t.Log only, no assertions) that inflate test counts without providing regression protection — periodic pruning needed.
-
-### 2026-03-04 | Codebase Has Two Parallel Tracker Paths During Migration | architecture
-*Related to: review-1772628758554464000*
-
-The codebase has two parallel tracker paths (bead.Client and tracker.Client) during migration — new code should prefer tracker.Client and old bead.Client paths should be marked for deprecation.
 
 ### 2026-03-04 | Context Threading Has Residual context.Background/TODO in cmd/ Call Sites | tech_debt
 *Related to: review-1772628758554464000*
@@ -666,4 +617,19 @@ After writing Go code, run `gofmt -w` on modified files to ensure compliance wit
 When implementing features with test coverage, verify test expectations match implementation—review test setup for mocked/invoked functions and required test files before claiming work is complete
 
 *Archived from new: filtered: generic engineering advice*
+
+### 2026-03-05 | Security Posture Is Strong: Exec, Paths, and Secrets Follow Best Practices | security
+*Archived: 2026-03-05 — snapshot praise of current security posture, not a durable project-specific failure mode.*
+
+### 2026-03-05 | Runner Package Is Large But Well-Decomposed | architecture
+*Archived: 2026-03-05 — structural observation, not an actionable recurring learning.*
+
+### 2026-03-02 | constructor_adapters.go Successfully Extracted to 51 Lines | architecture
+*Archived: 2026-03-05 — one-off refactor milestone; low long-term guidance value.*
+
+### 2026-03-01 | gromit-90i5 | conventions
+*Archived: 2026-03-05 — opaque task-ID title with low standalone operational value.*
+
+### 2026-03-03 | gromit-74kzw | conventions
+*Archived: 2026-03-05 — opaque task-ID title with low standalone operational value.*
 

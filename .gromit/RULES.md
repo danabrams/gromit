@@ -4,7 +4,7 @@ These are non-negotiable constraints for this project.
 
 ## Code Style <!-- phases: red, build, green, refactor, review -->
 
-- Use `go fmt` standard formatting. Formatting enforcement must include a full-repo gofmt gate in CI (or scheduled gate) in addition to changed-file checks; changed-file-only enforcement is insufficient
+- Use `go fmt` standard formatting. Formatting enforcement must include a full-repo gofmt gate in CI (or scheduled gate) in addition to changed-file checks; changed-file-only enforcement is insufficient. Changed-file gofmt gates must exclude deleted files (e.g., `git diff --name-only --diff-filter=d`) or verify file existence before invoking gofmt
 - Use `error` returns, not panics, for recoverable failures. Exception: test helpers and init()
 - After unmarshaling or file loading, call `normalizeNilFields()` to convert nil slices to empty slices. Keep it as a pure nil→empty converter; field mapping belongs in a separate resolution step
 - Keep packages focused: one package should not reach into another package's internal types
@@ -39,6 +39,7 @@ These are non-negotiable constraints for this project.
 - Tests that override package-level injectable vars must restore original values via `t.Cleanup` in the same helper/test; un-restored overrides are forbidden
 - 2+ tests sharing 10+ lines of setup: extract a setup helper. 3+ tests with same structure/different inputs: use table-driven tests
 - Prefer compile-time checks or behavioral tests over `os.ReadFile`+`strings.Contains` on `.go` source files — source-reading tests break on refactoring
+- Concurrency tests must not assert parallelism via wall-clock thresholds; use synchronization primitives (barriers/waitgroups/channels) to prove overlap deterministically
 - `*_acceptance_test.go` files must have `//go:build acceptance` or test end-to-end CLI behavior. Unit tests verifying acceptance criteria go in `*_test.go`
 - Acceptance tests (`//go:build acceptance`) have a 6,000-line total budget; prefer unit tests and account for this in specs
 
