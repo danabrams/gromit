@@ -46,6 +46,7 @@ type Renderer struct {
 	skipBuildLearnings     bool // When true, omit learnings from build prompts (experiment)
 	budgetMaxChars         int  // Total prompt budget in chars; 0 means no budget shaping
 	budgetLearningCapChars int  // Learning cap used during budget shaping
+	scopeBudgetEnabled     bool // When true, adjust budget based on bead scope
 	decomposeTarget        config.DecompositionTarget
 
 	// Cache fields - files are immutable during a run, so cache after first load
@@ -159,6 +160,15 @@ func (r *Renderer) SetBudgetLearningCapChars(maxChars int) {
 		return
 	}
 	r.budgetLearningCapChars = maxChars
+}
+
+// SetScopeBudgetEnabled controls whether budget is adjusted based on bead scope.
+// When true, low-scope beads (few estimated files) receive a tighter prompt budget.
+func (r *Renderer) SetScopeBudgetEnabled(enabled bool) {
+	if r == nil {
+		return
+	}
+	r.scopeBudgetEnabled = enabled
 }
 
 // SetATDDPromptConfig stores ATDD-specific prompt shaping config.

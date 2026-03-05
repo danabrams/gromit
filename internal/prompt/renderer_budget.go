@@ -5,18 +5,47 @@ import (
 	"os"
 	"strings"
 
+	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/learnings"
 )
 
 // shapeBuildContext applies budget shaping to a Context before rendering.
 // Returns the original context if budget is zero or context is under budget.
+// When scopeBudgetEnabled is true, the budget is adjusted based on estimated
+// file count from the bead: <=2 files -> 50%, 3-4 files -> 75%, 5+ -> 100%.
 func (r *Renderer) shapeBuildContext(ctx *Context, phase string) (*Context, *ShapeReport) {
 	if r == nil || r.budgetMaxChars <= 0 || ctx == nil {
 		return ctx, nil
 	}
-	shaped, report := ShapeContextForBudget(ctx, r.budgetMaxChars, r.budgetLearningCapChars, phase)
+	maxChars := r.scopeAdjustedBudget(ctx)
+	shaped, report := ShapeContextForBudget(ctx, maxChars, r.budgetLearningCapChars, phase)
 	logBudgetTrim(report)
 	return shaped, report
+}
+
+// scopeAdjustedBudget computes the effective budget based on bead scope.
+// Returns r.budgetMaxChars (possibly reduced) based on estimated file count.
+func (r *Renderer) scopeAdjustedBudget(ctx *Context) int {
+	if !r.scopeBudgetEnabled || ctx.Bead == nil {
+		return r.budgetMaxChars
+	}
+	fileCount := bead.EstimatedFileCount(ctx.Bead)
+	if fileCount <= 0 {
+		return r.budgetMaxChars
+	}
+	var adjusted int
+	switch {
+	case fileCount <= 2:
+		adjusted = r.budgetMaxChars / 2
+	case fileCount <= 4:
+		adjusted = r.budgetMaxChars * 3 / 4
+	default:
+		adjusted = r.budgetMaxChars
+	}
+	if adjusted != r.budgetMaxChars {
+		fmt.Fprintf(os.Stderr, "scope-adjusted budget: %d chars (%d files)\n", adjusted, fileCount)
+	}
+	return adjusted
 }
 
 // shapeATDDBuildContext applies ATDD-specific trimming to a Context before rendering.
