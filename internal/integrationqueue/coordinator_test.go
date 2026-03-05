@@ -655,6 +655,60 @@ func TestCoordinatorRecoverFromCrashLogsNoStrandedEntries(t *testing.T) {
 	}
 }
 
+func TestCoordinatorRecoverFromCrashLogsBothOutcomes(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	store, err := NewStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	coord := NewCoordinator(store, &mockGitOps{}, &mockScopedGate{})
+
+	var buf bytes.Buffer
+	origWriter := log.Writer()
+	origFlags := log.Flags()
+	log.SetOutput(&buf)
+	log.SetFlags(0)
+	t.Cleanup(func() {
+		log.SetOutput(origWriter)
+		log.SetFlags(origFlags)
+	})
+
+	if err := coord.RecoverFromCrash(ctx); err != nil {
+		t.Fatalf("RecoverFromCrash() error = %v", err)
+	}
+
+	entry := Entry{
+		Branch:        "feature/integrating",
+		SessionID:     "session-recovery",
+		OriginCommand: "test",
+		State:         StateIntegrating,
+		Lane:          string(CodeLane),
+		BaseRef:       "main",
+		HeadSHA:       "deadbeef",
+	}
+	if err := store.Save(entry); err != nil {
+		t.Fatalf("Save(entry) error = %v", err)
+	}
+
+	if err := coord.RecoverFromCrash(ctx); err != nil {
+		t.Fatalf("RecoverFromCrash() error = %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("log lines = %d, want 2; buffer: %q", len(lines), buf.String())
+	}
+	if lines[0] != "no stranded entries found" {
+		t.Fatalf("first log line = %q, want %q", lines[0], "no stranded entries found")
+	}
+	if lines[1] != "recovered 1 stranded entries" {
+		t.Fatalf("second log line = %q, want %q", lines[1], "recovered 1 stranded entries")
+	}
+}
+
 func TestCoordinatorRecoverFromCrash_PartialErrorMetadata(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
