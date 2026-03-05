@@ -67,6 +67,14 @@ func hasBuildTag(content []byte, tag string) bool {
 	lines := strings.Split(string(content), "\n")
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+
+		if !isCommentLine(trimmed) {
+			break
+		}
+
 		switch {
 		case strings.HasPrefix(trimmed, "//go:build"):
 			expr := extractExpression(trimmed, "//go:build")
@@ -79,6 +87,20 @@ func hasBuildTag(content []byte, tag string) bool {
 				return true
 			}
 		}
+	}
+	return false
+}
+
+func isCommentLine(trimmed string) bool {
+	switch {
+	case strings.HasPrefix(trimmed, "//"):
+		return true
+	case strings.HasPrefix(trimmed, "/*"):
+		return true
+	case strings.HasPrefix(trimmed, "*/"):
+		return true
+	case strings.HasPrefix(trimmed, "*"):
+		return true
 	}
 	return false
 }
