@@ -454,6 +454,43 @@ func TestRetryWithStagesExecutedBeforeFailedStage(t *testing.T) {
 	}
 }
 
+func TestDecisionFailStageIsRetried(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	testStage := &decisionFailStage{
+		name: "decider",
+	}
+
+	beadLoop, err := NewBeadLoop([]StageSpec{
+		{
+			Stage: testStage,
+			Retry: stage.RetryConfig{MaxRetries: 1},
+		},
+	})
+	if err != nil {
+		t.Fatalf("construct bead loop: %v", err)
+	}
+
+	req := stage.Request{
+		Bead: stage.BeadInfo{
+			ID:     "test-bead",
+			Labels: []string{"gen:0"},
+		},
+	}
+
+	_, err = beadLoop.Run(ctx, req)
+	if err != nil {
+		t.Fatalf("run bead loop: %v", err)
+	}
+
+	// Stage should have been run twice: initial DecisionFail + retry that succeeds
+	if testStage.runCount != 2 {
+		t.Fatalf("stage should have been run 2 times, got %d", testStage.runCount)
+	}
+}
+
 func TestStageRetryingEventContainsCorrectRetryInfo(t *testing.T) {
 	t.Parallel()
 
@@ -825,6 +862,24 @@ func (s *retryContextCheckingStage) Run(ctx context.Context, req *stage.Request)
 	*s.capturedContexts = append(*s.capturedContexts, req.RetryContext)
 	if s.shouldFail && s.runCount == 1 {
 		return nil, fmt.Errorf("stage failed")
+	}
+	return &stage.Result{Decision: stage.DecisionProceed}, nil
+}
+
+// decisionFailStage returns DecisionFail on first run, DecisionProceed on retry
+type decisionFailStage struct {
+	name     string
+	runCount int
+}
+
+func (s *decisionFailStage) Name() string {
+	return s.name
+}
+
+func (s *decisionFailStage) Run(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+	s.runCount++
+	if s.runCount == 1 {
+		return &stage.Result{Decision: stage.DecisionFail}, nil
 	}
 	return &stage.Result{Decision: stage.DecisionProceed}, nil
 }
