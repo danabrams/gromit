@@ -7,20 +7,26 @@ import (
 	"time"
 )
 
+type dummyEvent struct {
+	Event
+}
+
+func (dummyEvent) EventType() string { return "dummy" }
+
 func TestEmitterDoesNotBlockOnSlowSubscriber(t *testing.T) {
 	emitter := NewEmitter()
 
 	slowStart := make(chan struct{})
 	slowBlock := make(chan struct{})
 
-	emitter.Subscribe(func(Event) {
+	emitter.Subscribe(func(TypedEvent) {
 		close(slowStart)
 		<-slowBlock
 	})
 
 	emitDone := make(chan struct{})
 	go func() {
-		emitter.Emit(Event{Type: "slow"})
+		emitter.Emit(dummyEvent{Event: Event{Type: "slow"}})
 		close(emitDone)
 	}()
 
@@ -44,17 +50,17 @@ func TestEmitterBackpressureIsolation(t *testing.T) {
 	block := make(chan struct{})
 	var release sync.Once
 
-	emitter.Subscribe(func(Event) {
+	emitter.Subscribe(func(TypedEvent) {
 		close(start)
 		<-block
 	})
 
-	go emitter.Emit(Event{Type: "first"})
+	go emitter.Emit(dummyEvent{Event: Event{Type: "first"}})
 	<-start
 
 	emitDone := make(chan struct{})
 	go func() {
-		emitter.Emit(Event{Type: "second"})
+		emitter.Emit(dummyEvent{Event: Event{Type: "second"}})
 		close(emitDone)
 	}()
 
@@ -86,7 +92,7 @@ func TestEmitterProcessesSubscriberEventsSequentially(t *testing.T) {
 
 	defer releaseOnce.Do(func() { close(releaseFirst) })
 
-	emitter.Subscribe(func(Event) {
+	emitter.Subscribe(func(TypedEvent) {
 		idx := atomic.AddInt32(&calls, 1)
 		if idx == 1 {
 			active.Store(true)
@@ -106,10 +112,10 @@ func TestEmitterProcessesSubscriberEventsSequentially(t *testing.T) {
 		secondOnce.Do(func() { close(secondDone) })
 	})
 
-	go emitter.Emit(Event{Type: "first"})
+	go emitter.Emit(dummyEvent{Event: Event{Type: "first"}})
 	<-firstStarted
 
-	go emitter.Emit(Event{Type: "second"})
+	go emitter.Emit(dummyEvent{Event: Event{Type: "second"}})
 
 	select {
 	case <-concurrent:
@@ -133,17 +139,17 @@ func TestEmitterFansOutEvents(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	events := make(chan Event, 2)
-	emitter.Subscribe(func(evt Event) {
+	events := make(chan TypedEvent, 2)
+	emitter.Subscribe(func(evt TypedEvent) {
 		events <- evt
 		wg.Done()
 	})
-	emitter.Subscribe(func(evt Event) {
+	emitter.Subscribe(func(evt TypedEvent) {
 		events <- evt
 		wg.Done()
 	})
 
-	emitter.Emit(Event{Type: "test-event"})
+	emitter.Emit(dummyEvent{Event: Event{Type: "test-event"}})
 
 	done := make(chan struct{})
 	go func() {
@@ -176,17 +182,17 @@ func TestEmitterFansOutAllEventsDespiteSlowSubscriber(t *testing.T) {
 	processed := make(chan struct{}, totalEvents)
 	var once sync.Once
 
-	emitter.Subscribe(func(Event) {
+	emitter.Subscribe(func(TypedEvent) {
 		once.Do(func() { close(started) })
 		<-release
 		processed <- struct{}{}
 	})
 
-	emitter.Emit(Event{Type: "slow-handshake"})
+	emitter.Emit(dummyEvent{Event: Event{Type: "slow-handshake"}})
 	<-started
 
 	for i := 0; i < totalEvents-1; i++ {
-		emitter.Emit(Event{Type: "slow"})
+		emitter.Emit(dummyEvent{Event: Event{Type: "slow"}})
 	}
 
 	close(release)
@@ -207,16 +213,16 @@ func TestEmitterIsolatesSlowAndPanicSubscribers(t *testing.T) {
 	slowContinue := make(chan struct{})
 	fastDone := make(chan struct{})
 
-	emitter.Subscribe(func(Event) {
+	emitter.Subscribe(func(TypedEvent) {
 		close(slowStarted)
 		<-slowContinue
 	})
 
-	emitter.Subscribe(func(Event) {
+	emitter.Subscribe(func(TypedEvent) {
 		close(fastDone)
 	})
 
-	emitter.Subscribe(func(Event) {
+	emitter.Subscribe(func(TypedEvent) {
 		panic("subscriber panic")
 	})
 
@@ -229,7 +235,7 @@ func TestEmitterIsolatesSlowAndPanicSubscribers(t *testing.T) {
 			}
 			close(emitDone)
 		}()
-		emitter.Emit(Event{Type: "panic-slow"})
+		emitter.Emit(dummyEvent{Event: Event{Type: "panic-slow"}})
 	}()
 
 	var closeSlow sync.Once
