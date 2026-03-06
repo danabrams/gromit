@@ -109,6 +109,34 @@ func (g *ExecGit) Commit(ctx context.Context, req CommitRequest) (CommitResponse
 	return CommitResponse{CommitHash: strings.TrimSpace(string(out))}, nil
 }
 
+// Diff returns the diff and diff --stat summary relative to base.
+func (g *ExecGit) Diff(ctx context.Context, req DiffRequest) (DiffResponse, error) {
+	worktree := strings.TrimSpace(req.Worktree)
+	if worktree == "" {
+		return DiffResponse{}, fmt.Errorf("worktree required")
+	}
+
+	base := strings.TrimSpace(req.Base)
+	if base == "" {
+		base = "HEAD"
+	}
+
+	diffOut, err := runGitCommand(ctx, worktree, "diff", base)
+	if err != nil {
+		return DiffResponse{}, fmt.Errorf("git diff: %s: %w", diffOut, err)
+	}
+
+	statOut, err := runGitCommand(ctx, worktree, "diff", "--stat", base)
+	if err != nil {
+		return DiffResponse{}, fmt.Errorf("git diff --stat: %s: %w", statOut, err)
+	}
+
+	return DiffResponse{
+		Diff:    string(diffOut),
+		Summary: strings.TrimSpace(string(statOut)),
+	}, nil
+}
+
 func runGitCommand(ctx context.Context, dir string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir
