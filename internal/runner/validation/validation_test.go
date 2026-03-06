@@ -44,7 +44,6 @@ func newTestBeadContext() *runtypes.BeadContext {
 	}
 }
 
-
 // --- RunDirect tests ---
 
 // Expected failure: validation.Runner type and NewRunner constructor do not exist yet
@@ -303,7 +302,7 @@ func TestElapsedMs_RunDirectAccumulatesElapsedTime(t *testing.T) {
 	r := NewRunner(cfg, cmdRunner, nil, nil)
 
 	go func() {
-		<-started  // Wait for RunDirect to invoke the command
+		<-started      // Wait for RunDirect to invoke the command
 		close(release) // Then let it complete — elapsed time is now > 0
 	}()
 

@@ -76,7 +76,6 @@ func formatRunningLine(s *Status) string {
 	return formatIterationPrefix(s) + ", " + formatElapsedSuffix(s)
 }
 
-
 // formatReliabilityLine formats the reliability summary line.
 // Returns empty string if no reliability data is present.
 func formatReliabilityLine(s *Status) string {
