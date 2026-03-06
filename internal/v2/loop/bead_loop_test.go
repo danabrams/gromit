@@ -324,7 +324,7 @@ func TestBeadLoopStageRequestIncludesWorktree(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewBeadLoop: %v", err)
 	}
-	loop.worktree = worktree
+	loop.SetWorktree(worktree)
 
 	if err := loop.Run(context.Background(), []*bead.Bead{{ID: "spec"}}, nil); err != nil {
 		t.Fatalf("Run failed: %v", err)

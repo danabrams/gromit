@@ -136,6 +136,10 @@ type SpecLoop struct {
 	presentSummaryContext *present.SummaryContext
 }
 
+type worktreeSetter interface {
+	SetWorktree(string)
+}
+
 // NewSpecLoop constructs a spec loop backed by the provided adapters and configuration.
 func NewSpecLoop(adapters adapter.AdapterSet, cfg *config.Config, gate DependencyGate, opts ...SpecLoopOption) (*SpecLoop, error) {
 	if cfg == nil {
@@ -216,7 +220,7 @@ func (s *SpecLoop) Run(ctx context.Context, specID string, stopCh <-chan struct{
 	}
 
 	s.recordBeadStages()
-	if err := s.runBeadLoop(ctx, beads, stopCh); err != nil {
+	if err := s.runBeadLoop(ctx, beads, worktree, stopCh); err != nil {
 		return err
 	}
 
@@ -286,9 +290,12 @@ func (s *SpecLoop) recordBeadStages() {
 	}
 }
 
-func (s *SpecLoop) runBeadLoop(ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) error {
+func (s *SpecLoop) runBeadLoop(ctx context.Context, beads []*bead.Bead, worktree string, stopCh <-chan struct{}) error {
 	if s.beadRunner == nil {
 		return fmt.Errorf("bead runner required")
+	}
+	if setter, ok := s.beadRunner.(worktreeSetter); ok {
+		setter.SetWorktree(worktree)
 	}
 	return s.beadRunner.Run(ctx, beads, stopCh)
 }

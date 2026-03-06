@@ -40,6 +40,7 @@ type BeadLoop struct {
 	emitter         *event.Emitter
 	generationCap   int
 	startGeneration int
+	worktree        string
 }
 
 var ErrGenerationCapReached = errors.New("generation cap reached")
@@ -75,6 +76,14 @@ func NewBeadLoop(config BeadLoopConfig) (*BeadLoop, error) {
 		event.BridgeTypedToLegacy(config.Emitter, config.LegacyEmitter)
 	}
 	return loop, nil
+}
+
+// SetWorktree identifies the worktree path commands should run inside.
+func (b *BeadLoop) SetWorktree(worktree string) {
+	if b == nil {
+		return
+	}
+	b.worktree = strings.TrimSpace(worktree)
 }
 
 // Run processes the provided beads through the stage pipeline.
@@ -369,6 +378,7 @@ func (b *BeadLoop) stageRequest(beadItem *bead.Bead, iteration int, retryCtx *st
 		Bead:         stage.BeadInfo{ID: beadItem.ID, Labels: labels},
 		Iteration:    iteration,
 		RetryContext: retryCtx,
+		Worktree:     b.worktree,
 	}
 }
 
