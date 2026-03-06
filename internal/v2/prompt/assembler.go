@@ -17,21 +17,26 @@ func NewPromptAssembler(base, project, instance, fragment string) *PromptAssembl
 
 // Assemble concatenates the configured layers in the prescribed order.
 func (p *PromptAssembler) Assemble() string {
-	var builder strings.Builder
-	appendLayer := func(layer string) {
-		if layer == "" {
-			return
-		}
-		if builder.Len() > 0 {
-			builder.WriteString("\n\n")
-		}
-		builder.WriteString(layer)
+	layers := []struct {
+		name    string
+		content string
+	}{
+		{"BASE", p.base},
+		{"PROJECT", p.project},
+		{"INSTANCE", p.instance},
+		{"FRAGMENT", p.fragment},
 	}
 
-	appendLayer(p.base)
-	appendLayer(p.project)
-	appendLayer(p.instance)
-	appendLayer(p.fragment)
+	var builder strings.Builder
+	for idx, layer := range layers {
+		if idx > 0 {
+			builder.WriteString("\n\n")
+		}
+		builder.WriteString("=== ")
+		builder.WriteString(layer.name)
+		builder.WriteString(" ===\n")
+		builder.WriteString(layer.content)
+	}
 
 	return builder.String()
 }
