@@ -145,3 +145,72 @@ func TestLoadBaseInstructionsFromRULES(t *testing.T) {
 		t.Fatalf("expected content to match RULES.md, got: %q", content)
 	}
 }
+
+func TestLoadMethodologyFragments(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	// Create mock methodology fragment files
+	standardContent := "# Standard methodology\nStandard build approach"
+	tddContent := "# TDD methodology\nRed-green-refactor approach"
+	refactorContent := "# Refactor methodology\nCode quality improvement approach"
+
+	if err := os.WriteFile(filepath.Join(tmpDir, "build_standard.md"), []byte(standardContent), 0644); err != nil {
+		t.Fatalf("write build_standard.md: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(tmpDir, "build_tdd.md"), []byte(tddContent), 0644); err != nil {
+		t.Fatalf("write build_tdd.md: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(tmpDir, "build_refactor.md"), []byte(refactorContent), 0644); err != nil {
+		t.Fatalf("write build_refactor.md: %v", err)
+	}
+
+	// loadMethodologyFragments should read and return all fragments
+	fragments, err := loadMethodologyFragments(tmpDir)
+	if err != nil {
+		t.Fatalf("loadMethodologyFragments error: %v", err)
+	}
+
+	if fragments.Standard == "" {
+		t.Fatal("expected non-empty Standard fragment, got empty string")
+	}
+	if !strings.Contains(fragments.Standard, standardContent) {
+		t.Fatalf("expected Standard to match build_standard.md, got: %q", fragments.Standard)
+	}
+
+	if fragments.TDD == "" {
+		t.Fatal("expected non-empty TDD fragment, got empty string")
+	}
+	if !strings.Contains(fragments.TDD, tddContent) {
+		t.Fatalf("expected TDD to match build_tdd.md, got: %q", fragments.TDD)
+	}
+
+	if fragments.Refactor == "" {
+		t.Fatal("expected non-empty Refactor fragment, got empty string")
+	}
+	if !strings.Contains(fragments.Refactor, refactorContent) {
+		t.Fatalf("expected Refactor to match build_refactor.md, got: %q", fragments.Refactor)
+	}
+}
+
+func TestLoadMethodologyFragmentsReturnsFuncZeroOnMissingFiles(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	// No files created, all are missing
+
+	// loadMethodologyFragments should gracefully handle missing files
+	fragments, err := loadMethodologyFragments(tmpDir)
+	if err != nil {
+		t.Fatalf("loadMethodologyFragments error: %v", err)
+	}
+
+	// Should return zero-valued PromptFragments
+	if fragments.Standard != "" || fragments.TDD != "" || fragments.Refactor != "" {
+		t.Fatalf("expected empty fragments for missing files, got: %+v", fragments)
+	}
+}

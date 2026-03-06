@@ -188,3 +188,31 @@ func loadBaseInstructions(projectRoot string) (string, error) {
 	}
 	return string(content), nil
 }
+
+// loadMethodologyFragments loads methodology-specific build fragments from the project root.
+func loadMethodologyFragments(projectRoot string) (buildstage.PromptFragments, error) {
+	fragments := buildstage.PromptFragments{}
+
+	// Load standard fragment
+	standardContent, err := os.ReadFile(filepath.Join(projectRoot, "build_standard.md"))
+	if err != nil && !os.IsNotExist(err) {
+		return fragments, fmt.Errorf("reading build_standard.md: %w", err)
+	}
+	fragments.Standard = string(standardContent)
+
+	// Load TDD fragment
+	tddContent, err := os.ReadFile(filepath.Join(projectRoot, "build_tdd.md"))
+	if err != nil && !os.IsNotExist(err) {
+		return fragments, fmt.Errorf("reading build_tdd.md: %w", err)
+	}
+	fragments.TDD = string(tddContent)
+
+	// Load refactor fragment
+	refactorContent, err := os.ReadFile(filepath.Join(projectRoot, "build_refactor.md"))
+	if err != nil && !os.IsNotExist(err) {
+		return fragments, fmt.Errorf("reading build_refactor.md: %w", err)
+	}
+	fragments.Refactor = string(refactorContent)
+
+	return fragments, nil
+}
