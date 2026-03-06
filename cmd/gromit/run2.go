@@ -110,7 +110,7 @@ func run2(cmd *cobra.Command, args []string) error {
 		wg.Wait()
 	}()
 
-	loopInstance, err := newSpecLoopFn(adapters, cfg, gate)
+	loopInstance, err := newSpecLoopFn(adapters, cfg, gate, loop.WithStageRecorder(newSpecLoopStageRecorder(emitter, specFile.ID)))
 	if err != nil {
 		return fmt.Errorf("initializing spec loop: %w", err)
 	}
@@ -152,4 +152,34 @@ func startRun2Subscribers(ctx context.Context, emitter *events.Emitter, output i
 	}
 
 	return wg, nil
+}
+
+func newSpecLoopStageRecorder(emitter *events.Emitter, specID string) loop.StageRecorder {
+	specID = strings.TrimSpace(specID)
+	if emitter == nil {
+		return nil
+	}
+	if specID == "" {
+		specID = "spec"
+	}
+	return &specLoopStageRecorder{emitter: emitter, specID: specID}
+}
+
+type specLoopStageRecorder struct {
+	emitter *events.Emitter
+	specID  string
+}
+
+func (r *specLoopStageRecorder) RecordStage(name string) {
+	if r == nil || r.emitter == nil {
+		return
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return
+	}
+	r.emitter.Emit(&events.LogEvent{
+		Level:   "info",
+		Message: fmt.Sprintf("spec %s: stage %s", r.specID, name),
+	})
 }
