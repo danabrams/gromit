@@ -106,7 +106,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	model := s.selectModel(req, cfg)
 	startEvent := s.buildStartEvent(req, model, cfg)
 
-	resp, finalModel, invokeErr := s.invokeWithEscalation(ctx, promptText, model)
+	resp, finalModel, invokeErr := s.invokeWithEscalation(ctx, promptText, model, cfg)
 	if invokeErr != nil {
 		return nil, fmt.Errorf("build: %w", invokeErr)
 	}
@@ -247,8 +247,13 @@ func (s *Stage) writer() io.Writer {
 	return io.Discard
 }
 
-func (s *Stage) invokeWithEscalation(ctx context.Context, prompt, initialModel string) (*llm.LLMResponse, string, error) {
+func (s *Stage) invokeWithEscalation(ctx context.Context, prompt, initialModel string, cfg *config.Config) (*llm.LLMResponse, string, error) {
 	model := initialModel
+	escalationCfg := cfg
+	if escalationCfg == nil {
+		escalationCfg = s.cfg
+	}
+
 	for {
 		resp, err := s.llm.StreamInvoke(ctx, llm.StreamInvokeRequest{Prompt: prompt, Model: model, Output: s.writer()})
 		if err == nil && resp != nil && resp.Success {
@@ -264,11 +269,11 @@ func (s *Stage) invokeWithEscalation(ctx context.Context, prompt, initialModel s
 			reason = fmt.Errorf("provider reported unsuccessful result")
 		}
 
-		if !s.cfg.Escalation.Enabled {
+		if escalationCfg == nil || !escalationCfg.Escalation.Enabled {
 			return resp, model, reason
 		}
 
-		nextModel := s.cfg.NextEscalationModel(model)
+		nextModel := escalationCfg.NextEscalationModel(model)
 		if nextModel == "" {
 			return resp, model, reason
 		}
