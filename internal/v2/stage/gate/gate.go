@@ -62,10 +62,6 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		return &stagepkg.Result{Decision: stagepkg.DecisionSkip}, nil
 	}
 
-	if hasBlockingDependencies(b) {
-		return &stagepkg.Result{Decision: stagepkg.DecisionBlock}, nil
-	}
-
 	if pending, err := s.hasPendingDependencies(ctx, b); err != nil {
 		return nil, err
 	} else if pending {
@@ -79,29 +75,32 @@ func isClosed(status string) bool {
 	return strings.EqualFold(status, tracker.StatusClosed)
 }
 
-func hasBlockingDependencies(b *tasktracker.Bead) bool {
-	if b == nil {
-		return false
-	}
-	return len(b.BlockedBy) > 0
-}
-
 func (s *Stage) hasPendingDependencies(ctx context.Context, b *tasktracker.Bead) (bool, error) {
 	if b == nil {
 		return false, nil
 	}
 
-	for _, depID := range b.DependsOn {
+	for _, depID := range dependencyIDs(b) {
 		if trimmed := strings.TrimSpace(depID); trimmed != "" {
 			dep, err := s.tracker.ShowBead(ctx, trimmed)
 			if err != nil {
 				return false, fmt.Errorf("gate: show dependency %s: %w", trimmed, err)
 			}
-			if dep != nil && !isClosed(dep.Status) {
+			if dep == nil || !isClosed(dep.Status) {
 				return true, nil
 			}
 		}
 	}
 
 	return false, nil
+}
+
+func dependencyIDs(b *tasktracker.Bead) []string {
+	if b == nil {
+		return nil
+	}
+	deps := make([]string, 0, len(b.DependsOn)+len(b.BlockedBy))
+	deps = append(deps, b.BlockedBy...)
+	deps = append(deps, b.DependsOn...)
+	return deps
 }
