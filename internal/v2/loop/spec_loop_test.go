@@ -205,6 +205,38 @@ func TestSpecLoopFailureEmitsCompletionAndCleansWorktree(t *testing.T) {
 	}
 }
 
+func TestSpecLoopPassesStopChannelToBeadRunner(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "stop-channel"
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+
+	beadRunner := newFakeBeadRunner()
+	loopInstance, err := NewSpecLoop(adapter.AdapterSet{
+		Git:         newFakeGitAdapter(t),
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: newFakeTaskTrackerAdapter(),
+		Presenter:   newFakePresenterAdapter(t),
+	}, &config.Config{}, noopDependencyGate{},
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(beadRunner),
+		WithAcceptStage(newFakeAcceptStage()),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, stopCh); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	if beadRunner.lastStopCh != stopCh {
+		t.Fatalf("expected stop channel to propagate to bead runner")
+	}
+}
+
 func newFakeDecomposeStage(specID string) *fakeDecomposeStage {
 	beads := []*bead.Bead{{ID: specID + "-bead"}}
 	return &fakeDecomposeStage{producedBeads: beads}
@@ -232,11 +264,13 @@ func newFakeBeadRunner() *fakeBeadRunner {
 type fakeBeadRunner struct {
 	ran       bool
 	lastBeads []*bead.Bead
+	lastStopCh <-chan struct{}
 }
 
-func (f *fakeBeadRunner) Run(ctx context.Context, beads []*bead.Bead) error {
+func (f *fakeBeadRunner) Run(ctx context.Context, beads []*bead.Bead, stopCh <-chan struct{}) error {
 	f.ran = true
 	f.lastBeads = append([]*bead.Bead(nil), beads...)
+	f.lastStopCh = stopCh
 	return nil
 }
 
