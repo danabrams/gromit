@@ -193,3 +193,9 @@ func assertEventTypeOrder(t *testing.T, events []events.Event, want []string) {
 		}
 	}
 }
+
+func requireEventSequence(t *testing.T, ch chan events.Event, want []string) {
+	t.Helper()
+	events := collectEvents(t, ch, len(want))
+	assertEventTypeOrder(t, events, want)
+}
