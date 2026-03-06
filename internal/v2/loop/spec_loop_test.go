@@ -15,6 +15,7 @@ import (
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/presentation"
+	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 )
 
 func TestSpecLoopHappyPathUsesAdaptersAndEmitsEvents(t *testing.T) {
@@ -109,6 +110,7 @@ func TestSpecLoopFailurePathPreservesWorktreeAndEmitsEvents(t *testing.T) {
 	taskTracker := newFakeTaskTrackerAdapter()
 	presenter := newFakePresenterAdapter(t)
 	runnerErr := errors.New("generation cap reached")
+	accept := newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionFail})
 	runner := &fakeRemediationRunner{err: runnerErr}
 
 	adapters := adapter.AdapterSet{
@@ -118,7 +120,7 @@ func TestSpecLoopFailurePathPreservesWorktreeAndEmitsEvents(t *testing.T) {
 		Presenter:   presenter,
 	}
 
-	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{}, WithStageRecorder(recorder), WithEmitter(emitter), WithRemediationRunner(runner))
+	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{}, WithStageRecorder(recorder), WithEmitter(emitter), WithAcceptStage(accept), WithRemediationRunner(runner))
 	if err != nil {
 		t.Fatalf("create spec loop: %v", err)
 	}
@@ -127,6 +129,9 @@ func TestSpecLoopFailurePathPreservesWorktreeAndEmitsEvents(t *testing.T) {
 		t.Fatal("expected Run to return an error")
 	}
 
+	if accept.calls != 1 {
+		t.Fatalf("accept runs = %d, want 1", accept.calls)
+	}
 	if runner.calls != 1 {
 		t.Fatalf("remediation runs = %d, want 1", runner.calls)
 	}
@@ -168,6 +173,55 @@ func TestSpecLoopFailurePathPreservesWorktreeAndEmitsEvents(t *testing.T) {
 	}
 	if failed.SpecID != specID {
 		t.Fatalf("spec failed event spec = %s, want %s", failed.SpecID, specID)
+	}
+}
+
+func TestSpecLoopInvokesRemediationWhenAcceptFails(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-loop-remediate"
+
+	emitter := events.NewEmitter()
+	ch := emitter.Subscribe()
+	t.Cleanup(func() {
+		emitter.Unsubscribe(ch)
+	})
+
+	git := newFakeGitAdapter(t)
+	llm := newFakeLLMAdapter()
+	taskTracker := newFakeTaskTrackerAdapter()
+	presenter := newFakePresenterAdapter(t)
+	accept := newScriptedAcceptStage(stagepkg.Result{Decision: stagepkg.DecisionFail})
+	runner := &fakeRemediationRunner{}
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         llm,
+		TaskTracker: taskTracker,
+		Presenter:   presenter,
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{}, WithEmitter(emitter), WithAcceptStage(accept), WithRemediationRunner(runner))
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	if accept.calls != 1 {
+		t.Fatalf("accept runs = %d, want 1", accept.calls)
+	}
+	if runner.calls != 1 {
+		t.Fatalf("remediation runs = %d, want 1", runner.calls)
+	}
+	if !presenter.lastSummary.Success {
+		t.Fatalf("presenter summary success = %v, want true", presenter.lastSummary.Success)
+	}
+	if _, err := os.Stat(git.lastWorktree); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("worktree still exists after success: %v", err)
 	}
 }
 
@@ -313,4 +367,31 @@ type fakeRemediationRunner struct {
 func (f *fakeRemediationRunner) Run(_ context.Context, _ string) error {
 	f.calls++
 	return f.err
+}
+
+type scriptedAcceptStage struct {
+	calls   int
+	results []stagepkg.Result
+	err     error
+}
+
+func newScriptedAcceptStage(results ...stagepkg.Result) *scriptedAcceptStage {
+	copied := append([]stagepkg.Result(nil), results...)
+	return &scriptedAcceptStage{results: copied}
+}
+
+func (s *scriptedAcceptStage) Name() string { return "accept" }
+
+func (s *scriptedAcceptStage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
+	s.calls++
+	if s.err != nil {
+		return nil, s.err
+	}
+	if len(s.results) == 0 {
+		return &stagepkg.Result{Decision: stagepkg.DecisionProceed}, nil
+	}
+	res := s.results[0]
+	s.results = s.results[1:]
+	result := res
+	return &result, nil
 }
