@@ -13,6 +13,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/adapter"
 	"github.com/danabrams/gromit/internal/v2/presentation"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
+	planstage "github.com/danabrams/gromit/internal/v2/stage/plan"
 	stageaccept "github.com/danabrams/gromit/internal/v2/stage/accept"
 )
 
@@ -119,6 +120,52 @@ func TestSpecLoopPersistsPlanInGromitDir(t *testing.T) {
 	}
 	if string(data) != plan {
 		t.Fatalf("plan file = %q, want %q", string(data), plan)
+	}
+}
+
+func TestSpecLoopUsesPlanStage(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-loop-plan-stage"
+
+	git := newFakeGitAdapter(t)
+	taskTracker := newFakeTaskTrackerAdapter()
+	presenter := newFakePresenterAdapter(t)
+	planStage := newFakePlanStage(specID)
+
+	adapters := adapter.AdapterSet{
+		Git:         git,
+		LLM:         newFakeLLMAdapter(),
+		TaskTracker: taskTracker,
+		Presenter:   presenter,
+	}
+
+	loopInstance, err := NewSpecLoop(adapters, &config.Config{}, noopDependencyGate{},
+		WithPlanStage(planStage),
+		WithDecomposeStage(newFakeDecomposeStage(specID)),
+		WithBeadLoop(newFakeBeadRunner()),
+		WithAcceptStage(newFakeAcceptStage()),
+	)
+	if err != nil {
+		t.Fatalf("create spec loop: %v", err)
+	}
+
+	if err := loopInstance.Run(ctx, specID, nil); err != nil {
+		t.Fatalf("run spec loop: %v", err)
+	}
+
+	if !planStage.called {
+		t.Fatalf("plan stage not invoked")
+	}
+	if planStage.lastRequest == nil {
+		t.Fatal("plan stage request missing")
+	}
+	if planStage.lastRequest.Worktree != git.lastWorktree {
+		t.Fatalf("plan request worktree = %q, want %q", planStage.lastRequest.Worktree, git.lastWorktree)
+	}
+	if taskTracker.lastPlan != planStage.plan {
+		t.Fatalf("plan recorded = %q, want %q", taskTracker.lastPlan, planStage.plan)
 	}
 }
 
@@ -316,5 +363,32 @@ func (f *fakeAcceptStage) Run(ctx context.Context, req *stagepkg.Request) (*stag
 	return &stagepkg.Result{
 		Decision:  stagepkg.DecisionProceed,
 		Artifacts: &stageaccept.AcceptArtifacts{Results: append([]presentation.AcceptanceResult(nil), f.results...)},
+	}, nil
+}
+
+type fakePlanStage struct {
+	plan        string
+	called      bool
+	lastRequest *stagepkg.Request
+}
+
+func newFakePlanStage(specID string) *fakePlanStage {
+	plan := specID + "-plan"
+	return &fakePlanStage{plan: plan}
+}
+
+func (f *fakePlanStage) Name() string { return "plan" }
+
+func (f *fakePlanStage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Result, error) {
+	f.called = true
+	f.lastRequest = req
+	return &stagepkg.Result{
+		Decision: stagepkg.DecisionProceed,
+		Artifacts: &planstage.PlanArtifacts{
+			SpecID: req.Bead.ID,
+			Plan:   f.plan,
+			Path:   filepath.Join(req.Worktree, ".gromit", "v2", "plan.md"),
+			Model:  "opus",
+		},
 	}, nil
 }
