@@ -263,3 +263,15 @@ func TestEmitterIsolatesSlowAndPanicSubscribers(t *testing.T) {
 
 	closeSlowOnce()
 }
+
+func TestEmitterCloseStopsSubscriberGoroutines(t *testing.T) {
+	emitter := NewEmitter()
+	done := make(chan struct{})
+
+	emitter.Subscribe(func(TypedEvent) {
+		<-done
+	})
+
+	emitter.Close()
+	close(done)
+}
