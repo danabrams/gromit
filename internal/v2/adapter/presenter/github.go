@@ -80,6 +80,24 @@ func (g *GitHubPresenter) PresentSummary(ctx context.Context, specID string, sum
 	return nil
 }
 
+// Present implements the Presenter interface.
+func (g *GitHubPresenter) Present(ctx context.Context, req PresentRequest) (PresentResponse, error) {
+	if req.SpecID == "" {
+		req.SpecID = "spec"
+	}
+	if err := g.PresentSummary(ctx, req.SpecID, req.Summary); err != nil {
+		return PresentResponse{}, err
+	}
+	destination := "github"
+	if trimmed := strings.TrimSpace(req.DestinationHint); trimmed != "" {
+		destination = trimmed
+	}
+	return PresentResponse{
+		Destination: destination,
+		Message:     fmt.Sprintf("presented %s", req.SpecID),
+	}, nil
+}
+
 // defaultCommandRunner executes commands using os/exec.
 type defaultCommandRunner struct{}
 
