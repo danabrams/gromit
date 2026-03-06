@@ -8,12 +8,14 @@ type subscriber struct {
 	mu     sync.Mutex
 	queue  []TypedEvent
 	notify chan struct{}
+	done   chan struct{}
 }
 
 func newSubscriber(fn func(TypedEvent)) *subscriber {
 	sub := &subscriber{
 		fn:     fn,
 		notify: make(chan struct{}, 1),
+		done:   make(chan struct{}),
 	}
 
 	go sub.run()
@@ -22,6 +24,11 @@ func newSubscriber(fn func(TypedEvent)) *subscriber {
 
 func (s *subscriber) run() {
 	for {
+		select {
+		case <-s.done:
+			return
+		default:
+		}
 		evt := s.next()
 		s.dispatch(evt)
 	}
@@ -66,12 +73,14 @@ func (s *subscriber) dispatch(evt TypedEvent) {
 type Emitter struct {
 	mu          sync.RWMutex
 	subscribers map[*subscriber]struct{}
+	done        chan struct{}
 }
 
 // NewEmitter returns a fresh Emitter.
 func NewEmitter() *Emitter {
 	return &Emitter{
 		subscribers: make(map[*subscriber]struct{}),
+		done:        make(chan struct{}),
 	}
 }
 
@@ -91,4 +100,13 @@ func (e *Emitter) Emit(evt TypedEvent) {
 		sub.enqueue(evt)
 	}
 	e.mu.RUnlock()
+}
+
+// Close closes the emitter and all subscriber goroutines.
+func (e *Emitter) Close() {
+	e.mu.Lock()
+	for sub := range e.subscribers {
+		close(sub.done)
+	}
+	e.mu.Unlock()
 }
