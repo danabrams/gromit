@@ -34,6 +34,14 @@ func TestRemediationRunnerRun_requiresBeadRunner(t *testing.T) {
 	}
 }
 
+func TestRemediationRunnerRun_requiresDecomposeStage(t *testing.T) {
+	runner := newRunnerForDecomposeFailure(newDecisionFailStage(), 1)
+
+	if err := runner.Run(context.Background(), "spec-id"); !errors.Is(err, ErrDecomposeStageRequired) {
+		t.Fatalf("expected ErrDecomposeStageRequired, got %v", err)
+	}
+}
+
 func newRunnerForSpecValidation() *RemediationRunner {
 	return NewRemediationRunner(RemediationRunnerConfig{})
 }
