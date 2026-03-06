@@ -41,3 +41,25 @@ func (g *ExecGit) CreateWorktree(ctx context.Context, req CreateWorktreeRequest)
 
 	return CreateWorktreeResponse{Worktree: worktree}, nil
 }
+
+func (g *ExecGit) RemoveWorktree(ctx context.Context, req RemoveWorktreeRequest) (RemoveWorktreeResponse, error) {
+	worktree := strings.TrimSpace(req.Worktree)
+	if worktree == "" {
+		return RemoveWorktreeResponse{}, fmt.Errorf("worktree required")
+	}
+
+	args := []string{"worktree", "remove"}
+	if req.Force {
+		args = append(args, "--force")
+	}
+	args = append(args, worktree)
+
+	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.Dir = g.repoRoot
+
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return RemoveWorktreeResponse{}, fmt.Errorf("git worktree remove: %s: %w", out, err)
+	}
+
+	return RemoveWorktreeResponse{Removed: true}, nil
+}
