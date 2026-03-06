@@ -20,8 +20,9 @@ import (
 )
 
 const (
-	defaultGromitDir = ".gromit"
-	v2DirName        = "v2"
+	defaultGromitDir    = ".gromit"
+	v2DirName           = "v2"
+	maxAcceptanceRetries = 5
 )
 
 // StageSequence lists the canonical stages the spec loop emits.
@@ -36,6 +37,8 @@ var StageSequence = []string{
 	"accept",
 	"present",
 }
+
+var ErrAcceptanceRetriesExceeded = errors.New("acceptance retries exceeded")
 
 // StageRecorder observes the stage names executed within the spec loop.
 type StageRecorder interface {
@@ -301,6 +304,7 @@ func (s *SpecLoop) runBeadLoop(ctx context.Context, beads []*bead.Bead, worktree
 }
 
 func (s *SpecLoop) ensureAcceptance(ctx context.Context, req *stagepkg.Request, specID string) (*stagepkg.Result, error) {
+	retriesRemaining := maxAcceptanceRetries
 	for {
 		if err := s.ctxErr(ctx); err != nil {
 			return nil, err
@@ -316,9 +320,13 @@ func (s *SpecLoop) ensureAcceptance(ctx context.Context, req *stagepkg.Request, 
 		if s.remediationRunner == nil {
 			return res, fmt.Errorf("accept failed")
 		}
+		if retriesRemaining <= 0 {
+			return res, fmt.Errorf("%w: limit %d reached", ErrAcceptanceRetriesExceeded, maxAcceptanceRetries)
+		}
 		if err := s.remediationRunner.Run(ctx, specID); err != nil {
 			return res, err
 		}
+		retriesRemaining--
 	}
 }
 
