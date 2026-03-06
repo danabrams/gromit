@@ -76,6 +76,10 @@ func (b *BeadLoop) Run(ctx context.Context, req stage.Request) (*BeadLoopResult,
 	}
 
 	for _, spec := range b.stages {
+		stageName := spec.Stage.Name()
+		if b.capReached && shouldSkipStageWhenCapReached(stageName) {
+			continue
+		}
 		if err := b.runStage(ctx, req, spec, state, req.RetryContext); err != nil {
 			return result, err
 		}
@@ -145,5 +149,14 @@ func newRetryContext(history []string, attempt int) *stage.RetryContext {
 func (b *BeadLoop) emitGenerationCapReached() {
 	if b.Emitter != nil {
 		b.Emitter.Emit(&events.GenerationCapReachedEvent{})
+	}
+}
+
+func shouldSkipStageWhenCapReached(name string) bool {
+	switch name {
+	case "decompose", "review":
+		return true
+	default:
+		return false
 	}
 }
