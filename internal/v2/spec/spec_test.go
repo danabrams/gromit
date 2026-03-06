@@ -44,6 +44,38 @@ func TestSpecCheckDependenciesReportsBlockingSpecs(t *testing.T) {
 	}
 }
 
+func TestLoadParsesDependenciesFrontMatter(t *testing.T) {
+	t.Parallel()
+
+	specsDir := filepath.Join(t.TempDir(), "specs")
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("setup specs dir: %v", err)
+	}
+
+	writeSpecFile(t, specsDir, "prereq", map[string]string{"id": "prereq", "accepted": "true"})
+
+	child := `---
+id: child
+dependencies:
+  - prereq
+accepted: false
+---
+# child spec
+`
+	writeRawSpecFile(t, specsDir, "child.md", child)
+
+	childPath := filepath.Join(specsDir, "child.md")
+	loaded, err := spec.Load(childPath)
+	if err != nil {
+		t.Fatalf("load child spec: %v", err)
+	}
+
+	want := []string{"prereq"}
+	if !reflect.DeepEqual(loaded.DependsOn, want) {
+		t.Fatalf("depends_on = %v, want %v", loaded.DependsOn, want)
+	}
+}
+
 func TestLoadExtractsArchitectureDirectionAndTestStrategy(t *testing.T) {
 	t.Parallel()
 
