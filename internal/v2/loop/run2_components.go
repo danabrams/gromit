@@ -5,7 +5,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -159,4 +161,30 @@ func (c *CommandValidationRunner) Run(ctx context.Context, command, worktree str
 	}
 
 	return nil
+}
+
+// loadProjectContext loads the project context from CLAUDE.md in the project root.
+func loadProjectContext(projectRoot string) (string, error) {
+	claudeMDPath := filepath.Join(projectRoot, "CLAUDE.md")
+	content, err := os.ReadFile(claudeMDPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("reading CLAUDE.md: %w", err)
+	}
+	return string(content), nil
+}
+
+// loadBaseInstructions loads the base instructions from RULES.md in the project root.
+func loadBaseInstructions(projectRoot string) (string, error) {
+	rulesMDPath := filepath.Join(projectRoot, "RULES.md")
+	content, err := os.ReadFile(rulesMDPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("reading RULES.md: %w", err)
+	}
+	return string(content), nil
 }

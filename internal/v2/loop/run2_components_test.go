@@ -2,6 +2,9 @@ package loop
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/danabrams/gromit/internal/config"
@@ -88,5 +91,57 @@ func TestValidateStageWithNoopRunnerIgnoresFailure(t *testing.T) {
 	// The noop runner always succeeds, even with failing commands
 	if res == nil || res.Decision != stagepkg.DecisionProceed {
 		t.Fatalf("expected DecisionProceed with noop, got %v", res)
+	}
+}
+
+func TestLoadProjectContextFromCLAUDEMD(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	// Create mock CLAUDE.md
+	claudeContent := "# Project Context\nProject-specific instructions for Claude"
+	if err := os.WriteFile(filepath.Join(tmpDir, "CLAUDE.md"), []byte(claudeContent), 0644); err != nil {
+		t.Fatalf("write CLAUDE.md: %v", err)
+	}
+
+	// loadProjectContext should read and return CLAUDE.md content
+	content, err := loadProjectContext(tmpDir)
+	if err != nil {
+		t.Fatalf("loadProjectContext error: %v", err)
+	}
+
+	if content == "" {
+		t.Fatal("expected non-empty content from CLAUDE.md, got empty string")
+	}
+
+	if !strings.Contains(content, claudeContent) {
+		t.Fatalf("expected content to match CLAUDE.md, got: %q", content)
+	}
+}
+
+func TestLoadBaseInstructionsFromRULES(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	// Create mock RULES.md
+	rulesContent := "# Base Rules\nBase instructions for build phase"
+	if err := os.WriteFile(filepath.Join(tmpDir, "RULES.md"), []byte(rulesContent), 0644); err != nil {
+		t.Fatalf("write RULES.md: %v", err)
+	}
+
+	// loadBaseInstructions should read and return RULES.md content
+	content, err := loadBaseInstructions(tmpDir)
+	if err != nil {
+		t.Fatalf("loadBaseInstructions error: %v", err)
+	}
+
+	if content == "" {
+		t.Fatal("expected non-empty content from RULES.md, got empty string")
+	}
+
+	if !strings.Contains(content, rulesContent) {
+		t.Fatalf("expected content to match RULES.md, got: %q", content)
 	}
 }
