@@ -46,3 +46,8 @@ func (a *BDAdapter) CloseBead(ctx context.Context, beadID string) error {
 func (a *BDAdapter) QueryBeads(ctx context.Context, labels []string, status, parent string) ([]Bead, error) {
 	return []Bead{}, nil
 }
+
+// RecordPlan persists the generated plan for the spec.
+func (a *BDAdapter) RecordPlan(ctx context.Context, specID, plan string) error {
+	return nil
+}
