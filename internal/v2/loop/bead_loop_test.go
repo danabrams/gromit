@@ -41,10 +41,49 @@ func TestBeadLoopRunsStagesInOrder(t *testing.T) {
 	}
 }
 
+func TestBeadLoopRunsBeadsInDependencyOrder(t *testing.T) {
+	t.Parallel()
+
+	beadOrder := []string{}
+
+	config := BeadLoopConfig{
+		Gate:     &recordingStage{name: "gate", hook: func(id string) { beadOrder = append(beadOrder, id) }},
+		Build:    newRecordingStage("build", nil),
+		Validate: newRecordingStage("validate", nil),
+		Review:   newRecordingStage("review", nil),
+		Epilogue: newRecordingStage("epilogue", nil),
+	}
+
+	loop, err := NewBeadLoop(config)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{
+		{ID: "child", DependsOn: []bead.Dependency{{ID: "root"}}},
+		{ID: "root"},
+	}
+
+	if err := loop.Run(context.Background(), beads); err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	if len(beadOrder) != 2 {
+		t.Fatalf("bead order = %v, want 2 entries", beadOrder)
+	}
+	if beadOrder[0] != "root" || beadOrder[1] != "child" {
+		t.Fatalf("bead order = %v, want [root child]", beadOrder)
+	}
+}
+
 func newRecordingStage(name string, order *[]string) stage.Stage {
-	return &recordingStage{name: name, hook: func(beadID string) {
-		*order = append(*order, name+":"+beadID)
-	}}
+	hook := func(string) {}
+	if order != nil {
+		hook = func(beadID string) {
+			*order = append(*order, name+":"+beadID)
+		}
+	}
+	return &recordingStage{name: name, hook: hook}
 }
 
 type recordingStage struct {
