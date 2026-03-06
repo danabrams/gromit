@@ -85,7 +85,15 @@ func (b *BeadLoop) Run(ctx context.Context, beads []*bead.Bead, stopCh <-chan st
 
 	var completed []string
 	iteration := 1
+runLoop:
 	for {
+		if stopCh != nil {
+			select {
+			case <-stopCh:
+				break runLoop
+			default:
+			}
+		}
 		next, err := resolver.Next(completed)
 		if err != nil {
 			return fmt.Errorf("resolve bead: %w", err)
