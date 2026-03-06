@@ -56,18 +56,17 @@ const (
 )
 
 func (d Decision) String() string {
-	switch d {
-	case DecisionProceed:
-		return "proceed"
-	case DecisionSkip:
-		return "skip"
-	case DecisionBlock:
-		return "block"
-	case DecisionFail:
-		return "fail"
-	default:
-		return "unknown"
+	if s, ok := decisionStrings[d]; ok {
+		return s
 	}
+	return "unknown"
+}
+
+var decisionStrings = map[Decision]string{
+	DecisionProceed: "proceed",
+	DecisionSkip:    "skip",
+	DecisionBlock:   "block",
+	DecisionFail:    "fail",
 }
 
 // BeadInfo captures identifying metadata about the bead under execution.
