@@ -138,12 +138,15 @@ runLoop:
 	return nil
 }
 
+type stageEntry struct {
+	stage       stage.Stage
+	shouldFail  func(*stage.Result) bool
+	failMessage func(*stage.Result) string
+	retryConfig stage.RetryConfig
+}
+
 func (b *BeadLoop) processBead(ctx context.Context, beadItem *bead.Bead, iteration int, highestGen *int, generationLimit int) error {
-	stages := []struct {
-		stage       stage.Stage
-		shouldFail  func(*stage.Result) bool
-		failMessage func(*stage.Result) string
-	}{
+	stages := []stageEntry{
 		{
 			stage: b.gate,
 			shouldFail: func(res *stage.Result) bool {
@@ -153,6 +156,7 @@ func (b *BeadLoop) processBead(ctx context.Context, beadItem *bead.Bead, iterati
 			failMessage: func(res *stage.Result) string {
 				return fmt.Sprintf("%s decided %s", b.gate.Name(), stageDecision(res))
 			},
+			retryConfig: retryConfigForStage(b.gate),
 		},
 		{
 			stage: b.build,
@@ -162,6 +166,7 @@ func (b *BeadLoop) processBead(ctx context.Context, beadItem *bead.Bead, iterati
 			failMessage: func(res *stage.Result) string {
 				return fmt.Sprintf("%s returned %s", b.build.Name(), stageDecision(res))
 			},
+			retryConfig: retryConfigForStage(b.build),
 		},
 		{
 			stage: b.validate,
@@ -171,6 +176,7 @@ func (b *BeadLoop) processBead(ctx context.Context, beadItem *bead.Bead, iterati
 			failMessage: func(res *stage.Result) string {
 				return fmt.Sprintf("%s returned %s", b.validate.Name(), stageDecision(res))
 			},
+			retryConfig: retryConfigForStage(b.validate),
 		},
 		{
 			stage: b.review,
@@ -180,32 +186,21 @@ func (b *BeadLoop) processBead(ctx context.Context, beadItem *bead.Bead, iterati
 			failMessage: func(res *stage.Result) string {
 				return fmt.Sprintf("%s returned %s", b.review.Name(), stageDecision(res))
 			},
+			retryConfig: retryConfigForStage(b.review),
 		},
 	}
 
-	for _, entry := range stages {
-		stageName := stageName(entry.stage)
-		req := b.stageRequest(beadItem, iteration, nil)
-		b.emitStageStarted(stageName, beadItem.ID, iteration)
-		start := time.Now()
-		res, err := b.runStage(ctx, entry.stage, req)
-		duration := time.Since(start)
-
-		if err != nil {
-			b.emitStageCompleted(stageName, beadItem.ID, iteration, false, duration)
-			b.emitStageFailed(stageName, beadItem.ID, iteration, err.Error())
-			return b.failWithReason(ctx, beadItem, iteration, err.Error())
+	nameToIndex := make(map[string]int, len(stages))
+	for idx, entry := range stages {
+		name := stageName(entry.stage)
+		if name != "" {
+			nameToIndex[name] = idx
 		}
-		if entry.shouldFail != nil && entry.shouldFail(res) {
-			reason := entry.failMessage(res)
-			b.emitStageCompleted(stageName, beadItem.ID, iteration, false, duration)
-			b.emitStageFailed(stageName, beadItem.ID, iteration, reason)
-			return b.failWithReason(ctx, beadItem, iteration, reason)
-		}
+	}
 
-		b.emitStageCompleted(stageName, beadItem.ID, iteration, true, duration)
-		if entry.stage == b.review && b.handleGenerationCapFromReview(res, highestGen, generationLimit) {
-			return ErrGenerationCapReached
+	for idx := range stages {
+		if err := b.runStageEntry(ctx, beadItem, iteration, stages, nameToIndex, idx, highestGen, generationLimit); err != nil {
+			return err
 		}
 	}
 
@@ -213,6 +208,90 @@ func (b *BeadLoop) processBead(ctx context.Context, beadItem *bead.Bead, iterati
 		return err
 	}
 	return nil
+}
+
+func (b *BeadLoop) runStageEntry(ctx context.Context, beadItem *bead.Bead, iteration int, entries []stageEntry, nameIndex map[string]int, idx int, highestGen *int, generationLimit int) error {
+	entry := entries[idx]
+	if entry.stage == nil {
+		return nil
+	}
+	stageName := stageName(entry.stage)
+	if stageName == "" {
+		return nil
+	}
+
+	retriesRemaining := entry.retryConfig.MaxRetries
+	if retriesRemaining < 0 {
+		retriesRemaining = 0
+	}
+	attempt := 1
+	priorFailures := []string{}
+
+	for {
+		req := b.stageRequest(beadItem, iteration, stageRetryContext(attempt, priorFailures))
+		b.emitStageStarted(stageName, beadItem.ID, iteration)
+		start := time.Now()
+		res, err := b.runStage(ctx, entry.stage, req)
+		duration := time.Since(start)
+
+		failed := false
+		reason := ""
+		if err != nil {
+			failed = true
+			reason = err.Error()
+		} else if entry.shouldFail != nil && entry.shouldFail(res) {
+			failed = true
+			reason = entry.failMessage(res)
+		}
+
+		b.emitStageCompleted(stageName, beadItem.ID, iteration, !failed, duration)
+		if failed {
+			b.emitStageFailed(stageName, beadItem.ID, iteration, reason)
+		} else {
+			if entry.stage == b.review && b.handleGenerationCapFromReview(res, highestGen, generationLimit) {
+				return ErrGenerationCapReached
+			}
+			return nil
+		}
+
+		priorFailures = append(priorFailures, reason)
+
+		if retriesRemaining <= 0 {
+			return b.failWithReason(ctx, beadItem, iteration, reason, stageRetryContext(attempt, priorFailures))
+		}
+
+		retriesRemaining--
+		attempt++
+		b.emitStageRetrying(stageName, beadItem.ID, attempt, reason)
+
+		if err := b.runRetryWithStages(ctx, beadItem, iteration, entries, nameIndex, entry.retryConfig.RetryWith, idx, highestGen, generationLimit); err != nil {
+			return err
+		}
+	}
+}
+
+func (b *BeadLoop) runRetryWithStages(ctx context.Context, beadItem *bead.Bead, iteration int, entries []stageEntry, nameIndex map[string]int, retryWith []string, currentIdx int, highestGen *int, generationLimit int) error {
+	for _, retryName := range retryWith {
+		idx, ok := nameIndex[retryName]
+		if !ok || idx == currentIdx || idx >= currentIdx {
+			continue
+		}
+		if err := b.runStageEntry(ctx, beadItem, iteration, entries, nameIndex, idx, highestGen, generationLimit); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func stageRetryContext(attempt int, priorFailures []string) *stage.RetryContext {
+	if attempt <= 1 && len(priorFailures) == 0 {
+		return nil
+	}
+	ctx := &stage.RetryContext{Attempt: attempt}
+	if len(priorFailures) > 0 {
+		ctx.PriorFailures = append([]string(nil), priorFailures...)
+	}
+	return ctx
 }
 
 func (b *BeadLoop) runStage(ctx context.Context, staged stage.Stage, req stage.Request) (*stage.Result, error) {
@@ -226,15 +305,31 @@ func (b *BeadLoop) runStage(ctx context.Context, staged stage.Stage, req stage.R
 	return res, nil
 }
 
-func (b *BeadLoop) failWithReason(ctx context.Context, beadItem *bead.Bead, iteration int, reason string) error {
-	retryCtx := &stage.RetryContext{
-		Attempt:       1,
-		PriorFailures: []string{reason},
+func (b *BeadLoop) failWithReason(ctx context.Context, beadItem *bead.Bead, iteration int, reason string, retryCtx *stage.RetryContext) error {
+	ctxToUse := retryCtx
+	if ctxToUse == nil {
+		ctxToUse = &stage.RetryContext{
+			Attempt:       1,
+			PriorFailures: []string{reason},
+		}
+	} else {
+		copyCtx := &stage.RetryContext{
+			Attempt:         ctxToUse.Attempt,
+			EscalationLevel: ctxToUse.EscalationLevel,
+		}
+		if len(ctxToUse.PriorFailures) > 0 {
+			copyCtx.PriorFailures = append([]string(nil), ctxToUse.PriorFailures...)
+		}
+		ctxToUse = copyCtx
 	}
-	if err := b.runEpilogue(ctx, beadItem, iteration, retryCtx); err != nil {
+	if err := b.runEpilogue(ctx, beadItem, iteration, ctxToUse); err != nil {
 		return fmt.Errorf("epilogue failure: %w", err)
 	}
-	b.emitBeadCompleted(beadItem, iteration, false, 1)
+	retryAttempt := ctxToUse.Attempt
+	if retryAttempt <= 0 {
+		retryAttempt = 1
+	}
+	b.emitBeadCompleted(beadItem, iteration, false, retryAttempt)
 	return fmt.Errorf("bead %s failed: %s", beadItem.ID, reason)
 }
 
@@ -374,11 +469,42 @@ func (b *BeadLoop) emitStageFailed(stageName, beadID string, iteration int, reas
 	})
 }
 
+func (b *BeadLoop) emitStageRetrying(stageName, beadID string, attempt int, reason string) {
+	if b.emitter == nil {
+		return
+	}
+	b.emitter.Emit(event.StageRetryingEvent{
+		Event: event.Event{
+			SchemaVersion: event.SchemaVersion,
+			Timestamp:     time.Now(),
+			Type:          event.EventTypeStageRetrying,
+		},
+		StageName: stageName,
+		BeadID:    beadID,
+		Attempt:   attempt,
+		Reason:    reason,
+	})
+}
+
 func stageName(st stage.Stage) string {
 	if st == nil {
 		return ""
 	}
 	return st.Name()
+}
+
+type retryConfigurer interface {
+	RetryConfig() stage.RetryConfig
+}
+
+func retryConfigForStage(st stage.Stage) stage.RetryConfig {
+	if st == nil {
+		return stage.RetryConfig{}
+	}
+	if rc, ok := st.(retryConfigurer); ok {
+		return rc.RetryConfig()
+	}
+	return stage.RetryConfig{}
 }
 
 func (b *BeadLoop) findHighestGeneration(beads []*bead.Bead) int {

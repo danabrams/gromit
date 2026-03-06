@@ -163,8 +163,12 @@ func TestBeadLoopRetryWithRunsBuildBeforeRetryAndReportsAttempt(t *testing.T) {
 
 	gate := newRecordingStage("gate", &order)
 	build := newRecordingStage("build", &order)
-	validate := newRetryStage("validate", 1, func(beadID string) {
-		order = append(order, "retry-validate:"+beadID)
+	validate := newRetryStage("validate", 1, func(beadID string, attempt int) {
+		label := "validate:" + beadID
+		if attempt > 1 {
+			label = "retry-validate:" + beadID
+		}
+		order = append(order, label)
 	})
 	validate.retryConfig = stage.RetryConfig{
 		MaxRetries: 1,
@@ -195,9 +199,8 @@ func TestBeadLoopRetryWithRunsBuildBeforeRetryAndReportsAttempt(t *testing.T) {
 		"gate:retry",
 		"build:retry",
 		"validate:retry",
-		"retry-validate:retry",
 		"build:retry",
-		"validate:retry",
+		"retry-validate:retry",
 		"review:retry",
 		"epilogue:retry",
 	}
@@ -563,12 +566,12 @@ type retryStage struct {
 	name        string
 	failTimes   int
 	runCount    int
-	hook        func(string)
+	hook        func(string, int)
 	retryConfig stage.RetryConfig
 	requests    []stage.Request
 }
 
-func newRetryStage(name string, failTimes int, hook func(string)) *retryStage {
+func newRetryStage(name string, failTimes int, hook func(string, int)) *retryStage {
 	return &retryStage{name: name, failTimes: failTimes, hook: hook}
 }
 
@@ -577,13 +580,13 @@ func (s *retryStage) Name() string { return s.name }
 func (s *retryStage) RetryConfig() stage.RetryConfig { return s.retryConfig }
 
 func (s *retryStage) Run(ctx context.Context, req *stage.Request) (*stage.Result, error) {
-	if s.hook != nil {
-		s.hook(req.Bead.ID)
-	}
+	s.runCount++
 	if req != nil {
+		if s.hook != nil {
+			s.hook(req.Bead.ID, s.runCount)
+		}
 		s.requests = append(s.requests, *req)
 	}
-	s.runCount++
 	if s.runCount <= s.failTimes {
 		return &stage.Result{Decision: stage.DecisionFail}, nil
 	}
