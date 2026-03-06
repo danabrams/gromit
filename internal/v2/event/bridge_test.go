@@ -61,3 +61,30 @@ func TestLegacyEventsFromTyped(t *testing.T) {
 		})
 	}
 }
+
+func TestBridgeTypedEventsToLegacyEmitter(t *testing.T) {
+	typed := NewEmitter()
+	legacy := events.NewEmitter()
+	ch := legacy.Subscribe()
+	defer legacy.Unsubscribe(ch)
+
+	BridgeTypedToLegacy(typed, legacy)
+
+	typed.Emit(&SpecStartedEvent{
+		Event:    Event{Timestamp: time.Now().UTC()},
+		SpecID:   "bridge-spec",
+		Worktree: "bridge-worktree",
+	})
+
+	select {
+	case evt, ok := <-ch:
+		if !ok {
+			t.Fatalf("legacy channel closed early")
+		}
+		if _, ok := evt.(*events.SpecStartedEvent); !ok {
+			t.Fatalf("legacy event type = %T, want *events.SpecStartedEvent", evt)
+		}
+	case <-time.After(time.Second):
+		t.Fatalf("timed out waiting for legacy event")
+	}
+}
