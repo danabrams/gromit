@@ -57,7 +57,9 @@ func (c *Classifier) Classify(parent *bead.Bead, findings []Finding) Classificat
 			}
 			result.Beads = append(result.Beads, newBead)
 		} else {
-			result.OutOfScope = append(result.OutOfScope, finding)
+			findingCopy := finding
+			findingCopy.AffectedFiles = append([]string(nil), finding.AffectedFiles...)
+			result.OutOfScope = append(result.OutOfScope, findingCopy)
 		}
 	}
 
