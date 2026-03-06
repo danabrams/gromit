@@ -2,13 +2,17 @@ package loop
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/events"
+	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
 	"github.com/danabrams/gromit/internal/v2/event"
+	"github.com/danabrams/gromit/internal/v2/generation"
 	"github.com/danabrams/gromit/internal/v2/stage"
+	reviewstage "github.com/danabrams/gromit/internal/v2/stage/review"
 )
 
 func TestBeadLoopRunsStagesInOrder(t *testing.T) {
@@ -347,6 +351,66 @@ func TestBeadLoopEnforcesGenerationCap(t *testing.T) {
 	}
 }
 
+func TestBeadLoopStopsWhenReviewCreatesBeadsAtGenerationCap(t *testing.T) {
+	t.Parallel()
+
+	emitter := event.NewEmitter()
+	ch := make(chan event.TypedEvent, 4)
+	emitter.Subscribe(func(evt event.TypedEvent) {
+		ch <- evt
+	})
+
+	reviewStage := &scriptedReviewStage{
+		name: "review",
+		result: &stage.Result{
+			Decision: stage.DecisionProceed,
+			Artifacts: &reviewstage.ReviewArtifacts{
+				CreatedBeads: []*tasktracker.Bead{{
+					ID:     "child",
+					Labels: []string{generation.Format(2)},
+				}},
+			},
+		},
+	}
+
+	config := BeadLoopConfig{
+		Gate:            newNoopStage("gate"),
+		Build:           newNoopStage("build"),
+		Validate:        newNoopStage("validate"),
+		Review:          reviewStage,
+		Epilogue:        newNoopStage("epilogue"),
+		Emitter:         emitter,
+		GenerationCap:   2,
+		StartGeneration: 0,
+	}
+	loop, err := NewBeadLoop(config)
+	if err != nil {
+		t.Fatalf("NewBeadLoop: %v", err)
+	}
+
+	beads := []*bead.Bead{{ID: "parent", Labels: []string{generation.Format(0)}}}
+	err = loop.Run(context.Background(), beads, nil)
+	if !errors.Is(err, ErrGenerationCapReached) {
+		t.Fatalf("Run error = %v, want ErrGenerationCapReached", err)
+	}
+
+	var foundEvent bool
+	for i := 0; i < 2; i++ {
+		select {
+		case evt := <-ch:
+			if _, ok := evt.(event.GenerationCapReachedEvent); ok {
+				foundEvent = true
+				break
+			}
+		case <-time.After(100 * time.Millisecond):
+			break
+		}
+	}
+	if !foundEvent {
+		t.Fatal("expected GenerationCapReached event to be emitted")
+	}
+}
+
 func TestBeadLoopStopsWhenStopChannelCloses(t *testing.T) {
 	t.Parallel()
 
@@ -495,4 +559,17 @@ func (s *closingStage) Run(ctx context.Context, req *stage.Request) (*stage.Resu
 		close(s.stopCh)
 	}
 	return &stage.Result{Decision: stage.DecisionProceed}, nil
+}
+
+type scriptedReviewStage struct {
+	name   string
+	result *stage.Result
+	runCount int
+}
+
+func (s *scriptedReviewStage) Name() string { return s.name }
+
+func (s *scriptedReviewStage) Run(ctx context.Context, req *stage.Request) (*stage.Result, error) {
+	s.runCount++
+	return s.result, nil
 }
