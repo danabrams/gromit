@@ -310,6 +310,39 @@ func TestSpecLoopPassesStopChannelToBeadRunner(t *testing.T) {
 	}
 }
 
+func TestEnsureAcceptanceRetriesRemediationUntilSuccess(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specID := "spec-loop-ensure-acceptance"
+
+	accept := newScriptedAcceptStage(
+		stagepkg.Result{Decision: stagepkg.DecisionFail},
+		stagepkg.Result{Decision: stagepkg.DecisionFail},
+		stagepkg.Result{Decision: stagepkg.DecisionProceed},
+	)
+	runner := &fakeRemediationRunner{}
+	s := &SpecLoop{
+		acceptStage:       accept,
+		remediationRunner: runner,
+	}
+
+	req := stagepkg.Request{Bead: stagepkg.BeadInfo{ID: specID}}
+	res, err := s.ensureAcceptance(ctx, &req, specID)
+	if err != nil {
+		t.Fatalf("ensure acceptance: %v", err)
+	}
+	if res == nil || res.Decision != stagepkg.DecisionProceed {
+		t.Fatalf("accept decision = %v, want proceed", res)
+	}
+	if accept.calls != 3 {
+		t.Fatalf("accept stage calls = %d, want 3", accept.calls)
+	}
+	if runner.calls != 2 {
+		t.Fatalf("remediation runner calls = %d, want 2", runner.calls)
+	}
+}
+
 func newFakeDecomposeStage(specID string) *fakeDecomposeStage {
 	beads := []*bead.Bead{{ID: specID + "-bead"}}
 	return &fakeDecomposeStage{producedBeads: beads}
