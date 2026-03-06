@@ -43,6 +43,9 @@ var (
 		return loopInstance, nil
 	}
 	startRun2SubscribersFn = startRun2Subscribers
+	newSpecLoopEmitterFn   = func(emitter *events.Emitter) loop.SpecLoopOption {
+		return loop.WithEmitter(emitter)
+	}
 )
 
 type specLoop interface {
@@ -110,7 +113,10 @@ func run2(cmd *cobra.Command, args []string) error {
 		wg.Wait()
 	}()
 
-	loopInstance, err := newSpecLoopFn(adapters, cfg, gate, loop.WithStageRecorder(newSpecLoopStageRecorder(emitter, specFile.ID)))
+	loopInstance, err := newSpecLoopFn(adapters, cfg, gate,
+		loop.WithStageRecorder(newSpecLoopStageRecorder(emitter, specFile.ID)),
+		newSpecLoopEmitterFn(emitter),
+	)
 	if err != nil {
 		return fmt.Errorf("initializing spec loop: %w", err)
 	}
