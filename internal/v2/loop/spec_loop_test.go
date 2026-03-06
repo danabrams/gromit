@@ -290,7 +290,11 @@ func (f *fakeGitAdapter) Checkout(ctx context.Context, specID string) (string, e
 		f.t.Fatalf("mkdir worktree: %v", err)
 	}
 	if f.gapAnalysisContent != "" {
-		path := filepath.Join(worktree, "gap-analysis.md")
+		gromitPath := filepath.Join(worktree, ".gromit", "v2")
+		if err := os.MkdirAll(gromitPath, 0o755); err != nil {
+			f.t.Fatalf("create gromit dir: %v", err)
+		}
+		path := filepath.Join(gromitPath, "gap-analysis.md")
 		if err := os.WriteFile(path, []byte(f.gapAnalysisContent), 0o644); err != nil {
 			f.t.Fatalf("write gap analysis: %v", err)
 		}
