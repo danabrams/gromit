@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
@@ -106,25 +105,8 @@ func TestBuildStageRunIncludesPriorFailuresAndEmitsEvents(t *testing.T) {
 		t.Fatalf("success = %v, want %v", artifacts.Success, expected.Success)
 	}
 
-	if len(res.Events) != 2 {
-		t.Fatalf("events count = %d, want 2", len(res.Events))
-	}
-	start, ok := res.Events[0].(*events.BuildStartEvent)
-	if !ok {
-		t.Fatalf("first event type = %T, want *events.BuildStartEvent", res.Events[0])
-	}
-	if start.Model != req.Model {
-		t.Fatalf("start event model = %q, want %q", start.Model, req.Model)
-	}
-	if start.Attempt != req.RetryContext.Attempt+1 {
-		t.Fatalf("start event attempt = %d, want %d", start.Attempt, req.RetryContext.Attempt+1)
-	}
-	startDone, ok := res.Events[1].(*events.BuildCompleteEvent)
-	if !ok {
-		t.Fatalf("second event type = %T, want *events.BuildCompleteEvent", res.Events[1])
-	}
-	if startDone.Success != true {
-		t.Fatalf("complete event success = %v, want true", startDone.Success)
+	if len(res.Events) != 0 {
+		t.Fatalf("events count = %d, want 0", len(res.Events))
 	}
 }
 

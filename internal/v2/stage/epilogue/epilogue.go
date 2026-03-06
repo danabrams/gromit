@@ -9,6 +9,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
+	"github.com/danabrams/gromit/internal/v2/event"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
 )
@@ -64,7 +65,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 				Success:       false,
 				FailureReason: failureSummary(req),
 			},
-			Events: []events.Event{s.failureEvent(req)},
+			Events: []event.TypedEvent{},
 		}, nil
 	}
 
@@ -81,7 +82,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		Artifacts: &EpilogueArtifacts{
 			Success: true,
 		},
-		Events: []events.Event{s.successEvent(req)},
+		Events: []event.TypedEvent{},
 	}, nil
 }
 

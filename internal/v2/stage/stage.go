@@ -6,7 +6,7 @@ import (
 
 	"github.com/danabrams/gromit/internal/bead"
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/events"
+	"github.com/danabrams/gromit/internal/v2/event"
 )
 
 // Stage defines a single beam within the run loop.
@@ -31,7 +31,7 @@ type StageRequest struct {
 type StageResult struct {
 	Decision  Decision
 	Artifacts any
-	Events    []events.Event
+	Events    []event.TypedEvent
 }
 
 // Request is the legacy stage request type.

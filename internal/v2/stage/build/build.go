@@ -11,6 +11,7 @@ import (
 	"github.com/danabrams/gromit/internal/config"
 	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter/llm"
+	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/prompt"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
@@ -104,7 +105,6 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 	promptText := prompt.NewPromptAssembler(s.base, s.project, instance, fragment).Assemble()
 
 	model := s.selectModel(req, cfg)
-	startEvent := s.buildStartEvent(req, model, cfg)
 
 	resp, finalModel, invokeErr := s.invokeWithEscalation(ctx, promptText, model, cfg)
 	if invokeErr != nil {
@@ -121,8 +121,7 @@ func (s *Stage) Run(ctx context.Context, req *stagepkg.Request) (*stagepkg.Resul
 		Success:  resp.Success,
 	}
 
-	events := []events.Event{startEvent, s.buildCompleteEvent(req, resp)}
-	return &stagepkg.Result{Decision: stagepkg.DecisionProceed, Artifacts: artifacts, Events: events}, nil
+	return &stagepkg.Result{Decision: stagepkg.DecisionProceed, Artifacts: artifacts, Events: []event.TypedEvent{}}, nil
 }
 
 func (s *Stage) resolveConfig(req *stagepkg.Request) (*config.Config, error) {

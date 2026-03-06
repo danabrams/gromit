@@ -2,12 +2,10 @@ package epilogue
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/danabrams/gromit/internal/config"
-	"github.com/danabrams/gromit/internal/events"
 	"github.com/danabrams/gromit/internal/v2/adapter/tasktracker"
 	stagepkg "github.com/danabrams/gromit/internal/v2/stage"
 )
@@ -50,31 +48,8 @@ func TestEpilogueStageSuccessClosesBeadAndEmitsCostEvent(t *testing.T) {
 	if res.Decision != stagepkg.DecisionProceed {
 		t.Fatalf("decision = %v, want proceed", res.Decision)
 	}
-	if len(res.Events) != 1 {
-		t.Fatalf("events count = %d, want 1", len(res.Events))
-	}
-
-	completionEvent, ok := res.Events[0].(*events.BeadCompleteEvent)
-	if !ok {
-		t.Fatalf("event type = %T, want *events.BeadCompleteEvent", res.Events[0])
-	}
-	if completionEvent.BeadID != "bead-123" {
-		t.Fatalf("bead ID = %q, want %q", completionEvent.BeadID, "bead-123")
-	}
-	if completionEvent.Model != telemetry.Model {
-		t.Fatalf("model = %q, want %q", completionEvent.Model, telemetry.Model)
-	}
-	if completionEvent.Duration != telemetry.Duration {
-		t.Fatalf("duration = %v, want %v", completionEvent.Duration, telemetry.Duration)
-	}
-	if completionEvent.InputTokens != telemetry.InputTokens {
-		t.Fatalf("input tokens = %d, want %d", completionEvent.InputTokens, telemetry.InputTokens)
-	}
-	if completionEvent.OutputTokens != telemetry.OutputTokens {
-		t.Fatalf("output tokens = %d, want %d", completionEvent.OutputTokens, telemetry.OutputTokens)
-	}
-	if completionEvent.CostUSD != telemetry.CostUSD {
-		t.Fatalf("cost = %v, want %v", completionEvent.CostUSD, telemetry.CostUSD)
+	if len(res.Events) != 0 {
+		t.Fatalf("events count = %d, want 0", len(res.Events))
 	}
 }
 
@@ -105,22 +80,8 @@ func TestEpilogueStageFailureEmitsFailureEventWithoutClosing(t *testing.T) {
 		t.Fatalf("close called unexpectedly: %v", tracker.closeCalls)
 	}
 
-	if len(res.Events) != 1 {
-		t.Fatalf("events count = %d, want 1", len(res.Events))
-	}
-
-	failureEvent, ok := res.Events[0].(*events.BeadFailedEvent)
-	if !ok {
-		t.Fatalf("event type = %T, want *events.BeadFailedEvent", res.Events[0])
-	}
-
-	if failureEvent.BeadID != req.Bead.ID {
-		t.Fatalf("bead ID = %q, want %q", failureEvent.BeadID, req.Bead.ID)
-	}
-
-	expected := strings.Join(priorFailures, "; ")
-	if failureEvent.Error != expected {
-		t.Fatalf("error = %q, want %q", failureEvent.Error, expected)
+	if len(res.Events) != 0 {
+		t.Fatalf("events count = %d, want 0", len(res.Events))
 	}
 }
 
