@@ -118,6 +118,67 @@ func TestRunCreatesBeadsFromPlan(t *testing.T) {
 	}
 }
 
+func TestRunUsesGapAnalysisWhenRemediation(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	planDir := filepath.Join(tmpDir, ".gromit", "v2")
+	if err := os.MkdirAll(planDir, 0o755); err != nil {
+		t.Fatalf("mkdir plan dir: %v", err)
+	}
+	gapContent := "gap summary"
+	gapPath := filepath.Join(planDir, "gap-analysis.md")
+	if err := os.WriteFile(gapPath, []byte(gapContent), 0o644); err != nil {
+		t.Fatalf("write gap analysis: %v", err)
+	}
+
+	cfg := &config.Config{
+		ProjectRoot: tmpDir,
+		Paths:       config.PathsConfig{GromitDir: ".gromit"},
+	}
+
+	llm := &fakeLLM{
+		responses: []*llm.LLMResponse{{Success: true, Output: `[
+			{
+				"title": "gap",
+				"description": "gap desc",
+				"priority": "P1",
+				"acceptance_criteria": ["crit"],
+				"expected_outputs": ["out"],
+				"depends_on_index": []
+			}
+		]`}},
+	}
+	tracker := &fakeTracker{}
+	stage, err := New(cfg, llm, tracker)
+	if err != nil {
+		t.Fatalf("create stage: %v", err)
+	}
+
+	req := &stagepkg.Request{
+		Bead: stagepkg.BeadInfo{
+			ID:     "spec",
+			Labels: []string{"gen:0"},
+		},
+		Config:      cfg,
+		Remediation: true,
+	}
+
+	_, err = stage.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("run stage: %v", err)
+	}
+	if len(llm.calls) == 0 {
+		t.Fatal("expected llm to be invoked")
+	}
+	if !strings.Contains(llm.calls[0].Prompt, gapContent) {
+		t.Fatalf("prompt missing gap content: %s", llm.calls[0].Prompt)
+	}
+	if !contains(tracker.calls[0].Labels, "gen:1") {
+		t.Fatalf("expected generation label 1, got %v", tracker.calls[0].Labels)
+	}
+}
+
 func contains(slice []string, value string) bool {
 	for _, item := range slice {
 		if item == value {
