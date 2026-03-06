@@ -205,6 +205,57 @@ func TestCreateOrCheckoutSpecBranch_AllowsDirtyWorktreeWhenAlreadyOnTargetBranch
 	}
 }
 
+func TestCreateOrCheckoutSpecBranch_RecoversDirtyDetachedHead(t *testing.T) {
+	fixture := helpers.NewDeterministicGitConflictFixture(t)
+	ops := NewGitOps(fixture.Dir, fixture.BaseBranch)
+
+	specBranchName := "gromit/spec-detached-recovery"
+
+	// Create spec branch with a tracked file, then switch back to base.
+	if err := ops.CreateOrCheckoutSpecBranch(context.Background(), specBranchName); err != nil {
+		t.Fatalf("CreateOrCheckoutSpecBranch() initial create error = %v", err)
+	}
+	trackedFile := filepath.Join(fixture.Dir, "spec-only.go")
+	if err := os.WriteFile(trackedFile, []byte("package main\n"), 0o644); err != nil {
+		t.Fatalf("failed to write spec file: %v", err)
+	}
+	runGit(t, fixture.Dir, "add", "spec-only.go")
+	runGit(t, fixture.Dir, "commit", "-m", "add spec-only file")
+
+	// Detach HEAD (simulates detachWorktreeHead releasing the branch).
+	runGit(t, fixture.Dir, "checkout", "--detach")
+
+	// Dirty the tracked file so ensureWorktreeClean would normally fail.
+	if err := os.WriteFile(trackedFile, []byte("package main\n// dirty\n"), 0o644); err != nil {
+		t.Fatalf("failed to dirty file: %v", err)
+	}
+
+	// CreateOrCheckoutSpecBranch should recover from detached HEAD, clean
+	// the worktree, and successfully checkout the spec branch.
+	if err := ops.CreateOrCheckoutSpecBranch(context.Background(), specBranchName); err != nil {
+		t.Fatalf("CreateOrCheckoutSpecBranch() with dirty detached HEAD error = %v, want nil", err)
+	}
+
+	// Verify we're on the spec branch.
+	branch, err := ops.currentBranch(context.Background())
+	if err != nil {
+		t.Fatalf("currentBranch() error = %v", err)
+	}
+	if branch != specBranchName {
+		t.Fatalf("expected branch %s, got %s", specBranchName, branch)
+	}
+}
+
+func runGit(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v failed: %v\n%s", args, err, out)
+	}
+}
+
 func TestCreateOrCheckoutSpecBranch_IgnoresOperationalQueueStateChanges(t *testing.T) {
 	fixture := helpers.NewDeterministicGitConflictFixture(t)
 	ops := NewGitOps(fixture.Dir, fixture.BaseBranch)

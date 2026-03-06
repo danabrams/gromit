@@ -196,6 +196,14 @@ func (g *GitOps) CreateOrCheckoutSpecBranch(ctx context.Context, specBranchName 
 		return nil
 	}
 
+	// When HEAD is detached (typically from a previous session worktree releasing
+	// a branch via detachWorktreeHead), recover by reverting uncommitted changes
+	// and removing untracked files before proceeding. This prevents stale dirty
+	// state from blocking subsequent spec branch checkouts.
+	if currentBranch == "HEAD" {
+		g.recoverFromDetachedHead(ctx)
+	}
+
 	if err := g.ensureWorktreeClean(ctx); err != nil {
 		return fmt.Errorf("spec branch %s blocked by dirty worktree precondition: %w", specBranchName, err)
 	}
@@ -580,6 +588,21 @@ func (g *GitOps) RevertAndReturnToBase(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// recoverFromDetachedHead cleans the worktree when HEAD is detached.
+// This state typically results from detachWorktreeHead releasing a branch
+// for a session worktree. Best-effort: errors are ignored since the
+// subsequent ensureWorktreeClean will catch any remaining issues.
+func (g *GitOps) recoverFromDetachedHead(ctx context.Context) {
+	// Revert tracked file modifications.
+	_, _ = runGitCommandWithOutput(ctx, g.repoDir, "checkout", "--", ".")
+	// Remove untracked files and directories.
+	_, _ = runGitCommandWithOutput(ctx, g.repoDir, "clean", "-fd")
+	// Try to re-attach HEAD to the base branch so subsequent operations
+	// start from a known state. This may fail if another worktree holds
+	// the base branch — that is acceptable.
+	_, _ = runGitCommandWithOutput(ctx, g.repoDir, "checkout", g.baseBranchOrDefault())
 }
 
 func (g *GitOps) baseBranchOrDefault() string {
