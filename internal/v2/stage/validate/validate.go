@@ -85,3 +85,20 @@ func (s *Stage) config(req *stagepkg.Request) (*config.Config, error) {
 	}
 	return cfg, nil
 }
+
+func (s *Stage) RetryConfig() stagepkg.RetryConfig {
+	if s == nil {
+		return stagepkg.RetryConfig{}
+	}
+	maxRetries := 0
+	if s.cfg != nil {
+		maxRetries = s.cfg.Validation.MaxValidationRetries
+		if maxRetries < 0 {
+			maxRetries = 0
+		}
+	}
+	return stagepkg.RetryConfig{
+		MaxRetries: maxRetries,
+		RetryWith:  []string{stagedesc.Describe("build", s.cfg)},
+	}
+}

@@ -14,6 +14,7 @@ import (
 	"github.com/danabrams/gromit/internal/v2/event"
 	"github.com/danabrams/gromit/internal/v2/generation"
 	"github.com/danabrams/gromit/internal/v2/stage"
+	stagedesc "github.com/danabrams/gromit/internal/v2/stage/names"
 	reviewstage "github.com/danabrams/gromit/internal/v2/stage/review"
 	stagevalidate "github.com/danabrams/gromit/internal/v2/stage/validate"
 )
@@ -267,13 +268,17 @@ func TestBeadLoopValidateRetriesBuildOnFailure(t *testing.T) {
 		t.Fatalf("stagevalidate.New: %v", err)
 	}
 
+	gateName := stagedesc.Describe("gate", cfg)
+	buildName := stagedesc.Describe("build", cfg)
+	reviewName := stagedesc.Describe("review", cfg)
+	epilogueName := stagedesc.Describe("epilogue", cfg)
 	order := []string{}
 	config := BeadLoopConfig{
-		Gate:     newRecordingStage("gate", &order),
-		Build:    newRecordingStage("build", &order),
+		Gate:     newRecordingStage(gateName, &order),
+		Build:    newRecordingStage(buildName, &order),
 		Validate: validateStage,
-		Review:   newRecordingStage("review", &order),
-		Epilogue: newRecordingStage("epilogue", &order),
+		Review:   newRecordingStage(reviewName, &order),
+		Epilogue: newRecordingStage(epilogueName, &order),
 	}
 	loop, err := NewBeadLoop(config)
 	if err != nil {
@@ -289,7 +294,13 @@ func TestBeadLoopValidateRetriesBuildOnFailure(t *testing.T) {
 		t.Fatalf("validation runner run count = %d, want 2", runner.runCount)
 	}
 
-	expected := []string{"gate:spec", "build:spec", "build:spec", "review:spec", "epilogue:spec"}
+	expected := []string{
+		gateName + ":spec",
+		buildName + ":spec",
+		buildName + ":spec",
+		reviewName + ":spec",
+		epilogueName + ":spec",
+	}
 	if !reflect.DeepEqual(order, expected) {
 		t.Fatalf("order = %v, want %v", order, expected)
 	}
