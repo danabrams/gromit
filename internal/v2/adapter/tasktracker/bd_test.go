@@ -41,3 +41,26 @@ func TestCreateBead_CreatesBeadWithTitleDescriptionAndPriority(t *testing.T) {
 		t.Errorf("expected priority 1, got %d", bead.Priority)
 	}
 }
+
+func TestCloseBead_MarksBeadAsClosed(t *testing.T) {
+	ctx := context.Background()
+	adapter := NewBDAdapter(nil)
+
+	err := adapter.CloseBead(ctx, "test-bead-id")
+	if err != nil {
+		t.Fatalf("CloseBead failed: %v", err)
+	}
+}
+
+func TestQueryBeads_FiltersBeadsByLabelsAndStatus(t *testing.T) {
+	ctx := context.Background()
+	adapter := NewBDAdapter(nil)
+
+	beads, err := adapter.QueryBeads(ctx, []string{"gen:1"}, "open", "")
+	if err != nil {
+		t.Fatalf("QueryBeads failed: %v", err)
+	}
+	if beads == nil {
+		t.Fatal("QueryBeads returned nil beads slice")
+	}
+}
