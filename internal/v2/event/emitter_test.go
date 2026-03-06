@@ -3,6 +3,7 @@ package event
 import (
 	"bytes"
 	"log"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -320,4 +321,29 @@ func TestEmitterCloseStopsSubscriberGoroutines(t *testing.T) {
 
 	emitter.Close()
 	close(done)
+}
+
+func TestEmitterCloseReleasesBlockingSubscriberGoroutines(t *testing.T) {
+	baseline := runtime.NumGoroutine()
+	emitter := NewEmitter()
+
+	emitter.Subscribe(func(TypedEvent) {
+		// subscriber never receives an event, so run() blocks waiting on notify
+	})
+
+	time.Sleep(10 * time.Millisecond)
+	emitter.Close()
+
+	waitForGoroutines(t, baseline)
+}
+
+func waitForGoroutines(t *testing.T, target int) {
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if runtime.NumGoroutine() <= target {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("expected goroutine count to drop to %d, but %d remain", target, runtime.NumGoroutine())
 }
