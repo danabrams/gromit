@@ -57,8 +57,8 @@ func (a *BDAdapter) CreateBead(ctx context.Context, req CreateBeadRequest) (*Cre
 	if err != nil {
 		return nil, err
 	}
-	labels := append([]string(nil), req.Labels...)
-	dependencies := append([]string(nil), req.Dependencies...)
+	labels := copyStrings(req.Labels)
+	dependencies := copyStrings(req.Dependencies)
 	beadItem, err := client.CreateWithDepsAndDescription(ctx, req.Title, req.Priority, labels, nil, dependencies, req.Description)
 	if err != nil {
 		return nil, err
@@ -129,7 +129,7 @@ func convertBead(b *bead.Bead) *Bead {
 		Description: b.Description,
 		Priority:    b.Priority,
 		Status:      b.Status,
-		Labels:      append([]string(nil), b.Labels...),
+		Labels:      copyStrings(b.Labels),
 		DependsOn:   dependencyIDs(b.DependsOn),
 		BlockedBy:   dependencyIDs(b.BlockedBy),
 		Dependents:  dependencyIDs(b.Dependencies),
@@ -170,4 +170,13 @@ func hasLabels(have, want []string) bool {
 		}
 	}
 	return true
+}
+
+func copyStrings(src []string) []string {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make([]string, len(src))
+	copy(dst, src)
+	return dst
 }
