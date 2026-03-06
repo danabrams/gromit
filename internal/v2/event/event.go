@@ -1,0 +1,135 @@
+package event
+
+import "time"
+
+// SchemaVersion describes the current event schema.
+const SchemaVersion = 1
+
+// Event captures the common metadata every typed event exposes.
+type Event struct {
+	SchemaVersion int       `json:"schema_version"`
+	Timestamp     time.Time `json:"timestamp"`
+	Type          string    `json:"type"`
+}
+
+// SpecStartedEvent marks the beginning of a spec execution.
+type SpecStartedEvent struct {
+	Event
+	SpecID   string `json:"spec_id,omitempty"`
+	Worktree string `json:"worktree,omitempty"`
+}
+
+// SpecCompletedEvent marks the end of a spec execution.
+type SpecCompletedEvent struct {
+	Event
+	SpecID        string `json:"spec_id,omitempty"`
+	Worktree      string `json:"worktree,omitempty"`
+	Success       bool   `json:"success"`
+	FailureReason string `json:"failure_reason,omitempty"`
+}
+
+// SpecFailedEvent reports a spec execution that could not be remediated.
+type SpecFailedEvent struct {
+	Event
+	SpecID        string `json:"spec_id,omitempty"`
+	Worktree      string `json:"worktree,omitempty"`
+	FailureReason string `json:"failure_reason,omitempty"`
+}
+
+// BeadStartedEvent records when a bead execution begins.
+type BeadStartedEvent struct {
+	Event
+	BeadID    string `json:"bead_id,omitempty"`
+	BeadTitle string `json:"bead_title,omitempty"`
+	Iteration int    `json:"iteration,omitempty"`
+}
+
+// BeadCompletedEvent captures the outcome of a bead.
+type BeadCompletedEvent struct {
+	Event
+	BeadID       string `json:"bead_id,omitempty"`
+	BeadTitle    string `json:"bead_title,omitempty"`
+	Iteration    int    `json:"iteration,omitempty"`
+	Success      bool   `json:"success"`
+	RetryAttempt int    `json:"retry_attempt,omitempty"`
+}
+
+// StageStartedEvent marks the start of a stage execution.
+type StageStartedEvent struct {
+	Event
+	StageName string `json:"stage_name,omitempty"`
+	BeadID    string `json:"bead_id,omitempty"`
+	Iteration int    `json:"iteration,omitempty"`
+}
+
+// StageCompletedEvent reports the completion of a stage.
+type StageCompletedEvent struct {
+	Event
+	StageName string        `json:"stage_name,omitempty"`
+	BeadID    string        `json:"bead_id,omitempty"`
+	Iteration int           `json:"iteration,omitempty"`
+	Success   bool          `json:"success"`
+	Duration  time.Duration `json:"duration,omitempty"`
+}
+
+// StageFailedEvent reports a stage failure.
+type StageFailedEvent struct {
+	Event
+	StageName string `json:"stage_name,omitempty"`
+	BeadID    string `json:"bead_id,omitempty"`
+	Iteration int    `json:"iteration,omitempty"`
+	Error     string `json:"error,omitempty"`
+}
+
+// StageRetryingEvent records when a stage is retried.
+type StageRetryingEvent struct {
+	Event
+	StageName string `json:"stage_name,omitempty"`
+	BeadID    string `json:"bead_id,omitempty"`
+	Attempt   int    `json:"attempt,omitempty"`
+	Reason    string `json:"reason,omitempty"`
+}
+
+// ValidationEvent summarizes a validation execution.
+type ValidationEvent struct {
+	Event
+	BeadID        string        `json:"bead_id,omitempty"`
+	StageName     string        `json:"stage_name,omitempty"`
+	Commands      []string      `json:"commands,omitempty"`
+	FailedCommand string        `json:"failed_command,omitempty"`
+	Succeeded     bool          `json:"succeeded"`
+	Duration      time.Duration `json:"duration,omitempty"`
+	Details       string        `json:"details,omitempty"`
+}
+
+// ReviewEvent records the outcome of a review invocation.
+type ReviewEvent struct {
+	Event
+	BeadID     string   `json:"bead_id,omitempty"`
+	Verdict    string   `json:"verdict,omitempty"`
+	Issues     []string `json:"issues,omitempty"`
+	OutOfScope []string `json:"out_of_scope,omitempty"`
+	Notes      string   `json:"notes,omitempty"`
+}
+
+// ScopeEvent captures the result of a scope check.
+type ScopeEvent struct {
+	Event
+	BeadID     string `json:"bead_id,omitempty"`
+	Complexity string `json:"complexity,omitempty"`
+	Approved   bool   `json:"approved"`
+	Reason     string `json:"reason,omitempty"`
+}
+
+// TelemetryEvent holds aggregated telemetry for a stage execution.
+type TelemetryEvent struct {
+	Event
+	BeadID       string        `json:"bead_id,omitempty"`
+	StageName    string        `json:"stage_name,omitempty"`
+	Model        string        `json:"model,omitempty"`
+	Duration     time.Duration `json:"duration,omitempty"`
+	InputTokens  int           `json:"input_tokens,omitempty"`
+	OutputTokens int           `json:"output_tokens,omitempty"`
+	CostUSD      float64       `json:"cost_usd,omitempty"`
+	Category     string        `json:"category,omitempty"`
+}
