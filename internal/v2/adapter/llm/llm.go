@@ -10,6 +10,7 @@ import (
 type InvokeRequest struct {
 	Prompt string
 	Model  string
+	Metadata map[string]string
 }
 
 // StreamInvokeRequest carries the prompt, model, and output writer for streaming invocations.
@@ -17,6 +18,7 @@ type StreamInvokeRequest struct {
 	Prompt string
 	Model  string
 	Output io.Writer
+	Metadata map[string]string
 }
 
 // LLMResponse summarizes the result of a Claude invocation.
@@ -26,6 +28,7 @@ type LLMResponse struct {
 	Tokens   int
 	CostUSD  float64
 	Duration time.Duration
+	Metadata map[string]string
 }
 
 // LLMProvider executes Claude invocations.
