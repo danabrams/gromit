@@ -56,3 +56,51 @@ func TestNext_DetectsCycles(t *testing.T) {
 		t.Errorf("error message should not be empty")
 	}
 }
+
+func TestNext_DeterministicOrderingWhenMultipleBeadsEligible(t *testing.T) {
+	r := NewResolver()
+	// Add beads in random order
+	r.Add("zebra", nil)
+	r.Add("apple", nil)
+	r.Add("middle", nil)
+
+	// All three have no dependencies, should return in sorted order
+	results := []string{}
+	for len(results) < 3 {
+		next, err := r.Next(results)
+		if err != nil {
+			t.Fatalf("Next() failed: %v", err)
+		}
+		if next == "" {
+			t.Fatalf("expected bead, got empty string")
+		}
+		results = append(results, next)
+	}
+
+	// Run multiple times to ensure consistency
+	for trial := 0; trial < 3; trial++ {
+		r2 := NewResolver()
+		r2.Add("zebra", nil)
+		r2.Add("apple", nil)
+		r2.Add("middle", nil)
+
+		results2 := []string{}
+		for len(results2) < 3 {
+			next, err := r2.Next(results2)
+			if err != nil {
+				t.Fatalf("Trial %d: Next() failed: %v", trial, err)
+			}
+			results2 = append(results2, next)
+		}
+
+		// Should match first run
+		if len(results) != len(results2) {
+			t.Fatalf("Trial %d: length mismatch", trial)
+		}
+		for i, expected := range results {
+			if results2[i] != expected {
+				t.Errorf("Trial %d: expected %s at position %d, got %s", trial, expected, i, results2[i])
+			}
+		}
+	}
+}

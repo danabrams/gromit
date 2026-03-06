@@ -1,6 +1,9 @@
 package dep
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 // Resolver tracks dependencies between beads and determines execution order.
 type Resolver struct {
@@ -24,6 +27,7 @@ func (r *Resolver) Add(beadID string, dependsOn []string) {
 
 // Next returns the next bead that can be executed given the completed beads.
 // Returns error if there are no eligible beads (deadlock/cycle detected).
+// When multiple beads are eligible, returns the lexicographically smallest.
 func (r *Resolver) Next(completed []string) (string, error) {
 	// First, detect cycles in the unresolved beads
 	if err := r.detectCycles(completed); err != nil {
@@ -35,7 +39,8 @@ func (r *Resolver) Next(completed []string) (string, error) {
 		completedSet[c] = true
 	}
 
-	// Find first bead whose dependencies are all completed
+	// Collect all eligible beads
+	eligible := []string{}
 	for beadID, deps := range r.beads {
 		if completedSet[beadID] {
 			continue // Skip already completed beads
@@ -50,11 +55,17 @@ func (r *Resolver) Next(completed []string) (string, error) {
 		}
 
 		if allDepsCompleted {
-			return beadID, nil
+			eligible = append(eligible, beadID)
 		}
 	}
 
-	return "", nil
+	if len(eligible) == 0 {
+		return "", nil
+	}
+
+	// Sort eligible beads for deterministic selection
+	sort.Strings(eligible)
+	return eligible[0], nil
 }
 
 // detectCycles checks if there are any cycles in the unresolved beads.
