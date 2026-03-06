@@ -23,6 +23,7 @@ const (
 	defaultGromitDir            = ".gromit"
 	v2DirName                   = "v2"
 	planFileName                = "plan.md"
+	gapFileName                 = "gap-analysis.md"
 	specLabelFormat             = "spec:%s"
 	complexityHighLabel         = "complexity:high"
 	estimatedFilesLabelFormat   = "estimated-files:%d"
@@ -163,7 +164,11 @@ func (s *Stage) planPath(req *stagepkg.Request) (string, error) {
 	if gromitDir == "" {
 		gromitDir = defaultGromitDir
 	}
-	return filepath.Join(root, gromitDir, v2DirName, planFileName), nil
+	fileName := planFileName
+	if req.Remediation {
+		fileName = gapFileName
+	}
+	return filepath.Join(root, gromitDir, v2DirName, fileName), nil
 }
 
 func (s *Stage) modelForPhase() string {
